@@ -40,7 +40,7 @@ import { IQuickOpenService, IFilePickOpenEntry } from 'vs/platform/quickOpen/com
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { Position, IResourceInput, IEditorInput } from 'vs/platform/editor/common/editor';
-import { IInstantiationService, IConstructorSignature2 } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, IConstructorSignature2, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, IMessageWithAction, IConfirmation, Severity, CancelAction } from 'vs/platform/message/common/message';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { Keybinding, KeyMod, KeyCode } from 'vs/base/common/keyCodes';
@@ -49,7 +49,7 @@ import { IEditorViewState } from 'vs/editor/common/editorCommon';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
-import { revealInOSCommand, revealInExplorerCommand, copyPathCommand } from 'vs/workbench/parts/files/browser/fileCommands';
+import { withFocussedFilesExplorerViewItem, revealInOSCommand, revealInExplorerCommand, copyPathCommand } from 'vs/workbench/parts/files/browser/fileCommands';
 
 export interface IEditableData {
 	action: IAction;
@@ -923,7 +923,7 @@ export class CopyFileAction extends BaseFileAction {
 // Paste File/Folder
 export class PasteFileAction extends BaseFileAction {
 
-	public static ID = 'workbench.files.action.pasteFile';
+	public static ID = 'filesExplorer.paste';
 
 	private tree: ITree;
 
@@ -983,6 +983,19 @@ export class PasteFileAction extends BaseFileAction {
 		});
 	}
 }
+
+export const pasteIntoFocusedFilesExplorerViewItem = (accessor: ServicesAccessor) => {
+	const instantiationService = accessor.get(IInstantiationService);
+
+	withFocussedFilesExplorerViewItem(accessor).then(res => {
+		if (res.item) {
+			const pasteAction = instantiationService.createInstance(PasteFileAction, res.tree, res.item);
+			if (pasteAction._isEnabled()) {
+				pasteAction.run().done(null, errors.onUnexpectedError);
+			}
+		}
+	});
+};
 
 // Duplicate File/Folder
 export class DuplicateFileAction extends BaseFileAction {

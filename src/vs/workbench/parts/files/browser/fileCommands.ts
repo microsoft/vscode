@@ -77,8 +77,8 @@ export const revealInExplorerCommand = (accessor: ServicesAccessor, resource: UR
 	});
 };
 
-function openFocussedExplorerViewItem(accessor: ServicesAccessor, sideBySide: boolean): void {
-	withFocussedExplorerViewItem(accessor).then(res => {
+function openFocusedFilesExplorerViewItem(accessor: ServicesAccessor, sideBySide: boolean): void {
+	withFocussedFilesExplorerViewItem(accessor).then(res => {
 		if (res) {
 
 			// Directory: Toggle expansion
@@ -105,8 +105,8 @@ function openFocussedOpenedEditorsViewItem(accessor: ServicesAccessor, sideBySid
 	});
 }
 
-function runActionOnFocussedExplorerViewItem(accessor: ServicesAccessor, id: string, context?: any): void {
-	withFocussedExplorerViewItem(accessor).then(res => {
+function runActionOnFocusedFilesExplorerViewItem(accessor: ServicesAccessor, id: string, context?: any): void {
+	withFocussedFilesExplorerViewItem(accessor).then(res => {
 		if (res) {
 			res.explorer.getViewletState().actionProvider.runAction(res.tree, res.item, id, context).done(null, errors.onUnexpectedError);
 		}
@@ -124,7 +124,7 @@ function withVisibleExplorer(accessor: ServicesAccessor): TPromise<ExplorerViewl
 	return viewletService.openViewlet(VIEWLET_ID, false);
 };
 
-function withFocussedExplorerViewItem(accessor: ServicesAccessor): TPromise<{ explorer: ExplorerViewlet, tree: ITree, item: FileStat }> {
+export function withFocussedFilesExplorerViewItem(accessor: ServicesAccessor): TPromise<{ explorer: ExplorerViewlet, tree: ITree, item: FileStat }> {
 	return withVisibleExplorer(accessor).then(explorer => {
 		if (!explorer || !explorer.getExplorerView()) {
 			return void 0; // empty folder or hidden explorer
@@ -159,8 +159,8 @@ function withFocussedOpenEditorsViewItem(accessor: ServicesAccessor): TPromise<{
 	});
 };
 
-function withFocussedExplorerItem(accessor: ServicesAccessor): TPromise<FileStat | OpenEditor> {
-	return withFocussedExplorerViewItem(accessor).then(res => {
+function withFocusedExplorerItem(accessor: ServicesAccessor): TPromise<FileStat | OpenEditor> {
+	return withFocussedFilesExplorerViewItem(accessor).then(res => {
 		if (res) {
 			return res.item;
 		}
@@ -175,27 +175,27 @@ function withFocussedExplorerItem(accessor: ServicesAccessor): TPromise<FileStat
 	}) as TPromise<FileStat | OpenEditor>; // TypeScript fail
 };
 
-export const openFocussedExplorerViewItemCommand = (accessor: ServicesAccessor) => openFocussedExplorerViewItem(accessor, false);
-export const openFocussedOpenedEditorsViewItemCommand = (accessor: ServicesAccessor) => openFocussedOpenedEditorsViewItem(accessor, false);
+export const openFocussedFilesExplorerViewItemCommand = (accessor: ServicesAccessor) => openFocusedFilesExplorerViewItem(accessor, false);
+export const openFocusedOpenedEditorsViewItemCommand = (accessor: ServicesAccessor) => openFocussedOpenedEditorsViewItem(accessor, false);
 
-export const renameFocussedExplorerViewItemCommand = (accessor: ServicesAccessor) => {
-	runActionOnFocussedExplorerViewItem(accessor, 'filesExplorer.rename');
+export const renameFocusedFilesExplorerViewItemCommand = (accessor: ServicesAccessor) => {
+	runActionOnFocusedFilesExplorerViewItem(accessor, 'filesExplorer.rename');
 };
 
-export const deleteFocussedExplorerViewItemCommand = (accessor: ServicesAccessor) => {
-	runActionOnFocussedExplorerViewItem(accessor, 'filesExplorer.moveFileToTrash', { useTrash: false });
+export const deleteFocusedFilesExplorerViewItemCommand = (accessor: ServicesAccessor) => {
+	runActionOnFocusedFilesExplorerViewItem(accessor, 'filesExplorer.moveFileToTrash', { useTrash: false });
 };
 
-export const moveFocussedExplorerViewItemToTrashCommand = (accessor: ServicesAccessor) => {
-	runActionOnFocussedExplorerViewItem(accessor, 'filesExplorer.moveFileToTrash', { useTrash: true });
+export const moveFocusedFilesExplorerViewItemToTrashCommand = (accessor: ServicesAccessor) => {
+	runActionOnFocusedFilesExplorerViewItem(accessor, 'filesExplorer.moveFileToTrash', { useTrash: true });
 };
 
-export const copyFocussedExplorerViewItem = (accessor: ServicesAccessor) => {
-	runActionOnFocussedExplorerViewItem(accessor, 'filesExplorer.copy');
+export const copyFocusedFilesExplorerViewItem = (accessor: ServicesAccessor) => {
+	runActionOnFocusedFilesExplorerViewItem(accessor, 'filesExplorer.copy');
 };
 
-export const copyPathOfFocussedExplorerItem = (accessor: ServicesAccessor) => {
-	withFocussedExplorerItem(accessor).then(item => {
+export const copyPathOfFocusedExplorerItem = (accessor: ServicesAccessor) => {
+	withFocusedExplorerItem(accessor).then(item => {
 		const file = explorerItemToFileResource(item);
 		if (file) {
 			copyPathCommand(accessor, file.resource);
@@ -203,18 +203,18 @@ export const copyPathOfFocussedExplorerItem = (accessor: ServicesAccessor) => {
 	});
 };
 
-export const openFocussedExplorerItemSideBySideCommand = (accessor: ServicesAccessor) => {
-	withFocussedExplorerItem(accessor).then(item => {
+export const openFocusedExplorerItemSideBySideCommand = (accessor: ServicesAccessor) => {
+	withFocusedExplorerItem(accessor).then(item => {
 		if (item instanceof FileStat) {
-			openFocussedExplorerViewItem(accessor, true);
+			openFocusedFilesExplorerViewItem(accessor, true);
 		} else {
 			openFocussedOpenedEditorsViewItem(accessor, true);
 		}
 	});
 };
 
-export const revealInOSFocussedExplorerItem = (accessor: ServicesAccessor) => {
-	withFocussedExplorerItem(accessor).then(item => {
+export const revealInOSFocusedFilesExplorerItem = (accessor: ServicesAccessor) => {
+	withFocusedExplorerItem(accessor).then(item => {
 		const file = explorerItemToFileResource(item);
 		if (file) {
 			revealInOSCommand(accessor, file.resource);

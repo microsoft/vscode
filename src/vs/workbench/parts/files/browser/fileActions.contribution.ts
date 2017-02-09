@@ -11,7 +11,7 @@ import { isMacintosh } from 'vs/base/common/platform';
 import { ActionItem, BaseActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Scope, IActionBarRegistry, Extensions as ActionBarExtensions, ActionBarContributor } from 'vs/workbench/browser/actionBarRegistry';
 import { IEditorInputActionContext, IEditorInputAction, EditorInputActionContributor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { GlobalNewUntitledFileAction, SaveFileAsAction, OpenFileAction, ShowOpenedFileInNewWindow, CopyPathAction, GlobalCopyPathAction, RevealInOSAction, GlobalRevealInOSAction, FocusOpenEditorsView, FocusFilesExplorer, GlobalCompareResourcesAction, GlobalNewFileAction, GlobalNewFolderAction, RevertFileAction, SaveFilesAction, SaveAllAction, SaveFileAction, keybindingForAction, MoveFileToTrashAction, TriggerRenameFileAction, PasteFileAction, CopyFileAction, SelectResourceForCompareAction, CompareResourcesAction, NewFolderAction, NewFileAction, OpenToSideAction, ShowActiveFileInExplorer, CollapseExplorerView, RefreshExplorerView } from 'vs/workbench/parts/files/browser/fileActions';
+import { GlobalNewUntitledFileAction, SaveFileAsAction, OpenFileAction, ShowOpenedFileInNewWindow, CopyPathAction, GlobalCopyPathAction, RevealInOSAction, GlobalRevealInOSAction, pasteIntoFocusedFilesExplorerViewItem, FocusOpenEditorsView, FocusFilesExplorer, GlobalCompareResourcesAction, GlobalNewFileAction, GlobalNewFolderAction, RevertFileAction, SaveFilesAction, SaveAllAction, SaveFileAction, keybindingForAction, MoveFileToTrashAction, TriggerRenameFileAction, PasteFileAction, CopyFileAction, SelectResourceForCompareAction, CompareResourcesAction, NewFolderAction, NewFileAction, OpenToSideAction, ShowActiveFileInExplorer, CollapseExplorerView, RefreshExplorerView } from 'vs/workbench/parts/files/browser/fileActions';
 import { RevertLocalChangesAction, AcceptLocalChangesAction, CONFLICT_RESOLUTION_SCHEME } from 'vs/workbench/parts/files/browser/saveErrorHandler';
 import { SyncActionDescriptor, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
@@ -23,7 +23,7 @@ import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { OpenFolderAction, OpenFileFolderAction } from 'vs/workbench/browser/actions/fileActions';
-import { copyFocussedExplorerViewItem, revealInOSFocussedExplorerItem, openFocussedOpenedEditorsViewItemCommand, openFocussedExplorerItemSideBySideCommand, copyPathOfFocussedExplorerItem, copyPathCommand, revealInExplorerCommand, revealInOSCommand, openFolderPickerCommand, openWindowCommand, openFileInNewWindowCommand, openFocussedExplorerViewItemCommand, deleteFocussedExplorerViewItemCommand, moveFocussedExplorerViewItemToTrashCommand, renameFocussedExplorerViewItemCommand } from 'vs/workbench/parts/files/browser/fileCommands';
+import { copyFocusedFilesExplorerViewItem, revealInOSFocusedFilesExplorerItem, openFocusedOpenedEditorsViewItemCommand, openFocusedExplorerItemSideBySideCommand, copyPathOfFocusedExplorerItem, copyPathCommand, revealInExplorerCommand, revealInOSCommand, openFolderPickerCommand, openWindowCommand, openFileInNewWindowCommand, openFocussedFilesExplorerViewItemCommand, deleteFocusedFilesExplorerViewItemCommand, moveFocusedFilesExplorerViewItemToTrashCommand, renameFocusedFilesExplorerViewItemCommand } from 'vs/workbench/parts/files/browser/fileCommands';
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -246,7 +246,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(explorerCommandsWeightBonus),
 	when: OpenedEditorsFocusCondition,
 	primary: KeyCode.Enter,
-	handler: openFocussedOpenedEditorsViewItemCommand
+	handler: openFocusedOpenedEditorsViewItemCommand
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -257,7 +257,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	mac: {
 		primary: KeyMod.CtrlCmd | KeyCode.DownArrow
 	},
-	handler: openFocussedExplorerViewItemCommand
+	handler: openFocussedFilesExplorerViewItemCommand
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -268,7 +268,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	mac: {
 		primary: KeyMod.WinCtrl | KeyCode.Enter
 	},
-	handler: openFocussedExplorerItemSideBySideCommand
+	handler: openFocusedExplorerItemSideBySideCommand
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -279,7 +279,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	mac: {
 		primary: KeyCode.Enter
 	},
-	handler: renameFocussedExplorerViewItemCommand
+	handler: renameFocusedFilesExplorerViewItemCommand
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -290,7 +290,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	mac: {
 		primary: KeyMod.CtrlCmd | KeyCode.Backspace
 	},
-	handler: moveFocussedExplorerViewItemToTrashCommand
+	handler: moveFocusedFilesExplorerViewItemToTrashCommand
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -301,7 +301,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	mac: {
 		primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Backspace
 	},
-	handler: deleteFocussedExplorerViewItemCommand
+	handler: deleteFocusedFilesExplorerViewItemCommand
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -309,7 +309,15 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(explorerCommandsWeightBonus),
 	when: FilesExplorerFocusCondition,
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_C,
-	handler: copyFocussedExplorerViewItem
+	handler: copyFocusedFilesExplorerViewItem
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'filesExplorer.paste',
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(explorerCommandsWeightBonus),
+	when: FilesExplorerFocusCondition,
+	primary: KeyMod.CtrlCmd | KeyCode.KEY_V,
+	handler: pasteIntoFocusedFilesExplorerViewItem
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -320,7 +328,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	win: {
 		primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_C
 	},
-	handler: copyPathOfFocussedExplorerItem
+	handler: copyPathOfFocusedExplorerItem
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -331,7 +339,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	win: {
 		primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_R
 	},
-	handler: revealInOSFocussedExplorerItem
+	handler: revealInOSFocusedFilesExplorerItem
 });
 
 // Editor Title Context Menu
