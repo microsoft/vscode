@@ -23,7 +23,7 @@ import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { OpenFolderAction, OpenFileFolderAction } from 'vs/workbench/browser/actions/fileActions';
-import { revealInOSFocussedExplorerItem, openFocussedOpenedEditorsViewItemCommand, openFocussedExplorerItemSideBySideCommand, copyPathOfFocussedExplorerItem, copyPathCommand, revealInExplorerCommand, revealInOSCommand, openFolderPickerCommand, openWindowCommand, openFileInNewWindowCommand, openFocussedExplorerViewItemCommand, deleteFocussedExplorerViewItemCommand, moveFocussedExplorerViewItemToTrashCommand, renameFocussedExplorerViewItemCommand } from 'vs/workbench/parts/files/browser/fileCommands';
+import { copyFocussedExplorerViewItem, revealInOSFocussedExplorerItem, openFocussedOpenedEditorsViewItemCommand, openFocussedExplorerItemSideBySideCommand, copyPathOfFocussedExplorerItem, copyPathCommand, revealInExplorerCommand, revealInOSCommand, openFolderPickerCommand, openWindowCommand, openFileInNewWindowCommand, openFocussedExplorerViewItemCommand, deleteFocussedExplorerViewItemCommand, moveFocussedExplorerViewItemToTrashCommand, renameFocussedExplorerViewItemCommand } from 'vs/workbench/parts/files/browser/fileCommands';
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -302,6 +302,14 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Backspace
 	},
 	handler: deleteFocussedExplorerViewItemCommand
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'filesExplorer.copy',
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(explorerCommandsWeightBonus),
+	when: FilesExplorerFocusCondition,
+	primary: KeyMod.CtrlCmd | KeyCode.KEY_C,
+	handler: copyFocussedExplorerViewItem
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({

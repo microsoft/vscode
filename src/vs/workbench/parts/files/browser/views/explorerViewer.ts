@@ -390,8 +390,7 @@ export class FileController extends DefaultController {
 
 		this.contributedContextMenu = menuService.createMenu(MenuId.ExplorerContext, contextKeyService);
 
-		// Copy / Paste
-		this.downKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.KEY_C, (t, e) => this.onCopy(t, e));
+		// Paste
 		this.downKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.KEY_V, (t, e) => this.onPaste(t, e));
 
 		this.state = state;
@@ -503,17 +502,6 @@ export class FileController extends DefaultController {
 		return true;
 	}
 
-	private onCopy(tree: ITree, event: IKeyboardEvent): boolean {
-		const stat: FileStat = tree.getFocus();
-		if (stat) {
-			this.runAction(tree, stat, 'workbench.files.action.copyFile').done();
-
-			return true;
-		}
-
-		return false;
-	}
-
 	private onPaste(tree: ITree, event: IKeyboardEvent): boolean {
 		const stat: FileStat = tree.getFocus() || tree.getInput() /* root */;
 		if (stat) {
@@ -534,10 +522,6 @@ export class FileController extends DefaultController {
 
 			this.editorService.openEditor({ resource: stat.resource, options: { preserveFocus, pinned } }, sideBySide).done(null, errors.onUnexpectedError);
 		}
-	}
-
-	private runAction(tree: ITree, stat: FileStat, id: string, event?: IKeyboardEvent): TPromise<any> {
-		return this.state.actionProvider.runAction(tree, stat, id, { event });
 	}
 }
 
