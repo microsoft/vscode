@@ -72,7 +72,6 @@ export interface IKeybindingService {
 	onDidUpdateKeybindings: Event<IKeybindingEvent>;
 
 	getLabelFor(keybinding: Keybinding): string;
-	getAriaLabelFor(keybinding: Keybinding): string;
 	getHTMLLabelFor(keybinding: Keybinding): IHTMLContentElement[];
 	getElectronAcceleratorFor(keybinding: Keybinding): string;
 
