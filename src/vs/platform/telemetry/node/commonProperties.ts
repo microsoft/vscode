@@ -7,6 +7,7 @@ import * as Platform from 'vs/base/common/platform';
 import * as os from 'os';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as uuid from 'vs/base/common/uuid';
+import { getMachineId } from 'vs/base/node/id';
 
 export function resolveCommonProperties(commit: string, version: string): TPromise<{ [name: string]: string; }> {
 	const result: { [name: string]: string; } = Object.create(null);
@@ -16,6 +17,7 @@ export function resolveCommonProperties(commit: string, version: string): TPromi
 	result['version'] = version;
 	result['common.osVersion'] = os.release();
 	result['common.platform'] = Platform.Platform[Platform.platform];
+	const promise = getMachineId().then(value => result['common.machineId'] = value);
 
 	// dynamic properties which value differs on each call
 	let seq = 0;
@@ -35,5 +37,5 @@ export function resolveCommonProperties(commit: string, version: string): TPromi
 		}
 	});
 
-	return TPromise.as(result);
+	return promise.then(() => result);
 }

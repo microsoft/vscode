@@ -97,8 +97,9 @@ export function _futureMachineIdExperiment(): string {
 	return mac.value;
 }
 
+let machineId: TPromise<string>;
 export function getMachineId(): TPromise<string> {
-	return new TPromise<string>(resolve => {
+	return machineId || (machineId = new TPromise<string>(resolve => {
 		try {
 			getmac.getMac((error, macAddress) => {
 				if (!error) {
@@ -111,5 +112,5 @@ export function getMachineId(): TPromise<string> {
 			errors.onUnexpectedError(err);
 			resolve(uuid.generateUuid()); // fallback, generate a UUID
 		}
-	});
+	}));
 }
