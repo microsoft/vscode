@@ -33,12 +33,20 @@
       {
         "command": "git.openChange",
         "title": "%command.openChange%",
-        "category": "Git"
+        "category": "Git",
+        "icon": {
+          "light": "resources/icons/light/open-change.svg",
+          "dark": "resources/icons/dark/open-change.svg"
+        }
       },
       {
         "command": "git.openFile",
         "title": "%command.openFile%",
-        "category": "Git"
+        "category": "Git",
+        "icon": {
+          "light": "resources/icons/light/open-file.svg",
+          "dark": "resources/icons/dark/open-file.svg"
+        }
       },
       {
         "command": "git.stage",
@@ -367,6 +375,18 @@
           "command": "git.stage",
           "when": "scmProvider == git && scmResourceGroup == workingTree",
           "group": "inline"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "git.openFile",
+          "group": "navigation",
+          "when": "isInDiffEditor"
+        },
+        {
+          "command": "git.openChange",
+          "group": "navigation",
+          "when": "!isInDiffEditor"
         }
       ]
     },

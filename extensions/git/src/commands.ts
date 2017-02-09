@@ -108,17 +108,6 @@ export class CommandCenter {
 		await this.model.status();
 	}
 
-	@command('git.openChange')
-	async openChange(uri: Uri): Promise<void> {
-		const resource = resolveGitResource(uri);
-
-		if (!resource) {
-			return;
-		}
-
-		return this.open(resource);
-	}
-
 	async open(resource: Resource): Promise<void> {
 		const left = this.getLeftResource(resource);
 		const right = this.getRightResource(resource);
@@ -131,10 +120,10 @@ export class CommandCenter {
 				return;
 			}
 
-			return commands.executeCommand<void>('vscode.open', right);
+			return await commands.executeCommand<void>('vscode.open', right);
 		}
 
-		return commands.executeCommand<void>('vscode.diff', left, right, title);
+		return await commands.executeCommand<void>('vscode.diff', left, right, title);
 	}
 
 	private getLeftResource(resource: Resource): Uri | undefined {
@@ -192,13 +181,32 @@ export class CommandCenter {
 
 	@command('git.openFile')
 	async openFile(uri: Uri): Promise<void> {
-		const resource = resolveGitResource(uri);
+		const scmResource = resolveGitResource(uri);
 
-		if (!resource) {
-			return;
+		if (scmResource) {
+			return await commands.executeCommand<void>('vscode.open', scmResource.uri);
 		}
 
-		return commands.executeCommand<void>('vscode.open', resource.uri);
+		return await commands.executeCommand<void>('vscode.open', uri.with({ scheme: 'file' }));
+	}
+
+	@command('git.openChange')
+	async openChange(uri: Uri): Promise<void> {
+		const scmResource = resolveGitResource(uri);
+
+		if (scmResource) {
+			return await this.open(scmResource);
+		}
+
+		if (uri.scheme === 'file') {
+			const uriString = uri.toString();
+			const resource = this.model.workingTreeGroup.resources.filter(r => r.uri.toString() === uriString)[0]
+				|| this.model.indexGroup.resources.filter(r => r.uri.toString() === uriString)[0];
+
+			if (resource) {
+				return await this.open(resource);
+			}
+		}
 	}
 
 	@command('git.stage')

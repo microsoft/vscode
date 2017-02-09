@@ -29,6 +29,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { InlineDecoration } from 'vs/editor/common/viewModel/viewModel';
 import { IAddedAction } from 'vs/editor/common/commonCodeEditor';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 
 interface IEditorDiffDecorations {
 	decorations: editorCommon.IModelDeltaDecoration[];
@@ -213,7 +214,8 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 	) {
 		super();
 		this._editorWorkerService = editorWorkerService;
-		this._contextKeyService = contextKeyService;
+		this._contextKeyService = contextKeyService.createScoped(domElement);
+		this._contextKeyService.createKey('isInDiffEditor', true);
 
 		this.id = (++DIFF_EDITOR_ID);
 
@@ -289,8 +291,13 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 
 		this._lineChanges = null;
 
-		this._createLeftHandSideEditor(options, instantiationService);
-		this._createRightHandSideEditor(options, instantiationService);
+		const services = new ServiceCollection();
+		services.set(IContextKeyService, this._contextKeyService);
+
+		const scopedInstantiationService = instantiationService.createChild(services);
+
+		this._createLeftHandSideEditor(options, scopedInstantiationService);
+		this._createRightHandSideEditor(options, scopedInstantiationService);
 
 		if (options.automaticLayout) {
 			this._measureDomElementToken = window.setInterval(() => this._measureDomElement(false), 100);
