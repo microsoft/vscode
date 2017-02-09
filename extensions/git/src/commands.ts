@@ -74,59 +74,19 @@ class CheckoutRemoteHeadItem extends CheckoutItem {
 	}
 }
 
-export class CommandCenter {
+const Commands: { commandId: string; method: Function; }[] = [];
 
-	private static readonly Commands: { commandId: string; method: any; }[] = [];
-	private static Command(commandId: string): Function {
-		return (target: any, key: string, descriptor: any) => {
-			if (!(typeof descriptor.value === 'function')) {
-				throw new Error('not supported');
-			}
-
-			CommandCenter.Commands.push({ commandId, method: descriptor.value });
-		};
-	}
-
-	private static CatchErrors(target: any, key: string, descriptor: any): void {
+function command(commandId: string): Function {
+	return (target: any, key: string, descriptor: any) => {
 		if (!(typeof descriptor.value === 'function')) {
 			throw new Error('not supported');
 		}
 
-		const fn = descriptor.value;
+		Commands.push({ commandId, method: descriptor.value });
+	};
+}
 
-		descriptor.value = function (...args: any[]) {
-			fn.apply(this, args).catch(async err => {
-				let message: string;
-
-				switch (err.gitErrorCode) {
-					case 'DirtyWorkTree':
-						message = localize('clean repo', "Please clean your repository working tree before checkout.");
-						break;
-					default:
-						const lines = (err.stderr || err.message || String(err))
-							.replace(/^error: /, '')
-							.split(/[\r\n]/)
-							.filter(line => !!line);
-
-						message = lines[0] || 'Git error';
-						break;
-				}
-
-				if (!message) {
-					console.error(err);
-					return;
-				}
-
-				const outputChannel = this.outputChannel as OutputChannel;
-				const openOutputChannelChoice = localize('open git log', "Open Git Log");
-				const choice = await window.showErrorMessage(message, openOutputChannelChoice);
-
-				if (choice === openOutputChannelChoice) {
-					outputChannel.show();
-				}
-			});
-		};
-	}
+export class CommandCenter {
 
 	private model: Model;
 	private disposables: Disposable[];
@@ -139,25 +99,16 @@ export class CommandCenter {
 			this.model = model;
 		}
 
-		this.disposables = CommandCenter.Commands
-			.map(({ commandId, method }) => commands.registerCommand(commandId, (...args) => {
-				if (!model) {
-					window.showInformationMessage(localize('disabled', "Git is either disabled or not supported in this workspace"));
-					return;
-				}
-
-				return method.apply(this, args);
-			}));
+		this.disposables = Commands
+			.map(({ commandId, method }) => commands.registerCommand(commandId, this.createCommand(method)));
 	}
 
-	@CommandCenter.Command('git.refresh')
-	@CommandCenter.CatchErrors
+	@command('git.refresh')
 	async refresh(): Promise<void> {
 		await this.model.status();
 	}
 
-	@CommandCenter.Command('git.openChange')
-	@CommandCenter.CatchErrors
+	@command('git.openChange')
 	async openChange(uri: Uri): Promise<void> {
 		const resource = resolveGitResource(uri);
 
@@ -239,8 +190,7 @@ export class CommandCenter {
 		return '';
 	}
 
-	@CommandCenter.Command('git.openFile')
-	@CommandCenter.CatchErrors
+	@command('git.openFile')
 	async openFile(uri: Uri): Promise<void> {
 		const resource = resolveGitResource(uri);
 
@@ -251,8 +201,7 @@ export class CommandCenter {
 		return commands.executeCommand<void>('vscode.open', resource.uri);
 	}
 
-	@CommandCenter.Command('git.stage')
-	@CommandCenter.CatchErrors
+	@command('git.stage')
 	async stage(uri: Uri): Promise<void> {
 		const resource = resolveGitResource(uri);
 
@@ -263,14 +212,12 @@ export class CommandCenter {
 		return await this.model.stage(resource);
 	}
 
-	@CommandCenter.Command('git.stageAll')
-	@CommandCenter.CatchErrors
+	@command('git.stageAll')
 	async stageAll(): Promise<void> {
 		return await this.model.stage();
 	}
 
-	@CommandCenter.Command('git.unstage')
-	@CommandCenter.CatchErrors
+	@command('git.unstage')
 	async unstage(uri: Uri): Promise<void> {
 		const resource = resolveGitResource(uri);
 
@@ -281,14 +228,12 @@ export class CommandCenter {
 		return await this.model.unstage(resource);
 	}
 
-	@CommandCenter.Command('git.unstageAll')
-	@CommandCenter.CatchErrors
+	@command('git.unstageAll')
 	async unstageAll(): Promise<void> {
 		return await this.model.unstage();
 	}
 
-	@CommandCenter.Command('git.clean')
-	@CommandCenter.CatchErrors
+	@command('git.clean')
 	async clean(uri: Uri): Promise<void> {
 		const resource = resolveGitResource(uri);
 
@@ -308,8 +253,7 @@ export class CommandCenter {
 		await this.model.clean(resource);
 	}
 
-	@CommandCenter.Command('git.cleanAll')
-	@CommandCenter.CatchErrors
+	@command('git.cleanAll')
 	async cleanAll(): Promise<void> {
 		const message = localize('confirm clean all', "Are you sure you want to clean all changes?");
 		const yes = localize('clean', "Clean Changes");
@@ -372,14 +316,12 @@ export class CommandCenter {
 		}
 	}
 
-	@CommandCenter.Command('git.commit')
-	@CommandCenter.CatchErrors
+	@command('git.commit')
 	async commit(): Promise<void> {
 		await this.commitWithAnyInput();
 	}
 
-	@CommandCenter.Command('git.commitWithInput')
-	@CommandCenter.CatchErrors
+	@command('git.commitWithInput')
 	async commitWithInput(): Promise<void> {
 		const didCommit = await this.smartCommit(async () => scm.inputBox.value);
 
@@ -388,32 +330,27 @@ export class CommandCenter {
 		}
 	}
 
-	@CommandCenter.Command('git.commitStaged')
-	@CommandCenter.CatchErrors
+	@command('git.commitStaged')
 	async commitStaged(): Promise<void> {
 		await this.commitWithAnyInput({ all: false });
 	}
 
-	@CommandCenter.Command('git.commitStagedSigned')
-	@CommandCenter.CatchErrors
+	@command('git.commitStagedSigned')
 	async commitStagedSigned(): Promise<void> {
 		await this.commitWithAnyInput({ all: false, signoff: true });
 	}
 
-	@CommandCenter.Command('git.commitAll')
-	@CommandCenter.CatchErrors
+	@command('git.commitAll')
 	async commitAll(): Promise<void> {
 		await this.commitWithAnyInput({ all: true });
 	}
 
-	@CommandCenter.Command('git.commitAllSigned')
-	@CommandCenter.CatchErrors
+	@command('git.commitAllSigned')
 	async commitAllSigned(): Promise<void> {
 		await this.commitWithAnyInput({ all: true, signoff: true });
 	}
 
-	@CommandCenter.Command('git.undoCommit')
-	@CommandCenter.CatchErrors
+	@command('git.undoCommit')
 	async undoCommit(): Promise<void> {
 		const HEAD = this.model.HEAD;
 
@@ -426,8 +363,7 @@ export class CommandCenter {
 		scm.inputBox.value = commit.message;
 	}
 
-	@CommandCenter.Command('git.checkout')
-	@CommandCenter.CatchErrors
+	@command('git.checkout')
 	async checkout(): Promise<void> {
 		const config = workspace.getConfiguration('git');
 		const checkoutType = config.get<string>('checkoutType') || 'all';
@@ -454,8 +390,7 @@ export class CommandCenter {
 		await choice.run(this.model);
 	}
 
-	@CommandCenter.Command('git.branch')
-	@CommandCenter.CatchErrors
+	@command('git.branch')
 	async branch(): Promise<void> {
 		const result = await window.showInputBox({
 			placeHolder: localize('branch name', "Branch name"),
@@ -470,8 +405,7 @@ export class CommandCenter {
 		await this.model.branch(name);
 	}
 
-	@CommandCenter.Command('git.pull')
-	@CommandCenter.CatchErrors
+	@command('git.pull')
 	async pull(): Promise<void> {
 		const remotes = this.model.remotes;
 
@@ -483,8 +417,7 @@ export class CommandCenter {
 		await this.model.pull();
 	}
 
-	@CommandCenter.Command('git.pullRebase')
-	@CommandCenter.CatchErrors
+	@command('git.pullRebase')
 	async pullRebase(): Promise<void> {
 		const remotes = this.model.remotes;
 
@@ -496,8 +429,7 @@ export class CommandCenter {
 		await this.model.pull(true);
 	}
 
-	@CommandCenter.Command('git.push')
-	@CommandCenter.CatchErrors
+	@command('git.push')
 	async push(): Promise<void> {
 		const remotes = this.model.remotes;
 
@@ -509,8 +441,7 @@ export class CommandCenter {
 		await this.model.push();
 	}
 
-	@CommandCenter.Command('git.pushTo')
-	@CommandCenter.CatchErrors
+	@command('git.pushTo')
 	async pushTo(): Promise<void> {
 		const remotes = this.model.remotes;
 
@@ -536,8 +467,7 @@ export class CommandCenter {
 		this.model.push(pick.label, branchName);
 	}
 
-	@CommandCenter.Command('git.sync')
-	@CommandCenter.CatchErrors
+	@command('git.sync')
 	async sync(): Promise<void> {
 		const HEAD = this.model.HEAD;
 
@@ -564,8 +494,7 @@ export class CommandCenter {
 		await this.model.sync();
 	}
 
-	@CommandCenter.Command('git.publish')
-	@CommandCenter.CatchErrors
+	@command('git.publish')
 	async publish(): Promise<void> {
 		const remotes = this.model.remotes;
 
@@ -586,9 +515,51 @@ export class CommandCenter {
 		await this.model.push(choice, branchName, { setUpstream: true });
 	}
 
-	@CommandCenter.Command('git.showOutput')
+	@command('git.showOutput')
 	showOutput(): void {
 		this.outputChannel.show();
+	}
+
+	private createCommand(method: Function): (...args: any[]) => any {
+		return (...args) => {
+			if (!this.model) {
+				window.showInformationMessage(localize('disabled', "Git is either disabled or not supported in this workspace"));
+				return;
+			}
+
+			const result = Promise.resolve(method.apply(this, args));
+
+			return result.catch(async err => {
+				let message: string;
+
+				switch (err.gitErrorCode) {
+					case 'DirtyWorkTree':
+						message = localize('clean repo', "Please clean your repository working tree before checkout.");
+						break;
+					default:
+						const lines = (err.stderr || err.message || String(err))
+							.replace(/^error: /, '')
+							.split(/[\r\n]/)
+							.filter(line => !!line);
+
+						message = lines[0] || 'Git error';
+						break;
+				}
+
+				if (!message) {
+					console.error(err);
+					return;
+				}
+
+				const outputChannel = this.outputChannel as OutputChannel;
+				const openOutputChannelChoice = localize('open git log', "Open Git Log");
+				const choice = await window.showErrorMessage(message, openOutputChannelChoice);
+
+				if (choice === openOutputChannelChoice) {
+					outputChannel.show();
+				}
+			});
+		};
 	}
 
 	dispose(): void {
