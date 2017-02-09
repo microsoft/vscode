@@ -1523,7 +1523,7 @@ export class TreeView extends HeightMap {
 			DOM.addClass(this.domNode, 'focused');
 		}
 
-		setTimeout(() => this._onDOMFocus.fire());
+		this._onDOMFocus.fire();
 	}
 
 	private onBlur(): void {

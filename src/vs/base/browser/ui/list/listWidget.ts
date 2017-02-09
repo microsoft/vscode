@@ -286,7 +286,7 @@ export class List<T> implements IDisposable {
 		this.disposables = [this.focus, this.selection, this.view, this._onDispose];
 
 		const tracker = DOM.trackFocus(this.view.domNode);
-		this.disposables.push(tracker.addFocusListener(() => setTimeout(() => this._onDOMFocus.fire())));
+		this.disposables.push(tracker.addFocusListener(() => this._onDOMFocus.fire()));
 		this.disposables.push(tracker.addBlurListener(() => this._onDOMBlur.fire()));
 
 		if (typeof options.keyboardSupport !== 'boolean' || options.keyboardSupport) {
@@ -467,6 +467,10 @@ export class List<T> implements IDisposable {
 
 	isDOMFocused(): boolean {
 		return this.view.domNode === document.activeElement;
+	}
+
+	getHTMLElement(): HTMLElement {
+		return this.view.domNode;
 	}
 
 	private toListEvent({ indexes }: ITraitChangeEvent) {

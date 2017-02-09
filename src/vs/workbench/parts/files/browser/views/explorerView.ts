@@ -370,8 +370,10 @@ export class ExplorerView extends CollapsibleViewletView {
 
 		// Update explorer focus context
 		this.toDispose.push(this.explorerViewer.onDOMFocus(() => {
-			this.filesExplorerFocussedContext.set(true);
-			this.explorerFocussedContext.set(true);
+			setTimeout(() => {
+				this.filesExplorerFocussedContext.set(true);
+				this.explorerFocussedContext.set(true);
+			}, 0 /* helps when focus jumps from one tree to another */);
 		}));
 
 		this.toDispose.push(this.explorerViewer.onDOMBlur(() => {

@@ -9,6 +9,7 @@ import { List } from 'vs/base/browser/ui/list/listWidget';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService, IContextKey, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { RunOnceScheduler } from 'vs/base/common/async';
 
 export const IListService = createDecorator<IListService>('listService');
 
@@ -29,53 +30,75 @@ export class ListService implements IListService {
 	public _serviceBrand: any;
 
 	private focusedTreeOrList: ITree | List<any>;
+	private lists: (ITree | List<any>)[];
 
 	private listFocusContext: IContextKey<boolean>;
+
+	private focusChangeScheduler: RunOnceScheduler;
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		this.listFocusContext = ListFocusContext.bindTo(contextKeyService);
+		this.lists = [];
+		this.focusChangeScheduler = new RunOnceScheduler(() => this.onFocusChange(), 50 /* delay until the focus/blur dust settles */);
 	}
 
 	public register(tree: ITree): IDisposable;
 	public register(list: List<any>): IDisposable;
 	public register(widget: ITree | List<any>): IDisposable {
+		if (this.lists.indexOf(widget) >= 0) {
+			throw new Error('Cannot register the same widget multiple times');
+		}
+
+		// Keep in our lists list
+		this.lists.push(widget);
 
 		// Check for currently being focused
 		if (widget.isDOMFocused()) {
-			this.onListDOMFocus(widget);
+			this.setFocusedList(widget);
 		}
 
 		const toDispose = [
-			widget.onDOMFocus(() => this.onListDOMFocus(widget)),
-			widget.onDOMBlur(() => this.onListDOMBlur(widget))
+			widget.onDOMFocus(() => this.focusChangeScheduler.schedule()),
+			widget.onDOMBlur(() => this.focusChangeScheduler.schedule())
 		];
 
 		// Special treatment for tree highlight mode
 		if (!(widget instanceof List)) {
-			toDispose.push(widget.onHighlightChange(() => {
-				if (this.focusedTreeOrList === widget && widget.getHighlight()) {
-					this.onListDOMBlur(widget);
-				} else if (widget.isDOMFocused()) {
-					this.onListDOMFocus(widget);
-				}
+			const tree = widget;
+
+			toDispose.push(tree.onHighlightChange(() => {
+				this.focusChangeScheduler.schedule();
 			}));
 		}
+
+		// Remove list once disposed
+		toDispose.push({
+			dispose: () => { this.lists.splice(this.lists.indexOf(widget), 1); }
+		});
 
 		return {
 			dispose: () => dispose(toDispose)
 		};
 	}
 
-	private onListDOMFocus(list: ITree | List<any>): void {
-		this.focusedTreeOrList = list;
-		this.listFocusContext.set(true);
+	private onFocusChange(): void {
+		let focusedList: ITree | List<any>;
+		for (let i = 0; i < this.lists.length; i++) {
+			const list = this.lists[i];
+			if (document.activeElement === list.getHTMLElement()) {
+				focusedList = list;
+				break;
+			}
+		}
+
+		this.setFocusedList(focusedList);
 	}
 
-	private onListDOMBlur(list: ITree | List<any>): void {
-		this.focusedTreeOrList = void 0;
-		this.listFocusContext.set(false);
+	private setFocusedList(focusedList: ITree | List<any>): void {
+		this.focusedTreeOrList = focusedList;
+		this.listFocusContext.set(!!focusedList);
 	}
 
 	public getFocused(): ITree | List<any> {
