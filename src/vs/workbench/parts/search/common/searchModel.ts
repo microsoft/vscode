@@ -71,10 +71,17 @@ export class Match {
 		let searchModel = this.parent().parent().searchModel;
 		let matchString = this.getMatchString();
 		let replaceString = searchModel.replacePattern.getReplaceString(matchString);
+
 		// If match string is not matching then regex pattern has a lookahead expression
 		if (replaceString === null) {
 			replaceString = searchModel.replacePattern.getReplaceString(matchString + this._lineText.substring(this._range.endColumn - 1));
 		}
+
+		// Match string is still not matching. Could be unsupported matches (multi-line).
+		if (replaceString === null) {
+			replaceString = searchModel.replacePattern.pattern;
+		}
+
 		return replaceString;
 	}
 
