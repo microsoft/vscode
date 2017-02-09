@@ -93,7 +93,7 @@ export class Tree extends Events.EventEmitter implements _.ITree {
 		this.addEmitter2(this.model);
 		this.addEmitter2(this.view);
 
-		this.toDispose.push(this.model.addListener2('highlight', () => setTimeout(() => this._onHighlightChange.fire())));
+		this.toDispose.push(this.model.addListener2('highlight', () => this._onHighlightChange.fire()));
 	}
 
 	get onDOMFocus(): Event<void> {
