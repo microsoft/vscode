@@ -22,7 +22,6 @@ export class QuickFixOracle {
 	private _currentRange: IRange;
 
 	constructor(private _editor: ICommonCodeEditor, private _markerService: IMarkerService, private _signalChange: (e: QuickFixComputeEvent) => any) {
-		this._onCursorChange();
 		this._disposables.push(
 			this._markerService.onMarkerChanged(e => this._onMarkerChanges(e)),
 			this._editor.onDidChangeCursorPosition(e => this._onCursorChange())
@@ -33,13 +32,13 @@ export class QuickFixOracle {
 		this._disposables = dispose(this._disposables);
 	}
 
-	trigger(): void {
+	trigger(type: 'manual' | 'auto' = 'manual'): void {
 		let range = this._rangeAtPosition();
 		if (!range) {
 			range = this._editor.getSelection();
 		}
 		this._signalChange({
-			type: 'manual',
+			type,
 			range,
 			position: this._editor.getPosition(),
 			fixes: range && getCodeActions(this._editor.getModel(), this._editor.getModel().validateRange(range))
@@ -169,6 +168,7 @@ export class QuickFixModel {
 			&& !this._editor.getConfiguration().readOnly) {
 
 			this._quickFixOracle = new QuickFixOracle(this._editor, this._markerService, p => this._onDidChangeFixes.fire(p));
+			this._quickFixOracle.trigger('auto');
 		}
 	}
 
