@@ -10,6 +10,7 @@ import * as lifecycle from 'vs/base/common/lifecycle';
 import { IAction } from 'vs/base/common/actions';
 import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { SplitView } from 'vs/base/browser/ui/splitview/splitview';
+import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { Scope } from 'vs/workbench/common/memento';
 import { IViewletView, Viewlet } from 'vs/workbench/browser/viewlet';
 import { IDebugService, VIEWLET_ID, State } from 'vs/workbench/parts/debug/common/debug';
@@ -20,7 +21,9 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IProgressService, IProgressRunner } from 'vs/platform/progress/common/progress';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+
+const DEBUG_VIEWS_WEIGHTS = 'debug.viewsweights';
 
 export class DebugViewlet extends Viewlet {
 
@@ -40,7 +43,8 @@ export class DebugViewlet extends Viewlet {
 		@IDebugService private debugService: IDebugService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IStorageService storageService: IStorageService
+		@IStorageService private storageService: IStorageService,
+		@ILifecycleService lifecycleService: ILifecycleService
 	) {
 		super(VIEWLET_ID, telemetryService);
 
@@ -51,6 +55,7 @@ export class DebugViewlet extends Viewlet {
 		this.toDispose.push(this.debugService.onDidChangeState(() => {
 			this.onDebugServiceStateChange();
 		}));
+		lifecycleService.onShutdown(this.store, this);
 	}
 
 	// viewlet
@@ -69,8 +74,13 @@ export class DebugViewlet extends Viewlet {
 
 		this.splitView = new SplitView(this.$el.getHTMLElement());
 		this.toDispose.push(this.splitView);
+		let weights: number[] = JSON.parse(this.storageService.get(DEBUG_VIEWS_WEIGHTS, StorageScope.WORKSPACE, '[]'));
+		if (!weights.length) {
+			weights = registeredViews.map(v => v.weight);
+		}
+
 		for (let i = 0; i < this.views.length; i++) {
-			this.splitView.addView(this.views[i], registeredViews[i].weight);
+			this.splitView.addView(this.views[i], Math.max(weights[i], 1));
 		}
 
 		return TPromise.as(null);
@@ -139,6 +149,10 @@ export class DebugViewlet extends Viewlet {
 		} else {
 			this.progressRunner = null;
 		}
+	}
+
+	private store(): void {
+		this.storageService.store(DEBUG_VIEWS_WEIGHTS, JSON.stringify(this.views.map(view => view.size)), StorageScope.WORKSPACE);
 	}
 
 	public dispose(): void {
