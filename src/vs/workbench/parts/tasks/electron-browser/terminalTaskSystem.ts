@@ -325,37 +325,24 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 			if (Platform.isWindows && ((options.cwd && TPath.isUNC(options.cwd)) || (!options.cwd && TPath.isUNC(process.cwd())))) {
 				throw new TaskError(Severity.Error, nls.localize('TerminalTaskSystem', 'Can\'t execute a shell command on an UNC drive.'), TaskErrors.UnknownError);
 			}
-			let shellConfig: IShellLaunchConfig = { executable: null, args: null };
-			if (options.cwd) {
-				shellConfig.cwd = options.cwd;
-			}
-			if (options.env) {
-				let env: IStringDictionary<string> = Object.create(null);
-				Object.keys(process.env).forEach((key) => {
-					env[key] = process.env[key];
-				});
-				Object.keys(options.env).forEach((key) => {
-					env[key] = options.env[key];
-				});
-				shellConfig.env = env;
-			}
+			shellLaunchConfig = { name: terminalName, executable: null, args: null, waitOnExit };
 			let shellSpecified: boolean = false;
 			if (ShellConfiguration.is(task.command.isShellCommand)) {
-				shellConfig.executable = task.command.isShellCommand.executable;
+				shellLaunchConfig.executable = task.command.isShellCommand.executable;
 				shellSpecified = true;
 				if (task.command.isShellCommand.args) {
-					shellConfig.args = task.command.isShellCommand.args.slice();
+					shellLaunchConfig.args = task.command.isShellCommand.args.slice();
 				} else {
-					shellConfig.args = [];
+					shellLaunchConfig.args = [];
 				}
 			} else {
-				(this.terminalService.configHelper as TerminalConfigHelper).mergeDefaultShellPathAndArgs(shellConfig);
+				(this.terminalService.configHelper as TerminalConfigHelper).mergeDefaultShellPathAndArgs(shellLaunchConfig);
 			}
-			let shellArgs = shellConfig.args.slice(0);
+			let shellArgs = shellLaunchConfig.args.slice(0);
 			let toAdd: string[] = [];
 			let commandLine = args && args.length > 0 ? `${command} ${args.join(' ')}` : `${command}`;
 			if (Platform.isWindows) {
-				let basename = path.basename(shellConfig.executable).toLowerCase();
+				let basename = path.basename(shellLaunchConfig.executable).toLowerCase();
 				if (basename === 'powershell.exe') {
 					if (!shellSpecified) {
 						toAdd.push('-Command');
@@ -376,12 +363,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 				}
 			});
 			shellArgs.push(commandLine);
-			shellLaunchConfig = {
-				name: terminalName,
-				executable: shellConfig.executable,
-				args: shellArgs,
-				waitOnExit
-			};
+			shellLaunchConfig.args = shellArgs;
 		} else {
 			let cwd = options && options.cwd ? options.cwd : process.cwd();
 			// On Windows executed process must be described absolute. Since we allowed command without an
@@ -393,6 +375,19 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 				args,
 				waitOnExit
 			};
+		}
+		if (options.cwd) {
+			shellLaunchConfig.cwd = options.cwd;
+		}
+		if (options.env) {
+			let env: IStringDictionary<string> = Object.create(null);
+			Object.keys(process.env).forEach((key) => {
+				env[key] = process.env[key];
+			});
+			Object.keys(options.env).forEach((key) => {
+				env[key] = options.env[key];
+			});
+			shellLaunchConfig.env = env;
 		}
 		let terminalId = this.idleTaskTerminals[task.id];
 		if (terminalId) {
