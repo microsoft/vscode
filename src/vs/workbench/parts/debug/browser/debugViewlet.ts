@@ -60,15 +60,18 @@ export class DebugViewlet extends Viewlet {
 		this.$el = parent.div().addClass('debug-viewlet');
 
 		const actionRunner = this.getActionRunner();
-		this.views = DebugViewRegistry.getDebugViews().map(viewConstructor => this.instantiationService.createInstance(
-			viewConstructor,
+		const registeredViews = DebugViewRegistry.getDebugViews();
+		this.views = registeredViews.map(viewConstructor => this.instantiationService.createInstance(
+			viewConstructor.view,
 			actionRunner,
 			this.viewletSettings)
 		);
 
 		this.splitView = new SplitView(this.$el.getHTMLElement());
 		this.toDispose.push(this.splitView);
-		this.views.forEach(v => this.splitView.addView(v));
+		for (let i = 0; i < this.views.length; i++) {
+			this.splitView.addView(this.views[i], registeredViews[i].weight);
+		}
 
 		return TPromise.as(null);
 	}
