@@ -63,7 +63,7 @@ export function loadReleaseNotes(accessor: ServicesAccessor, version: string): T
 
 	const patchKeybindings = (text: string): string => {
 		const kb = (match: string, kb: string) => {
-			const keybinding = keybindingService.lookupKeybindings(kb)[0];
+			const [keybinding] = keybindingService.lookupKeybindings(kb);
 
 			if (!keybinding) {
 				return unassigned;

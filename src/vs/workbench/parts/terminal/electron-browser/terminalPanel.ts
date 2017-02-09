@@ -167,9 +167,9 @@ export class TerminalPanel extends Panel {
 						getActions: () => TPromise.as(this._getContextMenuActions()),
 						getActionsContext: () => this._parentDomElement,
 						getKeyBinding: (action) => {
-							const opts = this._keybindingService.lookupKeybindings(action.id);
-							if (opts.length > 0) {
-								return opts[0]; // only take the first one
+							const [kb] = this._keybindingService.lookupKeybindings(action.id);
+							if (kb) {
+								return kb;
 							}
 							return null;
 						}

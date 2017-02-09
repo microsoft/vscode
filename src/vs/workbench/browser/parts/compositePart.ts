@@ -340,11 +340,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			compositeTitle = compositeDescriptor.name;
 		}
 
-		let keybinding: string = null;
-		let keys = this.keybindingService.lookupKeybindings(compositeId).map(k => this.keybindingService.getLabelFor(k));
-		if (keys && keys.length) {
-			keybinding = keys[0];
-		}
+		let [keybinding] = this.keybindingService.lookupKeybindings(compositeId).map(k => this.keybindingService.getLabelFor(k));
 
 		this.titleLabel.updateTitle(compositeId, compositeTitle, keybinding);
 
@@ -426,12 +422,9 @@ export abstract class CompositePart<T extends Composite> extends Part {
 				actionItemProvider: (action: Action) => this.actionItemProvider(action),
 				orientation: ActionsOrientation.HORIZONTAL,
 				getKeyBinding: (action) => {
-					const opts = this.keybindingService.lookupKeybindings(action.id);
-					if (opts.length > 0) {
-						return opts[0]; // only take the first one
-					}
+					const [kb] = this.keybindingService.lookupKeybindings(action.id);
 
-					return null;
+					return kb;
 				},
 				getKeyBindingLabel: (key) => this.keybindingService.getLabelFor(key)
 			});

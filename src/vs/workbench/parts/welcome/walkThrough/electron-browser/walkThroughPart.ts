@@ -412,7 +412,7 @@ export class WalkThroughPart extends BaseEditor {
 
 	private expandMacros(input: string) {
 		return input.replace(/kb\(([a-z.\d\-]+)\)/gi, (match: string, kb: string) => {
-			const keybinding = this.keybindingService.lookupKeybindings(kb)[0];
+			const [keybinding] = this.keybindingService.lookupKeybindings(kb);
 			const shortcut = keybinding ? this.keybindingService.getLabelFor(keybinding) : UNBOUND_COMMAND;
 			return `<span class="shortcut">${shortcut}</span>`;
 		});
@@ -422,7 +422,7 @@ export class WalkThroughPart extends BaseEditor {
 		const keys = this.content.querySelectorAll('.shortcut[data-command]');
 		Array.prototype.forEach.call(keys, (key: Element) => {
 			const command = key.getAttribute('data-command');
-			const keybinding = command && this.keybindingService.lookupKeybindings(command)[0];
+			const [keybinding] = command && this.keybindingService.lookupKeybindings(command);
 			const label = keybinding ? this.keybindingService.getLabelFor(keybinding) : UNBOUND_COMMAND;
 			key.appendChild(document.createTextNode(label));
 		});
