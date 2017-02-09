@@ -674,13 +674,14 @@ namespace TaskDescription {
 			if (Types.isString(externalTask.showOutput)) {
 				task.showOutput = TaskSystem.ShowOutput.fromString(externalTask.showOutput);
 			}
-			if (externalTask.suppressTaskName !== void 0) {
-				task.suppressTaskName = !!externalTask.suppressTaskName;
-			} else if (externalTask.command !== void 0) {
+			if (externalTask.command !== void 0) {
 				// if the task has its own command then we suppress the
 				// task name by default.
 				task.suppressTaskName = true;
+			} else if (externalTask.suppressTaskName !== void 0) {
+				task.suppressTaskName = !!externalTask.suppressTaskName;
 			}
+
 			if (problemMatchers) {
 				task.problemMatchers = problemMatchers;
 			}
