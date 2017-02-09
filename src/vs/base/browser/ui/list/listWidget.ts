@@ -254,13 +254,13 @@ export class List<T> implements IDisposable {
 		return fromCallback(handler => this.view.addListener('contextmenu', handler));
 	}
 
-	private _onDOMFocus: Event<FocusEvent>;
-	get onDOMFocus(): Event<FocusEvent> { return this._onDOMFocus; }
+	private _onDOMFocus = new Emitter<void>();
+	get onDOMFocus(): Event<void> { return this._onDOMFocus.event; }
 
-	private _onDOMBlur: Event<FocusEvent>;
-	get onDOMBlur(): Event<FocusEvent> { return this._onDOMBlur; }
+	private _onDOMBlur = new Emitter<void>();
+	get onDOMBlur(): Event<void> { return this._onDOMBlur.event; }
 
-	private _onDispose: Emitter<void>;
+	private _onDispose = new Emitter<void>();
 	get onDispose(): Event<void> { return this._onDispose.event; }
 
 	constructor(
@@ -283,11 +283,11 @@ export class List<T> implements IDisposable {
 		this.view.domNode.setAttribute('role', 'tree');
 		this.view.domNode.tabIndex = 0;
 
-		this._onDOMFocus = domEvent(this.view.domNode, 'focus');
-		this._onDOMBlur = domEvent(this.view.domNode, 'blur');
-		this._onDispose = new Emitter<void>();
-
 		this.disposables = [this.focus, this.selection, this.view, this._onDispose];
+
+		const tracker = DOM.trackFocus(this.view.domNode);
+		this.disposables.push(tracker.addFocusListener(() => setTimeout(() => this._onDOMFocus.fire())));
+		this.disposables.push(tracker.addBlurListener(() => this._onDOMBlur.fire()));
 
 		if (typeof options.keyboardSupport !== 'boolean' || options.keyboardSupport) {
 			this.keyboardController = new KeyboardController(this, this.view);

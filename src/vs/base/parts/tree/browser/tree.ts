@@ -17,8 +17,9 @@ export interface ITree extends Events.IEventEmitter {
 
 	emit(eventType: string, data?: any): void;
 
-	onDOMFocus: Event<FocusEvent>;
-	onDOMBlur: Event<FocusEvent>;
+	onDOMFocus: Event<void>;
+	onDOMBlur: Event<void>;
+	onHighlightChange: Event<void>;
 	onDispose: Event<void>;
 
 	/**

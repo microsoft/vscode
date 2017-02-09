@@ -13,6 +13,7 @@ import View = require('./treeView');
 import _ = require('vs/base/parts/tree/browser/tree');
 import { INavigator, MappedNavigator } from 'vs/base/common/iterator';
 import Event, { Emitter } from 'vs/base/common/event';
+import Lifecycle = require('vs/base/common/lifecycle');
 
 export class TreeContext implements _.ITreeContext {
 
@@ -58,11 +59,20 @@ export class Tree extends Events.EventEmitter implements _.ITree {
 	private view: View.TreeView;
 
 	private _onDispose: Emitter<void>;
+	private _onHighlightChange: Emitter<void>;
+
+	private toDispose: Lifecycle.IDisposable[];
 
 	constructor(container: HTMLElement, configuration: _.ITreeConfiguration, options: _.ITreeOptions = {}) {
 		super();
 
+		this.toDispose = [];
+
 		this._onDispose = new Emitter<void>();
+		this._onHighlightChange = new Emitter<void>();
+
+		this.toDispose.push(this._onDispose, this._onHighlightChange);
+
 		this.container = container;
 		this.configuration = configuration;
 		this.options = options;
@@ -82,14 +92,20 @@ export class Tree extends Events.EventEmitter implements _.ITree {
 
 		this.addEmitter2(this.model);
 		this.addEmitter2(this.view);
+
+		this.toDispose.push(this.model.addListener2('highlight', () => setTimeout(() => this._onHighlightChange.fire())));
 	}
 
-	get onDOMFocus(): Event<FocusEvent> {
+	get onDOMFocus(): Event<void> {
 		return this.view && this.view.onDOMFocus;
 	}
 
-	get onDOMBlur(): Event<FocusEvent> {
+	get onDOMBlur(): Event<void> {
 		return this.view && this.view.onDOMBlur;
+	}
+
+	get onHighlightChange(): Event<void> {
+		return this._onHighlightChange && this._onHighlightChange.event;
 	}
 
 	get onDispose(): Event<void> {
@@ -339,6 +355,8 @@ export class Tree extends Events.EventEmitter implements _.ITree {
 	}
 
 	public dispose(): void {
+		this._onDispose.fire();
+
 		if (this.model !== null) {
 			this.model.dispose();
 			this.model = null;
@@ -348,8 +366,7 @@ export class Tree extends Events.EventEmitter implements _.ITree {
 			this.view = null;
 		}
 
-		this._onDispose.fire();
-		this._onDispose.dispose();
+		this.toDispose = Lifecycle.dispose(this.toDispose);
 
 		super.dispose();
 	}

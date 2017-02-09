@@ -369,18 +369,15 @@ export class ExplorerView extends CollapsibleViewletView {
 		}));
 
 		// Update explorer focus context
-		const viewerFocusTracker = DOM.trackFocus(this.explorerViewer.getHTMLElement());
-		viewerFocusTracker.addFocusListener(() => {
-			setTimeout(() => {
-				this.filesExplorerFocussedContext.set(true);
-				this.explorerFocussedContext.set(true);
-			}, 0 /* wait for any BLUR to happen */);
-		});
-		viewerFocusTracker.addBlurListener(() => {
+		this.toDispose.push(this.explorerViewer.onDOMFocus(() => {
+			this.filesExplorerFocussedContext.set(true);
+			this.explorerFocussedContext.set(true);
+		}));
+
+		this.toDispose.push(this.explorerViewer.onDOMBlur(() => {
 			this.filesExplorerFocussedContext.reset();
 			this.explorerFocussedContext.reset();
-		});
-		this.toDispose.push(viewerFocusTracker);
+		}));
 
 		return this.explorerViewer;
 	}

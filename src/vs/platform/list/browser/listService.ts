@@ -52,16 +52,25 @@ export class ListService implements IListService {
 			widget.onDOMBlur(() => this.onListDOMBlur(widget))
 		];
 
+		// Special treatment for tree highlight mode
+		if (!(widget instanceof List)) {
+			toDispose.push(widget.onHighlightChange(() => {
+				if (widget.getHighlight()) {
+					this.onListDOMBlur(widget);
+				} else if (widget.isDOMFocused()) {
+					this.onListDOMFocus(widget);
+				}
+			}));
+		}
+
 		return {
 			dispose: () => dispose(toDispose)
 		};
 	}
 
 	private onListDOMFocus(list: ITree | List<any>): void {
-		setTimeout(() => {
-			this.focusedTreeOrList = list;
-			this.listFocusContext.set(true);
-		}, 0 /* helps to track focus correctly when focus moves between 2 lists */);
+		this.focusedTreeOrList = list;
+		this.listFocusContext.set(true);
 	}
 
 	private onListDOMBlur(list: ITree | List<any>): void {
@@ -70,6 +79,10 @@ export class ListService implements IListService {
 	}
 
 	public getFocused(): ITree | List<any> {
+		if (!(this.focusedTreeOrList instanceof List) && this.focusedTreeOrList.getHighlight()) {
+			return null; // a tree in highlight mode is not focused
+		}
+
 		return this.focusedTreeOrList;
 	}
 }
