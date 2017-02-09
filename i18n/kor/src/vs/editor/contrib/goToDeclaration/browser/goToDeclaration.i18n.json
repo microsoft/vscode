@@ -6,6 +6,8 @@
 {
 	"actions.goToDecl.label": "정의로 이동",
 	"actions.goToDeclToSide.label": "측면에서 정의 열기",
+	"actions.goToImplementation.label": "구현으로 이동",
+	"actions.peekImplementation.label": "Peek 구현",
 	"actions.previewDecl.label": "정의 피킹(Peeking)",
 	"meta.title": " – 정의 {0}개",
 	"multipleResults": "{0}개 정의를 표시하려면 클릭하세요."

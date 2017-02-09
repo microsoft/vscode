@@ -271,10 +271,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 		if (this.input) {
 			const resource = toResource(this.input);
 			if (resource) {
-				const modeId = this.modeService.getModeIdByFilenameOrFirstLine(resource.fsPath);
-				if (modeId) {
-					return this.modeService.getLanguageName(modeId);
-				}
+				return this.modeService.getModeIdByFilenameOrFirstLine(resource.fsPath);
 			}
 		}
 

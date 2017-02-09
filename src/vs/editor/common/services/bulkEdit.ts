@@ -310,6 +310,7 @@ export function createBulkEdit(textModelResolverService: ITextModelResolverServi
 		if (names) {
 			return nls.localize('conflict', "These files have changed in the meantime: {0}", names.join(', '));
 		}
+		return undefined;
 	}
 
 	function finish(): TPromise<ISelection> {

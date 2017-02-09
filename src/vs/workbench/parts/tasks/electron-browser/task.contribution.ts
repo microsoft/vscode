@@ -356,19 +356,22 @@ class TerminateAction extends AbstractTaskAction {
 				message: nls.localize('TerminateAction.terminalSystem', 'The tasks are executed in the integrated terminal. Use the terminal to manage the tasks.'),
 				actions: [new ViewTerminalAction(this.terminalService), new CloseMessageAction()]
 			});
+			return undefined;
 		} else {
 			return this.taskService.isActive().then((active) => {
 				if (active) {
 					return this.taskService.terminate().then((response) => {
 						if (response.success) {
-							return;
+							return undefined;
 						} else if (response.code && response.code === TerminateResponseCode.ProcessNotFound) {
 							this.messageService.show(Severity.Error, nls.localize('TerminateAction.noProcess', 'The launched process doesn\'t exist anymore. If the task spawned background tasks exiting VS Code might result in orphaned processes.'));
+							return undefined;
 						} else {
 							return Promise.wrapError(nls.localize('TerminateAction.failed', 'Failed to terminate running task'));
 						}
 					});
 				}
+				return undefined;
 			});
 		}
 	}

@@ -10,6 +10,7 @@
 	"changeIndentation": "ID 변경",
 	"changeMode": "언어 모드 변경",
 	"configureAssociationsExt": "'{0}'에 대한 파일 연결 구성...",
+	"configureModeSettings": "'{0}' 언어 기반 설정 구성...",
 	"currentAssociation": "현재 연결",
 	"disableTabMode": "접근성 모드 사용 안 함",
 	"endOfLineCarriageReturnLineFeed": "CRLF",

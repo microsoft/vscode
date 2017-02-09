@@ -6,7 +6,8 @@
 		"vscode": "^1.4.0"
 	},
 	"categories": [
-		"Languages", "Other"
+		"Languages",
+		"Other"
 	],
 	"activationEvents": [
 		"onLanguage:typescript"
@@ -31,5 +32,8 @@
 				"url": "vscode://schemas/icon-theme"
 			}
 		]
+	},
+	"devDependencies": {
+		"@types/node": "^7.0.4"
 	}
 }

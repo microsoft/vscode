@@ -54,6 +54,7 @@ export class FileWatcher {
 			if (!(err instanceof Error && err.name === 'Canceled' && err.message === 'Canceled')) {
 				return TPromise.wrapError(err); // the service lib uses the promise cancel error to indicate the process died, we do not want to bubble this up
 			}
+			return undefined;
 		}, (events: IRawFileChange[]) => this.onRawFileEvents(events)).done(() => {
 
 			// our watcher app should never be completed because it keeps on watching. being in here indicates

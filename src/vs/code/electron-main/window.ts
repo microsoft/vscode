@@ -33,7 +33,6 @@ export interface IWindowCreationOptions {
 	state: IWindowState;
 	extensionDevelopmentPath?: string;
 	isExtensionTestHost?: boolean;
-	allowFullscreen?: boolean;
 	titleBarStyle?: 'native' | 'custom';
 }
 
@@ -592,14 +591,6 @@ export class VSCodeWindow implements IVSCodeWindow {
 			return null;
 		}
 
-		if (state.mode === WindowMode.Fullscreen) {
-			if (this.options.allowFullscreen) {
-				return state;
-			}
-
-			state.mode = WindowMode.Normal; // if we do not allow fullscreen, treat this state as normal window state
-		}
-
 		if ([state.x, state.y, state.width, state.height].some(n => typeof n !== 'number')) {
 			return null;
 		}
@@ -726,8 +717,15 @@ export class VSCodeWindow implements IVSCodeWindow {
 				break;
 
 			case ('hidden'):
-				this.win.setMenuBarVisibility(false);
-				this.win.setAutoHideMenuBar(false);
+				// for some weird reason that I have no explanation for, the menu bar is not hiding when calling
+				// this without timeout (see https://github.com/Microsoft/vscode/issues/19777). there seems to be
+				// a timing issue with us opening the first window and the menu bar getting created. somehow the
+				// fact that we want to hide the menu without being able to bring it back via Alt key makes Electron
+				// still show the menu. Unable to reproduce from a simple Hello World application though...
+				setTimeout(() => {
+					this.win.setMenuBarVisibility(false);
+					this.win.setAutoHideMenuBar(false);
+				});
 				break;
 		};
 	}

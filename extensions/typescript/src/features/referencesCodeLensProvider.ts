@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { CodeLensProvider, CodeLens, CancellationToken, TextDocument, Range, Uri, Location, Position, workspace, WorkspaceConfiguration, EventEmitter, Event } from 'vscode';
+import { CodeLensProvider, CodeLens, CancellationToken, TextDocument, Range, Uri, Location, Position, workspace, EventEmitter, Event } from 'vscode';
 import * as Proto from '../protocol';
 import * as PConst from '../protocol.const';
 
@@ -30,13 +30,14 @@ export default class TypeScriptReferencesCodeLensProvider implements CodeLensPro
 
 	private onDidChangeCodeLensesEmitter = new EventEmitter<void>();
 
-	public constructor(private client: ITypescriptServiceClient) { }
+	public constructor(
+		private client: ITypescriptServiceClient) { }
 
 	public get onDidChangeCodeLenses(): Event<void> {
 		return this.onDidChangeCodeLensesEmitter.event;
 	}
 
-	public updateConfiguration(config: WorkspaceConfiguration): void {
+	public updateConfiguration(): void {
 		const typeScriptConfig = workspace.getConfiguration('typescript');
 		const wasEnabled = this.enabled;
 		this.enabled = typeScriptConfig.get('referencesCodeLens.enabled', false);
@@ -96,7 +97,7 @@ export default class TypeScriptReferencesCodeLensProvider implements CodeLensPro
 				};
 				return Promise.resolve(codeLens);
 			}
-			return Promise.reject(codeLens);
+			return Promise.reject<CodeLens>(codeLens);
 		}).catch(() => {
 			codeLens.command = {
 				title: localize('referenceErrorLabel', 'Could not determine references'),

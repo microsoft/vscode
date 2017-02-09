@@ -118,6 +118,7 @@ export class SideBySideEditor extends BaseEditor {
 		} else {
 			this.detailsEditor.setInput(newInput.details);
 			this.masterEditor.setInput(newInput.master, options);
+			return undefined;
 		}
 	}
 

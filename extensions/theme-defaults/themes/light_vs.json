@@ -270,18 +270,19 @@
 		},
 		{
 			"scope": [
-				"support.type.property-name.css",
-				"support.type.property-name.variable.css",
-				"support.type.property-name.media.css",
-				"support.type.property-name.less",
-				"support.type.property-name.scss"
+				"support.type.vendored.property-name",
+				"support.type.property-name",
+				"variable.css",
+				"variable.scss",
+				"variable.other.less"
+
 			],
 			"settings": {
 				"foreground": "#ff0000"
 			}
 		},
 		{
-			"scope": "support.type.property-name",
+			"scope": "support.type.property-name.json",
 			"settings": {
 				"foreground": "#0451a5"
 			}

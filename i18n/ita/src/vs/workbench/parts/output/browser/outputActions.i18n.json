@@ -6,5 +6,6 @@
 {
 	"clearOutput": "Cancella output",
 	"switchToOutput.label": "Passa all'output",
-	"toggleOutput": "Attiva/Disattiva output"
+	"toggleOutput": "Attiva/Disattiva output",
+	"toggleOutputScrollLock": "Attiva/Disattiva blocco scorrimento per output"
 }

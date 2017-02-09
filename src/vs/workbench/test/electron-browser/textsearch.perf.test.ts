@@ -45,7 +45,7 @@ suite('TextSearch performance', () => {
 
 	test('Measure', () => {
 		if (process.env['VSCODE_PID']) {
-			return; // TODO@Rob find out why test fails when run from within VS Code
+			return undefined; // TODO@Rob find out why test fails when run from within VS Code
 		}
 
 		const n = 3;

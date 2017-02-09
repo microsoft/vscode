@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { ViewModelDecoration, IDecorationsViewportData, InlineDecoration } from 'vs/editor/common/viewModel/viewModel';
+import { ViewLineRenderingData, IViewModel, ViewModelDecoration } from 'vs/editor/common/viewModel/viewModel';
 import { Range } from 'vs/editor/common/core/range';
 
 export interface IPartialViewLinesViewportData {
@@ -15,60 +15,80 @@ export interface IPartialViewLinesViewportData {
 	startLineNumber: number;
 	endLineNumber: number;
 	relativeVerticalOffset: number[];
+	/**
+	 * The centered line in the viewport.
+	 */
+	centeredLineNumber: number;
 }
 
-export class ViewLinesViewportData {
-	_viewLinesViewportDataBrand: void;
+/**
+ * Contains all data needed to render at a specific viewport.
+ */
+export class ViewportData {
 
-	viewportTop: number;
-	viewportHeight: number;
-	bigNumbersDelta: number;
-	visibleRangesDeltaTop: number;
+	/**
+	 * The absolute top offset of the viewport in px.
+	 */
+	public readonly viewportTop: number;
+
+	/**
+	 * The height of the viewport in px.
+	 */
+	public readonly viewportHeight: number;
+
 	/**
 	 * The line number at which to start rendering (inclusive).
 	 */
-	startLineNumber: number;
+	public readonly startLineNumber: number;
+
 	/**
 	 * The line number at which to end rendering (inclusive).
 	 */
-	endLineNumber: number;
+	public readonly endLineNumber: number;
+
 	/**
 	 * relativeVerticalOffset[i] is the gap that must be left between line at
 	 * i - 1 + `startLineNumber` and i + `startLineNumber`.
 	 */
-	relativeVerticalOffset: number[];
-	/**
-	 * The viewport as a range (`startLineNumber`,1) -> (`endLineNumber`,maxColumn(`endLineNumber`)).
-	 */
-	visibleRange: Range;
-	/**
-	 * completely visible lines range excluding partially rendered lines. Subset of `visibleRange`.
-	 */
-	completelyVisibleLinesRange: Range;
+	public readonly relativeVerticalOffset: number[];
 
-	private _decorations: ViewModelDecoration[];
-	private _inlineDecorations: InlineDecoration[][];
+	/**
+	 * The viewport as a range (startLineNumber,1) -> (endLineNumber,maxColumn(endLineNumber)).
+	 */
+	public readonly visibleRange: Range;
 
-	constructor(partialData: IPartialViewLinesViewportData, visibleRange: Range, completelyVisibleLinesRange: Range, decorationsData: IDecorationsViewportData) {
+	public readonly bigNumbersDelta: number;
+	public readonly visibleRangesDeltaTop: number;
+
+	private readonly _model: IViewModel;
+
+	constructor(
+		partialData: IPartialViewLinesViewportData,
+		model: IViewModel
+	) {
 		this.viewportTop = partialData.viewportTop | 0;
 		this.viewportHeight = partialData.viewportHeight | 0;
-		this.bigNumbersDelta = partialData.bigNumbersDelta | 0;
-		this.visibleRangesDeltaTop = partialData.visibleRangesDeltaTop | 0;
 		this.startLineNumber = partialData.startLineNumber | 0;
 		this.endLineNumber = partialData.endLineNumber | 0;
 		this.relativeVerticalOffset = partialData.relativeVerticalOffset;
-		this.visibleRange = visibleRange;
-		this.completelyVisibleLinesRange = completelyVisibleLinesRange;
-		this._decorations = decorationsData.decorations;
-		this._inlineDecorations = decorationsData.inlineDecorations;
+		this.bigNumbersDelta = partialData.bigNumbersDelta | 0;
+		this.visibleRangesDeltaTop = partialData.visibleRangesDeltaTop | 0;
+
+		this._model = model;
+
+		this.visibleRange = new Range(
+			partialData.startLineNumber,
+			this._model.getLineMinColumn(partialData.startLineNumber),
+			partialData.endLineNumber,
+			this._model.getLineMaxColumn(partialData.endLineNumber)
+		);
+	}
+
+	public getViewLineRenderingData(lineNumber: number): ViewLineRenderingData {
+		return this._model.getViewLineRenderingData(this.visibleRange, lineNumber);
 	}
 
 	public getDecorationsInViewport(): ViewModelDecoration[] {
-		return this._decorations;
-	}
-
-	public getInlineDecorationsForLineInViewport(lineNumber: number): InlineDecoration[] {
-		lineNumber = lineNumber | 0;
-		return this._inlineDecorations[lineNumber - this.startLineNumber];
+		return this._model.getDecorationsInViewport(this.visibleRange);
 	}
 }

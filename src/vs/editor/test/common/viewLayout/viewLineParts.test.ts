@@ -70,7 +70,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			false
 		));
 
-		assert.deepEqual(actual.output.split(/></g), expected.split(/></g));
+		assert.deepEqual(actual.html.split(/></g), expected.split(/></g));
 	}
 
 	test('issue #18616: Inline decorations ending at the text length are no longer rendered', () => {
@@ -97,7 +97,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			'</span>'
 		].join('');
 
-		assert.deepEqual(actual.output, expected);
+		assert.deepEqual(actual.html, expected);
 	});
 
 	test('issue #19207: Link in Monokai is not rendered correctly', () => {
@@ -138,7 +138,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			'</span>'
 		].join('');
 
-		assert.deepEqual(actual.output, expected);
+		assert.deepEqual(actual.html, expected);
 	});
 
 	test('createLineParts simple', () => {
@@ -391,7 +391,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 		// bb---------
 		// -cccccc----
 
-		assert.deepEqual(actual.output, [
+		assert.deepEqual(actual.html, [
 			'<span>',
 			'<span class=" b">H</span>',
 			'<span class=" b c">e</span>',

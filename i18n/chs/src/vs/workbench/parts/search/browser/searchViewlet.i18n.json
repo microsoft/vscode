@@ -15,6 +15,7 @@
 	"noResultsFound": "找不到结果。查看设置中配置的排除项 - ",
 	"noResultsIncludes": "“{0}”中未找到任何结果 - ",
 	"noResultsIncludesExcludes": "在“{0}”中找不到结果(“{1}”除外) - ",
+	"openFolder": "打开文件夹",
 	"openSettings.message": "打开设置",
 	"removeAll.confirmation.message": "删除出现在 {1} 文件中的 {0}?",
 	"removeAll.message": "已删除 {1} 文件中出现的 {0}。",

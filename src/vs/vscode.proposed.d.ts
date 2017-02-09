@@ -133,16 +133,23 @@ declare module 'vscode' {
 		readonly label: string;
 		readonly resources: SCMResourceGroup[];
 		readonly onDidChange: Event<SCMResourceGroup[]>;
-		getOriginalResource?(uri: Uri, token: CancellationToken): ProviderResult<Uri>;
+		readonly count?: number | undefined;
 
-		commit?(message: string, token: CancellationToken): ProviderResult<void>;
+		getOriginalResource?(uri: Uri, token: CancellationToken): ProviderResult<Uri>;
 		open?(resource: SCMResource, token: CancellationToken): ProviderResult<void>;
 		drag?(resource: SCMResource, resourceGroup: SCMResourceGroup, token: CancellationToken): ProviderResult<void>;
+	}
+
+	export interface SCMInputBox {
+		value: string;
+		readonly onDidChange: Event<string>;
 	}
 
 	export namespace scm {
 		export const onDidChangeActiveProvider: Event<SCMProvider>;
 		export let activeProvider: SCMProvider | undefined;
+		export const inputBox: SCMInputBox;
+
 		export function getResourceFromURI(uri: Uri): SCMResource | SCMResourceGroup | undefined;
 		export function registerSCMProvider(id: string, provider: SCMProvider): Disposable;
 	}

@@ -156,7 +156,10 @@ export class FindModelBoundToEditorModel {
 			findScope = this._decorations.getFindScope();
 		}
 		if (findScope !== null) {
-			findScope = new Range(findScope.startLineNumber, 1, findScope.endLineNumber, this._editor.getModel().getLineMaxColumn(findScope.endLineNumber));
+			if (findScope.startLineNumber !== findScope.endLineNumber) {
+				// multiline find scope => expand to line starts / ends
+				findScope = new Range(findScope.startLineNumber, 1, findScope.endLineNumber, this._editor.getModel().getLineMaxColumn(findScope.endLineNumber));
+			}
 		}
 
 		let findMatches = this._findMatches(findScope, false, MATCHES_LIMIT);

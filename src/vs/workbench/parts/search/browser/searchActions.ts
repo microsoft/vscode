@@ -276,7 +276,7 @@ export class FocusNextSearchResultAction extends Action {
 
 	public run(): TPromise<any> {
 		return this.viewletService.openViewlet(Constants.VIEWLET_ID).then((searchViewlet: SearchViewlet) => {
-			searchViewlet.selectNextResult();
+			searchViewlet.selectNextMatch();
 		});
 	}
 }
@@ -291,7 +291,7 @@ export class FocusPreviousSearchResultAction extends Action {
 
 	public run(): TPromise<any> {
 		return this.viewletService.openViewlet(Constants.VIEWLET_ID).then((searchViewlet: SearchViewlet) => {
-			searchViewlet.selectPreviousResult();
+			searchViewlet.selectPreviousMatch();
 		});
 	}
 }

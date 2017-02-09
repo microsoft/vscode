@@ -122,8 +122,7 @@ class FocusTrait<T> extends Trait<T> {
 	}
 }
 
-class Controller<T> implements IDisposable {
-
+class KeyboardController<T> implements IDisposable {
 	private disposables: IDisposable[];
 
 	constructor(
@@ -131,9 +130,6 @@ class Controller<T> implements IDisposable {
 		private view: ListView<T>
 	) {
 		this.disposables = [];
-		this.disposables.push(view.addListener('mousedown', e => this.onMouseDown(e)));
-		this.disposables.push(view.addListener('click', e => this.onPointer(e)));
-		this.disposables.push(view.addListener(TouchEventType.Tap, e => this.onPointer(e)));
 
 		const onKeyDown = chain(domEvent(view.domNode, 'keydown'))
 			.map(e => new StandardKeyboardEvent(e));
@@ -143,19 +139,6 @@ class Controller<T> implements IDisposable {
 		onKeyDown.filter(e => e.keyCode === KeyCode.DownArrow).on(this.onDownArrow, this, this.disposables);
 		onKeyDown.filter(e => e.keyCode === KeyCode.PageUp).on(this.onPageUpArrow, this, this.disposables);
 		onKeyDown.filter(e => e.keyCode === KeyCode.PageDown).on(this.onPageDownArrow, this, this.disposables);
-	}
-
-	private onMouseDown(e: IListMouseEvent<T>) {
-		e.preventDefault();
-		e.stopPropagation();
-	}
-
-	private onPointer(e: IListMouseEvent<T>) {
-		e.preventDefault();
-		e.stopPropagation();
-		this.view.domNode.focus();
-		this.list.setFocus([e.index]);
-		this.list.setSelection([e.index]);
 	}
 
 	private onEnter(e: StandardKeyboardEvent): void {
@@ -201,11 +184,47 @@ class Controller<T> implements IDisposable {
 	}
 }
 
-export interface IListOptions extends IListViewOptions {
-	ariaLabel?: string;
+class MouseController<T> implements IDisposable {
+	private disposables: IDisposable[];
+
+	constructor(
+		private list: List<T>,
+		private view: ListView<T>
+	) {
+		this.disposables = [];
+		this.disposables.push(view.addListener('mousedown', e => this.onMouseDown(e)));
+		this.disposables.push(view.addListener('click', e => this.onPointer(e)));
+		this.disposables.push(view.addListener(TouchEventType.Tap, e => this.onPointer(e)));
+	}
+
+	private onMouseDown(e: IListMouseEvent<T>) {
+		e.preventDefault();
+		e.stopPropagation();
+	}
+
+	private onPointer(e: IListMouseEvent<T>) {
+		e.preventDefault();
+		e.stopPropagation();
+		this.view.domNode.focus();
+		this.list.setFocus([e.index]);
+		this.list.setSelection([e.index]);
+	}
+
+	dispose() {
+		this.disposables = dispose(this.disposables);
+	}
 }
 
-const DefaultOptions: IListOptions = {};
+export interface IListOptions extends IListViewOptions {
+	ariaLabel?: string;
+	mouseSupport?: boolean;
+	keyboardSupport?: boolean;
+}
+
+const DefaultOptions: IListOptions = {
+	keyboardSupport: true,
+	mouseSupport: true
+};
 
 export class List<T> implements IDisposable {
 
@@ -216,7 +235,8 @@ export class List<T> implements IDisposable {
 	private selection: Trait<T>;
 	private eventBufferer: EventBufferer;
 	private view: ListView<T>;
-	private controller: Controller<T>;
+	private mouseController: MouseController<T>;
+	private keyboardController: KeyboardController<T>;
 	private disposables: IDisposable[];
 
 	@memoize
@@ -237,6 +257,12 @@ export class List<T> implements IDisposable {
 	private _onDOMFocus: Event<FocusEvent>;
 	get onDOMFocus(): Event<FocusEvent> { return this._onDOMFocus; }
 
+	private _onDOMBlur: Event<FocusEvent>;
+	get onDOMBlur(): Event<FocusEvent> { return this._onDOMBlur; }
+
+	private _onDispose: Emitter<void>;
+	get onDispose(): Event<void> { return this._onDispose.event; }
+
 	constructor(
 		container: HTMLElement,
 		delegate: IDelegate<T>,
@@ -256,10 +282,23 @@ export class List<T> implements IDisposable {
 		this.view = new ListView(container, delegate, renderers, options);
 		this.view.domNode.setAttribute('role', 'tree');
 		this.view.domNode.tabIndex = 0;
-		this.controller = new Controller(this, this.view);
-		this.disposables = [this.focus, this.selection, this.view, this.controller];
 
 		this._onDOMFocus = domEvent(this.view.domNode, 'focus');
+		this._onDOMBlur = domEvent(this.view.domNode, 'blur');
+		this._onDispose = new Emitter<void>();
+
+		this.disposables = [this.focus, this.selection, this.view, this._onDispose];
+
+		if (typeof options.keyboardSupport !== 'boolean' || options.keyboardSupport) {
+			this.keyboardController = new KeyboardController(this, this.view);
+			this.disposables.push(this.keyboardController);
+		}
+
+		if (typeof options.mouseSupport !== 'boolean' || options.mouseSupport) {
+			this.mouseController = new MouseController(this, this.view);
+			this.disposables.push(this.mouseController);
+		}
+
 		this.onFocusChange(this._onFocusChange, this, this.disposables);
 
 		if (options.ariaLabel) {
@@ -426,6 +465,10 @@ export class List<T> implements IDisposable {
 		return `${this.idPrefix}_${index}`;
 	}
 
+	isDOMFocused(): boolean {
+		return this.view.domNode === document.activeElement;
+	}
+
 	private toListEvent({ indexes }: ITraitChangeEvent) {
 		return { indexes, elements: indexes.map(i => this.view.element(i)) };
 	}
@@ -444,6 +487,7 @@ export class List<T> implements IDisposable {
 	}
 
 	dispose(): void {
+		this._onDispose.fire();
 		this.disposables = dispose(this.disposables);
 	}
 }

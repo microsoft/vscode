@@ -338,13 +338,17 @@ export function compareIgnoreCase(a: string, b: string): number {
 			continue;
 		}
 
-		const diff = codeA - codeB;
-		if ((diff === 32 || diff === -32) && isAsciiLetter(codeA) && isAsciiLetter(codeB)) {
-			// equal -> ignoreCase
-			continue;
+		if (isAsciiLetter(codeA) && isAsciiLetter(codeB)) {
+			const diff = codeA - codeB;
+			if (diff === 32 || diff === -32) {
+				// equal -> ignoreCase
+				continue;
+			} else {
+				return diff;
+			}
+		} else {
+			return compare(a.toLowerCase(), b.toLowerCase());
 		}
-
-		return compare(a[i].toLowerCase(), b[i].toLowerCase());
 	}
 
 	if (a.length < b.length) {

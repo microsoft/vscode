@@ -8,7 +8,7 @@
 import Uri from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IRawTextProvider } from 'vs/editor/common/services/modelService';
+import { ITextSource2 } from 'vs/editor/common/editorCommon';
 import { IResolveContentOptions, IUpdateContentOptions } from 'vs/platform/files/common/files';
 
 export const IBackupFileService = createDecorator<IBackupFileService>('backupFileService');
@@ -58,7 +58,7 @@ export interface IBackupFileService {
 	 * @param rawText The IRawTextProvider from a backup resource.
 	 * @return The backup file's backed up content.
 	 */
-	parseBackupContent(rawText: IRawTextProvider): string;
+	parseBackupContent(textSource: ITextSource2): string;
 
 	/**
 	 * Discards the backup associated with a resource if it exists..

@@ -81,6 +81,8 @@ export class SearchSorter implements ISorter {
 		if (elementA instanceof Match && elementB instanceof Match) {
 			return Range.compareRangesUsingStarts(elementA.range(), elementB.range());
 		}
+
+		return undefined;
 	}
 }
 
@@ -213,6 +215,7 @@ export class SearchAccessibilityProvider implements IAccessibilityProvider {
 			}
 			return nls.localize('searchResultAria', "{0}, Search result", match.text());
 		}
+		return undefined;
 	}
 }
 
@@ -331,6 +334,7 @@ export class SearchController extends DefaultController {
 			return this.onEnter(tree, event);
 		}
 		super.onSpace(tree, event);
+		return false;
 	}
 
 	private doSelectOnScroll(tree: ITree, focus: any, event: IKeyboardEvent): void {

@@ -22,12 +22,10 @@ import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IExtensionManagementService, LocalExtensionType, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import paths = require('vs/base/common/paths');
 import { isMacintosh, isLinux } from 'vs/base/common/platform';
 import { IQuickOpenService, IFilePickOpenEntry, ISeparator } from 'vs/platform/quickOpen/common/quickOpen';
 import { KeyMod } from 'vs/base/common/keyCodes';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import * as browser from 'vs/base/browser/browser';
 import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
 import { IEntryRunContext } from 'vs/base/parts/quickopen/common/quickOpen';
@@ -897,27 +895,3 @@ export class OpenIntroductoryVideosUrlAction extends Action {
 		return null;
 	}
 }
-
-// --- commands
-
-CommandsRegistry.registerCommand('_workbench.diff', function (accessor: ServicesAccessor, args: [URI, URI, string, string]) {
-	const editorService = accessor.get(IWorkbenchEditorService);
-	let [leftResource, rightResource, label, description] = args;
-
-	if (!label) {
-		label = nls.localize('diffLeftRightLabel', "{0} ⟷ {1}", leftResource.toString(true), rightResource.toString(true));
-	}
-
-	return editorService.openEditor({ leftResource, rightResource, label, description }).then(() => {
-		return void 0;
-	});
-});
-
-CommandsRegistry.registerCommand('_workbench.open', function (accessor: ServicesAccessor, args: [URI, number]) {
-	const editorService = accessor.get(IWorkbenchEditorService);
-	const [resource, column] = args;
-
-	return editorService.openEditor({ resource }, column).then(() => {
-		return void 0;
-	});
-});

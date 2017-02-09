@@ -809,36 +809,18 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 				linesCollection,
 				this.id,
 				this._configuration,
-				this.model,
-				() => this.getCenteredRangeInViewport()
+				this.model
 			);
 
 			let viewModelHelper: IViewModelHelper = {
 				viewModel: this.viewModel,
+				coordinatesConverter: this.viewModel.coordinatesConverter,
 				getCurrentCompletelyVisibleViewLinesRangeInViewport: () => {
-					return this.viewModel.convertModelRangeToViewRange(this.getCompletelyVisibleLinesRangeInViewport());
+					return this.viewModel.coordinatesConverter.convertModelRangeToViewRange(this.getCompletelyVisibleLinesRangeInViewport());
 				},
 				getCurrentCompletelyVisibleModelLinesRangeInViewport: () => {
 					return this.getCompletelyVisibleLinesRangeInViewport();
 				},
-				convertModelPositionToViewPosition: (lineNumber: number, column: number) => {
-					return this.viewModel.convertModelPositionToViewPosition(lineNumber, column);
-				},
-				convertModelRangeToViewRange: (modelRange: Range) => {
-					return this.viewModel.convertModelRangeToViewRange(modelRange);
-				},
-				convertViewToModelPosition: (lineNumber: number, column: number) => {
-					return this.viewModel.convertViewPositionToModelPosition(lineNumber, column);
-				},
-				convertViewSelectionToModelSelection: (viewSelection: editorCommon.ISelection) => {
-					return this.viewModel.convertViewSelectionToModelSelection(viewSelection);
-				},
-				validateViewPosition: (viewPosition: Position, modelPosition: Position): Position => {
-					return this.viewModel.validateViewPosition(viewPosition.lineNumber, viewPosition.column, modelPosition);
-				},
-				validateViewRange: (viewRange: Range, modelRange: Range): Range => {
-					return this.viewModel.validateViewRange(viewRange.startLineNumber, viewRange.startColumn, viewRange.endLineNumber, viewRange.endColumn, modelRange);
-				}
 			};
 
 			this.cursor = new Cursor(

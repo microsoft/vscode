@@ -19,7 +19,7 @@ import { IAction, ActionRunner as BaseActionRunner, IActionRunner } from 'vs/bas
 import comparers = require('vs/base/common/comparers');
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { $, Builder } from 'vs/base/browser/builder';
-import platform = require('vs/base/common/platform');
+import { isMacintosh } from 'vs/base/common/platform';
 import glob = require('vs/base/common/glob');
 import { FileLabel, IFileLabelOptions } from 'vs/workbench/browser/labels';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -372,7 +372,6 @@ export class FileAccessibilityProvider implements IAccessibilityProvider {
 
 // Explorer Controller
 export class FileController extends DefaultController {
-	private didCatchEnterDown: boolean;
 	private state: FileViewletState;
 
 	private contributedContextMenu: IMenu;
@@ -387,31 +386,13 @@ export class FileController extends DefaultController {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService private keybindingService: IKeybindingService
 	) {
-		super({ clickBehavior: ClickBehavior.ON_MOUSE_UP /* do not change to not break DND */ });
+		super({ clickBehavior: ClickBehavior.ON_MOUSE_UP /* do not change to not break DND */, keyboardSupport: false /* handled via IListService */ });
 
 		this.contributedContextMenu = menuService.createMenu(MenuId.ExplorerContext, contextKeyService);
 
-		this.didCatchEnterDown = false;
-
-		this.downKeyBindingDispatcher.set(platform.isMacintosh ? KeyMod.CtrlCmd | KeyCode.DownArrow : KeyCode.Enter, this.onEnterDown.bind(this));
-		this.upKeyBindingDispatcher.set(platform.isMacintosh ? KeyMod.CtrlCmd | KeyCode.DownArrow : KeyCode.Enter, this.onEnterUp.bind(this));
-		if (platform.isMacintosh) {
-			this.upKeyBindingDispatcher.set(KeyMod.WinCtrl | KeyCode.Enter, this.onModifierEnterUp.bind(this)); // Mac: somehow Cmd+Enter does not work
-		} else {
-			this.upKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.Enter, this.onModifierEnterUp.bind(this)); // Mac: somehow Cmd+Enter does not work
-		}
-		this.downKeyBindingDispatcher.set(platform.isMacintosh ? KeyCode.Enter : KeyCode.F2, this.onF2.bind(this));
-		this.downKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.KEY_C, this.onCopy.bind(this));
-		this.downKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.KEY_V, this.onPaste.bind(this));
-
-		if (platform.isMacintosh) {
-			this.downKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.UpArrow, this.onLeft.bind(this));
-			this.downKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.Backspace, this.onDelete.bind(this));
-			this.downKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Backspace, this.onDelete.bind(this));
-		} else {
-			this.downKeyBindingDispatcher.set(KeyCode.Delete, this.onDelete.bind(this));
-			this.downKeyBindingDispatcher.set(KeyMod.Shift | KeyCode.Delete, this.onDelete.bind(this));
-		}
+		// Copy / Paste
+		this.downKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.KEY_C, (t, e) => this.onCopy(t, e));
+		this.downKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.KEY_V, (t, e) => this.onPaste(t, e));
 
 		this.state = state;
 	}
@@ -522,63 +503,6 @@ export class FileController extends DefaultController {
 		return true;
 	}
 
-	private onEnterDown(tree: ITree, event: IKeyboardEvent): boolean {
-		if (tree.getHighlight()) {
-			return false;
-		}
-
-		const payload = { origin: 'keyboard' };
-
-		const stat: FileStat = tree.getFocus();
-		if (stat) {
-
-			// Directory: Toggle expansion
-			if (stat.isDirectory) {
-				tree.toggleExpansion(stat);
-			}
-
-			// File: Open
-			else {
-				tree.setFocus(stat, payload);
-				this.openEditor(stat, false, false);
-			}
-		}
-
-		this.didCatchEnterDown = true;
-
-		return true;
-	}
-
-	private onEnterUp(tree: ITree, event: IKeyboardEvent): boolean {
-		if (!this.didCatchEnterDown || tree.getHighlight()) {
-			return false;
-		}
-
-		const stat: FileStat = tree.getFocus();
-		if (stat && !stat.isDirectory) {
-			this.openEditor(stat, false, false);
-		}
-
-		this.didCatchEnterDown = false;
-
-		return true;
-	}
-
-	private onModifierEnterUp(tree: ITree, event: IKeyboardEvent): boolean {
-		if (tree.getHighlight()) {
-			return false;
-		}
-
-		const stat: FileStat = tree.getFocus();
-		if (stat && !stat.isDirectory) {
-			this.openEditor(stat, false, true);
-		}
-
-		this.didCatchEnterDown = false;
-
-		return true;
-	}
-
 	private onCopy(tree: ITree, event: IKeyboardEvent): boolean {
 		const stat: FileStat = tree.getFocus();
 		if (stat) {
@@ -610,29 +534,6 @@ export class FileController extends DefaultController {
 
 			this.editorService.openEditor({ resource: stat.resource, options: { preserveFocus, pinned } }, sideBySide).done(null, errors.onUnexpectedError);
 		}
-	}
-
-	private onF2(tree: ITree, event: IKeyboardEvent): boolean {
-		const stat: FileStat = tree.getFocus();
-
-		if (stat) {
-			this.runAction(tree, stat, 'workbench.files.action.triggerRename').done();
-
-			return true;
-		}
-
-		return false;
-	}
-
-	private onDelete(tree: ITree, event: IKeyboardEvent): boolean {
-		const stat: FileStat = tree.getFocus();
-		if (stat) {
-			this.runAction(tree, stat, 'workbench.files.action.moveFileToTrash', event).done();
-
-			return true;
-		}
-
-		return false;
 	}
 
 	private runAction(tree: ITree, stat: FileStat, id: string, event?: IKeyboardEvent): TPromise<any> {
@@ -701,7 +602,7 @@ export class FileFilter implements IFilter {
 
 		// Hide those that match Hidden Patterns
 		const siblingsFn = () => siblings && siblings.map(c => c.name);
-		if (glob.match(this.hiddenExpression, this.contextService.toWorkspaceRelativePath(stat.resource), siblingsFn)) {
+		if (glob.match(this.hiddenExpression, this.contextService.toWorkspaceRelativePath(stat.resource, true), siblingsFn)) {
 			return false; // hidden through pattern
 		}
 
@@ -783,7 +684,7 @@ export class FileDragAndDrop implements IDragAndDrop {
 			return DRAG_OVER_REJECT;
 		}
 
-		const isCopy = originalEvent && ((originalEvent.ctrlKey && !platform.isMacintosh) || (originalEvent.altKey && platform.isMacintosh));
+		const isCopy = originalEvent && ((originalEvent.ctrlKey && !isMacintosh) || (originalEvent.altKey && isMacintosh));
 		const fromDesktop = data instanceof DesktopDragAndDropData;
 
 		// Desktop DND
@@ -864,7 +765,7 @@ export class FileDragAndDrop implements IDragAndDrop {
 		// In-Explorer DND (Move/Copy file)
 		else {
 			const source: FileStat = data.getData()[0];
-			const isCopy = (originalEvent.ctrlKey && !platform.isMacintosh) || (originalEvent.altKey && platform.isMacintosh);
+			const isCopy = (originalEvent.ctrlKey && !isMacintosh) || (originalEvent.altKey && isMacintosh);
 
 			promise = tree.expand(target).then(() => {
 

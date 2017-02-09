@@ -7,6 +7,8 @@
 	"invalid.properties": "'configuration.properties'는 개체여야 합니다.",
 	"invalid.title": "'configuration.title'은 문자열이어야 합니다.",
 	"invalid.type": "설정된 경우 'configuration.type'을 '개체'로 설정해야 합니다.",
+	"overrideSettings.description": "언어 식별자 집합에 대해 재정의할 설정을 구성합니다.",
+	"overrideSettings.title": "설정 재정의",
 	"vscode.extension.contributes.configuration": "구성 설정을 적용합니다.",
 	"vscode.extension.contributes.configuration.properties": "구성 속성에 대한 설명입니다.",
 	"vscode.extension.contributes.configuration.title": "설정을 요약합니다. 이 레이블은 설정 파일에서 구분 주석으로 사용됩니다."

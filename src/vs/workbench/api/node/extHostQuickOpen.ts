@@ -78,6 +78,7 @@ export class ExtHostQuickOpen extends ExtHostQuickOpenShape {
 				if (typeof handle === 'number') {
 					return items[handle];
 				}
+				return undefined;
 			});
 		}, (err) => {
 			this._proxy.$setError(err);
@@ -109,5 +110,6 @@ export class ExtHostQuickOpen extends ExtHostQuickOpenShape {
 		if (this._validateInput) {
 			return TPromise.as(this._validateInput(input));
 		}
+		return undefined;
 	}
 }

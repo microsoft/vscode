@@ -7,5 +7,5 @@
 	"dirtyCounter": "{0} nicht gespeichert",
 	"openEditors": "Geöffnete Editoren",
 	"openEditosrSection": "Abschnitt \"Geöffnete Editoren\"",
-	"treeAriaLabel": "Geöffnete Editoren"
+	"treeAriaLabel": "Geöffnete Editoren: Liste der aktiven Dateien"
 }

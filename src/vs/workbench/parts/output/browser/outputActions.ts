@@ -58,18 +58,26 @@ export class ToggleOutputScrollLockAction extends Action {
 
 	constructor(id: string, label: string,
 		@IOutputService private outputService: IOutputService) {
-		super(id, label, 'output-action toggle-output-scroll-lock');
-		this.toDispose.push(this.outputService.onActiveOutputChannel(channel => this._setChecked(this.outputService.getActiveChannel().scrollLock)));
+		super(id, label, 'output-action output-scroll-unlock');
+		this.toDispose.push(this.outputService.onActiveOutputChannel(channel => this.setClass(this.outputService.getActiveChannel().scrollLock)));
 	}
 
 	public run(): TPromise<any> {
 		const activeChannel = this.outputService.getActiveChannel();
 		if (activeChannel) {
 			activeChannel.scrollLock = !activeChannel.scrollLock;
-			this._setChecked(activeChannel.scrollLock);
+			this.setClass(activeChannel.scrollLock);
 		}
 
 		return TPromise.as(true);
+	}
+
+	private setClass(locked: boolean) {
+		if (locked) {
+			this.class = 'output-action output-scroll-lock';
+		} else {
+			this.class = 'output-action output-scroll-unlock';
+		}
 	}
 
 	public dispose() {

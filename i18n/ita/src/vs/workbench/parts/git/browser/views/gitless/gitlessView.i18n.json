@@ -8,6 +8,6 @@
 	"linuxDownloadFrom": "È possibile scaricarlo da {0}.",
 	"looksLike": "Sembra che GIT non sia installato nel sistema.",
 	"macInstallWith": "È possibile installarlo con {0}, scaricarlo da {1} oppure installare gli strumenti di sviluppo da riga di comando di {2} digitando {3} a un prompt del terminale.",
-	"pleaseRestart": "Dopo aver installato GIT, riavviare {0}.",
+	"pleaseRestart": "Dopo aver installato GIT, riavviare VSCode.",
 	"winInstallWith": "È possibile installarlo con {0} o scaricarlo da {1}."
 }

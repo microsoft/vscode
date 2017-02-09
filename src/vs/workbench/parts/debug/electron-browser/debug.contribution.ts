@@ -152,6 +152,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		if (process) {
 			return process.session.custom(request, requestArgs);
 		}
+
+		return undefined;
 	},
 	when: CONTEXT_IN_DEBUG_MODE,
 	primary: undefined

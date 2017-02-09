@@ -47,6 +47,7 @@ export const snippetSuggestSupport: ISuggestSupport = {
 		if (suggestions) {
 			return { suggestions };
 		}
+		return undefined;
 	}
 };
 
@@ -72,13 +73,13 @@ export function provideSuggestionItems(model: IModel, position: Position, snippe
 		return () => {
 			// stop when we have a result
 			if (hasResult) {
-				return;
+				return undefined;
 			}
 			// for each support in the group ask for suggestions
 			return TPromise.join(supports.map(support => {
 
 				if (!isFalsyOrEmpty(onlyFrom) && onlyFrom.indexOf(support) < 0) {
-					return;
+					return undefined;
 				}
 
 				return asWinJsPromise(token => support.provideCompletionItems(model, position, token)).then(container => {
