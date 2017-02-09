@@ -94,10 +94,10 @@ Registry.as<PanelRegistry>(PanelExtensions.Panels).registerPanel(new PanelDescri
 Registry.as<PanelRegistry>(PanelExtensions.Panels).setDefaultPanelId(REPL_ID);
 
 // Register default debug views
-DebugViewRegistry.registerDebugView(VariablesView, 10);
-DebugViewRegistry.registerDebugView(WatchExpressionsView, 20);
-DebugViewRegistry.registerDebugView(CallStackView, 30);
-DebugViewRegistry.registerDebugView(BreakpointsView, 40);
+DebugViewRegistry.registerDebugView(VariablesView, 10, 40);
+DebugViewRegistry.registerDebugView(WatchExpressionsView, 20, 10);
+DebugViewRegistry.registerDebugView(CallStackView, 30, 30);
+DebugViewRegistry.registerDebugView(BreakpointsView, 40, 20);
 
 // register action to open viewlet
 const registry = Registry.as<IWorkbenchActionRegistry>(WorkbenchActionRegistryExtensions.WorkbenchActions);
