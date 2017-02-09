@@ -92,6 +92,8 @@ class LazyEmmet {
 		return this._loadEmmet().then((_emmet: typeof emmet) => {
 			this._messageService = messageService;
 			this._withEmmetPreferences(configurationService, _emmet, callback);
+		}, (e) => {
+			callback(null);
 		});
 	}
 
@@ -241,6 +243,10 @@ export abstract class EmmetEditorAction extends EditorAction {
 			}
 
 			return LazyEmmet.withConfiguredEmmet(configurationService, messageService, workspaceRoot, (_emmet) => {
+				if (!_emmet) {
+					this.noExpansionOccurred(editor);
+					return undefined;
+				}
 				editorAccessor.onBeforeEmmetAction();
 				instantiationService.invokeFunction((accessor) => {
 					this.runEmmetAction(accessor, new EmmetActionContext(editor, _emmet, editorAccessor));
