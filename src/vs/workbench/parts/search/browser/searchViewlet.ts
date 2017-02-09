@@ -1192,8 +1192,8 @@ export class SearchViewlet extends Viewlet {
 				selection,
 				revealIfVisible: true
 			}
-		}, sideBySide).then((editor) => {
-			if (element instanceof Match && preserveFocus) {
+		}, sideBySide).then(editor => {
+			if (editor && element instanceof Match && preserveFocus) {
 				this.viewModel.searchResult.rangeHighlightDecorations.highlightRange({
 					resource,
 					range: element.range()
