@@ -713,12 +713,14 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 			}
 
 			let markers = line.getMarkers();
-			for (let j = 0, lenJ = markers.length; j < lenJ; j++) {
-				foundMarkersCnt++;
-				let markerId = markers[j].id;
-				let marker = this._markerIdToMarker[markerId];
-				if (marker.position.lineNumber !== line.lineNumber) {
-					throw new Error('Misplaced marker with id ' + markerId);
+			if (markers !== null) {
+				for (let j = 0, lenJ = markers.length; j < lenJ; j++) {
+					foundMarkersCnt++;
+					let markerId = markers[j].id;
+					let marker = this._markerIdToMarker[markerId];
+					if (marker.position.lineNumber !== line.lineNumber) {
+						throw new Error('Misplaced marker with id ' + markerId);
+					}
 				}
 			}
 		}

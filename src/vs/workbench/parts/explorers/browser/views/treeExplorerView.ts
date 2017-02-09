@@ -89,6 +89,7 @@ export class TreeExplorerView extends CollapsibleViewletView {
 						this.tree.setInput(tree);
 					});
 				}
+				return undefined;
 			});
 
 			return TPromise.as(null);

@@ -44,7 +44,7 @@ export class CopyAction extends Action {
 
 export class CopyStackTraceAction extends Action {
 	static ID = 'workbench.action.debug.copyStackTrace';
-	static LABEL = nls.localize('copyStackTrace', "Copy Stack Trace");
+	static LABEL = nls.localize('copyStackTrace', "Copy Call Stack");
 
 	public run(frame: IStackFrame): TPromise<any> {
 		clipboard.writeText(frame.thread.getCallStack().map(sf => sf.toString()).join('\n'));

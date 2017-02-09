@@ -99,11 +99,11 @@ export class ViewOutgoingEvents extends Disposable {
 	}
 
 	private _convertViewToModelPosition(viewPosition: Position): Position {
-		return this._viewModel.convertViewPositionToModelPosition(viewPosition.lineNumber, viewPosition.column);
+		return this._viewModel.coordinatesConverter.convertViewPositionToModelPosition(viewPosition);
 	}
 
 	private _convertViewToModelRange(viewRange: Range): Range {
-		return this._viewModel.convertViewRangeToModelRange(viewRange);
+		return this._viewModel.coordinatesConverter.convertViewRangeToModelRange(viewRange);
 	}
 }
 

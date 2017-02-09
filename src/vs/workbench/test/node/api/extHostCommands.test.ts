@@ -20,11 +20,11 @@ suite('ExtHostCommands', function () {
 
 		const shape = new class extends MainThreadCommandsShape {
 			$registerCommand(id: string): TPromise<any> {
-				return;
+				return undefined;
 			}
 			$unregisterCommand(id: string): TPromise<any> {
 				lastUnregister = id;
-				return;
+				return undefined;
 			}
 		};
 
@@ -41,11 +41,11 @@ suite('ExtHostCommands', function () {
 
 		const shape = new class extends MainThreadCommandsShape {
 			$registerCommand(id: string): TPromise<any> {
-				return;
+				return undefined;
 			}
 			$unregisterCommand(id: string): TPromise<any> {
 				unregisterCounter += 1;
-				return;
+				return undefined;
 			}
 		};
 

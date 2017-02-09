@@ -18,8 +18,6 @@ import * as URL from 'url';
 import Strings = require('./utils/strings');
 import { JSONDocument, JSONSchema, LanguageSettings, getLanguageService } from 'vscode-json-languageservice';
 import { ProjectJSONContribution } from './jsoncontributions/projectJSONContribution';
-import { GlobPatternContribution } from './jsoncontributions/globPatternContribution';
-import { FileAssociationContribution } from './jsoncontributions/fileAssociationContribution';
 import { getLanguageModelCache } from './languageModelCache';
 
 import * as nls from 'vscode-nls';
@@ -53,16 +51,12 @@ documents.listen(connection);
 let clientSnippetSupport = false;
 let clientDynamicRegisterSupport = false;
 
-const filesAssociationContribution = new FileAssociationContribution();
-
 // After the server has started the client sends an initilize request. The server receives
 // in the passed params the rootPath of the workspace plus the client capabilities.
 let workspaceRoot: URI;
 connection.onInitialize((params: InitializeParams): InitializeResult => {
 	workspaceRoot = URI.parse(params.rootPath);
-	if (params.initializationOptions) {
-		filesAssociationContribution.setLanguageIds(params.initializationOptions.languageIds);
-	}
+
 	function hasClientCapability(...keys: string[]) {
 		let c = params.capabilities;
 		for (let i = 0; c && i < keys.length; i++) {
@@ -126,9 +120,7 @@ let languageService = getLanguageService({
 	schemaRequestService,
 	workspaceContext,
 	contributions: [
-		new ProjectJSONContribution(),
-		new GlobPatternContribution(),
-		filesAssociationContribution
+		new ProjectJSONContribution()
 	]
 });
 

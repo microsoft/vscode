@@ -15,10 +15,11 @@
 	"debugConsoleAction": "Console de débogage",
 	"debugFocusConsole": "Focus sur la console de débogage",
 	"disableAllBreakpoints": "Désactiver tous les points d'arrêt",
+	"disableBreakpoint": "Désactiver le point d'arrêt",
 	"disconnectDebug": "Déconnecter",
 	"editConditionalBreakpoint": "Modifier un point d'arrêt...",
-	"editWatchExpression": "Modifier l'expression",
 	"enableAllBreakpoints": "Activer tous les points d'arrêt",
+	"enableBreakpoint": "Activer le point d'arrêt",
 	"focusProcess": "Focus du processus",
 	"launchJsonNeedsConfigurtion": "Configurer ou corriger 'launch.json'",
 	"openLaunchJson": "Ouvrir {0}",
@@ -41,6 +42,5 @@
 	"stepOutDebug": "Pas à pas sortant",
 	"stepOverDebug": "Pas à pas principal",
 	"stopDebug": "Arrêter",
-	"toggleEnablement": "Activer / Désactiver un point d'arrêt",
 	"unreadOutput": "Nouvelle sortie dans la console de débogage"
 }

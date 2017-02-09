@@ -7,6 +7,8 @@
 	"invalid.properties": "'configuration.properties' doit être un objet",
 	"invalid.title": "'configuration.title' doit être une chaîne",
 	"invalid.type": "s'il est défini, 'configuration.type' doit avoir la valeur 'object",
+	"overrideSettings.description": "Configurez les paramètres à remplacer pour un ensemble d'identificateurs de langage.",
+	"overrideSettings.title": "Remplacer les paramètres",
 	"vscode.extension.contributes.configuration": "Ajoute des paramètres de configuration.",
 	"vscode.extension.contributes.configuration.properties": "Description des propriétés de configuration.",
 	"vscode.extension.contributes.configuration.title": "Résumé des paramètres. Cette étiquette va être utilisée dans le fichier de paramètres en tant que commentaire de séparation."

@@ -475,6 +475,19 @@ export class MouseTargetFactory {
 
 	private static _hitTestViewCursor(ctx: HitTestContext, request: HitTestRequest): MouseTarget {
 
+		if (request.target) {
+			// Check if we've hit a painted cursor
+			const lastViewCursorsRenderData = ctx.lastViewCursorsRenderData;
+
+			for (let i = 0, len = lastViewCursorsRenderData.length; i < len; i++) {
+				const d = lastViewCursorsRenderData[i];
+
+				if (request.target === d.domNode) {
+					return request.fulfill(MouseTargetType.CONTENT_TEXT, d.position);
+				}
+			}
+		}
+
 		if (request.isInContentArea) {
 			// Edge has a bug when hit-testing the exact position of a cursor,
 			// instead of returning the correct dom node, it returns the
@@ -495,19 +508,6 @@ export class MouseTargetFactory {
 					&& mouseVerticalOffset <= d.contentTop + d.height
 				) {
 					return request.fulfill(MouseTargetType.CONTENT_TEXT, d.position);
-				}
-			}
-		}
-
-		// Is it a cursor ?
-		if (request.target.getAttribute) {
-			// Target is an Element
-			const lineNumberAttribute = request.target.getAttribute('lineNumber');
-			if (lineNumberAttribute) {
-				const columnAttribute = request.target.getAttribute('column');
-				if (columnAttribute) {
-					const position = new Position(parseInt(lineNumberAttribute, 10), parseInt(columnAttribute, 10));
-					return request.fulfill(MouseTargetType.CONTENT_TEXT, position);
 				}
 			}
 		}

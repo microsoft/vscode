@@ -11,10 +11,15 @@ import Mouse = require('vs/base/browser/mouseEvent');
 import Keyboard = require('vs/base/browser/keyboardEvent');
 import { INavigator } from 'vs/base/common/iterator';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
+import Event from 'vs/base/common/event';
 
 export interface ITree extends Events.IEventEmitter {
 
 	emit(eventType: string, data?: any): void;
+
+	onDOMFocus: Event<FocusEvent>;
+	onDOMBlur: Event<FocusEvent>;
+	onDispose: Event<void>;
 
 	/**
 	 * Returns the tree's DOM element.
@@ -642,6 +647,7 @@ export interface ITreeOptions {
 	useShadows?: boolean;
 	paddingOnRow?: boolean;
 	ariaLabel?: string;
+	keyboardSupport?: boolean;
 }
 
 export interface ITreeContext extends ITreeConfiguration {

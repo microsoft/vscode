@@ -21,7 +21,7 @@ interface MarkdownIt {
 	utils: any;
 }
 
-const FrontMatterRegex = /^---\s*(.|\s)*?---\s*/;
+const FrontMatterRegex = /^---\s*[^]*?---\s*/;
 
 export class MarkdownEngine {
 	private md: MarkdownIt;
@@ -59,7 +59,6 @@ export class MarkdownEngine {
 	private stripFrontmatter(text: string): { text: string, offset: number } {
 		let offset = 0;
 		const frontMatterMatch = FrontMatterRegex.exec(text);
-
 		if (frontMatterMatch) {
 			const frontMatter = frontMatterMatch[0];
 
@@ -115,7 +114,7 @@ export class MarkdownEngine {
 				if (!uri.scheme && uri.path && !uri.fragment) {
 					// Assume it must be a file
 					if (uri.path[0] === '/') {
-						uri = vscode.Uri.file(path.join(vscode.workspace.rootPath, uri.path));
+						uri = vscode.Uri.file(path.join(vscode.workspace.rootPath || '', uri.path));
 					} else {
 						uri = vscode.Uri.file(path.join(path.dirname(this.currentDocument.path), uri.path));
 					}

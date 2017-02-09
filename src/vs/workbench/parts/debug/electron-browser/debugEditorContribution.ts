@@ -131,11 +131,11 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 					getActionsContext: () => breakpoint
 				});
 			} else {
-				const breakpoint = this.debugService.getModel().getBreakpoints()
-					.filter(bp => bp.uri.toString() === uri.toString() && bp.lineNumber === lineNumber).pop();
+				const breakpoints = this.debugService.getModel().getBreakpoints()
+					.filter(bp => bp.uri.toString() === uri.toString() && bp.lineNumber === lineNumber);
 
-				if (breakpoint) {
-					this.debugService.removeBreakpoints(breakpoint.getId());
+				if (breakpoints.length) {
+					breakpoints.forEach(bp => this.debugService.removeBreakpoints(bp.getId()));
 				} else if (canSetBreakpoints) {
 					this.debugService.addBreakpoints(uri, [{ lineNumber }]);
 				}
@@ -194,6 +194,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		if (sf && model && sf.source.uri.toString() === model.uri.toString()) {
 			return this.hoverWidget.showAt(range, focus);
 		}
+		return undefined;
 	}
 
 	private ensureBreakpointHintDecoration(showBreakpointHintAtLineNumber: number): void {
@@ -327,8 +328,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			}
 		});
 		if (!configurationsPosition) {
-			this.commandService.executeCommand('editor.action.triggerSuggest');
-			return;
+			return this.commandService.executeCommand('editor.action.triggerSuggest');
 		}
 
 		const insertLineAfter = (lineNumber: number): TPromise<any> => {

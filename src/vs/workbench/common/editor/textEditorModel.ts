@@ -5,13 +5,13 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { EndOfLinePreference, IModel } from 'vs/editor/common/editorCommon';
+import { EndOfLinePreference, IModel, ITextSource2 } from 'vs/editor/common/editorCommon';
 import { IMode } from 'vs/editor/common/modes';
 import { EditorModel } from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { IRawTextProvider, IModelService } from 'vs/editor/common/services/modelService';
+import { IModelService } from 'vs/editor/common/services/modelService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
 /**
@@ -66,7 +66,7 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 	/**
 	 * Creates the text editor model with the provided value, modeId (can be comma separated for multiple values) and optional resource URL.
 	 */
-	protected createTextEditorModel(value: string | IRawTextProvider, resource?: URI, modeId?: string): TPromise<EditorModel> {
+	protected createTextEditorModel(value: string | ITextSource2, resource?: URI, modeId?: string): TPromise<EditorModel> {
 		const firstLineText = this.getFirstLineText(value);
 		const mode = this.getOrCreateMode(this.modeService, modeId, firstLineText);
 
@@ -76,7 +76,7 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 		});
 	}
 
-	private doCreateTextEditorModel(value: string | IRawTextProvider, mode: TPromise<IMode>, resource: URI): EditorModel {
+	private doCreateTextEditorModel(value: string | ITextSource2, mode: TPromise<IMode>, resource: URI): EditorModel {
 		let model = resource && this.modelService.getModel(resource);
 		if (!model) {
 			model = this.modelService.createModel(value, mode, resource);
@@ -94,7 +94,7 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 		return this;
 	}
 
-	protected getFirstLineText(value: string | IRawTextProvider): string {
+	protected getFirstLineText(value: string | ITextSource2): string {
 		if (typeof value === 'string') {
 			const firstLineText = value.substr(0, 100);
 
@@ -110,7 +110,7 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 
 			return firstLineText.substr(0, Math.min(crIndex, lfIndex));
 		} else {
-			return value.getFirstLine().substr(0, 100);
+			return value.lines[0].substr(0, 100);
 		}
 	}
 
@@ -126,7 +126,7 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 	/**
 	 * Updates the text editor model with the provided value. If the value is the same as the model has, this is a no-op.
 	 */
-	protected updateTextEditorModel(newValue: string | IRawTextProvider): void {
+	protected updateTextEditorModel(newValue: string | ITextSource2): void {
 		if (!this.textEditorModel) {
 			return;
 		}

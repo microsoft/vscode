@@ -47,10 +47,7 @@ suite('ViewModelDecorations', () => {
 			linesCollection,
 			EDITOR_ID,
 			configuration,
-			model,
-			() => {
-				return new Range(1, 1, 1, 1);
-			}
+			model
 		);
 
 		callback(viewModel, model);
@@ -134,9 +131,9 @@ suite('ViewModelDecorations', () => {
 				dec15 = accessor.addDecoration(new Range(1, 40, 1, 51), createOpts('dec15'));
 			});
 
-			let decorationsViewportData = viewModel.getDecorationsViewportData(2, 3);
-
-			let actualDecorations = decorationsViewportData.decorations.map((dec) => {
+			let actualDecorations = viewModel.getDecorationsInViewport(
+				new Range(2, viewModel.getLineMinColumn(2), 3, viewModel.getLineMaxColumn(3))
+			).map((dec) => {
 				return dec.source.id;
 			});
 
@@ -156,7 +153,10 @@ suite('ViewModelDecorations', () => {
 				dec14,
 			]);
 
-			let inlineDecorations1 = decorationsViewportData.inlineDecorations[0];
+			let inlineDecorations1 = viewModel.getViewLineRenderingData(
+				new Range(2, viewModel.getLineMinColumn(2), 3, viewModel.getLineMaxColumn(3)),
+				2
+			).inlineDecorations;
 
 			// view line 2: (1,14 -> 1,24)
 			assert.deepEqual(inlineDecorations1, [
@@ -267,7 +267,10 @@ suite('ViewModelDecorations', () => {
 				},
 			]);
 
-			let inlineDecorations2 = decorationsViewportData.inlineDecorations[1];
+			let inlineDecorations2 = viewModel.getViewLineRenderingData(
+				new Range(2, viewModel.getLineMinColumn(2), 3, viewModel.getLineMaxColumn(3)),
+				3
+			).inlineDecorations;
 
 			// view line 3 (24 -> 36)
 			assert.deepEqual(inlineDecorations2, [
@@ -326,10 +329,22 @@ suite('ViewModelDecorations', () => {
 				);
 			});
 
-			let decorationsViewportData = viewModel.getDecorationsViewportData(2, 3);
-			assert.deepEqual(decorationsViewportData.decorations, []);
-			assert.deepEqual(decorationsViewportData.inlineDecorations, [[], []]);
+			let decorations = viewModel.getDecorationsInViewport(
+				new Range(2, viewModel.getLineMinColumn(2), 3, viewModel.getLineMaxColumn(3))
+			);
+			assert.deepEqual(decorations, []);
+
+			let inlineDecorations1 = viewModel.getViewLineRenderingData(
+				new Range(2, viewModel.getLineMinColumn(2), 3, viewModel.getLineMaxColumn(3)),
+				2
+			).inlineDecorations;
+			assert.deepEqual(inlineDecorations1, []);
+
+			let inlineDecorations2 = viewModel.getViewLineRenderingData(
+				new Range(2, viewModel.getLineMinColumn(2), 3, viewModel.getLineMaxColumn(3)),
+				3
+			).inlineDecorations;
+			assert.deepEqual(inlineDecorations2, []);
 		});
 	});
-
 });

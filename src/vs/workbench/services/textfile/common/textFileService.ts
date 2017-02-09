@@ -168,6 +168,7 @@ export abstract class TextFileService implements ITextFileService {
 					// Otherwise just confirm from the user what to do with the dirty files
 					return this.confirmBeforeShutdown();
 				}
+				return undefined;
 			});
 		}
 
@@ -283,6 +284,8 @@ export abstract class TextFileService implements ITextFileService {
 		else if (confirm === ConfirmResult.CANCEL) {
 			return true; // veto
 		}
+
+		return undefined;
 	}
 
 	private noVeto(options: { cleanUpBackups: boolean }): boolean | TPromise<boolean> {
@@ -399,9 +402,12 @@ export abstract class TextFileService implements ITextFileService {
 
 	public save(resource: URI, options?: ISaveOptions): TPromise<boolean> {
 
-		// touch resource if options tell so and file is not dirty
+		// Run a forced save if we detect the file is not dirty so that save participants can still run
 		if (options && options.force && resource.scheme === 'file' && !this.isDirty(resource)) {
-			return this.fileService.touchFile(resource).then(() => true, () => true /* gracefully ignore errors if just touching */);
+			const model = this._models.get(resource);
+			if (model) {
+				model.save({ force: true, reason: SaveReason.EXPLICIT }).then(() => !model.isDirty());
+			}
 		}
 
 		return this.saveAll([resource]).then(result => result.results.length === 1 && result.results[0].success);
@@ -671,6 +677,7 @@ export abstract class TextFileService implements ITextFileService {
 				else {
 					return TPromise.wrapError(error);
 				}
+				return undefined;
 			});
 		})).then(r => {
 			return {

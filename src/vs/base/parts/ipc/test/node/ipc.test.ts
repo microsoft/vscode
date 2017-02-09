@@ -25,7 +25,7 @@ suite('IPC', () => {
 
 		test('createChannel', () => {
 			if (process.env['VSCODE_PID']) {
-				return; // TODO@Ben find out why test fails when run from within VS Code
+				return undefined; // TODO@Ben find out why test fails when run from within VS Code
 			}
 
 			const client = createClient();
@@ -42,7 +42,7 @@ suite('IPC', () => {
 
 		test('cancellation', () => {
 			if (process.env['VSCODE_PID']) {
-				return; // TODO@Ben find out why test fails when run from within VS Code
+				return undefined; // TODO@Ben find out why test fails when run from within VS Code
 			}
 
 			const client = createClient();
@@ -62,7 +62,7 @@ suite('IPC', () => {
 
 		test('events', () => {
 			if (process.env['VSCODE_PID']) {
-				return; // TODO@Ben find out why test fails when run from within VS Code
+				return undefined; // TODO@Ben find out why test fails when run from within VS Code
 			}
 
 			const client = createClient();
@@ -88,7 +88,7 @@ suite('IPC', () => {
 
 		test('event dispose', () => {
 			if (process.env['VSCODE_PID']) {
-				return; // TODO@Ben find out why test fails when run from within VS Code
+				return undefined; // TODO@Ben find out why test fails when run from within VS Code
 			}
 
 			const client = createClient();

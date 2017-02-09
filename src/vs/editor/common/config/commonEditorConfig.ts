@@ -252,7 +252,7 @@ class InternalEditorOptionsHelper {
 		let viewInfo = new editorCommon.InternalEditorViewOptions({
 			theme: opts.theme,
 			canUseTranslate3d: canUseTranslate3d,
-			disableMonospaceOptimizations: toBoolean(opts.disableMonospaceOptimizations),
+			disableMonospaceOptimizations: (toBoolean(opts.disableMonospaceOptimizations) || toBoolean(opts.fontLigatures)),
 			experimentalScreenReader: toBoolean(opts.experimentalScreenReader),
 			rulers: toSortedIntegerArray(opts.rulers),
 			ariaLabel: String(opts.ariaLabel),
@@ -531,6 +531,9 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 	}
 
 	public setMaxLineNumber(maxLineNumber: number): void {
+		if (this._maxLineNumber === maxLineNumber) {
+			return;
+		}
 		this._maxLineNumber = maxLineNumber;
 		this._recomputeOptions();
 	}

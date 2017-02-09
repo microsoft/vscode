@@ -612,13 +612,53 @@ export class AddSelectionToNextFindMatchAction extends SelectNextFindMatchAction
 	}
 
 	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void {
+		const allSelections = editor.getSelections();
+
+		// If there are mulitple cursors, handle the case where they do not all select the same text.
+		if (allSelections.length > 1) {
+			const model = editor.getModel();
+
+			let selectionsContainSameText = true;
+
+			let selectedText = model.getValueInRange(allSelections[0]);
+			for (let i = 1, len = allSelections.length; i < len; i++) {
+				let selection = allSelections[i];
+				if (selection.isEmpty()) {
+					selectionsContainSameText = false;
+					break;
+				}
+
+				let thisSelectedText = model.getValueInRange(selection);
+				if (selectedText !== thisSelectedText) {
+					selectionsContainSameText = false;
+					break;
+				}
+			}
+
+			if (!selectionsContainSameText) {
+				let resultingSelections: Selection[] = [];
+				for (let i = 0, len = allSelections.length; i < len; i++) {
+					let selection = allSelections[i];
+					if (selection.isEmpty()) {
+						let word = editor.getModel().getWordAtPosition(selection.getStartPosition());
+						if (word) {
+							resultingSelections[i] = new Selection(selection.startLineNumber, word.startColumn, selection.startLineNumber, word.endColumn);
+							continue;
+						}
+					}
+					resultingSelections[i] = selection;
+				}
+				editor.setSelections(resultingSelections);
+				return;
+			}
+		}
+
 		let nextMatch = this._getNextMatch(editor);
 
 		if (!nextMatch) {
 			return;
 		}
 
-		let allSelections = editor.getSelections();
 		editor.setSelections(allSelections.concat(nextMatch));
 		editor.revealRangeInCenterIfOutsideViewport(nextMatch);
 	}

@@ -145,7 +145,7 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 
 			// still current request? widget still open?
 			if (requestId !== this._requestIdPool || !this._widget) {
-				return;
+				return undefined;
 			}
 
 			if (this._model) {
@@ -178,6 +178,7 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 				if (selection) {
 					return this._widget.setSelection(selection);
 				}
+				return undefined;
 			});
 
 		}, error => {

@@ -22,6 +22,7 @@ export class BackupChannel implements IBackupChannel {
 		switch (command) {
 			case 'getBackupPath': return this.service.getBackupPath(arg);
 		}
+		return undefined;
 	}
 }
 

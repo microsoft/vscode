@@ -147,5 +147,6 @@ export class AppInsightsAppender implements ITelemetryAppender {
 				});
 			});
 		}
+		return undefined;
 	}
 }

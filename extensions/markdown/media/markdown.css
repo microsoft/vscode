@@ -149,7 +149,8 @@ body.wordWrap pre {
 	line-height: 18px;
 }
 
-code > div {
+pre:not(.hljs),
+pre.hljs code > div {
 	padding: 16px;
 	border-radius: 3px;
 	overflow: auto;
@@ -157,15 +158,18 @@ code > div {
 
 /** Theming */
 
-.vscode-light {
+.vscode-light,
+.vscode-light pre code {
 	color: rgb(30, 30, 30);
 }
 
-.vscode-dark {
+.vscode-dark,
+.vscode-dark pre code {
 	color: #DDD;
 }
 
-.vscode-high-contrast {
+.vscode-high-contrast,
+.vscode-high-contrast pre code {
 	color: white;
 }
 
@@ -177,14 +181,17 @@ code > div {
 	color: #D7BA7D;
 }
 
+.vscode-light pre:not(.hljs),
 .vscode-light code > div {
 	background-color: rgba(220, 220, 220, 0.4);
 }
 
+.vscode-dark pre:not(.hljs),
 .vscode-dark code > div {
 	background-color: rgba(10, 10, 10, 0.4);
 }
 
+.vscode-high-contrast pre:not(.hljs),
 .vscode-high-contrast code > div {
 	background-color: rgb(0, 0, 0);
 }

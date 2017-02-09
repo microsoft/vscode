@@ -6,7 +6,7 @@
 
 
 import * as assert from 'assert';
-import { getSelectedChanges, applyChangesToModel } from 'vs/workbench/parts/git/common/stageRanges';
+import { SelectedChange, getSelectedChanges, applyChangesToModel, getChangeRevertEdits } from 'vs/workbench/parts/git/common/stageRanges';
 import { Model } from 'vs/editor/common/model/model';
 import { IChange } from 'vs/editor/common/editorCommon';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -30,6 +30,12 @@ function createChange(modifiedStart: number, modifiedEnd: number, originalStart:
 		originalStartLineNumber: originalStart,
 		originalEndLineNumber: originalEnd
 	};
+}
+
+function createSelectedChange(modifiedStart: number, modifiedEnd: number, originalStart: number, originalEnd: number, fullModifiedStart = modifiedStart, fullModifiedEnd = modifiedEnd): SelectedChange {
+	return new SelectedChange(
+		createChange(modifiedStart, modifiedEnd, originalStart, originalEnd),
+		createChange(fullModifiedStart, fullModifiedEnd, originalStart, originalEnd));
 }
 
 suite('Git - Stage ranges', () => {
@@ -255,14 +261,213 @@ suite('Git - Stage ranges', () => {
 		expected.dispose();
 	});
 
-	test('Apply changes to model - multiple changes 2 - insertion, deletion and modification', () => {
-		var original = createModel(' One \n Two \n Three \n Four \n Five \n Six \n Seven \n Eight \n Nine \n Ten ');
-		var modified = createModel(' Two \n Three \n INSERTED \n Four \n Six \n 7 \n Eight \n 9 \n CHANGEIGNORED \n INSERTED');
-		var changes: IChange[] = [];
-		changes.push(createChange(1, 0, 1, 1), createChange(3, 3, 3, 0), createChange(5, 0, 5, 5), createChange(6, 8, 7, 9), createChange(10, 10, 10, 0));
-		var result = applyChangesToModel(original, modified, changes);
-		var expected = createModel(' Two \n Three \n INSERTED \n Four \n Six \n 7 \n Eight \n 9 \n Ten \n INSERTED');
-		assert.equal(result, expected.getValue());
+	test('Revert changes on model - no changes', () => {
+		var original = createModel('One line that is equal. ');
+		var modified = createModel('One line that is equal. \n Second line is new.');
+		var changes: SelectedChange[] = [];
+		const edits = getChangeRevertEdits(original, modified, changes);
+
+		assert.equal(edits.length, 0);
+		original.dispose();
+		modified.dispose();
+	});
+
+	test('Revert changes on model - one line insertion at the beginning', () => {
+		const selections = [new Selection(1, 1, 1, 1)];
+		const original = createModel(' One line that is equal. ');
+		const modified = createModel('Inserted line is new. \n One line that is equal. ');
+		const changes: SelectedChange[] = [];
+		changes.push(createSelectedChange(1, 1, 0, 0));
+		const edits = getChangeRevertEdits(original, modified, changes);
+
+		modified.pushEditOperations(selections, edits, () => selections);
+		const expected = original;
+		assert.equal(modified.getValue(), expected.getValue());
+		original.dispose();
+		modified.dispose();
+	});
+
+	test('Revert changes on model - one line insertion in the middle', () => {
+		const selections = [new Selection(1, 1, 1, 1)];
+		const original = createModel('One line that is equal. \n Last line same. ');
+		const modified = createModel('One line that is equal. \n Second line is new. \n Last line same. ');
+		const changes: SelectedChange[] = [];
+		changes.push(createSelectedChange(2, 2, 1, 0));
+		const edits = getChangeRevertEdits(original, modified, changes);
+
+		modified.pushEditOperations(selections, edits, () => selections);
+		const expected = original;
+		assert.equal(modified.getValue(), expected.getValue());
+		original.dispose();
+		modified.dispose();
+	});
+
+	test('Revert changes on model - one line insertion at the end', () => {
+		const selections = [new Selection(1, 1, 1, 1)];
+		const original = createModel('One line that is equal. ');
+		const modified = createModel('One line that is equal. \n Second line is new.');
+		const changes: SelectedChange[] = [];
+		changes.push(createSelectedChange(2, 2, 1, 0));
+		const edits = getChangeRevertEdits(original, modified, changes);
+
+		modified.pushEditOperations(selections, edits, () => selections);
+		const expected = original;
+		assert.equal(modified.getValue(), expected.getValue());
+		original.dispose();
+		modified.dispose();
+	});
+
+	test('Revert changes on model - one line deletion at the beginning', () => {
+		const selections = [new Selection(1, 1, 1, 1)];
+		const original = createModel('First line is deleted. \n One line that is equal. ');
+		const modified = createModel(' One line that is equal. ');
+		const changes: SelectedChange[] = [];
+		changes.push(createSelectedChange(0, 0, 1, 1));
+		const edits = getChangeRevertEdits(original, modified, changes);
+
+		modified.pushEditOperations(selections, edits, () => selections);
+		const expected = original;
+		assert.equal(modified.getValue(), expected.getValue());
+		original.dispose();
+		modified.dispose();
+	});
+
+	test('Revert changes on model - one line deletion in the middle', () => {
+		const selections = [new Selection(1, 1, 1, 1)];
+		const original = createModel('One line that is equal. \n Second line is deleted. \n Last line same. ');
+		const modified = createModel('One line that is equal. \n Last line same. ');
+		const changes: SelectedChange[] = [];
+		changes.push(createSelectedChange(1, 0, 2, 2));
+		const edits = getChangeRevertEdits(original, modified, changes);
+
+		modified.pushEditOperations(selections, edits, () => selections);
+		const expected = original;
+		assert.equal(modified.getValue(), expected.getValue());
+		original.dispose();
+		modified.dispose();
+	});
+
+	test('Revert changes on model - one line deletion at the end', () => {
+		const selections = [new Selection(1, 1, 1, 1)];
+		const original = createModel('One line that is equal. \n Second line is deleted.');
+		const modified = createModel('One line that is equal. ');
+		const changes: SelectedChange[] = [];
+		changes.push(createSelectedChange(2, 0, 2, 2));
+		const edits = getChangeRevertEdits(original, modified, changes);
+
+		modified.pushEditOperations(selections, edits, () => selections);
+		const expected = original;
+		assert.equal(modified.getValue(), expected.getValue());
+		original.dispose();
+		modified.dispose();
+	});
+
+	test('Revert changes on model - three empty lines insertion in the middle', () => {
+		const selections = [new Selection(1, 1, 1, 1)];
+		const original = createModel('hello\n there\n isidor\n');
+		const modified = createModel('hello\n there\n \n \n \n isidor\n');
+		const changes: SelectedChange[] = [];
+		changes.push(createSelectedChange(3, 5, 2, 0));
+		const edits = getChangeRevertEdits(original, modified, changes);
+
+		modified.pushEditOperations(selections, edits, () => selections);
+		const expected = original;
+		assert.equal(modified.getValue(), expected.getValue());
+		original.dispose();
+		modified.dispose();
+	});
+
+	test('Revert changes on model - one line deletion', () => {
+		const selections = [new Selection(1, 1, 1, 1)];
+		const original = createModel('One line that is equal. \n Second line is old. \n Third line same. \n Forth line not important');
+		const modified = createModel('One line that is equal. \n Third line same. ');
+		const changes: SelectedChange[] = [];
+		changes.push(createSelectedChange(1, 0, 2, 2));
+		const edits = getChangeRevertEdits(original, modified, changes);
+
+		modified.pushEditOperations(selections, edits, () => selections);
+		const expected = createModel('One line that is equal. \n Second line is old. \n Third line same. ');
+		assert.equal(modified.getValue(), expected.getValue());
+		original.dispose();
+		modified.dispose();
+		expected.dispose();
+	});
+
+	test('Revert changes on model - one multi line change', () => {
+		const selections = [new Selection(1, 1, 1, 1)];
+		const original = createModel('One line that is equal. \n Second line is different. \n Third line also different. \n Forth line is same. \n Fifth line is different.');
+		const modified = createModel('One line that is equal. \n 2nd line is different. \n 3rd line also different. \n Forth line is same. \n 5th line is different.');
+		const changes: SelectedChange[] = [];
+		changes.push(createSelectedChange(2, 3, 2, 3));
+		const edits = getChangeRevertEdits(original, modified, changes);
+
+		modified.pushEditOperations(selections, edits, () => selections);
+		const expected = createModel('One line that is equal. \n Second line is different. \n Third line also different. \n Forth line is same. \n 5th line is different.');
+		assert.equal(modified.getValue(), expected.getValue());
+		original.dispose();
+		modified.dispose();
+		expected.dispose();
+	});
+
+	test('Revert changes on model - one multi line change - partial revert', () => {
+		const selections = [new Selection(1, 1, 1, 1)];
+		const original = createModel('One line that is equal. \n Second line is different. \n Third line also different. \n Forth line is same. \n Fifth line is different.');
+		const modified = createModel('One line that is equal. \n 2nd line is different. \n 3rd line also different. \n Forth line is same. \n 5th line is different.');
+		const changes: SelectedChange[] = [];
+		changes.push(createSelectedChange(3, 3, 2, 3, 2, 3));
+		const edits = getChangeRevertEdits(original, modified, changes);
+
+		modified.pushEditOperations(selections, edits, () => selections);
+		const expected = createModel('One line that is equal. \n 2nd line is different. \n Third line also different. \n Forth line is same. \n 5th line is different.');
+		assert.equal(modified.getValue(), expected.getValue());
+		original.dispose();
+		modified.dispose();
+		expected.dispose();
+	});
+
+	test('Revert changes on model - multiple small changes', () => {
+		const selections = [new Selection(1, 1, 1, 1)];
+		const original = createModel(' One \n Two \n Three \n Four \n Five \n Six \n Seven \n Eight \n');
+		const modified = createModel(' One \n 2 \n Three \n 4 \n 5 \n Six \n 7 \n 8 \n');
+		const changes: SelectedChange[] = [];
+		changes.push(createSelectedChange(1, 2, 1, 2), createSelectedChange(4, 5, 4, 5), createSelectedChange(7, 8, 7, 8));
+		const edits = getChangeRevertEdits(original, modified, changes);
+
+		modified.pushEditOperations(selections, edits, () => selections);
+		const expected = original;
+		assert.equal(modified.getValue(), expected.getValue());
+		original.dispose();
+		modified.dispose();
+		expected.dispose();
+	});
+
+	test('Revert changes on model - multiple changes - insertion, deletion and modification', () => {
+		const selections = [new Selection(1, 1, 1, 1)];
+		const original = createModel(' One \n Two \n Three \n Four \n Five \n Six \n Seven \n Eight \n Nine \n Ten');
+		const modified = createModel(' 1 \n Three \n 4 \n 5 \n Six \n 7 \n NEWLINE \n Eight ');
+		const changes: SelectedChange[] = [];
+		changes.push(createSelectedChange(1, 1, 1, 1), createSelectedChange(1, 0, 2, 2), createSelectedChange(3, 4, 4, 5), createSelectedChange(6, 7, 7, 7), createSelectedChange(8, 0, 9, 10));
+		const edits = getChangeRevertEdits(original, modified, changes);
+
+		modified.pushEditOperations(selections, edits, () => selections);
+		const expected = original;
+		assert.equal(modified.getValue(), expected.getValue());
+		original.dispose();
+		modified.dispose();
+		expected.dispose();
+	});
+
+	test('Revert changes on model - multiple changes - partial revert', () => {
+		const selections = [new Selection(1, 1, 1, 1)];
+		const original = createModel(' One \n Two \n Three \n Four \n Five \n Six \n Seven \n Eight \n Nine \n Ten');
+		const modified = createModel(' 1 \n Three \n 4 \n 5 \n Six \n 7 \n NEWLINE \n Eight ');
+		const changes: SelectedChange[] = [];
+		changes.push(createSelectedChange(1, 1, 1, 1), createSelectedChange(1, 0, 2, 2), createSelectedChange(3, 4, 4, 5), createSelectedChange(6, 7, 7, 7), createSelectedChange(8, 0, 9, 10));
+		const edits = getChangeRevertEdits(original, modified, changes);
+
+		modified.pushEditOperations(selections, edits, () => selections);
+		const expected = original;
+		assert.equal(modified.getValue(), expected.getValue());
 		original.dispose();
 		modified.dispose();
 		expected.dispose();

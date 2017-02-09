@@ -40,6 +40,7 @@ import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensions
 import { Query } from '../common/extensionQuery';
 import { OpenGlobalSettingsAction } from 'vs/workbench/parts/preferences/browser/preferencesActions';
 import { IProgressService } from 'vs/platform/progress/common/progress';
+import { IListService } from 'vs/platform/list/browser/listService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IMessageService, CloseAction } from 'vs/platform/message/common/message';
@@ -74,6 +75,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IEditorGroupService private editorInputService: IEditorGroupService,
+		@IListService private listService: IListService,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionTipsService private tipsService: IExtensionTipsService,
 		@IMessageService private messageService: IMessageService,
@@ -105,8 +107,11 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		const delegate = new Delegate();
 		const renderer = this.instantiationService.createInstance(Renderer);
 		this.list = new PagedList(this.extensionsBox, delegate, [renderer], {
-			ariaLabel: localize('extensions', "Extensions")
+			ariaLabel: localize('extensions', "Extensions"),
+			keyboardSupport: false
 		});
+
+		this.disposables.push(this.listService.register(this.list.widget));
 
 		const onKeyDown = chain(domEvent(this.searchBox, 'keydown'))
 			.filter(() => this.list.length > 0)
