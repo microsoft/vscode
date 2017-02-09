@@ -10,7 +10,7 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { Registry } from 'vs/platform/platform';
 import objects = require('vs/base/common/objects');
 import types = require('vs/base/common/types');
-import { ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
+import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/platform/extensions/common/extensionsRegistry';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 
 export const Extensions = {
@@ -102,13 +102,13 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 		return this._onDidRegisterConfiguration.event;
 	}
 
-	public registerConfiguration(configuration: IConfigurationNode): void {
-		this.registerConfigurations([configuration]);
+	public registerConfiguration(configuration: IConfigurationNode, validate: boolean = true): void {
+		this.registerConfigurations([configuration], validate);
 	}
 
-	public registerConfigurations(configurations: IConfigurationNode[]): void {
+	public registerConfigurations(configurations: IConfigurationNode[], validate: boolean = true): void {
 		configurations.forEach(configuration => {
-			this.registerProperties(configuration); // fills in defaults
+			this.validateAndRegisterProperties(configuration, validate); // fills in defaults
 			this.configurationContributors.push(configuration);
 			this.registerJSONConfiguration(configuration);
 			this.updateSchemaForOverrideSettingsConfiguration(configuration);
@@ -141,14 +141,20 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 				}
 			}
 		}
-		this.registerConfigurations([configurationNode]);
+		this.registerConfiguration(configurationNode, false);
 	}
 
-	private registerProperties(configuration: IConfigurationNode, overridable: boolean = false) {
+	private validateAndRegisterProperties(configuration: IConfigurationNode, validate: boolean = true, overridable: boolean = false) {
 		overridable = configuration.overridable || overridable;
 		let properties = configuration.properties;
 		if (properties) {
 			for (let key in properties) {
+				let message;
+				if (validate && (message = validateProperty(key))) {
+					console.warn(message);
+					delete properties[key];
+					continue;
+				}
 				// fill in default values
 				let property = properties[key];
 				let defaultValue = property.default;
@@ -166,9 +172,13 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 		let subNodes = configuration.allOf;
 		if (subNodes) {
 			for (let node of subNodes) {
-				this.registerProperties(node, overridable);
+				this.validateAndRegisterProperties(node, validate, overridable);
 			}
 		}
+	}
+
+	validateProperty(property: string): boolean {
+		return !OVERRIDE_PROPERTY_PATTERN.test(property) && this.getConfigurationProperties()[property] !== void 0;
 	}
 
 	getConfigurations(): IConfigurationNode[] {
@@ -297,11 +307,45 @@ const configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IConfigu
 	}
 });
 
+function validateProperty(property: string): string {
+	if (OVERRIDE_PROPERTY_PATTERN.test(property)) {
+		return nls.localize('config.property.languageDefault', "Cannot register '{0}'. This matches property pattern '\\\\[.*\\\\]$' for describing language specific editor settings. Use 'configurationDefaults' contribution.", property);
+	}
+	if (configurationRegistry.getConfigurationProperties()[property] !== void 0) {
+		return nls.localize('config.property.duplicate', "Cannot register '{0}'. This property is already registered.", property);
+	}
+	return null;
+}
+
+function validateProperties(configuration: IConfigurationNode, collector: ExtensionMessageCollector): void {
+	let properties = configuration.properties;
+	if (properties) {
+		if (typeof properties !== 'object') {
+			collector.error(nls.localize('invalid.properties', "'configuration.properties' must be an object"));
+			configuration.properties = {};
+		}
+		for (let key in properties) {
+			const message = validateProperty(key);
+			if (message) {
+				collector.warn(message);
+				delete properties[key];
+			}
+		}
+	}
+	let subNodes = configuration.allOf;
+	if (subNodes) {
+		for (let node of subNodes) {
+			validateProperties(node, collector);
+		}
+	}
+}
+
 configurationExtPoint.setHandler(extensions => {
 	const configurations: IConfigurationNode[] = [];
 
+
 	for (let i = 0; i < extensions.length; i++) {
-		const configuration = <IConfigurationNode>extensions[i].value;
+		const configuration = <IConfigurationNode>objects.clone(extensions[i].value);
 		const collector = extensions[i].collector;
 
 		if (configuration.type && configuration.type !== 'object') {
@@ -314,17 +358,15 @@ configurationExtPoint.setHandler(extensions => {
 			collector.error(nls.localize('invalid.title', "'configuration.title' must be a string"));
 		}
 
-		if (configuration.properties && (typeof configuration.properties !== 'object')) {
-			collector.error(nls.localize('invalid.properties', "'configuration.properties' must be an object"));
-			return;
-		}
+		validateProperties(configuration, collector);
 
-		const clonedConfiguration = objects.clone(configuration);
-		clonedConfiguration.id = extensions[i].description.id;
-		configurations.push(clonedConfiguration);
+		if (configuration.properties) {
+			configuration.id = extensions[i].description.id;
+			configurations.push(configuration);
+		}
 	}
 
-	configurationRegistry.registerConfigurations(configurations);
+	configurationRegistry.registerConfigurations(configurations, false);
 });
 
 const defaultConfigurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IConfigurationNode>('configurationDefaults', [], {

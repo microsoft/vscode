@@ -126,4 +126,38 @@ suite('ConfigurationService - Model', () => {
 		assert.deepEqual(testObject.keys, []);
 	});
 
+	test('Test registering the same property again', () => {
+		Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
+			'id': 'a',
+			'order': 1,
+			'title': 'a',
+			'type': 'object',
+			'properties': {
+				'a': {
+					'description': 'a',
+					'type': 'boolean',
+					'default': false,
+				}
+			}
+		});
+		assert.equal(true, new model.DefaultConfigModel().getContentsFor('a'));
+	});
+
+	test('Test registering the language property', () => {
+		Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
+			'id': '[a]',
+			'order': 1,
+			'title': 'a',
+			'type': 'object',
+			'properties': {
+				'[a]': {
+					'description': 'a',
+					'type': 'boolean',
+					'default': false,
+				}
+			}
+		});
+		assert.equal(undefined, new model.DefaultConfigModel().getContentsFor('[a]'));
+	});
+
 });
