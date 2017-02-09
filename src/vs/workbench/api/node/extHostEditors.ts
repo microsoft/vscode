@@ -501,7 +501,9 @@ class ExtHostTextEditor implements vscode.TextEditor {
 	// ---- the document
 
 	get document(): vscode.TextDocument {
-		return this._documentData.document;
+		return this._documentData
+			? this._documentData.document
+			: undefined;
 	}
 
 	set document(value) {
