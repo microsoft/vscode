@@ -245,7 +245,8 @@ export class QuickOpenWidget implements IModelProvider {
 
 					// Select element when keys are pressed that signal it
 					const quickNavKeys = this.quickNavigateConfiguration.keybindings;
-					const wasTriggerKeyPressed = keyCode === KeyCode.Enter || quickNavKeys.some((k) => {
+					const wasTriggerKeyPressed = keyCode === KeyCode.Enter || quickNavKeys.some((_k) => {
+						let k = _k._getActual();
 						if (k.isChord()) {
 							return false;
 						}

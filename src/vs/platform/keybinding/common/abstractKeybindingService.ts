@@ -28,6 +28,10 @@ export class SimpleResolvedKeybinding extends ResolvedKeybinding {
 		this._actual = actual;
 	}
 
+	public _getActual(): Keybinding {
+		return this._actual;
+	}
+
 	public getLabel(): string {
 		return KeybindingLabels._toUSLabel(this._actual);
 	}
@@ -107,12 +111,8 @@ export abstract class AbstractKeybindingService implements IKeybindingService {
 		return 0;
 	}
 
-	public lookupKeybindings(commandId: string): Keybinding[] {
-		return this._getResolver().lookupKeybinding(commandId);
-	}
-
 	public lookupKeybindings2(commandId: string): ResolvedKeybinding[] {
-		return this.lookupKeybindings(commandId).map(kb => this._createResolvedKeybinding(kb));
+		return this._getResolver().lookupKeybinding(commandId).map(kb => this._createResolvedKeybinding(kb));
 	}
 
 	private _getAllCommandsAsComment(): string {

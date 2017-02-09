@@ -126,6 +126,10 @@ export class FancyResolvedKeybinding extends ResolvedKeybinding {
 		this._actual = actual;
 	}
 
+	public _getActual(): Keybinding {
+		return this._actual;
+	}
+
 	public getLabel(): string {
 		return KeybindingLabels.toCustomLabel(this._actual, getNativeLabelProvider());
 	}

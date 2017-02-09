@@ -50,7 +50,7 @@ export class BaseQuickOpenNavigateAction extends Action {
 	}
 
 	public run(event?: any): TPromise<any> {
-		const keys = this.keybindingService.lookupKeybindings(this.id);
+		const keys = this.keybindingService.lookupKeybindings2(this.id);
 		const quickNavigate = this.quickNavigate ? { keybindings: keys } : void 0;
 
 		this.quickOpenService.navigate(this.next, quickNavigate);

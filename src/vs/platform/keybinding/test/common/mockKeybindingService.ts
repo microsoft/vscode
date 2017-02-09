@@ -75,10 +75,6 @@ export class MockKeybindingService2 implements IKeybindingService {
 		return new SimpleResolvedKeybinding(keybinding);
 	}
 
-	public lookupKeybindings(commandId: string): Keybinding[] {
-		return [];
-	}
-
 	public lookupKeybindings2(commandId: string): ResolvedKeybinding[] {
 		return [];
 	}
