@@ -43,6 +43,10 @@ export class SimpleResolvedKeybinding extends ResolvedKeybinding {
 	public getElectronAccelerator(): string {
 		return KeybindingLabels._toElectronAccelerator(this._actual);
 	}
+
+	public getUserSettingsLabel(): string {
+		return KeybindingLabels.toUserSettingsLabel(this._actual);
+	}
 }
 
 export abstract class AbstractKeybindingService implements IKeybindingService {
@@ -87,12 +91,12 @@ export abstract class AbstractKeybindingService implements IKeybindingService {
 		return this._onDidUpdateKeybindings ? this._onDidUpdateKeybindings.event : Event.None; // Sinon stubbing walks properties on prototype
 	}
 
-	public getLabelFor(keybinding: Keybinding): string {
-		return KeybindingLabels._toUSLabel(keybinding);
+	public resolveKeybinding(keybinding: SimpleKeybinding): ResolvedKeybinding {
+		return this._createResolvedKeybinding(keybinding);
 	}
 
-	public getHTMLLabelFor(keybinding: Keybinding): IHTMLContentElement[] {
-		return KeybindingLabels._toUSHTMLLabel(keybinding);
+	public getLabelFor(keybinding: Keybinding): string {
+		return KeybindingLabels._toUSLabel(keybinding);
 	}
 
 	public getElectronAcceleratorFor(keybinding: Keybinding): string {
