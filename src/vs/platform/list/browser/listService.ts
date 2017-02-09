@@ -55,7 +55,7 @@ export class ListService implements IListService {
 		// Special treatment for tree highlight mode
 		if (!(widget instanceof List)) {
 			toDispose.push(widget.onHighlightChange(() => {
-				if (widget.getHighlight()) {
+				if (this.focusedTreeOrList === widget && widget.getHighlight()) {
 					this.onListDOMBlur(widget);
 				} else if (widget.isDOMFocused()) {
 					this.onListDOMFocus(widget);
