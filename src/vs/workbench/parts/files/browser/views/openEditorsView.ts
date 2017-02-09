@@ -122,20 +122,7 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 			});
 
 		// Register to list service
-		this.toDispose.push(this.listService.register(this.tree));
-
-		// Update open editors focus context
-		this.toDispose.push(this.tree.onDOMFocus(() => {
-			setTimeout(() => {
-				this.openEditorsFocussedContext.set(true);
-				this.explorerFocussedContext.set(true);
-			}, 0 /* helps when focus jumps from one tree to another */);
-		}));
-
-		this.toDispose.push(this.tree.onDOMBlur(() => {
-			this.openEditorsFocussedContext.reset();
-			this.explorerFocussedContext.reset();
-		}));
+		this.toDispose.push(this.listService.register(this.tree, [this.explorerFocussedContext, this.openEditorsFocussedContext]));
 
 		this.fullRefreshNeeded = true;
 		this.structuralTreeUpdate();
