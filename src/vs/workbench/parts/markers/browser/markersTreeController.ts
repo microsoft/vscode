@@ -123,8 +123,8 @@ export class Controller extends treedefaults.DefaultController {
 					pinned,
 					revealIfVisible: true
 				},
-			}, sideByside).done((editor) => {
-				if (preserveFocus) {
+			}, sideByside).done(editor => {
+				if (editor && preserveFocus) {
 					this.rangeHighlightDecorations.highlightRange(marker, <ICommonCodeEditor>editor.getControl());
 				} else {
 					this.rangeHighlightDecorations.removeHighlightRange();
