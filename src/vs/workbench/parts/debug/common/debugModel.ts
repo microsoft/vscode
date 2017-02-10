@@ -668,6 +668,14 @@ export class ExceptionBreakpoint implements debug.IExceptionBreakpoint {
 	}
 }
 
+export class ThreadAndProcessIds implements debug.ITreeElement {
+	constructor(public processId: string, public threadId: number) { }
+
+	public getId(): string {
+		return `${this.processId}:${this.threadId}`;
+	}
+}
+
 export class Model implements debug.IModel {
 
 	private processes: Process[];
