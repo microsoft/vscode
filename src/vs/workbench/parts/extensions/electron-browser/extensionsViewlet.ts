@@ -246,17 +246,19 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		}
 
 		if (/@outdated/i.test(value)) {
+			value = value.replace(/@outdated/g, '').trim().toLowerCase();
 			return this.extensionsWorkbenchService.queryLocal()
 				.then(result => result.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName)))
-				.then(extensions => extensions.filter(extension => extension.outdated))
+				.then(extensions => extensions.filter(extension => extension.outdated && extension.name.toLowerCase().indexOf(value) > -1))
 				.then(result => new PagedModel(result));
 		}
 
 		if (/@disabled/i.test(value)) {
+			value = value.replace(/@disabled/g, '').trim().toLowerCase();
 			return this.extensionsWorkbenchService.queryLocal()
 				.then(result => result.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName)))
 				.then(result => this.extensionService.getExtensions()
-					.then(runningExtensions => result.filter(e => runningExtensions.every(r => r.id !== e.identifier))))
+					.then(runningExtensions => result.filter(e => runningExtensions.every(r => r.id !== e.identifier) && e.name.toLowerCase().indexOf(value) > -1)))
 				.then(result => new PagedModel(result));
 		}
 
