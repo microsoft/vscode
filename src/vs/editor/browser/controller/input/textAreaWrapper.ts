@@ -61,6 +61,10 @@ class ClipboardEventWrapper implements IClipboardEvent {
 
 		throw new Error('ClipboardEventWrapper.getTextData: Cannot use text data!');
 	}
+
+	public forceCopyWithSyntaxHighlighting(): boolean {
+		return JSON.parse(window.localStorage.getItem('forceCopyWithSyntaxHighlighting'));
+	}
 }
 
 class KeyboardEventWrapper implements IKeyboardEventWrapper {

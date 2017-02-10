@@ -427,10 +427,6 @@ export interface IEditorOptions {
 	 */
 	emptySelectionClipboard?: boolean;
 	/**
-	 * Copying text with colorization to the clipboard
-	 */
-	richTextClipboard?: boolean;
-	/**
 	 * Enable tab completion. Defaults to 'false'
 	 */
 	tabCompletion?: boolean;
@@ -910,7 +906,6 @@ export class EditorContribOptions {
 	readonly acceptSuggestionOnCommitCharacter: boolean;
 	readonly snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
 	readonly emptySelectionClipboard: boolean;
-	readonly richTextClipboard: boolean;
 	readonly tabCompletion: boolean;
 	readonly wordBasedSuggestions: boolean;
 	readonly suggestFontSize: number;
@@ -937,7 +932,6 @@ export class EditorContribOptions {
 		acceptSuggestionOnCommitCharacter: boolean;
 		snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
 		emptySelectionClipboard: boolean;
-		richTextClipboard: boolean;
 		tabCompletion: boolean;
 		wordBasedSuggestions: boolean;
 		suggestFontSize: number;
@@ -960,7 +954,6 @@ export class EditorContribOptions {
 		this.acceptSuggestionOnCommitCharacter = Boolean(source.acceptSuggestionOnCommitCharacter);
 		this.snippetSuggestions = source.snippetSuggestions;
 		this.emptySelectionClipboard = source.emptySelectionClipboard;
-		this.richTextClipboard = source.richTextClipboard;
 		this.tabCompletion = source.tabCompletion;
 		this.wordBasedSuggestions = source.wordBasedSuggestions;
 		this.suggestFontSize = source.suggestFontSize;
@@ -989,7 +982,6 @@ export class EditorContribOptions {
 			&& this.acceptSuggestionOnCommitCharacter === other.acceptSuggestionOnCommitCharacter
 			&& this.snippetSuggestions === other.snippetSuggestions
 			&& this.emptySelectionClipboard === other.emptySelectionClipboard
-			&& this.richTextClipboard === other.richTextClipboard
 			&& this.tabCompletion === other.tabCompletion
 			&& this.wordBasedSuggestions === other.wordBasedSuggestions
 			&& this.suggestFontSize === other.suggestFontSize

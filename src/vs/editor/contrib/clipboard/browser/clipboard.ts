@@ -136,3 +136,36 @@ class ExecCommandPasteAction extends ExecCommandAction {
 		});
 	}
 }
+
+@editorAction
+class ExecCommandCopyWithSyntaxHighlightingAction extends ExecCommandAction {
+
+	constructor() {
+		super('copy', {
+			id: 'editor.action.clipboardCopyWithSyntaxHighlightingAction',
+			label: nls.localize('actions.clipboard.copyWithSyntaxHighlightingLabel', "Copy With Syntax Highlighting"),
+			alias: 'Copy With Syntax Highlighting',
+			precondition: null,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: null
+			},
+			menuOpts: {
+				group: CLIPBOARD_CONTEXT_MENU_GROUP,
+				order: 2
+			}
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void {
+		var enableEmptySelectionClipboard = editor.getConfiguration().contribInfo.emptySelectionClipboard && browser.enableEmptySelectionClipboard;
+
+		if (!enableEmptySelectionClipboard && editor.getSelection().isEmpty()) {
+			return;
+		}
+
+		window.localStorage.setItem('forceCopyWithSyntaxHighlighting', 'true');
+		super.run(accessor, editor);
+		window.localStorage.setItem('forceCopyWithSyntaxHighlighting', 'false');
+	}
+}
