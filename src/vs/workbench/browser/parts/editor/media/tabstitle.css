@@ -133,6 +133,10 @@
 	margin-bottom: auto;
 }
 
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab .monaco-icon-label {
+	overflow: visible; /* fixes https://github.com/Microsoft/vscode/issues/20182 */
+}
+
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab .monaco-icon-label::before {
 	height: 16px; /* tweak the icon size of the editor labels when icons are enabled */
 }
