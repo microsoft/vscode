@@ -7,7 +7,7 @@
 
 import 'vs/css!./media/compositepart';
 import nls = require('vs/nls');
-import uuid = require('vs/base/common/uuid');
+import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Registry } from 'vs/platform/platform';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -108,7 +108,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 	private doOpenComposite(id: string, focus?: boolean): TPromise<Composite> {
 
 		// Use a generated token to avoid race conditions from long running promises
-		let currentCompositeOpenToken = uuid.generateUuid();
+		let currentCompositeOpenToken = defaultGenerator.nextId();
 		this.currentCompositeOpenToken = currentCompositeOpenToken;
 
 		// Hide current
