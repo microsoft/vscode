@@ -103,7 +103,7 @@ export function activate(context: ExtensionContext): void {
 	const goToProjectConfig = (isTypeScript: boolean) => {
 		const editor = window.activeTextEditor;
 		if (editor) {
-			clientHost.goToProjectConfig(isTypeScript, editor.document.uri);
+			clientHost.goToProjectConfig(isTypeScript, editor.document.uri, editor.document.languageId);
 		}
 	};
 	context.subscriptions.push(commands.registerCommand('typescript.goToProjectConfig', goToProjectConfig.bind(null, true)));
@@ -398,7 +398,11 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 		return !!this.findLanguage(file);
 	}
 
-	public goToProjectConfig(isTypeScriptProject: boolean, resource: Uri): Thenable<TextEditor> | undefined {
+	public goToProjectConfig(
+		isTypeScriptProject: boolean,
+		resource: Uri,
+		languageId: string
+	): Thenable<TextEditor> | undefined {
 		const rootPath = workspace.rootPath;
 		if (!rootPath) {
 			window.showInformationMessage(
@@ -409,7 +413,8 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 		}
 
 		const file = this.client.normalizePath(resource);
-		if (!file) {
+		// TODO: TSServer errors when 'projectInfo' is invoked on a non js/ts file
+		if (!file || !this.languagePerId[languageId]) {
 			window.showWarningMessage(
 				localize(
 					'typescript.projectConfigUnsupportedFile',
