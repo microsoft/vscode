@@ -20,6 +20,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Registry } from 'vs/platform/platform';
 import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
+import errors = require('vs/base/common/errors');
 
 import { $ } from 'vs/base/browser/builder';
 import Event, { Emitter } from 'vs/base/common/event';
@@ -209,11 +210,13 @@ export class ThemeService implements IThemeService {
 	private onFileIconThemeChange: Emitter<IFileIconTheme>;
 
 	constructor(
+		container: HTMLElement,
 		@IExtensionService private extensionService: IExtensionService,
 		@IWindowIPCService private windowService: IWindowIPCService,
 		@IStorageService private storageService: IStorageService,
 		@ITelemetryService private telemetryService: ITelemetryService) {
 
+		this.container = container;
 		this.knownColorThemes = [];
 
 		// In order to avoid paint flashing for tokens, because
@@ -280,6 +283,8 @@ export class ThemeService implements IThemeService {
 				this.setFileIconTheme(e.payload, false);
 			}
 		});
+
+		this.initialize().done(null, errors.onUnexpectedError);
 	}
 
 	public get onDidColorThemeChange(): Event<IColorTheme> {
@@ -290,9 +295,7 @@ export class ThemeService implements IThemeService {
 		return this.onFileIconThemeChange.event;
 	}
 
-	public initialize(container: HTMLElement): TPromise<void> {
-		this.container = container;
-
+	private initialize(): TPromise<void> {
 		let themeId = this.storageService.get(COLOR_THEME_PREF, StorageScope.GLOBAL, null);
 		if (!themeId) {
 			themeId = DEFAULT_THEME_ID;
