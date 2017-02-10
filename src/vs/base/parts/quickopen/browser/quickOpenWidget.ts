@@ -42,6 +42,7 @@ export interface IQuickOpenOptions {
 	inputPlaceHolder: string;
 	inputAriaLabel?: string;
 	actionProvider?: IActionProvider;
+	keyboardSupport?: boolean;
 }
 
 export interface IShowOptions {
@@ -194,7 +195,7 @@ export class QuickOpenWidget implements IModelProvider {
 			}, (div: Builder) => {
 				this.tree = new Tree(div.getHTMLElement(), {
 					dataSource: new DataSource(this),
-					controller: new QuickOpenController({ clickBehavior: ClickBehavior.ON_MOUSE_UP }),
+					controller: new QuickOpenController({ clickBehavior: ClickBehavior.ON_MOUSE_UP, keyboardSupport: this.options.keyboardSupport }),
 					renderer: new Renderer(this),
 					filter: new Filter(this),
 					accessibilityProvider: new AccessibilityProvider(this)
@@ -203,7 +204,8 @@ export class QuickOpenWidget implements IModelProvider {
 						indentPixels: 0,
 						alwaysFocused: true,
 						verticalScrollMode: ScrollbarVisibility.Visible,
-						ariaLabel: nls.localize('treeAriaLabel', "Quick Picker")
+						ariaLabel: nls.localize('treeAriaLabel', "Quick Picker"),
+						keyboardSupport: this.options.keyboardSupport
 					});
 
 				this.treeElement = this.tree.getHTMLElement();
@@ -754,6 +756,10 @@ export class QuickOpenWidget implements IModelProvider {
 
 	public getInput(): IModel<any> {
 		return this.tree.getInput();
+	}
+
+	public getTree(): ITree {
+		return this.tree;
 	}
 
 	public showInputDecoration(decoration: Severity): void {
