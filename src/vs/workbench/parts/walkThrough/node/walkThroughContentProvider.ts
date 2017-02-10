@@ -33,7 +33,7 @@ export class WalkThroughContentProvider implements ITextModelContentProvider, IW
 			if (!codeEditorModel) {
 				codeEditorModel = this.modelService.createModel(content.value, this.modeService.getOrCreateModeByFilenameOrFirstLine(resource.fsPath), resource);
 			} else {
-				codeEditorModel.setValueFromRawText(content.value);
+				this.modelService.updateModel(codeEditorModel, content.value);
 			}
 
 			return codeEditorModel;
@@ -74,14 +74,14 @@ export class WalkThroughSnippetContentProvider implements ITextModelContentProvi
 					return '';
 				};
 
-				const markdown = content.value.lines.join('\n');
+				const markdown = content.value.getEntireContent().replace(/\r\n/g, '\n'); // TODO: Can marked digest \r\n ?
 				marked(markdown, { renderer });
 
 				const modeId = this.modeService.getModeIdForLanguageName(languageName);
 				const mode = this.modeService.getOrCreateMode(modeId);
 				codeEditorModel = this.modelService.createModel(codeSnippet, mode, resource);
 			} else {
-				codeEditorModel.setValueFromRawText(content.value);
+				this.modelService.updateModel(codeEditorModel, content.value);
 			}
 
 			return codeEditorModel;

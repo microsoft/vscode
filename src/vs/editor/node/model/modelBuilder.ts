@@ -11,11 +11,7 @@ import * as strings from 'vs/base/common/strings';
 import { guessIndentation } from 'vs/editor/common/model/indentationGuesser';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { CharCode } from 'vs/base/common/charCode';
-
-export class ModelBuilderResult {
-	rawText: IRawText;
-	hash: string;
-}
+import { IRawTextProvider } from 'vs/editor/common/services/modelService';
 
 class ModelLineBasedBuilder {
 
@@ -46,14 +42,81 @@ class ModelLineBasedBuilder {
 		this.hash.update(lines.join('\n') + '\n');
 	}
 
-	public finish(totalLength: number, carriageReturnCnt: number, containsRTL: boolean, isBasicASCII: boolean, opts: ITextModelCreationOptions): ModelBuilderResult {
+	public finish(totalLength: number, carriageReturnCnt: number, containsRTL: boolean, isBasicASCII: boolean): ModelBuilderResult {
+		return new ModelBuilderResult(this.BOM, this.lines, totalLength, carriageReturnCnt, containsRTL, isBasicASCII, this.hash.digest('hex'));
+	}
+}
+
+export class ModelBuilderResult implements IRawTextProvider {
+	/**
+	 * The BOM (leading character sequence of the file).
+	 */
+	private readonly BOM: string;
+	/**
+	 * The text split into lines.
+	 */
+	private readonly lines: string[];
+	/**
+	 * The entire text length.
+	 */
+	private readonly length: number;
+	/**
+	 * Number of lines with EOL \r\n
+	 */
+	private readonly carriageReturnCnt: number;
+	/**
+	 * The text contains Unicode characters classified as "R" or "AL".
+	 */
+	private readonly containsRTL: boolean;
+	/**
+	 * The text contains only characters inside the ASCII range 32-126 or \t \r \n
+	 */
+	private readonly isBasicASCII: boolean;
+	/**
+	 * The content hash.
+	 */
+	public readonly hash: string;
+
+	constructor(BOM: string, lines: string[], length: number, carriageReturnCnt: number, containsRTL: boolean, isBasicASCII: boolean, hash: string) {
+		this.BOM = BOM;
+		this.lines = lines;
+		this.length = length;
+		this.carriageReturnCnt = carriageReturnCnt;
+		this.containsRTL = containsRTL;
+		this.isBasicASCII = isBasicASCII;
+		this.hash = hash;
+	}
+
+	public getEntireContent(): string {
+		let lineFeedCnt = this.lines.length - 1;
+		if (lineFeedCnt === 0) {
+			// Just one line, EOL does not matter
+			return this.lines[0];
+		}
+
+		let EOL = '';
+		if (this.carriageReturnCnt > lineFeedCnt / 2) {
+			// More than half of the file contains \r\n ending lines
+			EOL = '\r\n';
+		} else {
+			// At least one line more ends in \n
+			EOL = '\n';
+		}
+		return this.lines.join(EOL);
+	}
+
+	public getFirstLine(): string {
+		return this.lines[0];
+	}
+
+	public toRawText(opts: ITextModelCreationOptions): IRawText {
 
 		let lineFeedCnt = this.lines.length - 1;
 		let EOL = '';
 		if (lineFeedCnt === 0) {
 			// This is an empty file or a file with precisely one line
 			EOL = (opts.defaultEOL === DefaultEndOfLine.LF ? '\n' : '\r\n');
-		} else if (carriageReturnCnt > lineFeedCnt / 2) {
+		} else if (this.carriageReturnCnt > lineFeedCnt / 2) {
 			// More than half of the file contains \r\n ending lines
 			EOL = '\r\n';
 		} else {
@@ -80,16 +143,13 @@ class ModelLineBasedBuilder {
 		}
 
 		return {
-			rawText: {
-				BOM: this.BOM,
-				EOL: EOL,
-				lines: this.lines,
-				length: totalLength,
-				containsRTL: containsRTL,
-				isBasicASCII: isBasicASCII,
-				options: resolvedOpts
-			},
-			hash: this.hash.digest('hex')
+			BOM: this.BOM,
+			EOL: EOL,
+			lines: this.lines,
+			length: this.length,
+			containsRTL: this.containsRTL,
+			isBasicASCII: this.isBasicASCII,
+			options: resolvedOpts
 		};
 	}
 }
@@ -112,7 +172,7 @@ export class ModelBuilder {
 	private containsRTL: boolean;
 	private isBasicASCII: boolean;
 
-	public static fromStringStream(stream: IStringStream, options: ITextModelCreationOptions): TPromise<ModelBuilderResult> {
+	public static fromStringStream(stream: IStringStream): TPromise<ModelBuilderResult> {
 		return new TPromise<ModelBuilderResult>((c, e, p) => {
 			let done = false;
 			let builder = new ModelBuilder();
@@ -131,7 +191,7 @@ export class ModelBuilder {
 			stream.on('end', () => {
 				if (!done) {
 					done = true;
-					c(builder.finish(options));
+					c(builder.finish());
 				}
 			});
 		});
@@ -196,12 +256,12 @@ export class ModelBuilder {
 		this.leftoverPrevChunk = lines[lines.length - 1];
 	}
 
-	public finish(opts: ITextModelCreationOptions): ModelBuilderResult {
+	public finish(): ModelBuilderResult {
 		let finalLines = [this.leftoverPrevChunk];
 		if (this.leftoverEndsInCR) {
 			finalLines.push('');
 		}
 		this.lineBasedBuilder.acceptLines(finalLines);
-		return this.lineBasedBuilder.finish(this.totalLength, this.totalCRCount, this.containsRTL, this.isBasicASCII, opts);
+		return this.lineBasedBuilder.finish(this.totalLength, this.totalCRCount, this.containsRTL, this.isBasicASCII);
 	}
 }

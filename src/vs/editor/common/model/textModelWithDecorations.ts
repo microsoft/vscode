@@ -165,7 +165,7 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 		super.dispose();
 	}
 
-	protected _resetValue(newValue: editorCommon.IRawText): void {
+	protected _resetValue(newValue: editorCommon.ITextSource): void {
 		super._resetValue(newValue);
 
 		// Destroy all my decorations

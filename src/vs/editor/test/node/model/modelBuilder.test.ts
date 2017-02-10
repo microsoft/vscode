@@ -18,12 +18,13 @@ export function testModelBuilder(chunks: string[], opts: ITextModelCreationOptio
 	for (let i = 0, len = chunks.length; i < len; i++) {
 		builder.acceptChunk(chunks[i]);
 	}
-	let actual = builder.finish(opts);
+	let actual = builder.finish();
 
-	assert.deepEqual({
-		rawText: expectedRawText,
-		hash: expectedHash
-	}, actual);
+	let actualRawText = actual.toRawText(opts);
+	let actualHash = actual.hash;
+
+	assert.equal(actualHash, expectedHash);
+	assert.deepEqual(actualRawText, expectedRawText);
 
 	return expectedHash;
 }

@@ -20,9 +20,11 @@ import { EnvironmentService } from 'vs/platform/environment/node/environmentServ
 import { IBackupService } from 'vs/platform/backup/common/backup';
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { IRawTextContent } from 'vs/workbench/services/textfile/common/textfiles';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { TestWindowService } from 'vs/workbench/test/workbenchTestServices';
+import { IRawTextProvider } from 'vs/editor/common/services/modelService';
+import { IRawText, ITextModelCreationOptions } from 'vs/editor/common/editorCommon';
+
 class TestEnvironmentService extends EnvironmentService {
 
 	constructor(private _backupHome: string, private _backupWorkspacesPath: string) {
@@ -252,16 +254,19 @@ suite('BackupFileService', () => {
 
 	test('parseBackupContent', () => {
 		test('should separate metadata from content', () => {
-			const rawTextContent: IRawTextContent = {
-				resource: null,
-				name: null,
-				mtime: null,
-				etag: null,
-				encoding: null,
-				value: TextModel.toRawText('metadata\ncontent', TextModel.DEFAULT_CREATION_OPTIONS),
-				valueLogicalHash: null
+			const rawText = TextModel.toRawText('metadata\ncontent', TextModel.DEFAULT_CREATION_OPTIONS);
+			const rawTextProvider: IRawTextProvider = {
+				getEntireContent: (): string => {
+					return rawText.lines.join(rawText.EOL);
+				},
+				getFirstLine: (): string => {
+					return rawText.lines[0];
+				},
+				toRawText: (opts: ITextModelCreationOptions): IRawText => {
+					return rawText;
+				}
 			};
-			assert.equal(service.parseBackupContent(rawTextContent), 'content');
+			assert.equal(service.parseBackupContent(rawTextProvider), 'content');
 		});
 	});
 });

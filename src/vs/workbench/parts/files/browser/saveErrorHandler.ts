@@ -65,7 +65,7 @@ export class SaveErrorHandler implements ISaveErrorHandler, IWorkbenchContributi
 			if (!codeEditorModel) {
 				codeEditorModel = this.modelService.createModel(content.value, this.modeService.getOrCreateModeByFilenameOrFirstLine(resource.fsPath), resource);
 			} else {
-				codeEditorModel.setValueFromRawText(content.value);
+				this.modelService.updateModel(codeEditorModel, content.value);
 			}
 
 			return codeEditorModel;

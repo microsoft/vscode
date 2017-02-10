@@ -6,7 +6,7 @@
 
 import { IdGenerator } from 'vs/base/common/idGenerator';
 import { Position } from 'vs/editor/common/core/position';
-import { IRawText, ITextModelWithMarkers } from 'vs/editor/common/editorCommon';
+import { ITextSource, IRawText, ITextModelWithMarkers } from 'vs/editor/common/editorCommon';
 import { LineMarker } from 'vs/editor/common/model/modelLine';
 import { TextModelWithTokens } from 'vs/editor/common/model/textModelWithTokens';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
@@ -39,7 +39,7 @@ export class TextModelWithMarkers extends TextModelWithTokens implements ITextMo
 		super.dispose();
 	}
 
-	protected _resetValue(newValue: IRawText): void {
+	protected _resetValue(newValue: ITextSource): void {
 		super._resetValue(newValue);
 
 		// Destroy all my markers
