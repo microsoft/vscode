@@ -9,12 +9,13 @@
  * ------------------------------------------------------------------------------------------ */
 'use strict';
 
-import { env, languages, commands, workspace, window, ExtensionContext, Memento, IndentAction, Diagnostic, DiagnosticCollection, Range, DocumentFilter, Disposable, Uri } from 'vscode';
+import { env, languages, commands, workspace, window, ExtensionContext, Memento, IndentAction, Diagnostic, DiagnosticCollection, Range, DocumentFilter, Disposable, Uri, QuickPickItem, TextEditor } from 'vscode';
 
 // This must be the first statement otherwise modules might got loaded with
 // the wrong locale.
 import * as nls from 'vscode-nls';
 nls.config({ locale: env.language });
+const localize = nls.loadMessageBundle();
 
 import * as path from 'path';
 
@@ -52,6 +53,16 @@ interface LanguageDescription {
 	configFile: string;
 }
 
+enum ProjectConfigAction {
+	None,
+	CreateConfig,
+	LearnMore
+}
+
+interface ProjectConfigQuickPick extends QuickPickItem {
+	id: ProjectConfigAction;
+}
+
 export function activate(context: ExtensionContext): void {
 	const MODE_ID_TS = 'typescript';
 	const MODE_ID_TSX = 'typescriptreact';
@@ -87,6 +98,15 @@ export function activate(context: ExtensionContext): void {
 
 	context.subscriptions.push(commands.registerCommand('typescript.selectTypeScriptVersion', () => {
 		client.onVersionStatusClicked();
+	}));
+
+	context.subscriptions.push(commands.registerCommand('typescript.goToProjectConfig', () => {
+		const editor = window.activeTextEditor;
+		if (!editor) {
+			return;
+		}
+
+		clientHost.goToProjectConfig(editor.document.uri, editor.document.languageId);
 	}));
 
 	window.onDidChangeActiveTextEditor(VersionStatus.showHideStatus, null, context.subscriptions);
@@ -376,6 +396,68 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 
 	public handles(file: string): boolean {
 		return !!this.findLanguage(file);
+	}
+
+	public goToProjectConfig(resource: Uri, languageId: string): Thenable<TextEditor> | undefined {
+		const rootPath = workspace.rootPath;
+		if (!this.languagePerId[languageId] || !rootPath) {
+			return undefined;
+		}
+
+		const file = this.client.normalizePath(resource);
+		if (!file) {
+			return undefined;
+		}
+		const args: protocol.ProjectInfoRequestArgs = {
+			file: file,
+			needFileNameList: false
+		};
+		return this.client.execute('projectInfo', args).then(res => {
+			if (!res || !res.body) {
+				return undefined;
+			}
+
+			const {configFileName} = res.body;
+			if (configFileName && configFileName.indexOf('/dev/null/') !== 0) {
+				return workspace.openTextDocument(configFileName)
+					.then(window.showTextDocument);
+			}
+
+			const isJsProject = languageId === 'javascript' || languageId === 'javascriptreact';
+			return window.showQuickPick<ProjectConfigQuickPick>([
+				{
+					label: isJsProject
+						? localize('typescript.configureJsconfigQuickPick', 'Configure jsconfig.json')
+						: localize('typescript.configureTsconfigQuickPick', 'Configure tsconfig.json'),
+					description: '',
+					id: ProjectConfigAction.CreateConfig,
+				}, {
+					label: localize('typescript.projectConfigLearnMore', 'Learn More'),
+					description: '',
+					id: ProjectConfigAction.LearnMore
+				}], {
+					placeHolder: localize('typescript.noProjectConfigPlaceholder', 'File is not part of a project')
+				}).then(selected => {
+					switch (selected && selected.id) {
+						case ProjectConfigAction.CreateConfig:
+							const configFile = Uri.file(path.join(rootPath, isJsProject ? 'jsconfig.json' : 'tsconfig.json'));
+							return workspace.openTextDocument(configFile)
+								.then(undefined, _ => workspace.openTextDocument(configFile.with({ scheme: 'untitled' })))
+								.then(window.showTextDocument);
+
+						case ProjectConfigAction.LearnMore:
+							if (isJsProject) {
+								commands.executeCommand('vscode.open', Uri.parse('https://go.microsoft.com/fwlink/?linkid=759670'));
+							} else {
+								commands.executeCommand('vscode.open', Uri.parse('https://go.microsoft.com/fwlink/?linkid=841896'));
+							}
+							return;
+
+						default:
+							return Promise.resolve(undefined);
+					}
+				});
+		});
 	}
 
 	private findLanguage(file: string): LanguageProvider | null {

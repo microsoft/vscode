@@ -33,7 +33,8 @@
     "onLanguage:jsx-tags",
     "onCommand:typescript.reloadProjects",
     "onCommand:javascript.reloadProjects",
-    "onCommand:typescript.selectTypeScriptVersion"
+    "onCommand:typescript.selectTypeScriptVersion",
+    "onCommand:typescript.goToProjectConfig"
   ],
   "main": "./out/typescriptMain",
   "enableProposedApi": true,
@@ -266,6 +267,10 @@
       {
         "command": "typescript.selectTypeScriptVersion",
         "title": "%typescript.selectTypeScriptVersion.title%"
+      },
+      {
+        "command": "typescript.goToProjectConfig",
+        "title": "%typescript.goToProjectConfig.title%"
       }
     ],
     "breakpoints": [
