@@ -12,7 +12,7 @@ import * as Platform from 'vs/base/common/platform';
 import { ProblemMatcher, FileLocationKind, ProblemPattern, ApplyToKind } from 'vs/platform/markers/common/problemMatcher';
 
 import * as TaskSystem from 'vs/workbench/parts/tasks/common/taskSystem';
-import { parse, ParseResult, ILogger, ExternalTaskRunnerConfiguration } from 'vs/workbench/parts/tasks/node/processRunnerConfiguration';
+import { parse, ParseResult, ILogger, ExternalTaskRunnerConfiguration } from 'vs/workbench/parts/tasks/common/taskConfiguration';
 
 class Logger implements ILogger {
 	public receivedMessage: boolean = false;
