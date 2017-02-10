@@ -12,7 +12,6 @@ import { Registry } from 'vs/platform/platform';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IKeybindings } from 'vs/platform/keybinding/common/keybinding';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IWorkbenchActionRegistry, Extensions as WorkbenchActionRegistryExtensions } from 'vs/workbench/common/actionRegistry';
 import { ToggleViewletAction, Extensions as ViewletExtensions, ViewletRegistry, ViewletDescriptor } from 'vs/workbench/browser/viewlet';
@@ -34,7 +33,7 @@ import { DebugContentProvider } from 'vs/workbench/parts/debug/browser/debugCont
 import 'vs/workbench/parts/debug/electron-browser/debugEditorContribution';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-
+import * as debugCommands from 'vs/workbench/parts/debug/electron-browser/debugCommands';
 
 class OpenDebugViewletAction extends ToggleViewletAction {
 	public static ID = VIEWLET_ID;
@@ -129,36 +128,6 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(DisableAllBreakpointsA
 registry.registerWorkbenchAction(new SyncActionDescriptor(ClearReplAction, ClearReplAction.ID, ClearReplAction.LABEL), 'Debug: Clear Debug Console', debugCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(FocusReplAction, FocusReplAction.ID, FocusReplAction.LABEL), 'Debug: Focus Debug Console', debugCategory);
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: '_workbench.startDebug',
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(0),
-	handler(accessor: ServicesAccessor, configurationOrName: any) {
-		const debugService = accessor.get(IDebugService);
-		if (!configurationOrName) {
-			configurationOrName = debugService.getViewModel().selectedConfigurationName;
-		}
-
-		return debugService.createProcess(configurationOrName);
-	},
-	when: CONTEXT_NOT_IN_DEBUG_MODE,
-	primary: undefined
-});
-
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'workbench.customDebugRequest',
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(0),
-	handler(accessor: ServicesAccessor, request: string, requestArgs: any) {
-		const process = accessor.get(IDebugService).getViewModel().focusedProcess;
-		if (process) {
-			return process.session.custom(request, requestArgs);
-		}
-
-		return undefined;
-	},
-	when: CONTEXT_IN_DEBUG_MODE,
-	primary: undefined
-});
-
 // register service
 registerSingleton(IDebugService, service.DebugService);
 
@@ -187,3 +156,5 @@ configurationRegistry.registerConfiguration({
 		}
 	}
 });
+
+debugCommands.registerCommands();
