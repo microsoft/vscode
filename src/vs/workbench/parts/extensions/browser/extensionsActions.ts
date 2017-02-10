@@ -332,7 +332,7 @@ export class ManageExtensionAction extends Action {
 	static ID = 'extensions.manage';
 
 	private static Class = 'extension-action manage';
-	private static NoExtensionClass = `${ManageExtensionAction.Class} no-extension`;
+	private static HideManageExtensionClass = `${ManageExtensionAction.Class} hide`;
 
 	private _actionItem: DropDownMenuActionItem;
 	get actionItem(): IActionItem { return this._actionItem; }
@@ -370,13 +370,13 @@ export class ManageExtensionAction extends Action {
 	}
 
 	private update(): void {
-		this.class = ManageExtensionAction.NoExtensionClass;
+		this.class = ManageExtensionAction.HideManageExtensionClass;
 		this.tooltip = '';
 		this.enabled = false;
-		if (this.extension) {
+		if (this.extension && this.extension.type === LocalExtensionType.User) {
 			const state = this.extension.state;
 			this.enabled = state === ExtensionState.Installed;
-			this.class = this.enabled || state === ExtensionState.Uninstalling ? ManageExtensionAction.Class : ManageExtensionAction.NoExtensionClass;
+			this.class = this.enabled || state === ExtensionState.Uninstalling ? ManageExtensionAction.Class : ManageExtensionAction.HideManageExtensionClass;
 			this.tooltip = state === ExtensionState.Uninstalling ? localize('ManageExtensionAction.uninstallingTooltip', "Uninstalling") : '';
 		}
 	}
