@@ -1,0 +1,93 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench > .activitybar > .content .monaco-action-bar .action-label.wize {
+	background-image: url('diff.svg');
+	background-size: 20px;
+	background-position: center;
+}
+
+.wize-viewlet > .wize-editor {
+	padding: 5px 9px 5px 16px;
+}
+
+.wize-viewlet .monaco-list-row {
+	padding: 0 12px 0 20px;
+	line-height: 22px;
+}
+
+.wize-viewlet .monaco-list-row > .resource-group {
+	display: flex;
+	height: 100%;
+}
+
+.wize-viewlet .monaco-list-row > .resource-group > .name {
+	flex: 1;
+	font-size: 11px;
+	font-weight: bold;
+	text-transform: uppercase;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.wize-viewlet .monaco-list-row > .resource-group:not(:hover) > .actions {
+	display: none;
+}
+
+.wize-viewlet .monaco-list-row > .resource {
+	display: flex;
+	height: 100%;
+}
+
+.wize-viewlet .monaco-list-row > .resource > .name {
+	flex: 1;
+	overflow: hidden;
+}
+
+.wize-viewlet .monaco-list-row > .resource > .name > .monaco-icon-label {
+	width: 100%;
+	height: 100%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.wize-viewlet .monaco-list-row > .resource > .name.strike-through > .monaco-icon-label > .label-name {
+	text-decoration: line-through;
+}
+
+.wize-viewlet .monaco-list-row > .resource > .decoration-icon {
+	width: 16px;
+	height: 100%;
+	background-repeat: no-repeat;
+	background-position: 50% 50%;
+}
+
+.wize-viewlet .monaco-list-row > .resource > .actions .action-label,
+.wize-viewlet .monaco-list-row > .resource-group > .actions .action-label {
+	width: 16px;
+	height: 100%;
+	background-position: 50% 50%;
+	background-repeat: no-repeat;
+}
+
+.wize-viewlet .monaco-list-row:not(.selected) > .resource:not(:hover) > .actions {
+	display: none;
+}
+
+.monaco-shell.vs .wize-viewlet > .wize-editor > .monaco-editor.focused {
+	outline: 1px solid rgba(0, 122, 204, 0.4);
+}
+
+.monaco-shell.vs-dark .wize-viewlet > .wize-editor > .monaco-editor.focused {
+	outline: 1px solid rgba(14, 99, 156, 0.6);
+}
+
+.monaco-shell.hc-black .wize-viewlet > .wize-editor > .monaco-editor {
+	outline: 1px solid #6fc3df;
+}
+
+.monaco-shell.hc-black .wize-viewlet > .wize-editor > .monaco-editor.focused {
+	outline: 2px solid #f38518;
+}
