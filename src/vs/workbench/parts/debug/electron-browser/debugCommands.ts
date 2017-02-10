@@ -16,14 +16,14 @@ export function registerCommands(): void {
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: '_workbench.startDebug',
-		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(0),
+		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 		handler(accessor: ServicesAccessor, configurationOrName: any) {
 			const debugService = accessor.get(IDebugService);
 			if (!configurationOrName) {
 				configurationOrName = debugService.getViewModel().selectedConfigurationName;
 			}
 
-			return debugService.createProcess(configurationOrName);
+			debugService.createProcess(configurationOrName).done(undefined, errors.onUnexpectedError);
 		},
 		when: CONTEXT_NOT_IN_DEBUG_MODE,
 		primary: undefined
@@ -31,16 +31,27 @@ export function registerCommands(): void {
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: 'workbench.customDebugRequest',
-		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(0),
+		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 		handler(accessor: ServicesAccessor, request: string, requestArgs: any) {
 			const process = accessor.get(IDebugService).getViewModel().focusedProcess;
 			if (process) {
-				return process.session.custom(request, requestArgs);
+				process.session.custom(request, requestArgs).done(undefined, errors.onUnexpectedError);
 			}
-
-			return undefined;
 		},
 		when: CONTEXT_IN_DEBUG_MODE,
+		primary: undefined
+	});
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: 'debug.logToDebugConsole',
+		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+		handler(accessor: ServicesAccessor, value: string) {
+			if (typeof value === 'string') {
+				const debugService = accessor.get(IDebugService);
+				debugService.logToRepl(value);
+			}
+		},
+		when: undefined,
 		primary: undefined
 	});
 
