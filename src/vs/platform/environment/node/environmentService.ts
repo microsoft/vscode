@@ -29,7 +29,7 @@ function getUniqueUserId(): string {
 	return crypto.createHash('sha256').update(username).digest('hex').substr(0, 6);
 }
 
-function getIPCHandlePrefix(): string {
+function getIPCHandlePrefix(nixBaseDir: string = os.tmpdir()): string {
 	let name = pkg.name;
 
 	// Support to run VS Code multiple times as different user
@@ -41,9 +41,9 @@ function getIPCHandlePrefix(): string {
 
 	if (process.platform === 'win32') {
 		return `\\\\.\\pipe\\${name}`;
+	} else {
+		return path.join(nixBaseDir, name);
 	}
-
-	return path.join(os.tmpdir(), name);
 }
 
 function getIPCHandleSuffix(): string {
@@ -113,10 +113,10 @@ export class EnvironmentService implements IEnvironmentService {
 	get logExtensionHostCommunication(): boolean { return this._args.logExtensionHostCommunication; }
 
 	@memoize
-	get mainIPCHandle(): string { return `${getIPCHandlePrefix()}-${pkg.version}${getIPCHandleSuffix()}`; }
+	get mainIPCHandle(): string { return `${getIPCHandlePrefix(this.userDataPath)}-${pkg.version}${getIPCHandleSuffix()}`; }
 
 	@memoize
-	get sharedIPCHandle(): string { return `${getIPCHandlePrefix()}-${pkg.version}-shared${getIPCHandleSuffix()}`; }
+	get sharedIPCHandle(): string { return `${getIPCHandlePrefix(this.userDataPath)}-${pkg.version}-shared${getIPCHandleSuffix()}`; }
 
 	@memoize
 	get nodeCachedDataDir(): string { return path.join(this.userDataPath, 'CachedData'); }
