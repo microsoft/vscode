@@ -56,6 +56,7 @@ import Severity from 'vs/base/common/severity';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { OpenFolderAction, OpenFileFolderAction } from 'vs/workbench/browser/actions/fileActions';
 import * as Constants from 'vs/workbench/parts/search/common/constants';
+import { IListService } from 'vs/platform/list/browser/listService';
 
 export class SearchViewlet extends Viewlet {
 
@@ -108,7 +109,8 @@ export class SearchViewlet extends Viewlet {
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IReplaceService private replaceService: IReplaceService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@IPreferencesService private preferencesService: IPreferencesService
+		@IPreferencesService private preferencesService: IPreferencesService,
+		@IListService private listService: IListService
 	) {
 		super(Constants.VIEWLET_ID, telemetryService);
 
@@ -456,11 +458,44 @@ export class SearchViewlet extends Viewlet {
 				controller: new SearchController(this, this.instantiationService),
 				accessibilityProvider: this.instantiationService.createInstance(SearchAccessibilityProvider)
 			}, {
-					ariaLabel: nls.localize('treeAriaLabel', "Search Results")
+					ariaLabel: nls.localize('treeAriaLabel', "Search Results"),
+					keyboardSupport: false
 				});
 
 			this.tree.setInput(this.viewModel.searchResult);
 			this.toUnbind.push(renderer);
+
+			this.toUnbind.push(this.listService.register(this.tree));
+
+			let focusToSelectionDelayHandle: number;
+			let lastFocusToSelection: number;
+
+			const focusToSelection = () => {
+				lastFocusToSelection = Date.now();
+
+				const focus = this.tree.getFocus();
+				let payload: any;
+				if (focus instanceof Match) {
+					payload = { origin: 'keyboard', originalEvent: event };
+				}
+
+				this.tree.setSelection([focus], payload);
+				focusToSelectionDelayHandle = void 0;
+			};
+
+			this.toUnbind.push(this.tree.addListener2('focus', (event: any) => {
+				let keyboard = event.payload && event.payload.origin === 'keyboard';
+				if (keyboard) {
+					// debounce setting selection so that we are not too quickly opening
+					// when the user is pressing and holding the key to move focus
+					if (focusToSelectionDelayHandle || (Date.now() - lastFocusToSelection <= 100)) {
+						window.clearTimeout(focusToSelectionDelayHandle);
+						focusToSelectionDelayHandle = window.setTimeout(() => focusToSelection(), 300);
+					} else {
+						focusToSelection();
+					}
+				}
+			}));
 
 			this.toUnbind.push(this.tree.addListener2('selection', (event: any) => {
 				let element: any;
@@ -474,12 +509,12 @@ export class SearchViewlet extends Viewlet {
 				let originalEvent: KeyboardEvent | MouseEvent = event.payload && event.payload.originalEvent;
 
 				let doubleClick = (event.payload && event.payload.origin === 'mouse' && originalEvent && originalEvent.detail === 2);
-				if (doubleClick) {
+				if (doubleClick && originalEvent) {
 					originalEvent.preventDefault(); // focus moves to editor, we need to prevent default
 				}
 
 				let sideBySide = (originalEvent && (originalEvent.ctrlKey || originalEvent.metaKey));
-				let focusEditor = (keyboard && (<KeyboardEvent>originalEvent).keyCode === KeyCode.Enter) || doubleClick || (event.payload && event.payload.focusEditor);
+				let focusEditor = (keyboard && originalEvent && (<KeyboardEvent>originalEvent).keyCode === KeyCode.Enter) || doubleClick || (event.payload && event.payload.focusEditor);
 
 				if (element instanceof Match) {
 					let selectedMatch: Match = element;
