@@ -108,22 +108,22 @@
 	font-style: italic;
 }
 
-.extension-editor > .header > .details > .actions > .monaco-action-bar .action-item .action-label.extension-action.built-in-status {
+.extension-editor>.header>.details>.actions>.monaco-action-bar .action-item .action-label.extension-action.built-in-status {
 	font-weight: normal;
 }
 
-.extensions-viewlet > .extensions .extension > .details > .footer > .monaco-action-bar .action-item .action-label.extension-action.manage.no-extension {
+.extensions-viewlet>.extensions .extension>.details>.footer>.monaco-action-bar .action-item .action-label.extension-action.manage.hide {
 	display: none;
 }
 
-.extensions-viewlet > .extensions .extension > .details > .footer > .monaco-action-bar .action-item .action-label.extension-action.manage {
+.extensions-viewlet>.extensions .extension>.details>.footer>.monaco-action-bar .action-item .action-label.extension-action.manage {
 	height: 18px;
 	width: 10px;
 	border: none;
 	background: url('manage.svg') center center no-repeat;
 }
 
-.hc-black .extensions-viewlet > .extensions .extension > .details > .footer > .monaco-action-bar .action-item .action-label.extension-action.manage,
-.vs-dark .extensions-viewlet > .extensions .extension > .details > .footer > .monaco-action-bar .action-item .action-label.extension-action.manage {
+.hc-black .extensions-viewlet>.extensions .extension>.details>.footer>.monaco-action-bar .action-item .action-label.extension-action.manage,
+.vs-dark .extensions-viewlet>.extensions .extension>.details>.footer>.monaco-action-bar .action-item .action-label.extension-action.manage {
 	background: url('manage-inverse.svg') center center no-repeat;
 }
