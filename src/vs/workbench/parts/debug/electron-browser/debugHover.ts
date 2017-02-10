@@ -11,7 +11,7 @@ import * as dom from 'vs/base/browser/dom';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { DefaultController, ICancelableEvent } from 'vs/base/parts/tree/browser/treeDefaults';
+import { DefaultController, ICancelableEvent, ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
 import { IConfigurationChangedEvent } from 'vs/editor/common/editorCommon';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -20,6 +20,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IDebugService, IExpression, IExpressionContainer } from 'vs/workbench/parts/debug/common/debug';
 import { Expression } from 'vs/workbench/parts/debug/common/debugModel';
 import { VariablesRenderer, renderExpressionValue, VariablesDataSource } from 'vs/workbench/parts/debug/electron-browser/debugViewer';
+import { IListService } from 'vs/platform/list/browser/listService';
 
 const $ = dom.$;
 const MAX_ELEMENTS_SHOWN = 18;
@@ -43,7 +44,12 @@ export class DebugHoverWidget implements IContentWidget {
 	private stoleFocus: boolean;
 	private toDispose: lifecycle.IDisposable[];
 
-	constructor(private editor: ICodeEditor, private debugService: IDebugService, instantiationService: IInstantiationService) {
+	constructor(
+		private editor: ICodeEditor,
+		private debugService: IDebugService,
+		private listService: IListService,
+		instantiationService: IInstantiationService
+	) {
 		this.toDispose = [];
 		this.create(instantiationService);
 		this.registerListeners();
@@ -73,8 +79,11 @@ export class DebugHoverWidget implements IContentWidget {
 		}, {
 				indentPixels: 6,
 				twistiePixels: 15,
-				ariaLabel: nls.localize('treeAriaLabel', "Debug Hover")
+				ariaLabel: nls.localize('treeAriaLabel', "Debug Hover"),
+				keyboardSupport: false
 			});
+
+		this.toDispose.push(this.listService.register(this.tree));
 	}
 
 	private registerListeners(): void {
@@ -302,7 +311,7 @@ export class DebugHoverWidget implements IContentWidget {
 class DebugHoverController extends DefaultController {
 
 	constructor(private editor: ICodeEditor) {
-		super();
+		super({ clickBehavior: ClickBehavior.ON_MOUSE_UP, keyboardSupport: false });
 	}
 
 	protected onLeftClick(tree: ITree, element: any, eventish: ICancelableEvent, origin = 'mouse'): boolean {
