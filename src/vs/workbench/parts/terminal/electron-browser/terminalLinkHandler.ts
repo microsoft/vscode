@@ -49,9 +49,26 @@ export class TerminalLinkHandler {
 	private _handleUnixLikeLocalLink(link: string): TPromise<void> {
 		// Resolve ~ -> $HOME
 		if (link.charAt(0) === '~') {
+			if (!process.env.HOME) {
+				return TPromise.as(void 0);
+			}
 			link = process.env.HOME + link.substring(1);
 		}
+		return this._handleCommonLocalLink(link);
+	}
 
+	private _handleWindowsLocalLink(link: string): TPromise<void> {
+		// Resolve ~ -> %HOMEDRIVE%\%HOMEPATH%
+		if (link.charAt(0) === '~') {
+			if (!process.env.HOMEDRIVE || !process.env.HOMEPATH) {
+				return TPromise.as(void 0);
+			}
+			link = `${process.env.HOMEDRIVE}\\${process.env.HOMEPATH + link.substring(1)}`;
+		}
+		return this._handleCommonLocalLink(link);
+	}
+
+	private _handleCommonLocalLink(link: string): TPromise<void> {
 		// Resolve workspace path . / .. -> <path>/. / <path/..
 		if (link.charAt(0) === '.') {
 			if (!this._contextService.hasWorkspace) {
@@ -71,9 +88,5 @@ export class TerminalLinkHandler {
 			}
 			return this._editorService.openEditor({ resource }).then(() => void 0);
 		});
-	}
-
-	private _handleWindowsLocalLink(link: string): TPromise<void> {
-		return null;
 	}
 }
