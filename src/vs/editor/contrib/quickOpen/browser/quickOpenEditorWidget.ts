@@ -40,7 +40,8 @@ export class QuickOpenEditorWidget implements IOverlayWidget {
 				onType: onType
 			}, {
 				inputPlaceHolder: null,
-				inputAriaLabel: configuration.inputAriaLabel
+				inputAriaLabel: configuration.inputAriaLabel,
+				keyboardSupport: true
 			},
 			null
 		);
