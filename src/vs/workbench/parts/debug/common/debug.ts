@@ -459,6 +459,11 @@ export interface IDebugService {
 	removeReplExpressions(): void;
 
 	/**
+	 * Appends the passed string to the debug repl.
+	 */
+	logToRepl(value: string): void;
+
+	/**
 	 * Adds a new watch expression and evaluates it against the debug adapter.
 	 */
 	addWatchExpression(name?: string): TPromise<void>;
