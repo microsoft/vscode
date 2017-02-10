@@ -22,7 +22,6 @@ const winPathPrefix = '([a-zA-Z]:|\\.\\.?|\\~)';
 const winPathSeparatorClause = '(\\\\|\\/)';
 const winExcludedPathCharactersClause = '[^\\0<>\\?\\|\\/\\s!$`&*()+\'":;]';
 /** A regex that matches paths in the form c:\path, ~\path, .\path */
-console.log('(' + winPathPrefix + '?(' + winPathSeparatorClause + '(' + winExcludedPathCharactersClause + ')+)+)');
 const WINDOWS_LOCAL_LINK_REGEX = new RegExp('(' + winPathPrefix + '?(' + winPathSeparatorClause + '(' + winExcludedPathCharactersClause + ')+)+)');
 
 export class TerminalLinkHandler {
