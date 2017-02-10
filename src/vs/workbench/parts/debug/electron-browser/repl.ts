@@ -39,12 +39,14 @@ import { ReplHistory } from 'vs/workbench/parts/debug/common/replHistory';
 import { Panel } from 'vs/workbench/browser/panel';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { IListService } from 'vs/platform/list/browser/listService';
 
 const $ = dom.$;
 
 const replTreeOptions: ITreeOptions = {
 	twistiePixels: 20,
-	ariaLabel: nls.localize('replAriaLabel', "Read Eval Print Loop Panel")
+	ariaLabel: nls.localize('replAriaLabel', "Read Eval Print Loop Panel"),
+	keyboardSupport: false
 };
 
 const HISTORY_STORAGE_KEY = 'debug.repl.history';
@@ -86,7 +88,8 @@ export class Repl extends Panel implements IPrivateReplService {
 		@IPanelService private panelService: IPanelService,
 		@IThemeService private themeService: IThemeService,
 		@IModelService private modelService: IModelService,
-		@IContextKeyService private contextKeyService: IContextKeyService
+		@IContextKeyService private contextKeyService: IContextKeyService,
+		@IListService private listService: IListService
 	) {
 		super(debug.REPL_ID, telemetryService);
 
@@ -146,6 +149,8 @@ export class Repl extends Panel implements IPrivateReplService {
 			accessibilityProvider: new ReplExpressionsAccessibilityProvider(),
 			controller
 		}, replTreeOptions);
+
+		this.toDispose.push(this.listService.register(this.tree));
 
 		if (!Repl.HISTORY) {
 			Repl.HISTORY = new ReplHistory(JSON.parse(this.storageService.get(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE, '[]')));
