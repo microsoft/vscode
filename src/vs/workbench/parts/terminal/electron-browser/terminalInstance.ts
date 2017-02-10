@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as path from 'path';
+import * as pfs from 'vs/base/node/pfs';
 import DOM = require('vs/base/browser/dom');
 import Event, { Emitter } from 'vs/base/common/event';
 import URI from 'vs/base/common/uri';
@@ -10,9 +12,9 @@ import cp = require('child_process');
 import lifecycle = require('vs/base/common/lifecycle');
 import nls = require('vs/nls');
 import os = require('os');
-import path = require('path');
 import platform = require('vs/base/common/platform');
 import xterm = require('xterm');
+import { TPromise } from 'vs/base/common/winjs.base';
 import { Dimension } from 'vs/base/browser/builder';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -22,12 +24,20 @@ import { IStringDictionary } from 'vs/base/common/collections';
 import { ITerminalInstance, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_PANEL_ID, IShellLaunchConfig } from 'vs/workbench/parts/terminal/common/terminal';
 import { ITerminalProcessFactory } from 'vs/workbench/parts/terminal/electron-browser/terminal';
 import { IWorkspace, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { TabFocus } from 'vs/editor/common/config/commonEditorConfig';
 import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
+
+/** A regex that matches paths in the form /path, ~/path, ./path, ../path */
+const pathPrefix = '(\\.\\.?|\\~)';
+const pathStartClause = '\\/';
+const excludedPathCharactersClause = '[^\\0\\s!$`&*()+\'":;]'; // '":; are allowed in paths but they are often separators so ignore them
+const escapedExcludedPathCharactersClause = '(\\\\s|\\\\!|\\\\$|\\\\`|\\\\&|\\\\*|(|)|\\+)';
+const LOCAL_UNIX_LIKE_LINK_REGEX = new RegExp('(' + pathPrefix + '?(' + pathStartClause + '(' + excludedPathCharactersClause + '|' + escapedExcludedPathCharactersClause + ')+)+)');
 
 class StandardTerminalProcessFactory implements ITerminalProcessFactory {
 	public create(env: { [key: string]: string }): cp.ChildProcess {
@@ -80,7 +90,8 @@ export class TerminalInstance implements ITerminalInstance {
 		@IKeybindingService private _keybindingService: IKeybindingService,
 		@IMessageService private _messageService: IMessageService,
 		@IPanelService private _panelService: IPanelService,
-		@IWorkspaceContextService private _contextService: IWorkspaceContextService
+		@IWorkspaceContextService private _contextService: IWorkspaceContextService,
+		@IWorkbenchEditorService private _editorService: IWorkbenchEditorService
 	) {
 		this._instanceDisposables = [];
 		this._processDisposables = [];
@@ -139,6 +150,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._xtermElement = document.createElement('div');
 
 		this._xterm.open(this._xtermElement);
+		this._xterm.registerLinkMatcher(LOCAL_UNIX_LIKE_LINK_REGEX, (url) => this._openRelativeUnixLikeLink(url), 1);
 		this._xterm.attachCustomKeydownHandler((event: KeyboardEvent) => {
 			// Disable all input if the terminal is exiting
 			if (this._isExiting) {
@@ -216,6 +228,33 @@ export class TerminalInstance implements ITerminalInstance {
 		this.layout(new Dimension(width, height));
 		this.setVisible(this._isVisible);
 		this.updateConfig();
+	}
+
+	private _openRelativeUnixLikeLink(link: string): TPromise<void> {
+		// Resolve ~ -> $HOME
+		if (link.charAt(0) === '~') {
+			link = process.env.HOME + link.substring(1);
+		}
+
+		// Resolve workspace path . / .. -> <path>/. / <path/..
+		if (link.charAt(0) === '.') {
+			if (!this._contextService.hasWorkspace) {
+				// Abort if no workspace is open
+				return TPromise.as(void 0);
+			}
+			link = path.join(this._contextService.getWorkspace().resource.fsPath, link);
+		}
+
+		// Clean up the path
+		const resource = URI.file(path.normalize(path.resolve(link)));
+
+		// Open an editor if the path exists
+		return pfs.fileExists(link).then(isFile => {
+			if (!isFile) {
+				return void 0;
+			}
+			return this._editorService.openEditor({ resource }).then(() => void 0);
+		});
 	}
 
 	public hasSelection(): boolean {
