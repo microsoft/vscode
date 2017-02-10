@@ -14,7 +14,7 @@ import strings = require('vs/base/common/strings');
 import filters = require('vs/base/common/filters');
 import DOM = require('vs/base/browser/dom');
 import URI from 'vs/base/common/uri';
-import uuid = require('vs/base/common/uuid');
+import { defaultGenerator } from 'vs/base/common/idGenerator';
 import types = require('vs/base/common/types');
 import { Action } from 'vs/base/common/actions';
 import { IIconLabelOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
@@ -265,7 +265,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 		const autoFocus = options.autoFocus;
 
 		// Use a generated token to avoid race conditions from long running promises
-		const currentPickerToken = uuid.generateUuid();
+		const currentPickerToken = defaultGenerator.nextId();
 		this.currentPickerToken = currentPickerToken;
 
 		// Create upon first open
@@ -673,7 +673,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 		const instantProgress = handlerDescriptor && handlerDescriptor.instantProgress;
 
 		// Use a generated token to avoid race conditions from long running promises
-		const currentResultToken = uuid.generateUuid();
+		const currentResultToken = defaultGenerator.nextId();
 		this.currentResultToken = currentResultToken;
 
 		// Reset Progress
