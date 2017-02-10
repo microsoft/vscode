@@ -441,13 +441,17 @@ export class RawDebugSession extends v8.V8Protocol implements debug.ISession {
 	private launchServer(launch: debug.IAdapterExecutable): TPromise<void> {
 		return new TPromise<void>((c, e) => {
 			if (launch.command === 'node') {
-				stdfork.fork(launch.args[0], launch.args.slice(1), {}, (err, child) => {
-					if (err) {
-						e(new Error(nls.localize('unableToLaunchDebugAdapter', "Unable to launch debug adapter from '{0}'.", launch.args[0])));
-					}
-					this.serverProcess = child;
-					c(null);
-				});
+				if (Array.isArray(launch.args) && launch.args.length > 0) {
+					stdfork.fork(launch.args[0], launch.args.slice(1), {}, (err, child) => {
+						if (err) {
+							e(new Error(nls.localize('unableToLaunchDebugAdapter', "Unable to launch debug adapter from '{0}'.", launch.args[0])));
+						}
+						this.serverProcess = child;
+						c(null);
+					});
+				} else {
+					e(new Error(nls.localize('unableToLaunchDebugAdapterNoArgs', "Unable to launch debug adapter.")));
+				}
 			} else {
 				this.serverProcess = cp.spawn(launch.command, launch.args, {
 					stdio: [
