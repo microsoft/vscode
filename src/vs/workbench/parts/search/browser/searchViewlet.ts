@@ -720,7 +720,10 @@ export class SearchViewlet extends Viewlet {
 		this.inputPatternIncludes.setWidth(this.size.width - 28 /* container margin */);
 		this.inputPatternGlobalExclusions.width = this.size.width - 28 /* container margin */ - 24 /* actions */;
 
-		let searchResultContainerSize = this.size.height - dom.getTotalHeight(this.searchWidgetsContainer.getContainer()) - 6 /** container margin top */;
+		let searchResultContainerSize = this.size.height -
+			dom.getTotalHeight(this.messages.getHTMLElement()) -
+			dom.getTotalHeight(this.searchWidgetsContainer.getContainer());
+
 		this.results.style({ height: searchResultContainerSize + 'px' });
 
 		this.tree.layout(searchResultContainerSize);
@@ -1113,14 +1116,22 @@ export class SearchViewlet extends Viewlet {
 			}
 
 			// Search result tree update
-			let count = this.viewModel.searchResult.fileCount();
-			if (visibleMatches !== count) {
-				visibleMatches = count;
+			const fileCount = this.viewModel.searchResult.fileCount();
+			if (visibleMatches !== fileCount) {
+				visibleMatches = fileCount;
 				this.tree.refresh().then(() => {
 					autoExpand(false);
 				}).done(null, errors.onUnexpectedError);
+
+				// Update results text
+				const msgWasHidden = this.messages.isHidden();
+				const div = this.clearMessage();
+				$(div).p({ text: this.buildResultCountMessage(this.viewModel.searchResult.count(), fileCount) });
+				if (msgWasHidden) {
+					this.reLayout();
+				}
 			}
-			if (count > 0) {
+			if (fileCount > 0) {
 				// since we have results now, enable some actions
 				if (!this.actionRegistry['vs.tree.collapse'].enabled) {
 					this.actionRegistry['vs.tree.collapse'].enabled = true;
@@ -1131,6 +1142,18 @@ export class SearchViewlet extends Viewlet {
 		this.searchWidget.setReplaceAllActionState(false);
 		// this.replaceService.disposeAllReplacePreviews();
 		this.viewModel.search(query).done(onComplete, onError, onProgress);
+	}
+
+	private buildResultCountMessage(resultCount: number, fileCount: number): string {
+		if (resultCount === 1 && fileCount === 1) {
+			return nls.localize('search.file.result', "Found {0} result in {1} file", resultCount, fileCount);
+		} else if (resultCount === 1) {
+			return nls.localize('search.files.result', "Found {0} result in {1} files", resultCount, fileCount);
+		} else if (fileCount === 1) {
+			return nls.localize('search.file.results', "Found {0} results in {1} file", resultCount, fileCount);
+		} else {
+			return nls.localize('search.files.results', "Found {0} results in {1} files", resultCount, fileCount);
+		}
 	}
 
 	private searchWithoutFolderMessage(div: Builder): void {
