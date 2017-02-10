@@ -6,12 +6,11 @@
 import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as lifecycle from 'vs/base/common/lifecycle';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { KeyCode } from 'vs/base/common/keyCodes';
 import * as paths from 'vs/base/common/paths';
 import * as errors from 'vs/base/common/errors';
 import { equalsIgnoreCase } from 'vs/base/common/strings';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { isMacintosh } from 'vs/base/common/platform';
 import * as dom from 'vs/base/browser/dom';
 import { IMouseEvent, DragMouseEvent } from 'vs/base/browser/mouseEvent';
 import { getPathLabel } from 'vs/base/common/labels';
@@ -200,26 +199,6 @@ export class BaseDebugController extends DefaultController {
 		super({ clickBehavior: ClickBehavior.ON_MOUSE_DOWN, keyboardSupport: false });
 
 		this.contributedContextMenu = menuService.createMenu(menuId, contextKeyService);
-
-		// TODO@Isidor convert to commands
-
-		// Delete
-		if (isMacintosh) {
-			this.downKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.Backspace, this.onDelete.bind(this));
-		} else {
-			this.downKeyBindingDispatcher.set(KeyCode.Delete, this.onDelete.bind(this));
-			this.downKeyBindingDispatcher.set(KeyMod.Shift | KeyCode.Delete, this.onDelete.bind(this));
-		}
-
-		// Rename
-		if (isMacintosh) {
-			this.downKeyBindingDispatcher.set(KeyCode.Enter, this.onRename.bind(this));
-		} else {
-			this.downKeyBindingDispatcher.set(KeyCode.F2, this.onRename.bind(this));
-		}
-
-		// Toggle
-		this.downKeyBindingDispatcher.set(KeyCode.Space, (t, e) => this.onSpace(t, e));
 	}
 
 	public onContextMenu(tree: ITree, element: debug.IEnablement, event: ContextMenuEvent): boolean {
@@ -251,18 +230,6 @@ export class BaseDebugController extends DefaultController {
 			return true;
 		}
 
-		return false;
-	}
-
-	protected onDelete(tree: ITree, event: IKeyboardEvent): boolean {
-		return false;
-	}
-
-	protected onSpace(tree: ITree, event: IKeyboardEvent): boolean {
-		return false;
-	}
-
-	protected onRename(tree: ITree, event: IKeyboardEvent): boolean {
 		return false;
 	}
 
@@ -770,16 +737,6 @@ export class VariablesController extends BaseDebugController {
 
 		return super.onLeftClick(tree, element, event);
 	}
-
-	protected onRename(tree: ITree, event: IKeyboardEvent): boolean {
-		const element = tree.getFocus();
-		if (element instanceof Variable) {
-			this.debugService.getViewModel().setSelectedExpression(element);
-			return true;
-		}
-
-		return false;
-	}
 }
 
 // watch expressions
@@ -989,31 +946,6 @@ export class WatchExpressionsController extends BaseDebugController {
 		}
 
 		return super.onLeftClick(tree, element, event);
-	}
-
-	protected onRename(tree: ITree, event: IKeyboardEvent): boolean {
-		const element = tree.getFocus();
-		if (element instanceof Expression) {
-			const watchExpression = <Expression>element;
-			if (!watchExpression.hasChildren) {
-				this.debugService.getViewModel().setSelectedExpression(watchExpression);
-			}
-			return true;
-		}
-
-		return false;
-	}
-
-	protected onDelete(tree: ITree, event: IKeyboardEvent): boolean {
-		const element = tree.getFocus();
-		if (element instanceof Expression) {
-			const we = <Expression>element;
-			this.debugService.removeWatchExpressions(we.getId());
-
-			return true;
-		}
-
-		return false;
 	}
 }
 
@@ -1306,39 +1238,6 @@ export class BreakpointsController extends BaseDebugController {
 		}
 
 		return super.onLeftClick(tree, element, event);
-	}
-
-	protected onRename(tree: ITree, event: IKeyboardEvent): boolean {
-		const element = tree.getFocus();
-		if (element instanceof FunctionBreakpoint && element.name) {
-			this.debugService.getViewModel().setSelectedFunctionBreakpoint(element);
-			return true;
-		}
-
-		return false;
-	}
-
-	protected onSpace(tree: ITree, event: IKeyboardEvent): boolean {
-		super.onSpace(tree, event);
-		const element = <debug.IEnablement>tree.getFocus();
-		this.debugService.enableOrDisableBreakpoints(!element.enabled, element).done(null, errors.onUnexpectedError);
-
-		return true;
-	}
-
-	protected onDelete(tree: ITree, event: IKeyboardEvent): boolean {
-		const element = tree.getFocus();
-		if (element instanceof Breakpoint) {
-			this.debugService.removeBreakpoints((<Breakpoint>element).getId()).done(null, errors.onUnexpectedError);
-			return true;
-		} else if (element instanceof FunctionBreakpoint) {
-			const fbp = <FunctionBreakpoint>element;
-			this.debugService.removeFunctionBreakpoints(fbp.getId()).done(null, errors.onUnexpectedError);
-
-			return true;
-		}
-
-		return false;
 	}
 
 	public openBreakpointSource(breakpoint: Breakpoint, event: IKeyboardEvent | IMouseEvent, preserveFocus: boolean): void {
