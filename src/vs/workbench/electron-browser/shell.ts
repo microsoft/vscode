@@ -207,7 +207,7 @@ export class WorkbenchShell {
 			'workbench.filesToCreate': filesToCreate && filesToCreate.length || undefined,
 			'workbench.filesToDiff': filesToDiff && filesToDiff.length || undefined,
 			customKeybindingsCount: info.customKeybindingsCount,
-			theme: this.workbench.getThemeService().getColorTheme().id,
+			theme: info.themeId,
 			language: platform.language,
 			experiments: this.telemetryService.getExperiments(),
 			pinnedViewlets: info.pinnedViewlets
@@ -400,11 +400,6 @@ export class WorkbenchShell {
 
 		// Listeners
 		this.registerListeners();
-
-		// Enable theme support
-		this.workbench.getThemeService().initialize(this.container).then(null, error => {
-			errors.onUnexpectedError(error);
-		});
 	}
 
 	private registerListeners(): void {

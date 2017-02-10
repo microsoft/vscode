@@ -116,6 +116,7 @@ export interface IWorkbenchStartedInfo {
 	restoreViewletDuration: number;
 	restoreEditorsDuration: number;
 	pinnedViewlets: string[];
+	themeId: string;
 }
 
 export interface IWorkbenchCallbacks {
@@ -351,7 +352,8 @@ export class Workbench implements IPartService {
 						customKeybindingsCount: this.keybindingService.customKeybindingsCount(),
 						restoreViewletDuration: viewletRestoreStopWatch ? viewletRestoreStopWatch.elapsed() : 0,
 						restoreEditorsDuration: editorRestoreStopWatch.elapsed(),
-						pinnedViewlets: this.activitybarPart.getPinned()
+						pinnedViewlets: this.activitybarPart.getPinned(),
+						themeId: this.themeService.getColorTheme().id
 					});
 				}
 
@@ -429,7 +431,7 @@ export class Workbench implements IPartService {
 	}
 
 	private initServices(): void {
-		const {serviceCollection} = this.workbenchParams;
+		const { serviceCollection } = this.workbenchParams;
 
 		this.toDispose.push(this.lifecycleService.onShutdown(this.shutdownComponents, this));
 
@@ -525,7 +527,7 @@ export class Workbench implements IPartService {
 		serviceCollection.set(IConfigurationEditingService, this.configurationEditingService);
 
 		// Theme Service
-		this.themeService = this.instantiationService.createInstance(ThemeService);
+		this.themeService = this.instantiationService.createInstance(ThemeService, document.body);
 		serviceCollection.set(IThemeService, this.themeService);
 
 		// Configuration Resolver
@@ -1082,10 +1084,6 @@ export class Workbench implements IPartService {
 		assert.ok(this.workbenchStarted, 'Workbench is not started. Call startup() first.');
 
 		return this.instantiationService;
-	}
-
-	public getThemeService(): ThemeService {
-		return this.themeService;
 	}
 
 	public addClass(clazz: string): void {
