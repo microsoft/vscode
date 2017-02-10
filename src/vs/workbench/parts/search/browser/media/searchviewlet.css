@@ -72,7 +72,7 @@
 .search-viewlet .query-details {
 	min-height: 1em;
 	position: relative;
-	margin: 0 0 6px 17px;
+	margin: 0 0 0 17px;
 }
 
 .search-viewlet .query-details .more {
@@ -107,7 +107,7 @@
 }
 
 .search-viewlet .query-details.more .file-types:last-child {
-	padding-bottom: 4px;
+	padding-bottom: 10px;
 }
 
 .search-viewlet .query-details .search-pattern-info {
@@ -146,11 +146,13 @@
 .search-viewlet .message {
 	padding-left: 22px;
 	padding-right: 22px;
-	padding-top: 2px;
+	padding-top: 0px;
 }
 
 .search-viewlet .message p:first-child {
-	margin-top: 0;
+	margin-top: 0px;
+	margin-bottom: 0px;
+	padding-bottom: 4px;
 }
 
 .search-viewlet .filematch {
