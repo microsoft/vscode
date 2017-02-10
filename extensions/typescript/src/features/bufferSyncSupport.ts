@@ -182,7 +182,9 @@ export default class BufferSyncSupport {
 		this.syncedBuffers[filepath] = syncedBuffer;
 		syncedBuffer.open();
 		this.requestDiagnostic(filepath);
-		this.checkTSCVersion();
+		if (document.languageId === 'typescript' || document.languageId === 'typescriptreact') {
+			this.checkTSCVersion();
+		}
 	}
 
 	private onDidCloseTextDocument(document: TextDocument): void {
