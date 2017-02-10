@@ -87,6 +87,8 @@ export class MockDebugService implements debug.IDebugService {
 		return null;
 	}
 
+	public logToRepl(value: string): void { }
+
 	public deemphasizeSource(uri: uri): void { }
 }
 
