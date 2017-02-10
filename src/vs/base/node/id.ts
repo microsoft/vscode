@@ -98,12 +98,18 @@ export function _futureMachineIdExperiment(): string {
 }
 
 let machineId: TPromise<string>;
+/**
+ * Return the machine id. Will fallback to generate a UUID, if no stable machine id can be computed.
+ */
 export function getMachineId(): TPromise<string> {
 	return machineId || (machineId = getStableMachineId()
 		.then(id => id || uuid.generateUuid())); // fallback, generate a UUID
 }
 
 let stableMachineId: TPromise<string>;
+/**
+ * Return the machine id. Will fallback to undefined, if no stable machine id can be computed.
+ */
 export function getStableMachineId(): TPromise<string> {
 	return stableMachineId || (stableMachineId = new TPromise<string>(resolve => {
 		try {
