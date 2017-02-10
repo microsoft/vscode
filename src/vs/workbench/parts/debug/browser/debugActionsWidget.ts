@@ -210,7 +210,7 @@ export class DebugActionsWidget implements IWorkbenchContribution {
 
 		const state = this.debugService.state;
 		const process = this.debugService.getViewModel().focusedProcess;
-		const attached = process && !strings.equalsIgnoreCase(process.session.configuration.type, 'extensionHost') && process.isAttach();
+		const attached = process && strings.equalsIgnoreCase(process.configuration.request, 'attach') && !strings.equalsIgnoreCase(process.configuration.type, 'extensionHost');
 
 		return this.allActions.filter(a => {
 			if (a.id === ContinueAction.ID) {
@@ -220,10 +220,10 @@ export class DebugActionsWidget implements IWorkbenchContribution {
 				return state === debug.State.Running;
 			}
 			if (a.id === StepBackAction.ID) {
-				return process && process.session.configuration.capabilities.supportsStepBack;
+				return process && process.session.capabilities.supportsStepBack;
 			}
 			if (a.id === ReverseContinueAction.ID) {
-				return process && process.session.configuration.capabilities.supportsStepBack;
+				return process && process.session.capabilities.supportsStepBack;
 			}
 			if (a.id === DisconnectAction.ID) {
 				return attached;
