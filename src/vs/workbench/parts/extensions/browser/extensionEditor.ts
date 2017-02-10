@@ -355,12 +355,12 @@ export class ExtensionEditor extends BaseEditor {
 				this.contentDisposables.push(toDisposable(removeLayoutParticipant));
 
 				const renders = [
-					ExtensionEditor.renderSettings(content, manifest, layout),
+					this.renderSettings(content, manifest, layout),
 					this.renderCommands(content, manifest, layout),
-					ExtensionEditor.renderLanguages(content, manifest, layout),
-					ExtensionEditor.renderThemes(content, manifest, layout),
-					ExtensionEditor.renderJSONValidation(content, manifest, layout),
-					ExtensionEditor.renderDebuggers(content, manifest, layout)
+					this.renderLanguages(content, manifest, layout),
+					this.renderThemes(content, manifest, layout),
+					this.renderJSONValidation(content, manifest, layout),
+					this.renderDebuggers(content, manifest, layout)
 				];
 
 				const isEmpty = !renders.reduce((v, r) => r || v, false);
@@ -434,7 +434,7 @@ export class ExtensionEditor extends BaseEditor {
 		return tree;
 	}
 
-	private static renderSettings(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
+	private renderSettings(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
 		const contributes = manifest.contributes;
 		const configuration = contributes && contributes.configuration;
 		const properties = configuration && configuration.properties;
@@ -464,7 +464,7 @@ export class ExtensionEditor extends BaseEditor {
 		return true;
 	}
 
-	private static renderDebuggers(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
+	private renderDebuggers(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
 		const contributes = manifest.contributes;
 		const contrib = contributes && contributes.debuggers || [];
 
@@ -484,7 +484,7 @@ export class ExtensionEditor extends BaseEditor {
 		return true;
 	}
 
-	private static renderThemes(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
+	private renderThemes(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
 		const contributes = manifest.contributes;
 		const contrib = contributes && contributes.themes || [];
 
@@ -501,7 +501,7 @@ export class ExtensionEditor extends BaseEditor {
 		return true;
 	}
 
-	private static renderJSONValidation(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
+	private renderJSONValidation(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
 		const contributes = manifest.contributes;
 		const contrib = contributes && contributes.jsonValidation || [];
 
@@ -592,7 +592,7 @@ export class ExtensionEditor extends BaseEditor {
 		return true;
 	}
 
-	private static renderLanguages(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
+	private renderLanguages(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
 		const contributes = manifest.contributes;
 		const rawLanguages = contributes && contributes.languages || [];
 		const languages = rawLanguages.map(l => ({
