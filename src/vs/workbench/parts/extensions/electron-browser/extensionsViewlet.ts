@@ -237,11 +237,12 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 	}
 
 	private query(value: string): TPromise<IPagedModel<IExtension>> {
-		if (!value) {
+		if (!value || /@installed/i.test(value)) {
 			// Show installed extensions
+			value = value ? value.replace(/@installed/g, '').trim().toLowerCase() : '';
 			return this.extensionsWorkbenchService.queryLocal()
 				.then(result => result.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName)))
-				.then(result => result.filter(e => e.type === LocalExtensionType.User))
+				.then(result => result.filter(e => e.type === LocalExtensionType.User && e.name.toLowerCase().indexOf(value) > -1))
 				.then(result => new PagedModel(result));
 		}
 
