@@ -34,6 +34,7 @@
     "onCommand:typescript.reloadProjects",
     "onCommand:javascript.reloadProjects",
     "onCommand:typescript.selectTypeScriptVersion",
+    "onCommand:javascript.goToProjectConfig",
     "onCommand:typescript.goToProjectConfig"
   ],
   "main": "./out/typescriptMain",
@@ -258,19 +259,28 @@
     "commands": [
       {
         "command": "typescript.reloadProjects",
-        "title": "%typescript.reloadProjects.title%"
+        "title": "%typescript.reloadProjects.title%",
+        "category": "TypeScript"
       },
       {
         "command": "javascript.reloadProjects",
-        "title": "%javascript.reloadProjects.title%"
+        "title": "%javascript.reloadProjects.title%",
+        "category": "JavaScript"
       },
       {
         "command": "typescript.selectTypeScriptVersion",
-        "title": "%typescript.selectTypeScriptVersion.title%"
+        "title": "%typescript.selectTypeScriptVersion.title%",
+        "category": "TypeScript"
       },
       {
         "command": "typescript.goToProjectConfig",
-        "title": "%typescript.goToProjectConfig.title%"
+        "title": "%typescript.goToProjectConfig.title%",
+        "category": "TypeScript"
+      },
+       {
+        "command": "javascript.goToProjectConfig",
+        "title": "%javascript.goToProjectConfig.title%",
+        "category": "JavaScript"
       }
     ],
     "breakpoints": [

@@ -9,7 +9,7 @@
  * ------------------------------------------------------------------------------------------ */
 'use strict';
 
-import { env, languages, commands, workspace, window, ExtensionContext, Memento, IndentAction, Diagnostic, DiagnosticCollection, Range, DocumentFilter, Disposable, Uri, QuickPickItem, TextEditor } from 'vscode';
+import { env, languages, commands, workspace, window, ExtensionContext, Memento, IndentAction, Diagnostic, DiagnosticCollection, Range, DocumentFilter, Disposable, Uri, MessageItem, TextEditor } from 'vscode';
 
 // This must be the first statement otherwise modules might got loaded with
 // the wrong locale.
@@ -59,7 +59,7 @@ enum ProjectConfigAction {
 	LearnMore
 }
 
-interface ProjectConfigQuickPick extends QuickPickItem {
+interface ProjectConfigMessageItem extends MessageItem {
 	id: ProjectConfigAction;
 }
 
@@ -100,14 +100,14 @@ export function activate(context: ExtensionContext): void {
 		client.onVersionStatusClicked();
 	}));
 
-	context.subscriptions.push(commands.registerCommand('typescript.goToProjectConfig', () => {
+	const goToProjectConfig = (isTypeScript: boolean) => {
 		const editor = window.activeTextEditor;
-		if (!editor) {
-			return;
+		if (editor) {
+			clientHost.goToProjectConfig(isTypeScript, editor.document.uri);
 		}
-
-		clientHost.goToProjectConfig(editor.document.uri, editor.document.languageId);
-	}));
+	};
+	context.subscriptions.push(commands.registerCommand('typescript.goToProjectConfig', goToProjectConfig.bind(null, true)));
+	context.subscriptions.push(commands.registerCommand('javascript.goToProjectConfig', goToProjectConfig.bind(null, false)));
 
 	window.onDidChangeActiveTextEditor(VersionStatus.showHideStatus, null, context.subscriptions);
 	client.onReady().then(() => {
@@ -398,58 +398,61 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 		return !!this.findLanguage(file);
 	}
 
-	public goToProjectConfig(resource: Uri, languageId: string): Thenable<TextEditor> | undefined {
+	public goToProjectConfig(isTypeScriptProject: boolean, resource: Uri): Thenable<TextEditor> | undefined {
 		const rootPath = workspace.rootPath;
-		if (!this.languagePerId[languageId] || !rootPath) {
-			return undefined;
+		if (!rootPath) {
+			window.showInformationMessage(
+				localize(
+					'typescript.projectConfigNoWorkspace',
+					'Please open a folder in VS Code to use a TypeScript or JavaScript project'));
+			return;
 		}
 
 		const file = this.client.normalizePath(resource);
 		if (!file) {
-			return undefined;
+			window.showWarningMessage(
+				localize(
+					'typescript.projectConfigUnsupportedFile',
+					'Could not determine TypeScript or JavaScript project. Unsupported file type'));
+			return;
 		}
-		const args: protocol.ProjectInfoRequestArgs = {
-			file: file,
-			needFileNameList: false
-		};
-		return this.client.execute('projectInfo', args).then(res => {
+
+		return this.client.execute('projectInfo', { file, needFileNameList: false }).then(res => {
 			if (!res || !res.body) {
-				return undefined;
+				return window.showWarningMessage(localize('typescript.projectConfigCouldNotGetInfo', 'Could not determine TypeScript or JavaScript project'));
 			}
 
-			const {configFileName} = res.body;
+			const { configFileName } = res.body;
 			if (configFileName && configFileName.indexOf('/dev/null/') !== 0) {
 				return workspace.openTextDocument(configFileName)
 					.then(window.showTextDocument);
 			}
 
-			const isJsProject = languageId === 'javascript' || languageId === 'javascriptreact';
-			return window.showQuickPick<ProjectConfigQuickPick>([
-				{
-					label: isJsProject
-						? localize('typescript.configureJsconfigQuickPick', 'Configure jsconfig.json')
-						: localize('typescript.configureTsconfigQuickPick', 'Configure tsconfig.json'),
-					description: '',
-					id: ProjectConfigAction.CreateConfig,
+			return window.showInformationMessage<ProjectConfigMessageItem>(
+				(isTypeScriptProject
+					? localize('typescript.noTypeScriptProjectConfig', 'File is not part of a TypeScript project')
+					: localize('typescript.noJavaScriptProjectConfig', 'File is not part of a JavaScript project')
+				), {
+					title: isTypeScriptProject
+						? localize('typescript.configureTsconfigQuickPick', 'Configure tsconfig.json')
+						: localize('typescript.configureJsconfigQuickPick', 'Configure jsconfig.json'),
+					id: ProjectConfigAction.CreateConfig
 				}, {
-					label: localize('typescript.projectConfigLearnMore', 'Learn More'),
-					description: '',
+					title: localize('typescript.projectConfigLearnMore', 'Learn More'),
 					id: ProjectConfigAction.LearnMore
-				}], {
-					placeHolder: localize('typescript.noProjectConfigPlaceholder', 'File is not part of a project')
 				}).then(selected => {
 					switch (selected && selected.id) {
 						case ProjectConfigAction.CreateConfig:
-							const configFile = Uri.file(path.join(rootPath, isJsProject ? 'jsconfig.json' : 'tsconfig.json'));
+							const configFile = Uri.file(path.join(rootPath, isTypeScriptProject ? 'tsconfig.json' : 'jsconfig.json'));
 							return workspace.openTextDocument(configFile)
 								.then(undefined, _ => workspace.openTextDocument(configFile.with({ scheme: 'untitled' })))
 								.then(window.showTextDocument);
 
 						case ProjectConfigAction.LearnMore:
-							if (isJsProject) {
-								commands.executeCommand('vscode.open', Uri.parse('https://go.microsoft.com/fwlink/?linkid=759670'));
-							} else {
+							if (isTypeScriptProject) {
 								commands.executeCommand('vscode.open', Uri.parse('https://go.microsoft.com/fwlink/?linkid=841896'));
+							} else {
+								commands.executeCommand('vscode.open', Uri.parse('https://go.microsoft.com/fwlink/?linkid=759670'));
 							}
 							return;
 
