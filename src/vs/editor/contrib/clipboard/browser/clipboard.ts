@@ -25,6 +25,14 @@ function conditionalEditorAction(testCommand: string) {
 	return editorAction;
 }
 
+function conditionalCopyWithSyntaxHighlighting() {
+	if (browser.isIE || !browser.supportsExecCommand('copy')) {
+		return () => { };
+	}
+
+	return editorAction;
+}
+
 abstract class ExecCommandAction extends EditorAction {
 
 	private browserCommand: string;
@@ -137,7 +145,7 @@ class ExecCommandPasteAction extends ExecCommandAction {
 	}
 }
 
-@editorAction
+@conditionalCopyWithSyntaxHighlighting()
 class ExecCommandCopyWithSyntaxHighlightingAction extends ExecCommandAction {
 
 	constructor() {
