@@ -44,6 +44,7 @@ import { IMessageService } from 'vs/platform/message/common/message';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { Position } from 'vs/platform/editor/common/editor';
+import { IListService } from 'vs/platform/list/browser/listService';
 
 function renderBody(body: string): string {
 	return `<!DOCTYPE html>
@@ -154,7 +155,8 @@ export class ExtensionEditor extends BaseEditor {
 		@IThemeService private themeService: IThemeService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IMessageService private messageService: IMessageService,
-		@IOpenerService private openerService: IOpenerService
+		@IOpenerService private openerService: IOpenerService,
+		@IListService private listService: IListService
 	) {
 		super(ExtensionEditor.ID, telemetryService);
 		this._highlight = null;
@@ -388,7 +390,7 @@ export class ExtensionEditor extends BaseEditor {
 			append(this.content, scrollableContent.getDomNode());
 			this.contentDisposables.push(scrollableContent);
 
-			const tree = ExtensionEditor.renderDependencies(content, extensionDependencies, this.instantiationService);
+			const tree = this.renderDependencies(content, extensionDependencies);
 			const layout = () => {
 				scrollableContent.scanDomNode();
 				const scrollState = scrollableContent.getScrollState();
@@ -407,18 +409,28 @@ export class ExtensionEditor extends BaseEditor {
 		});
 	}
 
-	private static renderDependencies(container: HTMLElement, extensionDependencies: IExtensionDependencies, instantiationService: IInstantiationService): Tree {
-		const renderer = instantiationService.createInstance(Renderer);
-		const controller = instantiationService.createInstance(Controller);
+	private renderDependencies(container: HTMLElement, extensionDependencies: IExtensionDependencies): Tree {
+		const renderer = this.instantiationService.createInstance(Renderer);
+		const controller = this.instantiationService.createInstance(Controller);
 		const tree = new Tree(container, {
 			dataSource: new DataSource(),
 			renderer,
 			controller
 		}, {
 				indentPixels: 40,
-				twistiePixels: 20
+				twistiePixels: 20,
+				keyboardSupport: false
 			});
 		tree.setInput(extensionDependencies);
+
+		this.contentDisposables.push(tree.addListener2('selection', event => {
+			if (event && event.payload && event.payload.origin === 'keyboard') {
+				controller.openExtension(tree, false);
+			}
+		}));
+
+		this.contentDisposables.push(this.listService.register(tree));
+
 		return tree;
 	}
 
