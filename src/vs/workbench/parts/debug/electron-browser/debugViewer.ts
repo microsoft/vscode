@@ -19,7 +19,7 @@ import { IAction, IActionRunner } from 'vs/base/common/actions';
 import { IActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ITree, IAccessibilityProvider, ContextMenuEvent, IDataSource, IRenderer, DRAG_OVER_REJECT, IDragAndDropData, IDragOverReaction } from 'vs/base/parts/tree/browser/tree';
 import { InputBox, IInputValidationOptions } from 'vs/base/browser/ui/inputbox/inputBox';
-import { DefaultController, DefaultDragAndDrop } from 'vs/base/parts/tree/browser/treeDefaults';
+import { DefaultController, DefaultDragAndDrop, ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
 import { IActionProvider } from 'vs/base/parts/tree/browser/actionsRenderer';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -29,7 +29,7 @@ import { IMenuService, IMenu, MenuId } from 'vs/platform/actions/common/actions'
 import { fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import * as debug from 'vs/workbench/parts/debug/common/debug';
-import { Expression, Variable, FunctionBreakpoint, StackFrame, Thread, Process, Breakpoint, ExceptionBreakpoint, Model, Scope } from 'vs/workbench/parts/debug/common/debugModel';
+import { Expression, Variable, FunctionBreakpoint, StackFrame, Thread, Process, Breakpoint, ExceptionBreakpoint, Model, Scope, ThreadAndProcessIds } from 'vs/workbench/parts/debug/common/debugModel';
 import { ViewModel } from 'vs/workbench/parts/debug/common/debugViewModel';
 import { ContinueAction, StepOverAction, PauseAction, ReapplyBreakpointsAction, DisableAllBreakpointsAction, RemoveBreakpointAction, RemoveWatchExpressionAction, AddWatchExpressionAction, RemoveAllBreakpointsAction, EnableAllBreakpointsAction, StepOutAction, StepIntoAction, SetValueAction, RemoveAllWatchExpressionsAction, RestartFrameAction, AddToWatchExpressionsAction, StopAction, RestartAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { CopyValueAction, CopyStackTraceAction } from 'vs/workbench/parts/debug/electron-browser/electronDebugActions';
@@ -197,20 +197,29 @@ export class BaseDebugController extends DefaultController {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IMenuService menuService: IMenuService
 	) {
-		super();
+		super({ clickBehavior: ClickBehavior.ON_MOUSE_DOWN, keyboardSupport: false });
 
 		this.contributedContextMenu = menuService.createMenu(menuId, contextKeyService);
+
+		// TODO@Isidor convert to commands
+
+		// Delete
 		if (isMacintosh) {
 			this.downKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.Backspace, this.onDelete.bind(this));
 		} else {
 			this.downKeyBindingDispatcher.set(KeyCode.Delete, this.onDelete.bind(this));
 			this.downKeyBindingDispatcher.set(KeyMod.Shift | KeyCode.Delete, this.onDelete.bind(this));
 		}
+
+		// Rename
 		if (isMacintosh) {
 			this.downKeyBindingDispatcher.set(KeyCode.Enter, this.onRename.bind(this));
 		} else {
 			this.downKeyBindingDispatcher.set(KeyCode.F2, this.onRename.bind(this));
 		}
+
+		// Toggle
+		this.downKeyBindingDispatcher.set(KeyCode.Space, (t, e) => this.onSpace(t, e));
 	}
 
 	public onContextMenu(tree: ITree, element: debug.IEnablement, event: ContextMenuEvent): boolean {
@@ -249,6 +258,10 @@ export class BaseDebugController extends DefaultController {
 		return false;
 	}
 
+	protected onSpace(tree: ITree, event: IKeyboardEvent): boolean {
+		return false;
+	}
+
 	protected onRename(tree: ITree, event: IKeyboardEvent): boolean {
 		return false;
 	}
@@ -259,14 +272,6 @@ export class BaseDebugController extends DefaultController {
 }
 
 // call stack
-
-class ThreadAndProcessIds implements debug.ITreeElement {
-	constructor(public processId: string, public threadId: number) { }
-
-	public getId(): string {
-		return `${this.processId}:${this.threadId}`;
-	}
-}
 
 export class CallStackController extends BaseDebugController {
 
@@ -281,18 +286,6 @@ export class CallStackController extends BaseDebugController {
 		return super.onLeftClick(tree, element, event);
 	}
 
-	protected onEnter(tree: ITree, event: IKeyboardEvent): boolean {
-		const element = tree.getFocus();
-		if (element instanceof ThreadAndProcessIds) {
-			return this.showMoreStackFrames(tree, element);
-		}
-		if (element instanceof StackFrame) {
-			this.focusStackFrame(element, event, false);
-		}
-
-		return super.onEnter(tree, event);
-	}
-
 	protected getContext(element: any): any {
 		if (element instanceof StackFrame) {
 			if (element.source.inMemory) {
@@ -304,7 +297,7 @@ export class CallStackController extends BaseDebugController {
 	}
 
 	// user clicked / pressed on 'Load More Stack Frames', get those stack frames and refresh the tree.
-	private showMoreStackFrames(tree: ITree, threadAndProcessIds: ThreadAndProcessIds): boolean {
+	public showMoreStackFrames(tree: ITree, threadAndProcessIds: ThreadAndProcessIds): boolean {
 		const process = this.debugService.getModel().getProcesses().filter(p => p.getId() === threadAndProcessIds.processId).pop();
 		const thread = process && process.getThread(threadAndProcessIds.threadId);
 		if (thread) {
@@ -315,7 +308,7 @@ export class CallStackController extends BaseDebugController {
 		return true;
 	}
 
-	private focusStackFrame(stackFrame: debug.IStackFrame, event: IKeyboardEvent | IMouseEvent, preserveFocus: boolean): void {
+	public focusStackFrame(stackFrame: debug.IStackFrame, event: IKeyboardEvent | IMouseEvent, preserveFocus: boolean): void {
 		this.debugService.focusStackFrameAndEvaluate(stackFrame).then(() => {
 			const sideBySide = (event && (event.ctrlKey || event.metaKey));
 			return stackFrame.openInEditor(this.editorService, preserveFocus, sideBySide);
@@ -1325,16 +1318,6 @@ export class BreakpointsController extends BaseDebugController {
 		return false;
 	}
 
-	protected onEnter(tree: ITree, event: IKeyboardEvent): boolean {
-		const element = tree.getFocus();
-		if (element instanceof Breakpoint) {
-			this.openBreakpointSource(element, event, false);
-			return true;
-		}
-
-		return super.onEnter(tree, event);
-	}
-
 	protected onSpace(tree: ITree, event: IKeyboardEvent): boolean {
 		super.onSpace(tree, event);
 		const element = <debug.IEnablement>tree.getFocus();
@@ -1358,7 +1341,7 @@ export class BreakpointsController extends BaseDebugController {
 		return false;
 	}
 
-	private openBreakpointSource(breakpoint: Breakpoint, event: IKeyboardEvent | IMouseEvent, preserveFocus: boolean): void {
+	public openBreakpointSource(breakpoint: Breakpoint, event: IKeyboardEvent | IMouseEvent, preserveFocus: boolean): void {
 		const sideBySide = (event && (event.ctrlKey || event.metaKey));
 		this.editorService.openEditor({
 			resource: breakpoint.uri,
