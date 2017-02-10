@@ -603,7 +603,7 @@ export class SetValueAction extends AbstractDebugAction {
 
 	protected isEnabled(state: State): boolean {
 		const process = this.debugService.getViewModel().focusedProcess;
-		return super.isEnabled(state) && state === State.Stopped && process && process.session.configuration.capabilities.supportsSetVariable;
+		return super.isEnabled(state) && state === State.Stopped && process && process.session.capabilities.supportsSetVariable;
 	}
 }
 
@@ -795,7 +795,7 @@ export class StepBackAction extends AbstractDebugAction {
 	protected isEnabled(state: State): boolean {
 		const process = this.debugService.getViewModel().focusedProcess;
 		return super.isEnabled(state) && state === State.Stopped &&
-			process && process.session.configuration.capabilities.supportsStepBack;
+			process && process.session.capabilities.supportsStepBack;
 	}
 }
 
@@ -818,6 +818,6 @@ export class ReverseContinueAction extends AbstractDebugAction {
 	protected isEnabled(state: State): boolean {
 		const process = this.debugService.getViewModel().focusedProcess;
 		return super.isEnabled(state) && state === State.Stopped &&
-			process && process.session.configuration.capabilities.supportsStepBack;
+			process && process.session.capabilities.supportsStepBack;
 	}
 }

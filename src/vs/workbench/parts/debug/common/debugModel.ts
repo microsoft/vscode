@@ -269,7 +269,7 @@ export class Variable extends ExpressionContainer implements debug.IExpression {
 		names.forEach(name => {
 			if (!result) {
 				result = name;
-			} else if (Variable.ARRAY_ELEMENT_SYNTAX.test(name) || (this.process.session.configuration.type === 'node' && !Variable.NOT_PROPERTY_SYNTAX.test(name))) {
+			} else if (Variable.ARRAY_ELEMENT_SYNTAX.test(name) || (this.process.configuration.type === 'node' && !Variable.NOT_PROPERTY_SYNTAX.test(name))) {
 				// use safe way to access node properties a['property_name']. Also handles array elements.
 				result = name && name.indexOf('[') === 0 ? `${result}${name}` : `${result}['${name}']`;
 			} else {
@@ -591,7 +591,7 @@ export class Process implements debug.IProcess {
 	}
 
 	public completions(frameId: number, text: string, position: Position, overwriteBefore: number): TPromise<ISuggestion[]> {
-		if (!this.session.configuration.capabilities.supportsCompletionsRequest) {
+		if (!this.session.capabilities.supportsCompletionsRequest) {
 			return TPromise.as([]);
 		}
 

@@ -170,7 +170,7 @@ export class DebugHoverWidget implements IContentWidget {
 		// use regex to extract the sub-expression #9821
 		const matchingExpression = lineContent.substring(expressionRange.startColumn - 1, expressionRange.endColumn);
 		let promise: TPromise<IExpression>;
-		if (process.session.configuration.capabilities.supportsEvaluateForHovers) {
+		if (process.session.capabilities.supportsEvaluateForHovers) {
 			const result = new Expression(matchingExpression);
 			promise = result.evaluate(process, this.debugService.getViewModel().focusedStackFrame, 'hover').then(() => result);
 		} else {

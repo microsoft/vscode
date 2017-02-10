@@ -149,7 +149,8 @@ export class DebugService implements debug.IDebugService {
 		// TODO@Isidor this is a hack to just get any 'extensionHost' session.
 		// Optimally the broadcast would contain the id of the session
 		// We are only intersted if we have an active debug session for extensionHost
-		const session = <RawDebugSession>this.model.getProcesses().map(p => p.session).filter(s => s.configuration.type === 'extensionHost').pop();
+		const process = this.model.getProcesses().filter(p => p.configuration.type === 'extensionHost').pop();
+		const session = process ? <RawDebugSession>process.session : null;
 		if (broadcast.channel === EXTENSION_ATTACH_BROADCAST_CHANNEL) {
 			this.rawAttach(session, broadcast.payload.port);
 			return;
@@ -242,7 +243,7 @@ export class DebugService implements debug.IDebugService {
 		this.toDisposeOnSessionEnd.get(session.getId()).push(session.onDidInitialize(event => {
 			aria.status(nls.localize('debuggingStarted', "Debugging started."));
 			const sendConfigurationDone = () => {
-				if (session && session.configuration.capabilities.supportsConfigurationDoneRequest) {
+				if (session && session.capabilities.supportsConfigurationDoneRequest) {
 					return session.configurationDone().done(null, e => {
 						// Disconnect the debug session on configuration done error #10596
 						if (session) {
@@ -363,7 +364,7 @@ export class DebugService implements debug.IDebugService {
 		this.toDisposeOnSessionEnd.get(session.getId()).push(session.onDidExitAdapter(event => {
 			// 'Run without debugging' mode VSCode must terminate the extension host. More details: #3905
 			const process = this.viewModel.focusedProcess;
-			if (session && session.configuration.type === 'extensionHost' && this.sessionStates.get(session.getId()) === debug.State.Running &&
+			if (process && session && process.getId() === session.getId() && process.configuration.type === 'extensionHost' && this.sessionStates.get(session.getId()) === debug.State.Running &&
 				process && this.contextService.getWorkspace() && process.configuration.noDebug) {
 				this.windowsService.closeExtensionHostWindow(this.contextService.getWorkspace().resource.fsPath);
 			}
@@ -694,7 +695,7 @@ export class DebugService implements debug.IDebugService {
 				supportsVariablePaging: true, // #9537
 				supportsRunInTerminalRequest: true // #10574
 			}).then((result: DebugProtocol.InitializeResponse) => {
-				this.model.setExceptionBreakpoints(session.configuration.capabilities.exceptionBreakpointFilters);
+				this.model.setExceptionBreakpoints(session.capabilities.exceptionBreakpointFilters);
 				return configuration.request === 'attach' ? session.attach(configuration) : session.launch(configuration);
 			}).then((result: DebugProtocol.Response) => {
 				if (session.disconnected) {
@@ -826,7 +827,7 @@ export class DebugService implements debug.IDebugService {
 			return this.createProcess(this.viewModel.selectedConfigurationName);
 		}
 
-		if (process.session.configuration.capabilities.supportsRestartRequest) {
+		if (process.session.capabilities.supportsRestartRequest) {
 			return process.session.custom('restart', null);
 		}
 		const preserveFocus = process.getId() === this.viewModel.focusedProcess.getId();
@@ -852,8 +853,9 @@ export class DebugService implements debug.IDebugService {
 
 	private onSessionEnd(session: RawDebugSession): void {
 		const bpsExist = this.model.getBreakpoints().length > 0;
+		const process = this.model.getProcesses().filter(p => p.getId() === session.getId()).pop();
 		this.telemetryService.publicLog('debugSessionStop', {
-			type: session.configuration.type,
+			type: process.configuration.type,
 			success: session.emittedStopped || !bpsExist,
 			sessionLengthInSeconds: session.getLengthInSeconds(),
 			breakpointCount: this.model.getBreakpoints().length,
@@ -866,7 +868,7 @@ export class DebugService implements debug.IDebugService {
 			// an internal module might be open so the dispose can throw -> ignore and continue with stop session.
 		}
 
-		this.model.removeProcess(session.getId());
+		this.model.removeProcess(process.getId());
 		const focusedProcess = this.viewModel.focusedProcess;
 		if (focusedProcess && focusedProcess.getId() === session.getId()) {
 			this.focusStackFrameAndEvaluate(null).done(null, errors.onUnexpectedError);
@@ -970,7 +972,7 @@ export class DebugService implements debug.IDebugService {
 	private sendFunctionBreakpoints(targetProcess?: debug.IProcess): TPromise<void> {
 		const sendFunctionBreakpointsToProcess = (process: debug.IProcess): TPromise<void> => {
 			const session = <RawDebugSession>process.session;
-			if (!session.readyForBreakpoints || !session.configuration.capabilities.supportsFunctionBreakpoints) {
+			if (!session.readyForBreakpoints || !session.capabilities.supportsFunctionBreakpoints) {
 				return TPromise.as(null);
 			}
 

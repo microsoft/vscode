@@ -318,7 +318,7 @@ export class CallStackActionProvider implements IActionProvider {
 				actions.push(this.instantiationService.createInstance(PauseAction, PauseAction.ID, PauseAction.LABEL));
 			}
 		} else if (element instanceof StackFrame) {
-			if (element.thread.process.session.configuration.capabilities.supportsRestartFrame) {
+			if (element.thread.process.session.capabilities.supportsRestartFrame) {
 				actions.push(this.instantiationService.createInstance(RestartFrameAction, RestartFrameAction.ID, RestartFrameAction.LABEL));
 			}
 			actions.push(new CopyStackTraceAction(CopyStackTraceAction.ID, CopyStackTraceAction.LABEL));
@@ -1167,9 +1167,9 @@ export class BreakpointsRenderer implements IRenderer {
 
 			// Mark function breakpoints as disabled if deactivated or if debug type does not support them #9099
 			const process = this.debugService.getViewModel().focusedProcess;
-			if ((process && !process.session.configuration.capabilities.supportsFunctionBreakpoints) || !this.debugService.getModel().areBreakpointsActivated()) {
+			if ((process && !process.session.capabilities.supportsFunctionBreakpoints) || !this.debugService.getModel().areBreakpointsActivated()) {
 				tree.addTraits('disabled', [functionBreakpoint]);
-				if (process && !process.session.configuration.capabilities.supportsFunctionBreakpoints) {
+				if (process && !process.session.capabilities.supportsFunctionBreakpoints) {
 					data.breakpoint.title = nls.localize('functionBreakpointsNotSupported', "Function breakpoints are not supported by this debug type");
 				}
 			} else {
