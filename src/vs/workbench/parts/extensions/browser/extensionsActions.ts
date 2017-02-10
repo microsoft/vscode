@@ -851,7 +851,7 @@ export class ShowInstalledExtensionsAction extends Action {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
-				viewlet.search('');
+				viewlet.search('@installed');
 				viewlet.focus();
 			});
 	}
