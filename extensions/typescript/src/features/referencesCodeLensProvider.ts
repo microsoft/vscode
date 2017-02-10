@@ -147,7 +147,7 @@ export default class TypeScriptReferencesCodeLensProvider implements CodeLensPro
 				case PConst.Kind.interface:
 				case PConst.Kind.type:
 				case PConst.Kind.enum:
-					const identifierMatch = new RegExp(`^(.*?(\\b|\\W))${item.text}\\b`, 'gm');
+					const identifierMatch = new RegExp(`^(.*?(\\b|\\W))${(item.text || '').replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&')}\\b`, 'gm');
 					const match = identifierMatch.exec(text);
 					const prefixLength = match ? match.index + match[1].length : 0;
 					const startOffset = document.offsetAt(new Position(range.start.line, range.start.character)) + prefixLength;
