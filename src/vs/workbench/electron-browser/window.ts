@@ -142,7 +142,7 @@ export class ElectronWindow {
 								let doOpen = true;
 								if (draggedExternalResources.length > 20) {
 									doOpen = this.messageService.confirm({
-										message: nls.localize('confirmOpen', "Are you sure you want to open '{0}' folders?", draggedExternalResources.length),
+										message: nls.localize('confirmOpen', "Are you sure you want to open {0} folders?", draggedExternalResources.length),
 										primaryButton: nls.localize({ key: 'confirmOpenButton', comment: ['&& denotes a mnemonic'] }, "&&Open")
 									});
 								}
