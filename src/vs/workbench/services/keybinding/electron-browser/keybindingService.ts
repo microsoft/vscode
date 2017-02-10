@@ -246,6 +246,8 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 	}
 
 	protected _simpleKeybindingToKeyPress(keybinding: SimpleKeybinding): SimpleKeyPress {
+		console.log('TODO@keyboard');
+		console.log(keybinding);
 		let ctrlKey: boolean;
 		let metaKey: boolean;
 		if (platform.isMacintosh) {
@@ -274,6 +276,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 	}
 
 	protected _createSimpleKeyPress(source: ISimpleKeyPress): SimpleKeyPress {
+		console.log('TODO@keyboard');
 		return SimpleKeyPress.create(
 			source.ctrlKey,
 			source.shiftKey,
@@ -303,6 +306,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 	}
 
 	protected _createResolvedKeybinding(keyPress: KeyPress): ResolvedKeybinding {
+		console.log('TODO@keyboard');
 		return new FancyResolvedKeybinding(keyPressToKeybinding(keyPress));
 	}
 

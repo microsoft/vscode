@@ -11,6 +11,85 @@ import { IKeyBindingLabelProvider, MacUIKeyLabelProvider, ClassicUIKeyLabelProvi
 // import { lookupKeyCode, setExtractKeyCode } from 'vs/base/browser/keyboardEvent';
 import Platform = require('vs/base/common/platform');
 
+// console.log(nativeKeymap.getKeyMap());
+getCodeInt('None');
+getCodeStr(0);
+
+// export interface ILinuxKeyMap {
+// 	[code: string]: {
+// 		value: string;
+// 		withAltGr: string;
+// 		withShift: string;
+// 		withShiftAltGr: string;
+// 	};
+// }
+
+// if (Platform.isLinux) {
+// 	let map = <ILinuxKeyMap><any>nativeKeymap.getKeyMap();
+
+// }
+
+// function eatShift(notShifted:boolean): string {
+
+// 	function d2(keyCode: KeyCode, value: string, withShift: string): void {
+
+// 	}
+
+// 	d2(KeyCode.KEY_0, '0', ')');
+// 	d2(KeyCode.KEY_1, '1', '!');
+// 	d2(KeyCode.KEY_2, '2', '@');
+// 	d2(KeyCode.KEY_3, '3', '#');
+// 	d2(KeyCode.KEY_4, '4', '$');
+// 	d2(KeyCode.KEY_5, '5', '%');
+// 	d2(KeyCode.KEY_6, '6', '^');
+// 	d2(KeyCode.KEY_7, '7', '&');
+// 	d2(KeyCode.KEY_8, '8', '*');
+// 	d2(KeyCode.KEY_9, '9', '(');
+
+// 	d2(KeyCode.KEY_A, 'a', 'A');
+// 	d2(KeyCode.KEY_B, 'b', 'B');
+// 	d2(KeyCode.KEY_C, 'c', 'C');
+// 	d2(KeyCode.KEY_D, 'd', 'D');
+// 	d2(KeyCode.KEY_E, 'e', 'E');
+// 	d2(KeyCode.KEY_F, 'f', 'F');
+// 	d2(KeyCode.KEY_G, 'g', 'G');
+// 	d2(KeyCode.KEY_H, 'h', 'H');
+// 	d2(KeyCode.KEY_I, 'i', 'I');
+// 	d2(KeyCode.KEY_J, 'j', 'J');
+// 	d2(KeyCode.KEY_K, 'k', 'K');
+// 	d2(KeyCode.KEY_L, 'l', 'L');
+// 	d2(KeyCode.KEY_M, 'm', 'M');
+// 	d2(KeyCode.KEY_N, 'n', 'N');
+// 	d2(KeyCode.KEY_O, 'o', 'O');
+// 	d2(KeyCode.KEY_P, 'p', 'P');
+// 	d2(KeyCode.KEY_Q, 'q', 'Q');
+// 	d2(KeyCode.KEY_R, 'r', 'R');
+// 	d2(KeyCode.KEY_S, 's', 'S');
+// 	d2(KeyCode.KEY_T, 't', 'T');
+// 	d2(KeyCode.KEY_U, 'u', 'U');
+// 	d2(KeyCode.KEY_V, 'v', 'V');
+// 	d2(KeyCode.KEY_W, 'w', 'W');
+// 	d2(KeyCode.KEY_X, 'x', 'X');
+// 	d2(KeyCode.KEY_Y, 'y', 'Y');
+// 	d2(KeyCode.KEY_Z, 'z', 'Z');
+// 	d2(KeyCode.US_SEMICOLON, ';', ':');
+// 	d2(KeyCode.US_EQUAL, '=', '+');
+// 	d2(KeyCode.US_COMMA, ',', '<');
+// 	d2(KeyCode.US_MINUS, '-', '_');
+// 	d2(KeyCode.US_DOT, '.', '>');
+// 	d2(KeyCode.US_SLASH, '/', '?');
+// 	d2(KeyCode.US_BACKTICK, '`', '~');
+// 	d2(KeyCode.US_OPEN_SQUARE_BRACKET, '[', '{');
+// 	d2(KeyCode.US_BACKSLASH, '\\', '|');
+// 	d2(KeyCode.US_CLOSE_SQUARE_BRACKET, ']', '}');
+// 	d2(KeyCode.US_QUOTE, '\'', '"');
+
+// 	// TODO@keyboard
+// 	// d2(KeyCode.OEM_8, '', '');
+// 	// TODO@keyboard
+// 	// d2(KeyCode.OEM_102, '', '');
+// }
+
 // let getNativeKeymap = (function () {
 // 	let called = false;
 // 	let result: nativeKeymap.INativeKeyMap[];
@@ -503,4 +582,412 @@ class NativeAriaKeyLabelProvider extends AriaKeyLabelProvider {
 		}
 		return super.getLabelForKey(keyCode);
 	}
+}
+
+const codeIntToStr: string[] = [];
+const codeStrToInt: { [code: string]: number; } = Object.create(null);
+
+function getCodeInt(code: string): Code {
+	return codeStrToInt[code] || Code.None;
+}
+
+function getCodeStr(code: Code): string {
+	return codeIntToStr[code] || 'None';
+}
+
+function d(int: Code, str: string): void {
+	codeIntToStr[int] = str;
+	codeStrToInt[str] = int;
+}
+(function () {
+	d(Code.None, 'None');
+	d(Code.Hyper, 'Hyper');
+	d(Code.Super, 'Super');
+	d(Code.Fn, 'Fn');
+	d(Code.FnLock, 'FnLock');
+	d(Code.Suspend, 'Suspend');
+	d(Code.Resume, 'Resume');
+	d(Code.Turbo, 'Turbo');
+	d(Code.Sleep, 'Sleep');
+	d(Code.WakeUp, 'WakeUp');
+	d(Code.KeyA, 'KeyA');
+	d(Code.KeyB, 'KeyB');
+	d(Code.KeyC, 'KeyC');
+	d(Code.KeyD, 'KeyD');
+	d(Code.KeyE, 'KeyE');
+	d(Code.KeyF, 'KeyF');
+	d(Code.KeyG, 'KeyG');
+	d(Code.KeyH, 'KeyH');
+	d(Code.KeyI, 'KeyI');
+	d(Code.KeyJ, 'KeyJ');
+	d(Code.KeyK, 'KeyK');
+	d(Code.KeyL, 'KeyL');
+	d(Code.KeyM, 'KeyM');
+	d(Code.KeyN, 'KeyN');
+	d(Code.KeyO, 'KeyO');
+	d(Code.KeyP, 'KeyP');
+	d(Code.KeyQ, 'KeyQ');
+	d(Code.KeyR, 'KeyR');
+	d(Code.KeyS, 'KeyS');
+	d(Code.KeyT, 'KeyT');
+	d(Code.KeyU, 'KeyU');
+	d(Code.KeyV, 'KeyV');
+	d(Code.KeyW, 'KeyW');
+	d(Code.KeyX, 'KeyX');
+	d(Code.KeyY, 'KeyY');
+	d(Code.KeyZ, 'KeyZ');
+	d(Code.Digit1, 'Digit1');
+	d(Code.Digit2, 'Digit2');
+	d(Code.Digit3, 'Digit3');
+	d(Code.Digit4, 'Digit4');
+	d(Code.Digit5, 'Digit5');
+	d(Code.Digit6, 'Digit6');
+	d(Code.Digit7, 'Digit7');
+	d(Code.Digit8, 'Digit8');
+	d(Code.Digit9, 'Digit9');
+	d(Code.Digit0, 'Digit0');
+	d(Code.Enter, 'Enter');
+	d(Code.Escape, 'Escape');
+	d(Code.Backspace, 'Backspace');
+	d(Code.Tab, 'Tab');
+	d(Code.Space, 'Space');
+	d(Code.Minus, 'Minus');
+	d(Code.Equal, 'Equal');
+	d(Code.BracketLeft, 'BracketLeft');
+	d(Code.BracketRight, 'BracketRight');
+	d(Code.Backslash, 'Backslash');
+	d(Code.IntlHash, 'IntlHash');
+	d(Code.Semicolon, 'Semicolon');
+	d(Code.Quote, 'Quote');
+	d(Code.Backquote, 'Backquote');
+	d(Code.Comma, 'Comma');
+	d(Code.Period, 'Period');
+	d(Code.Slash, 'Slash');
+	d(Code.CapsLock, 'CapsLock');
+	d(Code.F1, 'F1');
+	d(Code.F2, 'F2');
+	d(Code.F3, 'F3');
+	d(Code.F4, 'F4');
+	d(Code.F5, 'F5');
+	d(Code.F6, 'F6');
+	d(Code.F7, 'F7');
+	d(Code.F8, 'F8');
+	d(Code.F9, 'F9');
+	d(Code.F10, 'F10');
+	d(Code.F11, 'F11');
+	d(Code.F12, 'F12');
+	d(Code.PrintScreen, 'PrintScreen');
+	d(Code.ScrollLock, 'ScrollLock');
+	d(Code.Pause, 'Pause');
+	d(Code.Insert, 'Insert');
+	d(Code.Home, 'Home');
+	d(Code.PageUp, 'PageUp');
+	d(Code.Delete, 'Delete');
+	d(Code.End, 'End');
+	d(Code.PageDown, 'PageDown');
+	d(Code.ArrowRight, 'ArrowRight');
+	d(Code.ArrowLeft, 'ArrowLeft');
+	d(Code.ArrowDown, 'ArrowDown');
+	d(Code.ArrowUp, 'ArrowUp');
+	d(Code.NumLock, 'NumLock');
+	d(Code.NumpadDivide, 'NumpadDivide');
+	d(Code.NumpadMultiply, 'NumpadMultiply');
+	d(Code.NumpadSubtract, 'NumpadSubtract');
+	d(Code.NumpadAdd, 'NumpadAdd');
+	d(Code.NumpadEnter, 'NumpadEnter');
+	d(Code.Numpad1, 'Numpad1');
+	d(Code.Numpad2, 'Numpad2');
+	d(Code.Numpad3, 'Numpad3');
+	d(Code.Numpad4, 'Numpad4');
+	d(Code.Numpad5, 'Numpad5');
+	d(Code.Numpad6, 'Numpad6');
+	d(Code.Numpad7, 'Numpad7');
+	d(Code.Numpad8, 'Numpad8');
+	d(Code.Numpad9, 'Numpad9');
+	d(Code.Numpad0, 'Numpad0');
+	d(Code.NumpadDecimal, 'NumpadDecimal');
+	d(Code.IntlBackslash, 'IntlBackslash');
+	d(Code.ContextMenu, 'ContextMenu');
+	d(Code.Power, 'Power');
+	d(Code.NumpadEqual, 'NumpadEqual');
+	d(Code.F13, 'F13');
+	d(Code.F14, 'F14');
+	d(Code.F15, 'F15');
+	d(Code.F16, 'F16');
+	d(Code.F17, 'F17');
+	d(Code.F18, 'F18');
+	d(Code.F19, 'F19');
+	d(Code.F20, 'F20');
+	d(Code.F21, 'F21');
+	d(Code.F22, 'F22');
+	d(Code.F23, 'F23');
+	d(Code.F24, 'F24');
+	d(Code.Open, 'Open');
+	d(Code.Help, 'Help');
+	d(Code.Select, 'Select');
+	d(Code.Again, 'Again');
+	d(Code.Undo, 'Undo');
+	d(Code.Cut, 'Cut');
+	d(Code.Copy, 'Copy');
+	d(Code.Paste, 'Paste');
+	d(Code.Find, 'Find');
+	d(Code.AudioVolumeMute, 'AudioVolumeMute');
+	d(Code.AudioVolumeUp, 'AudioVolumeUp');
+	d(Code.AudioVolumeDown, 'AudioVolumeDown');
+	d(Code.NumpadComma, 'NumpadComma');
+	d(Code.IntlRo, 'IntlRo');
+	d(Code.KanaMode, 'KanaMode');
+	d(Code.IntlYen, 'IntlYen');
+	d(Code.Convert, 'Convert');
+	d(Code.NonConvert, 'NonConvert');
+	d(Code.Lang1, 'Lang1');
+	d(Code.Lang2, 'Lang2');
+	d(Code.Lang3, 'Lang3');
+	d(Code.Lang4, 'Lang4');
+	d(Code.Lang5, 'Lang5');
+	d(Code.Abort, 'Abort');
+	d(Code.Props, 'Props');
+	d(Code.NumpadParenLeft, 'NumpadParenLeft');
+	d(Code.NumpadParenRight, 'NumpadParenRight');
+	d(Code.NumpadBackspace, 'NumpadBackspace');
+	d(Code.NumpadMemoryStore, 'NumpadMemoryStore');
+	d(Code.NumpadMemoryRecall, 'NumpadMemoryRecall');
+	d(Code.NumpadMemoryClear, 'NumpadMemoryClear');
+	d(Code.NumpadMemoryAdd, 'NumpadMemoryAdd');
+	d(Code.NumpadMemorySubtract, 'NumpadMemorySubtract');
+	d(Code.NumpadClear, 'NumpadClear');
+	d(Code.NumpadClearEntry, 'NumpadClearEntry');
+	d(Code.ControlLeft, 'ControlLeft');
+	d(Code.ShiftLeft, 'ShiftLeft');
+	d(Code.AltLeft, 'AltLeft');
+	d(Code.MetaLeft, 'MetaLeft');
+	d(Code.ControlRight, 'ControlRight');
+	d(Code.ShiftRight, 'ShiftRight');
+	d(Code.AltRight, 'AltRight');
+	d(Code.MetaRight, 'MetaRight');
+	d(Code.BrightnessUp, 'BrightnessUp');
+	d(Code.BrightnessDown, 'BrightnessDown');
+	d(Code.MediaPlay, 'MediaPlay');
+	d(Code.MediaRecord, 'MediaRecord');
+	d(Code.MediaFastForward, 'MediaFastForward');
+	d(Code.MediaRewind, 'MediaRewind');
+	d(Code.MediaTrackNext, 'MediaTrackNext');
+	d(Code.MediaTrackPrevious, 'MediaTrackPrevious');
+	d(Code.MediaStop, 'MediaStop');
+	d(Code.Eject, 'Eject');
+	d(Code.MediaPlayPause, 'MediaPlayPause');
+	d(Code.MediaSelect, 'MediaSelect');
+	d(Code.LaunchMail, 'LaunchMail');
+	d(Code.LaunchApp2, 'LaunchApp2');
+	d(Code.LaunchApp1, 'LaunchApp1');
+	d(Code.SelectTask, 'SelectTask');
+	d(Code.LaunchScreenSaver, 'LaunchScreenSaver');
+	d(Code.BrowserSearch, 'BrowserSearch');
+	d(Code.BrowserHome, 'BrowserHome');
+	d(Code.BrowserBack, 'BrowserBack');
+	d(Code.BrowserForward, 'BrowserForward');
+	d(Code.BrowserStop, 'BrowserStop');
+	d(Code.BrowserRefresh, 'BrowserRefresh');
+	d(Code.BrowserFavorites, 'BrowserFavorites');
+	d(Code.ZoomToggle, 'ZoomToggle');
+	d(Code.MailReply, 'MailReply');
+	d(Code.MailForward, 'MailForward');
+	d(Code.MailSend, 'MailSend');
+})();
+
+const enum Code {
+	None,
+
+	Hyper,
+	Super,
+	Fn,
+	FnLock,
+	Suspend,
+	Resume,
+	Turbo,
+	Sleep,
+	WakeUp,
+	KeyA,
+	KeyB,
+	KeyC,
+	KeyD,
+	KeyE,
+	KeyF,
+	KeyG,
+	KeyH,
+	KeyI,
+	KeyJ,
+	KeyK,
+	KeyL,
+	KeyM,
+	KeyN,
+	KeyO,
+	KeyP,
+	KeyQ,
+	KeyR,
+	KeyS,
+	KeyT,
+	KeyU,
+	KeyV,
+	KeyW,
+	KeyX,
+	KeyY,
+	KeyZ,
+	Digit1,
+	Digit2,
+	Digit3,
+	Digit4,
+	Digit5,
+	Digit6,
+	Digit7,
+	Digit8,
+	Digit9,
+	Digit0,
+	Enter,
+	Escape,
+	Backspace,
+	Tab,
+	Space,
+	Minus,
+	Equal,
+	BracketLeft,
+	BracketRight,
+	Backslash,
+	IntlHash,
+	Semicolon,
+	Quote,
+	Backquote,
+	Comma,
+	Period,
+	Slash,
+	CapsLock,
+	F1,
+	F2,
+	F3,
+	F4,
+	F5,
+	F6,
+	F7,
+	F8,
+	F9,
+	F10,
+	F11,
+	F12,
+	PrintScreen,
+	ScrollLock,
+	Pause,
+	Insert,
+	Home,
+	PageUp,
+	Delete,
+	End,
+	PageDown,
+	ArrowRight,
+	ArrowLeft,
+	ArrowDown,
+	ArrowUp,
+	NumLock,
+	NumpadDivide,
+	NumpadMultiply,
+	NumpadSubtract,
+	NumpadAdd,
+	NumpadEnter,
+	Numpad1,
+	Numpad2,
+	Numpad3,
+	Numpad4,
+	Numpad5,
+	Numpad6,
+	Numpad7,
+	Numpad8,
+	Numpad9,
+	Numpad0,
+	NumpadDecimal,
+	IntlBackslash,
+	ContextMenu,
+	Power,
+	NumpadEqual,
+	F13,
+	F14,
+	F15,
+	F16,
+	F17,
+	F18,
+	F19,
+	F20,
+	F21,
+	F22,
+	F23,
+	F24,
+	Open,
+	Help,
+	Select,
+	Again,
+	Undo,
+	Cut,
+	Copy,
+	Paste,
+	Find,
+	AudioVolumeMute,
+	AudioVolumeUp,
+	AudioVolumeDown,
+	NumpadComma,
+	IntlRo,
+	KanaMode,
+	IntlYen,
+	Convert,
+	NonConvert,
+	Lang1,
+	Lang2,
+	Lang3,
+	Lang4,
+	Lang5,
+	Abort,
+	Props,
+	NumpadParenLeft,
+	NumpadParenRight,
+	NumpadBackspace,
+	NumpadMemoryStore,
+	NumpadMemoryRecall,
+	NumpadMemoryClear,
+	NumpadMemoryAdd,
+	NumpadMemorySubtract,
+	NumpadClear,
+	NumpadClearEntry,
+	ControlLeft,
+	ShiftLeft,
+	AltLeft,
+	MetaLeft,
+	ControlRight,
+	ShiftRight,
+	AltRight,
+	MetaRight,
+	BrightnessUp,
+	BrightnessDown,
+	MediaPlay,
+	MediaRecord,
+	MediaFastForward,
+	MediaRewind,
+	MediaTrackNext,
+	MediaTrackPrevious,
+	MediaStop,
+	Eject,
+	MediaPlayPause,
+	MediaSelect,
+	LaunchMail,
+	LaunchApp2,
+	LaunchApp1,
+	SelectTask,
+	LaunchScreenSaver,
+	BrowserSearch,
+	BrowserHome,
+	BrowserBack,
+	BrowserForward,
+	BrowserStop,
+	BrowserRefresh,
+	BrowserFavorites,
+	ZoomToggle,
+	MailReply,
+	MailForward,
+	MailSend,
 }
