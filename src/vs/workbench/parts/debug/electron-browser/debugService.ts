@@ -830,7 +830,9 @@ export class DebugService implements debug.IDebugService {
 		return process.session.disconnect(true).then(() =>
 			new TPromise<void>((c, e) => {
 				setTimeout(() => {
-					this.createProcess(process.configuration).then(() => c(null), err => e(err));
+					// Read the configuration again if a launch.json exists, if not just use the inmemory configuration #19366
+					const config = this.configurationManager.getConfiguration(process.configuration.name);
+					this.createProcess(config || process.configuration).then(() => c(null), err => e(err));
 				}, 300);
 			})
 		).then(() => {
