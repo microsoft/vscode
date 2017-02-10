@@ -601,12 +601,8 @@ export class QuickOpenWidget implements IModelProvider {
 			// Indicate entries to tree
 			this.tree.layout();
 
-			let doAutoFocus = autoFocus && input && input.entries.some(e => this.isElementVisible(input, e));
-			if (doAutoFocus && !autoFocus.autoFocusPrefixMatch) {
-				doAutoFocus = !this.tree.getFocus(); // if auto focus is not for prefix matches, we do not want to change what the user has focussed already
-			}
-
 			// Handle auto focus
+			let doAutoFocus = autoFocus && input && input.entries.some(e => this.isElementVisible(input, e));
 			if (doAutoFocus) {
 				this.autoFocus(input, autoFocus);
 			}
