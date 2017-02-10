@@ -88,7 +88,7 @@ class EditTask implements IDisposable {
 		} else {
 			range = edit.range;
 		}
-		this._edits.push(EditOperation.replace(Range.lift(range), edit.newText));
+		this._edits.push(EditOperation.replaceMove(Range.lift(range), edit.newText));
 	}
 
 	public apply(): void {
