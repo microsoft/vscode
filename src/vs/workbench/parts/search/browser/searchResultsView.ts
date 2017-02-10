@@ -221,26 +221,29 @@ export class SearchAccessibilityProvider implements IAccessibilityProvider {
 
 export class SearchController extends DefaultController {
 
-	private _gotArrowUpKeyUp = true;
-	private _gotArrowDownKeyUp = true;
-
 	constructor(private viewlet: SearchViewlet, @IInstantiationService private instantiationService: IInstantiationService) {
-		super({ clickBehavior: ClickBehavior.ON_MOUSE_DOWN });
+		super({ clickBehavior: ClickBehavior.ON_MOUSE_DOWN, keyboardSupport: false });
 
-		if (platform.isMacintosh) {
-			this.downKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.Backspace, (tree: ITree, event: any) => { this.onDelete(tree, event); });
-			this.upKeyBindingDispatcher.set(KeyMod.WinCtrl | KeyCode.Enter, this.onEnter.bind(this));
-		} else {
-			this.downKeyBindingDispatcher.set(KeyCode.Delete, (tree: ITree, event: any) => { this.onDelete(tree, event); });
-			this.upKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.Enter, this.onEnter.bind(this));
-		}
+		// TODO@Rob these should be commands
 
-		this.upKeyBindingDispatcher.set(KeyCode.UpArrow, this.upKeyArrowUp.bind(this));
-		this.upKeyBindingDispatcher.set(KeyCode.DownArrow, this.upKeyArrowDown.bind(this));
+		// Up (from results to inputs)
+		this.downKeyBindingDispatcher.set(KeyCode.UpArrow, this.onUp.bind(this));
 
+		// Open
+		this.downKeyBindingDispatcher.set(KeyCode.Space, (t, e) => this.onSpace(t, e));
+
+		// Open to side
+		this.upKeyBindingDispatcher.set(platform.isMacintosh ? KeyMod.WinCtrl | KeyCode.Enter : KeyMod.CtrlCmd | KeyCode.Enter, this.onEnter.bind(this));
+
+		// Delete
+		this.downKeyBindingDispatcher.set(platform.isMacintosh ? KeyMod.CtrlCmd | KeyCode.Backspace : KeyCode.Delete, (tree: ITree, event: any) => { this.onDelete(tree, event); });
+
+		// Cancel search
+		this.downKeyBindingDispatcher.set(KeyCode.Escape, (tree: ITree, event: any) => { this.onEscape(tree, event); });
+
+		// Replace / Replace All
 		this.downKeyBindingDispatcher.set(ReplaceAllAction.KEY_BINDING, (tree: ITree, event: any) => { this.onReplaceAll(tree, event); });
 		this.downKeyBindingDispatcher.set(ReplaceAction.KEY_BINDING, (tree: ITree, event: any) => { this.onReplace(tree, event); });
-		this.downKeyBindingDispatcher.set(KeyCode.Escape, (tree: ITree, event: any) => { this.onEscape(tree, event); });
 	}
 
 	protected onEscape(tree: ITree, event: IKeyboardEvent): boolean {
@@ -293,39 +296,7 @@ export class SearchController extends DefaultController {
 			return true;
 		}
 
-		const result = super.onUp(tree, event);
-
-		// Ignore keydown events while the key is held
-		if (this._gotArrowUpKeyUp) {
-			this.doSelectOnScroll(tree, tree.getFocus(), event);
-			this._gotArrowUpKeyUp = false;
-		}
-
-		return result;
-	}
-
-	private upKeyArrowUp(tree: ITree, event): boolean {
-		this.doSelectOnScroll(tree, tree.getFocus(), event);
-		this._gotArrowUpKeyUp = true;
-		return true;
-	}
-
-	private upKeyArrowDown(tree: ITree, event): boolean {
-		this.doSelectOnScroll(tree, tree.getFocus(), event);
-		this._gotArrowDownKeyUp = true;
-		return true;
-	}
-
-	protected onDown(tree: ITree, event: IKeyboardEvent): boolean {
-		const result = super.onDown(tree, event);
-
-		// Ignore keydown events while the key is held
-		if (this._gotArrowDownKeyUp) {
-			this.doSelectOnScroll(tree, tree.getFocus(), event);
-			this._gotArrowDownKeyUp = false;
-		}
-
-		return result;
+		return false;
 	}
 
 	protected onSpace(tree: ITree, event: IKeyboardEvent): boolean {
@@ -335,14 +306,6 @@ export class SearchController extends DefaultController {
 		}
 		super.onSpace(tree, event);
 		return false;
-	}
-
-	private doSelectOnScroll(tree: ITree, focus: any, event: IKeyboardEvent): void {
-		if (focus instanceof Match) {
-			this.onEnter(tree, event);
-		} else {
-			tree.setSelection([focus]);
-		}
 	}
 }
 
