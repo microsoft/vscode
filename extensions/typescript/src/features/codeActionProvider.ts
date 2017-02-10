@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { CodeActionProvider, TextDocument, Range, CancellationToken, CodeActionContext, Command, commands, Uri, workspace, WorkspaceEdit, TextEdit, Position, FormattingOptions, window } from 'vscode';
+import { CodeActionProvider, TextDocument, Range, CancellationToken, CodeActionContext, Command, commands, Uri, workspace, WorkspaceEdit, TextEdit, FormattingOptions, window } from 'vscode';
 
 import * as Proto from '../protocol';
 import { ITypescriptServiceClient } from '../typescriptService';
@@ -33,9 +33,7 @@ export default class TypeScriptCodeActionProvider implements CodeActionProvider 
 		this.commandId = `typescript.codeActions.${modeId}`;
 		this.supportedCodeActions = client.execute('getSupportedCodeFixes', null, undefined)
 			.then(response => response.body || [])
-			.then(codes => {
-				return codes.map(code => +code).filter(code => !isNaN(code));
-			})
+			.then(codes => codes.map(code => +code).filter(code => !isNaN(code)))
 			.then(codes =>
 				codes.reduce((obj, code) => {
 					obj[code] = true;
@@ -50,7 +48,7 @@ export default class TypeScriptCodeActionProvider implements CodeActionProvider 
 		if (!file) {
 			return Promise.resolve<Command[]>([]);
 		}
-		let editor = window.activeTextEditor && window.activeTextEditor.document === document ? window.activeTextEditor : undefined;
+		const editor = window.activeTextEditor && window.activeTextEditor.document === document ? window.activeTextEditor : undefined;
 		const source: Source = {
 			uri: document.uri,
 			version: document.version,
@@ -75,24 +73,23 @@ export default class TypeScriptCodeActionProvider implements CodeActionProvider 
 
 	private getSupportedCodeActions(context: CodeActionContext): Thenable<number[]> {
 		return this.supportedCodeActions
-			.then(supportedActions => {
-				return context.diagnostics
+			.then(supportedActions =>
+				context.diagnostics
 					.map(diagnostic => +diagnostic.code)
-					.filter(code => supportedActions[code]);
-			});
+					.filter(code => supportedActions[code]));
 	}
 
 	private actionToEdit(source: Source, action: Proto.CodeAction): Command {
 		const workspaceEdit = new WorkspaceEdit();
-		action.changes.forEach(change => {
-			change.textChanges.forEach(textChange => {
+		for (const change of action.changes) {
+			for (const textChange of change.textChanges) {
 				workspaceEdit.replace(this.client.asUrl(change.fileName),
 					new Range(
 						textChange.start.line - 1, textChange.start.offset - 1,
 						textChange.end.line - 1, textChange.end.offset - 1),
 					textChange.newText);
-			});
-		});
+			}
+		}
 		return {
 			title: action.description,
 			command: this.commandId,
@@ -120,8 +117,8 @@ export default class TypeScriptCodeActionProvider implements CodeActionProvider 
 
 			const newLines = firstEdit.newText.match(/\n/g);
 			const editedRange = new Range(
-				new Position(firstEdit.range.start.line, 0),
-				new Position(firstEdit.range.end.line + 1 + (newLines ? newLines.length : 0), 0));
+				firstEdit.range.start.line, 0,
+				firstEdit.range.end.line + 1 + (newLines ? newLines.length : 0), 0);
 
 			// TODO: Workaround for https://github.com/Microsoft/TypeScript/issues/12249
 			// apply formatting to the source range until TS returns formatted results
