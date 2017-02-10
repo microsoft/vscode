@@ -31,6 +31,7 @@ import { registerContributions as searchWidgetContributions } from 'vs/workbench
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ToggleCaseSensitiveKeybinding, ToggleRegexKeybinding, ToggleWholeWordKeybinding, ShowPreviousFindTermKeybinding, ShowNextFindTermKeybinding } from 'vs/editor/contrib/find/common/findModel';
 import { ISearchWorkbenchService, SearchWorkbenchService } from 'vs/workbench/parts/search/common/searchModel';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 
 registerSingleton(ISearchWorkbenchService, SearchWorkbenchService);
 replaceContributions();
@@ -47,6 +48,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			.then(viewlet => (<any>viewlet).toggleFileTypes());
 	}
 });
+
+CommandsRegistry.registerCommand(searchActions.FindInFolderAction.ID, searchActions.findInFolderCommand);
 
 class ExplorerViewerActionContributor extends ActionBarContributor {
 	private _instantiationService: IInstantiationService;
