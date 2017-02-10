@@ -17,7 +17,6 @@ import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { SimpleResolvedKeybinding } from 'vs/platform/keybinding/common/abstractKeybindingService';
 
 suite('Search Actions', () => {
 
@@ -28,7 +27,7 @@ suite('Search Actions', () => {
 		instantiationService = new TestInstantiationService();
 		instantiationService.stub(IModelService, stubModelService(instantiationService));
 		instantiationService.stub(IKeybindingService, {});
-		instantiationService.stub(IKeybindingService, 'resolveKeybinding', (keybinding) => new SimpleResolvedKeybinding(keybinding));
+		instantiationService.stub(IKeybindingService, 'resolveKeybinding', (keybinding) => null);
 		counter = 0;
 	});
 

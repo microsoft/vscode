@@ -391,6 +391,7 @@ declare module monaco {
         readonly altKey: boolean;
         readonly metaKey: boolean;
         readonly keyCode: KeyCode;
+        readonly code: string;
         toKeybinding(): SimpleKeybinding;
         equals(keybinding: number): boolean;
         preventDefault(): void;

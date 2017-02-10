@@ -10,16 +10,13 @@ import { SimpleConfigurationService, SimpleMessageService, StandaloneKeybindingS
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SimpleKeybinding, KeyCode } from 'vs/base/common/keyCodes';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { SimpleKeyPress } from 'vs/platform/keybinding/common/keyPress';
 
 suite('StandaloneKeybindingService', () => {
 
 	class TestStandaloneKeybindingService extends StandaloneKeybindingService {
-		public dispatch(e: IKeyboardEvent): void {
-			let shouldPreventDefault = super._dispatch(e.toKeybinding(), e.target);
-			if (shouldPreventDefault) {
-				e.preventDefault();
-			}
+		public dispatch(keybinding: SimpleKeybinding): void {
+			super._dispatch(<SimpleKeyPress>this._keybindingToKeyPress(keybinding), null);
 		}
 	}
 
@@ -45,10 +42,7 @@ suite('StandaloneKeybindingService', () => {
 			commandInvoked = true;
 		}, null);
 
-		keybindingService.dispatch(<any>{
-			toKeybinding: () => new SimpleKeybinding(KeyCode.F9),
-			preventDefault: () => { }
-		});
+		keybindingService.dispatch(new SimpleKeybinding(KeyCode.F9));
 
 		assert.ok(commandInvoked, 'command invoked');
 	});

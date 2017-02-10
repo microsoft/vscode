@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { ResolvedKeybinding, SimpleKeybinding, Keybinding } from 'vs/base/common/keyCodes';
+import { ResolvedKeybinding, Keybinding, KeyCode } from 'vs/base/common/keyCodes';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ContextKeyExpr, IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
 import { IResolveResult } from 'vs/platform/keybinding/common/keybindingResolver';
@@ -55,6 +55,15 @@ export interface IKeybindingEvent {
 
 export let IKeybindingService = createDecorator<IKeybindingService>('keybindingService');
 
+export interface ISimpleKeyPress {
+	readonly ctrlKey: boolean;
+	readonly shiftKey: boolean;
+	readonly altKey: boolean;
+	readonly metaKey: boolean;
+	readonly keyCode: KeyCode;
+	readonly code: string;
+}
+
 export interface IKeybindingService {
 	_serviceBrand: any;
 
@@ -67,7 +76,7 @@ export interface IKeybindingService {
 	/**
 	 * @deprecated
 	 */
-	lookupKeybindings2(commandId: string): ResolvedKeybinding[];
+	lookupKeybindings2(commandId: string): Keybinding[];
 
 	/**
 	 * Look up the preferred (last defined) keybinding for a command.
@@ -77,6 +86,5 @@ export interface IKeybindingService {
 
 	customKeybindingsCount(): number;
 
-	resolve(keybinding: SimpleKeybinding, target: IContextKeyServiceTarget): IResolveResult;
+	resolve(keyPress: ISimpleKeyPress, target: IContextKeyServiceTarget): IResolveResult;
 }
-

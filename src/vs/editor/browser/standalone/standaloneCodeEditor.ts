@@ -20,7 +20,6 @@ import { CodeEditor } from 'vs/editor/browser/codeEditor';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IStandaloneColorService } from 'vs/editor/common/services/standaloneColorService';
-import { IOSupport } from 'vs/platform/keybinding/common/keybindingResolver';
 
 /**
  * The options to create an editor.
@@ -134,7 +133,7 @@ export class StandaloneEditor extends CodeEditor implements IStandaloneCodeEdito
 			return null;
 		}
 		let commandId = 'DYNAMIC_' + (++LAST_GENERATED_COMMAND_ID);
-		let whenExpression = IOSupport.readKeybindingWhen(context);
+		let whenExpression = ContextKeyExpr.deserialize(context);
 		this._standaloneKeybindingService.addDynamicKeybinding(commandId, keybinding, handler, whenExpression);
 		return commandId;
 	}
@@ -159,8 +158,8 @@ export class StandaloneEditor extends CodeEditor implements IStandaloneCodeEdito
 				return this.trigger('keyboard', descriptor.id, null);
 			};
 			let whenExpression = ContextKeyExpr.and(
-				IOSupport.readKeybindingWhen(descriptor.precondition),
-				IOSupport.readKeybindingWhen(descriptor.keybindingContext),
+				ContextKeyExpr.deserialize(descriptor.precondition),
+				ContextKeyExpr.deserialize(descriptor.keybindingContext),
 			);
 			toDispose = toDispose.concat(
 				descriptor.keybindings.map((kb) => {
@@ -231,7 +230,7 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 			return null;
 		}
 		let commandId = 'DYNAMIC_' + (++LAST_GENERATED_COMMAND_ID);
-		let whenExpression = IOSupport.readKeybindingWhen(context);
+		let whenExpression = ContextKeyExpr.deserialize(context);
 		this._standaloneKeybindingService.addDynamicKeybinding(commandId, keybinding, handler, whenExpression);
 		return commandId;
 	}
@@ -256,8 +255,8 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 				return this.trigger('keyboard', descriptor.id, null);
 			};
 			let whenExpression = ContextKeyExpr.and(
-				IOSupport.readKeybindingWhen(descriptor.precondition),
-				IOSupport.readKeybindingWhen(descriptor.keybindingContext),
+				ContextKeyExpr.deserialize(descriptor.precondition),
+				ContextKeyExpr.deserialize(descriptor.keybindingContext),
 			);
 			toDispose = toDispose.concat(
 				descriptor.keybindings.map((kb) => {

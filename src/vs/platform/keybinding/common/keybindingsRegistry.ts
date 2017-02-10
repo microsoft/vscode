@@ -86,12 +86,10 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 	public registerKeybindingRule(rule: IKeybindingRule): void {
 		let actualKb = KeybindingsRegistryImpl.bindToCurrentPlatform(rule);
 
-		// here
 		if (actualKb && actualKb.primary) {
 			this.registerDefaultKeybinding(actualKb.primary, rule.id, rule.weight, 0, rule.when);
 		}
 
-		// here
 		if (actualKb && Array.isArray(actualKb.secondary)) {
 			actualKb.secondary.forEach((k, i) => this.registerDefaultKeybinding(k, rule.id, rule.weight, -i - 1, rule.when));
 		}
@@ -123,7 +121,9 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 	}
 
 	public getDefaultKeybindings(): IKeybindingItem[] {
-		return this._keybindings;
+		let result = this._keybindings.slice(0);
+		result.sort(sorter);
+		return result;
 	}
 }
 export let KeybindingsRegistry: IKeybindingsRegistry = new KeybindingsRegistryImpl();
@@ -133,3 +133,16 @@ export let Extensions = {
 	EditorModes: 'platform.keybindingsRegistry'
 };
 Registry.add(Extensions.EditorModes, KeybindingsRegistry);
+
+function sorter(a: IKeybindingItem, b: IKeybindingItem): number {
+	if (a.weight1 !== b.weight1) {
+		return a.weight1 - b.weight1;
+	}
+	if (a.command < b.command) {
+		return -1;
+	}
+	if (a.command > b.command) {
+		return 1;
+	}
+	return a.weight2 - b.weight2;
+}

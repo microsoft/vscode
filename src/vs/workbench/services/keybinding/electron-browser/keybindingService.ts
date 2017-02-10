@@ -7,7 +7,7 @@
 import * as nls from 'vs/nls';
 import { IHTMLContentElement } from 'vs/base/common/htmlContent';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { ResolvedKeybinding, Keybinding } from 'vs/base/common/keyCodes';
+import { ResolvedKeybinding, SimpleKeybinding, Keybinding, createKeybinding } from 'vs/base/common/keyCodes';
 import { KeybindingLabels } from 'vs/platform/keybinding/common/keybindingLabels';
 import * as platform from 'vs/base/common/platform';
 import { toDisposable } from 'vs/base/common/lifecycle';
@@ -15,10 +15,10 @@ import { ExtensionMessageCollector, ExtensionsRegistry } from 'vs/platform/exten
 import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
-import { KeybindingResolver, IOSupport } from 'vs/platform/keybinding/common/keybindingResolver';
+import { KeybindingResolver, NormalizedKeybindingItem, IOSupport } from 'vs/platform/keybinding/common/keybindingResolver';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IKeybindingEvent, IKeybindingItem, IUserFriendlyKeybinding, KeybindingSource } from 'vs/platform/keybinding/common/keybinding';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IKeybindingEvent, IKeybindingItem, IUserFriendlyKeybinding, KeybindingSource, ISimpleKeyPress } from 'vs/platform/keybinding/common/keybinding';
+import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingRule, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Registry } from 'vs/platform/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -29,6 +29,7 @@ import { ConfigWatcher } from 'vs/base/node/config';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { SimpleKeyPress, ChordKeyPress, KeyPress, keyPressToKeybinding } from 'vs/platform/keybinding/common/keyPress';
 
 interface ContributedKeyBinding {
 	command: string;
@@ -206,7 +207,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
 		this.toDispose.push(dom.addDisposableListener(windowElement, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			let keyEvent = new StandardKeyboardEvent(e);
-			let shouldPreventDefault = this._dispatch(keyEvent.toKeybinding(), keyEvent.target);
+			let shouldPreventDefault = this._dispatch(this._createSimpleKeyPress(keyEvent), keyEvent.target);
 			if (shouldPreventDefault) {
 				keyEvent.preventDefault();
 			}
@@ -236,10 +237,56 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
 	protected _getResolver(): KeybindingResolver {
 		if (!this._cachedResolver) {
-			this._cachedResolver = new KeybindingResolver(KeybindingsRegistry.getDefaultKeybindings(), this._getExtraKeybindings(this._firstTimeComputingResolver));
+			let defaults = KeybindingsRegistry.getDefaultKeybindings().map(item => this._createNormalizedKeybindingItem(item, true));
+			let extras = this._getExtraKeybindings(this._firstTimeComputingResolver).map(item => this._createNormalizedKeybindingItem(item, false));
+			this._cachedResolver = new KeybindingResolver(defaults, extras);
 			this._firstTimeComputingResolver = false;
 		}
 		return this._cachedResolver;
+	}
+
+	protected _simpleKeybindingToKeyPress(keybinding: SimpleKeybinding): SimpleKeyPress {
+		let ctrlKey: boolean;
+		let metaKey: boolean;
+		if (platform.isMacintosh) {
+			ctrlKey = keybinding.hasWinCtrl();
+			metaKey = keybinding.hasCtrlCmd();
+		} else {
+			ctrlKey = keybinding.hasCtrlCmd();
+			metaKey = keybinding.hasWinCtrl();
+		}
+		let altKey = keybinding.hasAlt();
+		let shiftKey = keybinding.hasShift();
+		let keyCode = keybinding.getKeyCode();
+		return SimpleKeyPress.create(ctrlKey, shiftKey, altKey, metaKey, keyCode);
+	}
+
+	protected _keybindingToKeyPress(keybinding: Keybinding): KeyPress {
+		if (!keybinding) {
+			return null;
+		}
+		if (keybinding.isChord()) {
+			let firstPart = this._simpleKeybindingToKeyPress(keybinding.extractFirstPart());
+			let chordPart = this._simpleKeybindingToKeyPress(keybinding.extractChordPart());
+			return ChordKeyPress.create(firstPart, chordPart);
+		}
+		return this._simpleKeybindingToKeyPress(keybinding);
+	}
+
+	protected _createSimpleKeyPress(source: ISimpleKeyPress): SimpleKeyPress {
+		return SimpleKeyPress.create(
+			source.ctrlKey,
+			source.shiftKey,
+			source.altKey,
+			source.metaKey,
+			source.keyCode
+		);
+	}
+
+	protected _createNormalizedKeybindingItem(source: IKeybindingItem, isDefault: boolean): NormalizedKeybindingItem {
+		let keybinding = (source.keybinding !== 0 ? createKeybinding(source.keybinding) : null);
+		let keyPress = this._keybindingToKeyPress(keybinding);
+		return new NormalizedKeybindingItem(keybinding, keyPress, source.command, source.commandArgs, source.when, isDefault);
 	}
 
 	private _getExtraKeybindings(isFirstTime: boolean): IKeybindingItem[] {
@@ -255,12 +302,8 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		return extraUserKeybindings.map((k, i) => IOSupport.readKeybindingItem(k, i));
 	}
 
-	protected _createResolvedKeybinding(kb: Keybinding): ResolvedKeybinding {
-		return new FancyResolvedKeybinding(kb);
-	}
-
-	protected getLabelFor(keybinding: Keybinding): string {
-		return KeybindingLabels.toCustomLabel(keybinding, getNativeLabelProvider());
+	protected _createResolvedKeybinding(keyPress: KeyPress): ResolvedKeybinding {
+		return new FancyResolvedKeybinding(keyPressToKeybinding(keyPress));
 	}
 
 	private _handleKeybindingsExtensionPointUser(isBuiltin: boolean, keybindings: ContributedKeyBinding | ContributedKeyBinding[], collector: ExtensionMessageCollector): boolean {
@@ -313,12 +356,12 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
 		let desc = {
 			id: command,
-			when: IOSupport.readKeybindingWhen(when),
+			when: ContextKeyExpr.deserialize(when),
 			weight: weight,
-			primary: IOSupport.readKeybinding(key),
-			mac: mac && { primary: IOSupport.readKeybinding(mac) },
-			linux: linux && { primary: IOSupport.readKeybinding(linux) },
-			win: win && { primary: IOSupport.readKeybinding(win) }
+			primary: KeybindingLabels.fromUserSettingsLabel(key),
+			mac: mac && { primary: KeybindingLabels.fromUserSettingsLabel(mac) },
+			linux: linux && { primary: KeybindingLabels.fromUserSettingsLabel(linux) },
+			win: win && { primary: KeybindingLabels.fromUserSettingsLabel(win) }
 		};
 
 		if (!desc.primary && !desc.mac && !desc.linux && !desc.win) {

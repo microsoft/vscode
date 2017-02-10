@@ -494,7 +494,6 @@ suite('viewLineRenderer.renderLine', () => {
 			let part = expected[partIndex];
 			for (let i = 0; i < part.length; i++) {
 				let charIndex = part[i];
-				// here
 				let _actualPartData = actual.charOffsetToPartData(charOffset);
 				let actualPartIndex = CharacterMapping.getPartIndex(_actualPartData);
 				let actualCharIndex = CharacterMapping.getCharIndex(_actualPartData);
@@ -505,7 +504,6 @@ suite('viewLineRenderer.renderLine', () => {
 					`character mapping for offset ${charOffset}`
 				);
 
-				// here
 				let actualOffset = actual.partDataToCharOffset(partIndex, part[part.length - 1] + 1, charIndex);
 
 				assert.equal(

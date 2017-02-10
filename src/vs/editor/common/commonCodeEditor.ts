@@ -30,7 +30,6 @@ import { hash } from 'vs/base/common/hash';
 import { EditorModeContext } from 'vs/editor/common/modes/editorModeContext';
 import { MenuId, MenuRegistry, IMenuItem } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IOSupport } from 'vs/platform/keybinding/common/keybindingResolver';
 
 import EditorContextKeys = editorCommon.EditorContextKeys;
 
@@ -551,7 +550,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 				},
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.equals('editorId', this.getId()),
-					IOSupport.readKeybindingWhen(descriptor.precondition)
+					ContextKeyExpr.deserialize(descriptor.precondition)
 				),
 				group: descriptor.contextMenuGroupId,
 				order: descriptor.contextMenuOrder || 0

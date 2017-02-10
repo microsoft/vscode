@@ -571,12 +571,6 @@ export type Keybinding = SimpleKeybinding | ChordKeybinding;
  * A resolved keybinding.
  */
 export abstract class ResolvedKeybinding {
-
-	/**
-	 * @deprecated
-	 */
-	public abstract _getActual(): Keybinding;
-
 	public abstract getLabel(): string;
 	public abstract getAriaLabel(): string;
 	public abstract getHTMLLabel(): IHTMLContentElement[];

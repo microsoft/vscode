@@ -31,13 +31,7 @@ export function isSearchViewletFocussed(viewletService: IViewletService): boolea
 	return activeViewlet && activeViewlet.getId() === Constants.VIEWLET_ID && activeElement && DOM.isAncestor(activeElement, (<SearchViewlet>activeViewlet).getContainer().getHTMLElement());
 }
 
-export function appendKeyBindingLabel(label: string, keyBinding: number | ResolvedKeybinding, keyBindingService2: IKeybindingService): string {
-	let resolvedKb: ResolvedKeybinding;
-	if (typeof keyBinding === 'number') {
-		resolvedKb = keyBindingService2.resolveKeybinding(createKeybinding(keyBinding));
-	} else {
-		resolvedKb = keyBinding;
-	}
+export function appendKeyBindingLabel(label: string, resolvedKb: ResolvedKeybinding): string {
 	return resolvedKb ? label + ' (' + resolvedKb.getLabel() + ')' : label;
 }
 
@@ -379,8 +373,13 @@ export class ReplaceAllAction extends AbstractSearchAndReplaceAction {
 	constructor(private viewer: ITree, private fileMatch: FileMatch, private viewlet: SearchViewlet,
 		@IReplaceService private replaceService: IReplaceService,
 		@IKeybindingService keyBindingService2: IKeybindingService,
-		@ITelemetryService private telemetryService: ITelemetryService) {
-		super('file-action-replace-all', appendKeyBindingLabel(nls.localize('file.replaceAll.label', "Replace All"), ReplaceAllAction.KEY_BINDING, keyBindingService2), 'action-replace-all');
+		@ITelemetryService private telemetryService: ITelemetryService
+	) {
+		super(
+			'file-action-replace-all',
+			appendKeyBindingLabel(nls.localize('file.replaceAll.label', "Replace All"), keyBindingService2.resolveKeybinding(createKeybinding(ReplaceAllAction.KEY_BINDING))),
+			'action-replace-all'
+		);
 	}
 
 	public run(): TPromise<any> {
@@ -406,8 +405,13 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 		@IReplaceService private replaceService: IReplaceService,
 		@IKeybindingService keyBindingService2: IKeybindingService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@ITelemetryService private telemetryService: ITelemetryService) {
-		super('action-replace', appendKeyBindingLabel(nls.localize('match.replace.label', "Replace"), ReplaceAction.KEY_BINDING, keyBindingService2), 'action-replace');
+		@ITelemetryService private telemetryService: ITelemetryService
+	) {
+		super(
+			'action-replace',
+			appendKeyBindingLabel(nls.localize('match.replace.label', "Replace"), keyBindingService2.resolveKeybinding(createKeybinding(ReplaceAction.KEY_BINDING))),
+			'action-replace'
+		);
 	}
 
 	public run(): TPromise<any> {

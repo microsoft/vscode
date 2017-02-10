@@ -11,9 +11,9 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IConfigurationService, IConfigurationServiceEvent, IConfigurationValue, getConfigurationValue, IConfigurationKeys } from 'vs/platform/configuration/common/configuration';
 import { IEditor, IEditorInput, IEditorOptions, IEditorService, IResourceInput, Position } from 'vs/platform/editor/common/editor';
 import { ICommandService, ICommand, ICommandEvent, ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { SimpleResolvedKeybinding, AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
-import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
-import { IKeybindingEvent, IKeybindingItem, KeybindingSource } from 'vs/platform/keybinding/common/keybinding';
+import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
+import { KeybindingResolver, NormalizedKeybindingItem } from 'vs/platform/keybinding/common/keybindingResolver';
+import { IKeybindingEvent, IKeybindingItem, KeybindingSource, ISimpleKeyPress } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfirmation, IMessageService } from 'vs/platform/message/common/message';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -32,7 +32,10 @@ import { values } from 'vs/base/common/collections';
 import { MenuId, MenuRegistry, ICommandAction, IMenu, IMenuService } from 'vs/platform/actions/common/actions';
 import { Menu } from 'vs/platform/actions/common/menu';
 import { ITelemetryService, ITelemetryExperiments, ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
-import { ResolvedKeybinding, Keybinding } from 'vs/base/common/keyCodes';
+import { ResolvedKeybinding, Keybinding, createKeybinding } from 'vs/base/common/keyCodes';
+import { SimpleKeyPress, KeyPress, keyPressToKeybinding, keybindingToKeyPress } from 'vs/platform/keybinding/common/keyPress';
+import { KeybindingLabels } from 'vs/platform/keybinding/common/keybindingLabels';
+import { IHTMLContentElement } from 'vs/base/common/htmlContent';
 
 export class SimpleEditor implements IEditor {
 
@@ -304,6 +307,36 @@ export class StandaloneCommandService implements ICommandService {
 	}
 }
 
+export class SimpleResolvedKeybinding extends ResolvedKeybinding {
+
+	private readonly _actual: Keybinding;
+
+	constructor(actual: Keybinding) {
+		super();
+		this._actual = actual;
+	}
+
+	public getLabel(): string {
+		return KeybindingLabels._toUSLabel(this._actual);
+	}
+
+	public getAriaLabel(): string {
+		return KeybindingLabels._toUSAriaLabel(this._actual);
+	}
+
+	public getHTMLLabel(): IHTMLContentElement[] {
+		return KeybindingLabels._toUSHTMLLabel(this._actual);
+	}
+
+	public getElectronAccelerator(): string {
+		return KeybindingLabels._toElectronAccelerator(this._actual);
+	}
+
+	public getUserSettingsLabel(): string {
+		return KeybindingLabels.toUserSettingsLabel(this._actual);
+	}
+}
+
 export class StandaloneKeybindingService extends AbstractKeybindingService {
 	private _cachedResolver: KeybindingResolver;
 	private _dynamicKeybindings: IKeybindingItem[];
@@ -321,7 +354,7 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 
 		this.toDispose.push(dom.addDisposableListener(domNode, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			let keyEvent = new StandardKeyboardEvent(e);
-			let shouldPreventDefault = this._dispatch(keyEvent.toKeybinding(), keyEvent.target);
+			let shouldPreventDefault = this._dispatch(this._createSimpleKeyPress(keyEvent), keyEvent.target);
 			if (shouldPreventDefault) {
 				keyEvent.preventDefault();
 			}
@@ -372,19 +405,37 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 
 	protected _getResolver(): KeybindingResolver {
 		if (!this._cachedResolver) {
-			this._cachedResolver = new KeybindingResolver(KeybindingsRegistry.getDefaultKeybindings(), this._getExtraKeybindings());
+			let defaults = KeybindingsRegistry.getDefaultKeybindings().map(item => this._createNormalizedKeybindingItem(item, true));
+			let dynamic = this._dynamicKeybindings.map(item => this._createNormalizedKeybindingItem(item, false));
+
+			this._cachedResolver = new KeybindingResolver(defaults, dynamic);
 		}
 		return this._cachedResolver;
 	}
 
-	private _getExtraKeybindings(): IKeybindingItem[] {
-		return this._dynamicKeybindings;
+	protected _createNormalizedKeybindingItem(source: IKeybindingItem, isDefault: boolean): NormalizedKeybindingItem {
+		let keybinding = (source.keybinding !== 0 ? createKeybinding(source.keybinding) : null);
+		let keyPress = this._keybindingToKeyPress(keybinding);
+		return new NormalizedKeybindingItem(keybinding, keyPress, source.command, source.commandArgs, source.when, isDefault);
 	}
 
-	protected _createResolvedKeybinding(kb: Keybinding): ResolvedKeybinding {
-		return new SimpleResolvedKeybinding(kb);
+	protected _keybindingToKeyPress(keybinding: Keybinding): KeyPress {
+		return keybindingToKeyPress(keybinding);
 	}
 
+	protected _createResolvedKeybinding(keyPress: KeyPress): ResolvedKeybinding {
+		return new SimpleResolvedKeybinding(keyPressToKeybinding(keyPress));
+	}
+
+	protected _createSimpleKeyPress(source: ISimpleKeyPress): SimpleKeyPress {
+		return SimpleKeyPress.create(
+			source.ctrlKey,
+			source.shiftKey,
+			source.altKey,
+			source.metaKey,
+			source.keyCode
+		);
+	}
 }
 
 export class SimpleConfigurationService implements IConfigurationService {

@@ -9,6 +9,7 @@ import * as nls from 'vs/nls';
 import * as defaultPlatform from 'vs/base/common/platform';
 import { IHTMLContentElement } from 'vs/base/common/htmlContent';
 import { Keybinding, SimpleKeybinding, KeyCode, KeyMod, KeyChord, KeyCodeUtils, USER_SETTINGS } from 'vs/base/common/keyCodes';
+import { SimpleKeyPress, KeyPress } from 'vs/platform/keybinding/common/keyPress';
 
 export interface ISimplifiedPlatform {
 	isMacintosh: boolean;
@@ -53,7 +54,9 @@ export class KeybindingLabels {
 
 		return result;
 	}
-
+	public static toUserSettingsLabel2(keyPress: KeyPress, Platform: ISimplifiedPlatform = defaultPlatform): string {
+		throw new Error('TODO@keyboard');
+	}
 	/**
 	 * @internal
 	 */
@@ -148,6 +151,9 @@ export class KeybindingLabels {
 	public static _toUSLabel(keybinding: Keybinding, Platform: ISimplifiedPlatform = defaultPlatform): string {
 		return _asString(keybinding, (Platform.isMacintosh ? MacUIKeyLabelProvider.INSTANCE : ClassicUIKeyLabelProvider.INSTANCE), Platform);
 	}
+	public static _toUSLabel2(keyPress: KeyPress, Platform: ISimplifiedPlatform = defaultPlatform): string {
+		throw new Error('TODO@keyboard');
+	}
 
 	/**
 	 * Format the binding to a format appropiate for placing in an aria-label.
@@ -155,6 +161,9 @@ export class KeybindingLabels {
 	 */
 	public static _toUSAriaLabel(keybinding: Keybinding, Platform: ISimplifiedPlatform = defaultPlatform): string {
 		return _asString(keybinding, AriaKeyLabelProvider.INSTANCE, Platform);
+	}
+	public static _toUSAriaLabel2(keyPress: KeyPress, Platform: ISimplifiedPlatform = defaultPlatform): string {
+		throw new Error('TODO@keyboard');
 	}
 
 	/**
@@ -164,6 +173,9 @@ export class KeybindingLabels {
 	public static _toUSHTMLLabel(keybinding: Keybinding, Platform: ISimplifiedPlatform = defaultPlatform): IHTMLContentElement[] {
 		return _asHTML(keybinding, (Platform.isMacintosh ? MacUIKeyLabelProvider.INSTANCE : ClassicUIKeyLabelProvider.INSTANCE), Platform);
 	}
+	public static _toUSHTMLLabel2(keyPress: KeyPress, Platform: ISimplifiedPlatform = defaultPlatform): IHTMLContentElement[] {
+		throw new Error('TODO@keyboard');
+	}
 
 	/**
 	 * Format the binding to a format appropiate for rendering in the UI
@@ -172,6 +184,9 @@ export class KeybindingLabels {
 	public static toCustomLabel(keybinding: Keybinding, labelProvider: IKeyBindingLabelProvider, Platform: ISimplifiedPlatform = defaultPlatform): string {
 		return _asString(keybinding, labelProvider, Platform);
 	}
+	public static toCustomLabel2(keybinding: Keybinding, labelProvider: IKeyBindingLabelProvider, Platform: ISimplifiedPlatform = defaultPlatform): string {
+		throw new Error('TODO@keyboard');
+	}
 
 	/**
 	 * Format the binding to a format appropiate for rendering in the UI
@@ -179,6 +194,9 @@ export class KeybindingLabels {
 	 */
 	public static toCustomHTMLLabel(keybinding: Keybinding, labelProvider: IKeyBindingLabelProvider, Platform: ISimplifiedPlatform = defaultPlatform): IHTMLContentElement[] {
 		return _asHTML(keybinding, labelProvider, Platform);
+	}
+	public static toCustomHTMLLabel2(keyPress: KeyPress, labelProvider: IKeyBindingLabelProvider, Platform: ISimplifiedPlatform = defaultPlatform): IHTMLContentElement[] {
+		throw new Error('TODO@keyboard');
 	}
 
 	/**
@@ -198,6 +216,10 @@ export class KeybindingLabels {
 		}
 		return _asString(keybinding, ElectronAcceleratorLabelProvider.INSTANCE, Platform);
 	}
+
+	// public static _toElectronAccelerator2(keyPress: KeyPress, Platform: ISimplifiedPlatform = defaultPlatform): string {
+	// 	throw new Error('TODO@keyboard');
+	// }
 }
 
 export interface IKeyBindingLabelProvider {
@@ -208,6 +230,16 @@ export interface IKeyBindingLabelProvider {
 	windowsKeyLabel: string;
 	modifierSeparator: string;
 	getLabelForKey(keyCode: KeyCode): string;
+}
+
+export interface IKeyBindingLabelProvider2 {
+	ctrlKeyLabel: string;
+	shiftKeyLabel: string;
+	altKeyLabel: string;
+	cmdKeyLabel: string;
+	windowsKeyLabel: string;
+	modifierSeparator: string;
+	getLabelForSpecific(keyPress: KeyPress): string;
 }
 
 /**
@@ -272,6 +304,41 @@ export class MacUIKeyLabelProvider implements IKeyBindingLabelProvider {
 		return KeyCodeUtils.toString(keyCode);
 	}
 }
+
+// TODO@keyboard
+// /**
+//  * Print for Mac UI
+//  */
+// export class MacUIKeyLabelProvider2 implements IKeyBindingLabelProvider2 {
+// 	public static INSTANCE = new MacUIKeyLabelProvider();
+
+// 	private static leftArrowUnicodeLabel = String.fromCharCode(8592);
+// 	private static upArrowUnicodeLabel = String.fromCharCode(8593);
+// 	private static rightArrowUnicodeLabel = String.fromCharCode(8594);
+// 	private static downArrowUnicodeLabel = String.fromCharCode(8595);
+
+// 	public ctrlKeyLabel = '\u2303';
+// 	public shiftKeyLabel = '\u21E7';
+// 	public altKeyLabel = '\u2325';
+// 	public cmdKeyLabel = '\u2318';
+// 	public windowsKeyLabel = nls.localize('windowsKey', "Windows");
+// 	public modifierSeparator = '';
+
+// 	public getLabelForSpecific(keyPress: KeyPress): string {
+// 		switch (keyCode) {
+// 			case KeyCode.LeftArrow:
+// 				return MacUIKeyLabelProvider2.leftArrowUnicodeLabel;
+// 			case KeyCode.UpArrow:
+// 				return MacUIKeyLabelProvider2.upArrowUnicodeLabel;
+// 			case KeyCode.RightArrow:
+// 				return MacUIKeyLabelProvider2.rightArrowUnicodeLabel;
+// 			case KeyCode.DownArrow:
+// 				return MacUIKeyLabelProvider2.downArrowUnicodeLabel;
+// 		}
+
+// 		return KeyCodeUtils.toString(keyCode);
+// 	}
+// }
 
 /**
  * Aria label provider for Mac.
@@ -376,6 +443,53 @@ function _asString(keybinding: Keybinding, labelProvider: IKeyBindingLabelProvid
 		return firstPart + ' ' + secondPart;
 	} else {
 		return _simpleAsString(keybinding, labelProvider, Platform);
+	}
+}
+
+function _simpleAsString2(keyPress: SimpleKeyPress, labelProvider: IKeyBindingLabelProvider2, Platform: ISimplifiedPlatform): string {
+	let result: string[] = [];
+
+	let keyLabel = labelProvider.getLabelForSpecific(keyPress);
+	if (!keyLabel) {
+		// cannot trigger this key under this kb layout
+		return '';
+	}
+
+	// translate modifier keys: Ctrl-Shift-Alt-Meta
+	if (keyPress.hasCtrlKey()) {
+		result.push(labelProvider.ctrlKeyLabel);
+	}
+
+	if (keyPress.hasShiftKey()) {
+		result.push(labelProvider.shiftKeyLabel);
+	}
+
+	if (keyPress.hasAltKey()) {
+		result.push(labelProvider.altKeyLabel);
+	}
+
+	if (keyPress.hasMetaKey()) {
+		if (Platform.isMacintosh) {
+			result.push(labelProvider.cmdKeyLabel);
+		} else {
+			result.push(labelProvider.windowsKeyLabel);
+		}
+	}
+
+	// the actual key
+	result.push(keyLabel);
+
+	return result.join(labelProvider.modifierSeparator);
+}
+
+// TODO@keyboard -> don't export
+export function _asString2(keyPress: KeyPress, labelProvider: IKeyBindingLabelProvider2, Platform: ISimplifiedPlatform): string {
+	if (keyPress.isChord()) {
+		let firstPart = _simpleAsString2(keyPress.extractFirstPart(), labelProvider, Platform);
+		let secondPart = _simpleAsString2(keyPress.extractChordPart(), labelProvider, Platform);
+		return firstPart + ' ' + secondPart;
+	} else {
+		return _simpleAsString2(keyPress, labelProvider, Platform);
 	}
 }
 
