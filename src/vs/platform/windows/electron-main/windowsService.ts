@@ -8,6 +8,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
+import { URI } from 'vs/base/common/uri';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { shell, crashReporter, app } from 'electron';
@@ -34,7 +35,7 @@ export class WindowsService implements IWindowsService, IDisposable {
 	) {
 		chain(urlService.onOpenURL)
 			.filter(uri => uri.authority === 'file' && !!uri.path)
-			.map(uri => uri.path)
+			.map(uri => this.parseURIForOpen(uri))
 			.on(this.openFileForURI, this, this.disposables);
 	}
 
@@ -268,6 +269,21 @@ export class WindowsService implements IWindowsService, IDisposable {
 
 		this.windowsMainService.open({ context: OpenContext.API, cli, pathsToOpen });
 		return TPromise.as(null);
+	}
+
+	private parseURIForOpen(uri: URI): string {
+		if (uri.authority === 'file') {
+			let path = uri.path.substr(1);
+			if (path.slice(0, path.indexOf('/')).length === 1) {
+				path = path.slice(0, path.indexOf('/')) + ':' + path.slice(path.indexOf('/'));
+			}
+			else {
+				path = path;
+			}
+
+			return path;
+		}
+		return uri.path;
 	}
 
 	dispose(): void {
