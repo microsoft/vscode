@@ -274,7 +274,7 @@ export class WindowsService implements IWindowsService, IDisposable {
 	private parseURIForOpen(uri: URI): string {
 		if (uri.authority === 'file') {
 			let path = uri.path.substr(1);
-			if (path.slice(0, path.indexOf('/')).length === 1) {
+			if (path.slice(0, path.indexOf('/')).length === 1) { // add a colon if the uri.path contains a valid drive letter.
 				path = path.slice(0, path.indexOf('/')) + ':' + path.slice(path.indexOf('/'));
 			}
 			else {
