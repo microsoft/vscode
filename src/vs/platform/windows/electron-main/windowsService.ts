@@ -272,9 +272,15 @@ export class WindowsService implements IWindowsService, IDisposable {
 	}
 
 	private parseURIForOpen(uri: URI): string {
-		if (uri.authority === 'file') {
-			let path = uri.path.substr(1);
-			let drive = path.slice(0, path.indexOf('/'));
+		/**
+		 * opening vscode://file/drive/path/to/project passes a POSIX-style path on Windows.
+		 * i.e vscode://file/c/path/to/project gives a path of /c/path/to/project
+		 * let's strip the root slash and ensure the drive letter is something Windows
+		 * can understand.
+		 */
+		if (uri.authority === 'file' && process.platform === 'win32') {
+			let path = uri.path.substr(1); // strip the root slash
+			let drive = path.slice(0, path.indexOf('/')); // find the drive letter
 			if (drive.length === 1) { // add a colon if the uri.path contains a valid drive letter.
 				path = path.slice(0, path.indexOf('/')) + ':' + path.slice(path.indexOf('/'));
 				return path;
@@ -284,6 +290,8 @@ export class WindowsService implements IWindowsService, IDisposable {
 			}
 			return uri.path;
 		}
+
+		// *NIX platforms can process this path natively.
 		return uri.path;
 	}
 
