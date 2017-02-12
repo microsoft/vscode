@@ -26,7 +26,7 @@ function conditionalEditorAction(testCommand: string) {
 }
 
 function conditionalCopyWithSyntaxHighlighting() {
-	if (browser.isIE || !browser.supportsExecCommand('copy')) {
+	if (browser.isEdgeOrIE || !browser.supportsExecCommand('copy')) {
 		return () => { };
 	}
 

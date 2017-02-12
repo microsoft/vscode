@@ -325,7 +325,7 @@ export class TextAreaHandler extends Disposable {
 		let whatToCopy = this.model.getPlainTextToCopy(this.selections, this.Browser.enableEmptySelectionClipboard);
 		if (e.canUseTextData()) {
 			let whatHTMLToCopy;
-			if (whatToCopy.length < 65536 || e.forceCopyWithSyntaxHighlighting()) {
+			if (!this.Browser.isEdgeOrIE && (whatToCopy.length < 65536 || e.forceCopyWithSyntaxHighlighting())) {
 				whatHTMLToCopy = this.model.getHTMLToCopy(this.selections, this.Browser.enableEmptySelectionClipboard);
 			}
 			e.setTextData(whatToCopy, whatHTMLToCopy);
