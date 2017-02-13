@@ -5,6 +5,176 @@
 'use strict';
 
 import { CharCode } from 'vs/base/common/charCode';
+import { ColorId, TokenizationRegistry } from 'vs/editor/common/modes';
+
+export class ParsedColor {
+
+	public readonly r: number;
+	public readonly g: number;
+	public readonly b: number;
+
+	constructor(r, g, b) {
+		this.r = r;
+		this.g = g;
+		this.b = b;
+	}
+}
+
+/**
+ * Represents a color rendered on top of the background at all possible alpha values.
+ */
+export class MinimapColor {
+
+	/**
+	 * For each 0 <= i <= 255:
+	 *   data[3*i + 0] = r
+	 *   data[3*i + 1] = g;
+	 *   data[3*i + 2] = b;
+	 */
+	public readonly data: Uint8ClampedArray;
+
+	constructor(data: Uint8ClampedArray) {
+		this.data = data;
+	}
+}
+
+export class MinimapColors {
+
+	private readonly _backgroundColor: ParsedColor;
+	private readonly _colors: MinimapColor[];
+
+	constructor(colorMap: string[]) {
+		this._backgroundColor = MinimapColors._parseColor(colorMap[ColorId.DefaultBackground]);
+		let backgroundR = this._backgroundColor.r;
+		let backgroundG = this._backgroundColor.g;
+		let backgroundB = this._backgroundColor.b;
+
+		this._colors = [null];
+		for (let colorId = 1; colorId < colorMap.length; colorId++) {
+			let color = MinimapColors._parseColor(colorMap[colorId]);
+			let colorR = color.r;
+			let colorG = color.g;
+			let colorB = color.b;
+
+			let result = new Uint8ClampedArray(256 * 3), resultOffset = 0;
+			for (let alpha = 0; alpha <= 255; alpha++) {
+				let fAlpha = alpha / 255;
+				let fAlphaInverse = (255 - alpha) / 255;
+
+				let r = (colorR * fAlpha) + (backgroundR * fAlphaInverse);
+				let g = (colorG * fAlpha) + (backgroundG * fAlphaInverse);
+				let b = (colorB * fAlpha) + (backgroundB * fAlphaInverse);
+
+				result[resultOffset++] = r;
+				result[resultOffset++] = g;
+				result[resultOffset++] = b;
+			}
+
+			this._colors[colorId] = new MinimapColor(result);
+		}
+	}
+
+	public getBackgroundColor(): ParsedColor {
+		return this._backgroundColor;
+	}
+
+	public getMinimapColor(colorId: ColorId): MinimapColor {
+		if (colorId < 1 || colorId >= this._colors.length) {
+			// background color (basically invisible)
+			colorId = 2;
+		}
+		return this._colors[colorId];
+	}
+
+	public static _parseColor(color: string): ParsedColor {
+		if (!color) {
+			return new ParsedColor(0, 0, 0);
+		}
+		if (color.charCodeAt(0) === CharCode.Hash) {
+			color = color.substr(1);
+		}
+		if (color.length !== 6) {
+			console.warn('INVALID COLOR: ' + color); // TODO@minimap
+			return new ParsedColor(0, 0, 0);
+		}
+
+		let r = 16 * this._parseHexDigit(color.charCodeAt(0)) + this._parseHexDigit(color.charCodeAt(1));
+		let g = 16 * this._parseHexDigit(color.charCodeAt(2)) + this._parseHexDigit(color.charCodeAt(3));
+		let b = 16 * this._parseHexDigit(color.charCodeAt(4)) + this._parseHexDigit(color.charCodeAt(5));
+		return new ParsedColor(r, g, b);
+	}
+
+	private static _parseHexDigit(charCode: CharCode): number {
+		switch (charCode) {
+			case CharCode.Digit0: return 0;
+			case CharCode.Digit1: return 1;
+			case CharCode.Digit2: return 2;
+			case CharCode.Digit3: return 3;
+			case CharCode.Digit4: return 4;
+			case CharCode.Digit5: return 5;
+			case CharCode.Digit6: return 6;
+			case CharCode.Digit7: return 7;
+			case CharCode.Digit8: return 8;
+			case CharCode.Digit9: return 9;
+			case CharCode.a: return 10;
+			case CharCode.A: return 10;
+			case CharCode.b: return 11;
+			case CharCode.B: return 11;
+			case CharCode.c: return 12;
+			case CharCode.C: return 12;
+			case CharCode.d: return 13;
+			case CharCode.D: return 13;
+			case CharCode.e: return 14;
+			case CharCode.E: return 14;
+			case CharCode.f: return 15;
+			case CharCode.F: return 15;
+		}
+		return 0;
+	}
+}
+
+export class MinimapTokensColorTracker {
+	private static _INSTANCE: MinimapTokensColorTracker = null;
+	public static getInstance(): MinimapTokensColorTracker {
+		if (!this._INSTANCE) {
+			this._INSTANCE = new MinimapTokensColorTracker();
+		}
+		return this._INSTANCE;
+	}
+
+	private _lastColorMap: string[];
+	private _colorMaps: MinimapColors;
+
+	private constructor() {
+		this._lastColorMap = [];
+		this._setColorMap(TokenizationRegistry.getColorMap());
+		TokenizationRegistry.onDidChange(() => this._setColorMap(TokenizationRegistry.getColorMap()));
+	}
+
+	private static _equals(a: string[], b: string[]): boolean {
+		if (a.length !== b.length) {
+			return false;
+		}
+		for (let i = 0, len = a.length; i < len; i++) {
+			if (a[i] !== b[i]) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	private _setColorMap(colorMap: string[]): void {
+		if (MinimapTokensColorTracker._equals(this._lastColorMap, colorMap)) {
+			return;
+		}
+		this._lastColorMap = colorMap.slice(0);
+		this._colorMaps = new MinimapColors(this._lastColorMap);
+	}
+
+	public getColorMaps(): MinimapColors {
+		return this._colorMaps;
+	}
+}
 
 export const enum Constants {
 	START_CH_CODE = 32, // Space
@@ -44,7 +214,6 @@ export class MinimapCharRenderer2 {
 			let alpha = charData[sourceOffset + 1];
 			let newColor = Math.round((color * alpha) / 255);
 			result[i] = newColor;
-			// console.log(`${color}, ${alpha} => ${newColor}`);
 			sourceOffset += 2;
 		}
 		return result;
@@ -73,7 +242,7 @@ export class MinimapCharRenderer2 {
 		return chCode - Constants.START_CH_CODE;
 	}
 
-	public x2RenderChar(target: ImageData, dx: number, dy: number, chCode: number): void {
+	public x2RenderChar(target: ImageData, dx: number, dy: number, chCode: number, _color: MinimapColor): void {
 		const x2CharData = this.x2charData;
 		const chIndex = MinimapCharRenderer2._getChIndex(chCode);
 		const sourceOffset = chIndex * Constants.x2_CHAR_HEIGHT * Constants.x2_CHAR_WIDTH;
@@ -90,40 +259,41 @@ export class MinimapCharRenderer2 {
 		let resultOffset = dy * outWidth + dx * Constants.RGBA_CHANNELS_CNT;
 
 		const dest = target.data;
-		dest[resultOffset + 0] = c1;
-		dest[resultOffset + 1] = c1;
-		dest[resultOffset + 2] = c1;
+		const color = _color.data;
+		dest[resultOffset + 0] = color[3 * c1 + 0];
+		dest[resultOffset + 1] = color[3 * c1 + 1];
+		dest[resultOffset + 2] = color[3 * c1 + 2];
 		dest[resultOffset + 3] = 255;
-		dest[resultOffset + 4] = c2;
-		dest[resultOffset + 5] = c2;
-		dest[resultOffset + 6] = c2;
+		dest[resultOffset + 4] = color[3 * c2 + 0];
+		dest[resultOffset + 5] = color[3 * c2 + 1];
+		dest[resultOffset + 6] = color[3 * c2 + 2];
 		dest[resultOffset + 7] = 255;
 		resultOffset += outWidth;
-		dest[resultOffset + 0] = c3;
-		dest[resultOffset + 1] = c3;
-		dest[resultOffset + 2] = c3;
+		dest[resultOffset + 0] = color[3 * c3 + 0];
+		dest[resultOffset + 1] = color[3 * c3 + 1];
+		dest[resultOffset + 2] = color[3 * c3 + 2];
 		dest[resultOffset + 3] = 255;
-		dest[resultOffset + 4] = c4;
-		dest[resultOffset + 5] = c4;
-		dest[resultOffset + 6] = c4;
+		dest[resultOffset + 4] = color[3 * c4 + 0];
+		dest[resultOffset + 5] = color[3 * c4 + 1];
+		dest[resultOffset + 6] = color[3 * c4 + 2];
 		dest[resultOffset + 7] = 255;
 		resultOffset += outWidth;
-		dest[resultOffset + 0] = c5;
-		dest[resultOffset + 1] = c5;
-		dest[resultOffset + 2] = c5;
+		dest[resultOffset + 0] = color[3 * c5 + 0];
+		dest[resultOffset + 1] = color[3 * c5 + 1];
+		dest[resultOffset + 2] = color[3 * c5 + 2];
 		dest[resultOffset + 3] = 255;
-		dest[resultOffset + 4] = c6;
-		dest[resultOffset + 5] = c6;
-		dest[resultOffset + 6] = c6;
+		dest[resultOffset + 4] = color[3 * c6 + 0];
+		dest[resultOffset + 5] = color[3 * c6 + 1];
+		dest[resultOffset + 6] = color[3 * c6 + 2];
 		dest[resultOffset + 7] = 255;
 		resultOffset += outWidth;
-		dest[resultOffset + 0] = c7;
-		dest[resultOffset + 1] = c7;
-		dest[resultOffset + 2] = c7;
+		dest[resultOffset + 0] = color[3 * c7 + 0];
+		dest[resultOffset + 1] = color[3 * c7 + 1];
+		dest[resultOffset + 2] = color[3 * c7 + 2];
 		dest[resultOffset + 3] = 255;
-		dest[resultOffset + 4] = c8;
-		dest[resultOffset + 5] = c8;
-		dest[resultOffset + 6] = c8;
+		dest[resultOffset + 4] = color[3 * c8 + 0];
+		dest[resultOffset + 5] = color[3 * c8 + 1];
+		dest[resultOffset + 6] = color[3 * c8 + 2];
 		dest[resultOffset + 7] = 255;
 	}
 
