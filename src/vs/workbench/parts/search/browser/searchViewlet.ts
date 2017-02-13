@@ -1092,7 +1092,8 @@ export class SearchViewlet extends Viewlet {
 			} else {
 				this.viewModel.searchResult.toggleHighlights(true); // show highlights
 
-				// Indicate as status to ARIA
+				// Indicate final search result count in viewlet label and ARIA
+				this.updateSearchResultCount();
 				aria.status(nls.localize('ariaSearchResultsStatus', "Search returned {0} results in {1} files", this.viewModel.searchResult.count(), this.viewModel.searchResult.fileCount()));
 			}
 		};
@@ -1158,13 +1159,7 @@ export class SearchViewlet extends Viewlet {
 					autoExpand(false);
 				}).done(null, errors.onUnexpectedError);
 
-				// Update results text
-				const msgWasHidden = this.messages.isHidden();
-				const div = this.clearMessage();
-				$(div).p({ text: this.buildResultCountMessage(this.viewModel.searchResult.count(), fileCount) });
-				if (msgWasHidden) {
-					this.reLayout();
-				}
+				this.updateSearchResultCount();
 			}
 			if (fileCount > 0) {
 				// since we have results now, enable some actions
@@ -1177,6 +1172,15 @@ export class SearchViewlet extends Viewlet {
 		this.searchWidget.setReplaceAllActionState(false);
 		// this.replaceService.disposeAllReplacePreviews();
 		this.viewModel.search(query).done(onComplete, onError, onProgress);
+	}
+
+	private updateSearchResultCount(): void {
+		const msgWasHidden = this.messages.isHidden();
+		const div = this.clearMessage();
+		$(div).p({ text: this.buildResultCountMessage(this.viewModel.searchResult.count(), this.viewModel.searchResult.fileCount()) });
+		if (msgWasHidden) {
+			this.reLayout();
+		}
 	}
 
 	private buildResultCountMessage(resultCount: number, fileCount: number): string {
