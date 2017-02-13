@@ -20,65 +20,18 @@ export class ParsedColor {
 	}
 }
 
-/**
- * Represents a color rendered on top of the background at all possible alpha values.
- */
-export class MinimapColor {
-
-	/**
-	 * For each 0 <= i <= 255:
-	 *   data[3*i + 0] = r
-	 *   data[3*i + 1] = g;
-	 *   data[3*i + 2] = b;
-	 */
-	public readonly data: Uint8ClampedArray;
-
-	constructor(data: Uint8ClampedArray) {
-		this.data = data;
-	}
-}
-
 export class MinimapColors {
 
-	private readonly _backgroundColor: ParsedColor;
-	private readonly _colors: MinimapColor[];
+	private readonly _colors: ParsedColor[];
 
 	constructor(colorMap: string[]) {
-		this._backgroundColor = MinimapColors._parseColor(colorMap[ColorId.DefaultBackground]);
-		let backgroundR = this._backgroundColor.r;
-		let backgroundG = this._backgroundColor.g;
-		let backgroundB = this._backgroundColor.b;
-
 		this._colors = [null];
 		for (let colorId = 1; colorId < colorMap.length; colorId++) {
-			let color = MinimapColors._parseColor(colorMap[colorId]);
-			let colorR = color.r;
-			let colorG = color.g;
-			let colorB = color.b;
-
-			let result = new Uint8ClampedArray(256 * 3), resultOffset = 0;
-			for (let alpha = 0; alpha <= 255; alpha++) {
-				let fAlpha = alpha / 255;
-				let fAlphaInverse = (255 - alpha) / 255;
-
-				let r = (colorR * fAlpha) + (backgroundR * fAlphaInverse);
-				let g = (colorG * fAlpha) + (backgroundG * fAlphaInverse);
-				let b = (colorB * fAlpha) + (backgroundB * fAlphaInverse);
-
-				result[resultOffset++] = r;
-				result[resultOffset++] = g;
-				result[resultOffset++] = b;
-			}
-
-			this._colors[colorId] = new MinimapColor(result);
+			this._colors[colorId] = MinimapColors._parseColor(colorMap[colorId]);
 		}
 	}
 
-	public getBackgroundColor(): ParsedColor {
-		return this._backgroundColor;
-	}
-
-	public getMinimapColor(colorId: ColorId): MinimapColor {
+	public getColor(colorId: ColorId): ParsedColor {
 		if (colorId < 1 || colorId >= this._colors.length) {
 			// background color (basically invisible)
 			colorId = 2;
@@ -243,59 +196,77 @@ export class MinimapCharRenderer2 {
 		return chCode - Constants.START_CH_CODE;
 	}
 
-	public x2RenderChar(target: ImageData, dx: number, dy: number, chCode: number, _color: MinimapColor): void {
+	public x2RenderChar(target: ImageData, dx: number, dy: number, chCode: number, color: ParsedColor, backgroundColor: ParsedColor): void {
 		const x2CharData = this.x2charData;
 		const chIndex = MinimapCharRenderer2._getChIndex(chCode);
-		const sourceOffset = chIndex * Constants.x2_CHAR_HEIGHT * Constants.x2_CHAR_WIDTH;
-		const c1 = x2CharData[sourceOffset];
-		const c2 = x2CharData[sourceOffset + 1];
-		const c3 = x2CharData[sourceOffset + 2];
-		const c4 = x2CharData[sourceOffset + 3];
-		const c5 = x2CharData[sourceOffset + 4];
-		const c6 = x2CharData[sourceOffset + 5];
-		const c7 = x2CharData[sourceOffset + 6];
-		const c8 = x2CharData[sourceOffset + 7];
 
 		const outWidth = target.width * Constants.RGBA_CHANNELS_CNT;
-		let resultOffset = dy * outWidth + dx * Constants.RGBA_CHANNELS_CNT;
+
+		const backgroundR = backgroundColor.r;
+		const backgroundG = backgroundColor.g;
+		const backgroundB = backgroundColor.b;
+
+		const deltaR = color.r - backgroundR;
+		const deltaG = color.g - backgroundG;
+		const deltaB = color.b - backgroundB;
 
 		const dest = target.data;
-		const color = _color.data;
-		dest[resultOffset + 0] = color[3 * c1 + 0];
-		dest[resultOffset + 1] = color[3 * c1 + 1];
-		dest[resultOffset + 2] = color[3 * c1 + 2];
-		dest[resultOffset + 3] = 255;
-		dest[resultOffset + 4] = color[3 * c2 + 0];
-		dest[resultOffset + 5] = color[3 * c2 + 1];
-		dest[resultOffset + 6] = color[3 * c2 + 2];
-		dest[resultOffset + 7] = 255;
-		resultOffset += outWidth;
-		dest[resultOffset + 0] = color[3 * c3 + 0];
-		dest[resultOffset + 1] = color[3 * c3 + 1];
-		dest[resultOffset + 2] = color[3 * c3 + 2];
-		dest[resultOffset + 3] = 255;
-		dest[resultOffset + 4] = color[3 * c4 + 0];
-		dest[resultOffset + 5] = color[3 * c4 + 1];
-		dest[resultOffset + 6] = color[3 * c4 + 2];
-		dest[resultOffset + 7] = 255;
-		resultOffset += outWidth;
-		dest[resultOffset + 0] = color[3 * c5 + 0];
-		dest[resultOffset + 1] = color[3 * c5 + 1];
-		dest[resultOffset + 2] = color[3 * c5 + 2];
-		dest[resultOffset + 3] = 255;
-		dest[resultOffset + 4] = color[3 * c6 + 0];
-		dest[resultOffset + 5] = color[3 * c6 + 1];
-		dest[resultOffset + 6] = color[3 * c6 + 2];
-		dest[resultOffset + 7] = 255;
-		resultOffset += outWidth;
-		dest[resultOffset + 0] = color[3 * c7 + 0];
-		dest[resultOffset + 1] = color[3 * c7 + 1];
-		dest[resultOffset + 2] = color[3 * c7 + 2];
-		dest[resultOffset + 3] = 255;
-		dest[resultOffset + 4] = color[3 * c8 + 0];
-		dest[resultOffset + 5] = color[3 * c8 + 1];
-		dest[resultOffset + 6] = color[3 * c8 + 2];
-		dest[resultOffset + 7] = 255;
+		const sourceOffset = chIndex * Constants.x2_CHAR_HEIGHT * Constants.x2_CHAR_WIDTH;
+		let destOffset = dy * outWidth + dx * Constants.RGBA_CHANNELS_CNT;
+		{
+			const c = x2CharData[sourceOffset] / 255;
+			dest[destOffset + 0] = backgroundR + deltaR * c;
+			dest[destOffset + 1] = backgroundG + deltaG * c;
+			dest[destOffset + 2] = backgroundB + deltaB * c;
+		}
+		{
+			const c = x2CharData[sourceOffset + 1] / 255;
+			dest[destOffset + 4] = backgroundR + deltaR * c;
+			dest[destOffset + 5] = backgroundG + deltaG * c;
+			dest[destOffset + 6] = backgroundB + deltaB * c;
+		}
+
+		destOffset += outWidth;
+		{
+			const c = x2CharData[sourceOffset + 2] / 255;
+			dest[destOffset + 0] = backgroundR + deltaR * c;
+			dest[destOffset + 1] = backgroundG + deltaG * c;
+			dest[destOffset + 2] = backgroundB + deltaB * c;
+		}
+		{
+			const c = x2CharData[sourceOffset + 3] / 255;
+			dest[destOffset + 4] = backgroundR + deltaR * c;
+			dest[destOffset + 5] = backgroundG + deltaG * c;
+			dest[destOffset + 6] = backgroundB + deltaB * c;
+		}
+
+		destOffset += outWidth;
+		{
+			const c = x2CharData[sourceOffset + 4] / 255;
+			dest[destOffset + 0] = backgroundR + deltaR * c;
+			dest[destOffset + 1] = backgroundG + deltaG * c;
+			dest[destOffset + 2] = backgroundB + deltaB * c;
+		}
+		{
+			const c = x2CharData[sourceOffset + 5] / 255;
+			dest[destOffset + 4] = backgroundR + deltaR * c;
+			dest[destOffset + 5] = backgroundG + deltaG * c;
+			dest[destOffset + 6] = backgroundB + deltaB * c;
+		}
+
+		destOffset += outWidth;
+		{
+			const c = x2CharData[sourceOffset + 6] / 255;
+			dest[destOffset + 0] = backgroundR + deltaR * c;
+			dest[destOffset + 1] = backgroundG + deltaG * c;
+			dest[destOffset + 2] = backgroundB + deltaB * c;
+		}
+		{
+			const c = x2CharData[sourceOffset + 7] / 255;
+			dest[destOffset + 4] = backgroundR + deltaR * c;
+			dest[destOffset + 5] = backgroundG + deltaG * c;
+			dest[destOffset + 6] = backgroundB + deltaB * c;
+		}
 	}
 
 	public x1RenderChar(target: ImageData, dx: number, dy: number, chCode: number): void {
