@@ -43,8 +43,17 @@ export enum Status {
 
 export class Resource implements SCMResource {
 
-	get uri(): Uri { return this._uri; }
+	get uri(): Uri {
+		if (this.rename && (this._type === Status.MODIFIED || this._type === Status.DELETED || this._type === Status.INDEX_RENAMED)) {
+			return this.rename;
+		}
+
+		return this._uri;
+	}
+
 	get type(): Status { return this._type; }
+	get original(): Uri { return this._uri; }
+	get rename(): Uri | undefined { return this._rename; }
 
 	private static Icons = {
 		light: {
@@ -110,8 +119,8 @@ export class Resource implements SCMResource {
 		return { strikeThrough: this.strikeThrough, light, dark };
 	}
 
-	constructor(private _uri: Uri, private _type: Status) {
-
+	constructor(private _uri: Uri, private _type: Status, private _rename?: Uri) {
+		// console.log(this);
 	}
 }
 
@@ -435,6 +444,7 @@ export class Model {
 
 		status.forEach(raw => {
 			const uri = Uri.file(path.join(this.repositoryRoot, raw.path));
+			const renameUri = raw.rename ? Uri.file(path.join(this.repositoryRoot, raw.rename)) : undefined;
 
 			switch (raw.x + raw.y) {
 				case '??': return workingTree.push(new Resource(uri, Status.UNTRACKED));
@@ -454,13 +464,13 @@ export class Model {
 				case 'M': index.push(new Resource(uri, Status.INDEX_MODIFIED)); isModifiedInIndex = true; break;
 				case 'A': index.push(new Resource(uri, Status.INDEX_ADDED)); break;
 				case 'D': index.push(new Resource(uri, Status.INDEX_DELETED)); break;
-				case 'R': index.push(new Resource(uri, Status.INDEX_RENAMED/*, raw.rename*/)); break;
+				case 'R': index.push(new Resource(uri, Status.INDEX_RENAMED, renameUri)); break;
 				case 'C': index.push(new Resource(uri, Status.INDEX_COPIED)); break;
 			}
 
 			switch (raw.y) {
-				case 'M': workingTree.push(new Resource(uri, Status.MODIFIED/*, raw.rename*/)); break;
-				case 'D': workingTree.push(new Resource(uri, Status.DELETED/*, raw.rename*/)); break;
+				case 'M': workingTree.push(new Resource(uri, Status.MODIFIED, renameUri)); break;
+				case 'D': workingTree.push(new Resource(uri, Status.DELETED, renameUri)); break;
 			}
 		});
 
