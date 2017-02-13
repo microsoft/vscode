@@ -348,6 +348,7 @@ class MouseDownOperation extends Disposable {
 	private _mouseDragThenMoveEventHandler: EventGateKeeper<EditorMouseEvent>;
 
 	private _currentSelection: Selection;
+	private _dragTargetPosition: Position;
 	private _mouseState: MouseDownState;
 
 	private _onScrollTimeout: TimeoutTimer;
@@ -410,6 +411,7 @@ class MouseDownOperation extends Disposable {
 			return;
 		}
 
+
 		this._dispatchMouse(position, MouseDownEventType.Select);
 	}
 
@@ -423,6 +425,7 @@ class MouseDownOperation extends Disposable {
 			return;
 		}
 
+		this._dragTargetPosition = position.position;
 		this._dispatchMouse(position, MouseDownEventType.Drag);
 	}
 
@@ -449,12 +452,13 @@ class MouseDownOperation extends Disposable {
 			&& this._currentSelection.containsPosition(position.position) // single click on a selection
 		) {
 			this._isActive = true;
+			this._dragTargetPosition = position.position;
 
 			this._mouseMoveMonitor.startMonitoring(
 				createMouseMoveEventMerger(null),
 				this._mouseDragThenMoveEventHandler.handler,
 				() => {
-					this._viewController.dragTo('mouse', position.position);
+					this._viewController.dragTo('mouse', this._dragTargetPosition);
 					this._stop();
 				}
 			);
