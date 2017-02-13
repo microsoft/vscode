@@ -2614,6 +2614,14 @@ declare module monaco.editor {
          */
         readonly contentHeight: number;
         /**
+         * The width of the minimap
+         */
+        readonly minimapWidth: number;
+        /**
+         * The number of columns (of typical characters) fitting on a viewport line.
+         */
+        readonly viewportColumn: number;
+        /**
          * The width of the vertical scrollbar.
          */
         readonly verticalScrollbarWidth: number;

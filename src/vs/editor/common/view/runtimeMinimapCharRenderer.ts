@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { MinimapCharRenderer } from 'vs/editor/common/view/minimapCharRenderer';
+import { MinimapCharRenderer, MinimapCharRenderer2 } from 'vs/editor/common/view/minimapCharRenderer';
 
 function toUint8ClampedArrat(arr: number[]): Uint8ClampedArray {
 	let r = new Uint8ClampedArray(arr.length);
@@ -30,6 +30,10 @@ function init(): void {
 export function createMinimapCharRenderer(): MinimapCharRenderer {
 	init();
 	return new MinimapCharRenderer(_x2Data, _x1Data);
+}
+export function createMinimapCharRenderer2(): MinimapCharRenderer2 {
+	init();
+	return MinimapCharRenderer2.create(_x2Data, _x1Data);
 }
 
 var x2Data = [

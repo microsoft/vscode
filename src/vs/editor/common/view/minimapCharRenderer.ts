@@ -25,6 +25,131 @@ export const enum Constants {
 	CA_CHANNELS_CNT = 2,
 }
 
+export class MinimapCharRenderer2 {
+
+	_minimapCharRendererBrand: void;
+
+	public static create(x2CharData: Uint8ClampedArray, x1CharData: Uint8ClampedArray): MinimapCharRenderer2 {
+		let _x2CharData = this.toGrayscale(x2CharData);
+		let _x1CharData = this.toGrayscale(x1CharData);
+		return new MinimapCharRenderer2(_x2CharData, _x1CharData);
+	}
+
+	private static toGrayscale(charData: Uint8ClampedArray): Uint8ClampedArray {
+		let newLength = charData.length / 2;
+		let result = new Uint8ClampedArray(newLength);
+		let sourceOffset = 0;
+		for (var i = 0; i < newLength; i++) {
+			let color = charData[sourceOffset];
+			let alpha = charData[sourceOffset + 1];
+			let newColor = Math.round((color * alpha) / 255);
+			result[i] = newColor;
+			// console.log(`${color}, ${alpha} => ${newColor}`);
+			sourceOffset += 2;
+		}
+		return result;
+	}
+
+	public readonly x2charData: Uint8ClampedArray;
+	public readonly x1charData: Uint8ClampedArray;
+
+	constructor(x2CharData: Uint8ClampedArray, x1CharData: Uint8ClampedArray) {
+		const x2ExpectedLen = Constants.x2_CHAR_HEIGHT * Constants.x2_CHAR_WIDTH /** Constants.CA_CHANNELS_CNT*/ * Constants.CHAR_COUNT;
+		if (x2CharData.length !== x2ExpectedLen) {
+			throw new Error('Invalid x2CharData');
+		}
+		const x1ExpectedLen = Constants.x1_CHAR_HEIGHT * Constants.x1_CHAR_WIDTH /** Constants.CA_CHANNELS_CNT*/ * Constants.CHAR_COUNT;
+		if (x1CharData.length !== x1ExpectedLen) {
+			throw new Error('Invalid x1CharData');
+		}
+		this.x2charData = x2CharData;
+		this.x1charData = x1CharData;
+	}
+
+	private static _getChIndex(chCode: number): number {
+		if (chCode < Constants.START_CH_CODE || chCode > Constants.END_CH_CODE) {
+			chCode = CharCode.N;
+		}
+		return chCode - Constants.START_CH_CODE;
+	}
+
+	public x2RenderChar(target: ImageData, dx: number, dy: number, chCode: number): void {
+		const x2CharData = this.x2charData;
+		const chIndex = MinimapCharRenderer2._getChIndex(chCode);
+		const sourceOffset = chIndex * Constants.x2_CHAR_HEIGHT * Constants.x2_CHAR_WIDTH;
+		const c1 = x2CharData[sourceOffset];
+		const c2 = x2CharData[sourceOffset + 1];
+		const c3 = x2CharData[sourceOffset + 2];
+		const c4 = x2CharData[sourceOffset + 3];
+		const c5 = x2CharData[sourceOffset + 4];
+		const c6 = x2CharData[sourceOffset + 5];
+		const c7 = x2CharData[sourceOffset + 6];
+		const c8 = x2CharData[sourceOffset + 7];
+
+		const outWidth = target.width * Constants.RGBA_CHANNELS_CNT;
+		let resultOffset = dy * outWidth + dx * Constants.RGBA_CHANNELS_CNT;
+
+		const dest = target.data;
+		dest[resultOffset + 0] = c1;
+		dest[resultOffset + 1] = c1;
+		dest[resultOffset + 2] = c1;
+		dest[resultOffset + 3] = 255;
+		dest[resultOffset + 4] = c2;
+		dest[resultOffset + 5] = c2;
+		dest[resultOffset + 6] = c2;
+		dest[resultOffset + 7] = 255;
+		resultOffset += outWidth;
+		dest[resultOffset + 0] = c3;
+		dest[resultOffset + 1] = c3;
+		dest[resultOffset + 2] = c3;
+		dest[resultOffset + 3] = 255;
+		dest[resultOffset + 4] = c4;
+		dest[resultOffset + 5] = c4;
+		dest[resultOffset + 6] = c4;
+		dest[resultOffset + 7] = 255;
+		resultOffset += outWidth;
+		dest[resultOffset + 0] = c5;
+		dest[resultOffset + 1] = c5;
+		dest[resultOffset + 2] = c5;
+		dest[resultOffset + 3] = 255;
+		dest[resultOffset + 4] = c6;
+		dest[resultOffset + 5] = c6;
+		dest[resultOffset + 6] = c6;
+		dest[resultOffset + 7] = 255;
+		resultOffset += outWidth;
+		dest[resultOffset + 0] = c7;
+		dest[resultOffset + 1] = c7;
+		dest[resultOffset + 2] = c7;
+		dest[resultOffset + 3] = 255;
+		dest[resultOffset + 4] = c8;
+		dest[resultOffset + 5] = c8;
+		dest[resultOffset + 6] = c8;
+		dest[resultOffset + 7] = 255;
+	}
+
+	public x1RenderChar(target: ImageData, dx: number, dy: number, chCode: number): void {
+		const x1CharData = this.x1charData;
+		const chIndex = MinimapCharRenderer2._getChIndex(chCode);
+		const sourceOffset = chIndex * Constants.x1_CHAR_HEIGHT * Constants.x1_CHAR_WIDTH;
+		const c1 = x1CharData[sourceOffset];
+		const c2 = x1CharData[sourceOffset + 1];
+
+		const outWidth = target.width * Constants.RGBA_CHANNELS_CNT;
+		let resultOffset = dy * outWidth + dx * Constants.RGBA_CHANNELS_CNT;
+
+		const dest = target.data;
+		dest[resultOffset + 0] = c1;
+		dest[resultOffset + 1] = c1;
+		dest[resultOffset + 2] = c1;
+		dest[resultOffset + 3] = 255;
+		resultOffset += outWidth;
+		dest[resultOffset + 0] = c2;
+		dest[resultOffset + 1] = c2;
+		dest[resultOffset + 2] = c2;
+		dest[resultOffset + 3] = 255;
+	}
+}
+
 export class MinimapCharRenderer {
 
 	_minimapCharRendererBrand: void;
@@ -79,7 +204,11 @@ export class MinimapCharRenderer {
 		const c8 = x2CharData[sourceOffset + 14];
 		const a8 = x2CharData[sourceOffset + 15];
 
+		// console.log(c1, a1, c2, a2, c3, a3, c4, a4, c5, a5, c6, a6, c7, a7, c8, a8);
+
 		let resultOffset = Constants.x2_CHAR_WIDTH * Constants.RGBA_CHANNELS_CNT * charIndex;
+		resultOffset += lineIndex * Constants.x2_CHAR_HEIGHT * Constants.x2_CHAR_WIDTH * Constants.RGBA_CHANNELS_CNT * lineLen;
+
 		target[resultOffset + 0] = c1;
 		target[resultOffset + 1] = c1;
 		target[resultOffset + 2] = c1;

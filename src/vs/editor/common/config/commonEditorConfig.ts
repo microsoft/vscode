@@ -13,7 +13,7 @@ import { Extensions, IConfigurationRegistry, IConfigurationNode } from 'vs/platf
 import { Registry } from 'vs/platform/platform';
 import { DefaultConfig, DEFAULT_INDENTATION, DEFAULT_TRIM_AUTO_WHITESPACE } from 'vs/editor/common/config/defaultConfig';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { EditorLayoutProvider } from 'vs/editor/common/viewLayout/editorLayoutProvider';
+import { EditorLayoutProvider, Minimap } from 'vs/editor/common/viewLayout/editorLayoutProvider';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { FontInfo, BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { Constants } from 'vs/editor/common/core/uint';
@@ -177,13 +177,15 @@ class InternalEditorOptionsHelper {
 			lineHeight: fontInfo.lineHeight,
 			showLineNumbers: renderLineNumbers,
 			lineNumbersMinChars: lineNumbersMinChars,
-			lineDecorationsWidth: lineDecorationsWidth,
-			maxDigitWidth: fontInfo.maxDigitWidth,
 			maxLineNumber: maxLineNumber,
+			lineDecorationsWidth: lineDecorationsWidth,
+			typicalHalfwidthCharacterWidth: fontInfo.typicalHalfwidthCharacterWidth,
+			maxDigitWidth: fontInfo.maxDigitWidth,
 			verticalScrollbarWidth: scrollbar.verticalScrollbarSize,
 			horizontalScrollbarHeight: scrollbar.horizontalScrollbarSize,
 			scrollbarArrowSize: scrollbar.arrowSize,
-			verticalScrollbarHasArrows: scrollbar.verticalHasArrows
+			verticalScrollbarHasArrows: scrollbar.verticalHasArrows,
+			minimap: Minimap.Large // TODO@minimap
 		});
 
 		if (isDominatedByLongLines && wrappingColumn > 0) {
@@ -196,13 +198,13 @@ class InternalEditorOptionsHelper {
 			// If viewport width wrapping is enabled
 			bareWrappingInfo = {
 				isViewportWrapping: true,
-				wrappingColumn: Math.max(1, Math.floor((layoutInfo.contentWidth - layoutInfo.verticalScrollbarWidth) / fontInfo.typicalHalfwidthCharacterWidth))
+				wrappingColumn: Math.max(1, layoutInfo.viewportColumn)
 			};
 		} else if (wrappingColumn > 0 && wordWrap === true) {
 			// Enable smart viewport wrapping
 			bareWrappingInfo = {
 				isViewportWrapping: true,
-				wrappingColumn: Math.min(wrappingColumn, Math.floor((layoutInfo.contentWidth - layoutInfo.verticalScrollbarWidth) / fontInfo.typicalHalfwidthCharacterWidth))
+				wrappingColumn: Math.min(wrappingColumn, layoutInfo.viewportColumn)
 			};
 		} else if (wrappingColumn > 0) {
 			// Wrapping is enabled

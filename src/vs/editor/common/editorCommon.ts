@@ -2811,6 +2811,16 @@ export class EditorLayoutInfo {
 	readonly contentHeight: number;
 
 	/**
+	 * The width of the minimap
+	 */
+	readonly minimapWidth: number;
+
+	/**
+	 * The number of columns (of typical characters) fitting on a viewport line.
+	 */
+	readonly viewportColumn: number;
+
+	/**
 	 * The width of the vertical scrollbar.
 	 */
 	readonly verticalScrollbarWidth: number;
@@ -2842,6 +2852,8 @@ export class EditorLayoutInfo {
 		contentLeft: number;
 		contentWidth: number;
 		contentHeight: number;
+		minimapWidth: number;
+		viewportColumn: number;
 		verticalScrollbarWidth: number;
 		horizontalScrollbarHeight: number;
 		overviewRuler: OverviewRulerPosition;
@@ -2860,6 +2872,8 @@ export class EditorLayoutInfo {
 		this.contentLeft = source.contentLeft | 0;
 		this.contentWidth = source.contentWidth | 0;
 		this.contentHeight = source.contentHeight | 0;
+		this.minimapWidth = source.minimapWidth | 0;
+		this.viewportColumn = source.viewportColumn | 0;
 		this.verticalScrollbarWidth = source.verticalScrollbarWidth | 0;
 		this.horizontalScrollbarHeight = source.horizontalScrollbarHeight | 0;
 		this.overviewRuler = source.overviewRuler.clone();
@@ -2884,6 +2898,8 @@ export class EditorLayoutInfo {
 			&& this.contentLeft === other.contentLeft
 			&& this.contentWidth === other.contentWidth
 			&& this.contentHeight === other.contentHeight
+			&& this.minimapWidth === other.minimapWidth
+			&& this.viewportColumn === other.viewportColumn
 			&& this.verticalScrollbarWidth === other.verticalScrollbarWidth
 			&& this.horizontalScrollbarHeight === other.horizontalScrollbarHeight
 			&& this.overviewRuler.equals(other.overviewRuler)
