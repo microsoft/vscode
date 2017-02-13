@@ -16,7 +16,8 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import strings = require('vs/base/common/strings');
 import { Mode, IEntryRunContext, IAutoFocus } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenEntryGroup, IHighlight, QuickOpenModel, QuickOpenEntry } from 'vs/base/parts/quickopen/browser/quickOpenModel';
-import { SyncActionDescriptor, ExecuteCommandAction, IMenuService } from 'vs/platform/actions/common/actions';
+import { SyncActionDescriptor, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
 import { Registry } from 'vs/platform/platform';
 import { QuickOpenHandler, QuickOpenAction } from 'vs/workbench/browser/quickopen';
@@ -238,7 +239,8 @@ export class CommandsHandler extends QuickOpenHandler {
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IKeybindingService private keybindingService: IKeybindingService,
-		@IMenuService private menuService: IMenuService
+		@IMenuService private menuService: IMenuService,
+		@IContextKeyService private contextKeyService: IContextKeyService
 	) {
 		super();
 
@@ -274,14 +276,12 @@ export class CommandsHandler extends QuickOpenHandler {
 		const editorEntries = this.editorActionsToEntries(editorActions, searchValue);
 
 		// Other Actions
-		const otherActions = this.menuService.getCommandActions().map(command => {
-			return this.instantiationService.createInstance(ExecuteCommandAction, command.id,
-				command.category ? nls.localize('', "{0}: {1}", command.category, command.title) : command.title);
-		});
-		const otherEntries = this.otherActionsToEntries(otherActions, searchValue);
+		const menu = this.menuService.createMenu(MenuId.CommandPalette, this.contextKeyService);
+		const menuActions = menu.getActions().reduce((r, [, actions]) => [...r, ...actions], []);
+		const commandEntries = this.commandActionsToEntries(menuActions, searchValue);
 
 		// Concat
-		let entries = [...workbenchEntries, ...editorEntries, ...otherEntries];
+		let entries = [...workbenchEntries, ...editorEntries, ...commandEntries];
 
 		// Remove duplicates
 		entries = arrays.distinct(entries, (entry) => entry.getLabel() + entry.getGroupLabel());
@@ -355,7 +355,7 @@ export class CommandsHandler extends QuickOpenHandler {
 		return entries;
 	}
 
-	private otherActionsToEntries(actions: IAction[], searchValue: string): ActionCommandEntry[] {
+	private commandActionsToEntries(actions: IAction[], searchValue: string): ActionCommandEntry[] {
 		const entries: ActionCommandEntry[] = [];
 
 		for (let action of actions) {
