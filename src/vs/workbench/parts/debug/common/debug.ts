@@ -363,6 +363,8 @@ export interface IConfigurationManager {
 	 */
 	getCompound(name: string): ICompound;
 
+	configFileUri: uri;
+
 	/**
 	 * Opens the launch.json file. Creates if it does not exist.
 	 */
