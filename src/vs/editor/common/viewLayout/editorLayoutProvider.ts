@@ -6,6 +6,13 @@
 
 import { EditorLayoutInfo, OverviewRulerPosition } from 'vs/editor/common/editorCommon';
 
+// TODO@minimap
+export const enum Minimap {
+	None = 0,
+	Small = 1,
+	Large = 2
+}
+
 export interface IEditorLayoutProviderOpts {
 	outerWidth: number;
 	outerHeight: number;
@@ -15,15 +22,19 @@ export interface IEditorLayoutProviderOpts {
 
 	showLineNumbers: boolean;
 	lineNumbersMinChars: number;
-	lineDecorationsWidth: number;
-	maxDigitWidth: number;
-
 	maxLineNumber: number;
+
+	lineDecorationsWidth: number;
+
+	typicalHalfwidthCharacterWidth: number;
+	maxDigitWidth: number;
 
 	verticalScrollbarWidth: number;
 	verticalScrollbarHasArrows: boolean;
 	scrollbarArrowSize: number;
 	horizontalScrollbarHeight: number;
+
+	minimap: Minimap;
 }
 
 export class EditorLayoutProvider {
@@ -34,13 +45,15 @@ export class EditorLayoutProvider {
 		const lineHeight = _opts.lineHeight | 0;
 		const showLineNumbers = Boolean(_opts.showLineNumbers);
 		const lineNumbersMinChars = _opts.lineNumbersMinChars | 0;
-		const lineDecorationsWidth = _opts.lineDecorationsWidth | 0;
-		const maxDigitWidth = Number(_opts.maxDigitWidth);
 		const maxLineNumber = _opts.maxLineNumber | 0;
+		const lineDecorationsWidth = _opts.lineDecorationsWidth | 0;
+		const typicalHalfwidthCharacterWidth = Number(_opts.typicalHalfwidthCharacterWidth);
+		const maxDigitWidth = Number(_opts.maxDigitWidth);
 		const verticalScrollbarWidth = _opts.verticalScrollbarWidth | 0;
 		const verticalScrollbarHasArrows = Boolean(_opts.verticalScrollbarHasArrows);
 		const scrollbarArrowSize = _opts.scrollbarArrowSize | 0;
 		const horizontalScrollbarHeight = _opts.horizontalScrollbarHeight | 0;
+		const minimap: Minimap = _opts.minimap | 0;
 
 		let lineNumbersWidth = 0;
 		if (showLineNumbers) {
@@ -53,12 +66,39 @@ export class EditorLayoutProvider {
 			glyphMarginWidth = lineHeight;
 		}
 
-		let contentWidth = outerWidth - glyphMarginWidth - lineNumbersWidth - lineDecorationsWidth;
-
 		let glyphMarginLeft = 0;
 		let lineNumbersLeft = glyphMarginLeft + glyphMarginWidth;
 		let decorationsLeft = lineNumbersLeft + lineNumbersWidth;
 		let contentLeft = decorationsLeft + lineDecorationsWidth;
+
+		let remainingWidth = outerWidth - glyphMarginWidth - lineNumbersWidth - lineDecorationsWidth;
+
+		let minimapWidth: number;
+		let contentWidth: number;
+		if (minimap === Minimap.None) {
+			minimapWidth = 0;
+			contentWidth = remainingWidth;
+		} else {
+			// TODO@minimap: the view should decide on large vs small
+			// TODO@minimap: or it should be based on pixelRatio here
+			let minimapCharWidth = (minimap === Minimap.Large ? 2 : 1);
+			// Given:
+			// viewportColumn = (contentWidth - verticalScrollbarWidth) / typicalHalfwidthCharacterWidth
+			// minimapWidth = viewportColumn * minimapCharWidth
+			// contentWidth = remainingWidth - minimapWidth
+			// What are good values for contentWidth and minimapWidth ?
+
+			// minimapWidth = ((contentWidth - verticalScrollbarWidth) / typicalHalfwidthCharacterWidth) * minimapCharWidth
+			// typicalHalfwidthCharacterWidth * minimapWidth = (contentWidth - verticalScrollbarWidth) * minimapCharWidth
+			// typicalHalfwidthCharacterWidth * minimapWidth = (remainingWidth - minimapWidth - verticalScrollbarWidth) * minimapCharWidth
+			// (typicalHalfwidthCharacterWidth + minimapCharWidth) * minimapWidth = (remainingWidth - verticalScrollbarWidth) * minimapCharWidth
+			// minimapWidth = ((remainingWidth - verticalScrollbarWidth) * minimapCharWidth) / (typicalHalfwidthCharacterWidth + minimapCharWidth)
+
+			minimapWidth = Math.max(0, Math.floor(((remainingWidth - verticalScrollbarWidth) * minimapCharWidth) / (typicalHalfwidthCharacterWidth + minimapCharWidth)));
+			contentWidth = remainingWidth - minimapWidth;
+		}
+
+		let viewportColumn = Math.max(1, Math.floor((contentWidth - verticalScrollbarWidth) / typicalHalfwidthCharacterWidth));
 
 		let verticalArrowSize = (verticalScrollbarHasArrows ? scrollbarArrowSize : 0);
 
@@ -81,6 +121,10 @@ export class EditorLayoutProvider {
 			contentLeft: contentLeft,
 			contentWidth: contentWidth,
 			contentHeight: outerHeight,
+
+			minimapWidth: minimapWidth,
+
+			viewportColumn: viewportColumn,
 
 			verticalScrollbarWidth: verticalScrollbarWidth,
 			horizontalScrollbarHeight: horizontalScrollbarHeight,

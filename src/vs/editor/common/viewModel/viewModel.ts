@@ -6,7 +6,7 @@
 
 import { IEventEmitter } from 'vs/base/common/eventEmitter';
 import { INewScrollPosition, IViewWhitespaceViewportData, Viewport, IModelDecoration, EndOfLinePreference, IPosition } from 'vs/editor/common/editorCommon';
-import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
+import { ViewLineToken, ViewLineToken2 } from 'vs/editor/common/core/viewLineToken';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -72,6 +72,7 @@ export interface IViewModel extends IEventEmitter {
 
 	getDecorationsInViewport(visibleRange: Range): ViewModelDecoration[];
 	getViewLineRenderingData(visibleRange: Range, lineNumber: number): ViewLineRenderingData;
+	getMinimapLineRenderingData(lineNumber: number): MinimapLineRenderingData;
 
 	getTabSize(): number;
 	getLineCount(): number;
@@ -87,6 +88,31 @@ export interface IViewModel extends IEventEmitter {
 	getModelLineContent(modelLineNumber: number): string;
 	getModelLineMaxColumn(modelLineNumber: number): number;
 	validateModelPosition(modelPosition: IPosition): Position;
+}
+
+export class MinimapLineRenderingData {
+	/**
+	 * The content at this view line.
+	 */
+	public readonly content: string;
+	/**
+	 * The tokens at this view line.
+	 */
+	public readonly tokens: ViewLineToken2[];
+	/**
+	 * The tab size for this view model.
+	 */
+	public readonly tabSize: number;
+
+	constructor(
+		content: string,
+		tokens: ViewLineToken2[],
+		tabSize: number
+	) {
+		this.content = content;
+		this.tokens = tokens;
+		this.tabSize = tabSize;
+	}
 }
 
 export class ViewLineRenderingData {

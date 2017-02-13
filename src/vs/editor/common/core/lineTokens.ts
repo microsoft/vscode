@@ -5,7 +5,7 @@
 'use strict';
 
 import { TokenMetadata } from 'vs/editor/common/model/tokensBinaryEncoding';
-import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
+import { ViewLineTokenFactory, ViewLineToken, ViewLineToken2 } from 'vs/editor/common/core/viewLineToken';
 import { ColorId, FontStyle, StandardTokenType, LanguageId } from 'vs/editor/common/modes';
 
 const STANDARD_TOKEN_TYPE_REGEXP = /\b(comment|string|regex)\b/;
@@ -159,7 +159,7 @@ export class LineTokens {
 	 * @return The index of the token containing the offset.
 	 */
 	public findTokenIndexAtOffset(offset: number): number {
-		return TokenMetadata.findIndexInSegmentsArray(this._tokens, offset);
+		return ViewLineTokenFactory.findIndexInSegmentsArray(this._tokens, offset);
 	}
 
 	public findTokenAtOffset(offset: number): LineToken {
@@ -194,10 +194,18 @@ export class LineTokens {
 	}
 
 	public inflate(): ViewLineToken[] {
-		return TokenMetadata.inflateArr(this._tokens, this._textLength);
+		return ViewLineTokenFactory.inflateArr(this._tokens, this._textLength);
 	}
 
 	public sliceAndInflate(startOffset: number, endOffset: number, deltaOffset: number): ViewLineToken[] {
-		return TokenMetadata.sliceAndInflate(this._tokens, startOffset, endOffset, deltaOffset, this._textLength);
+		return ViewLineTokenFactory.sliceAndInflate(this._tokens, startOffset, endOffset, deltaOffset, this._textLength);
+	}
+
+	public inflate2(): ViewLineToken2[] {
+		return ViewLineTokenFactory.inflateArr2(this._tokens, this._textLength);
+	}
+
+	public sliceAndInflate2(startOffset: number, endOffset: number, deltaOffset: number): ViewLineToken2[] {
+		return ViewLineTokenFactory.sliceAndInflate2(this._tokens, startOffset, endOffset, deltaOffset, this._textLength);
 	}
 }
