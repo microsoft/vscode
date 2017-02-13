@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 .search-viewlet .search-widgets-container {
-	margin: 6px 9px 0 2px;
+	margin: 0px 9px 0 2px;
+	padding-top: 6px;
 }
 
 .search-viewlet .search-widget .toggle-replace-button {
