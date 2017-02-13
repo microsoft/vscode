@@ -18,7 +18,7 @@ import { TimeoutTimer, RunOnceScheduler } from 'vs/base/common/async';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { VisibleRange } from 'vs/editor/common/view/renderingContext';
 import { EditorMouseEventFactory, GlobalEditorMouseMoveMonitor, EditorMouseEvent, createEditorPagePosition, ClientCoordinates } from 'vs/editor/browser/editorDom';
-import { StandardMouseWheelEvent } from 'vs/base/browser/mouseEvent';
+import { StandardMouseWheelEvent, MouseDownEventType } from 'vs/base/browser/mouseEvent';
 import { EditorZoom } from 'vs/editor/common/config/editorZoom';
 import { IViewCursorRenderData } from 'vs/editor/browser/viewParts/viewCursors/viewCursor';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
@@ -345,6 +345,7 @@ class MouseDownOperation extends Disposable {
 
 	private _mouseMoveMonitor: GlobalEditorMouseMoveMonitor;
 	private _mouseDownThenMoveEventHandler: EventGateKeeper<EditorMouseEvent>;
+	private _mouseDragThenMoveEventHandler: EventGateKeeper<EditorMouseEvent>;
 
 	private _currentSelection: Selection;
 	private _mouseState: MouseDownState;
@@ -383,6 +384,12 @@ class MouseDownOperation extends Disposable {
 				() => !this._viewHelper.isDirty()
 			)
 		);
+		this._mouseDragThenMoveEventHandler = this._register(
+			new EventGateKeeper<EditorMouseEvent>(
+				(e) => this._onMouseDragThenMove(e),
+				() => !this._viewHelper.isDirty()
+			)
+		);
 	}
 
 	public dispose(): void {
@@ -403,7 +410,20 @@ class MouseDownOperation extends Disposable {
 			return;
 		}
 
-		this._dispatchMouse(position, true);
+		this._dispatchMouse(position, MouseDownEventType.Select);
+	}
+
+	private _onMouseDragThenMove(e: EditorMouseEvent): void {
+		this._lastMouseEvent = e;
+		this._mouseState.setModifiers(e);
+
+		let position = this._findMousePosition(e, true);
+		if (!position) {
+			// Ignoring because position is unknown
+			return;
+		}
+
+		this._dispatchMouse(position, MouseDownEventType.Drag);
 	}
 
 	public start(targetType: editorCommon.MouseTargetType, e: EditorMouseEvent): void {
@@ -423,7 +443,26 @@ class MouseDownOperation extends Disposable {
 		// Overwrite the detail of the MouseEvent, as it will be sent out in an event and contributions might rely on it.
 		e.detail = this._mouseState.count;
 
-		this._dispatchMouse(position, e.shiftKey);
+		if (!this._mouseState.altKey // we don't support multiple mouse
+			&& e.detail < 2 // only single click on a selection can work
+			&& !this._isActive // the mouse is not down yet
+			&& this._currentSelection.containsPosition(position.position) // single click on a selection
+		) {
+			this._isActive = true;
+
+			this._mouseMoveMonitor.startMonitoring(
+				createMouseMoveEventMerger(null),
+				this._mouseDragThenMoveEventHandler.handler,
+				() => {
+					this._viewController.dragTo('mouse', position.position);
+					this._stop();
+				}
+			);
+
+			return;
+		}
+
+		this._dispatchMouse(position, e.shiftKey ? MouseDownEventType.Select : MouseDownEventType.Down);
 
 		if (!this._isActive) {
 			this._isActive = true;
@@ -450,7 +489,7 @@ class MouseDownOperation extends Disposable {
 				// Ignoring because position is unknown
 				return;
 			}
-			this._dispatchMouse(position, true);
+			this._dispatchMouse(position, MouseDownEventType.Select);
 		}, 10);
 	}
 
@@ -517,13 +556,13 @@ class MouseDownOperation extends Disposable {
 		return new MousePosition(hintedPosition, t.mouseColumn);
 	}
 
-	private _dispatchMouse(position: MousePosition, inSelectionMode: boolean): void {
+	private _dispatchMouse(position: MousePosition, mouseDownEventType: MouseDownEventType): void {
 		this._viewController.dispatchMouse({
 			position: position.position,
 			mouseColumn: position.mouseColumn,
 			startedOnLineNumbers: this._mouseState.startedOnLineNumbers,
 
-			inSelectionMode: inSelectionMode,
+			mouseDownEventType: mouseDownEventType,
 			mouseDownCount: this._mouseState.count,
 			altKey: this._mouseState.altKey,
 			ctrlKey: this._mouseState.ctrlKey,

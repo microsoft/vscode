@@ -7,7 +7,7 @@
 import { IEventEmitter } from 'vs/base/common/eventEmitter';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { IMouseEvent } from 'vs/base/browser/mouseEvent';
+import { IMouseEvent, MouseDownEventType } from 'vs/base/browser/mouseEvent';
 import { IConstructorSignature1 } from 'vs/platform/instantiation/common/instantiation';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Position } from 'vs/editor/common/core/position';
@@ -106,7 +106,7 @@ export interface IMouseDispatchData {
 	mouseColumn: number;
 	startedOnLineNumbers: boolean;
 
-	inSelectionMode: boolean;
+	mouseDownEventType: MouseDownEventType;
 	mouseDownCount: number;
 	altKey: boolean;
 	ctrlKey: boolean;
@@ -120,6 +120,7 @@ export interface IMouseDispatchData {
 export interface IViewController {
 	dispatchMouse(data: IMouseDispatchData);
 
+	dragTo(source: string, position: Position): void;
 	moveTo(source: string, position: Position): void;
 
 	paste(source: string, text: string, pasteOnNewLine: boolean): void;
