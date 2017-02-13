@@ -49,6 +49,7 @@ export class MenuId {
 	static readonly SCMTitle = new MenuId('11');
 	static readonly SCMResourceGroupContext = new MenuId('12');
 	static readonly SCMResourceContext = new MenuId('13');
+	static readonly CommandPalette = new MenuId('14');
 
 	constructor(private _id: string) {
 
@@ -140,17 +141,18 @@ export class MenuItemAction extends ExecuteCommandAction {
 
 	constructor(
 		item: ICommandAction,
+		label: string,
 		alt: ICommandAction,
 		arg: any,
 		@ICommandService commandService: ICommandService
 	) {
-		super(item.id, item.title, commandService);
+		super(item.id, label, commandService);
 		this._cssClass = item.iconClass;
 		this._enabled = true;
 		this._arg = arg;
 
 		this.item = item;
-		this.alt = alt ? new MenuItemAction(alt, undefined, arg, commandService) : undefined;
+		this.alt = alt ? new MenuItemAction(alt, alt.title, undefined, arg, commandService) : undefined;
 	}
 
 	run(): TPromise<any> {
