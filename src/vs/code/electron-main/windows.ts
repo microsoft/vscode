@@ -289,13 +289,7 @@ export class WindowsManager implements IWindowsMainService {
 	}
 
 	private onBroadcast(event: string, payload: any): void {
-
-		// Theme changes
-		if (event === 'vscode:changeColorTheme' && typeof payload === 'string') {
-			this.storageService.setItem(VSCodeWindow.colorThemeStorageKey, payload);
-		}
 	}
-
 	public reload(win: VSCodeWindow, cli?: ParsedArgs): void {
 
 		// Only reload when the window has not vetoed this
@@ -530,7 +524,7 @@ export class WindowsManager implements IWindowsMainService {
 
 		const mru = this.getRecentPathsList();
 		paths.forEach(p => {
-			const {path, isFile} = p;
+			const { path, isFile } = p;
 
 			if (isFile) {
 				mru.files.unshift(path);
@@ -794,8 +788,7 @@ export class WindowsManager implements IWindowsMainService {
 			},
 				this.logService,
 				this.environmentService,
-				this.configurationService,
-				this.storageService
+				this.configurationService
 			);
 
 			WindowsManager.WINDOWS.push(vscodeWindow);

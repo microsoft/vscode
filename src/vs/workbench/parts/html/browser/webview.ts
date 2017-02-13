@@ -11,7 +11,6 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 import { addDisposableListener, addClass } from 'vs/base/browser/dom';
-import { isLightTheme, isDarkTheme } from 'vs/platform/theme/common/themes';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { MenuRegistry } from 'vs/platform/actions/common/actions';
 import { IColorTheme } from 'vs/workbench/services/themes/common/themeService';
@@ -154,7 +153,6 @@ export default class Webview {
 	}
 
 	style(theme: IColorTheme): void {
-		let themeId = theme.id;
 		const {color, backgroundColor, fontFamily, fontWeight, fontSize} = window.getComputedStyle(this._styleElement);
 
 		let value = `
@@ -193,7 +191,7 @@ export default class Webview {
 
 		let activeTheme: ApiThemeClassName;
 
-		if (isLightTheme(themeId)) {
+		if (theme.isLightTheme()) {
 			value += `
 			::-webkit-scrollbar-thumb {
 				background-color: rgba(100, 100, 100, 0.4);
@@ -207,7 +205,7 @@ export default class Webview {
 
 			activeTheme = 'vscode-light';
 
-		} else if (isDarkTheme(themeId)) {
+		} else if (theme.isDarkTheme()) {
 			value += `
 			::-webkit-scrollbar-thumb {
 				background-color: rgba(121, 121, 121, 0.4);
