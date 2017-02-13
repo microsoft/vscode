@@ -14,13 +14,14 @@ import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { IRenderingContext, IRestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
 import { /*createMinimapCharRenderer,*/ createMinimapCharRenderer2 } from 'vs/editor/common/view/runtimeMinimapCharRenderer';
 import * as browser from 'vs/base/browser/browser';
-import { MinimapColors, MinimapTokensColorTracker, Constants } from 'vs/editor/common/view/minimapCharRenderer';
+import { ParsedColor, MinimapColors, MinimapTokensColorTracker, Constants } from 'vs/editor/common/view/minimapCharRenderer';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { CharCode } from 'vs/base/common/charCode';
 import { MinimapLineRenderingData } from 'vs/editor/common/viewModel/viewModel';
+import { ColorId } from 'vs/editor/common/modes';
 
 // let charRenderer = createMinimapCharRenderer();
-let charRenderer2 = createMinimapCharRenderer2();
+let charRenderer2 = createMinimapCharRenderer2(); // TODO@minimap
 
 // interface IWidgetData {
 // 	widget: IOverlayWidget;
@@ -177,7 +178,7 @@ export class Minimap extends ViewPart {
 
 	public render(ctx: IRestrictedRenderingContext): void {
 		let pixelRatio = browser.getPixelRatio();
-		console.log(pixelRatio);
+		// console.log(pixelRatio);
 		const WIDTH = pixelRatio * this._minimapWidth;
 		const HEIGHT = pixelRatio * this._minimapHeight;
 		this.domNode.width = WIDTH;
@@ -195,7 +196,7 @@ export class Minimap extends ViewPart {
 		// 	8 * 4 * lineLen
 		// );
 
-		let start = performance.now();
+		// let start = performance.now();
 		// console.profile();
 
 		let ctx2 = this.domNode.getContext('2d');
@@ -206,7 +207,8 @@ export class Minimap extends ViewPart {
 		let colorTracker = MinimapTokensColorTracker.getInstance();
 		let colors = colorTracker.getColorMaps();
 
-		let background = colors.getBackgroundColor();
+		let background = colors.getColor(ColorId.DefaultBackground);
+		// getBackgroundColor();
 		let backgroundR = background.r;
 		let backgroundG = background.g;
 		let backgroundB = background.b;
@@ -222,17 +224,18 @@ export class Minimap extends ViewPart {
 			}
 		}
 
+		let data: MinimapLineRenderingData[] = [];
 		for (let lineIndex = 0; lineIndex < lineCount; lineIndex++) {
-			let data = this._context.model.getMinimapLineRenderingData(lineIndex + 1);
-			// let length = Math.min(data.content.length, lineLen);
-
-			let dy = lineIndex * Constants.x2_CHAR_HEIGHT;
-
-			Minimap._render2xLine(imageData, colors, dy, this._viewportColumn, data);
-
-
-			// break;
+			data[lineIndex] = this._context.model.getMinimapLineRenderingData(lineIndex + 1);
 		}
+
+		let start2 = performance.now();
+		for (let lineIndex = 0; lineIndex < lineCount; lineIndex++) {
+			let dy = lineIndex * Constants.x2_CHAR_HEIGHT;
+			Minimap._x2RenderLine(imageData, background, colors, dy, data[lineIndex]);
+		}
+		let end2 = performance.now();
+		console.log(`INNER LOOP TOOK ${end2 - start2} ms.`);
 
 		// console.log(imageData.data);
 		// ctx2.strokeStyle = '#000';
@@ -242,10 +245,8 @@ export class Minimap extends ViewPart {
 
 		// console.profileEnd();
 
-		let end = performance.now();
-
-
-		console.log('TOOK ' + (end - start) + 'ms.');
+		// let end = performance.now();
+		// console.log('TOOK ' + (end - start) + 'ms.');
 
 		// let data = this._context.model.getViewLineRenderingData(null, 1);
 
@@ -260,11 +261,11 @@ export class Minimap extends ViewPart {
 		// }
 	}
 
-	private static _render2xLine(target: ImageData, colors: MinimapColors, dy: number, maxColumn: number, lineData: MinimapLineRenderingData) {
+	private static _x2RenderLine(target: ImageData, backgroundColor: ParsedColor, colors: MinimapColors, dy: number, lineData: MinimapLineRenderingData) {
 		const content = lineData.content;
 		const tokens = lineData.tokens;
 		const tabSize = lineData.tabSize;
-		const charIndexStop = Math.min(content.length, maxColumn - 1);
+		const maxDx = target.width - Constants.x2_CHAR_WIDTH;
 
 		let dx = 0;
 		let charIndex = 0;
@@ -274,10 +275,10 @@ export class Minimap extends ViewPart {
 			const token = tokens[tokenIndex];
 			const tokenEndIndex = token.endIndex;
 			const tokenColorId = token.getForeground();
-			const tokenColor = colors.getMinimapColor(tokenColorId);
+			const tokenColor = colors.getColor(tokenColorId);
 
 			for (; charIndex < tokenEndIndex; charIndex++) {
-				if (charIndex >= charIndexStop) {
+				if (dx > maxDx) {
 					// hit edge of minimap
 					return;
 				}
@@ -292,7 +293,7 @@ export class Minimap extends ViewPart {
 					// No need to render anything since space is invisible
 					dx += Constants.x2_CHAR_WIDTH;
 				} else {
-					charRenderer2.x2RenderChar(target, dx, dy, charCode, tokenColor);
+					charRenderer2.x2RenderChar(target, dx, dy, charCode, tokenColor, backgroundColor);
 					dx += Constants.x2_CHAR_WIDTH;
 				}
 			}
