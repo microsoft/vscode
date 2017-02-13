@@ -1357,12 +1357,19 @@ export class Cursor extends EventEmitter {
 			return false;
 		}
 
-		var lastAddedCursor = this.cursors.getLastAddedCursor();
+		let dragTargetPosition = ctx.eventData.position;
+		if (selections[0].containsPosition(dragTargetPosition)) {
+			this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => {
+				if (oneCursor.modelState.selection.containsPosition(dragTargetPosition)) {
+					return OneCursorOp.moveTo(oneCursor, false, ctx.eventData.position, ctx.eventData.viewPosition, ctx.eventSource, oneCtx);
+				}
+				return false;
+			});
 
-		if (selections[0].containsPosition(lastAddedCursor.modelState.position)) {
-			return false;
+			return true;
 		}
 
+		var lastAddedCursor = this.cursors.getLastAddedCursor();
 		this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => {
 			if (oneCursor !== lastAddedCursor) {
 				return this._doApplyEdit(cursorIndex, oneCursor, oneCtx, () => new EditOperationResult(new DragAndDropCommand(oneCursor.modelState.selection, lastAddedCursor.modelState.position), {
