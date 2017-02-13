@@ -16,8 +16,9 @@ import { /*createMinimapCharRenderer,*/ createMinimapCharRenderer2 } from 'vs/ed
 import * as browser from 'vs/base/browser/browser';
 import { MinimapColors, MinimapTokensColorTracker, Constants } from 'vs/editor/common/view/minimapCharRenderer';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-
+import { CharCode } from 'vs/base/common/charCode';
 import { MinimapLineRenderingData } from 'vs/editor/common/viewModel/viewModel';
+
 // let charRenderer = createMinimapCharRenderer();
 let charRenderer2 = createMinimapCharRenderer2();
 
@@ -262,10 +263,13 @@ export class Minimap extends ViewPart {
 	private static _render2xLine(target: ImageData, colors: MinimapColors, dy: number, maxColumn: number, lineData: MinimapLineRenderingData) {
 		const content = lineData.content;
 		const tokens = lineData.tokens;
+		const tabSize = lineData.tabSize;
 		const charIndexStop = Math.min(content.length, maxColumn - 1);
 
 		let dx = 0;
 		let charIndex = 0;
+		let tabsCharDelta = 0;
+
 		for (let tokenIndex = 0, tokensLen = tokens.length; tokenIndex < tokensLen; tokenIndex++) {
 			const token = tokens[tokenIndex];
 			const tokenEndIndex = token.endIndex;
@@ -279,8 +283,18 @@ export class Minimap extends ViewPart {
 				}
 				const charCode = content.charCodeAt(charIndex);
 
-				charRenderer2.x2RenderChar(target, dx, dy, charCode, tokenColor);
-				dx += Constants.x2_CHAR_WIDTH;
+				if (charCode === CharCode.Tab) {
+					let insertSpacesCount = tabSize - (charIndex + tabsCharDelta) % tabSize;
+					tabsCharDelta += insertSpacesCount - 1;
+					// No need to render anything since tab is invisible
+					dx += insertSpacesCount * Constants.x2_CHAR_WIDTH;
+				} else if (charCode === CharCode.Space) {
+					// No need to render anything since space is invisible
+					dx += Constants.x2_CHAR_WIDTH;
+				} else {
+					charRenderer2.x2RenderChar(target, dx, dy, charCode, tokenColor);
+					dx += Constants.x2_CHAR_WIDTH;
+				}
 			}
 		}
 	}
