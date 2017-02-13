@@ -235,8 +235,6 @@ export class List<T> implements IDisposable {
 	private selection: Trait<T>;
 	private eventBufferer: EventBufferer;
 	private view: ListView<T>;
-	private mouseController: MouseController<T>;
-	private keyboardController: KeyboardController<T>;
 	private disposables: IDisposable[];
 
 	@memoize
@@ -290,13 +288,11 @@ export class List<T> implements IDisposable {
 		this.disposables.push(tracker.addBlurListener(() => this._onDOMBlur.fire()));
 
 		if (typeof options.keyboardSupport !== 'boolean' || options.keyboardSupport) {
-			this.keyboardController = new KeyboardController(this, this.view);
-			this.disposables.push(this.keyboardController);
+			this.disposables.push(new KeyboardController(this, this.view));
 		}
 
 		if (typeof options.mouseSupport !== 'boolean' || options.mouseSupport) {
-			this.mouseController = new MouseController(this, this.view);
-			this.disposables.push(this.mouseController);
+			this.disposables.push(new MouseController(this, this.view));
 		}
 
 		this.onFocusChange(this._onFocusChange, this, this.disposables);
