@@ -9,7 +9,6 @@ import * as path from 'path';
 import * as platform from 'vs/base/common/platform';
 import * as objects from 'vs/base/common/objects';
 import nls = require('vs/nls');
-import { IStorageService } from 'vs/code/electron-main/storage';
 import { shell, screen, BrowserWindow, systemPreferences, app } from 'electron';
 import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
@@ -78,6 +77,7 @@ export interface IWindowConfiguration extends ParsedArgs {
 	zoomLevel?: number;
 	fullscreen?: boolean;
 	highContrast?: boolean;
+	baseTheme?: string;
 	accessibilitySupport?: boolean;
 
 	isInitialStartup?: boolean;
@@ -134,8 +134,6 @@ export interface IVSCodeWindow {
 
 export class VSCodeWindow implements IVSCodeWindow {
 
-	public static colorThemeStorageKey = 'theme';
-
 	private static MIN_WIDTH = 200;
 	private static MIN_HEIGHT = 120;
 
@@ -162,8 +160,7 @@ export class VSCodeWindow implements IVSCodeWindow {
 		config: IWindowCreationOptions,
 		@ILogService private logService: ILogService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IStorageService private storageService: IStorageService
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		this.options = config;
 		this._lastFocusTime = -1;
@@ -177,9 +174,9 @@ export class VSCodeWindow implements IVSCodeWindow {
 		this.restoreWindowState(config.state);
 
 		// For VS theme we can show directly because background is white
-		const themeId = this.storageService.getItem<string>(VSCodeWindow.colorThemeStorageKey);
-		const usesLightTheme = /vs($| )/.test(themeId);
-		const usesHighContrastTheme = /hc-black($| )/.test(themeId) || (platform.isWindows && systemPreferences.isInvertedColorScheme());
+		const themeId = this.configurationService.lookup<string>('workbench.colorTheme').value;
+		const usesLightTheme = /^l-/.test(themeId);
+		const usesHighContrastTheme = /^hc-/.test(themeId) || (platform.isWindows && systemPreferences.isInvertedColorScheme());
 
 		// in case we are maximized or fullscreen, only show later after the call to maximize/fullscreen (see below)
 		const isFullscreenOrMaximized = (this.currentWindowMode === WindowMode.Maximized || this.currentWindowMode === WindowMode.Fullscreen);
@@ -504,6 +501,16 @@ export class VSCodeWindow implements IVSCodeWindow {
 		// Set Accessibility Config
 		windowConfiguration.highContrast = platform.isWindows && systemPreferences.isInvertedColorScheme() && (!windowConfig || windowConfig.autoDetectHighContrast);
 		windowConfiguration.accessibilitySupport = app.isAccessibilitySupportEnabled();
+
+		// background color
+		const themeId = this.configurationService.lookup<string>('workbench.colorTheme').value;
+		if (themeId[0] === 'h') {
+			windowConfiguration.baseTheme = 'hc-black';
+		} else if (themeId[0] === 'l') {
+			windowConfiguration.baseTheme = 'vs';
+		} else {
+			windowConfiguration.baseTheme = 'vs-dark';
+		}
 
 		// Perf Counters
 		windowConfiguration.perfStartTime = global.perfStartTime;

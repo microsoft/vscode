@@ -31,7 +31,6 @@ import { createActionItem } from 'vs/platform/actions/browser/menuItemActionItem
 import { SCMMenus } from './scmMenus';
 import { ActionBar, IActionItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
-import { isDarkTheme } from 'vs/platform/theme/common/themes';
 import { SCMEditor } from './scmEditor';
 import { IModelService } from 'vs/editor/common/services/modelService';
 
@@ -128,7 +127,7 @@ class ResourceRenderer implements IRenderer<ISCMResource, ResourceTemplate> {
 		toggleClass(template.name, 'strike-through', resource.decorations.strikeThrough);
 
 		const theme = this.themeService.getColorTheme();
-		const icon = isDarkTheme(theme.id) ? resource.decorations.iconDark : resource.decorations.icon;
+		const icon = theme.isDarkTheme() ? resource.decorations.iconDark : resource.decorations.icon;
 
 		if (icon) {
 			template.decorationIcon.style.backgroundImage = `url('${icon}')`;
