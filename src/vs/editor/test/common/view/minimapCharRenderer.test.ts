@@ -23,10 +23,10 @@ suite('MinimapColors', () => {
 	test('parseColor', () => {
 		assertInvalidParseColor(null);
 		assertInvalidParseColor('');
-		assertInvalidParseColor('1234567');
 		assertParseColor('FFFFG0', new ParsedColor(255, 255, 0));
 		assertParseColor('FFFFg0', new ParsedColor(255, 255, 0));
 		assertParseColor('-FFF00', new ParsedColor(15, 255, 0));
+		assertParseColor('0102030', new ParsedColor(1, 2, 3));
 
 		assertParseColor('000000', new ParsedColor(0, 0, 0));
 		assertParseColor('010203', new ParsedColor(1, 2, 3));
