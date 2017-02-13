@@ -2552,6 +2552,12 @@ declare module monaco.editor {
         readonly right: number;
     }
 
+    export enum RenderMinimap {
+        None = 0,
+        Small = 1,
+        Large = 2,
+    }
+
     /**
      * The internal layout details of the editor.
      */
@@ -2617,6 +2623,10 @@ declare module monaco.editor {
          * The width of the minimap
          */
         readonly minimapWidth: number;
+        /**
+         * Minimap render type
+         */
+        readonly renderMinimap: RenderMinimap;
         /**
          * The number of columns (of typical characters) fitting on a viewport line.
          */

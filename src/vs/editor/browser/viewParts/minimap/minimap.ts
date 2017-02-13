@@ -178,7 +178,7 @@ export class Minimap extends ViewPart {
 
 	public render(ctx: IRestrictedRenderingContext): void {
 		let pixelRatio = browser.getPixelRatio();
-		// console.log(pixelRatio);
+		// console.log(`pixelRatio: ${pixelRatio}, devicePixelRatio: ${devicePixelRatio}`);//here: ' + pixelRatio);
 		const WIDTH = pixelRatio * this._minimapWidth;
 		const HEIGHT = pixelRatio * this._minimapHeight;
 		this.domNode.width = WIDTH;

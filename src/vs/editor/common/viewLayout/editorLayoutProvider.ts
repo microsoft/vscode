@@ -4,14 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { EditorLayoutInfo, OverviewRulerPosition } from 'vs/editor/common/editorCommon';
-
-// TODO@minimap
-export const enum Minimap {
-	None = 0,
-	Small = 1,
-	Large = 2
-}
+import { RenderMinimap, EditorLayoutInfo, OverviewRulerPosition } from 'vs/editor/common/editorCommon';
 
 export interface IEditorLayoutProviderOpts {
 	outerWidth: number;
@@ -34,7 +27,8 @@ export interface IEditorLayoutProviderOpts {
 	scrollbarArrowSize: number;
 	horizontalScrollbarHeight: number;
 
-	minimap: Minimap;
+	minimap: boolean;
+	pixelRatio: number;
 }
 
 export class EditorLayoutProvider {
@@ -53,7 +47,8 @@ export class EditorLayoutProvider {
 		const verticalScrollbarHasArrows = Boolean(_opts.verticalScrollbarHasArrows);
 		const scrollbarArrowSize = _opts.scrollbarArrowSize | 0;
 		const horizontalScrollbarHeight = _opts.horizontalScrollbarHeight | 0;
-		const minimap: Minimap = _opts.minimap | 0;
+		const minimap = Boolean(_opts.minimap);
+		const pixelRatio = Number(_opts.pixelRatio);
 
 		let lineNumbersWidth = 0;
 		if (showLineNumbers) {
@@ -73,15 +68,23 @@ export class EditorLayoutProvider {
 
 		let remainingWidth = outerWidth - glyphMarginWidth - lineNumbersWidth - lineDecorationsWidth;
 
+		let renderMinimap: RenderMinimap;
 		let minimapWidth: number;
 		let contentWidth: number;
-		if (minimap === Minimap.None) {
+		if (!minimap) {
 			minimapWidth = 0;
+			renderMinimap = RenderMinimap.None;
 			contentWidth = remainingWidth;
 		} else {
-			// TODO@minimap: the view should decide on large vs small
-			// TODO@minimap: or it should be based on pixelRatio here
-			let minimapCharWidth = (minimap === Minimap.Large ? 2 : 1);
+			let minimapCharWidth: number;
+			if (pixelRatio >= 2) {
+				renderMinimap = RenderMinimap.Large;
+				minimapCharWidth = 2 / pixelRatio;
+			} else {
+				renderMinimap = RenderMinimap.Small;
+				minimapCharWidth = 1 / pixelRatio;
+			}
+
 			// Given:
 			// viewportColumn = (contentWidth - verticalScrollbarWidth) / typicalHalfwidthCharacterWidth
 			// minimapWidth = viewportColumn * minimapCharWidth
@@ -122,6 +125,7 @@ export class EditorLayoutProvider {
 			contentWidth: contentWidth,
 			contentHeight: outerHeight,
 
+			renderMinimap: renderMinimap,
 			minimapWidth: minimapWidth,
 
 			viewportColumn: viewportColumn,

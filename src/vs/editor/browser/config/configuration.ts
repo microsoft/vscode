@@ -292,6 +292,10 @@ export class Configuration extends CommonEditorConfiguration {
 		return browser.canUseTranslate3d && browser.getZoomLevel() === 0;
 	}
 
+	protected _getPixelRatio(): number {
+		return browser.getPixelRatio();
+	}
+
 	protected readConfiguration(bareFontInfo: BareFontInfo): FontInfo {
 		return CSSBasedConfiguration.INSTANCE.readConfiguration(bareFontInfo);
 	}

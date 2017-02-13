@@ -344,6 +344,7 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		TextEditorCursorBlinkingStyle: editorCommon.TextEditorCursorBlinkingStyle,
 		ContentWidgetPositionPreference: ContentWidgetPositionPreference,
 		OverlayWidgetPositionPreference: OverlayWidgetPositionPreference,
+		RenderMinimap: editorCommon.RenderMinimap,
 
 		// classes
 		InternalEditorScrollbarOptions: <any>editorCommon.InternalEditorScrollbarOptions,
