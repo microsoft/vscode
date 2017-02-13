@@ -91,10 +91,11 @@ export class MinimapColors {
 			return new ParsedColor(0, 0, 0);
 		}
 		if (color.charCodeAt(0) === CharCode.Hash) {
-			color = color.substr(1);
+			color = color.substr(1, 6);
+		} else {
+			color = color.substr(0, 6);
 		}
 		if (color.length !== 6) {
-			console.warn('INVALID COLOR: ' + color); // TODO@minimap
 			return new ParsedColor(0, 0, 0);
 		}
 
