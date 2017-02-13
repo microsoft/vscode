@@ -9,12 +9,13 @@
  * ------------------------------------------------------------------------------------------ */
 'use strict';
 
-import { env, languages, commands, workspace, window, ExtensionContext, Memento, IndentAction, Diagnostic, DiagnosticCollection, Range, DocumentFilter, Disposable, Uri } from 'vscode';
+import { env, languages, commands, workspace, window, ExtensionContext, Memento, IndentAction, Diagnostic, DiagnosticCollection, Range, DocumentFilter, Disposable, Uri, MessageItem, TextEditor } from 'vscode';
 
 // This must be the first statement otherwise modules might got loaded with
 // the wrong locale.
 import * as nls from 'vscode-nls';
 nls.config({ locale: env.language });
+const localize = nls.loadMessageBundle();
 
 import * as path from 'path';
 
@@ -50,6 +51,16 @@ interface LanguageDescription {
 	modeIds: string[];
 	extensions: string[];
 	configFile: string;
+}
+
+enum ProjectConfigAction {
+	None,
+	CreateConfig,
+	LearnMore
+}
+
+interface ProjectConfigMessageItem extends MessageItem {
+	id: ProjectConfigAction;
 }
 
 export function activate(context: ExtensionContext): void {
@@ -88,6 +99,15 @@ export function activate(context: ExtensionContext): void {
 	context.subscriptions.push(commands.registerCommand('typescript.selectTypeScriptVersion', () => {
 		client.onVersionStatusClicked();
 	}));
+
+	const goToProjectConfig = (isTypeScript: boolean) => {
+		const editor = window.activeTextEditor;
+		if (editor) {
+			clientHost.goToProjectConfig(isTypeScript, editor.document.uri, editor.document.languageId);
+		}
+	};
+	context.subscriptions.push(commands.registerCommand('typescript.goToProjectConfig', goToProjectConfig.bind(null, true)));
+	context.subscriptions.push(commands.registerCommand('javascript.goToProjectConfig', goToProjectConfig.bind(null, false)));
 
 	window.onDidChangeActiveTextEditor(VersionStatus.showHideStatus, null, context.subscriptions);
 	client.onReady().then(() => {
@@ -376,6 +396,76 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 
 	public handles(file: string): boolean {
 		return !!this.findLanguage(file);
+	}
+
+	public goToProjectConfig(
+		isTypeScriptProject: boolean,
+		resource: Uri,
+		languageId: string
+	): Thenable<TextEditor> | undefined {
+		const rootPath = workspace.rootPath;
+		if (!rootPath) {
+			window.showInformationMessage(
+				localize(
+					'typescript.projectConfigNoWorkspace',
+					'Please open a folder in VS Code to use a TypeScript or JavaScript project'));
+			return;
+		}
+
+		const file = this.client.normalizePath(resource);
+		// TODO: TSServer errors when 'projectInfo' is invoked on a non js/ts file
+		if (!file || !this.languagePerId[languageId]) {
+			window.showWarningMessage(
+				localize(
+					'typescript.projectConfigUnsupportedFile',
+					'Could not determine TypeScript or JavaScript project. Unsupported file type'));
+			return;
+		}
+
+		return this.client.execute('projectInfo', { file, needFileNameList: false }).then(res => {
+			if (!res || !res.body) {
+				return window.showWarningMessage(localize('typescript.projectConfigCouldNotGetInfo', 'Could not determine TypeScript or JavaScript project'));
+			}
+
+			const { configFileName } = res.body;
+			if (configFileName && configFileName.indexOf('/dev/null/') !== 0) {
+				return workspace.openTextDocument(configFileName)
+					.then(window.showTextDocument);
+			}
+
+			return window.showInformationMessage<ProjectConfigMessageItem>(
+				(isTypeScriptProject
+					? localize('typescript.noTypeScriptProjectConfig', 'File is not part of a TypeScript project')
+					: localize('typescript.noJavaScriptProjectConfig', 'File is not part of a JavaScript project')
+				), {
+					title: isTypeScriptProject
+						? localize('typescript.configureTsconfigQuickPick', 'Configure tsconfig.json')
+						: localize('typescript.configureJsconfigQuickPick', 'Configure jsconfig.json'),
+					id: ProjectConfigAction.CreateConfig
+				}, {
+					title: localize('typescript.projectConfigLearnMore', 'Learn More'),
+					id: ProjectConfigAction.LearnMore
+				}).then(selected => {
+					switch (selected && selected.id) {
+						case ProjectConfigAction.CreateConfig:
+							const configFile = Uri.file(path.join(rootPath, isTypeScriptProject ? 'tsconfig.json' : 'jsconfig.json'));
+							return workspace.openTextDocument(configFile)
+								.then(undefined, _ => workspace.openTextDocument(configFile.with({ scheme: 'untitled' })))
+								.then(window.showTextDocument);
+
+						case ProjectConfigAction.LearnMore:
+							if (isTypeScriptProject) {
+								commands.executeCommand('vscode.open', Uri.parse('https://go.microsoft.com/fwlink/?linkid=841896'));
+							} else {
+								commands.executeCommand('vscode.open', Uri.parse('https://go.microsoft.com/fwlink/?linkid=759670'));
+							}
+							return;
+
+						default:
+							return Promise.resolve(undefined);
+					}
+				});
+		});
 	}
 
 	private findLanguage(file: string): LanguageProvider | null {

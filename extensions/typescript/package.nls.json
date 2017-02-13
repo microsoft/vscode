@@ -1,6 +1,6 @@
 {
-	"typescript.reloadProjects.title": "Reload TypeScript Project",
-	"javascript.reloadProjects.title": "Reload JavaScript Project",
+	"typescript.reloadProjects.title": "Reload Project",
+	"javascript.reloadProjects.title": "Reload Project",
 	"configuration.typescript": "TypeScript",
 	"typescript.useCodeSnippetsOnMethodSuggest.dec": "Complete functions with their parameter signature.",
 	"typescript.tsdk.desc": "Specifies the folder path containing the tsserver and lib*.d.ts files to use.",
@@ -24,6 +24,8 @@
 	"format.placeOpenBraceOnNewLineForFunctions": "Defines whether an open brace is put onto a new line for functions or not.",
 	"format.placeOpenBraceOnNewLineForControlBlocks": "Defines whether an open brace is put onto a new line for control blocks or not.",
 	"javascript.validate.enable": "Enable/disable JavaScript validation.",
+	"typescript.goToProjectConfig.title": "Go to Project Configuration",
+	"javascript.goToProjectConfig.title": "Go to Project Configuration",
 	"typescript.referencesCodeLens.enabled": "Enable/disable the references code lens.",
-	"typescript.selectTypeScriptVersion.title": "Select TypeScript version."
+	"typescript.selectTypeScriptVersion.title": "Select TypeScript Version"
 }
