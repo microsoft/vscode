@@ -3451,6 +3451,8 @@ declare module monaco.editor {
         WordSelect: string;
         WordSelectDrag: string;
         LastCursorWordSelect: string;
+        RangeSelectDrag: string;
+        DragTo: string;
         LineSelect: string;
         LineSelectDrag: string;
         LastCursorLineSelect: string;

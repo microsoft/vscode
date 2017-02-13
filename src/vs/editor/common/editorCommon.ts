@@ -4485,6 +4485,9 @@ export var Handler = {
 	WordSelectDrag: 'wordSelectDrag',
 	LastCursorWordSelect: 'lastCursorWordSelect',
 
+	RangeSelectDrag: 'rangeSelectDrag',
+	DragTo: 'dragTo',
+
 	LineSelect: 'lineSelect',
 	LineSelectDrag: 'lineSelectDrag',
 	LastCursorLineSelect: 'lastCursorLineSelect',

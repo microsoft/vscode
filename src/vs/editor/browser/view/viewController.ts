@@ -5,6 +5,7 @@
 'use strict';
 
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { MouseDownEventType } from 'vs/base/browser/mouseEvent';
 import { Position } from 'vs/editor/common/core/position';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IEditorMouseEvent, IViewController, IMouseDispatchData } from 'vs/editor/browser/editorBrowser';
@@ -79,13 +80,13 @@ export class ViewController implements IViewController {
 		if (data.startedOnLineNumbers) {
 			// If the dragging started on the gutter, then have operations work on the entire line
 			if (data.altKey) {
-				if (data.inSelectionMode) {
+				if (data.mouseDownEventType === MouseDownEventType.Select) {
 					this.lastCursorLineSelect('mouse', data.position);
 				} else {
 					this.createCursor('mouse', data.position, true);
 				}
 			} else {
-				if (data.inSelectionMode) {
+				if (data.mouseDownEventType === MouseDownEventType.Select) {
 					this.lineSelectDrag('mouse', data.position);
 				} else {
 					this.lineSelect('mouse', data.position);
@@ -95,13 +96,13 @@ export class ViewController implements IViewController {
 			this.selectAll('mouse');
 		} else if (data.mouseDownCount === 3) {
 			if (data.altKey) {
-				if (data.inSelectionMode) {
+				if (data.mouseDownEventType === MouseDownEventType.Select) {
 					this.lastCursorLineSelectDrag('mouse', data.position);
 				} else {
 					this.lastCursorLineSelect('mouse', data.position);
 				}
 			} else {
-				if (data.inSelectionMode) {
+				if (data.mouseDownEventType === MouseDownEventType.Select) {
 					this.lineSelectDrag('mouse', data.position);
 				} else {
 					this.lineSelect('mouse', data.position);
@@ -111,7 +112,7 @@ export class ViewController implements IViewController {
 			if (data.altKey) {
 				this.lastCursorWordSelect('mouse', data.position);
 			} else {
-				if (data.inSelectionMode) {
+				if (data.mouseDownEventType === MouseDownEventType.Select) {
 					this.wordSelectDrag('mouse', data.position);
 				} else {
 					this.wordSelect('mouse', data.position);
@@ -124,21 +125,39 @@ export class ViewController implements IViewController {
 						this.columnSelect('mouse', data.position, data.mouseColumn);
 					} else {
 						// Do multi-cursor operations only when purely alt is pressed
-						if (data.inSelectionMode) {
+						if (data.mouseDownEventType === MouseDownEventType.Select) {
 							this.lastCursorMoveToSelect('mouse', data.position);
 						} else {
 							this.createCursor('mouse', data.position, false);
 						}
+
+						// last cursor range select drag
 					}
 				}
 			} else {
-				if (data.inSelectionMode) {
-					this.moveToSelect('mouse', data.position);
-				} else {
-					this.moveTo('mouse', data.position);
+				switch (data.mouseDownEventType) {
+					case MouseDownEventType.Down:
+						this.moveTo('mouse', data.position);
+						break;
+					case MouseDownEventType.Select:
+						this.moveToSelect('mouse', data.position);
+						break;
+					case MouseDownEventType.Drag:
+						this.rangeSelectDrag('mouse', data.position);
+						break;
+					default:
+						break;
 				}
 			}
 		}
+	}
+
+	public dragTo(source: string, viewPosition: Position): void {
+		viewPosition = this._validateViewColumn(viewPosition);
+		this.triggerCursorHandler(source, editorCommon.Handler.DragTo, {
+			position: this.convertViewToModelPosition(viewPosition),
+			viewPosition: viewPosition
+		});
 	}
 
 	public moveTo(source: string, viewPosition: Position): void {
@@ -201,6 +220,14 @@ export class ViewController implements IViewController {
 		viewPosition = this._validateViewColumn(viewPosition);
 		this.triggerCursorHandler(source, editorCommon.Handler.LastCursorWordSelect, {
 			position: this.convertViewToModelPosition(viewPosition)
+		});
+	}
+
+	private rangeSelectDrag(source: string, viewPosition: Position): void {
+		viewPosition = this._validateViewColumn(viewPosition);
+		this.triggerCursorHandler(source, editorCommon.Handler.RangeSelectDrag, {
+			position: this.convertViewToModelPosition(viewPosition),
+			viewPosition: viewPosition
 		});
 	}
 

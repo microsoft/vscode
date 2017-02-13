@@ -9,6 +9,7 @@ import * as strings from 'vs/base/common/strings';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { EventEmitter } from 'vs/base/common/eventEmitter';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { DragAndDropCommand } from 'vs/editor/common/commands/dragAndDropCommand';
 import { ReplaceCommand } from 'vs/editor/common/commands/replaceCommand';
 import { CursorCollection, ICursorCollectionState } from 'vs/editor/common/controller/cursorCollection';
 import { IOneCursorOperationContext, IViewModelHelper, OneCursor, OneCursorOp } from 'vs/editor/common/controller/oneCursor';
@@ -925,6 +926,8 @@ export class Cursor extends EventEmitter {
 		this._handlers[H.WordSelect] = (ctx) => this._word(false, ctx);
 		this._handlers[H.WordSelectDrag] = (ctx) => this._word(true, ctx);
 		this._handlers[H.LastCursorWordSelect] = (ctx) => this._lastCursorWord(ctx);
+		this._handlers[H.RangeSelectDrag] = (ctx) => this._rangeSelectDrag(ctx);
+		this._handlers[H.DragTo] = (ctx) => this._dragTo(ctx);
 		this._handlers[H.CancelSelection] = (ctx) => this._cancelSelection(ctx);
 		this._handlers[H.RemoveSecondaryCursors] = (ctx) => this._removeSecondaryCursors(ctx);
 
@@ -1302,6 +1305,73 @@ export class Cursor extends EventEmitter {
 
 		ctx.shouldReveal = false;
 		ctx.shouldRevealHorizontal = false;
+
+		return true;
+	}
+
+	private _rangeSelectDrag(ctx: IMultipleCursorOperationContext): boolean {
+		if (this.configuration.editor.readOnly || this.model.hasEditableRange()) {
+			return false;
+		}
+
+		var lastAddedCursor = this.cursors.getLastAddedCursor();
+		if (lastAddedCursor.modelState.selection.isEmpty()) {
+			this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => {
+				if (oneCursor === lastAddedCursor) {
+					return OneCursorOp.moveTo(oneCursor, false, ctx.eventData.position, ctx.eventData.viewPosition, ctx.eventSource, oneCtx);
+				}
+				return false;
+			});
+		} if (!lastAddedCursor.modelState.selection.containsPosition(ctx.eventData.position)) {
+			this.cursors.addSecondaryCursor({
+				selectionStartLineNumber: 1,
+				selectionStartColumn: 1,
+				positionLineNumber: 1,
+				positionColumn: 1
+			});
+
+			// Manually move to get events
+			var lastAddedCursor = this.cursors.getLastAddedCursor();
+			this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => {
+				if (oneCursor === lastAddedCursor) {
+					return OneCursorOp.moveTo(oneCursor, false, ctx.eventData.position, ctx.eventData.viewPosition, ctx.eventSource, oneCtx);
+				}
+				return false;
+			});
+		}
+
+		ctx.shouldReveal = false;
+		ctx.shouldRevealHorizontal = false;
+
+		return true;
+	}
+
+	private _dragTo(ctx: IMultipleCursorOperationContext): boolean {
+		if (this.configuration.editor.readOnly || this.model.hasEditableRange()) {
+			return false;
+		}
+
+		let selections = this.getSelections().filter(selection => !selection.isEmpty());
+
+		if (selections.length !== 1) {
+			return false;
+		}
+
+		var lastAddedCursor = this.cursors.getLastAddedCursor();
+
+		if (selections[0].containsPosition(lastAddedCursor.modelState.position)) {
+			return false;
+		}
+
+		this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => {
+			if (oneCursor !== lastAddedCursor) {
+				return this._doApplyEdit(cursorIndex, oneCursor, oneCtx, () => new EditOperationResult(new DragAndDropCommand(oneCursor.modelState.selection, lastAddedCursor.modelState.position), {
+					shouldPushStackElementBefore: false,
+					shouldPushStackElementAfter: false
+				}));
+			}
+			return true;
+		});
 
 		return true;
 	}
