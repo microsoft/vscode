@@ -26,6 +26,6 @@
 	"javascript.validate.enable": "Enable/disable JavaScript validation.",
 	"typescript.goToProjectConfig.title": "Go to Project Configuration",
 	"javascript.goToProjectConfig.title": "Go to Project Configuration",
-	"typescript.referencesCodeLens.enabled": "Enable/disable the references code lens.",
+	"typescript.referencesCodeLens.enabled": "Enable/disable references CodeLens",
 	"typescript.selectTypeScriptVersion.title": "Select TypeScript Version"
 }
