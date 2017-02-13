@@ -2743,6 +2743,12 @@ export class OverviewRulerPosition {
 	}
 }
 
+export enum RenderMinimap {
+	None = 0,
+	Small = 1,
+	Large = 2
+}
+
 /**
  * The internal layout details of the editor.
  */
@@ -2816,6 +2822,11 @@ export class EditorLayoutInfo {
 	readonly minimapWidth: number;
 
 	/**
+	 * Minimap render type
+	 */
+	readonly renderMinimap: RenderMinimap;
+
+	/**
 	 * The number of columns (of typical characters) fitting on a viewport line.
 	 */
 	readonly viewportColumn: number;
@@ -2852,6 +2863,7 @@ export class EditorLayoutInfo {
 		contentLeft: number;
 		contentWidth: number;
 		contentHeight: number;
+		renderMinimap: RenderMinimap;
 		minimapWidth: number;
 		viewportColumn: number;
 		verticalScrollbarWidth: number;
@@ -2872,6 +2884,7 @@ export class EditorLayoutInfo {
 		this.contentLeft = source.contentLeft | 0;
 		this.contentWidth = source.contentWidth | 0;
 		this.contentHeight = source.contentHeight | 0;
+		this.renderMinimap = source.renderMinimap | 0;
 		this.minimapWidth = source.minimapWidth | 0;
 		this.viewportColumn = source.viewportColumn | 0;
 		this.verticalScrollbarWidth = source.verticalScrollbarWidth | 0;
@@ -2898,6 +2911,7 @@ export class EditorLayoutInfo {
 			&& this.contentLeft === other.contentLeft
 			&& this.contentWidth === other.contentWidth
 			&& this.contentHeight === other.contentHeight
+			&& this.renderMinimap === other.renderMinimap
 			&& this.minimapWidth === other.minimapWidth
 			&& this.viewportColumn === other.viewportColumn
 			&& this.verticalScrollbarWidth === other.verticalScrollbarWidth

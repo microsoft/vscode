@@ -13,7 +13,7 @@ import { Extensions, IConfigurationRegistry, IConfigurationNode } from 'vs/platf
 import { Registry } from 'vs/platform/platform';
 import { DefaultConfig, DEFAULT_INDENTATION, DEFAULT_TRIM_AUTO_WHITESPACE } from 'vs/editor/common/config/defaultConfig';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { EditorLayoutProvider, Minimap } from 'vs/editor/common/viewLayout/editorLayoutProvider';
+import { EditorLayoutProvider } from 'vs/editor/common/viewLayout/editorLayoutProvider';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { FontInfo, BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { Constants } from 'vs/editor/common/core/uint';
@@ -103,13 +103,15 @@ class InternalEditorOptionsHelper {
 	}
 
 	public static createInternalEditorOptions(
-		outerWidth: number, outerHeight: number,
+		outerWidth: number,
+		outerHeight: number,
 		opts: editorCommon.IEditorOptions,
 		fontInfo: FontInfo,
 		editorClassName: string,
 		isDominatedByLongLines: boolean,
 		maxLineNumber: number,
-		canUseTranslate3d: boolean
+		canUseTranslate3d: boolean,
+		pixelRatio: number
 	): editorCommon.InternalEditorOptions {
 
 		let wrappingColumn = toInteger(opts.wrappingColumn, -1);
@@ -185,7 +187,8 @@ class InternalEditorOptionsHelper {
 			horizontalScrollbarHeight: scrollbar.horizontalScrollbarSize,
 			scrollbarArrowSize: scrollbar.arrowSize,
 			verticalScrollbarHasArrows: scrollbar.verticalHasArrows,
-			minimap: Minimap.Large // TODO@minimap
+			minimap: true, // TODO@minimap
+			pixelRatio: pixelRatio
 		});
 
 		if (isDominatedByLongLines && wrappingColumn > 0) {
@@ -518,7 +521,8 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 			editorClassName,
 			this._isDominatedByLongLines,
 			this._maxLineNumber,
-			canUseTranslate3d
+			canUseTranslate3d,
+			this._getPixelRatio()
 		);
 	}
 
@@ -547,6 +551,8 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 	protected abstract getOuterHeight(): number;
 
 	protected abstract _getCanUseTranslate3d(): boolean;
+
+	protected abstract _getPixelRatio(): number;
 
 	protected abstract readConfiguration(styling: BareFontInfo): FontInfo;
 }

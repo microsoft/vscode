@@ -177,11 +177,11 @@ export class MinimapCharRenderer2 {
 	public readonly x1charData: Uint8ClampedArray;
 
 	constructor(x2CharData: Uint8ClampedArray, x1CharData: Uint8ClampedArray) {
-		const x2ExpectedLen = Constants.x2_CHAR_HEIGHT * Constants.x2_CHAR_WIDTH /** Constants.CA_CHANNELS_CNT*/ * Constants.CHAR_COUNT;
+		const x2ExpectedLen = Constants.x2_CHAR_HEIGHT * Constants.x2_CHAR_WIDTH * Constants.CHAR_COUNT;
 		if (x2CharData.length !== x2ExpectedLen) {
 			throw new Error('Invalid x2CharData');
 		}
-		const x1ExpectedLen = Constants.x1_CHAR_HEIGHT * Constants.x1_CHAR_WIDTH /** Constants.CA_CHANNELS_CNT*/ * Constants.CHAR_COUNT;
+		const x1ExpectedLen = Constants.x1_CHAR_HEIGHT * Constants.x1_CHAR_WIDTH * Constants.CHAR_COUNT;
 		if (x1CharData.length !== x1ExpectedLen) {
 			throw new Error('Invalid x1CharData');
 		}

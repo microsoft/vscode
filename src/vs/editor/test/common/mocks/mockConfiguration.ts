@@ -30,6 +30,10 @@ export class MockConfiguration extends CommonEditorConfiguration {
 		return true;
 	}
 
+	protected _getPixelRatio(): number {
+		return 1;
+	}
+
 	protected readConfiguration(styling: BareFontInfo): FontInfo {
 		return new FontInfo({
 			fontFamily: 'mockFont',
