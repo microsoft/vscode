@@ -7,15 +7,17 @@
 
 // import 'vs/css!./overlayWidgets';
 // import { StyleMutator } from 'vs/base/browser/styleMutator';
-import { EditorLayoutInfo } from 'vs/editor/common/editorCommon';
+// import { EditorLayoutInfo } from 'vs/editor/common/editorCommon';
 // import { ClassNames, IOverlayWidget, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
 import { ViewPart/*, PartFingerprint, PartFingerprints*/ } from 'vs/editor/browser/view/viewPart';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { IRenderingContext, IRestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
 import { /*createMinimapCharRenderer,*/ createMinimapCharRenderer2 } from 'vs/editor/common/view/runtimeMinimapCharRenderer';
 import * as browser from 'vs/base/browser/browser';
-import { Constants } from 'vs/editor/common/view/minimapCharRenderer';
+import { MinimapColors, MinimapTokensColorTracker, Constants } from 'vs/editor/common/view/minimapCharRenderer';
+import * as editorCommon from 'vs/editor/common/editorCommon';
 
+import { MinimapLineRenderingData } from 'vs/editor/common/viewModel/viewModel';
 // let charRenderer = createMinimapCharRenderer();
 let charRenderer2 = createMinimapCharRenderer2();
 
@@ -70,7 +72,7 @@ export class Minimap extends ViewPart {
 
 	// ---- begin view event handlers
 
-	public onLayoutChanged(layoutInfo: EditorLayoutInfo): boolean {
+	public onLayoutChanged(layoutInfo: editorCommon.EditorLayoutInfo): boolean {
 		this._minimapWidth = this._context.configuration.editor.layoutInfo.minimapWidth;
 		this._minimapHeight = this._context.configuration.editor.layoutInfo.height;
 		this._viewportColumn = this._context.configuration.editor.layoutInfo.viewportColumn;
@@ -83,6 +85,9 @@ export class Minimap extends ViewPart {
 		// this._horizontalScrollbarHeight = layoutInfo.horizontalScrollbarHeight;
 		// this._editorHeight = layoutInfo.height;
 		// this._editorWidth = layoutInfo.width;
+		return true;
+	}
+	public onModelTokensChanged(e: editorCommon.IViewTokensChangedEvent): boolean {
 		return true;
 	}
 
@@ -193,34 +198,38 @@ export class Minimap extends ViewPart {
 		// console.profile();
 
 		let ctx2 = this.domNode.getContext('2d');
+		// ctx2.fillStyle='#ffffff';
+		// ctx2.fillRect(0, 0, WIDTH, HEIGHT);
 		let imageData = ctx2.createImageData(lineLen * 2, 4 * lineCount);
 
+		let colorTracker = MinimapTokensColorTracker.getInstance();
+		let colors = colorTracker.getColorMaps();
+
+		let background = colors.getBackgroundColor();
+		let backgroundR = background.r;
+		let backgroundG = background.g;
+		let backgroundB = background.b;
 		// set up the background
-		// let offset = 0;
-		// for (let i = 0; i < HEIGHT; i++) {
-		// 	for (let j = 0; j < WIDTH; j++) {
-		// 		imageData.data[offset] = 0;
-		// 		imageData.data[offset + 1] = 0;
-		// 		imageData.data[offset + 2] = 0;
-		// 		imageData.data[offset + 3] = 255;
-		// 		offset += 4;
-		// 	}
-		// }
+		let offset = 0;
+		for (let i = 0; i < HEIGHT; i++) {
+			for (let j = 0; j < WIDTH; j++) {
+				imageData.data[offset] = backgroundR;
+				imageData.data[offset + 1] = backgroundG;
+				imageData.data[offset + 2] = backgroundB;
+				imageData.data[offset + 3] = 255;
+				offset += 4;
+			}
+		}
 
 		for (let lineIndex = 0; lineIndex < lineCount; lineIndex++) {
 			let data = this._context.model.getMinimapLineRenderingData(lineIndex + 1);
-			let length = Math.min(data.content.length, lineLen);
+			// let length = Math.min(data.content.length, lineLen);
 
 			let dy = lineIndex * Constants.x2_CHAR_HEIGHT;
 
-			for (let charIndex = 0; charIndex < length; charIndex++) {
-				let charCode = data.content.charCodeAt(charIndex);
+			Minimap._render2xLine(imageData, colors, dy, this._viewportColumn, data);
 
-				let dx = charIndex * Constants.x2_CHAR_WIDTH;
 
-				charRenderer2.x2RenderChar(imageData, dx, dy, charCode);
-				// charRenderer2.x2RenderChar(imageData.data, lineLen, lineIndex, charIndex, charCode);
-			}
 			// break;
 		}
 
@@ -249,5 +258,30 @@ export class Minimap extends ViewPart {
 		// 	this._renderWidget(this._widgets[widgetId]);
 		// }
 	}
-}
 
+	private static _render2xLine(target: ImageData, colors: MinimapColors, dy: number, maxColumn: number, lineData: MinimapLineRenderingData) {
+		const content = lineData.content;
+		const tokens = lineData.tokens;
+		const charIndexStop = Math.min(content.length, maxColumn - 1);
+
+		let dx = 0;
+		let charIndex = 0;
+		for (let tokenIndex = 0, tokensLen = tokens.length; tokenIndex < tokensLen; tokenIndex++) {
+			const token = tokens[tokenIndex];
+			const tokenEndIndex = token.endIndex;
+			const tokenColorId = token.getForeground();
+			const tokenColor = colors.getMinimapColor(tokenColorId);
+
+			for (; charIndex < tokenEndIndex; charIndex++) {
+				if (charIndex >= charIndexStop) {
+					// hit edge of minimap
+					return;
+				}
+				const charCode = content.charCodeAt(charIndex);
+
+				charRenderer2.x2RenderChar(target, dx, dy, charCode, tokenColor);
+				dx += Constants.x2_CHAR_WIDTH;
+			}
+		}
+	}
+}
