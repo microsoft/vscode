@@ -1185,13 +1185,13 @@ export class SearchViewlet extends Viewlet {
 
 	private buildResultCountMessage(resultCount: number, fileCount: number): string {
 		if (resultCount === 1 && fileCount === 1) {
-			return nls.localize('search.file.result', "Found {0} result in {1} file", resultCount, fileCount);
+			return nls.localize('search.file.result', "{0} result in {1} file", resultCount, fileCount);
 		} else if (resultCount === 1) {
-			return nls.localize('search.files.result', "Found {0} result in {1} files", resultCount, fileCount);
+			return nls.localize('search.files.result', "{0} result in {1} files", resultCount, fileCount);
 		} else if (fileCount === 1) {
-			return nls.localize('search.file.results', "Found {0} results in {1} file", resultCount, fileCount);
+			return nls.localize('search.file.results', "{0} results in {1} file", resultCount, fileCount);
 		} else {
-			return nls.localize('search.files.results', "Found {0} results in {1} files", resultCount, fileCount);
+			return nls.localize('search.files.results', "{0} results in {1} files", resultCount, fileCount);
 		}
 	}
 
