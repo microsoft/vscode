@@ -315,6 +315,7 @@ export class SearchViewlet extends Viewlet {
 	private onSearchResultsChanged(event?: IChangeEvent): TPromise<any> {
 		return this.refreshTree(event).then(() => {
 			this.searchWidget.setReplaceAllActionState(!this.viewModel.searchResult.isEmpty());
+			this.updateSearchResultCount();
 		});
 	}
 
@@ -1092,8 +1093,7 @@ export class SearchViewlet extends Viewlet {
 			} else {
 				this.viewModel.searchResult.toggleHighlights(true); // show highlights
 
-				// Indicate final search result count in viewlet label and ARIA
-				this.updateSearchResultCount();
+				// Indicate final search result count for ARIA
 				aria.status(nls.localize('ariaSearchResultsStatus', "Search returned {0} results in {1} files", this.viewModel.searchResult.count(), this.viewModel.searchResult.fileCount()));
 			}
 		};
