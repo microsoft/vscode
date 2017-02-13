@@ -35,7 +35,9 @@
     "onCommand:javascript.reloadProjects",
     "onCommand:typescript.selectTypeScriptVersion",
     "onCommand:javascript.goToProjectConfig",
-    "onCommand:typescript.goToProjectConfig"
+    "onCommand:typescript.goToProjectConfig",
+    "workspaceContains:jsconfig.json",
+    "workspaceContains:tsconfig.json"
   ],
   "main": "./out/typescriptMain",
   "enableProposedApi": true,
