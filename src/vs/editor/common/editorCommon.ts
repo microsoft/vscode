@@ -948,6 +948,7 @@ export interface IViewConfigurationChangedEvent {
 export class EditorContribOptions {
 	readonly selectionClipboard: boolean;
 	readonly hover: boolean;
+	readonly dragndrop: boolean;
 	readonly contextmenu: boolean;
 	readonly quickSuggestions: boolean;
 	readonly quickSuggestionsDelay: number;
@@ -4136,6 +4137,7 @@ export var EventType = {
 	MouseUp: 'mouseup',
 	MouseMove: 'mousemove',
 	MouseLeave: 'mouseleave',
+	MouseDrag: 'mousedrag',
 	KeyDown: 'keydown',
 	KeyUp: 'keyup',
 
@@ -4485,7 +4487,6 @@ export var Handler = {
 	WordSelectDrag: 'wordSelectDrag',
 	LastCursorWordSelect: 'lastCursorWordSelect',
 
-	RangeSelectDrag: 'rangeSelectDrag',
 	DragTo: 'dragTo',
 
 	LineSelect: 'lineSelect',

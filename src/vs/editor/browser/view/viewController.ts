@@ -142,9 +142,6 @@ export class ViewController implements IViewController {
 					case MouseDownEventType.Select:
 						this.moveToSelect('mouse', data.position);
 						break;
-					case MouseDownEventType.Drag:
-						this.rangeSelectDrag('mouse', data.position);
-						break;
 					default:
 						break;
 				}
@@ -223,14 +220,6 @@ export class ViewController implements IViewController {
 		});
 	}
 
-	private rangeSelectDrag(source: string, viewPosition: Position): void {
-		viewPosition = this._validateViewColumn(viewPosition);
-		this.triggerCursorHandler(source, editorCommon.Handler.RangeSelectDrag, {
-			position: this.convertViewToModelPosition(viewPosition),
-			viewPosition: viewPosition
-		});
-	}
-
 	private lineSelect(source: string, viewPosition: Position): void {
 		viewPosition = this._validateViewColumn(viewPosition);
 		this.triggerCursorHandler(source, editorCommon.Handler.LineSelect, {
@@ -299,5 +288,9 @@ export class ViewController implements IViewController {
 
 	public emitMouseDown(e: IEditorMouseEvent): void {
 		this.outgoingEvents.emitMouseDown(e);
+	}
+
+	public emitMouseDrag(e: IEditorMouseEvent): void {
+		this.outgoingEvents.emitMouseDrag(e);
 	}
 }

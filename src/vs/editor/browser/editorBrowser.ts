@@ -137,6 +137,7 @@ export interface IViewController {
 	emitMouseLeave(e: IEditorMouseEvent): void;
 	emitMouseUp(e: IEditorMouseEvent): void;
 	emitMouseDown(e: IEditorMouseEvent): void;
+	emitMouseDrag(e: IEditorMouseEvent): void;
 }
 
 /**
@@ -416,6 +417,11 @@ export interface ICodeEditor extends editorCommon.ICommonCodeEditor {
 	 * @event
 	 */
 	onMouseDown(listener: (e: IEditorMouseEvent) => void): IDisposable;
+	/**
+	 * An event emitted on a "mousedrag".
+	 * @event
+	 */
+	onMouseDrag(listener: (e: IEditorMouseEvent) => void): IDisposable;
 	/**
 	 * An event emitted on a "contextmenu".
 	 * @event
