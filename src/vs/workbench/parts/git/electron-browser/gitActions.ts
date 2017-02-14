@@ -18,6 +18,7 @@ import * as url from 'url';
 import { remote } from 'electron';
 
 const dialog = remote.dialog;
+var defaultCloneLocation: string;
 
 export class CloneAction extends Action {
 
@@ -32,9 +33,11 @@ export class CloneAction extends Action {
 		@IWorkspaceContextService private workspaceService: IWorkspaceContextService
 	) {
 		super(id, label);
+		defaultCloneLocation = gitService.defaultCloneLocation;
 	}
 
 	run(): TPromise<void> {
+
 		return this.quickOpenService.input({
 			prompt: localize('valid', "Provide a valid git repository URL"),
 			placeHolder: localize('url', "Repository URL"),
@@ -53,20 +56,26 @@ export class CloneAction extends Action {
 					return TPromise.as(null);
 				}
 
-				const result = dialog.showOpenDialog(remote.getCurrentWindow(), {
-					title: localize('directory', "Destination clone directory"),
-					properties: ['openDirectory', 'createDirectory']
-				});
+				var cloneLocation: string = defaultCloneLocation;
 
-				if (!result || result.length === 0) {
-					return TPromise.as(null);
+				if (cloneLocation === null) {
+					const result = dialog.showOpenDialog(remote.getCurrentWindow(), {
+						title: localize('directory', "Destination clone directory"),
+						properties: ['openDirectory', 'createDirectory']
+					});
+
+					if (!result || result.length === 0) {
+						return TPromise.as(null);
+					}
+
+					defaultCloneLocation = result[0];
 				}
 
 				const promise = TPromise.timeout(200)
 					.then(() => this.messageService.show(Severity.Info, localize('cloning', "Cloning repository '{0}'...", url)))
 					.then(close => new TPromise(() => null, close));
 
-				const clone = always(this.gitService.clone(url, result[0]), () => promise.cancel());
+				const clone = always(this.gitService.clone(url, cloneLocation), () => promise.cancel());
 
 				return clone.then(path => {
 					const forceNewWindow = this.workspaceService.hasWorkspace();

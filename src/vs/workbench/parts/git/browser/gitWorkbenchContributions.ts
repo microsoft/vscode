@@ -199,6 +199,11 @@ export function registerContributions(): void {
 				default: null,
 				isExecutable: true
 			},
+			'git.defaultCloneLocation': {
+				type: ['string', 'null'],
+				description: nls.localize('gitCloneDefaultLocation', "Path where git repositories shall be cloned"),
+				default: null
+			},
 			'git.autorefresh': {
 				type: 'boolean',
 				description: nls.localize('gitAutoRefresh', "Whether auto refreshing is enabled"),
