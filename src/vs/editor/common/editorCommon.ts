@@ -948,7 +948,6 @@ export interface IViewConfigurationChangedEvent {
 export class EditorContribOptions {
 	readonly selectionClipboard: boolean;
 	readonly hover: boolean;
-	readonly dragndrop: boolean;
 	readonly contextmenu: boolean;
 	readonly quickSuggestions: boolean;
 	readonly quickSuggestionsDelay: number;

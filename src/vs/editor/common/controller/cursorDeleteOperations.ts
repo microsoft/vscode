@@ -196,4 +196,5 @@ export class DeleteOperations {
 			return this.deleteRight(config, model, cursor);
 		}
 	}
+
 }
