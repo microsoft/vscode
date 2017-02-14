@@ -202,6 +202,10 @@ export class MinimapCharRenderer2 {
 	}
 
 	public x2RenderChar(target: ImageData, dx: number, dy: number, chCode: number, color: ParsedColor, backgroundColor: ParsedColor): void {
+		if (dx + Constants.x2_CHAR_WIDTH > target.width || dy + Constants.x2_CHAR_HEIGHT > target.height) {
+			console.warn('bad render request outside image data');
+			return;
+		}
 		const x2CharData = this.x2charData;
 		const chIndex = MinimapCharRenderer2._getChIndex(chCode);
 
@@ -274,26 +278,41 @@ export class MinimapCharRenderer2 {
 		}
 	}
 
-	public x1RenderChar(target: ImageData, dx: number, dy: number, chCode: number): void {
+	public x1RenderChar(target: ImageData, dx: number, dy: number, chCode: number, color: ParsedColor, backgroundColor: ParsedColor): void {
+		if (dx + Constants.x1_CHAR_WIDTH > target.width || dy + Constants.x1_CHAR_HEIGHT > target.height) {
+			console.warn('bad render request outside image data');
+			return;
+		}
 		const x1CharData = this.x1charData;
 		const chIndex = MinimapCharRenderer2._getChIndex(chCode);
-		const sourceOffset = chIndex * Constants.x1_CHAR_HEIGHT * Constants.x1_CHAR_WIDTH;
-		const c1 = x1CharData[sourceOffset];
-		const c2 = x1CharData[sourceOffset + 1];
 
 		const outWidth = target.width * Constants.RGBA_CHANNELS_CNT;
-		let resultOffset = dy * outWidth + dx * Constants.RGBA_CHANNELS_CNT;
+
+		const backgroundR = backgroundColor.r;
+		const backgroundG = backgroundColor.g;
+		const backgroundB = backgroundColor.b;
+
+		const deltaR = color.r - backgroundR;
+		const deltaG = color.g - backgroundG;
+		const deltaB = color.b - backgroundB;
 
 		const dest = target.data;
-		dest[resultOffset + 0] = c1;
-		dest[resultOffset + 1] = c1;
-		dest[resultOffset + 2] = c1;
-		dest[resultOffset + 3] = 255;
-		resultOffset += outWidth;
-		dest[resultOffset + 0] = c2;
-		dest[resultOffset + 1] = c2;
-		dest[resultOffset + 2] = c2;
-		dest[resultOffset + 3] = 255;
+		const sourceOffset = chIndex * Constants.x1_CHAR_HEIGHT * Constants.x1_CHAR_WIDTH;
+		let destOffset = dy * outWidth + dx * Constants.RGBA_CHANNELS_CNT;
+		{
+			const c = x1CharData[sourceOffset] / 255;
+			dest[destOffset + 0] = backgroundR + deltaR * c;
+			dest[destOffset + 1] = backgroundG + deltaG * c;
+			dest[destOffset + 2] = backgroundB + deltaB * c;
+		}
+
+		destOffset += outWidth;
+		{
+			const c = x1CharData[sourceOffset + 1] / 255;
+			dest[destOffset + 0] = backgroundR + deltaR * c;
+			dest[destOffset + 1] = backgroundG + deltaG * c;
+			dest[destOffset + 2] = backgroundB + deltaB * c;
+		}
 	}
 }
 
