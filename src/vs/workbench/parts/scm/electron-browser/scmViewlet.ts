@@ -35,6 +35,18 @@ import { isDarkTheme } from 'vs/platform/theme/common/themes';
 import { SCMEditor } from './scmEditor';
 import { IModelService } from 'vs/editor/common/services/modelService';
 
+function isSCMResource(element: ISCMResourceGroup | ISCMResource): element is ISCMResource {
+	return !!(element as ISCMResource).uri;
+}
+
+function getElementId(element: ISCMResourceGroup | ISCMResource) {
+	if (isSCMResource(element)) {
+		return `${element.resourceGroupId}:${element.uri.toString()}`;
+	} else {
+		return `${element.id}`;
+	}
+}
+
 interface SearchInputEvent extends Event {
 	target: HTMLInputElement;
 	immediate?: boolean;
@@ -135,7 +147,7 @@ class Delegate implements IDelegate<ISCMResourceGroup | ISCMResource> {
 	getHeight() { return 22; }
 
 	getTemplateId(element: ISCMResourceGroup | ISCMResource) {
-		return (element as ISCMResource).uri ? ResourceRenderer.TEMPLATE_ID : ResourceGroupRenderer.TEMPLATE_ID;
+		return isSCMResource(element) ? ResourceRenderer.TEMPLATE_ID : ResourceGroupRenderer.TEMPLATE_ID;
 	}
 }
 
@@ -198,17 +210,21 @@ export class SCMViewlet extends Viewlet {
 		const delegate = new Delegate();
 
 		const actionItemProvider = action => this.getActionItem(action);
-
-		this.list = new List(this.listContainer, delegate, [
+		const renderers = [
 			new ResourceGroupRenderer(this.menus, actionItemProvider),
 			this.instantiationService.createInstance(ResourceRenderer, this.menus, actionItemProvider),
-		], { keyboardSupport: false });
+		];
+
+		this.list = new List(this.listContainer, delegate, renderers, {
+			identityProvider: e => getElementId(e),
+			keyboardSupport: false
+		});
 
 		this.disposables.push(this.listService.register(this.list));
 
 		chain(this.list.onSelectionChange)
 			.map(e => e.elements[0])
-			.filter(e => !!e && !!(e as ISCMResource).uri)
+			.filter(e => !!e && isSCMResource(e))
 			.on(this.open, this, this.disposables);
 
 		this.list.onContextMenu(this.onListContextMenu, this, this.disposables);
@@ -279,12 +295,10 @@ export class SCMViewlet extends Viewlet {
 		const element = e.element;
 		let actions: IAction[];
 
-		if ((element as ISCMResource).uri) {
-			const resource = element as ISCMResource;
-			actions = this.menus.getResourceContextActions(resource);
+		if (isSCMResource(element)) {
+			actions = this.menus.getResourceContextActions(element);
 		} else {
-			const resourceGroup = element as ISCMResourceGroup;
-			actions = this.menus.getResourceGroupContextActions(resourceGroup);
+			actions = this.menus.getResourceGroupContextActions(element);
 		}
 
 		this.contextMenuService.showContextMenu({
