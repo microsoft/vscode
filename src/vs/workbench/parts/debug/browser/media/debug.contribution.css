@@ -17,7 +17,7 @@
 }
 
 .monaco-editor .debug-top-stack-frame-column {
-	background: rgba(255, 200, 0, 0.2);
+	background: rgba(255, 200, 0, 0.7);
 }
 
 .monaco-editor .debug-focused-stack-frame-line {
@@ -244,4 +244,8 @@
 .hc-black .monaco-editor .debug-top-stack-frame-line {
 	background: rgba(255, 246, 0, .87);
 	mix-blend-mode: lighten; /* Preserves text selection's contrast */
+}
+
+.hc-black .monaco-editor .debug-top-stack-frame-column {
+	outline: 2px solid #ff0000;
 }
