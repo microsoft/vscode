@@ -67,7 +67,7 @@ export class PagedList<T> {
 		container: HTMLElement,
 		delegate: IDelegate<number>,
 		renderers: IPagedRenderer<T, any>[],
-		options: IListOptions = {}
+		options: IListOptions<any> = {} // TODO@Joao: should be IListOptions<T>
 	) {
 		const pagedRenderers = renderers.map(r => new PagedRenderer<T, ITemplateData<T>>(r, () => this.model));
 		this.list = new List(container, delegate, pagedRenderers, options);
