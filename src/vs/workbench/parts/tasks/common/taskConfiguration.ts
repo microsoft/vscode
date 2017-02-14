@@ -61,9 +61,9 @@ export interface PlatformTaskDescription {
 
 export interface CommandBinding {
 	/**
-	 * The command Id the task is bound to.
+	 * The command identifer the task is bound to.
 	 */
-	commandId?: string;
+	identifier?: string;
 
 	/**
 	 * The title to use
@@ -652,7 +652,7 @@ namespace ProblemMatcherConverter {
 
 namespace CommandBinding {
 	export function isEmpty(value: TaskSystem.CommandBinding): boolean {
-		return !value || value.commandId === void 0 && value.title === void 0 && value.category === void 0;
+		return !value || value.identifier === void 0 && value.title === void 0 && value.category === void 0;
 	}
 
 	export function from(this: void, binding: CommandBinding, context: ParseContext): TaskSystem.CommandBinding {
@@ -660,19 +660,14 @@ namespace CommandBinding {
 			return undefined;
 		}
 
-		if (!Types.isString(binding.commandId)) {
+		if (!Types.isString(binding.identifier)) {
 			context.validationStatus.state = ValidationState.Warning;
-			context.logger.log(nls.localize('noCommandId', 'Warning: a command binding must defined a commandId. Ignoring binding.'));
-			return undefined;
-		}
-		if (!Types.isString(binding.title)) {
-			context.validationStatus.state = ValidationState.Warning;
-			context.logger.log(nls.localize('noTitle', 'Warning: a command binding must defined a title. Ignoring binding.'));
+			context.logger.log(nls.localize('noCommandId', 'Warning: a command binding must defined an identifier. Ignoring binding.'));
 			return undefined;
 		}
 		let result: TaskSystem.CommandBinding = {
-			commandId: binding.commandId,
-			title: binding.title
+			identifier: binding.identifier,
+			title: ''
 		};
 		if (Types.isString(binding.category)) {
 			result.category = binding.category;
