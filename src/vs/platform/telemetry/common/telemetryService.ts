@@ -7,7 +7,7 @@
 
 import { localize } from 'vs/nls';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
-import { ITelemetryService, ITelemetryInfo, ITelemetryExperiments } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryService, ITelemetryInfo, ITelemetryExperiments, ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { ITelemetryAppender, defaultExperiments } from 'vs/platform/telemetry/common/telemetryUtils';
 import { optional } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -100,7 +100,7 @@ export class TelemetryService implements ITelemetryService {
 		this._disposables = dispose(this._disposables);
 	}
 
-	publicLog(eventName: string, data?: any): TPromise<any> {
+	publicLog(eventName: string, data?: ITelemetryData): TPromise<any> {
 		// don't send events when the user is optout
 		if (!this._userOptIn) {
 			return TPromise.as(undefined);
