@@ -339,9 +339,6 @@ export class Minimap extends ViewPart {
 					// hit edge of minimap
 					return;
 				}
-				// if (charIndex >= content.length) {
-				// 	console.log('SERIOUSLY');
-				// }
 				const charCode = content.charCodeAt(charIndex);
 
 				if (charCode === CharCode.Tab) {

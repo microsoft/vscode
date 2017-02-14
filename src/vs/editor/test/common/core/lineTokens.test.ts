@@ -8,6 +8,7 @@
 import * as assert from 'assert';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { MetadataConsts } from 'vs/editor/common/modes';
+import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
 
 suite('LineTokens', () => {
 
@@ -200,8 +201,92 @@ suite('LineTokens', () => {
 		assert.equal(token, null);
 	});
 
-	// test('inflate', () => {
-	// 	const lineTokens = createTestLineTokens();
-	// });
+	interface ITestViewLineToken {
+		endIndex: number;
+		foreground: number;
+	}
 
+	function assertViewLineTokens(actual: ViewLineToken[], expected: ITestViewLineToken[]): void {
+		assert.deepEqual(actual.map(token => {
+			return {
+				endIndex: token.endIndex,
+				foreground: token.getForeground()
+			};
+		}), expected);
+	}
+
+	test('inflate', () => {
+		const lineTokens = createTestLineTokens();
+		assertViewLineTokens(lineTokens.inflate(), [
+			{ endIndex: 6, foreground: 1 },
+			{ endIndex: 13, foreground: 2 },
+			{ endIndex: 18, foreground: 3 },
+			{ endIndex: 21, foreground: 4 },
+			{ endIndex: 23, foreground: 5 },
+			{ endIndex: 30, foreground: 6 },
+			{ endIndex: 33, foreground: 7 },
+		]);
+	});
+
+	test('sliceAndInflate', () => {
+		const lineTokens = createTestLineTokens();
+		assertViewLineTokens(lineTokens.sliceAndInflate(0, 33, 0), [
+			{ endIndex: 6, foreground: 1 },
+			{ endIndex: 13, foreground: 2 },
+			{ endIndex: 18, foreground: 3 },
+			{ endIndex: 21, foreground: 4 },
+			{ endIndex: 23, foreground: 5 },
+			{ endIndex: 30, foreground: 6 },
+			{ endIndex: 33, foreground: 7 },
+		]);
+
+		assertViewLineTokens(lineTokens.sliceAndInflate(0, 32, 0), [
+			{ endIndex: 6, foreground: 1 },
+			{ endIndex: 13, foreground: 2 },
+			{ endIndex: 18, foreground: 3 },
+			{ endIndex: 21, foreground: 4 },
+			{ endIndex: 23, foreground: 5 },
+			{ endIndex: 30, foreground: 6 },
+			{ endIndex: 32, foreground: 7 },
+		]);
+
+		assertViewLineTokens(lineTokens.sliceAndInflate(0, 30, 0), [
+			{ endIndex: 6, foreground: 1 },
+			{ endIndex: 13, foreground: 2 },
+			{ endIndex: 18, foreground: 3 },
+			{ endIndex: 21, foreground: 4 },
+			{ endIndex: 23, foreground: 5 },
+			{ endIndex: 30, foreground: 6 }
+		]);
+
+		assertViewLineTokens(lineTokens.sliceAndInflate(0, 30, 1), [
+			{ endIndex: 7, foreground: 1 },
+			{ endIndex: 14, foreground: 2 },
+			{ endIndex: 19, foreground: 3 },
+			{ endIndex: 22, foreground: 4 },
+			{ endIndex: 24, foreground: 5 },
+			{ endIndex: 31, foreground: 6 }
+		]);
+
+		assertViewLineTokens(lineTokens.sliceAndInflate(6, 18, 0), [
+			{ endIndex: 7, foreground: 2 },
+			{ endIndex: 12, foreground: 3 }
+		]);
+
+		assertViewLineTokens(lineTokens.sliceAndInflate(7, 18, 0), [
+			{ endIndex: 6, foreground: 2 },
+			{ endIndex: 11, foreground: 3 }
+		]);
+
+		assertViewLineTokens(lineTokens.sliceAndInflate(6, 17, 0), [
+			{ endIndex: 7, foreground: 2 },
+			{ endIndex: 11, foreground: 3 }
+		]);
+
+		assertViewLineTokens(lineTokens.sliceAndInflate(6, 19, 0), [
+			{ endIndex: 7, foreground: 2 },
+			{ endIndex: 12, foreground: 3 },
+			{ endIndex: 13, foreground: 4 },
+		]);
+	});
 });
