@@ -348,6 +348,7 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 
 		// classes
 		InternalEditorScrollbarOptions: <any>editorCommon.InternalEditorScrollbarOptions,
+		InternalEditorMinimapOptions: <any>editorCommon.InternalEditorMinimapOptions,
 		EditorWrappingInfo: <any>editorCommon.EditorWrappingInfo,
 		InternalEditorViewOptions: <any>editorCommon.InternalEditorViewOptions,
 		EditorContribOptions: <any>editorCommon.EditorContribOptions,

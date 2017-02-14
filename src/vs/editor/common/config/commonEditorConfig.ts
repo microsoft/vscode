@@ -128,6 +128,7 @@ class InternalEditorOptionsHelper {
 
 		let mouseWheelScrollSensitivity = toFloat(opts.mouseWheelScrollSensitivity, 1);
 		let scrollbar = this._sanitizeScrollbarOpts(opts.scrollbar, mouseWheelScrollSensitivity);
+		let minimap = this._sanitizeMinimapOpts(opts.minimap);
 
 		let glyphMargin = toBoolean(opts.glyphMargin);
 		let lineNumbers = opts.lineNumbers;
@@ -187,7 +188,7 @@ class InternalEditorOptionsHelper {
 			horizontalScrollbarHeight: scrollbar.horizontalScrollbarSize,
 			scrollbarArrowSize: scrollbar.arrowSize,
 			verticalScrollbarHasArrows: scrollbar.verticalHasArrows,
-			minimap: true, // TODO@minimap
+			minimap: minimap.enabled,
 			pixelRatio: pixelRatio
 		});
 
@@ -281,6 +282,7 @@ class InternalEditorOptionsHelper {
 			renderIndentGuides: toBoolean(opts.renderIndentGuides),
 			renderLineHighlight: renderLineHighlight,
 			scrollbar: scrollbar,
+			minimap: minimap,
 			fixedOverflowWidgets: toBoolean(opts.fixedOverflowWidgets)
 		});
 
@@ -356,6 +358,12 @@ class InternalEditorOptionsHelper {
 
 			handleMouseWheel: toBooleanWithDefault(raw.handleMouseWheel, true),
 			mouseWheelScrollSensitivity: mouseWheelScrollSensitivity
+		});
+	}
+
+	private static _sanitizeMinimapOpts(raw: editorCommon.IEditorMinimapOptions): editorCommon.InternalEditorMinimapOptions {
+		return new editorCommon.InternalEditorMinimapOptions({
+			enabled: toBooleanWithDefault(raw.enabled, false)
 		});
 	}
 }

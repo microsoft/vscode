@@ -296,7 +296,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		this.overflowGuardContainer.appendChild(this.overlayWidgets.domNode);
 		this.overflowGuardContainer.appendChild(this.textArea);
 		this.overflowGuardContainer.appendChild(this.textAreaCover);
-		this.overflowGuardContainer.appendChild(minimap.domNode);
+		this.overflowGuardContainer.appendChild(minimap.getDomNode());
 		this.domNode.appendChild(this.overflowGuardContainer);
 		this.domNode.appendChild(this.contentWidgets.overflowingContentWidgetsDomNode);
 	}
