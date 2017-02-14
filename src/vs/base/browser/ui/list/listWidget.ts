@@ -16,6 +16,10 @@ import { domEvent } from 'vs/base/browser/event';
 import { IDelegate, IRenderer, IListMouseEvent, IFocusChangeEvent, ISelectionChangeEvent } from './list';
 import { ListView, IListViewOptions } from './listView';
 
+export interface IIdentityProvider<T> {
+	(element: T): string;
+}
+
 interface ITraitTemplateData<D> {
 	container: HTMLElement;
 	data: D;
@@ -63,18 +67,14 @@ class Trait<T> implements IDisposable {
 		this.indexes = [];
 	}
 
-	splice(start: number, deleteCount: number, insertCount: number): void {
-		const diff = insertCount - deleteCount;
+	splice(start: number, deleteCount: number, elements: boolean[]): void {
+		const diff = elements.length - deleteCount;
 		const end = start + deleteCount;
-		const indexes: number[] = [];
-
-		for (let index of indexes) {
-			if (index >= start && index < end) {
-				continue;
-			}
-
-			indexes.push(index > start ? index + diff : index);
-		}
+		const indexes = [
+			...this.indexes.filter(i => i < start),
+			...elements.reduce((r, hasTrait, i) => hasTrait ? [...r, i + start] : r, []),
+			...this.indexes.filter(i => i >= end).map(i => i + diff)
+		];
 
 		this.indexes = indexes;
 		this._onChange.fire({ indexes });
@@ -111,14 +111,16 @@ class Trait<T> implements IDisposable {
 
 class FocusTrait<T> extends Trait<T> {
 
-	constructor(private getElementId: (number: number) => string) {
+	constructor(
+		private getDomId: IIdentityProvider<number>
+	) {
 		super('focused');
 	}
 
 	renderElement(element: T, index: number, container: HTMLElement): void {
 		super.renderElement(element, index, container);
 		container.setAttribute('role', 'treeitem');
-		container.setAttribute('id', this.getElementId(index));
+		container.setAttribute('id', this.getDomId(index));
 	}
 }
 
@@ -215,13 +217,14 @@ class MouseController<T> implements IDisposable {
 	}
 }
 
-export interface IListOptions extends IListViewOptions {
+export interface IListOptions<T> extends IListViewOptions {
+	identityProvider?: IIdentityProvider<T>;
 	ariaLabel?: string;
 	mouseSupport?: boolean;
 	keyboardSupport?: boolean;
 }
 
-const DefaultOptions: IListOptions = {
+const DefaultOptions: IListOptions<any> = {
 	keyboardSupport: true,
 	mouseSupport: true
 };
@@ -235,16 +238,17 @@ export class List<T> implements IDisposable {
 	private selection: Trait<T>;
 	private eventBufferer: EventBufferer;
 	private view: ListView<T>;
+	private getId?: IIdentityProvider<T>;
 	private disposables: IDisposable[];
 
 	@memoize
 	get onFocusChange(): Event<IFocusChangeEvent<T>> {
-		return this.eventBufferer.wrapEvent(mapEvent(this.focus.onChange, e => this.toListEvent(e)));
+		return mapEvent(this.eventBufferer.wrapEvent(this.focus.onChange), e => this.toListEvent(e));
 	}
 
 	@memoize
 	get onSelectionChange(): Event<ISelectionChangeEvent<T>> {
-		return this.eventBufferer.wrapEvent(mapEvent(this.selection.onChange, e => this.toListEvent(e)));
+		return mapEvent(this.eventBufferer.wrapEvent(this.selection.onChange), e => this.toListEvent(e));
 	}
 
 	@memoize
@@ -265,11 +269,12 @@ export class List<T> implements IDisposable {
 		container: HTMLElement,
 		delegate: IDelegate<T>,
 		renderers: IRenderer<T, any>[],
-		options: IListOptions = DefaultOptions
+		options: IListOptions<T> = DefaultOptions
 	) {
-		this.focus = new FocusTrait(i => this.getElementId(i));
+		this.focus = new FocusTrait(i => this.getElementDomId(i));
 		this.selection = new Trait('selected');
 		this.eventBufferer = new EventBufferer();
+		this.getId = options.identityProvider;
 
 		renderers = renderers.map(r => {
 			r = this.focus.wrapRenderer(r);
@@ -304,8 +309,14 @@ export class List<T> implements IDisposable {
 
 	splice(start: number, deleteCount: number, elements: T[] = []): void {
 		this.eventBufferer.bufferEvents(() => {
-			this.focus.splice(start, deleteCount, elements.length);
-			this.selection.splice(start, deleteCount, elements.length);
+			const focus = this.focus.get().map(i => this.getId(this.view.element(i)));
+			const focusElements = elements.map(e => focus.indexOf(this.getId(e)) > -1);
+
+			const selection = this.selection.get().map(i => this.getId(this.view.element(i)));
+			const selectionElements = elements.map(e => selection.indexOf(this.getId(e)) > -1);
+
+			this.focus.splice(start, deleteCount, focusElements);
+			this.selection.splice(start, deleteCount, selectionElements);
 			this.view.splice(start, deleteCount, elements);
 		});
 	}
@@ -457,7 +468,7 @@ export class List<T> implements IDisposable {
 		}
 	}
 
-	getElementId(index: number): string {
+	getElementDomId(index: number): string {
 		return `${this.idPrefix}_${index}`;
 	}
 
@@ -477,7 +488,7 @@ export class List<T> implements IDisposable {
 		const focus = this.focus.get();
 
 		if (focus.length > 0) {
-			this.view.domNode.setAttribute('aria-activedescendant', this.getElementId(focus[0]));
+			this.view.domNode.setAttribute('aria-activedescendant', this.getElementDomId(focus[0]));
 		} else {
 			this.view.domNode.removeAttribute('aria-activedescendant');
 		}
