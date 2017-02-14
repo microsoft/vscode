@@ -8,7 +8,7 @@ import * as assert from 'assert';
 import { DecorationSegment, LineDecorationsNormalizer, Decoration } from 'vs/editor/common/viewLayout/viewLineParts';
 import { Range } from 'vs/editor/common/core/range';
 import { RenderLineInput, renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
-import { ViewLineToken2 } from 'vs/editor/common/core/viewLineToken';
+import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
 import { InlineDecoration } from 'vs/editor/common/viewModel/viewModel';
 import { MetadataConsts } from 'vs/editor/common/modes';
 
@@ -18,8 +18,8 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 		return new InlineDecoration(new Range(startLineNumber, startColumn, endLineNumber, endColumn), inlineClassName, false);
 	}
 
-	function createPart(endIndex: number, foreground: number): ViewLineToken2 {
-		return new ViewLineToken2(endIndex, (
+	function createPart(endIndex: number, foreground: number): ViewLineToken {
+		return new ViewLineToken(endIndex, (
 			foreground << MetadataConsts.FOREGROUND_OFFSET
 		) >>> 0);
 	}
@@ -62,7 +62,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 		]);
 	});
 
-	function testCreateLineParts(fontIsMonospace: boolean, lineContent: string, tokens: ViewLineToken2[], fauxIndentLength: number, renderWhitespace: 'none' | 'boundary' | 'all', expected: string): void {
+	function testCreateLineParts(fontIsMonospace: boolean, lineContent: string, tokens: ViewLineToken[], fauxIndentLength: number, renderWhitespace: 'none' | 'boundary' | 'all', expected: string): void {
 		let actual = renderViewLine(new RenderLineInput(
 			fontIsMonospace,
 			lineContent,
@@ -479,7 +479,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			]);
 	});
 
-	function createTestGetColumnOfLinePartOffset(lineContent: string, tabSize: number, parts: ViewLineToken2[], expectedPartLengths: number[]): (partIndex: number, partLength: number, offset: number, expected: number) => void {
+	function createTestGetColumnOfLinePartOffset(lineContent: string, tabSize: number, parts: ViewLineToken[], expectedPartLengths: number[]): (partIndex: number, partLength: number, offset: number, expected: number) => void {
 		let renderLineOutput = renderViewLine(new RenderLineInput(
 			false,
 			lineContent,

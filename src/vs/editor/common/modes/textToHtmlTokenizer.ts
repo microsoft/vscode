@@ -43,7 +43,7 @@ function _tokenizeToString(text: string, tokenizationSupport: ITokenizationSuppo
 		let startOffset = 0;
 		for (let j = 0, lenJ = viewLineTokens.length; j < lenJ; j++) {
 			const viewLineToken = viewLineTokens[j];
-			result += `<span class="${viewLineToken.type}">${strings.escape(line.substring(startOffset, viewLineToken.endIndex))}</span>`;
+			result += `<span class="${viewLineToken.getType()}">${strings.escape(line.substring(startOffset, viewLineToken.endIndex))}</span>`;
 			startOffset = viewLineToken.endIndex;
 		}
 
