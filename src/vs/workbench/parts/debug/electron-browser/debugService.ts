@@ -559,11 +559,6 @@ export class DebugService implements debug.IDebugService {
 	}
 
 	public createProcess(configurationOrName: debug.IConfig | string): TPromise<any> {
-		if (this.model.getProcesses().length === 0) {
-			// Repl shouldn't be cleared if a process is already running since the repl is shared.
-			this.removeReplExpressions();
-		}
-
 		const sessionId = generateUuid();
 		this.setStateAndEmit(sessionId, debug.State.Initializing);
 
