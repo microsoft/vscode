@@ -20,6 +20,19 @@ export interface IIdentityProvider<T> {
 	(element: T): string;
 }
 
+export interface ISpliceable<T> {
+	splice(start: number, deleteCount: number, elements: T[]): void;
+}
+
+class CombinedSpliceable<T> implements ISpliceable<T> {
+
+	constructor(private spliceables: ISpliceable<T>[]) { }
+
+	splice(start: number, deleteCount: number, elements: T[]): void {
+		this.spliceables.forEach(s => s.splice(start, deleteCount, elements));
+	}
+}
+
 interface ITraitTemplateData<D> {
 	container: HTMLElement;
 	data: D;
@@ -56,7 +69,7 @@ class TraitRenderer<T, D> implements IRenderer<T, ITraitTemplateData<D>>
 	}
 }
 
-class Trait<T> implements IDisposable {
+class Trait<T> implements ISpliceable<boolean>, IDisposable {
 
 	private indexes: number[];
 
@@ -121,6 +134,31 @@ class FocusTrait<T> extends Trait<T> {
 		super.renderElement(element, index, container);
 		container.setAttribute('role', 'treeitem');
 		container.setAttribute('id', this.getDomId(index));
+	}
+}
+
+/**
+ * The TraitSpliceable is used as a util class to be able
+ * to preserve traits across splice calls, given an identity
+ * provider.
+ */
+class TraitSpliceable<T> implements ISpliceable<T> {
+
+	constructor(
+		private trait: Trait<T>,
+		private view: ListView<T>,
+		private getId?: IIdentityProvider<T>
+	) { }
+
+	splice(start: number, deleteCount: number, elements: T[]): void {
+		if (!this.getId) {
+			return this.trait.splice(start, deleteCount, elements.map(e => false));
+		}
+
+		const pastElementsWithTrait = this.trait.get().map(i => this.getId(this.view.element(i)));
+		const elementsWithTrait = elements.map(e => pastElementsWithTrait.indexOf(this.getId(e)) > -1);
+
+		this.trait.splice(start, deleteCount, elementsWithTrait);
 	}
 }
 
@@ -229,7 +267,7 @@ const DefaultOptions: IListOptions<any> = {
 	mouseSupport: true
 };
 
-export class List<T> implements IDisposable {
+export class List<T> implements ISpliceable<T>, IDisposable {
 
 	private static InstanceCount = 0;
 	private idPrefix = `list_id_${++List.InstanceCount}`;
@@ -238,7 +276,7 @@ export class List<T> implements IDisposable {
 	private selection: Trait<T>;
 	private eventBufferer: EventBufferer;
 	private view: ListView<T>;
-	private getId?: IIdentityProvider<T>;
+	private spliceable: ISpliceable<T>;
 	private disposables: IDisposable[];
 
 	@memoize
@@ -274,7 +312,6 @@ export class List<T> implements IDisposable {
 		this.focus = new FocusTrait(i => this.getElementDomId(i));
 		this.selection = new Trait('selected');
 		this.eventBufferer = new EventBufferer();
-		this.getId = options.identityProvider;
 
 		renderers = renderers.map(r => {
 			r = this.focus.wrapRenderer(r);
@@ -285,6 +322,12 @@ export class List<T> implements IDisposable {
 		this.view = new ListView(container, delegate, renderers, options);
 		this.view.domNode.setAttribute('role', 'tree');
 		this.view.domNode.tabIndex = 0;
+
+		this.spliceable = new CombinedSpliceable([
+			new TraitSpliceable(this.focus, this.view, options.identityProvider),
+			new TraitSpliceable(this.selection, this.view, options.identityProvider),
+			this.view
+		]);
 
 		this.disposables = [this.focus, this.selection, this.view, this._onDispose];
 
@@ -308,17 +351,7 @@ export class List<T> implements IDisposable {
 	}
 
 	splice(start: number, deleteCount: number, elements: T[] = []): void {
-		this.eventBufferer.bufferEvents(() => {
-			const focus = this.focus.get().map(i => this.getId(this.view.element(i)));
-			const focusElements = elements.map(e => focus.indexOf(this.getId(e)) > -1);
-
-			const selection = this.selection.get().map(i => this.getId(this.view.element(i)));
-			const selectionElements = elements.map(e => selection.indexOf(this.getId(e)) > -1);
-
-			this.focus.splice(start, deleteCount, focusElements);
-			this.selection.splice(start, deleteCount, selectionElements);
-			this.view.splice(start, deleteCount, elements);
-		});
+		this.eventBufferer.bufferEvents(() => this.spliceable.splice(start, deleteCount, elements));
 	}
 
 	get length(): number {
