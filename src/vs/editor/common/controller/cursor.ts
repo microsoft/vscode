@@ -9,7 +9,6 @@ import * as strings from 'vs/base/common/strings';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { EventEmitter } from 'vs/base/common/eventEmitter';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { DragAndDropCommand } from 'vs/editor/common/commands/dragAndDropCommand';
 import { ReplaceCommand } from 'vs/editor/common/commands/replaceCommand';
 import { CursorCollection, ICursorCollectionState } from 'vs/editor/common/controller/cursorCollection';
 import { IOneCursorOperationContext, IViewModelHelper, OneCursor, OneCursorOp } from 'vs/editor/common/controller/oneCursor';
@@ -926,7 +925,6 @@ export class Cursor extends EventEmitter {
 		this._handlers[H.WordSelect] = (ctx) => this._word(false, ctx);
 		this._handlers[H.WordSelectDrag] = (ctx) => this._word(true, ctx);
 		this._handlers[H.LastCursorWordSelect] = (ctx) => this._lastCursorWord(ctx);
-		this._handlers[H.DragTo] = (ctx) => this._dragTo(ctx);
 		this._handlers[H.CancelSelection] = (ctx) => this._cancelSelection(ctx);
 		this._handlers[H.RemoveSecondaryCursors] = (ctx) => this._removeSecondaryCursors(ctx);
 
@@ -1304,42 +1302,6 @@ export class Cursor extends EventEmitter {
 
 		ctx.shouldReveal = false;
 		ctx.shouldRevealHorizontal = false;
-
-		return true;
-	}
-
-	private _dragTo(ctx: IMultipleCursorOperationContext): boolean {
-		if (this.configuration.editor.readOnly || this.model.hasEditableRange()) {
-			return false;
-		}
-
-		let selections = this.getSelections().filter(selection => !selection.isEmpty());
-
-		if (selections.length !== 1) {
-			return false;
-		}
-
-		let dragTargetPosition = ctx.eventData.position;
-		if (selections[0].containsPosition(dragTargetPosition)) {
-			this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => {
-				if (oneCursor.modelState.selection.containsPosition(dragTargetPosition)) {
-					return OneCursorOp.moveTo(oneCursor, false, ctx.eventData.position, ctx.eventData.viewPosition, ctx.eventSource, oneCtx);
-				}
-				return false;
-			});
-
-			return true;
-		} else {
-			this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => {
-				if (!oneCursor.modelState.selection.isEmpty()) {
-					return this._doApplyEdit(cursorIndex, oneCursor, oneCtx, () => new EditOperationResult(new DragAndDropCommand(oneCursor.modelState.selection, dragTargetPosition), {
-						shouldPushStackElementBefore: false,
-						shouldPushStackElementAfter: false
-					}));
-				}
-				return true;
-			});
-		}
 
 		return true;
 	}

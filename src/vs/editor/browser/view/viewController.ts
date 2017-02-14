@@ -143,14 +143,6 @@ export class ViewController implements IViewController {
 		}
 	}
 
-	public dragTo(source: string, viewPosition: Position): void {
-		viewPosition = this._validateViewColumn(viewPosition);
-		this.triggerCursorHandler(source, editorCommon.Handler.DragTo, {
-			position: this.convertViewToModelPosition(viewPosition),
-			viewPosition: viewPosition
-		});
-	}
-
 	public moveTo(source: string, viewPosition: Position): void {
 		viewPosition = this._validateViewColumn(viewPosition);
 		this.triggerCursorHandler(source, editorCommon.Handler.MoveTo, {
@@ -277,14 +269,22 @@ export class ViewController implements IViewController {
 	}
 
 	public emitMouseUp(e: IEditorMouseEvent): void {
+		console.log('up');
 		this.outgoingEvents.emitMouseUp(e);
 	}
 
 	public emitMouseDown(e: IEditorMouseEvent): void {
+		console.log('down');
 		this.outgoingEvents.emitMouseDown(e);
 	}
 
 	public emitMouseDrag(e: IEditorMouseEvent): void {
+		console.log('drag');
 		this.outgoingEvents.emitMouseDrag(e);
+	}
+
+	public emitMouseDrop(e: IEditorMouseEvent): void {
+		console.log('drop');
+		this.outgoingEvents.emitMouseDrop(e);
 	}
 }

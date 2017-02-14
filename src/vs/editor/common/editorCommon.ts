@@ -4137,6 +4137,7 @@ export var EventType = {
 	MouseMove: 'mousemove',
 	MouseLeave: 'mouseleave',
 	MouseDrag: 'mousedrag',
+	MouseDrop: 'mousedrop',
 	KeyDown: 'keydown',
 	KeyUp: 'keyup',
 
