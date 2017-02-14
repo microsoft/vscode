@@ -3763,6 +3763,11 @@ declare module monaco.editor {
          */
         onMouseDrag(listener: (e: IEditorMouseEvent) => void): IDisposable;
         /**
+         * An event emitted on a "mousedrop".
+         * @event
+         */
+        onMouseDrop(listener: (e: IEditorMouseEvent) => void): IDisposable;
+        /**
          * An event emitted on a "contextmenu".
          * @event
          */

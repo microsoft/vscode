@@ -418,6 +418,7 @@ class MouseDownOperation extends Disposable {
 	private _onMouseDragThenMove(e: EditorMouseEvent): void {
 		this._lastMouseEvent = e;
 		this._mouseState.setModifiers(e);
+		this._mouseState.setMouseDownEvent('drag');
 
 		let position = this._findMousePosition(e, true);
 		if (!position) {
@@ -437,7 +438,7 @@ class MouseDownOperation extends Disposable {
 
 		this._mouseState.setStartedOnLineNumbers(targetType === editorCommon.MouseTargetType.GUTTER_LINE_NUMBERS);
 		this._mouseState.setModifiers(e);
-
+		this._mouseState.setMouseDownEvent('down');
 		let position = this._findMousePosition(e, true);
 		if (!position) {
 			// Ignoring because position is unknown
@@ -452,6 +453,7 @@ class MouseDownOperation extends Disposable {
 		if (!this._mouseState.altKey // we don't support multiple mouse
 			&& e.detail < 2 // only single click on a selection can work
 			&& !this._isActive // the mouse is not down yet
+			&& !this._currentSelection.isEmpty() // we don't drag single cursor
 			&& this._currentSelection.containsPosition(position.position) // single click on a selection
 		) {
 			this._isActive = true;
@@ -461,7 +463,16 @@ class MouseDownOperation extends Disposable {
 				createMouseMoveEventMerger(null),
 				this._mouseDragThenMoveEventHandler.handler,
 				() => {
-					this._viewController.dragTo('mouse', this._dragTargetPosition);
+					if (this._mouseState.lastMouseDownEvent !== 'drag') {
+						// the last event is mouse down which happens 16ms ago.
+						this._dispatchMouse(position, e.shiftKey);
+					} else {
+						this._viewController.emitMouseDrop({
+							event: e,
+							target: this._createMouseTarget(e, true)
+						});
+					}
+
 					this._stop();
 				}
 			);
@@ -602,6 +613,7 @@ class MouseDownState {
 	private _lastMouseDownPositionEqualCount: number;
 	private _lastMouseDownCount: number;
 	private _lastSetMouseDownCountTime: number;
+	private _lastMouseDownEvent: 'down' | 'drag' | 'move';
 
 	constructor() {
 		this._altKey = false;
@@ -613,10 +625,15 @@ class MouseDownState {
 		this._lastMouseDownPositionEqualCount = 0;
 		this._lastMouseDownCount = 0;
 		this._lastSetMouseDownCountTime = 0;
+		this._lastMouseDownEvent = 'down';
 	}
 
 	public get count(): number {
 		return this._lastMouseDownCount;
+	}
+
+	public get lastMouseDownEvent(): 'down' | 'drag' | 'move' {
+		return this._lastMouseDownEvent;
 	}
 
 	public setModifiers(source: EditorMouseEvent) {
@@ -624,6 +641,10 @@ class MouseDownState {
 		this._ctrlKey = source.ctrlKey;
 		this._metaKey = source.metaKey;
 		this._shiftKey = source.shiftKey;
+	}
+
+	public setMouseDownEvent(event: 'down' | 'drag' | 'move') {
+		this._lastMouseDownEvent = event;
 	}
 
 	public setStartedOnLineNumbers(startedOnLineNumbers: boolean): void {

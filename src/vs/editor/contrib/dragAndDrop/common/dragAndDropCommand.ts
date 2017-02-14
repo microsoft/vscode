@@ -9,6 +9,7 @@ import { Position } from 'vs/editor/common/core/position';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Selection } from 'vs/editor/common/core/selection';
 
+
 export class DragAndDropCommand implements editorCommon.ICommand {
 
 	private selection: Selection;

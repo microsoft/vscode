@@ -120,7 +120,6 @@ export interface IMouseDispatchData {
 export interface IViewController {
 	dispatchMouse(data: IMouseDispatchData);
 
-	dragTo(source: string, position: Position): void;
 	moveTo(source: string, position: Position): void;
 
 	paste(source: string, text: string, pasteOnNewLine: boolean): void;
@@ -138,6 +137,7 @@ export interface IViewController {
 	emitMouseUp(e: IEditorMouseEvent): void;
 	emitMouseDown(e: IEditorMouseEvent): void;
 	emitMouseDrag(e: IEditorMouseEvent): void;
+	emitMouseDrop(e: IEditorMouseEvent): void;
 }
 
 /**
@@ -422,6 +422,11 @@ export interface ICodeEditor extends editorCommon.ICommonCodeEditor {
 	 * @event
 	 */
 	onMouseDrag(listener: (e: IEditorMouseEvent) => void): IDisposable;
+	/**
+	 * An event emitted on a "mousedrop".
+	 * @event
+	 */
+	onMouseDrop(listener: (e: IEditorMouseEvent) => void): IDisposable;
 	/**
 	 * An event emitted on a "contextmenu".
 	 * @event

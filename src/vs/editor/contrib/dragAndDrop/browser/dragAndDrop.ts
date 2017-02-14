@@ -11,7 +11,9 @@ import { ICodeEditor, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser'
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { DragContentHintWidget } from './dragContentHintWidget';
-
+import { Selection } from 'vs/editor/common/core/selection';
+import { DragAndDropCommand } from '../common/dragAndDropCommand';
+import { Position } from 'vs/editor/common/core/position';
 
 @editorContribution
 export class DragAndDropController implements editorCommon.IEditorContribution {
@@ -21,6 +23,8 @@ export class DragAndDropController implements editorCommon.IEditorContribution {
 	private _editor: ICodeEditor;
 	private _toUnhook: IDisposable[];
 	private _contentWidget: DragContentHintWidget;
+	private _active: boolean;
+	private _dragSelection: Selection;
 
 	static get(editor: editorCommon.ICommonCodeEditor): DragAndDropController {
 		return editor.getContribution<DragAndDropController>(DragAndDropController.ID);
@@ -32,13 +36,37 @@ export class DragAndDropController implements editorCommon.IEditorContribution {
 		this._toUnhook = [];
 
 		this._toUnhook.push(this._editor.onMouseDrag((e: IEditorMouseEvent) => this._onEditorMouseDrag(e)));
-		this._toUnhook.push(this._editor.onMouseUp((e: IEditorMouseEvent) => this._hideWidgets()));
+		this._toUnhook.push(this._editor.onMouseDrop((e: IEditorMouseEvent) => this._onEditorMouseDrop(e)));
 		this._contentWidget = new DragContentHintWidget(editor);
+		this._active = false;
 	}
 
 	private _onEditorMouseDrag(mouseEvent: IEditorMouseEvent): void {
 		let target = mouseEvent.target;
-		this._contentWidget.showAt(target.position);
+
+		if (this._active) {
+			this._contentWidget.showAt(target.position);
+		} else {
+			let possibleSelections = this._editor.getSelections().filter(selection => selection.containsPosition(target.position));
+
+			if (possibleSelections.length === 1) {
+				this._active = true;
+				this._dragSelection = possibleSelections[0];
+				this._contentWidget.showAt(target.position);
+			}
+		}
+	}
+
+	private _onEditorMouseDrop(mouseEvent: IEditorMouseEvent): void {
+		let targetPosition = this._contentWidget.getPosition().position;
+
+		if (targetPosition) {
+			let newCursorPosition = new Position(targetPosition.lineNumber, targetPosition.column);
+			this._editor.executeCommand(DragAndDropController.ID, new DragAndDropCommand(this._dragSelection, newCursorPosition));
+		}
+
+		this._hideWidgets();
+		this._active = false;
 	}
 
 	private _hideWidgets(): void {
