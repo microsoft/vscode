@@ -23,13 +23,14 @@ import { Decoration } from 'vs/editor/common/viewLayout/viewLineParts';
 import { renderViewLine, RenderLineInput } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { CodeEditor } from 'vs/editor/browser/codeEditor';
-import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
+import { ViewLineToken2 } from 'vs/editor/common/core/viewLineToken';
 import { Configuration } from 'vs/editor/browser/config/configuration';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { InlineDecoration } from 'vs/editor/common/viewModel/viewModel';
 import { IAddedAction } from 'vs/editor/common/commonCodeEditor';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { ColorId, MetadataConsts, FontStyle } from 'vs/editor/common/modes';
 
 interface IEditorDiffDecorations {
 	decorations: editorCommon.IModelDeltaDecoration[];
@@ -1900,12 +1901,18 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 
 		let actualDecorations = Decoration.filter(decorations, lineNumber, 1, lineContent.length + 1);
 
+		const defaultMetadata = (
+			(FontStyle.None << MetadataConsts.FONT_STYLE_OFFSET)
+			| (ColorId.DefaultForeground << MetadataConsts.FOREGROUND_OFFSET)
+			| (ColorId.DefaultBackground << MetadataConsts.BACKGROUND_OFFSET)
+		) >>> 0;
+
 		let r = renderViewLine(new RenderLineInput(
 			(config.fontInfo.isMonospace && !config.viewInfo.disableMonospaceOptimizations),
 			lineContent,
 			originalModel.mightContainRTL(),
 			0,
-			[new ViewLineToken(lineContent.length, '')],
+			[new ViewLineToken2(lineContent.length, defaultMetadata)],
 			actualDecorations,
 			tabSize,
 			config.fontInfo.spaceWidth,

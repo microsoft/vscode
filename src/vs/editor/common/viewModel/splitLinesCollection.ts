@@ -9,7 +9,7 @@ import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { PrefixSumComputerWithCache } from 'vs/editor/common/viewModel/prefixSumComputer';
-import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
+import { ViewLineToken2 } from 'vs/editor/common/core/viewLineToken';
 import { MinimapLineRenderingData } from 'vs/editor/common/viewModel/viewModel';
 
 export class OutputPosition {
@@ -96,7 +96,7 @@ class VisibleIdentitySplitLine implements ISplitLine {
 			lineContent,
 			1,
 			lineContent.length + 1,
-			lineTokens.inflate()
+			lineTokens.inflate2()
 		);
 	}
 
@@ -272,7 +272,7 @@ export class SplitLine implements ISplitLine {
 			lineContent,
 			minColumn,
 			maxColumn,
-			lineTokens.sliceAndInflate(startOffset, endOffset, deltaStartIndex)
+			lineTokens.sliceAndInflate2(startOffset, endOffset, deltaStartIndex)
 		);
 	}
 
@@ -878,13 +878,13 @@ export class OutputLineRenderingData {
 	/**
 	 * The tokens at this view line.
 	 */
-	public readonly tokens: ViewLineToken[];
+	public readonly tokens: ViewLineToken2[];
 
 	constructor(
 		content: string,
 		minColumn: number,
 		maxColumn: number,
-		tokens: ViewLineToken[]
+		tokens: ViewLineToken2[]
 	) {
 		this.content = content;
 		this.minColumn = minColumn;
