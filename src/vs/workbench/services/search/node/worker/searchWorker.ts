@@ -170,12 +170,12 @@ export class SearchWorkerEngine {
 					return resolve(null);
 				}
 
-				let buffer = new Buffer(options.bufferLength);
+				const buffer = new Buffer(options.bufferLength);
 				let pos: number;
 				let i: number;
 				let line = '';
 				let lineNumber = 0;
-				let lastBufferHadTraillingCR = false;
+				let lastBufferHadTrailingCR = false;
 
 				const decodeBuffer = (buffer: NodeBuffer, start: number, end: number): string => {
 					if (options.encoding === UTF8 || options.encoding === UTF8_with_bom) {
@@ -203,6 +203,9 @@ export class SearchWorkerEngine {
 							return clb(error); // return early if canceled or limit reached or no more bytes to read
 						}
 
+						let crlfCharSize = 1;
+						let crBytes = [CR];
+						let lfBytes = [LF];
 						pos = 0;
 						i = 0;
 
@@ -228,52 +231,49 @@ export class SearchWorkerEngine {
 									options.encoding = UTF16le;
 									break;
 							}
-						}
 
-						// when we are running with UTF16le/be, LF and CR are encoded as
-						// two bytes, like 0A 00 (LF) / 0D 00 (CR) for LE or flipped around
-						// for BE. We need to account for this when splitting the buffer into
-						// newlines, and when detecting a CRLF combo.
-						let byteOffsetMultiplier = 1;
-						if (options.encoding === UTF16le || options.encoding === UTF16be) {
-							byteOffsetMultiplier = 2;
-						}
-
-						const peekSingleByteChar = (char: number, offset = 0) => {
-							const from = i + offset;
+							// when we are running with UTF16le/be, LF and CR are encoded as
+							// two bytes, like 0A 00 (LF) / 0D 00 (CR) for LE or flipped around
+							// for BE. We need to account for this when splitting the buffer into
+							// newlines, and when detecting a CRLF combo.
 							if (options.encoding === UTF16le) {
-								return buffer[from] === char && buffer[from + 1] === 0x00;
+								crlfCharSize = 2;
+								crBytes = [CR, 0x00];
+								lfBytes = [LF, 0x00];
 							} else if (options.encoding === UTF16be) {
-								return buffer[from] === 0x00 && buffer[from + 1] === char;
-							} else {
-								return buffer[from] === char;
+								crlfCharSize = 2;
+								crBytes = [0x00, CR];
+								lfBytes = [0x00, LF];
 							}
-						};
-						const peekLF = (offset?: number) => peekSingleByteChar(LF, offset);
-						const peekCR = (offset?: number) => peekSingleByteChar(CR, offset);
+						}
 
-						if (lastBufferHadTraillingCR) {
-							if (peekLF()) {
-								lineFinished(1 * byteOffsetMultiplier);
+						if (lastBufferHadTrailingCR) {
+							if (buffer[i] === lfBytes[0] && (lfBytes.length === 1 || buffer[i + 1] === lfBytes[1])) {
+								lineFinished(1 * crlfCharSize);
 								i++;
 							} else {
 								lineFinished(0);
 							}
 
-							lastBufferHadTraillingCR = false;
+							lastBufferHadTrailingCR = false;
 						}
 
+						/**
+						 * This loop executes for every byte of every file in the workspace - it is highly performance-sensitive!
+						 * Hence the duplication in reading the buffer to avoid a function call. Previously a function call was not
+						 * being inlined by V8.
+						 */
 						for (; i < bytesRead; ++i) {
-							if (peekLF()) {
-								lineFinished(1 * byteOffsetMultiplier);
-							} else if (peekCR()) { // CR (Carriage Return)
-								if (i + byteOffsetMultiplier === bytesRead) {
-									lastBufferHadTraillingCR = true;
-								} else if (peekLF(1 * byteOffsetMultiplier)) {
-									lineFinished(2 * byteOffsetMultiplier);
-									i += 2 * byteOffsetMultiplier - 1;
+							if (buffer[i] === lfBytes[0] && (lfBytes.length === 1 || buffer[i + 1] === lfBytes[1])) {
+								lineFinished(1 * crlfCharSize);
+							} else if (buffer[i] === crBytes[0] && (crBytes.length === 1 || buffer[i + 1] === crBytes[1])) { // CR (Carriage Return)
+								if (i + crlfCharSize === bytesRead) {
+									lastBufferHadTrailingCR = true;
+								} else if (buffer[i + crlfCharSize] === lfBytes[0] && (lfBytes.length === 1 || buffer[i + crlfCharSize + 1] === lfBytes[1])) {
+									lineFinished(2 * crlfCharSize);
+									i += 2 * crlfCharSize - 1;
 								} else {
-									lineFinished(1 * byteOffsetMultiplier);
+									lineFinished(1 * crlfCharSize);
 								}
 							}
 						}
