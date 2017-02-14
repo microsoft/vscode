@@ -21,15 +21,49 @@ export class ParsedColor {
 	}
 }
 
-export class MinimapColors {
+export class MinimapTokensColorTracker {
+	private static _INSTANCE: MinimapTokensColorTracker = null;
+	public static getInstance(): MinimapTokensColorTracker {
+		if (!this._INSTANCE) {
+			this._INSTANCE = new MinimapTokensColorTracker();
+		}
+		return this._INSTANCE;
+	}
 
-	private readonly _colors: ParsedColor[];
+	private _lastColorMap: string[];
+	private _colors: ParsedColor[];
 
-	constructor(colorMap: string[]) {
+	private _onDidChange = new Emitter<void>();
+	public onDidChange: Event<void> = this._onDidChange.event;
+
+	private constructor() {
+		this._lastColorMap = [];
+		this._setColorMap(TokenizationRegistry.getColorMap());
+		TokenizationRegistry.onDidChange(() => this._setColorMap(TokenizationRegistry.getColorMap()));
+	}
+
+	private static _equals(a: string[], b: string[]): boolean {
+		if (a.length !== b.length) {
+			return false;
+		}
+		for (let i = 0, len = a.length; i < len; i++) {
+			if (a[i] !== b[i]) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	private _setColorMap(colorMap: string[]): void {
+		if (MinimapTokensColorTracker._equals(this._lastColorMap, colorMap)) {
+			return;
+		}
+		this._lastColorMap = colorMap.slice(0);
 		this._colors = [null];
 		for (let colorId = 1; colorId < colorMap.length; colorId++) {
-			this._colors[colorId] = MinimapColors._parseColor(colorMap[colorId]);
+			this._colors[colorId] = MinimapTokensColorTracker._parseColor(colorMap[colorId]);
 		}
+		this._onDidChange.fire(void 0);
 	}
 
 	public getColor(colorId: ColorId): ParsedColor {
@@ -85,53 +119,6 @@ export class MinimapColors {
 			case CharCode.F: return 15;
 		}
 		return 0;
-	}
-}
-
-export class MinimapTokensColorTracker {
-	private static _INSTANCE: MinimapTokensColorTracker = null;
-	public static getInstance(): MinimapTokensColorTracker {
-		if (!this._INSTANCE) {
-			this._INSTANCE = new MinimapTokensColorTracker();
-		}
-		return this._INSTANCE;
-	}
-
-	private _lastColorMap: string[];
-	private _colorMaps: MinimapColors;
-
-	private _onDidChange = new Emitter<void>();
-	public onDidChange: Event<void> = this._onDidChange.event;
-
-	private constructor() {
-		this._lastColorMap = [];
-		this._setColorMap(TokenizationRegistry.getColorMap());
-		TokenizationRegistry.onDidChange(() => this._setColorMap(TokenizationRegistry.getColorMap()));
-	}
-
-	private static _equals(a: string[], b: string[]): boolean {
-		if (a.length !== b.length) {
-			return false;
-		}
-		for (let i = 0, len = a.length; i < len; i++) {
-			if (a[i] !== b[i]) {
-				return false;
-			}
-		}
-		return true;
-	}
-
-	private _setColorMap(colorMap: string[]): void {
-		if (MinimapTokensColorTracker._equals(this._lastColorMap, colorMap)) {
-			return;
-		}
-		this._lastColorMap = colorMap.slice(0);
-		this._colorMaps = new MinimapColors(this._lastColorMap);
-		this._onDidChange.fire(void 0);
-	}
-
-	public getColorMaps(): MinimapColors {
-		return this._colorMaps;
 	}
 }
 

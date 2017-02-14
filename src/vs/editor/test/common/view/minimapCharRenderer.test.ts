@@ -5,14 +5,14 @@
 'use strict';
 
 import * as assert from 'assert';
-import { MinimapColors, ParsedColor, Constants } from 'vs/editor/common/view/minimapCharRenderer';
+import { MinimapTokensColorTracker, ParsedColor, Constants } from 'vs/editor/common/view/minimapCharRenderer';
 import { MinimapCharRendererFactory } from 'vs/editor/test/common/view/minimapCharRendererFactory';
 import { createMinimapCharRenderer } from 'vs/editor/common/view/runtimeMinimapCharRenderer';
 
 suite('MinimapColors', () => {
 
 	function assertParseColor(input: string, expected: ParsedColor): void {
-		let actual = MinimapColors._parseColor(input);
+		let actual = MinimapTokensColorTracker._parseColor(input);
 		assert.deepEqual(actual, expected, input);
 	}
 

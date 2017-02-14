@@ -14,7 +14,7 @@ import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { IRenderingContext, IRestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
 import { /*createMinimapCharRenderer,*/ createMinimapCharRenderer2 } from 'vs/editor/common/view/runtimeMinimapCharRenderer';
 import * as browser from 'vs/base/browser/browser';
-import { ParsedColor, MinimapColors, MinimapTokensColorTracker, Constants } from 'vs/editor/common/view/minimapCharRenderer';
+import { ParsedColor, MinimapTokensColorTracker, Constants } from 'vs/editor/common/view/minimapCharRenderer';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { CharCode } from 'vs/base/common/charCode';
 import { MinimapLineRenderingData } from 'vs/editor/common/viewModel/viewModel';
@@ -22,17 +22,7 @@ import { ColorId } from 'vs/editor/common/modes';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/styleMutator';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
-// let charRenderer = createMinimapCharRenderer();
 let charRenderer2 = createMinimapCharRenderer2(); // TODO@minimap
-
-// interface IWidgetData {
-// 	widget: IOverlayWidget;
-// 	preference: OverlayWidgetPositionPreference;
-// }
-
-// interface IWidgetMap {
-// 	[key: string]: IWidgetData;
-// }
 
 const enum RenderMinimap {
 	None = 0,
@@ -153,7 +143,7 @@ export class Minimap extends ViewPart {
 			const WIDTH = this._options.canvasInnerWidth;
 			const HEIGHT = this._options.canvasInnerHeight;
 
-			const background = this._tokensColorTracker.getColorMaps().getColor(ColorId.DefaultBackground);
+			const background = this._tokensColorTracker.getColor(ColorId.DefaultBackground);
 			const backgroundR = background.r;
 			const backgroundG = background.g;
 			const backgroundB = background.b;
@@ -198,80 +188,6 @@ export class Minimap extends ViewPart {
 
 	// ---- end view event handlers
 
-	// public addWidget(widget: IOverlayWidget): void {
-	// 	this._widgets[widget.getId()] = {
-	// 		widget: widget,
-	// 		preference: null
-	// 	};
-
-	// 	// This is sync because a widget wants to be in the dom
-	// 	let domNode = widget.getDomNode();
-	// 	domNode.style.position = 'absolute';
-	// 	domNode.setAttribute('widgetId', widget.getId());
-	// 	this.domNode.appendChild(domNode);
-
-	// 	this.setShouldRender();
-	// }
-
-	// public setWidgetPosition(widget: IOverlayWidget, preference: OverlayWidgetPositionPreference): boolean {
-	// 	let widgetData = this._widgets[widget.getId()];
-	// 	if (widgetData.preference === preference) {
-	// 		return false;
-	// 	}
-
-	// 	widgetData.preference = preference;
-	// 	this.setShouldRender();
-
-	// 	return true;
-	// }
-
-	// public removeWidget(widget: IOverlayWidget): void {
-	// 	let widgetId = widget.getId();
-	// 	if (this._widgets.hasOwnProperty(widgetId)) {
-	// 		let widgetData = this._widgets[widgetId];
-	// 		let domNode = widgetData.widget.getDomNode();
-	// 		delete this._widgets[widgetId];
-
-	// 		domNode.parentNode.removeChild(domNode);
-	// 		this.setShouldRender();
-	// 	}
-	// }
-
-	// private _renderWidget(widgetData: IWidgetData): void {
-	// 	let _RESTORE_STYLE_TOP = 'data-editor-restoreStyleTop';
-	// 	let domNode = widgetData.widget.getDomNode();
-
-	// 	if (widgetData.preference === null) {
-	// 		if (domNode.hasAttribute(_RESTORE_STYLE_TOP)) {
-	// 			let previousTop = domNode.getAttribute(_RESTORE_STYLE_TOP);
-	// 			domNode.removeAttribute(_RESTORE_STYLE_TOP);
-	// 			domNode.style.top = previousTop;
-	// 		}
-	// 		return;
-	// 	}
-
-	// 	if (widgetData.preference === OverlayWidgetPositionPreference.TOP_RIGHT_CORNER) {
-	// 		if (!domNode.hasAttribute(_RESTORE_STYLE_TOP)) {
-	// 			domNode.setAttribute(_RESTORE_STYLE_TOP, domNode.style.top);
-	// 		}
-	// 		StyleMutator.setTop(domNode, 0);
-	// 		StyleMutator.setRight(domNode, (2 * this._verticalScrollbarWidth));
-	// 	} else if (widgetData.preference === OverlayWidgetPositionPreference.BOTTOM_RIGHT_CORNER) {
-	// 		if (!domNode.hasAttribute(_RESTORE_STYLE_TOP)) {
-	// 			domNode.setAttribute(_RESTORE_STYLE_TOP, domNode.style.top);
-	// 		}
-	// 		let widgetHeight = domNode.clientHeight;
-	// 		StyleMutator.setTop(domNode, (this._editorHeight - widgetHeight - 2 * this._horizontalScrollbarHeight));
-	// 		StyleMutator.setRight(domNode, (2 * this._verticalScrollbarWidth));
-	// 	} else if (widgetData.preference === OverlayWidgetPositionPreference.TOP_CENTER) {
-	// 		if (!domNode.hasAttribute(_RESTORE_STYLE_TOP)) {
-	// 			domNode.setAttribute(_RESTORE_STYLE_TOP, domNode.style.top);
-	// 		}
-	// 		StyleMutator.setTop(domNode, 0);
-	// 		domNode.style.right = '50%';
-	// 	}
-	// }
-
 	public prepareRender(ctx: IRenderingContext): void {
 		// Nothing to read
 		if (!this.shouldRender()) {
@@ -296,8 +212,7 @@ export class Minimap extends ViewPart {
 		imageData.data.set(this._getBackgroundFillData());
 
 
-		let colors = this._tokensColorTracker.getColorMaps();
-		let background = colors.getColor(ColorId.DefaultBackground);
+		let background = this._tokensColorTracker.getColor(ColorId.DefaultBackground);
 
 		const lineCount = Math.floor(HEIGHT / minimapLineHeight);
 
@@ -309,7 +224,7 @@ export class Minimap extends ViewPart {
 		let start = performance.now();
 		let dy = 0;
 		for (let lineIndex = 0; lineIndex < lineCount; lineIndex++) {
-			Minimap._renderLine(imageData, background, renderMinimap, charWidth, colors, dy, data[lineIndex]);
+			Minimap._renderLine(imageData, background, renderMinimap, charWidth, this._tokensColorTracker, dy, data[lineIndex]);
 			dy += minimapLineHeight;
 		}
 		let end = performance.now();
@@ -318,7 +233,7 @@ export class Minimap extends ViewPart {
 		ctx.putImageData(imageData, 0, 0);
 	}
 
-	private static _renderLine(target: ImageData, backgroundColor: ParsedColor, renderMinimap: RenderMinimap, charWidth: number, colors: MinimapColors, dy: number, lineData: MinimapLineRenderingData) {
+	private static _renderLine(target: ImageData, backgroundColor: ParsedColor, renderMinimap: RenderMinimap, charWidth: number, colorTracker: MinimapTokensColorTracker, dy: number, lineData: MinimapLineRenderingData) {
 		const content = lineData.content;
 		const tokens = lineData.tokens;
 		const tabSize = lineData.tabSize;
@@ -332,7 +247,7 @@ export class Minimap extends ViewPart {
 			const token = tokens[tokenIndex];
 			const tokenEndIndex = token.endIndex;
 			const tokenColorId = token.getForeground();
-			const tokenColor = colors.getColor(tokenColorId);
+			const tokenColor = colorTracker.getColor(tokenColorId);
 
 			for (; charIndex < tokenEndIndex; charIndex++) {
 				if (dx > maxDx) {
