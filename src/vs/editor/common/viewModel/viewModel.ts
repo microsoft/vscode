@@ -6,7 +6,7 @@
 
 import { IEventEmitter } from 'vs/base/common/eventEmitter';
 import { INewScrollPosition, IViewWhitespaceViewportData, Viewport, IModelDecoration, EndOfLinePreference, IPosition } from 'vs/editor/common/editorCommon';
-import { ViewLineToken, ViewLineToken2 } from 'vs/editor/common/core/viewLineToken';
+import { ViewLineToken2 } from 'vs/editor/common/core/viewLineToken';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -139,7 +139,7 @@ export class ViewLineRenderingData {
 	/**
 	 * The tokens at this view line.
 	 */
-	public readonly tokens: ViewLineToken[];
+	public readonly tokens: ViewLineToken2[];
 	/**
 	 * Inline decorations at this view line.
 	 */
@@ -155,7 +155,7 @@ export class ViewLineRenderingData {
 		content: string,
 		mightContainRTL: boolean,
 		mightContainNonBasicASCII: boolean,
-		tokens: ViewLineToken[],
+		tokens: ViewLineToken2[],
 		inlineDecorations: InlineDecoration[],
 		tabSize: number
 	) {

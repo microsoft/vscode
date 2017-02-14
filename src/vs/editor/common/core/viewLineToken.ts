@@ -66,6 +66,31 @@ export class ViewLineToken2 {
 	public getForeground(): ColorId {
 		return TokenMetadata.getForeground(this._metadata);
 	}
+
+	public getType(): string {
+		return TokenMetadata.getClassNameFromMetadata(this._metadata);
+	}
+
+	private static _equals(a: ViewLineToken2, b: ViewLineToken2): boolean {
+		return (
+			a.endIndex === b.endIndex
+			&& a._metadata === b._metadata
+		);
+	}
+
+	public static equalsArr(a: ViewLineToken2[], b: ViewLineToken2[]): boolean {
+		const aLen = a.length;
+		const bLen = b.length;
+		if (aLen !== bLen) {
+			return false;
+		}
+		for (let i = 0; i < aLen; i++) {
+			if (!this._equals(a[i], b[i])) {
+				return false;
+			}
+		}
+		return true;
+	}
 }
 
 export class ViewLineTokenFactory {
