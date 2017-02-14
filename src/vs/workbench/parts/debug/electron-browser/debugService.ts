@@ -536,8 +536,8 @@ export class DebugService implements debug.IDebugService {
 		this.model.removeReplExpressions();
 	}
 
-	public logToRepl(value: string): void {
-		this.model.appendToRepl(value, severity.Info);
+	public logToRepl(value: string, sev = severity.Info): void {
+		this.model.appendToRepl(value, sev);
 	}
 
 	public addWatchExpression(name: string): TPromise<void> {
