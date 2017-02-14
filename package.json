@@ -31,7 +31,7 @@
     "iconv-lite": "0.4.15",
     "minimist": "1.2.0",
     "native-keymap": "0.3.0",
-    "node-pty": "0.6.1",
+    "node-pty": "0.6.2",
     "semver": "4.3.6",
     "vscode-debugprotocol": "1.16.0",
     "vscode-textmate": "3.1.0",

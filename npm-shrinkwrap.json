@@ -333,19 +333,14 @@
       "resolved": "https://registry.npmjs.org/process-nextick-args/-/process-nextick-args-1.0.7.tgz"
     },
     "node-pty": {
-      "version": "0.6.1",
-      "from": "node-pty@0.6.1",
-      "resolved": "https://registry.npmjs.org/node-pty/-/node-pty-0.6.1.tgz",
+      "version": "0.6.2",
+      "from": "node-pty@0.6.2",
+      "resolved": "https://registry.npmjs.org/node-pty/-/node-pty-0.6.2.tgz",
       "dependencies": {
-        "extend": {
-          "version": "1.2.1",
-          "from": "extend@>=1.2.1 <1.3.0",
-          "resolved": "https://registry.npmjs.org/extend/-/extend-1.2.1.tgz"
-        },
         "nan": {
-          "version": "2.2.1",
-          "from": "nan@2.2.1",
-          "resolved": "https://registry.npmjs.org/nan/-/nan-2.2.1.tgz"
+          "version": "2.5.0",
+          "from": "nan@2.5.0",
+          "resolved": "https://registry.npmjs.org/nan/-/nan-2.5.0.tgz"
         }
       }
     },
