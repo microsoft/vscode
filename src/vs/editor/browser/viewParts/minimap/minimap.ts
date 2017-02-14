@@ -288,106 +288,41 @@ export class Minimap extends ViewPart {
 		const WIDTH = this._options.canvasInnerWidth;
 		const HEIGHT = this._options.canvasInnerHeight;
 		const ctx = (<HTMLCanvasElement>this._canvas.domNode).getContext('2d'); // TODO@minimap
+		const minimapLineHeight = (renderMinimap === RenderMinimap.Large ? Constants.x2_CHAR_HEIGHT : Constants.x1_CHAR_HEIGHT);
+		const charWidth = (renderMinimap === RenderMinimap.Large ? Constants.x2_CHAR_WIDTH : Constants.x1_CHAR_WIDTH);
 
 		// Prepare image data (fill with background color)
 		let imageData = ctx.createImageData(WIDTH, HEIGHT);
 		imageData.data.set(this._getBackgroundFillData());
 
 
-
-		// let pixelRatio = browser.getPixelRatio();
-		// console.log(`pixelRatio: ${pixelRatio}, devicePixelRatio: ${devicePixelRatio}`);//here: ' + pixelRatio);
-		// const WIDTH = pixelRatio * this._minimapWidth;
-		// const HEIGHT = pixelRatio * this._minimapHeight;
-		// this.domNode.width = WIDTH;
-		// this.domNode.height = HEIGHT;
-
-		// this.domNode.style.background = '#000';
-
-		// let lineCount = Math.floor(HEIGHT / 4);
-
-		// let data = this._context.model.getMinimapLineRenderingData(2);
-
-		// const lineLen = (this._viewportColumn - 1);
-
-		// let linePixelData = new Uint8ClampedArray(
-		// 	8 * 4 * lineLen
-		// );
-
-		// let start = performance.now();
-		// console.profile();
-
-		// let ctx2 = this.domNode.getContext('2d');
-		// ctx2.fillStyle='#ffffff';
-		// ctx2.fillRect(0, 0, WIDTH, HEIGHT);
-		// let imageData = ctx2.createImageData(lineLen * 2, 4 * lineCount);
-
-		// let colorTracker = MinimapTokensColorTracker.getInstance();
 		let colors = this._tokensColorTracker.getColorMaps();
-
 		let background = colors.getColor(ColorId.DefaultBackground);
-		// // getBackgroundColor();
-		// let backgroundR = background.r;
-		// let backgroundG = background.g;
-		// let backgroundB = background.b;
-		// // set up the background
-		// let offset = 0;
-		// for (let i = 0; i < HEIGHT; i++) {
-		// 	for (let j = 0; j < WIDTH; j++) {
-		// 		imageData.data[offset] = backgroundR;
-		// 		imageData.data[offset + 1] = backgroundG;
-		// 		imageData.data[offset + 2] = backgroundB;
-		// 		imageData.data[offset + 3] = 255;
-		// 		offset += 4;
-		// 	}
-		// }
 
-		const charHeight = (renderMinimap === RenderMinimap.Large ? Constants.x2_CHAR_HEIGHT : Constants.x1_CHAR_HEIGHT);
-		const lineCount = Math.floor(HEIGHT / charHeight);
+		const lineCount = Math.floor(HEIGHT / minimapLineHeight);
 
-		// let lineCount = Math.floor((renderMinimap === RenderMinimap.Large ? (HEIGHT / Constants.x2_CHAR_HEIGHT))
 		let data: MinimapLineRenderingData[] = [];
 		for (let lineIndex = 0; lineIndex < lineCount; lineIndex++) {
 			data[lineIndex] = this._context.model.getMinimapLineRenderingData(lineIndex + 1);
 		}
 
-		let start2 = performance.now();
+		let start = performance.now();
+		let dy = 0;
 		for (let lineIndex = 0; lineIndex < lineCount; lineIndex++) {
-			let dy = lineIndex * Constants.x2_CHAR_HEIGHT;
-			Minimap._x2RenderLine(imageData, background, colors, dy, data[lineIndex]);
+			Minimap._renderLine(imageData, background, renderMinimap, charWidth, colors, dy, data[lineIndex]);
+			dy += minimapLineHeight;
 		}
-		let end2 = performance.now();
-		console.log(`INNER LOOP TOOK ${end2 - start2} ms.`);
+		let end = performance.now();
+		console.log(`INNER LOOP TOOK ${end - start} ms.`);
 
-		// console.log(imageData.data);
-		// ctx2.strokeStyle = '#000';
-		// for (i = 0; i <)
-		// ctx2.fillRect(0, 0, this._minimapWidth, this._minimapHeight);
 		ctx.putImageData(imageData, 0, 0);
-
-		// console.profileEnd();
-
-		// let end = performance.now();
-		// console.log('TOOK ' + (end - start) + 'ms.');
-
-		// let data = this._context.model.getViewLineRenderingData(null, 1);
-
-		// console.log(data);
-		// let dest =
-		// StyleMutator.setWidth(this.domNode, this._editorWidth);
-
-		// let keys = Object.keys(this._widgets);
-		// for (let i = 0, len = keys.length; i < len; i++) {
-		// 	let widgetId = keys[i];
-		// 	this._renderWidget(this._widgets[widgetId]);
-		// }
 	}
 
-	private static _x2RenderLine(target: ImageData, backgroundColor: ParsedColor, colors: MinimapColors, dy: number, lineData: MinimapLineRenderingData) {
+	private static _renderLine(target: ImageData, backgroundColor: ParsedColor, renderMinimap: RenderMinimap, charWidth: number, colors: MinimapColors, dy: number, lineData: MinimapLineRenderingData) {
 		const content = lineData.content;
 		const tokens = lineData.tokens;
 		const tabSize = lineData.tabSize;
-		const maxDx = target.width - Constants.x2_CHAR_WIDTH;
+		const maxDx = target.width - charWidth;
 
 		let dx = 0;
 		let charIndex = 0;
@@ -404,19 +339,26 @@ export class Minimap extends ViewPart {
 					// hit edge of minimap
 					return;
 				}
+				// if (charIndex >= content.length) {
+				// 	console.log('SERIOUSLY');
+				// }
 				const charCode = content.charCodeAt(charIndex);
 
 				if (charCode === CharCode.Tab) {
 					let insertSpacesCount = tabSize - (charIndex + tabsCharDelta) % tabSize;
 					tabsCharDelta += insertSpacesCount - 1;
 					// No need to render anything since tab is invisible
-					dx += insertSpacesCount * Constants.x2_CHAR_WIDTH;
+					dx += insertSpacesCount * charWidth;
 				} else if (charCode === CharCode.Space) {
 					// No need to render anything since space is invisible
-					dx += Constants.x2_CHAR_WIDTH;
+					dx += charWidth;
 				} else {
-					charRenderer2.x2RenderChar(target, dx, dy, charCode, tokenColor, backgroundColor);
-					dx += Constants.x2_CHAR_WIDTH;
+					if (renderMinimap === RenderMinimap.Large) {
+						charRenderer2.x2RenderChar(target, dx, dy, charCode, tokenColor, backgroundColor);
+					} else {
+						charRenderer2.x1RenderChar(target, dx, dy, charCode, tokenColor, backgroundColor);
+					}
+					dx += charWidth;
 				}
 			}
 		}
