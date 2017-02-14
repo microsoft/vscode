@@ -8,23 +8,6 @@ import { TokenMetadata } from 'vs/editor/common/model/tokensBinaryEncoding';
 import { ViewLineTokenFactory, ViewLineToken, ViewLineToken2 } from 'vs/editor/common/core/viewLineToken';
 import { ColorId, FontStyle, StandardTokenType, LanguageId } from 'vs/editor/common/modes';
 
-const STANDARD_TOKEN_TYPE_REGEXP = /\b(comment|string|regex)\b/;
-export function toStandardTokenType(tokenType: string): StandardTokenType {
-	let m = tokenType.match(STANDARD_TOKEN_TYPE_REGEXP);
-	if (!m) {
-		return StandardTokenType.Other;
-	}
-	switch (m[1]) {
-		case 'comment':
-			return StandardTokenType.Comment;
-		case 'string':
-			return StandardTokenType.String;
-		case 'regex':
-			return StandardTokenType.RegEx;
-	}
-	throw new Error('Unexpected match for standard token type!');
-}
-
 export class LineToken {
 	_lineTokenBrand: void;
 
