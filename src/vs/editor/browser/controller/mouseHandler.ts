@@ -18,7 +18,7 @@ import { TimeoutTimer, RunOnceScheduler } from 'vs/base/common/async';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { VisibleRange } from 'vs/editor/common/view/renderingContext';
 import { EditorMouseEventFactory, GlobalEditorMouseMoveMonitor, EditorMouseEvent, createEditorPagePosition, ClientCoordinates } from 'vs/editor/browser/editorDom';
-import { StandardMouseWheelEvent, MouseDownEventType } from 'vs/base/browser/mouseEvent';
+import { StandardMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { EditorZoom } from 'vs/editor/common/config/editorZoom';
 import { IViewCursorRenderData } from 'vs/editor/browser/viewParts/viewCursors/viewCursor';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
@@ -412,7 +412,7 @@ class MouseDownOperation extends Disposable {
 		}
 
 
-		this._dispatchMouse(position, MouseDownEventType.Select);
+		this._dispatchMouse(position, true);
 	}
 
 	private _onMouseDragThenMove(e: EditorMouseEvent): void {
@@ -426,7 +426,6 @@ class MouseDownOperation extends Disposable {
 		}
 
 		this._dragTargetPosition = position.position;
-		this._dispatchMouse(position, MouseDownEventType.Drag);
 		this._viewController.emitMouseDrag({
 			event: e,
 			target: this._createMouseTarget(e, true)
@@ -470,7 +469,7 @@ class MouseDownOperation extends Disposable {
 			return;
 		}
 
-		this._dispatchMouse(position, e.shiftKey ? MouseDownEventType.Select : MouseDownEventType.Down);
+		this._dispatchMouse(position, e.shiftKey);
 
 		if (!this._isActive) {
 			this._isActive = true;
@@ -497,7 +496,7 @@ class MouseDownOperation extends Disposable {
 				// Ignoring because position is unknown
 				return;
 			}
-			this._dispatchMouse(position, MouseDownEventType.Select);
+			this._dispatchMouse(position, true);
 		}, 10);
 	}
 
@@ -564,13 +563,13 @@ class MouseDownOperation extends Disposable {
 		return new MousePosition(hintedPosition, t.mouseColumn);
 	}
 
-	private _dispatchMouse(position: MousePosition, mouseDownEventType: MouseDownEventType): void {
+	private _dispatchMouse(position: MousePosition, inSelectionMode: boolean): void {
 		this._viewController.dispatchMouse({
 			position: position.position,
 			mouseColumn: position.mouseColumn,
 			startedOnLineNumbers: this._mouseState.startedOnLineNumbers,
 
-			mouseDownEventType: mouseDownEventType,
+			inSelectionMode: inSelectionMode,
 			mouseDownCount: this._mouseState.count,
 			altKey: this._mouseState.altKey,
 			ctrlKey: this._mouseState.ctrlKey,
