@@ -474,6 +474,7 @@ export class MouseTargetFactory {
 	}
 
 	private static _hitTestViewCursor(ctx: HitTestContext, request: HitTestRequest): MouseTarget {
+
 		if (request.target) {
 			// Check if we've hit a painted cursor
 			const lastViewCursorsRenderData = ctx.lastViewCursorsRenderData;
