@@ -6,14 +6,14 @@
 
 import * as assert from 'assert';
 import { renderViewLine, RenderLineInput, CharacterMapping } from 'vs/editor/common/viewLayout/viewLineRenderer';
-import { ViewLineToken2 } from 'vs/editor/common/core/viewLineToken';
+import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
 import { CharCode } from 'vs/base/common/charCode';
 import { MetadataConsts } from 'vs/editor/common/modes';
 
 suite('viewLineRenderer.renderLine', () => {
 
-	function createPart(endIndex: number, foreground: number): ViewLineToken2 {
-		return new ViewLineToken2(endIndex, (
+	function createPart(endIndex: number, foreground: number): ViewLineToken {
+		return new ViewLineToken(endIndex, (
 			foreground << MetadataConsts.FOREGROUND_OFFSET
 		) >>> 0);
 	}
@@ -24,7 +24,7 @@ suite('viewLineRenderer.renderLine', () => {
 			lineContent,
 			false,
 			0,
-			[new ViewLineToken2(lineContent.length, 0)],
+			[new ViewLineToken(lineContent.length, 0)],
 			[],
 			tabSize,
 			0,
@@ -65,7 +65,7 @@ suite('viewLineRenderer.renderLine', () => {
 		assertCharacterReplacement('xxxx\t', 4, 'xxxx&nbsp;&nbsp;&nbsp;&nbsp;', [[0, 1, 2, 3, 4, 8]], [8]);
 	});
 
-	function assertParts(lineContent: string, tabSize: number, parts: ViewLineToken2[], expected: string, expectedCharOffsetInPart: number[][], expectedPartLengts: number[]): void {
+	function assertParts(lineContent: string, tabSize: number, parts: ViewLineToken[], expected: string, expectedCharOffsetInPart: number[][], expectedPartLengts: number[]): void {
 		let _actual = renderViewLine(new RenderLineInput(
 			false,
 			lineContent,

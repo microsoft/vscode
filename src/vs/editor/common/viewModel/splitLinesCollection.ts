@@ -9,7 +9,7 @@ import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { PrefixSumComputerWithCache } from 'vs/editor/common/viewModel/prefixSumComputer';
-import { ViewLineToken2 } from 'vs/editor/common/core/viewLineToken';
+import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
 import { MinimapLineRenderingData } from 'vs/editor/common/viewModel/viewModel';
 
 export class OutputPosition {
@@ -96,7 +96,7 @@ class VisibleIdentitySplitLine implements ISplitLine {
 			lineContent,
 			1,
 			lineContent.length + 1,
-			lineTokens.inflate2()
+			lineTokens.inflate()
 		);
 	}
 
@@ -105,7 +105,7 @@ class VisibleIdentitySplitLine implements ISplitLine {
 		let lineContent = lineTokens.getLineContent();
 		return new MinimapLineRenderingData(
 			lineContent,
-			lineTokens.inflate2(),
+			lineTokens.inflate(),
 			tabSize
 		);
 	}
@@ -272,7 +272,7 @@ export class SplitLine implements ISplitLine {
 			lineContent,
 			minColumn,
 			maxColumn,
-			lineTokens.sliceAndInflate2(startOffset, endOffset, deltaStartIndex)
+			lineTokens.sliceAndInflate(startOffset, endOffset, deltaStartIndex)
 		);
 	}
 
@@ -297,7 +297,7 @@ export class SplitLine implements ISplitLine {
 
 		return new MinimapLineRenderingData(
 			lineContent,
-			lineTokens.sliceAndInflate2(startOffset, endOffset, deltaStartIndex),
+			lineTokens.sliceAndInflate(startOffset, endOffset, deltaStartIndex),
 			tabSize
 		);
 	}
@@ -878,13 +878,13 @@ export class OutputLineRenderingData {
 	/**
 	 * The tokens at this view line.
 	 */
-	public readonly tokens: ViewLineToken2[];
+	public readonly tokens: ViewLineToken[];
 
 	constructor(
 		content: string,
 		minColumn: number,
 		maxColumn: number,
-		tokens: ViewLineToken2[]
+		tokens: ViewLineToken[]
 	) {
 		this.content = content;
 		this.minColumn = minColumn;

@@ -10,7 +10,7 @@ import { IModel } from 'vs/editor/common/editorCommon';
 import { ColorId, MetadataConsts, FontStyle, TokenizationRegistry, ITokenizationSupport } from 'vs/editor/common/modes';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { renderViewLine, RenderLineInput } from 'vs/editor/common/viewLayout/viewLineRenderer';
-import { ViewLineToken2 } from 'vs/editor/common/core/viewLineToken';
+import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import * as strings from 'vs/base/common/strings';
 import { IStandaloneColorService } from 'vs/editor/common/services/standaloneColorService';
@@ -94,7 +94,7 @@ export class Colorizer {
 		});
 	}
 
-	public static colorizeLine(line: string, mightContainRTL: boolean, tokens: ViewLineToken2[], tabSize: number = 4): string {
+	public static colorizeLine(line: string, mightContainRTL: boolean, tokens: ViewLineToken[], tabSize: number = 4): string {
 		let renderResult = renderViewLine(new RenderLineInput(
 			false,
 			line,
@@ -114,7 +114,7 @@ export class Colorizer {
 	public static colorizeModelLine(model: IModel, lineNumber: number, tabSize: number = 4): string {
 		let content = model.getLineContent(lineNumber);
 		let tokens = model.getLineTokens(lineNumber, false);
-		let inflatedTokens = tokens.inflate2();
+		let inflatedTokens = tokens.inflate();
 		return this.colorizeLine(content, model.mightContainRTL(), inflatedTokens, tabSize);
 	}
 }
@@ -140,7 +140,7 @@ function _fakeColorize(lines: string[], tabSize: number): string {
 			line,
 			false,
 			0,
-			[new ViewLineToken2(line.length, defaultMetadata)],
+			[new ViewLineToken(line.length, defaultMetadata)],
 			[],
 			tabSize,
 			0,
@@ -170,7 +170,7 @@ function _actualColorize(lines: string[], tabSize: number, tokenizationSupport: 
 			line,
 			true/* check for RTL */,
 			0,
-			lineTokens.inflate2(),
+			lineTokens.inflate(),
 			[],
 			tabSize,
 			0,

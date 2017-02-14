@@ -6,7 +6,7 @@
 
 import { IEventEmitter } from 'vs/base/common/eventEmitter';
 import { INewScrollPosition, IViewWhitespaceViewportData, Viewport, IModelDecoration, EndOfLinePreference, IPosition } from 'vs/editor/common/editorCommon';
-import { ViewLineToken2 } from 'vs/editor/common/core/viewLineToken';
+import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -98,7 +98,7 @@ export class MinimapLineRenderingData {
 	/**
 	 * The tokens at this view line.
 	 */
-	public readonly tokens: ViewLineToken2[];
+	public readonly tokens: ViewLineToken[];
 	/**
 	 * The tab size for this view model.
 	 */
@@ -106,7 +106,7 @@ export class MinimapLineRenderingData {
 
 	constructor(
 		content: string,
-		tokens: ViewLineToken2[],
+		tokens: ViewLineToken[],
 		tabSize: number
 	) {
 		this.content = content;
@@ -139,7 +139,7 @@ export class ViewLineRenderingData {
 	/**
 	 * The tokens at this view line.
 	 */
-	public readonly tokens: ViewLineToken2[];
+	public readonly tokens: ViewLineToken[];
 	/**
 	 * Inline decorations at this view line.
 	 */
@@ -155,7 +155,7 @@ export class ViewLineRenderingData {
 		content: string,
 		mightContainRTL: boolean,
 		mightContainNonBasicASCII: boolean,
-		tokens: ViewLineToken2[],
+		tokens: ViewLineToken[],
 		inlineDecorations: InlineDecoration[],
 		tabSize: number
 	) {

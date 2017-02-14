@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { ViewLineToken2 } from 'vs/editor/common/core/viewLineToken';
+import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
 import { CharCode } from 'vs/base/common/charCode';
 import { Decoration, LineDecorationsNormalizer } from 'vs/editor/common/viewLayout/viewLineParts';
 import * as strings from 'vs/base/common/strings';
@@ -36,7 +36,7 @@ export class RenderLineInput {
 	public readonly lineContent: string;
 	public readonly mightContainRTL: boolean;
 	public readonly fauxIndentLength: number;
-	public readonly lineTokens: ViewLineToken2[];
+	public readonly lineTokens: ViewLineToken[];
 	public readonly lineDecorations: Decoration[];
 	public readonly tabSize: number;
 	public readonly spaceWidth: number;
@@ -49,7 +49,7 @@ export class RenderLineInput {
 		lineContent: string,
 		mightContainRTL: boolean,
 		fauxIndentLength: number,
-		lineTokens: ViewLineToken2[],
+		lineTokens: ViewLineToken[],
 		lineDecorations: Decoration[],
 		tabSize: number,
 		spaceWidth: number,
@@ -88,7 +88,7 @@ export class RenderLineInput {
 			&& this.renderWhitespace === other.renderWhitespace
 			&& this.renderControlCharacters === other.renderControlCharacters
 			&& Decoration.equalsArr(this.lineDecorations, other.lineDecorations)
-			&& ViewLineToken2.equalsArr(this.lineTokens, other.lineTokens)
+			&& ViewLineToken.equalsArr(this.lineTokens, other.lineTokens)
 		);
 	}
 }
@@ -320,7 +320,7 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
  * In the rendering phase, characters are always looped until token.endIndex.
  * Ensure that all tokens end before `len` and the last one ends precisely at `len`.
  */
-function removeOverflowing(tokens: ViewLineToken2[], len: number): LinePart[] {
+function removeOverflowing(tokens: ViewLineToken[], len: number): LinePart[] {
 	let result: LinePart[] = [];
 	for (let tokenIndex = 0, tokensLen = tokens.length; tokenIndex < tokensLen; tokenIndex++) {
 		const token = tokens[tokenIndex];
