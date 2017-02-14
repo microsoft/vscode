@@ -10,7 +10,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { EventEmitter } from 'vs/base/common/eventEmitter';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { isObject } from 'vs/base/common/types';
-import { isChrome, isWebKit } from 'vs/base/browser/browser';
+import * as browser from 'vs/base/browser/browser';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { CharCode } from 'vs/base/common/charCode';
@@ -377,21 +377,7 @@ class AnimationFrameQueueItem implements IDisposable {
 
 		if (!animFrameRequested) {
 			animFrameRequested = true;
-
-			// TODO@Alex: also check if it is electron
-			if (isChrome) {
-				let handle: number;
-				_animationFrame.request(function () {
-					clearTimeout(handle);
-					animationFrameRunner();
-				});
-				// This is a fallback in-case chrome dropped
-				// the request for an animation frame. This
-				// is sick but was spotted in the wild
-				handle = setTimeout(animationFrameRunner, 1000);
-			} else {
-				_animationFrame.request(animationFrameRunner);
-			}
+			_animationFrame.request(animationFrameRunner);
 		}
 
 		return item;
@@ -797,9 +783,9 @@ export const EventType = {
 	DROP: 'drop',
 	DRAG_END: 'dragend',
 	// Animation
-	ANIMATION_START: isWebKit ? 'webkitAnimationStart' : 'animationstart',
-	ANIMATION_END: isWebKit ? 'webkitAnimationEnd' : 'animationend',
-	ANIMATION_ITERATION: isWebKit ? 'webkitAnimationIteration' : 'animationiteration'
+	ANIMATION_START: browser.isWebKit ? 'webkitAnimationStart' : 'animationstart',
+	ANIMATION_END: browser.isWebKit ? 'webkitAnimationEnd' : 'animationend',
+	ANIMATION_ITERATION: browser.isWebKit ? 'webkitAnimationIteration' : 'animationiteration'
 };
 
 export interface EventLike {

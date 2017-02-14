@@ -365,7 +365,9 @@ export class ScrollableElement extends Widget {
 	}
 
 	private _scheduleHide(): void {
-		this._hideTimeout.cancelAndSet(() => this._hide(), HIDE_TIMEOUT);
+		if (!this._mouseIsOver && !this._isDragging) {
+			this._hideTimeout.cancelAndSet(() => this._hide(), HIDE_TIMEOUT);
+		}
 	}
 }
 
