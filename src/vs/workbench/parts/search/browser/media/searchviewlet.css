@@ -147,6 +147,7 @@
 
 .search-viewlet .messages {
 	margin-top: -5px;
+	cursor: default;
 }
 
 .search-viewlet .message {
