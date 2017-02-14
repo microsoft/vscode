@@ -70,7 +70,8 @@ export class ViewLineTokenFactory {
 	}
 
 	public static sliceAndInflate(tokens: Uint32Array, startOffset: number, endOffset: number, deltaOffset: number, lineLength: number): ViewLineToken[] {
-		let tokenIndex = this.findIndexInSegmentsArray(tokens, startOffset);
+		const tokenIndex = this.findIndexInSegmentsArray(tokens, startOffset);
+		const maxEndOffset = (endOffset - startOffset + deltaOffset);
 		let result: ViewLineToken[] = [], resultLen = 0;
 
 		for (let i = tokenIndex, len = (tokens.length >>> 1); i < len; i++) {
@@ -81,7 +82,7 @@ export class ViewLineTokenFactory {
 			}
 
 			let tokenEndOffset = (i + 1 < len ? tokens[((i + 1) << 1)] : lineLength);
-			let newEndOffset = tokenEndOffset - startOffset + deltaOffset;
+			let newEndOffset = Math.min(maxEndOffset, tokenEndOffset - startOffset + deltaOffset);
 			let metadata = tokens[(i << 1) + 1];
 
 			result[resultLen++] = new ViewLineToken(newEndOffset, metadata);
