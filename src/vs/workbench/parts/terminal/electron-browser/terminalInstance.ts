@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as path from 'path';
 import DOM = require('vs/base/browser/dom');
 import Event, { Emitter } from 'vs/base/common/event';
 import URI from 'vs/base/common/uri';
@@ -10,7 +11,6 @@ import cp = require('child_process');
 import lifecycle = require('vs/base/common/lifecycle');
 import nls = require('vs/nls');
 import os = require('os');
-import path = require('path');
 import platform = require('vs/base/common/platform');
 import xterm = require('xterm');
 import { Dimension } from 'vs/base/browser/builder';
@@ -22,9 +22,11 @@ import { IStringDictionary } from 'vs/base/common/collections';
 import { ITerminalInstance, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_PANEL_ID, IShellLaunchConfig } from 'vs/workbench/parts/terminal/common/terminal';
 import { ITerminalProcessFactory } from 'vs/workbench/parts/terminal/electron-browser/terminal';
 import { IWorkspace, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { TabFocus } from 'vs/editor/common/config/commonEditorConfig';
 import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
+import { TerminalLinkHandler } from 'vs/workbench/parts/terminal/electron-browser/terminalLinkHandler';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -74,13 +76,15 @@ export class TerminalInstance implements ITerminalInstance {
 	public constructor(
 		private _terminalFocusContextKey: IContextKey<boolean>,
 		private _configHelper: TerminalConfigHelper,
+		private _linkHandler: TerminalLinkHandler,
 		private _container: HTMLElement,
 		private _shellLaunchConfig: IShellLaunchConfig,
 		@IContextKeyService private _contextKeyService: IContextKeyService,
 		@IKeybindingService private _keybindingService: IKeybindingService,
 		@IMessageService private _messageService: IMessageService,
 		@IPanelService private _panelService: IPanelService,
-		@IWorkspaceContextService private _contextService: IWorkspaceContextService
+		@IWorkspaceContextService private _contextService: IWorkspaceContextService,
+		@IWorkbenchEditorService private _editorService: IWorkbenchEditorService
 	) {
 		this._instanceDisposables = [];
 		this._processDisposables = [];
@@ -139,6 +143,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._xtermElement = document.createElement('div');
 
 		this._xterm.open(this._xtermElement);
+		this._xterm.registerLinkMatcher(this._linkHandler.localLinkRegex, (url) => this._linkHandler.handleLocalLink(url), 1);
 		this._xterm.attachCustomKeydownHandler((event: KeyboardEvent) => {
 			// Disable all input if the terminal is exiting
 			if (this._isExiting) {
