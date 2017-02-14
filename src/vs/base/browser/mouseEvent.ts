@@ -194,9 +194,3 @@ export class StandardMouseWheelEvent {
 		}
 	}
 }
-
-export enum MouseDownEventType {
-	Down,
-	Select,
-	Drag
-}

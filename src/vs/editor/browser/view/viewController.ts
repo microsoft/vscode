@@ -5,7 +5,6 @@
 'use strict';
 
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { MouseDownEventType } from 'vs/base/browser/mouseEvent';
 import { Position } from 'vs/editor/common/core/position';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IEditorMouseEvent, IViewController, IMouseDispatchData } from 'vs/editor/browser/editorBrowser';
@@ -80,13 +79,13 @@ export class ViewController implements IViewController {
 		if (data.startedOnLineNumbers) {
 			// If the dragging started on the gutter, then have operations work on the entire line
 			if (data.altKey) {
-				if (data.mouseDownEventType === MouseDownEventType.Select) {
+				if (data.inSelectionMode) {
 					this.lastCursorLineSelect('mouse', data.position);
 				} else {
 					this.createCursor('mouse', data.position, true);
 				}
 			} else {
-				if (data.mouseDownEventType === MouseDownEventType.Select) {
+				if (data.inSelectionMode) {
 					this.lineSelectDrag('mouse', data.position);
 				} else {
 					this.lineSelect('mouse', data.position);
@@ -96,13 +95,13 @@ export class ViewController implements IViewController {
 			this.selectAll('mouse');
 		} else if (data.mouseDownCount === 3) {
 			if (data.altKey) {
-				if (data.mouseDownEventType === MouseDownEventType.Select) {
+				if (data.inSelectionMode) {
 					this.lastCursorLineSelectDrag('mouse', data.position);
 				} else {
 					this.lastCursorLineSelect('mouse', data.position);
 				}
 			} else {
-				if (data.mouseDownEventType === MouseDownEventType.Select) {
+				if (data.inSelectionMode) {
 					this.lineSelectDrag('mouse', data.position);
 				} else {
 					this.lineSelect('mouse', data.position);
@@ -112,7 +111,7 @@ export class ViewController implements IViewController {
 			if (data.altKey) {
 				this.lastCursorWordSelect('mouse', data.position);
 			} else {
-				if (data.mouseDownEventType === MouseDownEventType.Select) {
+				if (data.inSelectionMode) {
 					this.wordSelectDrag('mouse', data.position);
 				} else {
 					this.wordSelect('mouse', data.position);
@@ -125,7 +124,7 @@ export class ViewController implements IViewController {
 						this.columnSelect('mouse', data.position, data.mouseColumn);
 					} else {
 						// Do multi-cursor operations only when purely alt is pressed
-						if (data.mouseDownEventType === MouseDownEventType.Select) {
+						if (data.inSelectionMode) {
 							this.lastCursorMoveToSelect('mouse', data.position);
 						} else {
 							this.createCursor('mouse', data.position, false);
@@ -135,15 +134,10 @@ export class ViewController implements IViewController {
 					}
 				}
 			} else {
-				switch (data.mouseDownEventType) {
-					case MouseDownEventType.Down:
-						this.moveTo('mouse', data.position);
-						break;
-					case MouseDownEventType.Select:
-						this.moveToSelect('mouse', data.position);
-						break;
-					default:
-						break;
+				if (data.inSelectionMode) {
+					this.moveToSelect('mouse', data.position);
+				} else {
+					this.moveTo('mouse', data.position);
 				}
 			}
 		}
