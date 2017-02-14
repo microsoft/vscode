@@ -6,6 +6,7 @@
 
 import { CharCode } from 'vs/base/common/charCode';
 import { ColorId, TokenizationRegistry } from 'vs/editor/common/modes';
+import Event, { Emitter } from 'vs/base/common/event';
 
 export class ParsedColor {
 
@@ -99,6 +100,9 @@ export class MinimapTokensColorTracker {
 	private _lastColorMap: string[];
 	private _colorMaps: MinimapColors;
 
+	private _onDidChange = new Emitter<void>();
+	public onDidChange: Event<void> = this._onDidChange.event;
+
 	private constructor() {
 		this._lastColorMap = [];
 		this._setColorMap(TokenizationRegistry.getColorMap());
@@ -123,6 +127,7 @@ export class MinimapTokensColorTracker {
 		}
 		this._lastColorMap = colorMap.slice(0);
 		this._colorMaps = new MinimapColors(this._lastColorMap);
+		this._onDidChange.fire(void 0);
 	}
 
 	public getColorMaps(): MinimapColors {

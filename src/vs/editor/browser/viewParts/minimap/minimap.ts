@@ -19,6 +19,8 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { CharCode } from 'vs/base/common/charCode';
 import { MinimapLineRenderingData } from 'vs/editor/common/viewModel/viewModel';
 import { ColorId } from 'vs/editor/common/modes';
+import { FastDomNode, createFastDomNode } from 'vs/base/browser/styleMutator';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 // let charRenderer = createMinimapCharRenderer();
 let charRenderer2 = createMinimapCharRenderer2(); // TODO@minimap
@@ -32,62 +34,163 @@ let charRenderer2 = createMinimapCharRenderer2(); // TODO@minimap
 // 	[key: string]: IWidgetData;
 // }
 
+const enum RenderMinimap {
+	None = 0,
+	Small = 1,
+	Large = 2
+}
+
+class MinimapOptions {
+
+	public readonly renderMinimap: RenderMinimap;
+
+	/**
+	 * container dom node width (in CSS px)
+	 */
+	public readonly minimapWidth: number;
+	/**
+	 * container dom node height (in CSS px)
+	 */
+	public readonly minimapHeight: number;
+
+	/**
+	 * canvas backing store width (in device px)
+	 */
+	public readonly canvasInnerWidth: number;
+	/**
+	 * canvas backing store height (in device px)
+	 */
+	public readonly canvasInnerHeight: number;
+
+	/**
+	 * canvas width (in CSS px)
+	 */
+	public readonly canvasOuterWidth: number;
+	/**
+	 * canvas height (in CSS px)
+	 */
+	public readonly canvasOuterHeight: number;
+
+	constructor(configuration: editorCommon.IConfiguration) {
+		const pixelRatio = browser.getPixelRatio();
+		const layoutInfo = configuration.editor.layoutInfo;
+
+		this.renderMinimap = layoutInfo.renderMinimap | 0;
+		this.minimapWidth = layoutInfo.minimapWidth;
+		this.minimapHeight = layoutInfo.height;
+
+		this.canvasInnerWidth = Math.floor(pixelRatio * this.minimapWidth);
+		this.canvasInnerHeight = Math.floor(pixelRatio * this.minimapHeight);
+
+		this.canvasOuterWidth = this.canvasInnerWidth / pixelRatio;
+		this.canvasOuterHeight = this.canvasInnerHeight / pixelRatio;
+	}
+
+	public equals(other: MinimapOptions): boolean {
+		return (this.renderMinimap === other.renderMinimap
+			&& this.minimapWidth === other.minimapWidth
+			&& this.minimapHeight === other.minimapHeight
+			&& this.canvasInnerWidth === other.canvasInnerWidth
+			&& this.canvasInnerHeight === other.canvasInnerHeight
+			&& this.canvasOuterWidth === other.canvasOuterWidth
+			&& this.canvasOuterHeight === other.canvasOuterHeight
+		);
+	}
+}
+
 export class Minimap extends ViewPart {
 
-	// private _widgets: IWidgetMap;
-	public domNode: HTMLCanvasElement;
+	private readonly _domNode: FastDomNode;
+	private readonly _canvas: FastDomNode;
+	private readonly _tokensColorTracker: MinimapTokensColorTracker;
+	private readonly _tokensColorTrackerListener: IDisposable;
 
-	// private _verticalScrollbarWidth: number;
-	// private _horizontalScrollbarHeight: number;
-	// private _editorHeight: number;
-	// private _editorWidth: number;
-	private _minimapWidth: number;
-	private _minimapHeight: number;
-	private _viewportColumn: number;
+	private _options: MinimapOptions;
+	private _backgroundFillData: Uint8ClampedArray;
 
 	constructor(context: ViewContext) {
 		super(context);
 
-		// this._widgets = {};
-		// this._verticalScrollbarWidth = 0;
-		// this._horizontalScrollbarHeight = 0;
-		// this._editorHeight = 0;
-		// this._editorWidth = 0;
+		this._options = new MinimapOptions(this._context.configuration);
+		this._backgroundFillData = null;
 
-		this._minimapWidth = this._context.configuration.editor.layoutInfo.minimapWidth;
-		this._minimapHeight = this._context.configuration.editor.layoutInfo.height;
-		this._viewportColumn = this._context.configuration.editor.layoutInfo.viewportColumn;
+		this._domNode = createFastDomNode(document.createElement('div'));
+		this._domNode.setPosition('absolute');
+		this._domNode.setRight(0);
 
-		this.domNode = document.createElement('canvas');
-		this.domNode.style.position = 'absolute';
-		this.domNode.style.right = '0';
-		this.domNode.style.width = `${this._minimapWidth}px`;
-		this.domNode.style.height = `${this._minimapHeight}px`;
-		// PartFingerprints.write(this.domNode, PartFingerprint.OverlayWidgets);
-		// this.domNode.className = ClassNames.OVERLAY_WIDGETS;
+		this._canvas = createFastDomNode(document.createElement('canvas'));
+		this._canvas.setPosition('absolute');
+		this._canvas.setLeft(0);
+
+		this._domNode.domNode.appendChild(this._canvas.domNode);
+
+		this._tokensColorTracker = MinimapTokensColorTracker.getInstance();
+		this._tokensColorTrackerListener = this._tokensColorTracker.onDidChange(() => this._backgroundFillData = null);
+
+		this._applyLayout();
 	}
 
 	public dispose(): void {
 		super.dispose();
-		// this._widgets = null;
+	}
+
+	public getDomNode(): HTMLElement {
+		return this._domNode.domNode;
+	}
+
+	private _applyLayout(): void {
+		this._domNode.setWidth(this._options.minimapWidth);
+		this._domNode.setHeight(this._options.minimapHeight);
+		this._canvas.setWidth(this._options.canvasOuterWidth);
+		this._canvas.setHeight(this._options.canvasOuterHeight);
+		(<HTMLCanvasElement>this._canvas.domNode).width = this._options.canvasInnerWidth; // TODO@minimap
+		(<HTMLCanvasElement>this._canvas.domNode).height = this._options.canvasInnerHeight; // TODO@minimap
+		this._backgroundFillData = null;
+	}
+
+	private _getBackgroundFillData(): Uint8ClampedArray {
+		if (this._backgroundFillData === null) {
+			const WIDTH = this._options.canvasInnerWidth;
+			const HEIGHT = this._options.canvasInnerHeight;
+
+			const background = this._tokensColorTracker.getColorMaps().getColor(ColorId.DefaultBackground);
+			const backgroundR = background.r;
+			const backgroundG = background.g;
+			const backgroundB = background.b;
+
+			let result = new Uint8ClampedArray(WIDTH * HEIGHT * 4);
+			let offset = 0;
+			for (let i = 0; i < HEIGHT; i++) {
+				for (let j = 0; j < WIDTH; j++) {
+					result[offset] = backgroundR;
+					result[offset + 1] = backgroundG;
+					result[offset + 2] = backgroundB;
+					result[offset + 3] = 255;
+					offset += 4;
+				}
+			}
+
+			this._backgroundFillData = result;
+		}
+		return this._backgroundFillData;
 	}
 
 	// ---- begin view event handlers
 
-	public onLayoutChanged(layoutInfo: editorCommon.EditorLayoutInfo): boolean {
-		this._minimapWidth = this._context.configuration.editor.layoutInfo.minimapWidth;
-		this._minimapHeight = this._context.configuration.editor.layoutInfo.height;
-		this._viewportColumn = this._context.configuration.editor.layoutInfo.viewportColumn;
-		this.domNode.style.width = `${this._minimapWidth}px`;
-		this.domNode.width = this._minimapWidth;
-		this.domNode.style.height = `${this._minimapHeight}px`;
-		this.domNode.height = this._minimapHeight;
-
-		// this._verticalScrollbarWidth = layoutInfo.verticalScrollbarWidth;
-		// this._horizontalScrollbarHeight = layoutInfo.horizontalScrollbarHeight;
-		// this._editorHeight = layoutInfo.height;
-		// this._editorWidth = layoutInfo.width;
+	private _onOptionsMaybeChanged(): boolean {
+		let opts = new MinimapOptions(this._context.configuration);
+		if (this._options.equals(opts)) {
+			return false;
+		}
+		this._options = opts;
+		this._applyLayout();
 		return true;
+	}
+	public onConfigurationChanged(e: editorCommon.IConfigurationChangedEvent): boolean {
+		return this._onOptionsMaybeChanged();
+	}
+	public onLayoutChanged(layoutInfo: editorCommon.EditorLayoutInfo): boolean {
+		return this._onOptionsMaybeChanged();
 	}
 	public onModelTokensChanged(e: editorCommon.IViewTokensChangedEvent): boolean {
 		return true;
@@ -176,21 +279,36 @@ export class Minimap extends ViewPart {
 		}
 	}
 
-	public render(ctx: IRestrictedRenderingContext): void {
-		let pixelRatio = browser.getPixelRatio();
+	public render(renderingCtx: IRestrictedRenderingContext): void {
+		const renderMinimap = this._options.renderMinimap;
+		if (renderMinimap === RenderMinimap.None) {
+			return;
+		}
+
+		const WIDTH = this._options.canvasInnerWidth;
+		const HEIGHT = this._options.canvasInnerHeight;
+		const ctx = (<HTMLCanvasElement>this._canvas.domNode).getContext('2d'); // TODO@minimap
+
+		// Prepare image data (fill with background color)
+		let imageData = ctx.createImageData(WIDTH, HEIGHT);
+		imageData.data.set(this._getBackgroundFillData());
+
+
+
+		// let pixelRatio = browser.getPixelRatio();
 		// console.log(`pixelRatio: ${pixelRatio}, devicePixelRatio: ${devicePixelRatio}`);//here: ' + pixelRatio);
-		const WIDTH = pixelRatio * this._minimapWidth;
-		const HEIGHT = pixelRatio * this._minimapHeight;
-		this.domNode.width = WIDTH;
-		this.domNode.height = HEIGHT;
+		// const WIDTH = pixelRatio * this._minimapWidth;
+		// const HEIGHT = pixelRatio * this._minimapHeight;
+		// this.domNode.width = WIDTH;
+		// this.domNode.height = HEIGHT;
 
-		this.domNode.style.background = '#000';
+		// this.domNode.style.background = '#000';
 
-		let lineCount = Math.floor(HEIGHT / 4);
+		// let lineCount = Math.floor(HEIGHT / 4);
 
 		// let data = this._context.model.getMinimapLineRenderingData(2);
 
-		const lineLen = (this._viewportColumn - 1);
+		// const lineLen = (this._viewportColumn - 1);
 
 		// let linePixelData = new Uint8ClampedArray(
 		// 	8 * 4 * lineLen
@@ -199,31 +317,35 @@ export class Minimap extends ViewPart {
 		// let start = performance.now();
 		// console.profile();
 
-		let ctx2 = this.domNode.getContext('2d');
+		// let ctx2 = this.domNode.getContext('2d');
 		// ctx2.fillStyle='#ffffff';
 		// ctx2.fillRect(0, 0, WIDTH, HEIGHT);
-		let imageData = ctx2.createImageData(lineLen * 2, 4 * lineCount);
+		// let imageData = ctx2.createImageData(lineLen * 2, 4 * lineCount);
 
-		let colorTracker = MinimapTokensColorTracker.getInstance();
-		let colors = colorTracker.getColorMaps();
+		// let colorTracker = MinimapTokensColorTracker.getInstance();
+		let colors = this._tokensColorTracker.getColorMaps();
 
 		let background = colors.getColor(ColorId.DefaultBackground);
-		// getBackgroundColor();
-		let backgroundR = background.r;
-		let backgroundG = background.g;
-		let backgroundB = background.b;
-		// set up the background
-		let offset = 0;
-		for (let i = 0; i < HEIGHT; i++) {
-			for (let j = 0; j < WIDTH; j++) {
-				imageData.data[offset] = backgroundR;
-				imageData.data[offset + 1] = backgroundG;
-				imageData.data[offset + 2] = backgroundB;
-				imageData.data[offset + 3] = 255;
-				offset += 4;
-			}
-		}
+		// // getBackgroundColor();
+		// let backgroundR = background.r;
+		// let backgroundG = background.g;
+		// let backgroundB = background.b;
+		// // set up the background
+		// let offset = 0;
+		// for (let i = 0; i < HEIGHT; i++) {
+		// 	for (let j = 0; j < WIDTH; j++) {
+		// 		imageData.data[offset] = backgroundR;
+		// 		imageData.data[offset + 1] = backgroundG;
+		// 		imageData.data[offset + 2] = backgroundB;
+		// 		imageData.data[offset + 3] = 255;
+		// 		offset += 4;
+		// 	}
+		// }
 
+		const charHeight = (renderMinimap === RenderMinimap.Large ? Constants.x2_CHAR_HEIGHT : Constants.x1_CHAR_HEIGHT);
+		const lineCount = Math.floor(HEIGHT / charHeight);
+
+		// let lineCount = Math.floor((renderMinimap === RenderMinimap.Large ? (HEIGHT / Constants.x2_CHAR_HEIGHT))
 		let data: MinimapLineRenderingData[] = [];
 		for (let lineIndex = 0; lineIndex < lineCount; lineIndex++) {
 			data[lineIndex] = this._context.model.getMinimapLineRenderingData(lineIndex + 1);
@@ -241,7 +363,7 @@ export class Minimap extends ViewPart {
 		// ctx2.strokeStyle = '#000';
 		// for (i = 0; i <)
 		// ctx2.fillRect(0, 0, this._minimapWidth, this._minimapHeight);
-		ctx2.putImageData(imageData, 0, 0);
+		ctx.putImageData(imageData, 0, 0);
 
 		// console.profileEnd();
 
