@@ -5,6 +5,7 @@
 
 import uri from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
+import severity from 'vs/base/common/severity';
 import Event from 'vs/base/common/event';
 import { IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -463,7 +464,7 @@ export interface IDebugService {
 	/**
 	 * Appends the passed string to the debug repl.
 	 */
-	logToRepl(value: string): void;
+	logToRepl(value: string, sev?: severity): void;
 
 	/**
 	 * Adds a new watch expression and evaluates it against the debug adapter.
