@@ -44,6 +44,7 @@ import * as BuildStatus from './utils/buildStatus';
 import * as ProjectStatus from './utils/projectStatus';
 import TypingsStatus, { AtaProgressReporter } from './utils/typingsStatus';
 import * as VersionStatus from './utils/versionStatus';
+import ProjectConfigStatus from './utils/projectConfigStatus';
 
 interface LanguageDescription {
 	id: string;
@@ -110,7 +111,9 @@ export function activate(context: ExtensionContext): void {
 	context.subscriptions.push(commands.registerCommand('javascript.goToProjectConfig', goToProjectConfig.bind(null, false)));
 
 	window.onDidChangeActiveTextEditor(VersionStatus.showHideStatus, null, context.subscriptions);
+
 	client.onReady().then(() => {
+		context.subscriptions.push(new ProjectConfigStatus(client));
 		context.subscriptions.push(ProjectStatus.create(client,
 			path => new Promise(resolve => setTimeout(() => resolve(clientHost.handles(path)), 750)),
 			context.workspaceState));
