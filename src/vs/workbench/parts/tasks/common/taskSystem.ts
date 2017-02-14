@@ -138,9 +138,9 @@ export interface CommandConfiguration {
 
 export interface CommandBinding {
 	/**
-	 * The command Id the task is bound to.
+	 * The command identifier the task is bound to.
 	 */
-	commandId: string;
+	identifier: string;
 
 	/**
 	 * The title to use
