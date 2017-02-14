@@ -1567,6 +1567,7 @@ declare module monaco.editor {
     export class EditorContribOptions {
         readonly selectionClipboard: boolean;
         readonly hover: boolean;
+        readonly dragndrop: boolean;
         readonly contextmenu: boolean;
         readonly quickSuggestions: boolean;
         readonly quickSuggestionsDelay: number;
@@ -3451,7 +3452,6 @@ declare module monaco.editor {
         WordSelect: string;
         WordSelectDrag: string;
         LastCursorWordSelect: string;
-        RangeSelectDrag: string;
         DragTo: string;
         LineSelect: string;
         LineSelectDrag: string;
@@ -3758,6 +3758,11 @@ declare module monaco.editor {
          * @event
          */
         onMouseDown(listener: (e: IEditorMouseEvent) => void): IDisposable;
+        /**
+         * An event emitted on a "mousedrag".
+         * @event
+         */
+        onMouseDrag(listener: (e: IEditorMouseEvent) => void): IDisposable;
         /**
          * An event emitted on a "contextmenu".
          * @event

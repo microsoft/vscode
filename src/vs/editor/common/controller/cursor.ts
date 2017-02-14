@@ -926,7 +926,6 @@ export class Cursor extends EventEmitter {
 		this._handlers[H.WordSelect] = (ctx) => this._word(false, ctx);
 		this._handlers[H.WordSelectDrag] = (ctx) => this._word(true, ctx);
 		this._handlers[H.LastCursorWordSelect] = (ctx) => this._lastCursorWord(ctx);
-		this._handlers[H.RangeSelectDrag] = (ctx) => this._rangeSelectDrag(ctx);
 		this._handlers[H.DragTo] = (ctx) => this._dragTo(ctx);
 		this._handlers[H.CancelSelection] = (ctx) => this._cancelSelection(ctx);
 		this._handlers[H.RemoveSecondaryCursors] = (ctx) => this._removeSecondaryCursors(ctx);
@@ -1309,43 +1308,6 @@ export class Cursor extends EventEmitter {
 		return true;
 	}
 
-	private _rangeSelectDrag(ctx: IMultipleCursorOperationContext): boolean {
-		if (this.configuration.editor.readOnly || this.model.hasEditableRange()) {
-			return false;
-		}
-
-		var lastAddedCursor = this.cursors.getLastAddedCursor();
-		if (lastAddedCursor.modelState.selection.isEmpty()) {
-			this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => {
-				if (oneCursor === lastAddedCursor) {
-					return OneCursorOp.moveTo(oneCursor, false, ctx.eventData.position, ctx.eventData.viewPosition, ctx.eventSource, oneCtx);
-				}
-				return false;
-			});
-		} if (!lastAddedCursor.modelState.selection.containsPosition(ctx.eventData.position)) {
-			this.cursors.addSecondaryCursor({
-				selectionStartLineNumber: 1,
-				selectionStartColumn: 1,
-				positionLineNumber: 1,
-				positionColumn: 1
-			});
-
-			// Manually move to get events
-			var lastAddedCursor = this.cursors.getLastAddedCursor();
-			this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => {
-				if (oneCursor === lastAddedCursor) {
-					return OneCursorOp.moveTo(oneCursor, false, ctx.eventData.position, ctx.eventData.viewPosition, ctx.eventSource, oneCtx);
-				}
-				return false;
-			});
-		}
-
-		ctx.shouldReveal = false;
-		ctx.shouldRevealHorizontal = false;
-
-		return true;
-	}
-
 	private _dragTo(ctx: IMultipleCursorOperationContext): boolean {
 		if (this.configuration.editor.readOnly || this.model.hasEditableRange()) {
 			return false;
@@ -1367,18 +1329,17 @@ export class Cursor extends EventEmitter {
 			});
 
 			return true;
+		} else {
+			this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => {
+				if (!oneCursor.modelState.selection.isEmpty()) {
+					return this._doApplyEdit(cursorIndex, oneCursor, oneCtx, () => new EditOperationResult(new DragAndDropCommand(oneCursor.modelState.selection, dragTargetPosition), {
+						shouldPushStackElementBefore: false,
+						shouldPushStackElementAfter: false
+					}));
+				}
+				return true;
+			});
 		}
-
-		var lastAddedCursor = this.cursors.getLastAddedCursor();
-		this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => {
-			if (oneCursor !== lastAddedCursor) {
-				return this._doApplyEdit(cursorIndex, oneCursor, oneCtx, () => new EditOperationResult(new DragAndDropCommand(oneCursor.modelState.selection, lastAddedCursor.modelState.position), {
-					shouldPushStackElementBefore: false,
-					shouldPushStackElementAfter: false
-				}));
-			}
-			return true;
-		});
 
 		return true;
 	}

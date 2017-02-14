@@ -427,6 +427,10 @@ class MouseDownOperation extends Disposable {
 
 		this._dragTargetPosition = position.position;
 		this._dispatchMouse(position, MouseDownEventType.Drag);
+		this._viewController.emitMouseDrag({
+			event: e,
+			target: this._createMouseTarget(e, true)
+		});
 	}
 
 	public start(targetType: editorCommon.MouseTargetType, e: EditorMouseEvent): void {
