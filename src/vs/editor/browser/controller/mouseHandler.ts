@@ -506,6 +506,10 @@ class MouseDownOperation extends Disposable {
 				// Ignoring because position is unknown
 				return;
 			}
+			if (this._mouseState.lastMouseDownEvent === 'drag') {
+				// Ignoring because users are dragging the text
+				return;
+			}
 			this._dispatchMouse(position, true);
 		}, 10);
 	}
