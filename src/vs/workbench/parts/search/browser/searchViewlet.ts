@@ -489,7 +489,7 @@ export class SearchViewlet extends Viewlet {
 				if (keyboard) {
 					// debounce setting selection so that we are not too quickly opening
 					// when the user is pressing and holding the key to move focus
-					if (focusToSelectionDelayHandle || (Date.now() - lastFocusToSelection <= 100)) {
+					if (focusToSelectionDelayHandle || (Date.now() - lastFocusToSelection <= 75)) {
 						window.clearTimeout(focusToSelectionDelayHandle);
 						focusToSelectionDelayHandle = window.setTimeout(() => focusToSelection(), 300);
 					} else {
