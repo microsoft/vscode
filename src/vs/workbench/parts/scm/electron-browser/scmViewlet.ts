@@ -222,7 +222,7 @@ export class SCMViewlet extends Viewlet {
 
 		this.disposables.push(this.listService.register(this.list));
 
-		chain(this.list.onSelectionChange)
+		chain(this.list.onOpen)
 			.map(e => e.elements[0])
 			.filter(e => !!e && isSCMResource(e))
 			.on(this.open, this, this.disposables);
