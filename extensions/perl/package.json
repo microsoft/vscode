@@ -27,7 +27,7 @@
 		}, {
 			"language": "perl6",
 			"scopeName": "source.perl.6",
-			"path": "./syntaxes/perl.tmLanguage.json"
+			"path": "./syntaxes/perl6.tmLanguage.json"
 		}]
 	}
 }
