@@ -13,7 +13,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import Event, { Emitter, EventBufferer, chain, mapEvent, fromCallback } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
-import { IDelegate, IRenderer, IListMouseEvent, IFocusChangeEvent, ISelectionChangeEvent } from './list';
+import { IDelegate, IRenderer, IListEvent, IListMouseEvent } from './list';
 import { ListView, IListViewOptions } from './listView';
 
 export interface IIdentityProvider<T> {
@@ -183,7 +183,7 @@ class KeyboardController<T> implements IDisposable {
 	private onEnter(e: StandardKeyboardEvent): void {
 		e.preventDefault();
 		e.stopPropagation();
-		this.list.setSelection(this.list.getFocus());
+		this.list.open(this.list.getFocus());
 	}
 
 	private onUpArrow(e: StandardKeyboardEvent): void {
@@ -224,6 +224,7 @@ class KeyboardController<T> implements IDisposable {
 }
 
 class MouseController<T> implements IDisposable {
+
 	private disposables: IDisposable[];
 
 	constructor(
@@ -246,7 +247,7 @@ class MouseController<T> implements IDisposable {
 		e.stopPropagation();
 		this.view.domNode.focus();
 		this.list.setFocus([e.index]);
-		this.list.setSelection([e.index]);
+		this.list.open([e.index]);
 	}
 
 	dispose() {
@@ -278,19 +279,21 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	private spliceable: ISpliceable<T>;
 	private disposables: IDisposable[];
 
-	@memoize
-	get onFocusChange(): Event<IFocusChangeEvent<T>> {
+	@memoize get onFocusChange(): Event<IListEvent<T>> {
 		return mapEvent(this.eventBufferer.wrapEvent(this.focus.onChange), e => this.toListEvent(e));
 	}
 
-	@memoize
-	get onSelectionChange(): Event<ISelectionChangeEvent<T>> {
+	@memoize get onSelectionChange(): Event<IListEvent<T>> {
 		return mapEvent(this.eventBufferer.wrapEvent(this.selection.onChange), e => this.toListEvent(e));
 	}
 
-	@memoize
-	get onContextMenu(): Event<IListMouseEvent<T>> {
+	@memoize get onContextMenu(): Event<IListMouseEvent<T>> {
 		return fromCallback(handler => this.view.addListener('contextmenu', handler));
+	}
+
+	private _onOpen = new Emitter<number[]>();
+	@memoize get onOpen(): Event<IListEvent<T>> {
+		return mapEvent(this._onOpen.event, indexes => this.toListEvent({ indexes }));
 	}
 
 	private _onDOMFocus = new Emitter<void>();
@@ -500,7 +503,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		}
 	}
 
-	getElementDomId(index: number): string {
+	private getElementDomId(index: number): string {
 		return `${this.idPrefix}_${index}`;
 	}
 
@@ -510,6 +513,11 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 	getHTMLElement(): HTMLElement {
 		return this.view.domNode;
+	}
+
+	open(indexes: number[]): void {
+		this.setSelection(indexes);
+		this._onOpen.fire(indexes);
 	}
 
 	private toListEvent({ indexes }: ITraitChangeEvent) {
