@@ -37,9 +37,9 @@ export class ScrollableElement extends Widget {
 	private _horizontalScrollbar: HorizontalScrollbar;
 	private _domNode: HTMLElement;
 
-	private _leftShadowDomNode: FastDomNode;
-	private _topShadowDomNode: FastDomNode;
-	private _topLeftShadowDomNode: FastDomNode;
+	private _leftShadowDomNode: FastDomNode<HTMLElement>;
+	private _topShadowDomNode: FastDomNode<HTMLElement>;
+	private _topLeftShadowDomNode: FastDomNode<HTMLElement>;
 
 	private _listenOnDomNode: HTMLElement;
 

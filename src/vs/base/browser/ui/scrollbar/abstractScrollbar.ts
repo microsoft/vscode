@@ -52,8 +52,8 @@ export abstract class AbstractScrollbar extends Widget {
 	private _visibilityController: ScrollbarVisibilityController;
 	private _mouseMoveMonitor: GlobalMouseMoveMonitor<IStandardMouseMoveEventData>;
 
-	public domNode: FastDomNode;
-	public slider: FastDomNode;
+	public domNode: FastDomNode<HTMLElement>;
+	public slider: FastDomNode<HTMLElement>;
 
 	protected _shouldRender: boolean;
 

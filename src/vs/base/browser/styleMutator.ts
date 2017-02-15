@@ -6,9 +6,9 @@
 
 import * as dom from 'vs/base/browser/dom';
 
-export abstract class FastDomNode {
+export abstract class FastDomNode<T extends HTMLElement> {
 
-	private _domNode: HTMLElement;
+	private _domNode: T;
 	private _maxWidth: number;
 	private _width: number;
 	private _height: number;
@@ -26,11 +26,11 @@ export abstract class FastDomNode {
 	private _visibility: string;
 	private _transform: string;
 
-	public get domNode(): HTMLElement {
+	public get domNode(): T {
 		return this._domNode;
 	}
 
-	constructor(domNode: HTMLElement) {
+	constructor(domNode: T) {
 		this._domNode = domNode;
 		this._maxWidth = -1;
 		this._width = -1;
@@ -183,21 +183,21 @@ export abstract class FastDomNode {
 		this._setTransform(this._domNode, this._transform);
 	}
 
-	protected abstract _setTransform(domNode: HTMLElement, transform: string): void;
+	protected abstract _setTransform(domNode: T, transform: string): void;
 
 	public setAttribute(name: string, value: string): void {
 		this._domNode.setAttribute(name, value);
 	}
 }
 
-class WebKitFastDomNode extends FastDomNode {
-	protected _setTransform(domNode: HTMLElement, transform: string): void {
+class WebKitFastDomNode<T extends HTMLElement> extends FastDomNode<T> {
+	protected _setTransform(domNode: T, transform: string): void {
 		(<any>domNode.style).webkitTransform = transform;
 	}
 }
 
-class StandardFastDomNode extends FastDomNode {
-	protected _setTransform(domNode: HTMLElement, transform: string): void {
+class StandardFastDomNode<T extends HTMLElement> extends FastDomNode<T> {
+	protected _setTransform(domNode: T, transform: string): void {
 		domNode.style.transform = transform;
 	}
 }
@@ -209,7 +209,7 @@ let useWebKitFastDomNode = false;
 		useWebKitFastDomNode = true;
 	}
 })();
-export function createFastDomNode(domNode: HTMLElement): FastDomNode {
+export function createFastDomNode<T extends HTMLElement>(domNode: T): FastDomNode<T> {
 	if (useWebKitFastDomNode) {
 		return new WebKitFastDomNode(domNode);
 	} else {

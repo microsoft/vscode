@@ -244,7 +244,7 @@ export class RenderedLinesCollection<T extends ILine> {
 
 export abstract class ViewLayer<T extends IVisibleLine> extends ViewPart {
 
-	protected domNode: FastDomNode;
+	protected domNode: FastDomNode<HTMLElement>;
 	protected _linesCollection: RenderedLinesCollection<T>;
 	private _renderer: ViewLayerRenderer<T>;
 	private _scrollDomNode: HTMLElement;
@@ -353,7 +353,7 @@ export abstract class ViewLayer<T extends IVisibleLine> extends ViewPart {
 		this._scrollDomNodeIsAbove = resCtx.scrollDomNodeIsAbove;
 	}
 
-	private _createDomNode(): FastDomNode {
+	private _createDomNode(): FastDomNode<HTMLElement> {
 		let domNode = createFastDomNode(document.createElement('div'));
 		domNode.setClassName('view-layer');
 		domNode.setPosition('absolute');

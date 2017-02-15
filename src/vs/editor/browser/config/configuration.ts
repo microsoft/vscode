@@ -226,7 +226,7 @@ export class Configuration extends CommonEditorConfiguration {
 		domNode.style.lineHeight = fontInfo.lineHeight + 'px';
 	}
 
-	public static applyFontInfo(domNode: FastDomNode, fontInfo: BareFontInfo): void {
+	public static applyFontInfo(domNode: FastDomNode<HTMLElement>, fontInfo: BareFontInfo): void {
 		domNode.setFontFamily(fontInfo.fontFamily);
 		domNode.setFontWeight(fontInfo.fontWeight);
 		domNode.setFontSize(fontInfo.fontSize);
