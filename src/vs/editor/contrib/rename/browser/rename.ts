@@ -66,7 +66,7 @@ class RenameController implements IEditorContribution {
 			word = this.editor.getModel().getWordAtPosition(selection.getStartPosition());
 
 		if (!word) {
-			return;
+			return undefined;
 		}
 
 		let lineNumber = selection.startLineNumber,
@@ -102,6 +102,7 @@ class RenameController implements IEditorContribution {
 			}, err => {
 				if (typeof err === 'string') {
 					this._messageService.show(Severity.Info, err);
+					return undefined;
 				} else {
 					this._messageService.show(Severity.Error, nls.localize('rename.failed', "Sorry, rename failed to execute."));
 					return TPromise.wrapError(err);
@@ -118,6 +119,7 @@ class RenameController implements IEditorContribution {
 			if (!isPromiseCanceledError(err)) {
 				return TPromise.wrapError(err);
 			}
+			return undefined;
 		});
 	}
 
@@ -172,6 +174,7 @@ export class RenameAction extends EditorAction {
 		if (controller) {
 			return controller.run();
 		}
+		return undefined;
 	}
 }
 

@@ -77,7 +77,8 @@ export class Adapter {
 			}
 		}
 
-		return TPromise.wrapError(new Error(nls.localize('debugAdapterCannotDetermineExecutable', "Cannot determine executable for debug adapter '{0}'.", details.command)));
+		return TPromise.wrapError(new Error(nls.localize({ key: 'debugAdapterCannotDetermineExecutable', comment: ['Adapter executable file not found'] },
+			"Cannot determine executable for debug adapter '{0}'.", details.command)));
 	}
 
 	private getRuntime(): string {

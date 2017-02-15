@@ -62,8 +62,8 @@ class Renderer implements IRenderer<ICompletionItem, ISuggestionTemplateData> {
 		private editor: ICodeEditor,
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
-		const keybindings = keybindingService.lookupKeybindings('editor.action.triggerSuggest');
-		this.triggerKeybindingLabel = keybindings.length === 0 ? '' : ` (${keybindingService.getLabelFor(keybindings[0])})`;
+		const [kb] = keybindingService.lookupKeybindings('editor.action.triggerSuggest');
+		this.triggerKeybindingLabel = !kb ? '' : ` (${keybindingService.getLabelFor(kb)})`;
 	}
 
 	get templateId(): string {
@@ -672,6 +672,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 
 			return this.list.getFocusedElements()[0];
 		}
+		return undefined;
 	}
 
 	toggleDetails(): void {

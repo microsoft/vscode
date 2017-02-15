@@ -8,7 +8,10 @@
 		],
 		"outDir": "./out",
 		"strictNullChecks": true,
-		"noImplicitAny": true
+		"noImplicitAny": true,
+		"noImplicitReturns": true,
+		"noUnusedLocals": true,
+		"noUnusedParameters": true
 	},
 	"exclude": [
 		"node_modules",

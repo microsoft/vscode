@@ -140,7 +140,7 @@
           "enum": [
             "auto",
             "force",
-            "force-align",
+            "force-aligned",
             "force-expand-multiline"
           ],
           "enumDescriptions": [

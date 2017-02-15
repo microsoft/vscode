@@ -343,6 +343,7 @@ export class ContextKeyAndExpr implements ContextKeyExpr {
 			}
 			return true;
 		}
+		return false;
 	}
 
 	public evaluate(context: any): boolean {

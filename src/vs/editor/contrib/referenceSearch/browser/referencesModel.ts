@@ -75,7 +75,7 @@ export class FilePreview implements IDisposable {
 		const model = this._model;
 
 		if (!model) {
-			return;
+			return undefined;
 		}
 
 		const {startLineNumber, startColumn, endColumn} = range;
@@ -263,6 +263,7 @@ export class ReferencesModel implements IDisposable {
 		if (nearest) {
 			return this._references[nearest.idx];
 		}
+		return undefined;
 	}
 
 	dispose(): void {

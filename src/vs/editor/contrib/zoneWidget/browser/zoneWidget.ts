@@ -176,6 +176,7 @@ export abstract class ZoneWidget extends Widget implements IHorizontalSashLayout
 		if (id) {
 			return this.editor.getModel().getDecorationRange(id).getStartPosition();
 		}
+		return undefined;
 	}
 
 	public show(rangeOrPos: IRange | IPosition, heightInLines: number): void {

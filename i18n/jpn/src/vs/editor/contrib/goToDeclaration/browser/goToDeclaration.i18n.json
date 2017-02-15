@@ -6,6 +6,8 @@
 {
 	"actions.goToDecl.label": "定義へ移動",
 	"actions.goToDeclToSide.label": "定義を横に開く",
+	"actions.goToImplementation.label": "実装に移動",
+	"actions.peekImplementation.label": "実装のプレビュー",
 	"actions.previewDecl.label": "定義をここに表示",
 	"meta.title": " - {0} の定義",
 	"multipleResults": "クリックして、{0} の定義を表示します。"

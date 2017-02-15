@@ -166,7 +166,7 @@ export class CommandsConverter {
 	toInternal(command: vscode.Command): modes.Command {
 
 		if (!command) {
-			return;
+			return undefined;
 		}
 
 		const result: modes.Command = {
@@ -191,7 +191,7 @@ export class CommandsConverter {
 	fromInternal(command: modes.Command): vscode.Command {
 
 		if (!command) {
-			return;
+			return undefined;
 		}
 
 		const id = ObjectIdentifier.of(command);

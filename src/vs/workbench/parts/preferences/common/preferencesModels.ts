@@ -253,19 +253,21 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 			if (previousParents.length === 1 || (previousParents.length === 2 && overrideSetting !== null)) {
 				// settings value started
 				const setting = previousParents.length === 1 ? settings[settings.length - 1] : overrideSetting.overrides[overrideSetting.overrides.length - 1];
-				let valueStartPosition = model.getPositionAt(offset);
-				let valueEndPosition = model.getPositionAt(offset + length);
-				setting.value = value;
-				setting.valueRange = {
-					startLineNumber: valueStartPosition.lineNumber,
-					startColumn: valueStartPosition.column,
-					endLineNumber: valueEndPosition.lineNumber,
-					endColumn: valueEndPosition.column
-				};
-				setting.range = assign(setting.range, {
-					endLineNumber: valueEndPosition.lineNumber,
-					endColumn: valueEndPosition.column
-				});
+				if (setting) {
+					let valueStartPosition = model.getPositionAt(offset);
+					let valueEndPosition = model.getPositionAt(offset + length);
+					setting.value = value;
+					setting.valueRange = {
+						startLineNumber: valueStartPosition.lineNumber,
+						startColumn: valueStartPosition.column,
+						endLineNumber: valueEndPosition.lineNumber,
+						endColumn: valueEndPosition.column
+					};
+					setting.range = assign(setting.range, {
+						endLineNumber: valueEndPosition.lineNumber,
+						endColumn: valueEndPosition.column
+					});
+				}
 			}
 		}
 		let visitor: JSONVisitor = {
@@ -323,15 +325,17 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 				if (previousParents.length === 1 || (previousParents.length === 2 && overrideSetting !== null)) {
 					// setting ended
 					const setting = previousParents.length === 1 ? settings[settings.length - 1] : overrideSetting.overrides[overrideSetting.overrides.length - 1];
-					let valueEndPosition = model.getPositionAt(offset + length);
-					setting.valueRange = assign(setting.valueRange, {
-						endLineNumber: valueEndPosition.lineNumber,
-						endColumn: valueEndPosition.column
-					});
-					setting.range = assign(setting.range, {
-						endLineNumber: valueEndPosition.lineNumber,
-						endColumn: valueEndPosition.column
-					});
+					if (setting) {
+						let valueEndPosition = model.getPositionAt(offset + length);
+						setting.valueRange = assign(setting.valueRange, {
+							endLineNumber: valueEndPosition.lineNumber,
+							endColumn: valueEndPosition.column
+						});
+						setting.range = assign(setting.range, {
+							endLineNumber: valueEndPosition.lineNumber,
+							endColumn: valueEndPosition.column
+						});
+					}
 
 					if (previousParents.length === 1) {
 						overrideSetting = null;
@@ -356,15 +360,17 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 				if (previousParents.length === 1 || (previousParents.length === 2 && overrideSetting !== null)) {
 					// setting value ended
 					const setting = previousParents.length === 1 ? settings[settings.length - 1] : overrideSetting.overrides[overrideSetting.overrides.length - 1];
-					let valueEndPosition = model.getPositionAt(offset + length);
-					setting.valueRange = assign(setting.valueRange, {
-						endLineNumber: valueEndPosition.lineNumber,
-						endColumn: valueEndPosition.column
-					});
-					setting.range = assign(setting.range, {
-						endLineNumber: valueEndPosition.lineNumber,
-						endColumn: valueEndPosition.column
-					});
+					if (setting) {
+						let valueEndPosition = model.getPositionAt(offset + length);
+						setting.valueRange = assign(setting.valueRange, {
+							endLineNumber: valueEndPosition.lineNumber,
+							endColumn: valueEndPosition.column
+						});
+						setting.range = assign(setting.range, {
+							endLineNumber: valueEndPosition.lineNumber,
+							endColumn: valueEndPosition.column
+						});
+					}
 				}
 			},
 			onLiteralValue: onValue,

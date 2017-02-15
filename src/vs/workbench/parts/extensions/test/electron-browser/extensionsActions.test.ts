@@ -414,7 +414,7 @@ suite('ExtensionsActions Test', () => {
 		instantiationService.get(IExtensionsWorkbenchService).queryGallery().done(page => {
 			testObject.extension = page.firstPage[0];
 			assert.ok(!testObject.enabled);
-			assert.equal('extension-action manage no-extension', testObject.class);
+			assert.equal('extension-action manage hide', testObject.class);
 			assert.equal('', testObject.tooltip);
 
 			done();
@@ -431,7 +431,22 @@ suite('ExtensionsActions Test', () => {
 
 			installEvent.fire({ id: gallery.id, gallery });
 			assert.ok(!testObject.enabled);
-			assert.equal('extension-action manage no-extension', testObject.class);
+			assert.equal('extension-action manage hide', testObject.class);
+			assert.equal('', testObject.tooltip);
+
+			done();
+		});
+	});
+
+	test('Test ManageExtensionAction when extension is system extension', (done) => {
+		const testObject: ExtensionsActions.ManageExtensionAction = instantiationService.createInstance(ExtensionsActions.ManageExtensionAction);
+		const local = aLocalExtension('a', {}, { type: LocalExtensionType.System });
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
+
+		instantiationService.get(IExtensionsWorkbenchService).queryLocal().done(extensions => {
+			testObject.extension = extensions[0];
+			assert.ok(!testObject.enabled);
+			assert.equal('extension-action manage hide', testObject.class);
 			assert.equal('', testObject.tooltip);
 
 			done();

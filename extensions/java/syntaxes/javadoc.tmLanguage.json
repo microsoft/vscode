@@ -259,7 +259,7 @@
 				},
 				{
 					"comment": "This prevents < characters in commented source from starting\n\t\t\t\t\t\t\t\ta tag that will not end. List of allowed tags taken from\n\t\t\t\t\t\t\t\tjava checkstyle.",
-					"match": "<(?!(a|abbr|acronym|address|area|b|bdo|big|blockquote|br|caption|cite|code|colgroup|dd|del|div|dfn|dl|dt|em|fieldset|font|h1toh6|hr|i|img|ins|kbd|li|ol|p|pre|q|samp|small|span|strong|sub|sup|table|tbody|td|tfoot|th|thread|tr|tt|u|ul)\\b[^>]*>)"
+					"match": "<(?!/?(a|abbr|acronym|address|area|b|bdo|big|blockquote|br|caption|cite|code|colgroup|dd|del|div|dfn|dl|dt|em|fieldset|font|h1toh6|hr|i|img|ins|kbd|li|ol|p|pre|q|samp|small|span|strong|sub|sup|table|tbody|td|tfoot|th|thread|tr|tt|u|ul)\\b[^>]*>)"
 				},
 				{
 					"include": "text.html.basic"

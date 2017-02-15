@@ -163,11 +163,6 @@ export class QuickOpenEntry {
 	 */
 	public static compare(elementA: QuickOpenEntry, elementB: QuickOpenEntry, lookFor: string): number {
 
-		// Normalize
-		if (lookFor) {
-			lookFor = strings.stripWildcards(lookFor).toLowerCase();
-		}
-
 		// Give matches with label highlights higher priority over
 		// those with only description highlights
 		const labelHighlightsA = elementA.getHighlights()[0] || [];

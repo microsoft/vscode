@@ -13,6 +13,7 @@ import { QuickOpenHandler, EditorQuickOpenEntry } from 'vs/workbench/browser/qui
 import { QuickOpenModel, QuickOpenEntry } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { IAutoFocus, Mode, IEntryRunContext } from 'vs/base/parts/quickopen/common/quickOpen';
 import filters = require('vs/base/common/filters');
+import strings = require('vs/base/common/strings');
 import { Range } from 'vs/editor/common/core/range';
 import { EditorInput, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import labels = require('vs/base/common/labels');
@@ -144,11 +145,6 @@ export class OpenSymbolHandler extends QuickOpenHandler {
 	public getResults(searchValue: string): TPromise<QuickOpenModel> {
 		searchValue = searchValue.trim();
 
-		// Respond directly to empty search
-		if (!searchValue) {
-			return TPromise.as(new QuickOpenModel([]));
-		}
-
 		let promise: TPromise<QuickOpenEntry[]>;
 		if (!this.options.skipDelay) {
 			promise = this.delayer.trigger(() => this.doGetResults(searchValue)); // Run search with delay as needed
@@ -169,7 +165,7 @@ export class OpenSymbolHandler extends QuickOpenHandler {
 
 			// Sort (Standalone only)
 			if (!this.options.skipSorting) {
-				searchValue = searchValue.toLowerCase();
+				searchValue = searchValue ? strings.stripWildcards(searchValue.toLowerCase()) : searchValue;
 				return result.sort((a, b) => SymbolEntry.compare(a, b, searchValue));
 			} else {
 				return result;

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as path from 'path';
 import DOM = require('vs/base/browser/dom');
 import Event, { Emitter } from 'vs/base/common/event';
 import URI from 'vs/base/common/uri';
@@ -10,7 +11,6 @@ import cp = require('child_process');
 import lifecycle = require('vs/base/common/lifecycle');
 import nls = require('vs/nls');
 import os = require('os');
-import path = require('path');
 import platform = require('vs/base/common/platform');
 import xterm = require('xterm');
 import { Dimension } from 'vs/base/browser/builder';
@@ -22,9 +22,11 @@ import { IStringDictionary } from 'vs/base/common/collections';
 import { ITerminalInstance, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_PANEL_ID, IShellLaunchConfig } from 'vs/workbench/parts/terminal/common/terminal';
 import { ITerminalProcessFactory } from 'vs/workbench/parts/terminal/electron-browser/terminal';
 import { IWorkspace, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { TabFocus } from 'vs/editor/common/config/commonEditorConfig';
 import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
+import { TerminalLinkHandler } from 'vs/workbench/parts/terminal/electron-browser/terminalLinkHandler';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -49,6 +51,7 @@ export class TerminalInstance implements ITerminalInstance {
 	private _hadFocusOnExit: boolean;
 	private _isLaunching: boolean;
 	private _isVisible: boolean;
+	private _isDisposed: boolean;
 	private _onDisposed: Emitter<ITerminalInstance>;
 	private _onProcessIdReady: Emitter<TerminalInstance>;
 	private _onTitleChanged: Emitter<string>;
@@ -74,13 +77,15 @@ export class TerminalInstance implements ITerminalInstance {
 	public constructor(
 		private _terminalFocusContextKey: IContextKey<boolean>,
 		private _configHelper: TerminalConfigHelper,
+		private _linkHandler: TerminalLinkHandler,
 		private _container: HTMLElement,
 		private _shellLaunchConfig: IShellLaunchConfig,
 		@IContextKeyService private _contextKeyService: IContextKeyService,
 		@IKeybindingService private _keybindingService: IKeybindingService,
 		@IMessageService private _messageService: IMessageService,
 		@IPanelService private _panelService: IPanelService,
-		@IWorkspaceContextService private _contextService: IWorkspaceContextService
+		@IWorkspaceContextService private _contextService: IWorkspaceContextService,
+		@IWorkbenchEditorService private _editorService: IWorkbenchEditorService
 	) {
 		this._instanceDisposables = [];
 		this._processDisposables = [];
@@ -89,6 +94,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._hadFocusOnExit = false;
 		this._isLaunching = true;
 		this._isVisible = false;
+		this._isDisposed = false;
 		this._id = TerminalInstance._idCounter++;
 		this._terminalHasTextContextKey = KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED.bindTo(this._contextKeyService);
 
@@ -97,7 +103,9 @@ export class TerminalInstance implements ITerminalInstance {
 		this._onTitleChanged = new Emitter<string>();
 
 		this._createProcess(this._contextService.getWorkspace(), this._shellLaunchConfig);
+		this._createXterm();
 
+		// Only attach xterm.js to the DOM if the terminal panel has been opened before.
 		if (_container) {
 			this.attachToElement(_container);
 		}
@@ -105,6 +113,25 @@ export class TerminalInstance implements ITerminalInstance {
 
 	public addDisposable(disposable: lifecycle.IDisposable): void {
 		this._instanceDisposables.push(disposable);
+	}
+
+	/**
+	 * Create xterm.js instance and attach data listeners.
+	 */
+	protected _createXterm(): void {
+		this._xterm = xterm({
+			scrollback: this._configHelper.getScrollback()
+		});
+		this._process.on('message', (message) => this._sendPtyDataToXterm(message));
+		this._xterm.on('data', (data) => {
+			if (this._process) {
+				this._process.send({
+					event: 'input',
+					data: this._sanitizeInput(data)
+				});
+			}
+			return false;
+		});
 	}
 
 	public attachToElement(container: HTMLElement): void {
@@ -117,21 +144,8 @@ export class TerminalInstance implements ITerminalInstance {
 		DOM.addClass(this._wrapperElement, 'terminal-wrapper');
 		this._xtermElement = document.createElement('div');
 
-		this._xterm = xterm({
-			scrollback: this._configHelper.getScrollback()
-		});
 		this._xterm.open(this._xtermElement);
-
-		this._process.on('message', (message) => this._sendPtyDataToXterm(message));
-		this._xterm.on('data', (data) => {
-			if (this._process) {
-				this._process.send({
-					event: 'input',
-					data: this._sanitizeInput(data)
-				});
-			}
-			return false;
-		});
+		this._xterm.registerLinkMatcher(this._linkHandler.localLinkRegex, (url) => this._linkHandler.handleLocalLink(url), 1);
 		this._xterm.attachCustomKeydownHandler((event: KeyboardEvent) => {
 			// Disable all input if the terminal is exiting
 			if (this._isExiting) {
@@ -152,6 +166,7 @@ export class TerminalInstance implements ITerminalInstance {
 			if (TabFocus.getTabFocusMode() && event.keyCode === 9) {
 				return false;
 			}
+			return undefined;
 		});
 		this._instanceDisposables.push(DOM.addDisposableListener(this._xterm.element, 'mouseup', (event: KeyboardEvent) => {
 			// Wait until mouseup has propogated through the DOM before evaluating the new selection
@@ -210,6 +225,14 @@ export class TerminalInstance implements ITerminalInstance {
 		this.updateConfig();
 	}
 
+	public registerLinkMatcher(regex: RegExp, handler: (url: string) => void, matchIndex?: number): number {
+		return this._xterm.registerLinkMatcher(regex, handler, matchIndex);
+	}
+
+	public deregisterLinkMatcher(linkMatcherId: number): void {
+		this._xterm.deregisterLinkMatcher(linkMatcherId);
+	}
+
 	public hasSelection(): boolean {
 		return !document.getSelection().isCollapsed;
 	}
@@ -244,7 +267,10 @@ export class TerminalInstance implements ITerminalInstance {
 			}
 			this._process = null;
 		}
-		this._onDisposed.fire(this);
+		if (!this._isDisposed) {
+			this._isDisposed = true;
+			this._onDisposed.fire(this);
+		}
 		this._processDisposables = lifecycle.dispose(this._processDisposables);
 		this._instanceDisposables = lifecycle.dispose(this._instanceDisposables);
 	}
@@ -387,9 +413,6 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	private _sendPtyDataToXterm(message: { type: string, content: string }): void {
-		if (!this._xterm) {
-			return;
-		}
 		if (message.type === 'data') {
 			this._xterm.write(message.content);
 		}
@@ -536,8 +559,30 @@ export class TerminalInstance implements ITerminalInstance {
 	private static _getLangEnvVariable(locale: string) {
 		const parts = locale.split('-');
 		const n = parts.length;
-		if (n > 1) {
-			parts[n - 1] = parts[n - 1].toUpperCase();
+		const language = parts[0];
+		if (n === 0) {
+			return '';
+		}
+		if (n === 1) {
+			// app.getLocale can return just a language without a variant, fill in the variant for
+			// supported languages as many shells expect a 2-part locale.
+			const languageVariants = {
+				de: 'DE',
+				en: 'US',
+				es: 'ES',
+				fr: 'FR',
+				it: 'IT',
+				ja: 'JP',
+				ko: 'KR',
+				ru: 'RU',
+				zh: 'CN'
+			};
+			if (language in languageVariants) {
+				parts.push(languageVariants[language]);
+			}
+		} else {
+			// Ensure the variant is uppercase
+			parts[1] = parts[1].toUpperCase();
 		}
 		return parts.join('_') + '.UTF-8';
 	}

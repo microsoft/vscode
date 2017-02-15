@@ -180,6 +180,8 @@ export class HtmlPreviewPart extends BaseEditor {
 				this._modelChangeSubscription = this.model.onDidChangeContent(() => this.webview.contents = this.model.getLinesContent());
 				this.webview.baseUrl = resourceUri.toString(true);
 				this.webview.contents = this.model.getLinesContent();
+
+				return undefined;
 			});
 		});
 	}

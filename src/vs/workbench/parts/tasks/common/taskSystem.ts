@@ -136,6 +136,23 @@ export interface CommandConfiguration {
 	echo?: boolean;
 }
 
+export interface CommandBinding {
+	/**
+	 * The command identifier the task is bound to.
+	 */
+	identifier: string;
+
+	/**
+	 * The title to use
+	 */
+	title: string;
+
+	/**
+	 * An optional category
+	 */
+	category?: string;
+}
+
 /**
  * A task description
  */
@@ -182,6 +199,11 @@ export interface TaskDescription {
 	 * value is "always".
 	 */
 	showOutput: ShowOutput;
+
+	/**
+	 * The command this task is bound to.
+	 */
+	bindTo?: CommandBinding;
 
 	/**
 	 * The problem watchers to use for this task

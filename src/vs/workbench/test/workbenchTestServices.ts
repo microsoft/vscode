@@ -39,7 +39,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { IRawTextContent, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { RawText } from 'vs/editor/common/model/textModel';
+import { TextModel } from 'vs/editor/common/model/textModel';
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -49,6 +49,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
+import { ITextSource2 } from 'vs/editor/common/editorCommon';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, void 0);
@@ -95,8 +96,8 @@ export class TestContextService implements IWorkspaceContextService {
 		return false;
 	}
 
-	public toWorkspaceRelativePath(resource: URI): string {
-		return paths.makePosixAbsolute(paths.normalize(resource.fsPath.substr('c:'.length)));
+	public toWorkspaceRelativePath(resource: URI, toOSPath?: boolean): string {
+		return paths.makePosixAbsolute(paths.normalize(resource.fsPath.substr('c:'.length), toOSPath));
 	}
 
 	public toResource(workspaceRelativePath: string): URI {
@@ -149,15 +150,14 @@ export class TestTextFileService extends TextFileService {
 		}
 
 		return this.fileService.resolveContent(resource, options).then((content) => {
-			const raw = RawText.fromString(content.value, { defaultEOL: 1, detectIndentation: false, insertSpaces: false, tabSize: 4, trimAutoWhitespace: false });
-
+			const textSource = TextModel.toTextSource(content.value);
 			return <IRawTextContent>{
 				resource: content.resource,
 				name: content.name,
 				mtime: content.mtime,
 				etag: content.etag,
 				encoding: content.encoding,
-				value: raw,
+				value: textSource,
 				valueLogicalHash: null
 			};
 		});
@@ -240,9 +240,14 @@ export class TestPartService implements IPartService {
 	public _serviceBrand: any;
 
 	private _onTitleBarVisibilityChange = new Emitter<void>();
+	private _onEditorLayout = new Emitter<void>();
 
 	public get onTitleBarVisibilityChange(): Event<void> {
 		return this._onTitleBarVisibilityChange.event;
+	}
+
+	public get onEditorLayout(): Event<void> {
+		return this._onEditorLayout.event;
 	}
 
 	public layout(): void { }
@@ -714,8 +719,8 @@ export class TestBackupFileService implements IBackupFileService {
 		return TPromise.as([]);
 	}
 
-	public parseBackupContent(rawText: IRawTextContent): string {
-		return rawText.value.lines.join('\n');
+	public parseBackupContent(rawText: ITextSource2): string {
+		return rawText.lines.join('\n');
 	}
 
 	public discardResourceBackup(resource: URI): TPromise<void> {

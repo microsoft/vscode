@@ -44,10 +44,6 @@ export class GitSCMProvider implements IWorkbenchContribution, ISCMProvider, ITe
 		return 'git.contentprovider';
 	}
 
-	commit(message: string): TPromise<void> {
-		return TPromise.wrapError<void>('not implemented');
-	}
-
 	open(uri: ISCMResource): TPromise<void> {
 		return TPromise.wrapError<void>('not implemented');
 	}

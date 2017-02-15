@@ -165,7 +165,7 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 		super.dispose();
 	}
 
-	protected _resetValue(newValue: editorCommon.IRawText): void {
+	protected _resetValue(newValue: editorCommon.ITextSource): void {
 		super._resetValue(newValue);
 
 		// Destroy all my decorations
@@ -347,7 +347,10 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 		}
 
 		for (let lineNumber = filterStartLineNumber; lineNumber <= filterEndLineNumber; lineNumber++) {
-			let lineMarkers = this._getLineMarkers(lineNumber);
+			let lineMarkers = this._lines[lineNumber - 1].getMarkers();
+			if (lineMarkers === null) {
+				continue;
+			}
 			for (let i = 0, len = lineMarkers.length; i < len; i++) {
 				let lineMarker = lineMarkers[i];
 				let internalDecorationId = lineMarker.internalDecorationId;

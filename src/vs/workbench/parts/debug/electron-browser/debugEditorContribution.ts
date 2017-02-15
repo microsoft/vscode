@@ -34,6 +34,7 @@ import { RemoveBreakpointAction, EditConditionalBreakpointAction, EnableBreakpoi
 import { IDebugEditorContribution, IDebugService, State, IBreakpoint, EDITOR_CONTRIBUTION_ID, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, IStackFrame, IDebugConfiguration, IExpression } from 'vs/workbench/parts/debug/common/debug';
 import { BreakpointWidget } from 'vs/workbench/parts/debug/browser/breakpointWidget';
 import { FloatingClickWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
+import { IListService } from 'vs/platform/list/browser/listService';
 
 const HOVER_DELAY = 300;
 const LAUNCH_JSON_REGEX = /launch\.json$/;
@@ -69,10 +70,11 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		@ICommandService private commandService: ICommandService,
 		@ICodeEditorService private codeEditorService: ICodeEditorService,
 		@ITelemetryService private telemetryService: ITelemetryService,
+		@IListService listService: IListService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		this.breakpointHintDecoration = [];
-		this.hoverWidget = new DebugHoverWidget(this.editor, this.debugService, this.instantiationService);
+		this.hoverWidget = new DebugHoverWidget(this.editor, this.debugService, listService, this.instantiationService);
 		this.toDispose = [];
 		this.showHoverScheduler = new RunOnceScheduler(() => this.showHover(this.hoverRange, false), HOVER_DELAY);
 		this.hideHoverScheduler = new RunOnceScheduler(() => this.hoverWidget.hide(), HOVER_DELAY);
@@ -131,11 +133,11 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 					getActionsContext: () => breakpoint
 				});
 			} else {
-				const breakpoint = this.debugService.getModel().getBreakpoints()
-					.filter(bp => bp.uri.toString() === uri.toString() && bp.lineNumber === lineNumber).pop();
+				const breakpoints = this.debugService.getModel().getBreakpoints()
+					.filter(bp => bp.uri.toString() === uri.toString() && bp.lineNumber === lineNumber);
 
-				if (breakpoint) {
-					this.debugService.removeBreakpoints(breakpoint.getId());
+				if (breakpoints.length) {
+					breakpoints.forEach(bp => this.debugService.removeBreakpoints(bp.getId()));
 				} else if (canSetBreakpoints) {
 					this.debugService.addBreakpoints(uri, [{ lineNumber }]);
 				}
@@ -194,6 +196,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		if (sf && model && sf.source.uri.toString() === model.uri.toString()) {
 			return this.hoverWidget.showAt(range, focus);
 		}
+		return undefined;
 	}
 
 	private ensureBreakpointHintDecoration(showBreakpointHintAtLineNumber: number): void {
@@ -327,8 +330,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			}
 		});
 		if (!configurationsPosition) {
-			this.commandService.executeCommand('editor.action.triggerSuggest');
-			return;
+			return this.commandService.executeCommand('editor.action.triggerSuggest');
 		}
 
 		const insertLineAfter = (lineNumber: number): TPromise<any> => {

@@ -14,7 +14,7 @@ import { IKeybindingService, KeybindingSource } from 'vs/platform/keybinding/com
 import { ILifecycleService, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ITelemetryService, ITelemetryExperiments, ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryService, ITelemetryExperiments, ITelemetryInfo, ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { StorageService } from 'vs/platform/storage/common/storageService';
 import * as objects from 'vs/base/common/objects';
@@ -28,7 +28,7 @@ export const defaultExperiments: ITelemetryExperiments = {
 export const NullTelemetryService = {
 	_serviceBrand: undefined,
 	_experiments: defaultExperiments,
-	publicLog(eventName: string, data?: any) {
+	publicLog(eventName: string, data?: ITelemetryData) {
 		return TPromise.as<void>(null);
 	},
 	isOptedIn: true,

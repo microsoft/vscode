@@ -307,6 +307,7 @@ function safeInvokeNoArg<T>(func: Function): T {
 	} catch (e) {
 		Errors.onUnexpectedError(e);
 	}
+	return undefined;
 }
 
 function safeInvoke1Arg(func: Function, arg1: any): any {

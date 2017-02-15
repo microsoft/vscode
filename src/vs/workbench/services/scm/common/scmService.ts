@@ -8,6 +8,12 @@
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IModel } from 'vs/editor/common/editorCommon';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { RawText } from 'vs/editor/common/model/textModel';
+import { Model } from 'vs/editor/common/model/model';
+import { PLAINTEXT_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/modesRegistry';
 import { ISCMService, ISCMProvider } from './scm';
 
 export class SCMService implements ISCMService {
@@ -42,10 +48,23 @@ export class SCMService implements ISCMService {
 	private _onDidChangeProvider = new Emitter<ISCMProvider>();
 	get onDidChangeProvider(): Event<ISCMProvider> { return this._onDidChangeProvider.event; }
 
+	private _inputBoxModel: IModel;
+	get inputBoxModel(): IModel { return this._inputBoxModel; }
+
 	constructor(
-		@IContextKeyService private contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IModeService modeService: IModeService,
+		@IModelService modelService: IModelService
 	) {
 		this.activeProviderContextKey = contextKeyService.createKey<string | undefined>('scm.provider', void 0);
+
+		const options = modelService.getCreationOptions('git-commit');
+		const rawText = RawText.fromString('', options);
+
+		this._inputBoxModel = new Model(rawText, PLAINTEXT_LANGUAGE_IDENTIFIER);
+
+		modeService.getOrCreateMode('git-commit')
+			.done(mode => this._inputBoxModel.setMode(mode.getLanguageIdentifier()));
 	}
 
 	registerSCMProvider(provider: ISCMProvider): IDisposable {

@@ -13,7 +13,7 @@ var Lint = require("tslint");
 var Rule = (function (_super) {
     __extends(Rule, _super);
     function Rule() {
-        return _super.apply(this, arguments) || this;
+        return _super !== null && _super.apply(this, arguments) || this;
     }
     Rule.prototype.apply = function (sourceFile) {
         return this.applyWithWalker(new ImportPatterns(sourceFile, this.getOptions()));

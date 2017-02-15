@@ -312,7 +312,7 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 			return null;
 		}
 
-		return config.configurations.filter(config => config.name === name).pop();
+		return config.configurations.filter(config => config && config.name === name).pop();
 	}
 
 	public resloveConfiguration(config: debug.IConfig): TPromise<debug.IConfig> {
@@ -342,8 +342,12 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 		return this.configurationResolverService.resolveInteractiveVariables(result, adapter ? adapter.variables : null);
 	}
 
+	public get configFileUri(): uri {
+		return uri.file(paths.join(this.contextService.getWorkspace().resource.fsPath, '/.vscode/launch.json'));
+	}
+
 	public openConfigFile(sideBySide: boolean, type?: string): TPromise<IEditor> {
-		const resource = uri.file(paths.join(this.contextService.getWorkspace().resource.fsPath, '/.vscode/launch.json'));
+		const resource = this.configFileUri;
 		let configFileCreated = false;
 
 		return this.fileService.resolveContent(resource).then(content => true, err =>
@@ -383,15 +387,14 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 					type: adapter.type
 				};
 			}
+			return undefined;
 		});
 	}
 
 	private guessAdapter(type?: string): TPromise<Adapter> {
 		if (type) {
 			const adapter = this.getAdapter(type);
-			if (adapter) {
-				return TPromise.as(adapter);
-			}
+			return TPromise.as(adapter);
 		}
 
 		const editor = this.editorService.getActiveEditor();
@@ -399,9 +402,9 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 			const codeEditor = <ICommonCodeEditor>editor.getControl();
 			const model = codeEditor ? codeEditor.getModel() : undefined;
 			const language = model ? model.getLanguageIdentifier().language : undefined;
-			const adapter = this.adapters.filter(a => a.languages && a.languages.indexOf(language) >= 0).pop();
-			if (adapter) {
-				return TPromise.as(adapter);
+			const adapters = this.adapters.filter(a => a.languages && a.languages.indexOf(language) >= 0);
+			if (adapters.length === 1) {
+				return TPromise.as(adapters[0]);
 			}
 		}
 
@@ -418,6 +421,7 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 							viewlet.focus();
 						});
 				}
+				return undefined;
 			});
 	}
 

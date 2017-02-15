@@ -47,7 +47,7 @@ export class OutputLinkComputer {
 	public computeLinks(uri: string): TPromise<ILink[]> {
 		let model = this._getModel(uri);
 		if (!model) {
-			return;
+			return undefined;
 		}
 
 		let links: ILink[] = [];
