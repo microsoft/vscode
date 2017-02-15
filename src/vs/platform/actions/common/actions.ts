@@ -111,7 +111,29 @@ export const MenuRegistry: IMenuRegistry = new class {
 	}
 
 	getMenuItems({ id }: MenuId): IMenuItem[] {
-		return this.menuItems[id] || [];
+		const result = this.menuItems[id] || [];
+
+		if (id === MenuId.CommandPalette.id) {
+			// CommandPalette is special because it shows
+			// all commands by default
+			this._appendImplicitItems(result);
+		}
+		return result;
+	}
+
+	private _appendImplicitItems(result: IMenuItem[]) {
+		const set = new Set<string>();
+		for (const { command, alt } of result) {
+			set.add(command.id);
+			if (alt) {
+				set.add(alt.id);
+			}
+		}
+		for (let id in this.commands) {
+			if (!set.has(id)) {
+				result.push({ command: this.commands[id] });
+			}
+		}
 	}
 };
 

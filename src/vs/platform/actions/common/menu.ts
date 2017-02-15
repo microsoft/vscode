@@ -12,8 +12,6 @@ import { localize } from 'vs/nls';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { MenuId, MenuRegistry, MenuItemAction, IMenu, IMenuItem } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { values } from 'vs/base/common/collections';
-import { index } from 'vs/base/common/arrays';
 
 type MenuItemGroup = [string, IMenuItem[]];
 
@@ -30,17 +28,7 @@ export class Menu implements IMenu {
 		@IContextKeyService private _contextKeyService: IContextKeyService
 	) {
 		startupSignal.then(_ => {
-			let menuItems = MenuRegistry.getMenuItems(id);
-
-			if (id === MenuId.CommandPalette) {
-				const ids = index(menuItems, i => i.command.id);
-				const commandMenuItems = values(MenuRegistry.commands)
-					.filter(c => !ids[c.id])
-					.map(command => ({ command }));
-
-				menuItems = [...menuItems, ...commandMenuItems];
-			}
-
+			const menuItems = MenuRegistry.getMenuItems(id);
 			const keysFilter = new Set<string>();
 
 			let group: MenuItemGroup;
