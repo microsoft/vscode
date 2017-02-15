@@ -9,11 +9,11 @@
 }
 
 .monaco-editor .debug-top-stack-frame-line {
-	background: rgba(255, 255, 102, 0.25);
+	background: rgba(255, 255, 102, 0.3);
 }
 
 .monaco-editor .debug-top-stack-frame-exception-line {
-	background: rgba(242, 222, 222, 0.7);
+	background: rgba(242, 222, 222, 0.8);
 }
 
 .monaco-editor .debug-top-stack-frame-column {
@@ -242,11 +242,11 @@
 }
 
 .hc-black .monaco-editor .debug-top-stack-frame-line {
-	background: rgba(255, 246, 0, .87);
+	background: rgba(255, 246, 0, .8);
 	mix-blend-mode: lighten; /* Preserves text selection's contrast */
 }
 
 .hc-black .monaco-editor .debug-top-stack-frame-column {
 	background: none;
-	outline: 2px solid #ff0000;
+	outline: 2px solid #f38518;
 }
