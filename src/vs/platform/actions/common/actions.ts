@@ -21,11 +21,6 @@ export interface ICommandAction {
 	iconClass?: string;
 }
 
-export interface IMenu extends IDisposable {
-	onDidChange: Event<IMenu>;
-	getActions(arg?: any): [string, MenuItemAction[]][];
-}
-
 export interface IMenuItem {
 	command: ICommandAction;
 	alt?: ICommandAction;
@@ -58,6 +53,11 @@ export class MenuId {
 	get id(): string {
 		return this._id;
 	}
+}
+
+export interface IMenu extends IDisposable {
+	onDidChange: Event<IMenu>;
+	getActions(arg?: any): [string, MenuItemAction[]][];
 }
 
 export const IMenuService = createDecorator<IMenuService>('menuService');
@@ -95,7 +95,7 @@ export const MenuRegistry: IMenuRegistry = new class {
 		return this.commands[id];
 	}
 
-	appendMenuItem({id}: MenuId, item: IMenuItem): IDisposable {
+	appendMenuItem({ id }: MenuId, item: IMenuItem): IDisposable {
 		let array = this.menuItems[id];
 		if (!array) {
 			this.menuItems[id] = array = [item];
@@ -112,7 +112,7 @@ export const MenuRegistry: IMenuRegistry = new class {
 		};
 	}
 
-	getMenuItems({id}: MenuId): IMenuItem[] {
+	getMenuItems({ id }: MenuId): IMenuItem[] {
 		return this.menuItems[id] || [];
 	}
 };
