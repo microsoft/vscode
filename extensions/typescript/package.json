@@ -36,6 +36,7 @@
     "onCommand:typescript.selectTypeScriptVersion",
     "onCommand:javascript.goToProjectConfig",
     "onCommand:typescript.goToProjectConfig",
+    "onCommand:_typescript.tryCompleteJsDoc",
     "workspaceContains:jsconfig.json",
     "workspaceContains:tsconfig.json"
   ],
@@ -81,6 +82,18 @@
           "meta.tag.tsx": "jsx-tags",
           "meta.tag.without-attributes.tsx": "jsx-tags"
         }
+      }
+    ],
+    "keybindings": [
+      {
+        "key": "enter",
+        "command": "_typescript.tryCompleteJsDoc",
+        "when": "editorTextFocus && !suggestWidgetVisible && editorLangId == 'typescript'"
+      },
+         {
+        "key": "enter",
+        "command": "_typescript.tryCompleteJsDoc",
+        "when": "editorTextFocus && !suggestWidgetVisible && editorLangId == 'javascript'"
       }
     ],
     "configuration": {
@@ -279,7 +292,7 @@
         "title": "%typescript.goToProjectConfig.title%",
         "category": "TypeScript"
       },
-       {
+      {
         "command": "javascript.goToProjectConfig",
         "title": "%javascript.goToProjectConfig.title%",
         "category": "JavaScript"
