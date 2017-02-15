@@ -98,7 +98,7 @@ export class BackupFileService implements IBackupFileService {
 	private isShuttingDown: boolean;
 	private backupWorkspacePath: string;
 	private ready: TPromise<IBackupFilesModel>;
-	private ioQueue: Queue<void>;
+	private ioOperationQueues: { [path: string]: Queue<void> };
 
 	constructor(
 		@IEnvironmentService private environmentService: IEnvironmentService,
@@ -108,7 +108,7 @@ export class BackupFileService implements IBackupFileService {
 	) {
 		this.isShuttingDown = false;
 		this.ready = this.init(windowService.getCurrentWindowId());
-		this.ioQueue = new Queue<void>();
+		this.ioOperationQueues = {};
 	}
 
 	private get backupEnabled(): boolean {
@@ -176,7 +176,7 @@ export class BackupFileService implements IBackupFileService {
 			// Add metadata to top of file
 			content = `${resource.toString()}${BackupFileService.META_MARKER}${content}`;
 
-			return this.ioQueue.queue(() => {
+			return this.getResourceIOQueue(backupResource).queue(() => {
 				return this.fileService.updateContent(backupResource, content, BACKUP_FILE_UPDATE_OPTIONS).then(() => model.add(backupResource, versionId));
 			});
 		});
@@ -189,10 +189,18 @@ export class BackupFileService implements IBackupFileService {
 				return void 0;
 			}
 
-			return this.ioQueue.queue(() => {
+			return this.getResourceIOQueue(backupResource).queue(() => {
 				return pfs.del(backupResource.fsPath).then(() => model.remove(backupResource));
 			});
 		});
+	}
+
+	private getResourceIOQueue(resource: Uri) {
+		const key = resource.toString();
+		if (!this.ioOperationQueues[key]) {
+			this.ioOperationQueues[key] = new Queue<void>();
+		}
+		return this.ioOperationQueues[key];
 	}
 
 	public discardAllWorkspaceBackups(): TPromise<void> {
