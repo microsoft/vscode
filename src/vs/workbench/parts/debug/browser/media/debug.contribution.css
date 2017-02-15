@@ -242,11 +242,11 @@
 }
 
 .hc-black .monaco-editor .debug-top-stack-frame-line {
-	background: rgba(255, 255, 0, .87);
+	background: rgba(255, 246, 0, .87);
 	mix-blend-mode: lighten; /* Preserves text selection's contrast */
 }
 
 .hc-black .monaco-editor .debug-top-stack-frame-column {
 	background: none;
-	outline: 2px solid #f38518;
+	outline: 2px solid #ff0000;
 }
