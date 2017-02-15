@@ -126,16 +126,23 @@ class MinimapLayout {
 		const pixelRatio = options.pixelRatio;
 		const minimapLineHeight = (options.renderMinimap === RenderMinimap.Large ? Constants.x2_CHAR_HEIGHT : Constants.x1_CHAR_HEIGHT);
 		const minimapLinesFitting = Math.floor(options.canvasOuterHeight / minimapLineHeight);
-		const viewportLinesFitting = Math.floor(viewportHeight / lineHeight);
 
-		const minimapScrollRatio = Math.min(1, (viewportStartLineNumber - 1) / (lineCount - viewportLinesFitting));
-		const minimapStartLineNumber = Math.floor(1 + minimapScrollRatio * (lineCount - minimapLinesFitting));
+		if (minimapLinesFitting >= lineCount) {
+			// All lines fit in the minimap => no minimap scrolling
+			this.startLineNumber = 1;
+			this.endLineNumber = lineCount;
+		} else {
+			const viewportLinesFitting = Math.floor(viewportHeight / lineHeight);
 
-		this.startLineNumber = minimapStartLineNumber;
-		this.endLineNumber = minimapStartLineNumber + minimapLinesFitting - 1;
+			const minimapScrollRatio = Math.min(1, (viewportStartLineNumber - 1) / (lineCount - viewportLinesFitting));
+			const minimapStartLineNumber = Math.floor(1 + minimapScrollRatio * (lineCount - minimapLinesFitting));
+
+			this.startLineNumber = minimapStartLineNumber;
+			this.endLineNumber = minimapStartLineNumber + minimapLinesFitting - 1;
+		}
 
 		this.sliderTop = Math.floor((viewportStartLineNumber - this.startLineNumber) * minimapLineHeight / pixelRatio);
-		this.sliderHeight = (viewportEndLineNumber - viewportStartLineNumber + 1) * minimapLineHeight / pixelRatio;
+		this.sliderHeight = Math.floor((viewportEndLineNumber - viewportStartLineNumber + 1) * minimapLineHeight / pixelRatio);
 	}
 }
 
