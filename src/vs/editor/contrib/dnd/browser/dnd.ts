@@ -5,15 +5,14 @@
 
 'use strict';
 
-import { Range } from 'vs/editor/common/core/range';
-import * as editorCommon from 'vs/editor/common/editorCommon';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ICodeEditor, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { DragContentHintWidget } from './dragContentHintWidget';
-import { Selection } from 'vs/editor/common/core/selection';
-import { DragAndDropCommand } from '../common/dragAndDropCommand';
+import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Position } from 'vs/editor/common/core/position';
+import { Selection } from 'vs/editor/common/core/selection';
+import { DragTargetHintWidget } from './dndHintWidget';
+import { DragAndDropCommand } from '../common/dragAndDropCommand';
 
 @editorContribution
 export class DragAndDropController implements editorCommon.IEditorContribution {
@@ -22,7 +21,7 @@ export class DragAndDropController implements editorCommon.IEditorContribution {
 
 	private _editor: ICodeEditor;
 	private _toUnhook: IDisposable[];
-	private _contentWidget: DragContentHintWidget;
+	private _targetWidget: DragTargetHintWidget;
 	private _active: boolean;
 	private _dragSelection: Selection;
 
@@ -37,7 +36,7 @@ export class DragAndDropController implements editorCommon.IEditorContribution {
 
 		this._toUnhook.push(this._editor.onMouseDrag((e: IEditorMouseEvent) => this._onEditorMouseDrag(e)));
 		this._toUnhook.push(this._editor.onMouseDrop((e: IEditorMouseEvent) => this._onEditorMouseDrop(e)));
-		this._contentWidget = new DragContentHintWidget(editor);
+		this._targetWidget = new DragTargetHintWidget(editor);
 		this._active = false;
 	}
 
@@ -45,24 +44,36 @@ export class DragAndDropController implements editorCommon.IEditorContribution {
 		let target = mouseEvent.target;
 
 		if (this._active) {
-			this._contentWidget.showAt(target.position);
+			this._targetWidget.showAt(target.position);
 		} else {
 			let possibleSelections = this._editor.getSelections().filter(selection => selection.containsPosition(target.position));
 
 			if (possibleSelections.length === 1) {
 				this._active = true;
 				this._dragSelection = possibleSelections[0];
-				this._contentWidget.showAt(target.position);
+				this._targetWidget.showAt(target.position);
 			}
 		}
 	}
 
 	private _onEditorMouseDrop(mouseEvent: IEditorMouseEvent): void {
-		let targetPosition = this._contentWidget.getPosition().position;
+		let targetPosition = mouseEvent.target.position;
 
 		if (targetPosition) {
 			let newCursorPosition = new Position(targetPosition.lineNumber, targetPosition.column);
-			this._editor.executeCommand(DragAndDropController.ID, new DragAndDropCommand(this._dragSelection, newCursorPosition));
+
+			if (this._dragSelection.containsPosition(newCursorPosition)) {
+				let newSelections = this._editor.getSelections().map(selection => {
+					if (selection.equalsSelection(this._dragSelection)) {
+						return new Selection(newCursorPosition.lineNumber, newCursorPosition.column, newCursorPosition.lineNumber, newCursorPosition.column);
+					} else {
+						return selection;
+					}
+				});
+				this._editor.setSelections(newSelections);
+			} else {
+				this._editor.executeCommand(DragAndDropController.ID, new DragAndDropCommand(this._dragSelection, newCursorPosition));
+			}
 		}
 
 		this._hideWidgets();
@@ -70,11 +81,7 @@ export class DragAndDropController implements editorCommon.IEditorContribution {
 	}
 
 	private _hideWidgets(): void {
-		this._contentWidget.hide();
-	}
-
-	public showContentHover(range: Range, focus: boolean): void {
-		//this._contentWidget.startShowingAt(range, focus);
+		this._targetWidget.hide();
 	}
 
 	public getId(): string {
@@ -83,9 +90,9 @@ export class DragAndDropController implements editorCommon.IEditorContribution {
 
 	public dispose(): void {
 		this._toUnhook = dispose(this._toUnhook);
-		if (this._contentWidget) {
-			this._contentWidget.dispose();
-			this._contentWidget = null;
+		if (this._targetWidget) {
+			this._targetWidget.dispose();
+			this._targetWidget = null;
 		}
 	}
 }
