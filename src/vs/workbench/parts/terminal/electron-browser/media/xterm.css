@@ -99,42 +99,15 @@
 }
 
 .monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-blink:not(.xterm-cursor-style-underline):not(.xterm-cursor-style-bar).focus .terminal-cursor,
-.monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-blink:not(.xterm-cursor-style-underline):not(.xterm-cursor-style-bar):focus .terminal-cursor { animation: cursor-blink 1.2s infinite step-end; }
-.vs-dark .monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-blink:not(.xterm-cursor-style-underline):not(.xterm-cursor-style-bar).focus .terminal-cursor,
-.vs-dark .monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-blink:not(.xterm-cursor-style-underline):not(.xterm-cursor-style-bar):focus .terminal-cursor { animation: cursor-blink-dark 1.2s infinite step-end; }
-.hc-black .monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-blink:not(.xterm-cursor-style-underline):not(.xterm-cursor-style-bar).focus .terminal-cursor,
-.hc-black .monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-blink:not(.xterm-cursor-style-underline):not(.xterm-cursor-style-bar):focus .terminal-cursor { animation: cursor-blink-hc-black 1.2s infinite step-end; }
+.monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-blink:not(.xterm-cursor-style-underline):not(.xterm-cursor-style-bar):focus .terminal-cursor {
+	animation: cursor-blink 1.2s infinite step-end;
+}
 
 @keyframes cursor-blink {
-	0% {
-		background-color: #333;
-		color: #CCC;
-	}
+	0% {}
 	50% {
 		background-color: transparent;
-		color: #333;
-	}
-}
-
-@keyframes cursor-blink-dark {
-	0% {
-		background-color: #CCC;
-		color: #1e1e1e;
-	}
-	50% {
-		background-color: transparent;
-		color: #CCC;
-	}
-}
-
-@keyframes cursor-blink-hc-black {
-	0% {
-		background-color: #fff;
-		color: #000;
-	}
-	50% {
-		background-color: transparent;
-		color: #FFF;
+		color: inherit;
 	}
 }
 
