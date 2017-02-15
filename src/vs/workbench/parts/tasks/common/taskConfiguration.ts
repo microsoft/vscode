@@ -14,8 +14,12 @@ import * as UUID from 'vs/base/common/uuid';
 import { Config as ProcessConfig } from 'vs/base/common/processes';
 
 import { ValidationStatus, ValidationState, ILogger } from 'vs/base/common/parsers';
-import { NamedProblemMatcher, ProblemMatcher, ProblemMatcherParser, Config as ProblemMatcherConfig, registry as ProblemMatcherRegistry, isNamedProblemMatcher } from 'vs/platform/markers/common/problemMatcher';
-import * as TaskSystem from 'vs/workbench/parts/tasks/common/taskSystem';
+import {
+	NamedProblemMatcher, ProblemMatcher, ProblemMatcherParser, Config as ProblemMatcherConfig,
+	registry as ProblemMatcherRegistry, isNamedProblemMatcher
+} from 'vs/platform/markers/common/problemMatcher';
+
+import * as TaskSystem from './taskSystem';
 
 /**
  * Defines the problem handling strategy
@@ -54,6 +58,24 @@ export interface PlatformTaskDescription {
 	 */
 	args?: string[];
 }
+
+export interface CommandBinding {
+	/**
+	 * The command identifer the task is bound to.
+	 */
+	identifier?: string;
+
+	/**
+	 * The title to use
+	 */
+	title?: string;
+
+	/**
+	 * An optional category
+	 */
+	category?: string;
+}
+
 
 /**
  * The description of a task.
@@ -121,6 +143,11 @@ export interface TaskDescription extends PlatformTaskDescription {
 	 * See BaseTaskRunnerConfiguration#suppressTaskName for details.
 	 */
 	suppressTaskName?: boolean;
+
+	/**
+	 * The command this task is bound to.
+	 */
+	bindTo?: CommandBinding;
 
 	/**
 	 * The problem matcher(s) to use to capture problems in the tasks
@@ -623,6 +650,32 @@ namespace ProblemMatcherConverter {
 	}
 }
 
+namespace CommandBinding {
+	export function isEmpty(value: TaskSystem.CommandBinding): boolean {
+		return !value || value.identifier === void 0 && value.title === void 0 && value.category === void 0;
+	}
+
+	export function from(this: void, binding: CommandBinding, context: ParseContext): TaskSystem.CommandBinding {
+		if (!binding) {
+			return undefined;
+		}
+
+		if (!Types.isString(binding.identifier)) {
+			context.validationStatus.state = ValidationState.Warning;
+			context.logger.log(nls.localize('noCommandId', 'Warning: a command binding must defined an identifier. Ignoring binding.'));
+			return undefined;
+		}
+		let result: TaskSystem.CommandBinding = {
+			identifier: binding.identifier,
+			title: ''
+		};
+		if (Types.isString(binding.category)) {
+			result.category = binding.category;
+		}
+		return result;
+	}
+}
+
 namespace TaskDescription {
 
 	export interface TaskConfiguration {
@@ -682,6 +735,9 @@ namespace TaskDescription {
 				task.suppressTaskName = !!externalTask.suppressTaskName;
 			}
 
+			if (externalTask.bindTo) {
+				task.bindTo = CommandBinding.from(externalTask.bindTo, context);
+			}
 			if (problemMatchers) {
 				task.problemMatchers = problemMatchers;
 			}

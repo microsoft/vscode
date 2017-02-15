@@ -48,6 +48,24 @@ class ToggleBreakpointAction extends EditorAction {
 	}
 }
 
+function addColumnBreakpoint(accessor: ServicesAccessor, editor: ICommonCodeEditor, remove: boolean): TPromise<any> {
+	const debugService = accessor.get(IDebugService);
+
+	const position = editor.getPosition();
+	const modelUri = editor.getModel().uri;
+	const bp = debugService.getModel().getBreakpoints()
+		.filter(bp => bp.lineNumber === position.lineNumber && bp.column === position.column && bp.uri.toString() === modelUri.toString()).pop();
+
+	if (bp) {
+		return remove ? debugService.removeBreakpoints(bp.getId()) : TPromise.as(null);
+	}
+	if (debugService.getConfigurationManager().canSetBreakpointsIn(editor.getModel())) {
+		return debugService.addBreakpoints(modelUri, [{ lineNumber: position.lineNumber, column: position.column }]);
+	}
+
+	return TPromise.as(null);
+}
+
 @editorAction
 class ToggleColumnBreakpointAction extends EditorAction {
 	constructor() {
@@ -64,26 +82,33 @@ class ToggleColumnBreakpointAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): TPromise<any> {
-		const debugService = accessor.get(IDebugService);
+		return addColumnBreakpoint(accessor, editor, true);
+	}
+}
 
-		const position = editor.getPosition();
-		const modelUri = editor.getModel().uri;
-		const bp = debugService.getModel().getBreakpoints()
-			.filter(bp => bp.lineNumber === position.lineNumber && bp.column === position.column && bp.uri.toString() === modelUri.toString()).pop();
+// TODO@Isidor merge two column breakpoints actions together
+@editorAction
+class ToggleColumnBreakpointContextMenuAction extends EditorAction {
+	constructor() {
+		super({
+			id: 'editor.debug.action.toggleColumnBreakpointContextMenu',
+			label: nls.localize('columnBreakpoint', "Add Column Breakpoint"),
+			alias: 'Toggle Column Breakpoint',
+			precondition: CONTEXT_IN_DEBUG_MODE,
+			menuOpts: {
+				group: 'debug',
+				order: 1
+			}
+		});
+	}
 
-		if (bp) {
-			return debugService.removeBreakpoints(bp.getId());
-		}
-		if (debugService.getConfigurationManager().canSetBreakpointsIn(editor.getModel())) {
-			return debugService.addBreakpoints(modelUri, [{ lineNumber: position.lineNumber, column: position.column }]);
-		}
-
-		return TPromise.as(null);
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): TPromise<any> {
+		return addColumnBreakpoint(accessor, editor, false);
 	}
 }
 
 @editorAction
-class EditorConditionalBreakpointAction extends EditorAction {
+class ConditionalBreakpointAction extends EditorAction {
 
 	constructor() {
 		super({
@@ -111,7 +136,7 @@ class RunToCursorAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.debug.action.runToCursor',
-			label: nls.localize('runToCursor', "Debug: Run to Cursor"),
+			label: nls.localize('runToCursor', "Run to Cursor"),
 			alias: 'Debug: Run to Cursor',
 			precondition: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, CONTEXT_NOT_IN_DEBUG_REPL, EditorContextKeys.Writable),
 			menuOpts: {
