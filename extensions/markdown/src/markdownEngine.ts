@@ -44,7 +44,15 @@ export class MarkdownEngine {
 					}
 					return `<pre class="hljs"><code><div>${this.engine.utils.escapeHtml(str)}</div></code></pre>`;
 				}
-			}).use(mdnh, {});
+			}).use(mdnh, {
+				slugify: function (header: string) {
+            		return encodeURI(header.trim()
+ 							.toLowerCase()
+							.replace(/[\]\[\!\"\#\$\%\&\'\(\)\*\+\,\.\/\:\;\<\=\>\?\@\\\^\_\{\|\}\~]/g, '')
+							.replace(/\s+/g, '-')
+							.replace(/\-+$/, ''));
+					}
+			});
 
 			for (const renderName of ['paragraph_open', 'heading_open', 'image', 'code_block', 'blockquote_open', 'list_item_open']) {
 				this.addLineNumberRenderer(this.md, renderName);
