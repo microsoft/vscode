@@ -15,6 +15,7 @@ import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/platform/exten
 import { IThemeService, IThemeSetting, IColorTheme, IFileIconTheme, VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME, COLOR_THEME_SETTING, ICON_THEME_SETTING } from 'vs/workbench/services/themes/common/themeService';
 import { EditorStylesContribution, SearchViewStylesContribution, TerminalStylesContribution } from 'vs/workbench/services/themes/electron-browser/stylesContributions';
 import { getBaseThemeId, getSyntaxThemeId, isDarkTheme, isLightTheme } from 'vs/platform/theme/common/themes';
+import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Registry } from 'vs/platform/platform';
@@ -35,7 +36,7 @@ import pfs = require('vs/base/node/pfs');
 // implementation
 
 const DEFAULT_THEME_ID = 'vs-dark vscode-theme-defaults-themes-dark_plus-json';
-const DEFAULT_THEME_NAME = 'd-Dark+ (default dark)';
+const DEFAULT_THEME_NAME = 'Default Dark+';
 
 const defaultBaseTheme = getBaseThemeId(DEFAULT_THEME_ID);
 
@@ -220,12 +221,6 @@ let defaultThemeColors: { [baseTheme: string]: IThemeSetting[] } = {
 	],
 };
 
-const settingsIdPrefix = {
-	[VS_DARK_THEME]: 'd-',
-	[VS_LIGHT_THEME]: 'l-',
-	[VS_HC_THEME]: 'hc-',
-};
-
 export class ThemeService implements IThemeService {
 	_serviceBrand: any;
 
@@ -242,6 +237,7 @@ export class ThemeService implements IThemeService {
 		container: HTMLElement,
 		@IExtensionService private extensionService: IExtensionService,
 		@IStorageService private storageService: IStorageService,
+		@IWindowIPCService private windowService: IWindowIPCService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService,
 		@ITelemetryService private telemetryService: ITelemetryService) {
@@ -394,6 +390,10 @@ export class ThemeService implements IThemeService {
 
 			this.onColorThemeChange.fire(this.currentColorTheme);
 
+			if (settingsTarget === ConfigurationTarget.USER) {
+				this.windowService.broadcast({ channel: 'vscode:changeBaseTheme', payload: newTheme.getBaseThemeId() });
+			}
+
 			return this.writeColorThemeConfiguration(settingsTarget);
 		};
 
@@ -485,7 +485,7 @@ export class ThemeService implements IThemeService {
 			let themeData = new ColorThemeData();
 			themeData.id = `${baseTheme} ${themeSelector}`;
 			themeData.label = theme.label || Paths.basename(theme.path);
-			themeData.settingsId = settingsIdPrefix[baseTheme] + (theme.id || themeData.label);
+			themeData.settingsId = theme.id || themeData.label;
 			themeData.description = theme.description;
 			themeData.path = normalizedAbsolutePath;
 			themeData.extensionData = extensionData;
