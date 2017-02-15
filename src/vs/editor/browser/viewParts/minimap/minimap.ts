@@ -38,6 +38,8 @@ class MinimapOptions {
 
 	public readonly pixelRatio: number;
 
+	public readonly lineHeight: number;
+
 	/**
 	 * container dom node width (in CSS px)
 	 */
@@ -71,6 +73,7 @@ class MinimapOptions {
 
 		this.renderMinimap = layoutInfo.renderMinimap | 0;
 		this.pixelRatio = pixelRatio;
+		this.lineHeight = configuration.editor.lineHeight;
 		this.minimapWidth = layoutInfo.minimapWidth;
 		this.minimapHeight = layoutInfo.height;
 
@@ -84,6 +87,7 @@ class MinimapOptions {
 	public equals(other: MinimapOptions): boolean {
 		return (this.renderMinimap === other.renderMinimap
 			&& this.pixelRatio === other.pixelRatio
+			&& this.lineHeight === other.lineHeight
 			&& this.minimapWidth === other.minimapWidth
 			&& this.minimapHeight === other.minimapHeight
 			&& this.canvasInnerWidth === other.canvasInnerWidth
@@ -118,12 +122,14 @@ class MinimapLayout {
 		options: MinimapOptions,
 		viewportStartLineNumber: number,
 		viewportEndLineNumber: number,
+		viewportHeight: number,
 		lineCount: number,
 		scrollbarSliderCenter: number
 	) {
 		const pixelRatio = options.pixelRatio;
 		const minimapLineHeight = (options.renderMinimap === RenderMinimap.Large ? Constants.x2_CHAR_HEIGHT : Constants.x1_CHAR_HEIGHT);
 		const minimapLinesFitting = Math.floor(options.canvasOuterHeight / minimapLineHeight);
+		const lineHeight = options.lineHeight;
 
 		if (minimapLinesFitting >= lineCount) {
 			// All lines fit in the minimap => no minimap scrolling
@@ -175,7 +181,17 @@ class MinimapLayout {
 		}
 
 		this.sliderTop = Math.floor((viewportStartLineNumber - this.startLineNumber) * minimapLineHeight / pixelRatio);
-		this.sliderHeight = Math.floor((viewportEndLineNumber - viewportStartLineNumber + 1) * minimapLineHeight / pixelRatio);
+
+		// Sometimes, the number of rendered lines varies for a constant viewport height.
+		// The reason is that only parts of the viewportStartLineNumber or viewportEndLineNumber are visible.
+		// This leads to an apparent tremor in the minimap's slider height.
+		// We try here to compensate, making the slider slightly incorrect in these cases, but more pleasing to the eye.
+		let visibleLinesCount = viewportEndLineNumber - viewportStartLineNumber + 1;
+		const expectedVisibleLineCount = Math.round(viewportHeight / lineHeight);
+		if (visibleLinesCount > expectedVisibleLineCount) {
+			visibleLinesCount = expectedVisibleLineCount;
+		}
+		this.sliderHeight = Math.floor(visibleLinesCount * minimapLineHeight / pixelRatio);
 	}
 }
 
@@ -318,6 +334,7 @@ export class Minimap extends ViewPart {
 			this._options,
 			renderingCtx.visibleRange.startLineNumber,
 			renderingCtx.visibleRange.endLineNumber,
+			renderingCtx.viewportHeight,
 			this._context.model.getLineCount(),
 			this._editorScrollbar.getVerticalSliderVerticalCenter()
 		);
