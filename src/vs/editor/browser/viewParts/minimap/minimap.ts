@@ -6,13 +6,10 @@
 'use strict';
 
 import 'vs/css!./minimap';
-// import { StyleMutator } from 'vs/base/browser/styleMutator';
-// import { EditorLayoutInfo } from 'vs/editor/common/editorCommon';
-// import { ClassNames, IOverlayWidget, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
-import { ViewPart/*, PartFingerprint, PartFingerprints*/ } from 'vs/editor/browser/view/viewPart';
+import { ViewPart } from 'vs/editor/browser/view/viewPart';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { IRenderingContext, IRestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
-import { /*createMinimapCharRenderer,*/ createMinimapCharRenderer2 } from 'vs/editor/common/view/runtimeMinimapCharRenderer';
+import { createMinimapCharRenderer2 } from 'vs/editor/common/view/runtimeMinimapCharRenderer';
 import * as browser from 'vs/base/browser/browser';
 import { ParsedColor, MinimapTokensColorTracker, Constants } from 'vs/editor/common/view/minimapCharRenderer';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -21,7 +18,6 @@ import { IViewLayout, MinimapLineRenderingData } from 'vs/editor/common/viewMode
 import { ColorId } from 'vs/editor/common/modes';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/styleMutator';
 import { IDisposable } from 'vs/base/common/lifecycle';
-// import { IViewLayout } from 'vs/editor/common/viewModel/viewModel';
 import { EditorScrollbar } from 'vs/editor/browser/viewParts/editorScrollbar/editorScrollbar';
 
 let charRenderer2 = createMinimapCharRenderer2(); // TODO@minimap

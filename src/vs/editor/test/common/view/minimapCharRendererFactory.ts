@@ -4,19 +4,33 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { Constants, MinimapCharRenderer } from 'vs/editor/common/view/minimapCharRenderer';
+import { Constants, MinimapCharRenderer2 } from 'vs/editor/common/view/minimapCharRenderer';
 
 export class MinimapCharRendererFactory {
 
-	public static create(source: Uint8ClampedArray): MinimapCharRenderer {
+	public static create(source: Uint8ClampedArray): MinimapCharRenderer2 {
 		const expectedLength = (Constants.SAMPLED_CHAR_HEIGHT * Constants.SAMPLED_CHAR_WIDTH * Constants.RGBA_CHANNELS_CNT * Constants.CHAR_COUNT);
 		if (source.length !== expectedLength) {
 			throw new Error('Unexpected source in MinimapCharRenderer');
 		}
 
-		let x2CharData = MinimapCharRendererFactory._downsample2x(source);
-		let x1CharData = MinimapCharRendererFactory._downsample1x(source);
-		return new MinimapCharRenderer(x2CharData, x1CharData);
+		let x2CharData = this.toGrayscale(MinimapCharRendererFactory._downsample2x(source));
+		let x1CharData = this.toGrayscale(MinimapCharRendererFactory._downsample1x(source));
+		return new MinimapCharRenderer2(x2CharData, x1CharData);
+	}
+
+	private static toGrayscale(charData: Uint8ClampedArray): Uint8ClampedArray {
+		let newLength = charData.length / 2;
+		let result = new Uint8ClampedArray(newLength);
+		let sourceOffset = 0;
+		for (var i = 0; i < newLength; i++) {
+			let color = charData[sourceOffset];
+			let alpha = charData[sourceOffset + 1];
+			let newColor = Math.round((color * alpha) / 255);
+			result[i] = newColor;
+			sourceOffset += 2;
+		}
+		return result;
 	}
 
 	private static _extractSampledChar(source: Uint8ClampedArray, charIndex: number, dest: Uint8ClampedArray) {
