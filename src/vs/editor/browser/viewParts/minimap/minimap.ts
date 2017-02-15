@@ -22,6 +22,7 @@ import { ColorId } from 'vs/editor/common/modes';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/styleMutator';
 import { IDisposable } from 'vs/base/common/lifecycle';
 // import { IViewLayout } from 'vs/editor/common/viewModel/viewModel';
+import { EditorScrollbar } from 'vs/editor/browser/viewParts/editorScrollbar/editorScrollbar';
 
 let charRenderer2 = createMinimapCharRenderer2(); // TODO@minimap
 
@@ -121,7 +122,8 @@ class MinimapLayout {
 		viewportHeight: number,
 		viewportStartLineNumber: number,
 		viewportEndLineNumber: number,
-		lineCount: number
+		lineCount: number,
+		scrollbarSliderCenter: number
 	) {
 		const pixelRatio = options.pixelRatio;
 		const minimapLineHeight = (options.renderMinimap === RenderMinimap.Large ? Constants.x2_CHAR_HEIGHT : Constants.x1_CHAR_HEIGHT);
@@ -132,13 +134,22 @@ class MinimapLayout {
 			this.startLineNumber = 1;
 			this.endLineNumber = lineCount;
 		} else {
-			const viewportLinesFitting = Math.floor(viewportHeight / lineHeight);
+			const viewportLineCount = (viewportEndLineNumber - viewportStartLineNumber + 1);
 
-			const minimapScrollRatio = Math.min(1, (viewportStartLineNumber - 1) / (lineCount - viewportLinesFitting));
-			const minimapStartLineNumber = Math.floor(1 + minimapScrollRatio * (lineCount - minimapLinesFitting));
+			// scrollbarSliderCenter = (viewportStartLineNumber - this.startLineNumber + viewportLineCount/2) * minimapLineHeight / pixelRatio;
+			// scrollbarSliderCenter = (viewportStartLineNumber - this.startLineNumber + viewportLineCount/2) * minimapLineHeight / pixelRatio;
+			// scrollbarSliderCenter * pixelRatio / minimapLineHeight = viewportStartLineNumber - this.startLineNumber + viewportLineCount/2
+			// this.startLineNumber = viewportStartLineNumber + viewportLineCount/2 - scrollbarSliderCenter * pixelRatio / minimapLineHeight
+			let desiredStartLineNumber = Math.floor(viewportStartLineNumber + viewportLineCount / 2 - scrollbarSliderCenter * pixelRatio / minimapLineHeight);
+			if (viewportStartLineNumber < desiredStartLineNumber) {
+				desiredStartLineNumber = viewportStartLineNumber;
+			}
+			if (desiredStartLineNumber + minimapLinesFitting - 1 > lineCount) {
+				desiredStartLineNumber = lineCount - minimapLinesFitting + 1;
+			}
 
-			this.startLineNumber = minimapStartLineNumber;
-			this.endLineNumber = minimapStartLineNumber + minimapLinesFitting - 1;
+			this.startLineNumber = desiredStartLineNumber;
+			this.endLineNumber = desiredStartLineNumber + minimapLinesFitting - 1;
 		}
 
 		this.sliderTop = Math.floor((viewportStartLineNumber - this.startLineNumber) * minimapLineHeight / pixelRatio);
@@ -149,6 +160,7 @@ class MinimapLayout {
 export class Minimap extends ViewPart {
 
 	private readonly _viewLayout: IViewLayout;
+	private readonly _editorScrollbar: EditorScrollbar;
 
 	private readonly _domNode: FastDomNode<HTMLElement>;
 	private readonly _canvas: FastDomNode<HTMLCanvasElement>;
@@ -159,9 +171,10 @@ export class Minimap extends ViewPart {
 	private _options: MinimapOptions;
 	private _backgroundFillData: Uint8ClampedArray;
 
-	constructor(context: ViewContext, viewLayout: IViewLayout) {
+	constructor(context: ViewContext, viewLayout: IViewLayout, editorScrollbar: EditorScrollbar) {
 		super(context);
 		this._viewLayout = viewLayout;
+		this._editorScrollbar = editorScrollbar;
 
 		this._options = new MinimapOptions(this._context.configuration);
 		this._backgroundFillData = null;
@@ -287,7 +300,8 @@ export class Minimap extends ViewPart {
 			renderingCtx.viewportHeight,
 			renderingCtx.visibleRange.startLineNumber,
 			renderingCtx.visibleRange.endLineNumber,
-			this._context.model.getLineCount()
+			this._context.model.getLineCount(),
+			this._editorScrollbar.getVerticalSliderVerticalCenter()
 		);
 
 		this._slider.setTop(layout.sliderTop);
