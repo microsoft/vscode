@@ -27,7 +27,7 @@ export class ViewCursors extends ViewPart {
 
 	private _isVisible: boolean;
 
-	private _domNode: FastDomNode;
+	private _domNode: FastDomNode<HTMLElement>;
 
 	private _startCursorBlinkAnimation: TimeoutTimer;
 	private _blinkingEnabled: boolean;

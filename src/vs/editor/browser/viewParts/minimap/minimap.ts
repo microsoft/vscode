@@ -90,8 +90,8 @@ class MinimapOptions {
 
 export class Minimap extends ViewPart {
 
-	private readonly _domNode: FastDomNode;
-	private readonly _canvas: FastDomNode;
+	private readonly _domNode: FastDomNode<HTMLElement>;
+	private readonly _canvas: FastDomNode<HTMLCanvasElement>;
 	private readonly _tokensColorTracker: MinimapTokensColorTracker;
 	private readonly _tokensColorTrackerListener: IDisposable;
 
@@ -133,8 +133,8 @@ export class Minimap extends ViewPart {
 		this._domNode.setHeight(this._options.minimapHeight);
 		this._canvas.setWidth(this._options.canvasOuterWidth);
 		this._canvas.setHeight(this._options.canvasOuterHeight);
-		(<HTMLCanvasElement>this._canvas.domNode).width = this._options.canvasInnerWidth; // TODO@minimap
-		(<HTMLCanvasElement>this._canvas.domNode).height = this._options.canvasInnerHeight; // TODO@minimap
+		this._canvas.domNode.width = this._options.canvasInnerWidth;
+		this._canvas.domNode.height = this._options.canvasInnerHeight;
 		this._backgroundFillData = null;
 	}
 
@@ -203,9 +203,19 @@ export class Minimap extends ViewPart {
 
 		const WIDTH = this._options.canvasInnerWidth;
 		const HEIGHT = this._options.canvasInnerHeight;
-		const ctx = (<HTMLCanvasElement>this._canvas.domNode).getContext('2d'); // TODO@minimap
+		const ctx = this._canvas.domNode.getContext('2d');
 		const minimapLineHeight = (renderMinimap === RenderMinimap.Large ? Constants.x2_CHAR_HEIGHT : Constants.x1_CHAR_HEIGHT);
 		const charWidth = (renderMinimap === RenderMinimap.Large ? Constants.x2_CHAR_WIDTH : Constants.x1_CHAR_WIDTH);
+
+		// const lineHeight = this._context.configuration.editor.lineHeight;
+
+		// let scrollHeight = (renderingCtx.scrollHeight / lineHeight) * minimapLineHeight;
+		// let scrollTop = (renderingCtx.viewportTop / lineHeight) * minimapLineHeight;
+
+
+		// console.log(`scrollTop: ${scrollTop}, scrollHeight: ${scrollHeight}`);
+		// let viewportHeight =
+
 
 		// Prepare image data (fill with background color)
 		let imageData = ctx.createImageData(WIDTH, HEIGHT);
