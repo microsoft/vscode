@@ -103,13 +103,14 @@ export function shorten(paths: string[]): string[] {
 		match = true;
 
 		let prefix = '';
-		// trim for now and concatenate network path (e.g. \\network) or root path (/etc) later
-		if (path.indexOf(`${nativeSep + nativeSep}`) === 0) {
-			prefix = path.substr(0, path.indexOf(`${nativeSep + nativeSep}`) + 2);
-			path = path.substr(path.indexOf(`${nativeSep + nativeSep}`) + 2);
-		} else if (path.indexOf(`${nativeSep}`) === 0) {
-			prefix = path.substr(0, path.indexOf(`${nativeSep}`) + 1);
-			path = path.substr(path.indexOf(`${nativeSep}`) + 1);
+		const unc = nativeSep + nativeSep;
+		// trim for now and concatenate unc path (e.g. \\network) or root path (/etc) later
+		if (path.indexOf(unc) === 0) {
+			prefix = path.substr(0, path.indexOf(unc) + 2);
+			path = path.substr(path.indexOf(unc) + 2);
+		} else if (path.indexOf(nativeSep) === 0) {
+			prefix = path.substr(0, path.indexOf(nativeSep) + 1);
+			path = path.substr(path.indexOf(nativeSep) + 1);
 		}
 
 		// pick the first shortest subpath found
