@@ -9,7 +9,7 @@
 }
 
 .monaco-editor .debug-top-stack-frame-line {
-	background: rgba(255, 255, 0, 0.35);
+	background: rgba(255, 255, 102, 0.25);
 }
 
 .monaco-editor .debug-top-stack-frame-exception-line {
@@ -17,7 +17,7 @@
 }
 
 .monaco-editor .debug-top-stack-frame-column {
-	background: rgba(255, 200, 0, 0.2);
+	background: rgba(255, 255, 102, 0.75);
 }
 
 .monaco-editor .debug-focused-stack-frame-line {
@@ -181,7 +181,7 @@
 }
 
 .monaco-editor.vs-dark .debug-top-stack-frame-line {
-	background: rgba(255, 255, 0, 0.20);
+	background: rgba(255, 255, 0, 0.15)
 }
 
 .monaco-editor.vs-dark .debug-top-stack-frame-exception-line {
@@ -189,7 +189,7 @@
 }
 
 .monaco-editor.vs-dark .debug-top-stack-frame-column {
-	background: rgba(255, 255, 0, 0.15);
+	background: rgba(255, 255, 0, 0.25)
 }
 
 .monaco-editor.vs-dark .debug-breakpoint-glyph,
@@ -244,4 +244,9 @@
 .hc-black .monaco-editor .debug-top-stack-frame-line {
 	background: rgba(255, 246, 0, .87);
 	mix-blend-mode: lighten; /* Preserves text selection's contrast */
+}
+
+.hc-black .monaco-editor .debug-top-stack-frame-column {
+	background: none;
+	outline: 2px solid #ff0000;
 }
