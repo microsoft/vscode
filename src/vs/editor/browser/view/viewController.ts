@@ -129,8 +129,6 @@ export class ViewController implements IViewController {
 						} else {
 							this.createCursor('mouse', data.position, false);
 						}
-
-						// last cursor range select drag
 					}
 				}
 			} else {
