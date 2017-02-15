@@ -7,7 +7,7 @@
 
 import vscode = require('vscode');
 
-const versionBarEntry = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, Number.MIN_VALUE);
+const versionBarEntry = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, Number.MIN_VALUE + 1);
 
 export function showHideStatus() {
 	if (!versionBarEntry) {
