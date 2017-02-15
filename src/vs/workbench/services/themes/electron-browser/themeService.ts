@@ -492,6 +492,9 @@ export class ThemeService implements IThemeService {
 			themeData.isLoaded = false;
 
 			this.knownColorThemes.push(themeData);
+
+			colorThemeSetting.enum.push(themeData.settingsId);
+			colorThemeSetting.enumDescriptions.push(themeData.description || '');
 		});
 	}
 
@@ -529,7 +532,7 @@ export class ThemeService implements IThemeService {
 				collector.warn(nls.localize('invalid.path.1', "Expected `contributes.{0}.path` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.", themesExtPoint.name, normalizedAbsolutePath, extensionFolderPath));
 			}
 
-			this.knownIconThemes.push({
+			let themeData = {
 				id: extensionData.extensionId + '-' + iconTheme.id,
 				label: iconTheme.label || Paths.basename(iconTheme.path),
 				settingsId: iconTheme.id,
@@ -537,7 +540,11 @@ export class ThemeService implements IThemeService {
 				path: normalizedAbsolutePath,
 				extensionData: extensionData,
 				isLoaded: false
-			});
+			};
+			this.knownIconThemes.push(themeData);
+
+			iconThemeSetting.enum.push(themeData.settingsId);
+			iconThemeSetting.enumDescriptions.push(themeData.description || '');
 		});
 	}
 
@@ -1107,22 +1114,31 @@ const schema: IJSONSchema = {
 let schemaRegistry = <IJSONContributionRegistry>Registry.as(JSONExtensions.JSONContribution);
 schemaRegistry.registerSchema(schemaId, schema);
 
-// Configuration: Workbench
+// Configuration: Themes
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+
+const colorThemeSetting: IJSONSchema = {
+	type: 'string',
+	description: nls.localize('colorTheme', "Specifies the color theme used in the workbench."),
+	default: DEFAULT_THEME_NAME,
+	enum: [],
+	enumDescriptions: [],
+	errorMessage: nls.localize('colorThemeError', "Theme is unknown or not installed."),
+};
+const iconThemeSetting: IJSONSchema = {
+	type: ['string', 'null'],
+	default: null,
+	description: nls.localize('iconTheme', "Specifies the icon theme used in the workbench."),
+	enum: [null],
+	enumDescriptions: [nls.localize('noIconThemeDesc', 'No file icons')],
+	errorMessage: nls.localize('iconThemeError', "File icon theme is unknown or not installed.")
+};
 configurationRegistry.registerConfiguration({
-	'id': 'workbench',
-	'order': 7.1,
-	'type': 'object',
-	'properties': {
-		[COLOR_THEME_SETTING]: {
-			'type': 'string',
-			'description': nls.localize('colorTheme', "Specifies the color theme used in the workbench."),
-			'default': DEFAULT_THEME_NAME
-		},
-		[ICON_THEME_SETTING]: {
-			'type': ['string', 'null'],
-			'default': null,
-			'description': nls.localize('iconTheme', "Specifies the icon theme used in the workbench.")
-		}
+	id: 'workbench',
+	order: 7.1,
+	type: 'object',
+	properties: {
+		[COLOR_THEME_SETTING]: colorThemeSetting,
+		[ICON_THEME_SETTING]: iconThemeSetting
 	}
 });
