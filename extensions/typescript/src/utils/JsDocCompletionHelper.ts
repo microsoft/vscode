@@ -83,7 +83,7 @@ export default class JsDocCompletionHelper {
 						return true;
 					}
 
-					// Revert to the original line content
+					// Revert to the original line content and restore position
 					return editor.edit(
 						edits => {
 							edits.insert(start, prefix[1] + suffix[0]);
@@ -91,7 +91,10 @@ export default class JsDocCompletionHelper {
 							undoStopBefore: false,
 							undoStopAfter: true
 						}
-					).then(() => false);
+					).then(() => {
+						editor.selection = new Selection(position, position);
+						return false;
+					});
 				});
 		});
 	}

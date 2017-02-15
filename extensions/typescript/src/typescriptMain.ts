@@ -104,8 +104,8 @@ export function activate(context: ExtensionContext): void {
 	const jsDocCompletionHelper = new JsDocCompletionHelper(client);
 	context.subscriptions.push(commands.registerCommand('_typescript.tryCompleteJsDoc', () => {
 		const editor = window.activeTextEditor;
-		if (!editor) {
-			return;
+		if (!editor || !editor.selection.isEmpty) {
+			return commands.executeCommand('type', { text: '\n' });
 		}
 		return jsDocCompletionHelper.tryCompleteJsDoc(editor, editor.selection.active).then(didCompleteComment => {
 			if (didCompleteComment) {
