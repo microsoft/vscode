@@ -271,7 +271,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		let rulers = new Rulers(this._context);
 		this.viewParts.push(rulers);
 
-		let minimap = new Minimap(this._context);
+		let minimap = new Minimap(this._context, this.layoutProvider);
 		this.viewParts.push(minimap);
 
 		// -------------- Wire dom nodes up
