@@ -30,7 +30,7 @@
 		</dict>
 		<dict>
 			<key>begin</key>
-			<string>^=</string>
+			<string>^=[a-zA-Z]+</string>
 			<key>captures</key>
 			<dict>
 				<key>0</key>
