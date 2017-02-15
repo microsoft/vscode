@@ -348,7 +348,7 @@ class MouseDownOperation extends Disposable {
 	private _mouseDragThenMoveEventHandler: EventGateKeeper<EditorMouseEvent>;
 
 	private _currentSelection: Selection;
-	private _dragTargetPosition: Position;
+	private _dropTarget: editorBrowser.IMouseTarget;
 	private _mouseState: MouseDownState;
 
 	private _onScrollTimeout: TimeoutTimer;
@@ -411,7 +411,6 @@ class MouseDownOperation extends Disposable {
 			return;
 		}
 
-
 		this._dispatchMouse(position, true);
 	}
 
@@ -426,10 +425,10 @@ class MouseDownOperation extends Disposable {
 			return;
 		}
 
-		this._dragTargetPosition = position.position;
+		this._dropTarget = this._createMouseTarget(e, true);
 		this._viewController.emitMouseDrag({
 			event: e,
-			target: this._createMouseTarget(e, true)
+			target: this._dropTarget
 		});
 	}
 
@@ -438,7 +437,7 @@ class MouseDownOperation extends Disposable {
 
 		this._mouseState.setStartedOnLineNumbers(targetType === editorCommon.MouseTargetType.GUTTER_LINE_NUMBERS);
 		this._mouseState.setModifiers(e);
-		this._mouseState.setMouseDownEvent('down');
+		this._mouseState.setMouseDownEvent('mouseDown');
 		let position = this._findMousePosition(e, true);
 		if (!position) {
 			// Ignoring because position is unknown
@@ -457,7 +456,7 @@ class MouseDownOperation extends Disposable {
 			&& this._currentSelection.containsPosition(position.position) // single click on a selection
 		) {
 			this._isActive = true;
-			this._dragTargetPosition = position.position;
+			this._dropTarget = this._createMouseTarget(e, true);
 
 			this._mouseMoveMonitor.startMonitoring(
 				createMouseMoveEventMerger(null),
@@ -469,7 +468,7 @@ class MouseDownOperation extends Disposable {
 					} else {
 						this._viewController.emitMouseDrop({
 							event: e,
-							target: this._createMouseTarget(e, true)
+							target: this._dropTarget
 						});
 					}
 
@@ -613,7 +612,7 @@ class MouseDownState {
 	private _lastMouseDownPositionEqualCount: number;
 	private _lastMouseDownCount: number;
 	private _lastSetMouseDownCountTime: number;
-	private _lastMouseDownEvent: 'down' | 'drag' | 'move';
+	private _lastMouseDownEvent: 'mouseDown' | 'drag';
 
 	constructor() {
 		this._altKey = false;
@@ -625,14 +624,14 @@ class MouseDownState {
 		this._lastMouseDownPositionEqualCount = 0;
 		this._lastMouseDownCount = 0;
 		this._lastSetMouseDownCountTime = 0;
-		this._lastMouseDownEvent = 'down';
+		this._lastMouseDownEvent = 'mouseDown';
 	}
 
 	public get count(): number {
 		return this._lastMouseDownCount;
 	}
 
-	public get lastMouseDownEvent(): 'down' | 'drag' | 'move' {
+	public get lastMouseDownEvent(): 'mouseDown' | 'drag' {
 		return this._lastMouseDownEvent;
 	}
 
@@ -643,7 +642,7 @@ class MouseDownState {
 		this._shiftKey = source.shiftKey;
 	}
 
-	public setMouseDownEvent(event: 'down' | 'drag' | 'move') {
+	public setMouseDownEvent(event: 'mouseDown' | 'drag') {
 		this._lastMouseDownEvent = event;
 	}
 

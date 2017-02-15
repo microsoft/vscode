@@ -269,22 +269,18 @@ export class ViewController implements IViewController {
 	}
 
 	public emitMouseUp(e: IEditorMouseEvent): void {
-		console.log('up');
 		this.outgoingEvents.emitMouseUp(e);
 	}
 
 	public emitMouseDown(e: IEditorMouseEvent): void {
-		console.log('down');
 		this.outgoingEvents.emitMouseDown(e);
 	}
 
 	public emitMouseDrag(e: IEditorMouseEvent): void {
-		console.log('drag');
 		this.outgoingEvents.emitMouseDrag(e);
 	}
 
 	public emitMouseDrop(e: IEditorMouseEvent): void {
-		console.log('drop');
 		this.outgoingEvents.emitMouseDrop(e);
 	}
 }
