@@ -682,6 +682,7 @@ export class DebugService implements debug.IDebugService {
 			this.registerSessionListeners(process, session);
 
 			return session.initialize({
+				clientID: 'vscode',
 				adapterID: configuration.type,
 				pathFormat: 'path',
 				linesStartAt1: true,
