@@ -16,7 +16,7 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import strings = require('vs/base/common/strings');
 import { Mode, IEntryRunContext, IAutoFocus } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenEntryGroup, IHighlight, QuickOpenModel, QuickOpenEntry } from 'vs/base/parts/quickopen/browser/quickOpenModel';
-import { SyncActionDescriptor, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { SyncActionDescriptor, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
 import { Registry } from 'vs/platform/platform';
@@ -277,8 +277,8 @@ export class CommandsHandler extends QuickOpenHandler {
 
 		// Other Actions
 		const menu = this.menuService.createMenu(MenuId.CommandPalette, this.contextKeyService);
-		const menuActions = menu.getActions().reduce((r, [, actions]) => [...r, ...actions], []);
-		const commandEntries = this.commandActionsToEntries(menuActions, searchValue);
+		const menuActions = menu.getActions().reduce((r, [, actions]) => [...r, ...actions], <MenuItemAction[]>[]);
+		const commandEntries = this.menuItemActionsToEntries(menuActions, searchValue);
 
 		// Concat
 		let entries = [...workbenchEntries, ...editorEntries, ...commandEntries];
@@ -355,17 +355,21 @@ export class CommandsHandler extends QuickOpenHandler {
 		return entries;
 	}
 
-	private commandActionsToEntries(actions: IAction[], searchValue: string): ActionCommandEntry[] {
+	private menuItemActionsToEntries(actions: MenuItemAction[], searchValue: string): ActionCommandEntry[] {
 		const entries: ActionCommandEntry[] = [];
 
 		for (let action of actions) {
-			const [keybind] = this.keybindingService.lookupKeybindings(action.id);
+			const label = action.item.category
+				? nls.localize('cat.title', "{0}: {1}", action.item.category, action.item.title)
+				: action.item.title;
+			const highlights = wordFilter(searchValue, label);
+			if (!highlights) {
+				continue;
+			}
+			const [keybind] = this.keybindingService.lookupKeybindings(action.item.id);
 			const keyLabel = keybind ? this.keybindingService.getLabelFor(keybind) : '';
 			const keyAriaLabel = keybind ? this.keybindingService.getAriaLabelFor(keybind) : '';
-			const highlights = wordFilter(searchValue, action.label);
-			if (highlights) {
-				entries.push(this.instantiationService.createInstance(ActionCommandEntry, keyLabel, keyAriaLabel, action.label, null, highlights, null, action));
-			}
+			entries.push(this.instantiationService.createInstance(ActionCommandEntry, keyLabel, keyAriaLabel, label, null, highlights, null, action));
 		}
 
 		return entries;

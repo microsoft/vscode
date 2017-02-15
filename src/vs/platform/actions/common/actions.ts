@@ -161,18 +161,17 @@ export class MenuItemAction extends ExecuteCommandAction {
 
 	constructor(
 		item: ICommandAction,
-		label: string,
 		alt: ICommandAction,
 		arg: any,
 		@ICommandService commandService: ICommandService
 	) {
-		super(item.id, label, commandService);
+		super(item.id, item.title, commandService);
 		this._cssClass = item.iconClass;
 		this._enabled = true;
 		this._arg = arg;
 
 		this.item = item;
-		this.alt = alt ? new MenuItemAction(alt, alt.title, undefined, arg, commandService) : undefined;
+		this.alt = alt ? new MenuItemAction(alt, undefined, arg, commandService) : undefined;
 	}
 
 	run(): TPromise<any> {
