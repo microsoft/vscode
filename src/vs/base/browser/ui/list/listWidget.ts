@@ -89,8 +89,7 @@ class Trait<T> implements ISpliceable<boolean>, IDisposable {
 			...this.indexes.filter(i => i >= end).map(i => i + diff)
 		];
 
-		this.indexes = indexes;
-		this._onChange.fire({ indexes });
+		this.set(indexes);
 	}
 
 	renderElement(element: T, index: number, container: HTMLElement): void {
