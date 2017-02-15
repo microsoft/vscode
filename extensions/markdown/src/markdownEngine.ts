@@ -48,9 +48,9 @@ export class MarkdownEngine {
 				slugify: function (header: string) {
             		return encodeURI(header.trim()
  							.toLowerCase()
-							.replace(/[\]\[\!\"\#\$\%\&\'\(\)\*\+\,\.\/\:\;\<\=\>\?\@\\\^\_\{\|\}\~]/g, '') //remove symbol
-							.replace(/\s+/g, '-')) // Replace spaces with hyphens
-							.replace(/\-+$/, ''); // Replace trailing hyphen
+							.replace(/[\]\[\!\"\#\$\%\&\'\(\)\*\+\,\.\/\:\;\<\=\>\?\@\\\^\_\{\|\}\~]/g, '')
+							.replace(/\s+/g, '-')
+							.replace(/\-+$/, ''));
 					}
 			});
 
