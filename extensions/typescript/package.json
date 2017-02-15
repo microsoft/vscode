@@ -88,12 +88,12 @@
       {
         "key": "enter",
         "command": "_typescript.tryCompleteJsDoc",
-        "when": "editorTextFocus && editorLangId == 'typescript'"
+        "when": "editorTextFocus && !suggestWidgetVisible && editorLangId == 'typescript'"
       },
          {
         "key": "enter",
         "command": "_typescript.tryCompleteJsDoc",
-        "when": "editorTextFocus && editorLangId == 'javascript'"
+        "when": "editorTextFocus && !suggestWidgetVisible && editorLangId == 'javascript'"
       }
     ],
     "configuration": {
