@@ -40,6 +40,7 @@ import WorkspaceSymbolProvider from './features/workspaceSymbolProvider';
 import CodeActionProvider from './features/codeActionProvider';
 import ReferenceCodeLensProvider from './features/referencesCodeLensProvider';
 
+import JsDocCompletionHelper from './utils/JsDocCompletionHelper';
 import * as BuildStatus from './utils/buildStatus';
 import * as ProjectStatus from './utils/projectStatus';
 import TypingsStatus, { AtaProgressReporter } from './utils/typingsStatus';
@@ -99,6 +100,20 @@ export function activate(context: ExtensionContext): void {
 
 	context.subscriptions.push(commands.registerCommand('typescript.selectTypeScriptVersion', () => {
 		client.onVersionStatusClicked();
+	}));
+
+	const jsDocCompletionHelper = new JsDocCompletionHelper(client);
+	context.subscriptions.push(commands.registerCommand('_typescript.tryCompleteJsDoc', () => {
+		const editor = window.activeTextEditor;
+		if (!editor || !editor.selection.isEmpty) {
+			return commands.executeCommand('type', { text: '\n' });
+		}
+		return jsDocCompletionHelper.tryCompleteJsDoc(editor, editor.selection.active).then(didCompleteComment => {
+			if (didCompleteComment) {
+				return;
+			}
+			return commands.executeCommand('type', { text: '\n' });
+		});
 	}));
 
 	const goToProjectConfig = (isTypeScript: boolean) => {
