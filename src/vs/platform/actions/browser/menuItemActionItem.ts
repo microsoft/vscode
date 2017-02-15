@@ -67,6 +67,7 @@ export function createActionItem(action: IAction, keybindingService: IKeybinding
 	if (action instanceof MenuItemAction) {
 		return new MenuItemActionItem(action, keybindingService, messageService);
 	}
+	return undefined;
 }
 
 

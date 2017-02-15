@@ -279,7 +279,7 @@ export class Range {
 			// this happens when there is no overlap:
 			// |-----|
 			//          |----|
-			return;
+			return undefined;
 		}
 		return new Range(start, end);
 	}
@@ -937,6 +937,7 @@ export namespace TextEditorSelectionChangeKind {
 			case 'mouse': return TextEditorSelectionChangeKind.Mouse;
 			case 'api': return TextEditorSelectionChangeKind.Command;
 		}
+		return undefined;
 	}
 }
 

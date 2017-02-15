@@ -9,7 +9,6 @@
 	text-overflow: ellipsis;
 	font-size: 90%;
 	color: #999999;
-	vertical-align: sub;
 }
 
 .monaco-editor .codelens-decoration > span,
@@ -19,6 +18,7 @@
 	-ms-user-select: none;
 	user-select: none;
 	white-space: nowrap;
+	vertical-align: sub;
 }
 
 .monaco-editor .codelens-decoration > a {

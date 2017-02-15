@@ -39,5 +39,6 @@ export class MainThreadStorage extends MainThreadStorageShape {
 		} catch (err) {
 			return TPromise.wrapError(err);
 		}
+		return undefined;
 	}
 }

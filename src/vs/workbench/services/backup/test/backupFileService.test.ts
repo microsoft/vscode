@@ -22,8 +22,6 @@ import { parseArgs } from 'vs/platform/environment/node/argv';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { TestWindowService } from 'vs/workbench/test/workbenchTestServices';
-import { IRawTextProvider } from 'vs/editor/common/services/modelService';
-import { IRawText, ITextModelCreationOptions } from 'vs/editor/common/editorCommon';
 
 class TestEnvironmentService extends EnvironmentService {
 
@@ -254,19 +252,8 @@ suite('BackupFileService', () => {
 
 	test('parseBackupContent', () => {
 		test('should separate metadata from content', () => {
-			const rawText = TextModel.toRawText('metadata\ncontent', TextModel.DEFAULT_CREATION_OPTIONS);
-			const rawTextProvider: IRawTextProvider = {
-				getEntireContent: (): string => {
-					return rawText.lines.join(rawText.EOL);
-				},
-				getFirstLine: (): string => {
-					return rawText.lines[0];
-				},
-				toRawText: (opts: ITextModelCreationOptions): IRawText => {
-					return rawText;
-				}
-			};
-			assert.equal(service.parseBackupContent(rawTextProvider), 'content');
+			const textSource = TextModel.toTextSource('metadata\ncontent');
+			assert.equal(service.parseBackupContent(textSource), 'content');
 		});
 	});
 });

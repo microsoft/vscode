@@ -15,10 +15,11 @@
 	"debugConsoleAction": "デバッグ コンソール",
 	"debugFocusConsole": "デバッグ コンソールにフォーカスを移動",
 	"disableAllBreakpoints": "すべてのブレークポイントを無効にする",
+	"disableBreakpoint": "ブレークポイントの無効化",
 	"disconnectDebug": "切断",
 	"editConditionalBreakpoint": "ブレークポイントの編集...",
-	"editWatchExpression": "式の編集",
 	"enableAllBreakpoints": "すべてのブレークポイントを有効にする",
+	"enableBreakpoint": "ブレークポイントの有効化",
 	"focusProcess": "フォーカスのプロセス",
 	"launchJsonNeedsConfigurtion": "'launch.json' を構成または修正してください",
 	"openLaunchJson": "{0} を開く",
@@ -41,6 +42,5 @@
 	"stepOutDebug": "ステップ アウト",
 	"stepOverDebug": "ステップ オーバー",
 	"stopDebug": "停止",
-	"toggleEnablement": "ブレークポイントの有効化/無効化",
 	"unreadOutput": "デバッグ コンソールでの新しい出力"
 }

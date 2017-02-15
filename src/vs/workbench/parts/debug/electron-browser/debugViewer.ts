@@ -93,7 +93,7 @@ export function renderExpressionValue(expressionOrValue: debug.IExpression | str
 export function renderVariable(tree: ITree, variable: Variable, data: IVariableTemplateData, showChanged: boolean): void {
 	if (variable.available) {
 		data.name.textContent = replaceWhitespace(variable.name);
-		data.name.title = variable.type ? variable.type : '';
+		data.name.title = variable.type ? variable.type : variable.name;
 	}
 
 	if (variable.value) {
@@ -166,6 +166,8 @@ function renderRenameBox(debugService: debug.IDebugService, contextViewService: 
 		const isEscape = e.equals(KeyCode.Escape);
 		const isEnter = e.equals(KeyCode.Enter);
 		if (isEscape || isEnter) {
+			e.preventDefault();
+			e.stopPropagation();
 			wrapUp(isEnter);
 		}
 	}));
@@ -621,15 +623,13 @@ export class VariablesActionProvider implements IActionProvider {
 	}
 
 	public getSecondaryActions(tree: ITree, element: any): TPromise<IAction[]> {
-		let actions: IAction[] = [];
+		const actions: IAction[] = [];
 		const variable = <Variable>element;
-		if (!variable.hasChildren) {
-			actions.push(this.instantiationService.createInstance(SetValueAction, SetValueAction.ID, SetValueAction.LABEL, variable));
-			actions.push(this.instantiationService.createInstance(CopyValueAction, CopyValueAction.ID, CopyValueAction.LABEL, variable));
-			actions.push(new Separator());
-		}
-
+		actions.push(this.instantiationService.createInstance(SetValueAction, SetValueAction.ID, SetValueAction.LABEL, variable));
+		actions.push(this.instantiationService.createInstance(CopyValueAction, CopyValueAction.ID, CopyValueAction.LABEL, variable));
+		actions.push(new Separator());
 		actions.push(this.instantiationService.createInstance(AddToWatchExpressionsAction, AddToWatchExpressionsAction.ID, AddToWatchExpressionsAction.LABEL, variable));
+
 		return TPromise.as(actions);
 	}
 
@@ -778,9 +778,9 @@ export class VariablesController extends BaseDebugController {
 		return super.onLeftClick(tree, element, event);
 	}
 
-	protected onEnter(tree: ITree, event: IKeyboardEvent): boolean {
+	protected onRename(tree: ITree, event: IKeyboardEvent): boolean {
 		const element = tree.getFocus();
-		if (element instanceof Variable && !element.hasChildren) {
+		if (element instanceof Variable) {
 			this.debugService.getViewModel().setSelectedExpression(element);
 			return true;
 		}
@@ -1258,6 +1258,9 @@ export class BreakpointsRenderer implements IRenderer {
 
 		data.name.textContent = getPathLabel(paths.basename(breakpoint.uri.fsPath), this.contextService);
 		data.lineNumber.textContent = breakpoint.lineNumber.toString();
+		if (breakpoint.column) {
+			data.lineNumber.textContent += `:${breakpoint.column}`;
+		}
 		data.filePath.textContent = getPathLabel(paths.dirname(breakpoint.uri.fsPath), this.contextService);
 		data.checkbox.checked = breakpoint.enabled;
 

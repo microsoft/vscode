@@ -6,9 +6,11 @@
 {
 	"error.cannotloadicontheme": "\"{0}\" kann nicht geladen werden.",
 	"error.cannotloadtheme": "\"{0}\" kann nicht geladen werden.",
-	"error.cannotparse": "Probleme beim Analysieren der PLIST-Datei: {0}",
+	"error.cannotparse": "Probleme beim Analysieren der Designdatei: {0}",
 	"error.cannotparseicontheme": "Probleme beim Analysieren der Dateisymboldatei: {0}",
 	"error.cannotparsejson": "Probleme beim Analysieren der JSON-Designdatei: {0}",
+	"error.invalidformat": "Probleme beim Analysieren der JSON-Designdatei: {0}. \"settings\" ist kein Array",
+	"error.plist.invalidformat": "Probleme beim Analysieren der Designdatei: {0}. \"settings\" ist kein Array",
 	"invalid.path.1": "Es wurde erwartet, dass \"contributes.{0}.path\" ({1}) im Ordner ({2}) der Extension enthalten ist. Dies führt ggf. dazu, dass die Extension nicht portierbar ist.",
 	"reqarray": "Der Erweiterungspunkt \"{0}\" muss ein Array sein.",
 	"reqid": "In \"contributes.{0}.id\" wurde eine Zeichenfolge erwartet. Bereitgestellter Wert: {1}",

@@ -8,7 +8,7 @@
 	"label.find": "検索",
 	"label.matchesLocation": "{1} の {0}",
 	"label.nextMatchButton": "次の一致項目",
-	"label.noResults": "結果がありません",
+	"label.noResults": "結果なし",
 	"label.previousMatchButton": "前の一致項目",
 	"label.replace": "置換",
 	"label.replaceAllButton": "すべて置換",

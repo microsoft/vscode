@@ -20,7 +20,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 
 class TestTerminalProcessFactory implements ITerminalProcessFactory {
 	public create(env: { [key: string]: string }): cp.ChildProcess {
-		return <any>{};
+		return <any>{ on: () => { } };
 	}
 }
 

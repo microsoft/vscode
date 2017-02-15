@@ -64,6 +64,7 @@ suite('Filters', () => {
 		filterOk(matchesPrefix, 'alpha', 'alphasomething', [{ start: 0, end: 5 }]);
 		filterNotOk(matchesPrefix, 'alpha', 'alp');
 		filterOk(matchesPrefix, 'a', 'alpha', [{ start: 0, end: 1 }]);
+		filterOk(matchesPrefix, 'ä', 'Älpha', [{ start: 0, end: 1 }]);
 		filterNotOk(matchesPrefix, 'x', 'alpha');
 		filterOk(matchesPrefix, 'A', 'alpha', [{ start: 0, end: 1 }]);
 		filterOk(matchesPrefix, 'AlPh', 'alPHA', [{ start: 0, end: 4 }]);

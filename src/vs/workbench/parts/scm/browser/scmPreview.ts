@@ -42,7 +42,7 @@ export class EnableSCMPreviewAction extends Action {
 		const result = this.messageService.confirm({ message });
 
 		if (!result) {
-			return;
+			return undefined;
 		}
 
 		SCMPreview.enabled = true;
@@ -69,7 +69,7 @@ export class DisableSCMPreviewAction extends Action {
 		const result = this.messageService.confirm({ message });
 
 		if (!result) {
-			return;
+			return undefined;
 		}
 
 		SCMPreview.enabled = false;

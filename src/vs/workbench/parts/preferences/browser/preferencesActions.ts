@@ -109,6 +109,7 @@ export class ConfigureLanguageBasedSettingsAction extends Action {
 					return this.modeService.getOrCreateModeByLanguageName(pick.label)
 						.then(mode => this.preferencesService.configureSettingsForLanguage(mode.getLanguageIdentifier().language));
 				}
+				return undefined;
 			});
 
 	}

@@ -95,6 +95,15 @@
         }
       },
       {
+        "command": "git.commit",
+        "title": "%command.commit%",
+        "category": "Git",
+        "icon": {
+          "light": "resources/icons/light/check.svg",
+          "dark": "resources/icons/dark/check.svg"
+        }
+      },
+      {
         "command": "git.commitStaged",
         "title": "%command.commitStaged%",
         "category": "Git"
@@ -165,8 +174,21 @@
         "category": "Git"
       }
     ],
+    "keybindings": [
+      {
+        "command": "git.commitWithInput",
+        "key": "ctrl+enter",
+        "mac": "cmd+enter",
+        "when": "inSCMInput"
+      }
+    ],
     "menus": {
       "scm/title": [
+        {
+          "command": "git.commit",
+          "group": "navigation",
+          "when": "scmProvider == git"
+        },
         {
           "command": "git.refresh",
           "group": "navigation",
@@ -180,22 +202,22 @@
         {
           "command": "git.pull",
           "group": "1_sync",
-          "when": "scmProvider == none"
+          "when": "scmProvider == git"
         },
         {
           "command": "git.pullRebase",
           "group": "1_sync",
-          "when": "scmProvider == none"
+          "when": "scmProvider == git"
         },
         {
           "command": "git.push",
           "group": "1_sync",
-          "when": "scmProvider == none"
+          "when": "scmProvider == git"
         },
         {
           "command": "git.pushTo",
           "group": "1_sync",
-          "when": "scmProvider == none"
+          "when": "scmProvider == git"
         },
         {
           "command": "git.publish",
@@ -205,27 +227,27 @@
         {
           "command": "git.commitStaged",
           "group": "3_commit",
-          "when": "scmProvider == none"
+          "when": "scmProvider == git"
         },
         {
           "command": "git.commitStagedSigned",
           "group": "3_commit",
-          "when": "scmProvider == none"
+          "when": "scmProvider == git"
         },
         {
           "command": "git.commitAll",
           "group": "3_commit",
-          "when": "scmProvider == none"
+          "when": "scmProvider == git"
         },
         {
           "command": "git.commitAllSigned",
           "group": "3_commit",
-          "when": "scmProvider == none"
+          "when": "scmProvider == git"
         },
         {
           "command": "git.undoCommit",
           "group": "3_commit",
-          "when": "scmProvider == none"
+          "when": "scmProvider == git"
         },
         {
           "command": "git.unstageAll",
@@ -347,9 +369,72 @@
           "group": "inline"
         }
       ]
+    },
+    "configuration": {
+      "title": "Git",
+      "properties": {
+        "git.enabled": {
+          "type": "boolean",
+          "description": "%config.enabled%",
+          "default": true
+        },
+        "git.path": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "%config.path%",
+          "default": null,
+          "isExecutable": true
+        },
+        "git.autorefresh": {
+          "type": "boolean",
+          "description": "%config.autorefresh%",
+          "default": true
+        },
+        "git.autofetch": {
+          "type": "boolean",
+          "description": "%config.autofetch%",
+          "default": true
+        },
+        "git.enableLongCommitWarning": {
+          "type": "boolean",
+          "description": "%config.enableLongCommitWarning%",
+          "default": true
+        },
+        "git.confirmSync": {
+          "type": "boolean",
+          "description": "%config.confirmSync%",
+          "default": true
+        },
+        "git.countBadge": {
+          "type": "string",
+          "enum": [
+            "all",
+            "tracked",
+            "off"
+          ],
+          "description": "%config.countBadge%",
+          "default": "all"
+        },
+        "git.checkoutType": {
+          "type": "string",
+          "enum": [
+            "all",
+            "local",
+            "tags",
+            "remote"
+          ],
+          "description": "%config.checkoutType%",
+          "default": "all"
+        }
+      }
     }
   },
   "dependencies": {
     "vscode-nls": "^2.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^7.0.4"
   }
 }

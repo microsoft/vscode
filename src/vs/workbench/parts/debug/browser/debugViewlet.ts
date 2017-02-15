@@ -21,7 +21,6 @@ import { IProgressService, IProgressRunner } from 'vs/platform/progress/common/p
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { Button } from 'vs/base/browser/ui/button/button';
 
 export class DebugViewlet extends Viewlet {
 
@@ -34,7 +33,6 @@ export class DebugViewlet extends Viewlet {
 	private $el: Builder;
 	private splitView: SplitView;
 	private views: IViewletView[];
-	private openFolderButton: Button;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -90,9 +88,8 @@ export class DebugViewlet extends Viewlet {
 	public focus(): void {
 		super.focus();
 
-		if (this.openFolderButton) {
-			this.openFolderButton.getElement().focus();
-			return;
+		if (!this.contextService.getWorkspace()) {
+			this.views[0].focusBody();
 		}
 
 		if (this.startDebugActionItem) {

@@ -89,6 +89,7 @@ class ExtensionManifestParser extends ExtensionManifestHandler {
 			} catch (e) {
 				this._collector.error(this._absoluteFolderPath, nls.localize('jsonParseFail', "Failed to parse {0}: {1}.", this._absoluteManifestPath, json.getParseErrorMessage(e.message)));
 			}
+			return null;
 		}, (err) => {
 			if (err.code === 'ENOENT') {
 				return null;

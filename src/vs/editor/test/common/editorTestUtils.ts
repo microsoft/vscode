@@ -19,25 +19,33 @@ export function withEditorModel(text: string[], callback: (model: Model) => void
 export function viewModelHelper(model): IViewModelHelper {
 	return {
 		viewModel: model,
+		coordinatesConverter: {
+			convertViewPositionToModelPosition: (viewPosition: Position): Position => {
+				return viewPosition;
+			},
+			convertViewRangeToModelRange: (viewRange: Range): Range => {
+				return viewRange;
+			},
+			convertViewSelectionToModelSelection: (viewSelection: Selection): Selection => {
+				return viewSelection;
+			},
+			validateViewPosition: (viewPosition: Position, expectedModelPosition: Position): Position => {
+				return expectedModelPosition;
+			},
+			validateViewRange: (viewRange: Range, modelRange: Range): Range => {
+				return modelRange;
+			},
+			convertModelPositionToViewPosition: (modelPosition: Position): Position => {
+				return modelPosition;
+			},
+			convertModelRangeToViewRange: (modelRange: Range): Range => {
+				return modelRange;
+			},
+			modelPositionIsVisible: (modelPosition: Position): boolean => {
+				return true;
+			},
+		},
 		getCurrentCompletelyVisibleViewLinesRangeInViewport: () => { return null; },
 		getCurrentCompletelyVisibleModelLinesRangeInViewport: () => { return null; },
-		convertModelPositionToViewPosition: (lineNumber: number, column: number) => {
-			return new Position(lineNumber, column);
-		},
-		convertModelRangeToViewRange: (modelRange: Range) => {
-			return modelRange;
-		},
-		convertViewToModelPosition: (lineNumber: number, column: number) => {
-			return new Position(lineNumber, column);
-		},
-		convertViewSelectionToModelSelection: (viewSelection: Selection) => {
-			return viewSelection;
-		},
-		validateViewPosition: (viewPosition: Position, modelPosition: Position): Position => {
-			return modelPosition;
-		},
-		validateViewRange: (viewRange: Range, modelRange: Range): Range => {
-			return modelRange;
-		}
 	};
 }

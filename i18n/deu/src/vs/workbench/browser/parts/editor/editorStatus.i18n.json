@@ -10,6 +10,7 @@
 	"changeIndentation": "Einzug ändern",
 	"changeMode": "Sprachmodus ändern",
 	"configureAssociationsExt": "Dateizuordnung für \"{0}\" konfigurieren...",
+	"configureModeSettings": "\"{0}\" sprachbasierte Einstellungen konfigurieren...",
 	"currentAssociation": "Aktuelle Zuordnung",
 	"disableTabMode": "Barrierefreiheitsmodus deaktivieren",
 	"endOfLineCarriageReturnLineFeed": "CRLF",

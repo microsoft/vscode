@@ -8,7 +8,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as objects from 'vs/base/common/objects';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import { Range } from 'vs/editor/common/core/range';
-import { IModel, TrackedRangeStickiness, IRange, IModelDeltaDecoration, IModelDecorationsChangedEvent, IModelDecorationOptions } from 'vs/editor/common/editorCommon';
+import { IModel, TrackedRangeStickiness, IModelDeltaDecoration, IModelDecorationsChangedEvent, IModelDecorationOptions } from 'vs/editor/common/editorCommon';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IDebugService, IBreakpoint, IRawBreakpoint, State } from 'vs/workbench/parts/debug/common/debug';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -20,7 +20,6 @@ interface IDebugEditorModelData {
 	breakpointLines: number[];
 	breakpointDecorationsAsMap: Map<string, boolean>;
 	currentStackDecorations: string[];
-	topStackFrameRange: IRange;
 	dirty: boolean;
 }
 
@@ -88,7 +87,6 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 			breakpointLines: breakpoints.map(bp => bp.lineNumber),
 			breakpointDecorationsAsMap,
 			currentStackDecorations: currentStackDecorations,
-			topStackFrameRange: null,
 			dirty: false
 		});
 	}
@@ -122,7 +120,8 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 
 		// compute how to decorate the editor. Different decorations are used if this is a top stack frame, focussed stack frame,
 		// an exception or a stack frame that did not change the line number (we only decorate the columns, not the whole line).
-		if (stackFrame === stackFrame.thread.getCallStack()[0]) {
+		const callStack = stackFrame.thread.getCallStack();
+		if (callStack && callStack.length && stackFrame === callStack[0]) {
 			result.push({
 				options: DebugEditorModelManager.TOP_STACK_FRAME_MARGIN,
 				range
@@ -140,15 +139,10 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 				});
 
 				if (this.modelDataMap.has(modelUriStr)) {
-					const modelData = this.modelDataMap.get(modelUriStr);
-					if (modelData.topStackFrameRange && modelData.topStackFrameRange.startLineNumber === wholeLineRange.startLineNumber &&
-						modelData.topStackFrameRange.startColumn !== wholeLineRange.startColumn) {
-						result.push({
-							options: DebugEditorModelManager.TOP_STACK_FRAME_COLUMN_DECORATION,
-							range: wholeLineRange
-						});
-					}
-					modelData.topStackFrameRange = wholeLineRange;
+					result.push({
+						options: DebugEditorModelManager.TOP_STACK_FRAME_COLUMN_DECORATION,
+						range: wholeLineRange
+					});
 				}
 			}
 		} else {
@@ -244,9 +238,11 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 
 	private createBreakpointDecorations(breakpoints: IBreakpoint[]): IModelDeltaDecoration[] {
 		return breakpoints.map((breakpoint) => {
+			const range = breakpoint.column ? new Range(breakpoint.lineNumber, breakpoint.column, breakpoint.lineNumber, breakpoint.column + 1)
+				: new Range(breakpoint.lineNumber, 1, breakpoint.lineNumber, Number.MAX_VALUE);
 			return {
 				options: this.getBreakpointDecorationOptions(breakpoint),
-				range: new Range(breakpoint.lineNumber, 1, breakpoint.lineNumber, Number.MAX_VALUE)
+				range
 			};
 		});
 	}
@@ -262,12 +258,15 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 				debugActive && !breakpoint.verified ? DebugEditorModelManager.BREAKPOINT_UNVERIFIED_DECORATION :
 					!breakpoint.condition && !breakpoint.hitCondition ? DebugEditorModelManager.BREAKPOINT_DECORATION : null;
 
-		if (result && breakpoint.message) {
-			result = objects.clone(result);
-			result.glyphMarginHoverMessage = breakpoint.message;
-		}
-
 		if (result) {
+			result = objects.clone(result);
+			if (breakpoint.message) {
+				result.glyphMarginHoverMessage = breakpoint.message;
+			}
+			if (breakpoint.column) {
+				result.beforeContentClassName = `debug-breakpoint-column ${result.glyphMarginClassName}-column`;
+			}
+
 			return result;
 		}
 
@@ -284,11 +283,14 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 			condition = breakpoint.condition ? breakpoint.condition : breakpoint.hitCondition;
 		}
 		const glyphMarginHoverMessage = `\`\`\`${modeId}\n${condition}\`\`\``;
+		const glyphMarginClassName = 'debug-breakpoint-conditional-glyph';
+		const beforeContentClassName = breakpoint.column ? `debug-breakpoint-column ${glyphMarginClassName}-column` : undefined;
 
 		return {
-			glyphMarginClassName: 'debug-breakpoint-conditional-glyph',
+			glyphMarginClassName,
 			glyphMarginHoverMessage,
-			stickiness
+			stickiness,
+			beforeContentClassName
 		};
 	}
 

@@ -94,7 +94,7 @@ export class WindowsService implements IWindowsService, IDisposable {
 		const vscodeWindow = this.windowsMainService.getWindowById(windowId);
 
 		if (vscodeWindow) {
-			this.windowsMainService.open({ context: OpenContext.OTHER, cli: this.environmentService.args, forceEmpty: true, windowToUse: vscodeWindow, forceReuseWindow: true });
+			this.windowsMainService.open({ context: OpenContext.API, cli: this.environmentService.args, forceEmpty: true, windowToUse: vscodeWindow, forceReuseWindow: true });
 		}
 
 		return TPromise.as(null);
@@ -198,12 +198,12 @@ export class WindowsService implements IWindowsService, IDisposable {
 			return TPromise.as(null);
 		}
 
-		this.windowsMainService.open({ context: OpenContext.OTHER, cli: this.environmentService.args, pathsToOpen: paths, forceNewWindow: options && options.forceNewWindow, forceReuseWindow: options && options.forceReuseWindow });
+		this.windowsMainService.open({ context: OpenContext.API, cli: this.environmentService.args, pathsToOpen: paths, forceNewWindow: options && options.forceNewWindow, forceReuseWindow: options && options.forceReuseWindow });
 		return TPromise.as(null);
 	}
 
 	openNewWindow(): TPromise<void> {
-		this.windowsMainService.openNewWindow(OpenContext.OTHER);
+		this.windowsMainService.openNewWindow(OpenContext.API);
 		return TPromise.as(null);
 	}
 
@@ -266,7 +266,7 @@ export class WindowsService implements IWindowsService, IDisposable {
 		const cli = assign(Object.create(null), this.environmentService.args, { goto: true });
 		const pathsToOpen = [filePath];
 
-		this.windowsMainService.open({ context: OpenContext.OTHER, cli, pathsToOpen });
+		this.windowsMainService.open({ context: OpenContext.API, cli, pathsToOpen });
 		return TPromise.as(null);
 	}
 

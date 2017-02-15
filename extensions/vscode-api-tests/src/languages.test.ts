@@ -69,7 +69,7 @@ suite('languages namespace tests', () => {
 
 	test('completions with document filters', function (done) {
 		let ran = false;
-		let uri = Uri.file(join(workspace.rootPath, './bower.json'));
+		let uri = Uri.file(join(workspace.rootPath || '', './bower.json'));
 
 		let jsonDocumentFilter = [{ language: 'json', pattern: '**/package.json' }, { language: 'json', pattern: '**/bower.json' }, { language: 'json', pattern: '**/.bower.json' }];
 

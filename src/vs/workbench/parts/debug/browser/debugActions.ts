@@ -119,27 +119,30 @@ export class StartAction extends AbstractDebugAction {
 	}
 
 	public run(): TPromise<any> {
-		const manager = this.debugService.getConfigurationManager();
-		const configName = this.debugService.getViewModel().selectedConfigurationName;
-		const compound = manager.getCompound(configName);
-		if (compound) {
-			return this.commandService.executeCommand('_workbench.startDebug', configName);
-		}
-
-		let configuration = manager.getConfiguration(configName);
-		return manager.getStartSessionCommand(configuration ? configuration.type : undefined).then(commandAndType => {
-			configuration = this.massageConfiguartion(configuration);
-			if (commandAndType && commandAndType.command) {
-				return this.commandService.executeCommand(commandAndType.command, configuration || this.getDefaultConfiguration());
+		return this.commandService.executeCommand('workbench.action.files.save').then(() => {
+			const manager = this.debugService.getConfigurationManager();
+			const configName = this.debugService.getViewModel().selectedConfigurationName;
+			const compound = manager.getCompound(configName);
+			if (compound) {
+				return this.commandService.executeCommand('_workbench.startDebug', configName);
 			}
 
-			if (configName) {
-				return this.commandService.executeCommand('_workbench.startDebug', configuration || configName);
-			}
+			let configuration = manager.getConfiguration(configName);
+			return manager.getStartSessionCommand(configuration ? configuration.type : undefined).then(commandAndType => {
+				configuration = this.massageConfiguartion(configuration);
+				if (commandAndType && commandAndType.command) {
+					return this.commandService.executeCommand(commandAndType.command, configuration || this.getDefaultConfiguration());
+				}
 
-			if (this.contextService.getWorkspace()) {
-				return manager.openConfigFile(false, commandAndType ? commandAndType.type : undefined);
-			}
+				if (configName) {
+					return this.commandService.executeCommand('_workbench.startDebug', configuration || configName);
+				}
+
+				if (this.contextService.getWorkspace() && commandAndType) {
+					return manager.openConfigFile(false, commandAndType.type);
+				}
+				return undefined;
+			});
 		});
 	}
 
@@ -767,6 +770,7 @@ export class FocusProcessAction extends AbstractDebugAction {
 			if (stackFrame) {
 				return stackFrame.openInEditor(this.editorService, true);
 			}
+			return undefined;
 		});
 	}
 }

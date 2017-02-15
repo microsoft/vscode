@@ -245,6 +245,8 @@ export class StatusModel extends EventEmitter implements IStatusModel {
 				case 'M': workingTree.push(new FileStatus(raw.path, raw.mimetype, Status.MODIFIED, raw.rename, isModifiedInIndex)); break;
 				case 'D': workingTree.push(new FileStatus(raw.path, raw.mimetype, Status.DELETED, raw.rename)); break;
 			}
+
+			return undefined;
 		});
 
 		this.indexStatus.update(index);

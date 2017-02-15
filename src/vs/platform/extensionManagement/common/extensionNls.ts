@@ -17,13 +17,13 @@ export interface ITranslations {
 export function localizeManifest(manifest: IExtensionManifest, translations: ITranslations): IExtensionManifest {
 	const patcher = value => {
 		if (typeof value !== 'string') {
-			return;
+			return undefined;
 		}
 
 		const match = nlsRegex.exec(value);
 
 		if (!match) {
-			return;
+			return undefined;
 		}
 
 		return translations[match[1]] || value;

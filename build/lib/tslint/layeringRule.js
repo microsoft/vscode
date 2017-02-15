@@ -13,7 +13,7 @@ var path_1 = require("path");
 var Rule = (function (_super) {
     __extends(Rule, _super);
     function Rule() {
-        return _super.apply(this, arguments) || this;
+        return _super !== null && _super.apply(this, arguments) || this;
     }
     Rule.prototype.apply = function (sourceFile) {
         var parts = path_1.dirname(sourceFile.fileName).split(/\\|\//);

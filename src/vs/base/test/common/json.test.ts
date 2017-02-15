@@ -234,6 +234,17 @@ suite('JSON', () => {
 		assertInvalidParse('{ "foo": /*comment*/ true }', { foo: true }, options);
 	});
 
+	test('parse: trailing comma', () => {
+		let options = { allowTrailingComma: true };
+		assertValidParse('{ "hello": [], }', { hello: [] }, options);
+		assertValidParse('{ "hello": [] }', { hello: [] }, options);
+		assertValidParse('{ "hello": [], "world": {}, }', { hello: [], world: {} }, options);
+		assertValidParse('{ "hello": [], "world": {} }', { hello: [], world: {} }, options);
+
+		assertInvalidParse('{ "hello": [], }', { hello: [] });
+		assertInvalidParse('{ "hello": [], "world": {}, }', { hello: [], world: {} });
+	});
+
 	test('location: properties', () => {
 		assertLocation('|{ "foo": "bar" }', [], void 0, false);
 		assertLocation('{| "foo": "bar" }', [], void 0, true);

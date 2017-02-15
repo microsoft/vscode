@@ -18,7 +18,7 @@ import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Model } from 'vs/editor/common/model/model';
 import { IMode, LanguageIdentifier } from 'vs/editor/common/modes';
-import { IModelService, IRawTextProvider } from 'vs/editor/common/services/modelService';
+import { IModelService } from 'vs/editor/common/services/modelService';
 import * as platform from 'vs/base/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { DEFAULT_INDENTATION, DEFAULT_TRIM_AUTO_WHITESPACE } from 'vs/editor/common/config/defaultConfig';
@@ -338,16 +338,12 @@ export class ModelServiceImpl implements IModelService {
 
 	// --- begin IModelService
 
-	private _createModelData(value: string | IRawTextProvider, languageIdentifier: LanguageIdentifier, resource: URI): ModelData {
+	private _createModelData(value: string | editorCommon.ITextSource2, languageIdentifier: LanguageIdentifier, resource: URI): ModelData {
 		// create & save the model
 		const options = this.getCreationOptions(languageIdentifier.language);
 
-		let model: Model;
-		if (typeof value === 'string') {
-			model = Model.createFromString(value, options, languageIdentifier, resource);
-		} else {
-			model = new Model(value.toRawText(options), languageIdentifier, resource);
-		}
+		let rawText: editorCommon.IRawText = RawText.toRawText(value, options);
+		let model: Model = new Model(rawText, languageIdentifier, resource);
 		let modelId = MODEL_ID(model.uri);
 
 		if (this._models[modelId]) {
@@ -361,14 +357,9 @@ export class ModelServiceImpl implements IModelService {
 		return modelData;
 	}
 
-	public updateModel(model: editorCommon.IModel, value: string | IRawTextProvider): void {
-		let rawText: editorCommon.IRawText;
-		if (typeof value === 'string') {
-			rawText = RawText.fromStringWithModelOptions(value, model);
-		} else {
-			let creationOptions = this.getCreationOptions(model.getLanguageIdentifier().language);
-			rawText = value.toRawText(creationOptions);
-		}
+	public updateModel(model: editorCommon.IModel, value: string | editorCommon.ITextSource2): void {
+		let options = this.getCreationOptions(model.getLanguageIdentifier().language);
+		let rawText: editorCommon.IRawText = RawText.toRawText(value, options);
 
 		// Return early if the text is already set in that form
 		if (model.equals(rawText)) {
@@ -379,7 +370,7 @@ export class ModelServiceImpl implements IModelService {
 		model.setValueFromRawText(rawText);
 	}
 
-	public createModel(value: string | IRawTextProvider, modeOrPromise: TPromise<IMode> | IMode, resource: URI): editorCommon.IModel {
+	public createModel(value: string | editorCommon.ITextSource2, modeOrPromise: TPromise<IMode> | IMode, resource: URI): editorCommon.IModel {
 		let modelData: ModelData;
 
 		if (!modeOrPromise || TPromise.is(modeOrPromise)) {

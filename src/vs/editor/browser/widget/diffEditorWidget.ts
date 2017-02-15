@@ -1916,7 +1916,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 		myResult.push('" style="top:');
 		myResult.push(String(count * config.lineHeight));
 		myResult.push('px;width:1000000px;">');
-		myResult = myResult.concat(r.output);
+		myResult = myResult.concat(r.html);
 		myResult.push('</div>');
 
 		return myResult;

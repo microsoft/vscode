@@ -50,6 +50,7 @@ export function wireCancellationToken<T>(token: CancellationToken, promise: TPro
 			if (!errors.isPromiseCanceledError(err)) {
 				return TPromise.wrapError(err);
 			}
+			return undefined;
 		});
 	}
 	return always(promise, () => subscription.dispose());

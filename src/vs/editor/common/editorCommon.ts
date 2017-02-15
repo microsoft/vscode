@@ -2388,6 +2388,37 @@ export interface ITextSource {
 }
 
 /**
+ * The text source
+ * @internal
+ */
+export interface ITextSource2 {
+	/**
+	 * The entire text length.
+	 */
+	readonly length: number;
+	/**
+	 * The text split into lines.
+	 */
+	readonly lines: string[];
+	/**
+	 * The BOM (leading character sequence of the file).
+	 */
+	readonly BOM: string;
+	/**
+	 * The number of lines ending with '\r\n'
+	 */
+	readonly totalCRCount: number;
+	/**
+	 * The text contains Unicode characters classified as "R" or "AL".
+	 */
+	readonly containsRTL: boolean;
+	/**
+	 * The text contains only characters inside the ASCII range 32-126 or \t \r \n
+	 */
+	readonly isBasicASCII: boolean;
+}
+
+/**
  * The raw text backing a model.
  * @internal
  */
@@ -3115,6 +3146,10 @@ export namespace ModeContextKeys {
 	 * @internal
 	 */
 	export const hasImplementationProvider = new RawContextKey<boolean>('editorHasImplementationProvider', undefined);
+	/**
+	 * @internal
+	 */
+	export const hasTypeDefinitionProvider = new RawContextKey<boolean>('editorHasTypeDefinitionProvider', undefined);
 	/**
 	 * @internal
 	 */

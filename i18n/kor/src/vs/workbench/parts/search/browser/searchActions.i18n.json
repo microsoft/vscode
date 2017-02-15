@@ -6,6 +6,8 @@
 {
 	"ClearSearchResultsAction.label": "검색 결과 지우기",
 	"ConfigureGlobalExclusionsAction.label": "설정 열기",
+	"FocusNextSearchResult.label": "다음 검색 결과에 포커스",
+	"FocusPreviousSearchResult.label": "이전 검색 결과에 포커스",
 	"RefreshAction.label": "새로 고침",
 	"RemoveAction.label": "제거",
 	"file.replaceAll.label": "모두 바꾸기",

@@ -12,19 +12,14 @@ import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actionRegistry';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
-import platform = require('vs/base/common/platform');
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindings } from 'vs/platform/keybinding/common/keybinding';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
-import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
+import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
 import { CloseEditorAction, KeybindingsReferenceAction, OpenDocumentationUrlAction, OpenIntroductoryVideosUrlAction, ReportIssueAction, ReportPerformanceIssueAction, ZoomResetAction, ZoomOutAction, ZoomInAction, ToggleFullScreenAction, ToggleMenuBarAction, CloseFolderAction, CloseWindowAction, SwitchWindow, NewWindowAction, CloseMessagesAction } from 'vs/workbench/electron-browser/actions';
-import { MessagesVisibleContext, NoEditorsVisibleContext, InZenModeContext } from 'vs/workbench/electron-browser/workbench';
+import { MessagesVisibleContext } from 'vs/workbench/electron-browser/workbench';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { registerCommands } from 'vs/workbench/electron-browser/commands';
 
-const closeEditorOrWindowKeybindings: IKeybindings = { primary: KeyMod.CtrlCmd | KeyCode.KEY_W, win: { primary: KeyMod.CtrlCmd | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyCode.KEY_W] } };
+// Contribute Commands
+registerCommands();
 
 // Contribute Global Actions
 const viewCategory = nls.localize('view', "View");
@@ -66,46 +61,11 @@ workbenchActionsRegistry.registerWorkbenchAction(
 	}), 'View: Reset Zoom', viewCategory
 );
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(CloseMessagesAction, CloseMessagesAction.ID, CloseMessagesAction.LABEL, { primary: KeyCode.Escape, secondary: [KeyMod.Shift | KeyCode.Escape] }, MessagesVisibleContext), 'Close Notification Messages');
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(CloseEditorAction, CloseEditorAction.ID, CloseEditorAction.LABEL, closeEditorOrWindowKeybindings), 'View: Close Editor', viewCategory);
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(CloseEditorAction, CloseEditorAction.ID, CloseEditorAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_W, win: { primary: KeyMod.CtrlCmd | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyCode.KEY_W] } }), 'View: Close Editor', viewCategory);
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleFullScreenAction, ToggleFullScreenAction.ID, ToggleFullScreenAction.LABEL, { primary: KeyCode.F11, mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KEY_F } }), 'View: Toggle Full Screen', viewCategory);
-if (platform.isWindows || platform.isLinux) {
+if (isWindows || isLinux) {
 	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleMenuBarAction, ToggleMenuBarAction.ID, ToggleMenuBarAction.LABEL), 'View: Toggle Menu Bar', viewCategory);
 }
-
-// close the window when the last editor is closed by reusing the same keybinding
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'workbench.action.closeWindow',
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-	when: NoEditorsVisibleContext,
-	primary: closeEditorOrWindowKeybindings.primary,
-	handler: accessor => {
-		const windowService = accessor.get(IWindowIPCService);
-		windowService.getWindow().close();
-	}
-});
-
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'workbench.action.exitZenMode',
-	weight: CommonEditorRegistry.commandWeight(-1000),
-	handler(accessor: ServicesAccessor, configurationOrName: any) {
-		const partService = accessor.get(IPartService);
-		partService.toggleZenMode();
-	},
-	when: InZenModeContext,
-	primary: KeyChord(KeyCode.Escape, KeyCode.Escape)
-});
-
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'workbench.action.quit',
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-	handler(accessor: ServicesAccessor) {
-		const windowsService = accessor.get(IWindowsService);
-		windowsService.quit();
-	},
-	when: void 0,
-	primary: KeyMod.CtrlCmd | KeyCode.KEY_Q,
-	win: { primary: void 0 }
-});
 
 // Configuration: Workbench
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -183,16 +143,16 @@ let properties: { [path: string]: IJSONSchema; } = {
 		'enum': ['on', 'off', 'default'],
 		'enumDescriptions': [
 			nls.localize('window.openFilesInNewWindow.on', "\"on\": files will open in a new window"),
-			nls.localize('window.openFilesInNewWindow.off', "\"off\": files will open in the last active window"),
-			nls.localize('window.openFilesInNewWindow.default', "\"default\": files will open in the last active window unless opened via the dock or from finder (macOS only)")
+			nls.localize('window.openFilesInNewWindow.off', "\"off\": files will open in the window with the files' folder open or the last active window"),
+			nls.localize('window.openFilesInNewWindow.default', "\"default\": files will open in the window with the files' folder open or the last active window unless opened via the dock or from finder (macOS only)")
 		],
 		'default': 'default',
 		'description':
 		nls.localize('openFilesInNewWindow',
-			`Controls if files should open in a new window or the last active window.
-- default: files will open in the last active window unless opened via the dock or from finder (macOS only)
+			`Controls if files should open in a new window.
+- default: files will open in the window with the files' folder open or the last active window unless opened via the dock or from finder (macOS only)
 - on: files will open in a new window
-- off: files will open in the last active window
+- off: files will open in the window with the files' folder open or the last active window
 Note that there can still be cases where this setting is ignored (e.g. when using the -new-window or -reuse-window command line option).`
 		)
 	},
@@ -234,10 +194,18 @@ Note that there can still be cases where this setting is ignored (e.g. when usin
 		'default': 0,
 		'description': nls.localize('zoomLevel', "Adjust the zoom level of the window. The original size is 0 and each increment above (e.g. 1) or below (e.g. -1) represents zooming 20% larger or smaller. You can also enter decimals to adjust the zoom level with a finer granularity.")
 	},
-	'window.showFullPath': {
-		'type': 'boolean',
-		'default': false,
-		'description': nls.localize('showFullPath', "If enabled, will show the full path of opened files in the window title.")
+	'window.title': {
+		'type': 'string',
+		'default': isMacintosh ? '${activeEditorName}${separator}${rootName}' : '${dirty}${activeEditorName}${separator}${rootName}${separator}${appName}',
+		'description': nls.localize('title',
+			`Controls the window title based on the active editor. Variables are substituted based on the context:
+\${activeEditorName}: e.g. myFile.txt
+\${activeFilePath}: e.g. /Users/Development/myProject/myFile.txt
+\${rootName}: e.g. myProject
+\${rootPath}: e.g. /Users/Development/myProject
+\${appName}: e.g. VS Code
+\${dirty}: a dirty indicator if the active editor is dirty
+\${separator}: a conditional separator (" - ") that only shows when surrounded by variables with values`)
 	},
 	'window.newWindowDimensions': {
 		'type': 'string',
@@ -253,7 +221,7 @@ Note that there can still be cases where this setting is ignored (e.g. when usin
 	},
 };
 
-if (platform.isWindows || platform.isLinux) {
+if (isWindows || isLinux) {
 	properties['window.menuBarVisibility'] = {
 		'type': 'string',
 		'enum': ['default', 'visible', 'toggle', 'hidden'],
@@ -268,7 +236,7 @@ if (platform.isWindows || platform.isLinux) {
 	};
 }
 
-if (platform.isWindows) {
+if (isWindows) {
 	properties['window.autoDetectHighContrast'] = {
 		'type': 'boolean',
 		'default': true,
@@ -276,7 +244,7 @@ if (platform.isWindows) {
 	};
 }
 
-if (platform.isMacintosh) {
+if (isMacintosh) {
 	properties['window.titleBarStyle'] = {
 		'type': 'string',
 		'enum': ['native', 'custom'],
@@ -314,6 +282,11 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'default': true,
 			'description': nls.localize('zenMode.hideStatusBar', "Controls if turning on Zen Mode also hides the status bar at the bottom of the workbench.")
+		},
+		'zenMode.restore': {
+			'type': 'boolean',
+			'default': false,
+			'description': nls.localize('zenMode.restore', "Controls if a window should restore to zen mode if it was exited in zen mode.")
 		}
 	}
 });

@@ -6,5 +6,6 @@
 {
 	"clearOutput": "清除輸出",
 	"switchToOutput.label": "切換至輸出",
-	"toggleOutput": "切換輸出"
+	"toggleOutput": "切換輸出",
+	"toggleOutputScrollLock": "切換輸出 SCROLL LOCK"
 }

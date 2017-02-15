@@ -11,6 +11,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IClipboardEvent, ICompositionEvent, IKeyboardEventWrapper, ISimpleModel, ITextAreaWrapper, ITypeData, TextAreaState, TextAreaStrategy, createTextAreaState } from 'vs/editor/common/controller/textAreaState';
 import { Range } from 'vs/editor/common/core/range';
+import { Position } from 'vs/editor/common/core/position';
 import { EndOfLinePreference } from 'vs/editor/common/editorCommon';
 
 const enum ReadFromTextArea {
@@ -352,7 +353,7 @@ export class TextAreaHandler extends Disposable {
 			let range: Range = selections[0];
 			if (range.isEmpty()) {
 				if (this.Browser.enableEmptySelectionClipboard) {
-					let modelLineNumber = this.model.convertViewPositionToModelPosition(range.startLineNumber, 1).lineNumber;
+					let modelLineNumber = this.model.coordinatesConverter.convertViewPositionToModelPosition(new Position(range.startLineNumber, 1)).lineNumber;
 					return this.model.getModelLineContent(modelLineNumber) + newLineCharacter;
 				} else {
 					return '';
