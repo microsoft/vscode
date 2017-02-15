@@ -25,6 +25,7 @@ class TestTerminalInstance extends TerminalInstance {
 	}
 
 	protected _createProcess(workspace: IWorkspace, shell: IShellLaunchConfig): void { }
+	protected _createXterm(): void { }
 }
 
 suite('Workbench - TerminalInstance', () => {

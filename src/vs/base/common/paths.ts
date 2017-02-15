@@ -384,13 +384,3 @@ export function isValidBasename(name: string): boolean {
 
 	return true;
 }
-
-export const isAbsoluteRegex = /^((\/|[a-zA-Z]:\\)[^\(\)<>\\'\"\[\]]+)/;
-
-/**
- * If you have access to node, it is recommended to use node's path.isAbsolute().
- * This is a simple regex based approach.
- */
-export function isAbsolute(path: string): boolean {
-	return isAbsoluteRegex.test(path);
-}

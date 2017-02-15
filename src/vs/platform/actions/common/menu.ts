@@ -8,9 +8,12 @@
 import Event, { Emitter } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { localize } from 'vs/nls';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { MenuId, MenuRegistry, MenuItemAction, IMenu, IMenuItem } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { values } from 'vs/base/common/collections';
+import { index } from 'vs/base/common/arrays';
 
 type MenuItemGroup = [string, IMenuItem[]];
 
@@ -21,13 +24,23 @@ export class Menu implements IMenu {
 	private _onDidChange = new Emitter<IMenu>();
 
 	constructor(
-		id: MenuId,
+		private id: MenuId,
 		startupSignal: TPromise<boolean>,
 		@ICommandService private _commandService: ICommandService,
 		@IContextKeyService private _contextKeyService: IContextKeyService
 	) {
 		startupSignal.then(_ => {
-			const menuItems = MenuRegistry.getMenuItems(id);
+			let menuItems = MenuRegistry.getMenuItems(id);
+
+			if (id === MenuId.CommandPalette) {
+				const ids = index(menuItems, i => i.command.id);
+				const commandMenuItems = values(MenuRegistry.commands)
+					.filter(c => !ids[c.id])
+					.map(command => ({ command }));
+
+				menuItems = [...menuItems, ...commandMenuItems];
+			}
+
 			const keysFilter = new Set<string>();
 
 			let group: MenuItemGroup;
@@ -76,7 +89,13 @@ export class Menu implements IMenu {
 			const activeActions: MenuItemAction[] = [];
 			for (const item of items) {
 				if (this._contextKeyService.contextMatchesRules(item.when)) {
-					const action = new MenuItemAction(item.command, item.alt, arg, this._commandService);
+					let title = item.command.title;
+
+					if (this.id === MenuId.CommandPalette && item.command.category) {
+						title = localize('', "{0}: {1}", item.command.category, title);
+					}
+
+					const action = new MenuItemAction(item.command, title, item.alt, arg, this._commandService);
 					action.order = item.order; //TODO@Ben order is menu item property, not an action property
 					activeActions.push(action);
 				}

@@ -11,7 +11,7 @@ import { IAction, IActionRunner } from 'vs/base/common/actions';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Dimension, Builder } from 'vs/base/browser/builder';
 import { Scope } from 'vs/workbench/common/memento';
-import { VIEWLET_ID, ExplorerViewletVisible, IFilesConfiguration } from 'vs/workbench/parts/files/common/files';
+import { VIEWLET_ID, ExplorerViewletVisibleContext, IFilesConfiguration } from 'vs/workbench/parts/files/common/files';
 import { IViewletView, Viewlet } from 'vs/workbench/browser/viewlet';
 import { SplitView, Orientation } from 'vs/base/browser/ui/splitview/splitview';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -66,7 +66,7 @@ export class ExplorerViewlet extends Viewlet {
 		this.views = [];
 
 		this.viewletState = new FileViewletState();
-		this.viewletVisibleContextKey = ExplorerViewletVisible.bindTo(contextKeyService);
+		this.viewletVisibleContextKey = ExplorerViewletVisibleContext.bindTo(contextKeyService);
 
 		this.viewletSettings = this.getMemento(storageService, Scope.WORKSPACE);
 		this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config));
@@ -290,6 +290,10 @@ export class ExplorerViewlet extends Viewlet {
 		}
 
 		return this.actionRunner;
+	}
+
+	public getViewletState(): FileViewletState {
+		return this.viewletState;
 	}
 
 	public getOptimalWidth(): number {

@@ -67,7 +67,7 @@ class InsertSnippetAction extends EditorAction {
 		const modeService = accessor.get(IModeService);
 
 		if (!editor.getModel()) {
-			return;
+			return undefined;
 		}
 
 		const quickOpenService = accessor.get(IQuickOpenService);
@@ -92,6 +92,14 @@ class InsertSnippetAction extends EditorAction {
 				languageId = modeService.getLanguageIdentifier(langId).id;
 			} else {
 				languageId = editor.getModel().getLanguageIdAtPosition(lineNumber, column);
+
+				// validate the `languageId` to ensure this is a user
+				// facing language with a name and the chance to have
+				// snippets, else fall back to the outer language
+				const {language} = modeService.getLanguageIdentifier(languageId);
+				if (!modeService.getLanguageName(language)) {
+					languageId = editor.getModel().getLanguageIdentifier().id;
+				}
 			}
 
 			if (name) {
@@ -101,6 +109,7 @@ class InsertSnippetAction extends EditorAction {
 						return true;
 					}
 					resolve(snippet);
+					return false;
 				});
 			} else {
 				// let user pick a snippet

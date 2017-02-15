@@ -51,7 +51,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.ISession {
 	private startTime: number;
 	public disconnected: boolean;
 	private sentPromises: TPromise<DebugProtocol.Response>[];
-	private capabilities: DebugProtocol.Capabilities;
+	private _capabilities: DebugProtocol.Capabilities;
 	private allThreadsContinued: boolean;
 
 	private _onDidInitialize: Emitter<DebugProtocol.InitializedEvent>;
@@ -214,11 +214,8 @@ export class RawDebugSession extends v8.V8Protocol implements debug.ISession {
 		this._onDidEvent.fire(event);
 	}
 
-	public get configuration(): { type: string, capabilities: DebugProtocol.Capabilities } {
-		return {
-			type: this.adapter.type,
-			capabilities: this.capabilities || {}
-		};
+	public get capabilities(): DebugProtocol.Capabilities {
+		return this._capabilities || {};
 	}
 
 	public initialize(args: DebugProtocol.InitializeRequestArguments): TPromise<DebugProtocol.InitializeResponse> {
@@ -227,7 +224,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.ISession {
 
 	private readCapabilities(response: DebugProtocol.Response): DebugProtocol.Response {
 		if (response) {
-			this.capabilities = objects.mixin(this.capabilities, response.body);
+			this._capabilities = objects.mixin(this._capabilities, response.body);
 		}
 
 		return response;
@@ -441,13 +438,17 @@ export class RawDebugSession extends v8.V8Protocol implements debug.ISession {
 	private launchServer(launch: debug.IAdapterExecutable): TPromise<void> {
 		return new TPromise<void>((c, e) => {
 			if (launch.command === 'node') {
-				stdfork.fork(launch.args[0], launch.args.slice(1), {}, (err, child) => {
-					if (err) {
-						e(new Error(nls.localize('unableToLaunchDebugAdapter', "Unable to launch debug adapter from '{0}'.", launch.args[0])));
-					}
-					this.serverProcess = child;
-					c(null);
-				});
+				if (Array.isArray(launch.args) && launch.args.length > 0) {
+					stdfork.fork(launch.args[0], launch.args.slice(1), {}, (err, child) => {
+						if (err) {
+							e(new Error(nls.localize('unableToLaunchDebugAdapter', "Unable to launch debug adapter from '{0}'.", launch.args[0])));
+						}
+						this.serverProcess = child;
+						c(null);
+					});
+				} else {
+					e(new Error(nls.localize('unableToLaunchDebugAdapterNoArgs', "Unable to launch debug adapter.")));
+				}
 			} else {
 				this.serverProcess = cp.spawn(launch.command, launch.args, {
 					stdio: [

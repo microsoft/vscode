@@ -42,12 +42,12 @@ export function unshiftIndent(tabSize: number, indentation: string, count?: numb
 export function getReindentEditOperations(model: ITokenizedModel, startLineNumber: number, endLineNumber: number, inheritedIndent?: string): IIdentifiedSingleEditOperation[] {
 	if (model.getLineCount() === 1 && model.getLineMaxColumn(1) === 1) {
 		// Model is empty
-		return;
+		return undefined;
 	}
 
 	let indentationRules = LanguageConfigurationRegistry.getIndentationRules(model.getLanguageIdentifier().id);
 	if (!indentationRules) {
-		return;
+		return undefined;
 	}
 
 	endLineNumber = Math.min(endLineNumber, model.getLineCount());
@@ -67,7 +67,7 @@ export function getReindentEditOperations(model: ITokenizedModel, startLineNumbe
 	}
 
 	if (startLineNumber > endLineNumber - 1) {
-		return;
+		return undefined;
 	}
 
 	let { tabSize, insertSpaces } = model.getOptions();
@@ -209,10 +209,10 @@ export class ChangeIndentationSizeAction extends EditorAction {
 
 		let model = editor.getModel();
 		if (!model) {
-			return;
+			return undefined;
 		}
 
-		let creationOpts = modelService.getCreationOptions();
+		let creationOpts = modelService.getCreationOptions(model.getLanguageIdentifier().language);
 		const picks = [1, 2, 3, 4, 5, 6, 7, 8].map(n => ({
 			id: n.toString(),
 			label: n.toString(),
@@ -288,7 +288,7 @@ export class DetectIndentation extends EditorAction {
 			return;
 		}
 
-		let creationOpts = modelService.getCreationOptions();
+		let creationOpts = modelService.getCreationOptions(model.getLanguageIdentifier().language);
 		model.detectIndentation(creationOpts.insertSpaces, creationOpts.tabSize);
 	}
 }

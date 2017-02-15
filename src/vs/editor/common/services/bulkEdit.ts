@@ -88,7 +88,7 @@ class EditTask implements IDisposable {
 		} else {
 			range = edit.range;
 		}
-		this._edits.push(EditOperation.replace(Range.lift(range), edit.newText));
+		this._edits.push(EditOperation.replaceMove(Range.lift(range), edit.newText));
 	}
 
 	public apply(): void {
@@ -310,6 +310,7 @@ export function createBulkEdit(textModelResolverService: ITextModelResolverServi
 		if (names) {
 			return nls.localize('conflict', "These files have changed in the meantime: {0}", names.join(', '));
 		}
+		return undefined;
 	}
 
 	function finish(): TPromise<ISelection> {

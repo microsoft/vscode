@@ -58,7 +58,6 @@ export interface IView extends IDisposable {
 	createOverviewRuler(cssClassName: string, minimumHeight: number, maximumHeight: number): IOverviewRuler;
 	getCodeEditorHelper(): ICodeEditorHelper;
 
-	getCenteredRangeInViewport(): Range;
 	/**
 	 * Returns the range of lines in the view port which are completely visible.
 	 */

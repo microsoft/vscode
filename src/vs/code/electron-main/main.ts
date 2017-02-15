@@ -252,7 +252,7 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 		windowsMainService.ready(userEnv);
 
 		// Open our first window
-		const context = !!process.env['VSCODE_CLI'] ? OpenContext.CLI : OpenContext.OTHER;
+		const context = !!process.env['VSCODE_CLI'] ? OpenContext.CLI : OpenContext.DESKTOP;
 		if (environmentService.args['new-window'] && environmentService.args._.length === 0) {
 			windowsMainService.open({ context, cli: environmentService.args, forceNewWindow: true, forceEmpty: true, initialStartup: true }); // new window if "-n" was used without paths
 		} else if (global.macOpenFiles && global.macOpenFiles.length && (!environmentService.args._ || !environmentService.args._.length)) {

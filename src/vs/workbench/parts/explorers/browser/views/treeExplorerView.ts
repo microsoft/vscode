@@ -15,6 +15,7 @@ import { IMessageService } from 'vs/platform/message/common/message';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IListService } from 'vs/platform/list/browser/listService';
 import { ITreeExplorerService } from 'vs/workbench/parts/explorers/common/treeExplorerService';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
@@ -32,7 +33,8 @@ export class TreeExplorerView extends CollapsibleViewletView {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@ITreeExplorerService private treeExplorerService: ITreeExplorerService
+		@ITreeExplorerService private treeExplorerService: ITreeExplorerService,
+		@IListService private listService: IListService
 	) {
 		super(actionRunner, false, nls.localize('treeExplorerViewlet.tree', "Tree Explorer Section"), messageService, keybindingService, contextMenuService, headerSize);
 
@@ -51,11 +53,17 @@ export class TreeExplorerView extends CollapsibleViewletView {
 		const renderer = this.instantiationService.createInstance(TreeRenderer, this.viewletState, this.actionRunner, container.getHTMLElement());
 		const controller = this.instantiationService.createInstance(TreeController, this.treeNodeProviderId);
 
-		return new Tree(container.getHTMLElement(), {
+		const tree = new Tree(container.getHTMLElement(), {
 			dataSource,
 			renderer,
 			controller
-		});
+		}, {
+				keyboardSupport: false
+			});
+
+		this.toDispose.push(this.listService.register(tree));
+
+		return tree;
 	}
 
 	public getActions(): IAction[] {
@@ -89,6 +97,7 @@ export class TreeExplorerView extends CollapsibleViewletView {
 						this.tree.setInput(tree);
 					});
 				}
+				return undefined;
 			});
 
 			return TPromise.as(null);

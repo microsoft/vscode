@@ -397,6 +397,7 @@ export abstract class BaseEditorSimpleWorker {
 			}
 			return TPromise.as({ suggestions });
 		}
+		return undefined;
 	}
 
 

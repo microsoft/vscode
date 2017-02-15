@@ -76,8 +76,6 @@ suite('WorkspaceConfigurationService - Node', () => {
 
 		createWorkspace((workspaceDir, globalSettingsFile, cleanUp) => {
 			return createService(workspaceDir, globalSettingsFile).then(service => {
-				assert.ok(!service.hasWorkspaceConfiguration());
-
 				const config = service.getConfiguration<ITestSetting>();
 				assert.equal(config.workspace.service.testSetting, 'isSet');
 
@@ -94,8 +92,6 @@ suite('WorkspaceConfigurationService - Node', () => {
 				fs.writeFileSync(globalSettingsFile, '{ "testworkbench.editor.tabs": true }');
 
 				service.reloadConfiguration().then(() => {
-					assert.ok(!service.hasWorkspaceConfiguration());
-
 					const config = service.getConfiguration<{ testworkbench: { editor: { tabs: boolean } } }>();
 					assert.equal(config.testworkbench.editor.tabs, true);
 
@@ -158,8 +154,6 @@ suite('WorkspaceConfigurationService - Node', () => {
 				fs.writeFileSync(globalSettingsFile, '{ "workspace.service.testSetting": "isChanged" }');
 
 				service.reloadConfiguration().then(() => {
-					assert.ok(!service.hasWorkspaceConfiguration());
-
 					const config = service.getConfiguration<ITestSetting>();
 					assert.equal(config.workspace.service.testSetting, 'isChanged');
 
@@ -177,8 +171,6 @@ suite('WorkspaceConfigurationService - Node', () => {
 				fs.writeFileSync(path.join(workspaceDir, '.vscode', 'settings.json'), '{ "testworkbench.editor.icons": true }');
 
 				service.reloadConfiguration().then(() => {
-					assert.ok(service.hasWorkspaceConfiguration());
-
 					const config = service.getConfiguration<{ testworkbench: { editor: { icons: boolean } } }>();
 					assert.equal(config.testworkbench.editor.icons, true);
 

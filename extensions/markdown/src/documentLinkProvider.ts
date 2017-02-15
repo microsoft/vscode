@@ -12,7 +12,9 @@ export default class MarkdownDocumentLinkProvider implements vscode.DocumentLink
 
 	private _linkPattern = /(\[[^\]]*\]\(\s*?)(\S+?)(\s+[^\)]*)?\)/g;
 
-	public provideDocumentLinks(document: vscode.TextDocument, token: vscode.CancellationToken): vscode.DocumentLink[] {
+	constructor() { }
+
+	public provideDocumentLinks(document: vscode.TextDocument, _token: vscode.CancellationToken): vscode.DocumentLink[] {
 		const results: vscode.DocumentLink[] = [];
 		const base = path.dirname(document.uri.fsPath);
 		const text = document.getText();
@@ -22,24 +24,13 @@ export default class MarkdownDocumentLinkProvider implements vscode.DocumentLink
 		while ((match = this._linkPattern.exec(text))) {
 			const pre = match[1];
 			const link = match[2];
-			const offset = match.index + pre.length;
+			const offset = (match.index || 0) + pre.length;
 			const linkStart = document.positionAt(offset);
 			const linkEnd = document.positionAt(offset + link.length);
 			try {
-				let uri = vscode.Uri.parse(link);
-				if (!uri.scheme) {
-					// assume it must be a file
-					let file;
-					if (uri.path[0] === '/') {
-						file = path.join(vscode.workspace.rootPath, uri.path);
-					} else {
-						file = path.join(base, uri.path);
-					}
-					uri = vscode.Uri.file(file);
-				}
 				results.push(new vscode.DocumentLink(
 					new vscode.Range(linkStart, linkEnd),
-					uri));
+					this.normalizeLink(document, link, base)));
 			} catch (e) {
 				// noop
 			}
@@ -47,4 +38,23 @@ export default class MarkdownDocumentLinkProvider implements vscode.DocumentLink
 
 		return results;
 	}
-};
+
+	private normalizeLink(document: vscode.TextDocument, link: string, base: string): vscode.Uri {
+		const uri = vscode.Uri.parse(link);
+		if (uri.scheme) {
+			return uri;
+		}
+
+		// assume it must be a file
+		let resourcePath;
+		if (!uri.path) {
+			resourcePath = document.uri.path;
+		} else if (uri.path[0] === '/') {
+			resourcePath = path.join(vscode.workspace.rootPath || '', uri.path);
+		} else {
+			resourcePath = path.join(base, uri.path);
+		}
+
+		return vscode.Uri.parse(`command:_markdown.openDocumentLink?${encodeURIComponent(JSON.stringify({ fragment: uri.fragment, path: resourcePath }))}`);
+	}
+}

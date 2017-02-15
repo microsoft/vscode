@@ -9,7 +9,7 @@ import 'vs/css!./media/workbench';
 
 import { TPromise, ValueCallback } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import Event, { Emitter } from 'vs/base/common/event';
+import Event, { Emitter, chain } from 'vs/base/common/event';
 import DOM = require('vs/base/browser/dom');
 import { Builder, $ } from 'vs/base/browser/builder';
 import { Delayer } from 'vs/base/common/async';
@@ -58,6 +58,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ViewletService } from 'vs/workbench/services/viewlet/browser/viewletService';
 import { FileService } from 'vs/workbench/services/files/electron-browser/fileService';
 import { IFileService } from 'vs/platform/files/common/files';
+import { IListService, ListService } from 'vs/platform/list/browser/listService';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { ConfigurationResolverService } from 'vs/workbench/services/configurationResolver/node/configurationResolverService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
@@ -65,6 +66,10 @@ import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 import { WorkbenchMessageService } from 'vs/workbench/services/message/browser/messageService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
+import { ThemeService } from 'vs/workbench/services/themes/electron-browser/themeService';
+import { ClipboardService } from 'vs/platform/clipboard/electron-browser/clipboardService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -103,6 +108,7 @@ interface IZenModeSettings {
 	fullScreen: boolean;
 	hideTabs: boolean;
 	hideStatusBar: boolean;
+	restore: boolean;
 }
 
 export interface IWorkbenchStartedInfo {
@@ -110,6 +116,7 @@ export interface IWorkbenchStartedInfo {
 	restoreViewletDuration: number;
 	restoreEditorsDuration: number;
 	pinnedViewlets: string[];
+	themeId: string;
 }
 
 export interface IWorkbenchCallbacks {
@@ -156,6 +163,7 @@ export class Workbench implements IPartService {
 	private editorService: WorkbenchEditorService;
 	private viewletService: IViewletService;
 	private contextKeyService: IContextKeyService;
+	private themeService: ThemeService;
 	private keybindingService: IKeybindingService;
 	private backupFileService: IBackupFileService;
 	private configurationEditingService: IConfigurationEditingService;
@@ -231,6 +239,12 @@ export class Workbench implements IPartService {
 
 	public get onTitleBarVisibilityChange(): Event<void> {
 		return this._onTitleBarVisibilityChange.event;
+	}
+
+	public get onEditorLayout(): Event<void> {
+		return chain(this.editorPart.onLayout)
+			.map(() => void 0)
+			.event;
 	}
 
 	/**
@@ -338,7 +352,8 @@ export class Workbench implements IPartService {
 						customKeybindingsCount: this.keybindingService.customKeybindingsCount(),
 						restoreViewletDuration: viewletRestoreStopWatch ? viewletRestoreStopWatch.elapsed() : 0,
 						restoreEditorsDuration: editorRestoreStopWatch.elapsed(),
-						pinnedViewlets: this.activitybarPart.getPinned()
+						pinnedViewlets: this.activitybarPart.getPinned(),
+						themeId: this.themeService.getColorTheme().id
 					});
 				}
 
@@ -400,7 +415,9 @@ export class Workbench implements IPartService {
 		}
 
 		// Empty workbench: some first time users will not have an untiled file; returning users will always have one
-		else if (!this.contextService.hasWorkspace() && this.telemetryService.getExperiments().openUntitledFile) {
+		else if (!this.contextService.hasWorkspace() &&
+			this.telemetryService.getExperiments().openUntitledFile &&
+			!this.configurationService.lookup('workbench.welcome.enabled').value) {
 			return this.backupFileService.hasBackups().then(hasBackups => {
 				if (hasBackups) {
 					return TPromise.as([]); // do not open any empty untitled file if we have backups to restore
@@ -414,12 +431,15 @@ export class Workbench implements IPartService {
 	}
 
 	private initServices(): void {
-		const {serviceCollection} = this.workbenchParams;
+		const { serviceCollection } = this.workbenchParams;
 
 		this.toDispose.push(this.lifecycleService.onShutdown(this.shutdownComponents, this));
 
 		// Services we contribute
 		serviceCollection.set(IPartService, this);
+
+		// Clipboard
+		serviceCollection.set(IClipboardService, new ClipboardService());
 
 		// Status bar
 		this.statusbarPart = this.instantiationService.createInstance(StatusbarPart, Identifiers.STATUSBAR_PART);
@@ -437,17 +457,14 @@ export class Workbench implements IPartService {
 		this.keybindingService = this.instantiationService.createInstance(WorkbenchKeybindingService, window);
 		serviceCollection.set(IKeybindingService, this.keybindingService);
 
+		// List
+		serviceCollection.set(IListService, this.instantiationService.createInstance(ListService));
+
 		// Context Menu
 		serviceCollection.set(IContextMenuService, new SyncDescriptor(ContextMenuService));
 
 		// Menus/Actions
 		serviceCollection.set(IMenuService, new SyncDescriptor(MenuService));
-
-		// Title bar
-		this.titlebarPart = this.instantiationService.createInstance(TitlebarPart, Identifiers.TITLEBAR_PART);
-		this.toDispose.push(this.titlebarPart);
-		this.toShutdown.push(this.titlebarPart);
-		serviceCollection.set(ITitleService, this.titlebarPart);
 
 		// Sidebar part
 		this.sidebarPart = this.instantiationService.createInstance(SidebarPart, Identifiers.SIDEBAR_PART);
@@ -478,6 +495,12 @@ export class Workbench implements IPartService {
 		serviceCollection.set(IWorkbenchEditorService, this.editorService);
 		serviceCollection.set(IEditorGroupService, this.editorPart);
 
+		// Title bar
+		this.titlebarPart = this.instantiationService.createInstance(TitlebarPart, Identifiers.TITLEBAR_PART);
+		this.toDispose.push(this.titlebarPart);
+		this.toShutdown.push(this.titlebarPart);
+		serviceCollection.set(ITitleService, this.titlebarPart);
+
 		// File Service
 		const fileService = this.instantiationService.createInstance(FileService);
 		serviceCollection.set(IFileService, fileService);
@@ -502,6 +525,10 @@ export class Workbench implements IPartService {
 		// Configuration Editing
 		this.configurationEditingService = this.instantiationService.createInstance(ConfigurationEditingService);
 		serviceCollection.set(IConfigurationEditingService, this.configurationEditingService);
+
+		// Theme Service
+		this.themeService = this.instantiationService.createInstance(ThemeService, document.body);
+		serviceCollection.set(IThemeService, this.themeService);
 
 		// Configuration Resolver
 		const workspace = this.contextService.getWorkspace();
@@ -820,8 +847,10 @@ export class Workbench implements IPartService {
 		if (reason === ShutdownReason.RELOAD) {
 			this.storageService.store(Workbench.sidebarRestoreSettingKey, 'true', StorageScope.WORKSPACE);
 		}
+
+		const zenConfig = this.configurationService.getConfiguration<IZenModeSettings>('zenMode');
 		// Preserve zen mode only on reload. Real quit gets out of zen mode so novice users do not get stuck in zen mode.
-		this.storageService.store(Workbench.zenModeActiveSettingKey, reason === ShutdownReason.RELOAD && this.zenMode.active, StorageScope.WORKSPACE);
+		this.storageService.store(Workbench.zenModeActiveSettingKey, (zenConfig.restore || reason === ShutdownReason.RELOAD) && this.zenMode.active, StorageScope.WORKSPACE);
 
 		// Pass shutdown on to each participant
 		this.toShutdown.forEach(s => s.shutdown());

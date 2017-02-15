@@ -116,12 +116,12 @@ export class QuickCommandAction extends BaseEditorQuickOpenAction {
 		for (let i = 0; i < actions.length; i++) {
 			let action = actions[i];
 
-			let keys = keybindingService.lookupKeybindings(action.id).map(k => keybindingService.getLabelFor(k));
+			let [keybind] = keybindingService.lookupKeybindings(action.id);
 
 			if (action.label) {
 				let highlights = matchesFuzzy(searchValue, action.label);
 				if (highlights) {
-					entries.push(new EditorActionCommandEntry(keys.length > 0 ? keys.join(', ') : '', highlights, action, editor));
+					entries.push(new EditorActionCommandEntry(keybind ? keybindingService.getLabelFor(keybind) : '', highlights, action, editor));
 				}
 			}
 		}

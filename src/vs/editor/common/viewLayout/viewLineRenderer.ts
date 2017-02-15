@@ -204,13 +204,13 @@ export class RenderLineOutput {
 	_renderLineOutputBrand: void;
 
 	readonly characterMapping: CharacterMapping;
-	readonly output: string;
+	readonly html: string;
 	readonly containsRTL: boolean;
 	readonly containsForeignElements: boolean;
 
-	constructor(characterMapping: CharacterMapping, output: string, containsRTL: boolean, containsForeignElements: boolean) {
+	constructor(characterMapping: CharacterMapping, html: string, containsRTL: boolean, containsForeignElements: boolean) {
 		this.characterMapping = characterMapping;
-		this.output = output;
+		this.html = html;
 		this.containsRTL = containsRTL;
 		this.containsForeignElements = containsForeignElements;
 	}

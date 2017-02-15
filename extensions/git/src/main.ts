@@ -15,14 +15,22 @@ import { filterEvent, anyEvent } from './util';
 import { GitContentProvider } from './contentProvider';
 import { AutoFetcher } from './autofetch';
 import { MergeDecorator } from './merge';
+import { CommitController } from './commit';
 import * as nls from 'vscode-nls';
 
 const localize = nls.config()();
 
 async function init(disposables: Disposable[]): Promise<void> {
+	const outputChannel = window.createOutputChannel('Git');
+	disposables.push(outputChannel);
+
+	const config = workspace.getConfiguration('git');
+	const enabled = config.get<boolean>('enabled') === true;
 	const rootPath = workspace.rootPath;
 
-	if (!rootPath) {
+	if (!rootPath || !enabled) {
+		const commandCenter = new CommandCenter(undefined, outputChannel);
+		disposables.push(commandCenter);
 		return;
 	}
 
@@ -37,10 +45,10 @@ async function init(disposables: Disposable[]): Promise<void> {
 	const repositoryRoot = await repository.getRoot();
 	const model = new Model(repositoryRoot, repository, onWorkspaceChange);
 
-	const outputChannel = window.createOutputChannel('Git');
 	outputChannel.appendLine(localize('using git', "Using git {0} from {1}", info.version, info.path));
 	git.onOutput(str => outputChannel.append(str), null, disposables);
 
+	const commitHandler = new CommitController(model);
 	const commandCenter = new CommandCenter(model, outputChannel);
 	const provider = new GitSCMProvider(model, commandCenter);
 	const contentProvider = new GitContentProvider(git, rootPath, onGitChange);
@@ -50,10 +58,10 @@ async function init(disposables: Disposable[]): Promise<void> {
 	const mergeDecorator = new MergeDecorator(model);
 
 	disposables.push(
+		commitHandler,
 		commandCenter,
 		provider,
 		contentProvider,
-		outputChannel,
 		fsWatcher,
 		checkoutStatusBar,
 		syncStatusBar,

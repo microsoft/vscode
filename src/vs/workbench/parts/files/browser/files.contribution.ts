@@ -32,6 +32,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
+import { DirtyFilesTracker } from 'vs/workbench/parts/files/common/dirtyFilesTracker';
 
 // Viewlet Action
 export class OpenExplorerViewletAction extends ToggleViewletAction {
@@ -165,6 +166,11 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 	SaveErrorHandler
 );
 
+// Register Dirty Files Tracker
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(
+	DirtyFilesTracker
+);
+
 // Configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
@@ -232,6 +238,12 @@ configurationRegistry.registerConfiguration({
 		'files.autoSave': {
 			'type': 'string',
 			'enum': [AutoSaveConfiguration.OFF, AutoSaveConfiguration.AFTER_DELAY, AutoSaveConfiguration.ON_FOCUS_CHANGE, , AutoSaveConfiguration.ON_WINDOW_CHANGE],
+			'enumDescriptions': [
+				nls.localize('files.autoSave.off', "\"off\": A dirty file is never automatically saved."),
+				nls.localize('files.autoSave.afterDelay', "\"afterDelay\": A dirty file is automatically saved after the configured \"files.autoSaveDelay\"."),
+				nls.localize('files.autoSave.onFocusChange', "\"onFocusChange\": A dirty file is automatically saved when the editor loses focus."),
+				nls.localize('files.autoSave.onWindowChange', "\"onWindowChange\": A dirty file is automatically saved when the window loses focus.")
+			],
 			'default': AutoSaveConfiguration.OFF,
 			'description': nls.localize('autoSave', "Controls auto save of dirty files. Accepted values:  \"{0}\", \"{1}\", \"{2}\" (editor loses focus), \"{3}\" (window loses focus). If set to \"{4}\", you can configure the delay in \"files.autoSaveDelay\".", AutoSaveConfiguration.OFF, AutoSaveConfiguration.AFTER_DELAY, AutoSaveConfiguration.ON_FOCUS_CHANGE, AutoSaveConfiguration.ON_WINDOW_CHANGE, AutoSaveConfiguration.AFTER_DELAY)
 		},

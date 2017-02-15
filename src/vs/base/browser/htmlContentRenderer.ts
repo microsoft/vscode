@@ -39,6 +39,7 @@ export function renderHtml(content: RenderableContent, options: RenderOptions = 
 	} else if (content) {
 		return _renderHtml(content, options);
 	}
+	return undefined;
 }
 
 function _renderHtml(content: IHTMLContentElement, options: RenderOptions = {}): Node {

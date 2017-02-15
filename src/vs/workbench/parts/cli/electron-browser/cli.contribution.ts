@@ -64,7 +64,7 @@ class InstallAction extends Action {
 			if (!isAvailable) {
 				const message = nls.localize('not available', "This command is not available");
 				this.messageService.show(Severity.Info, message);
-				return;
+				return undefined;
 			}
 
 			return this.checkLegacy()
@@ -202,7 +202,7 @@ class UninstallAction extends Action {
 			if (!isAvailable) {
 				const message = nls.localize('not available', "This command is not available");
 				this.messageService.show(Severity.Info, message);
-				return;
+				return undefined;
 			}
 
 			return pfs.unlink(this.target)

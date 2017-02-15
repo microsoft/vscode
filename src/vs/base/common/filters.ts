@@ -59,21 +59,40 @@ export function and(...filter: IFilter[]): IFilter {
 
 // Prefix
 
-export let matchesStrictPrefix: IFilter = (word: string, wordToMatchAgainst: string): IMatch[] => { return _matchesPrefix(false, word, wordToMatchAgainst); };
-export let matchesPrefix: IFilter = (word: string, wordToMatchAgainst: string): IMatch[] => { return _matchesPrefix(true, word, wordToMatchAgainst); };
+export const matchesStrictPrefix: IFilter = _matchesPrefix.bind(undefined, false);
+export const matchesPrefix: IFilter = _matchesPrefix.bind(undefined, true);
 
 function _matchesPrefix(ignoreCase: boolean, word: string, wordToMatchAgainst: string): IMatch[] {
-	if (!wordToMatchAgainst || wordToMatchAgainst.length === 0 || wordToMatchAgainst.length < word.length) {
+	if (!wordToMatchAgainst || wordToMatchAgainst.length < word.length) {
 		return null;
 	}
-	if (ignoreCase) {
-		word = word.toLowerCase();
-		wordToMatchAgainst = wordToMatchAgainst.toLowerCase();
-	}
+
 	for (let i = 0; i < word.length; i++) {
-		if (word[i] !== wordToMatchAgainst[i]) {
-			return null;
+
+		const wordChar = word.charCodeAt(i);
+		const wordToMatchAgainstChar = wordToMatchAgainst.charCodeAt(i);
+
+
+		if (wordChar === wordToMatchAgainstChar) {
+			// equal
+			continue;
 		}
+
+		if (ignoreCase) {
+			if (isAlphanumeric(wordChar) && isAlphanumeric(wordToMatchAgainstChar)) {
+				const diff = wordChar - wordToMatchAgainstChar;
+				if (diff === 32 || diff === -32) {
+					// ascii -> equalIgnoreCase
+					continue;
+				}
+
+			} else if (word[i].toLowerCase() === wordToMatchAgainst[i].toLowerCase()) {
+				// nonAscii -> equalIgnoreCase
+				continue;
+			}
+		}
+
+		return null;
 	}
 	return word.length > 0 ? [{ start: 0, end: word.length }] : [];
 }

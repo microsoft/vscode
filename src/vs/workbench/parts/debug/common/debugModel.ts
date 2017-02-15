@@ -269,7 +269,7 @@ export class Variable extends ExpressionContainer implements debug.IExpression {
 		names.forEach(name => {
 			if (!result) {
 				result = name;
-			} else if (Variable.ARRAY_ELEMENT_SYNTAX.test(name) || (this.process.session.configuration.type === 'node' && !Variable.NOT_PROPERTY_SYNTAX.test(name))) {
+			} else if (Variable.ARRAY_ELEMENT_SYNTAX.test(name) || (this.process.configuration.type === 'node' && !Variable.NOT_PROPERTY_SYNTAX.test(name))) {
 				// use safe way to access node properties a['property_name']. Also handles array elements.
 				result = name && name.indexOf('[') === 0 ? `${result}${name}` : `${result}['${name}']`;
 			} else {
@@ -591,7 +591,7 @@ export class Process implements debug.IProcess {
 	}
 
 	public completions(frameId: number, text: string, position: Position, overwriteBefore: number): TPromise<ISuggestion[]> {
-		if (!this.session.configuration.capabilities.supportsCompletionsRequest) {
+		if (!this.session.capabilities.supportsCompletionsRequest) {
 			return TPromise.as([]);
 		}
 
@@ -624,7 +624,8 @@ export class Breakpoint implements debug.IBreakpoint {
 		public column: number,
 		public enabled: boolean,
 		public condition: string,
-		public hitCondition: string
+		public hitCondition: string,
+		public respectColumn: boolean // TODO@Isidor remove this in March
 	) {
 		if (enabled === undefined) {
 			this.enabled = true;
@@ -664,6 +665,14 @@ export class ExceptionBreakpoint implements debug.IExceptionBreakpoint {
 
 	public getId(): string {
 		return this.id;
+	}
+}
+
+export class ThreadAndProcessIds implements debug.ITreeElement {
+	constructor(public processId: string, public threadId: number) { }
+
+	public getId(): string {
+		return `${this.processId}:${this.threadId}`;
 	}
 }
 
@@ -777,7 +786,7 @@ export class Model implements debug.IModel {
 
 	public addBreakpoints(uri: uri, rawData: debug.IRawBreakpoint[]): void {
 		this.breakpoints = this.breakpoints.concat(rawData.map(rawBp =>
-			new Breakpoint(uri, rawBp.lineNumber, rawBp.column, rawBp.enabled, rawBp.condition, rawBp.hitCondition)));
+			new Breakpoint(uri, rawBp.lineNumber, rawBp.column, rawBp.enabled, rawBp.condition, rawBp.hitCondition, true)));
 		this.breakpointsActivated = true;
 		this._onDidChangeBreakpoints.fire();
 	}
@@ -792,6 +801,7 @@ export class Model implements debug.IModel {
 			const bpData = data[bp.getId()];
 			if (bpData) {
 				bp.lineNumber = bpData.line ? bpData.line : bp.lineNumber;
+				bp.column = bpData.column ? bpData.column : bp.column;
 				bp.verified = bpData.verified;
 				bp.idFromAdapter = bpData.id;
 				bp.message = bpData.message;
