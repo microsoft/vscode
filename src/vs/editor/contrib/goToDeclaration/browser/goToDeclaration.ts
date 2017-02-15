@@ -8,6 +8,7 @@
 import 'vs/css!./goToDeclaration';
 import * as nls from 'vs/nls';
 import { Throttler } from 'vs/base/common/async';
+import { any, filterEvent } from 'vs/base/common/event';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { MarkedString } from 'vs/base/common/htmlContent';
 import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
@@ -24,7 +25,7 @@ import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { editorAction, IActionOptions, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
 import { Location, DefinitionProviderRegistry } from 'vs/editor/common/modes';
-import { ICodeEditor, IEditorMouseEvent, IMouseTarget } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IEditorMouseEvent, IMouseTarget, IContentWidget, IContentWidgetPosition, ContentWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { getDefinitionsAtPosition, getImplementationsAtPosition, getTypeDefinitionsAtPosition } from 'vs/editor/contrib/goToDeclaration/common/goToDeclaration';
 import { ReferencesController } from 'vs/editor/contrib/referenceSearch/browser/referencesController';
@@ -34,16 +35,87 @@ import { PeekContext } from 'vs/editor/contrib/zoneWidget/browser/peekViewWidget
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 import * as corePosition from 'vs/editor/common/core/position';
-
 import ModeContextKeys = editorCommon.ModeContextKeys;
 import EditorContextKeys = editorCommon.EditorContextKeys;
+
+class MessageOverlay implements IContentWidget {
+
+	private static _last: IDisposable;
+
+	static show(editor: ICodeEditor, pos: editorCommon.IPosition, message: string): IDisposable {
+
+		dispose(MessageOverlay._last);
+
+		const widget = new MessageOverlay(message, pos.lineNumber, editor.getOffsetForColumn(pos.lineNumber, pos.column));
+		const remove = () => editor.removeContentWidget(widget);
+		editor.addContentWidget(widget);
+
+
+		const unhook = any<any>(
+			filterEvent(editor.onMouseMove, e => {
+				const { position } = e.target;
+				return Math.abs(position.lineNumber - pos.lineNumber) > 1
+					|| Math.abs(position.column - pos.column) > 10;
+			}),
+			editor.onDidChangeCursorPosition,
+			editor.onDidBlurEditorText,
+			editor.onDidDispose,
+			editor.onDidChangeModel
+		)(_ => {
+			unhook.dispose();
+			remove();
+		});
+
+		MessageOverlay._last = unhook;
+
+		return unhook;
+	}
+
+	readonly allowEditorOverflow = true;
+	readonly suppressMouseDown = false;
+
+	private _position: editorCommon.IPosition;
+	private _domNode: HTMLDivElement;
+
+	constructor(text: string, lineNumber: number, horizontalOffset: number) {
+		this._position = { lineNumber, column: 1 };
+
+		this._domNode = document.createElement('div');
+		this._domNode.style.paddingLeft = `${horizontalOffset - 6}px`;
+		this._domNode.classList.add('monaco-editor-overlaymessage');
+
+
+		const message = document.createElement('div');
+		message.classList.add('message');
+		message.textContent = text;
+		this._domNode.appendChild(message);
+
+		const anchor = document.createElement('div');
+		anchor.classList.add('anchor');
+		this._domNode.appendChild(anchor);
+	}
+
+	getId(): string {
+		return 'messageoverlay';
+	}
+
+	getDomNode(): HTMLElement {
+		return this._domNode;
+	}
+
+	getPosition(): IContentWidgetPosition {
+		return { position: this._position, preference: [ContentWidgetPositionPreference.ABOVE] };
+	}
+}
+
 
 export class DefinitionActionConfig {
 
 	constructor(
 		public openToSide = false,
 		public openInPeek = false,
-		public filterCurrent = true
+		public filterCurrent = true,
+		public noResultsMessage = nls.localize('generic.noResults', "Could not find anything")
 	) {
 		//
 	}
@@ -67,10 +139,6 @@ export class DefinitionAction extends EditorAction {
 
 		return this.getDeclarationsAtPosition(model, pos).then(references => {
 
-			if (!references) {
-				return;
-			}
-
 			// * remove falsy references
 			// * remove reference at the current pos
 			// * collapse ranges to start pos
@@ -80,7 +148,7 @@ export class DefinitionAction extends EditorAction {
 				if (!reference || !reference.range) {
 					continue;
 				}
-				let {uri, range} = reference;
+				let { uri, range } = reference;
 				if (!this._configuration.filterCurrent
 					|| uri.toString() !== model.uri.toString()
 					|| !Range.containsPosition(range, pos)) {
@@ -93,6 +161,7 @@ export class DefinitionAction extends EditorAction {
 			}
 
 			if (result.length === 0) {
+				MessageOverlay.show(<ICodeEditor>editor, pos, this._configuration.noResultsMessage);
 				return;
 			}
 
@@ -125,7 +194,7 @@ export class DefinitionAction extends EditorAction {
 	}
 
 	private _openReference(editorService: IEditorService, reference: Location, sideBySide: boolean): TPromise<editorCommon.ICommonCodeEditor> {
-		let {uri, range} = reference;
+		let { uri, range } = reference;
 		return editorService.openEditor({
 			resource: uri,
 			options: {
