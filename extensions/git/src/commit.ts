@@ -6,7 +6,6 @@
 'use strict';
 
 import { workspace, window, languages, Disposable, Uri, HoverProvider, Hover, TextEditor, Position, TextDocument, Range, TextEditorDecorationType, WorkspaceEdit } from 'vscode';
-import { Model } from './model';
 import { filterEvent } from './util';
 import * as nls from 'vscode-nls';
 
@@ -22,7 +21,7 @@ interface Diagnostic {
 	message: string;
 }
 
-// TODO@Joao: hover dissapears if editor is scrolled
+// TODO@Joao: hover disappears if editor is scrolled
 export class CommitController implements HoverProvider {
 
 	private visibleTextEditorsDisposable: Disposable;
@@ -53,7 +52,7 @@ export class CommitController implements HoverProvider {
 		workspace.applyEdit(edit);
 	}
 
-	constructor(private model: Model) {
+	constructor() {
 		this.visibleTextEditorsDisposable = window.onDidChangeVisibleTextEditors(this.onVisibleTextEditors, this);
 		this.onVisibleTextEditors(window.visibleTextEditors);
 
