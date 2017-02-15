@@ -5,7 +5,7 @@
 
 'use strict';
 
-// import 'vs/css!./overlayWidgets';
+import 'vs/css!./minimap';
 // import { StyleMutator } from 'vs/base/browser/styleMutator';
 // import { EditorLayoutInfo } from 'vs/editor/common/editorCommon';
 // import { ClassNames, IOverlayWidget, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
@@ -17,10 +17,11 @@ import * as browser from 'vs/base/browser/browser';
 import { ParsedColor, MinimapTokensColorTracker, Constants } from 'vs/editor/common/view/minimapCharRenderer';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { CharCode } from 'vs/base/common/charCode';
-import { MinimapLineRenderingData } from 'vs/editor/common/viewModel/viewModel';
+import { IViewLayout, MinimapLineRenderingData } from 'vs/editor/common/viewModel/viewModel';
 import { ColorId } from 'vs/editor/common/modes';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/styleMutator';
 import { IDisposable } from 'vs/base/common/lifecycle';
+// import { IViewLayout } from 'vs/editor/common/viewModel/viewModel';
 
 let charRenderer2 = createMinimapCharRenderer2(); // TODO@minimap
 
@@ -33,6 +34,8 @@ const enum RenderMinimap {
 class MinimapOptions {
 
 	public readonly renderMinimap: RenderMinimap;
+
+	public readonly pixelRatio: number;
 
 	/**
 	 * container dom node width (in CSS px)
@@ -66,6 +69,7 @@ class MinimapOptions {
 		const layoutInfo = configuration.editor.layoutInfo;
 
 		this.renderMinimap = layoutInfo.renderMinimap | 0;
+		this.pixelRatio = pixelRatio;
 		this.minimapWidth = layoutInfo.minimapWidth;
 		this.minimapHeight = layoutInfo.height;
 
@@ -78,6 +82,7 @@ class MinimapOptions {
 
 	public equals(other: MinimapOptions): boolean {
 		return (this.renderMinimap === other.renderMinimap
+			&& this.pixelRatio === other.pixelRatio
 			&& this.minimapWidth === other.minimapWidth
 			&& this.minimapHeight === other.minimapHeight
 			&& this.canvasInnerWidth === other.canvasInnerWidth
@@ -88,18 +93,68 @@ class MinimapOptions {
 	}
 }
 
+class MinimapLayout {
+
+	/**
+	 * slider dom node top (in CSS px)
+	 */
+	public readonly sliderTop: number;
+	/**
+	 * slider dom node height (in CSS px)
+	 */
+	public readonly sliderHeight: number;
+
+	/**
+	 * minimap render start line number.
+	 */
+	public readonly startLineNumber: number;
+	/**
+	 * minimap render end line number.
+	 */
+	public readonly endLineNumber: number;
+
+	constructor(
+		options: MinimapOptions,
+		lineHeight: number,
+		scrollTop: number,
+		scrollHeight: number,
+		viewportHeight: number,
+		viewportStartLineNumber: number,
+		viewportEndLineNumber: number,
+		lineCount: number
+	) {
+		const pixelRatio = options.pixelRatio;
+		const minimapLineHeight = (options.renderMinimap === RenderMinimap.Large ? Constants.x2_CHAR_HEIGHT : Constants.x1_CHAR_HEIGHT);
+		const minimapLinesFitting = Math.floor(options.canvasOuterHeight / minimapLineHeight);
+		const viewportLinesFitting = Math.floor(viewportHeight / lineHeight);
+
+		const minimapScrollRatio = Math.min(1, (viewportStartLineNumber - 1) / (lineCount - viewportLinesFitting));
+		const minimapStartLineNumber = Math.floor(1 + minimapScrollRatio * (lineCount - minimapLinesFitting));
+
+		this.startLineNumber = minimapStartLineNumber;
+		this.endLineNumber = minimapStartLineNumber + minimapLinesFitting - 1;
+
+		this.sliderTop = Math.floor((viewportStartLineNumber - this.startLineNumber) * minimapLineHeight / pixelRatio);
+		this.sliderHeight = (viewportEndLineNumber - viewportStartLineNumber + 1) * minimapLineHeight / pixelRatio;
+	}
+}
+
 export class Minimap extends ViewPart {
+
+	private readonly _viewLayout: IViewLayout;
 
 	private readonly _domNode: FastDomNode<HTMLElement>;
 	private readonly _canvas: FastDomNode<HTMLCanvasElement>;
+	private readonly _slider: FastDomNode<HTMLElement>;
 	private readonly _tokensColorTracker: MinimapTokensColorTracker;
 	private readonly _tokensColorTrackerListener: IDisposable;
 
 	private _options: MinimapOptions;
 	private _backgroundFillData: Uint8ClampedArray;
 
-	constructor(context: ViewContext) {
+	constructor(context: ViewContext, viewLayout: IViewLayout) {
 		super(context);
+		this._viewLayout = viewLayout;
 
 		this._options = new MinimapOptions(this._context.configuration);
 		this._backgroundFillData = null;
@@ -111,8 +166,12 @@ export class Minimap extends ViewPart {
 		this._canvas = createFastDomNode(document.createElement('canvas'));
 		this._canvas.setPosition('absolute');
 		this._canvas.setLeft(0);
-
 		this._domNode.domNode.appendChild(this._canvas.domNode);
+
+		this._slider = createFastDomNode(document.createElement('div'));
+		this._slider.setPosition('absolute');
+		this._slider.setClassName('minimap-slider');
+		this._domNode.domNode.appendChild(this._slider.domNode);
 
 		this._tokensColorTracker = MinimapTokensColorTracker.getInstance();
 		this._tokensColorTrackerListener = this._tokensColorTracker.onDidChange(() => this._backgroundFillData = null);
@@ -135,6 +194,7 @@ export class Minimap extends ViewPart {
 		this._canvas.setHeight(this._options.canvasOuterHeight);
 		this._canvas.domNode.width = this._options.canvasInnerWidth;
 		this._canvas.domNode.height = this._options.canvasInnerHeight;
+		this._slider.setWidth(this._options.minimapWidth);
 		this._backgroundFillData = null;
 	}
 
@@ -183,6 +243,11 @@ export class Minimap extends ViewPart {
 		return this._onOptionsMaybeChanged();
 	}
 	public onModelTokensChanged(e: editorCommon.IViewTokensChangedEvent): boolean {
+		// TODO@minimap
+		return true;
+	}
+	public onScrollChanged(e: editorCommon.IScrollEvent): boolean {
+		// TODO@minimap
 		return true;
 	}
 
@@ -207,34 +272,39 @@ export class Minimap extends ViewPart {
 		const minimapLineHeight = (renderMinimap === RenderMinimap.Large ? Constants.x2_CHAR_HEIGHT : Constants.x1_CHAR_HEIGHT);
 		const charWidth = (renderMinimap === RenderMinimap.Large ? Constants.x2_CHAR_WIDTH : Constants.x1_CHAR_WIDTH);
 
-		// const lineHeight = this._context.configuration.editor.lineHeight;
+		const layout = new MinimapLayout(
+			this._options,
+			this._context.configuration.editor.lineHeight,
+			renderingCtx.viewportTop,
+			renderingCtx.scrollHeight,
+			renderingCtx.viewportHeight,
+			renderingCtx.visibleRange.startLineNumber,
+			renderingCtx.visibleRange.endLineNumber,
+			this._context.model.getLineCount()
+		);
 
-		// let scrollHeight = (renderingCtx.scrollHeight / lineHeight) * minimapLineHeight;
-		// let scrollTop = (renderingCtx.viewportTop / lineHeight) * minimapLineHeight;
+		this._slider.setTop(layout.sliderTop);
+		this._slider.setHeight(layout.sliderHeight);
 
-
-		// console.log(`scrollTop: ${scrollTop}, scrollHeight: ${scrollHeight}`);
-		// let viewportHeight =
+		const startLineNumber = layout.startLineNumber;
+		const endLineNumber = layout.endLineNumber;
 
 
 		// Prepare image data (fill with background color)
 		let imageData = ctx.createImageData(WIDTH, HEIGHT);
 		imageData.data.set(this._getBackgroundFillData());
 
-
 		let background = this._tokensColorTracker.getColor(ColorId.DefaultBackground);
 
-		const lineCount = Math.floor(HEIGHT / minimapLineHeight);
-
 		let data: MinimapLineRenderingData[] = [];
-		for (let lineIndex = 0; lineIndex < lineCount; lineIndex++) {
-			data[lineIndex] = this._context.model.getMinimapLineRenderingData(lineIndex + 1);
+		for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
+			data[lineNumber - startLineNumber] = this._context.model.getMinimapLineRenderingData(lineNumber);
 		}
 
 		let start = performance.now();
 		let dy = 0;
-		for (let lineIndex = 0; lineIndex < lineCount; lineIndex++) {
-			Minimap._renderLine(imageData, background, renderMinimap, charWidth, this._tokensColorTracker, dy, data[lineIndex]);
+		for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
+			Minimap._renderLine(imageData, background, renderMinimap, charWidth, this._tokensColorTracker, dy, data[lineNumber - startLineNumber]);
 			dy += minimapLineHeight;
 		}
 		let end = performance.now();
