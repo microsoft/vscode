@@ -498,7 +498,19 @@ export class TestEditorService implements IWorkbenchEditorService {
 	public getActiveEditor(): IEditor {
 		this.callback('getActiveEditor');
 
-		return null;
+		return {
+			input: null,
+			options: null,
+			position: null,
+			getId: () => { return null; },
+			getControl: () => {
+				return {
+					getSelection: () => { return { positionLineNumber: 15 }; }
+				};
+			},
+			focus: () => { },
+			isVisible: () => { return true; }
+		};
 	}
 
 	public getActiveEditorInput(): IEditorInput {
