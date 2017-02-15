@@ -116,10 +116,6 @@ class MinimapLayout {
 
 	constructor(
 		options: MinimapOptions,
-		lineHeight: number,
-		scrollTop: number,
-		scrollHeight: number,
-		viewportHeight: number,
 		viewportStartLineNumber: number,
 		viewportEndLineNumber: number,
 		lineCount: number,
@@ -134,22 +130,48 @@ class MinimapLayout {
 			this.startLineNumber = 1;
 			this.endLineNumber = lineCount;
 		} else {
+			// The desire is to align (centers) the minimap's slider with the scrollbar's slider
 			const viewportLineCount = (viewportEndLineNumber - viewportStartLineNumber + 1);
 
+			// For a resolved this.startLineNumber, we can compute the minimap's slider's center with the following formula:
 			// scrollbarSliderCenter = (viewportStartLineNumber - this.startLineNumber + viewportLineCount/2) * minimapLineHeight / pixelRatio;
+			// =>
 			// scrollbarSliderCenter = (viewportStartLineNumber - this.startLineNumber + viewportLineCount/2) * minimapLineHeight / pixelRatio;
 			// scrollbarSliderCenter * pixelRatio / minimapLineHeight = viewportStartLineNumber - this.startLineNumber + viewportLineCount/2
 			// this.startLineNumber = viewportStartLineNumber + viewportLineCount/2 - scrollbarSliderCenter * pixelRatio / minimapLineHeight
 			let desiredStartLineNumber = Math.floor(viewportStartLineNumber + viewportLineCount / 2 - scrollbarSliderCenter * pixelRatio / minimapLineHeight);
-			if (viewportStartLineNumber < desiredStartLineNumber) {
-				desiredStartLineNumber = viewportStartLineNumber;
+			let desiredEndLineNumber = desiredStartLineNumber + minimapLinesFitting - 1;
+
+			// Aligning the slider's centers is a very good thing, but this would make
+			// the minimap never scroll all the way to the top or to the bottom of the file.
+			// We therefore check that the viewport lines are in the minimap viewport.
+
+			// (a) validate on start line number
+			if (desiredStartLineNumber < 1) {
+				// must start after 1
+				desiredStartLineNumber = 1;
+				desiredEndLineNumber = desiredStartLineNumber + minimapLinesFitting - 1;
 			}
-			if (desiredStartLineNumber + minimapLinesFitting - 1 > lineCount) {
-				desiredStartLineNumber = lineCount - minimapLinesFitting + 1;
+			if (desiredStartLineNumber > viewportStartLineNumber) {
+				// must contain the viewport's start line number
+				desiredStartLineNumber = viewportStartLineNumber;
+				desiredEndLineNumber = desiredStartLineNumber + minimapLinesFitting - 1;
+			}
+
+			// (b) validate on end line number
+			if (desiredEndLineNumber > lineCount) {
+				// must end before line count
+				desiredEndLineNumber = lineCount;
+				desiredStartLineNumber = desiredEndLineNumber - minimapLinesFitting + 1;
+			}
+			if (desiredEndLineNumber < viewportEndLineNumber) {
+				// must contain the viewport's end line number
+				desiredEndLineNumber = viewportEndLineNumber;
+				desiredStartLineNumber = desiredEndLineNumber - minimapLinesFitting + 1;
 			}
 
 			this.startLineNumber = desiredStartLineNumber;
-			this.endLineNumber = desiredStartLineNumber + minimapLinesFitting - 1;
+			this.endLineNumber = desiredEndLineNumber;
 		}
 
 		this.sliderTop = Math.floor((viewportStartLineNumber - this.startLineNumber) * minimapLineHeight / pixelRatio);
@@ -294,10 +316,6 @@ export class Minimap extends ViewPart {
 
 		const layout = new MinimapLayout(
 			this._options,
-			this._context.configuration.editor.lineHeight,
-			renderingCtx.viewportTop,
-			renderingCtx.scrollHeight,
-			renderingCtx.viewportHeight,
 			renderingCtx.visibleRange.startLineNumber,
 			renderingCtx.visibleRange.endLineNumber,
 			this._context.model.getLineCount(),
@@ -322,14 +340,14 @@ export class Minimap extends ViewPart {
 			data[lineNumber - startLineNumber] = this._context.model.getMinimapLineRenderingData(lineNumber);
 		}
 
-		let start = performance.now();
+		// let start = performance.now();
 		let dy = 0;
 		for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
 			Minimap._renderLine(imageData, background, renderMinimap, charWidth, this._tokensColorTracker, dy, data[lineNumber - startLineNumber]);
 			dy += minimapLineHeight;
 		}
-		let end = performance.now();
-		console.log(`INNER LOOP TOOK ${end - start} ms.`);
+		// let end = performance.now();
+		// console.log(`INNER LOOP TOOK ${end - start} ms.`);
 
 		ctx.putImageData(imageData, 0, 0);
 	}
