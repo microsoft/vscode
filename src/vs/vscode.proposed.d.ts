@@ -134,6 +134,7 @@ declare module 'vscode' {
 		readonly resources: SCMResourceGroup[];
 		readonly onDidChange: Event<SCMResourceGroup[]>;
 		readonly count?: number | undefined;
+		readonly state?: string;
 
 		getOriginalResource?(uri: Uri, token: CancellationToken): ProviderResult<Uri>;
 		open?(resource: SCMResource, token: CancellationToken): ProviderResult<void>;

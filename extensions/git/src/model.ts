@@ -6,7 +6,7 @@
 'use strict';
 
 import { Uri, EventEmitter, Event, SCMResource, SCMResourceDecorations, SCMResourceGroup, Disposable, window, workspace } from 'vscode';
-import { Repository, Ref, Branch, Remote, PushOptions, Commit } from './git';
+import { Repository, Ref, Branch, Remote, PushOptions, Commit, GitErrorCodes } from './git';
 import { anyEvent, eventToPromise, filterEvent, mapEvent } from './util';
 import { memoize, throttle, debounce } from './decorators';
 import { watch } from './watch';
@@ -175,6 +175,7 @@ export enum Operation {
 	Pull = 1 << 9,
 	Push = 1 << 10,
 	Sync = 1 << 11,
+	Init = 1 << 12,
 }
 
 export interface Operations {
@@ -211,6 +212,12 @@ export interface CommitOptions {
 	signoff?: boolean;
 }
 
+export enum State {
+	Uninitialized,
+	Idle,
+	NotAGitRepository
+}
+
 export class Model {
 
 	private _onDidChange = new EventEmitter<SCMResourceGroup[]>();
@@ -221,6 +228,9 @@ export class Model {
 
 	private _onDidRunOperation = new EventEmitter<Operation>();
 	readonly onDidRunOperation: Event<Operation> = this._onDidRunOperation.event;
+
+	private _onDidChangeState = new EventEmitter<State>();
+	readonly onDidChangeState: Event<State> = this._onDidChangeState.event;
 
 	@memoize
 	get onDidChangeOperations(): Event<void> {
@@ -255,33 +265,52 @@ export class Model {
 	private _operations = new OperationsImpl();
 	get operations(): Operations { return this._operations; }
 
+	private repositoryRoot: string;
+
+	private _state = State.Uninitialized;
+	get state(): State { return this._state; }
+	set state(state: State) {
+		this._state = state;
+		this._onDidChangeState.fire(state);
+	}
+
 	private disposables: Disposable[] = [];
 
 	constructor(
-		private _repositoryRoot: string,
 		private repository: Repository,
-		onWorkspaceChange: Event<Uri>
+		private onWorkspaceChange: Event<Uri>
 	) {
-		/* We use the native Node `watch` for faster, non debounced events.
-		 * That way we hopefully get the events during the operations we're
-		 * performing, thus sparing useless `git status` calls to refresh
-		 * the model's state.
-		 */
-		const gitPath = path.join(_repositoryRoot, '.git');
-		const { event, disposable } = watch(gitPath);
-		const onGitChange = mapEvent(event, ({ filename }) => Uri.file(path.join(gitPath, filename)));
-		const onRelevantGitChange = filterEvent(onGitChange, uri => !/\/\.git\/index\.lock$/.test(uri.fsPath));
-		onRelevantGitChange(this.onFSChange, this, this.disposables);
-		this.disposables.push(disposable);
-
-		const onNonGitChange = filterEvent(onWorkspaceChange, uri => !/\/\.git\//.test(uri.fsPath));
-		onNonGitChange(this.onFSChange, this, this.disposables);
-
-		this.status();
+		this.initialize().catch(err => console.error(err));
 	}
 
-	get repositoryRoot(): string {
-		return this._repositoryRoot;
+	private async initialize(): Promise<void> {
+		try {
+			this.repositoryRoot = await this.repository.getRoot();
+			this.state = State.Idle;
+
+			/* We use the native Node `watch` for faster, non debounced events.
+			* That way we hopefully get the events during the operations we're
+			* performing, thus sparing useless `git status` calls to refresh
+			* the model's state.
+			*/
+			const gitPath = path.join(this.repositoryRoot, '.git');
+			const { event, disposable } = watch(gitPath);
+			const onGitChange = mapEvent(event, ({ filename }) => Uri.file(path.join(gitPath, filename)));
+			const onRelevantGitChange = filterEvent(onGitChange, uri => !/\/\.git\/index\.lock$/.test(uri.fsPath));
+			onRelevantGitChange(this.onFSChange, this, this.disposables);
+			this.disposables.push(disposable);
+
+			const onNonGitChange = filterEvent(this.onWorkspaceChange, uri => !/\/\.git\//.test(uri.fsPath));
+			onNonGitChange(this.onFSChange, this, this.disposables);
+
+			this.status();
+		} catch (err) {
+			if (err.gitErrorCode === GitErrorCodes.NotAGitRepository) {
+				this.state = State.NotAGitRepository;
+			} else {
+				throw err;
+			}
+		}
 	}
 
 	private _HEAD: Branch | undefined;
@@ -297,6 +326,11 @@ export class Model {
 	private _remotes: Remote[] = [];
 	get remotes(): Remote[] {
 		return this._remotes;
+	}
+
+	@throttle
+	async init(): Promise<void> {
+		await this.run(Operation.Init, () => this.repository.init());
 	}
 
 	@throttle
