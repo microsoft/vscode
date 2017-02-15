@@ -33,7 +33,7 @@ export class SnippetVariablesResolver implements ISnippetVariableResolver {
 			case 'TM_DIRECTORY': return this._tmDirectory();
 			case 'TM_FILEPATH': return this._tmFilepath();
 		}
-		return;
+		return undefined;
 	}
 
 	private _tmCurrentLine(): string {

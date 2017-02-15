@@ -6,11 +6,10 @@
 {
 	"configuredTabSize": "Настроенный размер шага табуляции",
 	"detectIndentation": "Определение отступа от содержимого",
+	"editor.reindentlines": "Повторно расставить отступы строк",
 	"indentUsingSpaces": "Отступ с использованием пробелов",
 	"indentUsingTabs": "Отступ с использованием табуляции",
 	"indentationToSpaces": "Преобразовать отступ в пробелы",
 	"indentationToTabs": "Преобразовать отступ в шаги табуляции",
-	"selectTabWidth": "Выбрать размер шага табуляции для текущего файла",
-	"toggleRenderControlCharacters": "Переключить управляющие символы",
-	"toggleRenderWhitespace": "Переключение отображения пробелов"
+	"selectTabWidth": "Выбрать размер шага табуляции для текущего файла"
 }

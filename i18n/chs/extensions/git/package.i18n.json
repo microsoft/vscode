@@ -10,6 +10,8 @@
 	"command.cleanAll": "全部清理",
 	"command.commitAll": "全部提交",
 	"command.commitAllSigned": "全部提交(已注销)",
+	"command.commitStaged": "已暂存提交",
+	"command.commitStagedSigned": "已暂存提交(已注销)",
 	"command.openChange": "打开更改",
 	"command.openFile": "打开文件",
 	"command.publish": "发布",

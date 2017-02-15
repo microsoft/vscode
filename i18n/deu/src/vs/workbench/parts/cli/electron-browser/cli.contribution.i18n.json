@@ -16,6 +16,7 @@
 	"install": "Befehl \"{0}\" in \"PATH\" installieren",
 	"later": "Später",
 	"laterInfo": "Denken Sie daran, dass Sie die Aktion \"{0}\" immer über die Befehlspalette ausführen können.",
+	"not available": "Dieser Befehl ist nicht verfügbar.",
 	"ok": "OK",
 	"shellCommand": "Shellbefehl",
 	"successFrom": "Der Shellbefehl \"{0}\" wurde erfolgreich aus \"PATH\" deinstalliert.",

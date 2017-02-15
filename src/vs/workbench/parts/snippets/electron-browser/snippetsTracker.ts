@@ -77,6 +77,7 @@ export class SnippetsTracker implements workbenchExt.IWorkbenchContribution {
 				if (languageIdentifier) {
 					return readAndRegisterSnippets(languageIdentifier, snippetPath, localize('userSnippet', "User Snippet"));
 				}
+				return undefined;
 			}));
 		});
 	}

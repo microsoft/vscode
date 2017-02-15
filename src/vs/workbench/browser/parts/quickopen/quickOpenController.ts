@@ -49,7 +49,6 @@ import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/cont
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 
 const HELP_PREFIX = '?';
-const QUICK_OPEN_MODE = new RawContextKey<boolean>('inQuickOpen', false);
 
 interface IWorkbenchQuickOpenConfiguration {
 	workbench: {
@@ -116,7 +115,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 
 		this.promisesToCompleteOnHide = [];
 
-		this.inQuickOpenMode = QUICK_OPEN_MODE.bindTo(contextKeyService);
+		this.inQuickOpenMode = new RawContextKey<boolean>('inQuickOpen', false).bindTo(contextKeyService);
 
 		this._onShow = new Emitter<void>();
 		this._onHide = new Emitter<void>();
@@ -212,6 +211,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 				if (valid && item) {
 					return lastValue || options.value || '';
 				}
+				return undefined;
 			});
 		});
 	}
@@ -419,12 +419,13 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 						}
 
 						// Sort by value
+						const normalizedSearchValue = value ? strings.stripWildcards(value.toLowerCase()) : value;
 						model.entries.sort((pickA: PickOpenEntry, pickB: PickOpenEntry) => {
 							if (!value) {
 								return pickA.index - pickB.index; // restore natural order
 							}
 
-							return QuickOpenEntry.compare(pickA, pickB, value);
+							return QuickOpenEntry.compare(pickA, pickB, normalizedSearchValue);
 						});
 
 						this.pickOpenWidget.refresh(model, value ? { autoFocusFirstEntry: true } : autoFocus);
@@ -827,7 +828,8 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 		});
 
 		// Sort
-		return results.sort((elementA: EditorHistoryEntry, elementB: EditorHistoryEntry) => QuickOpenEntry.compare(elementA, elementB, searchValue));
+		const normalizedSearchValue = strings.stripWildcards(searchValue.toLowerCase());
+		return results.sort((elementA: EditorHistoryEntry, elementB: EditorHistoryEntry) => QuickOpenEntry.compare(elementA, elementB, normalizedSearchValue));
 	}
 
 	private mergeResults(quickOpenModel: QuickOpenModel, handlerResults: QuickOpenEntry[], groupLabel: string): void {

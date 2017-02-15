@@ -39,6 +39,8 @@ export namespace Schemas {
 	export const https: string = 'https';
 
 	export const file: string = 'file';
+
+	export const untitled: string = 'untitled';
 }
 
 export interface IXHROptions {

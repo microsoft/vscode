@@ -243,7 +243,7 @@ export class ViewController implements IViewController {
 	// ----------------------
 
 	private convertViewToModelPosition(viewPosition: Position): Position {
-		return this.viewModel.convertViewPositionToModelPosition(viewPosition.lineNumber, viewPosition.column);
+		return this.viewModel.coordinatesConverter.convertViewPositionToModelPosition(viewPosition);
 	}
 
 	public emitKeyDown(e: IKeyboardEvent): void {

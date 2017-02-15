@@ -6,11 +6,7 @@
 {
 	"foldAction.label": "Riduci",
 	"foldAllAction.label": "Riduci tutto",
-	"foldLevel1Action.label": "Livello riduzione 1",
-	"foldLevel2Action.label": "Livello riduzione 2",
-	"foldLevel3Action.label": "Livello riduzione 3",
-	"foldLevel4Action.label": "Livello riduzione 4",
-	"foldLevel5Action.label": "Livello riduzione 5",
+	"foldLevelAction.label": "Livello riduzione {0}",
 	"foldRecursivelyAction.label": "Riduci in modo ricorsivo",
 	"unFoldRecursivelyAction.label": "Espandi in modo ricorsivo",
 	"unfoldAction.label": "Espandi",

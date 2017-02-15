@@ -147,4 +147,11 @@ suite('Replace Pattern test', () => {
 		assertReplace('this is a bla text', /b(la)(?=\stext$)/, 'f$0', 'fbla');
 		assertReplace('this is a bla text', /b(la)(?=\stext$)/, '$0ah', 'blaah');
 	});
+
+	test('issue #19740 Find and replace capture group/backreference inserts `undefined` instead of empty string', () => {
+		let replacePattern = parseReplaceString('a{$1}');
+		let matches = /a(z)?/.exec('abcd');
+		let actual = replacePattern.buildReplaceString(matches);
+		assert.equal(actual, 'a{}');
+	});
 });

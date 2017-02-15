@@ -6,15 +6,13 @@
 {
 	"acceptLocalChanges": "로컬 변경 사용 및 디스크 콘텐츠 덮어쓰기",
 	"compareChanges": "비교",
-	"conflictingFileHasChanged": "디스크에 있는 파일의 내용이 변경되고 비교 편집기의 왼쪽이 새로 고쳐졌습니다. 검토하고 다시 확인하세요.",
 	"discard": "삭제",
 	"genericSaveError": "'{0}'을(를) 저장하지 못했습니다. {1}",
 	"overwrite": "덮어쓰기",
 	"readonlySaveError": "'{0}'을(를) 저장하지 못했습니다. 파일이 쓰기 보호되어 있습니다. 보호를 제거하려면 '덮어쓰기'를 선택하세요.",
-	"resolveSaveConflict": "저장 충돌 해결",
 	"retry": "다시 시도",
 	"revertLocalChanges": "로컬 변경을 취소하고 디스크의 콘텐츠로 되돌리기",
-	"saveConflictDiffLabel": "{0}(디스크에 있음) ↔ {1}({2}에 있음)",
+	"saveConflictDiffLabel": "{0}(디스크에 있음) ↔ {1}({2}에 있음) - 저장 충돌 해결",
 	"staleSaveError": "'{0}'을(를) 저장하지 못했습니다. 디스크의 내용이 최신 버전입니다. 버전을 디스크에 있는 버전과 비교하려면 **비교**를 클릭하세요.",
 	"userGuide": "편집기 도구 모음의 작업을 사용하여 변경 내용을 **실행 취소**하거나 디스크의 콘텐츠를 변경 내용으로 **덮어쓰기**"
 }

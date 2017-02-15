@@ -107,6 +107,17 @@ export class ExtensionTipsService implements IExtensionTipsService {
 			}
 		});
 
+		forEach(product.extensionImportantTips, entry => {
+			let {key: id, value} = entry;
+			const {pattern} = value;
+			let ids = this._availableRecommendations[pattern];
+			if (!ids) {
+				this._availableRecommendations[pattern] = [id];
+			} else {
+				ids.push(id);
+			}
+		});
+
 		this._modelService.onModelAdded(this._suggest, this, this._disposables);
 		this._modelService.getModels().forEach(model => this._suggest(model));
 	}

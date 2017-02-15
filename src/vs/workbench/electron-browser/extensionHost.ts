@@ -226,11 +226,11 @@ export class ExtensionHostProcessWorker {
 				if (msg === 'ready') {
 					// 1) Host is ready to receive messages, initialize it
 					return this.createExtHostInitData().then(data => protocol.send(stringify(data)));
-
 				} else if (msg === 'initialized') {
 					// 2) Host is initialized
 					this.messagingProtocol.resolve(protocol);
 				}
+				return undefined;
 			});
 		});
 	}

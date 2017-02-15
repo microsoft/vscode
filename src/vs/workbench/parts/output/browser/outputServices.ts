@@ -278,7 +278,7 @@ class OutputContentProvider implements ITextModelContentProvider {
 		if (!this.channelIdsWithScrollLock.has(channel)) {
 			// reveal last line
 			const panel = this.panelService.getActivePanel();
-			(<OutputPanel>panel).revealLastLine(true);
+			(<OutputPanel>panel).revealLastLine();
 		}
 	}
 

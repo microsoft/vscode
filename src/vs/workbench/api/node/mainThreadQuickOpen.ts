@@ -51,6 +51,7 @@ export class MainThreadQuickOpen extends MainThreadQuickOpenShape {
 			if (item) {
 				return item.handle;
 			}
+			return undefined;
 		}, undefined, progress => {
 			if (progress) {
 				this._proxy.$onItemSelected((<MyQuickPickItems>progress).handle);
@@ -61,15 +62,15 @@ export class MainThreadQuickOpen extends MainThreadQuickOpenShape {
 	$setItems(items: MyQuickPickItems[]): Thenable<any> {
 		if (this._doSetItems) {
 			this._doSetItems(items);
-			return;
 		}
+		return undefined;
 	}
 
 	$setError(error: Error): Thenable<any> {
 		if (this._doSetError) {
 			this._doSetError(error);
-			return;
 		}
+		return undefined;
 	}
 
 	// ---- input

@@ -5,8 +5,8 @@
 
 'use strict';
 
-import { Uri, EventEmitter, Event, SCMResource, SCMResourceDecorations, SCMResourceGroup, Disposable, window } from 'vscode';
-import { Repository, IRef, IBranch, IRemote, IPushOptions } from './git';
+import { Uri, EventEmitter, Event, SCMResource, SCMResourceDecorations, SCMResourceGroup, Disposable, window, workspace } from 'vscode';
+import { Repository, Ref, Branch, Remote, PushOptions, Commit } from './git';
 import { anyEvent, eventToPromise, filterEvent, mapEvent } from './util';
 import { memoize, throttle, debounce } from './decorators';
 import { watch } from './watch';
@@ -154,16 +154,18 @@ export class WorkingTreeGroup extends ResourceGroup {
 }
 
 export enum Operation {
-	Status = 0o1,
-	Stage = 0o2,
-	Unstage = 0o4,
-	Commit = 0o10,
-	Clean = 0o20,
-	Branch = 0o40,
-	Checkout = 0o100,
-	Fetch = 0o200,
-	Sync = 0o400,
-	Push = 0o1000
+	Status = 1 << 0,
+	Stage = 1 << 1,
+	Unstage = 1 << 2,
+	Commit = 1 << 3,
+	Clean = 1 << 4,
+	Branch = 1 << 5,
+	Checkout = 1 << 6,
+	Reset = 1 << 7,
+	Fetch = 1 << 8,
+	Pull = 1 << 9,
+	Push = 1 << 10,
+	Sync = 1 << 11,
 }
 
 export interface Operations {
@@ -192,6 +194,12 @@ class OperationsImpl implements Operations {
 	isIdle(): boolean {
 		return this.operations === 0;
 	}
+}
+
+export interface CommitOptions {
+	all?: boolean;
+	amend?: boolean;
+	signoff?: boolean;
 }
 
 export class Model {
@@ -267,18 +275,18 @@ export class Model {
 		return this._repositoryRoot;
 	}
 
-	private _HEAD: IBranch | undefined;
-	get HEAD(): IBranch | undefined {
+	private _HEAD: Branch | undefined;
+	get HEAD(): Branch | undefined {
 		return this._HEAD;
 	}
 
-	private _refs: IRef[] = [];
-	get refs(): IRef[] {
+	private _refs: Ref[] = [];
+	get refs(): Ref[] {
 		return this._refs;
 	}
 
-	private _remotes: IRemote[] = [];
-	get remotes(): IRemote[] {
+	private _remotes: Remote[] = [];
+	get remotes(): Remote[] {
 		return this._remotes;
 	}
 
@@ -298,7 +306,7 @@ export class Model {
 	}
 
 	@throttle
-	async commit(message: string, opts: { all?: boolean, amend?: boolean, signoff?: boolean } = Object.create(null)): Promise<void> {
+	async commit(message: string, opts: CommitOptions = Object.create(null)): Promise<void> {
 		await this.run(Operation.Commit, async () => {
 			if (opts.all) {
 				await this.repository.add([]);
@@ -352,18 +360,33 @@ export class Model {
 	}
 
 	@throttle
+	async getCommit(ref: string): Promise<Commit> {
+		return await this.repository.getCommit(ref);
+	}
+
+	@throttle
+	async reset(treeish: string, hard?: boolean): Promise<void> {
+		await this.run(Operation.Reset, () => this.repository.reset(treeish, hard));
+	}
+
+	@throttle
 	async fetch(): Promise<void> {
 		await this.run(Operation.Fetch, () => this.repository.fetch());
 	}
 
 	@throttle
-	async sync(): Promise<void> {
-		await this.run(Operation.Sync, () => this.repository.sync());
+	async pull(rebase?: boolean): Promise<void> {
+		await this.run(Operation.Pull, () => this.repository.pull(rebase));
 	}
 
 	@throttle
-	async push(remote?: string, name?: string, options?: IPushOptions): Promise<void> {
+	async push(remote?: string, name?: string, options?: PushOptions): Promise<void> {
 		await this.run(Operation.Push, () => this.repository.push(remote, name, options));
+	}
+
+	@throttle
+	async sync(): Promise<void> {
+		await this.run(Operation.Sync, () => this.repository.sync());
 	}
 
 	private async run(operation: Operation, fn: () => Promise<void> = () => Promise.resolve()): Promise<void> {
@@ -384,7 +407,7 @@ export class Model {
 	@throttle
 	private async update(): Promise<void> {
 		const status = await this.repository.getStatus();
-		let HEAD: IBranch | undefined;
+		let HEAD: Branch | undefined;
 
 		try {
 			HEAD = await this.repository.getHEAD();
@@ -449,6 +472,13 @@ export class Model {
 	}
 
 	private onFSChange(uri: Uri): void {
+		const config = workspace.getConfiguration('git');
+		const autorefresh = config.get<boolean>('autorefresh');
+
+		if (!autorefresh) {
+			return;
+		}
+
 		if (!this.operations.isIdle()) {
 			return;
 		}

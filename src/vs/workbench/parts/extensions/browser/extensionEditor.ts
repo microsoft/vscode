@@ -391,7 +391,8 @@ export class ExtensionEditor extends BaseEditor {
 			const tree = ExtensionEditor.renderDependencies(content, extensionDependencies, this.instantiationService);
 			const layout = () => {
 				scrollableContent.scanDomNode();
-				tree.layout(scrollableContent.getHeight());
+				const scrollState = scrollableContent.getScrollState();
+				tree.layout(scrollState.height);
 			};
 			const removeLayoutParticipant = arrays.insert(this.layoutParticipants, { layout });
 			this.contentDisposables.push(toDisposable(removeLayoutParticipant));

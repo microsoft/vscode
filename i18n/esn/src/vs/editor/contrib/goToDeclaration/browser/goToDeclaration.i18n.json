@@ -7,6 +7,7 @@
 	"actions.goToDecl.label": "Ir a definición",
 	"actions.goToDeclToSide.label": "Abrir definición en el lateral",
 	"actions.goToImplementation.label": "Ir a implementación",
+	"actions.peekImplementation.label": "Implementación rápida",
 	"actions.previewDecl.label": "Ver la definición",
 	"meta.title": " – {0} definiciones",
 	"multipleResults": "Haga clic para mostrar {0} definiciones."

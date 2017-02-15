@@ -6,9 +6,11 @@
 {
 	"error.cannotloadicontheme": "Non è possibile caricare {0}",
 	"error.cannotloadtheme": "Non è possibile caricare {0}",
-	"error.cannotparse": "Problemi durante l'analisi del file plist: {0}",
+	"error.cannotparse": "Problemi durante l'analisi del file di tema: {0}",
 	"error.cannotparseicontheme": "Si sono verificati problemi durante l'analisi del file delle icone dei file: {0}",
 	"error.cannotparsejson": "Problemi durante l'analisi del file di tema di JSON: {0}",
+	"error.invalidformat": "Problema durante l'analisi del file di tema JSON: {0}. 'settings' non corrisponde a una matrice.",
+	"error.plist.invalidformat": "Problema durante l'analisi del file di tema: {0}. 'settings' non corrisponde a una matrice.",
 	"invalid.path.1": "Valore previsto di `contributes.{0}.path` ({1}) da includere nella cartella dell'estensione ({2}). L'estensione potrebbe non essere più portatile.",
 	"reqarray": "Il punto di estensione `{0}` deve essere una matrice.",
 	"reqid": "È previsto un valore stringa in `contributes.{0}.id`. Valore specificato: {1}",

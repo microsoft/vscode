@@ -52,13 +52,15 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 			if (configurationName === StartDebugActionItem.ADD_CONFIGURATION) {
 				const manager = this.debugService.getConfigurationManager();
 				this.selectBox.select(manager.getConfigurationNames().indexOf(this.debugService.getViewModel().selectedConfigurationName));
-				manager.openConfigFile(false).then(editor => {
+				manager.openConfigFile(false).done(editor => {
 					if (editor) {
 						const codeEditor = <ICommonCodeEditor>editor.getControl();
 						if (codeEditor) {
 							return codeEditor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID).addLaunchConfiguration();
 						}
 					}
+
+					return undefined;
 				});
 			} else {
 				this.debugService.getViewModel().setSelectedConfigurationName(configurationName);
@@ -78,8 +80,10 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 			this.actionRunner.run(this.action, this.context).done(null, errors.onUnexpectedError);
 		}));
 
-		this.toDispose.push(dom.addDisposableListener(this.start, dom.EventType.MOUSE_DOWN, () => {
-			dom.addClass(this.start, 'active');
+		this.toDispose.push(dom.addDisposableListener(this.start, dom.EventType.MOUSE_DOWN, (e: MouseEvent) => {
+			if (this.action.enabled && e.button === 0) {
+				dom.addClass(this.start, 'active');
+			}
 		}));
 		this.toDispose.push(dom.addDisposableListener(this.start, dom.EventType.MOUSE_UP, () => {
 			dom.removeClass(this.start, 'active');

@@ -22,7 +22,7 @@ addons:
 
 before_install:
   - git submodule update --init --recursive
-  - git clone https://github.com/creationix/nvm.git ./.nvm
+  - git clone --depth 1 https://github.com/creationix/nvm.git ./.nvm
   - source ./.nvm/nvm.sh
   - nvm install 6.6.0
   - nvm use 6.6.0

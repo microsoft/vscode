@@ -8,6 +8,7 @@
 import 'vs/css!./media/searchviewlet';
 import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
+import { Emitter, debounceEvent } from 'vs/base/common/event';
 import { EditorType, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import lifecycle = require('vs/base/common/lifecycle');
 import errors = require('vs/base/common/errors');
@@ -88,6 +89,8 @@ export class SearchViewlet extends Viewlet {
 
 	private currentSelectedFileMatch: FileMatch;
 
+	private selectCurrentMatchEmitter: Emitter<string>;
+
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IFileService private fileService: IFileService,
@@ -120,6 +123,10 @@ export class SearchViewlet extends Viewlet {
 		this.toUnbind.push(this.fileService.onFileChanges(e => this.onFilesChanged(e)));
 		this.toUnbind.push(this.untitledEditorService.onDidChangeDirty(e => this.onUntitledDidChangeDirty(e)));
 		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config)));
+
+		this.selectCurrentMatchEmitter = new Emitter<string>();
+		debounceEvent(this.selectCurrentMatchEmitter.event, (l, e) => e, 100, /*leading=*/true)
+			(() => this.selectCurrentMatch());
 
 	}
 
@@ -481,7 +488,10 @@ export class SearchViewlet extends Viewlet {
 					}
 					this.currentSelectedFileMatch = selectedMatch.parent();
 					this.currentSelectedFileMatch.setSelectedMatch(selectedMatch);
-					this.onFocus(selectedMatch, !focusEditor, sideBySide, doubleClick);
+
+					if (!event.payload.preventEditorOpen) {
+						this.onFocus(selectedMatch, !focusEditor, sideBySide, doubleClick);
+					}
 				}
 			}));
 		});
@@ -511,14 +521,30 @@ export class SearchViewlet extends Viewlet {
 		}
 	}
 
-	public selectNextResult(): void {
+	public selectCurrentMatch(): void {
+		const focused = this.tree.getFocus();
 		const eventPayload = { focusEditor: true };
-		const [selected]: FileMatchOrMatch[] = this.tree.getSelection();
-		const navigator = this.tree.getNavigator(selected, /*subTreeOnly=*/false);
-		let next = navigator.next();
+		this.tree.setSelection([focused], eventPayload);
+	}
 
+	public selectNextMatch(): void {
+		const [selected]: FileMatchOrMatch[] = this.tree.getSelection();
+
+		// Expand the initial selected node, if needed
+		if (selected instanceof FileMatch) {
+			if (!this.tree.isExpanded(selected)) {
+				this.tree.expand(selected);
+			}
+		}
+
+		let navigator = this.tree.getNavigator(selected, /*subTreeOnly=*/false);
+
+		let next = navigator.next();
 		if (!next) {
-			return;
+			// Reached the end - get a new navigator from the root.
+			// .first and .last only work when subTreeOnly = true. Maybe there's a simpler way.
+			navigator = this.tree.getNavigator(this.tree.getInput(), /*subTreeOnly*/true);
+			next = navigator.first();
 		}
 
 		// Expand and go past FileMatch nodes
@@ -532,24 +558,36 @@ export class SearchViewlet extends Viewlet {
 		}
 
 		// Reveal the newly selected element
+		const eventPayload = { preventEditorOpen: true };
 		this.tree.setFocus(next, eventPayload);
 		this.tree.setSelection([next], eventPayload);
 		this.tree.reveal(next);
+		this.selectCurrentMatchEmitter.fire();
 	}
 
-	public selectPreviousResult(): void {
-		const eventPayload = { focusEditor: true };
+	public selectPreviousMatch(): void {
 		const [selected]: FileMatchOrMatch[] = this.tree.getSelection();
-		const navigator = this.tree.getNavigator(selected, /*subTreeOnly=*/false);
+		let navigator = this.tree.getNavigator(selected, /*subTreeOnly=*/false);
 
 		let prev = navigator.previous();
-		if (!prev) {
-			return;
-		}
 
 		// Expand and go past FileMatch nodes
 		if (!(prev instanceof Match)) {
 			prev = navigator.previous();
+			if (!prev) {
+				// Wrap around. Get a new tree starting from the root
+				navigator = this.tree.getNavigator(this.tree.getInput(), /*subTreeOnly*/true);
+				prev = navigator.last();
+
+				// This is complicated because .last will set the navigator to the last FileMatch,
+				// so expand it and FF to its last child
+				this.tree.expand(prev);
+				let tmp;
+				while (tmp = navigator.next()) {
+					prev = tmp;
+				}
+			}
+
 			if (!(prev instanceof Match)) {
 				// There is a second non-Match result, which must be a collapsed FileMatch.
 				// Expand it then select its last child.
@@ -561,9 +599,11 @@ export class SearchViewlet extends Viewlet {
 
 		// Reveal the newly selected element
 		if (prev) {
+			const eventPayload = { preventEditorOpen: true };
 			this.tree.setFocus(prev, eventPayload);
 			this.tree.setSelection([prev], eventPayload);
 			this.tree.reveal(prev);
+			this.selectCurrentMatchEmitter.fire();
 		}
 	}
 
@@ -1136,7 +1176,9 @@ export class SearchViewlet extends Viewlet {
 
 		this.telemetryService.publicLog('searchResultChosen');
 
-		return (this.viewModel.isReplaceActive() && !!this.viewModel.replaceString) ? this.replaceService.openReplacePreview(lineMatch, preserveFocus, sideBySide, pinned) : this.open(lineMatch, preserveFocus, sideBySide, pinned);
+		return (this.viewModel.isReplaceActive() && !!this.viewModel.replaceString) ?
+			this.replaceService.openReplacePreview(lineMatch, preserveFocus, sideBySide, pinned) :
+			this.open(lineMatch, preserveFocus, sideBySide, pinned);
 	}
 
 	public open(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): TPromise<any> {

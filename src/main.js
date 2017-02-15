@@ -120,7 +120,7 @@ function getNodeCachedDataDir() {
 
 	var dir = path.join(app.getPath('userData'), 'CachedData');
 
-	return mkdirp(dir);
+	return mkdirp(dir).then(undefined, function (err) { /*ignore*/ });
 }
 
 function mkdirp(dir) {

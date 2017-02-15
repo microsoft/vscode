@@ -74,6 +74,10 @@ export class PagedList<T> {
 		this.list = new List(container, delegate, pagedRenderers, options);
 	}
 
+	get widget(): List<number> {
+		return this.list;
+	}
+
 	get onFocusChange(): Event<IFocusChangeEvent<T>> {
 		return mapEvent(this.list.onFocusChange, ({ elements, indexes }) => ({ elements: elements.map(e => this._model.get(e)), indexes }));
 	}

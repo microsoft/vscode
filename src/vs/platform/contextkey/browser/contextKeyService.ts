@@ -31,6 +31,7 @@ export class ContextValuesContainer {
 			this._value[key] = value;
 			return true;
 		}
+		return false;
 	}
 
 	public removeValue(key: string): boolean {

@@ -7,6 +7,8 @@
 	"invalid.properties": "'configuration.properties' deve essere un oggetto",
 	"invalid.title": "'configuration.title' deve essere una stringa",
 	"invalid.type": "se impostato, 'configuration.type' deve essere impostato su 'object",
+	"overrideSettings.description": "Consente di configurare le impostazioni da ignorare per un set di identificatori lingua.",
+	"overrideSettings.title": "Esegui override delle impostazioni",
 	"vscode.extension.contributes.configuration": "Impostazioni di configurazione di contributes.",
 	"vscode.extension.contributes.configuration.properties": "Descrizione delle proprietà di configurazione.",
 	"vscode.extension.contributes.configuration.title": "Riepilogo delle impostazioni. Questa etichetta verrà usata nel file di impostazioni come commento di separazione."

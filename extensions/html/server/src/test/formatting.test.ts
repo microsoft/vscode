@@ -4,6 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import * as path from 'path'
+import * as fs from 'fs'
+
 import * as assert from 'assert';
 import { getLanguageModes } from '../modes/languageModes';
 import { TextDocument, Range, TextEdit, FormattingOptions } from 'vscode-languageserver-types';
@@ -12,7 +15,7 @@ import { format } from '../modes/formatting';
 
 suite('HTML Embedded Formatting', () => {
 
-	function assertFormat(value: string, expected: string, options?: any): void {
+	function assertFormat(value: string, expected: string, options?: any, formatOptions?: FormattingOptions): void {
 		var languageModes = getLanguageModes({ css: true, javascript: true });
 		if (options) {
 			languageModes.getAllModes().forEach(m => m.configure(options));
@@ -31,12 +34,20 @@ suite('HTML Embedded Formatting', () => {
 		}
 		let document = TextDocument.create('test://test/test.html', 'html', 0, value);
 		let range = Range.create(document.positionAt(rangeStartOffset), document.positionAt(rangeEndOffset));
-		let formatOptions = FormattingOptions.create(2, true);
+		if (!formatOptions) {
+			formatOptions = FormattingOptions.create(2, true);
+		}
 
 		let result = format(languageModes, document, range, formatOptions, { css: true, javascript: true });
 
 		let actual = applyEdits(document, result);
 		assert.equal(actual, expected);
+	}
+
+	function assertFormatWithFixture(fixtureName: string, expectedPath: string, options?: any, formatOptions?: FormattingOptions): void {
+		let input = fs.readFileSync(path.join(__dirname, 'fixtures', 'inputs', fixtureName)).toString();
+		let expected = fs.readFileSync(path.join(__dirname, 'fixtures', 'expected', expectedPath)).toString();
+		assertFormat(input, expected, options, formatOptions);
 	}
 
 	test('HTML only', function (): any {
@@ -55,6 +66,12 @@ suite('HTML Embedded Formatting', () => {
 		assertFormat('<html><head>\n  |<script>\nvar x=5;\n</script>|</head></html>', '<html><head>\n  <script>\n    var x = 5;\n\n  </script></head></html>');
 		assertFormat('<html><head>\n  <script>\n|var x=6;|\n</script></head></html>', '<html><head>\n  <script>\n  var x = 6;\n</script></head></html>');
 	});
+
+	test('HTLM & Scripts - Fixtures', function() {
+		assertFormatWithFixture('19813.html', '19813.html');
+		assertFormatWithFixture('19813.html', '19813-4spaces.html', void 0, FormattingOptions.create(4, true));
+		assertFormatWithFixture('19813.html', '19813-tab.html', void 0, FormattingOptions.create(1, false));
+	})
 
 	test('Script end tag', function (): any {
 		assertFormat('<html>\n<head>\n  <script>\nvar x  =  0;\n</script></head></html>', '<html>\n\n<head>\n  <script>\n    var x = 0;\n\n  </script>\n</head>\n\n</html>');

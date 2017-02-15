@@ -151,7 +151,7 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		if (!this.hasView) {
 			return null;
 		}
-		return this._view.getCenteredRangeInViewport();
+		return this.viewModel.getCenteredRangeInViewport();
 	}
 
 	public getCompletelyVisibleLinesRangeInViewport(): Range {
@@ -374,7 +374,6 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 
 	public changeViewZones(callback: (accessor: editorBrowser.IViewZoneChangeAccessor) => void): void {
 		if (!this.hasView) {
-			//			console.warn('Cannot change view zones on editor that is not attached to a model, since there is no view.');
 			return;
 		}
 		let hasChanges = this._view.change(callback);

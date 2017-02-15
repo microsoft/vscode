@@ -17,7 +17,7 @@
 				"--no-color"
 			],
 			"isBuildCommand": true,
-			"isWatching": true,
+			"isBackground": true,
 			"problemMatcher": {
 				"owner": "typescript",
 				"applyTo": "closedDocuments",

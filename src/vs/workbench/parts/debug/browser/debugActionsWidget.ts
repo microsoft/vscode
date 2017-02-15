@@ -118,7 +118,8 @@ export class DebugActionsWidget implements IWorkbenchContribution {
 				const mouseMoveEvent = new StandardMouseEvent(e);
 				// Prevent default to stop editor selecting text #8524
 				mouseMoveEvent.preventDefault();
-				this.setXCoordinate(mouseMoveEvent.posx);
+				// Reduce x by width of drag handle to reduce jarring #16604
+				this.setXCoordinate(mouseMoveEvent.posx - 14);
 			}).once('mouseup', (e: MouseEvent) => {
 				const mouseMoveEvent = new StandardMouseEvent(e);
 				this.storageService.store(DEBUG_ACTIONS_WIDGET_POSITION_KEY, mouseMoveEvent.posx / window.innerWidth, StorageScope.WORKSPACE);
@@ -146,7 +147,7 @@ export class DebugActionsWidget implements IWorkbenchContribution {
 		}
 
 		const widgetWidth = this.$el.getHTMLElement().clientWidth;
-		x = Math.min(x, window.innerWidth - widgetWidth); // do not allow the widget to overflow on the right
+		x = Math.max(0, Math.min(x, window.innerWidth - widgetWidth)); // do not allow the widget to overflow on the right
 		this.$el.style('left', `${x}px`);
 	}
 

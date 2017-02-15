@@ -11,6 +11,7 @@
 	"lines.copyUp": "向上复制行",
 	"lines.delete": "删除行",
 	"lines.deleteAllLeft": "删除左侧所有内容",
+	"lines.deleteAllRight": "删除右侧所有内容",
 	"lines.indent": "行缩进",
 	"lines.insertAfter": "在下面插入行",
 	"lines.insertBefore": "在上面插入行",

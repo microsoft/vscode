@@ -98,7 +98,8 @@ export class VerticalScrollbar extends AbstractScrollbar {
 	}
 
 	protected _getScrollPosition(): number {
-		return this._scrollable.getScrollTop();
+		const scrollState = this._scrollable.getState();
+		return scrollState.scrollTop;
 	}
 
 	protected _setScrollPosition(scrollPosition: number): void {
