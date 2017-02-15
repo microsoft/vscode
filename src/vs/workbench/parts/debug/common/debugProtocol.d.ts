@@ -224,7 +224,9 @@ declare module DebugProtocol {
 
 	/** Arguments for 'initialize' request. */
 	export interface InitializeRequestArguments {
-		/** The ID of the debugger adapter. Used to select or verify debugger adapter. */
+		/** The ID of the (frontend) client using this adapter. */
+		clientID?: string;
+		/** The ID of the debug adapter. */
 		adapterID: string;
 		/** If true all line numbers are 1-based (default). */
 		linesStartAt1?: boolean;
@@ -696,6 +698,8 @@ declare module DebugProtocol {
 		name: string;
 		/** The value of the variable. */
 		value: string;
+		/** Specifies details on how to format the response value. */
+		format?: ValueFormat;
 	}
 
 	/** Response to 'setVariable' request. */
@@ -903,6 +907,34 @@ declare module DebugProtocol {
 		};
 	}
 
+	/** ExceptionInfoRequest request; value of command field is 'exceptionInfo'.
+		Retrieves the details of the exception that caused the StoppedEvent to be raised.
+	*/
+	export interface ExceptionInfoRequest extends Request {
+		// command: 'exceptionInfo';
+		arguments: ExceptionInfoArguments;
+	}
+
+	/** Arguments for 'exceptionInfo' request. */
+	export interface ExceptionInfoArguments {
+		/** Thread for which exception information should be retrieved. */
+		threadId: number;
+	}
+
+	/** Response to 'exceptionInfo' request. */
+	export interface ExceptionInfoResponse extends Response {
+		body: {
+			/** ID of the exception that was thrown. */
+			exceptionId: string;
+			/** Descriptive text for the exception provided by the debug adapter. */
+			description?: string;
+			/** Mode that caused the exception notification to be raised. */
+			breakMode: ExceptionBreakMode;
+			/** Detailed information about the exception. */
+			details?: ExceptionDetails;
+		};
+	}
+
 	/** Information about the capabilities of a debug adapter. */
 	export interface Capabilities {
 		/** The debug adapter supports the configurationDoneRequest. */
@@ -941,6 +973,8 @@ declare module DebugProtocol {
 		supportsExceptionOptions?: boolean;
 		/** The debug adapter supports a 'format' attribute on the stackTraceRequest, variablesRequest, and evaluateRequest. */
 		supportsValueFormattingOptions?: boolean;
+		/** The debug adapter supports the exceptionInfo request. */
+		supportsExceptionInfoRequest?: boolean;
 	}
 
 	/** An ExceptionBreakpointsFilter is shown in the UI as an option for configuring how exceptions are dealt with. */
@@ -1212,10 +1246,13 @@ declare module DebugProtocol {
 		text?: string;
 		/** The item's type. Typically the client uses this information to render the item in the UI with an icon. */
 		type?: CompletionItemType;
-		/** When a completion is selected it replaces 'length' characters starting at 'start' in the text passed to the CompletionsRequest.
-			If missing the frontend will try to determine these values heuristically.
+		/** This value determines the location (in the CompletionsRequest's 'text' attribute) where the completion text is added.
+			If missing the text is added at the location specified by the CompletionsRequest's 'column' attribute.
 		*/
 		start?: number;
+		/** This value determines how many characters are overwritten by the completion text.
+			If missing the value 0 is assumed which results in the completion text being inserted.
+		*/
 		length?: number;
 	}
 
@@ -1277,6 +1314,22 @@ declare module DebugProtocol {
 		negate?: boolean;
 		/** Depending on the value of 'negate' the names that should match or not match. */
 		names: string[];
+	}
+
+	/** Detailed information about an exception that has occurred. */
+	export interface ExceptionDetails {
+		/** Message contained in the exception. */
+		message?: string;
+		/** Short type name of the exception object. */
+		typeName?: string;
+		/** Fully-qualified type name of the exception object. */
+		fullTypeName?: string;
+		/** Optional expression that can be evaluated in the current scope to obtain the exception object. */
+		evaluateName?: string;
+		/** Stack trace at the time the exception was thrown. */
+		stackTrace?: string;
+		/** Details of the exception contained by this exception, if any. */
+		innerException?: ExceptionDetails[];
 	}
 }
 
