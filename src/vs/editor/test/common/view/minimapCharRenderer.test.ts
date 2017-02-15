@@ -7,7 +7,7 @@
 import * as assert from 'assert';
 import { MinimapTokensColorTracker, ParsedColor, Constants } from 'vs/editor/common/view/minimapCharRenderer';
 import { MinimapCharRendererFactory } from 'vs/editor/test/common/view/minimapCharRendererFactory';
-import { createMinimapCharRenderer2 } from 'vs/editor/common/view/runtimeMinimapCharRenderer';
+import { createMinimapCharRenderer } from 'vs/editor/common/view/runtimeMinimapCharRenderer';
 
 suite('MinimapColors', () => {
 
@@ -137,7 +137,7 @@ suite('MinimapCharRenderer', () => {
 	});
 
 	test('letter d @ 2x at runtime', () => {
-		let renderer = createMinimapCharRenderer2();
+		let renderer = createMinimapCharRenderer();
 
 		let background = new ParsedColor(0, 0, 0);
 		let color = new ParsedColor(255, 255, 255);
@@ -192,7 +192,7 @@ suite('MinimapCharRenderer', () => {
 	});
 
 	test('letter d @ 1x at runtime', () => {
-		let renderer = createMinimapCharRenderer2();
+		let renderer = createMinimapCharRenderer();
 
 		let background = new ParsedColor(0, 0, 0);
 		let color = new ParsedColor(255, 255, 255);

@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { Constants, MinimapCharRenderer2, ParsedColor } from 'vs/editor/common/view/minimapCharRenderer';
+import { Constants, MinimapCharRenderer, ParsedColor } from 'vs/editor/common/view/minimapCharRenderer';
 import { MinimapCharRendererFactory } from 'vs/editor/test/common/view/minimapCharRendererFactory';
-import { createMinimapCharRenderer2 } from 'vs/editor/common/view/runtimeMinimapCharRenderer';
+import { createMinimapCharRenderer } from 'vs/editor/common/view/runtimeMinimapCharRenderer';
 
 let canvas = <HTMLCanvasElement>document.getElementById('my-canvas');
 let ctx = canvas.getContext('2d');
@@ -28,7 +28,7 @@ let minimapCharRenderer = MinimapCharRendererFactory.create(sampleData.data);
 
 renderImageData(sampleData, 10, 100);
 renderMinimapCharRenderer(minimapCharRenderer, 400);
-renderMinimapCharRenderer(createMinimapCharRenderer2(), 600);
+renderMinimapCharRenderer(createMinimapCharRenderer(), 600);
 
 function createFakeImageData(width: number, height: number): ImageData {
 	return {
@@ -38,7 +38,7 @@ function createFakeImageData(width: number, height: number): ImageData {
 	};
 }
 
-function renderMinimapCharRenderer(minimapCharRenderer: MinimapCharRenderer2, y: number): void {
+function renderMinimapCharRenderer(minimapCharRenderer: MinimapCharRenderer, y: number): void {
 
 	let background = new ParsedColor(0, 0, 0);
 	let color = new ParsedColor(255, 255, 255);
