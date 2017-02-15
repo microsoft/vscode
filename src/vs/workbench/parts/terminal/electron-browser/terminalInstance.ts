@@ -51,6 +51,7 @@ export class TerminalInstance implements ITerminalInstance {
 	private _hadFocusOnExit: boolean;
 	private _isLaunching: boolean;
 	private _isVisible: boolean;
+	private _isDisposed: boolean;
 	private _onDisposed: Emitter<ITerminalInstance>;
 	private _onProcessIdReady: Emitter<TerminalInstance>;
 	private _onTitleChanged: Emitter<string>;
@@ -93,6 +94,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._hadFocusOnExit = false;
 		this._isLaunching = true;
 		this._isVisible = false;
+		this._isDisposed = false;
 		this._id = TerminalInstance._idCounter++;
 		this._terminalHasTextContextKey = KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED.bindTo(this._contextKeyService);
 
@@ -257,7 +259,10 @@ export class TerminalInstance implements ITerminalInstance {
 			}
 			this._process = null;
 		}
-		this._onDisposed.fire(this);
+		if (!this._isDisposed) {
+			this._isDisposed = true;
+			this._onDisposed.fire(this);
+		}
 		this._processDisposables = lifecycle.dispose(this._processDisposables);
 		this._instanceDisposables = lifecycle.dispose(this._instanceDisposables);
 	}
