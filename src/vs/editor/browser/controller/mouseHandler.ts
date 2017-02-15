@@ -463,7 +463,7 @@ class MouseDownOperation extends Disposable {
 				this._mouseDragThenMoveEventHandler.handler,
 				() => {
 					if (this._mouseState.lastMouseDownEvent !== 'drag') {
-						// the last event is mouse down which happens 16ms ago.
+						// there is no dragging so we need to update the cursor position like a simple mouse down+up.
 						this._dispatchMouse(position, e.shiftKey);
 					} else {
 						this._viewController.emitMouseDrop({

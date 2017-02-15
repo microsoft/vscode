@@ -23,7 +23,6 @@ export class DragTargetHintWidget extends Widget implements editorBrowser.IConte
 	private _typicalHalfwidthCharacterWidth: number;
 	private readonly _domNode: FastDomNode;
 	private _isVisible: boolean = false;
-	private _isDirty: boolean = false;
 
 	protected get isVisible(): boolean {
 		return this._isVisible;
@@ -31,27 +30,6 @@ export class DragTargetHintWidget extends Widget implements editorBrowser.IConte
 
 	protected set isVisible(value: boolean) {
 		this._isVisible = value;
-	}
-
-	protected set cursorStyle(value: TextEditorCursorStyle) {
-		if (this._cursorStyle !== value) {
-			this._cursorStyle = value;
-			this._isDirty = true;
-		}
-	}
-
-	protected set lineHeight(value: number) {
-		if (this._lineHeight !== value) {
-			this._lineHeight = value;
-			this._isDirty = true;
-		}
-	}
-
-	protected set typicalHalfwidthCharacterWidth(value: TextEditorCursorStyle) {
-		if (this._typicalHalfwidthCharacterWidth !== value) {
-			this._typicalHalfwidthCharacterWidth = value;
-			this._isDirty = true;
-		}
 	}
 
 	constructor(editor: editorBrowser.ICodeEditor) {
@@ -69,15 +47,15 @@ export class DragTargetHintWidget extends Widget implements editorBrowser.IConte
 		this._domNode.setVisibility('hidden');
 		this._editor.addContentWidget(this);
 
-		this.cursorStyle = this._editor.getConfiguration().viewInfo.cursorStyle;
-		this.lineHeight = this._editor.getConfiguration().lineHeight;
-		this.typicalHalfwidthCharacterWidth = this._editor.getConfiguration().fontInfo.typicalHalfwidthCharacterWidth;
+		this._cursorStyle = this._editor.getConfiguration().viewInfo.cursorStyle;
+		this._lineHeight = this._editor.getConfiguration().lineHeight;
+		this._typicalHalfwidthCharacterWidth = this._editor.getConfiguration().fontInfo.typicalHalfwidthCharacterWidth;
 
 		this._register(this._editor.onDidChangeConfiguration((e: IConfigurationChangedEvent) => {
 			if (e.fontInfo || e.viewInfo || e.lineHeight) {
-				this.typicalHalfwidthCharacterWidth = this._editor.getConfiguration().fontInfo.typicalHalfwidthCharacterWidth;
-				this.lineHeight = this._editor.getConfiguration().lineHeight;
-				this.cursorStyle = this._editor.getConfiguration().viewInfo.cursorStyle;
+				this._typicalHalfwidthCharacterWidth = this._editor.getConfiguration().fontInfo.typicalHalfwidthCharacterWidth;
+				this._lineHeight = this._editor.getConfiguration().lineHeight;
+				this._cursorStyle = this._editor.getConfiguration().viewInfo.cursorStyle;
 			}
 		}));
 
@@ -136,7 +114,7 @@ export class DragTargetHintWidget extends Widget implements editorBrowser.IConte
 	}
 
 	private renderCursor() {
-		if (!this.isVisible || !this._isDirty) {
+		if (!this.isVisible) {
 			return;
 		}
 
@@ -153,7 +131,5 @@ export class DragTargetHintWidget extends Widget implements editorBrowser.IConte
 		} else {
 			this._domNode.setClassName('cursor secondary');
 		}
-
-		this._isDirty = false;
 	}
 }
