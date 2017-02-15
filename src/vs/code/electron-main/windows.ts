@@ -289,6 +289,11 @@ export class WindowsManager implements IWindowsMainService {
 	}
 
 	private onBroadcast(event: string, payload: any): void {
+
+		// Theme changes
+		if (event === 'vscode:changeBaseTheme' && typeof payload === 'string') {
+			this.storageService.setItem(VSCodeWindow.baseThemeStorageKey, payload);
+		}
 	}
 	public reload(win: VSCodeWindow, cli?: ParsedArgs): void {
 
@@ -788,7 +793,8 @@ export class WindowsManager implements IWindowsMainService {
 			},
 				this.logService,
 				this.environmentService,
-				this.configurationService
+				this.configurationService,
+				this.storageService
 			);
 
 			WindowsManager.WINDOWS.push(vscodeWindow);
