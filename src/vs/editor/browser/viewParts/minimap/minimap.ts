@@ -9,9 +9,9 @@ import 'vs/css!./minimap';
 import { ViewPart } from 'vs/editor/browser/view/viewPart';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { IRenderingContext, IRestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
-import { createMinimapCharRenderer } from 'vs/editor/common/view/runtimeMinimapCharRenderer';
+import { getOrCreateMinimapCharRenderer } from 'vs/editor/common/view/runtimeMinimapCharRenderer';
 import * as browser from 'vs/base/browser/browser';
-import { ParsedColor, MinimapTokensColorTracker, Constants } from 'vs/editor/common/view/minimapCharRenderer';
+import { MinimapCharRenderer, ParsedColor, MinimapTokensColorTracker, Constants } from 'vs/editor/common/view/minimapCharRenderer';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { CharCode } from 'vs/base/common/charCode';
 import { IViewLayout, MinimapLineRenderingData } from 'vs/editor/common/viewModel/viewModel';
@@ -19,8 +19,6 @@ import { ColorId } from 'vs/editor/common/modes';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/styleMutator';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { EditorScrollbar } from 'vs/editor/browser/viewParts/editorScrollbar/editorScrollbar';
-
-let charRenderer2 = createMinimapCharRenderer(); // TODO@minimap
 
 const enum RenderMinimap {
 	None = 0,
@@ -225,6 +223,8 @@ export class Minimap extends ViewPart {
 	private readonly _tokensColorTracker: MinimapTokensColorTracker;
 	private readonly _tokensColorTrackerListener: IDisposable;
 
+	private readonly _minimapCharRenderer: MinimapCharRenderer;
+
 	private _options: MinimapOptions;
 	private _lastLayout: MinimapLayout;
 	private _backgroundFillData: Uint8ClampedArray;
@@ -255,10 +255,13 @@ export class Minimap extends ViewPart {
 		this._tokensColorTracker = MinimapTokensColorTracker.getInstance();
 		this._tokensColorTrackerListener = this._tokensColorTracker.onDidChange(() => this._backgroundFillData = null);
 
+		this._minimapCharRenderer = getOrCreateMinimapCharRenderer();
+
 		this._applyLayout();
 	}
 
 	public dispose(): void {
+		this._tokensColorTrackerListener.dispose();
 		super.dispose();
 	}
 
@@ -325,35 +328,23 @@ export class Minimap extends ViewPart {
 		this._lastLayout = null;
 		return true;
 	}
-	public onModelDecorationsChanged(e: editorCommon.IViewDecorationsChangedEvent): boolean {
-		return false;
-	}
 	public onModelLinesDeleted(e: editorCommon.IViewLinesDeletedEvent): boolean {
+		// TODO@minimap: only do so when the lines are painted in the minimap
 		this._lastLayout = null;
 		return true;
 	}
 	public onModelLineChanged(e: editorCommon.IViewLineChangedEvent): boolean {
+		// TODO@minimap: only do so when the lines are painted in the minimap
 		return true;
 	}
 	public onModelLinesInserted(e: editorCommon.IViewLinesInsertedEvent): boolean {
+		// TODO@minimap: only do so when the lines are painted in the minimap
 		this._lastLayout = null;
 		return true;
 	}
 	public onModelTokensChanged(e: editorCommon.IViewTokensChangedEvent): boolean {
 		// TODO@minimap: only do so when the lines are painted in the minimap
 		return true;
-	}
-	public onCursorPositionChanged(e: editorCommon.IViewCursorPositionChangedEvent): boolean {
-		return false;
-	}
-	public onCursorSelectionChanged(e: editorCommon.IViewCursorSelectionChangedEvent): boolean {
-		return false;
-	}
-	public onCursorRevealRange(e: editorCommon.IViewRevealRangeEvent): boolean {
-		return false;
-	}
-	public onCursorScrollRequest(e: editorCommon.IViewScrollRequestEvent): boolean {
-		return false;
 	}
 	public onConfigurationChanged(e: editorCommon.IConfigurationChangedEvent): boolean {
 		return this._onOptionsMaybeChanged();
@@ -362,14 +353,11 @@ export class Minimap extends ViewPart {
 		return this._onOptionsMaybeChanged();
 	}
 	public onScrollChanged(e: editorCommon.IScrollEvent): boolean {
-		// TODO@minimap: only do so when scrolling vertically
-		return true;
+		return e.scrollTopChanged || e.scrollHeightChanged;
 	}
 	public onZonesChanged(): boolean {
+		this._lastLayout = null;
 		return true;
-	}
-	public onViewFocusChanged(isFocused: boolean): boolean {
-		return false;
 	}
 
 	// --- end event handlers
@@ -424,7 +412,7 @@ export class Minimap extends ViewPart {
 		// let start = performance.now();
 		let dy = 0;
 		for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
-			Minimap._renderLine(imageData, background, renderMinimap, charWidth, this._tokensColorTracker, dy, data[lineNumber - startLineNumber]);
+			Minimap._renderLine(imageData, background, renderMinimap, charWidth, this._tokensColorTracker, this._minimapCharRenderer, dy, data[lineNumber - startLineNumber]);
 			dy += minimapLineHeight;
 		}
 		// let end = performance.now();
@@ -433,7 +421,16 @@ export class Minimap extends ViewPart {
 		ctx.putImageData(imageData, 0, 0);
 	}
 
-	private static _renderLine(target: ImageData, backgroundColor: ParsedColor, renderMinimap: RenderMinimap, charWidth: number, colorTracker: MinimapTokensColorTracker, dy: number, lineData: MinimapLineRenderingData) {
+	private static _renderLine(
+		target: ImageData,
+		backgroundColor: ParsedColor,
+		renderMinimap: RenderMinimap,
+		charWidth: number,
+		colorTracker: MinimapTokensColorTracker,
+		minimapCharRenderer: MinimapCharRenderer,
+		dy: number,
+		lineData: MinimapLineRenderingData
+	): void {
 		const content = lineData.content;
 		const tokens = lineData.tokens;
 		const tabSize = lineData.tabSize;
@@ -466,9 +463,9 @@ export class Minimap extends ViewPart {
 					dx += charWidth;
 				} else {
 					if (renderMinimap === RenderMinimap.Large) {
-						charRenderer2.x2RenderChar(target, dx, dy, charCode, tokenColor, backgroundColor);
+						minimapCharRenderer.x2RenderChar(target, dx, dy, charCode, tokenColor, backgroundColor);
 					} else {
-						charRenderer2.x1RenderChar(target, dx, dy, charCode, tokenColor, backgroundColor);
+						minimapCharRenderer.x1RenderChar(target, dx, dy, charCode, tokenColor, backgroundColor);
 					}
 					dx += charWidth;
 				}
