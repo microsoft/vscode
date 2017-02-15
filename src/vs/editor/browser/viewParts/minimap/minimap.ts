@@ -9,7 +9,7 @@ import 'vs/css!./minimap';
 import { ViewPart } from 'vs/editor/browser/view/viewPart';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { IRenderingContext, IRestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
-import { createMinimapCharRenderer2 } from 'vs/editor/common/view/runtimeMinimapCharRenderer';
+import { createMinimapCharRenderer } from 'vs/editor/common/view/runtimeMinimapCharRenderer';
 import * as browser from 'vs/base/browser/browser';
 import { ParsedColor, MinimapTokensColorTracker, Constants } from 'vs/editor/common/view/minimapCharRenderer';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -20,7 +20,7 @@ import { FastDomNode, createFastDomNode } from 'vs/base/browser/styleMutator';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { EditorScrollbar } from 'vs/editor/browser/viewParts/editorScrollbar/editorScrollbar';
 
-let charRenderer2 = createMinimapCharRenderer2(); // TODO@minimap
+let charRenderer2 = createMinimapCharRenderer(); // TODO@minimap
 
 const enum RenderMinimap {
 	None = 0,

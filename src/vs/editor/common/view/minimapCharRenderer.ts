@@ -138,32 +138,11 @@ export const enum Constants {
 	x1_CHAR_WIDTH = 1,
 
 	RGBA_CHANNELS_CNT = 4,
-	CA_CHANNELS_CNT = 2,
 }
 
-export class MinimapCharRenderer2 {
+export class MinimapCharRenderer {
 
 	_minimapCharRendererBrand: void;
-
-	public static create(x2CharData: Uint8ClampedArray, x1CharData: Uint8ClampedArray): MinimapCharRenderer2 {
-		let _x2CharData = this.toGrayscale(x2CharData);
-		let _x1CharData = this.toGrayscale(x1CharData);
-		return new MinimapCharRenderer2(_x2CharData, _x1CharData);
-	}
-
-	private static toGrayscale(charData: Uint8ClampedArray): Uint8ClampedArray {
-		let newLength = charData.length / 2;
-		let result = new Uint8ClampedArray(newLength);
-		let sourceOffset = 0;
-		for (var i = 0; i < newLength; i++) {
-			let color = charData[sourceOffset];
-			let alpha = charData[sourceOffset + 1];
-			let newColor = Math.round((color * alpha) / 255);
-			result[i] = newColor;
-			sourceOffset += 2;
-		}
-		return result;
-	}
 
 	public readonly x2charData: Uint8ClampedArray;
 	public readonly x1charData: Uint8ClampedArray;
@@ -194,7 +173,7 @@ export class MinimapCharRenderer2 {
 			return;
 		}
 		const x2CharData = this.x2charData;
-		const chIndex = MinimapCharRenderer2._getChIndex(chCode);
+		const chIndex = MinimapCharRenderer._getChIndex(chCode);
 
 		const outWidth = target.width * Constants.RGBA_CHANNELS_CNT;
 
@@ -271,7 +250,7 @@ export class MinimapCharRenderer2 {
 			return;
 		}
 		const x1CharData = this.x1charData;
-		const chIndex = MinimapCharRenderer2._getChIndex(chCode);
+		const chIndex = MinimapCharRenderer._getChIndex(chCode);
 
 		const outWidth = target.width * Constants.RGBA_CHANNELS_CNT;
 
