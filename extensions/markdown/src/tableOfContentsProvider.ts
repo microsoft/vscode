@@ -16,7 +16,7 @@ export interface TocEntry {
 	location: vscode.Location;
 }
 
-export class TableOfContentProvider {
+export class TableOfContentsProvider {
 	private toc: TocEntry[];
 
 	public constructor(
@@ -35,7 +35,7 @@ export class TableOfContentProvider {
 	}
 
 	public lookup(fragment: string): number {
-		const slug = TableOfContentProvider.slugify(fragment);
+		const slug = TableOfContentsProvider.slugify(fragment);
 		for (const entry of this.getToc()) {
 			if (entry.slug === slug) {
 				return entry.line;
@@ -51,11 +51,11 @@ export class TableOfContentProvider {
 		for (const heading of tokens.filter(token => token.type === 'heading_open')) {
 			const lineNumber = heading.map[0];
 			const line = document.lineAt(lineNumber);
-			const href = TableOfContentProvider.slugify(line.text);
+			const href = TableOfContentsProvider.slugify(line.text);
 			if (href) {
 				toc.push({
 					slug: href,
-					text: TableOfContentProvider.getHeaderText(line.text),
+					text: TableOfContentsProvider.getHeaderText(line.text),
 					line: lineNumber,
 					location: new vscode.Location(document.uri, line.range)
 				});
@@ -69,9 +69,11 @@ export class TableOfContentProvider {
 	}
 
 	public static slugify(header: string): string {
-		return encodeURI(TableOfContentProvider.getHeaderText(header)
+		return encodeURI(header.trim()
 			.toLowerCase()
-			.replace(/\s/g, '-'));
+			.replace(/[\]\[\!\"\#\$\%\&\'\(\)\*\+\,\.\/\:\;\<\=\>\?\@\\\^\_\{\|\}\~]/g, '')
+			.replace(/\s+/g, '-')
+			.replace(/\-+$/, ''));
 	}
 }
 
