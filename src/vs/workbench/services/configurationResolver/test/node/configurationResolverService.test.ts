@@ -41,6 +41,10 @@ suite('Configuration Resolver Service', () => {
 		assert.strictEqual(configurationResolverService.resolve('abc ${workspaceRootFolderName} xyz'), 'abc workspaceLocation xyz');
 	});
 
+	test('current selected line number', () => {
+		assert.strictEqual(configurationResolverService.resolve('abc ${lineNumber} xyz'), 'abc 15 xyz');
+	});
+
 	test('substitute many', () => {
 		if (platform.isWindows) {
 			assert.strictEqual(configurationResolverService.resolve('${workspaceRoot} - ${workspaceRoot}'), '\\VSCode\\workspaceLocation - \\VSCode\\workspaceLocation');
