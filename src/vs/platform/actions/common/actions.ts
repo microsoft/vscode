@@ -67,8 +67,6 @@ export interface IMenuService {
 	_serviceBrand: any;
 
 	createMenu(id: MenuId, scopedKeybindingService: IContextKeyService): IMenu;
-
-	getCommandActions(): ICommandAction[];
 }
 
 export interface IMenuRegistry {
