@@ -1,0 +1,11 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.virtual-cursor-underline-style {
+	border-bottom-width: 2px;
+	border-bottom-style: solid;
+	background: transparent !important;
+	box-sizing: border-box;
+}

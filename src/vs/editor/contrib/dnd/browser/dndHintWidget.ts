@@ -148,6 +148,12 @@ export class DragTargetHintWidget extends Widget implements editorBrowser.IConte
 			this._domNode.setWidth(this._typicalHalfwidthCharacterWidth);
 		}
 
+		if (this._cursorStyle === TextEditorCursorStyle.Underline) {
+			this._domNode.setClassName('cursor secondary virtual-cursor-underline-style');
+		} else {
+			this._domNode.setClassName('cursor secondary');
+		}
+
 		this._isDirty = false;
 	}
 }
