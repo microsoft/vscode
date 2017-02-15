@@ -225,6 +225,14 @@ export class TerminalInstance implements ITerminalInstance {
 		this.updateConfig();
 	}
 
+	public registerLinkMatcher(regex: RegExp, handler: (url: string) => void, matchIndex?: number): number {
+		return this._xterm.registerLinkMatcher(regex, handler, matchIndex);
+	}
+
+	public deregisterLinkMatcher(linkMatcherId: number): void {
+		this._xterm.deregisterLinkMatcher(linkMatcherId);
+	}
+
 	public hasSelection(): boolean {
 		return !document.getSelection().isCollapsed;
 	}
