@@ -73,6 +73,7 @@ export class TableOfContentsProvider {
 			.toLowerCase()
 			.replace(/[\]\[\!\"\#\$\%\&\'\(\)\*\+\,\.\/\:\;\<\=\>\?\@\\\^\_\{\|\}\~]/g, '')
 			.replace(/\s+/g, '-')
+			.replace(/^\-+/, '')
 			.replace(/\-+$/, ''));
 	}
 }
