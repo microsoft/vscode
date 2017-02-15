@@ -7,11 +7,17 @@
 			"name": "Unit Tests",
 			"protocol": "legacy",
 			"program": "${workspaceRoot}/node_modules/mocha/bin/_mocha",
-			"runtimeExecutable": "${execPath}",
+			"runtimeExecutable": "${workspaceRoot}/.build/electron/Code - OSS.app/Contents/MacOS/Electron",
+			"windows": {
+				"runtimeExecutable": ""
+			},
+			"linux": {
+				"runtimeExecutable": ""
+			},
 			"stopOnEntry": false,
 			"args": [
 				"--timeout",
-				"999999"
+				"2000"
 			],
 			"cwd": "${workspaceRoot}",
 			"env": {
@@ -20,7 +26,8 @@
 			"sourceMaps": true,
 			"outFiles": [
 				"${workspaceRoot}/out/**/*.js"
-			]
+			],
+			"preLaunchTask": "electron"
 		},
 		{
 			"type": "node",
