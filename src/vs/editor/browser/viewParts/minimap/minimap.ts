@@ -94,8 +94,6 @@ class MinimapOptions {
 
 class MinimapLayout {
 
-	public readonly viewportStartLineNumber: number;
-
 	/**
 	 * slider dom node top (in CSS px)
 	 */
@@ -115,7 +113,7 @@ class MinimapLayout {
 	public readonly endLineNumber: number;
 
 	constructor(
-		prevLayout: MinimapLayout,
+		lastRenderData: RenderData,
 		options: MinimapOptions,
 		viewportStartLineNumber: number,
 		viewportEndLineNumber: number,
@@ -157,18 +155,18 @@ class MinimapLayout {
 			// Aligning the slider's centers can result (correctly) in tremor.
 			// i.e. scrolling down might result in the startLineNumber going up.
 			// Avoid this tremor by being consistent w.r.t. the previous computed result
-			if (prevLayout) {
-				if (prevLayout.viewportStartLineNumber <= viewportStartLineNumber) {
+			if (lastRenderData) {
+				if (lastRenderData.viewportStartLineNumber <= viewportStartLineNumber) {
 					// going down => make sure we don't go above our previous decision
-					if (desiredStartLineNumber < prevLayout.startLineNumber) {
-						desiredStartLineNumber = prevLayout.startLineNumber;
+					if (desiredStartLineNumber < lastRenderData.startLineNumber) {
+						desiredStartLineNumber = lastRenderData.startLineNumber;
 						desiredEndLineNumber = desiredStartLineNumber + minimapLinesFitting - 1;
 					}
 				}
-				if (prevLayout.viewportStartLineNumber >= viewportStartLineNumber) {
+				if (lastRenderData.viewportStartLineNumber >= viewportStartLineNumber) {
 					// going up => make sure we don't go below our previous decision
-					if (desiredEndLineNumber > prevLayout.endLineNumber) {
-						desiredEndLineNumber = prevLayout.endLineNumber;
+					if (desiredEndLineNumber > lastRenderData.endLineNumber) {
+						desiredEndLineNumber = lastRenderData.endLineNumber;
 						desiredStartLineNumber = desiredEndLineNumber - minimapLinesFitting + 1;
 					}
 				}
@@ -208,7 +206,38 @@ class MinimapLayout {
 
 		this.sliderTop = Math.floor((viewportStartLineNumber - this.startLineNumber) * minimapLineHeight / pixelRatio);
 		this.sliderHeight = Math.floor(viewportLineCount * minimapLineHeight / pixelRatio);
+	}
+}
+
+class RenderData {
+	/**
+	 * editor viewport start line number.
+	 */
+	public readonly viewportStartLineNumber: number;
+	/**
+	 * editor viewport end line number.
+	 */
+	public readonly viewportEndLineNumber: number;
+
+	/**
+	 * minimap render start line number.
+	 */
+	public readonly startLineNumber: number;
+	/**
+	 * minimap render end line number.
+	 */
+	public readonly endLineNumber: number;
+
+	constructor(
+		viewportStartLineNumber: number,
+		viewportEndLineNumber: number,
+		startLineNumber: number,
+		endLineNumber: number
+	) {
 		this.viewportStartLineNumber = viewportStartLineNumber;
+		this.viewportEndLineNumber = viewportEndLineNumber;
+		this.startLineNumber = startLineNumber;
+		this.endLineNumber = endLineNumber;
 	}
 }
 
@@ -226,7 +255,7 @@ export class Minimap extends ViewPart {
 	private readonly _minimapCharRenderer: MinimapCharRenderer;
 
 	private _options: MinimapOptions;
-	private _lastLayout: MinimapLayout;
+	private _lastRenderData: RenderData;
 	private _backgroundFillData: Uint8ClampedArray;
 
 	constructor(context: ViewContext, viewLayout: IViewLayout, editorScrollbar: EditorScrollbar) {
@@ -235,7 +264,7 @@ export class Minimap extends ViewPart {
 		this._editorScrollbar = editorScrollbar;
 
 		this._options = new MinimapOptions(this._context.configuration);
-		this._lastLayout = null;
+		this._lastRenderData = null;
 		this._backgroundFillData = null;
 
 		this._domNode = createFastDomNode(document.createElement('div'));
@@ -315,22 +344,22 @@ export class Minimap extends ViewPart {
 			return false;
 		}
 		this._options = opts;
-		this._lastLayout = null;
+		this._lastRenderData = null;
 		this._applyLayout();
 		return true;
 	}
 
 	public onLineMappingChanged(): boolean {
-		this._lastLayout = null;
+		this._lastRenderData = null;
 		return true;
 	}
 	public onModelFlushed(): boolean {
-		this._lastLayout = null;
+		this._lastRenderData = null;
 		return true;
 	}
 	public onModelLinesDeleted(e: editorCommon.IViewLinesDeletedEvent): boolean {
 		// TODO@minimap: only do so when the lines are painted in the minimap
-		this._lastLayout = null;
+		this._lastRenderData = null;
 		return true;
 	}
 	public onModelLineChanged(e: editorCommon.IViewLineChangedEvent): boolean {
@@ -339,7 +368,7 @@ export class Minimap extends ViewPart {
 	}
 	public onModelLinesInserted(e: editorCommon.IViewLinesInsertedEvent): boolean {
 		// TODO@minimap: only do so when the lines are painted in the minimap
-		this._lastLayout = null;
+		this._lastRenderData = null;
 		return true;
 	}
 	public onModelTokensChanged(e: editorCommon.IViewTokensChangedEvent): boolean {
@@ -356,7 +385,7 @@ export class Minimap extends ViewPart {
 		return e.scrollTopChanged || e.scrollHeightChanged;
 	}
 	public onZonesChanged(): boolean {
-		this._lastLayout = null;
+		this._lastRenderData = null;
 		return true;
 	}
 
@@ -381,8 +410,8 @@ export class Minimap extends ViewPart {
 		const minimapLineHeight = (renderMinimap === RenderMinimap.Large ? Constants.x2_CHAR_HEIGHT : Constants.x1_CHAR_HEIGHT);
 		const charWidth = (renderMinimap === RenderMinimap.Large ? Constants.x2_CHAR_WIDTH : Constants.x1_CHAR_WIDTH);
 
-		this._lastLayout = new MinimapLayout(
-			this._lastLayout,
+		const layout = new MinimapLayout(
+			this._lastRenderData,
 			this._options,
 			renderingCtx.visibleRange.startLineNumber,
 			renderingCtx.visibleRange.endLineNumber,
@@ -391,12 +420,11 @@ export class Minimap extends ViewPart {
 			this._editorScrollbar.getVerticalSliderVerticalCenter()
 		);
 
-		this._slider.setTop(this._lastLayout.sliderTop);
-		this._slider.setHeight(this._lastLayout.sliderHeight);
+		this._slider.setTop(layout.sliderTop);
+		this._slider.setHeight(layout.sliderHeight);
 
-		const startLineNumber = this._lastLayout.startLineNumber;
-		const endLineNumber = this._lastLayout.endLineNumber;
-
+		const startLineNumber = layout.startLineNumber;
+		const endLineNumber = layout.endLineNumber;
 
 		// Prepare image data (fill with background color)
 		let imageData = ctx.createImageData(WIDTH, HEIGHT);
@@ -404,15 +432,12 @@ export class Minimap extends ViewPart {
 
 		let background = this._tokensColorTracker.getColor(ColorId.DefaultBackground);
 
-		let start = performance.now();
 		let needed: boolean[] = [];
 		for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
 			needed[lineNumber - startLineNumber] = true;
 		}
 		const data2 = this._context.model.getMinimapLinesRenderingData(startLineNumber, endLineNumber, needed);
 		const tabSize = data2.tabSize;
-		let end = performance.now();
-		console.log(`FETCHING MINIMAP DATA TOOK ${end - start} ms.`);
 
 		// let start2 = performance.now();
 		let dy = 0;
@@ -422,6 +447,13 @@ export class Minimap extends ViewPart {
 		}
 		// let end2 = performance.now();
 		// console.log(`PAINTING MINIMAP TOOK ${end2 - start2} ms.`);
+
+		this._lastRenderData = new RenderData(
+			renderingCtx.visibleRange.startLineNumber,
+			renderingCtx.visibleRange.endLineNumber,
+			startLineNumber,
+			endLineNumber
+		);
 
 		ctx.putImageData(imageData, 0, 0);
 	}
