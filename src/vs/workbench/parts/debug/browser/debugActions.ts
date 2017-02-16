@@ -127,6 +127,9 @@ export class StartAction extends AbstractDebugAction {
 
 	public run(): TPromise<any> {
 		return this.commandService.executeCommand('workbench.action.files.save').then(() => {
+			if (this.debugService.getModel().getProcesses().length === 0) {
+				this.debugService.removeReplExpressions();
+			}
 			const manager = this.debugService.getConfigurationManager();
 			const configName = this.debugService.getViewModel().selectedConfigurationName;
 			const compound = manager.getCompound(configName);
@@ -227,6 +230,9 @@ export class RestartAction extends AbstractDebugAction {
 			process = this.debugService.getViewModel().focusedProcess;
 		}
 
+		if (this.debugService.getModel().getProcesses().length <= 1) {
+			this.debugService.removeReplExpressions();
+		}
 		return this.debugService.restartProcess(process);
 	}
 
