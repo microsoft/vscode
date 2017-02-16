@@ -9,7 +9,7 @@ import { TextEditor, Position, Range, Selection } from 'vscode';
 
 import { ITypescriptServiceClient } from '../typescriptService';
 
-import { FileLocationRequestArgs } from '../protocol';
+import { FileLocationRequestArgs, DocCommandTemplateResponse } from '../protocol';
 
 export default class JsDocCompletionHelper {
 
@@ -62,7 +62,7 @@ export default class JsDocCompletionHelper {
 				new Promise((_, reject) => {
 					setTimeout(reject, 250);
 				})
-			]).then(res => {
+			]).then((res: DocCommandTemplateResponse) => {
 				if (!res || !res.body) {
 					return false;
 				}
