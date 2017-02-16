@@ -29,7 +29,7 @@ export class ExtHostOutputChannel implements vscode.OutputChannel {
 
 	dispose(): void {
 		if (!this._disposed) {
-			this._proxy.$clear(this._id, this._name).then(() => {
+			this._proxy.$dispose(this._id, this._name).then(() => {
 				this._disposed = true;
 			});
 		}

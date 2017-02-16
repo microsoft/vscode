@@ -98,7 +98,8 @@ export class OutputService implements IOutputService {
 			},
 			append: (output: string) => this.append(id, output),
 			show: (preserveFocus: boolean) => this.showOutput(id, preserveFocus),
-			clear: () => this.clearOutput(id)
+			clear: () => this.clearOutput(id),
+			dispose: () => this.removeOutput(id)
 		};
 	}
 
@@ -138,6 +139,18 @@ export class OutputService implements IOutputService {
 		this.receivedOutput.set(channelId, '');
 
 		this._onOutput.fire({ channelId: channelId, output: null /* indicator to clear output */ });
+	}
+
+	private removeOutput(channelId: string): void {
+		this.receivedOutput.delete(channelId);
+		Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).removeChannel(channelId);
+		if (this.activeChannelId === channelId) {
+			const channels = this.getChannels();
+			this.activeChannelId = channels.length ? channels[0].id : undefined;
+			this._onActiveOutputChannel.fire(this.activeChannelId);
+		}
+
+		this._onOutputChannel.fire(channelId);
 	}
 
 	private showOutput(channelId: string, preserveFocus?: boolean): TPromise<IEditor> {
