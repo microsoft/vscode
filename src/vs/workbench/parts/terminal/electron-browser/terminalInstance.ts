@@ -482,7 +482,11 @@ export class TerminalInstance implements ITerminalInstance {
 		this._xterm.write('\n\x1b[G');
 
 		// Initialize new process
+		const oldTitle = this._title;
 		this._createProcess(this._contextService.getWorkspace(), shell);
+		if (oldTitle !== this._title) {
+			this._onTitleChanged.fire(this._title);
+		}
 		this._process.on('message', (message) => this._sendPtyDataToXterm(message));
 
 		// Clean up waitOnExit state
