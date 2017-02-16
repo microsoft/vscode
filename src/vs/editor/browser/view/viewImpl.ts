@@ -482,7 +482,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		StyleMutator.setHeight(this.linesContent, 1000000);
 
 		StyleMutator.setLeft(this.linesContentContainer, layoutInfo.contentLeft);
-		StyleMutator.setWidth(this.linesContentContainer, layoutInfo.contentWidth);
+		StyleMutator.setWidth(this.linesContentContainer, layoutInfo.contentWidth + layoutInfo.minimapWidth);
 		StyleMutator.setHeight(this.linesContentContainer, layoutInfo.contentHeight);
 
 		this.outgoingEvents.emitViewLayoutChanged(layoutInfo);
