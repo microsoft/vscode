@@ -11,8 +11,7 @@
 	<script src="https://cdn.rawgit.com/mochajs/mocha/2.2.5/mocha.js"></script>
 	<script>
 		mocha.setup('tdd');
-		const { runTests } = require('./renderer');
-		runTests().catch(err => console.error(err));
+		require('./renderer');
 	</script>
 </body>
 
