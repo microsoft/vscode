@@ -88,7 +88,7 @@ export class WalkThroughInput extends EditorInput {
 
 	getTelemetryDescriptor(): { [key: string]: any; } {
 		const descriptor = super.getTelemetryDescriptor();
-		descriptor['resourceTag'] = this.getTelemetryFrom();
+		descriptor['target'] = this.getTelemetryFrom();
 		descriptor['resource'] = telemetryURIDescriptor(this.resource);
 		return descriptor;
 	}
@@ -175,7 +175,7 @@ export class WalkThroughInput extends EditorInput {
 		if (!this.resolveTime) {
 			this.resolveTime = Date.now();
 			this.telemetryService.publicLog('resolvingInput', {
-				resourceTag: this.getTelemetryFrom(),
+				target: this.getTelemetryFrom(),
 			});
 		}
 	}
@@ -183,7 +183,7 @@ export class WalkThroughInput extends EditorInput {
 	private disposeTelemetry(reason?: ShutdownReason) {
 		if (this.resolveTime) {
 			this.telemetryService.publicLog('disposingInput', {
-				resourceTag: this.getTelemetryFrom(),
+				target: this.getTelemetryFrom(),
 				timeSpent: (Date.now() - this.resolveTime) / 60,
 				reason: reason ? ShutdownReason[reason] : 'DISPOSE',
 				maxTopScroll: this.maxTopScroll,

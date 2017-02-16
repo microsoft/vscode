@@ -58,4 +58,9 @@ export class MainThreadOutputService extends MainThreadOutputServiceShape {
 
 		return undefined;
 	}
+
+	public $dispose(channelId: string, label: string): TPromise<void> {
+		this._getChannel(channelId, label).dispose();
+		return undefined;
+	}
 }

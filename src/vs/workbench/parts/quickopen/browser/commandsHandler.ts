@@ -16,11 +16,12 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import strings = require('vs/base/common/strings');
 import { Mode, IEntryRunContext, IAutoFocus } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenEntryGroup, IHighlight, QuickOpenModel, QuickOpenEntry } from 'vs/base/parts/quickopen/browser/quickOpenModel';
-import { SyncActionDescriptor, ExecuteCommandAction, IMenuService } from 'vs/platform/actions/common/actions';
+import { SyncActionDescriptor, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
 import { Registry } from 'vs/platform/platform';
 import { QuickOpenHandler, QuickOpenAction } from 'vs/workbench/browser/quickopen';
-import { IEditorAction, IEditor } from 'vs/editor/common/editorCommon';
+import { IEditorAction, IEditor, isCommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { matchesWords, matchesPrefix, matchesContiguousSubString, or } from 'vs/base/common/filters';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -238,7 +239,8 @@ export class CommandsHandler extends QuickOpenHandler {
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IKeybindingService private keybindingService: IKeybindingService,
-		@IMenuService private menuService: IMenuService
+		@IMenuService private menuService: IMenuService,
+		@IContextKeyService private contextKeyService: IContextKeyService
 	) {
 		super();
 
@@ -274,14 +276,15 @@ export class CommandsHandler extends QuickOpenHandler {
 		const editorEntries = this.editorActionsToEntries(editorActions, searchValue);
 
 		// Other Actions
-		const otherActions = this.menuService.getCommandActions().map(command => {
-			return this.instantiationService.createInstance(ExecuteCommandAction, command.id,
-				command.category ? nls.localize('', "{0}: {1}", command.category, command.title) : command.title);
-		});
-		const otherEntries = this.otherActionsToEntries(otherActions, searchValue);
+		const menu = isCommonCodeEditor(activeEditorControl)
+			? activeEditorControl.invokeWithinContext(accessor => this.menuService.createMenu(MenuId.CommandPalette, accessor.get(IContextKeyService)))
+			: this.menuService.createMenu(MenuId.CommandPalette, this.contextKeyService);
+
+		const menuActions = menu.getActions().reduce((r, [, actions]) => [...r, ...actions], <MenuItemAction[]>[]);
+		const commandEntries = this.menuItemActionsToEntries(menuActions, searchValue);
 
 		// Concat
-		let entries = [...workbenchEntries, ...editorEntries, ...otherEntries];
+		let entries = [...workbenchEntries, ...editorEntries, ...commandEntries];
 
 		// Remove duplicates
 		entries = arrays.distinct(entries, (entry) => entry.getLabel() + entry.getGroupLabel());
@@ -355,17 +358,21 @@ export class CommandsHandler extends QuickOpenHandler {
 		return entries;
 	}
 
-	private otherActionsToEntries(actions: IAction[], searchValue: string): ActionCommandEntry[] {
+	private menuItemActionsToEntries(actions: MenuItemAction[], searchValue: string): ActionCommandEntry[] {
 		const entries: ActionCommandEntry[] = [];
 
 		for (let action of actions) {
-			const [keybind] = this.keybindingService.lookupKeybindings(action.id);
+			const label = action.item.category
+				? nls.localize('cat.title', "{0}: {1}", action.item.category, action.item.title)
+				: action.item.title;
+			const highlights = wordFilter(searchValue, label);
+			if (!highlights) {
+				continue;
+			}
+			const [keybind] = this.keybindingService.lookupKeybindings(action.item.id);
 			const keyLabel = keybind ? this.keybindingService.getLabelFor(keybind) : '';
 			const keyAriaLabel = keybind ? this.keybindingService.getAriaLabelFor(keybind) : '';
-			const highlights = wordFilter(searchValue, action.label);
-			if (highlights) {
-				entries.push(this.instantiationService.createInstance(ActionCommandEntry, keyLabel, keyAriaLabel, action.label, null, highlights, null, action));
-			}
+			entries.push(this.instantiationService.createInstance(ActionCommandEntry, keyLabel, keyAriaLabel, label, null, highlights, null, action));
 		}
 
 		return entries;

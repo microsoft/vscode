@@ -20,12 +20,12 @@ import { KillTerminalAction, CreateNewTerminalAction, SwitchTerminalInstanceActi
 import { Panel } from 'vs/workbench/browser/panel';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { getBaseThemeId } from 'vs/platform/theme/common/themes';
 
 export class TerminalPanel extends Panel {
 
 	private _actions: IAction[];
 	private _contextMenuActions: IAction[];
+	private _cancelContextMenu: boolean = false;
 	private _currentBaseThemeId: string;
 	private _font: ITerminalFont;
 	private _fontStyleElement: HTMLElement;
@@ -159,23 +159,28 @@ export class TerminalPanel extends Panel {
 					} else {
 						terminal.paste();
 					}
-				} else {
-					const standardEvent = new StandardMouseEvent(event);
-					let anchor: { x: number, y: number } = { x: standardEvent.posx, y: standardEvent.posy };
-					this._contextMenuService.showContextMenu({
-						getAnchor: () => anchor,
-						getActions: () => TPromise.as(this._getContextMenuActions()),
-						getActionsContext: () => this._parentDomElement,
-						getKeyBinding: (action) => {
-							const [kb] = this._keybindingService.lookupKeybindings(action.id);
-							if (kb) {
-								return kb;
-							}
-							return null;
-						}
-					});
+					this._cancelContextMenu = true;
 				}
 			}
+		}));
+		this._register(DOM.addDisposableListener(this._parentDomElement, 'contextmenu', (event: MouseEvent) => {
+			if (!this._cancelContextMenu) {
+				const standardEvent = new StandardMouseEvent(event);
+				let anchor: { x: number, y: number } = { x: standardEvent.posx, y: standardEvent.posy };
+				this._contextMenuService.showContextMenu({
+					getAnchor: () => anchor,
+					getActions: () => TPromise.as(this._getContextMenuActions()),
+					getActionsContext: () => this._parentDomElement,
+					getKeyBinding: (action) => {
+						const [kb] = this._keybindingService.lookupKeybindings(action.id);
+						if (kb) {
+							return kb;
+						}
+						return null;
+					}
+				});
+			}
+			this._cancelContextMenu = false;
 		}));
 		this._register(DOM.addDisposableListener(this._parentDomElement, 'click', (event) => {
 			if (this._terminalService.terminalInstances.length === 0) {
@@ -198,8 +203,7 @@ export class TerminalPanel extends Panel {
 		if (!colorTheme) {
 			colorTheme = this._themeService.getColorTheme();
 		}
-		let themeId = colorTheme.id;
-		let baseThemeId = getBaseThemeId(themeId);
+		let baseThemeId = colorTheme.getBaseThemeId();
 		if (baseThemeId === this._currentBaseThemeId) {
 			return;
 		}

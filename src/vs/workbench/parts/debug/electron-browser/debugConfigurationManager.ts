@@ -342,8 +342,12 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 		return this.configurationResolverService.resolveInteractiveVariables(result, adapter ? adapter.variables : null);
 	}
 
+	public get configFileUri(): uri {
+		return uri.file(paths.join(this.contextService.getWorkspace().resource.fsPath, '/.vscode/launch.json'));
+	}
+
 	public openConfigFile(sideBySide: boolean, type?: string): TPromise<IEditor> {
-		const resource = uri.file(paths.join(this.contextService.getWorkspace().resource.fsPath, '/.vscode/launch.json'));
+		const resource = this.configFileUri;
 		let configFileCreated = false;
 
 		return this.fileService.resolveContent(resource).then(content => true, err =>

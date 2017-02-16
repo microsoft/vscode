@@ -1057,6 +1057,10 @@ export class EditorContribOptions {
  * Internal configuration options (transformed or computed) for the editor.
  */
 export class InternalEditorOptions {
+	/**
+	 * @internal
+	 */
+	static forceCopyWithSyntaxHighlighting: boolean = false;
 	readonly _internalEditorOptionsBrand: void;
 
 	readonly lineHeight: number; // todo: move to fontInfo
@@ -4122,6 +4126,11 @@ export interface ICommonCodeEditor extends IEditor {
 	 * Get the layout info for the editor.
 	 */
 	getLayoutInfo(): EditorLayoutInfo;
+
+	/**
+	 * @internal
+	 */
+	getTelemetryData(): { [key: string]: any; };
 }
 
 export interface ICommonDiffEditor extends IEditor {

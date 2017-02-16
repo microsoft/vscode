@@ -315,6 +315,7 @@ export class SearchViewlet extends Viewlet {
 	private onSearchResultsChanged(event?: IChangeEvent): TPromise<any> {
 		return this.refreshTree(event).then(() => {
 			this.searchWidget.setReplaceAllActionState(!this.viewModel.searchResult.isEmpty());
+			this.updateSearchResultCount();
 		});
 	}
 
@@ -488,7 +489,7 @@ export class SearchViewlet extends Viewlet {
 				if (keyboard) {
 					// debounce setting selection so that we are not too quickly opening
 					// when the user is pressing and holding the key to move focus
-					if (focusToSelectionDelayHandle || (Date.now() - lastFocusToSelection <= 100)) {
+					if (focusToSelectionDelayHandle || (Date.now() - lastFocusToSelection <= 75)) {
 						window.clearTimeout(focusToSelectionDelayHandle);
 						focusToSelectionDelayHandle = window.setTimeout(() => focusToSelection(), 300);
 					} else {
@@ -1092,7 +1093,7 @@ export class SearchViewlet extends Viewlet {
 			} else {
 				this.viewModel.searchResult.toggleHighlights(true); // show highlights
 
-				// Indicate as status to ARIA
+				// Indicate final search result count for ARIA
 				aria.status(nls.localize('ariaSearchResultsStatus', "Search returned {0} results in {1} files", this.viewModel.searchResult.count(), this.viewModel.searchResult.fileCount()));
 			}
 		};
@@ -1158,13 +1159,7 @@ export class SearchViewlet extends Viewlet {
 					autoExpand(false);
 				}).done(null, errors.onUnexpectedError);
 
-				// Update results text
-				const msgWasHidden = this.messages.isHidden();
-				const div = this.clearMessage();
-				$(div).p({ text: this.buildResultCountMessage(this.viewModel.searchResult.count(), fileCount) });
-				if (msgWasHidden) {
-					this.reLayout();
-				}
+				this.updateSearchResultCount();
 			}
 			if (fileCount > 0) {
 				// since we have results now, enable some actions
@@ -1179,15 +1174,27 @@ export class SearchViewlet extends Viewlet {
 		this.viewModel.search(query).done(onComplete, onError, onProgress);
 	}
 
+	private updateSearchResultCount(): void {
+		const fileCount = this.viewModel.searchResult.fileCount();
+		if (fileCount > 0) {
+			const msgWasHidden = this.messages.isHidden();
+			const div = this.clearMessage();
+			$(div).p({ text: this.buildResultCountMessage(this.viewModel.searchResult.count(), fileCount) });
+			if (msgWasHidden) {
+				this.reLayout();
+			}
+		}
+	}
+
 	private buildResultCountMessage(resultCount: number, fileCount: number): string {
 		if (resultCount === 1 && fileCount === 1) {
-			return nls.localize('search.file.result', "Found {0} result in {1} file", resultCount, fileCount);
+			return nls.localize('search.file.result', "{0} result in {1} file", resultCount, fileCount);
 		} else if (resultCount === 1) {
-			return nls.localize('search.files.result', "Found {0} result in {1} files", resultCount, fileCount);
+			return nls.localize('search.files.result', "{0} result in {1} files", resultCount, fileCount);
 		} else if (fileCount === 1) {
-			return nls.localize('search.file.results', "Found {0} results in {1} file", resultCount, fileCount);
+			return nls.localize('search.file.results', "{0} results in {1} file", resultCount, fileCount);
 		} else {
-			return nls.localize('search.files.results', "Found {0} results in {1} files", resultCount, fileCount);
+			return nls.localize('search.files.results', "{0} results in {1} files", resultCount, fileCount);
 		}
 	}
 

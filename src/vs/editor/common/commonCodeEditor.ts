@@ -1006,6 +1006,10 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 	protected abstract _registerDecorationType(key: string, options: editorCommon.IDecorationRenderOptions, parentTypeKey?: string): void;
 	protected abstract _removeDecorationType(key: string): void;
 	protected abstract _resolveDecorationOptions(typeKey: string, writable: boolean): editorCommon.IModelDecorationOptions;
+
+	public getTelemetryData(): { [key: string]: any; } {
+		return null;
+	}
 }
 
 class EditorContextKeysManager extends Disposable {

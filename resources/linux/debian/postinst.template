@@ -30,10 +30,9 @@ if [ "@@NAME@@" != "code-oss" ]; then
 
 	APT_DIR=$(get_apt_config_value Dir)
 	APT_ETC=$APT_DIR$(get_apt_config_value Dir::Etc)
-	APT_SOURCE_PARTS=$APT_ETC$(get_apt_config_value Dir::Etc::sourceparts)
-	CODE_SOURCE_LIST=$APT_SOURCE_PARTS/visual-studio-@@NAME@@.list
+	APT_SOURCE_PARTS=$APT_ETC/$(get_apt_config_value Dir::Etc::sourceparts)
+	CODE_SOURCE_LIST=$APT_SOURCE_PARTS/vscode.list
 
 	rm -f $CODE_SOURCE_LIST
-	# TODO: #2973: Enable once the apt repository is signed
-	#echo "deb @@UPDATEURL@@/api/deb/@@QUALITY@@/@@ARCHITECTURE@@/ /" > $CODE_SOURCE_LIST
+	# echo "deb [arch=amd64] https://packages.microsoft.com/repos/vscode stable main" > $CODE_SOURCE_LIST
 fi

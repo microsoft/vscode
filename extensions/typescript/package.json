@@ -14,7 +14,7 @@
     "semver": "4.3.6",
     "vscode-extension-telemetry": "^0.0.5",
     "vscode-nls": "^2.0.1",
-    "typescript": "typescript@2.2.1-insiders.20170209"
+    "typescript": "typescript@2.2.1-insiders.20170216"
   },
   "devDependencies": {
     "@types/node": "^7.0.4",
@@ -33,7 +33,12 @@
     "onLanguage:jsx-tags",
     "onCommand:typescript.reloadProjects",
     "onCommand:javascript.reloadProjects",
-    "onCommand:typescript.selectTypeScriptVersion"
+    "onCommand:typescript.selectTypeScriptVersion",
+    "onCommand:javascript.goToProjectConfig",
+    "onCommand:typescript.goToProjectConfig",
+    "onCommand:_typescript.tryCompleteJsDoc",
+    "workspaceContains:jsconfig.json",
+    "workspaceContains:tsconfig.json"
   ],
   "main": "./out/typescriptMain",
   "enableProposedApi": true,
@@ -77,6 +82,18 @@
           "meta.tag.tsx": "jsx-tags",
           "meta.tag.without-attributes.tsx": "jsx-tags"
         }
+      }
+    ],
+    "keybindings": [
+      {
+        "key": "enter",
+        "command": "_typescript.tryCompleteJsDoc",
+        "when": "editorTextFocus && !suggestWidgetVisible && editorLangId == 'typescript'"
+      },
+         {
+        "key": "enter",
+        "command": "_typescript.tryCompleteJsDoc",
+        "when": "editorTextFocus && !suggestWidgetVisible && editorLangId == 'javascript'"
       }
     ],
     "configuration": {
@@ -257,15 +274,28 @@
     "commands": [
       {
         "command": "typescript.reloadProjects",
-        "title": "%typescript.reloadProjects.title%"
+        "title": "%typescript.reloadProjects.title%",
+        "category": "TypeScript"
       },
       {
         "command": "javascript.reloadProjects",
-        "title": "%javascript.reloadProjects.title%"
+        "title": "%javascript.reloadProjects.title%",
+        "category": "JavaScript"
       },
       {
         "command": "typescript.selectTypeScriptVersion",
-        "title": "%typescript.selectTypeScriptVersion.title%"
+        "title": "%typescript.selectTypeScriptVersion.title%",
+        "category": "TypeScript"
+      },
+      {
+        "command": "typescript.goToProjectConfig",
+        "title": "%typescript.goToProjectConfig.title%",
+        "category": "TypeScript"
+      },
+      {
+        "command": "javascript.goToProjectConfig",
+        "title": "%javascript.goToProjectConfig.title%",
+        "category": "JavaScript"
       }
     ],
     "breakpoints": [
