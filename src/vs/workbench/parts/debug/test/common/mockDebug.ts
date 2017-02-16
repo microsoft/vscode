@@ -79,6 +79,10 @@ export class MockDebugService implements debug.IDebugService {
 		return TPromise.as(null);
 	}
 
+	public stopProcess(): TPromise<any> {
+		return TPromise.as(null);
+	}
+
 	public getModel(): debug.IModel {
 		return null;
 	}
