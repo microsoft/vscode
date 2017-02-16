@@ -317,7 +317,7 @@ export class StopAction extends AbstractDebugAction {
 			process = this.debugService.getViewModel().focusedProcess;
 		}
 
-		return process ? process.session.disconnect(false, true) : TPromise.as(null);
+		return this.debugService.stopProcess(process);
 	}
 
 	protected isEnabled(state: State): boolean {
@@ -335,7 +335,7 @@ export class DisconnectAction extends AbstractDebugAction {
 
 	public run(): TPromise<any> {
 		const process = this.debugService.getViewModel().focusedProcess;
-		return process ? process.session.disconnect(false, true) : TPromise.as(null);
+		return this.debugService.stopProcess(process);
 	}
 
 	protected isEnabled(state: State): boolean {
