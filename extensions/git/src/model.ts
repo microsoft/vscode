@@ -432,7 +432,6 @@ export class Model implements Disposable {
 				await this.update();
 			} catch (err) {
 				if (err.gitErrorCode === GitErrorCodes.NotAGitRepository) {
-					// TODO@Joao!
 					this.repositoryDisposable.dispose();
 					this.state = State.NotAGitRepository;
 				} else {
