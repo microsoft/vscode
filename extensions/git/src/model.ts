@@ -6,7 +6,7 @@
 'use strict';
 
 import { Uri, EventEmitter, Event, SCMResource, SCMResourceDecorations, SCMResourceGroup, Disposable, window, workspace } from 'vscode';
-import { Repository, Ref, Branch, Remote, PushOptions, Commit, GitErrorCodes } from './git';
+import { Repository, Ref, Branch, Remote, PushOptions, Commit, GitErrorCodes, GitError } from './git';
 import { anyEvent, eventToPromise, filterEvent, mapEvent, EmptyDisposable, combinedDisposable } from './util';
 import { memoize, throttle, debounce } from './decorators';
 import { watch } from './watch';
@@ -182,7 +182,7 @@ export enum Operation {
 	Push = 1 << 10,
 	Sync = 1 << 11,
 	Init = 1 << 12,
-	UpdateModel = 1 << 13
+	Show = 1 << 13
 }
 
 export interface Operations {
@@ -421,22 +421,40 @@ export class Model implements Disposable {
 		await this.run(Operation.Sync, () => this.repository.sync());
 	}
 
-	private async run(operation: Operation, runOperation: () => Promise<void> = () => Promise.resolve()): Promise<void> {
+	@throttle
+	async show(ref: string, uri: Uri): Promise<string> {
+		return await this.run(Operation.Show, async () => {
+			const relativePath = path.relative(this.repositoryRoot, uri.fsPath).replace(/\\/g, '/');
+			const result = await this.repository.git.exec(this.repositoryRoot, ['show', `${ref}:${relativePath}`]);
+
+			if (result.exitCode !== 0) {
+				throw new GitError({
+					message: localize('cantshow', "Could not show object"),
+					exitCode: result.exitCode
+				});
+			}
+
+			return result.stdout;
+		});
+	}
+
+	private async run<T>(operation: Operation, runOperation: () => Promise<T> = () => Promise.resolve<any>(null)): Promise<T> {
 		return window.withScmProgress(async () => {
 			this._operations = this._operations.start(operation);
 			this._onRunOperation.fire(operation);
 
 			try {
 				await this.assertIdleState();
-				await runOperation();
+				const result = await runOperation();
 				await this.update();
+				return result;
 			} catch (err) {
 				if (err.gitErrorCode === GitErrorCodes.NotAGitRepository) {
 					this.repositoryDisposable.dispose();
 					this.state = State.NotAGitRepository;
-				} else {
-					throw err;
 				}
+
+				throw err;
 			} finally {
 				this._operations = this._operations.end(operation);
 				this._onDidRunOperation.fire(operation);
