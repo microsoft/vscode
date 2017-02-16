@@ -61,7 +61,6 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	private wordToLineNumbersMap: Map<string, IPosition[]>;
 
 	private exceptionWidget: ExceptionWidget;
-	private exceptionWidgetVisible: boolean;
 
 	private configurationWidget: FloatingClickWidget;
 
@@ -85,10 +84,9 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		this.removeInlineValuesScheduler = new RunOnceScheduler(() => this.editor.removeDecorations(INLINE_VALUE_DECORATION_KEY), REMOVE_INLINE_VALUES_DELAY);
 		this.registerListeners();
 		this.breakpointWidgetVisible = CONTEXT_BREAKPOINT_WIDGET_VISIBLE.bindTo(contextKeyService);
-		this.exceptionWidgetVisible = false;
 		this.updateConfigurationWidgetVisibility();
 		this.codeEditorService.registerDecorationType(INLINE_VALUE_DECORATION_KEY, {});
-		this.showHideExceptionWidget();
+		this.toggleExceptionWidget();
 	}
 
 	private getContextMenuActions(breakpoint: IBreakpoint, uri: uri, lineNumber: number): TPromise<IAction[]> {
@@ -184,7 +182,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			const model = this.editor.getModel();
 			this.editor.updateOptions({ hover: !sf || !model || model.uri.toString() !== sf.source.uri.toString() });
 			this.closeBreakpointWidget();
-			this.showHideExceptionWidget();
+			this.toggleExceptionWidget();
 			this.hideHoverWidget();
 			this.updateConfigurationWidgetVisibility();
 			this.wordToLineNumbersMap = null;
@@ -233,7 +231,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		}
 
 		// Handling exception
-		this.showHideExceptionWidget();
+		this.toggleExceptionWidget();
 
 		this.updateInlineDecorations(sf);
 	}
@@ -308,17 +306,23 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	}
 
 	// exception widget
-	public showHideExceptionWidget(): void {
-		if (this.exceptionWidget && this.exceptionWidgetVisible) {
+	public toggleExceptionWidget(): void {
+		// Toggles exception widget based on the state of the current editor model and debug stack frame
+		const model = this.editor.getModel();
+		const focusedSf = this.debugService.getViewModel().focusedStackFrame;
+		const callStack = focusedSf ? focusedSf.thread.getCallStack() : null;
+		if (!model || !focusedSf || !callStack) {
+			this.closeExceptionWidget();
+			return;
+		}
+
+		// First call stack frame is the frame where exception has been thrown
+		const exceptionSf = callStack[0];
+		const sameUri = exceptionSf.source.uri.toString() === model.uri.toString();
+		if (this.exceptionWidget && !sameUri) {
 			this.hideExceptionWidget();
-		} else {
-			const model = this.editor.getModel();
-			const sf = this.debugService.getViewModel().focusedStackFrame;
-			if (model && sf && sf.thread.stoppedDetails.reason === 'exception' && sf.thread.getCallStack()[0].source.uri.toString() === model.uri.toString()) {
-				this.showExceptionWidget(sf.thread.getCallStack()[0].lineNumber);
-			} else {
-				this.closeExceptionWidget();
-			}
+		} else if (focusedSf && focusedSf.thread.stoppedDetails.reason === 'exception' && sameUri) {
+			this.showExceptionWidget(exceptionSf.lineNumber);
 		}
 	}
 
@@ -329,19 +333,16 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 		this.exceptionWidget = this.instantiationService.createInstance(ExceptionWidget, this.editor, lineNumber);
 		this.exceptionWidget.show({ lineNumber, column: 1 }, 1);
-		this.exceptionWidgetVisible = true;
 	}
 
 	private hideExceptionWidget() {
 		this.exceptionWidget.hide();
-		this.exceptionWidgetVisible = false;
 	}
 
 	private closeExceptionWidget(): void {
 		if (this.exceptionWidget) {
 			this.exceptionWidget.dispose();
 			this.exceptionWidget = null;
-			this.exceptionWidgetVisible = false;
 		}
 	}
 
