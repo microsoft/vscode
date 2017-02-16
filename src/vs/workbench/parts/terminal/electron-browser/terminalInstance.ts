@@ -65,6 +65,8 @@ export class TerminalInstance implements ITerminalInstance {
 	private _xterm: any;
 	private _xtermElement: HTMLDivElement;
 	private _terminalHasTextContextKey: IContextKey<boolean>;
+	private _cols: number;
+	private _rows: number;
 
 	public get id(): number { return this._id; }
 	public get processId(): number { return this._processId; }
@@ -385,7 +387,7 @@ export class TerminalInstance implements ITerminalInstance {
 		if (!shell.executable) {
 			this._configHelper.mergeDefaultShellPathAndArgs(shell);
 		}
-		const env = TerminalInstance.createTerminalEnv(process.env, shell, this._getCwd(shell, workspace), locale);
+		const env = TerminalInstance.createTerminalEnv(process.env, shell, this._getCwd(shell, workspace), locale, this._cols, this._rows);
 		this._title = shell.name || '';
 		this._process = cp.fork('./terminalProcess', [], {
 			env: env,
@@ -501,7 +503,7 @@ export class TerminalInstance implements ITerminalInstance {
 
 	// TODO: This should be private/protected
 	// TODO: locale should not be optional
-	public static createTerminalEnv(parentEnv: IStringDictionary<string>, shell: IShellLaunchConfig, cwd: string, locale?: string): IStringDictionary<string> {
+	public static createTerminalEnv(parentEnv: IStringDictionary<string>, shell: IShellLaunchConfig, cwd: string, locale?: string, cols?: number, rows?: number): IStringDictionary<string> {
 		const env = shell.env ? shell.env : TerminalInstance._cloneEnv(parentEnv);
 		env['PTYPID'] = process.pid.toString();
 		env['PTYSHELL'] = shell.executable;
@@ -513,6 +515,10 @@ export class TerminalInstance implements ITerminalInstance {
 		env['PTYCWD'] = cwd;
 		if (locale) {
 			env['LANG'] = TerminalInstance._getLangEnvVariable(locale);
+		}
+		if (cols && rows) {
+			env['PTYCOLS'] = cols.toString();
+			env['PTYROWS'] = rows.toString();
 		}
 		return env;
 	}
@@ -649,17 +655,17 @@ export class TerminalInstance implements ITerminalInstance {
 		// Use left padding as right padding, right padding is not defined in CSS just in case
 		// xterm.js causes an unexpected overflow.
 		const innerWidth = dimension.width - padding * 2;
-		const cols = Math.floor(innerWidth / font.charWidth);
-		const rows = Math.floor(dimension.height / font.charHeight);
+		this._cols = Math.floor(innerWidth / font.charWidth);
+		this._rows = Math.floor(dimension.height / font.charHeight);
 		if (this._xterm) {
-			this._xterm.resize(cols, rows);
+			this._xterm.resize(this._cols, this._rows);
 			this._xterm.element.style.width = innerWidth + 'px';
 		}
 		if (this._process.connected) {
 			this._process.send({
 				event: 'resize',
-				cols: cols,
-				rows: rows
+				cols: this._cols,
+				rows: this._rows
 			});
 		}
 	}
