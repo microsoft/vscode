@@ -17,6 +17,7 @@ export interface ITelemetryInfo {
 
 export interface ITelemetryData {
 	from?: string;
+	target?: string;
 	[key: string]: any;
 }
 
