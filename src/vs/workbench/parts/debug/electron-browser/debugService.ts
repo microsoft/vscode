@@ -436,9 +436,8 @@ export class DebugService implements debug.IDebugService {
 		if (focusedProcess) {
 			return this.sessionStates.get(focusedProcess.getId());
 		}
-		const processes = this.model.getProcesses();
-		if (processes.length > 0) {
-			return this.sessionStates.get(processes[0].getId());
+		if (this.sessionStates.size > 0) {
+			return debug.State.Initializing;
 		}
 
 		return debug.State.Inactive;
@@ -449,7 +448,11 @@ export class DebugService implements debug.IDebugService {
 	}
 
 	private setStateAndEmit(sessionId: string, newState: debug.State): void {
-		this.sessionStates.set(sessionId, newState);
+		if (newState === debug.State.Inactive) {
+			this.sessionStates.delete(sessionId);
+		} else {
+			this.sessionStates.set(sessionId, newState);
+		}
 		this._onDidChangeState.fire();
 	}
 
