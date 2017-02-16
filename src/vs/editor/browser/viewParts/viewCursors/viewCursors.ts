@@ -297,10 +297,6 @@ export class ViewCursors extends ViewPart {
 	// ---- IViewPart implementation
 
 	public prepareRender(ctx: IRenderingContext): void {
-		if (!this.shouldRender()) {
-			throw new Error('I did not ask to render!');
-		}
-
 		this._primaryCursor.prepareRender(ctx);
 		for (let i = 0, len = this._secondaryCursors.length; i < len; i++) {
 			this._secondaryCursors[i].prepareRender(ctx);
