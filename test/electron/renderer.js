@@ -19,7 +19,18 @@ loader.require.config({
 	nodeMain: __filename
 });
 
-function loadTestModules() {
+function loadTestModules(opts) {
+
+	if (opts.run) {
+		const files = Array.isArray(opts.run) ? opts.run : [opts.run];
+		const modules = files.map(file => {
+			return path.relative(cwd, file).replace(/\.js$/, '');
+		});
+		return new Promise((resolve, reject) => {
+			loader.require(modules, resolve, reject);
+		});
+	}
+
 	return new Promise((resolve, reject) => {
 		glob('**/test/**/*.test.js', { cwd }, (err, files) => {
 			if (err) {
@@ -36,7 +47,7 @@ function loadTestModules() {
 	});
 }
 
-function loadTests() {
+function loadTests(opts) {
 
 	const _unexpectedErrors = [];
 	const _loaderErrors = [];
@@ -60,7 +71,7 @@ function loadTests() {
 		});
 	});
 
-	return loadTestModules().then(() => {
+	return loadTestModules(opts).then(() => {
 		suite('Unexpected Errors & Loader Errors', function () {
 			test('should not have unexpected errors', function () {
 				const errors = _unexpectedErrors.concat(_loaderErrors);
@@ -76,9 +87,13 @@ function loadTests() {
 	});
 }
 
-module.exports.runTests = function () {
+function runTests(opts) {
 
-	return loadTests().then(() => {
+	return loadTests(opts).then(() => {
+
+		if (opts.grep) {
+			mocha.grep(opts.grep);
+		}
 
 		const runner = mocha.run(() => {
 			ipcRenderer.send('done');
@@ -95,4 +110,8 @@ module.exports.runTests = function () {
 			ipcRenderer.send('pass');
 		});
 	});
-};
+}
+
+ipcRenderer.on('run', (e, opts) => {
+	runTests(opts).catch(err => console.error(err));
+});

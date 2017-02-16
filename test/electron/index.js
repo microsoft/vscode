@@ -9,9 +9,11 @@ const { join } = require('path');
 
 const optimist = require('optimist')
 	.describe('grep', 'only run tests matching <pattern>').string('grep').alias('grep', 'g').string('g')
+	.describe('run', 'only run tests from <file>').string('run')
 	.describe('debug', 'open dev tools, keep window open').string('debug');
 
-const { debug, grep } = optimist.argv;
+const argv = optimist.argv;
+const { debug, grep, run } = argv;
 
 app.setPath('userData', join(tmpdir(), `vscode-tests-${Date.now()}`));
 
@@ -28,13 +30,11 @@ app.on('ready', () => {
 		if (debug) {
 			win.webContents.openDevTools('right');
 		}
+		win.webContents.send('run', { grep, run });
 	});
 
-	const query = grep
-		? `?grep=${grep}`
-		: '';
+	win.loadURL(`file://${__dirname}/renderer.html`);
 
-	win.loadURL(`file://${__dirname}/renderer.html${query}`);
 
 	const _failures = [];
 	ipcMain.on('fail', (e, test) => {
