@@ -9,12 +9,18 @@ import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { ModelLine, ILineEdit, LineMarker, MarkersTracker } from 'vs/editor/common/model/modelLine';
 import { MetadataConsts } from 'vs/editor/common/modes';
 import { Position } from 'vs/editor/common/core/position';
-import { TokenMetadata } from 'vs/editor/common/model/tokensBinaryEncoding';
+import { ViewLineToken, ViewLineTokenFactory } from 'vs/editor/common/core/viewLineToken';
 
 function assertLineTokens(_actual: LineTokens, _expected: TestToken[]): void {
-	let expected = TokenMetadata.inflateArr(TestToken.toTokens(_expected), _actual.getLineLength());
+	let expected = ViewLineTokenFactory.inflateArr(TestToken.toTokens(_expected), _actual.getLineLength());
 	let actual = _actual.inflate();
-	assert.deepEqual(actual, expected);
+	let decode = (token: ViewLineToken) => {
+		return {
+			endIndex: token.endIndex,
+			type: token.getType()
+		};
+	};
+	assert.deepEqual(actual.map(decode), expected.map(decode));
 }
 
 const NO_TAB_SIZE = 0;

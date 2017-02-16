@@ -15,7 +15,7 @@ import { TokenizationRegistry } from 'vs/editor/common/modes';
 import { tokenizeLineToHTML } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { ViewModelCursors } from 'vs/editor/common/viewModel/viewModelCursors';
 import { ViewModelDecorations } from 'vs/editor/common/viewModel/viewModelDecorations';
-import { ViewLineRenderingData, ViewModelDecoration, IViewModel, ICoordinatesConverter } from 'vs/editor/common/viewModel/viewModel';
+import { MinimapLinesRenderingData, ViewLineRenderingData, ViewModelDecoration, IViewModel, ICoordinatesConverter } from 'vs/editor/common/viewModel/viewModel';
 import { SplitLinesCollection } from 'vs/editor/common/viewModel/splitLinesCollection';
 
 export class CoordinatesConverter implements ICoordinatesConverter {
@@ -520,7 +520,7 @@ export class ViewModel extends EventEmitter implements IViewModel {
 		let mightContainRTL = this.model.mightContainRTL();
 		let mightContainNonBasicASCII = this.model.mightContainNonBasicASCII();
 		let tabSize = this.getTabSize();
-		let lineData = this.lines.getViewLineRenderingData(lineNumber);
+		let lineData = this.lines.getViewLineData(lineNumber);
 		let allInlineDecorations = this.decorations.getDecorationsViewportData(visibleRange).inlineDecorations;
 		let inlineDecorations = allInlineDecorations[lineNumber - visibleRange.startLineNumber];
 
@@ -533,6 +533,14 @@ export class ViewModel extends EventEmitter implements IViewModel {
 			lineData.tokens,
 			inlineDecorations,
 			tabSize
+		);
+	}
+
+	public getMinimapLinesRenderingData(startLineNumber: number, endLineNumber: number, needed: boolean[]): MinimapLinesRenderingData {
+		let result = this.lines.getViewLinesData(startLineNumber, endLineNumber, needed);
+		return new MinimapLinesRenderingData(
+			this.getTabSize(),
+			result
 		);
 	}
 

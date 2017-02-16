@@ -108,7 +108,19 @@ export class RenderedLinesCollection<T extends ILine> {
 		let startLineNumber = this.getStartLineNumber();
 		let endLineNumber = this.getEndLineNumber();
 
-		// Record what needs to be deleted, notify lines that survive after deletion
+		if (deleteToLineNumber < startLineNumber) {
+			// deleting above the viewport
+			let deleteCnt = deleteToLineNumber - deleteFromLineNumber + 1;
+			this._rendLineNumberStart -= deleteCnt;
+			return null;
+		}
+
+		if (deleteFromLineNumber > endLineNumber) {
+			// deleted below the viewport
+			return null;
+		}
+
+		// Record what needs to be deleted
 		let deleteStartIndex = 0;
 		let deleteCount = 0;
 		for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
@@ -154,18 +166,14 @@ export class RenderedLinesCollection<T extends ILine> {
 		let startLineNumber = this.getStartLineNumber();
 		let endLineNumber = this.getEndLineNumber();
 
-		// Notify lines after the change
-		let notifiedSomeone = false;
-		for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
-			let lineIndex = lineNumber - this._rendLineNumberStart;
-
-			if (lineNumber === changedLineNumber) {
-				this._lines[lineIndex].onContentChanged();
-				notifiedSomeone = true;
-			}
+		if (changedLineNumber < startLineNumber || changedLineNumber > endLineNumber) {
+			// a line has been changed above or below the viewport
+			return false;
 		}
 
-		return notifiedSomeone;
+		// Notify the line
+		this._lines[changedLineNumber - this._rendLineNumberStart].onContentChanged();
+		return true;
 	}
 
 	public onModelLinesInserted(insertFromLineNumber: number, insertToLineNumber: number): T[] {
@@ -244,7 +252,7 @@ export class RenderedLinesCollection<T extends ILine> {
 
 export abstract class ViewLayer<T extends IVisibleLine> extends ViewPart {
 
-	protected domNode: FastDomNode;
+	protected domNode: FastDomNode<HTMLElement>;
 	protected _linesCollection: RenderedLinesCollection<T>;
 	private _renderer: ViewLayerRenderer<T>;
 	private _scrollDomNode: HTMLElement;
@@ -353,7 +361,7 @@ export abstract class ViewLayer<T extends IVisibleLine> extends ViewPart {
 		this._scrollDomNodeIsAbove = resCtx.scrollDomNodeIsAbove;
 	}
 
-	private _createDomNode(): FastDomNode {
+	private _createDomNode(): FastDomNode<HTMLElement> {
 		let domNode = createFastDomNode(document.createElement('div'));
 		domNode.setClassName('view-layer');
 		domNode.setPosition('absolute');

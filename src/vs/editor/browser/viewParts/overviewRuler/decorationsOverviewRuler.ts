@@ -11,6 +11,9 @@ import { OverviewRulerImpl } from 'vs/editor/browser/viewParts/overviewRuler/ove
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { IRenderingContext, IRestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
 import { Position } from 'vs/editor/common/core/position';
+import { MinimapTokensColorTracker } from 'vs/editor/common/view/minimapCharRenderer';
+import { ColorId } from 'vs/editor/common/modes';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 export class DecorationsOverviewRuler extends ViewPart {
 
@@ -19,6 +22,9 @@ export class DecorationsOverviewRuler extends ViewPart {
 
 	private static _CURSOR_COLOR = 'rgba(0, 0, 102, 0.8)';
 	private static _CURSOR_COLOR_DARK = 'rgba(152, 152, 152, 0.8)';
+
+	private readonly _tokensColorTracker: MinimapTokensColorTracker;
+	private readonly _tokensColorTrackerListener: IDisposable;
 
 	private _overviewRuler: OverviewRulerImpl;
 
@@ -33,6 +39,7 @@ export class DecorationsOverviewRuler extends ViewPart {
 
 	constructor(context: ViewContext, scrollHeight: number, getVerticalOffsetForLine: (lineNumber: number) => number) {
 		super(context);
+		this._tokensColorTracker = MinimapTokensColorTracker.getInstance();
 		this._overviewRuler = new OverviewRulerImpl(
 			1,
 			'decorationsOverviewRuler',
@@ -47,6 +54,9 @@ export class DecorationsOverviewRuler extends ViewPart {
 		let theme = this._context.configuration.editor.viewInfo.theme;
 		this._overviewRuler.setUseDarkColor(!themes.isLightTheme(theme), false);
 
+		this._updateBackground(false);
+		this._tokensColorTrackerListener = this._tokensColorTracker.onDidChange(() => this._updateBackground(true));
+
 		this._shouldUpdateDecorations = true;
 		this._zonesFromDecorations = [];
 
@@ -60,6 +70,16 @@ export class DecorationsOverviewRuler extends ViewPart {
 	public dispose(): void {
 		super.dispose();
 		this._overviewRuler.dispose();
+		this._tokensColorTrackerListener.dispose();
+	}
+
+	private _updateBackground(render: boolean): void {
+		this._overviewRuler.setUseBackground(
+			(this._context.configuration.editor.viewInfo.minimap.enabled
+				? this._tokensColorTracker.getColor(ColorId.DefaultBackground)
+				: null),
+			true
+		);
 	}
 
 	// ---- begin view event handlers
@@ -101,6 +121,11 @@ export class DecorationsOverviewRuler extends ViewPart {
 		if (e.viewInfo.theme) {
 			let theme = this._context.configuration.editor.viewInfo.theme;
 			this._overviewRuler.setUseDarkColor(!themes.isLightTheme(theme), false);
+			shouldRender = true;
+		}
+
+		if (e.viewInfo.minimap) {
+			this._updateBackground(false);
 			shouldRender = true;
 		}
 
@@ -179,9 +204,6 @@ export class DecorationsOverviewRuler extends ViewPart {
 
 	public prepareRender(ctx: IRenderingContext): void {
 		// Nothing to read
-		if (!this.shouldRender()) {
-			throw new Error('I did not ask to render!');
-		}
 	}
 
 	public render(ctx: IRestrictedRenderingContext): void {

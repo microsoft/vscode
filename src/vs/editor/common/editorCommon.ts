@@ -153,6 +153,18 @@ export interface IEditorScrollbarOptions {
 	horizontalSliderSize?: number;
 }
 
+
+/**
+ * Configuration options for editor minimap
+ */
+export interface IEditorMinimapOptions {
+	/**
+	 * Enable the rendering of the minimap.
+	 * Defaults to false.
+	 */
+	enabled?: boolean;
+}
+
 /**
  * Describes how to indent wrapped lines.
  */
@@ -257,6 +269,10 @@ export interface IEditorOptions {
 	 * Control the behavior and rendering of the scrollbars.
 	 */
 	scrollbar?: IEditorScrollbarOptions;
+	/**
+	 * Control the behavior and rendering of the minimap.
+	 */
+	minimap?: IEditorMinimapOptions;
 	/**
 	 * Display overflow widgets as `fixed`.
 	 * Defaults to `false`.
@@ -612,6 +628,37 @@ export class InternalEditorScrollbarOptions {
 	}
 }
 
+export class InternalEditorMinimapOptions {
+	readonly _internalEditorMinimapOptionsBrand: void;
+
+	readonly enabled: boolean;
+
+	/**
+	 * @internal
+	 */
+	constructor(source: {
+		enabled: boolean;
+	}) {
+		this.enabled = Boolean(source.enabled);
+	}
+
+	/**
+	 * @internal
+	 */
+	public equals(other: InternalEditorMinimapOptions): boolean {
+		return (
+			this.enabled === other.enabled
+		);
+	}
+
+	/**
+	 * @internal
+	 */
+	public clone(): InternalEditorMinimapOptions {
+		return new InternalEditorMinimapOptions(this);
+	}
+}
+
 export class EditorWrappingInfo {
 	readonly _editorWrappingInfoBrand: void;
 
@@ -692,6 +739,7 @@ export class InternalEditorViewOptions {
 	readonly renderIndentGuides: boolean;
 	readonly renderLineHighlight: 'none' | 'gutter' | 'line' | 'all';
 	readonly scrollbar: InternalEditorScrollbarOptions;
+	readonly minimap: InternalEditorMinimapOptions;
 	readonly fixedOverflowWidgets: boolean;
 
 	/**
@@ -724,6 +772,7 @@ export class InternalEditorViewOptions {
 		renderIndentGuides: boolean;
 		renderLineHighlight: 'none' | 'gutter' | 'line' | 'all';
 		scrollbar: InternalEditorScrollbarOptions;
+		minimap: InternalEditorMinimapOptions;
 		fixedOverflowWidgets: boolean;
 	}) {
 		this.theme = String(source.theme);
@@ -752,6 +801,7 @@ export class InternalEditorViewOptions {
 		this.renderIndentGuides = Boolean(source.renderIndentGuides);
 		this.renderLineHighlight = source.renderLineHighlight;
 		this.scrollbar = source.scrollbar.clone();
+		this.minimap = source.minimap.clone();
 		this.fixedOverflowWidgets = Boolean(source.fixedOverflowWidgets);
 	}
 
@@ -814,6 +864,7 @@ export class InternalEditorViewOptions {
 			&& this.renderIndentGuides === other.renderIndentGuides
 			&& this.renderLineHighlight === other.renderLineHighlight
 			&& this.scrollbar.equals(other.scrollbar)
+			&& this.minimap.equals(other.minimap)
 			&& this.fixedOverflowWidgets === other.fixedOverflowWidgets
 		);
 	}
@@ -849,6 +900,7 @@ export class InternalEditorViewOptions {
 			renderIndentGuides: this.renderIndentGuides !== newOpts.renderIndentGuides,
 			renderLineHighlight: this.renderLineHighlight !== newOpts.renderLineHighlight,
 			scrollbar: (!this.scrollbar.equals(newOpts.scrollbar)),
+			minimap: (!this.minimap.equals(newOpts.minimap)),
 			fixedOverflowWidgets: this.fixedOverflowWidgets !== newOpts.fixedOverflowWidgets
 		};
 	}
@@ -888,6 +940,7 @@ export interface IViewConfigurationChangedEvent {
 	readonly renderIndentGuides: boolean;
 	readonly renderLineHighlight: boolean;
 	readonly scrollbar: boolean;
+	readonly minimap: boolean;
 	readonly fixedOverflowWidgets: boolean;
 }
 
@@ -2747,6 +2800,12 @@ export class OverviewRulerPosition {
 	}
 }
 
+export enum RenderMinimap {
+	None = 0,
+	Small = 1,
+	Large = 2
+}
+
 /**
  * The internal layout details of the editor.
  */
@@ -2815,6 +2874,21 @@ export class EditorLayoutInfo {
 	readonly contentHeight: number;
 
 	/**
+	 * The width of the minimap
+	 */
+	readonly minimapWidth: number;
+
+	/**
+	 * Minimap render type
+	 */
+	readonly renderMinimap: RenderMinimap;
+
+	/**
+	 * The number of columns (of typical characters) fitting on a viewport line.
+	 */
+	readonly viewportColumn: number;
+
+	/**
 	 * The width of the vertical scrollbar.
 	 */
 	readonly verticalScrollbarWidth: number;
@@ -2846,6 +2920,9 @@ export class EditorLayoutInfo {
 		contentLeft: number;
 		contentWidth: number;
 		contentHeight: number;
+		renderMinimap: RenderMinimap;
+		minimapWidth: number;
+		viewportColumn: number;
 		verticalScrollbarWidth: number;
 		horizontalScrollbarHeight: number;
 		overviewRuler: OverviewRulerPosition;
@@ -2864,6 +2941,9 @@ export class EditorLayoutInfo {
 		this.contentLeft = source.contentLeft | 0;
 		this.contentWidth = source.contentWidth | 0;
 		this.contentHeight = source.contentHeight | 0;
+		this.renderMinimap = source.renderMinimap | 0;
+		this.minimapWidth = source.minimapWidth | 0;
+		this.viewportColumn = source.viewportColumn | 0;
 		this.verticalScrollbarWidth = source.verticalScrollbarWidth | 0;
 		this.horizontalScrollbarHeight = source.horizontalScrollbarHeight | 0;
 		this.overviewRuler = source.overviewRuler.clone();
@@ -2888,6 +2968,9 @@ export class EditorLayoutInfo {
 			&& this.contentLeft === other.contentLeft
 			&& this.contentWidth === other.contentWidth
 			&& this.contentHeight === other.contentHeight
+			&& this.renderMinimap === other.renderMinimap
+			&& this.minimapWidth === other.minimapWidth
+			&& this.viewportColumn === other.viewportColumn
 			&& this.verticalScrollbarWidth === other.verticalScrollbarWidth
 			&& this.horizontalScrollbarHeight === other.horizontalScrollbarHeight
 			&& this.overviewRuler.equals(other.overviewRuler)

@@ -114,7 +114,7 @@ export class ViewOverlayLine implements IVisibleLine {
 
 	private _configuration: IConfiguration;
 	private _dynamicOverlays: DynamicViewOverlay[];
-	private _domNode: FastDomNode;
+	private _domNode: FastDomNode<HTMLElement>;
 	private _renderedContent: string;
 	private _lineHeight: number;
 
