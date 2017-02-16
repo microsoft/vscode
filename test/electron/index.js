@@ -10,12 +10,14 @@ const { join } = require('path');
 const optimist = require('optimist')
 	.describe('grep', 'only run tests matching <pattern>').string('grep').alias('grep', 'g').string('g')
 	.describe('run', 'only run tests from <file>').string('run')
-	.describe('debug', 'open dev tools, keep window open').string('debug');
+	.describe('debug', 'open dev tools, keep window open, reuse app data').string('debug');
 
 const argv = optimist.argv;
 const { debug, grep, run } = argv;
 
-app.setPath('userData', join(tmpdir(), `vscode-tests-${Date.now()}`));
+if (!debug) {
+	app.setPath('userData', join(tmpdir(), `vscode-tests-${Date.now()}`));
+}
 
 app.on('ready', () => {
 
