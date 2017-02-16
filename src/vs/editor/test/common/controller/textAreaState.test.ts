@@ -472,4 +472,12 @@ class SimpleModel implements ISimpleModel {
 	public getLineCount(): number {
 		return this._lines.length;
 	}
+
+	public getPlainTextToCopy(ranges: Range[], enableEmptySelectionClipboard: boolean): string {
+		return '';
+	}
+
+	public getHTMLToCopy(ranges: Range[], enableEmptySelectionClipboard: boolean): string {
+		return '';
+	}
 }

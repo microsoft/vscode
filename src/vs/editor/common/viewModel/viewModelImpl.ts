@@ -11,6 +11,8 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
+import { TokenizationRegistry } from 'vs/editor/common/modes';
+import { tokenizeLineToHTML } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { ViewModelCursors } from 'vs/editor/common/viewModel/viewModelCursors';
 import { ViewModelDecorations } from 'vs/editor/common/viewModel/viewModelDecorations';
 import { ViewLineRenderingData, ViewModelDecoration, IViewModel, ICoordinatesConverter } from 'vs/editor/common/viewModel/viewModel';
@@ -557,5 +559,99 @@ export class ViewModel extends EventEmitter implements IViewModel {
 
 	public validateModelPosition(position: editorCommon.IPosition): Position {
 		return this.model.validatePosition(position);
+	}
+
+	public getPlainTextToCopy(ranges: Range[], enableEmptySelectionClipboard: boolean): string {
+		let newLineCharacter = this.getEOL();
+
+		if (ranges.length === 1) {
+			let range: Range = ranges[0];
+			if (range.isEmpty()) {
+				if (enableEmptySelectionClipboard) {
+					let modelLineNumber = this.coordinatesConverter.convertViewPositionToModelPosition(new Position(range.startLineNumber, 1)).lineNumber;
+					return this.getModelLineContent(modelLineNumber) + newLineCharacter;
+				} else {
+					return '';
+				}
+			}
+
+			return this.getValueInRange(range, editorCommon.EndOfLinePreference.TextDefined);
+		} else {
+			ranges = ranges.slice(0).sort(Range.compareRangesUsingStarts);
+			let result: string[] = [];
+			for (let i = 0; i < ranges.length; i++) {
+				result.push(this.getValueInRange(ranges[i], editorCommon.EndOfLinePreference.TextDefined));
+			}
+
+			return result.join(newLineCharacter);
+		}
+	}
+
+	public getHTMLToCopy(ranges: Range[], enableEmptySelectionClipboard: boolean): string {
+		// TODO: adopt new view line tokens.
+		let rules: { [key: string]: string } = {};
+		let colorMap = TokenizationRegistry.getColorMap();
+		for (let i = 1, len = colorMap.length; i < len; i++) {
+			let color = colorMap[i];
+			if (/^(?:[0-9a-fA-F]{3}){1,2}$/.test(color)) {
+				color = '#' + color;
+			}
+			rules[`mtk${i}`] = `color: ${color};`;
+		}
+		rules['mtki'] = 'font-style: italic;';
+		rules['mtkb'] = 'font-weight: bold;';
+		rules['mtku'] = 'text-decoration: underline;';
+
+		let defaultForegroundColor = /^(?:[0-9a-fA-F]{3}){1,2}$/.test(colorMap[1]) ? '#' + colorMap[1] : colorMap[1];
+		let defaultBackgroundColor = /^(?:[0-9a-fA-F]{3}){1,2}$/.test(colorMap[2]) ? '#' + colorMap[2] : colorMap[2];
+
+		let output = `<div style="color: ${defaultForegroundColor}; background-color: ${defaultBackgroundColor}">`;
+
+		if (ranges.length === 1) {
+			let range: Range = ranges[0];
+
+			if (range.isEmpty()) {
+				if (enableEmptySelectionClipboard) {
+					let modelLineNumber = this.coordinatesConverter.convertViewPositionToModelPosition(new Position(range.startLineNumber, 1)).lineNumber;
+					let viewLineStart = new Position(range.startLineNumber, 1);
+					let viewLineEnd = new Position(range.startLineNumber, this.getLineMaxColumn(range.startLineNumber));
+					let startOffset = this.coordinatesConverter.convertViewPositionToModelPosition(viewLineStart).column - 1;
+					let endOffset = this.coordinatesConverter.convertViewPositionToModelPosition(viewLineEnd).column - 1;
+					let viewLineRenderingData = this.getViewLineRenderingData(new Range(viewLineStart.lineNumber, viewLineStart.column, viewLineEnd.lineNumber, viewLineEnd.column), modelLineNumber);
+					let html = tokenizeLineToHTML(this.getModelLineContent(modelLineNumber),
+						viewLineRenderingData.tokens,
+						rules,
+						{
+							startOffset: startOffset,
+							endOffset: endOffset,
+							tabSize: this.getTabSize(),
+							containsRTL: this.model.mightContainRTL()
+						});
+					output += `${html}`;
+				} else {
+					return '';
+				}
+			} else {
+				for (let i = 0, lineCount = range.endLineNumber - range.startLineNumber; i <= lineCount; i++) {
+					let viewLineRenderingData = this.getViewLineRenderingData(range, range.startLineNumber + i);
+					let lineContent = viewLineRenderingData.content;
+					let startOffset = i === 0 ? range.startColumn - 1 : 0;
+					let endOffset = i === lineCount ? range.endColumn - 1 : lineContent.length;
+
+					let html = tokenizeLineToHTML(lineContent, viewLineRenderingData.tokens, rules,
+						{
+							startOffset: startOffset,
+							endOffset: endOffset,
+							tabSize: this.getTabSize(),
+							containsRTL: this.model.mightContainRTL()
+						});
+					output += `${html}`;
+				}
+			}
+		}
+
+		output += '</div>';
+
+		return output;
 	}
 }
