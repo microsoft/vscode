@@ -16,8 +16,13 @@
 		<script>
 			(function() {
 					try {
-						let config = JSON.parse(decodeURIComponent(window.location.search.substring(8)));
-						window.document.body.className = 'monaco-shell ' + config.baseTheme;
+						window.location.search.substring(1).split('&').forEach(p => {
+							var kv = p.split('=');
+							if (kv[0] === 'config' && kv[1]) {
+								let config = JSON.parse(decodeURIComponent(kv[1]));
+								window.document.body.className = 'monaco-shell ' + config.baseTheme;
+							}
+						});
 					} catch (error) {
 						console.error(error);
 					}
