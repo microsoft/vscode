@@ -29,7 +29,7 @@ export function tokenizeLineToHTML(text: string, viewLineTokens: ViewLineToken[]
 			continue;
 		}
 
-		const tokenType = token.type;
+		const tokenType = token.getType();
 		let partContentCnt = 0;
 		let partContent = '';
 
