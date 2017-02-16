@@ -29,10 +29,10 @@ class ClipboardEventWrapper implements IClipboardEvent {
 		return false;
 	}
 
-	public setTextData(text: string, richText?: string): void {
+	public setTextData(text: string, richText: string): void {
 		if (this._event.clipboardData) {
 			this._event.clipboardData.setData('text/plain', text);
-			if (richText !== undefined) {
+			if (richText !== null) {
 				this._event.clipboardData.setData('text/html', richText);
 			}
 			this._event.preventDefault();
@@ -60,10 +60,6 @@ class ClipboardEventWrapper implements IClipboardEvent {
 		}
 
 		throw new Error('ClipboardEventWrapper.getTextData: Cannot use text data!');
-	}
-
-	public forceCopyWithSyntaxHighlighting(): boolean {
-		return JSON.parse(window.localStorage.getItem('forceCopyWithSyntaxHighlighting'));
 	}
 }
 

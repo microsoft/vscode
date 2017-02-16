@@ -13,9 +13,8 @@ import { Constants } from 'vs/editor/common/core/uint';
 
 export interface IClipboardEvent {
 	canUseTextData(): boolean;
-	setTextData(text: string, richText?: string): void;
+	setTextData(text: string, richText: string): void;
 	getTextData(): string;
-	forceCopyWithSyntaxHighlighting(): boolean;
 }
 
 export interface ICompositionEvent {
