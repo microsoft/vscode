@@ -157,10 +157,6 @@ class ExecCommandCopyWithSyntaxHighlightingAction extends ExecCommandAction {
 			kbOpts: {
 				kbExpr: EditorContextKeys.TextFocus,
 				primary: null
-			},
-			menuOpts: {
-				group: CLIPBOARD_CONTEXT_MENU_GROUP,
-				order: 2
 			}
 		});
 	}
