@@ -22,15 +22,13 @@ interface Source {
 }
 
 export default class TypeScriptCodeActionProvider implements CodeActionProvider {
-	private commandId: string;
+	private commandId: string = '_typescript.applyCodeAction';
 
 	private supportedCodeActions: Promise<NumberSet>;
 
 	constructor(
-		private client: ITypescriptServiceClient,
-		modeId: string
+		private readonly client: ITypescriptServiceClient
 	) {
-		this.commandId = `typescript.codeActions.${modeId}`;
 		this.supportedCodeActions = client.execute('getSupportedCodeFixes', null, undefined)
 			.then(response => response.body || [])
 			.then(codes => codes.map(code => +code).filter(code => !isNaN(code)))
