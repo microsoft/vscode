@@ -65,7 +65,8 @@ async function init(disposables: Disposable[]): Promise<void> {
 		checkoutStatusBar,
 		syncStatusBar,
 		autoFetcher,
-		mergeDecorator
+		mergeDecorator,
+		model
 	);
 }
 
