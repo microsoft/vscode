@@ -247,18 +247,18 @@ class MinimapLine implements ILine {
 
 	public static INVALID = new MinimapLine(-1);
 
-	private _dy: number;
+	dy: number;
 
 	constructor(dy: number) {
-		this._dy = dy;
+		this.dy = dy;
 	}
 
 	public onContentChanged(): void {
-		this._dy = -1;
+		this.dy = -1;
 	}
 
 	public onTokensChanged(): void {
-		this._dy = -1;
+		this.dy = -1;
 	}
 }
 
@@ -283,6 +283,15 @@ class RenderData {
 		this._renderedLines._set(renderedLayout.startLineNumber, lines);
 	}
 
+	_get(): { imageData: ImageData; rendLineNumberStart: number; lines: MinimapLine[]; } {
+		let tmp = this._renderedLines._get();
+		return {
+			imageData: this._imageData,
+			rendLineNumberStart: tmp.rendLineNumberStart,
+			lines: tmp.lines
+		};
+	}
+
 	public onModelLinesDeleted(e: editorCommon.IViewLinesDeletedEvent): void {
 		this._renderedLines.onModelLinesDeleted(e.fromLineNumber, e.toLineNumber);
 	}
@@ -294,6 +303,59 @@ class RenderData {
 	}
 	public onModelTokensChanged(e: editorCommon.IViewTokensChangedEvent): boolean {
 		return this._renderedLines.onModelTokensChanged(e.ranges);
+	}
+}
+
+/**
+ * Some sort of double buffering.
+ *
+ * Keeps two buffers around that will be rotated for painting.
+ * Always gives a buffer that is filled with the background color.
+ */
+class MinimapBuffers {
+
+	private readonly _backgroundFillData: Uint8ClampedArray;
+	private readonly _buffers: [ImageData, ImageData];
+	private _lastUsedBuffer: number;
+
+	constructor(ctx: CanvasRenderingContext2D, WIDTH: number, HEIGHT: number, background: ParsedColor) {
+		this._backgroundFillData = MinimapBuffers._createBackgroundFillData(WIDTH, HEIGHT, background);
+		this._buffers = [
+			ctx.createImageData(WIDTH, HEIGHT),
+			ctx.createImageData(WIDTH, HEIGHT)
+		];
+		this._lastUsedBuffer = 0;
+	}
+
+	public getBuffer(): ImageData {
+		// rotate buffers
+		this._lastUsedBuffer = 1 - this._lastUsedBuffer;
+		let result = this._buffers[this._lastUsedBuffer];
+
+		// fill with background color
+		result.data.set(this._backgroundFillData);
+
+		return result;
+	}
+
+	private static _createBackgroundFillData(WIDTH: number, HEIGHT: number, background: ParsedColor): Uint8ClampedArray {
+		const backgroundR = background.r;
+		const backgroundG = background.g;
+		const backgroundB = background.b;
+
+		let result = new Uint8ClampedArray(WIDTH * HEIGHT * 4);
+		let offset = 0;
+		for (let i = 0; i < HEIGHT; i++) {
+			for (let j = 0; j < WIDTH; j++) {
+				result[offset] = backgroundR;
+				result[offset + 1] = backgroundG;
+				result[offset + 2] = backgroundB;
+				result[offset + 3] = 255;
+				offset += 4;
+			}
+		}
+
+		return result;
 	}
 }
 
@@ -312,7 +374,7 @@ export class Minimap extends ViewPart {
 
 	private _options: MinimapOptions;
 	private _lastRenderData: RenderData;
-	private _backgroundFillData: Uint8ClampedArray;
+	private _buffers: MinimapBuffers;
 
 	constructor(context: ViewContext, viewLayout: IViewLayout, editorScrollbar: EditorScrollbar) {
 		super(context);
@@ -321,7 +383,7 @@ export class Minimap extends ViewPart {
 
 		this._options = new MinimapOptions(this._context.configuration);
 		this._lastRenderData = null;
-		this._backgroundFillData = null;
+		this._buffers = null;
 
 		this._domNode = createFastDomNode(document.createElement('div'));
 		this._domNode.setPosition('absolute');
@@ -338,7 +400,7 @@ export class Minimap extends ViewPart {
 		this._domNode.domNode.appendChild(this._slider.domNode);
 
 		this._tokensColorTracker = MinimapTokensColorTracker.getInstance();
-		this._tokensColorTrackerListener = this._tokensColorTracker.onDidChange(() => this._backgroundFillData = null);
+		this._tokensColorTrackerListener = this._tokensColorTracker.onDidChange(() => this._buffers = null);
 
 		this._minimapCharRenderer = getOrCreateMinimapCharRenderer();
 
@@ -362,34 +424,19 @@ export class Minimap extends ViewPart {
 		this._canvas.domNode.width = this._options.canvasInnerWidth;
 		this._canvas.domNode.height = this._options.canvasInnerHeight;
 		this._slider.setWidth(this._options.minimapWidth);
-		this._backgroundFillData = null;
+		this._buffers = null;
 	}
 
-	private _getBackgroundFillData(): Uint8ClampedArray {
-		if (this._backgroundFillData === null) {
-			const WIDTH = this._options.canvasInnerWidth;
-			const HEIGHT = this._options.canvasInnerHeight;
-
-			const background = this._tokensColorTracker.getColor(ColorId.DefaultBackground);
-			const backgroundR = background.r;
-			const backgroundG = background.g;
-			const backgroundB = background.b;
-
-			let result = new Uint8ClampedArray(WIDTH * HEIGHT * 4);
-			let offset = 0;
-			for (let i = 0; i < HEIGHT; i++) {
-				for (let j = 0; j < WIDTH; j++) {
-					result[offset] = backgroundR;
-					result[offset + 1] = backgroundG;
-					result[offset + 2] = backgroundB;
-					result[offset + 3] = 255;
-					offset += 4;
-				}
-			}
-
-			this._backgroundFillData = result;
+	private _getBuffer(): ImageData {
+		if (!this._buffers) {
+			this._buffers = new MinimapBuffers(
+				this._canvas.domNode.getContext('2d'),
+				this._options.canvasInnerWidth,
+				this._options.canvasInnerHeight,
+				this._tokensColorTracker.getColor(ColorId.DefaultBackground)
+			);
 		}
-		return this._backgroundFillData;
+		return this._buffers.getBuffer();
 	}
 
 	// ---- begin view event handlers
@@ -466,12 +513,7 @@ export class Minimap extends ViewPart {
 			return;
 		}
 
-		const WIDTH = this._options.canvasInnerWidth;
-		const HEIGHT = this._options.canvasInnerHeight;
-		const ctx = this._canvas.domNode.getContext('2d');
-		const minimapLineHeight = (renderMinimap === RenderMinimap.Large ? Constants.x2_CHAR_HEIGHT : Constants.x1_CHAR_HEIGHT);
-		const charWidth = (renderMinimap === RenderMinimap.Large ? Constants.x2_CHAR_WIDTH : Constants.x1_CHAR_WIDTH);
-
+		// let start = performance.now();
 		const layout = new MinimapLayout(
 			this._lastRenderData,
 			this._options,
@@ -481,59 +523,149 @@ export class Minimap extends ViewPart {
 			this._context.model.getLineCount(),
 			this._editorScrollbar.getVerticalSliderVerticalCenter()
 		);
-
 		this._slider.setTop(layout.sliderTop);
 		this._slider.setHeight(layout.sliderHeight);
 
 		const startLineNumber = layout.startLineNumber;
 		const endLineNumber = layout.endLineNumber;
+		const minimapLineHeight = (renderMinimap === RenderMinimap.Large ? Constants.x2_CHAR_HEIGHT : Constants.x1_CHAR_HEIGHT);
 
-		// Prepare image data (fill with background color)
-		let imageData = ctx.createImageData(WIDTH, HEIGHT);
-		imageData.data.set(this._getBackgroundFillData());
+		const imageData = this._getBuffer();
+		// let start1 = performance.now();
+		let needed = Minimap._renderUntouchedLines(
+			imageData,
+			startLineNumber,
+			endLineNumber,
+			minimapLineHeight,
+			this._lastRenderData
+		);
+		// let end1 = performance.now();
+		// console.log(`PAINTING UNTOUCHED LINES TOOK ${end1 - start1} ms.`);
 
-		let background = this._tokensColorTracker.getColor(ColorId.DefaultBackground);
+		// let start2 = performance.now();
+		const data = this._context.model.getMinimapLinesRenderingData(startLineNumber, endLineNumber, needed);
+		const tabSize = data.tabSize;
+		// let end2 = performance.now();
+		// console.log(`FETCHING DATA TOOK ${end2 - start2} ms.`);
 
-		let needed: boolean[] = [];
-		for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
-			needed[lineNumber - startLineNumber] = true;
-		}
-		const data2 = this._context.model.getMinimapLinesRenderingData(startLineNumber, endLineNumber, needed);
-		const tabSize = data2.tabSize;
-
-		let start2 = performance.now();
 		let dy = 0;
 		let renderedLines: MinimapLine[] = [];
-		// TODO@minimap: paint using old image data
-		for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
-			let lineIndex = lineNumber - startLineNumber;
-			Minimap._renderLine(imageData, background, renderMinimap, charWidth, this._tokensColorTracker, this._minimapCharRenderer, dy, tabSize, data2.data[lineIndex]);
+		let background = this._tokensColorTracker.getColor(ColorId.DefaultBackground);
+		// let start3 = performance.now();
+		for (let lineIndex = 0, lineCount = endLineNumber - startLineNumber + 1; lineIndex < lineCount; lineIndex++) {
+			if (needed[lineIndex]) {
+				Minimap._renderLine(
+					imageData,
+					background,
+					renderMinimap,
+					this._tokensColorTracker,
+					this._minimapCharRenderer,
+					dy,
+					tabSize,
+					data.data[lineIndex]
+				);
+			}
 			renderedLines[lineIndex] = new MinimapLine(dy);
 			dy += minimapLineHeight;
 		}
-		let end2 = performance.now();
-		console.log(`PAINTING MINIMAP TOOK ${end2 - start2} ms.`);
+		// let end3 = performance.now();
+		// console.log(`PAINTING TOUCHED LINES TOOK ${end3 - start3} ms.`);
 
-		let renderedLayout = new RenderedLayout(
-			renderingCtx.visibleRange.startLineNumber,
-			renderingCtx.visibleRange.endLineNumber,
-			startLineNumber,
-			endLineNumber,
-		);
 		this._lastRenderData = new RenderData(
-			renderedLayout,
+			new RenderedLayout(
+				renderingCtx.visibleRange.startLineNumber,
+				renderingCtx.visibleRange.endLineNumber,
+				startLineNumber,
+				endLineNumber
+			),
 			imageData,
 			renderedLines
 		);
 
+		const ctx = this._canvas.domNode.getContext('2d');
 		ctx.putImageData(imageData, 0, 0);
+
+		// let end = performance.now();
+		// console.log(`TOTAL MINIMAP TIME: ${end - start} ms.`);
+	}
+
+	private static _renderUntouchedLines(
+		target: ImageData,
+		startLineNumber: number,
+		endLineNumber: number,
+		minimapLineHeight: number,
+		lastRenderData: RenderData,
+	): boolean[] {
+
+		let needed: boolean[] = [];
+		if (!lastRenderData) {
+			for (let i = 0, len = endLineNumber - startLineNumber + 1; i < len; i++) {
+				needed[i] = true;
+			}
+			return needed;
+		}
+
+		const _lastData = lastRenderData._get();
+		const lastTargetData = _lastData.imageData.data;
+		const lastStartLineNumber = _lastData.rendLineNumberStart;
+		const lastLines = _lastData.lines;
+		const lastLinesLength = lastLines.length;
+		const WIDTH = target.width;
+		const targetData = target.data;
+
+		let copySourceStart = -1;
+		let copySourceEnd = -1;
+		let copyDestStart = -1;
+		let copyDestEnd = -1;
+
+		let dest_dy = 0;
+		for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
+			const lineIndex = lineNumber - startLineNumber;
+			const lastLineIndex = lineNumber - lastStartLineNumber;
+			const source_dy = (lastLineIndex >= 0 && lastLineIndex < lastLinesLength ? lastLines[lastLineIndex].dy : -1);
+
+			if (source_dy === -1) {
+				needed[lineIndex] = true;
+				dest_dy += minimapLineHeight;
+				continue;
+			}
+
+			let sourceStart = source_dy * WIDTH * 4;
+			let sourceEnd = (source_dy + minimapLineHeight) * WIDTH * 4;
+			let destStart = dest_dy * WIDTH * 4;
+			let destEnd = (dest_dy + minimapLineHeight) * WIDTH * 4;
+
+			if (copySourceEnd === sourceStart && copyDestEnd === destStart) {
+				// contiguous zone => extend copy request
+				copySourceEnd = sourceEnd;
+				copyDestEnd = destEnd;
+			} else {
+				if (copySourceStart !== -1) {
+					// flush existing copy request
+					targetData.set(lastTargetData.subarray(copySourceStart, copySourceEnd), copyDestStart);
+				}
+				copySourceStart = sourceStart;
+				copySourceEnd = sourceEnd;
+				copyDestStart = destStart;
+				copyDestEnd = destEnd;
+			}
+
+			needed[lineIndex] = false;
+			dest_dy += minimapLineHeight;
+		}
+
+		if (copySourceStart !== -1) {
+			// flush existing copy request
+			targetData.set(lastTargetData.subarray(copySourceStart, copySourceEnd), copyDestStart);
+		}
+
+		return needed;
 	}
 
 	private static _renderLine(
 		target: ImageData,
 		backgroundColor: ParsedColor,
 		renderMinimap: RenderMinimap,
-		charWidth: number,
 		colorTracker: MinimapTokensColorTracker,
 		minimapCharRenderer: MinimapCharRenderer,
 		dy: number,
@@ -542,6 +674,7 @@ export class Minimap extends ViewPart {
 	): void {
 		const content = lineData.content;
 		const tokens = lineData.tokens;
+		const charWidth = (renderMinimap === RenderMinimap.Large ? Constants.x2_CHAR_WIDTH : Constants.x1_CHAR_WIDTH);
 		const maxDx = target.width - charWidth;
 
 		let dx = 0;
