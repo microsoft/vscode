@@ -19,7 +19,7 @@ import { StandardTokenType } from 'vs/editor/common/modes';
 import { DEFAULT_WORD_REGEXP } from 'vs/editor/common/model/wordHelper';
 import { ICodeEditor, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
-import { IDecorationOptions, IModelDecorationOptions, MouseTargetType, IModelDeltaDecoration, TrackedRangeStickiness, IPosition, IModel } from 'vs/editor/common/editorCommon';
+import { IDecorationOptions, IModelDecorationOptions, MouseTargetType, IModelDeltaDecoration, TrackedRangeStickiness, IPosition } from 'vs/editor/common/editorCommon';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -61,8 +61,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	private wordToLineNumbersMap: Map<string, IPosition[]>;
 
 	private exceptionWidget: ExceptionWidget;
-	private exceptionWidgetVisible: IContextKey<boolean>;
-	private exceptionWidgetModel: IModel;
+	private exceptionWidgetVisible: boolean;
 
 	private configurationWidget: FloatingClickWidget;
 
@@ -86,9 +85,10 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		this.removeInlineValuesScheduler = new RunOnceScheduler(() => this.editor.removeDecorations(INLINE_VALUE_DECORATION_KEY), REMOVE_INLINE_VALUES_DELAY);
 		this.registerListeners();
 		this.breakpointWidgetVisible = CONTEXT_BREAKPOINT_WIDGET_VISIBLE.bindTo(contextKeyService);
-		this.exceptionWidgetVisible = CONTEXT_BREAKPOINT_WIDGET_VISIBLE.bindTo(contextKeyService); // change to different context
+		this.exceptionWidgetVisible = false;
 		this.updateConfigurationWidgetVisibility();
 		this.codeEditorService.registerDecorationType(INLINE_VALUE_DECORATION_KEY, {});
+		this.showHideExceptionWidget();
 	}
 
 	private getContextMenuActions(breakpoint: IBreakpoint, uri: uri, lineNumber: number): TPromise<IAction[]> {
@@ -233,13 +233,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		}
 
 		// Handling exception
-		if (model && sf && sf.source.uri.toString() === model.uri.toString() && sf.thread.stoppedDetails.reason === 'exception') {
-			//if (model && sf && sf.thread.stoppedDetails.reason === 'exception') {
-			// todo: draw only on the model where exception occured => this.editor.setModel()
-			this.showExceptionWidget(sf.lineNumber);
-		} else {
-			this.closeExceptionWidget();
-		}
+		this.showHideExceptionWidget();
 
 		this.updateInlineDecorations(sf);
 	}
@@ -314,37 +308,40 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	}
 
 	// exception widget
-	public showExceptionWidget(lineNumber: number): void {
+	public showHideExceptionWidget(): void {
+		if (this.exceptionWidget && this.exceptionWidgetVisible) {
+			this.hideExceptionWidget();
+		} else {
+			const model = this.editor.getModel();
+			const sf = this.debugService.getViewModel().focusedStackFrame;
+			if (model && sf && sf.thread.stoppedDetails.reason === 'exception' && sf.thread.getCallStack()[0].source.uri.toString() === model.uri.toString()) {
+				this.showExceptionWidget(sf.thread.getCallStack()[0].lineNumber);
+			} else {
+				this.closeExceptionWidget();
+			}
+		}
+	}
+
+	private showExceptionWidget(lineNumber: number): void {
 		if (this.exceptionWidget) {
 			this.exceptionWidget.dispose();
 		}
-		// todo: switch the model to the one where exception occured
+
 		this.exceptionWidget = this.instantiationService.createInstance(ExceptionWidget, this.editor, lineNumber);
-		this.exceptionWidget.show({ lineNumber, column: 1 }, 2);
-		this.exceptionWidgetModel = this.editor.getModel();
+		this.exceptionWidget.show({ lineNumber, column: 1 }, 1);
+		this.exceptionWidgetVisible = true;
 	}
 
-	public closeExceptionWidget(): void {
+	private hideExceptionWidget() {
+		this.exceptionWidget.hide();
+		this.exceptionWidgetVisible = false;
+	}
+
+	private closeExceptionWidget(): void {
 		if (this.exceptionWidget) {
 			this.exceptionWidget.dispose();
 			this.exceptionWidget = null;
-			this.exceptionWidgetVisible.reset();
-			this.exceptionWidgetModel = null;
-			this.editor.focus(); // todo: check if really needed
-		}
-	}
-
-	public showHideExceptionWidget(): void {
-		// Check if the model where exception occured is opened
-		if (!this.exceptionWidget) {
-			return;
-		}
-
-		if (this.exceptionWidgetVisible && !(this.editor.getModel() === this.exceptionWidgetModel)) {
-			this.exceptionWidget.hide();
-		} else if (this.editor.getModel() === this.exceptionWidgetModel) {
-			const lineNumber = this.debugService.getViewModel().focusedStackFrame.lineNumber;
-			this.exceptionWidget.show({ lineNumber, column: 1 }, 2);
+			this.exceptionWidgetVisible = false;
 		}
 	}
 
