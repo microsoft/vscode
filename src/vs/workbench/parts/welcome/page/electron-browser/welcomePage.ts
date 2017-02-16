@@ -165,5 +165,13 @@ class WelcomePage {
 				ul.appendChild(li);
 			});
 		}).then(null, onUnexpectedError);
+
+		if (this.telemetryService.getExperiments().repositionPlaygroundLink) {
+			const playground = container.querySelector('.showInteractivePlayground');
+			const sibling = playground.nextElementSibling;
+			if (sibling) {
+				playground.parentElement.insertBefore(playground, sibling.nextElementSibling);
+			}
+		}
 	}
 }

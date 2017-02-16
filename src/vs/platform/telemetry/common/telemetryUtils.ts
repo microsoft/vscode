@@ -22,7 +22,8 @@ import * as objects from 'vs/base/common/objects';
 export const defaultExperiments: ITelemetryExperiments = {
 	showNewUserWatermark: false,
 	openUntitledFile: true,
-	enableWelcomePage: true
+	enableWelcomePage: true,
+	repositionPlaygroundLink: false,
 };
 
 export const NullTelemetryService = {
@@ -44,9 +45,6 @@ export const NullTelemetryService = {
 	}
 };
 
-const beginGettingStartedExp = Date.UTC(2017, 0, 9);
-const endGettingStartedExp = Date.UTC(2017, 0, 16);
-
 export function loadExperiments(accessor: ServicesAccessor): ITelemetryExperiments {
 	const contextService = accessor.get(IWorkspaceContextService);
 	const storageService = accessor.get(IStorageService);
@@ -58,8 +56,8 @@ export function loadExperiments(accessor: ServicesAccessor): ITelemetryExperimen
 	let {
 		showNewUserWatermark,
 		openUntitledFile,
-		openGettingStarted,
-		enableWelcomePage
+		enableWelcomePage,
+		repositionPlaygroundLink,
 	} = splitExperimentsRandomness();
 
 	const newUserDuration = 24 * 60 * 60 * 1000;
@@ -70,17 +68,11 @@ export function loadExperiments(accessor: ServicesAccessor): ITelemetryExperimen
 		openUntitledFile = defaultExperiments.openUntitledFile;
 	}
 
-	const isNewSession = !storageService.get('telemetry.lastSessionDate');
-	const now = Date.now();
-	if (!(isNewSession && now >= beginGettingStartedExp && now < endGettingStartedExp)) {
-		openGettingStarted = undefined;
-	}
-
 	return applyOverrides({
 		showNewUserWatermark,
 		openUntitledFile,
-		openGettingStarted,
-		enableWelcomePage
+		enableWelcomePage,
+		repositionPlaygroundLink,
 	});
 }
 
@@ -103,13 +95,13 @@ function splitExperimentsRandomness(): ITelemetryExperiments {
 	const random1 = getExperimentsRandomness();
 	const [random2, showNewUserWatermark] = splitRandom(random1);
 	const [random3, openUntitledFile] = splitRandom(random2);
-	const [random4, openGettingStarted] = splitRandom(random3);
+	const [random4, repositionPlaygroundLink] = splitRandom(random3);
 	const [, enableWelcomePage] = splitRandom(random4);
 	return {
 		showNewUserWatermark,
 		openUntitledFile,
-		openGettingStarted,
-		enableWelcomePage
+		enableWelcomePage,
+		repositionPlaygroundLink,
 	};
 }
 
