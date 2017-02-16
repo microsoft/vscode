@@ -17,7 +17,6 @@ import URI from './utils/uri';
 import * as URL from 'url';
 import Strings = require('./utils/strings');
 import { JSONDocument, JSONSchema, LanguageSettings, getLanguageService } from 'vscode-json-languageservice';
-import { ProjectJSONContribution } from './jsoncontributions/projectJSONContribution';
 import { getLanguageModelCache } from './languageModelCache';
 
 import * as nls from 'vscode-nls';
@@ -119,9 +118,7 @@ let schemaRequestService = (uri: string): Thenable<string> => {
 let languageService = getLanguageService({
 	schemaRequestService,
 	workspaceContext,
-	contributions: [
-		new ProjectJSONContribution()
-	]
+	contributions: []
 });
 
 // The settings interface describes the server relevant settings part
