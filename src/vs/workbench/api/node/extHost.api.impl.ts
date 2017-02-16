@@ -32,6 +32,7 @@ import { ExtHostEditors } from 'vs/workbench/api/node/extHostEditors';
 import { ExtHostLanguages } from 'vs/workbench/api/node/extHostLanguages';
 import { ExtHostLanguageFeatures } from 'vs/workbench/api/node/extHostLanguageFeatures';
 import { ExtHostApiCommands } from 'vs/workbench/api/node/extHostApiCommands';
+import { computeDiff } from 'vs/workbench/api/node/extHostFunctions';
 import * as extHostTypes from 'vs/workbench/api/node/extHostTypes';
 import URI from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
@@ -490,6 +491,8 @@ export function createApiFactory(initData: IInitData, threadService: IThreadServ
 			Uri: URI,
 			ViewColumn: extHostTypes.ViewColumn,
 			WorkspaceEdit: extHostTypes.WorkspaceEdit,
+			// functions
+			computeDiff
 		};
 	};
 }
