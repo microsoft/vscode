@@ -75,7 +75,6 @@ export class DragTargetHintWidget extends Widget implements editorBrowser.IConte
 		// Position has changed
 		this._showAtPosition = new Position(position.lineNumber, position.column);
 		this.show();
-		this.renderCursor();
 		this._editor.layoutContentWidget(this);
 		this._editor.render();
 	}
@@ -85,6 +84,7 @@ export class DragTargetHintWidget extends Widget implements editorBrowser.IConte
 			this._domNode.setVisibility('inherit');
 			this._isVisible = true;
 		}
+		this.renderCursor();
 	}
 
 	public hide(): void {

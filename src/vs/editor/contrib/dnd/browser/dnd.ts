@@ -32,9 +32,7 @@ export class DragAndDropController implements editorCommon.IEditorContribution {
 
 	constructor(editor: ICodeEditor) {
 		this._editor = editor;
-
 		this._toUnhook = [];
-
 		this._toUnhook.push(this._editor.onMouseDrag((e: IEditorMouseEvent) => this._onEditorMouseDrag(e)));
 		this._toUnhook.push(this._editor.onMouseDrop((e: IEditorMouseEvent) => this._onEditorMouseDrop(e)));
 		this._targetWidget = new DragTargetHintWidget(editor);
