@@ -161,10 +161,11 @@ export class MinimapCharRenderer {
 	}
 
 	private static _getChIndex(chCode: number): number {
-		if (chCode < Constants.START_CH_CODE || chCode > Constants.END_CH_CODE) {
-			chCode = CharCode.N;
+		chCode -= Constants.START_CH_CODE;
+		if (chCode < 0) {
+			chCode += Constants.CHAR_COUNT;
 		}
-		return chCode - Constants.START_CH_CODE;
+		return (chCode % Constants.CHAR_COUNT);
 	}
 
 	public x2RenderChar(target: ImageData, dx: number, dy: number, chCode: number, color: ParsedColor, backgroundColor: ParsedColor): void {
