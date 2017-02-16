@@ -387,8 +387,8 @@ export class ThemeService implements IThemeService {
 
 			this.onColorThemeChange.fire(this.currentColorTheme);
 
-			if (settingsTarget === ConfigurationTarget.USER) {
-				this.windowService.broadcast({ channel: 'vscode:changeBaseTheme', payload: newTheme.getBaseThemeId() });
+			if (settingsTarget !== ConfigurationTarget.WORKSPACE) {
+				this.windowService.broadcast({ channel: 'vscode:changeColorTheme', payload: newTheme.id });
 			}
 
 			return this.writeColorThemeConfiguration(settingsTarget);

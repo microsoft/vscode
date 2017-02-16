@@ -274,8 +274,8 @@ export class WindowsManager implements IWindowsMainService {
 	private onBroadcast(event: string, payload: any): void {
 
 		// Theme changes
-		if (event === 'vscode:changeBaseTheme' && typeof payload === 'string') {
-			this.storageService.setItem(VSCodeWindow.baseThemeStorageKey, payload);
+		if (event === 'vscode:changeColorTheme' && typeof payload === 'string') {
+			this.storageService.setItem(VSCodeWindow.themeStorageKey, payload);
 		}
 	}
 	public reload(win: VSCodeWindow, cli?: ParsedArgs): void {
