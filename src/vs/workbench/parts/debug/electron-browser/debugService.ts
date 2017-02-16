@@ -850,6 +850,21 @@ export class DebugService implements debug.IDebugService {
 		});
 	}
 
+	public stopProcess(process: debug.IProcess): TPromise<any> {
+		if (process) {
+			return process.session.disconnect(false, true);
+		}
+
+		const processes = this.model.getProcesses();
+		if (processes.length) {
+			return TPromise.join(processes.map(p => p.session.disconnect(false, true)));
+		}
+
+		this.sessionStates.clear();
+		this._onDidChangeState.fire();
+		return undefined;
+	}
+
 	private onSessionEnd(session: RawDebugSession): void {
 		const bpsExist = this.model.getBreakpoints().length > 0;
 		const process = this.model.getProcesses().filter(p => p.getId() === session.getId()).pop();
