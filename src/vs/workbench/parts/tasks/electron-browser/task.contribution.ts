@@ -65,7 +65,7 @@ import { IOutputService, IOutputChannelRegistry, Extensions as OutputExt, IOutpu
 
 import { ITerminalService } from 'vs/workbench/parts/terminal/common/terminal';
 
-import { ITaskSystem, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, TaskRunnerConfiguration, TaskConfiguration, TaskDescription, TaskSystemEvents } from 'vs/workbench/parts/tasks/common/taskSystem';
+import { ITaskSystem, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, TaskRunnerConfiguration, TaskDescription, TaskSystemEvents } from 'vs/workbench/parts/tasks/common/taskSystem';
 import { ITaskService, TaskServiceEvents } from 'vs/workbench/parts/tasks/common/taskService';
 import { templates as taskTemplates } from 'vs/workbench/parts/tasks/common/taskTemplates';
 
@@ -515,8 +515,9 @@ class TaskService extends EventEmitter implements ITaskService {
 				return;
 			}
 			if (this._inTerminal !== void 0) {
-				let config = this.configurationService.getConfiguration<TaskConfiguration>('tasks');
-				if (this._inTerminal && this.isRunnerConfig(config) || !this._inTerminal && this.isTerminalConfig(config)) {
+				let config = this.configurationService.getConfiguration<TaskConfig.ExternalTaskRunnerConfiguration>('tasks');
+				let engine = TaskConfig.ExecutionEngine.from(config);
+				if (this._inTerminal && engine === TaskConfig.ExecutionEngine.OutputPanel || !this._inTerminal && engine === TaskConfig.ExecutionEngine.Terminal) {
 					this.messageService.show(Severity.Info, nls.localize('TaskSystem.noHotSwap', 'Changing the task execution engine requires to restart VS Code. The change is ignored.'));
 				}
 			}
@@ -613,7 +614,7 @@ class TaskService extends EventEmitter implements ITaskService {
 				this._taskSystemPromise = TPromise.as(this._taskSystem);
 			} else {
 				let hasError = false;
-				this._taskSystemPromise = TPromise.as(this.configurationService.getConfiguration<TaskConfiguration>('tasks')).then((config: TaskConfiguration) => {
+				this._taskSystemPromise = TPromise.as(this.configurationService.getConfiguration<TaskConfig.ExternalTaskRunnerConfiguration>('tasks')).then((config) => {
 					let parseErrors: string[] = config ? (<any>config).$parseErrors : null;
 					if (parseErrors) {
 						let isAffected = false;
@@ -629,17 +630,17 @@ class TaskService extends EventEmitter implements ITaskService {
 							return TPromise.wrapError({});
 						}
 					}
-					let configPromise: TPromise<TaskConfiguration>;
+					let configPromise: TPromise<TaskConfig.ExternalTaskRunnerConfiguration>;
 					if (config) {
-						if (this.isRunnerConfig(config) && this.hasDetectorSupport(<TaskConfig.ExternalTaskRunnerConfiguration>config)) {
-							let fileConfig = <TaskConfig.ExternalTaskRunnerConfiguration>config;
-							configPromise = new ProcessRunnerDetector(this.fileService, this.contextService, this.configurationResolverService, fileConfig).detect(true).then((value) => {
+						let engine = TaskConfig.ExecutionEngine.from(config);
+						if (engine === TaskConfig.ExecutionEngine.OutputPanel && this.hasDetectorSupport(config)) {
+							configPromise = new ProcessRunnerDetector(this.fileService, this.contextService, this.configurationResolverService, config).detect(true).then((value) => {
 								hasError = this.printStderr(value.stderr);
 								let detectedConfig = value.config;
 								if (!detectedConfig) {
 									return config;
 								}
-								let result: TaskConfig.ExternalTaskRunnerConfiguration = Objects.clone(fileConfig);
+								let result: TaskConfig.ExternalTaskRunnerConfiguration = Objects.clone(config);
 								let configuredTasks: IStringDictionary<TaskConfig.TaskDescription> = Object.create(null);
 								if (!result.tasks) {
 									if (detectedConfig.tasks) {
@@ -656,7 +657,7 @@ class TaskService extends EventEmitter implements ITaskService {
 								return result;
 							});
 						} else {
-							configPromise = TPromise.as<TaskConfiguration>(config);
+							configPromise = TPromise.as(config);
 						}
 					} else {
 						configPromise = new ProcessRunnerDetector(this.fileService, this.contextService, this.configurationResolverService).detect(true).then((value) => {
@@ -670,7 +671,7 @@ class TaskService extends EventEmitter implements ITaskService {
 							throw new TaskError(Severity.Info, nls.localize('TaskSystem.noConfiguration', 'No task runner configured.'), TaskErrors.NotConfigured);
 						}
 						let result: ITaskSystem = null;
-						let parseResult = TaskConfig.parse(<TaskConfig.ExternalTaskRunnerConfiguration>config, this);
+						let parseResult = TaskConfig.parse(config, this);
 						if (!parseResult.validationStatus.isOK()) {
 							this.outputChannel.show(true);
 							hasError = true;
@@ -678,11 +679,11 @@ class TaskService extends EventEmitter implements ITaskService {
 						if (parseResult.validationStatus.isFatal()) {
 							throw new TaskError(Severity.Error, nls.localize('TaskSystem.fatalError', 'The provided task configuration has validation errors. See tasks output log for details.'), TaskErrors.ConfigValidationError);
 						}
-						if (this.isRunnerConfig(config)) {
+						if (parseResult.engine === TaskConfig.ExecutionEngine.OutputPanel) {
 							this._inTerminal = false;
 							result = new ProcessRunnerSystem(parseResult.configuration, this.markerService, this.modelService,
 								this.telemetryService, this.outputService, this.configurationResolverService, TaskService.OutputChannelId, hasError);
-						} else if (this.isTerminalConfig(config)) {
+						} else if (parseResult.engine === TaskConfig.ExecutionEngine.Terminal) {
 							this._inTerminal = true;
 							result = new TerminalTaskSystem(
 								parseResult.configuration,
@@ -710,7 +711,7 @@ class TaskService extends EventEmitter implements ITaskService {
 	}
 
 	private createConfiguration(): TPromise<TaskRunnerConfiguration> {
-		let config = this.configurationService.getConfiguration<TaskConfiguration>('tasks');
+		let config = this.configurationService.getConfiguration<TaskConfig.ExternalTaskRunnerConfiguration>('tasks');
 		let parseErrors: string[] = config ? (<any>config).$parseErrors : null;
 		if (parseErrors) {
 			let isAffected = false;
@@ -726,17 +727,17 @@ class TaskService extends EventEmitter implements ITaskService {
 				return TPromise.wrapError(undefined);
 			}
 		}
-		let configPromise: TPromise<TaskConfiguration>;
+		let configPromise: TPromise<TaskConfig.ExternalTaskRunnerConfiguration>;
 		if (config) {
-			if (this.isRunnerConfig(config) && this.hasDetectorSupport(<TaskConfig.ExternalTaskRunnerConfiguration>config)) {
-				let fileConfig = <TaskConfig.ExternalTaskRunnerConfiguration>config;
-				configPromise = new ProcessRunnerDetector(this.fileService, this.contextService, this.configurationResolverService, fileConfig).detect(true).then((value) => {
+			let engine = TaskConfig.ExecutionEngine.from(config);
+			if (engine === TaskConfig.ExecutionEngine.OutputPanel && this.hasDetectorSupport(config)) {
+				configPromise = new ProcessRunnerDetector(this.fileService, this.contextService, this.configurationResolverService, config).detect(true).then((value) => {
 					this.printStderr(value.stderr);
 					let detectedConfig = value.config;
 					if (!detectedConfig) {
 						return config;
 					}
-					let result: TaskConfig.ExternalTaskRunnerConfiguration = Objects.clone(fileConfig);
+					let result: TaskConfig.ExternalTaskRunnerConfiguration = Objects.clone(config);
 					let configuredTasks: IStringDictionary<TaskConfig.TaskDescription> = Object.create(null);
 					if (!result.tasks) {
 						if (detectedConfig.tasks) {
@@ -753,7 +754,7 @@ class TaskService extends EventEmitter implements ITaskService {
 					return result;
 				});
 			} else {
-				configPromise = TPromise.as<TaskConfiguration>(config);
+				configPromise = TPromise.as(config);
 			}
 		} else {
 			configPromise = new ProcessRunnerDetector(this.fileService, this.contextService, this.configurationResolverService).detect(true).then((value) => {
@@ -765,7 +766,7 @@ class TaskService extends EventEmitter implements ITaskService {
 			if (!config) {
 				return undefined;
 			}
-			let parseResult = TaskConfig.parse(<TaskConfig.ExternalTaskRunnerConfiguration>config, this);
+			let parseResult = TaskConfig.parse(config, this);
 			if (!parseResult.validationStatus.isOK()) {
 				this.showOutput();
 			}
@@ -787,14 +788,6 @@ class TaskService extends EventEmitter implements ITaskService {
 			this.outputChannel.show(true);
 		}
 		return result;
-	}
-
-	private isRunnerConfig(config: TaskConfiguration): boolean {
-		return !config._runner || config._runner === 'program';
-	}
-
-	private isTerminalConfig(config: TaskConfiguration): boolean {
-		return config._runner === 'terminal';
 	}
 
 	public inTerminal(): boolean {

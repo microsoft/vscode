@@ -165,7 +165,7 @@ export interface TaskDescription extends PlatformTaskDescription {
 /**
  * The base task runner configuration
  */
-export interface BaseTaskRunnerConfiguration extends TaskSystem.TaskConfiguration {
+export interface BaseTaskRunnerConfiguration {
 
 	/**
 	 * The command to be executed. Can be an external program or a shell
@@ -264,6 +264,8 @@ export interface BaseTaskRunnerConfiguration extends TaskSystem.TaskConfiguratio
  * must be set to 'program'
  */
 export interface ExternalTaskRunnerConfiguration extends BaseTaskRunnerConfiguration {
+
+	_runner?: string;
 
 	/**
 	 * The config's version number
@@ -980,9 +982,35 @@ namespace Globals {
 	}
 }
 
+export enum ExecutionEngine {
+	Unknown = 0,
+	Terminal = 1,
+	OutputPanel = 2
+}
+
+export namespace ExecutionEngine {
+
+	export function from(config: ExternalTaskRunnerConfiguration): ExecutionEngine {
+		return isTerminalConfig(config)
+			? ExecutionEngine.Terminal
+			: isRunnerConfig(config)
+				? ExecutionEngine.OutputPanel
+				: ExecutionEngine.Unknown;
+	}
+
+	function isRunnerConfig(config: ExternalTaskRunnerConfiguration): boolean {
+		return (!config._runner || config._runner === 'program') && (config.version === '0.1.0' || !config.version);
+	}
+
+	function isTerminalConfig(config: ExternalTaskRunnerConfiguration): boolean {
+		return config._runner === 'terminal' || config.version === '2.0.0';
+	}
+}
+
 export interface ParseResult {
 	validationStatus: ValidationStatus;
 	configuration: TaskSystem.TaskRunnerConfiguration;
+	engine: ExecutionEngine;
 }
 
 export interface ILogger {
@@ -1001,10 +1029,12 @@ class ConfigurationParser {
 	}
 
 	public run(fileConfig: ExternalTaskRunnerConfiguration): ParseResult {
-		let context: ParseContext = { logger: this.logger, validationStatus: this.validationStatus, namedProblemMatchers: undefined, isTermnial: fileConfig._runner === 'terminal' };
+		let engine = ExecutionEngine.from(fileConfig);
+		let context: ParseContext = { logger: this.logger, validationStatus: this.validationStatus, namedProblemMatchers: undefined, isTermnial: engine === ExecutionEngine.Terminal };
 		return {
 			validationStatus: this.validationStatus,
 			configuration: this.createTaskRunnerConfiguration(fileConfig, context),
+			engine
 		};
 	}
 
