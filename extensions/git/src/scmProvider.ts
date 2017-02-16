@@ -8,7 +8,7 @@
 import { scm, Uri, Disposable, SCMProvider, SCMResourceGroup, Event, ProviderResult, workspace } from 'vscode';
 import { Model, Resource, ResourceGroup, State } from './model';
 import { CommandCenter } from './commands';
-import { anyEvent, mapEvent } from './util';
+import { mapEvent } from './util';
 
 export class GitSCMProvider implements SCMProvider {
 
@@ -17,7 +17,7 @@ export class GitSCMProvider implements SCMProvider {
 	get resources(): SCMResourceGroup[] { return this.model.resources; }
 
 	get onDidChange(): Event<SCMResourceGroup[]> {
-		return mapEvent(anyEvent<any>(this.model.onDidChange, this.model.onDidChangeState), () => this.model.resources);
+		return mapEvent(this.model.onDidChange, () => this.model.resources);
 	}
 
 	get label(): string { return 'Git'; }
