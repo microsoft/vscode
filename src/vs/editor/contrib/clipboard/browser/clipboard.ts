@@ -25,6 +25,14 @@ function conditionalEditorAction(testCommand: string) {
 	return editorAction;
 }
 
+function conditionalCopyWithSyntaxHighlighting() {
+	if (browser.isEdgeOrIE || !browser.supportsExecCommand('copy')) {
+		return () => { };
+	}
+
+	return editorAction;
+}
+
 abstract class ExecCommandAction extends EditorAction {
 
 	private browserCommand: string;
@@ -134,5 +142,38 @@ class ExecCommandPasteAction extends ExecCommandAction {
 				order: 3
 			}
 		});
+	}
+}
+
+@conditionalCopyWithSyntaxHighlighting()
+class ExecCommandCopyWithSyntaxHighlightingAction extends ExecCommandAction {
+
+	constructor() {
+		super('copy', {
+			id: 'editor.action.clipboardCopyWithSyntaxHighlightingAction',
+			label: nls.localize('actions.clipboard.copyWithSyntaxHighlightingLabel', "Copy With Syntax Highlighting"),
+			alias: 'Copy With Syntax Highlighting',
+			precondition: null,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: null
+			},
+			menuOpts: {
+				group: CLIPBOARD_CONTEXT_MENU_GROUP,
+				order: 2
+			}
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void {
+		var enableEmptySelectionClipboard = editor.getConfiguration().contribInfo.emptySelectionClipboard && browser.enableEmptySelectionClipboard;
+
+		if (!enableEmptySelectionClipboard && editor.getSelection().isEmpty()) {
+			return;
+		}
+
+		editorCommon.InternalEditorOptions.forceCopyWithSyntaxHighlighting = true;
+		super.run(accessor, editor);
+		editorCommon.InternalEditorOptions.forceCopyWithSyntaxHighlighting = false;
 	}
 }

@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 .search-viewlet .search-widgets-container {
-	margin: 6px 9px 0 2px;
+	margin: 0px 9px 0 2px;
+	padding-top: 6px;
 }
 
 .search-viewlet .search-widget .toggle-replace-button {
@@ -82,6 +83,7 @@
 	cursor: pointer;
 	width: 16px;
 	height: 13px;
+	z-index: 2; /* Force it above the search results message, which has a negative top margin */
 }
 
 .hc-black .monaco-workbench .search-viewlet .query-details .more,
@@ -141,6 +143,11 @@
 	margin: 0;
 	font-size: 11px;
 	font-weight: normal;
+}
+
+.search-viewlet .messages {
+	margin-top: -5px;
+	cursor: default;
 }
 
 .search-viewlet .message {

@@ -30,9 +30,7 @@ export class CheckoutStatusBar {
 		const HEAD = this.model.HEAD;
 
 		if (!HEAD) {
-			this.raw.command = '';
-			this.raw.color = 'rgb(100, 100, 100)';
-			this.raw.text = 'unknown';
+			this.raw.hide();
 			return;
 		}
 
@@ -48,6 +46,7 @@ export class CheckoutStatusBar {
 			(this.model.workingTreeGroup.resources.length > 0 ? '*' : '') +
 			(this.model.indexGroup.resources.length > 0 ? '+' : '') +
 			(this.model.mergeGroup.resources.length > 0 ? '!' : '');
+		this.raw.show();
 	}
 
 	dispose(): void {

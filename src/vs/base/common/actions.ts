@@ -9,6 +9,7 @@ import { IEventEmitter, EventEmitter } from 'vs/base/common/eventEmitter';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as Events from 'vs/base/common/events';
 import Event, { Emitter } from 'vs/base/common/event';
+import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 
 export interface IAction extends IDisposable {
 	id: string;
@@ -202,7 +203,7 @@ export class Action implements IAction {
 		this._order = value;
 	}
 
-	public run(event?: any): TPromise<any> {
+	public run(event?: any, data?: ITelemetryData): TPromise<any> {
 		if (this._actionCallback !== void 0) {
 			return this._actionCallback(event);
 		}

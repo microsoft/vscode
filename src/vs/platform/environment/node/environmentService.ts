@@ -29,25 +29,25 @@ function getUniqueUserId(): string {
 	return crypto.createHash('sha256').update(username).digest('hex').substr(0, 6);
 }
 
-function getIPCHandlePrefix(nixBaseDir: string = os.tmpdir()): string {
-	let name = pkg.name;
-
-	// Support to run VS Code multiple times as different user
-	// by making the socket unique over the logged in user
-	let userId = getUniqueUserId();
-	if (userId) {
-		name += `-${userId}`;
-	}
-
-	if (process.platform === 'win32') {
-		return `\\\\.\\pipe\\${name}`;
-	} else {
-		return path.join(nixBaseDir, name);
-	}
+function getNixIPCHandle(userDataPath: string, type: string): string {
+	return path.join(userDataPath, `${pkg.version}-${type}.sock`);
 }
 
-function getIPCHandleSuffix(): string {
-	return process.platform === 'win32' ? '-sock' : '.sock';
+function getWin32IPCHandle(type: string): string {
+	// Support to run VS Code multiple times as different user
+	// by making the socket unique over the logged in user
+	const userId = getUniqueUserId();
+	const name = product.applicationName + (userId ? `-${userId}` : '');
+
+	return `\\\\.\\pipe\\${name}-${pkg.version}-${type}-sock`;
+}
+
+function getIPCHandle(userDataPath: string, type: string): string {
+	if (process.platform === 'win32') {
+		return getWin32IPCHandle(type);
+	} else {
+		return getNixIPCHandle(userDataPath, type);
+	}
 }
 
 export class EnvironmentService implements IEnvironmentService {
@@ -113,10 +113,10 @@ export class EnvironmentService implements IEnvironmentService {
 	get logExtensionHostCommunication(): boolean { return this._args.logExtensionHostCommunication; }
 
 	@memoize
-	get mainIPCHandle(): string { return `${getIPCHandlePrefix(this.userDataPath)}-${pkg.version}${getIPCHandleSuffix()}`; }
+	get mainIPCHandle(): string { return getIPCHandle(this.userDataPath, 'main'); }
 
 	@memoize
-	get sharedIPCHandle(): string { return `${getIPCHandlePrefix(this.userDataPath)}-${pkg.version}-shared${getIPCHandleSuffix()}`; }
+	get sharedIPCHandle(): string { return getIPCHandle(this.userDataPath, 'shared'); }
 
 	@memoize
 	get nodeCachedDataDir(): string { return path.join(this.userDataPath, 'CachedData'); }

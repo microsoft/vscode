@@ -5,6 +5,7 @@
 
 import uri from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
+import severity from 'vs/base/common/severity';
 import Event from 'vs/base/common/event';
 import { IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -363,6 +364,8 @@ export interface IConfigurationManager {
 	 */
 	getCompound(name: string): ICompound;
 
+	configFileUri: uri;
+
 	/**
 	 * Opens the launch.json file. Creates if it does not exist.
 	 */
@@ -461,7 +464,7 @@ export interface IDebugService {
 	/**
 	 * Appends the passed string to the debug repl.
 	 */
-	logToRepl(value: string): void;
+	logToRepl(value: string, sev?: severity): void;
 
 	/**
 	 * Adds a new watch expression and evaluates it against the debug adapter.
@@ -492,6 +495,11 @@ export interface IDebugService {
 	 * Restarts a process or creates a new one if there is no active session.
 	 */
 	restartProcess(process: IProcess): TPromise<any>;
+
+	/**
+	 * Stops the process. If the process does not exist then stops all processes.
+	 */
+	stopProcess(process: IProcess): TPromise<any>;
 
 	/**
 	 * Deemphasizes all sources with the passed uri. Source will appear as grayed out in callstack view.

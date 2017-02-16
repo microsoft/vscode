@@ -436,9 +436,8 @@ export class DebugService implements debug.IDebugService {
 		if (focusedProcess) {
 			return this.sessionStates.get(focusedProcess.getId());
 		}
-		const processes = this.model.getProcesses();
-		if (processes.length > 0) {
-			return this.sessionStates.get(processes[0].getId());
+		if (this.sessionStates.size > 0) {
+			return debug.State.Initializing;
 		}
 
 		return debug.State.Inactive;
@@ -449,7 +448,11 @@ export class DebugService implements debug.IDebugService {
 	}
 
 	private setStateAndEmit(sessionId: string, newState: debug.State): void {
-		this.sessionStates.set(sessionId, newState);
+		if (newState === debug.State.Inactive) {
+			this.sessionStates.delete(sessionId);
+		} else {
+			this.sessionStates.set(sessionId, newState);
+		}
 		this._onDidChangeState.fire();
 	}
 
@@ -536,8 +539,8 @@ export class DebugService implements debug.IDebugService {
 		this.model.removeReplExpressions();
 	}
 
-	public logToRepl(value: string): void {
-		this.model.appendToRepl(value, severity.Info);
+	public logToRepl(value: string, sev = severity.Info): void {
+		this.model.appendToRepl(value, sev);
 	}
 
 	public addWatchExpression(name: string): TPromise<void> {
@@ -559,11 +562,6 @@ export class DebugService implements debug.IDebugService {
 	}
 
 	public createProcess(configurationOrName: debug.IConfig | string): TPromise<any> {
-		if (this.model.getProcesses().length === 0) {
-			// Repl shouldn't be cleared if a process is already running since the repl is shared.
-			this.removeReplExpressions();
-		}
-
 		const sessionId = generateUuid();
 		this.setStateAndEmit(sessionId, debug.State.Initializing);
 
@@ -573,7 +571,7 @@ export class DebugService implements debug.IDebugService {
 					const compound = typeof configurationOrName === 'string' ? this.configurationManager.getCompound(configurationOrName) : null;
 					if (compound) {
 						if (!compound.configurations) {
-							return TPromise.wrapError(new Error(nls.localize({ key: 'compoundMustHaveConfigurations', comment: ['compound indicates a "compounds" configuration item'] },
+							return TPromise.wrapError(new Error(nls.localize({ key: 'compoundMustHaveConfigurations', comment: ['compound indicates a "compounds" configuration item', '"configurations" is an attribute and should not be localized'] },
 								"Compound must have \"configurations\" attribute set in order to start multiple configurations.")));
 						}
 
@@ -687,6 +685,7 @@ export class DebugService implements debug.IDebugService {
 			this.registerSessionListeners(process, session);
 
 			return session.initialize({
+				clientID: 'vscode',
 				adapterID: configuration.type,
 				pathFormat: 'path',
 				linesStartAt1: true,
@@ -849,6 +848,21 @@ export class DebugService implements debug.IDebugService {
 				}
 			}
 		});
+	}
+
+	public stopProcess(process: debug.IProcess): TPromise<any> {
+		if (process) {
+			return process.session.disconnect(false, true);
+		}
+
+		const processes = this.model.getProcesses();
+		if (processes.length) {
+			return TPromise.join(processes.map(p => p.session.disconnect(false, true)));
+		}
+
+		this.sessionStates.clear();
+		this._onDidChangeState.fire();
+		return undefined;
 	}
 
 	private onSessionEnd(session: RawDebugSession): void {

@@ -269,7 +269,7 @@ export class ElectronWindow {
 			const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
 			if (windowConfig && windowConfig.autoDetectHighContrast) {
 				this.partService.joinCreation().then(() => {
-					this.themeService.setColorTheme(VS_HC_THEME, false);
+					this.themeService.setColorTheme(VS_HC_THEME, null);
 				});
 			}
 		});
@@ -278,7 +278,7 @@ export class ElectronWindow {
 			const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
 			if (windowConfig && windowConfig.autoDetectHighContrast) {
 				this.partService.joinCreation().then(() => {
-					this.themeService.setColorTheme(VS_DARK_THEME, false);
+					this.themeService.setColorTheme(VS_DARK_THEME, null);
 				});
 			}
 		});

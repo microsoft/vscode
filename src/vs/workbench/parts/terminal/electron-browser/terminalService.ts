@@ -15,12 +15,14 @@ import { ITerminalInstance, ITerminalService, IShellLaunchConfig, KEYBINDING_CON
 import { TPromise } from 'vs/base/common/winjs.base';
 import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 import { TerminalInstance } from 'vs/workbench/parts/terminal/electron-browser/terminalInstance';
+import { TerminalLinkHandler } from 'vs/workbench/parts/terminal/electron-browser/terminalLinkHandler';
 
 export class TerminalService implements ITerminalService {
 	public _serviceBrand: any;
 
 	private _activeTerminalInstanceIndex: number;
 	private _configHelper: TerminalConfigHelper;
+	private _linkHandler: TerminalLinkHandler;
 	private _onActiveInstanceChanged: Emitter<string>;
 	private _onInstanceDisposed: Emitter<ITerminalInstance>;
 	private _onInstanceProcessIdReady: Emitter<ITerminalInstance>;
@@ -57,7 +59,8 @@ export class TerminalService implements ITerminalService {
 
 		this._configurationService.onDidUpdateConfiguration(() => this.updateConfig());
 		this._terminalFocusContextKey = KEYBINDING_CONTEXT_TERMINAL_FOCUS.bindTo(this._contextKeyService);
-		this._configHelper = <TerminalConfigHelper>this._instantiationService.createInstance(TerminalConfigHelper, platform.platform);
+		this._configHelper = this._instantiationService.createInstance(TerminalConfigHelper, platform.platform);
+		this._linkHandler = this._instantiationService.createInstance(TerminalLinkHandler, platform.platform);
 		this.onInstanceDisposed((terminalInstance) => { this._removeInstance(terminalInstance); });
 	}
 
@@ -65,6 +68,7 @@ export class TerminalService implements ITerminalService {
 		let terminalInstance = this._instantiationService.createInstance(TerminalInstance,
 			this._terminalFocusContextKey,
 			this._configHelper,
+			this._linkHandler,
 			this._terminalContainer,
 			shell);
 		terminalInstance.addDisposable(terminalInstance.onTitleChanged(this._onInstanceTitleChanged.fire, this._onInstanceTitleChanged));

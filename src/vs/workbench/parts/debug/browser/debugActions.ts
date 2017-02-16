@@ -11,6 +11,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IFileService } from 'vs/platform/files/common/files';
 import { IDebugService, IConfig, State, IProcess, IThread, IEnablement, IBreakpoint, IStackFrame, IFunctionBreakpoint, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID, IExpression, REPL_ID }
 	from 'vs/workbench/parts/debug/common/debug';
 import { Variable, Expression, Thread, Breakpoint, Process } from 'vs/workbench/parts/debug/common/debugModel';
@@ -102,6 +103,11 @@ export class ConfigureAction extends AbstractDebugAction {
 	}
 }
 
+interface StartSessionResult {
+	status: 'ok' | 'initialConfiguration' | 'saveConfiguration';
+	content?: string;
+};
+
 export class StartAction extends AbstractDebugAction {
 	static ID = 'workbench.action.debug.start';
 	static LABEL = nls.localize('startDebug', "Start Debugging");
@@ -110,7 +116,8 @@ export class StartAction extends AbstractDebugAction {
 		@IDebugService debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@ICommandService private commandService: ICommandService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IFileService private fileService: IFileService
 	) {
 		super(id, label, 'debug-action start', debugService, keybindingService);
 		this.debugService.getViewModel().onDidSelectConfiguration(() => {
@@ -120,6 +127,9 @@ export class StartAction extends AbstractDebugAction {
 
 	public run(): TPromise<any> {
 		return this.commandService.executeCommand('workbench.action.files.save').then(() => {
+			if (this.debugService.getModel().getProcesses().length === 0) {
+				this.debugService.removeReplExpressions();
+			}
 			const manager = this.debugService.getConfigurationManager();
 			const configName = this.debugService.getViewModel().selectedConfigurationName;
 			const compound = manager.getCompound(configName);
@@ -131,7 +141,18 @@ export class StartAction extends AbstractDebugAction {
 			return manager.getStartSessionCommand(configuration ? configuration.type : undefined).then(commandAndType => {
 				configuration = this.massageConfiguartion(configuration);
 				if (commandAndType && commandAndType.command) {
-					return this.commandService.executeCommand(commandAndType.command, configuration || this.getDefaultConfiguration());
+					return this.commandService.executeCommand(commandAndType.command, configuration || this.getDefaultConfiguration()).then((result: StartSessionResult) => {
+						if (this.contextService.getWorkspace()) {
+							if (result && result.status === 'initialConfiguration') {
+								return manager.openConfigFile(false, commandAndType.type);
+							}
+
+							if (result && result.status === 'saveConfiguration') {
+								return this.fileService.updateContent(manager.configFileUri, result.content).then(() => manager.openConfigFile(false));
+							}
+						}
+						return undefined;
+					});
 				}
 
 				if (configName) {
@@ -157,7 +178,7 @@ export class StartAction extends AbstractDebugAction {
 	// Disabled if the launch drop down shows the launch config that is already running.
 	protected isEnabled(state: State): boolean {
 		const processes = this.debugService.getModel().getProcesses();
-		return super.isEnabled(state) && processes.every(p => p.name !== this.debugService.getViewModel().selectedConfigurationName) &&
+		return state !== State.Initializing && processes.every(p => p.name !== this.debugService.getViewModel().selectedConfigurationName) &&
 			(!this.contextService || !!this.contextService.getWorkspace() || processes.length === 0);
 	}
 }
@@ -170,9 +191,10 @@ export class RunAction extends StartAction {
 		@IDebugService debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@ICommandService commandService: ICommandService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IFileService fileService: IFileService
 	) {
-		super(id, label, debugService, keybindingService, commandService, contextService);
+		super(id, label, debugService, keybindingService, commandService, contextService, fileService);
 	}
 
 	protected getDefaultConfiguration(): any {
@@ -208,6 +230,9 @@ export class RestartAction extends AbstractDebugAction {
 			process = this.debugService.getViewModel().focusedProcess;
 		}
 
+		if (this.debugService.getModel().getProcesses().length <= 1) {
+			this.debugService.removeReplExpressions();
+		}
 		return this.debugService.restartProcess(process);
 	}
 
@@ -292,7 +317,7 @@ export class StopAction extends AbstractDebugAction {
 			process = this.debugService.getViewModel().focusedProcess;
 		}
 
-		return process ? process.session.disconnect(false, true) : TPromise.as(null);
+		return this.debugService.stopProcess(process);
 	}
 
 	protected isEnabled(state: State): boolean {
@@ -310,7 +335,7 @@ export class DisconnectAction extends AbstractDebugAction {
 
 	public run(): TPromise<any> {
 		const process = this.debugService.getViewModel().focusedProcess;
-		return process ? process.session.disconnect(false, true) : TPromise.as(null);
+		return this.debugService.stopProcess(process);
 	}
 
 	protected isEnabled(state: State): boolean {

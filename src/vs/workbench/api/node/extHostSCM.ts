@@ -189,7 +189,7 @@ export class ExtHostSCM {
 				return [g.id, g.label, rawResources] as SCMRawResourceGroup;
 			});
 
-			this._proxy.$onChange(providerId, rawResourceGroups, provider.count);
+			this._proxy.$onChange(providerId, rawResourceGroups, provider.count, provider.state);
 		});
 
 		return new Disposable(() => {

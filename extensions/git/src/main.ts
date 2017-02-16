@@ -41,17 +41,15 @@ async function init(disposables: Disposable[]): Promise<void> {
 	const pathHint = workspace.getConfiguration('git').get<string>('path');
 	const info = await findGit(pathHint);
 	const git = new Git({ gitPath: info.path, version: info.version });
-	const repository = git.open(rootPath);
-	const repositoryRoot = await repository.getRoot();
-	const model = new Model(repositoryRoot, repository, onWorkspaceChange);
+	const model = new Model(git, rootPath, onWorkspaceChange);
 
 	outputChannel.appendLine(localize('using git', "Using git {0} from {1}", info.version, info.path));
 	git.onOutput(str => outputChannel.append(str), null, disposables);
 
-	const commitHandler = new CommitController(model);
+	const commitHandler = new CommitController();
 	const commandCenter = new CommandCenter(model, outputChannel);
 	const provider = new GitSCMProvider(model, commandCenter);
-	const contentProvider = new GitContentProvider(git, rootPath, onGitChange);
+	const contentProvider = new GitContentProvider(model, onGitChange);
 	const checkoutStatusBar = new CheckoutStatusBar(model);
 	const syncStatusBar = new SyncStatusBar(model);
 	const autoFetcher = new AutoFetcher(model);
@@ -66,7 +64,8 @@ async function init(disposables: Disposable[]): Promise<void> {
 		checkoutStatusBar,
 		syncStatusBar,
 		autoFetcher,
-		mergeDecorator
+		mergeDecorator,
+		model
 	);
 }
 

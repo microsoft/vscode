@@ -28,8 +28,7 @@ import { IDisposable, IReference, ImmortalReference, combinedDisposable } from '
 import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { values } from 'vs/base/common/collections';
-import { MenuId, MenuRegistry, ICommandAction, IMenu, IMenuService } from 'vs/platform/actions/common/actions';
+import { MenuId, IMenu, IMenuService } from 'vs/platform/actions/common/actions';
 import { Menu } from 'vs/platform/actions/common/menu';
 import { ITelemetryService, ITelemetryExperiments, ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
 
@@ -427,10 +426,6 @@ export class SimpleMenuService implements IMenuService {
 
 	public createMenu(id: MenuId, contextKeyService: IContextKeyService): IMenu {
 		return new Menu(id, TPromise.as(true), this._commandService, contextKeyService);
-	}
-
-	public getCommandActions(): ICommandAction[] {
-		return values(MenuRegistry.commands);
 	}
 }
 

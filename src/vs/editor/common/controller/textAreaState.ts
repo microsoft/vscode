@@ -13,7 +13,7 @@ import { Constants } from 'vs/editor/common/core/uint';
 
 export interface IClipboardEvent {
 	canUseTextData(): boolean;
-	setTextData(text: string): void;
+	setTextData(text: string, richText: string): void;
 	getTextData(): string;
 }
 
@@ -56,6 +56,8 @@ export interface ISimpleModel {
 	getValueInRange(range: Range, eol: EndOfLinePreference): string;
 	getModelLineContent(lineNumber: number): string;
 	getLineCount(): number;
+	getPlainTextToCopy(ranges: Range[], enableEmptySelectionClipboard: boolean): string;
+	getHTMLToCopy(ranges: Range[], enableEmptySelectionClipboard: boolean): string;
 
 	coordinatesConverter: {
 		convertViewPositionToModelPosition(viewPosition: Position): Position;
