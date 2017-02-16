@@ -608,7 +608,7 @@ export class ViewModel extends EventEmitter implements IViewModel {
 		let fontInfo = this.configuration.editor.fontInfo;
 
 		let output = `<div style="color: ${defaultForegroundColor}; background-color: ${defaultBackgroundColor};` +
-			`font-family: ${fontInfo.fontFamily}; font-weight: ${fontInfo.fontWeight}; font-size: ${fontInfo.fontSize}; line-height: ${fontInfo.lineHeight}">`;
+			`font-family: ${fontInfo.fontFamily}; font-weight: ${fontInfo.fontWeight}; font-size: ${fontInfo.fontSize}px; line-height: ${fontInfo.lineHeight}px">`;
 
 		if (ranges.length === 1) {
 			let range: Range = ranges[0];
