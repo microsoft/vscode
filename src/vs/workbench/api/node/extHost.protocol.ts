@@ -183,6 +183,7 @@ export abstract class MainThreadMessageServiceShape {
 export abstract class MainThreadOutputServiceShape {
 	$append(channelId: string, label: string, value: string): TPromise<void> { throw ni(); }
 	$clear(channelId: string, label: string): TPromise<void> { throw ni(); }
+	$dispose(channelId: string, label: string): TPromise<void> { throw ni(); }
 	$reveal(channelId: string, label: string, preserveFocus: boolean): TPromise<void> { throw ni(); }
 	$close(channelId: string): TPromise<void> { throw ni(); }
 }
