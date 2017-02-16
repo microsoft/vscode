@@ -1,6 +1,8 @@
 @echo off
 setlocal
 
+set ELECTRON_RUN_AS_NODE=
+
 pushd %~dp0\..
 
 for /f "tokens=2 delims=:," %%a in ('findstr /R /C:"\"nameShort\":.*" product.json') do set NAMESHORT=%%~a
