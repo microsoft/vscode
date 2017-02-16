@@ -21,6 +21,18 @@ export class ParsedColor {
 		this.b = b;
 		this.isLight = ((r + g + b) / (3 * 255) > 0.5);
 	}
+
+	public toCSSHex(): string {
+		return `#${ParsedColor._toTwoDigitHex(this.r)}${ParsedColor._toTwoDigitHex(this.g)}${ParsedColor._toTwoDigitHex(this.b)}`;
+	}
+
+	private static _toTwoDigitHex(n: number): string {
+		let r = n.toString(16);
+		if (r.length !== 2) {
+			return '0' + r;
+		}
+		return r;
+	}
 }
 
 export class MinimapTokensColorTracker {

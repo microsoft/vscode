@@ -9,6 +9,7 @@ import { OverviewRulerPosition, OverviewRulerLane, OverviewRulerZone, ColorZone 
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as browser from 'vs/base/browser/browser';
 import { OverviewZoneManager } from 'vs/editor/common/view/overviewZoneManager';
+import { ParsedColor } from 'vs/editor/common/view/minimapCharRenderer';
 
 export class OverviewRulerImpl {
 
@@ -17,6 +18,7 @@ export class OverviewRulerImpl {
 	private _lanesCount: number;
 	private _zoneManager: OverviewZoneManager;
 	private _canUseTranslate3d: boolean;
+	private _background: ParsedColor;
 
 	private _zoomListener: IDisposable;
 
@@ -31,6 +33,7 @@ export class OverviewRulerImpl {
 		this._lanesCount = 3;
 
 		this._canUseTranslate3d = canUseTranslate3d;
+		this._background = null;
 
 		this._zoneManager = new OverviewZoneManager(getVerticalOffsetForLine);
 		this._zoneManager.setMinimumHeight(minimumHeight);
@@ -97,6 +100,14 @@ export class OverviewRulerImpl {
 		}
 	}
 
+	public setUseBackground(background: ParsedColor, render: boolean): void {
+		this._background = background;
+
+		if (render) {
+			this.render(true);
+		}
+	}
+
 	public getDomNode(): HTMLCanvasElement {
 		return this._domNode;
 	}
@@ -154,7 +165,12 @@ export class OverviewRulerImpl {
 		let id2Color = this._zoneManager.getId2Color();
 
 		let ctx = this._domNode.getContext('2d');
-		ctx.clearRect(0, 0, width, height);
+		if (this._background === null) {
+			ctx.clearRect(0, 0, width, height);
+		} else {
+			ctx.fillStyle = this._background.toCSSHex();
+			ctx.fillRect(0, 0, width, height);
+		}
 
 		if (colorZones.length > 0) {
 			let remainingWidth = width - this._canvasLeftOffset;
