@@ -12,6 +12,13 @@ import { ILineMapping, IModel, SplitLine, SplitLinesCollection } from 'vs/editor
 import { MockConfiguration } from 'vs/editor/test/common/mocks/mockConfiguration';
 import { Model } from 'vs/editor/common/model/model';
 import { toUint32Array } from 'vs/editor/common/core/uint';
+import * as modes from 'vs/editor/common/modes';
+import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
+import { TokenizationResult2 } from 'vs/editor/common/core/token';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
+import { MinimapLineRenderingData, MinimapLinesRenderingData } from 'vs/editor/common/viewModel/viewModel';
+import { Range } from 'vs/editor/common/core/range';
 
 suite('Editor ViewModel - SplitLinesCollection', () => {
 	test('SplitLine', () => {
@@ -254,6 +261,461 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 			}
 		});
 	});
+
+});
+
+suite('SplitLinesCollection', () => {
+
+	const _text = [
+		'class Nice {',
+		'	function hi() {',
+		'		console.log("Hello world");',
+		'	}',
+		'	function hello() {',
+		'		console.log("Hello world, this is a somewhat longer line");',
+		'	}',
+		'}',
+	];
+
+	const _tokens = [
+		[
+			{ startIndex: 0, value: 1 },
+			{ startIndex: 5, value: 2 },
+			{ startIndex: 6, value: 3 },
+			{ startIndex: 10, value: 4 },
+		],
+		[
+			{ startIndex: 0, value: 5 },
+			{ startIndex: 1, value: 6 },
+			{ startIndex: 9, value: 7 },
+			{ startIndex: 10, value: 8 },
+			{ startIndex: 12, value: 9 },
+		],
+		[
+			{ startIndex: 0, value: 10 },
+			{ startIndex: 2, value: 11 },
+			{ startIndex: 9, value: 12 },
+			{ startIndex: 10, value: 13 },
+			{ startIndex: 13, value: 14 },
+			{ startIndex: 14, value: 15 },
+			{ startIndex: 27, value: 16 },
+		],
+		[
+			{ startIndex: 0, value: 17 },
+		],
+		[
+			{ startIndex: 0, value: 18 },
+			{ startIndex: 1, value: 19 },
+			{ startIndex: 9, value: 20 },
+			{ startIndex: 10, value: 21 },
+			{ startIndex: 15, value: 22 },
+		],
+		[
+			{ startIndex: 0, value: 23 },
+			{ startIndex: 2, value: 24 },
+			{ startIndex: 9, value: 25 },
+			{ startIndex: 10, value: 26 },
+			{ startIndex: 13, value: 27 },
+			{ startIndex: 14, value: 28 },
+			{ startIndex: 59, value: 29 },
+		],
+		[
+			{ startIndex: 0, value: 30 },
+		],
+		[
+			{ startIndex: 0, value: 31 },
+		]
+	];
+
+	let model: Model = null;
+	let languageRegistration: IDisposable = null;
+
+	setup(() => {
+		let _lineIndex = 0;
+		const tokenizationSupport: modes.ITokenizationSupport = {
+			getInitialState: () => NULL_STATE,
+			tokenize: undefined,
+			tokenize2: (line: string, state: modes.IState): TokenizationResult2 => {
+				let tokens = _tokens[_lineIndex++];
+
+				let result = new Uint32Array(2 * tokens.length);
+				for (let i = 0; i < tokens.length; i++) {
+					result[2 * i] = tokens[i].startIndex;
+					result[2 * i + 1] = (
+						tokens[i].value << modes.MetadataConsts.FOREGROUND_OFFSET
+					);
+				}
+				return new TokenizationResult2(result, state);
+			}
+		};
+		const LANGUAGE_ID = 'modelModeTest1';
+		languageRegistration = modes.TokenizationRegistry.register(LANGUAGE_ID, tokenizationSupport);
+		model = Model.createFromString(_text.join('\n'), undefined, new modes.LanguageIdentifier(LANGUAGE_ID, 0));
+		// force tokenization
+		model.getLineTokens(model.getLineCount(), false);
+	});
+
+	teardown(() => {
+		model.dispose();
+		model = null;
+		languageRegistration.dispose();
+		languageRegistration = null;
+	});
+
+
+	interface ITestViewLineToken {
+		endIndex: number;
+		value: number;
+	}
+
+	function assertViewLineTokens(actual: ViewLineToken[], expected: ITestViewLineToken[]): void {
+		let _actual = actual.map((token) => {
+			return {
+				endIndex: token.endIndex,
+				value: token.getForeground()
+			};
+		});
+		assert.deepEqual(_actual, expected);
+	}
+
+	interface ITestMinimapLineRenderingData {
+		content: string;
+		tokens: ITestViewLineToken[];
+	}
+
+	function assertMinimapLineRenderingData(actual: MinimapLineRenderingData, expected: ITestMinimapLineRenderingData): void {
+		if (actual === null && expected === null) {
+			assert.ok(true);
+			return;
+		}
+		assert.equal(actual.content, expected.content);
+		assertViewLineTokens(actual.tokens, expected.tokens);
+	}
+
+	function assertMinimapLinesRenderingData(actual: MinimapLinesRenderingData, expected: ITestMinimapLineRenderingData[]): void {
+		assert.equal(actual.data.length, expected.length);
+		for (let i = 0; i < expected.length; i++) {
+			assertMinimapLineRenderingData(actual.data[i], expected[i]);
+		}
+	}
+
+	function assertAllMinimapLinesRenderingData(splitLinesCollection: SplitLinesCollection, all: ITestMinimapLineRenderingData[]): void {
+		let lineCount = all.length;
+		for (let start = 1; start <= lineCount; start++) {
+			for (let end = start; end <= lineCount; end++) {
+				let count = end - start + 1;
+				for (let desired = Math.pow(2, count) - 1; desired >= 0; desired--) {
+					let needed: boolean[] = [];
+					let expected: ITestMinimapLineRenderingData[] = [];
+					for (let i = 0; i < count; i++) {
+						needed[i] = (desired & (1 << i)) ? true : false;
+						expected[i] = (needed[i] ? all[start - 1 + i] : null);
+					}
+					let actual = splitLinesCollection.getMinimapLinesRenderingData(start, end, needed);
+					assertMinimapLinesRenderingData(actual, expected);
+					// Remove break to test all possible combinations
+					break;
+				}
+			}
+		}
+	}
+
+	test('getMinimapLinesRenderingData - no wrapping', () => {
+		withSplitLinesCollection(model, -1, (splitLinesCollection) => {
+			assert.equal(splitLinesCollection.getViewLineCount(), 8);
+			assert.equal(splitLinesCollection.modelPositionIsVisible(1, 1), true);
+			assert.equal(splitLinesCollection.modelPositionIsVisible(2, 1), true);
+			assert.equal(splitLinesCollection.modelPositionIsVisible(3, 1), true);
+			assert.equal(splitLinesCollection.modelPositionIsVisible(4, 1), true);
+			assert.equal(splitLinesCollection.modelPositionIsVisible(5, 1), true);
+			assert.equal(splitLinesCollection.modelPositionIsVisible(6, 1), true);
+			assert.equal(splitLinesCollection.modelPositionIsVisible(7, 1), true);
+			assert.equal(splitLinesCollection.modelPositionIsVisible(8, 1), true);
+
+			let _expected: ITestMinimapLineRenderingData[] = [
+				{
+					content: 'class Nice {',
+					tokens: [
+						{ endIndex: 5, value: 1 },
+						{ endIndex: 6, value: 2 },
+						{ endIndex: 10, value: 3 },
+						{ endIndex: 12, value: 4 },
+					]
+				},
+				{
+					content: '	function hi() {',
+					tokens: [
+						{ endIndex: 1, value: 5 },
+						{ endIndex: 9, value: 6 },
+						{ endIndex: 10, value: 7 },
+						{ endIndex: 12, value: 8 },
+						{ endIndex: 16, value: 9 },
+					]
+				},
+				{
+					content: '		console.log("Hello world");',
+					tokens: [
+						{ endIndex: 2, value: 10 },
+						{ endIndex: 9, value: 11 },
+						{ endIndex: 10, value: 12 },
+						{ endIndex: 13, value: 13 },
+						{ endIndex: 14, value: 14 },
+						{ endIndex: 27, value: 15 },
+						{ endIndex: 29, value: 16 },
+					]
+				},
+				{
+					content: '	}',
+					tokens: [
+						{ endIndex: 2, value: 17 },
+					]
+				},
+				{
+					content: '	function hello() {',
+					tokens: [
+						{ endIndex: 1, value: 18 },
+						{ endIndex: 9, value: 19 },
+						{ endIndex: 10, value: 20 },
+						{ endIndex: 15, value: 21 },
+						{ endIndex: 19, value: 22 },
+					]
+				},
+				{
+					content: '		console.log("Hello world, this is a somewhat longer line");',
+					tokens: [
+						{ endIndex: 2, value: 23 },
+						{ endIndex: 9, value: 24 },
+						{ endIndex: 10, value: 25 },
+						{ endIndex: 13, value: 26 },
+						{ endIndex: 14, value: 27 },
+						{ endIndex: 59, value: 28 },
+						{ endIndex: 61, value: 29 },
+					]
+				},
+				{
+					content: '	}',
+
+					tokens: [
+						{ endIndex: 2, value: 30 },
+					]
+				},
+				{
+					content: '}',
+					tokens: [
+						{ endIndex: 1, value: 31 },
+					]
+
+				}
+			];
+
+			assertAllMinimapLinesRenderingData(splitLinesCollection, [
+				_expected[0],
+				_expected[1],
+				_expected[2],
+				_expected[3],
+				_expected[4],
+				_expected[5],
+				_expected[6],
+				_expected[7],
+			]);
+
+			splitLinesCollection.setHiddenAreas([new Range(2, 1, 4, 1)], () => { });
+			assert.equal(splitLinesCollection.getViewLineCount(), 5);
+			assert.equal(splitLinesCollection.modelPositionIsVisible(1, 1), true);
+			assert.equal(splitLinesCollection.modelPositionIsVisible(2, 1), false);
+			assert.equal(splitLinesCollection.modelPositionIsVisible(3, 1), false);
+			assert.equal(splitLinesCollection.modelPositionIsVisible(4, 1), false);
+			assert.equal(splitLinesCollection.modelPositionIsVisible(5, 1), true);
+			assert.equal(splitLinesCollection.modelPositionIsVisible(6, 1), true);
+			assert.equal(splitLinesCollection.modelPositionIsVisible(7, 1), true);
+			assert.equal(splitLinesCollection.modelPositionIsVisible(8, 1), true);
+
+			assertAllMinimapLinesRenderingData(splitLinesCollection, [
+				_expected[0],
+				_expected[4],
+				_expected[5],
+				_expected[6],
+				_expected[7],
+			]);
+		});
+	});
+
+	test('getMinimapLinesRenderingData - with wrapping', () => {
+		withSplitLinesCollection(model, 30, (splitLinesCollection) => {
+			assert.equal(splitLinesCollection.getViewLineCount(), 12);
+			assert.equal(splitLinesCollection.modelPositionIsVisible(1, 1), true);
+			assert.equal(splitLinesCollection.modelPositionIsVisible(2, 1), true);
+			assert.equal(splitLinesCollection.modelPositionIsVisible(3, 1), true);
+			assert.equal(splitLinesCollection.modelPositionIsVisible(4, 1), true);
+			assert.equal(splitLinesCollection.modelPositionIsVisible(5, 1), true);
+			assert.equal(splitLinesCollection.modelPositionIsVisible(6, 1), true);
+			assert.equal(splitLinesCollection.modelPositionIsVisible(7, 1), true);
+			assert.equal(splitLinesCollection.modelPositionIsVisible(8, 1), true);
+
+			let _expected: ITestMinimapLineRenderingData[] = [
+				{
+					content: 'class Nice {',
+					tokens: [
+						{ endIndex: 5, value: 1 },
+						{ endIndex: 6, value: 2 },
+						{ endIndex: 10, value: 3 },
+						{ endIndex: 12, value: 4 },
+					]
+				},
+				{
+					content: '	function hi() {',
+					tokens: [
+						{ endIndex: 1, value: 5 },
+						{ endIndex: 9, value: 6 },
+						{ endIndex: 10, value: 7 },
+						{ endIndex: 12, value: 8 },
+						{ endIndex: 16, value: 9 },
+					]
+				},
+				{
+					content: '		console.log("Hello ',
+					tokens: [
+						{ endIndex: 2, value: 10 },
+						{ endIndex: 9, value: 11 },
+						{ endIndex: 10, value: 12 },
+						{ endIndex: 13, value: 13 },
+						{ endIndex: 14, value: 14 },
+						{ endIndex: 21, value: 15 },
+					]
+				},
+				{
+					content: '			world");',
+					tokens: [
+						{ endIndex: 9, value: 15 },
+						{ endIndex: 11, value: 16 },
+					]
+				},
+				{
+					content: '	}',
+					tokens: [
+						{ endIndex: 2, value: 17 },
+					]
+				},
+				{
+					content: '	function hello() {',
+					tokens: [
+						{ endIndex: 1, value: 18 },
+						{ endIndex: 9, value: 19 },
+						{ endIndex: 10, value: 20 },
+						{ endIndex: 15, value: 21 },
+						{ endIndex: 19, value: 22 },
+					]
+				},
+				{
+					content: '		console.log("Hello ',
+					tokens: [
+						{ endIndex: 2, value: 23 },
+						{ endIndex: 9, value: 24 },
+						{ endIndex: 10, value: 25 },
+						{ endIndex: 13, value: 26 },
+						{ endIndex: 14, value: 27 },
+						{ endIndex: 21, value: 28 },
+					]
+				},
+				{
+					content: '			world, this is a ',
+					tokens: [
+						{ endIndex: 20, value: 28 },
+					]
+				},
+				{
+					content: '			somewhat longer ',
+					tokens: [
+						{ endIndex: 19, value: 28 },
+					]
+				},
+				{
+					content: '			line");',
+					tokens: [
+						{ endIndex: 8, value: 28 },
+						{ endIndex: 10, value: 29 },
+					]
+				},
+				{
+					content: '	}',
+
+					tokens: [
+						{ endIndex: 2, value: 30 },
+					]
+				},
+				{
+					content: '}',
+					tokens: [
+						{ endIndex: 1, value: 31 },
+					]
+
+				}
+			];
+
+			assertAllMinimapLinesRenderingData(splitLinesCollection, [
+				_expected[0],
+				_expected[1],
+				_expected[2],
+				_expected[3],
+				_expected[4],
+				_expected[5],
+				_expected[6],
+				_expected[7],
+				_expected[8],
+				_expected[9],
+				_expected[10],
+				_expected[11],
+			]);
+
+			splitLinesCollection.setHiddenAreas([new Range(2, 1, 4, 1)], () => { });
+			assert.equal(splitLinesCollection.getViewLineCount(), 8);
+			assert.equal(splitLinesCollection.modelPositionIsVisible(1, 1), true);
+			assert.equal(splitLinesCollection.modelPositionIsVisible(2, 1), false);
+			assert.equal(splitLinesCollection.modelPositionIsVisible(3, 1), false);
+			assert.equal(splitLinesCollection.modelPositionIsVisible(4, 1), false);
+			assert.equal(splitLinesCollection.modelPositionIsVisible(5, 1), true);
+			assert.equal(splitLinesCollection.modelPositionIsVisible(6, 1), true);
+			assert.equal(splitLinesCollection.modelPositionIsVisible(7, 1), true);
+			assert.equal(splitLinesCollection.modelPositionIsVisible(8, 1), true);
+
+			assertAllMinimapLinesRenderingData(splitLinesCollection, [
+				_expected[0],
+				_expected[5],
+				_expected[6],
+				_expected[7],
+				_expected[8],
+				_expected[9],
+				_expected[10],
+				_expected[11],
+			]);
+		});
+	});
+
+	function withSplitLinesCollection(model: Model, wrappingColumn: number, callback: (splitLinesCollection: SplitLinesCollection) => void): void {
+		let configuration = new MockConfiguration({
+			wrappingColumn: wrappingColumn,
+			wrappingIndent: 'indent'
+		});
+
+		let factory = new CharacterHardWrappingLineMapperFactory(
+			configuration.editor.wrappingInfo.wordWrapBreakBeforeCharacters,
+			configuration.editor.wrappingInfo.wordWrapBreakAfterCharacters,
+			configuration.editor.wrappingInfo.wordWrapBreakObtrusiveCharacters
+		);
+
+		let linesCollection = new SplitLinesCollection(
+			model,
+			factory,
+			model.getOptions().tabSize,
+			configuration.editor.wrappingInfo.wrappingColumn,
+			configuration.editor.fontInfo.typicalFullwidthCharacterWidth / configuration.editor.fontInfo.typicalHalfwidthCharacterWidth,
+			configuration.editor.wrappingInfo.wrappingIndent
+		);
+
+		callback(linesCollection);
+
+		configuration.dispose();
+	}
 });
 
 
