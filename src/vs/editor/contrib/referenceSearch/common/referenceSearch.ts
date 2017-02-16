@@ -13,12 +13,12 @@ import { Location, ReferenceProviderRegistry } from 'vs/editor/common/modes';
 import { asWinJsPromise } from 'vs/base/common/async';
 import { Position } from 'vs/editor/common/core/position';
 
-export function provideReferences(model: IReadOnlyModel, position: Position): TPromise<Location[]> {
+export function provideReferences(model: IReadOnlyModel, position: Position, progress: (locations: Location[]) => void): TPromise<Location[]> {
 
 	// collect references from all providers
 	const promises = ReferenceProviderRegistry.ordered(model).map(provider => {
 		return asWinJsPromise((token) => {
-			return provider.provideReferences(model, position, { includeDeclaration: true }, token);
+			return provider.provideReferences(model, position, { includeDeclaration: true }, token, progress);
 		}).then(result => {
 			if (Array.isArray(result)) {
 				return <Location[]>result;

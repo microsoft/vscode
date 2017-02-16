@@ -8,7 +8,8 @@ import * as nls from 'vs/nls';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
-import { TPromise } from 'vs/base/common/winjs.base';
+import { PPromise, TPromise } from 'vs/base/common/winjs.base';
+import { Location } from 'vs/editor/common/modes';
 import { IEditorService } from 'vs/platform/editor/common/editor';
 import { fromPromise, stopwatch } from 'vs/base/common/event';
 import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
@@ -81,7 +82,7 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		this._editor = null;
 	}
 
-	public toggleWidget(range: Range, modelPromise: TPromise<ReferencesModel>, options: RequestOptions): void {
+	public toggleWidget(range: Range, modelPromise: PPromise<ReferencesModel, Location[]>, options: RequestOptions): void {
 
 		// close current widget and return early is position didn't change
 		let widgetPosition: editorCommon.IPosition;
@@ -141,7 +142,9 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 
 		const requestId = ++this._requestIdPool;
 
-		const promise = modelPromise.then(model => {
+		let firstUpdate = true;
+
+		const handleModel = (model: ReferencesModel, final: boolean = true) => {
 
 			// still current request? widget still open?
 			if (requestId !== this._requestIdPool || !this._widget) {
@@ -154,35 +157,45 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 
 			this._model = model;
 
-			// measure time it stays open
-			const startTime = Date.now();
-			this._disposables.push({
-				dispose: () => {
-					this._telemetryService.publicLog('zoneWidgetShown', {
-						mode: 'reference search',
-						elapsedTime: Date.now() - startTime
-					});
-				}
-			});
+			if (firstUpdate) {
+				// measure time it stays open
+				const startTime = Date.now();
+				this._disposables.push({
+					dispose: () => {
+						this._telemetryService.publicLog('zoneWidgetShown', {
+							mode: 'reference search',
+							elapsedTime: Date.now() - startTime
+						});
+					}
+				});
+			}
 
 			// show widget
-			return this._widget.setModel(this._model).then(() => {
+			const result = this._widget.setModel(this._model, !firstUpdate);
+			firstUpdate = false;
+			return result.then(() => {
+				if (final) {
+					// set title
+					this._widget.setMetaTitle(options.getMetaTitle(this._model));
 
-				// set title
-				this._widget.setMetaTitle(options.getMetaTitle(this._model));
-
-				// set 'best' selection
-				let uri = this._editor.getModel().uri;
-				let pos = { lineNumber: range.startLineNumber, column: range.startColumn };
-				let selection = this._model.nearestReference(uri, pos);
-				if (selection) {
-					return this._widget.setSelection(selection);
+					// set 'best' selection
+					const uri = this._editor.getModel().uri;
+					const pos = { lineNumber: range.startLineNumber, column: range.startColumn };
+					const selection = this._model.nearestReference(uri, pos);
+					if (selection && this._widget.isTreeInDefaultState()) {
+						return this._widget.setSelection(selection);
+					}
 				}
 				return undefined;
 			});
+		};
 
-		}, error => {
+		const aggregatedLocations: Location[] = [];
+		const promise = modelPromise.then(handleModel, error => {
 			this._messageService.show(Severity.Error, error);
+		}, newLocations => {
+			aggregatedLocations.push(...newLocations);
+			handleModel(new ReferencesModel(aggregatedLocations), false);
 		});
 
 		const onDone = stopwatch(fromPromise(promise));

@@ -10,7 +10,6 @@ import { basename, dirname } from 'vs/base/common/paths';
 import { IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import URI from 'vs/base/common/uri';
-import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Range } from 'vs/editor/common/core/range';
 import { IPosition, IRange } from 'vs/editor/common/editorCommon';
@@ -26,7 +25,15 @@ export class OneReference {
 		private _range: IRange,
 		private _eventBus: EventEmitter
 	) {
-		this._id = defaultGenerator.nextId();
+		this._id = this._generateStableId();
+	}
+
+	private _generateStableId(): string {
+		return this.uri.toString() + ":" + this._toString(this.range);
+	}
+
+	private _toString(range: IRange): string {
+		return [range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn].join(":");
 	}
 
 	public get id(): string {

@@ -5,10 +5,12 @@
 
 'use strict';
 
+import { TPromise } from 'vs/base/common/winjs.base';
 import * as assert from 'assert';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { setUnexpectedErrorHandler, errorHandler } from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
+import * as TypeConverters from 'vs/workbench/api/node/extHostTypeConverters';
 import * as types from 'vs/workbench/api/node/extHostTypes';
 import * as EditorCommon from 'vs/editor/common/editorCommon';
 import { Model as EditorModel } from 'vs/editor/common/model/model';
@@ -25,7 +27,7 @@ import { MainThreadCommands } from 'vs/workbench/api/node/mainThreadCommands';
 import { IHeapService } from 'vs/workbench/api/node/mainThreadHeapService';
 import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
 import { getDocumentSymbols } from 'vs/editor/contrib/quickOpen/common/quickOpen';
-import { DocumentSymbolProviderRegistry, DocumentHighlightKind } from 'vs/editor/common/modes';
+import { DocumentSymbolProviderRegistry, DocumentHighlightKind, Location } from 'vs/editor/common/modes';
 import { getCodeLensData } from 'vs/editor/contrib/codelens/common/codelens';
 import { getDefinitionsAtPosition, getImplementationsAtPosition, getTypeDefinitionsAtPosition } from 'vs/editor/contrib/goToDeclaration/common/goToDeclaration';
 import { getHover } from 'vs/editor/contrib/hover/common/hover';
@@ -637,6 +639,44 @@ suite('ExtHostLanguageFeatures', function () {
 				assert.equal(value.length, 1);
 			});
 
+		});
+	});
+
+	test('References, progress', function () {
+
+		const locations: vscode.Location[] = [
+			new types.Location(URI.parse('ref://the/first'), new types.Range(0, 0, 0, 0)),
+			new types.Location(URI.parse('ref://the/second'), new types.Range(1, 1, 1, 1)),
+			new types.Location(URI.parse('ref://the/third'), new types.Range(0, 0, 0, 0))
+		];
+		const modeLocations = locations.map(TypeConverters.location.from);
+
+		disposables.push(extHost.registerReferenceProvider(defaultSelector, <vscode.ReferenceProvider>{
+			provideReferences(document: any, position: any, context: any, token: any, progress: (locations: vscode.Location[]) => void): vscode.ProviderResult<vscode.Location[]> {
+				progress(locations.slice(0, 1));
+				progress(locations.slice(1, 2));
+				// TODO(nick): test should pass if locations are returned immediately but it doesn't.
+				// Progress callback never gets called. Can't debug test to figure out why.
+				// https://github.com/Microsoft/vscode/issues/20776
+				// return locations;
+				return new TPromise((resolve, error) => {
+					setTimeout(() => {
+						resolve(locations);
+					});
+				}, 10);
+			}
+		}));
+
+		return threadService.sync().then(() => {
+			let progressIndex = 0;
+			return provideReferences(model, new EditorPosition(1, 2), (values: Location[]) => {
+				assert.equal(values.length, 1);
+				assert.deepEqual(values[0], modeLocations[progressIndex]);
+				progressIndex = progressIndex + 1;
+			}).then((values: Location[]) => {
+				assert.equal(progressIndex, 2);
+				assert.deepEqual(values, modeLocations);
+			});
 		});
 	});
 
