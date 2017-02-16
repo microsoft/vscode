@@ -9,7 +9,7 @@
  * ------------------------------------------------------------------------------------------ */
 'use strict';
 
-import { env, languages, commands, workspace, window, ExtensionContext, Memento, IndentAction, Diagnostic, DiagnosticCollection, Range, DocumentFilter, Disposable, Uri, MessageItem, TextEditor } from 'vscode';
+import { env, languages, commands, workspace, window, ExtensionContext, Memento, IndentAction, Diagnostic, DiagnosticCollection, Range, Disposable, Uri, MessageItem, TextEditor } from 'vscode';
 
 // This must be the first statement otherwise modules might got loaded with
 // the wrong locale.
@@ -183,54 +183,48 @@ class LanguageProvider {
 	}
 
 	private registerProviders(client: TypeScriptServiceClient): void {
+		const selector = this.description.modeIds;
 		const config = workspace.getConfiguration(this.id);
 
 		this.completionItemProvider = new CompletionItemProvider(client, this.typingsStatus);
 		this.completionItemProvider.updateConfiguration();
+		languages.registerCompletionItemProvider(selector, this.completionItemProvider, '.');
 
-		let hoverProvider = new HoverProvider(client);
-		let definitionProvider = new DefinitionProvider(client);
-		let implementationProvider = new ImplementationProvider(client);
-		const typeDefinitionProvider = new TypeDefintionProvider(client);
-		let documentHighlightProvider = new DocumentHighlightProvider(client);
-		let referenceProvider = new ReferenceProvider(client);
-		let documentSymbolProvider = new DocumentSymbolProvider(client);
-		let signatureHelpProvider = new SignatureHelpProvider(client);
-		let renameProvider = new RenameProvider(client);
 		this.formattingProvider = new FormattingProvider(client);
 		this.formattingProvider.updateConfiguration(config);
+		languages.registerOnTypeFormattingEditProvider(selector, this.formattingProvider, ';', '}', '\n');
 		if (this.formattingProvider.isEnabled()) {
-			this.formattingProviderRegistration = languages.registerDocumentRangeFormattingEditProvider(this.description.modeIds, this.formattingProvider);
+			this.formattingProviderRegistration = languages.registerDocumentRangeFormattingEditProvider(selector, this.formattingProvider);
 		}
 
-		this.referenceCodeLensProvider = new ReferenceCodeLensProvider(client);
-		this.referenceCodeLensProvider.updateConfiguration();
+		languages.registerHoverProvider(selector, new HoverProvider(client));
+		languages.registerDefinitionProvider(selector, new DefinitionProvider(client));
+		languages.registerDocumentHighlightProvider(selector, new DocumentHighlightProvider(client));
+		languages.registerReferenceProvider(selector, new ReferenceProvider(client));
+		languages.registerDocumentSymbolProvider(selector, new DocumentSymbolProvider(client));
+		languages.registerSignatureHelpProvider(selector, new SignatureHelpProvider(client), '(', ',');
+		languages.registerRenameProvider(selector, new RenameProvider(client));
+
 		if (client.apiVersion.has206Features()) {
-			languages.registerCodeLensProvider(this.description.modeIds, this.referenceCodeLensProvider);
+			this.referenceCodeLensProvider = new ReferenceCodeLensProvider(client);
+			this.referenceCodeLensProvider.updateConfiguration();
+			languages.registerCodeLensProvider(selector, this.referenceCodeLensProvider);
+		}
+
+		if (client.apiVersion.has213Features()) {
+			languages.registerCodeActionsProvider(selector, new CodeActionProvider(client));
+		}
+
+		if (client.apiVersion.has220Features()) {
+			languages.registerImplementationProvider(selector, new ImplementationProvider(client));
+		}
+
+		if (client.apiVersion.has213Features()) {
+			languages.registerTypeDefinitionProvider(selector, new TypeDefintionProvider(client));
 		}
 
 		this.description.modeIds.forEach(modeId => {
-			const selector: DocumentFilter = modeId;
-			languages.registerCompletionItemProvider(selector, this.completionItemProvider, '.');
-			languages.registerHoverProvider(selector, hoverProvider);
-			languages.registerDefinitionProvider(selector, definitionProvider);
-			if (client.apiVersion.has220Features()) {
-				// TODO: TS 2.1.5 returns incorrect results for implementation locations.
-				languages.registerImplementationProvider(selector, implementationProvider);
-			}
-			if (client.apiVersion.has213Features()) {
-				languages.registerTypeDefinitionProvider(selector, typeDefinitionProvider);
-			}
-			languages.registerDocumentHighlightProvider(selector, documentHighlightProvider);
-			languages.registerReferenceProvider(selector, referenceProvider);
-			languages.registerDocumentSymbolProvider(selector, documentSymbolProvider);
-			languages.registerSignatureHelpProvider(selector, signatureHelpProvider, '(', ',');
-			languages.registerRenameProvider(selector, renameProvider);
-			languages.registerOnTypeFormattingEditProvider(selector, this.formattingProvider, ';', '}', '\n');
 			languages.registerWorkspaceSymbolProvider(new WorkspaceSymbolProvider(client, modeId));
-			if (client.apiVersion.has213Features()) {
-				languages.registerCodeActionsProvider(selector, new CodeActionProvider(client, modeId));
-			}
 
 			languages.setLanguageConfiguration(modeId, {
 				indentationRules: {
