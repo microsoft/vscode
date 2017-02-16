@@ -6,8 +6,8 @@
 'use strict';
 
 import { Uri, EventEmitter, Event, SCMResource, SCMResourceDecorations, SCMResourceGroup, Disposable, window, workspace } from 'vscode';
-import { Repository, Ref, Branch, Remote, PushOptions, Commit } from './git';
-import { anyEvent, eventToPromise, filterEvent, mapEvent } from './util';
+import { Repository, Ref, Branch, Remote, PushOptions, Commit, GitErrorCodes } from './git';
+import { anyEvent, eventToPromise, filterEvent, mapEvent, EmptyDisposable, combinedDisposable } from './util';
 import { memoize, throttle, debounce } from './decorators';
 import { watch } from './watch';
 import * as path from 'path';
@@ -18,6 +18,12 @@ const iconsRootPath = path.join(path.dirname(__dirname), 'resources', 'icons');
 
 function getIconUri(iconName: string, theme: string): Uri {
 	return Uri.file(path.join(iconsRootPath, theme, `${iconName}.svg`));
+}
+
+export enum State {
+	Uninitialized,
+	Idle,
+	NotAGitRepository
 }
 
 export enum Status {
@@ -139,7 +145,7 @@ export class MergeGroup extends ResourceGroup {
 
 	static readonly ID = 'merge';
 
-	constructor(resources: Resource[]) {
+	constructor(resources: Resource[] = []) {
 		super(MergeGroup.ID, localize('merge changes', "Merge Changes"), resources);
 	}
 }
@@ -148,7 +154,7 @@ export class IndexGroup extends ResourceGroup {
 
 	static readonly ID = 'index';
 
-	constructor(resources: Resource[]) {
+	constructor(resources: Resource[] = []) {
 		super(IndexGroup.ID, localize('staged changes', "Staged Changes"), resources);
 	}
 }
@@ -157,7 +163,7 @@ export class WorkingTreeGroup extends ResourceGroup {
 
 	static readonly ID = 'workingTree';
 
-	constructor(resources: Resource[]) {
+	constructor(resources: Resource[] = []) {
 		super(WorkingTreeGroup.ID, localize('changes', "Changes"), resources);
 	}
 }
@@ -175,6 +181,8 @@ export enum Operation {
 	Pull = 1 << 9,
 	Push = 1 << 10,
 	Sync = 1 << 11,
+	Init = 1 << 12,
+	UpdateModel = 1 << 13
 }
 
 export interface Operations {
@@ -211,10 +219,18 @@ export interface CommitOptions {
 	signoff?: boolean;
 }
 
-export class Model {
+export class Model implements Disposable {
 
-	private _onDidChange = new EventEmitter<SCMResourceGroup[]>();
-	readonly onDidChange: Event<SCMResourceGroup[]> = this._onDidChange.event;
+	private _onDidChangeState = new EventEmitter<State>();
+	readonly onDidChangeState: Event<State> = this._onDidChangeState.event;
+
+	private _onDidChangeResources = new EventEmitter<SCMResourceGroup[]>();
+	readonly onDidChangeResources: Event<SCMResourceGroup[]> = this._onDidChangeResources.event;
+
+	@memoize
+	get onDidChange(): Event<void> {
+		return anyEvent<any>(this.onDidChangeState, this.onDidChangeResources);
+	}
 
 	private _onRunOperation = new EventEmitter<Operation>();
 	readonly onRunOperation: Event<Operation> = this._onRunOperation.event;
@@ -252,38 +268,6 @@ export class Model {
 		return result;
 	}
 
-	private _operations = new OperationsImpl();
-	get operations(): Operations { return this._operations; }
-
-	private disposables: Disposable[] = [];
-
-	constructor(
-		private _repositoryRoot: string,
-		private repository: Repository,
-		onWorkspaceChange: Event<Uri>
-	) {
-		/* We use the native Node `watch` for faster, non debounced events.
-		 * That way we hopefully get the events during the operations we're
-		 * performing, thus sparing useless `git status` calls to refresh
-		 * the model's state.
-		 */
-		const gitPath = path.join(_repositoryRoot, '.git');
-		const { event, disposable } = watch(gitPath);
-		const onGitChange = mapEvent(event, ({ filename }) => Uri.file(path.join(gitPath, filename)));
-		const onRelevantGitChange = filterEvent(onGitChange, uri => !/\/\.git\/index\.lock$/.test(uri.fsPath));
-		onRelevantGitChange(this.onFSChange, this, this.disposables);
-		this.disposables.push(disposable);
-
-		const onNonGitChange = filterEvent(onWorkspaceChange, uri => !/\/\.git\//.test(uri.fsPath));
-		onNonGitChange(this.onFSChange, this, this.disposables);
-
-		this.status();
-	}
-
-	get repositoryRoot(): string {
-		return this._repositoryRoot;
-	}
-
 	private _HEAD: Branch | undefined;
 	get HEAD(): Branch | undefined {
 		return this._HEAD;
@@ -297,6 +281,45 @@ export class Model {
 	private _remotes: Remote[] = [];
 	get remotes(): Remote[] {
 		return this._remotes;
+	}
+
+	private _operations = new OperationsImpl();
+	get operations(): Operations { return this._operations; }
+
+	private repositoryRoot: string;
+
+	private _state = State.Uninitialized;
+	get state(): State { return this._state; }
+	set state(state: State) {
+		this._state = state;
+		this._onDidChangeState.fire(state);
+
+		this._HEAD = undefined;
+		this._refs = [];
+		this._remotes = [];
+		this._mergeGroup = new MergeGroup();
+		this._indexGroup = new IndexGroup();
+		this._workingTreeGroup = new WorkingTreeGroup();
+		this._onDidChangeResources.fire(this.resources);
+	}
+
+	private repositoryDisposable: Disposable = EmptyDisposable;
+
+	constructor(
+		private repository: Repository,
+		private onWorkspaceChange: Event<Uri>
+	) {
+		this.status();
+	}
+
+	@throttle
+	async init(): Promise<void> {
+		if (this.state !== State.NotAGitRepository) {
+			return;
+		}
+
+		await this.repository.init();
+		await this.status();
 	}
 
 	@throttle
@@ -398,19 +421,59 @@ export class Model {
 		await this.run(Operation.Sync, () => this.repository.sync());
 	}
 
-	private async run(operation: Operation, fn: () => Promise<void> = () => Promise.resolve()): Promise<void> {
+	private async run(operation: Operation, runOperation: () => Promise<void> = () => Promise.resolve()): Promise<void> {
 		return window.withScmProgress(async () => {
 			this._operations = this._operations.start(operation);
 			this._onRunOperation.fire(operation);
 
 			try {
-				await fn();
+				await this.assertIdleState();
+				await runOperation();
 				await this.update();
+			} catch (err) {
+				if (err.gitErrorCode === GitErrorCodes.NotAGitRepository) {
+					// TODO@Joao!
+					this.repositoryDisposable.dispose();
+					this.state = State.NotAGitRepository;
+				} else {
+					throw err;
+				}
 			} finally {
 				this._operations = this._operations.end(operation);
 				this._onDidRunOperation.fire(operation);
 			}
 		});
+	}
+
+	/* We use the native Node `watch` for faster, non debounced events.
+	 * That way we hopefully get the events during the operations we're
+	 * performing, thus sparing useless `git status` calls to refresh
+	 * the model's state.
+	 */
+	private async assertIdleState(): Promise<void> {
+		if (this.state === State.Idle) {
+			return;
+		}
+
+		const repositoryRoot = await this.repository.getRoot();
+
+		this.repositoryDisposable.dispose();
+		this.repositoryRoot = repositoryRoot;
+
+		const disposables: Disposable[] = [];
+		const gitPath = path.join(repositoryRoot, '.git');
+		const { event, disposable: watcher } = watch(gitPath);
+		disposables.push(watcher);
+
+		const onGitChange = mapEvent(event, ({ filename }) => Uri.file(path.join(gitPath, filename)));
+		const onRelevantGitChange = filterEvent(onGitChange, uri => !/\/\.git\/index\.lock$/.test(uri.fsPath));
+		onRelevantGitChange(this.onFSChange, this, disposables);
+
+		const onNonGitChange = filterEvent(this.onWorkspaceChange, uri => !/\/\.git\//.test(uri.fsPath));
+		onNonGitChange(this.onFSChange, this, disposables);
+
+		this.repositoryDisposable = combinedDisposable(disposables);
+		this.state = State.Idle;
 	}
 
 	@throttle
@@ -477,8 +540,7 @@ export class Model {
 		this._mergeGroup = new MergeGroup(merge);
 		this._indexGroup = new IndexGroup(index);
 		this._workingTreeGroup = new WorkingTreeGroup(workingTree);
-
-		this._onDidChange.fire(this.resources);
+		this._onDidChangeResources.fire(this.resources);
 	}
 
 	private onFSChange(uri: Uri): void {
@@ -512,5 +574,9 @@ export class Model {
 		while (!this.operations.isIdle()) {
 			await eventToPromise(this.onDidRunOperation);
 		}
+	}
+
+	dispose(): void {
+		this.repositoryDisposable.dispose();
 	}
 }

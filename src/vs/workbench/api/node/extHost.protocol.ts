@@ -258,7 +258,7 @@ export type SCMRawResourceGroup = [string /*id*/, string /*label*/, SCMRawResour
 export abstract class MainThreadSCMShape {
 	$register(id: string, features: SCMProviderFeatures): void { throw ni(); }
 	$unregister(id: string): void { throw ni(); }
-	$onChange(id: string, resources: SCMRawResourceGroup[], count: number | undefined): void { throw ni(); }
+	$onChange(id: string, resources: SCMRawResourceGroup[], count: number | undefined, state: string | undefined): void { throw ni(); }
 	$setInputBoxValue(value: string): void { throw ni(); }
 }
 
