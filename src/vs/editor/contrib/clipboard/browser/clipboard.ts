@@ -172,8 +172,8 @@ class ExecCommandCopyWithSyntaxHighlightingAction extends ExecCommandAction {
 			return;
 		}
 
-		window.localStorage.setItem('forceCopyWithSyntaxHighlighting', 'true');
+		editorCommon.InternalEditorOptions.forceCopyWithSyntaxHighlighting = true;
 		super.run(accessor, editor);
-		window.localStorage.setItem('forceCopyWithSyntaxHighlighting', 'false');
+		editorCommon.InternalEditorOptions.forceCopyWithSyntaxHighlighting = false;
 	}
 }

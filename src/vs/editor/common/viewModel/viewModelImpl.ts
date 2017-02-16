@@ -588,6 +588,7 @@ export class ViewModel extends EventEmitter implements IViewModel {
 	}
 
 	public getHTMLToCopy(ranges: Range[], enableEmptySelectionClipboard: boolean): string {
+		// TODO: adopt new view line tokens.
 		let rules: { [key: string]: string } = {};
 		let colorMap = TokenizationRegistry.getColorMap();
 		for (let i = 1, len = colorMap.length; i < len; i++) {
