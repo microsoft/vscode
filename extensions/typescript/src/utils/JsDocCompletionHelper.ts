@@ -51,51 +51,47 @@ export default class JsDocCompletionHelper {
 				return false;
 			}
 
-			let cancelled = false;
-			const timer = setTimeout(() => {
-				cancelled = true;
-			}, 250);
-
 			const args: FileLocationRequestArgs = {
 				file: file,
 				line: start.line + 1,
 				offset: start.character + 1
 			};
 
-			return this.client.execute('docCommentTemplate', args)
-				.then(res => {
-					clearTimeout(timer);
-					if (cancelled || !res || !res.body) {
-						return false;
-					}
-					const commentText = res.body.newText;
-					return editor.edit(
-						edits => edits.insert(start, commentText),
-						{ undoStopBefore: false, undoStopAfter: true });
-				}, () => {
-					clearTimeout(timer);
-					return false;
+			return Promise.race([
+				this.client.execute('docCommentTemplate', args),
+				new Promise((_, reject) => {
+					setTimeout(reject, 250);
 				})
-				.then(didInsertComment => {
-					if (didInsertComment) {
-						const newCursorPosition = new Position(start.line + 1, editor.document.lineAt(start.line + 1).text.length);
-						editor.selection = new Selection(newCursorPosition, newCursorPosition);
-						return true;
-					}
+			]).then(res => {
+				if (!res || !res.body) {
+					return false;
+				}
+				const commentText = res.body.newText;
+				return editor.edit(
+					edits => edits.insert(start, commentText),
+					{ undoStopBefore: false, undoStopAfter: true });
+			}, () => {
+				return false;
+			}).then(didInsertComment => {
+				if (didInsertComment) {
+					const newCursorPosition = new Position(start.line + 1, editor.document.lineAt(start.line + 1).text.length);
+					editor.selection = new Selection(newCursorPosition, newCursorPosition);
+					return true;
+				}
 
-					// Revert to the original line content and restore position
-					return editor.edit(
-						edits => {
-							edits.insert(start, prefix[1] + suffix[0]);
-						}, {
-							undoStopBefore: false,
-							undoStopAfter: true
-						}
-					).then(() => {
-						editor.selection = new Selection(position, position);
-						return false;
-					});
+				// Revert to the original line content and restore position
+				return editor.edit(
+					edits => {
+						edits.insert(start, prefix[1] + suffix[0]);
+					}, {
+						undoStopBefore: false,
+						undoStopAfter: true
+					}
+				).then(() => {
+					editor.selection = new Selection(position, position);
+					return false;
 				});
+			});
 		});
 	}
 }
