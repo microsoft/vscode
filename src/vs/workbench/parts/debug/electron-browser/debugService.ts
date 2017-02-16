@@ -536,8 +536,8 @@ export class DebugService implements debug.IDebugService {
 		this.model.removeReplExpressions();
 	}
 
-	public logToRepl(value: string): void {
-		this.model.appendToRepl(value, severity.Info);
+	public logToRepl(value: string, sev = severity.Info): void {
+		this.model.appendToRepl(value, sev);
 	}
 
 	public addWatchExpression(name: string): TPromise<void> {
@@ -559,11 +559,6 @@ export class DebugService implements debug.IDebugService {
 	}
 
 	public createProcess(configurationOrName: debug.IConfig | string): TPromise<any> {
-		if (this.model.getProcesses().length === 0) {
-			// Repl shouldn't be cleared if a process is already running since the repl is shared.
-			this.removeReplExpressions();
-		}
-
 		const sessionId = generateUuid();
 		this.setStateAndEmit(sessionId, debug.State.Initializing);
 
@@ -687,6 +682,7 @@ export class DebugService implements debug.IDebugService {
 			this.registerSessionListeners(process, session);
 
 			return session.initialize({
+				clientID: 'vscode',
 				adapterID: configuration.type,
 				pathFormat: 'path',
 				linesStartAt1: true,

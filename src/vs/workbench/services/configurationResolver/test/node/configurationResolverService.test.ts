@@ -18,10 +18,12 @@ suite('Configuration Resolver Service', () => {
 	let configurationResolverService: IConfigurationResolverService;
 	let envVariables: { [key: string]: string } = { key1: 'Value for Key1', key2: 'Value for Key2' };
 	let mockCommandService: MockCommandService;
+	let editorService: TestEditorService;
 
 	setup(() => {
 		mockCommandService = new MockCommandService();
-		configurationResolverService = new ConfigurationResolverService(uri.parse('file:///VSCode/workspaceLocation'), envVariables, new TestEditorService(), TestEnvironmentService, new TestConfigurationService(), mockCommandService);
+		editorService = new TestEditorService();
+		configurationResolverService = new ConfigurationResolverService(uri.parse('file:///VSCode/workspaceLocation'), envVariables, editorService, TestEnvironmentService, new TestConfigurationService(), mockCommandService);
 	});
 
 	teardown(() => {
@@ -42,7 +44,7 @@ suite('Configuration Resolver Service', () => {
 	});
 
 	test('current selected line number', () => {
-		assert.strictEqual(configurationResolverService.resolve('abc ${lineNumber} xyz'), 'abc 15 xyz');
+		assert.strictEqual(configurationResolverService.resolve('abc ${lineNumber} xyz'), `abc ${editorService.mockLineNumber} xyz`);
 	});
 
 	test('substitute many', () => {

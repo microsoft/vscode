@@ -6,16 +6,30 @@
 'use strict';
 
 import { scm, Uri, Disposable, SCMProvider, SCMResourceGroup, Event, ProviderResult, workspace } from 'vscode';
-import { Model, Resource, ResourceGroup } from './model';
+import { Model, Resource, ResourceGroup, State } from './model';
 import { CommandCenter } from './commands';
+import { mapEvent } from './util';
 
 export class GitSCMProvider implements SCMProvider {
 
 	private disposables: Disposable[] = [];
 
 	get resources(): SCMResourceGroup[] { return this.model.resources; }
-	get onDidChange(): Event<SCMResourceGroup[]> { return this.model.onDidChange; }
+
+	get onDidChange(): Event<SCMResourceGroup[]> {
+		return mapEvent(this.model.onDidChange, () => this.model.resources);
+	}
+
 	get label(): string { return 'Git'; }
+
+	get state(): string {
+		switch (this.model.state) {
+			case State.Uninitialized: return 'uninitialized';
+			case State.Idle: return 'idle';
+			case State.NotAGitRepository: return 'norepo';
+			default: return '';
+		}
+	}
 
 	get count(): number {
 		const countBadge = workspace.getConfiguration('git').get<string>('countBadge');

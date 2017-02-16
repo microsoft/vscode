@@ -21,6 +21,7 @@ import { getCommonHTTPHeaders } from 'vs/platform/environment/node/http';
 import { IWindowSettings, MenuBarVisibility } from 'vs/platform/windows/common/windows';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
+
 export interface IWindowState {
 	width?: number;
 	height?: number;
@@ -78,6 +79,7 @@ export interface IWindowConfiguration extends ParsedArgs {
 	zoomLevel?: number;
 	fullscreen?: boolean;
 	highContrast?: boolean;
+	baseTheme?: string;
 	accessibilitySupport?: boolean;
 
 	isInitialStartup?: boolean;
@@ -134,7 +136,7 @@ export interface IVSCodeWindow {
 
 export class VSCodeWindow implements IVSCodeWindow {
 
-	public static colorThemeStorageKey = 'theme';
+	public static baseThemeStorageKey = 'baseTheme';
 
 	private static MIN_WIDTH = 200;
 	private static MIN_HEIGHT = 120;
@@ -177,9 +179,9 @@ export class VSCodeWindow implements IVSCodeWindow {
 		this.restoreWindowState(config.state);
 
 		// For VS theme we can show directly because background is white
-		const themeId = this.storageService.getItem<string>(VSCodeWindow.colorThemeStorageKey);
-		const usesLightTheme = /vs($| )/.test(themeId);
-		const usesHighContrastTheme = /hc-black($| )/.test(themeId) || (platform.isWindows && systemPreferences.isInvertedColorScheme());
+		const baseTheme = this.storageService.getItem<string>(VSCodeWindow.baseThemeStorageKey);
+		const usesLightTheme = 'vs' === baseTheme;
+		const usesHighContrastTheme = 'hc-black' === baseTheme || (platform.isWindows && systemPreferences.isInvertedColorScheme());
 
 		// in case we are maximized or fullscreen, only show later after the call to maximize/fullscreen (see below)
 		const isFullscreenOrMaximized = (this.currentWindowMode === WindowMode.Maximized || this.currentWindowMode === WindowMode.Fullscreen);
@@ -504,6 +506,10 @@ export class VSCodeWindow implements IVSCodeWindow {
 		// Set Accessibility Config
 		windowConfiguration.highContrast = platform.isWindows && systemPreferences.isInvertedColorScheme() && (!windowConfig || windowConfig.autoDetectHighContrast);
 		windowConfiguration.accessibilitySupport = app.isAccessibilitySupportEnabled();
+
+		// background color
+		const baseTheme = this.storageService.getItem<string>(VSCodeWindow.baseThemeStorageKey, 'vs-dark');
+		windowConfiguration.baseTheme = baseTheme;
 
 		// Perf Counters
 		windowConfiguration.perfStartTime = global.perfStartTime;

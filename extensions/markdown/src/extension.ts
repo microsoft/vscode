@@ -12,7 +12,7 @@ import { MarkdownEngine } from './markdownEngine';
 import DocumentLinkProvider from './documentLinkProvider';
 import MDDocumentSymbolProvider from './documentSymbolProvider';
 import { MDDocumentContentProvider, getMarkdownUri, isMarkdownFile } from './previewContentProvider';
-import { TableOfContentProvider } from './tableOfContentsProvider';
+import { TableOfContentsProvider } from './tableOfContentsProvider';
 
 interface IPackageInfo {
 	name: string;
@@ -78,7 +78,7 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(vscode.commands.registerCommand('_markdown.openDocumentLink', (args: OpenDocumentLinkArgs) => {
 		const tryRevealLine = (editor: vscode.TextEditor) => {
 			if (editor && args.fragment) {
-				const toc = new TableOfContentProvider(engine, editor.document);
+				const toc = new TableOfContentsProvider(engine, editor.document);
 				const line = toc.lookup(args.fragment);
 				if (!isNaN(line)) {
 					return editor.revealRange(

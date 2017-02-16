@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import severity from 'vs/base/common/severity';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import * as errors from 'vs/base/common/errors';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -48,7 +49,8 @@ export function registerCommands(): void {
 		handler(accessor: ServicesAccessor, value: string) {
 			if (typeof value === 'string') {
 				const debugService = accessor.get(IDebugService);
-				debugService.logToRepl(value);
+				// Use warning as severity to get the orange color for messages coming from the debug extension
+				debugService.logToRepl(value, severity.Warning);
 			}
 		},
 		when: undefined,

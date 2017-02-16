@@ -183,7 +183,7 @@ class Snapper {
 			let defaultThemes = themeDatas.filter(themeData => !!getThemeName(themeData.id));
 			return TPromise.join(defaultThemes.map(defaultTheme => {
 				let themeId = defaultTheme.id;
-				return this.themeService.setColorTheme(themeId, false).then(success => {
+				return this.themeService.setColorTheme(themeId, null).then(success => {
 					if (success) {
 						let themeName = getThemeName(themeId);
 						result[themeName] = {
@@ -194,7 +194,7 @@ class Snapper {
 				});
 			}));
 		}).then(_ => {
-			return this.themeService.setColorTheme(currentTheme.id, false).then(_ => {
+			return this.themeService.setColorTheme(currentTheme.id, null).then(_ => {
 				return result;
 			});
 		});

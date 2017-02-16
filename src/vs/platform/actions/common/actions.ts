@@ -21,11 +21,6 @@ export interface ICommandAction {
 	iconClass?: string;
 }
 
-export interface IMenu extends IDisposable {
-	onDidChange: Event<IMenu>;
-	getActions(arg?: any): [string, MenuItemAction[]][];
-}
-
 export interface IMenuItem {
 	command: ICommandAction;
 	alt?: ICommandAction;
@@ -60,6 +55,11 @@ export class MenuId {
 	}
 }
 
+export interface IMenu extends IDisposable {
+	onDidChange: Event<IMenu>;
+	getActions(arg?: any): [string, MenuItemAction[]][];
+}
+
 export const IMenuService = createDecorator<IMenuService>('menuService');
 
 export interface IMenuService {
@@ -67,8 +67,6 @@ export interface IMenuService {
 	_serviceBrand: any;
 
 	createMenu(id: MenuId, scopedKeybindingService: IContextKeyService): IMenu;
-
-	getCommandActions(): ICommandAction[];
 }
 
 export interface IMenuRegistry {
@@ -95,7 +93,7 @@ export const MenuRegistry: IMenuRegistry = new class {
 		return this.commands[id];
 	}
 
-	appendMenuItem({id}: MenuId, item: IMenuItem): IDisposable {
+	appendMenuItem({ id }: MenuId, item: IMenuItem): IDisposable {
 		let array = this.menuItems[id];
 		if (!array) {
 			this.menuItems[id] = array = [item];
@@ -112,8 +110,30 @@ export const MenuRegistry: IMenuRegistry = new class {
 		};
 	}
 
-	getMenuItems({id}: MenuId): IMenuItem[] {
-		return this.menuItems[id] || [];
+	getMenuItems({ id }: MenuId): IMenuItem[] {
+		const result = this.menuItems[id] || [];
+
+		if (id === MenuId.CommandPalette.id) {
+			// CommandPalette is special because it shows
+			// all commands by default
+			this._appendImplicitItems(result);
+		}
+		return result;
+	}
+
+	private _appendImplicitItems(result: IMenuItem[]) {
+		const set = new Set<string>();
+		for (const { command, alt } of result) {
+			set.add(command.id);
+			if (alt) {
+				set.add(alt.id);
+			}
+		}
+		for (let id in this.commands) {
+			if (!set.has(id)) {
+				result.push({ command: this.commands[id] });
+			}
+		}
 	}
 };
 
@@ -141,18 +161,17 @@ export class MenuItemAction extends ExecuteCommandAction {
 
 	constructor(
 		item: ICommandAction,
-		label: string,
 		alt: ICommandAction,
 		arg: any,
 		@ICommandService commandService: ICommandService
 	) {
-		super(item.id, label, commandService);
+		super(item.id, item.title, commandService);
 		this._cssClass = item.iconClass;
 		this._enabled = true;
 		this._arg = arg;
 
 		this.item = item;
-		this.alt = alt ? new MenuItemAction(alt, alt.title, undefined, arg, commandService) : undefined;
+		this.alt = alt ? new MenuItemAction(alt, undefined, arg, commandService) : undefined;
 	}
 
 	run(): TPromise<any> {

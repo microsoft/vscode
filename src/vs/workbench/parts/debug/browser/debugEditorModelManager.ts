@@ -239,7 +239,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 	private createBreakpointDecorations(breakpoints: IBreakpoint[]): IModelDeltaDecoration[] {
 		return breakpoints.map((breakpoint) => {
 			const range = breakpoint.column ? new Range(breakpoint.lineNumber, breakpoint.column, breakpoint.lineNumber, breakpoint.column + 1)
-				: new Range(breakpoint.lineNumber, 1, breakpoint.lineNumber, Number.MAX_VALUE);
+				: new Range(breakpoint.lineNumber, 1, breakpoint.lineNumber, 1);
 			return {
 				options: this.getBreakpointDecorationOptions(breakpoint),
 				range

@@ -367,7 +367,7 @@ export class StackFrame implements debug.IStackFrame {
 	}
 
 	public openInEditor(editorService: IWorkbenchEditorService, preserveFocus?: boolean, sideBySide?: boolean): TPromise<any> {
-		return editorService.openEditor({
+		return this.source.deemphasize ? TPromise.as(true) : editorService.openEditor({
 			resource: this.source.uri,
 			description: this.source.origin,
 			options: {

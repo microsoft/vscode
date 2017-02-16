@@ -6,7 +6,7 @@
 import 'vs/css!./list';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { range } from 'vs/base/common/arrays';
-import { IDelegate, IRenderer, IFocusChangeEvent, ISelectionChangeEvent } from './list';
+import { IDelegate, IRenderer, IListEvent } from './list';
 import { List, IListOptions } from './listWidget';
 import { IPagedModel } from 'vs/base/common/paging';
 import Event, { mapEvent } from 'vs/base/common/event';
@@ -67,7 +67,7 @@ export class PagedList<T> {
 		container: HTMLElement,
 		delegate: IDelegate<number>,
 		renderers: IPagedRenderer<T, any>[],
-		options: IListOptions = {}
+		options: IListOptions<any> = {} // TODO@Joao: should be IListOptions<T>
 	) {
 		const pagedRenderers = renderers.map(r => new PagedRenderer<T, ITemplateData<T>>(r, () => this.model));
 		this.list = new List(container, delegate, pagedRenderers, options);
@@ -77,11 +77,11 @@ export class PagedList<T> {
 		return this.list;
 	}
 
-	get onFocusChange(): Event<IFocusChangeEvent<T>> {
+	get onFocusChange(): Event<IListEvent<T>> {
 		return mapEvent(this.list.onFocusChange, ({ elements, indexes }) => ({ elements: elements.map(e => this._model.get(e)), indexes }));
 	}
 
-	get onSelectionChange(): Event<ISelectionChangeEvent<T>> {
+	get onSelectionChange(): Event<IListEvent<T>> {
 		return mapEvent(this.list.onSelectionChange, ({ elements, indexes }) => ({ elements: elements.map(e => this._model.get(e)), indexes }));
 	}
 

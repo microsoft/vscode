@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable, empty as EmptyDisposable } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IModel } from 'vs/editor/common/editorCommon';
@@ -20,7 +20,9 @@ export class SCMService implements ISCMService {
 
 	_serviceBrand;
 
+	private providerChangeDisposable: IDisposable = EmptyDisposable;
 	private activeProviderContextKey: IContextKey<string | undefined>;
+	private activeProviderStateContextKey: IContextKey<string | undefined>;
 
 	private _activeProvider: ISCMProvider | undefined;
 
@@ -39,6 +41,11 @@ export class SCMService implements ISCMService {
 
 		this._activeProvider = provider;
 		this.activeProviderContextKey.set(provider ? provider.id : void 0);
+
+		this.providerChangeDisposable.dispose();
+		this.providerChangeDisposable = provider.onDidChange(this.onDidChangeProviderState, this);
+		this.onDidChangeProviderState();
+
 		this._onDidChangeProvider.fire(provider);
 	}
 
@@ -56,7 +63,8 @@ export class SCMService implements ISCMService {
 		@IModeService modeService: IModeService,
 		@IModelService modelService: IModelService
 	) {
-		this.activeProviderContextKey = contextKeyService.createKey<string | undefined>('scm.provider', void 0);
+		this.activeProviderContextKey = contextKeyService.createKey<string | undefined>('scmProvider', void 0);
+		this.activeProviderStateContextKey = contextKeyService.createKey<string | undefined>('scmProviderState', void 0);
 
 		const options = modelService.getCreationOptions('git-commit');
 		const rawText = RawText.fromString('', options);
@@ -87,5 +95,9 @@ export class SCMService implements ISCMService {
 				this.activeProvider = this._providers[0];
 			}
 		});
+	}
+
+	private onDidChangeProviderState(): void {
+		this.activeProviderStateContextKey.set(this.activeProvider.state);
 	}
 }

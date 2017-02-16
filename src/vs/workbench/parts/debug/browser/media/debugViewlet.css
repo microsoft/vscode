@@ -173,7 +173,7 @@
 	text-overflow: ellipsis;
 	overflow: hidden;
 	white-space: nowrap;
-	padding-left: 5px;
+	margin: 0px 10px;
 }
 
 .debug-viewlet .debug-call-stack-title > .pause-message > .label {

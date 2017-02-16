@@ -7,6 +7,7 @@
 
 import * as vscode from 'vscode';
 import * as path from 'path';
+import { TableOfContentsProvider } from './tableOfContentsProvider';
 
 export interface IToken {
 	type: string;
@@ -44,7 +45,9 @@ export class MarkdownEngine {
 					}
 					return `<pre class="hljs"><code><div>${this.engine.utils.escapeHtml(str)}</div></code></pre>`;
 				}
-			}).use(mdnh, {});
+			}).use(mdnh, {
+				slugify: (header: string) => TableOfContentsProvider.slugify(header)
+			});
 
 			for (const renderName of ['paragraph_open', 'heading_open', 'image', 'code_block', 'blockquote_open', 'list_item_open']) {
 				this.addLineNumberRenderer(this.md, renderName);

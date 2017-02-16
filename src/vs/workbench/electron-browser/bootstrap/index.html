@@ -16,13 +16,8 @@
 		<script>
 			(function() {
 					try {
-						var theme = window.localStorage.getItem('storage://global/workbench.theme');
-						if (theme) {
-							var baseTheme = theme.split(' ')[0];
-							if (baseTheme !== 'vs-dark') {
-								window.document.body.className = 'monaco-shell ' + baseTheme;
-							}
-						}
+						let config = JSON.parse(decodeURIComponent(window.location.search.substring(8)));
+						window.document.body.className = 'monaco-shell ' + config.baseTheme;
 					} catch (error) {
 						console.error(error);
 					}
