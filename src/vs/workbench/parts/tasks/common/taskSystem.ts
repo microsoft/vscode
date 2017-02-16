@@ -44,6 +44,9 @@ export interface TelemetryEvent {
 
 	// Whether the task ran successful
 	success: boolean;
+
+	// The exit code
+	exitCode?: number;
 }
 
 export namespace Triggers {
@@ -169,6 +172,11 @@ export interface TaskDescription {
 	name: string;
 
 	/**
+	 * The task's identifier.
+	 */
+	identifier: string;
+
+	/**
 	 * The command configuration
 	 */
 	command: CommandConfiguration;
@@ -201,9 +209,9 @@ export interface TaskDescription {
 	showOutput: ShowOutput;
 
 	/**
-	 * The command this task is bound to.
+	 * The other tasks this task depends on.
 	 */
-	bindTo?: CommandBinding;
+	dependsOn?: string[];
 
 	/**
 	 * The problem watchers to use for this task
