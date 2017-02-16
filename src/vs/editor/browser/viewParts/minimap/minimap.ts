@@ -125,7 +125,7 @@ class MinimapLayout {
 	) {
 		const pixelRatio = options.pixelRatio;
 		const minimapLineHeight = (options.renderMinimap === RenderMinimap.Large ? Constants.x2_CHAR_HEIGHT : Constants.x1_CHAR_HEIGHT);
-		const minimapLinesFitting = Math.floor(options.canvasOuterHeight / minimapLineHeight);
+		const minimapLinesFitting = Math.floor(options.canvasInnerHeight / minimapLineHeight);
 		const lineHeight = options.lineHeight;
 
 		// Sometimes, the number of rendered lines varies for a constant viewport height.
