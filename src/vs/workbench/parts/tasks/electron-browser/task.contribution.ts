@@ -592,6 +592,10 @@ class TaskService extends EventEmitter implements ITaskService {
 		this.outputChannel.append(value + '\n');
 	}
 
+	public clearOutput(): void {
+		this.outputChannel.clear();
+	}
+
 	private showOutput(): void {
 		this.outputChannel.show(true);
 	}
