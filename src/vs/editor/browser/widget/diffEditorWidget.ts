@@ -30,6 +30,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { InlineDecoration } from 'vs/editor/common/viewModel/viewModel';
 import { IAddedAction } from 'vs/editor/common/commonCodeEditor';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { ColorId, MetadataConsts, FontStyle } from 'vs/editor/common/modes';
 
 interface IEditorDiffDecorations {
 	decorations: editorCommon.IModelDeltaDecoration[];
@@ -1900,12 +1901,18 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 
 		let actualDecorations = Decoration.filter(decorations, lineNumber, 1, lineContent.length + 1);
 
+		const defaultMetadata = (
+			(FontStyle.None << MetadataConsts.FONT_STYLE_OFFSET)
+			| (ColorId.DefaultForeground << MetadataConsts.FOREGROUND_OFFSET)
+			| (ColorId.DefaultBackground << MetadataConsts.BACKGROUND_OFFSET)
+		) >>> 0;
+
 		let r = renderViewLine(new RenderLineInput(
 			(config.fontInfo.isMonospace && !config.viewInfo.disableMonospaceOptimizations),
 			lineContent,
 			originalModel.mightContainRTL(),
 			0,
-			[new ViewLineToken(lineContent.length, '')],
+			[new ViewLineToken(lineContent.length, defaultMetadata)],
 			actualDecorations,
 			tabSize,
 			config.fontInfo.spaceWidth,

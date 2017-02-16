@@ -38,7 +38,7 @@ export class ViewCursorRenderData {
 export class ViewCursor {
 	private readonly _context: ViewContext;
 	private readonly _isSecondary: boolean;
-	private readonly _domNode: FastDomNode;
+	private readonly _domNode: FastDomNode<HTMLElement>;
 
 	private _cursorStyle: TextEditorCursorStyle;
 	private _lineHeight: number;

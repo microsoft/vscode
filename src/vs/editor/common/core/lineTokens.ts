@@ -5,25 +5,8 @@
 'use strict';
 
 import { TokenMetadata } from 'vs/editor/common/model/tokensBinaryEncoding';
-import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
+import { ViewLineTokenFactory, ViewLineToken } from 'vs/editor/common/core/viewLineToken';
 import { ColorId, FontStyle, StandardTokenType, LanguageId } from 'vs/editor/common/modes';
-
-const STANDARD_TOKEN_TYPE_REGEXP = /\b(comment|string|regex)\b/;
-export function toStandardTokenType(tokenType: string): StandardTokenType {
-	let m = tokenType.match(STANDARD_TOKEN_TYPE_REGEXP);
-	if (!m) {
-		return StandardTokenType.Other;
-	}
-	switch (m[1]) {
-		case 'comment':
-			return StandardTokenType.Comment;
-		case 'string':
-			return StandardTokenType.String;
-		case 'regex':
-			return StandardTokenType.RegEx;
-	}
-	throw new Error('Unexpected match for standard token type!');
-}
 
 export class LineToken {
 	_lineTokenBrand: void;
@@ -159,7 +142,7 @@ export class LineTokens {
 	 * @return The index of the token containing the offset.
 	 */
 	public findTokenIndexAtOffset(offset: number): number {
-		return TokenMetadata.findIndexInSegmentsArray(this._tokens, offset);
+		return ViewLineTokenFactory.findIndexInSegmentsArray(this._tokens, offset);
 	}
 
 	public findTokenAtOffset(offset: number): LineToken {
@@ -194,10 +177,10 @@ export class LineTokens {
 	}
 
 	public inflate(): ViewLineToken[] {
-		return TokenMetadata.inflateArr(this._tokens, this._textLength);
+		return ViewLineTokenFactory.inflateArr(this._tokens, this._textLength);
 	}
 
 	public sliceAndInflate(startOffset: number, endOffset: number, deltaOffset: number): ViewLineToken[] {
-		return TokenMetadata.sliceAndInflate(this._tokens, startOffset, endOffset, deltaOffset, this._textLength);
+		return ViewLineTokenFactory.sliceAndInflate(this._tokens, startOffset, endOffset, deltaOffset, this._textLength);
 	}
 }

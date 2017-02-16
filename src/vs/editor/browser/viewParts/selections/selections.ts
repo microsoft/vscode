@@ -362,9 +362,6 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 
 	private _previousFrameVisibleRangesWithStyle: LineVisibleRangesWithStyle[][] = [];
 	public prepareRender(ctx: IRenderingContext): void {
-		if (!this.shouldRender()) {
-			throw new Error('I did not ask to render!');
-		}
 
 		let output: string[] = [];
 		let visibleStartLineNumber = ctx.visibleRange.startLineNumber;

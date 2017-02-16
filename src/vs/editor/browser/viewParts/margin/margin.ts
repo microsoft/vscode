@@ -18,7 +18,7 @@ export class Margin extends ViewPart {
 	private _contentLeft: number;
 	private _glyphMarginLeft: number;
 	private _glyphMarginWidth: number;
-	private _glyphMarginBackgroundDomNode: FastDomNode;
+	private _glyphMarginBackgroundDomNode: FastDomNode<HTMLElement>;
 
 	constructor(context: ViewContext) {
 		super(context);

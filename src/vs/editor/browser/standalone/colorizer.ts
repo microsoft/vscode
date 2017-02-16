@@ -7,7 +7,7 @@
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IModel } from 'vs/editor/common/editorCommon';
-import { TokenizationRegistry, ITokenizationSupport } from 'vs/editor/common/modes';
+import { ColorId, MetadataConsts, FontStyle, TokenizationRegistry, ITokenizationSupport } from 'vs/editor/common/modes';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { renderViewLine, RenderLineInput } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
@@ -126,6 +126,12 @@ function _colorize(lines: string[], tabSize: number, tokenizationSupport: IToken
 function _fakeColorize(lines: string[], tabSize: number): string {
 	let html: string[] = [];
 
+	const defaultMetadata = (
+		(FontStyle.None << MetadataConsts.FONT_STYLE_OFFSET)
+		| (ColorId.DefaultForeground << MetadataConsts.FOREGROUND_OFFSET)
+		| (ColorId.DefaultBackground << MetadataConsts.BACKGROUND_OFFSET)
+	) >>> 0;
+
 	for (let i = 0, length = lines.length; i < length; i++) {
 		let line = lines[i];
 
@@ -134,7 +140,7 @@ function _fakeColorize(lines: string[], tabSize: number): string {
 			line,
 			false,
 			0,
-			[new ViewLineToken(line.length, '')],
+			[new ViewLineToken(line.length, defaultMetadata)],
 			[],
 			tabSize,
 			0,

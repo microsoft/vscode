@@ -5,9 +5,43 @@
 'use strict';
 
 import * as assert from 'assert';
-import { Constants } from 'vs/editor/common/view/minimapCharRenderer';
+import { MinimapTokensColorTracker, ParsedColor, Constants } from 'vs/editor/common/view/minimapCharRenderer';
 import { MinimapCharRendererFactory } from 'vs/editor/test/common/view/minimapCharRendererFactory';
-import { createMinimapCharRenderer } from 'vs/editor/common/view/runtimeMinimapCharRenderer';
+import { getOrCreateMinimapCharRenderer } from 'vs/editor/common/view/runtimeMinimapCharRenderer';
+
+suite('MinimapColors', () => {
+
+	function assertParseColor(input: string, expected: ParsedColor): void {
+		let actual = MinimapTokensColorTracker._parseColor(input);
+		assert.deepEqual(actual, expected, input);
+	}
+
+	function assertInvalidParseColor(input: string): void {
+		assertParseColor(input, new ParsedColor(0, 0, 0));
+	}
+
+	test('parseColor', () => {
+		assertInvalidParseColor(null);
+		assertInvalidParseColor('');
+		assertParseColor('FFFFG0', new ParsedColor(255, 255, 0));
+		assertParseColor('FFFFg0', new ParsedColor(255, 255, 0));
+		assertParseColor('-FFF00', new ParsedColor(15, 255, 0));
+		assertParseColor('0102030', new ParsedColor(1, 2, 3));
+
+		assertParseColor('000000', new ParsedColor(0, 0, 0));
+		assertParseColor('010203', new ParsedColor(1, 2, 3));
+		assertParseColor('040506', new ParsedColor(4, 5, 6));
+		assertParseColor('070809', new ParsedColor(7, 8, 9));
+		assertParseColor('0a0A0a', new ParsedColor(10, 10, 10));
+		assertParseColor('0b0B0b', new ParsedColor(11, 11, 11));
+		assertParseColor('0c0C0c', new ParsedColor(12, 12, 12));
+		assertParseColor('0d0D0d', new ParsedColor(13, 13, 13));
+		assertParseColor('0e0E0e', new ParsedColor(14, 14, 14));
+		assertParseColor('0f0F0f', new ParsedColor(15, 15, 15));
+		assertParseColor('a0A0a0', new ParsedColor(160, 160, 160));
+		assertParseColor('FFFFFF', new ParsedColor(255, 255, 255));
+	});
+});
 
 suite('MinimapCharRenderer', () => {
 
@@ -66,40 +100,67 @@ suite('MinimapCharRenderer', () => {
 		}
 	}
 
+	function createFakeImageData(width: number, height: number): ImageData {
+		return {
+			width: width,
+			height: height,
+			data: new Uint8ClampedArray(width * height * Constants.RGBA_CHANNELS_CNT)
+		};
+	}
+
 	test('letter d @ 2x', () => {
 		setSampleData('d'.charCodeAt(0), sampleD);
 		let renderer = MinimapCharRendererFactory.create(sampleData);
 
-		let dest = new Uint8ClampedArray(Constants.x2_CHAR_HEIGHT * Constants.x2_CHAR_WIDTH * Constants.RGBA_CHANNELS_CNT);
-		renderer.x2RenderChar(dest, 1, 0, 0, 'd'.charCodeAt(0));
+		let background = new ParsedColor(0, 0, 0);
+		let color = new ParsedColor(255, 255, 255);
+		let imageData = createFakeImageData(Constants.x2_CHAR_WIDTH, Constants.x2_CHAR_HEIGHT);
+		// set the background color
+		for (let i = 0, len = imageData.data.length / 4; i < len; i++) {
+			imageData.data[4 * i + 0] = background.r;
+			imageData.data[4 * i + 1] = background.g;
+			imageData.data[4 * i + 2] = background.b;
+			imageData.data[4 * i + 3] = 255;
+		}
+		renderer.x2RenderChar(imageData, 0, 0, 'd'.charCodeAt(0), color, background);
 
 		let actual: number[] = [];
-		for (let i = 0; i < dest.length; i++) {
-			actual[i] = dest[i];
+		for (let i = 0; i < imageData.data.length; i++) {
+			actual[i] = imageData.data[i];
 		}
 		assert.deepEqual(actual, [
-			0x00, 0x00, 0x00, 0x00, 0xbf, 0xbf, 0xbf, 0x92,
-			0xff, 0xff, 0xff, 0xbb, 0xff, 0xff, 0xff, 0xbe,
-			0xff, 0xff, 0xff, 0x94, 0xd4, 0xd4, 0xd4, 0x97,
-			0xff, 0xff, 0xff, 0xb1, 0xff, 0xff, 0xff, 0xbb,
+			0x00, 0x00, 0x00, 0xff, 0x6d, 0x6d, 0x6d, 0xff,
+			0xbb, 0xbb, 0xbb, 0xff, 0xbe, 0xbe, 0xbe, 0xff,
+			0x94, 0x94, 0x94, 0xff, 0x7e, 0x7e, 0x7e, 0xff,
+			0xb1, 0xb1, 0xb1, 0xff, 0xbb, 0xbb, 0xbb, 0xff,
 		]);
 	});
 
 	test('letter d @ 2x at runtime', () => {
-		let renderer = createMinimapCharRenderer();
+		let renderer = getOrCreateMinimapCharRenderer();
 
-		let dest = new Uint8ClampedArray(Constants.x2_CHAR_HEIGHT * Constants.x2_CHAR_WIDTH * Constants.RGBA_CHANNELS_CNT);
-		renderer.x2RenderChar(dest, 1, 0, 0, 'd'.charCodeAt(0));
+		let background = new ParsedColor(0, 0, 0);
+		let color = new ParsedColor(255, 255, 255);
+		let imageData = createFakeImageData(Constants.x2_CHAR_WIDTH, Constants.x2_CHAR_HEIGHT);
+		// set the background color
+		for (let i = 0, len = imageData.data.length / 4; i < len; i++) {
+			imageData.data[4 * i + 0] = background.r;
+			imageData.data[4 * i + 1] = background.g;
+			imageData.data[4 * i + 2] = background.b;
+			imageData.data[4 * i + 3] = 255;
+		}
+
+		renderer.x2RenderChar(imageData, 0, 0, 'd'.charCodeAt(0), color, background);
 
 		let actual: number[] = [];
-		for (let i = 0; i < dest.length; i++) {
-			actual[i] = dest[i];
+		for (let i = 0; i < imageData.data.length; i++) {
+			actual[i] = imageData.data[i];
 		}
 		assert.deepEqual(actual, [
-			0x00, 0x00, 0x00, 0x00, 0xbf, 0xbf, 0xbf, 0x92,
-			0xff, 0xff, 0xff, 0xbb, 0xff, 0xff, 0xff, 0xbe,
-			0xff, 0xff, 0xff, 0x94, 0xd4, 0xd4, 0xd4, 0x97,
-			0xff, 0xff, 0xff, 0xb1, 0xff, 0xff, 0xff, 0xbb,
+			0x00, 0x00, 0x00, 0xff, 0x6d, 0x6d, 0x6d, 0xff,
+			0xbb, 0xbb, 0xbb, 0xff, 0xbe, 0xbe, 0xbe, 0xff,
+			0x94, 0x94, 0x94, 0xff, 0x7e, 0x7e, 0x7e, 0xff,
+			0xb1, 0xb1, 0xb1, 0xff, 0xbb, 0xbb, 0xbb, 0xff,
 		]);
 	});
 
@@ -107,32 +168,52 @@ suite('MinimapCharRenderer', () => {
 		setSampleData('d'.charCodeAt(0), sampleD);
 		let renderer = MinimapCharRendererFactory.create(sampleData);
 
-		let dest = new Uint8ClampedArray(Constants.x1_CHAR_HEIGHT * Constants.x1_CHAR_WIDTH * Constants.RGBA_CHANNELS_CNT);
-		renderer.x1RenderChar(dest, 1, 0, 0, 'd'.charCodeAt(0));
+		let background = new ParsedColor(0, 0, 0);
+		let color = new ParsedColor(255, 255, 255);
+		let imageData = createFakeImageData(Constants.x1_CHAR_WIDTH, Constants.x1_CHAR_HEIGHT);
+		// set the background color
+		for (let i = 0, len = imageData.data.length / 4; i < len; i++) {
+			imageData.data[4 * i + 0] = background.r;
+			imageData.data[4 * i + 1] = background.g;
+			imageData.data[4 * i + 2] = background.b;
+			imageData.data[4 * i + 3] = 255;
+		}
+
+		renderer.x1RenderChar(imageData, 0, 0, 'd'.charCodeAt(0), color, background);
 
 		let actual: number[] = [];
-		for (let i = 0; i < dest.length; i++) {
-			actual[i] = dest[i];
+		for (let i = 0; i < imageData.data.length; i++) {
+			actual[i] = imageData.data[i];
 		}
 		assert.deepEqual(actual, [
-			0xad, 0xad, 0xad, 0x7d,
-			0xeb, 0xeb, 0xeb, 0x9f,
+			0x55, 0x55, 0x55, 0xff,
+			0x93, 0x93, 0x93, 0xff,
 		]);
 	});
 
 	test('letter d @ 1x at runtime', () => {
-		let renderer = createMinimapCharRenderer();
+		let renderer = getOrCreateMinimapCharRenderer();
 
-		let dest = new Uint8ClampedArray(Constants.x1_CHAR_HEIGHT * Constants.x1_CHAR_WIDTH * Constants.RGBA_CHANNELS_CNT);
-		renderer.x1RenderChar(dest, 1, 0, 0, 'd'.charCodeAt(0));
+		let background = new ParsedColor(0, 0, 0);
+		let color = new ParsedColor(255, 255, 255);
+		let imageData = createFakeImageData(Constants.x1_CHAR_WIDTH, Constants.x1_CHAR_HEIGHT);
+		// set the background color
+		for (let i = 0, len = imageData.data.length / 4; i < len; i++) {
+			imageData.data[4 * i + 0] = background.r;
+			imageData.data[4 * i + 1] = background.g;
+			imageData.data[4 * i + 2] = background.b;
+			imageData.data[4 * i + 3] = 255;
+		}
+
+		renderer.x1RenderChar(imageData, 0, 0, 'd'.charCodeAt(0), color, background);
 
 		let actual: number[] = [];
-		for (let i = 0; i < dest.length; i++) {
-			actual[i] = dest[i];
+		for (let i = 0; i < imageData.data.length; i++) {
+			actual[i] = imageData.data[i];
 		}
 		assert.deepEqual(actual, [
-			0xad, 0xad, 0xad, 0x7d,
-			0xeb, 0xeb, 0xeb, 0x9f,
+			0x55, 0x55, 0x55, 0xff,
+			0x93, 0x93, 0x93, 0xff,
 		]);
 	});
 

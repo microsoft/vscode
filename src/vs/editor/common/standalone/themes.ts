@@ -9,7 +9,7 @@ import { IThemeRule } from 'vs/editor/common/modes/supports/tokenization';
 
 /* -------------------------------- Begin vs tokens -------------------------------- */
 export const vs: IThemeRule[] = [
-	{ token: '', foreground: '000000' },
+	{ token: '', foreground: '000000', background: 'fffffe' },
 	{ token: 'invalid', foreground: 'cd3131' },
 	{ token: 'emphasis', fontStyle: 'italic' },
 	{ token: 'strong', fontStyle: 'bold' },

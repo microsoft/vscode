@@ -171,6 +171,10 @@ export class ScrollbarState {
 		return this._computedSliderPosition;
 	}
 
+	public getSliderCenter(): number {
+		return (this._computedSliderPosition + this._computedSliderSize / 2);
+	}
+
 	public convertSliderPositionToScrollPosition(desiredSliderPosition: number): number {
 		return desiredSliderPosition / this._computedRatio;
 	}
