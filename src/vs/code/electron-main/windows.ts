@@ -26,6 +26,7 @@ import { ILogService } from 'vs/code/electron-main/log';
 import { getPathLabel } from 'vs/base/common/labels';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IWindowSettings } from 'vs/platform/windows/common/windows';
+import { getLastActiveWindow, OpenContext as OriginalOpenContext, findBestWindowOrFolder } from 'vs/code/node/windowsUtils';
 import CommonEvent, { Emitter } from 'vs/base/common/event';
 import product from 'vs/platform/node/product';
 
@@ -34,26 +35,8 @@ enum WindowError {
 	CRASHED
 }
 
-export enum OpenContext {
-
-	// opening when running from the command line
-	CLI,
-
-	// macOS only: opening from the dock (also when opening files to a running instance from desktop)
-	DOCK,
-
-	// opening from the main application window
-	MENU,
-
-	// opening from a file or folder dialog
-	DIALOG,
-
-	// opening from the OS's UI
-	DESKTOP,
-
-	// opening through the API
-	API
-}
+export const OpenContext = OriginalOpenContext;
+export type OpenContext = OriginalOpenContext;
 
 export interface IOpenConfiguration {
 	context: OpenContext;
@@ -408,20 +391,28 @@ export class WindowsManager implements IWindowsMainService {
 			}
 
 			// Open Files in last instance if any and flag tells us so
-			let bestWindow;
-			if (!openFilesInNewWindow && (bestWindow = this.findBestWindow(openConfig.context, [...filesToOpen, ...filesToCreate, ...filesToDiff]))) {
-				bestWindow.focus();
+			const fileToCheck = filesToOpen[0] || filesToCreate[0] || filesToDiff[0];
+			const windowOrFolder = findBestWindowOrFolder({
+				windows: WindowsManager.WINDOWS,
+				newWindow: openFilesInNewWindow,
+				reuseWindow: openConfig.forceReuseWindow,
+				context: openConfig.context,
+				filePath: fileToCheck && fileToCheck.filePath,
+				userHome: this.environmentService.userHome
+			});
+			if (windowOrFolder instanceof VSCodeWindow) {
+				windowOrFolder.focus();
 				const files = { filesToOpen, filesToCreate, filesToDiff }; // copy to object because they get reset shortly after
-				bestWindow.ready().then(readyWindow => {
+				windowOrFolder.ready().then(readyWindow => {
 					readyWindow.send('vscode:openFiles', files);
 				});
 
-				usedWindows.push(bestWindow);
+				usedWindows.push(windowOrFolder);
 			}
 
 			// Otherwise open instance with files
 			else {
-				const configuration = this.toConfiguration(openConfig, null, filesToOpen, filesToCreate, filesToDiff);
+				const configuration = this.toConfiguration(openConfig, windowOrFolder, filesToOpen, filesToCreate, filesToDiff);
 				const browserWindow = this.openInBrowserWindow(configuration, true /* new window */);
 				usedWindows.push(browserWindow);
 
@@ -1025,31 +1016,8 @@ export class WindowsManager implements IWindowsMainService {
 		return res && res[0];
 	}
 
-	private findBestWindow(context: OpenContext, filePaths: IPath[]): VSCodeWindow {
-		const findContainer = context === OpenContext.DESKTOP || context === OpenContext.CLI;
-		return (findContainer && this.findContainingWindow(filePaths)) || this.getLastActiveWindow();
-	}
-
-	private findContainingWindow(filePaths: IPath[]): VSCodeWindow {
-		for (const filePath of filePaths) {
-			const windows = WindowsManager.WINDOWS.filter(window => typeof window.openedWorkspacePath === 'string' && paths.isEqualOrParent(filePath.filePath, window.openedWorkspacePath));
-			if (windows.length) {
-				return windows.sort((a, b) => -(a.openedWorkspacePath.length - b.openedWorkspacePath.length))[0];
-			}
-		}
-		return null;
-	}
-
 	public getLastActiveWindow(): VSCodeWindow {
-		if (WindowsManager.WINDOWS.length) {
-			const lastFocussedDate = Math.max.apply(Math, WindowsManager.WINDOWS.map(w => w.lastFocusTime));
-			const res = WindowsManager.WINDOWS.filter(w => w.lastFocusTime === lastFocussedDate);
-			if (res && res.length) {
-				return res[0];
-			}
-		}
-
-		return null;
+		return getLastActiveWindow(WindowsManager.WINDOWS);
 	}
 
 	public findWindow(workspacePath: string, filePath?: string, extensionDevelopmentPath?: string): VSCodeWindow {
