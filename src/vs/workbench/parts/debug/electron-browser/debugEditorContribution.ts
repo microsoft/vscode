@@ -19,7 +19,7 @@ import { StandardTokenType } from 'vs/editor/common/modes';
 import { DEFAULT_WORD_REGEXP } from 'vs/editor/common/model/wordHelper';
 import { ICodeEditor, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
-import { IDecorationOptions, IModelDecorationOptions, MouseTargetType, IModelDeltaDecoration, TrackedRangeStickiness, IPosition } from 'vs/editor/common/editorCommon';
+import { IDecorationOptions, IModelDecorationOptions, MouseTargetType, IModelDeltaDecoration, TrackedRangeStickiness, IPosition, IModel } from 'vs/editor/common/editorCommon';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -33,6 +33,7 @@ import { DebugHoverWidget } from 'vs/workbench/parts/debug/electron-browser/debu
 import { RemoveBreakpointAction, EditConditionalBreakpointAction, EnableBreakpointAction, DisableBreakpointAction, AddConditionalBreakpointAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { IDebugEditorContribution, IDebugService, State, IBreakpoint, EDITOR_CONTRIBUTION_ID, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, IStackFrame, IDebugConfiguration, IExpression } from 'vs/workbench/parts/debug/common/debug';
 import { BreakpointWidget } from 'vs/workbench/parts/debug/browser/breakpointWidget';
+import { ExceptionWidget } from 'vs/workbench/parts/debug/browser/exceptionWidget';
 import { FloatingClickWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { IListService } from 'vs/platform/list/browser/listService';
 
@@ -59,6 +60,10 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	private breakpointWidgetVisible: IContextKey<boolean>;
 	private wordToLineNumbersMap: Map<string, IPosition[]>;
 
+	private exceptionWidget: ExceptionWidget;
+	private exceptionWidgetVisible: IContextKey<boolean>;
+	private exceptionWidgetModel: IModel;
+
 	private configurationWidget: FloatingClickWidget;
 
 	constructor(
@@ -81,6 +86,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		this.removeInlineValuesScheduler = new RunOnceScheduler(() => this.editor.removeDecorations(INLINE_VALUE_DECORATION_KEY), REMOVE_INLINE_VALUES_DELAY);
 		this.registerListeners();
 		this.breakpointWidgetVisible = CONTEXT_BREAKPOINT_WIDGET_VISIBLE.bindTo(contextKeyService);
+		this.exceptionWidgetVisible = CONTEXT_BREAKPOINT_WIDGET_VISIBLE.bindTo(contextKeyService); // change to different context
 		this.updateConfigurationWidgetVisibility();
 		this.codeEditorService.registerDecorationType(INLINE_VALUE_DECORATION_KEY, {});
 	}
@@ -178,6 +184,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			const model = this.editor.getModel();
 			this.editor.updateOptions({ hover: !sf || !model || model.uri.toString() !== sf.source.uri.toString() });
 			this.closeBreakpointWidget();
+			this.showHideExceptionWidget();
 			this.hideHoverWidget();
 			this.updateConfigurationWidgetVisibility();
 			this.wordToLineNumbersMap = null;
@@ -223,6 +230,15 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		} else {
 			this.editor.updateOptions({ hover: true });
 			this.hideHoverWidget();
+		}
+
+		// Handling exception
+		if (model && sf && sf.source.uri.toString() === model.uri.toString() && sf.thread.stoppedDetails.reason === 'exception') {
+			//if (model && sf && sf.thread.stoppedDetails.reason === 'exception') {
+			// todo: draw only on the model where exception occured => this.editor.setModel()
+			this.showExceptionWidget(sf.lineNumber);
+		} else {
+			this.closeExceptionWidget();
 		}
 
 		this.updateInlineDecorations(sf);
@@ -277,6 +293,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 	// end hover business
 
+	// breakpoint widget
 	public showBreakpointWidget(lineNumber: number): void {
 		if (this.breakpointWidget) {
 			this.breakpointWidget.dispose();
@@ -293,6 +310,41 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			this.breakpointWidget = null;
 			this.breakpointWidgetVisible.reset();
 			this.editor.focus();
+		}
+	}
+
+	// exception widget
+	public showExceptionWidget(lineNumber: number): void {
+		if (this.exceptionWidget) {
+			this.exceptionWidget.dispose();
+		}
+		// todo: switch the model to the one where exception occured
+		this.exceptionWidget = this.instantiationService.createInstance(ExceptionWidget, this.editor, lineNumber);
+		this.exceptionWidget.show({ lineNumber, column: 1 }, 2);
+		this.exceptionWidgetModel = this.editor.getModel();
+	}
+
+	public closeExceptionWidget(): void {
+		if (this.exceptionWidget) {
+			this.exceptionWidget.dispose();
+			this.exceptionWidget = null;
+			this.exceptionWidgetVisible.reset();
+			this.exceptionWidgetModel = null;
+			this.editor.focus(); // todo: check if really needed
+		}
+	}
+
+	public showHideExceptionWidget(): void {
+		// Check if the model where exception occured is opened
+		if (!this.exceptionWidget) {
+			return;
+		}
+
+		if (this.exceptionWidgetVisible && !(this.editor.getModel() === this.exceptionWidgetModel)) {
+			this.exceptionWidget.hide();
+		} else if (this.editor.getModel() === this.exceptionWidgetModel) {
+			const lineNumber = this.debugService.getViewModel().focusedStackFrame.lineNumber;
+			this.exceptionWidget.show({ lineNumber, column: 1 }, 2);
 		}
 	}
 
