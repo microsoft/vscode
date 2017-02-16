@@ -9,10 +9,10 @@
 			"program": "${workspaceRoot}/node_modules/mocha/bin/_mocha",
 			"runtimeExecutable": "${workspaceRoot}/.build/electron/Code - OSS.app/Contents/MacOS/Electron",
 			"windows": {
-				"runtimeExecutable": ""
+				"runtimeExecutable": "${workspaceRoot}/.build/electron/Code - OSS.exe"
 			},
 			"linux": {
-				"runtimeExecutable": ""
+				"runtimeExecutable": "${workspaceRoot}/.build/electron/code-oss"
 			},
 			"stopOnEntry": false,
 			"args": [
