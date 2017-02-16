@@ -50,7 +50,7 @@ async function init(disposables: Disposable[]): Promise<void> {
 	const commitHandler = new CommitController();
 	const commandCenter = new CommandCenter(model, outputChannel);
 	const provider = new GitSCMProvider(model, commandCenter);
-	const contentProvider = new GitContentProvider(git, rootPath, onGitChange);
+	const contentProvider = new GitContentProvider(model, onGitChange);
 	const checkoutStatusBar = new CheckoutStatusBar(model);
 	const syncStatusBar = new SyncStatusBar(model);
 	const autoFetcher = new AutoFetcher(model);
