@@ -9,8 +9,7 @@ import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { PrefixSumComputerWithCache } from 'vs/editor/common/viewModel/prefixSumComputer';
-import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
-import { MinimapLineRenderingData, MinimapLinesRenderingData } from 'vs/editor/common/viewModel/viewModel';
+import { ViewLineData } from 'vs/editor/common/viewModel/viewModel';
 
 export class OutputPosition {
 	_outputPositionBrand: void;
@@ -49,9 +48,8 @@ export interface ISplitLine {
 	getViewLineContent(model: IModel, modelLineNumber: number, outputLineIndex: number): string;
 	getViewLineMinColumn(model: IModel, modelLineNumber: number, outputLineIndex: number): number;
 	getViewLineMaxColumn(model: IModel, modelLineNumber: number, outputLineIndex: number): number;
-	getViewLineRenderingData(model: IModel, modelLineNumber: number, outputLineIndex: number): OutputLineRenderingData;
-	_getMinimapLineRenderingData(model: IModel, modelLineNumber: number, outputLineIndex: number): MinimapLineRenderingData;
-	getMinimapLineRenderingData(model: IModel, modelLineNumber: number, fromOuputLineIndex: number, toOutputLineIndex: number, globalStartIndex: number, needed: boolean[], result: MinimapLineRenderingData[]): void;
+	getViewLineData(model: IModel, modelLineNumber: number, outputLineIndex: number): ViewLineData;
+	getViewLinesData(model: IModel, modelLineNumber: number, fromOuputLineIndex: number, toOutputLineIndex: number, globalStartIndex: number, needed: boolean[], result: ViewLineData[]): void;
 
 	getModelColumnOfViewPosition(outputLineIndex: number, outputColumn: number): number;
 	getViewPositionOfModelPosition(deltaLineNumber: number, inputColumn: number): Position;
@@ -90,10 +88,10 @@ class VisibleIdentitySplitLine implements ISplitLine {
 		return model.getLineMaxColumn(modelLineNumber);
 	}
 
-	public getViewLineRenderingData(model: IModel, modelLineNumber: number, outputLineIndex: number): OutputLineRenderingData {
+	public getViewLineData(model: IModel, modelLineNumber: number, outputLineIndex: number): ViewLineData {
 		let lineTokens = model.getLineTokens(modelLineNumber, true);
 		let lineContent = lineTokens.getLineContent();
-		return new OutputLineRenderingData(
+		return new ViewLineData(
 			lineContent,
 			1,
 			lineContent.length + 1,
@@ -101,26 +99,12 @@ class VisibleIdentitySplitLine implements ISplitLine {
 		);
 	}
 
-	public _getMinimapLineRenderingData(model: IModel, modelLineNumber: number, outputLineIndex: number): MinimapLineRenderingData {
-		let lineTokens = model.getLineTokens(modelLineNumber, true);
-		let lineContent = lineTokens.getLineContent();
-		return new MinimapLineRenderingData(
-			lineContent,
-			lineTokens.inflate()
-		);
-	}
-
-	public getMinimapLineRenderingData(model: IModel, modelLineNumber: number, fromOuputLineIndex: number, toOutputLineIndex: number, globalStartIndex: number, needed: boolean[], result: MinimapLineRenderingData[]): void {
+	public getViewLinesData(model: IModel, modelLineNumber: number, fromOuputLineIndex: number, toOutputLineIndex: number, globalStartIndex: number, needed: boolean[], result: ViewLineData[]): void {
 		if (!needed[globalStartIndex]) {
 			result[globalStartIndex] = null;
 			return;
 		}
-		let lineTokens = model.getLineTokens(modelLineNumber, true);
-		let lineContent = lineTokens.getLineContent();
-		result[globalStartIndex] = new MinimapLineRenderingData(
-			lineContent,
-			lineTokens.inflate()
-		);
+		result[globalStartIndex] = this.getViewLineData(model, modelLineNumber, 0);
 	}
 
 	public getModelColumnOfViewPosition(outputLineIndex: number, outputColumn: number): number {
@@ -165,15 +149,11 @@ class InvisibleIdentitySplitLine implements ISplitLine {
 		throw new Error('Not supported');
 	}
 
-	public getViewLineRenderingData(model: IModel, modelLineNumber: number, outputLineIndex: number): OutputLineRenderingData {
+	public getViewLineData(model: IModel, modelLineNumber: number, outputLineIndex: number): ViewLineData {
 		throw new Error('Not supported');
 	}
 
-	public _getMinimapLineRenderingData(model: IModel, modelLineNumber: number, outputLineIndex: number): MinimapLineRenderingData {
-		throw new Error('Not supported');
-	}
-
-	public getMinimapLineRenderingData(model: IModel, modelLineNumber: number, fromOuputLineIndex: number, toOutputLineIndex: number, globalStartIndex: number, needed: boolean[], result: MinimapLineRenderingData[]): void {
+	public getViewLinesData(model: IModel, modelLineNumber: number, fromOuputLineIndex: number, toOutputLineIndex: number, globalStartIndex: number, needed: boolean[], result: ViewLineData[]): void {
 		throw new Error('Not supported');
 	}
 
@@ -262,7 +242,7 @@ export class SplitLine implements ISplitLine {
 		return this.getViewLineContent(model, modelLineNumber, outputLineIndex).length + 1;
 	}
 
-	public getViewLineRenderingData(model: IModel, modelLineNumber: number, outputLineIndex: number): OutputLineRenderingData {
+	public getViewLineData(model: IModel, modelLineNumber: number, outputLineIndex: number): ViewLineData {
 		if (!this._isVisible) {
 			throw new Error('Not supported');
 		}
@@ -284,7 +264,7 @@ export class SplitLine implements ISplitLine {
 		}
 		let lineTokens = model.getLineTokens(modelLineNumber, true);
 
-		return new OutputLineRenderingData(
+		return new ViewLineData(
 			lineContent,
 			minColumn,
 			maxColumn,
@@ -292,32 +272,7 @@ export class SplitLine implements ISplitLine {
 		);
 	}
 
-	public _getMinimapLineRenderingData(model: IModel, modelLineNumber: number, outputLineIndex: number): MinimapLineRenderingData {
-		if (!this._isVisible) {
-			throw new Error('Not supported');
-		}
-
-		let startOffset = this.getInputStartOffsetOfOutputLineIndex(outputLineIndex);
-		let endOffset = this.getInputEndOffsetOfOutputLineIndex(model, modelLineNumber, outputLineIndex);
-
-		let lineContent = model.getLineContent(modelLineNumber).substring(startOffset, endOffset);
-		if (outputLineIndex > 0) {
-			lineContent = this.wrappedIndent + lineContent;
-		}
-
-		let deltaStartIndex = 0;
-		if (outputLineIndex > 0) {
-			deltaStartIndex = this.wrappedIndentLength;
-		}
-		let lineTokens = model.getLineTokens(modelLineNumber, true);
-
-		return new MinimapLineRenderingData(
-			lineContent,
-			lineTokens.sliceAndInflate(startOffset, endOffset, deltaStartIndex)
-		);
-	}
-
-	public getMinimapLineRenderingData(model: IModel, modelLineNumber: number, fromOuputLineIndex: number, toOutputLineIndex: number, globalStartIndex: number, needed: boolean[], result: MinimapLineRenderingData[]): void {
+	public getViewLinesData(model: IModel, modelLineNumber: number, fromOuputLineIndex: number, toOutputLineIndex: number, globalStartIndex: number, needed: boolean[], result: ViewLineData[]): void {
 		if (!this._isVisible) {
 			throw new Error('Not supported');
 		}
@@ -328,7 +283,7 @@ export class SplitLine implements ISplitLine {
 				result[globalIndex] = null;
 				continue;
 			}
-			result[globalIndex] = this._getMinimapLineRenderingData(model, modelLineNumber, outputLineIndex);
+			result[globalIndex] = this.getViewLineData(model, modelLineNumber, outputLineIndex);
 		}
 	}
 
@@ -796,17 +751,17 @@ export class SplitLinesCollection {
 		return this.lines[lineIndex].getViewLineMaxColumn(this.model, lineIndex + 1, remainder);
 	}
 
-	public getViewLineRenderingData(viewLineNumber: number): OutputLineRenderingData {
+	public getViewLineData(viewLineNumber: number): ViewLineData {
 		this._ensureValidState();
 		viewLineNumber = this._toValidViewLineNumber(viewLineNumber);
 		let r = this.prefixSumComputer.getIndexOf(viewLineNumber - 1);
 		let lineIndex = r.index;
 		let remainder = r.remainder;
 
-		return this.lines[lineIndex].getViewLineRenderingData(this.model, lineIndex + 1, remainder);
+		return this.lines[lineIndex].getViewLineData(this.model, lineIndex + 1, remainder);
 	}
 
-	public getMinimapLinesRenderingData(viewStartLineNumber: number, viewEndLineNumber: number, needed: boolean[]): MinimapLinesRenderingData {
+	public getViewLinesData(viewStartLineNumber: number, viewEndLineNumber: number, needed: boolean[]): ViewLineData[] {
 		this._ensureValidState();
 
 		viewStartLineNumber = this._toValidViewLineNumber(viewStartLineNumber);
@@ -817,7 +772,7 @@ export class SplitLinesCollection {
 		let startModelLineIndex = start.index;
 		let startRemainder = start.remainder;
 
-		let result: MinimapLineRenderingData[] = [];
+		let result: ViewLineData[] = [];
 		for (let modelLineIndex = startModelLineIndex, len = this.model.getLineCount(); modelLineIndex < len; modelLineIndex++) {
 			let line = this.lines[modelLineIndex];
 			if (!line.isVisible()) {
@@ -833,7 +788,7 @@ export class SplitLinesCollection {
 			}
 			let toViewLineIndex = fromViewLineIndex + remainingViewLineCount;
 
-			line.getMinimapLineRenderingData(this.model, modelLineIndex + 1, fromViewLineIndex, toViewLineIndex, viewLineNumber - viewStartLineNumber, needed, result);
+			line.getViewLinesData(this.model, modelLineIndex + 1, fromViewLineIndex, toViewLineIndex, viewLineNumber - viewStartLineNumber, needed, result);
 
 			viewLineNumber += remainingViewLineCount;
 
@@ -842,49 +797,8 @@ export class SplitLinesCollection {
 			}
 		}
 
-		let actual = new MinimapLinesRenderingData(
-			viewStartLineNumber,
-			viewEndLineNumber,
-			this.tabSize,
-			result
-		);
-		// TODO@minimap
-		// let alternative = this._getMinimapLinesRenderingData(viewStartLineNumber, viewEndLineNumber, needed);
-
-		// if (!actual.equals(alternative)) {
-		// 	throw new Error('mismatch!');
-		// }
-
-		return actual;
+		return result;
 	}
-
-	// TODO@minimap
-	// private _getMinimapLinesRenderingData(viewStartLineNumber: number, viewEndLineNumber: number, needed:boolean[]): MinimapLinesRenderingData {
-	// 	let result:MinimapLineRenderingData[] = [];
-	// 	for (let viewLineNumber = viewStartLineNumber; viewLineNumber <= viewEndLineNumber; viewLineNumber++) {
-	// 		let index = viewLineNumber - viewStartLineNumber;
-	// 		if (!needed[index]) {
-	// 			result[index] = null;
-	// 			continue;
-	// 		}
-	// 		result[index] = this._getMinimapLineRenderingData(viewLineNumber);
-	// 	}
-	// 	return new MinimapLinesRenderingData(
-	// 		viewStartLineNumber,
-	// 		viewEndLineNumber,
-	// 		this.tabSize,
-	// 		result
-	// 	);
-	// }
-
-	// private _getMinimapLineRenderingData(viewLineNumber: number): MinimapLineRenderingData {
-	// 	viewLineNumber = this._toValidViewLineNumber(viewLineNumber);
-	// 	let r = this.prefixSumComputer.getIndexOf(viewLineNumber - 1);
-	// 	let lineIndex = r.index;
-	// 	let remainder = r.remainder;
-
-	// 	return this.lines[lineIndex]._getMinimapLineRenderingData(this.model, lineIndex + 1, remainder);
-	// }
 
 	public validateViewPosition(viewLineNumber: number, viewColumn: number, expectedModelPosition: Position): Position {
 		this._ensureValidState();
@@ -956,38 +870,5 @@ export class SplitLinesCollection {
 
 		// console.log('in -> out ' + inputLineNumber + ',' + inputColumn + ' ===> ' + r.lineNumber + ',' + r);
 		return r;
-	}
-}
-
-export class OutputLineRenderingData {
-	_outputLineRenderingDataBrand: void;
-
-	/**
-	 * The content at this view line.
-	 */
-	public readonly content: string;
-	/**
-	 * The minimum allowed column at this view line.
-	 */
-	public readonly minColumn: number;
-	/**
-	 * The maximum allowed column at this view line.
-	 */
-	public readonly maxColumn: number;
-	/**
-	 * The tokens at this view line.
-	 */
-	public readonly tokens: ViewLineToken[];
-
-	constructor(
-		content: string,
-		minColumn: number,
-		maxColumn: number,
-		tokens: ViewLineToken[]
-	) {
-		this.content = content;
-		this.minColumn = minColumn;
-		this.maxColumn = maxColumn;
-		this.tokens = tokens;
 	}
 }

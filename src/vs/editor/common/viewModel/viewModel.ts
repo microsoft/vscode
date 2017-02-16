@@ -91,64 +91,33 @@ export interface IViewModel extends IEventEmitter {
 }
 
 export class MinimapLinesRenderingData {
-	public readonly startLineNumber: number;
-	public readonly endLineNumber: number;
 	public readonly tabSize: number;
-	public readonly data: MinimapLineRenderingData[];
+	public readonly data: ViewLineData[];
 
 	constructor(
-		startLineNumber: number,
-		endLineNumber: number,
 		tabSize: number,
-		data: MinimapLineRenderingData[]
+		data: ViewLineData[]
 	) {
-		this.startLineNumber = startLineNumber;
-		this.endLineNumber = endLineNumber;
 		this.tabSize = tabSize;
 		this.data = data;
 	}
-
-	// TODO@minimap
-	public equals(other: MinimapLinesRenderingData): boolean {
-		if (this.startLineNumber !== other.startLineNumber) {
-			return false;
-		}
-		if (this.endLineNumber !== other.endLineNumber) {
-			return false;
-		}
-		if (this.tabSize !== other.tabSize) {
-			return false;
-		}
-		let len1 = this.data.length;
-		let len2 = other.data.length;
-		if (len1 !== len2) {
-			return false;
-		}
-		for (let i = 0; i < len1; i++) {
-			let a = this.data[i];
-			let b = other.data[i];
-			if (!a && !b) {
-				continue;
-			}
-			if (!a || !b) {
-				return false;
-			}
-			if (a.content !== b.content) {
-				return false;
-			}
-			if (!ViewLineToken.equalsArr(a.tokens, b.tokens)) {
-				return false;
-			}
-		}
-		return true;
-	}
 }
 
-export class MinimapLineRenderingData {
+export class ViewLineData {
+	_viewLineDataBrand: void;
+
 	/**
 	 * The content at this view line.
 	 */
 	public readonly content: string;
+	/**
+	 * The minimum allowed column at this view line.
+	 */
+	public readonly minColumn: number;
+	/**
+	 * The maximum allowed column at this view line.
+	 */
+	public readonly maxColumn: number;
 	/**
 	 * The tokens at this view line.
 	 */
@@ -156,9 +125,13 @@ export class MinimapLineRenderingData {
 
 	constructor(
 		content: string,
+		minColumn: number,
+		maxColumn: number,
 		tokens: ViewLineToken[]
 	) {
 		this.content = content;
+		this.minColumn = minColumn;
+		this.maxColumn = maxColumn;
 		this.tokens = tokens;
 	}
 }
