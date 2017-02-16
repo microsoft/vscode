@@ -11,6 +11,7 @@ import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { IRenderingContext, IRestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
 import { getOrCreateMinimapCharRenderer } from 'vs/editor/common/view/runtimeMinimapCharRenderer';
 import * as browser from 'vs/base/browser/browser';
+import * as dom from 'vs/base/browser/dom';
 import { MinimapCharRenderer, ParsedColor, MinimapTokensColorTracker, Constants } from 'vs/editor/common/view/minimapCharRenderer';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { CharCode } from 'vs/base/common/charCode';
@@ -20,6 +21,7 @@ import { FastDomNode, createFastDomNode } from 'vs/base/browser/styleMutator';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { EditorScrollbar } from 'vs/editor/browser/viewParts/editorScrollbar/editorScrollbar';
 import { RenderedLinesCollection, ILine } from 'vs/editor/browser/view/viewLayer';
+import { Range } from 'vs/editor/common/core/range';
 
 const enum RenderMinimap {
 	None = 0,
@@ -369,6 +371,7 @@ export class Minimap extends ViewPart {
 	private readonly _slider: FastDomNode<HTMLElement>;
 	private readonly _tokensColorTracker: MinimapTokensColorTracker;
 	private readonly _tokensColorTrackerListener: IDisposable;
+	private readonly _mouseDownListener: IDisposable;
 
 	private readonly _minimapCharRenderer: MinimapCharRenderer;
 
@@ -405,10 +408,37 @@ export class Minimap extends ViewPart {
 		this._minimapCharRenderer = getOrCreateMinimapCharRenderer();
 
 		this._applyLayout();
+
+		this._mouseDownListener = dom.addStandardDisposableListener(this._canvas.domNode, 'mousedown', (e) => {
+			e.preventDefault();
+
+			const renderMinimap = this._options.renderMinimap;
+			if (renderMinimap === RenderMinimap.None) {
+				return;
+			}
+			if (!this._lastRenderData) {
+				return;
+			}
+			const minimapLineHeight = (renderMinimap === RenderMinimap.Large ? Constants.x2_CHAR_HEIGHT : Constants.x1_CHAR_HEIGHT);
+			const internalOffsetY = this._options.pixelRatio * e.browserEvent.offsetY;
+			const lineIndex = Math.floor(internalOffsetY / minimapLineHeight);
+
+			let lineNumber = lineIndex + this._lastRenderData.renderedLayout.startLineNumber;
+			lineNumber = Math.min(lineNumber, this._context.model.getLineCount());
+
+			let revealPositionEvent: editorCommon.IViewRevealRangeEvent = {
+				range: new Range(lineNumber, 1, lineNumber, 1),
+				verticalType: editorCommon.VerticalRevealType.Center,
+				revealHorizontal: false,
+				revealCursor: false
+			};
+			this._context.privateViewEventBus.emit(editorCommon.ViewEventNames.RevealRangeEvent, revealPositionEvent);
+		});
 	}
 
 	public dispose(): void {
 		this._tokensColorTrackerListener.dispose();
+		this._mouseDownListener.dispose();
 		super.dispose();
 	}
 
@@ -510,7 +540,6 @@ export class Minimap extends ViewPart {
 			return;
 		}
 
-		// let start = performance.now();
 		const layout = new MinimapLayout(
 			this._lastRenderData,
 			this._options,
@@ -528,7 +557,8 @@ export class Minimap extends ViewPart {
 		const minimapLineHeight = (renderMinimap === RenderMinimap.Large ? Constants.x2_CHAR_HEIGHT : Constants.x1_CHAR_HEIGHT);
 
 		const imageData = this._getBuffer();
-		// let start1 = performance.now();
+
+		// Render untouched lines by using last rendered data.
 		let needed = Minimap._renderUntouchedLines(
 			imageData,
 			startLineNumber,
@@ -536,19 +566,15 @@ export class Minimap extends ViewPart {
 			minimapLineHeight,
 			this._lastRenderData
 		);
-		// let end1 = performance.now();
-		// console.log(`PAINTING UNTOUCHED LINES TOOK ${end1 - start1} ms.`);
 
-		// let start2 = performance.now();
-		const data = this._context.model.getMinimapLinesRenderingData(startLineNumber, endLineNumber, needed);
-		const tabSize = data.tabSize;
-		// let end2 = performance.now();
-		// console.log(`FETCHING DATA TOOK ${end2 - start2} ms.`);
+		// Fetch rendering info from view model for rest of lines that need rendering.
+		const lineInfo = this._context.model.getMinimapLinesRenderingData(startLineNumber, endLineNumber, needed);
+		const tabSize = lineInfo.tabSize;
+		const background = this._tokensColorTracker.getColor(ColorId.DefaultBackground);
 
+		// Render the rest of lines
 		let dy = 0;
 		let renderedLines: MinimapLine[] = [];
-		let background = this._tokensColorTracker.getColor(ColorId.DefaultBackground);
-		// let start3 = performance.now();
 		for (let lineIndex = 0, lineCount = endLineNumber - startLineNumber + 1; lineIndex < lineCount; lineIndex++) {
 			if (needed[lineIndex]) {
 				Minimap._renderLine(
@@ -559,15 +585,14 @@ export class Minimap extends ViewPart {
 					this._minimapCharRenderer,
 					dy,
 					tabSize,
-					data.data[lineIndex]
+					lineInfo.data[lineIndex]
 				);
 			}
 			renderedLines[lineIndex] = new MinimapLine(dy);
 			dy += minimapLineHeight;
 		}
-		// let end3 = performance.now();
-		// console.log(`PAINTING TOUCHED LINES TOOK ${end3 - start3} ms.`);
 
+		// Save rendered data for reuse on next frame if possible
 		this._lastRenderData = new RenderData(
 			new RenderedLayout(
 				renderingCtx.visibleRange.startLineNumber,
@@ -579,11 +604,9 @@ export class Minimap extends ViewPart {
 			renderedLines
 		);
 
+		// Finally, paint to the canvas
 		const ctx = this._canvas.domNode.getContext('2d');
 		ctx.putImageData(imageData, 0, 0);
-
-		// let end = performance.now();
-		// console.log(`TOTAL MINIMAP TIME: ${end - start} ms.`);
 	}
 
 	private static _renderUntouchedLines(
