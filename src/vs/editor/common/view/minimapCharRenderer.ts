@@ -13,11 +13,13 @@ export class ParsedColor {
 	public readonly r: number;
 	public readonly g: number;
 	public readonly b: number;
+	public readonly isLight: boolean;
 
 	constructor(r, g, b) {
 		this.r = r;
 		this.g = g;
 		this.b = b;
+		this.isLight = ((r + g + b) / (3 * 255) > 0.5);
 	}
 }
 
@@ -147,6 +149,9 @@ export class MinimapCharRenderer {
 	public readonly x2charData: Uint8ClampedArray;
 	public readonly x1charData: Uint8ClampedArray;
 
+	public readonly x2charDataLight: Uint8ClampedArray;
+	public readonly x1charDataLight: Uint8ClampedArray;
+
 	constructor(x2CharData: Uint8ClampedArray, x1CharData: Uint8ClampedArray) {
 		const x2ExpectedLen = Constants.x2_CHAR_HEIGHT * Constants.x2_CHAR_WIDTH * Constants.CHAR_COUNT;
 		if (x2CharData.length !== x2ExpectedLen) {
@@ -158,6 +163,17 @@ export class MinimapCharRenderer {
 		}
 		this.x2charData = x2CharData;
 		this.x1charData = x1CharData;
+
+		this.x2charDataLight = MinimapCharRenderer.soften(x2CharData, 12 / 15);
+		this.x1charDataLight = MinimapCharRenderer.soften(x1CharData, 50 / 60);
+	}
+
+	private static soften(input: Uint8ClampedArray, ratio: number): Uint8ClampedArray {
+		let result = new Uint8ClampedArray(input.length);
+		for (let i = 0, len = input.length; i < len; i++) {
+			result[i] = input[i] * ratio;
+		}
+		return result;
 	}
 
 	private static _getChIndex(chCode: number): number {
@@ -173,7 +189,7 @@ export class MinimapCharRenderer {
 			console.warn('bad render request outside image data');
 			return;
 		}
-		const x2CharData = this.x2charData;
+		const x2CharData = backgroundColor.isLight ? this.x2charDataLight : this.x2charData;
 		const chIndex = MinimapCharRenderer._getChIndex(chCode);
 
 		const outWidth = target.width * Constants.RGBA_CHANNELS_CNT;
@@ -250,7 +266,7 @@ export class MinimapCharRenderer {
 			console.warn('bad render request outside image data');
 			return;
 		}
-		const x1CharData = this.x1charData;
+		const x1CharData = backgroundColor.isLight ? this.x1charDataLight : this.x1charData;
 		const chIndex = MinimapCharRenderer._getChIndex(chCode);
 
 		const outWidth = target.width * Constants.RGBA_CHANNELS_CNT;
