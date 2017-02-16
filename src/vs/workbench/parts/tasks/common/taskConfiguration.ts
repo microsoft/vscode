@@ -13,7 +13,7 @@ import * as Types from 'vs/base/common/types';
 import * as UUID from 'vs/base/common/uuid';
 import { Config as ProcessConfig } from 'vs/base/common/processes';
 
-import { ValidationStatus, ValidationState, ILogger } from 'vs/base/common/parsers';
+import { ValidationStatus, ValidationState } from 'vs/base/common/parsers';
 import {
 	NamedProblemMatcher, ProblemMatcher, ProblemMatcherParser, Config as ProblemMatcherConfig,
 	registry as ProblemMatcherRegistry, isNamedProblemMatcher
@@ -757,15 +757,17 @@ namespace TaskDescription {
 			mergeGlobals(task, globals);
 			fillDefaults(task);
 			let addTask: boolean = true;
-			if (context.isTermnial && task.command && task.command.isShellCommand && task.command.args && task.command.args.length > 0) {
-				context.validationStatus.state = ValidationState.Warning;
-				context.logger.log(nls.localize('taskConfiguration.shellArgs', 'Warning: the task {0} is a shell command and specifies arguments. To ensure correct command line quoting please merge args into the command.', task.name));
+			if (context.isTermnial && task.command && task.command.name && task.command.isShellCommand && task.command.args && task.command.args.length > 0) {
+				if (hasUnescapedSpaces(task.command.name) || task.command.args.some(hasUnescapedSpaces)) {
+					context.validationStatus.state = ValidationState.Warning;
+					context.logger.log(nls.localize('taskConfiguration.shellArgs', 'Warning: the task \'{0}\' is a shell command and either the command name or one of its arguments has unescaped spaces. To ensure correct command line quoting please merge args into the command.', task.name));
+				}
 			}
 			if (context.isTermnial) {
 				if ((task.command === void 0 || task.command.name === void 0) && (task.dependsOn === void 0 || task.dependsOn.length === 0)) {
 					context.validationStatus.state = ValidationState.Error;
 					context.logger.log(nls.localize(
-						'taskConfiguration.noCommandOrDependsOn', 'Error: the task {0} neither specifies a command or a dependsOn property. The task will be ignored. Its definition is:\n{1}',
+						'taskConfiguration.noCommandOrDependsOn', 'Error: the task \'{0}\' neither specifies a command or a dependsOn property. The task will be ignored. Its definition is:\n{1}',
 						task.name, JSON.stringify(externalTask, undefined, 4)
 					));
 					addTask = false;
@@ -774,7 +776,7 @@ namespace TaskDescription {
 				if (task.command === void 0 || task.command.name === void 0) {
 					context.validationStatus.state = ValidationState.Warning;
 					context.logger.log(nls.localize(
-						'taskConfiguration.noCommand', 'Error: the task {0} doesn\'t define a command. The task will be ignored. Its definition is:\n{1}',
+						'taskConfiguration.noCommand', 'Error: the task \'{0}\' doesn\'t define a command. The task will be ignored. Its definition is:\n{1}',
 						task.name, JSON.stringify(externalTask, undefined, 4)
 					));
 					addTask = false;
@@ -893,6 +895,28 @@ namespace TaskDescription {
 		}
 		if (task.problemMatchers === void 0) {
 			task.problemMatchers = EMPTY_ARRAY;
+		}
+	}
+
+	function hasUnescapedSpaces(value: string): boolean {
+		if (Platform.isWindows) {
+			if (value.length >= 2 && value.charAt(0) === '"' && value.charAt(value.length - 1) === '"') {
+				return false;
+			}
+			return value.indexOf(' ') !== -1;
+		} else {
+			if (value.length >= 2 && ((value.charAt(0) === '"' && value.charAt(value.length - 1) === '"') || (value.charAt(0) === '\'' && value.charAt(value.length - 1) === '\''))) {
+				return false;
+			}
+			for (let i = 0; i < value.length; i++) {
+				let ch = value.charAt(i);
+				if (ch === ' ') {
+					if (i === 0 || value.charAt(i) !== '\\') {
+						return true;
+					}
+				}
+			}
+			return false;
 		}
 	}
 }
@@ -1015,6 +1039,7 @@ export interface ParseResult {
 
 export interface ILogger {
 	log(value: string): void;
+	clearOutput(): void;
 }
 
 class ConfigurationParser {
@@ -1030,6 +1055,9 @@ class ConfigurationParser {
 
 	public run(fileConfig: ExternalTaskRunnerConfiguration): ParseResult {
 		let engine = ExecutionEngine.from(fileConfig);
+		if (engine === ExecutionEngine.Terminal) {
+			this.logger.clearOutput();
+		}
 		let context: ParseContext = { logger: this.logger, validationStatus: this.validationStatus, namedProblemMatchers: undefined, isTermnial: engine === ExecutionEngine.Terminal };
 		return {
 			validationStatus: this.validationStatus,
