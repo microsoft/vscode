@@ -338,18 +338,15 @@ export class ThemeService implements IThemeService {
 		if (legacyColorThemeId || legacyIconThemeId) {
 			this.storageService.remove('workbench.theme', StorageScope.GLOBAL);
 			this.storageService.remove('workbench.iconTheme', StorageScope.GLOBAL);
-			return Promise.join([
-				this.findThemeData(legacyColorThemeId, DEFAULT_THEME_ID).then(theme => {
-					let themeId = theme ? theme.id : DEFAULT_THEME_ID;
-					let target = themeId !== DEFAULT_THEME_ID ? ConfigurationTarget.USER : null;
-					return this.setColorTheme(themeId, target);
-				}),
-				this._findIconThemeData(legacyIconThemeId).then(theme => {
-					let themeId = theme && theme.id;
-					let target = themeId !== DEFAULT_THEME_ID ? ConfigurationTarget.USER : null;
-					return this.setFileIconTheme(themeId, target);
-				})
-			]);
+			return this.findThemeData(legacyColorThemeId, DEFAULT_THEME_ID).then(theme => {
+				let themeId = theme ? theme.id : DEFAULT_THEME_ID;
+				return this.setColorTheme(themeId, ConfigurationTarget.USER).then(_ => {
+					return this._findIconThemeData(legacyIconThemeId).then(theme => {
+						let themeId = theme && theme.id;
+						return this.setFileIconTheme(themeId, ConfigurationTarget.USER);
+					});
+				});
+			});
 		}
 
 
