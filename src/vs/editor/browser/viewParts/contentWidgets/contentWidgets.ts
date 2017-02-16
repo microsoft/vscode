@@ -390,10 +390,6 @@ export class ViewContentWidgets extends ViewPart {
 	}
 
 	public prepareRender(ctx: IRenderingContext): void {
-		if (!this.shouldRender()) {
-			throw new Error('I did not ask to render!');
-		}
-
 		let data: IMyRenderData = {};
 
 		let keys = Object.keys(this._widgets);
