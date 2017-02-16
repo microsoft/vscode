@@ -518,7 +518,7 @@ export class ViewModel extends EventEmitter implements IViewModel {
 		let mightContainRTL = this.model.mightContainRTL();
 		let mightContainNonBasicASCII = this.model.mightContainNonBasicASCII();
 		let tabSize = this.getTabSize();
-		let lineData = this.lines.getViewLineRenderingData(lineNumber);
+		let lineData = this.lines.getViewLineData(lineNumber);
 		let allInlineDecorations = this.decorations.getDecorationsViewportData(visibleRange).inlineDecorations;
 		let inlineDecorations = allInlineDecorations[lineNumber - visibleRange.startLineNumber];
 
@@ -535,7 +535,11 @@ export class ViewModel extends EventEmitter implements IViewModel {
 	}
 
 	public getMinimapLinesRenderingData(startLineNumber: number, endLineNumber: number, needed: boolean[]): MinimapLinesRenderingData {
-		return this.lines.getMinimapLinesRenderingData(startLineNumber, endLineNumber, needed);
+		let result = this.lines.getViewLinesData(startLineNumber, endLineNumber, needed);
+		return new MinimapLinesRenderingData(
+			this.getTabSize(),
+			result
+		);
 	}
 
 	public getAllOverviewRulerDecorations(): ViewModelDecoration[] {

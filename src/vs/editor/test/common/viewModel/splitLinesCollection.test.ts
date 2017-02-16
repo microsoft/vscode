@@ -17,7 +17,7 @@ import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
-import { MinimapLineRenderingData, MinimapLinesRenderingData } from 'vs/editor/common/viewModel/viewModel';
+import { ViewLineData } from 'vs/editor/common/viewModel/viewModel';
 import { Range } from 'vs/editor/common/core/range';
 
 suite('Editor ViewModel - SplitLinesCollection', () => {
@@ -380,22 +380,26 @@ suite('SplitLinesCollection', () => {
 
 	interface ITestMinimapLineRenderingData {
 		content: string;
+		minColumn: number;
+		maxColumn: number;
 		tokens: ITestViewLineToken[];
 	}
 
-	function assertMinimapLineRenderingData(actual: MinimapLineRenderingData, expected: ITestMinimapLineRenderingData): void {
+	function assertMinimapLineRenderingData(actual: ViewLineData, expected: ITestMinimapLineRenderingData): void {
 		if (actual === null && expected === null) {
 			assert.ok(true);
 			return;
 		}
 		assert.equal(actual.content, expected.content);
+		assert.equal(actual.minColumn, expected.minColumn);
+		assert.equal(actual.maxColumn, expected.maxColumn);
 		assertViewLineTokens(actual.tokens, expected.tokens);
 	}
 
-	function assertMinimapLinesRenderingData(actual: MinimapLinesRenderingData, expected: ITestMinimapLineRenderingData[]): void {
-		assert.equal(actual.data.length, expected.length);
+	function assertMinimapLinesRenderingData(actual: ViewLineData[], expected: ITestMinimapLineRenderingData[]): void {
+		assert.equal(actual.length, expected.length);
 		for (let i = 0; i < expected.length; i++) {
-			assertMinimapLineRenderingData(actual.data[i], expected[i]);
+			assertMinimapLineRenderingData(actual[i], expected[i]);
 		}
 	}
 
@@ -411,16 +415,16 @@ suite('SplitLinesCollection', () => {
 						needed[i] = (desired & (1 << i)) ? true : false;
 						expected[i] = (needed[i] ? all[start - 1 + i] : null);
 					}
-					let actual = splitLinesCollection.getMinimapLinesRenderingData(start, end, needed);
+					let actual = splitLinesCollection.getViewLinesData(start, end, needed);
 					assertMinimapLinesRenderingData(actual, expected);
-					// Remove break to test all possible combinations
+					// Comment out next line to test all possible combinations
 					break;
 				}
 			}
 		}
 	}
 
-	test('getMinimapLinesRenderingData - no wrapping', () => {
+	test('getViewLinesData - no wrapping', () => {
 		withSplitLinesCollection(model, -1, (splitLinesCollection) => {
 			assert.equal(splitLinesCollection.getViewLineCount(), 8);
 			assert.equal(splitLinesCollection.modelPositionIsVisible(1, 1), true);
@@ -435,6 +439,8 @@ suite('SplitLinesCollection', () => {
 			let _expected: ITestMinimapLineRenderingData[] = [
 				{
 					content: 'class Nice {',
+					minColumn: 1,
+					maxColumn: 13,
 					tokens: [
 						{ endIndex: 5, value: 1 },
 						{ endIndex: 6, value: 2 },
@@ -444,6 +450,8 @@ suite('SplitLinesCollection', () => {
 				},
 				{
 					content: '	function hi() {',
+					minColumn: 1,
+					maxColumn: 17,
 					tokens: [
 						{ endIndex: 1, value: 5 },
 						{ endIndex: 9, value: 6 },
@@ -454,6 +462,8 @@ suite('SplitLinesCollection', () => {
 				},
 				{
 					content: '		console.log("Hello world");',
+					minColumn: 1,
+					maxColumn: 30,
 					tokens: [
 						{ endIndex: 2, value: 10 },
 						{ endIndex: 9, value: 11 },
@@ -466,12 +476,16 @@ suite('SplitLinesCollection', () => {
 				},
 				{
 					content: '	}',
+					minColumn: 1,
+					maxColumn: 3,
 					tokens: [
 						{ endIndex: 2, value: 17 },
 					]
 				},
 				{
 					content: '	function hello() {',
+					minColumn: 1,
+					maxColumn: 20,
 					tokens: [
 						{ endIndex: 1, value: 18 },
 						{ endIndex: 9, value: 19 },
@@ -482,6 +496,8 @@ suite('SplitLinesCollection', () => {
 				},
 				{
 					content: '		console.log("Hello world, this is a somewhat longer line");',
+					minColumn: 1,
+					maxColumn: 62,
 					tokens: [
 						{ endIndex: 2, value: 23 },
 						{ endIndex: 9, value: 24 },
@@ -493,18 +509,20 @@ suite('SplitLinesCollection', () => {
 					]
 				},
 				{
+					minColumn: 1,
+					maxColumn: 3,
 					content: '	}',
-
 					tokens: [
 						{ endIndex: 2, value: 30 },
 					]
 				},
 				{
+					minColumn: 1,
+					maxColumn: 2,
 					content: '}',
 					tokens: [
 						{ endIndex: 1, value: 31 },
 					]
-
 				}
 			];
 
@@ -540,7 +558,7 @@ suite('SplitLinesCollection', () => {
 		});
 	});
 
-	test('getMinimapLinesRenderingData - with wrapping', () => {
+	test('getViewLinesData - with wrapping', () => {
 		withSplitLinesCollection(model, 30, (splitLinesCollection) => {
 			assert.equal(splitLinesCollection.getViewLineCount(), 12);
 			assert.equal(splitLinesCollection.modelPositionIsVisible(1, 1), true);
@@ -555,6 +573,8 @@ suite('SplitLinesCollection', () => {
 			let _expected: ITestMinimapLineRenderingData[] = [
 				{
 					content: 'class Nice {',
+					minColumn: 1,
+					maxColumn: 13,
 					tokens: [
 						{ endIndex: 5, value: 1 },
 						{ endIndex: 6, value: 2 },
@@ -564,6 +584,8 @@ suite('SplitLinesCollection', () => {
 				},
 				{
 					content: '	function hi() {',
+					minColumn: 1,
+					maxColumn: 17,
 					tokens: [
 						{ endIndex: 1, value: 5 },
 						{ endIndex: 9, value: 6 },
@@ -574,6 +596,8 @@ suite('SplitLinesCollection', () => {
 				},
 				{
 					content: '		console.log("Hello ',
+					minColumn: 1,
+					maxColumn: 22,
 					tokens: [
 						{ endIndex: 2, value: 10 },
 						{ endIndex: 9, value: 11 },
@@ -585,6 +609,8 @@ suite('SplitLinesCollection', () => {
 				},
 				{
 					content: '			world");',
+					minColumn: 4,
+					maxColumn: 12,
 					tokens: [
 						{ endIndex: 9, value: 15 },
 						{ endIndex: 11, value: 16 },
@@ -592,12 +618,16 @@ suite('SplitLinesCollection', () => {
 				},
 				{
 					content: '	}',
+					minColumn: 1,
+					maxColumn: 3,
 					tokens: [
 						{ endIndex: 2, value: 17 },
 					]
 				},
 				{
 					content: '	function hello() {',
+					minColumn: 1,
+					maxColumn: 20,
 					tokens: [
 						{ endIndex: 1, value: 18 },
 						{ endIndex: 9, value: 19 },
@@ -608,6 +638,8 @@ suite('SplitLinesCollection', () => {
 				},
 				{
 					content: '		console.log("Hello ',
+					minColumn: 1,
+					maxColumn: 22,
 					tokens: [
 						{ endIndex: 2, value: 23 },
 						{ endIndex: 9, value: 24 },
@@ -619,18 +651,24 @@ suite('SplitLinesCollection', () => {
 				},
 				{
 					content: '			world, this is a ',
+					minColumn: 4,
+					maxColumn: 21,
 					tokens: [
 						{ endIndex: 20, value: 28 },
 					]
 				},
 				{
 					content: '			somewhat longer ',
+					minColumn: 4,
+					maxColumn: 20,
 					tokens: [
 						{ endIndex: 19, value: 28 },
 					]
 				},
 				{
 					content: '			line");',
+					minColumn: 4,
+					maxColumn: 11,
 					tokens: [
 						{ endIndex: 8, value: 28 },
 						{ endIndex: 10, value: 29 },
@@ -638,17 +676,19 @@ suite('SplitLinesCollection', () => {
 				},
 				{
 					content: '	}',
-
+					minColumn: 1,
+					maxColumn: 3,
 					tokens: [
 						{ endIndex: 2, value: 30 },
 					]
 				},
 				{
 					content: '}',
+					minColumn: 1,
+					maxColumn: 2,
 					tokens: [
 						{ endIndex: 1, value: 31 },
 					]
-
 				}
 			];
 

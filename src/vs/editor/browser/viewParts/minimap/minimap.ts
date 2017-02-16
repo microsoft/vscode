@@ -14,7 +14,7 @@ import * as browser from 'vs/base/browser/browser';
 import { MinimapCharRenderer, ParsedColor, MinimapTokensColorTracker, Constants } from 'vs/editor/common/view/minimapCharRenderer';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { CharCode } from 'vs/base/common/charCode';
-import { IViewLayout, MinimapLineRenderingData } from 'vs/editor/common/viewModel/viewModel';
+import { IViewLayout, ViewLineData } from 'vs/editor/common/viewModel/viewModel';
 import { ColorId } from 'vs/editor/common/modes';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/styleMutator';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -414,14 +414,14 @@ export class Minimap extends ViewPart {
 		let end = performance.now();
 		console.log(`FETCHING MINIMAP DATA TOOK ${end - start} ms.`);
 
-		let start2 = performance.now();
+		// let start2 = performance.now();
 		let dy = 0;
 		for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
 			Minimap._renderLine(imageData, background, renderMinimap, charWidth, this._tokensColorTracker, this._minimapCharRenderer, dy, tabSize, data2.data[lineNumber - startLineNumber]);
 			dy += minimapLineHeight;
 		}
-		let end2 = performance.now();
-		console.log(`PAINTING MINIMAP TOOK ${end2 - start2} ms.`);
+		// let end2 = performance.now();
+		// console.log(`PAINTING MINIMAP TOOK ${end2 - start2} ms.`);
 
 		ctx.putImageData(imageData, 0, 0);
 	}
@@ -435,7 +435,7 @@ export class Minimap extends ViewPart {
 		minimapCharRenderer: MinimapCharRenderer,
 		dy: number,
 		tabSize: number,
-		lineData: MinimapLineRenderingData
+		lineData: ViewLineData
 	): void {
 		const content = lineData.content;
 		const tokens = lineData.tokens;
