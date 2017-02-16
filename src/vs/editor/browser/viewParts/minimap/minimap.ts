@@ -19,6 +19,7 @@ import { ColorId } from 'vs/editor/common/modes';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/styleMutator';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { EditorScrollbar } from 'vs/editor/browser/viewParts/editorScrollbar/editorScrollbar';
+import { RenderedLinesCollection, ILine } from 'vs/editor/browser/view/viewLayer';
 
 const enum RenderMinimap {
 	None = 0,
@@ -156,17 +157,18 @@ class MinimapLayout {
 			// i.e. scrolling down might result in the startLineNumber going up.
 			// Avoid this tremor by being consistent w.r.t. the previous computed result
 			if (lastRenderData) {
-				if (lastRenderData.viewportStartLineNumber <= viewportStartLineNumber) {
+				const lastLayoutDecision = lastRenderData.renderedLayout;
+				if (lastLayoutDecision.viewportStartLineNumber <= viewportStartLineNumber) {
 					// going down => make sure we don't go above our previous decision
-					if (desiredStartLineNumber < lastRenderData.startLineNumber) {
-						desiredStartLineNumber = lastRenderData.startLineNumber;
+					if (desiredStartLineNumber < lastLayoutDecision.startLineNumber) {
+						desiredStartLineNumber = lastLayoutDecision.startLineNumber;
 						desiredEndLineNumber = desiredStartLineNumber + minimapLinesFitting - 1;
 					}
 				}
-				if (lastRenderData.viewportStartLineNumber >= viewportStartLineNumber) {
+				if (lastLayoutDecision.viewportStartLineNumber >= viewportStartLineNumber) {
 					// going up => make sure we don't go below our previous decision
-					if (desiredEndLineNumber > lastRenderData.endLineNumber) {
-						desiredEndLineNumber = lastRenderData.endLineNumber;
+					if (desiredEndLineNumber > lastLayoutDecision.endLineNumber) {
+						desiredEndLineNumber = lastLayoutDecision.endLineNumber;
 						desiredStartLineNumber = desiredEndLineNumber - minimapLinesFitting + 1;
 					}
 				}
@@ -209,7 +211,7 @@ class MinimapLayout {
 	}
 }
 
-class RenderData {
+class RenderedLayout {
 	/**
 	 * editor viewport start line number.
 	 */
@@ -220,11 +222,11 @@ class RenderData {
 	public readonly viewportEndLineNumber: number;
 
 	/**
-	 * minimap render start line number.
+	 * minimap rendered start line number.
 	 */
 	public readonly startLineNumber: number;
 	/**
-	 * minimap render end line number.
+	 * minimap rendered end line number.
 	 */
 	public readonly endLineNumber: number;
 
@@ -238,6 +240,60 @@ class RenderData {
 		this.viewportEndLineNumber = viewportEndLineNumber;
 		this.startLineNumber = startLineNumber;
 		this.endLineNumber = endLineNumber;
+	}
+}
+
+class MinimapLine implements ILine {
+
+	public static INVALID = new MinimapLine(-1);
+
+	private _dy: number;
+
+	constructor(dy: number) {
+		this._dy = dy;
+	}
+
+	public onContentChanged(): void {
+		this._dy = -1;
+	}
+
+	public onTokensChanged(): void {
+		this._dy = -1;
+	}
+}
+
+class RenderData {
+	/**
+	 * last rendered layout.
+	 */
+	public readonly renderedLayout: RenderedLayout;
+	private readonly _imageData: ImageData;
+	private readonly _renderedLines: RenderedLinesCollection<MinimapLine>;
+
+	constructor(
+		renderedLayout: RenderedLayout,
+		imageData: ImageData,
+		lines: MinimapLine[]
+	) {
+		this.renderedLayout = renderedLayout;
+		this._imageData = imageData;
+		this._renderedLines = new RenderedLinesCollection(
+			() => MinimapLine.INVALID
+		);
+		this._renderedLines._set(renderedLayout.startLineNumber, lines);
+	}
+
+	public onModelLinesDeleted(e: editorCommon.IViewLinesDeletedEvent): void {
+		this._renderedLines.onModelLinesDeleted(e.fromLineNumber, e.toLineNumber);
+	}
+	public onModelLineChanged(e: editorCommon.IViewLineChangedEvent): boolean {
+		return this._renderedLines.onModelLineChanged(e.lineNumber);
+	}
+	public onModelLinesInserted(e: editorCommon.IViewLinesInsertedEvent): void {
+		this._renderedLines.onModelLinesInserted(e.fromLineNumber, e.toLineNumber);
+	}
+	public onModelTokensChanged(e: editorCommon.IViewTokensChangedEvent): boolean {
+		return this._renderedLines.onModelTokensChanged(e.ranges);
 	}
 }
 
@@ -358,22 +414,28 @@ export class Minimap extends ViewPart {
 		return true;
 	}
 	public onModelLinesDeleted(e: editorCommon.IViewLinesDeletedEvent): boolean {
-		// TODO@minimap: only do so when the lines are painted in the minimap
-		this._lastRenderData = null;
+		if (this._lastRenderData) {
+			this._lastRenderData.onModelLinesDeleted(e);
+		}
 		return true;
 	}
 	public onModelLineChanged(e: editorCommon.IViewLineChangedEvent): boolean {
-		// TODO@minimap: only do so when the lines are painted in the minimap
-		return true;
+		if (this._lastRenderData) {
+			return this._lastRenderData.onModelLineChanged(e);
+		}
+		return false;
 	}
 	public onModelLinesInserted(e: editorCommon.IViewLinesInsertedEvent): boolean {
-		// TODO@minimap: only do so when the lines are painted in the minimap
-		this._lastRenderData = null;
+		if (this._lastRenderData) {
+			this._lastRenderData.onModelLinesInserted(e);
+		}
 		return true;
 	}
 	public onModelTokensChanged(e: editorCommon.IViewTokensChangedEvent): boolean {
-		// TODO@minimap: only do so when the lines are painted in the minimap
-		return true;
+		if (this._lastRenderData) {
+			return this._lastRenderData.onModelTokensChanged(e);
+		}
+		return false;
 	}
 	public onConfigurationChanged(e: editorCommon.IConfigurationChangedEvent): boolean {
 		return this._onOptionsMaybeChanged();
@@ -439,20 +501,29 @@ export class Minimap extends ViewPart {
 		const data2 = this._context.model.getMinimapLinesRenderingData(startLineNumber, endLineNumber, needed);
 		const tabSize = data2.tabSize;
 
-		// let start2 = performance.now();
+		let start2 = performance.now();
 		let dy = 0;
+		let renderedLines: MinimapLine[] = [];
+		// TODO@minimap: paint using old image data
 		for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
-			Minimap._renderLine(imageData, background, renderMinimap, charWidth, this._tokensColorTracker, this._minimapCharRenderer, dy, tabSize, data2.data[lineNumber - startLineNumber]);
+			let lineIndex = lineNumber - startLineNumber;
+			Minimap._renderLine(imageData, background, renderMinimap, charWidth, this._tokensColorTracker, this._minimapCharRenderer, dy, tabSize, data2.data[lineIndex]);
+			renderedLines[lineIndex] = new MinimapLine(dy);
 			dy += minimapLineHeight;
 		}
-		// let end2 = performance.now();
-		// console.log(`PAINTING MINIMAP TOOK ${end2 - start2} ms.`);
+		let end2 = performance.now();
+		console.log(`PAINTING MINIMAP TOOK ${end2 - start2} ms.`);
 
-		this._lastRenderData = new RenderData(
+		let renderedLayout = new RenderedLayout(
 			renderingCtx.visibleRange.startLineNumber,
 			renderingCtx.visibleRange.endLineNumber,
 			startLineNumber,
-			endLineNumber
+			endLineNumber,
+		);
+		this._lastRenderData = new RenderData(
+			renderedLayout,
+			imageData,
+			renderedLines
 		);
 
 		ctx.putImageData(imageData, 0, 0);
