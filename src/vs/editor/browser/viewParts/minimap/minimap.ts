@@ -404,19 +404,24 @@ export class Minimap extends ViewPart {
 
 		let background = this._tokensColorTracker.getColor(ColorId.DefaultBackground);
 
-		let data: MinimapLineRenderingData[] = [];
+		let start = performance.now();
+		let needed: boolean[] = [];
 		for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
-			data[lineNumber - startLineNumber] = this._context.model.getMinimapLineRenderingData(lineNumber);
+			needed[lineNumber - startLineNumber] = true;
 		}
+		const data2 = this._context.model.getMinimapLinesRenderingData(startLineNumber, endLineNumber, needed);
+		const tabSize = data2.tabSize;
+		let end = performance.now();
+		console.log(`FETCHING MINIMAP DATA TOOK ${end - start} ms.`);
 
-		// let start = performance.now();
+		let start2 = performance.now();
 		let dy = 0;
 		for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
-			Minimap._renderLine(imageData, background, renderMinimap, charWidth, this._tokensColorTracker, this._minimapCharRenderer, dy, data[lineNumber - startLineNumber]);
+			Minimap._renderLine(imageData, background, renderMinimap, charWidth, this._tokensColorTracker, this._minimapCharRenderer, dy, tabSize, data2.data[lineNumber - startLineNumber]);
 			dy += minimapLineHeight;
 		}
-		// let end = performance.now();
-		// console.log(`INNER LOOP TOOK ${end - start} ms.`);
+		let end2 = performance.now();
+		console.log(`PAINTING MINIMAP TOOK ${end2 - start2} ms.`);
 
 		ctx.putImageData(imageData, 0, 0);
 	}
@@ -429,11 +434,11 @@ export class Minimap extends ViewPart {
 		colorTracker: MinimapTokensColorTracker,
 		minimapCharRenderer: MinimapCharRenderer,
 		dy: number,
+		tabSize: number,
 		lineData: MinimapLineRenderingData
 	): void {
 		const content = lineData.content;
 		const tokens = lineData.tokens;
-		const tabSize = lineData.tabSize;
 		const maxDx = target.width - charWidth;
 
 		let dx = 0;

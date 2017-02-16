@@ -72,7 +72,7 @@ export interface IViewModel extends IEventEmitter {
 
 	getDecorationsInViewport(visibleRange: Range): ViewModelDecoration[];
 	getViewLineRenderingData(visibleRange: Range, lineNumber: number): ViewLineRenderingData;
-	getMinimapLineRenderingData(lineNumber: number): MinimapLineRenderingData;
+	getMinimapLinesRenderingData(startLineNumber: number, endLineNumber: number, needed: boolean[]): MinimapLinesRenderingData;
 
 	getTabSize(): number;
 	getLineCount(): number;
@@ -90,6 +90,60 @@ export interface IViewModel extends IEventEmitter {
 	validateModelPosition(modelPosition: IPosition): Position;
 }
 
+export class MinimapLinesRenderingData {
+	public readonly startLineNumber: number;
+	public readonly endLineNumber: number;
+	public readonly tabSize: number;
+	public readonly data: MinimapLineRenderingData[];
+
+	constructor(
+		startLineNumber: number,
+		endLineNumber: number,
+		tabSize: number,
+		data: MinimapLineRenderingData[]
+	) {
+		this.startLineNumber = startLineNumber;
+		this.endLineNumber = endLineNumber;
+		this.tabSize = tabSize;
+		this.data = data;
+	}
+
+	// TODO@minimap
+	public equals(other: MinimapLinesRenderingData): boolean {
+		if (this.startLineNumber !== other.startLineNumber) {
+			return false;
+		}
+		if (this.endLineNumber !== other.endLineNumber) {
+			return false;
+		}
+		if (this.tabSize !== other.tabSize) {
+			return false;
+		}
+		let len1 = this.data.length;
+		let len2 = other.data.length;
+		if (len1 !== len2) {
+			return false;
+		}
+		for (let i = 0; i < len1; i++) {
+			let a = this.data[i];
+			let b = other.data[i];
+			if (!a && !b) {
+				continue;
+			}
+			if (!a || !b) {
+				return false;
+			}
+			if (a.content !== b.content) {
+				return false;
+			}
+			if (!ViewLineToken.equalsArr(a.tokens, b.tokens)) {
+				return false;
+			}
+		}
+		return true;
+	}
+}
+
 export class MinimapLineRenderingData {
 	/**
 	 * The content at this view line.
@@ -99,19 +153,13 @@ export class MinimapLineRenderingData {
 	 * The tokens at this view line.
 	 */
 	public readonly tokens: ViewLineToken[];
-	/**
-	 * The tab size for this view model.
-	 */
-	public readonly tabSize: number;
 
 	constructor(
 		content: string,
-		tokens: ViewLineToken[],
-		tabSize: number
+		tokens: ViewLineToken[]
 	) {
 		this.content = content;
 		this.tokens = tokens;
-		this.tabSize = tabSize;
 	}
 }
 

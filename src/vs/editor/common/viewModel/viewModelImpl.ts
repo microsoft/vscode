@@ -13,7 +13,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ViewModelCursors } from 'vs/editor/common/viewModel/viewModelCursors';
 import { ViewModelDecorations } from 'vs/editor/common/viewModel/viewModelDecorations';
-import { MinimapLineRenderingData, ViewLineRenderingData, ViewModelDecoration, IViewModel, ICoordinatesConverter } from 'vs/editor/common/viewModel/viewModel';
+import { MinimapLinesRenderingData, ViewLineRenderingData, ViewModelDecoration, IViewModel, ICoordinatesConverter } from 'vs/editor/common/viewModel/viewModel';
 import { SplitLinesCollection } from 'vs/editor/common/viewModel/splitLinesCollection';
 
 export class CoordinatesConverter implements ICoordinatesConverter {
@@ -534,8 +534,8 @@ export class ViewModel extends EventEmitter implements IViewModel {
 		);
 	}
 
-	public getMinimapLineRenderingData(lineNumber: number): MinimapLineRenderingData {
-		return this.lines.getMinimapLineRenderingData(lineNumber);
+	public getMinimapLinesRenderingData(startLineNumber: number, endLineNumber: number, needed: boolean[]): MinimapLinesRenderingData {
+		return this.lines.getMinimapLinesRenderingData(startLineNumber, endLineNumber, needed);
 	}
 
 	public getAllOverviewRulerDecorations(): ViewModelDecoration[] {
