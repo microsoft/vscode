@@ -419,11 +419,13 @@ export interface ICodeEditor extends editorCommon.ICommonCodeEditor {
 	onMouseDown(listener: (e: IEditorMouseEvent) => void): IDisposable;
 	/**
 	 * An event emitted on a "mousedrag".
+	 * @internal
 	 * @event
 	 */
 	onMouseDrag(listener: (e: IEditorMouseEvent) => void): IDisposable;
 	/**
 	 * An event emitted on a "mousedrop".
+	 * @internal
 	 * @event
 	 */
 	onMouseDrop(listener: (e: IEditorMouseEvent) => void): IDisposable;
