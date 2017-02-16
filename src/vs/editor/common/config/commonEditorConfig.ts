@@ -641,6 +641,11 @@ const editorConfiguration: IConfigurationNode = {
 			'default': DefaultConfig.editor.scrollBeyondLastLine,
 			'description': nls.localize('scrollBeyondLastLine', "Controls if the editor will scroll beyond the last line")
 		},
+		'editor.minimap.enabled': {
+			'type': 'boolean',
+			'default': DefaultConfig.editor.minimap.enabled,
+			'description': nls.localize('minimap.enabled', "Controls if the minimap is shown")
+		},
 		'editor.wrappingColumn': {
 			'type': 'integer',
 			'default': DefaultConfig.editor.wrappingColumn,
