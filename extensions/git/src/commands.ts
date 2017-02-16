@@ -190,6 +190,11 @@ export class CommandCenter {
 		return '';
 	}
 
+	@command('git.init')
+	async init(): Promise<void> {
+		await this.model.init();
+	}
+
 	@command('git.openFile')
 	async openFile(uri: Uri): Promise<void> {
 		const scmResource = resolveGitResource(uri);
