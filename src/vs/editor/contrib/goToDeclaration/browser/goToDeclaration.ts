@@ -42,7 +42,7 @@ class MessageOverlay implements IContentWidget {
 
 	private static _last: IDisposable;
 
-	static show(editor: ICodeEditor, pos: editorCommon.IPosition, message: string): IDisposable {
+	static show(editor: ICodeEditor, pos: editorCommon.IPosition, message: string): void {
 
 		dispose(MessageOverlay._last);
 
@@ -50,8 +50,7 @@ class MessageOverlay implements IContentWidget {
 		const remove = () => editor.removeContentWidget(widget);
 		editor.addContentWidget(widget);
 
-
-		const unhook = any<any>(
+		const listener = any<any>(
 			filterEvent(editor.onMouseMove, e => {
 				const { position } = e.target;
 				return Math.abs(position.lineNumber - pos.lineNumber) > 1
@@ -62,13 +61,17 @@ class MessageOverlay implements IContentWidget {
 			editor.onDidDispose,
 			editor.onDidChangeModel
 		)(_ => {
-			unhook.dispose();
+			listener.dispose();
 			remove();
 		});
 
-		MessageOverlay._last = unhook;
 
-		return unhook;
+		MessageOverlay._last = {
+			dispose() {
+				listener.dispose();
+				remove();
+			}
+		};
 	}
 
 	readonly allowEditorOverflow = true;
