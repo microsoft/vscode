@@ -15,7 +15,7 @@ export function tokenizeToString(text: string, languageId: string): string {
 	return _tokenizeToString(text, _getSafeTokenizationSupport(languageId));
 }
 
-export function tokenizeLineToHTML(text: string, viewLineTokens: ViewLineToken[], rules: { [key: string]: string }, options: { startOffset: number, endOffset: number, tabSize: number, containsRTL: boolean }): string {
+export function tokenizeLineToHTML(text: string, viewLineTokens: ViewLineToken[], rules: { [key: string]: string }, options: { startOffset: number, endOffset: number, tabSize: number }): string {
 	let tabSize = options.tabSize;
 	let result = `<div>`;
 	let charIndex = options.startOffset;

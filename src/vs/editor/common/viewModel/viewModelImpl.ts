@@ -605,7 +605,10 @@ export class ViewModel extends EventEmitter implements IViewModel {
 		let defaultForegroundColor = /^(?:[0-9a-fA-F]{3}){1,2}$/.test(colorMap[1]) ? '#' + colorMap[1] : colorMap[1];
 		let defaultBackgroundColor = /^(?:[0-9a-fA-F]{3}){1,2}$/.test(colorMap[2]) ? '#' + colorMap[2] : colorMap[2];
 
-		let output = `<div style="color: ${defaultForegroundColor}; background-color: ${defaultBackgroundColor}">`;
+		let fontInfo = this.configuration.editor.fontInfo;
+
+		let output = `<div style="color: ${defaultForegroundColor}; background-color: ${defaultBackgroundColor};` +
+			`font-family: ${fontInfo.fontFamily}; font-weight: ${fontInfo.fontWeight}; font-size: ${fontInfo.fontSize}; line-height: ${fontInfo.lineHeight}">`;
 
 		if (ranges.length === 1) {
 			let range: Range = ranges[0];
@@ -624,8 +627,7 @@ export class ViewModel extends EventEmitter implements IViewModel {
 						{
 							startOffset: startOffset,
 							endOffset: endOffset,
-							tabSize: this.getTabSize(),
-							containsRTL: this.model.mightContainRTL()
+							tabSize: this.getTabSize()
 						});
 					output += `${html}`;
 				} else {
@@ -642,8 +644,7 @@ export class ViewModel extends EventEmitter implements IViewModel {
 						{
 							startOffset: startOffset,
 							endOffset: endOffset,
-							tabSize: this.getTabSize(),
-							containsRTL: this.model.mightContainRTL()
+							tabSize: this.getTabSize()
 						});
 					output += `${html}`;
 				}
