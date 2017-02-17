@@ -269,11 +269,11 @@ class MarkerNavigationWidget extends ZoneWidget {
 			// update frame color (only applied on 'show')
 			switch (marker.severity) {
 				case Severity.Error:
-					this.options.frameColor = '#ff5a5a';
+					this._container.parentElement.classList.add('marker-error-widget');
 					break;
 				case Severity.Warning:
 				case Severity.Info:
-					this.options.frameColor = '#5aac5a';
+					this._container.parentElement.classList.add('marker-warning-widget');
 					break;
 			}
 

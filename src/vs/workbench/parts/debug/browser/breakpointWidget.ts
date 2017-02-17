@@ -37,7 +37,7 @@ export class BreakpointWidget extends ZoneWidget {
 		@IContextViewService private contextViewService: IContextViewService,
 		@IDebugService private debugService: IDebugService
 	) {
-		super(editor, { showFrame: true, showArrow: false, frameColor: '#007ACC', frameWidth: 1 });
+		super(editor, { showFrame: true, showArrow: false, frameWidth: 1 });
 
 		this.toDispose = [];
 		this.hitCountInput = '';

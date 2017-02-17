@@ -505,7 +505,7 @@ export class ReferenceWidget extends PeekViewWidget {
 		private _contextService: IWorkspaceContextService,
 		private _instantiationService: IInstantiationService
 	) {
-		super(editor, { frameColor: '#007ACC', showFrame: false, showArrow: true, isResizeable: true });
+		super(editor, { showFrame: false, showArrow: true, isResizeable: true });
 
 		this._instantiationService = this._instantiationService.createChild(new ServiceCollection([IPeekViewService, this]));
 		this.create();
