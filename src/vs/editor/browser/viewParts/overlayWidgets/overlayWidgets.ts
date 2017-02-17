@@ -139,9 +139,6 @@ export class ViewOverlayWidgets extends ViewPart {
 
 	public prepareRender(ctx: IRenderingContext): void {
 		// Nothing to read
-		if (!this.shouldRender()) {
-			throw new Error('I did not ask to render!');
-		}
 	}
 
 	public render(ctx: IRestrictedRenderingContext): void {

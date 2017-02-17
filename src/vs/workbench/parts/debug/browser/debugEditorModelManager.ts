@@ -22,6 +22,7 @@ interface IDebugEditorModelData {
 	breakpointDecorationsAsMap: Map<string, boolean>;
 	currentStackDecorations: string[];
 	dirty: boolean;
+	topStackFrameLine: number;
 }
 
 const stickiness = TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges;
@@ -88,7 +89,8 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 			breakpointLines: breakpoints.map(bp => bp.lineNumber),
 			breakpointDecorationsAsMap,
 			currentStackDecorations: currentStackDecorations,
-			dirty: false
+			dirty: false,
+			topStackFrameLine: undefined
 		});
 	}
 
@@ -140,10 +142,14 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 				});
 
 				if (this.modelDataMap.has(modelUriStr)) {
-					result.push({
-						options: DebugEditorModelManager.TOP_STACK_FRAME_COLUMN_DECORATION,
-						range: wholeLineRange
-					});
+					const modelData = this.modelDataMap.get(modelUriStr);
+					if (modelData.topStackFrameLine === stackFrame.lineNumber) {
+						result.push({
+							options: DebugEditorModelManager.TOP_STACK_FRAME_INLINE_DECORATION,
+							range: wholeLineRange
+						});
+					}
+					modelData.topStackFrameLine = stackFrame.lineNumber;
 				}
 			}
 		} else {
@@ -350,10 +356,8 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 		stickiness
 	};
 
-	private static TOP_STACK_FRAME_COLUMN_DECORATION: IModelDecorationOptions = {
-		isWholeLine: false,
-		className: 'debug-top-stack-frame-column',
-		stickiness
+	private static TOP_STACK_FRAME_INLINE_DECORATION: IModelDecorationOptions = {
+		beforeContentClassName: 'debug-top-stack-frame-column'
 	};
 
 	private static FOCUSED_STACK_FRAME_DECORATION: IModelDecorationOptions = {

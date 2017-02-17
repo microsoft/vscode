@@ -118,7 +118,7 @@ export class DefinitionActionConfig {
 		public openToSide = false,
 		public openInPeek = false,
 		public filterCurrent = true,
-		public noResultsMessage = nls.localize('generic.noResults', "Could not find anything")
+		public noResultsMessage = nls.localize('generic.noResults', "No definition found")
 	) {
 		//
 	}

@@ -16,11 +16,16 @@ import { parse, ParseResult, ILogger, ExternalTaskRunnerConfiguration } from 'vs
 
 class Logger implements ILogger {
 	public receivedMessage: boolean = false;
-	public lastMessage: string = null;
+	public lastMessage: string = undefined;
 
 	public log(message: string): void {
 		this.receivedMessage = true;
 		this.lastMessage = message;
+	}
+
+	public clearOutput(): void {
+		this.receivedMessage = false;
+		this.lastMessage = undefined;
 	}
 }
 

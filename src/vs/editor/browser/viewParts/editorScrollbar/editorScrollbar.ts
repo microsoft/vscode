@@ -125,4 +125,8 @@ export class EditorScrollbar implements IDisposable {
 	public delegateVerticalScrollbarMouseDown(browserEvent: MouseEvent): void {
 		this.scrollbar.delegateVerticalScrollbarMouseDown(browserEvent);
 	}
+
+	public getVerticalSliderVerticalCenter(): number {
+		return this.scrollbar.getVerticalSliderVerticalCenter();
+	}
 }
