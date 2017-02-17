@@ -505,7 +505,7 @@ abstract class FoldingAction<T> extends EditorAction {
 		if (!foldingController) {
 			return;
 		}
-		this.reportTelemetry(accessor);
+		this.reportTelemetry(accessor, editor);
 		this.invoke(foldingController, editor, args);
 	}
 

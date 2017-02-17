@@ -6,7 +6,7 @@
 'use strict';
 
 import { Uri, EventEmitter, Event, SCMResource, SCMResourceDecorations, SCMResourceGroup, Disposable, window, workspace } from 'vscode';
-import { Repository, Ref, Branch, Remote, PushOptions, Commit, GitErrorCodes } from './git';
+import { Git, Repository, Ref, Branch, Remote, PushOptions, Commit, GitErrorCodes, GitError } from './git';
 import { anyEvent, eventToPromise, filterEvent, mapEvent, EmptyDisposable, combinedDisposable } from './util';
 import { memoize, throttle, debounce } from './decorators';
 import { watch } from './watch';
@@ -182,7 +182,7 @@ export enum Operation {
 	Push = 1 << 10,
 	Sync = 1 << 11,
 	Init = 1 << 12,
-	UpdateModel = 1 << 13
+	Show = 1 << 13
 }
 
 export interface Operations {
@@ -286,7 +286,7 @@ export class Model implements Disposable {
 	private _operations = new OperationsImpl();
 	get operations(): Operations { return this._operations; }
 
-	private repositoryRoot: string;
+	private repository: Repository;
 
 	private _state = State.Uninitialized;
 	get state(): State { return this._state; }
@@ -306,7 +306,8 @@ export class Model implements Disposable {
 	private repositoryDisposable: Disposable = EmptyDisposable;
 
 	constructor(
-		private repository: Repository,
+		private git: Git,
+		private rootPath: string,
 		private onWorkspaceChange: Event<Uri>
 	) {
 		this.status();
@@ -421,23 +422,40 @@ export class Model implements Disposable {
 		await this.run(Operation.Sync, () => this.repository.sync());
 	}
 
-	private async run(operation: Operation, runOperation: () => Promise<void> = () => Promise.resolve()): Promise<void> {
+	@throttle
+	async show(ref: string, uri: Uri): Promise<string> {
+		return await this.run(Operation.Show, async () => {
+			const relativePath = path.relative(this.repository.root, uri.fsPath).replace(/\\/g, '/');
+			const result = await this.repository.git.exec(this.repository.root, ['show', `${ref}:${relativePath}`]);
+
+			if (result.exitCode !== 0) {
+				throw new GitError({
+					message: localize('cantshow', "Could not show object"),
+					exitCode: result.exitCode
+				});
+			}
+
+			return result.stdout;
+		});
+	}
+
+	private async run<T>(operation: Operation, runOperation: () => Promise<T> = () => Promise.resolve<any>(null)): Promise<T> {
 		return window.withScmProgress(async () => {
 			this._operations = this._operations.start(operation);
 			this._onRunOperation.fire(operation);
 
 			try {
 				await this.assertIdleState();
-				await runOperation();
+				const result = await runOperation();
 				await this.update();
+				return result;
 			} catch (err) {
 				if (err.gitErrorCode === GitErrorCodes.NotAGitRepository) {
-					// TODO@Joao!
 					this.repositoryDisposable.dispose();
 					this.state = State.NotAGitRepository;
-				} else {
-					throw err;
 				}
+
+				throw err;
 			} finally {
 				this._operations = this._operations.end(operation);
 				this._onDidRunOperation.fire(operation);
@@ -455,17 +473,17 @@ export class Model implements Disposable {
 			return;
 		}
 
-		const repositoryRoot = await this.repository.getRoot();
-
 		this.repositoryDisposable.dispose();
-		this.repositoryRoot = repositoryRoot;
 
 		const disposables: Disposable[] = [];
-		const gitPath = path.join(repositoryRoot, '.git');
-		const { event, disposable: watcher } = watch(gitPath);
+		const repositoryRoot = await this.git.getRepositoryRoot(this.rootPath);
+		this.repository = this.git.open(repositoryRoot);
+
+		const dotGitPath = path.join(repositoryRoot, '.git');
+		const { event, disposable: watcher } = watch(dotGitPath);
 		disposables.push(watcher);
 
-		const onGitChange = mapEvent(event, ({ filename }) => Uri.file(path.join(gitPath, filename)));
+		const onGitChange = mapEvent(event, ({ filename }) => Uri.file(path.join(dotGitPath, filename)));
 		const onRelevantGitChange = filterEvent(onGitChange, uri => !/\/\.git\/index\.lock$/.test(uri.fsPath));
 		onRelevantGitChange(this.onFSChange, this, disposables);
 
@@ -506,8 +524,8 @@ export class Model implements Disposable {
 		const merge: Resource[] = [];
 
 		status.forEach(raw => {
-			const uri = Uri.file(path.join(this.repositoryRoot, raw.path));
-			const renameUri = raw.rename ? Uri.file(path.join(this.repositoryRoot, raw.rename)) : undefined;
+			const uri = Uri.file(path.join(this.repository.root, raw.path));
+			const renameUri = raw.rename ? Uri.file(path.join(this.repository.root, raw.rename)) : undefined;
 
 			switch (raw.x + raw.y) {
 				case '??': return workingTree.push(new Resource(uri, Status.UNTRACKED));

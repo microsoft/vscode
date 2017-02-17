@@ -99,6 +99,17 @@ function hsla2rgba(hsla: HSLA): RGBA {
 	return { r: Math.round(r * 255), g: Math.round(g * 255), b: Math.round(b * 255), a };
 }
 
+export function hexToCSS(hex: string) {
+	if (hex.length === 9) {
+		return toCSSColor(hex2rgba(hex));
+	}
+	return hex;
+}
+
+function toCSSColor(rgba: RGBA): string {
+	return `rgba(${rgba.r}, ${rgba.g}, ${rgba.b}, ${+rgba.a.toFixed(2)})`;
+}
+
 export class Color {
 
 	private rgba: RGBA;
@@ -194,8 +205,7 @@ export class Color {
 
 	public toString(): string {
 		if (!this.str) {
-			let p = this.rgba;
-			this.str = `rgba(${p.r}, ${p.g}, ${p.b}, ${+p.a.toFixed(2)})`;
+			this.str = toCSSColor(this.rgba);
 		}
 		return this.str;
 	}

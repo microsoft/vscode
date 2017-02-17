@@ -49,6 +49,7 @@ import { IPointerHandlerHelper } from 'vs/editor/browser/controller/mouseHandler
 import { ViewOutgoingEvents } from 'vs/editor/browser/view/viewOutgoingEvents';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { EditorScrollbar } from 'vs/editor/browser/viewParts/editorScrollbar/editorScrollbar';
+import { Minimap } from 'vs/editor/browser/viewParts/minimap/minimap';
 
 export class View extends ViewEventHandler implements editorBrowser.IView, IDisposable {
 
@@ -270,6 +271,9 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		let rulers = new Rulers(this._context);
 		this.viewParts.push(rulers);
 
+		let minimap = new Minimap(this._context, this.layoutProvider, this._scrollbar);
+		this.viewParts.push(minimap);
+
 		// -------------- Wire dom nodes up
 
 		this.linesContentContainer = this._scrollbar.getScrollbarContainerDomNode();
@@ -292,6 +296,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		this.overflowGuardContainer.appendChild(this.overlayWidgets.domNode);
 		this.overflowGuardContainer.appendChild(this.textArea);
 		this.overflowGuardContainer.appendChild(this.textAreaCover);
+		this.overflowGuardContainer.appendChild(minimap.getDomNode());
 		this.domNode.appendChild(this.overflowGuardContainer);
 		this.domNode.appendChild(this.contentWidgets.overflowingContentWidgetsDomNode);
 	}
@@ -477,7 +482,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		StyleMutator.setHeight(this.linesContent, 1000000);
 
 		StyleMutator.setLeft(this.linesContentContainer, layoutInfo.contentLeft);
-		StyleMutator.setWidth(this.linesContentContainer, layoutInfo.contentWidth);
+		StyleMutator.setWidth(this.linesContentContainer, layoutInfo.contentWidth + layoutInfo.minimapWidth);
 		StyleMutator.setHeight(this.linesContentContainer, layoutInfo.contentHeight);
 
 		this.outgoingEvents.emitViewLayoutChanged(layoutInfo);

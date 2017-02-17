@@ -11,8 +11,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IClipboardEvent, ICompositionEvent, IKeyboardEventWrapper, ISimpleModel, ITextAreaWrapper, ITypeData, TextAreaState, TextAreaStrategy, createTextAreaState } from 'vs/editor/common/controller/textAreaState';
 import { Range } from 'vs/editor/common/core/range';
-import { Position } from 'vs/editor/common/core/position';
-import { EndOfLinePreference } from 'vs/editor/common/editorCommon';
+import { InternalEditorOptions } from 'vs/editor/common/editorCommon';
 
 const enum ReadFromTextArea {
 	Type,
@@ -324,9 +323,13 @@ export class TextAreaHandler extends Disposable {
 	// ------------- Clipboard operations
 
 	private _ensureClipboardGetsEditorSelection(e: IClipboardEvent): void {
-		let whatToCopy = this._getPlainTextToCopy();
+		let whatToCopy = this.model.getPlainTextToCopy(this.selections, this.Browser.enableEmptySelectionClipboard);
 		if (e.canUseTextData()) {
-			e.setTextData(whatToCopy);
+			let whatHTMLToCopy = null;
+			if (!this.Browser.isEdgeOrIE && (whatToCopy.length < 65536 || InternalEditorOptions.forceCopyWithSyntaxHighlighting)) {
+				whatHTMLToCopy = this.model.getHTMLToCopy(this.selections, this.Browser.enableEmptySelectionClipboard);
+			}
+			e.setTextData(whatToCopy, whatHTMLToCopy);
 		} else {
 			this.setTextAreaState('copy or cut', this.textAreaState.fromText(whatToCopy), false);
 		}
@@ -342,33 +345,6 @@ export class TextAreaHandler extends Disposable {
 
 			let selections = this.selections;
 			this.lastCopiedValueIsFromEmptySelection = (selections.length === 1 && selections[0].isEmpty());
-		}
-	}
-
-	private _getPlainTextToCopy(): string {
-		let newLineCharacter = this.model.getEOL();
-		let selections = this.selections;
-
-		if (selections.length === 1) {
-			let range: Range = selections[0];
-			if (range.isEmpty()) {
-				if (this.Browser.enableEmptySelectionClipboard) {
-					let modelLineNumber = this.model.coordinatesConverter.convertViewPositionToModelPosition(new Position(range.startLineNumber, 1)).lineNumber;
-					return this.model.getModelLineContent(modelLineNumber) + newLineCharacter;
-				} else {
-					return '';
-				}
-			}
-
-			return this.model.getValueInRange(range, EndOfLinePreference.TextDefined);
-		} else {
-			selections = selections.slice(0).sort(Range.compareRangesUsingStarts);
-			let result: string[] = [];
-			for (let i = 0; i < selections.length; i++) {
-				result.push(this.model.getValueInRange(selections[i], EndOfLinePreference.TextDefined));
-			}
-
-			return result.join(newLineCharacter);
 		}
 	}
 }

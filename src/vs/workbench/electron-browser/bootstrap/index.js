@@ -144,16 +144,6 @@ function main() {
 		webFrame.setZoomLevel(zoomLevel);
 	}
 
-	// Handle high contrast mode
-	if (configuration.highContrast) {
-		var themeStorageKey = 'storage://global/workbench.theme';
-		var hcTheme = 'hc-black vscode-theme-defaults-themes-hc_black-json';
-		if (window.localStorage.getItem(themeStorageKey) !== hcTheme) {
-			window.localStorage.setItem(themeStorageKey, hcTheme);
-			window.document.body.className = 'monaco-shell ' + hcTheme;
-		}
-	}
-
 	// Load the loader and start loading the workbench
 	const rootUrl = uriFromPath(configuration.appRoot) + '/out';
 

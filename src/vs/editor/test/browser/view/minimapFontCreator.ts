@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { Constants, MinimapCharRenderer } from 'vs/editor/common/view/minimapCharRenderer';
+import { Constants, MinimapCharRenderer, ParsedColor } from 'vs/editor/common/view/minimapCharRenderer';
 import { MinimapCharRendererFactory } from 'vs/editor/test/common/view/minimapCharRendererFactory';
-import { createMinimapCharRenderer } from 'vs/editor/common/view/runtimeMinimapCharRenderer';
+import { getOrCreateMinimapCharRenderer } from 'vs/editor/common/view/runtimeMinimapCharRenderer';
 
 let canvas = <HTMLCanvasElement>document.getElementById('my-canvas');
 let ctx = canvas.getContext('2d');
@@ -26,23 +26,55 @@ for (let chCode = Constants.START_CH_CODE; chCode <= Constants.END_CH_CODE; chCo
 let sampleData = ctx.getImageData(0, 4, Constants.SAMPLED_CHAR_WIDTH * Constants.CHAR_COUNT, Constants.SAMPLED_CHAR_HEIGHT);
 let minimapCharRenderer = MinimapCharRendererFactory.create(sampleData.data);
 
-renderImageData(sampleData.data, sampleData.width, sampleData.height, 10, 100);
+renderImageData(sampleData, 10, 100);
 renderMinimapCharRenderer(minimapCharRenderer, 400);
-renderMinimapCharRenderer(createMinimapCharRenderer(), 600);
+renderMinimapCharRenderer(getOrCreateMinimapCharRenderer(), 600);
+
+function createFakeImageData(width: number, height: number): ImageData {
+	return {
+		width: width,
+		height: height,
+		data: new Uint8ClampedArray(width * height * Constants.RGBA_CHANNELS_CNT)
+	};
+}
 
 function renderMinimapCharRenderer(minimapCharRenderer: MinimapCharRenderer, y: number): void {
 
-	let x2 = new Uint8ClampedArray(Constants.x2_CHAR_HEIGHT * Constants.x2_CHAR_WIDTH * Constants.RGBA_CHANNELS_CNT * Constants.CHAR_COUNT);
-	for (let chCode = Constants.START_CH_CODE; chCode <= Constants.END_CH_CODE; chCode++) {
-		minimapCharRenderer.x2RenderChar(x2, Constants.CHAR_COUNT, 0, chCode - Constants.START_CH_CODE, chCode);
-	}
-	renderImageData(x2, Constants.x2_CHAR_WIDTH * Constants.CHAR_COUNT, Constants.x2_CHAR_HEIGHT, 10, y);
+	let background = new ParsedColor(0, 0, 0);
+	let color = new ParsedColor(255, 255, 255);
 
-	let x1 = new Uint8ClampedArray(Constants.x1_CHAR_HEIGHT * Constants.x1_CHAR_WIDTH * Constants.RGBA_CHANNELS_CNT * Constants.CHAR_COUNT);
-	for (let chCode = Constants.START_CH_CODE; chCode <= Constants.END_CH_CODE; chCode++) {
-		minimapCharRenderer.x1RenderChar(x1, Constants.CHAR_COUNT, 0, chCode - Constants.START_CH_CODE, chCode);
+	{
+		let x2 = createFakeImageData(Constants.x2_CHAR_WIDTH * Constants.CHAR_COUNT, Constants.x2_CHAR_HEIGHT);
+		// set the background color
+		for (let i = 0, len = x2.data.length / 4; i < len; i++) {
+			x2.data[4 * i + 0] = background.r;
+			x2.data[4 * i + 1] = background.g;
+			x2.data[4 * i + 2] = background.b;
+			x2.data[4 * i + 3] = 255;
+		}
+		let dx = 0;
+		for (let chCode = Constants.START_CH_CODE; chCode <= Constants.END_CH_CODE; chCode++) {
+			minimapCharRenderer.x2RenderChar(x2, dx, 0, chCode, color, background);
+			dx += Constants.x2_CHAR_WIDTH;
+		}
+		renderImageData(x2, 10, y);
 	}
-	renderImageData(x1, Constants.x1_CHAR_WIDTH * Constants.CHAR_COUNT, Constants.x1_CHAR_HEIGHT, 10, y + 100);
+	{
+		let x1 = createFakeImageData(Constants.x1_CHAR_WIDTH * Constants.CHAR_COUNT, Constants.x1_CHAR_HEIGHT);
+		// set the background color
+		for (let i = 0, len = x1.data.length / 4; i < len; i++) {
+			x1.data[4 * i + 0] = background.r;
+			x1.data[4 * i + 1] = background.g;
+			x1.data[4 * i + 2] = background.b;
+			x1.data[4 * i + 3] = 255;
+		}
+		let dx = 0;
+		for (let chCode = Constants.START_CH_CODE; chCode <= Constants.END_CH_CODE; chCode++) {
+			minimapCharRenderer.x1RenderChar(x1, dx, 0, chCode, color, background);
+			dx += Constants.x1_CHAR_WIDTH;
+		}
+		renderImageData(x1, 10, y + 100);
+	}
 }
 
 (function () {
@@ -51,8 +83,8 @@ function renderMinimapCharRenderer(minimapCharRenderer: MinimapCharRenderer, y: 
 		let charCode = charIndex + Constants.START_CH_CODE;
 		r += '\n\n// ' + String.fromCharCode(charCode);
 
-		for (let i = 0; i < Constants.x2_CHAR_HEIGHT * Constants.x2_CHAR_WIDTH * Constants.CA_CHANNELS_CNT; i++) {
-			if (i % 4 === 0) {
+		for (let i = 0; i < Constants.x2_CHAR_HEIGHT * Constants.x2_CHAR_WIDTH; i++) {
+			if (i % 2 === 0) {
 				r += '\n';
 			}
 			r += minimapCharRenderer.x2charData[offset] + ',';
@@ -70,10 +102,8 @@ function renderMinimapCharRenderer(minimapCharRenderer: MinimapCharRenderer, y: 
 		let charCode = charIndex + Constants.START_CH_CODE;
 		r += '\n\n// ' + String.fromCharCode(charCode);
 
-		for (let i = 0; i < Constants.x1_CHAR_HEIGHT * Constants.x1_CHAR_WIDTH * Constants.CA_CHANNELS_CNT; i++) {
-			if (i % 2 === 0) {
-				r += '\n';
-			}
+		for (let i = 0; i < Constants.x1_CHAR_HEIGHT * Constants.x1_CHAR_WIDTH; i++) {
+			r += '\n';
 			r += minimapCharRenderer.x1charData[offset] + ',';
 			offset++;
 		}
@@ -85,16 +115,16 @@ function renderMinimapCharRenderer(minimapCharRenderer: MinimapCharRenderer, y: 
 
 
 
-function renderImageData(data: Uint8ClampedArray, width: number, height: number, left: number, top: number): void {
+function renderImageData(imageData: ImageData, left: number, top: number): void {
 	let output = '';
 	var offset = 0;
 	var PX_SIZE = 15;
-	for (var i = 0; i < height; i++) {
-		for (var j = 0; j < width; j++) {
-			var R = data[offset];
-			var G = data[offset + 1];
-			var B = data[offset + 2];
-			var A = data[offset + 3];
+	for (var i = 0; i < imageData.height; i++) {
+		for (var j = 0; j < imageData.width; j++) {
+			var R = imageData.data[offset];
+			var G = imageData.data[offset + 1];
+			var B = imageData.data[offset + 2];
+			var A = imageData.data[offset + 3];
 			offset += 4;
 
 			output += `<div style="position:absolute;top:${PX_SIZE * i}px;left:${PX_SIZE * j}px;width:${PX_SIZE}px;height:${PX_SIZE}px;background:rgba(${R},${G},${B},${A / 256})"></div>`;
@@ -105,8 +135,8 @@ function renderImageData(data: Uint8ClampedArray, width: number, height: number,
 	domNode.style.position = 'absolute';
 	domNode.style.top = top + 'px';
 	domNode.style.left = left + 'px';
-	domNode.style.width = (width * PX_SIZE) + 'px';
-	domNode.style.height = (height * PX_SIZE) + 'px';
+	domNode.style.width = (imageData.width * PX_SIZE) + 'px';
+	domNode.style.height = (imageData.height * PX_SIZE) + 'px';
 	domNode.style.border = '1px solid #ccc';
 	domNode.style.background = '#000000';
 	domNode.innerHTML = output;
