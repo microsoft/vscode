@@ -284,41 +284,51 @@ export class Item extends Events.EventEmitter {
 		this.emit('item:reveal', eventData);
 	}
 
-	public expand(): WinJS.Promise {
+	public expand(recursive: boolean = false): WinJS.Promise {
 		if (this.isExpanded() || !this.doesHaveChildren || this.lock.isLocked(this)) {
 			return WinJS.TPromise.as(false);
 		}
 
-		var result = this.lock.run(this, () => {
-			var eventData: IItemExpandEvent = { item: this };
-			var result: WinJS.Promise;
-			this.emit('item:expanding', eventData);
-
-			if (this.needsChildrenRefresh) {
-				result = this.refreshChildren(false, true, true);
-			} else {
-				result = WinJS.TPromise.as(null);
-			}
-
-			return result.then(() => {
-				this._setExpanded(true);
-				this.emit('item:expanded', eventData);
-				return true;
+		if (recursive) {
+			var expandedChildrenPromise = WinJS.TPromise.as(null);
+			this.forEachChild((child) => {
+				expandedChildrenPromise = expandedChildrenPromise.then(() => child.expand(true));
 			});
-		});
+			return expandedChildrenPromise.then(() => {
+				return this.expand(false);
+			});
+		} else {
+			var result = this.lock.run(this, () => {
+				var eventData: IItemExpandEvent = { item: this };
+				var result: WinJS.Promise;
+				this.emit('item:expanding', eventData);
 
-		return result.then((r) => {
-			if (this.isDisposed()) {
-				return false;
-			}
+				if (this.needsChildrenRefresh) {
+					result = this.refreshChildren(false, true, true);
+				} else {
+					result = WinJS.TPromise.as(null);
+				}
 
-			// Auto expand single child folders
-			if (this.context.options.autoExpandSingleChildren && r && this.firstChild !== null && this.firstChild === this.lastChild && this.firstChild.isVisible()) {
-				return this.firstChild.expand().then(() => { return true; });
-			}
+				return result.then(() => {
+					this._setExpanded(true);
+					this.emit('item:expanded', eventData);
+					return true;
+				});
+			});
 
-			return r;
-		});
+			return result.then((r) => {
+				if (this.isDisposed()) {
+					return false;
+				}
+
+				// Auto expand single child folders
+				if (this.context.options.autoExpandSingleChildren && r && this.firstChild !== null && this.firstChild === this.lastChild && this.firstChild.isVisible()) {
+					return this.firstChild.expand().then(() => { return true; });
+				}
+
+				return r;
+			});
+		}
 	}
 
 	public collapse(recursive: boolean = false): WinJS.Promise {
@@ -864,14 +874,14 @@ export class TreeModel extends Events.EventEmitter {
 		return WinJS.Promise.join(promises);
 	}
 
-	public expand(element: any): WinJS.Promise {
+	public expand(element: any, recursive: boolean = false): WinJS.Promise {
 		var item = this.getItem(element);
 
 		if (!item) {
 			return WinJS.TPromise.as(false);
 		}
 
-		return item.expand();
+		return item.expand(recursive);
 	}
 
 	public expandAll(elements?: any[]): WinJS.Promise {
@@ -915,8 +925,8 @@ export class TreeModel extends Events.EventEmitter {
 		return WinJS.Promise.join(promises);
 	}
 
-	public toggleExpansion(element: any): WinJS.Promise {
-		return this.isExpanded(element) ? this.collapse(element) : this.expand(element);
+	public toggleExpansion(element: any, recursive: boolean = false): WinJS.Promise {
+		return this.isExpanded(element) ? this.collapse(element, recursive) : this.expand(element, recursive);
 	}
 
 	public toggleExpansionAll(elements: any[]): WinJS.Promise {

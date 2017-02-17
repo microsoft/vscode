@@ -428,7 +428,7 @@ export class FileController extends DefaultController {
 		tree.DOMFocus();
 
 		// Expand / Collapse
-		tree.toggleExpansion(stat);
+		tree.toggleExpansion(stat, event.altKey);
 
 		// Allow to unselect
 		if (event.shiftKey && !(stat instanceof NewStatPlaceholder)) {
