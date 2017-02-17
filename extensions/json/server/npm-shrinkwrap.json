@@ -29,7 +29,8 @@
     },
     "jsonc-parser": {
       "version": "0.3.1",
-      "from": "jsonc-parser@>=0.3.0 <0.4.0"
+      "from": "jsonc-parser@0.3.1",
+      "resolved": "https://registry.npmjs.org/jsonc-parser/-/jsonc-parser-0.3.1.tgz"
     },
     "ms": {
       "version": "0.7.2",
@@ -42,24 +43,24 @@
       "resolved": "https://registry.npmjs.org/request-light/-/request-light-0.2.0.tgz"
     },
     "vscode-json-languageservice": {
-      "version": "2.0.0-next.12",
+      "version": "2.0.0",
       "from": "vscode-json-languageservice@next",
-      "resolved": "https://registry.npmjs.org/vscode-json-languageservice/-/vscode-json-languageservice-2.0.0-next.12.tgz"
+      "resolved": "https://registry.npmjs.org/vscode-json-languageservice/-/vscode-json-languageservice-2.0.0.tgz"
     },
     "vscode-jsonrpc": {
-      "version": "3.0.2-beta.5",
-      "from": "vscode-jsonrpc@>=3.0.2-beta.5 <4.0.0",
-      "resolved": "https://registry.npmjs.org/vscode-jsonrpc/-/vscode-jsonrpc-3.0.2-beta.5.tgz"
+      "version": "3.1.0-alpha.1",
+      "from": "vscode-jsonrpc@>=3.1.0-alpha.1 <4.0.0",
+      "resolved": "https://registry.npmjs.org/vscode-jsonrpc/-/vscode-jsonrpc-3.1.0-alpha.1.tgz"
     },
     "vscode-languageserver": {
-      "version": "3.0.2-beta.5",
+      "version": "3.1.0-alpha.1",
       "from": "vscode-languageserver@next",
-      "resolved": "https://registry.npmjs.org/vscode-languageserver/-/vscode-languageserver-3.0.2-beta.5.tgz"
+      "resolved": "https://registry.npmjs.org/vscode-languageserver/-/vscode-languageserver-3.1.0-alpha.1.tgz"
     },
     "vscode-languageserver-types": {
-      "version": "3.0.2-beta.5",
-      "from": "vscode-languageserver-types@>=3.0.2-beta.5 <4.0.0",
-      "resolved": "https://registry.npmjs.org/vscode-languageserver-types/-/vscode-languageserver-types-3.0.2-beta.5.tgz"
+      "version": "3.0.3",
+      "from": "vscode-languageserver-types@>=3.0.3 <4.0.0",
+      "resolved": "https://registry.npmjs.org/vscode-languageserver-types/-/vscode-languageserver-types-3.0.3.tgz"
     },
     "vscode-nls": {
       "version": "2.0.2",
