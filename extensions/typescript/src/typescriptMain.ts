@@ -150,15 +150,14 @@ class LanguageProvider {
 	private typingsStatus: TypingsStatus;
 	private referenceCodeLensProvider: ReferenceCodeLensProvider;
 
-	private _validate: boolean;
+	private _validate: boolean = true;
 
 	constructor(
-		private client: TypeScriptServiceClient,
-		private description: LanguageDescription
+		private readonly client: TypeScriptServiceClient,
+		private readonly description: LanguageDescription
 	) {
 		this.extensions = Object.create(null);
 		description.extensions.forEach(extension => this.extensions[extension] = true);
-		this._validate = true;
 
 		this.bufferSyncSupport = new BufferSyncSupport(client, description.modeIds, {
 			delete: (file: string) => {
@@ -240,18 +239,15 @@ class LanguageProvider {
 						beforeText: /^\s*\/\*\*(?!\/)([^\*]|\*(?!\/))*$/,
 						afterText: /^\s*\*\/$/,
 						action: { indentAction: IndentAction.IndentOutdent, appendText: ' * ' }
-					},
-					{
+					}, {
 						// e.g. /** ...|
 						beforeText: /^\s*\/\*\*(?!\/)([^\*]|\*(?!\/))*$/,
 						action: { indentAction: IndentAction.None, appendText: ' * ' }
-					},
-					{
+					}, {
 						// e.g.  * ...|
 						beforeText: /^(\t|(\ \ ))*\ \*(\ ([^\*]|\*(?!\/))*)?$/,
 						action: { indentAction: IndentAction.None, appendText: '* ' }
-					},
-					{
+					}, {
 						// e.g.  */|
 						beforeText: /^(\t|(\ \ ))*\ \*\/\s*$/,
 						action: { indentAction: IndentAction.None, removeText: 1 }
