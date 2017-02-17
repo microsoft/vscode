@@ -18,7 +18,7 @@ export class ExceptionWidget extends ZoneWidget {
 		@IContextViewService private contextViewService: IContextViewService,
 		@IDebugService private debugService: IDebugService
 	) {
-		super(editor, { showFrame: true, showArrow: false, frameColor: '#E51400', frameWidth: 1 });
+		super(editor, { showFrame: true, showArrow: false, frameWidth: 1 });
 
 		this.create();
 	}

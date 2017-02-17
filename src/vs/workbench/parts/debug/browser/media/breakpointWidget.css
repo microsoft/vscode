@@ -6,6 +6,8 @@
 .monaco-editor .zone-widget .zone-widget-container.breakpoint-widget {
 	height: 30px !important;
 	display: flex;
+	border-top-color: #007ACC;
+	border-bottom-color: #007ACC;
 }
 
 .monaco-editor .zone-widget .zone-widget-container.breakpoint-widget .breakpoint-select-container {

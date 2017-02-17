@@ -18,7 +18,6 @@ import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IViewZone, IViewZo
 export interface IOptions {
 	showFrame?: boolean;
 	showArrow?: boolean;
-	frameColor?: string;
 	frameWidth?: number;
 	className?: string;
 	isAccessible?: boolean;
@@ -28,7 +27,6 @@ export interface IOptions {
 const defaultOptions: IOptions = {
 	showArrow: true,
 	showFrame: true,
-	frameColor: '',
 	className: ''
 };
 
@@ -245,7 +243,6 @@ export abstract class ZoneWidget extends Widget implements IHorizontalSashLayout
 			arrow.style.top = -arrowHeight + 'px';
 			arrow.style.borderWidth = arrowHeight + 'px';
 			arrow.style.left = this.editor.getOffsetForColumn(position.lineNumber, position.column) + 'px';
-			arrow.style.borderBottomColor = this.options.frameColor;
 
 			viewZoneDomNode.appendChild(arrow);
 		}
@@ -281,8 +278,6 @@ export abstract class ZoneWidget extends Widget implements IHorizontalSashLayout
 
 		if (this.options.showFrame) {
 			const width = this.options.frameWidth ? this.options.frameWidth : frameThickness;
-			this.container.style.borderTopColor = this.options.frameColor;
-			this.container.style.borderBottomColor = this.options.frameColor;
 			this.container.style.borderTopWidth = width + 'px';
 			this.container.style.borderBottomWidth = width + 'px';
 		}
