@@ -245,14 +245,12 @@ export class CommandCenter {
 
 		const modifiedDocument = textEditor.document;
 		const modifiedUri = modifiedDocument.uri;
-		const modifiedUriString = modifiedUri.toString();
-		const resource = this.model.workingTreeGroup.resources.filter(r => r.uri.toString() === modifiedUriString)[0];
-		const originalUri = this.getLeftResource(resource);
 
-		if (!originalUri) {
+		if (modifiedUri.scheme !== 'file') {
 			return;
 		}
 
+		const originalUri = modifiedUri.with({ scheme: 'git', query: '~' });
 		const originalDocument = await workspace.openTextDocument(originalUri);
 		const diffs = await computeDiff(originalDocument, modifiedDocument);
 		const selections = textEditor.selections;
@@ -287,6 +285,48 @@ export class CommandCenter {
 	@command('git.unstageAll')
 	async unstageAll(): Promise<void> {
 		return await this.model.revertFiles();
+	}
+
+	@command('git.unstageSelectedRanges')
+	async unstageSelectedRanges(): Promise<void> {
+		const textEditor = window.activeTextEditor;
+
+		if (!textEditor) {
+			return;
+		}
+
+		const modifiedDocument = textEditor.document;
+		const modifiedUri = modifiedDocument.uri;
+
+		if (modifiedUri.scheme !== 'git' || modifiedUri.query !== '') {
+			return;
+		}
+
+		const originalUri = modifiedUri.with({ scheme: 'git', query: 'HEAD' });
+		const originalDocument = await workspace.openTextDocument(originalUri);
+		const diffs = await computeDiff(originalDocument, modifiedDocument);
+		const selections = textEditor.selections;
+		const selectedDiffs = diffs.filter(diff => {
+			const modifiedRange = diff.modifiedEndLineNumber === 0
+				? new Range(diff.modifiedStartLineNumber - 1, 0, diff.modifiedStartLineNumber - 1, 0)
+				: new Range(modifiedDocument.lineAt(diff.modifiedStartLineNumber - 1).range.start, modifiedDocument.lineAt(diff.modifiedEndLineNumber - 1).range.end);
+
+			return selections.some(selection => !!selection.intersection(modifiedRange));
+		});
+
+		if (!selectedDiffs.length) {
+			return;
+		}
+
+		const invertedDiffs = selectedDiffs.map(c => ({
+			modifiedStartLineNumber: c.originalStartLineNumber,
+			modifiedEndLineNumber: c.originalEndLineNumber,
+			originalStartLineNumber: c.modifiedStartLineNumber,
+			originalEndLineNumber: c.modifiedEndLineNumber
+		}));
+
+		const result = staging.applyChanges(modifiedDocument, originalDocument, invertedDiffs);
+		await this.model.stage(modifiedUri, result);
 	}
 
 	@command('git.clean')
