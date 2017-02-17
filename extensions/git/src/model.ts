@@ -170,8 +170,8 @@ export class WorkingTreeGroup extends ResourceGroup {
 
 export enum Operation {
 	Status = 1 << 0,
-	Stage = 1 << 1,
-	Unstage = 1 << 2,
+	Add = 1 << 1,
+	RevertFiles = 1 << 2,
 	Commit = 1 << 3,
 	Clean = 1 << 4,
 	Branch = 1 << 5,
@@ -182,7 +182,8 @@ export enum Operation {
 	Push = 1 << 10,
 	Sync = 1 << 11,
 	Init = 1 << 12,
-	Show = 1 << 13
+	Show = 1 << 13,
+	Stage = 1 << 13
 }
 
 export interface Operations {
@@ -337,13 +338,19 @@ export class Model implements Disposable {
 	}
 
 	@throttle
-	async stage(...resources: Resource[]): Promise<void> {
-		await this.run(Operation.Stage, () => this.repository.add(resources.map(r => r.uri.fsPath)));
+	async add(...resources: Resource[]): Promise<void> {
+		await this.run(Operation.Add, () => this.repository.add(resources.map(r => r.uri.fsPath)));
 	}
 
 	@throttle
-	async unstage(...resources: Resource[]): Promise<void> {
-		await this.run(Operation.Unstage, () => this.repository.revertFiles('HEAD', resources.map(r => r.uri.fsPath)));
+	async stage(uri: Uri, contents: string): Promise<void> {
+		const relativePath = path.relative(this.repository.root, uri.fsPath).replace(/\\/g, '/');
+		await this.run(Operation.Stage, () => this.repository.stage(relativePath, contents));
+	}
+
+	@throttle
+	async revertFiles(...resources: Resource[]): Promise<void> {
+		await this.run(Operation.RevertFiles, () => this.repository.revertFiles('HEAD', resources.map(r => r.uri.fsPath)));
 	}
 
 	@throttle

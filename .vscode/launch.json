@@ -47,6 +47,7 @@
 			"protocol": "legacy",
 			"port": 5870,
 			"sourceMaps": true,
+			"restart": true,
 			"outFiles": [
 				"${workspaceRoot}/out/**/*.js"
 			]
