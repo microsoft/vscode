@@ -17,8 +17,8 @@
     "postinstall": "cd server && npm install",
     "install-client-next": "npm install vscode-languageclient@next -f -S",
     "install-client-local": "npm install ../../../vscode-languageserver-node/client -f -S",
-		"update-grammar": "node ../../build/npm/update-grammar.js atom/language-css grammars/css.cson ./syntaxes/css.tmLanguage.json"
-	},
+    "update-grammar": "node ../../build/npm/update-grammar.js atom/language-css grammars/css.cson ./syntaxes/css.tmLanguage.json"
+  },
   "contributes": {
     "languages": [
       {
@@ -657,7 +657,7 @@
     }
   },
   "dependencies": {
-    "vscode-languageclient": "^3.0.2-beta.5",
+    "vscode-languageclient": "^3.1.0-alpha.1",
     "vscode-nls": "^2.0.2"
   },
   "devDependencies": {
