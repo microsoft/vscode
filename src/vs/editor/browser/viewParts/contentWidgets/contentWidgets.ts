@@ -14,6 +14,7 @@ import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { IRenderingContext, IRestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
 import { Position } from 'vs/editor/common/core/position';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { ScrollEvent } from 'vs/base/common/scrollable';
 
 interface IWidgetData {
 	allowEditorOverflow: boolean;
@@ -61,8 +62,8 @@ export class ViewContentWidgets extends ViewPart {
 		this._viewDomNode = viewDomNode;
 
 		this._widgets = {};
-		this._contentWidth = 0;
-		this._contentLeft = 0;
+		this._contentWidth = this._context.configuration.editor.layoutInfo.contentWidth;
+		this._contentLeft = this._context.configuration.editor.layoutInfo.contentLeft;
 		this._lineHeight = this._context.configuration.editor.lineHeight;
 		this._renderData = {};
 
@@ -114,31 +115,29 @@ export class ViewContentWidgets extends ViewPart {
 		if (e.lineHeight) {
 			this._lineHeight = this._context.configuration.editor.lineHeight;
 		}
-		return true;
-	}
-	public onLayoutChanged(layoutInfo: editorCommon.EditorLayoutInfo): boolean {
-		this._contentLeft = layoutInfo.contentLeft;
+		if (e.layoutInfo) {
+			this._contentLeft = this._context.configuration.editor.layoutInfo.contentLeft;
 
-		if (this._contentWidth !== layoutInfo.contentWidth) {
-			this._contentWidth = layoutInfo.contentWidth;
-			// update the maxWidth on widgets nodes, such that `onReadAfterForcedLayout`
-			// below can read out the adjusted width/height of widgets
-			let keys = Object.keys(this._widgets);
-			for (let i = 0, len = keys.length; i < len; i++) {
-				const widgetId = keys[i];
-				const widgetData = this._widgets[widgetId];
-				const widget = widgetData.widget;
-				const maxWidth = widgetData.allowEditorOverflow
-					? window.innerWidth || document.documentElement.clientWidth || document.body.clientWidth
-					: this._contentWidth;
+			if (this._contentWidth !== this._context.configuration.editor.layoutInfo.contentWidth) {
+				this._contentWidth = this._context.configuration.editor.layoutInfo.contentWidth;
+				// update the maxWidth on widgets nodes, such that `onReadAfterForcedLayout`
+				// below can read out the adjusted width/height of widgets
+				let keys = Object.keys(this._widgets);
+				for (let i = 0, len = keys.length; i < len; i++) {
+					const widgetId = keys[i];
+					const widgetData = this._widgets[widgetId];
+					const widget = widgetData.widget;
+					const maxWidth = widgetData.allowEditorOverflow
+						? window.innerWidth || document.documentElement.clientWidth || document.body.clientWidth
+						: this._contentWidth;
 
-				StyleMutator.setMaxWidth(widget.getDomNode(), maxWidth);
+					StyleMutator.setMaxWidth(widget.getDomNode(), maxWidth);
+				}
 			}
 		}
-
 		return true;
 	}
-	public onScrollChanged(e: editorCommon.IScrollEvent): boolean {
+	public onScrollChanged(e: ScrollEvent): boolean {
 		return true;
 	}
 	public onZonesChanged(): boolean {

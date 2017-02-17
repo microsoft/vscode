@@ -11,6 +11,7 @@ import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { IRenderingContext } from 'vs/editor/common/view/renderingContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { ScrollEvent } from 'vs/base/common/scrollable';
 
 export class DecorationToRender {
 	_decorationToRenderBrand: void;
@@ -89,8 +90,8 @@ export class GlyphMarginOverlay extends DedupOverlay {
 		this._context = context;
 		this._lineHeight = this._context.configuration.editor.lineHeight;
 		this._glyphMargin = this._context.configuration.editor.viewInfo.glyphMargin;
-		this._glyphMarginLeft = 0;
-		this._glyphMarginWidth = 0;
+		this._glyphMarginLeft = this._context.configuration.editor.layoutInfo.glyphMarginLeft;
+		this._glyphMarginWidth = this._context.configuration.editor.layoutInfo.glyphMarginWidth;
 		this._renderResult = null;
 		this._context.addEventHandler(this);
 	}
@@ -134,14 +135,13 @@ export class GlyphMarginOverlay extends DedupOverlay {
 		if (e.viewInfo.glyphMargin) {
 			this._glyphMargin = this._context.configuration.editor.viewInfo.glyphMargin;
 		}
+		if (e.layoutInfo) {
+			this._glyphMarginLeft = this._context.configuration.editor.layoutInfo.glyphMarginLeft;
+			this._glyphMarginWidth = this._context.configuration.editor.layoutInfo.glyphMarginWidth;
+		}
 		return true;
 	}
-	public onLayoutChanged(layoutInfo: editorCommon.EditorLayoutInfo): boolean {
-		this._glyphMarginLeft = layoutInfo.glyphMarginLeft;
-		this._glyphMarginWidth = layoutInfo.glyphMarginWidth;
-		return true;
-	}
-	public onScrollChanged(e: editorCommon.IScrollEvent): boolean {
+	public onScrollChanged(e: ScrollEvent): boolean {
 		return e.scrollTopChanged;
 	}
 	public onZonesChanged(): boolean {

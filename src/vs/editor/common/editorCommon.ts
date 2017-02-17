@@ -4128,11 +4128,7 @@ export var EventType = {
 
 	ViewFocusGained: 'focusGained',
 	ViewFocusLost: 'focusLost',
-	ViewFocusChanged: 'focusChanged',
-	ViewScrollChanged: 'scrollChanged',
 	ViewZonesChanged: 'zonesChanged',
-
-	ViewLayoutChanged: 'viewLayoutChanged',
 
 	ContextMenu: 'contextMenu',
 	MouseDown: 'mousedown',

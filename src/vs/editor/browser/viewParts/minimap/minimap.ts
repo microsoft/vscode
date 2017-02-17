@@ -24,6 +24,7 @@ import { RenderedLinesCollection, ILine } from 'vs/editor/browser/view/viewLayer
 import { Range } from 'vs/editor/common/core/range';
 import { RGBA } from 'vs/base/common/color';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { ScrollEvent } from 'vs/base/common/scrollable';
 
 const enum RenderMinimap {
 	None = 0,
@@ -516,10 +517,7 @@ export class Minimap extends ViewPart {
 	public onConfigurationChanged(e: editorCommon.IConfigurationChangedEvent): boolean {
 		return this._onOptionsMaybeChanged();
 	}
-	public onLayoutChanged(layoutInfo: editorCommon.EditorLayoutInfo): boolean {
-		return this._onOptionsMaybeChanged();
-	}
-	public onScrollChanged(e: editorCommon.IScrollEvent): boolean {
+	public onScrollChanged(e: ScrollEvent): boolean {
 		return e.scrollTopChanged || e.scrollHeightChanged;
 	}
 	public onZonesChanged(): boolean {

@@ -22,6 +22,7 @@ import { StandardMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { EditorZoom } from 'vs/editor/common/config/editorZoom';
 import { IViewCursorRenderData } from 'vs/editor/browser/viewParts/viewCursors/viewCursor';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { ScrollEvent } from 'vs/base/common/scrollable';
 
 /**
  * Merges mouse events when mouse move events are throttled
@@ -205,10 +206,7 @@ export class MouseHandler extends ViewEventHandler implements IDisposable {
 	}
 
 	// --- begin event handlers
-	public onLayoutChanged(layoutInfo: editorCommon.EditorLayoutInfo): boolean {
-		return false;
-	}
-	public onScrollChanged(e: editorCommon.IScrollEvent): boolean {
+	public onScrollChanged(e: ScrollEvent): boolean {
 		this._mouseDownOperation.onScrollChanged();
 		return false;
 	}
