@@ -322,7 +322,7 @@ class MarkerNavigationAction extends EditorAction {
 		}
 
 		let model = controller.getOrCreateModel();
-		telemetryService.publicLog('zoneWidgetShown', { mode: 'go to error' });
+		telemetryService.publicLog('zoneWidgetShown', { mode: 'go to error', ...editor.getTelemetryData() });
 		if (model) {
 			if (this._isNext) {
 				model.next();

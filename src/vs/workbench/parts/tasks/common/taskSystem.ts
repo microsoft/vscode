@@ -291,14 +291,3 @@ export interface ITaskSystem extends IEventEmitter {
 	terminate(): TPromise<TerminateResponse>;
 	tasks(): TPromise<TaskDescription[]>;
 }
-
-/**
- * Build configuration settings shared between program and
- * service build systems.
- */
-export interface TaskConfiguration {
-	/**
-	 * The build system to use. If omitted program is used.
-	 */
-	_runner?: string;
-}

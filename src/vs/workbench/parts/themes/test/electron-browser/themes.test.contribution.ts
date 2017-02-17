@@ -20,6 +20,7 @@ import { IGrammar, StackElement } from 'vscode-textmate';
 import { TokenizationRegistry } from 'vs/editor/common/modes';
 import { TokenMetadata } from 'vs/editor/common/model/tokensBinaryEncoding';
 import { ThemeRule, findMatchingThemeRule } from 'vs/editor/electron-browser/textMate/TMHelper';
+import { Color } from 'vs/base/common/color';
 
 interface IToken {
 	c: string;
@@ -29,7 +30,7 @@ interface IToken {
 
 interface IThemedToken {
 	text: string;
-	color: string;
+	color: Color;
 }
 
 interface IThemesResult {
@@ -56,27 +57,29 @@ class ThemeDocument {
 		}
 	}
 
-	private _generateExplanation(selector: string, color: string): string {
-		return `${selector}: ${color}`;
+	private _generateExplanation(selector: string, color: Color): string {
+		let rgba = color.toRGBA();
+		if (rgba.a === 255) {
+			return `${selector}: ${color.toRGBHex().toUpperCase()}`;
+		}
+		return `${selector}: ${color.toRGBAHex().toUpperCase()}`;
 	}
 
-	public explainTokenColor(scopes: string, color: string): string {
+	public explainTokenColor(scopes: string, color: Color): string {
 
 		let matchingRule = this._findMatchingThemeRule(scopes);
 		if (!matchingRule) {
-			let actual = color.toUpperCase();
-			let expected = this._defaultColor.toUpperCase();
+			let expected = Color.fromHex(this._defaultColor);
 			// No matching rule
-			if (actual !== expected) {
-				throw new Error(`[${this._theme.label}]: Unexpected color ${actual} for ${scopes}. Expected default ${expected}`);
+			if (!color.equals(expected)) {
+				throw new Error(`[${this._theme.label}]: Unexpected color ${color.toRGBAHex()} for ${scopes}. Expected default ${expected.toRGBAHex()}`);
 			}
 			return this._generateExplanation('default', color);
 		}
 
-		let actual = color.toUpperCase();
-		let expected = matchingRule.settings.foreground.toUpperCase();
-		if (actual !== expected) {
-			throw new Error(`[${this._theme.label}]: Unexpected color ${actual} for ${scopes}. Expected ${expected} coming in from ${matchingRule.rawSelector}`);
+		let expected = Color.fromHex(matchingRule.settings.foreground);
+		if (!color.equals(expected)) {
+			throw new Error(`[${this._theme.label}]: Unexpected color ${color.toRGBAHex()} for ${scopes}. Expected ${expected.toRGBAHex()} coming in from ${matchingRule.rawSelector}`);
 		}
 		return this._generateExplanation(matchingRule.rawSelector, color);
 	}
@@ -114,11 +117,10 @@ class Snapper {
 				let tokenText = line.substring(startOffset, endOffset);
 
 				let color = TokenMetadata.getForeground(metadata);
-				let colorStr = colorMap[color];
 
 				result[resultLen++] = {
 					text: tokenText,
-					color: colorStr
+					color: colorMap[color]
 				};
 			}
 

@@ -17,14 +17,14 @@ export class GitContentProvider {
 
 	private uris = new Set<Uri>();
 
-	constructor(private model: Model, onGitChange: Event<Uri>) {
+	constructor(private model: Model) {
 		this.disposables.push(
-			onGitChange(this.fireChangeEvents, this),
+			model.onDidChangeRepository(this.fireChangeEvents, this),
 			workspace.registerTextDocumentContentProvider('git', this)
 		);
 	}
 
-	private fireChangeEvents(): void {
+	private fireChangeEvents(arg): void {
 		for (let uri of this.uris) {
 			this.onDidChangeEmitter.fire(uri);
 		}

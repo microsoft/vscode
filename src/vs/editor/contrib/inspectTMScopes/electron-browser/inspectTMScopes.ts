@@ -23,6 +23,7 @@ import { TokenizationRegistry, LanguageIdentifier, FontStyle, StandardTokenType 
 import { CharCode } from 'vs/base/common/charCode';
 import { findMatchingThemeRule } from 'vs/editor/electron-browser/textMate/TMHelper';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
+import { Color } from 'vs/base/common/color';
 
 @editorContribution
 class InspectTMScopesController extends Disposable implements IEditorContribution {
@@ -114,8 +115,8 @@ interface IDecodedMetadata {
 	languageIdentifier: LanguageIdentifier;
 	tokenType: StandardTokenType;
 	fontStyle: FontStyle;
-	foreground: string;
-	background: string;
+	foreground: Color;
+	background: Color;
 }
 
 function renderTokenText(tokenText: string): string {
@@ -237,8 +238,8 @@ class InspectTMScopesWidget extends Disposable implements IContentWidget {
 		result += `<tr><td class="tm-metadata-key">language</td><td class="tm-metadata-value">${escape(metadata.languageIdentifier.language)}</td>`;
 		result += `<tr><td class="tm-metadata-key">token type</td><td class="tm-metadata-value">${this._tokenTypeToString(metadata.tokenType)}</td>`;
 		result += `<tr><td class="tm-metadata-key">font style</td><td class="tm-metadata-value">${this._fontStyleToString(metadata.fontStyle)}</td>`;
-		result += `<tr><td class="tm-metadata-key">foreground</td><td class="tm-metadata-value">${metadata.foreground}</td>`;
-		result += `<tr><td class="tm-metadata-key">background</td><td class="tm-metadata-value">${metadata.background}</td>`;
+		result += `<tr><td class="tm-metadata-key">foreground</td><td class="tm-metadata-value">${metadata.foreground.toRGBAHex()}</td>`;
+		result += `<tr><td class="tm-metadata-key">background</td><td class="tm-metadata-value">${metadata.background.toRGBAHex()}</td>`;
 		result += `</tbody></table>`;
 
 		let theme = this._themeService.getColorTheme();
