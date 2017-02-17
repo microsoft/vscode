@@ -73,10 +73,6 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 	// --- end event handlers
 
 	public prepareRender(ctx: IRenderingContext): void {
-		if (!this.shouldRender()) {
-			throw new Error('I did not ask to render!');
-		}
-
 		if (!this._enabled) {
 			this._renderResult = null;
 			return;

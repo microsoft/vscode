@@ -330,7 +330,7 @@ export class ThemeService implements IThemeService {
 		return this.onFileIconThemeChange.event;
 	}
 
-	private initialize(): TPromise<void> {
+	private initialize(): TPromise<any> {
 
 		let legacyColorThemeId = this.storageService.get('workbench.theme', StorageScope.GLOBAL, null);
 		let legacyIconThemeId = this.storageService.get('workbench.iconTheme', StorageScope.GLOBAL, null);
@@ -338,18 +338,15 @@ export class ThemeService implements IThemeService {
 		if (legacyColorThemeId || legacyIconThemeId) {
 			this.storageService.remove('workbench.theme', StorageScope.GLOBAL);
 			this.storageService.remove('workbench.iconTheme', StorageScope.GLOBAL);
-			return Promise.join([
-				this.findThemeData(legacyColorThemeId, DEFAULT_THEME_ID).then(theme => {
-					let themeId = theme ? theme.id : DEFAULT_THEME_ID;
-					let target = themeId !== DEFAULT_THEME_ID ? ConfigurationTarget.USER : null;
-					return this.setColorTheme(themeId, target);
-				}),
-				this._findIconThemeData(legacyIconThemeId).then(theme => {
-					let themeId = theme && theme.id;
-					let target = themeId !== DEFAULT_THEME_ID ? ConfigurationTarget.USER : null;
-					return this.setFileIconTheme(themeId, target);
-				})
-			]);
+			return this.findThemeData(legacyColorThemeId, DEFAULT_THEME_ID).then(theme => {
+				let themeId = theme ? theme.id : DEFAULT_THEME_ID;
+				return this.setColorTheme(themeId, ConfigurationTarget.USER).then(_ => {
+					return this._findIconThemeData(legacyIconThemeId).then(theme => {
+						let themeId = theme && theme.id;
+						return this.setFileIconTheme(themeId, ConfigurationTarget.USER);
+					});
+				});
+			});
 		}
 
 
@@ -390,8 +387,8 @@ export class ThemeService implements IThemeService {
 
 			this.onColorThemeChange.fire(this.currentColorTheme);
 
-			if (settingsTarget === ConfigurationTarget.USER) {
-				this.windowService.broadcast({ channel: 'vscode:changeBaseTheme', payload: newTheme.getBaseThemeId() });
+			if (settingsTarget !== ConfigurationTarget.WORKSPACE) {
+				this.windowService.broadcast({ channel: 'vscode:changeColorTheme', payload: newTheme.id });
 			}
 
 			return this.writeColorThemeConfiguration(settingsTarget);
@@ -407,7 +404,11 @@ export class ThemeService implements IThemeService {
 
 	private writeColorThemeConfiguration(settingsTarget: ConfigurationTarget) {
 		if (!types.isUndefinedOrNull(settingsTarget)) {
-			return this.configurationEditingService.writeConfiguration(settingsTarget, { key: COLOR_THEME_SETTING, value: this.currentColorTheme.settingsId }).then(_ => {
+			let value = this.currentColorTheme.settingsId;
+			if (settingsTarget === ConfigurationTarget.USER && this.currentColorTheme.id === DEFAULT_THEME_ID) {
+				value = void 0; // remove key from user settings
+			}
+			return this.configurationEditingService.writeConfiguration(settingsTarget, { key: COLOR_THEME_SETTING, value }).then(_ => {
 				return this.currentColorTheme;
 			});
 		}
@@ -606,7 +607,11 @@ export class ThemeService implements IThemeService {
 
 	private writeFileIconConfiguration(settingsTarget: ConfigurationTarget): TPromise<IFileIconTheme> {
 		if (!types.isUndefinedOrNull(settingsTarget)) {
-			return this.configurationEditingService.writeConfiguration(settingsTarget, { key: ICON_THEME_SETTING, value: this.currentIconTheme.settingsId }).then(_ => {
+			let value = this.currentIconTheme.settingsId;
+			if (settingsTarget === ConfigurationTarget.USER && this.currentIconTheme.id === '') {
+				value = void 0; // remove key from user settings
+			}
+			return this.configurationEditingService.writeConfiguration(settingsTarget, { key: ICON_THEME_SETTING, value }).then(_ => {
 				return this.currentIconTheme;
 			});
 		}

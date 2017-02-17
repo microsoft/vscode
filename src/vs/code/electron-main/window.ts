@@ -136,7 +136,7 @@ export interface IVSCodeWindow {
 
 export class VSCodeWindow implements IVSCodeWindow {
 
-	public static baseThemeStorageKey = 'baseTheme';
+	public static themeStorageKey = 'theme';
 
 	private static MIN_WIDTH = 200;
 	private static MIN_HEIGHT = 120;
@@ -179,7 +179,7 @@ export class VSCodeWindow implements IVSCodeWindow {
 		this.restoreWindowState(config.state);
 
 		// For VS theme we can show directly because background is white
-		const baseTheme = this.storageService.getItem<string>(VSCodeWindow.baseThemeStorageKey);
+		const baseTheme = this.getBaseTheme();
 		const usesLightTheme = 'vs' === baseTheme;
 		const usesHighContrastTheme = 'hc-black' === baseTheme || (platform.isWindows && systemPreferences.isInvertedColorScheme());
 
@@ -507,9 +507,8 @@ export class VSCodeWindow implements IVSCodeWindow {
 		windowConfiguration.highContrast = platform.isWindows && systemPreferences.isInvertedColorScheme() && (!windowConfig || windowConfig.autoDetectHighContrast);
 		windowConfiguration.accessibilitySupport = app.isAccessibilitySupportEnabled();
 
-		// background color
-		const baseTheme = this.storageService.getItem<string>(VSCodeWindow.baseThemeStorageKey, 'vs-dark');
-		windowConfiguration.baseTheme = baseTheme;
+		// Theme
+		windowConfiguration.baseTheme = this.getBaseTheme();
 
 		// Perf Counters
 		windowConfiguration.perfStartTime = global.perfStartTime;
@@ -528,6 +527,11 @@ export class VSCodeWindow implements IVSCodeWindow {
 		url += '?config=' + encodeURIComponent(JSON.stringify(config));
 
 		return url;
+	}
+
+	private getBaseTheme(): string {
+		const theme = this.storageService.getItem<string>(VSCodeWindow.themeStorageKey, 'vs-dark');
+		return theme.split(' ')[0];
 	}
 
 	public serializeWindowState(): IWindowState {

@@ -37,9 +37,9 @@ export class ScrollableElement extends Widget {
 	private _horizontalScrollbar: HorizontalScrollbar;
 	private _domNode: HTMLElement;
 
-	private _leftShadowDomNode: FastDomNode;
-	private _topShadowDomNode: FastDomNode;
-	private _topLeftShadowDomNode: FastDomNode;
+	private _leftShadowDomNode: FastDomNode<HTMLElement>;
+	private _topShadowDomNode: FastDomNode<HTMLElement>;
+	private _topLeftShadowDomNode: FastDomNode<HTMLElement>;
 
 	private _listenOnDomNode: HTMLElement;
 
@@ -143,6 +143,10 @@ export class ScrollableElement extends Widget {
 	 */
 	public delegateVerticalScrollbarMouseDown(browserEvent: MouseEvent): void {
 		this._verticalScrollbar.delegateMouseDown(browserEvent);
+	}
+
+	public getVerticalSliderVerticalCenter(): number {
+		return this._verticalScrollbar.getVerticalSliderVerticalCenter();
 	}
 
 	public updateState(newState: INewScrollState): void {
@@ -365,7 +369,9 @@ export class ScrollableElement extends Widget {
 	}
 
 	private _scheduleHide(): void {
-		this._hideTimeout.cancelAndSet(() => this._hide(), HIDE_TIMEOUT);
+		if (!this._mouseIsOver && !this._isDragging) {
+			this._hideTimeout.cancelAndSet(() => this._hide(), HIDE_TIMEOUT);
+		}
 	}
 }
 

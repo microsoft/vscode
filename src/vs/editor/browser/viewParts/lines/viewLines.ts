@@ -412,10 +412,6 @@ export class ViewLines extends ViewLayer<ViewLine> implements IViewLines {
 	}
 
 	public renderText(viewportData: ViewportData, onAfterLinesRendered: () => void): void {
-		if (!this.shouldRender()) {
-			throw new Error('I did not ask to render!');
-		}
-
 		// (1) render lines - ensures lines are in the DOM
 		super._renderLines(viewportData);
 		this._lastRenderedData.setBigNumbersDelta(viewportData.bigNumbersDelta);

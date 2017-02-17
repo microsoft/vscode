@@ -29,9 +29,12 @@ class ClipboardEventWrapper implements IClipboardEvent {
 		return false;
 	}
 
-	public setTextData(text: string): void {
+	public setTextData(text: string, richText: string): void {
 		if (this._event.clipboardData) {
 			this._event.clipboardData.setData('text/plain', text);
+			if (richText !== null) {
+				this._event.clipboardData.setData('text/html', richText);
+			}
 			this._event.preventDefault();
 			return;
 		}

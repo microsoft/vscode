@@ -36,6 +36,8 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { once } from 'vs/base/common/event';
 import SCMPreview from 'vs/workbench/parts/scm/browser/scmPreview';
 import { isObject } from 'vs/base/common/types';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 
 export const WALK_THROUGH_FOCUS = new RawContextKey<boolean>('interactivePlaygroundFocus', false);
 
@@ -55,6 +57,25 @@ interface IWalkThroughEditorViewStates {
 	0?: IWalkThroughEditorViewState;
 	1?: IWalkThroughEditorViewState;
 	2?: IWalkThroughEditorViewState;
+}
+
+class WalkThroughCodeEditor extends CodeEditor {
+
+	constructor(
+		domElement: HTMLElement,
+		options: IEditorOptions,
+		private telemetryData: Object,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@ICodeEditorService codeEditorService: ICodeEditorService,
+		@ICommandService commandService: ICommandService,
+		@IContextKeyService contextKeyService: IContextKeyService
+	) {
+		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService);
+	}
+
+	getTelemetryData() {
+		return this.telemetryData;
+	}
 }
 
 export class WalkThroughPart extends BaseEditor {
@@ -308,7 +329,12 @@ export class WalkThroughPart extends BaseEditor {
 					const id = `snippet-${model.uri.fragment}`;
 					const div = innerContent.querySelector(`#${id.replace(/\./g, '\\.')}`) as HTMLElement;
 
-					const editor = this.instantiationService.createInstance(CodeEditor, div, this.getEditorOptions(snippet.textEditorModel.getModeId()));
+					const options = this.getEditorOptions(snippet.textEditorModel.getModeId());
+					const telemetryData = {
+						target: this.input instanceof WalkThroughInput ? this.input.getTelemetryFrom() : undefined,
+						snippet: i
+					};
+					const editor = this.instantiationService.createInstance(WalkThroughCodeEditor, div, options, telemetryData);
 					editor.setModel(model);
 					this.contentDisposables.push(editor);
 

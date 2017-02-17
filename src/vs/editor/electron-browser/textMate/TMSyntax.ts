@@ -21,6 +21,7 @@ import { grammarsExtPoint, IEmbeddedLanguagesMap, ITMSyntaxExtensionPoint } from
 import { TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/token';
 import { TokenMetadata } from 'vs/editor/common/model/tokensBinaryEncoding';
 import { nullTokenize2 } from 'vs/editor/common/modes/nullMode';
+import { hexToCSS } from 'vs/base/common/color';
 
 export class TMScopeRegistry {
 
@@ -153,7 +154,7 @@ export class MainProcessTextMateSyntax implements ITextMateService {
 		let rules: string[] = [];
 		for (let i = 1, len = colorMap.length; i < len; i++) {
 			let color = colorMap[i];
-			rules[i] = `.mtk${i} { color: ${color.substr(0, 7)}; }`;
+			rules[i] = `.mtk${i} { color: ${hexToCSS(color)}; }`;
 		}
 		rules.push('.mtki { font-style: italic; }');
 		rules.push('.mtkb { font-weight: bold; }');
