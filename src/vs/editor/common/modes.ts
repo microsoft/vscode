@@ -802,24 +802,42 @@ export const LinkProviderRegistry = new LanguageFeatureRegistry<LinkProvider>();
  * @internal
  */
 export interface ITokenizationSupportChangedEvent {
-	languages: string[];
+	changedLanguages: string[];
+	changedColorMap: boolean;
 }
 
 /**
  * @internal
  */
 export interface ITokenizationRegistry {
+
+	/**
+	 * An event triggered when:
+	 *  - a tokenization support is registered, unregistered or changed.
+	 *  - the color map is changed.
+	 */
 	onDidChange: Event<ITokenizationSupportChangedEvent>;
+
 	/**
 	 * Fire a change event for a language.
 	 * This is useful for languages that embed other languages.
 	 */
 	fire(languages: string[]): void;
 
+	/**
+	 * Register a tokenization support.
+	 */
 	register(language: string, support: ITokenizationSupport): IDisposable;
 
+	/**
+	 * Get the tokenization support for a language.
+	 * Returns null if not found.
+	 */
 	get(language: string): ITokenizationSupport;
 
+	/**
+	 * Set the new color map that all tokens will use in their ColorId binary encoded bits for foreground and background.
+	 */
 	setColorMap(colorMap: string[]): void;
 
 	getColorMap(): string[];

@@ -56,7 +56,7 @@ export class Colorizer {
 
 		return new TPromise<void>((c, e, p) => {
 			listener = TokenizationRegistry.onDidChange((e) => {
-				if (e.languages.indexOf(language) >= 0) {
+				if (e.changedLanguages.indexOf(language) >= 0) {
 					stopListening();
 					c(void 0);
 				}
