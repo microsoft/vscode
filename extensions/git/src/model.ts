@@ -7,7 +7,7 @@
 
 import { Uri, EventEmitter, Event, SCMResource, SCMResourceDecorations, SCMResourceGroup, Disposable, window, workspace } from 'vscode';
 import { Git, Repository, Ref, Branch, Remote, PushOptions, Commit, GitErrorCodes, GitError } from './git';
-import { anyEvent, eventToPromise, filterEvent, mapEvent, EmptyDisposable, combinedDisposable } from './util';
+import { anyEvent, eventToPromise, filterEvent, mapEvent, EmptyDisposable, combinedDisposable, dispose } from './util';
 import { memoize, throttle, debounce } from './decorators';
 import { watch } from './watch';
 import * as path from 'path';
@@ -221,6 +221,9 @@ export interface CommitOptions {
 
 export class Model implements Disposable {
 
+	private _onDidChangeRepository = new EventEmitter<Uri>();
+	readonly onDidChangeRepository: Event<Uri> = this._onDidChangeRepository.event;
+
 	private _onDidChangeState = new EventEmitter<State>();
 	readonly onDidChangeState: Event<State> = this._onDidChangeState.event;
 
@@ -303,13 +306,18 @@ export class Model implements Disposable {
 		this._onDidChangeResources.fire(this.resources);
 	}
 
+	private onWorkspaceChange: Event<Uri>;
 	private repositoryDisposable: Disposable = EmptyDisposable;
+	private disposables: Disposable[] = [];
 
 	constructor(
 		private git: Git,
 		private rootPath: string,
-		private onWorkspaceChange: Event<Uri>
 	) {
+		const fsWatcher = workspace.createFileSystemWatcher('**');
+		this.onWorkspaceChange = anyEvent(fsWatcher.onDidChange, fsWatcher.onDidCreate, fsWatcher.onDidDelete);
+		this.disposables.push(fsWatcher);
+
 		this.status();
 	}
 
@@ -480,12 +488,13 @@ export class Model implements Disposable {
 		this.repository = this.git.open(repositoryRoot);
 
 		const dotGitPath = path.join(repositoryRoot, '.git');
-		const { event, disposable: watcher } = watch(dotGitPath);
+		const { event: onRawGitChange, disposable: watcher } = watch(dotGitPath);
 		disposables.push(watcher);
 
-		const onGitChange = mapEvent(event, ({ filename }) => Uri.file(path.join(dotGitPath, filename)));
+		const onGitChange = mapEvent(onRawGitChange, ({ filename }) => Uri.file(path.join(dotGitPath, filename)));
 		const onRelevantGitChange = filterEvent(onGitChange, uri => !/\/\.git\/index\.lock$/.test(uri.fsPath));
 		onRelevantGitChange(this.onFSChange, this, disposables);
+		onRelevantGitChange(this._onDidChangeRepository.fire, this._onDidChangeRepository, disposables);
 
 		const onNonGitChange = filterEvent(this.onWorkspaceChange, uri => !/\/\.git\//.test(uri.fsPath));
 		onNonGitChange(this.onFSChange, this, disposables);
@@ -596,5 +605,6 @@ export class Model implements Disposable {
 
 	dispose(): void {
 		this.repositoryDisposable.dispose();
+		this.disposables = dispose(this.disposables);
 	}
 }

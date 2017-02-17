@@ -6,7 +6,6 @@
 'use strict';
 
 import { workspace, Uri, Disposable, Event, EventEmitter } from 'vscode';
-import { filterEvent } from './util';
 import { Model } from './model';
 
 export class GitContentProvider {
@@ -18,12 +17,9 @@ export class GitContentProvider {
 
 	private uris = new Set<Uri>();
 
-	constructor(private model: Model, onWorkspaceChange: Event<Uri>) {
-		const onGitChange = filterEvent(onWorkspaceChange, uri => /^\.git\//.test(workspace.asRelativePath(uri)));
-		const onRelevantGitChange = filterEvent(onGitChange, uri => !/\/\.git\/index\.lock$/.test(uri.fsPath));
-
+	constructor(private model: Model) {
 		this.disposables.push(
-			onRelevantGitChange(this.fireChangeEvents, this),
+			model.onDidChangeRepository(this.fireChangeEvents, this),
 			workspace.registerTextDocumentContentProvider('git', this)
 		);
 	}
