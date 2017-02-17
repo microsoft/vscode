@@ -31,6 +31,9 @@ import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IMessageService, Severity, CancelAction } from 'vs/platform/message/common/message';
 import { getInstalledKeymaps } from 'vs/workbench/parts/extensions/electron-browser/keymapExtensions';
 import { IExtensionEnablementService, IExtensionManagementService, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { used } from 'vs/workbench/parts/welcome/page/electron-browser/vs_code_welcome_page';
+
+used();
 
 const enabledKey = 'workbench.welcome.enabled';
 const telemetryFrom = 'welcomePage';
@@ -115,7 +118,7 @@ class WelcomePage {
 
 	private create() {
 		const recentlyOpened = this.windowService.getRecentlyOpen();
-		const uri = URI.parse(require.toUrl('./vs_code_welcome_page.html'))
+		const uri = URI.parse('vs/workbench/parts/welcome/page/electron-browser/vs_code_welcome_page')
 			.with({ scheme: Schemas.walkThrough });
 		const input = this.instantiationService.createInstance(WalkThroughInput, localize('welcome.title', "Welcome"), '', uri, telemetryFrom, container => this.onReady(container, recentlyOpened));
 		this.editorService.openEditor(input, { pinned: true }, Position.ONE)
