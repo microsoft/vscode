@@ -19,18 +19,18 @@ export class RGBA {
 	 */
 	public readonly b: number;
 	/**
-	 * Alpha: float in [0-1]
+	 * Alpha: integer in [0-255]
 	 */
 	public readonly a: number;
 
 	constructor(r: number, g: number, b: number, a: number) {
-		this.r = RGBA._clampColorComponent(r);
-		this.g = RGBA._clampColorComponent(g);
-		this.b = RGBA._clampColorComponent(b);
-		this.a = RGBA._clampAlphaComponent(a);
+		this.r = RGBA._clampInt_0_255(r);
+		this.g = RGBA._clampInt_0_255(g);
+		this.b = RGBA._clampInt_0_255(b);
+		this.a = RGBA._clampInt_0_255(a);
 	}
 
-	private static _clampColorComponent(c: number): number {
+	private static _clampInt_0_255(c: number): number {
 		if (c < 0) {
 			return 0;
 		}
@@ -38,16 +38,6 @@ export class RGBA {
 			return 255;
 		}
 		return c | 0;
-	}
-
-	private static _clampAlphaComponent(alpha: number): number {
-		if (alpha < 0) {
-			return 0.0;
-		}
-		if (alpha > 1) {
-			return 1.0;
-		}
-		return alpha;
 	}
 }
 
@@ -75,13 +65,13 @@ export class HSLA {
 	public readonly a: number;
 
 	constructor(h: number, s: number, l: number, a: number) {
-		this.h = HSLA._clampHue(h);
-		this.s = HSLA._clamp01(s);
-		this.l = HSLA._clamp01(l);
-		this.a = HSLA._clamp01(a);
+		this.h = HSLA._clampFloat_0_360(h);
+		this.s = HSLA._clampFloat_0_1(s);
+		this.l = HSLA._clampFloat_0_1(l);
+		this.a = HSLA._clampFloat_0_1(a);
 	}
 
-	private static _clampHue(hue: number): number {
+	private static _clampFloat_0_360(hue: number): number {
 		if (hue < 0) {
 			return 0.0;
 		}
@@ -91,7 +81,7 @@ export class HSLA {
 		return hue;
 	}
 
-	private static _clamp01(n: number): number {
+	private static _clampFloat_0_1(n: number): number {
 		if (n < 0) {
 			return 0.0;
 		}
@@ -114,10 +104,10 @@ function hex2rgba(hex: string): RGBA {
 		const r = parseHex(hex.substr(1, 2));
 		const g = parseHex(hex.substr(3, 2));
 		const b = parseHex(hex.substr(5, 2));
-		const a = hex.length === 9 ? parseHex(hex.substr(7, 2)) / 0xff : 1;
+		const a = hex.length === 9 ? parseHex(hex.substr(7, 2)) : 255;
 		return new RGBA(r, g, b, a);
 	}
-	return new RGBA(255, 0, 0, 1);
+	return new RGBA(255, 0, 0, 255);
 }
 
 /**
@@ -130,7 +120,7 @@ function rgba2hsla(rgba: RGBA): HSLA {
 	const r = rgba.r / 255;
 	const g = rgba.g / 255;
 	const b = rgba.b / 255;
-	const a = rgba.a;
+	const a = rgba.a / 255;
 
 	const max = Math.max(r, g, b);
 	const min = Math.min(r, g, b);
@@ -175,7 +165,7 @@ function hsla2rgba(hsla: HSLA): RGBA {
 		b = _hue2rgb(p, q, h - 1 / 3);
 	}
 
-	return new RGBA(Math.round(r * 255), Math.round(g * 255), Math.round(b * 255), a);
+	return new RGBA(Math.round(r * 255), Math.round(g * 255), Math.round(b * 255), Math.round(a * 255));
 }
 
 function _hue2rgb(p: number, q: number, t: number) {
@@ -205,7 +195,7 @@ export function hexToCSS(hex: string) {
 }
 
 function toCSSColor(rgba: RGBA): string {
-	return `rgba(${rgba.r}, ${rgba.g}, ${rgba.b}, ${+rgba.a.toFixed(2)})`;
+	return `rgba(${rgba.r}, ${rgba.g}, ${rgba.b}, ${+(rgba.a / 255).toFixed(2)})`;
 }
 
 export class Color {
@@ -306,7 +296,7 @@ export class Color {
 
 	public transparent(factor: number): Color {
 		const p = this.rgba;
-		return new Color(new RGBA(p.r, p.g, p.b, p.a * factor));
+		return new Color(new RGBA(p.r, p.g, p.b, Math.round(p.a * factor)));
 	}
 
 	public opposite(): Color {
