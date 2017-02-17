@@ -254,10 +254,9 @@ export class CommandCenter {
 		const originalDocument = await workspace.openTextDocument(originalUri);
 		const diffs = await computeDiff(originalDocument, modifiedDocument);
 		const selections = textEditor.selections;
-
 		const selectedDiffs = diffs.filter(diff => {
 			const modifiedRange = diff.modifiedEndLineNumber === 0
-				? new Range(diff.modifiedStartLineNumber - 1, 0, diff.modifiedStartLineNumber - 1, 0)
+				? new Range(modifiedDocument.lineAt(diff.modifiedStartLineNumber - 1).range.end, modifiedDocument.lineAt(diff.modifiedStartLineNumber).range.start)
 				: new Range(modifiedDocument.lineAt(diff.modifiedStartLineNumber - 1).range.start, modifiedDocument.lineAt(diff.modifiedEndLineNumber - 1).range.end);
 
 			return selections.some(selection => !!selection.intersection(modifiedRange));
