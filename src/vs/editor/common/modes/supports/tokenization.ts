@@ -5,6 +5,7 @@
 'use strict';
 
 import { ColorId, FontStyle, MetadataConsts, LanguageId, StandardTokenType } from 'vs/editor/common/modes';
+import { Color } from 'vs/base/common/color';
 
 export interface IThemeRule {
 	token: string;
@@ -141,7 +142,7 @@ function resolveParsedThemeRules(parsedThemeRules: ParsedThemeRule[]): Theme {
 export class ColorMap {
 
 	private _lastColorId: number;
-	private _id2color: string[];
+	private _id2color: Color[];
 	private _color2id: Map<string, ColorId>;
 
 	constructor() {
@@ -164,11 +165,11 @@ export class ColorMap {
 		}
 		value = ++this._lastColorId;
 		this._color2id.set(color, value);
-		this._id2color[value] = color;
+		this._id2color[value] = Color.fromHex('#' + color);
 		return value;
 	}
 
-	public getColorMap(): string[] {
+	public getColorMap(): Color[] {
 		return this._id2color.slice(0);
 	}
 
@@ -194,7 +195,7 @@ export class Theme {
 		this._cache = new Map<string, number>();
 	}
 
-	public getColorMap(): string[] {
+	public getColorMap(): Color[] {
 		return this._colorMap.getColorMap();
 	}
 
@@ -388,4 +389,16 @@ export class ThemeTrieElement {
 
 		child.insert(tail, fontStyle, foreground, background);
 	}
+}
+
+export function generateTokensCSSForColorMap(colorMap: Color[]): string {
+	let rules: string[] = [];
+	for (let i = 1, len = colorMap.length; i < len; i++) {
+		let color = colorMap[i];
+		rules[i] = `.mtk${i} { color: ${color.toString()}; }`;
+	}
+	rules.push('.mtki { font-style: italic; }');
+	rules.push('.mtkb { font-weight: bold; }');
+	rules.push('.mtku { text-decoration: underline; }');
+	return rules.join('\n');
 }

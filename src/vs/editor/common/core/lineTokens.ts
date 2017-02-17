@@ -11,7 +11,6 @@ import { ColorId, FontStyle, StandardTokenType, LanguageId } from 'vs/editor/com
 export class LineToken {
 	_lineTokenBrand: void;
 
-	private readonly _colorMap: string[];
 	private readonly _source: LineTokens;
 	private readonly _tokenIndex: number;
 	private readonly _metadata: number;
@@ -38,20 +37,11 @@ export class LineToken {
 		return TokenMetadata.getForeground(this._metadata);
 	}
 
-	public get foreground(): string {
-		return this._colorMap[this.foregroundId];
-	}
-
 	public get backgroundId(): ColorId {
 		return TokenMetadata.getBackground(this._metadata);
 	}
 
-	public get background(): string {
-		return this._colorMap[this.backgroundId];
-	}
-
-	constructor(colorMap: string[], source: LineTokens, tokenIndex: number, tokenCount: number, startOffset: number, endOffset: number, metadata: number) {
-		this._colorMap = colorMap;
+	constructor(source: LineTokens, tokenIndex: number, tokenCount: number, startOffset: number, endOffset: number, metadata: number) {
 		this._source = source;
 		this._tokenIndex = tokenIndex;
 		this._metadata = metadata;
@@ -83,14 +73,12 @@ export class LineToken {
 export class LineTokens {
 	_lineTokensBrand: void;
 
-	private readonly _colorMap: string[];
 	private readonly _tokens: Uint32Array;
 	private readonly _tokensCount: number;
 	private readonly _text: string;
 	private readonly _textLength: number;
 
-	constructor(colorMap: string[], tokens: Uint32Array, text: string) {
-		this._colorMap = colorMap;
+	constructor(tokens: Uint32Array, text: string) {
 		this._tokens = tokens;
 		this._tokensCount = (this._tokens.length >>> 1);
 		this._text = text;
@@ -159,7 +147,7 @@ export class LineTokens {
 			endOffset = this._textLength;
 		}
 		let metadata = this._tokens[(tokenIndex << 1) + 1];
-		return new LineToken(this._colorMap, this, tokenIndex, this._tokensCount, startOffset, endOffset, metadata);
+		return new LineToken(this, tokenIndex, this._tokensCount, startOffset, endOffset, metadata);
 	}
 
 	public firstToken(): LineToken {

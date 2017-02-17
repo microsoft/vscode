@@ -7,6 +7,7 @@
 import { CharCode } from 'vs/base/common/charCode';
 import { ColorId, TokenizationRegistry } from 'vs/editor/common/modes';
 import Event, { Emitter } from 'vs/base/common/event';
+import { Color } from 'vs/base/common/color';
 
 export class ParsedColor {
 
@@ -44,38 +45,25 @@ export class MinimapTokensColorTracker {
 		return this._INSTANCE;
 	}
 
-	private _lastColorMap: string[];
 	private _colors: ParsedColor[];
 
 	private _onDidChange = new Emitter<void>();
 	public onDidChange: Event<void> = this._onDidChange.event;
 
 	private constructor() {
-		this._lastColorMap = [];
 		this._setColorMap(TokenizationRegistry.getColorMap());
-		TokenizationRegistry.onDidChange(() => this._setColorMap(TokenizationRegistry.getColorMap()));
-	}
-
-	private static _equals(a: string[], b: string[]): boolean {
-		if (a.length !== b.length) {
-			return false;
-		}
-		for (let i = 0, len = a.length; i < len; i++) {
-			if (a[i] !== b[i]) {
-				return false;
+		TokenizationRegistry.onDidChange((e) => {
+			if (e.changedColorMap) {
+				this._setColorMap(TokenizationRegistry.getColorMap());
 			}
-		}
-		return true;
+		});
 	}
 
-	private _setColorMap(colorMap: string[]): void {
-		if (MinimapTokensColorTracker._equals(this._lastColorMap, colorMap)) {
-			return;
-		}
-		this._lastColorMap = colorMap.slice(0);
+	private _setColorMap(colorMap: Color[]): void {
 		this._colors = [null];
 		for (let colorId = 1; colorId < colorMap.length; colorId++) {
-			this._colors[colorId] = MinimapTokensColorTracker._parseColor(colorMap[colorId]);
+			const color = colorMap[colorId].toRGBA();
+			this._colors[colorId] = new ParsedColor(color.r, color.g, color.b);
 		}
 		this._onDidChange.fire(void 0);
 	}

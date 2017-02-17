@@ -63,7 +63,6 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 
 	private _languageIdentifier: LanguageIdentifier;
 	private _tokenizationListener: IDisposable;
-	private _colorMap: string[];
 	private _tokenizationSupport: ITokenizationSupport;
 
 	private _invalidLineStartIndex: number;
@@ -140,7 +139,6 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 			}
 		}
 
-		this._colorMap = TokenizationRegistry.getColorMap();
 		this._lastState = null;
 		this._invalidLineStartIndex = 0;
 		this._beginBackgroundTokenization();
@@ -183,7 +181,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 	}
 
 	private _getLineTokens(lineNumber: number): LineTokens {
-		return this._lines[lineNumber - 1].getTokens(this._languageIdentifier.id, this._colorMap);
+		return this._lines[lineNumber - 1].getTokens(this._languageIdentifier.id);
 	}
 
 	public getLanguageIdentifier(): LanguageIdentifier {

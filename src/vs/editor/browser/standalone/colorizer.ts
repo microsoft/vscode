@@ -159,12 +159,11 @@ function _fakeColorize(lines: string[], tabSize: number): string {
 function _actualColorize(lines: string[], tabSize: number, tokenizationSupport: ITokenizationSupport): string {
 	let html: string[] = [];
 	let state = tokenizationSupport.getInitialState();
-	let colorMap = TokenizationRegistry.getColorMap();
 
 	for (let i = 0, length = lines.length; i < length; i++) {
 		let line = lines[i];
 		let tokenizeResult = tokenizationSupport.tokenize2(line, state, 0);
-		let lineTokens = new LineTokens(colorMap, tokenizeResult.tokens, line);
+		let lineTokens = new LineTokens(tokenizeResult.tokens, line);
 		let renderResult = renderViewLine(new RenderLineInput(
 			false,
 			line,

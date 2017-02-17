@@ -127,7 +127,7 @@ function _tokenizeToString(text: string, tokenizationSupport: ITokenizationSuppo
 		}
 
 		let tokenizationResult = tokenizationSupport.tokenize2(line, currentState, 0);
-		let lineTokens = new LineTokens(null, tokenizationResult.tokens, line);
+		let lineTokens = new LineTokens(tokenizationResult.tokens, line);
 		let viewLineTokens = lineTokens.inflate();
 
 		let startOffset = 0;

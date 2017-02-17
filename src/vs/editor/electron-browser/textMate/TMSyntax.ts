@@ -21,7 +21,8 @@ import { grammarsExtPoint, IEmbeddedLanguagesMap, ITMSyntaxExtensionPoint } from
 import { TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/token';
 import { TokenMetadata } from 'vs/editor/common/model/tokensBinaryEncoding';
 import { nullTokenize2 } from 'vs/editor/common/modes/nullMode';
-import { hexToCSSrgba } from 'vs/base/common/color';
+import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
+import { Color } from 'vs/base/common/color';
 
 export class TMScopeRegistry {
 
@@ -150,23 +151,19 @@ export class MainProcessTextMateSyntax implements ITextMateService {
 		});
 	}
 
-	private static _generateCSS(colorMap: string[]): string {
-		let rules: string[] = [];
+	private static _toColorMap(colorMap: string[]): Color[] {
+		let result: Color[] = [null];
 		for (let i = 1, len = colorMap.length; i < len; i++) {
-			let color = colorMap[i];
-			rules[i] = `.mtk${i} { color: ${hexToCSSrgba(color)}; }`;
+			result[i] = Color.fromHex(colorMap[i]);
 		}
-		rules.push('.mtki { font-style: italic; }');
-		rules.push('.mtkb { font-weight: bold; }');
-		rules.push('.mtku { text-decoration: underline; }');
-		return rules.join('\n');
+		return result;
 	}
 
 	private _updateTheme(): void {
 		let colorTheme = this._themeService.getColorTheme();
 		this._grammarRegistry.setTheme({ name: colorTheme.label, settings: colorTheme.settings });
-		let colorMap = this._grammarRegistry.getColorMap();
-		let cssRules = MainProcessTextMateSyntax._generateCSS(colorMap);
+		let colorMap = MainProcessTextMateSyntax._toColorMap(this._grammarRegistry.getColorMap());
+		let cssRules = generateTokensCSSForColorMap(colorMap);
 		this._styleElement.innerHTML = cssRules;
 		TokenizationRegistry.setColorMap(colorMap);
 	}
