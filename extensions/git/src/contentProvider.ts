@@ -31,8 +31,17 @@ export class GitContentProvider {
 	}
 
 	async provideTextDocumentContent(uri: Uri): Promise<string> {
+		let ref = uri.query;
+
+		if (ref === '~') {
+			const fileUri = uri.with({ scheme: 'file', query: '' });
+			const uriString = fileUri.toString();
+			const [indexStatus] = this.model.indexGroup.resources.filter(r => r.original.toString() === uriString);
+			ref = indexStatus ? '' : 'HEAD';
+		}
+
 		try {
-			const result = await this.model.show(uri.query, uri);
+			const result = await this.model.show(ref, uri);
 			this.uris.add(uri);
 			return result;
 		} catch (err) {
