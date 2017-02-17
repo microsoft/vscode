@@ -12,7 +12,7 @@ import { IRenderingContext, IRestrictedRenderingContext } from 'vs/editor/common
 import { getOrCreateMinimapCharRenderer } from 'vs/editor/common/view/runtimeMinimapCharRenderer';
 import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
-import { MinimapCharRenderer, ParsedColor, MinimapTokensColorTracker, Constants } from 'vs/editor/common/view/minimapCharRenderer';
+import { MinimapCharRenderer, MinimapTokensColorTracker, Constants } from 'vs/editor/common/view/minimapCharRenderer';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { CharCode } from 'vs/base/common/charCode';
 import { IViewLayout, ViewLineData } from 'vs/editor/common/viewModel/viewModel';
@@ -22,6 +22,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { EditorScrollbar } from 'vs/editor/browser/viewParts/editorScrollbar/editorScrollbar';
 import { RenderedLinesCollection, ILine } from 'vs/editor/browser/view/viewLayer';
 import { Range } from 'vs/editor/common/core/range';
+import { RGBA } from 'vs/base/common/color';
 
 const enum RenderMinimap {
 	None = 0,
@@ -320,7 +321,7 @@ class MinimapBuffers {
 	private readonly _buffers: [ImageData, ImageData];
 	private _lastUsedBuffer: number;
 
-	constructor(ctx: CanvasRenderingContext2D, WIDTH: number, HEIGHT: number, background: ParsedColor) {
+	constructor(ctx: CanvasRenderingContext2D, WIDTH: number, HEIGHT: number, background: RGBA) {
 		this._backgroundFillData = MinimapBuffers._createBackgroundFillData(WIDTH, HEIGHT, background);
 		this._buffers = [
 			ctx.createImageData(WIDTH, HEIGHT),
@@ -340,7 +341,7 @@ class MinimapBuffers {
 		return result;
 	}
 
-	private static _createBackgroundFillData(WIDTH: number, HEIGHT: number, background: ParsedColor): Uint8ClampedArray {
+	private static _createBackgroundFillData(WIDTH: number, HEIGHT: number, background: RGBA): Uint8ClampedArray {
 		const backgroundR = background.r;
 		const backgroundG = background.g;
 		const backgroundB = background.b;
@@ -571,6 +572,7 @@ export class Minimap extends ViewPart {
 		const lineInfo = this._context.model.getMinimapLinesRenderingData(startLineNumber, endLineNumber, needed);
 		const tabSize = lineInfo.tabSize;
 		const background = this._tokensColorTracker.getColor(ColorId.DefaultBackground);
+		const useLighterFont = this._tokensColorTracker.backgroundIsLight();
 
 		// Render the rest of lines
 		let dy = 0;
@@ -580,6 +582,7 @@ export class Minimap extends ViewPart {
 				Minimap._renderLine(
 					imageData,
 					background,
+					useLighterFont,
 					renderMinimap,
 					this._tokensColorTracker,
 					this._minimapCharRenderer,
@@ -684,7 +687,8 @@ export class Minimap extends ViewPart {
 
 	private static _renderLine(
 		target: ImageData,
-		backgroundColor: ParsedColor,
+		backgroundColor: RGBA,
+		useLighterFont,
 		renderMinimap: RenderMinimap,
 		colorTracker: MinimapTokensColorTracker,
 		minimapCharRenderer: MinimapCharRenderer,
@@ -724,9 +728,9 @@ export class Minimap extends ViewPart {
 					dx += charWidth;
 				} else {
 					if (renderMinimap === RenderMinimap.Large) {
-						minimapCharRenderer.x2RenderChar(target, dx, dy, charCode, tokenColor, backgroundColor);
+						minimapCharRenderer.x2RenderChar(target, dx, dy, charCode, tokenColor, backgroundColor, useLighterFont);
 					} else {
-						minimapCharRenderer.x1RenderChar(target, dx, dy, charCode, tokenColor, backgroundColor);
+						minimapCharRenderer.x1RenderChar(target, dx, dy, charCode, tokenColor, backgroundColor, useLighterFont);
 					}
 					dx += charWidth;
 				}
