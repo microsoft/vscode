@@ -240,6 +240,10 @@ export abstract class ZoneWidget extends Widget implements IHorizontalSashLayout
 
 			arrow = document.createElement('div');
 			arrow.className = 'zone-widget-arrow below';
+			if (this.options.className) {
+				arrow.classList.add(this.options.className);
+			}
+
 			arrow.style.top = -arrowHeight + 'px';
 			arrow.style.borderWidth = arrowHeight + 'px';
 			arrow.style.left = this.editor.getOffsetForColumn(position.lineNumber, position.column) + 'px';
