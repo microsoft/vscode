@@ -212,7 +212,7 @@ class LanguageProvider {
 		}
 
 		if (client.apiVersion.has213Features()) {
-			languages.registerCodeActionsProvider(selector, new CodeActionProvider(client));
+			languages.registerCodeActionsProvider(selector, new CodeActionProvider(client, this.description.id));
 		}
 
 		if (client.apiVersion.has220Features()) {
