@@ -22,12 +22,11 @@ export class TokenizationRegistryImpl implements ITokenizationRegistry {
 		this._colorMap = null;
 	}
 
-	/**
-	 * Fire a change event for a language.
-	 * This is useful for languages that embed other languages.
-	 */
 	public fire(languages: string[]): void {
-		this._onDidChange.fire({ languages: languages });
+		this._onDidChange.fire({
+			changedLanguages: languages,
+			changedColorMap: false
+		});
 	}
 
 	public register(language: string, support: ITokenizationSupport): IDisposable {
@@ -50,7 +49,10 @@ export class TokenizationRegistryImpl implements ITokenizationRegistry {
 
 	public setColorMap(colorMap: string[]): void {
 		this._colorMap = colorMap;
-		this.fire(Object.keys(this._map));
+		this._onDidChange.fire({
+			changedLanguages: Object.keys(this._map),
+			changedColorMap: false
+		});
 	}
 
 	public getColorMap(): string[] {
