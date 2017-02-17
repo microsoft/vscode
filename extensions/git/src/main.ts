@@ -11,7 +11,6 @@ import { Model } from './model';
 import { GitSCMProvider } from './scmProvider';
 import { CommandCenter } from './commands';
 import { CheckoutStatusBar, SyncStatusBar } from './statusbar';
-import { anyEvent } from './util';
 import { GitContentProvider } from './contentProvider';
 import { AutoFetcher } from './autofetch';
 import { MergeDecorator } from './merge';
@@ -34,13 +33,10 @@ async function init(disposables: Disposable[]): Promise<void> {
 		return;
 	}
 
-	const fsWatcher = workspace.createFileSystemWatcher('**');
-	const onWorkspaceChange = anyEvent(fsWatcher.onDidChange, fsWatcher.onDidCreate, fsWatcher.onDidDelete);
-
 	const pathHint = workspace.getConfiguration('git').get<string>('path');
 	const info = await findGit(pathHint);
 	const git = new Git({ gitPath: info.path, version: info.version });
-	const model = new Model(git, rootPath, onWorkspaceChange);
+	const model = new Model(git, rootPath);
 
 	outputChannel.appendLine(localize('using git', "Using git {0} from {1}", info.version, info.path));
 	git.onOutput(str => outputChannel.append(str), null, disposables);
@@ -48,7 +44,7 @@ async function init(disposables: Disposable[]): Promise<void> {
 	const commitHandler = new CommitController();
 	const commandCenter = new CommandCenter(model, outputChannel);
 	const provider = new GitSCMProvider(model, commandCenter);
-	const contentProvider = new GitContentProvider(model, onWorkspaceChange);
+	const contentProvider = new GitContentProvider(model);
 	const checkoutStatusBar = new CheckoutStatusBar(model);
 	const syncStatusBar = new SyncStatusBar(model);
 	const autoFetcher = new AutoFetcher(model);
@@ -59,7 +55,6 @@ async function init(disposables: Disposable[]): Promise<void> {
 		commandCenter,
 		provider,
 		contentProvider,
-		fsWatcher,
 		checkoutStatusBar,
 		syncStatusBar,
 		autoFetcher,
