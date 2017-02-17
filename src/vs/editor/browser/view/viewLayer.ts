@@ -9,6 +9,7 @@ import { ViewPart } from 'vs/editor/browser/view/viewPart';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/styleMutator';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
+import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
 /**
  * Represents a visible line
@@ -299,7 +300,7 @@ export abstract class ViewLayer<T extends IVisibleLine> extends ViewPart {
 		return true;
 	}
 
-	public onModelLinesDeleted(e: editorCommon.IViewLinesDeletedEvent): boolean {
+	public onModelLinesDeleted(e: viewEvents.IViewLinesDeletedEvent): boolean {
 		let deleted = this._linesCollection.onModelLinesDeleted(e.fromLineNumber, e.toLineNumber);
 		if (deleted) {
 			// Remove from DOM
@@ -314,11 +315,11 @@ export abstract class ViewLayer<T extends IVisibleLine> extends ViewPart {
 		return true;
 	}
 
-	public onModelLineChanged(e: editorCommon.IViewLineChangedEvent): boolean {
+	public onModelLineChanged(e: viewEvents.IViewLineChangedEvent): boolean {
 		return this._linesCollection.onModelLineChanged(e.lineNumber);
 	}
 
-	public onModelLinesInserted(e: editorCommon.IViewLinesInsertedEvent): boolean {
+	public onModelLinesInserted(e: viewEvents.IViewLinesInsertedEvent): boolean {
 		let deleted = this._linesCollection.onModelLinesInserted(e.fromLineNumber, e.toLineNumber);
 		if (deleted) {
 			// Remove from DOM
@@ -333,7 +334,7 @@ export abstract class ViewLayer<T extends IVisibleLine> extends ViewPart {
 		return true;
 	}
 
-	public onModelTokensChanged(e: editorCommon.IViewTokensChangedEvent): boolean {
+	public onModelTokensChanged(e: viewEvents.IViewTokensChangedEvent): boolean {
 		return this._linesCollection.onModelTokensChanged(e.ranges);
 	}
 

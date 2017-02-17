@@ -20,6 +20,7 @@ import { Configuration } from 'vs/editor/browser/config/configuration';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { VisibleRange } from 'vs/editor/common/view/renderingContext';
 import { TextAreaWrapper } from 'vs/editor/browser/controller/input/textAreaWrapper';
+import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
 export interface IKeyboardHandlerHelper {
 	viewDomNode: HTMLElement;
@@ -74,13 +75,14 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 			let lineNumber = e.showAtLineNumber;
 			let column = e.showAtColumn;
 
-			let revealPositionEvent: editorCommon.IViewRevealRangeEvent = {
+			let revealPositionEvent: viewEvents.IViewRevealRangeEvent = {
+				_viewRevealRangeEventBrand: void 0,
 				range: new Range(lineNumber, column, lineNumber, column),
 				verticalType: editorCommon.VerticalRevealType.Simple,
 				revealHorizontal: true,
 				revealCursor: false
 			};
-			this._context.privateViewEventBus.emit(editorCommon.ViewEventNames.RevealRangeEvent, revealPositionEvent);
+			this._context.privateViewEventBus.emit(viewEvents.ViewEventNames.RevealRangeEvent, revealPositionEvent);
 
 			// Find range pixel position
 			this.visibleRange = this.viewHelper.visibleRangeForPositionRelativeToEditor(lineNumber, column);
@@ -185,8 +187,8 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 		return false;
 	}
 
-	private _lastCursorSelectionChanged: editorCommon.IViewCursorSelectionChangedEvent = null;
-	public onCursorSelectionChanged(e: editorCommon.IViewCursorSelectionChangedEvent): boolean {
+	private _lastCursorSelectionChanged: viewEvents.IViewCursorSelectionChangedEvent = null;
+	public onCursorSelectionChanged(e: viewEvents.IViewCursorSelectionChangedEvent): boolean {
 		this._lastCursorSelectionChanged = e;
 		return false;
 	}

@@ -13,6 +13,7 @@ import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { Position } from 'vs/editor/common/core/position';
 import { IRenderingContext, IRestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
 import { IViewLayout } from 'vs/editor/common/viewModel/viewModel';
+import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
 export interface IMyViewZone {
 	whitespaceId: number;
@@ -119,11 +120,11 @@ export class ViewZones extends ViewPart {
 		return true;
 	}
 
-	public onModelLinesDeleted(e: editorCommon.IModelContentChangedLinesDeletedEvent): boolean {
+	public onModelLinesDeleted(e: viewEvents.IViewLinesDeletedEvent): boolean {
 		return true;
 	}
 
-	public onModelLinesInserted(e: editorCommon.IViewLinesInsertedEvent): boolean {
+	public onModelLinesInserted(e: viewEvents.IViewLinesInsertedEvent): boolean {
 		return true;
 	}
 

@@ -50,6 +50,7 @@ import { ViewOutgoingEvents } from 'vs/editor/browser/view/viewOutgoingEvents';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { EditorScrollbar } from 'vs/editor/browser/viewParts/editorScrollbar/editorScrollbar';
 import { Minimap } from 'vs/editor/browser/viewParts/minimap/minimap';
+import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
 export class View extends ViewEventHandler implements editorBrowser.IView, IDisposable {
 
@@ -456,11 +457,11 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		this.layoutProvider.onModelFlushed(this._context.model.getLineCount());
 		return false;
 	}
-	public onModelLinesDeleted(e: editorCommon.IViewLinesDeletedEvent): boolean {
+	public onModelLinesDeleted(e: viewEvents.IViewLinesDeletedEvent): boolean {
 		this.layoutProvider.onModelLinesDeleted(e);
 		return false;
 	}
-	public onModelLinesInserted(e: editorCommon.IViewLinesInsertedEvent): boolean {
+	public onModelLinesInserted(e: viewEvents.IViewLinesInsertedEvent): boolean {
 		this.layoutProvider.onModelLinesInserted(e);
 		return false;
 	}
@@ -512,7 +513,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		return false;
 	}
 
-	public onCursorRevealRange(e: editorCommon.IViewRevealRangeEvent): boolean {
+	public onCursorRevealRange(e: viewEvents.IViewRevealRangeEvent): boolean {
 		return e.revealCursor ? this.revealCursor() : false;
 	}
 

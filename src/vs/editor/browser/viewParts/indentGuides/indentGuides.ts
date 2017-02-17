@@ -10,6 +10,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { IRenderingContext } from 'vs/editor/common/view/renderingContext';
+import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
 export class IndentGuidesOverlay extends DynamicViewOverlay {
 
@@ -40,13 +41,13 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 	public onModelFlushed(): boolean {
 		return true;
 	}
-	public onModelLinesDeleted(e: editorCommon.IViewLinesDeletedEvent): boolean {
+	public onModelLinesDeleted(e: viewEvents.IViewLinesDeletedEvent): boolean {
 		return true;
 	}
-	public onModelLineChanged(e: editorCommon.IViewLineChangedEvent): boolean {
+	public onModelLineChanged(e: viewEvents.IViewLineChangedEvent): boolean {
 		return true;
 	}
-	public onModelLinesInserted(e: editorCommon.IViewLinesInsertedEvent): boolean {
+	public onModelLinesInserted(e: viewEvents.IViewLinesInsertedEvent): boolean {
 		return true;
 	}
 	public onConfigurationChanged(e: editorCommon.IConfigurationChangedEvent): boolean {

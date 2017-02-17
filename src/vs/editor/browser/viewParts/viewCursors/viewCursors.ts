@@ -15,6 +15,7 @@ import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { IRenderingContext, IRestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/styleMutator';
 import { TimeoutTimer } from 'vs/base/common/async';
+import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
 export class ViewCursors extends ViewPart {
 
@@ -82,20 +83,20 @@ export class ViewCursors extends ViewPart {
 		this._secondaryCursors = [];
 		return true;
 	}
-	public onModelDecorationsChanged(e: editorCommon.IViewDecorationsChangedEvent): boolean {
+	public onModelDecorationsChanged(e: viewEvents.IViewDecorationsChangedEvent): boolean {
 		// true for inline decorations that can end up relayouting text
 		return true;//e.inlineDecorationsChanged;
 	}
-	public onModelLinesDeleted(e: editorCommon.IViewLinesDeletedEvent): boolean {
+	public onModelLinesDeleted(e: viewEvents.IViewLinesDeletedEvent): boolean {
 		return true;
 	}
-	public onModelLineChanged(e: editorCommon.IViewLineChangedEvent): boolean {
+	public onModelLineChanged(e: viewEvents.IViewLineChangedEvent): boolean {
 		return true;
 	}
-	public onModelLinesInserted(e: editorCommon.IViewLinesInsertedEvent): boolean {
+	public onModelLinesInserted(e: viewEvents.IViewLinesInsertedEvent): boolean {
 		return true;
 	}
-	public onModelTokensChanged(e: editorCommon.IViewTokensChangedEvent): boolean {
+	public onModelTokensChanged(e: viewEvents.IViewTokensChangedEvent): boolean {
 		let shouldRender = (position: Position) => {
 			for (let i = 0, len = e.ranges.length; i < len; i++) {
 				if (e.ranges[i].fromLineNumber <= position.lineNumber && position.lineNumber <= e.ranges[i].toLineNumber) {
@@ -114,7 +115,7 @@ export class ViewCursors extends ViewPart {
 		}
 		return false;
 	}
-	public onCursorPositionChanged(e: editorCommon.IViewCursorPositionChangedEvent): boolean {
+	public onCursorPositionChanged(e: viewEvents.IViewCursorPositionChangedEvent): boolean {
 		this._primaryCursor.onCursorPositionChanged(e.position, e.isInEditableRange);
 		this._updateBlinking();
 
@@ -141,7 +142,7 @@ export class ViewCursors extends ViewPart {
 
 		return true;
 	}
-	public onCursorSelectionChanged(e: editorCommon.IViewCursorSelectionChangedEvent): boolean {
+	public onCursorSelectionChanged(e: viewEvents.IViewCursorSelectionChangedEvent): boolean {
 		let selectionIsEmpty = e.selection.isEmpty();
 		if (this._selectionIsEmpty !== selectionIsEmpty) {
 			this._selectionIsEmpty = selectionIsEmpty;

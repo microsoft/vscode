@@ -12,6 +12,7 @@ import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
 import { ClassNames } from 'vs/editor/browser/editorBrowser';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { IRenderingContext } from 'vs/editor/common/view/renderingContext';
+import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
 export class LineNumbersOverlay extends DynamicViewOverlay {
 
@@ -46,28 +47,28 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 	public onModelFlushed(): boolean {
 		return true;
 	}
-	public onModelDecorationsChanged(e: editorCommon.IViewDecorationsChangedEvent): boolean {
+	public onModelDecorationsChanged(e: viewEvents.IViewDecorationsChangedEvent): boolean {
 		return false;
 	}
-	public onModelLinesDeleted(e: editorCommon.IViewLinesDeletedEvent): boolean {
+	public onModelLinesDeleted(e: viewEvents.IViewLinesDeletedEvent): boolean {
 		return true;
 	}
-	public onModelLineChanged(e: editorCommon.IViewLineChangedEvent): boolean {
+	public onModelLineChanged(e: viewEvents.IViewLineChangedEvent): boolean {
 		return true;
 	}
-	public onModelLinesInserted(e: editorCommon.IViewLinesInsertedEvent): boolean {
+	public onModelLinesInserted(e: viewEvents.IViewLinesInsertedEvent): boolean {
 		return true;
 	}
-	public onCursorPositionChanged(e: editorCommon.IViewCursorPositionChangedEvent): boolean {
+	public onCursorPositionChanged(e: viewEvents.IViewCursorPositionChangedEvent): boolean {
 		if (this._renderRelativeLineNumbers) {
 			return true;
 		}
 		return false;
 	}
-	public onCursorSelectionChanged(e: editorCommon.IViewCursorSelectionChangedEvent): boolean {
+	public onCursorSelectionChanged(e: viewEvents.IViewCursorSelectionChangedEvent): boolean {
 		return false;
 	}
-	public onCursorRevealRange(e: editorCommon.IViewRevealRangeEvent): boolean {
+	public onCursorRevealRange(e: viewEvents.IViewRevealRangeEvent): boolean {
 		return false;
 	}
 	public onConfigurationChanged(e: editorCommon.IConfigurationChangedEvent): boolean {
