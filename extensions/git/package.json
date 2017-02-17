@@ -99,6 +99,11 @@
         }
       },
       {
+        "command": "git.unstageSelectedRanges",
+        "title": "%command.unstageSelectedRanges%",
+        "category": "Git"
+      },
+      {
         "command": "git.clean",
         "title": "%command.clean%",
         "category": "Git",
