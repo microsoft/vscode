@@ -80,6 +80,16 @@ export class WelcomePageAction extends Action {
 	}
 }
 
+const reorderedQuickLinks = [
+	'showInterfaceOverview',
+	'selectTheme',
+	'showRecommendedKeymapExtensions',
+	'showCommands',
+	'keybindingsReference',
+	'openGlobalSettings',
+	'showInteractivePlayground',
+];
+
 class WelcomePage {
 
 	constructor(
@@ -166,12 +176,13 @@ class WelcomePage {
 			});
 		}).then(null, onUnexpectedError);
 
-		if (this.telemetryService.getExperiments().repositionPlaygroundLink) {
-			const playground = container.querySelector('.showInteractivePlayground');
-			const sibling = playground.nextElementSibling;
-			if (sibling) {
-				playground.parentElement.insertBefore(playground, sibling.nextElementSibling);
-			}
+		if (this.telemetryService.getExperiments().reorderQuickLinks) {
+			reorderedQuickLinks.forEach(clazz => {
+				const link = container.querySelector(`.commands .${clazz}`);
+				if (link) {
+					link.parentElement.appendChild(link);
+				}
+			});
 		}
 	}
 }
