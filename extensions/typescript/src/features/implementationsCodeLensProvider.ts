@@ -88,8 +88,20 @@ export default class TypeScriptImplementationsCodeLensProvider extends TypeScrip
 
 	protected extractSymbol(
 		document: TextDocument,
-		item: Proto.NavigationTree
+		item: Proto.NavigationTree,
+		parent: Proto.NavigationTree | null
 	): Range | null {
+		// Handle children of interfaces
+		if (parent && parent.kind === PConst.Kind.interface) {
+			switch (item.kind) {
+				case PConst.Kind.memberFunction:
+				case PConst.Kind.memberVariable:
+				case PConst.Kind.memberGetAccessor:
+				case PConst.Kind.memberSetAccessor:
+					return super.getSymbolRange(document, item);
+			}
+		}
+
 		switch (item.kind) {
 			case PConst.Kind.interface:
 				return super.getSymbolRange(document, item);

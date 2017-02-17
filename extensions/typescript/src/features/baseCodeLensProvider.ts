@@ -37,7 +37,7 @@ export abstract class TypeScriptBaseCodeLensProvider implements CodeLensProvider
 			const tree = response.body;
 			const referenceableSpans: Range[] = [];
 			if (tree && tree.childItems) {
-				tree.childItems.forEach(item => this.walkNavTree(document, item, referenceableSpans));
+				tree.childItems.forEach(item => this.walkNavTree(document, item, null, referenceableSpans));
 			}
 			return referenceableSpans.map(span => new ReferencesCodeLens(document.uri, filepath, span));
 		});
@@ -45,26 +45,27 @@ export abstract class TypeScriptBaseCodeLensProvider implements CodeLensProvider
 
 	protected abstract extractSymbol(
 		document: TextDocument,
-		item: Proto.NavigationTree
+		item: Proto.NavigationTree,
+		parent: Proto.NavigationTree | null
 	): Range | null;
 
 	private walkNavTree(
 		document: TextDocument,
 		item: Proto.NavigationTree,
+		parent: Proto.NavigationTree | null,
 		results: Range[]
 	): void {
 		if (!item) {
 			return;
 		}
 
-		const range = this.extractSymbol(document, item);
+		const range = this.extractSymbol(document, item, parent);
 		if (range) {
 			results.push(range);
 		}
 
-		(item.childItems || []).forEach(item => this.walkNavTree(document, item, results));
+		(item.childItems || []).forEach(child => this.walkNavTree(document, child, item, results));
 	}
-
 
 	/**
 	 * TODO: TS currently requires the position for 'references 'to be inside of the identifer
@@ -94,4 +95,4 @@ export abstract class TypeScriptBaseCodeLensProvider implements CodeLensProvider
 			document.positionAt(startOffset),
 			document.positionAt(startOffset + item.text.length));
 	}
-};
+}

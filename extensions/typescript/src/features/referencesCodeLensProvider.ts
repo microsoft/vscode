@@ -88,7 +88,8 @@ export default class TypeScriptReferencesCodeLensProvider extends TypeScriptBase
 
 	protected extractSymbol(
 		document: TextDocument,
-		item: Proto.NavigationTree
+		item: Proto.NavigationTree,
+		_parent: Proto.NavigationTree | null
 	): Range | null {
 		switch (item.kind) {
 			case PConst.Kind.const:
