@@ -31,10 +31,14 @@ if [ "@@NAME@@" != "code-oss" ]; then
 	APT_DIR=$(get_apt_config_value Dir)
 	APT_ETC=$APT_DIR$(get_apt_config_value Dir::Etc)
 	APT_SOURCE_PARTS=$APT_ETC/$(get_apt_config_value Dir::Etc::sourceparts)
-	CODE_SOURCE_LIST=$APT_SOURCE_PARTS/vscode.list
+	CODE_SOURCE_PART=$APT_SOURCE_PARTS/vscode.list
+
+	APT_TRUSTED_PARTS=$APT_ETC/$(get_apt_config_value Dir::Etc::trustedparts)
+	CODE_TRUSTED_PART=$APT_TRUSTED_PARTS/microsoft.gpg
 
 	# Sourced from https://packages.microsoft.com/keys/microsoft.asc
-	echo "-----BEGIN PGP PUBLIC KEY BLOCK-----
+	if [ ! -f $CODE_TRUSTED_PART ]; then
+		echo "-----BEGIN PGP PUBLIC KEY BLOCK-----
 Version: GnuPG v1.4.7 (GNU/Linux)
 
 mQENBFYxWIwBCADAKoZhZlJxGNGWzqV+1OG1xiQeoowKhssGAKvd+buXCGISZJwT
@@ -54,8 +58,11 @@ NdCFTW7wY0Fb1fWJ+/KTsC4=
 =J6gs
 -----END PGP PUBLIC KEY BLOCK-----
 " | gpg --dearmor > microsoft.gpg
-	mv microsoft.gpg /etc/apt/trusted.gpg.d/microsoft.gpg
+		mv microsoft.gpg $CODE_TRUSTED_PART
+	fi
 
-	rm -f $CODE_SOURCE_LIST
-	echo "deb [arch=amd64] https://packages.microsoft.com/repos/vscode stable main" > $CODE_SOURCE_LIST
+	# Install repository source list if it does not already exist
+	if [ ! -f $CODE_SOURCE_PART ]; then
+		echo "deb [arch=amd64] https://packages.microsoft.com/repos/vscode stable main" > $CODE_SOURCE_PART
+	fi
 fi
