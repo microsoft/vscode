@@ -45,4 +45,21 @@ export class TokenMetadata {
 
 		return className;
 	}
+
+	public static getInlineStyleFromMetadata(metadata: number, colorMap: string[]): string {
+		const foreground = this.getForeground(metadata);
+		const fontStyle = this.getFontStyle(metadata);
+
+		let result = `color: ${colorMap[foreground]};`;
+		if (fontStyle & FontStyle.Italic) {
+			result += 'font-style: italic;';
+		}
+		if (fontStyle & FontStyle.Bold) {
+			result += 'font-weight: bold;';
+		}
+		if (fontStyle & FontStyle.Underline) {
+			result += 'text-decoration: underline;';
+		}
+		return result;
+	}
 }

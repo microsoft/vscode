@@ -15,25 +15,22 @@ export function tokenizeToString(text: string, languageId: string): string {
 	return _tokenizeToString(text, _getSafeTokenizationSupport(languageId));
 }
 
-export function tokenizeLineToHTML(text: string, viewLineTokens: ViewLineToken[], rules: { [key: string]: string }, options: { startOffset: number, endOffset: number, tabSize: number }): string {
-	let tabSize = options.tabSize;
+export function tokenizeLineToHTML(text: string, viewLineTokens: ViewLineToken[], colorMap: string[], startOffset: number, endOffset: number, tabSize: number): string {
 	let result = `<div>`;
-	let charIndex = options.startOffset;
+	let charIndex = startOffset;
 	let tabsCharDelta = 0;
 
 	for (let tokenIndex = 0, lenJ = viewLineTokens.length; tokenIndex < lenJ; tokenIndex++) {
 		const token = viewLineTokens[tokenIndex];
 		const tokenEndIndex = token.endIndex;
 
-		if (token.endIndex < options.startOffset) {
+		if (token.endIndex <= startOffset) {
 			continue;
 		}
 
-		const tokenType = token.getType();
-		let partContentCnt = 0;
 		let partContent = '';
 
-		for (; charIndex < tokenEndIndex && charIndex < options.endOffset; charIndex++) {
+		for (; charIndex < tokenEndIndex && charIndex < endOffset; charIndex++) {
 			const charCode = text.charCodeAt(charIndex);
 
 			switch (charCode) {
@@ -42,59 +39,48 @@ export function tokenizeLineToHTML(text: string, viewLineTokens: ViewLineToken[]
 					tabsCharDelta += insertSpacesCount - 1;
 					while (insertSpacesCount > 0) {
 						partContent += '&nbsp;';
-						partContentCnt++;
 						insertSpacesCount--;
 					}
 					break;
 
 				case CharCode.Space:
 					partContent += '&nbsp;';
-					partContentCnt++;
 					break;
 
 				case CharCode.LessThan:
 					partContent += '&lt;';
-					partContentCnt++;
 					break;
 
 				case CharCode.GreaterThan:
 					partContent += '&gt;';
-					partContentCnt++;
 					break;
 
 				case CharCode.Ampersand:
 					partContent += '&amp;';
-					partContentCnt++;
 					break;
 
 				case CharCode.Null:
 					partContent += '&#00;';
-					partContentCnt++;
 					break;
 
 				case CharCode.UTF8_BOM:
 				case CharCode.LINE_SEPARATOR_2028:
 					partContent += '\ufffd';
-					partContentCnt++;
 					break;
 
 				case CharCode.CarriageReturn:
 					// zero width space, because carriage return would introduce a line break
 					partContent += '&#8203';
-					partContentCnt++;
 					break;
 
 				default:
 					partContent += String.fromCharCode(charCode);
-					partContentCnt++;
 			}
 		}
 
-		// TODO: adopt new view line tokens.
-		let style = tokenType.split(' ').map(type => rules[type]).join('');
-		result += `<span style="${style}">${partContent}</span>`;
+		result += `<span style="${token.getInlineStyle(colorMap)}">${partContent}</span>`;
 
-		if (token.endIndex > options.endOffset) {
+		if (token.endIndex > endOffset || charIndex >= endOffset) {
 			break;
 		}
 	}
