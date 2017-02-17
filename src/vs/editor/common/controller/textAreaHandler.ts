@@ -11,7 +11,10 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IClipboardEvent, ICompositionEvent, IKeyboardEventWrapper, ISimpleModel, ITextAreaWrapper, ITypeData, TextAreaState, TextAreaStrategy, createTextAreaState } from 'vs/editor/common/controller/textAreaState';
 import { Range } from 'vs/editor/common/core/range';
-import { InternalEditorOptions } from 'vs/editor/common/editorCommon';
+
+export const CopyOptions = {
+	forceCopyWithSyntaxHighlighting: false
+};
 
 const enum ReadFromTextArea {
 	Type,
@@ -326,7 +329,7 @@ export class TextAreaHandler extends Disposable {
 		let whatToCopy = this.model.getPlainTextToCopy(this.selections, this.Browser.enableEmptySelectionClipboard);
 		if (e.canUseTextData()) {
 			let whatHTMLToCopy = null;
-			if (!this.Browser.isEdgeOrIE && (whatToCopy.length < 65536 || InternalEditorOptions.forceCopyWithSyntaxHighlighting)) {
+			if (!this.Browser.isEdgeOrIE && (whatToCopy.length < 65536 || CopyOptions.forceCopyWithSyntaxHighlighting)) {
 				whatHTMLToCopy = this.model.getHTMLToCopy(this.selections, this.Browser.enableEmptySelectionClipboard);
 			}
 			e.setTextData(whatToCopy, whatHTMLToCopy);
