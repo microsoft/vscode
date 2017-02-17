@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CharCode } from 'vs/base/common/charCode';
+
 export class RGBA {
 	_rgbaBrand: void;
 
@@ -95,19 +97,58 @@ export class HSLA {
 /**
  * Converts an Hex color value to RGB.
  * returns r, g, and b are contained in the set [0, 255]
+ * @param hex string (#RRGGBB or #RRGGBBAA).
  */
 function hex2rgba(hex: string): RGBA {
-	function parseHex(str: string) {
-		return parseInt('0x' + str);
+	if (!hex) {
+		// Invalid color
+		return new RGBA(255, 0, 0, 255);
 	}
-	if (hex.charAt(0) === '#' && hex.length >= 7) {
-		const r = parseHex(hex.substr(1, 2));
-		const g = parseHex(hex.substr(3, 2));
-		const b = parseHex(hex.substr(5, 2));
-		const a = hex.length === 9 ? parseHex(hex.substr(7, 2)) : 255;
+	if (hex.length === 7 && hex.charCodeAt(0) === CharCode.Hash) {
+		// #RRGGBB format
+		const r = 16 * _parseHexDigit(hex.charCodeAt(1)) + _parseHexDigit(hex.charCodeAt(2));
+		const g = 16 * _parseHexDigit(hex.charCodeAt(3)) + _parseHexDigit(hex.charCodeAt(4));
+		const b = 16 * _parseHexDigit(hex.charCodeAt(5)) + _parseHexDigit(hex.charCodeAt(6));
+		return new RGBA(r, g, b, 255);
+	}
+	if (hex.length === 9 && hex.charCodeAt(0) === CharCode.Hash) {
+		// #RRGGBBAA format
+		const r = 16 * _parseHexDigit(hex.charCodeAt(1)) + _parseHexDigit(hex.charCodeAt(2));
+		const g = 16 * _parseHexDigit(hex.charCodeAt(3)) + _parseHexDigit(hex.charCodeAt(4));
+		const b = 16 * _parseHexDigit(hex.charCodeAt(5)) + _parseHexDigit(hex.charCodeAt(6));
+		const a = 16 * _parseHexDigit(hex.charCodeAt(7)) + _parseHexDigit(hex.charCodeAt(8));
 		return new RGBA(r, g, b, a);
 	}
+	// Invalid color
 	return new RGBA(255, 0, 0, 255);
+}
+
+function _parseHexDigit(charCode: CharCode): number {
+	switch (charCode) {
+		case CharCode.Digit0: return 0;
+		case CharCode.Digit1: return 1;
+		case CharCode.Digit2: return 2;
+		case CharCode.Digit3: return 3;
+		case CharCode.Digit4: return 4;
+		case CharCode.Digit5: return 5;
+		case CharCode.Digit6: return 6;
+		case CharCode.Digit7: return 7;
+		case CharCode.Digit8: return 8;
+		case CharCode.Digit9: return 9;
+		case CharCode.a: return 10;
+		case CharCode.A: return 10;
+		case CharCode.b: return 11;
+		case CharCode.B: return 11;
+		case CharCode.c: return 12;
+		case CharCode.C: return 12;
+		case CharCode.d: return 13;
+		case CharCode.D: return 13;
+		case CharCode.e: return 14;
+		case CharCode.E: return 14;
+		case CharCode.f: return 15;
+		case CharCode.F: return 15;
+	}
+	return 0;
 }
 
 /**
@@ -187,14 +228,17 @@ function _hue2rgb(p: number, q: number, t: number) {
 	return p;
 }
 
-export function hexToCSS(hex: string) {
+/**
+ * @param hex string (#RRGGBB or #RRGGBBAA).
+ */
+export function hexToCSSrgba(hex: string) {
 	if (hex.length === 9) {
-		return toCSSColor(hex2rgba(hex));
+		return toCSSrgba(hex2rgba(hex));
 	}
 	return hex;
 }
 
-function toCSSColor(rgba: RGBA): string {
+function toCSSrgba(rgba: RGBA): string {
 	return `rgba(${rgba.r}, ${rgba.g}, ${rgba.b}, ${+(rgba.a / 255).toFixed(2)})`;
 }
 
@@ -217,12 +261,14 @@ export class Color {
 
 	private readonly rgba: RGBA;
 	private hsla: HSLA;
-	private str: string;
 
 	private constructor(arg: string | RGBA) {
-		this.rgba = typeof arg === 'string' ? hex2rgba(arg) : <RGBA>arg;
+		if (arg instanceof RGBA) {
+			this.rgba = arg;
+		} else {
+			this.rgba = hex2rgba(arg);
+		}
 		this.hsla = null;
-		this.str = null;
 	}
 
 	/**
@@ -309,10 +355,7 @@ export class Color {
 	}
 
 	public toString(): string {
-		if (this.str === null) {
-			this.str = toCSSColor(this.rgba);
-		}
-		return this.str;
+		return toCSSrgba(this.rgba);
 	}
 
 	public toHSLA(): HSLA {
