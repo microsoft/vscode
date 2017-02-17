@@ -365,17 +365,22 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 	private languages: LanguageProvider[];
 	private languagePerId: ObjectMap<LanguageProvider>;
 
-	constructor(descriptions: LanguageDescription[], storagePath: string | undefined, globalState: Memento, workspaceState: Memento) {
-		let handleProjectCreateOrDelete = () => {
+	constructor(
+		descriptions: LanguageDescription[],
+		storagePath: string | undefined,
+		globalState: Memento,
+		workspaceState: Memento
+	) {
+		const handleProjectCreateOrDelete = () => {
 			this.client.execute('reloadProjects', null, false);
 			this.triggerAllDiagnostics();
 		};
-		let handleProjectChange = () => {
+		const handleProjectChange = () => {
 			setTimeout(() => {
 				this.triggerAllDiagnostics();
 			}, 1500);
 		};
-		let watcher = workspace.createFileSystemWatcher('**/[tj]sconfig.json');
+		const watcher = workspace.createFileSystemWatcher('**/[tj]sconfig.json');
 		watcher.onDidCreate(handleProjectCreateOrDelete);
 		watcher.onDidDelete(handleProjectCreateOrDelete);
 		watcher.onDidChange(handleProjectChange);
@@ -384,7 +389,7 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 		this.languages = [];
 		this.languagePerId = Object.create(null);
 		descriptions.forEach(description => {
-			let manager = new LanguageProvider(this.client, description);
+			const manager = new LanguageProvider(this.client, description);
 			this.languages.push(manager);
 			this.languagePerId[description.id] = manager;
 		});
