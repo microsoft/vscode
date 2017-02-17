@@ -653,7 +653,11 @@ export class ViewModel extends EventEmitter implements IViewModel {
 			const startOffset = (lineNumber === startLineNumber ? startColumn - 1 : 0);
 			const endOffset = (lineNumber === endLineNumber ? endColumn - 1 : lineContent.length);
 
-			result += tokenizeLineToHTML(lineContent, lineTokens.inflate(), colorMap, startOffset, endOffset, tabSize);
+			if (lineContent === '') {
+				result += '<br>';
+			} else {
+				result += tokenizeLineToHTML(lineContent, lineTokens.inflate(), colorMap, startOffset, endOffset, tabSize);
+			}
 		}
 
 		return result;
