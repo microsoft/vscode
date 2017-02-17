@@ -1057,10 +1057,6 @@ export class EditorContribOptions {
  * Internal configuration options (transformed or computed) for the editor.
  */
 export class InternalEditorOptions {
-	/**
-	 * @internal
-	 */
-	static forceCopyWithSyntaxHighlighting: boolean = false;
 	readonly _internalEditorOptionsBrand: void;
 
 	readonly lineHeight: number; // todo: move to fontInfo
