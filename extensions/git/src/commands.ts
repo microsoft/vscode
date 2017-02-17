@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { Uri, commands, scm, Disposable, SCMResourceGroup, SCMResource, window, workspace, QuickPickItem, OutputChannel, computeDiff, Range } from 'vscode';
+import { Uri, commands, scm, Disposable, SCMResourceGroup, SCMResource, window, workspace, QuickPickItem, OutputChannel, computeDiff, Range, WorkspaceEdit, Position } from 'vscode';
 import { Ref, RefType } from './git';
 import { Model, Resource, Status, CommitOptions } from './model';
 import * as staging from './staging';
@@ -268,6 +268,52 @@ export class CommandCenter {
 
 		const result = staging.applyChanges(originalDocument, modifiedDocument, selectedDiffs);
 		await this.model.stage(modifiedUri, result);
+	}
+
+	@command('git.revertSelectedRanges')
+	async revertSelectedRanges(): Promise<void> {
+		const textEditor = window.activeTextEditor;
+
+		if (!textEditor) {
+			return;
+		}
+
+		const modifiedDocument = textEditor.document;
+		const modifiedUri = modifiedDocument.uri;
+
+		if (modifiedUri.scheme !== 'file') {
+			return;
+		}
+
+		const originalUri = modifiedUri.with({ scheme: 'git', query: '~' });
+		const originalDocument = await workspace.openTextDocument(originalUri);
+		const diffs = await computeDiff(originalDocument, modifiedDocument);
+		const selections = textEditor.selections;
+		const selectedDiffs = diffs.filter(diff => {
+			const modifiedRange = diff.modifiedEndLineNumber === 0
+				? new Range(modifiedDocument.lineAt(diff.modifiedStartLineNumber - 1).range.end, modifiedDocument.lineAt(diff.modifiedStartLineNumber).range.start)
+				: new Range(modifiedDocument.lineAt(diff.modifiedStartLineNumber - 1).range.start, modifiedDocument.lineAt(diff.modifiedEndLineNumber - 1).range.end);
+
+			return selections.every(selection => !selection.intersection(modifiedRange));
+		});
+
+		if (selectedDiffs.length === diffs.length) {
+			return;
+		}
+
+		const basename = path.basename(modifiedUri.fsPath);
+		const message = localize('confirm revert', "Are you sure you want to revert the selected changes in {0}?", basename);
+		const yes = localize('revert', "Revert Changes");
+		const pick = await window.showWarningMessage(message, { modal: true }, yes);
+
+		if (pick !== yes) {
+			return;
+		}
+
+		const result = staging.applyChanges(originalDocument, modifiedDocument, selectedDiffs);
+		const edit = new WorkspaceEdit();
+		edit.replace(modifiedUri, new Range(new Position(0, 0), modifiedDocument.lineAt(modifiedDocument.lineCount - 1).range.end), result);
+		workspace.applyEdit(edit);
 	}
 
 	@command('git.unstage')
