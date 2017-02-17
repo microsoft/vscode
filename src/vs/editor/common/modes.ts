@@ -13,7 +13,8 @@ import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegis
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import Event, { Emitter } from 'vs/base/common/event';
+import Event from 'vs/base/common/event';
+import { TokenizationRegistryImpl } from 'vs/editor/common/modes/tokenizationRegistry';
 
 /**
  * Open ended enum at runtime
@@ -807,54 +808,21 @@ export interface ITokenizationSupportChangedEvent {
 /**
  * @internal
  */
-export class TokenizationRegistryImpl {
-
-	private _map: { [language: string]: ITokenizationSupport };
-
-	private _onDidChange: Emitter<ITokenizationSupportChangedEvent> = new Emitter<ITokenizationSupportChangedEvent>();
-	public onDidChange: Event<ITokenizationSupportChangedEvent> = this._onDidChange.event;
-
-	private _colorMap: string[];
-
-	constructor() {
-		this._map = Object.create(null);
-		this._colorMap = null;
-	}
-
+export interface ITokenizationRegistry {
+	onDidChange: Event<ITokenizationSupportChangedEvent>;
 	/**
 	 * Fire a change event for a language.
 	 * This is useful for languages that embed other languages.
 	 */
-	public fire(languages: string[]): void {
-		this._onDidChange.fire({ languages: languages });
-	}
+	fire(languages: string[]): void;
 
-	public register(language: string, support: ITokenizationSupport): IDisposable {
-		this._map[language] = support;
-		this.fire([language]);
-		return {
-			dispose: () => {
-				if (this._map[language] !== support) {
-					return;
-				}
-				delete this._map[language];
-				this.fire([language]);
-			}
-		};
-	}
+	register(language: string, support: ITokenizationSupport): IDisposable;
 
-	public get(language: string): ITokenizationSupport {
-		return (this._map[language] || null);
-	}
+	get(language: string): ITokenizationSupport;
 
-	public setColorMap(colorMap: string[]): void {
-		this._colorMap = colorMap;
-		this.fire(Object.keys(this._map));
-	}
+	setColorMap(colorMap: string[]): void;
 
-	public getColorMap(): string[] {
-		return this._colorMap;
-	}
+	getColorMap(): string[];
 }
 
 /**
