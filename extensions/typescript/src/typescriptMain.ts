@@ -40,6 +40,7 @@ import WorkspaceSymbolProvider from './features/workspaceSymbolProvider';
 import CodeActionProvider from './features/codeActionProvider';
 import ReferenceCodeLensProvider from './features/referencesCodeLensProvider';
 import JsDocCompletionHelper from './features/jsDocCompletionProvider';
+import ImplementationCodeLensProvider from './features/implementationsCodeLensProvider';
 
 import * as BuildStatus from './utils/buildStatus';
 import * as ProjectStatus from './utils/projectStatus';
@@ -218,6 +219,10 @@ class LanguageProvider {
 			this.referenceCodeLensProvider = new ReferenceCodeLensProvider(client);
 			this.referenceCodeLensProvider.updateConfiguration();
 			this.disposables.push(languages.registerCodeLensProvider(selector, this.referenceCodeLensProvider));
+
+			const implementationCodeLens = new ImplementationCodeLensProvider(client);
+			implementationCodeLens.updateConfiguration();
+			this.disposables.push(languages.registerCodeLensProvider(selector, implementationCodeLens));
 		}
 
 		if (client.apiVersion.has213Features()) {
