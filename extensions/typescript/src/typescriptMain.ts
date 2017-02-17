@@ -385,6 +385,7 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 	private languages: LanguageProvider[];
 	private languagePerId: ObjectMap<LanguageProvider>;
 	private configFileWatcher: FileSystemWatcher;
+	private readonly disposables: Disposable[] = [];
 
 	constructor(
 		descriptions: LanguageDescription[],
@@ -401,10 +402,11 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 				this.triggerAllDiagnostics();
 			}, 1500);
 		};
-		this.configFileWatcher = workspace.createFileSystemWatcher('**/[tj]sconfig.json');
-		this.configFileWatcher.onDidCreate(handleProjectCreateOrDelete);
-		this.configFileWatcher.onDidDelete(handleProjectCreateOrDelete);
-		this.configFileWatcher.onDidChange(handleProjectChange);
+		const configFileWatcher = workspace.createFileSystemWatcher('**/[tj]sconfig.json');
+		this.disposables.push(configFileWatcher);
+		configFileWatcher.onDidCreate(handleProjectCreateOrDelete, this, this.disposables);
+		configFileWatcher.onDidDelete(handleProjectCreateOrDelete, this, this.disposables);
+		configFileWatcher.onDidChange(handleProjectChange, this, this.disposables);
 
 		this.client = new TypeScriptServiceClient(this, storagePath, globalState, workspaceState);
 		this.languages = [];
@@ -412,16 +414,19 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 		for (const description of descriptions) {
 			const manager = new LanguageProvider(this.client, description);
 			this.languages.push(manager);
+			this.disposables.push(manager);
 			this.languagePerId[description.id] = manager;
 		}
 	}
 
 	public dispose(): void {
-		this.configFileWatcher.dispose();
-
-		for (const provider of this.languages) {
-			provider.dispose();
+		while (this.disposables.length) {
+			const obj = this.disposables.pop();
+			if (obj) {
+				obj.dispose();
+			}
 		}
+		this.configFileWatcher.dispose();
 	}
 
 	public get serviceClient(): TypeScriptServiceClient {
