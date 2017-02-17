@@ -328,7 +328,7 @@ export class TextAreaHandler extends Disposable {
 	private _ensureClipboardGetsEditorSelection(e: IClipboardEvent): void {
 		let whatToCopy = this.model.getPlainTextToCopy(this.selections, this.Browser.enableEmptySelectionClipboard);
 		if (e.canUseTextData()) {
-			let whatHTMLToCopy = null;
+			let whatHTMLToCopy: string = null;
 			if (!this.Browser.isEdgeOrIE && (whatToCopy.length < 65536 || CopyOptions.forceCopyWithSyntaxHighlighting)) {
 				whatHTMLToCopy = this.model.getHTMLToCopy(this.selections, this.Browser.enableEmptySelectionClipboard);
 			}
