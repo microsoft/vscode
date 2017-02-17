@@ -567,6 +567,9 @@
 					"end": "(?=\\{)",
 					"patterns": [
 						{
+							"include": "#comment"
+						},
+						{
 							"include": "#type-parameter-list"
 						},
 						{
@@ -649,6 +652,9 @@
 					"begin": "(?=enum)",
 					"end": "(?=\\{)",
 					"patterns": [
+						{
+							"include": "#comment"
+						},
 						{
 							"match": "(enum)\\s+([_[:alpha:]][_[:alnum:]]*)",
 							"captures": {
@@ -746,6 +752,9 @@
 					"end": "(?=\\{)",
 					"patterns": [
 						{
+							"include": "#comment"
+						},
+						{
 							"include": "#type-parameter-list"
 						},
 						{
@@ -799,6 +808,9 @@
 					},
 					"end": "(?=\\{)",
 					"patterns": [
+						{
+							"include": "#comment"
+						},
 						{
 							"include": "#type-parameter-list"
 						},
@@ -2809,7 +2821,7 @@
 			]
 		},
 		"element-access-expression": {
-			"begin": "(?x)\n(?:(\\?)\\s*)?                   # preceding null-conditional operator?\n(?:(\\.)\\s*)?                   # preceding dot?\n([_[:alpha:]][_[:alnum:]]*)\\s* # property name\n(?:(\\?)\\s*)?                   # null-conditional operator?\n(?=\\[)                         # open bracket of argument list",
+			"begin": "(?x)\n(?:(\\?)\\s*)?                        # preceding null-conditional operator?\n(?:(\\.)\\s*)?                        # preceding dot?\n(?:([_[:alpha:]][_[:alnum:]]*)\\s*)? # property name\n(?:(\\?)\\s*)?                        # null-conditional operator?\n(?=\\[)                              # open bracket of argument list",
 			"beginCaptures": {
 				"1": {
 					"name": "keyword.operator.null-conditional.cs"
@@ -2824,7 +2836,7 @@
 					"name": "keyword.operator.null-conditional.cs"
 				}
 			},
-			"end": "(?<=\\])",
+			"end": "(?<=\\])(?!\\s*\\[)",
 			"patterns": [
 				{
 					"include": "#bracketed-argument-list"
@@ -2949,7 +2961,7 @@
 					"name": "keyword.other.new.cs"
 				}
 			},
-			"end": "(?=;|\\))",
+			"end": "(?=\\)|;|})",
 			"patterns": [
 				{
 					"include": "#initializer-expression"
@@ -4163,5 +4175,5 @@
 			}
 		}
 	},
-	"version": "https://github.com/dotnet/csharp-tmLanguage/commit/edf7cdf5073db593691a110efa8cdc10c34c3d1e"
+	"version": "https://github.com/dotnet/csharp-tmLanguage/commit/c6def572109a0c7323ea1d1ca66e5af020ab070e"
 }
