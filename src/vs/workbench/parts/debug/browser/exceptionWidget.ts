@@ -13,7 +13,6 @@ import * as strings from 'vs/base/common/strings';
 
 export class ExceptionWidget extends ZoneWidget {
 
-
 	constructor(editor: ICodeEditor, private lineNumber: number,
 		@IContextViewService private contextViewService: IContextViewService,
 		@IDebugService private debugService: IDebugService
