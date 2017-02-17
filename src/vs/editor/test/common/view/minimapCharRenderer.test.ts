@@ -5,9 +5,10 @@
 'use strict';
 
 import * as assert from 'assert';
-import { ParsedColor, Constants } from 'vs/editor/common/view/minimapCharRenderer';
+import { Constants } from 'vs/editor/common/view/minimapCharRenderer';
 import { MinimapCharRendererFactory } from 'vs/editor/test/common/view/minimapCharRendererFactory';
 import { getOrCreateMinimapCharRenderer } from 'vs/editor/common/view/runtimeMinimapCharRenderer';
+import { RGBA } from 'vs/base/common/color';
 
 suite('MinimapCharRenderer', () => {
 
@@ -78,8 +79,8 @@ suite('MinimapCharRenderer', () => {
 		setSampleData('d'.charCodeAt(0), sampleD);
 		let renderer = MinimapCharRendererFactory.create(sampleData);
 
-		let background = new ParsedColor(0, 0, 0);
-		let color = new ParsedColor(255, 255, 255);
+		let background = new RGBA(0, 0, 0, 255);
+		let color = new RGBA(255, 255, 255, 255);
 		let imageData = createFakeImageData(Constants.x2_CHAR_WIDTH, Constants.x2_CHAR_HEIGHT);
 		// set the background color
 		for (let i = 0, len = imageData.data.length / 4; i < len; i++) {
@@ -88,7 +89,7 @@ suite('MinimapCharRenderer', () => {
 			imageData.data[4 * i + 2] = background.b;
 			imageData.data[4 * i + 3] = 255;
 		}
-		renderer.x2RenderChar(imageData, 0, 0, 'd'.charCodeAt(0), color, background);
+		renderer.x2RenderChar(imageData, 0, 0, 'd'.charCodeAt(0), color, background, false);
 
 		let actual: number[] = [];
 		for (let i = 0; i < imageData.data.length; i++) {
@@ -105,8 +106,8 @@ suite('MinimapCharRenderer', () => {
 	test('letter d @ 2x at runtime', () => {
 		let renderer = getOrCreateMinimapCharRenderer();
 
-		let background = new ParsedColor(0, 0, 0);
-		let color = new ParsedColor(255, 255, 255);
+		let background = new RGBA(0, 0, 0, 255);
+		let color = new RGBA(255, 255, 255, 255);
 		let imageData = createFakeImageData(Constants.x2_CHAR_WIDTH, Constants.x2_CHAR_HEIGHT);
 		// set the background color
 		for (let i = 0, len = imageData.data.length / 4; i < len; i++) {
@@ -116,7 +117,7 @@ suite('MinimapCharRenderer', () => {
 			imageData.data[4 * i + 3] = 255;
 		}
 
-		renderer.x2RenderChar(imageData, 0, 0, 'd'.charCodeAt(0), color, background);
+		renderer.x2RenderChar(imageData, 0, 0, 'd'.charCodeAt(0), color, background, false);
 
 		let actual: number[] = [];
 		for (let i = 0; i < imageData.data.length; i++) {
@@ -134,8 +135,8 @@ suite('MinimapCharRenderer', () => {
 		setSampleData('d'.charCodeAt(0), sampleD);
 		let renderer = MinimapCharRendererFactory.create(sampleData);
 
-		let background = new ParsedColor(0, 0, 0);
-		let color = new ParsedColor(255, 255, 255);
+		let background = new RGBA(0, 0, 0, 255);
+		let color = new RGBA(255, 255, 255, 255);
 		let imageData = createFakeImageData(Constants.x1_CHAR_WIDTH, Constants.x1_CHAR_HEIGHT);
 		// set the background color
 		for (let i = 0, len = imageData.data.length / 4; i < len; i++) {
@@ -145,7 +146,7 @@ suite('MinimapCharRenderer', () => {
 			imageData.data[4 * i + 3] = 255;
 		}
 
-		renderer.x1RenderChar(imageData, 0, 0, 'd'.charCodeAt(0), color, background);
+		renderer.x1RenderChar(imageData, 0, 0, 'd'.charCodeAt(0), color, background, false);
 
 		let actual: number[] = [];
 		for (let i = 0; i < imageData.data.length; i++) {
@@ -160,8 +161,8 @@ suite('MinimapCharRenderer', () => {
 	test('letter d @ 1x at runtime', () => {
 		let renderer = getOrCreateMinimapCharRenderer();
 
-		let background = new ParsedColor(0, 0, 0);
-		let color = new ParsedColor(255, 255, 255);
+		let background = new RGBA(0, 0, 0, 255);
+		let color = new RGBA(255, 255, 255, 255);
 		let imageData = createFakeImageData(Constants.x1_CHAR_WIDTH, Constants.x1_CHAR_HEIGHT);
 		// set the background color
 		for (let i = 0, len = imageData.data.length / 4; i < len; i++) {
@@ -171,7 +172,7 @@ suite('MinimapCharRenderer', () => {
 			imageData.data[4 * i + 3] = 255;
 		}
 
-		renderer.x1RenderChar(imageData, 0, 0, 'd'.charCodeAt(0), color, background);
+		renderer.x1RenderChar(imageData, 0, 0, 'd'.charCodeAt(0), color, background, false);
 
 		let actual: number[] = [];
 		for (let i = 0; i < imageData.data.length; i++) {

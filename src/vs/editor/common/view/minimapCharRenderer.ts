@@ -6,34 +6,7 @@
 
 import { ColorId, TokenizationRegistry } from 'vs/editor/common/modes';
 import Event, { Emitter } from 'vs/base/common/event';
-import { Color } from 'vs/base/common/color';
-
-export class ParsedColor {
-
-	public readonly r: number;
-	public readonly g: number;
-	public readonly b: number;
-	public readonly isLight: boolean;
-
-	constructor(r, g, b) {
-		this.r = r;
-		this.g = g;
-		this.b = b;
-		this.isLight = ((r + g + b) / (3 * 255) > 0.5);
-	}
-
-	public toCSSHex(): string {
-		return `#${ParsedColor._toTwoDigitHex(this.r)}${ParsedColor._toTwoDigitHex(this.g)}${ParsedColor._toTwoDigitHex(this.b)}`;
-	}
-
-	private static _toTwoDigitHex(n: number): string {
-		let r = n.toString(16);
-		if (r.length !== 2) {
-			return '0' + r;
-		}
-		return r;
-	}
-}
+import { RGBA } from 'vs/base/common/color';
 
 export class MinimapTokensColorTracker {
 	private static _INSTANCE: MinimapTokensColorTracker = null;
@@ -44,35 +17,42 @@ export class MinimapTokensColorTracker {
 		return this._INSTANCE;
 	}
 
-	private _colors: ParsedColor[];
+	private _colors: RGBA[];
+	private _backgroundIsLight: boolean;
 
 	private _onDidChange = new Emitter<void>();
 	public onDidChange: Event<void> = this._onDidChange.event;
 
 	private constructor() {
-		this._setColorMap(TokenizationRegistry.getColorMap());
+		this._updateColorMap();
 		TokenizationRegistry.onDidChange((e) => {
 			if (e.changedColorMap) {
-				this._setColorMap(TokenizationRegistry.getColorMap());
+				this._updateColorMap();
 			}
 		});
 	}
 
-	private _setColorMap(colorMap: Color[]): void {
+	private _updateColorMap(): void {
+		const colorMap = TokenizationRegistry.getColorMap();
 		this._colors = [null];
 		for (let colorId = 1; colorId < colorMap.length; colorId++) {
-			const color = colorMap[colorId].toRGBA();
-			this._colors[colorId] = new ParsedColor(color.r, color.g, color.b);
+			this._colors[colorId] = colorMap[colorId].toRGBA();
 		}
+		let backgroundLuminosity = colorMap[ColorId.DefaultBackground].getLuminosity();
+		this._backgroundIsLight = (backgroundLuminosity >= 0.5);
 		this._onDidChange.fire(void 0);
 	}
 
-	public getColor(colorId: ColorId): ParsedColor {
+	public getColor(colorId: ColorId): RGBA {
 		if (colorId < 1 || colorId >= this._colors.length) {
 			// background color (basically invisible)
-			colorId = 2;
+			colorId = ColorId.DefaultBackground;
 		}
 		return this._colors[colorId];
+	}
+
+	public backgroundIsLight(): boolean {
+		return this._backgroundIsLight;
 	}
 }
 
@@ -136,12 +116,12 @@ export class MinimapCharRenderer {
 		return (chCode % Constants.CHAR_COUNT);
 	}
 
-	public x2RenderChar(target: ImageData, dx: number, dy: number, chCode: number, color: ParsedColor, backgroundColor: ParsedColor): void {
+	public x2RenderChar(target: ImageData, dx: number, dy: number, chCode: number, color: RGBA, backgroundColor: RGBA, useLighterFont: boolean): void {
 		if (dx + Constants.x2_CHAR_WIDTH > target.width || dy + Constants.x2_CHAR_HEIGHT > target.height) {
 			console.warn('bad render request outside image data');
 			return;
 		}
-		const x2CharData = backgroundColor.isLight ? this.x2charDataLight : this.x2charData;
+		const x2CharData = useLighterFont ? this.x2charDataLight : this.x2charData;
 		const chIndex = MinimapCharRenderer._getChIndex(chCode);
 
 		const outWidth = target.width * Constants.RGBA_CHANNELS_CNT;
@@ -213,12 +193,12 @@ export class MinimapCharRenderer {
 		}
 	}
 
-	public x1RenderChar(target: ImageData, dx: number, dy: number, chCode: number, color: ParsedColor, backgroundColor: ParsedColor): void {
+	public x1RenderChar(target: ImageData, dx: number, dy: number, chCode: number, color: RGBA, backgroundColor: RGBA, useLighterFont: boolean): void {
 		if (dx + Constants.x1_CHAR_WIDTH > target.width || dy + Constants.x1_CHAR_HEIGHT > target.height) {
 			console.warn('bad render request outside image data');
 			return;
 		}
-		const x1CharData = backgroundColor.isLight ? this.x1charDataLight : this.x1charData;
+		const x1CharData = useLighterFont ? this.x1charDataLight : this.x1charData;
 		const chIndex = MinimapCharRenderer._getChIndex(chCode);
 
 		const outWidth = target.width * Constants.RGBA_CHANNELS_CNT;
