@@ -81,6 +81,11 @@
         "category": "Git"
       },
       {
+        "command": "git.revertSelectedRanges",
+        "title": "%command.revertSelectedRanges%",
+        "category": "Git"
+      },
+      {
         "command": "git.unstage",
         "title": "%command.unstage%",
         "category": "Git",
