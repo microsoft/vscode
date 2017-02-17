@@ -601,17 +601,14 @@ export class ViewModel extends EventEmitter implements IViewModel {
 		let colorMap = TokenizationRegistry.getColorMap();
 		for (let i = 1, len = colorMap.length; i < len; i++) {
 			let color = colorMap[i];
-			if (/^(?:[0-9a-fA-F]{3}){1,2}$/.test(color)) {
-				color = '#' + color;
-			}
-			rules[`mtk${i}`] = `color: ${color};`;
+			rules[`mtk${i}`] = `color: ${color.toRGBHex()};`;
 		}
 		rules['mtki'] = 'font-style: italic;';
 		rules['mtkb'] = 'font-weight: bold;';
 		rules['mtku'] = 'text-decoration: underline;';
 
-		let defaultForegroundColor = /^(?:[0-9a-fA-F]{3}){1,2}$/.test(colorMap[1]) ? '#' + colorMap[1] : colorMap[1];
-		let defaultBackgroundColor = /^(?:[0-9a-fA-F]{3}){1,2}$/.test(colorMap[2]) ? '#' + colorMap[2] : colorMap[2];
+		let defaultForegroundColor = colorMap[1].toRGBHex();
+		let defaultBackgroundColor = colorMap[2].toRGBHex();
 
 		let fontInfo = this.configuration.editor.fontInfo;
 

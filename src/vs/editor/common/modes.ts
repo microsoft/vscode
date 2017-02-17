@@ -15,6 +15,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import Event from 'vs/base/common/event';
 import { TokenizationRegistryImpl } from 'vs/editor/common/modes/tokenizationRegistry';
+import { Color } from 'vs/base/common/color';
 
 /**
  * Open ended enum at runtime
@@ -838,9 +839,9 @@ export interface ITokenizationRegistry {
 	/**
 	 * Set the new color map that all tokens will use in their ColorId binary encoded bits for foreground and background.
 	 */
-	setColorMap(colorMap: string[]): void;
+	setColorMap(colorMap: Color[]): void;
 
-	getColorMap(): string[];
+	getColorMap(): Color[];
 }
 
 /**

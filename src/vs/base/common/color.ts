@@ -32,6 +32,15 @@ export class RGBA {
 		this.a = RGBA._clampInt_0_255(a);
 	}
 
+	public static equals(a: RGBA, b: RGBA): boolean {
+		return (
+			a.r === b.r
+			&& a.g === b.g
+			&& a.b === b.b
+			&& a.a === b.a
+		);
+	}
+
 	private static _clampInt_0_255(c: number): number {
 		if (c < 0) {
 			return 0;
@@ -228,20 +237,6 @@ function _hue2rgb(p: number, q: number, t: number) {
 	return p;
 }
 
-/**
- * @param hex string (#RRGGBB or #RRGGBBAA).
- */
-export function hexToCSSrgba(hex: string) {
-	if (hex.length === 9) {
-		return toCSSrgba(hex2rgba(hex));
-	}
-	return hex;
-}
-
-function toCSSrgba(rgba: RGBA): string {
-	return `rgba(${rgba.r}, ${rgba.g}, ${rgba.b}, ${+(rgba.a / 255).toFixed(2)})`;
-}
-
 export class Color {
 
 	public static fromRGBA(rgba: RGBA): Color {
@@ -269,6 +264,13 @@ export class Color {
 			this.rgba = hex2rgba(arg);
 		}
 		this.hsla = null;
+	}
+
+	public equals(other: Color): boolean {
+		if (!other) {
+			return false;
+		}
+		return RGBA.equals(this.rgba, other.rgba);
 	}
 
 	/**
@@ -355,7 +357,32 @@ export class Color {
 	}
 
 	public toString(): string {
-		return toCSSrgba(this.rgba);
+		const rgba = this.rgba;
+		return `rgba(${rgba.r}, ${rgba.g}, ${rgba.b}, ${+(rgba.a / 255).toFixed(2)})`;
+	}
+
+	/**
+	 * Prins the color as #RRGGBB
+	 */
+	public toRGBHex(): string {
+		const rgba = this.rgba;
+		return `#${Color._toTwoDigitHex(rgba.r)}${Color._toTwoDigitHex(rgba.g)}${Color._toTwoDigitHex(rgba.b)}`;
+	}
+
+	/**
+	 * Prins the color as #RRGGBBAA
+	 */
+	public toRGBAHex(): string {
+		const rgba = this.rgba;
+		return `#${Color._toTwoDigitHex(rgba.r)}${Color._toTwoDigitHex(rgba.g)}${Color._toTwoDigitHex(rgba.b)}${Color._toTwoDigitHex(rgba.a)}`;
+	}
+
+	private static _toTwoDigitHex(n: number): string {
+		let r = n.toString(16);
+		if (r.length !== 2) {
+			return '0' + r;
+		}
+		return r;
 	}
 
 	public toHSLA(): HSLA {
