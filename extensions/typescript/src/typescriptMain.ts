@@ -173,7 +173,7 @@ class LanguageProvider {
 		this.typingsStatus = new TypingsStatus(client);
 		new AtaProgressReporter(client);
 
-		this.disposables.push(workspace.onDidChangeConfiguration(this.configurationChanged, this));
+		workspace.onDidChangeConfiguration(this.configurationChanged, this, this.disposables);
 		this.configurationChanged();
 
 		client.onReady().then(() => {
@@ -196,6 +196,7 @@ class LanguageProvider {
 			}
 		}
 
+		this.typingsStatus.dispose();
 		this.currentDiagnostics.dispose();
 		this.bufferSyncSupport.dispose();
 	}
