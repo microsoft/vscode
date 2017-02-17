@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { CodeLensProvider, CodeLens, CancellationToken, TextDocument, Range, Uri, Position } from 'vscode';
+import { CodeLensProvider, CodeLens, CancellationToken, TextDocument, Range, Uri, Position, Event, EventEmitter, workspace, } from 'vscode';
 import * as Proto from '../protocol';
 
 import { ITypescriptServiceClient } from '../typescriptService';
@@ -21,11 +21,32 @@ export class ReferencesCodeLens extends CodeLens {
 }
 
 export abstract class TypeScriptBaseCodeLensProvider implements CodeLensProvider {
+	private enabled: boolean = false;
+	private onDidChangeCodeLensesEmitter = new EventEmitter<void>();
+
 	public constructor(
-		protected client: ITypescriptServiceClient
+		protected client: ITypescriptServiceClient,
+		private toggleSettingName: string
 	) { }
 
+	public get onDidChangeCodeLenses(): Event<void> {
+		return this.onDidChangeCodeLensesEmitter.event;
+	}
+
+	public updateConfiguration(): void {
+		const typeScriptConfig = workspace.getConfiguration('typescript');
+		const wasEnabled = this.enabled;
+		this.enabled = typeScriptConfig.get(this.toggleSettingName, false);
+		if (wasEnabled !== this.enabled) {
+			this.onDidChangeCodeLensesEmitter.fire();
+		}
+	}
+
 	provideCodeLenses(document: TextDocument, token: CancellationToken): Promise<CodeLens[]> {
+		if (!this.enabled) {
+			return Promise.resolve([]);
+		}
+
 		const filepath = this.client.normalizePath(document.uri);
 		if (!filepath) {
 			return Promise.resolve([]);

@@ -111,6 +111,11 @@
           "default": false,
           "description": "%typescript.referencesCodeLens.enabled%"
         },
+        "typescript.implementationsCodeLens.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "%typescript.implementationsCodeLens.enabled%"
+        },
         "typescript.tsserver.trace": {
           "type": "string",
           "enum": [

@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { CodeLens, CancellationToken, TextDocument, Range, Location, workspace, EventEmitter, Event } from 'vscode';
+import { CodeLens, CancellationToken, TextDocument, Range, Location } from 'vscode';
 import * as Proto from '../protocol';
 import * as PConst from '../protocol.const';
 
@@ -16,34 +16,10 @@ import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
 export default class TypeScriptImplementationsCodeLensProvider extends TypeScriptBaseCodeLensProvider {
-	private enabled = false;
-
-	private onDidChangeCodeLensesEmitter = new EventEmitter<void>();
-
 	public constructor(
 		client: ITypescriptServiceClient
 	) {
-		super(client);
-	}
-
-	public get onDidChangeCodeLenses(): Event<void> {
-		return this.onDidChangeCodeLensesEmitter.event;
-	}
-
-	public updateConfiguration(): void {
-		const typeScriptConfig = workspace.getConfiguration('typescript');
-		const wasEnabled = this.enabled;
-		this.enabled = typeScriptConfig.get('referencesCodeLens.enabled', false);
-		if (wasEnabled !== this.enabled) {
-			this.onDidChangeCodeLensesEmitter.fire();
-		}
-	}
-
-	provideCodeLenses(document: TextDocument, token: CancellationToken): Promise<CodeLens[]> {
-		if (!this.enabled) {
-			return Promise.resolve([]);
-		}
-		return super.provideCodeLenses(document, token);
+		super(client, 'implementationsCodeLens.enabled');
 	}
 
 	resolveCodeLens(inputCodeLens: CodeLens, token: CancellationToken): Promise<CodeLens> {
