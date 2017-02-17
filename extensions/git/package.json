@@ -76,6 +76,11 @@
         }
       },
       {
+        "command": "git.stageSelectedRanges",
+        "title": "%command.stageSelectedRanges%",
+        "category": "Git"
+      },
+      {
         "command": "git.unstage",
         "title": "%command.unstage%",
         "category": "Git",
@@ -92,6 +97,11 @@
           "light": "resources/icons/light/unstage.svg",
           "dark": "resources/icons/dark/unstage.svg"
         }
+      },
+      {
+        "command": "git.unstageSelectedRanges",
+        "title": "%command.unstageSelectedRanges%",
+        "category": "Git"
       },
       {
         "command": "git.clean",
