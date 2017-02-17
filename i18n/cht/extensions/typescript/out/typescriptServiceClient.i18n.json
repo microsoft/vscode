@@ -6,17 +6,17 @@
 {
 	"activeVersion": "目前使用中",
 	"channelName": "TypeScript",
+	"later": "稍後",
 	"learnMore": "深入了解",
 	"noServerFound": "路徑 {0} 未指向有效的 tsserver 安裝。即將回復為配套的 TypeScript 版本。",
 	"reloadBlurb": "重新載入視窗以套用變更",
 	"reloadTitle": "重新載入",
-	"selectTsVersion": "選取用於語言功能的 TypeScript 版本",
+	"selectTsVersion": "選取 JavaScript 與 TypeScript 功能使用的 TypeScript 版本",
 	"serverCouldNotBeStarted": "無法啟動 TypeScript 語言伺服器。錯誤訊息為: {0}",
 	"serverDied": "TypeScript 語言服務在過去 5 分鐘內意外中止 5 次。",
 	"serverDiedAfterStart": "TypeScript 語言服務在啟動後立即中止 5 次。服務將不會重新啟動。",
 	"serverDiedReportIssue": "回報問題",
 	"useVSCodeVersionOption": "使用 VSCode 的版本",
 	"useWorkspaceVersionOption": "使用工作區版本",
-	"versionCheckUsingBundledTS": "對 TypeScript 語言功能使用 VSCode 的 TypeScript 版本 {0}",
 	"versionNumber.custom": "自訂"
 }
