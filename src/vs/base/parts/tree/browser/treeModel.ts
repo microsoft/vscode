@@ -290,13 +290,14 @@ export class Item extends Events.EventEmitter {
 		}
 
 		if (recursive) {
-			var expandedChildrenPromise = WinJS.TPromise.as(null);
-			this.forEachChild((child) => {
-				expandedChildrenPromise = expandedChildrenPromise.then(() => child.expand(true));
+			return this.expand(false).then(() => {
+				var expandedChildrenPromise = WinJS.TPromise.as(null);
+				this.forEachChild((child) => {
+					expandedChildrenPromise = expandedChildrenPromise.then(() => child.expand(true));
+				});
+				return expandedChildrenPromise;
 			});
-			return expandedChildrenPromise.then(() => {
-				return this.expand(false);
-			});
+
 		} else {
 			var result = this.lock.run(this, () => {
 				var eventData: IItemExpandEvent = { item: this };
