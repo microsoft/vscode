@@ -76,6 +76,11 @@
         }
       },
       {
+        "command": "git.stageSelectedRanges",
+        "title": "%command.stageSelectedRanges%",
+        "category": "Git"
+      },
+      {
         "command": "git.unstage",
         "title": "%command.unstage%",
         "category": "Git",
