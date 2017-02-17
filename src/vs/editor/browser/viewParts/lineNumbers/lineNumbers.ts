@@ -13,6 +13,7 @@ import { ClassNames } from 'vs/editor/browser/editorBrowser';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { IRenderingContext } from 'vs/editor/common/view/renderingContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { ScrollEvent } from 'vs/base/common/scrollable';
 
 export class LineNumbersOverlay extends DynamicViewOverlay {
 
@@ -30,8 +31,8 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 		this._lineHeight = this._context.configuration.editor.lineHeight;
 		this._renderLineNumbers = this._context.configuration.editor.viewInfo.renderLineNumbers;
 		this._renderRelativeLineNumbers = this._context.configuration.editor.viewInfo.renderRelativeLineNumbers;
-		this._lineNumbersLeft = 0;
-		this._lineNumbersWidth = 0;
+		this._lineNumbersLeft = this._context.configuration.editor.layoutInfo.lineNumbersLeft;
+		this._lineNumbersWidth = this._context.configuration.editor.layoutInfo.lineNumbersWidth;
 		this._renderResult = null;
 		this._context.addEventHandler(this);
 	}
@@ -81,14 +82,13 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 		if (e.viewInfo.renderRelativeLineNumbers) {
 			this._renderRelativeLineNumbers = this._context.configuration.editor.viewInfo.renderRelativeLineNumbers;
 		}
+		if (e.layoutInfo) {
+			this._lineNumbersLeft = this._context.configuration.editor.layoutInfo.lineNumbersLeft;
+			this._lineNumbersWidth = this._context.configuration.editor.layoutInfo.lineNumbersWidth;
+		}
 		return true;
 	}
-	public onLayoutChanged(layoutInfo: editorCommon.EditorLayoutInfo): boolean {
-		this._lineNumbersLeft = layoutInfo.lineNumbersLeft;
-		this._lineNumbersWidth = layoutInfo.lineNumbersWidth;
-		return true;
-	}
-	public onScrollChanged(e: editorCommon.IScrollEvent): boolean {
+	public onScrollChanged(e: ScrollEvent): boolean {
 		return e.scrollTopChanged;
 	}
 	public onZonesChanged(): boolean {

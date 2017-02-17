@@ -7,6 +7,7 @@
 import { EmitterEvent } from 'vs/base/common/eventEmitter';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { ScrollEvent } from 'vs/base/common/scrollable';
 
 export class ViewEventHandler {
 
@@ -18,6 +19,10 @@ export class ViewEventHandler {
 
 	public shouldRender(): boolean {
 		return this._shouldRender;
+	}
+
+	public forceShouldRender(): void {
+		this._shouldRender = true;
 	}
 
 	protected setShouldRender(): void {
@@ -66,10 +71,7 @@ export class ViewEventHandler {
 	public onConfigurationChanged(e: editorCommon.IConfigurationChangedEvent): boolean {
 		return false;
 	}
-	public onLayoutChanged(layoutInfo: editorCommon.EditorLayoutInfo): boolean {
-		return false;
-	}
-	public onScrollChanged(e: editorCommon.IScrollEvent): boolean {
+	public onScrollChanged(e: ScrollEvent): boolean {
 		return false;
 	}
 	public onZonesChanged(): boolean {
@@ -163,25 +165,19 @@ export class ViewEventHandler {
 					}
 					break;
 
-				case editorCommon.EventType.ViewLayoutChanged:
-					if (this.onLayoutChanged(<editorCommon.EditorLayoutInfo>data)) {
+				case viewEvents.ViewEventNames.ViewScrollChanged:
+					if (this.onScrollChanged(<ScrollEvent>data)) {
 						shouldRender = true;
 					}
 					break;
 
-				case editorCommon.EventType.ViewScrollChanged:
-					if (this.onScrollChanged(<editorCommon.IScrollEvent>data)) {
-						shouldRender = true;
-					}
-					break;
-
-				case editorCommon.EventType.ViewZonesChanged:
+				case viewEvents.ViewEventNames.ZonesChanged:
 					if (this.onZonesChanged()) {
 						shouldRender = true;
 					}
 					break;
 
-				case editorCommon.EventType.ViewFocusChanged:
+				case viewEvents.ViewEventNames.ViewFocusChanged:
 					if (this.onViewFocusChanged(<boolean>data)) {
 						shouldRender = true;
 					}

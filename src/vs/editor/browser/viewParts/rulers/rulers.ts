@@ -11,6 +11,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ViewPart } from 'vs/editor/browser/view/viewPart';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { IRenderingContext, IRestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
+import { ScrollEvent } from 'vs/base/common/scrollable';
 
 export class Rulers extends ViewPart {
 
@@ -43,7 +44,7 @@ export class Rulers extends ViewPart {
 		}
 		return false;
 	}
-	public onScrollChanged(e: editorCommon.IScrollEvent): boolean {
+	public onScrollChanged(e: ScrollEvent): boolean {
 		return super.onScrollChanged(e) || e.scrollHeightChanged;
 	}
 

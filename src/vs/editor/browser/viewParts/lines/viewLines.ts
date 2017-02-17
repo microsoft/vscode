@@ -20,6 +20,7 @@ import { IViewLines, VisibleRange, LineVisibleRanges } from 'vs/editor/common/vi
 import { IViewLayout } from 'vs/editor/common/viewModel/viewModel';
 import { PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { ScrollEvent } from 'vs/base/common/scrollable';
 
 class LastRenderedData {
 
@@ -148,13 +149,11 @@ export class ViewLines extends ViewLayer<ViewLine> implements IViewLines {
 			}
 		}
 
-		return true;
-	}
+		if (e.layoutInfo) {
+			this._maxLineWidth = 0;
+		}
 
-	public onLayoutChanged(layoutInfo: editorCommon.EditorLayoutInfo): boolean {
-		let shouldRender = super.onLayoutChanged(layoutInfo);
-		this._maxLineWidth = 0;
-		return shouldRender;
+		return true;
 	}
 
 	public onModelFlushed(): boolean {
@@ -198,7 +197,7 @@ export class ViewLines extends ViewLayer<ViewLine> implements IViewLines {
 		return true;
 	}
 
-	public onScrollChanged(e: editorCommon.IScrollEvent): boolean {
+	public onScrollChanged(e: ScrollEvent): boolean {
 		this.domNode.setWidth(e.scrollWidth);
 		return super.onScrollChanged(e) || true;
 	}

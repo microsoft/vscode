@@ -13,6 +13,7 @@ import { HorizontalRange, LineVisibleRanges, IRenderingContext } from 'vs/editor
 import { Range } from 'vs/editor/common/core/range';
 import * as browser from 'vs/base/browser/browser';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { ScrollEvent } from 'vs/base/common/scrollable';
 
 const enum CornerStyle {
 	EXTERN,
@@ -135,10 +136,7 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 		}
 		return true;
 	}
-	public onLayoutChanged(layoutInfo: editorCommon.EditorLayoutInfo): boolean {
-		return true;
-	}
-	public onScrollChanged(e: editorCommon.IScrollEvent): boolean {
+	public onScrollChanged(e: ScrollEvent): boolean {
 		return e.scrollTopChanged;
 	}
 	public onZonesChanged(): boolean {

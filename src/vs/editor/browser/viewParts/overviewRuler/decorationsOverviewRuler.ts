@@ -14,6 +14,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { TokenizationRegistry } from 'vs/editor/common/modes';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { ScrollEvent } from 'vs/base/common/scrollable';
 
 export class DecorationsOverviewRuler extends ViewPart {
 
@@ -51,6 +52,7 @@ export class DecorationsOverviewRuler extends ViewPart {
 		this._overviewRuler.setLanesCount(this._context.configuration.editor.viewInfo.overviewRulerLanes, false);
 		let theme = this._context.configuration.editor.viewInfo.theme;
 		this._overviewRuler.setUseDarkColor(!themes.isLightTheme(theme), false);
+		this._overviewRuler.setLayout(this._context.configuration.editor.layoutInfo.overviewRuler, false);
 
 		this._updateBackground(false);
 		this._tokensColorTrackerListener = TokenizationRegistry.onDidChange((e) => {
@@ -127,12 +129,12 @@ export class DecorationsOverviewRuler extends ViewPart {
 			shouldRender = true;
 		}
 
-		return shouldRender;
-	}
+		if (e.layoutInfo) {
+			this._overviewRuler.setLayout(this._context.configuration.editor.layoutInfo.overviewRuler, false);
+			shouldRender = true;
+		}
 
-	public onLayoutChanged(layoutInfo: editorCommon.EditorLayoutInfo): boolean {
-		this._overviewRuler.setLayout(layoutInfo.overviewRuler, false);
-		return true;
+		return shouldRender;
 	}
 
 	public onZonesChanged(): boolean {
@@ -150,7 +152,7 @@ export class DecorationsOverviewRuler extends ViewPart {
 		return true;
 	}
 
-	public onScrollChanged(e: editorCommon.IScrollEvent): boolean {
+	public onScrollChanged(e: ScrollEvent): boolean {
 		this._overviewRuler.setScrollHeight(e.scrollHeight, false);
 		return super.onScrollChanged(e) || e.scrollHeightChanged;
 	}

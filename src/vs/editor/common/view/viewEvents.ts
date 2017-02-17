@@ -20,7 +20,11 @@ export const ViewEventNames = {
 	CursorSelectionChangedEvent: 'cursorSelectionChangedEvent',
 	RevealRangeEvent: 'revealRangeEvent',
 	LineMappingChangedEvent: 'lineMappingChangedEvent',
-	ScrollRequestEvent: 'scrollRequestEvent'
+	ScrollRequestEvent: 'scrollRequestEvent',
+	ViewScrollChanged: 'scrollChanged',
+	ViewFocusChanged: 'focusChanged',
+	ZonesChanged: 'viewZonesChanged',
+
 };
 
 export interface IViewDecorationsChangedEvent {

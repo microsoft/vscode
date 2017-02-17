@@ -35,7 +35,7 @@ export class LayoutProvider extends Disposable implements IViewLayout {
 			height: configuration.editor.layoutInfo.contentHeight
 		});
 		this._register(this._scrollable.onScroll((e: ScrollEvent) => {
-			this._privateViewEventBus.emit(editorCommon.EventType.ViewScrollChanged, e);
+			this._privateViewEventBus.emit(viewEvents.ViewEventNames.ViewScrollChanged, e);
 		}));
 
 		this._updateHeight();
@@ -79,7 +79,6 @@ export class LayoutProvider extends Disposable implements IViewLayout {
 				width: this._configuration.editor.layoutInfo.contentWidth,
 				height: this._configuration.editor.layoutInfo.contentHeight
 			});
-			this._emitLayoutChangedEvent();
 		}
 		this._updateHeight();
 	}
@@ -127,14 +126,6 @@ export class LayoutProvider extends Disposable implements IViewLayout {
 			scrollState.width,
 			scrollState.height
 		);
-	}
-
-	private _emitLayoutChangedEvent(): void {
-		this._privateViewEventBus.emit(editorCommon.EventType.ViewLayoutChanged, this._configuration.editor.layoutInfo);
-	}
-
-	public emitLayoutChangedEvent(): void {
-		this._emitLayoutChangedEvent();
 	}
 
 	private _computeScrollWidth(maxLineWidth: number, viewportWidth: number): number {

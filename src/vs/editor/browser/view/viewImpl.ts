@@ -51,6 +51,7 @@ import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData'
 import { EditorScrollbar } from 'vs/editor/browser/viewParts/editorScrollbar/editorScrollbar';
 import { Minimap } from 'vs/editor/browser/viewParts/minimap/minimap';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { ScrollEvent } from 'vs/base/common/scrollable';
 
 export class View extends ViewEventHandler implements editorBrowser.IView, IDisposable {
 
@@ -141,6 +142,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 
 		this.createTextArea();
 		this.createViewParts();
+		this._setLayout();
 
 		// Keyboard handler
 		this.keyboardHandler = new KeyboardHandler(this._context, viewController, this.createKeyboardHandlerHelper());
@@ -465,7 +467,8 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		this.layoutProvider.onModelLinesInserted(e);
 		return false;
 	}
-	public onLayoutChanged(layoutInfo: editorCommon.EditorLayoutInfo): boolean {
+	private _setLayout(): void {
+		const layoutInfo = this._context.configuration.editor.layoutInfo;
 		if (browser.isChrome) {
 			/* tslint:disable:no-unused-variable */
 			// Access overflowGuardContainer.clientWidth to prevent relayouting bug in Chrome
@@ -486,8 +489,6 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		StyleMutator.setWidth(this.linesContentContainer, layoutInfo.contentWidth + layoutInfo.minimapWidth);
 		StyleMutator.setHeight(this.linesContentContainer, layoutInfo.contentHeight);
 
-		this.outgoingEvents.emitViewLayoutChanged(layoutInfo);
-		return false;
 	}
 	public onConfigurationChanged(e: editorCommon.IConfigurationChangedEvent): boolean {
 		if (e.viewInfo.editorClassName) {
@@ -496,10 +497,13 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		if (e.viewInfo.ariaLabel) {
 			this.textArea.setAttribute('aria-label', this._context.configuration.editor.viewInfo.ariaLabel);
 		}
+		if (e.layoutInfo) {
+			this._setLayout();
+		}
 		this.layoutProvider.onConfigurationChanged(e);
 		return false;
 	}
-	public onScrollChanged(e: editorCommon.IScrollEvent): boolean {
+	public onScrollChanged(e: ScrollEvent): boolean {
 		this.outgoingEvents.emitScrollChanged(e);
 		return false;
 	}
@@ -749,7 +753,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 
 			if (zonesHaveChanged) {
 				this.layoutProvider.onHeightMaybeChanged();
-				this._context.privateViewEventBus.emit(editorCommon.EventType.ViewZonesChanged, null);
+				this._context.privateViewEventBus.emit(viewEvents.ViewEventNames.ZonesChanged, null);
 			}
 		});
 		return zonesHaveChanged;
@@ -824,11 +828,17 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 			throw new Error('ViewImpl.render: View is disposed');
 		}
 		if (everything) {
-			// Force a render with a layout event
-			this.layoutProvider.emitLayoutChangedEvent();
+			// Force everything to render...
+			this.viewLines.forceShouldRender();
+			for (let i = 0, len = this.viewParts.length; i < len; i++) {
+				let viewPart = this.viewParts[i];
+				viewPart.forceShouldRender();
+			}
 		}
 		if (now) {
 			this._flushAccumulatedAndRenderNow();
+		} else {
+			this._scheduleRender();
 		}
 	}
 
@@ -925,7 +935,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 	private _setHasFocus(newHasFocus: boolean): void {
 		if (this.hasFocus !== newHasFocus) {
 			this.hasFocus = newHasFocus;
-			this._context.privateViewEventBus.emit(editorCommon.EventType.ViewFocusChanged, this.hasFocus);
+			this._context.privateViewEventBus.emit(viewEvents.ViewEventNames.ViewFocusChanged, this.hasFocus);
 		}
 	}
 }

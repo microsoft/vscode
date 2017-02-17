@@ -16,6 +16,7 @@ import { IRenderingContext, IRestrictedRenderingContext } from 'vs/editor/common
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/styleMutator';
 import { TimeoutTimer } from 'vs/base/common/async';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { ScrollEvent } from 'vs/base/common/scrollable';
 
 export class ViewCursors extends ViewPart {
 
@@ -172,10 +173,7 @@ export class ViewCursors extends ViewPart {
 		}
 		return true;
 	}
-	public onLayoutChanged(layoutInfo: editorCommon.EditorLayoutInfo): boolean {
-		return true;
-	}
-	public onScrollChanged(e: editorCommon.IScrollEvent): boolean {
+	public onScrollChanged(e: ScrollEvent): boolean {
 		return true;
 	}
 	public onZonesChanged(): boolean {

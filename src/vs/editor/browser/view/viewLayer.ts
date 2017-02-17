@@ -10,6 +10,7 @@ import { FastDomNode, createFastDomNode } from 'vs/base/browser/styleMutator';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { ScrollEvent } from 'vs/base/common/scrollable';
 
 /**
  * Represents a visible line
@@ -281,11 +282,11 @@ export abstract class ViewLayer<T extends IVisibleLine> extends ViewPart {
 
 	// ---- begin view event handlers
 
-	public onLayoutChanged(layoutInfo: editorCommon.EditorLayoutInfo): boolean {
-		return true;
+	public onConfigurationChanged(e: editorCommon.IConfigurationChangedEvent): boolean {
+		return e.layoutInfo;
 	}
 
-	public onScrollChanged(e: editorCommon.IScrollEvent): boolean {
+	public onScrollChanged(e: ScrollEvent): boolean {
 		return e.scrollTopChanged;
 	}
 

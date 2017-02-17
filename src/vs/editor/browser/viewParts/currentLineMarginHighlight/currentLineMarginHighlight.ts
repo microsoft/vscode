@@ -75,9 +75,6 @@ export class CurrentLineMarginHighlightOverlay extends DynamicViewOverlay {
 		}
 		return true;
 	}
-	public onLayoutChanged(layoutInfo: editorCommon.EditorLayoutInfo): boolean {
-		return true;
-	}
 	public onZonesChanged(): boolean {
 		return true;
 	}
