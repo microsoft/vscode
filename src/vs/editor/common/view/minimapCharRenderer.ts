@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { CharCode } from 'vs/base/common/charCode';
 import { ColorId, TokenizationRegistry } from 'vs/editor/common/modes';
 import Event, { Emitter } from 'vs/base/common/event';
 import { Color } from 'vs/base/common/color';
@@ -74,53 +73,6 @@ export class MinimapTokensColorTracker {
 			colorId = 2;
 		}
 		return this._colors[colorId];
-	}
-
-	public static _parseColor(color: string): ParsedColor {
-		if (!color) {
-			return new ParsedColor(0, 0, 0);
-		}
-		if (color.charCodeAt(0) === CharCode.Hash) {
-			color = color.substr(1, 6);
-		} else {
-			color = color.substr(0, 6);
-		}
-		if (color.length !== 6) {
-			return new ParsedColor(0, 0, 0);
-		}
-
-		let r = 16 * this._parseHexDigit(color.charCodeAt(0)) + this._parseHexDigit(color.charCodeAt(1));
-		let g = 16 * this._parseHexDigit(color.charCodeAt(2)) + this._parseHexDigit(color.charCodeAt(3));
-		let b = 16 * this._parseHexDigit(color.charCodeAt(4)) + this._parseHexDigit(color.charCodeAt(5));
-		return new ParsedColor(r, g, b);
-	}
-
-	private static _parseHexDigit(charCode: CharCode): number {
-		switch (charCode) {
-			case CharCode.Digit0: return 0;
-			case CharCode.Digit1: return 1;
-			case CharCode.Digit2: return 2;
-			case CharCode.Digit3: return 3;
-			case CharCode.Digit4: return 4;
-			case CharCode.Digit5: return 5;
-			case CharCode.Digit6: return 6;
-			case CharCode.Digit7: return 7;
-			case CharCode.Digit8: return 8;
-			case CharCode.Digit9: return 9;
-			case CharCode.a: return 10;
-			case CharCode.A: return 10;
-			case CharCode.b: return 11;
-			case CharCode.B: return 11;
-			case CharCode.c: return 12;
-			case CharCode.C: return 12;
-			case CharCode.d: return 13;
-			case CharCode.D: return 13;
-			case CharCode.e: return 14;
-			case CharCode.E: return 14;
-			case CharCode.f: return 15;
-			case CharCode.F: return 15;
-		}
-		return 0;
 	}
 }
 

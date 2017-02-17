@@ -5,43 +5,9 @@
 'use strict';
 
 import * as assert from 'assert';
-import { MinimapTokensColorTracker, ParsedColor, Constants } from 'vs/editor/common/view/minimapCharRenderer';
+import { ParsedColor, Constants } from 'vs/editor/common/view/minimapCharRenderer';
 import { MinimapCharRendererFactory } from 'vs/editor/test/common/view/minimapCharRendererFactory';
 import { getOrCreateMinimapCharRenderer } from 'vs/editor/common/view/runtimeMinimapCharRenderer';
-
-suite('MinimapColors', () => {
-
-	function assertParseColor(input: string, expected: ParsedColor): void {
-		let actual = MinimapTokensColorTracker._parseColor(input);
-		assert.deepEqual(actual, expected, input);
-	}
-
-	function assertInvalidParseColor(input: string): void {
-		assertParseColor(input, new ParsedColor(0, 0, 0));
-	}
-
-	test('parseColor', () => {
-		assertInvalidParseColor(null);
-		assertInvalidParseColor('');
-		assertParseColor('FFFFG0', new ParsedColor(255, 255, 0));
-		assertParseColor('FFFFg0', new ParsedColor(255, 255, 0));
-		assertParseColor('-FFF00', new ParsedColor(15, 255, 0));
-		assertParseColor('0102030', new ParsedColor(1, 2, 3));
-
-		assertParseColor('000000', new ParsedColor(0, 0, 0));
-		assertParseColor('010203', new ParsedColor(1, 2, 3));
-		assertParseColor('040506', new ParsedColor(4, 5, 6));
-		assertParseColor('070809', new ParsedColor(7, 8, 9));
-		assertParseColor('0a0A0a', new ParsedColor(10, 10, 10));
-		assertParseColor('0b0B0b', new ParsedColor(11, 11, 11));
-		assertParseColor('0c0C0c', new ParsedColor(12, 12, 12));
-		assertParseColor('0d0D0d', new ParsedColor(13, 13, 13));
-		assertParseColor('0e0E0e', new ParsedColor(14, 14, 14));
-		assertParseColor('0f0F0f', new ParsedColor(15, 15, 15));
-		assertParseColor('a0A0a0', new ParsedColor(160, 160, 160));
-		assertParseColor('FFFFFF', new ParsedColor(255, 255, 255));
-	});
-});
 
 suite('MinimapCharRenderer', () => {
 
