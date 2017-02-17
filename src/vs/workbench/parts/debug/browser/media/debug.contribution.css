@@ -246,8 +246,3 @@
 	background: rgba(255, 246, 0, .8);
 	mix-blend-mode: lighten; /* Preserves text selection's contrast */
 }
-
-.hc-black .monaco-editor .debug-top-stack-frame-column {
-	background: none;
-	outline: 2px solid #f38518;
-}
