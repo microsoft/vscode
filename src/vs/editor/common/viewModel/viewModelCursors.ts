@@ -8,6 +8,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Position } from 'vs/editor/common/core/position';
 import { ICoordinatesConverter } from 'vs/editor/common/viewModel/viewModel';
 import { Selection } from 'vs/editor/common/core/selection';
+import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
 export interface ICursorPositionChangedEvent {
 	readonly position: Position;
@@ -61,40 +62,44 @@ export class ViewModelCursors {
 			secondaryPositions[i] = ViewModelCursors._toPositionThatCanBeRendered(e.secondaryViewPositions[i], stopRenderingLineAfter);
 		}
 
-		let newEvent: editorCommon.IViewCursorPositionChangedEvent = {
+		let newEvent: viewEvents.IViewCursorPositionChangedEvent = {
+			_viewCursorPositionChangedEventBrand: void 0,
 			position: position,
 			secondaryPositions: secondaryPositions,
 			isInEditableRange: e.isInEditableRange
 		};
-		emit(editorCommon.ViewEventNames.CursorPositionChangedEvent, newEvent);
+		emit(viewEvents.ViewEventNames.CursorPositionChangedEvent, newEvent);
 	}
 
 	public onCursorSelectionChanged(e: ICursorSelectionChangedEvent, emit: (eventType: string, payload: any) => void): void {
 		this.lastCursorSelectionChangedEvent = e;
 
-		let newEvent: editorCommon.IViewCursorSelectionChangedEvent = {
+		let newEvent: viewEvents.IViewCursorSelectionChangedEvent = {
+			_viewCursorSelectionChangedEventBrand: void 0,
 			selection: e.viewSelection,
 			secondarySelections: e.secondaryViewSelections
 		};
-		emit(editorCommon.ViewEventNames.CursorSelectionChangedEvent, newEvent);
+		emit(viewEvents.ViewEventNames.CursorSelectionChangedEvent, newEvent);
 	}
 
 	public onCursorRevealRange(e: editorCommon.ICursorRevealRangeEvent, emit: (eventType: string, payload: any) => void): void {
-		let newEvent: editorCommon.IViewRevealRangeEvent = {
+		let newEvent: viewEvents.IViewRevealRangeEvent = {
+			_viewRevealRangeEventBrand: void 0,
 			range: e.viewRange,
 			verticalType: e.verticalType,
 			revealHorizontal: e.revealHorizontal,
 			revealCursor: e.revealCursor
 		};
-		emit(editorCommon.ViewEventNames.RevealRangeEvent, newEvent);
+		emit(viewEvents.ViewEventNames.RevealRangeEvent, newEvent);
 	}
 
 	public onCursorScrollRequest(e: editorCommon.ICursorScrollRequestEvent, emit: (eventType: string, payload: any) => void): void {
-		let newEvent: editorCommon.IViewScrollRequestEvent = {
+		let newEvent: viewEvents.IViewScrollRequestEvent = {
+			_viewScrollRequestEventBrand: void 0,
 			deltaLines: e.deltaLines,
 			revealCursor: e.revealCursor
 		};
-		emit(editorCommon.ViewEventNames.ScrollRequestEvent, newEvent);
+		emit(viewEvents.ViewEventNames.ScrollRequestEvent, newEvent);
 	}
 
 	public onLineMappingChanged(emit: (eventType: string, payload: any) => void): void {

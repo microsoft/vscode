@@ -10,6 +10,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { PrefixSumComputerWithCache } from 'vs/editor/common/viewModel/prefixSumComputer';
 import { ViewLineData } from 'vs/editor/common/viewModel/viewModel';
+import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
 export class OutputPosition {
 	_outputPositionBrand: void;
@@ -507,7 +508,7 @@ export class SplitLinesCollection {
 			}
 		}
 
-		emit(editorCommon.ViewEventNames.ModelFlushedEvent, null);
+		emit(viewEvents.ViewEventNames.ModelFlushedEvent, null);
 		return true;
 	}
 
@@ -526,7 +527,7 @@ export class SplitLinesCollection {
 		this.tabSize = newTabSize;
 
 		this._constructLines(false);
-		emit(editorCommon.ViewEventNames.ModelFlushedEvent, null);
+		emit(viewEvents.ViewEventNames.ModelFlushedEvent, null);
 
 		return true;
 	}
@@ -538,7 +539,7 @@ export class SplitLinesCollection {
 		this.wrappingIndent = newWrappingIndent;
 
 		this._constructLines(false);
-		emit(editorCommon.ViewEventNames.ModelFlushedEvent, null);
+		emit(viewEvents.ViewEventNames.ModelFlushedEvent, null);
 
 		return true;
 	}
@@ -550,14 +551,14 @@ export class SplitLinesCollection {
 		this.wrappingColumn = newWrappingColumn;
 		this.columnsForFullWidthChar = columnsForFullWidthChar;
 		this._constructLines(false);
-		emit(editorCommon.ViewEventNames.ModelFlushedEvent, null);
+		emit(viewEvents.ViewEventNames.ModelFlushedEvent, null);
 
 		return true;
 	}
 
 	public onModelFlushed(versionId: number, emit: (evenType: string, payload: any) => void): void {
 		this._constructLines(true);
-		emit(editorCommon.ViewEventNames.ModelFlushedEvent, null);
+		emit(viewEvents.ViewEventNames.ModelFlushedEvent, null);
 	}
 
 	public onModelLinesDeleted(versionId: number, fromLineNumber: number, toLineNumber: number, emit: (evenType: string, payload: any) => void): void {
@@ -572,11 +573,12 @@ export class SplitLinesCollection {
 		this.lines.splice(fromLineNumber - 1, toLineNumber - fromLineNumber + 1);
 		this.prefixSumComputer.removeValues(fromLineNumber - 1, toLineNumber - fromLineNumber + 1);
 
-		let e: editorCommon.IViewLinesDeletedEvent = {
+		let e: viewEvents.IViewLinesDeletedEvent = {
+			_viewLinesDeletedEventBrand: void 0,
 			fromLineNumber: outputFromLineNumber,
 			toLineNumber: outputToLineNumber
 		};
-		emit(editorCommon.ViewEventNames.LinesDeletedEvent, e);
+		emit(viewEvents.ViewEventNames.LinesDeletedEvent, e);
 	}
 
 	public onModelLinesInserted(versionId: number, fromLineNumber: number, toLineNumber: number, text: string[], emit: (evenType: string, payload: any) => void): void {
@@ -614,11 +616,12 @@ export class SplitLinesCollection {
 
 		this.prefixSumComputer.insertValues(fromLineNumber - 1, insertPrefixSumValues);
 
-		let e: editorCommon.IViewLinesInsertedEvent = {
+		let e: viewEvents.IViewLinesInsertedEvent = {
+			_viewLinesInsertedEventBrand: void 0,
 			fromLineNumber: outputFromLineNumber,
 			toLineNumber: outputFromLineNumber + totalOutputLineCount - 1
 		};
-		emit(editorCommon.ViewEventNames.LinesInsertedEvent, e);
+		emit(viewEvents.ViewEventNames.LinesInsertedEvent, e);
 	}
 
 	public onModelLineChanged(versionId: number, lineNumber: number, newText: string, emit: (evenType: string, payload: any) => void): boolean {
@@ -661,31 +664,34 @@ export class SplitLinesCollection {
 
 		this.prefixSumComputer.changeValue(lineIndex, newOutputLineCount);
 
-		let e1: editorCommon.IViewLineChangedEvent;
-		let e2: editorCommon.IViewLinesInsertedEvent;
-		let e3: editorCommon.IViewLinesDeletedEvent;
+		let e1: viewEvents.IViewLineChangedEvent;
+		let e2: viewEvents.IViewLinesInsertedEvent;
+		let e3: viewEvents.IViewLinesDeletedEvent;
 
 		if (changeFrom <= changeTo) {
 			for (let i = changeFrom; i <= changeTo; i++) {
 				e1 = {
+					_viewLineChangedEventBrand: void 0,
 					lineNumber: i
 				};
-				emit(editorCommon.ViewEventNames.LineChangedEvent, e1);
+				emit(viewEvents.ViewEventNames.LineChangedEvent, e1);
 			}
 		}
 		if (insertFrom <= insertTo) {
 			e2 = {
+				_viewLinesInsertedEventBrand: void 0,
 				fromLineNumber: insertFrom,
 				toLineNumber: insertTo
 			};
-			emit(editorCommon.ViewEventNames.LinesInsertedEvent, e2);
+			emit(viewEvents.ViewEventNames.LinesInsertedEvent, e2);
 		}
 		if (deleteFrom <= deleteTo) {
 			e3 = {
+				_viewLinesDeletedEventBrand: void 0,
 				fromLineNumber: deleteFrom,
 				toLineNumber: deleteTo
 			};
-			emit(editorCommon.ViewEventNames.LinesDeletedEvent, e3);
+			emit(viewEvents.ViewEventNames.LinesDeletedEvent, e3);
 		}
 
 		return lineMappingChanged;

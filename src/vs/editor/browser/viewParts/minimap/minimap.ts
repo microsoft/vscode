@@ -23,6 +23,7 @@ import { EditorScrollbar } from 'vs/editor/browser/viewParts/editorScrollbar/edi
 import { RenderedLinesCollection, ILine } from 'vs/editor/browser/view/viewLayer';
 import { Range } from 'vs/editor/common/core/range';
 import { RGBA } from 'vs/base/common/color';
+import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
 const enum RenderMinimap {
 	None = 0,
@@ -295,16 +296,16 @@ class RenderData {
 		};
 	}
 
-	public onModelLinesDeleted(e: editorCommon.IViewLinesDeletedEvent): void {
+	public onModelLinesDeleted(e: viewEvents.IViewLinesDeletedEvent): void {
 		this._renderedLines.onModelLinesDeleted(e.fromLineNumber, e.toLineNumber);
 	}
-	public onModelLineChanged(e: editorCommon.IViewLineChangedEvent): boolean {
+	public onModelLineChanged(e: viewEvents.IViewLineChangedEvent): boolean {
 		return this._renderedLines.onModelLineChanged(e.lineNumber);
 	}
-	public onModelLinesInserted(e: editorCommon.IViewLinesInsertedEvent): void {
+	public onModelLinesInserted(e: viewEvents.IViewLinesInsertedEvent): void {
 		this._renderedLines.onModelLinesInserted(e.fromLineNumber, e.toLineNumber);
 	}
-	public onModelTokensChanged(e: editorCommon.IViewTokensChangedEvent): boolean {
+	public onModelTokensChanged(e: viewEvents.IViewTokensChangedEvent): boolean {
 		return this._renderedLines.onModelTokensChanged(e.ranges);
 	}
 }
@@ -427,13 +428,14 @@ export class Minimap extends ViewPart {
 			let lineNumber = lineIndex + this._lastRenderData.renderedLayout.startLineNumber;
 			lineNumber = Math.min(lineNumber, this._context.model.getLineCount());
 
-			let revealPositionEvent: editorCommon.IViewRevealRangeEvent = {
+			let revealPositionEvent: viewEvents.IViewRevealRangeEvent = {
+				_viewRevealRangeEventBrand: void 0,
 				range: new Range(lineNumber, 1, lineNumber, 1),
 				verticalType: editorCommon.VerticalRevealType.Center,
 				revealHorizontal: false,
 				revealCursor: false
 			};
-			this._context.privateViewEventBus.emit(editorCommon.ViewEventNames.RevealRangeEvent, revealPositionEvent);
+			this._context.privateViewEventBus.emit(viewEvents.ViewEventNames.RevealRangeEvent, revealPositionEvent);
 		});
 	}
 
@@ -483,33 +485,29 @@ export class Minimap extends ViewPart {
 		return true;
 	}
 
-	public onLineMappingChanged(): boolean {
-		this._lastRenderData = null;
-		return true;
-	}
 	public onModelFlushed(): boolean {
 		this._lastRenderData = null;
 		return true;
 	}
-	public onModelLinesDeleted(e: editorCommon.IViewLinesDeletedEvent): boolean {
+	public onModelLinesDeleted(e: viewEvents.IViewLinesDeletedEvent): boolean {
 		if (this._lastRenderData) {
 			this._lastRenderData.onModelLinesDeleted(e);
 		}
 		return true;
 	}
-	public onModelLineChanged(e: editorCommon.IViewLineChangedEvent): boolean {
+	public onModelLineChanged(e: viewEvents.IViewLineChangedEvent): boolean {
 		if (this._lastRenderData) {
 			return this._lastRenderData.onModelLineChanged(e);
 		}
 		return false;
 	}
-	public onModelLinesInserted(e: editorCommon.IViewLinesInsertedEvent): boolean {
+	public onModelLinesInserted(e: viewEvents.IViewLinesInsertedEvent): boolean {
 		if (this._lastRenderData) {
 			this._lastRenderData.onModelLinesInserted(e);
 		}
 		return true;
 	}
-	public onModelTokensChanged(e: editorCommon.IViewTokensChangedEvent): boolean {
+	public onModelTokensChanged(e: viewEvents.IViewTokensChangedEvent): boolean {
 		if (this._lastRenderData) {
 			return this._lastRenderData.onModelTokensChanged(e);
 		}

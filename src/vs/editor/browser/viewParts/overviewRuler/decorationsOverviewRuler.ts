@@ -13,6 +13,7 @@ import { IRenderingContext, IRestrictedRenderingContext } from 'vs/editor/common
 import { Position } from 'vs/editor/common/core/position';
 import { TokenizationRegistry } from 'vs/editor/common/modes';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
 export class DecorationsOverviewRuler extends ViewPart {
 
@@ -81,7 +82,7 @@ export class DecorationsOverviewRuler extends ViewPart {
 
 	// ---- begin view event handlers
 
-	public onCursorPositionChanged(e: editorCommon.IViewCursorPositionChangedEvent): boolean {
+	public onCursorPositionChanged(e: viewEvents.IViewCursorPositionChangedEvent): boolean {
 		this._shouldUpdateCursorPosition = true;
 		this._cursorPositions = [e.position];
 		this._cursorPositions = this._cursorPositions.concat(e.secondaryPositions);
@@ -144,7 +145,7 @@ export class DecorationsOverviewRuler extends ViewPart {
 		return true;
 	}
 
-	public onModelDecorationsChanged(e: editorCommon.IViewDecorationsChangedEvent): boolean {
+	public onModelDecorationsChanged(e: viewEvents.IViewDecorationsChangedEvent): boolean {
 		this._shouldUpdateDecorations = true;
 		return true;
 	}

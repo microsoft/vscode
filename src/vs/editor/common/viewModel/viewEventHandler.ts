@@ -6,6 +6,7 @@
 
 import { EmitterEvent } from 'vs/base/common/eventEmitter';
 import * as editorCommon from 'vs/editor/common/editorCommon';
+import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
 export class ViewEventHandler {
 
@@ -35,31 +36,31 @@ export class ViewEventHandler {
 	public onModelFlushed(): boolean {
 		return false;
 	}
-	public onModelDecorationsChanged(e: editorCommon.IViewDecorationsChangedEvent): boolean {
+	public onModelDecorationsChanged(e: viewEvents.IViewDecorationsChangedEvent): boolean {
 		return false;
 	}
-	public onModelLinesDeleted(e: editorCommon.IViewLinesDeletedEvent): boolean {
+	public onModelLinesDeleted(e: viewEvents.IViewLinesDeletedEvent): boolean {
 		return false;
 	}
-	public onModelLineChanged(e: editorCommon.IViewLineChangedEvent): boolean {
+	public onModelLineChanged(e: viewEvents.IViewLineChangedEvent): boolean {
 		return false;
 	}
-	public onModelLinesInserted(e: editorCommon.IViewLinesInsertedEvent): boolean {
+	public onModelLinesInserted(e: viewEvents.IViewLinesInsertedEvent): boolean {
 		return false;
 	}
-	public onModelTokensChanged(e: editorCommon.IViewTokensChangedEvent): boolean {
+	public onModelTokensChanged(e: viewEvents.IViewTokensChangedEvent): boolean {
 		return false;
 	}
-	public onCursorPositionChanged(e: editorCommon.IViewCursorPositionChangedEvent): boolean {
+	public onCursorPositionChanged(e: viewEvents.IViewCursorPositionChangedEvent): boolean {
 		return false;
 	}
-	public onCursorSelectionChanged(e: editorCommon.IViewCursorSelectionChangedEvent): boolean {
+	public onCursorSelectionChanged(e: viewEvents.IViewCursorSelectionChangedEvent): boolean {
 		return false;
 	}
-	public onCursorRevealRange(e: editorCommon.IViewRevealRangeEvent): boolean {
+	public onCursorRevealRange(e: viewEvents.IViewRevealRangeEvent): boolean {
 		return false;
 	}
-	public onCursorScrollRequest(e: editorCommon.IViewScrollRequestEvent): boolean {
+	public onCursorScrollRequest(e: viewEvents.IViewScrollRequestEvent): boolean {
 		return false;
 	}
 	public onConfigurationChanged(e: editorCommon.IConfigurationChangedEvent): boolean {
@@ -90,68 +91,68 @@ export class ViewEventHandler {
 
 			switch (e.getType()) {
 
-				case editorCommon.ViewEventNames.LineMappingChangedEvent:
+				case viewEvents.ViewEventNames.LineMappingChangedEvent:
 					if (this.onLineMappingChanged()) {
 						shouldRender = true;
 					}
 					break;
 
-				case editorCommon.ViewEventNames.ModelFlushedEvent:
+				case viewEvents.ViewEventNames.ModelFlushedEvent:
 					if (this.onModelFlushed()) {
 						shouldRender = true;
 					}
 					break;
 
-				case editorCommon.ViewEventNames.LinesDeletedEvent:
-					if (this.onModelLinesDeleted(<editorCommon.IViewLinesDeletedEvent>data)) {
+				case viewEvents.ViewEventNames.LinesDeletedEvent:
+					if (this.onModelLinesDeleted(<viewEvents.IViewLinesDeletedEvent>data)) {
 						shouldRender = true;
 					}
 					break;
 
-				case editorCommon.ViewEventNames.LinesInsertedEvent:
-					if (this.onModelLinesInserted(<editorCommon.IViewLinesInsertedEvent>data)) {
+				case viewEvents.ViewEventNames.LinesInsertedEvent:
+					if (this.onModelLinesInserted(<viewEvents.IViewLinesInsertedEvent>data)) {
 						shouldRender = true;
 					}
 					break;
 
-				case editorCommon.ViewEventNames.LineChangedEvent:
-					if (this.onModelLineChanged(<editorCommon.IViewLineChangedEvent>data)) {
+				case viewEvents.ViewEventNames.LineChangedEvent:
+					if (this.onModelLineChanged(<viewEvents.IViewLineChangedEvent>data)) {
 						shouldRender = true;
 					}
 					break;
 
-				case editorCommon.ViewEventNames.TokensChangedEvent:
-					if (this.onModelTokensChanged(<editorCommon.IViewTokensChangedEvent>data)) {
+				case viewEvents.ViewEventNames.TokensChangedEvent:
+					if (this.onModelTokensChanged(<viewEvents.IViewTokensChangedEvent>data)) {
 						shouldRender = true;
 					}
 					break;
 
-				case editorCommon.ViewEventNames.DecorationsChangedEvent:
-					if (this.onModelDecorationsChanged(<editorCommon.IViewDecorationsChangedEvent>data)) {
+				case viewEvents.ViewEventNames.DecorationsChangedEvent:
+					if (this.onModelDecorationsChanged(<viewEvents.IViewDecorationsChangedEvent>data)) {
 						shouldRender = true;
 					}
 					break;
 
-				case editorCommon.ViewEventNames.CursorPositionChangedEvent:
-					if (this.onCursorPositionChanged(<editorCommon.IViewCursorPositionChangedEvent>data)) {
+				case viewEvents.ViewEventNames.CursorPositionChangedEvent:
+					if (this.onCursorPositionChanged(<viewEvents.IViewCursorPositionChangedEvent>data)) {
 						shouldRender = true;
 					}
 					break;
 
-				case editorCommon.ViewEventNames.CursorSelectionChangedEvent:
-					if (this.onCursorSelectionChanged(<editorCommon.IViewCursorSelectionChangedEvent>data)) {
+				case viewEvents.ViewEventNames.CursorSelectionChangedEvent:
+					if (this.onCursorSelectionChanged(<viewEvents.IViewCursorSelectionChangedEvent>data)) {
 						shouldRender = true;
 					}
 					break;
 
-				case editorCommon.ViewEventNames.RevealRangeEvent:
-					if (this.onCursorRevealRange(<editorCommon.IViewRevealRangeEvent>data)) {
+				case viewEvents.ViewEventNames.RevealRangeEvent:
+					if (this.onCursorRevealRange(<viewEvents.IViewRevealRangeEvent>data)) {
 						shouldRender = true;
 					}
 					break;
 
-				case editorCommon.ViewEventNames.ScrollRequestEvent:
-					if (this.onCursorScrollRequest(<editorCommon.IViewScrollRequestEvent>data)) {
+				case viewEvents.ViewEventNames.ScrollRequestEvent:
+					if (this.onCursorScrollRequest(<viewEvents.IViewScrollRequestEvent>data)) {
 						shouldRender = true;
 					}
 					break;
