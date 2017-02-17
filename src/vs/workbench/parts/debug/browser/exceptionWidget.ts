@@ -11,8 +11,6 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { IDebugService } from 'vs/workbench/parts/debug/common/debug';
 import * as strings from 'vs/base/common/strings';
 
-import * as dom from 'vs/base/browser/dom';
-
 export class ExceptionWidget extends ZoneWidget {
 
 
@@ -20,24 +18,27 @@ export class ExceptionWidget extends ZoneWidget {
 		@IContextViewService private contextViewService: IContextViewService,
 		@IDebugService private debugService: IDebugService
 	) {
-		super(editor, { showFrame: true, showArrow: false, frameWidth: 1 });
+		super(editor, { showFrame: true, showArrow: true, frameWidth: 1, className: 'exception-widget' });
 
 		this.create();
 	}
 
 	protected _fillContainer(container: HTMLElement): void {
-		dom.addClass(container, 'exception-widget monaco-editor-background');
+		let el = document.createElement('div');
+		el.textContent = nls.localize('exceptionThrown', 'Exception occured.');
+		el.className = 'exception-title';
+		container.appendChild(el);
 
 		const thread = this.debugService.getViewModel().focusedThread;
 		if (thread && thread.stoppedDetails) {
-			const exceptionThrown = nls.localize('exceptionThrown', "Exception occured: {0}", thread.stoppedDetails.text);
-			container.textContent = exceptionThrown;
+			let el = document.createElement('div');
+			el.textContent = thread.stoppedDetails.text;
+			container.appendChild(el);
 		}
 	}
 
 	protected _doLayout(heightInPixel: number, widthInPixel: number): void {
-		var height = Math.ceil(this.editor.getConfiguration().lineHeight * 1.2);
+		var height = Math.ceil(this.editor.getConfiguration().lineHeight * 1.8);
 		this.container.style.height = strings.format('{0}px', height);
-		this.container.style.lineHeight = this.container.style.height;
 	}
 }
