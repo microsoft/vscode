@@ -301,25 +301,25 @@ export class ThemeService implements IThemeService {
 			}
 		});
 
-		this.configurationService.onDidUpdateConfiguration(e => {
-			let colorThemeSetting = this.configurationService.lookup<string>(COLOR_THEME_SETTING).value;
-			if (colorThemeSetting !== this.currentColorTheme.settingsId) {
-				this.findThemeDataBySettingsId(colorThemeSetting, null).then(theme => {
-					if (theme) {
-						this.setColorTheme(theme.id, null);
-					}
-				});
-			}
+		this.initialize().then(null, errors.onUnexpectedError).then(_ => {
+			this.configurationService.onDidUpdateConfiguration(e => {
+				let colorThemeSetting = this.configurationService.lookup<string>(COLOR_THEME_SETTING).value;
+				if (colorThemeSetting !== this.currentColorTheme.settingsId) {
+					this.findThemeDataBySettingsId(colorThemeSetting, null).then(theme => {
+						if (theme) {
+							this.setColorTheme(theme.id, null);
+						}
+					});
+				}
 
-			let iconThemeSetting = this.configurationService.lookup<string>(ICON_THEME_SETTING).value || '';
-			if (iconThemeSetting !== this.currentIconTheme.settingsId) {
-				this.findIconThemeBySettingsId(iconThemeSetting).then(theme => {
-					this.setFileIconTheme(theme && theme.id, null);
-				});
-			}
+				let iconThemeSetting = this.configurationService.lookup<string>(ICON_THEME_SETTING).value || '';
+				if (iconThemeSetting !== this.currentIconTheme.settingsId) {
+					this.findIconThemeBySettingsId(iconThemeSetting).then(theme => {
+						this.setFileIconTheme(theme && theme.id, null);
+					});
+				}
+			});
 		});
-
-		this.initialize().done(null, errors.onUnexpectedError);
 	}
 
 	public get onDidColorThemeChange(): Event<IColorTheme> {
@@ -368,7 +368,7 @@ export class ThemeService implements IThemeService {
 			return TPromise.as(null);
 		}
 		if (themeId === this.currentColorTheme.id && this.currentColorTheme.isLoaded) {
-			return this.writeColorThemeConfiguration(settingsTarget);
+			return TPromise.as(this.currentColorTheme);
 		}
 
 		themeId = validateThemeId(themeId); // migrate theme ids
