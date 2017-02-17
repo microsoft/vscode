@@ -430,7 +430,6 @@ export class Model implements Disposable {
 		await this.run(Operation.Sync, () => this.repository.sync());
 	}
 
-	@throttle
 	async show(ref: string, uri: Uri): Promise<string> {
 		return await this.run(Operation.Show, async () => {
 			const relativePath = path.relative(this.repository.root, uri.fsPath).replace(/\\/g, '/');
