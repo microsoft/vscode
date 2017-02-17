@@ -296,7 +296,7 @@ export class WalkThroughPart extends BaseEditor {
 			})
 			.then(model => {
 				const content = model.main.textEditorModel.getLinesContent().join('\n');
-				if (strings.endsWith(input.getResource().path, '.html')) {
+				if (!strings.endsWith(input.getResource().path, '.md')) {
 					this.content.innerHTML = content;
 					this.updateSizeClasses();
 					this.updateMarkerClasses();
