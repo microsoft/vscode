@@ -11,7 +11,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { TokenizationRegistry } from 'vs/editor/common/modes';
+import { TokenizationRegistry, ColorId } from 'vs/editor/common/modes';
 import { tokenizeLineToHTML } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { ViewModelCursors } from 'vs/editor/common/viewModel/viewModelCursors';
 import { ViewModelDecorations } from 'vs/editor/common/viewModel/viewModelDecorations';
@@ -595,69 +595,67 @@ export class ViewModel extends EventEmitter implements IViewModel {
 		}
 	}
 
-	public getHTMLToCopy(ranges: Range[], enableEmptySelectionClipboard: boolean): string {
-		// TODO: adopt new view line tokens.
-		let rules: { [key: string]: string } = {};
-		let colorMap = TokenizationRegistry.getColorMap();
-		for (let i = 1, len = colorMap.length; i < len; i++) {
-			let color = colorMap[i];
-			rules[`mtk${i}`] = `color: ${color.toRGBHex()};`;
+	public getHTMLToCopy(viewRanges: Range[], enableEmptySelectionClipboard: boolean): string {
+		if (viewRanges.length !== 1) {
+			// no multiple selection support at this time
+			return null;
 		}
-		rules['mtki'] = 'font-style: italic;';
-		rules['mtkb'] = 'font-weight: bold;';
-		rules['mtku'] = 'text-decoration: underline;';
 
-		let defaultForegroundColor = colorMap[1].toRGBHex();
-		let defaultBackgroundColor = colorMap[2].toRGBHex();
-
-		let fontInfo = this.configuration.editor.fontInfo;
-
-		let output = `<div style="color: ${defaultForegroundColor}; background-color: ${defaultBackgroundColor};` +
-			`font-family: ${fontInfo.fontFamily}; font-weight: ${fontInfo.fontWeight}; font-size: ${fontInfo.fontSize}px; line-height: ${fontInfo.lineHeight}px">`;
-
-		if (ranges.length === 1) {
-			let range: Range = ranges[0];
-
-			if (range.isEmpty()) {
-				if (enableEmptySelectionClipboard) {
-					let modelLineNumber = this.coordinatesConverter.convertViewPositionToModelPosition(new Position(range.startLineNumber, 1)).lineNumber;
-					let viewLineStart = new Position(range.startLineNumber, 1);
-					let viewLineEnd = new Position(range.startLineNumber, this.getLineMaxColumn(range.startLineNumber));
-					let startOffset = this.coordinatesConverter.convertViewPositionToModelPosition(viewLineStart).column - 1;
-					let endOffset = this.coordinatesConverter.convertViewPositionToModelPosition(viewLineEnd).column - 1;
-					let viewLineRenderingData = this.getViewLineRenderingData(new Range(viewLineStart.lineNumber, viewLineStart.column, viewLineEnd.lineNumber, viewLineEnd.column), modelLineNumber);
-					let html = tokenizeLineToHTML(this.getModelLineContent(modelLineNumber),
-						viewLineRenderingData.tokens,
-						rules,
-						{
-							startOffset: startOffset,
-							endOffset: endOffset,
-							tabSize: this.getTabSize()
-						});
-					output += `${html}`;
-				} else {
-					return '';
-				}
-			} else {
-				for (let i = 0, lineCount = range.endLineNumber - range.startLineNumber; i <= lineCount; i++) {
-					let viewLineRenderingData = this.getViewLineRenderingData(range, range.startLineNumber + i);
-					let lineContent = viewLineRenderingData.content;
-					let startOffset = i === 0 ? range.startColumn - 1 : 0;
-					let endOffset = i === lineCount ? range.endColumn - 1 : lineContent.length;
-
-					let html = tokenizeLineToHTML(lineContent, viewLineRenderingData.tokens, rules,
-						{
-							startOffset: startOffset,
-							endOffset: endOffset,
-							tabSize: this.getTabSize()
-						});
-					output += `${html}`;
-				}
+		let range = this.coordinatesConverter.convertViewRangeToModelRange(viewRanges[0]);
+		if (range.isEmpty()) {
+			if (!enableEmptySelectionClipboard) {
+				// nothing to copy
+				return null;
 			}
+			let lineNumber = range.startLineNumber;
+			range = new Range(lineNumber, this.model.getLineMinColumn(lineNumber), lineNumber, this.model.getLineMaxColumn(lineNumber));
 		}
 
-		output += '</div>';
+		const fontInfo = this.configuration.editor.fontInfo;
+		const colorMap = this._getColorMap();
 
-		return output;
+		return (
+			`<div style="`
+			+ `color: ${colorMap[ColorId.DefaultForeground]};`
+			+ `background-color: ${colorMap[ColorId.DefaultBackground]};`
+			+ `font-family: ${fontInfo.fontFamily};`
+			+ `font-weight: ${fontInfo.fontWeight};`
+			+ `font-size: ${fontInfo.fontSize}px;`
+			+ `line-height: ${fontInfo.lineHeight}px`
+			+ `">`
+			+ this._getHTMLToCopy(range, colorMap)
+			+ '</div>'
+		);
+	}
+
+	private _getHTMLToCopy(modelRange: Range, colorMap: string[]): string {
+		const startLineNumber = modelRange.startLineNumber;
+		const startColumn = modelRange.startColumn;
+		const endLineNumber = modelRange.endLineNumber;
+		const endColumn = modelRange.endColumn;
+
+		const tabSize = this.getTabSize();
+
+		let result = '';
+
+		for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
+			const lineTokens = this.model.getLineTokens(lineNumber, true);
+			const lineContent = lineTokens.getLineContent();
+			const startOffset = (lineNumber === startLineNumber ? startColumn - 1 : 0);
+			const endOffset = (lineNumber === endLineNumber ? endColumn - 1 : lineContent.length);
+
+			result += tokenizeLineToHTML(lineContent, lineTokens.inflate(), colorMap, startOffset, endOffset, tabSize);
+		}
+
+		return result;
+	}
+
+	private _getColorMap(): string[] {
+		let colorMap = TokenizationRegistry.getColorMap();
+		let result: string[] = [null];
+		for (let i = 1, len = colorMap.length; i < len; i++) {
+			result[i] = colorMap[i].toRGBHex();
+		}
+		return result;
 	}
 }

@@ -32,6 +32,10 @@ export class ViewLineToken {
 		return TokenMetadata.getClassNameFromMetadata(this._metadata);
 	}
 
+	public getInlineStyle(colorMap: string[]): string {
+		return TokenMetadata.getInlineStyleFromMetadata(this._metadata, colorMap);
+	}
+
 	private static _equals(a: ViewLineToken, b: ViewLineToken): boolean {
 		return (
 			a.endIndex === b.endIndex
