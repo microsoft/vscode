@@ -77,6 +77,36 @@ suite('Color', () => {
 		assert.deepEqual(new RGBA(128, 0, 128, 255), Color.fromHex('#800080').toRGBA());
 		assert.deepEqual(new RGBA(0, 128, 128, 255), Color.fromHex('#008080').toRGBA());
 		assert.deepEqual(new RGBA(0, 0, 128, 255), Color.fromHex('#000080').toRGBA());
+
+		function assertParseColor(input: string, expected: RGBA): void {
+			let actual = Color.fromHex(input).toRGBA();
+			assert.deepEqual(actual, expected, input);
+		}
+
+		// invalid
+		assertParseColor(null, new RGBA(255, 0, 0, 255));
+		assertParseColor('', new RGBA(255, 0, 0, 255));
+		assertParseColor('#', new RGBA(255, 0, 0, 255));
+		assertParseColor('#0102030', new RGBA(255, 0, 0, 255));
+
+		// somewhat valid
+		assertParseColor('#FFFFG0', new RGBA(255, 255, 0, 255));
+		assertParseColor('#FFFFg0', new RGBA(255, 255, 0, 255));
+		assertParseColor('#-FFF00', new RGBA(15, 255, 0, 255));
+
+		// valid
+		assertParseColor('#000000', new RGBA(0, 0, 0, 255));
+		assertParseColor('#010203', new RGBA(1, 2, 3, 255));
+		assertParseColor('#040506', new RGBA(4, 5, 6, 255));
+		assertParseColor('#070809', new RGBA(7, 8, 9, 255));
+		assertParseColor('#0a0A0a', new RGBA(10, 10, 10, 255));
+		assertParseColor('#0b0B0b', new RGBA(11, 11, 11, 255));
+		assertParseColor('#0c0C0c', new RGBA(12, 12, 12, 255));
+		assertParseColor('#0d0D0d', new RGBA(13, 13, 13, 255));
+		assertParseColor('#0e0E0e', new RGBA(14, 14, 14, 255));
+		assertParseColor('#0f0F0f', new RGBA(15, 15, 15, 255));
+		assertParseColor('#a0A0a0', new RGBA(160, 160, 160, 255));
+		assertParseColor('#FFFFFF', new RGBA(255, 255, 255, 255));
 	});
 
 	test('isLighterColor', function () {
