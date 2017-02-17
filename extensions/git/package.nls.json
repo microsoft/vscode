@@ -5,6 +5,7 @@
 	"command.openFile": "Open File",
 	"command.stage": "Stage",
 	"command.stageAll": "Stage All",
+	"command.stageSelectedRanges": "Stage Selected Ranges",
 	"command.unstage": "Unstage",
 	"command.unstageAll": "Unstage All",
 	"command.clean": "Clean",
