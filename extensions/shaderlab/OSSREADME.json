@@ -1,9 +1,9 @@
 // ATTENTION - THIS DIRECTORY CONTAINS THIRD PARTY OPEN SOURCE MATERIALS:
 
 [{
-	"name": "unity-shader-files",
+	"name": "shaders-tmLanguage-shaderlab",
 	"version": "0.1.0",
 	"license": "MIT",
-	"repositoryURL": "https://github.com/nadege/unity-shader-files",
-	"description": "The file syntaxes/shaderlab.json was derived from the Atom package https://github.com/nadege/unity-shader-files."
+	"repositoryURL": "https://github.com/tgjones/shaders-tmLanguage",
+	"description": "The file syntaxes/shaderlab.json was included from https://github.com/tgjones/shaders-tmLanguage/blob/master/grammars/shaderlab.json."
 }]
