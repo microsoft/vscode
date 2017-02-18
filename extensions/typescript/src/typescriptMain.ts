@@ -39,8 +39,8 @@ import CompletionItemProvider from './features/completionItemProvider';
 import WorkspaceSymbolProvider from './features/workspaceSymbolProvider';
 import CodeActionProvider from './features/codeActionProvider';
 import ReferenceCodeLensProvider from './features/referencesCodeLensProvider';
+import JsDocCompletionHelper from './features/jsDocCompletionProvider';
 
-import JsDocCompletionHelper from './utils/JsDocCompletionHelper';
 import * as BuildStatus from './utils/buildStatus';
 import * as ProjectStatus from './utils/projectStatus';
 import TypingsStatus, { AtaProgressReporter } from './utils/typingsStatus';
@@ -69,6 +69,7 @@ export function activate(context: ExtensionContext): void {
 	const MODE_ID_TSX = 'typescriptreact';
 	const MODE_ID_JS = 'javascript';
 	const MODE_ID_JSX = 'javascriptreact';
+	const selector = [MODE_ID_TS, MODE_ID_TSX, MODE_ID_JS, MODE_ID_JSX];
 
 	const clientHost = new TypeScriptServiceClientHost([
 		{
@@ -102,19 +103,8 @@ export function activate(context: ExtensionContext): void {
 		client.onVersionStatusClicked();
 	}));
 
-	const jsDocCompletionHelper = new JsDocCompletionHelper(client);
-	context.subscriptions.push(commands.registerCommand('_typescript.tryCompleteJsDoc', () => {
-		const editor = window.activeTextEditor;
-		if (!editor || !editor.selection.isEmpty) {
-			return commands.executeCommand('type', { text: '\n' });
-		}
-		return jsDocCompletionHelper.tryCompleteJsDoc(editor, editor.selection.active).then(didCompleteComment => {
-			if (didCompleteComment) {
-				return;
-			}
-			return commands.executeCommand('type', { text: '\n' });
-		});
-	}));
+	context.subscriptions.push(
+		languages.registerCompletionItemProvider(selector, new JsDocCompletionHelper(client)));
 
 	const goToProjectConfig = (isTypeScript: boolean) => {
 		const editor = window.activeTextEditor;
