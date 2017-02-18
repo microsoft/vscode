@@ -6,5 +6,6 @@
 {
 	"clearOutput": "出力のクリア",
 	"switchToOutput.label": "出力に切り替え",
-	"toggleOutput": "出力の切り替え"
+	"toggleOutput": "出力の切り替え",
+	"toggleOutputScrollLock": "出力スクロール ロックの切り替え"
 }

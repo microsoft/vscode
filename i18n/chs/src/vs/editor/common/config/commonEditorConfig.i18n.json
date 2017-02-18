@@ -18,7 +18,7 @@
 	"fontLigatures": "启用字体连字",
 	"fontSize": "以像素为单位控制字号。",
 	"fontWeight": "控制字体粗细。",
-	"formatOnPaste": "控制编辑器是否应自动设置粘贴内容的格式",
+	"formatOnPaste": "控制编辑器是否应自动设置粘贴内容的格式。格式化程序必须可用并且能设置文档中某一范围的格式。",
 	"formatOnType": "控制编辑器是否应在键入后自动设置行的格式",
 	"glyphMargin": "控制编辑器是否应呈现垂直字形边距。字形边距最常用于调试。",
 	"hideCursorInOverviewRuler": "控制光标是否应隐藏在概述标尺中。",

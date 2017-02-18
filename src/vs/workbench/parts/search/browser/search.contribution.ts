@@ -12,15 +12,14 @@ import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor } f
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import nls = require('vs/nls');
 import { IAction } from 'vs/base/common/actions';
-import { asFileResource } from 'vs/workbench/parts/files/common/files';
-import { SyncActionDescriptor, DeferredAction } from 'vs/platform/actions/common/actions';
+import { explorerItemToFileResource } from 'vs/workbench/parts/files/common/files';
+import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Scope, IActionBarRegistry, Extensions as ActionBarExtensions, ActionBarContributor } from 'vs/workbench/browser/actionBarRegistry';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
 import { QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenAction } from 'vs/workbench/browser/quickopen';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { AsyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -32,6 +31,7 @@ import { registerContributions as searchWidgetContributions } from 'vs/workbench
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ToggleCaseSensitiveKeybinding, ToggleRegexKeybinding, ToggleWholeWordKeybinding, ShowPreviousFindTermKeybinding, ShowNextFindTermKeybinding } from 'vs/editor/contrib/find/common/findModel';
 import { ISearchWorkbenchService, SearchWorkbenchService } from 'vs/workbench/parts/search/common/searchModel';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 
 registerSingleton(ISearchWorkbenchService, SearchWorkbenchService);
 replaceContributions();
@@ -49,6 +49,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
+CommandsRegistry.registerCommand(searchActions.FindInFolderAction.ID, searchActions.findInFolderCommand);
+
 class ExplorerViewerActionContributor extends ActionBarContributor {
 	private _instantiationService: IInstantiationService;
 	private _contextService: IWorkspaceContextService;
@@ -64,7 +66,7 @@ class ExplorerViewerActionContributor extends ActionBarContributor {
 		let element = context.element;
 
 		// Contribute only on file resources
-		let fileResource = asFileResource(element);
+		let fileResource = explorerItemToFileResource(element);
 		if (!fileResource) {
 			return false;
 		}
@@ -76,14 +78,9 @@ class ExplorerViewerActionContributor extends ActionBarContributor {
 		let actions: IAction[] = [];
 
 		if (this.hasSecondaryActions(context)) {
-			let fileResource = asFileResource(context.element);
+			let fileResource = explorerItemToFileResource(context.element);
 
-			let action = new DeferredAction(
-				this._instantiationService,
-				new AsyncDescriptor('vs/workbench/parts/search/browser/searchActions', 'FindInFolderAction', fileResource.resource),
-				'workbench.search.action.findInFolder',
-				nls.localize('findInFolder', "Find in Folder")
-			);
+			let action = this._instantiationService.createInstance(searchActions.FindInFolderAction, fileResource.resource);
 			action.order = 55;
 			actions.push(action);
 
@@ -106,7 +103,7 @@ class ShowAllSymbolsAction extends QuickOpenAction {
 }
 
 // Register Viewlet
-(<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets)).registerViewlet(new ViewletDescriptor(
+Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(new ViewletDescriptor(
 	'vs/workbench/parts/search/browser/searchViewlet',
 	'SearchViewlet',
 	Constants.VIEWLET_ID,
@@ -116,8 +113,7 @@ class ShowAllSymbolsAction extends QuickOpenAction {
 ));
 
 // Actions
-const registry = <IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions);
-
+const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
 
 registry.registerWorkbenchAction(new SyncActionDescriptor(searchActions.OpenSearchViewletAction, Constants.VIEWLET_ID, nls.localize('showSearchViewlet', "Show Search"), { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_F },
 	Constants.SearchViewletVisibleKey.toNegated()), 'View: Show Search', nls.localize('view', "View"));
@@ -148,11 +144,11 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(searchActions.ToggleRe
 registry.registerWorkbenchAction(new SyncActionDescriptor(ShowAllSymbolsAction, ACTION_ID, ACTION_LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_T }), 'Go to Symbol in Workspace...');
 
 // Contribute to Explorer Viewer
-const actionBarRegistry = <IActionBarRegistry>Registry.as(ActionBarExtensions.Actionbar);
+const actionBarRegistry = Registry.as<IActionBarRegistry>(ActionBarExtensions.Actionbar);
 actionBarRegistry.registerActionBarContributor(Scope.VIEWER, ExplorerViewerActionContributor);
 
 // Register Quick Open Handler
-(<IQuickOpenRegistry>Registry.as(QuickOpenExtensions.Quickopen)).registerDefaultQuickOpenHandler(
+Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerDefaultQuickOpenHandler(
 	new QuickOpenHandlerDescriptor(
 		'vs/workbench/parts/search/browser/openAnythingHandler',
 		'OpenAnythingHandler',
@@ -161,7 +157,7 @@ actionBarRegistry.registerActionBarContributor(Scope.VIEWER, ExplorerViewerActio
 	)
 );
 
-(<IQuickOpenRegistry>Registry.as(QuickOpenExtensions.Quickopen)).registerQuickOpenHandler(
+Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpenHandler(
 	new QuickOpenHandlerDescriptor(
 		'vs/workbench/parts/search/browser/openAnythingHandler',
 		'OpenSymbolHandler',
@@ -176,9 +172,8 @@ actionBarRegistry.registerActionBarContributor(Scope.VIEWER, ExplorerViewerActio
 	)
 );
 
-
 // Configuration
-const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);
+const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 configurationRegistry.registerConfiguration({
 	'id': 'search',
 	'order': 13,

@@ -288,31 +288,6 @@
 		"strings": {
 			"patterns": [
 				{
-					"contentName": "string.quoted.literalprintf.fsharp",
-					"begin": "(sprintf|printf[n]|failwithf)\\s+((?=[^\\\\])(@\"))",
-					"end": "(\")",
-					"beginCaptures": {
-						"2": {
-							"name": "punctuation.definition.string.begin.fsharp"
-						}
-					},
-					"endCaptures": {
-						"1": {
-							"name": "punctuation.definition.string.end.fsharp"
-						}
-					},
-					"patterns": [
-						{
-							"name": "constant.character.string.escape.fsharp",
-							"match": "\"(\")"
-						},
-						{
-							"name": "constant.character.string.escape.format.fsharp",
-							"match": "%[0\\-\\+# ]{0,3}(\\*|[0-9]{0,2})(\\.[0-9]{1,2})?([bcsdiuxXoeEfFgGMOAt]|\\+A)"
-						}
-					]
-				},
-				{
 					"name": "string.quoted.literal.fsharp",
 					"begin": "(?=[^\\\\])(@\")",
 					"end": "(\")(?!\")",
@@ -334,27 +309,6 @@
 					]
 				},
 				{
-					"contentName": "string.quoted.tripleprintf.fsharp",
-					"begin": "(sprintf|printf[n]|failwithf)\\s+((?=[^\\\\])(\"\"\"))",
-					"end": "(\"\"\")",
-					"beginCaptures": {
-						"2": {
-							"name": "punctuation.definition.string.begin.fsharp"
-						}
-					},
-					"endCaptures": {
-						"1": {
-							"name": "punctuation.definition.string.end.fsharp"
-						}
-					},
-					"patterns": [
-						{
-							"name": "constant.character.string.escape.format.fsharp",
-							"match": "%[0\\-\\+# ]{0,3}(\\*|[0-9]{0,2})(\\.[0-9]{1,2})?([bcsdiuxXoeEfFgGMOAt]|\\+A)"
-						}
-					]
-				},
-				{
 					"name": "string.quoted.triple.fsharp",
 					"begin": "(?=[^\\\\])(\"\"\")",
 					"end": "(\"\"\")",
@@ -368,39 +322,6 @@
 							"name": "punctuation.definition.string.end.fsharp"
 						}
 					}
-				},
-				{
-					"contentName": "string.quoted.doubleprintf.fsharp",
-					"begin": "(sprintf|printf[n]|failwithf)\\s+((?=[^\\\\])(\"))",
-					"end": "(\")",
-					"beginCaptures": {
-						"2": {
-							"name": "punctuation.definition.string.begin.fsharp"
-						}
-					},
-					"endCaptures": {
-						"1": {
-							"name": "punctuation.definition.string.end.fsharp"
-						}
-					},
-					"patterns": [
-						{
-							"name": "punctuation.separator.string.ignore-eol.fsharp",
-							"match": "\\\\$[ \\t]*"
-						},
-						{
-							"name": "constant.character.string.escape.format.fsharp",
-							"match": "%[0\\-\\+# ]{0,3}(\\*|[0-9]{0,2})(\\.[0-9]{1,2})?([bcsdiuxXoeEfFgGMOAt]|\\+A)"
-						},
-						{
-							"name": "constant.character.string.escape.fsharp",
-							"match": "\\\\([\\\\''ntbr]|u[a-fA-F0-9]{4}|u[a-fA-F0-9]{8})"
-						},
-						{
-							"name": "invalid.illeagal.character.string.fsharp",
-							"match": "\\\\(?![\\\\''ntbr]|u[a-fA-F0-9]{4}|u[a-fA-F0-9]{8})."
-						}
-					]
 				},
 				{
 					"name": "string.quoted.double.fsharp",
@@ -533,5 +454,5 @@
 			]
 		}
 	},
-	"version": "https://github.com/ionide/ionide-fsgrammar/commit/16d4cc8cb0224d8861a7b48107ac102e3f51579a"
+	"version": "https://github.com/ionide/ionide-fsgrammar/commit/edb05603ec3f2eb3c633f92df1649e82fe870545"
 }

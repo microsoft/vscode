@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { Theme, IThemeRule } from 'vs/editor/common/modes/supports/tokenization';
+import { Theme, IThemeRule, generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
 import { IStandaloneColorService, BuiltinTheme, ITheme } from 'vs/editor/common/services/standaloneColorService';
 import { vs, vs_dark, hc_black } from 'vs/editor/common/standalone/themes';
 import * as dom from 'vs/base/browser/dom';
@@ -61,18 +61,6 @@ export class StandaloneColorServiceImpl implements IStandaloneColorService {
 		this.setTheme(VS_THEME_NAME);
 	}
 
-	private static _generateCSS(colorMap: string[]): string {
-		let rules: string[] = [];
-		for (let i = 1, len = colorMap.length; i < len; i++) {
-			let color = colorMap[i];
-			rules[i] = `.mtk${i} { color: #${color}; }`;
-		}
-		rules.push('.mtki { font-style: italic; }');
-		rules.push('.mtkb { font-weight: bold; }');
-		rules.push('.mtku { text-decoration: underline; }');
-		return rules.join('\n');
-	}
-
 	public defineTheme(themeName: string, themeData: ITheme): void {
 		if (!/^[a-z0-9\-]+$/i.test(themeName) || isBuiltinTheme(themeName)) {
 			throw new Error('Illegal theme name!');
@@ -107,7 +95,7 @@ export class StandaloneColorServiceImpl implements IStandaloneColorService {
 
 		this._theme = Theme.createFromRawTheme(themeData.rules);
 		let colorMap = this._theme.getColorMap();
-		let cssRules = StandaloneColorServiceImpl._generateCSS(colorMap);
+		let cssRules = generateTokensCSSForColorMap(colorMap);
 		this._styleElement.innerHTML = cssRules;
 
 		TokenizationRegistry.setColorMap(colorMap);

@@ -153,6 +153,18 @@ export interface IEditorScrollbarOptions {
 	horizontalSliderSize?: number;
 }
 
+
+/**
+ * Configuration options for editor minimap
+ */
+export interface IEditorMinimapOptions {
+	/**
+	 * Enable the rendering of the minimap.
+	 * Defaults to false.
+	 */
+	enabled?: boolean;
+}
+
 /**
  * Describes how to indent wrapped lines.
  */
@@ -257,6 +269,10 @@ export interface IEditorOptions {
 	 * Control the behavior and rendering of the scrollbars.
 	 */
 	scrollbar?: IEditorScrollbarOptions;
+	/**
+	 * Control the behavior and rendering of the minimap.
+	 */
+	minimap?: IEditorMinimapOptions;
 	/**
 	 * Display overflow widgets as `fixed`.
 	 * Defaults to `false`.
@@ -612,6 +628,37 @@ export class InternalEditorScrollbarOptions {
 	}
 }
 
+export class InternalEditorMinimapOptions {
+	readonly _internalEditorMinimapOptionsBrand: void;
+
+	readonly enabled: boolean;
+
+	/**
+	 * @internal
+	 */
+	constructor(source: {
+		enabled: boolean;
+	}) {
+		this.enabled = Boolean(source.enabled);
+	}
+
+	/**
+	 * @internal
+	 */
+	public equals(other: InternalEditorMinimapOptions): boolean {
+		return (
+			this.enabled === other.enabled
+		);
+	}
+
+	/**
+	 * @internal
+	 */
+	public clone(): InternalEditorMinimapOptions {
+		return new InternalEditorMinimapOptions(this);
+	}
+}
+
 export class EditorWrappingInfo {
 	readonly _editorWrappingInfoBrand: void;
 
@@ -692,6 +739,7 @@ export class InternalEditorViewOptions {
 	readonly renderIndentGuides: boolean;
 	readonly renderLineHighlight: 'none' | 'gutter' | 'line' | 'all';
 	readonly scrollbar: InternalEditorScrollbarOptions;
+	readonly minimap: InternalEditorMinimapOptions;
 	readonly fixedOverflowWidgets: boolean;
 
 	/**
@@ -724,6 +772,7 @@ export class InternalEditorViewOptions {
 		renderIndentGuides: boolean;
 		renderLineHighlight: 'none' | 'gutter' | 'line' | 'all';
 		scrollbar: InternalEditorScrollbarOptions;
+		minimap: InternalEditorMinimapOptions;
 		fixedOverflowWidgets: boolean;
 	}) {
 		this.theme = String(source.theme);
@@ -752,6 +801,7 @@ export class InternalEditorViewOptions {
 		this.renderIndentGuides = Boolean(source.renderIndentGuides);
 		this.renderLineHighlight = source.renderLineHighlight;
 		this.scrollbar = source.scrollbar.clone();
+		this.minimap = source.minimap.clone();
 		this.fixedOverflowWidgets = Boolean(source.fixedOverflowWidgets);
 	}
 
@@ -814,6 +864,7 @@ export class InternalEditorViewOptions {
 			&& this.renderIndentGuides === other.renderIndentGuides
 			&& this.renderLineHighlight === other.renderLineHighlight
 			&& this.scrollbar.equals(other.scrollbar)
+			&& this.minimap.equals(other.minimap)
 			&& this.fixedOverflowWidgets === other.fixedOverflowWidgets
 		);
 	}
@@ -849,6 +900,7 @@ export class InternalEditorViewOptions {
 			renderIndentGuides: this.renderIndentGuides !== newOpts.renderIndentGuides,
 			renderLineHighlight: this.renderLineHighlight !== newOpts.renderLineHighlight,
 			scrollbar: (!this.scrollbar.equals(newOpts.scrollbar)),
+			minimap: (!this.minimap.equals(newOpts.minimap)),
 			fixedOverflowWidgets: this.fixedOverflowWidgets !== newOpts.fixedOverflowWidgets
 		};
 	}
@@ -888,6 +940,7 @@ export interface IViewConfigurationChangedEvent {
 	readonly renderIndentGuides: boolean;
 	readonly renderLineHighlight: boolean;
 	readonly scrollbar: boolean;
+	readonly minimap: boolean;
 	readonly fixedOverflowWidgets: boolean;
 }
 
@@ -2388,6 +2441,37 @@ export interface ITextSource {
 }
 
 /**
+ * The text source
+ * @internal
+ */
+export interface ITextSource2 {
+	/**
+	 * The entire text length.
+	 */
+	readonly length: number;
+	/**
+	 * The text split into lines.
+	 */
+	readonly lines: string[];
+	/**
+	 * The BOM (leading character sequence of the file).
+	 */
+	readonly BOM: string;
+	/**
+	 * The number of lines ending with '\r\n'
+	 */
+	readonly totalCRCount: number;
+	/**
+	 * The text contains Unicode characters classified as "R" or "AL".
+	 */
+	readonly containsRTL: boolean;
+	/**
+	 * The text contains only characters inside the ASCII range 32-126 or \t \r \n
+	 */
+	readonly isBasicASCII: boolean;
+}
+
+/**
  * The raw text backing a model.
  * @internal
  */
@@ -2712,6 +2796,12 @@ export class OverviewRulerPosition {
 	}
 }
 
+export enum RenderMinimap {
+	None = 0,
+	Small = 1,
+	Large = 2
+}
+
 /**
  * The internal layout details of the editor.
  */
@@ -2780,6 +2870,21 @@ export class EditorLayoutInfo {
 	readonly contentHeight: number;
 
 	/**
+	 * The width of the minimap
+	 */
+	readonly minimapWidth: number;
+
+	/**
+	 * Minimap render type
+	 */
+	readonly renderMinimap: RenderMinimap;
+
+	/**
+	 * The number of columns (of typical characters) fitting on a viewport line.
+	 */
+	readonly viewportColumn: number;
+
+	/**
 	 * The width of the vertical scrollbar.
 	 */
 	readonly verticalScrollbarWidth: number;
@@ -2811,6 +2916,9 @@ export class EditorLayoutInfo {
 		contentLeft: number;
 		contentWidth: number;
 		contentHeight: number;
+		renderMinimap: RenderMinimap;
+		minimapWidth: number;
+		viewportColumn: number;
 		verticalScrollbarWidth: number;
 		horizontalScrollbarHeight: number;
 		overviewRuler: OverviewRulerPosition;
@@ -2829,6 +2937,9 @@ export class EditorLayoutInfo {
 		this.contentLeft = source.contentLeft | 0;
 		this.contentWidth = source.contentWidth | 0;
 		this.contentHeight = source.contentHeight | 0;
+		this.renderMinimap = source.renderMinimap | 0;
+		this.minimapWidth = source.minimapWidth | 0;
+		this.viewportColumn = source.viewportColumn | 0;
 		this.verticalScrollbarWidth = source.verticalScrollbarWidth | 0;
 		this.horizontalScrollbarHeight = source.horizontalScrollbarHeight | 0;
 		this.overviewRuler = source.overviewRuler.clone();
@@ -2853,6 +2964,9 @@ export class EditorLayoutInfo {
 			&& this.contentLeft === other.contentLeft
 			&& this.contentWidth === other.contentWidth
 			&& this.contentHeight === other.contentHeight
+			&& this.renderMinimap === other.renderMinimap
+			&& this.minimapWidth === other.minimapWidth
+			&& this.viewportColumn === other.viewportColumn
 			&& this.verticalScrollbarWidth === other.verticalScrollbarWidth
 			&& this.horizontalScrollbarHeight === other.horizontalScrollbarHeight
 			&& this.overviewRuler.equals(other.overviewRuler)
@@ -3118,6 +3232,10 @@ export namespace ModeContextKeys {
 	/**
 	 * @internal
 	 */
+	export const hasTypeDefinitionProvider = new RawContextKey<boolean>('editorHasTypeDefinitionProvider', undefined);
+	/**
+	 * @internal
+	 */
 	export const hasHoverProvider = new RawContextKey<boolean>('editorHasHoverProvider', undefined);
 	/**
 	 * @internal
@@ -3168,23 +3286,6 @@ export interface IConfiguration {
 
 // --- view
 
-/**
- * @internal
- */
-export var ViewEventNames = {
-	ModelFlushedEvent: 'modelFlushedEvent',
-	LinesDeletedEvent: 'linesDeletedEvent',
-	LinesInsertedEvent: 'linesInsertedEvent',
-	LineChangedEvent: 'lineChangedEvent',
-	TokensChangedEvent: 'tokensChangedEvent',
-	DecorationsChangedEvent: 'decorationsChangedEvent',
-	CursorPositionChangedEvent: 'cursorPositionChangedEvent',
-	CursorSelectionChangedEvent: 'cursorSelectionChangedEvent',
-	RevealRangeEvent: 'revealRangeEvent',
-	LineMappingChangedEvent: 'lineMappingChangedEvent',
-	ScrollRequestEvent: 'scrollRequestEvent'
-};
-
 export interface IScrollEvent {
 	readonly scrollTop: number;
 	readonly scrollLeft: number;
@@ -3200,128 +3301,6 @@ export interface IScrollEvent {
 export interface INewScrollPosition {
 	scrollLeft?: number;
 	scrollTop?: number;
-}
-
-/**
- * @internal
- */
-export interface IViewLinesDeletedEvent {
-	/**
-	 * At what line the deletion began (inclusive).
-	 */
-	readonly fromLineNumber: number;
-	/**
-	 * At what line the deletion stopped (inclusive).
-	 */
-	readonly toLineNumber: number;
-}
-
-/**
- * @internal
- */
-export interface IViewLinesInsertedEvent {
-	/**
-	 * Before what line did the insertion begin
-	 */
-	readonly fromLineNumber: number;
-	/**
-	 * `toLineNumber` - `fromLineNumber` + 1 denotes the number of lines that were inserted
-	 */
-	readonly toLineNumber: number;
-}
-
-/**
- * @internal
- */
-export interface IViewLineChangedEvent {
-	/**
-	 * The line that has changed.
-	 */
-	readonly lineNumber: number;
-}
-
-/**
- * @internal
- */
-export interface IViewTokensChangedEvent {
-	readonly ranges: {
-		/**
-		 * Start line number of range
-		 */
-		readonly fromLineNumber: number;
-		/**
-		 * End line number of range
-		 */
-		readonly toLineNumber: number;
-	}[];
-}
-
-/**
- * @internal
- */
-export interface IViewDecorationsChangedEvent {
-	_videDecorationsChangedEventBrand: void;
-}
-
-/**
- * @internal
- */
-export interface IViewCursorPositionChangedEvent {
-	/**
-	 * Primary cursor's position.
-	 */
-	readonly position: Position;
-	/**
-	 * Secondary cursors' position.
-	 */
-	readonly secondaryPositions: Position[];
-	/**
-	 * Is the primary cursor in the editable range?
-	 */
-	readonly isInEditableRange: boolean;
-}
-
-/**
- * @internal
- */
-export interface IViewCursorSelectionChangedEvent {
-	/**
-	 * The primary selection.
-	 */
-	readonly selection: Selection;
-	/**
-	 * The secondary selections.
-	 */
-	readonly secondarySelections: Selection[];
-}
-
-/**
- * @internal
- */
-export interface IViewRevealRangeEvent {
-	/**
-	 * Range to be reavealed.
-	 */
-	readonly range: Range;
-
-	readonly verticalType: VerticalRevealType;
-	/**
-	 * If true: there should be a horizontal & vertical revealing
-	 * If false: there should be just a vertical revealing
-	 */
-	readonly revealHorizontal: boolean;
-	/**
-	 * If true: cursor is revealed if outside viewport
-	 */
-	readonly revealCursor: boolean;
-}
-
-/**
- * @internal
- */
-export interface IViewScrollRequestEvent {
-	readonly deltaLines: number;
-	readonly revealCursor: boolean;
 }
 
 /**
@@ -4004,6 +3983,11 @@ export interface ICommonCodeEditor extends IEditor {
 	 * Get the layout info for the editor.
 	 */
 	getLayoutInfo(): EditorLayoutInfo;
+
+	/**
+	 * @internal
+	 */
+	getTelemetryData(): { [key: string]: any; };
 }
 
 export interface ICommonDiffEditor extends IEditor {
@@ -4144,11 +4128,7 @@ export var EventType = {
 
 	ViewFocusGained: 'focusGained',
 	ViewFocusLost: 'focusLost',
-	ViewFocusChanged: 'focusChanged',
-	ViewScrollChanged: 'scrollChanged',
 	ViewZonesChanged: 'zonesChanged',
-
-	ViewLayoutChanged: 'viewLayoutChanged',
 
 	ContextMenu: 'contextMenu',
 	MouseDown: 'mousedown',

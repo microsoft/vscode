@@ -12,7 +12,7 @@ import * as fs from 'fs';
 import * as electron from './utils/electron';
 import { Reader } from './utils/wireProtocol';
 
-import { workspace, window, Uri, CancellationToken, OutputChannel, Memento, MessageItem, QuickPickItem, EventEmitter, Event, commands } from 'vscode';
+import { workspace, window, Uri, CancellationToken, OutputChannel, Memento, MessageItem, QuickPickItem, EventEmitter, Event, commands, WorkspaceConfiguration } from 'vscode';
 import * as Proto from './protocol';
 import { ITypescriptServiceClient, ITypescriptServiceClientHost, API } from './typescriptService';
 
@@ -22,7 +22,7 @@ import * as is from './utils/is';
 import TelemetryReporter from 'vscode-extension-telemetry';
 
 import * as nls from 'vscode-nls';
-let localize = nls.loadMessageBundle();
+const localize = nls.loadMessageBundle();
 
 interface CallbackItem {
 	c: (value: any) => void;
@@ -98,7 +98,8 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	private modulePath: string | undefined;
 
 	private _onReady: { promise: Promise<void>; resolve: () => void; reject: () => void; };
-	private tsdk: string | null;
+	private globalTsdk: string | null;
+	private localTsdk: string | null;
 	private _checkGlobalTSCVersion: boolean;
 	private _experimentalAutoBuild: boolean;
 	private trace: Trace;
@@ -123,11 +124,13 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	private _apiVersion: API;
 	private telemetryReporter: TelemetryReporter;
 
+
 	constructor(host: ITypescriptServiceClientHost, storagePath: string | undefined, globalState: Memento, private workspaceState: Memento) {
 		this.host = host;
 		this.storagePath = storagePath;
 		this.globalState = globalState;
 		this.pathSeparator = path.sep;
+		this.lastStart = Date.now();
 
 		var p = new Promise<void>((resolve, reject) => {
 			this._onReady = { promise: p, resolve, reject };
@@ -145,16 +148,23 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		this.pendingResponses = 0;
 		this.callbacks = Object.create(null);
 		const configuration = workspace.getConfiguration();
-		this.tsdk = configuration.get<string | null>('typescript.tsdk', null);
+		this.globalTsdk = this.extractGlobalTsdk(configuration);
+		this.localTsdk = this.extractLocalTsdk(configuration);
+
 		this._experimentalAutoBuild = false; // configuration.get<boolean>('typescript.tsserver.experimentalAutoBuild', false);
 		this._apiVersion = new API('1.0.0');
 		this._checkGlobalTSCVersion = true;
 		this.trace = this.readTrace();
 		workspace.onDidChangeConfiguration(() => {
 			this.trace = this.readTrace();
-			let oldTsdk = this.tsdk;
-			this.tsdk = workspace.getConfiguration().get<string | null>('typescript.tsdk', null);
-			if (this.servicePromise === null && oldTsdk !== this.tsdk) {
+			let oldglobalTsdk = this.globalTsdk;
+			let oldLocalTsdk = this.localTsdk;
+
+			const configuration = workspace.getConfiguration();
+			this.globalTsdk = this.extractGlobalTsdk(configuration);
+			this.localTsdk = this.extractLocalTsdk(configuration);
+
+			if (this.servicePromise === null && (oldglobalTsdk !== this.globalTsdk || oldLocalTsdk !== this.localTsdk)) {
 				this.startService();
 			}
 		});
@@ -162,6 +172,25 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			this.telemetryReporter = new TelemetryReporter(this.packageInfo.name, this.packageInfo.version, this.packageInfo.aiKey);
 		}
 		this.startService();
+	}
+
+	private extractGlobalTsdk(configuration: WorkspaceConfiguration): string | null {
+		let inspect = configuration.inspect('typescript.tsdk');
+		if (inspect && inspect.globalValue && 'string' === typeof inspect.globalValue) {
+			return inspect.globalValue;
+		}
+		if (inspect && inspect.defaultValue && 'string' === typeof inspect.defaultValue) {
+			return inspect.defaultValue;
+		}
+		return null;
+	}
+
+	private extractLocalTsdk(configuration: WorkspaceConfiguration): string | null {
+		let inspect = configuration.inspect('typescript.tsdk');
+		if (inspect && inspect.workspaceValue && 'string' === typeof inspect.workspaceValue) {
+			return inspect.workspaceValue;
+		}
+		return null;
 	}
 
 	get onProjectLanguageServiceStateChanged(): Event<Proto.ProjectLanguageServiceStateEventBody> {
@@ -306,6 +335,14 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			return null;
 		}
 
+		if (this.localTsdk) {
+			this._checkGlobalTSCVersion = false;
+			if ((<any>path).isAbsolute(this.localTsdk)) {
+				return path.join(this.localTsdk, 'tsserver.js');
+			}
+			return path.join(workspace.rootPath, this.localTsdk, 'tsserver.js');
+		}
+
 		const localModulePath = path.join(workspace.rootPath, 'node_modules', 'typescript', 'lib', 'tsserver.js');
 		if (fs.existsSync(localModulePath) && this.getTypeScriptVersion(localModulePath)) {
 			return localModulePath;
@@ -314,12 +351,12 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	}
 
 	private get globalTypescriptPath(): string {
-		if (this.tsdk) {
+		if (this.globalTsdk) {
 			this._checkGlobalTSCVersion = false;
-			if ((<any>path).isAbsolute(this.tsdk)) {
-				return path.join(this.tsdk, 'tsserver.js');
+			if ((<any>path).isAbsolute(this.globalTsdk)) {
+				return path.join(this.globalTsdk, 'tsserver.js');
 			} else if (workspace.rootPath) {
-				return path.join(workspace.rootPath, this.tsdk, 'tsserver.js');
+				return path.join(workspace.rootPath, this.globalTsdk, 'tsserver.js');
 			}
 		}
 
@@ -327,55 +364,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	}
 
 	private hasWorkspaceTsdkSetting(): boolean {
-		function stripComments(content: string): string {
-			/**
-			* First capturing group matches double quoted string
-			* Second matches single quotes string
-			* Third matches block comments
-			* Fourth matches line comments
-			*/
-			var regexp: RegExp = /("(?:[^\\\"]*(?:\\.)?)*")|('(?:[^\\\']*(?:\\.)?)*')|(\/\*(?:\r?\n|.)*?\*\/)|(\/{2,}.*?(?:(?:\r?\n)|$))/g;
-			let result = content.replace(regexp, (match, m1, m2, m3, m4) => {
-				// Only one of m1, m2, m3, m4 matches
-				if (m3) {
-					// A block comment. Replace with nothing
-					return '';
-				} else if (m4) {
-					// A line comment. If it ends in \r?\n then keep it.
-					let length = m4.length;
-					if (length > 2 && m4[length - 1] === '\n') {
-						return m4[length - 2] === '\r' ? '\r\n' : '\n';
-					} else {
-						return '';
-					}
-				} else {
-					// We match a string
-					return match;
-				}
-			});
-			return result;
-		};
-
-		try {
-			let rootPath = workspace.rootPath;
-			if (!rootPath) {
-				return false;
-			}
-			let settingsFile = path.join(rootPath, '.vscode', 'settings.json');
-			if (!fs.existsSync(settingsFile)) {
-				return false;
-			}
-			let content = fs.readFileSync(settingsFile, 'utf8');
-			if (!content || content.length === 0) {
-				return false;
-			}
-			content = stripComments(content);
-			let json = JSON.parse(content);
-			let value = json['typescript.tsdk'];
-			return is.string(value);
-		} catch (error) {
-		}
-		return false;
+		return !!this.localTsdk;
 	}
 
 	private startService(resendModels: boolean = false): void {
@@ -391,8 +380,8 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		modulePath.then(modulePath => {
 			if (this.workspaceState.get<boolean>(TypeScriptServiceClient.useWorkspaceTsdkStorageKey, false)) {
 				if (workspace.rootPath) {
-					const pathValue = './node_modules/typescript/lib';
-					return path.join(workspace.rootPath, pathValue, 'tsserver.js');
+					// TODO: check if we need better error handling
+					return this.localTypeScriptPath || modulePath;
 				}
 			}
 			return modulePath;
@@ -498,45 +487,34 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			return Promise.resolve(modulePath);
 		}
 
+		const useWorkspaceVersionSetting = this.workspaceState.get<boolean>(TypeScriptServiceClient.useWorkspaceTsdkStorageKey, false);
 		const shippedVersion = this.getTypeScriptVersion(this.globalTypescriptPath);
 		const localModulePath = this.localTypeScriptPath;
-		let messageShown: Thenable<MyQuickPickItem | undefined>;
+
+		const pickOptions: MyQuickPickItem[] = [];
+
+		pickOptions.push({
+			label: localize('useVSCodeVersionOption', 'Use VSCode\'s Version'),
+			description: shippedVersion || this.globalTypescriptPath,
+			detail: modulePath === this.globalTypescriptPath && (modulePath !== localModulePath || !useWorkspaceVersionSetting) ? localize('activeVersion', 'Currently active') : '',
+			id: MessageAction.useBundled,
+		});
+
 		if (localModulePath) {
 			const localVersion = this.getTypeScriptVersion(localModulePath);
-			messageShown = window.showQuickPick<MyQuickPickItem>([
-				{
-					label: localize('useWorkspaceVersionOption', 'Use Workspace Version'),
-					description: localVersion || '',
-					detail: modulePath === localModulePath ? localize('activeVersion', 'Currently active') : '',
-					id: MessageAction.useLocal
-				}, {
-					label: localize('useVSCodeVersionOption', 'Use VSCode\'s Version'),
-					description: shippedVersion || '',
-					detail: modulePath === this.globalTypescriptPath ? localize('activeVersion', 'Currently active') : '',
-					id: MessageAction.useBundled,
-				}, {
-					label: localize('learnMore', 'Learn More'),
-					description: '',
-					id: MessageAction.learnMore
-				}], {
-					placeHolder: localize(
-						'selectTsVersion',
-						'Select the TypeScript version used for JavaScript and TypeScript language features'),
-					ignoreFocusOut: firstRun
-				});
-		} else {
-			messageShown = window.showQuickPick<MyQuickPickItem>([
-				{
-					label: localize('learnMore', 'Learn More'),
-					description: '',
-					id: MessageAction.learnMore
-				}], {
-					placeHolder: localize(
-						'versionCheckUsingBundledTS',
-						'Using VSCode\'s TypeScript version {0} for JavaScript and TypeScript language features',
-						shippedVersion),
-				});
+			pickOptions.push({
+				label: localize('useWorkspaceVersionOption', 'Use Workspace Version'),
+				description: localVersion || localModulePath,
+				detail: modulePath === localModulePath && (modulePath !== this.globalTypescriptPath || useWorkspaceVersionSetting) ? localize('activeVersion', 'Currently active') : '',
+				id: MessageAction.useLocal
+			});
 		}
+
+		pickOptions.push({
+			label: localize('learnMore', 'Learn More'),
+			description: '',
+			id: MessageAction.learnMore
+		});
 
 		const tryShowRestart = (newModulePath: string) => {
 			if (firstRun || newModulePath === this.modulePath) {
@@ -558,32 +536,38 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 				});
 		};
 
-		return messageShown.then(selected => {
-			if (!selected) {
-				return modulePath;
-			}
-			switch (selected.id) {
-				case MessageAction.useLocal:
-					return this.workspaceState.update(TypeScriptServiceClient.useWorkspaceTsdkStorageKey, true)
-						.then(_ => {
-							if (localModulePath) {
-								tryShowRestart(localModulePath);
-							}
-							return localModulePath;
-						});
-				case MessageAction.useBundled:
-					return this.workspaceState.update(TypeScriptServiceClient.useWorkspaceTsdkStorageKey, false)
-						.then(_ => {
-							tryShowRestart(this.globalTypescriptPath);
-							return this.globalTypescriptPath;
-						});
-				case MessageAction.learnMore:
-					commands.executeCommand('vscode.open', Uri.parse('https://go.microsoft.com/fwlink/?linkid=839919'));
+		return window.showQuickPick<MyQuickPickItem>(pickOptions, {
+			placeHolder: localize(
+				'selectTsVersion',
+				'Select the TypeScript version used for JavaScript and TypeScript language features'),
+			ignoreFocusOut: firstRun
+		})
+			.then(selected => {
+				if (!selected) {
 					return modulePath;
-				default:
-					return modulePath;
-			}
-		});
+				}
+				switch (selected.id) {
+					case MessageAction.useLocal:
+						return this.workspaceState.update(TypeScriptServiceClient.useWorkspaceTsdkStorageKey, true)
+							.then(_ => {
+								if (localModulePath) {
+									tryShowRestart(localModulePath);
+								}
+								return localModulePath;
+							});
+					case MessageAction.useBundled:
+						return this.workspaceState.update(TypeScriptServiceClient.useWorkspaceTsdkStorageKey, false)
+							.then(_ => {
+								tryShowRestart(this.globalTypescriptPath);
+								return this.globalTypescriptPath;
+							});
+					case MessageAction.learnMore:
+						commands.executeCommand('vscode.open', Uri.parse('https://go.microsoft.com/fwlink/?linkid=839919'));
+						return modulePath;
+					default:
+						return modulePath;
+				}
+			});
 	}
 
 	private serviceStarted(resendModels: boolean): void {
@@ -622,6 +606,10 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	}
 
 	private getTypeScriptVersion(serverPath: string): string | undefined {
+		if (!fs.existsSync(serverPath)) {
+			return undefined;
+		}
+
 		let p = serverPath.split(path.sep);
 		if (p.length <= 2) {
 			return undefined;
@@ -657,7 +645,9 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			let startService = true;
 			if (this.numberRestarts > 5) {
 				let prompt: Thenable<MyMessageItem | undefined> | undefined = undefined;
+				this.numberRestarts = 0;
 				if (diff < 60 * 1000 /* 1 Minutes */) {
+					this.lastStart = Date.now();
 					prompt = window.showWarningMessage<MyMessageItem>(
 						localize('serverDied', 'The TypeScript language service died unexpectedly 5 times in the last 5 Minutes.'),
 						{
@@ -665,7 +655,8 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 							id: MessageAction.reportIssue,
 							isCloseAffordance: true
 						});
-				} else if (diff < 2 * 1000 /* 2 seconds */) {
+				} else if (diff < 10 * 1000 /* 10 seconds */) {
+					this.lastStart = Date.now();
 					startService = false;
 					prompt = window.showErrorMessage<MyMessageItem>(
 						localize('serverDiedAfterStart', 'The TypeScript language service died 5 times right after it got started. The service will not be restarted.'),
@@ -681,6 +672,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 						if (item && item.id === MessageAction.reportIssue) {
 							return commands.executeCommand('workbench.action.reportIssues');
 						}
+						return undefined;
 					});
 				}
 			}
@@ -711,7 +703,9 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	}
 
 	public asUrl(filepath: string): Uri {
-		if (filepath.startsWith(TypeScriptServiceClient.WALK_THROUGH_SNIPPET_SCHEME_COLON)) {
+		if (filepath.startsWith(TypeScriptServiceClient.WALK_THROUGH_SNIPPET_SCHEME_COLON)
+			|| (filepath.startsWith('untitled:') && this._apiVersion.has213Features())
+		) {
 			return Uri.parse(filepath);
 		}
 		return Uri.file(filepath);

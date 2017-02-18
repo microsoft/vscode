@@ -16,7 +16,7 @@ var Lint = require("tslint");
 var Rule = (function (_super) {
     __extends(Rule, _super);
     function Rule() {
-        return _super.apply(this, arguments) || this;
+        return _super !== null && _super.apply(this, arguments) || this;
     }
     Rule.prototype.apply = function (sourceFile) {
         return this.applyWithWalker(new NoUnexternalizedStringsRuleWalker(sourceFile, this.getOptions()));
@@ -90,8 +90,8 @@ var NoUnexternalizedStringsRuleWalker = (function (_super) {
             return;
         }
         if (doubleQuoted && (!callInfo || callInfo.argIndex === -1 || !this.signatures[functionName])) {
-            var s_1 = node.getText();
-            var replacement = new Lint.Replacement(node.getStart(), node.getWidth(), "nls.localize('KEY-" + s_1.substring(1, s_1.length - 1) + "', " + s_1 + ")");
+            var s = node.getText();
+            var replacement = new Lint.Replacement(node.getStart(), node.getWidth(), "nls.localize('KEY-" + s.substring(1, s.length - 1) + "', " + s + ")");
             var fix = new Lint.Fix("Unexternalitzed string", [replacement]);
             this.addFailure(this.createFailure(node.getStart(), node.getWidth(), "Unexternalized string found: " + node.getText(), fix));
             return;

@@ -14,39 +14,12 @@ export const IWorkspaceConfigurationService = createDecorator<IWorkspaceConfigur
 
 export type IWorkspaceConfigurationValues = { [key: string]: IWorkspaceConfigurationValue<any> };
 
-export interface IWorkspaceTrust {
-	/**
-	 * Returns iff the workspace is trusted by the user.
-	 */
-	isTrusted(): boolean;
-
-	/**
-	 * Returns iff the user explicitly configured to not trust the workspace.
-	 */
-	isExplicitlyUntrusted(): boolean;
-
-	/**
-	 * Returns a hash of all known configuration keys that can be used to specify executables.
-	 */
-	allKnownConfigKeysForExecutables(): { [configKey: string]: any };
-}
-
 export interface IWorkspaceConfigurationService extends IConfigurationService {
-
-	/**
-	 * Returns iff the workspace has configuration or not.
-	 */
-	hasWorkspaceConfiguration(): boolean;
 
 	/**
 	 * Returns untrusted configuration keys for the current workspace.
 	 */
-	getUntrustedConfigurations(): string[];
-
-	/**
-	 * Returns if the user explicitly configured to not trust the current workspace.
-	 */
-	isExplicitlyUntrusted(): boolean;
+	getUnsupportedWorkspaceKeys(): string[];
 
 	/**
 	 * Override for the IConfigurationService#lookup() method that adds information about workspace settings.

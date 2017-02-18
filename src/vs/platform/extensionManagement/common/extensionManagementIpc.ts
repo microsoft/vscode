@@ -47,6 +47,7 @@ export class ExtensionManagementChannel implements IExtensionManagementChannel {
 			case 'uninstall': return this.service.uninstall(arg);
 			case 'getInstalled': return this.service.getInstalled(arg);
 		}
+		return undefined;
 	}
 }
 

@@ -43,11 +43,13 @@ import { Position, IResourceInput, IEditorInput } from 'vs/platform/editor/commo
 import { IInstantiationService, IConstructorSignature2, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, IMessageWithAction, IConfirmation, Severity, CancelAction } from 'vs/platform/message/common/message';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { Keybinding, KeyMod, KeyCode } from 'vs/base/common/keyCodes';
+import { Keybinding } from 'vs/base/common/keyCodes';
 import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 import { IEditorViewState } from 'vs/editor/common/editorCommon';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
+import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
+import { withFocussedFilesExplorerViewItem, revealInOSCommand, revealInExplorerCommand, copyPathCommand } from 'vs/workbench/parts/files/browser/fileCommands';
 
 export interface IEditableData {
 	action: IAction;
@@ -133,7 +135,7 @@ export class BaseFileAction extends Action {
 
 export class TriggerRenameFileAction extends BaseFileAction {
 
-	public static ID = 'workbench.files.action.triggerRename';
+	public static ID = 'filesExplorer.rename';
 
 	private tree: ITree;
 	private renameAction: BaseRenameAction;
@@ -201,6 +203,8 @@ export class TriggerRenameFileAction extends BaseFileAction {
 				}
 			});
 		}).done(null, errors.onUnexpectedError);
+
+		return undefined;
 	}
 }
 
@@ -432,7 +436,7 @@ export class NewFileAction extends BaseNewAction {
 		@ITextFileService textFileService: ITextFileService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super('workbench.action.files.newFile', nls.localize('newFile', "New File"), tree, true, instantiationService.createInstance(CreateFileAction, element), null, fileService, messageService, textFileService);
+		super('explorer.newFile', nls.localize('newFile', "New File"), tree, true, instantiationService.createInstance(CreateFileAction, element), null, fileService, messageService, textFileService);
 
 		this.class = 'explorer-action new-file';
 		this._updateEnablement();
@@ -450,7 +454,7 @@ export class NewFolderAction extends BaseNewAction {
 		@ITextFileService textFileService: ITextFileService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super('workbench.action.files.newFolder', nls.localize('newFolder', "New Folder"), tree, false, instantiationService.createInstance(CreateFolderAction, element), null, fileService, messageService, textFileService);
+		super('explorer.newFolder', nls.localize('newFolder', "New Folder"), tree, false, instantiationService.createInstance(CreateFolderAction, element), null, fileService, messageService, textFileService);
 
 		this.class = 'explorer-action new-folder';
 		this._updateEnablement();
@@ -529,7 +533,7 @@ export class GlobalNewUntitledFileAction extends Action {
 
 /* Create new file from anywhere */
 export class GlobalNewFileAction extends BaseGlobalNewAction {
-	public static ID = 'workbench.action.files.newFile';
+	public static ID = 'explorer.newFile';
 	public static LABEL = nls.localize('newFile', "New File");
 
 	protected getAction(): IConstructorSignature2<ITree, IFileStat, Action> {
@@ -539,7 +543,7 @@ export class GlobalNewFileAction extends BaseGlobalNewAction {
 
 /* Create new folder from anywhere */
 export class GlobalNewFolderAction extends BaseGlobalNewAction {
-	public static ID = 'workbench.action.files.newFolder';
+	public static ID = 'explorer.newFolder';
 	public static LABEL = nls.localize('newFolder', "New Folder");
 
 	protected getAction(): IConstructorSignature2<ITree, IFileStat, Action> {
@@ -568,6 +572,7 @@ export class CreateFileAction extends BaseCreateAction {
 	constructor(
 		element: FileStat,
 		@IFileService fileService: IFileService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IMessageService messageService: IMessageService,
 		@ITextFileService textFileService: ITextFileService
 	) {
@@ -577,7 +582,9 @@ export class CreateFileAction extends BaseCreateAction {
 	}
 
 	public runAction(fileName: string): TPromise<any> {
-		return this.fileService.createFile(URI.file(paths.join(this.element.parent.resource.fsPath, fileName))).then(null, (error) => {
+		return this.fileService.createFile(URI.file(paths.join(this.element.parent.resource.fsPath, fileName))).then(stat => {
+			return this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } });
+		}, (error) => {
 			this.onErrorWithRetry(error, () => this.runAction(fileName));
 		});
 	}
@@ -639,10 +646,14 @@ export class BaseDeleteFileAction extends BaseFileAction {
 		}
 
 		// Read context
-		if (context && context.event) {
-			const bypassTrash = (isMacintosh && context.event.altKey) || (!isMacintosh && context.event.shiftKey);
-			if (bypassTrash) {
-				this.useTrash = false;
+		if (context) {
+			if (context.event) {
+				const bypassTrash = (isMacintosh && context.event.altKey) || (!isMacintosh && context.event.shiftKey);
+				if (bypassTrash) {
+					this.useTrash = false;
+				}
+			} else if (typeof context.useTrash === 'boolean') {
+				this.useTrash = context.useTrash;
 			}
 		}
 
@@ -734,7 +745,7 @@ export class BaseDeleteFileAction extends BaseFileAction {
 
 /* Move File/Folder to trash */
 export class MoveFileToTrashAction extends BaseDeleteFileAction {
-	public static ID = 'workbench.files.action.moveFileToTrash';
+	public static ID = 'filesExplorer.moveFileToTrash';
 
 	constructor(
 		tree: ITree,
@@ -758,6 +769,7 @@ export class ImportFileAction extends BaseFileAction {
 		element: FileStat,
 		clazz: string,
 		@IFileService fileService: IFileService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IMessageService messageService: IMessageService,
 		@ITextFileService textFileService: ITextFileService
 	) {
@@ -824,7 +836,7 @@ export class ImportFileAction extends BaseFileAction {
 					}
 
 					if (!overwrite) {
-						return;
+						return undefined;
 					}
 
 					// Run import in sequence
@@ -843,7 +855,13 @@ export class ImportFileAction extends BaseFileAction {
 							}
 
 							return revertPromise.then(() => {
-								return this.fileService.importFile(sourceFile, targetElement.resource).then(null, (error: any) => {
+								return this.fileService.importFile(sourceFile, targetElement.resource).then(res => {
+
+									// if we only import one file, just open it directly
+									if (filesArray.length === 1) {
+										this.editorService.openEditor({ resource: res.stat.resource, options: { pinned: true } }).done(null, errors.onUnexpectedError);
+									}
+								}, (error: any) => {
 									this.messageService.show(Severity.Error, error);
 								});
 							});
@@ -853,6 +871,7 @@ export class ImportFileAction extends BaseFileAction {
 					return sequence(importPromisesFactory);
 				});
 			}
+			return undefined;
 		});
 
 		return importPromise.then(() => {
@@ -868,7 +887,7 @@ export class ImportFileAction extends BaseFileAction {
 let fileToCopy: FileStat;
 export class CopyFileAction extends BaseFileAction {
 
-	public static ID = 'workbench.files.action.copyFile';
+	public static ID = 'filesExplorer.copy';
 
 	private tree: ITree;
 	constructor(
@@ -904,7 +923,7 @@ export class CopyFileAction extends BaseFileAction {
 // Paste File/Folder
 export class PasteFileAction extends BaseFileAction {
 
-	public static ID = 'workbench.files.action.pasteFile';
+	public static ID = 'filesExplorer.paste';
 
 	private tree: ITree;
 
@@ -965,6 +984,19 @@ export class PasteFileAction extends BaseFileAction {
 	}
 }
 
+export const pasteIntoFocusedFilesExplorerViewItem = (accessor: ServicesAccessor) => {
+	const instantiationService = accessor.get(IInstantiationService);
+
+	withFocussedFilesExplorerViewItem(accessor).then(res => {
+		if (res.item) {
+			const pasteAction = instantiationService.createInstance(PasteFileAction, res.tree, res.item);
+			if (pasteAction._isEnabled()) {
+				pasteAction.run().done(null, errors.onUnexpectedError);
+			}
+		}
+	});
+};
+
 // Duplicate File/Folder
 export class DuplicateFileAction extends BaseFileAction {
 	private tree: ITree;
@@ -975,6 +1007,7 @@ export class DuplicateFileAction extends BaseFileAction {
 		element: FileStat,
 		target: FileStat,
 		@IFileService fileService: IFileService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IMessageService messageService: IMessageService,
 		@ITextFileService textFileService: ITextFileService
 	) {
@@ -994,7 +1027,12 @@ export class DuplicateFileAction extends BaseFileAction {
 		}
 
 		// Copy File
-		const result = this.fileService.copyFile(this.element.resource, this.findTarget()).then(null, (error: any) => {
+		const result = this.fileService.copyFile(this.element.resource, this.findTarget()).then(stat => {
+			if (!stat.isDirectory) {
+				return this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } });
+			}
+			return undefined;
+		}, (error: any) => {
 			this.onError(error);
 		});
 
@@ -1048,7 +1086,7 @@ export class DuplicateFileAction extends BaseFileAction {
 // Open to the side
 export class OpenToSideAction extends Action {
 
-	public static ID = 'workbench.files.action.openToSide';
+	public static ID = 'explorer.openToSide';
 	public static LABEL = nls.localize('openToSide', "Open to the Side");
 
 	private tree: ITree;
@@ -1355,7 +1393,7 @@ export abstract class BaseSaveFileAction extends BaseActionWithErrorReporting {
 
 				return savePromise.then((target) => {
 					if (!target || target.toString() === source.toString()) {
-						return; // save canceled or same resource used
+						return undefined; // save canceled or same resource used
 					}
 
 					const replaceWith: IResourceInput = {
@@ -1503,6 +1541,7 @@ export abstract class BaseSaveAllAction extends BaseActionWithErrorReporting {
 			if (untitledToReopen.length) {
 				return this.editorService.openEditors(untitledToReopen).then(() => true);
 			}
+			return undefined;
 		});
 	}
 
@@ -1662,27 +1701,6 @@ export class FocusFilesExplorer extends Action {
 	}
 }
 
-export const revealInExplorerCommand = (accessor: ServicesAccessor, resource: URI) => {
-	const viewletService = accessor.get(IViewletService);
-	const contextService = accessor.get(IWorkspaceContextService);
-
-	viewletService.openViewlet(VIEWLET_ID, false).then((viewlet: ExplorerViewlet) => {
-		const isInsideWorkspace = contextService.isInsideWorkspace(resource);
-		if (isInsideWorkspace) {
-			const explorerView = viewlet.getExplorerView();
-			if (explorerView) {
-				explorerView.expand();
-				explorerView.select(resource, true);
-			}
-		} else {
-			const openEditorsView = viewlet.getOpenEditorsView();
-			if (openEditorsView) {
-				openEditorsView.expand();
-			}
-		}
-	});
-};
-
 export class ShowActiveFileInExplorer extends Action {
 
 	public static ID = 'workbench.files.action.showActiveFileInExplorer';
@@ -1761,36 +1779,155 @@ export class RefreshExplorerView extends Action {
 	}
 }
 
-export function keybindingForAction(id: string, keybindingService: IKeybindingService): Keybinding {
-	switch (id) {
-		case GlobalNewUntitledFileAction.ID:
-			return new Keybinding(KeyMod.CtrlCmd | KeyCode.KEY_N);
-		case TriggerRenameFileAction.ID:
-			return new Keybinding(isMacintosh ? KeyCode.Enter : KeyCode.F2);
-		case SaveFileAction.ID:
-			return new Keybinding(KeyMod.CtrlCmd | KeyCode.KEY_S);
-		case MoveFileToTrashAction.ID:
-			return new Keybinding(isMacintosh ? KeyMod.CtrlCmd | KeyCode.Backspace : KeyCode.Delete);
-		case CopyFileAction.ID:
-			return new Keybinding(KeyMod.CtrlCmd | KeyCode.KEY_C);
-		case PasteFileAction.ID:
-			return new Keybinding(KeyMod.CtrlCmd | KeyCode.KEY_V);
-		case OpenToSideAction.ID:
-			if (isMacintosh) {
-				return new Keybinding(KeyMod.WinCtrl | KeyCode.Enter);
-			} else {
-				return new Keybinding(KeyMod.CtrlCmd | KeyCode.Enter);
-			}
+export class OpenFileAction extends Action {
+
+	static ID = 'workbench.action.files.openFile';
+	static LABEL = nls.localize('openFile', "Open File...");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IWindowService private windowService: IWindowService
+	) {
+		super(id, label);
 	}
 
-	if (keybindingService) {
-		const keys = keybindingService.lookupKeybindings(id);
-		if (keys.length > 0) {
-			return keys[0]; // only take the first one
+	run(): TPromise<any> {
+		const fileResource = toResource(this.editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
+
+		return this.windowService.openFilePicker(false, fileResource ? paths.dirname(fileResource.fsPath) : void 0);
+	}
+}
+
+export class ShowOpenedFileInNewWindow extends Action {
+
+	public static ID = 'workbench.action.files.showOpenedFileInNewWindow';
+	public static LABEL = nls.localize('openFileInNewWindow', "Open Active File in New Window");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWindowsService private windowsService: IWindowsService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IMessageService private messageService: IMessageService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		const fileResource = toResource(this.editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
+		if (fileResource) {
+			this.windowsService.openWindow([fileResource.fsPath], { forceNewWindow: true });
+		} else {
+			this.messageService.show(severity.Info, nls.localize('openFileToShowInNewWindow', "Open a file first to open in new window"));
 		}
+
+		return TPromise.as(true);
+	}
+}
+
+export class RevealInOSAction extends Action {
+
+	public static LABEL = isWindows ? nls.localize('revealInWindows', "Reveal in Explorer") : isMacintosh ? nls.localize('revealInMac', "Reveal in Finder") : nls.localize('openContainer', "Open Containing Folder");
+
+	constructor(
+		private resource: URI,
+		@IInstantiationService private instantiationService: IInstantiationService
+	) {
+		super('explorer.revealInOS', RevealInOSAction.LABEL);
+
+		this.order = 45;
 	}
 
-	return null;
+	public run(): TPromise<any> {
+		this.instantiationService.invokeFunction.apply(this.instantiationService, [revealInOSCommand, this.resource]);
+
+		return TPromise.as(true);
+	}
+}
+
+export class GlobalRevealInOSAction extends Action {
+
+	public static ID = 'workbench.action.files.revealActiveFileInWindows';
+	public static LABEL = isWindows ? nls.localize('revealActiveFileInWindows', "Reveal Active File in Windows Explorer") : (isMacintosh ? nls.localize('revealActiveFileInMac', "Reveal Active File in Finder") : nls.localize('openActiveFileContainer', "Open Containing Folder of Active File"));
+
+	constructor(
+		id: string,
+		label: string,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IMessageService private messageService: IMessageService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		const fileResource = toResource(this.editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
+		if (fileResource) {
+			this.instantiationService.invokeFunction.apply(this.instantiationService, [revealInOSCommand, fileResource]);
+		} else {
+			this.messageService.show(severity.Info, nls.localize('openFileToReveal', "Open a file first to reveal"));
+		}
+
+		return TPromise.as(true);
+	}
+}
+
+export class CopyPathAction extends Action {
+
+	public static LABEL = nls.localize('copyPath', "Copy Path");
+
+	constructor(
+		private resource: URI,
+		@IInstantiationService private instantiationService: IInstantiationService
+	) {
+		super('explorer.copyPath', CopyPathAction.LABEL);
+
+		this.order = 140;
+	}
+
+	public run(): TPromise<any> {
+		this.instantiationService.invokeFunction.apply(this.instantiationService, [copyPathCommand, this.resource]);
+
+		return TPromise.as(true);
+	}
+}
+
+export class GlobalCopyPathAction extends Action {
+
+	public static ID = 'workbench.action.files.copyPathOfActiveFile';
+	public static LABEL = nls.localize('copyPathOfActive', "Copy Path of Active File");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
+		@IMessageService private messageService: IMessageService,
+		@IInstantiationService private instantiationService: IInstantiationService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		const activeEditor = this.editorService.getActiveEditor();
+		const fileResource = activeEditor ? toResource(activeEditor.input, { supportSideBySide: true, filter: 'file' }) : void 0;
+		if (fileResource) {
+			this.instantiationService.invokeFunction.apply(this.instantiationService, [copyPathCommand, fileResource]);
+			this.editorGroupService.focusGroup(activeEditor.position); // focus back to active editor group
+		} else {
+			this.messageService.show(severity.Info, nls.localize('openFileToCopy', "Open a file first to copy its path"));
+		}
+
+		return TPromise.as(true);
+	}
+}
+
+export function keybindingForAction(id: string, keybindingService: IKeybindingService): Keybinding {
+	const [kb] = keybindingService.lookupKeybindings(id);
+
+	return kb;
 }
 
 export function validateFileName(parent: IFileStat, name: string, allowOverwriting: boolean = false): string {

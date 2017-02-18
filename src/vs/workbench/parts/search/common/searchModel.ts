@@ -71,10 +71,17 @@ export class Match {
 		let searchModel = this.parent().parent().searchModel;
 		let matchString = this.getMatchString();
 		let replaceString = searchModel.replacePattern.getReplaceString(matchString);
+
 		// If match string is not matching then regex pattern has a lookahead expression
 		if (replaceString === null) {
 			replaceString = searchModel.replacePattern.getReplaceString(matchString + this._lineText.substring(this._range.endColumn - 1));
 		}
+
+		// Match string is still not matching. Could be unsupported matches (multi-line).
+		if (replaceString === null) {
+			replaceString = searchModel.replacePattern.pattern;
+		}
+
 		return replaceString;
 	}
 
@@ -182,10 +189,10 @@ export class FileMatch extends Disposable {
 		let matches = this._model
 			.findMatches(this._query.pattern, this._model.getFullModelRange(), this._query.isRegExp, this._query.isCaseSensitive, this._query.isWordMatch, false);
 
-		this.updateMatches(matches);
+		this.updateMatches(matches, true);
 	}
 
-	private updatesMatchesForLine(lineNumber: number): void {
+	private updatesMatchesForLineAfterReplace(lineNumber: number, modelChange: boolean): void {
 		const range = {
 			startLineNumber: lineNumber,
 			startColumn: this._model.getLineMinColumn(lineNumber),
@@ -196,10 +203,10 @@ export class FileMatch extends Disposable {
 		oldMatches.forEach(match => this._matches.delete(match.id()));
 
 		const matches = this._model.findMatches(this._query.pattern, range, this._query.isRegExp, this._query.isCaseSensitive, this._query.isWordMatch, false);
-		this.updateMatches(matches);
+		this.updateMatches(matches, modelChange);
 	}
 
-	private updateMatches(matches: FindMatch[]) {
+	private updateMatches(matches: FindMatch[], modelChange: boolean) {
 		matches.forEach(m => {
 			let match = new Match(this, this._model.getLineContent(m.range.startLineNumber), m.range.startLineNumber - 1, m.range.startColumn - 1, m.range.endColumn - m.range.startColumn);
 			if (!this._removedMatches.contains(match.id())) {
@@ -210,7 +217,7 @@ export class FileMatch extends Disposable {
 			}
 		});
 
-		this._onChange.fire(true);
+		this._onChange.fire(modelChange);
 		this.updateHighlights();
 	}
 
@@ -249,7 +256,7 @@ export class FileMatch extends Disposable {
 
 	public replace(toReplace: Match): TPromise<void> {
 		return this.replaceService.replace(toReplace)
-			.then(() => this.updatesMatchesForLine(toReplace.range().startLineNumber));
+			.then(() => this.updatesMatchesForLineAfterReplace(toReplace.range().startLineNumber, false));
 	}
 
 	public setSelectedMatch(match: Match) {

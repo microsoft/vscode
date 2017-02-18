@@ -92,7 +92,7 @@ export function fork(modulePath: string, args: string[], options: IForkOptions, 
 	let stdOutServer = net.createServer((stdOutStream) => {
 		// The child process will write exactly one chunk with content `ready` when it has installed a listener to the stdin pipe
 
-		stdOutStream.once('data', (chunk: Buffer) => {
+		stdOutStream.once('data', (_chunk: Buffer) => {
 			// The child process is sending me the `ready` chunk, time to connect to the stdin pipe
 			childProcess.stdin = <any>net.connect(stdInPipeName);
 

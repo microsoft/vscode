@@ -63,7 +63,7 @@ export function setProperty(text: string, path: JSONPath, value: any, formatting
 			}
 		} else {
 			if (value === void 0) { // delete
-				throw new Error(`Property ${lastSegment} does not exist.`);
+				return []; // property does not exist, nothing to do
 			}
 			let newProperty = `${JSON.stringify(lastSegment)}: ${JSON.stringify(value)}`;
 			let index = getInsertionIndex ? getInsertionIndex(parent.children.map(p => p.children[0].value)) : parent.children.length;

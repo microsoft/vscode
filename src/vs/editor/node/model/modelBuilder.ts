@@ -6,12 +6,15 @@
 
 import { IStringStream } from 'vs/platform/files/common/files';
 import * as crypto from 'crypto';
-import { DefaultEndOfLine, ITextModelCreationOptions, TextModelResolvedOptions, IRawText } from 'vs/editor/common/editorCommon';
+import { ITextSource2 } from 'vs/editor/common/editorCommon';
 import * as strings from 'vs/base/common/strings';
-import { guessIndentation } from 'vs/editor/common/model/indentationGuesser';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { CharCode } from 'vs/base/common/charCode';
-import { IRawTextProvider } from 'vs/editor/common/services/modelService';
+
+export interface ModelBuilderResult {
+	readonly hash: string;
+	readonly value: ITextSource2;
+}
 
 class ModelLineBasedBuilder {
 
@@ -42,119 +45,22 @@ class ModelLineBasedBuilder {
 		this.hash.update(lines.join('\n') + '\n');
 	}
 
-	public finish(totalLength: number, carriageReturnCnt: number, containsRTL: boolean, isBasicASCII: boolean): ModelBuilderResult {
-		return new ModelBuilderResult(this.BOM, this.lines, totalLength, carriageReturnCnt, containsRTL, isBasicASCII, this.hash.digest('hex'));
-	}
-}
-
-export class ModelBuilderResult implements IRawTextProvider {
-	/**
-	 * The BOM (leading character sequence of the file).
-	 */
-	private readonly BOM: string;
-	/**
-	 * The text split into lines.
-	 */
-	private readonly lines: string[];
-	/**
-	 * The entire text length.
-	 */
-	private readonly length: number;
-	/**
-	 * Number of lines with EOL \r\n
-	 */
-	private readonly carriageReturnCnt: number;
-	/**
-	 * The text contains Unicode characters classified as "R" or "AL".
-	 */
-	private readonly containsRTL: boolean;
-	/**
-	 * The text contains only characters inside the ASCII range 32-126 or \t \r \n
-	 */
-	private readonly isBasicASCII: boolean;
-	/**
-	 * The content hash.
-	 */
-	public readonly hash: string;
-
-	constructor(BOM: string, lines: string[], length: number, carriageReturnCnt: number, containsRTL: boolean, isBasicASCII: boolean, hash: string) {
-		this.BOM = BOM;
-		this.lines = lines;
-		this.length = length;
-		this.carriageReturnCnt = carriageReturnCnt;
-		this.containsRTL = containsRTL;
-		this.isBasicASCII = isBasicASCII;
-		this.hash = hash;
-	}
-
-	public getEntireContent(): string {
-		let lineFeedCnt = this.lines.length - 1;
-		if (lineFeedCnt === 0) {
-			// Just one line, EOL does not matter
-			return this.lines[0];
-		}
-
-		let EOL = '';
-		if (this.carriageReturnCnt > lineFeedCnt / 2) {
-			// More than half of the file contains \r\n ending lines
-			EOL = '\r\n';
-		} else {
-			// At least one line more ends in \n
-			EOL = '\n';
-		}
-		return this.lines.join(EOL);
-	}
-
-	public getFirstLine(): string {
-		return this.lines[0];
-	}
-
-	public toRawText(opts: ITextModelCreationOptions): IRawText {
-
-		let lineFeedCnt = this.lines.length - 1;
-		let EOL = '';
-		if (lineFeedCnt === 0) {
-			// This is an empty file or a file with precisely one line
-			EOL = (opts.defaultEOL === DefaultEndOfLine.LF ? '\n' : '\r\n');
-		} else if (this.carriageReturnCnt > lineFeedCnt / 2) {
-			// More than half of the file contains \r\n ending lines
-			EOL = '\r\n';
-		} else {
-			// At least one line more ends in \n
-			EOL = '\n';
-		}
-
-		let resolvedOpts: TextModelResolvedOptions;
-		if (opts.detectIndentation) {
-			let guessedIndentation = guessIndentation(this.lines, opts.tabSize, opts.insertSpaces);
-			resolvedOpts = new TextModelResolvedOptions({
-				tabSize: guessedIndentation.tabSize,
-				insertSpaces: guessedIndentation.insertSpaces,
-				trimAutoWhitespace: opts.trimAutoWhitespace,
-				defaultEOL: opts.defaultEOL
-			});
-		} else {
-			resolvedOpts = new TextModelResolvedOptions({
-				tabSize: opts.tabSize,
-				insertSpaces: opts.insertSpaces,
-				trimAutoWhitespace: opts.trimAutoWhitespace,
-				defaultEOL: opts.defaultEOL
-			});
-		}
-
+	public finish(length: number, carriageReturnCnt: number, containsRTL: boolean, isBasicASCII: boolean): ModelBuilderResult {
 		return {
-			BOM: this.BOM,
-			EOL: EOL,
-			lines: this.lines,
-			length: this.length,
-			containsRTL: this.containsRTL,
-			isBasicASCII: this.isBasicASCII,
-			options: resolvedOpts
+			hash: this.hash.digest('hex'),
+			value: {
+				BOM: this.BOM,
+				lines: this.lines,
+				length,
+				containsRTL: containsRTL,
+				totalCRCount: carriageReturnCnt,
+				isBasicASCII,
+			}
 		};
 	}
 }
 
-export function computeHash(rawText: IRawText): string {
+export function computeHash(rawText: ITextSource2): string {
 	let hash = crypto.createHash('sha1');
 	for (let i = 0, len = rawText.lines.length; i < len; i++) {
 		hash.update(rawText.lines[i] + '\n');

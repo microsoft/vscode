@@ -24,6 +24,9 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Keybinding, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { toResource } from 'vs/workbench/common/editor';
+import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IListService } from 'vs/platform/list/browser/listService';
+import { explorerItemToFileResource } from 'vs/workbench/parts/files/common/files';
 
 export function isSearchViewletFocussed(viewletService: IViewletService): boolean {
 	let activeViewlet = viewletService.getActiveViewlet();
@@ -209,20 +212,41 @@ export class CloseReplaceAction extends Action {
 
 export class FindInFolderAction extends Action {
 
+	public static ID = 'filesExplorer.findInFolder';
+
 	private resource: URI;
 
-	constructor(resource: URI, @IViewletService private viewletService: IViewletService) {
-		super('workbench.search.action.findInFolder', nls.localize('findInFolder', "Find in Folder"));
+	constructor(resource: URI, @IInstantiationService private instantiationService: IInstantiationService) {
+		super(FindInFolderAction.ID, nls.localize('findInFolder', "Find in Folder"));
 
 		this.resource = resource;
 	}
 
 	public run(event?: any): TPromise<any> {
-		return this.viewletService.openViewlet(Constants.VIEWLET_ID, true).then((viewlet: SearchViewlet) => {
-			viewlet.searchInFolder(this.resource);
-		});
+		return this.instantiationService.invokeFunction.apply(this.instantiationService, [findInFolderCommand, this.resource]);
 	}
 }
+
+export const findInFolderCommand = (accessor: ServicesAccessor, resource?: URI) => {
+	const listService = accessor.get(IListService);
+	const viewletService = accessor.get(IViewletService);
+
+	if (!URI.isUri(resource)) {
+		const focused = listService.getFocused() ? listService.getFocused().getFocus() : void 0;
+		if (focused) {
+			const file = explorerItemToFileResource(focused);
+			if (file && file.isDirectory) {
+				resource = file.resource;
+			}
+		}
+	}
+
+	if (URI.isUri(resource)) {
+		viewletService.openViewlet(Constants.VIEWLET_ID, true).then((viewlet: SearchViewlet) => {
+			viewlet.searchInFolder(resource);
+		}).done(null, errors.onUnexpectedError);
+	}
+};
 
 export class RefreshAction extends Action {
 
@@ -268,7 +292,7 @@ export class ClearSearchResultsAction extends Action {
 
 export class FocusNextSearchResultAction extends Action {
 	public static ID = 'search.action.focusNextSearchResult';
-	public static LABEL = nls.localize('FocusNextSearchResult.label', "Focus next search result");
+	public static LABEL = nls.localize('FocusNextSearchResult.label', "Focus Next Search Result");
 
 	constructor(id: string, label: string, @IViewletService private viewletService: IViewletService) {
 		super(id, label);
@@ -276,14 +300,14 @@ export class FocusNextSearchResultAction extends Action {
 
 	public run(): TPromise<any> {
 		return this.viewletService.openViewlet(Constants.VIEWLET_ID).then((searchViewlet: SearchViewlet) => {
-			searchViewlet.selectNextResult();
+			searchViewlet.selectNextMatch();
 		});
 	}
 }
 
 export class FocusPreviousSearchResultAction extends Action {
 	public static ID = 'search.action.focusPreviousSearchResult';
-	public static LABEL = nls.localize('FocusPreviousSearchResult.label', "Focus previous search result");
+	public static LABEL = nls.localize('FocusPreviousSearchResult.label', "Focus Previous Search Result");
 
 	constructor(id: string, label: string, @IViewletService private viewletService: IViewletService) {
 		super(id, label);
@@ -291,7 +315,7 @@ export class FocusPreviousSearchResultAction extends Action {
 
 	public run(): TPromise<any> {
 		return this.viewletService.openViewlet(Constants.VIEWLET_ID).then((searchViewlet: SearchViewlet) => {
-			searchViewlet.selectPreviousResult();
+			searchViewlet.selectPreviousMatch();
 		});
 	}
 }

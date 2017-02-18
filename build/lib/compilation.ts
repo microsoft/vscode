@@ -69,7 +69,8 @@ export function compileTask(out: string, build: boolean): () => NodeJS.ReadWrite
 	return function () {
 		const src = es.merge(
 			gulp.src('src/**', { base: 'src' }),
-			gulp.src('node_modules/typescript/lib/lib.d.ts')
+			gulp.src('node_modules/typescript/lib/lib.d.ts'),
+			gulp.src('node_modules/@types/**/index.d.ts')
 		);
 
 		return src
@@ -85,7 +86,8 @@ export function watchTask(out: string, build: boolean): () => NodeJS.ReadWriteSt
 	return function () {
 		const src = es.merge(
 			gulp.src('src/**', { base: 'src' }),
-			gulp.src('node_modules/typescript/lib/lib.d.ts')
+			gulp.src('node_modules/typescript/lib/lib.d.ts'),
+			gulp.src('node_modules/@types/**/index.d.ts')
 		);
 		const watchSrc = watch('src/**', { base: 'src' });
 

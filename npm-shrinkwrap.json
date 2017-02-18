@@ -89,8 +89,8 @@
     },
     "emmet": {
       "version": "1.3.1",
-      "from": "emmet@1.3.1",
-      "resolved": "https://registry.npmjs.org/emmet/-/emmet-1.3.1.tgz"
+      "from": "ramya-rao-a/emmet#vscode",
+      "resolved": "git+https://github.com/ramya-rao-a/emmet.git#c8eb99f46c6734a37beadfd826c98a7a44d3e141"
     },
     "expand-brackets": {
       "version": "0.1.5",
@@ -333,19 +333,14 @@
       "resolved": "https://registry.npmjs.org/process-nextick-args/-/process-nextick-args-1.0.7.tgz"
     },
     "node-pty": {
-      "version": "0.6.1",
-      "from": "node-pty@0.6.1",
-      "resolved": "https://registry.npmjs.org/node-pty/-/node-pty-0.6.1.tgz",
+      "version": "0.6.2",
+      "from": "node-pty@0.6.2",
+      "resolved": "https://registry.npmjs.org/node-pty/-/node-pty-0.6.2.tgz",
       "dependencies": {
-        "extend": {
-          "version": "1.2.1",
-          "from": "extend@>=1.2.1 <1.3.0",
-          "resolved": "https://registry.npmjs.org/extend/-/extend-1.2.1.tgz"
-        },
         "nan": {
-          "version": "2.2.1",
-          "from": "nan@2.2.1",
-          "resolved": "https://registry.npmjs.org/nan/-/nan-2.2.1.tgz"
+          "version": "2.5.0",
+          "from": "nan@2.5.0",
+          "resolved": "https://registry.npmjs.org/nan/-/nan-2.5.0.tgz"
         }
       }
     },
@@ -430,9 +425,9 @@
       "resolved": "https://registry.npmjs.org/winreg/-/winreg-1.2.0.tgz"
     },
     "xterm": {
-      "version": "2.2.3",
-      "from": "git+https://github.com/Tyriar/xterm.js.git#vscode-release/1.9",
-      "resolved": "git+https://github.com/Tyriar/xterm.js.git#27f7052106825b7e2e89358bed84bb1a285d7aaf"
+      "version": "2.3.2",
+      "from": "Tyriar/xterm.js#vscode-release/1.10",
+      "resolved": "git+https://github.com/Tyriar/xterm.js.git#aa1656e3454a33135313cec7521f8dd3762af02c"
     },
     "yauzl": {
       "version": "2.3.1",

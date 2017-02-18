@@ -221,6 +221,18 @@
 			"patterns": [
 				{
 					"include": "#string_literal"
+				},
+				{
+					"include": "#block_doc_comment"
+				},
+				{
+					"include": "#block_comment"
+				},
+				{
+					"include": "#line_doc_comment"
+				},
+				{
+					"include": "#line_comment"
 				}
 			]
 		},
@@ -606,5 +618,5 @@
 			]
 		}
 	],
-	"version": "https://github.com/zargony/atom-language-rust/commit/6c08dea495f39871c2d3bacf8735fd327e4706c0"
+	"version": "https://github.com/zargony/atom-language-rust/commit/5e32388ed873683f3ccdea618c25d1ace8759608"
 }

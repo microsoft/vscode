@@ -32,6 +32,7 @@ import { ExtHostEditors } from 'vs/workbench/api/node/extHostEditors';
 import { ExtHostLanguages } from 'vs/workbench/api/node/extHostLanguages';
 import { ExtHostLanguageFeatures } from 'vs/workbench/api/node/extHostLanguageFeatures';
 import { ExtHostApiCommands } from 'vs/workbench/api/node/extHostApiCommands';
+import { computeDiff } from 'vs/workbench/api/node/extHostFunctions';
 import * as extHostTypes from 'vs/workbench/api/node/extHostTypes';
 import URI from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
@@ -146,7 +147,7 @@ export function createApiFactory(initData: IInitData, threadService: IThreadServ
 					let activeTextEditor = extHostEditors.getActiveTextEditor();
 					if (!activeTextEditor) {
 						console.warn('Cannot execute ' + id + ' because there is no active text editor.');
-						return;
+						return undefined;
 					}
 
 					return activeTextEditor.edit((edit: vscode.TextEditorEdit) => {
@@ -185,6 +186,7 @@ export function createApiFactory(initData: IInitData, threadService: IThreadServ
 				if (desc) {
 					return new Extension(extensionService, desc);
 				}
+				return undefined;
 			},
 			get all(): Extension<any>[] {
 				return extensionService.getAllExtensionDescriptions().map((desc) => new Extension(extensionService, desc));
@@ -213,6 +215,9 @@ export function createApiFactory(initData: IInitData, threadService: IThreadServ
 			},
 			registerImplementationProvider(selector: vscode.DocumentSelector, provider: vscode.ImplementationProvider): vscode.Disposable {
 				return languageFeatures.registerImplementationProvider(selector, provider);
+			},
+			registerTypeDefinitionProvider(selector: vscode.DocumentSelector, provider: vscode.TypeDefinitionProvider): vscode.Disposable {
+				return languageFeatures.registerTypeDefinitionProvider(selector, provider);
 			},
 			registerHoverProvider(selector: vscode.DocumentSelector, provider: vscode.HoverProvider): vscode.Disposable {
 				return languageFeatures.registerHoverProvider(selector, provider);
@@ -287,14 +292,14 @@ export function createApiFactory(initData: IInitData, threadService: IThreadServ
 			onDidCloseTerminal(listener, thisArg?, disposables?) {
 				return extHostTerminalService.onDidCloseTerminal(listener, thisArg, disposables);
 			},
-			showInformationMessage(message, ...items) {
-				return extHostMessageService.showMessage(Severity.Info, message, items);
+			showInformationMessage(message, first, ...rest) {
+				return extHostMessageService.showMessage(Severity.Info, message, first, rest);
 			},
-			showWarningMessage(message, ...items) {
-				return extHostMessageService.showMessage(Severity.Warning, message, items);
+			showWarningMessage(message, first, ...rest) {
+				return extHostMessageService.showMessage(Severity.Warning, message, first, rest);
 			},
-			showErrorMessage(message, ...items) {
-				return extHostMessageService.showMessage(Severity.Error, message, items);
+			showErrorMessage(message, first, ...rest) {
+				return extHostMessageService.showMessage(Severity.Error, message, first, rest);
 			},
 			showQuickPick(items: any, options: vscode.QuickPickOptions, token?: vscode.CancellationToken) {
 				return extHostQuickOpen.showQuickPick(items, options, token);
@@ -325,7 +330,7 @@ export function createApiFactory(initData: IInitData, threadService: IThreadServ
 			},
 			// proposed API
 			sampleFunction: proposedApiFunction(extension, () => {
-				return extHostMessageService.showMessage(Severity.Info, 'Hello Proposed Api!', []);
+				return extHostMessageService.showMessage(Severity.Info, 'Hello Proposed Api!', {}, []);
 			}),
 			registerTreeExplorerNodeProvider: proposedApiFunction(extension, (providerId: string, provider: vscode.TreeExplorerNodeProvider<any>) => {
 				return extHostExplorers.registerTreeExplorerNodeProvider(providerId, provider);
@@ -421,6 +426,11 @@ export function createApiFactory(initData: IInitData, threadService: IThreadServ
 			}
 
 			@proposed(extension)
+			get inputBox() {
+				return extHostSCM.inputBox;
+			}
+
+			@proposed(extension)
 			getResourceFromURI(uri) {
 				return extHostSCM.getResourceFromURI(uri);
 			}
@@ -481,6 +491,8 @@ export function createApiFactory(initData: IInitData, threadService: IThreadServ
 			Uri: URI,
 			ViewColumn: extHostTypes.ViewColumn,
 			WorkspaceEdit: extHostTypes.WorkspaceEdit,
+			// functions
+			computeDiff
 		};
 	};
 }
@@ -523,7 +535,7 @@ function createExtensionPathIndex(extensionService: ExtHostExtensionService): TP
 	const trie = new TrieMap<IExtensionDescription>(TrieMap.PathSplitter);
 	const extensions = extensionService.getAllExtensionDescriptions().map(ext => {
 		if (!ext.main) {
-			return;
+			return undefined;
 		}
 		return new TPromise((resolve, reject) => {
 			realpath(ext.extensionFolderPath, (err, path) => {

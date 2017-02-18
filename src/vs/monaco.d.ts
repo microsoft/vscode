@@ -1077,6 +1077,17 @@ declare module monaco.editor {
     }
 
     /**
+     * Configuration options for editor minimap
+     */
+    export interface IEditorMinimapOptions {
+        /**
+         * Enable the rendering of the minimap.
+         * Defaults to false.
+         */
+        enabled?: boolean;
+    }
+
+    /**
      * Describes how to indent wrapped lines.
      */
     export enum WrappingIndent {
@@ -1180,6 +1191,10 @@ declare module monaco.editor {
          * Control the behavior and rendering of the scrollbars.
          */
         scrollbar?: IEditorScrollbarOptions;
+        /**
+         * Control the behavior and rendering of the minimap.
+         */
+        minimap?: IEditorMinimapOptions;
         /**
          * Display overflow widgets as `fixed`.
          * Defaults to `false`.
@@ -1470,6 +1485,11 @@ declare module monaco.editor {
         readonly mouseWheelScrollSensitivity: number;
     }
 
+    export class InternalEditorMinimapOptions {
+        readonly _internalEditorMinimapOptionsBrand: void;
+        readonly enabled: boolean;
+    }
+
     export class EditorWrappingInfo {
         readonly _editorWrappingInfoBrand: void;
         readonly isViewportWrapping: boolean;
@@ -1508,6 +1528,7 @@ declare module monaco.editor {
         readonly renderIndentGuides: boolean;
         readonly renderLineHighlight: 'none' | 'gutter' | 'line' | 'all';
         readonly scrollbar: InternalEditorScrollbarOptions;
+        readonly minimap: InternalEditorMinimapOptions;
         readonly fixedOverflowWidgets: boolean;
     }
 
@@ -1538,6 +1559,7 @@ declare module monaco.editor {
         readonly renderIndentGuides: boolean;
         readonly renderLineHighlight: boolean;
         readonly scrollbar: boolean;
+        readonly minimap: boolean;
         readonly fixedOverflowWidgets: boolean;
     }
 
@@ -2552,6 +2574,12 @@ declare module monaco.editor {
         readonly right: number;
     }
 
+    export enum RenderMinimap {
+        None = 0,
+        Small = 1,
+        Large = 2,
+    }
+
     /**
      * The internal layout details of the editor.
      */
@@ -2613,6 +2641,18 @@ declare module monaco.editor {
          * The height of the content (actual height)
          */
         readonly contentHeight: number;
+        /**
+         * The width of the minimap
+         */
+        readonly minimapWidth: number;
+        /**
+         * Minimap render type
+         */
+        readonly renderMinimap: RenderMinimap;
+        /**
+         * The number of columns (of typical characters) fitting on a viewport line.
+         */
+        readonly viewportColumn: number;
         /**
          * The width of the vertical scrollbar.
          */
@@ -3953,9 +3993,14 @@ declare module monaco.languages {
     export function registerDefinitionProvider(languageId: string, provider: DefinitionProvider): IDisposable;
 
     /**
-     * Register a type implementation provider (used by e.g. go to implementation).
+     * Register a implementation provider (used by e.g. go to implementation).
      */
     export function registerImplementationProvider(languageId: string, provider: ImplementationProvider): IDisposable;
+
+    /**
+     * Register a type definition provider (used by e.g. go to type definition).
+     */
+    export function registerTypeDefinitionProvider(languageId: string, provider: TypeDefinitionProvider): IDisposable;
 
     /**
      * Register a code lens provider (used by e.g. inline code lenses).
@@ -4570,7 +4615,7 @@ declare module monaco.languages {
     }
 
     /**
-     * The type definition provider interface defines the contract between extensions and
+     * The implementation provider interface defines the contract between extensions and
      * the go to implementation feature.
      */
     export interface ImplementationProvider {
@@ -4578,6 +4623,17 @@ declare module monaco.languages {
          * Provide the implementation of the symbol at the given position and document.
          */
         provideImplementation(model: editor.IReadOnlyModel, position: Position, token: CancellationToken): Definition | Thenable<Definition>;
+    }
+
+    /**
+     * The type definition provider interface defines the contract between extensions and
+     * the go to type definition feature.
+     */
+    export interface TypeDefinitionProvider {
+        /**
+         * Provide the type definition of the symbol at the given position and document.
+         */
+        provideTypeDefinition(model: editor.IReadOnlyModel, position: Position, token: CancellationToken): Definition | Thenable<Definition>;
     }
 
     /**

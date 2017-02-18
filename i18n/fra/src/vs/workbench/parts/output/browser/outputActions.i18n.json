@@ -6,5 +6,6 @@
 {
 	"clearOutput": "Effacer la sortie",
 	"switchToOutput.label": "Passer à la sortie",
-	"toggleOutput": "Activer/désactiver la sortie"
+	"toggleOutput": "Activer/désactiver la sortie",
+	"toggleOutputScrollLock": "Activer/désactiver l'arrêt du défilement de la sortie"
 }

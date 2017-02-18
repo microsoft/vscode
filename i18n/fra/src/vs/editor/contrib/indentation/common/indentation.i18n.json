@@ -6,11 +6,10 @@
 {
 	"configuredTabSize": "Taille des tabulations configurée",
 	"detectIndentation": "Détecter la mise en retrait à partir du contenu",
+	"editor.reindentlines": "Remettre en retrait les lignes",
 	"indentUsingSpaces": "Mettre en retrait avec des espaces",
 	"indentUsingTabs": "Mettre en retrait avec des tabulations",
 	"indentationToSpaces": "Convertir les retraits en espaces",
 	"indentationToTabs": "Convertir les retraits en tabulations",
-	"selectTabWidth": "Sélectionner la taille des tabulations pour le fichier actuel",
-	"toggleRenderControlCharacters": "Activer/désactiver les caractères de contrôle",
-	"toggleRenderWhitespace": "Activer/désactiver Restituer l'espace"
+	"selectTabWidth": "Sélectionner la taille des tabulations pour le fichier actuel"
 }

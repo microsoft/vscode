@@ -1,13 +1,18 @@
 {
+	"command.init": "Initialize Git Repository",
 	"command.refresh": "Refresh",
 	"command.openChange": "Open Change",
 	"command.openFile": "Open File",
 	"command.stage": "Stage",
 	"command.stageAll": "Stage All",
+	"command.stageSelectedRanges": "Stage Selected Ranges",
+	"command.revertSelectedRanges": "Revert Selected Ranges",
 	"command.unstage": "Unstage",
 	"command.unstageAll": "Unstage All",
+	"command.unstageSelectedRanges": "Unstage Selected Ranges",
 	"command.clean": "Clean",
 	"command.cleanAll": "Clean All",
+	"command.commit": "Commit",
 	"command.commitStaged": "Commit Staged",
 	"command.commitStagedSigned": "Commit Staged (Signed Off)",
 	"command.commitAll": "Commit All",
@@ -21,5 +26,13 @@
 	"command.pushTo": "Push to...",
 	"command.sync": "Sync",
 	"command.publish": "Publish",
-	"command.showOutput": "Show Git Output"
+	"command.showOutput": "Show Git Output",
+	"config.enabled": "Whether git is enabled",
+	"config.path": "Path to the git executable",
+	"config.autorefresh": "Whether auto refreshing is enabled",
+	"config.autofetch": "Whether auto fetching is enabled",
+	"config.enableLongCommitWarning": "Whether long commit messages should be warned about",
+	"config.confirmSync": "Confirm before synchronizing git repositories",
+	"config.countBadge": "Controls the git badge counter",
+	"config.checkoutType": "Controls what type of branches are listed"
 }

@@ -80,6 +80,7 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 		this._afterLineNumber = this.settingsGroup.range.startLineNumber - 2;
 		this.editor.changeViewZones(accessor => {
 			this.id = accessor.addZone(this);
+			this.layout();
 		});
 	}
 
@@ -98,7 +99,7 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 	private layout(): void {
 		const configuration = this.editor.getConfiguration();
 		const layoutInfo = this.editor.getLayoutInfo();
-		this.titleContainer.style.width = layoutInfo.contentWidth - layoutInfo.verticalScrollbarWidth + 'px';
+		this._domNode.style.width = layoutInfo.contentWidth - layoutInfo.verticalScrollbarWidth + 'px';
 		this.titleContainer.style.lineHeight = configuration.lineHeight + 3 + 'px';
 		this.titleContainer.style.fontSize = configuration.fontInfo.fontSize + 'px';
 		const iconSize = this.getIconSize();
@@ -325,8 +326,8 @@ export class FloatingClickWidget extends Widget implements IOverlayWidget {
 	) {
 		super();
 		if (keyBindingAction) {
-			let keybinding = keybindingService.lookupKeybindings(keyBindingAction);
-			if (keybinding.length > 0) {
+			let [keybinding] = keybindingService.lookupKeybindings(keyBindingAction);
+			if (keybinding) {
 				this.label += ' (' + keybindingService.getLabelFor(keybinding[0]) + ')';
 			}
 		}

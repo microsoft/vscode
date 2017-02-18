@@ -19,6 +19,12 @@ class SingleLineTestModel implements ISimpleModel {
 	private _line: string;
 	private _eol: string;
 
+	public coordinatesConverter = {
+		convertViewPositionToModelPosition: (viewPosition: Position): Position => {
+			return viewPosition;
+		}
+	};
+
 	constructor(line: string) {
 		this._line = line;
 		this._eol = '\n';
@@ -48,8 +54,12 @@ class SingleLineTestModel implements ISimpleModel {
 		return 1;
 	}
 
-	convertViewPositionToModelPosition(viewLineNumber: number, viewColumn: number): Position {
-		return new Position(viewLineNumber, viewColumn);
+	public getPlainTextToCopy(ranges: Range[], enableEmptySelectionClipboard: boolean): string {
+		return '';
+	}
+
+	public getHTMLToCopy(ranges: Range[], enableEmptySelectionClipboard: boolean): string {
+		return '';
 	}
 }
 

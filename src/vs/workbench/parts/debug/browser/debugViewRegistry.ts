@@ -13,24 +13,24 @@ export interface IDebugViewConstructorSignature {
 }
 
 export interface IDebugViewRegistry {
-	registerDebugView(view: IDebugViewConstructorSignature, order: number): void;
-	getDebugViews(): IDebugViewConstructorSignature[];
+	registerDebugView(view: IDebugViewConstructorSignature, order: number, weight: number): void;
+	getDebugViews(): { view: IDebugViewConstructorSignature, weight: number }[];
 }
 
 class DebugViewRegistryImpl implements IDebugViewRegistry {
-	private debugViews: { view: IDebugViewConstructorSignature, order: number }[];
+	private debugViews: { view: IDebugViewConstructorSignature, order: number, weight: number }[];
 
 	constructor() {
 		this.debugViews = [];
 	}
 
-	public registerDebugView(view: IDebugViewConstructorSignature, order: number): void {
-		this.debugViews.push({ view, order });
+	public registerDebugView(view: IDebugViewConstructorSignature, order: number, weight: number): void {
+		this.debugViews.push({ view, order, weight });
 	}
 
-	public getDebugViews(): IDebugViewConstructorSignature[] {
+	public getDebugViews(): { view: IDebugViewConstructorSignature, weight: number }[] {
 		return this.debugViews.sort((first, second) => first.order - second.order)
-			.map(viewWithOrder => viewWithOrder.view);
+			.map(viewWithOrder => ({ view: viewWithOrder.view, weight: viewWithOrder.weight }));
 	}
 }
 

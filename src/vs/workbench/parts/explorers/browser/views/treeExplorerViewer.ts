@@ -84,7 +84,7 @@ export class TreeController extends DefaultController {
 		private treeNodeProviderId: string,
 		@ITreeExplorerService private treeExplorerService: ITreeExplorerService
 	) {
-		super({ clickBehavior: ClickBehavior.ON_MOUSE_UP /* do not change to not break DND */ });
+		super({ clickBehavior: ClickBehavior.ON_MOUSE_UP /* do not change to not break DND */, keyboardSupport: false });
 	}
 
 	public onLeftClick(tree: ITree, node: InternalTreeExplorerNode, event: IMouseEvent, origin: string = 'mouse'): boolean {

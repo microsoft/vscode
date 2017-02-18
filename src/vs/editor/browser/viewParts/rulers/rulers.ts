@@ -11,19 +11,17 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ViewPart } from 'vs/editor/browser/view/viewPart';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { IRenderingContext, IRestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
-import { ILayoutProvider } from 'vs/editor/browser/viewLayout/layoutProvider';
+import { ScrollEvent } from 'vs/base/common/scrollable';
 
 export class Rulers extends ViewPart {
 
 	public domNode: HTMLElement;
-	private _layoutProvider: ILayoutProvider;
 	private _rulers: number[];
 	private _height: number;
 	private _typicalHalfwidthCharacterWidth: number;
 
-	constructor(context: ViewContext, layoutProvider: ILayoutProvider) {
+	constructor(context: ViewContext) {
 		super(context);
-		this._layoutProvider = layoutProvider;
 		this.domNode = document.createElement('div');
 		this.domNode.className = 'view-rulers';
 		this._rulers = this._context.configuration.editor.viewInfo.rulers;
@@ -46,7 +44,7 @@ export class Rulers extends ViewPart {
 		}
 		return false;
 	}
-	public onScrollChanged(e: editorCommon.IScrollEvent): boolean {
+	public onScrollChanged(e: ScrollEvent): boolean {
 		return super.onScrollChanged(e) || e.scrollHeightChanged;
 	}
 
@@ -54,9 +52,6 @@ export class Rulers extends ViewPart {
 
 	public prepareRender(ctx: IRenderingContext): void {
 		// Nothing to read
-		if (!this.shouldRender()) {
-			throw new Error('I did not ask to render!');
-		}
 	}
 
 	public render(ctx: IRestrictedRenderingContext): void {
@@ -79,7 +74,7 @@ export class Rulers extends ViewPart {
 				this.domNode.appendChild(node);
 			}
 
-			StyleMutator.setHeight(node, Math.min(this._layoutProvider.getTotalHeight(), 1000000));
+			StyleMutator.setHeight(node, Math.min(ctx.scrollHeight, 1000000));
 			StyleMutator.setLeft(node, this._rulers[i] * this._typicalHalfwidthCharacterWidth);
 		}
 	}

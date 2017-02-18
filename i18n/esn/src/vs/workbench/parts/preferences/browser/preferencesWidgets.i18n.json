@@ -6,6 +6,7 @@
 {
 	"SearchSettingsWidget.AriaLabel": "Buscar configuración",
 	"SearchSettingsWidget.Placeholder": "Buscar configuración",
+	"settingsSwitcherBarAriaLabel": "Conmutador de configuración",
 	"userSettings": "Configuración de usuario",
 	"workspaceSettings": "Configuración de área de trabajo"
 }

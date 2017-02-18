@@ -78,12 +78,13 @@ export class ExtHostDocuments extends ExtHostDocumentsShape {
 
 	public getDocumentData(resource: vscode.Uri): ExtHostDocumentData {
 		if (!resource) {
-			return;
+			return undefined;
 		}
 		const data = this._documentData.get(resource.toString());
 		if (data) {
 			return data;
 		}
+		return undefined;
 	}
 
 	public ensureDocumentData(uri: URI): TPromise<ExtHostDocumentData> {
@@ -456,5 +457,6 @@ export class ExtHostDocumentData extends MirrorModel2 {
 		if (wordAtText) {
 			return new Range(position.line, wordAtText.startColumn - 1, position.line, wordAtText.endColumn - 1);
 		}
+		return undefined;
 	}
 }

@@ -9,5 +9,6 @@
 	"gotoLineDescriptionWin": "Gehe zu Zeile",
 	"gotoSymbolDescription": "Gehe zu Symbol in Datei",
 	"gotoSymbolDescriptionScoped": "Gehe zu Symbol in Datei nach Kategorie",
-	"helpDescription": "Hilfe anzeigen"
+	"helpDescription": "Hilfe anzeigen",
+	"viewPickerDescription": "Ansicht öffnen"
 }

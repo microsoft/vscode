@@ -17,8 +17,8 @@ import { IHighlightEvent, ITree } from 'vs/base/parts/tree/browser/tree';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { CollapsibleState } from 'vs/base/browser/ui/splitview/splitview';
 import { CollapsibleViewletView, AdaptiveCollapsibleViewletView, CollapseAction } from 'vs/workbench/browser/viewlet';
-import { IDebugService, State, IBreakpoint, IExpression } from 'vs/workbench/parts/debug/common/debug';
-import { Expression, Variable, ExceptionBreakpoint, FunctionBreakpoint, Thread } from 'vs/workbench/parts/debug/common/debugModel';
+import { IDebugService, State, IBreakpoint, IExpression, CONTEXT_BREAKPOINTS_FOCUSED, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_VARIABLES_FOCUSED } from 'vs/workbench/parts/debug/common/debug';
+import { Expression, Variable, ExceptionBreakpoint, FunctionBreakpoint, Thread, StackFrame, Breakpoint, ThreadAndProcessIds } from 'vs/workbench/parts/debug/common/debugModel';
 import * as viewer from 'vs/workbench/parts/debug/electron-browser/debugViewer';
 import { AddWatchExpressionAction, RemoveAllWatchExpressionsAction, AddFunctionBreakpointAction, ToggleBreakpointsActivatedAction, RemoveAllBreakpointsAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -27,6 +27,8 @@ import { MenuId } from 'vs/platform/actions/common/actions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IListService } from 'vs/platform/list/browser/listService';
 
 function renderViewTree(container: HTMLElement): HTMLElement {
 	const treeContainer = document.createElement('div');
@@ -42,6 +44,7 @@ export class VariablesView extends CollapsibleViewletView {
 
 	private static MEMENTO = 'variablesview.memento';
 	private onFocusStackFrameScheduler: RunOnceScheduler;
+	private variablesFocusedContext: IContextKey<boolean>;
 
 	constructor(
 		actionRunner: IActionRunner,
@@ -51,10 +54,13 @@ export class VariablesView extends CollapsibleViewletView {
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IDebugService private debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IListService private listService: IListService
 	) {
 		super(actionRunner, !!settings[VariablesView.MEMENTO], nls.localize('variablesSection', "Variables Section"), messageService, keybindingService, contextMenuService);
 
+		this.variablesFocusedContext = CONTEXT_VARIABLES_FOCUSED.bindTo(contextKeyService);
 		// Use schedulre to prevent unnecessary flashing
 		this.onFocusStackFrameScheduler = new RunOnceScheduler(() => {
 			// Always clear tree highlight to avoid ending up in a broken state #12203
@@ -66,8 +72,10 @@ export class VariablesView extends CollapsibleViewletView {
 						if (scopes.length > 0 && !scopes[0].expensive) {
 							return this.tree.expand(scopes[0]);
 						}
+						return undefined;
 					});
 				}
+				return undefined;
 			}).done(null, errors.onUnexpectedError);
 		}, 700);
 	}
@@ -90,8 +98,11 @@ export class VariablesView extends CollapsibleViewletView {
 			controller: this.instantiationService.createInstance(viewer.VariablesController, new viewer.VariablesActionProvider(this.instantiationService), MenuId.DebugVariablesContext)
 		}, {
 				ariaLabel: nls.localize('variablesAriaTreeLabel', "Debug Variables"),
-				twistiePixels
+				twistiePixels,
+				keyboardSupport: false
 			});
+
+		this.toDispose.push(this.listService.register(this.tree, [this.variablesFocusedContext]));
 
 		const viewModel = this.debugService.getViewModel();
 
@@ -141,6 +152,7 @@ export class WatchExpressionsView extends CollapsibleViewletView {
 	private static MEMENTO = 'watchexpressionsview.memento';
 	private onWatchExpressionsUpdatedScheduler: RunOnceScheduler;
 	private toReveal: IExpression;
+	private watchExpressionsFocusedContext: IContextKey<boolean>;
 
 	constructor(
 		actionRunner: IActionRunner,
@@ -149,7 +161,9 @@ export class WatchExpressionsView extends CollapsibleViewletView {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IDebugService private debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IListService private listService: IListService
 	) {
 		super(actionRunner, !!settings[WatchExpressionsView.MEMENTO], nls.localize('expressionsSection', "Expressions Section"), messageService, keybindingService, contextMenuService);
 
@@ -159,6 +173,7 @@ export class WatchExpressionsView extends CollapsibleViewletView {
 				this.expand();
 			}
 		}));
+		this.watchExpressionsFocusedContext = CONTEXT_WATCH_EXPRESSIONS_FOCUSED.bindTo(contextKeyService);
 
 		this.onWatchExpressionsUpdatedScheduler = new RunOnceScheduler(() => {
 			this.tree.refresh().done(() => {
@@ -187,8 +202,11 @@ export class WatchExpressionsView extends CollapsibleViewletView {
 			dnd: this.instantiationService.createInstance(viewer.WatchExpressionsDragAndDrop)
 		}, {
 				ariaLabel: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'watchAriaTreeLabel' }, "Debug Watch Expressions"),
-				twistiePixels
+				twistiePixels,
+				keyboardSupport: false
 			});
+
+		this.toDispose.push(this.listService.register(this.tree, [this.watchExpressionsFocusedContext]));
 
 		this.tree.setInput(this.debugService.getModel());
 
@@ -241,7 +259,8 @@ export class CallStackView extends CollapsibleViewletView {
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IDebugService private debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IListService private listService: IListService
 	) {
 		super(actionRunner, !!settings[CallStackView.MEMENTO], nls.localize('callstackSection', "Call Stack Section"), messageService, keybindingService, contextMenuService);
 
@@ -287,16 +306,31 @@ export class CallStackView extends CollapsibleViewletView {
 		dom.addClass(container, 'debug-call-stack');
 		this.treeContainer = renderViewTree(container);
 		const actionProvider = this.instantiationService.createInstance(viewer.CallStackActionProvider);
+		const controller = this.instantiationService.createInstance(viewer.CallStackController, actionProvider, MenuId.DebugCallStackContext);
 
 		this.tree = new Tree(this.treeContainer, {
 			dataSource: this.instantiationService.createInstance(viewer.CallStackDataSource),
 			renderer: this.instantiationService.createInstance(viewer.CallStackRenderer),
 			accessibilityProvider: this.instantiationService.createInstance(viewer.CallstackAccessibilityProvider),
-			controller: this.instantiationService.createInstance(viewer.CallStackController, actionProvider, MenuId.DebugCallStackContext)
+			controller
 		}, {
 				ariaLabel: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'callStackAriaLabel' }, "Debug Call Stack"),
-				twistiePixels
+				twistiePixels,
+				keyboardSupport: false
 			});
+
+		this.toDispose.push(this.listService.register(this.tree));
+
+		this.toDispose.push(this.tree.addListener2('selection', event => {
+			if (event && event.payload && event.payload.origin === 'keyboard') {
+				const element = this.tree.getFocus();
+				if (element instanceof ThreadAndProcessIds) {
+					controller.showMoreStackFrames(this.tree, element);
+				} else if (element instanceof StackFrame) {
+					controller.focusStackFrame(element, event, false);
+				}
+			}
+		}));
 
 		this.toDispose.push(this.debugService.getModel().onDidChangeCallStack(() => {
 			if (!this.onCallStackChangeScheduler.isScheduled()) {
@@ -347,6 +381,7 @@ export class BreakpointsView extends AdaptiveCollapsibleViewletView {
 
 	private static MAX_VISIBLE_FILES = 9;
 	private static MEMENTO = 'breakopintsview.memento';
+	private breakpointsFocusedContext: IContextKey<boolean>;
 
 	constructor(
 		actionRunner: IActionRunner,
@@ -354,12 +389,15 @@ export class BreakpointsView extends AdaptiveCollapsibleViewletView {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IDebugService private debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IListService private listService: IListService
 	) {
 		super(actionRunner, BreakpointsView.getExpandedBodySize(
 			debugService.getModel().getBreakpoints().length + debugService.getModel().getFunctionBreakpoints().length + debugService.getModel().getExceptionBreakpoints().length),
 			!!settings[BreakpointsView.MEMENTO], nls.localize('breakpointsSection', "Breakpoints Section"), keybindingService, contextMenuService);
 
+		this.breakpointsFocusedContext = CONTEXT_BREAKPOINTS_FOCUSED.bindTo(contextKeyService);
 		this.toDispose.push(this.debugService.getModel().onDidChangeBreakpoints(() => this.onBreakpointsChange()));
 	}
 
@@ -374,12 +412,13 @@ export class BreakpointsView extends AdaptiveCollapsibleViewletView {
 		dom.addClass(container, 'debug-breakpoints');
 		this.treeContainer = renderViewTree(container);
 		const actionProvider = new viewer.BreakpointsActionProvider(this.instantiationService, this.debugService);
+		const controller = this.instantiationService.createInstance(viewer.BreakpointsController, actionProvider, MenuId.DebugBreakpointsContext);
 
 		this.tree = new Tree(this.treeContainer, {
 			dataSource: new viewer.BreakpointsDataSource(),
 			renderer: this.instantiationService.createInstance(viewer.BreakpointsRenderer, actionProvider, this.actionRunner),
 			accessibilityProvider: this.instantiationService.createInstance(viewer.BreakpointsAccessibilityProvider),
-			controller: this.instantiationService.createInstance(viewer.BreakpointsController, actionProvider, MenuId.DebugBreakpointsContext),
+			controller,
 			sorter: {
 				compare(tree: ITree, element: any, otherElement: any): number {
 					const first = <IBreakpoint>element;
@@ -406,8 +445,20 @@ export class BreakpointsView extends AdaptiveCollapsibleViewletView {
 			}
 		}, {
 				ariaLabel: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'breakpointsAriaTreeLabel' }, "Debug Breakpoints"),
-				twistiePixels
+				twistiePixels,
+				keyboardSupport: false
 			});
+
+		this.toDispose.push(this.listService.register(this.tree, [this.breakpointsFocusedContext]));
+
+		this.toDispose.push(this.tree.addListener2('selection', event => {
+			if (event && event.payload && event.payload.origin === 'keyboard') {
+				const element = this.tree.getFocus();
+				if (element instanceof Breakpoint) {
+					controller.openBreakpointSource(element, event, false);
+				}
+			}
+		}));
 
 		const debugModel = this.debugService.getModel();
 

@@ -118,5 +118,8 @@
         "url": "http://json.schemastore.org/jsconfig"
       }
     ]
+  },
+  "devDependencies": {
+    "@types/node": "^7.0.4"
   }
 }

@@ -6,11 +6,7 @@
 {
 	"foldAction.label": "Plier",
 	"foldAllAction.label": "Plier tout",
-	"foldLevel1Action.label": "Niveau de pli 1",
-	"foldLevel2Action.label": "Niveau de pli 2",
-	"foldLevel3Action.label": "Niveau de pli 3",
-	"foldLevel4Action.label": "Niveau de pli 4",
-	"foldLevel5Action.label": "Niveau de pli 5",
+	"foldLevelAction.label": "Niveau de pliage {0}",
 	"foldRecursivelyAction.label": "Plier de manière récursive",
 	"unFoldRecursivelyAction.label": "Déplier de manière récursive",
 	"unfoldAction.label": "Déplier",

@@ -79,6 +79,10 @@ export class MockDebugService implements debug.IDebugService {
 		return TPromise.as(null);
 	}
 
+	public stopProcess(): TPromise<any> {
+		return TPromise.as(null);
+	}
+
 	public getModel(): debug.IModel {
 		return null;
 	}
@@ -86,6 +90,8 @@ export class MockDebugService implements debug.IDebugService {
 	public getViewModel(): debug.IViewModel {
 		return null;
 	}
+
+	public logToRepl(value: string): void { }
 
 	public deemphasizeSource(uri: uri): void { }
 }
@@ -126,11 +132,8 @@ export class MockSession implements debug.ISession {
 		return TPromise.as(null);
 	}
 
-	public get configuration(): { type: string, capabilities: DebugProtocol.Capabilities } {
-		return {
-			type: 'mock',
-			capabilities: {}
-		};
+	public get capabilities(): DebugProtocol.Capabilities {
+		return {};
 	}
 
 	public get onDidEvent(): Event<DebugProtocol.Event> {

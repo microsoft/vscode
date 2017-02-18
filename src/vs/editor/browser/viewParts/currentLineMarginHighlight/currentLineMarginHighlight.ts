@@ -10,24 +10,21 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { IRenderingContext } from 'vs/editor/common/view/renderingContext';
-import { ILayoutProvider } from 'vs/editor/browser/viewLayout/layoutProvider';
+import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
 export class CurrentLineMarginHighlightOverlay extends DynamicViewOverlay {
 	private _context: ViewContext;
 	private _lineHeight: number;
 	private _renderLineHighlight: 'none' | 'gutter' | 'line' | 'all';
-	private _layoutProvider: ILayoutProvider;
 	private _primaryCursorIsInEditableRange: boolean;
 	private _primaryCursorLineNumber: number;
 	private _contentLeft: number;
 
-	constructor(context: ViewContext, layoutProvider: ILayoutProvider) {
+	constructor(context: ViewContext) {
 		super();
 		this._context = context;
 		this._lineHeight = this._context.configuration.editor.lineHeight;
 		this._renderLineHighlight = this._context.configuration.editor.viewInfo.renderLineHighlight;
-
-		this._layoutProvider = layoutProvider;
 
 		this._primaryCursorIsInEditableRange = true;
 		this._primaryCursorLineNumber = 1;
@@ -48,13 +45,13 @@ export class CurrentLineMarginHighlightOverlay extends DynamicViewOverlay {
 		this._primaryCursorLineNumber = 1;
 		return true;
 	}
-	public onModelLinesDeleted(e: editorCommon.IViewLinesDeletedEvent): boolean {
+	public onModelLinesDeleted(e: viewEvents.IViewLinesDeletedEvent): boolean {
 		return true;
 	}
-	public onModelLinesInserted(e: editorCommon.IViewLinesInsertedEvent): boolean {
+	public onModelLinesInserted(e: viewEvents.IViewLinesInsertedEvent): boolean {
 		return true;
 	}
-	public onCursorPositionChanged(e: editorCommon.IViewCursorPositionChangedEvent): boolean {
+	public onCursorPositionChanged(e: viewEvents.IViewCursorPositionChangedEvent): boolean {
 		let hasChanged = false;
 		if (this._primaryCursorIsInEditableRange !== e.isInEditableRange) {
 			this._primaryCursorIsInEditableRange = e.isInEditableRange;
@@ -76,9 +73,6 @@ export class CurrentLineMarginHighlightOverlay extends DynamicViewOverlay {
 		if (e.layoutInfo) {
 			this._contentLeft = this._context.configuration.editor.layoutInfo.contentLeft;
 		}
-		return true;
-	}
-	public onLayoutChanged(layoutInfo: editorCommon.EditorLayoutInfo): boolean {
 		return true;
 	}
 	public onZonesChanged(): boolean {

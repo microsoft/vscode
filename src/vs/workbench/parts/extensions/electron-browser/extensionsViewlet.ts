@@ -40,6 +40,7 @@ import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensions
 import { Query } from '../common/extensionQuery';
 import { OpenGlobalSettingsAction } from 'vs/workbench/parts/preferences/browser/preferencesActions';
 import { IProgressService } from 'vs/platform/progress/common/progress';
+import { IListService } from 'vs/platform/list/browser/listService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IMessageService, CloseAction } from 'vs/platform/message/common/message';
@@ -74,6 +75,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IEditorGroupService private editorInputService: IEditorGroupService,
+		@IListService private listService: IListService,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionTipsService private tipsService: IExtensionTipsService,
 		@IMessageService private messageService: IMessageService,
@@ -105,8 +107,11 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		const delegate = new Delegate();
 		const renderer = this.instantiationService.createInstance(Renderer);
 		this.list = new PagedList(this.extensionsBox, delegate, [renderer], {
-			ariaLabel: localize('extensions', "Extensions")
+			ariaLabel: localize('extensions', "Extensions"),
+			keyboardSupport: false
 		});
+
+		this.disposables.push(this.listService.register(this.list.widget));
 
 		const onKeyDown = chain(domEvent(this.searchBox, 'keydown'))
 			.filter(() => this.list.length > 0)
@@ -232,26 +237,29 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 	}
 
 	private query(value: string): TPromise<IPagedModel<IExtension>> {
-		if (!value) {
+		if (!value || /@installed/i.test(value)) {
 			// Show installed extensions
+			value = value ? value.replace(/@installed/g, '').trim().toLowerCase() : '';
 			return this.extensionsWorkbenchService.queryLocal()
 				.then(result => result.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName)))
-				.then(result => result.filter(e => e.type === LocalExtensionType.User))
+				.then(result => result.filter(e => e.type === LocalExtensionType.User && e.name.toLowerCase().indexOf(value) > -1))
 				.then(result => new PagedModel(result));
 		}
 
 		if (/@outdated/i.test(value)) {
+			value = value.replace(/@outdated/g, '').trim().toLowerCase();
 			return this.extensionsWorkbenchService.queryLocal()
 				.then(result => result.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName)))
-				.then(extensions => extensions.filter(extension => extension.outdated))
+				.then(extensions => extensions.filter(extension => extension.outdated && extension.name.toLowerCase().indexOf(value) > -1))
 				.then(result => new PagedModel(result));
 		}
 
 		if (/@disabled/i.test(value)) {
+			value = value.replace(/@disabled/g, '').trim().toLowerCase();
 			return this.extensionsWorkbenchService.queryLocal()
 				.then(result => result.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName)))
 				.then(result => this.extensionService.getExtensions()
-					.then(runningExtensions => result.filter(e => runningExtensions.every(r => r.id !== e.identifier))))
+					.then(runningExtensions => result.filter(e => runningExtensions.every(r => r.id !== e.identifier) && e.name.toLowerCase().indexOf(value) > -1)))
 				.then(result => new PagedModel(result));
 		}
 

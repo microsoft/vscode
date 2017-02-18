@@ -28,7 +28,7 @@ import * as strings from 'vs/base/common/strings';
 
 import { Registry } from 'vs/platform/platform';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { SyncActionDescriptor, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IEditor } from 'vs/platform/editor/common/editor';
 import { IMessageService } from 'vs/platform/message/common/message';
@@ -37,6 +37,10 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFileService, FileChangeType } from 'vs/platform/files/common/files';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+
 
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -61,11 +65,11 @@ import { IOutputService, IOutputChannelRegistry, Extensions as OutputExt, IOutpu
 
 import { ITerminalService } from 'vs/workbench/parts/terminal/common/terminal';
 
-import { ITaskSystem, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, TaskRunnerConfiguration, TaskConfiguration, TaskDescription, TaskSystemEvents } from 'vs/workbench/parts/tasks/common/taskSystem';
+import { ITaskSystem, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, TaskRunnerConfiguration, TaskDescription, TaskSystemEvents } from 'vs/workbench/parts/tasks/common/taskSystem';
 import { ITaskService, TaskServiceEvents } from 'vs/workbench/parts/tasks/common/taskService';
 import { templates as taskTemplates } from 'vs/workbench/parts/tasks/common/taskTemplates';
 
-import * as FileConfig from 'vs/workbench/parts/tasks/node/processRunnerConfiguration';
+import * as TaskConfig from 'vs/workbench/parts/tasks/common/taskConfiguration';
 import { ProcessRunnerSystem } from 'vs/workbench/parts/tasks/node/processRunnerSystem';
 import { TerminalTaskSystem } from './terminalTaskSystem';
 import { ProcessRunnerDetector } from 'vs/workbench/parts/tasks/node/processRunnerDetector';
@@ -73,102 +77,7 @@ import { ProcessRunnerDetector } from 'vs/workbench/parts/tasks/node/processRunn
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 let $ = Builder.$;
-
-class AbstractTaskAction extends Action {
-
-	protected taskService: ITaskService;
-	protected telemetryService: ITelemetryService;
-	protected messageService: IMessageService;
-	protected contextService: IWorkspaceContextService;
-
-	constructor(id: string, label: string, @ITaskService taskService: ITaskService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IMessageService messageService: IMessageService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService) {
-
-		super(id, label);
-		this.taskService = taskService;
-		this.telemetryService = telemetryService;
-		this.messageService = messageService;
-		this.contextService = contextService;
-	}
-
-	protected canRun(): boolean {
-		if (!this.contextService.hasWorkspace()) {
-			this.messageService.show(Severity.Info, nls.localize('AbstractTaskAction.noWorkspace', 'Tasks are only available on a workspace folder.'));
-			return false;
-		}
-		return true;
-	}
-}
-
-class BuildAction extends AbstractTaskAction {
-	public static ID = 'workbench.action.tasks.build';
-	public static TEXT = nls.localize('BuildAction.label', "Run Build Task");
-
-	constructor(id: string, label: string, @ITaskService taskService: ITaskService, @ITelemetryService telemetryService: ITelemetryService,
-		@IMessageService messageService: IMessageService, @IWorkspaceContextService contextService: IWorkspaceContextService) {
-		super(id, label, taskService, telemetryService, messageService, contextService);
-	}
-
-	public run(): TPromise<ITaskSummary> {
-		if (!this.canRun()) {
-			return TPromise.as(undefined);
-		}
-		return this.taskService.build();
-	}
-}
-
-class TestAction extends AbstractTaskAction {
-	public static ID = 'workbench.action.tasks.test';
-	public static TEXT = nls.localize('TestAction.label', "Run Test Task");
-
-	constructor(id: string, label: string, @ITaskService taskService: ITaskService, @ITelemetryService telemetryService: ITelemetryService,
-		@IMessageService messageService: IMessageService, @IWorkspaceContextService contextService: IWorkspaceContextService) {
-		super(id, label, taskService, telemetryService, messageService, contextService);
-	}
-
-	public run(): TPromise<ITaskSummary> {
-		if (!this.canRun()) {
-			return TPromise.as(undefined);
-		}
-		return this.taskService.runTest();
-	}
-}
-
-class RebuildAction extends AbstractTaskAction {
-	public static ID = 'workbench.action.tasks.rebuild';
-	public static TEXT = nls.localize('RebuildAction.label', 'Run Rebuild Task');
-
-	constructor(id: string, label: string, @ITaskService taskService: ITaskService, @ITelemetryService telemetryService: ITelemetryService,
-		@IMessageService messageService: IMessageService, @IWorkspaceContextService contextService: IWorkspaceContextService) {
-		super(id, label, taskService, telemetryService, messageService, contextService);
-	}
-
-	public run(): TPromise<ITaskSummary> {
-		if (!this.canRun()) {
-			return TPromise.as(undefined);
-		}
-		return this.taskService.rebuild();
-	}
-}
-
-class CleanAction extends AbstractTaskAction {
-	public static ID = 'workbench.action.tasks.clean';
-	public static TEXT = nls.localize('CleanAction.label', 'Run Clean Task');
-
-	constructor(id: string, label: string, @ITaskService taskService: ITaskService, @ITelemetryService telemetryService: ITelemetryService,
-		@IMessageService messageService: IMessageService, @IWorkspaceContextService contextService: IWorkspaceContextService) {
-		super(id, label, taskService, telemetryService, messageService, contextService);
-	}
-
-	public run(): TPromise<ITaskSummary> {
-		if (!this.canRun()) {
-			return TPromise.as(undefined);
-		}
-		return this.taskService.clean();
-	}
-}
+let tasksCategory = nls.localize('tasksCategory', "Tasks");
 
 abstract class OpenTaskConfigurationAction extends Action {
 
@@ -196,6 +105,8 @@ abstract class OpenTaskConfigurationAction extends Action {
 		this.outputService = outputService;
 		this.messageService = messageService;
 		this.quickOpenService = quickOpenService;
+
+
 	}
 
 	public run(event?: any): TPromise<IEditor> {
@@ -335,89 +246,6 @@ class ViewTerminalAction extends Action {
 		return TPromise.as(undefined);
 	}
 }
-
-class TerminateAction extends AbstractTaskAction {
-	public static ID = 'workbench.action.tasks.terminate';
-	public static TEXT = nls.localize('TerminateAction.label', "Terminate Running Task");
-
-	constructor(id: string, label: string, @ITaskService taskService: ITaskService, @ITelemetryService telemetryService: ITelemetryService,
-		@IMessageService messageService: IMessageService, @IWorkspaceContextService contextService: IWorkspaceContextService,
-		@ITerminalService private terminalService: ITerminalService
-	) {
-		super(id, label, taskService, telemetryService, messageService, contextService);
-	}
-
-	public run(): TPromise<TerminateResponse> {
-		if (!this.canRun()) {
-			return TPromise.as(undefined);
-		}
-		if (this.taskService.inTerminal()) {
-			this.messageService.show(Severity.Info, {
-				message: nls.localize('TerminateAction.terminalSystem', 'The tasks are executed in the integrated terminal. Use the terminal to manage the tasks.'),
-				actions: [new ViewTerminalAction(this.terminalService), new CloseMessageAction()]
-			});
-		} else {
-			return this.taskService.isActive().then((active) => {
-				if (active) {
-					return this.taskService.terminate().then((response) => {
-						if (response.success) {
-							return;
-						} else if (response.code && response.code === TerminateResponseCode.ProcessNotFound) {
-							this.messageService.show(Severity.Error, nls.localize('TerminateAction.noProcess', 'The launched process doesn\'t exist anymore. If the task spawned background tasks exiting VS Code might result in orphaned processes.'));
-						} else {
-							return Promise.wrapError(nls.localize('TerminateAction.failed', 'Failed to terminate running task'));
-						}
-					});
-				}
-			});
-		}
-	}
-}
-
-class ShowLogAction extends AbstractTaskAction {
-	public static ID = 'workbench.action.tasks.showLog';
-	public static TEXT = nls.localize('ShowLogAction.label', "Show Task Log");
-
-	private outputService: IOutputService;
-
-	constructor(id: string, label: string, @ITaskService taskService: ITaskService, @ITelemetryService telemetryService: ITelemetryService,
-		@IMessageService messageService: IMessageService, @IWorkspaceContextService contextService: IWorkspaceContextService,
-		@IOutputService outputService: IOutputService) {
-
-		super(id, label, taskService, telemetryService, messageService, contextService);
-		this.outputService = outputService;
-	}
-
-	public run(): TPromise<IEditor> {
-		if (!this.canRun()) {
-			return TPromise.as(undefined);
-		}
-		return this.outputService.getChannel(TaskService.OutputChannelId).show(true);
-	}
-}
-
-class RunTaskAction extends AbstractTaskAction {
-
-	public static ID = 'workbench.action.tasks.runTask';
-	public static TEXT = nls.localize('RunTaskAction.label', "Run Task");
-	private quickOpenService: IQuickOpenService;
-
-	constructor(id: string, label: string, @IQuickOpenService quickOpenService: IQuickOpenService,
-		@ITaskService taskService: ITaskService, @ITelemetryService telemetryService: ITelemetryService,
-		@IMessageService messageService: IMessageService, @IWorkspaceContextService contextService: IWorkspaceContextService) {
-		super(id, label, taskService, telemetryService, messageService, contextService);
-		this.quickOpenService = quickOpenService;
-	}
-
-	public run(event?: any): Promise {
-		if (!this.canRun()) {
-			return TPromise.as(undefined);
-		}
-		this.quickOpenService.show('task ');
-		return TPromise.as(null);
-	}
-}
-
 
 class StatusBarItem implements IStatusbarItem {
 
@@ -621,6 +449,9 @@ class NullTaskSystem extends EventEmitter implements ITaskSystem {
 }
 
 class TaskService extends EventEmitter implements ITaskService {
+
+	private static autoDetectTelemetryName: string = 'taskServer.autoDetect';
+
 	public _serviceBrand: any;
 	public static SERVICE_ID: string = 'taskService';
 	public static OutputChannelId: string = 'tasks';
@@ -687,14 +518,15 @@ class TaskService extends EventEmitter implements ITaskService {
 				return;
 			}
 			if (this._inTerminal !== void 0) {
-				let config = this.configurationService.getConfiguration<TaskConfiguration>('tasks');
-				if (this._inTerminal && this.isRunnerConfig(config) || !this._inTerminal && this.isTerminalConfig(config)) {
+				let config = this.configurationService.getConfiguration<TaskConfig.ExternalTaskRunnerConfiguration>('tasks');
+				let engine = TaskConfig.ExecutionEngine.from(config);
+				if (this._inTerminal && engine === TaskConfig.ExecutionEngine.OutputPanel || !this._inTerminal && engine === TaskConfig.ExecutionEngine.Terminal) {
 					this.messageService.show(Severity.Info, nls.localize('TaskSystem.noHotSwap', 'Changing the task execution engine requires to restart VS Code. The change is ignored.'));
 				}
 			}
 			this.emit(TaskServiceEvents.ConfigChanged);
 			if (this._inTerminal) {
-				this.readConfiguration().then((config) => {
+				this.createConfiguration().then((config) => {
 					if (!config) {
 						return;
 					}
@@ -717,10 +549,54 @@ class TaskService extends EventEmitter implements ITaskService {
 		});
 
 		lifecycleService.onWillShutdown(event => event.veto(this.beforeShutdown()));
+		this.registerCommands();
+	}
+
+
+	private registerCommands(): void {
+		CommandsRegistry.registerCommand('workbench.action.tasks.runTask', (accessor, arg) => {
+			this.runTaskCommand(accessor, arg);
+		});
+
+		CommandsRegistry.registerCommand('workbench.action.tasks.terminate', (accessor, arg) => {
+			this.runTerminateCommand();
+		});
+
+		CommandsRegistry.registerCommand('workbench.action.tasks.showLog', () => {
+			if (!this.canRunCommand()) {
+				return;
+			}
+			this.showOutput();
+		});
+
+		CommandsRegistry.registerCommand('workbench.action.tasks.build', () => {
+			if (!this.canRunCommand()) {
+				return;
+			}
+			this.build();
+		});
+
+		KeybindingsRegistry.registerKeybindingRule({
+			id: 'workbench.action.tasks.build',
+			weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+			when: undefined,
+			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_B
+		});
+
+		CommandsRegistry.registerCommand('workbench.action.tasks.test', () => {
+			if (!this.canRunCommand()) {
+				return;
+			}
+			this.runTest();
+		});
 	}
 
 	public log(value: string): void {
 		this.outputChannel.append(value + '\n');
+	}
+
+	public clearOutput(): void {
+		this.outputChannel.clear();
 	}
 
 	private showOutput(): void {
@@ -744,8 +620,8 @@ class TaskService extends EventEmitter implements ITaskService {
 				this._taskSystem = new NullTaskSystem();
 				this._taskSystemPromise = TPromise.as(this._taskSystem);
 			} else {
-				let clearOutput = true;
-				this._taskSystemPromise = TPromise.as(this.configurationService.getConfiguration<TaskConfiguration>('tasks')).then((config: TaskConfiguration) => {
+				let hasError = false;
+				this._taskSystemPromise = TPromise.as(this.configurationService.getConfiguration<TaskConfig.ExternalTaskRunnerConfiguration>('tasks')).then((config) => {
 					let parseErrors: string[] = config ? (<any>config).$parseErrors : null;
 					if (parseErrors) {
 						let isAffected = false;
@@ -761,18 +637,24 @@ class TaskService extends EventEmitter implements ITaskService {
 							return TPromise.wrapError({});
 						}
 					}
-					let configPromise: TPromise<TaskConfiguration>;
+					let configPromise: TPromise<TaskConfig.ExternalTaskRunnerConfiguration>;
 					if (config) {
-						if (this.isRunnerConfig(config) && this.hasDetectorSupport(<FileConfig.ExternalTaskRunnerConfiguration>config)) {
-							let fileConfig = <FileConfig.ExternalTaskRunnerConfiguration>config;
-							configPromise = new ProcessRunnerDetector(this.fileService, this.contextService, this.configurationResolverService, fileConfig).detect(true).then((value) => {
-								clearOutput = this.printStderr(value.stderr);
+						let engine = TaskConfig.ExecutionEngine.from(config);
+						if (engine === TaskConfig.ExecutionEngine.OutputPanel && this.hasDetectorSupport(config)) {
+							configPromise = new ProcessRunnerDetector(this.fileService, this.contextService, this.configurationResolverService, config).detect(true).then((value) => {
+								hasError = this.printStderr(value.stderr);
 								let detectedConfig = value.config;
 								if (!detectedConfig) {
 									return config;
 								}
-								let result: FileConfig.ExternalTaskRunnerConfiguration = Objects.clone(fileConfig);
-								let configuredTasks: IStringDictionary<FileConfig.TaskDescription> = Object.create(null);
+								if (detectedConfig.command) {
+									this.telemetryService.publicLog(TaskService.autoDetectTelemetryName, {
+										command: detectedConfig.command,
+										full: false
+									});
+								}
+								let result: TaskConfig.ExternalTaskRunnerConfiguration = Objects.clone(config);
+								let configuredTasks: IStringDictionary<TaskConfig.TaskDescription> = Object.create(null);
 								if (!result.tasks) {
 									if (detectedConfig.tasks) {
 										result.tasks = detectedConfig.tasks;
@@ -788,11 +670,17 @@ class TaskService extends EventEmitter implements ITaskService {
 								return result;
 							});
 						} else {
-							configPromise = TPromise.as<TaskConfiguration>(config);
+							configPromise = TPromise.as(config);
 						}
 					} else {
 						configPromise = new ProcessRunnerDetector(this.fileService, this.contextService, this.configurationResolverService).detect(true).then((value) => {
-							clearOutput = this.printStderr(value.stderr);
+							hasError = this.printStderr(value.stderr);
+							if (value.config && value.config.command) {
+								this.telemetryService.publicLog(TaskService.autoDetectTelemetryName, {
+									command: value.config.command,
+									full: true
+								});
+							}
 							return value.config;
 						});
 					}
@@ -802,17 +690,19 @@ class TaskService extends EventEmitter implements ITaskService {
 							throw new TaskError(Severity.Info, nls.localize('TaskSystem.noConfiguration', 'No task runner configured.'), TaskErrors.NotConfigured);
 						}
 						let result: ITaskSystem = null;
-						let parseResult = FileConfig.parse(<FileConfig.ExternalTaskRunnerConfiguration>config, this);
+						let parseResult = TaskConfig.parse(config, this);
 						if (!parseResult.validationStatus.isOK()) {
 							this.outputChannel.show(true);
+							hasError = true;
 						}
 						if (parseResult.validationStatus.isFatal()) {
 							throw new TaskError(Severity.Error, nls.localize('TaskSystem.fatalError', 'The provided task configuration has validation errors. See tasks output log for details.'), TaskErrors.ConfigValidationError);
 						}
-						if (this.isRunnerConfig(config)) {
+						if (parseResult.engine === TaskConfig.ExecutionEngine.OutputPanel) {
 							this._inTerminal = false;
-							result = new ProcessRunnerSystem(parseResult.configuration, this.markerService, this.modelService, this.telemetryService, this.outputService, this.configurationResolverService, TaskService.OutputChannelId, clearOutput);
-						} else if (this.isTerminalConfig(config)) {
+							result = new ProcessRunnerSystem(parseResult.configuration, this.markerService, this.modelService,
+								this.telemetryService, this.outputService, this.configurationResolverService, TaskService.OutputChannelId, hasError);
+						} else if (parseResult.engine === TaskConfig.ExecutionEngine.Terminal) {
 							this._inTerminal = true;
 							result = new TerminalTaskSystem(
 								parseResult.configuration,
@@ -839,8 +729,8 @@ class TaskService extends EventEmitter implements ITaskService {
 		return this._taskSystemPromise;
 	}
 
-	private readConfiguration(): TPromise<TaskRunnerConfiguration> {
-		let config = this.configurationService.getConfiguration<TaskConfiguration>('tasks');
+	private createConfiguration(): TPromise<TaskRunnerConfiguration> {
+		let config = this.configurationService.getConfiguration<TaskConfig.ExternalTaskRunnerConfiguration>('tasks');
 		let parseErrors: string[] = config ? (<any>config).$parseErrors : null;
 		if (parseErrors) {
 			let isAffected = false;
@@ -856,18 +746,18 @@ class TaskService extends EventEmitter implements ITaskService {
 				return TPromise.wrapError(undefined);
 			}
 		}
-		let configPromise: TPromise<TaskConfiguration>;
+		let configPromise: TPromise<TaskConfig.ExternalTaskRunnerConfiguration>;
 		if (config) {
-			if (this.isRunnerConfig(config) && this.hasDetectorSupport(<FileConfig.ExternalTaskRunnerConfiguration>config)) {
-				let fileConfig = <FileConfig.ExternalTaskRunnerConfiguration>config;
-				configPromise = new ProcessRunnerDetector(this.fileService, this.contextService, this.configurationResolverService, fileConfig).detect(true).then((value) => {
+			let engine = TaskConfig.ExecutionEngine.from(config);
+			if (engine === TaskConfig.ExecutionEngine.OutputPanel && this.hasDetectorSupport(config)) {
+				configPromise = new ProcessRunnerDetector(this.fileService, this.contextService, this.configurationResolverService, config).detect(true).then((value) => {
 					this.printStderr(value.stderr);
 					let detectedConfig = value.config;
 					if (!detectedConfig) {
 						return config;
 					}
-					let result: FileConfig.ExternalTaskRunnerConfiguration = Objects.clone(fileConfig);
-					let configuredTasks: IStringDictionary<FileConfig.TaskDescription> = Object.create(null);
+					let result: TaskConfig.ExternalTaskRunnerConfiguration = Objects.clone(config);
+					let configuredTasks: IStringDictionary<TaskConfig.TaskDescription> = Object.create(null);
 					if (!result.tasks) {
 						if (detectedConfig.tasks) {
 							result.tasks = detectedConfig.tasks;
@@ -883,7 +773,7 @@ class TaskService extends EventEmitter implements ITaskService {
 					return result;
 				});
 			} else {
-				configPromise = TPromise.as<TaskConfiguration>(config);
+				configPromise = TPromise.as(config);
 			}
 		} else {
 			configPromise = new ProcessRunnerDetector(this.fileService, this.contextService, this.configurationResolverService).detect(true).then((value) => {
@@ -895,7 +785,7 @@ class TaskService extends EventEmitter implements ITaskService {
 			if (!config) {
 				return undefined;
 			}
-			let parseResult = FileConfig.parse(<FileConfig.ExternalTaskRunnerConfiguration>config, this);
+			let parseResult = TaskConfig.parse(config, this);
 			if (!parseResult.validationStatus.isOK()) {
 				this.showOutput();
 			}
@@ -908,10 +798,10 @@ class TaskService extends EventEmitter implements ITaskService {
 	}
 
 	private printStderr(stderr: string[]): boolean {
-		let result = true;
+		let result = false;
 		if (stderr && stderr.length > 0) {
 			stderr.forEach((line) => {
-				result = false;
+				result = true;
 				this.outputChannel.append(line + '\n');
 			});
 			this.outputChannel.show(true);
@@ -919,19 +809,11 @@ class TaskService extends EventEmitter implements ITaskService {
 		return result;
 	}
 
-	private isRunnerConfig(config: TaskConfiguration): boolean {
-		return !config._runner || config._runner === 'program';
-	}
-
-	private isTerminalConfig(config: TaskConfiguration): boolean {
-		return config._runner === 'terminal';
-	}
-
 	public inTerminal(): boolean {
 		return this._inTerminal !== void 0 && this._inTerminal;
 	}
 
-	private hasDetectorSupport(config: FileConfig.ExternalTaskRunnerConfiguration): boolean {
+	private hasDetectorSupport(config: TaskConfig.ExternalTaskRunnerConfiguration): boolean {
 		if (!config.command) {
 			return false;
 		}
@@ -1089,6 +971,7 @@ class TaskService extends EventEmitter implements ITaskService {
 				return this.configureAction();
 		}
 	}
+
 	private handleError(err: any): void {
 		let showOutput = true;
 		if (err instanceof TaskError) {
@@ -1097,10 +980,12 @@ class TaskService extends EventEmitter implements ITaskService {
 			let needsTerminate = buildError.code === TaskErrors.RunningTask;
 			if (needsConfig || needsTerminate) {
 				let closeAction = new CloseMessageAction();
-				let action = needsConfig
+				let action: Action = needsConfig
 					? this.getConfigureAction(buildError.code)
-					: new TerminateAction(TerminateAction.ID, TerminateAction.TEXT, this, this.telemetryService, this.messageService, this.contextService, this.terminalService);
-
+					: new Action(
+						'workbench.action.tasks.terminate',
+						nls.localize('TerminateAction.label', "Terminate Running Task"),
+						undefined, true, () => { this.runTerminateCommand(); return TPromise.as<void>(undefined); });
 				closeAction.closeFunction = this.messageService.show(buildError.severity, { message: buildError.message, actions: [action, closeAction] });
 			} else {
 				this.messageService.show(buildError.severity, buildError.message);
@@ -1117,18 +1002,71 @@ class TaskService extends EventEmitter implements ITaskService {
 			this.outputChannel.show(true);
 		}
 	}
+
+	private canRunCommand(): boolean {
+		if (!this.contextService.hasWorkspace()) {
+			this.messageService.show(Severity.Info, nls.localize('TaskService.noWorkspace', 'Tasks are only available on a workspace folder.'));
+			return false;
+		}
+		return true;
+	}
+
+	private runTaskCommand(accessor: ServicesAccessor, arg: any): void {
+		if (!this.canRunCommand()) {
+			return;
+		}
+		if (Types.isString(arg)) {
+			this.tasks().then(tasks => {
+				for (let task of tasks) {
+					if (task.identifier === arg) {
+						this.run(task.id);
+					}
+				}
+			});
+		} else {
+			this.quickOpenService.show('task ');
+		}
+	}
+
+	private runTerminateCommand(): void {
+		if (!this.canRunCommand()) {
+			return;
+		}
+		if (this.inTerminal()) {
+			this.messageService.show(Severity.Info, {
+				message: nls.localize('TerminateAction.terminalSystem', 'The tasks are executed in the integrated terminal. Use the terminal to manage the tasks.'),
+				actions: [new ViewTerminalAction(this.terminalService), new CloseMessageAction()]
+			});
+		} else {
+			this.isActive().then((active) => {
+				if (active) {
+					this.terminate().then((response) => {
+						if (response.success) {
+							return undefined;
+						} else if (response.code && response.code === TerminateResponseCode.ProcessNotFound) {
+							this.messageService.show(Severity.Error, nls.localize('TerminateAction.noProcess', 'The launched process doesn\'t exist anymore. If the task spawned background tasks exiting VS Code might result in orphaned processes.'));
+							return undefined;
+						} else {
+							return Promise.wrapError(nls.localize('TerminateAction.failed', 'Failed to terminate running task'));
+						}
+					});
+				}
+			});
+		}
+	}
 }
 
-let tasksCategory = nls.localize('tasksCategory', "Tasks");
+
 let workbenchActionsRegistry = <IWorkbenchActionRegistry>Registry.as(WorkbenchActionExtensions.WorkbenchActions);
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ConfigureTaskRunnerAction, ConfigureTaskRunnerAction.ID, ConfigureTaskRunnerAction.TEXT), 'Tasks: Configure Task Runner', tasksCategory);
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(BuildAction, BuildAction.ID, BuildAction.TEXT, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_B }), 'Tasks: Run Build Task', tasksCategory);
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(TestAction, TestAction.ID, TestAction.TEXT), 'Tasks: Run Test Task', tasksCategory);
-// workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(RebuildAction, RebuildAction.ID, RebuildAction.TEXT), tasksCategory);
-// workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(CleanAction, CleanAction.ID, CleanAction.TEXT), tasksCategory);
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(TerminateAction, TerminateAction.ID, TerminateAction.TEXT), 'Tasks: Terminate Running Task', tasksCategory);
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ShowLogAction, ShowLogAction.ID, ShowLogAction.TEXT), 'Tasks: Show Task Log', tasksCategory);
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(RunTaskAction, RunTaskAction.ID, RunTaskAction.TEXT), 'Tasks: Run Task', tasksCategory);
+
+MenuRegistry.addCommand({ id: 'workbench.action.tasks.showLog', title: nls.localize('ShowLogAction.label', "Show Task Log"), category: tasksCategory });
+MenuRegistry.addCommand({ id: 'workbench.action.tasks.runTask', title: nls.localize('RunTaskAction.label', "Run Task"), category: tasksCategory });
+MenuRegistry.addCommand({ id: 'workbench.action.tasks.terminate', title: nls.localize('TerminateAction.label', "Terminate Running Task"), category: tasksCategory });
+MenuRegistry.addCommand({ id: 'workbench.action.tasks.build', title: nls.localize('BuildAction.label', "Run Build Task"), category: tasksCategory });
+MenuRegistry.addCommand({ id: 'workbench.action.tasks.test', title: nls.localize('TestAction.label', "Run Test Task"), category: tasksCategory });
+// MenuRegistry.addCommand( { id: 'workbench.action.tasks.rebuild', title: nls.localize('RebuildAction.label', 'Run Rebuild Task'), category: tasksCategory });
+// MenuRegistry.addCommand( { id: 'workbench.action.tasks.clean', title: nls.localize('CleanAction.label', 'Run Clean Task'), category: tasksCategory });
 
 // Task Service
 registerSingleton(ITaskService, TaskService);
@@ -1155,502 +1093,35 @@ outputChannelRegistry.registerChannel(TaskService.OutputChannelId, TaskService.O
 
 // tasks.json validation
 let schemaId = 'vscode://schemas/tasks';
-let schema: IJSONSchema =
-	{
-		'id': schemaId,
-		'description': 'Task definition file',
-		'type': 'object',
-		'default': {
-			'version': '0.1.0',
-			'command': 'myCommand',
-			'isShellCommand': false,
-			'args': [],
-			'showOutput': 'always',
-			'tasks': [
-				{
-					'taskName': 'build',
-					'showOutput': 'silent',
-					'isBuildCommand': true,
-					'problemMatcher': ['$tsc', '$lessCompile']
-				}
-			]
-		},
-		'definitions': {
-			'showOutputType': {
-				'type': 'string',
-				'enum': ['always', 'silent', 'never']
-			},
-			'options': {
-				'type': 'object',
-				'description': nls.localize('JsonSchema.options', 'Additional command options'),
-				'properties': {
-					'cwd': {
-						'type': 'string',
-						'description': nls.localize('JsonSchema.options.cwd', 'The current working directory of the executed program or script. If omitted Code\'s current workspace root is used.')
-					},
-					'env': {
-						'type': 'object',
-						'additionalProperties': {
-							'type': 'string'
-						},
-						'description': nls.localize('JsonSchema.options.env', 'The environment of the executed program or shell. If omitted the parent process\' environment is used.')
-					}
-				},
-				'additionalProperties': {
-					'type': ['string', 'array', 'object']
-				}
-			},
-			'patternType': {
-				'anyOf': [
-					{
-						'type': 'string',
-						'enum': ['$tsc', '$tsc-watch', '$msCompile', '$lessCompile', '$gulp-tsc', '$cpp', '$csc', '$vb', '$jshint', '$jshint-stylish', '$eslint-compact', '$eslint-stylish', '$go']
-					},
-					{
-						'$ref': '#/definitions/pattern'
-					},
-					{
-						'type': 'array',
-						'items': {
-							'$ref': '#/definitions/pattern'
-						}
-					}
-				]
-			},
-			'pattern': {
-				'default': {
-					'regexp': '^([^\\\\s].*)\\\\((\\\\d+,\\\\d+)\\\\):\\\\s*(.*)$',
-					'file': 1,
-					'location': 2,
-					'message': 3
-				},
-				'additionalProperties': false,
-				'properties': {
-					'regexp': {
-						'type': 'string',
-						'description': nls.localize('JsonSchema.pattern.regexp', 'The regular expression to find an error, warning or info in the output.')
-					},
-					'file': {
-						'type': 'integer',
-						'description': nls.localize('JsonSchema.pattern.file', 'The match group index of the filename. If omitted 1 is used.')
-					},
-					'location': {
-						'type': 'integer',
-						'description': nls.localize('JsonSchema.pattern.location', 'The match group index of the problem\'s location. Valid location patterns are: (line), (line,column) and (startLine,startColumn,endLine,endColumn). If omitted (line,column) is assumed.')
-					},
-					'line': {
-						'type': 'integer',
-						'description': nls.localize('JsonSchema.pattern.line', 'The match group index of the problem\'s line. Defaults to 2')
-					},
-					'column': {
-						'type': 'integer',
-						'description': nls.localize('JsonSchema.pattern.column', 'The match group index of the problem\'s line character. Defaults to 3')
-					},
-					'endLine': {
-						'type': 'integer',
-						'description': nls.localize('JsonSchema.pattern.endLine', 'The match group index of the problem\'s end line. Defaults to undefined')
-					},
-					'endColumn': {
-						'type': 'integer',
-						'description': nls.localize('JsonSchema.pattern.endColumn', 'The match group index of the problem\'s end line character. Defaults to undefined')
-					},
-					'severity': {
-						'type': 'integer',
-						'description': nls.localize('JsonSchema.pattern.severity', 'The match group index of the problem\'s severity. Defaults to undefined')
-					},
-					'code': {
-						'type': 'integer',
-						'description': nls.localize('JsonSchema.pattern.code', 'The match group index of the problem\'s code. Defaults to undefined')
-					},
-					'message': {
-						'type': 'integer',
-						'description': nls.localize('JsonSchema.pattern.message', 'The match group index of the message. If omitted it defaults to 4 if location is specified. Otherwise it defaults to 5.')
-					},
-					'loop': {
-						'type': 'boolean',
-						'description': nls.localize('JsonSchema.pattern.loop', 'In a multi line matcher loop indicated whether this pattern is executed in a loop as long as it matches. Can only specified on a last pattern in a multi line pattern.')
-					}
-				}
-			},
-			'problemMatcherType': {
-				'oneOf': [
-					{
-						'type': 'string',
-						'enum': ['$tsc', '$tsc-watch', '$msCompile', '$lessCompile', '$gulp-tsc', '$jshint', '$jshint-stylish', '$eslint-compact', '$eslint-stylish', '$go']
-					},
-					{
-						'$ref': '#/definitions/problemMatcher'
-					},
-					{
-						'type': 'array',
-						'items': {
-							'anyOf': [
-								{
-									'$ref': '#/definitions/problemMatcher'
-								},
-								{
-									'type': 'string',
-									'enum': ['$tsc', '$tsc-watch', '$msCompile', '$lessCompile', '$gulp-tsc', '$jshint', '$jshint-stylish', '$eslint-compact', '$eslint-stylish', '$go']
-								}
-							]
-						}
-					}
-				]
-			},
-			'watchingPattern': {
-				'type': 'object',
-				'additionalProperties': false,
-				'properties': {
-					'regexp': {
-						'type': 'string',
-						'description': nls.localize('JsonSchema.watchingPattern.regexp', 'The regular expression to detect the begin or end of a watching task.')
-					},
-					'file': {
-						'type': 'integer',
-						'description': nls.localize('JsonSchema.watchingPattern.file', 'The match group index of the filename. Can be omitted.')
-					},
-				}
-			},
-			'problemMatcher': {
-				'type': 'object',
-				'additionalProperties': false,
-				'properties': {
-					'base': {
-						'type': 'string',
-						'enum': ['$tsc', '$tsc-watch', '$msCompile', '$lessCompile', '$gulp-tsc', '$jshint', '$jshint-stylish', '$eslint-compact', '$eslint-stylish', '$go'],
-						'description': nls.localize('JsonSchema.problemMatcher.base', 'The name of a base problem matcher to use.')
-					},
-					'owner': {
-						'type': 'string',
-						'description': nls.localize('JsonSchema.problemMatcher.owner', 'The owner of the problem inside Code. Can be omitted if base is specified. Defaults to \'external\' if omitted and base is not specified.')
-					},
-					'severity': {
-						'type': 'string',
-						'enum': ['error', 'warning', 'info'],
-						'description': nls.localize('JsonSchema.problemMatcher.severity', 'The default severity for captures problems. Is used if the pattern doesn\'t define a match group for severity.')
-					},
-					'applyTo': {
-						'type': 'string',
-						'enum': ['allDocuments', 'openDocuments', 'closedDocuments'],
-						'description': nls.localize('JsonSchema.problemMatcher.applyTo', 'Controls if a problem reported on a text document is applied only to open, closed or all documents.')
-					},
-					'pattern': {
-						'$ref': '#/definitions/patternType',
-						'description': nls.localize('JsonSchema.problemMatcher.pattern', 'A problem pattern or the name of a predefined problem pattern. Can be omitted if base is specified.')
-					},
-					'fileLocation': {
-						'oneOf': [
-							{
-								'type': 'string',
-								'enum': ['absolute', 'relative']
-							},
-							{
-								'type': 'array',
-								'items': {
-									'type': 'string'
-								}
-							}
-						],
-						'description': nls.localize('JsonSchema.problemMatcher.fileLocation', 'Defines how file names reported in a problem pattern should be interpreted.')
-					},
-					'watching': {
-						'type': 'object',
-						'additionalProperties': false,
-						'properties': {
-							'activeOnStart': {
-								'type': 'boolean',
-								'description': nls.localize('JsonSchema.problemMatcher.watching.activeOnStart', 'If set to true the watcher is in active mode when the task starts. This is equals of issuing a line that matches the beginPattern')
-							},
-							'beginsPattern': {
-								'oneOf': [
-									{
-										'type': 'string'
-									},
-									{
-										'type': '#/definitions/watchingPattern'
-									}
-								],
-								'description': nls.localize('JsonSchema.problemMatcher.watching.beginsPattern', 'If matched in the output the start of a watching task is signaled.')
-							},
-							'endsPattern': {
-								'oneOf': [
-									{
-										'type': 'string'
-									},
-									{
-										'type': '#/definitions/watchingPattern'
-									}
-								],
-								'description': nls.localize('JsonSchema.problemMatcher.watching.endsPattern', 'If matched in the output the end of a watching task is signaled.')
-							}
-						}
-					},
-					'watchedTaskBeginsRegExp': {
-						'type': 'string',
-						'description': nls.localize('JsonSchema.problemMatcher.watchedBegin', 'A regular expression signaling that a watched tasks begins executing triggered through file watching.')
-					},
-					'watchedTaskEndsRegExp': {
-						'type': 'string',
-						'description': nls.localize('JsonSchema.problemMatcher.watchedEnd', 'A regular expression signaling that a watched tasks ends executing.')
-					}
-				}
-			},
-			'baseTaskRunnerConfiguration': {
-				'type': 'object',
-				'properties': {
-					'command': {
-						'type': 'string',
-						'description': nls.localize('JsonSchema.command', 'The command to be executed. Can be an external program or a shell command.')
-					},
-					'isShellCommand': {
-						'anyOf': [
-							{
-								'type': 'boolean',
-								'default': true,
-								'description': nls.localize('JsonSchema.shell', 'Specifies whether the command is a shell command or an external program. Defaults to false if omitted.')
-							},
-							{
-								'$ref': '#definitions/shellConfiguration'
-							}
-						]
-					},
-					'args': {
-						'type': 'array',
-						'description': nls.localize('JsonSchema.args', 'Additional arguments passed to the command.'),
-						'items': {
-							'type': 'string'
-						}
-					},
-					'options': {
-						'$ref': '#/definitions/options'
-					},
-					'showOutput': {
-						'$ref': '#/definitions/showOutputType',
-						'description': nls.localize('JsonSchema.showOutput', 'Controls whether the output of the running task is shown or not. If omitted \'always\' is used.')
-					},
-					'isWatching': {
-						'type': 'boolean',
-						'deprecationMessage': nls.localize('JsonSchema.watching.deprecation', 'Deprecated. Use isBackground instead.'),
-						'description': nls.localize('JsonSchema.watching', 'Whether the executed task is kept alive and is watching the file system.'),
-						'default': true
-					},
-					'isBackground': {
-						'type': 'boolean',
-						'description': nls.localize('JsonSchema.background', 'Whether the executed task is kept alive and is running in the background.'),
-						'default': true
-					},
-					'promptOnClose': {
-						'type': 'boolean',
-						'description': nls.localize('JsonSchema.promptOnClose', 'Whether the user is prompted when VS Code closes with a running background task.'),
-						'default': false
-					},
-					'echoCommand': {
-						'type': 'boolean',
-						'description': nls.localize('JsonSchema.echoCommand', 'Controls whether the executed command is echoed to the output. Default is false.'),
-						'default': true
-					},
-					'suppressTaskName': {
-						'type': 'boolean',
-						'description': nls.localize('JsonSchema.suppressTaskName', 'Controls whether the task name is added as an argument to the command. Default is false.'),
-						'default': true
-					},
-					'taskSelector': {
-						'type': 'string',
-						'description': nls.localize('JsonSchema.taskSelector', 'Prefix to indicate that an argument is task.')
-					},
-					'problemMatcher': {
-						'$ref': '#/definitions/problemMatcherType',
-						'description': nls.localize('JsonSchema.matchers', 'The problem matcher(s) to use. Can either be a string or a problem matcher definition or an array of strings and problem matchers.')
-					},
-					'tasks': {
-						'type': 'array',
-						'description': nls.localize('JsonSchema.tasks', 'The task configurations. Usually these are enrichments of task already defined in the external task runner.'),
-						'items': {
-							'type': 'object',
-							'$ref': '#/definitions/taskDescription'
-						}
-					}
-				}
-			},
-			'shellConfiguration': {
-				'type': 'object',
-				'additionalProperties': false,
-				'properties': {
-					'executable': {
-						'type': 'string',
-						'description': nls.localize('JsonSchema.shell.executable', 'The shell to be used.')
-					},
-					'args': {
-						'type': 'array',
-						'description': nls.localize('JsonSchema.shell.args', 'The shell arguments.'),
-						'items': {
-							'type': 'string'
-						}
-					}
-				}
-			},
-			'commandConfiguration': {
-				'type': 'object',
-				'additionalProperties': false,
-				'properties': {
-					'command': {
-						'type': 'string',
-						'description': nls.localize('JsonSchema.command', 'The command to be executed. Can be an external program or a shell command.')
-					},
-					'isShellCommand': {
-						'anyOf': [
-							{
-								'type': 'boolean',
-								'default': true,
-								'description': nls.localize('JsonSchema.shell', 'Specifies whether the command is a shell command or an external program. Defaults to false if omitted.')
-							},
-							{
-								'$ref': '#definitions/shellConfiguration'
-							}
-						]
-					},
-					'args': {
-						'type': 'array',
-						'description': nls.localize('JsonSchema.tasks.args', 'Arguments passed to the command when this task is invoked.'),
-						'items': {
-							'type': 'string'
-						}
-					},
-					'options': {
-						'$ref': '#/definitions/options'
-					}
-				}
-			},
-			'taskDescription': {
-				'type': 'object',
-				'required': ['taskName'],
-				'additionalProperties': false,
-				'properties': {
-					'taskName': {
-						'type': 'string',
-						'description': nls.localize('JsonSchema.tasks.taskName', "The task's name")
-					},
-					'command': {
-						'type': 'string',
-						'description': nls.localize('JsonSchema.command', 'The command to be executed. Can be an external program or a shell command.')
-					},
-					'isShellCommand': {
-						'anyOf': [
-							{
-								'type': 'boolean',
-								'default': true,
-								'description': nls.localize('JsonSchema.shell', 'Specifies whether the command is a shell command or an external program. Defaults to false if omitted.')
-							},
-							{
-								'$ref': '#definitions/shellConfiguration'
-							}
-						]
-					},
-					'args': {
-						'type': 'array',
-						'description': nls.localize('JsonSchema.tasks.args', 'Arguments passed to the command when this task is invoked.'),
-						'items': {
-							'type': 'string'
-						}
-					},
-					'options': {
-						'$ref': '#/definitions/options'
-					},
-					'windows': {
-						'$ref': '#/definitions/commandConfiguration',
-						'description': nls.localize('JsonSchema.tasks.windows', 'Windows specific command configuration')
-					},
-					'osx': {
-						'$ref': '#/definitions/commandConfiguration',
-						'description': nls.localize('JsonSchema.tasks.mac', 'Mac specific command configuration')
-					},
-					'linux': {
-						'$ref': '#/definitions/commandConfiguration',
-						'description': nls.localize('JsonSchema.tasks.linux', 'Linux specific command configuration')
-					},
-					'suppressTaskName': {
-						'type': 'boolean',
-						'description': nls.localize('JsonSchema.tasks.suppressTaskName', 'Controls whether the task name is added as an argument to the command. If omitted the globally defined value is used.'),
-						'default': true
-					},
-					'showOutput': {
-						'$ref': '#/definitions/showOutputType',
-						'description': nls.localize('JsonSchema.tasks.showOutput', 'Controls whether the output of the running task is shown or not. If omitted the globally defined value is used.')
-					},
-					'echoCommand': {
-						'type': 'boolean',
-						'description': nls.localize('JsonSchema.echoCommand', 'Controls whether the executed command is echoed to the output. Default is false.'),
-						'default': true
-					},
-					'isWatching': {
-						'type': 'boolean',
-						'deprecationMessage': nls.localize('JsonSchema.tasks.watching.deprecation', 'Deprecated. Use isBackground instead.'),
-						'description': nls.localize('JsonSchema.tasks.watching', 'Whether the executed task is kept alive and is watching the file system.'),
-						'default': true
-					},
-					'isBackground': {
-						'type': 'boolean',
-						'description': nls.localize('JsonSchema.tasks.background', 'Whether the executed task is kept alive and is running in the background.'),
-						'default': true
-					},
-					'promptOnClose': {
-						'type': 'boolean',
-						'description': nls.localize('JsonSchema.tasks.promptOnClose', 'Whether the user is prompted when VS Code closes with a running task.'),
-						'default': false
-					},
-					'isBuildCommand': {
-						'type': 'boolean',
-						'description': nls.localize('JsonSchema.tasks.build', 'Maps this task to Code\'s default build command.'),
-						'default': true
-					},
-					'isTestCommand': {
-						'type': 'boolean',
-						'description': nls.localize('JsonSchema.tasks.test', 'Maps this task to Code\'s default test command.'),
-						'default': true
-					},
-					'problemMatcher': {
-						'$ref': '#/definitions/problemMatcherType',
-						'description': nls.localize('JsonSchema.tasks.matchers', 'The problem matcher(s) to use. Can either be a string or a problem matcher definition or an array of strings and problem matchers.')
-					}
-				},
-				'defaultSnippets': [
-					{
-						'label': 'Empty task',
-						'body': {
-							'taskName': '${1:taskName}'
-						}
-					}
-				]
-			}
-		},
-		'allOf': [
+let schema: IJSONSchema = {
+	id: schemaId,
+	description: 'Task definition file',
+	type: 'object',
+	default: {
+		version: '0.1.0',
+		command: 'myCommand',
+		isShellCommand: false,
+		args: [],
+		showOutput: 'always',
+		tasks: [
 			{
-				'type': 'object',
-				'required': ['version'],
-				'properties': {
-					'version': {
-						'type': 'string',
-						'enum': ['0.1.0'],
-						'description': nls.localize('JsonSchema.version', 'The config\'s version number')
-					},
-					'windows': {
-						'$ref': '#/definitions/baseTaskRunnerConfiguration',
-						'description': nls.localize('JsonSchema.windows', 'Windows specific command configuration')
-					},
-					'osx': {
-						'$ref': '#/definitions/baseTaskRunnerConfiguration',
-						'description': nls.localize('JsonSchema.mac', 'Mac specific command configuration')
-					},
-					'linux': {
-						'$ref': '#/definitions/baseTaskRunnerConfiguration',
-						'description': nls.localize('JsonSchema.linux', 'Linux specific command configuration')
-					}
-				}
-			},
-			{
-				'$ref': '#/definitions/baseTaskRunnerConfiguration'
+				taskName: 'build',
+				showOutput: 'silent',
+				isBuildCommand: true,
+				problemMatcher: ['$tsc', '$lessCompile']
 			}
 		]
-	};
+	}
+};
+
+import schemaVersion1 from './jsonSchema_v1';
+import schemaVersion2 from './jsonSchema_v2';
+schema.definitions = {
+	...schemaVersion1.definitions,
+	...schemaVersion2.definitions,
+};
+schema.oneOf = [...schemaVersion1.oneOf, ...schemaVersion2.oneOf];
+
+
 let jsonRegistry = <jsonContributionRegistry.IJSONContributionRegistry>Registry.as(jsonContributionRegistry.Extensions.JSONContribution);
 jsonRegistry.registerSchema(schemaId, schema);
