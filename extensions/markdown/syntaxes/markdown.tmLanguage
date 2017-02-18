@@ -278,7 +278,7 @@
 					<key>end</key>
 					<string>\s*(#{1,6})?$\n?</string>
 					<key>name</key>
-					<string>markup.heading.${1/(#)(#)?(#)?(#)?(#)?(#)?/${6:?6:${5:?5:${4:?4:${3:?3:${2:?2:1}}}}}/}.markdown</string>
+					<string>markup.heading.markdown</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -332,7 +332,7 @@
 						</dict>
 						<dict>
 							<key>begin</key>
-							<string>(^|\G)\s*(?=&lt;(script|style|pre)(\s|$|&gt;))</string>
+							<string>(^|\G)\s*(?=&lt;(script|style|pre)(\s|$|&gt;)(?!.*?&lt;/(script|style|pre)&gt;))</string>
 							<key>patterns</key>
 							<array>
 								<dict>
@@ -522,7 +522,7 @@
 								</dict>
 							</array>
 							<key>while</key>
-							<string>(^|\G)([ ]{4}|\t)</string>
+							<string>((^|\G)([ ]{4}|\t))|(^[ \t]*$)</string>
 						</dict>
 						<dict>
 							<key>begin</key>
@@ -549,7 +549,7 @@
 								</dict>
 							</array>
 							<key>while</key>
-							<string>(^|\G)([ ]{4}|\t)</string>
+							<string>((^|\G)([ ]{4}|\t))|(^[ \t]*$)</string>
 						</dict>
 					</array>
 				</dict>

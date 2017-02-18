@@ -7,7 +7,6 @@
 	"already exists": "Le dépôt de destination existe déjà. Choisissez un autre répertoire dans lequel enregistrer le clone.",
 	"cloning": "Clonage du dépôt '{0}'...",
 	"directory": "Répertoire du clone de destination",
-	"repo": "Indiquez l'URL d'un dépôt GIT.",
 	"url": "URL du dépôt",
-	"valid": "Fournissez une URL de dépôt GIT valide"
+	"valid": "Indiquez une URL de dépôt Git valide"
 }

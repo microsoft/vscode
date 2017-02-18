@@ -97,19 +97,26 @@ export function _futureMachineIdExperiment(): string {
 	return mac.value;
 }
 
+let machineId: TPromise<string>;
 export function getMachineId(): TPromise<string> {
-	return new TPromise<string>(resolve => {
+	return machineId || (machineId = getStableMachineId()
+		.then(id => id || uuid.generateUuid())); // fallback, generate a UUID
+}
+
+let stableMachineId: TPromise<string>;
+export function getStableMachineId(): TPromise<string> {
+	return stableMachineId || (stableMachineId = new TPromise<string>(resolve => {
 		try {
 			getmac.getMac((error, macAddress) => {
 				if (!error) {
 					resolve(crypto.createHash('sha256').update(macAddress, 'utf8').digest('hex'));
 				} else {
-					resolve(uuid.generateUuid()); // fallback, generate a UUID
+					resolve(undefined);
 				}
 			});
 		} catch (err) {
 			errors.onUnexpectedError(err);
-			resolve(uuid.generateUuid()); // fallback, generate a UUID
+			resolve(undefined);
 		}
-	});
+	}));
 }

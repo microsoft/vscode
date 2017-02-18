@@ -106,6 +106,7 @@ export class BreakpointWidget extends ZoneWidget {
 
 					const raw: IRawBreakpoint = {
 						lineNumber: this.lineNumber,
+						column: oldBreakpoint ? oldBreakpoint.column : undefined,
 						enabled: true,
 						condition: oldBreakpoint && oldBreakpoint.condition,
 						hitCondition: oldBreakpoint && oldBreakpoint.hitCondition

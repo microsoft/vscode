@@ -29,6 +29,8 @@ import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { InlineDecoration } from 'vs/editor/common/viewModel/viewModel';
 import { IAddedAction } from 'vs/editor/common/commonCodeEditor';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { ColorId, MetadataConsts, FontStyle } from 'vs/editor/common/modes';
 
 interface IEditorDiffDecorations {
 	decorations: editorCommon.IModelDeltaDecoration[];
@@ -213,7 +215,8 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 	) {
 		super();
 		this._editorWorkerService = editorWorkerService;
-		this._contextKeyService = contextKeyService;
+		this._contextKeyService = contextKeyService.createScoped(domElement);
+		this._contextKeyService.createKey('isInDiffEditor', true);
 
 		this.id = (++DIFF_EDITOR_ID);
 
@@ -289,8 +292,13 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 
 		this._lineChanges = null;
 
-		this._createLeftHandSideEditor(options, instantiationService);
-		this._createRightHandSideEditor(options, instantiationService);
+		const services = new ServiceCollection();
+		services.set(IContextKeyService, this._contextKeyService);
+
+		const scopedInstantiationService = instantiationService.createChild(services);
+
+		this._createLeftHandSideEditor(options, scopedInstantiationService);
+		this._createRightHandSideEditor(options, scopedInstantiationService);
 
 		if (options.automaticLayout) {
 			this._measureDomElementToken = window.setInterval(() => this._measureDomElement(false), 100);
@@ -1893,12 +1901,18 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 
 		let actualDecorations = Decoration.filter(decorations, lineNumber, 1, lineContent.length + 1);
 
+		const defaultMetadata = (
+			(FontStyle.None << MetadataConsts.FONT_STYLE_OFFSET)
+			| (ColorId.DefaultForeground << MetadataConsts.FOREGROUND_OFFSET)
+			| (ColorId.DefaultBackground << MetadataConsts.BACKGROUND_OFFSET)
+		) >>> 0;
+
 		let r = renderViewLine(new RenderLineInput(
 			(config.fontInfo.isMonospace && !config.viewInfo.disableMonospaceOptimizations),
 			lineContent,
 			originalModel.mightContainRTL(),
 			0,
-			[new ViewLineToken(lineContent.length, '')],
+			[new ViewLineToken(lineContent.length, defaultMetadata)],
 			actualDecorations,
 			tabSize,
 			config.fontInfo.spaceWidth,
@@ -1916,7 +1930,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 		myResult.push('" style="top:');
 		myResult.push(String(count * config.lineHeight));
 		myResult.push('px;width:1000000px;">');
-		myResult = myResult.concat(r.output);
+		myResult = myResult.concat(r.html);
 		myResult.push('</div>');
 
 		return myResult;

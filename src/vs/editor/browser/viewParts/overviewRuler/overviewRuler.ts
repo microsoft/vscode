@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IConfigurationChangedEvent, OverviewRulerPosition, OverviewRulerZone, IScrollEvent } from 'vs/editor/common/editorCommon';
+import { IConfigurationChangedEvent, OverviewRulerPosition, OverviewRulerZone } from 'vs/editor/common/editorCommon';
 import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
 import { IOverviewRuler } from 'vs/editor/browser/editorBrowser';
 import { OverviewRulerImpl } from 'vs/editor/browser/viewParts/overviewRuler/overviewRulerImpl';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
+import { ScrollEvent } from 'vs/base/common/scrollable';
 
 export class OverviewRuler extends ViewEventHandler implements IOverviewRuler {
 
@@ -51,7 +52,7 @@ export class OverviewRuler extends ViewEventHandler implements IOverviewRuler {
 		return true;
 	}
 
-	public onScrollChanged(e: IScrollEvent): boolean {
+	public onScrollChanged(e: ScrollEvent): boolean {
 		this._overviewRuler.setScrollHeight(e.scrollHeight, true);
 		return super.onScrollChanged(e) || e.scrollHeightChanged;
 	}

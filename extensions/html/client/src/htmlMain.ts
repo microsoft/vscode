@@ -57,7 +57,7 @@ export function activate(context: ExtensionContext) {
 	};
 
 	// Create the language client and start the client.
-	let client = new LanguageClient('html', localize('htmlserver.name', 'HTML Language Server'), serverOptions, clientOptions, true);
+	let client = new LanguageClient('html', localize('htmlserver.name', 'HTML Language Server'), serverOptions, clientOptions);
 	let disposable = client.start();
 	context.subscriptions.push(disposable);
 	client.onReady().then(() => {

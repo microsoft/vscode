@@ -411,6 +411,12 @@ class SimpleModel implements ISimpleModel {
 	private _lines: string[];
 	private _eol: string;
 
+	public coordinatesConverter = {
+		convertViewPositionToModelPosition: (viewPosition: Position): Position => {
+			return viewPosition;
+		}
+	};
+
 	constructor(lines: string[], eol: string) {
 		this._lines = lines;
 		this._eol = eol;
@@ -467,7 +473,11 @@ class SimpleModel implements ISimpleModel {
 		return this._lines.length;
 	}
 
-	public convertViewPositionToModelPosition(viewLineNumber: number, viewColumn: number): Position {
-		return new Position(viewLineNumber, viewColumn);
+	public getPlainTextToCopy(ranges: Range[], enableEmptySelectionClipboard: boolean): string {
+		return '';
+	}
+
+	public getHTMLToCopy(ranges: Range[], enableEmptySelectionClipboard: boolean): string {
+		return '';
 	}
 }

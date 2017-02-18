@@ -5,9 +5,9 @@
 
 'use strict';
 
-import { Uri, EventEmitter, Event, SCMResource, SCMResourceDecorations, SCMResourceGroup, Disposable, window } from 'vscode';
-import { Repository, IRef, IBranch, IRemote, IPushOptions } from './git';
-import { anyEvent, eventToPromise, filterEvent, mapEvent } from './util';
+import { Uri, EventEmitter, Event, SCMResource, SCMResourceDecorations, SCMResourceGroup, Disposable, window, workspace } from 'vscode';
+import { Git, Repository, Ref, Branch, Remote, PushOptions, Commit, GitErrorCodes, GitError } from './git';
+import { anyEvent, eventToPromise, filterEvent, mapEvent, EmptyDisposable, combinedDisposable, dispose } from './util';
 import { memoize, throttle, debounce } from './decorators';
 import { watch } from './watch';
 import * as path from 'path';
@@ -18,6 +18,12 @@ const iconsRootPath = path.join(path.dirname(__dirname), 'resources', 'icons');
 
 function getIconUri(iconName: string, theme: string): Uri {
 	return Uri.file(path.join(iconsRootPath, theme, `${iconName}.svg`));
+}
+
+export enum State {
+	Uninitialized,
+	Idle,
+	NotAGitRepository
 }
 
 export enum Status {
@@ -43,8 +49,17 @@ export enum Status {
 
 export class Resource implements SCMResource {
 
-	get uri(): Uri { return this._uri; }
+	get uri(): Uri {
+		if (this.rename && (this._type === Status.MODIFIED || this._type === Status.DELETED || this._type === Status.INDEX_RENAMED)) {
+			return this.rename;
+		}
+
+		return this._uri;
+	}
+
 	get type(): Status { return this._type; }
+	get original(): Uri { return this._uri; }
+	get rename(): Uri | undefined { return this._rename; }
 
 	private static Icons = {
 		light: {
@@ -110,8 +125,8 @@ export class Resource implements SCMResource {
 		return { strikeThrough: this.strikeThrough, light, dark };
 	}
 
-	constructor(private _uri: Uri, private _type: Status) {
-
+	constructor(private _uri: Uri, private _type: Status, private _rename?: Uri) {
+		// console.log(this);
 	}
 }
 
@@ -130,7 +145,7 @@ export class MergeGroup extends ResourceGroup {
 
 	static readonly ID = 'merge';
 
-	constructor(resources: Resource[]) {
+	constructor(resources: Resource[] = []) {
 		super(MergeGroup.ID, localize('merge changes', "Merge Changes"), resources);
 	}
 }
@@ -139,7 +154,7 @@ export class IndexGroup extends ResourceGroup {
 
 	static readonly ID = 'index';
 
-	constructor(resources: Resource[]) {
+	constructor(resources: Resource[] = []) {
 		super(IndexGroup.ID, localize('staged changes', "Staged Changes"), resources);
 	}
 }
@@ -148,22 +163,27 @@ export class WorkingTreeGroup extends ResourceGroup {
 
 	static readonly ID = 'workingTree';
 
-	constructor(resources: Resource[]) {
+	constructor(resources: Resource[] = []) {
 		super(WorkingTreeGroup.ID, localize('changes', "Changes"), resources);
 	}
 }
 
 export enum Operation {
-	Status = 0o1,
-	Stage = 0o2,
-	Unstage = 0o4,
-	Commit = 0o10,
-	Clean = 0o20,
-	Branch = 0o40,
-	Checkout = 0o100,
-	Fetch = 0o200,
-	Sync = 0o400,
-	Push = 0o1000
+	Status = 1 << 0,
+	Add = 1 << 1,
+	RevertFiles = 1 << 2,
+	Commit = 1 << 3,
+	Clean = 1 << 4,
+	Branch = 1 << 5,
+	Checkout = 1 << 6,
+	Reset = 1 << 7,
+	Fetch = 1 << 8,
+	Pull = 1 << 9,
+	Push = 1 << 10,
+	Sync = 1 << 11,
+	Init = 1 << 12,
+	Show = 1 << 13,
+	Stage = 1 << 13
 }
 
 export interface Operations {
@@ -194,10 +214,27 @@ class OperationsImpl implements Operations {
 	}
 }
 
-export class Model {
+export interface CommitOptions {
+	all?: boolean;
+	amend?: boolean;
+	signoff?: boolean;
+}
 
-	private _onDidChange = new EventEmitter<SCMResourceGroup[]>();
-	readonly onDidChange: Event<SCMResourceGroup[]> = this._onDidChange.event;
+export class Model implements Disposable {
+
+	private _onDidChangeRepository = new EventEmitter<Uri>();
+	readonly onDidChangeRepository: Event<Uri> = this._onDidChangeRepository.event;
+
+	private _onDidChangeState = new EventEmitter<State>();
+	readonly onDidChangeState: Event<State> = this._onDidChangeState.event;
+
+	private _onDidChangeResources = new EventEmitter<SCMResourceGroup[]>();
+	readonly onDidChangeResources: Event<SCMResourceGroup[]> = this._onDidChangeResources.event;
+
+	@memoize
+	get onDidChange(): Event<void> {
+		return anyEvent<any>(this.onDidChangeState, this.onDidChangeResources);
+	}
 
 	private _onRunOperation = new EventEmitter<Operation>();
 	readonly onRunOperation: Event<Operation> = this._onRunOperation.event;
@@ -235,51 +272,64 @@ export class Model {
 		return result;
 	}
 
+	private _HEAD: Branch | undefined;
+	get HEAD(): Branch | undefined {
+		return this._HEAD;
+	}
+
+	private _refs: Ref[] = [];
+	get refs(): Ref[] {
+		return this._refs;
+	}
+
+	private _remotes: Remote[] = [];
+	get remotes(): Remote[] {
+		return this._remotes;
+	}
+
 	private _operations = new OperationsImpl();
 	get operations(): Operations { return this._operations; }
 
+	private repository: Repository;
+
+	private _state = State.Uninitialized;
+	get state(): State { return this._state; }
+	set state(state: State) {
+		this._state = state;
+		this._onDidChangeState.fire(state);
+
+		this._HEAD = undefined;
+		this._refs = [];
+		this._remotes = [];
+		this._mergeGroup = new MergeGroup();
+		this._indexGroup = new IndexGroup();
+		this._workingTreeGroup = new WorkingTreeGroup();
+		this._onDidChangeResources.fire(this.resources);
+	}
+
+	private onWorkspaceChange: Event<Uri>;
+	private repositoryDisposable: Disposable = EmptyDisposable;
 	private disposables: Disposable[] = [];
 
 	constructor(
-		private _repositoryRoot: string,
-		private repository: Repository,
-		onWorkspaceChange: Event<Uri>
+		private git: Git,
+		private rootPath: string,
 	) {
-		/* We use the native Node `watch` for faster, non debounced events.
-		 * That way we hopefully get the events during the operations we're
-		 * performing, thus sparing useless `git status` calls to refresh
-		 * the model's state.
-		 */
-		const gitPath = path.join(_repositoryRoot, '.git');
-		const { event, disposable } = watch(gitPath);
-		const onGitChange = mapEvent(event, ({ filename }) => Uri.file(path.join(gitPath, filename)));
-		const onRelevantGitChange = filterEvent(onGitChange, uri => !/\/\.git\/index\.lock$/.test(uri.fsPath));
-		onRelevantGitChange(this.onFSChange, this, this.disposables);
-		this.disposables.push(disposable);
-
-		const onNonGitChange = filterEvent(onWorkspaceChange, uri => !/\/\.git\//.test(uri.fsPath));
-		onNonGitChange(this.onFSChange, this, this.disposables);
+		const fsWatcher = workspace.createFileSystemWatcher('**');
+		this.onWorkspaceChange = anyEvent(fsWatcher.onDidChange, fsWatcher.onDidCreate, fsWatcher.onDidDelete);
+		this.disposables.push(fsWatcher);
 
 		this.status();
 	}
 
-	get repositoryRoot(): string {
-		return this._repositoryRoot;
-	}
+	@throttle
+	async init(): Promise<void> {
+		if (this.state !== State.NotAGitRepository) {
+			return;
+		}
 
-	private _HEAD: IBranch | undefined;
-	get HEAD(): IBranch | undefined {
-		return this._HEAD;
-	}
-
-	private _refs: IRef[] = [];
-	get refs(): IRef[] {
-		return this._refs;
-	}
-
-	private _remotes: IRemote[] = [];
-	get remotes(): IRemote[] {
-		return this._remotes;
+		await this.repository.init();
+		await this.status();
 	}
 
 	@throttle
@@ -288,17 +338,23 @@ export class Model {
 	}
 
 	@throttle
-	async stage(...resources: Resource[]): Promise<void> {
-		await this.run(Operation.Stage, () => this.repository.add(resources.map(r => r.uri.fsPath)));
+	async add(...resources: Resource[]): Promise<void> {
+		await this.run(Operation.Add, () => this.repository.add(resources.map(r => r.uri.fsPath)));
 	}
 
 	@throttle
-	async unstage(...resources: Resource[]): Promise<void> {
-		await this.run(Operation.Unstage, () => this.repository.revertFiles('HEAD', resources.map(r => r.uri.fsPath)));
+	async stage(uri: Uri, contents: string): Promise<void> {
+		const relativePath = path.relative(this.repository.root, uri.fsPath).replace(/\\/g, '/');
+		await this.run(Operation.Stage, () => this.repository.stage(relativePath, contents));
 	}
 
 	@throttle
-	async commit(message: string, opts: { all?: boolean, amend?: boolean, signoff?: boolean } = Object.create(null)): Promise<void> {
+	async revertFiles(...resources: Resource[]): Promise<void> {
+		await this.run(Operation.RevertFiles, () => this.repository.revertFiles('HEAD', resources.map(r => r.uri.fsPath)));
+	}
+
+	@throttle
+	async commit(message: string, opts: CommitOptions = Object.create(null)): Promise<void> {
 		await this.run(Operation.Commit, async () => {
 			if (opts.all) {
 				await this.repository.add([]);
@@ -352,8 +408,28 @@ export class Model {
 	}
 
 	@throttle
+	async getCommit(ref: string): Promise<Commit> {
+		return await this.repository.getCommit(ref);
+	}
+
+	@throttle
+	async reset(treeish: string, hard?: boolean): Promise<void> {
+		await this.run(Operation.Reset, () => this.repository.reset(treeish, hard));
+	}
+
+	@throttle
 	async fetch(): Promise<void> {
 		await this.run(Operation.Fetch, () => this.repository.fetch());
+	}
+
+	@throttle
+	async pull(rebase?: boolean): Promise<void> {
+		await this.run(Operation.Pull, () => this.repository.pull(rebase));
+	}
+
+	@throttle
+	async push(remote?: string, name?: string, options?: PushOptions): Promise<void> {
+		await this.run(Operation.Push, () => this.repository.push(remote, name, options));
 	}
 
 	@throttle
@@ -361,19 +437,39 @@ export class Model {
 		await this.run(Operation.Sync, () => this.repository.sync());
 	}
 
-	@throttle
-	async push(remote?: string, name?: string, options?: IPushOptions): Promise<void> {
-		await this.run(Operation.Push, () => this.repository.push(remote, name, options));
+	async show(ref: string, uri: Uri): Promise<string> {
+		return await this.run(Operation.Show, async () => {
+			const relativePath = path.relative(this.repository.root, uri.fsPath).replace(/\\/g, '/');
+			const result = await this.repository.git.exec(this.repository.root, ['show', `${ref}:${relativePath}`]);
+
+			if (result.exitCode !== 0) {
+				throw new GitError({
+					message: localize('cantshow', "Could not show object"),
+					exitCode: result.exitCode
+				});
+			}
+
+			return result.stdout;
+		});
 	}
 
-	private async run(operation: Operation, fn: () => Promise<void> = () => Promise.resolve()): Promise<void> {
+	private async run<T>(operation: Operation, runOperation: () => Promise<T> = () => Promise.resolve<any>(null)): Promise<T> {
 		return window.withScmProgress(async () => {
 			this._operations = this._operations.start(operation);
 			this._onRunOperation.fire(operation);
 
 			try {
-				await fn();
+				await this.assertIdleState();
+				const result = await runOperation();
 				await this.update();
+				return result;
+			} catch (err) {
+				if (err.gitErrorCode === GitErrorCodes.NotAGitRepository) {
+					this.repositoryDisposable.dispose();
+					this.state = State.NotAGitRepository;
+				}
+
+				throw err;
 			} finally {
 				this._operations = this._operations.end(operation);
 				this._onDidRunOperation.fire(operation);
@@ -381,10 +477,42 @@ export class Model {
 		});
 	}
 
+	/* We use the native Node `watch` for faster, non debounced events.
+	 * That way we hopefully get the events during the operations we're
+	 * performing, thus sparing useless `git status` calls to refresh
+	 * the model's state.
+	 */
+	private async assertIdleState(): Promise<void> {
+		if (this.state === State.Idle) {
+			return;
+		}
+
+		this.repositoryDisposable.dispose();
+
+		const disposables: Disposable[] = [];
+		const repositoryRoot = await this.git.getRepositoryRoot(this.rootPath);
+		this.repository = this.git.open(repositoryRoot);
+
+		const dotGitPath = path.join(repositoryRoot, '.git');
+		const { event: onRawGitChange, disposable: watcher } = watch(dotGitPath);
+		disposables.push(watcher);
+
+		const onGitChange = mapEvent(onRawGitChange, ({ filename }) => Uri.file(path.join(dotGitPath, filename)));
+		const onRelevantGitChange = filterEvent(onGitChange, uri => !/\/\.git\/index\.lock$/.test(uri.fsPath));
+		onRelevantGitChange(this.onFSChange, this, disposables);
+		onRelevantGitChange(this._onDidChangeRepository.fire, this._onDidChangeRepository, disposables);
+
+		const onNonGitChange = filterEvent(this.onWorkspaceChange, uri => !/\/\.git\//.test(uri.fsPath));
+		onNonGitChange(this.onFSChange, this, disposables);
+
+		this.repositoryDisposable = combinedDisposable(disposables);
+		this.state = State.Idle;
+	}
+
 	@throttle
 	private async update(): Promise<void> {
 		const status = await this.repository.getStatus();
-		let HEAD: IBranch | undefined;
+		let HEAD: Branch | undefined;
 
 		try {
 			HEAD = await this.repository.getHEAD();
@@ -411,7 +539,8 @@ export class Model {
 		const merge: Resource[] = [];
 
 		status.forEach(raw => {
-			const uri = Uri.file(path.join(this.repositoryRoot, raw.path));
+			const uri = Uri.file(path.join(this.repository.root, raw.path));
+			const renameUri = raw.rename ? Uri.file(path.join(this.repository.root, raw.rename)) : undefined;
 
 			switch (raw.x + raw.y) {
 				case '??': return workingTree.push(new Resource(uri, Status.UNTRACKED));
@@ -431,24 +560,30 @@ export class Model {
 				case 'M': index.push(new Resource(uri, Status.INDEX_MODIFIED)); isModifiedInIndex = true; break;
 				case 'A': index.push(new Resource(uri, Status.INDEX_ADDED)); break;
 				case 'D': index.push(new Resource(uri, Status.INDEX_DELETED)); break;
-				case 'R': index.push(new Resource(uri, Status.INDEX_RENAMED/*, raw.rename*/)); break;
+				case 'R': index.push(new Resource(uri, Status.INDEX_RENAMED, renameUri)); break;
 				case 'C': index.push(new Resource(uri, Status.INDEX_COPIED)); break;
 			}
 
 			switch (raw.y) {
-				case 'M': workingTree.push(new Resource(uri, Status.MODIFIED/*, raw.rename*/)); break;
-				case 'D': workingTree.push(new Resource(uri, Status.DELETED/*, raw.rename*/)); break;
+				case 'M': workingTree.push(new Resource(uri, Status.MODIFIED, renameUri)); break;
+				case 'D': workingTree.push(new Resource(uri, Status.DELETED, renameUri)); break;
 			}
 		});
 
 		this._mergeGroup = new MergeGroup(merge);
 		this._indexGroup = new IndexGroup(index);
 		this._workingTreeGroup = new WorkingTreeGroup(workingTree);
-
-		this._onDidChange.fire(this.resources);
+		this._onDidChangeResources.fire(this.resources);
 	}
 
 	private onFSChange(uri: Uri): void {
+		const config = workspace.getConfiguration('git');
+		const autorefresh = config.get<boolean>('autorefresh');
+
+		if (!autorefresh) {
+			return;
+		}
+
 		if (!this.operations.isIdle()) {
 			return;
 		}
@@ -472,5 +607,10 @@ export class Model {
 		while (!this.operations.isIdle()) {
 			await eventToPromise(this.onDidRunOperation);
 		}
+	}
+
+	dispose(): void {
+		this.repositoryDisposable.dispose();
+		this.disposables = dispose(this.disposables);
 	}
 }

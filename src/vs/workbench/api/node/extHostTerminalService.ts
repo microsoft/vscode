@@ -151,6 +151,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 				index = i;
 				return true;
 			}
+			return false;
 		});
 		return index;
 	}

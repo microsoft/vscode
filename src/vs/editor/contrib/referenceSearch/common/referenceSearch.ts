@@ -23,6 +23,7 @@ export function provideReferences(model: IReadOnlyModel, position: Position): TP
 			if (Array.isArray(result)) {
 				return <Location[]>result;
 			}
+			return undefined;
 		}, err => {
 			onUnexpectedExternalError(err);
 		});

@@ -37,5 +37,5 @@ export function setInfo(message: string, tooltip: string) {
 	versionBarEntry.text = message;
 	versionBarEntry.tooltip = tooltip;
 	versionBarEntry.color = 'white';
-	versionBarEntry.command = '_typescript.onVersionStatusClicked';
+	versionBarEntry.command = 'typescript.selectTypeScriptVersion';
 }

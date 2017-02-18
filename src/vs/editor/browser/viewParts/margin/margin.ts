@@ -11,20 +11,18 @@ import { ClassNames } from 'vs/editor/browser/editorBrowser';
 import { ViewPart } from 'vs/editor/browser/view/viewPart';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { IRenderingContext, IRestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
-import { ILayoutProvider } from 'vs/editor/browser/viewLayout/layoutProvider';
+import { ScrollEvent } from 'vs/base/common/scrollable';
 
 export class Margin extends ViewPart {
 	public domNode: HTMLElement;
-	private _layoutProvider: ILayoutProvider;
 	private _canUseTranslate3d: boolean;
 	private _contentLeft: number;
 	private _glyphMarginLeft: number;
 	private _glyphMarginWidth: number;
-	private _glyphMarginBackgroundDomNode: FastDomNode;
+	private _glyphMarginBackgroundDomNode: FastDomNode<HTMLElement>;
 
-	constructor(context: ViewContext, layoutProvider: ILayoutProvider) {
+	constructor(context: ViewContext) {
 		super(context);
-		this._layoutProvider = layoutProvider;
 		this._canUseTranslate3d = this._context.configuration.editor.viewInfo.canUseTranslate3d;
 		this._contentLeft = this._context.configuration.editor.layoutInfo.contentLeft;
 		this._glyphMarginLeft = this._context.configuration.editor.layoutInfo.glyphMarginLeft;
@@ -58,19 +56,17 @@ export class Margin extends ViewPart {
 			this._canUseTranslate3d = this._context.configuration.editor.viewInfo.canUseTranslate3d;
 		}
 
-		return super.onConfigurationChanged(e);
+		if (e.layoutInfo) {
+			this._contentLeft = this._context.configuration.editor.layoutInfo.contentLeft;
+			this._glyphMarginLeft = this._context.configuration.editor.layoutInfo.glyphMarginLeft;
+			this._glyphMarginWidth = this._context.configuration.editor.layoutInfo.glyphMarginWidth;
+		}
+
+		return true;
 	}
 
-	public onScrollChanged(e: editorCommon.IScrollEvent): boolean {
+	public onScrollChanged(e: ScrollEvent): boolean {
 		return super.onScrollChanged(e) || e.scrollTopChanged;
-	}
-
-	public onLayoutChanged(layoutInfo: editorCommon.EditorLayoutInfo): boolean {
-		this._contentLeft = layoutInfo.contentLeft;
-		this._glyphMarginLeft = layoutInfo.glyphMarginLeft;
-		this._glyphMarginWidth = layoutInfo.glyphMarginWidth;
-
-		return super.onLayoutChanged(layoutInfo) || true;
 	}
 
 	// --- end event handlers
@@ -81,15 +77,15 @@ export class Margin extends ViewPart {
 
 	public render(ctx: IRestrictedRenderingContext): void {
 		if (this._canUseTranslate3d) {
-			let transform = 'translate3d(0px, ' + ctx.linesViewportData.visibleRangesDeltaTop + 'px, 0px)';
+			let transform = 'translate3d(0px, ' + ctx.viewportData.visibleRangesDeltaTop + 'px, 0px)';
 			StyleMutator.setTransform(this.domNode, transform);
 			StyleMutator.setTop(this.domNode, 0);
 		} else {
 			StyleMutator.setTransform(this.domNode, '');
-			StyleMutator.setTop(this.domNode, ctx.linesViewportData.visibleRangesDeltaTop);
+			StyleMutator.setTop(this.domNode, ctx.viewportData.visibleRangesDeltaTop);
 		}
 
-		let height = Math.min(this._layoutProvider.getTotalHeight(), 1000000);
+		let height = Math.min(ctx.scrollHeight, 1000000);
 		StyleMutator.setHeight(this.domNode, height);
 		StyleMutator.setWidth(this.domNode, this._contentLeft);
 

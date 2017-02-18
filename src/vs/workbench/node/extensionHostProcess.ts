@@ -51,6 +51,7 @@ function createExtHostProtocol(): TPromise<IMessagePassingProtocol> {
 				}
 				this._terminating = true;
 				onTerminate();
+				return false;
 			});
 
 			send(msg: any): void {

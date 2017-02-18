@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { EditorLayoutInfo, OverviewRulerPosition } from 'vs/editor/common/editorCommon';
+import { RenderMinimap, EditorLayoutInfo, OverviewRulerPosition } from 'vs/editor/common/editorCommon';
 
 export interface IEditorLayoutProviderOpts {
 	outerWidth: number;
@@ -15,15 +15,20 @@ export interface IEditorLayoutProviderOpts {
 
 	showLineNumbers: boolean;
 	lineNumbersMinChars: number;
-	lineDecorationsWidth: number;
-	maxDigitWidth: number;
-
 	maxLineNumber: number;
+
+	lineDecorationsWidth: number;
+
+	typicalHalfwidthCharacterWidth: number;
+	maxDigitWidth: number;
 
 	verticalScrollbarWidth: number;
 	verticalScrollbarHasArrows: boolean;
 	scrollbarArrowSize: number;
 	horizontalScrollbarHeight: number;
+
+	minimap: boolean;
+	pixelRatio: number;
 }
 
 export class EditorLayoutProvider {
@@ -34,13 +39,16 @@ export class EditorLayoutProvider {
 		const lineHeight = _opts.lineHeight | 0;
 		const showLineNumbers = Boolean(_opts.showLineNumbers);
 		const lineNumbersMinChars = _opts.lineNumbersMinChars | 0;
-		const lineDecorationsWidth = _opts.lineDecorationsWidth | 0;
-		const maxDigitWidth = Number(_opts.maxDigitWidth);
 		const maxLineNumber = _opts.maxLineNumber | 0;
+		const lineDecorationsWidth = _opts.lineDecorationsWidth | 0;
+		const typicalHalfwidthCharacterWidth = Number(_opts.typicalHalfwidthCharacterWidth);
+		const maxDigitWidth = Number(_opts.maxDigitWidth);
 		const verticalScrollbarWidth = _opts.verticalScrollbarWidth | 0;
 		const verticalScrollbarHasArrows = Boolean(_opts.verticalScrollbarHasArrows);
 		const scrollbarArrowSize = _opts.scrollbarArrowSize | 0;
 		const horizontalScrollbarHeight = _opts.horizontalScrollbarHeight | 0;
+		const minimap = Boolean(_opts.minimap);
+		const pixelRatio = Number(_opts.pixelRatio);
 
 		let lineNumbersWidth = 0;
 		if (showLineNumbers) {
@@ -53,12 +61,47 @@ export class EditorLayoutProvider {
 			glyphMarginWidth = lineHeight;
 		}
 
-		let contentWidth = outerWidth - glyphMarginWidth - lineNumbersWidth - lineDecorationsWidth;
-
 		let glyphMarginLeft = 0;
 		let lineNumbersLeft = glyphMarginLeft + glyphMarginWidth;
 		let decorationsLeft = lineNumbersLeft + lineNumbersWidth;
 		let contentLeft = decorationsLeft + lineDecorationsWidth;
+
+		let remainingWidth = outerWidth - glyphMarginWidth - lineNumbersWidth - lineDecorationsWidth;
+
+		let renderMinimap: RenderMinimap;
+		let minimapWidth: number;
+		let contentWidth: number;
+		if (!minimap) {
+			minimapWidth = 0;
+			renderMinimap = RenderMinimap.None;
+			contentWidth = remainingWidth;
+		} else {
+			let minimapCharWidth: number;
+			if (pixelRatio >= 2) {
+				renderMinimap = RenderMinimap.Large;
+				minimapCharWidth = 2 / pixelRatio;
+			} else {
+				renderMinimap = RenderMinimap.Small;
+				minimapCharWidth = 1 / pixelRatio;
+			}
+
+			// Given:
+			// viewportColumn = (contentWidth - verticalScrollbarWidth) / typicalHalfwidthCharacterWidth
+			// minimapWidth = viewportColumn * minimapCharWidth
+			// contentWidth = remainingWidth - minimapWidth
+			// What are good values for contentWidth and minimapWidth ?
+
+			// minimapWidth = ((contentWidth - verticalScrollbarWidth) / typicalHalfwidthCharacterWidth) * minimapCharWidth
+			// typicalHalfwidthCharacterWidth * minimapWidth = (contentWidth - verticalScrollbarWidth) * minimapCharWidth
+			// typicalHalfwidthCharacterWidth * minimapWidth = (remainingWidth - minimapWidth - verticalScrollbarWidth) * minimapCharWidth
+			// (typicalHalfwidthCharacterWidth + minimapCharWidth) * minimapWidth = (remainingWidth - verticalScrollbarWidth) * minimapCharWidth
+			// minimapWidth = ((remainingWidth - verticalScrollbarWidth) * minimapCharWidth) / (typicalHalfwidthCharacterWidth + minimapCharWidth)
+
+			minimapWidth = Math.max(0, Math.floor(((remainingWidth - verticalScrollbarWidth) * minimapCharWidth) / (typicalHalfwidthCharacterWidth + minimapCharWidth)));
+			contentWidth = remainingWidth - minimapWidth;
+		}
+
+		let viewportColumn = Math.max(1, Math.floor((contentWidth - verticalScrollbarWidth) / typicalHalfwidthCharacterWidth));
 
 		let verticalArrowSize = (verticalScrollbarHasArrows ? scrollbarArrowSize : 0);
 
@@ -81,6 +124,11 @@ export class EditorLayoutProvider {
 			contentLeft: contentLeft,
 			contentWidth: contentWidth,
 			contentHeight: outerHeight,
+
+			renderMinimap: renderMinimap,
+			minimapWidth: minimapWidth,
+
+			viewportColumn: viewportColumn,
 
 			verticalScrollbarWidth: verticalScrollbarWidth,
 			horizontalScrollbarHeight: horizontalScrollbarHeight,

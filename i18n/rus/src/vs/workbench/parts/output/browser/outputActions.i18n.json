@@ -6,5 +6,6 @@
 {
 	"clearOutput": "Очистить выходные данные",
 	"switchToOutput.label": "Переключиться на выходные данные",
-	"toggleOutput": "Переключить выходные данные"
+	"toggleOutput": "Переключить выходные данные",
+	"toggleOutputScrollLock": "Включить/отключить вывод SCROLL LOCK"
 }

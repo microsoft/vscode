@@ -276,14 +276,14 @@ export class FindWidget extends Widget implements IOverlayWidget {
 
 	/**
 	 * If 'selection find' is ON we should not disable the button (its function is to cancel 'selection find').
-	 * If 'selection find' is OFF we enable the button only if there is a multi line selection.
+	 * If 'selection find' is OFF we enable the button only if there is a selection.
 	 */
 	private _updateToggleSelectionFindButton(): void {
 		let selection = this._codeEditor.getSelection();
-		let isMultiLineSelection = selection ? (selection.startLineNumber !== selection.endLineNumber) : false;
+		let isSelection = selection ? (selection.startLineNumber !== selection.endLineNumber || selection.startColumn !== selection.endColumn) : false;
 		let isChecked = this._toggleSelectionFind.checked;
 
-		this._toggleSelectionFind.setEnabled(this._isVisible && (isChecked || isMultiLineSelection));
+		this._toggleSelectionFind.setEnabled(this._isVisible && (isChecked || isSelection));
 	}
 
 	private _updateButtons(): void {
@@ -420,11 +420,11 @@ export class FindWidget extends Widget implements IOverlayWidget {
 	// ----- initialization
 
 	private _keybindingLabelFor(actionId: string): string {
-		let keybindings = this._keybindingService.lookupKeybindings(actionId);
-		if (keybindings.length === 0) {
+		let [kb] = this._keybindingService.lookupKeybindings(actionId);
+		if (!kb) {
 			return '';
 		}
-		return ' (' + this._keybindingService.getLabelFor(keybindings[0]) + ')';
+		return ` (${this._keybindingService.getLabelFor(kb)})`;
 	}
 
 	private _buildFindPart(): HTMLElement {

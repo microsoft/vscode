@@ -83,7 +83,7 @@ export interface IOutputService {
 	onOutput: Event<IOutputEvent>;
 
 	/**
-	 * Allows to register on a new Output channel getting filled with output.
+	 * Allows to register on a output channel being added or removed
 	 */
 	onOutputChannel: Event<string>;
 
@@ -129,6 +129,11 @@ export interface IOutputChannel {
 	 * Clears all received output for this channel.
 	 */
 	clear(): void;
+
+	/**
+	 * Disposes the output channel.
+	 */
+	dispose(): void;
 }
 
 export interface IOutputChannelIdentifier {
@@ -147,6 +152,11 @@ export interface IOutputChannelRegistry {
 	 * Returns the list of channels known to the output world.
 	 */
 	getChannels(): IOutputChannelIdentifier[];
+
+	/**
+	 * Remove the output channel with the passed id.
+	 */
+	removeChannel(id: string): void;
 }
 
 class OutputChannelRegistry implements IOutputChannelRegistry {
@@ -164,6 +174,10 @@ class OutputChannelRegistry implements IOutputChannelRegistry {
 
 	public getChannels(): IOutputChannelIdentifier[] {
 		return this.channels;
+	}
+
+	public removeChannel(id: string): void {
+		this.channels = this.channels.filter(channel => channel.id !== id);
 	}
 }
 

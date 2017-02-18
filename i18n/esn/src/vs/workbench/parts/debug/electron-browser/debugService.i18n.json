@@ -8,6 +8,7 @@
 	"NewLaunchConfig": "Defina los valores del archivo de configuración de inicio para la aplicación. {0}",
 	"breakpointAdded": "Punto de interrupción agregado, línea {0}, archivo {1}",
 	"breakpointRemoved": "Punto de interrupción quitado, línea {0}, archivo {1}",
+	"compoundMustHaveConfigurations": "El compuesto debe tener configurado el atributo \"configurations\" a fin de iniciar varias configuraciones.",
 	"debugAnyway": "Depurar de todos modos",
 	"debugTypeMissing": "Falta la propiedad \"type\" en la configuración de inicio seleccionada.",
 	"debugTypeNotSupported": "El tipo de depuración '{0}' configurado no es compatible.",

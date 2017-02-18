@@ -18,7 +18,7 @@
 	"fontLigatures": "啟用連字字型",
 	"fontSize": "控制字型大小 (以像素為單位)。",
 	"fontWeight": "控制字型寬度。",
-	"formatOnPaste": "控制編輯器是否應自動設定貼上的內容格式",
+	"formatOnPaste": "控制編輯器是否應自動設定貼上的內容格式。格式器必須可供使用，而且格式器應該能夠設定文件中一個範圍的格式。",
 	"formatOnType": "控制編輯器是否應在輸入一行後自動格式化",
 	"glyphMargin": "控制編輯器是否應轉譯垂直字符邊界。字符邊界最常用來進行偵錯。",
 	"hideCursorInOverviewRuler": "控制游標是否應隱藏在概觀尺規中。",

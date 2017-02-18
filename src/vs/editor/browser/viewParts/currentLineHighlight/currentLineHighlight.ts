@@ -10,33 +10,31 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { IRenderingContext } from 'vs/editor/common/view/renderingContext';
-import { ILayoutProvider } from 'vs/editor/browser/viewLayout/layoutProvider';
+import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { ScrollEvent } from 'vs/base/common/scrollable';
 
 export class CurrentLineHighlightOverlay extends DynamicViewOverlay {
 	private _context: ViewContext;
 	private _lineHeight: number;
 	private _readOnly: boolean;
 	private _renderLineHighlight: 'none' | 'gutter' | 'line' | 'all';
-	private _layoutProvider: ILayoutProvider;
 	private _selectionIsEmpty: boolean;
 	private _primaryCursorIsInEditableRange: boolean;
 	private _primaryCursorLineNumber: number;
 	private _scrollWidth: number;
 	private _contentWidth: number;
 
-	constructor(context: ViewContext, layoutProvider: ILayoutProvider) {
+	constructor(context: ViewContext) {
 		super();
 		this._context = context;
 		this._lineHeight = this._context.configuration.editor.lineHeight;
 		this._readOnly = this._context.configuration.editor.readOnly;
 		this._renderLineHighlight = this._context.configuration.editor.viewInfo.renderLineHighlight;
 
-		this._layoutProvider = layoutProvider;
-
 		this._selectionIsEmpty = true;
 		this._primaryCursorIsInEditableRange = true;
 		this._primaryCursorLineNumber = 1;
-		this._scrollWidth = this._layoutProvider.getScrollWidth();
+		this._scrollWidth = 0;
 		this._contentWidth = this._context.configuration.editor.layoutInfo.contentWidth;
 
 		this._context.addEventHandler(this);
@@ -53,16 +51,15 @@ export class CurrentLineHighlightOverlay extends DynamicViewOverlay {
 		this._primaryCursorIsInEditableRange = true;
 		this._selectionIsEmpty = true;
 		this._primaryCursorLineNumber = 1;
-		this._scrollWidth = this._layoutProvider.getScrollWidth();
 		return true;
 	}
-	public onModelLinesDeleted(e: editorCommon.IViewLinesDeletedEvent): boolean {
+	public onModelLinesDeleted(e: viewEvents.IViewLinesDeletedEvent): boolean {
 		return true;
 	}
-	public onModelLinesInserted(e: editorCommon.IViewLinesInsertedEvent): boolean {
+	public onModelLinesInserted(e: viewEvents.IViewLinesInsertedEvent): boolean {
 		return true;
 	}
-	public onCursorPositionChanged(e: editorCommon.IViewCursorPositionChangedEvent): boolean {
+	public onCursorPositionChanged(e: viewEvents.IViewCursorPositionChangedEvent): boolean {
 		let hasChanged = false;
 		if (this._primaryCursorIsInEditableRange !== e.isInEditableRange) {
 			this._primaryCursorIsInEditableRange = e.isInEditableRange;
@@ -74,7 +71,7 @@ export class CurrentLineHighlightOverlay extends DynamicViewOverlay {
 		}
 		return hasChanged;
 	}
-	public onCursorSelectionChanged(e: editorCommon.IViewCursorSelectionChangedEvent): boolean {
+	public onCursorSelectionChanged(e: viewEvents.IViewCursorSelectionChangedEvent): boolean {
 		let isEmpty = e.selection.isEmpty();
 		if (this._selectionIsEmpty !== isEmpty) {
 			this._selectionIsEmpty = isEmpty;
@@ -97,11 +94,7 @@ export class CurrentLineHighlightOverlay extends DynamicViewOverlay {
 		}
 		return true;
 	}
-	public onLayoutChanged(layoutInfo: editorCommon.EditorLayoutInfo): boolean {
-		return true;
-	}
-	public onScrollChanged(e: editorCommon.IScrollEvent): boolean {
-		this._scrollWidth = e.scrollWidth;
+	public onScrollChanged(e: ScrollEvent): boolean {
 		return e.scrollWidthChanged;
 	}
 	public onZonesChanged(): boolean {
@@ -110,9 +103,6 @@ export class CurrentLineHighlightOverlay extends DynamicViewOverlay {
 	// --- end event handlers
 
 	public prepareRender(ctx: IRenderingContext): void {
-		if (!this.shouldRender()) {
-			throw new Error('I did not ask to render!');
-		}
 		this._scrollWidth = ctx.scrollWidth;
 	}
 

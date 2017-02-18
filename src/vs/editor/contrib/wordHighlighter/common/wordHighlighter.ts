@@ -32,10 +32,12 @@ export function getOccurrencesAtPosition(model: editorCommon.IReadOnlyModel, pos
 						foundResult = true;
 						return data;
 					}
+					return undefined;
 				}, err => {
 					onUnexpectedExternalError(err);
 				});
 			}
+			return undefined;
 		};
 	})).then(values => {
 		return values[0];

@@ -26,6 +26,7 @@ import { ILogService } from 'vs/code/electron-main/log';
 import { getPathLabel } from 'vs/base/common/labels';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IWindowSettings } from 'vs/platform/windows/common/windows';
+import { getLastActiveWindow, OpenContext as OriginalOpenContext, findBestWindowOrFolder } from 'vs/code/node/windowsUtils';
 import CommonEvent, { Emitter } from 'vs/base/common/event';
 import product from 'vs/platform/node/product';
 
@@ -34,23 +35,8 @@ enum WindowError {
 	CRASHED
 }
 
-export enum OpenContext {
-
-	// opening when running from the command line
-	CLI,
-
-	// macOS only: opening from the dock (also when opening files to a running instance from desktop)
-	DOCK,
-
-	// opening from the main application window
-	MENU,
-
-	// opening from a file or folder dialog
-	DIALOG,
-
-	// any other way of opening
-	OTHER
-}
+export const OpenContext = OriginalOpenContext;
+export type OpenContext = OriginalOpenContext;
 
 export interface IOpenConfiguration {
 	context: OpenContext;
@@ -64,6 +50,10 @@ export interface IOpenConfiguration {
 	windowToUse?: VSCodeWindow;
 	diffMode?: boolean;
 	initialStartup?: boolean;
+}
+
+interface INewWindowState extends ISingleWindowState {
+	hasDefaultState?: boolean;
 }
 
 interface IWindowState {
@@ -285,10 +275,9 @@ export class WindowsManager implements IWindowsMainService {
 
 		// Theme changes
 		if (event === 'vscode:changeColorTheme' && typeof payload === 'string') {
-			this.storageService.setItem(VSCodeWindow.colorThemeStorageKey, payload);
+			this.storageService.setItem(VSCodeWindow.themeStorageKey, payload);
 		}
 	}
-
 	public reload(win: VSCodeWindow, cli?: ParsedArgs): void {
 
 		// Only reload when the window has not vetoed this
@@ -402,20 +391,28 @@ export class WindowsManager implements IWindowsMainService {
 			}
 
 			// Open Files in last instance if any and flag tells us so
-			const lastActiveWindow = this.getLastActiveWindow();
-			if (!openFilesInNewWindow && lastActiveWindow) {
-				lastActiveWindow.focus();
+			const fileToCheck = filesToOpen[0] || filesToCreate[0] || filesToDiff[0];
+			const windowOrFolder = findBestWindowOrFolder({
+				windows: WindowsManager.WINDOWS,
+				newWindow: openFilesInNewWindow,
+				reuseWindow: openConfig.forceReuseWindow,
+				context: openConfig.context,
+				filePath: fileToCheck && fileToCheck.filePath,
+				userHome: this.environmentService.userHome
+			});
+			if (windowOrFolder instanceof VSCodeWindow) {
+				windowOrFolder.focus();
 				const files = { filesToOpen, filesToCreate, filesToDiff }; // copy to object because they get reset shortly after
-				lastActiveWindow.ready().then(readyWindow => {
+				windowOrFolder.ready().then(readyWindow => {
 					readyWindow.send('vscode:openFiles', files);
 				});
 
-				usedWindows.push(lastActiveWindow);
+				usedWindows.push(windowOrFolder);
 			}
 
 			// Otherwise open instance with files
 			else {
-				const configuration = this.toConfiguration(openConfig, null, filesToOpen, filesToCreate, filesToDiff);
+				const configuration = this.toConfiguration(openConfig, windowOrFolder, filesToOpen, filesToCreate, filesToDiff);
 				const browserWindow = this.openInBrowserWindow(configuration, true /* new window */);
 				usedWindows.push(browserWindow);
 
@@ -523,7 +520,7 @@ export class WindowsManager implements IWindowsMainService {
 
 		const mru = this.getRecentPathsList();
 		paths.forEach(p => {
-			const {path, isFile} = p;
+			const { path, isFile } = p;
 
 			if (isFile) {
 				mru.files.unshift(path);
@@ -762,12 +759,27 @@ export class WindowsManager implements IWindowsMainService {
 		// New window
 		if (!vscodeWindow) {
 			const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
+			const state = this.getNewWindowState(configuration);
+
+			// Window state is not from a previous session: only allow fullscreen if we inherit it or user wants fullscreen
+			let allowFullscreen: boolean;
+			if (state.hasDefaultState) {
+				allowFullscreen = (windowConfig && windowConfig.newWindowDimensions && ['fullscreen', 'inherit'].indexOf(windowConfig.newWindowDimensions) >= 0);
+			}
+
+			// Window state is from a previous session: only allow fullscreen when we got updated or user wants to restore
+			else {
+				allowFullscreen = this.lifecycleService.wasUpdated || (windowConfig && windowConfig.restoreFullscreen);
+			}
+
+			if (state.mode === WindowMode.Fullscreen && !allowFullscreen) {
+				state.mode = WindowMode.Normal;
+			}
 
 			vscodeWindow = new VSCodeWindow({
-				state: this.getNewWindowState(configuration),
+				state,
 				extensionDevelopmentPath: configuration.extensionDevelopmentPath,
 				isExtensionTestHost: !!configuration.extensionTestsPath,
-				allowFullscreen: this.lifecycleService.wasUpdated || (windowConfig && windowConfig.restoreFullscreen) || (windowConfig && windowConfig.newWindowDimensions && ['fullscreen', 'inherit'].indexOf(windowConfig.newWindowDimensions) >= 0),
 				titleBarStyle: windowConfig ? windowConfig.titleBarStyle : void 0
 			},
 				this.logService,
@@ -822,7 +834,7 @@ export class WindowsManager implements IWindowsMainService {
 		return vscodeWindow;
 	}
 
-	private getNewWindowState(configuration: IWindowConfiguration): ISingleWindowState {
+	private getNewWindowState(configuration: IWindowConfiguration): INewWindowState {
 
 		// extension development host Window - load from stored settings if any
 		if (!!configuration.extensionDevelopmentPath && this.windowsState.lastPluginDevelopmentHostWindow) {
@@ -876,7 +888,7 @@ export class WindowsManager implements IWindowsMainService {
 			}
 		}
 
-		let state = defaultWindowState();
+		let state = defaultWindowState() as INewWindowState;
 		state.x = displayToUse.bounds.x + (displayToUse.bounds.width / 2) - (state.width / 2);
 		state.y = displayToUse.bounds.y + (displayToUse.bounds.height / 2) - (state.height / 2);
 
@@ -905,6 +917,8 @@ export class WindowsManager implements IWindowsMainService {
 		if (ensureNoOverlap) {
 			state = this.ensureNoOverlap(state);
 		}
+
+		state.hasDefaultState = true; // flag as default state
 
 		return state;
 	}
@@ -1003,15 +1017,7 @@ export class WindowsManager implements IWindowsMainService {
 	}
 
 	public getLastActiveWindow(): VSCodeWindow {
-		if (WindowsManager.WINDOWS.length) {
-			const lastFocussedDate = Math.max.apply(Math, WindowsManager.WINDOWS.map(w => w.lastFocusTime));
-			const res = WindowsManager.WINDOWS.filter(w => w.lastFocusTime === lastFocussedDate);
-			if (res && res.length) {
-				return res[0];
-			}
-		}
-
-		return null;
+		return getLastActiveWindow(WindowsManager.WINDOWS);
 	}
 
 	public findWindow(workspacePath: string, filePath?: string, extensionDevelopmentPath?: string): VSCodeWindow {

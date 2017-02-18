@@ -27,19 +27,11 @@
 	border-spacing: 13px 17px;
 }
 
-@media (min-height: 501px) {
-	.monaco-workbench > .part.editor.empty > .content > .watermark {
-		display: block;
-	}
+.monaco-workbench > .part.editor.empty.max-height-478px > .content > .watermark {
+	display: none;
 }
-
-@media (max-height: 500px) {
-	.monaco-workbench > .part.editor.empty > .content > .watermark {
-		display: none;
-	}
-	.monaco-workbench .part.editor.empty {
-		background-position-y: 50%;
-	}
+.monaco-workbench .part.editor.empty.max-height-478px {
+	background-position-y: 50%;
 }
 
 .monaco-workbench > .part.editor.empty > .content > .watermark dl {

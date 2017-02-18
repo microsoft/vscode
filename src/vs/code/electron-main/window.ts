@@ -21,6 +21,7 @@ import { getCommonHTTPHeaders } from 'vs/platform/environment/node/http';
 import { IWindowSettings, MenuBarVisibility } from 'vs/platform/windows/common/windows';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
+
 export interface IWindowState {
 	width?: number;
 	height?: number;
@@ -33,7 +34,6 @@ export interface IWindowCreationOptions {
 	state: IWindowState;
 	extensionDevelopmentPath?: string;
 	isExtensionTestHost?: boolean;
-	allowFullscreen?: boolean;
 	titleBarStyle?: 'native' | 'custom';
 }
 
@@ -79,6 +79,7 @@ export interface IWindowConfiguration extends ParsedArgs {
 	zoomLevel?: number;
 	fullscreen?: boolean;
 	highContrast?: boolean;
+	baseTheme?: string;
 	accessibilitySupport?: boolean;
 
 	isInitialStartup?: boolean;
@@ -135,7 +136,7 @@ export interface IVSCodeWindow {
 
 export class VSCodeWindow implements IVSCodeWindow {
 
-	public static colorThemeStorageKey = 'theme';
+	public static themeStorageKey = 'theme';
 
 	private static MIN_WIDTH = 200;
 	private static MIN_HEIGHT = 120;
@@ -178,9 +179,9 @@ export class VSCodeWindow implements IVSCodeWindow {
 		this.restoreWindowState(config.state);
 
 		// For VS theme we can show directly because background is white
-		const themeId = this.storageService.getItem<string>(VSCodeWindow.colorThemeStorageKey);
-		const usesLightTheme = /vs($| )/.test(themeId);
-		const usesHighContrastTheme = /hc-black($| )/.test(themeId) || (platform.isWindows && systemPreferences.isInvertedColorScheme());
+		const baseTheme = this.getBaseTheme();
+		const usesLightTheme = 'vs' === baseTheme;
+		const usesHighContrastTheme = 'hc-black' === baseTheme || (platform.isWindows && systemPreferences.isInvertedColorScheme());
 
 		// in case we are maximized or fullscreen, only show later after the call to maximize/fullscreen (see below)
 		const isFullscreenOrMaximized = (this.currentWindowMode === WindowMode.Maximized || this.currentWindowMode === WindowMode.Fullscreen);
@@ -506,6 +507,9 @@ export class VSCodeWindow implements IVSCodeWindow {
 		windowConfiguration.highContrast = platform.isWindows && systemPreferences.isInvertedColorScheme() && (!windowConfig || windowConfig.autoDetectHighContrast);
 		windowConfiguration.accessibilitySupport = app.isAccessibilitySupportEnabled();
 
+		// Theme
+		windowConfiguration.baseTheme = this.getBaseTheme();
+
 		// Perf Counters
 		windowConfiguration.perfStartTime = global.perfStartTime;
 		windowConfiguration.perfAppReady = global.perfAppReady;
@@ -523,6 +527,11 @@ export class VSCodeWindow implements IVSCodeWindow {
 		url += '?config=' + encodeURIComponent(JSON.stringify(config));
 
 		return url;
+	}
+
+	private getBaseTheme(): string {
+		const theme = this.storageService.getItem<string>(VSCodeWindow.themeStorageKey, 'vs-dark');
+		return theme.split(' ')[0];
 	}
 
 	public serializeWindowState(): IWindowState {
@@ -590,14 +599,6 @@ export class VSCodeWindow implements IVSCodeWindow {
 	private validateWindowState(state: IWindowState): IWindowState {
 		if (!state) {
 			return null;
-		}
-
-		if (state.mode === WindowMode.Fullscreen) {
-			if (this.options.allowFullscreen) {
-				return state;
-			}
-
-			state.mode = WindowMode.Normal; // if we do not allow fullscreen, treat this state as normal window state
 		}
 
 		if ([state.x, state.y, state.width, state.height].some(n => typeof n !== 'number')) {
@@ -726,8 +727,15 @@ export class VSCodeWindow implements IVSCodeWindow {
 				break;
 
 			case ('hidden'):
-				this.win.setMenuBarVisibility(false);
-				this.win.setAutoHideMenuBar(false);
+				// for some weird reason that I have no explanation for, the menu bar is not hiding when calling
+				// this without timeout (see https://github.com/Microsoft/vscode/issues/19777). there seems to be
+				// a timing issue with us opening the first window and the menu bar getting created. somehow the
+				// fact that we want to hide the menu without being able to bring it back via Alt key makes Electron
+				// still show the menu. Unable to reproduce from a simple Hello World application though...
+				setTimeout(() => {
+					this.win.setMenuBarVisibility(false);
+					this.win.setAutoHideMenuBar(false);
+				});
 				break;
 		};
 	}

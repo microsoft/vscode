@@ -276,7 +276,7 @@ export class FoldingController implements IFoldingController {
 			case editorCommon.MouseTargetType.GUTTER_LINE_DECORATIONS:
 				iconClicked = true;
 				break;
-			case editorCommon.MouseTargetType.CONTENT_TEXT:
+			case editorCommon.MouseTargetType.CONTENT_EMPTY:
 				if (range.isEmpty && range.startColumn === model.getLineMaxColumn(range.startLineNumber)) {
 					break;
 				}
@@ -505,7 +505,7 @@ abstract class FoldingAction<T> extends EditorAction {
 		if (!foldingController) {
 			return;
 		}
-		this.reportTelemetry(accessor);
+		this.reportTelemetry(accessor, editor);
 		this.invoke(foldingController, editor, args);
 	}
 

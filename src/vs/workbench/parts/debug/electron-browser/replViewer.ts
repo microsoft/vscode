@@ -9,7 +9,6 @@ import { IAction } from 'vs/base/common/actions';
 import { isFullWidthCharacter, removeAnsiEscapeCodes, endsWith } from 'vs/base/common/strings';
 import uri from 'vs/base/common/uri';
 import { isMacintosh } from 'vs/base/common/platform';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import * as dom from 'vs/base/browser/dom';
 import * as errors from 'vs/base/common/errors';
@@ -510,18 +509,6 @@ export class ReplExpressionsController extends BaseDebugController {
 			this.toFocusOnClick.focus();
 		}
 		this.lastSelectedString = selection.toString();
-
-		return true;
-	}
-
-	protected onDown(tree: ITree, event: IKeyboardEvent): boolean {
-		if (tree.getFocus()) {
-			return super.onDown(tree, event);
-		}
-
-		const payload = { origin: 'keyboard', originalEvent: event };
-		tree.focusLast(payload);
-		tree.reveal(tree.getFocus()).done(null, errors.onUnexpectedError);
 
 		return true;
 	}

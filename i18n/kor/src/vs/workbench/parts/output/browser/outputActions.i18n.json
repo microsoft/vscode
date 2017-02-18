@@ -6,5 +6,6 @@
 {
 	"clearOutput": "출력 내용 지우기",
 	"switchToOutput.label": "출력으로 전환",
-	"toggleOutput": "출력 설정/해제"
+	"toggleOutput": "출력 설정/해제",
+	"toggleOutputScrollLock": "출력 스크롤 잠금 설정/해제"
 }

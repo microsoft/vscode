@@ -158,13 +158,18 @@
 		scrollDisabled = true;
 	}, true);
 
-	window.addEventListener('message', event => {
-		const line = +event.data.line;
-		if (!isNaN(line)) {
+	window.addEventListener('message', (() => {
+		const doScroll = throttle(line => {
 			scrollDisabled = true;
 			scrollToRevealSourceLine(line);
-		}
-	}, false);
+		}, 50);
+		return event => {
+			const line = +event.data.line;
+			if (!isNaN(line)) {
+				doScroll(line);
+			}
+		};
+	})(), false);
 
 	document.addEventListener('dblclick', event => {
 		if (!window.initialData.doubleClickToSwitchToEditor) {
@@ -190,7 +195,6 @@
 	});
 
 	if (window.initialData.scrollEditorWithPreview) {
-
 		window.addEventListener('scroll', throttle(() => {
 			if (scrollDisabled) {
 				scrollDisabled = false;

@@ -14,7 +14,7 @@ import { isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { addClass, append, $, hide, removeClass, show, toggleClass } from 'vs/base/browser/dom';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
-import { IDelegate, IFocusChangeEvent, IRenderer, ISelectionChangeEvent } from 'vs/base/browser/ui/list/list';
+import { IDelegate, IListEvent, IRenderer } from 'vs/base/browser/ui/list/list';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -62,8 +62,8 @@ class Renderer implements IRenderer<ICompletionItem, ISuggestionTemplateData> {
 		private editor: ICodeEditor,
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
-		const keybindings = keybindingService.lookupKeybindings('editor.action.triggerSuggest');
-		this.triggerKeybindingLabel = keybindings.length === 0 ? '' : ` (${keybindingService.getLabelFor(keybindings[0])})`;
+		const [kb] = keybindingService.lookupKeybindings('editor.action.triggerSuggest');
+		this.triggerKeybindingLabel = !kb ? '' : ` (${keybindingService.getLabelFor(kb)})`;
 	}
 
 	get templateId(): string {
@@ -407,7 +407,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		});
 	}
 
-	private onListSelection(e: ISelectionChangeEvent<ICompletionItem>): void {
+	private onListSelection(e: IListEvent<ICompletionItem>): void {
 		if (!e.elements.length) {
 			return;
 		}
@@ -439,7 +439,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		}
 	}
 
-	private onListFocus(e: IFocusChangeEvent<ICompletionItem>): void {
+	private onListFocus(e: IListEvent<ICompletionItem>): void {
 		if (!e.elements.length) {
 			if (this.currentSuggestionDetails) {
 				this.currentSuggestionDetails.cancel();
@@ -591,9 +591,9 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			this.completionModel = null;
 
 		} else {
-			const {stats} = this.completionModel;
+			const { stats } = this.completionModel;
 			stats['wasAutomaticallyTriggered'] = !!isAuto;
-			this.telemetryService.publicLog('suggestWidget', stats);
+			this.telemetryService.publicLog('suggestWidget', { ...stats, ...this.editor.getTelemetryData() });
 
 			this.list.splice(0, this.list.length, this.completionModel.items);
 			this.list.setFocus([this.completionModel.topScoreIdx]);
@@ -672,6 +672,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 
 			return this.list.getFocusedElements()[0];
 		}
+		return undefined;
 	}
 
 	toggleDetails(): void {
@@ -693,7 +694,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 
 		this.setState(State.Details);
 		this.editor.focus();
-		this.telemetryService.publicLog('suggestWidget:toggleDetails');
+		this.telemetryService.publicLog('suggestWidget:toggleDetails', this.editor.getTelemetryData());
 	}
 
 	private show(): void {

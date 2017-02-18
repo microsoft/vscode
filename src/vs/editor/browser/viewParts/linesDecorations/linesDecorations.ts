@@ -10,6 +10,8 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { DecorationToRender, DedupOverlay } from 'vs/editor/browser/viewParts/glyphMargin/glyphMargin';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { IRenderingContext } from 'vs/editor/common/view/renderingContext';
+import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { ScrollEvent } from 'vs/base/common/scrollable';
 
 export class LinesDecorationsOverlay extends DedupOverlay {
 
@@ -22,8 +24,8 @@ export class LinesDecorationsOverlay extends DedupOverlay {
 	constructor(context: ViewContext) {
 		super();
 		this._context = context;
-		this._decorationsLeft = 0;
-		this._decorationsWidth = 0;
+		this._decorationsLeft = this._context.configuration.editor.layoutInfo.decorationsLeft;
+		this._decorationsWidth = this._context.configuration.editor.layoutInfo.decorationsWidth;
 		this._renderResult = null;
 		this._context.addEventHandler(this);
 	}
@@ -39,36 +41,35 @@ export class LinesDecorationsOverlay extends DedupOverlay {
 	public onModelFlushed(): boolean {
 		return true;
 	}
-	public onModelDecorationsChanged(e: editorCommon.IViewDecorationsChangedEvent): boolean {
+	public onModelDecorationsChanged(e: viewEvents.IViewDecorationsChangedEvent): boolean {
 		return true;
 	}
-	public onModelLinesDeleted(e: editorCommon.IViewLinesDeletedEvent): boolean {
+	public onModelLinesDeleted(e: viewEvents.IViewLinesDeletedEvent): boolean {
 		return true;
 	}
-	public onModelLineChanged(e: editorCommon.IViewLineChangedEvent): boolean {
+	public onModelLineChanged(e: viewEvents.IViewLineChangedEvent): boolean {
 		return true;
 	}
-	public onModelLinesInserted(e: editorCommon.IViewLinesInsertedEvent): boolean {
+	public onModelLinesInserted(e: viewEvents.IViewLinesInsertedEvent): boolean {
 		return true;
 	}
-	public onCursorPositionChanged(e: editorCommon.IViewCursorPositionChangedEvent): boolean {
+	public onCursorPositionChanged(e: viewEvents.IViewCursorPositionChangedEvent): boolean {
 		return false;
 	}
-	public onCursorSelectionChanged(e: editorCommon.IViewCursorSelectionChangedEvent): boolean {
+	public onCursorSelectionChanged(e: viewEvents.IViewCursorSelectionChangedEvent): boolean {
 		return false;
 	}
-	public onCursorRevealRange(e: editorCommon.IViewRevealRangeEvent): boolean {
+	public onCursorRevealRange(e: viewEvents.IViewRevealRangeEvent): boolean {
 		return false;
 	}
 	public onConfigurationChanged(e: editorCommon.IConfigurationChangedEvent): boolean {
+		if (e.layoutInfo) {
+			this._decorationsLeft = this._context.configuration.editor.layoutInfo.decorationsLeft;
+			this._decorationsWidth = this._context.configuration.editor.layoutInfo.decorationsWidth;
+		}
 		return true;
 	}
-	public onLayoutChanged(layoutInfo: editorCommon.EditorLayoutInfo): boolean {
-		this._decorationsLeft = layoutInfo.decorationsLeft;
-		this._decorationsWidth = layoutInfo.decorationsWidth;
-		return true;
-	}
-	public onScrollChanged(e: editorCommon.IScrollEvent): boolean {
+	public onScrollChanged(e: ScrollEvent): boolean {
 		return e.scrollTopChanged;
 	}
 	public onZonesChanged(): boolean {

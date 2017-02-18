@@ -186,4 +186,20 @@ suite('MenuService', function () {
 		assert.equal(two.id, 'b');
 		assert.equal(three.id, 'a');
 	});
+
+	test('special MenuId palette', function () {
+
+		disposables.push(MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+			command: { id: 'a', title: 'Explicit' }
+		}));
+
+		MenuRegistry.addCommand({ id: 'b', title: 'Implicit' });
+
+		const [first, second] = MenuRegistry.getMenuItems(MenuId.CommandPalette);
+		assert.equal(first.command.id, 'a');
+		assert.equal(first.command.title, 'Explicit');
+
+		assert.equal(second.command.id, 'b');
+		assert.equal(second.command.title, 'Implicit');
+	});
 });

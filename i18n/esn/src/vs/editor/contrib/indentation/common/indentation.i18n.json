@@ -6,11 +6,10 @@
 {
 	"configuredTabSize": "Tamaño de tabulación configurado",
 	"detectIndentation": "Detectar sangría del contenido",
+	"editor.reindentlines": "Volver a aplicar sangría a líneas",
 	"indentUsingSpaces": "Aplicar sangría con espacios",
 	"indentUsingTabs": "Aplicar sangría con tabulaciones",
 	"indentationToSpaces": "Convertir sangría en espacios",
 	"indentationToTabs": "Convertir sangría en tabulaciones",
-	"selectTabWidth": "Seleccionar tamaño de tabulación para el archivo actual",
-	"toggleRenderControlCharacters": "Alternar caracteres de control",
-	"toggleRenderWhitespace": "Alternar representación de espacio en blanco"
+	"selectTabWidth": "Seleccionar tamaño de tabulación para el archivo actual"
 }

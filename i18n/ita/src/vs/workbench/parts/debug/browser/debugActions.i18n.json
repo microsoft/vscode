@@ -15,10 +15,11 @@
 	"debugConsoleAction": "Console di debug",
 	"debugFocusConsole": "Console di debug stato attivo",
 	"disableAllBreakpoints": "Disabilita tutti i punti di interruzione",
+	"disableBreakpoint": "Disabilita punto di interruzione",
 	"disconnectDebug": "Disconnetti",
 	"editConditionalBreakpoint": "Modifica punto di interruzione...",
-	"editWatchExpression": "Modifica espressione",
 	"enableAllBreakpoints": "Abilita tutti i punti di interruzione",
+	"enableBreakpoint": "Abilita punto di interruzione",
 	"focusProcess": "Sposta stato attivo su processo",
 	"launchJsonNeedsConfigurtion": "Configurare o correggere 'launch.json'",
 	"openLaunchJson": "Apri {0}",
@@ -41,6 +42,5 @@
 	"stepOutDebug": "Esci da istruzione/routine",
 	"stepOverDebug": "Esegui istruzione/routine",
 	"stopDebug": "Arresta",
-	"toggleEnablement": "Abilita/Disabilita punto di interruzione",
 	"unreadOutput": "Nuovo output nella console di debug"
 }

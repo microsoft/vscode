@@ -54,6 +54,7 @@ export class BackupRestorer implements IWorkbenchContribution {
 				if (unresolved.length > 0) {
 					return this.doOpenEditors(unresolved).then(() => this.doResolveOpenedBackups(unresolved));
 				}
+				return undefined;
 			});
 		});
 	}

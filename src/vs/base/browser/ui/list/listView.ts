@@ -133,7 +133,8 @@ export class ListView<T> implements IDisposable {
 	}
 
 	get renderHeight(): number {
-		return this.scrollableElement.getHeight();
+		const scrollState = this.scrollableElement.getScrollState();
+		return scrollState.height;
 	}
 
 	element(index: number): T {
@@ -209,7 +210,8 @@ export class ListView<T> implements IDisposable {
 	}
 
 	getScrollTop(): number {
-		return this.scrollableElement.getScrollTop();
+		const scrollState = this.scrollableElement.getScrollState();
+		return scrollState.scrollTop;
 	}
 
 	setScrollTop(scrollTop: number): void {

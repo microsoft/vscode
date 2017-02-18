@@ -116,6 +116,10 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		this._configuration = this._createConfiguration(options);
 		this._lifetimeDispose.push(this._configuration.onDidChange((e) => {
 			this.emit(editorCommon.EventType.ConfigurationChanged, e);
+
+			if (e.layoutInfo) {
+				this.emit(editorCommon.EventType.EditorLayout, this._configuration.editor.layoutInfo);
+			}
 		}));
 
 		this._contextKeyService = contextKeyService.createScoped(this.domElement);
@@ -809,36 +813,18 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 				linesCollection,
 				this.id,
 				this._configuration,
-				this.model,
-				() => this.getCenteredRangeInViewport()
+				this.model
 			);
 
 			let viewModelHelper: IViewModelHelper = {
 				viewModel: this.viewModel,
+				coordinatesConverter: this.viewModel.coordinatesConverter,
 				getCurrentCompletelyVisibleViewLinesRangeInViewport: () => {
-					return this.viewModel.convertModelRangeToViewRange(this.getCompletelyVisibleLinesRangeInViewport());
+					return this.viewModel.coordinatesConverter.convertModelRangeToViewRange(this.getCompletelyVisibleLinesRangeInViewport());
 				},
 				getCurrentCompletelyVisibleModelLinesRangeInViewport: () => {
 					return this.getCompletelyVisibleLinesRangeInViewport();
 				},
-				convertModelPositionToViewPosition: (lineNumber: number, column: number) => {
-					return this.viewModel.convertModelPositionToViewPosition(lineNumber, column);
-				},
-				convertModelRangeToViewRange: (modelRange: Range) => {
-					return this.viewModel.convertModelRangeToViewRange(modelRange);
-				},
-				convertViewToModelPosition: (lineNumber: number, column: number) => {
-					return this.viewModel.convertViewPositionToModelPosition(lineNumber, column);
-				},
-				convertViewSelectionToModelSelection: (viewSelection: editorCommon.ISelection) => {
-					return this.viewModel.convertViewSelectionToModelSelection(viewSelection);
-				},
-				validateViewPosition: (viewPosition: Position, modelPosition: Position): Position => {
-					return this.viewModel.validateViewPosition(viewPosition.lineNumber, viewPosition.column, modelPosition);
-				},
-				validateViewRange: (viewRange: Range, modelRange: Range): Range => {
-					return this.viewModel.validateViewRange(viewRange.startLineNumber, viewRange.startColumn, viewRange.endLineNumber, viewRange.endColumn, modelRange);
-				}
 			};
 
 			this.cursor = new Cursor(
@@ -898,10 +884,6 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 
 						case editorCommon.EventType.KeyDown:
 							this.emit(editorCommon.EventType.KeyDown, e);
-							break;
-
-						case editorCommon.EventType.ViewLayoutChanged:
-							this.emit(editorCommon.EventType.EditorLayout, e);
 							break;
 
 						default:
@@ -1024,6 +1006,10 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 	protected abstract _registerDecorationType(key: string, options: editorCommon.IDecorationRenderOptions, parentTypeKey?: string): void;
 	protected abstract _removeDecorationType(key: string): void;
 	protected abstract _resolveDecorationOptions(typeKey: string, writable: boolean): editorCommon.IModelDecorationOptions;
+
+	public getTelemetryData(): { [key: string]: any; } {
+		return null;
+	}
 }
 
 class EditorContextKeysManager extends Disposable {

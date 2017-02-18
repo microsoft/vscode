@@ -7,7 +7,7 @@
 
 import 'vs/css!./media/compositepart';
 import nls = require('vs/nls');
-import uuid = require('vs/base/common/uuid');
+import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Registry } from 'vs/platform/platform';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -108,7 +108,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 	private doOpenComposite(id: string, focus?: boolean): TPromise<Composite> {
 
 		// Use a generated token to avoid race conditions from long running promises
-		let currentCompositeOpenToken = uuid.generateUuid();
+		let currentCompositeOpenToken = defaultGenerator.nextId();
 		this.currentCompositeOpenToken = currentCompositeOpenToken;
 
 		// Hide current
@@ -251,7 +251,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 			// Make sure that the user meanwhile did not open another composite or closed the part containing the composite
 			if (!this.activeComposite || composite.getId() !== this.activeComposite.getId()) {
-				return;
+				return undefined;
 			}
 
 			// Take Composite on-DOM and show
@@ -340,11 +340,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			compositeTitle = compositeDescriptor.name;
 		}
 
-		let keybinding: string = null;
-		let keys = this.keybindingService.lookupKeybindings(compositeId).map(k => this.keybindingService.getLabelFor(k));
-		if (keys && keys.length) {
-			keybinding = keys[0];
-		}
+		let [keybinding] = this.keybindingService.lookupKeybindings(compositeId).map(k => this.keybindingService.getLabelFor(k));
 
 		this.titleLabel.updateTitle(compositeId, compositeTitle, keybinding);
 
@@ -426,12 +422,9 @@ export abstract class CompositePart<T extends Composite> extends Part {
 				actionItemProvider: (action: Action) => this.actionItemProvider(action),
 				orientation: ActionsOrientation.HORIZONTAL,
 				getKeyBinding: (action) => {
-					const opts = this.keybindingService.lookupKeybindings(action.id);
-					if (opts.length > 0) {
-						return opts[0]; // only take the first one
-					}
+					const [kb] = this.keybindingService.lookupKeybindings(action.id);
 
-					return null;
+					return kb;
 				},
 				getKeyBindingLabel: (key) => this.keybindingService.getLabelFor(key)
 			});

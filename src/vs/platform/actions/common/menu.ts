@@ -21,7 +21,7 @@ export class Menu implements IMenu {
 	private _onDidChange = new Emitter<IMenu>();
 
 	constructor(
-		id: MenuId,
+		private id: MenuId,
 		startupSignal: TPromise<boolean>,
 		@ICommandService private _commandService: ICommandService,
 		@IContextKeyService private _contextKeyService: IContextKeyService

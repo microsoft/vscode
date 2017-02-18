@@ -311,7 +311,7 @@ class DecorationRenderHelper {
 			}
 			if (typeof opts.contentText === 'string') {
 				const truncated = opts.contentText.match(/^.*$/m)[0]; // only take first line
-				const escaped = truncated.replace(/'\\/g, '\\$&');
+				const escaped = truncated.replace(/['\\]/g, '\\$&');
 
 				cssTextArr.push(strings.format(this._CSS_MAP.contentText, escaped));
 			}

@@ -13,6 +13,7 @@ import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { IRenderingContext, IRestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
 
 export interface IViewCursorRenderData {
+	domNode: HTMLElement;
 	position: Position;
 	contentTop: number;
 	contentLeft: number;
@@ -37,7 +38,7 @@ export class ViewCursorRenderData {
 export class ViewCursor {
 	private readonly _context: ViewContext;
 	private readonly _isSecondary: boolean;
-	private readonly _domNode: FastDomNode;
+	private readonly _domNode: FastDomNode<HTMLElement>;
 
 	private _cursorStyle: TextEditorCursorStyle;
 	private _lineHeight: number;
@@ -190,6 +191,7 @@ export class ViewCursor {
 		this._domNode.setHeight(this._lineHeight);
 
 		return {
+			domNode: this._domNode.domNode,
 			position: this._position,
 			contentTop: top,
 			contentLeft: this._renderData.left,
@@ -200,7 +202,5 @@ export class ViewCursor {
 
 	private updatePosition(newPosition: Position): void {
 		this._position = newPosition;
-		this._domNode.domNode.setAttribute('lineNumber', this._position.lineNumber.toString());
-		this._domNode.domNode.setAttribute('column', this._position.column.toString());
 	}
 }

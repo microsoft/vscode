@@ -112,7 +112,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 
 		// Apply group information to help identify in which group we are
 		if (ariaLabel && typeof this.position === 'number') {
-			ariaLabel = nls.localize('editorLabelWithGroup', "{0} Group {1}.", ariaLabel, this.position + 1);
+			ariaLabel = nls.localize('editorLabelWithGroup', "{0}, Group {1}.", ariaLabel, this.position + 1);
 		}
 
 		return ariaLabel;
@@ -271,10 +271,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 		if (this.input) {
 			const resource = toResource(this.input);
 			if (resource) {
-				const modeId = this.modeService.getModeIdByFilenameOrFirstLine(resource.fsPath);
-				if (modeId) {
-					return this.modeService.getLanguageName(modeId);
-				}
+				return this.modeService.getModeIdByFilenameOrFirstLine(resource.fsPath);
 			}
 		}
 

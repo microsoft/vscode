@@ -156,6 +156,7 @@ export abstract class MainThreadLanguageFeaturesShape {
 	$emitCodeLensEvent(eventHandle: number, event?: any): TPromise<any> { throw ni(); }
 	$registerDeclaractionSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> { throw ni(); }
 	$registerImplementationSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> { throw ni(); }
+	$registerTypeDefinitionSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> { throw ni(); }
 	$registerHoverProvider(handle: number, selector: vscode.DocumentSelector): TPromise<any> { throw ni(); }
 	$registerDocumentHighlightProvider(handle: number, selector: vscode.DocumentSelector): TPromise<any> { throw ni(); }
 	$registerReferenceSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> { throw ni(); }
@@ -176,12 +177,13 @@ export abstract class MainThreadLanguagesShape {
 }
 
 export abstract class MainThreadMessageServiceShape {
-	$showMessage(severity: Severity, message: string, commands: { title: string; isCloseAffordance: boolean; handle: number; }[]): Thenable<number> { throw ni(); }
+	$showMessage(severity: Severity, message: string, options: vscode.MessageOptions, commands: { title: string; isCloseAffordance: boolean; handle: number; }[]): Thenable<number> { throw ni(); }
 }
 
 export abstract class MainThreadOutputServiceShape {
 	$append(channelId: string, label: string, value: string): TPromise<void> { throw ni(); }
 	$clear(channelId: string, label: string): TPromise<void> { throw ni(); }
+	$dispose(channelId: string, label: string): TPromise<void> { throw ni(); }
 	$reveal(channelId: string, label: string, preserveFocus: boolean): TPromise<void> { throw ni(); }
 	$close(channelId: string): TPromise<void> { throw ni(); }
 }
@@ -242,7 +244,6 @@ export abstract class MainProcessExtensionServiceShape {
 
 export interface SCMProviderFeatures {
 	label: string;
-	supportsCommit: boolean;
 	supportsOpen: boolean;
 	supportsDrag: boolean;
 	supportsOriginalResource: boolean;
@@ -258,7 +259,8 @@ export type SCMRawResourceGroup = [string /*id*/, string /*label*/, SCMRawResour
 export abstract class MainThreadSCMShape {
 	$register(id: string, features: SCMProviderFeatures): void { throw ni(); }
 	$unregister(id: string): void { throw ni(); }
-	$onChange(id: string, resources: SCMRawResourceGroup[]): void { throw ni(); }
+	$onChange(id: string, resources: SCMRawResourceGroup[], count: number | undefined, state: string | undefined): void { throw ni(); }
+	$setInputBoxValue(value: string): void { throw ni(); }
 }
 
 // -- extension host
@@ -362,6 +364,7 @@ export abstract class ExtHostLanguageFeaturesShape {
 	$resolveCodeLens(handle: number, resource: URI, symbol: modes.ICodeLensSymbol): TPromise<modes.ICodeLensSymbol> { throw ni(); }
 	$provideDefinition(handle: number, resource: URI, position: editorCommon.IPosition): TPromise<modes.Definition> { throw ni(); }
 	$provideImplementation(handle: number, resource: URI, position: editorCommon.IPosition): TPromise<modes.Definition> { throw ni(); }
+	$provideTypeDefinition(handle: number, resource: URI, position: editorCommon.IPosition): TPromise<modes.Definition> { throw ni(); }
 	$provideHover(handle: number, resource: URI, position: editorCommon.IPosition): TPromise<modes.Hover> { throw ni(); }
 	$provideDocumentHighlights(handle: number, resource: URI, position: editorCommon.IPosition): TPromise<modes.DocumentHighlight[]> { throw ni(); }
 	$provideReferences(handle: number, resource: URI, position: editorCommon.IPosition, context: modes.ReferenceContext): TPromise<modes.Location[]> { throw ni(); }
@@ -390,10 +393,10 @@ export abstract class ExtHostTerminalServiceShape {
 }
 
 export abstract class ExtHostSCMShape {
-	$commit(id: string, message: string): TPromise<void> { throw ni(); }
 	$open(id: string, resourceGroupId: string, uri: string): TPromise<void> { throw ni(); }
 	$drag(id: string, fromResourceGroupId: string, fromUri: string, toResourceGroupId: string): TPromise<void> { throw ni(); }
 	$getOriginalResource(id: string, uri: URI): TPromise<URI> { throw ni(); }
+	$onInputBoxValueChange(value: string): TPromise<void> { throw ni(); }
 }
 
 // --- proxy identifiers
