@@ -58,7 +58,7 @@ export default () => `
 					<li class="showRecommendedKeymapExtensions"><button data-href="command:workbench.extensions.action.showRecommendedKeymapExtensions"><h3>${escape(localize('welcomePage.installKeymapDescription', "Install keyboard shortcuts"))}</h3> <span>${escape(localize('welcomePage.installKeymap', "Install the keyboard shortcuts of {0}, {1}, {2} and {3}"))
 		.replace('{0}', `<a class="installKeymap" data-keymap-name="${escape(localize('welcomePage.vim', "Vim"))}" data-keymap="vscodevim.vim" href="javascript:void(0)">${escape(localize('welcomePage.vim', "Vim"))}</a>`)
 		.replace('{1}', `<a class="installKeymap" data-keymap-name="${escape(localize('welcomePage.sublime', "Sublime"))}" data-keymap="ms-vscode.sublime-keybindings" href="javascript:void(0)">${escape(localize('welcomePage.sublime', "Sublime"))}</a>`)
-		.replace('{2}', `<a class="installKeymap" data-keymap-name="${escape(localize('welcomePage.atom', "Atom"))}" data-keymap="ms-vscode.atom-keybindings" href="javascript:void(0)">Atom</a>`)
+		.replace('{2}', `<a class="installKeymap" data-keymap-name="${escape(localize('welcomePage.atom', "Atom"))}" data-keymap="ms-vscode.atom-keybindings" href="javascript:void(0)">${escape(localize('welcomePage.atom', "Atom"))}</a>`)
 		.replace('{3}', `<a href="command:workbench.extensions.action.showRecommendedKeymapExtensions">${escape(localize('welcomePage.others', "others"))}</a>`)}
 					</span></button></li>
 				</ul>
