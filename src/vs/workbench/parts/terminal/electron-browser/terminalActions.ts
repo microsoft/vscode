@@ -141,6 +141,24 @@ export class FocusNextTerminalAction extends Action {
 	}
 }
 
+export class FocusTerminal1Action extends Action {
+
+	public static ID = 'workbench.action.terminal.focus1';
+	public static LABEL = nls.localize('workbench.action.terminal.focus1', "Focus Terminal 1");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		this.terminalService.setActiveInstanceByIndex(0);
+		return this.terminalService.showPanel(true);
+	}
+}
+
 export class FocusPreviousTerminalAction extends Action {
 
 	public static ID = 'workbench.action.terminal.focusPrevious';
