@@ -184,7 +184,8 @@ export enum Operation {
 	Sync = 1 << 11,
 	Init = 1 << 12,
 	Show = 1 << 13,
-	Stage = 1 << 13
+	Stage = 1 << 14,
+	GetCommitTemplate = 1 << 15
 }
 
 export interface Operations {
@@ -453,6 +454,10 @@ export class Model implements Disposable {
 
 			return result.stdout;
 		});
+	}
+
+	async getCommitTemplate(): Promise<string> {
+		return await this.run(Operation.GetCommitTemplate, async () => this.repository.getCommitTemplate());
 	}
 
 	private async run<T>(operation: Operation, runOperation: () => Promise<T> = () => Promise.resolve<any>(null)): Promise<T> {
