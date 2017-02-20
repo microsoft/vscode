@@ -250,6 +250,7 @@ const configurationValueWhitelist = [
 	'editor.hideCursorInOverviewRuler',
 	'editor.trimAutoWhitespace',
 	'editor.folding',
+	'editor.highlightMatchingBrackets',
 	'workbench.editor.enablePreviewFromQuickOpen',
 	'php.builtInCompletions.enable',
 	'php.validate.enable',
