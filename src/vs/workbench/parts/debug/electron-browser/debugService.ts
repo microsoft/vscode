@@ -562,9 +562,6 @@ export class DebugService implements debug.IDebugService {
 	}
 
 	public createProcess(configurationOrName: debug.IConfig | string): TPromise<any> {
-		const sessionId = generateUuid();
-		this.setStateAndEmit(sessionId, debug.State.Initializing);
-
 		return this.configurationService.reloadConfiguration()	// make sure configuration is up to date
 			.then(() => this.extensionService.onReady()
 				.then(() => {
@@ -599,7 +596,7 @@ export class DebugService implements debug.IDebugService {
 							const successExitCode = taskSummary && taskSummary.exitCode === 0;
 							const failureExitCode = taskSummary && taskSummary.exitCode !== undefined && taskSummary.exitCode !== 0;
 							if (successExitCode || (errorCount === 0 && !failureExitCode)) {
-								return this.doCreateProcess(sessionId, resolvedConfig);
+								return this.doCreateProcess(resolvedConfig);
 							}
 
 							this.messageService.show(severity.Error, {
@@ -609,7 +606,7 @@ export class DebugService implements debug.IDebugService {
 								actions: [
 									new Action('debug.continue', nls.localize('debugAnyway', "Debug Anyway"), null, true, () => {
 										this.messageService.hideAll();
-										return this.doCreateProcess(sessionId, resolvedConfig);
+										return this.doCreateProcess(resolvedConfig);
 									}),
 									this.instantiationService.createInstance(ToggleMarkersPanelAction, ToggleMarkersPanelAction.ID, ToggleMarkersPanelAction.LABEL),
 									CloseAction
@@ -640,7 +637,10 @@ export class DebugService implements debug.IDebugService {
 				}));
 	}
 
-	private doCreateProcess(sessionId: string, configuration: debug.IConfig): TPromise<any> {
+
+	private doCreateProcess(configuration: debug.IConfig): TPromise<any> {
+		const sessionId = generateUuid();
+		this.setStateAndEmit(sessionId, debug.State.Initializing);
 
 		return this.telemetryService.getTelemetryInfo().then(info => {
 			const telemetryInfo: { [key: string]: string } = Object.create(null);
