@@ -116,6 +116,10 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		this._configuration = this._createConfiguration(options);
 		this._lifetimeDispose.push(this._configuration.onDidChange((e) => {
 			this.emit(editorCommon.EventType.ConfigurationChanged, e);
+
+			if (e.layoutInfo) {
+				this.emit(editorCommon.EventType.EditorLayout, this._configuration.editor.layoutInfo);
+			}
 		}));
 
 		this._contextKeyService = contextKeyService.createScoped(this.domElement);
@@ -882,10 +886,6 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 							this.emit(editorCommon.EventType.KeyDown, e);
 							break;
 
-						case editorCommon.EventType.ViewLayoutChanged:
-							this.emit(editorCommon.EventType.EditorLayout, e);
-							break;
-
 						default:
 						// console.warn("Unhandled view event: ", e);
 					}
@@ -1006,6 +1006,10 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 	protected abstract _registerDecorationType(key: string, options: editorCommon.IDecorationRenderOptions, parentTypeKey?: string): void;
 	protected abstract _removeDecorationType(key: string): void;
 	protected abstract _resolveDecorationOptions(typeKey: string, writable: boolean): editorCommon.IModelDecorationOptions;
+
+	public getTelemetryData(): { [key: string]: any; } {
+		return null;
+	}
 }
 
 class EditorContextKeysManager extends Disposable {

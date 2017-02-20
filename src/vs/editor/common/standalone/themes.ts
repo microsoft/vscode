@@ -9,7 +9,7 @@ import { IThemeRule } from 'vs/editor/common/modes/supports/tokenization';
 
 /* -------------------------------- Begin vs tokens -------------------------------- */
 export const vs: IThemeRule[] = [
-	{ token: '', foreground: '000000' },
+	{ token: '', foreground: '000000', background: 'fffffe' },
 	{ token: 'invalid', foreground: 'cd3131' },
 	{ token: 'emphasis', fontStyle: 'italic' },
 	{ token: 'strong', fontStyle: 'bold' },
@@ -70,7 +70,7 @@ export const vs: IThemeRule[] = [
 
 /* -------------------------------- Begin vs-dark tokens -------------------------------- */
 export const vs_dark: IThemeRule[] = [
-	{ token: '', foreground: 'D4D4D4' },
+	{ token: '', foreground: 'D4D4D4', background: '1E1E1E' },
 	{ token: 'invalid', foreground: 'f44747' },
 	{ token: 'emphasis', fontStyle: 'italic' },
 	{ token: 'strong', fontStyle: 'bold' },
@@ -130,7 +130,7 @@ export const vs_dark: IThemeRule[] = [
 
 /* -------------------------------- Begin hc-black tokens -------------------------------- */
 export const hc_black: IThemeRule[] = [
-	{ token: '', foreground: 'FFFFFF' },
+	{ token: '', foreground: 'FFFFFF', background: '000000' },
 	{ token: 'invalid', foreground: 'f44747' },
 	{ token: 'emphasis', fontStyle: 'italic' },
 	{ token: 'strong', fontStyle: 'bold' },

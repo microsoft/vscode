@@ -6,17 +6,17 @@
 {
 	"activeVersion": "現在有効",
 	"channelName": "TypeScript",
+	"later": "後続",
 	"learnMore": "詳細情報",
 	"noServerFound": "パス {0} は、有効な tsserver インストールを指していません。バンドルされている TypeScript バージョンにフォールバックしています。",
 	"reloadBlurb": "ウィンドウを再度読み込んで、変更を適用します",
 	"reloadTitle": "再読み込む",
-	"selectTsVersion": "言語機能に使用する TypeScript バージョンを選択します",
+	"selectTsVersion": "JavaScript および TypeScript 言語の機能に使用する TypeScript バージョンを選択します",
 	"serverCouldNotBeStarted": "TypeScript 言語サーバーを起動できません。エラー メッセージ: {0}",
 	"serverDied": "TypeScript 言語サービスは、直前の 5 分間に 5 回、予期せずに停止しました。",
 	"serverDiedAfterStart": "TypeScript 言語サービスは、開始直後に 5 回停止しました。サービスは再開されません。",
 	"serverDiedReportIssue": "問題の報告",
 	"useVSCodeVersionOption": "VSCode のバージョンの使用",
 	"useWorkspaceVersionOption": "ワークスペース バージョンの使用",
-	"versionCheckUsingBundledTS": "Typescript 言語機能に VSCode の TypeScript バージョン {0} を使用しています",
 	"versionNumber.custom": "カスタム"
 }

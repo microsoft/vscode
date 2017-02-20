@@ -103,13 +103,15 @@ class InternalEditorOptionsHelper {
 	}
 
 	public static createInternalEditorOptions(
-		outerWidth: number, outerHeight: number,
+		outerWidth: number,
+		outerHeight: number,
 		opts: editorCommon.IEditorOptions,
 		fontInfo: FontInfo,
 		editorClassName: string,
 		isDominatedByLongLines: boolean,
 		maxLineNumber: number,
-		canUseTranslate3d: boolean
+		canUseTranslate3d: boolean,
+		pixelRatio: number
 	): editorCommon.InternalEditorOptions {
 
 		let wrappingColumn = toInteger(opts.wrappingColumn, -1);
@@ -126,6 +128,7 @@ class InternalEditorOptionsHelper {
 
 		let mouseWheelScrollSensitivity = toFloat(opts.mouseWheelScrollSensitivity, 1);
 		let scrollbar = this._sanitizeScrollbarOpts(opts.scrollbar, mouseWheelScrollSensitivity);
+		let minimap = this._sanitizeMinimapOpts(opts.minimap);
 
 		let glyphMargin = toBoolean(opts.glyphMargin);
 		let lineNumbers = opts.lineNumbers;
@@ -177,13 +180,16 @@ class InternalEditorOptionsHelper {
 			lineHeight: fontInfo.lineHeight,
 			showLineNumbers: renderLineNumbers,
 			lineNumbersMinChars: lineNumbersMinChars,
-			lineDecorationsWidth: lineDecorationsWidth,
-			maxDigitWidth: fontInfo.maxDigitWidth,
 			maxLineNumber: maxLineNumber,
+			lineDecorationsWidth: lineDecorationsWidth,
+			typicalHalfwidthCharacterWidth: fontInfo.typicalHalfwidthCharacterWidth,
+			maxDigitWidth: fontInfo.maxDigitWidth,
 			verticalScrollbarWidth: scrollbar.verticalScrollbarSize,
 			horizontalScrollbarHeight: scrollbar.horizontalScrollbarSize,
 			scrollbarArrowSize: scrollbar.arrowSize,
-			verticalScrollbarHasArrows: scrollbar.verticalHasArrows
+			verticalScrollbarHasArrows: scrollbar.verticalHasArrows,
+			minimap: minimap.enabled,
+			pixelRatio: pixelRatio
 		});
 
 		if (isDominatedByLongLines && wrappingColumn > 0) {
@@ -196,13 +202,13 @@ class InternalEditorOptionsHelper {
 			// If viewport width wrapping is enabled
 			bareWrappingInfo = {
 				isViewportWrapping: true,
-				wrappingColumn: Math.max(1, Math.floor((layoutInfo.contentWidth - layoutInfo.verticalScrollbarWidth) / fontInfo.typicalHalfwidthCharacterWidth))
+				wrappingColumn: Math.max(1, layoutInfo.viewportColumn)
 			};
 		} else if (wrappingColumn > 0 && wordWrap === true) {
 			// Enable smart viewport wrapping
 			bareWrappingInfo = {
 				isViewportWrapping: true,
-				wrappingColumn: Math.min(wrappingColumn, Math.floor((layoutInfo.contentWidth - layoutInfo.verticalScrollbarWidth) / fontInfo.typicalHalfwidthCharacterWidth))
+				wrappingColumn: Math.min(wrappingColumn, layoutInfo.viewportColumn)
 			};
 		} else if (wrappingColumn > 0) {
 			// Wrapping is enabled
@@ -276,6 +282,7 @@ class InternalEditorOptionsHelper {
 			renderIndentGuides: toBoolean(opts.renderIndentGuides),
 			renderLineHighlight: renderLineHighlight,
 			scrollbar: scrollbar,
+			minimap: minimap,
 			fixedOverflowWidgets: toBoolean(opts.fixedOverflowWidgets)
 		});
 
@@ -353,6 +360,12 @@ class InternalEditorOptionsHelper {
 			mouseWheelScrollSensitivity: mouseWheelScrollSensitivity
 		});
 	}
+
+	private static _sanitizeMinimapOpts(raw: editorCommon.IEditorMinimapOptions): editorCommon.InternalEditorMinimapOptions {
+		return new editorCommon.InternalEditorMinimapOptions({
+			enabled: toBooleanWithDefault(raw.enabled, false)
+		});
+	}
 }
 
 function toBoolean(value: any): boolean {
@@ -411,6 +424,12 @@ function cursorStyleFromString(cursorStyle: string): editorCommon.TextEditorCurs
 		return editorCommon.TextEditorCursorStyle.Block;
 	} else if (cursorStyle === 'underline') {
 		return editorCommon.TextEditorCursorStyle.Underline;
+	} else if (cursorStyle === 'line-thin') {
+		return editorCommon.TextEditorCursorStyle.LineThin;
+	} else if (cursorStyle === 'block-outline') {
+		return editorCommon.TextEditorCursorStyle.BlockOutline;
+	} else if (cursorStyle === 'underline-thin') {
+		return editorCommon.TextEditorCursorStyle.UnderlineThin;
 	}
 	return editorCommon.TextEditorCursorStyle.Line;
 }
@@ -516,7 +535,8 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 			editorClassName,
 			this._isDominatedByLongLines,
 			this._maxLineNumber,
-			canUseTranslate3d
+			canUseTranslate3d,
+			this._getPixelRatio()
 		);
 	}
 
@@ -545,6 +565,8 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 	protected abstract getOuterHeight(): number;
 
 	protected abstract _getCanUseTranslate3d(): boolean;
+
+	protected abstract _getPixelRatio(): number;
 
 	protected abstract readConfiguration(styling: BareFontInfo): FontInfo;
 }
@@ -624,6 +646,11 @@ const editorConfiguration: IConfigurationNode = {
 			'type': 'boolean',
 			'default': DefaultConfig.editor.scrollBeyondLastLine,
 			'description': nls.localize('scrollBeyondLastLine', "Controls if the editor will scroll beyond the last line")
+		},
+		'editor.minimap.enabled': {
+			'type': 'boolean',
+			'default': DefaultConfig.editor.minimap.enabled,
+			'description': nls.localize('minimap.enabled', "Controls if the minimap is shown")
 		},
 		'editor.wrappingColumn': {
 			'type': 'integer',
@@ -749,9 +776,9 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'editor.cursorStyle': {
 			'type': 'string',
-			'enum': ['block', 'line', 'underline'],
+			'enum': ['block', 'block-outline', 'line', 'line-thin', 'underline', 'underline-thin'],
 			'default': DefaultConfig.editor.cursorStyle,
-			'description': nls.localize('cursorStyle', "Controls the cursor style, accepted values are 'block', 'line' and 'underline'")
+			'description': nls.localize('cursorStyle', "Controls the cursor style, accepted values are 'block', 'block-outline', 'line', 'line-thin', 'underline' and 'underline-thin'")
 		},
 		'editor.fontLigatures': {
 			'type': 'boolean',

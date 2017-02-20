@@ -9,6 +9,8 @@ import { ViewPart } from 'vs/editor/browser/view/viewPart';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/styleMutator';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
+import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { ScrollEvent } from 'vs/base/common/scrollable';
 
 /**
  * Represents a visible line
@@ -108,7 +110,19 @@ export class RenderedLinesCollection<T extends ILine> {
 		let startLineNumber = this.getStartLineNumber();
 		let endLineNumber = this.getEndLineNumber();
 
-		// Record what needs to be deleted, notify lines that survive after deletion
+		if (deleteToLineNumber < startLineNumber) {
+			// deleting above the viewport
+			let deleteCnt = deleteToLineNumber - deleteFromLineNumber + 1;
+			this._rendLineNumberStart -= deleteCnt;
+			return null;
+		}
+
+		if (deleteFromLineNumber > endLineNumber) {
+			// deleted below the viewport
+			return null;
+		}
+
+		// Record what needs to be deleted
 		let deleteStartIndex = 0;
 		let deleteCount = 0;
 		for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
@@ -154,18 +168,14 @@ export class RenderedLinesCollection<T extends ILine> {
 		let startLineNumber = this.getStartLineNumber();
 		let endLineNumber = this.getEndLineNumber();
 
-		// Notify lines after the change
-		let notifiedSomeone = false;
-		for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
-			let lineIndex = lineNumber - this._rendLineNumberStart;
-
-			if (lineNumber === changedLineNumber) {
-				this._lines[lineIndex].onContentChanged();
-				notifiedSomeone = true;
-			}
+		if (changedLineNumber < startLineNumber || changedLineNumber > endLineNumber) {
+			// a line has been changed above or below the viewport
+			return false;
 		}
 
-		return notifiedSomeone;
+		// Notify the line
+		this._lines[changedLineNumber - this._rendLineNumberStart].onContentChanged();
+		return true;
 	}
 
 	public onModelLinesInserted(insertFromLineNumber: number, insertToLineNumber: number): T[] {
@@ -244,7 +254,7 @@ export class RenderedLinesCollection<T extends ILine> {
 
 export abstract class ViewLayer<T extends IVisibleLine> extends ViewPart {
 
-	protected domNode: FastDomNode;
+	protected domNode: FastDomNode<HTMLElement>;
 	protected _linesCollection: RenderedLinesCollection<T>;
 	private _renderer: ViewLayerRenderer<T>;
 	private _scrollDomNode: HTMLElement;
@@ -272,11 +282,11 @@ export abstract class ViewLayer<T extends IVisibleLine> extends ViewPart {
 
 	// ---- begin view event handlers
 
-	public onLayoutChanged(layoutInfo: editorCommon.EditorLayoutInfo): boolean {
-		return true;
+	public onConfigurationChanged(e: editorCommon.IConfigurationChangedEvent): boolean {
+		return e.layoutInfo;
 	}
 
-	public onScrollChanged(e: editorCommon.IScrollEvent): boolean {
+	public onScrollChanged(e: ScrollEvent): boolean {
 		return e.scrollTopChanged;
 	}
 
@@ -291,7 +301,7 @@ export abstract class ViewLayer<T extends IVisibleLine> extends ViewPart {
 		return true;
 	}
 
-	public onModelLinesDeleted(e: editorCommon.IViewLinesDeletedEvent): boolean {
+	public onModelLinesDeleted(e: viewEvents.IViewLinesDeletedEvent): boolean {
 		let deleted = this._linesCollection.onModelLinesDeleted(e.fromLineNumber, e.toLineNumber);
 		if (deleted) {
 			// Remove from DOM
@@ -306,11 +316,11 @@ export abstract class ViewLayer<T extends IVisibleLine> extends ViewPart {
 		return true;
 	}
 
-	public onModelLineChanged(e: editorCommon.IViewLineChangedEvent): boolean {
+	public onModelLineChanged(e: viewEvents.IViewLineChangedEvent): boolean {
 		return this._linesCollection.onModelLineChanged(e.lineNumber);
 	}
 
-	public onModelLinesInserted(e: editorCommon.IViewLinesInsertedEvent): boolean {
+	public onModelLinesInserted(e: viewEvents.IViewLinesInsertedEvent): boolean {
 		let deleted = this._linesCollection.onModelLinesInserted(e.fromLineNumber, e.toLineNumber);
 		if (deleted) {
 			// Remove from DOM
@@ -325,7 +335,7 @@ export abstract class ViewLayer<T extends IVisibleLine> extends ViewPart {
 		return true;
 	}
 
-	public onModelTokensChanged(e: editorCommon.IViewTokensChangedEvent): boolean {
+	public onModelTokensChanged(e: viewEvents.IViewTokensChangedEvent): boolean {
 		return this._linesCollection.onModelTokensChanged(e.ranges);
 	}
 
@@ -353,7 +363,7 @@ export abstract class ViewLayer<T extends IVisibleLine> extends ViewPart {
 		this._scrollDomNodeIsAbove = resCtx.scrollDomNodeIsAbove;
 	}
 
-	private _createDomNode(): FastDomNode {
+	private _createDomNode(): FastDomNode<HTMLElement> {
 		let domNode = createFastDomNode(document.createElement('div'));
 		domNode.setClassName('view-layer');
 		domNode.setPosition('absolute');

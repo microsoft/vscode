@@ -53,6 +53,14 @@ class SingleLineTestModel implements ISimpleModel {
 	getLineCount(): number {
 		return 1;
 	}
+
+	public getPlainTextToCopy(ranges: Range[], enableEmptySelectionClipboard: boolean): string {
+		return '';
+	}
+
+	public getHTMLToCopy(ranges: Range[], enableEmptySelectionClipboard: boolean): string {
+		return '';
+	}
 }
 
 class TestView {

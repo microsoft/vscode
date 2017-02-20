@@ -32,7 +32,7 @@ export class OutputService implements IOutputService {
 
 	public _serviceBrand: any;
 
-	private receivedOutput: { [channel: string]: string; };
+	private receivedOutput: Map<string, string>;
 
 	private activeChannelId: string;
 
@@ -55,7 +55,7 @@ export class OutputService implements IOutputService {
 		this._onOutputChannel = new Emitter<string>();
 		this._onActiveOutputChannel = new Emitter<string>();
 
-		this.receivedOutput = Object.create(null);
+		this.receivedOutput = new Map<string, string>();
 
 		const channels = this.getChannels();
 		this.activeChannelId = this.storageService.get(OUTPUT_ACTIVE_CHANNEL_KEY, StorageScope.WORKSPACE, channels && channels.length > 0 ? channels[0].id : null);
@@ -98,7 +98,8 @@ export class OutputService implements IOutputService {
 			},
 			append: (output: string) => this.append(id, output),
 			show: (preserveFocus: boolean) => this.showOutput(id, preserveFocus),
-			clear: () => this.clearOutput(id)
+			clear: () => this.clearOutput(id),
+			dispose: () => this.removeOutput(id)
 		};
 	}
 
@@ -109,8 +110,8 @@ export class OutputService implements IOutputService {
 	private append(channelId: string, output: string): void {
 
 		// Initialize
-		if (!this.receivedOutput[channelId]) {
-			this.receivedOutput[channelId] = '';
+		if (!this.receivedOutput.has(channelId)) {
+			this.receivedOutput.set(channelId, '');
 
 			this._onOutputChannel.fire(channelId); // emit event that we have a new channel
 		}
@@ -120,7 +121,7 @@ export class OutputService implements IOutputService {
 
 		// Store
 		if (output) {
-			this.receivedOutput[channelId] = strings.appendWithLimit(this.receivedOutput[channelId], output, MAX_OUTPUT_LENGTH);
+			this.receivedOutput.set(channelId, strings.appendWithLimit(this.receivedOutput.get(channelId), output, MAX_OUTPUT_LENGTH));
 		}
 
 		this._onOutput.fire({ output: output, channelId: channelId });
@@ -131,13 +132,25 @@ export class OutputService implements IOutputService {
 	}
 
 	private getOutput(channelId: string): string {
-		return this.receivedOutput[channelId] || '';
+		return this.receivedOutput.get(channelId) || '';
 	}
 
 	private clearOutput(channelId: string): void {
-		this.receivedOutput[channelId] = '';
+		this.receivedOutput.set(channelId, '');
 
 		this._onOutput.fire({ channelId: channelId, output: null /* indicator to clear output */ });
+	}
+
+	private removeOutput(channelId: string): void {
+		this.receivedOutput.delete(channelId);
+		Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).removeChannel(channelId);
+		if (this.activeChannelId === channelId) {
+			const channels = this.getChannels();
+			this.activeChannelId = channels.length ? channels[0].id : undefined;
+			this._onActiveOutputChannel.fire(this.activeChannelId);
+		}
+
+		this._onOutputChannel.fire(channelId);
 	}
 
 	private showOutput(channelId: string, preserveFocus?: boolean): TPromise<IEditor> {

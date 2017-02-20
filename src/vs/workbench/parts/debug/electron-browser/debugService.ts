@@ -436,9 +436,8 @@ export class DebugService implements debug.IDebugService {
 		if (focusedProcess) {
 			return this.sessionStates.get(focusedProcess.getId());
 		}
-		const processes = this.model.getProcesses();
-		if (processes.length > 0) {
-			return this.sessionStates.get(processes[0].getId());
+		if (this.sessionStates.size > 0) {
+			return debug.State.Initializing;
 		}
 
 		return debug.State.Inactive;
@@ -449,7 +448,11 @@ export class DebugService implements debug.IDebugService {
 	}
 
 	private setStateAndEmit(sessionId: string, newState: debug.State): void {
-		this.sessionStates.set(sessionId, newState);
+		if (newState === debug.State.Inactive) {
+			this.sessionStates.delete(sessionId);
+		} else {
+			this.sessionStates.set(sessionId, newState);
+		}
 		this._onDidChangeState.fire();
 	}
 
@@ -682,6 +685,7 @@ export class DebugService implements debug.IDebugService {
 			this.registerSessionListeners(process, session);
 
 			return session.initialize({
+				clientID: 'vscode',
 				adapterID: configuration.type,
 				pathFormat: 'path',
 				linesStartAt1: true,
@@ -844,6 +848,21 @@ export class DebugService implements debug.IDebugService {
 				}
 			}
 		});
+	}
+
+	public stopProcess(process: debug.IProcess): TPromise<any> {
+		if (process) {
+			return process.session.disconnect(false, true);
+		}
+
+		const processes = this.model.getProcesses();
+		if (processes.length) {
+			return TPromise.join(processes.map(p => p.session.disconnect(false, true)));
+		}
+
+		this.sessionStates.clear();
+		this._onDidChangeState.fire();
+		return undefined;
 	}
 
 	private onSessionEnd(session: RawDebugSession): void {

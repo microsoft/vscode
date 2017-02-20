@@ -9,15 +9,15 @@
 }
 
 .monaco-editor .debug-top-stack-frame-line {
-	background: rgba(255, 255, 0, 0.35);
+	background: rgba(255, 255, 102, 0.45);
 }
 
 .monaco-editor .debug-top-stack-frame-exception-line {
-	background: rgba(242, 222, 222, 0.7);
+	background: rgba(242, 222, 222, 0.8);
 }
 
-.monaco-editor .debug-top-stack-frame-column {
-	background: rgba(255, 200, 0, 0.2);
+.monaco-editor .debug-top-stack-frame-column::before {
+	background: url('current-arrow.svg') center center no-repeat;
 }
 
 .monaco-editor .debug-focused-stack-frame-line {
@@ -51,7 +51,8 @@
 	background: url('breakpoint.svg') center center no-repeat;
 }
 
-.monaco-editor .debug-breakpoint-column::before {
+.monaco-editor .debug-breakpoint-column::before,
+.monaco-editor .debug-top-stack-frame-column::before {
 	content: " ";
 	width: 0.9em;
 	height: 0.8em;
@@ -181,15 +182,15 @@
 }
 
 .monaco-editor.vs-dark .debug-top-stack-frame-line {
-	background: rgba(255, 255, 0, 0.20);
+	background: rgba(255, 255, 0, 0.2)
 }
 
 .monaco-editor.vs-dark .debug-top-stack-frame-exception-line {
 	background-color: rgba(90, 29, 29, 0.6);
 }
 
-.monaco-editor.vs-dark .debug-top-stack-frame-column {
-	background: rgba(255, 255, 0, 0.15);
+.monaco-editor.vs-dark .debug-top-stack-frame-column::before {
+	background: url('current-arrow-dark.svg') center center no-repeat;
 }
 
 .monaco-editor.vs-dark .debug-breakpoint-glyph,
@@ -242,6 +243,6 @@
 }
 
 .hc-black .monaco-editor .debug-top-stack-frame-line {
-	background: rgba(255, 246, 0, .87);
+	background: rgba(255, 246, 0, .8);
 	mix-blend-mode: lighten; /* Preserves text selection's contrast */
 }

@@ -320,6 +320,7 @@ export class ProcessRunnerDetector {
 			tasks.forEach((task) => {
 				taskConfigs.push({
 					taskName: task,
+					identifier: task,
 					args: [],
 					isWatching: false
 				});
@@ -338,6 +339,7 @@ export class ProcessRunnerDetector {
 				this._stdout.push(nls.localize('TaskSystemDetector.buildTaskDetected', 'Build task named \'{0}\' detected.', name));
 				taskConfigs.push({
 					taskName: name,
+					identifier: name,
 					args: [],
 					isBuildCommand: true,
 					isWatching: false,
@@ -349,6 +351,7 @@ export class ProcessRunnerDetector {
 				this._stdout.push(nls.localize('TaskSystemDetector.testTaskDetected', 'Test task named \'{0}\' detected.', name));
 				taskConfigs.push({
 					taskName: name,
+					identifier: name,
 					args: [],
 					isTestCommand: true
 				});

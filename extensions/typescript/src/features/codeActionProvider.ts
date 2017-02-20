@@ -27,10 +27,10 @@ export default class TypeScriptCodeActionProvider implements CodeActionProvider 
 	private supportedCodeActions: Promise<NumberSet>;
 
 	constructor(
-		private client: ITypescriptServiceClient,
-		modeId: string
+		private readonly client: ITypescriptServiceClient,
+		mode: string
 	) {
-		this.commandId = `typescript.codeActions.${modeId}`;
+		this.commandId = `_typescript.applyCodeAction.${mode}`;
 		this.supportedCodeActions = client.execute('getSupportedCodeFixes', null, undefined)
 			.then(response => response.body || [])
 			.then(codes => codes.map(code => +code).filter(code => !isNaN(code)))

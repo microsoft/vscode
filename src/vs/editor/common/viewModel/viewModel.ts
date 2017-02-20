@@ -58,6 +58,7 @@ export interface ICoordinatesConverter {
 	// Model -> View conversion and related methods
 	convertModelPositionToViewPosition(modelPosition: Position): Position;
 	convertModelRangeToViewRange(modelRange: Range): Range;
+	convertModelSelectionToViewSelection(modelSelection: Selection): Selection;
 	modelPositionIsVisible(modelPosition: Position): boolean;
 }
 
@@ -72,6 +73,7 @@ export interface IViewModel extends IEventEmitter {
 
 	getDecorationsInViewport(visibleRange: Range): ViewModelDecoration[];
 	getViewLineRenderingData(visibleRange: Range, lineNumber: number): ViewLineRenderingData;
+	getMinimapLinesRenderingData(startLineNumber: number, endLineNumber: number, needed: boolean[]): MinimapLinesRenderingData;
 
 	getTabSize(): number;
 	getLineCount(): number;
@@ -87,6 +89,55 @@ export interface IViewModel extends IEventEmitter {
 	getModelLineContent(modelLineNumber: number): string;
 	getModelLineMaxColumn(modelLineNumber: number): number;
 	validateModelPosition(modelPosition: IPosition): Position;
+
+	getPlainTextToCopy(ranges: Range[], enableEmptySelectionClipboard: boolean): string;
+	getHTMLToCopy(ranges: Range[], enableEmptySelectionClipboard: boolean): string;
+}
+
+export class MinimapLinesRenderingData {
+	public readonly tabSize: number;
+	public readonly data: ViewLineData[];
+
+	constructor(
+		tabSize: number,
+		data: ViewLineData[]
+	) {
+		this.tabSize = tabSize;
+		this.data = data;
+	}
+}
+
+export class ViewLineData {
+	_viewLineDataBrand: void;
+
+	/**
+	 * The content at this view line.
+	 */
+	public readonly content: string;
+	/**
+	 * The minimum allowed column at this view line.
+	 */
+	public readonly minColumn: number;
+	/**
+	 * The maximum allowed column at this view line.
+	 */
+	public readonly maxColumn: number;
+	/**
+	 * The tokens at this view line.
+	 */
+	public readonly tokens: ViewLineToken[];
+
+	constructor(
+		content: string,
+		minColumn: number,
+		maxColumn: number,
+		tokens: ViewLineToken[]
+	) {
+		this.content = content;
+		this.minColumn = minColumn;
+		this.maxColumn = maxColumn;
+		this.tokens = tokens;
+	}
 }
 
 export class ViewLineRenderingData {

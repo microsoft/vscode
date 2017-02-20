@@ -17,14 +17,15 @@ export interface ITelemetryInfo {
 
 export interface ITelemetryData {
 	from?: string;
+	target?: string;
 	[key: string]: any;
 }
 
 export interface ITelemetryExperiments {
 	showNewUserWatermark: boolean;
 	openUntitledFile: boolean;
-	openGettingStarted?: boolean;
 	enableWelcomePage: boolean;
+	reorderQuickLinks: boolean;
 }
 
 export interface ITelemetryService {

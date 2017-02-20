@@ -14,7 +14,7 @@
     "semver": "4.3.6",
     "vscode-extension-telemetry": "^0.0.5",
     "vscode-nls": "^2.0.1",
-    "typescript": "typescript@2.2.1-insiders.20170209"
+    "typescript": "typescript@2.2.1-insiders.20170217"
   },
   "devDependencies": {
     "@types/node": "^7.0.4",
@@ -36,6 +36,7 @@
     "onCommand:typescript.selectTypeScriptVersion",
     "onCommand:javascript.goToProjectConfig",
     "onCommand:typescript.goToProjectConfig",
+    "onCommand:_typescript.tryCompleteJsDoc",
     "workspaceContains:jsconfig.json",
     "workspaceContains:tsconfig.json"
   ],
@@ -81,6 +82,28 @@
           "meta.tag.tsx": "jsx-tags",
           "meta.tag.without-attributes.tsx": "jsx-tags"
         }
+      }
+    ],
+    "keybindings": [
+      {
+        "key": "enter",
+        "command": "_typescript.tryCompleteJsDoc",
+        "when": "editorTextFocus && !suggestWidgetVisible && editorLangId == 'typescript'"
+      },
+      {
+        "key": "enter",
+        "command": "_typescript.tryCompleteJsDoc",
+        "when": "editorTextFocus && !suggestWidgetVisible && editorLangId == 'typescriptreact'"
+      },
+      {
+        "key": "enter",
+        "command": "_typescript.tryCompleteJsDoc",
+        "when": "editorTextFocus && !suggestWidgetVisible && editorLangId == 'javascript'"
+      },
+      {
+        "key": "enter",
+        "command": "_typescript.tryCompleteJsDoc",
+        "when": "editorTextFocus && !suggestWidgetVisible && editorLangId == 'javascriptreact'"
       }
     ],
     "configuration": {
@@ -279,7 +302,7 @@
         "title": "%typescript.goToProjectConfig.title%",
         "category": "TypeScript"
       },
-       {
+      {
         "command": "javascript.goToProjectConfig",
         "title": "%javascript.goToProjectConfig.title%",
         "category": "JavaScript"

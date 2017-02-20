@@ -31,7 +31,6 @@ import { createActionItem } from 'vs/platform/actions/browser/menuItemActionItem
 import { SCMMenus } from './scmMenus';
 import { ActionBar, IActionItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
-import { isDarkTheme } from 'vs/platform/theme/common/themes';
 import { SCMEditor } from './scmEditor';
 import { IModelService } from 'vs/editor/common/services/modelService';
 
@@ -128,7 +127,7 @@ class ResourceRenderer implements IRenderer<ISCMResource, ResourceTemplate> {
 		toggleClass(template.name, 'strike-through', resource.decorations.strikeThrough);
 
 		const theme = this.themeService.getColorTheme();
-		const icon = isDarkTheme(theme.id) ? resource.decorations.iconDark : resource.decorations.icon;
+		const icon = theme.isDarkTheme() ? resource.decorations.iconDark : resource.decorations.icon;
 
 		if (icon) {
 			template.decorationIcon.style.backgroundImage = `url('${icon}')`;
@@ -178,6 +177,7 @@ export class SCMViewlet extends Viewlet {
 		super(VIEWLET_ID, telemetryService);
 
 		this.menus = this.instantiationService.createInstance(SCMMenus);
+		this.menus.onDidChangeTitle(this.updateTitleArea, this, this.disposables);
 		this.disposables.push(this.menus);
 	}
 
@@ -222,7 +222,7 @@ export class SCMViewlet extends Viewlet {
 
 		this.disposables.push(this.listService.register(this.list));
 
-		chain(this.list.onSelectionChange)
+		chain(this.list.onOpen)
 			.map(e => e.elements[0])
 			.filter(e => !!e && isSCMResource(e))
 			.on(this.open, this, this.disposables);

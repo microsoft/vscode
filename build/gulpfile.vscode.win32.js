@@ -44,6 +44,7 @@ function buildWin32Setup(cb) {
 		NameVersion: product.win32NameVersion,
 		ExeBasename: product.nameShort,
 		RegValueName: product.win32RegValueName,
+		ShellNameShort: product.win32ShellNameShort,
 		AppMutex: product.win32MutexName,
 		AppId: product.win32AppId,
 		AppUserId: product.win32AppUserModelId,

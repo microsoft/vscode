@@ -122,13 +122,13 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 		this.updateOverridePropertyPatternKey();
 	}
 
-	public registerDefaultConfigurations(defaultConnfigurations: IDefaultConfigurationExtension[]): void {
+	public registerDefaultConfigurations(defaultConfigurations: IDefaultConfigurationExtension[]): void {
 		const configurationNode: IConfigurationNode = {
 			id: 'defaultOverrides',
 			title: nls.localize('defaultConfigurations.title', "Default Configuration Overrides"),
 			properties: {}
 		};
-		for (const defaultConfiguration of defaultConnfigurations) {
+		for (const defaultConfiguration of defaultConfigurations) {
 			for (const key in defaultConfiguration.defaults) {
 				const defaultValue = defaultConfiguration.defaults[key];
 				if (OVERRIDE_PROPERTY_PATTERN.test(key) && typeof defaultValue === 'object') {
@@ -141,7 +141,9 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 				}
 			}
 		}
-		this.registerConfiguration(configurationNode, false);
+		if (Object.keys(configurationNode.properties).length) {
+			this.registerConfiguration(configurationNode, false);
+		}
 	}
 
 	private validateAndRegisterProperties(configuration: IConfigurationNode, validate: boolean = true, overridable: boolean = false) {
@@ -360,10 +362,8 @@ configurationExtPoint.setHandler(extensions => {
 
 		validateProperties(configuration, collector);
 
-		if (configuration.properties) {
-			configuration.id = extensions[i].description.id;
-			configurations.push(configuration);
-		}
+		configuration.id = extensions[i].description.id;
+		configurations.push(configuration);
 	}
 
 	configurationRegistry.registerConfigurations(configurations, false);
