@@ -14,7 +14,7 @@
     "semver": "4.3.6",
     "vscode-extension-telemetry": "^0.0.5",
     "vscode-nls": "^2.0.1",
-    "typescript": "typescript@2.2.1-insiders.20170216"
+    "typescript": "typescript@2.2.1-insiders.20170217"
   },
   "devDependencies": {
     "@types/node": "^7.0.4",
