@@ -67,6 +67,7 @@ export class BracketMatchingController extends Disposable implements editorCommo
 	private _lastVersionId: number;
 	private _decorations: string[];
 	private _updateBracketsSoon: RunOnceScheduler;
+	private _matchBrackets: boolean;
 
 	constructor(
 		editor: editorCommon.ICommonCodeEditor,
@@ -78,10 +79,19 @@ export class BracketMatchingController extends Disposable implements editorCommo
 		this._lastVersionId = 0;
 		this._decorations = [];
 		this._updateBracketsSoon = this._register(new RunOnceScheduler(() => this._updateBrackets(), 50));
+		this._matchBrackets = this._editor.getConfiguration().contribInfo.matchBrackets;
 
 		this._updateBracketsSoon.schedule();
 		this._register(editor.onDidChangeCursorPosition((e) => this._updateBracketsSoon.schedule()));
 		this._register(editor.onDidChangeModel((e) => { this._decorations = []; this._updateBracketsSoon.schedule(); }));
+		this._register(editor.onDidChangeConfiguration((e) => {
+			this._matchBrackets = this._editor.getConfiguration().contribInfo.matchBrackets;
+			if (!this._matchBrackets && this._decorations.length > 0) {
+				// Remove existing decorations if bracket matching is off
+				this._decorations = this._editor.deltaDecorations(this._decorations, []);
+			}
+			this._updateBracketsSoon.schedule();
+		}));
 	}
 
 	public getId(): string {
@@ -124,12 +134,15 @@ export class BracketMatchingController extends Disposable implements editorCommo
 	};
 
 	private _updateBrackets(): void {
+		if (!this._matchBrackets) {
+			return;
+		}
 		this._recomputeBrackets();
 
 		let newDecorations: editorCommon.IModelDeltaDecoration[] = [], newDecorationsLen = 0;
 		for (let i = 0, len = this._lastBracketsData.length; i < len; i++) {
 			let brackets = this._lastBracketsData[i].brackets;
-			if (this.configurationService.lookup<boolean>('editor.highlightMatchingBrackets').value && brackets) {
+			if (brackets) {
 				newDecorations[newDecorationsLen++] = { range: brackets[0], options: BracketMatchingController._DECORATION_OPTIONS };
 				newDecorations[newDecorationsLen++] = { range: brackets[1], options: BracketMatchingController._DECORATION_OPTIONS };
 			}
