@@ -3,9 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.virtual-cursor-underline-style {
-	border-bottom-width: 2px;
-	border-bottom-style: solid;
-	background: transparent !important;
-	box-sizing: border-box;
+.monaco-editor.vs .dnd-target {
+	background: black;
+	border-color: black;
+	color: white; /* opposite of black */
+}
+.monaco-editor.vs-dark .dnd-target {
+	background: #AEAFAD;
+	border-color: #AEAFAD;
+	color: #51504f; /* opposite of #AEAFAD */
+}
+.monaco-editor.hc-black .dnd-target {
+	background: #fff;
+	border-color: #fff;
+	color: #000; /* opposite of #fff */
 }

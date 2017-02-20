@@ -39,7 +39,7 @@ export class DragTargetHintWidget extends Widget implements editorBrowser.IConte
 
 		// Create the dom node
 		this._domNode = createFastDomNode(document.createElement('div'));
-		this._domNode.setClassName('cursor secondary');
+		this._domNode.setClassName('dnd-target');
 		this._domNode.setTop(0);
 		this._domNode.setLeft(0);
 		this._domNode.setAttribute('role', 'presentation');
@@ -120,16 +120,6 @@ export class DragTargetHintWidget extends Widget implements editorBrowser.IConte
 
 		Configuration.applyFontInfo(this._domNode, this._editor.getConfiguration().fontInfo);
 		this._domNode.setHeight(this._lineHeight);
-		if (this._cursorStyle === TextEditorCursorStyle.Line) {
-			this._domNode.setWidth(1);
-		} else {
-			this._domNode.setWidth(this._typicalHalfwidthCharacterWidth);
-		}
-
-		if (this._cursorStyle === TextEditorCursorStyle.Underline) {
-			this._domNode.setClassName('cursor secondary virtual-cursor-underline-style');
-		} else {
-			this._domNode.setClassName('cursor secondary');
-		}
+		this._domNode.setWidth(0);
 	}
 }
