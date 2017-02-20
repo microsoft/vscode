@@ -6,7 +6,7 @@
 	"contributes": {
 		"languages": [{
 			"id": "shaderlab",
-			"extensions": [".shader", ".cginc"],
+			"extensions": [".shader"],
 			"aliases": ["ShaderLab", "shaderlab"],
 			"configuration": "./language-configuration.json"
 		}],
