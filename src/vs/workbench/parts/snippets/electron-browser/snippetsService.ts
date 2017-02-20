@@ -98,20 +98,20 @@ class SnippetsService implements ISnippetsService {
 		const currentFullWord = getNonWhitespacePrefix(model, position).toLowerCase();
 
 		this.visitSnippets(languageId, s => {
-			let overwriteBefore: number;
-			if (currentWord.length === 0 && currentFullWord.length === 0) {
-				// if there's no prefix, only show snippets at the beginning of the line, or after a whitespace
-				overwriteBefore = 0;
-			} else {
-				const label = s.prefix.toLowerCase();
-				// force that the current word or full word matches with the snippet prefix
-				if (currentWord.length > 0 && strings.startsWith(label, currentWord)) {
+			const prefixLower = s.prefix.toLowerCase();
+
+			let overwriteBefore = 0;
+			if (currentWord.length > 0) {
+				// there is a word -> the prefix should match that
+				if (strings.startsWith(prefixLower, currentWord)) {
 					overwriteBefore = currentWord.length;
-				} else if (currentFullWord.length > currentWord.length && strings.startsWith(label, currentFullWord)) {
-					overwriteBefore = currentFullWord.length;
 				} else {
 					return true;
 				}
+
+			} else if (currentFullWord.length > currentWord.length) {
+				// there is something -> fine if it matches
+				overwriteBefore = strings.commonPrefixLength(prefixLower, currentFullWord);
 			}
 
 			// store in result
