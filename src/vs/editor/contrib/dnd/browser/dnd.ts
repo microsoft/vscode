@@ -56,10 +56,10 @@ export class DragAndDropController implements editorCommon.IEditorContribution {
 	}
 
 	private _onEditorMouseDrop(mouseEvent: IEditorMouseEvent): void {
-		let targetPosition = mouseEvent.target.position;
-
-		if (targetPosition) {
-			let newCursorPosition = new Position(targetPosition.lineNumber, targetPosition.column);
+		if (mouseEvent.target &&
+			(mouseEvent.target.type === editorCommon.MouseTargetType.CONTENT_TEXT || mouseEvent.target.type === editorCommon.MouseTargetType.CONTENT_EMPTY) &&
+			mouseEvent.target.position) {
+			let newCursorPosition = new Position(mouseEvent.target.position.lineNumber, mouseEvent.target.position.column);
 
 			if (this._dragSelection.containsPosition(newCursorPosition)) {
 				let newSelections = this._editor.getSelections().map(selection => {

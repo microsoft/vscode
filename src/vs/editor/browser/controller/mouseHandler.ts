@@ -347,7 +347,6 @@ class MouseDownOperation extends Disposable {
 	private _mouseDownThenMoveEventHandler: EventGateKeeper<EditorMouseEvent>;
 
 	private _currentSelection: Selection;
-	private _dropTarget: editorBrowser.IMouseTarget;
 	private _mouseState: MouseDownState;
 
 	private _onScrollTimeout: TimeoutTimer;
@@ -405,10 +404,9 @@ class MouseDownOperation extends Disposable {
 		}
 
 		if (this._mouseState.isDragAndDrop) {
-			this._dropTarget = this._createMouseTarget(e, true);
 			this._viewController.emitMouseDrag({
 				event: e,
-				target: this._dropTarget
+				target: this._createMouseTarget(e, true)
 			});
 		} else {
 			this._dispatchMouse(position, true);
@@ -439,19 +437,20 @@ class MouseDownOperation extends Disposable {
 		) {
 			this._mouseState.isDragAndDrop = true;
 			this._isActive = true;
-			this._dropTarget = this._createMouseTarget(e, true);
 			this._viewController.emitMouseDrag({
 				event: e,
-				target: this._dropTarget
+				target: this._createMouseTarget(e, true)
 			});
 
 			this._mouseMoveMonitor.startMonitoring(
 				createMouseMoveEventMerger(null),
 				this._mouseDownThenMoveEventHandler.handler,
 				() => {
+					let position = this._findMousePosition(this._lastMouseEvent, true);
+
 					this._viewController.emitMouseDrop({
-						event: e,
-						target: this._dropTarget
+						event: this._lastMouseEvent,
+						target: position ? this._createMouseTarget(this._lastMouseEvent, true) : null // Ignoring because position is unknown, e.g., Content View Zone
 					});
 
 					this._stop();
