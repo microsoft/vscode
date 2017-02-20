@@ -84,7 +84,7 @@ configurationRegistry.registerConfiguration({
 			'type': 'string',
 			'enum': ['left', 'right', 'off'],
 			'default': 'right',
-			'description': nls.localize('editorTabCloseButton', "Controls the position of the editor's tabs close buttons or disables them when set to 'off'.")
+			'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'editorTabCloseButton' }, "Controls the position of the editor's tabs close buttons or disables them when set to 'off'.")
 		},
 		'workbench.editor.showIcons': {
 			'type': 'boolean',
@@ -105,7 +105,7 @@ configurationRegistry.registerConfiguration({
 			'type': 'string',
 			'enum': ['left', 'right', 'first', 'last'],
 			'default': 'right',
-			'description': nls.localize('editorOpenPositioning', "Controls where editors open. Select 'left' or 'right' to open editors to the left or right of the current active one. Select 'first' or 'last' to open editors independently from the currently active one.")
+			'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'editorOpenPositioning' }, "Controls where editors open. Select 'left' or 'right' to open editors to the left or right of the current active one. Select 'first' or 'last' to open editors independently from the currently active one.")
 		},
 		'workbench.quickOpen.closeOnFocusLost': {
 			'type': 'boolean',
@@ -142,9 +142,9 @@ let properties: { [path: string]: IJSONSchema; } = {
 		'type': 'string',
 		'enum': ['on', 'off', 'default'],
 		'enumDescriptions': [
-			nls.localize('window.openFilesInNewWindow.on', "\"on\": files will open in a new window"),
-			nls.localize('window.openFilesInNewWindow.off', "\"off\": files will open in the window with the files' folder open or the last active window"),
-			nls.localize('window.openFilesInNewWindow.default', "\"default\": files will open in the window with the files' folder open or the last active window unless opened via the dock or from finder (macOS only)")
+			nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'window.openFilesInNewWindow.on' }, "'on': files will open in a new window"),
+			nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'window.openFilesInNewWindow.off' }, "'off': files will open in the window with the files' folder open or the last active window"),
+			nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'window.openFilesInNewWindow.default' }, "'default': files will open in the window with the files' folder open or the last active window unless opened via the dock or from finder (macOS only)")
 		],
 		'default': 'default',
 		'description':
@@ -160,9 +160,9 @@ Note that there can still be cases where this setting is ignored (e.g. when usin
 		'type': 'string',
 		'enum': ['on', 'off', 'default'],
 		'enumDescriptions': [
-			nls.localize('window.openFoldersInNewWindow.on', "\"on\": folders will open in a new window"),
-			nls.localize('window.openFoldersInNewWindow.off', "\"off\": folders will replace the last active window"),
-			nls.localize('window.openFoldersInNewWindow.default', "\"default\": folders will open in a new window unless a folder is picked from within the application (e.g. via the File menu)")
+			nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'window.openFoldersInNewWindow.on' }, "'on': folders will open in a new window"),
+			nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'window.openFoldersInNewWindow.off' }, "'off': folders will replace the last active window"),
+			nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'window.openFoldersInNewWindow.default' }, "'default': folders will open in a new window unless a folder is picked from within the application (e.g. via the File menu)")
 		],
 		'default': 'default',
 		'description': nls.localize('openFoldersInNewWindow',
@@ -177,9 +177,9 @@ Note that there can still be cases where this setting is ignored (e.g. when usin
 		'type': 'string',
 		'enum': ['none', 'one', 'all'],
 		'enumDescriptions': [
-			nls.localize('window.reopenFolders.none', "\"none\": Never reopen a folder."),
-			nls.localize('window.reopenFolders.one', "\"one\": Reopen the last active folder."),
-			nls.localize('window.reopenFolders.all', "\"all\": Reopen all folders of the last session."),
+			nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'window.reopenFolders.none' }, "'none': Never reopen a folder."),
+			nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'window.reopenFolders.one' }, "'one': Reopen the last active folder."),
+			nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'window.reopenFolders.all' }, "'all': Reopen all folders of the last session."),
 		],
 		'default': 'one',
 		'description': nls.localize('reopenFolders', "Controls how folders are being reopened after a restart. Select 'none' to never reopen a folder, 'one' to reopen the last folder you worked on or 'all' to reopen all folders of your last session.")
@@ -197,7 +197,7 @@ Note that there can still be cases where this setting is ignored (e.g. when usin
 	'window.title': {
 		'type': 'string',
 		'default': isMacintosh ? '${activeEditorName}${separator}${rootName}' : '${dirty}${activeEditorName}${separator}${rootName}${separator}${appName}',
-		'description': nls.localize('title',
+		'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by parenthesis are not to be translated.'], key: 'title' },
 			`Controls the window title based on the active editor. Variables are substituted based on the context:
 \${activeEditorName}: e.g. myFile.txt
 \${activeFilePath}: e.g. /Users/Development/myProject/myFile.txt
@@ -211,10 +211,10 @@ Note that there can still be cases where this setting is ignored (e.g. when usin
 		'type': 'string',
 		'enum': ['default', 'inherit', 'maximized', 'fullscreen'],
 		'enumDescriptions': [
-			nls.localize('window.newWindowDimensions.default', "\"default\": Open new windows in the center of the screen."),
-			nls.localize('window.newWindowDimensions.inherit', "\"inherit\": Open new windows with same dimension as last active one."),
-			nls.localize('window.newWindowDimensions.maximized', "\"maximized\": Open new windows maximized."),
-			nls.localize('window.newWindowDimensions.fullscreen', "\"fullscreen\": Open new windows in full screen mode.")
+			nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'window.newWindowDimensions.default' }, "'default': Open new windows in the center of the screen."),
+			nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'window.newWindowDimensions.inherit' }, "'inherit': Open new windows with same dimension as last active one."),
+			nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'window.newWindowDimensions.maximized' }, "'maximized': Open new windows maximized."),
+			nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'window.newWindowDimensions.fullscreen' }, "'fullscreen': Open new windows in full screen mode.")
 		],
 		'default': 'default',
 		'description': nls.localize('newWindowDimensions', "Controls the dimensions of opening a new window. By default, a new window will open in the center of the screen with small dimensions. When set to  'inherit', the window will get the same dimensions as the last active one. When set to 'maximized', the window will open maximized and fullscreen if configured to 'fullscreen'.")
@@ -226,10 +226,10 @@ if (isWindows || isLinux) {
 		'type': 'string',
 		'enum': ['default', 'visible', 'toggle', 'hidden'],
 		'enumDescriptions': [
-			nls.localize('window.menuBarVisibility.default', "\"default\": Menu is only hidden in full screen mode."),
-			nls.localize('window.menuBarVisibility.visible', "\"visible\": Menu is always visible even in full screen mode."),
-			nls.localize('window.menuBarVisibility.toggle', "\"toggle\": Menu is hidden but can be displayed via Alt key."),
-			nls.localize('window.menuBarVisibility.hidden', "\"hidden\": Menu is always hidden.")
+			nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'window.menuBarVisibility.default' }, "'default': Menu is only hidden in full screen mode."),
+			nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'window.menuBarVisibility.visible' }, "'visible': Menu is always visible even in full screen mode."),
+			nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'window.menuBarVisibility.toggle' }, "'toggle': Menu is hidden but can be displayed via Alt key."),
+			nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'window.menuBarVisibility.hidden' }, "'hidden': Menu is always hidden.")
 		],
 		'default': 'default',
 		'description': nls.localize('menuBarVisibility', "Control the visibility of the menu bar. A setting of 'toggle' means that the menu bar is hidden and a single press of the Alt key will show it. By default, the menu bar will be visible, unless the window is full screen.")
