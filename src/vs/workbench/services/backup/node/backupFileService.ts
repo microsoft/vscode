@@ -10,6 +10,7 @@ import * as crypto from 'crypto';
 import pfs = require('vs/base/node/pfs');
 import * as platform from 'vs/base/common/platform';
 import Uri from 'vs/base/common/uri';
+import { Queue } from 'vs/base/common/async';
 import { IBackupFileService, BACKUP_FILE_UPDATE_OPTIONS } from 'vs/workbench/services/backup/common/backup';
 import { IBackupService } from 'vs/platform/backup/common/backup';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -97,6 +98,7 @@ export class BackupFileService implements IBackupFileService {
 	private isShuttingDown: boolean;
 	private backupWorkspacePath: string;
 	private ready: TPromise<IBackupFilesModel>;
+	private ioQueue: Queue<void>;
 
 	constructor(
 		@IEnvironmentService private environmentService: IEnvironmentService,
@@ -106,6 +108,7 @@ export class BackupFileService implements IBackupFileService {
 	) {
 		this.isShuttingDown = false;
 		this.ready = this.init(windowService.getCurrentWindowId());
+		this.ioQueue = new Queue<void>();
 	}
 
 	private get backupEnabled(): boolean {
@@ -173,7 +176,9 @@ export class BackupFileService implements IBackupFileService {
 			// Add metadata to top of file
 			content = `${resource.toString()}${BackupFileService.META_MARKER}${content}`;
 
-			return this.fileService.updateContent(backupResource, content, BACKUP_FILE_UPDATE_OPTIONS).then(() => model.add(backupResource, versionId));
+			return this.ioQueue.queue(() => {
+				return this.fileService.updateContent(backupResource, content, BACKUP_FILE_UPDATE_OPTIONS).then(() => model.add(backupResource, versionId));
+			});
 		});
 	}
 
@@ -184,7 +189,9 @@ export class BackupFileService implements IBackupFileService {
 				return void 0;
 			}
 
-			return pfs.del(backupResource.fsPath).then(() => model.remove(backupResource));
+			return this.ioQueue.queue(() => {
+				return pfs.del(backupResource.fsPath).then(() => model.remove(backupResource));
+			});
 		});
 	}
 
