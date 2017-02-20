@@ -98,6 +98,10 @@ export class BackupFileService implements IBackupFileService {
 	private isShuttingDown: boolean;
 	private backupWorkspacePath: string;
 	private ready: TPromise<IBackupFilesModel>;
+	/**
+	 * Ensure IO operations on individual files are performed in order, this could otherwise lead
+	 * to unexpected behavior when backups are persisted and discarded in the wrong order.
+	 */
 	private ioOperationQueues: { [path: string]: Queue<void> };
 
 	constructor(
@@ -198,7 +202,9 @@ export class BackupFileService implements IBackupFileService {
 	private getResourceIOQueue(resource: Uri) {
 		const key = resource.toString();
 		if (!this.ioOperationQueues[key]) {
-			this.ioOperationQueues[key] = new Queue<void>();
+			const queue = new Queue<void>();
+			queue.onFinished(() => delete this.ioOperationQueues[key]);
+			this.ioOperationQueues[key] = queue;
 		}
 		return this.ioOperationQueues[key];
 	}
