@@ -301,7 +301,6 @@ class InternalEditorOptionsHelper {
 			acceptSuggestionOnCommitCharacter: toBoolean(opts.acceptSuggestionOnCommitCharacter),
 			snippetSuggestions: opts.snippetSuggestions,
 			emptySelectionClipboard: opts.emptySelectionClipboard,
-			tabCompletion: opts.tabCompletion,
 			wordBasedSuggestions: opts.wordBasedSuggestions,
 			suggestFontSize: opts.suggestFontSize,
 			suggestLineHeight: opts.suggestLineHeight,
@@ -748,11 +747,6 @@ const editorConfiguration: IConfigurationNode = {
 			'default': 0,
 			'minimum': 0,
 			'description': nls.localize('suggestLineHeight', "Line height for the suggest widget")
-		},
-		'editor.tabCompletion': {
-			'type': 'boolean',
-			'default': DefaultConfig.editor.tabCompletion,
-			'description': nls.localize('tabCompletion', "Insert snippets when their prefix matches. Works best when 'quickSuggestions' aren't enabled.")
 		},
 		'editor.selectionHighlight': {
 			'type': 'boolean',
