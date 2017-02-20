@@ -1,5 +1,6 @@
 {
-	"command.init": "Initialize Git Repository",
+	"command.clone": "Clone",
+	"command.init": "Initialize Repository",
 	"command.refresh": "Refresh",
 	"command.openChange": "Open Change",
 	"command.openFile": "Open File",

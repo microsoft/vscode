@@ -10,6 +10,7 @@ import { Ref, RefType } from './git';
 import { Model, Resource, Status, CommitOptions } from './model';
 import * as staging from './staging';
 import * as path from 'path';
+import * as os from 'os';
 import * as nls from 'vscode-nls';
 
 const localize = nls.loadMessageBundle();
@@ -182,6 +183,37 @@ export class CommandCenter {
 		}
 
 		return '';
+	}
+
+	@command('git.clone')
+	async clone(): Promise<void> {
+		const url = await window.showInputBox({
+			prompt: localize('repourl', "Repository URL")
+		});
+
+		if (!url) {
+			return;
+		}
+
+		const parentPath = await window.showInputBox({
+			prompt: localize('parent', "Parent Directory"),
+			value: os.homedir()
+		});
+
+		if (!parentPath) {
+			return;
+		}
+
+		const clonePromise = this.model.git.clone(url, parentPath);
+		window.setStatusBarMessage(localize('cloning', "Cloning git repository..."), clonePromise);
+		const repositoryPath = await clonePromise;
+
+		const open = localize('openrepo', "Open Repository");
+		const result = await window.showInformationMessage(localize('proposeopen', "Would you like to open the cloned repository?"), open);
+
+		if (result === open) {
+			commands.executeCommand('vscode.openFolder', Uri.file(repositoryPath));
+		}
 	}
 
 	@command('git.init')

@@ -22,6 +22,11 @@
   "contributes": {
     "commands": [
       {
+        "command": "git.clone",
+        "title": "%command.clone%",
+        "category": "Git"
+      },
+      {
         "command": "git.init",
         "title": "%command.init%",
         "category": "Git",
