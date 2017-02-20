@@ -4520,7 +4520,19 @@ export enum TextEditorCursorStyle {
 	/**
 	 * As a horizontal line (sitting under a character).
 	 */
-	Underline = 3
+	Underline = 3,
+	/**
+	 * As a thin vertical line (sitting between two characters).
+	 */
+	LineThin = 4,
+	/**
+	 * As an outlined block (sitting on top of a character).
+	 */
+	BlockOutline = 5,
+	/**
+	 * As a thin horizontal line (sitting under a character).
+	 */
+	UnderlineThin = 6
 }
 
 /**
@@ -4563,6 +4575,12 @@ export function cursorStyleToString(cursorStyle: TextEditorCursorStyle): string 
 		return 'block';
 	} else if (cursorStyle === TextEditorCursorStyle.Underline) {
 		return 'underline';
+	} else if (cursorStyle === TextEditorCursorStyle.LineThin) {
+		return 'line-thin';
+	} else if (cursorStyle === TextEditorCursorStyle.BlockOutline) {
+		return 'block-outline';
+	} else if (cursorStyle === TextEditorCursorStyle.UnderlineThin) {
+		return 'underline-thin';
 	} else {
 		throw new Error('cursorStyleToString: Unknown cursorStyle');
 	}

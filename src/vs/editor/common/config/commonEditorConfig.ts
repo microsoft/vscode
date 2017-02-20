@@ -424,6 +424,12 @@ function cursorStyleFromString(cursorStyle: string): editorCommon.TextEditorCurs
 		return editorCommon.TextEditorCursorStyle.Block;
 	} else if (cursorStyle === 'underline') {
 		return editorCommon.TextEditorCursorStyle.Underline;
+	} else if (cursorStyle === 'line-thin') {
+		return editorCommon.TextEditorCursorStyle.LineThin;
+	} else if (cursorStyle === 'block-outline') {
+		return editorCommon.TextEditorCursorStyle.BlockOutline;
+	} else if (cursorStyle === 'underline-thin') {
+		return editorCommon.TextEditorCursorStyle.UnderlineThin;
 	}
 	return editorCommon.TextEditorCursorStyle.Line;
 }
@@ -770,9 +776,9 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'editor.cursorStyle': {
 			'type': 'string',
-			'enum': ['block', 'line', 'underline'],
+			'enum': ['block', 'block-outline', 'line', 'line-thin', 'underline', 'underline-thin'],
 			'default': DefaultConfig.editor.cursorStyle,
-			'description': nls.localize('cursorStyle', "Controls the cursor style, accepted values are 'block', 'line' and 'underline'")
+			'description': nls.localize('cursorStyle', "Controls the cursor style, accepted values are 'block', 'block-outline', 'line', 'line-thin', 'underline' and 'underline-thin'")
 		},
 		'editor.fontLigatures': {
 			'type': 'boolean',
