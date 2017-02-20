@@ -1176,13 +1176,15 @@ export class SearchViewlet extends Viewlet {
 
 	private updateSearchResultCount(): void {
 		const fileCount = this.viewModel.searchResult.fileCount();
+		const msgWasHidden = this.messages.isHidden();
 		if (fileCount > 0) {
-			const msgWasHidden = this.messages.isHidden();
 			const div = this.clearMessage();
 			$(div).p({ text: this.buildResultCountMessage(this.viewModel.searchResult.count(), fileCount) });
 			if (msgWasHidden) {
 				this.reLayout();
 			}
+		} else if (!msgWasHidden) {
+			this.messages.hide();
 		}
 	}
 
