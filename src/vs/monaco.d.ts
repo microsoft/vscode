@@ -3482,6 +3482,18 @@ declare module monaco.editor {
          * As a horizontal line (sitting under a character).
          */
         Underline = 3,
+        /**
+         * As a thin vertical line (sitting between two characters).
+         */
+        LineThin = 4,
+        /**
+         * As an outlined block (sitting on top of a character).
+         */
+        BlockOutline = 5,
+        /**
+         * As a thin horizontal line (sitting under a character).
+         */
+        UnderlineThin = 6,
     }
 
     /**
