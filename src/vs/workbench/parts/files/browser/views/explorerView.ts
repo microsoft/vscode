@@ -368,6 +368,13 @@ export class ExplorerView extends CollapsibleViewletView {
 			this.folderContext.set(e.focus && e.focus.isDirectory);
 		}));
 
+		// Open when selecting via keyboard
+		this.toDispose.push(this.explorerViewer.addListener2('selection', event => {
+			if (event && event.payload && event.payload.origin === 'keyboard') {
+				controller.openEditor(this.tree.getFocus(), { pinned: false, sideBySide: false, preserveFocus: false });
+			}
+		}));
+
 		return this.explorerViewer;
 	}
 
