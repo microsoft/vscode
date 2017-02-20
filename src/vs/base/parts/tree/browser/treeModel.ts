@@ -623,6 +623,11 @@ export class Item extends Events.EventEmitter {
 		this.firstChild = null;
 		this.lastChild = null;
 
+		if (this.childrenTogglePromise) {
+			this.childrenTogglePromise.cancel();
+			this.childrenTogglePromise = null;
+		}
+
 		var eventData: IItemDisposeEvent = { item: this };
 		this.emit('item:dispose', eventData);
 
