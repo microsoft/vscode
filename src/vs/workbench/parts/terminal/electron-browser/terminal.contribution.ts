@@ -150,15 +150,15 @@ configurationRegistry.registerConfiguration({
 				FocusActiveTerminalAction.ID,
 				FocusPreviousTerminalAction.ID,
 				FocusNextTerminalAction.ID,
-				FocusTerminalByNumberAction.ID(1),
-				FocusTerminalByNumberAction.ID(2),
-				FocusTerminalByNumberAction.ID(3),
-				FocusTerminalByNumberAction.ID(4),
-				FocusTerminalByNumberAction.ID(5),
-				FocusTerminalByNumberAction.ID(6),
-				FocusTerminalByNumberAction.ID(7),
-				FocusTerminalByNumberAction.ID(8),
-				FocusTerminalByNumberAction.ID(9),
+				FocusTerminalByNumberAction.getId(1),
+				FocusTerminalByNumberAction.getId(2),
+				FocusTerminalByNumberAction.getId(3),
+				FocusTerminalByNumberAction.getId(4),
+				FocusTerminalByNumberAction.getId(5),
+				FocusTerminalByNumberAction.getId(6),
+				FocusTerminalByNumberAction.getId(7),
+				FocusTerminalByNumberAction.getId(8),
+				FocusTerminalByNumberAction.getId(9),
 				TerminalPasteAction.ID,
 				RunSelectedTextInTerminalAction.ID,
 				RunActiveFileInTerminalAction.ID,
@@ -213,7 +213,7 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusActiveTermi
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusNextTerminalAction, FocusNextTerminalAction.ID, FocusNextTerminalAction.LABEL), 'Terminal: Focus Next Terminal', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusPreviousTerminalAction, FocusPreviousTerminalAction.ID, FocusPreviousTerminalAction.LABEL), 'Terminal: Focus Previous Terminal', category);
 for (let i = 1; i < 10; i++) {
-	actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusTerminalByNumberAction, FocusTerminalByNumberAction.ID(i), FocusTerminalByNumberAction.LABEL(i)), 'Terminal: Focus Terminal ' + i, category);
+	actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusTerminalByNumberAction, FocusTerminalByNumberAction.getId(i), FocusTerminalByNumberAction.getLabel(i)), 'Terminal: Focus Terminal ' + i, category);
 }
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(TerminalPasteAction, TerminalPasteAction.ID, TerminalPasteAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_V,
