@@ -262,19 +262,19 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 					switch (options.sortBy) {
 						case SortBy.InstallCount:
 							switch (options.sortOrder) {
-								case SortOrder.Descending:
-									return e2.installCount - e1.installCount;
 								case SortOrder.Ascending:
-								default:
 									return e1.installCount - e2.installCount;
+								case SortOrder.Descending:
+								default:
+									return e2.installCount - e1.installCount;
 							}
 						case SortBy.AverageRating:
 							switch (options.sortOrder) {
-								case SortOrder.Descending:
-									return e2.rating - e1.rating;
 								case SortOrder.Ascending:
-								default:
 									return e1.rating - e2.rating;
+								case SortOrder.Descending:
+								default:
+									return e2.rating - e1.rating;
 							}
 						case SortBy.Title:
 						default:
