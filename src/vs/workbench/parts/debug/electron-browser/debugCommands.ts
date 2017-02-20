@@ -24,7 +24,7 @@ export function registerCommands(): void {
 				configurationOrName = debugService.getViewModel().selectedConfigurationName;
 			}
 
-			debugService.createProcess(configurationOrName).done(undefined, errors.onUnexpectedError);
+			return debugService.createProcess(configurationOrName);
 		},
 		when: CONTEXT_NOT_IN_DEBUG_MODE,
 		primary: undefined
