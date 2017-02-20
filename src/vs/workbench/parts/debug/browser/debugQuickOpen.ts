@@ -38,6 +38,7 @@ class DebugEntry extends Model.QuickOpenEntry {
 		}
 		// Run selected debug configuration
 		this.debugService.createProcess(this.configurationName).done(undefined, errors.onUnexpectedError);
+		this.debugService.getViewModel().setSelectedConfigurationName(this.configurationName);
 
 		return true;
 	}
