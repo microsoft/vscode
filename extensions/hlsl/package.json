@@ -3,6 +3,9 @@
 	"version": "0.1.0",
 	"publisher": "vscode",
 	"engines": { "vscode": "*" },
+	"scripts": {
+		"update-grammar": "node ../../build/npm/update-grammar.js tgjones/shaders-tmLanguage grammars/shaderlab.json ./syntaxes/shaderlab.json"
+	},
 	"contributes": {
 		"languages": [{
 			"id": "hlsl",

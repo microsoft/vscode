@@ -1,9 +1,8 @@
 // ATTENTION - THIS DIRECTORY CONTAINS THIRD PARTY OPEN SOURCE MATERIALS:
 
 [{
-	"name": "shaders-tmLanguage-shaderlab",
+	"name": "shaders-tmLanguage",
 	"version": "0.1.0",
 	"license": "MIT",
-	"repositoryURL": "https://github.com/tgjones/shaders-tmLanguage",
-	"description": "The file syntaxes/shaderlab.json was included from https://github.com/tgjones/shaders-tmLanguage/blob/master/grammars/shaderlab.json."
+	"repositoryURL": "https://github.com/tgjones/shaders-tmLanguage"
 }]
