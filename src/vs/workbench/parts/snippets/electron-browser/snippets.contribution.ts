@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import 'vs/workbench/parts/snippets/electron-browser/snippetsService';
 import 'vs/workbench/parts/snippets/electron-browser/insertSnippet';
 import 'vs/workbench/parts/snippets/electron-browser/tabCompletion';
 
@@ -16,6 +17,7 @@ import platform = require('vs/platform/platform');
 import workbenchActionRegistry = require('vs/workbench/common/actionRegistry');
 import workbenchContributions = require('vs/workbench/common/contributions');
 import snippetsTracker = require('./snippetsTracker');
+import tmSnippets = require('./TMSnippets');
 import * as pfs from 'vs/base/node/pfs';
 import errors = require('vs/base/common/errors');
 import { IQuickOpenService, IPickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
@@ -120,6 +122,9 @@ workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenSn
 
 (<workbenchContributions.IWorkbenchContributionsRegistry>platform.Registry.as(workbenchContributions.Extensions.Workbench)).registerWorkbenchContribution(
 	snippetsTracker.SnippetsTracker
+);
+(<workbenchContributions.IWorkbenchContributionsRegistry>platform.Registry.as(workbenchContributions.Extensions.Workbench)).registerWorkbenchContribution(
+	tmSnippets.MainProcessTextMateSnippet
 );
 
 let schemaId = 'vscode://schemas/snippets';
