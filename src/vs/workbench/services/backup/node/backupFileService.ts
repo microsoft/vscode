@@ -203,7 +203,10 @@ export class BackupFileService implements IBackupFileService {
 		const key = resource.toString();
 		if (!this.ioOperationQueues[key]) {
 			const queue = new Queue<void>();
-			queue.onFinished(() => delete this.ioOperationQueues[key]);
+			queue.onFinished(() => {
+				queue.dispose();
+				delete this.ioOperationQueues[key];
+			});
 			this.ioOperationQueues[key] = queue;
 		}
 		return this.ioOperationQueues[key];
