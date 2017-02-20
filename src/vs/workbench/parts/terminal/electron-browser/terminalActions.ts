@@ -143,8 +143,6 @@ export class FocusNextTerminalAction extends Action {
 
 export class FocusTerminalByNumberAction extends Action {
 	private static ID_PREFIX = 'workbench.action.terminal.focus';
-	public static ID = (n: number) => FocusTerminalByNumberAction.ID_PREFIX + n;
-	public static LABEL = (n: number) => nls.localize(`workbench.action.terminal.focusByNumber${n}`, `Focus Terminal ${n}`);
 
 	constructor(
 		id: string, label: string,
@@ -156,6 +154,14 @@ export class FocusTerminalByNumberAction extends Action {
 	public run(event?: any): TPromise<any> {
 		this.terminalService.setActiveInstanceByIndex(this.getTerminalNumber() - 1);
 		return this.terminalService.showPanel(true);
+	}
+
+	public static getId(n: number): string {
+		return FocusTerminalByNumberAction.ID_PREFIX + n;
+	}
+
+	public static getLabel(n: number): string {
+		return nls.localize(`workbench.action.terminal.focusByNumber${n}`, `Focus Terminal ${n}`, n);
 	}
 
 	private getTerminalNumber(): number {
