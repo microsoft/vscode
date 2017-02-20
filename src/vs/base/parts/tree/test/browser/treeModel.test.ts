@@ -646,17 +646,21 @@ suite('TreeModel - Expansion', () => {
 		model.setInput(SAMPLE.DEEP2).done(() => {
 			assert(!model.isExpanded(SAMPLE.DEEP2.children[0]));
 			model.toggleExpansion(SAMPLE.DEEP2.children[0], true).done(() => {
-				assert(model.isExpanded(SAMPLE.DEEP2.children[0]));
-				assert(model.isExpanded(SAMPLE.DEEP2.children[0].children[0]));
+				model.addOneTimeDisposableListener('item:expanded', () => {
+					assert(model.isExpanded(SAMPLE.DEEP2.children[0]));
+					assert(model.isExpanded(SAMPLE.DEEP2.children[0].children[0]));
 
-				model.toggleExpansion(SAMPLE.DEEP2.children[0], true).done(() => {
-					assert(!model.isExpanded(SAMPLE.DEEP2.children[0]));
+					model.toggleExpansion(SAMPLE.DEEP2.children[0], true).done(() => {
+						model.addOneTimeDisposableListener('item:collapsed', () => {
+							assert(!model.isExpanded(SAMPLE.DEEP2.children[0]));
 
-					model.toggleExpansion(SAMPLE.DEEP2.children[0]).done(() => {
-						assert(model.isExpanded(SAMPLE.DEEP2.children[0]));
-						assert(!model.isExpanded(SAMPLE.DEEP2.children[0].children[0]));
+							model.toggleExpansion(SAMPLE.DEEP2.children[0]).done(() => {
+								assert(model.isExpanded(SAMPLE.DEEP2.children[0]));
+								assert(!model.isExpanded(SAMPLE.DEEP2.children[0].children[0]));
 
-						done();
+								done();
+							});
+						});
 					});
 				});
 			});
@@ -672,11 +676,15 @@ suite('TreeModel - Expansion', () => {
 					assert(model.isExpanded(SAMPLE.DEEP2.children[0].children[0]));
 
 					model.collapseAll().done(() => {
-						assert(!model.isExpanded(SAMPLE.DEEP2.children[0]));
+						model.addOneTimeDisposableListener('item:collapsed', () => {
+							model.addOneTimeDisposableListener('item:collapsed', () => {
+								assert(!model.isExpanded(SAMPLE.DEEP2.children[0]));
 
-						model.expand(SAMPLE.DEEP2.children[0]).done(() => {
-							assert(!model.isExpanded(SAMPLE.DEEP2.children[0].children[0]));
-							done();
+								model.expand(SAMPLE.DEEP2.children[0]).done(() => {
+									assert(!model.isExpanded(SAMPLE.DEEP2.children[0].children[0]));
+									done();
+								});
+							});
 						});
 					});
 				});
