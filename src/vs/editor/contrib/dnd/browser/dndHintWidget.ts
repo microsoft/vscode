@@ -21,7 +21,7 @@ export class DragTargetHintWidget extends Widget implements editorBrowser.IConte
 	private _cursorStyle: TextEditorCursorStyle;
 	private _lineHeight: number;
 	private _typicalHalfwidthCharacterWidth: number;
-	private readonly _domNode: FastDomNode;
+	private readonly _domNode: FastDomNode<HTMLElement>;
 	private _isVisible: boolean = false;
 
 	protected get isVisible(): boolean {
