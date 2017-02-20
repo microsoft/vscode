@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import 'vs/workbench/parts/snippets/common/snippetCompletion';
+import 'vs/workbench/parts/snippets/electron-browser/insertSnippet';
 import 'vs/workbench/parts/snippets/electron-browser/tabCompletion';
 
 import nls = require('vs/nls');
