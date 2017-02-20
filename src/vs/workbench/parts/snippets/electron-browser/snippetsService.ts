@@ -43,7 +43,6 @@ class SnippetsService implements ISnippetsService {
 
 	constructor() {
 		setSnippetSuggestSupport({
-			triggerCharacters: undefined,
 			provideCompletionItems: (model, position) => {
 				const suggestions = this.getSnippetCompletions(<any>model, position);
 				return { suggestions };
