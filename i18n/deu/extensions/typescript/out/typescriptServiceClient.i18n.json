@@ -6,17 +6,17 @@
 {
 	"activeVersion": "Aktuell aktiv",
 	"channelName": "TypeScript",
+	"later": "Später",
 	"learnMore": "Weitere Informationen",
 	"noServerFound": "Der Pfad \"{0}\" zeigt nicht auf eine gültige tsserver-Installation. Fallback auf gebündelte TypeScript-Version wird durchgeführt.",
 	"reloadBlurb": "Fenster erneut laden, um die Änderungen anzuwenden",
 	"reloadTitle": "Erneut laden",
-	"selectTsVersion": "Wählen Sie die für die Sprachfunktionen verwendete TypeScript-Version aus.",
+	"selectTsVersion": "Wählen Sie die für die JavaScript- und TypeScript-Sprachfunktionen verwendete TypeScript-Version aus.",
 	"serverCouldNotBeStarted": "Der TypeScript-Sprachserver konnte nicht gestartet werden. Fehlermeldung: {0}",
 	"serverDied": "Der TypeScript-Sprachdienst wurde während der letzten fünf Minuten fünfmal unerwartet beendet.",
 	"serverDiedAfterStart": "Der TypeScript-Sprachdienst wurde direkt nach seinem Start fünfmal beendet. Der Dienst wird nicht neu gestartet.",
 	"serverDiedReportIssue": "Problem melden",
 	"useVSCodeVersionOption": "Version von VSCode verwenden",
 	"useWorkspaceVersionOption": "Arbeitsbereichsversion verwenden",
-	"versionCheckUsingBundledTS": "TypeScript-Version {0} von VSCode für die TypeScript-Sprachfunktionen verwenden",
 	"versionNumber.custom": "benutzerdefiniert"
 }

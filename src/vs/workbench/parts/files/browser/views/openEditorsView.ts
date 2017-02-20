@@ -124,6 +124,13 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 		// Register to list service
 		this.toDispose.push(this.listService.register(this.tree, [this.explorerFocussedContext, this.openEditorsFocussedContext]));
 
+		// Open when selecting via keyboard
+		this.toDispose.push(this.tree.addListener2('selection', event => {
+			if (event && event.payload && event.payload.origin === 'keyboard') {
+				controller.openEditor(this.tree.getFocus(), { pinned: false, sideBySide: false, preserveFocus: false });
+			}
+		}));
+
 		this.fullRefreshNeeded = true;
 		this.structuralTreeUpdate();
 	}

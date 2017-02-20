@@ -13,6 +13,8 @@ import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { Position } from 'vs/editor/common/core/position';
 import { IRenderingContext, IRestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
 import { IViewLayout } from 'vs/editor/common/viewModel/viewModel';
+import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { ScrollEvent } from 'vs/base/common/scrollable';
 
 export interface IMyViewZone {
 	whitespaceId: number;
@@ -100,18 +102,14 @@ export class ViewZones extends ViewPart {
 			this._contentLeft = this._context.configuration.editor.layoutInfo.contentLeft;
 		}
 
-		return false;
+		return true;
 	}
 
 	public onLineMappingChanged(): boolean {
 		return this._recomputeWhitespacesProps();
 	}
 
-	public onLayoutChanged(layoutInfo: editorCommon.EditorLayoutInfo): boolean {
-		return true;
-	}
-
-	public onScrollChanged(e: editorCommon.IScrollEvent): boolean {
+	public onScrollChanged(e: ScrollEvent): boolean {
 		return e.scrollTopChanged || e.scrollWidthChanged;
 	}
 
@@ -119,11 +117,11 @@ export class ViewZones extends ViewPart {
 		return true;
 	}
 
-	public onModelLinesDeleted(e: editorCommon.IModelContentChangedLinesDeletedEvent): boolean {
+	public onModelLinesDeleted(e: viewEvents.IViewLinesDeletedEvent): boolean {
 		return true;
 	}
 
-	public onModelLinesInserted(e: editorCommon.IViewLinesInsertedEvent): boolean {
+	public onModelLinesInserted(e: viewEvents.IViewLinesInsertedEvent): boolean {
 		return true;
 	}
 
@@ -300,9 +298,6 @@ export class ViewZones extends ViewPart {
 
 	public prepareRender(ctx: IRenderingContext): void {
 		// Nothing to read
-		if (!this.shouldRender()) {
-			throw new Error('I did not ask to render!');
-		}
 	}
 
 	public render(ctx: IRestrictedRenderingContext): void {

@@ -266,8 +266,7 @@ export function registerCommands(): void {
 			// List
 			if (focused instanceof List) {
 				const list = focused;
-
-				list.setSelection(list.getFocus());
+				list.open(list.getFocus());
 			}
 
 			// Tree

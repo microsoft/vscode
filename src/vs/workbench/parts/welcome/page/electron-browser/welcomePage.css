@@ -259,7 +259,7 @@
 	display: none;
 }
 
-.file-icons-enabled .show-file-icons .vs_code_welcome_page\.html-name-file-icon.html-ext-file-icon.html-lang-file-icon.file-icon::before {
+.file-icons-enabled .show-file-icons .vs_code_welcome_page-name-file-icon.file-icon::before {
 	content: ' ';
 	background-image: url('../../code-icon.svg');
 }

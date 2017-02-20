@@ -8,11 +8,14 @@ import * as assert from 'assert';
 import { renderViewLine, RenderLineInput, CharacterMapping } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
 import { CharCode } from 'vs/base/common/charCode';
+import { MetadataConsts } from 'vs/editor/common/modes';
 
 suite('viewLineRenderer.renderLine', () => {
 
-	function createPart(endIndex: number, type: string): ViewLineToken {
-		return new ViewLineToken(endIndex, type);
+	function createPart(endIndex: number, foreground: number): ViewLineToken {
+		return new ViewLineToken(endIndex, (
+			foreground << MetadataConsts.FOREGROUND_OFFSET
+		) >>> 0);
 	}
 
 	function assertCharacterReplacement(lineContent: string, tabSize: number, expected: string, expectedCharOffsetInPart: number[][], expectedPartLengts: number[]): void {
@@ -21,7 +24,7 @@ suite('viewLineRenderer.renderLine', () => {
 			lineContent,
 			false,
 			0,
-			[new ViewLineToken(lineContent.length, '')],
+			[new ViewLineToken(lineContent.length, 0)],
 			[],
 			tabSize,
 			0,
@@ -30,7 +33,7 @@ suite('viewLineRenderer.renderLine', () => {
 			false
 		));
 
-		assert.equal(_actual.html, '<span><span class="">' + expected + '</span></span>');
+		assert.equal(_actual.html, '<span><span class="mtk0">' + expected + '</span></span>');
 		assertCharacterMapping(_actual.characterMapping, expectedCharOffsetInPart);
 		assertPartLengths(_actual.characterMapping, expectedPartLengts);
 	}
@@ -87,15 +90,15 @@ suite('viewLineRenderer.renderLine', () => {
 	});
 
 	test('uses part type', () => {
-		assertParts('x', 4, [createPart(1, 'y')], '<span class="y">x</span>', [[0, 1]], [1]);
-		assertParts('x', 4, [createPart(1, 'aAbBzZ0123456789-cC')], '<span class="aAbBzZ0123456789-cC">x</span>', [[0, 1]], [1]);
-		assertParts('x', 4, [createPart(1, '             ')], '<span class="             ">x</span>', [[0, 1]], [1]);
+		assertParts('x', 4, [createPart(1, 10)], '<span class="mtk10">x</span>', [[0, 1]], [1]);
+		assertParts('x', 4, [createPart(1, 20)], '<span class="mtk20">x</span>', [[0, 1]], [1]);
+		assertParts('x', 4, [createPart(1, 30)], '<span class="mtk30">x</span>', [[0, 1]], [1]);
 	});
 
 	test('two parts', () => {
-		assertParts('xy', 4, [createPart(1, 'a'), createPart(2, 'b')], '<span class="a">x</span><span class="b">y</span>', [[0], [0, 1]], [1, 1]);
-		assertParts('xyz', 4, [createPart(1, 'a'), createPart(3, 'b')], '<span class="a">x</span><span class="b">yz</span>', [[0], [0, 1, 2]], [1, 2]);
-		assertParts('xyz', 4, [createPart(2, 'a'), createPart(3, 'b')], '<span class="a">xy</span><span class="b">z</span>', [[0, 1], [0, 1]], [2, 1]);
+		assertParts('xy', 4, [createPart(1, 1), createPart(2, 2)], '<span class="mtk1">x</span><span class="mtk2">y</span>', [[0], [0, 1]], [1, 1]);
+		assertParts('xyz', 4, [createPart(1, 1), createPart(3, 2)], '<span class="mtk1">x</span><span class="mtk2">yz</span>', [[0], [0, 1, 2]], [1, 2]);
+		assertParts('xyz', 4, [createPart(2, 1), createPart(3, 2)], '<span class="mtk1">xy</span><span class="mtk2">z</span>', [[0, 1], [0, 1]], [2, 1]);
 	});
 
 	test('overflow', () => {
@@ -105,18 +108,18 @@ suite('viewLineRenderer.renderLine', () => {
 			false,
 			0,
 			[
-				createPart(1, '0'),
-				createPart(2, '1'),
-				createPart(3, '2'),
-				createPart(4, '3'),
-				createPart(5, '4'),
-				createPart(6, '5'),
-				createPart(7, '6'),
-				createPart(8, '7'),
-				createPart(9, '8'),
-				createPart(10, '9'),
-				createPart(11, '10'),
-				createPart(12, '11'),
+				createPart(1, 0),
+				createPart(2, 1),
+				createPart(3, 2),
+				createPart(4, 3),
+				createPart(5, 4),
+				createPart(6, 5),
+				createPart(7, 6),
+				createPart(8, 7),
+				createPart(9, 8),
+				createPart(10, 9),
+				createPart(11, 10),
+				createPart(12, 11),
 			],
 			[],
 			4,
@@ -127,12 +130,12 @@ suite('viewLineRenderer.renderLine', () => {
 		));
 
 		let expectedOutput = [
-			'<span class="0">H</span>',
-			'<span class="1">e</span>',
-			'<span class="2">l</span>',
-			'<span class="3">l</span>',
-			'<span class="4">o</span>',
-			'<span class="5">&nbsp;</span>',
+			'<span class="mtk0">H</span>',
+			'<span class="mtk1">e</span>',
+			'<span class="mtk2">l</span>',
+			'<span class="mtk3">l</span>',
+			'<span class="mtk4">o</span>',
+			'<span class="mtk5">&nbsp;</span>',
 			'<span class="vs-whitespace">&hellip;</span>'
 		].join('');
 
@@ -151,32 +154,32 @@ suite('viewLineRenderer.renderLine', () => {
 	test('typical line', () => {
 		let lineText = '\t    export class Game { // http://test.com     ';
 		let lineParts = [
-			createPart(5, 'block meta ts'),
-			createPart(11, 'block declaration meta modifier object storage ts'),
-			createPart(12, 'block declaration meta object ts'),
-			createPart(17, 'block declaration meta object storage type ts'),
-			createPart(18, 'block declaration meta object ts'),
-			createPart(22, 'block class declaration entity meta name object ts'),
-			createPart(23, 'block declaration meta object ts'),
-			createPart(24, 'delimiter curly typescript'),
-			createPart(25, 'block body declaration meta object ts'),
-			createPart(28, 'block body comment declaration line meta object ts'),
-			createPart(43, 'block body comment declaration line meta object ts detected-link'),
-			createPart(48, 'block body comment declaration line meta object ts'),
+			createPart(5, 1),
+			createPart(11, 2),
+			createPart(12, 3),
+			createPart(17, 4),
+			createPart(18, 5),
+			createPart(22, 6),
+			createPart(23, 7),
+			createPart(24, 8),
+			createPart(25, 9),
+			createPart(28, 10),
+			createPart(43, 11),
+			createPart(48, 12),
 		];
 		let expectedOutput = [
 			'<span class="vs-whitespace" style="width:40px">&rarr;&nbsp;&nbsp;&nbsp;</span>',
 			'<span class="vs-whitespace" style="width:40px">&middot;&middot;&middot;&middot;</span>',
-			'<span class="block declaration meta modifier object storage ts">export</span>',
-			'<span class="block declaration meta object ts">&nbsp;</span>',
-			'<span class="block declaration meta object storage type ts">class</span>',
-			'<span class="block declaration meta object ts">&nbsp;</span>',
-			'<span class="block class declaration entity meta name object ts">Game</span>',
-			'<span class="block declaration meta object ts">&nbsp;</span>',
-			'<span class="delimiter curly typescript">{</span>',
-			'<span class="block body declaration meta object ts">&nbsp;</span>',
-			'<span class="block body comment declaration line meta object ts">//&nbsp;</span>',
-			'<span class="block body comment declaration line meta object ts detected-link">http://test.com</span>',
+			'<span class="mtk2">export</span>',
+			'<span class="mtk3">&nbsp;</span>',
+			'<span class="mtk4">class</span>',
+			'<span class="mtk5">&nbsp;</span>',
+			'<span class="mtk6">Game</span>',
+			'<span class="mtk7">&nbsp;</span>',
+			'<span class="mtk8">{</span>',
+			'<span class="mtk9">&nbsp;</span>',
+			'<span class="mtk10">//&nbsp;</span>',
+			'<span class="mtk11">http://test.com</span>',
 			'<span class="vs-whitespace" style="width:20px">&middot;&middot;</span>',
 			'<span class="vs-whitespace" style="width:30px">&middot;&middot;&middot;</span>'
 		].join('');
@@ -220,28 +223,28 @@ suite('viewLineRenderer.renderLine', () => {
 		let lineText = '\t\t\tcursorStyle:\t\t\t\t\t\t(prevOpts.cursorStyle !== newOpts.cursorStyle),';
 
 		let lineParts = [
-			createPart(3, 'block body decl declaration meta method object ts'), // 3 chars
-			createPart(15, 'block body decl declaration member meta method object ts'), // 12 chars
-			createPart(21, 'block body decl declaration member meta method object ts'), // 6 chars
-			createPart(22, 'delimiter paren typescript'), // 1 char
-			createPart(43, 'block body decl declaration member meta method object ts'), // 21 chars
-			createPart(45, 'block body comparison decl declaration keyword member meta method object operator ts'), // 2 chars
-			createPart(46, 'block body comparison decl declaration keyword member meta method object operator ts'), // 1 char
-			createPart(66, 'block body decl declaration member meta method object ts'), // 20 chars
-			createPart(67, 'delimiter paren typescript'), // 1 char
-			createPart(68, 'block body decl declaration meta method object ts'), // 2 chars
+			createPart(3, 1), // 3 chars
+			createPart(15, 2), // 12 chars
+			createPart(21, 3), // 6 chars
+			createPart(22, 4), // 1 char
+			createPart(43, 5), // 21 chars
+			createPart(45, 6), // 2 chars
+			createPart(46, 7), // 1 char
+			createPart(66, 8), // 20 chars
+			createPart(67, 9), // 1 char
+			createPart(68, 10), // 2 chars
 		];
 		let expectedOutput = [
-			'<span class="block body decl declaration meta method object ts">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>',
-			'<span class="block body decl declaration member meta method object ts">cursorStyle:</span>',
-			'<span class="block body decl declaration member meta method object ts">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>',
-			'<span class="delimiter paren typescript">(</span>',
-			'<span class="block body decl declaration member meta method object ts">prevOpts.cursorStyle&nbsp;</span>',
-			'<span class="block body comparison decl declaration keyword member meta method object operator ts">!=</span>',
-			'<span class="block body comparison decl declaration keyword member meta method object operator ts">=</span>',
-			'<span class="block body decl declaration member meta method object ts">&nbsp;newOpts.cursorStyle</span>',
-			'<span class="delimiter paren typescript">)</span>',
-			'<span class="block body decl declaration meta method object ts">,</span>',
+			'<span class="mtk1">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>',
+			'<span class="mtk2">cursorStyle:</span>',
+			'<span class="mtk3">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>',
+			'<span class="mtk4">(</span>',
+			'<span class="mtk5">prevOpts.cursorStyle&nbsp;</span>',
+			'<span class="mtk6">!=</span>',
+			'<span class="mtk7">=</span>',
+			'<span class="mtk8">&nbsp;newOpts.cursorStyle</span>',
+			'<span class="mtk9">)</span>',
+			'<span class="mtk10">,</span>',
 		].join('');
 		let expectedOffsetsArr = [
 			[0, 4, 8], // 3 chars
@@ -279,28 +282,28 @@ suite('viewLineRenderer.renderLine', () => {
 		let lineText = ' \t\t\tcursorStyle:\t\t\t\t\t\t(prevOpts.cursorStyle !== newOpts.cursorStyle),';
 
 		let lineParts = [
-			createPart(4, 'block body decl declaration meta method object ts'), // 4 chars
-			createPart(16, 'block body decl declaration member meta method object ts'), // 12 chars
-			createPart(22, 'block body decl declaration member meta method object ts'), // 6 chars
-			createPart(23, 'delimiter paren typescript'), // 1 char
-			createPart(44, 'block body decl declaration member meta method object ts'), // 21 chars
-			createPart(46, 'block body comparison decl declaration keyword member meta method object operator ts'), // 2 chars
-			createPart(47, 'block body comparison decl declaration keyword member meta method object operator ts'), // 1 char
-			createPart(67, 'block body decl declaration member meta method object ts'), // 20 chars
-			createPart(68, 'delimiter paren typescript'), // 1 char
-			createPart(69, 'block body decl declaration meta method object ts'), // 2 chars
+			createPart(4, 1), // 4 chars
+			createPart(16, 2), // 12 chars
+			createPart(22, 3), // 6 chars
+			createPart(23, 4), // 1 char
+			createPart(44, 5), // 21 chars
+			createPart(46, 6), // 2 chars
+			createPart(47, 7), // 1 char
+			createPart(67, 8), // 20 chars
+			createPart(68, 9), // 1 char
+			createPart(69, 10), // 2 chars
 		];
 		let expectedOutput = [
-			'<span class="block body decl declaration meta method object ts">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>',
-			'<span class="block body decl declaration member meta method object ts">cursorStyle:</span>',
-			'<span class="block body decl declaration member meta method object ts">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>',
-			'<span class="delimiter paren typescript">(</span>',
-			'<span class="block body decl declaration member meta method object ts">prevOpts.cursorStyle&nbsp;</span>',
-			'<span class="block body comparison decl declaration keyword member meta method object operator ts">!=</span>',
-			'<span class="block body comparison decl declaration keyword member meta method object operator ts">=</span>',
-			'<span class="block body decl declaration member meta method object ts">&nbsp;newOpts.cursorStyle</span>',
-			'<span class="delimiter paren typescript">)</span>',
-			'<span class="block body decl declaration meta method object ts">,</span>',
+			'<span class="mtk1">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>',
+			'<span class="mtk2">cursorStyle:</span>',
+			'<span class="mtk3">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>',
+			'<span class="mtk4">(</span>',
+			'<span class="mtk5">prevOpts.cursorStyle&nbsp;</span>',
+			'<span class="mtk6">!=</span>',
+			'<span class="mtk7">=</span>',
+			'<span class="mtk8">&nbsp;newOpts.cursorStyle</span>',
+			'<span class="mtk9">)</span>',
+			'<span class="mtk10">,</span>',
 		].join('');
 		let expectedOffsetsArr = [
 			[0, 1, 4, 8], // 4 chars
@@ -338,10 +341,10 @@ suite('viewLineRenderer.renderLine', () => {
 		let lineText = 'var קודמות = \"מיותר קודמות צ\'ט של, אם לשון העברית שינויים ויש, אם\";';
 
 		let lineParts = [
-			createPart(3, 'mtk6'),
-			createPart(13, 'mtk1'),
-			createPart(66, 'mtk20'),
-			createPart(67, 'mtk1'),
+			createPart(3, 6),
+			createPart(13, 1),
+			createPart(66, 20),
+			createPart(67, 1),
 		];
 
 		let expectedOutput = [
@@ -376,7 +379,7 @@ suite('viewLineRenderer.renderLine', () => {
 		let _lineText = 'This is just a long line that contains very interesting text. This is just a long line that contains very interesting text.';
 
 		function assertSplitsTokens(message: string, lineText: string, expectedOutput: string[]): void {
-			let lineParts = [createPart(lineText.length, 'mtk1')];
+			let lineParts = [createPart(lineText.length, 1)];
 			let actual = renderViewLine(new RenderLineInput(
 				false,
 				lineText,
@@ -467,7 +470,7 @@ suite('viewLineRenderer.renderLine', () => {
 
 	test('issue #6885: Does not split large tokens in RTL text', () => {
 		let lineText = 'את גרמנית בהתייחסות שמו, שנתי המשפט אל חפש, אם כתב אחרים ולחבר. של התוכן אודות בויקיפדיה כלל, של עזרה כימיה היא. על עמוד יוצרים מיתולוגיה סדר, אם שכל שתפו לעברית שינויים, אם שאלות אנגלית עזה. שמות בקלות מה סדר.';
-		let lineParts = [createPart(lineText.length, 'mtk1')];
+		let lineParts = [createPart(lineText.length, 1)];
 		let expectedOutput = [
 			'<span dir="ltr" class="mtk1">את&nbsp;גרמנית&nbsp;בהתייחסות&nbsp;שמו,&nbsp;שנתי&nbsp;המשפט&nbsp;אל&nbsp;חפש,&nbsp;אם&nbsp;כתב&nbsp;אחרים&nbsp;ולחבר.&nbsp;של&nbsp;התוכן&nbsp;אודות&nbsp;בויקיפדיה&nbsp;כלל,&nbsp;של&nbsp;עזרה&nbsp;כימיה&nbsp;היא.&nbsp;על&nbsp;עמוד&nbsp;יוצרים&nbsp;מיתולוגיה&nbsp;סדר,&nbsp;אם&nbsp;שכל&nbsp;שתפו&nbsp;לעברית&nbsp;שינויים,&nbsp;אם&nbsp;שאלות&nbsp;אנגלית&nbsp;עזה.&nbsp;שמות&nbsp;בקלות&nbsp;מה&nbsp;סדר.</span>'
 		];

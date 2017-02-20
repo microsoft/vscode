@@ -16,11 +16,16 @@ import { parse, ParseResult, ILogger, ExternalTaskRunnerConfiguration } from 'vs
 
 class Logger implements ILogger {
 	public receivedMessage: boolean = false;
-	public lastMessage: string = null;
+	public lastMessage: string = undefined;
 
 	public log(message: string): void {
 		this.receivedMessage = true;
 		this.lastMessage = message;
+	}
+
+	public clearOutput(): void {
+		this.receivedMessage = false;
+		this.lastMessage = undefined;
 	}
 }
 
@@ -108,6 +113,7 @@ class TaskBuilder {
 		this.commandBuilder = new CommandConfigurationBuilder(this, command);
 		this.result = {
 			id: name,
+			identifier: name,
 			name: name,
 			command: this.commandBuilder.result,
 			showOutput: TaskSystem.ShowOutput.Always,
@@ -116,6 +122,11 @@ class TaskBuilder {
 			promptOnClose: true,
 			problemMatchers: []
 		};
+	}
+
+	public identifier(value: string): TaskBuilder {
+		this.result.identifier = value;
+		return this;
 	}
 
 	public args(value: string[]): TaskBuilder {

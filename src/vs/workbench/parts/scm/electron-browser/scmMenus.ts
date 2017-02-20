@@ -6,8 +6,9 @@
 'use strict';
 
 import 'vs/css!./media/scmViewlet';
+import Event, { Emitter } from 'vs/base/common/event';
 import { IDisposable, dispose, empty as EmptyDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IAction } from 'vs/base/common/actions';
 import URI from 'vs/base/common/uri';
@@ -18,18 +19,19 @@ export class SCMMenus implements IDisposable {
 
 	private disposables: IDisposable[] = [];
 
+	private activeProviderId: string;
 	private titleDisposable: IDisposable = EmptyDisposable;
 	private titleActions: IAction[] = [];
 	private titleSecondaryActions: IAction[] = [];
-	private activeProviderContextKey: IContextKey<string>;
+
+	private _onDidChangeTitle = new Emitter<void>();
+	get onDidChangeTitle(): Event<void> { return this._onDidChangeTitle.event; }
 
 	constructor(
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@ISCMService private scmService: ISCMService,
 		@IMenuService private menuService: IMenuService
 	) {
-		this.activeProviderContextKey = contextKeyService.createKey('scmProvider', '');
-
 		this.setActiveProvider(this.scmService.activeProvider);
 		this.scmService.onDidChangeProvider(this.setActiveProvider, this, this.disposables);
 	}
@@ -40,17 +42,18 @@ export class SCMMenus implements IDisposable {
 			this.titleDisposable = EmptyDisposable;
 		}
 
-		this.activeProviderContextKey.set(activeProvider ? activeProvider.id : '');
-
 		if (!activeProvider) {
 			return;
 		}
+
+		this.activeProviderId = activeProvider.id;
 
 		const titleMenu = this.menuService.createMenu(MenuId.SCMTitle, this.contextKeyService);
 		const updateActions = () => {
 			this.titleActions = [];
 			this.titleSecondaryActions = [];
 			fillInActions(titleMenu, null, { primary: this.titleActions, secondary: this.titleSecondaryActions });
+			this._onDidChangeTitle.fire();
 		};
 
 		const listener = titleMenu.onDidChange(updateActions);
@@ -91,7 +94,7 @@ export class SCMMenus implements IDisposable {
 	private getSCMResourceGroupURI(resourceGroup: ISCMResourceGroup): URI {
 		return URI.from({
 			scheme: 'scm',
-			authority: this.activeProviderContextKey.get(),
+			authority: this.activeProviderId,
 			path: `/${resourceGroup.id}`
 		});
 	}
@@ -99,7 +102,7 @@ export class SCMMenus implements IDisposable {
 	private getSCMResourceURI(resource: ISCMResource): URI {
 		return URI.from({
 			scheme: 'scm',
-			authority: this.activeProviderContextKey.get(),
+			authority: this.activeProviderId,
 			path: `/${resource.resourceGroupId}/${JSON.stringify(resource.uri)}`
 		});
 	}

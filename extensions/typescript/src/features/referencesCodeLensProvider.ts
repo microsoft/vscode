@@ -70,40 +70,41 @@ export default class TypeScriptReferencesCodeLensProvider implements CodeLensPro
 
 	resolveCodeLens(inputCodeLens: CodeLens, token: CancellationToken): Promise<CodeLens> {
 		const codeLens = inputCodeLens as ReferencesCodeLens;
-		if (!codeLens.document) {
-			return Promise.reject<CodeLens>(codeLens);
-		}
 		const args: Proto.FileLocationRequestArgs = {
 			file: codeLens.file,
 			line: codeLens.range.start.line + 1,
 			offset: codeLens.range.start.character + 1
 		};
 		return this.client.execute('references', args, token).then(response => {
-			if (response && response.body) {
-				// Exclude original definition from references
-				const locations = response.body.refs
-					.filter(reference =>
-						!(reference.start.line === codeLens.range.start.line + 1
-							&& reference.start.offset === codeLens.range.start.character + 1))
-					.map(reference =>
-						new Location(this.client.asUrl(reference.file),
-							new Range(
-								new Position(reference.start.line - 1, reference.start.offset - 1),
-								new Position(reference.end.line - 1, reference.end.offset - 1))));
-				codeLens.command = {
-					title: locations.length + ' ' + (locations.length === 1 ? localize('oneReferenceLabel', 'reference') : localize('manyReferenceLabel', 'references')),
-					command: 'editor.action.showReferences',
-					arguments: [codeLens.document, codeLens.range.start, locations]
-				};
-				return Promise.resolve(codeLens);
+			if (!response || !response.body) {
+				throw codeLens;
 			}
-			return Promise.reject<CodeLens>(codeLens);
+
+			// Exclude original definition from references
+			const locations = response.body.refs
+				.filter(reference =>
+					!(reference.start.line === codeLens.range.start.line + 1
+						&& reference.start.offset === codeLens.range.start.character + 1))
+				.map(reference =>
+					new Location(this.client.asUrl(reference.file),
+						new Range(
+							reference.start.line - 1, reference.start.offset - 1,
+							reference.end.line - 1, reference.end.offset - 1)));
+
+			codeLens.command = {
+				title: locations.length === 1
+					? localize('oneReferenceLabel', '1 reference')
+					: localize('manyReferenceLabel', '{0} references', locations.length),
+				command: 'editor.action.showReferences',
+				arguments: [codeLens.document, codeLens.range.start, locations]
+			};
+			return codeLens;
 		}).catch(() => {
 			codeLens.command = {
 				title: localize('referenceErrorLabel', 'Could not determine references'),
 				command: ''
 			};
-			return Promise.resolve(codeLens);
+			return codeLens;
 		});
 	}
 
@@ -115,8 +116,8 @@ export default class TypeScriptReferencesCodeLensProvider implements CodeLensPro
 		const span = item.spans && item.spans[0];
 		if (span) {
 			const range = new Range(
-				new Position(span.start.line - 1, span.start.offset - 1),
-				new Position(span.end.line - 1, span.end.offset - 1));
+				span.start.line - 1, span.start.offset - 1,
+				span.end.line - 1, span.end.offset - 1);
 
 			// TODO: TS currently requires the position for 'references 'to be inside of the identifer
 			// Massage the range to make sure this is the case

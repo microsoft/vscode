@@ -20,7 +20,6 @@ import { KillTerminalAction, CreateNewTerminalAction, SwitchTerminalInstanceActi
 import { Panel } from 'vs/workbench/browser/panel';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { getBaseThemeId } from 'vs/platform/theme/common/themes';
 
 export class TerminalPanel extends Panel {
 
@@ -204,8 +203,7 @@ export class TerminalPanel extends Panel {
 		if (!colorTheme) {
 			colorTheme = this._themeService.getColorTheme();
 		}
-		let themeId = colorTheme.id;
-		let baseThemeId = getBaseThemeId(themeId);
+		let baseThemeId = colorTheme.getBaseThemeId();
 		if (baseThemeId === this._currentBaseThemeId) {
 			return;
 		}

@@ -9,6 +9,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { InlineDecoration, ViewModelDecoration, ICoordinatesConverter } from 'vs/editor/common/viewModel/viewModel';
+import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
 export interface IDecorationsViewportData {
 	/**
@@ -77,14 +78,14 @@ export class ViewModelDecorations implements IDisposable {
 		}
 
 		this._clearCachedModelDecorationsResolver();
-		emit(editorCommon.ViewEventNames.DecorationsChangedEvent, {});
+		emit(viewEvents.ViewEventNames.DecorationsChangedEvent, {});
 	}
 
 	public onLineMappingChanged(emit: (eventType: string, payload: any) => void): void {
 		this._decorationsCache = Object.create(null);
 
 		this._clearCachedModelDecorationsResolver();
-		emit(editorCommon.ViewEventNames.DecorationsChangedEvent, {});
+		emit(viewEvents.ViewEventNames.DecorationsChangedEvent, {});
 	}
 
 	private _getOrCreateViewModelDecoration(modelDecoration: editorCommon.IModelDecoration): ViewModelDecoration {
