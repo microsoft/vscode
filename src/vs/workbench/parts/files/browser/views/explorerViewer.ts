@@ -450,7 +450,7 @@ export class FileController extends DefaultController {
 			tree.setSelection([stat], payload);
 
 			if (!stat.isDirectory) {
-				this.openEditor(stat, preserveFocus, event && (event.ctrlKey || event.metaKey), isDoubleClick);
+				this.openEditor(stat, { preserveFocus, sideBySide: event && (event.ctrlKey || event.metaKey), pinned: isDoubleClick });
 			}
 		}
 
@@ -499,11 +499,11 @@ export class FileController extends DefaultController {
 		return true;
 	}
 
-	private openEditor(stat: FileStat, preserveFocus: boolean, sideBySide: boolean, pinned = false): void {
+	public openEditor(stat: FileStat, options: { preserveFocus: boolean; sideBySide: boolean; pinned: boolean; }): void {
 		if (stat && !stat.isDirectory) {
 			this.telemetryService.publicLog('workbenchActionExecuted', { id: 'workbench.files.openFile', from: 'explorer' });
 
-			this.editorService.openEditor({ resource: stat.resource, options: { preserveFocus, pinned } }, sideBySide).done(null, errors.onUnexpectedError);
+			this.editorService.openEditor({ resource: stat.resource, options }, options.sideBySide).done(null, errors.onUnexpectedError);
 		}
 	}
 }

@@ -93,7 +93,6 @@ class ConfigClass implements IConfiguration {
 			acceptSuggestionOnCommitCharacter: true,
 			snippetSuggestions: 'bottom',
 			emptySelectionClipboard: true,
-			tabCompletion: false,
 			wordBasedSuggestions: true,
 			suggestFontSize: 0,
 			suggestLineHeight: 0,
@@ -106,6 +105,7 @@ class ConfigClass implements IConfiguration {
 			renderIndentGuides: false,
 			renderLineHighlight: 'line',
 			useTabStops: true,
+			matchBrackets: true,
 
 			fontFamily: (
 				platform.isMacintosh ? DEFAULT_MAC_FONT_FAMILY : (platform.isLinux ? DEFAULT_LINUX_FONT_FAMILY : DEFAULT_WINDOWS_FONT_FAMILY)

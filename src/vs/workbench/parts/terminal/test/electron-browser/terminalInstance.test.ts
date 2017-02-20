@@ -92,7 +92,7 @@ suite('Workbench - TerminalInstance', () => {
 			configHelper = {
 				getCwd: () => null
 			};
-			instance = instantiationService.createInstance(TestTerminalInstance, terminalFocusContextKey, configHelper, null, null);
+			instance = instantiationService.createInstance(TestTerminalInstance, terminalFocusContextKey, configHelper, null, null, null);
 		});
 
 		// This helper checks the paths in a cross-platform friendly manner

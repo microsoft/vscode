@@ -10,6 +10,7 @@ import * as crypto from 'crypto';
 import pfs = require('vs/base/node/pfs');
 import * as platform from 'vs/base/common/platform';
 import Uri from 'vs/base/common/uri';
+import { Queue } from 'vs/base/common/async';
 import { IBackupFileService, BACKUP_FILE_UPDATE_OPTIONS } from 'vs/workbench/services/backup/common/backup';
 import { IBackupService } from 'vs/platform/backup/common/backup';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -97,6 +98,11 @@ export class BackupFileService implements IBackupFileService {
 	private isShuttingDown: boolean;
 	private backupWorkspacePath: string;
 	private ready: TPromise<IBackupFilesModel>;
+	/**
+	 * Ensure IO operations on individual files are performed in order, this could otherwise lead
+	 * to unexpected behavior when backups are persisted and discarded in the wrong order.
+	 */
+	private ioOperationQueues: { [path: string]: Queue<void> };
 
 	constructor(
 		@IEnvironmentService private environmentService: IEnvironmentService,
@@ -106,6 +112,7 @@ export class BackupFileService implements IBackupFileService {
 	) {
 		this.isShuttingDown = false;
 		this.ready = this.init(windowService.getCurrentWindowId());
+		this.ioOperationQueues = {};
 	}
 
 	private get backupEnabled(): boolean {
@@ -173,7 +180,9 @@ export class BackupFileService implements IBackupFileService {
 			// Add metadata to top of file
 			content = `${resource.toString()}${BackupFileService.META_MARKER}${content}`;
 
-			return this.fileService.updateContent(backupResource, content, BACKUP_FILE_UPDATE_OPTIONS).then(() => model.add(backupResource, versionId));
+			return this.getResourceIOQueue(backupResource).queue(() => {
+				return this.fileService.updateContent(backupResource, content, BACKUP_FILE_UPDATE_OPTIONS).then(() => model.add(backupResource, versionId));
+			});
 		});
 	}
 
@@ -184,8 +193,23 @@ export class BackupFileService implements IBackupFileService {
 				return void 0;
 			}
 
-			return pfs.del(backupResource.fsPath).then(() => model.remove(backupResource));
+			return this.getResourceIOQueue(backupResource).queue(() => {
+				return pfs.del(backupResource.fsPath).then(() => model.remove(backupResource));
+			});
 		});
+	}
+
+	private getResourceIOQueue(resource: Uri) {
+		const key = resource.toString();
+		if (!this.ioOperationQueues[key]) {
+			const queue = new Queue<void>();
+			queue.onFinished(() => {
+				queue.dispose();
+				delete this.ioOperationQueues[key];
+			});
+			this.ioOperationQueues[key] = queue;
+		}
+		return this.ioOperationQueues[key];
 	}
 
 	public discardAllWorkspaceBackups(): TPromise<void> {

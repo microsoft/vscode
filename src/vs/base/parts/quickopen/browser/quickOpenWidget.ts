@@ -339,7 +339,7 @@ export class QuickOpenWidget implements IModelProvider {
 		if (this.isVisible) {
 
 			// Transition into quick navigate mode if not yet done
-			if (!this.quickNavigateConfiguration) {
+			if (!this.quickNavigateConfiguration && quickNavigate) {
 				this.quickNavigateConfiguration = quickNavigate;
 				this.tree.DOMFocus();
 			}

@@ -177,7 +177,11 @@ export class HtmlPreviewPart extends BaseEditor {
 					return TPromise.wrapError<void>(localize('html.voidInput', "Invalid editor input."));
 				}
 
-				this._modelChangeSubscription = this.model.onDidChangeContent(() => this.webview.contents = this.model.getLinesContent());
+				this._modelChangeSubscription = this.model.onDidChangeContent(() => {
+					if (this.model) {
+						this.webview.contents = this.model.getLinesContent();
+					}
+				});
 				this.webview.baseUrl = resourceUri.toString(true);
 				this.webview.contents = this.model.getLinesContent();
 

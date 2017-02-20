@@ -13,9 +13,9 @@
       "resolved": "https://registry.npmjs.org/semver/-/semver-4.3.6.tgz"
     },
     "typescript": {
-      "version": "typescript@2.2.1-insiders.20170216",
-      "from": "typescript@typescript@2.2.1-insiders.20170216",
-      "resolved": "https://registry.npmjs.org/typescript/-/typescript-2.2.1-insiders.20170216.tgz"
+      "version": "typescript@2.2.1-insiders.20170217",
+      "from": "typescript@typescript@2.2.1-insiders.20170217",
+      "resolved": "https://registry.npmjs.org/typescript/-/typescript-2.2.1-insiders.20170217.tgz"
     },
     "vscode-extension-telemetry": {
       "version": "0.0.5",
