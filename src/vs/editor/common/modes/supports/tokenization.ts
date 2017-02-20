@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { ColorId, FontStyle, MetadataConsts, LanguageId } from 'vs/editor/common/modes';
-import { toStandardTokenType } from 'vs/editor/common/core/lineTokens';
+import { ColorId, FontStyle, MetadataConsts, LanguageId, StandardTokenType } from 'vs/editor/common/modes';
+import { Color } from 'vs/base/common/color';
 
 export interface IThemeRule {
 	token: string;
@@ -142,7 +142,7 @@ function resolveParsedThemeRules(parsedThemeRules: ParsedThemeRule[]): Theme {
 export class ColorMap {
 
 	private _lastColorId: number;
-	private _id2color: string[];
+	private _id2color: Color[];
 	private _color2id: Map<string, ColorId>;
 
 	constructor() {
@@ -165,11 +165,11 @@ export class ColorMap {
 		}
 		value = ++this._lastColorId;
 		this._color2id.set(color, value);
-		this._id2color[value] = color;
+		this._id2color[value] = Color.fromHex('#' + color);
 		return value;
 	}
 
-	public getColorMap(): string[] {
+	public getColorMap(): Color[] {
 		return this._id2color.slice(0);
 	}
 
@@ -187,15 +187,15 @@ export class Theme {
 
 	private readonly _colorMap: ColorMap;
 	private readonly _root: ThemeTrieElement;
-	private readonly _cache: Map<string, ThemeTrieElementRule>;
+	private readonly _cache: Map<string, number>;
 
 	constructor(colorMap: ColorMap, root: ThemeTrieElement) {
 		this._colorMap = colorMap;
 		this._root = root;
-		this._cache = new Map<string, ThemeTrieElementRule>();
+		this._cache = new Map<string, number>();
 	}
 
-	public getColorMap(): string[] {
+	public getColorMap(): Color[] {
 		return this._colorMap.getColorMap();
 	}
 
@@ -207,24 +207,44 @@ export class Theme {
 	}
 
 	public _match(token: string): ThemeTrieElementRule {
-		let result = this._cache.get(token);
-		if (typeof result === 'undefined') {
-			result = this._root.match(token);
-			this._cache.set(token, result);
-		}
-		return result;
+		return this._root.match(token);
 	}
 
 	public match(languageId: LanguageId, token: string): number {
-		let rule = this._match(token);
-		let standardToken = toStandardTokenType(token);
+		// The cache contains the metadata without the language bits set.
+		let result = this._cache.get(token);
+		if (typeof result === 'undefined') {
+			let rule = this._match(token);
+			let standardToken = toStandardTokenType(token);
+			result = (
+				rule.metadata
+				| (standardToken << MetadataConsts.TOKEN_TYPE_OFFSET)
+			) >>> 0;
+			this._cache.set(token, result);
+		}
 
 		return (
-			rule.metadata
-			| (standardToken << MetadataConsts.TOKEN_TYPE_OFFSET)
+			result
 			| (languageId << MetadataConsts.LANGUAGEID_OFFSET)
 		) >>> 0;
 	}
+}
+
+const STANDARD_TOKEN_TYPE_REGEXP = /\b(comment|string|regex)\b/;
+export function toStandardTokenType(tokenType: string): StandardTokenType {
+	let m = tokenType.match(STANDARD_TOKEN_TYPE_REGEXP);
+	if (!m) {
+		return StandardTokenType.Other;
+	}
+	switch (m[1]) {
+		case 'comment':
+			return StandardTokenType.Comment;
+		case 'string':
+			return StandardTokenType.String;
+		case 'regex':
+			return StandardTokenType.RegEx;
+	}
+	throw new Error('Unexpected match for standard token type!');
 }
 
 export function strcmp(a: string, b: string): number {
@@ -369,4 +389,16 @@ export class ThemeTrieElement {
 
 		child.insert(tail, fontStyle, foreground, background);
 	}
+}
+
+export function generateTokensCSSForColorMap(colorMap: Color[]): string {
+	let rules: string[] = [];
+	for (let i = 1, len = colorMap.length; i < len; i++) {
+		let color = colorMap[i];
+		rules[i] = `.mtk${i} { color: ${color.toString()}; }`;
+	}
+	rules.push('.mtki { font-style: italic; }');
+	rules.push('.mtkb { font-weight: bold; }');
+	rules.push('.mtku { text-decoration: underline; }');
+	return rules.join('\n');
 }

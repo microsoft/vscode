@@ -231,7 +231,7 @@ export class ViewLine implements IVisibleLine {
 }
 
 interface IRenderedViewLine {
-	domNode: FastDomNode;
+	domNode: FastDomNode<HTMLElement>;
 	readonly input: RenderLineInput;
 	getWidth(): number;
 	getVisibleRangesForRange(startColumn: number, endColumn: number, context: DomReadingContext): HorizontalRange[];
@@ -243,14 +243,14 @@ interface IRenderedViewLine {
  */
 class FastRenderedViewLine implements IRenderedViewLine {
 
-	public domNode: FastDomNode;
+	public domNode: FastDomNode<HTMLElement>;
 	public readonly input: RenderLineInput;
 
 	private readonly _characterMapping: CharacterMapping;
 	private readonly _charWidth: number;
 	private _charOffset: Uint32Array;
 
-	constructor(domNode: FastDomNode, renderLineInput: RenderLineInput, characterMapping: CharacterMapping) {
+	constructor(domNode: FastDomNode<HTMLElement>, renderLineInput: RenderLineInput, characterMapping: CharacterMapping) {
 		this.domNode = domNode;
 		this.input = renderLineInput;
 
@@ -345,7 +345,7 @@ class FastRenderedViewLine implements IRenderedViewLine {
  */
 class RenderedViewLine {
 
-	public domNode: FastDomNode;
+	public domNode: FastDomNode<HTMLElement>;
 	public readonly input: RenderLineInput;
 
 	protected readonly _characterMapping: CharacterMapping;
@@ -357,7 +357,7 @@ class RenderedViewLine {
 	 */
 	private _pixelOffsetCache: Int32Array;
 
-	constructor(domNode: FastDomNode, renderLineInput: RenderLineInput, characterMapping: CharacterMapping, containsRTL: boolean) {
+	constructor(domNode: FastDomNode<HTMLElement>, renderLineInput: RenderLineInput, characterMapping: CharacterMapping, containsRTL: boolean) {
 		this.domNode = domNode;
 		this.input = renderLineInput;
 		this._characterMapping = characterMapping;
@@ -548,17 +548,17 @@ class WebKitRenderedViewLine extends RenderedViewLine {
 	}
 }
 
-const createRenderedLine: (domNode: FastDomNode, renderLineInput: RenderLineInput, characterMapping: CharacterMapping, containsRTL: boolean) => RenderedViewLine = (function () {
+const createRenderedLine: (domNode: FastDomNode<HTMLElement>, renderLineInput: RenderLineInput, characterMapping: CharacterMapping, containsRTL: boolean) => RenderedViewLine = (function () {
 	if (browser.isWebKit) {
 		return createWebKitRenderedLine;
 	}
 	return createNormalRenderedLine;
 })();
 
-function createWebKitRenderedLine(domNode: FastDomNode, renderLineInput: RenderLineInput, characterMapping: CharacterMapping, containsRTL: boolean): RenderedViewLine {
+function createWebKitRenderedLine(domNode: FastDomNode<HTMLElement>, renderLineInput: RenderLineInput, characterMapping: CharacterMapping, containsRTL: boolean): RenderedViewLine {
 	return new WebKitRenderedViewLine(domNode, renderLineInput, characterMapping, containsRTL);
 }
 
-function createNormalRenderedLine(domNode: FastDomNode, renderLineInput: RenderLineInput, characterMapping: CharacterMapping, containsRTL: boolean): RenderedViewLine {
+function createNormalRenderedLine(domNode: FastDomNode<HTMLElement>, renderLineInput: RenderLineInput, characterMapping: CharacterMapping, containsRTL: boolean): RenderedViewLine {
 	return new RenderedViewLine(domNode, renderLineInput, characterMapping, containsRTL);
 }

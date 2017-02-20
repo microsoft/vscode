@@ -177,6 +177,7 @@ export class SCMViewlet extends Viewlet {
 		super(VIEWLET_ID, telemetryService);
 
 		this.menus = this.instantiationService.createInstance(SCMMenus);
+		this.menus.onDidChangeTitle(this.updateTitleArea, this, this.disposables);
 		this.disposables.push(this.menus);
 	}
 

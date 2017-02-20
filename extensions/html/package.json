@@ -191,9 +191,9 @@
   },
   "dependencies": {
     "vscode-extension-telemetry": "0.0.5",
-    "vscode-languageclient": "^3.0.2-beta.5",
-    "vscode-languageserver-types": "^3.0.2-beta.5",
-    "vscode-nls": "^2.0.1"
+    "vscode-languageclient": "^3.1.0-alpha.1",
+    "vscode-languageserver-types": "^3.0.3",
+    "vscode-nls": "^2.0.2"
   },
   "devDependencies": {
     "@types/node": "^6.0.51",

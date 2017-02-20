@@ -65,6 +65,8 @@ export class TerminalInstance implements ITerminalInstance {
 	private _xterm: any;
 	private _xtermElement: HTMLDivElement;
 	private _terminalHasTextContextKey: IContextKey<boolean>;
+	private _cols: number;
+	private _rows: number;
 
 	public get id(): number { return this._id; }
 	public get processId(): number { return this._processId; }
@@ -102,6 +104,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._onProcessIdReady = new Emitter<TerminalInstance>();
 		this._onTitleChanged = new Emitter<string>();
 
+		this._initDimensions();
 		this._createProcess(this._contextService.getWorkspace(), this._shellLaunchConfig);
 		this._createXterm();
 
@@ -113,6 +116,54 @@ export class TerminalInstance implements ITerminalInstance {
 
 	public addDisposable(disposable: lifecycle.IDisposable): void {
 		this._instanceDisposables.push(disposable);
+	}
+
+	private _initDimensions(): void {
+		// The terminal panel needs to have been created
+		if (!this._container) {
+			return;
+		}
+
+		const computedStyle = window.getComputedStyle(this._container);
+		const width = parseInt(computedStyle.getPropertyValue('width').replace('px', ''), 10);
+		const height = parseInt(computedStyle.getPropertyValue('height').replace('px', ''), 10);
+		this._evaluateColsAndRows(width, height);
+	}
+
+	/**
+	 * Evaluates and sets the cols and rows of the terminal if possible.
+	 * @param width The width of the container.
+	 * @param height The height of the container.
+	 * @return Whether cols and rows were set.
+	 */
+	private _evaluateColsAndRows(width: number, height: number): boolean {
+		// The font needs to have been initialized
+		const font = this._configHelper.getFont();
+		if (!font || !font.charWidth || !font.charHeight) {
+			return false;
+		}
+
+		// TODO: Fetch size from panel so initial size is correct
+		// The panel is minimized
+		if (!height) {
+			return false;
+		} else {
+			// Trigger scroll event manually so that the viewport's scroll area is synced. This
+			// needs to happen otherwise its scrollTop value is invalid when the panel is toggled as
+			// it gets removed and then added back to the DOM (resetting scrollTop to 0).
+			// Upstream issue: https://github.com/sourcelair/xterm.js/issues/291
+			if (this._xterm) {
+				this._xterm.emit('scroll', this._xterm.ydisp);
+			}
+		}
+
+		const padding = parseInt(getComputedStyle(document.querySelector('.terminal-outer-container')).paddingLeft.split('px')[0], 10);
+		// Use left padding as right padding, right padding is not defined in CSS just in case
+		// xterm.js causes an unexpected overflow.
+		const innerWidth = width - padding * 2;
+		this._cols = Math.floor(innerWidth / font.charWidth);
+		this._rows = Math.floor(height / font.charHeight);
+		return true;
 	}
 
 	/**
@@ -385,7 +436,7 @@ export class TerminalInstance implements ITerminalInstance {
 		if (!shell.executable) {
 			this._configHelper.mergeDefaultShellPathAndArgs(shell);
 		}
-		const env = TerminalInstance.createTerminalEnv(process.env, shell, this._getCwd(shell, workspace), locale);
+		const env = TerminalInstance.createTerminalEnv(process.env, shell, this._getCwd(shell, workspace), locale, this._cols, this._rows);
 		this._title = shell.name || '';
 		this._process = cp.fork('./terminalProcess', [], {
 			env: env,
@@ -482,7 +533,11 @@ export class TerminalInstance implements ITerminalInstance {
 		this._xterm.write('\n\x1b[G');
 
 		// Initialize new process
+		const oldTitle = this._title;
 		this._createProcess(this._contextService.getWorkspace(), shell);
+		if (oldTitle !== this._title) {
+			this._onTitleChanged.fire(this._title);
+		}
 		this._process.on('message', (message) => this._sendPtyDataToXterm(message));
 
 		// Clean up waitOnExit state
@@ -497,7 +552,7 @@ export class TerminalInstance implements ITerminalInstance {
 
 	// TODO: This should be private/protected
 	// TODO: locale should not be optional
-	public static createTerminalEnv(parentEnv: IStringDictionary<string>, shell: IShellLaunchConfig, cwd: string, locale?: string): IStringDictionary<string> {
+	public static createTerminalEnv(parentEnv: IStringDictionary<string>, shell: IShellLaunchConfig, cwd: string, locale?: string, cols?: number, rows?: number): IStringDictionary<string> {
 		const env = shell.env ? shell.env : TerminalInstance._cloneEnv(parentEnv);
 		env['PTYPID'] = process.pid.toString();
 		env['PTYSHELL'] = shell.executable;
@@ -509,6 +564,10 @@ export class TerminalInstance implements ITerminalInstance {
 		env['PTYCWD'] = cwd;
 		if (locale) {
 			env['LANG'] = TerminalInstance._getLangEnvVariable(locale);
+		}
+		if (cols && rows) {
+			env['PTYCOLS'] = cols.toString();
+			env['PTYROWS'] = rows.toString();
 		}
 		return env;
 	}
@@ -622,40 +681,24 @@ export class TerminalInstance implements ITerminalInstance {
 
 	private _setScrollback(lineCount: number): void {
 		if (this._xterm && this._xterm.getOption('scrollback') !== lineCount) {
-			console.log('set scrollback to: ' + lineCount);
 			this._xterm.setOption('scrollback', lineCount);
 		}
 	}
 
-	public layout(dimension: { width: number, height: number }): void {
-		const font = this._configHelper.getFont();
-		if (!font || !font.charWidth || !font.charHeight) {
+	public layout(dimension: Dimension): void {
+		const needsLayout = this._evaluateColsAndRows(dimension.width, dimension.height);
+		if (!needsLayout) {
 			return;
 		}
-		if (!dimension.height) { // Minimized
-			return;
-		} else {
-			// Trigger scroll event manually so that the viewport's scroll area is synced. This
-			// needs to happen otherwise its scrollTop value is invalid when the panel is toggled as
-			// it gets removed and then added back to the DOM (resetting scrollTop to 0).
-			// Upstream issue: https://github.com/sourcelair/xterm.js/issues/291
-			this._xterm.emit('scroll', this._xterm.ydisp);
-		}
-		const padding = parseInt(getComputedStyle(document.querySelector('.terminal-outer-container')).paddingLeft.split('px')[0], 10);
-		// Use left padding as right padding, right padding is not defined in CSS just in case
-		// xterm.js causes an unexpected overflow.
-		const innerWidth = dimension.width - padding * 2;
-		const cols = Math.floor(innerWidth / font.charWidth);
-		const rows = Math.floor(dimension.height / font.charHeight);
 		if (this._xterm) {
-			this._xterm.resize(cols, rows);
+			this._xterm.resize(this._cols, this._rows);
 			this._xterm.element.style.width = innerWidth + 'px';
 		}
 		if (this._process.connected) {
 			this._process.send({
 				event: 'resize',
-				cols: cols,
-				rows: rows
+				cols: this._cols,
+				rows: this._rows
 			});
 		}
 	}

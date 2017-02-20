@@ -289,6 +289,11 @@ export class Git {
 		return new Repository(this, repository, env);
 	}
 
+	async getRepositoryRoot(path: string): Promise<string> {
+		const result = await this.exec(path, ['rev-parse', '--show-toplevel']);
+		return result.stdout.trim();
+	}
+
 	async exec(cwd: string, args: string[], options: any = {}): Promise<IExecutionResult> {
 		options = assign({ cwd }, options || {});
 		return await this._exec(args, options);
@@ -380,7 +385,7 @@ export class Repository {
 
 	constructor(
 		private _git: Git,
-		private repository: string,
+		private repositoryRoot: string,
 		private env: any = {}
 	) { }
 
@@ -388,8 +393,8 @@ export class Repository {
 		return this._git;
 	}
 
-	get path(): string {
-		return this.repository;
+	get root(): string {
+		return this.repositoryRoot;
 	}
 
 	// TODO@Joao: rename to exec
@@ -397,14 +402,14 @@ export class Repository {
 		options.env = assign({}, options.env || {});
 		options.env = assign(options.env, this.env);
 
-		return await this.git.exec(this.repository, args, options);
+		return await this.git.exec(this.repositoryRoot, args, options);
 	}
 
 	stream(args: string[], options: any = {}): cp.ChildProcess {
 		options.env = assign({}, options.env || {});
 		options.env = assign(options.env, this.env);
 
-		return this.git.stream(this.repository, args, options);
+		return this.git.stream(this.repositoryRoot, args, options);
 	}
 
 	spawn(args: string[], options: any = {}): cp.ChildProcess {
@@ -709,11 +714,6 @@ export class Repository {
 		await this.push();
 	}
 
-	async getRoot(): Promise<string> {
-		const result = await this.run(['rev-parse', '--show-toplevel']);
-		return result.stdout.trim();
-	}
-
 	async getStatus(): Promise<IFileStatus[]> {
 		const executionResult = await this.run(['status', '-z', '-u']);
 		const status = executionResult.stdout;
@@ -861,7 +861,7 @@ export class Repository {
 				.replace(/^~([^\/]*)\//, (_, user) => `${user ? path.join(path.dirname(homedir), user) : homedir}/`);
 
 			if (!path.isAbsolute(templatePath)) {
-				templatePath = path.join(this.repository, templatePath);
+				templatePath = path.join(this.repositoryRoot, templatePath);
 			}
 
 			const raw = await readfile(templatePath, 'utf8');

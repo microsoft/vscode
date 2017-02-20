@@ -6,8 +6,8 @@
 'use strict';
 
 import { workspace, Uri, Disposable, Event, EventEmitter } from 'vscode';
-import * as path from 'path';
-import { Git } from './git';
+import { debounce } from './decorators';
+import { Model } from './model';
 
 export class GitContentProvider {
 
@@ -16,37 +16,38 @@ export class GitContentProvider {
 	private onDidChangeEmitter = new EventEmitter<Uri>();
 	get onDidChange(): Event<Uri> { return this.onDidChangeEmitter.event; }
 
-	private uris = new Set<Uri>();
+	private uris: { [uri: string]: Uri } = Object.create(null) as { [uri: string]: Uri };
 
-	constructor(private git: Git, private rootPath: string, onGitChange: Event<Uri>) {
+	constructor(private model: Model) {
 		this.disposables.push(
-			onGitChange(this.fireChangeEvents, this),
+			model.onDidChangeRepository(this.fireChangeEvents, this),
 			workspace.registerTextDocumentContentProvider('git', this)
 		);
 	}
 
+	@debounce(300)
 	private fireChangeEvents(): void {
-		for (let uri of this.uris) {
-			this.onDidChangeEmitter.fire(uri);
-		}
+		Object.keys(this.uris).forEach(key => {
+			this.onDidChangeEmitter.fire(this.uris[key]);
+		});
 	}
 
 	async provideTextDocumentContent(uri: Uri): Promise<string> {
-		const treeish = uri.query;
-		const relativePath = path.relative(this.rootPath, uri.fsPath).replace(/\\/g, '/');
+		let ref = uri.query;
+
+		if (ref === '~') {
+			const fileUri = uri.with({ scheme: 'file', query: '' });
+			const uriString = fileUri.toString();
+			const [indexStatus] = this.model.indexGroup.resources.filter(r => r.original.toString() === uriString);
+			ref = indexStatus ? '' : 'HEAD';
+		}
 
 		try {
-			const result = await this.git.exec(this.rootPath, ['show', `${treeish}:${relativePath}`]);
-
-			if (result.exitCode !== 0) {
-				this.uris.delete(uri);
-				return '';
-			}
-
-			this.uris.add(uri);
-			return result.stdout;
+			const result = await this.model.show(ref, uri);
+			this.uris[uri.toString()] = uri;
+			return result;
 		} catch (err) {
-			this.uris.delete(uri);
+			delete this.uris[uri.toString()];
 			return '';
 		}
 	}
