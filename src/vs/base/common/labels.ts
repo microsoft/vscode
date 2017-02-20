@@ -81,8 +81,9 @@ function getPath(arg1: URI | string | IWorkspaceProvider): string {
  * Replaces not important parts with ellipsis.
  * Every shorten path matches only one original path and vice versa.
  */
+const ellipsis = '\u2026';
+const unc = '\\\\';
 export function shorten(paths: string[]): string[] {
-	const ellipsis = '\u2026';
 	const shortenedPaths: string[] = new Array(paths.length);
 
 	// for every path
@@ -102,15 +103,14 @@ export function shorten(paths: string[]): string[] {
 
 		match = true;
 
-		let prefix = '';
-		const unc = nativeSep + nativeSep;
 		// trim for now and concatenate unc path (e.g. \\network) or root path (/etc) later
+		let prefix = '';
 		if (path.indexOf(unc) === 0) {
-			prefix = path.substr(0, path.indexOf(unc) + 2);
-			path = path.substr(path.indexOf(unc) + 2);
+			prefix = path.substr(0, path.indexOf(unc) + unc.length);
+			path = path.substr(path.indexOf(unc) + unc.length);
 		} else if (path.indexOf(nativeSep) === 0) {
-			prefix = path.substr(0, path.indexOf(nativeSep) + 1);
-			path = path.substr(path.indexOf(nativeSep) + 1);
+			prefix = path.substr(0, path.indexOf(nativeSep) + nativeSep.length);
+			path = path.substr(path.indexOf(nativeSep) + nativeSep.length);
 		}
 
 		// pick the first shortest subpath found
