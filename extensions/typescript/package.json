@@ -90,10 +90,20 @@
         "command": "_typescript.tryCompleteJsDoc",
         "when": "editorTextFocus && !suggestWidgetVisible && editorLangId == 'typescript'"
       },
-         {
+      {
+        "key": "enter",
+        "command": "_typescript.tryCompleteJsDoc",
+        "when": "editorTextFocus && !suggestWidgetVisible && editorLangId == 'typescriptreact'"
+      },
+      {
         "key": "enter",
         "command": "_typescript.tryCompleteJsDoc",
         "when": "editorTextFocus && !suggestWidgetVisible && editorLangId == 'javascript'"
+      },
+      {
+        "key": "enter",
+        "command": "_typescript.tryCompleteJsDoc",
+        "when": "editorTextFocus && !suggestWidgetVisible && editorLangId == 'javascriptreact'"
       }
     ],
     "configuration": {
