@@ -7,6 +7,7 @@
   "engines": {
     "vscode": "^1.5.0"
   },
+  "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
   "enableProposedApi": true,
   "categories": [
     "Other"
@@ -588,6 +589,7 @@
     }
   },
   "dependencies": {
+    "vscode-extension-telemetry": "0.0.5",
     "vscode-nls": "^2.0.1"
   },
   "devDependencies": {

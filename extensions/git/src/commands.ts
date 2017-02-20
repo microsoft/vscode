@@ -11,6 +11,7 @@ import { Model, Resource, Status, CommitOptions } from './model';
 import * as staging from './staging';
 import * as path from 'path';
 import * as os from 'os';
+import TelemetryReporter from 'vscode-extension-telemetry';
 import * as nls from 'vscode-nls';
 
 const localize = nls.loadMessageBundle();
@@ -95,14 +96,15 @@ export class CommandCenter {
 
 	constructor(
 		model: Model | undefined,
-		private outputChannel: OutputChannel
+		private outputChannel: OutputChannel,
+		private telemetryReporter: TelemetryReporter
 	) {
 		if (model) {
 			this.model = model;
 		}
 
 		this.disposables = Commands
-			.map(({ commandId, method }) => commands.registerCommand(commandId, this.createCommand(method)));
+			.map(({ commandId, method }) => commands.registerCommand(commandId, this.createCommand(commandId, method)));
 	}
 
 	@command('git.refresh')
@@ -693,12 +695,14 @@ export class CommandCenter {
 		this.outputChannel.show();
 	}
 
-	private createCommand(method: Function): (...args: any[]) => any {
+	private createCommand(id: string, method: Function): (...args: any[]) => any {
 		return (...args) => {
 			if (!this.model) {
 				window.showInformationMessage(localize('disabled', "Git is either disabled or not supported in this workspace"));
 				return;
 			}
+
+			this.telemetryReporter.sendTelemetryEvent('git.command', { command: id });
 
 			const result = Promise.resolve(method.apply(this, args));
 
