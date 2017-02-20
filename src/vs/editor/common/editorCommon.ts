@@ -443,10 +443,6 @@ export interface IEditorOptions {
 	 */
 	emptySelectionClipboard?: boolean;
 	/**
-	 * Enable tab completion. Defaults to 'false'
-	 */
-	tabCompletion?: boolean;
-	/**
 	 * Enable word based suggestions. Defaults to 'true'
 	 */
 	wordBasedSuggestions?: boolean;
@@ -964,7 +960,6 @@ export class EditorContribOptions {
 	readonly acceptSuggestionOnCommitCharacter: boolean;
 	readonly snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
 	readonly emptySelectionClipboard: boolean;
-	readonly tabCompletion: boolean;
 	readonly wordBasedSuggestions: boolean;
 	readonly suggestFontSize: number;
 	readonly suggestLineHeight: number;
@@ -991,7 +986,6 @@ export class EditorContribOptions {
 		acceptSuggestionOnCommitCharacter: boolean;
 		snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
 		emptySelectionClipboard: boolean;
-		tabCompletion: boolean;
 		wordBasedSuggestions: boolean;
 		suggestFontSize: number;
 		suggestLineHeight: number;
@@ -1014,7 +1008,6 @@ export class EditorContribOptions {
 		this.acceptSuggestionOnCommitCharacter = Boolean(source.acceptSuggestionOnCommitCharacter);
 		this.snippetSuggestions = source.snippetSuggestions;
 		this.emptySelectionClipboard = source.emptySelectionClipboard;
-		this.tabCompletion = source.tabCompletion;
 		this.wordBasedSuggestions = source.wordBasedSuggestions;
 		this.suggestFontSize = source.suggestFontSize;
 		this.suggestLineHeight = source.suggestLineHeight;
@@ -1043,7 +1036,6 @@ export class EditorContribOptions {
 			&& this.acceptSuggestionOnCommitCharacter === other.acceptSuggestionOnCommitCharacter
 			&& this.snippetSuggestions === other.snippetSuggestions
 			&& this.emptySelectionClipboard === other.emptySelectionClipboard
-			&& this.tabCompletion === other.tabCompletion
 			&& this.wordBasedSuggestions === other.wordBasedSuggestions
 			&& this.suggestFontSize === other.suggestFontSize
 			&& this.suggestLineHeight === other.suggestLineHeight

@@ -1364,10 +1364,6 @@ declare module monaco.editor {
          */
         emptySelectionClipboard?: boolean;
         /**
-         * Enable tab completion. Defaults to 'false'
-         */
-        tabCompletion?: boolean;
-        /**
          * Enable word based suggestions. Defaults to 'true'
          */
         wordBasedSuggestions?: boolean;
@@ -1583,7 +1579,6 @@ declare module monaco.editor {
         readonly acceptSuggestionOnCommitCharacter: boolean;
         readonly snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
         readonly emptySelectionClipboard: boolean;
-        readonly tabCompletion: boolean;
         readonly wordBasedSuggestions: boolean;
         readonly suggestFontSize: number;
         readonly suggestLineHeight: number;
