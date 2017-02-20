@@ -1397,8 +1397,8 @@ declare module monaco.editor {
          */
         folding?: boolean;
         /**
-         * Enable to highlight matching brackets
-         * Defaults to true
+         * Enable to highlight matching brackets.
+         * Defaults to true.
          */
         highlightMatchingBrackets?: boolean;
         /**
