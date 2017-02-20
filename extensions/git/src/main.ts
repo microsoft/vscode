@@ -15,6 +15,7 @@ import { GitContentProvider } from './contentProvider';
 import { AutoFetcher } from './autofetch';
 import { MergeDecorator } from './merge';
 import { CommitController } from './commit';
+import { Askpass } from './askpass';
 import * as nls from 'vscode-nls';
 
 const localize = nls.config()();
@@ -36,7 +37,8 @@ async function init(disposables: Disposable[]): Promise<void> {
 	const pathHint = workspace.getConfiguration('git').get<string>('path');
 	const info = await findGit(pathHint);
 	const git = new Git({ gitPath: info.path, version: info.version });
-	const model = new Model(git, rootPath);
+	const askpass = new Askpass();
+	const model = new Model(git, rootPath, askpass);
 
 	outputChannel.appendLine(localize('using git', "Using git {0} from {1}", info.version, info.path));
 	git.onOutput(str => outputChannel.append(str), null, disposables);

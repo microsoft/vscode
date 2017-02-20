@@ -10,6 +10,7 @@ import { Git, Repository, Ref, Branch, Remote, PushOptions, Commit, GitErrorCode
 import { anyEvent, eventToPromise, filterEvent, mapEvent, EmptyDisposable, combinedDisposable, dispose } from './util';
 import { memoize, throttle, debounce } from './decorators';
 import { watch } from './watch';
+import { Askpass } from './askpass';
 import * as path from 'path';
 import * as nls from 'vscode-nls';
 
@@ -314,6 +315,7 @@ export class Model implements Disposable {
 	constructor(
 		private git: Git,
 		private rootPath: string,
+		private askpass: Askpass
 	) {
 		const fsWatcher = workspace.createFileSystemWatcher('**');
 		this.onWorkspaceChange = anyEvent(fsWatcher.onDidChange, fsWatcher.onDidCreate, fsWatcher.onDidDelete);
@@ -491,7 +493,8 @@ export class Model implements Disposable {
 
 		const disposables: Disposable[] = [];
 		const repositoryRoot = await this.git.getRepositoryRoot(this.rootPath);
-		this.repository = this.git.open(repositoryRoot);
+		const askpassEnv = await this.askpass.getEnv();
+		this.repository = this.git.open(repositoryRoot, askpassEnv);
 
 		const dotGitPath = path.join(repositoryRoot, '.git');
 		const { event: onRawGitChange, disposable: watcher } = watch(dotGitPath);
