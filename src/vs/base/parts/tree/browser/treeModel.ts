@@ -213,6 +213,7 @@ export class Item extends Events.EventEmitter {
 
 	private visible: boolean;
 	private expanded: boolean;
+	private childrenTogglePromise: WinJS.TPromise<any>;
 
 	private traits: { [trait: string]: boolean; };
 
@@ -242,8 +243,7 @@ export class Item extends Events.EventEmitter {
 		this.traits = {};
 		this.depth = 0;
 		this.expanded = false;
-		this._willExpand = false;
-		this._willCollapse = false;
+		this.childrenTogglePromise = null;
 
 		this.emit('item:create', { item: this });
 
@@ -286,14 +286,8 @@ export class Item extends Events.EventEmitter {
 		this.emit('item:reveal', eventData);
 	}
 
-	private expandLater(recursive: boolean = false): void {
-		this._willExpand = true;
-		this._willCollapse = false;
-		setTimeout(() => {
-			if (this._willExpand) {
-				this.expand(recursive);
-			}
-		});
+	public expandLater(recursive: boolean = false): WinJS.Promise {
+		return WinJS.TPromise.timeout(1).then(() => this.expand(recursive));
 	}
 
 	public expand(recursive: boolean = false): WinJS.Promise {
@@ -301,10 +295,19 @@ export class Item extends Events.EventEmitter {
 			return WinJS.TPromise.as(false);
 		}
 
+		if (this.childrenTogglePromise) {
+			this.childrenTogglePromise.cancel();
+		}
+
 		if (recursive) {
 			return this.expand(false).then(() => {
+				this.childrenTogglePromise = WinJS.TPromise.as(null);
 				this.forEachChild((child) => {
-					child.expandLater(true);
+					this.childrenTogglePromise = this.childrenTogglePromise.then(() => child.expandLater(true));
+				});
+
+				this.childrenTogglePromise.then(() => {
+					this.childrenTogglePromise = null;
 				});
 			});
 		} else {
@@ -321,7 +324,6 @@ export class Item extends Events.EventEmitter {
 
 				return result.then(() => {
 					this._setExpanded(true);
-					this._willExpand = false;
 					this.emit('item:expanded', eventData);
 					return true;
 				});
@@ -342,21 +344,23 @@ export class Item extends Events.EventEmitter {
 		}
 	}
 
-	private collapseLater(recursive: boolean = false): void {
-		this._willExpand = false;
-		this._willCollapse = true;
-		setTimeout(() => {
-			if (this._willCollapse) {
-				this.collapse(recursive);
-			}
-		});
+	public collapseLater(recursive: boolean = false): WinJS.Promise {
+		return WinJS.TPromise.timeout(1).then(() => this.collapse(recursive));
 	}
 
 	public collapse(recursive: boolean = false): WinJS.Promise {
+		if (this.childrenTogglePromise) {
+			this.childrenTogglePromise.cancel();
+		}
 		if (recursive) {
 			return this.collapse(false).then(() => {
+				this.childrenTogglePromise = WinJS.TPromise.as(null);
 				this.forEachChild((child) => {
-					child.collapseLater(true);
+					this.childrenTogglePromise = this.childrenTogglePromise.then(() => child.collapseLater(true));
+				});
+
+				this.childrenTogglePromise.then(() => {
+					this.childrenTogglePromise = null;
 				});
 			});
 		} else {
@@ -368,7 +372,6 @@ export class Item extends Events.EventEmitter {
 				var eventData: IItemCollapseEvent = { item: this };
 				this.emit('item:collapsing', eventData);
 				this._setExpanded(false);
-				this._willCollapse = false;
 				this.emit('item:collapsed', eventData);
 
 				return WinJS.TPromise.as(true);
