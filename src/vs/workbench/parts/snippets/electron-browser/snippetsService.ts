@@ -6,31 +6,21 @@
 
 import { localize } from 'vs/nls';
 import * as strings from 'vs/base/common/strings';
-import { ITokenizedModel, IPosition } from 'vs/editor/common/editorCommon';
+import { IModel, IPosition } from 'vs/editor/common/editorCommon';
 import { ISuggestion, LanguageIdentifier, LanguageId } from 'vs/editor/common/modes';
-import { Registry } from 'vs/platform/platform';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { setSnippetSuggestSupport } from 'vs/editor/contrib/suggest/common/suggest';
 
-export const Extensions = {
-	Snippets: 'base.contributions.snippets'
-};
+export const ISnippetsService = createDecorator<ISnippetsService>('snippetService');
 
-export interface ISnippetsRegistry {
+export interface ISnippetsService {
 
-	/**
-	 * Register a snippet to the registry.
-	 */
+	_serviceBrand: any;
+
 	registerSnippets(languageIdentifier: LanguageIdentifier, snippets: ISnippet[], owner?: string): void;
 
-	/**
-	 * Visit all snippets
-	 */
 	visitSnippets(languageId: LanguageId, accept: (snippet: ISnippet) => void): void;
-
-	/**
-	 * Get all snippet completions for the given position
-	 */
-	getSnippetCompletions(model: ITokenizedModel, position: IPosition): ISuggestion[];
-
 }
 
 export interface ISnippet {
@@ -45,9 +35,21 @@ interface ISnippetSuggestion extends ISuggestion {
 	disambiguateLabel: string;
 }
 
-class SnippetsRegistry implements ISnippetsRegistry {
+class SnippetsService implements ISnippetsService {
+
+	_serviceBrand: any;
 
 	private _snippets: { [owner: string]: ISnippet[] }[] = [];
+
+	constructor() {
+		setSnippetSuggestSupport({
+			triggerCharacters: undefined,
+			provideCompletionItems: (model, position) => {
+				const suggestions = this.getSnippetCompletions(<any>model, position);
+				return { suggestions };
+			}
+		});
+	}
 
 	public registerSnippets(languageIdentifier: LanguageIdentifier, snippets: ISnippet[], owner = ''): void {
 		let snippetsByMode = this._snippets[languageIdentifier.id];
@@ -69,7 +71,7 @@ class SnippetsRegistry implements ISnippetsRegistry {
 		}
 	}
 
-	public getSnippetCompletions(model: ITokenizedModel, position: IPosition): ISuggestion[] {
+	public getSnippetCompletions(model: IModel, position: IPosition): ISuggestion[] {
 		const languageId = model.getLanguageIdAtPosition(position.lineNumber, position.column);
 		if (!this._snippets[languageId]) {
 			return undefined;
@@ -116,7 +118,7 @@ class SnippetsRegistry implements ISnippetsRegistry {
 
 		// dismbiguate suggestions with same labels
 		let lastSuggestion: ISnippetSuggestion;
-		for (const suggestion of result.sort(SnippetsRegistry._compareSuggestionsByLabel)) {
+		for (const suggestion of result.sort(SnippetsService._compareSuggestionsByLabel)) {
 			if (lastSuggestion && lastSuggestion.label === suggestion.label) {
 				// use the disambiguateLabel instead of the actual label
 				lastSuggestion.label = lastSuggestion.disambiguateLabel;
@@ -132,6 +134,8 @@ class SnippetsRegistry implements ISnippetsRegistry {
 		return strings.compare(a.label, b.label);
 	}
 }
+
+registerSingleton(ISnippetsService, SnippetsService);
 
 export interface ISimpleModel {
 	getLineContent(lineNumber): string;
@@ -160,7 +164,4 @@ export function getNonWhitespacePrefix(model: ISimpleModel, position: IPosition)
 
 	return '';
 }
-
-const snippetsRegistry: ISnippetsRegistry = new SnippetsRegistry();
-Registry.add(Extensions.Snippets, snippetsRegistry);
 

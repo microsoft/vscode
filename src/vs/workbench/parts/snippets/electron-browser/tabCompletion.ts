@@ -9,7 +9,7 @@ import { localize } from 'vs/nls';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { RawContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ISnippetsRegistry, Extensions, getNonWhitespacePrefix, ISnippet } from 'vs/editor/common/modes/snippetsRegistry';
+import { ISnippetsService, getNonWhitespacePrefix, ISnippet } from 'vs/workbench/parts/snippets/electron-browser/snippetsService';
 import { Registry } from 'vs/platform/platform';
 import { endsWith } from 'vs/base/common/strings';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -19,8 +19,6 @@ import { SnippetController, CONTEXT_SNIPPET_MODE } from 'vs/editor/contrib/snipp
 import { IConfigurationRegistry, Extensions as ConfigExt } from "vs/platform/configuration/common/configurationRegistry";
 
 import EditorContextKeys = editorCommon.EditorContextKeys;
-
-let snippetsRegistry = <ISnippetsRegistry>Registry.as(Extensions.Snippets);
 
 @commonEditorContribution
 export class TabCompletionController implements editorCommon.IEditorContribution {
@@ -38,7 +36,8 @@ export class TabCompletionController implements editorCommon.IEditorContribution
 
 	constructor(
 		editor: editorCommon.ICommonCodeEditor,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@ISnippetsService snippetService: ISnippetsService
 	) {
 		this._snippetController = SnippetController.get(editor);
 		const hasSnippets = TabCompletionController.ContextKey.bindTo(contextKeyService);
@@ -59,7 +58,7 @@ export class TabCompletionController implements editorCommon.IEditorContribution
 			}
 
 			if (selectFn) {
-				snippetsRegistry.visitSnippets(editor.getModel().getLanguageIdentifier().id, s => {
+				snippetService.visitSnippets(editor.getModel().getLanguageIdentifier().id, s => {
 					if (selectFn(s)) {
 						this._currentSnippets.push(s);
 					}
