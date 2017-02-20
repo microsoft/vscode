@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { ExtensionContext, workspace, window, Disposable, commands, Uri } from 'vscode';
+import { ExtensionContext, workspace, window, Disposable, commands, Uri, scm } from 'vscode';
 import { findGit, Git } from './git';
 import { Model } from './model';
 import { GitSCMProvider } from './scmProvider';
@@ -14,7 +14,6 @@ import { CheckoutStatusBar, SyncStatusBar } from './statusbar';
 import { GitContentProvider } from './contentProvider';
 import { AutoFetcher } from './autofetch';
 import { MergeDecorator } from './merge';
-import { CommitController } from './commit';
 import { Askpass } from './askpass';
 import * as nls from 'vscode-nls';
 
@@ -43,7 +42,6 @@ async function init(disposables: Disposable[]): Promise<void> {
 	outputChannel.appendLine(localize('using git', "Using git {0} from {1}", info.version, info.path));
 	git.onOutput(str => outputChannel.append(str), null, disposables);
 
-	const commitHandler = new CommitController();
 	const commandCenter = new CommandCenter(model, outputChannel);
 	const provider = new GitSCMProvider(model, commandCenter);
 	const contentProvider = new GitContentProvider(model);
@@ -53,7 +51,6 @@ async function init(disposables: Disposable[]): Promise<void> {
 	const mergeDecorator = new MergeDecorator(model);
 
 	disposables.push(
-		commitHandler,
 		commandCenter,
 		provider,
 		contentProvider,
@@ -72,6 +69,8 @@ async function init(disposables: Disposable[]): Promise<void> {
 			commands.executeCommand('vscode.open', Uri.parse('https://git-scm.com/'));
 		}
 	}
+
+	scm.inputBox.value = await model.getCommitTemplate();
 }
 
 export function activate(context: ExtensionContext): any {
