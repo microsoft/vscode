@@ -807,13 +807,11 @@ export class DebugService implements debug.IDebugService {
 			return session.attach({ port });
 		}
 
-		const sessionId = generateUuid();
-		this.setStateAndEmit(sessionId, debug.State.Initializing);
 		const config = this.configurationManager.getConfiguration(this.viewModel.selectedConfigurationName);
 		return this.configurationManager.resloveConfiguration(config).then(resolvedConfig => {
 			resolvedConfig.request = 'attach';
 			resolvedConfig.port = port;
-			this.doCreateProcess(sessionId, resolvedConfig);
+			this.doCreateProcess(resolvedConfig);
 		});
 	}
 
