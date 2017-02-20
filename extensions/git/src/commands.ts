@@ -190,7 +190,8 @@ export class CommandCenter {
 	@command('git.clone')
 	async clone(): Promise<void> {
 		const url = await window.showInputBox({
-			prompt: localize('repourl', "Repository URL")
+			prompt: localize('repourl', "Repository URL"),
+			ignoreFocusOut: true
 		});
 
 		if (!url) {
@@ -199,7 +200,8 @@ export class CommandCenter {
 
 		const parentPath = await window.showInputBox({
 			prompt: localize('parent', "Parent Directory"),
-			value: os.homedir()
+			value: os.homedir(),
+			ignoreFocusOut: true
 		});
 
 		if (!parentPath) {
@@ -480,7 +482,8 @@ export class CommandCenter {
 
 			return await window.showInputBox({
 				placeHolder: localize('commit message', "Commit message"),
-				prompt: localize('provide commit message', "Please provide a commit message")
+				prompt: localize('provide commit message', "Please provide a commit message"),
+				ignoreFocusOut: true
 			});
 		};
 
@@ -569,7 +572,8 @@ export class CommandCenter {
 	async branch(): Promise<void> {
 		const result = await window.showInputBox({
 			placeHolder: localize('branch name', "Branch name"),
-			prompt: localize('provide branch name', "Please provide a branch name")
+			prompt: localize('provide branch name', "Please provide a branch name"),
+			ignoreFocusOut: true
 		});
 
 		if (!result) {
