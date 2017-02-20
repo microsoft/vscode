@@ -11,6 +11,7 @@ import { ISuggestion, LanguageIdentifier, LanguageId } from 'vs/editor/common/mo
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { setSnippetSuggestSupport } from 'vs/editor/contrib/suggest/common/suggest';
+import { IModeService } from 'vs/editor/common/services/modeService';
 
 export const ISnippetsService = createDecorator<ISnippetsService>('snippetService');
 
@@ -41,10 +42,12 @@ class SnippetsService implements ISnippetsService {
 
 	private _snippets: { [owner: string]: ISnippet[] }[] = [];
 
-	constructor() {
+	constructor(
+		@IModeService private _modeService: IModeService
+	) {
 		setSnippetSuggestSupport({
 			provideCompletionItems: (model, position) => {
-				const suggestions = this.getSnippetCompletions(<any>model, position);
+				const suggestions = this._getSnippetCompletions(<any>model, position);
 				return { suggestions };
 			}
 		});
@@ -70,8 +73,20 @@ class SnippetsService implements ISnippetsService {
 		}
 	}
 
-	public getSnippetCompletions(model: IModel, position: IPosition): ISuggestion[] {
-		const languageId = model.getLanguageIdAtPosition(position.lineNumber, position.column);
+	private _getLanguageIdAtPosition(model: IModel, position: IPosition): LanguageId {
+		// validate the `languageId` to ensure this is a user
+		// facing language with a name and the chance to have
+		// snippets, else fall back to the outer language
+		let languageId = model.getLanguageIdAtPosition(position.lineNumber, position.column);
+		let { language } = this._modeService.getLanguageIdentifier(languageId);
+		if (!this._modeService.getLanguageName(language)) {
+			languageId = model.getLanguageIdentifier().id;
+		}
+		return languageId;
+	}
+
+	private _getSnippetCompletions(model: IModel, position: IPosition): ISuggestion[] {
+		const languageId = this._getLanguageIdAtPosition(model, position);
 		if (!this._snippets[languageId]) {
 			return undefined;
 		}
