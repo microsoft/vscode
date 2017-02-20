@@ -616,9 +616,9 @@ export class TerminalInstance implements ITerminalInstance {
 	private static _getLangEnvVariable(locale?: string) {
 		const parts = locale ? locale.split('-') : [];
 		const n = parts.length;
-		const language = parts[0];
 		if (n === 0) {
-			return 'en_US.UTF-8'; // Avoid encoding problem with special chars. Issue #14586
+			// Fallback to en_US to prevent possible encoding issues.
+			return 'en_US.UTF-8';
 		}
 		if (n === 1) {
 			// app.getLocale can return just a language without a variant, fill in the variant for
@@ -634,8 +634,8 @@ export class TerminalInstance implements ITerminalInstance {
 				ru: 'RU',
 				zh: 'CN'
 			};
-			if (language in languageVariants) {
-				parts.push(languageVariants[language]);
+			if (parts[0] in languageVariants) {
+				parts.push(languageVariants[parts[0]]);
 			}
 		} else {
 			// Ensure the variant is uppercase
