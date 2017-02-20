@@ -569,6 +569,9 @@ export class TerminalInstance implements ITerminalInstance {
 			env['PTYCOLS'] = cols.toString();
 			env['PTYROWS'] = rows.toString();
 		}
+		if (!env['LANG']) {
+			env['LANG'] = 'en_US.UTF-8'; // Avoid encoding problem with special chars. Issue #14586
+		}
 		return env;
 	}
 
@@ -620,7 +623,7 @@ export class TerminalInstance implements ITerminalInstance {
 		const n = parts.length;
 		const language = parts[0];
 		if (n === 0) {
-			return 'en_US.UTF-8'; // Avoid encoding problem with special chars. Issue #14586
+			return '';
 		}
 		if (n === 1) {
 			// app.getLocale can return just a language without a variant, fill in the variant for
