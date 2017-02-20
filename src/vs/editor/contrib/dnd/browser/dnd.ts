@@ -75,11 +75,11 @@ export class DragAndDropController implements editorCommon.IEditorContribution {
 			}
 		}
 
-		this._hideWidgets();
+		this._hideWidget();
 		this._active = false;
 	}
 
-	private _hideWidgets(): void {
+	private _hideWidget(): void {
 		this._targetWidget.hide();
 	}
 
