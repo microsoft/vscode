@@ -481,10 +481,10 @@ export interface IEditorOptions {
 	 */
 	folding?: boolean;
 	/**
-	 * Enable to highlight matching brackets.
+	 * Enable highlighting of matching brackets.
 	 * Defaults to true.
 	 */
-	highlightMatchingBrackets?: boolean;
+	matchBrackets?: boolean;
 	/**
 	 * Enable rendering of whitespace.
 	 * Defaults to none.
@@ -971,7 +971,7 @@ export class EditorContribOptions {
 	readonly selectionHighlight: boolean;
 	readonly codeLens: boolean;
 	readonly folding: boolean;
-	readonly highlightMatchingBrackets: boolean;
+	readonly matchBrackets: boolean;
 
 	/**
 	 * @internal
@@ -998,7 +998,7 @@ export class EditorContribOptions {
 		selectionHighlight: boolean;
 		codeLens: boolean;
 		folding: boolean;
-		highlightMatchingBrackets: boolean;
+		matchBrackets: boolean;
 	}) {
 		this.selectionClipboard = Boolean(source.selectionClipboard);
 		this.hover = Boolean(source.hover);
@@ -1021,7 +1021,7 @@ export class EditorContribOptions {
 		this.selectionHighlight = Boolean(source.selectionHighlight);
 		this.codeLens = Boolean(source.codeLens);
 		this.folding = Boolean(source.folding);
-		this.highlightMatchingBrackets = Boolean(source.highlightMatchingBrackets);
+		this.matchBrackets = Boolean(source.matchBrackets);
 	}
 
 	/**
@@ -1050,7 +1050,7 @@ export class EditorContribOptions {
 			&& this.selectionHighlight === other.selectionHighlight
 			&& this.codeLens === other.codeLens
 			&& this.folding === other.folding
-			&& this.highlightMatchingBrackets === other.highlightMatchingBrackets
+			&& this.matchBrackets === other.matchBrackets
 		);
 	}
 

@@ -308,7 +308,7 @@ class InternalEditorOptionsHelper {
 			selectionHighlight: toBoolean(opts.selectionHighlight),
 			codeLens: opts.referenceInfos && opts.codeLens,
 			folding: toBoolean(opts.folding),
-			highlightMatchingBrackets: toBoolean(opts.highlightMatchingBrackets),
+			matchBrackets: toBoolean(opts.matchBrackets),
 		});
 
 		return new editorCommon.InternalEditorOptions({
@@ -823,10 +823,10 @@ const editorConfiguration: IConfigurationNode = {
 			'default': DefaultConfig.editor.folding,
 			'description': nls.localize('folding', "Controls whether the editor has code folding enabled")
 		},
-		'editor.highlightMatchingBrackets': {
+		'editor.matchBrackets': {
 			'type': 'boolean',
-			'default': true,
-			'description': nls.localize('highlightMatchingBrackets', "Highlight matching brackets when one of them is selected.")
+			'default': DefaultConfig.editor.matchBrackets,
+			'description': nls.localize('matchBrackets', "Highlight matching brackets when one of them is selected.")
 		},
 		'editor.glyphMargin': {
 			'type': 'boolean',
