@@ -13,9 +13,8 @@ import types = require('vs/base/common/types');
 import { language, LANGUAGE_DEFAULT } from 'vs/base/common/platform';
 import { IAction, Action } from 'vs/base/common/actions';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import strings = require('vs/base/common/strings');
 import { Mode, IEntryRunContext, IAutoFocus } from 'vs/base/parts/quickopen/common/quickOpen';
-import { QuickOpenEntryGroup, IHighlight, QuickOpenModel, QuickOpenEntry } from 'vs/base/parts/quickopen/browser/quickOpenModel';
+import { QuickOpenEntryGroup, IHighlight, QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { SyncActionDescriptor, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
@@ -233,7 +232,6 @@ class ActionCommandEntry extends BaseCommandEntry {
 }
 
 export class CommandsHandler extends QuickOpenHandler {
-	private scorerCache: { [key: string]: number };
 
 	constructor(
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
@@ -243,8 +241,6 @@ export class CommandsHandler extends QuickOpenHandler {
 		@IContextKeyService private contextKeyService: IContextKeyService
 	) {
 		super();
-
-		this.scorerCache = Object.create(null);
 	}
 
 	protected includeWorkbenchCommands(): boolean {
@@ -291,8 +287,7 @@ export class CommandsHandler extends QuickOpenHandler {
 
 		// Sort
 		if (searchValue) {
-			const normalizedSearchValue = strings.stripWildcards(searchValue).toLowerCase();
-			entries = entries.sort((elementA, elementB) => QuickOpenEntry.compareByScore(elementA, elementB, searchValue, normalizedSearchValue, this.scorerCache));
+			entries = entries.sort((elementA, elementB) => elementA.getLabel().length - elementB.getLabel().length);
 		} else {
 			entries = entries.sort((elementA, elementB) => elementA.getLabel().toLowerCase().localeCompare(elementB.getLabel().toLowerCase()));
 		}
@@ -391,12 +386,6 @@ export class CommandsHandler extends QuickOpenHandler {
 
 	public getEmptyLabel(searchString: string): string {
 		return nls.localize('noCommandsMatching', "No commands matching");
-	}
-
-	public onClose(canceled: boolean): void {
-
-		// Clear Cache
-		this.scorerCache = Object.create(null);
 	}
 }
 
