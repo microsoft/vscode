@@ -38,7 +38,7 @@ export class ViewCursorRenderData {
 export class ViewCursor {
 	private readonly _context: ViewContext;
 	private readonly _isSecondary: boolean;
-	private readonly _domNode: FastDomNode;
+	private readonly _domNode: FastDomNode<HTMLElement>;
 
 	private _cursorStyle: TextEditorCursorStyle;
 	private _lineHeight: number;
@@ -137,13 +137,18 @@ export class ViewCursor {
 	}
 
 	private _prepareRender(ctx: IRenderingContext): ViewCursorRenderData {
-		if (this._cursorStyle === TextEditorCursorStyle.Line) {
+		if (this._cursorStyle === TextEditorCursorStyle.Line || this._cursorStyle === TextEditorCursorStyle.LineThin) {
 			let visibleRange = ctx.visibleRangeForPosition(this._position);
 			if (!visibleRange) {
 				// Outside viewport
 				return null;
 			}
-			let width = this._isSecondary ? 1 : 2;
+			let width: number;
+			if (this._cursorStyle === TextEditorCursorStyle.Line) {
+				width = this._isSecondary ? 1 : 2;
+			} else {
+				width = 1;
+			}
 			return new ViewCursorRenderData(visibleRange.top, visibleRange.left, width, '');
 		}
 

@@ -10,11 +10,18 @@ import { Range } from 'vs/editor/common/core/range';
 import { RenderLineInput, renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
 import { InlineDecoration } from 'vs/editor/common/viewModel/viewModel';
+import { MetadataConsts } from 'vs/editor/common/modes';
 
 suite('Editor ViewLayout - ViewLineParts', () => {
 
 	function newDecoration(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, inlineClassName: string): InlineDecoration {
 		return new InlineDecoration(new Range(startLineNumber, startColumn, endLineNumber, endColumn), inlineClassName, false);
+	}
+
+	function createPart(endIndex: number, foreground: number): ViewLineToken {
+		return new ViewLineToken(endIndex, (
+			foreground << MetadataConsts.FOREGROUND_OFFSET
+		) >>> 0);
 	}
 
 	test('Bug 9827:Overlapping inline decorations can cause wrong inline class to be applied', () => {
@@ -82,7 +89,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			lineContent,
 			false,
 			0,
-			[new ViewLineToken(21, 'mtk3')],
+			[createPart(21, 3)],
 			[new Decoration(1, 22, 'link', false)],
 			4,
 			10,
@@ -110,11 +117,11 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			false,
 			0,
 			[
-				new ViewLineToken(49, 'mtk6'),
-				new ViewLineToken(51, 'mtk4'),
-				new ViewLineToken(72, 'mtk6'),
-				new ViewLineToken(74, 'mtk4'),
-				new ViewLineToken(84, 'mtk6'),
+				createPart(49, 6),
+				createPart(51, 4),
+				createPart(72, 6),
+				createPart(74, 4),
+				createPart(84, 6),
 			],
 			[
 				new Decoration(13, 51, 'detected-link', false)
@@ -146,13 +153,13 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			false,
 			'Hello world!',
 			[
-				new ViewLineToken(12, '')
+				createPart(12, 1)
 			],
 			0,
 			'none',
 			[
 				'<span>',
-				'<span class="">Hello&nbsp;world!</span>',
+				'<span class="mtk1">Hello&nbsp;world!</span>',
 				'</span>',
 			].join('')
 		);
@@ -162,15 +169,15 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			false,
 			'Hello world!',
 			[
-				new ViewLineToken(6, 'a'),
-				new ViewLineToken(12, 'b')
+				createPart(6, 1),
+				createPart(12, 2)
 			],
 			0,
 			'none',
 			[
 				'<span>',
-				'<span class="a">Hello&nbsp;</span>',
-				'<span class="b">world!</span>',
+				'<span class="mtk1">Hello&nbsp;</span>',
+				'<span class="mtk2">world!</span>',
 				'</span>',
 			].join('')
 		);
@@ -180,17 +187,17 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			false,
 			'    Hello world!    ',
 			[
-				new ViewLineToken(4, ''),
-				new ViewLineToken(6, 'a'),
-				new ViewLineToken(20, 'b')
+				createPart(4, 1),
+				createPart(6, 2),
+				createPart(20, 3)
 			],
 			0,
 			'boundary',
 			[
 				'<span>',
 				'<span class="vs-whitespace" style="width:40px">&middot;&middot;&middot;&middot;</span>',
-				'<span class="a">He</span>',
-				'<span class="b">llo&nbsp;world!</span>',
+				'<span class="mtk2">He</span>',
+				'<span class="mtk3">llo&nbsp;world!</span>',
 				'<span class="vs-whitespace" style="width:40px">&middot;&middot;&middot;&middot;</span>',
 				'</span>',
 			].join('')
@@ -201,9 +208,9 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			false,
 			'        Hello world!        ',
 			[
-				new ViewLineToken(8, ''),
-				new ViewLineToken(10, 'a'),
-				new ViewLineToken(28, 'b')
+				createPart(8, 1),
+				createPart(10, 2),
+				createPart(28, 3)
 			],
 			0,
 			'boundary',
@@ -211,8 +218,8 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 				'<span>',
 				'<span class="vs-whitespace" style="width:40px">&middot;&middot;&middot;&middot;</span>',
 				'<span class="vs-whitespace" style="width:40px">&middot;&middot;&middot;&middot;</span>',
-				'<span class="a">He</span>',
-				'<span class="b">llo&nbsp;world!</span>',
+				'<span class="mtk2">He</span>',
+				'<span class="mtk3">llo&nbsp;world!</span>',
 				'<span class="vs-whitespace" style="width:40px">&middot;&middot;&middot;&middot;</span>',
 				'<span class="vs-whitespace" style="width:40px">&middot;&middot;&middot;&middot;</span>',
 				'</span>',
@@ -224,9 +231,9 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			false,
 			'\t\tHello world!\t',
 			[
-				new ViewLineToken(2, ''),
-				new ViewLineToken(4, 'a'),
-				new ViewLineToken(15, 'b')
+				createPart(2, 1),
+				createPart(4, 2),
+				createPart(15, 3)
 			],
 			0,
 			'boundary',
@@ -234,8 +241,8 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 				'<span>',
 				'<span class="vs-whitespace" style="width:40px">&rarr;&nbsp;&nbsp;&nbsp;</span>',
 				'<span class="vs-whitespace" style="width:40px">&rarr;&nbsp;&nbsp;&nbsp;</span>',
-				'<span class="a">He</span>',
-				'<span class="b">llo&nbsp;world!</span>',
+				'<span class="mtk2">He</span>',
+				'<span class="mtk3">llo&nbsp;world!</span>',
 				'<span class="vs-whitespace" style="width:40px">&rarr;&nbsp;&nbsp;&nbsp;</span>',
 				'</span>',
 			].join('')
@@ -246,9 +253,9 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			false,
 			'  \t\t  Hello world! \t  \t   \t    ',
 			[
-				new ViewLineToken(6, ''),
-				new ViewLineToken(8, 'a'),
-				new ViewLineToken(31, 'b')
+				createPart(6, 1),
+				createPart(8, 2),
+				createPart(31, 3)
 			],
 			0,
 			'boundary',
@@ -257,8 +264,8 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 				'<span class="vs-whitespace" style="width:40px">&middot;&middot;&rarr;&nbsp;</span>',
 				'<span class="vs-whitespace" style="width:40px">&rarr;&nbsp;&nbsp;&nbsp;</span>',
 				'<span class="vs-whitespace" style="width:20px">&middot;&middot;</span>',
-				'<span class="a">He</span>',
-				'<span class="b">llo&nbsp;world!</span>',
+				'<span class="mtk2">He</span>',
+				'<span class="mtk3">llo&nbsp;world!</span>',
 				'<span class="vs-whitespace" style="width:20px">&middot;&rarr;</span>',
 				'<span class="vs-whitespace" style="width:40px">&middot;&middot;&rarr;&nbsp;</span>',
 				'<span class="vs-whitespace" style="width:40px">&middot;&middot;&middot;&rarr;</span>',
@@ -273,9 +280,9 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			false,
 			'\t\t  Hello world! \t  \t   \t    ',
 			[
-				new ViewLineToken(4, ''),
-				new ViewLineToken(6, 'a'),
-				new ViewLineToken(29, 'b')
+				createPart(4, 1),
+				createPart(6, 2),
+				createPart(29, 3)
 			],
 			2,
 			'boundary',
@@ -283,8 +290,8 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 				'<span>',
 				'<span class="">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>',
 				'<span class="vs-whitespace" style="width:20px">&middot;&middot;</span>',
-				'<span class="a">He</span>',
-				'<span class="b">llo&nbsp;world!</span>',
+				'<span class="mtk2">He</span>',
+				'<span class="mtk3">llo&nbsp;world!</span>',
 				'<span class="vs-whitespace" style="width:20px">&middot;&rarr;</span>',
 				'<span class="vs-whitespace" style="width:40px">&middot;&middot;&rarr;&nbsp;</span>',
 				'<span class="vs-whitespace" style="width:40px">&middot;&middot;&middot;&rarr;</span>',
@@ -299,9 +306,9 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			true,
 			'\t\t  Hello world! \t  \t   \t    ',
 			[
-				new ViewLineToken(4, ''),
-				new ViewLineToken(6, 'a'),
-				new ViewLineToken(29, 'b')
+				createPart(4, 1),
+				createPart(6, 2),
+				createPart(29, 3)
 			],
 			2,
 			'boundary',
@@ -309,8 +316,8 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 				'<span>',
 				'<span class="">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>',
 				'<span class="vs-whitespace">&middot;&middot;</span>',
-				'<span class="a">He</span>',
-				'<span class="b">llo&nbsp;world!</span>',
+				'<span class="mtk2">He</span>',
+				'<span class="mtk3">llo&nbsp;world!</span>',
 				'<span class="vs-whitespace">&middot;&rarr;&middot;&middot;&rarr;&nbsp;&middot;&middot;&middot;&rarr;&middot;&middot;&middot;&middot;</span>',
 				'</span>',
 			].join('')
@@ -322,21 +329,21 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			false,
 			'it  it it  it',
 			[
-				new ViewLineToken(6, ''),
-				new ViewLineToken(7, 'a'),
-				new ViewLineToken(13, 'b')
+				createPart(6, 1),
+				createPart(7, 2),
+				createPart(13, 3)
 			],
 			0,
 			'boundary',
 			[
 				'<span>',
-				'<span class="">it</span>',
+				'<span class="mtk1">it</span>',
 				'<span class="vs-whitespace" style="width:20px">&middot;&middot;</span>',
-				'<span class="">it</span>',
-				'<span class="a">&nbsp;</span>',
-				'<span class="b">it</span>',
+				'<span class="mtk1">it</span>',
+				'<span class="mtk2">&nbsp;</span>',
+				'<span class="mtk3">it</span>',
 				'<span class="vs-whitespace" style="width:20px">&middot;&middot;</span>',
-				'<span class="b">it</span>',
+				'<span class="mtk3">it</span>',
 				'</span>',
 			].join('')
 		);
@@ -347,19 +354,19 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			false,
 			' Hello world!\t',
 			[
-				new ViewLineToken(4, ''),
-				new ViewLineToken(6, 'a'),
-				new ViewLineToken(14, 'b')
+				createPart(4, 0),
+				createPart(6, 1),
+				createPart(14, 2)
 			],
 			0,
 			'all',
 			[
 				'<span>',
 				'<span class="vs-whitespace" style="width:10px">&middot;</span>',
-				'<span class="">Hel</span>',
-				'<span class="a">lo</span>',
+				'<span class="mtk0">Hel</span>',
+				'<span class="mtk1">lo</span>',
 				'<span class="vs-whitespace" style="width:10px">&middot;</span>',
-				'<span class="b">world!</span>',
+				'<span class="mtk2">world!</span>',
 				'<span class="vs-whitespace" style="width:30px">&rarr;&nbsp;&nbsp;</span>',
 				'</span>',
 			].join('')
@@ -372,7 +379,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			'Hello world',
 			false,
 			0,
-			[new ViewLineToken(11, '')],
+			[createPart(11, 0)],
 			[
 				new Decoration(5, 7, 'a', false),
 				new Decoration(1, 3, 'b', false),
@@ -393,12 +400,12 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 
 		assert.deepEqual(actual.html, [
 			'<span>',
-			'<span class=" b">H</span>',
-			'<span class=" b c">e</span>',
-			'<span class=" c">ll</span>',
-			'<span class=" a c">o&nbsp;</span>',
-			'<span class=" c">w</span>',
-			'<span class="">orld</span>',
+			'<span class="mtk0 b">H</span>',
+			'<span class="mtk0 b c">e</span>',
+			'<span class="mtk0 c">ll</span>',
+			'<span class="mtk0 a c">o&nbsp;</span>',
+			'<span class="mtk0 c">w</span>',
+			'<span class="mtk0">orld</span>',
 			'</span>',
 		].join(''));
 	});
@@ -506,7 +513,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			'hello world',
 			4,
 			[
-				new ViewLineToken(11, 'aToken')
+				createPart(11, 1)
 			],
 			[11]
 		);
@@ -529,12 +536,12 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			'var x = 3;',
 			4,
 			[
-				new ViewLineToken(3, 'meta type js storage var expr'),
-				new ViewLineToken(4, 'meta js var expr'),
-				new ViewLineToken(5, 'meta js var expr var-single-variable variable'),
-				new ViewLineToken(8, 'meta js var expr var-single-variable'),
-				new ViewLineToken(9, 'meta js var expr var-single-variable constant numeric'),
-				new ViewLineToken(10, ''),
+				createPart(3, 1),
+				createPart(4, 2),
+				createPart(5, 3),
+				createPart(8, 4),
+				createPart(9, 5),
+				createPart(10, 6),
 			],
 			[3, 1, 1, 3, 1, 1]
 		);
@@ -561,7 +568,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			'\t',
 			6,
 			[
-				new ViewLineToken(1, 'vs-whitespace')
+				createPart(1, 1)
 			],
 			[6]
 		);
@@ -579,8 +586,8 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			'\tfunction',
 			4,
 			[
-				new ViewLineToken(1, ''),
-				new ViewLineToken(9, 'meta type js function storage'),
+				createPart(1, 1),
+				createPart(9, 2),
 			],
 			[4, 8]
 		);
@@ -605,8 +612,8 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			'\t\tfunction',
 			4,
 			[
-				new ViewLineToken(2, ''),
-				new ViewLineToken(10, 'meta type js function storage'),
+				createPart(2, 1),
+				createPart(10, 2),
 			],
 			[8, 8]
 		);

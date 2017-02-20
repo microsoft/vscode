@@ -23,6 +23,9 @@ import { TokenizationRegistry, LanguageIdentifier, FontStyle, StandardTokenType 
 import { CharCode } from 'vs/base/common/charCode';
 import { findMatchingThemeRule } from 'vs/editor/electron-browser/textMate/TMHelper';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
+import { Color } from 'vs/base/common/color';
+import { IMessageService } from 'vs/platform/message/common/message';
+import Severity from 'vs/base/common/severity';
 
 @editorContribution
 class InspectTMScopesController extends Disposable implements IEditorContribution {
@@ -37,19 +40,22 @@ class InspectTMScopesController extends Disposable implements IEditorContributio
 	private _textMateService: ITextMateService;
 	private _themeService: IThemeService;
 	private _modeService: IModeService;
+	private _messageService: IMessageService;
 	private _widget: InspectTMScopesWidget;
 
 	constructor(
 		editor: ICodeEditor,
 		@ITextMateService textMateService: ITextMateService,
 		@IModeService modeService: IModeService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IMessageService messageService: IMessageService,
 	) {
 		super();
 		this._editor = editor;
 		this._textMateService = textMateService;
 		this._themeService = themeService;
 		this._modeService = modeService;
+		this._messageService = messageService;
 		this._widget = null;
 
 		this._register(this._editor.onDidChangeModel((e) => this.stop()));
@@ -72,7 +78,7 @@ class InspectTMScopesController extends Disposable implements IEditorContributio
 		if (!this._editor.getModel()) {
 			return;
 		}
-		this._widget = new InspectTMScopesWidget(this._editor, this._textMateService, this._modeService, this._themeService);
+		this._widget = new InspectTMScopesWidget(this._editor, this._textMateService, this._modeService, this._themeService, this._messageService);
 	}
 
 	public stop(): void {
@@ -114,8 +120,8 @@ interface IDecodedMetadata {
 	languageIdentifier: LanguageIdentifier;
 	tokenType: StandardTokenType;
 	fontStyle: FontStyle;
-	foreground: string;
-	background: string;
+	foreground: Color;
+	background: Color;
 }
 
 function renderTokenText(tokenText: string): string {
@@ -154,27 +160,30 @@ class InspectTMScopesWidget extends Disposable implements IContentWidget {
 
 	private static _ID = 'editor.contrib.inspectTMScopesWidget';
 
-	public allowEditorOverflow = true;
+	public readonly allowEditorOverflow = true;
 
 	private _isDisposed: boolean;
-	private _editor: ICodeEditor;
-	private _modeService: IModeService;
-	private _themeService: IThemeService;
-	private _model: IModel;
-	private _domNode: HTMLElement;
-	private _grammar: TPromise<IGrammar>;
+	private readonly _editor: ICodeEditor;
+	private readonly _modeService: IModeService;
+	private readonly _themeService: IThemeService;
+	private readonly _messageService: IMessageService;
+	private readonly _model: IModel;
+	private readonly _domNode: HTMLElement;
+	private readonly _grammar: TPromise<IGrammar>;
 
 	constructor(
 		editor: ICodeEditor,
 		textMateService: ITextMateService,
 		modeService: IModeService,
-		themeService: IThemeService
+		themeService: IThemeService,
+		messageService: IMessageService
 	) {
 		super();
 		this._isDisposed = false;
 		this._editor = editor;
 		this._modeService = modeService;
 		this._themeService = themeService;
+		this._messageService = messageService;
 		this._model = this._editor.getModel();
 		this._domNode = document.createElement('div');
 		this._domNode.className = 'tm-inspect-widget';
@@ -197,7 +206,15 @@ class InspectTMScopesWidget extends Disposable implements IContentWidget {
 	private _beginCompute(position: Position): void {
 		dom.clearNode(this._domNode);
 		this._domNode.appendChild(document.createTextNode(nls.localize('inspectTMScopesWidget.loading', "Loading...")));
-		this._grammar.then((grammar) => this._compute(grammar, position));
+		this._grammar.then(
+			(grammar) => this._compute(grammar, position),
+			(err) => {
+				this._messageService.show(Severity.Warning, err);
+				setTimeout(() => {
+					InspectTMScopesController.get(this._editor).stop();
+				});
+			}
+		);
 	}
 
 	private _compute(grammar: IGrammar, position: Position): void {
@@ -237,8 +254,8 @@ class InspectTMScopesWidget extends Disposable implements IContentWidget {
 		result += `<tr><td class="tm-metadata-key">language</td><td class="tm-metadata-value">${escape(metadata.languageIdentifier.language)}</td>`;
 		result += `<tr><td class="tm-metadata-key">token type</td><td class="tm-metadata-value">${this._tokenTypeToString(metadata.tokenType)}</td>`;
 		result += `<tr><td class="tm-metadata-key">font style</td><td class="tm-metadata-value">${this._fontStyleToString(metadata.fontStyle)}</td>`;
-		result += `<tr><td class="tm-metadata-key">foreground</td><td class="tm-metadata-value">${metadata.foreground}</td>`;
-		result += `<tr><td class="tm-metadata-key">background</td><td class="tm-metadata-value">${metadata.background}</td>`;
+		result += `<tr><td class="tm-metadata-key">foreground</td><td class="tm-metadata-value">${metadata.foreground.toRGBAHex()}</td>`;
+		result += `<tr><td class="tm-metadata-key">background</td><td class="tm-metadata-value">${metadata.background.toRGBAHex()}</td>`;
 		result += `</tbody></table>`;
 
 		let theme = this._themeService.getColorTheme();

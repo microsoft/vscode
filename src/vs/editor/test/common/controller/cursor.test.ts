@@ -910,6 +910,112 @@ suite('Editor Controller - Cursor', () => {
 		model.dispose();
 	});
 
+	test('issue #20087: column select with mouse', () => {
+		let model = Model.createFromString([
+			'<property id="SomeThing" key="SomeKey" value="000"/>',
+			'<property id="SomeThing" key="SomeKey" value="000"/>',
+			'<property id="SomeThing" Key="SomeKey" value="000"/>',
+			'<property id="SomeThing" key="SomeKey" value="000"/>',
+			'<property id="SomeThing" key="SoMEKEy" value="000"/>',
+			'<property id="SomeThing" key="SomeKey" value="000"/>',
+			'<property id="SomeThing" key="SomeKey" value="000"/>',
+			'<property id="SomeThing" key="SomeKey" valuE="000"/>',
+			'<property id="SomeThing" key="SomeKey" value="000"/>',
+			'<property id="SomeThing" key="SomeKey" value="00X"/>',
+		].join('\n'));
+		let cursor = new Cursor(new MockConfiguration(null), model, viewModelHelper(model), true);
+
+		moveTo(cursor, 10, 10, false);
+		assertCursor(cursor, new Position(10, 10));
+
+		cursorCommand(cursor, H.ColumnSelect, {
+			position: new Position(1, 1),
+			viewPosition: new Position(1, 1),
+			mouseColumn: 1
+		});
+		assertCursor(cursor, [
+			new Selection(10, 10, 10, 1),
+			new Selection(9, 10, 9, 1),
+			new Selection(8, 10, 8, 1),
+			new Selection(7, 10, 7, 1),
+			new Selection(6, 10, 6, 1),
+			new Selection(5, 10, 5, 1),
+			new Selection(4, 10, 4, 1),
+			new Selection(3, 10, 3, 1),
+			new Selection(2, 10, 2, 1),
+			new Selection(1, 10, 1, 1),
+		]);
+
+		cursorCommand(cursor, H.ColumnSelect, {
+			position: new Position(1, 1),
+			viewPosition: new Position(1, 1),
+			mouseColumn: 1
+		});
+		assertCursor(cursor, [
+			new Selection(10, 10, 10, 1),
+			new Selection(9, 10, 9, 1),
+			new Selection(8, 10, 8, 1),
+			new Selection(7, 10, 7, 1),
+			new Selection(6, 10, 6, 1),
+			new Selection(5, 10, 5, 1),
+			new Selection(4, 10, 4, 1),
+			new Selection(3, 10, 3, 1),
+			new Selection(2, 10, 2, 1),
+			new Selection(1, 10, 1, 1),
+		]);
+
+		cursor.dispose();
+		model.dispose();
+	});
+
+	test('issue #20087: column select with keyboard', () => {
+		let model = Model.createFromString([
+			'<property id="SomeThing" key="SomeKey" value="000"/>',
+			'<property id="SomeThing" key="SomeKey" value="000"/>',
+			'<property id="SomeThing" Key="SomeKey" value="000"/>',
+			'<property id="SomeThing" key="SomeKey" value="000"/>',
+			'<property id="SomeThing" key="SoMEKEy" value="000"/>',
+			'<property id="SomeThing" key="SomeKey" value="000"/>',
+			'<property id="SomeThing" key="SomeKey" value="000"/>',
+			'<property id="SomeThing" key="SomeKey" valuE="000"/>',
+			'<property id="SomeThing" key="SomeKey" value="000"/>',
+			'<property id="SomeThing" key="SomeKey" value="00X"/>',
+		].join('\n'));
+		let cursor = new Cursor(new MockConfiguration(null), model, viewModelHelper(model), true);
+
+		moveTo(cursor, 10, 10, false);
+		assertCursor(cursor, new Position(10, 10));
+
+		cursorCommand(cursor, H.CursorColumnSelectLeft);
+		assertCursor(cursor, [
+			new Selection(10, 10, 10, 9)
+		]);
+
+		cursorCommand(cursor, H.CursorColumnSelectLeft);
+		assertCursor(cursor, [
+			new Selection(10, 10, 10, 8)
+		]);
+
+		cursorCommand(cursor, H.CursorColumnSelectRight);
+		assertCursor(cursor, [
+			new Selection(10, 10, 10, 9)
+		]);
+
+		cursorCommand(cursor, H.CursorColumnSelectUp);
+		assertCursor(cursor, [
+			new Selection(10, 10, 10, 9),
+			new Selection(9, 10, 9, 9),
+		]);
+
+		cursorCommand(cursor, H.CursorColumnSelectDown);
+		assertCursor(cursor, [
+			new Selection(10, 10, 10, 9)
+		]);
+
+		cursor.dispose();
+		model.dispose();
+	});
+
 	test('column select with keyboard', () => {
 		let model = Model.createFromString([
 			'var gulp = require("gulp");',

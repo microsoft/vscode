@@ -5,9 +5,10 @@
 
 'use strict';
 
-import { Uri, commands, scm, Disposable, SCMResourceGroup, SCMResource, window, workspace, QuickPickItem, OutputChannel } from 'vscode';
+import { Uri, commands, scm, Disposable, SCMResourceGroup, SCMResource, window, workspace, QuickPickItem, OutputChannel, computeDiff, Range, WorkspaceEdit, Position } from 'vscode';
 import { Ref, RefType } from './git';
 import { Model, Resource, Status, CommitOptions } from './model';
+import * as staging from './staging';
 import * as path from 'path';
 import * as nls from 'vscode-nls';
 
@@ -133,14 +134,7 @@ export class CommandCenter {
 				return resource.original.with({ scheme: 'git', query: 'HEAD' });
 
 			case Status.MODIFIED:
-				const uriString = resource.original.toString();
-				const [indexStatus] = this.model.indexGroup.resources.filter(r => r.original.toString() === uriString);
-
-				if (indexStatus) {
-					return resource.uri.with({ scheme: 'git' });
-				}
-
-				return resource.uri.with({ scheme: 'git', query: 'HEAD' });
+				return resource.uri.with({ scheme: 'git', query: '~' });
 		}
 	}
 
@@ -190,6 +184,11 @@ export class CommandCenter {
 		return '';
 	}
 
+	@command('git.init')
+	async init(): Promise<void> {
+		await this.model.init();
+	}
+
 	@command('git.openFile')
 	async openFile(uri: Uri): Promise<void> {
 		const scmResource = resolveGitResource(uri);
@@ -228,12 +227,93 @@ export class CommandCenter {
 			return;
 		}
 
-		return await this.model.stage(resource);
+		return await this.model.add(resource);
 	}
 
 	@command('git.stageAll')
 	async stageAll(): Promise<void> {
-		return await this.model.stage();
+		return await this.model.add();
+	}
+
+	@command('git.stageSelectedRanges')
+	async stageSelectedRanges(): Promise<void> {
+		const textEditor = window.activeTextEditor;
+
+		if (!textEditor) {
+			return;
+		}
+
+		const modifiedDocument = textEditor.document;
+		const modifiedUri = modifiedDocument.uri;
+
+		if (modifiedUri.scheme !== 'file') {
+			return;
+		}
+
+		const originalUri = modifiedUri.with({ scheme: 'git', query: '~' });
+		const originalDocument = await workspace.openTextDocument(originalUri);
+		const diffs = await computeDiff(originalDocument, modifiedDocument);
+		const selections = textEditor.selections;
+		const selectedDiffs = diffs.filter(diff => {
+			const modifiedRange = diff.modifiedEndLineNumber === 0
+				? new Range(modifiedDocument.lineAt(diff.modifiedStartLineNumber - 1).range.end, modifiedDocument.lineAt(diff.modifiedStartLineNumber).range.start)
+				: new Range(modifiedDocument.lineAt(diff.modifiedStartLineNumber - 1).range.start, modifiedDocument.lineAt(diff.modifiedEndLineNumber - 1).range.end);
+
+			return selections.some(selection => !!selection.intersection(modifiedRange));
+		});
+
+		if (!selectedDiffs.length) {
+			return;
+		}
+
+		const result = staging.applyChanges(originalDocument, modifiedDocument, selectedDiffs);
+		await this.model.stage(modifiedUri, result);
+	}
+
+	@command('git.revertSelectedRanges')
+	async revertSelectedRanges(): Promise<void> {
+		const textEditor = window.activeTextEditor;
+
+		if (!textEditor) {
+			return;
+		}
+
+		const modifiedDocument = textEditor.document;
+		const modifiedUri = modifiedDocument.uri;
+
+		if (modifiedUri.scheme !== 'file') {
+			return;
+		}
+
+		const originalUri = modifiedUri.with({ scheme: 'git', query: '~' });
+		const originalDocument = await workspace.openTextDocument(originalUri);
+		const diffs = await computeDiff(originalDocument, modifiedDocument);
+		const selections = textEditor.selections;
+		const selectedDiffs = diffs.filter(diff => {
+			const modifiedRange = diff.modifiedEndLineNumber === 0
+				? new Range(modifiedDocument.lineAt(diff.modifiedStartLineNumber - 1).range.end, modifiedDocument.lineAt(diff.modifiedStartLineNumber).range.start)
+				: new Range(modifiedDocument.lineAt(diff.modifiedStartLineNumber - 1).range.start, modifiedDocument.lineAt(diff.modifiedEndLineNumber - 1).range.end);
+
+			return selections.every(selection => !selection.intersection(modifiedRange));
+		});
+
+		if (selectedDiffs.length === diffs.length) {
+			return;
+		}
+
+		const basename = path.basename(modifiedUri.fsPath);
+		const message = localize('confirm revert', "Are you sure you want to revert the selected changes in {0}?", basename);
+		const yes = localize('revert', "Revert Changes");
+		const pick = await window.showWarningMessage(message, { modal: true }, yes);
+
+		if (pick !== yes) {
+			return;
+		}
+
+		const result = staging.applyChanges(originalDocument, modifiedDocument, selectedDiffs);
+		const edit = new WorkspaceEdit();
+		edit.replace(modifiedUri, new Range(new Position(0, 0), modifiedDocument.lineAt(modifiedDocument.lineCount - 1).range.end), result);
+		workspace.applyEdit(edit);
 	}
 
 	@command('git.unstage')
@@ -244,12 +324,54 @@ export class CommandCenter {
 			return;
 		}
 
-		return await this.model.unstage(resource);
+		return await this.model.revertFiles(resource);
 	}
 
 	@command('git.unstageAll')
 	async unstageAll(): Promise<void> {
-		return await this.model.unstage();
+		return await this.model.revertFiles();
+	}
+
+	@command('git.unstageSelectedRanges')
+	async unstageSelectedRanges(): Promise<void> {
+		const textEditor = window.activeTextEditor;
+
+		if (!textEditor) {
+			return;
+		}
+
+		const modifiedDocument = textEditor.document;
+		const modifiedUri = modifiedDocument.uri;
+
+		if (modifiedUri.scheme !== 'git' || modifiedUri.query !== '') {
+			return;
+		}
+
+		const originalUri = modifiedUri.with({ scheme: 'git', query: 'HEAD' });
+		const originalDocument = await workspace.openTextDocument(originalUri);
+		const diffs = await computeDiff(originalDocument, modifiedDocument);
+		const selections = textEditor.selections;
+		const selectedDiffs = diffs.filter(diff => {
+			const modifiedRange = diff.modifiedEndLineNumber === 0
+				? new Range(diff.modifiedStartLineNumber - 1, 0, diff.modifiedStartLineNumber - 1, 0)
+				: new Range(modifiedDocument.lineAt(diff.modifiedStartLineNumber - 1).range.start, modifiedDocument.lineAt(diff.modifiedEndLineNumber - 1).range.end);
+
+			return selections.some(selection => !!selection.intersection(modifiedRange));
+		});
+
+		if (!selectedDiffs.length) {
+			return;
+		}
+
+		const invertedDiffs = selectedDiffs.map(c => ({
+			modifiedStartLineNumber: c.originalStartLineNumber,
+			modifiedEndLineNumber: c.originalEndLineNumber,
+			originalStartLineNumber: c.modifiedStartLineNumber,
+			originalEndLineNumber: c.modifiedEndLineNumber
+		}));
+
+		const result = staging.applyChanges(modifiedDocument, originalDocument, invertedDiffs);
+		await this.model.stage(modifiedUri, result);
 	}
 
 	@command('git.clean')

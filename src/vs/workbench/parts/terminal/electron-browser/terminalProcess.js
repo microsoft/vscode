@@ -22,15 +22,23 @@ if (os.platform() === 'win32') {
 var shell = process.env.PTYSHELL;
 var args = getArgs();
 var cwd = process.env.PTYCWD;
+var cols = process.env.PTYCOLS;
+var rows = process.env.PTYROWS;
 var currentTitle = '';
 
 setupPlanB(process.env.PTYPID);
 cleanEnv();
 
-var ptyProcess = ptyJs.fork(shell, args, {
+var options = {
 	name: name,
 	cwd: cwd
-});
+};
+if (cols && rows) {
+	options.cols = parseInt(cols, 10);
+	options.rows = parseInt(rows, 10);
+}
+
+var ptyProcess = ptyJs.fork(shell, args, options);
 
 ptyProcess.on('data', function (data) {
 	process.send({
@@ -69,7 +77,9 @@ function cleanEnv() {
 		'ELECTRON_RUN_AS_NODE',
 		'PTYCWD',
 		'PTYPID',
-		'PTYSHELL'
+		'PTYSHELL',
+		'PTYCOLS',
+		'PTYROWS'
 	];
 	keys.forEach(function (key) {
 		if (process.env[key]) {

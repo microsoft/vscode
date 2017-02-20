@@ -5,30 +5,12 @@
 'use strict';
 
 import { TokenMetadata } from 'vs/editor/common/model/tokensBinaryEncoding';
-import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
+import { ViewLineTokenFactory, ViewLineToken } from 'vs/editor/common/core/viewLineToken';
 import { ColorId, FontStyle, StandardTokenType, LanguageId } from 'vs/editor/common/modes';
-
-const STANDARD_TOKEN_TYPE_REGEXP = /\b(comment|string|regex)\b/;
-export function toStandardTokenType(tokenType: string): StandardTokenType {
-	let m = tokenType.match(STANDARD_TOKEN_TYPE_REGEXP);
-	if (!m) {
-		return StandardTokenType.Other;
-	}
-	switch (m[1]) {
-		case 'comment':
-			return StandardTokenType.Comment;
-		case 'string':
-			return StandardTokenType.String;
-		case 'regex':
-			return StandardTokenType.RegEx;
-	}
-	throw new Error('Unexpected match for standard token type!');
-}
 
 export class LineToken {
 	_lineTokenBrand: void;
 
-	private readonly _colorMap: string[];
 	private readonly _source: LineTokens;
 	private readonly _tokenIndex: number;
 	private readonly _metadata: number;
@@ -55,20 +37,11 @@ export class LineToken {
 		return TokenMetadata.getForeground(this._metadata);
 	}
 
-	public get foreground(): string {
-		return this._colorMap[this.foregroundId];
-	}
-
 	public get backgroundId(): ColorId {
 		return TokenMetadata.getBackground(this._metadata);
 	}
 
-	public get background(): string {
-		return this._colorMap[this.backgroundId];
-	}
-
-	constructor(colorMap: string[], source: LineTokens, tokenIndex: number, tokenCount: number, startOffset: number, endOffset: number, metadata: number) {
-		this._colorMap = colorMap;
+	constructor(source: LineTokens, tokenIndex: number, tokenCount: number, startOffset: number, endOffset: number, metadata: number) {
 		this._source = source;
 		this._tokenIndex = tokenIndex;
 		this._metadata = metadata;
@@ -100,14 +73,12 @@ export class LineToken {
 export class LineTokens {
 	_lineTokensBrand: void;
 
-	private readonly _colorMap: string[];
 	private readonly _tokens: Uint32Array;
 	private readonly _tokensCount: number;
 	private readonly _text: string;
 	private readonly _textLength: number;
 
-	constructor(colorMap: string[], tokens: Uint32Array, text: string) {
-		this._colorMap = colorMap;
+	constructor(tokens: Uint32Array, text: string) {
 		this._tokens = tokens;
 		this._tokensCount = (this._tokens.length >>> 1);
 		this._text = text;
@@ -159,7 +130,7 @@ export class LineTokens {
 	 * @return The index of the token containing the offset.
 	 */
 	public findTokenIndexAtOffset(offset: number): number {
-		return TokenMetadata.findIndexInSegmentsArray(this._tokens, offset);
+		return ViewLineTokenFactory.findIndexInSegmentsArray(this._tokens, offset);
 	}
 
 	public findTokenAtOffset(offset: number): LineToken {
@@ -176,7 +147,7 @@ export class LineTokens {
 			endOffset = this._textLength;
 		}
 		let metadata = this._tokens[(tokenIndex << 1) + 1];
-		return new LineToken(this._colorMap, this, tokenIndex, this._tokensCount, startOffset, endOffset, metadata);
+		return new LineToken(this, tokenIndex, this._tokensCount, startOffset, endOffset, metadata);
 	}
 
 	public firstToken(): LineToken {
@@ -194,10 +165,10 @@ export class LineTokens {
 	}
 
 	public inflate(): ViewLineToken[] {
-		return TokenMetadata.inflateArr(this._tokens, this._textLength);
+		return ViewLineTokenFactory.inflateArr(this._tokens, this._textLength);
 	}
 
 	public sliceAndInflate(startOffset: number, endOffset: number, deltaOffset: number): ViewLineToken[] {
-		return TokenMetadata.sliceAndInflate(this._tokens, startOffset, endOffset, deltaOffset, this._textLength);
+		return ViewLineTokenFactory.sliceAndInflate(this._tokens, startOffset, endOffset, deltaOffset, this._textLength);
 	}
 }

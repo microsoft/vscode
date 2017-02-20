@@ -11,6 +11,10 @@ import { OverviewRulerImpl } from 'vs/editor/browser/viewParts/overviewRuler/ove
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { IRenderingContext, IRestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
 import { Position } from 'vs/editor/common/core/position';
+import { TokenizationRegistry } from 'vs/editor/common/modes';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { ScrollEvent } from 'vs/base/common/scrollable';
 
 export class DecorationsOverviewRuler extends ViewPart {
 
@@ -19,6 +23,8 @@ export class DecorationsOverviewRuler extends ViewPart {
 
 	private static _CURSOR_COLOR = 'rgba(0, 0, 102, 0.8)';
 	private static _CURSOR_COLOR_DARK = 'rgba(152, 152, 152, 0.8)';
+
+	private readonly _tokensColorTrackerListener: IDisposable;
 
 	private _overviewRuler: OverviewRulerImpl;
 
@@ -46,6 +52,14 @@ export class DecorationsOverviewRuler extends ViewPart {
 		this._overviewRuler.setLanesCount(this._context.configuration.editor.viewInfo.overviewRulerLanes, false);
 		let theme = this._context.configuration.editor.viewInfo.theme;
 		this._overviewRuler.setUseDarkColor(!themes.isLightTheme(theme), false);
+		this._overviewRuler.setLayout(this._context.configuration.editor.layoutInfo.overviewRuler, false);
+
+		this._updateBackground(false);
+		this._tokensColorTrackerListener = TokenizationRegistry.onDidChange((e) => {
+			if (e.changedColorMap) {
+				this._updateBackground(true);
+			}
+		});
 
 		this._shouldUpdateDecorations = true;
 		this._zonesFromDecorations = [];
@@ -60,11 +74,17 @@ export class DecorationsOverviewRuler extends ViewPart {
 	public dispose(): void {
 		super.dispose();
 		this._overviewRuler.dispose();
+		this._tokensColorTrackerListener.dispose();
+	}
+
+	private _updateBackground(render: boolean): void {
+		const minimapEnabled = this._context.configuration.editor.viewInfo.minimap.enabled;
+		this._overviewRuler.setUseBackground((minimapEnabled ? TokenizationRegistry.getDefaultBackground() : null), render);
 	}
 
 	// ---- begin view event handlers
 
-	public onCursorPositionChanged(e: editorCommon.IViewCursorPositionChangedEvent): boolean {
+	public onCursorPositionChanged(e: viewEvents.IViewCursorPositionChangedEvent): boolean {
 		this._shouldUpdateCursorPosition = true;
 		this._cursorPositions = [e.position];
 		this._cursorPositions = this._cursorPositions.concat(e.secondaryPositions);
@@ -104,12 +124,17 @@ export class DecorationsOverviewRuler extends ViewPart {
 			shouldRender = true;
 		}
 
-		return shouldRender;
-	}
+		if (e.viewInfo.minimap) {
+			this._updateBackground(false);
+			shouldRender = true;
+		}
 
-	public onLayoutChanged(layoutInfo: editorCommon.EditorLayoutInfo): boolean {
-		this._overviewRuler.setLayout(layoutInfo.overviewRuler, false);
-		return true;
+		if (e.layoutInfo) {
+			this._overviewRuler.setLayout(this._context.configuration.editor.layoutInfo.overviewRuler, false);
+			shouldRender = true;
+		}
+
+		return shouldRender;
 	}
 
 	public onZonesChanged(): boolean {
@@ -122,12 +147,12 @@ export class DecorationsOverviewRuler extends ViewPart {
 		return true;
 	}
 
-	public onModelDecorationsChanged(e: editorCommon.IViewDecorationsChangedEvent): boolean {
+	public onModelDecorationsChanged(e: viewEvents.IViewDecorationsChangedEvent): boolean {
 		this._shouldUpdateDecorations = true;
 		return true;
 	}
 
-	public onScrollChanged(e: editorCommon.IScrollEvent): boolean {
+	public onScrollChanged(e: ScrollEvent): boolean {
 		this._overviewRuler.setScrollHeight(e.scrollHeight, false);
 		return super.onScrollChanged(e) || e.scrollHeightChanged;
 	}
@@ -179,9 +204,6 @@ export class DecorationsOverviewRuler extends ViewPart {
 
 	public prepareRender(ctx: IRenderingContext): void {
 		// Nothing to read
-		if (!this.shouldRender()) {
-			throw new Error('I did not ask to render!');
-		}
 	}
 
 	public render(ctx: IRestrictedRenderingContext): void {

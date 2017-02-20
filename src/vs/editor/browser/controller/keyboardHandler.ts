@@ -20,6 +20,8 @@ import { Configuration } from 'vs/editor/browser/config/configuration';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { VisibleRange } from 'vs/editor/common/view/renderingContext';
 import { TextAreaWrapper } from 'vs/editor/browser/controller/input/textAreaWrapper';
+import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { ScrollEvent } from 'vs/base/common/scrollable';
 
 export interface IKeyboardHandlerHelper {
 	viewDomNode: HTMLElement;
@@ -52,8 +54,8 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 		Configuration.applyFontInfoSlow(this.textArea.actual, this._context.configuration.editor.fontInfo);
 		this.viewHelper = viewHelper;
 
-		this.contentLeft = 0;
-		this.contentWidth = 0;
+		this.contentLeft = this._context.configuration.editor.layoutInfo.contentLeft;
+		this.contentWidth = this._context.configuration.editor.layoutInfo.contentWidth;
 		this.scrollLeft = 0;
 
 		this.textAreaHandler = new TextAreaHandler(browser, this._getStrategy(), this.textArea, this._context.model, () => this.viewHelper.flushAnyAccumulatedEvents());
@@ -74,13 +76,14 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 			let lineNumber = e.showAtLineNumber;
 			let column = e.showAtColumn;
 
-			let revealPositionEvent: editorCommon.IViewRevealRangeEvent = {
+			let revealPositionEvent: viewEvents.IViewRevealRangeEvent = {
+				_viewRevealRangeEventBrand: void 0,
 				range: new Range(lineNumber, column, lineNumber, column),
 				verticalType: editorCommon.VerticalRevealType.Simple,
 				revealHorizontal: true,
 				revealCursor: false
 			};
-			this._context.privateViewEventBus.emit(editorCommon.ViewEventNames.RevealRangeEvent, revealPositionEvent);
+			this._context.privateViewEventBus.emit(viewEvents.ViewEventNames.RevealRangeEvent, revealPositionEvent);
 
 			// Find range pixel position
 			this.visibleRange = this.viewHelper.visibleRangeForPositionRelativeToEditor(lineNumber, column);
@@ -168,10 +171,14 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 		if (e.viewInfo.experimentalScreenReader) {
 			this.textAreaHandler.setStrategy(this._getStrategy());
 		}
+		if (e.layoutInfo) {
+			this.contentLeft = this._context.configuration.editor.layoutInfo.contentLeft;
+			this.contentWidth = this._context.configuration.editor.layoutInfo.contentWidth;
+		}
 		return false;
 	}
 
-	public onScrollChanged(e: editorCommon.IScrollEvent): boolean {
+	public onScrollChanged(e: ScrollEvent): boolean {
 		this.scrollLeft = e.scrollLeft;
 		if (this.visibleRange) {
 			StyleMutator.setTop(this.textArea.actual, this.visibleRange.top);
@@ -185,15 +192,9 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 		return false;
 	}
 
-	private _lastCursorSelectionChanged: editorCommon.IViewCursorSelectionChangedEvent = null;
-	public onCursorSelectionChanged(e: editorCommon.IViewCursorSelectionChangedEvent): boolean {
+	private _lastCursorSelectionChanged: viewEvents.IViewCursorSelectionChangedEvent = null;
+	public onCursorSelectionChanged(e: viewEvents.IViewCursorSelectionChangedEvent): boolean {
 		this._lastCursorSelectionChanged = e;
-		return false;
-	}
-
-	public onLayoutChanged(layoutInfo: editorCommon.EditorLayoutInfo): boolean {
-		this.contentLeft = layoutInfo.contentLeft;
-		this.contentWidth = layoutInfo.contentWidth;
 		return false;
 	}
 
