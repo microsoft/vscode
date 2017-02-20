@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { ExtensionContext, workspace, window, Disposable } from 'vscode';
+import { ExtensionContext, workspace, window, Disposable, commands, Uri, scm } from 'vscode';
 import { findGit, Git } from './git';
 import { Model } from './model';
 import { GitSCMProvider } from './scmProvider';
@@ -14,7 +14,7 @@ import { CheckoutStatusBar, SyncStatusBar } from './statusbar';
 import { GitContentProvider } from './contentProvider';
 import { AutoFetcher } from './autofetch';
 import { MergeDecorator } from './merge';
-import { CommitController } from './commit';
+import { Askpass } from './askpass';
 import * as nls from 'vscode-nls';
 
 const localize = nls.config()();
@@ -36,12 +36,12 @@ async function init(disposables: Disposable[]): Promise<void> {
 	const pathHint = workspace.getConfiguration('git').get<string>('path');
 	const info = await findGit(pathHint);
 	const git = new Git({ gitPath: info.path, version: info.version });
-	const model = new Model(git, rootPath);
+	const askpass = new Askpass();
+	const model = new Model(git, rootPath, askpass);
 
 	outputChannel.appendLine(localize('using git', "Using git {0} from {1}", info.version, info.path));
 	git.onOutput(str => outputChannel.append(str), null, disposables);
 
-	const commitHandler = new CommitController();
 	const commandCenter = new CommandCenter(model, outputChannel);
 	const provider = new GitSCMProvider(model, commandCenter);
 	const contentProvider = new GitContentProvider(model);
@@ -51,7 +51,6 @@ async function init(disposables: Disposable[]): Promise<void> {
 	const mergeDecorator = new MergeDecorator(model);
 
 	disposables.push(
-		commitHandler,
 		commandCenter,
 		provider,
 		contentProvider,
@@ -61,6 +60,17 @@ async function init(disposables: Disposable[]): Promise<void> {
 		mergeDecorator,
 		model
 	);
+
+	if (/^[01]/.test(info.version)) {
+		const update = localize('updateGit', "Update Git");
+		const choice = await window.showWarningMessage(localize('git20', "You seem to have git {0} installed. Code works best with git >= 2", info.version), update);
+
+		if (choice === update) {
+			commands.executeCommand('vscode.open', Uri.parse('https://git-scm.com/'));
+		}
+	}
+
+	scm.inputBox.value = await model.getCommitTemplate();
 }
 
 export function activate(context: ExtensionContext): any {

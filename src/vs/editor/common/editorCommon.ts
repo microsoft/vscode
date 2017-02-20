@@ -443,10 +443,6 @@ export interface IEditorOptions {
 	 */
 	emptySelectionClipboard?: boolean;
 	/**
-	 * Enable tab completion. Defaults to 'false'
-	 */
-	tabCompletion?: boolean;
-	/**
 	 * Enable word based suggestions. Defaults to 'true'
 	 */
 	wordBasedSuggestions?: boolean;
@@ -480,6 +476,11 @@ export interface IEditorOptions {
 	 * Defaults to true in vscode and to false in monaco-editor.
 	 */
 	folding?: boolean;
+	/**
+	 * Enable highlighting of matching brackets.
+	 * Defaults to true.
+	 */
+	matchBrackets?: boolean;
 	/**
 	 * Enable rendering of whitespace.
 	 * Defaults to none.
@@ -959,13 +960,13 @@ export class EditorContribOptions {
 	readonly acceptSuggestionOnCommitCharacter: boolean;
 	readonly snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
 	readonly emptySelectionClipboard: boolean;
-	readonly tabCompletion: boolean;
 	readonly wordBasedSuggestions: boolean;
 	readonly suggestFontSize: number;
 	readonly suggestLineHeight: number;
 	readonly selectionHighlight: boolean;
 	readonly codeLens: boolean;
 	readonly folding: boolean;
+	readonly matchBrackets: boolean;
 
 	/**
 	 * @internal
@@ -985,13 +986,13 @@ export class EditorContribOptions {
 		acceptSuggestionOnCommitCharacter: boolean;
 		snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
 		emptySelectionClipboard: boolean;
-		tabCompletion: boolean;
 		wordBasedSuggestions: boolean;
 		suggestFontSize: number;
 		suggestLineHeight: number;
 		selectionHighlight: boolean;
 		codeLens: boolean;
 		folding: boolean;
+		matchBrackets: boolean;
 	}) {
 		this.selectionClipboard = Boolean(source.selectionClipboard);
 		this.hover = Boolean(source.hover);
@@ -1007,13 +1008,13 @@ export class EditorContribOptions {
 		this.acceptSuggestionOnCommitCharacter = Boolean(source.acceptSuggestionOnCommitCharacter);
 		this.snippetSuggestions = source.snippetSuggestions;
 		this.emptySelectionClipboard = source.emptySelectionClipboard;
-		this.tabCompletion = source.tabCompletion;
 		this.wordBasedSuggestions = source.wordBasedSuggestions;
 		this.suggestFontSize = source.suggestFontSize;
 		this.suggestLineHeight = source.suggestLineHeight;
 		this.selectionHighlight = Boolean(source.selectionHighlight);
 		this.codeLens = Boolean(source.codeLens);
 		this.folding = Boolean(source.folding);
+		this.matchBrackets = Boolean(source.matchBrackets);
 	}
 
 	/**
@@ -1035,13 +1036,13 @@ export class EditorContribOptions {
 			&& this.acceptSuggestionOnCommitCharacter === other.acceptSuggestionOnCommitCharacter
 			&& this.snippetSuggestions === other.snippetSuggestions
 			&& this.emptySelectionClipboard === other.emptySelectionClipboard
-			&& this.tabCompletion === other.tabCompletion
 			&& this.wordBasedSuggestions === other.wordBasedSuggestions
 			&& this.suggestFontSize === other.suggestFontSize
 			&& this.suggestLineHeight === other.suggestLineHeight
 			&& this.selectionHighlight === other.selectionHighlight
 			&& this.codeLens === other.codeLens
 			&& this.folding === other.folding
+			&& this.matchBrackets === other.matchBrackets
 		);
 	}
 
@@ -4520,7 +4521,19 @@ export enum TextEditorCursorStyle {
 	/**
 	 * As a horizontal line (sitting under a character).
 	 */
-	Underline = 3
+	Underline = 3,
+	/**
+	 * As a thin vertical line (sitting between two characters).
+	 */
+	LineThin = 4,
+	/**
+	 * As an outlined block (sitting on top of a character).
+	 */
+	BlockOutline = 5,
+	/**
+	 * As a thin horizontal line (sitting under a character).
+	 */
+	UnderlineThin = 6
 }
 
 /**
@@ -4563,6 +4576,12 @@ export function cursorStyleToString(cursorStyle: TextEditorCursorStyle): string 
 		return 'block';
 	} else if (cursorStyle === TextEditorCursorStyle.Underline) {
 		return 'underline';
+	} else if (cursorStyle === TextEditorCursorStyle.LineThin) {
+		return 'line-thin';
+	} else if (cursorStyle === TextEditorCursorStyle.BlockOutline) {
+		return 'block-outline';
+	} else if (cursorStyle === TextEditorCursorStyle.UnderlineThin) {
+		return 'underline-thin';
 	} else {
 		throw new Error('cursorStyleToString: Unknown cursorStyle');
 	}

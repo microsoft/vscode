@@ -1330,6 +1330,7 @@ export abstract class BaseSaveFileAction extends BaseActionWithErrorReporting {
 		label: string,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@ITextFileService private textFileService: ITextFileService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IMessageService messageService: IMessageService
 	) {
@@ -1410,6 +1411,14 @@ export abstract class BaseSaveFileAction extends BaseActionWithErrorReporting {
 						replaceWith
 					}]).then(() => true);
 				});
+			}
+
+			// Pin the active editor if we are saving it
+			if (!this.resource) {
+				const editor = this.editorService.getActiveEditor();
+				if (editor) {
+					this.editorGroupService.pinEditor(editor.position, editor.input);
+				}
 			}
 
 			// Just save

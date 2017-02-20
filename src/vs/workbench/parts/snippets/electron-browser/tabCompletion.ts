@@ -5,6 +5,7 @@
 
 'use strict';
 
+import { localize } from 'vs/nls';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { RawContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -15,6 +16,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { CommonEditorRegistry, commonEditorContribution, EditorCommand } from 'vs/editor/common/editorCommonExtensions';
 import { SnippetController, CONTEXT_SNIPPET_MODE } from 'vs/editor/contrib/snippet/common/snippetController';
+import { IConfigurationRegistry, Extensions as ConfigExt } from "vs/platform/configuration/common/configurationRegistry";
 
 import EditorContextKeys = editorCommon.EditorContextKeys;
 
@@ -104,3 +106,17 @@ CommonEditorRegistry.registerEditorCommand(new TabCompletionCommand({
 		primary: KeyCode.Tab
 	}
 }));
+
+
+Registry.as<IConfigurationRegistry>(ConfigExt.Configuration).registerConfiguration({
+	id: 'editor',
+	order: 5,
+	type: 'object',
+	properties: {
+		'editor.tabCompletion': {
+			'type': 'boolean',
+			'default': false,
+			'description': localize('tabCompletion', "Insert snippets when their prefix matches. Works best when 'quickSuggestions' aren't enabled.")
+		},
+	}
+});

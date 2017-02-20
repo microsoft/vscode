@@ -1364,10 +1364,6 @@ declare module monaco.editor {
          */
         emptySelectionClipboard?: boolean;
         /**
-         * Enable tab completion. Defaults to 'false'
-         */
-        tabCompletion?: boolean;
-        /**
          * Enable word based suggestions. Defaults to 'true'
          */
         wordBasedSuggestions?: boolean;
@@ -1396,6 +1392,11 @@ declare module monaco.editor {
          * Defaults to true in vscode and to false in monaco-editor.
          */
         folding?: boolean;
+        /**
+         * Enable highlighting of matching brackets.
+         * Defaults to true.
+         */
+        matchBrackets?: boolean;
         /**
          * Enable rendering of whitespace.
          * Defaults to none.
@@ -1578,13 +1579,13 @@ declare module monaco.editor {
         readonly acceptSuggestionOnCommitCharacter: boolean;
         readonly snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
         readonly emptySelectionClipboard: boolean;
-        readonly tabCompletion: boolean;
         readonly wordBasedSuggestions: boolean;
         readonly suggestFontSize: number;
         readonly suggestLineHeight: number;
         readonly selectionHighlight: boolean;
         readonly codeLens: boolean;
         readonly folding: boolean;
+        readonly matchBrackets: boolean;
     }
 
     /**
@@ -3482,6 +3483,18 @@ declare module monaco.editor {
          * As a horizontal line (sitting under a character).
          */
         Underline = 3,
+        /**
+         * As a thin vertical line (sitting between two characters).
+         */
+        LineThin = 4,
+        /**
+         * As an outlined block (sitting on top of a character).
+         */
+        BlockOutline = 5,
+        /**
+         * As a thin horizontal line (sitting under a character).
+         */
+        UnderlineThin = 6,
     }
 
     /**

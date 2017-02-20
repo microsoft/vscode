@@ -361,6 +361,7 @@ export class Git {
 		}
 
 		options.env = assign({}, process.env, options.env || {}, {
+			VSCODE_GIT_COMMAND: args[0],
 			LANG: 'en_US.UTF-8'
 		});
 

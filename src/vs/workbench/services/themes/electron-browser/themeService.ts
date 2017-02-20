@@ -368,7 +368,7 @@ export class ThemeService implements IThemeService {
 			return TPromise.as(null);
 		}
 		if (themeId === this.currentColorTheme.id && this.currentColorTheme.isLoaded) {
-			return TPromise.as(this.currentColorTheme);
+			return this.writeColorThemeConfiguration(settingsTarget);
 		}
 
 		themeId = validateThemeId(themeId); // migrate theme ids
@@ -403,8 +403,8 @@ export class ThemeService implements IThemeService {
 	}
 
 	private writeColorThemeConfiguration(settingsTarget: ConfigurationTarget) {
-		if (!types.isUndefinedOrNull(settingsTarget)) {
-			let value = this.currentColorTheme.settingsId;
+		let value = this.currentColorTheme.settingsId;
+		if (!types.isUndefinedOrNull(settingsTarget) && this.configurationService.lookup(COLOR_THEME_SETTING).value !== value) {
 			if (settingsTarget === ConfigurationTarget.USER && this.currentColorTheme.id === DEFAULT_THEME_ID) {
 				value = void 0; // remove key from user settings
 			}
@@ -606,8 +606,8 @@ export class ThemeService implements IThemeService {
 	}
 
 	private writeFileIconConfiguration(settingsTarget: ConfigurationTarget): TPromise<IFileIconTheme> {
-		if (!types.isUndefinedOrNull(settingsTarget)) {
-			let value = this.currentIconTheme.settingsId;
+		let value = this.currentIconTheme.settingsId;
+		if (!types.isUndefinedOrNull(settingsTarget) && this.configurationService.lookup(ICON_THEME_SETTING).value !== value) {
 			if (settingsTarget === ConfigurationTarget.USER && this.currentIconTheme.id === '') {
 				value = void 0; // remove key from user settings
 			}
