@@ -148,6 +148,8 @@ export class DefaultController implements _.IController {
 			this.downKeyBindingDispatcher.set(KeyCode.RightArrow, (t, e) => this.onRight(t, e));
 			if (platform.isMacintosh) {
 				this.downKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.UpArrow, (t, e) => this.onLeft(t, e));
+				this.downKeyBindingDispatcher.set(KeyMod.WinCtrl | KeyCode.KEY_N, (t, e) => this.onDown(t, e));
+				this.downKeyBindingDispatcher.set(KeyMod.WinCtrl | KeyCode.KEY_P, (t, e) => this.onUp(t, e));
 			}
 			this.downKeyBindingDispatcher.set(KeyCode.PageUp, (t, e) => this.onPageUp(t, e));
 			this.downKeyBindingDispatcher.set(KeyCode.PageDown, (t, e) => this.onPageDown(t, e));

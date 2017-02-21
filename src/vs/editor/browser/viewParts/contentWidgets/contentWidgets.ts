@@ -13,6 +13,8 @@ import { ViewPart, PartFingerprint, PartFingerprints } from 'vs/editor/browser/v
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { IRenderingContext, IRestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
 import { Position } from 'vs/editor/common/core/position';
+import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { ScrollEvent } from 'vs/base/common/scrollable';
 
 interface IWidgetData {
 	allowEditorOverflow: boolean;
@@ -60,8 +62,8 @@ export class ViewContentWidgets extends ViewPart {
 		this._viewDomNode = viewDomNode;
 
 		this._widgets = {};
-		this._contentWidth = 0;
-		this._contentLeft = 0;
+		this._contentWidth = this._context.configuration.editor.layoutInfo.contentWidth;
+		this._contentLeft = this._context.configuration.editor.layoutInfo.contentLeft;
 		this._lineHeight = this._context.configuration.editor.lineHeight;
 		this._renderData = {};
 
@@ -87,57 +89,55 @@ export class ViewContentWidgets extends ViewPart {
 	public onModelFlushed(): boolean {
 		return true;
 	}
-	public onModelDecorationsChanged(e: editorCommon.IViewDecorationsChangedEvent): boolean {
+	public onModelDecorationsChanged(e: viewEvents.IViewDecorationsChangedEvent): boolean {
 		// true for inline decorations that can end up relayouting text
 		return true;//e.inlineDecorationsChanged;
 	}
-	public onModelLinesDeleted(e: editorCommon.IViewLinesDeletedEvent): boolean {
+	public onModelLinesDeleted(e: viewEvents.IViewLinesDeletedEvent): boolean {
 		return true;
 	}
-	public onModelLineChanged(e: editorCommon.IViewLineChangedEvent): boolean {
+	public onModelLineChanged(e: viewEvents.IViewLineChangedEvent): boolean {
 		return true;
 	}
-	public onModelLinesInserted(e: editorCommon.IViewLinesInsertedEvent): boolean {
+	public onModelLinesInserted(e: viewEvents.IViewLinesInsertedEvent): boolean {
 		return true;
 	}
-	public onCursorPositionChanged(e: editorCommon.IViewCursorPositionChangedEvent): boolean {
+	public onCursorPositionChanged(e: viewEvents.IViewCursorPositionChangedEvent): boolean {
 		return false;
 	}
-	public onCursorSelectionChanged(e: editorCommon.IViewCursorSelectionChangedEvent): boolean {
+	public onCursorSelectionChanged(e: viewEvents.IViewCursorSelectionChangedEvent): boolean {
 		return false;
 	}
-	public onCursorRevealRange(e: editorCommon.IViewRevealRangeEvent): boolean {
+	public onCursorRevealRange(e: viewEvents.IViewRevealRangeEvent): boolean {
 		return false;
 	}
 	public onConfigurationChanged(e: editorCommon.IConfigurationChangedEvent): boolean {
 		if (e.lineHeight) {
 			this._lineHeight = this._context.configuration.editor.lineHeight;
 		}
-		return true;
-	}
-	public onLayoutChanged(layoutInfo: editorCommon.EditorLayoutInfo): boolean {
-		this._contentLeft = layoutInfo.contentLeft;
+		if (e.layoutInfo) {
+			this._contentLeft = this._context.configuration.editor.layoutInfo.contentLeft;
 
-		if (this._contentWidth !== layoutInfo.contentWidth) {
-			this._contentWidth = layoutInfo.contentWidth;
-			// update the maxWidth on widgets nodes, such that `onReadAfterForcedLayout`
-			// below can read out the adjusted width/height of widgets
-			let keys = Object.keys(this._widgets);
-			for (let i = 0, len = keys.length; i < len; i++) {
-				const widgetId = keys[i];
-				const widgetData = this._widgets[widgetId];
-				const widget = widgetData.widget;
-				const maxWidth = widgetData.allowEditorOverflow
-					? window.innerWidth || document.documentElement.clientWidth || document.body.clientWidth
-					: this._contentWidth;
+			if (this._contentWidth !== this._context.configuration.editor.layoutInfo.contentWidth) {
+				this._contentWidth = this._context.configuration.editor.layoutInfo.contentWidth;
+				// update the maxWidth on widgets nodes, such that `onReadAfterForcedLayout`
+				// below can read out the adjusted width/height of widgets
+				let keys = Object.keys(this._widgets);
+				for (let i = 0, len = keys.length; i < len; i++) {
+					const widgetId = keys[i];
+					const widgetData = this._widgets[widgetId];
+					const widget = widgetData.widget;
+					const maxWidth = widgetData.allowEditorOverflow
+						? window.innerWidth || document.documentElement.clientWidth || document.body.clientWidth
+						: this._contentWidth;
 
-				StyleMutator.setMaxWidth(widget.getDomNode(), maxWidth);
+					StyleMutator.setMaxWidth(widget.getDomNode(), maxWidth);
+				}
 			}
 		}
-
 		return true;
 	}
-	public onScrollChanged(e: editorCommon.IScrollEvent): boolean {
+	public onScrollChanged(e: ScrollEvent): boolean {
 		return true;
 	}
 	public onZonesChanged(): boolean {

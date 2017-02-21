@@ -154,4 +154,13 @@ declare module 'vscode' {
 		export function getResourceFromURI(uri: Uri): SCMResource | SCMResourceGroup | undefined;
 		export function registerSCMProvider(id: string, provider: SCMProvider): Disposable;
 	}
+
+	export interface LineChange {
+		readonly originalStartLineNumber: number;
+		readonly originalEndLineNumber: number;
+		readonly modifiedStartLineNumber: number;
+		readonly modifiedEndLineNumber: number;
+	}
+
+	export function computeDiff(oneDocument: TextDocument, otherDocument: TextDocument): Thenable<LineChange[]>;
 }

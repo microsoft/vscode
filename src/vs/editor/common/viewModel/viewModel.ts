@@ -58,6 +58,7 @@ export interface ICoordinatesConverter {
 	// Model -> View conversion and related methods
 	convertModelPositionToViewPosition(modelPosition: Position): Position;
 	convertModelRangeToViewRange(modelRange: Range): Range;
+	convertModelSelectionToViewSelection(modelSelection: Selection): Selection;
 	modelPositionIsVisible(modelPosition: Position): boolean;
 }
 

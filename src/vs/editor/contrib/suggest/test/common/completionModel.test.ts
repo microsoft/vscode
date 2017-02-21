@@ -31,7 +31,6 @@ suite('CompletionModel', function () {
 			};
 
 			support: ISuggestSupport = {
-				triggerCharacters: [],
 				provideCompletionItems(): any {
 					return;
 				}
@@ -98,7 +97,7 @@ suite('CompletionModel', function () {
 		assert.equal(model.incomplete, true);
 		assert.equal(model.items.length, 2);
 
-		const {complete, incomplete} = model.resolveIncompleteInfo();
+		const { complete, incomplete } = model.resolveIncompleteInfo();
 
 		assert.equal(incomplete.length, 1);
 		assert.ok(incomplete[0] === incompleteItem.support);

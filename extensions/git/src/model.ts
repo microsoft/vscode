@@ -10,6 +10,7 @@ import { Git, Repository, Ref, Branch, Remote, PushOptions, Commit, GitErrorCode
 import { anyEvent, eventToPromise, filterEvent, mapEvent, EmptyDisposable, combinedDisposable, dispose } from './util';
 import { memoize, throttle, debounce } from './decorators';
 import { watch } from './watch';
+import { Askpass } from './askpass';
 import * as path from 'path';
 import * as nls from 'vscode-nls';
 
@@ -170,8 +171,8 @@ export class WorkingTreeGroup extends ResourceGroup {
 
 export enum Operation {
 	Status = 1 << 0,
-	Stage = 1 << 1,
-	Unstage = 1 << 2,
+	Add = 1 << 1,
+	RevertFiles = 1 << 2,
 	Commit = 1 << 3,
 	Clean = 1 << 4,
 	Branch = 1 << 5,
@@ -182,7 +183,9 @@ export enum Operation {
 	Push = 1 << 10,
 	Sync = 1 << 11,
 	Init = 1 << 12,
-	Show = 1 << 13
+	Show = 1 << 13,
+	Stage = 1 << 14,
+	GetCommitTemplate = 1 << 15
 }
 
 export interface Operations {
@@ -244,6 +247,10 @@ export class Model implements Disposable {
 	@memoize
 	get onDidChangeOperations(): Event<void> {
 		return anyEvent(this.onRunOperation as Event<any>, this.onDidRunOperation as Event<any>);
+	}
+
+	get git(): Git {
+		return this._git;
 	}
 
 	private _mergeGroup = new MergeGroup([]);
@@ -311,8 +318,9 @@ export class Model implements Disposable {
 	private disposables: Disposable[] = [];
 
 	constructor(
-		private git: Git,
+		private _git: Git,
 		private rootPath: string,
+		private askpass: Askpass
 	) {
 		const fsWatcher = workspace.createFileSystemWatcher('**');
 		this.onWorkspaceChange = anyEvent(fsWatcher.onDidChange, fsWatcher.onDidCreate, fsWatcher.onDidDelete);
@@ -337,13 +345,19 @@ export class Model implements Disposable {
 	}
 
 	@throttle
-	async stage(...resources: Resource[]): Promise<void> {
-		await this.run(Operation.Stage, () => this.repository.add(resources.map(r => r.uri.fsPath)));
+	async add(...resources: Resource[]): Promise<void> {
+		await this.run(Operation.Add, () => this.repository.add(resources.map(r => r.uri.fsPath)));
 	}
 
 	@throttle
-	async unstage(...resources: Resource[]): Promise<void> {
-		await this.run(Operation.Unstage, () => this.repository.revertFiles('HEAD', resources.map(r => r.uri.fsPath)));
+	async stage(uri: Uri, contents: string): Promise<void> {
+		const relativePath = path.relative(this.repository.root, uri.fsPath).replace(/\\/g, '/');
+		await this.run(Operation.Stage, () => this.repository.stage(relativePath, contents));
+	}
+
+	@throttle
+	async revertFiles(...resources: Resource[]): Promise<void> {
+		await this.run(Operation.RevertFiles, () => this.repository.revertFiles('HEAD', resources.map(r => r.uri.fsPath)));
 	}
 
 	@throttle
@@ -446,6 +460,10 @@ export class Model implements Disposable {
 		});
 	}
 
+	async getCommitTemplate(): Promise<string> {
+		return await this.run(Operation.GetCommitTemplate, async () => this.repository.getCommitTemplate());
+	}
+
 	private async run<T>(operation: Operation, runOperation: () => Promise<T> = () => Promise.resolve<any>(null)): Promise<T> {
 		return window.withScmProgress(async () => {
 			this._operations = this._operations.start(operation);
@@ -483,8 +501,9 @@ export class Model implements Disposable {
 		this.repositoryDisposable.dispose();
 
 		const disposables: Disposable[] = [];
-		const repositoryRoot = await this.git.getRepositoryRoot(this.rootPath);
-		this.repository = this.git.open(repositoryRoot);
+		const repositoryRoot = await this._git.getRepositoryRoot(this.rootPath);
+		const askpassEnv = await this.askpass.getEnv();
+		this.repository = this._git.open(repositoryRoot, askpassEnv);
 
 		const dotGitPath = path.join(repositoryRoot, '.git');
 		const { event: onRawGitChange, disposable: watcher } = watch(dotGitPath);

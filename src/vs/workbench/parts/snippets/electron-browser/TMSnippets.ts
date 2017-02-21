@@ -5,18 +5,18 @@
 'use strict';
 
 import * as nls from 'vs/nls';
+import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { parse } from 'vs/base/common/json';
 import * as paths from 'vs/base/common/paths';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { readFile } from 'vs/base/node/pfs';
 import { ExtensionMessageCollector, ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
-import { ISnippetsRegistry, Extensions, ISnippet } from 'vs/editor/common/modes/snippetsRegistry';
+import { ISnippetsService, ISnippet } from 'vs/workbench/parts/snippets/electron-browser/snippetsService';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import platform = require('vs/platform/platform');
 import { languagesExtPoint } from 'vs/editor/common/services/modeServiceImpl';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
 
-export interface ISnippetsExtensionPoint {
+interface ISnippetsExtensionPoint {
 	language: string;
 	path: string;
 }
@@ -41,12 +41,12 @@ let snippetsExtensionPoint = ExtensionsRegistry.registerExtensionPoint<ISnippets
 	}
 });
 
-export class MainProcessTextMateSnippet {
-	private _modeService: IModeService;
+export class MainProcessTextMateSnippet implements IWorkbenchContribution {
 
-	constructor( @IModeService modeService: IModeService) {
-		this._modeService = modeService;
-
+	constructor(
+		@IModeService private _modeService: IModeService,
+		@ISnippetsService private _snippetService: ISnippetsService
+	) {
 		snippetsExtensionPoint.setHandler((extensions) => {
 			for (let i = 0; i < extensions.length; i++) {
 				let tmSnippets = extensions[i].value;
@@ -55,6 +55,10 @@ export class MainProcessTextMateSnippet {
 				}
 			}
 		});
+	}
+
+	getId() {
+		return 'tmSnippetExtension';
 	}
 
 	private _withSnippetContribution(extensionName: string, extensionFolderPath: string, snippet: ISnippetsExtensionPoint, collector: ExtensionMessageCollector): void {
@@ -79,19 +83,17 @@ export class MainProcessTextMateSnippet {
 				if (mode.getId() !== modeId) {
 					return;
 				}
-				readAndRegisterSnippets(languageIdentifier, normalizedAbsolutePath, extensionName);
+				readAndRegisterSnippets(this._snippetService, languageIdentifier, normalizedAbsolutePath, extensionName);
 				disposable.dispose();
 			});
 		}
 	}
 }
 
-let snippetsRegistry = <ISnippetsRegistry>platform.Registry.as(Extensions.Snippets);
-
-export function readAndRegisterSnippets(languageIdentifier: LanguageIdentifier, filePath: string, ownerName: string): TPromise<void> {
+export function readAndRegisterSnippets(snippetService: ISnippetsService, languageIdentifier: LanguageIdentifier, filePath: string, ownerName: string): TPromise<void> {
 	return readFile(filePath).then(fileContents => {
 		let snippets = parseSnippetFile(fileContents.toString(), ownerName);
-		snippetsRegistry.registerSnippets(languageIdentifier, snippets, filePath);
+		snippetService.registerSnippets(languageIdentifier, snippets, filePath);
 	});
 }
 

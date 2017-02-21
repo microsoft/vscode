@@ -12,6 +12,8 @@ import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { HorizontalRange, LineVisibleRanges, IRenderingContext } from 'vs/editor/common/view/renderingContext';
 import { Range } from 'vs/editor/common/core/range';
 import * as browser from 'vs/base/browser/browser';
+import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { ScrollEvent } from 'vs/base/common/scrollable';
 
 const enum CornerStyle {
 	EXTERN,
@@ -101,28 +103,28 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 	public onModelFlushed(): boolean {
 		return true;
 	}
-	public onModelDecorationsChanged(e: editorCommon.IViewDecorationsChangedEvent): boolean {
+	public onModelDecorationsChanged(e: viewEvents.IViewDecorationsChangedEvent): boolean {
 		// true for inline decorations that can end up relayouting text
 		return true;//e.inlineDecorationsChanged;
 	}
-	public onModelLinesDeleted(e: editorCommon.IViewLinesDeletedEvent): boolean {
+	public onModelLinesDeleted(e: viewEvents.IViewLinesDeletedEvent): boolean {
 		return true;
 	}
-	public onModelLineChanged(e: editorCommon.IViewLineChangedEvent): boolean {
+	public onModelLineChanged(e: viewEvents.IViewLineChangedEvent): boolean {
 		return true;
 	}
-	public onModelLinesInserted(e: editorCommon.IViewLinesInsertedEvent): boolean {
+	public onModelLinesInserted(e: viewEvents.IViewLinesInsertedEvent): boolean {
 		return true;
 	}
-	public onCursorPositionChanged(e: editorCommon.IViewCursorPositionChangedEvent): boolean {
+	public onCursorPositionChanged(e: viewEvents.IViewCursorPositionChangedEvent): boolean {
 		return false;
 	}
-	public onCursorSelectionChanged(e: editorCommon.IViewCursorSelectionChangedEvent): boolean {
+	public onCursorSelectionChanged(e: viewEvents.IViewCursorSelectionChangedEvent): boolean {
 		this._selections = [e.selection];
 		this._selections = this._selections.concat(e.secondarySelections);
 		return true;
 	}
-	public onCursorRevealRange(e: editorCommon.IViewRevealRangeEvent): boolean {
+	public onCursorRevealRange(e: viewEvents.IViewRevealRangeEvent): boolean {
 		return false;
 	}
 	public onConfigurationChanged(e: editorCommon.IConfigurationChangedEvent): boolean {
@@ -134,10 +136,7 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 		}
 		return true;
 	}
-	public onLayoutChanged(layoutInfo: editorCommon.EditorLayoutInfo): boolean {
-		return true;
-	}
-	public onScrollChanged(e: editorCommon.IScrollEvent): boolean {
+	public onScrollChanged(e: ScrollEvent): boolean {
 		return e.scrollTopChanged;
 	}
 	public onZonesChanged(): boolean {

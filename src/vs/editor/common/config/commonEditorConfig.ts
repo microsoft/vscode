@@ -301,13 +301,13 @@ class InternalEditorOptionsHelper {
 			acceptSuggestionOnCommitCharacter: toBoolean(opts.acceptSuggestionOnCommitCharacter),
 			snippetSuggestions: opts.snippetSuggestions,
 			emptySelectionClipboard: opts.emptySelectionClipboard,
-			tabCompletion: opts.tabCompletion,
 			wordBasedSuggestions: opts.wordBasedSuggestions,
 			suggestFontSize: opts.suggestFontSize,
 			suggestLineHeight: opts.suggestLineHeight,
 			selectionHighlight: toBoolean(opts.selectionHighlight),
 			codeLens: opts.referenceInfos && opts.codeLens,
 			folding: toBoolean(opts.folding),
+			matchBrackets: toBoolean(opts.matchBrackets),
 		});
 
 		return new editorCommon.InternalEditorOptions({
@@ -424,6 +424,12 @@ function cursorStyleFromString(cursorStyle: string): editorCommon.TextEditorCurs
 		return editorCommon.TextEditorCursorStyle.Block;
 	} else if (cursorStyle === 'underline') {
 		return editorCommon.TextEditorCursorStyle.Underline;
+	} else if (cursorStyle === 'line-thin') {
+		return editorCommon.TextEditorCursorStyle.LineThin;
+	} else if (cursorStyle === 'block-outline') {
+		return editorCommon.TextEditorCursorStyle.BlockOutline;
+	} else if (cursorStyle === 'underline-thin') {
+		return editorCommon.TextEditorCursorStyle.UnderlineThin;
 	}
 	return editorCommon.TextEditorCursorStyle.Line;
 }
@@ -742,11 +748,6 @@ const editorConfiguration: IConfigurationNode = {
 			'minimum': 0,
 			'description': nls.localize('suggestLineHeight', "Line height for the suggest widget")
 		},
-		'editor.tabCompletion': {
-			'type': 'boolean',
-			'default': DefaultConfig.editor.tabCompletion,
-			'description': nls.localize('tabCompletion', "Insert snippets when their prefix matches. Works best when 'quickSuggestions' aren't enabled.")
-		},
 		'editor.selectionHighlight': {
 			'type': 'boolean',
 			'default': DefaultConfig.editor.selectionHighlight,
@@ -770,9 +771,9 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'editor.cursorStyle': {
 			'type': 'string',
-			'enum': ['block', 'line', 'underline'],
+			'enum': ['block', 'block-outline', 'line', 'line-thin', 'underline', 'underline-thin'],
 			'default': DefaultConfig.editor.cursorStyle,
-			'description': nls.localize('cursorStyle', "Controls the cursor style, accepted values are 'block', 'line' and 'underline'")
+			'description': nls.localize('cursorStyle', "Controls the cursor style, accepted values are 'block', 'block-outline', 'line', 'line-thin', 'underline' and 'underline-thin'")
 		},
 		'editor.fontLigatures': {
 			'type': 'boolean',
@@ -815,6 +816,11 @@ const editorConfiguration: IConfigurationNode = {
 			'type': 'boolean',
 			'default': DefaultConfig.editor.folding,
 			'description': nls.localize('folding', "Controls whether the editor has code folding enabled")
+		},
+		'editor.matchBrackets': {
+			'type': 'boolean',
+			'default': DefaultConfig.editor.matchBrackets,
+			'description': nls.localize('matchBrackets', "Highlight matching brackets when one of them is selected.")
 		},
 		'editor.glyphMargin': {
 			'type': 'boolean',

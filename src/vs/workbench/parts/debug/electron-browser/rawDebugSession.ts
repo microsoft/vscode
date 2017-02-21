@@ -173,7 +173,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.ISession {
 					}));
 				}
 
-				return TPromise.wrapError(new Error(userMessage));
+				return errors.isPromiseCanceledError(errorResponse) ? undefined : TPromise.wrapError(new Error(userMessage));
 			});
 
 			if (cancelOnDisconnect) {
