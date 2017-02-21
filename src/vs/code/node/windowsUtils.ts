@@ -9,27 +9,7 @@ import * as path from 'path';
 import * as fs from 'original-fs';
 import * as platform from 'vs/base/common/platform';
 import * as paths from 'vs/base/common/paths';
-
-export enum OpenContext {
-
-	// opening when running from the command line
-	CLI,
-
-	// macOS only: opening from the dock (also when opening files to a running instance from desktop)
-	DOCK,
-
-	// opening from the main application window
-	MENU,
-
-	// opening from a file or folder dialog
-	DIALOG,
-
-	// opening from the OS's UI
-	DESKTOP,
-
-	// opening through the API
-	API
-}
+import { OpenContext } from 'vs/code/common/windows';
 
 /**
  * Exported subset of VSCodeWindow for testing.
@@ -42,8 +22,8 @@ export interface ISimpleWindow {
 /**
  * Exported for testing.
  */
-export interface IBestWindowOrFolderOptions<WINDOW> {
-	windows: WINDOW[];
+export interface IBestWindowOrFolderOptions<SimpleWindow extends ISimpleWindow> {
+	windows: SimpleWindow[];
 	newWindow: boolean;
 	reuseWindow: boolean;
 	context: OpenContext;
@@ -52,7 +32,7 @@ export interface IBestWindowOrFolderOptions<WINDOW> {
 	vscodeFolder?: string;
 }
 
-export function findBestWindowOrFolder<WINDOW extends ISimpleWindow>({ windows, newWindow, reuseWindow, context, filePath, userHome, vscodeFolder }: IBestWindowOrFolderOptions<WINDOW>): WINDOW | string {
+export function findBestWindowOrFolder<SimpleWindow extends ISimpleWindow>({ windows, newWindow, reuseWindow, context, filePath, userHome, vscodeFolder }: IBestWindowOrFolderOptions<SimpleWindow>): SimpleWindow | string {
 	// OpenContext.DOCK implies newWindow unless overwritten by settings.
 	const findBest = filePath && (context === OpenContext.DESKTOP || context === OpenContext.CLI || context === OpenContext.DOCK);
 	const bestWindow = !newWindow && findBest && findBestWindow(windows, filePath);
