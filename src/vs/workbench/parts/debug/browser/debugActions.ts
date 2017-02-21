@@ -211,10 +211,9 @@ export class RunAction extends StartAction {
 	}
 }
 
-export class LaunchAction extends RunAction {
-	private quickOpenService: IQuickOpenService;
-	static ID = 'workbench.action.debug.launch';
-	static LABEL = nls.localize('launchDebugConfiguration', "Select and Start Debugging");
+export class SelectAndStartAction extends AbstractDebugAction {
+	static ID = 'workbench.action.debug.selectandstart';
+	static LABEL = nls.localize('selectAndStartDebugging', "Select and Start Debugging");
 
 	constructor(id: string, label: string,
 		@IDebugService debugService: IDebugService,
@@ -222,14 +221,14 @@ export class LaunchAction extends RunAction {
 		@ICommandService commandService: ICommandService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IFileService fileService: IFileService,
-		@IQuickOpenService quickOpenService: IQuickOpenService
+		@IQuickOpenService private quickOpenService: IQuickOpenService
 	) {
-		super(id, label, debugService, keybindingService, commandService, contextService, fileService);
+		super(id, label, undefined, debugService, keybindingService);
 		this.quickOpenService = quickOpenService;
 	}
 
 	public run(): TPromise<any> {
-		return TPromise.as(this.quickOpenService.show('debug '));
+		return this.quickOpenService.show('debug ');
 	}
 }
 
