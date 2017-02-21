@@ -152,6 +152,7 @@ export class ExtHostSCM {
 		this._proxy.$register(providerId, {
 			label: provider.label,
 			supportsOpen: !!provider.open,
+			supportsAcceptChanges: !!provider.acceptChanges,
 			supportsDrag: !!provider.drag,
 			supportsOriginalResource: !!provider.getOriginalResource
 		});
@@ -215,6 +216,16 @@ export class ExtHostSCM {
 		}
 
 		return asWinJsPromise(token => provider.open(resource, token));
+	}
+
+	$acceptChanges(providerId: string): TPromise<void> {
+		const provider = this._providers[providerId];
+
+		if (!provider) {
+			return TPromise.as(null);
+		}
+
+		return asWinJsPromise(token => provider.acceptChanges(token));
 	}
 
 	$drag(providerId: string, fromResourceGroupId: string, fromUri: string, toResourceGroupId: string): TPromise<void> {
