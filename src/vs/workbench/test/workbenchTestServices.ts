@@ -189,7 +189,7 @@ export function workbenchInstantiationService(): IInstantiationService {
 	instantiationService.stub(IConfigurationService, new TestConfigurationService());
 	instantiationService.stub(IUntitledEditorService, instantiationService.createInstance(UntitledEditorService));
 	instantiationService.stub(IStorageService, new TestStorageService());
-	instantiationService.stub(IWorkbenchEditorService, new TestEditorService(function () { }));
+	instantiationService.stub(IWorkbenchEditorService, new TestEditorService());
 	instantiationService.stub(IPartService, new TestPartService());
 	instantiationService.stub(IEditorGroupService, new TestEditorGroupService());
 	instantiationService.stub(IModeService, ModeServiceImpl);
