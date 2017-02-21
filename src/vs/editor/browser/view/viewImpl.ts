@@ -130,8 +130,6 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		// - line heights updating & co.
 		this.layoutProvider = new LayoutProvider(configuration, model.getLineCount(), this.eventDispatcher);
 
-		this._scrollbar = new EditorScrollbar(this.layoutProvider.getScrollable(), configuration, this.linesContent, this.domNode, this.overflowGuardContainer);
-
 		// The view context is passed on to most classes (basically to reduce param. counts in ctors)
 		this._context = new ViewContext(configuration, model, this.eventDispatcher);
 
@@ -216,6 +214,9 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 
 	private createViewParts(): void {
 		this.viewParts = [];
+
+		this._scrollbar = new EditorScrollbar(this._context, this.layoutProvider.getScrollable(), this.linesContent, this.domNode, this.overflowGuardContainer);
+		this.viewParts.push(this._scrollbar);
 
 		// View Lines
 		this.viewLines = new ViewLines(this._context, this.layoutProvider);
@@ -547,13 +548,12 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 
 		this.viewLines.dispose();
 
-		// Destroy IViewPart second
+		// Destroy view parts
 		for (let i = 0, len = this.viewParts.length; i < len; i++) {
 			this.viewParts[i].dispose();
 		}
 		this.viewParts = [];
 
-		this._scrollbar.dispose();
 		this.layoutProvider.dispose();
 	}
 
@@ -921,9 +921,6 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 			viewPart.render(renderingContext);
 			viewPart.onDidRender();
 		}
-
-		// Render the scrollbar
-		this._scrollbar.renderScrollbar();
 	}
 
 	private _setHasFocus(newHasFocus: boolean): void {
