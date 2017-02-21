@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { StyleMutator, FastDomNode, createFastDomNode } from 'vs/base/browser/styleMutator';
+import { FastDomNode, createFastDomNode } from 'vs/base/browser/styleMutator';
 import { ClassNames } from 'vs/editor/browser/editorBrowser';
 import { ViewPart } from 'vs/editor/browser/view/viewPart';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
@@ -13,7 +13,7 @@ import { IRenderingContext, IRestrictedRenderingContext } from 'vs/editor/common
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
 export class Margin extends ViewPart {
-	public domNode: HTMLElement;
+	private _domNode: FastDomNode<HTMLElement>;
 	private _canUseTranslate3d: boolean;
 	private _contentLeft: number;
 	private _glyphMarginLeft: number;
@@ -27,24 +27,28 @@ export class Margin extends ViewPart {
 		this._glyphMarginLeft = this._context.configuration.editor.layoutInfo.glyphMarginLeft;
 		this._glyphMarginWidth = this._context.configuration.editor.layoutInfo.glyphMarginWidth;
 
-		this.domNode = this._createDomNode();
+		this._domNode = this._createDomNode();
 	}
 
 	public dispose(): void {
 		super.dispose();
 	}
 
-	public _createDomNode(): HTMLElement {
-		let domNode = document.createElement('div');
-		domNode.className = ClassNames.MARGIN + ' monaco-editor-background';
-		domNode.style.position = 'absolute';
+	public getDomNode(): HTMLElement {
+		return this._domNode.domNode;
+	}
+
+	private _createDomNode(): FastDomNode<HTMLElement> {
+		let domNode = createFastDomNode(document.createElement('div'));
+		domNode.setClassName(ClassNames.MARGIN + ' monaco-editor-background');
+		domNode.setPosition('absolute');
 		domNode.setAttribute('role', 'presentation');
 		domNode.setAttribute('aria-hidden', 'true');
 
 		this._glyphMarginBackgroundDomNode = createFastDomNode(document.createElement('div'));
 		this._glyphMarginBackgroundDomNode.setClassName(ClassNames.GLYPH_MARGIN);
 
-		domNode.appendChild(this._glyphMarginBackgroundDomNode.domNode);
+		domNode.domNode.appendChild(this._glyphMarginBackgroundDomNode.domNode);
 		return domNode;
 	}
 
@@ -76,16 +80,16 @@ export class Margin extends ViewPart {
 	public render(ctx: IRestrictedRenderingContext): void {
 		if (this._canUseTranslate3d) {
 			let transform = 'translate3d(0px, ' + ctx.viewportData.visibleRangesDeltaTop + 'px, 0px)';
-			StyleMutator.setTransform(this.domNode, transform);
-			StyleMutator.setTop(this.domNode, 0);
+			this._domNode.setTransform(transform);
+			this._domNode.setTop(0);
 		} else {
-			StyleMutator.setTransform(this.domNode, '');
-			StyleMutator.setTop(this.domNode, ctx.viewportData.visibleRangesDeltaTop);
+			this._domNode.setTransform('');
+			this._domNode.setTop(ctx.viewportData.visibleRangesDeltaTop);
 		}
 
 		let height = Math.min(ctx.scrollHeight, 1000000);
-		StyleMutator.setHeight(this.domNode, height);
-		StyleMutator.setWidth(this.domNode, this._contentLeft);
+		this._domNode.setHeight(height);
+		this._domNode.setWidth(this._contentLeft);
 
 		this._glyphMarginBackgroundDomNode.setLeft(this._glyphMarginLeft);
 		this._glyphMarginBackgroundDomNode.setWidth(this._glyphMarginWidth);

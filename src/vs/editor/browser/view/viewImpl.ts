@@ -113,17 +113,6 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		// The event dispatcher will always go through _renderOnce before dispatching any events
 		this.eventDispatcher = new ViewEventDispatcher((callback: () => void) => this._renderOnce(callback));
 
-		// These two dom nodes must be constructed up front, since references are needed in the layout provider (scrolling & co.)
-		this.linesContent = document.createElement('div');
-		this.linesContent.className = editorBrowser.ClassNames.LINES_CONTENT + ' monaco-editor-background';
-		this.linesContent.style.position = 'absolute';
-		this.domNode = document.createElement('div');
-		this.domNode.className = configuration.editor.viewInfo.editorClassName;
-
-		this.overflowGuardContainer = document.createElement('div');
-		PartFingerprints.write(this.overflowGuardContainer, PartFingerprint.OverflowGuard);
-		this.overflowGuardContainer.className = editorBrowser.ClassNames.OVERFLOW_GUARD;
-
 		// The layout provider has such responsibilities as:
 		// - scrolling (i.e. viewport / full size) & co.
 		// - whitespaces (a.k.a. view zones) management & co.
@@ -213,6 +202,18 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 	}
 
 	private createViewParts(): void {
+		// These two dom nodes must be constructed up front, since references are needed in the layout provider (scrolling & co.)
+		this.linesContent = document.createElement('div');
+		this.linesContent.className = editorBrowser.ClassNames.LINES_CONTENT + ' monaco-editor-background';
+		this.linesContent.style.position = 'absolute';
+
+		this.domNode = document.createElement('div');
+		this.domNode.className = this._context.configuration.editor.viewInfo.editorClassName;
+
+		this.overflowGuardContainer = document.createElement('div');
+		PartFingerprints.write(this.overflowGuardContainer, PartFingerprint.OverflowGuard);
+		this.overflowGuardContainer.className = editorBrowser.ClassNames.OVERFLOW_GUARD;
+
 		this.viewParts = [];
 
 		this._scrollbar = new EditorScrollbar(this._context, this.layoutProvider.getScrollable(), this.linesContent, this.domNode, this.overflowGuardContainer);
@@ -252,8 +253,8 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		marginViewOverlays.addDynamicOverlay(new LineNumbersOverlay(this._context));
 
 		let margin = new Margin(this._context);
-		margin.domNode.appendChild(this.viewZones.marginDomNode);
-		margin.domNode.appendChild(marginViewOverlays.getDomNode());
+		margin.getDomNode().appendChild(this.viewZones.marginDomNode);
+		margin.getDomNode().appendChild(marginViewOverlays.getDomNode());
 		this.viewParts.push(margin);
 
 		// Content widgets
@@ -289,10 +290,10 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		this.linesContent.appendChild(this.viewLines.getDomNode());
 		this.linesContent.appendChild(this.contentWidgets.domNode);
 		this.linesContent.appendChild(this.viewCursors.getDomNode());
-		this.overflowGuardContainer.appendChild(margin.domNode);
+		this.overflowGuardContainer.appendChild(margin.getDomNode());
 		this.overflowGuardContainer.appendChild(this.linesContentContainer);
 		this.overflowGuardContainer.appendChild(scrollDecoration.getDomNode());
-		this.overflowGuardContainer.appendChild(this.overlayWidgets.domNode);
+		this.overflowGuardContainer.appendChild(this.overlayWidgets.getDomNode());
 		this.overflowGuardContainer.appendChild(this.textArea);
 		this.overflowGuardContainer.appendChild(this.textAreaCover);
 		this.overflowGuardContainer.appendChild(minimap.getDomNode());
