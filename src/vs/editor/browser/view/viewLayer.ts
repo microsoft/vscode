@@ -38,8 +38,6 @@ interface IRendererContext<T extends IVisibleLine> {
 	lines: T[];
 	linesLength: number;
 	readonly viewportData: ViewportData;
-	scrollDomNode: HTMLElement;
-	scrollDomNodeIsAbove: boolean;
 }
 
 export interface ILine {
@@ -255,8 +253,6 @@ export abstract class ViewLayer<T extends IVisibleLine> extends ViewPart {
 	protected domNode: FastDomNode<HTMLElement>;
 	protected _linesCollection: RenderedLinesCollection<T>;
 	private _renderer: ViewLayerRenderer<T>;
-	private _scrollDomNode: HTMLElement;
-	private _scrollDomNodeIsAbove: boolean;
 
 	constructor(context: ViewContext) {
 		super(context);
@@ -264,9 +260,6 @@ export abstract class ViewLayer<T extends IVisibleLine> extends ViewPart {
 		this.domNode = this._createDomNode();
 
 		this._linesCollection = new RenderedLinesCollection<T>(() => this._createLine());
-
-		this._scrollDomNode = null;
-		this._scrollDomNodeIsAbove = false;
 
 		this._renderer = new ViewLayerRenderer<T>(
 			() => this._createLine()
@@ -286,7 +279,6 @@ export abstract class ViewLayer<T extends IVisibleLine> extends ViewPart {
 
 	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
 		this._linesCollection = new RenderedLinesCollection<T>(() => this._createLine());
-		this._scrollDomNode = null;
 		// No need to clear the dom node because a full .innerHTML will occur in ViewLayerRenderer._render
 		return true;
 	}
@@ -348,17 +340,13 @@ export abstract class ViewLayer<T extends IVisibleLine> extends ViewPart {
 			rendLineNumberStart: inp.rendLineNumberStart,
 			lines: inp.lines,
 			linesLength: inp.lines.length,
-			viewportData: viewportData,
-			scrollDomNode: this._scrollDomNode,
-			scrollDomNodeIsAbove: this._scrollDomNodeIsAbove
+			viewportData: viewportData
 		};
 
 		// Decide if this render will do a single update (single large .innerHTML) or many updates (inserting/removing dom nodes)
 		let resCtx = this._renderer.renderWithManyUpdates(ctx, viewportData.startLineNumber, viewportData.endLineNumber, viewportData.relativeVerticalOffset);
 
 		this._linesCollection._set(resCtx.rendLineNumberStart, resCtx.lines);
-		this._scrollDomNode = resCtx.scrollDomNode;
-		this._scrollDomNodeIsAbove = resCtx.scrollDomNodeIsAbove;
 	}
 
 	private _createDomNode(): FastDomNode<HTMLElement> {
@@ -393,19 +381,9 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 			lines: inContext.lines.slice(0),
 			linesLength: inContext.linesLength,
 			viewportData: inContext.viewportData,
-			scrollDomNode: inContext.scrollDomNode,
-			scrollDomNodeIsAbove: inContext.scrollDomNodeIsAbove
 		};
 
-		let canRemoveScrollDomNode = true;
-		if (ctx.scrollDomNode) {
-			let time = this._getScrollDomNodeTime(ctx.scrollDomNode);
-			if ((new Date()).getTime() - time < 1000) {
-				canRemoveScrollDomNode = false;
-			}
-		}
-
-		if (canRemoveScrollDomNode && ((ctx.rendLineNumberStart + ctx.linesLength - 1 < startLineNumber) || (stopLineNumber < ctx.rendLineNumberStart))) {
+		if ((ctx.rendLineNumberStart + ctx.linesLength - 1 < startLineNumber) || (stopLineNumber < ctx.rendLineNumberStart)) {
 			// There is no overlap whatsoever
 			ctx.rendLineNumberStart = startLineNumber;
 			ctx.linesLength = stopLineNumber - startLineNumber + 1;
@@ -414,7 +392,6 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 				ctx.lines[x - startLineNumber] = this._createLine();
 			}
 			this._finishRendering(ctx, true, deltaTop);
-			ctx.scrollDomNode = null;
 			return ctx;
 		}
 
@@ -434,14 +411,6 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 			if (fromLineNumber <= toLineNumber) {
 				this._insertLinesBefore(ctx, fromLineNumber, toLineNumber, deltaTop, startLineNumber);
 				ctx.linesLength += toLineNumber - fromLineNumber + 1;
-
-				// Clean garbage above
-				if (ctx.scrollDomNode && ctx.scrollDomNodeIsAbove) {
-					if (ctx.scrollDomNode.parentNode) {
-						ctx.scrollDomNode.parentNode.removeChild(ctx.scrollDomNode);
-					}
-					ctx.scrollDomNode = null;
-				}
 			}
 		} else if (ctx.rendLineNumberStart < startLineNumber) {
 			// Remove lines before
@@ -462,14 +431,6 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 			if (fromLineNumber <= toLineNumber) {
 				this._insertLinesAfter(ctx, fromLineNumber, toLineNumber, deltaTop, startLineNumber);
 				ctx.linesLength += toLineNumber - fromLineNumber + 1;
-
-				// Clean garbage below
-				if (ctx.scrollDomNode && !ctx.scrollDomNodeIsAbove) {
-					if (ctx.scrollDomNode.parentNode) {
-						ctx.scrollDomNode.parentNode.removeChild(ctx.scrollDomNode);
-					}
-					ctx.scrollDomNode = null;
-				}
 			}
 
 		} else if (ctx.rendLineNumberStart + ctx.linesLength - 1 > stopLineNumber) {
@@ -508,45 +469,11 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 		ctx.lines = newLines.concat(ctx.lines);
 	}
 
-	private _getScrollDomNodeTime(domNode: HTMLElement): number {
-		let lastScrollTime = domNode.getAttribute('last-scroll-time');
-		if (lastScrollTime) {
-			return parseInt(lastScrollTime, 10);
-		}
-		return 0;
-	}
-
-	private _removeIfNotScrollDomNode(ctx: IRendererContext<T>, domNode: HTMLElement, isAbove: boolean) {
-		let time = this._getScrollDomNodeTime(domNode);
-		if (!time) {
-			ctx.domNode.removeChild(domNode);
-			return;
-		}
-
-		if (ctx.scrollDomNode) {
-			let otherTime = this._getScrollDomNodeTime(ctx.scrollDomNode);
-			if (otherTime > time) {
-				// The other is the real scroll dom node
-				ctx.domNode.removeChild(domNode);
-				return;
-			}
-
-			if (ctx.scrollDomNode.parentNode) {
-				ctx.scrollDomNode.parentNode.removeChild(ctx.scrollDomNode);
-			}
-
-			ctx.scrollDomNode = null;
-		}
-
-		ctx.scrollDomNode = domNode;
-		ctx.scrollDomNodeIsAbove = isAbove;
-	}
-
 	private _removeLinesBefore(ctx: IRendererContext<T>, removeCount: number): void {
 		for (let i = 0; i < removeCount; i++) {
 			let lineDomNode = ctx.lines[i].getDomNode();
 			if (lineDomNode) {
-				this._removeIfNotScrollDomNode(ctx, lineDomNode, true);
+				ctx.domNode.removeChild(lineDomNode);
 			}
 		}
 		ctx.lines.splice(0, removeCount);
@@ -567,7 +494,7 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 		for (let i = 0; i < removeCount; i++) {
 			let lineDomNode = ctx.lines[removeIndex + i].getDomNode();
 			if (lineDomNode) {
-				this._removeIfNotScrollDomNode(ctx, lineDomNode, false);
+				ctx.domNode.removeChild(lineDomNode);
 			}
 		}
 		ctx.lines.splice(removeIndex, removeCount);
