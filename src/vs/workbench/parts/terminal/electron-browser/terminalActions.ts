@@ -161,7 +161,7 @@ export class FocusTerminalByNumberAction extends Action {
 	}
 
 	public static getLabel(n: number): string {
-		return nls.localize(`workbench.action.terminal.focusByNumber${n}`, `Focus Terminal ${n}`, n);
+		return nls.localize('workbench.action.terminal.focusByNumber', 'Focus Terminal {0}', n);
 	}
 
 	private getTerminalNumber(): number {
