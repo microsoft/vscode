@@ -205,10 +205,6 @@ export class MouseHandler extends ViewEventHandler implements IDisposable {
 	}
 
 	// --- begin event handlers
-	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
-		this._mouseDownOperation.onScrollChanged();
-		return false;
-	}
 	public onCursorSelectionChanged(e: viewEvents.ViewCursorSelectionChangedEvent): boolean {
 		this._mouseDownOperation.onCursorSelectionChanged(e);
 		return false;
@@ -216,6 +212,10 @@ export class MouseHandler extends ViewEventHandler implements IDisposable {
 	private _isFocused = false;
 	public onFocusChanged(e: viewEvents.ViewFocusChangedEvent): boolean {
 		this._isFocused = e.isFocused;
+		return false;
+	}
+	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
+		this._mouseDownOperation.onScrollChanged();
 		return false;
 	}
 	// --- end event handlers

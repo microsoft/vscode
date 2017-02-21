@@ -452,20 +452,6 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		}
 	}
 
-	// --- begin event handlers
-
-	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
-		this.layoutProvider.onFlushed(this._context.model.getLineCount());
-		return false;
-	}
-	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
-		this.layoutProvider.onLinesDeleted(e);
-		return false;
-	}
-	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
-		this.layoutProvider.onLinesInserted(e);
-		return false;
-	}
 	private _setLayout(): void {
 		const layoutInfo = this._context.configuration.editor.layoutInfo;
 		if (browser.isChrome) {
@@ -489,6 +475,9 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		StyleMutator.setHeight(this.linesContentContainer, layoutInfo.contentHeight);
 
 	}
+
+	// --- begin event handlers
+
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		if (e.viewInfo.editorClassName) {
 			this.domNode.className = this._context.configuration.editor.viewInfo.editorClassName;
@@ -502,8 +491,8 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		this.layoutProvider.onConfigurationChanged(e);
 		return false;
 	}
-	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
-		this.outgoingEvents.emitScrollChanged(e);
+	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
+		this.layoutProvider.onFlushed(this._context.model.getLineCount());
 		return false;
 	}
 	public onFocusChanged(e: viewEvents.ViewFocusChangedEvent): boolean {
@@ -515,19 +504,29 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		}
 		return false;
 	}
-
+	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
+		this.layoutProvider.onLinesDeleted(e);
+		return false;
+	}
+	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
+		this.layoutProvider.onLinesInserted(e);
+		return false;
+	}
 	public onRevealRangeRequest(e: viewEvents.ViewRevealRangeRequestEvent): boolean {
 		return e.revealCursor ? this.revealCursor() : false;
 	}
-
+	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
+		this.outgoingEvents.emitScrollChanged(e);
+		return false;
+	}
 	public onScrollRequest(e: editorCommon.ICursorScrollRequestEvent): boolean {
 		return e.revealCursor ? this.revealCursor() : false;
 	}
-
 	private revealCursor(): boolean {
 		this.triggerCursorHandler('revealCursor', editorCommon.Handler.CursorMove, { to: editorCommon.CursorMovePosition.ViewPortIfOutside });
 		return false;
 	}
+
 	// --- end event handlers
 
 	public dispose(): void {

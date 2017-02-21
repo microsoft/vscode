@@ -154,13 +154,6 @@ export class ViewLines extends ViewLayer<ViewLine> implements IViewLines {
 
 		return true;
 	}
-
-	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
-		let shouldRender = super.onFlushed(e);
-		this._maxLineWidth = 0;
-		return shouldRender;
-	}
-
 	public onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
 		let shouldRender = super.onDecorationsChanged(e);
 		if (true/*e.inlineDecorationsChanged*/) {
@@ -172,7 +165,11 @@ export class ViewLines extends ViewLayer<ViewLine> implements IViewLines {
 		}
 		return shouldRender || true;
 	}
-
+	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
+		let shouldRender = super.onFlushed(e);
+		this._maxLineWidth = 0;
+		return shouldRender;
+	}
 	public onRevealRangeRequest(e: viewEvents.ViewRevealRangeRequestEvent): boolean {
 		let newScrollTop = this._computeScrollTopToRevealRange(this._viewLayout.getCurrentViewport(), e.range, e.verticalType);
 
@@ -186,7 +183,10 @@ export class ViewLines extends ViewLayer<ViewLine> implements IViewLines {
 
 		return true;
 	}
-
+	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
+		this.domNode.setWidth(e.scrollWidth);
+		return super.onScrollChanged(e) || true;
+	}
 	public onScrollRequest(e: viewEvents.ViewScrollRequestEvent): boolean {
 		let currentScrollTop = this._viewLayout.getScrollTop();
 		let newScrollTop = currentScrollTop + e.deltaLines * this._lineHeight;
@@ -194,11 +194,6 @@ export class ViewLines extends ViewLayer<ViewLine> implements IViewLines {
 			scrollTop: newScrollTop
 		});
 		return true;
-	}
-
-	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
-		this.domNode.setWidth(e.scrollWidth);
-		return super.onScrollChanged(e) || true;
 	}
 
 	// ---- end view event handlers

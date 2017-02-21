@@ -45,16 +45,19 @@ export class CurrentLineHighlightOverlay extends DynamicViewOverlay {
 
 	// --- begin event handlers
 
-	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
-		this._primaryCursorIsInEditableRange = true;
-		this._selectionIsEmpty = true;
-		this._primaryCursorLineNumber = 1;
-		return true;
-	}
-	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
-		return true;
-	}
-	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
+	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
+		if (e.lineHeight) {
+			this._lineHeight = this._context.configuration.editor.lineHeight;
+		}
+		if (e.readOnly) {
+			this._readOnly = this._context.configuration.editor.readOnly;
+		}
+		if (e.viewInfo.renderLineHighlight) {
+			this._renderLineHighlight = this._context.configuration.editor.viewInfo.renderLineHighlight;
+		}
+		if (e.layoutInfo) {
+			this._contentWidth = this._context.configuration.editor.layoutInfo.contentWidth;
+		}
 		return true;
 	}
 	public onCursorPositionChanged(e: viewEvents.ViewCursorPositionChangedEvent): boolean {
@@ -77,19 +80,16 @@ export class CurrentLineHighlightOverlay extends DynamicViewOverlay {
 		}
 		return false;
 	}
-	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		if (e.lineHeight) {
-			this._lineHeight = this._context.configuration.editor.lineHeight;
-		}
-		if (e.readOnly) {
-			this._readOnly = this._context.configuration.editor.readOnly;
-		}
-		if (e.viewInfo.renderLineHighlight) {
-			this._renderLineHighlight = this._context.configuration.editor.viewInfo.renderLineHighlight;
-		}
-		if (e.layoutInfo) {
-			this._contentWidth = this._context.configuration.editor.layoutInfo.contentWidth;
-		}
+	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
+		this._primaryCursorIsInEditableRange = true;
+		this._selectionIsEmpty = true;
+		this._primaryCursorLineNumber = 1;
+		return true;
+	}
+	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
+		return true;
+	}
+	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
 		return true;
 	}
 	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {

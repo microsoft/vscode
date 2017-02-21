@@ -98,20 +98,13 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 
 	// --- begin event handlers
 
-	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
-		return true;
-	}
-	public onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
-		// true for inline decorations that can end up relayouting text
-		return true;//e.inlineDecorationsChanged;
-	}
-	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
-		return true;
-	}
-	public onLineChanged(e: viewEvents.ViewLineChangedEvent): boolean {
-		return true;
-	}
-	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
+	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
+		if (e.lineHeight) {
+			this._lineHeight = this._context.configuration.editor.lineHeight;
+		}
+		if (e.viewInfo.roundedSelection) {
+			this._roundedSelection = this._context.configuration.editor.viewInfo.roundedSelection;
+		}
 		return true;
 	}
 	public onCursorPositionChanged(e: viewEvents.ViewCursorPositionChangedEvent): boolean {
@@ -122,17 +115,24 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 		this._selections = this._selections.concat(e.secondarySelections);
 		return true;
 	}
+	public onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
+		// true for inline decorations that can end up relayouting text
+		return true;//e.inlineDecorationsChanged;
+	}
+	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
+		return true;
+	}
+	public onLineChanged(e: viewEvents.ViewLineChangedEvent): boolean {
+		return true;
+	}
+	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
+		return true;
+	}
+	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
+		return true;
+	}
 	public onRevealRangeRequest(e: viewEvents.ViewRevealRangeRequestEvent): boolean {
 		return false;
-	}
-	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		if (e.lineHeight) {
-			this._lineHeight = this._context.configuration.editor.lineHeight;
-		}
-		if (e.viewInfo.roundedSelection) {
-			this._roundedSelection = this._context.configuration.editor.viewInfo.roundedSelection;
-		}
-		return true;
 	}
 	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		return e.scrollTopChanged;

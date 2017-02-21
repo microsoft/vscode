@@ -83,13 +83,6 @@ export class DecorationsOverviewRuler extends ViewPart {
 
 	// ---- begin view event handlers
 
-	public onCursorPositionChanged(e: viewEvents.ViewCursorPositionChangedEvent): boolean {
-		this._shouldUpdateCursorPosition = true;
-		this._cursorPositions = [e.position];
-		this._cursorPositions = this._cursorPositions.concat(e.secondaryPositions);
-		return true;
-	}
-
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		let prevLanesCount = this._overviewRuler.getLanesCount();
 		let newLanesCount = this._context.configuration.editor.viewInfo.overviewRulerLanes;
@@ -136,7 +129,15 @@ export class DecorationsOverviewRuler extends ViewPart {
 		return shouldRender;
 	}
 
-	public onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
+	public onCursorPositionChanged(e: viewEvents.ViewCursorPositionChangedEvent): boolean {
+		this._shouldUpdateCursorPosition = true;
+		this._cursorPositions = [e.position];
+		this._cursorPositions = this._cursorPositions.concat(e.secondaryPositions);
+		return true;
+	}
+
+	public onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
+		this._shouldUpdateDecorations = true;
 		return true;
 	}
 
@@ -146,14 +147,13 @@ export class DecorationsOverviewRuler extends ViewPart {
 		return true;
 	}
 
-	public onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
-		this._shouldUpdateDecorations = true;
-		return true;
-	}
-
 	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		this._overviewRuler.setScrollHeight(e.scrollHeight, false);
 		return super.onScrollChanged(e) || e.scrollHeightChanged;
+	}
+
+	public onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
+		return true;
 	}
 
 	// ---- end view event handlers

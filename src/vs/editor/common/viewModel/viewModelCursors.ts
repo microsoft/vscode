@@ -80,10 +80,6 @@ export class ViewModelCursors {
 		));
 	}
 
-	public onCursorScrollRequest(e: editorCommon.ICursorScrollRequestEvent, emit: (eventType: string, payload: any) => void): void {
-		emit(viewEvents.ViewEventNames.ScrollRequestEvent, new viewEvents.ViewScrollRequestEvent(e.deltaLines, e.revealCursor));
-	}
-
 	public onLineMappingChanged(emit: (eventType: string, payload: any) => void): void {
 		if (this.lastCursorPositionChangedEvent) {
 			const toViewPos = (pos: Position) => this.coordinatesConverter.convertModelPositionToViewPosition(pos);
@@ -107,5 +103,9 @@ export class ViewModelCursors {
 			};
 			this.onCursorSelectionChanged(e, emit);
 		}
+	}
+
+	public onCursorScrollRequest(e: editorCommon.ICursorScrollRequestEvent, emit: (eventType: string, payload: any) => void): void {
+		emit(viewEvents.ViewEventNames.ScrollRequestEvent, new viewEvents.ViewScrollRequestEvent(e.deltaLines, e.revealCursor));
 	}
 }

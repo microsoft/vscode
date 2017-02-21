@@ -55,21 +55,6 @@ export class LayoutProvider extends Disposable implements IViewLayout {
 
 	// ---- begin view event handlers
 
-	public onFlushed(lineCount: number): void {
-		this._linesLayout.onFlushed(lineCount);
-		this._updateHeight();
-	}
-
-	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): void {
-		this._linesLayout.onLinesDeleted(e.fromLineNumber, e.toLineNumber);
-		this._updateHeight();
-	}
-
-	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): void {
-		this._linesLayout.onLinesInserted(e.fromLineNumber, e.toLineNumber);
-		this._updateHeight();
-	}
-
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): void {
 		if (e.lineHeight) {
 			this._linesLayout.setLineHeight(this._configuration.editor.lineHeight);
@@ -80,6 +65,18 @@ export class LayoutProvider extends Disposable implements IViewLayout {
 				height: this._configuration.editor.layoutInfo.contentHeight
 			});
 		}
+		this._updateHeight();
+	}
+	public onFlushed(lineCount: number): void {
+		this._linesLayout.onFlushed(lineCount);
+		this._updateHeight();
+	}
+	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): void {
+		this._linesLayout.onLinesDeleted(e.fromLineNumber, e.toLineNumber);
+		this._updateHeight();
+	}
+	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): void {
+		this._linesLayout.onLinesInserted(e.fromLineNumber, e.toLineNumber);
 		this._updateHeight();
 	}
 

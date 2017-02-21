@@ -30,6 +30,8 @@ export class OverviewRuler extends ViewEventHandler implements IOverviewRuler {
 		this._overviewRuler.dispose();
 	}
 
+	// ---- begin view event handlers
+
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		if (e.lineHeight) {
 			this._overviewRuler.setLineHeight(this._context.configuration.editor.lineHeight, true);
@@ -44,10 +46,6 @@ export class OverviewRuler extends ViewEventHandler implements IOverviewRuler {
 		return false;
 	}
 
-	public onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
-		return true;
-	}
-
 	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
 		return true;
 	}
@@ -56,6 +54,12 @@ export class OverviewRuler extends ViewEventHandler implements IOverviewRuler {
 		this._overviewRuler.setScrollHeight(e.scrollHeight, true);
 		return super.onScrollChanged(e) || e.scrollHeightChanged;
 	}
+
+	public onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
+		return true;
+	}
+
+	// ---- end view event handlers
 
 	public getDomNode(): HTMLElement {
 		return this._overviewRuler.getDomNode();

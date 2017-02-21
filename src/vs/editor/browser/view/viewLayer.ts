@@ -284,19 +284,15 @@ export abstract class ViewLayer<T extends IVisibleLine> extends ViewPart {
 		return e.layoutInfo;
 	}
 
-	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
-		return e.scrollTopChanged;
-	}
-
-	public onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
-		return true;
-	}
-
 	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
 		this._linesCollection = new RenderedLinesCollection<T>(() => this._createLine());
 		this._scrollDomNode = null;
 		// No need to clear the dom node because a full .innerHTML will occur in ViewLayerRenderer._render
 		return true;
+	}
+
+	public onLineChanged(e: viewEvents.ViewLineChangedEvent): boolean {
+		return this._linesCollection.onLineChanged(e.lineNumber);
 	}
 
 	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
@@ -314,10 +310,6 @@ export abstract class ViewLayer<T extends IVisibleLine> extends ViewPart {
 		return true;
 	}
 
-	public onLineChanged(e: viewEvents.ViewLineChangedEvent): boolean {
-		return this._linesCollection.onLineChanged(e.lineNumber);
-	}
-
 	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
 		let deleted = this._linesCollection.onLinesInserted(e.fromLineNumber, e.toLineNumber);
 		if (deleted) {
@@ -333,12 +325,20 @@ export abstract class ViewLayer<T extends IVisibleLine> extends ViewPart {
 		return true;
 	}
 
+	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
+		return e.scrollTopChanged;
+	}
+
 	public onTokensChanged(e: viewEvents.ViewTokensChangedEvent): boolean {
 		return this._linesCollection.onTokensChanged(e.ranges);
 	}
 
+	public onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
+		return true;
+	}
 
 	// ---- end view event handlers
+
 	public _renderLines(viewportData: ViewportData): void {
 
 		let inp = this._linesCollection._get();
