@@ -9,6 +9,9 @@
 
 .monaco-editor .zone-widget .zone-widget-container.exception-widget .title {
 	font-weight: bold;
+}
+
+.monaco-editor .zone-widget .zone-widget-container.exception-widget .message {
 	font-family: Monaco, Menlo, Consolas, "Droid Sans Mono", "Inconsolata", "Courier New", monospace, "Droid Sans Fallback";
 }
 

@@ -6,7 +6,6 @@
 import 'vs/css!../browser/media/exceptionWidget';
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
-import strings = require('vs/base/common/strings');
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
@@ -37,10 +36,5 @@ export class ExceptionWidget extends ZoneWidget {
 			msg.textContent = thread.stoppedDetails.text;
 			dom.append(container, msg);
 		}
-	}
-
-	protected _doLayout(heightInPixel: number, widthInPixel: number): void {
-		const fontSize = this.editor.getConfiguration().fontInfo.fontSize;
-		this.container.style.height = strings.format('{0}px', fontSize / 0.4);
 	}
 }
