@@ -373,8 +373,8 @@ export class WindowsManager implements IWindowsMainService {
 			openFolderInNewWindow = (windowConfig.openFoldersInNewWindow === 'on');
 		}
 
-		// Handle files to open/diff or to create when we dont open a folder
-		if (!foldersToOpen.length && (filesToOpen.length > 0 || filesToCreate.length > 0 || filesToDiff.length > 0)) {
+		// Handle files to open/diff or to create when we dont open a folder and we do not restore any folder/untitled from hot-exit
+		if (!foldersToOpen.length && !foldersToRestore.length && !emptyToRestore.length && (filesToOpen.length > 0 || filesToCreate.length > 0 || filesToDiff.length > 0)) {
 
 			// let the user settings override how files are open in a new window or same window unless we are forced (not for extension development though)
 			let openFilesInNewWindow: boolean;
@@ -471,9 +471,14 @@ export class WindowsManager implements IWindowsMainService {
 		// Handle empty
 		if (emptyToRestore.length > 0) {
 			emptyToRestore.forEach(emptyWorkspaceBackupFolder => {
-				const configuration = this.toConfiguration(openConfig);
+				const configuration = this.toConfiguration(openConfig, void 0, filesToOpen, filesToCreate, filesToDiff);
 				const browserWindow = this.openInBrowserWindow(configuration, true /* new window */, null, emptyWorkspaceBackupFolder);
 				usedWindows.push(browserWindow);
+
+				// Reset these because we handled them
+				filesToOpen = [];
+				filesToCreate = [];
+				filesToDiff = [];
 
 				openFolderInNewWindow = true; // any other folders to open must open in new window then
 			});
