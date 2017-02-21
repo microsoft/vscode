@@ -44,6 +44,7 @@ export class DragAndDropController implements editorCommon.IEditorContribution {
 
 		if (this._active) {
 			this._targetWidget.showAt(target.position);
+			this._editor.revealPosition(target.position);
 		} else {
 			let possibleSelections = this._editor.getSelections().filter(selection => selection.containsPosition(target.position));
 
@@ -51,6 +52,7 @@ export class DragAndDropController implements editorCommon.IEditorContribution {
 				this._active = true;
 				this._dragSelection = possibleSelections[0];
 				this._targetWidget.showAt(target.position);
+				this._editor.revealPosition(target.position);
 			}
 		}
 	}
