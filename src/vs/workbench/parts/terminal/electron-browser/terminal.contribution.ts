@@ -16,7 +16,7 @@ import { TERMINAL_DEFAULT_SHELL_LINUX, TERMINAL_DEFAULT_SHELL_OSX, TERMINAL_DEFA
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { KillTerminalAction, CopyTerminalSelectionAction, CreateNewTerminalAction, FocusTerminalAction, FocusNextTerminalAction, FocusPreviousTerminalAction, RunSelectedTextInTerminalAction, RunActiveFileInTerminalAction, ScrollDownTerminalAction, ScrollDownPageTerminalAction, ScrollToBottomTerminalAction, ScrollUpTerminalAction, ScrollUpPageTerminalAction, ScrollToTopTerminalAction, TerminalPasteAction, ToggleTerminalAction, ClearTerminalAction } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
+import { KillTerminalAction, CopyTerminalSelectionAction, CreateNewTerminalAction, FocusActiveTerminalAction, FocusNextTerminalAction, FocusPreviousTerminalAction, FocusTerminalByNumberAction, RunSelectedTextInTerminalAction, RunActiveFileInTerminalAction, ScrollDownTerminalAction, ScrollDownPageTerminalAction, ScrollToBottomTerminalAction, ScrollUpTerminalAction, ScrollUpPageTerminalAction, ScrollToTopTerminalAction, TerminalPasteAction, ToggleTerminalAction, ClearTerminalAction } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
 import { Registry } from 'vs/platform/platform';
 import { ShowAllCommandsAction } from 'vs/workbench/parts/quickopen/browser/commandsHandler';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
@@ -142,9 +142,18 @@ configurationRegistry.registerConfiguration({
 				CreateNewTerminalAction.ID,
 				CopyTerminalSelectionAction.ID,
 				KillTerminalAction.ID,
-				FocusTerminalAction.ID,
+				FocusActiveTerminalAction.ID,
 				FocusPreviousTerminalAction.ID,
 				FocusNextTerminalAction.ID,
+				FocusTerminalByNumberAction.getId(1),
+				FocusTerminalByNumberAction.getId(2),
+				FocusTerminalByNumberAction.getId(3),
+				FocusTerminalByNumberAction.getId(4),
+				FocusTerminalByNumberAction.getId(5),
+				FocusTerminalByNumberAction.getId(6),
+				FocusTerminalByNumberAction.getId(7),
+				FocusTerminalByNumberAction.getId(8),
+				FocusTerminalByNumberAction.getId(9),
 				TerminalPasteAction.ID,
 				RunSelectedTextInTerminalAction.ID,
 				RunActiveFileInTerminalAction.ID,
@@ -195,9 +204,12 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(CreateNewTermina
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_BACKTICK,
 	mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.US_BACKTICK }
 }), 'Terminal: Create New Integrated Terminal', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusTerminalAction, FocusTerminalAction.ID, FocusTerminalAction.LABEL), 'Terminal: Focus Terminal', category);
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusActiveTerminalAction, FocusActiveTerminalAction.ID, FocusActiveTerminalAction.LABEL), 'Terminal: Focus Active Terminal', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusNextTerminalAction, FocusNextTerminalAction.ID, FocusNextTerminalAction.LABEL), 'Terminal: Focus Next Terminal', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusPreviousTerminalAction, FocusPreviousTerminalAction.ID, FocusPreviousTerminalAction.LABEL), 'Terminal: Focus Previous Terminal', category);
+for (let i = 1; i < 10; i++) {
+	actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusTerminalByNumberAction, FocusTerminalByNumberAction.getId(i), FocusTerminalByNumberAction.getLabel(i)), 'Terminal: Focus Terminal ' + i, category);
+}
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(TerminalPasteAction, TerminalPasteAction.ID, TerminalPasteAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_V,
 	linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_V },
