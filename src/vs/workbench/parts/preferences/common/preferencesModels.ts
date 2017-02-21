@@ -451,7 +451,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 
 	private parse() {
 		const configurations = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurations();
-		const settingsGroups = configurations.sort(this.compareConfigurationNodes).reduce((result, config) => this.parseConfig(config, result), []);
+		const settingsGroups = configurations.sort(this.compareConfigurationNodes).reduce((result, config, index, array) => this.parseConfig(config, result, array), []);
 		const mostCommonlyUsed = this.getMostCommonlyUsedSettings(settingsGroups);
 		this._allSettingsGroups = [mostCommonlyUsed, ...settingsGroups];
 		this._content = this.toContent(mostCommonlyUsed, settingsGroups);
@@ -494,16 +494,23 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 		};
 	}
 
-	private parseConfig(config: IConfigurationNode, result: ISettingsGroup[], settingsGroup?: ISettingsGroup): ISettingsGroup[] {
-		if (config.title) {
+	private parseConfig(config: IConfigurationNode, result: ISettingsGroup[], configurations: IConfigurationNode[], settingsGroup?: ISettingsGroup): ISettingsGroup[] {
+		let title = config.title;
+		if (!title) {
+			const configWithTitleAndSameId = configurations.filter(c => c.id === config.id && c.title)[0];
+			if (configWithTitleAndSameId) {
+				title = configWithTitleAndSameId.title;
+			}
+		}
+		if (title) {
 			if (!settingsGroup) {
-				settingsGroup = result.filter(g => g.title === config.title)[0];
+				settingsGroup = result.filter(g => g.title === title)[0];
 				if (!settingsGroup) {
-					settingsGroup = { sections: [{ settings: [] }], id: config.id, title: config.title, titleRange: null, range: null };
+					settingsGroup = { sections: [{ settings: [] }], id: config.id, title: title, titleRange: null, range: null };
 					result.push(settingsGroup);
 				}
 			} else {
-				settingsGroup.sections[settingsGroup.sections.length - 1].title = config.title;
+				settingsGroup.sections[settingsGroup.sections.length - 1].title = title;
 			}
 		}
 		if (config.properties) {
@@ -520,7 +527,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 			settingsGroup.sections[settingsGroup.sections.length - 1].settings.push(...configurationSettings);
 		}
 		if (config.allOf) {
-			config.allOf.forEach(c => this.parseConfig(c, result, settingsGroup));
+			config.allOf.forEach(c => this.parseConfig(c, result, configurations, settingsGroup));
 		}
 		return result;
 	}
