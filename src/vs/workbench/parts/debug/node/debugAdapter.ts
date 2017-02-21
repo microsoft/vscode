@@ -223,6 +223,10 @@ export class Adapter {
 				description: nls.localize('debugLinuxConfiguration', "Linux specific launch configuration attributes."),
 				properties: osProperties
 			};
+			Object.keys(attributes.properties).forEach(name => {
+				attributes.properties[name].errorMessage = attributes.properties[name].errorMessage || nls.localize('deprecatedVariables', "'env.', 'config.' and 'command.' are deprecated, use 'env:', 'config:' and 'command:' instead.");
+				attributes.properties[name].pattern = attributes.properties[name].pattern || '^(?!\\$\\{(env|config|command)\\.)';
+			});
 
 			return attributes;
 		});
