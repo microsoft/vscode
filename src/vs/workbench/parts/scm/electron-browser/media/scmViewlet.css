@@ -9,10 +9,6 @@
 	background-position: center;
 }
 
-.scm-viewlet > .scm-editor {
-	padding: 5px 9px 5px 16px;
-}
-
 .scm-viewlet .monaco-list-row {
 	padding: 0 12px 0 20px;
 	line-height: 22px;
@@ -76,18 +72,27 @@
 	display: none;
 }
 
-.monaco-shell.vs .scm-viewlet > .scm-editor > .monaco-editor.focused {
-	outline: 1px solid rgba(0, 122, 204, 0.4);
+.scm-viewlet > .scm-editor {
+	padding: 5px 9px 5px 16px;
 }
 
-.monaco-shell.vs-dark .scm-viewlet > .scm-editor > .monaco-editor.focused {
-	outline: 1px solid rgba(14, 99, 156, 0.6);
+.scm-viewlet > .scm-editor {
+	box-sizing: border-box;
+	padding: 5px 9px 5px 16px;
 }
 
-.monaco-shell.hc-black .scm-viewlet > .scm-editor > .monaco-editor {
-	outline: 1px solid #6fc3df;
+.scm-viewlet > .scm-editor > .monaco-inputbox {
+	width: 100%;
 }
 
-.monaco-shell.hc-black .scm-viewlet > .scm-editor > .monaco-editor.focused {
-	outline: 2px solid #f38518;
+.scm-viewlet > .scm-editor > .monaco-inputbox > .wrapper > .mirror {
+	max-height: 134px;
+}
+
+.scm-viewlet > .scm-editor > .monaco-inputbox > .wrapper > textarea.input {
+	min-height: 26px;
+}
+
+.scm-viewlet > .scm-editor.scroll > .monaco-inputbox > .wrapper > textarea.input {
+	overflow-y: scroll;
 }

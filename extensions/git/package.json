@@ -212,14 +212,6 @@
         "category": "Git"
       }
     ],
-    "keybindings": [
-      {
-        "command": "git.commitWithInput",
-        "key": "ctrl+enter",
-        "mac": "cmd+enter",
-        "when": "inSCMInput"
-      }
-    ],
     "menus": {
       "commandPalette": [
         {
