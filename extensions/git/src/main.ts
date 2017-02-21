@@ -23,6 +23,7 @@ const localize = nls.config()();
 async function init(context: ExtensionContext, disposables: Disposable[]): Promise<void> {
 	const { name, version, aiKey } = require(context.asAbsolutePath('./package.json')) as { name: string, version: string, aiKey: string };
 	const telemetryReporter: TelemetryReporter = new TelemetryReporter(name, version, aiKey);
+	disposables.push(telemetryReporter);
 
 	const outputChannel = window.createOutputChannel('Git');
 	disposables.push(outputChannel);
