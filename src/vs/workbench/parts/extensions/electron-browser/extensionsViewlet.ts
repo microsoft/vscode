@@ -306,9 +306,6 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 				return `tag:"__ext_${ext}"${keywords.map(tag => ` tag:${tag}`)}${languageTag}`;
 			});
 
-			console.log(text);
-			console.log(names);
-
 			if (names.length) {
 				const namesOptions = assign({}, options, { names });
 				pagers.push(this.extensionsWorkbenchService.queryGallery(namesOptions));
