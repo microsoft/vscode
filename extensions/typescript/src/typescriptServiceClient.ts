@@ -12,7 +12,7 @@ import * as fs from 'fs';
 import * as electron from './utils/electron';
 import { Reader } from './utils/wireProtocol';
 
-import { workspace, window, Uri, CancellationToken, OutputChannel, Memento, MessageItem, QuickPickItem, EventEmitter, Event, commands, WorkspaceConfiguration } from 'vscode';
+import { workspace, window, Uri, CancellationToken, Disposable, OutputChannel, Memento, MessageItem, QuickPickItem, EventEmitter, Event, commands, WorkspaceConfiguration } from 'vscode';
 import * as Proto from './protocol';
 import { ITypescriptServiceClient, ITypescriptServiceClientHost, API } from './typescriptService';
 
@@ -125,7 +125,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	private telemetryReporter: TelemetryReporter;
 
 
-	constructor(host: ITypescriptServiceClientHost, storagePath: string | undefined, globalState: Memento, private workspaceState: Memento) {
+	constructor(host: ITypescriptServiceClientHost, storagePath: string | undefined, globalState: Memento, private workspaceState: Memento, disposables: Disposable[]) {
 		this.host = host;
 		this.storagePath = storagePath;
 		this.globalState = globalState;
@@ -155,7 +155,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		this._apiVersion = new API('1.0.0');
 		this._checkGlobalTSCVersion = true;
 		this.trace = this.readTrace();
-		workspace.onDidChangeConfiguration(() => {
+		disposables.push(workspace.onDidChangeConfiguration(() => {
 			this.trace = this.readTrace();
 			let oldglobalTsdk = this.globalTsdk;
 			let oldLocalTsdk = this.localTsdk;
@@ -167,9 +167,10 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			if (this.servicePromise === null && (oldglobalTsdk !== this.globalTsdk || oldLocalTsdk !== this.localTsdk)) {
 				this.startService();
 			}
-		});
+		}));
 		if (this.packageInfo && this.packageInfo.aiKey) {
 			this.telemetryReporter = new TelemetryReporter(this.packageInfo.name, this.packageInfo.version, this.packageInfo.aiKey);
+			disposables.push(this.telemetryReporter);
 		}
 		this.startService();
 	}
