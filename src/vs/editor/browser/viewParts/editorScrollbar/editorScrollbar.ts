@@ -43,8 +43,7 @@ export class EditorScrollbar implements IDisposable {
 			horizontal: configScrollbarOpts.horizontal,
 			className: ClassNames.SCROLLABLE_ELEMENT + ' ' + this.configuration.editor.viewInfo.theme,
 			useShadows: false,
-			lazyRender: true,
-			saveLastScrollTimeOnClassName: ClassNames.VIEW_LINE
+			lazyRender: true
 		};
 		addPropertyIfPresent(configScrollbarOpts, scrollbarOptions, 'verticalHasArrows');
 		addPropertyIfPresent(configScrollbarOpts, scrollbarOptions, 'horizontalHasArrows');
