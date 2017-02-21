@@ -9,7 +9,7 @@ import { OverviewRulerPosition, OverviewRulerLane, OverviewRulerZone, ColorZone 
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as browser from 'vs/base/browser/browser';
 import { OverviewZoneManager } from 'vs/editor/common/view/overviewZoneManager';
-import { ParsedColor } from 'vs/editor/common/view/minimapCharRenderer';
+import { Color } from 'vs/base/common/color';
 
 export class OverviewRulerImpl {
 
@@ -18,7 +18,7 @@ export class OverviewRulerImpl {
 	private _lanesCount: number;
 	private _zoneManager: OverviewZoneManager;
 	private _canUseTranslate3d: boolean;
-	private _background: ParsedColor;
+	private _background: Color;
 
 	private _zoomListener: IDisposable;
 
@@ -100,7 +100,7 @@ export class OverviewRulerImpl {
 		}
 	}
 
-	public setUseBackground(background: ParsedColor, render: boolean): void {
+	public setUseBackground(background: Color, render: boolean): void {
 		this._background = background;
 
 		if (render) {
@@ -168,7 +168,7 @@ export class OverviewRulerImpl {
 		if (this._background === null) {
 			ctx.clearRect(0, 0, width, height);
 		} else {
-			ctx.fillStyle = this._background.toCSSHex();
+			ctx.fillStyle = this._background.toRGBHex();
 			ctx.fillRect(0, 0, width, height);
 		}
 

@@ -33,6 +33,8 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 
 	public readonly onMouseUp: Event<editorBrowser.IEditorMouseEvent> = fromEventEmitter(this, editorCommon.EventType.MouseUp);
 	public readonly onMouseDown: Event<editorBrowser.IEditorMouseEvent> = fromEventEmitter(this, editorCommon.EventType.MouseDown);
+	public readonly onMouseDrag: Event<editorBrowser.IEditorMouseEvent> = fromEventEmitter(this, editorCommon.EventType.MouseDrag);
+	public readonly onMouseDrop: Event<editorBrowser.IEditorMouseEvent> = fromEventEmitter(this, editorCommon.EventType.MouseDrop);
 	public readonly onContextMenu: Event<editorBrowser.IEditorMouseEvent> = fromEventEmitter(this, editorCommon.EventType.ContextMenu);
 	public readonly onMouseMove: Event<editorBrowser.IEditorMouseEvent> = fromEventEmitter(this, editorCommon.EventType.MouseMove);
 	public readonly onMouseLeave: Event<editorBrowser.IEditorMouseEvent> = fromEventEmitter(this, editorCommon.EventType.MouseLeave);

@@ -68,7 +68,6 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 
 
 	const alwaysEmptySupport: ISuggestSupport = {
-		triggerCharacters: [],
 		provideCompletionItems(doc, pos) {
 			return <ISuggestResult>{
 				incomplete: false,
@@ -78,7 +77,6 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 	};
 
 	const alwaysSomethingSupport: ISuggestSupport = {
-		triggerCharacters: [],
 		provideCompletionItems(doc, pos) {
 			return <ISuggestResult>{
 				currentWord: '',
@@ -224,7 +222,6 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 	test('#17400: Keep filtering suggestModel.ts after space', function () {
 
 		disposables.push(SuggestRegistry.register({ scheme: 'test' }, {
-			triggerCharacters: [],
 			provideCompletionItems(doc, pos) {
 				return <ISuggestResult>{
 					currentWord: '',

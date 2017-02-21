@@ -181,7 +181,9 @@ export class Adapter {
 			const properties = attributes.properties;
 			properties['type'] = {
 				enum: [this.type],
-				description: nls.localize('debugType', "Type of configuration.")
+				description: nls.localize('debugType', "Type of configuration."),
+				pattern: '^(?!node2)',
+				errorMessage: nls.localize('node2NotSupported', "\"node2\" is no longer supported, use \"node\" instead and set the \"protocol\" attribute to \"inspector\".")
 			};
 			properties['name'] = {
 				type: 'string',
@@ -223,6 +225,10 @@ export class Adapter {
 				description: nls.localize('debugLinuxConfiguration', "Linux specific launch configuration attributes."),
 				properties: osProperties
 			};
+			Object.keys(attributes.properties).forEach(name => {
+				attributes.properties[name].errorMessage = attributes.properties[name].errorMessage || nls.localize('deprecatedVariables', "'env.', 'config.' and 'command.' are deprecated, use 'env:', 'config:' and 'command:' instead.");
+				attributes.properties[name].pattern = attributes.properties[name].pattern || '^(?!\\$\\{(env|config|command)\\.)';
+			});
 
 			return attributes;
 		});

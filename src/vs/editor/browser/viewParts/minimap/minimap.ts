@@ -12,7 +12,7 @@ import { IRenderingContext, IRestrictedRenderingContext } from 'vs/editor/common
 import { getOrCreateMinimapCharRenderer } from 'vs/editor/common/view/runtimeMinimapCharRenderer';
 import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
-import { MinimapCharRenderer, ParsedColor, MinimapTokensColorTracker, Constants } from 'vs/editor/common/view/minimapCharRenderer';
+import { MinimapCharRenderer, MinimapTokensColorTracker, Constants } from 'vs/editor/common/view/minimapCharRenderer';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { CharCode } from 'vs/base/common/charCode';
 import { IViewLayout, ViewLineData } from 'vs/editor/common/viewModel/viewModel';
@@ -22,6 +22,8 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { EditorScrollbar } from 'vs/editor/browser/viewParts/editorScrollbar/editorScrollbar';
 import { RenderedLinesCollection, ILine } from 'vs/editor/browser/view/viewLayer';
 import { Range } from 'vs/editor/common/core/range';
+import { RGBA } from 'vs/base/common/color';
+import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
 const enum RenderMinimap {
 	None = 0,
@@ -294,17 +296,17 @@ class RenderData {
 		};
 	}
 
-	public onModelLinesDeleted(e: editorCommon.IViewLinesDeletedEvent): void {
-		this._renderedLines.onModelLinesDeleted(e.fromLineNumber, e.toLineNumber);
+	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): void {
+		this._renderedLines.onLinesDeleted(e.fromLineNumber, e.toLineNumber);
 	}
-	public onModelLineChanged(e: editorCommon.IViewLineChangedEvent): boolean {
-		return this._renderedLines.onModelLineChanged(e.lineNumber);
+	public onLineChanged(e: viewEvents.ViewLineChangedEvent): boolean {
+		return this._renderedLines.onLineChanged(e.lineNumber);
 	}
-	public onModelLinesInserted(e: editorCommon.IViewLinesInsertedEvent): void {
-		this._renderedLines.onModelLinesInserted(e.fromLineNumber, e.toLineNumber);
+	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): void {
+		this._renderedLines.onLinesInserted(e.fromLineNumber, e.toLineNumber);
 	}
-	public onModelTokensChanged(e: editorCommon.IViewTokensChangedEvent): boolean {
-		return this._renderedLines.onModelTokensChanged(e.ranges);
+	public onTokensChanged(e: viewEvents.ViewTokensChangedEvent): boolean {
+		return this._renderedLines.onTokensChanged(e.ranges);
 	}
 }
 
@@ -320,7 +322,7 @@ class MinimapBuffers {
 	private readonly _buffers: [ImageData, ImageData];
 	private _lastUsedBuffer: number;
 
-	constructor(ctx: CanvasRenderingContext2D, WIDTH: number, HEIGHT: number, background: ParsedColor) {
+	constructor(ctx: CanvasRenderingContext2D, WIDTH: number, HEIGHT: number, background: RGBA) {
 		this._backgroundFillData = MinimapBuffers._createBackgroundFillData(WIDTH, HEIGHT, background);
 		this._buffers = [
 			ctx.createImageData(WIDTH, HEIGHT),
@@ -340,7 +342,7 @@ class MinimapBuffers {
 		return result;
 	}
 
-	private static _createBackgroundFillData(WIDTH: number, HEIGHT: number, background: ParsedColor): Uint8ClampedArray {
+	private static _createBackgroundFillData(WIDTH: number, HEIGHT: number, background: RGBA): Uint8ClampedArray {
 		const backgroundR = background.r;
 		const backgroundG = background.g;
 		const backgroundB = background.b;
@@ -426,13 +428,12 @@ export class Minimap extends ViewPart {
 			let lineNumber = lineIndex + this._lastRenderData.renderedLayout.startLineNumber;
 			lineNumber = Math.min(lineNumber, this._context.model.getLineCount());
 
-			let revealPositionEvent: editorCommon.IViewRevealRangeEvent = {
-				range: new Range(lineNumber, 1, lineNumber, 1),
-				verticalType: editorCommon.VerticalRevealType.Center,
-				revealHorizontal: false,
-				revealCursor: false
-			};
-			this._context.privateViewEventBus.emit(editorCommon.ViewEventNames.RevealRangeEvent, revealPositionEvent);
+			this._context.privateViewEventBus.emit(new viewEvents.ViewRevealRangeRequestEvent(
+				new Range(lineNumber, 1, lineNumber, 1),
+				editorCommon.VerticalRevealType.Center,
+				false,
+				false
+			));
 		});
 	}
 
@@ -469,8 +470,6 @@ export class Minimap extends ViewPart {
 		return this._buffers.getBuffer();
 	}
 
-	// ---- begin view event handlers
-
 	private _onOptionsMaybeChanged(): boolean {
 		let opts = new MinimapOptions(this._context.configuration);
 		if (this._options.equals(opts)) {
@@ -482,48 +481,43 @@ export class Minimap extends ViewPart {
 		return true;
 	}
 
-	public onLineMappingChanged(): boolean {
+	// ---- begin view event handlers
+
+	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
+		return this._onOptionsMaybeChanged();
+	}
+	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
 		this._lastRenderData = null;
 		return true;
 	}
-	public onModelFlushed(): boolean {
-		this._lastRenderData = null;
-		return true;
-	}
-	public onModelLinesDeleted(e: editorCommon.IViewLinesDeletedEvent): boolean {
+	public onLineChanged(e: viewEvents.ViewLineChangedEvent): boolean {
 		if (this._lastRenderData) {
-			this._lastRenderData.onModelLinesDeleted(e);
-		}
-		return true;
-	}
-	public onModelLineChanged(e: editorCommon.IViewLineChangedEvent): boolean {
-		if (this._lastRenderData) {
-			return this._lastRenderData.onModelLineChanged(e);
+			return this._lastRenderData.onLineChanged(e);
 		}
 		return false;
 	}
-	public onModelLinesInserted(e: editorCommon.IViewLinesInsertedEvent): boolean {
+	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
 		if (this._lastRenderData) {
-			this._lastRenderData.onModelLinesInserted(e);
+			this._lastRenderData.onLinesDeleted(e);
 		}
 		return true;
 	}
-	public onModelTokensChanged(e: editorCommon.IViewTokensChangedEvent): boolean {
+	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
 		if (this._lastRenderData) {
-			return this._lastRenderData.onModelTokensChanged(e);
+			this._lastRenderData.onLinesInserted(e);
 		}
-		return false;
+		return true;
 	}
-	public onConfigurationChanged(e: editorCommon.IConfigurationChangedEvent): boolean {
-		return this._onOptionsMaybeChanged();
-	}
-	public onLayoutChanged(layoutInfo: editorCommon.EditorLayoutInfo): boolean {
-		return this._onOptionsMaybeChanged();
-	}
-	public onScrollChanged(e: editorCommon.IScrollEvent): boolean {
+	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		return e.scrollTopChanged || e.scrollHeightChanged;
 	}
-	public onZonesChanged(): boolean {
+	public onTokensChanged(e: viewEvents.ViewTokensChangedEvent): boolean {
+		if (this._lastRenderData) {
+			return this._lastRenderData.onTokensChanged(e);
+		}
+		return false;
+	}
+	public onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
 		this._lastRenderData = null;
 		return true;
 	}
@@ -571,6 +565,7 @@ export class Minimap extends ViewPart {
 		const lineInfo = this._context.model.getMinimapLinesRenderingData(startLineNumber, endLineNumber, needed);
 		const tabSize = lineInfo.tabSize;
 		const background = this._tokensColorTracker.getColor(ColorId.DefaultBackground);
+		const useLighterFont = this._tokensColorTracker.backgroundIsLight();
 
 		// Render the rest of lines
 		let dy = 0;
@@ -580,6 +575,7 @@ export class Minimap extends ViewPart {
 				Minimap._renderLine(
 					imageData,
 					background,
+					useLighterFont,
 					renderMinimap,
 					this._tokensColorTracker,
 					this._minimapCharRenderer,
@@ -684,7 +680,8 @@ export class Minimap extends ViewPart {
 
 	private static _renderLine(
 		target: ImageData,
-		backgroundColor: ParsedColor,
+		backgroundColor: RGBA,
+		useLighterFont,
 		renderMinimap: RenderMinimap,
 		colorTracker: MinimapTokensColorTracker,
 		minimapCharRenderer: MinimapCharRenderer,
@@ -724,9 +721,9 @@ export class Minimap extends ViewPart {
 					dx += charWidth;
 				} else {
 					if (renderMinimap === RenderMinimap.Large) {
-						minimapCharRenderer.x2RenderChar(target, dx, dy, charCode, tokenColor, backgroundColor);
+						minimapCharRenderer.x2RenderChar(target, dx, dy, charCode, tokenColor, backgroundColor, useLighterFont);
 					} else {
-						minimapCharRenderer.x1RenderChar(target, dx, dy, charCode, tokenColor, backgroundColor);
+						minimapCharRenderer.x1RenderChar(target, dx, dy, charCode, tokenColor, backgroundColor, useLighterFont);
 					}
 					dx += charWidth;
 				}

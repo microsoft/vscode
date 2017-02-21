@@ -16,7 +16,8 @@ import { fromEventEmitter } from 'vs/base/node/event';
 import { IURLService } from 'vs/platform/url/common/url';
 
 // TODO@Joao: remove this dependency, move all implementation to this class
-import { IWindowsMainService, OpenContext } from 'vs/code/electron-main/windows';
+import { OpenContext } from 'vs/code/common/windows';
+import { IWindowsMainService } from 'vs/code/electron-main/windows';
 
 export class WindowsService implements IWindowsService, IDisposable {
 

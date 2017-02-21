@@ -29,6 +29,7 @@ export function activate(context: ExtensionContext) {
 
 	let packageInfo = getPackageInfo(context);
 	let telemetryReporter: TelemetryReporter = packageInfo && new TelemetryReporter(packageInfo.name, packageInfo.version, packageInfo.aiKey);
+	context.subscriptions.push(telemetryReporter);
 
 	// The server is implemented in node
 	let serverModule = context.asAbsolutePath(path.join('server', 'out', 'htmlServerMain.js'));

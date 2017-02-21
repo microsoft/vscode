@@ -19,6 +19,7 @@ import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData'
 import { IViewLines, VisibleRange, LineVisibleRanges } from 'vs/editor/common/view/renderingContext';
 import { IViewLayout } from 'vs/editor/common/viewModel/viewModel';
 import { PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
+import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
 class LastRenderedData {
 
@@ -72,7 +73,7 @@ export class ViewLines extends ViewLayer<ViewLine> implements IViewLines {
 	private _maxLineWidth: number;
 	private _asyncUpdateLineWidths: RunOnceScheduler;
 
-	private _lastCursorRevealRangeHorizontallyEvent: editorCommon.IViewRevealRangeEvent;
+	private _lastCursorRevealRangeHorizontallyEvent: viewEvents.ViewRevealRangeRequestEvent;
 	private _lastRenderedData: LastRenderedData;
 
 	constructor(context: ViewContext, viewLayout: IViewLayout) {
@@ -113,7 +114,7 @@ export class ViewLines extends ViewLayer<ViewLine> implements IViewLines {
 
 	// ---- begin view event handlers
 
-	public onConfigurationChanged(e: editorCommon.IConfigurationChangedEvent): boolean {
+	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		super.onConfigurationChanged(e);
 		if (e.wrappingInfo) {
 			this._maxLineWidth = 0;
@@ -147,34 +148,29 @@ export class ViewLines extends ViewLayer<ViewLine> implements IViewLines {
 			}
 		}
 
+		if (e.layoutInfo) {
+			this._maxLineWidth = 0;
+		}
+
 		return true;
 	}
-
-	public onLayoutChanged(layoutInfo: editorCommon.EditorLayoutInfo): boolean {
-		let shouldRender = super.onLayoutChanged(layoutInfo);
-		this._maxLineWidth = 0;
-		return shouldRender;
-	}
-
-	public onModelFlushed(): boolean {
-		let shouldRender = super.onModelFlushed();
-		this._maxLineWidth = 0;
-		return shouldRender;
-	}
-
-	public onModelDecorationsChanged(e: editorCommon.IViewDecorationsChangedEvent): boolean {
-		let shouldRender = super.onModelDecorationsChanged(e);
+	public onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
+		let shouldRender = super.onDecorationsChanged(e);
 		if (true/*e.inlineDecorationsChanged*/) {
 			let rendStartLineNumber = this._linesCollection.getStartLineNumber();
 			let rendEndLineNumber = this._linesCollection.getEndLineNumber();
 			for (let lineNumber = rendStartLineNumber; lineNumber <= rendEndLineNumber; lineNumber++) {
-				this._linesCollection.getLine(lineNumber).onModelDecorationsChanged();
+				this._linesCollection.getLine(lineNumber).onDecorationsChanged();
 			}
 		}
 		return shouldRender || true;
 	}
-
-	public onCursorRevealRange(e: editorCommon.IViewRevealRangeEvent): boolean {
+	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
+		let shouldRender = super.onFlushed(e);
+		this._maxLineWidth = 0;
+		return shouldRender;
+	}
+	public onRevealRangeRequest(e: viewEvents.ViewRevealRangeRequestEvent): boolean {
 		let newScrollTop = this._computeScrollTopToRevealRange(this._viewLayout.getCurrentViewport(), e.range, e.verticalType);
 
 		if (e.revealHorizontal) {
@@ -187,19 +183,17 @@ export class ViewLines extends ViewLayer<ViewLine> implements IViewLines {
 
 		return true;
 	}
-
-	public onCursorScrollRequest(e: editorCommon.IViewScrollRequestEvent): boolean {
+	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
+		this.domNode.setWidth(e.scrollWidth);
+		return super.onScrollChanged(e) || true;
+	}
+	public onScrollRequest(e: viewEvents.ViewScrollRequestEvent): boolean {
 		let currentScrollTop = this._viewLayout.getScrollTop();
 		let newScrollTop = currentScrollTop + e.deltaLines * this._lineHeight;
 		this._viewLayout.setScrollPosition({
 			scrollTop: newScrollTop
 		});
 		return true;
-	}
-
-	public onScrollChanged(e: editorCommon.IScrollEvent): boolean {
-		this.domNode.setWidth(e.scrollWidth);
-		return super.onScrollChanged(e) || true;
 	}
 
 	// ---- end view event handlers

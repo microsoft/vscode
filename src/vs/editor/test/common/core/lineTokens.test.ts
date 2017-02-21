@@ -28,7 +28,7 @@ suite('LineTokens', () => {
 			) >>> 0;
 		}
 
-		return new LineTokens(null, binTokens, text);
+		return new LineTokens(binTokens, text);
 	}
 
 	function createTestLineTokens(): LineTokens {

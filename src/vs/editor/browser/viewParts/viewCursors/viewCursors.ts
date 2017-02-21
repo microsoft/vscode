@@ -15,6 +15,7 @@ import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { IRenderingContext, IRestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/styleMutator';
 import { TimeoutTimer } from 'vs/base/common/async';
+import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
 export class ViewCursors extends ViewPart {
 
@@ -73,48 +74,29 @@ export class ViewCursors extends ViewPart {
 
 	// --- begin event handlers
 
-	public onModelFlushed(): boolean {
-		this._primaryCursor.onModelFlushed();
+	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
+
+		if (e.readOnly) {
+			this._readOnly = this._context.configuration.editor.readOnly;
+		}
+		if (e.viewInfo.cursorBlinking) {
+			this._cursorBlinking = this._context.configuration.editor.viewInfo.cursorBlinking;
+		}
+		if (e.viewInfo.cursorStyle) {
+			this._cursorStyle = this._context.configuration.editor.viewInfo.cursorStyle;
+		}
+
+		this._primaryCursor.onConfigurationChanged(e);
+		this._updateBlinking();
+		if (e.viewInfo.cursorStyle || e.viewInfo.cursorBlinking) {
+			this._updateDomClassName();
+		}
 		for (let i = 0, len = this._secondaryCursors.length; i < len; i++) {
-			let domNode = this._secondaryCursors[i].getDomNode();
-			domNode.parentNode.removeChild(domNode);
+			this._secondaryCursors[i].onConfigurationChanged(e);
 		}
-		this._secondaryCursors = [];
 		return true;
 	}
-	public onModelDecorationsChanged(e: editorCommon.IViewDecorationsChangedEvent): boolean {
-		// true for inline decorations that can end up relayouting text
-		return true;//e.inlineDecorationsChanged;
-	}
-	public onModelLinesDeleted(e: editorCommon.IViewLinesDeletedEvent): boolean {
-		return true;
-	}
-	public onModelLineChanged(e: editorCommon.IViewLineChangedEvent): boolean {
-		return true;
-	}
-	public onModelLinesInserted(e: editorCommon.IViewLinesInsertedEvent): boolean {
-		return true;
-	}
-	public onModelTokensChanged(e: editorCommon.IViewTokensChangedEvent): boolean {
-		let shouldRender = (position: Position) => {
-			for (let i = 0, len = e.ranges.length; i < len; i++) {
-				if (e.ranges[i].fromLineNumber <= position.lineNumber && position.lineNumber <= e.ranges[i].toLineNumber) {
-					return true;
-				}
-			}
-			return false;
-		};
-		if (shouldRender(this._primaryCursor.getPosition())) {
-			return true;
-		}
-		for (let i = 0; i < this._secondaryCursors.length; i++) {
-			if (shouldRender(this._secondaryCursors[i].getPosition())) {
-				return true;
-			}
-		}
-		return false;
-	}
-	public onCursorPositionChanged(e: editorCommon.IViewCursorPositionChangedEvent): boolean {
+	public onCursorPositionChanged(e: viewEvents.ViewCursorPositionChangedEvent): boolean {
 		this._primaryCursor.onCursorPositionChanged(e.position, e.isInEditableRange);
 		this._updateBlinking();
 
@@ -141,7 +123,7 @@ export class ViewCursors extends ViewPart {
 
 		return true;
 	}
-	public onCursorSelectionChanged(e: editorCommon.IViewCursorSelectionChangedEvent): boolean {
+	public onCursorSelectionChanged(e: viewEvents.ViewCursorSelectionChangedEvent): boolean {
 		let selectionIsEmpty = e.selection.isEmpty();
 		if (this._selectionIsEmpty !== selectionIsEmpty) {
 			this._selectionIsEmpty = selectionIsEmpty;
@@ -149,42 +131,59 @@ export class ViewCursors extends ViewPart {
 		}
 		return false;
 	}
-	public onConfigurationChanged(e: editorCommon.IConfigurationChangedEvent): boolean {
-
-		if (e.readOnly) {
-			this._readOnly = this._context.configuration.editor.readOnly;
-		}
-		if (e.viewInfo.cursorBlinking) {
-			this._cursorBlinking = this._context.configuration.editor.viewInfo.cursorBlinking;
-		}
-		if (e.viewInfo.cursorStyle) {
-			this._cursorStyle = this._context.configuration.editor.viewInfo.cursorStyle;
-		}
-
-		this._primaryCursor.onConfigurationChanged(e);
-		this._updateBlinking();
-		if (e.viewInfo.cursorStyle || e.viewInfo.cursorBlinking) {
-			this._updateDomClassName();
-		}
+	public onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
+		// true for inline decorations that can end up relayouting text
+		return true;//e.inlineDecorationsChanged;
+	}
+	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
+		this._primaryCursor.onFlushed();
 		for (let i = 0, len = this._secondaryCursors.length; i < len; i++) {
-			this._secondaryCursors[i].onConfigurationChanged(e);
+			let domNode = this._secondaryCursors[i].getDomNode();
+			domNode.parentNode.removeChild(domNode);
 		}
+		this._secondaryCursors = [];
 		return true;
 	}
-	public onLayoutChanged(layoutInfo: editorCommon.EditorLayoutInfo): boolean {
-		return true;
-	}
-	public onScrollChanged(e: editorCommon.IScrollEvent): boolean {
-		return true;
-	}
-	public onZonesChanged(): boolean {
-		return true;
-	}
-	public onViewFocusChanged(isFocused: boolean): boolean {
-		this._editorHasFocus = isFocused;
+	public onFocusChanged(e: viewEvents.ViewFocusChangedEvent): boolean {
+		this._editorHasFocus = e.isFocused;
 		this._updateBlinking();
 		return false;
 	}
+	public onLineChanged(e: viewEvents.ViewLineChangedEvent): boolean {
+		return true;
+	}
+	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
+		return true;
+	}
+	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
+		return true;
+	}
+	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
+		return true;
+	}
+	public onTokensChanged(e: viewEvents.ViewTokensChangedEvent): boolean {
+		let shouldRender = (position: Position) => {
+			for (let i = 0, len = e.ranges.length; i < len; i++) {
+				if (e.ranges[i].fromLineNumber <= position.lineNumber && position.lineNumber <= e.ranges[i].toLineNumber) {
+					return true;
+				}
+			}
+			return false;
+		};
+		if (shouldRender(this._primaryCursor.getPosition())) {
+			return true;
+		}
+		for (let i = 0; i < this._secondaryCursors.length; i++) {
+			if (shouldRender(this._secondaryCursors[i].getPosition())) {
+				return true;
+			}
+		}
+		return false;
+	}
+	public onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
+		return true;
+	}
+
 	// --- end event handlers
 
 	public getPosition(): Position {
@@ -248,6 +247,15 @@ export class ViewCursors extends ViewPart {
 				break;
 			case editorCommon.TextEditorCursorStyle.Underline:
 				result += ' cursor-underline-style';
+				break;
+			case editorCommon.TextEditorCursorStyle.LineThin:
+				result += ' cursor-line-thin-style';
+				break;
+			case editorCommon.TextEditorCursorStyle.BlockOutline:
+				result += ' cursor-block-outline-style';
+				break;
+			case editorCommon.TextEditorCursorStyle.UnderlineThin:
+				result += ' cursor-underline-thin-style';
 				break;
 			default:
 				result += ' cursor-line-style';

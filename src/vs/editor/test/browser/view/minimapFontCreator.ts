@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { Constants, MinimapCharRenderer, ParsedColor } from 'vs/editor/common/view/minimapCharRenderer';
+import { Constants, MinimapCharRenderer } from 'vs/editor/common/view/minimapCharRenderer';
 import { MinimapCharRendererFactory } from 'vs/editor/test/common/view/minimapCharRendererFactory';
 import { getOrCreateMinimapCharRenderer } from 'vs/editor/common/view/runtimeMinimapCharRenderer';
+import { RGBA } from 'vs/base/common/color';
 
 let canvas = <HTMLCanvasElement>document.getElementById('my-canvas');
 let ctx = canvas.getContext('2d');
@@ -40,8 +41,8 @@ function createFakeImageData(width: number, height: number): ImageData {
 
 function renderMinimapCharRenderer(minimapCharRenderer: MinimapCharRenderer, y: number): void {
 
-	let background = new ParsedColor(0, 0, 0);
-	let color = new ParsedColor(255, 255, 255);
+	let background = new RGBA(0, 0, 0, 255);
+	let color = new RGBA(255, 255, 255, 255);
 
 	{
 		let x2 = createFakeImageData(Constants.x2_CHAR_WIDTH * Constants.CHAR_COUNT, Constants.x2_CHAR_HEIGHT);
@@ -54,7 +55,7 @@ function renderMinimapCharRenderer(minimapCharRenderer: MinimapCharRenderer, y: 
 		}
 		let dx = 0;
 		for (let chCode = Constants.START_CH_CODE; chCode <= Constants.END_CH_CODE; chCode++) {
-			minimapCharRenderer.x2RenderChar(x2, dx, 0, chCode, color, background);
+			minimapCharRenderer.x2RenderChar(x2, dx, 0, chCode, color, background, false);
 			dx += Constants.x2_CHAR_WIDTH;
 		}
 		renderImageData(x2, 10, y);
@@ -70,7 +71,7 @@ function renderMinimapCharRenderer(minimapCharRenderer: MinimapCharRenderer, y: 
 		}
 		let dx = 0;
 		for (let chCode = Constants.START_CH_CODE; chCode <= Constants.END_CH_CODE; chCode++) {
-			minimapCharRenderer.x1RenderChar(x1, dx, 0, chCode, color, background);
+			minimapCharRenderer.x1RenderChar(x1, dx, 0, chCode, color, background, false);
 			dx += Constants.x1_CHAR_WIDTH;
 		}
 		renderImageData(x1, 10, y + 100);

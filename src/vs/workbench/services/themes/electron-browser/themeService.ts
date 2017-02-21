@@ -301,25 +301,25 @@ export class ThemeService implements IThemeService {
 			}
 		});
 
-		this.configurationService.onDidUpdateConfiguration(e => {
-			let colorThemeSetting = this.configurationService.lookup<string>(COLOR_THEME_SETTING).value;
-			if (colorThemeSetting !== this.currentColorTheme.settingsId) {
-				this.findThemeDataBySettingsId(colorThemeSetting, null).then(theme => {
-					if (theme) {
-						this.setColorTheme(theme.id, null);
-					}
-				});
-			}
+		this.initialize().then(null, errors.onUnexpectedError).then(_ => {
+			this.configurationService.onDidUpdateConfiguration(e => {
+				let colorThemeSetting = this.configurationService.lookup<string>(COLOR_THEME_SETTING).value;
+				if (colorThemeSetting !== this.currentColorTheme.settingsId) {
+					this.findThemeDataBySettingsId(colorThemeSetting, null).then(theme => {
+						if (theme) {
+							this.setColorTheme(theme.id, null);
+						}
+					});
+				}
 
-			let iconThemeSetting = this.configurationService.lookup<string>(ICON_THEME_SETTING).value || '';
-			if (iconThemeSetting !== this.currentIconTheme.settingsId) {
-				this.findIconThemeBySettingsId(iconThemeSetting).then(theme => {
-					this.setFileIconTheme(theme && theme.id, null);
-				});
-			}
+				let iconThemeSetting = this.configurationService.lookup<string>(ICON_THEME_SETTING).value || '';
+				if (iconThemeSetting !== this.currentIconTheme.settingsId) {
+					this.findIconThemeBySettingsId(iconThemeSetting).then(theme => {
+						this.setFileIconTheme(theme && theme.id, null);
+					});
+				}
+			});
 		});
-
-		this.initialize().done(null, errors.onUnexpectedError);
 	}
 
 	public get onDidColorThemeChange(): Event<IColorTheme> {
@@ -403,8 +403,8 @@ export class ThemeService implements IThemeService {
 	}
 
 	private writeColorThemeConfiguration(settingsTarget: ConfigurationTarget) {
-		if (!types.isUndefinedOrNull(settingsTarget)) {
-			let value = this.currentColorTheme.settingsId;
+		let value = this.currentColorTheme.settingsId;
+		if (!types.isUndefinedOrNull(settingsTarget) && this.configurationService.lookup(COLOR_THEME_SETTING).value !== value) {
 			if (settingsTarget === ConfigurationTarget.USER && this.currentColorTheme.id === DEFAULT_THEME_ID) {
 				value = void 0; // remove key from user settings
 			}
@@ -606,8 +606,8 @@ export class ThemeService implements IThemeService {
 	}
 
 	private writeFileIconConfiguration(settingsTarget: ConfigurationTarget): TPromise<IFileIconTheme> {
-		if (!types.isUndefinedOrNull(settingsTarget)) {
-			let value = this.currentIconTheme.settingsId;
+		let value = this.currentIconTheme.settingsId;
+		if (!types.isUndefinedOrNull(settingsTarget) && this.configurationService.lookup(ICON_THEME_SETTING).value !== value) {
 			if (settingsTarget === ConfigurationTarget.USER && this.currentIconTheme.id === '') {
 				value = void 0; // remove key from user settings
 			}

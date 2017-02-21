@@ -49,6 +49,10 @@ export class GitSCMProvider implements SCMProvider {
 		return this.commandCenter.open(resource);
 	}
 
+	acceptChanges(): ProviderResult<void> {
+		return this.commandCenter.commitWithInput();
+	}
+
 	drag(resource: Resource, resourceGroup: ResourceGroup): void {
 		console.log('drag', resource, resourceGroup);
 	}

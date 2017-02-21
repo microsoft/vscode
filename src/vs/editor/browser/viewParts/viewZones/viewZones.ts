@@ -13,6 +13,7 @@ import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { Position } from 'vs/editor/common/core/position';
 import { IRenderingContext, IRestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
 import { IViewLayout } from 'vs/editor/common/viewModel/viewModel';
+import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
 export interface IMyViewZone {
 	whitespaceId: number;
@@ -88,7 +89,7 @@ export class ViewZones extends ViewPart {
 		return hadAChange;
 	}
 
-	public onConfigurationChanged(e: editorCommon.IConfigurationChangedEvent): boolean {
+	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 
 		if (e.lineHeight) {
 			this._lineHeight = this._context.configuration.editor.lineHeight;
@@ -100,30 +101,26 @@ export class ViewZones extends ViewPart {
 			this._contentLeft = this._context.configuration.editor.layoutInfo.contentLeft;
 		}
 
-		return false;
+		return true;
 	}
 
-	public onLineMappingChanged(): boolean {
+	public onLineMappingChanged(e: viewEvents.ViewLineMappingChangedEvent): boolean {
 		return this._recomputeWhitespacesProps();
 	}
 
-	public onLayoutChanged(layoutInfo: editorCommon.EditorLayoutInfo): boolean {
+	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
 		return true;
 	}
 
-	public onScrollChanged(e: editorCommon.IScrollEvent): boolean {
+	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		return e.scrollTopChanged || e.scrollWidthChanged;
 	}
 
-	public onZonesChanged(): boolean {
+	public onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
 		return true;
 	}
 
-	public onModelLinesDeleted(e: editorCommon.IModelContentChangedLinesDeletedEvent): boolean {
-		return true;
-	}
-
-	public onModelLinesInserted(e: editorCommon.IViewLinesInsertedEvent): boolean {
+	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
 		return true;
 	}
 

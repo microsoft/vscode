@@ -420,6 +420,11 @@ export interface IEditorOptions {
 	 */
 	formatOnPaste?: boolean;
 	/**
+	 * Controls if the editor should allow to move selections via drag and drop.
+	 * Defaults to false.
+	 */
+	enableDragAndDrop?: boolean;
+	/**
 	 * Enable the suggestion box to pop-up on trigger characters.
 	 * Defaults to true.
 	 */
@@ -442,10 +447,6 @@ export interface IEditorOptions {
 	 * Copying without a selection copies the current line.
 	 */
 	emptySelectionClipboard?: boolean;
-	/**
-	 * Enable tab completion. Defaults to 'false'
-	 */
-	tabCompletion?: boolean;
 	/**
 	 * Enable word based suggestions. Defaults to 'true'
 	 */
@@ -480,6 +481,11 @@ export interface IEditorOptions {
 	 * Defaults to true in vscode and to false in monaco-editor.
 	 */
 	folding?: boolean;
+	/**
+	 * Enable highlighting of matching brackets.
+	 * Defaults to true.
+	 */
+	matchBrackets?: boolean;
 	/**
 	 * Enable rendering of whitespace.
 	 * Defaults to none.
@@ -959,13 +965,13 @@ export class EditorContribOptions {
 	readonly acceptSuggestionOnCommitCharacter: boolean;
 	readonly snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
 	readonly emptySelectionClipboard: boolean;
-	readonly tabCompletion: boolean;
 	readonly wordBasedSuggestions: boolean;
 	readonly suggestFontSize: number;
 	readonly suggestLineHeight: number;
 	readonly selectionHighlight: boolean;
 	readonly codeLens: boolean;
 	readonly folding: boolean;
+	readonly matchBrackets: boolean;
 
 	/**
 	 * @internal
@@ -985,13 +991,13 @@ export class EditorContribOptions {
 		acceptSuggestionOnCommitCharacter: boolean;
 		snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
 		emptySelectionClipboard: boolean;
-		tabCompletion: boolean;
 		wordBasedSuggestions: boolean;
 		suggestFontSize: number;
 		suggestLineHeight: number;
 		selectionHighlight: boolean;
 		codeLens: boolean;
 		folding: boolean;
+		matchBrackets: boolean;
 	}) {
 		this.selectionClipboard = Boolean(source.selectionClipboard);
 		this.hover = Boolean(source.hover);
@@ -1007,13 +1013,13 @@ export class EditorContribOptions {
 		this.acceptSuggestionOnCommitCharacter = Boolean(source.acceptSuggestionOnCommitCharacter);
 		this.snippetSuggestions = source.snippetSuggestions;
 		this.emptySelectionClipboard = source.emptySelectionClipboard;
-		this.tabCompletion = source.tabCompletion;
 		this.wordBasedSuggestions = source.wordBasedSuggestions;
 		this.suggestFontSize = source.suggestFontSize;
 		this.suggestLineHeight = source.suggestLineHeight;
 		this.selectionHighlight = Boolean(source.selectionHighlight);
 		this.codeLens = Boolean(source.codeLens);
 		this.folding = Boolean(source.folding);
+		this.matchBrackets = Boolean(source.matchBrackets);
 	}
 
 	/**
@@ -1035,13 +1041,13 @@ export class EditorContribOptions {
 			&& this.acceptSuggestionOnCommitCharacter === other.acceptSuggestionOnCommitCharacter
 			&& this.snippetSuggestions === other.snippetSuggestions
 			&& this.emptySelectionClipboard === other.emptySelectionClipboard
-			&& this.tabCompletion === other.tabCompletion
 			&& this.wordBasedSuggestions === other.wordBasedSuggestions
 			&& this.suggestFontSize === other.suggestFontSize
 			&& this.suggestLineHeight === other.suggestLineHeight
 			&& this.selectionHighlight === other.selectionHighlight
 			&& this.codeLens === other.codeLens
 			&& this.folding === other.folding
+			&& this.matchBrackets === other.matchBrackets
 		);
 	}
 
@@ -1057,10 +1063,6 @@ export class EditorContribOptions {
  * Internal configuration options (transformed or computed) for the editor.
  */
 export class InternalEditorOptions {
-	/**
-	 * @internal
-	 */
-	static forceCopyWithSyntaxHighlighting: boolean = false;
 	readonly _internalEditorOptionsBrand: void;
 
 	readonly lineHeight: number; // todo: move to fontInfo
@@ -1071,6 +1073,7 @@ export class InternalEditorOptions {
 	readonly autoClosingBrackets: boolean;
 	readonly useTabStops: boolean;
 	readonly tabFocusMode: boolean;
+	readonly enableDragAndDrop: boolean;
 	// ---- grouped options
 	readonly layoutInfo: EditorLayoutInfo;
 	readonly fontInfo: FontInfo;
@@ -1088,6 +1091,7 @@ export class InternalEditorOptions {
 		autoClosingBrackets: boolean;
 		useTabStops: boolean;
 		tabFocusMode: boolean;
+		enableDragAndDrop: boolean;
 		layoutInfo: EditorLayoutInfo;
 		fontInfo: FontInfo;
 		viewInfo: InternalEditorViewOptions;
@@ -1100,6 +1104,7 @@ export class InternalEditorOptions {
 		this.autoClosingBrackets = Boolean(source.autoClosingBrackets);
 		this.useTabStops = Boolean(source.useTabStops);
 		this.tabFocusMode = Boolean(source.tabFocusMode);
+		this.enableDragAndDrop = Boolean(source.enableDragAndDrop);
 		this.layoutInfo = source.layoutInfo.clone();
 		this.fontInfo = source.fontInfo.clone();
 		this.viewInfo = source.viewInfo.clone();
@@ -1118,6 +1123,7 @@ export class InternalEditorOptions {
 			&& this.autoClosingBrackets === other.autoClosingBrackets
 			&& this.useTabStops === other.useTabStops
 			&& this.tabFocusMode === other.tabFocusMode
+			&& this.enableDragAndDrop === other.enableDragAndDrop
 			&& this.layoutInfo.equals(other.layoutInfo)
 			&& this.fontInfo.equals(other.fontInfo)
 			&& this.viewInfo.equals(other.viewInfo)
@@ -1137,6 +1143,7 @@ export class InternalEditorOptions {
 			autoClosingBrackets: (this.autoClosingBrackets !== newOpts.autoClosingBrackets),
 			useTabStops: (this.useTabStops !== newOpts.useTabStops),
 			tabFocusMode: (this.tabFocusMode !== newOpts.tabFocusMode),
+			enableDragAndDrop: (this.enableDragAndDrop !== newOpts.enableDragAndDrop),
 			layoutInfo: (!this.layoutInfo.equals(newOpts.layoutInfo)),
 			fontInfo: (!this.fontInfo.equals(newOpts.fontInfo)),
 			viewInfo: this.viewInfo.createChangeEvent(newOpts.viewInfo),
@@ -1163,6 +1170,7 @@ export interface IConfigurationChangedEvent {
 	readonly autoClosingBrackets: boolean;
 	readonly useTabStops: boolean;
 	readonly tabFocusMode: boolean;
+	readonly enableDragAndDrop: boolean;
 	readonly layoutInfo: boolean;
 	readonly fontInfo: boolean;
 	readonly viewInfo: IViewConfigurationChangedEvent;
@@ -3290,23 +3298,6 @@ export interface IConfiguration {
 
 // --- view
 
-/**
- * @internal
- */
-export var ViewEventNames = {
-	ModelFlushedEvent: 'modelFlushedEvent',
-	LinesDeletedEvent: 'linesDeletedEvent',
-	LinesInsertedEvent: 'linesInsertedEvent',
-	LineChangedEvent: 'lineChangedEvent',
-	TokensChangedEvent: 'tokensChangedEvent',
-	DecorationsChangedEvent: 'decorationsChangedEvent',
-	CursorPositionChangedEvent: 'cursorPositionChangedEvent',
-	CursorSelectionChangedEvent: 'cursorSelectionChangedEvent',
-	RevealRangeEvent: 'revealRangeEvent',
-	LineMappingChangedEvent: 'lineMappingChangedEvent',
-	ScrollRequestEvent: 'scrollRequestEvent'
-};
-
 export interface IScrollEvent {
 	readonly scrollTop: number;
 	readonly scrollLeft: number;
@@ -3322,128 +3313,6 @@ export interface IScrollEvent {
 export interface INewScrollPosition {
 	scrollLeft?: number;
 	scrollTop?: number;
-}
-
-/**
- * @internal
- */
-export interface IViewLinesDeletedEvent {
-	/**
-	 * At what line the deletion began (inclusive).
-	 */
-	readonly fromLineNumber: number;
-	/**
-	 * At what line the deletion stopped (inclusive).
-	 */
-	readonly toLineNumber: number;
-}
-
-/**
- * @internal
- */
-export interface IViewLinesInsertedEvent {
-	/**
-	 * Before what line did the insertion begin
-	 */
-	readonly fromLineNumber: number;
-	/**
-	 * `toLineNumber` - `fromLineNumber` + 1 denotes the number of lines that were inserted
-	 */
-	readonly toLineNumber: number;
-}
-
-/**
- * @internal
- */
-export interface IViewLineChangedEvent {
-	/**
-	 * The line that has changed.
-	 */
-	readonly lineNumber: number;
-}
-
-/**
- * @internal
- */
-export interface IViewTokensChangedEvent {
-	readonly ranges: {
-		/**
-		 * Start line number of range
-		 */
-		readonly fromLineNumber: number;
-		/**
-		 * End line number of range
-		 */
-		readonly toLineNumber: number;
-	}[];
-}
-
-/**
- * @internal
- */
-export interface IViewDecorationsChangedEvent {
-	_videDecorationsChangedEventBrand: void;
-}
-
-/**
- * @internal
- */
-export interface IViewCursorPositionChangedEvent {
-	/**
-	 * Primary cursor's position.
-	 */
-	readonly position: Position;
-	/**
-	 * Secondary cursors' position.
-	 */
-	readonly secondaryPositions: Position[];
-	/**
-	 * Is the primary cursor in the editable range?
-	 */
-	readonly isInEditableRange: boolean;
-}
-
-/**
- * @internal
- */
-export interface IViewCursorSelectionChangedEvent {
-	/**
-	 * The primary selection.
-	 */
-	readonly selection: Selection;
-	/**
-	 * The secondary selections.
-	 */
-	readonly secondarySelections: Selection[];
-}
-
-/**
- * @internal
- */
-export interface IViewRevealRangeEvent {
-	/**
-	 * Range to be reavealed.
-	 */
-	readonly range: Range;
-
-	readonly verticalType: VerticalRevealType;
-	/**
-	 * If true: there should be a horizontal & vertical revealing
-	 * If false: there should be just a vertical revealing
-	 */
-	readonly revealHorizontal: boolean;
-	/**
-	 * If true: cursor is revealed if outside viewport
-	 */
-	readonly revealCursor: boolean;
-}
-
-/**
- * @internal
- */
-export interface IViewScrollRequestEvent {
-	readonly deltaLines: number;
-	readonly revealCursor: boolean;
 }
 
 /**
@@ -4271,17 +4140,15 @@ export var EventType = {
 
 	ViewFocusGained: 'focusGained',
 	ViewFocusLost: 'focusLost',
-	ViewFocusChanged: 'focusChanged',
-	ViewScrollChanged: 'scrollChanged',
 	ViewZonesChanged: 'zonesChanged',
-
-	ViewLayoutChanged: 'viewLayoutChanged',
 
 	ContextMenu: 'contextMenu',
 	MouseDown: 'mousedown',
 	MouseUp: 'mouseup',
 	MouseMove: 'mousemove',
 	MouseLeave: 'mouseleave',
+	MouseDrag: 'mousedrag',
+	MouseDrop: 'mousedrop',
 	KeyDown: 'keydown',
 	KeyUp: 'keyup',
 
@@ -4667,7 +4534,19 @@ export enum TextEditorCursorStyle {
 	/**
 	 * As a horizontal line (sitting under a character).
 	 */
-	Underline = 3
+	Underline = 3,
+	/**
+	 * As a thin vertical line (sitting between two characters).
+	 */
+	LineThin = 4,
+	/**
+	 * As an outlined block (sitting on top of a character).
+	 */
+	BlockOutline = 5,
+	/**
+	 * As a thin horizontal line (sitting under a character).
+	 */
+	UnderlineThin = 6
 }
 
 /**
@@ -4710,6 +4589,12 @@ export function cursorStyleToString(cursorStyle: TextEditorCursorStyle): string 
 		return 'block';
 	} else if (cursorStyle === TextEditorCursorStyle.Underline) {
 		return 'underline';
+	} else if (cursorStyle === TextEditorCursorStyle.LineThin) {
+		return 'line-thin';
+	} else if (cursorStyle === TextEditorCursorStyle.BlockOutline) {
+		return 'block-outline';
+	} else if (cursorStyle === TextEditorCursorStyle.UnderlineThin) {
+		return 'underline-thin';
 	} else {
 		throw new Error('cursorStyleToString: Unknown cursorStyle');
 	}

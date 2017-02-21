@@ -6,10 +6,10 @@
 'use strict';
 
 import 'vs/css!./currentLineHighlight';
-import * as editorCommon from 'vs/editor/common/editorCommon';
 import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { IRenderingContext } from 'vs/editor/common/view/renderingContext';
+import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
 export class CurrentLineHighlightOverlay extends DynamicViewOverlay {
 	private _context: ViewContext;
@@ -45,39 +45,7 @@ export class CurrentLineHighlightOverlay extends DynamicViewOverlay {
 
 	// --- begin event handlers
 
-	public onModelFlushed(): boolean {
-		this._primaryCursorIsInEditableRange = true;
-		this._selectionIsEmpty = true;
-		this._primaryCursorLineNumber = 1;
-		return true;
-	}
-	public onModelLinesDeleted(e: editorCommon.IViewLinesDeletedEvent): boolean {
-		return true;
-	}
-	public onModelLinesInserted(e: editorCommon.IViewLinesInsertedEvent): boolean {
-		return true;
-	}
-	public onCursorPositionChanged(e: editorCommon.IViewCursorPositionChangedEvent): boolean {
-		let hasChanged = false;
-		if (this._primaryCursorIsInEditableRange !== e.isInEditableRange) {
-			this._primaryCursorIsInEditableRange = e.isInEditableRange;
-			hasChanged = true;
-		}
-		if (this._primaryCursorLineNumber !== e.position.lineNumber) {
-			this._primaryCursorLineNumber = e.position.lineNumber;
-			hasChanged = true;
-		}
-		return hasChanged;
-	}
-	public onCursorSelectionChanged(e: editorCommon.IViewCursorSelectionChangedEvent): boolean {
-		let isEmpty = e.selection.isEmpty();
-		if (this._selectionIsEmpty !== isEmpty) {
-			this._selectionIsEmpty = isEmpty;
-			return true;
-		}
-		return false;
-	}
-	public onConfigurationChanged(e: editorCommon.IConfigurationChangedEvent): boolean {
+	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		if (e.lineHeight) {
 			this._lineHeight = this._context.configuration.editor.lineHeight;
 		}
@@ -92,13 +60,42 @@ export class CurrentLineHighlightOverlay extends DynamicViewOverlay {
 		}
 		return true;
 	}
-	public onLayoutChanged(layoutInfo: editorCommon.EditorLayoutInfo): boolean {
+	public onCursorPositionChanged(e: viewEvents.ViewCursorPositionChangedEvent): boolean {
+		let hasChanged = false;
+		if (this._primaryCursorIsInEditableRange !== e.isInEditableRange) {
+			this._primaryCursorIsInEditableRange = e.isInEditableRange;
+			hasChanged = true;
+		}
+		if (this._primaryCursorLineNumber !== e.position.lineNumber) {
+			this._primaryCursorLineNumber = e.position.lineNumber;
+			hasChanged = true;
+		}
+		return hasChanged;
+	}
+	public onCursorSelectionChanged(e: viewEvents.ViewCursorSelectionChangedEvent): boolean {
+		let isEmpty = e.selection.isEmpty();
+		if (this._selectionIsEmpty !== isEmpty) {
+			this._selectionIsEmpty = isEmpty;
+			return true;
+		}
+		return false;
+	}
+	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
+		this._primaryCursorIsInEditableRange = true;
+		this._selectionIsEmpty = true;
+		this._primaryCursorLineNumber = 1;
 		return true;
 	}
-	public onScrollChanged(e: editorCommon.IScrollEvent): boolean {
+	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
+		return true;
+	}
+	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
+		return true;
+	}
+	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		return e.scrollWidthChanged;
 	}
-	public onZonesChanged(): boolean {
+	public onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
 		return true;
 	}
 	// --- end event handlers

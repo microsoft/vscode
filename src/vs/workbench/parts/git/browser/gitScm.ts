@@ -48,6 +48,10 @@ export class GitSCMProvider implements IWorkbenchContribution, ISCMProvider, ITe
 		return TPromise.wrapError<void>('not implemented');
 	}
 
+	acceptChanges(): TPromise<void> {
+		return TPromise.wrapError<void>('not implemented');
+	}
+
 	drag(from: ISCMResource, to: ISCMResourceGroup): TPromise<void> {
 		return TPromise.wrapError<void>('not implemented');
 	}

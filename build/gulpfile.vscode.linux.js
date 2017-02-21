@@ -169,14 +169,11 @@ function prepareRpmPackage(arch) {
 function buildRpmPackage(arch) {
 	const rpmArch = getRpmPackageArch(arch);
 	const rpmBuildPath = getRpmBuildPath(rpmArch);
-	const rpmOut = rpmBuildPath + '/RPMS/' + rpmArch;
 	const destination = '.build/linux/rpm/' + rpmArch;
 
 	return shell.task([
 		'mkdir -p ' + destination,
-		'HOME="$(pwd)/' + destination + '" fakeroot rpmbuild -bb ' + rpmBuildPath + '/SPECS/' + product.applicationName + '.spec --target=' + rpmArch,
-		'cp "' + rpmOut + '/$(ls ' + rpmOut + ')" ' + destination + '/',
-		'createrepo ' + destination
+		'HOME="$(pwd)/' + destination + '" fakeroot rpmbuild -bb ' + rpmBuildPath + '/SPECS/' + product.applicationName + '.spec --target=' + rpmArch
 	]);
 }
 

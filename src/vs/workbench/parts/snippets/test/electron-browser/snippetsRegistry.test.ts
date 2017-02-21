@@ -6,7 +6,8 @@
 'use strict';
 
 import * as assert from 'assert';
-import { getNonWhitespacePrefix } from 'vs/editor/common/modes/snippetsRegistry';
+import { getNonWhitespacePrefix } from 'vs/workbench/parts/snippets/electron-browser/snippetsService';
+
 
 suite('getNonWhitespacePrefix', () => {
 

@@ -6,11 +6,11 @@
 'use strict';
 
 import { StyleMutator, FastDomNode, createFastDomNode } from 'vs/base/browser/styleMutator';
-import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ClassNames } from 'vs/editor/browser/editorBrowser';
 import { ViewPart } from 'vs/editor/browser/view/viewPart';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { IRenderingContext, IRestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
+import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
 export class Margin extends ViewPart {
 	public domNode: HTMLElement;
@@ -50,24 +50,21 @@ export class Margin extends ViewPart {
 
 	// --- begin event handlers
 
-	public onConfigurationChanged(e: editorCommon.IConfigurationChangedEvent): boolean {
+	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		if (e.viewInfo.canUseTranslate3d) {
 			this._canUseTranslate3d = this._context.configuration.editor.viewInfo.canUseTranslate3d;
 		}
 
-		return super.onConfigurationChanged(e);
-	}
+		if (e.layoutInfo) {
+			this._contentLeft = this._context.configuration.editor.layoutInfo.contentLeft;
+			this._glyphMarginLeft = this._context.configuration.editor.layoutInfo.glyphMarginLeft;
+			this._glyphMarginWidth = this._context.configuration.editor.layoutInfo.glyphMarginWidth;
+		}
 
-	public onScrollChanged(e: editorCommon.IScrollEvent): boolean {
+		return true;
+	}
+	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		return super.onScrollChanged(e) || e.scrollTopChanged;
-	}
-
-	public onLayoutChanged(layoutInfo: editorCommon.EditorLayoutInfo): boolean {
-		this._contentLeft = layoutInfo.contentLeft;
-		this._glyphMarginLeft = layoutInfo.glyphMarginLeft;
-		this._glyphMarginWidth = layoutInfo.glyphMarginWidth;
-
-		return super.onLayoutChanged(layoutInfo) || true;
 	}
 
 	// --- end event handlers

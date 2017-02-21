@@ -26,17 +26,15 @@ import { ILogService } from 'vs/code/electron-main/log';
 import { getPathLabel } from 'vs/base/common/labels';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IWindowSettings } from 'vs/platform/windows/common/windows';
-import { getLastActiveWindow, OpenContext as OriginalOpenContext, findBestWindowOrFolder } from 'vs/code/node/windowsUtils';
+import { getLastActiveWindow, findBestWindowOrFolder } from 'vs/code/node/windowsUtils';
 import CommonEvent, { Emitter } from 'vs/base/common/event';
 import product from 'vs/platform/node/product';
+import { OpenContext } from 'vs/code/common/windows';
 
 enum WindowError {
 	UNRESPONSIVE,
 	CRASHED
 }
-
-export const OpenContext = OriginalOpenContext;
-export type OpenContext = OriginalOpenContext;
 
 export interface IOpenConfiguration {
 	context: OpenContext;
@@ -373,8 +371,8 @@ export class WindowsManager implements IWindowsMainService {
 			openFolderInNewWindow = (windowConfig.openFoldersInNewWindow === 'on');
 		}
 
-		// Handle files to open/diff or to create when we dont open a folder
-		if (!foldersToOpen.length && (filesToOpen.length > 0 || filesToCreate.length > 0 || filesToDiff.length > 0)) {
+		// Handle files to open/diff or to create when we dont open a folder and we do not restore any folder/untitled from hot-exit
+		if (!foldersToOpen.length && !foldersToRestore.length && !emptyToRestore.length && (filesToOpen.length > 0 || filesToCreate.length > 0 || filesToDiff.length > 0)) {
 
 			// let the user settings override how files are open in a new window or same window unless we are forced (not for extension development though)
 			let openFilesInNewWindow: boolean;
@@ -471,9 +469,14 @@ export class WindowsManager implements IWindowsMainService {
 		// Handle empty
 		if (emptyToRestore.length > 0) {
 			emptyToRestore.forEach(emptyWorkspaceBackupFolder => {
-				const configuration = this.toConfiguration(openConfig);
+				const configuration = this.toConfiguration(openConfig, void 0, filesToOpen, filesToCreate, filesToDiff);
 				const browserWindow = this.openInBrowserWindow(configuration, true /* new window */, null, emptyWorkspaceBackupFolder);
 				usedWindows.push(browserWindow);
+
+				// Reset these because we handled them
+				filesToOpen = [];
+				filesToCreate = [];
+				filesToDiff = [];
 
 				openFolderInNewWindow = true; // any other folders to open must open in new window then
 			});

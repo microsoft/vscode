@@ -21,6 +21,7 @@ import { EditorMouseEventFactory, GlobalEditorMouseMoveMonitor, EditorMouseEvent
 import { StandardMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { EditorZoom } from 'vs/editor/common/config/editorZoom';
 import { IViewCursorRenderData } from 'vs/editor/browser/viewParts/viewCursors/viewCursor';
+import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
 /**
  * Merges mouse events when mouse move events are throttled
@@ -204,20 +205,17 @@ export class MouseHandler extends ViewEventHandler implements IDisposable {
 	}
 
 	// --- begin event handlers
-	public onLayoutChanged(layoutInfo: editorCommon.EditorLayoutInfo): boolean {
-		return false;
-	}
-	public onScrollChanged(e: editorCommon.IScrollEvent): boolean {
-		this._mouseDownOperation.onScrollChanged();
-		return false;
-	}
-	public onCursorSelectionChanged(e: editorCommon.IViewCursorSelectionChangedEvent): boolean {
+	public onCursorSelectionChanged(e: viewEvents.ViewCursorSelectionChangedEvent): boolean {
 		this._mouseDownOperation.onCursorSelectionChanged(e);
 		return false;
 	}
 	private _isFocused = false;
-	public onViewFocusChanged(isFocused: boolean): boolean {
-		this._isFocused = isFocused;
+	public onFocusChanged(e: viewEvents.ViewFocusChangedEvent): boolean {
+		this._isFocused = e.isFocused;
+		return false;
+	}
+	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
+		this._mouseDownOperation.onScrollChanged();
 		return false;
 	}
 	// --- end event handlers
@@ -404,7 +402,14 @@ class MouseDownOperation extends Disposable {
 			return;
 		}
 
-		this._dispatchMouse(position, true);
+		if (this._mouseState.isDragAndDrop) {
+			this._viewController.emitMouseDrag({
+				event: e,
+				target: this._createMouseTarget(e, true)
+			});
+		} else {
+			this._dispatchMouse(position, true);
+		}
 	}
 
 	public start(targetType: editorCommon.MouseTargetType, e: EditorMouseEvent): void {
@@ -412,7 +417,6 @@ class MouseDownOperation extends Disposable {
 
 		this._mouseState.setStartedOnLineNumbers(targetType === editorCommon.MouseTargetType.GUTTER_LINE_NUMBERS);
 		this._mouseState.setModifiers(e);
-
 		let position = this._findMousePosition(e, true);
 		if (!position) {
 			// Ignoring because position is unknown
@@ -424,6 +428,39 @@ class MouseDownOperation extends Disposable {
 		// Overwrite the detail of the MouseEvent, as it will be sent out in an event and contributions might rely on it.
 		e.detail = this._mouseState.count;
 
+		if (this._context.configuration.editor.enableDragAndDrop
+			&& !this._mouseState.altKey // we don't support multiple mouse
+			&& e.detail < 2 // only single click on a selection can work
+			&& !this._isActive // the mouse is not down yet
+			&& !this._currentSelection.isEmpty() // we don't drag single cursor
+			&& this._currentSelection.containsPosition(position.position) // single click on a selection
+		) {
+			this._mouseState.isDragAndDrop = true;
+			this._isActive = true;
+			this._viewController.emitMouseDrag({
+				event: e,
+				target: this._createMouseTarget(e, true)
+			});
+
+			this._mouseMoveMonitor.startMonitoring(
+				createMouseMoveEventMerger(null),
+				this._mouseDownThenMoveEventHandler.handler,
+				() => {
+					let position = this._findMousePosition(this._lastMouseEvent, true);
+
+					this._viewController.emitMouseDrop({
+						event: this._lastMouseEvent,
+						target: position ? this._createMouseTarget(this._lastMouseEvent, true) : null // Ignoring because position is unknown, e.g., Content View Zone
+					});
+
+					this._stop();
+				}
+			);
+
+			return;
+		}
+
+		this._mouseState.isDragAndDrop = false;
 		this._dispatchMouse(position, e.shiftKey);
 
 		if (!this._isActive) {
@@ -451,11 +488,15 @@ class MouseDownOperation extends Disposable {
 				// Ignoring because position is unknown
 				return;
 			}
+			if (this._mouseState.isDragAndDrop) {
+				// Ignoring because users are dragging the text
+				return;
+			}
 			this._dispatchMouse(position, true);
 		}, 10);
 	}
 
-	public onCursorSelectionChanged(e: editorCommon.IViewCursorSelectionChangedEvent): void {
+	public onCursorSelectionChanged(e: viewEvents.ViewCursorSelectionChangedEvent): void {
 		this._currentSelection = e.selection;
 	}
 
@@ -557,6 +598,7 @@ class MouseDownState {
 	private _lastMouseDownPositionEqualCount: number;
 	private _lastMouseDownCount: number;
 	private _lastSetMouseDownCountTime: number;
+	public isDragAndDrop: boolean;
 
 	constructor() {
 		this._altKey = false;
@@ -568,6 +610,7 @@ class MouseDownState {
 		this._lastMouseDownPositionEqualCount = 0;
 		this._lastMouseDownCount = 0;
 		this._lastSetMouseDownCountTime = 0;
+		this.isDragAndDrop = false;
 	}
 
 	public get count(): number {

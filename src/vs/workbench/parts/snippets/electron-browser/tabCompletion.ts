@@ -5,20 +5,20 @@
 
 'use strict';
 
+import { localize } from 'vs/nls';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { RawContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ISnippetsRegistry, Extensions, getNonWhitespacePrefix, ISnippet } from 'vs/editor/common/modes/snippetsRegistry';
+import { ISnippetsService, getNonWhitespacePrefix, ISnippet } from 'vs/workbench/parts/snippets/electron-browser/snippetsService';
 import { Registry } from 'vs/platform/platform';
 import { endsWith } from 'vs/base/common/strings';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { CommonEditorRegistry, commonEditorContribution, EditorCommand } from 'vs/editor/common/editorCommonExtensions';
 import { SnippetController, CONTEXT_SNIPPET_MODE } from 'vs/editor/contrib/snippet/common/snippetController';
+import { IConfigurationRegistry, Extensions as ConfigExt } from "vs/platform/configuration/common/configurationRegistry";
 
 import EditorContextKeys = editorCommon.EditorContextKeys;
-
-let snippetsRegistry = <ISnippetsRegistry>Registry.as(Extensions.Snippets);
 
 @commonEditorContribution
 export class TabCompletionController implements editorCommon.IEditorContribution {
@@ -36,7 +36,8 @@ export class TabCompletionController implements editorCommon.IEditorContribution
 
 	constructor(
 		editor: editorCommon.ICommonCodeEditor,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@ISnippetsService snippetService: ISnippetsService
 	) {
 		this._snippetController = SnippetController.get(editor);
 		const hasSnippets = TabCompletionController.ContextKey.bindTo(contextKeyService);
@@ -57,7 +58,7 @@ export class TabCompletionController implements editorCommon.IEditorContribution
 			}
 
 			if (selectFn) {
-				snippetsRegistry.visitSnippets(editor.getModel().getLanguageIdentifier().id, s => {
+				snippetService.visitSnippets(editor.getModel().getLanguageIdentifier().id, s => {
 					if (selectFn(s)) {
 						this._currentSnippets.push(s);
 					}
@@ -104,3 +105,17 @@ CommonEditorRegistry.registerEditorCommand(new TabCompletionCommand({
 		primary: KeyCode.Tab
 	}
 }));
+
+
+Registry.as<IConfigurationRegistry>(ConfigExt.Configuration).registerConfiguration({
+	id: 'editor',
+	order: 5,
+	type: 'object',
+	properties: {
+		'editor.tabCompletion': {
+			'type': 'boolean',
+			'default': false,
+			'description': localize('tabCompletion', "Insert snippets when their prefix matches. Works best when 'quickSuggestions' aren't enabled.")
+		},
+	}
+});

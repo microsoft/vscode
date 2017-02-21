@@ -211,7 +211,7 @@ export class ExtensionHostProcessWorker {
 	private tryExtHostHandshake(server: Server): TPromise<any> {
 
 		return new TPromise<IMessagePassingProtocol>((resolve, reject) => {
-			let handle = setTimeout(() => reject('timeout'), 5 * 1000);
+			let handle = setTimeout(() => reject('timeout'), 60 * 1000);
 			server.on('connection', socket => {
 				clearTimeout(handle);
 				const protocol = new Protocol(socket);

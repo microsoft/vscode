@@ -374,7 +374,8 @@ export class StackFrame implements debug.IStackFrame {
 				preserveFocus,
 				selection: { startLineNumber: this.lineNumber, startColumn: 1 },
 				revealIfVisible: true,
-				revealInCenterIfOutsideViewport: true
+				revealInCenterIfOutsideViewport: true,
+				pinned: !preserveFocus
 			}
 		}, sideBySide);
 	}
