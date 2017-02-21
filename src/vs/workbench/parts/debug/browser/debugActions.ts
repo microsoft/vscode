@@ -19,6 +19,7 @@ import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { TogglePanelAction } from 'vs/workbench/browser/panel';
+import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 
 export abstract class AbstractDebugAction extends Action {
 
@@ -207,6 +208,27 @@ export class RunAction extends StartAction {
 		}
 
 		return config;
+	}
+}
+
+export class SelectAndStartAction extends AbstractDebugAction {
+	static ID = 'workbench.action.debug.selectandstart';
+	static LABEL = nls.localize('selectAndStartDebugging', "Select and Start Debugging");
+
+	constructor(id: string, label: string,
+		@IDebugService debugService: IDebugService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@ICommandService commandService: ICommandService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IFileService fileService: IFileService,
+		@IQuickOpenService private quickOpenService: IQuickOpenService
+	) {
+		super(id, label, undefined, debugService, keybindingService);
+		this.quickOpenService = quickOpenService;
+	}
+
+	public run(): TPromise<any> {
+		return this.quickOpenService.show('debug ');
 	}
 }
 
