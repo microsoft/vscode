@@ -58,8 +58,7 @@ export interface ITerminalConfiguration {
 			setLocaleVariables: boolean,
 			scrollback: number,
 			commandsToSkipShell: string[],
-			cwd: string,
-			flowControl: boolean
+			cwd: string
 		}
 	};
 }
@@ -68,7 +67,6 @@ export interface ITerminalConfigHelper {
 	getTheme(baseThemeId: string): string[];
 	getFont(): ITerminalFont;
 	getFontLigaturesEnabled(): boolean;
-	getFlowControl(): boolean;
 	getCursorBlink(): boolean;
 	getRightClickCopyPaste(): boolean;
 	getCommandsToSkipShell(): string[];

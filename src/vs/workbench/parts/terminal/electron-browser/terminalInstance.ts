@@ -645,17 +645,10 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public updateConfig(): void {
-		this._setFlowControl(this._configHelper.getFlowControl());
 		this._setCursorBlink(this._configHelper.getCursorBlink());
 		this._setCursorStyle(this._configHelper.getCursorStyle());
 		this._setCommandsToSkipShell(this._configHelper.getCommandsToSkipShell());
 		this._setScrollback(this._configHelper.getScrollback());
-	}
-
-	private _setFlowControl(flowControl: boolean): void {
-		if (this._xterm && this._xterm.getOption('useFlowControl') !== flowControl) {
-			this._xterm.setOption('useFlowControl', flowControl);
-		}
 	}
 
 	private _setCursorBlink(blink: boolean): void {

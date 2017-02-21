@@ -12,7 +12,7 @@ import nls = require('vs/nls');
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { GlobalQuickOpenAction } from 'vs/workbench/browser/parts/quickopen/quickopen.contribution';
 import { ITerminalService, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_PANEL_ID, TERMINAL_DEFAULT_RIGHT_CLICK_COPY_PASTE, TerminalCursorStyle } from 'vs/workbench/parts/terminal/common/terminal';
-import { TERMINAL_DEFAULT_SHELL_LINUX, TERMINAL_DEFAULT_SHELL_OSX, TERMINAL_DEFAULT_SHELL_WINDOWS, TERMINAL_DEFAULT_FLOW_CONTROL } from 'vs/workbench/parts/terminal/electron-browser/terminal';
+import { TERMINAL_DEFAULT_SHELL_LINUX, TERMINAL_DEFAULT_SHELL_OSX, TERMINAL_DEFAULT_SHELL_WINDOWS } from 'vs/workbench/parts/terminal/electron-browser/terminal';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -118,11 +118,6 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('terminal.integrated.scrollback', "Controls the maximum amount of lines the terminal keeps in its buffer."),
 			'type': 'number',
 			'default': 1000
-		},
-		'terminal.integrated.flowControl': {
-			'description': nls.localize('terminal.integrated.flowControl', "Controls the whether the terminal emulator will use flow control in order to catch up with the shell process, the main effect of this is that ^C and other signals should be much more responsive when commands give lots of output. You should this disabled if you have custom ^S or ^Q keybindings that override the XOFF and XON signals used."),
-			'type': 'boolean',
-			'default': TERMINAL_DEFAULT_FLOW_CONTROL
 		},
 		'terminal.integrated.setLocaleVariables': {
 			'description': nls.localize('terminal.integrated.setLocaleVariables', "Controls whether locale variables are set at startup of the terminal, this defaults to true on OS X, false on other platforms."),
