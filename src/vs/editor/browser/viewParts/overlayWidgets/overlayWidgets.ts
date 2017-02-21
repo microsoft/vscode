@@ -6,7 +6,7 @@
 'use strict';
 
 import 'vs/css!./overlayWidgets';
-import { StyleMutator } from 'vs/base/browser/styleMutator';
+import { FastDomNode, createFastDomNode } from 'vs/base/browser/styleMutator';
 import { ClassNames, IOverlayWidget, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
 import { ViewPart, PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
@@ -16,6 +16,7 @@ import * as viewEvents from 'vs/editor/common/view/viewEvents';
 interface IWidgetData {
 	widget: IOverlayWidget;
 	preference: OverlayWidgetPositionPreference;
+	domNode: FastDomNode<HTMLElement>;
 }
 
 interface IWidgetMap {
@@ -25,7 +26,7 @@ interface IWidgetMap {
 export class ViewOverlayWidgets extends ViewPart {
 
 	private _widgets: IWidgetMap;
-	public domNode: HTMLElement;
+	private _domNode: FastDomNode<HTMLElement>;
 
 	private _verticalScrollbarWidth: number;
 	private _horizontalScrollbarHeight: number;
@@ -41,14 +42,18 @@ export class ViewOverlayWidgets extends ViewPart {
 		this._editorHeight = this._context.configuration.editor.layoutInfo.height;
 		this._editorWidth = this._context.configuration.editor.layoutInfo.width;
 
-		this.domNode = document.createElement('div');
-		PartFingerprints.write(this.domNode, PartFingerprint.OverlayWidgets);
-		this.domNode.className = ClassNames.OVERLAY_WIDGETS;
+		this._domNode = createFastDomNode(document.createElement('div'));
+		PartFingerprints.write(this._domNode.domNode, PartFingerprint.OverlayWidgets);
+		this._domNode.setClassName(ClassNames.OVERLAY_WIDGETS);
 	}
 
 	public dispose(): void {
 		super.dispose();
 		this._widgets = null;
+	}
+
+	public getDomNode(): HTMLElement {
+		return this._domNode.domNode;
 	}
 
 	// ---- begin view event handlers
@@ -67,16 +72,18 @@ export class ViewOverlayWidgets extends ViewPart {
 	// ---- end view event handlers
 
 	public addWidget(widget: IOverlayWidget): void {
+		const domNode = createFastDomNode(widget.getDomNode());
+
 		this._widgets[widget.getId()] = {
 			widget: widget,
-			preference: null
+			preference: null,
+			domNode: domNode
 		};
 
 		// This is sync because a widget wants to be in the dom
-		let domNode = widget.getDomNode();
-		domNode.style.position = 'absolute';
+		domNode.setPosition('absolute');
 		domNode.setAttribute('widgetId', widget.getId());
-		this.domNode.appendChild(domNode);
+		this._domNode.domNode.appendChild(domNode.domNode);
 
 		this.setShouldRender();
 	}
@@ -96,8 +103,8 @@ export class ViewOverlayWidgets extends ViewPart {
 	public removeWidget(widget: IOverlayWidget): void {
 		let widgetId = widget.getId();
 		if (this._widgets.hasOwnProperty(widgetId)) {
-			let widgetData = this._widgets[widgetId];
-			let domNode = widgetData.widget.getDomNode();
+			const widgetData = this._widgets[widgetId];
+			const domNode = widgetData.domNode.domNode;
 			delete this._widgets[widgetId];
 
 			domNode.parentNode.removeChild(domNode);
@@ -106,37 +113,23 @@ export class ViewOverlayWidgets extends ViewPart {
 	}
 
 	private _renderWidget(widgetData: IWidgetData): void {
-		let _RESTORE_STYLE_TOP = 'data-editor-restoreStyleTop';
-		let domNode = widgetData.widget.getDomNode();
+		const domNode = widgetData.domNode;
 
 		if (widgetData.preference === null) {
-			if (domNode.hasAttribute(_RESTORE_STYLE_TOP)) {
-				let previousTop = domNode.getAttribute(_RESTORE_STYLE_TOP);
-				domNode.removeAttribute(_RESTORE_STYLE_TOP);
-				domNode.style.top = previousTop;
-			}
+			domNode.unsetTop();
 			return;
 		}
 
 		if (widgetData.preference === OverlayWidgetPositionPreference.TOP_RIGHT_CORNER) {
-			if (!domNode.hasAttribute(_RESTORE_STYLE_TOP)) {
-				domNode.setAttribute(_RESTORE_STYLE_TOP, domNode.style.top);
-			}
-			StyleMutator.setTop(domNode, 0);
-			StyleMutator.setRight(domNode, (2 * this._verticalScrollbarWidth));
+			domNode.setTop(0);
+			domNode.setRight((2 * this._verticalScrollbarWidth));
 		} else if (widgetData.preference === OverlayWidgetPositionPreference.BOTTOM_RIGHT_CORNER) {
-			if (!domNode.hasAttribute(_RESTORE_STYLE_TOP)) {
-				domNode.setAttribute(_RESTORE_STYLE_TOP, domNode.style.top);
-			}
-			let widgetHeight = domNode.clientHeight;
-			StyleMutator.setTop(domNode, (this._editorHeight - widgetHeight - 2 * this._horizontalScrollbarHeight));
-			StyleMutator.setRight(domNode, (2 * this._verticalScrollbarWidth));
+			let widgetHeight = domNode.domNode.clientHeight;
+			domNode.setTop((this._editorHeight - widgetHeight - 2 * this._horizontalScrollbarHeight));
+			domNode.setRight((2 * this._verticalScrollbarWidth));
 		} else if (widgetData.preference === OverlayWidgetPositionPreference.TOP_CENTER) {
-			if (!domNode.hasAttribute(_RESTORE_STYLE_TOP)) {
-				domNode.setAttribute(_RESTORE_STYLE_TOP, domNode.style.top);
-			}
-			StyleMutator.setTop(domNode, 0);
-			domNode.style.right = '50%';
+			domNode.setTop(0);
+			domNode.domNode.style.right = '50%';
 		}
 	}
 
@@ -145,7 +138,7 @@ export class ViewOverlayWidgets extends ViewPart {
 	}
 
 	public render(ctx: IRestrictedRenderingContext): void {
-		StyleMutator.setWidth(this.domNode, this._editorWidth);
+		this._domNode.setWidth(this._editorWidth);
 
 		let keys = Object.keys(this._widgets);
 		for (let i = 0, len = keys.length; i < len; i++) {

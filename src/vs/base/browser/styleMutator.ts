@@ -82,6 +82,14 @@ export abstract class FastDomNode<T extends HTMLElement> {
 		this._domNode.style.top = this._top + 'px';
 	}
 
+	public unsetTop(): void {
+		if (this._top === -1) {
+			return;
+		}
+		this._top = -1;
+		this._domNode.style.top = '';
+	}
+
 	public setLeft(left: number): void {
 		if (this._left === left) {
 			return;
@@ -187,6 +195,18 @@ export abstract class FastDomNode<T extends HTMLElement> {
 
 	public setAttribute(name: string, value: string): void {
 		this._domNode.setAttribute(name, value);
+	}
+
+	public getAttribute(name: string): string {
+		return this._domNode.getAttribute(name);
+	}
+
+	public removeAttribute(name: string): void {
+		this._domNode.removeAttribute(name);
+	}
+
+	public hasAttribute(name: string): boolean {
+		return this._domNode.hasAttribute(name);
 	}
 }
 

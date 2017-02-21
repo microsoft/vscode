@@ -6,12 +6,12 @@
 'use strict';
 
 import * as dom from 'vs/base/browser/dom';
-import { StyleMutator } from 'vs/base/browser/styleMutator';
+import { FastDomNode, createFastDomNode } from 'vs/base/browser/styleMutator';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ClassNames, ContentWidgetPositionPreference, IContentWidget } from 'vs/editor/browser/editorBrowser';
 import { ViewPart, PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
-import { IRenderingContext, IRestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
+import { VisibleRange, IRenderingContext, IRestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
 import { Position } from 'vs/editor/common/core/position';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
@@ -21,6 +21,7 @@ interface IWidgetData {
 	position: editorCommon.IPosition;
 	preference: ContentWidgetPositionPreference[];
 	isVisible: boolean;
+	domNode: FastDomNode<HTMLElement>;
 }
 
 interface IWidgetMap {
@@ -100,12 +101,11 @@ export class ViewContentWidgets extends ViewPart {
 				for (let i = 0, len = keys.length; i < len; i++) {
 					const widgetId = keys[i];
 					const widgetData = this._widgets[widgetId];
-					const widget = widgetData.widget;
 					const maxWidth = widgetData.allowEditorOverflow
 						? window.innerWidth || document.documentElement.clientWidth || document.body.clientWidth
 						: this._contentWidth;
 
-					StyleMutator.setMaxWidth(widget.getDomNode(), maxWidth);
+					widgetData.domNode.setMaxWidth(maxWidth);
 				}
 			}
 		}
@@ -146,25 +146,27 @@ export class ViewContentWidgets extends ViewPart {
 	// ---- end view event handlers
 
 	public addWidget(widget: IContentWidget): void {
-		let widgetData: IWidgetData = {
+		const domNode = createFastDomNode(widget.getDomNode());
+
+		const widgetData: IWidgetData = {
 			allowEditorOverflow: widget.allowEditorOverflow || false,
 			widget: widget,
 			position: null,
 			preference: null,
-			isVisible: false
+			isVisible: false,
+			domNode: domNode
 		};
 		this._widgets[widget.getId()] = widgetData;
 
-		let domNode = widget.getDomNode();
-		domNode.style.position = (this._context.configuration.editor.viewInfo.fixedOverflowWidgets && widget.allowEditorOverflow) ? 'fixed' : 'absolute';
-		StyleMutator.setMaxWidth(domNode, this._contentWidth);
-		StyleMutator.setVisibility(domNode, 'hidden');
+		domNode.setPosition((this._context.configuration.editor.viewInfo.fixedOverflowWidgets && widget.allowEditorOverflow) ? 'fixed' : 'absolute');
+		domNode.setMaxWidth(this._contentWidth);
+		domNode.setVisibility('hidden');
 		domNode.setAttribute('widgetId', widget.getId());
 
 		if (widgetData.allowEditorOverflow) {
-			this.overflowingContentWidgetsDomNode.appendChild(domNode);
+			this.overflowingContentWidgetsDomNode.appendChild(domNode.domNode);
 		} else {
-			this.domNode.appendChild(domNode);
+			this.domNode.appendChild(domNode.domNode);
 		}
 
 		this.setShouldRender();
@@ -185,7 +187,7 @@ export class ViewContentWidgets extends ViewPart {
 			let widgetData = this._widgets[widgetId];
 			delete this._widgets[widgetId];
 
-			let domNode = widgetData.widget.getDomNode();
+			const domNode = widgetData.domNode.domNode;
 			domNode.parentNode.removeChild(domNode);
 			domNode.removeAttribute('monaco-visible-content-widget');
 
@@ -201,17 +203,7 @@ export class ViewContentWidgets extends ViewPart {
 		return false;
 	}
 
-	private _layoutBoxInViewport(position: Position, domNode: HTMLElement, ctx: IRenderingContext): IBoxLayoutResult {
-
-		let visibleRange = ctx.visibleRangeForPosition(position);
-
-		if (!visibleRange) {
-			return null;
-		}
-
-		let width = domNode.clientWidth;
-		let height = domNode.clientHeight;
-
+	private _layoutBoxInViewport(visibleRange: VisibleRange, width: number, height: number, ctx: IRenderingContext): IBoxLayoutResult {
 		// Our visible box is split horizontally by the current line => 2 boxes
 
 		// a) the box above the line
@@ -245,17 +237,8 @@ export class ViewContentWidgets extends ViewPart {
 		};
 	}
 
-	private _layoutBoxInPage(position: Position, domNode: HTMLElement, ctx: IRenderingContext): IBoxLayoutResult {
-		let visibleRange = ctx.visibleRangeForPosition(position);
-
-		if (!visibleRange) {
-			return null;
-		}
-
+	private _layoutBoxInPage(visibleRange: VisibleRange, width: number, height: number, ctx: IRenderingContext): IBoxLayoutResult {
 		let left0 = visibleRange.left - ctx.viewportLeft;
-
-		let width = domNode.clientWidth,
-			height = domNode.clientHeight;
 
 		if (left0 + width < 0 || left0 > this._contentWidth) {
 			return null;
@@ -340,11 +323,19 @@ export class ViewContentWidgets extends ViewPart {
 				return;
 			}
 
-			let domNode = widgetData.widget.getDomNode();
+			const visibleRange = ctx.visibleRangeForPosition(position);
+			if (!visibleRange) {
+				return null;
+			}
+
+			const domNode = widgetData.domNode.domNode;
+			const width = domNode.clientWidth;
+			const height = domNode.clientHeight;
+
 			if (widgetData.allowEditorOverflow) {
-				placement = this._layoutBoxInPage(position, domNode, ctx);
+				placement = this._layoutBoxInPage(visibleRange, width, height, ctx);
 			} else {
-				placement = this._layoutBoxInViewport(position, domNode, ctx);
+				placement = this._layoutBoxInViewport(visibleRange, width, height, ctx);
 			}
 		};
 
@@ -408,20 +399,20 @@ export class ViewContentWidgets extends ViewPart {
 
 		let keys = Object.keys(this._widgets);
 		for (let i = 0, len = keys.length; i < len; i++) {
-			let widgetId = keys[i];
-			let widget = this._widgets[widgetId];
-			let domNode = this._widgets[widgetId].widget.getDomNode();
+			const widgetId = keys[i];
+			const widget = this._widgets[widgetId];
+			const domNode = widget.domNode;
 
 			if (data.hasOwnProperty(widgetId)) {
 				if (widget.allowEditorOverflow) {
-					StyleMutator.setTop(domNode, data[widgetId].top);
-					StyleMutator.setLeft(domNode, data[widgetId].left);
+					domNode.setTop(data[widgetId].top);
+					domNode.setLeft(data[widgetId].left);
 				} else {
-					StyleMutator.setTop(domNode, data[widgetId].top + ctx.viewportTop - ctx.bigNumbersDelta);
-					StyleMutator.setLeft(domNode, data[widgetId].left);
+					domNode.setTop(data[widgetId].top + ctx.viewportTop - ctx.bigNumbersDelta);
+					domNode.setLeft(data[widgetId].left);
 				}
 				if (!widget.isVisible) {
-					StyleMutator.setVisibility(domNode, 'inherit');
+					domNode.setVisibility('inherit');
 					domNode.setAttribute('monaco-visible-content-widget', 'true');
 					widget.isVisible = true;
 				}
@@ -429,7 +420,7 @@ export class ViewContentWidgets extends ViewPart {
 				if (widget.isVisible) {
 					domNode.removeAttribute('monaco-visible-content-widget');
 					widget.isVisible = false;
-					StyleMutator.setVisibility(domNode, 'hidden');
+					domNode.setVisibility('hidden');
 				}
 			}
 		}
