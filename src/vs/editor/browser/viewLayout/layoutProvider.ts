@@ -10,7 +10,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { LinesLayout } from 'vs/editor/common/viewLayout/linesLayout';
 import { IViewLayout } from 'vs/editor/common/viewModel/viewModel';
 import { IPartialViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
-import { IViewEventBus } from 'vs/editor/common/view/viewContext';
+import { ViewEventDispatcher } from 'vs/editor/common/view/viewEventDispatcher';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
 export class LayoutProvider extends Disposable implements IViewLayout {
@@ -18,11 +18,11 @@ export class LayoutProvider extends Disposable implements IViewLayout {
 	static LINES_HORIZONTAL_EXTRA_PX = 30;
 
 	private _configuration: editorCommon.IConfiguration;
-	private _privateViewEventBus: IViewEventBus;
+	private _privateViewEventBus: ViewEventDispatcher;
 	private _linesLayout: LinesLayout;
 	private _scrollable: Scrollable;
 
-	constructor(configuration: editorCommon.IConfiguration, lineCount: number, privateViewEventBus: IViewEventBus) {
+	constructor(configuration: editorCommon.IConfiguration, lineCount: number, privateViewEventBus: ViewEventDispatcher) {
 		super();
 
 		this._configuration = configuration;
@@ -35,7 +35,7 @@ export class LayoutProvider extends Disposable implements IViewLayout {
 			height: configuration.editor.layoutInfo.contentHeight
 		});
 		this._register(this._scrollable.onScroll((e: ScrollEvent) => {
-			this._privateViewEventBus.emit(viewEvents.ViewEventNames.ViewScrollChanged, new viewEvents.ViewScrollChangedEvent(e));
+			this._privateViewEventBus.emit(new viewEvents.ViewScrollChangedEvent(e));
 		}));
 
 		this._updateHeight();

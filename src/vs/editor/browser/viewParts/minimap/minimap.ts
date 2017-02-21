@@ -428,7 +428,7 @@ export class Minimap extends ViewPart {
 			let lineNumber = lineIndex + this._lastRenderData.renderedLayout.startLineNumber;
 			lineNumber = Math.min(lineNumber, this._context.model.getLineCount());
 
-			this._context.privateViewEventBus.emit(viewEvents.ViewEventNames.RevealRangeEvent, new viewEvents.ViewRevealRangeRequestEvent(
+			this._context.privateViewEventBus.emit(new viewEvents.ViewRevealRangeRequestEvent(
 				new Range(lineNumber, 1, lineNumber, 1),
 				editorCommon.VerticalRevealType.Center,
 				false,

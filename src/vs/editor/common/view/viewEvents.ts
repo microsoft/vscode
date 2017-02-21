@@ -10,24 +10,6 @@ import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ScrollEvent } from 'vs/base/common/scrollable';
 
-export const ViewEventNames = {
-	ModelFlushedEvent: 'modelFlushedEvent',
-	LinesDeletedEvent: 'linesDeletedEvent',
-	LinesInsertedEvent: 'linesInsertedEvent',
-	LineChangedEvent: 'lineChangedEvent',
-	TokensChangedEvent: 'tokensChangedEvent',
-	DecorationsChangedEvent: 'decorationsChangedEvent',
-	CursorPositionChangedEvent: 'cursorPositionChangedEvent',
-	CursorSelectionChangedEvent: 'cursorSelectionChangedEvent',
-	RevealRangeEvent: 'revealRangeEvent',
-	LineMappingChangedEvent: 'lineMappingChangedEvent',
-	ScrollRequestEvent: 'scrollRequestEvent',
-	ViewScrollChanged: 'scrollChanged',
-	ViewFocusChanged: 'focusChanged',
-	ZonesChanged: 'viewZonesChanged',
-	ConfigurationChanged: 'viewConfigurationChanged'
-};
-
 export const enum ViewEventType {
 	ViewConfigurationChanged = 1,
 	ViewCursorPositionChanged = 2,
@@ -46,12 +28,7 @@ export const enum ViewEventType {
 	ViewZonesChanged = 15,
 }
 
-export interface IViewEvent {
-	readonly type: ViewEventType;
-}
-
-export class ViewConfigurationChangedEvent implements IViewEvent {
-	_viewConfigurationChangedEventBrand: void;
+export class ViewConfigurationChangedEvent {
 
 	public readonly type = ViewEventType.ViewConfigurationChanged;
 
@@ -72,8 +49,7 @@ export class ViewConfigurationChangedEvent implements IViewEvent {
 	}
 }
 
-export class ViewCursorPositionChangedEvent implements IViewEvent {
-	_viewCursorPositionChangedEventBrand: void;
+export class ViewCursorPositionChangedEvent {
 
 	public readonly type = ViewEventType.ViewCursorPositionChanged;
 
@@ -97,8 +73,7 @@ export class ViewCursorPositionChangedEvent implements IViewEvent {
 	}
 }
 
-export class ViewCursorSelectionChangedEvent implements IViewEvent {
-	_viewCursorSelectionChangedEventBrand: void;
+export class ViewCursorSelectionChangedEvent {
 
 	public readonly type = ViewEventType.ViewCursorSelectionChanged;
 
@@ -117,8 +92,7 @@ export class ViewCursorSelectionChangedEvent implements IViewEvent {
 	}
 }
 
-export class ViewDecorationsChangedEvent implements IViewEvent {
-	_viewDecorationsChangedEventBrand: void;
+export class ViewDecorationsChangedEvent {
 
 	public readonly type = ViewEventType.ViewDecorationsChanged;
 
@@ -127,8 +101,7 @@ export class ViewDecorationsChangedEvent implements IViewEvent {
 	}
 }
 
-export class ViewFlushedEvent implements IViewEvent {
-	_viewFlushedEventBrand: void;
+export class ViewFlushedEvent {
 
 	public readonly type = ViewEventType.ViewFlushed;
 
@@ -137,8 +110,7 @@ export class ViewFlushedEvent implements IViewEvent {
 	}
 }
 
-export class ViewFocusChangedEvent implements IViewEvent {
-	_viewFocusChangedEventBrand: void;
+export class ViewFocusChangedEvent {
 
 	public readonly type = ViewEventType.ViewFocusChanged;
 
@@ -149,8 +121,7 @@ export class ViewFocusChangedEvent implements IViewEvent {
 	}
 }
 
-export class ViewLineChangedEvent implements IViewEvent {
-	_viewLineChangedEventBrand: void;
+export class ViewLineChangedEvent {
 
 	public readonly type = ViewEventType.ViewLineChanged;
 
@@ -164,8 +135,7 @@ export class ViewLineChangedEvent implements IViewEvent {
 	}
 }
 
-export class ViewLineMappingChangedEvent implements IViewEvent {
-	_viewLineMappingChangedEventBrand: void;
+export class ViewLineMappingChangedEvent {
 
 	public readonly type = ViewEventType.ViewLineMappingChanged;
 
@@ -174,8 +144,7 @@ export class ViewLineMappingChangedEvent implements IViewEvent {
 	}
 }
 
-export class ViewLinesDeletedEvent implements IViewEvent {
-	_viewLinesDeletedEventBrand: void;
+export class ViewLinesDeletedEvent {
 
 	public readonly type = ViewEventType.ViewLinesDeleted;
 
@@ -194,8 +163,7 @@ export class ViewLinesDeletedEvent implements IViewEvent {
 	}
 }
 
-export class ViewLinesInsertedEvent implements IViewEvent {
-	_viewLinesInsertedEventBrand: void;
+export class ViewLinesInsertedEvent {
 
 	public readonly type = ViewEventType.ViewLinesInserted;
 
@@ -214,8 +182,7 @@ export class ViewLinesInsertedEvent implements IViewEvent {
 	}
 }
 
-export class ViewRevealRangeRequestEvent implements IViewEvent {
-	_viewRevealRangeRequestEventBrand: void;
+export class ViewRevealRangeRequestEvent {
 
 	public readonly type = ViewEventType.ViewRevealRangeRequest;
 
@@ -243,8 +210,7 @@ export class ViewRevealRangeRequestEvent implements IViewEvent {
 	}
 }
 
-export class ViewScrollChangedEvent implements IViewEvent {
-	_viewScrollChangedEventBrand: void;
+export class ViewScrollChangedEvent {
 
 	public readonly type = ViewEventType.ViewScrollChanged;
 
@@ -271,8 +237,7 @@ export class ViewScrollChangedEvent implements IViewEvent {
 	}
 }
 
-export class ViewScrollRequestEvent implements IViewEvent {
-	_viewScrollRequestEventBrand: void;
+export class ViewScrollRequestEvent {
 
 	public readonly type = ViewEventType.ViewScrollRequest;
 
@@ -285,8 +250,7 @@ export class ViewScrollRequestEvent implements IViewEvent {
 	}
 }
 
-export class ViewTokensChangedEvent implements IViewEvent {
-	_viewTokensChangedEventBrand: void;
+export class ViewTokensChangedEvent {
 
 	public readonly type = ViewEventType.ViewTokensChanged;
 
@@ -306,8 +270,7 @@ export class ViewTokensChangedEvent implements IViewEvent {
 	}
 }
 
-export class ViewZonesChangedEvent implements IViewEvent {
-	_viewZonesChangedEventBrand: void;
+export class ViewZonesChangedEvent {
 
 	public readonly type = ViewEventType.ViewZonesChanged;
 
@@ -315,3 +278,21 @@ export class ViewZonesChangedEvent implements IViewEvent {
 		// Nothing to do
 	}
 }
+
+export type ViewEvent = (
+	ViewConfigurationChangedEvent
+	| ViewCursorPositionChangedEvent
+	| ViewCursorSelectionChangedEvent
+	| ViewDecorationsChangedEvent
+	| ViewFlushedEvent
+	| ViewFocusChangedEvent
+	| ViewLineChangedEvent
+	| ViewLineMappingChangedEvent
+	| ViewLinesDeletedEvent
+	| ViewLinesInsertedEvent
+	| ViewRevealRangeRequestEvent
+	| ViewScrollChangedEvent
+	| ViewScrollRequestEvent
+	| ViewTokensChangedEvent
+	| ViewZonesChangedEvent
+);
