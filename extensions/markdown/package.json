@@ -177,7 +177,7 @@
 		"highlight.js": "^9.3.0",
 		"markdown-it": "^8.2.2",
 		"markdown-it-named-headers": "0.0.4",
-		"vscode-extension-telemetry": "^0.0.5"
+		"vscode-extension-telemetry": "^0.0.6"
 	},
 	"devDependencies": {
 		"@types/node": "^7.0.4"
