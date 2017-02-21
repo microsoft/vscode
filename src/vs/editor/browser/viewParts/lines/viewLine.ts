@@ -131,7 +131,7 @@ export class ViewLine implements IVisibleLine {
 	public onTokensChanged(): void {
 		this._isMaybeInvalid = true;
 	}
-	public onModelDecorationsChanged(): void {
+	public onDecorationsChanged(): void {
 		this._isMaybeInvalid = true;
 	}
 	public onOptionsChanged(newOptions: ViewLineOptions): void {

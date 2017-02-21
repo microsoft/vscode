@@ -99,7 +99,7 @@ export class RenderedLinesCollection<T extends ILine> {
 	/**
 	 * @returns Lines that were removed from this collection
 	 */
-	public onModelLinesDeleted(deleteFromLineNumber: number, deleteToLineNumber: number): T[] {
+	public onLinesDeleted(deleteFromLineNumber: number, deleteToLineNumber: number): T[] {
 		if (this.getCount() === 0) {
 			// no lines
 			return null;
@@ -157,7 +157,7 @@ export class RenderedLinesCollection<T extends ILine> {
 		return deleted;
 	}
 
-	public onModelLineChanged(changedLineNumber: number): boolean {
+	public onLineChanged(changedLineNumber: number): boolean {
 		if (this.getCount() === 0) {
 			// no lines
 			return false;
@@ -176,7 +176,7 @@ export class RenderedLinesCollection<T extends ILine> {
 		return true;
 	}
 
-	public onModelLinesInserted(insertFromLineNumber: number, insertToLineNumber: number): T[] {
+	public onLinesInserted(insertFromLineNumber: number, insertToLineNumber: number): T[] {
 		if (this.getCount() === 0) {
 			// no lines
 			return null;
@@ -218,7 +218,7 @@ export class RenderedLinesCollection<T extends ILine> {
 		return deletedLines;
 	}
 
-	public onModelTokensChanged(ranges: { fromLineNumber: number; toLineNumber: number; }[]): boolean {
+	public onTokensChanged(ranges: { fromLineNumber: number; toLineNumber: number; }[]): boolean {
 		if (this.getCount() === 0) {
 			// no lines
 			return false;
@@ -292,15 +292,15 @@ export abstract class ViewLayer<T extends IVisibleLine> extends ViewPart {
 		return true;
 	}
 
-	public onModelFlushed(e: viewEvents.ViewModelFlushedEvent): boolean {
+	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
 		this._linesCollection = new RenderedLinesCollection<T>(() => this._createLine());
 		this._scrollDomNode = null;
 		// No need to clear the dom node because a full .innerHTML will occur in ViewLayerRenderer._render
 		return true;
 	}
 
-	public onModelLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
-		let deleted = this._linesCollection.onModelLinesDeleted(e.fromLineNumber, e.toLineNumber);
+	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
+		let deleted = this._linesCollection.onLinesDeleted(e.fromLineNumber, e.toLineNumber);
 		if (deleted) {
 			// Remove from DOM
 			for (let i = 0, len = deleted.length; i < len; i++) {
@@ -314,12 +314,12 @@ export abstract class ViewLayer<T extends IVisibleLine> extends ViewPart {
 		return true;
 	}
 
-	public onModelLineChanged(e: viewEvents.ViewLineChangedEvent): boolean {
-		return this._linesCollection.onModelLineChanged(e.lineNumber);
+	public onLineChanged(e: viewEvents.ViewLineChangedEvent): boolean {
+		return this._linesCollection.onLineChanged(e.lineNumber);
 	}
 
-	public onModelLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
-		let deleted = this._linesCollection.onModelLinesInserted(e.fromLineNumber, e.toLineNumber);
+	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
+		let deleted = this._linesCollection.onLinesInserted(e.fromLineNumber, e.toLineNumber);
 		if (deleted) {
 			// Remove from DOM
 			for (let i = 0, len = deleted.length; i < len; i++) {
@@ -333,8 +333,8 @@ export abstract class ViewLayer<T extends IVisibleLine> extends ViewPart {
 		return true;
 	}
 
-	public onModelTokensChanged(e: viewEvents.ViewTokensChangedEvent): boolean {
-		return this._linesCollection.onModelTokensChanged(e.ranges);
+	public onTokensChanged(e: viewEvents.ViewTokensChangedEvent): boolean {
+		return this._linesCollection.onTokensChanged(e.ranges);
 	}
 
 

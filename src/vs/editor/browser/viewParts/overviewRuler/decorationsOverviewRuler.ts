@@ -140,13 +140,13 @@ export class DecorationsOverviewRuler extends ViewPart {
 		return true;
 	}
 
-	public onModelFlushed(e: viewEvents.ViewModelFlushedEvent): boolean {
+	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
 		this._shouldUpdateCursorPosition = true;
 		this._shouldUpdateDecorations = true;
 		return true;
 	}
 
-	public onModelDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
+	public onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
 		this._shouldUpdateDecorations = true;
 		return true;
 	}

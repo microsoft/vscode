@@ -74,8 +74,8 @@ export class ViewCursors extends ViewPart {
 
 	// --- begin event handlers
 
-	public onModelFlushed(e: viewEvents.ViewModelFlushedEvent): boolean {
-		this._primaryCursor.onModelFlushed();
+	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
+		this._primaryCursor.onFlushed();
 		for (let i = 0, len = this._secondaryCursors.length; i < len; i++) {
 			let domNode = this._secondaryCursors[i].getDomNode();
 			domNode.parentNode.removeChild(domNode);
@@ -83,20 +83,20 @@ export class ViewCursors extends ViewPart {
 		this._secondaryCursors = [];
 		return true;
 	}
-	public onModelDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
+	public onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
 		// true for inline decorations that can end up relayouting text
 		return true;//e.inlineDecorationsChanged;
 	}
-	public onModelLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
+	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
 		return true;
 	}
-	public onModelLineChanged(e: viewEvents.ViewLineChangedEvent): boolean {
+	public onLineChanged(e: viewEvents.ViewLineChangedEvent): boolean {
 		return true;
 	}
-	public onModelLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
+	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
 		return true;
 	}
-	public onModelTokensChanged(e: viewEvents.ViewTokensChangedEvent): boolean {
+	public onTokensChanged(e: viewEvents.ViewTokensChangedEvent): boolean {
 		let shouldRender = (position: Position) => {
 			for (let i = 0, len = e.ranges.length; i < len; i++) {
 				if (e.ranges[i].fromLineNumber <= position.lineNumber && position.lineNumber <= e.ranges[i].toLineNumber) {
@@ -178,7 +178,7 @@ export class ViewCursors extends ViewPart {
 	public onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
 		return true;
 	}
-	public onViewFocusChanged(e: viewEvents.ViewFocusChangedEvent): boolean {
+	public onFocusChanged(e: viewEvents.ViewFocusChangedEvent): boolean {
 		this._editorHasFocus = e.isFocused;
 		this._updateBlinking();
 		return false;

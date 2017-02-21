@@ -73,7 +73,7 @@ export class ViewLines extends ViewLayer<ViewLine> implements IViewLines {
 	private _maxLineWidth: number;
 	private _asyncUpdateLineWidths: RunOnceScheduler;
 
-	private _lastCursorRevealRangeHorizontallyEvent: viewEvents.ViewRevealRangeEvent;
+	private _lastCursorRevealRangeHorizontallyEvent: viewEvents.ViewRevealRangeRequestEvent;
 	private _lastRenderedData: LastRenderedData;
 
 	constructor(context: ViewContext, viewLayout: IViewLayout) {
@@ -155,25 +155,25 @@ export class ViewLines extends ViewLayer<ViewLine> implements IViewLines {
 		return true;
 	}
 
-	public onModelFlushed(e: viewEvents.ViewModelFlushedEvent): boolean {
-		let shouldRender = super.onModelFlushed(e);
+	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
+		let shouldRender = super.onFlushed(e);
 		this._maxLineWidth = 0;
 		return shouldRender;
 	}
 
-	public onModelDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
-		let shouldRender = super.onModelDecorationsChanged(e);
+	public onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
+		let shouldRender = super.onDecorationsChanged(e);
 		if (true/*e.inlineDecorationsChanged*/) {
 			let rendStartLineNumber = this._linesCollection.getStartLineNumber();
 			let rendEndLineNumber = this._linesCollection.getEndLineNumber();
 			for (let lineNumber = rendStartLineNumber; lineNumber <= rendEndLineNumber; lineNumber++) {
-				this._linesCollection.getLine(lineNumber).onModelDecorationsChanged();
+				this._linesCollection.getLine(lineNumber).onDecorationsChanged();
 			}
 		}
 		return shouldRender || true;
 	}
 
-	public onCursorRevealRange(e: viewEvents.ViewRevealRangeEvent): boolean {
+	public onRevealRangeRequest(e: viewEvents.ViewRevealRangeRequestEvent): boolean {
 		let newScrollTop = this._computeScrollTopToRevealRange(this._viewLayout.getCurrentViewport(), e.range, e.verticalType);
 
 		if (e.revealHorizontal) {
@@ -187,7 +187,7 @@ export class ViewLines extends ViewLayer<ViewLine> implements IViewLines {
 		return true;
 	}
 
-	public onCursorScrollRequest(e: viewEvents.ViewScrollRequestEvent): boolean {
+	public onScrollRequest(e: viewEvents.ViewScrollRequestEvent): boolean {
 		let currentScrollTop = this._viewLayout.getScrollTop();
 		let newScrollTop = currentScrollTop + e.deltaLines * this._lineHeight;
 		this._viewLayout.setScrollPosition({

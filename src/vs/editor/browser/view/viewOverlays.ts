@@ -75,7 +75,7 @@ export class ViewOverlays extends ViewLayer<ViewOverlayLine> {
 		return true;
 	}
 
-	public onViewFocusChanged(e: viewEvents.ViewFocusChangedEvent): boolean {
+	public onFocusChanged(e: viewEvents.ViewFocusChangedEvent): boolean {
 		this._isFocused = e.isFocused;
 		return true;
 	}

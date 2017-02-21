@@ -72,7 +72,7 @@ export class ViewModelCursors {
 	}
 
 	public onCursorRevealRange(e: editorCommon.ICursorRevealRangeEvent, emit: (eventType: string, payload: any) => void): void {
-		emit(viewEvents.ViewEventNames.RevealRangeEvent, new viewEvents.ViewRevealRangeEvent(
+		emit(viewEvents.ViewEventNames.RevealRangeEvent, new viewEvents.ViewRevealRangeRequestEvent(
 			e.viewRange,
 			e.verticalType,
 			e.revealHorizontal,

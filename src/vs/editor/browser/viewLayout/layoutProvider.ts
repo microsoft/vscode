@@ -55,18 +55,18 @@ export class LayoutProvider extends Disposable implements IViewLayout {
 
 	// ---- begin view event handlers
 
-	public onModelFlushed(lineCount: number): void {
-		this._linesLayout.onModelFlushed(lineCount);
+	public onFlushed(lineCount: number): void {
+		this._linesLayout.onFlushed(lineCount);
 		this._updateHeight();
 	}
 
-	public onModelLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): void {
-		this._linesLayout.onModelLinesDeleted(e.fromLineNumber, e.toLineNumber);
+	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): void {
+		this._linesLayout.onLinesDeleted(e.fromLineNumber, e.toLineNumber);
 		this._updateHeight();
 	}
 
-	public onModelLinesInserted(e: viewEvents.ViewLinesInsertedEvent): void {
-		this._linesLayout.onModelLinesInserted(e.fromLineNumber, e.toLineNumber);
+	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): void {
+		this._linesLayout.onLinesInserted(e.fromLineNumber, e.toLineNumber);
 		this._updateHeight();
 	}
 

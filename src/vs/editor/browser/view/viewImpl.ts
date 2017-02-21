@@ -454,16 +454,16 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 
 	// --- begin event handlers
 
-	public onModelFlushed(e: viewEvents.ViewModelFlushedEvent): boolean {
-		this.layoutProvider.onModelFlushed(this._context.model.getLineCount());
+	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
+		this.layoutProvider.onFlushed(this._context.model.getLineCount());
 		return false;
 	}
-	public onModelLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
-		this.layoutProvider.onModelLinesDeleted(e);
+	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
+		this.layoutProvider.onLinesDeleted(e);
 		return false;
 	}
-	public onModelLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
-		this.layoutProvider.onModelLinesInserted(e);
+	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
+		this.layoutProvider.onLinesInserted(e);
 		return false;
 	}
 	private _setLayout(): void {
@@ -506,7 +506,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		this.outgoingEvents.emitScrollChanged(e);
 		return false;
 	}
-	public onViewFocusChanged(e: viewEvents.ViewFocusChangedEvent): boolean {
+	public onFocusChanged(e: viewEvents.ViewFocusChangedEvent): boolean {
 		dom.toggleClass(this.domNode, 'focused', e.isFocused);
 		if (e.isFocused) {
 			this.outgoingEvents.emitViewFocusGained();
@@ -516,11 +516,11 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		return false;
 	}
 
-	public onCursorRevealRange(e: viewEvents.ViewRevealRangeEvent): boolean {
+	public onRevealRangeRequest(e: viewEvents.ViewRevealRangeRequestEvent): boolean {
 		return e.revealCursor ? this.revealCursor() : false;
 	}
 
-	public onCursorScrollRequest(e: editorCommon.ICursorScrollRequestEvent): boolean {
+	public onScrollRequest(e: editorCommon.ICursorScrollRequestEvent): boolean {
 		return e.revealCursor ? this.revealCursor() : false;
 	}
 

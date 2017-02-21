@@ -508,7 +508,7 @@ export class SplitLinesCollection {
 			}
 		}
 
-		emit(viewEvents.ViewEventNames.ModelFlushedEvent, new viewEvents.ViewModelFlushedEvent());
+		emit(viewEvents.ViewEventNames.ModelFlushedEvent, new viewEvents.ViewFlushedEvent());
 		return true;
 	}
 
@@ -527,7 +527,7 @@ export class SplitLinesCollection {
 		this.tabSize = newTabSize;
 
 		this._constructLines(false);
-		emit(viewEvents.ViewEventNames.ModelFlushedEvent, new viewEvents.ViewModelFlushedEvent());
+		emit(viewEvents.ViewEventNames.ModelFlushedEvent, new viewEvents.ViewFlushedEvent());
 
 		return true;
 	}
@@ -539,7 +539,7 @@ export class SplitLinesCollection {
 		this.wrappingIndent = newWrappingIndent;
 
 		this._constructLines(false);
-		emit(viewEvents.ViewEventNames.ModelFlushedEvent, new viewEvents.ViewModelFlushedEvent());
+		emit(viewEvents.ViewEventNames.ModelFlushedEvent, new viewEvents.ViewFlushedEvent());
 
 		return true;
 	}
@@ -551,14 +551,14 @@ export class SplitLinesCollection {
 		this.wrappingColumn = newWrappingColumn;
 		this.columnsForFullWidthChar = columnsForFullWidthChar;
 		this._constructLines(false);
-		emit(viewEvents.ViewEventNames.ModelFlushedEvent, new viewEvents.ViewModelFlushedEvent());
+		emit(viewEvents.ViewEventNames.ModelFlushedEvent, new viewEvents.ViewFlushedEvent());
 
 		return true;
 	}
 
 	public onModelFlushed(versionId: number, emit: (evenType: string, payload: any) => void): void {
 		this._constructLines(true);
-		emit(viewEvents.ViewEventNames.ModelFlushedEvent, new viewEvents.ViewModelFlushedEvent());
+		emit(viewEvents.ViewEventNames.ModelFlushedEvent, new viewEvents.ViewFlushedEvent());
 	}
 
 	public onModelLinesDeleted(versionId: number, fromLineNumber: number, toLineNumber: number, emit: (evenType: string, payload: any) => void): void {
