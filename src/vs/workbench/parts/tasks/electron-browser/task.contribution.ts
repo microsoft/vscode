@@ -449,6 +449,9 @@ class NullTaskSystem extends EventEmitter implements ITaskSystem {
 }
 
 class TaskService extends EventEmitter implements ITaskService {
+
+	private static autoDetectTelemetryName: string = 'taskServer.autoDetect';
+
 	public _serviceBrand: any;
 	public static SERVICE_ID: string = 'taskService';
 	public static OutputChannelId: string = 'tasks';
@@ -644,6 +647,12 @@ class TaskService extends EventEmitter implements ITaskService {
 								if (!detectedConfig) {
 									return config;
 								}
+								if (detectedConfig.command) {
+									this.telemetryService.publicLog(TaskService.autoDetectTelemetryName, {
+										command: detectedConfig.command,
+										full: false
+									});
+								}
 								let result: TaskConfig.ExternalTaskRunnerConfiguration = Objects.clone(config);
 								let configuredTasks: IStringDictionary<TaskConfig.TaskDescription> = Object.create(null);
 								if (!result.tasks) {
@@ -666,6 +675,12 @@ class TaskService extends EventEmitter implements ITaskService {
 					} else {
 						configPromise = new ProcessRunnerDetector(this.fileService, this.contextService, this.configurationResolverService).detect(true).then((value) => {
 							hasError = this.printStderr(value.stderr);
+							if (value.config && value.config.command) {
+								this.telemetryService.publicLog(TaskService.autoDetectTelemetryName, {
+									command: value.config.command,
+									full: true
+								});
+							}
 							return value.config;
 						});
 					}

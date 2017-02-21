@@ -371,12 +371,12 @@ declare module 'vscode' {
 		constructor(startLine: number, startCharacter: number, endLine: number, endCharacter: number);
 
 		/**
-		 * `true` iff `start` and `end` are equal.
+		 * `true` if `start` and `end` are equal.
 		 */
 		isEmpty: boolean;
 
 		/**
-		 * `true` iff `start.line` and `end.line` are equal.
+		 * `true` if `start.line` and `end.line` are equal.
 		 */
 		isSingleLine: boolean;
 
@@ -384,7 +384,7 @@ declare module 'vscode' {
 		 * Check if a position or a range is contained in this range.
 		 *
 		 * @param positionOrRange A position or a range.
-		 * @return `true` iff the position or range is inside or equal
+		 * @return `true` if the position or range is inside or equal
 		 * to this range.
 		 */
 		contains(positionOrRange: Position | Range): boolean;
@@ -547,17 +547,29 @@ declare module 'vscode' {
 	 */
 	export enum TextEditorCursorStyle {
 		/**
-		 * Render the cursor as a vertical line.
+		 * Render the cursor as a vertical thick line.
 		 */
 		Line = 1,
 		/**
-		 * Render the cursor as a block.
+		 * Render the cursor as a block filled.
 		 */
 		Block = 2,
 		/**
-		 * Render the cursor as a horizontal line under the character.
+		 * Render the cursor as a thick horizontal line.
 		 */
-		Underline = 3
+		Underline = 3,
+		/**
+		 * Render the cursor as a vertical thin line.
+		 */
+		LineThin = 4,
+		/**
+		 * Render the cursor as a block outlined.
+		 */
+		BlockOutline = 5,
+		/**
+		 * Render the cursor as a thin horizontal line.
+		 */
+		UnderlineThin = 6
 	}
 
 	/**
@@ -2850,7 +2862,7 @@ declare module 'vscode' {
 		 * Check if this configuration has a certain value.
 		 *
 		 * @param section Configuration name, supports _dotted_ names.
-		 * @return `true` iff the section doesn't resolve to `undefined`.
+		 * @return `true` if the section doesn't resolve to `undefined`.
 		 */
 		has(section: string): boolean;
 

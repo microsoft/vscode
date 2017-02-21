@@ -13,9 +13,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IModel, IPosition } from 'vs/editor/common/editorCommon';
 import { CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 import { ISuggestResult, ISuggestSupport, ISuggestion, SuggestRegistry } from 'vs/editor/common/modes';
-import { ISnippetsRegistry, Extensions } from 'vs/editor/common/modes/snippetsRegistry';
 import { Position } from 'vs/editor/common/core/position';
-import { Registry } from 'vs/platform/platform';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { DefaultConfig } from 'vs/editor/common/config/defaultConfig';
 
@@ -36,20 +34,13 @@ export interface ISuggestionItem {
 
 export type SnippetConfig = 'top' | 'bottom' | 'inline' | 'none';
 
+let _snippetSuggestSupport: ISuggestSupport;
 
-// add suggestions from snippet registry.
-export const snippetSuggestSupport: ISuggestSupport = {
-
-	triggerCharacters: [],
-
-	provideCompletionItems(model: IModel, position: Position): ISuggestResult {
-		const suggestions = Registry.as<ISnippetsRegistry>(Extensions.Snippets).getSnippetCompletions(model, position);
-		if (suggestions) {
-			return { suggestions };
-		}
-		return undefined;
-	}
-};
+export function setSnippetSuggestSupport(support: ISuggestSupport): ISuggestSupport {
+	const old = _snippetSuggestSupport;
+	_snippetSuggestSupport = support;
+	return old;
+}
 
 export function provideSuggestionItems(model: IModel, position: Position, snippetConfig: SnippetConfig = 'bottom', onlyFrom?: ISuggestSupport[]): TPromise<ISuggestionItem[]> {
 
@@ -62,8 +53,8 @@ export function provideSuggestionItems(model: IModel, position: Position, snippe
 	const supports = SuggestRegistry.orderedGroups(model);
 
 	// add snippets provider unless turned off
-	if (snippetConfig !== 'none') {
-		supports.unshift([snippetSuggestSupport]);
+	if (snippetConfig !== 'none' && _snippetSuggestSupport) {
+		supports.unshift([_snippetSuggestSupport]);
 	}
 
 	// add suggestions from contributed providers - providers are ordered in groups of
@@ -103,7 +94,7 @@ export function provideSuggestionItems(model: IModel, position: Position, snippe
 						}
 					}
 
-					if (len !== allSuggestions.length && support !== snippetSuggestSupport) {
+					if (len !== allSuggestions.length && support !== _snippetSuggestSupport) {
 						hasResult = true;
 					}
 
@@ -217,7 +208,7 @@ CommonEditorRegistry.registerDefaultLanguageCommand('_executeCompletionItemProvi
 
 	return provideSuggestionItems(model, position).then(items => {
 
-		for (const {container, suggestion} of items) {
+		for (const { container, suggestion } of items) {
 			result.incomplete = result.incomplete || container.incomplete;
 			result.suggestions.push(suggestion);
 		}

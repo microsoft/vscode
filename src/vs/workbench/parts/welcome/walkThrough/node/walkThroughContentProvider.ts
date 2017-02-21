@@ -10,7 +10,7 @@ import URI from 'vs/base/common/uri';
 import { ITextModelResolverService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IModel } from 'vs/editor/common/editorCommon';
+import { IModel, ITextSource2 } from 'vs/editor/common/editorCommon';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { marked } from 'vs/base/common/marked/marked';
@@ -28,12 +28,22 @@ export class WalkThroughContentProvider implements ITextModelContentProvider, IW
 	}
 
 	public provideTextContent(resource: URI): TPromise<IModel> {
-		return this.textFileService.resolveTextContent(URI.file(resource.fsPath)).then(content => {
+		const isModule = resource.path.lastIndexOf('.') <= resource.path.lastIndexOf('/');
+		const content: TPromise<string | ITextSource2> = (isModule ? new TPromise<string>((resolve, reject) => {
+			require([resource.fsPath], content => {
+				try {
+					resolve(content.default());
+				} catch (err) {
+					reject(err);
+				}
+			});
+		}) : this.textFileService.resolveTextContent(URI.file(resource.fsPath)).then(content => content.value));
+		return content.then(content => {
 			let codeEditorModel = this.modelService.getModel(resource);
 			if (!codeEditorModel) {
-				codeEditorModel = this.modelService.createModel(content.value, this.modeService.getOrCreateModeByFilenameOrFirstLine(resource.fsPath), resource);
+				codeEditorModel = this.modelService.createModel(content, this.modeService.getOrCreateModeByFilenameOrFirstLine(resource.fsPath), resource);
 			} else {
-				this.modelService.updateModel(codeEditorModel, content.value);
+				this.modelService.updateModel(codeEditorModel, content);
 			}
 
 			return codeEditorModel;

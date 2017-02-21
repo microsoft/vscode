@@ -11,6 +11,7 @@ import { LinesLayout } from 'vs/editor/common/viewLayout/linesLayout';
 import { IViewLayout } from 'vs/editor/common/viewModel/viewModel';
 import { IPartialViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { IViewEventBus } from 'vs/editor/common/view/viewContext';
+import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
 export class LayoutProvider extends Disposable implements IViewLayout {
 
@@ -34,7 +35,7 @@ export class LayoutProvider extends Disposable implements IViewLayout {
 			height: configuration.editor.layoutInfo.contentHeight
 		});
 		this._register(this._scrollable.onScroll((e: ScrollEvent) => {
-			this._privateViewEventBus.emit(editorCommon.EventType.ViewScrollChanged, e);
+			this._privateViewEventBus.emit(viewEvents.ViewEventNames.ViewScrollChanged, e);
 		}));
 
 		this._updateHeight();
@@ -59,12 +60,12 @@ export class LayoutProvider extends Disposable implements IViewLayout {
 		this._updateHeight();
 	}
 
-	public onModelLinesDeleted(e: editorCommon.IViewLinesDeletedEvent): void {
+	public onModelLinesDeleted(e: viewEvents.IViewLinesDeletedEvent): void {
 		this._linesLayout.onModelLinesDeleted(e.fromLineNumber, e.toLineNumber);
 		this._updateHeight();
 	}
 
-	public onModelLinesInserted(e: editorCommon.IViewLinesInsertedEvent): void {
+	public onModelLinesInserted(e: viewEvents.IViewLinesInsertedEvent): void {
 		this._linesLayout.onModelLinesInserted(e.fromLineNumber, e.toLineNumber);
 		this._updateHeight();
 	}
@@ -78,7 +79,6 @@ export class LayoutProvider extends Disposable implements IViewLayout {
 				width: this._configuration.editor.layoutInfo.contentWidth,
 				height: this._configuration.editor.layoutInfo.contentHeight
 			});
-			this._emitLayoutChangedEvent();
 		}
 		this._updateHeight();
 	}
@@ -126,14 +126,6 @@ export class LayoutProvider extends Disposable implements IViewLayout {
 			scrollState.width,
 			scrollState.height
 		);
-	}
-
-	private _emitLayoutChangedEvent(): void {
-		this._privateViewEventBus.emit(editorCommon.EventType.ViewLayoutChanged, this._configuration.editor.layoutInfo);
-	}
-
-	public emitLayoutChangedEvent(): void {
-		this._emitLayoutChangedEvent();
 	}
 
 	private _computeScrollWidth(maxLineWidth: number, viewportWidth: number): number {

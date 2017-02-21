@@ -175,9 +175,6 @@ function withFocusedExplorerItem(accessor: ServicesAccessor): TPromise<FileStat 
 	}) as TPromise<FileStat | OpenEditor>; // TypeScript fail
 };
 
-export const openFocussedFilesExplorerViewItemCommand = (accessor: ServicesAccessor) => openFocusedFilesExplorerViewItem(accessor, false);
-export const openFocusedOpenedEditorsViewItemCommand = (accessor: ServicesAccessor) => openFocussedOpenedEditorsViewItem(accessor, false);
-
 export const renameFocusedFilesExplorerViewItemCommand = (accessor: ServicesAccessor) => {
 	runActionOnFocusedFilesExplorerViewItem(accessor, 'filesExplorer.rename');
 };

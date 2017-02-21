@@ -23,11 +23,11 @@ import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { OpenFolderAction, OpenFileFolderAction } from 'vs/workbench/browser/actions/fileActions';
-import { copyFocusedFilesExplorerViewItem, revealInOSFocusedFilesExplorerItem, openFocusedOpenedEditorsViewItemCommand, openFocusedExplorerItemSideBySideCommand, copyPathOfFocusedExplorerItem, copyPathCommand, revealInExplorerCommand, revealInOSCommand, openFolderPickerCommand, openWindowCommand, openFileInNewWindowCommand, openFocussedFilesExplorerViewItemCommand, deleteFocusedFilesExplorerViewItemCommand, moveFocusedFilesExplorerViewItemToTrashCommand, renameFocusedFilesExplorerViewItemCommand } from 'vs/workbench/parts/files/browser/fileCommands';
+import { copyFocusedFilesExplorerViewItem, revealInOSFocusedFilesExplorerItem, openFocusedExplorerItemSideBySideCommand, copyPathOfFocusedExplorerItem, copyPathCommand, revealInExplorerCommand, revealInOSCommand, openFolderPickerCommand, openWindowCommand, openFileInNewWindowCommand, deleteFocusedFilesExplorerViewItemCommand, moveFocusedFilesExplorerViewItemToTrashCommand, renameFocusedFilesExplorerViewItemCommand } from 'vs/workbench/parts/files/browser/fileCommands';
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { explorerItemToFileResource, ExplorerFocusCondition, OpenedEditorsFocusCondition, FilesExplorerFocusCondition } from 'vs/workbench/parts/files/common/files';
+import { explorerItemToFileResource, ExplorerFocusCondition, FilesExplorerFocusCondition } from 'vs/workbench/parts/files/common/files';
 
 class FilesViewerActionContributor extends ActionBarContributor {
 
@@ -240,25 +240,6 @@ CommandsRegistry.registerCommand('_files.windowOpen', openWindowCommand);
 CommandsRegistry.registerCommand('workbench.action.files.openFileInNewWindow', openFileInNewWindowCommand);
 
 const explorerCommandsWeightBonus = 10; // give our commands a little bit more weight over other default list/tree commands
-
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'openEditors.open',
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(explorerCommandsWeightBonus),
-	when: OpenedEditorsFocusCondition,
-	primary: KeyCode.Enter,
-	handler: openFocusedOpenedEditorsViewItemCommand
-});
-
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'filesExplorer.open',
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(explorerCommandsWeightBonus),
-	when: FilesExplorerFocusCondition,
-	primary: KeyCode.Enter,
-	mac: {
-		primary: KeyMod.CtrlCmd | KeyCode.DownArrow
-	},
-	handler: openFocussedFilesExplorerViewItemCommand
-});
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'explorer.openToSide',

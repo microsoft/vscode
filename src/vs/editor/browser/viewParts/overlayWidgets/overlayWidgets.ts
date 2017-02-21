@@ -7,7 +7,7 @@
 
 import 'vs/css!./overlayWidgets';
 import { StyleMutator } from 'vs/base/browser/styleMutator';
-import { EditorLayoutInfo } from 'vs/editor/common/editorCommon';
+import { IConfigurationChangedEvent } from 'vs/editor/common/editorCommon';
 import { ClassNames, IOverlayWidget, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
 import { ViewPart, PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
@@ -36,10 +36,10 @@ export class ViewOverlayWidgets extends ViewPart {
 		super(context);
 
 		this._widgets = {};
-		this._verticalScrollbarWidth = 0;
-		this._horizontalScrollbarHeight = 0;
-		this._editorHeight = 0;
-		this._editorWidth = 0;
+		this._verticalScrollbarWidth = this._context.configuration.editor.layoutInfo.verticalScrollbarWidth;
+		this._horizontalScrollbarHeight = this._context.configuration.editor.layoutInfo.horizontalScrollbarHeight;
+		this._editorHeight = this._context.configuration.editor.layoutInfo.height;
+		this._editorWidth = this._context.configuration.editor.layoutInfo.width;
 
 		this.domNode = document.createElement('div');
 		PartFingerprints.write(this.domNode, PartFingerprint.OverlayWidgets);
@@ -53,12 +53,15 @@ export class ViewOverlayWidgets extends ViewPart {
 
 	// ---- begin view event handlers
 
-	public onLayoutChanged(layoutInfo: EditorLayoutInfo): boolean {
-		this._verticalScrollbarWidth = layoutInfo.verticalScrollbarWidth;
-		this._horizontalScrollbarHeight = layoutInfo.horizontalScrollbarHeight;
-		this._editorHeight = layoutInfo.height;
-		this._editorWidth = layoutInfo.width;
-		return true;
+	public onConfigurationChanged(e: IConfigurationChangedEvent): boolean {
+		if (e.layoutInfo) {
+			this._verticalScrollbarWidth = this._context.configuration.editor.layoutInfo.verticalScrollbarWidth;
+			this._horizontalScrollbarHeight = this._context.configuration.editor.layoutInfo.horizontalScrollbarHeight;
+			this._editorHeight = this._context.configuration.editor.layoutInfo.height;
+			this._editorWidth = this._context.configuration.editor.layoutInfo.width;
+			return true;
+		}
+		return false;
 	}
 
 	// ---- end view event handlers

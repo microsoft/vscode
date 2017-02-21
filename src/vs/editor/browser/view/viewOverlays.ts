@@ -5,7 +5,7 @@
 'use strict';
 
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/styleMutator';
-import { IScrollEvent, IConfiguration, IConfigurationChangedEvent, EditorLayoutInfo } from 'vs/editor/common/editorCommon';
+import { IConfiguration, IConfigurationChangedEvent } from 'vs/editor/common/editorCommon';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { IVisibleLine, ViewLayer } from 'vs/editor/browser/view/viewLayer';
 import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
@@ -13,6 +13,7 @@ import { Configuration } from 'vs/editor/browser/config/configuration';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { IRenderingContext, IRestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
+import { ScrollEvent } from 'vs/base/common/scrollable';
 
 export class ViewOverlays extends ViewLayer<ViewOverlayLine> {
 
@@ -192,7 +193,7 @@ export class ContentViewOverlays extends ViewOverlays {
 		}
 		return super.onConfigurationChanged(e);
 	}
-	public onScrollChanged(e: IScrollEvent): boolean {
+	public onScrollChanged(e: ScrollEvent): boolean {
 		return super.onScrollChanged(e) || e.scrollWidthChanged;
 	}
 
@@ -211,8 +212,8 @@ export class MarginViewOverlays extends ViewOverlays {
 	constructor(context: ViewContext) {
 		super(context);
 
-		this._contentLeft = context.configuration.editor.layoutInfo.contentLeft;
-		this._canUseTranslate3d = context.configuration.editor.viewInfo.canUseTranslate3d;
+		this._contentLeft = this._context.configuration.editor.layoutInfo.contentLeft;
+		this._canUseTranslate3d = this._context.configuration.editor.viewInfo.canUseTranslate3d;
 
 		this.domNode.setClassName(editorBrowser.ClassNames.MARGIN_VIEW_OVERLAYS);
 		this.domNode.setWidth(1);
@@ -220,25 +221,26 @@ export class MarginViewOverlays extends ViewOverlays {
 		Configuration.applyFontInfo(this.domNode, this._context.configuration.editor.fontInfo);
 	}
 
-	public onScrollChanged(e: IScrollEvent): boolean {
+	public onScrollChanged(e: ScrollEvent): boolean {
 		return super.onScrollChanged(e) || e.scrollHeightChanged;
 	}
 
-	public onLayoutChanged(layoutInfo: EditorLayoutInfo): boolean {
-		this._contentLeft = layoutInfo.contentLeft;
-		return super.onLayoutChanged(layoutInfo) || true;
-	}
-
 	public onConfigurationChanged(e: IConfigurationChangedEvent): boolean {
+		let shouldRender = false;
 		if (e.fontInfo) {
 			Configuration.applyFontInfo(this.domNode, this._context.configuration.editor.fontInfo);
+			shouldRender = true;
 		}
 		if (e.viewInfo.canUseTranslate3d) {
 			this._canUseTranslate3d = this._context.configuration.editor.viewInfo.canUseTranslate3d;
+			shouldRender = true;
 		}
-		return super.onConfigurationChanged(e);
+		if (e.layoutInfo) {
+			this._contentLeft = this._context.configuration.editor.layoutInfo.contentLeft;
+			shouldRender = true;
+		}
+		return super.onConfigurationChanged(e) || shouldRender;
 	}
-
 
 	_viewOverlaysRender(ctx: IRestrictedRenderingContext): void {
 		super._viewOverlaysRender(ctx);

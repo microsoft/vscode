@@ -8,11 +8,12 @@
 import 'vs/css!./scrollDecoration';
 import * as dom from 'vs/base/browser/dom';
 import { StyleMutator } from 'vs/base/browser/styleMutator';
-import { IConfigurationChangedEvent, EditorLayoutInfo, IScrollEvent } from 'vs/editor/common/editorCommon';
+import { IConfigurationChangedEvent } from 'vs/editor/common/editorCommon';
 import { ClassNames } from 'vs/editor/browser/editorBrowser';
 import { ViewPart } from 'vs/editor/browser/view/viewPart';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { IRenderingContext, IRestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
+import { ScrollEvent } from 'vs/base/common/scrollable';
 
 export class ScrollDecorationViewPart extends ViewPart {
 
@@ -26,7 +27,7 @@ export class ScrollDecorationViewPart extends ViewPart {
 		super(context);
 
 		this._scrollTop = 0;
-		this._width = 0;
+		this._width = this._context.configuration.editor.layoutInfo.width;
 		this._shouldShow = false;
 		this._useShadows = this._context.configuration.editor.viewInfo.scrollbar.useShadows;
 		this._domNode = document.createElement('div');
@@ -48,19 +49,19 @@ export class ScrollDecorationViewPart extends ViewPart {
 	// --- begin event handlers
 
 	public onConfigurationChanged(e: IConfigurationChangedEvent): boolean {
+		let shouldRender = false;
 		if (e.viewInfo.scrollbar) {
 			this._useShadows = this._context.configuration.editor.viewInfo.scrollbar.useShadows;
 		}
-		return this._updateShouldShow();
-	}
-	public onLayoutChanged(layoutInfo: EditorLayoutInfo): boolean {
-		if (this._width !== layoutInfo.width) {
-			this._width = layoutInfo.width;
-			return true;
+		if (e.layoutInfo) {
+			if (this._width !== this._context.configuration.editor.layoutInfo.width) {
+				this._width = this._context.configuration.editor.layoutInfo.width;
+				shouldRender = true;
+			}
 		}
-		return false;
+		return this._updateShouldShow() || shouldRender;
 	}
-	public onScrollChanged(e: IScrollEvent): boolean {
+	public onScrollChanged(e: ScrollEvent): boolean {
 		this._scrollTop = e.scrollTop;
 		return this._updateShouldShow();
 	}

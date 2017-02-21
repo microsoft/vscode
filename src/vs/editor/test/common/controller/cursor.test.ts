@@ -749,33 +749,33 @@ suite('Editor Controller - Cursor', () => {
 		// let LINE1 = '    \tMy First Line\t ';
 		moveTo(thisCursor, 1, 1);
 		cursorCommand(thisCursor, H.ExpandLineSelection);
-		assertCursor(thisCursor, new Selection(1, 1, 1, LINE1.length + 1));
+		assertCursor(thisCursor, new Selection(1, 1, 2, 1));
 
 		moveTo(thisCursor, 1, 2);
 		cursorCommand(thisCursor, H.ExpandLineSelection);
-		assertCursor(thisCursor, new Selection(1, 1, 1, LINE1.length + 1));
+		assertCursor(thisCursor, new Selection(1, 1, 2, 1));
 
 		moveTo(thisCursor, 1, 5);
 		cursorCommand(thisCursor, H.ExpandLineSelection);
-		assertCursor(thisCursor, new Selection(1, 1, 1, LINE1.length + 1));
+		assertCursor(thisCursor, new Selection(1, 1, 2, 1));
 
 		moveTo(thisCursor, 1, 19);
 		cursorCommand(thisCursor, H.ExpandLineSelection);
-		assertCursor(thisCursor, new Selection(1, 1, 1, LINE1.length + 1));
+		assertCursor(thisCursor, new Selection(1, 1, 2, 1));
 
 		moveTo(thisCursor, 1, 20);
 		cursorCommand(thisCursor, H.ExpandLineSelection);
-		assertCursor(thisCursor, new Selection(1, 1, 1, LINE1.length + 1));
+		assertCursor(thisCursor, new Selection(1, 1, 2, 1));
 
 		moveTo(thisCursor, 1, 21);
 		cursorCommand(thisCursor, H.ExpandLineSelection);
-		assertCursor(thisCursor, new Selection(1, 1, 1, LINE1.length + 1));
+		assertCursor(thisCursor, new Selection(1, 1, 2, 1));
 		cursorCommand(thisCursor, H.ExpandLineSelection);
-		assertCursor(thisCursor, new Selection(1, 1, 2, LINE2.length + 1));
+		assertCursor(thisCursor, new Selection(1, 1, 3, 1));
 		cursorCommand(thisCursor, H.ExpandLineSelection);
-		assertCursor(thisCursor, new Selection(1, 1, 3, LINE3.length + 1));
+		assertCursor(thisCursor, new Selection(1, 1, 4, 1));
 		cursorCommand(thisCursor, H.ExpandLineSelection);
-		assertCursor(thisCursor, new Selection(1, 1, 4, LINE4.length + 1));
+		assertCursor(thisCursor, new Selection(1, 1, 5, 1));
 		cursorCommand(thisCursor, H.ExpandLineSelection);
 		assertCursor(thisCursor, new Selection(1, 1, 5, LINE5.length + 1));
 		cursorCommand(thisCursor, H.ExpandLineSelection);

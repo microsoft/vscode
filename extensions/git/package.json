@@ -7,6 +7,7 @@
   "engines": {
     "vscode": "^1.5.0"
   },
+  "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
   "enableProposedApi": true,
   "categories": [
     "Other"
@@ -21,6 +22,11 @@
   },
   "contributes": {
     "commands": [
+      {
+        "command": "git.clone",
+        "title": "%command.clone%",
+        "category": "Git"
+      },
       {
         "command": "git.init",
         "title": "%command.init%",
@@ -76,6 +82,16 @@
         }
       },
       {
+        "command": "git.stageSelectedRanges",
+        "title": "%command.stageSelectedRanges%",
+        "category": "Git"
+      },
+      {
+        "command": "git.revertSelectedRanges",
+        "title": "%command.revertSelectedRanges%",
+        "category": "Git"
+      },
+      {
         "command": "git.unstage",
         "title": "%command.unstage%",
         "category": "Git",
@@ -92,6 +108,11 @@
           "light": "resources/icons/light/unstage.svg",
           "dark": "resources/icons/dark/unstage.svg"
         }
+      },
+      {
+        "command": "git.unstageSelectedRanges",
+        "title": "%command.unstageSelectedRanges%",
+        "category": "Git"
       },
       {
         "command": "git.clean",
@@ -568,6 +589,7 @@
     }
   },
   "dependencies": {
+    "vscode-extension-telemetry": "^0.0.6",
     "vscode-nls": "^2.0.1"
   },
   "devDependencies": {

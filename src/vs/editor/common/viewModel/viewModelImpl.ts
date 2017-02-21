@@ -17,6 +17,7 @@ import { ViewModelCursors } from 'vs/editor/common/viewModel/viewModelCursors';
 import { ViewModelDecorations } from 'vs/editor/common/viewModel/viewModelDecorations';
 import { MinimapLinesRenderingData, ViewLineRenderingData, ViewModelDecoration, IViewModel, ICoordinatesConverter } from 'vs/editor/common/viewModel/viewModel';
 import { SplitLinesCollection } from 'vs/editor/common/viewModel/splitLinesCollection';
+import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
 export class CoordinatesConverter implements ICoordinatesConverter {
 
@@ -66,6 +67,12 @@ export class CoordinatesConverter implements ICoordinatesConverter {
 		return new Range(start.lineNumber, start.column, end.lineNumber, end.column);
 	}
 
+	public convertModelSelectionToViewSelection(modelSelection: Selection): Selection {
+		let selectionStart = this._lines.convertModelPositionToViewPosition(modelSelection.selectionStartLineNumber, modelSelection.selectionStartColumn);
+		let position = this._lines.convertModelPositionToViewPosition(modelSelection.positionLineNumber, modelSelection.positionColumn);
+		return new Selection(selectionStart.lineNumber, selectionStart.column, position.lineNumber, position.column);
+	}
+
 	public modelPositionIsVisible(modelPosition: Position): boolean {
 		return this._lines.modelPositionIsVisible(modelPosition.lineNumber, modelPosition.column);
 	}
@@ -111,7 +118,7 @@ export class ViewModel extends EventEmitter implements IViewModel {
 		this.decorations = new ViewModelDecorations(this.editorId, this.model, this.configuration, this.coordinatesConverter);
 		this.decorations.reset();
 
-		this.cursors = new ViewModelCursors(this.configuration);
+		this.cursors = new ViewModelCursors(this.configuration, this.coordinatesConverter);
 
 		this.listenersToRemove = [];
 		this._toDispose = [];
@@ -133,7 +140,7 @@ export class ViewModel extends EventEmitter implements IViewModel {
 	private _setHiddenAreas(ranges: editorCommon.IRange[]): void {
 		let lineMappingChanged = this.lines.setHiddenAreas(ranges, (eventType: string, payload: any) => this.emit(eventType, payload));
 		if (lineMappingChanged) {
-			this.emit(editorCommon.ViewEventNames.LineMappingChangedEvent);
+			this.emit(viewEvents.ViewEventNames.LineMappingChangedEvent);
 			this.decorations.onLineMappingChanged((eventType: string, payload: any) => this.emit(eventType, payload));
 			this.cursors.onLineMappingChanged((eventType: string, payload: any) => this.emit(eventType, payload));
 		}
@@ -149,7 +156,7 @@ export class ViewModel extends EventEmitter implements IViewModel {
 	private _onTabSizeChange(newTabSize: number): boolean {
 		var lineMappingChanged = this.lines.setTabSize(newTabSize, (eventType: string, payload: any) => this.emit(eventType, payload));
 		if (lineMappingChanged) {
-			this.emit(editorCommon.ViewEventNames.LineMappingChangedEvent);
+			this.emit(viewEvents.ViewEventNames.LineMappingChangedEvent);
 			this.decorations.onLineMappingChanged((eventType: string, payload: any) => this.emit(eventType, payload));
 			this.cursors.onLineMappingChanged((eventType: string, payload: any) => this.emit(eventType, payload));
 		}
@@ -159,7 +166,7 @@ export class ViewModel extends EventEmitter implements IViewModel {
 	private _onWrappingIndentChange(newWrappingIndent: editorCommon.WrappingIndent): boolean {
 		var lineMappingChanged = this.lines.setWrappingIndent(newWrappingIndent, (eventType: string, payload: any) => this.emit(eventType, payload));
 		if (lineMappingChanged) {
-			this.emit(editorCommon.ViewEventNames.LineMappingChangedEvent);
+			this.emit(viewEvents.ViewEventNames.LineMappingChangedEvent);
 			this.decorations.onLineMappingChanged((eventType: string, payload: any) => this.emit(eventType, payload));
 			this.cursors.onLineMappingChanged((eventType: string, payload: any) => this.emit(eventType, payload));
 		}
@@ -171,19 +178,20 @@ export class ViewModel extends EventEmitter implements IViewModel {
 		var newCenteredViewRange = this.coordinatesConverter.convertModelRangeToViewRange(range);
 
 		// Send a reveal event to restore the centered content
-		var restoreRevealEvent: editorCommon.IViewRevealRangeEvent = {
+		var restoreRevealEvent: viewEvents.IViewRevealRangeEvent = {
+			_viewRevealRangeEventBrand: void 0,
 			range: newCenteredViewRange,
 			verticalType: editorCommon.VerticalRevealType.Center,
 			revealHorizontal: false,
 			revealCursor: false
 		};
-		this.emit(editorCommon.ViewEventNames.RevealRangeEvent, restoreRevealEvent);
+		this.emit(viewEvents.ViewEventNames.RevealRangeEvent, restoreRevealEvent);
 	}
 
 	private _onWrappingColumnChange(newWrappingColumn: number, columnsForFullWidthChar: number): boolean {
 		let lineMappingChanged = this.lines.setWrappingColumn(newWrappingColumn, columnsForFullWidthChar, (eventType: string, payload: any) => this.emit(eventType, payload));
 		if (lineMappingChanged) {
-			this.emit(editorCommon.ViewEventNames.LineMappingChangedEvent);
+			this.emit(viewEvents.ViewEventNames.LineMappingChangedEvent);
 			this.decorations.onLineMappingChanged((eventType: string, payload: any) => this.emit(eventType, payload));
 			this.cursors.onLineMappingChanged((eventType: string, payload: any) => this.emit(eventType, payload));
 		}
@@ -359,7 +367,7 @@ export class ViewModel extends EventEmitter implements IViewModel {
 					if ((<editorCommon.IConfigurationChangedEvent>data).readOnly) {
 						// Must read again all decorations due to readOnly filtering
 						this.decorations.reset();
-						this.emit(editorCommon.ViewEventNames.DecorationsChangedEvent, {});
+						this.emit(viewEvents.ViewEventNames.DecorationsChangedEvent, {});
 					}
 					this.emit(e.getType(), <editorCommon.IConfigurationChangedEvent>data);
 					break;
@@ -371,7 +379,7 @@ export class ViewModel extends EventEmitter implements IViewModel {
 		}
 
 		if (!hadOtherModelChange && hadModelLineChangeThatChangedLineMapping) {
-			this.emit(editorCommon.ViewEventNames.LineMappingChangedEvent);
+			this.emit(viewEvents.ViewEventNames.LineMappingChangedEvent);
 			this.decorations.onLineMappingChanged((eventType: string, payload: any) => this.emit(eventType, payload));
 			this.cursors.onLineMappingChanged((eventType: string, payload: any) => this.emit(eventType, payload));
 		}
@@ -405,10 +413,11 @@ export class ViewModel extends EventEmitter implements IViewModel {
 			};
 		}
 
-		var e: editorCommon.IViewTokensChangedEvent = {
+		var e2: viewEvents.IViewTokensChangedEvent = {
+			_viewTokensChangedEventBrand: void 0,
 			ranges: viewRanges
 		};
-		this.emit(editorCommon.ViewEventNames.TokensChangedEvent, e);
+		this.emit(viewEvents.ViewEventNames.TokensChangedEvent, e2);
 	}
 	private onModelLineChanged(e: editorCommon.IModelContentChangedLineChangedEvent): boolean {
 		var lineMappingChanged = this.lines.onModelLineChanged(e.versionId, e.lineNumber, e.detail, (eventType: string, payload: any) => this.emit(eventType, payload));
@@ -644,7 +653,11 @@ export class ViewModel extends EventEmitter implements IViewModel {
 			const startOffset = (lineNumber === startLineNumber ? startColumn - 1 : 0);
 			const endOffset = (lineNumber === endLineNumber ? endColumn - 1 : lineContent.length);
 
-			result += tokenizeLineToHTML(lineContent, lineTokens.inflate(), colorMap, startOffset, endOffset, tabSize);
+			if (lineContent === '') {
+				result += '<br>';
+			} else {
+				result += tokenizeLineToHTML(lineContent, lineTokens.inflate(), colorMap, startOffset, endOffset, tabSize);
+			}
 		}
 
 		return result;

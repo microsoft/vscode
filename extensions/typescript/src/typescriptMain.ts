@@ -9,7 +9,7 @@
  * ------------------------------------------------------------------------------------------ */
 'use strict';
 
-import { env, languages, commands, workspace, window, ExtensionContext, Memento, IndentAction, Diagnostic, DiagnosticCollection, Range, Disposable, Uri, MessageItem, TextEditor } from 'vscode';
+import { env, languages, commands, workspace, window, ExtensionContext, Memento, IndentAction, Diagnostic, DiagnosticCollection, Range, Disposable, Uri, MessageItem, TextEditor, FileSystemWatcher } from 'vscode';
 
 // This must be the first statement otherwise modules might got loaded with
 // the wrong locale.
@@ -86,6 +86,7 @@ export function activate(context: ExtensionContext): void {
 			configFile: 'jsconfig.json'
 		}
 	], context.storagePath, context.globalState, context.workspaceState);
+	context.subscriptions.push(clientHost);
 
 	const client = clientHost.serviceClient;
 
@@ -139,10 +140,10 @@ const validateSetting = 'validate.enable';
 
 class LanguageProvider {
 
-	private extensions: ObjectMap<boolean>;
+	private readonly extensions: ObjectMap<boolean>;
 	private syntaxDiagnostics: ObjectMap<Diagnostic[]>;
-	private currentDiagnostics: DiagnosticCollection;
-	private bufferSyncSupport: BufferSyncSupport;
+	private readonly currentDiagnostics: DiagnosticCollection;
+	private readonly bufferSyncSupport: BufferSyncSupport;
 
 	private completionItemProvider: CompletionItemProvider;
 	private formattingProvider: FormattingProvider;
@@ -151,6 +152,8 @@ class LanguageProvider {
 	private referenceCodeLensProvider: ReferenceCodeLensProvider;
 
 	private _validate: boolean = true;
+
+	private readonly disposables: Disposable[] = [];
 
 	constructor(
 		private readonly client: TypeScriptServiceClient,
@@ -170,7 +173,7 @@ class LanguageProvider {
 		this.typingsStatus = new TypingsStatus(client);
 		new AtaProgressReporter(client);
 
-		workspace.onDidChangeConfiguration(this.configurationChanged, this);
+		workspace.onDidChangeConfiguration(this.configurationChanged, this, this.disposables);
 		this.configurationChanged();
 
 		client.onReady().then(() => {
@@ -181,51 +184,68 @@ class LanguageProvider {
 		});
 	}
 
+	public dispose(): void {
+		if (this.formattingProviderRegistration) {
+			this.formattingProviderRegistration.dispose();
+		}
+
+		while (this.disposables.length) {
+			const obj = this.disposables.pop();
+			if (obj) {
+				obj.dispose();
+			}
+		}
+
+		this.typingsStatus.dispose();
+		this.currentDiagnostics.dispose();
+		this.bufferSyncSupport.dispose();
+	}
+
 	private registerProviders(client: TypeScriptServiceClient): void {
 		const selector = this.description.modeIds;
 		const config = workspace.getConfiguration(this.id);
 
 		this.completionItemProvider = new CompletionItemProvider(client, this.typingsStatus);
 		this.completionItemProvider.updateConfiguration();
-		languages.registerCompletionItemProvider(selector, this.completionItemProvider, '.');
+		this.disposables.push(languages.registerCompletionItemProvider(selector, this.completionItemProvider, '.'));
 
 		this.formattingProvider = new FormattingProvider(client);
 		this.formattingProvider.updateConfiguration(config);
-		languages.registerOnTypeFormattingEditProvider(selector, this.formattingProvider, ';', '}', '\n');
+		this.disposables.push(languages.registerOnTypeFormattingEditProvider(selector, this.formattingProvider, ';', '}', '\n'));
 		if (this.formattingProvider.isEnabled()) {
 			this.formattingProviderRegistration = languages.registerDocumentRangeFormattingEditProvider(selector, this.formattingProvider);
 		}
 
-		languages.registerHoverProvider(selector, new HoverProvider(client));
-		languages.registerDefinitionProvider(selector, new DefinitionProvider(client));
-		languages.registerDocumentHighlightProvider(selector, new DocumentHighlightProvider(client));
-		languages.registerReferenceProvider(selector, new ReferenceProvider(client));
-		languages.registerDocumentSymbolProvider(selector, new DocumentSymbolProvider(client));
-		languages.registerSignatureHelpProvider(selector, new SignatureHelpProvider(client), '(', ',');
-		languages.registerRenameProvider(selector, new RenameProvider(client));
+		this.disposables.push(languages.registerHoverProvider(selector, new HoverProvider(client)));
+		this.disposables.push(languages.registerDefinitionProvider(selector, new DefinitionProvider(client)));
+		this.disposables.push(languages.registerDocumentHighlightProvider(selector, new DocumentHighlightProvider(client)));
+		this.disposables.push(languages.registerReferenceProvider(selector, new ReferenceProvider(client)));
+		this.disposables.push(languages.registerDocumentSymbolProvider(selector, new DocumentSymbolProvider(client)));
+		this.disposables.push(languages.registerSignatureHelpProvider(selector, new SignatureHelpProvider(client), '(', ','));
+		this.disposables.push(languages.registerRenameProvider(selector, new RenameProvider(client)));
 
 		if (client.apiVersion.has206Features()) {
 			this.referenceCodeLensProvider = new ReferenceCodeLensProvider(client);
 			this.referenceCodeLensProvider.updateConfiguration();
-			languages.registerCodeLensProvider(selector, this.referenceCodeLensProvider);
+			this.disposables.push(languages.registerCodeLensProvider(selector, this.referenceCodeLensProvider));
 		}
 
 		if (client.apiVersion.has213Features()) {
-			languages.registerCodeActionsProvider(selector, new CodeActionProvider(client, this.description.id));
+			this.disposables.push(languages.registerCodeActionsProvider(selector, new CodeActionProvider(client, this.description.id)));
 		}
 
 		if (client.apiVersion.has220Features()) {
-			languages.registerImplementationProvider(selector, new ImplementationProvider(client));
+			this.disposables.push(languages.registerImplementationProvider(selector, new ImplementationProvider(client)));
 		}
 
 		if (client.apiVersion.has213Features()) {
-			languages.registerTypeDefinitionProvider(selector, new TypeDefintionProvider(client));
+			this.disposables.push(languages.registerTypeDefinitionProvider(selector, new TypeDefintionProvider(client)));
 		}
 
 		this.description.modeIds.forEach(modeId => {
-			languages.registerWorkspaceSymbolProvider(new WorkspaceSymbolProvider(client, modeId));
+			this.disposables.push(languages.registerWorkspaceSymbolProvider(new WorkspaceSymbolProvider(client, modeId)));
 
-			languages.setLanguageConfiguration(modeId, {
+			this.disposables.push(languages.setLanguageConfiguration(modeId, {
 				indentationRules: {
 					// ^(.*\*/)?\s*\}.*$
 					decreaseIndentPattern: /^(.*\*\/)?\s*\}.*$/,
@@ -258,11 +278,11 @@ class LanguageProvider {
 						action: { indentAction: IndentAction.None, removeText: 1 }
 					}
 				]
-			});
+			}));
 
 			const EMPTY_ELEMENTS: string[] = ['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'keygen', 'link', 'menuitem', 'meta', 'param', 'source', 'track', 'wbr'];
 
-			languages.setLanguageConfiguration('jsx-tags', {
+			this.disposables.push(languages.setLanguageConfiguration('jsx-tags', {
 				wordPattern: /(-?\d*\.\d\w*)|([^\`\~\!\@\$\^\&\*\(\)\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\s]+)/g,
 				onEnterRules: [
 					{
@@ -275,7 +295,7 @@ class LanguageProvider {
 						action: { indentAction: IndentAction.Indent }
 					}
 				],
-			});
+			}));
 		});
 	}
 
@@ -364,6 +384,8 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 	private client: TypeScriptServiceClient;
 	private languages: LanguageProvider[];
 	private languagePerId: ObjectMap<LanguageProvider>;
+	private configFileWatcher: FileSystemWatcher;
+	private readonly disposables: Disposable[] = [];
 
 	constructor(
 		descriptions: LanguageDescription[],
@@ -380,19 +402,31 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 				this.triggerAllDiagnostics();
 			}, 1500);
 		};
-		const watcher = workspace.createFileSystemWatcher('**/[tj]sconfig.json');
-		watcher.onDidCreate(handleProjectCreateOrDelete);
-		watcher.onDidDelete(handleProjectCreateOrDelete);
-		watcher.onDidChange(handleProjectChange);
+		const configFileWatcher = workspace.createFileSystemWatcher('**/[tj]sconfig.json');
+		this.disposables.push(configFileWatcher);
+		configFileWatcher.onDidCreate(handleProjectCreateOrDelete, this, this.disposables);
+		configFileWatcher.onDidDelete(handleProjectCreateOrDelete, this, this.disposables);
+		configFileWatcher.onDidChange(handleProjectChange, this, this.disposables);
 
 		this.client = new TypeScriptServiceClient(this, storagePath, globalState, workspaceState);
 		this.languages = [];
 		this.languagePerId = Object.create(null);
-		descriptions.forEach(description => {
+		for (const description of descriptions) {
 			const manager = new LanguageProvider(this.client, description);
 			this.languages.push(manager);
+			this.disposables.push(manager);
 			this.languagePerId[description.id] = manager;
-		});
+		}
+	}
+
+	public dispose(): void {
+		while (this.disposables.length) {
+			const obj = this.disposables.pop();
+			if (obj) {
+				obj.dispose();
+			}
+		}
+		this.configFileWatcher.dispose();
 	}
 
 	public get serviceClient(): TypeScriptServiceClient {

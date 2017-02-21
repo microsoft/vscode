@@ -5,16 +5,15 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import { Registry } from 'vs/platform/platform';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ICommonCodeEditor, EditorContextKeys } from 'vs/editor/common/editorCommon';
 import { editorAction, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
 import { SnippetController } from 'vs/editor/contrib/snippet/common/snippetController';
 import { IQuickOpenService, IPickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
-import { ISnippetsRegistry, Extensions, ISnippet } from 'vs/editor/common/modes/snippetsRegistry';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { LanguageId } from 'vs/editor/common/modes';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { ISnippetsService, ISnippet } from 'vs/workbench/parts/snippets/electron-browser/snippetsService';
 
 interface ISnippetPick extends IPickOpenEntry {
 	snippet: ISnippet;
@@ -26,7 +25,7 @@ class Args {
 		if (!arg || typeof arg !== 'object') {
 			return Args._empty;
 		}
-		let {snippet, name, langId} = arg;
+		let { snippet, name, langId } = arg;
 		if (typeof snippet !== 'string') {
 			snippet = undefined;
 		}
@@ -65,14 +64,15 @@ class InsertSnippetAction extends EditorAction {
 
 	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor, arg: any): TPromise<void> {
 		const modeService = accessor.get(IModeService);
+		const snippetService = accessor.get(ISnippetsService);
 
 		if (!editor.getModel()) {
 			return undefined;
 		}
 
 		const quickOpenService = accessor.get(IQuickOpenService);
-		const {lineNumber, column} = editor.getPosition();
-		let {snippet, name, langId} = Args.fromUser(arg);
+		const { lineNumber, column } = editor.getPosition();
+		let { snippet, name, langId } = Args.fromUser(arg);
 
 
 		return new TPromise<ISnippet>((resolve, reject) => {
@@ -96,7 +96,7 @@ class InsertSnippetAction extends EditorAction {
 				// validate the `languageId` to ensure this is a user
 				// facing language with a name and the chance to have
 				// snippets, else fall back to the outer language
-				const {language} = modeService.getLanguageIdentifier(languageId);
+				const { language } = modeService.getLanguageIdentifier(languageId);
 				if (!modeService.getLanguageName(language)) {
 					languageId = editor.getModel().getLanguageIdentifier().id;
 				}
@@ -104,7 +104,7 @@ class InsertSnippetAction extends EditorAction {
 
 			if (name) {
 				// take selected snippet
-				Registry.as<ISnippetsRegistry>(Extensions.Snippets).visitSnippets(languageId, snippet => {
+				snippetService.visitSnippets(languageId, snippet => {
 					if (snippet.name !== name) {
 						return true;
 					}
@@ -114,7 +114,7 @@ class InsertSnippetAction extends EditorAction {
 			} else {
 				// let user pick a snippet
 				const picks: ISnippetPick[] = [];
-				Registry.as<ISnippetsRegistry>(Extensions.Snippets).visitSnippets(languageId, snippet => {
+				snippetService.visitSnippets(languageId, snippet => {
 					picks.push({
 						label: snippet.prefix,
 						detail: snippet.description,
