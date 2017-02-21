@@ -16,6 +16,7 @@ import aria = require('vs/base/browser/ui/aria/aria');
 import { IExpression } from 'vs/base/common/glob';
 import env = require('vs/base/common/platform');
 import { isFunction } from 'vs/base/common/types';
+import { Delayer } from 'vs/base/common/async';
 import URI from 'vs/base/common/uri';
 import strings = require('vs/base/common/strings');
 import dom = require('vs/base/browser/dom');
@@ -91,6 +92,7 @@ export class SearchViewlet extends Viewlet {
 	private currentSelectedFileMatch: FileMatch;
 
 	private selectCurrentMatchEmitter: Emitter<string>;
+	private delayedRefresh: Delayer<void>;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -130,6 +132,7 @@ export class SearchViewlet extends Viewlet {
 		debounceEvent(this.selectCurrentMatchEmitter.event, (l, e) => e, 100, /*leading=*/true)
 			(() => this.selectCurrentMatch());
 
+		this.delayedRefresh = new Delayer<void>(250);
 	}
 
 	private onConfigurationUpdated(configuration: any): void {
@@ -287,7 +290,7 @@ export class SearchViewlet extends Viewlet {
 		}));
 		this.toUnbind.push(this.searchWidget.onReplaceValueChanged((value) => {
 			this.viewModel.replaceString = this.searchWidget.getReplaceValue();
-			this.tree.refresh();
+			this.delayedRefresh.trigger(() => this.tree.refresh());
 		}));
 
 		this.toUnbind.push(this.searchWidget.onReplaceAll(() => this.replaceAll()));
