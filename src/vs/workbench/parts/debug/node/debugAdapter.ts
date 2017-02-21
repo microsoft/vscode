@@ -181,7 +181,9 @@ export class Adapter {
 			const properties = attributes.properties;
 			properties['type'] = {
 				enum: [this.type],
-				description: nls.localize('debugType', "Type of configuration.")
+				description: nls.localize('debugType', "Type of configuration."),
+				pattern: '^(?!node2)',
+				errorMessage: nls.localize('node2NotSupported', "\"node2\" is no longer supported, use \"node\".")
 			};
 			properties['name'] = {
 				type: 'string',
