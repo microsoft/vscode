@@ -183,7 +183,7 @@ export class Adapter {
 				enum: [this.type],
 				description: nls.localize('debugType', "Type of configuration."),
 				pattern: '^(?!node2)',
-				errorMessage: nls.localize('node2NotSupported', "\"node2\" is no longer supported, use \"node\".")
+				errorMessage: nls.localize('node2NotSupported', "\"node2\" is no longer supported, use \"node\" instead and set the \"protocol\" attribute to \"inspector\".")
 			};
 			properties['name'] = {
 				type: 'string',
