@@ -381,7 +381,9 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 				}
 			}
 		};
-		visit(model.getValue(), visitor);
+		if (!model.isDisposed()) {
+			visit(model.getValue(), visitor);
+		}
 		this._settingsGroups = settings.length > 0 ? [<ISettingsGroup>{
 			sections: [
 				{
