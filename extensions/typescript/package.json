@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "semver": "4.3.6",
-    "vscode-extension-telemetry": "^0.0.5",
+    "vscode-extension-telemetry": "^0.0.6",
     "vscode-nls": "^2.0.1",
     "typescript": "typescript@2.2.1-insiders.20170217"
   },

@@ -408,7 +408,7 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 		configFileWatcher.onDidDelete(handleProjectCreateOrDelete, this, this.disposables);
 		configFileWatcher.onDidChange(handleProjectChange, this, this.disposables);
 
-		this.client = new TypeScriptServiceClient(this, storagePath, globalState, workspaceState);
+		this.client = new TypeScriptServiceClient(this, storagePath, globalState, workspaceState, this.disposables);
 		this.languages = [];
 		this.languagePerId = Object.create(null);
 		for (const description of descriptions) {

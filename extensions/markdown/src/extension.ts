@@ -30,6 +30,9 @@ var telemetryReporter: TelemetryReporter | null;
 export function activate(context: vscode.ExtensionContext) {
 	const packageInfo = getPackageInfo();
 	telemetryReporter = packageInfo && new TelemetryReporter(packageInfo.name, packageInfo.version, packageInfo.aiKey);
+	if (telemetryReporter) {
+		context.subscriptions.push(telemetryReporter);
+	}
 
 	const engine = new MarkdownEngine();
 
