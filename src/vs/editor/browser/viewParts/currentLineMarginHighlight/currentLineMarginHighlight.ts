@@ -39,15 +39,16 @@ export class CurrentLineMarginHighlightOverlay extends DynamicViewOverlay {
 
 	// --- begin event handlers
 
-	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
-		this._primaryCursorIsInEditableRange = true;
-		this._primaryCursorLineNumber = 1;
-		return true;
-	}
-	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
-		return true;
-	}
-	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
+	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
+		if (e.lineHeight) {
+			this._lineHeight = this._context.configuration.editor.lineHeight;
+		}
+		if (e.viewInfo.renderLineHighlight) {
+			this._renderLineHighlight = this._context.configuration.editor.viewInfo.renderLineHighlight;
+		}
+		if (e.layoutInfo) {
+			this._contentLeft = this._context.configuration.editor.layoutInfo.contentLeft;
+		}
 		return true;
 	}
 	public onCursorPositionChanged(e: viewEvents.ViewCursorPositionChangedEvent): boolean {
@@ -62,16 +63,15 @@ export class CurrentLineMarginHighlightOverlay extends DynamicViewOverlay {
 		}
 		return hasChanged;
 	}
-	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		if (e.lineHeight) {
-			this._lineHeight = this._context.configuration.editor.lineHeight;
-		}
-		if (e.viewInfo.renderLineHighlight) {
-			this._renderLineHighlight = this._context.configuration.editor.viewInfo.renderLineHighlight;
-		}
-		if (e.layoutInfo) {
-			this._contentLeft = this._context.configuration.editor.layoutInfo.contentLeft;
-		}
+	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
+		this._primaryCursorIsInEditableRange = true;
+		this._primaryCursorLineNumber = 1;
+		return true;
+	}
+	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
+		return true;
+	}
+	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
 		return true;
 	}
 	public onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {

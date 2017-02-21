@@ -74,46 +74,27 @@ export class ViewCursors extends ViewPart {
 
 	// --- begin event handlers
 
-	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
-		this._primaryCursor.onFlushed();
+	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
+
+		if (e.readOnly) {
+			this._readOnly = this._context.configuration.editor.readOnly;
+		}
+		if (e.viewInfo.cursorBlinking) {
+			this._cursorBlinking = this._context.configuration.editor.viewInfo.cursorBlinking;
+		}
+		if (e.viewInfo.cursorStyle) {
+			this._cursorStyle = this._context.configuration.editor.viewInfo.cursorStyle;
+		}
+
+		this._primaryCursor.onConfigurationChanged(e);
+		this._updateBlinking();
+		if (e.viewInfo.cursorStyle || e.viewInfo.cursorBlinking) {
+			this._updateDomClassName();
+		}
 		for (let i = 0, len = this._secondaryCursors.length; i < len; i++) {
-			let domNode = this._secondaryCursors[i].getDomNode();
-			domNode.parentNode.removeChild(domNode);
+			this._secondaryCursors[i].onConfigurationChanged(e);
 		}
-		this._secondaryCursors = [];
 		return true;
-	}
-	public onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
-		// true for inline decorations that can end up relayouting text
-		return true;//e.inlineDecorationsChanged;
-	}
-	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
-		return true;
-	}
-	public onLineChanged(e: viewEvents.ViewLineChangedEvent): boolean {
-		return true;
-	}
-	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
-		return true;
-	}
-	public onTokensChanged(e: viewEvents.ViewTokensChangedEvent): boolean {
-		let shouldRender = (position: Position) => {
-			for (let i = 0, len = e.ranges.length; i < len; i++) {
-				if (e.ranges[i].fromLineNumber <= position.lineNumber && position.lineNumber <= e.ranges[i].toLineNumber) {
-					return true;
-				}
-			}
-			return false;
-		};
-		if (shouldRender(this._primaryCursor.getPosition())) {
-			return true;
-		}
-		for (let i = 0; i < this._secondaryCursors.length; i++) {
-			if (shouldRender(this._secondaryCursors[i].getPosition())) {
-				return true;
-			}
-		}
-		return false;
 	}
 	public onCursorPositionChanged(e: viewEvents.ViewCursorPositionChangedEvent): boolean {
 		this._primaryCursor.onCursorPositionChanged(e.position, e.isInEditableRange);
@@ -150,32 +131,17 @@ export class ViewCursors extends ViewPart {
 		}
 		return false;
 	}
-	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-
-		if (e.readOnly) {
-			this._readOnly = this._context.configuration.editor.readOnly;
-		}
-		if (e.viewInfo.cursorBlinking) {
-			this._cursorBlinking = this._context.configuration.editor.viewInfo.cursorBlinking;
-		}
-		if (e.viewInfo.cursorStyle) {
-			this._cursorStyle = this._context.configuration.editor.viewInfo.cursorStyle;
-		}
-
-		this._primaryCursor.onConfigurationChanged(e);
-		this._updateBlinking();
-		if (e.viewInfo.cursorStyle || e.viewInfo.cursorBlinking) {
-			this._updateDomClassName();
-		}
+	public onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
+		// true for inline decorations that can end up relayouting text
+		return true;//e.inlineDecorationsChanged;
+	}
+	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
+		this._primaryCursor.onFlushed();
 		for (let i = 0, len = this._secondaryCursors.length; i < len; i++) {
-			this._secondaryCursors[i].onConfigurationChanged(e);
+			let domNode = this._secondaryCursors[i].getDomNode();
+			domNode.parentNode.removeChild(domNode);
 		}
-		return true;
-	}
-	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
-		return true;
-	}
-	public onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
+		this._secondaryCursors = [];
 		return true;
 	}
 	public onFocusChanged(e: viewEvents.ViewFocusChangedEvent): boolean {
@@ -183,6 +149,41 @@ export class ViewCursors extends ViewPart {
 		this._updateBlinking();
 		return false;
 	}
+	public onLineChanged(e: viewEvents.ViewLineChangedEvent): boolean {
+		return true;
+	}
+	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
+		return true;
+	}
+	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
+		return true;
+	}
+	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
+		return true;
+	}
+	public onTokensChanged(e: viewEvents.ViewTokensChangedEvent): boolean {
+		let shouldRender = (position: Position) => {
+			for (let i = 0, len = e.ranges.length; i < len; i++) {
+				if (e.ranges[i].fromLineNumber <= position.lineNumber && position.lineNumber <= e.ranges[i].toLineNumber) {
+					return true;
+				}
+			}
+			return false;
+		};
+		if (shouldRender(this._primaryCursor.getPosition())) {
+			return true;
+		}
+		for (let i = 0; i < this._secondaryCursors.length; i++) {
+			if (shouldRender(this._secondaryCursors[i].getPosition())) {
+				return true;
+			}
+		}
+		return false;
+	}
+	public onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
+		return true;
+	}
+
 	// --- end event handlers
 
 	public getPosition(): Position {

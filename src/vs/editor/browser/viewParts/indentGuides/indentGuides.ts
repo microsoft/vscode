@@ -37,18 +37,7 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 	}
 
 	// --- begin event handlers
-	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
-		return true;
-	}
-	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
-		return true;
-	}
-	public onLineChanged(e: viewEvents.ViewLineChangedEvent): boolean {
-		return true;
-	}
-	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
-		return true;
-	}
+
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		if (e.lineHeight) {
 			this._lineHeight = this._context.configuration.editor.lineHeight;
@@ -61,12 +50,25 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 		}
 		return true;
 	}
+	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
+		return true;
+	}
+	public onLineChanged(e: viewEvents.ViewLineChangedEvent): boolean {
+		return true;
+	}
+	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
+		return true;
+	}
+	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
+		return true;
+	}
 	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		return e.scrollTopChanged;// || e.scrollWidthChanged;
 	}
 	public onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
 		return true;
 	}
+
 	// --- end event handlers
 
 	public prepareRender(ctx: IRenderingContext): void {

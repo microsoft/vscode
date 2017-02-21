@@ -108,15 +108,15 @@ export class ViewZones extends ViewPart {
 		return this._recomputeWhitespacesProps();
 	}
 
+	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
+		return true;
+	}
+
 	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		return e.scrollTopChanged || e.scrollWidthChanged;
 	}
 
 	public onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
-		return true;
-	}
-
-	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
 		return true;
 	}
 

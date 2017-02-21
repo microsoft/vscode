@@ -50,89 +50,25 @@ export interface IViewEvent {
 	readonly type: ViewEventType;
 }
 
-export class ViewDecorationsChangedEvent implements IViewEvent {
-	_viewDecorationsChangedEventBrand: void;
+export class ViewConfigurationChangedEvent implements IViewEvent {
+	_viewConfigurationChangedEventBrand: void;
 
-	public readonly type = ViewEventType.ViewDecorationsChanged;
+	public readonly type = ViewEventType.ViewConfigurationChanged;
 
-	constructor() {
-		// Nothing to do
-	}
-}
+	public readonly lineHeight: boolean;
+	public readonly readOnly: boolean;
+	public readonly layoutInfo: boolean;
+	public readonly fontInfo: boolean;
+	public readonly viewInfo: IViewConfigurationChangedEvent;
+	public readonly wrappingInfo: boolean;
 
-export class ViewLinesDeletedEvent implements IViewEvent {
-	_viewLinesDeletedEventBrand: void;
-
-	public readonly type = ViewEventType.ViewLinesDeleted;
-
-	/**
-	 * At what line the deletion began (inclusive).
-	 */
-	public readonly fromLineNumber: number;
-	/**
-	 * At what line the deletion stopped (inclusive).
-	 */
-	public readonly toLineNumber: number;
-
-	constructor(fromLineNumber: number, toLineNumber: number) {
-		this.fromLineNumber = fromLineNumber;
-		this.toLineNumber = toLineNumber;
-	}
-}
-
-export class ViewLineChangedEvent implements IViewEvent {
-	_viewLineChangedEventBrand: void;
-
-	public readonly type = ViewEventType.ViewLineChanged;
-
-	/**
-	 * The line that has changed.
-	 */
-	public readonly lineNumber: number;
-
-	constructor(lineNumber: number) {
-		this.lineNumber = lineNumber;
-	}
-}
-
-export class ViewLinesInsertedEvent implements IViewEvent {
-	_viewLinesInsertedEventBrand: void;
-
-	public readonly type = ViewEventType.ViewLinesInserted;
-
-	/**
-	 * Before what line did the insertion begin
-	 */
-	public readonly fromLineNumber: number;
-	/**
-	 * `toLineNumber` - `fromLineNumber` + 1 denotes the number of lines that were inserted
-	 */
-	public readonly toLineNumber: number;
-
-	constructor(fromLineNumber: number, toLineNumber: number) {
-		this.fromLineNumber = fromLineNumber;
-		this.toLineNumber = toLineNumber;
-	}
-}
-
-export class ViewTokensChangedEvent implements IViewEvent {
-	_viewTokensChangedEventBrand: void;
-
-	public readonly type = ViewEventType.ViewTokensChanged;
-
-	public readonly ranges: {
-		/**
-		 * Start line number of range
-		 */
-		readonly fromLineNumber: number;
-		/**
-		 * End line number of range
-		 */
-		readonly toLineNumber: number;
-	}[];
-
-	constructor(ranges: { fromLineNumber: number; toLineNumber: number; }[]) {
-		this.ranges = ranges;
+	constructor(source: IConfigurationChangedEvent) {
+		this.lineHeight = source.lineHeight;
+		this.readOnly = source.readOnly;
+		this.layoutInfo = source.layoutInfo;
+		this.fontInfo = source.fontInfo;
+		this.viewInfo = source.viewInfo;
+		this.wrappingInfo = source.wrappingInfo;
 	}
 }
 
@@ -181,6 +117,103 @@ export class ViewCursorSelectionChangedEvent implements IViewEvent {
 	}
 }
 
+export class ViewDecorationsChangedEvent implements IViewEvent {
+	_viewDecorationsChangedEventBrand: void;
+
+	public readonly type = ViewEventType.ViewDecorationsChanged;
+
+	constructor() {
+		// Nothing to do
+	}
+}
+
+export class ViewFlushedEvent implements IViewEvent {
+	_viewFlushedEventBrand: void;
+
+	public readonly type = ViewEventType.ViewFlushed;
+
+	constructor() {
+		// Nothing to do
+	}
+}
+
+export class ViewFocusChangedEvent implements IViewEvent {
+	_viewFocusChangedEventBrand: void;
+
+	public readonly type = ViewEventType.ViewFocusChanged;
+
+	public readonly isFocused: boolean;
+
+	constructor(isFocused: boolean) {
+		this.isFocused = isFocused;
+	}
+}
+
+export class ViewLineChangedEvent implements IViewEvent {
+	_viewLineChangedEventBrand: void;
+
+	public readonly type = ViewEventType.ViewLineChanged;
+
+	/**
+	 * The line that has changed.
+	 */
+	public readonly lineNumber: number;
+
+	constructor(lineNumber: number) {
+		this.lineNumber = lineNumber;
+	}
+}
+
+export class ViewLineMappingChangedEvent implements IViewEvent {
+	_viewLineMappingChangedEventBrand: void;
+
+	public readonly type = ViewEventType.ViewLineMappingChanged;
+
+	constructor() {
+		// Nothing to do
+	}
+}
+
+export class ViewLinesDeletedEvent implements IViewEvent {
+	_viewLinesDeletedEventBrand: void;
+
+	public readonly type = ViewEventType.ViewLinesDeleted;
+
+	/**
+	 * At what line the deletion began (inclusive).
+	 */
+	public readonly fromLineNumber: number;
+	/**
+	 * At what line the deletion stopped (inclusive).
+	 */
+	public readonly toLineNumber: number;
+
+	constructor(fromLineNumber: number, toLineNumber: number) {
+		this.fromLineNumber = fromLineNumber;
+		this.toLineNumber = toLineNumber;
+	}
+}
+
+export class ViewLinesInsertedEvent implements IViewEvent {
+	_viewLinesInsertedEventBrand: void;
+
+	public readonly type = ViewEventType.ViewLinesInserted;
+
+	/**
+	 * Before what line did the insertion begin
+	 */
+	public readonly fromLineNumber: number;
+	/**
+	 * `toLineNumber` - `fromLineNumber` + 1 denotes the number of lines that were inserted
+	 */
+	public readonly toLineNumber: number;
+
+	constructor(fromLineNumber: number, toLineNumber: number) {
+		this.fromLineNumber = fromLineNumber;
+		this.toLineNumber = toLineNumber;
+	}
+}
+
 export class ViewRevealRangeRequestEvent implements IViewEvent {
 	_viewRevealRangeRequestEventBrand: void;
 
@@ -207,62 +240,6 @@ export class ViewRevealRangeRequestEvent implements IViewEvent {
 		this.verticalType = verticalType;
 		this.revealHorizontal = revealHorizontal;
 		this.revealCursor = revealCursor;
-	}
-}
-
-export class ViewScrollRequestEvent implements IViewEvent {
-	_viewScrollRequestEventBrand: void;
-
-	public readonly type = ViewEventType.ViewScrollRequest;
-
-	public readonly deltaLines: number;
-	public readonly revealCursor: boolean;
-
-	constructor(deltaLines: number, revealCursor: boolean) {
-		this.deltaLines = deltaLines;
-		this.revealCursor = revealCursor;
-	}
-}
-
-export class ViewLineMappingChangedEvent implements IViewEvent {
-	_viewLineMappingChangedEventBrand: void;
-
-	public readonly type = ViewEventType.ViewLineMappingChanged;
-
-	constructor() {
-		// Nothing to do
-	}
-}
-
-export class ViewFlushedEvent implements IViewEvent {
-	_viewFlushedEventBrand: void;
-
-	public readonly type = ViewEventType.ViewFlushed;
-
-	constructor() {
-		// Nothing to do
-	}
-}
-
-export class ViewConfigurationChangedEvent implements IViewEvent {
-	_viewConfigurationChangedEventBrand: void;
-
-	public readonly type = ViewEventType.ViewConfigurationChanged;
-
-	public readonly lineHeight: boolean;
-	public readonly readOnly: boolean;
-	public readonly layoutInfo: boolean;
-	public readonly fontInfo: boolean;
-	public readonly viewInfo: IViewConfigurationChangedEvent;
-	public readonly wrappingInfo: boolean;
-
-	constructor(source: IConfigurationChangedEvent) {
-		this.lineHeight = source.lineHeight;
-		this.readOnly = source.readOnly;
-		this.layoutInfo = source.layoutInfo;
-		this.fontInfo = source.fontInfo;
-		this.viewInfo = source.viewInfo;
-		this.wrappingInfo = source.wrappingInfo;
 	}
 }
 
@@ -294,6 +271,41 @@ export class ViewScrollChangedEvent implements IViewEvent {
 	}
 }
 
+export class ViewScrollRequestEvent implements IViewEvent {
+	_viewScrollRequestEventBrand: void;
+
+	public readonly type = ViewEventType.ViewScrollRequest;
+
+	public readonly deltaLines: number;
+	public readonly revealCursor: boolean;
+
+	constructor(deltaLines: number, revealCursor: boolean) {
+		this.deltaLines = deltaLines;
+		this.revealCursor = revealCursor;
+	}
+}
+
+export class ViewTokensChangedEvent implements IViewEvent {
+	_viewTokensChangedEventBrand: void;
+
+	public readonly type = ViewEventType.ViewTokensChanged;
+
+	public readonly ranges: {
+		/**
+		 * Start line number of range
+		 */
+		readonly fromLineNumber: number;
+		/**
+		 * End line number of range
+		 */
+		readonly toLineNumber: number;
+	}[];
+
+	constructor(ranges: { fromLineNumber: number; toLineNumber: number; }[]) {
+		this.ranges = ranges;
+	}
+}
+
 export class ViewZonesChangedEvent implements IViewEvent {
 	_viewZonesChangedEventBrand: void;
 
@@ -301,17 +313,5 @@ export class ViewZonesChangedEvent implements IViewEvent {
 
 	constructor() {
 		// Nothing to do
-	}
-}
-
-export class ViewFocusChangedEvent implements IViewEvent {
-	_viewFocusChangedEventBrand: void;
-
-	public readonly type = ViewEventType.ViewFocusChanged;
-
-	public readonly isFocused: boolean;
-
-	constructor(isFocused: boolean) {
-		this.isFocused = isFocused;
 	}
 }

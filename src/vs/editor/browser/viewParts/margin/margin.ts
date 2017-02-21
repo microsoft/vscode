@@ -63,7 +63,6 @@ export class Margin extends ViewPart {
 
 		return true;
 	}
-
 	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		return super.onScrollChanged(e) || e.scrollTopChanged;
 	}

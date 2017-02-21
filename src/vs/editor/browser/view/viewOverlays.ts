@@ -187,6 +187,8 @@ export class ContentViewOverlays extends ViewOverlays {
 		this.domNode.setHeight(0);
 	}
 
+	// --- begin event handlers
+
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		if (e.layoutInfo) {
 			this._contentWidth = this._context.configuration.editor.layoutInfo.contentWidth;
@@ -196,6 +198,8 @@ export class ContentViewOverlays extends ViewOverlays {
 	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		return super.onScrollChanged(e) || e.scrollWidthChanged;
 	}
+
+	// --- end event handlers
 
 	_viewOverlaysRender(ctx: IRestrictedRenderingContext): void {
 		super._viewOverlaysRender(ctx);
@@ -221,10 +225,6 @@ export class MarginViewOverlays extends ViewOverlays {
 		Configuration.applyFontInfo(this.domNode, this._context.configuration.editor.fontInfo);
 	}
 
-	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
-		return super.onScrollChanged(e) || e.scrollHeightChanged;
-	}
-
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		let shouldRender = false;
 		if (e.fontInfo) {
@@ -240,6 +240,10 @@ export class MarginViewOverlays extends ViewOverlays {
 			shouldRender = true;
 		}
 		return super.onConfigurationChanged(e) || shouldRender;
+	}
+
+	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
+		return super.onScrollChanged(e) || e.scrollHeightChanged;
 	}
 
 	_viewOverlaysRender(ctx: IRestrictedRenderingContext): void {

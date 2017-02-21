@@ -111,18 +111,6 @@ export class ViewCursor {
 		}
 	}
 
-	public onFlushed(): boolean {
-		this.updatePosition(new Position(1, 1));
-		this._isInEditableRange = true;
-		return true;
-	}
-
-	public onCursorPositionChanged(position: Position, isInEditableRange: boolean): boolean {
-		this.updatePosition(position);
-		this._isInEditableRange = isInEditableRange;
-		return true;
-	}
-
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		if (e.lineHeight) {
 			this._lineHeight = this._context.configuration.editor.lineHeight;
@@ -134,6 +122,18 @@ export class ViewCursor {
 			Configuration.applyFontInfo(this._domNode, this._context.configuration.editor.fontInfo);
 			this._typicalHalfwidthCharacterWidth = this._context.configuration.editor.fontInfo.typicalHalfwidthCharacterWidth;
 		}
+		return true;
+	}
+
+	public onCursorPositionChanged(position: Position, isInEditableRange: boolean): boolean {
+		this.updatePosition(position);
+		this._isInEditableRange = isInEditableRange;
+		return true;
+	}
+
+	public onFlushed(): boolean {
+		this.updatePosition(new Position(1, 1));
+		this._isInEditableRange = true;
 		return true;
 	}
 

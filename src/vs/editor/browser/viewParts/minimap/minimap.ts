@@ -470,8 +470,6 @@ export class Minimap extends ViewPart {
 		return this._buffers.getBuffer();
 	}
 
-	// ---- begin view event handlers
-
 	private _onOptionsMaybeChanged(): boolean {
 		let opts = new MinimapOptions(this._context.configuration);
 		if (this._options.equals(opts)) {
@@ -483,14 +481,13 @@ export class Minimap extends ViewPart {
 		return true;
 	}
 
+	// ---- begin view event handlers
+
+	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
+		return this._onOptionsMaybeChanged();
+	}
 	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
 		this._lastRenderData = null;
-		return true;
-	}
-	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
-		if (this._lastRenderData) {
-			this._lastRenderData.onLinesDeleted(e);
-		}
 		return true;
 	}
 	public onLineChanged(e: viewEvents.ViewLineChangedEvent): boolean {
@@ -499,23 +496,26 @@ export class Minimap extends ViewPart {
 		}
 		return false;
 	}
+	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
+		if (this._lastRenderData) {
+			this._lastRenderData.onLinesDeleted(e);
+		}
+		return true;
+	}
 	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
 		if (this._lastRenderData) {
 			this._lastRenderData.onLinesInserted(e);
 		}
 		return true;
 	}
+	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
+		return e.scrollTopChanged || e.scrollHeightChanged;
+	}
 	public onTokensChanged(e: viewEvents.ViewTokensChangedEvent): boolean {
 		if (this._lastRenderData) {
 			return this._lastRenderData.onTokensChanged(e);
 		}
 		return false;
-	}
-	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		return this._onOptionsMaybeChanged();
-	}
-	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
-		return e.scrollTopChanged || e.scrollHeightChanged;
 	}
 	public onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
 		this._lastRenderData = null;

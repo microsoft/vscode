@@ -160,6 +160,8 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 		this.textAreaHandler.focusTextArea();
 	}
 
+	// --- begin event handlers
+
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		// Give textarea same font size & line height as editor, for the IME case (when the textarea is visible)
 		if (e.fontInfo) {
@@ -175,6 +177,17 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 		return false;
 	}
 
+	private _lastCursorSelectionChanged: viewEvents.ViewCursorSelectionChangedEvent = null;
+	public onCursorSelectionChanged(e: viewEvents.ViewCursorSelectionChangedEvent): boolean {
+		this._lastCursorSelectionChanged = e;
+		return false;
+	}
+
+	public onFocusChanged(e: viewEvents.ViewFocusChangedEvent): boolean {
+		this.textAreaHandler.setHasFocus(e.isFocused);
+		return false;
+	}
+
 	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		this.scrollLeft = e.scrollLeft;
 		if (this.visibleRange) {
@@ -184,16 +197,7 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 		return false;
 	}
 
-	public onFocusChanged(e: viewEvents.ViewFocusChangedEvent): boolean {
-		this.textAreaHandler.setHasFocus(e.isFocused);
-		return false;
-	}
-
-	private _lastCursorSelectionChanged: viewEvents.ViewCursorSelectionChangedEvent = null;
-	public onCursorSelectionChanged(e: viewEvents.ViewCursorSelectionChangedEvent): boolean {
-		this._lastCursorSelectionChanged = e;
-		return false;
-	}
+	// --- end event handlers
 
 	public writeToTextArea(): void {
 		if (this._lastCursorSelectionChanged) {
