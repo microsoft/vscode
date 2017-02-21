@@ -18,7 +18,7 @@ import { SelectionClipboard } from 'vs/editor/contrib/selectionClipboard/electro
 import { ContextMenuController } from 'vs/editor/contrib/contextmenu/browser/contextmenu';
 import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
 import { SnippetController } from 'vs/editor/contrib/snippet/common/snippetController';
-import { TabCompletionController } from "../../snippets/electron-browser/tabCompletion";
+import { TabCompletionController } from "vs/workbench/parts/snippets/electron-browser/tabCompletion";
 
 export class ReplInputEditor extends CodeEditorWidget {
 	constructor(
