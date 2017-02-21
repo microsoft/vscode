@@ -22,6 +22,7 @@ import 'vs/editor/contrib/format/common/formatActions';
 import 'vs/editor/contrib/goToDeclaration/browser/goToDeclaration';
 import 'vs/editor/contrib/gotoError/browser/gotoError';
 import 'vs/editor/contrib/hover/browser/hover';
+import 'vs/editor/contrib/dnd/browser/dnd';
 import 'vs/css!vs/editor/contrib/inPlaceReplace/browser/inPlaceReplace';
 import 'vs/editor/contrib/inPlaceReplace/common/inPlaceReplace';
 import 'vs/editor/contrib/iPadShowKeyboard/browser/iPadShowKeyboard';

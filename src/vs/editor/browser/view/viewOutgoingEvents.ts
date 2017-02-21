@@ -74,6 +74,14 @@ export class ViewOutgoingEvents extends Disposable {
 		this._actual.emit(EventType.MouseDown, this._convertViewToModelMouseEvent(e));
 	}
 
+	public emitMouseDrag(e: IEditorMouseEvent): void {
+		this._actual.emit(EventType.MouseDrag, this._convertViewToModelMouseEvent(e));
+	}
+
+	public emitMouseDrop(e: IEditorMouseEvent): void {
+		this._actual.emit(EventType.MouseDrop, this._convertViewToModelMouseEvent(e));
+	}
+
 	private _convertViewToModelMouseEvent(e: IEditorMouseEvent): IEditorMouseEvent {
 		if (e.target) {
 			return {

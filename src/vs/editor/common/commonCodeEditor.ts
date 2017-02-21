@@ -870,6 +870,14 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 							this.emit(editorCommon.EventType.MouseUp, e);
 							break;
 
+						case editorCommon.EventType.MouseDrag:
+							this.emit(editorCommon.EventType.MouseDrag, e);
+							break;
+
+						case editorCommon.EventType.MouseDrop:
+							this.emit(editorCommon.EventType.MouseDrop, e);
+							break;
+
 						case editorCommon.EventType.KeyUp:
 							this.emit(editorCommon.EventType.KeyUp, e);
 							break;
