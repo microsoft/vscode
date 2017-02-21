@@ -40,7 +40,7 @@ suite('Editor - Range decorations', () => {
 
 	setup(() => {
 		instantiationService = <TestInstantiationService>workbenchInstantiationService();
-		editorService = <WorkbenchEditorService.IWorkbenchEditorService>instantiationService.stub(WorkbenchEditorService.IWorkbenchEditorService, new TestEditorService(function () { }));
+		editorService = <WorkbenchEditorService.IWorkbenchEditorService>instantiationService.stub(WorkbenchEditorService.IWorkbenchEditorService, new TestEditorService());
 		modeService = instantiationService.stub(IModeService, ModeServiceImpl);
 		modelService = <IModelService>instantiationService.stub(IModelService, stubModelService(instantiationService));
 		text = 'LINE1' + '\n' + 'LINE2' + '\n' + 'LINE3' + '\n' + 'LINE4' + '\r\n' + 'LINE5';
