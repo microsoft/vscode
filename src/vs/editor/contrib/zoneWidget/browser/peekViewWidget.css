@@ -5,7 +5,6 @@
 
 .monaco-editor .peekview-widget .head {
 	background-color: #fff;
-	border-top: 1px solid;
 	-webkit-box-sizing:	border-box;
 	-o-box-sizing: border-box;
 	-moz-box-sizing: border-box;
@@ -49,8 +48,8 @@
 
 .monaco-editor .peekview-widget > .body {
 	border-top: 1px solid;
-	border-bottom: 1px solid;
 	position: relative;
+	border-color: rgb(0, 122, 204);
 }
 
 /* Dark Theme */

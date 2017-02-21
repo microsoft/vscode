@@ -33,6 +33,7 @@ import { DebugHoverWidget } from 'vs/workbench/parts/debug/electron-browser/debu
 import { RemoveBreakpointAction, EditConditionalBreakpointAction, EnableBreakpointAction, DisableBreakpointAction, AddConditionalBreakpointAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { IDebugEditorContribution, IDebugService, State, IBreakpoint, EDITOR_CONTRIBUTION_ID, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, IStackFrame, IDebugConfiguration, IExpression } from 'vs/workbench/parts/debug/common/debug';
 import { BreakpointWidget } from 'vs/workbench/parts/debug/browser/breakpointWidget';
+import { ExceptionWidget } from 'vs/workbench/parts/debug/browser/exceptionWidget';
 import { FloatingClickWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { IListService } from 'vs/platform/list/browser/listService';
 
@@ -59,6 +60,8 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	private breakpointWidgetVisible: IContextKey<boolean>;
 	private wordToLineNumbersMap: Map<string, IPosition[]>;
 
+	private exceptionWidget: ExceptionWidget;
+
 	private configurationWidget: FloatingClickWidget;
 
 	constructor(
@@ -83,6 +86,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		this.breakpointWidgetVisible = CONTEXT_BREAKPOINT_WIDGET_VISIBLE.bindTo(contextKeyService);
 		this.updateConfigurationWidgetVisibility();
 		this.codeEditorService.registerDecorationType(INLINE_VALUE_DECORATION_KEY, {});
+		this.toggleExceptionWidget();
 	}
 
 	private getContextMenuActions(breakpoint: IBreakpoint, uri: uri, lineNumber: number): TPromise<IAction[]> {
@@ -178,6 +182,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			const model = this.editor.getModel();
 			this.editor.updateOptions({ hover: !sf || !model || model.uri.toString() !== sf.source.uri.toString() });
 			this.closeBreakpointWidget();
+			this.toggleExceptionWidget();
 			this.hideHoverWidget();
 			this.updateConfigurationWidgetVisibility();
 			this.wordToLineNumbersMap = null;
@@ -224,6 +229,9 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			this.editor.updateOptions({ hover: true });
 			this.hideHoverWidget();
 		}
+
+		// Handling exception
+		this.toggleExceptionWidget();
 
 		this.updateInlineDecorations(sf);
 	}
@@ -277,6 +285,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 	// end hover business
 
+	// breakpoint widget
 	public showBreakpointWidget(lineNumber: number): void {
 		if (this.breakpointWidget) {
 			this.breakpointWidget.dispose();
@@ -293,6 +302,43 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			this.breakpointWidget = null;
 			this.breakpointWidgetVisible.reset();
 			this.editor.focus();
+		}
+	}
+
+	// exception widget
+	private toggleExceptionWidget(): void {
+		// Toggles exception widget based on the state of the current editor model and debug stack frame
+		const model = this.editor.getModel();
+		const focusedSf = this.debugService.getViewModel().focusedStackFrame;
+		const callStack = focusedSf ? focusedSf.thread.getCallStack() : null;
+		if (!model || !focusedSf || !callStack || callStack.length === 0) {
+			this.closeExceptionWidget();
+			return;
+		}
+
+		// First call stack frame is the frame where exception has been thrown
+		const exceptionSf = callStack[0];
+		const sameUri = exceptionSf.source.uri.toString() === model.uri.toString();
+		if (this.exceptionWidget && !sameUri) {
+			this.closeExceptionWidget();
+		} else if (focusedSf.thread.stoppedDetails.reason === 'exception' && sameUri) {
+			this.showExceptionWidget(exceptionSf.lineNumber, exceptionSf.column);
+		}
+	}
+
+	private showExceptionWidget(lineNumber: number, column: number): void {
+		if (this.exceptionWidget) {
+			this.exceptionWidget.dispose();
+		}
+
+		this.exceptionWidget = this.instantiationService.createInstance(ExceptionWidget, this.editor, lineNumber);
+		this.exceptionWidget.show({ lineNumber, column }, 3);
+	}
+
+	private closeExceptionWidget(): void {
+		if (this.exceptionWidget) {
+			this.exceptionWidget.dispose();
+			this.exceptionWidget = null;
 		}
 	}
 
