@@ -196,7 +196,7 @@ export class BaseDebugController extends DefaultController {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IMenuService menuService: IMenuService
 	) {
-		super({ clickBehavior: ClickBehavior.ON_MOUSE_DOWN, keyboardSupport: false });
+		super({ clickBehavior: ClickBehavior.ON_MOUSE_UP, keyboardSupport: false });
 
 		this.contributedContextMenu = menuService.createMenu(menuId, contextKeyService);
 	}
