@@ -29,21 +29,21 @@ export const ViewEventNames = {
 };
 
 export const enum ViewEventType {
-	ModelFlushedEvent = 1,
-	LinesDeletedEvent = 2,
-	LinesInsertedEvent = 3,
-	LineChangedEvent = 4,
-	TokensChangedEvent = 5,
-	DecorationsChangedEvent = 6,
-	CursorPositionChangedEvent = 7,
-	CursorSelectionChangedEvent = 8,
-	RevealRangeEvent = 9,
-	LineMappingChangedEvent = 10,
-	ScrollRequestEvent = 11,
+	ViewConfigurationChanged = 1,
+	ViewCursorPositionChanged = 2,
+	ViewCursorSelectionChanged = 3,
+	ViewDecorationsChanged = 4,
+	ViewFlushed = 5,
+	ViewFocusChanged = 6,
+	ViewLineChanged = 7,
+	ViewLineMappingChanged = 8,
+	ViewLinesDeleted = 9,
+	ViewLinesInserted = 10,
+	ViewRevealRangeRequest = 11,
 	ViewScrollChanged = 12,
-	ViewFocusChanged = 13,
-	ZonesChanged = 14,
-	ConfigurationChanged = 15
+	ViewScrollRequest = 13,
+	ViewTokensChanged = 14,
+	ViewZonesChanged = 15,
 }
 
 export interface IViewEvent {
@@ -53,7 +53,7 @@ export interface IViewEvent {
 export class ViewDecorationsChangedEvent implements IViewEvent {
 	_viewDecorationsChangedEventBrand: void;
 
-	public readonly type = ViewEventType.DecorationsChangedEvent;
+	public readonly type = ViewEventType.ViewDecorationsChanged;
 
 	constructor() {
 		// Nothing to do
@@ -63,7 +63,7 @@ export class ViewDecorationsChangedEvent implements IViewEvent {
 export class ViewLinesDeletedEvent implements IViewEvent {
 	_viewLinesDeletedEventBrand: void;
 
-	public readonly type = ViewEventType.LinesDeletedEvent;
+	public readonly type = ViewEventType.ViewLinesDeleted;
 
 	/**
 	 * At what line the deletion began (inclusive).
@@ -83,7 +83,7 @@ export class ViewLinesDeletedEvent implements IViewEvent {
 export class ViewLineChangedEvent implements IViewEvent {
 	_viewLineChangedEventBrand: void;
 
-	public readonly type = ViewEventType.LineChangedEvent;
+	public readonly type = ViewEventType.ViewLineChanged;
 
 	/**
 	 * The line that has changed.
@@ -98,7 +98,7 @@ export class ViewLineChangedEvent implements IViewEvent {
 export class ViewLinesInsertedEvent implements IViewEvent {
 	_viewLinesInsertedEventBrand: void;
 
-	public readonly type = ViewEventType.LinesInsertedEvent;
+	public readonly type = ViewEventType.ViewLinesInserted;
 
 	/**
 	 * Before what line did the insertion begin
@@ -118,7 +118,7 @@ export class ViewLinesInsertedEvent implements IViewEvent {
 export class ViewTokensChangedEvent implements IViewEvent {
 	_viewTokensChangedEventBrand: void;
 
-	public readonly type = ViewEventType.TokensChangedEvent;
+	public readonly type = ViewEventType.ViewTokensChanged;
 
 	public readonly ranges: {
 		/**
@@ -139,7 +139,7 @@ export class ViewTokensChangedEvent implements IViewEvent {
 export class ViewCursorPositionChangedEvent implements IViewEvent {
 	_viewCursorPositionChangedEventBrand: void;
 
-	public readonly type = ViewEventType.CursorPositionChangedEvent;
+	public readonly type = ViewEventType.ViewCursorPositionChanged;
 
 	/**
 	 * Primary cursor's position.
@@ -164,7 +164,7 @@ export class ViewCursorPositionChangedEvent implements IViewEvent {
 export class ViewCursorSelectionChangedEvent implements IViewEvent {
 	_viewCursorSelectionChangedEventBrand: void;
 
-	public readonly type = ViewEventType.CursorSelectionChangedEvent;
+	public readonly type = ViewEventType.ViewCursorSelectionChanged;
 
 	/**
 	 * The primary selection.
@@ -181,10 +181,10 @@ export class ViewCursorSelectionChangedEvent implements IViewEvent {
 	}
 }
 
-export class ViewRevealRangeEvent implements IViewEvent {
-	_viewRevealRangeEventBrand: void;
+export class ViewRevealRangeRequestEvent implements IViewEvent {
+	_viewRevealRangeRequestEventBrand: void;
 
-	public readonly type = ViewEventType.RevealRangeEvent;
+	public readonly type = ViewEventType.ViewRevealRangeRequest;
 
 	/**
 	 * Range to be reavealed.
@@ -213,7 +213,7 @@ export class ViewRevealRangeEvent implements IViewEvent {
 export class ViewScrollRequestEvent implements IViewEvent {
 	_viewScrollRequestEventBrand: void;
 
-	public readonly type = ViewEventType.ScrollRequestEvent;
+	public readonly type = ViewEventType.ViewScrollRequest;
 
 	public readonly deltaLines: number;
 	public readonly revealCursor: boolean;
@@ -224,20 +224,20 @@ export class ViewScrollRequestEvent implements IViewEvent {
 	}
 }
 
-export class ViewLineMappingChangedEvents implements IViewEvent {
+export class ViewLineMappingChangedEvent implements IViewEvent {
 	_viewLineMappingChangedEventBrand: void;
 
-	public readonly type = ViewEventType.LineMappingChangedEvent;
+	public readonly type = ViewEventType.ViewLineMappingChanged;
 
 	constructor() {
 		// Nothing to do
 	}
 }
 
-export class ViewModelFlushedEvent implements IViewEvent {
-	_viewModelFlushedEventBrand: void;
+export class ViewFlushedEvent implements IViewEvent {
+	_viewFlushedEventBrand: void;
 
-	public readonly type = ViewEventType.ModelFlushedEvent;
+	public readonly type = ViewEventType.ViewFlushed;
 
 	constructor() {
 		// Nothing to do
@@ -247,7 +247,7 @@ export class ViewModelFlushedEvent implements IViewEvent {
 export class ViewConfigurationChangedEvent implements IViewEvent {
 	_viewConfigurationChangedEventBrand: void;
 
-	public readonly type = ViewEventType.ConfigurationChanged;
+	public readonly type = ViewEventType.ViewConfigurationChanged;
 
 	public readonly lineHeight: boolean;
 	public readonly readOnly: boolean;
@@ -297,7 +297,7 @@ export class ViewScrollChangedEvent implements IViewEvent {
 export class ViewZonesChangedEvent implements IViewEvent {
 	_viewZonesChangedEventBrand: void;
 
-	public readonly type = ViewEventType.ZonesChanged;
+	public readonly type = ViewEventType.ViewZonesChanged;
 
 	constructor() {
 		// Nothing to do

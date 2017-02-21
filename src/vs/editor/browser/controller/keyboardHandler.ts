@@ -75,7 +75,7 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 			let lineNumber = e.showAtLineNumber;
 			let column = e.showAtColumn;
 
-			this._context.privateViewEventBus.emit(viewEvents.ViewEventNames.RevealRangeEvent, new viewEvents.ViewRevealRangeEvent(
+			this._context.privateViewEventBus.emit(viewEvents.ViewEventNames.RevealRangeEvent, new viewEvents.ViewRevealRangeRequestEvent(
 				new Range(lineNumber, column, lineNumber, column),
 				editorCommon.VerticalRevealType.Simple,
 				true,
@@ -184,7 +184,7 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 		return false;
 	}
 
-	public onViewFocusChanged(e: viewEvents.ViewFocusChangedEvent): boolean {
+	public onFocusChanged(e: viewEvents.ViewFocusChangedEvent): boolean {
 		this.textAreaHandler.setHasFocus(e.isFocused);
 		return false;
 	}

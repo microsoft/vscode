@@ -111,7 +111,7 @@ export class ViewCursor {
 		}
 	}
 
-	public onModelFlushed(): boolean {
+	public onFlushed(): boolean {
 		this.updatePosition(new Position(1, 1));
 		this._isInEditableRange = true;
 		return true;

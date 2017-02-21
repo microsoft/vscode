@@ -140,7 +140,7 @@ export class ViewModel extends EventEmitter implements IViewModel {
 	private _setHiddenAreas(ranges: editorCommon.IRange[]): void {
 		let lineMappingChanged = this.lines.setHiddenAreas(ranges, (eventType: string, payload: any) => this.emit(eventType, payload));
 		if (lineMappingChanged) {
-			this.emit(viewEvents.ViewEventNames.LineMappingChangedEvent, new viewEvents.ViewLineMappingChangedEvents());
+			this.emit(viewEvents.ViewEventNames.LineMappingChangedEvent, new viewEvents.ViewLineMappingChangedEvent());
 			this.decorations.onLineMappingChanged((eventType: string, payload: any) => this.emit(eventType, payload));
 			this.cursors.onLineMappingChanged((eventType: string, payload: any) => this.emit(eventType, payload));
 		}
@@ -156,7 +156,7 @@ export class ViewModel extends EventEmitter implements IViewModel {
 	private _onTabSizeChange(newTabSize: number): boolean {
 		var lineMappingChanged = this.lines.setTabSize(newTabSize, (eventType: string, payload: any) => this.emit(eventType, payload));
 		if (lineMappingChanged) {
-			this.emit(viewEvents.ViewEventNames.LineMappingChangedEvent, new viewEvents.ViewLineMappingChangedEvents());
+			this.emit(viewEvents.ViewEventNames.LineMappingChangedEvent, new viewEvents.ViewLineMappingChangedEvent());
 			this.decorations.onLineMappingChanged((eventType: string, payload: any) => this.emit(eventType, payload));
 			this.cursors.onLineMappingChanged((eventType: string, payload: any) => this.emit(eventType, payload));
 		}
@@ -166,7 +166,7 @@ export class ViewModel extends EventEmitter implements IViewModel {
 	private _onWrappingIndentChange(newWrappingIndent: editorCommon.WrappingIndent): boolean {
 		var lineMappingChanged = this.lines.setWrappingIndent(newWrappingIndent, (eventType: string, payload: any) => this.emit(eventType, payload));
 		if (lineMappingChanged) {
-			this.emit(viewEvents.ViewEventNames.LineMappingChangedEvent, new viewEvents.ViewLineMappingChangedEvents());
+			this.emit(viewEvents.ViewEventNames.LineMappingChangedEvent, new viewEvents.ViewLineMappingChangedEvent());
 			this.decorations.onLineMappingChanged((eventType: string, payload: any) => this.emit(eventType, payload));
 			this.cursors.onLineMappingChanged((eventType: string, payload: any) => this.emit(eventType, payload));
 		}
@@ -178,7 +178,7 @@ export class ViewModel extends EventEmitter implements IViewModel {
 		var newCenteredViewRange = this.coordinatesConverter.convertModelRangeToViewRange(range);
 
 		// Send a reveal event to restore the centered content
-		this.emit(viewEvents.ViewEventNames.RevealRangeEvent, new viewEvents.ViewRevealRangeEvent(
+		this.emit(viewEvents.ViewEventNames.RevealRangeEvent, new viewEvents.ViewRevealRangeRequestEvent(
 			newCenteredViewRange,
 			editorCommon.VerticalRevealType.Center,
 			false,
@@ -189,7 +189,7 @@ export class ViewModel extends EventEmitter implements IViewModel {
 	private _onWrappingColumnChange(newWrappingColumn: number, columnsForFullWidthChar: number): boolean {
 		let lineMappingChanged = this.lines.setWrappingColumn(newWrappingColumn, columnsForFullWidthChar, (eventType: string, payload: any) => this.emit(eventType, payload));
 		if (lineMappingChanged) {
-			this.emit(viewEvents.ViewEventNames.LineMappingChangedEvent, new viewEvents.ViewLineMappingChangedEvents());
+			this.emit(viewEvents.ViewEventNames.LineMappingChangedEvent, new viewEvents.ViewLineMappingChangedEvent());
 			this.decorations.onLineMappingChanged((eventType: string, payload: any) => this.emit(eventType, payload));
 			this.cursors.onLineMappingChanged((eventType: string, payload: any) => this.emit(eventType, payload));
 		}
@@ -377,7 +377,7 @@ export class ViewModel extends EventEmitter implements IViewModel {
 		}
 
 		if (!hadOtherModelChange && hadModelLineChangeThatChangedLineMapping) {
-			this.emit(viewEvents.ViewEventNames.LineMappingChangedEvent, new viewEvents.ViewLineMappingChangedEvents());
+			this.emit(viewEvents.ViewEventNames.LineMappingChangedEvent, new viewEvents.ViewLineMappingChangedEvent());
 			this.decorations.onLineMappingChanged((eventType: string, payload: any) => this.emit(eventType, payload));
 			this.cursors.onLineMappingChanged((eventType: string, payload: any) => this.emit(eventType, payload));
 		}

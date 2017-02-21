@@ -296,17 +296,17 @@ class RenderData {
 		};
 	}
 
-	public onModelLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): void {
-		this._renderedLines.onModelLinesDeleted(e.fromLineNumber, e.toLineNumber);
+	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): void {
+		this._renderedLines.onLinesDeleted(e.fromLineNumber, e.toLineNumber);
 	}
-	public onModelLineChanged(e: viewEvents.ViewLineChangedEvent): boolean {
-		return this._renderedLines.onModelLineChanged(e.lineNumber);
+	public onLineChanged(e: viewEvents.ViewLineChangedEvent): boolean {
+		return this._renderedLines.onLineChanged(e.lineNumber);
 	}
-	public onModelLinesInserted(e: viewEvents.ViewLinesInsertedEvent): void {
-		this._renderedLines.onModelLinesInserted(e.fromLineNumber, e.toLineNumber);
+	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): void {
+		this._renderedLines.onLinesInserted(e.fromLineNumber, e.toLineNumber);
 	}
-	public onModelTokensChanged(e: viewEvents.ViewTokensChangedEvent): boolean {
-		return this._renderedLines.onModelTokensChanged(e.ranges);
+	public onTokensChanged(e: viewEvents.ViewTokensChangedEvent): boolean {
+		return this._renderedLines.onTokensChanged(e.ranges);
 	}
 }
 
@@ -428,7 +428,7 @@ export class Minimap extends ViewPart {
 			let lineNumber = lineIndex + this._lastRenderData.renderedLayout.startLineNumber;
 			lineNumber = Math.min(lineNumber, this._context.model.getLineCount());
 
-			this._context.privateViewEventBus.emit(viewEvents.ViewEventNames.RevealRangeEvent, new viewEvents.ViewRevealRangeEvent(
+			this._context.privateViewEventBus.emit(viewEvents.ViewEventNames.RevealRangeEvent, new viewEvents.ViewRevealRangeRequestEvent(
 				new Range(lineNumber, 1, lineNumber, 1),
 				editorCommon.VerticalRevealType.Center,
 				false,
@@ -483,31 +483,31 @@ export class Minimap extends ViewPart {
 		return true;
 	}
 
-	public onModelFlushed(e: viewEvents.ViewModelFlushedEvent): boolean {
+	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
 		this._lastRenderData = null;
 		return true;
 	}
-	public onModelLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
+	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
 		if (this._lastRenderData) {
-			this._lastRenderData.onModelLinesDeleted(e);
+			this._lastRenderData.onLinesDeleted(e);
 		}
 		return true;
 	}
-	public onModelLineChanged(e: viewEvents.ViewLineChangedEvent): boolean {
+	public onLineChanged(e: viewEvents.ViewLineChangedEvent): boolean {
 		if (this._lastRenderData) {
-			return this._lastRenderData.onModelLineChanged(e);
+			return this._lastRenderData.onLineChanged(e);
 		}
 		return false;
 	}
-	public onModelLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
+	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
 		if (this._lastRenderData) {
-			this._lastRenderData.onModelLinesInserted(e);
+			this._lastRenderData.onLinesInserted(e);
 		}
 		return true;
 	}
-	public onModelTokensChanged(e: viewEvents.ViewTokensChangedEvent): boolean {
+	public onTokensChanged(e: viewEvents.ViewTokensChangedEvent): boolean {
 		if (this._lastRenderData) {
-			return this._lastRenderData.onModelTokensChanged(e);
+			return this._lastRenderData.onTokensChanged(e);
 		}
 		return false;
 	}

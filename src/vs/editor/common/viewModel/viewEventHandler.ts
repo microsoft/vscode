@@ -33,25 +33,25 @@ export class ViewEventHandler {
 
 	// --- begin event handlers
 
-	public onLineMappingChanged(e: viewEvents.ViewLineMappingChangedEvents): boolean {
+	public onLineMappingChanged(e: viewEvents.ViewLineMappingChangedEvent): boolean {
 		return false;
 	}
-	public onModelFlushed(e: viewEvents.ViewModelFlushedEvent): boolean {
+	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
 		return false;
 	}
-	public onModelDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
+	public onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
 		return false;
 	}
-	public onModelLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
+	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
 		return false;
 	}
-	public onModelLineChanged(e: viewEvents.ViewLineChangedEvent): boolean {
+	public onLineChanged(e: viewEvents.ViewLineChangedEvent): boolean {
 		return false;
 	}
-	public onModelLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
+	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
 		return false;
 	}
-	public onModelTokensChanged(e: viewEvents.ViewTokensChangedEvent): boolean {
+	public onTokensChanged(e: viewEvents.ViewTokensChangedEvent): boolean {
 		return false;
 	}
 	public onCursorPositionChanged(e: viewEvents.ViewCursorPositionChangedEvent): boolean {
@@ -60,10 +60,10 @@ export class ViewEventHandler {
 	public onCursorSelectionChanged(e: viewEvents.ViewCursorSelectionChangedEvent): boolean {
 		return false;
 	}
-	public onCursorRevealRange(e: viewEvents.ViewRevealRangeEvent): boolean {
+	public onRevealRangeRequest(e: viewEvents.ViewRevealRangeRequestEvent): boolean {
 		return false;
 	}
-	public onCursorScrollRequest(e: viewEvents.ViewScrollRequestEvent): boolean {
+	public onScrollRequest(e: viewEvents.ViewScrollRequestEvent): boolean {
 		return false;
 	}
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
@@ -75,7 +75,7 @@ export class ViewEventHandler {
 	public onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
 		return false;
 	}
-	public onViewFocusChanged(e: viewEvents.ViewFocusChangedEvent): boolean {
+	public onFocusChanged(e: viewEvents.ViewFocusChangedEvent): boolean {
 		return false;
 	}
 
@@ -92,43 +92,43 @@ export class ViewEventHandler {
 			switch (e.getType()) {
 
 				case viewEvents.ViewEventNames.LineMappingChangedEvent:
-					if (this.onLineMappingChanged(<viewEvents.ViewLineMappingChangedEvents>data)) {
+					if (this.onLineMappingChanged(<viewEvents.ViewLineMappingChangedEvent>data)) {
 						shouldRender = true;
 					}
 					break;
 
 				case viewEvents.ViewEventNames.ModelFlushedEvent:
-					if (this.onModelFlushed(<viewEvents.ViewModelFlushedEvent>data)) {
+					if (this.onFlushed(<viewEvents.ViewFlushedEvent>data)) {
 						shouldRender = true;
 					}
 					break;
 
 				case viewEvents.ViewEventNames.LinesDeletedEvent:
-					if (this.onModelLinesDeleted(<viewEvents.ViewLinesDeletedEvent>data)) {
+					if (this.onLinesDeleted(<viewEvents.ViewLinesDeletedEvent>data)) {
 						shouldRender = true;
 					}
 					break;
 
 				case viewEvents.ViewEventNames.LinesInsertedEvent:
-					if (this.onModelLinesInserted(<viewEvents.ViewLinesInsertedEvent>data)) {
+					if (this.onLinesInserted(<viewEvents.ViewLinesInsertedEvent>data)) {
 						shouldRender = true;
 					}
 					break;
 
 				case viewEvents.ViewEventNames.LineChangedEvent:
-					if (this.onModelLineChanged(<viewEvents.ViewLineChangedEvent>data)) {
+					if (this.onLineChanged(<viewEvents.ViewLineChangedEvent>data)) {
 						shouldRender = true;
 					}
 					break;
 
 				case viewEvents.ViewEventNames.TokensChangedEvent:
-					if (this.onModelTokensChanged(<viewEvents.ViewTokensChangedEvent>data)) {
+					if (this.onTokensChanged(<viewEvents.ViewTokensChangedEvent>data)) {
 						shouldRender = true;
 					}
 					break;
 
 				case viewEvents.ViewEventNames.DecorationsChangedEvent:
-					if (this.onModelDecorationsChanged(<viewEvents.ViewDecorationsChangedEvent>data)) {
+					if (this.onDecorationsChanged(<viewEvents.ViewDecorationsChangedEvent>data)) {
 						shouldRender = true;
 					}
 					break;
@@ -146,13 +146,13 @@ export class ViewEventHandler {
 					break;
 
 				case viewEvents.ViewEventNames.RevealRangeEvent:
-					if (this.onCursorRevealRange(<viewEvents.ViewRevealRangeEvent>data)) {
+					if (this.onRevealRangeRequest(<viewEvents.ViewRevealRangeRequestEvent>data)) {
 						shouldRender = true;
 					}
 					break;
 
 				case viewEvents.ViewEventNames.ScrollRequestEvent:
-					if (this.onCursorScrollRequest(<viewEvents.ViewScrollRequestEvent>data)) {
+					if (this.onScrollRequest(<viewEvents.ViewScrollRequestEvent>data)) {
 						shouldRender = true;
 					}
 					break;
@@ -176,7 +176,7 @@ export class ViewEventHandler {
 					break;
 
 				case viewEvents.ViewEventNames.ViewFocusChanged:
-					if (this.onViewFocusChanged(<viewEvents.ViewFocusChangedEvent>data)) {
+					if (this.onFocusChanged(<viewEvents.ViewFocusChangedEvent>data)) {
 						shouldRender = true;
 					}
 					break;

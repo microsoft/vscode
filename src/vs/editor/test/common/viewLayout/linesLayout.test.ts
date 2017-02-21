@@ -173,7 +173,7 @@ suite('Editor ViewLayout - LinesLayout', () => {
 		// Pretend that lines 5 and 6 were deleted
 		// 8 lines
 		// whitespace: - a(4,10)
-		linesLayout.onModelLinesDeleted(5, 6);
+		linesLayout.onLinesDeleted(5, 6);
 		assert.equal(linesLayout.getLinesTotalHeight(), 18);
 		assert.equal(linesLayout.getVerticalOffsetForLineNumber(1), 0);
 		assert.equal(linesLayout.getVerticalOffsetForLineNumber(2), 1);
@@ -187,7 +187,7 @@ suite('Editor ViewLayout - LinesLayout', () => {
 		// Insert two lines at the beginning
 		// 10 lines
 		// whitespace: - a(6,10)
-		linesLayout.onModelLinesInserted(1, 2);
+		linesLayout.onLinesInserted(1, 2);
 		assert.equal(linesLayout.getLinesTotalHeight(), 20);
 		assert.equal(linesLayout.getVerticalOffsetForLineNumber(1), 0);
 		assert.equal(linesLayout.getVerticalOffsetForLineNumber(2), 1);
