@@ -3203,18 +3203,18 @@ declare module 'vscode' {
 		/**
 		 * The tooltip text when you hover over this entry.
 		 */
-		tooltip: string;
+		tooltip: string | undefined;
 
 		/**
 		 * The foreground color for this entry.
 		 */
-		color: string;
+		color: string | undefined;
 
 		/**
 		 * The identifier of a command to run on click. The command must be
 		 * [known](#commands.getCommands).
 		 */
-		command: string;
+		command: string | undefined;
 
 		/**
 		 * Shows the entry in the status bar.
