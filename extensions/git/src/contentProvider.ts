@@ -6,7 +6,7 @@
 'use strict';
 
 import { workspace, Uri, Disposable, Event, EventEmitter } from 'vscode';
-import { debounce } from './decorators';
+import { debounce, throttle } from './decorators';
 import { Model } from './model';
 
 export class GitContentProvider {
@@ -20,13 +20,20 @@ export class GitContentProvider {
 
 	constructor(private model: Model) {
 		this.disposables.push(
-			model.onDidChangeRepository(this.fireChangeEvents, this),
+			model.onDidChangeRepository(this.eventuallyFireChangeEvents, this),
 			workspace.registerTextDocumentContentProvider('git', this)
 		);
 	}
 
-	@debounce(300)
-	private fireChangeEvents(): void {
+	@debounce(1100)
+	private eventuallyFireChangeEvents(): void {
+		this.fireChangeEvents();
+	}
+
+	@throttle
+	private async fireChangeEvents(): Promise<void> {
+		await this.model.whenIdle();
+
 		Object.keys(this.uris).forEach(key => {
 			this.onDidChangeEmitter.fire(this.uris[key]);
 		});

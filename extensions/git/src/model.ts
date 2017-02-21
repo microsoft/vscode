@@ -188,6 +188,38 @@ export enum Operation {
 	GetCommitTemplate = 1 << 15
 }
 
+// function getOperationName(operation: Operation): string {
+// 	switch (operation) {
+// 		case Operation.Status: return 'Status';
+// 		case Operation.Add: return 'Add';
+// 		case Operation.RevertFiles: return 'RevertFiles';
+// 		case Operation.Commit: return 'Commit';
+// 		case Operation.Clean: return 'Clean';
+// 		case Operation.Branch: return 'Branch';
+// 		case Operation.Checkout: return 'Checkout';
+// 		case Operation.Reset: return 'Reset';
+// 		case Operation.Fetch: return 'Fetch';
+// 		case Operation.Pull: return 'Pull';
+// 		case Operation.Push: return 'Push';
+// 		case Operation.Sync: return 'Sync';
+// 		case Operation.Init: return 'Init';
+// 		case Operation.Show: return 'Show';
+// 		case Operation.Stage: return 'Stage';
+// 		case Operation.GetCommitTemplate: return 'GetCommitTemplate';
+// 		default: return 'unknown';
+// 	}
+// }
+
+function isReadOnly(operation: Operation): boolean {
+	switch (operation) {
+		case Operation.Show:
+		case Operation.GetCommitTemplate:
+			return true;
+		default:
+			return false;
+	}
+}
+
 export interface Operations {
 	isIdle(): boolean;
 	isRunning(operation: Operation): boolean;
@@ -329,6 +361,12 @@ export class Model implements Disposable {
 		this.status();
 	}
 
+	async whenIdle(): Promise<void> {
+		while (!this.operations.isIdle()) {
+			await eventToPromise(this.onDidRunOperation);
+		}
+	}
+
 	@throttle
 	async init(): Promise<void> {
 		if (this.state !== State.NotAGitRepository) {
@@ -445,6 +483,9 @@ export class Model implements Disposable {
 	}
 
 	async show(ref: string, uri: Uri): Promise<string> {
+		// TODO@Joao: should we make this a general concept?
+		await this.whenIdle();
+
 		return await this.run(Operation.Show, async () => {
 			const relativePath = path.relative(this.repository.root, uri.fsPath).replace(/\\/g, '/');
 			const result = await this.repository.git.exec(this.repository.root, ['show', `${ref}:${relativePath}`]);
@@ -472,7 +513,11 @@ export class Model implements Disposable {
 			try {
 				await this.assertIdleState();
 				const result = await runOperation();
-				await this.update();
+
+				if (!isReadOnly(operation)) {
+					await this.update();
+				}
+
 				return result;
 			} catch (err) {
 				if (err.gitErrorCode === GitErrorCodes.NotAGitRepository) {
@@ -613,12 +658,6 @@ export class Model implements Disposable {
 		await this.whenIdle();
 		await this.status();
 		await new Promise(c => setTimeout(c, 5000));
-	}
-
-	private async whenIdle(): Promise<void> {
-		while (!this.operations.isIdle()) {
-			await eventToPromise(this.onDidRunOperation);
-		}
 	}
 
 	dispose(): void {
