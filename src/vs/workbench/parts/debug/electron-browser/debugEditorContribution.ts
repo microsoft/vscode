@@ -322,17 +322,17 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		if (this.exceptionWidget && !sameUri) {
 			this.closeExceptionWidget();
 		} else if (focusedSf.thread.stoppedDetails.reason === 'exception' && sameUri) {
-			this.showExceptionWidget(exceptionSf.lineNumber);
+			this.showExceptionWidget(exceptionSf.lineNumber, exceptionSf.column);
 		}
 	}
 
-	private showExceptionWidget(lineNumber: number): void {
+	private showExceptionWidget(lineNumber: number, column: number): void {
 		if (this.exceptionWidget) {
 			this.exceptionWidget.dispose();
 		}
 
 		this.exceptionWidget = this.instantiationService.createInstance(ExceptionWidget, this.editor, lineNumber);
-		this.exceptionWidget.show({ lineNumber, column: 1 }, 3);
+		this.exceptionWidget.show({ lineNumber, column }, 3);
 	}
 
 	private closeExceptionWidget(): void {
