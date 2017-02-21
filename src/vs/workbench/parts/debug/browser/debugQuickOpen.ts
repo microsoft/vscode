@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import nls = require('vs/nls');
 import Filters = require('vs/base/common/filters');
@@ -15,13 +14,9 @@ import { IDebugService } from 'vs/workbench/parts/debug/common/debug';
 import * as errors from 'vs/base/common/errors';
 
 class DebugEntry extends Model.QuickOpenEntry {
-	private debugService: IDebugService;
-	private configurationName: string;
 
-	constructor(debugService: IDebugService, config: string, highlights: Model.IHighlight[] = []) {
+	constructor(private debugService: IDebugService, private configurationName: string, highlights: Model.IHighlight[] = []) {
 		super(highlights);
-		this.debugService = debugService;
-		this.configurationName = config;
 	}
 
 	public getLabel(): string {
@@ -37,8 +32,8 @@ class DebugEntry extends Model.QuickOpenEntry {
 			return false;
 		}
 		// Run selected debug configuration
-		this.debugService.createProcess(this.configurationName).done(undefined, errors.onUnexpectedError);
 		this.debugService.getViewModel().setSelectedConfigurationName(this.configurationName);
+		this.debugService.createProcess(this.configurationName).done(undefined, errors.onUnexpectedError);
 
 		return true;
 	}
@@ -46,17 +41,11 @@ class DebugEntry extends Model.QuickOpenEntry {
 
 export class QuickOpenHandler extends Quickopen.QuickOpenHandler {
 
-	private debugService: IDebugService;
-	private quickOpenService: IQuickOpenService;
-
 	constructor(
-		@IQuickOpenService quickOpenService: IQuickOpenService,
-		@IDebugService debugService: IDebugService
+		@IQuickOpenService private quickOpenService: IQuickOpenService,
+		@IDebugService private debugService: IDebugService
 	) {
 		super();
-
-		this.quickOpenService = quickOpenService;
-		this.debugService = debugService;
 	}
 
 	public getAriaLabel(): string {
@@ -65,7 +54,6 @@ export class QuickOpenHandler extends Quickopen.QuickOpenHandler {
 
 	public getResults(input: string): TPromise<Model.QuickOpenModel> {
 		const configurationNames = this.debugService.getConfigurationManager().getConfigurationNames()
-			.sort((a, b) => a.localeCompare(b))
 			.map(config => ({ config: config, highlights: Filters.matchesContiguousSubString(input, config) }))
 			.filter(({ highlights }) => !!highlights)
 			.map(({ config, highlights }) => new DebugEntry(this.debugService, config, highlights));
@@ -84,6 +72,6 @@ export class QuickOpenHandler extends Quickopen.QuickOpenHandler {
 			return nls.localize('noConfigurationsMatching', "No debug configurations matching");
 		}
 
-		return nls.localize('noConfigurationsFound', "No debug configurations found");
+		return nls.localize('noConfigurationsFound', "No debug configurations found. Please create a 'launch.json' file.");
 	}
 }
