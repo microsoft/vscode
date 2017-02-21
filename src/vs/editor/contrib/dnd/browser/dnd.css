@@ -1,0 +1,17 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-editor.vs .dnd-target {
+	border-right: 1px dotted black;
+	color: white; /* opposite of black */
+}
+.monaco-editor.vs-dark .dnd-target {
+	border-right: 1px dotted #AEAFAD;
+	color: #51504f; /* opposite of #AEAFAD */
+}
+.monaco-editor.hc-black .dnd-target {
+	border-right: 1px dotted #fff;
+	color: #000; /* opposite of #fff */
+}
