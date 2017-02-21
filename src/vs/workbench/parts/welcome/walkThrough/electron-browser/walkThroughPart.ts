@@ -416,6 +416,7 @@ export class WalkThroughPart extends BaseEditor {
 			fixedOverflowWidgets: true,
 			lineNumbersMinChars: 1,
 			theme: this.themeService.getColorTheme().id,
+			minimap: false,
 		};
 	}
 
