@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-editor .zone-widget .zone-widget-container.exception-widget {
-	padding: 8px 10px;
+	padding: 6px 10px;
 }
 
 .monaco-editor .zone-widget .zone-widget-container.exception-widget .title {
@@ -34,4 +34,13 @@
 /* High Contrast Theming */
 .monaco-editor.hc-black .zone-widget .zone-widget-container.exception-widget {
 	background-color: rgba(163, 21, 21, 0.45);
+}
+
+.monaco-workbench.mac .zone-widget .zone-widget-container.exception-widget {
+	font-size: 11px;
+}
+
+.monaco-workbench.windows .zone-widget .zone-widget-container.exception-widget,
+.monaco-workbench.linux .zone-widget .zone-widget-container.exception-widget {
+	font-size: 13px;
 }

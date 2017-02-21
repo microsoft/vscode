@@ -306,9 +306,9 @@ export abstract class ZoneWidget extends Widget implements IHorizontalSashLayout
 			}
 		}
 
-		this.container.classList.add(className);
+		dom.addClass(this.container, className);
 		if (this.arrow) {
-			this.arrow.classList.add(className);
+			dom.addClass(this.arrow, className);
 		}
 	}
 
