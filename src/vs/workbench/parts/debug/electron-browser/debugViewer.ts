@@ -247,7 +247,7 @@ export class CallStackController extends BaseDebugController {
 			return this.showMoreStackFrames(tree, element);
 		}
 		if (element instanceof StackFrame) {
-			this.focusStackFrame(element, event, true);
+			this.focusStackFrame(element, event, event.detail !== 2);
 		}
 
 		return super.onLeftClick(tree, element, event);
@@ -1234,7 +1234,7 @@ export class BreakpointsController extends BaseDebugController {
 			return true;
 		}
 		if (element instanceof Breakpoint) {
-			this.openBreakpointSource(element, event, true);
+			this.openBreakpointSource(element, event, event.detail !== 2);
 		}
 
 		return super.onLeftClick(tree, element, event);
@@ -1248,7 +1248,8 @@ export class BreakpointsController extends BaseDebugController {
 				preserveFocus,
 				selection: { startLineNumber: breakpoint.lineNumber, startColumn: 1 },
 				revealIfVisible: true,
-				revealInCenterIfOutsideViewport: true
+				revealInCenterIfOutsideViewport: true,
+				pinned: !preserveFocus
 			}
 		}, sideBySide).done(undefined, errors.onUnexpectedError);
 	}
