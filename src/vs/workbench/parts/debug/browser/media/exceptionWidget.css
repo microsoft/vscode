@@ -2,17 +2,33 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-/* marker zone */
 
-.monaco-editor .exception-widget {
-	background-color: white;
+.monaco-editor .zone-widget .zone-widget-container.exception-widget {
+	padding: 8px;
+	font-family: Monaco, Menlo, Consolas, "Droid Sans Mono", "Inconsolata", "Courier New", monospace, "Droid Sans Fallback";
 }
 
-.monaco-editor.vs-dark .exception-widget {
-	background-color: #2D2D30;
+.monaco-editor .zone-widget .zone-widget-container.exception-widget .title {
+	font-weight: bold;
+}
+
+.monaco-editor .zone-widget-arrow.below.exception-widget {
+	border-bottom-color: rgb(163, 21, 21);
+}
+
+/* Light and Dark Theming */
+
+.monaco-editor .zone-widget .zone-widget-container.exception-widget {
+	background-color: rgba(163, 21, 21, 0.25);
+	border-top-color: rgb(163, 21, 21);
+	border-bottom-color: rgb(163, 21, 21);
+}
+
+.monaco-editor.vs-dark .zone-widget .zone-widget-container.exception-widget {
+	background-color: rgba(163, 21, 21, 0.25);
 }
 
 /* High Contrast Theming */
-.monaco-editor.hc-black .exception-widget {
-	background-color: #0C141F;
+.monaco-editor.hc-black .zone-widget .zone-widget-container.exception-widget {
+	background-color: rgba(163, 21, 21, 0.45);
 }

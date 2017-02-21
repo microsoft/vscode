@@ -77,16 +77,11 @@ export abstract class PeekViewWidget extends ZoneWidget implements IPeekViewServ
 
 	public show(where: any, heightInLines: number): void {
 		this._isActive = true;
-
-		this._headElement.style.borderTopColor = this.options.frameColor;
-		this._bodyElement.style.borderTopColor = this.options.frameColor;
-		this._bodyElement.style.borderBottomColor = this.options.frameColor;
-
 		super.show(where, heightInLines);
 	}
 
 	protected _fillContainer(container: HTMLElement): void {
-		$(container).addClass('peekview-widget');
+		this.setCssClass('peekview-widget');
 
 		this._headElement = <HTMLDivElement>$('.head').getHTMLElement();
 		this._bodyElement = <HTMLDivElement>$('.body').getHTMLElement();
