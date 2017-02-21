@@ -1341,6 +1341,11 @@ declare module monaco.editor {
          */
         formatOnPaste?: boolean;
         /**
+         * Controls if the editor should allow to move selections via drag and drop.
+         * Defaults to false.
+         */
+        enableDragAndDrop?: boolean;
+        /**
          * Enable the suggestion box to pop-up on trigger characters.
          * Defaults to true.
          */
@@ -1599,6 +1604,7 @@ declare module monaco.editor {
         readonly autoClosingBrackets: boolean;
         readonly useTabStops: boolean;
         readonly tabFocusMode: boolean;
+        readonly enableDragAndDrop: boolean;
         readonly layoutInfo: EditorLayoutInfo;
         readonly fontInfo: FontInfo;
         readonly viewInfo: InternalEditorViewOptions;
@@ -1616,6 +1622,7 @@ declare module monaco.editor {
         readonly autoClosingBrackets: boolean;
         readonly useTabStops: boolean;
         readonly tabFocusMode: boolean;
+        readonly enableDragAndDrop: boolean;
         readonly layoutInfo: boolean;
         readonly fontInfo: boolean;
         readonly viewInfo: IViewConfigurationChangedEvent;

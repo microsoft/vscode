@@ -106,6 +106,7 @@ class ConfigClass implements IConfiguration {
 			renderLineHighlight: 'line',
 			useTabStops: true,
 			matchBrackets: true,
+			enableDragAndDrop: false,
 
 			fontFamily: (
 				platform.isMacintosh ? DEFAULT_MAC_FONT_FAMILY : (platform.isLinux ? DEFAULT_LINUX_FONT_FAMILY : DEFAULT_WINDOWS_FONT_FAMILY)
