@@ -543,7 +543,7 @@ export class ReferenceWidget extends PeekViewWidget {
 	protected _fillBody(containerElement: HTMLElement): void {
 		var container = $(containerElement);
 
-		container.addClass('reference-zone-widget');
+		this.setCssClass('reference-zone-widget');
 
 		// message pane
 		container.div({ 'class': 'messages' }, div => {

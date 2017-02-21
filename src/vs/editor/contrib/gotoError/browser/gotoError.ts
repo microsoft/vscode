@@ -265,15 +265,16 @@ class MarkerNavigationWidget extends ZoneWidget {
 		this._message.update(marker);
 
 		this._model.withoutWatchingEditorPosition(() => {
+			const errorWidgetClass = 'marker-error-widget', warningWidgetClass = 'marker-warning-widget';
 
 			// update frame color (only applied on 'show')
 			switch (marker.severity) {
 				case Severity.Error:
-					this._container.parentElement.classList.add('marker-error-widget');
+					this.setCssClass(errorWidgetClass, warningWidgetClass);
 					break;
 				case Severity.Warning:
 				case Severity.Info:
-					this._container.parentElement.classList.add('marker-warning-widget');
+					this.setCssClass(warningWidgetClass, errorWidgetClass);
 					break;
 			}
 

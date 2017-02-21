@@ -101,6 +101,7 @@ export abstract class ZoneWidget extends Widget implements IHorizontalSashLayout
 	public domNode: HTMLElement;
 	public editor: ICodeEditor;
 	public options: IOptions;
+	private arrow: HTMLElement = null;
 
 	constructor(editor: ICodeEditor, options: IOptions = {}) {
 		super();
@@ -146,8 +147,12 @@ export abstract class ZoneWidget extends Widget implements IHorizontalSashLayout
 		this.container = document.createElement('div');
 		dom.addClass(this.container, 'zone-widget-container');
 		this.domNode.appendChild(this.container);
-		this._fillContainer(this.container);
+		if (this.options.showArrow) {
+			this.arrow = document.createElement('div');
+			this.arrow.className = 'zone-widget-arrow below';
+		}
 
+		this._fillContainer(this.container);
 		this._initSash();
 	}
 
@@ -230,25 +235,17 @@ export abstract class ZoneWidget extends Widget implements IHorizontalSashLayout
 
 		// Render the widget as zone (rendering) and widget (lifecycle)
 		let viewZoneDomNode = document.createElement('div'),
-			arrow = document.createElement('div'),
 			lineHeight = this.editor.getConfiguration().lineHeight,
 			arrowHeight = 0, frameThickness = 0;
 
 		// Render the arrow one 1/3 of an editor line height
 		if (this.options.showArrow) {
 			arrowHeight = Math.round(lineHeight / 3);
+			this.arrow.style.top = -arrowHeight + 'px';
+			this.arrow.style.borderWidth = arrowHeight + 'px';
+			this.arrow.style.left = this.editor.getOffsetForColumn(position.lineNumber, position.column) + 'px';
 
-			arrow = document.createElement('div');
-			arrow.className = 'zone-widget-arrow below';
-			if (this.options.className) {
-				arrow.classList.add(this.options.className);
-			}
-
-			arrow.style.top = -arrowHeight + 'px';
-			arrow.style.borderWidth = arrowHeight + 'px';
-			arrow.style.left = this.editor.getOffsetForColumn(position.lineNumber, position.column) + 'px';
-
-			viewZoneDomNode.appendChild(arrow);
+			viewZoneDomNode.appendChild(this.arrow);
 		}
 
 		// Render the frame as 1/9 of an editor line height
@@ -299,6 +296,20 @@ export abstract class ZoneWidget extends Widget implements IHorizontalSashLayout
 		// Reveal the line above or below the zone widget, to get the zone widget in the viewport
 		const revealLineNumber = Math.min(this.editor.getModel().getLineCount(), Math.max(1, where.endLineNumber + 1));
 		this.editor.revealLine(revealLineNumber);
+	}
+
+	protected setCssClass(className: string, classToReplace?: string): void {
+		if (classToReplace) {
+			this.container.classList.remove(classToReplace);
+			if (this.arrow) {
+				this.arrow.classList.remove(classToReplace);
+			}
+		}
+
+		this.container.classList.add(className);
+		if (this.arrow) {
+			this.arrow.classList.add(className);
+		}
 	}
 
 	protected abstract _fillContainer(container: HTMLElement): void;
