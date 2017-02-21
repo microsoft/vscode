@@ -23,6 +23,14 @@
 	border-bottom-color: #5aac5a;
 }
 
+.monaco-editor .zone-widget-arrow.below.marker-error-widget {
+	border-bottom-color: #ff5a5a;
+}
+
+.monaco-editor .zone-widget-arrow.below.marker-warning-widget {
+	border-bottom-color: #5aac5a;
+}
+
 .monaco-editor.vs-dark .marker-widget {
 	background-color: #2D2D30;
 }
@@ -34,7 +42,7 @@
 	background-color: #0C141F;
 }
 
-.monaco-editor .marker-widget>.stale {
+.monaco-editor .marker-widget > .stale {
 	opacity: 0.6;
 	font-style: italic;
 }

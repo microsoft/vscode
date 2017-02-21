@@ -81,7 +81,7 @@ export abstract class PeekViewWidget extends ZoneWidget implements IPeekViewServ
 	}
 
 	protected _fillContainer(container: HTMLElement): void {
-		$(container).addClass('peekview-widget');
+		this.setCssClass('peekview-widget');
 
 		this._headElement = <HTMLDivElement>$('.head').getHTMLElement();
 		this._bodyElement = <HTMLDivElement>$('.body').getHTMLElement();

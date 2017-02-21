@@ -9,8 +9,7 @@
 }
 
 .monaco-editor .debug-top-stack-frame-line,
-.monaco-editor .debug-top-stack-frame-exception-line
-{
+.monaco-editor .debug-top-stack-frame-exception-line {
 	background: rgba(255, 255, 102, 0.45);
 }
 

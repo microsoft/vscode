@@ -306,12 +306,12 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	}
 
 	// exception widget
-	public toggleExceptionWidget(): void {
+	private toggleExceptionWidget(): void {
 		// Toggles exception widget based on the state of the current editor model and debug stack frame
 		const model = this.editor.getModel();
 		const focusedSf = this.debugService.getViewModel().focusedStackFrame;
 		const callStack = focusedSf ? focusedSf.thread.getCallStack() : null;
-		if (!model || !focusedSf || !callStack) {
+		if (!model || !focusedSf || !callStack || callStack.length === 0) {
 			this.closeExceptionWidget();
 			return;
 		}
@@ -320,8 +320,8 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		const exceptionSf = callStack[0];
 		const sameUri = exceptionSf.source.uri.toString() === model.uri.toString();
 		if (this.exceptionWidget && !sameUri) {
-			this.hideExceptionWidget();
-		} else if (focusedSf && focusedSf.thread.stoppedDetails.reason === 'exception' && sameUri) {
+			this.closeExceptionWidget();
+		} else if (focusedSf.thread.stoppedDetails.reason === 'exception' && sameUri) {
 			this.showExceptionWidget(exceptionSf.lineNumber);
 		}
 	}
@@ -333,10 +333,6 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 		this.exceptionWidget = this.instantiationService.createInstance(ExceptionWidget, this.editor, lineNumber);
 		this.exceptionWidget.show({ lineNumber, column: 1 }, 3);
-	}
-
-	private hideExceptionWidget() {
-		this.exceptionWidget.hide();
 	}
 
 	private closeExceptionWidget(): void {

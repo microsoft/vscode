@@ -5,11 +5,12 @@
 
 import 'vs/css!../browser/media/exceptionWidget';
 import * as nls from 'vs/nls';
+import * as dom from 'vs/base/browser/dom';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IDebugService } from 'vs/workbench/parts/debug/common/debug';
-import * as strings from 'vs/base/common/strings';
+const $ = dom.$;
 
 export class ExceptionWidget extends ZoneWidget {
 
@@ -17,27 +18,23 @@ export class ExceptionWidget extends ZoneWidget {
 		@IContextViewService private contextViewService: IContextViewService,
 		@IDebugService private debugService: IDebugService
 	) {
-		super(editor, { showFrame: true, showArrow: true, frameWidth: 1, className: 'exception-widget' });
+		super(editor, { showFrame: true, showArrow: true, frameWidth: 1 });
 
 		this.create();
 	}
 
 	protected _fillContainer(container: HTMLElement): void {
-		let el = document.createElement('div');
-		el.textContent = nls.localize('exceptionThrown', 'Exception occured.');
-		el.className = 'exception-title';
-		container.appendChild(el);
+		this.setCssClass('exception-widget');
+
+		let title = $('.title');
+		title.textContent = nls.localize('exceptionThrown', 'Exception occured.');
+		dom.append(container, title);
 
 		const thread = this.debugService.getViewModel().focusedThread;
 		if (thread && thread.stoppedDetails) {
-			let el = document.createElement('div');
-			el.textContent = thread.stoppedDetails.text;
-			container.appendChild(el);
+			let msg = $('.message');
+			msg.textContent = thread.stoppedDetails.text;
+			dom.append(container, msg);
 		}
-	}
-
-	protected _doLayout(heightInPixel: number, widthInPixel: number): void {
-		var height = Math.ceil(this.editor.getConfiguration().lineHeight * 1.8);
-		this.container.style.height = strings.format('{0}px', height);
 	}
 }

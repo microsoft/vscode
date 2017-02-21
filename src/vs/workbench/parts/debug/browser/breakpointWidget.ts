@@ -62,7 +62,7 @@ export class BreakpointWidget extends ZoneWidget {
 	}
 
 	protected _fillContainer(container: HTMLElement): void {
-		dom.addClass(container, 'breakpoint-widget monaco-editor-background');
+		this.setCssClass('breakpoint-widget');
 		const uri = this.editor.getModel().uri;
 		const breakpoint = this.debugService.getModel().getBreakpoints().filter(bp => bp.lineNumber === this.lineNumber && bp.uri.toString() === uri.toString()).pop();
 
