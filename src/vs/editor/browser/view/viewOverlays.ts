@@ -5,7 +5,7 @@
 'use strict';
 
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/styleMutator';
-import { IScrollEvent, IConfiguration, IConfigurationChangedEvent, EditorLayoutInfo } from 'vs/editor/common/editorCommon';
+import { IConfiguration } from 'vs/editor/common/editorCommon';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { IVisibleLine, ViewLayer } from 'vs/editor/browser/view/viewLayer';
 import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
@@ -13,6 +13,7 @@ import { Configuration } from 'vs/editor/browser/config/configuration';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { IRenderingContext, IRestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
+import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
 export class ViewOverlays extends ViewLayer<ViewOverlayLine> {
 
@@ -63,7 +64,7 @@ export class ViewOverlays extends ViewLayer<ViewOverlayLine> {
 
 	// ----- event handlers
 
-	public onConfigurationChanged(e: IConfigurationChangedEvent): boolean {
+	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		super.onConfigurationChanged(e);
 		let startLineNumber = this._linesCollection.getStartLineNumber();
 		let endLineNumber = this._linesCollection.getEndLineNumber();
@@ -74,8 +75,8 @@ export class ViewOverlays extends ViewLayer<ViewOverlayLine> {
 		return true;
 	}
 
-	public onViewFocusChanged(isFocused: boolean): boolean {
-		this._isFocused = isFocused;
+	public onFocusChanged(e: viewEvents.ViewFocusChangedEvent): boolean {
+		this._isFocused = e.isFocused;
 		return true;
 	}
 
@@ -143,7 +144,7 @@ export class ViewOverlayLine implements IVisibleLine {
 	public onTokensChanged(): void {
 		// Nothing
 	}
-	public onConfigurationChanged(e: IConfigurationChangedEvent): void {
+	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): void {
 		if (e.lineHeight) {
 			this._lineHeight = this._configuration.editor.lineHeight;
 		}
@@ -186,15 +187,19 @@ export class ContentViewOverlays extends ViewOverlays {
 		this.domNode.setHeight(0);
 	}
 
-	public onConfigurationChanged(e: IConfigurationChangedEvent): boolean {
+	// --- begin event handlers
+
+	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		if (e.layoutInfo) {
 			this._contentWidth = this._context.configuration.editor.layoutInfo.contentWidth;
 		}
 		return super.onConfigurationChanged(e);
 	}
-	public onScrollChanged(e: IScrollEvent): boolean {
+	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		return super.onScrollChanged(e) || e.scrollWidthChanged;
 	}
+
+	// --- end event handlers
 
 	_viewOverlaysRender(ctx: IRestrictedRenderingContext): void {
 		super._viewOverlaysRender(ctx);
@@ -211,8 +216,8 @@ export class MarginViewOverlays extends ViewOverlays {
 	constructor(context: ViewContext) {
 		super(context);
 
-		this._contentLeft = context.configuration.editor.layoutInfo.contentLeft;
-		this._canUseTranslate3d = context.configuration.editor.viewInfo.canUseTranslate3d;
+		this._contentLeft = this._context.configuration.editor.layoutInfo.contentLeft;
+		this._canUseTranslate3d = this._context.configuration.editor.viewInfo.canUseTranslate3d;
 
 		this.domNode.setClassName(editorBrowser.ClassNames.MARGIN_VIEW_OVERLAYS);
 		this.domNode.setWidth(1);
@@ -220,25 +225,26 @@ export class MarginViewOverlays extends ViewOverlays {
 		Configuration.applyFontInfo(this.domNode, this._context.configuration.editor.fontInfo);
 	}
 
-	public onScrollChanged(e: IScrollEvent): boolean {
-		return super.onScrollChanged(e) || e.scrollHeightChanged;
-	}
-
-	public onLayoutChanged(layoutInfo: EditorLayoutInfo): boolean {
-		this._contentLeft = layoutInfo.contentLeft;
-		return super.onLayoutChanged(layoutInfo) || true;
-	}
-
-	public onConfigurationChanged(e: IConfigurationChangedEvent): boolean {
+	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
+		let shouldRender = false;
 		if (e.fontInfo) {
 			Configuration.applyFontInfo(this.domNode, this._context.configuration.editor.fontInfo);
+			shouldRender = true;
 		}
 		if (e.viewInfo.canUseTranslate3d) {
 			this._canUseTranslate3d = this._context.configuration.editor.viewInfo.canUseTranslate3d;
+			shouldRender = true;
 		}
-		return super.onConfigurationChanged(e);
+		if (e.layoutInfo) {
+			this._contentLeft = this._context.configuration.editor.layoutInfo.contentLeft;
+			shouldRender = true;
+		}
+		return super.onConfigurationChanged(e) || shouldRender;
 	}
 
+	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
+		return super.onScrollChanged(e) || e.scrollHeightChanged;
+	}
 
 	_viewOverlaysRender(ctx: IRestrictedRenderingContext): void {
 		super._viewOverlaysRender(ctx);

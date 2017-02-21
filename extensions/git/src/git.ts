@@ -289,6 +289,14 @@ export class Git {
 		return new Repository(this, repository, env);
 	}
 
+	async clone(url: string, parentPath: string): Promise<string> {
+		const folderName = url.replace(/^.*\//, '').replace(/\.git$/, '') || 'repository';
+		const folderPath = path.join(parentPath, folderName);
+
+		await this.exec(parentPath, ['clone', url, folderPath]);
+		return folderPath;
+	}
+
 	async getRepositoryRoot(path: string): Promise<string> {
 		const result = await this.exec(path, ['rev-parse', '--show-toplevel']);
 		return result.stdout.trim();
@@ -361,6 +369,7 @@ export class Git {
 		}
 
 		options.env = assign({}, process.env, options.env || {}, {
+			VSCODE_GIT_COMMAND: args[0],
 			LANG: 'en_US.UTF-8'
 		});
 

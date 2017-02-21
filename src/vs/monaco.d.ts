@@ -1341,6 +1341,11 @@ declare module monaco.editor {
          */
         formatOnPaste?: boolean;
         /**
+         * Controls if the editor should allow to move selections via drag and drop.
+         * Defaults to false.
+         */
+        enableDragAndDrop?: boolean;
+        /**
          * Enable the suggestion box to pop-up on trigger characters.
          * Defaults to true.
          */
@@ -1363,10 +1368,6 @@ declare module monaco.editor {
          * Copying without a selection copies the current line.
          */
         emptySelectionClipboard?: boolean;
-        /**
-         * Enable tab completion. Defaults to 'false'
-         */
-        tabCompletion?: boolean;
         /**
          * Enable word based suggestions. Defaults to 'true'
          */
@@ -1396,6 +1397,11 @@ declare module monaco.editor {
          * Defaults to true in vscode and to false in monaco-editor.
          */
         folding?: boolean;
+        /**
+         * Enable highlighting of matching brackets.
+         * Defaults to true.
+         */
+        matchBrackets?: boolean;
         /**
          * Enable rendering of whitespace.
          * Defaults to none.
@@ -1578,13 +1584,13 @@ declare module monaco.editor {
         readonly acceptSuggestionOnCommitCharacter: boolean;
         readonly snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
         readonly emptySelectionClipboard: boolean;
-        readonly tabCompletion: boolean;
         readonly wordBasedSuggestions: boolean;
         readonly suggestFontSize: number;
         readonly suggestLineHeight: number;
         readonly selectionHighlight: boolean;
         readonly codeLens: boolean;
         readonly folding: boolean;
+        readonly matchBrackets: boolean;
     }
 
     /**
@@ -1598,6 +1604,7 @@ declare module monaco.editor {
         readonly autoClosingBrackets: boolean;
         readonly useTabStops: boolean;
         readonly tabFocusMode: boolean;
+        readonly enableDragAndDrop: boolean;
         readonly layoutInfo: EditorLayoutInfo;
         readonly fontInfo: FontInfo;
         readonly viewInfo: InternalEditorViewOptions;
@@ -1615,6 +1622,7 @@ declare module monaco.editor {
         readonly autoClosingBrackets: boolean;
         readonly useTabStops: boolean;
         readonly tabFocusMode: boolean;
+        readonly enableDragAndDrop: boolean;
         readonly layoutInfo: boolean;
         readonly fontInfo: boolean;
         readonly viewInfo: IViewConfigurationChangedEvent;
@@ -3482,6 +3490,18 @@ declare module monaco.editor {
          * As a horizontal line (sitting under a character).
          */
         Underline = 3,
+        /**
+         * As a thin vertical line (sitting between two characters).
+         */
+        LineThin = 4,
+        /**
+         * As an outlined block (sitting on top of a character).
+         */
+        BlockOutline = 5,
+        /**
+         * As a thin horizontal line (sitting under a character).
+         */
+        UnderlineThin = 6,
     }
 
     /**

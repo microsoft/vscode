@@ -20,6 +20,7 @@ import { Configuration } from 'vs/editor/browser/config/configuration';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { VisibleRange } from 'vs/editor/common/view/renderingContext';
 import { TextAreaWrapper } from 'vs/editor/browser/controller/input/textAreaWrapper';
+import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
 export interface IKeyboardHandlerHelper {
 	viewDomNode: HTMLElement;
@@ -52,8 +53,8 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 		Configuration.applyFontInfoSlow(this.textArea.actual, this._context.configuration.editor.fontInfo);
 		this.viewHelper = viewHelper;
 
-		this.contentLeft = 0;
-		this.contentWidth = 0;
+		this.contentLeft = this._context.configuration.editor.layoutInfo.contentLeft;
+		this.contentWidth = this._context.configuration.editor.layoutInfo.contentWidth;
 		this.scrollLeft = 0;
 
 		this.textAreaHandler = new TextAreaHandler(browser, this._getStrategy(), this.textArea, this._context.model, () => this.viewHelper.flushAnyAccumulatedEvents());
@@ -74,13 +75,12 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 			let lineNumber = e.showAtLineNumber;
 			let column = e.showAtColumn;
 
-			let revealPositionEvent: editorCommon.IViewRevealRangeEvent = {
-				range: new Range(lineNumber, column, lineNumber, column),
-				verticalType: editorCommon.VerticalRevealType.Simple,
-				revealHorizontal: true,
-				revealCursor: false
-			};
-			this._context.privateViewEventBus.emit(editorCommon.ViewEventNames.RevealRangeEvent, revealPositionEvent);
+			this._context.privateViewEventBus.emit(new viewEvents.ViewRevealRangeRequestEvent(
+				new Range(lineNumber, column, lineNumber, column),
+				editorCommon.VerticalRevealType.Simple,
+				true,
+				false
+			));
 
 			// Find range pixel position
 			this.visibleRange = this.viewHelper.visibleRangeForPositionRelativeToEditor(lineNumber, column);
@@ -160,7 +160,9 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 		this.textAreaHandler.focusTextArea();
 	}
 
-	public onConfigurationChanged(e: editorCommon.IConfigurationChangedEvent): boolean {
+	// --- begin event handlers
+
+	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		// Give textarea same font size & line height as editor, for the IME case (when the textarea is visible)
 		if (e.fontInfo) {
 			Configuration.applyFontInfoSlow(this.textArea.actual, this._context.configuration.editor.fontInfo);
@@ -168,10 +170,25 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 		if (e.viewInfo.experimentalScreenReader) {
 			this.textAreaHandler.setStrategy(this._getStrategy());
 		}
+		if (e.layoutInfo) {
+			this.contentLeft = this._context.configuration.editor.layoutInfo.contentLeft;
+			this.contentWidth = this._context.configuration.editor.layoutInfo.contentWidth;
+		}
 		return false;
 	}
 
-	public onScrollChanged(e: editorCommon.IScrollEvent): boolean {
+	private _lastCursorSelectionChanged: viewEvents.ViewCursorSelectionChangedEvent = null;
+	public onCursorSelectionChanged(e: viewEvents.ViewCursorSelectionChangedEvent): boolean {
+		this._lastCursorSelectionChanged = e;
+		return false;
+	}
+
+	public onFocusChanged(e: viewEvents.ViewFocusChangedEvent): boolean {
+		this.textAreaHandler.setHasFocus(e.isFocused);
+		return false;
+	}
+
+	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		this.scrollLeft = e.scrollLeft;
 		if (this.visibleRange) {
 			StyleMutator.setTop(this.textArea.actual, this.visibleRange.top);
@@ -180,22 +197,7 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 		return false;
 	}
 
-	public onViewFocusChanged(isFocused: boolean): boolean {
-		this.textAreaHandler.setHasFocus(isFocused);
-		return false;
-	}
-
-	private _lastCursorSelectionChanged: editorCommon.IViewCursorSelectionChangedEvent = null;
-	public onCursorSelectionChanged(e: editorCommon.IViewCursorSelectionChangedEvent): boolean {
-		this._lastCursorSelectionChanged = e;
-		return false;
-	}
-
-	public onLayoutChanged(layoutInfo: editorCommon.EditorLayoutInfo): boolean {
-		this.contentLeft = layoutInfo.contentLeft;
-		this.contentWidth = layoutInfo.contentWidth;
-		return false;
-	}
+	// --- end event handlers
 
 	public writeToTextArea(): void {
 		if (this._lastCursorSelectionChanged) {

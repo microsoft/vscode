@@ -139,6 +139,7 @@ declare module 'vscode' {
 		getOriginalResource?(uri: Uri, token: CancellationToken): ProviderResult<Uri>;
 		open?(resource: SCMResource, token: CancellationToken): ProviderResult<void>;
 		drag?(resource: SCMResource, resourceGroup: SCMResourceGroup, token: CancellationToken): ProviderResult<void>;
+		acceptChanges?(token: CancellationToken): ProviderResult<void>;
 	}
 
 	export interface SCMInputBox {
@@ -154,4 +155,13 @@ declare module 'vscode' {
 		export function getResourceFromURI(uri: Uri): SCMResource | SCMResourceGroup | undefined;
 		export function registerSCMProvider(id: string, provider: SCMProvider): Disposable;
 	}
+
+	export interface LineChange {
+		readonly originalStartLineNumber: number;
+		readonly originalEndLineNumber: number;
+		readonly modifiedStartLineNumber: number;
+		readonly modifiedEndLineNumber: number;
+	}
+
+	export function computeDiff(oneDocument: TextDocument, otherDocument: TextDocument): Thenable<LineChange[]>;
 }

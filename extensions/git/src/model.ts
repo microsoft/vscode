@@ -7,9 +7,10 @@
 
 import { Uri, EventEmitter, Event, SCMResource, SCMResourceDecorations, SCMResourceGroup, Disposable, window, workspace } from 'vscode';
 import { Git, Repository, Ref, Branch, Remote, PushOptions, Commit, GitErrorCodes, GitError } from './git';
-import { anyEvent, eventToPromise, filterEvent, mapEvent, EmptyDisposable, combinedDisposable } from './util';
+import { anyEvent, eventToPromise, filterEvent, mapEvent, EmptyDisposable, combinedDisposable, dispose } from './util';
 import { memoize, throttle, debounce } from './decorators';
 import { watch } from './watch';
+import { Askpass } from './askpass';
 import * as path from 'path';
 import * as nls from 'vscode-nls';
 
@@ -170,8 +171,8 @@ export class WorkingTreeGroup extends ResourceGroup {
 
 export enum Operation {
 	Status = 1 << 0,
-	Stage = 1 << 1,
-	Unstage = 1 << 2,
+	Add = 1 << 1,
+	RevertFiles = 1 << 2,
 	Commit = 1 << 3,
 	Clean = 1 << 4,
 	Branch = 1 << 5,
@@ -182,7 +183,41 @@ export enum Operation {
 	Push = 1 << 10,
 	Sync = 1 << 11,
 	Init = 1 << 12,
-	Show = 1 << 13
+	Show = 1 << 13,
+	Stage = 1 << 14,
+	GetCommitTemplate = 1 << 15
+}
+
+// function getOperationName(operation: Operation): string {
+// 	switch (operation) {
+// 		case Operation.Status: return 'Status';
+// 		case Operation.Add: return 'Add';
+// 		case Operation.RevertFiles: return 'RevertFiles';
+// 		case Operation.Commit: return 'Commit';
+// 		case Operation.Clean: return 'Clean';
+// 		case Operation.Branch: return 'Branch';
+// 		case Operation.Checkout: return 'Checkout';
+// 		case Operation.Reset: return 'Reset';
+// 		case Operation.Fetch: return 'Fetch';
+// 		case Operation.Pull: return 'Pull';
+// 		case Operation.Push: return 'Push';
+// 		case Operation.Sync: return 'Sync';
+// 		case Operation.Init: return 'Init';
+// 		case Operation.Show: return 'Show';
+// 		case Operation.Stage: return 'Stage';
+// 		case Operation.GetCommitTemplate: return 'GetCommitTemplate';
+// 		default: return 'unknown';
+// 	}
+// }
+
+function isReadOnly(operation: Operation): boolean {
+	switch (operation) {
+		case Operation.Show:
+		case Operation.GetCommitTemplate:
+			return true;
+		default:
+			return false;
+	}
 }
 
 export interface Operations {
@@ -221,6 +256,9 @@ export interface CommitOptions {
 
 export class Model implements Disposable {
 
+	private _onDidChangeRepository = new EventEmitter<Uri>();
+	readonly onDidChangeRepository: Event<Uri> = this._onDidChangeRepository.event;
+
 	private _onDidChangeState = new EventEmitter<State>();
 	readonly onDidChangeState: Event<State> = this._onDidChangeState.event;
 
@@ -241,6 +279,10 @@ export class Model implements Disposable {
 	@memoize
 	get onDidChangeOperations(): Event<void> {
 		return anyEvent(this.onRunOperation as Event<any>, this.onDidRunOperation as Event<any>);
+	}
+
+	get git(): Git {
+		return this._git;
 	}
 
 	private _mergeGroup = new MergeGroup([]);
@@ -303,14 +345,26 @@ export class Model implements Disposable {
 		this._onDidChangeResources.fire(this.resources);
 	}
 
+	private onWorkspaceChange: Event<Uri>;
 	private repositoryDisposable: Disposable = EmptyDisposable;
+	private disposables: Disposable[] = [];
 
 	constructor(
-		private git: Git,
+		private _git: Git,
 		private rootPath: string,
-		private onWorkspaceChange: Event<Uri>
+		private askpass: Askpass
 	) {
+		const fsWatcher = workspace.createFileSystemWatcher('**');
+		this.onWorkspaceChange = anyEvent(fsWatcher.onDidChange, fsWatcher.onDidCreate, fsWatcher.onDidDelete);
+		this.disposables.push(fsWatcher);
+
 		this.status();
+	}
+
+	async whenIdle(): Promise<void> {
+		while (!this.operations.isIdle()) {
+			await eventToPromise(this.onDidRunOperation);
+		}
 	}
 
 	@throttle
@@ -329,13 +383,19 @@ export class Model implements Disposable {
 	}
 
 	@throttle
-	async stage(...resources: Resource[]): Promise<void> {
-		await this.run(Operation.Stage, () => this.repository.add(resources.map(r => r.uri.fsPath)));
+	async add(...resources: Resource[]): Promise<void> {
+		await this.run(Operation.Add, () => this.repository.add(resources.map(r => r.uri.fsPath)));
 	}
 
 	@throttle
-	async unstage(...resources: Resource[]): Promise<void> {
-		await this.run(Operation.Unstage, () => this.repository.revertFiles('HEAD', resources.map(r => r.uri.fsPath)));
+	async stage(uri: Uri, contents: string): Promise<void> {
+		const relativePath = path.relative(this.repository.root, uri.fsPath).replace(/\\/g, '/');
+		await this.run(Operation.Stage, () => this.repository.stage(relativePath, contents));
+	}
+
+	@throttle
+	async revertFiles(...resources: Resource[]): Promise<void> {
+		await this.run(Operation.RevertFiles, () => this.repository.revertFiles('HEAD', resources.map(r => r.uri.fsPath)));
 	}
 
 	@throttle
@@ -422,8 +482,10 @@ export class Model implements Disposable {
 		await this.run(Operation.Sync, () => this.repository.sync());
 	}
 
-	@throttle
 	async show(ref: string, uri: Uri): Promise<string> {
+		// TODO@Joao: should we make this a general concept?
+		await this.whenIdle();
+
 		return await this.run(Operation.Show, async () => {
 			const relativePath = path.relative(this.repository.root, uri.fsPath).replace(/\\/g, '/');
 			const result = await this.repository.git.exec(this.repository.root, ['show', `${ref}:${relativePath}`]);
@@ -439,6 +501,10 @@ export class Model implements Disposable {
 		});
 	}
 
+	async getCommitTemplate(): Promise<string> {
+		return await this.run(Operation.GetCommitTemplate, async () => this.repository.getCommitTemplate());
+	}
+
 	private async run<T>(operation: Operation, runOperation: () => Promise<T> = () => Promise.resolve<any>(null)): Promise<T> {
 		return window.withScmProgress(async () => {
 			this._operations = this._operations.start(operation);
@@ -447,7 +513,11 @@ export class Model implements Disposable {
 			try {
 				await this.assertIdleState();
 				const result = await runOperation();
-				await this.update();
+
+				if (!isReadOnly(operation)) {
+					await this.update();
+				}
+
 				return result;
 			} catch (err) {
 				if (err.gitErrorCode === GitErrorCodes.NotAGitRepository) {
@@ -476,16 +546,18 @@ export class Model implements Disposable {
 		this.repositoryDisposable.dispose();
 
 		const disposables: Disposable[] = [];
-		const repositoryRoot = await this.git.getRepositoryRoot(this.rootPath);
-		this.repository = this.git.open(repositoryRoot);
+		const repositoryRoot = await this._git.getRepositoryRoot(this.rootPath);
+		const askpassEnv = await this.askpass.getEnv();
+		this.repository = this._git.open(repositoryRoot, askpassEnv);
 
 		const dotGitPath = path.join(repositoryRoot, '.git');
-		const { event, disposable: watcher } = watch(dotGitPath);
+		const { event: onRawGitChange, disposable: watcher } = watch(dotGitPath);
 		disposables.push(watcher);
 
-		const onGitChange = mapEvent(event, ({ filename }) => Uri.file(path.join(dotGitPath, filename)));
+		const onGitChange = mapEvent(onRawGitChange, ({ filename }) => Uri.file(path.join(dotGitPath, filename)));
 		const onRelevantGitChange = filterEvent(onGitChange, uri => !/\/\.git\/index\.lock$/.test(uri.fsPath));
 		onRelevantGitChange(this.onFSChange, this, disposables);
+		onRelevantGitChange(this._onDidChangeRepository.fire, this._onDidChangeRepository, disposables);
 
 		const onNonGitChange = filterEvent(this.onWorkspaceChange, uri => !/\/\.git\//.test(uri.fsPath));
 		onNonGitChange(this.onFSChange, this, disposables);
@@ -588,13 +660,8 @@ export class Model implements Disposable {
 		await new Promise(c => setTimeout(c, 5000));
 	}
 
-	private async whenIdle(): Promise<void> {
-		while (!this.operations.isIdle()) {
-			await eventToPromise(this.onDidRunOperation);
-		}
-	}
-
 	dispose(): void {
 		this.repositoryDisposable.dispose();
+		this.disposables = dispose(this.disposables);
 	}
 }

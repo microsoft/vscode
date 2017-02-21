@@ -6,31 +6,22 @@
 
 import { localize } from 'vs/nls';
 import * as strings from 'vs/base/common/strings';
-import { ITokenizedModel, IPosition } from 'vs/editor/common/editorCommon';
+import { IModel, IPosition } from 'vs/editor/common/editorCommon';
 import { ISuggestion, LanguageIdentifier, LanguageId } from 'vs/editor/common/modes';
-import { Registry } from 'vs/platform/platform';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { setSnippetSuggestSupport } from 'vs/editor/contrib/suggest/common/suggest';
+import { IModeService } from 'vs/editor/common/services/modeService';
 
-export const Extensions = {
-	Snippets: 'base.contributions.snippets'
-};
+export const ISnippetsService = createDecorator<ISnippetsService>('snippetService');
 
-export interface ISnippetsRegistry {
+export interface ISnippetsService {
 
-	/**
-	 * Register a snippet to the registry.
-	 */
+	_serviceBrand: any;
+
 	registerSnippets(languageIdentifier: LanguageIdentifier, snippets: ISnippet[], owner?: string): void;
 
-	/**
-	 * Visit all snippets
-	 */
 	visitSnippets(languageId: LanguageId, accept: (snippet: ISnippet) => void): void;
-
-	/**
-	 * Get all snippet completions for the given position
-	 */
-	getSnippetCompletions(model: ITokenizedModel, position: IPosition): ISuggestion[];
-
 }
 
 export interface ISnippet {
@@ -45,9 +36,22 @@ interface ISnippetSuggestion extends ISuggestion {
 	disambiguateLabel: string;
 }
 
-class SnippetsRegistry implements ISnippetsRegistry {
+class SnippetsService implements ISnippetsService {
+
+	_serviceBrand: any;
 
 	private _snippets: { [owner: string]: ISnippet[] }[] = [];
+
+	constructor(
+		@IModeService private _modeService: IModeService
+	) {
+		setSnippetSuggestSupport({
+			provideCompletionItems: (model, position) => {
+				const suggestions = this._getSnippetCompletions(<any>model, position);
+				return { suggestions };
+			}
+		});
+	}
 
 	public registerSnippets(languageIdentifier: LanguageIdentifier, snippets: ISnippet[], owner = ''): void {
 		let snippetsByMode = this._snippets[languageIdentifier.id];
@@ -69,8 +73,20 @@ class SnippetsRegistry implements ISnippetsRegistry {
 		}
 	}
 
-	public getSnippetCompletions(model: ITokenizedModel, position: IPosition): ISuggestion[] {
-		const languageId = model.getLanguageIdAtPosition(position.lineNumber, position.column);
+	private _getLanguageIdAtPosition(model: IModel, position: IPosition): LanguageId {
+		// validate the `languageId` to ensure this is a user
+		// facing language with a name and the chance to have
+		// snippets, else fall back to the outer language
+		let languageId = model.getLanguageIdAtPosition(position.lineNumber, position.column);
+		let { language } = this._modeService.getLanguageIdentifier(languageId);
+		if (!this._modeService.getLanguageName(language)) {
+			languageId = model.getLanguageIdentifier().id;
+		}
+		return languageId;
+	}
+
+	private _getSnippetCompletions(model: IModel, position: IPosition): ISuggestion[] {
+		const languageId = this._getLanguageIdAtPosition(model, position);
 		if (!this._snippets[languageId]) {
 			return undefined;
 		}
@@ -82,20 +98,20 @@ class SnippetsRegistry implements ISnippetsRegistry {
 		const currentFullWord = getNonWhitespacePrefix(model, position).toLowerCase();
 
 		this.visitSnippets(languageId, s => {
-			let overwriteBefore: number;
-			if (currentWord.length === 0 && currentFullWord.length === 0) {
-				// if there's no prefix, only show snippets at the beginning of the line, or after a whitespace
-				overwriteBefore = 0;
-			} else {
-				const label = s.prefix.toLowerCase();
-				// force that the current word or full word matches with the snippet prefix
-				if (currentWord.length > 0 && strings.startsWith(label, currentWord)) {
+			const prefixLower = s.prefix.toLowerCase();
+
+			let overwriteBefore = 0;
+			if (currentWord.length > 0) {
+				// there is a word -> the prefix should match that
+				if (strings.startsWith(prefixLower, currentWord)) {
 					overwriteBefore = currentWord.length;
-				} else if (currentFullWord.length > currentWord.length && strings.startsWith(label, currentFullWord)) {
-					overwriteBefore = currentFullWord.length;
 				} else {
 					return true;
 				}
+
+			} else if (currentFullWord.length > currentWord.length) {
+				// there is something -> fine if it matches
+				overwriteBefore = strings.commonPrefixLength(prefixLower, currentFullWord);
 			}
 
 			// store in result
@@ -116,7 +132,7 @@ class SnippetsRegistry implements ISnippetsRegistry {
 
 		// dismbiguate suggestions with same labels
 		let lastSuggestion: ISnippetSuggestion;
-		for (const suggestion of result.sort(SnippetsRegistry._compareSuggestionsByLabel)) {
+		for (const suggestion of result.sort(SnippetsService._compareSuggestionsByLabel)) {
 			if (lastSuggestion && lastSuggestion.label === suggestion.label) {
 				// use the disambiguateLabel instead of the actual label
 				lastSuggestion.label = lastSuggestion.disambiguateLabel;
@@ -132,6 +148,8 @@ class SnippetsRegistry implements ISnippetsRegistry {
 		return strings.compare(a.label, b.label);
 	}
 }
+
+registerSingleton(ISnippetsService, SnippetsService);
 
 export interface ISimpleModel {
 	getLineContent(lineNumber): string;
@@ -160,7 +178,4 @@ export function getNonWhitespacePrefix(model: ISimpleModel, position: IPosition)
 
 	return '';
 }
-
-const snippetsRegistry: ISnippetsRegistry = new SnippetsRegistry();
-Registry.add(Extensions.Snippets, snippetsRegistry);
 

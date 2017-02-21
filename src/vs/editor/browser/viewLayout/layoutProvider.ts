@@ -10,18 +10,19 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { LinesLayout } from 'vs/editor/common/viewLayout/linesLayout';
 import { IViewLayout } from 'vs/editor/common/viewModel/viewModel';
 import { IPartialViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
-import { IViewEventBus } from 'vs/editor/common/view/viewContext';
+import { ViewEventDispatcher } from 'vs/editor/common/view/viewEventDispatcher';
+import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
 export class LayoutProvider extends Disposable implements IViewLayout {
 
 	static LINES_HORIZONTAL_EXTRA_PX = 30;
 
 	private _configuration: editorCommon.IConfiguration;
-	private _privateViewEventBus: IViewEventBus;
+	private _privateViewEventBus: ViewEventDispatcher;
 	private _linesLayout: LinesLayout;
 	private _scrollable: Scrollable;
 
-	constructor(configuration: editorCommon.IConfiguration, lineCount: number, privateViewEventBus: IViewEventBus) {
+	constructor(configuration: editorCommon.IConfiguration, lineCount: number, privateViewEventBus: ViewEventDispatcher) {
 		super();
 
 		this._configuration = configuration;
@@ -34,7 +35,7 @@ export class LayoutProvider extends Disposable implements IViewLayout {
 			height: configuration.editor.layoutInfo.contentHeight
 		});
 		this._register(this._scrollable.onScroll((e: ScrollEvent) => {
-			this._privateViewEventBus.emit(editorCommon.EventType.ViewScrollChanged, e);
+			this._privateViewEventBus.emit(new viewEvents.ViewScrollChangedEvent(e));
 		}));
 
 		this._updateHeight();
@@ -54,22 +55,7 @@ export class LayoutProvider extends Disposable implements IViewLayout {
 
 	// ---- begin view event handlers
 
-	public onModelFlushed(lineCount: number): void {
-		this._linesLayout.onModelFlushed(lineCount);
-		this._updateHeight();
-	}
-
-	public onModelLinesDeleted(e: editorCommon.IViewLinesDeletedEvent): void {
-		this._linesLayout.onModelLinesDeleted(e.fromLineNumber, e.toLineNumber);
-		this._updateHeight();
-	}
-
-	public onModelLinesInserted(e: editorCommon.IViewLinesInsertedEvent): void {
-		this._linesLayout.onModelLinesInserted(e.fromLineNumber, e.toLineNumber);
-		this._updateHeight();
-	}
-
-	public onConfigurationChanged(e: editorCommon.IConfigurationChangedEvent): void {
+	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): void {
 		if (e.lineHeight) {
 			this._linesLayout.setLineHeight(this._configuration.editor.lineHeight);
 		}
@@ -78,8 +64,19 @@ export class LayoutProvider extends Disposable implements IViewLayout {
 				width: this._configuration.editor.layoutInfo.contentWidth,
 				height: this._configuration.editor.layoutInfo.contentHeight
 			});
-			this._emitLayoutChangedEvent();
 		}
+		this._updateHeight();
+	}
+	public onFlushed(lineCount: number): void {
+		this._linesLayout.onFlushed(lineCount);
+		this._updateHeight();
+	}
+	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): void {
+		this._linesLayout.onLinesDeleted(e.fromLineNumber, e.toLineNumber);
+		this._updateHeight();
+	}
+	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): void {
+		this._linesLayout.onLinesInserted(e.fromLineNumber, e.toLineNumber);
 		this._updateHeight();
 	}
 
@@ -126,14 +123,6 @@ export class LayoutProvider extends Disposable implements IViewLayout {
 			scrollState.width,
 			scrollState.height
 		);
-	}
-
-	private _emitLayoutChangedEvent(): void {
-		this._privateViewEventBus.emit(editorCommon.EventType.ViewLayoutChanged, this._configuration.editor.layoutInfo);
-	}
-
-	public emitLayoutChangedEvent(): void {
-		this._emitLayoutChangedEvent();
 	}
 
 	private _computeScrollWidth(maxLineWidth: number, viewportWidth: number): number {

@@ -32,6 +32,9 @@ export function getHTMLMode(htmlLanguageService: HTMLLanguageService): LanguageM
 		findDocumentLinks(document: TextDocument, documentContext: DocumentContext) {
 			return htmlLanguageService.findDocumentLinks(document, documentContext);
 		},
+		findDocumentSymbols(document: TextDocument) {
+			return htmlLanguageService.findDocumentSymbols(document, htmlDocuments.get(document));
+		},
 		format(document: TextDocument, range: Range, formatParams: FormattingOptions) {
 			let formatSettings = settings && settings.format;
 			if (!formatSettings) {

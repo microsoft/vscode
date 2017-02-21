@@ -8,10 +8,13 @@
 import 'vs/css!./media/scmViewlet';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { chain } from 'vs/base/common/event';
+import { domEvent } from 'vs/base/browser/event';
 import { IDisposable, dispose, empty as EmptyDisposable } from 'vs/base/common/lifecycle';
 import { Builder, Dimension } from 'vs/base/browser/builder';
 import { Viewlet } from 'vs/workbench/browser/viewlet';
 import { append, $, toggleClass } from 'vs/base/browser/dom';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { IDelegate, IRenderer, IListMouseEvent } from 'vs/base/browser/ui/list/list';
@@ -31,7 +34,7 @@ import { createActionItem } from 'vs/platform/actions/browser/menuItemActionItem
 import { SCMMenus } from './scmMenus';
 import { ActionBar, IActionItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
-import { SCMEditor } from './scmEditor';
+import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IModelService } from 'vs/editor/common/services/modelService';
 
 function isSCMResource(element: ISCMResourceGroup | ISCMResource): element is ISCMResource {
@@ -153,7 +156,8 @@ class Delegate implements IDelegate<ISCMResourceGroup | ISCMResource> {
 export class SCMViewlet extends Viewlet {
 
 	private cachedDimension: Dimension;
-	private editor: SCMEditor;
+	private inputBoxContainer: HTMLElement;
+	private inputBox: InputBox;
 	private listContainer: HTMLElement;
 	private list: List<ISCMResourceGroup | ISCMResource>;
 	private menus: SCMMenus;
@@ -199,12 +203,20 @@ export class SCMViewlet extends Viewlet {
 		parent.addClass('scm-viewlet');
 
 		const root = parent.getHTMLElement();
-		const editorContainer = append(root, $('.scm-editor'));
+		this.inputBoxContainer = append(root, $('.scm-editor'));
 
-		this.editor = this.instantiationService.createInstance(SCMEditor, editorContainer);
-		this.disposables.push(this.editor);
+		this.inputBox = new InputBox(this.inputBoxContainer, this.contextViewService, { flexibleHeight: true });
+		this.disposables.push(this.inputBox);
 
-		this.disposables.push(this.scmService.inputBoxModel.onDidChangeContent(() => this.layout()));
+		this.inputBox.value = this.scmService.input.value;
+		this.inputBox.onDidChange(value => this.scmService.input.value = value, null, this.disposables);
+		this.scmService.input.onDidChange(value => this.inputBox.value = value, null, this.disposables);
+		this.disposables.push(this.scmService.input.onDidChange(() => this.layout()));
+
+		chain(domEvent(this.inputBox.inputElement, 'keydown'))
+			.map(e => new StandardKeyboardEvent(e))
+			.filter(e => e.equals(KeyMod.CtrlCmd | KeyCode.Enter) || e.equals(KeyMod.CtrlCmd | KeyCode.KEY_S))
+			.on(this.acceptChanges, this, this.disposables);
 
 		this.listContainer = append(root, $('.scm-status.show-file-icons'));
 		const delegate = new Delegate();
@@ -257,13 +269,14 @@ export class SCMViewlet extends Viewlet {
 		}
 
 		this.cachedDimension = dimension;
+		this.inputBox.layout();
 
-		const editorHeight = this.editor.viewHeight;
-		this.editor.layout({ width: dimension.width - 25, height: editorHeight });
-
+		const editorHeight = this.inputBox.height;
 		const listHeight = dimension.height - (editorHeight + 12 /* margin */);
 		this.listContainer.style.height = `${listHeight}px`;
 		this.list.layout(listHeight);
+
+		toggleClass(this.inputBoxContainer, 'scroll', editorHeight >= 134);
 	}
 
 	getOptimalWidth(): number {
@@ -272,11 +285,15 @@ export class SCMViewlet extends Viewlet {
 
 	focus(): void {
 		super.focus();
-		this.editor.focus();
+		this.inputBox.focus();
 	}
 
 	private open(e: ISCMResource): void {
 		this.scmService.activeProvider.open(e);
+	}
+
+	private acceptChanges(): void {
+		this.scmService.activeProvider.acceptChanges();
 	}
 
 	getActions(): IAction[] {

@@ -116,6 +116,10 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		this._configuration = this._createConfiguration(options);
 		this._lifetimeDispose.push(this._configuration.onDidChange((e) => {
 			this.emit(editorCommon.EventType.ConfigurationChanged, e);
+
+			if (e.layoutInfo) {
+				this.emit(editorCommon.EventType.EditorLayout, this._configuration.editor.layoutInfo);
+			}
 		}));
 
 		this._contextKeyService = contextKeyService.createScoped(this.domElement);
@@ -866,6 +870,14 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 							this.emit(editorCommon.EventType.MouseUp, e);
 							break;
 
+						case editorCommon.EventType.MouseDrag:
+							this.emit(editorCommon.EventType.MouseDrag, e);
+							break;
+
+						case editorCommon.EventType.MouseDrop:
+							this.emit(editorCommon.EventType.MouseDrop, e);
+							break;
+
 						case editorCommon.EventType.KeyUp:
 							this.emit(editorCommon.EventType.KeyUp, e);
 							break;
@@ -880,10 +892,6 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 
 						case editorCommon.EventType.KeyDown:
 							this.emit(editorCommon.EventType.KeyDown, e);
-							break;
-
-						case editorCommon.EventType.ViewLayoutChanged:
-							this.emit(editorCommon.EventType.EditorLayout, e);
 							break;
 
 						default:

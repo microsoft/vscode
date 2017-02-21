@@ -13,6 +13,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { findFocusedEditor } from 'vs/editor/common/config/config';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { editorAction, IActionOptions, EditorAction } from 'vs/editor/common/editorCommonExtensions';
+import { CopyOptions } from 'vs/editor/common/controller/textAreaHandler';
 
 import EditorContextKeys = editorCommon.EditorContextKeys;
 
@@ -168,8 +169,8 @@ class ExecCommandCopyWithSyntaxHighlightingAction extends ExecCommandAction {
 			return;
 		}
 
-		editorCommon.InternalEditorOptions.forceCopyWithSyntaxHighlighting = true;
+		CopyOptions.forceCopyWithSyntaxHighlighting = true;
 		super.run(accessor, editor);
-		editorCommon.InternalEditorOptions.forceCopyWithSyntaxHighlighting = false;
+		CopyOptions.forceCopyWithSyntaxHighlighting = false;
 	}
 }

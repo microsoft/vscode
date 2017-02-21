@@ -4,19 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { EmitterEvent, EventEmitter, IEventEmitter } from 'vs/base/common/eventEmitter';
+import { EmitterEvent, IEventEmitter } from 'vs/base/common/eventEmitter';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { TokenizationRegistry } from 'vs/editor/common/modes';
+import { TokenizationRegistry, ColorId } from 'vs/editor/common/modes';
 import { tokenizeLineToHTML } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { ViewModelCursors } from 'vs/editor/common/viewModel/viewModelCursors';
 import { ViewModelDecorations } from 'vs/editor/common/viewModel/viewModelDecorations';
-import { MinimapLinesRenderingData, ViewLineRenderingData, ViewModelDecoration, IViewModel, ICoordinatesConverter } from 'vs/editor/common/viewModel/viewModel';
+import { MinimapLinesRenderingData, ViewLineRenderingData, ViewModelDecoration, IViewModelListener, IViewModel, ICoordinatesConverter, ViewEventsCollector } from 'vs/editor/common/viewModel/viewModel';
 import { SplitLinesCollection } from 'vs/editor/common/viewModel/splitLinesCollection';
+import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import * as errors from 'vs/base/common/errors';
 
 export class CoordinatesConverter implements ICoordinatesConverter {
 
@@ -66,13 +68,19 @@ export class CoordinatesConverter implements ICoordinatesConverter {
 		return new Range(start.lineNumber, start.column, end.lineNumber, end.column);
 	}
 
+	public convertModelSelectionToViewSelection(modelSelection: Selection): Selection {
+		let selectionStart = this._lines.convertModelPositionToViewPosition(modelSelection.selectionStartLineNumber, modelSelection.selectionStartColumn);
+		let position = this._lines.convertModelPositionToViewPosition(modelSelection.positionLineNumber, modelSelection.positionColumn);
+		return new Selection(selectionStart.lineNumber, selectionStart.column, position.lineNumber, position.column);
+	}
+
 	public modelPositionIsVisible(modelPosition: Position): boolean {
 		return this._lines.modelPositionIsVisible(modelPosition.lineNumber, modelPosition.column);
 	}
 
 }
 
-export class ViewModel extends EventEmitter implements IViewModel {
+export class ViewModel implements IViewModel {
 
 	private readonly lines: SplitLinesCollection;
 	private readonly editorId: number;
@@ -91,8 +99,9 @@ export class ViewModel extends EventEmitter implements IViewModel {
 
 	private _centeredViewLine: number;
 
+	private _listeners: IViewModelListener[];
+
 	constructor(lines: SplitLinesCollection, editorId: number, configuration: editorCommon.IConfiguration, model: editorCommon.IModel) {
-		super();
 		this.lines = lines;
 
 		this.editorId = editorId;
@@ -111,7 +120,7 @@ export class ViewModel extends EventEmitter implements IViewModel {
 		this.decorations = new ViewModelDecorations(this.editorId, this.model, this.configuration, this.coordinatesConverter);
 		this.decorations.reset();
 
-		this.cursors = new ViewModelCursors(this.configuration);
+		this.cursors = new ViewModelCursors(this.configuration, this.coordinatesConverter);
 
 		this.listenersToRemove = [];
 		this._toDispose = [];
@@ -119,23 +128,22 @@ export class ViewModel extends EventEmitter implements IViewModel {
 		this._toDispose.push(this.configuration.onDidChange((e) => {
 			this.onEvents([new EmitterEvent(editorCommon.EventType.ConfigurationChanged, e)]);
 		}));
+
+		this._listeners = [];
 	}
 
 	public setHiddenAreas(ranges: editorCommon.IRange[]): void {
-		try {
-			this._beginDeferredEmit();
-			this._setHiddenAreas(ranges);
-		} finally {
-			this._endDeferredEmit();
-		}
+		let eventsCollector = new ViewEventsCollector();
+		this._setHiddenAreas(eventsCollector, ranges);
+		this._emit(eventsCollector.finalize());
 	}
 
-	private _setHiddenAreas(ranges: editorCommon.IRange[]): void {
-		let lineMappingChanged = this.lines.setHiddenAreas(ranges, (eventType: string, payload: any) => this.emit(eventType, payload));
+	private _setHiddenAreas(eventsCollector: ViewEventsCollector, ranges: editorCommon.IRange[]): void {
+		let lineMappingChanged = this.lines.setHiddenAreas(eventsCollector, ranges);
 		if (lineMappingChanged) {
-			this.emit(editorCommon.ViewEventNames.LineMappingChangedEvent);
-			this.decorations.onLineMappingChanged((eventType: string, payload: any) => this.emit(eventType, payload));
-			this.cursors.onLineMappingChanged((eventType: string, payload: any) => this.emit(eventType, payload));
+			eventsCollector.emit(new viewEvents.ViewLineMappingChangedEvent());
+			this.decorations.onLineMappingChanged(eventsCollector);
+			this.cursors.onLineMappingChanged(eventsCollector);
 		}
 	}
 
@@ -144,48 +152,70 @@ export class ViewModel extends EventEmitter implements IViewModel {
 		this._toDispose = dispose(this._toDispose);
 		this.decorations.dispose();
 		this.lines.dispose();
+		this._listeners = [];
 	}
 
-	private _onTabSizeChange(newTabSize: number): boolean {
-		var lineMappingChanged = this.lines.setTabSize(newTabSize, (eventType: string, payload: any) => this.emit(eventType, payload));
+	public addEventListener(listener: (events: viewEvents.ViewEvent[]) => void): IDisposable {
+		this._listeners.push(listener);
+		return {
+			dispose: () => {
+				let listeners = this._listeners;
+				for (let i = 0, len = listeners.length; i < len; i++) {
+					if (listeners[i] === listener) {
+						listeners.splice(i, 1);
+						break;
+					}
+				}
+			}
+		};
+	}
+
+	private _emit(events: viewEvents.ViewEvent[]): void {
+		let listeners = this._listeners.slice(0);
+		for (let i = 0, len = listeners.length; i < len; i++) {
+			safeInvokeListener(listeners[i], events);
+		}
+	}
+
+	private _onTabSizeChange(eventsCollector: ViewEventsCollector, newTabSize: number): boolean {
+		var lineMappingChanged = this.lines.setTabSize(eventsCollector, newTabSize);
 		if (lineMappingChanged) {
-			this.emit(editorCommon.ViewEventNames.LineMappingChangedEvent);
-			this.decorations.onLineMappingChanged((eventType: string, payload: any) => this.emit(eventType, payload));
-			this.cursors.onLineMappingChanged((eventType: string, payload: any) => this.emit(eventType, payload));
+			eventsCollector.emit(new viewEvents.ViewLineMappingChangedEvent());
+			this.decorations.onLineMappingChanged(eventsCollector);
+			this.cursors.onLineMappingChanged(eventsCollector);
 		}
 		return lineMappingChanged;
 	}
 
-	private _onWrappingIndentChange(newWrappingIndent: editorCommon.WrappingIndent): boolean {
-		var lineMappingChanged = this.lines.setWrappingIndent(newWrappingIndent, (eventType: string, payload: any) => this.emit(eventType, payload));
+	private _onWrappingIndentChange(eventsCollector: ViewEventsCollector, newWrappingIndent: editorCommon.WrappingIndent): boolean {
+		var lineMappingChanged = this.lines.setWrappingIndent(eventsCollector, newWrappingIndent);
 		if (lineMappingChanged) {
-			this.emit(editorCommon.ViewEventNames.LineMappingChangedEvent);
-			this.decorations.onLineMappingChanged((eventType: string, payload: any) => this.emit(eventType, payload));
-			this.cursors.onLineMappingChanged((eventType: string, payload: any) => this.emit(eventType, payload));
+			eventsCollector.emit(new viewEvents.ViewLineMappingChangedEvent());
+			this.decorations.onLineMappingChanged(eventsCollector);
+			this.cursors.onLineMappingChanged(eventsCollector);
 		}
 		return lineMappingChanged;
 	}
 
-	private _restoreCenteredModelRange(range: Range): void {
+	private _restoreCenteredModelRange(eventsCollector: ViewEventsCollector, range: Range): void {
 		// modelLine -> viewLine
 		var newCenteredViewRange = this.coordinatesConverter.convertModelRangeToViewRange(range);
 
 		// Send a reveal event to restore the centered content
-		var restoreRevealEvent: editorCommon.IViewRevealRangeEvent = {
-			range: newCenteredViewRange,
-			verticalType: editorCommon.VerticalRevealType.Center,
-			revealHorizontal: false,
-			revealCursor: false
-		};
-		this.emit(editorCommon.ViewEventNames.RevealRangeEvent, restoreRevealEvent);
+		eventsCollector.emit(new viewEvents.ViewRevealRangeRequestEvent(
+			newCenteredViewRange,
+			editorCommon.VerticalRevealType.Center,
+			false,
+			false
+		));
 	}
 
-	private _onWrappingColumnChange(newWrappingColumn: number, columnsForFullWidthChar: number): boolean {
-		let lineMappingChanged = this.lines.setWrappingColumn(newWrappingColumn, columnsForFullWidthChar, (eventType: string, payload: any) => this.emit(eventType, payload));
+	private _onWrappingColumnChange(eventsCollector: ViewEventsCollector, newWrappingColumn: number, columnsForFullWidthChar: number): boolean {
+		let lineMappingChanged = this.lines.setWrappingColumn(eventsCollector, newWrappingColumn, columnsForFullWidthChar);
 		if (lineMappingChanged) {
-			this.emit(editorCommon.ViewEventNames.LineMappingChangedEvent);
-			this.decorations.onLineMappingChanged((eventType: string, payload: any) => this.emit(eventType, payload));
-			this.cursors.onLineMappingChanged((eventType: string, payload: any) => this.emit(eventType, payload));
+			eventsCollector.emit(new viewEvents.ViewLineMappingChangedEvent());
+			this.decorations.onLineMappingChanged(eventsCollector);
+			this.cursors.onLineMappingChanged(eventsCollector);
 		}
 		return lineMappingChanged;
 	}
@@ -195,12 +225,9 @@ export class ViewModel extends EventEmitter implements IViewModel {
 	}
 
 	private onEvents(events: EmitterEvent[]): void {
-		try {
-			this._beginDeferredEmit();
-			this._onEvents(events);
-		} finally {
-			this._endDeferredEmit();
-		}
+		let eventsCollector = new ViewEventsCollector();
+		this._onEvents(eventsCollector, events);
+		this._emit(eventsCollector.finalize());
 	}
 
 	private static _containsModelContentChangeEvent(events: EmitterEvent[]): boolean {
@@ -236,7 +263,7 @@ export class ViewModel extends EventEmitter implements IViewModel {
 		return this.coordinatesConverter.convertViewRangeToModelRange(currentCenteredViewRange);
 	}
 
-	private _onEvents(events: EmitterEvent[]): void {
+	private _onEvents(eventsCollector: ViewEventsCollector, events: EmitterEvent[]): void {
 
 		const containsModelContentChangeEvent = ViewModel._containsModelContentChangeEvent(events);
 		if (containsModelContentChangeEvent) {
@@ -277,22 +304,22 @@ export class ViewModel extends EventEmitter implements IViewModel {
 
 					switch (modelContentChangedEvent.changeType) {
 						case editorCommon.EventType.ModelRawContentChangedFlush:
-							this.onModelFlushed(<editorCommon.IModelContentChangedFlushEvent>modelContentChangedEvent);
+							this.onModelFlushed(eventsCollector, <editorCommon.IModelContentChangedFlushEvent>modelContentChangedEvent);
 							hadOtherModelChange = true;
 							break;
 
 						case editorCommon.EventType.ModelRawContentChangedLinesDeleted:
-							this.onModelLinesDeleted(<editorCommon.IModelContentChangedLinesDeletedEvent>modelContentChangedEvent);
+							this.onModelLinesDeleted(eventsCollector, <editorCommon.IModelContentChangedLinesDeletedEvent>modelContentChangedEvent);
 							hadOtherModelChange = true;
 							break;
 
 						case editorCommon.EventType.ModelRawContentChangedLinesInserted:
-							this.onModelLinesInserted(<editorCommon.IModelContentChangedLinesInsertedEvent>modelContentChangedEvent);
+							this.onModelLinesInserted(eventsCollector, <editorCommon.IModelContentChangedLinesInsertedEvent>modelContentChangedEvent);
 							hadOtherModelChange = true;
 							break;
 
 						case editorCommon.EventType.ModelRawContentChangedLineChanged:
-							hadModelLineChangeThatChangedLineMapping = this.onModelLineChanged(<editorCommon.IModelContentChangedLineChangedEvent>modelContentChangedEvent);
+							hadModelLineChangeThatChangedLineMapping = this.onModelLineChanged(eventsCollector, <editorCommon.IModelContentChangedLineChangedEvent>modelContentChangedEvent);
 							break;
 
 						default:
@@ -302,7 +329,7 @@ export class ViewModel extends EventEmitter implements IViewModel {
 					break;
 
 				case editorCommon.EventType.ModelTokensChanged:
-					this.onModelTokensChanged(<editorCommon.IModelTokensChangedEvent>data);
+					this.onModelTokensChanged(eventsCollector, <editorCommon.IModelTokensChangedEvent>data);
 					break;
 
 				case editorCommon.EventType.ModelLanguageChanged:
@@ -316,7 +343,7 @@ export class ViewModel extends EventEmitter implements IViewModel {
 				case editorCommon.EventType.ModelOptionsChanged:
 					// A tab size change causes a line mapping changed event => all view parts will repaint OK, no further event needed here
 					let prevLineCount = this.lines.getViewLineCount();
-					let tabSizeChanged = this._onTabSizeChange(this.model.getOptions().tabSize);
+					let tabSizeChanged = this._onTabSizeChange(eventsCollector, this.model.getOptions().tabSize);
 					let newLineCount = this.lines.getViewLineCount();
 					if (tabSizeChanged && prevLineCount !== newLineCount) {
 						revealPreviousCenteredModelRange = true;
@@ -325,7 +352,7 @@ export class ViewModel extends EventEmitter implements IViewModel {
 					break;
 
 				case editorCommon.EventType.ModelDecorationsChanged:
-					this.onModelDecorationsChanged(<editorCommon.IModelDecorationsChangedEvent>data);
+					this.onModelDecorationsChanged(eventsCollector, <editorCommon.IModelDecorationsChangedEvent>data);
 					break;
 
 				case editorCommon.EventType.ModelDispose:
@@ -333,25 +360,25 @@ export class ViewModel extends EventEmitter implements IViewModel {
 					break;
 
 				case editorCommon.EventType.CursorPositionChanged:
-					this.onCursorPositionChanged(<editorCommon.ICursorPositionChangedEvent>data);
+					this.onCursorPositionChanged(eventsCollector, <editorCommon.ICursorPositionChangedEvent>data);
 					this._lastCursorPosition = (<editorCommon.ICursorPositionChangedEvent>data).position;
 					break;
 
 				case editorCommon.EventType.CursorSelectionChanged:
-					this.onCursorSelectionChanged(<editorCommon.ICursorSelectionChangedEvent>data);
+					this.onCursorSelectionChanged(eventsCollector, <editorCommon.ICursorSelectionChangedEvent>data);
 					break;
 
 				case editorCommon.EventType.CursorRevealRange:
-					this.onCursorRevealRange(<editorCommon.ICursorRevealRangeEvent>data);
+					this.onCursorRevealRange(eventsCollector, <editorCommon.ICursorRevealRangeEvent>data);
 					break;
 
 				case editorCommon.EventType.CursorScrollRequest:
-					this.onCursorScrollRequest(<editorCommon.ICursorScrollRequestEvent>data);
+					this.onCursorScrollRequest(eventsCollector, <editorCommon.ICursorScrollRequestEvent>data);
 					break;
 
 				case editorCommon.EventType.ConfigurationChanged:
-					revealPreviousCenteredModelRange = this._onWrappingIndentChange(this.configuration.editor.wrappingInfo.wrappingIndent) || revealPreviousCenteredModelRange;
-					revealPreviousCenteredModelRange = this._onWrappingColumnChange(this.configuration.editor.wrappingInfo.wrappingColumn, this.configuration.editor.fontInfo.typicalFullwidthCharacterWidth / this.configuration.editor.fontInfo.typicalHalfwidthCharacterWidth) || revealPreviousCenteredModelRange;
+					revealPreviousCenteredModelRange = this._onWrappingIndentChange(eventsCollector, this.configuration.editor.wrappingInfo.wrappingIndent) || revealPreviousCenteredModelRange;
+					revealPreviousCenteredModelRange = this._onWrappingColumnChange(eventsCollector, this.configuration.editor.wrappingInfo.wrappingColumn, this.configuration.editor.fontInfo.typicalFullwidthCharacterWidth / this.configuration.editor.fontInfo.typicalHalfwidthCharacterWidth) || revealPreviousCenteredModelRange;
 
 					this._renderCustomLineNumbers = this.configuration.editor.viewInfo.renderCustomLineNumbers;
 					this._renderRelativeLineNumbers = this.configuration.editor.viewInfo.renderRelativeLineNumbers;
@@ -359,9 +386,9 @@ export class ViewModel extends EventEmitter implements IViewModel {
 					if ((<editorCommon.IConfigurationChangedEvent>data).readOnly) {
 						// Must read again all decorations due to readOnly filtering
 						this.decorations.reset();
-						this.emit(editorCommon.ViewEventNames.DecorationsChangedEvent, {});
+						eventsCollector.emit(new viewEvents.ViewDecorationsChangedEvent());
 					}
-					this.emit(e.getType(), <editorCommon.IConfigurationChangedEvent>data);
+					eventsCollector.emit(new viewEvents.ViewConfigurationChangedEvent(<editorCommon.IConfigurationChangedEvent>data));
 					break;
 
 				default:
@@ -371,28 +398,28 @@ export class ViewModel extends EventEmitter implements IViewModel {
 		}
 
 		if (!hadOtherModelChange && hadModelLineChangeThatChangedLineMapping) {
-			this.emit(editorCommon.ViewEventNames.LineMappingChangedEvent);
-			this.decorations.onLineMappingChanged((eventType: string, payload: any) => this.emit(eventType, payload));
-			this.cursors.onLineMappingChanged((eventType: string, payload: any) => this.emit(eventType, payload));
+			eventsCollector.emit(new viewEvents.ViewLineMappingChangedEvent());
+			this.decorations.onLineMappingChanged(eventsCollector);
+			this.cursors.onLineMappingChanged(eventsCollector);
 		}
 
 		if (revealPreviousCenteredModelRange && previousCenteredModelRange) {
-			this._restoreCenteredModelRange(previousCenteredModelRange);
+			this._restoreCenteredModelRange(eventsCollector, previousCenteredModelRange);
 		}
 	}
 
 	// --- begin inbound event conversion
-	private onModelFlushed(e: editorCommon.IModelContentChangedFlushEvent): void {
-		this.lines.onModelFlushed(e.versionId, (eventType: string, payload: any) => this.emit(eventType, payload));
+	private onModelFlushed(eventsCollector: ViewEventsCollector, e: editorCommon.IModelContentChangedFlushEvent): void {
+		this.lines.onModelFlushed(eventsCollector, e.versionId);
 		this.decorations.reset();
 	}
-	private onModelDecorationsChanged(e: editorCommon.IModelDecorationsChangedEvent): void {
-		this.decorations.onModelDecorationsChanged(e, (eventType: string, payload: any) => this.emit(eventType, payload));
+	private onModelDecorationsChanged(eventsCollector: ViewEventsCollector, e: editorCommon.IModelDecorationsChangedEvent): void {
+		this.decorations.onModelDecorationsChanged(eventsCollector, e);
 	}
-	private onModelLinesDeleted(e: editorCommon.IModelContentChangedLinesDeletedEvent): void {
-		this.lines.onModelLinesDeleted(e.versionId, e.fromLineNumber, e.toLineNumber, (eventType: string, payload: any) => this.emit(eventType, payload));
+	private onModelLinesDeleted(eventsCollector: ViewEventsCollector, e: editorCommon.IModelContentChangedLinesDeletedEvent): void {
+		this.lines.onModelLinesDeleted(eventsCollector, e.versionId, e.fromLineNumber, e.toLineNumber);
 	}
-	private onModelTokensChanged(e: editorCommon.IModelTokensChangedEvent): void {
+	private onModelTokensChanged(eventsCollector: ViewEventsCollector, e: editorCommon.IModelTokensChangedEvent): void {
 		let viewRanges: { fromLineNumber: number; toLineNumber: number; }[] = [];
 
 		for (let i = 0, len = e.ranges.length; i < len; i++) {
@@ -405,26 +432,23 @@ export class ViewModel extends EventEmitter implements IViewModel {
 			};
 		}
 
-		var e: editorCommon.IViewTokensChangedEvent = {
-			ranges: viewRanges
-		};
-		this.emit(editorCommon.ViewEventNames.TokensChangedEvent, e);
+		eventsCollector.emit(new viewEvents.ViewTokensChangedEvent(viewRanges));
 	}
-	private onModelLineChanged(e: editorCommon.IModelContentChangedLineChangedEvent): boolean {
-		var lineMappingChanged = this.lines.onModelLineChanged(e.versionId, e.lineNumber, e.detail, (eventType: string, payload: any) => this.emit(eventType, payload));
+	private onModelLineChanged(eventsCollector: ViewEventsCollector, e: editorCommon.IModelContentChangedLineChangedEvent): boolean {
+		var lineMappingChanged = this.lines.onModelLineChanged(eventsCollector, e.versionId, e.lineNumber, e.detail);
 		return lineMappingChanged;
 	}
-	private onModelLinesInserted(e: editorCommon.IModelContentChangedLinesInsertedEvent): void {
-		this.lines.onModelLinesInserted(e.versionId, e.fromLineNumber, e.toLineNumber, e.detail.split('\n'), (eventType: string, payload: any) => this.emit(eventType, payload));
+	private onModelLinesInserted(eventsCollector: ViewEventsCollector, e: editorCommon.IModelContentChangedLinesInsertedEvent): void {
+		this.lines.onModelLinesInserted(eventsCollector, e.versionId, e.fromLineNumber, e.toLineNumber, e.detail.split('\n'));
 	}
 
-	private onCursorPositionChanged(e: editorCommon.ICursorPositionChangedEvent): void {
-		this.cursors.onCursorPositionChanged(e, (eventType: string, payload: any) => this.emit(eventType, payload));
+	private onCursorPositionChanged(eventsCollector: ViewEventsCollector, e: editorCommon.ICursorPositionChangedEvent): void {
+		this.cursors.onCursorPositionChanged(eventsCollector, e);
 	}
-	private onCursorSelectionChanged(e: editorCommon.ICursorSelectionChangedEvent): void {
-		this.cursors.onCursorSelectionChanged(e, (eventType: string, payload: any) => this.emit(eventType, payload));
+	private onCursorSelectionChanged(eventsCollector: ViewEventsCollector, e: editorCommon.ICursorSelectionChangedEvent): void {
+		this.cursors.onCursorSelectionChanged(eventsCollector, e);
 	}
-	private onCursorRevealRange(e: editorCommon.ICursorRevealRangeEvent): void {
+	private onCursorRevealRange(eventsCollector: ViewEventsCollector, e: editorCommon.ICursorRevealRangeEvent): void {
 		// Ensure event has viewRange
 		if (!e.viewRange) {
 			e = {
@@ -435,10 +459,10 @@ export class ViewModel extends EventEmitter implements IViewModel {
 				revealCursor: e.revealCursor,
 			};
 		}
-		this.cursors.onCursorRevealRange(e, (eventType: string, payload: any) => this.emit(eventType, payload));
+		this.cursors.onCursorRevealRange(eventsCollector, e);
 	}
-	private onCursorScrollRequest(e: editorCommon.ICursorScrollRequestEvent): void {
-		this.cursors.onCursorScrollRequest(e, (eventType: string, payload: any) => this.emit(eventType, payload));
+	private onCursorScrollRequest(eventsCollector: ViewEventsCollector, e: editorCommon.ICursorScrollRequestEvent): void {
+		this.cursors.onCursorScrollRequest(eventsCollector, e);
 	}
 	// --- end inbound event conversion
 
@@ -595,72 +619,79 @@ export class ViewModel extends EventEmitter implements IViewModel {
 		}
 	}
 
-	public getHTMLToCopy(ranges: Range[], enableEmptySelectionClipboard: boolean): string {
-		// TODO: adopt new view line tokens.
-		let rules: { [key: string]: string } = {};
-		let colorMap = TokenizationRegistry.getColorMap();
-		for (let i = 1, len = colorMap.length; i < len; i++) {
-			let color = colorMap[i];
-			if (/^(?:[0-9a-fA-F]{3}){1,2}$/.test(color)) {
-				color = '#' + color;
-			}
-			rules[`mtk${i}`] = `color: ${color};`;
+	public getHTMLToCopy(viewRanges: Range[], enableEmptySelectionClipboard: boolean): string {
+		if (viewRanges.length !== 1) {
+			// no multiple selection support at this time
+			return null;
 		}
-		rules['mtki'] = 'font-style: italic;';
-		rules['mtkb'] = 'font-weight: bold;';
-		rules['mtku'] = 'text-decoration: underline;';
 
-		let defaultForegroundColor = /^(?:[0-9a-fA-F]{3}){1,2}$/.test(colorMap[1]) ? '#' + colorMap[1] : colorMap[1];
-		let defaultBackgroundColor = /^(?:[0-9a-fA-F]{3}){1,2}$/.test(colorMap[2]) ? '#' + colorMap[2] : colorMap[2];
+		let range = this.coordinatesConverter.convertViewRangeToModelRange(viewRanges[0]);
+		if (range.isEmpty()) {
+			if (!enableEmptySelectionClipboard) {
+				// nothing to copy
+				return null;
+			}
+			let lineNumber = range.startLineNumber;
+			range = new Range(lineNumber, this.model.getLineMinColumn(lineNumber), lineNumber, this.model.getLineMaxColumn(lineNumber));
+		}
 
-		let fontInfo = this.configuration.editor.fontInfo;
+		const fontInfo = this.configuration.editor.fontInfo;
+		const colorMap = this._getColorMap();
 
-		let output = `<div style="color: ${defaultForegroundColor}; background-color: ${defaultBackgroundColor};` +
-			`font-family: ${fontInfo.fontFamily}; font-weight: ${fontInfo.fontWeight}; font-size: ${fontInfo.fontSize}px; line-height: ${fontInfo.lineHeight}px">`;
+		return (
+			`<div style="`
+			+ `color: ${colorMap[ColorId.DefaultForeground]};`
+			+ `background-color: ${colorMap[ColorId.DefaultBackground]};`
+			+ `font-family: ${fontInfo.fontFamily};`
+			+ `font-weight: ${fontInfo.fontWeight};`
+			+ `font-size: ${fontInfo.fontSize}px;`
+			+ `line-height: ${fontInfo.lineHeight}px`
+			+ `">`
+			+ this._getHTMLToCopy(range, colorMap)
+			+ '</div>'
+		);
+	}
 
-		if (ranges.length === 1) {
-			let range: Range = ranges[0];
+	private _getHTMLToCopy(modelRange: Range, colorMap: string[]): string {
+		const startLineNumber = modelRange.startLineNumber;
+		const startColumn = modelRange.startColumn;
+		const endLineNumber = modelRange.endLineNumber;
+		const endColumn = modelRange.endColumn;
 
-			if (range.isEmpty()) {
-				if (enableEmptySelectionClipboard) {
-					let modelLineNumber = this.coordinatesConverter.convertViewPositionToModelPosition(new Position(range.startLineNumber, 1)).lineNumber;
-					let viewLineStart = new Position(range.startLineNumber, 1);
-					let viewLineEnd = new Position(range.startLineNumber, this.getLineMaxColumn(range.startLineNumber));
-					let startOffset = this.coordinatesConverter.convertViewPositionToModelPosition(viewLineStart).column - 1;
-					let endOffset = this.coordinatesConverter.convertViewPositionToModelPosition(viewLineEnd).column - 1;
-					let viewLineRenderingData = this.getViewLineRenderingData(new Range(viewLineStart.lineNumber, viewLineStart.column, viewLineEnd.lineNumber, viewLineEnd.column), modelLineNumber);
-					let html = tokenizeLineToHTML(this.getModelLineContent(modelLineNumber),
-						viewLineRenderingData.tokens,
-						rules,
-						{
-							startOffset: startOffset,
-							endOffset: endOffset,
-							tabSize: this.getTabSize()
-						});
-					output += `${html}`;
-				} else {
-					return '';
-				}
+		const tabSize = this.getTabSize();
+
+		let result = '';
+
+		for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
+			const lineTokens = this.model.getLineTokens(lineNumber, true);
+			const lineContent = lineTokens.getLineContent();
+			const startOffset = (lineNumber === startLineNumber ? startColumn - 1 : 0);
+			const endOffset = (lineNumber === endLineNumber ? endColumn - 1 : lineContent.length);
+
+			if (lineContent === '') {
+				result += '<br>';
 			} else {
-				for (let i = 0, lineCount = range.endLineNumber - range.startLineNumber; i <= lineCount; i++) {
-					let viewLineRenderingData = this.getViewLineRenderingData(range, range.startLineNumber + i);
-					let lineContent = viewLineRenderingData.content;
-					let startOffset = i === 0 ? range.startColumn - 1 : 0;
-					let endOffset = i === lineCount ? range.endColumn - 1 : lineContent.length;
-
-					let html = tokenizeLineToHTML(lineContent, viewLineRenderingData.tokens, rules,
-						{
-							startOffset: startOffset,
-							endOffset: endOffset,
-							tabSize: this.getTabSize()
-						});
-					output += `${html}`;
-				}
+				result += tokenizeLineToHTML(lineContent, lineTokens.inflate(), colorMap, startOffset, endOffset, tabSize);
 			}
 		}
 
-		output += '</div>';
+		return result;
+	}
 
-		return output;
+	private _getColorMap(): string[] {
+		let colorMap = TokenizationRegistry.getColorMap();
+		let result: string[] = [null];
+		for (let i = 1, len = colorMap.length; i < len; i++) {
+			result[i] = colorMap[i].toRGBHex();
+		}
+		return result;
+	}
+}
+
+function safeInvokeListener(listener: IViewModelListener, events: viewEvents.ViewEvent[]): void {
+	try {
+		listener(events);
+	} catch (e) {
+		errors.onUnexpectedError(e);
 	}
 }

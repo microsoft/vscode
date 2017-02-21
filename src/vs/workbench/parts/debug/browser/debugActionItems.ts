@@ -66,6 +66,10 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 				this.debugService.getViewModel().setSelectedConfigurationName(configurationName);
 			}
 		}));
+		this.toDispose.push(this.debugService.getViewModel().onDidSelectConfiguration(configurationName => {
+			const manager = this.debugService.getConfigurationManager();
+			this.selectBox.select(manager.getConfigurationNames().indexOf(configurationName));
+		}));
 	}
 
 	public render(container: HTMLElement): void {

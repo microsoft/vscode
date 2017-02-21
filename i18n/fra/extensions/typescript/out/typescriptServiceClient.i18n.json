@@ -6,17 +6,17 @@
 {
 	"activeVersion": "En cours",
 	"channelName": "TypeScript",
+	"later": "Plus tard",
 	"learnMore": "En savoir plus",
 	"noServerFound": "Le chemin {0} ne pointe pas vers une installation tsserver valide. Utilisation par défaut de la version TypeScript groupée.",
 	"reloadBlurb": "Recharger la fenêtre pour appliquer les changements",
 	"reloadTitle": "Recharger",
-	"selectTsVersion": "Sélectionner la version TypeScript utilisée pour les fonctionnalités de langage",
+	"selectTsVersion": "Sélectionner la version TypeScript utilisée pour les fonctionnalités de langage JavaScript et TypeScript",
 	"serverCouldNotBeStarted": "Impossible de démarrer le serveur de langage TypeScript. Message d'erreur : {0}",
 	"serverDied": "Le service de langage TypeScript s'est subitement arrêté 5 fois au cours des 5 dernières minutes.",
 	"serverDiedAfterStart": "Le service de langage TypeScript s'est subitement arrêté 5 fois juste après avoir démarré. Il n'y aura pas d'autres redémarrages.",
 	"serverDiedReportIssue": "Signaler un problème",
 	"useVSCodeVersionOption": "Utiliser la version de VSCode",
 	"useWorkspaceVersionOption": "Utiliser la version de l'espace de travail",
-	"versionCheckUsingBundledTS": "Utilisation de la version TypeScript {0} de VSCode pour les fonctionnalités de langage TypeScript",
 	"versionNumber.custom": "personnalisé"
 }

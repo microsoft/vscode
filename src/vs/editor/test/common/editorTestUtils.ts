@@ -41,6 +41,9 @@ export function viewModelHelper(model): IViewModelHelper {
 			convertModelRangeToViewRange: (modelRange: Range): Range => {
 				return modelRange;
 			},
+			convertModelSelectionToViewSelection: (modelSelection: Selection): Selection => {
+				return modelSelection;
+			},
 			modelPositionIsVisible: (modelPosition: Position): boolean => {
 				return true;
 			},

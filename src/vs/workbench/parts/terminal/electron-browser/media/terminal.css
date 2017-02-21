@@ -45,6 +45,14 @@
 	left: 0;
 }
 
+.monaco-workbench .panel.integrated-terminal {
+	font-variant-ligatures: none;
+}
+
+.monaco-workbench .panel.integrated-terminal.enable-ligatures {
+	font-variant-ligatures: normal;
+}
+
 /* Terminal actions */
 
 /* Light theme */

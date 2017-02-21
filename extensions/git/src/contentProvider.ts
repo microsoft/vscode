@@ -6,6 +6,7 @@
 'use strict';
 
 import { workspace, Uri, Disposable, Event, EventEmitter } from 'vscode';
+import { debounce, throttle } from './decorators';
 import { Model } from './model';
 
 export class GitContentProvider {
@@ -15,28 +16,45 @@ export class GitContentProvider {
 	private onDidChangeEmitter = new EventEmitter<Uri>();
 	get onDidChange(): Event<Uri> { return this.onDidChangeEmitter.event; }
 
-	private uris = new Set<Uri>();
+	private uris: { [uri: string]: Uri } = Object.create(null) as { [uri: string]: Uri };
 
-	constructor(private model: Model, onGitChange: Event<Uri>) {
+	constructor(private model: Model) {
 		this.disposables.push(
-			onGitChange(this.fireChangeEvents, this),
+			model.onDidChangeRepository(this.eventuallyFireChangeEvents, this),
 			workspace.registerTextDocumentContentProvider('git', this)
 		);
 	}
 
-	private fireChangeEvents(): void {
-		for (let uri of this.uris) {
-			this.onDidChangeEmitter.fire(uri);
-		}
+	@debounce(1100)
+	private eventuallyFireChangeEvents(): void {
+		this.fireChangeEvents();
+	}
+
+	@throttle
+	private async fireChangeEvents(): Promise<void> {
+		await this.model.whenIdle();
+
+		Object.keys(this.uris).forEach(key => {
+			this.onDidChangeEmitter.fire(this.uris[key]);
+		});
 	}
 
 	async provideTextDocumentContent(uri: Uri): Promise<string> {
+		let ref = uri.query;
+
+		if (ref === '~') {
+			const fileUri = uri.with({ scheme: 'file', query: '' });
+			const uriString = fileUri.toString();
+			const [indexStatus] = this.model.indexGroup.resources.filter(r => r.original.toString() === uriString);
+			ref = indexStatus ? '' : 'HEAD';
+		}
+
 		try {
-			const result = await this.model.show(uri.query, uri);
-			this.uris.add(uri);
+			const result = await this.model.show(ref, uri);
+			this.uris[uri.toString()] = uri;
 			return result;
 		} catch (err) {
-			this.uris.delete(uri);
+			delete this.uris[uri.toString()];
 			return '';
 		}
 	}

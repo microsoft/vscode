@@ -30,5 +30,5 @@ export function createFakeScopedLineTokens(rawTokens: TokenText[]): ScopedLineTo
 		line += rawToken.text;
 	}
 
-	return createScopedLineTokens(new LineTokens([], tokens, line), 0);
+	return createScopedLineTokens(new LineTokens(tokens, line), 0);
 }

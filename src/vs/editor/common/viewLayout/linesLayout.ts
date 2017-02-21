@@ -51,7 +51,7 @@ export class LinesLayout {
 	 *
 	 * @param lineCount New number of lines.
 	 */
-	public onModelFlushed(lineCount: number): void {
+	public onFlushed(lineCount: number): void {
 		this._lineCount = lineCount;
 	}
 
@@ -91,9 +91,9 @@ export class LinesLayout {
 	 * @param fromLineNumber The line number at which the deletion started, inclusive
 	 * @param toLineNumber The line number at which the deletion ended, inclusive
 	 */
-	public onModelLinesDeleted(fromLineNumber: number, toLineNumber: number): void {
+	public onLinesDeleted(fromLineNumber: number, toLineNumber: number): void {
 		this._lineCount -= (toLineNumber - fromLineNumber + 1);
-		this._whitespaces.onModelLinesDeleted(fromLineNumber, toLineNumber);
+		this._whitespaces.onLinesDeleted(fromLineNumber, toLineNumber);
 	}
 
 	/**
@@ -102,9 +102,9 @@ export class LinesLayout {
 	 * @param fromLineNumber The line number at which the insertion started, inclusive
 	 * @param toLineNumber The line number at which the insertion ended, inclusive.
 	 */
-	public onModelLinesInserted(fromLineNumber: number, toLineNumber: number): void {
+	public onLinesInserted(fromLineNumber: number, toLineNumber: number): void {
 		this._lineCount += (toLineNumber - fromLineNumber + 1);
-		this._whitespaces.onModelLinesInserted(fromLineNumber, toLineNumber);
+		this._whitespaces.onLinesInserted(fromLineNumber, toLineNumber);
 	}
 
 	/**
