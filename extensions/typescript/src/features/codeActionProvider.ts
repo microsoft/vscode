@@ -59,7 +59,7 @@ export default class TypeScriptCodeActionProvider implements CodeActionProvider 
 		return this.getSupportedCodeActions(context)
 			.then(supportedActions => {
 				if (!supportedActions.length) {
-					return Promise.reject('no actions');
+					return [];
 				}
 				return this.client.execute('getCodeFixes', {
 					file: file,
@@ -68,9 +68,8 @@ export default class TypeScriptCodeActionProvider implements CodeActionProvider 
 					startOffset: range.start.character + 1,
 					endOffset: range.end.character + 1,
 					errorCodes: supportedActions
-				}, token);
+				}, token).then(response => response.body || []);
 			})
-			.then(response => response.body || [])
 			.then(codeActions => codeActions.map(action => this.actionToEdit(source, action)));
 	}
 
