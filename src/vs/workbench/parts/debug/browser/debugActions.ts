@@ -214,7 +214,7 @@ export class RunAction extends StartAction {
 export class LaunchAction extends RunAction {
 	private quickOpenService: IQuickOpenService;
 	static ID = 'workbench.action.debug.launch';
-	static LABEL = nls.localize('launchDebugConfiguration', "Select Debug Configuration to Launch");
+	static LABEL = nls.localize('launchDebugConfiguration', "Select and Start Debugging");
 
 	constructor(id: string, label: string,
 		@IDebugService debugService: IDebugService,
