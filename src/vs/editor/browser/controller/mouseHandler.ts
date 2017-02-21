@@ -403,9 +403,21 @@ class MouseDownOperation extends Disposable {
 		}
 
 		if (this._mouseState.isDragAndDrop) {
+			let target = this._createMouseTarget(e, true);
+			if (!target.position) {
+				target = {
+					element: target.element,
+					type: target.type,
+					position: position.position,
+					mouseColumn: target.mouseColumn,
+					range: target.range,
+					detail: target.detail
+				};
+			}
+
 			this._viewController.emitMouseDrag({
 				event: e,
-				target: this._createMouseTarget(e, true)
+				target: target
 			});
 		} else {
 			this._dispatchMouse(position, true);
