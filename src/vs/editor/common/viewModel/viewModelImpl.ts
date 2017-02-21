@@ -140,7 +140,7 @@ export class ViewModel extends EventEmitter implements IViewModel {
 	private _setHiddenAreas(ranges: editorCommon.IRange[]): void {
 		let lineMappingChanged = this.lines.setHiddenAreas(ranges, (eventType: string, payload: any) => this.emit(eventType, payload));
 		if (lineMappingChanged) {
-			this.emit(viewEvents.ViewEventNames.LineMappingChangedEvent);
+			this.emit(viewEvents.ViewEventNames.LineMappingChangedEvent, new viewEvents.ViewLineMappingChangedEvents());
 			this.decorations.onLineMappingChanged((eventType: string, payload: any) => this.emit(eventType, payload));
 			this.cursors.onLineMappingChanged((eventType: string, payload: any) => this.emit(eventType, payload));
 		}
@@ -156,7 +156,7 @@ export class ViewModel extends EventEmitter implements IViewModel {
 	private _onTabSizeChange(newTabSize: number): boolean {
 		var lineMappingChanged = this.lines.setTabSize(newTabSize, (eventType: string, payload: any) => this.emit(eventType, payload));
 		if (lineMappingChanged) {
-			this.emit(viewEvents.ViewEventNames.LineMappingChangedEvent);
+			this.emit(viewEvents.ViewEventNames.LineMappingChangedEvent, new viewEvents.ViewLineMappingChangedEvents());
 			this.decorations.onLineMappingChanged((eventType: string, payload: any) => this.emit(eventType, payload));
 			this.cursors.onLineMappingChanged((eventType: string, payload: any) => this.emit(eventType, payload));
 		}
@@ -166,7 +166,7 @@ export class ViewModel extends EventEmitter implements IViewModel {
 	private _onWrappingIndentChange(newWrappingIndent: editorCommon.WrappingIndent): boolean {
 		var lineMappingChanged = this.lines.setWrappingIndent(newWrappingIndent, (eventType: string, payload: any) => this.emit(eventType, payload));
 		if (lineMappingChanged) {
-			this.emit(viewEvents.ViewEventNames.LineMappingChangedEvent);
+			this.emit(viewEvents.ViewEventNames.LineMappingChangedEvent, new viewEvents.ViewLineMappingChangedEvents());
 			this.decorations.onLineMappingChanged((eventType: string, payload: any) => this.emit(eventType, payload));
 			this.cursors.onLineMappingChanged((eventType: string, payload: any) => this.emit(eventType, payload));
 		}
@@ -178,20 +178,18 @@ export class ViewModel extends EventEmitter implements IViewModel {
 		var newCenteredViewRange = this.coordinatesConverter.convertModelRangeToViewRange(range);
 
 		// Send a reveal event to restore the centered content
-		var restoreRevealEvent: viewEvents.IViewRevealRangeEvent = {
-			_viewRevealRangeEventBrand: void 0,
-			range: newCenteredViewRange,
-			verticalType: editorCommon.VerticalRevealType.Center,
-			revealHorizontal: false,
-			revealCursor: false
-		};
-		this.emit(viewEvents.ViewEventNames.RevealRangeEvent, restoreRevealEvent);
+		this.emit(viewEvents.ViewEventNames.RevealRangeEvent, new viewEvents.ViewRevealRangeEvent(
+			newCenteredViewRange,
+			editorCommon.VerticalRevealType.Center,
+			false,
+			false
+		));
 	}
 
 	private _onWrappingColumnChange(newWrappingColumn: number, columnsForFullWidthChar: number): boolean {
 		let lineMappingChanged = this.lines.setWrappingColumn(newWrappingColumn, columnsForFullWidthChar, (eventType: string, payload: any) => this.emit(eventType, payload));
 		if (lineMappingChanged) {
-			this.emit(viewEvents.ViewEventNames.LineMappingChangedEvent);
+			this.emit(viewEvents.ViewEventNames.LineMappingChangedEvent, new viewEvents.ViewLineMappingChangedEvents());
 			this.decorations.onLineMappingChanged((eventType: string, payload: any) => this.emit(eventType, payload));
 			this.cursors.onLineMappingChanged((eventType: string, payload: any) => this.emit(eventType, payload));
 		}
@@ -367,9 +365,9 @@ export class ViewModel extends EventEmitter implements IViewModel {
 					if ((<editorCommon.IConfigurationChangedEvent>data).readOnly) {
 						// Must read again all decorations due to readOnly filtering
 						this.decorations.reset();
-						this.emit(viewEvents.ViewEventNames.DecorationsChangedEvent, {});
+						this.emit(viewEvents.ViewEventNames.DecorationsChangedEvent, new viewEvents.ViewDecorationsChangedEvent());
 					}
-					this.emit(e.getType(), <editorCommon.IConfigurationChangedEvent>data);
+					this.emit(viewEvents.ViewEventNames.ConfigurationChanged, new viewEvents.ViewConfigurationChangedEvent(<editorCommon.IConfigurationChangedEvent>data));
 					break;
 
 				default:
@@ -379,7 +377,7 @@ export class ViewModel extends EventEmitter implements IViewModel {
 		}
 
 		if (!hadOtherModelChange && hadModelLineChangeThatChangedLineMapping) {
-			this.emit(viewEvents.ViewEventNames.LineMappingChangedEvent);
+			this.emit(viewEvents.ViewEventNames.LineMappingChangedEvent, new viewEvents.ViewLineMappingChangedEvents());
 			this.decorations.onLineMappingChanged((eventType: string, payload: any) => this.emit(eventType, payload));
 			this.cursors.onLineMappingChanged((eventType: string, payload: any) => this.emit(eventType, payload));
 		}
@@ -413,11 +411,7 @@ export class ViewModel extends EventEmitter implements IViewModel {
 			};
 		}
 
-		var e2: viewEvents.IViewTokensChangedEvent = {
-			_viewTokensChangedEventBrand: void 0,
-			ranges: viewRanges
-		};
-		this.emit(viewEvents.ViewEventNames.TokensChangedEvent, e2);
+		this.emit(viewEvents.ViewEventNames.TokensChangedEvent, new viewEvents.ViewTokensChangedEvent(viewRanges));
 	}
 	private onModelLineChanged(e: editorCommon.IModelContentChangedLineChangedEvent): boolean {
 		var lineMappingChanged = this.lines.onModelLineChanged(e.versionId, e.lineNumber, e.detail, (eventType: string, payload: any) => this.emit(eventType, payload));

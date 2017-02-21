@@ -8,12 +8,11 @@
 import 'vs/css!./scrollDecoration';
 import * as dom from 'vs/base/browser/dom';
 import { StyleMutator } from 'vs/base/browser/styleMutator';
-import { IConfigurationChangedEvent } from 'vs/editor/common/editorCommon';
 import { ClassNames } from 'vs/editor/browser/editorBrowser';
 import { ViewPart } from 'vs/editor/browser/view/viewPart';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { IRenderingContext, IRestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
-import { ScrollEvent } from 'vs/base/common/scrollable';
+import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
 export class ScrollDecorationViewPart extends ViewPart {
 
@@ -48,7 +47,7 @@ export class ScrollDecorationViewPart extends ViewPart {
 
 	// --- begin event handlers
 
-	public onConfigurationChanged(e: IConfigurationChangedEvent): boolean {
+	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		let shouldRender = false;
 		if (e.viewInfo.scrollbar) {
 			this._useShadows = this._context.configuration.editor.viewInfo.scrollbar.useShadows;
@@ -61,7 +60,7 @@ export class ScrollDecorationViewPart extends ViewPart {
 		}
 		return this._updateShouldShow() || shouldRender;
 	}
-	public onScrollChanged(e: ScrollEvent): boolean {
+	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		this._scrollTop = e.scrollTop;
 		return this._updateShouldShow();
 	}

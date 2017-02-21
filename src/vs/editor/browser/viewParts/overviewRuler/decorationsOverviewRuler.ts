@@ -14,7 +14,6 @@ import { Position } from 'vs/editor/common/core/position';
 import { TokenizationRegistry } from 'vs/editor/common/modes';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { ScrollEvent } from 'vs/base/common/scrollable';
 
 export class DecorationsOverviewRuler extends ViewPart {
 
@@ -84,14 +83,14 @@ export class DecorationsOverviewRuler extends ViewPart {
 
 	// ---- begin view event handlers
 
-	public onCursorPositionChanged(e: viewEvents.IViewCursorPositionChangedEvent): boolean {
+	public onCursorPositionChanged(e: viewEvents.ViewCursorPositionChangedEvent): boolean {
 		this._shouldUpdateCursorPosition = true;
 		this._cursorPositions = [e.position];
 		this._cursorPositions = this._cursorPositions.concat(e.secondaryPositions);
 		return true;
 	}
 
-	public onConfigurationChanged(e: editorCommon.IConfigurationChangedEvent): boolean {
+	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		let prevLanesCount = this._overviewRuler.getLanesCount();
 		let newLanesCount = this._context.configuration.editor.viewInfo.overviewRulerLanes;
 
@@ -137,22 +136,22 @@ export class DecorationsOverviewRuler extends ViewPart {
 		return shouldRender;
 	}
 
-	public onZonesChanged(): boolean {
+	public onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
 		return true;
 	}
 
-	public onModelFlushed(): boolean {
+	public onModelFlushed(e: viewEvents.ViewModelFlushedEvent): boolean {
 		this._shouldUpdateCursorPosition = true;
 		this._shouldUpdateDecorations = true;
 		return true;
 	}
 
-	public onModelDecorationsChanged(e: viewEvents.IViewDecorationsChangedEvent): boolean {
+	public onModelDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
 		this._shouldUpdateDecorations = true;
 		return true;
 	}
 
-	public onScrollChanged(e: ScrollEvent): boolean {
+	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		this._overviewRuler.setScrollHeight(e.scrollHeight, false);
 		return super.onScrollChanged(e) || e.scrollHeightChanged;
 	}

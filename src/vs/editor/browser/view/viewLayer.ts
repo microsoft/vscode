@@ -4,13 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ViewPart } from 'vs/editor/browser/view/viewPart';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/styleMutator';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { ScrollEvent } from 'vs/base/common/scrollable';
 
 /**
  * Represents a visible line
@@ -282,26 +280,26 @@ export abstract class ViewLayer<T extends IVisibleLine> extends ViewPart {
 
 	// ---- begin view event handlers
 
-	public onConfigurationChanged(e: editorCommon.IConfigurationChangedEvent): boolean {
+	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		return e.layoutInfo;
 	}
 
-	public onScrollChanged(e: ScrollEvent): boolean {
+	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		return e.scrollTopChanged;
 	}
 
-	public onZonesChanged(): boolean {
+	public onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
 		return true;
 	}
 
-	public onModelFlushed(): boolean {
+	public onModelFlushed(e: viewEvents.ViewModelFlushedEvent): boolean {
 		this._linesCollection = new RenderedLinesCollection<T>(() => this._createLine());
 		this._scrollDomNode = null;
 		// No need to clear the dom node because a full .innerHTML will occur in ViewLayerRenderer._render
 		return true;
 	}
 
-	public onModelLinesDeleted(e: viewEvents.IViewLinesDeletedEvent): boolean {
+	public onModelLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
 		let deleted = this._linesCollection.onModelLinesDeleted(e.fromLineNumber, e.toLineNumber);
 		if (deleted) {
 			// Remove from DOM
@@ -316,11 +314,11 @@ export abstract class ViewLayer<T extends IVisibleLine> extends ViewPart {
 		return true;
 	}
 
-	public onModelLineChanged(e: viewEvents.IViewLineChangedEvent): boolean {
+	public onModelLineChanged(e: viewEvents.ViewLineChangedEvent): boolean {
 		return this._linesCollection.onModelLineChanged(e.lineNumber);
 	}
 
-	public onModelLinesInserted(e: viewEvents.IViewLinesInsertedEvent): boolean {
+	public onModelLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
 		let deleted = this._linesCollection.onModelLinesInserted(e.fromLineNumber, e.toLineNumber);
 		if (deleted) {
 			// Remove from DOM
@@ -335,7 +333,7 @@ export abstract class ViewLayer<T extends IVisibleLine> extends ViewPart {
 		return true;
 	}
 
-	public onModelTokensChanged(e: viewEvents.IViewTokensChangedEvent): boolean {
+	public onModelTokensChanged(e: viewEvents.ViewTokensChangedEvent): boolean {
 		return this._linesCollection.onModelTokensChanged(e.ranges);
 	}
 

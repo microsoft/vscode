@@ -7,10 +7,11 @@
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/styleMutator';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { IConfigurationChangedEvent, TextEditorCursorStyle } from 'vs/editor/common/editorCommon';
+import { TextEditorCursorStyle } from 'vs/editor/common/editorCommon';
 import { Configuration } from 'vs/editor/browser/config/configuration';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { IRenderingContext, IRestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
+import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
 export interface IViewCursorRenderData {
 	domNode: HTMLElement;
@@ -122,7 +123,7 @@ export class ViewCursor {
 		return true;
 	}
 
-	public onConfigurationChanged(e: IConfigurationChangedEvent): boolean {
+	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		if (e.lineHeight) {
 			this._lineHeight = this._context.configuration.editor.lineHeight;
 		}

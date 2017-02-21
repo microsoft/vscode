@@ -22,7 +22,6 @@ import { StandardMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { EditorZoom } from 'vs/editor/common/config/editorZoom';
 import { IViewCursorRenderData } from 'vs/editor/browser/viewParts/viewCursors/viewCursor';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { ScrollEvent } from 'vs/base/common/scrollable';
 
 /**
  * Merges mouse events when mouse move events are throttled
@@ -206,17 +205,17 @@ export class MouseHandler extends ViewEventHandler implements IDisposable {
 	}
 
 	// --- begin event handlers
-	public onScrollChanged(e: ScrollEvent): boolean {
+	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		this._mouseDownOperation.onScrollChanged();
 		return false;
 	}
-	public onCursorSelectionChanged(e: viewEvents.IViewCursorSelectionChangedEvent): boolean {
+	public onCursorSelectionChanged(e: viewEvents.ViewCursorSelectionChangedEvent): boolean {
 		this._mouseDownOperation.onCursorSelectionChanged(e);
 		return false;
 	}
 	private _isFocused = false;
-	public onViewFocusChanged(isFocused: boolean): boolean {
-		this._isFocused = isFocused;
+	public onViewFocusChanged(e: viewEvents.ViewFocusChangedEvent): boolean {
+		this._isFocused = e.isFocused;
 		return false;
 	}
 	// --- end event handlers
@@ -454,7 +453,7 @@ class MouseDownOperation extends Disposable {
 		}, 10);
 	}
 
-	public onCursorSelectionChanged(e: viewEvents.IViewCursorSelectionChangedEvent): void {
+	public onCursorSelectionChanged(e: viewEvents.ViewCursorSelectionChangedEvent): void {
 		this._currentSelection = e.selection;
 	}
 

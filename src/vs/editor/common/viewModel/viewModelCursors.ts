@@ -62,44 +62,26 @@ export class ViewModelCursors {
 			secondaryPositions[i] = ViewModelCursors._toPositionThatCanBeRendered(e.secondaryViewPositions[i], stopRenderingLineAfter);
 		}
 
-		let newEvent: viewEvents.IViewCursorPositionChangedEvent = {
-			_viewCursorPositionChangedEventBrand: void 0,
-			position: position,
-			secondaryPositions: secondaryPositions,
-			isInEditableRange: e.isInEditableRange
-		};
-		emit(viewEvents.ViewEventNames.CursorPositionChangedEvent, newEvent);
+		emit(viewEvents.ViewEventNames.CursorPositionChangedEvent, new viewEvents.ViewCursorPositionChangedEvent(position, secondaryPositions, e.isInEditableRange));
 	}
 
 	public onCursorSelectionChanged(e: ICursorSelectionChangedEvent, emit: (eventType: string, payload: any) => void): void {
 		this.lastCursorSelectionChangedEvent = e;
 
-		let newEvent: viewEvents.IViewCursorSelectionChangedEvent = {
-			_viewCursorSelectionChangedEventBrand: void 0,
-			selection: e.viewSelection,
-			secondarySelections: e.secondaryViewSelections
-		};
-		emit(viewEvents.ViewEventNames.CursorSelectionChangedEvent, newEvent);
+		emit(viewEvents.ViewEventNames.CursorSelectionChangedEvent, new viewEvents.ViewCursorSelectionChangedEvent(e.viewSelection, e.secondaryViewSelections));
 	}
 
 	public onCursorRevealRange(e: editorCommon.ICursorRevealRangeEvent, emit: (eventType: string, payload: any) => void): void {
-		let newEvent: viewEvents.IViewRevealRangeEvent = {
-			_viewRevealRangeEventBrand: void 0,
-			range: e.viewRange,
-			verticalType: e.verticalType,
-			revealHorizontal: e.revealHorizontal,
-			revealCursor: e.revealCursor
-		};
-		emit(viewEvents.ViewEventNames.RevealRangeEvent, newEvent);
+		emit(viewEvents.ViewEventNames.RevealRangeEvent, new viewEvents.ViewRevealRangeEvent(
+			e.viewRange,
+			e.verticalType,
+			e.revealHorizontal,
+			e.revealCursor
+		));
 	}
 
 	public onCursorScrollRequest(e: editorCommon.ICursorScrollRequestEvent, emit: (eventType: string, payload: any) => void): void {
-		let newEvent: viewEvents.IViewScrollRequestEvent = {
-			_viewScrollRequestEventBrand: void 0,
-			deltaLines: e.deltaLines,
-			revealCursor: e.revealCursor
-		};
-		emit(viewEvents.ViewEventNames.ScrollRequestEvent, newEvent);
+		emit(viewEvents.ViewEventNames.ScrollRequestEvent, new viewEvents.ViewScrollRequestEvent(e.deltaLines, e.revealCursor));
 	}
 
 	public onLineMappingChanged(emit: (eventType: string, payload: any) => void): void {

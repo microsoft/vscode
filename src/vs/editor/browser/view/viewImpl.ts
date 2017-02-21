@@ -51,7 +51,6 @@ import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData'
 import { EditorScrollbar } from 'vs/editor/browser/viewParts/editorScrollbar/editorScrollbar';
 import { Minimap } from 'vs/editor/browser/viewParts/minimap/minimap';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { ScrollEvent } from 'vs/base/common/scrollable';
 
 export class View extends ViewEventHandler implements editorBrowser.IView, IDisposable {
 
@@ -455,15 +454,15 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 
 	// --- begin event handlers
 
-	public onModelFlushed(): boolean {
+	public onModelFlushed(e: viewEvents.ViewModelFlushedEvent): boolean {
 		this.layoutProvider.onModelFlushed(this._context.model.getLineCount());
 		return false;
 	}
-	public onModelLinesDeleted(e: viewEvents.IViewLinesDeletedEvent): boolean {
+	public onModelLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
 		this.layoutProvider.onModelLinesDeleted(e);
 		return false;
 	}
-	public onModelLinesInserted(e: viewEvents.IViewLinesInsertedEvent): boolean {
+	public onModelLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
 		this.layoutProvider.onModelLinesInserted(e);
 		return false;
 	}
@@ -490,7 +489,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		StyleMutator.setHeight(this.linesContentContainer, layoutInfo.contentHeight);
 
 	}
-	public onConfigurationChanged(e: editorCommon.IConfigurationChangedEvent): boolean {
+	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		if (e.viewInfo.editorClassName) {
 			this.domNode.className = this._context.configuration.editor.viewInfo.editorClassName;
 		}
@@ -503,13 +502,13 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		this.layoutProvider.onConfigurationChanged(e);
 		return false;
 	}
-	public onScrollChanged(e: ScrollEvent): boolean {
+	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		this.outgoingEvents.emitScrollChanged(e);
 		return false;
 	}
-	public onViewFocusChanged(isFocused: boolean): boolean {
-		dom.toggleClass(this.domNode, 'focused', isFocused);
-		if (isFocused) {
+	public onViewFocusChanged(e: viewEvents.ViewFocusChangedEvent): boolean {
+		dom.toggleClass(this.domNode, 'focused', e.isFocused);
+		if (e.isFocused) {
 			this.outgoingEvents.emitViewFocusGained();
 		} else {
 			this.outgoingEvents.emitViewFocusLost();
@@ -517,7 +516,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		return false;
 	}
 
-	public onCursorRevealRange(e: viewEvents.IViewRevealRangeEvent): boolean {
+	public onCursorRevealRange(e: viewEvents.ViewRevealRangeEvent): boolean {
 		return e.revealCursor ? this.revealCursor() : false;
 	}
 
@@ -753,7 +752,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 
 			if (zonesHaveChanged) {
 				this.layoutProvider.onHeightMaybeChanged();
-				this._context.privateViewEventBus.emit(viewEvents.ViewEventNames.ZonesChanged, null);
+				this._context.privateViewEventBus.emit(viewEvents.ViewEventNames.ZonesChanged, new viewEvents.ViewZonesChangedEvent());
 			}
 		});
 		return zonesHaveChanged;
@@ -935,7 +934,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 	private _setHasFocus(newHasFocus: boolean): void {
 		if (this.hasFocus !== newHasFocus) {
 			this.hasFocus = newHasFocus;
-			this._context.privateViewEventBus.emit(viewEvents.ViewEventNames.ViewFocusChanged, this.hasFocus);
+			this._context.privateViewEventBus.emit(viewEvents.ViewEventNames.ViewFocusChanged, new viewEvents.ViewFocusChangedEvent(this.hasFocus));
 		}
 	}
 }

@@ -13,7 +13,7 @@ import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import { EventType, IScrollEvent, MouseTargetType } from 'vs/editor/common/editorCommon';
 import { IEditorMouseEvent, IMouseTarget } from 'vs/editor/browser/editorBrowser';
 import { MouseTarget } from 'vs/editor/browser/controller/mouseTarget';
-import { ScrollEvent } from 'vs/base/common/scrollable';
+import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
 export class ViewOutgoingEvents extends Disposable {
 
@@ -34,7 +34,7 @@ export class ViewOutgoingEvents extends Disposable {
 		return this._actual.deferredEmit(callback);
 	}
 
-	public emitScrollChanged(e: ScrollEvent): void {
+	public emitScrollChanged(e: viewEvents.ViewScrollChangedEvent): void {
 		this._actual.emit('scroll', <IScrollEvent>e);
 	}
 
