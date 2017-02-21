@@ -58,6 +58,9 @@ export default class TypeScriptCodeActionProvider implements CodeActionProvider 
 		};
 		return this.getSupportedCodeActions(context)
 			.then(supportedActions => {
+				if (!supportedActions.length) {
+					return Promise.reject('no actions');
+				}
 				return this.client.execute('getCodeFixes', {
 					file: file,
 					startLine: range.start.line + 1,
