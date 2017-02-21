@@ -186,6 +186,9 @@ export function telemetryURIDescriptor(uri: URI): URIDescriptor {
 	return fsPath ? { mimeType: guessMimeTypes(fsPath).join(', '), ext: paths.extname(fsPath), path: anonymize(fsPath) } : {};
 }
 
+/**
+ * Only add settings that cannot contain any personal/private information of users (PII).
+ */
 const configurationValueWhitelist = [
 	'window.zoomLevel',
 	'editor.fontSize',
