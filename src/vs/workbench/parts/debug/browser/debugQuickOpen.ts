@@ -60,7 +60,7 @@ export class QuickOpenHandler extends Quickopen.QuickOpenHandler {
 	}
 
 	public getAriaLabel(): string {
-		return nls.localize('debugAriaLabel', "Type the name of a launch configuration to run");
+		return nls.localize('debugAriaLabel', "Type a name of a launch configuration to run.");
 	}
 
 	public getResults(input: string): TPromise<Model.QuickOpenModel> {
@@ -73,26 +73,10 @@ export class QuickOpenHandler extends Quickopen.QuickOpenHandler {
 		return TPromise.as(new Model.QuickOpenModel(configurationNames));
 	}
 
-	public getClass(): string {
-		return null;
-	}
-
-	public canRun(): boolean {
-		return true;
-	}
-
 	public getAutoFocus(input: string): QuickOpen.IAutoFocus {
 		return {
 			autoFocusFirstEntry: !!input
 		};
-	}
-
-	public onClose(cancelled: boolean): void {
-		return;
-	}
-
-	public getGroupLabel(): string {
-		return null;
 	}
 
 	public getEmptyLabel(searchString: string): string {
