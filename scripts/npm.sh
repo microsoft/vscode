@@ -2,10 +2,10 @@
 
 if [[ "$OSTYPE" == "darwin"* ]]; then
 	realpath() { [[ $1 = /* ]] && echo "$1" || echo "$PWD/${1#./}"; }
-	ROOT=$(dirname $(dirname $(realpath "$0")))
+	ROOT=$(dirname "$(dirname "$(realpath "$0")")")
 	npm_config_arch=x64
 else
-	ROOT=$(dirname $(dirname $(readlink -f $0)))
+	ROOT=$(dirname "$(dirname "$(readlink -f $0)")")
 
 	# if [ -z $npm_config_arch ]; then
 	# 	npm_config_arch=$(node -p process.arch)
@@ -14,7 +14,7 @@ else
 fi
 
 ELECTRON_VERSION=$(
-	cat $ROOT/package.json |
+	cat "$ROOT"/package.json |
 	grep electronVersion |
 	sed -e 's/[[:space:]]*"electronVersion":[[:space:]]*"\([0-9.]*\)"\(,\)*/\1/'
 )
