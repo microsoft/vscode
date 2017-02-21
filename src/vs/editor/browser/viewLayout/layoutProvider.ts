@@ -35,7 +35,7 @@ export class LayoutProvider extends Disposable implements IViewLayout {
 			height: configuration.editor.layoutInfo.contentHeight
 		});
 		this._register(this._scrollable.onScroll((e: ScrollEvent) => {
-			this._privateViewEventBus.emit(viewEvents.ViewEventNames.ViewScrollChanged, e);
+			this._privateViewEventBus.emit(viewEvents.ViewEventNames.ViewScrollChanged, new viewEvents.ViewScrollChangedEvent(e));
 		}));
 
 		this._updateHeight();
@@ -60,17 +60,17 @@ export class LayoutProvider extends Disposable implements IViewLayout {
 		this._updateHeight();
 	}
 
-	public onModelLinesDeleted(e: viewEvents.IViewLinesDeletedEvent): void {
+	public onModelLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): void {
 		this._linesLayout.onModelLinesDeleted(e.fromLineNumber, e.toLineNumber);
 		this._updateHeight();
 	}
 
-	public onModelLinesInserted(e: viewEvents.IViewLinesInsertedEvent): void {
+	public onModelLinesInserted(e: viewEvents.ViewLinesInsertedEvent): void {
 		this._linesLayout.onModelLinesInserted(e.fromLineNumber, e.toLineNumber);
 		this._updateHeight();
 	}
 
-	public onConfigurationChanged(e: editorCommon.IConfigurationChangedEvent): void {
+	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): void {
 		if (e.lineHeight) {
 			this._linesLayout.setLineHeight(this._configuration.editor.lineHeight);
 		}

@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IConfigurationChangedEvent, OverviewRulerPosition, OverviewRulerZone } from 'vs/editor/common/editorCommon';
+import { OverviewRulerPosition, OverviewRulerZone } from 'vs/editor/common/editorCommon';
 import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
 import { IOverviewRuler } from 'vs/editor/browser/editorBrowser';
 import { OverviewRulerImpl } from 'vs/editor/browser/viewParts/overviewRuler/overviewRulerImpl';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
-import { ScrollEvent } from 'vs/base/common/scrollable';
+import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
 export class OverviewRuler extends ViewEventHandler implements IOverviewRuler {
 
@@ -30,7 +30,7 @@ export class OverviewRuler extends ViewEventHandler implements IOverviewRuler {
 		this._overviewRuler.dispose();
 	}
 
-	public onConfigurationChanged(e: IConfigurationChangedEvent): boolean {
+	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		if (e.lineHeight) {
 			this._overviewRuler.setLineHeight(this._context.configuration.editor.lineHeight, true);
 			return true;
@@ -44,15 +44,15 @@ export class OverviewRuler extends ViewEventHandler implements IOverviewRuler {
 		return false;
 	}
 
-	public onZonesChanged(): boolean {
+	public onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
 		return true;
 	}
 
-	public onModelFlushed(): boolean {
+	public onModelFlushed(e: viewEvents.ViewModelFlushedEvent): boolean {
 		return true;
 	}
 
-	public onScrollChanged(e: ScrollEvent): boolean {
+	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		this._overviewRuler.setScrollHeight(e.scrollHeight, true);
 		return super.onScrollChanged(e) || e.scrollHeightChanged;
 	}

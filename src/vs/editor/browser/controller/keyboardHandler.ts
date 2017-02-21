@@ -21,7 +21,6 @@ import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { VisibleRange } from 'vs/editor/common/view/renderingContext';
 import { TextAreaWrapper } from 'vs/editor/browser/controller/input/textAreaWrapper';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { ScrollEvent } from 'vs/base/common/scrollable';
 
 export interface IKeyboardHandlerHelper {
 	viewDomNode: HTMLElement;
@@ -76,14 +75,12 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 			let lineNumber = e.showAtLineNumber;
 			let column = e.showAtColumn;
 
-			let revealPositionEvent: viewEvents.IViewRevealRangeEvent = {
-				_viewRevealRangeEventBrand: void 0,
-				range: new Range(lineNumber, column, lineNumber, column),
-				verticalType: editorCommon.VerticalRevealType.Simple,
-				revealHorizontal: true,
-				revealCursor: false
-			};
-			this._context.privateViewEventBus.emit(viewEvents.ViewEventNames.RevealRangeEvent, revealPositionEvent);
+			this._context.privateViewEventBus.emit(viewEvents.ViewEventNames.RevealRangeEvent, new viewEvents.ViewRevealRangeEvent(
+				new Range(lineNumber, column, lineNumber, column),
+				editorCommon.VerticalRevealType.Simple,
+				true,
+				false
+			));
 
 			// Find range pixel position
 			this.visibleRange = this.viewHelper.visibleRangeForPositionRelativeToEditor(lineNumber, column);
@@ -163,7 +160,7 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 		this.textAreaHandler.focusTextArea();
 	}
 
-	public onConfigurationChanged(e: editorCommon.IConfigurationChangedEvent): boolean {
+	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		// Give textarea same font size & line height as editor, for the IME case (when the textarea is visible)
 		if (e.fontInfo) {
 			Configuration.applyFontInfoSlow(this.textArea.actual, this._context.configuration.editor.fontInfo);
@@ -178,7 +175,7 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 		return false;
 	}
 
-	public onScrollChanged(e: ScrollEvent): boolean {
+	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		this.scrollLeft = e.scrollLeft;
 		if (this.visibleRange) {
 			StyleMutator.setTop(this.textArea.actual, this.visibleRange.top);
@@ -187,13 +184,13 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 		return false;
 	}
 
-	public onViewFocusChanged(isFocused: boolean): boolean {
-		this.textAreaHandler.setHasFocus(isFocused);
+	public onViewFocusChanged(e: viewEvents.ViewFocusChangedEvent): boolean {
+		this.textAreaHandler.setHasFocus(e.isFocused);
 		return false;
 	}
 
-	private _lastCursorSelectionChanged: viewEvents.IViewCursorSelectionChangedEvent = null;
-	public onCursorSelectionChanged(e: viewEvents.IViewCursorSelectionChangedEvent): boolean {
+	private _lastCursorSelectionChanged: viewEvents.ViewCursorSelectionChangedEvent = null;
+	public onCursorSelectionChanged(e: viewEvents.ViewCursorSelectionChangedEvent): boolean {
 		this._lastCursorSelectionChanged = e;
 		return false;
 	}

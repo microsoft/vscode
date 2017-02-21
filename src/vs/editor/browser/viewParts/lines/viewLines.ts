@@ -20,7 +20,6 @@ import { IViewLines, VisibleRange, LineVisibleRanges } from 'vs/editor/common/vi
 import { IViewLayout } from 'vs/editor/common/viewModel/viewModel';
 import { PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { ScrollEvent } from 'vs/base/common/scrollable';
 
 class LastRenderedData {
 
@@ -74,7 +73,7 @@ export class ViewLines extends ViewLayer<ViewLine> implements IViewLines {
 	private _maxLineWidth: number;
 	private _asyncUpdateLineWidths: RunOnceScheduler;
 
-	private _lastCursorRevealRangeHorizontallyEvent: viewEvents.IViewRevealRangeEvent;
+	private _lastCursorRevealRangeHorizontallyEvent: viewEvents.ViewRevealRangeEvent;
 	private _lastRenderedData: LastRenderedData;
 
 	constructor(context: ViewContext, viewLayout: IViewLayout) {
@@ -115,7 +114,7 @@ export class ViewLines extends ViewLayer<ViewLine> implements IViewLines {
 
 	// ---- begin view event handlers
 
-	public onConfigurationChanged(e: editorCommon.IConfigurationChangedEvent): boolean {
+	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		super.onConfigurationChanged(e);
 		if (e.wrappingInfo) {
 			this._maxLineWidth = 0;
@@ -156,13 +155,13 @@ export class ViewLines extends ViewLayer<ViewLine> implements IViewLines {
 		return true;
 	}
 
-	public onModelFlushed(): boolean {
-		let shouldRender = super.onModelFlushed();
+	public onModelFlushed(e: viewEvents.ViewModelFlushedEvent): boolean {
+		let shouldRender = super.onModelFlushed(e);
 		this._maxLineWidth = 0;
 		return shouldRender;
 	}
 
-	public onModelDecorationsChanged(e: viewEvents.IViewDecorationsChangedEvent): boolean {
+	public onModelDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
 		let shouldRender = super.onModelDecorationsChanged(e);
 		if (true/*e.inlineDecorationsChanged*/) {
 			let rendStartLineNumber = this._linesCollection.getStartLineNumber();
@@ -174,7 +173,7 @@ export class ViewLines extends ViewLayer<ViewLine> implements IViewLines {
 		return shouldRender || true;
 	}
 
-	public onCursorRevealRange(e: viewEvents.IViewRevealRangeEvent): boolean {
+	public onCursorRevealRange(e: viewEvents.ViewRevealRangeEvent): boolean {
 		let newScrollTop = this._computeScrollTopToRevealRange(this._viewLayout.getCurrentViewport(), e.range, e.verticalType);
 
 		if (e.revealHorizontal) {
@@ -188,7 +187,7 @@ export class ViewLines extends ViewLayer<ViewLine> implements IViewLines {
 		return true;
 	}
 
-	public onCursorScrollRequest(e: viewEvents.IViewScrollRequestEvent): boolean {
+	public onCursorScrollRequest(e: viewEvents.ViewScrollRequestEvent): boolean {
 		let currentScrollTop = this._viewLayout.getScrollTop();
 		let newScrollTop = currentScrollTop + e.deltaLines * this._lineHeight;
 		this._viewLayout.setScrollPosition({
@@ -197,7 +196,7 @@ export class ViewLines extends ViewLayer<ViewLine> implements IViewLines {
 		return true;
 	}
 
-	public onScrollChanged(e: ScrollEvent): boolean {
+	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		this.domNode.setWidth(e.scrollWidth);
 		return super.onScrollChanged(e) || true;
 	}

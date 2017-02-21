@@ -78,14 +78,14 @@ export class ViewModelDecorations implements IDisposable {
 		}
 
 		this._clearCachedModelDecorationsResolver();
-		emit(viewEvents.ViewEventNames.DecorationsChangedEvent, {});
+		emit(viewEvents.ViewEventNames.DecorationsChangedEvent, new viewEvents.ViewDecorationsChangedEvent());
 	}
 
 	public onLineMappingChanged(emit: (eventType: string, payload: any) => void): void {
 		this._decorationsCache = Object.create(null);
 
 		this._clearCachedModelDecorationsResolver();
-		emit(viewEvents.ViewEventNames.DecorationsChangedEvent, {});
+		emit(viewEvents.ViewEventNames.DecorationsChangedEvent, new viewEvents.ViewDecorationsChangedEvent());
 	}
 
 	private _getOrCreateViewModelDecoration(modelDecoration: editorCommon.IModelDecoration): ViewModelDecoration {
