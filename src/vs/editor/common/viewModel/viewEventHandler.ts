@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { EmitterEvent } from 'vs/base/common/eventEmitter';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
 export class ViewEventHandler {
@@ -81,102 +80,101 @@ export class ViewEventHandler {
 
 	// --- end event handlers
 
-	public handleEvents(events: EmitterEvent[]): void {
+	public handleEvents(events: viewEvents.ViewEvent[]): void {
 
 		let shouldRender = false;
 
 		for (let i = 0, len = events.length; i < len; i++) {
 			let e = events[i];
-			let data = e.getData();
 
-			switch (e.getType()) {
+			switch (e.type) {
 
-				case viewEvents.ViewEventNames.LineMappingChangedEvent:
-					if (this.onLineMappingChanged(<viewEvents.ViewLineMappingChangedEvent>data)) {
+				case viewEvents.ViewEventType.ViewConfigurationChanged:
+					if (this.onConfigurationChanged(e)) {
 						shouldRender = true;
 					}
 					break;
 
-				case viewEvents.ViewEventNames.ModelFlushedEvent:
-					if (this.onFlushed(<viewEvents.ViewFlushedEvent>data)) {
+				case viewEvents.ViewEventType.ViewCursorPositionChanged:
+					if (this.onCursorPositionChanged(e)) {
 						shouldRender = true;
 					}
 					break;
 
-				case viewEvents.ViewEventNames.LinesDeletedEvent:
-					if (this.onLinesDeleted(<viewEvents.ViewLinesDeletedEvent>data)) {
+				case viewEvents.ViewEventType.ViewCursorSelectionChanged:
+					if (this.onCursorSelectionChanged(e)) {
 						shouldRender = true;
 					}
 					break;
 
-				case viewEvents.ViewEventNames.LinesInsertedEvent:
-					if (this.onLinesInserted(<viewEvents.ViewLinesInsertedEvent>data)) {
+				case viewEvents.ViewEventType.ViewDecorationsChanged:
+					if (this.onDecorationsChanged(e)) {
 						shouldRender = true;
 					}
 					break;
 
-				case viewEvents.ViewEventNames.LineChangedEvent:
-					if (this.onLineChanged(<viewEvents.ViewLineChangedEvent>data)) {
+				case viewEvents.ViewEventType.ViewFlushed:
+					if (this.onFlushed(e)) {
 						shouldRender = true;
 					}
 					break;
 
-				case viewEvents.ViewEventNames.TokensChangedEvent:
-					if (this.onTokensChanged(<viewEvents.ViewTokensChangedEvent>data)) {
+				case viewEvents.ViewEventType.ViewFocusChanged:
+					if (this.onFocusChanged(e)) {
 						shouldRender = true;
 					}
 					break;
 
-				case viewEvents.ViewEventNames.DecorationsChangedEvent:
-					if (this.onDecorationsChanged(<viewEvents.ViewDecorationsChangedEvent>data)) {
+				case viewEvents.ViewEventType.ViewLineChanged:
+					if (this.onLineChanged(e)) {
 						shouldRender = true;
 					}
 					break;
 
-				case viewEvents.ViewEventNames.CursorPositionChangedEvent:
-					if (this.onCursorPositionChanged(<viewEvents.ViewCursorPositionChangedEvent>data)) {
+				case viewEvents.ViewEventType.ViewLineMappingChanged:
+					if (this.onLineMappingChanged(e)) {
 						shouldRender = true;
 					}
 					break;
 
-				case viewEvents.ViewEventNames.CursorSelectionChangedEvent:
-					if (this.onCursorSelectionChanged(<viewEvents.ViewCursorSelectionChangedEvent>data)) {
+				case viewEvents.ViewEventType.ViewLinesDeleted:
+					if (this.onLinesDeleted(e)) {
 						shouldRender = true;
 					}
 					break;
 
-				case viewEvents.ViewEventNames.RevealRangeEvent:
-					if (this.onRevealRangeRequest(<viewEvents.ViewRevealRangeRequestEvent>data)) {
+				case viewEvents.ViewEventType.ViewLinesInserted:
+					if (this.onLinesInserted(e)) {
 						shouldRender = true;
 					}
 					break;
 
-				case viewEvents.ViewEventNames.ScrollRequestEvent:
-					if (this.onScrollRequest(<viewEvents.ViewScrollRequestEvent>data)) {
+				case viewEvents.ViewEventType.ViewRevealRangeRequest:
+					if (this.onRevealRangeRequest(e)) {
 						shouldRender = true;
 					}
 					break;
 
-				case viewEvents.ViewEventNames.ConfigurationChanged:
-					if (this.onConfigurationChanged(<viewEvents.ViewConfigurationChangedEvent>data)) {
+				case viewEvents.ViewEventType.ViewScrollChanged:
+					if (this.onScrollChanged(e)) {
 						shouldRender = true;
 					}
 					break;
 
-				case viewEvents.ViewEventNames.ViewScrollChanged:
-					if (this.onScrollChanged(<viewEvents.ViewScrollChangedEvent>data)) {
+				case viewEvents.ViewEventType.ViewScrollRequest:
+					if (this.onScrollRequest(e)) {
 						shouldRender = true;
 					}
 					break;
 
-				case viewEvents.ViewEventNames.ZonesChanged:
-					if (this.onZonesChanged(<viewEvents.ViewZonesChangedEvent>data)) {
+				case viewEvents.ViewEventType.ViewTokensChanged:
+					if (this.onTokensChanged(e)) {
 						shouldRender = true;
 					}
 					break;
 
-				case viewEvents.ViewEventNames.ViewFocusChanged:
-					if (this.onFocusChanged(<viewEvents.ViewFocusChangedEvent>data)) {
+				case viewEvents.ViewEventType.ViewZonesChanged:
+					if (this.onZonesChanged(e)) {
 						shouldRender = true;
 					}
 					break;

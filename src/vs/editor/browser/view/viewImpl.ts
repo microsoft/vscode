@@ -5,7 +5,7 @@
 'use strict';
 
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { EmitterEvent, IEventEmitter } from 'vs/base/common/eventEmitter';
+import { IEventEmitter } from 'vs/base/common/eventEmitter';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
@@ -19,7 +19,7 @@ import { KeyboardHandler, IKeyboardHandlerHelper } from 'vs/editor/browser/contr
 import { PointerHandler } from 'vs/editor/browser/controller/pointerHandler';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { ViewController, TriggerCursorHandler } from 'vs/editor/browser/view/viewController';
-import { ViewEventDispatcher } from 'vs/editor/browser/view/viewEventDispatcher';
+import { ViewEventDispatcher } from 'vs/editor/common/view/viewEventDispatcher';
 import { ContentViewOverlays, MarginViewOverlays } from 'vs/editor/browser/view/viewOverlays';
 import { LayoutProvider } from 'vs/editor/browser/viewLayout/layoutProvider';
 import { ViewContentWidgets } from 'vs/editor/browser/viewParts/contentWidgets/contentWidgets';
@@ -42,7 +42,7 @@ import { SelectionsOverlay } from 'vs/editor/browser/viewParts/selections/select
 import { ViewCursors } from 'vs/editor/browser/viewParts/viewCursors/viewCursors';
 import { ViewZones } from 'vs/editor/browser/viewParts/viewZones/viewZones';
 import { ViewPart, PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
-import { ViewContext, IViewEventHandler } from 'vs/editor/common/view/viewContext';
+import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import { RenderingContext } from 'vs/editor/common/view/renderingContext';
 import { IPointerHandlerHelper } from 'vs/editor/browser/controller/mouseHandler';
@@ -91,7 +91,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 	private _isDisposed: boolean;
 
 	private handleAccumulatedModelEventsTimeout: number;
-	private accumulatedModelEvents: EmitterEvent[];
+	private accumulatedModelEvents: viewEvents.ViewEvent[];
 	private _renderAnimationFrame: IDisposable;
 
 	constructor(
@@ -133,11 +133,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		this._scrollbar = new EditorScrollbar(this.layoutProvider.getScrollable(), configuration, this.linesContent, this.domNode, this.overflowGuardContainer);
 
 		// The view context is passed on to most classes (basically to reduce param. counts in ctors)
-		this._context = new ViewContext(
-			configuration, model, this.eventDispatcher,
-			(eventHandler: IViewEventHandler) => this.eventDispatcher.addEventHandler(eventHandler),
-			(eventHandler: IViewEventHandler) => this.eventDispatcher.removeEventHandler(eventHandler)
-		);
+		this._context = new ViewContext(configuration, model, this.eventDispatcher);
 
 		this.createTextArea();
 		this.createViewParts();
@@ -158,7 +154,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		// This delayed processing of incoming model events acts as a guard against undesired/unexpected recursion.
 		this.handleAccumulatedModelEventsTimeout = -1;
 		this.accumulatedModelEvents = [];
-		this.listenersToRemove.push(model.addBulkListener2((events: EmitterEvent[]) => {
+		this.listenersToRemove.push(model.addEventListener((events: viewEvents.ViewEvent[]) => {
 			this.accumulatedModelEvents = this.accumulatedModelEvents.concat(events);
 			if (this.handleAccumulatedModelEventsTimeout === -1) {
 				this.handleAccumulatedModelEventsTimeout = setTimeout(() => {
@@ -751,7 +747,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 
 			if (zonesHaveChanged) {
 				this.layoutProvider.onHeightMaybeChanged();
-				this._context.privateViewEventBus.emit(viewEvents.ViewEventNames.ZonesChanged, new viewEvents.ViewZonesChangedEvent());
+				this._context.privateViewEventBus.emit(new viewEvents.ViewZonesChangedEvent());
 			}
 		});
 		return zonesHaveChanged;
@@ -933,7 +929,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 	private _setHasFocus(newHasFocus: boolean): void {
 		if (this.hasFocus !== newHasFocus) {
 			this.hasFocus = newHasFocus;
-			this._context.privateViewEventBus.emit(viewEvents.ViewEventNames.ViewFocusChanged, new viewEvents.ViewFocusChangedEvent(this.hasFocus));
+			this._context.privateViewEventBus.emit(new viewEvents.ViewFocusChangedEvent(this.hasFocus));
 		}
 	}
 }

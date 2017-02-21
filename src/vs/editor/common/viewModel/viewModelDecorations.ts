@@ -8,7 +8,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { InlineDecoration, ViewModelDecoration, ICoordinatesConverter } from 'vs/editor/common/viewModel/viewModel';
+import { InlineDecoration, ViewModelDecoration, ICoordinatesConverter, ViewEventsCollector } from 'vs/editor/common/viewModel/viewModel';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
 export interface IDecorationsViewportData {
@@ -59,7 +59,7 @@ export class ViewModelDecorations implements IDisposable {
 		this._clearCachedModelDecorationsResolver();
 	}
 
-	public onModelDecorationsChanged(e: editorCommon.IModelDecorationsChangedEvent, emit: (eventType: string, payload: any) => void): void {
+	public onModelDecorationsChanged(eventsCollector: ViewEventsCollector, e: editorCommon.IModelDecorationsChangedEvent): void {
 		let changedDecorations = e.changedDecorations;
 		for (let i = 0, len = changedDecorations.length; i < len; i++) {
 			let changedDecoration = changedDecorations[i];
@@ -78,14 +78,14 @@ export class ViewModelDecorations implements IDisposable {
 		}
 
 		this._clearCachedModelDecorationsResolver();
-		emit(viewEvents.ViewEventNames.DecorationsChangedEvent, new viewEvents.ViewDecorationsChangedEvent());
+		eventsCollector.emit(new viewEvents.ViewDecorationsChangedEvent());
 	}
 
-	public onLineMappingChanged(emit: (eventType: string, payload: any) => void): void {
+	public onLineMappingChanged(eventsCollector: ViewEventsCollector): void {
 		this._decorationsCache = Object.create(null);
 
 		this._clearCachedModelDecorationsResolver();
-		emit(viewEvents.ViewEventNames.DecorationsChangedEvent, new viewEvents.ViewDecorationsChangedEvent());
+		eventsCollector.emit(new viewEvents.ViewDecorationsChangedEvent());
 	}
 
 	private _getOrCreateViewModelDecoration(modelDecoration: editorCommon.IModelDecoration): ViewModelDecoration {

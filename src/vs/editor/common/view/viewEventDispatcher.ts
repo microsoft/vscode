@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { EmitterEvent } from 'vs/base/common/eventEmitter';
-import { IViewEventBus, IViewEventHandler } from 'vs/editor/common/view/viewContext';
+import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
+import { ViewEvent } from 'vs/editor/common/view/viewEvents';
 
-export class ViewEventDispatcher implements IViewEventBus {
+export class ViewEventDispatcher {
 
 	private _eventHandlerGateKeeper: (callback: () => void) => void;
-	private _eventHandlers: IViewEventHandler[];
-	private _eventQueue: EmitterEvent[];
+	private _eventHandlers: ViewEventHandler[];
+	private _eventQueue: ViewEvent[];
 	private _isConsumingQueue: boolean;
 
 	constructor(eventHandlerGateKeeper: (callback: () => void) => void) {
@@ -21,7 +21,7 @@ export class ViewEventDispatcher implements IViewEventBus {
 		this._isConsumingQueue = false;
 	}
 
-	public addEventHandler(eventHandler: IViewEventHandler): void {
+	public addEventHandler(eventHandler: ViewEventHandler): void {
 		for (let i = 0, len = this._eventHandlers.length; i < len; i++) {
 			if (this._eventHandlers[i] === eventHandler) {
 				console.warn('Detected duplicate listener in ViewEventDispatcher', eventHandler);
@@ -30,7 +30,7 @@ export class ViewEventDispatcher implements IViewEventBus {
 		this._eventHandlers.push(eventHandler);
 	}
 
-	public removeEventHandler(eventHandler: IViewEventHandler): void {
+	public removeEventHandler(eventHandler: ViewEventHandler): void {
 		for (let i = 0; i < this._eventHandlers.length; i++) {
 			if (this._eventHandlers[i] === eventHandler) {
 				this._eventHandlers.splice(i, 1);
@@ -39,8 +39,7 @@ export class ViewEventDispatcher implements IViewEventBus {
 		}
 	}
 
-	public emit(eventType: string, data?: any): void {
-		let event = new EmitterEvent(eventType, data);
+	public emit(event: ViewEvent): void {
 
 		if (this._eventQueue) {
 			this._eventQueue.push(event);
@@ -53,7 +52,7 @@ export class ViewEventDispatcher implements IViewEventBus {
 		}
 	}
 
-	public emitMany(events: EmitterEvent[]): void {
+	public emitMany(events: ViewEvent[]): void {
 		if (this._eventQueue) {
 			this._eventQueue = this._eventQueue.concat(events);
 		} else {
@@ -91,5 +90,4 @@ export class ViewEventDispatcher implements IViewEventBus {
 			}
 		}
 	}
-
 }

@@ -75,7 +75,7 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 			let lineNumber = e.showAtLineNumber;
 			let column = e.showAtColumn;
 
-			this._context.privateViewEventBus.emit(viewEvents.ViewEventNames.RevealRangeEvent, new viewEvents.ViewRevealRangeRequestEvent(
+			this._context.privateViewEventBus.emit(new viewEvents.ViewRevealRangeRequestEvent(
 				new Range(lineNumber, column, lineNumber, column),
 				editorCommon.VerticalRevealType.Simple,
 				true,
