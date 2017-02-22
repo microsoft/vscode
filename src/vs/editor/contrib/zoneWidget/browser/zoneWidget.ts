@@ -157,7 +157,7 @@ export abstract class ZoneWidget extends Widget implements IHorizontalSashLayout
 	}
 
 	private _getWidth(info: EditorLayoutInfo = this.editor.getLayoutInfo()): number {
-		return info.width - info.verticalScrollbarWidth;
+		return info.width - info.minimapWidth - info.verticalScrollbarWidth;
 	}
 
 	private _onViewZoneTop(top: number): void {
@@ -377,6 +377,7 @@ export abstract class ZoneWidget extends Widget implements IHorizontalSashLayout
 	}
 
 	getHorizontalSashWidth() {
-		return this.editor.getLayoutInfo().width;
+		const layoutInfo = this.editor.getLayoutInfo();
+		return layoutInfo.width - layoutInfo.minimapWidth;
 	}
 }
