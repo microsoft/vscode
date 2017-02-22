@@ -146,7 +146,7 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		if (!this.hasView) {
 			return null;
 		}
-		return this._view.domNode;
+		return this._view.domNode.domNode;
 	}
 
 	public getCenteredRangeInViewport(): Range {
@@ -468,7 +468,7 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		super._attachModel(model);
 
 		if (this._view) {
-			this.domElement.appendChild(this._view.domNode);
+			this.domElement.appendChild(this._view.domNode.domNode);
 
 			let keys = Object.keys(this.contentWidgets);
 			for (let i = 0, len = keys.length; i < len; i++) {
@@ -514,7 +514,7 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 
 		if (this._view) {
 			this._view.dispose();
-			removeDomNode = this._view.domNode;
+			removeDomNode = this._view.domNode.domNode;
 			this._view = null;
 		}
 

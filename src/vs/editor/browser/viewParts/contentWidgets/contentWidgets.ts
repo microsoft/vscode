@@ -55,9 +55,9 @@ export class ViewContentWidgets extends ViewPart {
 
 	public domNode: HTMLElement;
 	public overflowingContentWidgetsDomNode: HTMLElement;
-	private _viewDomNode: HTMLElement;
+	private _viewDomNode: FastDomNode<HTMLElement>;
 
-	constructor(context: ViewContext, viewDomNode: HTMLElement) {
+	constructor(context: ViewContext, viewDomNode: FastDomNode<HTMLElement>) {
 		super(context);
 		this._viewDomNode = viewDomNode;
 
@@ -248,7 +248,7 @@ export class ViewContentWidgets extends ViewPart {
 		let belowTop = visibleRange.top + this._lineHeight;
 		let left = left0 + this._contentLeft;
 
-		let domNodePosition = dom.getDomNodePagePosition(this._viewDomNode);
+		let domNodePosition = dom.getDomNodePagePosition(this._viewDomNode.domNode);
 		let absoluteAboveTop = domNodePosition.top + aboveTop - dom.StandardWindow.scrollY;
 		let absoluteBelowTop = domNodePosition.top + belowTop - dom.StandardWindow.scrollY;
 		let absoluteLeft = domNodePosition.left + left - dom.StandardWindow.scrollX;

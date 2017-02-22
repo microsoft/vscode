@@ -8,7 +8,6 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { StyleMutator } from 'vs/base/browser/styleMutator';
 import { GlobalScreenReaderNVDA } from 'vs/editor/common/config/commonEditorConfig';
 import { TextAreaHandler } from 'vs/editor/common/controller/textAreaHandler';
 import { TextAreaStrategy } from 'vs/editor/common/controller/textAreaState';
@@ -21,10 +20,11 @@ import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { VisibleRange } from 'vs/editor/common/view/renderingContext';
 import { TextAreaWrapper } from 'vs/editor/browser/controller/input/textAreaWrapper';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { FastDomNode } from 'vs/base/browser/styleMutator';
 
 export interface IKeyboardHandlerHelper {
-	viewDomNode: HTMLElement;
-	textArea: HTMLTextAreaElement;
+	viewDomNode: FastDomNode<HTMLElement>;
+	textArea: FastDomNode<HTMLTextAreaElement>;
 	visibleRangeForPositionRelativeToEditor(lineNumber: number, column: number): VisibleRange;
 	flushAnyAccumulatedEvents(): void;
 }
@@ -50,7 +50,7 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 		this._context = context;
 		this.viewController = viewController;
 		this.textArea = new TextAreaWrapper(viewHelper.textArea);
-		Configuration.applyFontInfoSlow(this.textArea.actual, this._context.configuration.editor.fontInfo);
+		Configuration.applyFontInfo(this.textArea.actual, this._context.configuration.editor.fontInfo);
 		this.viewHelper = viewHelper;
 
 		this.contentLeft = this._context.configuration.editor.layoutInfo.contentLeft;
@@ -86,13 +86,13 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 			this.visibleRange = this.viewHelper.visibleRangeForPositionRelativeToEditor(lineNumber, column);
 
 			if (this.visibleRange) {
-				StyleMutator.setTop(this.textArea.actual, this.visibleRange.top);
-				StyleMutator.setLeft(this.textArea.actual, this.contentLeft + this.visibleRange.left - this.scrollLeft);
+				this.textArea.actual.setTop(this.visibleRange.top);
+				this.textArea.actual.setLeft(this.contentLeft + this.visibleRange.left - this.scrollLeft);
 			}
 
 			// Show the textarea
-			StyleMutator.setHeight(this.textArea.actual, this._context.configuration.editor.lineHeight);
-			dom.addClass(this.viewHelper.viewDomNode, 'ime-input');
+			this.textArea.actual.setHeight(this._context.configuration.editor.lineHeight);
+			this.viewHelper.viewDomNode.addClassName('ime-input');
 
 			this.viewController.compositionStart('keyboard');
 		}));
@@ -101,31 +101,31 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 			if (browser.isEdgeOrIE) {
 				// Due to isEdgeOrIE (where the textarea was not cleared initially)
 				// we cannot assume the text consists only of the composited text
-				StyleMutator.setWidth(this.textArea.actual, 0);
+				this.textArea.actual.setWidth(0);
 			} else {
 				// adjust width by its size
 				let canvasElem = <HTMLCanvasElement>document.createElement('canvas');
 				let context = canvasElem.getContext('2d');
-				let cs = dom.getComputedStyle(this.textArea.actual);
+				let cs = dom.getComputedStyle(this.textArea.actual.domNode);
 				if (browser.isFirefox) {
 					// computedStyle.font is empty in Firefox...
 					context.font = `${cs.fontStyle} ${cs.fontVariant} ${cs.fontWeight} ${cs.fontStretch} ${cs.fontSize} / ${cs.lineHeight} ${cs.fontFamily}`;
 					let metrics = context.measureText(e.data);
-					StyleMutator.setWidth(this.textArea.actual, metrics.width + 2); // +2 for Japanese...
+					this.textArea.actual.setWidth(metrics.width + 2); // +2 for Japanese...
 				} else {
 					context.font = cs.font;
 					let metrics = context.measureText(e.data);
-					StyleMutator.setWidth(this.textArea.actual, metrics.width);
+					this.textArea.actual.setWidth(metrics.width);
 				}
 			}
 		}));
 
 		this._toDispose.push(this.textAreaHandler.onCompositionEnd((e) => {
-			this.textArea.actual.style.height = '';
-			this.textArea.actual.style.width = '';
-			StyleMutator.setLeft(this.textArea.actual, 0);
-			StyleMutator.setTop(this.textArea.actual, 0);
-			dom.removeClass(this.viewHelper.viewDomNode, 'ime-input');
+			this.textArea.actual.unsetHeight();
+			this.textArea.actual.unsetWidth();
+			this.textArea.actual.setLeft(0);
+			this.textArea.actual.setTop(0);
+			this.viewHelper.viewDomNode.removeClassName('ime-input');
 
 			this.visibleRange = null;
 
@@ -165,7 +165,7 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		// Give textarea same font size & line height as editor, for the IME case (when the textarea is visible)
 		if (e.fontInfo) {
-			Configuration.applyFontInfoSlow(this.textArea.actual, this._context.configuration.editor.fontInfo);
+			Configuration.applyFontInfo(this.textArea.actual, this._context.configuration.editor.fontInfo);
 		}
 		if (e.viewInfo.experimentalScreenReader) {
 			this.textAreaHandler.setStrategy(this._getStrategy());
@@ -191,8 +191,8 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		this.scrollLeft = e.scrollLeft;
 		if (this.visibleRange) {
-			StyleMutator.setTop(this.textArea.actual, this.visibleRange.top);
-			StyleMutator.setLeft(this.textArea.actual, this.contentLeft + this.visibleRange.left - this.scrollLeft);
+			this.textArea.actual.setTop(this.visibleRange.top);
+			this.textArea.actual.setLeft(this.contentLeft + this.visibleRange.left - this.scrollLeft);
 		}
 		return false;
 	}

@@ -6,7 +6,7 @@
 
 import 'vs/css!./viewLines';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { StyleMutator } from 'vs/base/browser/styleMutator';
+import { FastDomNode } from 'vs/base/browser/styleMutator';
 import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -58,7 +58,7 @@ export class ViewLines extends ViewLayer<ViewLine> implements IViewLines {
 	 */
 	private static HORIZONTAL_EXTRA_PX = 30;
 
-
+	private _linesContent: FastDomNode<HTMLElement>;
 	private _viewLayout: IViewLayout;
 	private _textRangeRestingSpot: HTMLElement;
 
@@ -76,8 +76,9 @@ export class ViewLines extends ViewLayer<ViewLine> implements IViewLines {
 	private _lastCursorRevealRangeHorizontallyEvent: viewEvents.ViewRevealRangeRequestEvent;
 	private _lastRenderedData: LastRenderedData;
 
-	constructor(context: ViewContext, viewLayout: IViewLayout) {
+	constructor(context: ViewContext, linesContent: FastDomNode<HTMLElement>, viewLayout: IViewLayout) {
 		super(context);
+		this._linesContent = linesContent;
 		this._lineHeight = this._context.configuration.editor.lineHeight;
 		this._isViewportWrapping = this._context.configuration.editor.wrappingInfo.isViewportWrapping;
 		this._revealHorizontalRightPadding = this._context.configuration.editor.viewInfo.revealHorizontalRightPadding;
@@ -444,13 +445,13 @@ export class ViewLines extends ViewLayer<ViewLine> implements IViewLines {
 		// (4) handle scrolling
 		if (this._canUseTranslate3d) {
 			let transform = 'translate3d(' + -this._viewLayout.getScrollLeft() + 'px, ' + viewportData.visibleRangesDeltaTop + 'px, 0px)';
-			StyleMutator.setTransform(<HTMLElement>this.domNode.domNode.parentNode, transform);
-			StyleMutator.setTop(<HTMLElement>this.domNode.domNode.parentNode, 0); // TODO@Alex
-			StyleMutator.setLeft(<HTMLElement>this.domNode.domNode.parentNode, 0); // TODO@Alex
+			this._linesContent.setTransform(transform);
+			this._linesContent.setTop(0);
+			this._linesContent.setLeft(0);
 		} else {
-			StyleMutator.setTransform(<HTMLElement>this.domNode.domNode.parentNode, '');
-			StyleMutator.setTop(<HTMLElement>this.domNode.domNode.parentNode, viewportData.visibleRangesDeltaTop); // TODO@Alex
-			StyleMutator.setLeft(<HTMLElement>this.domNode.domNode.parentNode, -this._viewLayout.getScrollLeft()); // TODO@Alex
+			this._linesContent.setTransform('');
+			this._linesContent.setTop(viewportData.visibleRangesDeltaTop);
+			this._linesContent.setLeft(-this._viewLayout.getScrollLeft());
 		}
 
 		// Update max line width (not so important, it is just so the horizontal scrollbar doesn't get too small)

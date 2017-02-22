@@ -12,6 +12,7 @@ import { IConstructorSignature1 } from 'vs/platform/instantiation/common/instant
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
+import { FastDomNode } from 'vs/base/browser/styleMutator';
 
 /**
  * @internal
@@ -51,7 +52,7 @@ export interface ICodeEditorHelper {
  * @internal
  */
 export interface IView extends IDisposable {
-	domNode: HTMLElement;
+	domNode: FastDomNode<HTMLElement>;
 
 	getInternalEventBus(): IEventEmitter;
 
