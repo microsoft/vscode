@@ -355,7 +355,7 @@ export class Model implements Disposable {
 
 	constructor(
 		private _git: Git,
-		private rootPath: string,
+		private workspaceRootPath: string,
 		private askpass: Askpass
 	) {
 		const fsWatcher = workspace.createFileSystemWatcher('**');
@@ -392,7 +392,7 @@ export class Model implements Disposable {
 			return;
 		}
 
-		await this.repository.init();
+		await this.git.init(this.workspaceRootPath);
 		await this.status();
 	}
 
@@ -566,9 +566,9 @@ export class Model implements Disposable {
 		this.repositoryDisposable.dispose();
 
 		const disposables: Disposable[] = [];
-		const repositoryRoot = await this._git.getRepositoryRoot(this.rootPath);
+		const repositoryRoot = await this.git.getRepositoryRoot(this.workspaceRootPath);
 		const askpassEnv = await this.askpass.getEnv();
-		this.repository = this._git.open(repositoryRoot, askpassEnv);
+		this.repository = this.git.open(repositoryRoot, askpassEnv);
 
 		const dotGitPath = path.join(repositoryRoot, '.git');
 		const { event: onRawGitChange, disposable: watcher } = watch(dotGitPath);
