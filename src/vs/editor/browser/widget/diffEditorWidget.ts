@@ -887,6 +887,7 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 		clonedOptions.codeLens = false;
 		clonedOptions.fixedOverflowWidgets = true;
 		clonedOptions.lineDecorationsWidth = '2ch';
+		clonedOptions.minimap.enabled = false;
 		return clonedOptions;
 	}
 
