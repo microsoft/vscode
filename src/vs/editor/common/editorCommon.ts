@@ -423,7 +423,7 @@ export interface IEditorOptions {
 	 * Controls if the editor should allow to move selections via drag and drop.
 	 * Defaults to false.
 	 */
-	enableDragAndDrop?: boolean;
+	dragAndDrop?: boolean;
 	/**
 	 * Enable the suggestion box to pop-up on trigger characters.
 	 * Defaults to true.
@@ -1073,7 +1073,7 @@ export class InternalEditorOptions {
 	readonly autoClosingBrackets: boolean;
 	readonly useTabStops: boolean;
 	readonly tabFocusMode: boolean;
-	readonly enableDragAndDrop: boolean;
+	readonly dragAndDrop: boolean;
 	// ---- grouped options
 	readonly layoutInfo: EditorLayoutInfo;
 	readonly fontInfo: FontInfo;
@@ -1091,7 +1091,7 @@ export class InternalEditorOptions {
 		autoClosingBrackets: boolean;
 		useTabStops: boolean;
 		tabFocusMode: boolean;
-		enableDragAndDrop: boolean;
+		dragAndDrop: boolean;
 		layoutInfo: EditorLayoutInfo;
 		fontInfo: FontInfo;
 		viewInfo: InternalEditorViewOptions;
@@ -1104,7 +1104,7 @@ export class InternalEditorOptions {
 		this.autoClosingBrackets = Boolean(source.autoClosingBrackets);
 		this.useTabStops = Boolean(source.useTabStops);
 		this.tabFocusMode = Boolean(source.tabFocusMode);
-		this.enableDragAndDrop = Boolean(source.enableDragAndDrop);
+		this.dragAndDrop = Boolean(source.dragAndDrop);
 		this.layoutInfo = source.layoutInfo.clone();
 		this.fontInfo = source.fontInfo.clone();
 		this.viewInfo = source.viewInfo.clone();
@@ -1123,7 +1123,7 @@ export class InternalEditorOptions {
 			&& this.autoClosingBrackets === other.autoClosingBrackets
 			&& this.useTabStops === other.useTabStops
 			&& this.tabFocusMode === other.tabFocusMode
-			&& this.enableDragAndDrop === other.enableDragAndDrop
+			&& this.dragAndDrop === other.dragAndDrop
 			&& this.layoutInfo.equals(other.layoutInfo)
 			&& this.fontInfo.equals(other.fontInfo)
 			&& this.viewInfo.equals(other.viewInfo)
@@ -1143,7 +1143,7 @@ export class InternalEditorOptions {
 			autoClosingBrackets: (this.autoClosingBrackets !== newOpts.autoClosingBrackets),
 			useTabStops: (this.useTabStops !== newOpts.useTabStops),
 			tabFocusMode: (this.tabFocusMode !== newOpts.tabFocusMode),
-			enableDragAndDrop: (this.enableDragAndDrop !== newOpts.enableDragAndDrop),
+			dragAndDrop: (this.dragAndDrop !== newOpts.dragAndDrop),
 			layoutInfo: (!this.layoutInfo.equals(newOpts.layoutInfo)),
 			fontInfo: (!this.fontInfo.equals(newOpts.fontInfo)),
 			viewInfo: this.viewInfo.createChangeEvent(newOpts.viewInfo),
@@ -1170,7 +1170,7 @@ export interface IConfigurationChangedEvent {
 	readonly autoClosingBrackets: boolean;
 	readonly useTabStops: boolean;
 	readonly tabFocusMode: boolean;
-	readonly enableDragAndDrop: boolean;
+	readonly dragAndDrop: boolean;
 	readonly layoutInfo: boolean;
 	readonly fontInfo: boolean;
 	readonly viewInfo: IViewConfigurationChangedEvent;

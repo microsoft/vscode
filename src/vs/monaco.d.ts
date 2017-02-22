@@ -1604,7 +1604,7 @@ declare module monaco.editor {
         readonly autoClosingBrackets: boolean;
         readonly useTabStops: boolean;
         readonly tabFocusMode: boolean;
-        readonly enableDragAndDrop: boolean;
+        readonly dragAndDrop: boolean;
         readonly layoutInfo: EditorLayoutInfo;
         readonly fontInfo: FontInfo;
         readonly viewInfo: InternalEditorViewOptions;
