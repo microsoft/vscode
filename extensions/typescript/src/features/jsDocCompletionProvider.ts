@@ -18,7 +18,7 @@ const tryCompleteJsDocCommand = '_typeScript.tryCompleteJsDoc';
 
 class JsDocCompletionItem extends CompletionItem {
 	constructor(file: Uri, position: Position) {
-		super('/** @param */', CompletionItemKind.Snippet);
+		super('/** @param */', CompletionItemKind.Text);
 		this.documentation = localize('typescript.jsDocCompletionItem.detail', 'JSDoc comment');
 		this.insertText = '';
 		this.sortText = '\0';
