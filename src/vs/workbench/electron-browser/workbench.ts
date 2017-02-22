@@ -338,7 +338,7 @@ export class Workbench implements IPartService {
 				});
 			}));
 
-			if (this.storageService.getBoolean(Workbench.zenModeActiveSettingKey, StorageScope.WORKSPACE, false)) {
+			if (this.storageService.getBoolean(Workbench.zenModeActiveSettingKey, StorageScope.GLOBAL, false)) {
 				this.toggleZenMode(true);
 			}
 
