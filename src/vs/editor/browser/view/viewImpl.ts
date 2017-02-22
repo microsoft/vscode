@@ -112,6 +112,9 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		// The event dispatcher will always go through _renderOnce before dispatching any events
 		this.eventDispatcher = new ViewEventDispatcher((callback: () => void) => this._renderOnce(callback));
 
+		// Ensure the view is the first event handler in order to update the layout
+		this.eventDispatcher.addEventHandler(this);
+
 		// The layout provider has such responsibilities as:
 		// - scrolling (i.e. viewport / full size) & co.
 		// - whitespaces (a.k.a. view zones) management & co.
@@ -134,7 +137,6 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		this.hasFocus = false;
 		this.codeEditorHelper = null;
 
-		this.eventDispatcher.addEventHandler(this);
 
 		// The view lines rendering calls model.getLineTokens() that might emit events that its tokens have changed.
 		// This delayed processing of incoming model events acts as a guard against undesired/unexpected recursion.

@@ -109,7 +109,7 @@ class InternalEditorOptionsHelper {
 		fontInfo: FontInfo,
 		editorClassName: string,
 		isDominatedByLongLines: boolean,
-		maxLineNumber: number,
+		lineNumbersDigitCount: number,
 		canUseTranslate3d: boolean,
 		pixelRatio: number
 	): editorCommon.InternalEditorOptions {
@@ -180,7 +180,7 @@ class InternalEditorOptionsHelper {
 			lineHeight: fontInfo.lineHeight,
 			showLineNumbers: renderLineNumbers,
 			lineNumbersMinChars: lineNumbersMinChars,
-			maxLineNumber: maxLineNumber,
+			lineNumbersDigitCount: lineNumbersDigitCount,
 			lineDecorationsWidth: lineDecorationsWidth,
 			typicalHalfwidthCharacterWidth: fontInfo.typicalHalfwidthCharacterWidth,
 			maxDigitWidth: fontInfo.maxDigitWidth,
@@ -475,7 +475,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 	protected _configWithDefaults: ConfigurationWithDefaults;
 	protected _elementSizeObserver: IElementSizeObserver;
 	private _isDominatedByLongLines: boolean;
-	private _maxLineNumber: number;
+	private _lineNumbersDigitCount: number;
 
 	private _onDidChange = this._register(new Emitter<editorCommon.IConfigurationChangedEvent>());
 	public onDidChange: Event<editorCommon.IConfigurationChangedEvent> = this._onDidChange.event;
@@ -485,7 +485,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 		this._configWithDefaults = new ConfigurationWithDefaults(options);
 		this._elementSizeObserver = elementSizeObserver;
 		this._isDominatedByLongLines = false;
-		this._maxLineNumber = 1;
+		this._lineNumbersDigitCount = 1;
 		this.editor = this._computeInternalOptions();
 		this.editorClone = this.editor.clone();
 		this._register(EditorZoom.onDidChangeZoomLevel(_ => this._recomputeOptions()));
@@ -535,7 +535,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 			this.readConfiguration(bareFontInfo),
 			editorClassName,
 			this._isDominatedByLongLines,
-			this._maxLineNumber,
+			this._lineNumbersDigitCount,
 			canUseTranslate3d,
 			this._getPixelRatio()
 		);
@@ -552,11 +552,21 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 	}
 
 	public setMaxLineNumber(maxLineNumber: number): void {
-		if (this._maxLineNumber === maxLineNumber) {
+		let digitCount = CommonEditorConfiguration.digitCount(maxLineNumber);
+		if (this._lineNumbersDigitCount === digitCount) {
 			return;
 		}
-		this._maxLineNumber = maxLineNumber;
+		this._lineNumbersDigitCount = digitCount;
 		this._recomputeOptions();
+	}
+
+	private static digitCount(n: number): number {
+		var r = 0;
+		while (n) {
+			n = Math.floor(n / 10);
+			r++;
+		}
+		return r ? r : 1;
 	}
 
 	protected abstract _getEditorClassName(theme: string, fontLigatures: boolean): string;
