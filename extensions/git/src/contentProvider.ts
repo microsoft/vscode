@@ -5,24 +5,37 @@
 
 'use strict';
 
-import { workspace, Uri, Disposable, Event, EventEmitter } from 'vscode';
+import { workspace, Uri, Disposable, Event, EventEmitter, window } from 'vscode';
 import { debounce, throttle } from './decorators';
 import { Model } from './model';
 
-export class GitContentProvider {
+interface CacheRow {
+	uri: Uri;
+	timestamp: number;
+}
 
-	private disposables: Disposable[] = [];
+interface Cache {
+	[uri: string]: CacheRow;
+}
+
+const THREE_MINUTES = 1000 * 60 * 3;
+const FIVE_MINUTES = 1000 * 60 * 5;
+
+export class GitContentProvider {
 
 	private onDidChangeEmitter = new EventEmitter<Uri>();
 	get onDidChange(): Event<Uri> { return this.onDidChangeEmitter.event; }
 
-	private uris: { [uri: string]: Uri } = Object.create(null) as { [uri: string]: Uri };
+	private cache: Cache = Object.create(null);
+	private disposables: Disposable[] = [];
 
 	constructor(private model: Model) {
 		this.disposables.push(
 			model.onDidChangeRepository(this.eventuallyFireChangeEvents, this),
 			workspace.registerTextDocumentContentProvider('git', this)
 		);
+
+		setInterval(() => this.cleanup(), FIVE_MINUTES);
 	}
 
 	@debounce(1100)
@@ -34,9 +47,8 @@ export class GitContentProvider {
 	private async fireChangeEvents(): Promise<void> {
 		await this.model.whenIdle();
 
-		Object.keys(this.uris).forEach(key => {
-			this.onDidChangeEmitter.fire(this.uris[key]);
-		});
+		Object.keys(this.cache)
+			.forEach(key => this.onDidChangeEmitter.fire(this.cache[key].uri));
 	}
 
 	async provideTextDocumentContent(uri: Uri): Promise<string> {
@@ -49,14 +61,31 @@ export class GitContentProvider {
 			ref = indexStatus ? '' : 'HEAD';
 		}
 
+		const timestamp = new Date().getTime();
+		this.cache[uri.toString()] = { uri, timestamp };
+
 		try {
 			const result = await this.model.show(ref, uri);
-			this.uris[uri.toString()] = uri;
 			return result;
 		} catch (err) {
-			delete this.uris[uri.toString()];
 			return '';
 		}
+	}
+
+	private cleanup(): void {
+		const now = new Date().getTime();
+		const cache = Object.create(null);
+
+		Object.keys(this.cache).forEach(key => {
+			const row = this.cache[key];
+			const isOpen = window.visibleTextEditors.some(e => e.document.uri.fsPath === row.uri.fsPath);
+
+			if (isOpen || now - row.timestamp < THREE_MINUTES) {
+				cache[row.uri.toString()] = row;
+			}
+		});
+
+		this.cache = cache;
 	}
 
 	dispose(): void {
