@@ -125,6 +125,9 @@ interface IDecodedMetadata {
 }
 
 function renderTokenText(tokenText: string): string {
+	if (tokenText.length > 40) {
+		tokenText = tokenText.substr(0, 20) + '...' + tokenText.substr(tokenText.length - 20);
+	}
 	let result: string = '';
 	for (let charIndex = 0, len = tokenText.length; charIndex < len; charIndex++) {
 		let charCode = tokenText.charCodeAt(charIndex);
