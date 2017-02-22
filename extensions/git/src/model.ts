@@ -12,7 +12,11 @@ import { memoize, throttle, debounce } from './decorators';
 import { watch } from './watch';
 import { Askpass } from './askpass';
 import * as path from 'path';
+import * as fs from 'fs';
 import * as nls from 'vscode-nls';
+
+const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
+const exists = (path: string) => new Promise(c => fs.exists(path, c));
 
 const localize = nls.loadMessageBundle();
 const iconsRootPath = path.join(path.dirname(__dirname), 'resources', 'icons');
@@ -351,7 +355,7 @@ export class Model implements Disposable {
 
 	constructor(
 		private _git: Git,
-		private rootPath: string,
+		private workspaceRootPath: string,
 		private askpass: Askpass
 	) {
 		const fsWatcher = workspace.createFileSystemWatcher('**');
@@ -367,13 +371,28 @@ export class Model implements Disposable {
 		}
 	}
 
+	/**
+	 * Returns promise which resolves when there is no `.git/index.lock` file,
+	 * or when it has attempted way too many times. Back off mechanism.
+	 */
+	async whenUnlocked(): Promise<void> {
+		let millis = 100;
+		let retries = 0;
+
+		while (retries < 10 && await exists(path.join(this.repository.root, '.git', 'index.lock'))) {
+			retries += 1;
+			millis *= 1.4;
+			await timeout(millis);
+		}
+	}
+
 	@throttle
 	async init(): Promise<void> {
 		if (this.state !== State.NotAGitRepository) {
 			return;
 		}
 
-		await this.repository.init();
+		await this.git.init(this.workspaceRootPath);
 		await this.status();
 	}
 
@@ -512,6 +531,7 @@ export class Model implements Disposable {
 
 			try {
 				await this.assertIdleState();
+				await this.whenUnlocked();
 				const result = await runOperation();
 
 				if (!isReadOnly(operation)) {
@@ -546,9 +566,9 @@ export class Model implements Disposable {
 		this.repositoryDisposable.dispose();
 
 		const disposables: Disposable[] = [];
-		const repositoryRoot = await this._git.getRepositoryRoot(this.rootPath);
+		const repositoryRoot = await this.git.getRepositoryRoot(this.workspaceRootPath);
 		const askpassEnv = await this.askpass.getEnv();
-		this.repository = this._git.open(repositoryRoot, askpassEnv);
+		this.repository = this.git.open(repositoryRoot, askpassEnv);
 
 		const dotGitPath = path.join(repositoryRoot, '.git');
 		const { event: onRawGitChange, disposable: watcher } = watch(dotGitPath);
@@ -657,7 +677,7 @@ export class Model implements Disposable {
 	private async updateWhenIdleAndWait(): Promise<void> {
 		await this.whenIdle();
 		await this.status();
-		await new Promise(c => setTimeout(c, 5000));
+		await timeout(5000);
 	}
 
 	dispose(): void {
