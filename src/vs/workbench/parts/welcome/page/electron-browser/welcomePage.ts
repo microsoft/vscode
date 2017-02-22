@@ -16,7 +16,7 @@ import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Position } from 'vs/platform/editor/common/editor';
-import { onUnexpectedError } from 'vs/base/common/errors';
+import { onUnexpectedError, isPromiseCanceledError } from 'vs/base/common/errors';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -28,7 +28,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Schemas } from 'vs/base/common/network';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
-import { IMessageService, Severity, CancelAction } from 'vs/platform/message/common/message';
+import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { getInstalledKeymaps } from 'vs/workbench/parts/extensions/electron-browser/keymapExtensions';
 import { IExtensionEnablementService, IExtensionManagementService, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { used } from 'vs/workbench/parts/welcome/page/electron-browser/vs_code_welcome_page';
@@ -203,9 +203,7 @@ class WelcomePage {
 					const keymapName = node.getAttribute('data-keymap-name');
 					const keymapIdentifier = node.getAttribute('data-keymap');
 					if (keymapName && keymapIdentifier) {
-						this.installKeymap(keymapName, keymapIdentifier).then(null, err => {
-							this.messageService.show(Severity.Error, err);
-						});
+						this.installKeymap(keymapName, keymapIdentifier);
 						event.preventDefault();
 						event.stopPropagation();
 					}
@@ -214,10 +212,19 @@ class WelcomePage {
 		});
 	}
 
-	private installKeymap(keymapName: string, keymapIdentifier: string): TPromise<void> {
-		return this.instantiationService.invokeFunction(getInstalledKeymaps).then(extensions => {
+	private installKeymap(keymapName: string, keymapIdentifier: string): void {
+		this.telemetryService.publicLog('installKeymap', {
+			from: telemetryFrom,
+			extensionId: keymapIdentifier,
+		});
+		this.instantiationService.invokeFunction(getInstalledKeymaps).then(extensions => {
 			const keymap = arrays.first(extensions, extension => extension.identifier === keymapIdentifier);
 			if (keymap && keymap.globallyEnabled) {
+				this.telemetryService.publicLog('installedKeymap', {
+					from: telemetryFrom,
+					extensionId: keymapIdentifier,
+					outcome: 'already_enabled',
+				});
 				this.messageService.show(Severity.Info, localize('welcomePage.keymapAlreadyInstalled', "The {0} keyboard shortcuts are already installed.", keymapName));
 				return;
 			}
@@ -232,6 +239,11 @@ class WelcomePage {
 								if (keymap) {
 									return this.extensionEnablementService.setEnablement(keymap.identifier, true)
 										.then(() => {
+											this.telemetryService.publicLog('installedKeymap', {
+												from: telemetryFrom,
+												extensionId: keymapIdentifier,
+												outcome: 'enabled',
+											});
 											return this.windowService.reloadWindow();
 										});
 								}
@@ -239,19 +251,52 @@ class WelcomePage {
 									.then(result => {
 										const [extension] = result.firstPage;
 										if (!extension) {
+											this.telemetryService.publicLog('installedKeymap', {
+												from: telemetryFrom,
+												extensionId: keymapIdentifier,
+												outcome: 'not_found',
+											});
 											this.messageService.show(Severity.Error, localize('welcomePage.keymapNotFound', "The {0} keyboard shortcuts with id {1} could not be found.", keymapName, keymapIdentifier));
 											return undefined;
 										}
 										return this.extensionManagementService.installFromGallery(extension)
 											.then(() => {
+												this.telemetryService.publicLog('installedKeymap', {
+													from: telemetryFrom,
+													extensionId: keymapIdentifier,
+													outcome: 'installed',
+												});
 												return this.windowService.reloadWindow();
 											});
 									});
+							}).then(null, err => {
+								this.telemetryService.publicLog('installedKeymap', {
+									from: telemetryFrom,
+									extensionId: keymapIdentifier,
+									outcome: isPromiseCanceledError(err) ? 'canceled' : 'error',
+									error: String(err),
+								});
+								this.messageService.show(Severity.Error, err);
 							});
 					}),
-					CancelAction
+					new Action('cancel', localize('cancel', "Cancel"), null, true, () => {
+						this.telemetryService.publicLog('installedKeymap', {
+							from: telemetryFrom,
+							extensionId: keymapIdentifier,
+							outcome: 'user_canceled',
+						});
+						return TPromise.as(true);
+					})
 				]
 			});
+		}).then<void>(null, err => {
+			this.telemetryService.publicLog('installedKeymap', {
+				from: telemetryFrom,
+				extensionId: keymapIdentifier,
+				outcome: isPromiseCanceledError(err) ? 'canceled' : 'error',
+				error: String(err),
+			});
+			this.messageService.show(Severity.Error, err);
 		});
 	}
 }
