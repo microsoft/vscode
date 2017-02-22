@@ -66,9 +66,10 @@ export default class JsDocCompletionHelper implements CompletionItemProvider {
 		}
 
 		// Only show the JSdoc completion when the everything before the cursor is whitespace
-		// or could be the opening to a comment
+		// or could be the opening of a comment
 		const line = document.lineAt(position.line).text;
-		if (line.slice(0, position.character).match(/^\s*\/?\**\s*$/)) {
+		const prefix = line.slice(0, position.character);
+		if (prefix.match(/\/\*+\s*$/) || prefix.match(/^\s*\/?\**\s*$/)) {
 			return [new JsDocCompletionItem(document.uri, position)];
 		}
 		return [];
