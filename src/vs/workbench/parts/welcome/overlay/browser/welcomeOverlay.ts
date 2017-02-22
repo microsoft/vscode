@@ -193,9 +193,9 @@ class WelcomeOverlay {
 
 	public show() {
 		if (this._overlay.style('display') !== 'block') {
-			const welcomePage = document.getElementById('workbench.parts.editor') as HTMLDivElement;
 			this._overlay.display('block');
-			dom.addClass(welcomePage, 'blur-background');
+			const workbench = document.querySelector('.monaco-workbench') as HTMLElement;
+			dom.addClass(workbench, 'blur-background');
 			this._overlayVisible.set(true);
 		}
 	}
@@ -203,8 +203,8 @@ class WelcomeOverlay {
 	public hide() {
 		if (this._overlay.style('display') !== 'none') {
 			this._overlay.display('none');
-			const welcomePage = document.getElementById('workbench.parts.editor') as HTMLDivElement;
-			dom.removeClass(welcomePage, 'blur-background');
+			const workbench = document.querySelector('.monaco-workbench') as HTMLElement;
+			dom.removeClass(workbench, 'blur-background');
 			this._overlayVisible.reset();
 		}
 	}

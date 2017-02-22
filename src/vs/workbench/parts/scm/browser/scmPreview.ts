@@ -10,9 +10,19 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IMessageService } from 'vs/platform/message/common/message';
 
+// tslint:disable
+import pkg from 'vs/platform/node/package';
+// tslint:enable
+
+// Enable this by default for insiders
+function getDefaultValue(): boolean {
+	const value = window.localStorage.getItem('enablePreviewSCM');
+	return /insider$/.test(pkg.version) ? value !== 'false' : value === 'true';
+}
+
 export default class SCMPreview {
 
-	private static readonly _enabled = window.localStorage.getItem('enablePreviewSCM') === 'true';
+	private static readonly _enabled = getDefaultValue();
 
 	static get enabled(): boolean {
 		return this._enabled;

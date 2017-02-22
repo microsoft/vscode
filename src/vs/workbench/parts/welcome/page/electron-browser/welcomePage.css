@@ -199,6 +199,7 @@
 }
 
 .monaco-workbench > .part.editor > .content .welcomePage .commands li button h3 {
+	font-weight: normal;
 	font-size: 1em;
 	margin: 0;
 	margin-bottom: .25em;

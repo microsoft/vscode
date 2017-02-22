@@ -416,6 +416,7 @@ export class WalkThroughPart extends BaseEditor {
 			fixedOverflowWidgets: true,
 			lineNumbersMinChars: 1,
 			theme: this.themeService.getColorTheme().id,
+			minimap: false,
 		};
 	}
 
@@ -440,7 +441,7 @@ export class WalkThroughPart extends BaseEditor {
 		return input.replace(/kb\(([a-z.\d\-]+)\)/gi, (match: string, kb: string) => {
 			const [keybinding] = this.keybindingService.lookupKeybindings(kb);
 			const shortcut = keybinding ? this.keybindingService.getLabelFor(keybinding) : UNBOUND_COMMAND;
-			return `<span class="shortcut">${shortcut}</span>`;
+			return `<span class="shortcut">${strings.escape(shortcut)}</span>`;
 		});
 	}
 
