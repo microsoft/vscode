@@ -162,6 +162,8 @@ export class SuggestController implements IEditorContribution {
 			if (suggestion.command) {
 				this.commandService.executeCommand(suggestion.command.id, ...suggestion.command.arguments).done(undefined, onUnexpectedError);
 			}
+
+			this.telemetryService.publicLog('suggestSnippetInsert', { ...this.editor.getTelemetryData(), suggestionType: suggestion.type });
 		}
 
 		this.model.cancel();

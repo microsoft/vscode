@@ -125,6 +125,9 @@ export class TerminalService implements ITerminalService {
 	}
 
 	public setActiveInstanceByIndex(terminalIndex: number): void {
+		if (terminalIndex >= this._terminalInstances.length) {
+			return;
+		}
 		const didInstanceChange = this._activeTerminalInstanceIndex !== terminalIndex;
 		this._activeTerminalInstanceIndex = terminalIndex;
 		this._terminalInstances.forEach((terminalInstance, i) => {

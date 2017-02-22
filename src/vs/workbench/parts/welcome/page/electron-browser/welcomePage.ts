@@ -118,8 +118,11 @@ class WelcomePage {
 
 	private create() {
 		const recentlyOpened = this.windowService.getRecentlyOpen();
-		const uri = URI.parse('vs/workbench/parts/welcome/page/electron-browser/vs_code_welcome_page')
-			.with({ scheme: Schemas.walkThrough });
+		const uri = URI.parse(require.toUrl('./vs_code_welcome_page'))
+			.with({
+				scheme: Schemas.walkThrough,
+				query: JSON.stringify({ moduleId: 'vs/workbench/parts/welcome/page/electron-browser/vs_code_welcome_page' })
+			});
 		const input = this.instantiationService.createInstance(WalkThroughInput, localize('welcome.title', "Welcome"), '', uri, telemetryFrom, container => this.onReady(container, recentlyOpened));
 		this.editorService.openEditor(input, { pinned: true }, Position.ONE)
 			.then(null, onUnexpectedError);
