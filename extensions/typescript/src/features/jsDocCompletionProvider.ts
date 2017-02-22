@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { Position, Selection, Range, CompletionItemProvider, CompletionItemKind, TextDocument, CancellationToken, CompletionItem, window, commands, Uri, ProviderResult, TextEditor } from 'vscode';
+import { Position, Selection, Range, CompletionItemProvider, CompletionItemKind, TextDocument, CancellationToken, CompletionItem, window, commands, Uri, ProviderResult, TextEditor, SnippetString } from 'vscode';
 
 import { ITypescriptServiceClient } from '../typescriptService';
 import { FileLocationRequestArgs, DocCommandTemplateResponse } from '../protocol';
@@ -173,21 +173,7 @@ export default class JsDocCompletionHelper implements CompletionItemProvider {
 	 * Insert the default JSDoc
 	 */
 	private tryInsertDefaultDoc(editor: TextEditor, position: Position): Thenable<boolean> {
-		const line = editor.document.lineAt(position.line).text;
-		const spaceBefore = line.slice(0, position.character).match(/^\s*$/);
-
-		const indent = spaceBefore ? spaceBefore[0] : '';
-		return editor.edit(
-			edits => edits.insert(position, `/**\n${indent} * \n${indent} */`),
-			{ undoStopBefore: false, undoStopAfter: true })
-			.then((didInsert: boolean) => {
-				if (didInsert) {
-					const newCursorPosition = new Position(position.line + 1, editor.document.lineAt(position.line + 1).text.length);
-					editor.selection = new Selection(newCursorPosition, newCursorPosition);
-				}
-				return didInsert;
-			});
+		const snippet = new SnippetString(`/**\n * $0\n */`);
+		return editor.insertSnippet(snippet, position, { undoStopBefore: false, undoStopAfter: true });
 	}
-
-
 }
