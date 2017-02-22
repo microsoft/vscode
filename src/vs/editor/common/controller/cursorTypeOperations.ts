@@ -326,9 +326,15 @@ export class TypeOperations {
 
 		// Only consider auto closing the pair if a space follows or if another autoclosed pair follows
 		if (beforeCharacter) {
+			let thisBraceIsSymmetric = (config.autoClosingPairsOpen[ch] === ch);
+
 			let isBeforeCloseBrace = false;
-			for (let closeBrace in config.autoClosingPairsClose) {
-				if (beforeCharacter === closeBrace) {
+			for (let otherCloseBrace in config.autoClosingPairsClose) {
+				let otherBraceIsSymmetric = (config.autoClosingPairsOpen[otherCloseBrace] === otherCloseBrace);
+				if (!thisBraceIsSymmetric && otherBraceIsSymmetric) {
+					continue;
+				}
+				if (beforeCharacter === otherCloseBrace) {
 					isBeforeCloseBrace = true;
 					break;
 				}

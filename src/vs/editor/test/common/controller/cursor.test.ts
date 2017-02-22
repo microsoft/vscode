@@ -3466,3 +3466,145 @@ suite('ElectricCharacter', () => {
 		mode.dispose();
 	});
 });
+
+suite('autoClosingPairs', () => {
+
+	class AutoClosingMode extends MockMode {
+
+		private static _id = new LanguageIdentifier('autoClosingMode', 3);
+
+		constructor() {
+			super(AutoClosingMode._id);
+			this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
+				autoClosingPairs: [
+					{ open: '{', close: '}' },
+					{ open: '[', close: ']' },
+					{ open: '(', close: ')' },
+					{ open: '\'', close: '\'', notIn: ['string', 'comment'] },
+					{ open: '\"', close: '\"', notIn: ['string'] },
+					{ open: '`', close: '`', notIn: ['string', 'comment'] },
+					{ open: '/**', close: ' */', notIn: ['string'] }
+				],
+			}));
+		}
+	}
+
+	const enum ColumnType {
+		Normal = 0,
+		Special1 = 1,
+		Special2 = 2
+	}
+
+	function extractSpecialColumns(maxColumn: number, annotatedLine: string): ColumnType[] {
+		let result: ColumnType[] = [];
+		for (let j = 1; j <= maxColumn; j++) {
+			result[j] = ColumnType.Normal;
+		}
+		let column = 1;
+		for (let j = 0; j < annotatedLine.length; j++) {
+			if (annotatedLine.charAt(j) === '|') {
+				result[column] = ColumnType.Special1;
+			} else if (annotatedLine.charAt(j) === '!') {
+				result[column] = ColumnType.Special2;
+			} else {
+				column++;
+			}
+		}
+		return result;
+	}
+
+	function assertType(model: Model, cursor: Cursor, lineNumber: number, column: number, chr: string, expectedInsert: string, message: string): void {
+		let lineContent = model.getLineContent(lineNumber);
+		let expected = lineContent.substr(0, column - 1) + expectedInsert + lineContent.substr(column - 1);
+		moveTo(cursor, lineNumber, column);
+		cursorCommand(cursor, H.Type, { text: chr }, 'keyboard');
+		assert.deepEqual(model.getLineContent(lineNumber), expected, message);
+		cursorCommand(cursor, H.Undo);
+	}
+
+	test('open parens', () => {
+		let mode = new AutoClosingMode();
+		usingCursor({
+			text: [
+				'var a = [];',
+				'var b = `asd`;',
+				'var c = \'asd\';',
+				'var d = "asd";',
+				'var e = /*3*/	3;',
+				'var f = /** 3 */3;',
+				'var g = (3+5);',
+				'var h = { a: \'value\' };',
+			],
+			languageIdentifier: mode.getLanguageIdentifier()
+		}, (model, cursor) => {
+
+			let autoClosePositions = [
+				'var| a| =| [|];|',
+				'var| b| =| `asd`;|',
+				'var| c| =| \'asd\';|',
+				'var| d| =| "asd";|',
+				'var| e| =| /*3*/|	3;|',
+				'var| f| =| /**| 3| */3;|',
+				'var| g| =| (3+5|);|',
+				'var| h| =| {| a:| \'value\'| |};|',
+			];
+			for (let i = 0, len = autoClosePositions.length; i < len; i++) {
+				const lineNumber = i + 1;
+				const autoCloseColumns = extractSpecialColumns(model.getLineMaxColumn(lineNumber), autoClosePositions[i]);
+
+				for (let column = 1; column < autoCloseColumns.length; column++) {
+					if (autoCloseColumns[column] === ColumnType.Special1) {
+						assertType(model, cursor, lineNumber, column, '(', '()', `auto closes @ (${lineNumber}, ${column})`);
+					} else {
+						assertType(model, cursor, lineNumber, column, '(', '(', `does not auto close @ (${lineNumber}, ${column})`);
+					}
+				}
+			}
+		});
+		mode.dispose();
+	});
+
+	test('quote', () => {
+		let mode = new AutoClosingMode();
+		usingCursor({
+			text: [
+				'var a = [];',
+				'var b = `asd`;',
+				'var c = \'asd\';',
+				'var d = "asd";',
+				'var e = /*3*/	3;',
+				'var f = /** 3 */3;',
+				'var g = (3+5);',
+				'var h = { a: \'value\' };',
+			],
+			languageIdentifier: mode.getLanguageIdentifier()
+		}, (model, cursor) => {
+
+			let autoClosePositions = [
+				'var| a| =| [|];|',
+				'var| b| =| |`asd|`;|',
+				'var| c| =| !\'asd!\';|',
+				'var| d| =| |"asd|";|',
+				'var| e| =| /*3*/|	3;|',
+				'var| f| =| /**| 3| */3;|',
+				'var| g| =| (3+5|);|',
+				'var| h| =| {| a:| !\'value!\'| |};|',
+			];
+			for (let i = 0, len = autoClosePositions.length; i < len; i++) {
+				const lineNumber = i + 1;
+				const autoCloseColumns = extractSpecialColumns(model.getLineMaxColumn(lineNumber), autoClosePositions[i]);
+
+				for (let column = 1; column < autoCloseColumns.length; column++) {
+					if (autoCloseColumns[column] === ColumnType.Special1) {
+						assertType(model, cursor, lineNumber, column, '\'', '\'\'', `auto closes @ (${lineNumber}, ${column})`);
+					} else if (autoCloseColumns[column] === ColumnType.Special2) {
+						assertType(model, cursor, lineNumber, column, '\'', '', `over types @ (${lineNumber}, ${column})`);
+					} else {
+						assertType(model, cursor, lineNumber, column, '\'', '\'', `does not auto close @ (${lineNumber}, ${column})`);
+					}
+				}
+			}
+		});
+		mode.dispose();
+	});
+});
