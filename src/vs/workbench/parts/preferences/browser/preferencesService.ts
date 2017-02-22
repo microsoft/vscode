@@ -48,7 +48,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	_serviceBrand: any;
 
 	// TODO:@sandy merge these models into editor inputs by extending resource editor model
-	private defaultPreferencesEditorModels: Map<URI, IPreferencesEditorModel<any>>;
+	private defaultPreferencesEditorModels: Map<URI, TPromise<IPreferencesEditorModel<any>>>;
 	private lastOpenedSettingsInput: PreferencesEditorInput = null;
 
 	constructor(
@@ -68,7 +68,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		@IExtensionService private extensionService: IExtensionService
 	) {
 		super();
-		this.defaultPreferencesEditorModels = new Map<URI, IPreferencesEditorModel<any>>();
+		this.defaultPreferencesEditorModels = new Map<URI, TPromise<IPreferencesEditorModel<any>>>();
 		this.editorGroupService.onEditorsChanged(() => {
 			const activeEditorInput = this.editorService.getActiveEditorInput();
 			if (activeEditorInput instanceof PreferencesEditorInput) {
@@ -89,34 +89,36 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	createDefaultPreferencesEditorModel(uri: URI): TPromise<IPreferencesEditorModel<any>> {
-		const editorModel = this.defaultPreferencesEditorModels.get(uri);
-		if (editorModel) {
-			return TPromise.as(editorModel);
+		let promise = this.defaultPreferencesEditorModels.get(uri);
+		if (promise) {
+			return promise;
 		}
 
 		if (this.defaultSettingsResource.fsPath === uri.fsPath) {
-			return TPromise.join<any>([this.extensionService.onReady(), this.fetchMostCommonlyUsedSettings()])
+			promise = TPromise.join<any>([this.extensionService.onReady(), this.fetchMostCommonlyUsedSettings()])
 				.then(result => {
 					const mostCommonSettings = result[1];
 					const model = this.instantiationService.createInstance(DefaultSettingsEditorModel, uri, mostCommonSettings);
-					this.defaultPreferencesEditorModels.set(uri, model);
 					return model;
 				});
+			this.defaultPreferencesEditorModels.set(uri, promise);
+			return promise;
 		}
 
 		if (this.defaultKeybindingsResource.fsPath === uri.fsPath) {
 			const model = this.instantiationService.createInstance(DefaultKeybindingsEditorModel, uri);
-			this.defaultPreferencesEditorModels.set(uri, model);
-			return TPromise.wrap(model);
+			promise = TPromise.wrap(model);
+			this.defaultPreferencesEditorModels.set(uri, promise);
+			return promise;
 		}
 
 		return null;
 	}
 
 	public resolvePreferencesEditorModel(uri: URI): TPromise<IPreferencesEditorModel<any>> {
-		const model = this.defaultPreferencesEditorModels.get(uri);
-		if (model) {
-			return TPromise.wrap(model);
+		const promise = this.defaultPreferencesEditorModels.get(uri);
+		if (promise) {
+			return promise;
 		}
 
 		if (this.getEditableSettingsURI(ConfigurationTarget.USER).fsPath === uri.fsPath) {
