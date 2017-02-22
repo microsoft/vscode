@@ -19,7 +19,7 @@ const tryCompleteJsDocCommand = '_typeScript.tryCompleteJsDoc';
 class JsDocCompletionItem extends CompletionItem {
 	constructor(file: Uri, position: Position) {
 		super('/** @param */', CompletionItemKind.Text);
-		this.documentation = localize('typescript.jsDocCompletionItem.documentation', 'JSDoc comment');
+		this.detail = localize('typescript.jsDocCompletionItem.documentation', 'JSDoc comment');
 		this.insertText = '';
 		this.sortText = '\0';
 		this.command = {
@@ -83,13 +83,13 @@ export default class JsDocCompletionHelper implements CompletionItemProvider {
 		const line = document.lineAt(position.line).text;
 
 		// Ensure line starts with '/**' then cursor
-		const prefix = line.slice(0, position.character).match(/^\s*(\/\*\*+)\s*$/);
+		const prefix = line.slice(0, position.character).match(/^\s*(\/\*\*+)$/);
 		if (prefix === null) {
 			return false;
 		}
 
-		// Ensure there is no content after the cursor besides possibly the end of the comment
-		const suffix = line.slice(position.character).match(/^\s*\**\/?$/);
+		// Ensure there is no content after the cursor besides the end of the comment
+		const suffix = line.slice(position.character).match(/^\s*\*+\/$/);
 		return suffix !== null;
 	}
 
