@@ -167,10 +167,6 @@ export class SuggestController implements IEditorContribution {
 		}
 
 		this.model.cancel();
-
-		// The list will possibly get focus due to a mouse click
-		// so we need to get it back to the editor on the next frame.
-		setTimeout(() => this.editor.focus(), 0);
 	}
 
 	triggerSuggest(): void {
