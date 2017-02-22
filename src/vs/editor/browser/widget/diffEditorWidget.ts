@@ -11,7 +11,7 @@ import { EventEmitter, EmitterEvent } from 'vs/base/common/eventEmitter';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
 import * as dom from 'vs/base/browser/dom';
-import { StyleMutator } from 'vs/base/browser/styleMutator';
+import { FastDomNode, createFastDomNode } from 'vs/base/browser/styleMutator';
 import { ISashEvent, IVerticalSashLayoutProvider, Sash } from 'vs/base/browser/ui/sash/sash';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -169,7 +169,7 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 	private _domElement: HTMLElement;
 	_containerDomElement: HTMLElement;
 	private _overviewDomElement: HTMLElement;
-	private _overviewViewportDomElement: HTMLElement;
+	private _overviewViewportDomElement: FastDomNode<HTMLElement>;
 
 	private _width: number;
 	private _height: number;
@@ -258,16 +258,16 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 		this._containerDomElement.style.height = '100%';
 		this._domElement.appendChild(this._containerDomElement);
 
-		this._overviewViewportDomElement = document.createElement('div');
-		this._overviewViewportDomElement.className = 'diffViewport';
-		this._overviewViewportDomElement.style.position = 'absolute';
+		this._overviewViewportDomElement = createFastDomNode(document.createElement('div'));
+		this._overviewViewportDomElement.setClassName('diffViewport');
+		this._overviewViewportDomElement.setPosition('absolute');
 
 		this._overviewDomElement = document.createElement('div');
 		this._overviewDomElement.className = 'diffOverview';
 		this._overviewDomElement.style.position = 'absolute';
 		this._overviewDomElement.style.height = '100%';
 
-		this._overviewDomElement.appendChild(this._overviewViewportDomElement);
+		this._overviewDomElement.appendChild(this._overviewViewportDomElement.domNode);
 
 		this._toDispose.push(dom.addDisposableListener(this._overviewDomElement, 'mousedown', (e: MouseEvent) => {
 			this.modifiedEditor.delegateVerticalScrollbarMouseDown(e);
@@ -948,8 +948,8 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 		this._overviewDomElement.style.top = '0px';
 		this._overviewDomElement.style.width = DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH + 'px';
 		this._overviewDomElement.style.left = (this._width - DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH) + 'px';
-		this._overviewViewportDomElement.style.width = DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH + 'px';
-		this._overviewViewportDomElement.style.height = '30px';
+		this._overviewViewportDomElement.setWidth(DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH);
+		this._overviewViewportDomElement.setHeight(30);
 
 		this.originalEditor.layout({ width: splitPoint, height: this._height });
 		this.modifiedEditor.layout({ width: this._width - splitPoint - DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH, height: this._height });
@@ -964,11 +964,11 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 	private _layoutOverviewViewport(): void {
 		let layout = this._computeOverviewViewport();
 		if (!layout) {
-			StyleMutator.setTop(this._overviewViewportDomElement, 0);
-			StyleMutator.setHeight(this._overviewViewportDomElement, 0);
+			this._overviewViewportDomElement.setTop(0);
+			this._overviewViewportDomElement.setHeight(0);
 		} else {
-			StyleMutator.setTop(this._overviewViewportDomElement, layout.top);
-			StyleMutator.setHeight(this._overviewViewportDomElement, layout.height);
+			this._overviewViewportDomElement.setTop(layout.top);
+			this._overviewViewportDomElement.setHeight(layout.height);
 		}
 	}
 

@@ -15,27 +15,33 @@ import { Scrollable } from 'vs/base/common/scrollable';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { IRenderingContext, IRestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
+import { FastDomNode, createFastDomNode } from 'vs/base/browser/styleMutator';
 
 export class EditorScrollbar extends ViewPart {
 
 	private scrollable: Scrollable;
 	private toDispose: IDisposable[];
-	private linesContent: HTMLElement;
 	private scrollbar: ScrollableElement;
+	private scrollbarDomNode: FastDomNode<HTMLElement>;
 
-	constructor(context: ViewContext, scrollable: Scrollable, linesContent: HTMLElement, viewDomNode: HTMLElement, overflowGuardDomNode: HTMLElement) {
+	constructor(
+		context: ViewContext,
+		scrollable: Scrollable,
+		linesContent: FastDomNode<HTMLElement>,
+		viewDomNode: FastDomNode<HTMLElement>,
+		overflowGuardDomNode: FastDomNode<HTMLElement>
+	) {
 		super(context);
 
 		this.toDispose = [];
 		this.scrollable = scrollable;
-		this.linesContent = linesContent;
 
 		const viewInfo = this._context.configuration.editor.viewInfo;
 		const configScrollbarOpts = viewInfo.scrollbar;
 
 		let scrollbarOptions: ScrollableElementCreationOptions = {
 			canUseTranslate3d: viewInfo.canUseTranslate3d,
-			listenOnDomNode: viewDomNode,
+			listenOnDomNode: viewDomNode.domNode,
 			className: ClassNames.SCROLLABLE_ELEMENT + ' ' + viewInfo.theme,
 			useShadows: false,
 			lazyRender: true,
@@ -53,10 +59,14 @@ export class EditorScrollbar extends ViewPart {
 			mouseWheelScrollSensitivity: configScrollbarOpts.mouseWheelScrollSensitivity,
 		};
 
-		this.scrollbar = new ScrollableElement(linesContent, scrollbarOptions, this.scrollable);
+		this.scrollbar = new ScrollableElement(linesContent.domNode, scrollbarOptions, this.scrollable);
 		PartFingerprints.write(this.scrollbar.getDomNode(), PartFingerprint.ScrollableElement);
 
 		this.toDispose.push(this.scrollbar);
+
+		this.scrollbarDomNode = createFastDomNode(this.scrollbar.getDomNode());
+		this.scrollbarDomNode.setPosition('absolute');
+		this._setLayout();
 
 		// When having a zone widget that calls .focus() on one of its dom elements,
 		// the browser will try desperately to reveal that dom node, unexpectedly
@@ -86,21 +96,29 @@ export class EditorScrollbar extends ViewPart {
 		};
 
 		// I've seen this happen both on the view dom node & on the lines content dom node.
-		this.toDispose.push(dom.addDisposableListener(viewDomNode, 'scroll', (e: Event) => onBrowserDesperateReveal(viewDomNode, true, true)));
-		this.toDispose.push(dom.addDisposableListener(linesContent, 'scroll', (e: Event) => onBrowserDesperateReveal(linesContent, true, false)));
-		this.toDispose.push(dom.addDisposableListener(overflowGuardDomNode, 'scroll', (e: Event) => onBrowserDesperateReveal(overflowGuardDomNode, true, false)));
+		this.toDispose.push(dom.addDisposableListener(viewDomNode.domNode, 'scroll', (e: Event) => onBrowserDesperateReveal(viewDomNode.domNode, true, true)));
+		this.toDispose.push(dom.addDisposableListener(linesContent.domNode, 'scroll', (e: Event) => onBrowserDesperateReveal(linesContent.domNode, true, false)));
+		this.toDispose.push(dom.addDisposableListener(overflowGuardDomNode.domNode, 'scroll', (e: Event) => onBrowserDesperateReveal(overflowGuardDomNode.domNode, true, false)));
 	}
 
 	public dispose(): void {
 		this.toDispose = dispose(this.toDispose);
 	}
 
+	private _setLayout(): void {
+		const layoutInfo = this._context.configuration.editor.layoutInfo;
+
+		this.scrollbarDomNode.setLeft(layoutInfo.contentLeft);
+		this.scrollbarDomNode.setWidth(layoutInfo.contentWidth + layoutInfo.minimapWidth);
+		this.scrollbarDomNode.setHeight(layoutInfo.contentHeight);
+	}
+
 	public getOverviewRulerLayoutInfo(): IOverviewRulerLayoutInfo {
 		return this.scrollbar.getOverviewRulerLayoutInfo();
 	}
 
-	public getScrollbarContainerDomNode(): HTMLElement {
-		return this.scrollbar.getDomNode();
+	public getDomNode(): HTMLElement {
+		return this.scrollbarDomNode.domNode;
 	}
 
 	public delegateVerticalScrollbarMouseDown(browserEvent: MouseEvent): void {
@@ -124,6 +142,9 @@ export class EditorScrollbar extends ViewPart {
 				mouseWheelScrollSensitivity: viewInfo.scrollbar.mouseWheelScrollSensitivity
 			};
 			this.scrollbar.updateOptions(newOpts);
+		}
+		if (e.layoutInfo) {
+			this._setLayout();
 		}
 		return true;
 	}

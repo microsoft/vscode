@@ -11,6 +11,7 @@ import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { TextAreaWrapper } from 'vs/editor/browser/controller/input/textAreaWrapper';
 import { Position } from 'vs/editor/common/core/position';
+import { createFastDomNode } from 'vs/base/browser/styleMutator';
 
 // To run this test, open imeTester.html
 
@@ -100,7 +101,7 @@ function doCreateTest(strategy: TextAreaStrategy, description: string, inputStr:
 	input.setAttribute('cols', '40');
 	container.appendChild(input);
 
-	let textAreaWrapper = new TextAreaWrapper(input);
+	let textAreaWrapper = new TextAreaWrapper(createFastDomNode(input));
 
 	let model = new SingleLineTestModel('some  text');
 

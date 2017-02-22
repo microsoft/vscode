@@ -66,12 +66,28 @@ export abstract class FastDomNode<T extends HTMLElement> {
 		this._domNode.style.width = this._width + 'px';
 	}
 
+	public unsetWidth(): void {
+		if (this._width === -1) {
+			return;
+		}
+		this._width = -1;
+		this._domNode.style.width = '';
+	}
+
 	public setHeight(height: number): void {
 		if (this._height === height) {
 			return;
 		}
 		this._height = height;
 		this._domNode.style.height = this._height + 'px';
+	}
+
+	public unsetHeight(): void {
+		if (this._height === -1) {
+			return;
+		}
+		this._height = -1;
+		this._domNode.style.height = '';
 	}
 
 	public setTop(top: number): void {
@@ -156,6 +172,16 @@ export abstract class FastDomNode<T extends HTMLElement> {
 
 	public toggleClassName(className: string, shouldHaveIt?: boolean): void {
 		dom.toggleClass(this._domNode, className, shouldHaveIt);
+		this._className = this._domNode.className;
+	}
+
+	public addClassName(className: string): void {
+		dom.addClass(this._domNode, className);
+		this._className = this._domNode.className;
+	}
+
+	public removeClassName(className: string): void {
+		dom.removeClass(this._domNode, className);
 		this._className = this._domNode.className;
 	}
 
@@ -296,7 +322,8 @@ export const StyleMutator = {
 			domNode.style.lineHeight = desiredValue;
 		}
 	},
-	setTransform: null,
+	setTransform: (domNode: HTMLElement, desiredValue: string) => {
+	},
 	setDisplay: (domNode: HTMLElement, desiredValue: string) => {
 		if (domNode.style.display !== desiredValue) {
 			domNode.style.display = desiredValue;

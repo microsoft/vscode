@@ -15,7 +15,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
 import { renderHtml } from 'vs/base/browser/htmlContentRenderer';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { StyleMutator } from 'vs/base/browser/styleMutator';
+import { FastDomNode, createFastDomNode } from 'vs/base/browser/styleMutator';
 import { IOSupport } from 'vs/platform/keybinding/common/keybindingResolver';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -307,7 +307,7 @@ class DefineKeybindingWidget implements IOverlayWidget {
 	private _editor: ICodeEditor;
 	private _keybindingService: IKeybindingService;
 
-	private _domNode: HTMLElement;
+	private _domNode: FastDomNode<HTMLElement>;
 	private _toDispose: IDisposable[];
 
 	private _messageNode: HTMLElement;
@@ -325,27 +325,27 @@ class DefineKeybindingWidget implements IOverlayWidget {
 		this._toDispose = [];
 		this._lastKeybinding = null;
 
-		this._domNode = document.createElement('div');
-		this._domNode.className = 'defineKeybindingWidget';
-		StyleMutator.setWidth(this._domNode, DefineKeybindingWidget.WIDTH);
-		StyleMutator.setHeight(this._domNode, DefineKeybindingWidget.HEIGHT);
+		this._domNode = createFastDomNode(document.createElement('div'));
+		this._domNode.setClassName('defineKeybindingWidget');
+		this._domNode.setWidth(DefineKeybindingWidget.WIDTH);
+		this._domNode.setHeight(DefineKeybindingWidget.HEIGHT);
 
-		this._domNode.style.display = 'none';
+		this._domNode.setDisplay('none');
 		this._isVisible = false;
 
 		this._messageNode = document.createElement('div');
 		this._messageNode.className = 'message';
 		this._messageNode.innerText = NLS_DEFINE_MESSAGE;
-		this._domNode.appendChild(this._messageNode);
+		this._domNode.domNode.appendChild(this._messageNode);
 
 		this._inputNode = document.createElement('input');
 		this._inputNode.className = 'input';
 		this._inputNode.type = 'text';
-		this._domNode.appendChild(this._inputNode);
+		this._domNode.domNode.appendChild(this._inputNode);
 
 		this._outputNode = document.createElement('div');
 		this._outputNode.className = 'output';
-		this._domNode.appendChild(this._outputNode);
+		this._domNode.domNode.appendChild(this._outputNode);
 
 		this._toDispose.push(dom.addDisposableListener(this._inputNode, 'keydown', (e) => {
 			let keyEvent = new StandardKeyboardEvent(e);
@@ -396,7 +396,7 @@ class DefineKeybindingWidget implements IOverlayWidget {
 	}
 
 	public getDomNode(): HTMLElement {
-		return this._domNode;
+		return this._domNode.domNode;
 	}
 
 	public getPosition(): IOverlayWidgetPosition {
@@ -411,7 +411,7 @@ class DefineKeybindingWidget implements IOverlayWidget {
 		}
 		this._isVisible = true;
 		this._layout();
-		this._domNode.style.display = 'block';
+		this._domNode.setDisplay('block');
 	}
 
 	private _hide(): void {
@@ -419,17 +419,17 @@ class DefineKeybindingWidget implements IOverlayWidget {
 			return;
 		}
 		this._isVisible = false;
-		this._domNode.style.display = 'none';
+		this._domNode.setDisplay('none');
 	}
 
 	private _layout(): void {
 		let editorLayout = this._editor.getLayoutInfo();
 
 		let top = Math.round((editorLayout.height - DefineKeybindingWidget.HEIGHT) / 2);
-		StyleMutator.setTop(this._domNode, top);
+		this._domNode.setTop(top);
 
 		let left = Math.round((editorLayout.width - DefineKeybindingWidget.WIDTH) / 2);
-		StyleMutator.setLeft(this._domNode, left);
+		this._domNode.setLeft(left);
 	}
 
 	public start(): void {
