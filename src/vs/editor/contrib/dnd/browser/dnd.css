@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-editor.vs .dnd-target {
-	border-right: 1px dotted black;
+	border-right: 2px dotted black;
 	color: white; /* opposite of black */
 }
 .monaco-editor.vs-dark .dnd-target {
-	border-right: 1px dotted #AEAFAD;
+	border-right: 2px dotted #AEAFAD;
 	color: #51504f; /* opposite of #AEAFAD */
 }
 .monaco-editor.hc-black .dnd-target {
-	border-right: 1px dotted #fff;
+	border-right: 2px dotted #fff;
 	color: #000; /* opposite of #fff */
 }
