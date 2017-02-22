@@ -29,6 +29,7 @@ export class ViewOverlayWidgets extends ViewPart {
 	private _domNode: FastDomNode<HTMLElement>;
 
 	private _verticalScrollbarWidth: number;
+	private _minimapWidth: number;
 	private _horizontalScrollbarHeight: number;
 	private _editorHeight: number;
 	private _editorWidth: number;
@@ -38,6 +39,7 @@ export class ViewOverlayWidgets extends ViewPart {
 
 		this._widgets = {};
 		this._verticalScrollbarWidth = this._context.configuration.editor.layoutInfo.verticalScrollbarWidth;
+		this._minimapWidth = this._context.configuration.editor.layoutInfo.minimapWidth;
 		this._horizontalScrollbarHeight = this._context.configuration.editor.layoutInfo.horizontalScrollbarHeight;
 		this._editorHeight = this._context.configuration.editor.layoutInfo.height;
 		this._editorWidth = this._context.configuration.editor.layoutInfo.width;
@@ -61,6 +63,7 @@ export class ViewOverlayWidgets extends ViewPart {
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		if (e.layoutInfo) {
 			this._verticalScrollbarWidth = this._context.configuration.editor.layoutInfo.verticalScrollbarWidth;
+			this._minimapWidth = this._context.configuration.editor.layoutInfo.minimapWidth;
 			this._horizontalScrollbarHeight = this._context.configuration.editor.layoutInfo.horizontalScrollbarHeight;
 			this._editorHeight = this._context.configuration.editor.layoutInfo.height;
 			this._editorWidth = this._context.configuration.editor.layoutInfo.width;
@@ -122,11 +125,11 @@ export class ViewOverlayWidgets extends ViewPart {
 
 		if (widgetData.preference === OverlayWidgetPositionPreference.TOP_RIGHT_CORNER) {
 			domNode.setTop(0);
-			domNode.setRight((2 * this._verticalScrollbarWidth));
+			domNode.setRight((2 * this._verticalScrollbarWidth) + this._minimapWidth);
 		} else if (widgetData.preference === OverlayWidgetPositionPreference.BOTTOM_RIGHT_CORNER) {
 			let widgetHeight = domNode.domNode.clientHeight;
 			domNode.setTop((this._editorHeight - widgetHeight - 2 * this._horizontalScrollbarHeight));
-			domNode.setRight((2 * this._verticalScrollbarWidth));
+			domNode.setRight((2 * this._verticalScrollbarWidth) + this._minimapWidth);
 		} else if (widgetData.preference === OverlayWidgetPositionPreference.TOP_CENTER) {
 			domNode.setTop(0);
 			domNode.domNode.style.right = '50%';
