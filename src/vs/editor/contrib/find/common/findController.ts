@@ -617,10 +617,19 @@ export class AddSelectionToNextFindMatchAction extends SelectNextFindMatchAction
 		// If there are mulitple cursors, handle the case where they do not all select the same text.
 		if (allSelections.length > 1) {
 			const model = editor.getModel();
+			const controller = CommonFindController.get(editor);
+			if (!controller) {
+				return;
+			}
+			const findState = controller.getState();
+			const caseSensitive = findState.matchCase;
 
 			let selectionsContainSameText = true;
 
 			let selectedText = model.getValueInRange(allSelections[0]);
+			if (!caseSensitive) {
+				selectedText = selectedText.toLowerCase();
+			}
 			for (let i = 1, len = allSelections.length; i < len; i++) {
 				let selection = allSelections[i];
 				if (selection.isEmpty()) {
@@ -629,6 +638,9 @@ export class AddSelectionToNextFindMatchAction extends SelectNextFindMatchAction
 				}
 
 				let thisSelectedText = model.getValueInRange(selection);
+				if (!caseSensitive) {
+					thisSelectedText = thisSelectedText.toLowerCase();
+				}
 				if (selectedText !== thisSelectedText) {
 					selectionsContainSameText = false;
 					break;

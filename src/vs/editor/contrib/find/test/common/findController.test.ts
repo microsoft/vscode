@@ -386,25 +386,26 @@ suite('FindController', () => {
 		return result;
 	}
 
-	function testAddSelectionToNextFindMatchAction(callback: (editor: MockCodeEditor, action: AddSelectionToNextFindMatchAction) => void): void {
-		withMockCodeEditor([
-			'abc pizza',
-			'abc house',
-			'abc bar'
-		], {}, (editor, cursor) => {
+	function testAddSelectionToNextFindMatchAction(text: string[], callback: (editor: MockCodeEditor, action: AddSelectionToNextFindMatchAction, findController: TestFindController) => void): void {
+		withMockCodeEditor(text, {}, (editor, cursor) => {
 
 			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
 
 			let action = new AddSelectionToNextFindMatchAction();
 
-			callback(editor, action);
+			callback(editor, action, findController);
 
 			findController.dispose();
 		});
 	}
 
 	test('AddSelectionToNextFindMatchAction starting with single collapsed selection', () => {
-		testAddSelectionToNextFindMatchAction((editor, action) => {
+		const text = [
+			'abc pizza',
+			'abc house',
+			'abc bar'
+		];
+		testAddSelectionToNextFindMatchAction(text, (editor, action, findController) => {
 			editor.setSelections([
 				new Selection(1, 2, 1, 2),
 			]);
@@ -437,7 +438,12 @@ suite('FindController', () => {
 	});
 
 	test('AddSelectionToNextFindMatchAction starting with two selections, one being collapsed 1)', () => {
-		testAddSelectionToNextFindMatchAction((editor, action) => {
+		const text = [
+			'abc pizza',
+			'abc house',
+			'abc bar'
+		];
+		testAddSelectionToNextFindMatchAction(text, (editor, action, findController) => {
 			editor.setSelections([
 				new Selection(1, 1, 1, 4),
 				new Selection(2, 2, 2, 2),
@@ -466,7 +472,12 @@ suite('FindController', () => {
 	});
 
 	test('AddSelectionToNextFindMatchAction starting with two selections, one being collapsed 2)', () => {
-		testAddSelectionToNextFindMatchAction((editor, action) => {
+		const text = [
+			'abc pizza',
+			'abc house',
+			'abc bar'
+		];
+		testAddSelectionToNextFindMatchAction(text, (editor, action, findController) => {
 			editor.setSelections([
 				new Selection(1, 2, 1, 2),
 				new Selection(2, 1, 2, 4),
@@ -495,7 +506,12 @@ suite('FindController', () => {
 	});
 
 	test('AddSelectionToNextFindMatchAction starting with all collapsed selections', () => {
-		testAddSelectionToNextFindMatchAction((editor, action) => {
+		const text = [
+			'abc pizza',
+			'abc house',
+			'abc bar'
+		];
+		testAddSelectionToNextFindMatchAction(text, (editor, action, findController) => {
 			editor.setSelections([
 				new Selection(1, 2, 1, 2),
 				new Selection(2, 2, 2, 2),
@@ -519,7 +535,12 @@ suite('FindController', () => {
 	});
 
 	test('AddSelectionToNextFindMatchAction starting with all collapsed selections on different words', () => {
-		testAddSelectionToNextFindMatchAction((editor, action) => {
+		const text = [
+			'abc pizza',
+			'abc house',
+			'abc bar'
+		];
+		testAddSelectionToNextFindMatchAction(text, (editor, action, findController) => {
 			editor.setSelections([
 				new Selection(1, 6, 1, 6),
 				new Selection(2, 6, 2, 6),
@@ -538,6 +559,60 @@ suite('FindController', () => {
 				new Selection(1, 5, 1, 10),
 				new Selection(2, 5, 2, 10),
 				new Selection(3, 5, 3, 8),
+			]);
+		});
+	});
+
+	test('issue #20651: AddSelectionToNextFindMatchAction case insensitive', () => {
+		const text = [
+			'test',
+			'testte',
+			'Test',
+			'testte',
+			'test'
+		];
+		testAddSelectionToNextFindMatchAction(text, (editor, action, findController) => {
+			editor.setSelections([
+				new Selection(1, 1, 1, 5),
+			]);
+
+			action.run(null, editor);
+			assert.deepEqual(editor.getSelections(), [
+				new Selection(1, 1, 1, 5),
+				new Selection(2, 1, 2, 5),
+			]);
+
+			action.run(null, editor);
+			assert.deepEqual(editor.getSelections(), [
+				new Selection(1, 1, 1, 5),
+				new Selection(2, 1, 2, 5),
+				new Selection(3, 1, 3, 5),
+			]);
+
+			action.run(null, editor);
+			assert.deepEqual(editor.getSelections(), [
+				new Selection(1, 1, 1, 5),
+				new Selection(2, 1, 2, 5),
+				new Selection(3, 1, 3, 5),
+				new Selection(4, 1, 4, 5),
+			]);
+
+			action.run(null, editor);
+			assert.deepEqual(editor.getSelections(), [
+				new Selection(1, 1, 1, 5),
+				new Selection(2, 1, 2, 5),
+				new Selection(3, 1, 3, 5),
+				new Selection(4, 1, 4, 5),
+				new Selection(5, 1, 5, 5),
+			]);
+
+			action.run(null, editor);
+			assert.deepEqual(editor.getSelections(), [
+				new Selection(1, 1, 1, 5),
+				new Selection(2, 1, 2, 5),
+				new Selection(3, 1, 3, 5),
+				new Selection(4, 1, 4, 5),
+				new Selection(5, 1, 5, 5),
 			]);
 		});
 	});
