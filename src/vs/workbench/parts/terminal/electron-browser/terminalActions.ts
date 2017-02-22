@@ -101,7 +101,7 @@ export class CreateNewTerminalAction extends Action {
 	}
 }
 
-export class FocusTerminalAction extends Action {
+export class FocusActiveTerminalAction extends Action {
 
 	public static ID = 'workbench.action.terminal.focus';
 	public static LABEL = nls.localize('workbench.action.terminal.focus', "Focus Terminal");
@@ -138,6 +138,34 @@ export class FocusNextTerminalAction extends Action {
 	public run(event?: any): TPromise<any> {
 		this.terminalService.setActiveInstanceToNext();
 		return this.terminalService.showPanel(true);
+	}
+}
+
+export class FocusTerminalByNumberAction extends Action {
+	private static ID_PREFIX = 'workbench.action.terminal.focus';
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		this.terminalService.setActiveInstanceByIndex(this.getTerminalNumber() - 1);
+		return this.terminalService.showPanel(true);
+	}
+
+	public static getId(n: number): string {
+		return FocusTerminalByNumberAction.ID_PREFIX + n;
+	}
+
+	public static getLabel(n: number): string {
+		return nls.localize('workbench.action.terminal.focusByNumber', 'Focus Terminal {0}', n);
+	}
+
+	private getTerminalNumber(): number {
+		return parseInt(this.id.substr(FocusTerminalByNumberAction.ID_PREFIX.length));
 	}
 }
 

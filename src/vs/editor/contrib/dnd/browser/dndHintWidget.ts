@@ -5,7 +5,7 @@
 'use strict';
 
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
-import { FastDomNode, createFastDomNode } from 'vs/base/browser/styleMutator';
+import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Configuration } from 'vs/editor/browser/config/configuration';

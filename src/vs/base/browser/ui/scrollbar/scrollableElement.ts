@@ -17,7 +17,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Scrollable, ScrollState, ScrollEvent, INewScrollState, ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { TimeoutTimer } from 'vs/base/common/async';
-import { FastDomNode, createFastDomNode } from 'vs/base/browser/styleMutator';
+import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { ScrollbarHost } from 'vs/base/browser/ui/scrollbar/abstractScrollbar';
 import Event, { Emitter } from 'vs/base/common/event';
 

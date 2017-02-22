@@ -66,12 +66,28 @@ export abstract class FastDomNode<T extends HTMLElement> {
 		this._domNode.style.width = this._width + 'px';
 	}
 
+	public unsetWidth(): void {
+		if (this._width === -1) {
+			return;
+		}
+		this._width = -1;
+		this._domNode.style.width = '';
+	}
+
 	public setHeight(height: number): void {
 		if (this._height === height) {
 			return;
 		}
 		this._height = height;
 		this._domNode.style.height = this._height + 'px';
+	}
+
+	public unsetHeight(): void {
+		if (this._height === -1) {
+			return;
+		}
+		this._height = -1;
+		this._domNode.style.height = '';
 	}
 
 	public setTop(top: number): void {
@@ -159,6 +175,16 @@ export abstract class FastDomNode<T extends HTMLElement> {
 		this._className = this._domNode.className;
 	}
 
+	public addClassName(className: string): void {
+		dom.addClass(this._domNode, className);
+		this._className = this._domNode.className;
+	}
+
+	public removeClassName(className: string): void {
+		dom.removeClass(this._domNode, className);
+		this._className = this._domNode.className;
+	}
+
 	public setDisplay(display: string): void {
 		if (this._display === display) {
 			return;
@@ -236,101 +262,3 @@ export function createFastDomNode<T extends HTMLElement>(domNode: T): FastDomNod
 		return new StandardFastDomNode(domNode);
 	}
 }
-
-export const StyleMutator = {
-	setMaxWidth: (domNode: HTMLElement, maxWidth: number) => {
-		let desiredValue = maxWidth + 'px';
-		if (domNode.style.maxWidth !== desiredValue) {
-			domNode.style.maxWidth = desiredValue;
-		}
-	},
-	setWidth: (domNode: HTMLElement, width: number) => {
-		let desiredValue = width + 'px';
-		if (domNode.style.width !== desiredValue) {
-			domNode.style.width = desiredValue;
-		}
-	},
-	setHeight: (domNode: HTMLElement, height: number) => {
-		let desiredValue = height + 'px';
-		if (domNode.style.height !== desiredValue) {
-			domNode.style.height = desiredValue;
-		}
-	},
-	setTop: (domNode: HTMLElement, top: number) => {
-		let desiredValue = top + 'px';
-		if (domNode.style.top !== desiredValue) {
-			domNode.style.top = desiredValue;
-			return true;
-		}
-		return false;
-	},
-	setLeft: (domNode: HTMLElement, left: number) => {
-		let desiredValue = left + 'px';
-		if (domNode.style.left !== desiredValue) {
-			domNode.style.left = desiredValue;
-			return true;
-		}
-		return false;
-	},
-	setBottom: (domNode: HTMLElement, bottom: number) => {
-		let desiredValue = bottom + 'px';
-		if (domNode.style.bottom !== desiredValue) {
-			domNode.style.bottom = desiredValue;
-		}
-	},
-	setRight: (domNode: HTMLElement, right: number) => {
-		let desiredValue = right + 'px';
-		if (domNode.style.right !== desiredValue) {
-			domNode.style.right = desiredValue;
-		}
-	},
-	setFontSize: (domNode: HTMLElement, fontSize: number) => {
-		let desiredValue = fontSize + 'px';
-		if (domNode.style.fontSize !== desiredValue) {
-			domNode.style.fontSize = desiredValue;
-		}
-	},
-	setLineHeight: (domNode: HTMLElement, lineHeight: number) => {
-		let desiredValue = lineHeight + 'px';
-		if (domNode.style.lineHeight !== desiredValue) {
-			domNode.style.lineHeight = desiredValue;
-		}
-	},
-	setTransform: null,
-	setDisplay: (domNode: HTMLElement, desiredValue: string) => {
-		if (domNode.style.display !== desiredValue) {
-			domNode.style.display = desiredValue;
-		}
-	},
-	setVisibility: (domNode: HTMLElement, desiredValue: string) => {
-		if (domNode.style.visibility !== desiredValue) {
-			domNode.style.visibility = desiredValue;
-		}
-	},
-};
-
-// Define setTransform
-function setWebkitTransform(domNode: HTMLElement, desiredValue: string): boolean {
-	if (domNode.getAttribute('data-transform') !== desiredValue) {
-		domNode.setAttribute('data-transform', desiredValue);
-		(<any>domNode.style).webkitTransform = desiredValue;
-		return true;
-	}
-	return false;
-}
-function setTransform(domNode: HTMLElement, desiredValue: string): boolean {
-	if (domNode.getAttribute('data-transform') !== desiredValue) {
-		domNode.setAttribute('data-transform', desiredValue);
-		domNode.style.transform = desiredValue;
-		return true;
-	}
-	return false;
-}
-(function () {
-	let testDomNode = document.createElement('div');
-	if (typeof (<any>testDomNode.style).webkitTransform !== 'undefined') {
-		StyleMutator.setTransform = setWebkitTransform;
-	} else {
-		StyleMutator.setTransform = setTransform;
-	}
-})();

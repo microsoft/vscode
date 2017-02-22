@@ -174,7 +174,7 @@ export class StandaloneEditor extends CodeEditor implements IStandaloneCodeEdito
 	_attachModel(model: IModel): void {
 		super._attachModel(model);
 		if (this._view) {
-			this._contextViewService.setContainer(this._view.domNode);
+			this._contextViewService.setContainer(this._view.domNode.domNode);
 		}
 	}
 
