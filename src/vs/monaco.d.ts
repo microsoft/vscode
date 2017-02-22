@@ -1344,7 +1344,7 @@ declare module monaco.editor {
          * Controls if the editor should allow to move selections via drag and drop.
          * Defaults to false.
          */
-        enableDragAndDrop?: boolean;
+        dragAndDrop?: boolean;
         /**
          * Enable the suggestion box to pop-up on trigger characters.
          * Defaults to true.
@@ -1622,7 +1622,7 @@ declare module monaco.editor {
         readonly autoClosingBrackets: boolean;
         readonly useTabStops: boolean;
         readonly tabFocusMode: boolean;
-        readonly enableDragAndDrop: boolean;
+        readonly dragAndDrop: boolean;
         readonly layoutInfo: boolean;
         readonly fontInfo: boolean;
         readonly viewInfo: IViewConfigurationChangedEvent;
