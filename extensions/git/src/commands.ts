@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { Uri, commands, scm, Disposable, SCMResourceGroup, SCMResource, window, workspace, QuickPickItem, OutputChannel, computeDiff, Range, WorkspaceEdit, Position } from 'vscode';
+import { Uri, commands, scm, Disposable, window, workspace, QuickPickItem, OutputChannel, computeDiff, Range, WorkspaceEdit, Position } from 'vscode';
 import { Ref, RefType } from './git';
 import { Model, Resource, Status, CommitOptions } from './model';
 import * as staging from './staging';
@@ -15,24 +15,6 @@ import TelemetryReporter from 'vscode-extension-telemetry';
 import * as nls from 'vscode-nls';
 
 const localize = nls.loadMessageBundle();
-
-function resolveGitURI(uri: Uri): SCMResource | SCMResourceGroup | undefined {
-	if (uri.authority !== 'git') {
-		return;
-	}
-
-	return scm.getResourceFromURI(uri);
-}
-
-function resolveGitResource(uri: Uri): Resource | undefined {
-	const resource = resolveGitURI(uri);
-
-	if (!(resource instanceof Resource)) {
-		return;
-	}
-
-	return resource;
-}
 
 class CheckoutItem implements QuickPickItem {
 
@@ -226,38 +208,30 @@ export class CommandCenter {
 	}
 
 	@command('git.openFile')
-	async openFile(uri: Uri): Promise<void> {
-		const scmResource = resolveGitResource(uri);
+	async openFile(uri?: Uri): Promise<void> {
+		const resource = this.resolveSCMResource(uri);
 
-		if (scmResource) {
-			return await commands.executeCommand<void>('vscode.open', scmResource.uri);
+		if (!resource) {
+			return;
 		}
 
-		return await commands.executeCommand<void>('vscode.open', uri.with({ scheme: 'file' }));
+		return await commands.executeCommand<void>('vscode.open', resource.uri);
 	}
 
 	@command('git.openChange')
-	async openChange(uri: Uri): Promise<void> {
-		const scmResource = resolveGitResource(uri);
+	async openChange(uri?: Uri): Promise<void> {
+		const resource = this.resolveSCMResource(uri);
 
-		if (scmResource) {
-			return await this.open(scmResource);
+		if (!resource) {
+			return;
 		}
 
-		if (uri.scheme === 'file') {
-			const uriString = uri.toString();
-			const resource = this.model.workingTreeGroup.resources.filter(r => r.uri.toString() === uriString)[0]
-				|| this.model.indexGroup.resources.filter(r => r.uri.toString() === uriString)[0];
-
-			if (resource) {
-				return await this.open(resource);
-			}
-		}
+		return await this.open(resource);
 	}
 
 	@command('git.stage')
-	async stage(uri: Uri): Promise<void> {
-		const resource = resolveGitResource(uri);
+	async stage(uri?: Uri): Promise<void> {
+		const resource = this.resolveSCMResource(uri);
 
 		if (!resource) {
 			return;
@@ -353,8 +327,8 @@ export class CommandCenter {
 	}
 
 	@command('git.unstage')
-	async unstage(uri: Uri): Promise<void> {
-		const resource = resolveGitResource(uri);
+	async unstage(uri?: Uri): Promise<void> {
+		const resource = this.resolveSCMResource(uri);
 
 		if (!resource) {
 			return;
@@ -411,8 +385,8 @@ export class CommandCenter {
 	}
 
 	@command('git.clean')
-	async clean(uri: Uri): Promise<void> {
-		const resource = resolveGitResource(uri);
+	async clean(uri?: Uri): Promise<void> {
+		const resource = this.resolveSCMResource(uri);
 
 		if (!resource) {
 			return;
@@ -741,6 +715,30 @@ export class CommandCenter {
 				}
 			});
 		};
+	}
+
+	private resolveSCMResource(uri?: Uri): Resource | undefined {
+		uri = uri || window.activeTextEditor && window.activeTextEditor.document.uri;
+
+		if (!uri) {
+			return;
+		}
+
+		if (uri.scheme === 'scm' && uri.authority === 'git') {
+			const resource = scm.getResourceFromURI(uri);
+			return resource instanceof Resource ? resource : undefined;
+		}
+
+		if (uri.scheme === 'git') {
+			uri = uri.with({ scheme: 'file' });
+		}
+
+		if (uri.scheme === 'file') {
+			const uriString = uri.toString();
+
+			return this.model.workingTreeGroup.resources.filter(r => r.uri.toString() === uriString)[0]
+				|| this.model.indexGroup.resources.filter(r => r.uri.toString() === uriString)[0];
+		}
 	}
 
 	dispose(): void {
