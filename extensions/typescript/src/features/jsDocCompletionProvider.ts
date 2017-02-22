@@ -21,6 +21,7 @@ class JsDocCompletionItem extends CompletionItem {
 		super('/** */', CompletionItemKind.Snippet);
 		this.documentation = localize('typescript.jsDocCompletionItem.detail', 'JSDoc comment');
 		this.insertText = '';
+		this.sortText = '\0';
 		this.command = {
 			title: 'Try Complete Js Doc',
 			command: tryCompleteJsDocCommand,
@@ -60,7 +61,14 @@ export default class JsDocCompletionHelper implements CompletionItemProvider {
 
 	public provideCompletionItems(document: TextDocument, position: Position, _token: CancellationToken): ProviderResult<CompletionItem[]> {
 		const file = this.client.normalizePath(document.uri);
-		if (file) {
+		if (!file) {
+			return [];
+		}
+
+		// Only show the JSdoc completion when the everything before the cursor is whitespace
+		// or could be the opening to a comment
+		const line = document.lineAt(position.line).text;
+		if (line.slice(0, position.character).match(/^\s*\/?\**\s*$/)) {
 			return [new JsDocCompletionItem(document.uri, position)];
 		}
 		return [];
