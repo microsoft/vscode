@@ -245,9 +245,9 @@ class MouseController<T> implements IDisposable {
 	private onPointer(e: IListMouseEvent<T>) {
 		e.preventDefault();
 		e.stopPropagation();
+		this.view.domNode.focus();
 		this.list.setFocus([e.index]);
 		this.list.open([e.index]);
-		this.view.domNode.focus();
 	}
 
 	dispose() {
