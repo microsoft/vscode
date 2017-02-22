@@ -6,7 +6,7 @@
 
 import * as path from 'path';
 
-import { languages, ExtensionContext, IndentAction } from 'vscode';
+import { languages, workspace, ExtensionContext, IndentAction } from 'vscode';
 import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, Range, RequestType } from 'vscode-languageclient';
 import { EMPTY_ELEMENTS } from './htmlEmptyTagsShared';
 import { activateColorDecorations } from './colorDecorators';
@@ -65,7 +65,10 @@ export function activate(context: ExtensionContext) {
 		let colorRequestor = (uri: string) => {
 			return client.sendRequest(ColorSymbolRequest.type, uri).then(ranges => ranges.map(client.protocol2CodeConverter.asRange));
 		};
-		let disposable = activateColorDecorations(colorRequestor, { html: true, handlebars: true, razor: true });
+		let isDecoratorEnabled = (languageId: string) => {
+			return workspace.getConfiguration().get<boolean>('css.colorDecorators.enable');
+		};
+		let disposable = activateColorDecorations(colorRequestor, { html: true, handlebars: true, razor: true }, isDecoratorEnabled);
 		context.subscriptions.push(disposable);
 		client.onTelemetry(e => {
 			if (telemetryReporter) {
