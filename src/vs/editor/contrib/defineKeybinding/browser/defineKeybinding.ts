@@ -15,7 +15,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
 import { renderHtml } from 'vs/base/browser/htmlContentRenderer';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { FastDomNode, createFastDomNode } from 'vs/base/browser/styleMutator';
+import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { IOSupport } from 'vs/platform/keybinding/common/keybindingResolver';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';

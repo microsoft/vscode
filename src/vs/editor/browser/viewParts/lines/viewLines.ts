@@ -6,7 +6,7 @@
 
 import 'vs/css!./viewLines';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { FastDomNode } from 'vs/base/browser/styleMutator';
+import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 import * as editorCommon from 'vs/editor/common/editorCommon';

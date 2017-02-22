@@ -6,7 +6,7 @@
 'use strict';
 
 import 'vs/css!./rulers';
-import { FastDomNode, createFastDomNode } from 'vs/base/browser/styleMutator';
+import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { ViewPart } from 'vs/editor/browser/view/viewPart';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { IRenderingContext, IRestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';

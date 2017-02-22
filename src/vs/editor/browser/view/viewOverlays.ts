@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { FastDomNode, createFastDomNode } from 'vs/base/browser/styleMutator';
+import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { IConfiguration } from 'vs/editor/common/editorCommon';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { IVisibleLine, ViewLayer } from 'vs/editor/browser/view/viewLayer';

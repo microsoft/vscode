@@ -11,7 +11,7 @@ import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { TextAreaWrapper } from 'vs/editor/browser/controller/input/textAreaWrapper';
 import { Position } from 'vs/editor/common/core/position';
-import { createFastDomNode } from 'vs/base/browser/styleMutator';
+import { createFastDomNode } from 'vs/base/browser/fastDomNode';
 
 // To run this test, open imeTester.html
 
