@@ -119,8 +119,7 @@ class SearchActionProvider extends ContributableActionProvider {
 
 export class SearchRenderer extends ActionsRenderer {
 
-	constructor(actionRunner: IActionRunner, viewlet: SearchViewlet, @IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IInstantiationService private instantiationService: IInstantiationService) {
+	constructor(actionRunner: IActionRunner, viewlet: SearchViewlet, @IInstantiationService private instantiationService: IInstantiationService) {
 		super({
 			actionProvider: instantiationService.createInstance(SearchActionProvider, viewlet),
 			actionRunner: actionRunner

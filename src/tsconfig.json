@@ -3,6 +3,7 @@
 		"module": "amd",
 		"moduleResolution": "classic",
 		"noImplicitAny": false,
+		"noUnusedLocals": true,
 		"removeComments": false,
 		"preserveConstEnums": true,
 		"target": "es5",

@@ -453,11 +453,10 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 	private _setLayout(): void {
 		const layoutInfo = this._context.configuration.editor.layoutInfo;
 		if (browser.isChrome) {
-			/* tslint:disable:no-unused-variable */
 			// Access overflowGuardContainer.clientWidth to prevent relayouting bug in Chrome
 			// See Bug 19676: Editor misses a layout event
 			let clientWidth = this.overflowGuardContainer.clientWidth + 'px';
-			/* tslint:enable:no-unused-variable */
+			clientWidth = null; // Arbitrary usage for noUnusedLocals
 		}
 		StyleMutator.setWidth(this.domNode, layoutInfo.width);
 		StyleMutator.setHeight(this.domNode, layoutInfo.height);

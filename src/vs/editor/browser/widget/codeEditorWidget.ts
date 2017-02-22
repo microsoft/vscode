@@ -573,32 +573,6 @@ class CodeEditorWidgetFocusTracker extends Disposable {
 	}
 }
 
-class OverlayWidget2 implements editorBrowser.IOverlayWidget {
-
-	private _id: string;
-	private _position: editorBrowser.IOverlayWidgetPosition;
-	private _domNode: HTMLElement;
-
-	constructor(id: string, position: editorBrowser.IOverlayWidgetPosition) {
-		this._id = id;
-		this._position = position;
-		this._domNode = document.createElement('div');
-		this._domNode.className = this._id.replace(/\./g, '-').replace(/[^a-z0-9\-]/, '');
-	}
-
-	public getId(): string {
-		return this._id;
-	}
-
-	public getDomNode(): HTMLElement {
-		return this._domNode;
-	}
-
-	public getPosition(): editorBrowser.IOverlayWidgetPosition {
-		return this._position;
-	}
-}
-
 export enum EditCursorState {
 	EndOfLastEditOperation = 0
 }
