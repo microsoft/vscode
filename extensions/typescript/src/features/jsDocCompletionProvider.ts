@@ -18,8 +18,8 @@ const tryCompleteJsDocCommand = '_typeScript.tryCompleteJsDoc';
 
 class JsDocCompletionItem extends CompletionItem {
 	constructor(file: Uri, position: Position) {
-		super('/** @param */', CompletionItemKind.Snippet);
-		this.detail = localize('typescript.jsDocCompletionItem.detail', 'Complete JSDoc comment');
+		super('/** */', CompletionItemKind.Snippet);
+		this.documentation = localize('typescript.jsDocCompletionItem.detail', 'JSDoc comment');
 		this.insertText = '';
 		this.command = {
 			title: 'Try Complete Js Doc',
