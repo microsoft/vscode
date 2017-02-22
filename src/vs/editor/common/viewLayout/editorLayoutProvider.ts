@@ -15,7 +15,7 @@ export interface IEditorLayoutProviderOpts {
 
 	showLineNumbers: boolean;
 	lineNumbersMinChars: number;
-	maxLineNumber: number;
+	lineNumbersDigitCount: number;
 
 	lineDecorationsWidth: number;
 
@@ -39,7 +39,7 @@ export class EditorLayoutProvider {
 		const lineHeight = _opts.lineHeight | 0;
 		const showLineNumbers = Boolean(_opts.showLineNumbers);
 		const lineNumbersMinChars = _opts.lineNumbersMinChars | 0;
-		const maxLineNumber = _opts.maxLineNumber | 0;
+		const lineNumbersDigitCount = _opts.lineNumbersDigitCount | 0;
 		const lineDecorationsWidth = _opts.lineDecorationsWidth | 0;
 		const typicalHalfwidthCharacterWidth = Number(_opts.typicalHalfwidthCharacterWidth);
 		const maxDigitWidth = Number(_opts.maxDigitWidth);
@@ -52,7 +52,7 @@ export class EditorLayoutProvider {
 
 		let lineNumbersWidth = 0;
 		if (showLineNumbers) {
-			let digitCount = Math.max(this.digitCount(maxLineNumber), lineNumbersMinChars);
+			let digitCount = Math.max(lineNumbersDigitCount, lineNumbersMinChars);
 			lineNumbersWidth = Math.round(digitCount * maxDigitWidth);
 		}
 
@@ -142,12 +142,5 @@ export class EditorLayoutProvider {
 		});
 	}
 
-	private static digitCount(n: number): number {
-		var r = 0;
-		while (n) {
-			n = Math.floor(n / 10);
-			r++;
-		}
-		return r ? r : 1;
-	}
+
 }
