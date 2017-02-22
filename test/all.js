@@ -254,11 +254,8 @@ function main() {
 		// replace the default unexpected error handler to be useful during tests
 		loader(['vs/base/common/errors'], function(errors) {
 			errors.setUnexpectedErrorHandler(function (err) {
-				try {
-					throw new Error('oops');
-				} catch (e) {
-					unexpectedErrors.push((err && err.message ? err.message : err) + '\n' + e.stack);
-				}
+				let stack = (err && err.stack) || (new Error().stack);
+				unexpectedErrors.push((err && err.message ? err.message : err) + '\n' + stack);
 			});
 
 			// fire up mocha
