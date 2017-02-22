@@ -6,7 +6,7 @@
 'use strict';
 
 import * as dom from 'vs/base/browser/dom';
-import { FastDomNode, createFastDomNode } from 'vs/base/browser/styleMutator';
+import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ClassNames, ContentWidgetPositionPreference, IContentWidget } from 'vs/editor/browser/editorBrowser';
 import { ViewPart, PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
@@ -55,9 +55,9 @@ export class ViewContentWidgets extends ViewPart {
 
 	public domNode: HTMLElement;
 	public overflowingContentWidgetsDomNode: HTMLElement;
-	private _viewDomNode: HTMLElement;
+	private _viewDomNode: FastDomNode<HTMLElement>;
 
-	constructor(context: ViewContext, viewDomNode: HTMLElement) {
+	constructor(context: ViewContext, viewDomNode: FastDomNode<HTMLElement>) {
 		super(context);
 		this._viewDomNode = viewDomNode;
 
@@ -248,7 +248,7 @@ export class ViewContentWidgets extends ViewPart {
 		let belowTop = visibleRange.top + this._lineHeight;
 		let left = left0 + this._contentLeft;
 
-		let domNodePosition = dom.getDomNodePagePosition(this._viewDomNode);
+		let domNodePosition = dom.getDomNodePagePosition(this._viewDomNode.domNode);
 		let absoluteAboveTop = domNodePosition.top + aboveTop - dom.StandardWindow.scrollY;
 		let absoluteBelowTop = domNodePosition.top + belowTop - dom.StandardWindow.scrollY;
 		let absoluteLeft = domNodePosition.left + left - dom.StandardWindow.scrollX;

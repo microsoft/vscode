@@ -6,7 +6,7 @@
 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { TimeoutTimer } from 'vs/base/common/async';
-import { FastDomNode } from 'vs/base/browser/styleMutator';
+import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 
 export class ScrollbarVisibilityController extends Disposable {

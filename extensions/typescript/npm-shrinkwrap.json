@@ -3,9 +3,9 @@
   "version": "0.10.1",
   "dependencies": {
     "applicationinsights": {
-      "version": "0.15.6",
-      "from": "applicationinsights@0.15.6",
-      "resolved": "https://registry.npmjs.org/applicationinsights/-/applicationinsights-0.15.6.tgz"
+      "version": "0.18.0",
+      "from": "applicationinsights@0.18.0",
+      "resolved": "https://registry.npmjs.org/applicationinsights/-/applicationinsights-0.18.0.tgz"
     },
     "semver": {
       "version": "4.3.6",
@@ -13,14 +13,14 @@
       "resolved": "https://registry.npmjs.org/semver/-/semver-4.3.6.tgz"
     },
     "typescript": {
-      "version": "typescript@2.2.1-insiders.20170217",
+      "version": "2.2.1-insiders.20170217",
       "from": "typescript@typescript@2.2.1-insiders.20170217",
       "resolved": "https://registry.npmjs.org/typescript/-/typescript-2.2.1-insiders.20170217.tgz"
     },
     "vscode-extension-telemetry": {
-      "version": "0.0.5",
-      "from": "vscode-extension-telemetry@>=0.0.5 <0.0.6",
-      "resolved": "https://registry.npmjs.org/vscode-extension-telemetry/-/vscode-extension-telemetry-0.0.5.tgz"
+      "version": "0.0.6",
+      "from": "vscode-extension-telemetry@>=0.0.6 <0.0.7",
+      "resolved": "https://registry.npmjs.org/vscode-extension-telemetry/-/vscode-extension-telemetry-0.0.6.tgz"
     },
     "vscode-nls": {
       "version": "2.0.1",
@@ -28,9 +28,9 @@
       "resolved": "https://registry.npmjs.org/vscode-nls/-/vscode-nls-2.0.1.tgz"
     },
     "winreg": {
-      "version": "0.0.13",
-      "from": "winreg@0.0.13",
-      "resolved": "https://registry.npmjs.org/winreg/-/winreg-0.0.13.tgz"
+      "version": "1.2.3",
+      "from": "winreg@1.2.3",
+      "resolved": "https://registry.npmjs.org/winreg/-/winreg-1.2.3.tgz"
     }
   }
 }

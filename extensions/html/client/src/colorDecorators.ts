@@ -30,6 +30,11 @@ export function activateColorDecorations(decoratorProvider: (uri: string) => The
 	let colorsDecorationType = window.createTextEditorDecorationType(decorationType);
 	disposables.push(colorsDecorationType);
 
+	let decoratorEnablement = {};
+	for (let languageId in supportedLanguages) {
+		decoratorEnablement[languageId] = isDecoratorEnabled(languageId);
+	}
+
 	let pendingUpdateRequests: { [key: string]: NodeJS.Timer; } = {};
 
 	window.onDidChangeVisibleTextEditors(editors => {
@@ -40,28 +45,53 @@ export function activateColorDecorations(decoratorProvider: (uri: string) => The
 
 	workspace.onDidChangeTextDocument(event => triggerUpdateDecorations(event.document), null, disposables);
 
-	// we care about all visible editors
-	window.visibleTextEditors.forEach(editor => {
-		if (editor.document) {
-			triggerUpdateDecorations(editor.document);
+	workspace.onDidChangeConfiguration(_ => {
+		let hasChanges = false;
+		for (let languageId in supportedLanguages) {
+			let prev = decoratorEnablement[languageId];
+			let curr = isDecoratorEnabled(languageId);
+			if (prev !== curr) {
+				decoratorEnablement[languageId] = curr;
+				hasChanges = true;
+			}
 		}
-	});
+		if (hasChanges) {
+			updateAllVisibleEditors(true);
+		}
+	}, null, disposables);
 
-	function triggerUpdateDecorations(document: TextDocument) {
-		let triggerUpdate = supportedLanguages[document.languageId];
+	updateAllVisibleEditors(false);
+
+	function isDecoratorEnabled(languageId: string) {
+		return workspace.getConfiguration().get<boolean>(languageId + '.colorDecorators.enable');
+	}
+
+	function updateAllVisibleEditors(settingsChanges: boolean) {
+		window.visibleTextEditors.forEach(editor => {
+			if (editor.document) {
+				triggerUpdateDecorations(editor.document, settingsChanges);
+			}
+		});
+	}
+
+	function triggerUpdateDecorations(document: TextDocument, settingsChanges = false) {
+		let triggerUpdate = supportedLanguages[document.languageId] && (decoratorEnablement[document.languageId] || settingsChanges);
 		let documentUri = document.uri;
 		let documentUriStr = documentUri.toString();
 		let timeout = pendingUpdateRequests[documentUriStr];
 		if (typeof timeout !== 'undefined') {
 			clearTimeout(timeout);
-			triggerUpdate = true; // force update, even if languageId is not supported (anymore)
 		}
 		if (triggerUpdate) {
 			pendingUpdateRequests[documentUriStr] = setTimeout(() => {
 				// check if the document is in use by an active editor
 				for (let editor of window.visibleTextEditors) {
 					if (editor.document && documentUriStr === editor.document.uri.toString()) {
-						updateDecorationForEditor(documentUriStr, editor.document.version);
+						if (decoratorEnablement[document.languageId]) {
+							updateDecorationForEditor(documentUriStr, editor.document.version);
+						} else {
+							editor.setDecorations(colorsDecorationType, []);
+						}
 						break;
 					}
 				}
