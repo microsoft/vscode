@@ -53,11 +53,13 @@ export function fillInActions(menu: IMenu, context: any, target: IAction[] | { p
 			head.splice(sep, 0, ...actions.slice(pivot));
 
 		} else {
-			if (Array.isArray<IAction>(target)) {
-				target.push(new Separator(), ...actions);
-			} else {
-				target.secondary.push(new Separator(), ...actions);
+			const to = Array.isArray<IAction>(target) ? target : target.secondary;
+
+			if (to.length > 0) {
+				to.push(new Separator());
 			}
+
+			to.push(...actions);
 		}
 	}
 }

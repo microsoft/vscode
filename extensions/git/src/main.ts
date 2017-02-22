@@ -30,9 +30,9 @@ async function init(context: ExtensionContext, disposables: Disposable[]): Promi
 
 	const config = workspace.getConfiguration('git');
 	const enabled = config.get<boolean>('enabled') === true;
-	const rootPath = workspace.rootPath;
+	const workspaceRootPath = workspace.rootPath;
 
-	if (!rootPath || !enabled) {
+	if (!workspaceRootPath || !enabled) {
 		const commandCenter = new CommandCenter(undefined, outputChannel, telemetryReporter);
 		disposables.push(commandCenter);
 		return;
@@ -42,7 +42,7 @@ async function init(context: ExtensionContext, disposables: Disposable[]): Promi
 	const info = await findGit(pathHint);
 	const git = new Git({ gitPath: info.path, version: info.version });
 	const askpass = new Askpass();
-	const model = new Model(git, rootPath, askpass);
+	const model = new Model(git, workspaceRootPath, askpass);
 
 	outputChannel.appendLine(localize('using git', "Using git {0} from {1}", info.version, info.path));
 	git.onOutput(str => outputChannel.append(str), null, disposables);
