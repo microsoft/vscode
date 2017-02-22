@@ -216,7 +216,7 @@ const configurationValueWhitelist = [
 	'editor.formatOnType',
 	'editor.formatOnSave',
 	'editor.formatOnPaste',
-	'editor.enableDragAndDrop',
+	'editor.dragAndDrop',
 	'window.openFilesInNewWindow',
 	'javascript.validate.enable',
 	'editor.mouseWheelZoom',

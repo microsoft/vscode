@@ -317,7 +317,7 @@ class InternalEditorOptionsHelper {
 			autoClosingBrackets: toBoolean(opts.autoClosingBrackets),
 			useTabStops: toBoolean(opts.useTabStops),
 			tabFocusMode: tabFocusMode,
-			enableDragAndDrop: toBoolean(opts.enableDragAndDrop),
+			dragAndDrop: toBoolean(opts.dragAndDrop),
 			layoutInfo: layoutInfo,
 			fontInfo: fontInfo,
 			viewInfo: viewInfo,
@@ -853,10 +853,10 @@ const editorConfiguration: IConfigurationNode = {
 			'default': false,
 			'description': nls.localize('stablePeek', "Keep peek editors open even when double clicking their content or when hitting Escape.")
 		},
-		'editor.enableDragAndDrop': {
+		'editor.dragAndDrop': {
 			'type': 'boolean',
-			'default': DefaultConfig.editor.enableDragAndDrop,
-			'description': nls.localize('enableDragAndDrop', "Controls if the editor should allow to move selections via drag and drop.")
+			'default': DefaultConfig.editor.dragAndDrop,
+			'description': nls.localize('dragAndDrop', "Controls if the editor should allow to move selections via drag and drop.")
 		},
 		'diffEditor.renderSideBySide': {
 			'type': 'boolean',
