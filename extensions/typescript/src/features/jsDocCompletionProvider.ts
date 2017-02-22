@@ -110,13 +110,13 @@ export default class JsDocCompletionHelper implements CompletionItemProvider {
 
 		return this.prepForDocCompletion(editor, position)
 			.then((start: Position) => {
-				return this.tryInsertJsDocFromTemplate(editor, file, start);
-			})
-			.then((didInsertFromTemplate: boolean) => {
-				if (didInsertFromTemplate) {
-					return true;
-				}
-				return this.tryInsertDefaultDoc(editor, position);
+				return this.tryInsertJsDocFromTemplate(editor, file, start)
+					.then((didInsertFromTemplate: boolean) => {
+						if (didInsertFromTemplate) {
+							return true;
+						}
+						return this.tryInsertDefaultDoc(editor, start);
+					});
 			});
 	}
 
