@@ -5,63 +5,18 @@
 'use strict';
 
 import * as assert from 'assert';
-import { Model } from 'vs/editor/common/model/model';
 import { Range } from 'vs/editor/common/core/range';
-import { CharacterHardWrappingLineMapperFactory } from 'vs/editor/common/viewModel/characterHardWrappingLineMapper';
-import { MockConfiguration } from 'vs/editor/test/common/mocks/mockConfiguration';
-import { SplitLinesCollection } from 'vs/editor/common/viewModel/splitLinesCollection';
-import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
+import { testViewModel } from 'vs/editor/test/common/viewModel/testViewModel';
 
 suite('ViewModelDecorations', () => {
-
-	interface ITestViewModelOpts {
-		wrappingColumn: number;
-		text: string;
-	}
-
-	function withTestViewModel(opts: ITestViewModelOpts, callback: (viewModel: ViewModel, model: Model) => void): void {
-		const EDITOR_ID = 1;
-
-		let configuration = new MockConfiguration({
-			wrappingColumn: opts.wrappingColumn
-		});
-
-		let model = Model.createFromString(opts.text);
-
-		let factory = new CharacterHardWrappingLineMapperFactory(
-			configuration.editor.wrappingInfo.wordWrapBreakBeforeCharacters,
-			configuration.editor.wrappingInfo.wordWrapBreakAfterCharacters,
-			configuration.editor.wrappingInfo.wordWrapBreakObtrusiveCharacters
-		);
-
-		let linesCollection = new SplitLinesCollection(
-			model,
-			factory,
-			model.getOptions().tabSize,
-			configuration.editor.wrappingInfo.wrappingColumn,
-			configuration.editor.fontInfo.typicalFullwidthCharacterWidth / configuration.editor.fontInfo.typicalHalfwidthCharacterWidth,
-			configuration.editor.wrappingInfo.wrappingIndent
-		);
-
-		let viewModel = new ViewModel(
-			linesCollection,
-			EDITOR_ID,
-			configuration,
-			model
-		);
-
-		callback(viewModel, model);
-
-		viewModel.dispose();
-		model.dispose();
-		configuration.dispose();
-	}
-
 	test('getDecorationsViewportData', () => {
-		withTestViewModel({
-			text: 'hello world, this is a buffer that will be wrapped',
+		const text = [
+			'hello world, this is a buffer that will be wrapped'
+		];
+		const opts = {
 			wrappingColumn: 13
-		}, (viewModel, model) => {
+		};
+		testViewModel(text, opts, (viewModel, model) => {
 			assert.equal(viewModel.getLineContent(1), 'hello world, ');
 			assert.equal(viewModel.getLineContent(2), 'this is a ');
 			assert.equal(viewModel.getLineContent(3), 'buffer that ');
@@ -309,10 +264,13 @@ suite('ViewModelDecorations', () => {
 	});
 
 	test('issue #17208: Problem scrolling in 1.8.0', () => {
-		withTestViewModel({
-			text: 'hello world, this is a buffer that will be wrapped',
+		const text = [
+			'hello world, this is a buffer that will be wrapped'
+		];
+		const opts = {
 			wrappingColumn: 13
-		}, (viewModel, model) => {
+		};
+		testViewModel(text, opts, (viewModel, model) => {
 			assert.equal(viewModel.getLineContent(1), 'hello world, ');
 			assert.equal(viewModel.getLineContent(2), 'this is a ');
 			assert.equal(viewModel.getLineContent(3), 'buffer that ');

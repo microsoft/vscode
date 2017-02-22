@@ -255,7 +255,7 @@ export class ViewModel implements IViewModel {
 
 	public getCenteredRangeInViewport(): Range {
 		if (this._centeredViewLine === -1) {
-			// Never got rendered
+			// Never got rendered or not rendered since last content change event
 			return null;
 		}
 		let viewLineNumber = this._centeredViewLine;
@@ -267,6 +267,7 @@ export class ViewModel implements IViewModel {
 
 		const containsModelContentChangeEvent = ViewModel._containsModelContentChangeEvent(events);
 		if (containsModelContentChangeEvent) {
+			this._centeredViewLine = -1;
 			this.configuration.setMaxLineNumber(this.model.getLineCount());
 		}
 
@@ -284,23 +285,18 @@ export class ViewModel implements IViewModel {
 			previousCenteredModelRange = this.getCenteredRangeInViewport();
 		}
 
-		let i: number,
-			len: number,
-			e: EmitterEvent,
-			data: any,
-			modelContentChangedEvent: editorCommon.IModelContentChangedEvent,
-			hadOtherModelChange = false,
-			hadModelLineChangeThatChangedLineMapping = false,
-			revealPreviousCenteredModelRange = false;
+		let hadOtherModelChange = false;
+		let hadModelLineChangeThatChangedLineMapping = false;
+		let revealPreviousCenteredModelRange = false;
 
-		for (i = 0, len = events.length; i < len; i++) {
-			e = events[i];
-			data = e.getData();
+		for (let i = 0, len = events.length; i < len; i++) {
+			let e = events[i];
+			let data = e.getData();
 
 			switch (e.getType()) {
 
 				case editorCommon.EventType.ModelRawContentChanged:
-					modelContentChangedEvent = <editorCommon.IModelContentChangedEvent>data;
+					let modelContentChangedEvent = <editorCommon.IModelContentChangedEvent>data;
 
 					switch (modelContentChangedEvent.changeType) {
 						case editorCommon.EventType.ModelRawContentChangedFlush:
