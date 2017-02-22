@@ -440,7 +440,8 @@ class MouseDownOperation extends Disposable {
 		// Overwrite the detail of the MouseEvent, as it will be sent out in an event and contributions might rely on it.
 		e.detail = this._mouseState.count;
 
-		if (this._context.configuration.editor.dragAndDrop
+		if (!this._context.configuration.editor.readOnly
+			&& this._context.configuration.editor.dragAndDrop
 			&& !this._mouseState.altKey // we don't support multiple mouse
 			&& e.detail < 2 // only single click on a selection can work
 			&& !this._isActive // the mouse is not down yet
