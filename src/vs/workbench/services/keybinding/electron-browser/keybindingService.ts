@@ -23,7 +23,7 @@ import { IKeybindingRule, KeybindingsRegistry } from 'vs/platform/keybinding/com
 import { Registry } from 'vs/platform/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { keybindingsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
-import { getNativeLabelProvider, getNativeAriaLabelProvider } from 'vs/workbench/services/keybinding/electron-browser/nativeKeymap';
+import { getCurrentKeyboardLayout, getNativeLabelProvider, getNativeAriaLabelProvider } from 'vs/workbench/services/keybinding/electron-browser/nativeKeymap';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { ConfigWatcher } from 'vs/base/node/config';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -166,6 +166,8 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		}));
 
 		keybindingsTelemetry(telemetryService, this);
+		let data = getCurrentKeyboardLayout();
+		telemetryService.publicLog('keyboardLayout', data);
 	}
 
 	private _safeGetConfig(): IUserFriendlyKeybinding[] {
