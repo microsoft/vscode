@@ -372,7 +372,6 @@ export class Minimap extends ViewPart {
 	private readonly _canvas: FastDomNode<HTMLCanvasElement>;
 	private readonly _slider: FastDomNode<HTMLElement>;
 	private readonly _tokensColorTracker: MinimapTokensColorTracker;
-	private readonly _tokensColorTrackerListener: IDisposable;
 	private readonly _mouseDownListener: IDisposable;
 
 	private readonly _minimapCharRenderer: MinimapCharRenderer;
@@ -405,7 +404,6 @@ export class Minimap extends ViewPart {
 		this._domNode.domNode.appendChild(this._slider.domNode);
 
 		this._tokensColorTracker = MinimapTokensColorTracker.getInstance();
-		this._tokensColorTrackerListener = this._tokensColorTracker.onDidChange(() => this._buffers = null);
 
 		this._minimapCharRenderer = getOrCreateMinimapCharRenderer();
 
@@ -438,7 +436,6 @@ export class Minimap extends ViewPart {
 	}
 
 	public dispose(): void {
-		this._tokensColorTrackerListener.dispose();
 		this._mouseDownListener.dispose();
 		super.dispose();
 	}
@@ -455,7 +452,6 @@ export class Minimap extends ViewPart {
 		this._canvas.domNode.width = this._options.canvasInnerWidth;
 		this._canvas.domNode.height = this._options.canvasInnerHeight;
 		this._slider.setWidth(this._options.minimapWidth);
-		this._buffers = null;
 	}
 
 	private _getBuffer(): ImageData {
@@ -477,6 +473,7 @@ export class Minimap extends ViewPart {
 		}
 		this._options = opts;
 		this._lastRenderData = null;
+		this._buffers = null;
 		this._applyLayout();
 		return true;
 	}
@@ -516,6 +513,11 @@ export class Minimap extends ViewPart {
 			return this._lastRenderData.onTokensChanged(e);
 		}
 		return false;
+	}
+	public onTokensColorsChanged(e: viewEvents.ViewTokensColorsChangedEvent): boolean {
+		this._lastRenderData = null;
+		this._buffers = null;
+		return true;
 	}
 	public onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
 		this._lastRenderData = null;

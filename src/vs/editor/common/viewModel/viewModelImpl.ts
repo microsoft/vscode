@@ -19,6 +19,7 @@ import { MinimapLinesRenderingData, ViewLineRenderingData, ViewModelDecoration, 
 import { SplitLinesCollection } from 'vs/editor/common/viewModel/splitLinesCollection';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import * as errors from 'vs/base/common/errors';
+import { MinimapTokensColorTracker } from 'vs/editor/common/view/minimapCharRenderer';
 
 export class CoordinatesConverter implements ICoordinatesConverter {
 
@@ -127,6 +128,9 @@ export class ViewModel implements IViewModel {
 		this.listenersToRemove.push(this.model.addBulkListener((events: EmitterEvent[]) => this.onEvents(events)));
 		this._toDispose.push(this.configuration.onDidChange((e) => {
 			this.onEvents([new EmitterEvent(editorCommon.EventType.ConfigurationChanged, e)]);
+		}));
+		this._toDispose.push(MinimapTokensColorTracker.getInstance().onDidChange(() => {
+			this._emit([new viewEvents.ViewTokensColorsChangedEvent()]);
 		}));
 
 		this._listeners = [];
