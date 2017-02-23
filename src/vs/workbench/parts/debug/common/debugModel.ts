@@ -606,7 +606,8 @@ export class Process implements debug.IProcess {
 				label: item.label,
 				insertText: item.text || item.label,
 				type: item.type,
-				overwriteBefore: item.length || overwriteBefore
+				filterText: item.start && item.length && text.substr(item.start, item.length),
+				overwriteBefore: item.length
 			})) : [];
 		}, err => []);
 	}
