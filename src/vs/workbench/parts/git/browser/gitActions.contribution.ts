@@ -32,7 +32,8 @@ import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import {
 	OpenChangeAction, OpenFileAction, SyncAction, PullAction, PushAction,
 	PushToRemoteAction, PublishAction, StartGitBranchAction, StartGitCheckoutAction,
-	InputCommitAction, UndoLastCommitAction, BaseStageAction, BaseUnstageAction
+	InputCommitAction, UndoLastCommitAction, BaseStageAction, BaseUnstageAction,
+	PullWithRebaseAction
 } from './gitActions';
 import paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
@@ -725,6 +726,7 @@ if (!SCMPreview.enabled) {
 	workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(GlobalOpenChangeAction, GlobalOpenChangeAction.ID, GlobalOpenChangeAction.LABEL), 'Git: Open Change', category);
 	workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(GlobalOpenInEditorAction, GlobalOpenInEditorAction.ID, GlobalOpenInEditorAction.LABEL), 'Git: Open File', category);
 	workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(PullAction, PullAction.ID, PullAction.LABEL), 'Git: Pull', category);
+	workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(PullWithRebaseAction, PullWithRebaseAction.ID, PullWithRebaseAction.LABEL), 'Git: Pull (Rebase)', category);
 	workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(PushAction, PushAction.ID, PushAction.LABEL), 'Git: Push', category);
 	workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(PushToRemoteAction, PushToRemoteAction.ID, PushToRemoteAction.LABEL), 'Git: Push to...', category);
 	workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(SyncAction, SyncAction.ID, SyncAction.LABEL), 'Git: Sync', category);
