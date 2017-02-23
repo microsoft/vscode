@@ -215,6 +215,7 @@ export function registerCommands(): void {
 				const list = focused;
 
 				list.setFocus([0]);
+				list.reveal(0);
 			}
 
 			// Tree
@@ -241,6 +242,7 @@ export function registerCommands(): void {
 				const list = focused;
 
 				list.setFocus([list.length - 1]);
+				list.reveal(list.length - 1);
 			}
 
 			// Tree
