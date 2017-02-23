@@ -11,7 +11,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Model } from 'vs/editor/common/model/model';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
-import { MockConfiguration } from 'vs/editor/test/common/mocks/mockConfiguration';
+import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
 import { viewModelHelper } from 'vs/editor/test/common/editorTestUtils';
 
 export function testCommand(
@@ -24,7 +24,7 @@ export function testCommand(
 ): void {
 
 	let model = Model.createFromString(lines.join('\n'), undefined, languageIdentifier);
-	let config = new MockConfiguration(null);
+	let config = new TestConfiguration(null);
 	let cursor = new Cursor(config, model, viewModelHelper(model), false);
 
 	cursor.setSelections('tests', [selection]);

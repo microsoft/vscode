@@ -13,14 +13,14 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { IIdentifiedSingleEditOperation } from 'vs/editor/common/editorCommon';
 import { Model } from 'vs/editor/common/model/model';
 import { ILineEdit, ModelLine, LineMarker, MarkersTracker } from 'vs/editor/common/model/modelLine';
-import { MockConfiguration } from 'vs/editor/test/common/mocks/mockConfiguration';
+import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
 import { viewModelHelper } from 'vs/editor/test/common/editorTestUtils';
 
 const NO_TAB_SIZE = 0;
 
 function testCommand(lines: string[], selections: Selection[], edits: IIdentifiedSingleEditOperation[], expectedLines: string[], expectedSelections: Selection[]): void {
 	let model = Model.createFromString(lines.join('\n'));
-	let config = new MockConfiguration(null);
+	let config = new TestConfiguration(null);
 	let cursor = new Cursor(config, model, viewModelHelper(model), false);
 
 	cursor.setSelections('tests', selections);

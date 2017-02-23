@@ -136,7 +136,7 @@ suite('viewLineRenderer.renderLine', () => {
 			'<span class="mtk3">l</span>',
 			'<span class="mtk4">o</span>',
 			'<span class="mtk5">&nbsp;</span>',
-			'<span class="vs-whitespace">&hellip;</span>'
+			'<span>&hellip;</span>'
 		].join('');
 
 		assert.equal(_actual.html, '<span>' + expectedOutput + '</span>');

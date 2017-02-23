@@ -284,7 +284,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			'files.exclude',
 			'editor.cursorStyle',
 			'editor.insertSpaces',
-			'editor.wrappingColumn',
+			'editor.wordWrap',
 			'files.associations'
 		]);
 	}

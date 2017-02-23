@@ -444,7 +444,7 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 			options.scrollBeyondLastLine = false;
 			options.folding = false;
 			options.renderWhitespace = 'none';
-			options.wrappingColumn = 0;
+			options.wordWrap = 'on';
 			options.renderIndentGuides = false;
 			options.rulers = [];
 			options.glyphMargin = true;

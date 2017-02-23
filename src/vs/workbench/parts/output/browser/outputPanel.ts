@@ -80,7 +80,7 @@ export class OutputPanel extends TextResourceEditor {
 
 	protected getConfigurationOverrides(): IEditorOptions {
 		const options = super.getConfigurationOverrides();
-		options.wrappingColumn = 0;				// all output editors wrap
+		options.wordWrap = 'on';				// all output editors wrap
 		options.lineNumbers = 'off';			// all output editors hide line numbers
 		options.glyphMargin = false;
 		options.lineDecorationsWidth = 20;
