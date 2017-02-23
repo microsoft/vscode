@@ -395,6 +395,11 @@ export class ViewLines extends ViewLayer<ViewLine> implements IViewLines {
 			localMaxLineWidth = Math.max(localMaxLineWidth, widthInPx);
 		}
 
+		if (rendStartLineNumber === 1 && rendEndLineNumber === this._context.model.getLineCount()) {
+			// we know the max line width for all the lines
+			this._maxLineWidth = 0;
+		}
+
 		this._ensureMaxLineWidth(localMaxLineWidth);
 	}
 
