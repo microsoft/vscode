@@ -692,10 +692,7 @@ export class ReportIssueAction extends Action {
 		const body = encodeURIComponent(
 			`- VSCode Version: ${name} ${version}${isPure ? '' : ' **[Unsupported]**'} (${product.commit || 'Commit unknown'}, ${product.date || 'Date unknown'})
 - OS Version: ${osVersion}
-- Extensions:
-
-${this.generateExtensionTable(extensions)}
-
+- Extensions: ${this.generateExtensionTable(extensions)}
 ---
 
 Steps to Reproduce:
@@ -708,13 +705,21 @@ Steps to Reproduce:
 	}
 
 	private generateExtensionTable(extensions: ILocalExtension[]): string {
+		if (!extensions.length) {
+			return 'none';
+		}
+
 		let tableHeader = `|Extension|Author|Version|
 |---|---|---|`;
 		const table = extensions.map(e => {
 			return `|${e.manifest.name}|${e.manifest.publisher}|${e.manifest.version}|`;
 		}).join('\n');
 
-		return `${tableHeader}\n${table}`;
+		return `
+
+${tableHeader}\n${table};
+
+`;
 	}
 }
 
