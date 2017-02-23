@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { Position, Selection, Range, CompletionItemProvider, CompletionItemKind, TextDocument, CancellationToken, CompletionItem, window, commands, Uri, ProviderResult, TextEditor, SnippetString } from 'vscode';
+import { Position, Range, CompletionItemProvider, CompletionItemKind, TextDocument, CancellationToken, CompletionItem, window, commands, Uri, ProviderResult, TextEditor, SnippetString } from 'vscode';
 
 import { ITypescriptServiceClient } from '../typescriptService';
 import { FileLocationRequestArgs, DocCommandTemplateResponse } from '../protocol';
@@ -122,18 +122,28 @@ export default class JsDocCompletionHelper implements CompletionItemProvider {
 				if (!res || !res.body) {
 					return false;
 				}
-				const commentText = res.body.newText;
-				return editor.edit(
-					edits => edits.insert(position, commentText),
+				return editor.insertSnippet(
+					this.templateToSnippet(res.body.newText),
+					position,
 					{ undoStopBefore: false, undoStopAfter: true });
-			}, () => false)
-			.then((didInsertComment: boolean) => {
-				if (didInsertComment) {
-					const newCursorPosition = new Position(position.line + 1, editor.document.lineAt(position.line + 1).text.length);
-					editor.selection = new Selection(newCursorPosition, newCursorPosition);
-				}
-				return didInsertComment;
-			});
+			}, () => false);
+	}
+
+	private templateToSnippet(template: string): SnippetString {
+		let snippetIndex = 1;
+		template = template.replace(/^\s*(?=(\/|[ ]\*))/gm, '');
+		template = template.replace(/^(\/\*\*\s*\*[ ]*)$/m, (x) => x + `\${${snippetIndex++}}`);
+		template = template.replace(/\* @param([ ]\{\S+\})?\s+(\S+)\s*$/gm, (_param, type, post) => {
+			let out = '* @param ';
+			if (type === ' {any}') {
+				out += `{\$\{${snippetIndex++}:any\}} `;
+			} else if (type) {
+				out += type + ' ';
+			}
+			out += post + ` \${${snippetIndex++}}`;
+			return out;
+		});
+		return new SnippetString(template);
 	}
 
 	/**
