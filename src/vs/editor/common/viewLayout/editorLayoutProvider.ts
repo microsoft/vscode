@@ -28,6 +28,7 @@ export interface IEditorLayoutProviderOpts {
 	horizontalScrollbarHeight: number;
 
 	minimap: boolean;
+	minimapRenderText: boolean;
 	pixelRatio: number;
 }
 
@@ -48,6 +49,7 @@ export class EditorLayoutProvider {
 		const scrollbarArrowSize = _opts.scrollbarArrowSize | 0;
 		const horizontalScrollbarHeight = _opts.horizontalScrollbarHeight | 0;
 		const minimap = Boolean(_opts.minimap);
+		const minimapRenderText = Boolean(_opts.minimapRenderText);
 		const pixelRatio = Number(_opts.pixelRatio);
 
 		let lineNumbersWidth = 0;
@@ -77,11 +79,16 @@ export class EditorLayoutProvider {
 			contentWidth = remainingWidth;
 		} else {
 			let minimapCharWidth: number;
-			if (pixelRatio >= 2) {
-				renderMinimap = RenderMinimap.Large;
-				minimapCharWidth = 2 / pixelRatio;
+			if (minimapRenderText) {
+				if (pixelRatio >= 2) {
+					renderMinimap = RenderMinimap.Large;
+					minimapCharWidth = 2 / pixelRatio;
+				} else {
+					renderMinimap = RenderMinimap.Small;
+					minimapCharWidth = 1 / pixelRatio;
+				}
 			} else {
-				renderMinimap = RenderMinimap.Small;
+				renderMinimap = RenderMinimap.Blocks;
 				minimapCharWidth = 1 / pixelRatio;
 			}
 

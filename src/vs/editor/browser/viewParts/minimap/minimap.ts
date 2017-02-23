@@ -28,7 +28,30 @@ import * as viewEvents from 'vs/editor/common/view/viewEvents';
 const enum RenderMinimap {
 	None = 0,
 	Small = 1,
-	Large = 2
+	Large = 2,
+	Blocks = 3,
+}
+
+function getMinimapLineHeight(renderMinimap: RenderMinimap): number {
+	if (renderMinimap === RenderMinimap.Large) {
+		return Constants.x2_CHAR_HEIGHT;
+	}
+	if (renderMinimap === RenderMinimap.Small) {
+		return Constants.x1_CHAR_HEIGHT;
+	}
+	// RenderMinimap.Blocks
+	return 3;
+}
+
+function getMinimapCharWidth(renderMinimap: RenderMinimap): number {
+	if (renderMinimap === RenderMinimap.Large) {
+		return Constants.x2_CHAR_WIDTH;
+	}
+	if (renderMinimap === RenderMinimap.Small) {
+		return Constants.x1_CHAR_WIDTH;
+	}
+	// RenderMinimap.Blocks
+	return 1;
 }
 
 class MinimapOptions {
@@ -127,7 +150,7 @@ class MinimapLayout {
 		scrollbarSliderCenter: number
 	) {
 		const pixelRatio = options.pixelRatio;
-		const minimapLineHeight = (options.renderMinimap === RenderMinimap.Large ? Constants.x2_CHAR_HEIGHT : Constants.x1_CHAR_HEIGHT);
+		const minimapLineHeight = getMinimapLineHeight(options.renderMinimap);
 		const minimapLinesFitting = Math.floor(options.canvasInnerHeight / minimapLineHeight);
 		const lineHeight = options.lineHeight;
 
@@ -419,7 +442,7 @@ export class Minimap extends ViewPart {
 			if (!this._lastRenderData) {
 				return;
 			}
-			const minimapLineHeight = (renderMinimap === RenderMinimap.Large ? Constants.x2_CHAR_HEIGHT : Constants.x1_CHAR_HEIGHT);
+			const minimapLineHeight = getMinimapLineHeight(renderMinimap);
 			const internalOffsetY = this._options.pixelRatio * e.browserEvent.offsetY;
 			const lineIndex = Math.floor(internalOffsetY / minimapLineHeight);
 
@@ -550,7 +573,7 @@ export class Minimap extends ViewPart {
 
 		const startLineNumber = layout.startLineNumber;
 		const endLineNumber = layout.endLineNumber;
-		const minimapLineHeight = (renderMinimap === RenderMinimap.Large ? Constants.x2_CHAR_HEIGHT : Constants.x1_CHAR_HEIGHT);
+		const minimapLineHeight = getMinimapLineHeight(renderMinimap);
 
 		const imageData = this._getBuffer();
 
@@ -693,7 +716,7 @@ export class Minimap extends ViewPart {
 	): void {
 		const content = lineData.content;
 		const tokens = lineData.tokens;
-		const charWidth = (renderMinimap === RenderMinimap.Large ? Constants.x2_CHAR_WIDTH : Constants.x1_CHAR_WIDTH);
+		const charWidth = getMinimapCharWidth(renderMinimap);
 		const maxDx = target.width - charWidth;
 
 		let dx = 0;
@@ -724,8 +747,10 @@ export class Minimap extends ViewPart {
 				} else {
 					if (renderMinimap === RenderMinimap.Large) {
 						minimapCharRenderer.x2RenderChar(target, dx, dy, charCode, tokenColor, backgroundColor, useLighterFont);
-					} else {
+					} else if (renderMinimap === RenderMinimap.Small) {
 						minimapCharRenderer.x1RenderChar(target, dx, dy, charCode, tokenColor, backgroundColor, useLighterFont);
+					} else {
+						minimapCharRenderer.blockRenderChar(target, dx, dy, tokenColor, backgroundColor, useLighterFont);
 					}
 					dx += charWidth;
 				}
