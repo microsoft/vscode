@@ -6,7 +6,7 @@
 
 import { Model } from 'vs/editor/common/model/model';
 import { CharacterHardWrappingLineMapperFactory } from 'vs/editor/common/viewModel/characterHardWrappingLineMapper';
-import { MockConfiguration } from 'vs/editor/test/common/mocks/mockConfiguration';
+import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
 import { SplitLinesCollection } from 'vs/editor/common/viewModel/splitLinesCollection';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -14,7 +14,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 export function testViewModel(text: string[], options: editorCommon.ICodeEditorWidgetCreationOptions, callback: (viewModel: ViewModel, model: Model) => void): void {
 	const EDITOR_ID = 1;
 
-	let configuration = new MockConfiguration(options);
+	let configuration = new TestConfiguration(options);
 
 	let model = Model.createFromString(text.join('\n'));
 

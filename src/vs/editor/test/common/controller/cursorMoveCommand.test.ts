@@ -10,7 +10,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Handler, IEditorOptions, ITextModelCreationOptions, CursorMovePosition, CursorMoveByUnit, ISelection } from 'vs/editor/common/editorCommon';
 import { Model } from 'vs/editor/common/model/model';
 import { IMode } from 'vs/editor/common/modes';
-import { MockConfiguration } from 'vs/editor/test/common/mocks/mockConfiguration';
+import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
 import { viewModelHelper as aViewModelHelper } from 'vs/editor/test/common/editorTestUtils';
 import { IViewModelHelper } from 'vs/editor/common/controller/oneCursor';
 import { Range } from 'vs/editor/common/core/range';
@@ -25,7 +25,7 @@ suite('Cursor move command test', () => {
 	const LINE5 = '1';
 
 	let thisModel: Model;
-	let thisConfiguration: MockConfiguration;
+	let thisConfiguration: TestConfiguration;
 	let thisCursor: Cursor;
 
 	setup(() => {
@@ -37,7 +37,7 @@ suite('Cursor move command test', () => {
 			LINE5;
 
 		thisModel = Model.createFromString(text);
-		thisConfiguration = new MockConfiguration(null);
+		thisConfiguration = new TestConfiguration(null);
 	});
 
 	teardown(() => {

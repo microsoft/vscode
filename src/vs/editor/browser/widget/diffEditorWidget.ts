@@ -774,7 +774,7 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 				let isViewportWrapping = this.originalEditor.getConfiguration().wrappingInfo.isViewportWrapping;
 				if (isViewportWrapping) {
 					// oh no, you didn't!
-					this.originalEditor.updateOptions({ wrappingColumn: -1 });
+					this.originalEditor.updateOptions({ wordWrap: 'off' });
 				}
 			}
 		}
@@ -801,7 +801,7 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 				let isViewportWrapping = this.modifiedEditor.getConfiguration().wrappingInfo.isViewportWrapping;
 				if (isViewportWrapping) {
 					// oh no, you didn't!
-					this.modifiedEditor.updateOptions({ wrappingColumn: -1 });
+					this.modifiedEditor.updateOptions({ wordWrap: 'off' });
 				}
 				if (e.fontInfo && this.modifiedEditor.getModel()) {
 					this._onViewZonesChanged();
@@ -879,7 +879,7 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 
 	private _adjustOptionsForSubEditor(options: editorCommon.IDiffEditorOptions): editorCommon.IDiffEditorOptions {
 		let clonedOptions: editorCommon.IDiffEditorOptions = objects.clone(options || {});
-		clonedOptions.wrappingColumn = -1;
+		clonedOptions.wordWrap = 'off';
 		clonedOptions.automaticLayout = false;
 		clonedOptions.scrollbar = clonedOptions.scrollbar || {};
 		clonedOptions.scrollbar.vertical = 'visible';

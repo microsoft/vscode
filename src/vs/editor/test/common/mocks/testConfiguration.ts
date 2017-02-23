@@ -8,7 +8,7 @@ import { CommonEditorConfiguration } from 'vs/editor/common/config/commonEditorC
 import { IEditorOptions } from 'vs/editor/common/editorCommon';
 import { FontInfo, BareFontInfo } from 'vs/editor/common/config/fontInfo';
 
-export class MockConfiguration extends CommonEditorConfiguration {
+export class TestConfiguration extends CommonEditorConfiguration {
 
 	constructor(opts: IEditorOptions) {
 		super(opts);

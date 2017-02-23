@@ -114,24 +114,17 @@ class InternalEditorOptionsHelper {
 		pixelRatio: number
 	): editorCommon.InternalEditorOptions {
 
-		let wrappingColumn = toInteger(opts.wrappingColumn, -1);
-		let wordWrap = toBoolean(opts.wordWrap);
-
 		let stopRenderingLineAfter: number;
 		if (typeof opts.stopRenderingLineAfter !== 'undefined') {
 			stopRenderingLineAfter = toInteger(opts.stopRenderingLineAfter, -1);
-		} else if (wrappingColumn >= 0) {
-			stopRenderingLineAfter = -1;
 		} else {
 			stopRenderingLineAfter = 10000;
 		}
 
-		let mouseWheelScrollSensitivity = toFloat(opts.mouseWheelScrollSensitivity, 1);
-		let scrollbar = this._sanitizeScrollbarOpts(opts.scrollbar, mouseWheelScrollSensitivity);
+		let scrollbar = this._sanitizeScrollbarOpts(opts.scrollbar, toFloat(opts.mouseWheelScrollSensitivity, 1));
 		let minimap = this._sanitizeMinimapOpts(opts.minimap);
 
 		let glyphMargin = toBoolean(opts.glyphMargin);
-		let lineNumbers = opts.lineNumbers;
 		let lineNumbersMinChars = toInteger(opts.lineNumbersMinChars, 1);
 
 		let lineDecorationsWidth: number;
@@ -144,33 +137,36 @@ class InternalEditorOptionsHelper {
 		if (opts.folding) {
 			lineDecorationsWidth += 16;
 		}
+
 		let renderLineNumbers: boolean;
 		let renderCustomLineNumbers: (lineNumber: number) => string;
 		let renderRelativeLineNumbers: boolean;
+		{
+			let lineNumbers = opts.lineNumbers;
+			// Compatibility with old true or false values
+			if (<any>lineNumbers === true) {
+				lineNumbers = 'on';
+			} else if (<any>lineNumbers === false) {
+				lineNumbers = 'off';
+			}
 
-		// Compatibility with old true or false values
-		if (<any>lineNumbers === true) {
-			lineNumbers = 'on';
-		} else if (<any>lineNumbers === false) {
-			lineNumbers = 'off';
-		}
-
-		if (typeof lineNumbers === 'function') {
-			renderLineNumbers = true;
-			renderCustomLineNumbers = lineNumbers;
-			renderRelativeLineNumbers = false;
-		} else if (lineNumbers === 'relative') {
-			renderLineNumbers = true;
-			renderCustomLineNumbers = null;
-			renderRelativeLineNumbers = true;
-		} else if (lineNumbers === 'on') {
-			renderLineNumbers = true;
-			renderCustomLineNumbers = null;
-			renderRelativeLineNumbers = false;
-		} else {
-			renderLineNumbers = false;
-			renderCustomLineNumbers = null;
-			renderRelativeLineNumbers = false;
+			if (typeof lineNumbers === 'function') {
+				renderLineNumbers = true;
+				renderCustomLineNumbers = lineNumbers;
+				renderRelativeLineNumbers = false;
+			} else if (lineNumbers === 'relative') {
+				renderLineNumbers = true;
+				renderCustomLineNumbers = null;
+				renderRelativeLineNumbers = true;
+			} else if (lineNumbers === 'on') {
+				renderLineNumbers = true;
+				renderCustomLineNumbers = null;
+				renderRelativeLineNumbers = false;
+			} else {
+				renderLineNumbers = false;
+				renderCustomLineNumbers = null;
+				renderRelativeLineNumbers = false;
+			}
 		}
 
 		let layoutInfo = EditorLayoutProvider.compute({
@@ -192,36 +188,47 @@ class InternalEditorOptionsHelper {
 			pixelRatio: pixelRatio
 		});
 
-		if (isDominatedByLongLines && wrappingColumn > 0) {
-			// Force viewport width wrapping if model is dominated by long lines
-			wrappingColumn = 0;
+		let bareWrappingInfo: { isViewportWrapping: boolean; wrappingColumn: number; } = null;
+		{
+			let wordWrap = opts.wordWrap;
+			let wordWrapColumn = toInteger(opts.wordWrapColumn, 1);
+
+			// Compatibility with old true or false values
+			if (<any>wordWrap === true) {
+				wordWrap = 'on';
+			} else if (<any>wordWrap === false) {
+				wordWrap = 'off';
+			}
+
+			if (isDominatedByLongLines) {
+				// Force viewport width wrapping if model is dominated by long lines
+				bareWrappingInfo = {
+					isViewportWrapping: true,
+					wrappingColumn: Math.max(1, layoutInfo.viewportColumn)
+				};
+			} else if (wordWrap === 'on') {
+				bareWrappingInfo = {
+					isViewportWrapping: true,
+					wrappingColumn: Math.max(1, layoutInfo.viewportColumn)
+				};
+			} else if (wordWrap === 'clamped') {
+				bareWrappingInfo = {
+					isViewportWrapping: true,
+					wrappingColumn: Math.min(Math.max(1, layoutInfo.viewportColumn), wordWrapColumn)
+				};
+			} else if (wordWrap === 'fixed') {
+				bareWrappingInfo = {
+					isViewportWrapping: false,
+					wrappingColumn: wordWrapColumn
+				};
+			} else {
+				bareWrappingInfo = {
+					isViewportWrapping: false,
+					wrappingColumn: -1
+				};
+			}
 		}
 
-		let bareWrappingInfo: { isViewportWrapping: boolean; wrappingColumn: number; };
-		if (wrappingColumn === 0) {
-			// If viewport width wrapping is enabled
-			bareWrappingInfo = {
-				isViewportWrapping: true,
-				wrappingColumn: Math.max(1, layoutInfo.viewportColumn)
-			};
-		} else if (wrappingColumn > 0 && wordWrap === true) {
-			// Enable smart viewport wrapping
-			bareWrappingInfo = {
-				isViewportWrapping: true,
-				wrappingColumn: Math.min(wrappingColumn, layoutInfo.viewportColumn)
-			};
-		} else if (wrappingColumn > 0) {
-			// Wrapping is enabled
-			bareWrappingInfo = {
-				isViewportWrapping: false,
-				wrappingColumn: wrappingColumn
-			};
-		} else {
-			bareWrappingInfo = {
-				isViewportWrapping: false,
-				wrappingColumn: -1
-			};
-		}
 		let wrappingInfo = new editorCommon.EditorWrappingInfo({
 			isViewportWrapping: bareWrappingInfo.isViewportWrapping,
 			wrappingColumn: bareWrappingInfo.wrappingColumn,
@@ -663,16 +670,17 @@ const editorConfiguration: IConfigurationNode = {
 			'default': DefaultConfig.editor.minimap.enabled,
 			'description': nls.localize('minimap.enabled', "Controls if the minimap is shown")
 		},
-		'editor.wrappingColumn': {
-			'type': 'integer',
-			'default': DefaultConfig.editor.wrappingColumn,
-			'minimum': -1,
-			'description': nls.localize('wrappingColumn', "Controls after how many characters the editor will wrap to the next line. Setting this to 0 turns on viewport width wrapping (word wrapping). Setting this to -1 forces the editor to never wrap.")
-		},
 		'editor.wordWrap': {
-			'type': 'boolean',
+			'type': 'string',
+			'enum': ['off', 'on', 'fixed', 'clamped'],
 			'default': DefaultConfig.editor.wordWrap,
-			'description': nls.localize('wordWrap', "Controls if lines should wrap. The lines will wrap at min(editor.wrappingColumn, viewportWidthInColumns).")
+			'description': nls.localize('wordWrap', "Controls how lines should wrap. Can be: 'off' (disable wrapping), 'on' (viewport wrapping), 'fixed' (wrap at `editor.wordWrapColumn`) or 'clamped' (wrap at minimum of viewport and `editor.wordWrapColumn`).")
+		},
+		'editor.wordWrapColumn': {
+			'type': 'integer',
+			'default': DefaultConfig.editor.wordWrapColumn,
+			'minimum': 1,
+			'description': nls.localize('wordWrapColumn', "Controls the wrapping column of the editor when `editor.wordWrap` is 'fixed' or 'clamped'.")
 		},
 		'editor.wrappingIndent': {
 			'type': 'string',

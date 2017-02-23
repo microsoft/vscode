@@ -690,7 +690,7 @@ function _renderLine(input: ResolvedRenderLineInput): RenderLineOutput {
 	characterMapping.setPartData(len, parts.length - 1, charOffsetInPart);
 
 	if (isOverflowing) {
-		out += `<span class="vs-whitespace">&hellip;</span>`;
+		out += `<span>&hellip;</span>`;
 	}
 
 	out += '</span>';

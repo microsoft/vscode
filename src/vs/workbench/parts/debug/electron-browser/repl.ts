@@ -265,7 +265,7 @@ export class Repl extends Panel implements IPrivateReplService {
 
 	private getReplInputOptions(): IEditorOptions {
 		return {
-			wrappingColumn: 0,
+			wordWrap: 'on',
 			overviewRulerLanes: 0,
 			glyphMargin: false,
 			lineNumbers: 'off',
