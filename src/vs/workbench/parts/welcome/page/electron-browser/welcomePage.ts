@@ -29,9 +29,11 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { Schemas } from 'vs/base/common/network';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
-import { getInstalledKeymaps } from 'vs/workbench/parts/extensions/electron-browser/keymapExtensions';
+import { getInstalledKeymaps, IKeymapExtension, onKeymapExtensionChanged } from 'vs/workbench/parts/extensions/electron-browser/keymapExtensions';
 import { IExtensionEnablementService, IExtensionManagementService, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { used } from 'vs/workbench/parts/welcome/page/electron-browser/vs_code_welcome_page';
+import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 used();
 
@@ -98,6 +100,8 @@ const reorderedQuickLinks = [
 
 class WelcomePage {
 
+	private disposables: IDisposable[] = [];
+
 	constructor(
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -111,24 +115,27 @@ class WelcomePage {
 		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService,
 		@IExtensionGalleryService private extensionGalleryService: IExtensionGalleryService,
 		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
+		@ILifecycleService lifecycleService: ILifecycleService,
 		@ITelemetryService private telemetryService: ITelemetryService
 	) {
+		this.disposables.push(lifecycleService.onShutdown(() => this.dispose()));
 		this.create();
 	}
 
 	private create() {
 		const recentlyOpened = this.windowService.getRecentlyOpen();
+		const installedKeymaps = this.instantiationService.invokeFunction(getInstalledKeymaps);
 		const uri = URI.parse(require.toUrl('./vs_code_welcome_page'))
 			.with({
 				scheme: Schemas.walkThrough,
 				query: JSON.stringify({ moduleId: 'vs/workbench/parts/welcome/page/electron-browser/vs_code_welcome_page' })
 			});
-		const input = this.instantiationService.createInstance(WalkThroughInput, localize('welcome.title', "Welcome"), '', uri, telemetryFrom, container => this.onReady(container, recentlyOpened));
+		const input = this.instantiationService.createInstance(WalkThroughInput, localize('welcome.title', "Welcome"), '', uri, telemetryFrom, container => this.onReady(container, recentlyOpened, installedKeymaps));
 		this.editorService.openEditor(input, { pinned: true }, Position.ONE)
 			.then(null, onUnexpectedError);
 	}
 
-	private onReady(container: HTMLElement, recentlyOpened: TPromise<{ files: string[]; folders: string[]; }>): void {
+	private onReady(container: HTMLElement, recentlyOpened: TPromise<{ files: string[]; folders: string[]; }>, installedKeymaps: TPromise<IKeymapExtension[]>): void {
 		const enabled = this.configurationService.lookup<boolean>(enabledKey).value;
 		const showOnStartup = <HTMLInputElement>container.querySelector('#showOnStartup');
 		if (enabled) {
@@ -210,6 +217,14 @@ class WelcomePage {
 				}
 			}
 		});
+
+		this.updateInstalledKeymaps(container, installedKeymaps);
+		this.disposables.push(this.instantiationService.invokeFunction(onKeymapExtensionChanged)(id => {
+			if (container.querySelector(`.installKeymap[data-keymap="${id}"], .currentKeymap[data-keymap="${id}"]`)) {
+				const installedKeymaps = this.instantiationService.invokeFunction(getInstalledKeymaps);
+				this.updateInstalledKeymaps(container, installedKeymaps);
+			}
+		}));
 	}
 
 	private installKeymap(keymapName: string, keymapIdentifier: string): void {
@@ -298,5 +313,30 @@ class WelcomePage {
 			});
 			this.messageService.show(Severity.Error, err);
 		});
+	}
+
+	private updateInstalledKeymaps(container: HTMLElement, installedKeymaps: TPromise<IKeymapExtension[]>) {
+		installedKeymaps.then(extensions => {
+			const elements = container.querySelectorAll('.installKeymap, .currentKeymap');
+			for (let i = 0; i < elements.length; i++) {
+				elements[i].classList.remove('installed');
+			}
+			extensions.filter(ext => ext.globallyEnabled)
+				.map(ext => ext.identifier)
+				.forEach(id => {
+					const install = container.querySelector(`.installKeymap[data-keymap="${id}"]`);
+					if (install) {
+						install.classList.add('installed');
+					}
+					const current = container.querySelector(`.currentKeymap[data-keymap="${id}"]`);
+					if (current) {
+						current.classList.add('installed');
+					}
+				});
+		}).then(null, onUnexpectedError);
+	}
+
+	dispose(): void {
+		this.disposables = dispose(this.disposables);
 	}
 }
