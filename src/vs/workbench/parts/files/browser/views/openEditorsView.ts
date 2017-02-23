@@ -11,6 +11,7 @@ import { IAction, IActionRunner } from 'vs/base/common/actions';
 import dom = require('vs/base/browser/dom');
 import { CollapsibleState } from 'vs/base/browser/ui/splitview/splitview';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
+import { IItemCollapseEvent } from 'vs/base/parts/tree/browser/treeModel';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
@@ -29,6 +30,7 @@ import { CloseAllEditorsAction } from 'vs/workbench/browser/parts/editor/editorA
 import { ToggleEditorLayoutAction } from 'vs/workbench/browser/actions/toggleEditorLayout';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IListService } from 'vs/platform/list/browser/listService';
+import { EditorGroup } from "vs/workbench/common/editor/editorStacksModel";
 
 const $ = dom.$;
 
@@ -128,6 +130,13 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 		this.toDispose.push(this.tree.addListener2('selection', event => {
 			if (event && event.payload && event.payload.origin === 'keyboard') {
 				controller.openEditor(this.tree.getFocus(), { pinned: false, sideBySide: false, preserveFocus: false });
+			}
+		}));
+
+		// Prevent collapsing of editor groups
+		this.toDispose.push(this.tree.addListener2('item:collapsed', (event: IItemCollapseEvent) => {
+			if (event.item && event.item.getElement() instanceof EditorGroup) {
+				setTimeout(() => this.tree.expand(event.item.getElement())); // unwind from callback
 			}
 		}));
 
