@@ -123,18 +123,18 @@ suite('Labels', () => {
 		assert.strictEqual(labels.template('${value} Foo${separator}Bar', { value: 'something', separator: { label: ' - ' } }), 'something FooBar');
 
 		// // real world example (macOS)
-		let t = '${activeEditorName}${separator}${rootName}';
-		assert.strictEqual(labels.template(t, { activeEditorName: '', rootName: '', separator: { label: ' - ' } }), '');
-		assert.strictEqual(labels.template(t, { activeEditorName: '', rootName: 'root', separator: { label: ' - ' } }), 'root');
-		assert.strictEqual(labels.template(t, { activeEditorName: 'markdown.txt', rootName: 'root', separator: { label: ' - ' } }), 'markdown.txt - root');
+		let t = '${activeEditorShort}${separator}${rootName}';
+		assert.strictEqual(labels.template(t, { activeEditorShort: '', rootName: '', separator: { label: ' - ' } }), '');
+		assert.strictEqual(labels.template(t, { activeEditorShort: '', rootName: 'root', separator: { label: ' - ' } }), 'root');
+		assert.strictEqual(labels.template(t, { activeEditorShort: 'markdown.txt', rootName: 'root', separator: { label: ' - ' } }), 'markdown.txt - root');
 
 		// // real world example (other)
-		t = '${dirty}${activeEditorName}${separator}${rootName}${separator}${appName}';
-		assert.strictEqual(labels.template(t, { dirty: '', activeEditorName: '', rootName: '', appName: '', separator: { label: ' - ' } }), '');
-		assert.strictEqual(labels.template(t, { dirty: '', activeEditorName: '', rootName: '', appName: 'Visual Studio Code', separator: { label: ' - ' } }), 'Visual Studio Code');
-		assert.strictEqual(labels.template(t, { dirty: '', activeEditorName: 'Untitled-1', rootName: '', appName: 'Visual Studio Code', separator: { label: ' - ' } }), 'Untitled-1 - Visual Studio Code');
-		assert.strictEqual(labels.template(t, { dirty: '', activeEditorName: '', rootName: 'monaco', appName: 'Visual Studio Code', separator: { label: ' - ' } }), 'monaco - Visual Studio Code');
-		assert.strictEqual(labels.template(t, { dirty: '', activeEditorName: 'somefile.txt', rootName: 'monaco', appName: 'Visual Studio Code', separator: { label: ' - ' } }), 'somefile.txt - monaco - Visual Studio Code');
-		assert.strictEqual(labels.template(t, { dirty: '* ', activeEditorName: 'somefile.txt', rootName: 'monaco', appName: 'Visual Studio Code', separator: { label: ' - ' } }), '* somefile.txt - monaco - Visual Studio Code');
+		t = '${dirty}${activeEditorShort}${separator}${rootName}${separator}${appName}';
+		assert.strictEqual(labels.template(t, { dirty: '', activeEditorShort: '', rootName: '', appName: '', separator: { label: ' - ' } }), '');
+		assert.strictEqual(labels.template(t, { dirty: '', activeEditorShort: '', rootName: '', appName: 'Visual Studio Code', separator: { label: ' - ' } }), 'Visual Studio Code');
+		assert.strictEqual(labels.template(t, { dirty: '', activeEditorShort: 'Untitled-1', rootName: '', appName: 'Visual Studio Code', separator: { label: ' - ' } }), 'Untitled-1 - Visual Studio Code');
+		assert.strictEqual(labels.template(t, { dirty: '', activeEditorShort: '', rootName: 'monaco', appName: 'Visual Studio Code', separator: { label: ' - ' } }), 'monaco - Visual Studio Code');
+		assert.strictEqual(labels.template(t, { dirty: '', activeEditorShort: 'somefile.txt', rootName: 'monaco', appName: 'Visual Studio Code', separator: { label: ' - ' } }), 'somefile.txt - monaco - Visual Studio Code');
+		assert.strictEqual(labels.template(t, { dirty: '* ', activeEditorShort: 'somefile.txt', rootName: 'monaco', appName: 'Visual Studio Code', separator: { label: ' - ' } }), '* somefile.txt - monaco - Visual Studio Code');
 	});
 });
