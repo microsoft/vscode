@@ -104,7 +104,7 @@ export function activate(context: ExtensionContext): void {
 	}));
 
 	context.subscriptions.push(
-		languages.registerCompletionItemProvider(selector, new JsDocCompletionHelper(client)));
+		languages.registerCompletionItemProvider(selector, new JsDocCompletionHelper(client), '*'));
 
 	const goToProjectConfig = (isTypeScript: boolean) => {
 		const editor = window.activeTextEditor;
