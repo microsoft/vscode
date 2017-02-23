@@ -74,6 +74,9 @@ export class ViewEventHandler {
 	public onTokensChanged(e: viewEvents.ViewTokensChangedEvent): boolean {
 		return false;
 	}
+	public onTokensColorsChanged(e: viewEvents.ViewTokensColorsChangedEvent): boolean {
+		return false;
+	}
 	public onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
 		return false;
 	}
@@ -169,6 +172,12 @@ export class ViewEventHandler {
 
 				case viewEvents.ViewEventType.ViewTokensChanged:
 					if (this.onTokensChanged(e)) {
+						shouldRender = true;
+					}
+					break;
+
+				case viewEvents.ViewEventType.ViewTokensColorsChanged:
+					if (this.onTokensColorsChanged(e)) {
 						shouldRender = true;
 					}
 					break;
