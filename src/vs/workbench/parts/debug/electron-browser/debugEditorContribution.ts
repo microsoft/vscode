@@ -375,6 +375,8 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 				depthInArray--;
 			}
 		});
+
+		this.editor.focus();
 		if (!configurationsPosition) {
 			return this.commandService.executeCommand('editor.action.triggerSuggest');
 		}
