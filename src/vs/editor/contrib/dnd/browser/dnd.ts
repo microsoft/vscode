@@ -7,7 +7,7 @@
 
 import 'vs/css!./dnd';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { ICodeEditor, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IEditorMouseEvent, IMouseTarget } from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Position } from 'vs/editor/common/core/position';
@@ -56,9 +56,7 @@ export class DragAndDropController implements editorCommon.IEditorContribution {
 	}
 
 	private _onEditorMouseDrop(mouseEvent: IEditorMouseEvent): void {
-		if (mouseEvent.target &&
-			(mouseEvent.target.type === editorCommon.MouseTargetType.CONTENT_TEXT || mouseEvent.target.type === editorCommon.MouseTargetType.CONTENT_EMPTY) &&
-			mouseEvent.target.position) {
+		if (mouseEvent.target && (this._hitContent(mouseEvent.target) || this._hitMargin(mouseEvent.target)) && mouseEvent.target.position) {
 			let newCursorPosition = new Position(mouseEvent.target.position.lineNumber, mouseEvent.target.position.column);
 
 			if (this._dragSelection.containsPosition(newCursorPosition)) {
@@ -96,6 +94,17 @@ export class DragAndDropController implements editorCommon.IEditorContribution {
 		this._editor.changeDecorations(changeAccessor => {
 			changeAccessor.deltaDecorations(this._dndDecorationIds, []);
 		});
+	}
+
+	private _hitContent(target: IMouseTarget): boolean {
+		return target.type === editorCommon.MouseTargetType.CONTENT_TEXT ||
+			target.type === editorCommon.MouseTargetType.CONTENT_EMPTY;
+	}
+
+	private _hitMargin(target: IMouseTarget): boolean {
+		return target.type === editorCommon.MouseTargetType.GUTTER_GLYPH_MARGIN ||
+			target.type === editorCommon.MouseTargetType.GUTTER_LINE_NUMBERS ||
+			target.type === editorCommon.MouseTargetType.GUTTER_LINE_DECORATIONS;
 	}
 
 	public getId(): string {
