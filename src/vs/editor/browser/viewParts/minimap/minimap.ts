@@ -399,6 +399,7 @@ export class Minimap extends ViewPart {
 	private readonly _editorScrollbar: EditorScrollbar;
 
 	private readonly _domNode: FastDomNode<HTMLElement>;
+	private readonly _shadow: FastDomNode<HTMLElement>;
 	private readonly _canvas: FastDomNode<HTMLCanvasElement>;
 	private readonly _slider: FastDomNode<HTMLElement>;
 	private readonly _tokensColorTracker: MinimapTokensColorTracker;
@@ -422,6 +423,10 @@ export class Minimap extends ViewPart {
 		this._domNode = createFastDomNode(document.createElement('div'));
 		this._domNode.setPosition('absolute');
 		this._domNode.setRight(this._context.configuration.editor.layoutInfo.verticalScrollbarWidth);
+
+		this._shadow = createFastDomNode(document.createElement('div'));
+		this._shadow.setClassName('minimap-shadow-hidden');
+		this._domNode.domNode.appendChild(this._shadow.domNode);
 
 		this._canvas = createFastDomNode(document.createElement('canvas'));
 		this._canvas.setPosition('absolute');
@@ -477,6 +482,7 @@ export class Minimap extends ViewPart {
 	private _applyLayout(): void {
 		this._domNode.setWidth(this._options.minimapWidth);
 		this._domNode.setHeight(this._options.minimapHeight);
+		this._shadow.setHeight(this._options.minimapHeight);
 		this._canvas.setWidth(this._options.canvasOuterWidth);
 		this._canvas.setHeight(this._options.canvasOuterHeight);
 		this._canvas.domNode.width = this._options.canvasInnerWidth;
@@ -536,7 +542,7 @@ export class Minimap extends ViewPart {
 		return true;
 	}
 	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
-		return e.scrollTopChanged || e.scrollHeightChanged;
+		return true;
 	}
 	public onTokensChanged(e: viewEvents.ViewTokensChangedEvent): boolean {
 		if (this._lastRenderData) {
@@ -563,7 +569,13 @@ export class Minimap extends ViewPart {
 	public render(renderingCtx: IRestrictedRenderingContext): void {
 		const renderMinimap = this._options.renderMinimap;
 		if (renderMinimap === RenderMinimap.None) {
+			this._shadow.setClassName('minimap-shadow-hidden');
 			return;
+		}
+		if (renderingCtx.viewportLeft + renderingCtx.viewportWidth >= renderingCtx.scrollWidth) {
+			this._shadow.setClassName('minimap-shadow-hidden');
+		} else {
+			this._shadow.setClassName('minimap-shadow-visible');
 		}
 
 		const layout = new MinimapLayout(
