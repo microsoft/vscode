@@ -229,7 +229,7 @@ class WelcomePage {
 				return;
 			}
 			this.messageService.show(Severity.Info, {
-				message: localize('welcomePage.willReloadAfterInstallingKeymap', "The window will quickly reload after installing the {0} keyboard shortcuts.", keymapName),
+				message: localize('welcomePage.willReloadAfterInstallingKeymap', "The window will reload after installing the {0} keyboard shortcuts.", keymapName),
 				actions: [
 					new Action('ok', localize('ok', "OK"), null, true, () => {
 						return TPromise.join(extensions.filter(extension => extension.globallyEnabled)
