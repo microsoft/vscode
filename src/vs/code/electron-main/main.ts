@@ -259,7 +259,7 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 		} else if (global.macOpenFiles && global.macOpenFiles.length && (!environmentService.args._ || !environmentService.args._.length)) {
 			windowsMainService.open({ context: OpenContext.DOCK, cli: environmentService.args, pathsToOpen: global.macOpenFiles, initialStartup: true }); // mac: open-file event received on startup
 		} else {
-			windowsMainService.open({ context, cli: environmentService.args, forceNewWindow: environmentService.args['new-window'] || environmentService.args['new-window-if-not-first'], diffMode: environmentService.args.diff, initialStartup: true }); // default: read paths from cli
+			windowsMainService.open({ context, cli: environmentService.args, forceNewWindow: environmentService.args['new-window'] || (!environmentService.args._.length && environmentService.args['unity-launch']), diffMode: environmentService.args.diff, initialStartup: true }); // default: read paths from cli
 		}
 
 		// Install Menu

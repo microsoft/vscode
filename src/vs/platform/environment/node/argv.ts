@@ -31,7 +31,7 @@ const options: minimist.Opts = {
 		'diff',
 		'goto',
 		'new-window',
-		'new-window-if-not-first',
+		'unity-launch',
 		'reuse-window',
 		'performance',
 		'verbose',

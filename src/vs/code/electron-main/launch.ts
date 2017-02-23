@@ -95,7 +95,7 @@ export class LaunchService implements ILaunchService {
 		let usedWindows: VSCodeWindow[];
 		if (!!args.extensionDevelopmentPath) {
 			this.windowsService.openExtensionDevelopmentHostWindow({ context, cli: args, userEnv });
-		} else if (args._.length === 0 && (args['new-window'] || args['new-window-if-not-first'])) {
+		} else if (args._.length === 0 && (args['new-window'] || args['unity-launch'])) {
 			usedWindows = this.windowsService.open({ context, cli: args, userEnv, forceNewWindow: true, forceEmpty: true });
 		} else if (args._.length === 0) {
 			usedWindows = [this.windowsService.focusLastActive(args, context)];
