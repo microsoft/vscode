@@ -134,9 +134,9 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(SelectAndStartAction, 
 (<IQuickOpenRegistry>Registry.as(QuickOpenExtensions.Quickopen)).registerQuickOpenHandler(
 	new QuickOpenHandlerDescriptor(
 		'vs/workbench/parts/debug/browser/debugQuickOpen',
-		'QuickOpenHandler',
+		'DebugQuickOpenHandler',
 		'debug ',
-		nls.localize('debugCommands', "Debug XXX")
+		nls.localize('debugCommands', "Debug Configuration")
 	)
 );
 
