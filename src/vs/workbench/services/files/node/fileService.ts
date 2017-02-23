@@ -719,6 +719,10 @@ export class FileService implements IFileService {
 		// add to bucket of undelivered events
 		this.undeliveredRawFileChangesEvents.push(event);
 
+		if (this.options.verboseLogging) {
+			console.log('%c[node.js Watcher]%c', 'color: green', 'color: black', event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]', event.path);
+		}
+
 		// handle emit through delayer to accommodate for bulk changes
 		this.fileChangesWatchDelayer.trigger(() => {
 			const buffer = this.undeliveredRawFileChangesEvents;
@@ -726,6 +730,13 @@ export class FileService implements IFileService {
 
 			// Normalize
 			const normalizedEvents = normalize(buffer);
+
+			// Logging
+			if (this.options.verboseLogging) {
+				normalizedEvents.forEach(r => {
+					console.log('%c[node.js Watcher]%c >> normalized', 'color: green', 'color: black', r.type === FileChangeType.ADDED ? '[ADDED]' : r.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]', r.path);
+				});
+			}
 
 			// Emit
 			this._onFileChanges.fire(toFileChangesEvent(normalizedEvents));
