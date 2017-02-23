@@ -474,13 +474,13 @@ export class SearchViewlet extends Viewlet {
 			let focusToSelectionDelayHandle: number;
 			let lastFocusToSelection: number;
 
-			const focusToSelection = () => {
+			const focusToSelection = (originalEvent: KeyboardEvent | MouseEvent) => {
 				lastFocusToSelection = Date.now();
 
 				const focus = this.tree.getFocus();
 				let payload: any;
 				if (focus instanceof Match) {
-					payload = { origin: 'keyboard', originalEvent: event };
+					payload = { origin: 'keyboard', originalEvent, preserveFocus: true };
 				}
 
 				this.tree.setSelection([focus], payload);
@@ -490,13 +490,15 @@ export class SearchViewlet extends Viewlet {
 			this.toUnbind.push(this.tree.addListener2('focus', (event: any) => {
 				let keyboard = event.payload && event.payload.origin === 'keyboard';
 				if (keyboard) {
+					let originalEvent: KeyboardEvent | MouseEvent = event.payload && event.payload.originalEvent;
+
 					// debounce setting selection so that we are not too quickly opening
 					// when the user is pressing and holding the key to move focus
 					if (focusToSelectionDelayHandle || (Date.now() - lastFocusToSelection <= 75)) {
 						window.clearTimeout(focusToSelectionDelayHandle);
-						focusToSelectionDelayHandle = window.setTimeout(() => focusToSelection(), 300);
+						focusToSelectionDelayHandle = window.setTimeout(() => focusToSelection(originalEvent), 300);
 					} else {
-						focusToSelection();
+						focusToSelection(originalEvent);
 					}
 				}
 			}));
@@ -518,7 +520,7 @@ export class SearchViewlet extends Viewlet {
 				}
 
 				let sideBySide = (originalEvent && (originalEvent.ctrlKey || originalEvent.metaKey));
-				let focusEditor = (keyboard && !event.payload.originalEvent /* TODO@Rob ugly only way to distinguish selection from a command from selection via SearchController */) || doubleClick || (event.payload && event.payload.focusEditor);
+				let focusEditor = (keyboard && (!event.payload || !event.payload.preserveFocus)) || doubleClick;
 
 				if (element instanceof Match) {
 					let selectedMatch: Match = element;
