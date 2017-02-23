@@ -27,6 +27,7 @@ import { toResource } from 'vs/workbench/common/editor';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { explorerItemToFileResource } from 'vs/workbench/parts/files/common/files';
+import { IWorkspaceContextService } from "vs/platform/workspace/common/workspace";
 
 export function isSearchViewletFocussed(viewletService: IViewletService): boolean {
 	let activeViewlet = viewletService.getActiveViewlet();
@@ -230,6 +231,7 @@ export class FindInFolderAction extends Action {
 export const findInFolderCommand = (accessor: ServicesAccessor, resource?: URI) => {
 	const listService = accessor.get(IListService);
 	const viewletService = accessor.get(IViewletService);
+	const contextService = accessor.get(IWorkspaceContextService);
 
 	if (!URI.isUri(resource)) {
 		const focused = listService.getFocused() ? listService.getFocused().getFocus() : void 0;
@@ -239,6 +241,10 @@ export const findInFolderCommand = (accessor: ServicesAccessor, resource?: URI) 
 				resource = file.resource;
 			}
 		}
+	}
+
+	if (!URI.isUri(resource) && contextService.hasWorkspace()) {
+		resource = contextService.getWorkspace().resource;
 	}
 
 	if (URI.isUri(resource)) {
