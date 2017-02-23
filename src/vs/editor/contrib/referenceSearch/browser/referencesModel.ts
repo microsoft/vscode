@@ -271,9 +271,11 @@ export class ReferencesModel implements IDisposable {
 	}
 
 	private static _compareReferences(a: Location, b: Location): number {
-		if (a.uri.toString() < b.uri.toString()) {
+		const auri = a.uri.toString();
+ 		const buri = b.uri.toString();
+		if (auri < buri) {
 			return -1;
-		} else if (a.uri.toString() > b.uri.toString()) {
+		} else if (auri > buri) {
 			return 1;
 		} else {
 			return Range.compareRangesUsingStarts(a.range, b.range);
