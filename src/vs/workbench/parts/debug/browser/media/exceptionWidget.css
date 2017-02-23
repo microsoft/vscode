@@ -5,6 +5,7 @@
 
 .monaco-editor .zone-widget .zone-widget-container.exception-widget {
 	padding: 6px 10px;
+	white-space: pre;
 }
 
 .monaco-editor .zone-widget .zone-widget-container.exception-widget .title {
