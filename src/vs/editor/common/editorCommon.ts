@@ -3102,7 +3102,11 @@ export enum MouseTargetType {
 	/**
 	 * Mouse is on top of an overlay widget.
 	 */
-	OVERLAY_WIDGET
+	OVERLAY_WIDGET,
+	/**
+	 * Mouse is outside of the editor.
+	 */
+	OUTSIDE_EDITOR,
 }
 
 /**
