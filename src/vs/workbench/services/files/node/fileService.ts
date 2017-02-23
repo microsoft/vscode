@@ -673,38 +673,37 @@ export class FileService implements IFileService {
 				// and then stops to work on Mac and Linux because the watcher is applied to the
 				// inode and not the name. The fix is to detect this case and trying to watch the file
 				// again after a certain delay.
+				// In addition, we send out a delete event if after a timeout we detect that the file
+				// does indeed not exist anymore.
 				if (renamedOrDeleted) {
-					if (isWindows) {
-						return; // on Windows the watcher continues to work even if the file was saved atomically with a replace operation
-					}
 
 					// Very important to dispose the watcher which now points to a stale inode
 					this.unwatchFileChanges(resource);
 
 					// Wait a bit and try to install watcher again, assuming that the file was renamed quickly ("Atomic Save")
 					setTimeout(() => {
-						this.watchFileChanges(resource);
+						this.existsFile(resource).done(exists => {
+
+							// File still exists, so reapply the watcher
+							if (exists) {
+								this.watchFileChanges(resource);
+							}
+
+							// File seems to be really gone, so emit a deleted event
+							else {
+								this.onRawFileChange({
+									type: FileChangeType.DELETED,
+									path: fsPath
+								});
+							}
+						});
 					}, FileService.FS_REWATCH_DELAY);
 				}
 
-				// add to bucket of undelivered events
-				this.undeliveredRawFileChangesEvents.push({
+				// Handle raw file change
+				this.onRawFileChange({
 					type: FileChangeType.UPDATED,
 					path: fsPath
-				});
-
-				// handle emit through delayer to accommodate for bulk changes
-				this.fileChangesWatchDelayer.trigger(() => {
-					const buffer = this.undeliveredRawFileChangesEvents;
-					this.undeliveredRawFileChangesEvents = [];
-
-					// Normalize
-					const normalizedEvents = normalize(buffer);
-
-					// Emit
-					this._onFileChanges.fire(toFileChangesEvent(normalizedEvents));
-
-					return TPromise.as(null);
 				});
 			});
 
@@ -713,6 +712,26 @@ export class FileService implements IFileService {
 				this.options.errorLogger(error);
 			});
 		}
+	}
+
+	private onRawFileChange(event: IRawFileChange): void {
+
+		// add to bucket of undelivered events
+		this.undeliveredRawFileChangesEvents.push(event);
+
+		// handle emit through delayer to accommodate for bulk changes
+		this.fileChangesWatchDelayer.trigger(() => {
+			const buffer = this.undeliveredRawFileChangesEvents;
+			this.undeliveredRawFileChangesEvents = [];
+
+			// Normalize
+			const normalizedEvents = normalize(buffer);
+
+			// Emit
+			this._onFileChanges.fire(toFileChangesEvent(normalizedEvents));
+
+			return TPromise.as(null);
+		});
 	}
 
 	public unwatchFileChanges(resource: uri): void;
