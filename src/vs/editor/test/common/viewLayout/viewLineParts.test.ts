@@ -77,7 +77,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			false
 		));
 
-		assert.deepEqual(actual.html.split(/></g), expected.split(/></g));
+		assert.deepEqual(actual.html, expected);
 	}
 
 	test('issue #18616: Inline decorations ending at the text length are no longer rendered', () => {

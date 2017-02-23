@@ -278,7 +278,7 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 		len = lineContent.length;
 	}
 
-	let tokens = removeOverflowing(input.lineTokens, len);
+	let tokens = transformAndRemoveOverflowing(input.lineTokens, input.fauxIndentLength, len);
 	if (input.renderWhitespace === RenderWhitespace.All || input.renderWhitespace === RenderWhitespace.Boundary) {
 		tokens = _applyRenderWhitespace(lineContent, len, tokens, input.fauxIndentLength, input.tabSize, useMonospaceOptimizations, input.renderWhitespace === RenderWhitespace.Boundary);
 	}
@@ -320,18 +320,29 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
  * In the rendering phase, characters are always looped until token.endIndex.
  * Ensure that all tokens end before `len` and the last one ends precisely at `len`.
  */
-function removeOverflowing(tokens: ViewLineToken[], len: number): LinePart[] {
-	let result: LinePart[] = [];
+function transformAndRemoveOverflowing(tokens: ViewLineToken[], fauxIndentLength: number, len: number): LinePart[] {
+	let result: LinePart[] = [], resultLen = 0;
+
+	// The faux indent part of the line should have no token type
+	if (fauxIndentLength > 0) {
+		result[resultLen++] = new LinePart(fauxIndentLength, '');
+	}
+
 	for (let tokenIndex = 0, tokensLen = tokens.length; tokenIndex < tokensLen; tokenIndex++) {
 		const token = tokens[tokenIndex];
 		const endIndex = token.endIndex;
+		if (endIndex <= fauxIndentLength) {
+			// The faux indent part of the line should have no token type
+			continue;
+		}
 		const type = token.getType();
 		if (endIndex >= len) {
-			result[tokenIndex] = new LinePart(len, type);
+			result[resultLen++] = new LinePart(len, type);
 			break;
 		}
-		result[tokenIndex] = new LinePart(endIndex, type);
+		result[resultLen++] = new LinePart(endIndex, type);
 	}
+
 	return result;
 }
 
@@ -387,10 +398,6 @@ function _applyRenderWhitespace(lineContent: string, len: number, tokens: LinePa
 	let tokenIndex = 0;
 	let tokenType = tokens[tokenIndex].type;
 	let tokenEndIndex = tokens[tokenIndex].endIndex;
-
-	if (fauxIndentLength > 0) {
-		result[resultLen++] = new LinePart(fauxIndentLength, '');
-	}
 
 	let firstNonWhitespaceIndex = strings.firstNonWhitespaceIndex(lineContent);
 	let lastNonWhitespaceIndex: number;
