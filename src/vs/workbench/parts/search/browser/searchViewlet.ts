@@ -1262,7 +1262,7 @@ export class SearchViewlet extends Viewlet {
 				preserveFocus,
 				pinned,
 				selection,
-				revealIfVisible: true
+				revealIfVisible: !sideBySide
 			}
 		}, sideBySide).then(editor => {
 			if (editor && element instanceof Match && preserveFocus) {
