@@ -518,6 +518,48 @@ suite('viewLineRenderer.renderLine', () => {
 		assert.equal(actual.containsRTL, true);
 	});
 
+	test('issue #19673: Monokai Theme bad-highlighting in line wrap', () => {
+		let lineText = '    MongoCallback<string>): void {';
+
+		let lineParts = [
+			createPart(17, 1),
+			createPart(18, 2),
+			createPart(24, 3),
+			createPart(26, 4),
+			createPart(27, 5),
+			createPart(28, 6),
+			createPart(32, 7),
+			createPart(34, 8),
+		];
+		let expectedOutput = [
+			'<span class="">&nbsp;&nbsp;&nbsp;&nbsp;</span>',
+			'<span class="mtk1">MongoCallback</span>',
+			'<span class="mtk2">&lt;</span>',
+			'<span class="mtk3">string</span>',
+			'<span class="mtk4">&gt;)</span>',
+			'<span class="mtk5">:</span>',
+			'<span class="mtk6">&nbsp;</span>',
+			'<span class="mtk7">void</span>',
+			'<span class="mtk8">&nbsp;{</span>'
+		].join('');
+
+		let _actual = renderViewLine(new RenderLineInput(
+			true,
+			lineText,
+			false,
+			4,
+			lineParts,
+			[],
+			4,
+			10,
+			-1,
+			'none',
+			false
+		));
+
+		assert.equal(_actual.html, '<span>' + expectedOutput + '</span>');
+	});
+
 	function assertCharacterMapping(actual: CharacterMapping, expected: number[][]): void {
 		let charOffset = 0;
 		for (let partIndex = 0; partIndex < expected.length; partIndex++) {
