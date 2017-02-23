@@ -46,6 +46,8 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { VSash } from 'vs/base/browser/ui/sash/sash';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { IPreferencesRenderer, DefaultSettingsRenderer, UserSettingsRenderer, WorkspaceSettingsRenderer } from 'vs/workbench/parts/preferences/browser/preferencesRenderers';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 
 // Ignore following contributions
 import { FoldingController } from 'vs/editor/contrib/folding/browser/folding';
@@ -423,8 +425,10 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 		@IPreferencesService private preferencesService: IPreferencesService,
 		@IModelService private modelService: IModelService,
 		@IModeService modeService: IModeService,
+		@ITextFileService textFileService: ITextFileService,
+		@IEditorGroupService editorGroupService: IEditorGroupService
 	) {
-		super(DefaultPreferencesEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, modeService);
+		super(DefaultPreferencesEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, modeService, textFileService, editorGroupService);
 	}
 
 	public createEditorControl(parent: Builder, configuration: editorCommon.IEditorOptions): editorCommon.IEditor {
