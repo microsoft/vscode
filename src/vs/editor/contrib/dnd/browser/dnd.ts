@@ -11,8 +11,8 @@ import { ICodeEditor, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser'
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { DragTargetHintWidget } from './dndHintWidget';
 import { DragAndDropCommand } from '../common/dragAndDropCommand';
 
 @editorContribution
@@ -22,9 +22,9 @@ export class DragAndDropController implements editorCommon.IEditorContribution {
 
 	private _editor: ICodeEditor;
 	private _toUnhook: IDisposable[];
-	private _targetWidget: DragTargetHintWidget;
 	private _active: boolean;
 	private _dragSelection: Selection;
+	private _dndDecorationIds: string[];
 
 	static get(editor: editorCommon.ICommonCodeEditor): DragAndDropController {
 		return editor.getContribution<DragAndDropController>(DragAndDropController.ID);
@@ -35,24 +35,22 @@ export class DragAndDropController implements editorCommon.IEditorContribution {
 		this._toUnhook = [];
 		this._toUnhook.push(this._editor.onMouseDrag((e: IEditorMouseEvent) => this._onEditorMouseDrag(e)));
 		this._toUnhook.push(this._editor.onMouseDrop((e: IEditorMouseEvent) => this._onEditorMouseDrop(e)));
-		this._targetWidget = new DragTargetHintWidget(editor);
 		this._active = false;
+		this._dndDecorationIds = [];
 	}
 
 	private _onEditorMouseDrag(mouseEvent: IEditorMouseEvent): void {
 		let target = mouseEvent.target;
 
 		if (this._active) {
-			this._targetWidget.showAt(target.position);
-			this._editor.revealPosition(target.position);
+			this.showAt(target.position);
 		} else {
 			let possibleSelections = this._editor.getSelections().filter(selection => selection.containsPosition(target.position));
 
 			if (possibleSelections.length === 1) {
 				this._active = true;
 				this._dragSelection = possibleSelections[0];
-				this._targetWidget.showAt(target.position);
-				this._editor.revealPosition(target.position);
+				this.showAt(target.position);
 			}
 		}
 	}
@@ -77,12 +75,27 @@ export class DragAndDropController implements editorCommon.IEditorContribution {
 			}
 		}
 
-		this._hideWidget();
+		this._removeDecoration();
 		this._active = false;
 	}
 
-	private _hideWidget(): void {
-		this._targetWidget.hide();
+	public showAt(position: Position): void {
+		this._editor.changeDecorations(changeAccessor => {
+			let newDecorations: editorCommon.IModelDeltaDecoration[] = [];
+			newDecorations.push({
+				range: new Range(position.lineNumber, position.column, position.lineNumber, position.column),
+				options: { className: 'dnd-target' }
+			});
+
+			this._dndDecorationIds = changeAccessor.deltaDecorations(this._dndDecorationIds, newDecorations);
+		});
+		this._editor.revealPosition(position);
+	}
+
+	private _removeDecoration(): void {
+		this._editor.changeDecorations(changeAccessor => {
+			changeAccessor.deltaDecorations(this._dndDecorationIds, []);
+		});
 	}
 
 	public getId(): string {
@@ -90,10 +103,7 @@ export class DragAndDropController implements editorCommon.IEditorContribution {
 	}
 
 	public dispose(): void {
+		this._removeDecoration();
 		this._toUnhook = dispose(this._toUnhook);
-		if (this._targetWidget) {
-			this._targetWidget.dispose();
-			this._targetWidget = null;
-		}
 	}
 }
