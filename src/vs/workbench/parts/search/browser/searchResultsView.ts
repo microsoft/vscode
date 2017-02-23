@@ -229,9 +229,6 @@ export class SearchController extends DefaultController {
 		// Up (from results to inputs)
 		this.downKeyBindingDispatcher.set(KeyCode.UpArrow, this.onUp.bind(this));
 
-		// Open
-		this.downKeyBindingDispatcher.set(KeyCode.Space, (t, e) => this.onSpace(t, e));
-
 		// Open to side
 		this.upKeyBindingDispatcher.set(platform.isMacintosh ? KeyMod.WinCtrl | KeyCode.Enter : KeyMod.CtrlCmd | KeyCode.Enter, this.onEnter.bind(this));
 
@@ -296,15 +293,6 @@ export class SearchController extends DefaultController {
 			return true;
 		}
 
-		return false;
-	}
-
-	protected onSpace(tree: ITree, event: IKeyboardEvent): boolean {
-		let element = tree.getFocus();
-		if (element instanceof Match) {
-			return this.onEnter(tree, event);
-		}
-		super.onSpace(tree, event);
 		return false;
 	}
 }
