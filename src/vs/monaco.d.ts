@@ -2791,6 +2791,10 @@ declare module monaco.editor {
          * Mouse is on top of an overlay widget.
          */
         OVERLAY_WIDGET = 12,
+        /**
+         * Mouse is outside of the editor.
+         */
+        OUTSIDE_EDITOR = 13,
     }
 
     /**
