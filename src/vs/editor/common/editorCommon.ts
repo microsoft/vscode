@@ -2825,7 +2825,8 @@ export enum RenderMinimap {
 	None = 0,
 	Small = 1,
 	Large = 2,
-	Blocks = 3,
+	SmallBlocks = 3,
+	LargeBlocks = 4,
 }
 
 /**

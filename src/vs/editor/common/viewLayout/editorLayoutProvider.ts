@@ -79,16 +79,11 @@ export class EditorLayoutProvider {
 			contentWidth = remainingWidth;
 		} else {
 			let minimapCharWidth: number;
-			if (minimapRenderText) {
-				if (pixelRatio >= 2) {
-					renderMinimap = RenderMinimap.Large;
-					minimapCharWidth = 2 / pixelRatio;
-				} else {
-					renderMinimap = RenderMinimap.Small;
-					minimapCharWidth = 1 / pixelRatio;
-				}
+			if (pixelRatio >= 2) {
+				renderMinimap = minimapRenderText ? RenderMinimap.Large : RenderMinimap.LargeBlocks;
+				minimapCharWidth = 2 / pixelRatio;
 			} else {
-				renderMinimap = RenderMinimap.Blocks;
+				renderMinimap = minimapRenderText ? RenderMinimap.Small : RenderMinimap.SmallBlocks;
 				minimapCharWidth = 1 / pixelRatio;
 			}
 

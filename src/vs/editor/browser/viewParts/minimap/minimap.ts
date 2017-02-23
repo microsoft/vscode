@@ -29,29 +29,36 @@ const enum RenderMinimap {
 	None = 0,
 	Small = 1,
 	Large = 2,
-	Blocks = 3,
+	SmallBlocks = 3,
+	LargeBlocks = 4,
 }
 
 function getMinimapLineHeight(renderMinimap: RenderMinimap): number {
 	if (renderMinimap === RenderMinimap.Large) {
 		return Constants.x2_CHAR_HEIGHT;
 	}
+	if (renderMinimap === RenderMinimap.LargeBlocks) {
+		return Constants.x2_CHAR_HEIGHT + 2;
+	}
 	if (renderMinimap === RenderMinimap.Small) {
 		return Constants.x1_CHAR_HEIGHT;
 	}
-	// RenderMinimap.Blocks
-	return 3;
+	// RenderMinimap.SmallBlocks
+	return Constants.x1_CHAR_HEIGHT + 1;
 }
 
 function getMinimapCharWidth(renderMinimap: RenderMinimap): number {
 	if (renderMinimap === RenderMinimap.Large) {
 		return Constants.x2_CHAR_WIDTH;
 	}
+	if (renderMinimap === RenderMinimap.LargeBlocks) {
+		return Constants.x2_CHAR_WIDTH;
+	}
 	if (renderMinimap === RenderMinimap.Small) {
 		return Constants.x1_CHAR_WIDTH;
 	}
-	// RenderMinimap.Blocks
-	return 1;
+	// RenderMinimap.SmallBlocks
+	return Constants.x1_CHAR_WIDTH;
 }
 
 class MinimapOptions {
@@ -749,8 +756,11 @@ export class Minimap extends ViewPart {
 						minimapCharRenderer.x2RenderChar(target, dx, dy, charCode, tokenColor, backgroundColor, useLighterFont);
 					} else if (renderMinimap === RenderMinimap.Small) {
 						minimapCharRenderer.x1RenderChar(target, dx, dy, charCode, tokenColor, backgroundColor, useLighterFont);
+					} else if (renderMinimap === RenderMinimap.LargeBlocks) {
+						minimapCharRenderer.x2BlockRenderChar(target, dx, dy, tokenColor, backgroundColor, useLighterFont);
 					} else {
-						minimapCharRenderer.blockRenderChar(target, dx, dy, tokenColor, backgroundColor, useLighterFont);
+						// RenderMinimap.SmallBlocks
+						minimapCharRenderer.x1BlockRenderChar(target, dx, dy, tokenColor, backgroundColor, useLighterFont);
 					}
 					dx += charWidth;
 				}
