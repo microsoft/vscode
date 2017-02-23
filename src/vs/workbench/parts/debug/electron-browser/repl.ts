@@ -279,8 +279,7 @@ export class Repl extends Panel implements IPrivateReplService {
 			scrollBeyondLastLine: false,
 			theme: this.themeService.getColorTheme().id,
 			renderLineHighlight: 'none',
-			fixedOverflowWidgets: true,
-			acceptSuggestionOnEnter: false
+			fixedOverflowWidgets: true
 		};
 	}
 
@@ -352,8 +351,7 @@ class AcceptReplInputAction extends EditorAction {
 			precondition: debug.CONTEXT_IN_DEBUG_REPL,
 			kbOpts: {
 				kbExpr: EditorContextKeys.TextFocus,
-				primary: KeyCode.Enter,
-				weight: 50
+				primary: KeyCode.Enter
 			}
 		});
 	}
