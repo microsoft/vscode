@@ -6,6 +6,7 @@
 import nls = require('vs/nls');
 import DOM = require('vs/base/browser/dom');
 import errors = require('vs/base/common/errors');
+import paths = require('vs/base/common/paths');
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import { Action } from 'vs/base/common/actions';
@@ -237,8 +238,8 @@ export const findInFolderCommand = (accessor: ServicesAccessor, resource?: URI) 
 		const focused = listService.getFocused() ? listService.getFocused().getFocus() : void 0;
 		if (focused) {
 			const file = explorerItemToFileResource(focused);
-			if (file && file.isDirectory) {
-				resource = file.resource;
+			if (file) {
+				resource = file.isDirectory ? file.resource : URI.file(paths.dirname(file.resource.fsPath));
 			}
 		}
 	}
