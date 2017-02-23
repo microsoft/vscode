@@ -30,6 +30,7 @@ import { getLastActiveWindow, findBestWindowOrFolder } from 'vs/code/node/window
 import CommonEvent, { Emitter } from 'vs/base/common/event';
 import product from 'vs/platform/node/product';
 import { OpenContext } from 'vs/code/common/windows';
+import { ITelemetryService, ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 
 enum WindowError {
 	UNRESPONSIVE,
@@ -101,9 +102,9 @@ export interface IWindowsMainService {
 	reload(win: VSCodeWindow, cli?: ParsedArgs): void;
 	open(openConfig: IOpenConfiguration): VSCodeWindow[];
 	openExtensionDevelopmentHostWindow(openConfig: IOpenConfiguration): void;
-	openFileFolderPicker(forceNewWindow?: boolean): void;
-	openFilePicker(forceNewWindow?: boolean, path?: string, window?: VSCodeWindow): void;
-	openFolderPicker(forceNewWindow?: boolean, window?: VSCodeWindow): void;
+	openFileFolderPicker(forceNewWindow?: boolean, data?: ITelemetryData): void;
+	openFilePicker(forceNewWindow?: boolean, path?: string, window?: VSCodeWindow, data?: ITelemetryData): void;
+	openFolderPicker(forceNewWindow?: boolean, window?: VSCodeWindow, data?: ITelemetryData): void;
 	openAccessibilityOptions(): void;
 	focusLastActive(cli: ParsedArgs, context: OpenContext): VSCodeWindow;
 	getLastActiveWindow(): VSCodeWindow;
@@ -159,6 +160,7 @@ export class WindowsManager implements IWindowsMainService {
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IBackupMainService private backupService: IBackupMainService,
+		@ITelemetryService private telemetryService: ITelemetryService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) { }
 
@@ -940,16 +942,16 @@ export class WindowsManager implements IWindowsMainService {
 		return state;
 	}
 
-	public openFileFolderPicker(forceNewWindow?: boolean): void {
-		this.doPickAndOpen({ pickFolders: true, pickFiles: true, forceNewWindow });
+	public openFileFolderPicker(forceNewWindow?: boolean, data?: ITelemetryData): void {
+		this.doPickAndOpen({ pickFolders: true, pickFiles: true, forceNewWindow }, 'openFileFolder', data);
 	}
 
-	public openFilePicker(forceNewWindow?: boolean, path?: string, window?: VSCodeWindow): void {
-		this.doPickAndOpen({ pickFiles: true, forceNewWindow, path, window });
+	public openFilePicker(forceNewWindow?: boolean, path?: string, window?: VSCodeWindow, data?: ITelemetryData): void {
+		this.doPickAndOpen({ pickFiles: true, forceNewWindow, path, window }, 'openFile', data);
 	}
 
-	public openFolderPicker(forceNewWindow?: boolean, window?: VSCodeWindow): void {
-		this.doPickAndOpen({ pickFolders: true, forceNewWindow, window });
+	public openFolderPicker(forceNewWindow?: boolean, window?: VSCodeWindow, data?: ITelemetryData): void {
+		this.doPickAndOpen({ pickFolders: true, forceNewWindow, window }, 'openFolder', data);
 	}
 
 	public openAccessibilityOptions(): void {
@@ -968,11 +970,17 @@ export class WindowsManager implements IWindowsMainService {
 		win.loadURL('chrome://accessibility');
 	}
 
-	private doPickAndOpen(options: INativeOpenDialogOptions): void {
+	private doPickAndOpen(options: INativeOpenDialogOptions, eventName: string, data?: ITelemetryData): void {
 		this.getFileOrFolderPaths(options, (paths: string[]) => {
-			if (paths && paths.length) {
+			const nOfPaths = paths ? paths.length : 0;
+			if (nOfPaths) {
 				this.open({ context: OpenContext.DIALOG, cli: this.environmentService.args, pathsToOpen: paths, forceNewWindow: options.forceNewWindow });
 			}
+			this.telemetryService.publicLog(eventName, {
+				...data,
+				outcome: nOfPaths ? 'success' : 'canceled',
+				nOfPaths
+			});
 		});
 	}
 
