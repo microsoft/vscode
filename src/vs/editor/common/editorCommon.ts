@@ -163,6 +163,11 @@ export interface IEditorMinimapOptions {
 	 * Defaults to false.
 	 */
 	enabled?: boolean;
+	/**
+	 * Render the actual text on a line (as opposed to color blocks).
+	 * Defaults to true.
+	 */
+	renderText?: boolean;
 }
 
 /**
@@ -642,14 +647,17 @@ export class InternalEditorMinimapOptions {
 	readonly _internalEditorMinimapOptionsBrand: void;
 
 	readonly enabled: boolean;
+	readonly renderText: boolean;
 
 	/**
 	 * @internal
 	 */
 	constructor(source: {
 		enabled: boolean;
+		renderText: boolean;
 	}) {
 		this.enabled = Boolean(source.enabled);
+		this.renderText = Boolean(source.renderText);
 	}
 
 	/**
@@ -658,6 +666,7 @@ export class InternalEditorMinimapOptions {
 	public equals(other: InternalEditorMinimapOptions): boolean {
 		return (
 			this.enabled === other.enabled
+			&& this.renderText === other.renderText
 		);
 	}
 
@@ -2815,7 +2824,8 @@ export class OverviewRulerPosition {
 export enum RenderMinimap {
 	None = 0,
 	Small = 1,
-	Large = 2
+	Large = 2,
+	Blocks = 3,
 }
 
 /**

@@ -57,7 +57,8 @@ class ConfigClass implements IConfiguration {
 				horizontalHasArrows: false
 			},
 			minimap: {
-				enabled: false
+				enabled: false,
+				renderText: true
 			},
 			fixedOverflowWidgets: false,
 			overviewRulerLanes: 2,

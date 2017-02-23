@@ -185,6 +185,7 @@ class InternalEditorOptionsHelper {
 			scrollbarArrowSize: scrollbar.arrowSize,
 			verticalScrollbarHasArrows: scrollbar.verticalHasArrows,
 			minimap: minimap.enabled,
+			minimapRenderText: minimap.renderText,
 			pixelRatio: pixelRatio
 		});
 
@@ -371,7 +372,8 @@ class InternalEditorOptionsHelper {
 
 	private static _sanitizeMinimapOpts(raw: editorCommon.IEditorMinimapOptions): editorCommon.InternalEditorMinimapOptions {
 		return new editorCommon.InternalEditorMinimapOptions({
-			enabled: toBooleanWithDefault(raw.enabled, false)
+			enabled: toBooleanWithDefault(raw.enabled, false),
+			renderText: toBooleanWithDefault(raw.renderText, true),
 		});
 	}
 }
@@ -669,6 +671,11 @@ const editorConfiguration: IConfigurationNode = {
 			'type': 'boolean',
 			'default': DefaultConfig.editor.minimap.enabled,
 			'description': nls.localize('minimap.enabled', "Controls if the minimap is shown")
+		},
+		'editor.minimap.renderText': {
+			'type': 'boolean',
+			'default': DefaultConfig.editor.minimap.renderText,
+			'description': nls.localize('minimap.renderText', "Render the actual text on a line (as opposed to color blocks)")
 		},
 		'editor.wordWrap': {
 			'type': 'string',

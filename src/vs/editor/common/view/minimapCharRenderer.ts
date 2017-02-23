@@ -34,6 +34,11 @@ export class MinimapTokensColorTracker {
 
 	private _updateColorMap(): void {
 		const colorMap = TokenizationRegistry.getColorMap();
+		if (!colorMap) {
+			this._colors = [null];
+			this._backgroundIsLight = true;
+			return;
+		}
 		this._colors = [null];
 		for (let colorId = 1; colorId < colorMap.length; colorId++) {
 			this._colors[colorId] = colorMap[colorId].toRGBA();
@@ -227,6 +232,45 @@ export class MinimapCharRenderer {
 			dest[destOffset + 0] = backgroundR + deltaR * c;
 			dest[destOffset + 1] = backgroundG + deltaG * c;
 			dest[destOffset + 2] = backgroundB + deltaB * c;
+		}
+	}
+
+	public blockRenderChar(target: ImageData, dx: number, dy: number, color: RGBA, backgroundColor: RGBA, useLighterFont: boolean): void {
+		if (dx + Constants.x1_CHAR_WIDTH > target.width || dy + Constants.x1_CHAR_HEIGHT > target.height) {
+			console.warn('bad render request outside image data');
+			return;
+		}
+
+		const outWidth = target.width * Constants.RGBA_CHANNELS_CNT;
+
+		const c = 0.5;
+
+		const backgroundR = backgroundColor.r;
+		const backgroundG = backgroundColor.g;
+		const backgroundB = backgroundColor.b;
+
+		const deltaR = color.r - backgroundR;
+		const deltaG = color.g - backgroundG;
+		const deltaB = color.b - backgroundB;
+
+		const colorR = backgroundR + deltaR * c;;
+		const colorG = backgroundG + deltaG * c;
+		const colorB = backgroundB + deltaB * c;
+
+		const dest = target.data;
+
+		let destOffset = dy * outWidth + dx * Constants.RGBA_CHANNELS_CNT;
+		{
+			dest[destOffset + 0] = colorR;
+			dest[destOffset + 1] = colorG;
+			dest[destOffset + 2] = colorB;
+		}
+
+		destOffset += outWidth;
+		{
+			dest[destOffset + 0] = colorR;
+			dest[destOffset + 1] = colorG;
+			dest[destOffset + 2] = colorB;
 		}
 	}
 }
