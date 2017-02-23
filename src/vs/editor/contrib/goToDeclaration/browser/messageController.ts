@@ -33,6 +33,7 @@ export class MessageController {
 
 	private _editor: ICodeEditor;
 	private _visible: IContextKey<boolean>;
+	private _messageWidget: MessageWidget;
 	private _messageListeners: IDisposable[] = [];
 
 	constructor(
@@ -50,8 +51,9 @@ export class MessageController {
 	showMessage(message: string, position: editorCommon.IPosition): void {
 
 		this._visible.set(true);
+		dispose(this._messageWidget);
 		this._messageListeners = dispose(this._messageListeners);
-		this._messageListeners.push(new MessageWidget(this._editor, position, message));
+		this._messageWidget = new MessageWidget(this._editor, position, message);
 
 		// close on blur, cursor, model change, dispose
 		this._messageListeners.push(any<any>(
@@ -85,6 +87,7 @@ export class MessageController {
 	closeMessage(): void {
 		this._visible.reset();
 		this._messageListeners = dispose(this._messageListeners);
+		this._messageListeners.push(MessageWidget.fadeOut(this._messageWidget));
 	}
 }
 
@@ -110,6 +113,19 @@ class MessageWidget implements IContentWidget {
 	private _position: editorCommon.IPosition;
 	private _domNode: HTMLDivElement;
 
+	static fadeOut(messageWidget: MessageWidget): IDisposable {
+		let handle: number;
+		const dispose = () => {
+			messageWidget.dispose();
+			clearTimeout(handle);
+			messageWidget.getDomNode().removeEventListener('animationend', dispose);
+		};
+		handle = setTimeout(dispose, 110);
+		messageWidget.getDomNode().addEventListener('animationend', dispose);
+		messageWidget.getDomNode().classList.add('fadeOut');
+		return { dispose };
+	}
+
 	constructor(editor: ICodeEditor, { lineNumber, column }: editorCommon.IPosition, text: string) {
 
 		this._editor = editor;
@@ -130,6 +146,7 @@ class MessageWidget implements IContentWidget {
 		this._domNode.appendChild(anchor);
 
 		this._editor.addContentWidget(this);
+		this._domNode.classList.add('fadeIn');
 	}
 
 	dispose() {
