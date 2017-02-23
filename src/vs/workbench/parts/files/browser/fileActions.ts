@@ -50,6 +50,7 @@ import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
 import { withFocussedFilesExplorerViewItem, revealInOSCommand, revealInExplorerCommand, copyPathCommand } from 'vs/workbench/parts/files/browser/fileCommands';
+import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 
 export interface IEditableData {
 	action: IAction;
@@ -1802,10 +1803,10 @@ export class OpenFileAction extends Action {
 		super(id, label);
 	}
 
-	run(): TPromise<any> {
+	run(event?: any, data?: ITelemetryData): TPromise<any> {
 		const fileResource = toResource(this.editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
 
-		return this.windowService.openFilePicker(false, fileResource ? paths.dirname(fileResource.fsPath) : void 0);
+		return this.windowService.openFilePicker(false, fileResource ? paths.dirname(fileResource.fsPath) : void 0, data);
 	}
 }
 

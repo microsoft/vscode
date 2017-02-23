@@ -143,6 +143,8 @@ class KeybindingsResolver {
 	}
 }
 
+const telemetryFrom = 'menu';
+
 export class VSCodeMenu {
 
 	private static MAX_MENU_RECENT_ENTRIES = 10;
@@ -397,12 +399,12 @@ export class VSCodeMenu {
 			newFile = this.createMenuItem(nls.localize({ key: 'miNewFile', comment: ['&& denotes a mnemonic'] }, "&&New File"), 'workbench.action.files.newUntitledFile');
 		}
 
-		const open = new MenuItem(this.likeAction('workbench.action.files.openFileFolder', { label: mnemonicLabel(nls.localize({ key: 'miOpen', comment: ['&& denotes a mnemonic'] }, "&&Open...")), click: (menuItem, win, event) => this.windowsService.openFileFolderPicker(this.isOptionClick(event)) }));
-		const openFolder = new MenuItem(this.likeAction('workbench.action.files.openFolder', { label: mnemonicLabel(nls.localize({ key: 'miOpenFolder', comment: ['&& denotes a mnemonic'] }, "Open &&Folder...")), click: (menuItem, win, event) => this.windowsService.openFolderPicker(this.isOptionClick(event)) }));
+		const open = new MenuItem(this.likeAction('workbench.action.files.openFileFolder', { label: mnemonicLabel(nls.localize({ key: 'miOpen', comment: ['&& denotes a mnemonic'] }, "&&Open...")), click: (menuItem, win, event) => this.windowsService.openFileFolderPicker(this.isOptionClick(event), { from: telemetryFrom }) }));
+		const openFolder = new MenuItem(this.likeAction('workbench.action.files.openFolder', { label: mnemonicLabel(nls.localize({ key: 'miOpenFolder', comment: ['&& denotes a mnemonic'] }, "Open &&Folder...")), click: (menuItem, win, event) => this.windowsService.openFolderPicker(this.isOptionClick(event), undefined, { from: telemetryFrom }) }));
 
 		let openFile: Electron.MenuItem;
 		if (hasNoWindows) {
-			openFile = new MenuItem(this.likeAction('workbench.action.files.openFile', { label: mnemonicLabel(nls.localize({ key: 'miOpenFile', comment: ['&& denotes a mnemonic'] }, "&&Open File...")), click: (menuItem, win, event) => this.windowsService.openFilePicker(this.isOptionClick(event)) }));
+			openFile = new MenuItem(this.likeAction('workbench.action.files.openFile', { label: mnemonicLabel(nls.localize({ key: 'miOpenFile', comment: ['&& denotes a mnemonic'] }, "&&Open File...")), click: (menuItem, win, event) => this.windowsService.openFilePicker(this.isOptionClick(event), undefined, undefined, { from: telemetryFrom }) }));
 		} else {
 			openFile = this.createMenuItem(nls.localize({ key: 'miOpenFile', comment: ['&& denotes a mnemonic'] }, "&&Open File..."), ['workbench.action.files.openFile', 'workbench.action.files.openFileInNewWindow']);
 		}
@@ -1069,7 +1071,7 @@ export class VSCodeMenu {
 	}
 
 	private reportMenuActionTelemetry(id: string): void {
-		this.telemetryService.publicLog('workbenchActionExecuted', { id, from: 'menu' });
+		this.telemetryService.publicLog('workbenchActionExecuted', { id, from: telemetryFrom });
 	}
 }
 
