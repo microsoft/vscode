@@ -298,7 +298,7 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 		containsRTL = strings.containsRTL(lineContent);
 	}
 	if (!containsRTL) {
-		tokens = splitLargeTokens(tokens);
+		tokens = splitLargeTokens(lineContent, tokens);
 	}
 
 	return new ResolvedRenderLineInput(
@@ -347,7 +347,7 @@ const enum Constants {
  * It appears that having very large spans causes very slow reading of character positions.
  * So here we try to avoid that.
  */
-function splitLargeTokens(tokens: LinePart[]): LinePart[] {
+function splitLargeTokens(lineContent: string, tokens: LinePart[]): LinePart[] {
 	let lastTokenEndIndex = 0;
 	let result: LinePart[] = [], resultLen = 0;
 	for (let i = 0, len = tokens.length; i < len; i++) {
@@ -359,6 +359,11 @@ function splitLargeTokens(tokens: LinePart[]): LinePart[] {
 			const piecesCount = Math.ceil(diff / Constants.LongToken);
 			for (let j = 1; j < piecesCount; j++) {
 				let pieceEndIndex = lastTokenEndIndex + (j * Constants.LongToken);
+				let lastCharInPiece = lineContent.charCodeAt(pieceEndIndex - 1);
+				if (strings.isHighSurrogate(lastCharInPiece)) {
+					// Don't cut in the middle of a surrogate pair
+					pieceEndIndex--;
+				}
 				result[resultLen++] = new LinePart(pieceEndIndex, tokenType);
 			}
 			result[resultLen++] = new LinePart(tokenEndIndex, tokenType);
