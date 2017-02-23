@@ -35,25 +35,6 @@ export default class JsDocCompletionHelper implements CompletionItemProvider {
 	constructor(
 		private client: ITypescriptServiceClient,
 	) {
-		window.onDidChangeTextEditorSelection(e => {
-			if (e.textEditor.document.languageId !== 'typescript'
-				&& e.textEditor.document.languageId !== 'typescriptreact'
-				&& e.textEditor.document.languageId !== 'javascript'
-				&& e.textEditor.document.languageId !== 'javascriptreact'
-			) {
-				return;
-			}
-
-			const selection = e.selections[0];
-			if (!selection.start.isEqual(selection.end)) {
-				return;
-			}
-			if (this.shouldAutoShowJsDocSuggestion(e.textEditor.document, selection.start)) {
-				return commands.executeCommand('editor.action.triggerSuggest');
-			}
-			return;
-		});
-
 		commands.registerCommand(
 			tryCompleteJsDocCommand,
 			(file: Uri, position: Position) => this.tryCompleteJsDoc(file, position));
@@ -69,7 +50,7 @@ export default class JsDocCompletionHelper implements CompletionItemProvider {
 		// or could be the opening of a comment
 		const line = document.lineAt(position.line).text;
 		const prefix = line.slice(0, position.character);
-		if (prefix.match(/\/\*+\s*$/) || prefix.match(/^\s*\/?\**\s*$/)) {
+		if (prefix.match(/^\s*$|\/\*\*\s*$|^\s*\/\*\*+\s*$/)) {
 			return [new JsDocCompletionItem(document.uri, position)];
 		}
 		return [];
@@ -77,20 +58,6 @@ export default class JsDocCompletionHelper implements CompletionItemProvider {
 
 	public resolveCompletionItem(item: CompletionItem, _token: CancellationToken) {
 		return item;
-	}
-
-	private shouldAutoShowJsDocSuggestion(document: TextDocument, position: Position): boolean {
-		const line = document.lineAt(position.line).text;
-
-		// Ensure line starts with '/**' then cursor
-		const prefix = line.slice(0, position.character).match(/^\s*(\/\*\*+)$/);
-		if (prefix === null) {
-			return false;
-		}
-
-		// Ensure there is no content after the cursor besides the end of the comment
-		const suffix = line.slice(position.character).match(/^\s*\*+\/$/);
-		return suffix !== null;
 	}
 
 	/**
