@@ -141,7 +141,7 @@ export abstract class PeekViewWidget extends ZoneWidget implements IPeekViewServ
 
 	public _doLayout(heightInPixel: number, widthInPixel: number): void {
 
-		if (heightInPixel < 0) {
+		if (!this._isShowing && heightInPixel < 0) {
 			// Looks like the view zone got folded away!
 			this.dispose();
 			this._onDidClose.fire(this);
