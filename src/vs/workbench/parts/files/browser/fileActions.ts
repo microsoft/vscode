@@ -136,7 +136,7 @@ export class BaseFileAction extends Action {
 
 export class TriggerRenameFileAction extends BaseFileAction {
 
-	public static ID = 'filesExplorer.rename';
+	public static ID = 'renameFile';
 
 	private tree: ITree;
 	private renameAction: BaseRenameAction;
@@ -746,7 +746,7 @@ export class BaseDeleteFileAction extends BaseFileAction {
 
 /* Move File/Folder to trash */
 export class MoveFileToTrashAction extends BaseDeleteFileAction {
-	public static ID = 'filesExplorer.moveFileToTrash';
+	public static ID = 'moveFileToTrash';
 
 	constructor(
 		tree: ITree,
@@ -1845,7 +1845,7 @@ export class RevealInOSAction extends Action {
 		private resource: URI,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
-		super('explorer.revealInOS', RevealInOSAction.LABEL);
+		super('revealFileInOS', RevealInOSAction.LABEL);
 
 		this.order = 45;
 	}
@@ -1892,7 +1892,7 @@ export class CopyPathAction extends Action {
 		private resource: URI,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
-		super('explorer.copyPath', CopyPathAction.LABEL);
+		super('copyFilePath', CopyPathAction.LABEL);
 
 		this.order = 140;
 	}

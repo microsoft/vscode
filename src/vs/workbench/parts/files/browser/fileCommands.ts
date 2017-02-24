@@ -176,15 +176,15 @@ function withFocusedExplorerItem(accessor: ServicesAccessor): TPromise<FileStat 
 };
 
 export const renameFocusedFilesExplorerViewItemCommand = (accessor: ServicesAccessor) => {
-	runActionOnFocusedFilesExplorerViewItem(accessor, 'filesExplorer.rename');
+	runActionOnFocusedFilesExplorerViewItem(accessor, 'renameFile');
 };
 
 export const deleteFocusedFilesExplorerViewItemCommand = (accessor: ServicesAccessor) => {
-	runActionOnFocusedFilesExplorerViewItem(accessor, 'filesExplorer.moveFileToTrash', { useTrash: false });
+	runActionOnFocusedFilesExplorerViewItem(accessor, 'moveFileToTrash', { useTrash: false });
 };
 
 export const moveFocusedFilesExplorerViewItemToTrashCommand = (accessor: ServicesAccessor) => {
-	runActionOnFocusedFilesExplorerViewItem(accessor, 'filesExplorer.moveFileToTrash', { useTrash: true });
+	runActionOnFocusedFilesExplorerViewItem(accessor, 'moveFileToTrash', { useTrash: true });
 };
 
 export const copyFocusedFilesExplorerViewItem = (accessor: ServicesAccessor) => {

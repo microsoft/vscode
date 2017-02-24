@@ -253,7 +253,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'filesExplorer.rename',
+	id: 'renameFile',
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(explorerCommandsWeightBonus),
 	when: FilesExplorerFocusCondition,
 	primary: KeyCode.F2,
@@ -264,7 +264,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'filesExplorer.moveFileToTrash',
+	id: 'moveFileToTrash',
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(explorerCommandsWeightBonus),
 	when: FilesExplorerFocusCondition,
 	primary: KeyCode.Delete,
@@ -275,7 +275,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'filesExplorer.deleteFile',
+	id: 'deleteFile',
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(explorerCommandsWeightBonus),
 	when: FilesExplorerFocusCondition,
 	primary: KeyMod.Shift | KeyCode.Delete,
@@ -302,7 +302,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'explorer.copyPath',
+	id: 'copyFilePath',
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(explorerCommandsWeightBonus),
 	when: ExplorerFocusCondition,
 	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_C,
@@ -313,7 +313,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'explorer.revealInOS',
+	id: 'revealFileInOS',
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(explorerCommandsWeightBonus),
 	when: ExplorerFocusCondition,
 	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_R,
