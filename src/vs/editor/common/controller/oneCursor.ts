@@ -537,6 +537,10 @@ export class OneCursorOp {
 				return this._moveUp(cursor, moveParams, ctx);
 			case editorCommon.CursorMovePosition.Down:
 				return this._moveDown(cursor, moveParams, ctx);
+			case editorCommon.CursorMovePosition.LineStart:
+				return this._moveToLineStart(cursor, moveParams, ctx);
+			case editorCommon.CursorMovePosition.LineEnd:
+				return this._moveToLineEnd(cursor, moveParams, ctx);
 			case editorCommon.CursorMovePosition.WrappedLineStart:
 				viewColumn = cursor.viewModel.getLineMinColumn(viewLineNumber);
 				break;
@@ -692,6 +696,66 @@ export class OneCursorOp {
 		return this._applyMoveOperationResult(
 			cursor, ctx,
 			this._fromViewCursorState(cursor, MoveOperations.translateUp(cursor.config, cursor.viewModel, cursor.viewState))
+		);
+	}
+
+	private static _moveToLineStart(cursor: OneCursor, moveArguments: CursorMoveArguments, ctx: IOneCursorOperationContext): boolean {
+		const currentViewStateColumn = cursor.viewState.position.column;
+		const currentModelStateColumn = cursor.modelState.position.column;
+		const isFirstLineOfWrappedLine = currentViewStateColumn === currentModelStateColumn;
+
+		const currentViewStatelineNumber = cursor.viewState.position.lineNumber;
+		const firstNonBlankColumn = cursor.viewModel.getLineFirstNonWhitespaceColumn(currentViewStatelineNumber);
+		const isBeginningOfViewLine = currentViewStateColumn === firstNonBlankColumn;
+
+		if (!isFirstLineOfWrappedLine && !isBeginningOfViewLine) {
+			return this._moveToLineStartByView(cursor, moveArguments.select, ctx);
+		} else {
+			return this._moveToLineStartByModel(cursor, moveArguments.select, ctx);
+		}
+	}
+
+	private static _moveToLineStartByView(cursor: OneCursor, inSelectionMode: boolean, ctx: IOneCursorOperationContext): boolean {
+		return this._applyMoveOperationResult(
+			cursor, ctx,
+			this._fromViewCursorState(cursor, MoveOperations.moveToBeginningOfLine(cursor.config, cursor.viewModel, cursor.viewState, inSelectionMode))
+		);
+	}
+
+	private static _moveToLineStartByModel(cursor: OneCursor, inSelectionMode: boolean, ctx: IOneCursorOperationContext): boolean {
+		return this._applyMoveOperationResult(
+			cursor, ctx,
+			this._fromModelCursorState(cursor, MoveOperations.moveToBeginningOfLine(cursor.config, cursor.model, cursor.modelState, inSelectionMode))
+		);
+	}
+
+	private static _moveToLineEnd(cursor: OneCursor, moveArguments: CursorMoveArguments, ctx: IOneCursorOperationContext): boolean {
+		const viewStatePosition = cursor.viewState.position;
+		const viewModelMaxColumn = cursor.viewModel.getLineMaxColumn(viewStatePosition.lineNumber);
+		const isEndOfViewLine = viewStatePosition.column === viewModelMaxColumn;
+
+		const modelStatePosition = cursor.modelState.position;
+		const modelMaxColumn = cursor.model.getLineMaxColumn(modelStatePosition.lineNumber);
+		const isEndLineOfWrappedLine = viewModelMaxColumn - viewStatePosition.column === modelMaxColumn - modelStatePosition.column;
+
+		if (isEndOfViewLine || isEndLineOfWrappedLine) {
+			return this._moveToLineEndByModel(cursor, moveArguments.select, ctx);
+		} else {
+			return this._moveToLineEndByView(cursor, moveArguments.select, ctx);
+		}
+	}
+
+	private static _moveToLineEndByView(cursor: OneCursor, inSelectionMode: boolean, ctx: IOneCursorOperationContext): boolean {
+		return this._applyMoveOperationResult(
+			cursor, ctx,
+			this._fromViewCursorState(cursor, MoveOperations.moveToEndOfLine(cursor.config, cursor.viewModel, cursor.viewState, inSelectionMode))
+		);
+	}
+
+	private static _moveToLineEndByModel(cursor: OneCursor, inSelectionMode: boolean, ctx: IOneCursorOperationContext): boolean {
+		return this._applyMoveOperationResult(
+			cursor, ctx,
+			this._fromModelCursorState(cursor, MoveOperations.moveToEndOfLine(cursor.config, cursor.model, cursor.modelState, inSelectionMode))
 		);
 	}
 

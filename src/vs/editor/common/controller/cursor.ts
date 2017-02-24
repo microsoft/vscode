@@ -1234,11 +1234,17 @@ export class Cursor extends EventEmitter {
 	}
 
 	private _moveToBeginningOfLine(inSelectionMode: boolean, ctx: IMultipleCursorOperationContext): boolean {
-		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.moveToBeginningOfLine(oneCursor, inSelectionMode, oneCtx));
+		ctx.eventData = ctx.eventData || {};
+		ctx.eventData.to = editorCommon.CursorMovePosition.LineStart;
+		ctx.eventData.select = inSelectionMode;
+		return this._cursorMove(ctx);
 	}
 
 	private _moveToEndOfLine(inSelectionMode: boolean, ctx: IMultipleCursorOperationContext): boolean {
-		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.moveToEndOfLine(oneCursor, inSelectionMode, oneCtx));
+		ctx.eventData = ctx.eventData || {};
+		ctx.eventData.to = editorCommon.CursorMovePosition.LineEnd;
+		ctx.eventData.select = inSelectionMode;
+		return this._cursorMove(ctx);
 	}
 
 	private _moveToBeginningOfBuffer(inSelectionMode: boolean, ctx: IMultipleCursorOperationContext): boolean {
