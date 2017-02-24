@@ -136,7 +136,7 @@ export class TerminalInstance implements ITerminalInstance {
 	 * @param height The height of the container.
 	 * @return The terminal's width if it requires a layout.
 	 */
-	private _evaluateColsAndRows(width: number, height: number): boolean {
+	private _evaluateColsAndRows(width: number, height: number): number {
 		// The font needs to have been initialized
 		const font = this._configHelper.getFont();
 		if (!font || !font.charWidth || !font.charHeight) {
