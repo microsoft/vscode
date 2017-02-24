@@ -167,7 +167,9 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
 		keybindingsTelemetry(telemetryService, this);
 		let data = getCurrentKeyboardLayout();
-		telemetryService.publicLog('keyboardLayout', data);
+		telemetryService.publicLog('keyboardLayout', {
+			currentKeyboardLayout: data
+		});
 	}
 
 	private _safeGetConfig(): IUserFriendlyKeybinding[] {
