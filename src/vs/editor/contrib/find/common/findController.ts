@@ -914,10 +914,25 @@ export class SelectionHighlighter extends Disposable implements editorCommon.IEd
 			this.removeDecorations();
 			return;
 		}
+
+		const controller = CommonFindController.get(this.editor);
+		if (!controller) {
+			this.removeDecorations();
+			return;
+		}
+		const findState = controller.getState();
+		const caseSensitive = findState.matchCase;
+
 		let selections = this.editor.getSelections();
 		let firstSelectedText = model.getValueInRange(selections[0]);
+		if (!caseSensitive) {
+			firstSelectedText = firstSelectedText.toLowerCase();
+		}
 		for (let i = 1; i < selections.length; i++) {
 			let selectedText = model.getValueInRange(selections[i]);
+			if (!caseSensitive) {
+				selectedText = selectedText.toLowerCase();
+			}
 			if (firstSelectedText !== selectedText) {
 				// not all selections have the same text
 				this.removeDecorations();
