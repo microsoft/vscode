@@ -464,7 +464,8 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 			const { configFileName } = res.body;
 			if (configFileName && configFileName.indexOf('/dev/null/') !== 0) {
 				return workspace.openTextDocument(configFileName)
-					.then(window.showTextDocument);
+					.then(doc =>
+						window.showTextDocument(doc, window.activeTextEditor ? window.activeTextEditor.viewColumn : undefined));
 			}
 
 			return window.showInformationMessage<ProjectConfigMessageItem>(
@@ -485,7 +486,8 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 							const configFile = Uri.file(path.join(rootPath, isTypeScriptProject ? 'tsconfig.json' : 'jsconfig.json'));
 							return workspace.openTextDocument(configFile)
 								.then(undefined, _ => workspace.openTextDocument(configFile.with({ scheme: 'untitled' })))
-								.then(window.showTextDocument);
+								.then(doc =>
+									window.showTextDocument(doc, window.activeTextEditor ? window.activeTextEditor.viewColumn : undefined));
 
 						case ProjectConfigAction.LearnMore:
 							if (isTypeScriptProject) {
