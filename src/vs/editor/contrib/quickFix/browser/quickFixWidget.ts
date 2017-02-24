@@ -6,6 +6,7 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
+import { always } from 'vs/base/common/async';
 import { getDomNodePagePosition } from 'vs/base/browser/dom';
 import { Position } from 'vs/editor/common/core/position';
 import { IPosition } from 'vs/editor/common/editorCommon';
@@ -14,6 +15,7 @@ import { CodeAction } from 'vs/editor/common/modes';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { Action } from 'vs/base/common/actions';
+import Event, { Emitter } from 'vs/base/common/event';
 
 export class QuickFixContextMenu {
 
@@ -21,6 +23,9 @@ export class QuickFixContextMenu {
 	private _contextMenuService: IContextMenuService;
 	private _commandService: ICommandService;
 	private _visible: boolean;
+	private _onDidExecuteCodeAction = new Emitter<void>();
+
+	readonly onDidExecuteCodeAction: Event<void> = this._onDidExecuteCodeAction.event;
 
 	constructor(editor: ICodeEditor, contextMenuService: IContextMenuService, commandService: ICommandService) {
 		this._editor = editor;
@@ -31,9 +36,12 @@ export class QuickFixContextMenu {
 	show(fixes: TPromise<CodeAction[]>, at: { x: number; y: number } | IPosition) {
 
 		const actions = fixes.then(value => {
-			return value.map(({command}) => {
+			return value.map(({ command }) => {
 				return new Action(command.id, command.title, undefined, true, () => {
-					return this._commandService.executeCommand(command.id, ...command.arguments);
+					return always(
+						this._commandService.executeCommand(command.id, ...command.arguments),
+						() => this._onDidExecuteCodeAction.fire(undefined)
+					);
 				});
 			});
 		});

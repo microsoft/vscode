@@ -32,7 +32,7 @@ export class QuickFixOracle {
 		this._disposables = dispose(this._disposables);
 	}
 
-	trigger(type: 'manual' | 'auto' = 'manual'): void {
+	trigger(type: 'manual' | 'auto'): void {
 		let range = this._rangeAtPosition();
 		if (!range) {
 			range = this._editor.getSelection();
@@ -47,7 +47,7 @@ export class QuickFixOracle {
 	}
 
 	private _onMarkerChanges(resources: URI[]): void {
-		const {uri} = this._editor.getModel();
+		const { uri } = this._editor.getModel();
 		for (const resource of resources) {
 			if (resource.toString() === uri.toString()) {
 				this._onCursorChange();
@@ -90,7 +90,7 @@ export class QuickFixOracle {
 	private _markerAtPosition(): IMarker {
 
 		const position = this._editor.getPosition();
-		const {uri} = this._editor.getModel();
+		const { uri } = this._editor.getModel();
 		const markers = this._markerService.read({ resource: uri }).sort(Range.compareRangesUsingStarts);
 
 		let idx = arrays.findFirst(markers, marker => marker.endLineNumber >= position.lineNumber);
@@ -172,9 +172,9 @@ export class QuickFixModel {
 		}
 	}
 
-	triggerManual(): void {
+	trigger(type: 'auto' | 'manual'): void {
 		if (this._quickFixOracle) {
-			this._quickFixOracle.trigger();
+			this._quickFixOracle.trigger(type);
 		}
 	}
 }
