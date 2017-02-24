@@ -182,12 +182,16 @@ export abstract class ZoneWidget extends Widget implements IHorizontalSashLayout
 		return undefined;
 	}
 
+	protected _isShowing: boolean = false;
+
 	public show(rangeOrPos: IRange | IPosition, heightInLines: number): void {
 		const range = Range.isIRange(rangeOrPos)
 			? rangeOrPos
 			: new Range(rangeOrPos.lineNumber, rangeOrPos.column, rangeOrPos.lineNumber, rangeOrPos.column);
 
+		this._isShowing = true;
 		this._showImpl(range, heightInLines);
+		this._isShowing = false;
 		this._positionMarkerId = this.editor.deltaDecorations(this._positionMarkerId, [{ range, options: {} }]);
 	}
 
