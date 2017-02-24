@@ -11,7 +11,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { TokenizationRegistry, ColorId } from 'vs/editor/common/modes';
+import { TokenizationRegistry, ColorId, LanguageId } from 'vs/editor/common/modes';
 import { tokenizeLineToHTML } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { ViewModelCursors } from 'vs/editor/common/viewModel/viewModelCursors';
 import { ViewModelDecorations } from 'vs/editor/common/viewModel/viewModelDecorations';
@@ -620,6 +620,10 @@ export class ViewModel implements IViewModel {
 	}
 
 	public getHTMLToCopy(viewRanges: Range[], enableEmptySelectionClipboard: boolean): string {
+		if (this.model.getLanguageIdentifier().id === LanguageId.PlainText) {
+			return null;
+		}
+
 		if (viewRanges.length !== 1) {
 			// no multiple selection support at this time
 			return null;
