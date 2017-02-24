@@ -1265,17 +1265,17 @@ declare module monaco.editor {
          * Control the wrapping of the editor.
          * When `wordWrap` = "off", the lines will never wrap.
          * When `wordWrap` = "on", the lines will wrap at the viewport width.
-         * When `wordWrap` = "fixed", the lines will wrap at `wordWrapColumn`.
-         * When `wordWrap` = "clamped", the lines will wrap at min(viewport width, wordWrapColumn).
+         * When `wordWrap` = "wordWrapColumn", the lines will wrap at `wordWrapColumn`.
+         * When `wordWrap` = "bounded", the lines will wrap at min(viewport width, wordWrapColumn).
          * Defaults to "off".
          */
-        wordWrap?: 'off' | 'on' | 'fixed' | 'clamped';
+        wordWrap?: 'off' | 'on' | 'wordWrapColumn' | 'bounded';
         /**
          * Control the wrapping of the editor.
          * When `wordWrap` = "off", the lines will never wrap.
          * When `wordWrap` = "on", the lines will wrap at the viewport width.
-         * When `wordWrap` = "fixed", the lines will wrap at `wordWrapColumn`.
-         * When `wordWrap` = "clamped", the lines will wrap at min(viewport width, wordWrapColumn).
+         * When `wordWrap` = "wordWrapColumn", the lines will wrap at `wordWrapColumn`.
+         * When `wordWrap` = "bounded", the lines will wrap at min(viewport width, wordWrapColumn).
          * Defaults to 80.
          */
         wordWrapColumn?: number;

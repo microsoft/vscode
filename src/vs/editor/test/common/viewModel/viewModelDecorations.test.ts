@@ -15,7 +15,7 @@ suite('ViewModelDecorations', () => {
 			'hello world, this is a buffer that will be wrapped'
 		];
 		const opts: editorCommon.ICodeEditorWidgetCreationOptions = {
-			wordWrap: 'fixed',
+			wordWrap: 'wordWrapColumn',
 			wordWrapColumn: 13
 		};
 		testViewModel(text, opts, (viewModel, model) => {
@@ -270,7 +270,7 @@ suite('ViewModelDecorations', () => {
 			'hello world, this is a buffer that will be wrapped'
 		];
 		const opts: editorCommon.ICodeEditorWidgetCreationOptions = {
-			wordWrap: 'fixed',
+			wordWrap: 'wordWrapColumn',
 			wordWrapColumn: 13
 		};
 		testViewModel(text, opts, (viewModel, model) => {
