@@ -11,7 +11,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { TokenizationRegistry, ColorId } from 'vs/editor/common/modes';
+import { TokenizationRegistry, ColorId, LanguageId } from 'vs/editor/common/modes';
 import { tokenizeLineToHTML } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { ViewModelCursors } from 'vs/editor/common/viewModel/viewModelCursors';
 import { ViewModelDecorations } from 'vs/editor/common/viewModel/viewModelDecorations';
@@ -19,6 +19,7 @@ import { MinimapLinesRenderingData, ViewLineRenderingData, ViewModelDecoration, 
 import { SplitLinesCollection } from 'vs/editor/common/viewModel/splitLinesCollection';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import * as errors from 'vs/base/common/errors';
+import { MinimapTokensColorTracker } from 'vs/editor/common/view/minimapCharRenderer';
 
 export class CoordinatesConverter implements ICoordinatesConverter {
 
@@ -127,6 +128,9 @@ export class ViewModel implements IViewModel {
 		this.listenersToRemove.push(this.model.addBulkListener((events: EmitterEvent[]) => this.onEvents(events)));
 		this._toDispose.push(this.configuration.onDidChange((e) => {
 			this.onEvents([new EmitterEvent(editorCommon.EventType.ConfigurationChanged, e)]);
+		}));
+		this._toDispose.push(MinimapTokensColorTracker.getInstance().onDidChange(() => {
+			this._emit([new viewEvents.ViewTokensColorsChangedEvent()]);
 		}));
 
 		this._listeners = [];
@@ -616,6 +620,10 @@ export class ViewModel implements IViewModel {
 	}
 
 	public getHTMLToCopy(viewRanges: Range[], enableEmptySelectionClipboard: boolean): string {
+		if (this.model.getLanguageIdentifier().id === LanguageId.PlainText) {
+			return null;
+		}
+
 		if (viewRanges.length !== 1) {
 			// no multiple selection support at this time
 			return null;

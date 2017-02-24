@@ -278,7 +278,7 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 		len = lineContent.length;
 	}
 
-	let tokens = removeOverflowing(input.lineTokens, len);
+	let tokens = transformAndRemoveOverflowing(input.lineTokens, input.fauxIndentLength, len);
 	if (input.renderWhitespace === RenderWhitespace.All || input.renderWhitespace === RenderWhitespace.Boundary) {
 		tokens = _applyRenderWhitespace(lineContent, len, tokens, input.fauxIndentLength, input.tabSize, useMonospaceOptimizations, input.renderWhitespace === RenderWhitespace.Boundary);
 	}
@@ -298,7 +298,7 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 		containsRTL = strings.containsRTL(lineContent);
 	}
 	if (!containsRTL) {
-		tokens = splitLargeTokens(tokens);
+		tokens = splitLargeTokens(lineContent, tokens);
 	}
 
 	return new ResolvedRenderLineInput(
@@ -320,18 +320,29 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
  * In the rendering phase, characters are always looped until token.endIndex.
  * Ensure that all tokens end before `len` and the last one ends precisely at `len`.
  */
-function removeOverflowing(tokens: ViewLineToken[], len: number): LinePart[] {
-	let result: LinePart[] = [];
+function transformAndRemoveOverflowing(tokens: ViewLineToken[], fauxIndentLength: number, len: number): LinePart[] {
+	let result: LinePart[] = [], resultLen = 0;
+
+	// The faux indent part of the line should have no token type
+	if (fauxIndentLength > 0) {
+		result[resultLen++] = new LinePart(fauxIndentLength, '');
+	}
+
 	for (let tokenIndex = 0, tokensLen = tokens.length; tokenIndex < tokensLen; tokenIndex++) {
 		const token = tokens[tokenIndex];
 		const endIndex = token.endIndex;
+		if (endIndex <= fauxIndentLength) {
+			// The faux indent part of the line should have no token type
+			continue;
+		}
 		const type = token.getType();
 		if (endIndex >= len) {
-			result[tokenIndex] = new LinePart(len, type);
+			result[resultLen++] = new LinePart(len, type);
 			break;
 		}
-		result[tokenIndex] = new LinePart(endIndex, type);
+		result[resultLen++] = new LinePart(endIndex, type);
 	}
+
 	return result;
 }
 
@@ -347,7 +358,7 @@ const enum Constants {
  * It appears that having very large spans causes very slow reading of character positions.
  * So here we try to avoid that.
  */
-function splitLargeTokens(tokens: LinePart[]): LinePart[] {
+function splitLargeTokens(lineContent: string, tokens: LinePart[]): LinePart[] {
 	let lastTokenEndIndex = 0;
 	let result: LinePart[] = [], resultLen = 0;
 	for (let i = 0, len = tokens.length; i < len; i++) {
@@ -359,6 +370,11 @@ function splitLargeTokens(tokens: LinePart[]): LinePart[] {
 			const piecesCount = Math.ceil(diff / Constants.LongToken);
 			for (let j = 1; j < piecesCount; j++) {
 				let pieceEndIndex = lastTokenEndIndex + (j * Constants.LongToken);
+				let lastCharInPiece = lineContent.charCodeAt(pieceEndIndex - 1);
+				if (strings.isHighSurrogate(lastCharInPiece)) {
+					// Don't cut in the middle of a surrogate pair
+					pieceEndIndex--;
+				}
 				result[resultLen++] = new LinePart(pieceEndIndex, tokenType);
 			}
 			result[resultLen++] = new LinePart(tokenEndIndex, tokenType);
@@ -382,10 +398,6 @@ function _applyRenderWhitespace(lineContent: string, len: number, tokens: LinePa
 	let tokenIndex = 0;
 	let tokenType = tokens[tokenIndex].type;
 	let tokenEndIndex = tokens[tokenIndex].endIndex;
-
-	if (fauxIndentLength > 0) {
-		result[resultLen++] = new LinePart(fauxIndentLength, '');
-	}
 
 	let firstNonWhitespaceIndex = strings.firstNonWhitespaceIndex(lineContent);
 	let lastNonWhitespaceIndex: number;
@@ -678,7 +690,7 @@ function _renderLine(input: ResolvedRenderLineInput): RenderLineOutput {
 	characterMapping.setPartData(len, parts.length - 1, charOffsetInPart);
 
 	if (isOverflowing) {
-		out += `<span class="vs-whitespace">&hellip;</span>`;
+		out += `<span>&hellip;</span>`;
 	}
 
 	out += '</span>';

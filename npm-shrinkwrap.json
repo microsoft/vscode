@@ -288,9 +288,9 @@
       "resolved": "https://registry.npmjs.org/nan/-/nan-2.4.0.tgz"
     },
     "native-keymap": {
-      "version": "0.3.0",
-      "from": "native-keymap@0.3.0",
-      "resolved": "https://registry.npmjs.org/native-keymap/-/native-keymap-0.3.0.tgz"
+      "version": "0.4.0",
+      "from": "native-keymap@0.4.0",
+      "resolved": "https://registry.npmjs.org/native-keymap/-/native-keymap-0.4.0.tgz"
     },
     "normalize-path": {
       "version": "2.0.1",
@@ -427,7 +427,7 @@
     "xterm": {
       "version": "2.3.2",
       "from": "Tyriar/xterm.js#vscode-release/1.10",
-      "resolved": "git+https://github.com/Tyriar/xterm.js.git#631e4a2d7480affeb359de9f2fa14a82e4f9f748"
+      "resolved": "git+https://github.com/Tyriar/xterm.js.git#2e6c1d8daf32c49bd774734a93ea589e5684ab60"
     },
     "yauzl": {
       "version": "2.3.1",

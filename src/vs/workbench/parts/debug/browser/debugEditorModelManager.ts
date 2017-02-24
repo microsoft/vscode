@@ -66,7 +66,10 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 		this.toDispose.push(this.debugService.getViewModel().onDidFocusStackFrame(() => this.onFocusStackFrame()));
 		this.toDispose.push(this.debugService.onDidChangeState(() => {
 			if (this.debugService.state === State.Inactive) {
-				this.modelDataMap.forEach(modelData => modelData.dirty = false);
+				this.modelDataMap.forEach(modelData => {
+					modelData.dirty = false;
+					modelData.topStackFrameLine = undefined;
+				});
 			}
 		}));
 	}
@@ -305,7 +308,6 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 
 	private static BREAKPOINT_DECORATION: IModelDecorationOptions = {
 		glyphMarginClassName: 'debug-breakpoint-glyph',
-		glyphMarginHoverMessage: nls.localize('breakpointHover', "Breakpoint"),
 		stickiness
 	};
 

@@ -332,7 +332,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		}
 
 		this.exceptionWidget = this.instantiationService.createInstance(ExceptionWidget, this.editor, lineNumber);
-		this.exceptionWidget.show({ lineNumber, column }, 3);
+		this.exceptionWidget.show({ lineNumber, column }, 0);
 	}
 
 	private closeExceptionWidget(): void {
@@ -375,6 +375,8 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 				depthInArray--;
 			}
 		});
+
+		this.editor.focus();
 		if (!configurationsPosition) {
 			return this.commandService.executeCommand('editor.action.triggerSuggest');
 		}

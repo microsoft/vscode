@@ -262,8 +262,8 @@ export interface ITextFileService extends IDisposable {
 	 * @param resources can be null to save all.
 	 * @param includeUntitled to save all resources and optionally exclude untitled ones.
 	 */
-	saveAll(includeUntitled?: boolean): TPromise<ITextFileOperationResult>;
-	saveAll(resources: URI[]): TPromise<ITextFileOperationResult>;
+	saveAll(includeUntitled?: boolean, reason?: SaveReason): TPromise<ITextFileOperationResult>;
+	saveAll(resources: URI[], reason?: SaveReason): TPromise<ITextFileOperationResult>;
 
 	/**
 	 * Reverts the provided resource.

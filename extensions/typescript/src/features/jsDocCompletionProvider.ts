@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { Position, Selection, Range, CompletionItemProvider, CompletionItemKind, TextDocument, CancellationToken, CompletionItem, window, commands, Uri, ProviderResult, TextEditor, SnippetString } from 'vscode';
+import { Position, Range, CompletionItemProvider, CompletionItemKind, TextDocument, CancellationToken, CompletionItem, window, commands, Uri, ProviderResult, TextEditor, SnippetString } from 'vscode';
 
 import { ITypescriptServiceClient } from '../typescriptService';
 import { FileLocationRequestArgs, DocCommandTemplateResponse } from '../protocol';
@@ -35,25 +35,6 @@ export default class JsDocCompletionHelper implements CompletionItemProvider {
 	constructor(
 		private client: ITypescriptServiceClient,
 	) {
-		window.onDidChangeTextEditorSelection(e => {
-			if (e.textEditor.document.languageId !== 'typescript'
-				&& e.textEditor.document.languageId !== 'typescriptreact'
-				&& e.textEditor.document.languageId !== 'javascript'
-				&& e.textEditor.document.languageId !== 'javascriptreact'
-			) {
-				return;
-			}
-
-			const selection = e.selections[0];
-			if (!selection.start.isEqual(selection.end)) {
-				return;
-			}
-			if (this.shouldAutoShowJsDocSuggestion(e.textEditor.document, selection.start)) {
-				return commands.executeCommand('editor.action.triggerSuggest');
-			}
-			return;
-		});
-
 		commands.registerCommand(
 			tryCompleteJsDocCommand,
 			(file: Uri, position: Position) => this.tryCompleteJsDoc(file, position));
@@ -69,7 +50,7 @@ export default class JsDocCompletionHelper implements CompletionItemProvider {
 		// or could be the opening of a comment
 		const line = document.lineAt(position.line).text;
 		const prefix = line.slice(0, position.character);
-		if (prefix.match(/\/\*+\s*$/) || prefix.match(/^\s*\/?\**\s*$/)) {
+		if (prefix.match(/^\s*$|\/\*\*\s*$|^\s*\/\*\*+\s*$/)) {
 			return [new JsDocCompletionItem(document.uri, position)];
 		}
 		return [];
@@ -77,20 +58,6 @@ export default class JsDocCompletionHelper implements CompletionItemProvider {
 
 	public resolveCompletionItem(item: CompletionItem, _token: CancellationToken) {
 		return item;
-	}
-
-	private shouldAutoShowJsDocSuggestion(document: TextDocument, position: Position): boolean {
-		const line = document.lineAt(position.line).text;
-
-		// Ensure line starts with '/**' then cursor
-		const prefix = line.slice(0, position.character).match(/^\s*(\/\*\*+)$/);
-		if (prefix === null) {
-			return false;
-		}
-
-		// Ensure there is no content after the cursor besides the end of the comment
-		const suffix = line.slice(position.character).match(/^\s*\*+\/$/);
-		return suffix !== null;
 	}
 
 	/**
@@ -155,18 +122,28 @@ export default class JsDocCompletionHelper implements CompletionItemProvider {
 				if (!res || !res.body) {
 					return false;
 				}
-				const commentText = res.body.newText;
-				return editor.edit(
-					edits => edits.insert(position, commentText),
+				return editor.insertSnippet(
+					this.templateToSnippet(res.body.newText),
+					position,
 					{ undoStopBefore: false, undoStopAfter: true });
-			}, () => false)
-			.then((didInsertComment: boolean) => {
-				if (didInsertComment) {
-					const newCursorPosition = new Position(position.line + 1, editor.document.lineAt(position.line + 1).text.length);
-					editor.selection = new Selection(newCursorPosition, newCursorPosition);
-				}
-				return didInsertComment;
-			});
+			}, () => false);
+	}
+
+	private templateToSnippet(template: string): SnippetString {
+		let snippetIndex = 1;
+		template = template.replace(/^\s*(?=(\/|[ ]\*))/gm, '');
+		template = template.replace(/^(\/\*\*\s*\*[ ]*)$/m, (x) => x + `\$0`);
+		template = template.replace(/\* @param([ ]\{\S+\})?\s+(\S+)\s*$/gm, (_param, type, post) => {
+			let out = '* @param ';
+			if (type === ' {any}' || type === ' {*}') {
+				out += `{*\$\{${snippetIndex++}\}} `;
+			} else if (type) {
+				out += type + ' ';
+			}
+			out += post + ` \${${snippetIndex++}}`;
+			return out;
+		});
+		return new SnippetString(template);
 	}
 
 	/**

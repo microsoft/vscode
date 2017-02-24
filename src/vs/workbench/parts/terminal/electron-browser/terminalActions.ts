@@ -141,8 +141,8 @@ export class FocusNextTerminalAction extends Action {
 	}
 }
 
-export class FocusTerminalByNumberAction extends Action {
-	private static ID_PREFIX = 'workbench.action.terminal.focus';
+export class FocusTerminalAtIndexAction extends Action {
+	private static ID_PREFIX = 'workbench.action.terminal.focusAtIndex';
 
 	constructor(
 		id: string, label: string,
@@ -157,15 +157,15 @@ export class FocusTerminalByNumberAction extends Action {
 	}
 
 	public static getId(n: number): string {
-		return FocusTerminalByNumberAction.ID_PREFIX + n;
+		return FocusTerminalAtIndexAction.ID_PREFIX + n;
 	}
 
 	public static getLabel(n: number): string {
-		return nls.localize('workbench.action.terminal.focusByNumber', 'Focus Terminal {0}', n);
+		return nls.localize('workbench.action.terminal.focusAtIndex', 'Focus Terminal {0}', n);
 	}
 
 	private getTerminalNumber(): number {
-		return parseInt(this.id.substr(FocusTerminalByNumberAction.ID_PREFIX.length));
+		return parseInt(this.id.substr(FocusTerminalAtIndexAction.ID_PREFIX.length));
 	}
 }
 

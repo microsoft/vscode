@@ -187,7 +187,8 @@ export class Repl extends Panel implements IPrivateReplService {
 				const focusedProcess = this.debugService.getViewModel().focusedProcess;
 				const completions = focusedProcess ? focusedProcess.completions(frameId, text, position, overwriteBefore) : TPromise.as([]);
 				return wireCancellationToken(token, completions.then(suggestions => ({
-					suggestions: suggestions
+					suggestions,
+					incomplete: true
 				})));
 			}
 		});
@@ -264,7 +265,7 @@ export class Repl extends Panel implements IPrivateReplService {
 
 	private getReplInputOptions(): IEditorOptions {
 		return {
-			wrappingColumn: 0,
+			wordWrap: 'on',
 			overviewRulerLanes: 0,
 			glyphMargin: false,
 			lineNumbers: 'off',
@@ -278,8 +279,7 @@ export class Repl extends Panel implements IPrivateReplService {
 			scrollBeyondLastLine: false,
 			theme: this.themeService.getColorTheme().id,
 			renderLineHighlight: 'none',
-			fixedOverflowWidgets: true,
-			acceptSuggestionOnEnter: false
+			fixedOverflowWidgets: true
 		};
 	}
 
@@ -351,8 +351,7 @@ class AcceptReplInputAction extends EditorAction {
 			precondition: debug.CONTEXT_IN_DEBUG_REPL,
 			kbOpts: {
 				kbExpr: EditorContextKeys.TextFocus,
-				primary: KeyCode.Enter,
-				weight: 50
+				primary: KeyCode.Enter
 			}
 		});
 	}

@@ -24,6 +24,10 @@ let getNativeKeymap = (function () {
 	};
 })();
 
+export function getCurrentKeyboardLayout() {
+	return nativeKeymap.getCurrentKeyboardLayout();
+}
+
 // See https://msdn.microsoft.com/en-us/library/windows/desktop/dd375731(v=vs.85).aspx
 // See https://github.com/Microsoft/node-native-keymap/blob/master/deps/chromium/keyboard_codes_win.h
 const NATIVE_KEY_CODE_TO_KEY_CODE: { [nativeKeyCode: string]: KeyCode; } = {

@@ -197,6 +197,23 @@ class WelcomeOverlay {
 			const workbench = document.querySelector('.monaco-workbench') as HTMLElement;
 			dom.addClass(workbench, 'blur-background');
 			this._overlayVisible.set(true);
+			this.updateProblemsKey();
+		}
+	}
+
+	private updateProblemsKey() {
+		const problems = document.querySelector('.task-statusbar-item');
+		const key = this._overlay.getHTMLElement().querySelector('.key.problems') as HTMLElement;
+		if (problems instanceof HTMLElement) {
+			const target = problems.getBoundingClientRect();
+			const bounds = this._overlay.getHTMLElement().getBoundingClientRect();
+			const bottom = bounds.bottom - target.top + 3;
+			const left = (target.left + target.right) / 2 - bounds.left;
+			key.style.bottom = bottom + 'px';
+			key.style.left = left + 'px';
+		} else {
+			key.style.bottom = null;
+			key.style.left = null;
 		}
 	}
 

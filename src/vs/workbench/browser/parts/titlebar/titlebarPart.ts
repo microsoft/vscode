@@ -151,9 +151,9 @@ export class TitlebarPart extends Part implements ITitleService {
 	/**
 	 * Possible template values:
 	 *
-	 * {activeEditorName}: e.g. myFile.txt
-	 * {activeFilePath}: e.g. /Users/Development/myProject/myFolder/myFile.txt
-	 * {activeFilePathRelative}: e.g. myFolder/myFile.txt
+	 * {activeEditorLong}: e.g. /Users/Development/myProject/myFolder/myFile.txt
+	 * {activeEditorMedium}: e.g. myFolder/myFile.txt
+	 * {activeEditorShort}: e.g. myFile.txt
 	 * {rootName}: e.g. myProject
 	 * {rootPath}: e.g. /Users/Development/myProject
 	 * {appName}: e.g. VS Code
@@ -166,9 +166,9 @@ export class TitlebarPart extends Part implements ITitleService {
 		const file = toResource(input, { filter: 'file' });
 
 		// Variables
-		const activeEditorName = input ? input.getName() : '';
-		const activeFilePath = file ? this.tildify(labels.getPathLabel(file)) : '';
-		const activeFilePathRelative = file ? labels.getPathLabel(file, this.contextService) : '';
+		const activeEditorShort = input ? input.getName() : '';
+		const activeEditorMedium = file ? labels.getPathLabel(file, this.contextService) : activeEditorShort;
+		const activeEditorLong = file ? this.tildify(labels.getPathLabel(file)) : activeEditorMedium;
 		const rootName = workspace ? workspace.name : '';
 		const rootPath = workspace ? this.workspacePath : '';
 		const dirty = input && input.isDirty() ? TitlebarPart.TITLE_DIRTY : '';
@@ -176,9 +176,9 @@ export class TitlebarPart extends Part implements ITitleService {
 		const separator = TitlebarPart.TITLE_SEPARATOR;
 
 		return labels.template(this.titleTemplate, {
-			activeEditorName,
-			activeFilePath,
-			activeFilePathRelative,
+			activeEditorShort,
+			activeEditorLong,
+			activeEditorMedium,
 			rootName,
 			rootPath,
 			dirty,

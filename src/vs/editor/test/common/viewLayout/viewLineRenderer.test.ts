@@ -136,7 +136,7 @@ suite('viewLineRenderer.renderLine', () => {
 			'<span class="mtk3">l</span>',
 			'<span class="mtk4">o</span>',
 			'<span class="mtk5">&nbsp;</span>',
-			'<span class="vs-whitespace">&hellip;</span>'
+			'<span>&hellip;</span>'
 		].join('');
 
 		assert.equal(_actual.html, '<span>' + expectedOutput + '</span>');
@@ -468,6 +468,33 @@ suite('viewLineRenderer.renderLine', () => {
 		}
 	});
 
+	test('issue #20624: Unaligned surrogate pairs are corrupted at multiples of 50 columns', () => {
+		let lineText = 'a𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷';
+
+		let lineParts = [createPart(lineText.length, 1)];
+		let actual = renderViewLine(new RenderLineInput(
+			false,
+			lineText,
+			false,
+			0,
+			lineParts,
+			[],
+			4,
+			10,
+			-1,
+			'none',
+			false
+		));
+		let expectedOutput = [
+			'<span class="mtk1">a𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷</span>',
+			'<span class="mtk1">𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷</span>',
+			'<span class="mtk1">𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷</span>',
+			'<span class="mtk1">𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷</span>',
+			'<span class="mtk1">𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷</span>',
+		];
+		assert.equal(actual.html, '<span>' + expectedOutput.join('') + '</span>');
+	});
+
 	test('issue #6885: Does not split large tokens in RTL text', () => {
 		let lineText = 'את גרמנית בהתייחסות שמו, שנתי המשפט אל חפש, אם כתב אחרים ולחבר. של התוכן אודות בויקיפדיה כלל, של עזרה כימיה היא. על עמוד יוצרים מיתולוגיה סדר, אם שכל שתפו לעברית שינויים, אם שאלות אנגלית עזה. שמות בקלות מה סדר.';
 		let lineParts = [createPart(lineText.length, 1)];
@@ -489,6 +516,48 @@ suite('viewLineRenderer.renderLine', () => {
 		));
 		assert.equal(actual.html, '<span>' + expectedOutput.join('') + '</span>');
 		assert.equal(actual.containsRTL, true);
+	});
+
+	test('issue #19673: Monokai Theme bad-highlighting in line wrap', () => {
+		let lineText = '    MongoCallback<string>): void {';
+
+		let lineParts = [
+			createPart(17, 1),
+			createPart(18, 2),
+			createPart(24, 3),
+			createPart(26, 4),
+			createPart(27, 5),
+			createPart(28, 6),
+			createPart(32, 7),
+			createPart(34, 8),
+		];
+		let expectedOutput = [
+			'<span class="">&nbsp;&nbsp;&nbsp;&nbsp;</span>',
+			'<span class="mtk1">MongoCallback</span>',
+			'<span class="mtk2">&lt;</span>',
+			'<span class="mtk3">string</span>',
+			'<span class="mtk4">&gt;)</span>',
+			'<span class="mtk5">:</span>',
+			'<span class="mtk6">&nbsp;</span>',
+			'<span class="mtk7">void</span>',
+			'<span class="mtk8">&nbsp;{</span>'
+		].join('');
+
+		let _actual = renderViewLine(new RenderLineInput(
+			true,
+			lineText,
+			false,
+			4,
+			lineParts,
+			[],
+			4,
+			10,
+			-1,
+			'none',
+			false
+		));
+
+		assert.equal(_actual.html, '<span>' + expectedOutput + '</span>');
 	});
 
 	function assertCharacterMapping(actual: CharacterMapping, expected: number[][]): void {

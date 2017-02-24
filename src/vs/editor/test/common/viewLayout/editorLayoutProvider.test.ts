@@ -32,6 +32,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			scrollbarArrowSize: 0,
 			verticalScrollbarHasArrows: false,
 			minimap: false,
+			minimapRenderText: true,
 			pixelRatio: 1,
 		}, new EditorLayoutInfo({
 			width: 1000,
@@ -86,6 +87,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			scrollbarArrowSize: 13,
 			verticalScrollbarHasArrows: true,
 			minimap: false,
+			minimapRenderText: true,
 			pixelRatio: 1,
 		}, new EditorLayoutInfo({
 			width: 1000,
@@ -140,6 +142,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			scrollbarArrowSize: 0,
 			verticalScrollbarHasArrows: false,
 			minimap: false,
+			minimapRenderText: true,
 			pixelRatio: 1,
 		}, new EditorLayoutInfo({
 			width: 900,
@@ -194,6 +197,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			scrollbarArrowSize: 0,
 			verticalScrollbarHasArrows: false,
 			minimap: false,
+			minimapRenderText: true,
 			pixelRatio: 1,
 		}, new EditorLayoutInfo({
 			width: 900,
@@ -248,6 +252,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			scrollbarArrowSize: 0,
 			verticalScrollbarHasArrows: false,
 			minimap: false,
+			minimapRenderText: true,
 			pixelRatio: 1,
 		}, new EditorLayoutInfo({
 			width: 900,
@@ -302,6 +307,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			scrollbarArrowSize: 0,
 			verticalScrollbarHasArrows: false,
 			minimap: false,
+			minimapRenderText: true,
 			pixelRatio: 1,
 		}, new EditorLayoutInfo({
 			width: 900,
@@ -356,6 +362,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			scrollbarArrowSize: 0,
 			verticalScrollbarHasArrows: false,
 			minimap: false,
+			minimapRenderText: true,
 			pixelRatio: 1,
 		}, new EditorLayoutInfo({
 			width: 900,
@@ -410,6 +417,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			scrollbarArrowSize: 0,
 			verticalScrollbarHasArrows: false,
 			minimap: false,
+			minimapRenderText: true,
 			pixelRatio: 1,
 		}, new EditorLayoutInfo({
 			width: 900,
@@ -464,6 +472,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			scrollbarArrowSize: 0,
 			verticalScrollbarHasArrows: false,
 			minimap: false,
+			minimapRenderText: true,
 			pixelRatio: 1,
 		}, new EditorLayoutInfo({
 			width: 900,
@@ -518,6 +527,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			scrollbarArrowSize: 0,
 			verticalScrollbarHasArrows: false,
 			minimap: false,
+			minimapRenderText: true,
 			pixelRatio: 1,
 		}, new EditorLayoutInfo({
 			width: 900,
@@ -572,6 +582,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			scrollbarArrowSize: 0,
 			verticalScrollbarHasArrows: false,
 			minimap: true,
+			minimapRenderText: true,
 			pixelRatio: 1,
 		}, new EditorLayoutInfo({
 			width: 1000,
@@ -626,6 +637,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			scrollbarArrowSize: 0,
 			verticalScrollbarHasArrows: false,
 			minimap: true,
+			minimapRenderText: true,
 			pixelRatio: 2,
 		}, new EditorLayoutInfo({
 			width: 1000,
@@ -680,6 +692,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			scrollbarArrowSize: 0,
 			verticalScrollbarHasArrows: false,
 			minimap: true,
+			minimapRenderText: true,
 			pixelRatio: 4,
 		}, new EditorLayoutInfo({
 			width: 1000,
