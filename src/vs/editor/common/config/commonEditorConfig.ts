@@ -698,7 +698,7 @@ const editorConfiguration: IConfigurationNode = {
 				nls.localize('wordWrap.bounded', "Lines will wrap at the minimum of viewport and `editor.wordWrapColumn`."),
 			],
 			'default': DefaultConfig.editor.wordWrap,
-			'description': nls.localize('wordWrap', "Controls how lines should wrap. Can be: 'off' (disable wrapping), 'on' (viewport wrapping), 'wordWrapColumn' (wrap at `editor.wordWrapColumn`) or 'bounded' (wrap at minimum of viewport and `editor.wordWrapColumn`).")
+			'description': nls.localize('wordWrap', "Controls how lines should wrap. Can be:\n - 'off' (disable wrapping),\n - 'on' (viewport wrapping),\n - 'wordWrapColumn' (wrap at `editor.wordWrapColumn`) or\n - 'bounded' (wrap at minimum of viewport and `editor.wordWrapColumn`).")
 		},
 		'editor.wordWrapColumn': {
 			'type': 'integer',
