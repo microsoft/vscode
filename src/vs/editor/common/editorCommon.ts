@@ -163,6 +163,11 @@ export interface IEditorMinimapOptions {
 	 * Defaults to false.
 	 */
 	enabled?: boolean;
+	/**
+	 * Render the actual text on a line (as opposed to color blocks).
+	 * Defaults to true.
+	 */
+	renderText?: boolean;
 }
 
 /**
@@ -330,19 +335,23 @@ export interface IEditorOptions {
 	 */
 	automaticLayout?: boolean;
 	/**
-	 * Control the wrapping strategy of the editor.
-	 * Using -1 means no wrapping whatsoever.
-	 * Using 0 means viewport width wrapping (ajusts with the resizing of the editor).
-	 * Using a positive number means wrapping after a fixed number of characters.
-	 * Defaults to 300.
+	 * Control the wrapping of the editor.
+	 * When `wordWrap` = "off", the lines will never wrap.
+	 * When `wordWrap` = "on", the lines will wrap at the viewport width.
+	 * When `wordWrap` = "fixed", the lines will wrap at `wordWrapColumn`.
+	 * When `wordWrap` = "clamped", the lines will wrap at min(viewport width, wordWrapColumn).
+	 * Defaults to "off".
 	 */
-	wrappingColumn?: number;
+	wordWrap?: 'off' | 'on' | 'fixed' | 'clamped';
 	/**
-	 * Control the alternate style of viewport wrapping.
-	 * When set to true viewport wrapping is used only when the window width is less than the number of columns specified in the wrappingColumn property. Has no effect if wrappingColumn is not a positive number.
-	 * Defaults to false.
+	 * Control the wrapping of the editor.
+	 * When `wordWrap` = "off", the lines will never wrap.
+	 * When `wordWrap` = "on", the lines will wrap at the viewport width.
+	 * When `wordWrap` = "fixed", the lines will wrap at `wordWrapColumn`.
+	 * When `wordWrap` = "clamped", the lines will wrap at min(viewport width, wordWrapColumn).
+	 * Defaults to 80.
 	 */
-	wordWrap?: boolean;
+	wordWrapColumn?: number;
 	/**
 	 * Control indentation of wrapped lines. Can be: 'none', 'same' or 'indent'.
 	 * Defaults to 'same' in vscode and to 'none' in monaco-editor.
@@ -366,7 +375,7 @@ export interface IEditorOptions {
 
 	/**
 	 * Performance guard: Stop rendering a line after x characters.
-	 * Defaults to 10000 if wrappingColumn is -1. Defaults to -1 if wrappingColumn is >= 0.
+	 * Defaults to 10000.
 	 * Use -1 to never stop rendering
 	 */
 	stopRenderingLineAfter?: number;
@@ -638,14 +647,17 @@ export class InternalEditorMinimapOptions {
 	readonly _internalEditorMinimapOptionsBrand: void;
 
 	readonly enabled: boolean;
+	readonly renderText: boolean;
 
 	/**
 	 * @internal
 	 */
 	constructor(source: {
 		enabled: boolean;
+		renderText: boolean;
 	}) {
 		this.enabled = Boolean(source.enabled);
+		this.renderText = Boolean(source.renderText);
 	}
 
 	/**
@@ -654,6 +666,7 @@ export class InternalEditorMinimapOptions {
 	public equals(other: InternalEditorMinimapOptions): boolean {
 		return (
 			this.enabled === other.enabled
+			&& this.renderText === other.renderText
 		);
 	}
 
@@ -2811,7 +2824,9 @@ export class OverviewRulerPosition {
 export enum RenderMinimap {
 	None = 0,
 	Small = 1,
-	Large = 2
+	Large = 2,
+	SmallBlocks = 3,
+	LargeBlocks = 4,
 }
 
 /**
@@ -3098,7 +3113,11 @@ export enum MouseTargetType {
 	/**
 	 * Mouse is on top of an overlay widget.
 	 */
-	OVERLAY_WIDGET
+	OVERLAY_WIDGET,
+	/**
+	 * Mouse is outside of the editor.
+	 */
+	OUTSIDE_EDITOR,
 }
 
 /**

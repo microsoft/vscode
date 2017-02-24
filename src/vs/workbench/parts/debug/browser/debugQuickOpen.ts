@@ -39,7 +39,7 @@ class DebugEntry extends Model.QuickOpenEntry {
 	}
 }
 
-export class QuickOpenHandler extends Quickopen.QuickOpenHandler {
+export class DebugQuickOpenHandler extends Quickopen.QuickOpenHandler {
 
 	constructor(
 		@IQuickOpenService private quickOpenService: IQuickOpenService,

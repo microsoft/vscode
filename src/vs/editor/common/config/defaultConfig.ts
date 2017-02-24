@@ -57,7 +57,8 @@ class ConfigClass implements IConfiguration {
 				horizontalHasArrows: false
 			},
 			minimap: {
-				enabled: false
+				enabled: false,
+				renderText: true
 			},
 			fixedOverflowWidgets: false,
 			overviewRulerLanes: 2,
@@ -70,8 +71,8 @@ class ConfigClass implements IConfiguration {
 			hideCursorInOverviewRuler: false,
 			scrollBeyondLastLine: true,
 			automaticLayout: false,
-			wrappingColumn: 300,
-			wordWrap: false,
+			wordWrap: 'off',
+			wordWrapColumn: 80,
 			wrappingIndent: 'same',
 			wordWrapBreakBeforeCharacters: '([{‘“〈《「『【〔（［｛｢£¥＄￡￥+＋',
 			wordWrapBreakAfterCharacters: ' \t})]?|&,;¢°′″‰℃、。｡､￠，．：；？！％・･ゝゞヽヾーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々〻ｧｨｩｪｫｬｭｮｯｰ’”〉》」』】〕）］｝｣',

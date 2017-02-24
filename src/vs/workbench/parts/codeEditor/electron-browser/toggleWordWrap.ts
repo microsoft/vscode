@@ -32,11 +32,11 @@ class ToggleWordWrapAction extends EditorAction {
 		const messageService = accessor.get(IMessageService);
 
 		let wrappingInfo = editor.getConfiguration().wrappingInfo;
-		let newWordWrap: boolean;
+		let newWordWrap: string;
 		if (!wrappingInfo.isViewportWrapping) {
-			newWordWrap = true;
+			newWordWrap = 'on';
 		} else {
-			newWordWrap = false;
+			newWordWrap = 'off';
 		}
 
 		configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: 'editor.wordWrap', value: newWordWrap }).then(null, error => {

@@ -10,10 +10,12 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { Dimension, Builder } from 'vs/base/browser/builder';
 import objects = require('vs/base/common/objects');
 import types = require('vs/base/common/types');
+import errors = require('vs/base/common/errors');
+import DOM = require('vs/base/browser/dom');
 import { CodeEditor } from 'vs/editor/browser/codeEditor';
 import { EditorInput, EditorOptions, toResource } from 'vs/workbench/common/editor';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { IEditorViewState, IEditor, IEditorOptions } from 'vs/editor/common/editorCommon';
+import { IEditorViewState, IEditor, IEditorOptions, EventType as EditorEventType } from 'vs/editor/common/editorCommon';
 import { Position } from 'vs/platform/editor/common/editor';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -23,6 +25,9 @@ import { IThemeService } from 'vs/workbench/services/themes/common/themeService'
 import { Scope } from 'vs/workbench/common/memento';
 import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 import { IModeService } from 'vs/editor/common/services/modeService';
+import { ITextFileService, SaveReason, AutoSaveMode } from 'vs/workbench/services/textfile/common/textfiles';
+import { EventEmitter } from 'vs/base/common/eventEmitter';
+import { IEditorGroupService } from "vs/workbench/services/group/common/groupService";
 
 const TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'textEditorViewState';
 
@@ -45,6 +50,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 	private editorControl: IEditor;
 	private _editorContainer: Builder;
 	private hasPendingConfigurationChange: boolean;
+	private pendingAutoSaveAll: TPromise<void>;
 
 	constructor(
 		id: string,
@@ -53,7 +59,9 @@ export abstract class BaseTextEditor extends BaseEditor {
 		@IStorageService private storageService: IStorageService,
 		@IConfigurationService private _configurationService: IConfigurationService,
 		@IThemeService private themeService: IThemeService,
-		@IModeService private modeService: IModeService
+		@IModeService private modeService: IModeService,
+		@ITextFileService private textFileService: ITextFileService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService
 	) {
 		super(id, telemetryService);
 
@@ -140,11 +148,53 @@ export abstract class BaseTextEditor extends BaseEditor {
 		// Editor for Text
 		this._editorContainer = parent;
 		this.editorControl = this.createEditorControl(parent, this.computeConfiguration(this.configurationService.getConfiguration<IEditorConfiguration>()));
+
+		// Model & Language changes
 		const codeEditor = getCodeEditor(this);
 		if (codeEditor) {
 			this.toUnbind.push(codeEditor.onDidChangeModelLanguage(e => this.updateEditorConfiguration()));
 			this.toUnbind.push(codeEditor.onDidChangeModel(e => this.updateEditorConfiguration()));
 		}
+
+		// Application & Editor focus change to respect auto save settings
+		if (this.editorControl instanceof EventEmitter) {
+			this.toUnbind.push(this.editorControl.addListener2(EditorEventType.EditorBlur, () => this.onEditorFocusLost()));
+		}
+		this.toUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorFocusLost()));
+		this.toUnbind.push(DOM.addDisposableListener(window, DOM.EventType.BLUR, () => this.onWindowFocusLost()));
+	}
+
+	private onEditorFocusLost(): void {
+		if (this.pendingAutoSaveAll) {
+			return; // save is already triggered
+		}
+
+		if (this.textFileService.getAutoSaveMode() === AutoSaveMode.ON_FOCUS_CHANGE && this.textFileService.isDirty()) {
+			this.saveAll(SaveReason.FOCUS_CHANGE);
+		}
+	}
+
+	private onWindowFocusLost(): void {
+		if (this.pendingAutoSaveAll) {
+			return; // save is already triggered
+		}
+
+		if (this.textFileService.getAutoSaveMode() === AutoSaveMode.ON_WINDOW_CHANGE && this.textFileService.isDirty()) {
+			this.saveAll(SaveReason.WINDOW_CHANGE);
+		}
+	}
+
+	private saveAll(reason: SaveReason): void {
+		this.pendingAutoSaveAll = this.textFileService.saveAll(void 0, reason).then(() => {
+			this.pendingAutoSaveAll = void 0;
+
+			return void 0;
+		}, error => {
+			this.pendingAutoSaveAll = void 0;
+			errors.onUnexpectedError(error);
+
+			return void 0;
+		});
 	}
 
 	/**

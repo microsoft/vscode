@@ -38,9 +38,9 @@ export class SettingsDocument {
 	private provideWindowTitleCompletionItems(location: Location, range: vscode.Range): vscode.ProviderResult<vscode.CompletionItem[]> {
 		const completions: vscode.CompletionItem[] = [];
 
-		completions.push(this.newSimpleCompletionItem('${activeEditorName}', range, localize('activeEditorName', "e.g. myFile.txt")));
-		completions.push(this.newSimpleCompletionItem('${activeFilePath}', range, localize('activeFilePath', "e.g. /Users/Development/myProject/myFolder/myFile.txt")));
-		completions.push(this.newSimpleCompletionItem('${activeFilePathRelative}', range, localize('activeFilePathRelative', "e.g. /Users/Development/myProject/myFolder/myFile.txt")));
+		completions.push(this.newSimpleCompletionItem('${activeEditorShort}', range, localize('activeEditorShort', "e.g. myFile.txt")));
+		completions.push(this.newSimpleCompletionItem('${activeEditorMedium}', range, localize('activeEditorMedium', "e.g. myFolder/myFile.txt")));
+		completions.push(this.newSimpleCompletionItem('${activeEditorLong}', range, localize('activeEditorLong', "e.g. /Users/Development/myProject/myFolder/myFile.txt")));
 		completions.push(this.newSimpleCompletionItem('${rootName}', range, localize('rootName', "e.g. myProject")));
 		completions.push(this.newSimpleCompletionItem('${rootPath}', range, localize('rootPath', "e.g. /Users/Development/myProject")));
 		completions.push(this.newSimpleCompletionItem('${appName}', range, localize('appName', "e.g. VS Code")));

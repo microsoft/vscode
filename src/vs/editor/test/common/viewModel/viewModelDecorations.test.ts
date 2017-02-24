@@ -7,14 +7,16 @@
 import * as assert from 'assert';
 import { Range } from 'vs/editor/common/core/range';
 import { testViewModel } from 'vs/editor/test/common/viewModel/testViewModel';
+import * as editorCommon from 'vs/editor/common/editorCommon';
 
 suite('ViewModelDecorations', () => {
 	test('getDecorationsViewportData', () => {
 		const text = [
 			'hello world, this is a buffer that will be wrapped'
 		];
-		const opts = {
-			wrappingColumn: 13
+		const opts: editorCommon.ICodeEditorWidgetCreationOptions = {
+			wordWrap: 'fixed',
+			wordWrapColumn: 13
 		};
 		testViewModel(text, opts, (viewModel, model) => {
 			assert.equal(viewModel.getLineContent(1), 'hello world, ');
@@ -267,8 +269,9 @@ suite('ViewModelDecorations', () => {
 		const text = [
 			'hello world, this is a buffer that will be wrapped'
 		];
-		const opts = {
-			wrappingColumn: 13
+		const opts: editorCommon.ICodeEditorWidgetCreationOptions = {
+			wordWrap: 'fixed',
+			wordWrapColumn: 13
 		};
 		testViewModel(text, opts, (viewModel, model) => {
 			assert.equal(viewModel.getLineContent(1), 'hello world, ');
