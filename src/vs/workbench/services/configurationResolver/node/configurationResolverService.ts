@@ -223,7 +223,7 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 				if (object[key] && typeof object[key] === 'object') {
 					findInteractiveVariables(object[key]);
 				} else if (typeof object[key] === 'string') {
-					object[key] = object[key].replace(new RegExp('command.', 'g'), 'command:');
+					object[key] = object[key].replace(new RegExp('command\\.', 'g'), 'command:');
 					const matches = /\${command:(.+)}/.exec(object[key]);
 					if (matches && matches.length === 2) {
 						const interactiveVariable = matches[1];
