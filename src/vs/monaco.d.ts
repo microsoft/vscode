@@ -1089,7 +1089,7 @@ declare module monaco.editor {
          * Render the actual text on a line (as opposed to color blocks).
          * Defaults to true.
          */
-        renderText?: boolean;
+        renderCharacters?: boolean;
     }
 
     /**
@@ -1503,7 +1503,7 @@ declare module monaco.editor {
     export class InternalEditorMinimapOptions {
         readonly _internalEditorMinimapOptionsBrand: void;
         readonly enabled: boolean;
-        readonly renderText: boolean;
+        readonly renderCharacters: boolean;
     }
 
     export class EditorWrappingInfo {
