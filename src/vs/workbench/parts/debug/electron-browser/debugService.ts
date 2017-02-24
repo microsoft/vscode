@@ -834,6 +834,10 @@ export class DebugService implements debug.IDebugService {
 				setTimeout(() => {
 					// Read the configuration again if a launch.json exists, if not just use the inmemory configuration #19366
 					const config = this.configurationManager.getConfiguration(process.configuration.name);
+					if (config) {
+						// Take the type from the process since the debug extension might overwrite it #21316
+						config.type = process.configuration.type;
+					}
 					this.createProcess(config || process.configuration).then(() => c(null), err => e(err));
 				}, 300);
 			})
