@@ -440,6 +440,7 @@ export class Minimap extends ViewPart {
 		this._buffers = null;
 
 		this._domNode = createFastDomNode(document.createElement('div'));
+		this._domNode.setClassName('minimap');
 		this._domNode.setPosition('absolute');
 		this._domNode.setRight(this._context.configuration.editor.layoutInfo.verticalScrollbarWidth);
 
