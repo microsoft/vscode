@@ -7,7 +7,7 @@
 
 import * as arrays from 'vs/base/common/arrays';
 import * as nls from 'vs/nls';
-import Event, { chain, any } from 'vs/base/common/event';
+import Event, { chain, any, debounceEvent } from 'vs/base/common/event';
 import { onUnexpectedError, canceled } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -38,8 +38,8 @@ export class KeymapExtensions implements IWorkbenchContribution {
 	) {
 		this.disposables.push(
 			lifecycleService.onShutdown(() => this.dispose()),
-			instantiationService.invokeFunction(onKeymapExtensionChanged)((id => {
-				this.checkForOtherKeymaps(id)
+			instantiationService.invokeFunction(onKeymapExtensionChanged)((ids => {
+				TPromise.join(ids.map(id => this.checkForOtherKeymaps(id)))
 					.then(null, onUnexpectedError);
 			}))
 		);
@@ -92,15 +92,22 @@ export class KeymapExtensions implements IWorkbenchContribution {
 	}
 }
 
-export function onKeymapExtensionChanged(accessor: ServicesAccessor): Event<string> {
+export function onKeymapExtensionChanged(accessor: ServicesAccessor): Event<string[]> {
 	const extensionService = accessor.get(IExtensionManagementService);
 	const extensionEnablementService = accessor.get(IExtensionEnablementService);
-	return any(
-		chain(extensionService.onDidInstallExtension)
+	return debounceEvent<string, string[]>(any(
+		chain(any(extensionService.onDidInstallExtension, extensionService.onDidUninstallExtension))
 			.map(e => stripVersion(e.id))
 			.event,
 		extensionEnablementService.onEnablementChanged
-	);
+	), (list, id) => {
+		if (!list) {
+			return [id];
+		} else if (list.indexOf(id) === -1) {
+			list.push(id);
+		}
+		return list;
+	});
 }
 
 export function getInstalledKeymaps(accessor: ServicesAccessor): TPromise<IKeymapExtension[]> {

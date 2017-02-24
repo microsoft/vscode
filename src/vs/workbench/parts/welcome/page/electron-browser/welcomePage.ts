@@ -28,7 +28,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Schemas } from 'vs/base/common/network';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
-import { IMessageService, Severity } from 'vs/platform/message/common/message';
+import { IMessageService, Severity, CloseAction } from 'vs/platform/message/common/message';
 import { getInstalledKeymaps, IKeymapExtension, onKeymapExtensionChanged } from 'vs/workbench/parts/extensions/electron-browser/keymapExtensions';
 import { IExtensionEnablementService, IExtensionManagementService, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { used } from 'vs/workbench/parts/welcome/page/electron-browser/vs_code_welcome_page';
@@ -219,11 +219,14 @@ class WelcomePage {
 		});
 
 		this.updateInstalledKeymaps(container, installedKeymaps);
-		this.disposables.push(this.instantiationService.invokeFunction(onKeymapExtensionChanged)(id => {
-			if (container.querySelector(`.installKeymap[data-keymap="${id}"], .currentKeymap[data-keymap="${id}"]`)) {
-				const installedKeymaps = this.instantiationService.invokeFunction(getInstalledKeymaps);
-				this.updateInstalledKeymaps(container, installedKeymaps);
-			}
+		this.disposables.push(this.instantiationService.invokeFunction(onKeymapExtensionChanged)(ids => {
+			for (const id of ids) {
+				if (container.querySelector(`.installKeymap[data-keymap="${id}"], .currentKeymap[data-keymap="${id}"]`)) {
+					const installedKeymaps = this.instantiationService.invokeFunction(getInstalledKeymaps);
+					this.updateInstalledKeymaps(container, installedKeymaps);
+					break;
+				}
+			};
 		}));
 	}
 
@@ -243,47 +246,57 @@ class WelcomePage {
 				this.messageService.show(Severity.Info, localize('welcomePage.keymapAlreadyInstalled', "The {0} keyboard shortcuts are already installed.", keymapName));
 				return;
 			}
+			const foundAndInstalled = keymap ? TPromise.as(true) : this.extensionGalleryService.query({ names: [keymapIdentifier] })
+				.then(result => {
+					const [extension] = result.firstPage;
+					if (!extension) {
+						return false;
+					}
+					return this.extensionManagementService.installFromGallery(extension)
+						.then(() => {
+							// TODO: Do this as part of the install to avoid multiple events.
+							return this.extensionEnablementService.setEnablement(keymapIdentifier, false);
+						}).then(() => {
+							return true;
+						});
+				});
 			this.messageService.show(Severity.Info, {
 				message: localize('welcomePage.willReloadAfterInstallingKeymap', "The window will reload after installing the {0} keyboard shortcuts.", keymapName),
 				actions: [
 					new Action('ok', localize('ok', "OK"), null, true, () => {
-						return TPromise.join(extensions.filter(extension => extension.globallyEnabled)
+						const messageDelay = TPromise.timeout(300);
+						messageDelay.then(() => {
+							this.messageService.show(Severity.Info, {
+								message: localize('welcomePage.installingKeymap', "Installing the {0} keyboard shortcuts...", keymapName),
+								actions: [CloseAction]
+							});
+						});
+						TPromise.join(extensions.filter(extension => extension.globallyEnabled)
 							.map(extension => {
 								return this.extensionEnablementService.setEnablement(extension.identifier, false);
 							})).then(() => {
-								if (keymap) {
-									return this.extensionEnablementService.setEnablement(keymap.identifier, true)
-										.then(() => {
-											this.telemetryService.publicLog('installedKeymap', {
-												from: telemetryFrom,
-												extensionId: keymapIdentifier,
-												outcome: 'enabled',
-											});
-											return this.windowService.reloadWindow();
-										});
-								}
-								return this.extensionGalleryService.query({ names: [keymapIdentifier] })
-									.then(result => {
-										const [extension] = result.firstPage;
-										if (!extension) {
-											this.telemetryService.publicLog('installedKeymap', {
-												from: telemetryFrom,
-												extensionId: keymapIdentifier,
-												outcome: 'not_found',
-											});
-											this.messageService.show(Severity.Error, localize('welcomePage.keymapNotFound', "The {0} keyboard shortcuts with id {1} could not be found.", keymapName, keymapIdentifier));
-											return undefined;
-										}
-										return this.extensionManagementService.installFromGallery(extension)
+								return foundAndInstalled.then(found => {
+									messageDelay.cancel();
+									if (found) {
+										return this.extensionEnablementService.setEnablement(keymapIdentifier, true)
 											.then(() => {
 												this.telemetryService.publicLog('installedKeymap', {
 													from: telemetryFrom,
 													extensionId: keymapIdentifier,
-													outcome: 'installed',
+													outcome: keymap ? 'enabled' : 'installed',
 												});
 												return this.windowService.reloadWindow();
 											});
-									});
+									} else {
+										this.telemetryService.publicLog('installedKeymap', {
+											from: telemetryFrom,
+											extensionId: keymapIdentifier,
+											outcome: 'not_found',
+										});
+										this.messageService.show(Severity.Error, localize('welcomePage.keymapNotFound', "The {0} keyboard shortcuts with id {1} could not be found.", keymapName, keymapIdentifier));
+										return undefined;
+									}
+								});
 							}).then(null, err => {
 								this.telemetryService.publicLog('installedKeymap', {
 									from: telemetryFrom,
@@ -293,6 +306,7 @@ class WelcomePage {
 								});
 								this.messageService.show(Severity.Error, err);
 							});
+						return TPromise.as(true);
 					}),
 					new Action('cancel', localize('cancel', "Cancel"), null, true, () => {
 						this.telemetryService.publicLog('installedKeymap', {
