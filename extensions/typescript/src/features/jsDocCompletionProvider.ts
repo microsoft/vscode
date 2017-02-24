@@ -135,8 +135,8 @@ export default class JsDocCompletionHelper implements CompletionItemProvider {
 		template = template.replace(/^(\/\*\*\s*\*[ ]*)$/m, (x) => x + `\$0`);
 		template = template.replace(/\* @param([ ]\{\S+\})?\s+(\S+)\s*$/gm, (_param, type, post) => {
 			let out = '* @param ';
-			if (type === ' {any}') {
-				out += `{\$\{${snippetIndex++}:\any\}} `;
+			if (type === ' {any}' || type === ' {*}') {
+				out += `{*\$\{${snippetIndex++}\}} `;
 			} else if (type) {
 				out += type + ' ';
 			}
