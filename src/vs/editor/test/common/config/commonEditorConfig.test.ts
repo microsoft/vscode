@@ -111,47 +111,47 @@ suite('Common Editor Config', () => {
 		assertWrapping(config, false, -1);
 	});
 
-	test('wordWrap fixed uses default wordWrapColumn', () => {
+	test('wordWrap wordWrapColumn uses default wordWrapColumn', () => {
 		let config = new TestWrappingConfiguration({
-			wordWrap: 'fixed'
+			wordWrap: 'wordWrapColumn'
 		});
 		assertWrapping(config, false, 80);
 	});
 
-	test('wordWrap fixed uses wordWrapColumn', () => {
+	test('wordWrap wordWrapColumn uses wordWrapColumn', () => {
 		let config = new TestWrappingConfiguration({
-			wordWrap: 'fixed',
+			wordWrap: 'wordWrapColumn',
 			wordWrapColumn: 100
 		});
 		assertWrapping(config, false, 100);
 	});
 
-	test('wordWrap fixed validates wordWrapColumn', () => {
+	test('wordWrap wordWrapColumn validates wordWrapColumn', () => {
 		let config = new TestWrappingConfiguration({
-			wordWrap: 'fixed',
+			wordWrap: 'wordWrapColumn',
 			wordWrapColumn: -1
 		});
 		assertWrapping(config, false, 1);
 	});
 
-	test('wordWrap clamped uses default wordWrapColumn', () => {
+	test('wordWrap bounded uses default wordWrapColumn', () => {
 		let config = new TestWrappingConfiguration({
-			wordWrap: 'clamped'
+			wordWrap: 'bounded'
 		});
 		assertWrapping(config, true, 80);
 	});
 
-	test('wordWrap clamped uses wordWrapColumn', () => {
+	test('wordWrap bounded uses wordWrapColumn', () => {
 		let config = new TestWrappingConfiguration({
-			wordWrap: 'clamped',
+			wordWrap: 'bounded',
 			wordWrapColumn: 40
 		});
 		assertWrapping(config, true, 40);
 	});
 
-	test('wordWrap clamped validates wordWrapColumn', () => {
+	test('wordWrap bounded validates wordWrapColumn', () => {
 		let config = new TestWrappingConfiguration({
-			wordWrap: 'clamped',
+			wordWrap: 'bounded',
 			wordWrapColumn: -1
 		});
 		assertWrapping(config, true, 1);

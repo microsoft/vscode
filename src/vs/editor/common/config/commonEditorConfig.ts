@@ -213,12 +213,12 @@ class InternalEditorOptionsHelper {
 					isViewportWrapping: true,
 					wrappingColumn: Math.max(1, layoutInfo.viewportColumn)
 				};
-			} else if (wordWrap === 'clamped') {
+			} else if (wordWrap === 'bounded') {
 				bareWrappingInfo = {
 					isViewportWrapping: true,
 					wrappingColumn: Math.min(Math.max(1, layoutInfo.viewportColumn), wordWrapColumn)
 				};
-			} else if (wordWrap === 'fixed') {
+			} else if (wordWrap === 'wordWrapColumn') {
 				bareWrappingInfo = {
 					isViewportWrapping: false,
 					wrappingColumn: wordWrapColumn
@@ -690,15 +690,15 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'editor.wordWrap': {
 			'type': 'string',
-			'enum': ['off', 'on', 'fixed', 'clamped'],
+			'enum': ['off', 'on', 'wordWrapColumn', 'bounded'],
 			'default': DefaultConfig.editor.wordWrap,
-			'description': nls.localize('wordWrap', "Controls how lines should wrap. Can be: 'off' (disable wrapping), 'on' (viewport wrapping), 'fixed' (wrap at `editor.wordWrapColumn`) or 'clamped' (wrap at minimum of viewport and `editor.wordWrapColumn`).")
+			'description': nls.localize('wordWrap', "Controls how lines should wrap. Can be: 'off' (disable wrapping), 'on' (viewport wrapping), 'wordWrapColumn' (wrap at `editor.wordWrapColumn`) or 'bounded' (wrap at minimum of viewport and `editor.wordWrapColumn`).")
 		},
 		'editor.wordWrapColumn': {
 			'type': 'integer',
 			'default': DefaultConfig.editor.wordWrapColumn,
 			'minimum': 1,
-			'description': nls.localize('wordWrapColumn', "Controls the wrapping column of the editor when `editor.wordWrap` is 'fixed' or 'clamped'.")
+			'description': nls.localize('wordWrapColumn', "Controls the wrapping column of the editor when `editor.wordWrap` is 'wordWrapColumn' or 'bounded'.")
 		},
 		'editor.wrappingIndent': {
 			'type': 'string',
