@@ -97,7 +97,7 @@ class MyCompletionItem extends CompletionItem {
 
 			case PConst.Kind.file:
 			case PConst.Kind.directory:
-				return ['/', '"', '\''];
+				return ['"', '\''];
 
 			case PConst.Kind.memberGetAccessor:
 			case PConst.Kind.memberSetAccessor:
