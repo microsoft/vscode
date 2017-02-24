@@ -3320,6 +3320,8 @@ declare module monaco.editor {
         Right: string;
         Up: string;
         Down: string;
+        LineStart: string;
+        LineEnd: string;
         WrappedLineStart: string;
         WrappedLineFirstNonWhitespaceCharacter: string;
         WrappedLineColumnCenter: string;

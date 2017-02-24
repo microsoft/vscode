@@ -4190,6 +4190,9 @@ export const CursorMovePosition = {
 	Up: 'up',
 	Down: 'down',
 
+	LineStart: 'lineStart',
+	LineEnd: 'lineEnd',
+
 	WrappedLineStart: 'wrappedLineStart',
 	WrappedLineFirstNonWhitespaceCharacter: 'wrappedLineFirstNonWhitespaceCharacter',
 	WrappedLineColumnCenter: 'wrappedLineColumnCenter',
