@@ -171,6 +171,7 @@ configurationRegistry.registerConfiguration({
 				debugActions.RunAction.ID,
 				debugActions.RestartAction.ID,
 				debugActions.ContinueAction.ID,
+				debugActions.PauseAction.ID,
 				OpenNextRecentlyUsedEditorInGroupAction.ID,
 				OpenPreviousRecentlyUsedEditorInGroupAction.ID
 
