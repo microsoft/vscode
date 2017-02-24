@@ -168,6 +168,12 @@
 					"description": "%markdown.preview.doubleClickToSwitchToEditor.desc%"
 				}
 			}
+		},
+		"configurationDefaults": {
+			"[markdown]": {
+				"editor.wordWrap": "on",
+				"editor.quickSuggestions": false
+			}
 		}
 	},
 	"scripts": {
