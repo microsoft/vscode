@@ -5,6 +5,7 @@
 
 .monaco-editor .zone-widget .zone-widget-container.exception-widget {
 	padding: 6px 10px;
+	white-space: pre-wrap;
 	-webkit-user-select: text;
 	-ms-user-select: text;
 	-khtml-user-select: text;
