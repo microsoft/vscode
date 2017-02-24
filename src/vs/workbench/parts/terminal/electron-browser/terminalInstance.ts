@@ -134,19 +134,19 @@ export class TerminalInstance implements ITerminalInstance {
 	 * Evaluates and sets the cols and rows of the terminal if possible.
 	 * @param width The width of the container.
 	 * @param height The height of the container.
-	 * @return Whether cols and rows were set.
+	 * @return The terminal's width if it requires a layout.
 	 */
 	private _evaluateColsAndRows(width: number, height: number): boolean {
 		// The font needs to have been initialized
 		const font = this._configHelper.getFont();
 		if (!font || !font.charWidth || !font.charHeight) {
-			return false;
+			return null;
 		}
 
 		// TODO: Fetch size from panel so initial size is correct
 		// The panel is minimized
 		if (!height) {
-			return false;
+			return null;
 		} else {
 			// Trigger scroll event manually so that the viewport's scroll area is synced. This
 			// needs to happen otherwise its scrollTop value is invalid when the panel is toggled as
@@ -163,7 +163,7 @@ export class TerminalInstance implements ITerminalInstance {
 		const innerWidth = width - padding * 2;
 		this._cols = Math.floor(innerWidth / font.charWidth);
 		this._rows = Math.floor(height / font.charHeight);
-		return true;
+		return innerWidth;
 	}
 
 	/**
@@ -677,13 +677,13 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public layout(dimension: Dimension): void {
-		const needsLayout = this._evaluateColsAndRows(dimension.width, dimension.height);
-		if (!needsLayout) {
+		const terminalWidth = this._evaluateColsAndRows(dimension.width, dimension.height);
+		if (!terminalWidth) {
 			return;
 		}
 		if (this._xterm) {
 			this._xterm.resize(this._cols, this._rows);
-			this._xterm.element.style.width = innerWidth + 'px';
+			this._xterm.element.style.width = terminalWidth + 'px';
 		}
 		if (this._process.connected) {
 			this._process.send({
