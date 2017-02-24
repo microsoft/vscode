@@ -182,12 +182,12 @@ export abstract class ZoneWidget extends Widget implements IHorizontalSashLayout
 		return undefined;
 	}
 
-	public show(rangeOrPos: IRange | IPosition, heightInLines: number): void {
+	public show(rangeOrPos: IRange | IPosition, heightInLines: number, reveal: boolean = true): void {
 		const range = Range.isIRange(rangeOrPos)
 			? rangeOrPos
 			: new Range(rangeOrPos.lineNumber, rangeOrPos.column, rangeOrPos.lineNumber, rangeOrPos.column);
 
-		this._showImpl(range, heightInLines);
+		this._showImpl(range, heightInLines, reveal);
 		this._positionMarkerId = this.editor.deltaDecorations(this._positionMarkerId, [{ range, options: {} }]);
 	}
 
@@ -221,7 +221,7 @@ export abstract class ZoneWidget extends Widget implements IHorizontalSashLayout
 		return result;
 	}
 
-	private _showImpl(where: IRange, heightInLines: number): void {
+	private _showImpl(where: IRange, heightInLines: number, reveal: boolean): void {
 		const position = {
 			lineNumber: where.startLineNumber,
 			column: where.startColumn
@@ -231,7 +231,9 @@ export abstract class ZoneWidget extends Widget implements IHorizontalSashLayout
 		this.domNode.style.width = `${width}px`;
 
 		// Reveal position, to get the line rendered, such that the arrow can be positioned properly
+		let oldPosition = this.editor.getScrollTop();
 		this.editor.revealPosition(position);
+
 
 		// Render the widget as zone (rendering) and widget (lifecycle)
 		let viewZoneDomNode = document.createElement('div'),
@@ -291,11 +293,16 @@ export abstract class ZoneWidget extends Widget implements IHorizontalSashLayout
 
 		this._doLayout(containerHeight, width);
 
-		this.editor.setSelection(where);
+		if(reveal){
+			this.editor.setSelection(where);
 
-		// Reveal the line above or below the zone widget, to get the zone widget in the viewport
-		const revealLineNumber = Math.min(this.editor.getModel().getLineCount(), Math.max(1, where.endLineNumber + 1));
-		this.editor.revealLine(revealLineNumber);
+			// Reveal the line above or below the zone widget, to get the zone widget in the viewport
+			const revealLineNumber = Math.min(this.editor.getModel().getLineCount(), Math.max(1, where.endLineNumber + 1));
+			this.editor.revealLine(revealLineNumber);
+		}
+		else {
+			this.editor.setScrollTop(oldPosition);
+		}
 	}
 
 	protected setCssClass(className: string, classToReplace?: string): void {

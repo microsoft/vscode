@@ -34,7 +34,7 @@ class MarkerModel {
 	private _nextIdx: number;
 	private _toUnbind: IDisposable[];
 	private _ignoreSelectionChange: boolean;
-	private _onCurrentMarkerChanged: Emitter<IMarker>;
+	private _onCurrentMarkerChanged: Emitter<IMarker | IMarker[]>;
 	private _onMarkerSetChanged: Emitter<MarkerModel>;
 
 	constructor(editor: ICodeEditor, markers: IMarker[]) {
@@ -139,6 +139,14 @@ class MarkerModel {
 		this.move(false);
 	}
 
+	public all(): void {
+		if (!this.canNavigate()) {
+			this._onCurrentMarkerChanged.fire(undefined);
+			return;
+		}
+		this._onCurrentMarkerChanged.fire(this._markers);
+	}
+
 	public findMarkerAtPosition(pos: editorCommon.IPosition): IMarker {
 		for (const marker of this._markers) {
 			if (Range.containsPosition(marker, pos)) {
@@ -211,7 +219,6 @@ class MarkerNavigationWidget extends ZoneWidget {
 	constructor(editor: ICodeEditor, private _model: MarkerModel, private _commandService: ICommandService) {
 		super(editor, { showArrow: true, showFrame: true, isAccessible: true });
 		this.create();
-		this._wireModelAndView();
 	}
 
 	dispose(): void {
@@ -240,18 +247,14 @@ class MarkerNavigationWidget extends ZoneWidget {
 		this.editor.applyFontInfo(this._message.domNode);
 	}
 
-	public show(where: editorCommon.IPosition, heightInLines: number): void {
-		super.show(where, heightInLines);
-		this.focus();
+	public show(where: editorCommon.IPosition, heightInLines: number, reveal: boolean): void {
+		super.show(where, heightInLines, reveal);
+		if(reveal) {
+			this.focus();
+		}
 	}
 
-	private _wireModelAndView(): void {
-		// listen to events
-		this._model.onCurrentMarkerChanged(this.showAtMarker, this, this._callOnDispose);
-		this._model.onMarkerSetChanged(this._onMarkersChanged, this, this._callOnDispose);
-	}
-
-	public showAtMarker(marker: IMarker): void {
+	public showAtMarker(marker: IMarker, reveal : boolean): void {
 
 		if (!marker) {
 			return;
@@ -281,11 +284,11 @@ class MarkerNavigationWidget extends ZoneWidget {
 			this.show({
 				lineNumber: marker.startLineNumber,
 				column: marker.startColumn
-			}, this.computeRequiredHeight());
+			}, this.computeRequiredHeight(), reveal);
 		});
 	}
 
-	private _onMarkersChanged(): void {
+	public onMarkersChanged(): void {
 		const marker = this._model.findMarkerAtPosition(this.position);
 		if (marker) {
 			this._container.classList.remove('stale');
@@ -303,6 +306,56 @@ class MarkerNavigationWidget extends ZoneWidget {
 	private computeRequiredHeight() {
 		return 1 + this._message.lines;
 	}
+}
+
+class MarkerNavigationWidgetsController {
+	private _navigationWidget: MarkerNavigationWidget;
+	private _widgets: MarkerNavigationWidget[] = [];
+	private _callOnDispose: IDisposable[] = [];
+	private _showingAll: boolean = false;
+
+
+	constructor(private _editor: ICodeEditor, private _model: MarkerModel, private _commandService: ICommandService) {
+		this._wireModelAndView();
+		this._navigationWidget = new MarkerNavigationWidget(_editor, _model, _commandService);
+	}
+
+	dispose(): void {
+		this._callOnDispose = dispose(this._callOnDispose);
+		this._widgets.forEach(widget => widget.dispose());
+		this._navigationWidget.dispose();
+	}
+
+	private _clear() {
+		this._widgets.forEach(widget => widget.dispose());
+		this._widgets = [];
+	}
+
+	private _wireModelAndView(): void {
+		// listen to events
+		this._model.onCurrentMarkerChanged(this._show, this, this._callOnDispose);
+		this._model.onMarkerSetChanged(this._onMarkersChanged, this, this._callOnDispose);
+	}
+
+	private _onMarkersChanged(): void {
+		this._widgets.forEach(widget => widget.onMarkersChanged());
+	}
+
+	private _show(marker: IMarker | IMarker[]): void {
+		if (marker instanceof Array) {
+			this._clear();
+			this._showingAll = true;
+			(<IMarker[]>marker).forEach(m => {
+				let widget = new MarkerNavigationWidget(this._editor, this._model, this._commandService);
+				this._widgets.push(widget);
+				widget.showAtMarker(m, false);
+			});
+		}
+		else if(this._navigationWidget && !this._showingAll){
+			this._navigationWidget.showAtMarker(<IMarker>marker, true);
+		}
+	}
+
 }
 
 class MarkerNavigationAction extends EditorAction {
@@ -346,7 +399,7 @@ class MarkerController implements editorCommon.IEditorContribution {
 
 	private _editor: ICodeEditor;
 	private _model: MarkerModel;
-	private _zone: MarkerNavigationWidget;
+	private _zonesController: MarkerNavigationWidgetsController;
 	private _callOnClose: IDisposable[] = [];
 	private _markersNavigationVisible: IContextKey<boolean>;
 
@@ -371,7 +424,7 @@ class MarkerController implements editorCommon.IEditorContribution {
 	private _cleanUp(): void {
 		this._markersNavigationVisible.reset();
 		this._callOnClose = dispose(this._callOnClose);
-		this._zone = null;
+		this._zonesController = null;
 		this._model = null;
 	}
 
@@ -383,11 +436,11 @@ class MarkerController implements editorCommon.IEditorContribution {
 
 		const markers = this._getMarkers();
 		this._model = new MarkerModel(this._editor, markers);
-		this._zone = new MarkerNavigationWidget(this._editor, this._model, this._commandService);
+		this._zonesController = new MarkerNavigationWidgetsController(this._editor, this._model, this._commandService);
 		this._markersNavigationVisible.set(true);
 
 		this._callOnClose.push(this._model);
-		this._callOnClose.push(this._zone);
+		this._callOnClose.push(this._zonesController);
 
 		this._callOnClose.push(this._editor.onDidChangeModel(() => this._cleanUp()));
 		this._model.onCurrentMarkerChanged(marker => !marker && this._cleanUp(), undefined, this._callOnClose);
@@ -441,6 +494,36 @@ class PrevMarkerAction extends MarkerNavigationAction {
 				primary: KeyMod.Shift | KeyCode.F8
 			}
 		});
+	}
+}
+
+@editorAction
+class ShowAllMarkersAction extends EditorAction {
+	constructor() {
+		super({
+			id: 'editor.action.marker.showAll',
+			label: nls.localize('markerAction.showAll.label', "Show all Errors And Warnings"),
+			alias: 'Show all Errors And Warnings',
+			precondition: EditorContextKeys.Writable,
+			kbOpts: {
+				kbExpr: EditorContextKeys.Focus,
+				primary: KeyMod.CtrlCmd | KeyCode.F8
+			}});
+	}
+
+	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void {
+		const telemetryService = accessor.get(ITelemetryService);
+
+		const controller = MarkerController.get(editor);
+		if (!controller) {
+			return;
+		}
+
+		let model = controller.getOrCreateModel();
+		telemetryService.publicLog('zoneWidgetShown', { mode: 'go to error' });
+		if (model) {
+			model.all();
+		}
 	}
 }
 
