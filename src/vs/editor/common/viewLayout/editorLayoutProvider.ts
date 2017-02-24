@@ -29,6 +29,7 @@ export interface IEditorLayoutProviderOpts {
 
 	minimap: boolean;
 	minimapRenderCharacters: boolean;
+	minimapMaxColumn: number;
 	pixelRatio: number;
 }
 
@@ -50,6 +51,7 @@ export class EditorLayoutProvider {
 		const horizontalScrollbarHeight = _opts.horizontalScrollbarHeight | 0;
 		const minimap = Boolean(_opts.minimap);
 		const minimapRenderCharacters = Boolean(_opts.minimapRenderCharacters);
+		const minimapMaxColumn = _opts.minimapMaxColumn | 0;
 		const pixelRatio = Number(_opts.pixelRatio);
 
 		let lineNumbersWidth = 0;
@@ -100,6 +102,10 @@ export class EditorLayoutProvider {
 			// minimapWidth = ((remainingWidth - verticalScrollbarWidth) * minimapCharWidth) / (typicalHalfwidthCharacterWidth + minimapCharWidth)
 
 			minimapWidth = Math.max(0, Math.floor(((remainingWidth - verticalScrollbarWidth) * minimapCharWidth) / (typicalHalfwidthCharacterWidth + minimapCharWidth)));
+			let minimapColumns = minimapWidth / minimapCharWidth;
+			if (minimapColumns > minimapMaxColumn) {
+				minimapWidth = Math.floor(minimapMaxColumn * minimapCharWidth);
+			}
 			contentWidth = remainingWidth - minimapWidth;
 		}
 

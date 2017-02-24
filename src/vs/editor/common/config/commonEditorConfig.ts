@@ -186,6 +186,7 @@ class InternalEditorOptionsHelper {
 			verticalScrollbarHasArrows: scrollbar.verticalHasArrows,
 			minimap: minimap.enabled,
 			minimapRenderCharacters: minimap.renderCharacters,
+			minimapMaxColumn: minimap.maxColumn,
 			pixelRatio: pixelRatio
 		});
 
@@ -371,9 +372,14 @@ class InternalEditorOptionsHelper {
 	}
 
 	private static _sanitizeMinimapOpts(raw: editorCommon.IEditorMinimapOptions): editorCommon.InternalEditorMinimapOptions {
+		let maxColumn = toIntegerWithDefault(raw.maxColumn, DefaultConfig.editor.minimap.maxColumn);
+		if (maxColumn < 1) {
+			maxColumn = 1;
+		}
 		return new editorCommon.InternalEditorMinimapOptions({
-			enabled: toBooleanWithDefault(raw.enabled, false),
-			renderCharacters: toBooleanWithDefault(raw.renderCharacters, true),
+			enabled: toBooleanWithDefault(raw.enabled, DefaultConfig.editor.minimap.enabled),
+			renderCharacters: toBooleanWithDefault(raw.renderCharacters, DefaultConfig.editor.minimap.renderCharacters),
+			maxColumn: maxColumn,
 		});
 	}
 }
@@ -676,6 +682,11 @@ const editorConfiguration: IConfigurationNode = {
 			'type': 'boolean',
 			'default': DefaultConfig.editor.minimap.renderCharacters,
 			'description': nls.localize('minimap.renderCharacters', "Render the actual characters on a line (as opposed to color blocks)")
+		},
+		'editor.minimap.maxColumn': {
+			'type': 'number',
+			'default': DefaultConfig.editor.minimap.maxColumn,
+			'description': nls.localize('minimap.maxColumn', "Limit the width of the minimap to render at most a certain number of columns")
 		},
 		'editor.wordWrap': {
 			'type': 'string',

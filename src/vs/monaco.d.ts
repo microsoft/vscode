@@ -1090,6 +1090,11 @@ declare module monaco.editor {
          * Defaults to true.
          */
         renderCharacters?: boolean;
+        /**
+         * Limit the width of the minimap to render at most a certain number of columns.
+         * Defaults to 120.
+         */
+        maxColumn?: number;
     }
 
     /**
@@ -1504,6 +1509,7 @@ declare module monaco.editor {
         readonly _internalEditorMinimapOptionsBrand: void;
         readonly enabled: boolean;
         readonly renderCharacters: boolean;
+        readonly maxColumn: number;
     }
 
     export class EditorWrappingInfo {

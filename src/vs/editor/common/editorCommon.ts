@@ -168,6 +168,11 @@ export interface IEditorMinimapOptions {
 	 * Defaults to true.
 	 */
 	renderCharacters?: boolean;
+	/**
+	 * Limit the width of the minimap to render at most a certain number of columns.
+	 * Defaults to 120.
+	 */
+	maxColumn?: number;
 }
 
 /**
@@ -648,6 +653,7 @@ export class InternalEditorMinimapOptions {
 
 	readonly enabled: boolean;
 	readonly renderCharacters: boolean;
+	readonly maxColumn: number;
 
 	/**
 	 * @internal
@@ -655,9 +661,11 @@ export class InternalEditorMinimapOptions {
 	constructor(source: {
 		enabled: boolean;
 		renderCharacters: boolean;
+		maxColumn: number;
 	}) {
 		this.enabled = Boolean(source.enabled);
 		this.renderCharacters = Boolean(source.renderCharacters);
+		this.maxColumn = source.maxColumn | 0;
 	}
 
 	/**
@@ -667,6 +675,7 @@ export class InternalEditorMinimapOptions {
 		return (
 			this.enabled === other.enabled
 			&& this.renderCharacters === other.renderCharacters
+			&& this.maxColumn === other.maxColumn
 		);
 	}
 
