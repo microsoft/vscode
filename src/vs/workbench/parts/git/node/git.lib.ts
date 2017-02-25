@@ -327,7 +327,7 @@ export class Repository {
 			return TPromise.wrapError(localize('errorBuffer', "Can't open file from git"));
 		}
 
-		return detectMimesFromStream(child.stdout, null).then(result => {
+		return detectMimesFromStream(child.stdout, null, false).then(result => {
 			return isBinaryMime(result.mimes) ?
 				TPromise.wrapError<string>(<IFileOperationResult>{
 					message: localize('fileBinaryError', "File seems to be binary and cannot be opened as text"),

@@ -575,6 +575,7 @@ export interface IFilesConfiguration {
 		exclude: glob.IExpression;
 		watcherExclude: { [filepattern: string]: boolean };
 		encoding: string;
+		autoDetectEncoding: boolean;
 		trimTrailingWhitespace: boolean;
 		autoSave: string;
 		autoSaveDelay: number;
