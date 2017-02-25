@@ -50,7 +50,7 @@ export class QuickFixOracle {
 		const { uri } = this._editor.getModel();
 		for (const resource of resources) {
 			if (resource.toString() === uri.toString()) {
-				this._onCursorChange();
+				this._updateRange(this._rangeAtPosition());
 				return;
 			}
 		}
@@ -59,14 +59,18 @@ export class QuickFixOracle {
 	private _onCursorChange(): void {
 		const range = this._rangeAtPosition();
 		if (!Range.equalsRange(this._currentRange, range)) {
-			this._currentRange = range;
-			this._signalChange({
-				type: 'auto',
-				range,
-				position: this._editor.getPosition(),
-				fixes: range && getCodeActions(this._editor.getModel(), this._editor.getModel().validateRange(range))
-			});
+			this._updateRange(range);
 		}
+	}
+
+	private _updateRange(range: IRange): void {
+		this._currentRange = range;
+		this._signalChange({
+			type: 'auto',
+			range,
+			position: this._editor.getPosition(),
+			fixes: range && getCodeActions(this._editor.getModel(), this._editor.getModel().validateRange(range))
+		});
 	}
 
 	private _rangeAtPosition(): IRange {
