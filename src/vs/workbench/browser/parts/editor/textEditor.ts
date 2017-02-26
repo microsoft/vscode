@@ -66,7 +66,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 		super(id, telemetryService);
 
 		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.handleConfigurationChangeEvent(e.config)));
-		this.toUnbind.push(themeService.onDidColorThemeChange(e => this.handleConfigurationChangeEvent(this.configurationService.getConfiguration<IEditorConfiguration>())));
+		this.toUnbind.push(themeService.onDidColorThemeChange(e => this.handleConfigurationChangeEvent()));
 	}
 
 	protected get instantiationService(): IInstantiationService {
@@ -77,9 +77,9 @@ export abstract class BaseTextEditor extends BaseEditor {
 		return this._configurationService;
 	}
 
-	private handleConfigurationChangeEvent(configuration: IEditorConfiguration): void {
+	private handleConfigurationChangeEvent(configuration?: IEditorConfiguration): void {
 		if (this.isVisible()) {
-			this.applyConfiguration(configuration);
+			this.updateEditorConfiguration(configuration);
 		} else {
 			this.hasPendingConfigurationChange = true;
 		}
@@ -87,20 +87,9 @@ export abstract class BaseTextEditor extends BaseEditor {
 
 	private consumePendingConfigurationChangeEvent(): void {
 		if (this.hasPendingConfigurationChange) {
-			this.applyConfiguration(this.configurationService.getConfiguration<IEditorConfiguration>());
+			this.updateEditorConfiguration();
 			this.hasPendingConfigurationChange = false;
 		}
-	}
-
-	private applyConfiguration(configuration: IEditorConfiguration): void {
-		if (!this.editorControl) {
-			return;
-		}
-
-		const editorConfiguration = this.computeConfiguration(configuration);
-
-		// Apply to control
-		this.editorControl.updateOptions(editorConfiguration);
 	}
 
 	protected computeConfiguration(configuration: IEditorConfiguration): IEditorOptions {
@@ -305,8 +294,15 @@ export abstract class BaseTextEditor extends BaseEditor {
 		return null;
 	}
 
-	private updateEditorConfiguration(): void {
-		this.editorControl.updateOptions(this.computeConfiguration(this.configurationService.getConfiguration<IEditorConfiguration>()));
+	private updateEditorConfiguration(configuration = this.configurationService.getConfiguration<IEditorConfiguration>()): void {
+		if (!this.editorControl) {
+			return;
+		}
+
+		const editorConfiguration = this.computeConfiguration(configuration);
+
+		// Apply to control
+		this.editorControl.updateOptions(editorConfiguration);
 	}
 
 	protected getLanguage(): string {
