@@ -23,6 +23,8 @@ export class DecorationsOverviewRuler extends ViewPart {
 	private static _CURSOR_COLOR = 'rgba(0, 0, 102, 0.8)';
 	private static _CURSOR_COLOR_DARK = 'rgba(152, 152, 152, 0.8)';
 
+	private static _BORDER_COLOR = 'rgba(127,127,127,0.3)';
+
 	private readonly _tokensColorTrackerListener: IDisposable;
 
 	private _overviewRuler: OverviewRulerImpl;
@@ -235,7 +237,7 @@ export class DecorationsOverviewRuler extends ViewPart {
 			let ctx2 = this._overviewRuler.getDomNode().getContext('2d');
 			ctx2.beginPath();
 			ctx2.lineWidth = 1;
-			ctx2.strokeStyle = 'rgba(197,197,197,0.8)';
+			ctx2.strokeStyle = DecorationsOverviewRuler._BORDER_COLOR;
 			ctx2.moveTo(0, 0);
 			ctx2.lineTo(0, this._overviewRuler.getPixelHeight());
 			ctx2.stroke();
