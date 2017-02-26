@@ -51,6 +51,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 	private _editorContainer: Builder;
 	private hasPendingConfigurationChange: boolean;
 	private pendingAutoSaveAll: TPromise<void>;
+	private lastAppliedEditorOptions: IEditorOptions;
 
 	constructor(
 		id: string,
@@ -301,8 +302,13 @@ export abstract class BaseTextEditor extends BaseEditor {
 
 		const editorConfiguration = this.computeConfiguration(configuration);
 
-		// Apply to control
-		this.editorControl.updateOptions(editorConfiguration);
+		// Apply to control if it changed. We do not want to call updateOptions() with the same options
+		// because it could be that from some other place editor options where changed dynamically (e.g.
+		// word wrapping) and configurations can change as a matter of many things, not all editor related
+		if (!this.lastAppliedEditorOptions || !objects.equals(editorConfiguration, this.lastAppliedEditorOptions)) {
+			this.lastAppliedEditorOptions = editorConfiguration;
+			this.editorControl.updateOptions(editorConfiguration);
+		}
 	}
 
 	protected getLanguage(): string {
@@ -327,8 +333,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 	protected abstract getAriaLabel(): string;
 
 	public dispose(): void {
-
-		// Destroy Editor Control
+		this.lastAppliedEditorOptions = void 0;
 		this.editorControl.destroy();
 
 		super.dispose();
