@@ -49,7 +49,7 @@ import { IEditorViewState } from 'vs/editor/common/editorCommon';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
-import { withFocussedFilesExplorerViewItem, revealInOSCommand, revealInExplorerCommand, copyPathCommand } from 'vs/workbench/parts/files/browser/fileCommands';
+import { withFocussedFilesExplorer, revealInOSCommand, revealInExplorerCommand, copyPathCommand } from 'vs/workbench/parts/files/browser/fileCommands';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 
 export interface IEditableData {
@@ -939,7 +939,7 @@ export class PasteFileAction extends BaseFileAction {
 		super(PasteFileAction.ID, nls.localize('pasteFile', "Paste"), fileService, messageService, textFileService);
 
 		this.tree = tree;
-		this.element = element;
+		this.element = element || this.tree.getInput();
 		this._updateEnablement();
 	}
 
@@ -988,9 +988,9 @@ export class PasteFileAction extends BaseFileAction {
 export const pasteIntoFocusedFilesExplorerViewItem = (accessor: ServicesAccessor) => {
 	const instantiationService = accessor.get(IInstantiationService);
 
-	withFocussedFilesExplorerViewItem(accessor).then(res => {
-		if (res && res.item) {
-			const pasteAction = instantiationService.createInstance(PasteFileAction, res.tree, res.item);
+	withFocussedFilesExplorer(accessor).then(res => {
+		if (res) {
+			const pasteAction = instantiationService.createInstance(PasteFileAction, res.tree, res.tree.getFocus());
 			if (pasteAction._isEnabled()) {
 				pasteAction.run().done(null, errors.onUnexpectedError);
 			}
