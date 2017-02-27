@@ -13,14 +13,14 @@ import { TPromise } from 'vs/base/common/winjs.base';
 
 const pathPrefix = '(\\.\\.?|\\~)';
 const pathSeparatorClause = '\\/';
-const excludedPathCharactersClause = '[^\\0\\s!$`&*()+\'":;]'; // '":; are allowed in paths but they are often separators so ignore them
+const excludedPathCharactersClause = '[^\\0\\s!$`&*()\\[\\]+\'":;]'; // '":; are allowed in paths but they are often separators so ignore them
 const escapedExcludedPathCharactersClause = '(\\\\s|\\\\!|\\\\$|\\\\`|\\\\&|\\\\*|(|)|\\+)';
 /** A regex that matches paths in the form /path, ~/path, ./path, ../path */
 const UNIX_LIKE_LOCAL_LINK_REGEX = new RegExp('(' + pathPrefix + '?(' + pathSeparatorClause + '(' + excludedPathCharactersClause + '|' + escapedExcludedPathCharactersClause + ')+)+)');
 
 const winPathPrefix = '([a-zA-Z]:|\\.\\.?|\\~)';
 const winPathSeparatorClause = '(\\\\|\\/)';
-const winExcludedPathCharactersClause = '[^\\0<>\\?\\|\\/\\s!$`&*()+\'":;]';
+const winExcludedPathCharactersClause = '[^\\0<>\\?\\|\\/\\s!$`&*()\\[\\]+\'":;]';
 /** A regex that matches paths in the form c:\path, ~\path, .\path */
 const WINDOWS_LOCAL_LINK_REGEX = new RegExp('(' + winPathPrefix + '?(' + winPathSeparatorClause + '(' + winExcludedPathCharactersClause + ')+)+)');
 
