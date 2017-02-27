@@ -9,6 +9,7 @@
 	"breakpointAdded": "Point d'arrêt ajouté, ligne {0}, fichier {1}",
 	"breakpointRemoved": "Point d'arrêt supprimé, ligne {0}, fichier {1}",
 	"compoundMustHaveConfigurations": "L'attribut \"configurations\" du composé doit être défini pour permettre le démarrage de plusieurs configurations.",
+	"configMissing": "Il manque la configuration '{0}' dans 'launch.json'.",
 	"debugAnyway": "Déboguer quand même",
 	"debugTypeMissing": "Propriété 'type' manquante pour la configuration de lancement choisie.",
 	"debugTypeNotSupported": "Le type de débogage '{0}' configuré n'est pas pris en charge.",

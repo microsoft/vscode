@@ -27,6 +27,7 @@
 	"insertSpaces.errorMessage": "必須是 'boolean'。請注意，值 \"auto\" 已由 `editor.detect Indentation` 設定取代。",
 	"lineHeight": "控制行高。使用 0 會從 fontSize 計算 lineHeight。",
 	"lineNumbers": "控制行號顯示。可能的值有 'on'、'off' 及 'relative'。'relative' 會從目前的資料指標位置顯示行數。",
+	"minimap.enabled": "控制是否會顯示迷你地圖",
 	"mouseWheelScrollSensitivity": "滑鼠滾輪捲動事件的 'deltaX' 與 'deltaY' 所使用的乘數",
 	"mouseWheelZoom": "使用滑鼠滾輪並按住 Ctrl 時，縮放編輯器的字型",
 	"overviewRulerLanes": "控制可在概觀尺規中相同位置顯示的裝飾項目數",

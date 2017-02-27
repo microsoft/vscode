@@ -27,6 +27,7 @@
 	"insertSpaces.errorMessage": "È previsto 'boolean'. Nota: il valore \"auto\" è stato sostituito dall'impostazione `editor.detectIndentation`.",
 	"lineHeight": "Controlla l'altezza della riga. Usare 0 per calcolare l'altezza della riga dalle dimensioni del carattere.",
 	"lineNumbers": "Consente di controllare la visualizzazione dei numeri di riga. I valori possibili sono 'on', 'off' e 'relative'. Con 'relative' viene visualizzato il conteggio delle righe a partire dalla posizione corrente del cursore.",
+	"minimap.enabled": "Controlla se la mini mappa è visualizzata",
 	"mouseWheelScrollSensitivity": "Moltiplicatore da usare sui valori `deltaX` e `deltaY` degli eventi di scorrimento della rotellina del mouse",
 	"mouseWheelZoom": "Ingrandisce il carattere dell'editor quando si usa la rotellina del mouse e si tiene premuto CTRL",
 	"overviewRulerLanes": "Controlla il numero di effetti che possono essere visualizzati nella stessa posizione nel righello delle annotazioni",

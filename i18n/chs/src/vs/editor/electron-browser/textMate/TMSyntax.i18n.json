@@ -9,5 +9,6 @@
 	"invalid.language": "“contributes.{0}.language”中存在未知的语言。提供的值: {1}",
 	"invalid.path.0": "“contributes.{0}.path”中应为字符串。提供的值: {1}",
 	"invalid.path.1": "“contributes.{0}.path”({1})应包含在扩展的文件夹({2})内。这可能会使扩展不可移植。",
-	"invalid.scopeName": "“contributes.{0}.scopeName”中应为字符串。提供的值: {1}"
+	"invalid.scopeName": "“contributes.{0}.scopeName”中应为字符串。提供的值: {1}",
+	"no-tm-grammar": "没有注册这种语言的 TM 语法。"
 }

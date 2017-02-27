@@ -50,6 +50,7 @@ export class QuickFixOracle {
 		const { uri } = this._editor.getModel();
 		for (const resource of resources) {
 			if (resource.toString() === uri.toString()) {
+				this._currentRange = undefined;
 				this._onCursorChange();
 				return;
 			}
