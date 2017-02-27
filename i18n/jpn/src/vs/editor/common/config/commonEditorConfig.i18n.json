@@ -27,6 +27,7 @@
 	"insertSpaces.errorMessage": "'boolean' が必要です。`editor.detectIndentation` 設定によって値 \"auto\" が置き換えられていることに注意してください。",
 	"lineHeight": "行の高さを制御します。fontSize に基づいて lineHeight を計算する場合には、0 を使用します。",
 	"lineNumbers": "行番号の表示を制御します。使用可能な値は、'on'、'off'、および 'relative' です。'relative' は現在のカーソル位置からの行数を示します。",
+	"minimap.enabled": "ミニマップを表示するかどうかを制御します",
 	"mouseWheelScrollSensitivity": "マウス ホイール スクロール イベントの `deltaX` と `deltaY` で使用される乗数",
 	"mouseWheelZoom": "Ctrl キーを押しながらマウス ホイールを使用してエディターのフォントをズームします",
 	"overviewRulerLanes": "概要ルーラーの同じ位置に表示できる装飾の数を制御します",

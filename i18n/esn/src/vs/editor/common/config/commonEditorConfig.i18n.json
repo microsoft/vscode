@@ -27,6 +27,7 @@
 	"insertSpaces.errorMessage": "Se esperaba \"boolean\". Tenga en cuenta que el ajuste \"editor.detectIndentation\" ha reemplazado al valor \"auto\".",
 	"lineHeight": "Controla la altura de línea. Utilice 0 para calcular el valor de lineHeight a partir de fontSize.",
 	"lineNumbers": "Controla la presentación de los números de línea. Los valores posibles son \"on\", \"off\" y \"relative\". \"relative\" muestra el número de líneas desde la posición actual del cursor.",
+	"minimap.enabled": "Controla si se muestra el minimapa",
 	"mouseWheelScrollSensitivity": "Se utilizará un multiplicador en los eventos de desplazamiento de la rueda del mouse `deltaX` y `deltaY`",
 	"mouseWheelZoom": "Ampliar la fuente del editor cuando se use la rueda del mouse mientras se presiona Ctrl",
 	"overviewRulerLanes": "Controla el número de decoraciones que pueden aparecer en la misma posición en la regla de visión general",

@@ -9,5 +9,6 @@
 	"invalid.language": "Langage inconnu dans 'contributes.{0}.language'. Valeur fournie : {1}",
 	"invalid.path.0": "Chaîne attendue dans 'contributes.{0}.path'. Valeur fournie : {1}",
 	"invalid.path.1": "'contributes.{0}.path' ({1}) est censé être inclus dans le dossier ({2}) de l'extension. Cela risque de rendre l'extension non portable.",
-	"invalid.scopeName": "Chaîne attendue dans 'contributes.{0}.scopeName'. Valeur fournie : {1}"
+	"invalid.scopeName": "Chaîne attendue dans 'contributes.{0}.scopeName'. Valeur fournie : {1}",
+	"no-tm-grammar": "Aucune grammaire TM n'est inscrite pour ce langage."
 }
