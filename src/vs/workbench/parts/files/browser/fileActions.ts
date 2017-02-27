@@ -989,7 +989,7 @@ export const pasteIntoFocusedFilesExplorerViewItem = (accessor: ServicesAccessor
 	const instantiationService = accessor.get(IInstantiationService);
 
 	withFocussedFilesExplorerViewItem(accessor).then(res => {
-		if (res.item) {
+		if (res && res.item) {
 			const pasteAction = instantiationService.createInstance(PasteFileAction, res.tree, res.item);
 			if (pasteAction._isEnabled()) {
 				pasteAction.run().done(null, errors.onUnexpectedError);
