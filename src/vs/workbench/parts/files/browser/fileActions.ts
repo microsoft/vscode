@@ -1873,12 +1873,7 @@ export class GlobalRevealInOSAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		const fileResource = toResource(this.editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
-		if (fileResource) {
-			this.instantiationService.invokeFunction.apply(this.instantiationService, [revealInOSCommand, fileResource]);
-		} else {
-			this.messageService.show(severity.Info, nls.localize('openFileToReveal', "Open a file first to reveal"));
-		}
+		this.instantiationService.invokeFunction.apply(this.instantiationService, [revealInOSCommand]);
 
 		return TPromise.as(true);
 	}
@@ -1921,14 +1916,7 @@ export class GlobalCopyPathAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		const activeEditor = this.editorService.getActiveEditor();
-		const fileResource = activeEditor ? toResource(activeEditor.input, { supportSideBySide: true, filter: 'file' }) : void 0;
-		if (fileResource) {
-			this.instantiationService.invokeFunction.apply(this.instantiationService, [copyPathCommand, fileResource]);
-			this.editorGroupService.focusGroup(activeEditor.position); // focus back to active editor group
-		} else {
-			this.messageService.show(severity.Info, nls.localize('openFileToCopy', "Open a file first to copy its path"));
-		}
+		this.instantiationService.invokeFunction.apply(this.instantiationService, [copyPathCommand]);
 
 		return TPromise.as(true);
 	}
