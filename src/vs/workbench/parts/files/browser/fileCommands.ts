@@ -125,6 +125,21 @@ function withVisibleExplorer(accessor: ServicesAccessor): TPromise<ExplorerViewl
 };
 
 export function withFocussedFilesExplorerViewItem(accessor: ServicesAccessor): TPromise<{ explorer: ExplorerViewlet, tree: ITree, item: FileStat }> {
+	return withFocussedFilesExplorer(accessor).then(res => {
+		if (!res) {
+			return void 0;
+		}
+
+		const { tree, explorer } = res;
+		if (!tree || !tree.getFocus()) {
+			return void 0;
+		}
+
+		return { explorer, tree, item: tree.getFocus() };
+	});
+};
+
+export function withFocussedFilesExplorer(accessor: ServicesAccessor): TPromise<{ explorer: ExplorerViewlet, tree: ITree }> {
 	return withVisibleExplorer(accessor).then(explorer => {
 		if (!explorer || !explorer.getExplorerView()) {
 			return void 0; // empty folder or hidden explorer
@@ -133,11 +148,11 @@ export function withFocussedFilesExplorerViewItem(accessor: ServicesAccessor): T
 		const tree = explorer.getExplorerView().getViewer();
 
 		// Ignore if in highlight mode or not focussed
-		if (tree.getHighlight() || !tree.isDOMFocused() || !tree.getFocus()) {
+		if (tree.getHighlight() || !tree.isDOMFocused()) {
 			return void 0;
 		}
 
-		return { explorer, tree, item: tree.getFocus() };
+		return { explorer, tree };
 	});
 };
 
