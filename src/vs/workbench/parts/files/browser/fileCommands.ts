@@ -5,7 +5,9 @@
 
 'use strict';
 
+import nls = require('vs/nls');
 import paths = require('vs/base/common/paths');
+import severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -21,13 +23,32 @@ import errors = require('vs/base/common/errors');
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import labels = require('vs/base/common/labels');
+import { IEditorGroupService } from "vs/workbench/services/group/common/groupService";
+import { IMessageService } from "vs/platform/message/common/message";
 
 // Commands
 
-export const copyPathCommand = (accessor: ServicesAccessor, resource: URI) => {
-	const clipboardService = accessor.get(IClipboardService);
+export const copyPathCommand = (accessor: ServicesAccessor, resource?: URI) => {
 
-	clipboardService.writeText(labels.getPathLabel(resource));
+	// Without resource, try to look at the active editor
+	if (!resource) {
+		const editorGroupService = accessor.get(IEditorGroupService);
+		const editorService = accessor.get(IWorkbenchEditorService);
+		const activeEditor = editorService.getActiveEditor();
+
+		resource = activeEditor ? toResource(activeEditor.input, { supportSideBySide: true, filter: 'file' }) : void 0;
+		if (activeEditor) {
+			editorGroupService.focusGroup(activeEditor.position); // focus back to active editor group
+		}
+	}
+
+	if (resource) {
+		const clipboardService = accessor.get(IClipboardService);
+		clipboardService.writeText(labels.getPathLabel(resource));
+	} else {
+		const messageService = accessor.get(IMessageService);
+		messageService.show(severity.Info, nls.localize('openFileToCopy', "Open a file first to copy its path"));
+	}
 };
 
 export const openFolderPickerCommand = (accessor: ServicesAccessor, forceNewWindow: boolean) => {
@@ -50,10 +71,22 @@ export const openFileInNewWindowCommand = (accessor: ServicesAccessor) => {
 	windowService.openFilePicker(true, fileResource ? paths.dirname(fileResource.fsPath) : void 0);
 };
 
-export const revealInOSCommand = (accessor: ServicesAccessor, resource: URI) => {
-	const windowsService = accessor.get(IWindowsService);
+export const revealInOSCommand = (accessor: ServicesAccessor, resource?: URI) => {
 
-	windowsService.showItemInFolder(paths.normalize(resource.fsPath, true));
+	// Without resource, try to look at the active editor
+	if (!resource) {
+		const editorService = accessor.get(IWorkbenchEditorService);
+
+		resource = toResource(editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
+	}
+
+	if (resource) {
+		const windowsService = accessor.get(IWindowsService);
+		windowsService.showItemInFolder(paths.normalize(resource.fsPath, true));
+	} else {
+		const messageService = accessor.get(IMessageService);
+		messageService.show(severity.Info, nls.localize('openFileToReveal', "Open a file first to reveal"));
+	}
 };
 
 export const revealInExplorerCommand = (accessor: ServicesAccessor, resource: URI) => {
