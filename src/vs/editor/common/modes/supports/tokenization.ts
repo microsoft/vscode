@@ -399,6 +399,6 @@ export function generateTokensCSSForColorMap(colorMap: Color[]): string {
 	}
 	rules.push('.mtki { font-style: italic; }');
 	rules.push('.mtkb { font-weight: bold; }');
-	rules.push('.mtku { border-bottom: 1px solid; border-color: currentColor; }');
+	rules.push('.mtku { text-decoration: underline; }');
 	return rules.join('\n');
 }
