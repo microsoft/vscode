@@ -32,7 +32,7 @@ gulp.task('mixin', function () {
 	}
 
 	const url = `https://github.com/${repo}/archive/${pkg.distro}.zip`;
-	const opts = { base: '' };
+	const opts = { base: url };
 	const username = process.env['VSCODE_MIXIN_USERNAME'];
 	const password = process.env['VSCODE_MIXIN_PASSWORD'];
 
@@ -42,7 +42,7 @@ gulp.task('mixin', function () {
 
 	console.log('Mixing in sources from \'' + url + '\':');
 
-	let all = remote(url, opts)
+	let all = remote('', opts)
 		.pipe(zip.src())
 		.pipe(filter(function (f) { return !f.isDirectory(); }))
 		.pipe(util.rebase(1));

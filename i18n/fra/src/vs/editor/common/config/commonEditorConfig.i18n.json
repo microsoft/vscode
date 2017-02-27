@@ -27,6 +27,7 @@
 	"insertSpaces.errorMessage": "'boolean' attendu. Notez que la valeur \"auto\" a été remplacée par le paramètre 'editor.detectIndentation'.",
 	"lineHeight": "Contrôle la hauteur de ligne. Utilisez 0 pour calculer lineHeight à partir de fontSize.",
 	"lineNumbers": "Contrôle l'affichage des numéros de ligne. Les valeurs possibles sont 'activé', 'désactivé' et 'relatif'. La valeur 'relatif' indique le numéro de ligne à partir de la position actuelle du curseur.",
+	"minimap.enabled": "Contrôle si la minicarte est affichée",
 	"mouseWheelScrollSensitivity": "Multiplicateur à utiliser pour le 'deltaX' et le 'deltaY' des événements de défilement de la roulette de la souris",
 	"mouseWheelZoom": "Agrandir ou réduire la police de l'éditeur quand l'utilisateur fait tourner la roulette de la souris tout en maintenant la touche Ctrl enfoncée",
 	"overviewRulerLanes": "Contrôle le nombre d'ornements pouvant s'afficher à la même position dans la règle d'aperçu",

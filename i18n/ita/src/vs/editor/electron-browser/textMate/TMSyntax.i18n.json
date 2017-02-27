@@ -9,5 +9,6 @@
 	"invalid.language": "Il linguaggio in `contributes.{0}.language` è sconosciuto. Valore specificato: {1}",
 	"invalid.path.0": "È previsto un valore stringa in `contributes.{0}.path`. Valore specificato: {1}",
 	"invalid.path.1": "Valore previsto di `contributes.{0}.path` ({1}) da includere nella cartella dell'estensione ({2}). L'estensione potrebbe non essere più portatile.",
-	"invalid.scopeName": "È previsto un valore stringa in `contributes.{0}.scopeName`. Valore specificato: {1}"
+	"invalid.scopeName": "È previsto un valore stringa in `contributes.{0}.scopeName`. Valore specificato: {1}",
+	"no-tm-grammar": "Non è stata registrata alcuna grammatica TM per questo linguaggio."
 }

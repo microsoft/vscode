@@ -7,8 +7,11 @@
 	"actions.goToDecl.label": "Vai alla definizione",
 	"actions.goToDeclToSide.label": "Apri definizione lateralmente",
 	"actions.goToImplementation.label": "Vai all'implementazione",
-	"actions.peekImplementation.label": "Implementazione peek",
+	"actions.goToTypeDefinition.label": "Vai alla definizione di tipo",
+	"actions.peekImplementation.label": "Anteprima implementazione",
+	"actions.peekTypeDefinition.label": "Anteprima definizione di tipo",
 	"actions.previewDecl.label": "Visualizza la definizione",
+	"generic.noResults": "Non è stata trovata alcuna definizione",
 	"meta.title": " - Definizioni di {0}",
 	"multipleResults": "Fare clic per visualizzare {0} definizioni."
 }

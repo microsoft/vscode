@@ -7,8 +7,11 @@
 	"actions.goToDecl.label": "移至定義",
 	"actions.goToDeclToSide.label": "在一側開啟定義",
 	"actions.goToImplementation.label": "前往實作",
+	"actions.goToTypeDefinition.label": "移至類型定義",
 	"actions.peekImplementation.label": "預覽實作",
+	"actions.peekTypeDefinition.label": "預覽類型定義",
 	"actions.previewDecl.label": "預覽定義",
+	"generic.noResults": "找不到任何定義",
 	"meta.title": " - {0} 個定義",
 	"multipleResults": "按一下以顯示 {0} 項定義。"
 }

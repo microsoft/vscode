@@ -227,13 +227,9 @@ export class Adapter {
 			};
 			Object.keys(attributes.properties).forEach(name => {
 				// Use schema allOf property to get independent error reporting #21113
-				const allOf = [attributes.properties[name], {
-					errorMessage: nls.localize('deprecatedVariables', "'env.', 'config.' and 'command.' are deprecated, use 'env:', 'config:' and 'command:' instead."),
-					pattern: '^(?!\\$\\{(env|config|command)\\.)'
-				}];
-				attributes.properties[name] = {
-					allOf
-				};
+				attributes.properties[name].pattern = attributes.properties[name].pattern || '^(?!\\$\\{(env|config|command)\\.)';
+				attributes.properties[name].patternErrorMessage = attributes.properties[name].patternErrorMessage ||
+					nls.localize('deprecatedVariables', "'env.', 'config.' and 'command.' are deprecated, use 'env:', 'config:' and 'command:' instead.");
 			});
 
 			return attributes;
