@@ -1020,9 +1020,8 @@ export class WindowsManager implements IWindowsMainService {
 			return lastActive;
 		}
 
-		// No window - open new one
-		this.windowsState.openedFolders = []; // make sure we do not open too much
-		const res = this.open({ context, cli });
+		// No window - open new empty one
+		const res = this.open({ context, cli, forceEmpty: true });
 
 		return res && res[0];
 	}

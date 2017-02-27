@@ -42,6 +42,7 @@ export interface ILifecycleService {
 	registerWindow(vscodeWindow: IVSCodeWindow): void;
 	unload(vscodeWindow: IVSCodeWindow, reason: UnloadReason): TPromise<boolean /* veto */>;
 	quit(fromUpdate?: boolean): TPromise<boolean /* veto */>;
+	isQuitRequested(): boolean;
 }
 
 export class LifecycleService implements ILifecycleService {
@@ -208,5 +209,9 @@ export class LifecycleService implements ILifecycleService {
 		}
 
 		return this.pendingQuitPromise;
+	}
+
+	public isQuitRequested(): boolean {
+		return !!this.quitRequested;
 	}
 }
