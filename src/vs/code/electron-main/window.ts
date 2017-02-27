@@ -126,15 +126,7 @@ interface IConfiguration {
 	};
 }
 
-export interface IVSCodeWindow {
-	id: number;
-	readyState: ReadyState;
-	win: Electron.BrowserWindow;
-
-	send(channel: string, ...args: any[]): void;
-}
-
-export class VSCodeWindow implements IVSCodeWindow {
+export class VSCodeWindow {
 
 	public static themeStorageKey = 'theme';
 
