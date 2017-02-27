@@ -7,8 +7,11 @@
 	"actions.goToDecl.label": "Atteindre la définition",
 	"actions.goToDeclToSide.label": "Ouvrir la définition sur le côté",
 	"actions.goToImplementation.label": "Accéder à l'implémentation",
+	"actions.goToTypeDefinition.label": "Atteindre la définition de type",
 	"actions.peekImplementation.label": "Aperçu de l'implémentation",
+	"actions.peekTypeDefinition.label": "Aperçu de la définition du type",
 	"actions.previewDecl.label": "Apercu de définition",
+	"generic.noResults": "Définition introuvable",
 	"meta.title": " – {0} définitions",
 	"multipleResults": "Cliquez pour afficher {0} définitions."
 }

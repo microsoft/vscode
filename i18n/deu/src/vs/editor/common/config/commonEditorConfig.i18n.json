@@ -27,6 +27,7 @@
 	"insertSpaces.errorMessage": "\"boolean\" wurde erwartet. Beachten Sie, dass der Wert \"auto\" durch die Einstellung \"editor.detectIndentation\" ersetzt wurde.",
 	"lineHeight": "Steuert die Zeilenhöhe. Verwenden Sie 0, um LineHeight aus der FontSize-Angabe zu berechnen.",
 	"lineNumbers": "Steuert die Anzeige von Zeilennummern. Mögliche Werte sind \"Ein\", \"Aus\" und \"Relativ\". \"Relativ\" zeigt die Zeilenanzahl ab der aktuellen Cursorposition.",
+	"minimap.enabled": "Steuert, ob die Minikarte angezeigt wird",
 	"mouseWheelScrollSensitivity": "Ein Multiplikator, der für die Mausrad-Bildlaufereignisse \"deltaX\" und \"deltaY\" verwendet werden soll.",
 	"mouseWheelZoom": "Schriftart des Editors vergrößern, wenn das Mausrad verwendet und die STRG-TASTE gedrückt wird",
 	"overviewRulerLanes": "Steuert die Anzahl von Dekorationen, die an derselben Position im Übersichtslineal angezeigt werden.",

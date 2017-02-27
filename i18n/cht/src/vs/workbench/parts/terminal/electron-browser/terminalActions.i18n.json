@@ -14,6 +14,8 @@
 	"workbench.action.terminal.new": "建立新的整合式終端機",
 	"workbench.action.terminal.new.short": "新增終端機",
 	"workbench.action.terminal.paste": "貼入使用中的終端機",
+	"workbench.action.terminal.runActiveFile": "在使用中的終端機執行使用中的檔案",
+	"workbench.action.terminal.runActiveFile.noFile": "只有磁碟上的檔案可在終端機執行",
 	"workbench.action.terminal.runSelectedText": "在使用中的終端機執行選取的文字",
 	"workbench.action.terminal.scrollDown": "向下捲動 (行)",
 	"workbench.action.terminal.scrollDownPage": "向下捲動 (頁)",
