@@ -300,7 +300,7 @@ export class FileService implements IFileService {
 					if (options.overwriteEncoding) {
 						addBomPromise = TPromise.as(false); // if we are to overwrite the encoding, we do not preserve it if found
 					} else {
-						addBomPromise = nfcall(encoding.detectEncodingByBOM, absolutePath).then(enc => enc === encoding.UTF8); // otherwise preserve it if found
+						addBomPromise = encoding.detectEncodingByBOM(absolutePath).then(enc => enc === encoding.UTF8); // otherwise preserve it if found
 					}
 				}
 
