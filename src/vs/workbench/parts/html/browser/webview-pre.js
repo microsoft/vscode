@@ -33,7 +33,11 @@ document.addEventListener("DOMContentLoaded", function (event) {
 		var defaultStyles = document.getElementById('_defaultStyles');
 		defaultStyles.innerHTML = initData.styles;
 
-		var body = getTarget().contentDocument.getElementsByTagName('body');
+		var target = getTarget()
+		if (!target) {
+			return;
+		}
+		var body = target.contentDocument.getElementsByTagName('body');
 		styleBody(body[0]);
 
 		// iframe
@@ -98,7 +102,7 @@ document.addEventListener("DOMContentLoaded", function (event) {
 			'					scrollTarget.scrollIntoView();',
 			'				}',
 			'			} else {',
-			'				window.parent.postMessage({ command: "did-click-link", data: node.href }, "file://");',
+			'				window.parent.postMessage({ command: "did-click-link", data: node.href }, "*");',
 			'			}',
 			'			event.preventDefault();',
 			'			break;',
@@ -122,16 +126,12 @@ document.addEventListener("DOMContentLoaded", function (event) {
 		const newFrame = document.createElement('iframe');
 		newFrame.setAttribute('id', '_target');
 		newFrame.setAttribute('frameborder', '0');
-		newFrame.style.cssText = "margin: 0; overflow: hidden; position: absolute; width: 100%; height: 100%; display: none";
-		document.body.appendChild(newFrame);
-
-		// write new content onto iframe
-		newFrame.contentDocument.open('text/html', 'replace');
+		newFrame.setAttribute('sandbox', 'allow-scripts allow-forms');
 		// set DOCTYPE for newDocument explicitly as DOMParser.parseFromString strips it off
 		// and DOCTYPE is needed in the iframe to ensure that the user agent stylesheet is correctly overridden
-		newFrame.contentDocument.write('<!DOCTYPE html>');
-		newFrame.contentDocument.write(newDocument.documentElement.innerHTML);
-		newFrame.contentDocument.close();
+		newFrame.setAttribute('srcdoc', '<!DOCTYPE html>\n' + newDocument.documentElement.innerHTML);
+		newFrame.style.cssText = "margin: 0; overflow: hidden; position: absolute; width: 100%; height: 100%; display: none";
+		document.body.appendChild(newFrame);
 
 		// workaround for https://github.com/Microsoft/vscode/issues/12865
 		// check new scrollTop and reset if neccessary
@@ -139,7 +139,10 @@ document.addEventListener("DOMContentLoaded", function (event) {
 			if (newFrame.contentDocument.body && scrollTop !== newFrame.contentDocument.body.scrollTop) {
 				newFrame.contentDocument.body.scrollTop = scrollTop;
 			}
-			document.body.removeChild(frame);
+
+			if (frame) {
+				document.body.removeChild(frame);
+			}
 			newFrame.style.display = 'block';
 		});
 
@@ -150,7 +153,7 @@ document.addEventListener("DOMContentLoaded", function (event) {
 	ipcRenderer.on('message', function (event, data) {
 		const target = getTarget();
 		if (target) {
-			target.contentWindow.postMessage(data, 'file://');
+			target.contentWindow.postMessage(data, '*');
 		}
 	});
 
