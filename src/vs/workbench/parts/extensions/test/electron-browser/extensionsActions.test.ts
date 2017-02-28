@@ -109,7 +109,7 @@ suite('ExtensionsActions Test', () => {
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
 		workbenchService.queryGallery().done((paged) => {
 			testObject.extension = paged.firstPage[0];
-			installEvent.fire({ id: gallery.id, gallery });
+			installEvent.fire({ id: gallery.uuid, gallery });
 
 			assert.ok(!testObject.enabled);
 			assert.equal('Installing', testObject.label);
@@ -216,8 +216,8 @@ suite('ExtensionsActions Test', () => {
 		instantiationService.get(IExtensionsWorkbenchService).queryGallery().done(paged => {
 			testObject.extension = paged.firstPage[0];
 
-			installEvent.fire({ id: gallery.id, gallery });
-			didInstallEvent.fire({ id: gallery.id, gallery, local: aLocalExtension('a', gallery, gallery) });
+			installEvent.fire({ id: gallery.uuid, gallery });
+			didInstallEvent.fire({ id: gallery.uuid, gallery, local: aLocalExtension('a', gallery, gallery) });
 
 			assert.ok(testObject.enabled);
 			assert.equal('Uninstall', testObject.label);
@@ -282,7 +282,7 @@ suite('ExtensionsActions Test', () => {
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
 		workbenchService.queryGallery().done((paged) => {
 			testObject.extension = paged.firstPage[0];
-			installEvent.fire({ id: gallery.id, gallery });
+			installEvent.fire({ id: gallery.uuid, gallery });
 
 			assert.ok(!testObject.enabled);
 			assert.equal('Installing', testObject.label);
@@ -429,7 +429,7 @@ suite('ExtensionsActions Test', () => {
 		instantiationService.get(IExtensionsWorkbenchService).queryGallery().done(page => {
 			testObject.extension = page.firstPage[0];
 
-			installEvent.fire({ id: gallery.id, gallery });
+			installEvent.fire({ id: gallery.uuid, gallery });
 			assert.ok(!testObject.enabled);
 			assert.equal('extension-action manage hide', testObject.class);
 			assert.equal('', testObject.tooltip);
@@ -650,7 +650,7 @@ suite('ExtensionsActions Test', () => {
 		instantiationService.get(IExtensionsWorkbenchService).queryGallery().done(page => {
 			testObject.extension = page.firstPage[0];
 
-			installEvent.fire({ id: gallery.id, gallery });
+			installEvent.fire({ id: gallery.uuid, gallery });
 			assert.ok(!testObject.enabled);
 
 			done();
@@ -822,7 +822,7 @@ suite('ExtensionsActions Test', () => {
 		instantiationService.get(IExtensionsWorkbenchService).queryGallery().done(page => {
 			testObject.extension = page.firstPage[0];
 
-			installEvent.fire({ id: gallery.id, gallery });
+			installEvent.fire({ id: gallery.uuid, gallery });
 			assert.ok(!testObject.enabled);
 
 			done();
@@ -917,7 +917,7 @@ suite('ExtensionsActions Test', () => {
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
 		workbenchService.queryGallery().done((paged) => {
 			testObject.extension = paged.firstPage[0];
-			installEvent.fire({ id: gallery.id, gallery });
+			installEvent.fire({ id: gallery.uuid, gallery });
 
 			assert.ok(!testObject.enabled);
 			done();
@@ -944,8 +944,8 @@ suite('ExtensionsActions Test', () => {
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
 		instantiationService.get(IExtensionsWorkbenchService).queryGallery().done((paged) => {
 			testObject.extension = paged.firstPage[0];
-			installEvent.fire({ id: gallery.id, gallery });
-			didInstallEvent.fire({ id: gallery.id, gallery, local: aLocalExtension('a', gallery, gallery) });
+			installEvent.fire({ id: gallery.uuid, gallery });
+			didInstallEvent.fire({ id: gallery.uuid, gallery, local: aLocalExtension('a', gallery, gallery) });
 
 			assert.ok(testObject.enabled);
 			assert.equal('Reload to activate', testObject.tooltip);
@@ -961,10 +961,11 @@ suite('ExtensionsActions Test', () => {
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
 		instantiationService.get(IExtensionsWorkbenchService).queryGallery().done((paged) => {
 			testObject.extension = paged.firstPage[0];
-			installEvent.fire({ id: gallery.id, gallery });
-			didInstallEvent.fire({ id: gallery.id, gallery, local: aLocalExtension('a', gallery, gallery) });
-			uninstallEvent.fire(gallery.id);
-			didUninstallEvent.fire({ id: gallery.id });
+			const id = `${gallery.publisher}.${gallery.name}`;
+			installEvent.fire({ id, gallery });
+			didInstallEvent.fire({ id, gallery, local: aLocalExtension('a', gallery, { id }) });
+			uninstallEvent.fire(id);
+			didUninstallEvent.fire({ id });
 
 			assert.ok(!testObject.enabled);
 			done();
@@ -999,7 +1000,7 @@ suite('ExtensionsActions Test', () => {
 			didUninstallEvent.fire({ id: local.id });
 			const gallery = aGalleryExtension('a', { id: local.id });
 			installEvent.fire({ id: local.id, gallery });
-			didInstallEvent.fire({ id: gallery.id, gallery, local });
+			didInstallEvent.fire({ id: gallery.uuid, gallery, local });
 
 			assert.ok(!testObject.enabled);
 			done();
@@ -1015,9 +1016,9 @@ suite('ExtensionsActions Test', () => {
 		workbenchService.queryLocal().done(extensions => {
 			testObject.extension = extensions[0];
 
-			const gallery = aGalleryExtension('a', { id: local.id, version: '1.0.2' });
-			installEvent.fire({ id: gallery.id, gallery });
-			didInstallEvent.fire({ id: gallery.id, gallery, local: aLocalExtension('a', gallery, gallery) });
+			const gallery = aGalleryExtension('a', { uuid: local.id, version: '1.0.2' });
+			installEvent.fire({ id: gallery.uuid, gallery });
+			didInstallEvent.fire({ id: gallery.uuid, gallery, local: aLocalExtension('a', gallery, gallery) });
 
 			assert.ok(testObject.enabled);
 			assert.equal('Reload to update', testObject.tooltip);
@@ -1038,8 +1039,8 @@ suite('ExtensionsActions Test', () => {
 			testObject.extension = extensions[0];
 
 			const gallery = aGalleryExtension('a', { id: local.id, version: '1.0.2' });
-			installEvent.fire({ id: gallery.id, gallery });
-			didInstallEvent.fire({ id: gallery.id, gallery, local: aLocalExtension('a', gallery, gallery) });
+			installEvent.fire({ id: gallery.uuid, gallery });
+			didInstallEvent.fire({ id: gallery.uuid, gallery, local: aLocalExtension('a', gallery, gallery) });
 
 			assert.ok(!testObject.enabled);
 			done();
@@ -1125,8 +1126,8 @@ suite('ExtensionsActions Test', () => {
 			testObject.extension = extensions[0];
 
 			const gallery = aGalleryExtension('a', { id: local.id, version: '1.0.2' });
-			installEvent.fire({ id: gallery.id, gallery });
-			didInstallEvent.fire({ id: gallery.id, gallery, local: aLocalExtension('a', gallery, gallery) });
+			installEvent.fire({ id: gallery.uuid, gallery });
+			didInstallEvent.fire({ id: gallery.uuid, gallery, local: aLocalExtension('a', gallery, gallery) });
 			workbenchService.setEnablement(extensions[0], true);
 
 			assert.ok(testObject.enabled);
@@ -1140,13 +1141,13 @@ suite('ExtensionsActions Test', () => {
 		const localExtension = <ILocalExtension>Object.create({ manifest: {} });
 		assign(localExtension, { type: LocalExtensionType.User, id: generateUuid() }, properties);
 		assign(localExtension.manifest, { name, publisher: 'pub' }, manifest);
-		localExtension.metadata = { id: localExtension.id, publisherId: localExtension.manifest.publisher, publisherDisplayName: 'somename' };
+		localExtension.metadata = { uuid: localExtension.id, publisherId: localExtension.manifest.publisher, publisherDisplayName: 'somename' };
 		return localExtension;
 	}
 
 	function aGalleryExtension(name: string, properties: any = {}, galleryExtensionProperties: any = {}, assets: any = {}): IGalleryExtension {
 		const galleryExtension = <IGalleryExtension>Object.create({});
-		assign(galleryExtension, { name, publisher: 'pub', id: generateUuid(), properties: {}, assets: {} }, properties);
+		assign(galleryExtension, { name, publisher: 'pub', uuid: generateUuid(), properties: {}, assets: {} }, properties);
 		assign(galleryExtension.properties, { dependencies: [] }, galleryExtensionProperties);
 		assign(galleryExtension.assets, assets);
 		return <IGalleryExtension>galleryExtension;

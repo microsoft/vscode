@@ -21,7 +21,7 @@ export function getTelemetryData(extension: ILocalExtension | IGalleryExtension)
 		return {
 			id: `${local.manifest.publisher}.${local.manifest.name}`,
 			name: local.manifest.name,
-			galleryId: local.metadata ? local.metadata.id : null,
+			galleryId: local.metadata ? local.metadata.uuid : null,
 			publisherId: local.metadata ? local.metadata.publisherId : null,
 			publisherName: local.manifest.publisher,
 			publisherDisplayName: local.metadata ? local.metadata.publisherDisplayName : null
@@ -30,7 +30,7 @@ export function getTelemetryData(extension: ILocalExtension | IGalleryExtension)
 		return {
 			id: `${gallery.publisher}.${gallery.name}`,
 			name: gallery.name,
-			galleryId: gallery.id,
+			galleryId: gallery.uuid,
 			publisherId: gallery.publisherId,
 			publisherName: gallery.publisher,
 			publisherDisplayName: gallery.publisherDisplayName

@@ -508,7 +508,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		}
 
 		const ext = extension as Extension;
-		const local = ext.local || this.installed.filter(e => e.local.metadata && ext.gallery && e.local.metadata.id === ext.gallery.id)[0].local;
+		const local = ext.local || this.installed.filter(e => e.local.metadata && ext.gallery && e.local.metadata.uuid === ext.gallery.uuid)[0].local;
 
 		if (!local) {
 			return TPromise.wrapError<void>(new Error('Missing local'));
@@ -652,7 +652,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			return;
 		}
 
-		let extension = this.installed.filter(e => (e.local && e.local.metadata && e.local.metadata.id) === gallery.id)[0];
+		let extension = this.installed.filter(e => (e.local && e.local.metadata && e.local.metadata.uuid) === gallery.uuid)[0];
 
 		if (!extension) {
 			extension = new Extension(this.galleryService, this.stateProvider, null, gallery);
@@ -679,8 +679,8 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			if (!error) {
 				extension.local = local;
 
-				const galleryId = local.metadata && local.metadata.id;
-				const installed = this.installed.filter(e => (e.local && e.local.metadata && e.local.metadata.id) === galleryId)[0];
+				const galleryId = local.metadata && local.metadata.uuid;
+				const installed = this.installed.filter(e => (e.local && e.local.metadata && e.local.metadata.uuid) === galleryId)[0];
 
 				if (galleryId && installed) {
 					installing.operation = Operation.Updating;
@@ -743,7 +743,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 	}
 
 	private getExtensionState(extension: Extension): ExtensionState {
-		if (extension.gallery && this.installing.some(e => e.extension.gallery && e.extension.gallery.id === extension.gallery.id)) {
+		if (extension.gallery && this.installing.some(e => e.extension.gallery && e.extension.gallery.uuid === extension.gallery.uuid)) {
 			return ExtensionState.Installing;
 		}
 
@@ -751,7 +751,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			return ExtensionState.Uninstalling;
 		}
 
-		const local = this.installed.filter(e => e === extension || (e.gallery && extension.gallery && e.gallery.id === extension.gallery.id))[0];
+		const local = this.installed.filter(e => e === extension || (e.gallery && extension.gallery && e.gallery.uuid === extension.gallery.uuid))[0];
 		return local ? ExtensionState.Installed : ExtensionState.Uninstalled;
 	}
 

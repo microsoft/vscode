@@ -253,7 +253,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 		return this.getInstalled()
 			.then(local => {
 				return dependencies.filter(d => {
-					if (extension.id === d.id) {
+					if (extension.uuid === d.uuid) {
 						return false;
 					}
 					const extensionId = getExtensionId(d, d.version);
@@ -275,7 +275,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	private downloadAndInstall(extension: IGalleryExtension): TPromise<ILocalExtension> {
 		const id = getExtensionId(extension, extension.version);
 		const metadata = {
-			id: extension.id,
+			uuid: extension.uuid,
 			publisherId: extension.publisherId,
 			publisherDisplayName: extension.publisherDisplayName,
 		};
