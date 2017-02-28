@@ -49,7 +49,7 @@ import { IEditorViewState } from 'vs/editor/common/editorCommon';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
-import { withFocussedFilesExplorerViewItem, revealInOSCommand, revealInExplorerCommand, copyPathCommand } from 'vs/workbench/parts/files/browser/fileCommands';
+import { withFocussedFilesExplorer, revealInOSCommand, revealInExplorerCommand, copyPathCommand } from 'vs/workbench/parts/files/browser/fileCommands';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 
 export interface IEditableData {
@@ -939,7 +939,7 @@ export class PasteFileAction extends BaseFileAction {
 		super(PasteFileAction.ID, nls.localize('pasteFile', "Paste"), fileService, messageService, textFileService);
 
 		this.tree = tree;
-		this.element = element;
+		this.element = element || this.tree.getInput();
 		this._updateEnablement();
 	}
 
@@ -988,9 +988,9 @@ export class PasteFileAction extends BaseFileAction {
 export const pasteIntoFocusedFilesExplorerViewItem = (accessor: ServicesAccessor) => {
 	const instantiationService = accessor.get(IInstantiationService);
 
-	withFocussedFilesExplorerViewItem(accessor).then(res => {
-		if (res && res.item) {
-			const pasteAction = instantiationService.createInstance(PasteFileAction, res.tree, res.item);
+	withFocussedFilesExplorer(accessor).then(res => {
+		if (res) {
+			const pasteAction = instantiationService.createInstance(PasteFileAction, res.tree, res.tree.getFocus());
 			if (pasteAction._isEnabled()) {
 				pasteAction.run().done(null, errors.onUnexpectedError);
 			}
@@ -1873,12 +1873,7 @@ export class GlobalRevealInOSAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		const fileResource = toResource(this.editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
-		if (fileResource) {
-			this.instantiationService.invokeFunction.apply(this.instantiationService, [revealInOSCommand, fileResource]);
-		} else {
-			this.messageService.show(severity.Info, nls.localize('openFileToReveal', "Open a file first to reveal"));
-		}
+		this.instantiationService.invokeFunction.apply(this.instantiationService, [revealInOSCommand]);
 
 		return TPromise.as(true);
 	}
@@ -1921,14 +1916,7 @@ export class GlobalCopyPathAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		const activeEditor = this.editorService.getActiveEditor();
-		const fileResource = activeEditor ? toResource(activeEditor.input, { supportSideBySide: true, filter: 'file' }) : void 0;
-		if (fileResource) {
-			this.instantiationService.invokeFunction.apply(this.instantiationService, [copyPathCommand, fileResource]);
-			this.editorGroupService.focusGroup(activeEditor.position); // focus back to active editor group
-		} else {
-			this.messageService.show(severity.Info, nls.localize('openFileToCopy', "Open a file first to copy its path"));
-		}
+		this.instantiationService.invokeFunction.apply(this.instantiationService, [copyPathCommand]);
 
 		return TPromise.as(true);
 	}

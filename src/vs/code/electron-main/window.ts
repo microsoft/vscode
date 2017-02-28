@@ -126,15 +126,7 @@ interface IConfiguration {
 	};
 }
 
-export interface IVSCodeWindow {
-	id: number;
-	readyState: ReadyState;
-	win: Electron.BrowserWindow;
-
-	send(channel: string, ...args: any[]): void;
-}
-
-export class VSCodeWindow implements IVSCodeWindow {
+export class VSCodeWindow {
 
 	public static themeStorageKey = 'theme';
 
@@ -205,17 +197,26 @@ export class VSCodeWindow implements IVSCodeWindow {
 			options.icon = path.join(this.environmentService.appRoot, 'resources/linux/code.png'); // Windows and Mac are better off using the embedded icon(s)
 		}
 
+		let useCustomTitleStyle = false;
 		if (platform.isMacintosh && (!this.options.titleBarStyle || this.options.titleBarStyle === 'custom')) {
 			const isDev = !this.environmentService.isBuilt || !!config.extensionDevelopmentPath;
 			if (!isDev) {
-				options.titleBarStyle = 'hidden'; // not enabled when developing due to https://github.com/electron/electron/issues/3647
-				this.hiddenTitleBarStyle = true;
+				useCustomTitleStyle = true; // not enabled when developing due to https://github.com/electron/electron/issues/3647
 			}
+		}
+
+		if (useCustomTitleStyle) {
+			options.titleBarStyle = 'hidden';
+			this.hiddenTitleBarStyle = true;
 		}
 
 		// Create the browser window.
 		this._win = new BrowserWindow(options);
 		this._id = this._win.id;
+
+		if (useCustomTitleStyle) {
+			this._win.setSheetOffset(22); // offset dialogs by the height of the custom title bar if we have any
+		}
 
 		if (isFullscreenOrMaximized) {
 			this.win.maximize();

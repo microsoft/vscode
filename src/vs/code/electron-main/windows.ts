@@ -17,7 +17,7 @@ import { IBackupMainService } from 'vs/platform/backup/common/backup';
 import { trim } from 'vs/base/common/strings';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { IStorageService } from 'vs/code/electron-main/storage';
-import { IPath, VSCodeWindow, IWindowConfiguration, IWindowState as ISingleWindowState, defaultWindowState, ReadyState, WindowMode } from 'vs/code/electron-main/window';
+import { IPath, VSCodeWindow, IWindowConfiguration, IWindowState as ISingleWindowState, defaultWindowState, WindowMode } from 'vs/code/electron-main/window';
 import { ipcMain as ipc, app, screen, BrowserWindow, dialog } from 'electron';
 import { IPathWithLineAndColumn, parseLineAndColumnAware } from 'vs/code/electron-main/paths';
 import { ILifecycleService, UnloadReason } from 'vs/code/electron-main/lifecycle';
@@ -137,7 +137,9 @@ export class WindowsManager implements IWindowsMainService {
 	private static WINDOWS: VSCodeWindow[] = [];
 
 	private initialUserEnv: platform.IProcessEnvironment;
+
 	private windowsState: IWindowsState;
+	private lastClosedWindowState: IWindowState;
 
 	private _onRecentPathsChange = new Emitter<void>();
 	onRecentPathsChange: CommonEvent<void> = this._onRecentPathsChange.event;
@@ -246,29 +248,90 @@ export class WindowsManager implements IWindowsMainService {
 			}
 		});
 
-		this.lifecycleService.onBeforeQuit(() => {
+		// Update our windows state before quitting and before closing windows
+		this.lifecycleService.onBeforeWindowClose(win => this.onBeforeWindowClose(win));
+		this.lifecycleService.onBeforeQuit(() => this.onBeforeQuit());
 
-			// 0-1 window open: Do not keep the list but just rely on the active window to be stored
-			if (WindowsManager.WINDOWS.length < 2) {
-				this.windowsState.openedFolders = [];
-				return;
+		// Update jump list when recent paths change
+		this.onRecentPathsChange(() => this.updateWindowsJumpList());
+	}
+
+	// Note that onBeforeQuit() and onBeforeWindowClose() are fired in different order depending on the OS:
+	// - macOS: since the app will not quit when closing the last window, you will always first get
+	//          the onBeforeQuit() event followed by N onbeforeWindowClose() events for each window
+	// - other: on other OS, closing the last window will quit the app so the order depends on the
+	//          user interaction: closing the last window will first trigger onBeforeWindowClose()
+	//          and then onBeforeQuit(). Using the quit action however will first issue onBeforeQuit()
+	//          and then onBeforeWindowClose().
+	private onBeforeQuit(): void {
+		const currentWindowsState: IWindowsState = {
+			openedFolders: [],
+			lastPluginDevelopmentHostWindow: this.windowsState.lastPluginDevelopmentHostWindow,
+			lastActiveWindow: this.lastClosedWindowState //will be set on Win/Linux if last window was closed, resulting in an exit
+		};
+
+		// 1.) Find a last active window (pick any other first window otherwise)
+		if (!currentWindowsState.lastActiveWindow) {
+			let activeWindow = this.getLastActiveWindow();
+			if (!activeWindow || activeWindow.isExtensionDevelopmentHost) {
+				activeWindow = WindowsManager.WINDOWS.filter(w => !w.isExtensionDevelopmentHost)[0];
 			}
 
-			// 2-N windows open: Keep a list of windows that are opened on a specific folder to restore it in the next session as needed
-			this.windowsState.openedFolders = WindowsManager.WINDOWS.filter(w => w.readyState === ReadyState.READY && !!w.openedWorkspacePath && !w.isExtensionDevelopmentHost).map(w => {
+			if (activeWindow) {
+				currentWindowsState.lastActiveWindow = { workspacePath: activeWindow.openedWorkspacePath, uiState: activeWindow.serializeWindowState() };
+			}
+		}
+
+		// 2.) Find extension host window
+		const extensionHostWindow = WindowsManager.WINDOWS.filter(w => w.isExtensionDevelopmentHost && !w.isExtensionTestHost)[0];
+		if (extensionHostWindow) {
+			currentWindowsState.lastPluginDevelopmentHostWindow = { workspacePath: extensionHostWindow.openedWorkspacePath, uiState: extensionHostWindow.serializeWindowState() };
+		}
+
+		// 3.) All windows with opened folders for N >= 2 to support reopenFolders: all or for auto update
+		//
+		// Carefull here: asking a window for its window state after it has been closed returns bogus values (width: 0, height: 0)
+		// so if we ever want to persist the UI state of the last closed window (window count === 1), it has
+		// to come from the stored lastClosedWindowState on Win/Linux at least
+		if (this.getWindowCount() > 1) {
+			currentWindowsState.openedFolders = WindowsManager.WINDOWS.filter(w => !!w.openedWorkspacePath && !w.isExtensionDevelopmentHost).map(w => {
 				return <IWindowState>{
 					workspacePath: w.openedWorkspacePath,
 					uiState: w.serializeWindowState()
 				};
 			});
-		});
+		}
 
-		app.on('will-quit', () => {
-			this.storageService.setItem(WindowsManager.windowsStateStorageKey, this.windowsState);
-		});
+		// Persist
+		this.storageService.setItem(WindowsManager.windowsStateStorageKey, currentWindowsState);
+	}
 
-		// Update jump list when recent paths change
-		this.onRecentPathsChange(() => this.updateWindowsJumpList());
+	// See note on #onBeforeQuit() for details how these events are flowing
+	private onBeforeWindowClose(win: VSCodeWindow): void {
+		if (this.lifecycleService.isQuitRequested()) {
+			return; // during quit, many windows close in parallel so let it be handled in the before-quit handler
+		}
+
+		// On Window close, update our stored UI state of this window
+		const state: IWindowState = { workspacePath: win.openedWorkspacePath, uiState: win.serializeWindowState() };
+		if (win.isExtensionDevelopmentHost && !win.isExtensionTestHost) {
+			this.windowsState.lastPluginDevelopmentHostWindow = state; // do not let test run window state overwrite our extension development state
+		}
+
+		// Any non extension host window with same workspace
+		else if (!win.isExtensionDevelopmentHost && !!win.openedWorkspacePath) {
+			this.windowsState.openedFolders.forEach(o => {
+				if (this.isPathEqual(o.workspacePath, win.openedWorkspacePath)) {
+					o.uiState = state.uiState;
+				}
+			});
+		}
+
+		// On Windows and Linux closing the last window will trigger quit. Since we are storing all UI state
+		// before quitting, we need to remember the UI state of this window to be able to persist it.
+		if (!platform.isMacintosh && this.getWindowCount() === 1) {
+			this.lastClosedWindowState = state;
+		}
 	}
 
 	private onBroadcast(event: string, payload: any): void {
@@ -800,7 +863,6 @@ export class WindowsManager implements IWindowsMainService {
 			vscodeWindow.win.webContents.on('devtools-reload-page', () => this.reload(vscodeWindow));
 			vscodeWindow.win.webContents.on('crashed', () => this.onWindowError(vscodeWindow, WindowError.CRASHED));
 			vscodeWindow.win.on('unresponsive', () => this.onWindowError(vscodeWindow, WindowError.UNRESPONSIVE));
-			vscodeWindow.win.on('close', () => this.onBeforeWindowClose(vscodeWindow));
 			vscodeWindow.win.on('closed', () => this.onWindowClosed(vscodeWindow));
 
 			// Lifecycle
@@ -1020,9 +1082,8 @@ export class WindowsManager implements IWindowsMainService {
 			return lastActive;
 		}
 
-		// No window - open new one
-		this.windowsState.openedFolders = []; // make sure we do not open too much
-		const res = this.open({ context, cli });
+		// No window - open new empty one
+		const res = this.open({ context, cli, forceEmpty: true });
 
 		return res && res[0];
 	}
@@ -1161,28 +1222,6 @@ export class WindowsManager implements IWindowsMainService {
 				} else if (result === 1) {
 					this.onBeforeWindowClose(vscodeWindow); // 'close' event will not be fired on destroy(), so run it manually
 					vscodeWindow.win.destroy(); // make sure to destroy the window as it has crashed
-				}
-			});
-		}
-	}
-
-	private onBeforeWindowClose(win: VSCodeWindow): void {
-		if (win.readyState !== ReadyState.READY) {
-			return; // only persist windows that are fully loaded
-		}
-
-		// On Window close, update our stored state of this window
-		const state: IWindowState = { workspacePath: win.openedWorkspacePath, uiState: win.serializeWindowState() };
-		if (win.isExtensionDevelopmentHost) {
-			if (!win.isExtensionTestHost) {
-				this.windowsState.lastPluginDevelopmentHostWindow = state; // do not let test run window state overwrite our extension development state
-			}
-		} else {
-			this.windowsState.lastActiveWindow = state;
-
-			this.windowsState.openedFolders.forEach(o => {
-				if (this.isPathEqual(o.workspacePath, win.openedWorkspacePath)) {
-					o.uiState = state.uiState;
 				}
 			});
 		}
