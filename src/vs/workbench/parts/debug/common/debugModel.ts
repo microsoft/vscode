@@ -583,11 +583,14 @@ export class Process implements debug.IProcess {
 
 	public deemphasizeSource(uri: uri): void {
 		this.threads.forEach(thread => {
-			thread.getCallStack().forEach(stackFrame => {
-				if (stackFrame.source.uri.toString() === uri.toString()) {
-					stackFrame.source.deemphasize = true;
-				}
-			});
+			const callStack = thread.getCallStack();
+			if (callStack) {
+				callStack.forEach(stackFrame => {
+					if (stackFrame.source.uri.toString() === uri.toString()) {
+						stackFrame.source.deemphasize = true;
+					}
+				});
+			}
 		});
 	}
 
