@@ -176,7 +176,7 @@ class WelcomePage {
 						id: 'openRecentFolder',
 						from: telemetryFrom
 					});
-					this.windowsService.openWindow([folder]);
+					this.windowsService.openWindow([folder], { forceNewWindow: e.ctrlKey || e.metaKey });
 					e.preventDefault();
 					e.stopPropagation();
 				});
