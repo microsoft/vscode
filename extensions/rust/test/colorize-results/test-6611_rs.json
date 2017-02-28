@@ -45,7 +45,7 @@
 	},
 	{
 		"c": "where",
-		"t": "source.rust keyword.other.rust",
+		"t": "source.rust keyword.other.where.rust",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
@@ -155,7 +155,7 @@
 	},
 	{
 		"c": "where",
-		"t": "source.rust keyword.other.rust",
+		"t": "source.rust keyword.other.where.rust",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
@@ -342,7 +342,7 @@
 	},
 	{
 		"c": "where",
-		"t": "source.rust keyword.other.rust",
+		"t": "source.rust keyword.other.where.rust",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
@@ -452,7 +452,7 @@
 	},
 	{
 		"c": "where",
-		"t": "source.rust keyword.other.rust",
+		"t": "source.rust keyword.other.where.rust",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
@@ -540,7 +540,7 @@
 	},
 	{
 		"c": "where",
-		"t": "source.rust keyword.other.rust",
+		"t": "source.rust keyword.other.where.rust",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
@@ -639,7 +639,7 @@
 	},
 	{
 		"c": "where",
-		"t": "source.rust keyword.other.rust",
+		"t": "source.rust keyword.other.where.rust",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",

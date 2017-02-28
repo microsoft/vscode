@@ -7,7 +7,7 @@
 import * as strings from 'vs/base/common/strings';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { FindMatch } from 'vs/editor/common/editorCommon';
+import { FindMatch, EndOfLinePreference } from 'vs/editor/common/editorCommon';
 import { CharCode } from 'vs/base/common/charCode';
 import { TextModel } from 'vs/editor/common/model/textModel';
 
@@ -112,9 +112,50 @@ export class TextModelSearch {
 		return this._doFindMatchesLineByLine(model, searchRange, regex, captureMatches, limitResultCount);
 	}
 
+	/**
+	 * Multiline search always executes on the lines concatenated with \n.
+	 * We must therefore compensate for the count of \n in case the model is CRLF
+	 */
+	private static _getMultilineMatchRange(model: TextModel, deltaOffset: number, text: string, matchIndex: number, match0: string): Range {
+		let startOffset: number;
+		if (model.getEOL() === '\r\n') {
+			let lineFeedCountBeforeMatch = 0;
+			for (let i = 0; i < matchIndex; i++) {
+				let chCode = text.charCodeAt(i);
+				if (chCode === CharCode.LineFeed) {
+					lineFeedCountBeforeMatch++;
+				}
+			}
+			startOffset = deltaOffset + matchIndex + lineFeedCountBeforeMatch /* add as many \r as there were \n */;
+		} else {
+			startOffset = deltaOffset + matchIndex;
+		}
+
+		let endOffset: number;
+		if (model.getEOL() === '\r\n') {
+			let lineFeedCountInMatch = 0;
+			for (let i = 0, len = match0.length; i < len; i++) {
+				let chCode = text.charCodeAt(i + matchIndex);
+				if (chCode === CharCode.LineFeed) {
+					lineFeedCountInMatch++;
+				}
+			}
+			endOffset = startOffset + match0.length + lineFeedCountInMatch /* add as many \r as there were \n */;
+		} else {
+			endOffset = startOffset + match0.length;
+		}
+
+		const startPosition = model.getPositionAt(startOffset);
+		const endPosition = model.getPositionAt(endOffset);
+		return new Range(startPosition.lineNumber, startPosition.column, endPosition.lineNumber, endPosition.column);
+	}
+
 	private static _doFindMatchesMultiline(model: TextModel, searchRange: Range, searchRegex: RegExp, captureMatches: boolean, limitResultCount: number): FindMatch[] {
 		const deltaOffset = model.getOffsetAt(searchRange.getStartPosition());
-		const text = model.getValueInRange(searchRange);
+		// We always execute multiline search over the lines joined with \n
+		// This makes it that \n will match the EOL for both CRLF and LF models
+		// We compensate for offset errors in `_getMultilineMatchRange`
+		const text = model.getValueInRange(searchRange, EndOfLinePreference.LF);
 
 		const result: FindMatch[] = [];
 		let prevStartOffset = 0;
@@ -131,11 +172,8 @@ export class TextModelSearch {
 				return result;
 			}
 
-			const startPosition = model.getPositionAt(startOffset);
-			const endPosition = model.getPositionAt(endOffset);
-
 			result[counter++] = createFindMatch(
-				new Range(startPosition.lineNumber, startPosition.column, endPosition.lineNumber, endPosition.column),
+				this._getMultilineMatchRange(model, deltaOffset, text, m.index, m[0]),
 				m,
 				captureMatches
 			);
@@ -221,22 +259,21 @@ export class TextModelSearch {
 		const searchTextStart = new Position(searchStart.lineNumber, 1);
 		const deltaOffset = model.getOffsetAt(searchTextStart);
 		const lineCount = model.getLineCount();
-		const text = model.getValueInRange(new Range(searchTextStart.lineNumber, searchTextStart.column, lineCount, model.getLineMaxColumn(lineCount)));
+		// We always execute multiline search over the lines joined with \n
+		// This makes it that \n will match the EOL for both CRLF and LF models
+		// We compensate for offset errors in `_getMultilineMatchRange`
+		const text = model.getValueInRange(new Range(searchTextStart.lineNumber, searchTextStart.column, lineCount, model.getLineMaxColumn(lineCount)), EndOfLinePreference.LF);
 		searchRegex.lastIndex = searchStart.column - 1;
 		let m = searchRegex.exec(text);
 		if (m) {
-			const startOffset = deltaOffset + m.index;
-			const endOffset = startOffset + m[0].length;
-			const startPosition = model.getPositionAt(startOffset);
-			const endPosition = model.getPositionAt(endOffset);
 			return createFindMatch(
-				new Range(startPosition.lineNumber, startPosition.column, endPosition.lineNumber, endPosition.column),
+				this._getMultilineMatchRange(model, deltaOffset, text, m.index, m[0]),
 				m,
 				captureMatches
 			);
 		}
 
-		if (searchStart.lineNumber !== 1 || searchStart.column !== -1) {
+		if (searchStart.lineNumber !== 1 || searchStart.column !== 1) {
 			// Try again from the top
 			return this._doFindNextMatchMultiline(model, new Position(1, 1), searchRegex, captureMatches);
 		}

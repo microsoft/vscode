@@ -200,11 +200,8 @@ export class ContextMenuController implements IEditorContribution {
 	}
 
 	private _keybindingFor(action: IAction): Keybinding {
-		var opts = this._keybindingService.lookupKeybindings(action.id);
-		if (opts.length > 0) {
-			return opts[0]; // only take the first one
-		}
-		return null;
+		var [kb] = this._keybindingService.lookupKeybindings(action.id);
+		return kb;
 	}
 
 	public getId(): string {

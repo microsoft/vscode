@@ -15,10 +15,11 @@
 	"debugConsoleAction": "偵錯主控台",
 	"debugFocusConsole": "焦點偵錯主控台",
 	"disableAllBreakpoints": "停用所有中斷點",
+	"disableBreakpoint": "停用中斷點",
 	"disconnectDebug": "中斷連接",
 	"editConditionalBreakpoint": "編輯中斷點...",
-	"editWatchExpression": "編輯運算式",
 	"enableAllBreakpoints": "啟用所有中斷點",
+	"enableBreakpoint": "啟用中斷點",
 	"focusProcess": "焦點處理序",
 	"launchJsonNeedsConfigurtion": "設定或修正 'launch.json'",
 	"openLaunchJson": "開啟 {0}",
@@ -41,6 +42,5 @@
 	"stepOutDebug": "跳離函式",
 	"stepOverDebug": "不進入函式",
 	"stopDebug": "停止",
-	"toggleEnablement": "啟用/停用中斷點",
 	"unreadOutput": "偵錯主控台中的新輸出"
 }

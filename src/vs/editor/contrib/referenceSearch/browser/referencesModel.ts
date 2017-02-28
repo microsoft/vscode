@@ -72,16 +72,21 @@ export class FilePreview implements IDisposable {
 	private get _model() { return this._modelReference.object.textEditorModel; }
 
 	public preview(range: IRange, n: number = 8): { before: string; inside: string; after: string } {
+		const model = this._model;
+
+		if (!model) {
+			return undefined;
+		}
 
 		const {startLineNumber, startColumn, endColumn} = range;
-		const word = this._model.getWordUntilPosition({ lineNumber: startLineNumber, column: startColumn - n });
+		const word = model.getWordUntilPosition({ lineNumber: startLineNumber, column: startColumn - n });
 		const beforeRange = new Range(startLineNumber, word.startColumn, startLineNumber, startColumn);
 		const afterRange = new Range(startLineNumber, endColumn, startLineNumber, Number.MAX_VALUE);
 
 		const ret = {
-			before: this._model.getValueInRange(beforeRange).replace(/^\s+/, strings.empty),
-			inside: this._model.getValueInRange(range),
-			after: this._model.getValueInRange(afterRange).replace(/\s+$/, strings.empty)
+			before: model.getValueInRange(beforeRange).replace(/^\s+/, strings.empty),
+			inside: model.getValueInRange(range),
+			after: model.getValueInRange(afterRange).replace(/\s+$/, strings.empty)
 		};
 
 		return ret;
@@ -258,6 +263,7 @@ export class ReferencesModel implements IDisposable {
 		if (nearest) {
 			return this._references[nearest.idx];
 		}
+		return undefined;
 	}
 
 	dispose(): void {

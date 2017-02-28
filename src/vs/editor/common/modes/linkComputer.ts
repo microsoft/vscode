@@ -124,25 +124,27 @@ const enum CharacterClass {
 	CannotEndIn = 2
 }
 
-const classifier = (function () {
-	let result = new CharacterClassifier<CharacterClass>(CharacterClass.None);
+let _classifier: CharacterClassifier<CharacterClass> = null;
+function getClassifier(): CharacterClassifier<CharacterClass> {
+	if (_classifier === null) {
+		_classifier = new CharacterClassifier<CharacterClass>(CharacterClass.None);
 
-	const FORCE_TERMINATION_CHARACTERS = ' \t<>\'\"、。｡､，．：；？！＠＃＄％＆＊‘“〈《「『【〔（［｛｢｣｝］）〕】』」》〉”’｀～…';
-	for (let i = 0; i < FORCE_TERMINATION_CHARACTERS.length; i++) {
-		result.set(FORCE_TERMINATION_CHARACTERS.charCodeAt(i), CharacterClass.ForceTermination);
+		const FORCE_TERMINATION_CHARACTERS = ' \t<>\'\"、。｡､，．：；？！＠＃＄％＆＊‘“〈《「『【〔（［｛｢｣｝］）〕】』」》〉”’｀～…';
+		for (let i = 0; i < FORCE_TERMINATION_CHARACTERS.length; i++) {
+			_classifier.set(FORCE_TERMINATION_CHARACTERS.charCodeAt(i), CharacterClass.ForceTermination);
+		}
+
+		const CANNOT_END_WITH_CHARACTERS = '.,;';
+		for (let i = 0; i < CANNOT_END_WITH_CHARACTERS.length; i++) {
+			_classifier.set(CANNOT_END_WITH_CHARACTERS.charCodeAt(i), CharacterClass.CannotEndIn);
+		}
 	}
-
-	const CANNOT_END_WITH_CHARACTERS = '.,;';
-	for (let i = 0; i < CANNOT_END_WITH_CHARACTERS.length; i++) {
-		result.set(CANNOT_END_WITH_CHARACTERS.charCodeAt(i), CharacterClass.CannotEndIn);
-	}
-
-	return result;
-})();
+	return _classifier;
+}
 
 class LinkComputer {
 
-	private static _createLink(line: string, lineNumber: number, linkBeginIndex: number, linkEndIndex: number): ILink {
+	private static _createLink(classifier: CharacterClassifier<CharacterClass>, line: string, lineNumber: number, linkBeginIndex: number, linkEndIndex: number): ILink {
 		// Do not allow to end link in certain characters...
 		let lastIncludedCharIndex = linkEndIndex - 1;
 		do {
@@ -167,6 +169,7 @@ class LinkComputer {
 
 	public static computeLinks(model: ILinkComputerTarget): ILink[] {
 		const stateMachine = getStateMachine();
+		const classifier = getClassifier();
 
 		let result: ILink[] = [];
 		for (let i = 1, lineCount = model.getLineCount(); i <= lineCount; i++) {
@@ -175,6 +178,7 @@ class LinkComputer {
 
 			let j = 0;
 			let linkBeginIndex = 0;
+			let linkBeginChCode = 0;
 			let state = State.Start;
 			let hasOpenParens = false;
 			let hasOpenSquareBracket = false;
@@ -209,13 +213,23 @@ class LinkComputer {
 						case CharCode.CloseCurlyBrace:
 							chClass = (hasOpenCurlyBracket ? CharacterClass.None : CharacterClass.ForceTermination);
 							break;
+						/* The following three rules make it that ' or " or ` are allowed inside links if the link began with a different one */
+						case CharCode.SingleQuote:
+							chClass = (linkBeginChCode === CharCode.DoubleQuote || linkBeginChCode === CharCode.BackTick) ? CharacterClass.None : CharacterClass.ForceTermination;
+							break;
+						case CharCode.DoubleQuote:
+							chClass = (linkBeginChCode === CharCode.SingleQuote || linkBeginChCode === CharCode.BackTick) ? CharacterClass.None : CharacterClass.ForceTermination;
+							break;
+						case CharCode.BackTick:
+							chClass = (linkBeginChCode === CharCode.SingleQuote || linkBeginChCode === CharCode.DoubleQuote) ? CharacterClass.None : CharacterClass.ForceTermination;
+							break;
 						default:
 							chClass = classifier.get(chCode);
 					}
 
 					// Check if character terminates link
 					if (chClass === CharacterClass.ForceTermination) {
-						result.push(LinkComputer._createLink(line, i, linkBeginIndex, j));
+						result.push(LinkComputer._createLink(classifier, line, i, linkBeginIndex, j));
 						resetStateMachine = true;
 					}
 				} else if (state === State.End) {
@@ -242,13 +256,14 @@ class LinkComputer {
 
 					// Record where the link started
 					linkBeginIndex = j + 1;
+					linkBeginChCode = chCode;
 				}
 
 				j++;
 			}
 
 			if (state === State.Accept) {
-				result.push(LinkComputer._createLink(line, i, linkBeginIndex, len));
+				result.push(LinkComputer._createLink(classifier, line, i, linkBeginIndex, len));
 			}
 
 		}

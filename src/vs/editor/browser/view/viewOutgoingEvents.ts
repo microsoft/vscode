@@ -10,9 +10,10 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
-import { EventType, EditorLayoutInfo, IScrollEvent, MouseTargetType } from 'vs/editor/common/editorCommon';
+import { EventType, IScrollEvent, MouseTargetType } from 'vs/editor/common/editorCommon';
 import { IEditorMouseEvent, IMouseTarget } from 'vs/editor/browser/editorBrowser';
 import { MouseTarget } from 'vs/editor/browser/controller/mouseTarget';
+import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
 export class ViewOutgoingEvents extends Disposable {
 
@@ -33,12 +34,8 @@ export class ViewOutgoingEvents extends Disposable {
 		return this._actual.deferredEmit(callback);
 	}
 
-	public emitViewLayoutChanged(layoutInfo: EditorLayoutInfo): void {
-		this._actual.emit(EventType.ViewLayoutChanged, layoutInfo);
-	}
-
-	public emitScrollChanged(e: IScrollEvent): void {
-		this._actual.emit('scroll', e);
+	public emitScrollChanged(e: viewEvents.ViewScrollChangedEvent): void {
+		this._actual.emit('scroll', <IScrollEvent>e);
 	}
 
 	public emitViewFocusGained(): void {
@@ -77,6 +74,14 @@ export class ViewOutgoingEvents extends Disposable {
 		this._actual.emit(EventType.MouseDown, this._convertViewToModelMouseEvent(e));
 	}
 
+	public emitMouseDrag(e: IEditorMouseEvent): void {
+		this._actual.emit(EventType.MouseDrag, this._convertViewToModelMouseEvent(e));
+	}
+
+	public emitMouseDrop(e: IEditorMouseEvent): void {
+		this._actual.emit(EventType.MouseDrop, this._convertViewToModelMouseEvent(e));
+	}
+
 	private _convertViewToModelMouseEvent(e: IEditorMouseEvent): IEditorMouseEvent {
 		if (e.target) {
 			return {
@@ -99,11 +104,11 @@ export class ViewOutgoingEvents extends Disposable {
 	}
 
 	private _convertViewToModelPosition(viewPosition: Position): Position {
-		return this._viewModel.convertViewPositionToModelPosition(viewPosition.lineNumber, viewPosition.column);
+		return this._viewModel.coordinatesConverter.convertViewPositionToModelPosition(viewPosition);
 	}
 
 	private _convertViewToModelRange(viewRange: Range): Range {
-		return this._viewModel.convertViewRangeToModelRange(viewRange);
+		return this._viewModel.coordinatesConverter.convertViewRangeToModelRange(viewRange);
 	}
 }
 

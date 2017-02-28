@@ -93,6 +93,7 @@ export enum ClickBehavior {
 
 export interface IControllerOptions {
 	clickBehavior?: ClickBehavior;
+	keyboardSupport?: boolean;
 }
 
 interface IKeybindingDispatcherItem {
@@ -134,22 +135,33 @@ export class DefaultController implements _.IController {
 
 	private options: IControllerOptions;
 
-	constructor(options: IControllerOptions = { clickBehavior: ClickBehavior.ON_MOUSE_UP }) {
+	constructor(options: IControllerOptions = { clickBehavior: ClickBehavior.ON_MOUSE_UP, keyboardSupport: true }) {
 		this.options = options;
 
 		this.downKeyBindingDispatcher = new KeybindingDispatcher();
-		this.downKeyBindingDispatcher.set(KeyCode.Space, (t, e) => this.onSpace(t, e));
-		this.downKeyBindingDispatcher.set(KeyCode.UpArrow, (t, e) => this.onUp(t, e));
-		this.downKeyBindingDispatcher.set(KeyCode.PageUp, (t, e) => this.onPageUp(t, e));
-		this.downKeyBindingDispatcher.set(KeyCode.DownArrow, (t, e) => this.onDown(t, e));
-		this.downKeyBindingDispatcher.set(KeyCode.PageDown, (t, e) => this.onPageDown(t, e));
-		this.downKeyBindingDispatcher.set(KeyCode.LeftArrow, (t, e) => this.onLeft(t, e));
-		this.downKeyBindingDispatcher.set(KeyCode.RightArrow, (t, e) => this.onRight(t, e));
-		this.downKeyBindingDispatcher.set(KeyCode.Escape, (t, e) => this.onEscape(t, e));
-
 		this.upKeyBindingDispatcher = new KeybindingDispatcher();
-		this.upKeyBindingDispatcher.set(KeyCode.Enter, this.onEnter.bind(this));
-		this.upKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.Enter, this.onEnter.bind(this));
+
+		if (typeof options.keyboardSupport !== 'boolean' || options.keyboardSupport) {
+			this.downKeyBindingDispatcher.set(KeyCode.UpArrow, (t, e) => this.onUp(t, e));
+			this.downKeyBindingDispatcher.set(KeyCode.DownArrow, (t, e) => this.onDown(t, e));
+			this.downKeyBindingDispatcher.set(KeyCode.LeftArrow, (t, e) => this.onLeft(t, e));
+			this.downKeyBindingDispatcher.set(KeyCode.RightArrow, (t, e) => this.onRight(t, e));
+			if (platform.isMacintosh) {
+				this.downKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.UpArrow, (t, e) => this.onLeft(t, e));
+				this.downKeyBindingDispatcher.set(KeyMod.WinCtrl | KeyCode.KEY_N, (t, e) => this.onDown(t, e));
+				this.downKeyBindingDispatcher.set(KeyMod.WinCtrl | KeyCode.KEY_P, (t, e) => this.onUp(t, e));
+			}
+			this.downKeyBindingDispatcher.set(KeyCode.PageUp, (t, e) => this.onPageUp(t, e));
+			this.downKeyBindingDispatcher.set(KeyCode.PageDown, (t, e) => this.onPageDown(t, e));
+			this.downKeyBindingDispatcher.set(KeyCode.Home, (t, e) => this.onHome(t, e));
+			this.downKeyBindingDispatcher.set(KeyCode.End, (t, e) => this.onEnd(t, e));
+
+			this.downKeyBindingDispatcher.set(KeyCode.Space, (t, e) => this.onSpace(t, e));
+			this.downKeyBindingDispatcher.set(KeyCode.Escape, (t, e) => this.onEscape(t, e));
+
+			this.upKeyBindingDispatcher.set(KeyCode.Enter, this.onEnter.bind(this));
+			this.upKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.Enter, this.onEnter.bind(this));
+		}
 	}
 
 	public onMouseDown(tree: _.ITree, element: any, event: mouse.IMouseEvent, origin: string = 'mouse'): boolean {
@@ -311,6 +323,30 @@ export class DefaultController implements _.IController {
 		return true;
 	}
 
+	protected onHome(tree: _.ITree, event: IKeyboardEvent): boolean {
+		var payload = { origin: 'keyboard', originalEvent: event };
+
+		if (tree.getHighlight()) {
+			tree.clearHighlight(payload);
+		} else {
+			tree.focusFirst(payload);
+			tree.reveal(tree.getFocus()).done(null, errors.onUnexpectedError);
+		}
+		return true;
+	}
+
+	protected onEnd(tree: _.ITree, event: IKeyboardEvent): boolean {
+		var payload = { origin: 'keyboard', originalEvent: event };
+
+		if (tree.getHighlight()) {
+			tree.clearHighlight(payload);
+		} else {
+			tree.focusLast(payload);
+			tree.reveal(tree.getFocus()).done(null, errors.onUnexpectedError);
+		}
+		return true;
+	}
+
 	protected onLeft(tree: _.ITree, event: IKeyboardEvent): boolean {
 		var payload = { origin: 'keyboard', originalEvent: event };
 
@@ -323,6 +359,7 @@ export class DefaultController implements _.IController {
 					tree.focusParent(payload);
 					return tree.reveal(tree.getFocus());
 				}
+				return undefined;
 			}).done(null, errors.onUnexpectedError);
 		}
 		return true;
@@ -340,6 +377,7 @@ export class DefaultController implements _.IController {
 					tree.focusFirstChild(payload);
 					return tree.reveal(tree.getFocus());
 				}
+				return undefined;
 			}).done(null, errors.onUnexpectedError);
 		}
 		return true;

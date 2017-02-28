@@ -9,7 +9,7 @@ import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
 import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
-import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWindowService, IWindowsService, MenuBarVisibility } from 'vs/platform/windows/common/windows';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import nls = require('vs/nls');
 import product from 'vs/platform/node/product';
@@ -22,12 +22,10 @@ import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IExtensionManagementService, LocalExtensionType, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import paths = require('vs/base/common/paths');
 import { isMacintosh, isLinux } from 'vs/base/common/platform';
 import { IQuickOpenService, IFilePickOpenEntry, ISeparator } from 'vs/platform/quickOpen/common/quickOpen';
 import { KeyMod } from 'vs/base/common/keyCodes';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import * as browser from 'vs/base/browser/browser';
 import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
 import { IEntryRunContext } from 'vs/base/parts/quickopen/common/quickOpen';
@@ -183,16 +181,16 @@ export class ToggleMenuBarAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		let currentVisibilityValue = this.configurationService.lookup<'visible' | 'toggle' | 'hidden'>(ToggleMenuBarAction.menuBarVisibilityKey).value;
-		if (typeof (currentVisibilityValue) !== 'string') {
-			currentVisibilityValue = 'visible';
+		let currentVisibilityValue = this.configurationService.lookup<MenuBarVisibility>(ToggleMenuBarAction.menuBarVisibilityKey).value;
+		if (typeof currentVisibilityValue !== 'string') {
+			currentVisibilityValue = 'default';
 		}
 
 		let newVisibilityValue: string;
-		if (currentVisibilityValue === 'visible') {
+		if (currentVisibilityValue === 'visible' || currentVisibilityValue === 'default') {
 			newVisibilityValue = 'toggle';
 		} else {
-			newVisibilityValue = 'visible';
+			newVisibilityValue = 'default';
 		}
 
 		this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: ToggleMenuBarAction.menuBarVisibilityKey, value: newVisibilityValue }).then(null, error => {
@@ -694,10 +692,7 @@ export class ReportIssueAction extends Action {
 		const body = encodeURIComponent(
 			`- VSCode Version: ${name} ${version}${isPure ? '' : ' **[Unsupported]**'} (${product.commit || 'Commit unknown'}, ${product.date || 'Date unknown'})
 - OS Version: ${osVersion}
-- Extensions:
-
-${this.generateExtensionTable(extensions)}
-
+- Extensions: ${this.generateExtensionTable(extensions)}
 ---
 
 Steps to Reproduce:
@@ -710,13 +705,21 @@ Steps to Reproduce:
 	}
 
 	private generateExtensionTable(extensions: ILocalExtension[]): string {
+		if (!extensions.length) {
+			return 'none';
+		}
+
 		let tableHeader = `|Extension|Author|Version|
 |---|---|---|`;
 		const table = extensions.map(e => {
 			return `|${e.manifest.name}|${e.manifest.publisher}|${e.manifest.version}|`;
 		}).join('\n');
 
-		return `${tableHeader}\n${table}`;
+		return `
+
+${tableHeader}\n${table};
+
+`;
 	}
 }
 
@@ -856,26 +859,44 @@ export class KeybindingsReferenceAction extends Action {
 	}
 }
 
-// --- commands
+export class OpenDocumentationUrlAction extends Action {
 
-CommandsRegistry.registerCommand('_workbench.diff', function (accessor: ServicesAccessor, args: [URI, URI, string, string]) {
-	const editorService = accessor.get(IWorkbenchEditorService);
-	let [leftResource, rightResource, label, description] = args;
+	public static ID = 'workbench.action.openDocumentationUrl';
+	public static LABEL = nls.localize('openDocumentationUrl', "Documentation");
 
-	if (!label) {
-		label = nls.localize('diffLeftRightLabel', "{0} ⟷ {1}", leftResource.toString(true), rightResource.toString(true));
+	private static URL = product.documentationUrl;
+	public static AVAILABLE = !!OpenDocumentationUrlAction.URL;
+
+	constructor(
+		id: string,
+		label: string
+	) {
+		super(id, label);
 	}
 
-	return editorService.openEditor({ leftResource, rightResource, label, description }).then(() => {
-		return void 0;
-	});
-});
+	public run(): TPromise<void> {
+		window.open(OpenDocumentationUrlAction.URL);
+		return null;
+	}
+}
 
-CommandsRegistry.registerCommand('_workbench.open', function (accessor: ServicesAccessor, args: [URI, number]) {
-	const editorService = accessor.get(IWorkbenchEditorService);
-	const [resource, column] = args;
+export class OpenIntroductoryVideosUrlAction extends Action {
 
-	return editorService.openEditor({ resource }, column).then(() => {
-		return void 0;
-	});
-});
+	public static ID = 'workbench.action.openIntroductoryVideosUrl';
+	public static LABEL = nls.localize('openIntroductoryVideosUrl', "Introductory Videos");
+
+	private static URL = product.introductoryVideosUrl;
+	public static AVAILABLE = !!OpenIntroductoryVideosUrlAction.URL;
+
+	constructor(
+		id: string,
+		label: string
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<void> {
+		window.open(OpenIntroductoryVideosUrlAction.URL);
+		return null;
+	}
+}

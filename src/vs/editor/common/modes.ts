@@ -7,14 +7,15 @@
 import { MarkedString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
-import { IFilter } from 'vs/base/common/filters';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/token';
 import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import Event, { Emitter } from 'vs/base/common/event';
+import Event from 'vs/base/common/event';
+import { TokenizationRegistryImpl } from 'vs/editor/common/modes/tokenizationRegistry';
+import { Color } from 'vs/base/common/color';
 
 /**
  * Open ended enum at runtime
@@ -235,9 +236,7 @@ export interface ISuggestResult {
  */
 export interface ISuggestSupport {
 
-	triggerCharacters: string[];
-
-	filter?: IFilter;
+	triggerCharacters?: string[];
 
 	provideCompletionItems(model: editorCommon.IReadOnlyModel, position: Position, token: CancellationToken): ISuggestResult | Thenable<ISuggestResult>;
 
@@ -432,12 +431,23 @@ export interface DefinitionProvider {
 }
 
 /**
- * The type definition provider interface defines the contract between extensions and
+ * The implementation provider interface defines the contract between extensions and
  * the go to implementation feature.
+ */
+export interface ImplementationProvider {
+	/**
+	 * Provide the implementation of the symbol at the given position and document.
+	 */
+	provideImplementation(model: editorCommon.IReadOnlyModel, position: Position, token: CancellationToken): Definition | Thenable<Definition>;
+}
+
+/**
+ * The type definition provider interface defines the contract between extensions and
+ * the go to type definition feature.
  */
 export interface TypeDefinitionProvider {
 	/**
-	 * Provide the implementation of the symbol at the given position and document.
+	 * Provide the type definition of the symbol at the given position and document.
 	 */
 	provideTypeDefinition(model: editorCommon.IReadOnlyModel, position: Position, token: CancellationToken): Definition | Thenable<Definition>;
 }
@@ -484,6 +494,8 @@ export namespace SymbolKind {
 				return 'function';
 			case SymbolKind.Constructor:
 				return 'constructor';
+			case SymbolKind.Field:
+				return 'field';
 			case SymbolKind.Variable:
 				return 'variable';
 			case SymbolKind.Class:
@@ -531,6 +543,8 @@ export namespace SymbolKind {
 				return SymbolKind.Function;
 			case 'constructor':
 				return SymbolKind.Constructor;
+			case 'field':
+				return SymbolKind.Field;
 			case 'variable':
 				return SymbolKind.Variable;
 			case 'class':
@@ -752,6 +766,11 @@ export const DefinitionProviderRegistry = new LanguageFeatureRegistry<Definition
 /**
  * @internal
  */
+export const ImplementationProviderRegistry = new LanguageFeatureRegistry<ImplementationProvider>();
+
+/**
+ * @internal
+ */
 export const TypeDefinitionProviderRegistry = new LanguageFeatureRegistry<TypeDefinitionProvider>();
 
 /**
@@ -788,60 +807,47 @@ export const LinkProviderRegistry = new LanguageFeatureRegistry<LinkProvider>();
  * @internal
  */
 export interface ITokenizationSupportChangedEvent {
-	languages: string[];
+	changedLanguages: string[];
+	changedColorMap: boolean;
 }
 
 /**
  * @internal
  */
-export class TokenizationRegistryImpl {
+export interface ITokenizationRegistry {
 
-	private _map: { [language: string]: ITokenizationSupport };
-
-	private _onDidChange: Emitter<ITokenizationSupportChangedEvent> = new Emitter<ITokenizationSupportChangedEvent>();
-	public onDidChange: Event<ITokenizationSupportChangedEvent> = this._onDidChange.event;
-
-	private _colorMap: string[];
-
-	constructor() {
-		this._map = Object.create(null);
-		this._colorMap = null;
-	}
+	/**
+	 * An event triggered when:
+	 *  - a tokenization support is registered, unregistered or changed.
+	 *  - the color map is changed.
+	 */
+	onDidChange: Event<ITokenizationSupportChangedEvent>;
 
 	/**
 	 * Fire a change event for a language.
 	 * This is useful for languages that embed other languages.
 	 */
-	public fire(languages: string[]): void {
-		this._onDidChange.fire({ languages: languages });
-	}
+	fire(languages: string[]): void;
 
-	public register(language: string, support: ITokenizationSupport): IDisposable {
-		this._map[language] = support;
-		this.fire([language]);
-		return {
-			dispose: () => {
-				if (this._map[language] !== support) {
-					return;
-				}
-				delete this._map[language];
-				this.fire([language]);
-			}
-		};
-	}
+	/**
+	 * Register a tokenization support.
+	 */
+	register(language: string, support: ITokenizationSupport): IDisposable;
 
-	public get(language: string): ITokenizationSupport {
-		return (this._map[language] || null);
-	}
+	/**
+	 * Get the tokenization support for a language.
+	 * Returns null if not found.
+	 */
+	get(language: string): ITokenizationSupport;
 
-	public setColorMap(colorMap: string[]): void {
-		this._colorMap = colorMap;
-		this.fire(Object.keys(this._map));
-	}
+	/**
+	 * Set the new color map that all tokens will use in their ColorId binary encoded bits for foreground and background.
+	 */
+	setColorMap(colorMap: Color[]): void;
 
-	public getColorMap(): string[] {
-		return this._colorMap;
-	}
+	getColorMap(): Color[];
+	getDefaultForeground(): Color;
+	getDefaultBackground(): Color;
 }
 
 /**

@@ -50,7 +50,7 @@ const releaseNotesCache: { [version: string]: TPromise<string>; } = Object.creat
 export function loadReleaseNotes(accessor: ServicesAccessor, version: string): TPromise<string> {
 	const requestService = accessor.get(IRequestService);
 	const keybindingService = accessor.get(IKeybindingService);
-	const match = /^(\d+\.\d)\./.exec(version);
+	const match = /^(\d+\.\d+)\./.exec(version);
 
 	if (!match) {
 		return TPromise.as(null);
@@ -63,7 +63,7 @@ export function loadReleaseNotes(accessor: ServicesAccessor, version: string): T
 
 	const patchKeybindings = (text: string): string => {
 		const kb = (match: string, kb: string) => {
-			const keybinding = keybindingService.lookupKeybindings(kb)[0];
+			const [keybinding] = keybindingService.lookupKeybindings(kb);
 
 			if (!keybinding) {
 				return unassigned;

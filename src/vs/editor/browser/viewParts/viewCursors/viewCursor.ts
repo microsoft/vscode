@@ -4,15 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { FastDomNode, createFastDomNode } from 'vs/base/browser/styleMutator';
+import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { IConfigurationChangedEvent, TextEditorCursorStyle } from 'vs/editor/common/editorCommon';
+import { TextEditorCursorStyle } from 'vs/editor/common/editorCommon';
 import { Configuration } from 'vs/editor/browser/config/configuration';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { IRenderingContext, IRestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
+import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
 export interface IViewCursorRenderData {
+	domNode: HTMLElement;
 	position: Position;
 	contentTop: number;
 	contentLeft: number;
@@ -37,7 +39,7 @@ export class ViewCursorRenderData {
 export class ViewCursor {
 	private readonly _context: ViewContext;
 	private readonly _isSecondary: boolean;
-	private readonly _domNode: FastDomNode;
+	private readonly _domNode: FastDomNode<HTMLElement>;
 
 	private _cursorStyle: TextEditorCursorStyle;
 	private _lineHeight: number;
@@ -109,19 +111,7 @@ export class ViewCursor {
 		}
 	}
 
-	public onModelFlushed(): boolean {
-		this.updatePosition(new Position(1, 1));
-		this._isInEditableRange = true;
-		return true;
-	}
-
-	public onCursorPositionChanged(position: Position, isInEditableRange: boolean): boolean {
-		this.updatePosition(position);
-		this._isInEditableRange = isInEditableRange;
-		return true;
-	}
-
-	public onConfigurationChanged(e: IConfigurationChangedEvent): boolean {
+	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		if (e.lineHeight) {
 			this._lineHeight = this._context.configuration.editor.lineHeight;
 		}
@@ -135,14 +125,31 @@ export class ViewCursor {
 		return true;
 	}
 
+	public onCursorPositionChanged(position: Position, isInEditableRange: boolean): boolean {
+		this.updatePosition(position);
+		this._isInEditableRange = isInEditableRange;
+		return true;
+	}
+
+	public onFlushed(): boolean {
+		this.updatePosition(new Position(1, 1));
+		this._isInEditableRange = true;
+		return true;
+	}
+
 	private _prepareRender(ctx: IRenderingContext): ViewCursorRenderData {
-		if (this._cursorStyle === TextEditorCursorStyle.Line) {
+		if (this._cursorStyle === TextEditorCursorStyle.Line || this._cursorStyle === TextEditorCursorStyle.LineThin) {
 			let visibleRange = ctx.visibleRangeForPosition(this._position);
 			if (!visibleRange) {
 				// Outside viewport
 				return null;
 			}
-			let width = this._isSecondary ? 1 : 2;
+			let width: number;
+			if (this._cursorStyle === TextEditorCursorStyle.Line) {
+				width = this._isSecondary ? 1 : 2;
+			} else {
+				width = 1;
+			}
 			return new ViewCursorRenderData(visibleRange.top, visibleRange.left, width, '');
 		}
 
@@ -190,6 +197,7 @@ export class ViewCursor {
 		this._domNode.setHeight(this._lineHeight);
 
 		return {
+			domNode: this._domNode.domNode,
 			position: this._position,
 			contentTop: top,
 			contentLeft: this._renderData.left,
@@ -200,7 +208,5 @@ export class ViewCursor {
 
 	private updatePosition(newPosition: Position): void {
 		this._position = newPosition;
-		this._domNode.domNode.setAttribute('lineNumber', this._position.lineNumber.toString());
-		this._domNode.domNode.setAttribute('column', this._position.column.toString());
 	}
 }

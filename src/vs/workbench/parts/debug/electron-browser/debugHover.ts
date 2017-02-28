@@ -11,7 +11,7 @@ import * as dom from 'vs/base/browser/dom';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { DefaultController, ICancelableEvent } from 'vs/base/parts/tree/browser/treeDefaults';
+import { DefaultController, ICancelableEvent, ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
 import { IConfigurationChangedEvent } from 'vs/editor/common/editorCommon';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -20,6 +20,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IDebugService, IExpression, IExpressionContainer } from 'vs/workbench/parts/debug/common/debug';
 import { Expression } from 'vs/workbench/parts/debug/common/debugModel';
 import { VariablesRenderer, renderExpressionValue, VariablesDataSource } from 'vs/workbench/parts/debug/electron-browser/debugViewer';
+import { IListService } from 'vs/platform/list/browser/listService';
 
 const $ = dom.$;
 const MAX_ELEMENTS_SHOWN = 18;
@@ -43,7 +44,12 @@ export class DebugHoverWidget implements IContentWidget {
 	private stoleFocus: boolean;
 	private toDispose: lifecycle.IDisposable[];
 
-	constructor(private editor: ICodeEditor, private debugService: IDebugService, instantiationService: IInstantiationService) {
+	constructor(
+		private editor: ICodeEditor,
+		private debugService: IDebugService,
+		private listService: IListService,
+		instantiationService: IInstantiationService
+	) {
 		this.toDispose = [];
 		this.create(instantiationService);
 		this.registerListeners();
@@ -73,8 +79,11 @@ export class DebugHoverWidget implements IContentWidget {
 		}, {
 				indentPixels: 6,
 				twistiePixels: 15,
-				ariaLabel: nls.localize('treeAriaLabel', "Debug Hover")
+				ariaLabel: nls.localize('treeAriaLabel', "Debug Hover"),
+				keyboardSupport: false
 			});
+
+		this.toDispose.push(this.listService.register(this.tree));
 	}
 
 	private registerListeners(): void {
@@ -161,7 +170,7 @@ export class DebugHoverWidget implements IContentWidget {
 		// use regex to extract the sub-expression #9821
 		const matchingExpression = lineContent.substring(expressionRange.startColumn - 1, expressionRange.endColumn);
 		let promise: TPromise<IExpression>;
-		if (process.session.configuration.capabilities.supportsEvaluateForHovers) {
+		if (process.session.capabilities.supportsEvaluateForHovers) {
 			const result = new Expression(matchingExpression);
 			promise = result.evaluate(process, this.debugService.getViewModel().focusedStackFrame, 'hover').then(() => result);
 		} else {
@@ -171,7 +180,7 @@ export class DebugHoverWidget implements IContentWidget {
 		return promise.then(expression => {
 			if (!expression || (expression instanceof Expression && !expression.available)) {
 				this.hide();
-				return;
+				return undefined;
 			}
 
 			this.highlightDecorations = this.editor.deltaDecorations(this.highlightDecorations, [{
@@ -186,10 +195,13 @@ export class DebugHoverWidget implements IContentWidget {
 	}
 
 	private doFindExpression(container: IExpressionContainer, namesToFind: string[]): TPromise<IExpression> {
+		if (!container) {
+			return TPromise.as(null);
+		}
+
 		return container.getChildren().then(children => {
 			// look for our variable in the list. First find the parents of the hovered variable if there are any.
-			// some languages pass the type as part of the name, so need to check if the last word of the name matches.
-			const filtered = children.filter(v => typeof v.name === 'string' && (namesToFind[0] === v.name || namesToFind[0] === v.name.substr(v.name.lastIndexOf(' ') + 1)));
+			const filtered = children.filter(v => namesToFind[0] === v.name);
 			if (filtered.length !== 1) {
 				return null;
 			}
@@ -299,7 +311,7 @@ export class DebugHoverWidget implements IContentWidget {
 class DebugHoverController extends DefaultController {
 
 	constructor(private editor: ICodeEditor) {
-		super();
+		super({ clickBehavior: ClickBehavior.ON_MOUSE_UP, keyboardSupport: false });
 	}
 
 	protected onLeftClick(tree: ITree, element: any, eventish: ICancelableEvent, origin = 'mouse'): boolean {

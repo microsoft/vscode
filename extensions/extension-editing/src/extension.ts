@@ -7,10 +7,14 @@
 
 import * as vscode from 'vscode';
 import * as ts from 'typescript';
+import { PackageDocument } from './packageDocumentHelper';
 
 export function activate(context: vscode.ExtensionContext) {
 	const registration = vscode.languages.registerDocumentLinkProvider({ language: 'typescript', pattern: '**/vscode.d.ts' }, _linkProvider);
 	context.subscriptions.push(registration);
+
+	//package.json suggestions
+	context.subscriptions.push(registerPackageDocumentCompletions());
 }
 
 const _linkProvider = new class implements vscode.DocumentLinkProvider {
@@ -100,4 +104,12 @@ namespace ast {
 			return start;
 		};
 	}
+}
+
+function registerPackageDocumentCompletions(): vscode.Disposable {
+	return vscode.languages.registerCompletionItemProvider({ language: 'json', pattern: '**/package.json' }, {
+		provideCompletionItems(document, position, token) {
+			return new PackageDocument(document).provideCompletionItems(position, token);
+		}
+	});
 }

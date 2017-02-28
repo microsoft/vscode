@@ -47,11 +47,11 @@ export class EditorWorkerServiceImpl implements IEditorWorkerService {
 			}
 		});
 		const completionProvider = modes.SuggestRegistry.register('*', <modes.ISuggestSupport>{
-			triggerCharacters: [],
 			provideCompletionItems: (model, position, token) => {
 				if (configurationService.lookup<boolean>('editor.wordBasedSuggestions').value) {
 					return this._workerManager.withWorker().then(client => client.textualSuggest(model.uri, position));
 				}
+				return undefined;
 			}
 		});
 		this._registrations = [linkProvider, completionProvider];

@@ -15,9 +15,24 @@ export const enum RenderWhitespace {
 	All = 2
 }
 
+class LinePart {
+	_linePartBrand: void;
+
+	/**
+	 * last char index of this token (not inclusive).
+	 */
+	public readonly endIndex: number;
+	public readonly type: string;
+
+	constructor(endIndex: number, type: string) {
+		this.endIndex = endIndex;
+		this.type = type;
+	}
+}
+
 export class RenderLineInput {
 
-	public readonly fontIsMonospace: boolean;
+	public readonly useMonospaceOptimizations: boolean;
 	public readonly lineContent: string;
 	public readonly mightContainRTL: boolean;
 	public readonly fauxIndentLength: number;
@@ -30,7 +45,7 @@ export class RenderLineInput {
 	public readonly renderControlCharacters: boolean;
 
 	constructor(
-		fontIsMonospace: boolean,
+		useMonospaceOptimizations: boolean,
 		lineContent: string,
 		mightContainRTL: boolean,
 		fauxIndentLength: number,
@@ -42,7 +57,7 @@ export class RenderLineInput {
 		renderWhitespace: 'none' | 'boundary' | 'all',
 		renderControlCharacters: boolean,
 	) {
-		this.fontIsMonospace = fontIsMonospace;
+		this.useMonospaceOptimizations = useMonospaceOptimizations;
 		this.lineContent = lineContent;
 		this.mightContainRTL = mightContainRTL;
 		this.fauxIndentLength = fauxIndentLength;
@@ -63,7 +78,7 @@ export class RenderLineInput {
 
 	public equals(other: RenderLineInput): boolean {
 		return (
-			this.fontIsMonospace === other.fontIsMonospace
+			this.useMonospaceOptimizations === other.useMonospaceOptimizations
 			&& this.lineContent === other.lineContent
 			&& this.mightContainRTL === other.mightContainRTL
 			&& this.fauxIndentLength === other.fauxIndentLength
@@ -204,13 +219,13 @@ export class RenderLineOutput {
 	_renderLineOutputBrand: void;
 
 	readonly characterMapping: CharacterMapping;
-	readonly output: string;
+	readonly html: string;
 	readonly containsRTL: boolean;
 	readonly containsForeignElements: boolean;
 
-	constructor(characterMapping: CharacterMapping, output: string, containsRTL: boolean, containsForeignElements: boolean) {
+	constructor(characterMapping: CharacterMapping, html: string, containsRTL: boolean, containsForeignElements: boolean) {
 		this.characterMapping = characterMapping;
-		this.output = output;
+		this.html = html;
 		this.containsRTL = containsRTL;
 		this.containsForeignElements = containsForeignElements;
 	}
@@ -236,7 +251,7 @@ class ResolvedRenderLineInput {
 		public readonly lineContent: string,
 		public readonly len: number,
 		public readonly isOverflowing: boolean,
-		public readonly tokens: ViewLineToken[],
+		public readonly parts: LinePart[],
 		public readonly containsForeignElements: boolean,
 		public readonly tabSize: number,
 		public readonly containsRTL: boolean,
@@ -249,7 +264,7 @@ class ResolvedRenderLineInput {
 }
 
 function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput {
-	const fontIsMonospace = input.fontIsMonospace;
+	const useMonospaceOptimizations = input.useMonospaceOptimizations;
 	const lineContent = input.lineContent;
 
 	let isOverflowing: boolean;
@@ -263,9 +278,9 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 		len = lineContent.length;
 	}
 
-	let tokens = removeOverflowing(input.lineTokens, len);
+	let tokens = transformAndRemoveOverflowing(input.lineTokens, input.fauxIndentLength, len);
 	if (input.renderWhitespace === RenderWhitespace.All || input.renderWhitespace === RenderWhitespace.Boundary) {
-		tokens = _applyRenderWhitespace(lineContent, len, tokens, input.fauxIndentLength, input.tabSize, fontIsMonospace, input.renderWhitespace === RenderWhitespace.Boundary);
+		tokens = _applyRenderWhitespace(lineContent, len, tokens, input.fauxIndentLength, input.tabSize, useMonospaceOptimizations, input.renderWhitespace === RenderWhitespace.Boundary);
 	}
 	let containsForeignElements = false;
 	if (input.lineDecorations.length > 0) {
@@ -283,11 +298,11 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 		containsRTL = strings.containsRTL(lineContent);
 	}
 	if (!containsRTL) {
-		tokens = splitLargeTokens(tokens);
+		tokens = splitLargeTokens(lineContent, tokens);
 	}
 
 	return new ResolvedRenderLineInput(
-		fontIsMonospace,
+		useMonospaceOptimizations,
 		lineContent,
 		len,
 		isOverflowing,
@@ -305,26 +320,29 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
  * In the rendering phase, characters are always looped until token.endIndex.
  * Ensure that all tokens end before `len` and the last one ends precisely at `len`.
  */
-function removeOverflowing(tokens: ViewLineToken[], len: number): ViewLineToken[] {
-	if (tokens.length === 0) {
-		return tokens;
+function transformAndRemoveOverflowing(tokens: ViewLineToken[], fauxIndentLength: number, len: number): LinePart[] {
+	let result: LinePart[] = [], resultLen = 0;
+
+	// The faux indent part of the line should have no token type
+	if (fauxIndentLength > 0) {
+		result[resultLen++] = new LinePart(fauxIndentLength, '');
 	}
-	if (tokens[tokens.length - 1].endIndex === len) {
-		return tokens;
-	}
-	let result: ViewLineToken[] = [];
+
 	for (let tokenIndex = 0, tokensLen = tokens.length; tokenIndex < tokensLen; tokenIndex++) {
-		const endIndex = tokens[tokenIndex].endIndex;
-		if (endIndex === len) {
-			result[tokenIndex] = tokens[tokenIndex];
+		const token = tokens[tokenIndex];
+		const endIndex = token.endIndex;
+		if (endIndex <= fauxIndentLength) {
+			// The faux indent part of the line should have no token type
+			continue;
+		}
+		const type = token.getType();
+		if (endIndex >= len) {
+			result[resultLen++] = new LinePart(len, type);
 			break;
 		}
-		if (endIndex > len) {
-			result[tokenIndex] = new ViewLineToken(len, tokens[tokenIndex].type);
-			break;
-		}
-		result[tokenIndex] = tokens[tokenIndex];
+		result[resultLen++] = new LinePart(endIndex, type);
 	}
+
 	return result;
 }
 
@@ -340,9 +358,9 @@ const enum Constants {
  * It appears that having very large spans causes very slow reading of character positions.
  * So here we try to avoid that.
  */
-function splitLargeTokens(tokens: ViewLineToken[]): ViewLineToken[] {
+function splitLargeTokens(lineContent: string, tokens: LinePart[]): LinePart[] {
 	let lastTokenEndIndex = 0;
-	let result: ViewLineToken[] = [], resultLen = 0;
+	let result: LinePart[] = [], resultLen = 0;
 	for (let i = 0, len = tokens.length; i < len; i++) {
 		const token = tokens[i];
 		const tokenEndIndex = token.endIndex;
@@ -352,9 +370,14 @@ function splitLargeTokens(tokens: ViewLineToken[]): ViewLineToken[] {
 			const piecesCount = Math.ceil(diff / Constants.LongToken);
 			for (let j = 1; j < piecesCount; j++) {
 				let pieceEndIndex = lastTokenEndIndex + (j * Constants.LongToken);
-				result[resultLen++] = new ViewLineToken(pieceEndIndex, tokenType);
+				let lastCharInPiece = lineContent.charCodeAt(pieceEndIndex - 1);
+				if (strings.isHighSurrogate(lastCharInPiece)) {
+					// Don't cut in the middle of a surrogate pair
+					pieceEndIndex--;
+				}
+				result[resultLen++] = new LinePart(pieceEndIndex, tokenType);
 			}
-			result[resultLen++] = new ViewLineToken(tokenEndIndex, tokenType);
+			result[resultLen++] = new LinePart(tokenEndIndex, tokenType);
 		} else {
 			result[resultLen++] = token;
 		}
@@ -369,16 +392,12 @@ function splitLargeTokens(tokens: ViewLineToken[]): ViewLineToken[] {
  * Moreover, a token is created for every visual indent because on some fonts the glyphs used for rendering whitespace (&rarr; or &middot;) do not have the same width as &nbsp;.
  * The rendering phase will generate `style="width:..."` for these tokens.
  */
-function _applyRenderWhitespace(lineContent: string, len: number, tokens: ViewLineToken[], fauxIndentLength: number, tabSize: number, fontIsMonospace: boolean, onlyBoundary: boolean): ViewLineToken[] {
+function _applyRenderWhitespace(lineContent: string, len: number, tokens: LinePart[], fauxIndentLength: number, tabSize: number, useMonospaceOptimizations: boolean, onlyBoundary: boolean): LinePart[] {
 
-	let result: ViewLineToken[] = [], resultLen = 0;
+	let result: LinePart[] = [], resultLen = 0;
 	let tokenIndex = 0;
 	let tokenType = tokens[tokenIndex].type;
 	let tokenEndIndex = tokens[tokenIndex].endIndex;
-
-	if (fauxIndentLength > 0) {
-		result[resultLen++] = new ViewLineToken(fauxIndentLength, '');
-	}
 
 	let firstNonWhitespaceIndex = strings.firstNonWhitespaceIndex(lineContent);
 	let lastNonWhitespaceIndex: number;
@@ -431,15 +450,15 @@ function _applyRenderWhitespace(lineContent: string, len: number, tokens: ViewLi
 
 		if (wasInWhitespace) {
 			// was in whitespace token
-			if (!isInWhitespace || (!fontIsMonospace && tmpIndent >= tabSize)) {
+			if (!isInWhitespace || (!useMonospaceOptimizations && tmpIndent >= tabSize)) {
 				// leaving whitespace token or entering a new indent
-				result[resultLen++] = new ViewLineToken(charIndex, 'vs-whitespace');
+				result[resultLen++] = new LinePart(charIndex, 'vs-whitespace');
 				tmpIndent = tmpIndent % tabSize;
 			}
 		} else {
 			// was in regular token
 			if (charIndex === tokenEndIndex || (isInWhitespace && charIndex > fauxIndentLength)) {
-				result[resultLen++] = new ViewLineToken(charIndex, tokenType);
+				result[resultLen++] = new LinePart(charIndex, tokenType);
 				tmpIndent = tmpIndent % tabSize;
 			}
 		}
@@ -461,10 +480,10 @@ function _applyRenderWhitespace(lineContent: string, len: number, tokens: ViewLi
 
 	if (wasInWhitespace) {
 		// was in whitespace token
-		result[resultLen++] = new ViewLineToken(len, 'vs-whitespace');
+		result[resultLen++] = new LinePart(len, 'vs-whitespace');
 	} else {
 		// was in regular token
-		result[resultLen++] = new ViewLineToken(len, tokenType);
+		result[resultLen++] = new LinePart(len, tokenType);
 	}
 
 	return result;
@@ -474,13 +493,13 @@ function _applyRenderWhitespace(lineContent: string, len: number, tokens: ViewLi
  * Inline decorations are "merged" on top of tokens.
  * Special care must be taken when multiple inline decorations are at play and they overlap.
  */
-function _applyInlineDecorations(lineContent: string, len: number, tokens: ViewLineToken[], _lineDecorations: Decoration[]): ViewLineToken[] {
+function _applyInlineDecorations(lineContent: string, len: number, tokens: LinePart[], _lineDecorations: Decoration[]): LinePart[] {
 	_lineDecorations.sort(Decoration.compare);
 	const lineDecorations = LineDecorationsNormalizer.normalize(_lineDecorations);
 	const lineDecorationsLen = lineDecorations.length;
 
 	let lineDecorationIndex = 0;
-	let result: ViewLineToken[] = [], resultLen = 0, lastResultEndIndex = 0;
+	let result: LinePart[] = [], resultLen = 0, lastResultEndIndex = 0;
 	for (let tokenIndex = 0, len = tokens.length; tokenIndex < len; tokenIndex++) {
 		const token = tokens[tokenIndex];
 		const tokenEndIndex = token.endIndex;
@@ -491,21 +510,25 @@ function _applyInlineDecorations(lineContent: string, len: number, tokens: ViewL
 
 			if (lineDecoration.startOffset > lastResultEndIndex) {
 				lastResultEndIndex = lineDecoration.startOffset;
-				result[resultLen++] = new ViewLineToken(lastResultEndIndex, tokenType);
+				result[resultLen++] = new LinePart(lastResultEndIndex, tokenType);
 			}
 
 			if (lineDecoration.endOffset + 1 <= tokenEndIndex) {
+				// This line decoration ends before this token ends
 				lastResultEndIndex = lineDecoration.endOffset + 1;
-				result[resultLen++] = new ViewLineToken(lastResultEndIndex, tokenType + ' ' + lineDecoration.className);
+				result[resultLen++] = new LinePart(lastResultEndIndex, tokenType + ' ' + lineDecoration.className);
 				lineDecorationIndex++;
 			} else {
+				// This line decoration continues on to the next token
+				lastResultEndIndex = tokenEndIndex;
+				result[resultLen++] = new LinePart(lastResultEndIndex, tokenType + ' ' + lineDecoration.className);
 				break;
 			}
 		}
 
 		if (tokenEndIndex > lastResultEndIndex) {
 			lastResultEndIndex = tokenEndIndex;
-			result[resultLen++] = new ViewLineToken(lastResultEndIndex, tokenType);
+			result[resultLen++] = new LinePart(lastResultEndIndex, tokenType);
 		}
 	}
 
@@ -522,33 +545,33 @@ function _renderLine(input: ResolvedRenderLineInput): RenderLineOutput {
 	const lineContent = input.lineContent;
 	const len = input.len;
 	const isOverflowing = input.isOverflowing;
-	const tokens = input.tokens;
+	const parts = input.parts;
 	const tabSize = input.tabSize;
 	const containsRTL = input.containsRTL;
 	const spaceWidth = input.spaceWidth;
 	const renderWhitespace = input.renderWhitespace;
 	const renderControlCharacters = input.renderControlCharacters;
 
-	const characterMapping = new CharacterMapping(len + 1, tokens.length);
+	const characterMapping = new CharacterMapping(len + 1, parts.length);
 
 	let charIndex = 0;
 	let tabsCharDelta = 0;
 	let charOffsetInPart = 0;
 
 	let out = '<span>';
-	for (let tokenIndex = 0, tokensLen = tokens.length; tokenIndex < tokensLen; tokenIndex++) {
-		const token = tokens[tokenIndex];
-		const tokenEndIndex = token.endIndex;
-		const tokenType = token.type;
-		const tokenRendersWhitespace = (renderWhitespace !== RenderWhitespace.None && (tokenType.indexOf('vs-whitespace') >= 0));
+	for (let partIndex = 0, tokensLen = parts.length; partIndex < tokensLen; partIndex++) {
+		const part = parts[partIndex];
+		const partEndIndex = part.endIndex;
+		const partType = part.type;
+		const partRendersWhitespace = (renderWhitespace !== RenderWhitespace.None && (partType.indexOf('vs-whitespace') >= 0));
 		charOffsetInPart = 0;
 
-		if (tokenRendersWhitespace) {
+		if (partRendersWhitespace) {
 
 			let partContentCnt = 0;
 			let partContent = '';
-			for (; charIndex < tokenEndIndex; charIndex++) {
-				characterMapping.setPartData(charIndex, tokenIndex, charOffsetInPart);
+			for (; charIndex < partEndIndex; charIndex++) {
+				characterMapping.setPartData(charIndex, partIndex, charOffsetInPart);
 				const charCode = lineContent.charCodeAt(charIndex);
 
 				if (charCode === CharCode.Tab) {
@@ -574,11 +597,11 @@ function _renderLine(input: ResolvedRenderLineInput): RenderLineOutput {
 				charOffsetInPart++;
 			}
 
-			characterMapping.setPartLength(tokenIndex, partContentCnt);
+			characterMapping.setPartLength(partIndex, partContentCnt);
 			if (fontIsMonospace) {
-				out += `<span class="${tokenType}">${partContent}</span>`;
+				out += `<span class="${partType}">${partContent}</span>`;
 			} else {
-				out += `<span class="${tokenType}" style="width:${spaceWidth * partContentCnt}px">${partContent}</span>`;
+				out += `<span class="${partType}" style="width:${spaceWidth * partContentCnt}px">${partContent}</span>`;
 			}
 
 		} else {
@@ -586,8 +609,8 @@ function _renderLine(input: ResolvedRenderLineInput): RenderLineOutput {
 			let partContentCnt = 0;
 			let partContent = '';
 
-			for (; charIndex < tokenEndIndex; charIndex++) {
-				characterMapping.setPartData(charIndex, tokenIndex, charOffsetInPart);
+			for (; charIndex < partEndIndex; charIndex++) {
+				characterMapping.setPartData(charIndex, partIndex, charOffsetInPart);
 				const charCode = lineContent.charCodeAt(charIndex);
 
 				switch (charCode) {
@@ -652,11 +675,11 @@ function _renderLine(input: ResolvedRenderLineInput): RenderLineOutput {
 				charOffsetInPart++;
 			}
 
-			characterMapping.setPartLength(tokenIndex, partContentCnt);
+			characterMapping.setPartLength(partIndex, partContentCnt);
 			if (containsRTL) {
-				out += `<span dir="ltr" class="${tokenType}">${partContent}</span>`;
+				out += `<span dir="ltr" class="${partType}">${partContent}</span>`;
 			} else {
-				out += `<span class="${tokenType}">${partContent}</span>`;
+				out += `<span class="${partType}">${partContent}</span>`;
 			}
 
 		}
@@ -664,10 +687,10 @@ function _renderLine(input: ResolvedRenderLineInput): RenderLineOutput {
 
 	// When getting client rects for the last character, we will position the
 	// text range at the end of the span, insteaf of at the beginning of next span
-	characterMapping.setPartData(len, tokens.length - 1, charOffsetInPart);
+	characterMapping.setPartData(len, parts.length - 1, charOffsetInPart);
 
 	if (isOverflowing) {
-		out += `<span class="vs-whitespace">&hellip;</span>`;
+		out += `<span>&hellip;</span>`;
 	}
 
 	out += '</span>';

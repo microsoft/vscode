@@ -11,6 +11,7 @@
 	"lines.copyUp": "Copiar línea arriba",
 	"lines.delete": "Eliminar línea",
 	"lines.deleteAllLeft": "Eliminar todo a la izquierda",
+	"lines.deleteAllRight": "Eliminar todo lo que está a la derecha",
 	"lines.indent": "Sangría de línea",
 	"lines.insertAfter": "Insertar línea debajo",
 	"lines.insertBefore": "Insertar línea arriba",

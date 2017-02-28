@@ -13,6 +13,12 @@
 	padding-top: 11px;
 }
 
+.preferences-editor > .preferences-header.vertical-layout {
+	flex-direction: column;
+	align-items: flex-end;
+	padding-bottom: 5px;
+}
+
 .vs-dark .preferences-editor > .preferences-header {
 	border-bottom: 1px solid #2d2d2d;
 }
@@ -20,62 +26,65 @@
 .settings-tabs-widget {
 	display: flex;
 	flex-wrap: wrap;
+	line-height: 28px;
 }
 
-.settings-tabs-widget > .settings-tab {
+.settings-tabs-widget > .monaco-action-bar > .actions-container {
+	flex-wrap: wrap;
+}
+
+.settings-tabs-widget > .monaco-action-bar .action-item .action-label {
 	text-transform: uppercase;
-	font-size: 12px;
-	margin-left: 20px;
+	font-size: 11px;
+	margin-left: 33px;
+	margin-right: 0px;
 	padding-top: 6px;
 	cursor: pointer;
+	padding-bottom: 4px; /* puts the bottom border down */
 }
 
-.settings-tabs-widget > .settings-tab.active {
-	border-bottom: 2px solid #ccc;
-}
-
-.settings-tabs-widget > .settings-tab.disabled {
-	opacity: 0.5;
+.settings-tabs-widget > .monaco-action-bar .action-item .action-label.disabled {
 	cursor: default;
 }
 
-.vs .settings-tabs-widget > .settings-tab {
-	color: #6f6f6f;
+.vs .settings-tabs-widget > .monaco-action-bar .action-item .action-label:not(.disabled) {
+	color: #424242;
+	opacity: 0.75;
 }
 
-.vs-dark .settings-tabs-widget > .settings-tab {
-	color: #bbbbbb;
+.vs-dark .settings-tabs-widget > .monaco-action-bar .action-item .action-label:not(.disabled) {
+	color: #e7e7e7;
+	opacity: 0.5;
 }
 
-.hc-black .settings-tabs-widget > .settings-tab {
+.hc-black .settings-tabs-widget > .monaco-action-bar .action-item .action-label:not(.disabled) {
 	color: #fff;
 }
 
-.vs-dark .settings-tabs-widget > .settings-tab:not(.disabled):hover {
-	color: white;
+.settings-tabs-widget > .monaco-action-bar .action-item:hover .action-label:not(.disabled),
+.settings-tabs-widget > .monaco-action-bar .action-item .action-label.checked:not(.disabled) {
+	opacity: 1;
 }
 
-.vs .settings-tabs-widget > .settings-tab.active {
-	border-bottom: 1px solid #6f6f6f;
+.settings-tabs-widget > .monaco-action-bar .action-item .action-label.checked {
+	border-bottom: 1px solid;
 }
 
-.vs-dark .settings-tabs-widget > .settings-tab.active {
-	color: white;
-	border-bottom: 1px solid white;
+.vs .settings-tabs-widget > .monaco-action-bar .action-item .action-label.checked {
+	border-bottom-color: #ccceda;
 }
 
-.hc-black .settings-tabs-widget > .settings-tab.active {
-	color: white;
-	border-bottom: 1px solid white;
+.vs-dark .settings-tabs-widget > .monaco-action-bar .action-item .action-label.checked {
+	border-bottom-color: #404047;
 }
 
-.vs .settings-tabs-widget > .settings-tab:focus,
-.vs-dark .settings-tabs-widget > .settings-tab:focus {
+.vs .settings-tabs-widget > .monaco-action-bar .action-item .action-label:focus,
+.vs-dark .settings-tabs-widget > .monaco-action-bar .action-item .action-label:focus {
 	border-bottom: 1px solid #007ACC;
 	outline: none !important;
 }
 
-.hc-black .settings-tabs-widget > .settings-tab:focus {
+.hc-black .settings-tabs-widget > .monaco-action-bar .action-item .action-label:focus {
 	border-bottom: 1px solid #f38518;
 	outline: none !important;
 }
@@ -84,6 +93,7 @@
 	flex: 1;
 	display: flex;
 	position: relative;
+	align-self: stretch;
 }
 
 .settings-header-widget > .settings-header-container {
@@ -93,29 +103,30 @@
 }
 
 .settings-header-widget > .settings-count-widget {
-	margin: 5px 0px;
+	margin: 6px 0px;
 	padding: 0px 8px;
 	position: absolute;
 	right: 10px;
 	border-radius: 2px;
-}
-
-.settings-header-widget > .settings-count-widget:not(.no-results) {
 	background-color: #EFEFF2;
 }
 
-.hc-black .settings-header-widget > .settings-count-widget:not(.no-results),
-.vs-dark .settings-header-widget > .settings-count-widget:not(.no-results) {
+.settings-header-widget > .settings-count-widget.hide {
+	display: none;
+}
+
+.hc-black .settings-header-widget > .settings-count-widget,
+.vs-dark .settings-header-widget > .settings-count-widget {
 	background-color: #2D2D30;
 }
 
 .settings-header-widget > .settings-count-widget.no-results {
-	background-color: rgba(255,0,0,0.5);
+	color: #A1260D;
 }
 
 .hc-black .settings-header-widget > .settings-count-widget.no-results,
 .vs-dark .settings-header-widget > .settings-count-widget.no-results {
-	background-color: rgba(255,0,0,0.3);
+	color: #F48771
 }
 
 .settings-header-widget > .settings-search-container {
@@ -128,7 +139,6 @@
 
 .settings-header-widget > .settings-search-container > .settings-search-input > .monaco-inputbox {
 	height: 30px;
-	min-width: 350px;
 }
 
 .vs .settings-header-widget > .settings-search-container > .settings-search-input > .monaco-inputbox {
@@ -137,14 +147,7 @@
 
 .settings-header-widget > .settings-search-container > .settings-search-input > .monaco-inputbox .input {
 	font-size: 14px;
-	padding-left:30px;
-	background-image: url('search.svg');
-	background-repeat: no-repeat;
-	background-position: 8px 50%;
-}
-
-.settings-header-widget > .settings-search-container > .settings-search-input > .monaco-inputbox .input {
-	background-image: url('search_inverse.svg');
+	padding-left:10px;
 }
 
 .vs-dark .preferences-editor .side-by-side-preferences-editor > .editable-preferences-editor-container {
@@ -182,15 +185,9 @@
 	outline: none !important;
 }
 
-.monaco-editor.vs .settings-group-title-widget .title-container.focused,
-.monaco-editor.vs .settings-group-title-widget .title-container:hover {
-	background-color: #e2e2e2;
-}
-
-.monaco-editor.hc-black .settings-group-title-widget .title-container:hover,
-.monaco-editor.vs-dark .settings-group-title-widget .title-container.focused,
-.monaco-editor.vs-dark .settings-group-title-widget .title-container:hover {
-	background-color: #323232;
+.monaco-editor .settings-group-title-widget .title-container.focused,
+.monaco-editor .settings-group-title-widget .title-container:hover {
+	background-color: rgba(153, 153, 153, 0.2);
 }
 
 .monaco-editor.hc-black .settings-group-title-widget .title-container.focused {

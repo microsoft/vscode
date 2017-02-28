@@ -15,10 +15,11 @@
 	"debugConsoleAction": "Consola de depuración",
 	"debugFocusConsole": "Enfocar consola de depuración",
 	"disableAllBreakpoints": "Deshabilitar todos los puntos de interrupción",
+	"disableBreakpoint": "Deshabilitar punto de interrupción",
 	"disconnectDebug": "Desconectar",
 	"editConditionalBreakpoint": "Editar punto de interrupción...",
-	"editWatchExpression": "Editar expresión",
 	"enableAllBreakpoints": "Habilitar todos los puntos de interrupción",
+	"enableBreakpoint": "Habilitar punto de interrupción",
 	"focusProcess": "Proceso Foco",
 	"launchJsonNeedsConfigurtion": "Configurar o reparar 'launch.json'",
 	"openLaunchJson": "Abrir {0}",
@@ -41,6 +42,5 @@
 	"stepOutDebug": "Salir de la depuración",
 	"stepOverDebug": "Depurar paso a paso por procedimientos",
 	"stopDebug": "Detener",
-	"toggleEnablement": "Habilitar/Deshabilitar punto de interrupción",
 	"unreadOutput": "Nueva salida en la consola de depuración"
 }

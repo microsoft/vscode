@@ -63,7 +63,6 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 
 	private _languageIdentifier: LanguageIdentifier;
 	private _tokenizationListener: IDisposable;
-	private _colorMap: string[];
 	private _tokenizationSupport: ITokenizationSupport;
 
 	private _invalidLineStartIndex: number;
@@ -78,7 +77,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 
 		this._languageIdentifier = languageIdentifier || NULL_LANGUAGE_IDENTIFIER;
 		this._tokenizationListener = TokenizationRegistry.onDidChange((e) => {
-			if (e.languages.indexOf(this._languageIdentifier.language) === -1) {
+			if (e.changedLanguages.indexOf(this._languageIdentifier.language) === -1) {
 				return;
 			}
 
@@ -108,7 +107,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		return false;
 	}
 
-	protected _resetValue(newValue: editorCommon.IRawText): void {
+	protected _resetValue(newValue: editorCommon.ITextSource): void {
 		super._resetValue(newValue);
 		// Cancel tokenization, clear all tokens and begin tokenizing
 		this._resetTokenizationState();
@@ -140,7 +139,6 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 			}
 		}
 
-		this._colorMap = TokenizationRegistry.getColorMap();
 		this._lastState = null;
 		this._invalidLineStartIndex = 0;
 		this._beginBackgroundTokenization();
@@ -183,7 +181,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 	}
 
 	private _getLineTokens(lineNumber: number): LineTokens {
-		return this._lines[lineNumber - 1].getTokens(this._languageIdentifier.id, this._colorMap);
+		return this._lines[lineNumber - 1].getTokens(this._languageIdentifier.id);
 	}
 
 	public getLanguageIdentifier(): LanguageIdentifier {

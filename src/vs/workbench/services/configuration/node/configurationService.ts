@@ -17,13 +17,14 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { readFile } from 'vs/base/node/pfs';
 import errors = require('vs/base/common/errors');
-import { ScopedConfigModel, WorkspaceConfigModel } from 'vs/workbench/services/configuration/common/model';
+import { ScopedConfigModel, WorkspaceConfigModel, WorkspaceSettingsConfigModel } from 'vs/workbench/services/configuration/common/configurationModels';
 import { IConfigurationServiceEvent, ConfigurationSource, getConfigurationValue, IConfigModel, IConfigurationOptions } from 'vs/platform/configuration/common/configuration';
 import { ConfigModel } from 'vs/platform/configuration/common/model';
 import { ConfigurationService as BaseConfigurationService } from 'vs/platform/configuration/node/configurationService';
-import { IWorkspaceConfigurationValues, IWorkspaceConfigurationService, IWorkspaceConfigurationValue, CONFIG_DEFAULT_NAME, WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME, WORKSPACE_STANDALONE_CONFIGURATIONS, WORKSPACE_CONFIG_DEFAULT_PATH } from 'vs/workbench/services/configuration/common/configuration';
+import { IWorkspaceConfigurationValues, IWorkspaceConfigurationService, IWorkspaceConfigurationValue, WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME, WORKSPACE_STANDALONE_CONFIGURATIONS, WORKSPACE_CONFIG_DEFAULT_PATH } from 'vs/workbench/services/configuration/common/configuration';
 import { FileChangeType, FileChangesEvent } from 'vs/platform/files/common/files';
 import Event, { Emitter } from 'vs/base/common/event';
+
 
 interface IStat {
 	resource: uri;
@@ -69,7 +70,7 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 		this.workspaceFilePathToConfiguration = Object.create(null);
 
 		this.cachedConfig = new ConfigModel<any>(null);
-		this.cachedWorkspaceConfig = new WorkspaceConfigModel(new ConfigModel(null), []);
+		this.cachedWorkspaceConfig = new WorkspaceConfigModel(new WorkspaceSettingsConfigModel(null), []);
 
 		this._onDidUpdateConfiguration = this._register(new Emitter<IConfigurationServiceEvent>());
 
@@ -90,20 +91,22 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 		return this._onDidUpdateConfiguration.event;
 	}
 
-	private onBaseConfigurationChanged(e: IConfigurationServiceEvent): void {
+	private onBaseConfigurationChanged(event: IConfigurationServiceEvent): void {
+		if (event.source === ConfigurationSource.Default) {
+			this.cachedWorkspaceConfig.update();
+		}
 
 		// update cached config when base config changes
-		const newConfig = new ConfigModel<any>(null)
-			.merge(this.baseConfigurationService.getCache().consolidated)		// global/default values (do NOT modify)
-			.merge(this.cachedWorkspaceConfig);									// workspace configured values
+		const configModel = <ConfigModel<any>>this.baseConfigurationService.getCache().consolidated		// global/default values (do NOT modify)
+			.merge(this.cachedWorkspaceConfig);		// workspace configured values
 
 		// emit this as update to listeners if changed
-		if (!objects.equals(this.cachedConfig.contents, newConfig.contents)) {
-			this.cachedConfig = newConfig;
+		if (!objects.equals(this.cachedConfig.contents, configModel.contents)) {
+			this.cachedConfig = configModel;
 			this._onDidUpdateConfiguration.fire({
 				config: this.cachedConfig.contents,
-				source: e.source,
-				sourceConfig: e.sourceConfig
+				source: event.source,
+				sourceConfig: event.sourceConfig
 			});
 		}
 	}
@@ -117,7 +120,7 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 	public getConfiguration<C>(arg?: any): C {
 		const options = this.toOptions(arg);
 		const configModel = options.overrideIdentifier ? this.cachedConfig.configWithOverrides<C>(options.overrideIdentifier) : this.cachedConfig;
-		return options.section ? configModel.config<C>(options.section).contents : configModel.contents;
+		return options.section ? configModel.getContentsFor<C>(options.section) : configModel.contents;
 	}
 
 	public lookup<C>(key: string, overrideIdentifier?: string): IWorkspaceConfigurationValue<C> {
@@ -186,25 +189,19 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 		return this.loadWorkspaceConfigFiles().then(workspaceConfigFiles => {
 
 			// Consolidate (support *.json files in the workspace settings folder)
-			let workspaceSettingsModel: IConfigModel<T> = <IConfigModel<T>>workspaceConfigFiles[WORKSPACE_CONFIG_DEFAULT_PATH] || new ConfigModel<T>(null);
-			let otherConfigModels = Object.keys(workspaceConfigFiles).filter(key => key !== WORKSPACE_CONFIG_DEFAULT_PATH).map(key => <ScopedConfigModel<T>>workspaceConfigFiles[key]);
-
-			this.cachedWorkspaceConfig = new WorkspaceConfigModel<T>(workspaceSettingsModel, otherConfigModels);
+			const workspaceSettingsConfig = <WorkspaceSettingsConfigModel<T>>workspaceConfigFiles[WORKSPACE_CONFIG_DEFAULT_PATH] || new WorkspaceSettingsConfigModel<T>(null);
+			const otherConfigModels = Object.keys(workspaceConfigFiles).filter(key => key !== WORKSPACE_CONFIG_DEFAULT_PATH).map(key => <ScopedConfigModel<T>>workspaceConfigFiles[key]);
+			this.cachedWorkspaceConfig = new WorkspaceConfigModel<T>(workspaceSettingsConfig, otherConfigModels);
 
 			// Override base (global < user) with workspace locals (global < user < workspace)
-			this.cachedConfig = new ConfigModel(null)
-				.merge(this.baseConfigurationService.getCache().consolidated)		// global/default values (do NOT modify)
-				.merge(this.cachedWorkspaceConfig);										// workspace configured values
+			this.cachedConfig = <ConfigModel<any>>this.baseConfigurationService.getCache().consolidated		// global/default values (do NOT modify)
+				.merge(this.cachedWorkspaceConfig);		// workspace configured values
 
 			return {
 				consolidated: this.cachedConfig.contents,
 				workspace: this.cachedWorkspaceConfig.contents
 			};
 		});
-	}
-
-	public hasWorkspaceConfiguration(): boolean {
-		return !!this.workspaceFilePathToConfiguration[`${this.workspaceSettingsRootFolder}/${CONFIG_DEFAULT_NAME}.json`];
 	}
 
 	private loadWorkspaceConfigFiles<T>(): TPromise<{ [relativeWorkspacePath: string]: IConfigModel<T> }> {
@@ -291,7 +288,7 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 	private createConfigModel<T>(content: IContent): IConfigModel<T> {
 		const path = this.contextService.toWorkspaceRelativePath(content.resource);
 		if (path === WORKSPACE_CONFIG_DEFAULT_PATH) {
-			return new ConfigModel<T>(content.value, content.resource.toString());
+			return new WorkspaceSettingsConfigModel<T>(content.value, content.resource.toString());
 		} else {
 			const matches = /\/([^\.]*)*\.json/.exec(path);
 			if (matches && matches[1]) {
@@ -303,6 +300,10 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 
 	private isWorkspaceConfigurationFile(workspaceRelativePath: string): boolean {
 		return [WORKSPACE_CONFIG_DEFAULT_PATH, WORKSPACE_STANDALONE_CONFIGURATIONS.launch, WORKSPACE_STANDALONE_CONFIGURATIONS.tasks].some(p => p === workspaceRelativePath);
+	}
+
+	public getUnsupportedWorkspaceKeys(): string[] {
+		return this.cachedWorkspaceConfig.workspaceSettingsConfig.unsupportedKeys;
 	}
 }
 

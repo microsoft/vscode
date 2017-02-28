@@ -15,9 +15,25 @@
 	opacity: 0.6;
 }
 
-/* -- under-line-style -- */
+/* -- block-outline-style -- */
+.monaco-editor .cursors-layer.cursor-block-outline-style > .cursor {
+	box-sizing: border-box;
+	background: transparent !important;
+	border-style: solid;
+	border-width: 1px;
+}
+
+/* -- underline-style -- */
 .monaco-editor .cursors-layer.cursor-underline-style > .cursor {
 	border-bottom-width: 2px;
+	border-bottom-style: solid;
+	background: transparent !important;
+	box-sizing: border-box;
+}
+
+/* -- underline-thin-style -- */
+.monaco-editor .cursors-layer.cursor-underline-thin-style > .cursor {
+	border-bottom-width: 1px;
 	border-bottom-style: solid;
 	background: transparent !important;
 	box-sizing: border-box;
@@ -37,6 +53,10 @@
 	background: #fff;
 	border-color: #fff;
 	color: #000; /* opposite of #fff */
+}
+.monaco-editor.hc-black .cursors-layer.has-selection .cursor {
+	border-left: 1px solid #000;
+	border-right: 1px solid #000;
 }
 
 @keyframes monaco-cursor-blink {

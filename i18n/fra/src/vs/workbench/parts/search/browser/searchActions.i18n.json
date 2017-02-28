@@ -6,6 +6,8 @@
 {
 	"ClearSearchResultsAction.label": "Effacer les résultats de la recherche",
 	"ConfigureGlobalExclusionsAction.label": "Ouvrir les paramètres",
+	"FocusNextSearchResult.label": "Focus sur le résultat de la recherche suivant",
+	"FocusPreviousSearchResult.label": "Focus sur le résultat de la recherche précédent",
 	"RefreshAction.label": "Actualiser",
 	"RemoveAction.label": "Supprimer",
 	"file.replaceAll.label": "Tout remplacer",

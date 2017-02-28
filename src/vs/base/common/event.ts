@@ -305,9 +305,9 @@ export function any<T>(...events: Event<T>[]): Event<T> {
 	return emitter.event;
 }
 
-export function debounceEvent<T>(event: Event<T>, merger: (last: T, event: T) => T, delay?: number): Event<T>;
-export function debounceEvent<I, O>(event: Event<I>, merger: (last: O, event: I) => O, delay?: number): Event<O>;
-export function debounceEvent<I, O>(event: Event<I>, merger: (last: O, event: I) => O, delay: number = 100): Event<O> {
+export function debounceEvent<T>(event: Event<T>, merger: (last: T, event: T) => T, delay?: number, leading?: boolean): Event<T>;
+export function debounceEvent<I, O>(event: Event<I>, merger: (last: O, event: I) => O, delay?: number, leading?: boolean): Event<O>;
+export function debounceEvent<I, O>(event: Event<I>, merger: (last: O, event: I) => O, delay: number = 100, leading = false): Event<O> {
 
 	let subscription: IDisposable;
 	let output: O;
@@ -317,11 +317,16 @@ export function debounceEvent<I, O>(event: Event<I>, merger: (last: O, event: I)
 		onFirstListenerAdd() {
 			subscription = event(cur => {
 				output = merger(output, cur);
+				if (!handle && leading) {
+					emitter.fire(output);
+				}
+
 				clearTimeout(handle);
 				handle = setTimeout(() => {
 					let _output = output;
 					output = undefined;
 					emitter.fire(_output);
+					handle = null;
 				}, delay);
 			});
 		},

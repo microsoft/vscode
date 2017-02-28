@@ -50,8 +50,8 @@ class ExcludeHintItem {
 	public show(configFileName: string, largeRoots: string, onExecute: () => void) {
 		this._currentHint = {
 			message: largeRoots.length > 0
-				? localize('hintExclude', "To enable JavaScript/TypeScript IntelliSense, exclude folders with many files, like: {0}", largeRoots)
-				: localize('hintExclude.generic', "To enable JavaScript/TypeScript IntelliSense, exclude large folders with source files that you do not work on."),
+				? localize('hintExclude', "To enable project-wide JavaScript/TypeScript language features, exclude folders with many files, like: {0}", largeRoots)
+				: localize('hintExclude.generic', "To enable project-wide JavaScript/TypeScript language features, exclude large folders with source files that you do not work on."),
 			options: [{
 				title: localize('open', "Configure Excludes"),
 				execute: () => {
@@ -73,7 +73,7 @@ class ExcludeHintItem {
 		};
 		this._item.tooltip = this._currentHint.message;
 		this._item.text = localize('large.label', "Configure Excludes");
-		this._item.tooltip = localize('hintExclude.tooltip', "To enable JavaScript/TypeScript IntelliSense, exclude large folders with source files that you do not work on.");
+		this._item.tooltip = localize('hintExclude.tooltip', "To enable project-wide JavaScript/TypeScript language features, exclude large folders with source files that you do not work on.");
 		this._item.color = '#A5DF3B';
 		this._item.show();
 		this._client.logTelemetry('js.hintProjectExcludes');
@@ -95,13 +95,13 @@ function createLargeProjectMonitorForProject(item: ExcludeHintItem, client: ITyp
 	function onEditor(editor: vscode.TextEditor | undefined): void {
 		if (!editor
 			|| !vscode.languages.match(selector, editor.document)
-			|| !client.asAbsolutePath(editor.document.uri)) {
+			|| !client.normalizePath(editor.document.uri)) {
 
 			item.hide();
 			return;
 		}
 
-		const file = client.asAbsolutePath(editor.document.uri);
+		const file = client.normalizePath(editor.document.uri);
 		if (!file) {
 			return;
 		}

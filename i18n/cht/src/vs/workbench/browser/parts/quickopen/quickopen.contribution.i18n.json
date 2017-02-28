@@ -6,5 +6,7 @@
 {
 	"quickNavigateNext": "在 Quick Open 中導覽至下一項",
 	"quickNavigatePrevious": "在 Quick Open 中導覽至上一項",
-	"quickOpen": "移至檔案..."
+	"quickOpen": "移至檔案...",
+	"quickSelectNext": "在 Quick Open 中選取下一個",
+	"quickSelectPrevious": "在 Quick Open 中選取上一個"
 }

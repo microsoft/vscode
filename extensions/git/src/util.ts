@@ -28,6 +28,8 @@ export function combinedDisposable(disposables: IDisposable[]): IDisposable {
 	return toDisposable(() => dispose(disposables));
 }
 
+export const EmptyDisposable = toDisposable(() => null);
+
 export function mapEvent<I, O>(event: Event<I>, map: (i: I) => O): Event<O> {
 	return (listener, thisArgs = null, disposables?) => event(i => listener.call(thisArgs, map(i)), null, disposables);
 }
@@ -57,4 +59,40 @@ export function once<T>(event: Event<T>): Event<T> {
 
 export function eventToPromise<T>(event: Event<T>): Promise<T> {
 	return new Promise(c => once(event)(c));
+}
+
+// TODO@Joao: replace with Object.assign
+export function assign<T>(destination: T, ...sources: any[]): T {
+	for (const source of sources) {
+		Object.keys(source).forEach(key => destination[key] = source[key]);
+	}
+
+	return destination;
+}
+
+export function uniqBy<T>(arr: T[], fn: (el: T) => string): T[] {
+	const seen = Object.create(null);
+
+	return arr.filter(el => {
+		const key = fn(el);
+
+		if (seen[key]) {
+			return false;
+		}
+
+		seen[key] = true;
+		return true;
+	});
+}
+
+export function groupBy<T>(arr: T[], fn: (el: T) => string): { [key: string]: T[] } {
+	return arr.reduce((result, el) => {
+		const key = fn(el);
+		result[key] = [...(result[key] || []), el];
+		return result;
+	}, Object.create(null));
+}
+
+export function denodeify<R>(fn: Function): (...args) => Promise<R> {
+	return (...args) => new Promise((c, e) => fn(...args, (err, r) => err ? e(err) : c(r)));
 }

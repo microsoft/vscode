@@ -7,6 +7,7 @@
 
 import * as vscode from 'vscode';
 import * as path from 'path';
+import { TableOfContentsProvider } from './tableOfContentsProvider';
 
 export interface IToken {
 	type: string;
@@ -21,7 +22,7 @@ interface MarkdownIt {
 	utils: any;
 }
 
-const FrontMatterRegex = /^---\s*(.|\s)*?---\s*/;
+const FrontMatterRegex = /^---\s*[^]*?---\s*/;
 
 export class MarkdownEngine {
 	private md: MarkdownIt;
@@ -44,12 +45,13 @@ export class MarkdownEngine {
 					}
 					return `<pre class="hljs"><code><div>${this.engine.utils.escapeHtml(str)}</div></code></pre>`;
 				}
-			}).use(mdnh, {});
+			}).use(mdnh, {
+				slugify: (header: string) => TableOfContentsProvider.slugify(header)
+			});
 
-			this.addLineNumberRenderer(this.md, 'paragraph_open');
-			this.addLineNumberRenderer(this.md, 'heading_open');
-			this.addLineNumberRenderer(this.md, 'image');
-			this.addLineNumberRenderer(this.md, 'code_block');
+			for (const renderName of ['paragraph_open', 'heading_open', 'image', 'code_block', 'blockquote_open', 'list_item_open']) {
+				this.addLineNumberRenderer(this.md, renderName);
+			}
 
 			this.addLinkNormalizer(this.md);
 			this.addLinkValidator(this.md);
@@ -60,7 +62,6 @@ export class MarkdownEngine {
 	private stripFrontmatter(text: string): { text: string, offset: number } {
 		let offset = 0;
 		const frontMatterMatch = FrontMatterRegex.exec(text);
-
 		if (frontMatterMatch) {
 			const frontMatter = frontMatterMatch[0];
 
@@ -96,7 +97,7 @@ export class MarkdownEngine {
 		const original = md.renderer.rules[ruleName];
 		md.renderer.rules[ruleName] = (tokens: any, idx: number, options: any, env: any, self: any) => {
 			const token = tokens[idx];
-			if (token.level === 0 && token.map && token.map.length) {
+			if ((token.level === 0 || token.type === 'list_item_open' && token.level === 1) && token.map && token.map.length) {
 				token.attrSet('data-line', this.firstLine + token.map[0]);
 				token.attrJoin('class', 'code-line');
 			}
@@ -113,10 +114,10 @@ export class MarkdownEngine {
 		md.normalizeLink = (link: string) => {
 			try {
 				let uri = vscode.Uri.parse(link);
-				if (!uri.scheme) {
+				if (!uri.scheme && uri.path && !uri.fragment) {
 					// Assume it must be a file
 					if (uri.path[0] === '/') {
-						uri = vscode.Uri.file(path.join(vscode.workspace.rootPath, uri.path));
+						uri = vscode.Uri.file(path.join(vscode.workspace.rootPath || '', uri.path));
 					} else {
 						uri = vscode.Uri.file(path.join(path.dirname(this.currentDocument.path), uri.path));
 					}
@@ -132,11 +133,8 @@ export class MarkdownEngine {
 	private addLinkValidator(md: any): void {
 		const validateLink = md.validateLink;
 		md.validateLink = (link: string) => {
-			if (validateLink(link)) {
-				return true;
-			}
 			// support file:// links
-			return link.indexOf('file:') === 0;
+			return validateLink(link) || link.indexOf('file:') === 0;
 		};
 	}
 }

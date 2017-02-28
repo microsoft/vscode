@@ -13,7 +13,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { ExtHostDocuments, ExtHostDocumentData } from 'vs/workbench/api/node/extHostDocuments';
 import { Selection, Range, Position, EndOfLine, TextEditorRevealType, TextEditorSelectionChangeKind, TextEditorLineNumbersStyle, SnippetString } from './extHostTypes';
-import { ISingleEditOperation, TextEditorCursorStyle } from 'vs/editor/common/editorCommon';
+import { ISingleEditOperation, TextEditorCursorStyle, IRange } from 'vs/editor/common/editorCommon';
 import { IResolvedTextEditorConfiguration, ISelectionChangeEvent, ITextEditorConfigurationUpdate } from 'vs/workbench/api/node/mainThreadEditorsTracker';
 import * as TypeConverters from './extHostTypeConverters';
 import { MainContext, MainThreadEditorsShape, ExtHostEditorsShape, ITextEditorAddData, ITextEditorPositionData } from './extHost.protocol';
@@ -501,7 +501,9 @@ class ExtHostTextEditor implements vscode.TextEditor {
 	// ---- the document
 
 	get document(): vscode.TextDocument {
-		return this._documentData.document;
+		return this._documentData
+			? this._documentData.document
+			: undefined;
 	}
 
 	set document(value) {
@@ -595,17 +597,10 @@ class ExtHostTextEditor implements vscode.TextEditor {
 
 	// ---- editing
 
-	edit(callback: (edit: TextEditorEdit) => void, options: { undoStopBefore: boolean; undoStopAfter: boolean; }): Thenable<boolean>;
-	edit(snippet: SnippetString, options: { undoStopBefore: boolean; undoStopAfter: boolean; }): Thenable<boolean>;
-
-	edit(callbackOrSnippet: ((edit: TextEditorEdit) => void) | SnippetString, options: { undoStopBefore: boolean; undoStopAfter: boolean; } = { undoStopBefore: true, undoStopAfter: true }): Thenable<boolean> {
-		if (SnippetString.isSnippetString(callbackOrSnippet)) {
-			return this._proxy.$tryInsertSnippet(this._id, callbackOrSnippet.value, options);
-		} else {
-			let edit = new TextEditorEdit(this._documentData.document, options);
-			callbackOrSnippet(edit);
-			return this._applyEdit(edit);
-		}
+	edit(callback: (edit: TextEditorEdit) => void, options: { undoStopBefore: boolean; undoStopAfter: boolean; } = { undoStopBefore: true, undoStopAfter: true }): Thenable<boolean> {
+		let edit = new TextEditorEdit(this._documentData.document, options);
+		callback(edit);
+		return this._applyEdit(edit);
 	}
 
 	_applyEdit(editBuilder: TextEditorEdit): TPromise<boolean> {
@@ -627,6 +622,34 @@ class ExtHostTextEditor implements vscode.TextEditor {
 		});
 	}
 
+	insertSnippet(snippet: SnippetString, where?: Position | Position[] | Range | Range[], options: { undoStopBefore: boolean; undoStopAfter: boolean; } = { undoStopBefore: true, undoStopAfter: true }): Thenable<boolean> {
+
+		let ranges: IRange[];
+
+		if (!where || (Array.isArray(where) && where.length === 0)) {
+			ranges = this._selections.map(TypeConverters.fromRange);
+
+		} else if (where instanceof Position) {
+			const {lineNumber, column} = TypeConverters.fromPosition(where);
+			ranges = [{ startLineNumber: lineNumber, startColumn: column, endLineNumber: lineNumber, endColumn: column }];
+
+		} else if (where instanceof Range) {
+			ranges = [TypeConverters.fromRange(where)];
+		} else {
+			ranges = [];
+			for (const posOrRange of where) {
+				if (posOrRange instanceof Range) {
+					ranges.push(TypeConverters.fromRange(posOrRange));
+				} else {
+					const {lineNumber, column} = TypeConverters.fromPosition(posOrRange);
+					ranges.push({ startLineNumber: lineNumber, startColumn: column, endLineNumber: lineNumber, endColumn: column });
+				}
+			}
+		}
+
+		return this._proxy.$tryInsertSnippet(this._id, snippet.value, ranges, options);
+	}
+
 	// ---- util
 
 	private _runOnProxy(callback: () => TPromise<any>, silent: boolean): TPromise<ExtHostTextEditor> {
@@ -635,6 +658,7 @@ class ExtHostTextEditor implements vscode.TextEditor {
 				return TPromise.wrapError(silent);
 			}
 			console.warn(err);
+			return undefined;
 		});
 	}
 }

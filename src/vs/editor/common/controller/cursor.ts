@@ -544,7 +544,7 @@ export class Cursor extends EventEmitter {
 
 	private _collapseDeleteCommands(rawCmds: editorCommon.ICommand[], isAutoWhitespaceCommand: boolean[]): boolean {
 		if (rawCmds.length === 1) {
-			return;
+			return false;
 		}
 
 		// Merge adjacent delete commands
@@ -560,7 +560,7 @@ export class Cursor extends EventEmitter {
 		});
 
 		if (!allAreDeleteCommands) {
-			return;
+			return false;
 		}
 
 		var commands = <ReplaceCommand[]>rawCmds;
@@ -595,6 +595,7 @@ export class Cursor extends EventEmitter {
 				previousCursor = cursors[i];
 			}
 		}
+		return false;
 	}
 
 	private _internalExecuteCommands(commands: editorCommon.ICommand[], isAutoWhitespaceCommand: boolean[]): boolean {
@@ -1062,7 +1063,7 @@ export class Cursor extends EventEmitter {
 			validatedViewPosition = primary.convertModelPositionToViewPosition(validatedPosition.lineNumber, validatedPosition.column);
 		}
 
-		let result = ColumnSelection.columnSelect(primary.config, primary.viewModel, primary.viewState.selection.getStartPosition(), validatedViewPosition.lineNumber, ctx.eventData.mouseColumn - 1);
+		let result = ColumnSelection.columnSelect(primary.config, primary.viewModel, primary.viewState.selection, validatedViewPosition.lineNumber, ctx.eventData.mouseColumn - 1);
 		let selections = result.viewSelections.map(viewSel => primary.convertViewSelectionToModelSelection(viewSel));
 
 		ctx.shouldRevealTarget = (result.reversed ? RevealTarget.TopMost : RevealTarget.BottomMost);

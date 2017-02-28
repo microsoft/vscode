@@ -12,7 +12,6 @@ import { Registry } from 'vs/platform/platform';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IKeybindings } from 'vs/platform/keybinding/common/keybinding';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IWorkbenchActionRegistry, Extensions as WorkbenchActionRegistryExtensions } from 'vs/workbench/common/actionRegistry';
 import { ToggleViewletAction, Extensions as ViewletExtensions, ViewletRegistry, ViewletDescriptor } from 'vs/workbench/browser/viewlet';
@@ -26,7 +25,7 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { DebugEditorModelManager } from 'vs/workbench/parts/debug/browser/debugEditorModelManager';
 import {
 	StepOverAction, ClearReplAction, FocusReplAction, StepIntoAction, StepOutAction, StartAction, RestartAction, ContinueAction, StopAction, DisconnectAction, PauseAction, AddFunctionBreakpointAction,
-	ConfigureAction, DisableAllBreakpointsAction, EnableAllBreakpointsAction, RemoveAllBreakpointsAction, RunAction, ReapplyBreakpointsAction
+	ConfigureAction, DisableAllBreakpointsAction, EnableAllBreakpointsAction, RemoveAllBreakpointsAction, RunAction, ReapplyBreakpointsAction, SelectAndStartAction
 } from 'vs/workbench/parts/debug/browser/debugActions';
 import { DebugActionsWidget } from 'vs/workbench/parts/debug/browser/debugActionsWidget';
 import * as service from 'vs/workbench/parts/debug/electron-browser/debugService';
@@ -34,7 +33,8 @@ import { DebugContentProvider } from 'vs/workbench/parts/debug/browser/debugCont
 import 'vs/workbench/parts/debug/electron-browser/debugEditorContribution';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-
+import * as debugCommands from 'vs/workbench/parts/debug/electron-browser/debugCommands';
+import { IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
 
 class OpenDebugViewletAction extends ToggleViewletAction {
 	public static ID = VIEWLET_ID;
@@ -94,10 +94,10 @@ Registry.as<PanelRegistry>(PanelExtensions.Panels).registerPanel(new PanelDescri
 Registry.as<PanelRegistry>(PanelExtensions.Panels).setDefaultPanelId(REPL_ID);
 
 // Register default debug views
-DebugViewRegistry.registerDebugView(VariablesView, 10);
-DebugViewRegistry.registerDebugView(WatchExpressionsView, 20);
-DebugViewRegistry.registerDebugView(CallStackView, 30);
-DebugViewRegistry.registerDebugView(BreakpointsView, 40);
+DebugViewRegistry.registerDebugView(VariablesView, 10, 40);
+DebugViewRegistry.registerDebugView(WatchExpressionsView, 20, 10);
+DebugViewRegistry.registerDebugView(CallStackView, 30, 30);
+DebugViewRegistry.registerDebugView(BreakpointsView, 40, 20);
 
 // register action to open viewlet
 const registry = Registry.as<IWorkbenchActionRegistry>(WorkbenchActionRegistryExtensions.WorkbenchActions);
@@ -128,34 +128,17 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(EnableAllBreakpointsAc
 registry.registerWorkbenchAction(new SyncActionDescriptor(DisableAllBreakpointsAction, DisableAllBreakpointsAction.ID, DisableAllBreakpointsAction.LABEL), 'Debug: Disable All Breakpoints', debugCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(ClearReplAction, ClearReplAction.ID, ClearReplAction.LABEL), 'Debug: Clear Debug Console', debugCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(FocusReplAction, FocusReplAction.ID, FocusReplAction.LABEL), 'Debug: Focus Debug Console', debugCategory);
+registry.registerWorkbenchAction(new SyncActionDescriptor(SelectAndStartAction, SelectAndStartAction.ID, SelectAndStartAction.LABEL), 'Debug: Launch Configuration', debugCategory);
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: '_workbench.startDebug',
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(0),
-	handler(accessor: ServicesAccessor, configurationOrName: any) {
-		const debugService = accessor.get(IDebugService);
-		if (!configurationOrName) {
-			configurationOrName = debugService.getViewModel().selectedConfigurationName;
-		}
-
-		return debugService.createProcess(configurationOrName);
-	},
-	when: CONTEXT_NOT_IN_DEBUG_MODE,
-	primary: undefined
-});
-
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'workbench.customDebugRequest',
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(0),
-	handler(accessor: ServicesAccessor, request: string, requestArgs: any) {
-		const process = accessor.get(IDebugService).getViewModel().focusedProcess;
-		if (process) {
-			return process.session.custom(request, requestArgs);
-		}
-	},
-	when: CONTEXT_IN_DEBUG_MODE,
-	primary: undefined
-});
+// Register Quick Open
+(<IQuickOpenRegistry>Registry.as(QuickOpenExtensions.Quickopen)).registerQuickOpenHandler(
+	new QuickOpenHandlerDescriptor(
+		'vs/workbench/parts/debug/browser/debugQuickOpen',
+		'DebugQuickOpenHandler',
+		'debug ',
+		nls.localize('debugCommands', "Debug Configuration")
+	)
+);
 
 // register service
 registerSingleton(IDebugService, service.DebugService);
@@ -185,3 +168,5 @@ configurationRegistry.registerConfiguration({
 		}
 	}
 });
+
+debugCommands.registerCommands();

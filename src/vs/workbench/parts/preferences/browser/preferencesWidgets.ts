@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
+import { Dimension } from 'vs/base/browser/builder';
 import * as DOM from 'vs/base/browser/dom';
+import { TPromise } from 'vs/base/common/winjs.base';
 import { Widget } from 'vs/base/browser/ui/widget';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -18,6 +20,8 @@ import { ISettingsGroup } from 'vs/workbench/parts/preferences/common/preference
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
+import { ActionsOrientation, ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { Action } from 'vs/base/common/actions';
 
 export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 
@@ -76,6 +80,7 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 		this._afterLineNumber = this.settingsGroup.range.startLineNumber - 2;
 		this.editor.changeViewZones(accessor => {
 			this.id = accessor.addZone(this);
+			this.layout();
 		});
 	}
 
@@ -94,7 +99,7 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 	private layout(): void {
 		const configuration = this.editor.getConfiguration();
 		const layoutInfo = this.editor.getLayoutInfo();
-		this.titleContainer.style.width = layoutInfo.contentWidth - layoutInfo.verticalScrollbarWidth + 'px';
+		this._domNode.style.width = layoutInfo.contentWidth - layoutInfo.verticalScrollbarWidth + 'px';
 		this.titleContainer.style.lineHeight = configuration.lineHeight + 3 + 'px';
 		this.titleContainer.style.fontSize = configuration.fontInfo.fontSize + 'px';
 		const iconSize = this.getIconSize();
@@ -179,8 +184,9 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 
 export class SettingsTabsWidget extends Widget {
 
-	private userSettingsTab: HTMLElement;
-	private workspaceSettingsTab: HTMLElement;
+	private settingsSwitcherBar: ActionBar;
+	private userSettings: Action;
+	private workspaceSettings: Action;
 
 	private _onSwitch: Emitter<void> = new Emitter<void>();
 	public readonly onSwitch: Event<void> = this._onSwitch.event;
@@ -192,38 +198,29 @@ export class SettingsTabsWidget extends Widget {
 
 	private create(parent: HTMLElement): void {
 		const settingsTabsWidget = DOM.append(parent, DOM.$('.settings-tabs-widget'));
-		this.userSettingsTab = DOM.append(settingsTabsWidget, DOM.$('.settings-tab'));
-		this.userSettingsTab.tabIndex = 0;
-		this.userSettingsTab.textContent = localize('userSettings', "User Settings");
-		this.onclick(this.userSettingsTab, () => this.onClick(this.userSettingsTab));
-		this.onkeyup(this.userSettingsTab, (e) => this.onkeyUp(e, this.userSettingsTab));
+		this.settingsSwitcherBar = this._register(new ActionBar(settingsTabsWidget, {
+			orientation: ActionsOrientation.HORIZONTAL,
+			ariaLabel: localize('settingsSwitcherBarAriaLabel', "Settings Switcher"),
+			animated: false
+		}));
+		this.userSettings = new Action('userSettings', localize('userSettings', "User Settings"), '.settings-tab', true, () => this.onClick(this.userSettings));
+		this.userSettings.tooltip = this.userSettings.label;
+		this.workspaceSettings = new Action('workspaceSettings', localize('workspaceSettings', "Workspace Settings"), '.settings-tab', this.contextService.hasWorkspace(), () => this.onClick(this.workspaceSettings));
+		this.workspaceSettings.tooltip = this.workspaceSettings.label;
 
-		this.workspaceSettingsTab = DOM.append(settingsTabsWidget, DOM.$('.settings-tab'));
-		this.workspaceSettingsTab.tabIndex = 0;
-		this.workspaceSettingsTab.textContent = localize('workspaceSettings', "Workspace Settings");
-		if (!this.contextService.hasWorkspace()) {
-			DOM.addClass(this.workspaceSettingsTab, 'disabled');
-		} else {
-			this.onclick(this.workspaceSettingsTab, () => this.onClick(this.workspaceSettingsTab));
-			this.onkeyup(this.workspaceSettingsTab, (e) => this.onkeyUp(e, this.workspaceSettingsTab));
-		}
+		this.settingsSwitcherBar.push([this.userSettings, this.workspaceSettings]);
 	}
 
 	public show(configurationTarget: ConfigurationTarget): void {
-		DOM.toggleClass(this.userSettingsTab, 'active', ConfigurationTarget.USER === configurationTarget);
-		DOM.toggleClass(this.workspaceSettingsTab, 'active', ConfigurationTarget.WORKSPACE === configurationTarget);
+		this.userSettings.checked = ConfigurationTarget.USER === configurationTarget;
+		this.workspaceSettings.checked = ConfigurationTarget.WORKSPACE === configurationTarget;
 	}
 
-	private onkeyUp(keyboardEvent: IKeyboardEvent, element: HTMLElement): void {
-		if (keyboardEvent.keyCode === KeyCode.Enter || keyboardEvent.keyCode === KeyCode.Space) {
-			this.onClick(element);
-		}
-	}
-
-	private onClick(element: HTMLElement): void {
-		if (!DOM.hasClass(element, 'active')) {
+	private onClick(action: Action): TPromise<any> {
+		if (!action.checked) {
 			this._onSwitch.fire();
 		}
+		return TPromise.as(null);
 	}
 }
 
@@ -254,6 +251,7 @@ export class SearchWidget extends Widget {
 		this.domNode = DOM.append(parent, DOM.$('div.settings-header-widget'));
 		this.createSearchContainer(DOM.append(this.domNode, DOM.$('div.settings-search-container')));
 		this.countElement = DOM.append(this.domNode, DOM.$('.settings-count-widget'));
+		this.inputBox.inputElement.setAttribute('aria-live', 'assertive');
 	}
 
 	private createSearchContainer(searchContainer: HTMLElement) {
@@ -269,7 +267,20 @@ export class SearchWidget extends Widget {
 
 	public showMessage(message: string, count: number): void {
 		this.countElement.textContent = message;
+		this.inputBox.inputElement.setAttribute('aria-label', message);
 		DOM.toggleClass(this.countElement, 'no-results', count === 0);
+		this.inputBox.inputElement.style.paddingRight = DOM.getTotalWidth(this.countElement) + 20 + 'px';
+	}
+
+	public layout(dimension: Dimension) {
+		if (dimension.width < 400) {
+			DOM.addClass(this.countElement, 'hide');
+			this.inputBox.inputElement.style.paddingRight = '0px';
+		} else {
+			DOM.removeClass(this.countElement, 'hide');
+			this.inputBox.inputElement.style.paddingRight = DOM.getTotalWidth(this.countElement) + 20 + 'px';
+		}
+
 	}
 
 	public focus() {
@@ -315,8 +326,8 @@ export class FloatingClickWidget extends Widget implements IOverlayWidget {
 	) {
 		super();
 		if (keyBindingAction) {
-			let keybinding = keybindingService.lookupKeybindings(keyBindingAction);
-			if (keybinding.length > 0) {
+			let [keybinding] = keybindingService.lookupKeybindings(keyBindingAction);
+			if (keybinding) {
 				this.label += ' (' + keybindingService.getLabelFor(keybinding[0]) + ')';
 			}
 		}

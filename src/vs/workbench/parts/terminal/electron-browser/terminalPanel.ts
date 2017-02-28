@@ -16,16 +16,16 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ITerminalService, ITerminalFont, TERMINAL_PANEL_ID } from 'vs/workbench/parts/terminal/common/terminal';
 import { IThemeService, IColorTheme } from 'vs/workbench/services/themes/common/themeService';
-import { KillTerminalAction, CreateNewTerminalAction, SwitchTerminalInstanceAction, SwitchTerminalInstanceActionItem, CopyTerminalSelectionAction, TerminalPasteAction } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
+import { KillTerminalAction, CreateNewTerminalAction, SwitchTerminalInstanceAction, SwitchTerminalInstanceActionItem, CopyTerminalSelectionAction, TerminalPasteAction, ClearTerminalAction } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
 import { Panel } from 'vs/workbench/browser/panel';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { getBaseThemeId } from 'vs/platform/theme/common/themes';
 
 export class TerminalPanel extends Panel {
 
 	private _actions: IAction[];
 	private _contextMenuActions: IAction[];
+	private _cancelContextMenu: boolean = false;
 	private _currentBaseThemeId: string;
 	private _font: ITerminalFont;
 	private _fontStyleElement: HTMLElement;
@@ -117,7 +117,9 @@ export class TerminalPanel extends Panel {
 				this._instantiationService.createInstance(CreateNewTerminalAction, CreateNewTerminalAction.ID, nls.localize('createNewTerminal', "New Terminal")),
 				new Separator(),
 				this._instantiationService.createInstance(CopyTerminalSelectionAction, CopyTerminalSelectionAction.ID, nls.localize('copy', "Copy")),
-				this._instantiationService.createInstance(TerminalPasteAction, TerminalPasteAction.ID, nls.localize('paste', "Paste"))
+				this._instantiationService.createInstance(TerminalPasteAction, TerminalPasteAction.ID, nls.localize('paste', "Paste")),
+				new Separator(),
+				this._instantiationService.createInstance(ClearTerminalAction, ClearTerminalAction.ID, nls.localize('clear', "Clear"))
 			];
 			this._contextMenuActions.forEach(a => {
 				this._register(a);
@@ -157,23 +159,28 @@ export class TerminalPanel extends Panel {
 					} else {
 						terminal.paste();
 					}
-				} else {
-					const standardEvent = new StandardMouseEvent(event);
-					let anchor: { x: number, y: number } = { x: standardEvent.posx, y: standardEvent.posy };
-					this._contextMenuService.showContextMenu({
-						getAnchor: () => anchor,
-						getActions: () => TPromise.as(this._getContextMenuActions()),
-						getActionsContext: () => this._parentDomElement,
-						getKeyBinding: (action) => {
-							const opts = this._keybindingService.lookupKeybindings(action.id);
-							if (opts.length > 0) {
-								return opts[0]; // only take the first one
-							}
-							return null;
-						}
-					});
+					this._cancelContextMenu = true;
 				}
 			}
+		}));
+		this._register(DOM.addDisposableListener(this._parentDomElement, 'contextmenu', (event: MouseEvent) => {
+			if (!this._cancelContextMenu) {
+				const standardEvent = new StandardMouseEvent(event);
+				let anchor: { x: number, y: number } = { x: standardEvent.posx, y: standardEvent.posy };
+				this._contextMenuService.showContextMenu({
+					getAnchor: () => anchor,
+					getActions: () => TPromise.as(this._getContextMenuActions()),
+					getActionsContext: () => this._parentDomElement,
+					getKeyBinding: (action) => {
+						const [kb] = this._keybindingService.lookupKeybindings(action.id);
+						if (kb) {
+							return kb;
+						}
+						return null;
+					}
+				});
+			}
+			this._cancelContextMenu = false;
 		}));
 		this._register(DOM.addDisposableListener(this._parentDomElement, 'click', (event) => {
 			if (this._terminalService.terminalInstances.length === 0) {
@@ -196,8 +203,7 @@ export class TerminalPanel extends Panel {
 		if (!colorTheme) {
 			colorTheme = this._themeService.getColorTheme();
 		}
-		let themeId = colorTheme.id;
-		let baseThemeId = getBaseThemeId(themeId);
+		let baseThemeId = colorTheme.getBaseThemeId();
 		if (baseThemeId === this._currentBaseThemeId) {
 			return;
 		}

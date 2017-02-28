@@ -17,9 +17,9 @@ export type IWorkspaceConfigurationValues = { [key: string]: IWorkspaceConfigura
 export interface IWorkspaceConfigurationService extends IConfigurationService {
 
 	/**
-	 * Returns iff the workspace has configuration or not.
+	 * Returns untrusted configuration keys for the current workspace.
 	 */
-	hasWorkspaceConfiguration(): boolean;
+	getUnsupportedWorkspaceKeys(): string[];
 
 	/**
 	 * Override for the IConfigurationService#lookup() method that adds information about workspace settings.

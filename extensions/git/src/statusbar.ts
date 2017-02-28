@@ -6,7 +6,7 @@
 'use strict';
 
 import { window, Disposable, StatusBarItem, StatusBarAlignment } from 'vscode';
-import { RefType, IBranch } from './git';
+import { RefType, Branch } from './git';
 import { Model, Operation } from './model';
 import * as nls from 'vscode-nls';
 
@@ -30,9 +30,7 @@ export class CheckoutStatusBar {
 		const HEAD = this.model.HEAD;
 
 		if (!HEAD) {
-			this.raw.command = '';
-			this.raw.color = 'rgb(100, 100, 100)';
-			this.raw.text = 'unknown';
+			this.raw.hide();
 			return;
 		}
 
@@ -42,11 +40,13 @@ export class CheckoutStatusBar {
 
 		this.raw.command = 'git.checkout';
 		this.raw.color = 'rgb(255, 255, 255)';
+		this.raw.tooltip = localize('checkout', 'Checkout...');
 		this.raw.text = '$(git-branch) ' +
 			head +
 			(this.model.workingTreeGroup.resources.length > 0 ? '*' : '') +
 			(this.model.indexGroup.resources.length > 0 ? '+' : '') +
 			(this.model.mergeGroup.resources.length > 0 ? '!' : '');
+		this.raw.show();
 	}
 
 	dispose(): void {
@@ -57,7 +57,7 @@ export class CheckoutStatusBar {
 interface SyncStatusBarState {
 	isSyncRunning: boolean;
 	hasRemotes: boolean;
-	HEAD: IBranch | undefined;
+	HEAD: Branch | undefined;
 }
 
 export class SyncStatusBar {

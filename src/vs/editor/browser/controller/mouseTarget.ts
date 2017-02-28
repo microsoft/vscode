@@ -437,6 +437,7 @@ export class MouseTargetFactory {
 
 		result = result || MouseTargetFactory._hitTestContentWidget(ctx, request);
 		result = result || MouseTargetFactory._hitTestOverlayWidget(ctx, request);
+		result = result || MouseTargetFactory._hitTestScrollbarSlider(ctx, request);
 		result = result || MouseTargetFactory._hitTestViewZone(ctx, request);
 		result = result || MouseTargetFactory._hitTestMargin(ctx, request);
 		result = result || MouseTargetFactory._hitTestViewCursor(ctx, request);
@@ -475,6 +476,19 @@ export class MouseTargetFactory {
 
 	private static _hitTestViewCursor(ctx: HitTestContext, request: HitTestRequest): MouseTarget {
 
+		if (request.target) {
+			// Check if we've hit a painted cursor
+			const lastViewCursorsRenderData = ctx.lastViewCursorsRenderData;
+
+			for (let i = 0, len = lastViewCursorsRenderData.length; i < len; i++) {
+				const d = lastViewCursorsRenderData[i];
+
+				if (request.target === d.domNode) {
+					return request.fulfill(MouseTargetType.CONTENT_TEXT, d.position);
+				}
+			}
+		}
+
 		if (request.isInContentArea) {
 			// Edge has a bug when hit-testing the exact position of a cursor,
 			// instead of returning the correct dom node, it returns the
@@ -495,19 +509,6 @@ export class MouseTargetFactory {
 					&& mouseVerticalOffset <= d.contentTop + d.height
 				) {
 					return request.fulfill(MouseTargetType.CONTENT_TEXT, d.position);
-				}
-			}
-		}
-
-		// Is it a cursor ?
-		if (request.target.getAttribute) {
-			// Target is an Element
-			const lineNumberAttribute = request.target.getAttribute('lineNumber');
-			if (lineNumberAttribute) {
-				const columnAttribute = request.target.getAttribute('column');
-				if (columnAttribute) {
-					const position = new Position(parseInt(lineNumberAttribute, 10), parseInt(columnAttribute, 10));
-					return request.fulfill(MouseTargetType.CONTENT_TEXT, position);
 				}
 			}
 		}
@@ -582,6 +583,20 @@ export class MouseTargetFactory {
 		}
 
 		return this._createMouseTarget(ctx, request.withTarget(hitTestResult.hitTarget), true);
+	}
+
+	private static _hitTestScrollbarSlider(ctx: HitTestContext, request: HitTestRequest): MouseTarget {
+		if (ElementPath.isChildOfScrollableElement(request.targetPath)) {
+			if (request.target && request.target.nodeType === 1) {
+				let className = request.target.className;
+				if (className && /\b(slider|scrollbar)\b/.test(className)) {
+					const possibleLineNumber = ctx.getLineNumberAtVerticalOffset(request.mouseVerticalOffset);
+					const maxColumn = ctx.model.getLineMaxColumn(possibleLineNumber);
+					return request.fulfill(MouseTargetType.SCROLLBAR, new Position(possibleLineNumber, maxColumn));
+				}
+			}
+		}
+		return null;
 	}
 
 	private static _hitTestScrollbar(ctx: HitTestContext, request: HitTestRequest): MouseTarget {

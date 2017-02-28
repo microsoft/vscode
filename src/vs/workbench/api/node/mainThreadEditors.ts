@@ -152,6 +152,7 @@ export class MainThreadEditors extends MainThreadEditorsShape {
 				return workbenchEditor.position;
 			}
 		}
+		return undefined;
 	}
 
 	private _getTextEditorPositionData(): ITextEditorPositionData {
@@ -183,9 +184,8 @@ export class MainThreadEditors extends MainThreadEditorsShape {
 		};
 
 		return this._workbenchEditorService.openEditor(input, position).then(editor => {
-
 			if (!editor) {
-				return;
+				return undefined;
 			}
 
 			const findEditor = (): string => {
@@ -196,6 +196,7 @@ export class MainThreadEditors extends MainThreadEditorsShape {
 						return id;
 					}
 				}
+				return undefined;
 			};
 
 			const syncEditorId = findEditor();
@@ -238,6 +239,7 @@ export class MainThreadEditors extends MainThreadEditorsShape {
 				options: { preserveFocus: false }
 			}, position).then(() => { return; });
 		}
+		return undefined;
 	}
 
 	$tryHideEditor(id: string): TPromise<void> {
@@ -253,6 +255,7 @@ export class MainThreadEditors extends MainThreadEditorsShape {
 				}
 			}
 		}
+		return undefined;
 	}
 
 	$trySetSelections(id: string, selections: ISelection[]): TPromise<any> {
@@ -276,6 +279,7 @@ export class MainThreadEditors extends MainThreadEditorsShape {
 			return TPromise.wrapError('TextEditor disposed');
 		}
 		this._textEditorsMap[id].revealRange(range, revealType);
+		return undefined;
 	}
 
 	$trySetOptions(id: string, options: ITextEditorConfigurationUpdate): TPromise<any> {
@@ -293,11 +297,11 @@ export class MainThreadEditors extends MainThreadEditorsShape {
 		return TPromise.as(this._textEditorsMap[id].applyEdits(modelVersionId, edits, opts));
 	}
 
-	$tryInsertSnippet(id: string, template: string, opts: IUndoStopOptions): TPromise<boolean> {
+	$tryInsertSnippet(id: string, template: string, ranges: IRange[], opts: IUndoStopOptions): TPromise<boolean> {
 		if (!this._textEditorsMap[id]) {
 			return TPromise.wrapError('TextEditor disposed');
 		}
-		return TPromise.as(this._textEditorsMap[id].insertSnippet(template, opts));
+		return TPromise.as(this._textEditorsMap[id].insertSnippet(template, ranges, opts));
 	}
 
 	$registerTextEditorDecorationType(key: string, options: IDecorationRenderOptions): void {

@@ -14,9 +14,11 @@ import { shell, crashReporter, app } from 'electron';
 import Event, { chain } from 'vs/base/common/event';
 import { fromEventEmitter } from 'vs/base/node/event';
 import { IURLService } from 'vs/platform/url/common/url';
+import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 
 // TODO@Joao: remove this dependency, move all implementation to this class
-import { IWindowsMainService, OpenContext } from 'vs/code/electron-main/windows';
+import { OpenContext } from 'vs/code/common/windows';
+import { IWindowsMainService } from 'vs/code/electron-main/windows';
 
 export class WindowsService implements IWindowsService, IDisposable {
 
@@ -38,19 +40,19 @@ export class WindowsService implements IWindowsService, IDisposable {
 			.on(this.openFileForURI, this, this.disposables);
 	}
 
-	openFileFolderPicker(windowId: number, forceNewWindow?: boolean): TPromise<void> {
-		this.windowsMainService.openFileFolderPicker(forceNewWindow);
+	openFileFolderPicker(windowId: number, forceNewWindow?: boolean, data?: ITelemetryData): TPromise<void> {
+		this.windowsMainService.openFileFolderPicker(forceNewWindow, data);
 		return TPromise.as(null);
 	}
 
-	openFilePicker(windowId: number, forceNewWindow?: boolean, path?: string): TPromise<void> {
-		this.windowsMainService.openFilePicker(forceNewWindow, path);
+	openFilePicker(windowId: number, forceNewWindow?: boolean, path?: string, data?: ITelemetryData): TPromise<void> {
+		this.windowsMainService.openFilePicker(forceNewWindow, path, undefined, data);
 		return TPromise.as(null);
 	}
 
-	openFolderPicker(windowId: number, forceNewWindow?: boolean): TPromise<void> {
+	openFolderPicker(windowId: number, forceNewWindow?: boolean, data?: ITelemetryData): TPromise<void> {
 		const vscodeWindow = this.windowsMainService.getWindowById(windowId);
-		this.windowsMainService.openFolderPicker(forceNewWindow, vscodeWindow);
+		this.windowsMainService.openFolderPicker(forceNewWindow, vscodeWindow, data);
 
 		return TPromise.as(null);
 	}
@@ -94,7 +96,7 @@ export class WindowsService implements IWindowsService, IDisposable {
 		const vscodeWindow = this.windowsMainService.getWindowById(windowId);
 
 		if (vscodeWindow) {
-			this.windowsMainService.open({ context: OpenContext.OTHER, cli: this.environmentService.args, forceEmpty: true, windowToUse: vscodeWindow });
+			this.windowsMainService.open({ context: OpenContext.API, cli: this.environmentService.args, forceEmpty: true, windowToUse: vscodeWindow, forceReuseWindow: true });
 		}
 
 		return TPromise.as(null);
@@ -198,12 +200,12 @@ export class WindowsService implements IWindowsService, IDisposable {
 			return TPromise.as(null);
 		}
 
-		this.windowsMainService.open({ context: OpenContext.OTHER, cli: this.environmentService.args, pathsToOpen: paths, forceNewWindow: options && options.forceNewWindow, forceReuseWindow: options && options.forceReuseWindow });
+		this.windowsMainService.open({ context: OpenContext.API, cli: this.environmentService.args, pathsToOpen: paths, forceNewWindow: options && options.forceNewWindow, forceReuseWindow: options && options.forceReuseWindow });
 		return TPromise.as(null);
 	}
 
 	openNewWindow(): TPromise<void> {
-		this.windowsMainService.openNewWindow(OpenContext.OTHER);
+		this.windowsMainService.openNewWindow(OpenContext.API);
 		return TPromise.as(null);
 	}
 
@@ -266,7 +268,7 @@ export class WindowsService implements IWindowsService, IDisposable {
 		const cli = assign(Object.create(null), this.environmentService.args, { goto: true });
 		const pathsToOpen = [filePath];
 
-		this.windowsMainService.open({ context: OpenContext.OTHER, cli, pathsToOpen });
+		this.windowsMainService.open({ context: OpenContext.API, cli, pathsToOpen });
 		return TPromise.as(null);
 	}
 

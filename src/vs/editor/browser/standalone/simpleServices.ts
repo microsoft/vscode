@@ -10,11 +10,11 @@ import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IConfigurationService, IConfigurationServiceEvent, IConfigurationValue, getConfigurationValue, IConfigurationKeys } from 'vs/platform/configuration/common/configuration';
 import { IEditor, IEditorInput, IEditorOptions, IEditorService, IResourceInput, Position } from 'vs/platform/editor/common/editor';
-import { ICommandService, ICommand, ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { ICommandService, ICommand, ICommandEvent, ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
-import { KeybindingResolver, IOSupport } from 'vs/platform/keybinding/common/keybindingResolver';
+import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
 import { IKeybindingEvent, IKeybindingItem, KeybindingSource } from 'vs/platform/keybinding/common/keybinding';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfirmation, IMessageService } from 'vs/platform/message/common/message';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
@@ -28,8 +28,7 @@ import { IDisposable, IReference, ImmortalReference, combinedDisposable } from '
 import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { values } from 'vs/base/common/collections';
-import { MenuId, MenuRegistry, ICommandAction, IMenu, IMenuService } from 'vs/platform/actions/common/actions';
+import { MenuId, IMenu, IMenuService } from 'vs/platform/actions/common/actions';
 import { Menu } from 'vs/platform/actions/common/menu';
 import { ITelemetryService, ITelemetryExperiments, ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
 
@@ -270,6 +269,9 @@ export class StandaloneCommandService implements ICommandService {
 	private readonly _instantiationService: IInstantiationService;
 	private _dynamicCommands: { [id: string]: ICommand; };
 
+	private _onWillExecuteCommand: Emitter<ICommandEvent> = new Emitter<ICommandEvent>();
+	public readonly onWillExecuteCommand: Event<ICommandEvent> = this._onWillExecuteCommand.event;
+
 	constructor(instantiationService: IInstantiationService) {
 		this._instantiationService = instantiationService;
 		this._dynamicCommands = Object.create(null);
@@ -291,6 +293,7 @@ export class StandaloneCommandService implements ICommandService {
 		}
 
 		try {
+			this._onWillExecuteCommand.fire({ commandId: id });
 			const result = this._instantiationService.invokeFunction.apply(this._instantiationService, [command.handler].concat(args));
 			return TPromise.as(result);
 		} catch (err) {
@@ -323,15 +326,13 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 		}));
 	}
 
-	public addDynamicKeybinding(commandId: string, keybinding: number, handler: ICommandHandler, when: string): IDisposable {
+	public addDynamicKeybinding(commandId: string, keybinding: number, handler: ICommandHandler, when: ContextKeyExpr): IDisposable {
 		let toDispose: IDisposable[] = [];
-
-		let parsedContext = IOSupport.readKeybindingWhen(when);
 
 		this._dynamicKeybindings.push({
 			keybinding: keybinding,
 			command: commandId,
-			when: parsedContext,
+			when: when,
 			weight1: 1000,
 			weight2: 0
 		});
@@ -425,10 +426,6 @@ export class SimpleMenuService implements IMenuService {
 
 	public createMenu(id: MenuId, contextKeyService: IContextKeyService): IMenu {
 		return new Menu(id, TPromise.as(true), this._commandService, contextKeyService);
-	}
-
-	public getCommandActions(): ICommandAction[] {
-		return values(MenuRegistry.commands);
 	}
 }
 

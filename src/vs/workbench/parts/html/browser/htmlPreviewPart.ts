@@ -41,7 +41,7 @@ export class HtmlPreviewPart extends BaseEditor {
 	private _baseUrl: URI;
 
 	private _modelRef: IReference<ITextEditorModel>;
-	public get model(): IModel { return this._modelRef.object.textEditorModel; }
+	public get model(): IModel { return this._modelRef && this._modelRef.object.textEditorModel; }
 	private _modelChangeSubscription = EmptyDisposable;
 	private _themeChangeSubscription = EmptyDisposable;
 
@@ -81,7 +81,7 @@ export class HtmlPreviewPart extends BaseEditor {
 
 	private get webview(): Webview {
 		if (!this._webview) {
-			this._webview = new Webview(this._container, document.querySelector('.monaco-editor-background'), { nodeintegration: true });
+			this._webview = new Webview(this._container, document.querySelector('.monaco-editor-background'));
 			this._webview.baseUrl = this._baseUrl && this._baseUrl.toString(true);
 
 			this._webviewDisposables = [
@@ -177,9 +177,15 @@ export class HtmlPreviewPart extends BaseEditor {
 					return TPromise.wrapError<void>(localize('html.voidInput', "Invalid editor input."));
 				}
 
-				this._modelChangeSubscription = this.model.onDidChangeContent(() => this.webview.contents = this.model.getLinesContent());
+				this._modelChangeSubscription = this.model.onDidChangeContent(() => {
+					if (this.model) {
+						this.webview.contents = this.model.getLinesContent();
+					}
+				});
 				this.webview.baseUrl = resourceUri.toString(true);
 				this.webview.contents = this.model.getLinesContent();
+
+				return undefined;
 			});
 		});
 	}

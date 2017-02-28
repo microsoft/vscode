@@ -27,6 +27,12 @@ class MainThreadSCMProvider implements ISCMProvider {
 	get id(): string { return this._id; }
 	get label(): string { return this.features.label; }
 
+	private _count: number | undefined = undefined;
+	get count(): number | undefined { return this._count; }
+
+	private _state: string | undefined = undefined;
+	get state(): string | undefined { return this._state; }
+
 	constructor(
 		private _id: string,
 		private proxy: ExtHostSCMShape,
@@ -38,20 +44,20 @@ class MainThreadSCMProvider implements ISCMProvider {
 		this.disposables.push(scmService.registerSCMProvider(this));
 	}
 
-	commit(message: string): TPromise<void> {
-		if (!this.features.supportsCommit) {
-			return TPromise.as(null);
-		}
-
-		return this.proxy.$commit(this.id, message);
-	}
-
 	open(resource: ISCMResource): TPromise<void> {
 		if (!this.features.supportsOpen) {
 			return TPromise.as(null);
 		}
 
 		return this.proxy.$open(this.id, resource.resourceGroupId, resource.uri.toString());
+	}
+
+	acceptChanges(): TPromise<void> {
+		if (!this.features.supportsAcceptChanges) {
+			return TPromise.as(null);
+		}
+
+		return this.proxy.$acceptChanges(this.id);
 	}
 
 	drag(from: ISCMResource, to: ISCMResourceGroup): TPromise<void> {
@@ -76,7 +82,7 @@ class MainThreadSCMProvider implements ISCMProvider {
 		// }
 	}
 
-	$onChange(rawResourceGroups: SCMRawResourceGroup[]): void {
+	$onChange(rawResourceGroups: SCMRawResourceGroup[], count: number | undefined, state: string | undefined): void {
 		this._resources = rawResourceGroups.map(rawGroup => {
 			const [id, label, rawResources] = rawGroup;
 
@@ -102,6 +108,9 @@ class MainThreadSCMProvider implements ISCMProvider {
 			return { id, label, resources };
 		});
 
+		this._count = count;
+		this._state = state;
+
 		this._onDidChange.fire(this.resources);
 	}
 
@@ -114,13 +123,19 @@ export class MainThreadSCM extends MainThreadSCMShape {
 
 	private proxy: ExtHostSCMShape;
 	private providers: { [id: string]: MainThreadSCMProvider; } = Object.create(null);
+	private inputBoxListener: IDisposable;
 
 	constructor(
 		@IThreadService threadService: IThreadService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@ISCMService private scmService: ISCMService
 	) {
 		super();
 		this.proxy = threadService.get(ExtHostContext.ExtHostSCM);
+
+		this.inputBoxListener = this.scmService.input.onDidChange(value => {
+			this.proxy.$onInputBoxValueChange(value);
+		});
 	}
 
 	$register(id: string, features: SCMProviderFeatures): void {
@@ -138,14 +153,18 @@ export class MainThreadSCM extends MainThreadSCMShape {
 		delete this.providers[id];
 	}
 
-	$onChange(id: string, rawResourceGroups: SCMRawResourceGroup[]): void {
+	$onChange(id: string, rawResourceGroups: SCMRawResourceGroup[], count: number | undefined, state: string | undefined): void {
 		const provider = this.providers[id];
 
 		if (!provider) {
 			return;
 		}
 
-		provider.$onChange(rawResourceGroups);
+		provider.$onChange(rawResourceGroups, count, state);
+	}
+
+	$setInputBoxValue(value: string): void {
+		this.scmService.input.value = value;
 	}
 
 	dispose(): void {
@@ -153,5 +172,6 @@ export class MainThreadSCM extends MainThreadSCMShape {
 			.forEach(id => this.providers[id].dispose());
 
 		this.providers = Object.create(null);
+		this.inputBoxListener = dispose(this.inputBoxListener);
 	}
 }

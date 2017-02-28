@@ -8,7 +8,7 @@
 	"label.find": "Buscar",
 	"label.matchesLocation": "{0} de {1}",
 	"label.nextMatchButton": "Coincidencia siguiente",
-	"label.noResults": "No hay ningún resultado",
+	"label.noResults": "Sin resultados",
 	"label.previousMatchButton": "Coincidencia anterior",
 	"label.replace": "Reemplazar",
 	"label.replaceAllButton": "Reemplazar todo",

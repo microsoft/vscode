@@ -6,6 +6,7 @@
 'use strict';
 
 import fs = require('fs');
+import { isAbsolute, sep } from 'path';
 
 import gracefulFs = require('graceful-fs');
 gracefulFs.gracefulify(fs);
@@ -13,7 +14,6 @@ gracefulFs.gracefulify(fs);
 import arrays = require('vs/base/common/arrays');
 import { compareByScore } from 'vs/base/common/comparers';
 import objects = require('vs/base/common/objects');
-import paths = require('vs/base/common/paths');
 import scorer = require('vs/base/common/scorer');
 import strings = require('vs/base/common/strings');
 import { PPromise, TPromise } from 'vs/base/common/winjs.base';
@@ -100,7 +100,7 @@ export class SearchService implements IRawSearchService {
 	}
 
 	private rawMatchToSearchItem(match: IRawFileMatch): ISerializedFileMatch {
-		return { path: match.base ? [match.base, match.relativePath].join(paths.nativeSep) : match.relativePath };
+		return { path: match.base ? [match.base, match.relativePath].join(sep) : match.relativePath };
 	}
 
 	private doSortedSearch(engine: ISearchEngine<IRawFileMatch>, config: IRawSearch): PPromise<[ISerializedSearchComplete, IRawFileMatch[]], IProgress> {
@@ -162,7 +162,7 @@ export class SearchService implements IRawSearchService {
 	private trySortedSearchFromCache(config: IRawSearch): PPromise<[ISerializedSearchComplete, IRawFileMatch[]], IProgress> {
 		const cache = config.cacheKey && this.caches[config.cacheKey];
 		if (!cache) {
-			return;
+			return undefined;
 		}
 
 		const cacheLookupStartTime = Date.now();
@@ -201,6 +201,7 @@ export class SearchService implements IRawSearchService {
 				cached.cancel();
 			});
 		}
+		return undefined;
 	}
 
 	private sortResults(config: IRawSearch, results: IRawFileMatch[], scorerCache: ScorerCache): IRawFileMatch[] {
@@ -221,19 +222,19 @@ export class SearchService implements IRawSearchService {
 	}
 
 	private getResultsFromCache(cache: Cache, searchValue: string): PPromise<[ISerializedSearchComplete, IRawFileMatch[], CacheStats], IProgress> {
-		if (paths.isAbsolute(searchValue)) {
+		if (isAbsolute(searchValue)) {
 			return null; // bypass cache if user looks up an absolute path where matching goes directly on disk
 		}
 
 		// Find cache entries by prefix of search value
-		const hasPathSep = searchValue.indexOf(paths.nativeSep) >= 0;
+		const hasPathSep = searchValue.indexOf(sep) >= 0;
 		let cached: PPromise<[ISerializedSearchComplete, IRawFileMatch[]], IProgress>;
 		let wasResolved: boolean;
 		for (let previousSearch in cache.resultsToSearchCache) {
 
 			// If we narrow down, we might be able to reuse the cached results
 			if (strings.startsWith(searchValue, previousSearch)) {
-				if (hasPathSep && previousSearch.indexOf(paths.nativeSep) < 0) {
+				if (hasPathSep && previousSearch.indexOf(sep) < 0) {
 					continue; // since a path character widens the search for potential more matches, require it in previous search too
 				}
 

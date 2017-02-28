@@ -33,7 +33,9 @@ import { DebugHoverWidget } from 'vs/workbench/parts/debug/electron-browser/debu
 import { RemoveBreakpointAction, EditConditionalBreakpointAction, EnableBreakpointAction, DisableBreakpointAction, AddConditionalBreakpointAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { IDebugEditorContribution, IDebugService, State, IBreakpoint, EDITOR_CONTRIBUTION_ID, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, IStackFrame, IDebugConfiguration, IExpression } from 'vs/workbench/parts/debug/common/debug';
 import { BreakpointWidget } from 'vs/workbench/parts/debug/browser/breakpointWidget';
+import { ExceptionWidget } from 'vs/workbench/parts/debug/browser/exceptionWidget';
 import { FloatingClickWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
+import { IListService } from 'vs/platform/list/browser/listService';
 
 const HOVER_DELAY = 300;
 const LAUNCH_JSON_REGEX = /launch\.json$/;
@@ -58,6 +60,8 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	private breakpointWidgetVisible: IContextKey<boolean>;
 	private wordToLineNumbersMap: Map<string, IPosition[]>;
 
+	private exceptionWidget: ExceptionWidget;
+
 	private configurationWidget: FloatingClickWidget;
 
 	constructor(
@@ -69,10 +73,11 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		@ICommandService private commandService: ICommandService,
 		@ICodeEditorService private codeEditorService: ICodeEditorService,
 		@ITelemetryService private telemetryService: ITelemetryService,
+		@IListService listService: IListService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		this.breakpointHintDecoration = [];
-		this.hoverWidget = new DebugHoverWidget(this.editor, this.debugService, this.instantiationService);
+		this.hoverWidget = new DebugHoverWidget(this.editor, this.debugService, listService, this.instantiationService);
 		this.toDispose = [];
 		this.showHoverScheduler = new RunOnceScheduler(() => this.showHover(this.hoverRange, false), HOVER_DELAY);
 		this.hideHoverScheduler = new RunOnceScheduler(() => this.hoverWidget.hide(), HOVER_DELAY);
@@ -81,6 +86,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		this.breakpointWidgetVisible = CONTEXT_BREAKPOINT_WIDGET_VISIBLE.bindTo(contextKeyService);
 		this.updateConfigurationWidgetVisibility();
 		this.codeEditorService.registerDecorationType(INLINE_VALUE_DECORATION_KEY, {});
+		this.toggleExceptionWidget();
 	}
 
 	private getContextMenuActions(breakpoint: IBreakpoint, uri: uri, lineNumber: number): TPromise<IAction[]> {
@@ -131,11 +137,11 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 					getActionsContext: () => breakpoint
 				});
 			} else {
-				const breakpoint = this.debugService.getModel().getBreakpoints()
-					.filter(bp => bp.uri.toString() === uri.toString() && bp.lineNumber === lineNumber).pop();
+				const breakpoints = this.debugService.getModel().getBreakpoints()
+					.filter(bp => bp.uri.toString() === uri.toString() && bp.lineNumber === lineNumber);
 
-				if (breakpoint) {
-					this.debugService.removeBreakpoints(breakpoint.getId());
+				if (breakpoints.length) {
+					breakpoints.forEach(bp => this.debugService.removeBreakpoints(bp.getId()));
 				} else if (canSetBreakpoints) {
 					this.debugService.addBreakpoints(uri, [{ lineNumber }]);
 				}
@@ -168,11 +174,15 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			}
 		}));
 		this.toDispose.push(this.editor.onKeyDown((e: IKeyboardEvent) => this.onKeyDown(e)));
+		this.toDispose.push(this.editor.onDidChangeModelContent(() => {
+			this.wordToLineNumbersMap = null;
+		}));
 		this.toDispose.push(this.editor.onDidChangeModel(() => {
 			const sf = this.debugService.getViewModel().focusedStackFrame;
 			const model = this.editor.getModel();
 			this.editor.updateOptions({ hover: !sf || !model || model.uri.toString() !== sf.source.uri.toString() });
 			this.closeBreakpointWidget();
+			this.toggleExceptionWidget();
 			this.hideHoverWidget();
 			this.updateConfigurationWidgetVisibility();
 			this.wordToLineNumbersMap = null;
@@ -191,6 +201,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		if (sf && model && sf.source.uri.toString() === model.uri.toString()) {
 			return this.hoverWidget.showAt(range, focus);
 		}
+		return undefined;
 	}
 
 	private ensureBreakpointHintDecoration(showBreakpointHintAtLineNumber: number): void {
@@ -218,6 +229,9 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			this.editor.updateOptions({ hover: true });
 			this.hideHoverWidget();
 		}
+
+		// Handling exception
+		this.toggleExceptionWidget();
 
 		this.updateInlineDecorations(sf);
 	}
@@ -271,6 +285,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 	// end hover business
 
+	// breakpoint widget
 	public showBreakpointWidget(lineNumber: number): void {
 		if (this.breakpointWidget) {
 			this.breakpointWidget.dispose();
@@ -290,11 +305,48 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		}
 	}
 
+	// exception widget
+	private toggleExceptionWidget(): void {
+		// Toggles exception widget based on the state of the current editor model and debug stack frame
+		const model = this.editor.getModel();
+		const focusedSf = this.debugService.getViewModel().focusedStackFrame;
+		const callStack = focusedSf ? focusedSf.thread.getCallStack() : null;
+		if (!model || !focusedSf || !callStack || callStack.length === 0) {
+			this.closeExceptionWidget();
+			return;
+		}
+
+		// First call stack frame is the frame where exception has been thrown
+		const exceptionSf = callStack[0];
+		const sameUri = exceptionSf.source.uri.toString() === model.uri.toString();
+		if (this.exceptionWidget && !sameUri) {
+			this.closeExceptionWidget();
+		} else if (focusedSf.thread.stoppedDetails.reason === 'exception' && sameUri) {
+			this.showExceptionWidget(exceptionSf.lineNumber, exceptionSf.column);
+		}
+	}
+
+	private showExceptionWidget(lineNumber: number, column: number): void {
+		if (this.exceptionWidget) {
+			this.exceptionWidget.dispose();
+		}
+
+		this.exceptionWidget = this.instantiationService.createInstance(ExceptionWidget, this.editor, lineNumber);
+		this.exceptionWidget.show({ lineNumber, column }, 0);
+	}
+
+	private closeExceptionWidget(): void {
+		if (this.exceptionWidget) {
+			this.exceptionWidget.dispose();
+			this.exceptionWidget = null;
+		}
+	}
+
 	// configuration widget
 	private updateConfigurationWidgetVisibility(): void {
 		const model = this.editor.getModel();
 		if (model && LAUNCH_JSON_REGEX.test(model.uri.toString())) {
-			this.configurationWidget = this.instantiationService.createInstance(FloatingClickWidget, this.editor, nls.localize('addConfiguration', "Add Configuration"), null);
+			this.configurationWidget = this.instantiationService.createInstance(FloatingClickWidget, this.editor, nls.localize('addConfiguration', "Add Configuration..."), null);
 			this.configurationWidget.render();
 			this.toDispose.push(this.configurationWidget.onClick(() => this.addLaunchConfiguration().done(undefined, errors.onUnexpectedError)));
 		} else if (this.configurationWidget) {
@@ -323,9 +375,10 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 				depthInArray--;
 			}
 		});
+
+		this.editor.focus();
 		if (!configurationsPosition) {
-			this.commandService.executeCommand('editor.action.triggerSuggest');
-			return;
+			return this.commandService.executeCommand('editor.action.triggerSuggest');
 		}
 
 		const insertLineAfter = (lineNumber: number): TPromise<any> => {

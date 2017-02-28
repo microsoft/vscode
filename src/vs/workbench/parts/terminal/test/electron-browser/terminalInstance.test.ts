@@ -25,6 +25,7 @@ class TestTerminalInstance extends TerminalInstance {
 	}
 
 	protected _createProcess(workspace: IWorkspace, shell: IShellLaunchConfig): void { }
+	protected _createXterm(): void { }
 }
 
 suite('Workbench - TerminalInstance', () => {
@@ -68,7 +69,7 @@ suite('Workbench - TerminalInstance', () => {
 		assert.equal(env2['LANG'], 'en_AU.UTF-8', 'LANG is equal to the requested locale with UTF-8');
 
 		const env3 = TerminalInstance.createTerminalEnv(parentEnv1, shell1, '/', null);
-		assert.ok(!('LANG' in env3), 'LANG is unset');
+		assert.equal(env3['LANG'], 'en_US.UTF-8', 'LANG is equal to en_US.UTF-8 as fallback.'); // More info on issue #14586
 
 		const env4 = TerminalInstance.createTerminalEnv(parentEnv2, shell1, '/', null);
 		assert.equal(env4['LANG'], 'en_US.UTF-8', 'LANG is equal to the parent environment\'s LANG');
@@ -91,7 +92,7 @@ suite('Workbench - TerminalInstance', () => {
 			configHelper = {
 				getCwd: () => null
 			};
-			instance = instantiationService.createInstance(TestTerminalInstance, terminalFocusContextKey, configHelper, null, null);
+			instance = instantiationService.createInstance(TestTerminalInstance, terminalFocusContextKey, configHelper, null, null, null);
 		});
 
 		// This helper checks the paths in a cross-platform friendly manner

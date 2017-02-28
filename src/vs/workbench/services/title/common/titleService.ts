@@ -12,9 +12,9 @@ export interface ITitleService {
 	_serviceBrand: any;
 
 	/**
-	 * Update the window title with the given value.
+	 * Set the window title with the given value.
 	 */
-	updateTitle(title: string): void;
+	setTitle(title: string): void;
 
 	/**
 	 * Set the represented file name to the title if any.

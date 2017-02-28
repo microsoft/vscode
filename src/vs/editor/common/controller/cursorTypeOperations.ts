@@ -248,12 +248,12 @@ export class TypeOperations {
 
 		} else if (enterAction.indentAction === IndentAction.Indent) {
 			// Indent once
-			executeCommand = TypeOperations.typeCommand(range, beforeText + '\n' + config.normalizeIndentation(indentation + '\t' + enterAction.appendText), keepPosition);
+			executeCommand = TypeOperations.typeCommand(range, beforeText + '\n' + config.normalizeIndentation(indentation + enterAction.appendText), keepPosition);
 
 		} else if (enterAction.indentAction === IndentAction.IndentOutdent) {
 			// Ultra special
 			let normalIndent = config.normalizeIndentation(indentation);
-			let increasedIndent = config.normalizeIndentation(indentation + '\t' + enterAction.appendText);
+			let increasedIndent = config.normalizeIndentation(indentation + enterAction.appendText);
 
 			let typeText = beforeText + '\n' + increasedIndent + '\n' + normalIndent;
 
@@ -326,9 +326,15 @@ export class TypeOperations {
 
 		// Only consider auto closing the pair if a space follows or if another autoclosed pair follows
 		if (beforeCharacter) {
+			let thisBraceIsSymmetric = (config.autoClosingPairsOpen[ch] === ch);
+
 			let isBeforeCloseBrace = false;
-			for (let closeBrace in config.autoClosingPairsClose) {
-				if (beforeCharacter === closeBrace) {
+			for (let otherCloseBrace in config.autoClosingPairsClose) {
+				let otherBraceIsSymmetric = (config.autoClosingPairsOpen[otherCloseBrace] === otherCloseBrace);
+				if (!thisBraceIsSymmetric && otherBraceIsSymmetric) {
+					continue;
+				}
+				if (beforeCharacter === otherCloseBrace) {
 					isBeforeCloseBrace = true;
 					break;
 				}
@@ -428,12 +434,17 @@ export class TypeOperations {
 		}
 
 		if (electricAction.matchOpenBracket) {
+			let endColumn = (lineTokens.getLineContent() + ch).lastIndexOf(electricAction.matchOpenBracket) + 1;
 			let match = model.findMatchingBracketUp(electricAction.matchOpenBracket, {
 				lineNumber: position.lineNumber,
-				column: position.column
+				column: endColumn
 			});
 
 			if (match) {
+				if (match.startLineNumber === position.lineNumber) {
+					// matched something on the same line => no change in indentation
+					return null;
+				}
 				let matchLine = model.getLineContent(match.startLineNumber);
 				let matchLineIndentation = strings.getLeadingWhitespace(matchLine);
 				let newIndentation = config.normalizeIndentation(matchLineIndentation);

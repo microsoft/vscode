@@ -1,5 +1,4 @@
 #!/bin/bash
-set -e
 
 if [[ "$OSTYPE" == "darwin"* ]]; then
 	realpath() { [[ $1 = /* ]] && echo "$1" || echo "$PWD/${1#./}"; }
@@ -19,7 +18,7 @@ else
 fi
 
 INTENDED_VERSION="v`node -p "require('./package.json').electronVersion"`"
-INSTALLED_VERSION=`cat .build/electron/version 2> /dev/null`
+INSTALLED_VERSION=$(cat .build/electron/version 2> /dev/null)
 
 # Node modules
 test -d node_modules || ./scripts/npm.sh install

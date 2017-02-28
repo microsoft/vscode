@@ -6,6 +6,7 @@
 import nls = require('vs/nls');
 import DOM = require('vs/base/browser/dom');
 import errors = require('vs/base/common/errors');
+import paths = require('vs/base/common/paths');
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import { Action } from 'vs/base/common/actions';
@@ -24,6 +25,10 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Keybinding, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { toResource } from 'vs/workbench/common/editor';
+import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IListService } from 'vs/platform/list/browser/listService';
+import { explorerItemToFileResource } from 'vs/workbench/parts/files/common/files';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 export function isSearchViewletFocussed(viewletService: IViewletService): boolean {
 	let activeViewlet = viewletService.getActiveViewlet();
@@ -80,7 +85,7 @@ export class ToggleRegexAction extends Action {
 export class ShowNextSearchTermAction extends Action {
 
 	public static ID = 'search.history.showNext';
-	public static LABEL = nls.localize('nextSearchTerm', "Show next search term");
+	public static LABEL = nls.localize('nextSearchTerm', "Show Next Search Term");
 
 	constructor(id: string, label: string, @IViewletService private viewletService: IViewletService) {
 		super(id, label);
@@ -96,7 +101,7 @@ export class ShowNextSearchTermAction extends Action {
 export class ShowPreviousSearchTermAction extends Action {
 
 	public static ID = 'search.history.showPrevious';
-	public static LABEL = nls.localize('previousSearchTerm', "Show previous search term");
+	public static LABEL = nls.localize('previousSearchTerm', "Show Previous Search Term");
 
 	constructor(id: string, label: string, @IViewletService private viewletService: IViewletService) {
 		super(id, label);
@@ -112,7 +117,7 @@ export class ShowPreviousSearchTermAction extends Action {
 export class FocusNextInputAction extends Action {
 
 	public static ID = 'search.focus.nextInputBox';
-	public static LABEL = nls.localize('focusNextInputBox', "Focus next input box");
+	public static LABEL = nls.localize('focusNextInputBox', "Focus Next Input Box");
 
 	constructor(id: string, label: string, @IViewletService private viewletService: IViewletService) {
 		super(id, label);
@@ -127,7 +132,7 @@ export class FocusNextInputAction extends Action {
 export class FocusPreviousInputAction extends Action {
 
 	public static ID = 'search.focus.previousInputBox';
-	public static LABEL = nls.localize('focusPreviousInputBox', "Focus previous input box");
+	public static LABEL = nls.localize('focusPreviousInputBox', "Focus Previous Input Box");
 
 	constructor(id: string, label: string, @IViewletService private viewletService: IViewletService) {
 		super(id, label);
@@ -209,20 +214,46 @@ export class CloseReplaceAction extends Action {
 
 export class FindInFolderAction extends Action {
 
+	public static ID = 'filesExplorer.findInFolder';
+
 	private resource: URI;
 
-	constructor(resource: URI, @IViewletService private viewletService: IViewletService) {
-		super('workbench.search.action.findInFolder', nls.localize('findInFolder', "Find in Folder"));
+	constructor(resource: URI, @IInstantiationService private instantiationService: IInstantiationService) {
+		super(FindInFolderAction.ID, nls.localize('findInFolder', "Find in Folder"));
 
 		this.resource = resource;
 	}
 
 	public run(event?: any): TPromise<any> {
-		return this.viewletService.openViewlet(Constants.VIEWLET_ID, true).then((viewlet: SearchViewlet) => {
-			viewlet.searchInFolder(this.resource);
-		});
+		return this.instantiationService.invokeFunction.apply(this.instantiationService, [findInFolderCommand, this.resource]);
 	}
 }
+
+export const findInFolderCommand = (accessor: ServicesAccessor, resource?: URI) => {
+	const listService = accessor.get(IListService);
+	const viewletService = accessor.get(IViewletService);
+	const contextService = accessor.get(IWorkspaceContextService);
+
+	if (!URI.isUri(resource)) {
+		const focused = listService.getFocused() ? listService.getFocused().getFocus() : void 0;
+		if (focused) {
+			const file = explorerItemToFileResource(focused);
+			if (file) {
+				resource = file.isDirectory ? file.resource : URI.file(paths.dirname(file.resource.fsPath));
+			}
+		}
+	}
+
+	if (!URI.isUri(resource) && contextService.hasWorkspace()) {
+		resource = contextService.getWorkspace().resource;
+	}
+
+	if (URI.isUri(resource)) {
+		viewletService.openViewlet(Constants.VIEWLET_ID, true).then((viewlet: SearchViewlet) => {
+			viewlet.searchInFolder(resource);
+		}).done(null, errors.onUnexpectedError);
+	}
+};
 
 export class RefreshAction extends Action {
 
@@ -268,7 +299,7 @@ export class ClearSearchResultsAction extends Action {
 
 export class FocusNextSearchResultAction extends Action {
 	public static ID = 'search.action.focusNextSearchResult';
-	public static LABEL = nls.localize('FocusNextSearchResult.label', "Focus next search result");
+	public static LABEL = nls.localize('FocusNextSearchResult.label', "Focus Next Search Result");
 
 	constructor(id: string, label: string, @IViewletService private viewletService: IViewletService) {
 		super(id, label);
@@ -276,14 +307,14 @@ export class FocusNextSearchResultAction extends Action {
 
 	public run(): TPromise<any> {
 		return this.viewletService.openViewlet(Constants.VIEWLET_ID).then((searchViewlet: SearchViewlet) => {
-			searchViewlet.selectNextResult();
+			searchViewlet.selectNextMatch();
 		});
 	}
 }
 
 export class FocusPreviousSearchResultAction extends Action {
 	public static ID = 'search.action.focusPreviousSearchResult';
-	public static LABEL = nls.localize('FocusPreviousSearchResult.label', "Focus previous search result");
+	public static LABEL = nls.localize('FocusPreviousSearchResult.label', "Focus Previous Search Result");
 
 	constructor(id: string, label: string, @IViewletService private viewletService: IViewletService) {
 		super(id, label);
@@ -291,7 +322,7 @@ export class FocusPreviousSearchResultAction extends Action {
 
 	public run(): TPromise<any> {
 		return this.viewletService.openViewlet(Constants.VIEWLET_ID).then((searchViewlet: SearchViewlet) => {
-			searchViewlet.selectPreviousResult();
+			searchViewlet.selectPreviousMatch();
 		});
 	}
 }

@@ -81,6 +81,8 @@ export class SearchSorter implements ISorter {
 		if (elementA instanceof Match && elementB instanceof Match) {
 			return Range.compareRangesUsingStarts(elementA.range(), elementB.range());
 		}
+
+		return undefined;
 	}
 }
 
@@ -213,27 +215,32 @@ export class SearchAccessibilityProvider implements IAccessibilityProvider {
 			}
 			return nls.localize('searchResultAria', "{0}, Search result", match.text());
 		}
+		return undefined;
 	}
 }
 
 export class SearchController extends DefaultController {
 
-	private _arrowKeyThrottler = new DumbThrottler(500);
-
 	constructor(private viewlet: SearchViewlet, @IInstantiationService private instantiationService: IInstantiationService) {
-		super({ clickBehavior: ClickBehavior.ON_MOUSE_DOWN });
+		super({ clickBehavior: ClickBehavior.ON_MOUSE_DOWN, keyboardSupport: false });
 
-		if (platform.isMacintosh) {
-			this.downKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.Backspace, (tree: ITree, event: any) => { this.onDelete(tree, event); });
-			this.upKeyBindingDispatcher.set(KeyMod.WinCtrl | KeyCode.Enter, this.onEnter.bind(this));
-		} else {
-			this.downKeyBindingDispatcher.set(KeyCode.Delete, (tree: ITree, event: any) => { this.onDelete(tree, event); });
-			this.upKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.Enter, this.onEnter.bind(this));
-		}
+		// TODO@Rob these should be commands
 
+		// Up (from results to inputs)
+		this.downKeyBindingDispatcher.set(KeyCode.UpArrow, this.onUp.bind(this));
+
+		// Open to side
+		this.upKeyBindingDispatcher.set(platform.isMacintosh ? KeyMod.WinCtrl | KeyCode.Enter : KeyMod.CtrlCmd | KeyCode.Enter, this.onEnter.bind(this));
+
+		// Delete
+		this.downKeyBindingDispatcher.set(platform.isMacintosh ? KeyMod.CtrlCmd | KeyCode.Backspace : KeyCode.Delete, (tree: ITree, event: any) => { this.onDelete(tree, event); });
+
+		// Cancel search
+		this.downKeyBindingDispatcher.set(KeyCode.Escape, (tree: ITree, event: any) => { this.onEscape(tree, event); });
+
+		// Replace / Replace All
 		this.downKeyBindingDispatcher.set(ReplaceAllAction.KEY_BINDING, (tree: ITree, event: any) => { this.onReplaceAll(tree, event); });
 		this.downKeyBindingDispatcher.set(ReplaceAction.KEY_BINDING, (tree: ITree, event: any) => { this.onReplace(tree, event); });
-		this.downKeyBindingDispatcher.set(KeyCode.Escape, (tree: ITree, event: any) => { this.onEscape(tree, event); });
 	}
 
 	protected onEscape(tree: ITree, event: IKeyboardEvent): boolean {
@@ -286,62 +293,7 @@ export class SearchController extends DefaultController {
 			return true;
 		}
 
-		const result = super.onUp(tree, event);
-		let focus = tree.getFocus();
-		this.selectOnScroll(tree, focus, event);
-		return result;
-	}
-
-	protected onDown(tree: ITree, event: IKeyboardEvent): boolean {
-		const result = super.onDown(tree, event);
-		let focus = tree.getFocus();
-		this.selectOnScroll(tree, focus, event);
-		return result;
-	}
-
-	protected onSpace(tree: ITree, event: IKeyboardEvent): boolean {
-		let element = tree.getFocus();
-		if (element instanceof Match) {
-			return this.onEnter(tree, event);
-		}
-		super.onSpace(tree, event);
-	}
-
-	private selectOnScroll(tree: ITree, focus: any, event: IKeyboardEvent): void {
-		this._arrowKeyThrottler.trigger(() => this.doSelectOnScroll(tree, focus, event));
-	}
-
-	private doSelectOnScroll(tree: ITree, focus: any, event: IKeyboardEvent): void {
-		if (focus instanceof Match) {
-			this.onEnter(tree, event);
-		} else {
-			tree.setSelection([focus]);
-		}
-	}
-}
-
-class DumbThrottler {
-	private waiting = false;
-
-	private callback: Function;
-
-	constructor(private timeout: number) {
-	}
-
-	trigger(callback: Function): void {
-		if (this.waiting) {
-			this.callback = callback;
-		} else {
-			callback();
-			this.waiting = true;
-			setTimeout(() => {
-				this.waiting = false;
-				if (this.callback) {
-					this.callback();
-					this.callback = null;
-				}
-			}, this.timeout);
-		}
+		return false;
 	}
 }
 

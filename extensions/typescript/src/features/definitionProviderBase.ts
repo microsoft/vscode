@@ -11,35 +11,31 @@ import * as Proto from '../protocol';
 import { ITypescriptServiceClient } from '../typescriptService';
 
 export default class TypeScriptDefinitionProviderBase {
+	constructor(
+		private client: ITypescriptServiceClient) { }
 
-	private client: ITypescriptServiceClient;
-
-	public tokens: string[] = [];
-
-	constructor(client: ITypescriptServiceClient) {
-		this.client = client;
-	}
-
-	protected getSymbolLocations(definitionType: 'definition' | 'implementation', document: TextDocument, position: Position, token: CancellationToken | boolean): Promise<Location[] | null> {
-		const filepath = this.client.asAbsolutePath(document.uri);
+	protected getSymbolLocations(
+		definitionType: 'definition' | 'implementation' | 'typeDefinition',
+		document: TextDocument,
+		position: Position,
+		token: CancellationToken | boolean
+	): Promise<Location[] | null> {
+		const filepath = this.client.normalizePath(document.uri);
 		if (!filepath) {
 			return Promise.resolve(null);
 		}
-		let args: Proto.FileLocationRequestArgs = {
+		const args: Proto.FileLocationRequestArgs = {
 			file: filepath,
 			line: position.line + 1,
 			offset: position.character + 1
 		};
-		if (!args.file) {
-			return Promise.resolve(null);
-		}
 		return this.client.execute(definitionType, args, token).then(response => {
-			let locations: Proto.FileSpan[] = (response && response.body) || [];
+			const locations: Proto.FileSpan[] = (response && response.body) || [];
 			if (!locations || locations.length === 0) {
 				return [];
 			}
 			return locations.map(location => {
-				let resource = this.client.asUrl(location.file);
+				const resource = this.client.asUrl(location.file);
 				if (resource === null) {
 					return null;
 				} else {

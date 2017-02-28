@@ -11,6 +11,7 @@
 	"lines.copyUp": "위에 줄 복사",
 	"lines.delete": "줄 삭제",
 	"lines.deleteAllLeft": "왼쪽 모두 삭제",
+	"lines.deleteAllRight": "우측에 있는 항목 삭제",
 	"lines.indent": "줄 들여쓰기",
 	"lines.insertAfter": "아래에 줄 삽입",
 	"lines.insertBefore": "위에 줄 삽입",

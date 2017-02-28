@@ -684,7 +684,7 @@ export class TextEditorOptions extends EditorOptions {
 				this.editorOptions = Object.create(null);
 				this.editorOptions.renderWhitespace = config.viewInfo.renderWhitespace;
 				this.editorOptions.renderControlCharacters = config.viewInfo.renderControlCharacters;
-				this.editorOptions.wrappingColumn = config.wrappingInfo.isViewportWrapping ? 0 : -1;
+				this.editorOptions.wordWrap = config.wrappingInfo.isViewportWrapping ? 'on' : 'off';
 			}
 		}
 	}

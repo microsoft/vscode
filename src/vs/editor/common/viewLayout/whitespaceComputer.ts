@@ -15,54 +15,54 @@ export class WhitespaceComputer {
 	/**
 	 * heights[i] is the height in pixels for whitespace at index i
 	 */
-	private heights: number[];
+	private _heights: number[];
 
 	/**
 	 * afterLineNumbers[i] is the line number whitespace at index i is after
 	 */
-	private afterLineNumbers: number[];
+	private _afterLineNumbers: number[];
 
 	/**
 	 * ordinals[i] is the orinal of the whitespace at index i
 	 */
-	private ordinals: number[];
+	private _ordinals: number[];
 
 	/**
 	 * prefixSum[i] = SUM(heights[j]), 1 <= j <= i
 	 */
-	private prefixSum: number[];
+	private _prefixSum: number[];
 
 	/**
 	 * prefixSum[i], 1 <= i <= prefixSumValidIndex can be trusted
 	 */
-	private prefixSumValidIndex: number;
+	private _prefixSumValidIndex: number;
 
 	/**
 	 * ids[i] is the whitespace id of whitespace at index i
 	 */
-	private ids: number[];
+	private _ids: number[];
 
 	/**
 	 * index at which a whitespace is positioned (inside heights, afterLineNumbers, prefixSum members)
 	 */
-	private whitespaceId2Index: {
+	private _whitespaceId2Index: {
 		[id: string]: number;
 	};
 
 	/**
 	 * last whitespace id issued
 	 */
-	private lastWhitespaceId: number;
+	private _lastWhitespaceId: number;
 
 	constructor() {
-		this.heights = [];
-		this.ids = [];
-		this.afterLineNumbers = [];
-		this.ordinals = [];
-		this.prefixSum = [];
-		this.prefixSumValidIndex = -1;
-		this.whitespaceId2Index = {};
-		this.lastWhitespaceId = 0;
+		this._heights = [];
+		this._ids = [];
+		this._afterLineNumbers = [];
+		this._ordinals = [];
+		this._prefixSum = [];
+		this._prefixSumValidIndex = -1;
+		this._whitespaceId2Index = {};
+		this._lastWhitespaceId = 0;
 	}
 
 	/**
@@ -70,12 +70,11 @@ export class WhitespaceComputer {
 	 * If the value is already present in the sorted array, the insertion index will be after the already existing value.
 	 */
 	public static findInsertionIndex(sortedArray: number[], value: number, ordinals: number[], valueOrdinal: number): number {
-		var low = 0,
-			high = sortedArray.length,
-			mid: number;
+		let low = 0;
+		let high = sortedArray.length;
 
 		while (low < high) {
-			mid = ((low + high) >>> 1);
+			let mid = ((low + high) >>> 1);
 
 			if (value === sortedArray[mid]) {
 				if (valueOrdinal < ordinals[mid]) {
@@ -107,38 +106,41 @@ export class WhitespaceComputer {
 		ordinal = ordinal | 0;
 		heightInPx = heightInPx | 0;
 
-		var id = (++this.lastWhitespaceId);
-		var insertionIndex = WhitespaceComputer.findInsertionIndex(this.afterLineNumbers, afterLineNumber, this.ordinals, ordinal);
-		this.insertWhitespaceAtIndex(id, insertionIndex, afterLineNumber, ordinal, heightInPx);
+		let id = (++this._lastWhitespaceId);
+		let insertionIndex = WhitespaceComputer.findInsertionIndex(this._afterLineNumbers, afterLineNumber, this._ordinals, ordinal);
+		this._insertWhitespaceAtIndex(id, insertionIndex, afterLineNumber, ordinal, heightInPx);
 		return id;
 	}
 
-	private insertWhitespaceAtIndex(id: number, insertIndex: number, afterLineNumber: number, ordinal: number, heightInPx: number): void {
+	private _insertWhitespaceAtIndex(id: number, insertIndex: number, afterLineNumber: number, ordinal: number, heightInPx: number): void {
 		id = id | 0;
 		insertIndex = insertIndex | 0;
 		afterLineNumber = afterLineNumber | 0;
 		ordinal = ordinal | 0;
 		heightInPx = heightInPx | 0;
 
-		this.heights.splice(insertIndex, 0, heightInPx);
-		this.ids.splice(insertIndex, 0, id);
-		this.afterLineNumbers.splice(insertIndex, 0, afterLineNumber);
-		this.ordinals.splice(insertIndex, 0, ordinal);
-		this.prefixSum.splice(insertIndex, 0, 0);
+		this._heights.splice(insertIndex, 0, heightInPx);
+		this._ids.splice(insertIndex, 0, id);
+		this._afterLineNumbers.splice(insertIndex, 0, afterLineNumber);
+		this._ordinals.splice(insertIndex, 0, ordinal);
+		this._prefixSum.splice(insertIndex, 0, 0);
 
-		let keys = Object.keys(this.whitespaceId2Index);
+		let keys = Object.keys(this._whitespaceId2Index);
 		for (let i = 0, len = keys.length; i < len; i++) {
 			let sid = keys[i];
-			let oldIndex = this.whitespaceId2Index[sid];
+			let oldIndex = this._whitespaceId2Index[sid];
 			if (oldIndex >= insertIndex) {
-				this.whitespaceId2Index[sid] = oldIndex + 1;
+				this._whitespaceId2Index[sid] = oldIndex + 1;
 			}
 		}
 
-		this.whitespaceId2Index[id.toString()] = insertIndex;
-		this.prefixSumValidIndex = Math.min(this.prefixSumValidIndex, insertIndex - 1);
+		this._whitespaceId2Index[id.toString()] = insertIndex;
+		this._prefixSumValidIndex = Math.min(this._prefixSumValidIndex, insertIndex - 1);
 	}
 
+	/**
+	 * Change properties associated with a certain whitespace.
+	 */
 	public changeWhitespace(id: number, newAfterLineNumber: number, newHeight: number): boolean {
 		id = id | 0;
 		newAfterLineNumber = newAfterLineNumber | 0;
@@ -161,12 +163,12 @@ export class WhitespaceComputer {
 		id = id | 0;
 		newHeightInPx = newHeightInPx | 0;
 
-		var sid = id.toString();
-		if (this.whitespaceId2Index.hasOwnProperty(sid)) {
-			var index = this.whitespaceId2Index[sid];
-			if (this.heights[index] !== newHeightInPx) {
-				this.heights[index] = newHeightInPx;
-				this.prefixSumValidIndex = Math.min(this.prefixSumValidIndex, index - 1);
+		let sid = id.toString();
+		if (this._whitespaceId2Index.hasOwnProperty(sid)) {
+			let index = this._whitespaceId2Index[sid];
+			if (this._heights[index] !== newHeightInPx) {
+				this._heights[index] = newHeightInPx;
+				this._prefixSumValidIndex = Math.min(this._prefixSumValidIndex, index - 1);
 				return true;
 			}
 		}
@@ -184,24 +186,24 @@ export class WhitespaceComputer {
 		id = id | 0;
 		newAfterLineNumber = newAfterLineNumber | 0;
 
-		var sid = id.toString();
-		if (this.whitespaceId2Index.hasOwnProperty(sid)) {
-			var index = this.whitespaceId2Index[sid];
-			if (this.afterLineNumbers[index] !== newAfterLineNumber) {
+		let sid = id.toString();
+		if (this._whitespaceId2Index.hasOwnProperty(sid)) {
+			let index = this._whitespaceId2Index[sid];
+			if (this._afterLineNumbers[index] !== newAfterLineNumber) {
 				// `afterLineNumber` changed for this whitespace
 
 				// Record old ordinal
-				var ordinal = this.ordinals[index];
+				let ordinal = this._ordinals[index];
 
 				// Record old height
-				var heightInPx = this.heights[index];
+				let heightInPx = this._heights[index];
 
 				// Since changing `afterLineNumber` can trigger a reordering, we're gonna remove this whitespace
 				this.removeWhitespace(id);
 
 				// And add it again
-				var insertionIndex = WhitespaceComputer.findInsertionIndex(this.afterLineNumbers, newAfterLineNumber, this.ordinals, ordinal);
-				this.insertWhitespaceAtIndex(id, insertionIndex, newAfterLineNumber, ordinal, heightInPx);
+				let insertionIndex = WhitespaceComputer.findInsertionIndex(this._afterLineNumbers, newAfterLineNumber, this._ordinals, ordinal);
+				this._insertWhitespaceAtIndex(id, insertionIndex, newAfterLineNumber, ordinal, heightInPx);
 
 				return true;
 			}
@@ -218,34 +220,34 @@ export class WhitespaceComputer {
 	public removeWhitespace(id: number): boolean {
 		id = id | 0;
 
-		var sid = id.toString();
+		let sid = id.toString();
 
-		if (this.whitespaceId2Index.hasOwnProperty(sid)) {
-			var index = this.whitespaceId2Index[sid];
-			delete this.whitespaceId2Index[sid];
-			this.removeWhitespaceAtIndex(index);
+		if (this._whitespaceId2Index.hasOwnProperty(sid)) {
+			let index = this._whitespaceId2Index[sid];
+			delete this._whitespaceId2Index[sid];
+			this._removeWhitespaceAtIndex(index);
 			return true;
 		}
 
 		return false;
 	}
 
-	private removeWhitespaceAtIndex(removeIndex: number): void {
+	private _removeWhitespaceAtIndex(removeIndex: number): void {
 		removeIndex = removeIndex | 0;
 
-		this.heights.splice(removeIndex, 1);
-		this.ids.splice(removeIndex, 1);
-		this.afterLineNumbers.splice(removeIndex, 1);
-		this.ordinals.splice(removeIndex, 1);
-		this.prefixSum.splice(removeIndex, 1);
-		this.prefixSumValidIndex = Math.min(this.prefixSumValidIndex, removeIndex - 1);
+		this._heights.splice(removeIndex, 1);
+		this._ids.splice(removeIndex, 1);
+		this._afterLineNumbers.splice(removeIndex, 1);
+		this._ordinals.splice(removeIndex, 1);
+		this._prefixSum.splice(removeIndex, 1);
+		this._prefixSumValidIndex = Math.min(this._prefixSumValidIndex, removeIndex - 1);
 
-		let keys = Object.keys(this.whitespaceId2Index);
+		let keys = Object.keys(this._whitespaceId2Index);
 		for (let i = 0, len = keys.length; i < len; i++) {
 			let sid = keys[i];
-			let oldIndex = this.whitespaceId2Index[sid];
+			let oldIndex = this._whitespaceId2Index[sid];
 			if (oldIndex >= removeIndex) {
-				this.whitespaceId2Index[sid] = oldIndex - 1;
+				this._whitespaceId2Index[sid] = oldIndex - 1;
 			}
 		}
 	}
@@ -257,25 +259,21 @@ export class WhitespaceComputer {
 	 * @param fromLineNumber The line number at which the deletion started, inclusive
 	 * @param toLineNumber The line number at which the deletion ended, inclusive
 	 */
-	public onModelLinesDeleted(fromLineNumber: number, toLineNumber: number): void {
+	public onLinesDeleted(fromLineNumber: number, toLineNumber: number): void {
 		fromLineNumber = fromLineNumber | 0;
 		toLineNumber = toLineNumber | 0;
 
-		var afterLineNumber: number,
-			i: number,
-			len: number;
-
-		for (i = 0, len = this.afterLineNumbers.length; i < len; i++) {
-			afterLineNumber = this.afterLineNumbers[i];
+		for (let i = 0, len = this._afterLineNumbers.length; i < len; i++) {
+			let afterLineNumber = this._afterLineNumbers[i];
 
 			if (fromLineNumber <= afterLineNumber && afterLineNumber <= toLineNumber) {
 				// The line this whitespace was after has been deleted
 				//  => move whitespace to before first deleted line
-				this.afterLineNumbers[i] = fromLineNumber - 1;
+				this._afterLineNumbers[i] = fromLineNumber - 1;
 			} else if (afterLineNumber > toLineNumber) {
 				// The line this whitespace was after has been moved up
 				//  => move whitespace up
-				this.afterLineNumbers[i] -= (toLineNumber - fromLineNumber + 1);
+				this._afterLineNumbers[i] -= (toLineNumber - fromLineNumber + 1);
 			}
 		}
 	}
@@ -287,19 +285,15 @@ export class WhitespaceComputer {
 	 * @param fromLineNumber The line number at which the insertion started, inclusive
 	 * @param toLineNumber The line number at which the insertion ended, inclusive.
 	 */
-	public onModelLinesInserted(fromLineNumber: number, toLineNumber: number): void {
+	public onLinesInserted(fromLineNumber: number, toLineNumber: number): void {
 		fromLineNumber = fromLineNumber | 0;
 		toLineNumber = toLineNumber | 0;
 
-		var afterLineNumber: number,
-			i: number,
-			len: number;
-
-		for (i = 0, len = this.afterLineNumbers.length; i < len; i++) {
-			afterLineNumber = this.afterLineNumbers[i];
+		for (let i = 0, len = this._afterLineNumbers.length; i < len; i++) {
+			let afterLineNumber = this._afterLineNumbers[i];
 
 			if (fromLineNumber <= afterLineNumber) {
-				this.afterLineNumbers[i] += (toLineNumber - fromLineNumber + 1);
+				this._afterLineNumbers[i] += (toLineNumber - fromLineNumber + 1);
 			}
 		}
 	}
@@ -308,10 +302,10 @@ export class WhitespaceComputer {
 	 * Get the sum of all the whitespaces.
 	 */
 	public getTotalHeight(): number {
-		if (this.heights.length === 0) {
+		if (this._heights.length === 0) {
 			return 0;
 		}
-		return this.getAccumulatedHeight(this.heights.length - 1);
+		return this.getAccumulatedHeight(this._heights.length - 1);
 	}
 
 	/**
@@ -324,17 +318,17 @@ export class WhitespaceComputer {
 	public getAccumulatedHeight(index: number): number {
 		index = index | 0;
 
-		var startIndex = Math.max(0, this.prefixSumValidIndex + 1);
+		let startIndex = Math.max(0, this._prefixSumValidIndex + 1);
 		if (startIndex === 0) {
-			this.prefixSum[0] = this.heights[0];
+			this._prefixSum[0] = this._heights[0];
 			startIndex++;
 		}
 
-		for (var i = startIndex; i <= index; i++) {
-			this.prefixSum[i] = this.prefixSum[i - 1] + this.heights[i];
+		for (let i = startIndex; i <= index; i++) {
+			this._prefixSum[i] = this._prefixSum[i - 1] + this._heights[i];
 		}
-		this.prefixSumValidIndex = Math.max(this.prefixSumValidIndex, index);
-		return this.prefixSum[index];
+		this._prefixSumValidIndex = Math.max(this._prefixSumValidIndex, index);
+		return this._prefixSum[index];
 	}
 
 	/**
@@ -346,7 +340,7 @@ export class WhitespaceComputer {
 	public getAccumulatedHeightBeforeLineNumber(lineNumber: number): number {
 		lineNumber = lineNumber | 0;
 
-		var lastWhitespaceBeforeLineNumber = this.findLastWhitespaceBeforeLineNumber(lineNumber);
+		let lastWhitespaceBeforeLineNumber = this._findLastWhitespaceBeforeLineNumber(lineNumber);
 
 		if (lastWhitespaceBeforeLineNumber === -1) {
 			return 0;
@@ -355,11 +349,11 @@ export class WhitespaceComputer {
 		return this.getAccumulatedHeight(lastWhitespaceBeforeLineNumber);
 	}
 
-	private findLastWhitespaceBeforeLineNumber(lineNumber: number): number {
+	private _findLastWhitespaceBeforeLineNumber(lineNumber: number): number {
 		lineNumber = lineNumber | 0;
 
 		// Find the whitespace before line number
-		let afterLineNumbers = this.afterLineNumbers;
+		let afterLineNumbers = this._afterLineNumbers;
 		let low = 0;
 		let high = afterLineNumbers.length - 1;
 
@@ -382,13 +376,13 @@ export class WhitespaceComputer {
 		return -1;
 	}
 
-	private findFirstWhitespaceAfterLineNumber(lineNumber: number): number {
+	private _findFirstWhitespaceAfterLineNumber(lineNumber: number): number {
 		lineNumber = lineNumber | 0;
 
-		var lastWhitespaceBeforeLineNumber = this.findLastWhitespaceBeforeLineNumber(lineNumber);
-		var firstWhitespaceAfterLineNumber = lastWhitespaceBeforeLineNumber + 1;
+		let lastWhitespaceBeforeLineNumber = this._findLastWhitespaceBeforeLineNumber(lineNumber);
+		let firstWhitespaceAfterLineNumber = lastWhitespaceBeforeLineNumber + 1;
 
-		if (firstWhitespaceAfterLineNumber < this.heights.length) {
+		if (firstWhitespaceAfterLineNumber < this._heights.length) {
 			return firstWhitespaceAfterLineNumber;
 		}
 
@@ -402,14 +396,14 @@ export class WhitespaceComputer {
 	public getFirstWhitespaceIndexAfterLineNumber(lineNumber: number): number {
 		lineNumber = lineNumber | 0;
 
-		return this.findFirstWhitespaceAfterLineNumber(lineNumber);
+		return this._findFirstWhitespaceAfterLineNumber(lineNumber);
 	}
 
 	/**
 	 * The number of whitespaces.
 	 */
 	public getCount(): number {
-		return this.heights.length;
+		return this._heights.length;
 	}
 
 	/**
@@ -421,7 +415,7 @@ export class WhitespaceComputer {
 	public getAfterLineNumberForWhitespaceIndex(index: number): number {
 		index = index | 0;
 
-		return this.afterLineNumbers[index];
+		return this._afterLineNumbers[index];
 	}
 
 	/**
@@ -433,7 +427,7 @@ export class WhitespaceComputer {
 	public getIdForWhitespaceIndex(index: number): number {
 		index = index | 0;
 
-		return this.ids[index];
+		return this._ids[index];
 	}
 
 	/**
@@ -445,18 +439,21 @@ export class WhitespaceComputer {
 	public getHeightForWhitespaceIndex(index: number): number {
 		index = index | 0;
 
-		return this.heights[index];
+		return this._heights[index];
 	}
 
+	/**
+	 * Get all whitespaces.
+	 */
 	public getWhitespaces(deviceLineHeight: number): IEditorWhitespace[] {
 		deviceLineHeight = deviceLineHeight | 0;
 
-		var result: IEditorWhitespace[] = [];
-		for (var i = 0; i < this.heights.length; i++) {
+		let result: IEditorWhitespace[] = [];
+		for (let i = 0; i < this._heights.length; i++) {
 			result.push({
-				id: this.ids[i],
-				afterLineNumber: this.afterLineNumbers[i],
-				heightInLines: this.heights[i] / deviceLineHeight
+				id: this._ids[i],
+				afterLineNumber: this._afterLineNumbers[i],
+				heightInLines: this._heights[i] / deviceLineHeight
 			});
 		}
 		return result;

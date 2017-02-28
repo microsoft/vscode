@@ -24,7 +24,7 @@ import { IDisposable, combinedDisposable, dispose } from 'vs/base/common/lifecyc
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
-import { IEditorAction, ICommonCodeEditor, IModelContentChangedEvent, IModelOptionsChangedEvent, IModelLanguageChangedEvent, ICursorPositionChangedEvent, EndOfLineSequence, EditorType, IModel, IDiffEditorModel, IEditor, IPosition } from 'vs/editor/common/editorCommon';
+import { IEditorAction, ICommonCodeEditor, IModelContentChangedEvent, IModelOptionsChangedEvent, IModelLanguageChangedEvent, ICursorPositionChangedEvent, EndOfLineSequence, EditorType, IModel, IDiffEditorModel, IEditor } from 'vs/editor/common/editorCommon';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { TrimTrailingWhitespaceAction } from 'vs/editor/contrib/linesOperations/common/linesOperations';
 import { IndentUsingSpaces, IndentUsingTabs, DetectIndentation, IndentationToSpacesAction, IndentationToTabsAction } from 'vs/editor/contrib/indentation/common/indentation';
@@ -38,7 +38,6 @@ import { IFilesConfiguration, SUPPORTED_ENCODINGS } from 'vs/platform/files/comm
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { StyleMutator } from 'vs/base/browser/styleMutator';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { TabFocus } from 'vs/editor/common/config/commonEditorConfig';
@@ -46,9 +45,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { getCodeEditor as getEditorWidget } from 'vs/editor/common/services/codeEditorService';
-import { IPreferencesService, ISetting } from 'vs/workbench/parts/preferences/common/preferences';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { Position } from 'vs/editor/common/core/position';
+import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
 
 function getCodeEditor(editorWidget: IEditor): ICommonCodeEditor {
 	if (editorWidget) {
@@ -234,11 +231,16 @@ const nlsEOLLF = nls.localize('endOfLineLineFeed', "LF");
 const nlsEOLCRLF = nls.localize('endOfLineCarriageReturnLineFeed', "CRLF");
 const nlsTabFocusMode = nls.localize('tabFocusModeEnabled', "Tab moves focus");
 
+function _setDisplay(el: HTMLElement, desiredValue: string): void {
+	if (el.style.display !== desiredValue) {
+		el.style.display = desiredValue;
+	}
+}
 function show(el: HTMLElement): void {
-	StyleMutator.setDisplay(el, '');
+	_setDisplay(el, '');
 }
 function hide(el: HTMLElement): void {
-	StyleMutator.setDisplay(el, 'none');
+	_setDisplay(el, 'none');
 }
 
 export class EditorStatus implements IStatusbarItem {
@@ -819,7 +821,7 @@ export class ChangeModeAction extends Action {
 
 			// User decided to configure settings for current language
 			if (pick === configureModeSettings) {
-				this.configureModeSettings(modeId);
+				this.preferencesService.configureSettingsForLanguage(modeId);
 				return;
 			}
 
@@ -903,57 +905,6 @@ export class ChangeModeAction extends Action {
 				}
 			});
 		});
-	}
-
-	private configureModeSettings(language: string): void {
-		this.preferencesService.openGlobalSettings()
-			.then(editor => {
-				const codeEditor = getEditorWidget(editor);
-				this.getPosition(language, codeEditor)
-					.then(position => {
-						codeEditor.setPosition(position);
-						codeEditor.focus();
-					});
-			});
-	}
-
-	private getPosition(language: string, codeEditor: ICommonCodeEditor): TPromise<IPosition> {
-		return this.preferencesService.resolvePreferencesEditorModel<ISetting>(this.preferencesService.userSettingsResource)
-			.then(settingsModel => {
-				const languageKey = `[${language}]`;
-				let setting = settingsModel.getPreference(languageKey);
-				const model = codeEditor.getModel();
-				const configuration = this.configurationService.getConfiguration<{ tabSize: number; insertSpaces: boolean }>('editor');
-				const {eol} = this.configurationService.getConfiguration<{ eol: string }>('files');
-				if (setting) {
-					if (setting.settings.length) {
-						const lastSetting = setting.settings[setting.settings.length - 1];
-						let content;
-						if (lastSetting.valueRange.endLineNumber === setting.range.endLineNumber) {
-							content = ',' + eol + this.spaces(2, configuration) + eol + this.spaces(1, configuration);
-						} else {
-							content = ',' + eol + this.spaces(2, configuration);
-						}
-						const editOperation = EditOperation.insert(new Position(lastSetting.valueRange.endLineNumber, lastSetting.valueRange.endColumn), content);
-						model.pushEditOperations([], [editOperation], () => []);
-						return { lineNumber: lastSetting.valueRange.endLineNumber + 1, column: model.getLineMaxColumn(lastSetting.valueRange.endLineNumber + 1) };
-					}
-					return { lineNumber: setting.valueRange.startLineNumber, column: setting.valueRange.startColumn + 1 };
-				}
-				return this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: languageKey, value: {} }, { autoSave: false, writeToBuffer: true })
-					.then(() => {
-						setting = settingsModel.getPreference(languageKey);
-						let content = eol + this.spaces(2, configuration) + eol + this.spaces(1, configuration);
-						let editOperation = EditOperation.insert(new Position(setting.valueRange.endLineNumber, setting.valueRange.endColumn - 1), content);
-						model.pushEditOperations([], [editOperation], () => []);
-						let lineNumber = setting.valueRange.endLineNumber + 1;
-						return { lineNumber, column: model.getLineMaxColumn(lineNumber) };
-					});
-			});
-	}
-
-	private spaces(count: number, {tabSize, insertSpaces}: { tabSize: number; insertSpaces: boolean }): string {
-		return insertSpaces ? strings.repeat(' ', tabSize * count) : strings.repeat('\t', count);
 	}
 }
 
@@ -1106,7 +1057,7 @@ export class ChangeEncodingAction extends Action {
 
 		return pickActionPromise.then(action => {
 			if (!action) {
-				return;
+				return undefined;
 			}
 
 			return TPromise.timeout(50 /* quick open is sensitive to being opened so soon after another */).then(() => {

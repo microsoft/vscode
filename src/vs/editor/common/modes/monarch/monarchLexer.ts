@@ -398,8 +398,8 @@ export class MonarchTokenizer implements modes.ITokenizationSupport {
 				return;
 			}
 			let isOneOfMyEmbeddedModes = false;
-			for (let i = 0, len = e.languages.length; i < len; i++) {
-				let language = e.languages[i];
+			for (let i = 0, len = e.changedLanguages.length; i < len; i++) {
+				let language = e.changedLanguages[i];
 				if (this._embeddedModes[language]) {
 					isOneOfMyEmbeddedModes = true;
 					break;

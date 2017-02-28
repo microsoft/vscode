@@ -34,6 +34,7 @@ import Messages from 'vs/workbench/parts/markers/common/messages';
 import { RangeHighlightDecorations } from 'vs/workbench/common/editor/rangeDecorations';
 import { ContributableActionProvider } from 'vs/workbench/browser/actionBarRegistry';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IListService } from 'vs/platform/list/browser/listService';
 
 export class MarkersPanel extends Panel {
 
@@ -59,6 +60,7 @@ export class MarkersPanel extends Panel {
 	private messageBox: HTMLElement;
 
 	private markerFocusContextKey: IContextKey<boolean>;
+	private currentFileGotAddedToMarkersData: boolean = false;
 
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -67,7 +69,8 @@ export class MarkersPanel extends Panel {
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
-		@ITelemetryService telemetryService: ITelemetryService
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IListService private listService: IListService
 	) {
 		super(Constants.MARKERS_PANEL_ID, telemetryService);
 		this.toDispose = [];
@@ -179,15 +182,26 @@ export class MarkersPanel extends Panel {
 		}, {
 				indentPixels: 0,
 				twistiePixels: 20,
-				ariaLabel: Messages.MARKERS_PANEL_ARIA_LABEL_PROBLEMS_TREE
+				ariaLabel: Messages.MARKERS_PANEL_ARIA_LABEL_PROBLEMS_TREE,
+				keyboardSupport: false
 			});
+
 		this._register(this.tree.addListener2('focus', (e: { focus: any }) => {
 			this.markerFocusContextKey.set(e.focus instanceof Marker);
 		}));
+
+		this._register(this.tree.addListener2('selection', event => {
+			if (event && event.payload && event.payload.origin === 'keyboard') {
+				controller.openFileAtElement(this.tree.getFocus(), false, false, true);
+			}
+		}));
+
 		const focusTracker = this._register(dom.trackFocus(this.tree.getHTMLElement()));
 		focusTracker.addBlurListener(() => {
 			this.markerFocusContextKey.set(false);
 		});
+
+		this.toDispose.push(this.listService.register(this.tree));
 	}
 
 	private createActions(): void {
@@ -210,12 +224,27 @@ export class MarkersPanel extends Panel {
 	}
 
 	private onMarkerChanged(changedResources: URI[]) {
+		this.currentFileGotAddedToMarkersData = this.currentFileGotAddedToMarkersData || this.isCurrentFileGotAddedToMarkersData(changedResources);
 		this.updateResources(changedResources);
 		this.delayedRefresh.trigger(() => {
 			this.refreshPanel();
 			this.updateRangeHighlights();
-			this.autoReveal();
+			if (this.currentFileGotAddedToMarkersData) {
+				this.autoReveal();
+				this.currentFileGotAddedToMarkersData = false;
+			}
 		});
+	}
+
+	private isCurrentFileGotAddedToMarkersData(changedResources: URI[]) {
+		if (!this.currentActiveFile) {
+			return false;
+		}
+		const resourceForCurrentActiveFile = this.getResourceForCurrentActiveFile();
+		if (resourceForCurrentActiveFile) {
+			return false;
+		}
+		return changedResources.some(r => r.toString() === this.currentActiveFile.toString());
 	}
 
 	private onEditorsChanged(): void {

@@ -4,33 +4,36 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { StyleMutator } from 'vs/base/browser/styleMutator';
+import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { OverviewRulerPosition, OverviewRulerLane, OverviewRulerZone, ColorZone } from 'vs/editor/common/editorCommon';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as browser from 'vs/base/browser/browser';
 import { OverviewZoneManager } from 'vs/editor/common/view/overviewZoneManager';
+import { Color } from 'vs/base/common/color';
 
 export class OverviewRulerImpl {
 
 	private _canvasLeftOffset: number;
-	private _domNode: HTMLCanvasElement;
+	private _domNode: FastDomNode<HTMLCanvasElement>;
 	private _lanesCount: number;
 	private _zoneManager: OverviewZoneManager;
 	private _canUseTranslate3d: boolean;
+	private _background: Color;
 
 	private _zoomListener: IDisposable;
 
 	constructor(canvasLeftOffset: number, cssClassName: string, scrollHeight: number, lineHeight: number, canUseTranslate3d: boolean, minimumHeight: number, maximumHeight: number, getVerticalOffsetForLine: (lineNumber: number) => number) {
 		this._canvasLeftOffset = canvasLeftOffset;
 
-		this._domNode = <HTMLCanvasElement>document.createElement('canvas');
+		this._domNode = createFastDomNode(document.createElement('canvas'));
 
-		this._domNode.className = cssClassName;
-		this._domNode.style.position = 'absolute';
+		this._domNode.setClassName(cssClassName);
+		this._domNode.setPosition('absolute');
 
 		this._lanesCount = 3;
 
 		this._canUseTranslate3d = canUseTranslate3d;
+		this._background = null;
 
 		this._zoneManager = new OverviewZoneManager(getVerticalOffsetForLine);
 		this._zoneManager.setMinimumHeight(minimumHeight);
@@ -43,10 +46,10 @@ export class OverviewRulerImpl {
 
 		this._zoomListener = browser.onDidChangeZoomLevel(() => {
 			this._zoneManager.setPixelRatio(browser.getPixelRatio());
-			this._domNode.style.width = this._zoneManager.getDOMWidth() + 'px';
-			this._domNode.style.height = this._zoneManager.getDOMHeight() + 'px';
-			this._domNode.width = this._zoneManager.getCanvasWidth();
-			this._domNode.height = this._zoneManager.getCanvasHeight();
+			this._domNode.setWidth(this._zoneManager.getDOMWidth());
+			this._domNode.setHeight(this._zoneManager.getDOMHeight());
+			this._domNode.domNode.width = this._zoneManager.getCanvasWidth();
+			this._domNode.domNode.height = this._zoneManager.getCanvasHeight();
 			this.render(true);
 		});
 		this._zoneManager.setPixelRatio(browser.getPixelRatio());
@@ -58,18 +61,18 @@ export class OverviewRulerImpl {
 	}
 
 	public setLayout(position: OverviewRulerPosition, render: boolean): void {
-		StyleMutator.setTop(this._domNode, position.top);
-		StyleMutator.setRight(this._domNode, position.right);
+		this._domNode.setTop(position.top);
+		this._domNode.setRight(position.right);
 
 		let hasChanged = false;
 		hasChanged = this._zoneManager.setDOMWidth(position.width) || hasChanged;
 		hasChanged = this._zoneManager.setDOMHeight(position.height) || hasChanged;
 
 		if (hasChanged) {
-			this._domNode.style.width = this._zoneManager.getDOMWidth() + 'px';
-			this._domNode.style.height = this._zoneManager.getDOMHeight() + 'px';
-			this._domNode.width = this._zoneManager.getCanvasWidth();
-			this._domNode.height = this._zoneManager.getCanvasHeight();
+			this._domNode.setWidth(this._zoneManager.getDOMWidth());
+			this._domNode.setHeight(this._zoneManager.getDOMHeight());
+			this._domNode.domNode.width = this._zoneManager.getCanvasWidth();
+			this._domNode.domNode.height = this._zoneManager.getCanvasHeight();
 
 			if (render) {
 				this.render(true);
@@ -97,8 +100,16 @@ export class OverviewRulerImpl {
 		}
 	}
 
+	public setUseBackground(background: Color, render: boolean): void {
+		this._background = background;
+
+		if (render) {
+			this.render(true);
+		}
+	}
+
 	public getDomNode(): HTMLCanvasElement {
-		return this._domNode;
+		return this._domNode.domNode;
 	}
 
 	public getPixelWidth(): number {
@@ -142,9 +153,9 @@ export class OverviewRulerImpl {
 			return false;
 		}
 		if (this._canUseTranslate3d) {
-			StyleMutator.setTransform(this._domNode, 'translate3d(0px, 0px, 0px)');
+			this._domNode.setTransform('translate3d(0px, 0px, 0px)');
 		} else {
-			StyleMutator.setTransform(this._domNode, '');
+			this._domNode.setTransform('');
 		}
 
 		const width = this._zoneManager.getCanvasWidth();
@@ -153,8 +164,13 @@ export class OverviewRulerImpl {
 		let colorZones = this._zoneManager.resolveColorZones();
 		let id2Color = this._zoneManager.getId2Color();
 
-		let ctx = this._domNode.getContext('2d');
-		ctx.clearRect(0, 0, width, height);
+		let ctx = this._domNode.domNode.getContext('2d');
+		if (this._background === null) {
+			ctx.clearRect(0, 0, width, height);
+		} else {
+			ctx.fillStyle = this._background.toRGBHex();
+			ctx.fillRect(0, 0, width, height);
+		}
 
 		if (colorZones.length > 0) {
 			let remainingWidth = width - this._canvasLeftOffset;

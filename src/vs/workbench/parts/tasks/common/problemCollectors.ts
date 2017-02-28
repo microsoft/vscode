@@ -51,6 +51,7 @@ export class AbstractProblemCollector extends EventEmitter implements IDisposabl
 		});
 		this.buffer = [];
 		this.activeMatcher = null;
+		this._numberOfMatches = 0;
 		this.openModels = Object.create(null);
 		this.modelListeners = [];
 		this.modelService.onModelAdded((model) => {

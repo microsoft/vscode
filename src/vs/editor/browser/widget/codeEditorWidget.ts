@@ -33,6 +33,8 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 
 	public readonly onMouseUp: Event<editorBrowser.IEditorMouseEvent> = fromEventEmitter(this, editorCommon.EventType.MouseUp);
 	public readonly onMouseDown: Event<editorBrowser.IEditorMouseEvent> = fromEventEmitter(this, editorCommon.EventType.MouseDown);
+	public readonly onMouseDrag: Event<editorBrowser.IEditorMouseEvent> = fromEventEmitter(this, editorCommon.EventType.MouseDrag);
+	public readonly onMouseDrop: Event<editorBrowser.IEditorMouseEvent> = fromEventEmitter(this, editorCommon.EventType.MouseDrop);
 	public readonly onContextMenu: Event<editorBrowser.IEditorMouseEvent> = fromEventEmitter(this, editorCommon.EventType.ContextMenu);
 	public readonly onMouseMove: Event<editorBrowser.IEditorMouseEvent> = fromEventEmitter(this, editorCommon.EventType.MouseMove);
 	public readonly onMouseLeave: Event<editorBrowser.IEditorMouseEvent> = fromEventEmitter(this, editorCommon.EventType.MouseLeave);
@@ -144,14 +146,14 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		if (!this.hasView) {
 			return null;
 		}
-		return this._view.domNode;
+		return this._view.domNode.domNode;
 	}
 
 	public getCenteredRangeInViewport(): Range {
 		if (!this.hasView) {
 			return null;
 		}
-		return this._view.getCenteredRangeInViewport();
+		return this.viewModel.getCenteredRangeInViewport();
 	}
 
 	public getCompletelyVisibleLinesRangeInViewport(): Range {
@@ -374,7 +376,6 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 
 	public changeViewZones(callback: (accessor: editorBrowser.IViewZoneChangeAccessor) => void): void {
 		if (!this.hasView) {
-			//			console.warn('Cannot change view zones on editor that is not attached to a model, since there is no view.');
 			return;
 		}
 		let hasChanges = this._view.change(callback);
@@ -467,7 +468,7 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		super._attachModel(model);
 
 		if (this._view) {
-			this.domElement.appendChild(this._view.domNode);
+			this.domElement.appendChild(this._view.domNode.domNode);
 
 			let keys = Object.keys(this.contentWidgets);
 			for (let i = 0, len = keys.length; i < len; i++) {
@@ -513,7 +514,7 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 
 		if (this._view) {
 			this._view.dispose();
-			removeDomNode = this._view.domNode;
+			removeDomNode = this._view.domNode.domNode;
 			this._view = null;
 		}
 

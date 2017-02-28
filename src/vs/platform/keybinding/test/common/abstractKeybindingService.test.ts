@@ -73,6 +73,7 @@ suite('AbstractKeybindingService', () => {
 
 			let commandService: ICommandService = {
 				_serviceBrand: undefined,
+				onWillExecuteCommand: () => ({ dispose: () => { } }),
 				executeCommand: (commandId: string, ...args: any[]): TPromise<any> => {
 					executeCommandCalls.push({
 						commandId: commandId,

@@ -33,7 +33,7 @@ export class EditorAccessor implements emmet.Editor {
 
 	private _hasMadeEdits: boolean;
 
-	private emmetSupportedModes = ['html', 'css', 'xml', 'xsl', 'haml', 'jade', 'jsx', 'slim', 'scss', 'sass', 'less', 'stylus', 'styl'];
+	private emmetSupportedModes = ['html', 'css', 'xml', 'xsl', 'haml', 'jade', 'jsx', 'slim', 'scss', 'sass', 'less', 'stylus', 'styl', 'svg'];
 
 	constructor(languageIdentifierResolver: ILanguageIdentifierResolver, editor: ICommonCodeEditor, syntaxProfiles: any, excludedLanguages: String[], grammars: IGrammarContributions) {
 		this._languageIdentifierResolver = languageIdentifierResolver;
@@ -45,6 +45,7 @@ export class EditorAccessor implements emmet.Editor {
 	}
 
 	public isEmmetEnabledMode(): boolean {
+
 		return this.emmetSupportedModes.indexOf(this.getSyntax()) !== -1;
 	}
 
@@ -143,6 +144,10 @@ export class EditorAccessor implements emmet.Editor {
 	}
 
 	public getSyntax(): string {
+		return this.getSyntaxInternal(true);
+	}
+
+	public getSyntaxInternal(overrideUsingProfiles: boolean): string {
 		let position = this._editor.getSelection().getStartPosition();
 		let languageId = this._editor.getModel().getLanguageIdAtPosition(position.lineNumber, position.column);
 		let language = this._languageIdentifierResolver.getLanguageIdentifier(languageId).language;
@@ -154,7 +159,7 @@ export class EditorAccessor implements emmet.Editor {
 
 		// user can overwrite the syntax using the emmet syntaxProfiles setting
 		let profile = this.getSyntaxProfile(syntax);
-		if (profile && this.emmetSupportedModes.indexOf(profile) !== -1) {
+		if (overrideUsingProfiles && profile && this.emmetSupportedModes.indexOf(profile) !== -1) {
 			return profile;
 		}
 
@@ -178,6 +183,7 @@ export class EditorAccessor implements emmet.Editor {
 		if (profile && typeof profile === 'string') {
 			return profile;
 		}
+		return undefined;
 	}
 
 	private checkParentMode(syntax: string): string {
@@ -198,7 +204,16 @@ export class EditorAccessor implements emmet.Editor {
 		return syntax;
 	}
 
+	// If users have created their own output profile for current syntax as described
+	// http://docs.emmet.io/customization/syntax-profiles/#create-your-own-profile
+	// then we return the name of this profile. Else, we send null and
+	// emmet is smart enough to guess the right output profile
 	public getProfileName(): string {
+		let syntax = this.getSyntaxInternal(false);
+		const profile = this._syntaxProfiles[syntax];
+		if (profile && typeof profile !== 'string') {
+			return syntax;
+		}
 		return null;
 	}
 

@@ -16,7 +16,7 @@
 }
 
 .monaco-editor .zone-widget-arrow.below {
-	border-bottom-color: yellowGreen;
+	border-bottom-color: rgb(0, 122, 204);
 }
 
 .monaco-editor .zone-widget .zone-widget-container {
@@ -24,7 +24,7 @@
 	border-bottom-style: solid;
 	border-top-width: 0;
 	border-bottom-width: 0;
-	border-top-color: yellowGreen;
-	border-bottom-color: yellowGreen;
+	border-top-color: rgb(0, 122, 204);
+	border-bottom-color: rgb(0, 122, 204);
 	position: relative;
 }

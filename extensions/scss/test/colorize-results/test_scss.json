@@ -257,9 +257,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -400,9 +400,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -521,9 +521,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -553,10 +553,10 @@
 		"c": "bold",
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss support.constant.property-value.scss",
 		"r": {
-			"dark_plus": "meta.property-value.scss support: #CE9178",
-			"light_plus": "meta.property-value.scss support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.scss support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -675,9 +675,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -862,9 +862,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -894,11 +894,11 @@
 		"c": "black",
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss support.constant.color.w3c-standard-color-name.scss",
 		"r": {
-			"dark_plus": "meta.property-value.scss support: #CE9178",
-			"light_plus": "meta.property-value.scss support: #0451A5",
+			"dark_plus": "support.constant.color: #CE9178",
+			"light_plus": "support.constant.color: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.scss support: #0451A5",
-			"hc_black": "default: #FFFFFF"
+			"light_vs": "support.constant.color: #0451A5",
+			"hc_black": "support.constant.color: #B5CEA8"
 		}
 	},
 	{
@@ -972,9 +972,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -1004,10 +1004,10 @@
 		"c": "bold",
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss support.constant.property-value.scss",
 		"r": {
-			"dark_plus": "meta.property-value.scss support: #CE9178",
-			"light_plus": "meta.property-value.scss support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.scss support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1104,9 +1104,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -1136,11 +1136,11 @@
 		"c": "red",
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss support.constant.color.w3c-standard-color-name.scss",
 		"r": {
-			"dark_plus": "meta.property-value.scss support: #CE9178",
-			"light_plus": "meta.property-value.scss support: #0451A5",
+			"dark_plus": "support.constant.color: #CE9178",
+			"light_plus": "support.constant.color: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.scss support: #0451A5",
-			"hc_black": "default: #FFFFFF"
+			"light_vs": "support.constant.color: #0451A5",
+			"hc_black": "support.constant.color: #B5CEA8"
 		}
 	},
 	{
@@ -1302,9 +1302,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -1356,10 +1356,10 @@
 		"c": "/",
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss support.constant.mathematical-symbols.scss",
 		"r": {
-			"dark_plus": "meta.property-value.scss support: #CE9178",
-			"light_plus": "meta.property-value.scss support: #0451A5",
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.scss support: #0451A5",
+			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1412,9 +1412,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -1456,9 +1456,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -1533,9 +1533,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -1565,10 +1565,10 @@
 		"c": "bold",
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss support.constant.property-value.scss",
 		"r": {
-			"dark_plus": "meta.property-value.scss support: #CE9178",
-			"light_plus": "meta.property-value.scss support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.scss support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -2512,9 +2512,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -2544,11 +2544,11 @@
 		"c": "black",
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss support.constant.color.w3c-standard-color-name.scss",
 		"r": {
-			"dark_plus": "meta.property-value.scss support: #CE9178",
-			"light_plus": "meta.property-value.scss support: #0451A5",
+			"dark_plus": "support.constant.color: #CE9178",
+			"light_plus": "support.constant.color: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.scss support: #0451A5",
-			"hc_black": "default: #FFFFFF"
+			"light_vs": "support.constant.color: #0451A5",
+			"hc_black": "support.constant.color: #B5CEA8"
 		}
 	},
 	{
@@ -2699,9 +2699,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -2731,11 +2731,11 @@
 		"c": "green",
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss support.constant.color.w3c-standard-color-name.scss",
 		"r": {
-			"dark_plus": "meta.property-value.scss support: #CE9178",
-			"light_plus": "meta.property-value.scss support: #0451A5",
+			"dark_plus": "support.constant.color: #CE9178",
+			"light_plus": "support.constant.color: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.scss support: #0451A5",
-			"hc_black": "default: #FFFFFF"
+			"light_vs": "support.constant.color: #0451A5",
+			"hc_black": "support.constant.color: #B5CEA8"
 		}
 	},
 	{
@@ -2808,11 +2808,11 @@
 		"c": "$width",
 		"t": "source.css.scss meta.set.variable.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -2874,11 +2874,11 @@
 		"c": "$width",
 		"t": "source.css.scss meta.set.variable.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -3028,11 +3028,11 @@
 		"c": "$localvar",
 		"t": "source.css.scss meta.property-list.scss meta.set.variable.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -3106,9 +3106,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -3138,11 +3138,11 @@
 		"c": "$width",
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -3171,11 +3171,11 @@
 		"c": "$font-size",
 		"t": "source.css.scss meta.property-list.scss meta.set.variable.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -3248,11 +3248,11 @@
 		"c": "$line-height",
 		"t": "source.css.scss meta.property-list.scss meta.set.variable.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -3326,9 +3326,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -3369,11 +3369,11 @@
 		"c": "$font-size",
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss variable.interpolation.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -3413,11 +3413,11 @@
 		"c": "$line-height",
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss variable.interpolation.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -3457,11 +3457,11 @@
 		"c": "$name",
 		"t": "source.css.scss meta.set.variable.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -3501,11 +3501,11 @@
 		"c": "$attr",
 		"t": "source.css.scss meta.set.variable.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -3535,9 +3535,9 @@
 		"t": "source.css.scss meta.set.variable.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -3589,11 +3589,11 @@
 		"c": "$name",
 		"t": "source.css.scss entity.other.attribute-name.class.css variable.interpolation.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "entity.other.attribute-name.class.css: #D7BA7D",
-			"light_vs": "entity.other.attribute-name.class.css: #800000",
-			"hc_black": "entity.other.attribute-name.class.css: #D7BA7D"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -3655,11 +3655,11 @@
 		"c": "$attr",
 		"t": "source.css.scss meta.property-list.scss variable.interpolation.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -3689,9 +3689,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -3721,11 +3721,11 @@
 		"c": "blue",
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss support.constant.color.w3c-standard-color-name.scss",
 		"r": {
-			"dark_plus": "meta.property-value.scss support: #CE9178",
-			"light_plus": "meta.property-value.scss support: #0451A5",
+			"dark_plus": "support.constant.color: #CE9178",
+			"light_plus": "support.constant.color: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.scss support: #0451A5",
-			"hc_black": "default: #FFFFFF"
+			"light_vs": "support.constant.color: #0451A5",
+			"hc_black": "support.constant.color: #B5CEA8"
 		}
 	},
 	{
@@ -3809,11 +3809,11 @@
 		"c": "$grid-background-column-color",
 		"t": "source.css.scss meta.set.variable.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -3875,11 +3875,11 @@
 		"c": "100",
 		"t": "source.css.scss meta.set.variable.scss constant.numeric.color.rgb-value.scss",
 		"r": {
-			"dark_plus": "constant.numeric.color.rgb-value.scss: #CE9178",
-			"light_plus": "constant.numeric.color.rgb-value.scss: #0451A5",
-			"dark_vs": "constant.numeric.color.rgb-value.scss: #D4D4D4",
-			"light_vs": "constant.numeric.color.rgb-value.scss: #0451A5",
-			"hc_black": "constant.numeric.color.rgb-value.scss: #D4D4D4"
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #09885A",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #09885A",
+			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
 	{
@@ -3908,11 +3908,11 @@
 		"c": "100",
 		"t": "source.css.scss meta.set.variable.scss constant.numeric.color.rgb-value.scss",
 		"r": {
-			"dark_plus": "constant.numeric.color.rgb-value.scss: #CE9178",
-			"light_plus": "constant.numeric.color.rgb-value.scss: #0451A5",
-			"dark_vs": "constant.numeric.color.rgb-value.scss: #D4D4D4",
-			"light_vs": "constant.numeric.color.rgb-value.scss: #0451A5",
-			"hc_black": "constant.numeric.color.rgb-value.scss: #D4D4D4"
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #09885A",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #09885A",
+			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
 	{
@@ -3941,11 +3941,11 @@
 		"c": "225",
 		"t": "source.css.scss meta.set.variable.scss constant.numeric.color.rgb-value.scss",
 		"r": {
-			"dark_plus": "constant.numeric.color.rgb-value.scss: #CE9178",
-			"light_plus": "constant.numeric.color.rgb-value.scss: #0451A5",
-			"dark_vs": "constant.numeric.color.rgb-value.scss: #D4D4D4",
-			"light_vs": "constant.numeric.color.rgb-value.scss: #0451A5",
-			"hc_black": "constant.numeric.color.rgb-value.scss: #D4D4D4"
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #09885A",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #09885A",
+			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
 	{
@@ -4107,9 +4107,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -4272,9 +4272,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -4404,9 +4404,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -4525,9 +4525,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -4645,10 +4645,10 @@
 		"c": "auto",
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss support.constant.property-value.scss",
 		"r": {
-			"dark_plus": "meta.property-value.scss support: #CE9178",
-			"light_plus": "meta.property-value.scss support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.scss support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -4679,9 +4679,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -4855,9 +4855,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -4887,10 +4887,10 @@
 		"c": "hsl",
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss support.function.misc.scss",
 		"r": {
-			"dark_plus": "meta.property-value.scss support.function: #CE9178",
-			"light_plus": "meta.property-value.scss support.function: #0451A5",
+			"dark_plus": "support.function: #DCDCAA",
+			"light_plus": "support.function: #795E26",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.scss support: #0451A5",
+			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -5042,9 +5042,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -5074,10 +5074,10 @@
 		"c": "hsl",
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss support.function.misc.scss",
 		"r": {
-			"dark_plus": "meta.property-value.scss support.function: #CE9178",
-			"light_plus": "meta.property-value.scss support.function: #0451A5",
+			"dark_plus": "support.function: #DCDCAA",
+			"light_plus": "support.function: #795E26",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.scss support: #0451A5",
+			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -5096,11 +5096,11 @@
 		"c": "$hue",
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -5162,11 +5162,11 @@
 		"c": "$saturation",
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -5239,11 +5239,11 @@
 		"c": "$lightness",
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -5360,11 +5360,11 @@
 		"c": "$grid-width",
 		"t": "source.css.scss meta.set.variable.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -5426,11 +5426,11 @@
 		"c": "$gutter-width",
 		"t": "source.css.scss meta.set.variable.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -5547,11 +5547,11 @@
 		"c": "$n",
 		"t": "source.css.scss meta.at-rule.function.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -5635,11 +5635,11 @@
 		"c": "$n",
 		"t": "source.css.scss meta.property-list.scss meta.at-rule.return.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -5679,11 +5679,11 @@
 		"c": "$grid-width",
 		"t": "source.css.scss meta.property-list.scss meta.at-rule.return.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -5723,11 +5723,11 @@
 		"c": "$n",
 		"t": "source.css.scss meta.property-list.scss meta.at-rule.return.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -5811,11 +5811,11 @@
 		"c": "$gutter-width",
 		"t": "source.css.scss meta.property-list.scss meta.at-rule.return.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -5900,9 +5900,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -5932,10 +5932,10 @@
 		"c": "grid-width",
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss support.function.misc.scss",
 		"r": {
-			"dark_plus": "meta.property-value.scss support.function: #CE9178",
-			"light_plus": "meta.property-value.scss support.function: #0451A5",
+			"dark_plus": "support.function: #DCDCAA",
+			"light_plus": "support.function: #795E26",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.scss support: #0451A5",
+			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -6119,11 +6119,11 @@
 		"c": "$family",
 		"t": "source.css.scss meta.set.variable.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -6361,11 +6361,11 @@
 		"c": "$family",
 		"t": "source.css.scss meta.at-rule.import.scss string.quoted.double.scss variable.interpolation.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -6648,9 +6648,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -6757,10 +6757,10 @@
 		"c": "screen",
 		"t": "source.css.scss meta.property-list.scss meta.at-rule.media.scss support.constant.media.css",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
+			"dark_plus": "support.constant.media: #CE9178",
+			"light_plus": "support.constant.media: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"light_vs": "support.constant.media: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -6802,9 +6802,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.at-rule.media.scss support.type.property-name.media.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.media.css: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.media.css: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -6823,10 +6823,10 @@
 		"c": "landscape",
 		"t": "source.css.scss meta.property-list.scss meta.at-rule.media.scss support.constant.property-value.scss",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -6868,9 +6868,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -7055,9 +7055,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -7165,9 +7165,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -7374,9 +7374,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -7550,9 +7550,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -7582,11 +7582,11 @@
 		"c": "blue",
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss support.constant.color.w3c-standard-color-name.scss",
 		"r": {
-			"dark_plus": "meta.property-value.scss support: #CE9178",
-			"light_plus": "meta.property-value.scss support: #0451A5",
+			"dark_plus": "support.constant.color: #CE9178",
+			"light_plus": "support.constant.color: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.scss support: #0451A5",
-			"hc_black": "default: #FFFFFF"
+			"light_vs": "support.constant.color: #0451A5",
+			"hc_black": "support.constant.color: #B5CEA8"
 		}
 	},
 	{
@@ -7616,9 +7616,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -7648,10 +7648,10 @@
 		"c": "bold",
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss support.constant.property-value.scss",
 		"r": {
-			"dark_plus": "meta.property-value.scss support: #CE9178",
-			"light_plus": "meta.property-value.scss support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.scss support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -7682,9 +7682,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -8044,11 +8044,11 @@
 		"c": "$x",
 		"t": "source.css.scss meta.at-rule.mixin.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -8066,11 +8066,11 @@
 		"c": "$y",
 		"t": "source.css.scss meta.at-rule.mixin.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -8176,11 +8176,11 @@
 		"c": "$x",
 		"t": "source.css.scss meta.property-list.scss meta.at-rule.if.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -8297,11 +8297,11 @@
 		"c": "$x",
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.at-rule.warn.scss string.quoted.double.scss variable.interpolation.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -8363,11 +8363,11 @@
 		"c": "$x",
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -8451,11 +8451,11 @@
 		"c": "$x",
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -8561,11 +8561,11 @@
 		"c": "$y",
 		"t": "source.css.scss meta.property-list.scss meta.at-rule.if.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -8682,11 +8682,11 @@
 		"c": "$y",
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.at-rule.warn.scss string.quoted.double.scss variable.interpolation.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -8748,11 +8748,11 @@
 		"c": "$y",
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -8836,11 +8836,11 @@
 		"c": "$y",
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -8892,9 +8892,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -8924,10 +8924,10 @@
 		"c": "relative",
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss support.constant.property-value.scss",
 		"r": {
-			"dark_plus": "meta.property-value.scss support: #CE9178",
-			"light_plus": "meta.property-value.scss support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.scss support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -8958,9 +8958,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -8990,11 +8990,11 @@
 		"c": "$x",
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -9024,9 +9024,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -9056,11 +9056,11 @@
 		"c": "$y",
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -9365,9 +9365,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -9430,10 +9430,10 @@
 		"c": "solid",
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss support.constant.property-value.scss",
 		"r": {
-			"dark_plus": "meta.property-value.scss support: #CE9178",
-			"light_plus": "meta.property-value.scss support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.scss support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -9607,9 +9607,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -9672,10 +9672,10 @@
 		"c": "dotted",
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss support.constant.property-value.scss",
 		"r": {
-			"dark_plus": "meta.property-value.scss support: #CE9178",
-			"light_plus": "meta.property-value.scss support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.scss support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -9760,10 +9760,10 @@
 		"c": "null",
 		"t": "source.css.scss meta.property-list.scss meta.at-rule.if.scss support.constant.property-value.scss",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -9805,9 +9805,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -9870,10 +9870,10 @@
 		"c": "double",
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss support.constant.property-value.scss",
 		"r": {
-			"dark_plus": "meta.property-value.scss support: #CE9178",
-			"light_plus": "meta.property-value.scss support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.scss support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -9958,11 +9958,11 @@
 		"c": "$type",
 		"t": "source.css.scss meta.set.variable.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -10079,11 +10079,11 @@
 		"c": "$type",
 		"t": "source.css.scss meta.property-list.scss meta.at-rule.if.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -10146,9 +10146,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -10178,11 +10178,11 @@
 		"c": "blue",
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss support.constant.color.w3c-standard-color-name.scss",
 		"r": {
-			"dark_plus": "meta.property-value.scss support: #CE9178",
-			"light_plus": "meta.property-value.scss support: #0451A5",
+			"dark_plus": "support.constant.color: #CE9178",
+			"light_plus": "support.constant.color: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.scss support: #0451A5",
-			"hc_black": "default: #FFFFFF"
+			"light_vs": "support.constant.color: #0451A5",
+			"hc_black": "support.constant.color: #B5CEA8"
 		}
 	},
 	{
@@ -10278,9 +10278,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -10310,11 +10310,11 @@
 		"c": "black",
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss support.constant.color.w3c-standard-color-name.scss",
 		"r": {
-			"dark_plus": "meta.property-value.scss support: #CE9178",
-			"light_plus": "meta.property-value.scss support: #0451A5",
+			"dark_plus": "support.constant.color: #CE9178",
+			"light_plus": "support.constant.color: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.scss support: #0451A5",
-			"hc_black": "default: #FFFFFF"
+			"light_vs": "support.constant.color: #0451A5",
+			"hc_black": "support.constant.color: #B5CEA8"
 		}
 	},
 	{
@@ -10431,11 +10431,11 @@
 		"c": "$i",
 		"t": "source.css.scss meta.at-rule.for.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -10596,11 +10596,11 @@
 		"c": "$i",
 		"t": "source.css.scss meta.property-list.scss entity.other.attribute-name.class.css variable.interpolation.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "entity.other.attribute-name.class.css: #D7BA7D",
-			"light_vs": "entity.other.attribute-name.class.css: #800000",
-			"hc_black": "entity.other.attribute-name.class.css: #D7BA7D"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -10652,9 +10652,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -10739,11 +10739,11 @@
 		"c": "$i",
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -10860,11 +10860,11 @@
 		"c": "$animal",
 		"t": "source.css.scss meta.at-rule.each.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -10970,11 +10970,11 @@
 		"c": "$animal",
 		"t": "source.css.scss meta.at-rule.each.scss meta.property-list.scss entity.other.attribute-name.class.css variable.interpolation.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "entity.other.attribute-name.class.css: #D7BA7D",
-			"light_vs": "entity.other.attribute-name.class.css: #800000",
-			"hc_black": "entity.other.attribute-name.class.css: #D7BA7D"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -11037,9 +11037,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -11069,10 +11069,10 @@
 		"c": "url",
 		"t": "source.css.scss meta.at-rule.each.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss support.function.misc.scss",
 		"r": {
-			"dark_plus": "meta.property-value.scss support.function: #CE9178",
-			"light_plus": "meta.property-value.scss support.function: #0451A5",
+			"dark_plus": "support.function: #DCDCAA",
+			"light_plus": "support.function: #795E26",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.scss support: #0451A5",
+			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -11124,11 +11124,11 @@
 		"c": "$animal",
 		"t": "source.css.scss meta.at-rule.each.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss string.quoted.single.scss variable.interpolation.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -11256,11 +11256,11 @@
 		"c": "$i",
 		"t": "source.css.scss meta.at-rule.each.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -11333,11 +11333,11 @@
 		"c": "$i",
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -11454,11 +11454,11 @@
 		"c": "$i",
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss entity.other.attribute-name.class.css variable.interpolation.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "entity.other.attribute-name.class.css: #D7BA7D",
-			"light_vs": "entity.other.attribute-name.class.css: #800000",
-			"hc_black": "entity.other.attribute-name.class.css: #D7BA7D"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -11510,9 +11510,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -11597,11 +11597,11 @@
 		"c": "$i",
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -11652,11 +11652,11 @@
 		"c": "$i",
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.set.variable.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -11685,11 +11685,11 @@
 		"c": "$i",
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.set.variable.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -11850,11 +11850,11 @@
 		"c": "$total",
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.at-rule.function.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -11883,11 +11883,11 @@
 		"c": "$a",
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.at-rule.function.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -11971,11 +11971,11 @@
 		"c": "$i",
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.for.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -12059,11 +12059,11 @@
 		"c": "$total",
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.for.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -12158,11 +12158,11 @@
 		"c": "$a",
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.if.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -12279,11 +12279,11 @@
 		"c": "$i",
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.if.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -12323,11 +12323,11 @@
 		"c": "$total",
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.if.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -12411,11 +12411,11 @@
 		"c": "$z",
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -12653,11 +12653,11 @@
 		"c": "$grid",
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.return.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -12797,9 +12797,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -12841,9 +12841,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -12873,10 +12873,10 @@
 		"c": "Arial",
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss support.constant.font-name.scss",
 		"r": {
-			"dark_plus": "meta.property-value.scss support: #CE9178",
-			"light_plus": "meta.property-value.scss support: #0451A5",
+			"dark_plus": "support.constant.font-name: #CE9178",
+			"light_plus": "support.constant.font-name: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.scss support: #0451A5",
+			"light_vs": "support.constant.font-name: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -12907,9 +12907,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -12984,9 +12984,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -13016,10 +13016,10 @@
 		"c": "bold",
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss support.constant.property-value.scss",
 		"r": {
-			"dark_plus": "meta.property-value.scss support: #CE9178",
-			"light_plus": "meta.property-value.scss support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.scss support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -13072,9 +13072,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -13270,9 +13270,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -13434,11 +13434,11 @@
 		"c": "$color",
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.at-rule.mixin.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -13456,11 +13456,11 @@
 		"c": "$width",
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.at-rule.mixin.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -13556,9 +13556,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -13600,9 +13600,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -13632,11 +13632,11 @@
 		"c": "$color",
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -13666,9 +13666,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -13698,11 +13698,11 @@
 		"c": "$width",
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -13764,10 +13764,10 @@
 		"c": "dashed",
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss support.constant.property-value.scss",
 		"r": {
-			"dark_plus": "meta.property-value.scss support: #CE9178",
-			"light_plus": "meta.property-value.scss support: #0451A5",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.scss support: #0451A5",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -13918,11 +13918,11 @@
 		"c": "blue",
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.include.scss support.constant.color.w3c-standard-color-name.scss",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
+			"dark_plus": "support.constant.color: #CE9178",
+			"light_plus": "support.constant.color: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"light_vs": "support.constant.color: #0451A5",
+			"hc_black": "support.constant.color: #B5CEA8"
 		}
 	},
 	{
@@ -14050,11 +14050,11 @@
 		"c": "$shadows",
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.at-rule.mixin.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -14117,9 +14117,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -14149,11 +14149,11 @@
 		"c": "$shadows",
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-value.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -14183,9 +14183,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -14215,11 +14215,11 @@
 		"c": "$shadows",
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-value.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -14249,9 +14249,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -14281,11 +14281,11 @@
 		"c": "$shadows",
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-value.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -14798,11 +14798,11 @@
 		"c": "$text",
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.at-rule.mixin.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -14820,11 +14820,11 @@
 		"c": "$background",
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.at-rule.mixin.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -14842,11 +14842,11 @@
 		"c": "$border",
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.at-rule.mixin.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -14898,9 +14898,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -14930,11 +14930,11 @@
 		"c": "$text",
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-value.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -14964,9 +14964,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -14996,11 +14996,11 @@
 		"c": "$background",
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-value.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -15030,9 +15030,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -15062,11 +15062,11 @@
 		"c": "$border",
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-value.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -15095,11 +15095,11 @@
 		"c": "$values",
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -15326,11 +15326,11 @@
 		"c": "$values",
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.include.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -15745,9 +15745,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -15777,10 +15777,10 @@
 		"c": "url",
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss support.function.misc.scss",
 		"r": {
-			"dark_plus": "meta.property-value.scss support.function: #CE9178",
-			"light_plus": "meta.property-value.scss support.function: #0451A5",
+			"dark_plus": "support.function: #DCDCAA",
+			"light_plus": "support.function: #795E26",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.scss support: #0451A5",
+			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -15909,11 +15909,11 @@
 		"c": "$attr",
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.at-rule.if.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -16218,9 +16218,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -16416,9 +16416,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -16493,9 +16493,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -16734,11 +16734,11 @@
 		"c": "$foo",
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -16822,11 +16822,11 @@
 		"c": "white",
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss support.constant.color.w3c-standard-color-name.scss",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
+			"dark_plus": "support.constant.color: #CE9178",
+			"light_plus": "support.constant.color: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"light_vs": "support.constant.color: #0451A5",
+			"hc_black": "support.constant.color: #B5CEA8"
 		}
 	},
 	{
@@ -16866,10 +16866,10 @@
 		"c": "default",
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss support.constant.property-value.scss",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -16965,11 +16965,11 @@
 		"c": "black",
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss support.constant.color.w3c-standard-color-name.scss",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
+			"dark_plus": "support.constant.color: #CE9178",
+			"light_plus": "support.constant.color: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"light_vs": "support.constant.color: #0451A5",
+			"hc_black": "support.constant.color: #B5CEA8"
 		}
 	},
 	{
@@ -17032,9 +17032,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.set.variable.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -17076,9 +17076,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -17131,9 +17131,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -17152,10 +17152,10 @@
 		"c": "s",
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss support.function.misc.scss",
 		"r": {
-			"dark_plus": "meta.property-value.scss support.function: #CE9178",
-			"light_plus": "meta.property-value.scss support.function: #0451A5",
+			"dark_plus": "support.function: #DCDCAA",
+			"light_plus": "support.function: #795E26",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.scss support: #0451A5",
+			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -17295,11 +17295,11 @@
 		"c": "$a",
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.mixin.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -17328,10 +17328,10 @@
 		"c": "false",
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.mixin.scss support.constant.property-value.scss",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"light_vs": "support.constant.property-value: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -17438,11 +17438,11 @@
 		"c": "$a",
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.import.scss entity.other.attribute-name.class.css variable.interpolation.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "entity.other.attribute-name.class.css: #D7BA7D",
-			"light_vs": "entity.other.attribute-name.class.css: #800000",
-			"hc_black": "entity.other.attribute-name.class.css: #D7BA7D"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -17526,11 +17526,11 @@
 		"c": "$a",
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.import.scss variable.interpolation.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -18066,9 +18066,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -18132,9 +18132,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -18164,10 +18164,10 @@
 		"c": "url",
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss support.function.misc.scss",
 		"r": {
-			"dark_plus": "meta.property-value.scss support.function: #CE9178",
-			"light_plus": "meta.property-value.scss support.function: #0451A5",
+			"dark_plus": "support.function: #DCDCAA",
+			"light_plus": "support.function: #795E26",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.scss support: #0451A5",
+			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -18329,11 +18329,11 @@
 		"c": "$d",
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss entity.other.attribute-name.class.css variable.interpolation.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "entity.other.attribute-name.class.css: #D7BA7D",
-			"light_vs": "entity.other.attribute-name.class.css: #800000",
-			"hc_black": "entity.other.attribute-name.class.css: #D7BA7D"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -18406,11 +18406,11 @@
 		"c": "$d",
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss variable.interpolation.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -18440,9 +18440,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -18527,11 +18527,11 @@
 		"c": "$d",
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss variable.interpolation.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -18615,11 +18615,11 @@
 		"c": "$d",
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss variable.interpolation.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -18659,11 +18659,11 @@
 		"c": "$d",
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss variable.interpolation.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -18758,11 +18758,11 @@
 		"c": "$d",
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss variable.interpolation.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -18979,9 +18979,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.keyframes.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -19111,9 +19111,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.keyframes.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -19298,9 +19298,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.keyframes.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -19430,9 +19430,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.keyframes.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -19617,9 +19617,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -19727,9 +19727,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -19936,9 +19936,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.keyframes.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -20068,9 +20068,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.keyframes.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -20321,9 +20321,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -20430,11 +20430,11 @@
 		"c": "$var1",
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -20507,11 +20507,11 @@
 		"c": "$var2",
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{

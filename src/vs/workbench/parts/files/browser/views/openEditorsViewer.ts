@@ -4,28 +4,27 @@
  *--------------------------------------------------------------------------------------------*/
 
 import nls = require('vs/nls');
-import uri from 'vs/base/common/uri';
 import errors = require('vs/base/common/errors');
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction } from 'vs/base/common/actions';
 import { EditorLabel } from 'vs/workbench/browser/labels';
-import treedefaults = require('vs/base/parts/tree/browser/treeDefaults');
+import { DefaultController, ClickBehavior, DefaultDragAndDrop } from 'vs/base/parts/tree/browser/treeDefaults';
 import { IDataSource, ITree, IAccessibilityProvider, IDragAndDropData, IDragOverReaction, DRAG_OVER_ACCEPT, DRAG_OVER_REJECT, ContextMenuEvent, IRenderer } from 'vs/base/parts/tree/browser/tree';
 import { ExternalElementsDragAndDropData, ElementsDragAndDropData, DesktopDragAndDropData } from 'vs/base/parts/tree/browser/treeDnd';
 import { ActionBar, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import dom = require('vs/base/browser/dom');
 import { IMouseEvent, DragMouseEvent } from 'vs/base/browser/mouseEvent';
-import { IResourceInput, IEditorInput, Position } from 'vs/platform/editor/common/editor';
+import { IResourceInput, Position } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IEditorGroup, IEditorStacksModel, toResource } from 'vs/workbench/common/editor';
-import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
+import { IEditorGroup, IEditorStacksModel } from 'vs/workbench/common/editor';
+import { OpenEditor } from 'vs/workbench/parts/files/common/explorerViewModel';
 import { ContributableActionProvider } from 'vs/workbench/browser/actionBarRegistry';
-import { asFileResource } from 'vs/workbench/parts/files/common/files';
+import { explorerItemToFileResource } from 'vs/workbench/parts/files/common/files';
 import { ITextFileService, AutoSaveMode } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorStacksModel, EditorGroup } from 'vs/workbench/common/editor/editorStacksModel';
@@ -34,41 +33,6 @@ import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/un
 import { CloseOtherEditorsInGroupAction, CloseEditorAction, CloseEditorsInGroupAction } from 'vs/workbench/browser/parts/editor/editorActions';
 
 const $ = dom.$;
-
-export class OpenEditor {
-
-	constructor(private editor: IEditorInput, private group: IEditorGroup) {
-		// noop
-	}
-
-	public get editorInput() {
-		return this.editor;
-	}
-
-	public get editorGroup() {
-		return this.group;
-	}
-
-	public getId(): string {
-		return `openeditor:${this.group.id}:${this.group.indexOf(this.editor)}:${this.editor.getName()}:${this.editor.getDescription()}`;
-	}
-
-	public isPreview(): boolean {
-		return this.group.isPreview(this.editor);
-	}
-
-	public isUntitled(): boolean {
-		return this.editor instanceof UntitledEditorInput;
-	}
-
-	public isDirty(): boolean {
-		return this.editor.isDirty();
-	}
-
-	public getResource(): uri {
-		return toResource(this.editor, { supportSideBySide: true, filter: ['file', 'untitled'] });
-	}
-}
 
 export class DataSource implements IDataSource {
 
@@ -200,7 +164,7 @@ export class Renderer implements IRenderer {
 	}
 }
 
-export class Controller extends treedefaults.DefaultController {
+export class Controller extends DefaultController {
 
 	constructor(private actionProvider: ActionProvider, private model: IEditorStacksModel,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
@@ -209,7 +173,7 @@ export class Controller extends treedefaults.DefaultController {
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IKeybindingService private keybindingService: IKeybindingService
 	) {
-		super({ clickBehavior: treedefaults.ClickBehavior.ON_MOUSE_DOWN });
+		super({ clickBehavior: ClickBehavior.ON_MOUSE_DOWN, keyboardSupport: false });
 	}
 
 	public onClick(tree: ITree, element: any, event: IMouseEvent): boolean {
@@ -262,7 +226,7 @@ export class Controller extends treedefaults.DefaultController {
 			}
 
 			tree.setSelection([element], payload);
-			this.openEditor(element, isDoubleClick, event.ctrlKey || event.metaKey);
+			this.openEditor(element, { preserveFocus: !isDoubleClick, pinned: isDoubleClick, sideBySide: event.ctrlKey || event.metaKey });
 		}
 
 		return true;
@@ -275,22 +239,6 @@ export class Controller extends treedefaults.DefaultController {
 
 	protected onRight(tree: ITree, event: IKeyboardEvent): boolean {
 		return true;
-	}
-
-	protected onEnter(tree: ITree, event: IKeyboardEvent): boolean {
-		const element = tree.getFocus();
-
-		// Editor groups should never get selected nor expanded/collapsed
-		if (element instanceof EditorGroup) {
-			event.preventDefault();
-			event.stopPropagation();
-
-			return true;
-		}
-
-		this.openEditor(element, false, event.ctrlKey || event.metaKey);
-
-		return super.onEnter(tree, event);
 	}
 
 	public onContextMenu(tree: ITree, element: any, event: ContextMenuEvent): boolean {
@@ -325,15 +273,15 @@ export class Controller extends treedefaults.DefaultController {
 		return true;
 	}
 
-	private openEditor(element: OpenEditor, pinEditor: boolean, openToSide: boolean): void {
+	public openEditor(element: OpenEditor, options: { preserveFocus: boolean; pinned: boolean; sideBySide: boolean; }): void {
 		if (element) {
 			this.telemetryService.publicLog('workbenchActionExecuted', { id: 'workbench.files.openFile', from: 'openEditors' });
 			let position = this.model.positionOfGroup(element.editorGroup);
-			if (openToSide && position !== Position.THREE) {
+			if (options.sideBySide && position !== Position.THREE) {
 				position++;
 			}
 			this.editorGroupService.activateGroup(this.model.groupAt(position));
-			this.editorService.openEditor(element.editorInput, { preserveFocus: !pinEditor, pinned: pinEditor }, position)
+			this.editorService.openEditor(element.editorInput, options, position)
 				.done(() => this.editorGroupService.activateGroup(this.model.groupAt(position)), errors.onUnexpectedError);
 		}
 	}
@@ -468,7 +416,7 @@ export class ActionProvider extends ContributableActionProvider {
 	}
 }
 
-export class DragAndDrop extends treedefaults.DefaultDragAndDrop {
+export class DragAndDrop extends DefaultDragAndDrop {
 
 	constructor(
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
@@ -501,7 +449,7 @@ export class DragAndDrop extends treedefaults.DefaultDragAndDrop {
 		}
 
 		if (data instanceof ExternalElementsDragAndDropData) {
-			let resource = asFileResource(data.getData()[0]);
+			let resource = explorerItemToFileResource(data.getData()[0]);
 
 			if (!resource) {
 				return DRAG_OVER_REJECT;
@@ -528,8 +476,8 @@ export class DragAndDrop extends treedefaults.DefaultDragAndDrop {
 		const index = target instanceof OpenEditor ? target.editorGroup.indexOf(target.editorInput) : undefined;
 		// Support drop from explorer viewer
 		if (data instanceof ExternalElementsDragAndDropData) {
-			let resource = <IResourceInput>asFileResource(data.getData()[0]);
-			resource.options = { index, pinned: true };
+			let resource = explorerItemToFileResource(data.getData()[0]);
+			(resource as IResourceInput).options = { index, pinned: true };
 			this.editorService.openEditor(resource, positionOfTargetGroup).done(null, errors.onUnexpectedError);
 		}
 

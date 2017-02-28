@@ -7,5 +7,5 @@
 	"dirtyCounter": "{0} 未儲存",
 	"openEditors": "已開啟的編輯器",
 	"openEditosrSection": "開放式編輯器區段",
-	"treeAriaLabel": "已開啟的編輯器"
+	"treeAriaLabel": "開啟的編輯器: 使用中檔案的清單"
 }

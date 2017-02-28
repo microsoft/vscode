@@ -56,7 +56,8 @@ export interface IFocusTracker {
 export enum TextEditorRevealType {
 	Default = 0,
 	InCenter = 1,
-	InCenterIfOutsideViewport = 2
+	InCenterIfOutsideViewport = 2,
+	AtTop = 3
 }
 
 export interface IUndoStopOptions {
@@ -198,7 +199,6 @@ export class MainThreadTextEditor {
 			return;
 		}
 		this._lastSelection = selections.map(Selection.liftSelection);
-		console.warn('setSelections on invisble editor');
 	}
 
 	public getConfiguration(): IResolvedTextEditorConfiguration {
@@ -209,7 +209,7 @@ export class MainThreadTextEditor {
 		if (newConfiguration.tabSize === 'auto' || newConfiguration.insertSpaces === 'auto') {
 			// one of the options was set to 'auto' => detect indentation
 
-			let creationOpts = this._modelService.getCreationOptions();
+			let creationOpts = this._modelService.getCreationOptions(this._model.getLanguageIdentifier().language);
 			let insertSpaces = creationOpts.insertSpaces;
 			let tabSize = creationOpts.tabSize;
 
@@ -238,26 +238,18 @@ export class MainThreadTextEditor {
 	public setConfiguration(newConfiguration: ITextEditorConfigurationUpdate): void {
 		this._setIndentConfiguration(newConfiguration);
 
+		if (!this._codeEditor) {
+			return;
+		}
+
 		if (newConfiguration.cursorStyle) {
 			let newCursorStyle = EditorCommon.cursorStyleToString(newConfiguration.cursorStyle);
-
-			if (!this._codeEditor) {
-				console.warn('setConfiguration on invisible editor');
-				return;
-			}
-
 			this._codeEditor.updateOptions({
 				cursorStyle: newCursorStyle
 			});
 		}
 
 		if (typeof newConfiguration.lineNumbers !== 'undefined') {
-
-			if (!this._codeEditor) {
-				console.warn('setConfiguration on invisible editor');
-				return;
-			}
-
 			let lineNumbers: 'on' | 'off' | 'relative';
 			switch (newConfiguration.lineNumbers) {
 				case TextEditorLineNumbersStyle.On:
@@ -277,7 +269,6 @@ export class MainThreadTextEditor {
 
 	public setDecorations(key: string, ranges: EditorCommon.IDecorationOptions[]): void {
 		if (!this._codeEditor) {
-			console.warn('setDecorations on invisible editor');
 			return;
 		}
 		this._codeEditor.setDecorations(key, ranges);
@@ -285,17 +276,24 @@ export class MainThreadTextEditor {
 
 	public revealRange(range: EditorCommon.IRange, revealType: TextEditorRevealType): void {
 		if (!this._codeEditor) {
-			console.warn('revealRange on invisible editor');
 			return;
 		}
-		if (revealType === TextEditorRevealType.Default) {
-			this._codeEditor.revealRange(range);
-		} else if (revealType === TextEditorRevealType.InCenter) {
-			this._codeEditor.revealRangeInCenter(range);
-		} else if (revealType === TextEditorRevealType.InCenterIfOutsideViewport) {
-			this._codeEditor.revealRangeInCenterIfOutsideViewport(range);
-		} else {
-			console.warn('Unknown revealType');
+		switch (revealType) {
+			case TextEditorRevealType.Default:
+				this._codeEditor.revealRange(range);
+				break;
+			case TextEditorRevealType.InCenter:
+				this._codeEditor.revealRangeInCenter(range);
+				break;;
+			case TextEditorRevealType.InCenterIfOutsideViewport:
+				this._codeEditor.revealRangeInCenterIfOutsideViewport(range);
+				break;
+			case TextEditorRevealType.AtTop:
+				this._codeEditor.revealRangeAtTop(range);
+				break;
+			default:
+				console.warn(`Unknown revealType: ${revealType}`);
+				break;
 		}
 	}
 
@@ -352,57 +350,62 @@ export class MainThreadTextEditor {
 
 	public applyEdits(versionIdCheck: number, edits: EditorCommon.ISingleEditOperation[], opts: IApplyEditsOptions): boolean {
 		if (this._model.getVersionId() !== versionIdCheck) {
-			console.warn('Model has changed in the meantime!');
 			// throw new Error('Model has changed in the meantime!');
 			// model changed in the meantime
 			return false;
 		}
 
-		if (this._codeEditor) {
-			if (opts.setEndOfLine === EndOfLine.CRLF) {
-				this._model.setEOL(EditorCommon.EndOfLineSequence.CRLF);
-			} else if (opts.setEndOfLine === EndOfLine.LF) {
-				this._model.setEOL(EditorCommon.EndOfLineSequence.LF);
-			}
-
-			let transformedEdits = edits.map((edit): EditorCommon.IIdentifiedSingleEditOperation => {
-				return {
-					identifier: null,
-					range: Range.lift(edit.range),
-					text: edit.text,
-					forceMoveMarkers: edit.forceMoveMarkers
-				};
-			});
-
-			if (opts.undoStopBefore) {
-				this._codeEditor.pushUndoStop();
-			}
-			this._codeEditor.executeEdits('MainThreadTextEditor', transformedEdits);
-			if (opts.undoStopAfter) {
-				this._codeEditor.pushUndoStop();
-			}
-			return true;
+		if (!this._codeEditor) {
+			// console.warn('applyEdits on invisible editor');
+			return false;
 		}
 
-		console.warn('applyEdits on invisible editor');
-		return false;
+		if (opts.setEndOfLine === EndOfLine.CRLF) {
+			this._model.setEOL(EditorCommon.EndOfLineSequence.CRLF);
+		} else if (opts.setEndOfLine === EndOfLine.LF) {
+			this._model.setEOL(EditorCommon.EndOfLineSequence.LF);
+		}
+
+		let transformedEdits = edits.map((edit): EditorCommon.IIdentifiedSingleEditOperation => {
+			return {
+				identifier: null,
+				range: Range.lift(edit.range),
+				text: edit.text,
+				forceMoveMarkers: edit.forceMoveMarkers
+			};
+		});
+
+		if (opts.undoStopBefore) {
+			this._codeEditor.pushUndoStop();
+		}
+		this._codeEditor.executeEdits('MainThreadTextEditor', transformedEdits);
+		if (opts.undoStopAfter) {
+			this._codeEditor.pushUndoStop();
+		}
+		return true;
 	}
 
-	insertSnippet(template: string, opts: IUndoStopOptions) {
-		const snippetController = SnippetController.get(this._codeEditor);
+	insertSnippet(template: string, ranges: EditorCommon.IRange[], opts: IUndoStopOptions) {
 
 		if (!this._codeEditor) {
 			return false;
 		}
 
+		const snippetController = SnippetController.get(this._codeEditor);
+
+		// cancel previous snippet mode
+		snippetController.leaveSnippet();
+
+		// set selection, focus editor
+		const selections = ranges.map(r => new Selection(r.startLineNumber, r.startColumn, r.endLineNumber, r.endColumn));
+		this._codeEditor.setSelections(selections);
 		this._codeEditor.focus();
 
+		// make modifications
 		if (opts.undoStopBefore) {
 			this._codeEditor.pushUndoStop();
 		}
-
 		snippetController.insertSnippet(template, 0, 0);
-
 		if (opts.undoStopAfter) {
 			this._codeEditor.pushUndoStop();
 		}

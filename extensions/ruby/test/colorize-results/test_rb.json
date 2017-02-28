@@ -113,8 +113,8 @@
 		"c": "Azure",
 		"t": "source.ruby meta.module.ruby entity.name.type.module.ruby entity.other.inherited-class.module.first.ruby",
 		"r": {
-			"dark_plus": "entity.name.type: #4EC9B0",
-			"light_plus": "entity.name.type: #267F99",
+			"dark_plus": "entity.other.inherited-class: #4EC9B0",
+			"light_plus": "entity.other.inherited-class: #267F99",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
@@ -124,8 +124,8 @@
 		"c": "::",
 		"t": "source.ruby meta.module.ruby entity.name.type.module.ruby entity.other.inherited-class.module.first.ruby punctuation.separator.inheritance.ruby",
 		"r": {
-			"dark_plus": "entity.name.type: #4EC9B0",
-			"light_plus": "entity.name.type: #267F99",
+			"dark_plus": "entity.other.inherited-class: #4EC9B0",
+			"light_plus": "entity.other.inherited-class: #267F99",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
@@ -135,8 +135,8 @@
 		"c": "ARM",
 		"t": "source.ruby meta.module.ruby entity.name.type.module.ruby entity.other.inherited-class.module.second.ruby",
 		"r": {
-			"dark_plus": "entity.name.type: #4EC9B0",
-			"light_plus": "entity.name.type: #267F99",
+			"dark_plus": "entity.other.inherited-class: #4EC9B0",
+			"light_plus": "entity.other.inherited-class: #267F99",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
@@ -146,8 +146,8 @@
 		"c": "::",
 		"t": "source.ruby meta.module.ruby entity.name.type.module.ruby entity.other.inherited-class.module.second.ruby punctuation.separator.inheritance.ruby",
 		"r": {
-			"dark_plus": "entity.name.type: #4EC9B0",
-			"light_plus": "entity.name.type: #267F99",
+			"dark_plus": "entity.other.inherited-class: #4EC9B0",
+			"light_plus": "entity.other.inherited-class: #267F99",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
@@ -322,8 +322,8 @@
 		"c": "MsRestAzure::AzureServiceClient",
 		"t": "source.ruby meta.class.ruby entity.other.inherited-class.ruby",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
+			"dark_plus": "entity.other.inherited-class: #4EC9B0",
+			"light_plus": "entity.other.inherited-class: #267F99",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"

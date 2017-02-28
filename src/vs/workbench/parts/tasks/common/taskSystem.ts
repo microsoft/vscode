@@ -8,6 +8,7 @@ import Severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { TerminateResponse } from 'vs/base/common/processes';
 import { IEventEmitter } from 'vs/base/common/eventEmitter';
+import * as Types from 'vs/base/common/types';
 
 import { ProblemMatcher } from 'vs/platform/markers/common/problemMatcher';
 
@@ -43,6 +44,9 @@ export interface TelemetryEvent {
 
 	// Whether the task ran successful
 	success: boolean;
+
+	// The exit code
+	exitCode?: number;
 }
 
 export namespace Triggers {
@@ -85,6 +89,24 @@ export interface CommandOptions {
 	env?: { [key: string]: string; };
 }
 
+export interface ShellConfiguration {
+	/**
+	 * The shell executable.
+	 */
+	executable: string;
+	/**
+	 * The arguments to be passed to the shell executable.
+	 */
+	args?: string[];
+}
+
+export namespace ShellConfiguration {
+	export function is(value: any): value is ShellConfiguration {
+		let candidate: ShellConfiguration = value;
+		return candidate && Types.isString(candidate.executable) && (candidate.args === void 0 || Types.isStringArray(candidate.args));
+	}
+}
+
 export interface CommandConfiguration {
 	/**
 	 * The command to execute
@@ -94,7 +116,7 @@ export interface CommandConfiguration {
 	/**
 	 * Whether the command is a shell command or not
 	 */
-	isShellCommand?: boolean;
+	isShellCommand?: boolean | ShellConfiguration;
 
 	/**
 	 * Additional command options.
@@ -117,6 +139,23 @@ export interface CommandConfiguration {
 	echo?: boolean;
 }
 
+export interface CommandBinding {
+	/**
+	 * The command identifier the task is bound to.
+	 */
+	identifier: string;
+
+	/**
+	 * The title to use
+	 */
+	title: string;
+
+	/**
+	 * An optional category
+	 */
+	category?: string;
+}
+
 /**
  * A task description
  */
@@ -131,6 +170,11 @@ export interface TaskDescription {
 	 * The task's name
 	 */
 	name: string;
+
+	/**
+	 * The task's identifier.
+	 */
+	identifier: string;
 
 	/**
 	 * The command configuration
@@ -163,6 +207,11 @@ export interface TaskDescription {
 	 * value is "always".
 	 */
 	showOutput: ShowOutput;
+
+	/**
+	 * The other tasks this task depends on.
+	 */
+	dependsOn?: string[];
 
 	/**
 	 * The problem watchers to use for this task
@@ -241,15 +290,4 @@ export interface ITaskSystem extends IEventEmitter {
 	canAutoTerminate(): boolean;
 	terminate(): TPromise<TerminateResponse>;
 	tasks(): TPromise<TaskDescription[]>;
-}
-
-/**
- * Build configuration settings shared between program and
- * service build systems.
- */
-export interface TaskConfiguration {
-	/**
-	 * The build system to use. If omitted program is used.
-	 */
-	_runner?: string;
 }

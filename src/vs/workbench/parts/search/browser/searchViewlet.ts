@@ -8,6 +8,7 @@
 import 'vs/css!./media/searchviewlet';
 import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
+import { Emitter, debounceEvent } from 'vs/base/common/event';
 import { EditorType, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import lifecycle = require('vs/base/common/lifecycle');
 import errors = require('vs/base/common/errors');
@@ -15,6 +16,7 @@ import aria = require('vs/base/browser/ui/aria/aria');
 import { IExpression } from 'vs/base/common/glob';
 import env = require('vs/base/common/platform');
 import { isFunction } from 'vs/base/common/types';
+import { Delayer } from 'vs/base/common/async';
 import URI from 'vs/base/common/uri';
 import strings = require('vs/base/common/strings');
 import dom = require('vs/base/browser/dom');
@@ -55,6 +57,7 @@ import Severity from 'vs/base/common/severity';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { OpenFolderAction, OpenFileFolderAction } from 'vs/workbench/browser/actions/fileActions';
 import * as Constants from 'vs/workbench/parts/search/common/constants';
+import { IListService } from 'vs/platform/list/browser/listService';
 
 export class SearchViewlet extends Viewlet {
 
@@ -88,6 +91,9 @@ export class SearchViewlet extends Viewlet {
 
 	private currentSelectedFileMatch: FileMatch;
 
+	private selectCurrentMatchEmitter: Emitter<string>;
+	private delayedRefresh: Delayer<void>;
+
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IFileService private fileService: IFileService,
@@ -105,7 +111,8 @@ export class SearchViewlet extends Viewlet {
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IReplaceService private replaceService: IReplaceService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@IPreferencesService private preferencesService: IPreferencesService
+		@IPreferencesService private preferencesService: IPreferencesService,
+		@IListService private listService: IListService
 	) {
 		super(Constants.VIEWLET_ID, telemetryService);
 
@@ -121,6 +128,11 @@ export class SearchViewlet extends Viewlet {
 		this.toUnbind.push(this.untitledEditorService.onDidChangeDirty(e => this.onUntitledDidChangeDirty(e)));
 		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config)));
 
+		this.selectCurrentMatchEmitter = new Emitter<string>();
+		debounceEvent(this.selectCurrentMatchEmitter.event, (l, e) => e, 100, /*leading=*/true)
+			(() => this.selectCurrentMatch());
+
+		this.delayedRefresh = new Delayer<void>(250);
 	}
 
 	private onConfigurationUpdated(configuration: any): void {
@@ -278,7 +290,7 @@ export class SearchViewlet extends Viewlet {
 		}));
 		this.toUnbind.push(this.searchWidget.onReplaceValueChanged((value) => {
 			this.viewModel.replaceString = this.searchWidget.getReplaceValue();
-			this.tree.refresh();
+			this.delayedRefresh.trigger(() => this.tree.refresh());
 		}));
 
 		this.toUnbind.push(this.searchWidget.onReplaceAll(() => this.replaceAll()));
@@ -306,6 +318,7 @@ export class SearchViewlet extends Viewlet {
 	private onSearchResultsChanged(event?: IChangeEvent): TPromise<any> {
 		return this.refreshTree(event).then(() => {
 			this.searchWidget.setReplaceAllActionState(!this.viewModel.searchResult.isEmpty());
+			this.updateSearchResultCount();
 		});
 	}
 
@@ -341,13 +354,11 @@ export class SearchViewlet extends Viewlet {
 		let occurrences = this.viewModel.searchResult.count();
 		let fileCount = this.viewModel.searchResult.fileCount();
 		let replaceValue = this.searchWidget.getReplaceValue() || '';
-		let afterReplaceAllMessage = replaceValue ? nls.localize('replaceAll.message', "Replaced {0} occurrences across {1} files with {2}.", occurrences, fileCount, replaceValue)
-			: nls.localize('removeAll.message', "Removed {0} occurrences across {1} files.", occurrences, fileCount);
+		let afterReplaceAllMessage = this.buildAfterReplaceAllMessage(occurrences, fileCount, replaceValue);
 
 		let confirmation = {
 			title: nls.localize('replaceAll.confirmation.title', "Replace All"),
-			message: replaceValue ? nls.localize('replaceAll.confirmation.message', "Replace {0} occurrences across {1} files with '{2}'?", occurrences, fileCount, replaceValue)
-				: nls.localize('removeAll.confirmation.message', "Remove {0} occurrences across {1} files?", occurrences, fileCount),
+			message: this.buildReplaceAllConfirmationMessage(occurrences, fileCount, replaceValue),
 			primaryButton: nls.localize('replaceAll.confirm.button', "Replace")
 		};
 
@@ -363,6 +374,70 @@ export class SearchViewlet extends Viewlet {
 				this.messageService.show(Severity.Error, error);
 			});
 		}
+	}
+
+	private buildAfterReplaceAllMessage(occurrences: number, fileCount: number, replaceValue?: string) {
+		if (occurrences === 1) {
+			if (fileCount === 1) {
+				if (replaceValue) {
+					return nls.localize('replaceAll.occurrence.file.message', "Replaced {0} occurrence across {1} file with '{2}'.", occurrences, fileCount, replaceValue);
+				}
+
+				return nls.localize('removeAll.occurrence.file.message', "Replaced {0} occurrence across {1} file'.", occurrences, fileCount);
+			}
+
+			if (replaceValue) {
+				return nls.localize('replaceAll.occurrence.files.message', "Replaced {0} occurrence across {1} files with '{2}'.", occurrences, fileCount, replaceValue);
+			}
+
+			return nls.localize('removeAll.occurrence.files.message', "Replaced {0} occurrence across {1} files.", occurrences, fileCount);
+		}
+
+		if (fileCount === 1) {
+			if (replaceValue) {
+				return nls.localize('replaceAll.occurrences.file.message', "Replaced {0} occurrences across {1} file with '{2}'.", occurrences, fileCount, replaceValue);
+			}
+
+			return nls.localize('removeAll.occurrences.file.message', "Replaced {0} occurrences across {1} file'.", occurrences, fileCount);
+		}
+
+		if (replaceValue) {
+			return nls.localize('replaceAll.occurrences.files.message', "Replaced {0} occurrences across {1} files with '{2}'.", occurrences, fileCount, replaceValue);
+		}
+
+		return nls.localize('removeAll.occurrences.files.message', "Replaced {0} occurrences across {1} files.", occurrences, fileCount);
+	}
+
+	private buildReplaceAllConfirmationMessage(occurrences: number, fileCount: number, replaceValue?: string) {
+		if (occurrences === 1) {
+			if (fileCount === 1) {
+				if (replaceValue) {
+					return nls.localize('removeAll.occurrence.file.confirmation.message', "Replace {0} occurrence across {1} file with '{2}'?", occurrences, fileCount, replaceValue);
+				}
+
+				return nls.localize('replaceAll.occurrence.file.confirmation.message', "Replace {0} occurrence across {1} file'?", occurrences, fileCount);
+			}
+
+			if (replaceValue) {
+				return nls.localize('removeAll.occurrence.files.confirmation.message', "Replace {0} occurrence across {1} files with '{2}'?", occurrences, fileCount, replaceValue);
+			}
+
+			return nls.localize('replaceAll.occurrence.files.confirmation.message', "Replace {0} occurrence across {1} files?", occurrences, fileCount);
+		}
+
+		if (fileCount === 1) {
+			if (replaceValue) {
+				return nls.localize('removeAll.occurrences.file.confirmation.message', "Replace {0} occurrences across {1} file with '{2}'?", occurrences, fileCount, replaceValue);
+			}
+
+			return nls.localize('replaceAll.occurrences.file.confirmation.message', "Replace {0} occurrences across {1} file'?", occurrences, fileCount);
+		}
+
+		if (replaceValue) {
+			return nls.localize('removeAll.occurrences.files.confirmation.message', "Replace {0} occurrences across {1} files with '{2}'?", occurrences, fileCount, replaceValue);
+		}
+
+		return nls.localize('replaceAll.occurrences.files.confirmation.message', "Replace {0} occurrences across {1} files?", occurrences, fileCount);
 	}
 
 	private clearMessage(): Builder {
@@ -387,11 +462,46 @@ export class SearchViewlet extends Viewlet {
 				controller: new SearchController(this, this.instantiationService),
 				accessibilityProvider: this.instantiationService.createInstance(SearchAccessibilityProvider)
 			}, {
-					ariaLabel: nls.localize('treeAriaLabel', "Search Results")
+					ariaLabel: nls.localize('treeAriaLabel', "Search Results"),
+					keyboardSupport: false
 				});
 
 			this.tree.setInput(this.viewModel.searchResult);
 			this.toUnbind.push(renderer);
+
+			this.toUnbind.push(this.listService.register(this.tree));
+
+			let focusToSelectionDelayHandle: number;
+			let lastFocusToSelection: number;
+
+			const focusToSelection = (originalEvent: KeyboardEvent | MouseEvent) => {
+				lastFocusToSelection = Date.now();
+
+				const focus = this.tree.getFocus();
+				let payload: any;
+				if (focus instanceof Match) {
+					payload = { origin: 'keyboard', originalEvent, preserveFocus: true };
+				}
+
+				this.tree.setSelection([focus], payload);
+				focusToSelectionDelayHandle = void 0;
+			};
+
+			this.toUnbind.push(this.tree.addListener2('focus', (event: any) => {
+				let keyboard = event.payload && event.payload.origin === 'keyboard';
+				if (keyboard) {
+					let originalEvent: KeyboardEvent | MouseEvent = event.payload && event.payload.originalEvent;
+
+					// debounce setting selection so that we are not too quickly opening
+					// when the user is pressing and holding the key to move focus
+					if (focusToSelectionDelayHandle || (Date.now() - lastFocusToSelection <= 75)) {
+						window.clearTimeout(focusToSelectionDelayHandle);
+						focusToSelectionDelayHandle = window.setTimeout(() => focusToSelection(originalEvent), 300);
+					} else {
+						focusToSelection(originalEvent);
+					}
+				}
+			}));
 
 			this.toUnbind.push(this.tree.addListener2('selection', (event: any) => {
 				let element: any;
@@ -405,12 +515,12 @@ export class SearchViewlet extends Viewlet {
 				let originalEvent: KeyboardEvent | MouseEvent = event.payload && event.payload.originalEvent;
 
 				let doubleClick = (event.payload && event.payload.origin === 'mouse' && originalEvent && originalEvent.detail === 2);
-				if (doubleClick) {
+				if (doubleClick && originalEvent) {
 					originalEvent.preventDefault(); // focus moves to editor, we need to prevent default
 				}
 
 				let sideBySide = (originalEvent && (originalEvent.ctrlKey || originalEvent.metaKey));
-				let focusEditor = (keyboard && (<KeyboardEvent>originalEvent).keyCode === KeyCode.Enter) || doubleClick || (event.payload && event.payload.focusEditor);
+				let focusEditor = (keyboard && (!event.payload || !event.payload.preserveFocus)) || doubleClick;
 
 				if (element instanceof Match) {
 					let selectedMatch: Match = element;
@@ -419,7 +529,10 @@ export class SearchViewlet extends Viewlet {
 					}
 					this.currentSelectedFileMatch = selectedMatch.parent();
 					this.currentSelectedFileMatch.setSelectedMatch(selectedMatch);
-					this.onFocus(selectedMatch, !focusEditor, sideBySide, doubleClick);
+
+					if (!event.payload.preventEditorOpen) {
+						this.onFocus(selectedMatch, !focusEditor, sideBySide, doubleClick);
+					}
 				}
 			}));
 		});
@@ -449,14 +562,30 @@ export class SearchViewlet extends Viewlet {
 		}
 	}
 
-	public selectNextResult(): void {
+	public selectCurrentMatch(): void {
+		const focused = this.tree.getFocus();
 		const eventPayload = { focusEditor: true };
-		const [selected]: FileMatchOrMatch[] = this.tree.getSelection();
-		const navigator = this.tree.getNavigator(selected, /*subTreeOnly=*/false);
-		let next = navigator.next();
+		this.tree.setSelection([focused], eventPayload);
+	}
 
+	public selectNextMatch(): void {
+		const [selected]: FileMatchOrMatch[] = this.tree.getSelection();
+
+		// Expand the initial selected node, if needed
+		if (selected instanceof FileMatch) {
+			if (!this.tree.isExpanded(selected)) {
+				this.tree.expand(selected);
+			}
+		}
+
+		let navigator = this.tree.getNavigator(selected, /*subTreeOnly=*/false);
+
+		let next = navigator.next();
 		if (!next) {
-			return;
+			// Reached the end - get a new navigator from the root.
+			// .first and .last only work when subTreeOnly = true. Maybe there's a simpler way.
+			navigator = this.tree.getNavigator(this.tree.getInput(), /*subTreeOnly*/true);
+			next = navigator.first();
 		}
 
 		// Expand and go past FileMatch nodes
@@ -470,24 +599,36 @@ export class SearchViewlet extends Viewlet {
 		}
 
 		// Reveal the newly selected element
+		const eventPayload = { preventEditorOpen: true };
 		this.tree.setFocus(next, eventPayload);
 		this.tree.setSelection([next], eventPayload);
 		this.tree.reveal(next);
+		this.selectCurrentMatchEmitter.fire();
 	}
 
-	public selectPreviousResult(): void {
-		const eventPayload = { focusEditor: true };
+	public selectPreviousMatch(): void {
 		const [selected]: FileMatchOrMatch[] = this.tree.getSelection();
-		const navigator = this.tree.getNavigator(selected, /*subTreeOnly=*/false);
+		let navigator = this.tree.getNavigator(selected, /*subTreeOnly=*/false);
 
 		let prev = navigator.previous();
-		if (!prev) {
-			return;
-		}
 
 		// Expand and go past FileMatch nodes
 		if (!(prev instanceof Match)) {
 			prev = navigator.previous();
+			if (!prev) {
+				// Wrap around. Get a new tree starting from the root
+				navigator = this.tree.getNavigator(this.tree.getInput(), /*subTreeOnly*/true);
+				prev = navigator.last();
+
+				// This is complicated because .last will set the navigator to the last FileMatch,
+				// so expand it and FF to its last child
+				this.tree.expand(prev);
+				let tmp;
+				while (tmp = navigator.next()) {
+					prev = tmp;
+				}
+			}
+
 			if (!(prev instanceof Match)) {
 				// There is a second non-Match result, which must be a collapsed FileMatch.
 				// Expand it then select its last child.
@@ -498,9 +639,13 @@ export class SearchViewlet extends Viewlet {
 		}
 
 		// Reveal the newly selected element
-		this.tree.setFocus(prev, eventPayload);
-		this.tree.setSelection([prev], eventPayload);
-		this.tree.reveal(prev);
+		if (prev) {
+			const eventPayload = { preventEditorOpen: true };
+			this.tree.setFocus(prev, eventPayload);
+			this.tree.setSelection([prev], eventPayload);
+			this.tree.reveal(prev);
+			this.selectCurrentMatchEmitter.fire();
+		}
 	}
 
 	public setVisible(visible: boolean): TPromise<void> {
@@ -616,7 +761,10 @@ export class SearchViewlet extends Viewlet {
 		this.inputPatternIncludes.setWidth(this.size.width - 28 /* container margin */);
 		this.inputPatternGlobalExclusions.width = this.size.width - 28 /* container margin */ - 24 /* actions */;
 
-		let searchResultContainerSize = this.size.height - dom.getTotalHeight(this.searchWidgetsContainer.getContainer()) - 6 /** container margin top */;
+		let searchResultContainerSize = this.size.height -
+			dom.getTotalHeight(this.messages.getHTMLElement()) -
+			dom.getTotalHeight(this.searchWidgetsContainer.getContainer());
+
 		this.results.style({ height: searchResultContainerSize + 'px' });
 
 		this.tree.layout(searchResultContainerSize);
@@ -950,7 +1098,7 @@ export class SearchViewlet extends Viewlet {
 			} else {
 				this.viewModel.searchResult.toggleHighlights(true); // show highlights
 
-				// Indicate as status to ARIA
+				// Indicate final search result count for ARIA
 				aria.status(nls.localize('ariaSearchResultsStatus', "Search returned {0} results in {1} files", this.viewModel.searchResult.count(), this.viewModel.searchResult.fileCount()));
 			}
 		};
@@ -1009,14 +1157,16 @@ export class SearchViewlet extends Viewlet {
 			}
 
 			// Search result tree update
-			let count = this.viewModel.searchResult.fileCount();
-			if (visibleMatches !== count) {
-				visibleMatches = count;
+			const fileCount = this.viewModel.searchResult.fileCount();
+			if (visibleMatches !== fileCount) {
+				visibleMatches = fileCount;
 				this.tree.refresh().then(() => {
 					autoExpand(false);
 				}).done(null, errors.onUnexpectedError);
+
+				this.updateSearchResultCount();
 			}
-			if (count > 0) {
+			if (fileCount > 0) {
 				// since we have results now, enable some actions
 				if (!this.actionRegistry['vs.tree.collapse'].enabled) {
 					this.actionRegistry['vs.tree.collapse'].enabled = true;
@@ -1027,6 +1177,32 @@ export class SearchViewlet extends Viewlet {
 		this.searchWidget.setReplaceAllActionState(false);
 		// this.replaceService.disposeAllReplacePreviews();
 		this.viewModel.search(query).done(onComplete, onError, onProgress);
+	}
+
+	private updateSearchResultCount(): void {
+		const fileCount = this.viewModel.searchResult.fileCount();
+		const msgWasHidden = this.messages.isHidden();
+		if (fileCount > 0) {
+			const div = this.clearMessage();
+			$(div).p({ text: this.buildResultCountMessage(this.viewModel.searchResult.count(), fileCount) });
+			if (msgWasHidden) {
+				this.reLayout();
+			}
+		} else if (!msgWasHidden) {
+			this.messages.hide();
+		}
+	}
+
+	private buildResultCountMessage(resultCount: number, fileCount: number): string {
+		if (resultCount === 1 && fileCount === 1) {
+			return nls.localize('search.file.result', "{0} result in {1} file", resultCount, fileCount);
+		} else if (resultCount === 1) {
+			return nls.localize('search.files.result', "{0} result in {1} files", resultCount, fileCount);
+		} else if (fileCount === 1) {
+			return nls.localize('search.file.results', "{0} results in {1} file", resultCount, fileCount);
+		} else {
+			return nls.localize('search.files.results', "{0} results in {1} files", resultCount, fileCount);
+		}
 	}
 
 	private searchWithoutFolderMessage(div: Builder): void {
@@ -1072,7 +1248,9 @@ export class SearchViewlet extends Viewlet {
 
 		this.telemetryService.publicLog('searchResultChosen');
 
-		return (this.viewModel.isReplaceActive() && !!this.viewModel.replaceString) ? this.replaceService.openReplacePreview(lineMatch, preserveFocus, sideBySide, pinned) : this.open(lineMatch, preserveFocus, sideBySide, pinned);
+		return (this.viewModel.isReplaceActive() && !!this.viewModel.replaceString) ?
+			this.replaceService.openReplacePreview(lineMatch, preserveFocus, sideBySide, pinned) :
+			this.open(lineMatch, preserveFocus, sideBySide, pinned);
 	}
 
 	public open(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): TPromise<any> {
@@ -1084,10 +1262,10 @@ export class SearchViewlet extends Viewlet {
 				preserveFocus,
 				pinned,
 				selection,
-				revealIfVisible: true
+				revealIfVisible: !sideBySide
 			}
-		}, sideBySide).then((editor) => {
-			if (element instanceof Match && preserveFocus) {
+		}, sideBySide).then(editor => {
+			if (editor && element instanceof Match && preserveFocus) {
 				this.viewModel.searchResult.rangeHighlightDecorations.highlightRange({
 					resource,
 					range: element.range()

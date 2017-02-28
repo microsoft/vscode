@@ -13,7 +13,7 @@ import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/wor
 import paths = require('vs/base/common/paths');
 import { Scope, IActionBarRegistry, Extensions as ActionBarExtensions, ActionBarContributor } from 'vs/workbench/browser/actionBarRegistry';
 import uri from 'vs/base/common/uri';
-import { asFileResource } from 'vs/workbench/parts/files/common/files';
+import { explorerItemToFileResource } from 'vs/workbench/parts/files/common/files';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ITerminalService } from 'vs/workbench/parts/execution/common/execution';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
@@ -36,17 +36,20 @@ DEFAULT_TERMINAL_LINUX_READY.then(defaultTerminalLinux => {
 			'terminal.external.windowsExec': {
 				'type': 'string',
 				'description': nls.localize('terminal.external.windowsExec', "Customizes which terminal to run on Windows."),
-				'default': DEFAULT_TERMINAL_WINDOWS
+				'default': DEFAULT_TERMINAL_WINDOWS,
+				'isExecutable': true
 			},
 			'terminal.external.osxExec': {
 				'type': 'string',
 				'description': nls.localize('terminal.external.osxExec', "Customizes which terminal application to run on OS X."),
-				'default': DEFAULT_TERMINAL_OSX
+				'default': DEFAULT_TERMINAL_OSX,
+				'isExecutable': true
 			},
 			'terminal.external.linuxExec': {
 				'type': 'string',
 				'description': nls.localize('terminal.external.linuxExec', "Customizes which terminal to run on Linux."),
-				'default': defaultTerminalLinux
+				'default': defaultTerminalLinux,
+				'isExecutable': true
 			}
 		}
 	});
@@ -100,22 +103,22 @@ export class OpenConsoleAction extends Action {
 	}
 }
 
-class FileViewerActionContributor extends ActionBarContributor {
+class ExplorerViewerActionContributor extends ActionBarContributor {
 
 	constructor( @IInstantiationService private instantiationService: IInstantiationService) {
 		super();
 	}
 
 	public hasSecondaryActions(context: any): boolean {
-		const element = context.element;
-		return !!asFileResource(element) || (element && element.getResource && element.getResource());
+		return !!explorerItemToFileResource(context.element);
 	}
 
 	public getSecondaryActions(context: any): IAction[] {
-		let fileResource = asFileResource(context.element);
-		let resource = fileResource ? fileResource.resource : context.element.getResource();
-		// If there is no file resource, it is an open editor and not a directory.
-		if (!fileResource || !fileResource.isDirectory) {
+		let fileResource = explorerItemToFileResource(context.element);
+		let resource = fileResource.resource;
+
+		// We want the parent unless this resource is a directory
+		if (!fileResource.isDirectory) {
 			resource = uri.file(paths.dirname(resource.fsPath));
 		}
 
@@ -126,11 +129,11 @@ class FileViewerActionContributor extends ActionBarContributor {
 	}
 }
 
-const actionBarRegistry = <IActionBarRegistry>Registry.as(ActionBarExtensions.Actionbar);
-actionBarRegistry.registerActionBarContributor(Scope.VIEWER, FileViewerActionContributor);
+const actionBarRegistry = Registry.as<IActionBarRegistry>(ActionBarExtensions.Actionbar);
+actionBarRegistry.registerActionBarContributor(Scope.VIEWER, ExplorerViewerActionContributor);
 
 // Register Global Action to Open Console
-(<IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions)).registerWorkbenchAction(
+Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions).registerWorkbenchAction(
 	new SyncActionDescriptor(
 		OpenConsoleAction,
 		OpenConsoleAction.ID,

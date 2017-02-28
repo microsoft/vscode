@@ -27,7 +27,7 @@ import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
 import { getDocumentSymbols } from 'vs/editor/contrib/quickOpen/common/quickOpen';
 import { DocumentSymbolProviderRegistry, DocumentHighlightKind } from 'vs/editor/common/modes';
 import { getCodeLensData } from 'vs/editor/contrib/codelens/common/codelens';
-import { getDeclarationsAtPosition, getTypeDefinitionAtPosition } from 'vs/editor/contrib/goToDeclaration/common/goToDeclaration';
+import { getDefinitionsAtPosition, getImplementationsAtPosition, getTypeDefinitionsAtPosition } from 'vs/editor/contrib/goToDeclaration/common/goToDeclaration';
 import { getHover } from 'vs/editor/contrib/hover/common/hover';
 import { getOccurrencesAtPosition } from 'vs/editor/contrib/wordHighlighter/common/wordHighlighter';
 import { provideReferences } from 'vs/editor/contrib/referenceSearch/common/referenceSearch';
@@ -275,7 +275,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 		return threadService.sync().then(() => {
 
-			return getDeclarationsAtPosition(model, new EditorPosition(1, 1)).then(value => {
+			return getDefinitionsAtPosition(model, new EditorPosition(1, 1)).then(value => {
 				assert.equal(value.length, 1);
 				let [entry] = value;
 				assert.deepEqual(entry.range, { startLineNumber: 2, startColumn: 3, endLineNumber: 4, endColumn: 5 });
@@ -299,7 +299,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 		return threadService.sync().then(() => {
 
-			return getDeclarationsAtPosition(model, new EditorPosition(1, 1)).then(value => {
+			return getDefinitionsAtPosition(model, new EditorPosition(1, 1)).then(value => {
 				assert.equal(value.length, 2);
 			});
 		});
@@ -321,7 +321,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 		return threadService.sync().then(() => {
 
-			return getDeclarationsAtPosition(model, new EditorPosition(1, 1)).then(value => {
+			return getDefinitionsAtPosition(model, new EditorPosition(1, 1)).then(value => {
 				assert.equal(value.length, 2);
 				// let [first, second] = value;
 
@@ -346,15 +346,35 @@ suite('ExtHostLanguageFeatures', function () {
 
 		return threadService.sync().then(() => {
 
-			return getDeclarationsAtPosition(model, new EditorPosition(1, 1)).then(value => {
+			return getDefinitionsAtPosition(model, new EditorPosition(1, 1)).then(value => {
 				assert.equal(value.length, 1);
+			});
+		});
+	});
+
+	// --- implementation
+
+	test('Implementation, data conversion', function () {
+
+		disposables.push(extHost.registerImplementationProvider(defaultSelector, <vscode.ImplementationProvider>{
+			provideImplementation(): any {
+				return [new types.Location(model.uri, new types.Range(1, 2, 3, 4))];
+			}
+		}));
+
+		return threadService.sync().then(() => {
+			return getImplementationsAtPosition(model, new EditorPosition(1, 1)).then(value => {
+				assert.equal(value.length, 1);
+				let [entry] = value;
+				assert.deepEqual(entry.range, { startLineNumber: 2, startColumn: 3, endLineNumber: 4, endColumn: 5 });
+				assert.equal(entry.uri.toString(), model.uri.toString());
 			});
 		});
 	});
 
 	// --- type definition
 
-	test('TypeDefinition, data conversion', function () {
+	test('Type Definition, data conversion', function () {
 
 		disposables.push(extHost.registerTypeDefinitionProvider(defaultSelector, <vscode.TypeDefinitionProvider>{
 			provideTypeDefinition(): any {
@@ -363,7 +383,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		return threadService.sync().then(() => {
-			return getTypeDefinitionAtPosition(model, new EditorPosition(1, 1)).then(value => {
+			return getTypeDefinitionsAtPosition(model, new EditorPosition(1, 1)).then(value => {
 				assert.equal(value.length, 1);
 				let [entry] = value;
 				assert.deepEqual(entry.range, { startLineNumber: 2, startColumn: 3, endLineNumber: 4, endColumn: 5 });

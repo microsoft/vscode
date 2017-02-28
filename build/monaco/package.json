@@ -1,7 +1,7 @@
 {
   "name": "monaco-editor-core",
   "private": true,
-  "version": "0.8.0",
+  "version": "0.8.1",
   "description": "A browser based code editor",
   "author": "Microsoft Corporation",
   "license": "MIT",
@@ -13,6 +13,10 @@
     "url": "https://github.com/Microsoft/vscode/issues"
   },
   "devDependencies": {
+    "@types/minimist": "^1.2.0",
+    "@types/mocha": "^2.2.39",
+    "@types/semver": "^5.3.30",
+    "@types/sinon": "^1.16.34",
     "debounce": "^1.0.0",
     "eslint": "^3.4.0",
     "event-stream": "^3.1.7",

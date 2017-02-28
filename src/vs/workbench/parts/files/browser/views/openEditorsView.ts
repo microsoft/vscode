@@ -11,6 +11,7 @@ import { IAction, IActionRunner } from 'vs/base/common/actions';
 import dom = require('vs/base/browser/dom');
 import { CollapsibleState } from 'vs/base/browser/ui/splitview/splitview';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
+import { IItemCollapseEvent } from 'vs/base/parts/tree/browser/treeModel';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
@@ -19,13 +20,17 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IEditorStacksModel, IStacksModelChangeEvent, IEditorGroup } from 'vs/workbench/common/editor';
 import { SaveAllAction } from 'vs/workbench/parts/files/browser/fileActions';
 import { AdaptiveCollapsibleViewletView } from 'vs/workbench/browser/viewlet';
-import { IFilesConfiguration, VIEWLET_ID } from 'vs/workbench/parts/files/common/files';
+import { IFilesConfiguration, VIEWLET_ID, OpenEditorsFocussedContext, ExplorerFocussedContext } from 'vs/workbench/parts/files/common/files';
 import { ITextFileService, AutoSaveMode } from 'vs/workbench/services/textfile/common/textfiles';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { Renderer, DataSource, Controller, AccessibilityProvider, ActionProvider, OpenEditor, DragAndDrop } from 'vs/workbench/parts/files/browser/views/openEditorsViewer';
+import { OpenEditor } from 'vs/workbench/parts/files/common/explorerViewModel';
+import { Renderer, DataSource, Controller, AccessibilityProvider, ActionProvider, DragAndDrop } from 'vs/workbench/parts/files/browser/views/openEditorsViewer';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { CloseAllEditorsAction } from 'vs/workbench/browser/parts/editor/editorActions';
 import { ToggleEditorLayoutAction } from 'vs/workbench/browser/actions/toggleEditorLayout';
+import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IListService } from 'vs/platform/list/browser/listService';
+import { EditorGroup } from 'vs/workbench/common/editor/editorStacksModel';
 
 const $ = dom.$;
 
@@ -46,6 +51,9 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 	private groupToRefresh: IEditorGroup;
 	private fullRefreshNeeded: boolean;
 
+	private openEditorsFocussedContext: IContextKey<boolean>;
+	private explorerFocussedContext: IContextKey<boolean>;
+
 	constructor(actionRunner: IActionRunner, settings: any,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -53,13 +61,18 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService,
+		@IListService private listService: IListService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IViewletService private viewletService: IViewletService
 	) {
 		super(actionRunner, OpenEditorsView.computeExpandedBodySize(editorGroupService.getStacksModel()), !!settings[OpenEditorsView.MEMENTO_COLLAPSED], nls.localize({ key: 'openEditosrSection', comment: ['Open is an adjective'] }, "Open Editors Section"), keybindingService, contextMenuService);
 
 		this.settings = settings;
 		this.model = editorGroupService.getStacksModel();
+
+		this.openEditorsFocussedContext = OpenEditorsFocussedContext.bindTo(contextKeyService);
+		this.explorerFocussedContext = ExplorerFocussedContext.bindTo(contextKeyService);
 
 		this.structuralRefreshDelay = 0;
 		this.structuralTreeRefreshScheduler = new RunOnceScheduler(() => this.structuralTreeUpdate(), this.structuralRefreshDelay);
@@ -106,8 +119,26 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 				indentPixels: 0,
 				twistiePixels: 22,
 				ariaLabel: nls.localize({ key: 'treeAriaLabel', comment: ['Open is an adjective'] }, "Open Editors: List of Active Files"),
-				showTwistie: false
+				showTwistie: false,
+				keyboardSupport: false
 			});
+
+		// Register to list service
+		this.toDispose.push(this.listService.register(this.tree, [this.explorerFocussedContext, this.openEditorsFocussedContext]));
+
+		// Open when selecting via keyboard
+		this.toDispose.push(this.tree.addListener2('selection', event => {
+			if (event && event.payload && event.payload.origin === 'keyboard') {
+				controller.openEditor(this.tree.getFocus(), { pinned: false, sideBySide: false, preserveFocus: false });
+			}
+		}));
+
+		// Prevent collapsing of editor groups
+		this.toDispose.push(this.tree.addListener2('item:collapsed', (event: IItemCollapseEvent) => {
+			if (event.item && event.item.getElement() instanceof EditorGroup) {
+				setTimeout(() => this.tree.expand(event.item.getElement())); // unwind from callback
+			}
+		}));
 
 		this.fullRefreshNeeded = true;
 		this.structuralTreeUpdate();

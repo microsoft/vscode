@@ -312,7 +312,7 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 			return null;
 		}
 
-		return config.configurations.filter(config => config.name === name).pop();
+		return config.configurations.filter(config => config && config.name === name).pop();
 	}
 
 	public resloveConfiguration(config: debug.IConfig): TPromise<debug.IConfig> {
@@ -342,12 +342,16 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 		return this.configurationResolverService.resolveInteractiveVariables(result, adapter ? adapter.variables : null);
 	}
 
-	public openConfigFile(sideBySide: boolean): TPromise<IEditor> {
-		const resource = uri.file(paths.join(this.contextService.getWorkspace().resource.fsPath, '/.vscode/launch.json'));
+	public get configFileUri(): uri {
+		return uri.file(paths.join(this.contextService.getWorkspace().resource.fsPath, '/.vscode/launch.json'));
+	}
+
+	public openConfigFile(sideBySide: boolean, type?: string): TPromise<IEditor> {
+		const resource = this.configFileUri;
 		let configFileCreated = false;
 
 		return this.fileService.resolveContent(resource).then(content => true, err =>
-			this.guessAdapter().then(adapter => adapter ? adapter.getInitialConfigurationContent() : undefined)
+			this.guessAdapter(type).then(adapter => adapter ? adapter.getInitialConfigurationContent() : undefined)
 				.then(content => {
 					if (!content) {
 						return false;
@@ -375,29 +379,32 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 			});
 	}
 
-	public getStartSessionCommand(type?: string): TPromise<string> {
+	public getStartSessionCommand(type?: string): TPromise<{ command: string, type: string }> {
 		return this.guessAdapter(type).then(adapter => {
 			if (adapter) {
-				return adapter.startSessionCommand;
+				return {
+					command: adapter.startSessionCommand,
+					type: adapter.type
+				};
 			}
+			return undefined;
 		});
 	}
 
 	private guessAdapter(type?: string): TPromise<Adapter> {
 		if (type) {
 			const adapter = this.getAdapter(type);
-			if (adapter) {
-				return TPromise.as(adapter);
-			}
+			return TPromise.as(adapter);
 		}
 
 		const editor = this.editorService.getActiveEditor();
 		if (editor) {
-			const model = (<ICommonCodeEditor>editor.getControl()).getModel();
+			const codeEditor = <ICommonCodeEditor>editor.getControl();
+			const model = codeEditor ? codeEditor.getModel() : undefined;
 			const language = model ? model.getLanguageIdentifier().language : undefined;
-			const adapter = this.adapters.filter(a => a.languages && a.languages.indexOf(language) >= 0).pop();
-			if (adapter) {
-				return TPromise.as(adapter);
+			const adapters = this.adapters.filter(a => a.languages && a.languages.indexOf(language) >= 0);
+			if (adapters.length === 1) {
+				return TPromise.as(adapters[0]);
 			}
 		}
 
@@ -414,6 +421,7 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 							viewlet.focus();
 						});
 				}
+				return undefined;
 			});
 	}
 

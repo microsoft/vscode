@@ -9,22 +9,20 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import * as cp from 'child_process';
-import * as denodeify from 'denodeify';
-import { IDisposable, toDisposable, dispose } from './util';
-import * as _ from 'lodash';
+import { assign, uniqBy, groupBy, denodeify, IDisposable, toDisposable, dispose } from './util';
 import { EventEmitter, Event } from 'vscode';
 import * as nls from 'vscode-nls';
 
 const localize = nls.loadMessageBundle();
-const readdir = denodeify(fs.readdir);
-const readfile = denodeify<string, string, string>(fs.readFile);
+const readdir = denodeify<string[]>(fs.readdir);
+const readfile = denodeify<string>(fs.readFile);
 
 export interface IGit {
 	path: string;
 	version: string;
 }
 
-export interface IPushOptions {
+export interface PushOptions {
 	setUpstream?: boolean;
 }
 
@@ -35,7 +33,7 @@ export interface IFileStatus {
 	rename?: string;
 }
 
-export interface IRemote {
+export interface Remote {
 	name: string;
 	url: string;
 }
@@ -46,14 +44,14 @@ export enum RefType {
 	Tag
 }
 
-export interface IRef {
+export interface Ref {
 	type: RefType;
 	name?: string;
 	commit?: string;
 	remote?: string;
 }
 
-export interface IBranch extends IRef {
+export interface Branch extends Ref {
 	upstream?: string;
 	ahead?: number;
 	behind?: number;
@@ -67,7 +65,7 @@ function findSpecificGit(path: string): Promise<IGit> {
 	return new Promise<IGit>((c, e) => {
 		const buffers: Buffer[] = [];
 		const child = cp.spawn(path, ['--version']);
-		child.stdout.on('data', b => buffers.push(b));
+		child.stdout.on('data', (b: Buffer) => buffers.push(b));
 		child.on('error', e);
 		child.on('exit', code => code ? e(new Error('Not found')) : c({ path, version: parseVersion(Buffer.concat(buffers).toString('utf8').trim()) }));
 	});
@@ -84,7 +82,7 @@ function findGitDarwin(): Promise<IGit> {
 
 			function getVersion(path: string) {
 				// make sure git executes
-				cp.exec('git --version', (err, stdout) => {
+				cp.exec('git --version', (err, stdout: Buffer) => {
 					if (err) {
 						return e('git not found');
 					}
@@ -291,13 +289,31 @@ export class Git {
 		return new Repository(this, repository, env);
 	}
 
+	async init(repository: string): Promise<void> {
+		await this.exec(repository, ['init']);
+		return;
+	}
+
+	async clone(url: string, parentPath: string): Promise<string> {
+		const folderName = url.replace(/^.*\//, '').replace(/\.git$/, '') || 'repository';
+		const folderPath = path.join(parentPath, folderName);
+
+		await this.exec(parentPath, ['clone', url, folderPath]);
+		return folderPath;
+	}
+
+	async getRepositoryRoot(path: string): Promise<string> {
+		const result = await this.exec(path, ['rev-parse', '--show-toplevel']);
+		return result.stdout.trim();
+	}
+
 	async exec(cwd: string, args: string[], options: any = {}): Promise<IExecutionResult> {
-		options = _.assign({ cwd }, options || {});
+		options = assign({ cwd }, options || {});
 		return await this._exec(args, options);
 	}
 
 	stream(cwd: string, args: string[], options: any = {}): cp.ChildProcess {
-		options = _.assign({ cwd }, options || {});
+		options = assign({ cwd }, options || {});
 		return this.spawn(args, options);
 	}
 
@@ -357,7 +373,10 @@ export class Git {
 			options.stdio = ['ignore', null, null]; // Unless provided, ignore stdin and leave default streams for stdout and stderr
 		}
 
-		options.env = _.assign({}, process.env, options.env || {});
+		options.env = assign({}, process.env, options.env || {}, {
+			VSCODE_GIT_COMMAND: args[0],
+			LANG: 'en_US.UTF-8'
+		});
 
 		if (options.log !== false) {
 			this.log(`git ${args.join(' ')}\n`);
@@ -371,7 +390,7 @@ export class Git {
 	}
 }
 
-export interface ICommit {
+export interface Commit {
 	hash: string;
 	message: string;
 }
@@ -380,7 +399,7 @@ export class Repository {
 
 	constructor(
 		private _git: Git,
-		private repository: string,
+		private repositoryRoot: string,
 		private env: any = {}
 	) { }
 
@@ -388,34 +407,30 @@ export class Repository {
 		return this._git;
 	}
 
-	get path(): string {
-		return this.repository;
+	get root(): string {
+		return this.repositoryRoot;
 	}
 
 	// TODO@Joao: rename to exec
 	async run(args: string[], options: any = {}): Promise<IExecutionResult> {
-		options.env = _.assign({}, options.env || {});
-		options.env = _.assign(options.env, this.env);
+		options.env = assign({}, options.env || {});
+		options.env = assign(options.env, this.env);
 
-		return await this.git.exec(this.repository, args, options);
+		return await this.git.exec(this.repositoryRoot, args, options);
 	}
 
 	stream(args: string[], options: any = {}): cp.ChildProcess {
-		options.env = _.assign({}, options.env || {});
-		options.env = _.assign(options.env, this.env);
+		options.env = assign({}, options.env || {});
+		options.env = assign(options.env, this.env);
 
-		return this.git.stream(this.repository, args, options);
+		return this.git.stream(this.repositoryRoot, args, options);
 	}
 
 	spawn(args: string[], options: any = {}): cp.ChildProcess {
-		options.env = _.assign({}, options.env || {});
-		options.env = _.assign(options.env, this.env);
+		options.env = assign({}, options.env || {});
+		options.env = assign(options.env, this.env);
 
 		return this.git.spawn(args, options);
-	}
-
-	init(): Promise<any> {
-		return this.run(['init']);
 	}
 
 	async config(scope: string, key: string, value: any, options: any): Promise<string> {
@@ -573,11 +588,9 @@ export class Repository {
 	}
 
 	async clean(paths: string[]): Promise<void> {
-		const tasks = _(paths)
-			.groupBy(p => path.dirname(p))
-			.values<string[]>()
-			.map(paths => () => this.run(['clean', '-f', '-q', '--'].concat(paths)))
-			.value();
+		const pathsByGroup = groupBy(paths, p => path.dirname(p));
+		const groups = Object.keys(pathsByGroup).map(k => pathsByGroup[k]);
+		const tasks = groups.map(paths => () => this.run(['clean', '-f', '-q', '--'].concat(paths)));
 
 		for (let task of tasks) {
 			await task();
@@ -678,7 +691,7 @@ export class Repository {
 		}
 	}
 
-	async push(remote?: string, name?: string, options?: IPushOptions): Promise<void> {
+	async push(remote?: string, name?: string, options?: PushOptions): Promise<void> {
 		const args = ['push'];
 
 		if (options && options.setUpstream) {
@@ -709,11 +722,6 @@ export class Repository {
 	async sync(): Promise<void> {
 		await this.pull();
 		await this.push();
-	}
-
-	async getRoot(): Promise<string> {
-		const result = await this.run(['rev-parse', '--show-toplevel']);
-		return result.stdout.trim();
 	}
 
 	async getStatus(): Promise<IFileStatus[]> {
@@ -756,7 +764,7 @@ export class Repository {
 		return result;
 	}
 
-	async getHEAD(): Promise<IRef> {
+	async getHEAD(): Promise<Ref> {
 		try {
 			const result = await this.run(['symbolic-ref', '--short', 'HEAD']);
 
@@ -776,10 +784,10 @@ export class Repository {
 		}
 	}
 
-	async getRefs(): Promise<IRef[]> {
+	async getRefs(): Promise<Ref[]> {
 		const result = await this.run(['for-each-ref', '--format', '%(refname) %(objectname)']);
 
-		const fn = (line): IRef | null => {
+		const fn = (line): Ref | null => {
 			let match: RegExpExecArray | null;
 
 			if (match = /^refs\/heads\/([^ ]+) ([0-9a-f]{40})$/.exec(line)) {
@@ -796,23 +804,22 @@ export class Repository {
 		return result.stdout.trim().split('\n')
 			.filter(line => !!line)
 			.map(fn)
-			.filter(ref => !!ref) as IRef[];
+			.filter(ref => !!ref) as Ref[];
 	}
 
-	async getRemotes(): Promise<IRemote[]> {
+	async getRemotes(): Promise<Remote[]> {
 		const result = await this.run(['remote', '--verbose']);
 		const regex = /^([^\s]+)\s+([^\s]+)\s/;
-
-		return _(result.stdout.trim().split('\n'))
+		const rawRemotes = result.stdout.trim().split('\n')
 			.filter(b => !!b)
 			.map(line => regex.exec(line))
 			.filter(g => !!g)
-			.map((groups: RegExpExecArray) => ({ name: groups[1], url: groups[2] }))
-			.uniqBy(remote => remote.name)
-			.value();
+			.map((groups: RegExpExecArray) => ({ name: groups[1], url: groups[2] }));
+
+		return uniqBy(rawRemotes, remote => remote.name);
 	}
 
-	async getBranch(name: string): Promise<IBranch> {
+	async getBranch(name: string): Promise<Branch> {
 		if (name === 'HEAD') {
 			return this.getHEAD();
 		}
@@ -820,7 +827,7 @@ export class Repository {
 		const result = await this.run(['rev-parse', name]);
 
 		if (!result.stdout) {
-			return Promise.reject<IBranch>(new Error('No such branch'));
+			return Promise.reject<Branch>(new Error('No such branch'));
 		}
 
 		const commit = result.stdout.trim();
@@ -864,7 +871,7 @@ export class Repository {
 				.replace(/^~([^\/]*)\//, (_, user) => `${user ? path.join(path.dirname(homedir), user) : homedir}/`);
 
 			if (!path.isAbsolute(templatePath)) {
-				templatePath = path.join(this.repository, templatePath);
+				templatePath = path.join(this.repositoryRoot, templatePath);
 			}
 
 			const raw = await readfile(templatePath, 'utf8');
@@ -875,12 +882,12 @@ export class Repository {
 		}
 	}
 
-	async getCommit(ref: string): Promise<ICommit> {
+	async getCommit(ref: string): Promise<Commit> {
 		const result = await this.run(['show', '-s', '--format=%H\n%B', ref]);
 		const match = /^([0-9a-f]{40})\n([^]*)$/m.exec(result.stdout.trim());
 
 		if (!match) {
-			return Promise.reject<ICommit>('bad commit format');
+			return Promise.reject<Commit>('bad commit format');
 		}
 
 		return { hash: match[1], message: match[2] };

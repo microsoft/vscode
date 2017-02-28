@@ -40,11 +40,18 @@ export interface ISCMProvider extends IDisposable {
 	readonly label: string;
 	readonly resources: ISCMResourceGroup[];
 	readonly onDidChange: Event<ISCMResourceGroup[]>;
+	readonly count?: number;
+	readonly state?: string;
 
-	commit(message: string): TPromise<void>;
 	open(uri: ISCMResource): TPromise<void>;
+	acceptChanges(): TPromise<void>;
 	drag(from: ISCMResource, to: ISCMResourceGroup): TPromise<void>;
 	getOriginalResource(uri: URI): TPromise<URI>;
+}
+
+export interface ISCMInput {
+	value: string;
+	readonly onDidChange: Event<string>;
 }
 
 export interface ISCMService {
@@ -52,6 +59,7 @@ export interface ISCMService {
 	readonly _serviceBrand: any;
 	readonly onDidChangeProvider: Event<ISCMProvider>;
 	readonly providers: ISCMProvider[];
+	readonly input: ISCMInput;
 	activeProvider: ISCMProvider | undefined;
 
 	registerSCMProvider(provider: ISCMProvider): IDisposable;

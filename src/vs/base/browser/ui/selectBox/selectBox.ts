@@ -70,15 +70,6 @@ export class SelectBox extends Widget {
 		}
 	}
 
-	public set enabled(value: boolean) {
-		dom.toggleClass(this.container, 'disabled', !value);
-		this.selectElement.disabled = !value;
-	}
-
-	public get enabled(): boolean {
-		return !this.selectElement.disabled;
-	}
-
 	public blur(): void {
 		if (this.selectElement) {
 			this.selectElement.blur();

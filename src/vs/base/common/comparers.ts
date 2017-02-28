@@ -7,10 +7,41 @@
 import scorer = require('vs/base/common/scorer');
 import strings = require('vs/base/common/strings');
 
-const FileNameComparer = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+let intlFileNameComparer: Intl.Collator;
+
+export function setFileNameComparer(collator: Intl.Collator): void {
+	intlFileNameComparer = collator;
+}
 
 export function compareFileNames(one: string, other: string): number {
-	return FileNameComparer.compare(one || '', other || '');
+	if (intlFileNameComparer) {
+		return intlFileNameComparer.compare(one || '', other || '');
+	}
+
+	return noIntlCompareFileNames(one, other);
+}
+
+const FileNameMatch = /^([^.]*)(\.(.*))?$/;
+
+export function noIntlCompareFileNames(one: string, other: string): number {
+	let oneMatch = FileNameMatch.exec(one.toLowerCase());
+	let otherMatch = FileNameMatch.exec(other.toLowerCase());
+
+	let oneName = oneMatch[1] || '';
+	let oneExtension = oneMatch[3] || '';
+
+	let otherName = otherMatch[1] || '';
+	let otherExtension = otherMatch[3] || '';
+
+	if (oneName !== otherName) {
+		return oneName < otherName ? -1 : 1;
+	}
+
+	if (oneExtension === otherExtension) {
+		return 0;
+	}
+
+	return oneExtension < otherExtension ? -1 : 1;
 }
 
 export function compareAnything(one: string, other: string, lookFor: string): number {
@@ -84,10 +115,6 @@ export function compareByScore<T>(elementA: T, elementB: T, accessor: IScorableR
 	const labelAScore = scorer.score(labelA, lookFor, scorerCache);
 	const labelBScore = scorer.score(labelB, lookFor, scorerCache);
 
-	// Useful for understanding the scoring
-	// elementA.setPrefix(labelAScore + ' ');
-	// elementB.setPrefix(labelBScore + ' ');
-
 	if (labelAScore !== labelBScore) {
 		return labelAScore > labelBScore ? -1 : 1;
 	}
@@ -98,10 +125,6 @@ export function compareByScore<T>(elementA: T, elementB: T, accessor: IScorableR
 	if (resourcePathA && resourcePathB) {
 		const resourceAScore = scorer.score(resourcePathA, lookFor, scorerCache);
 		const resourceBScore = scorer.score(resourcePathB, lookFor, scorerCache);
-
-		// Useful for understanding the scoring
-		// elementA.setPrefix(elementA.getPrefix() + ' ' + resourceAScore + ': ');
-		// elementB.setPrefix(elementB.getPrefix() + ' ' + resourceBScore + ': ');
 
 		if (resourceAScore !== resourceBScore) {
 			return resourceAScore > resourceBScore ? -1 : 1;

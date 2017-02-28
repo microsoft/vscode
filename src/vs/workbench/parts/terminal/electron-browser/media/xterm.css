@@ -3,14 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench .panel.integrated-terminal {
-	font-feature-settings: "liga" 0;
-}
-
-.monaco-workbench .panel.integrated-terminal.enable-ligatures {
-	font-feature-settings: "liga" 1;
-}
-
 .monaco-workbench .panel.integrated-terminal .xterm {
 	background-color: transparent!important;
 	position: relative;
@@ -22,10 +14,16 @@
 	outline: none;
 }
 
-.hc-black .monaco-workbench .panel.integrated-terminal .xterm.focus,
-.hc-black .monaco-workbench .panel.integrated-terminal .xterm:focus {
-	outline: 2px solid #f38518;
-	outline-offset: -2px;
+.hc-black .monaco-workbench .panel.integrated-terminal .xterm.focus::before,
+.hc-black .monaco-workbench .panel.integrated-terminal .xterm:focus::before {
+	display: block;
+	content: "";
+	border: 2px solid #f38518;
+	position: absolute;
+	left: -5px;
+	top: 0;
+	right: -5px;
+	bottom: 0;
 }
 
 .monaco-workbench .panel.integrated-terminal .xterm .xterm-helpers {
@@ -50,6 +48,16 @@
 .monaco-workbench .panel.integrated-terminal .xterm .xterm-helper-textarea:focus {
 	/* Override the general vscode style applies `opacity:1!important` to textareas */
 	opacity: 0 !important;
+}
+
+.monaco-workbench .panel.integrated-terminal .xterm a {
+	color: inherit;
+	text-decoration: none;
+}
+
+.monaco-workbench .panel.integrated-terminal .xterm a:hover {
+	cursor: pointer;
+	text-decoration: underline;
 }
 
 .monaco-workbench .panel.integrated-terminal .xterm:not(.xterm-cursor-style-underline):not(.xterm-cursor-style-bar).focus .reverse-video,
@@ -83,42 +91,15 @@
 }
 
 .monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-blink:not(.xterm-cursor-style-underline):not(.xterm-cursor-style-bar).focus .terminal-cursor,
-.monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-blink:not(.xterm-cursor-style-underline):not(.xterm-cursor-style-bar):focus .terminal-cursor { animation: cursor-blink 1.2s infinite step-end; }
-.vs-dark .monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-blink:not(.xterm-cursor-style-underline):not(.xterm-cursor-style-bar).focus .terminal-cursor,
-.vs-dark .monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-blink:not(.xterm-cursor-style-underline):not(.xterm-cursor-style-bar):focus .terminal-cursor { animation: cursor-blink-dark 1.2s infinite step-end; }
-.hc-black .monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-blink:not(.xterm-cursor-style-underline):not(.xterm-cursor-style-bar).focus .terminal-cursor,
-.hc-black .monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-blink:not(.xterm-cursor-style-underline):not(.xterm-cursor-style-bar):focus .terminal-cursor { animation: cursor-blink-hc-black 1.2s infinite step-end; }
+.monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-blink:not(.xterm-cursor-style-underline):not(.xterm-cursor-style-bar):focus .terminal-cursor {
+	animation: cursor-blink 1.2s infinite step-end;
+}
 
 @keyframes cursor-blink {
-	0% {
-		background-color: #333;
-		color: #CCC;
-	}
+	0% {}
 	50% {
 		background-color: transparent;
-		color: #333;
-	}
-}
-
-@keyframes cursor-blink-dark {
-	0% {
-		background-color: #CCC;
-		color: #1e1e1e;
-	}
-	50% {
-		background-color: transparent;
-		color: #CCC;
-	}
-}
-
-@keyframes cursor-blink-hc-black {
-	0% {
-		background-color: #fff;
-		color: #000;
-	}
-	50% {
-		background-color: transparent;
-		color: #FFF;
+		color: inherit;
 	}
 }
 

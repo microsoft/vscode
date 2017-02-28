@@ -10,7 +10,7 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICommandService, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorOptions, IActionDescriptor, ICodeEditorWidgetCreationOptions, IDiffEditorOptions, IModel, IModelChangedEvent, EventType } from 'vs/editor/common/editorCommon';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
@@ -20,6 +20,7 @@ import { CodeEditor } from 'vs/editor/browser/codeEditor';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IStandaloneColorService } from 'vs/editor/common/services/standaloneColorService';
+import { IOSupport } from 'vs/platform/keybinding/common/keybindingResolver';
 
 /**
  * The options to create an editor.
@@ -133,8 +134,8 @@ export class StandaloneEditor extends CodeEditor implements IStandaloneCodeEdito
 			return null;
 		}
 		let commandId = 'DYNAMIC_' + (++LAST_GENERATED_COMMAND_ID);
-
-		this._standaloneKeybindingService.addDynamicKeybinding(commandId, keybinding, handler, context);
+		let whenExpression = IOSupport.readKeybindingWhen(context);
+		this._standaloneKeybindingService.addDynamicKeybinding(commandId, keybinding, handler, whenExpression);
 		return commandId;
 	}
 
@@ -157,9 +158,13 @@ export class StandaloneEditor extends CodeEditor implements IStandaloneCodeEdito
 			let handler: ICommandHandler = (accessor) => {
 				return this.trigger('keyboard', descriptor.id, null);
 			};
+			let whenExpression = ContextKeyExpr.and(
+				IOSupport.readKeybindingWhen(descriptor.precondition),
+				IOSupport.readKeybindingWhen(descriptor.keybindingContext),
+			);
 			toDispose = toDispose.concat(
 				descriptor.keybindings.map((kb) => {
-					return this._standaloneKeybindingService.addDynamicKeybinding(addedAction.uniqueId, kb, handler, descriptor.keybindingContext);
+					return this._standaloneKeybindingService.addDynamicKeybinding(addedAction.uniqueId, kb, handler, whenExpression);
 				})
 			);
 		}
@@ -169,7 +174,7 @@ export class StandaloneEditor extends CodeEditor implements IStandaloneCodeEdito
 	_attachModel(model: IModel): void {
 		super._attachModel(model);
 		if (this._view) {
-			this._contextViewService.setContainer(this._view.domNode);
+			this._contextViewService.setContainer(this._view.domNode.domNode);
 		}
 	}
 
@@ -226,7 +231,8 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 			return null;
 		}
 		let commandId = 'DYNAMIC_' + (++LAST_GENERATED_COMMAND_ID);
-		this._standaloneKeybindingService.addDynamicKeybinding(commandId, keybinding, handler, context);
+		let whenExpression = IOSupport.readKeybindingWhen(context);
+		this._standaloneKeybindingService.addDynamicKeybinding(commandId, keybinding, handler, whenExpression);
 		return commandId;
 	}
 
@@ -249,9 +255,13 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 			let handler: ICommandHandler = (ctx) => {
 				return this.trigger('keyboard', descriptor.id, null);
 			};
+			let whenExpression = ContextKeyExpr.and(
+				IOSupport.readKeybindingWhen(descriptor.precondition),
+				IOSupport.readKeybindingWhen(descriptor.keybindingContext),
+			);
 			toDispose = toDispose.concat(
 				descriptor.keybindings.map((kb) => {
-					return this._standaloneKeybindingService.addDynamicKeybinding(addedAction.uniqueId, kb, handler, descriptor.keybindingContext);
+					return this._standaloneKeybindingService.addDynamicKeybinding(addedAction.uniqueId, kb, handler, whenExpression);
 				})
 			);
 		}

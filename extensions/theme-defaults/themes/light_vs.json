@@ -34,7 +34,9 @@
 			}
 		},
 		{
-			"scope": "constant.numeric",
+			"scope": [
+				"constant.numeric"
+			],
 			"settings": {
 				"foreground": "#09885a"
 			}
@@ -43,16 +45,6 @@
 			"scope": "constant.regexp",
 			"settings": {
 				"foreground": "#811f3f"
-			}
-		},
-		{
-			"scope": [
-				"constant.other.color.rgb-value.css",
-				"constant.numeric.color.rgb-value.scss",
-				"constant.other.rgb-value.css"
-			],
-			"settings": {
-				"foreground": "#0451a5"
 			}
 		},
 		{
@@ -264,9 +256,13 @@
 		},
 		{
 			"scope": [
-				"support.property-value",
-				"meta.property-value.css support",
-				"meta.property-value.scss support"
+				"support.constant.property-value",
+				"support.constant.font-name",
+				"support.constant.media-type",
+				"support.constant.media",
+				"constant.other.color.rgb-value",
+				"constant.other.rgb-value",
+				"support.constant.color"
 			],
 			"settings": {
 				"foreground": "#0451a5"
@@ -274,18 +270,19 @@
 		},
 		{
 			"scope": [
-				"support.type.property-name.css",
-				"support.type.property-name.variable.css",
-				"support.type.property-name.media.css",
-				"support.type.property-name.less",
-				"support.type.property-name.scss"
+				"support.type.vendored.property-name",
+				"support.type.property-name",
+				"variable.css",
+				"variable.scss",
+				"variable.other.less"
+
 			],
 			"settings": {
 				"foreground": "#ff0000"
 			}
 		},
 		{
-			"scope": "support.type.property-name",
+			"scope": "support.type.property-name.json",
 			"settings": {
 				"foreground": "#0451a5"
 			}

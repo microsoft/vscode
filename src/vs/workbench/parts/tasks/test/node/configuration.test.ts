@@ -12,15 +12,20 @@ import * as Platform from 'vs/base/common/platform';
 import { ProblemMatcher, FileLocationKind, ProblemPattern, ApplyToKind } from 'vs/platform/markers/common/problemMatcher';
 
 import * as TaskSystem from 'vs/workbench/parts/tasks/common/taskSystem';
-import { parse, ParseResult, ILogger, ExternalTaskRunnerConfiguration } from 'vs/workbench/parts/tasks/node/processRunnerConfiguration';
+import { parse, ParseResult, ILogger, ExternalTaskRunnerConfiguration } from 'vs/workbench/parts/tasks/common/taskConfiguration';
 
 class Logger implements ILogger {
 	public receivedMessage: boolean = false;
-	public lastMessage: string = null;
+	public lastMessage: string = undefined;
 
 	public log(message: string): void {
 		this.receivedMessage = true;
 		this.lastMessage = message;
+	}
+
+	public clearOutput(): void {
+		this.receivedMessage = false;
+		this.lastMessage = undefined;
 	}
 }
 
@@ -108,6 +113,7 @@ class TaskBuilder {
 		this.commandBuilder = new CommandConfigurationBuilder(this, command);
 		this.result = {
 			id: name,
+			identifier: name,
 			name: name,
 			command: this.commandBuilder.result,
 			showOutput: TaskSystem.ShowOutput.Always,
@@ -116,6 +122,11 @@ class TaskBuilder {
 			promptOnClose: true,
 			problemMatchers: []
 		};
+	}
+
+	public identifier(value: string): TaskBuilder {
+		this.result.identifier = value;
+		return this;
 	}
 
 	public args(value: string[]): TaskBuilder {
@@ -269,13 +280,163 @@ class PatternBuilder {
 	}
 }
 
+function testDefaultProblemMatcher(external: ExternalTaskRunnerConfiguration, resolved: number) {
+	let logger = new Logger();
+	let result = parse(external, logger);
+	assert.ok(!logger.receivedMessage);
+	let config = result.configuration;
+	let keys = Object.keys(config.tasks);
+	assert.strictEqual(keys.length, 1);
+	let task = config.tasks[keys[0]];
+	assert.ok(task);
+	assert.strictEqual(task.problemMatchers.length, resolved);
+
+}
+
+function testConfiguration(external: ExternalTaskRunnerConfiguration, builder: ConfiguationBuilder): void {
+	let logger = new Logger();
+	let result = parse(external, logger);
+	if (logger.receivedMessage) {
+		assert.ok(false, logger.lastMessage);
+	}
+	assertConfiguration(result, builder.result);
+}
+
+function assertConfiguration(result: ParseResult, expected: TaskSystem.TaskRunnerConfiguration) {
+	assert.ok(result.validationStatus.isOK());
+	let actual = result.configuration;
+	assert.strictEqual(typeof actual.tasks, typeof expected.tasks);
+	let actualBuildTasks: string[] = [];
+	let actualTestTasks: string[] = [];
+	if (actual.tasks && expected.tasks) {
+		// We can't compare Ids since the parser uses UUID which are random
+		// So create a new map using the name.
+		let actualTasks: { [key: string]: TaskSystem.TaskDescription; } = Object.create(null);
+		Object.keys(actual.tasks).forEach((key) => {
+			let task = actual.tasks[key];
+			assert.ok(!actualTasks[task.name]);
+			actualTasks[task.name] = task;
+		});
+		let actualKeys = Object.keys(actualTasks);
+		let expectedKeys = Object.keys(expected.tasks);
+		assert.strictEqual(actualKeys.length, expectedKeys.length);
+		actualKeys.forEach((key) => {
+			let actualTask = actualTasks[key];
+			let expectedTask = expected.tasks[key];
+			assert.ok(expectedTask);
+			assertTask(actualTask, expectedTask);
+		});
+		actual.buildTasks.forEach((id) => {
+			actualBuildTasks.push(actual.tasks[id].name);
+		});
+		actual.testTasks.forEach((id) => {
+			actualTestTasks.push(actual.tasks[id].name);
+		});
+	}
+	assertTaskConfig(actualBuildTasks, expected.buildTasks);
+	assertTaskConfig(actualTestTasks, expected.testTasks);
+}
+
+function assertTaskConfig(actual: string[], expected: string[]): void {
+	assert.strictEqual(typeof actual, typeof expected);
+	if (actual && expected) {
+		assert.strictEqual(actual.length, expected.length);
+		assert.deepEqual(actual, expected);
+	}
+}
+
+function assertTask(actual: TaskSystem.TaskDescription, expected: TaskSystem.TaskDescription) {
+	assert.ok(actual.id);
+	assert.strictEqual(actual.name, expected.name, 'name');
+	assertCommandConfiguration(actual.command, expected.command);
+	assert.strictEqual(actual.showOutput, expected.showOutput, 'showOutput');
+	assert.strictEqual(actual.suppressTaskName, expected.suppressTaskName, 'suppressTaskName');
+	assert.strictEqual(actual.isBackground, expected.isBackground, 'isBackground');
+	assert.strictEqual(actual.promptOnClose, expected.promptOnClose, 'promptOnClose');
+	assert.strictEqual(typeof actual.problemMatchers, typeof expected.problemMatchers);
+	if (actual.problemMatchers && expected.problemMatchers) {
+		assert.strictEqual(actual.problemMatchers.length, expected.problemMatchers.length);
+		for (let i = 0; i < actual.problemMatchers.length; i++) {
+			assertProblemMatcher(actual.problemMatchers[i], expected.problemMatchers[i]);
+		}
+	}
+}
+
+function assertCommandConfiguration(actual: TaskSystem.CommandConfiguration, expected: TaskSystem.CommandConfiguration) {
+	assert.strictEqual(typeof actual, typeof expected);
+	if (actual && expected) {
+		assert.strictEqual(actual.name, expected.name, 'name');
+		assert.strictEqual(actual.isShellCommand, expected.isShellCommand, 'isShellCommand');
+		assert.deepEqual(actual.args, expected.args, 'args');
+		assert.strictEqual(typeof actual.options, typeof expected.options);
+		if (actual.options && expected.options) {
+			assert.strictEqual(actual.options.cwd, expected.options.cwd, 'cwd');
+			assert.strictEqual(typeof actual.options.env, typeof expected.options.env, 'env');
+			if (actual.options.env && expected.options.env) {
+				assert.deepEqual(actual.options.env, expected.options.env, 'env');
+			}
+		}
+		assert.strictEqual(actual.echo, expected.echo, 'echo');
+		assert.strictEqual(actual.taskSelector, expected.taskSelector, 'taskSelector');
+	}
+}
+
+function assertProblemMatcher(actual: ProblemMatcher, expected: ProblemMatcher) {
+	if (expected.owner === ProblemMatcherBuilder.DEFAULT_UUID) {
+		try {
+			UUID.parse(actual.owner);
+		} catch (err) {
+			assert.fail(actual.owner, 'Owner must be a UUID');
+		}
+	} else {
+		assert.strictEqual(actual.owner, expected.owner);
+	}
+	assert.strictEqual(actual.applyTo, expected.applyTo);
+	assert.strictEqual(actual.severity, expected.severity);
+	assert.strictEqual(actual.fileLocation, expected.fileLocation);
+	assert.strictEqual(actual.filePrefix, expected.filePrefix);
+	if (actual.pattern && expected.pattern) {
+		assertProblemPatterns(actual.pattern, expected.pattern);
+	}
+}
+
+function assertProblemPatterns(actual: ProblemPattern | ProblemPattern[], expected: ProblemPattern | ProblemPattern[]) {
+	assert.strictEqual(typeof actual, typeof expected);
+	if (Array.isArray(actual)) {
+		let actuals = <ProblemPattern[]>actual;
+		let expecteds = <ProblemPattern[]>expected;
+		assert.strictEqual(actuals.length, expecteds.length);
+		for (let i = 0; i < actuals.length; i++) {
+			assertProblemPattern(actuals[i], expecteds[i]);
+		}
+	} else {
+		assertProblemPattern(<ProblemPattern>actual, <ProblemPattern>expected);
+	}
+}
+
+function assertProblemPattern(actual: ProblemPattern, expected: ProblemPattern) {
+	assert.equal(actual.regexp.toString(), expected.regexp.toString());
+	assert.strictEqual(actual.file, expected.file);
+	assert.strictEqual(actual.message, expected.message);
+	if (typeof expected.location !== 'undefined') {
+		assert.strictEqual(actual.location, expected.location);
+	} else {
+		assert.strictEqual(actual.line, expected.line);
+		assert.strictEqual(actual.column, expected.column);
+		assert.strictEqual(actual.endLine, expected.endLine);
+		assert.strictEqual(actual.endColumn, expected.endColumn);
+	}
+	assert.strictEqual(actual.code, expected.code);
+	assert.strictEqual(actual.severity, expected.severity);
+	assert.strictEqual(actual.loop, expected.loop);
+}
 
 suite('Tasks Configuration parsing tests', () => {
 	test('tasks: all default', () => {
-		let builder = new ConfiguationBuilder();
+		let builder = new ConfiguationBuilder().buildTask('tsc');
 		builder.task('tsc', 'tsc').
 			suppressTaskName(true);
-		testGobalCommand(
+		testConfiguration(
 			{
 				version: '0.1.0',
 				command: 'tsc'
@@ -283,12 +444,12 @@ suite('Tasks Configuration parsing tests', () => {
 	});
 
 	test('tasks: global isShellCommand', () => {
-		let builder = new ConfiguationBuilder();
+		let builder = new ConfiguationBuilder().buildTask('tsc');
 		builder.task('tsc', 'tsc').
 			suppressTaskName(true).
 			command().
 			shell(true);
-		testGobalCommand(
+		testConfiguration(
 			{
 				version: '0.1.0',
 				command: 'tsc',
@@ -298,12 +459,12 @@ suite('Tasks Configuration parsing tests', () => {
 	});
 
 	test('tasks: global show output silent', () => {
-		let builder = new ConfiguationBuilder();
+		let builder = new ConfiguationBuilder().buildTask('tsc');
 		builder.
 			task('tsc', 'tsc').
 			suppressTaskName(true).
 			showOutput(TaskSystem.ShowOutput.Silent);
-		testGobalCommand(
+		testConfiguration(
 			{
 				version: '0.1.0',
 				command: 'tsc',
@@ -314,10 +475,10 @@ suite('Tasks Configuration parsing tests', () => {
 	});
 
 	test('tasks: global promptOnClose default', () => {
-		let builder = new ConfiguationBuilder();
+		let builder = new ConfiguationBuilder().buildTask('tsc');
 		builder.task('tsc', 'tsc').
 			suppressTaskName(true);
-		testGobalCommand(
+		testConfiguration(
 			{
 				version: '0.1.0',
 				command: 'tsc',
@@ -328,11 +489,11 @@ suite('Tasks Configuration parsing tests', () => {
 	});
 
 	test('tasks: global promptOnClose', () => {
-		let builder = new ConfiguationBuilder();
+		let builder = new ConfiguationBuilder().buildTask('tsc');
 		builder.task('tsc', 'tsc').
 			suppressTaskName(true).
 			promptOnClose(false);
-		testGobalCommand(
+		testConfiguration(
 			{
 				version: '0.1.0',
 				command: 'tsc',
@@ -343,12 +504,12 @@ suite('Tasks Configuration parsing tests', () => {
 	});
 
 	test('tasks: global promptOnClose default watching', () => {
-		let builder = new ConfiguationBuilder();
+		let builder = new ConfiguationBuilder().buildTask('tsc');
 		builder.task('tsc', 'tsc').
 			suppressTaskName(true).
 			isBackground(true).
 			promptOnClose(false);
-		testGobalCommand(
+		testConfiguration(
 			{
 				version: '0.1.0',
 				command: 'tsc',
@@ -359,12 +520,12 @@ suite('Tasks Configuration parsing tests', () => {
 	});
 
 	test('tasks: global show output never', () => {
-		let builder = new ConfiguationBuilder();
+		let builder = new ConfiguationBuilder().buildTask('tsc');
 		builder.
 			task('tsc', 'tsc').
 			suppressTaskName(true).
 			showOutput(TaskSystem.ShowOutput.Never);
-		testGobalCommand(
+		testConfiguration(
 			{
 				version: '0.1.0',
 				command: 'tsc',
@@ -375,13 +536,13 @@ suite('Tasks Configuration parsing tests', () => {
 	});
 
 	test('tasks: global echo Command', () => {
-		let builder = new ConfiguationBuilder();
+		let builder = new ConfiguationBuilder().buildTask('tsc');
 		builder.
 			task('tsc', 'tsc').
 			suppressTaskName(true).
 			command().
 			echo(true);
-		testGobalCommand(
+		testConfiguration(
 			{
 				version: '0.1.0',
 				command: 'tsc',
@@ -392,13 +553,13 @@ suite('Tasks Configuration parsing tests', () => {
 	});
 
 	test('tasks: global args', () => {
-		let builder = new ConfiguationBuilder();
+		let builder = new ConfiguationBuilder().buildTask('tsc');
 		builder.
 			task('tsc', 'tsc').
 			suppressTaskName(true).
 			command().
 			args(['--p']);
-		testGobalCommand(
+		testConfiguration(
 			{
 				version: '0.1.0',
 				command: 'tsc',
@@ -411,7 +572,7 @@ suite('Tasks Configuration parsing tests', () => {
 	});
 
 	test('tasks: options - cwd', () => {
-		let builder = new ConfiguationBuilder();
+		let builder = new ConfiguationBuilder().buildTask('tsc');
 		builder.
 			task('tsc', 'tsc').
 			suppressTaskName(true).
@@ -419,7 +580,7 @@ suite('Tasks Configuration parsing tests', () => {
 			options({
 				cwd: 'myPath'
 			});
-		testGobalCommand(
+		testConfiguration(
 			{
 				version: '0.1.0',
 				command: 'tsc',
@@ -432,13 +593,13 @@ suite('Tasks Configuration parsing tests', () => {
 	});
 
 	test('tasks: options - env', () => {
-		let builder = new ConfiguationBuilder();
+		let builder = new ConfiguationBuilder().buildTask('tsc');
 		builder.
 			task('tsc', 'tsc').
 			suppressTaskName(true).
 			command().
 			options({ cwd: '${workspaceRoot}', env: { key: 'value' } });
-		testGobalCommand(
+		testConfiguration(
 			{
 				version: '0.1.0',
 				command: 'tsc',
@@ -454,7 +615,7 @@ suite('Tasks Configuration parsing tests', () => {
 
 	test('tasks: os windows', () => {
 		let name: string = Platform.isWindows ? 'tsc.win' : 'tsc';
-		let builder = new ConfiguationBuilder();
+		let builder = new ConfiguationBuilder().buildTask(name);
 		builder.
 			task(name, name).
 			suppressTaskName(true);
@@ -465,12 +626,12 @@ suite('Tasks Configuration parsing tests', () => {
 				command: 'tsc.win'
 			}
 		};
-		testGobalCommand(external, builder);
+		testConfiguration(external, builder);
 	});
 
 	test('tasks: os windows & global isShellCommand', () => {
 		let name: string = Platform.isWindows ? 'tsc.win' : 'tsc';
-		let builder = new ConfiguationBuilder();
+		let builder = new ConfiguationBuilder().buildTask(name);
 		builder.
 			task(name, name).
 			suppressTaskName(true).
@@ -484,12 +645,12 @@ suite('Tasks Configuration parsing tests', () => {
 				command: 'tsc.win'
 			}
 		};
-		testGobalCommand(external, builder);
+		testConfiguration(external, builder);
 	});
 
 	test('tasks: os mac', () => {
 		let name: string = Platform.isMacintosh ? 'tsc.osx' : 'tsc';
-		let builder = new ConfiguationBuilder();
+		let builder = new ConfiguationBuilder().buildTask(name);
 		builder.
 			task(name, name).
 			suppressTaskName(true);
@@ -500,12 +661,12 @@ suite('Tasks Configuration parsing tests', () => {
 				command: 'tsc.osx'
 			}
 		};
-		testGobalCommand(external, builder);
+		testConfiguration(external, builder);
 	});
 
 	test('tasks: os linux', () => {
 		let name: string = Platform.isLinux ? 'tsc.linux' : 'tsc';
-		let builder = new ConfiguationBuilder();
+		let builder = new ConfiguationBuilder().buildTask(name);
 		builder.
 			task(name, name).
 			suppressTaskName(true);
@@ -516,11 +677,11 @@ suite('Tasks Configuration parsing tests', () => {
 				command: 'tsc.linux'
 			}
 		};
-		testGobalCommand(external, builder);
+		testConfiguration(external, builder);
 	});
 
 	test('tasks: overwrite showOutput', () => {
-		let builder = new ConfiguationBuilder();
+		let builder = new ConfiguationBuilder().buildTask('tsc');
 		builder.
 			task('tsc', 'tsc').
 			showOutput(Platform.isWindows ? TaskSystem.ShowOutput.Always : TaskSystem.ShowOutput.Never).
@@ -533,11 +694,11 @@ suite('Tasks Configuration parsing tests', () => {
 				showOutput: 'always'
 			}
 		};
-		testGobalCommand(external, builder);
+		testConfiguration(external, builder);
 	});
 
 	test('tasks: overwrite echo Command', () => {
-		let builder = new ConfiguationBuilder();
+		let builder = new ConfiguationBuilder().buildTask('tsc');
 		builder.
 			task('tsc', 'tsc').
 			suppressTaskName(true).
@@ -551,7 +712,7 @@ suite('Tasks Configuration parsing tests', () => {
 				echoCommand: false
 			}
 		};
-		testGobalCommand(external, builder);
+		testConfiguration(external, builder);
 	});
 
 	test('tasks: global problemMatcher one', () => {
@@ -598,10 +759,9 @@ suite('Tasks Configuration parsing tests', () => {
 				}
 			]
 		};
-		let builder = new ConfiguationBuilder();
+		let builder = new ConfiguationBuilder().buildTask('taskName');
 		builder.task('taskName', 'tsc');
-		let result = testConfiguration(external, builder);
-		assert.ok(result.configuration.buildTasks.length === 1);
+		testConfiguration(external, builder);
 	});
 
 	test('tasks: default build task', () => {
@@ -614,10 +774,9 @@ suite('Tasks Configuration parsing tests', () => {
 				}
 			]
 		};
-		let builder = new ConfiguationBuilder();
+		let builder = new ConfiguationBuilder().buildTask('build');
 		builder.task('build', 'tsc');
-		let result = testConfiguration(external, builder);
-		assert.ok(result.configuration.buildTasks.length === 1);
+		testConfiguration(external, builder);
 	});
 
 	test('tasks: test task', () => {
@@ -631,10 +790,9 @@ suite('Tasks Configuration parsing tests', () => {
 				}
 			]
 		};
-		let builder = new ConfiguationBuilder();
+		let builder = new ConfiguationBuilder().testTask('taskName');
 		builder.task('taskName', 'tsc');
-		let result = testConfiguration(external, builder);
-		assert.ok(result.configuration.testTasks.length === 1);
+		testConfiguration(external, builder);
 	});
 
 	test('tasks: default test task', () => {
@@ -647,10 +805,9 @@ suite('Tasks Configuration parsing tests', () => {
 				}
 			]
 		};
-		let builder = new ConfiguationBuilder();
+		let builder = new ConfiguationBuilder().testTask('test');
 		builder.task('test', 'tsc');
-		let result = testConfiguration(external, builder);
-		assert.ok(result.configuration.testTasks.length === 1);
+		testConfiguration(external, builder);
 	});
 
 	test('tasks: task with values', () => {
@@ -667,7 +824,7 @@ suite('Tasks Configuration parsing tests', () => {
 				}
 			]
 		};
-		let builder = new ConfiguationBuilder();
+		let builder = new ConfiguationBuilder().testTask('test');
 		builder.task('test', 'tsc').
 			showOutput(TaskSystem.ShowOutput.Never).
 			args(['--p']).
@@ -676,8 +833,7 @@ suite('Tasks Configuration parsing tests', () => {
 			command().
 			echo(true);
 
-		let result = testConfiguration(external, builder);
-		assert.ok(result.configuration.testTasks.length === 1);
+		testConfiguration(external, builder);
 	});
 
 	test('tasks: task inherits global values', () => {
@@ -692,14 +848,13 @@ suite('Tasks Configuration parsing tests', () => {
 				}
 			]
 		};
-		let builder = new ConfiguationBuilder();
+		let builder = new ConfiguationBuilder().testTask('test');
 		builder.task('test', 'tsc').
 			showOutput(TaskSystem.ShowOutput.Never).
 			command().
 			echo(true);
 
-		let result = testConfiguration(external, builder);
-		assert.ok(result.configuration.testTasks.length === 1);
+		testConfiguration(external, builder);
 	});
 
 	test('tasks: problem matcher default', () => {
@@ -1031,143 +1186,144 @@ suite('Tasks Configuration parsing tests', () => {
 		testConfiguration(external, builder);
 	});
 
-	function testDefaultProblemMatcher(external: ExternalTaskRunnerConfiguration, resolved: number) {
-		let logger = new Logger();
-		let result = parse(external, logger);
-		assert.ok(!logger.receivedMessage);
-		let config = result.configuration;
-		let keys = Object.keys(config.tasks);
-		assert.strictEqual(keys.length, 1);
-		let task = config.tasks[keys[0]];
-		assert.ok(task);
-		assert.strictEqual(task.problemMatchers.length, resolved);
-
-	}
-
-	function testGobalCommand(external: ExternalTaskRunnerConfiguration, builder: ConfiguationBuilder) {
-		let result = testConfiguration(external, builder);
-		assert.ok(result.configuration.buildTasks.length === 1);
-		assert.ok(result.configuration.testTasks.length === 0);
-	}
-
-	function testConfiguration(external: ExternalTaskRunnerConfiguration, builder: ConfiguationBuilder): ParseResult {
-		let logger = new Logger();
-		let result = parse(external, logger);
-		if (logger.receivedMessage) {
-			assert.ok(false, logger.lastMessage);
-		}
-		assertConfiguration(result, builder.result);
-		return result;
-	}
-
-	function assertConfiguration(result: ParseResult, expected: TaskSystem.TaskRunnerConfiguration) {
-		assert.ok(result.validationStatus.isOK());
-		let actual = result.configuration;
-		assert.strictEqual(typeof actual.tasks, typeof expected.tasks);
-		if (actual.tasks && expected.tasks) {
-			// We can't compare Ids since the parser uses UUID which are random
-			// So create a new map using the name.
-			let actualTasks: { [key: string]: TaskSystem.TaskDescription; } = Object.create(null);
-			Object.keys(actual.tasks).forEach((key) => {
-				let task = actual.tasks[key];
-				assert.ok(!actualTasks[task.name]);
-				actualTasks[task.name] = task;
-			});
-			let actualKeys = Object.keys(actualTasks);
-			let expectedKeys = Object.keys(expected.tasks);
-			assert.strictEqual(actualKeys.length, expectedKeys.length);
-			actualKeys.forEach((key) => {
-				let actualTask = actualTasks[key];
-				let expectedTask = expected.tasks[key];
-				assert.ok(expectedTask);
-				assertTask(actualTask, expectedTask);
-			});
-		}
-	}
-
-	function assertTask(actual: TaskSystem.TaskDescription, expected: TaskSystem.TaskDescription) {
-		assert.ok(actual.id);
-		assert.strictEqual(actual.name, expected.name, 'name');
-		assertCommandConfiguration(actual.command, expected.command);
-		assert.strictEqual(actual.showOutput, expected.showOutput, 'showOutput');
-		assert.strictEqual(actual.suppressTaskName, expected.suppressTaskName, 'suppressTaskName');
-		assert.strictEqual(actual.isBackground, expected.isBackground, 'isBackground');
-		assert.strictEqual(actual.promptOnClose, expected.promptOnClose, 'promptOnClose');
-		assert.strictEqual(typeof actual.problemMatchers, typeof expected.problemMatchers);
-		if (actual.problemMatchers && expected.problemMatchers) {
-			assert.strictEqual(actual.problemMatchers.length, expected.problemMatchers.length);
-			for (let i = 0; i < actual.problemMatchers.length; i++) {
-				assertProblemMatcher(actual.problemMatchers[i], expected.problemMatchers[i]);
-			}
-		}
-	}
-
-	function assertCommandConfiguration(actual: TaskSystem.CommandConfiguration, expected: TaskSystem.CommandConfiguration) {
-		assert.strictEqual(typeof actual, typeof expected);
-		if (actual && expected) {
-			assert.strictEqual(actual.name, expected.name, 'name');
-			assert.strictEqual(actual.isShellCommand, expected.isShellCommand, 'isShellCommand');
-			assert.deepEqual(actual.args, expected.args, 'args');
-			assert.strictEqual(typeof actual.options, typeof expected.options);
-			if (actual.options && expected.options) {
-				assert.strictEqual(actual.options.cwd, expected.options.cwd, 'cwd');
-				assert.strictEqual(typeof actual.options.env, typeof expected.options.env, 'env');
-				if (actual.options.env && expected.options.env) {
-					assert.deepEqual(actual.options.env, expected.options.env, 'env');
+	test('tasks: with command os specific', () => {
+		let name: string = Platform.isWindows ? 'tsc.win' : 'tsc';
+		let external: ExternalTaskRunnerConfiguration = {
+			version: '0.1.0',
+			tasks: [
+				{
+					taskName: 'taskNameOne',
+					command: 'tsc',
+					windows: {
+						command: 'tsc.win'
+					}
 				}
-			}
-			assert.strictEqual(actual.echo, expected.echo, 'echo');
-			assert.strictEqual(actual.taskSelector, expected.taskSelector, 'taskSelector');
-		}
-	}
+			]
+		};
+		let builder = new ConfiguationBuilder();
+		builder.task('taskNameOne', name).suppressTaskName(true);
+		testConfiguration(external, builder);
+	});
 
-	function assertProblemMatcher(actual: ProblemMatcher, expected: ProblemMatcher) {
-		if (expected.owner === ProblemMatcherBuilder.DEFAULT_UUID) {
-			try {
-				UUID.parse(actual.owner);
-			} catch (err) {
-				assert.fail(actual.owner, 'Owner must be a UUID');
-			}
-		} else {
-			assert.strictEqual(actual.owner, expected.owner);
-		}
-		assert.strictEqual(actual.applyTo, expected.applyTo);
-		assert.strictEqual(actual.severity, expected.severity);
-		assert.strictEqual(actual.fileLocation, expected.fileLocation);
-		assert.strictEqual(actual.filePrefix, expected.filePrefix);
-		if (actual.pattern && expected.pattern) {
-			assertProblemPatterns(actual.pattern, expected.pattern);
-		}
-	}
+	test('tasks: with Windows specific args', () => {
+		let args: string[] = Platform.isWindows ? ['arg1', 'arg2'] : ['arg1'];
+		let external: ExternalTaskRunnerConfiguration = {
+			version: '0.1.0',
+			tasks: [
+				{
+					taskName: 'tsc',
+					command: 'tsc',
+					args: ['arg1'],
+					windows: {
+						args: ['arg2']
+					}
+				}
+			]
+		};
+		let builder = new ConfiguationBuilder();
+		builder.task('tsc', 'tsc').suppressTaskName(true).command().args(args);
+		testConfiguration(external, builder);
+	});
 
-	function assertProblemPatterns(actual: ProblemPattern | ProblemPattern[], expected: ProblemPattern | ProblemPattern[]) {
-		assert.strictEqual(typeof actual, typeof expected);
-		if (Array.isArray(actual)) {
-			let actuals = <ProblemPattern[]>actual;
-			let expecteds = <ProblemPattern[]>expected;
-			assert.strictEqual(actuals.length, expecteds.length);
-			for (let i = 0; i < actuals.length; i++) {
-				assertProblemPattern(actuals[i], expecteds[i]);
-			}
-		} else {
-			assertProblemPattern(<ProblemPattern>actual, <ProblemPattern>expected);
-		}
-	}
+	test('tasks: with Linux specific args', () => {
+		let args: string[] = Platform.isLinux ? ['arg1', 'arg2'] : ['arg1'];
+		let external: ExternalTaskRunnerConfiguration = {
+			version: '0.1.0',
+			tasks: [
+				{
+					taskName: 'tsc',
+					command: 'tsc',
+					args: ['arg1'],
+					linux: {
+						args: ['arg2']
+					}
+				}
+			]
+		};
+		let builder = new ConfiguationBuilder();
+		builder.task('tsc', 'tsc').suppressTaskName(true).command().args(args);
+		testConfiguration(external, builder);
+	});
 
-	function assertProblemPattern(actual: ProblemPattern, expected: ProblemPattern) {
-		assert.equal(actual.regexp.toString(), expected.regexp.toString());
-		assert.strictEqual(actual.file, expected.file);
-		assert.strictEqual(actual.message, expected.message);
-		if (typeof expected.location !== 'undefined') {
-			assert.strictEqual(actual.location, expected.location);
-		} else {
-			assert.strictEqual(actual.line, expected.line);
-			assert.strictEqual(actual.column, expected.column);
-			assert.strictEqual(actual.endLine, expected.endLine);
-			assert.strictEqual(actual.endColumn, expected.endColumn);
+	test('tasks: global command and task command properties', () => {
+		let external: ExternalTaskRunnerConfiguration = {
+			version: '0.1.0',
+			command: 'tsc',
+			tasks: [
+				{
+					taskName: 'taskNameOne',
+					isShellCommand: true,
+				}
+			]
+		};
+		let builder = new ConfiguationBuilder();
+		builder.task('taskNameOne', 'tsc').command().shell(false);
+		testConfiguration(external, builder);
+	});
+});
+
+suite('Bugs / regression tests', () => {
+	test('Bug 19548', () => {
+		if (Platform.isLinux) {
+			return;
 		}
-		assert.strictEqual(actual.code, expected.code);
-		assert.strictEqual(actual.severity, expected.severity);
-		assert.strictEqual(actual.loop, expected.loop);
-	}
+		let external: ExternalTaskRunnerConfiguration = {
+			version: '0.1.0',
+			windows: {
+				command: 'powershell',
+				options: {
+					cwd: '${workspaceRoot}'
+				},
+				tasks: [
+					{
+						taskName: 'composeForDebug',
+						suppressTaskName: true,
+						args: [
+							'-ExecutionPolicy',
+							'RemoteSigned',
+							'.\\dockerTask.ps1',
+							'-ComposeForDebug',
+							'-Environment',
+							'debug'
+						],
+						isBuildCommand: false,
+						showOutput: 'always',
+						echoCommand: true
+					}
+				]
+			},
+			osx: {
+				command: '/bin/bash',
+				options: {
+					cwd: '${workspaceRoot}'
+				},
+				tasks: [
+					{
+						taskName: 'composeForDebug',
+						suppressTaskName: true,
+						args: [
+							'-c',
+							'./dockerTask.sh composeForDebug debug'
+						],
+						isBuildCommand: false,
+						showOutput: 'always'
+					}
+				]
+			}
+		};
+		let builder = new ConfiguationBuilder();
+		if (Platform.isWindows) {
+			builder.task('composeForDebug', 'powershell').
+				suppressTaskName(true).showOutput(TaskSystem.ShowOutput.Always).
+				args(['-ExecutionPolicy', 'RemoteSigned', '.\\dockerTask.ps1', '-ComposeForDebug', '-Environment', 'debug']).
+				command().echo(true).options({ cwd: '${workspaceRoot}' });
+			testConfiguration(external, builder);
+		} else if (Platform.isMacintosh) {
+			builder.task('composeForDebug', '/bin/bash').
+				suppressTaskName(true).showOutput(TaskSystem.ShowOutput.Always).
+				args(['-c', './dockerTask.sh composeForDebug debug']).
+				command().options({ cwd: '${workspaceRoot}' });
+			testConfiguration(external, builder);
+		}
+	});
 });

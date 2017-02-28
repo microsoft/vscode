@@ -39,7 +39,12 @@
 			}
 		},
 		{
-			"scope": "constant.numeric",
+			"scope": [
+				"constant.numeric",
+				"constant.other.color.rgb-value",
+				"constant.other.rgb-value",
+				"support.constant.color"
+			],
 			"settings": {
 				"foreground": "#b5cea8"
 			}
@@ -48,16 +53,6 @@
 			"scope": "constant.regexp",
 			"settings": {
 				"foreground": "#b46695"
-			}
-		},
-		{
-			"scope": [
-				"constant.other.color.rgb-value.css",
-				"constant.numeric.color.rgb-value.scss",
-				"constant.other.rgb-value.css"
-			],
-			"settings": {
-				"foreground": "#d4d4d4"
 			}
 		},
 		{
@@ -236,7 +231,13 @@
 			}
 		},
 		{
-			"scope": "support.type.property-name",
+			"scope": [
+				"support.type.vendored.property-name",
+				"support.type.property-name",
+				"variable.css",
+				"variable.scss",
+				"variable.other.less"
+			],
 			"settings": {
 				"foreground": "#d4d4d4"
 			}

@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IAction, Action } from 'vs/base/common/actions';
-import { Promise, TPromise } from 'vs/base/common/winjs.base';
-import { SyncDescriptor0, createSyncDescriptor, AsyncDescriptor0 } from 'vs/platform/instantiation/common/descriptors';
-import { IConstructorSignature2, IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { Action } from 'vs/base/common/actions';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { SyncDescriptor0, createSyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { IConstructorSignature2, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindings } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -19,11 +19,6 @@ export interface ICommandAction {
 	title: string;
 	category?: string;
 	iconClass?: string;
-}
-
-export interface IMenu extends IDisposable {
-	onDidChange: Event<IMenu>;
-	getActions(arg?: any): [string, MenuItemAction[]][];
 }
 
 export interface IMenuItem {
@@ -49,6 +44,7 @@ export class MenuId {
 	static readonly SCMTitle = new MenuId('11');
 	static readonly SCMResourceGroupContext = new MenuId('12');
 	static readonly SCMResourceContext = new MenuId('13');
+	static readonly CommandPalette = new MenuId('14');
 
 	constructor(private _id: string) {
 
@@ -59,6 +55,11 @@ export class MenuId {
 	}
 }
 
+export interface IMenu extends IDisposable {
+	onDidChange: Event<IMenu>;
+	getActions(arg?: any): [string, MenuItemAction[]][];
+}
+
 export const IMenuService = createDecorator<IMenuService>('menuService');
 
 export interface IMenuService {
@@ -66,8 +67,6 @@ export interface IMenuService {
 	_serviceBrand: any;
 
 	createMenu(id: MenuId, scopedKeybindingService: IContextKeyService): IMenu;
-
-	getCommandActions(): ICommandAction[];
 }
 
 export interface IMenuRegistry {
@@ -94,7 +93,7 @@ export const MenuRegistry: IMenuRegistry = new class {
 		return this.commands[id];
 	}
 
-	appendMenuItem({id}: MenuId, item: IMenuItem): IDisposable {
+	appendMenuItem({ id }: MenuId, item: IMenuItem): IDisposable {
 		let array = this.menuItems[id];
 		if (!array) {
 			this.menuItems[id] = array = [item];
@@ -111,8 +110,30 @@ export const MenuRegistry: IMenuRegistry = new class {
 		};
 	}
 
-	getMenuItems({id}: MenuId): IMenuItem[] {
-		return this.menuItems[id] || [];
+	getMenuItems({ id }: MenuId): IMenuItem[] {
+		const result = this.menuItems[id] || [];
+
+		if (id === MenuId.CommandPalette.id) {
+			// CommandPalette is special because it shows
+			// all commands by default
+			this._appendImplicitItems(result);
+		}
+		return result;
+	}
+
+	private _appendImplicitItems(result: IMenuItem[]) {
+		const set = new Set<string>();
+		for (const { command, alt } of result) {
+			set.add(command.id);
+			if (alt) {
+				set.add(alt.id);
+			}
+		}
+		for (let id in this.commands) {
+			if (!set.has(id)) {
+				result.push({ command: this.commands[id] });
+			}
+		}
 	}
 };
 
@@ -201,136 +222,5 @@ export class SyncActionDescriptor {
 
 	public get keybindingWeight(): number {
 		return this._keybindingWeight;
-	}
-}
-
-/**
- * A proxy for an action that needs to load code in order to confunction. Can be used from contributions to defer
- * module loading up to the point until the run method is being executed.
- */
-export class DeferredAction extends Action {
-	private _cachedAction: IAction;
-	private _emitterUnbind: IDisposable;
-
-	constructor(private _instantiationService: IInstantiationService,
-		private _descriptor: AsyncDescriptor0<Action>,
-		id: string, label = '', cssClass = '', enabled = true) {
-
-		super(id, label, cssClass, enabled);
-	}
-
-	public get cachedAction(): IAction {
-		return this._cachedAction;
-	}
-
-	public set cachedAction(action: IAction) {
-		this._cachedAction = action;
-	}
-
-	public get id(): string {
-		if (this._cachedAction instanceof Action) {
-			return this._cachedAction.id;
-		}
-
-		return this._id;
-	}
-
-	public get label(): string {
-		if (this._cachedAction instanceof Action) {
-			return this._cachedAction.label;
-		}
-
-		return this._label;
-	}
-
-	public set label(value: string) {
-		if (this._cachedAction instanceof Action) {
-			this._cachedAction.label = value;
-		} else {
-			this._setLabel(value);
-		}
-	}
-
-	public get class(): string {
-		if (this._cachedAction instanceof Action) {
-			return this._cachedAction.class;
-		}
-
-		return this._cssClass;
-	}
-
-	public set class(value: string) {
-		if (this._cachedAction instanceof Action) {
-			this._cachedAction.class = value;
-		} else {
-			this._setClass(value);
-		}
-	}
-
-	public get enabled(): boolean {
-		if (this._cachedAction instanceof Action) {
-			return this._cachedAction.enabled;
-		}
-		return this._enabled;
-	}
-
-	public set enabled(value: boolean) {
-		if (this._cachedAction instanceof Action) {
-			this._cachedAction.enabled = value;
-		} else {
-			this._setEnabled(value);
-		}
-	}
-
-	public get order(): number {
-		if (this._cachedAction instanceof Action) {
-			return (<Action>this._cachedAction).order;
-		}
-		return this._order;
-	}
-
-	public set order(order: number) {
-		if (this._cachedAction instanceof Action) {
-			(<Action>this._cachedAction).order = order;
-		} else {
-			this._order = order;
-		}
-	}
-
-	public run(event?: any): Promise {
-		if (this._cachedAction) {
-			return this._cachedAction.run(event);
-		}
-		return this._createAction().then((action: IAction) => {
-			return action.run(event);
-		});
-	}
-
-	private _createAction(): TPromise<IAction> {
-		let promise = TPromise.as(undefined);
-		return promise.then(() => {
-			return this._instantiationService.createInstance(this._descriptor);
-		}).then(action => {
-			if (action instanceof Action) {
-				this._cachedAction = action;
-				// Pipe events from the instantated action through this deferred action
-				this._emitterUnbind = action.onDidChange(e => this._onDidChange.fire(e));
-
-			} else {
-				throw new Error('Action must be an instanceof Base Action');
-			}
-
-			return action;
-		});
-	}
-
-	public dispose(): void {
-		if (this._emitterUnbind) {
-			this._emitterUnbind.dispose();
-		}
-		if (this._cachedAction) {
-			this._cachedAction.dispose();
-		}
-		super.dispose();
 	}
 }

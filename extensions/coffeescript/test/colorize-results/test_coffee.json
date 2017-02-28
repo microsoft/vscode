@@ -110,33 +110,11 @@
 		}
 	},
 	{
-		"c": "(",
-		"t": "source.coffee meta.inline.function.coffee punctuation.definition.parameters.begin.coffee",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
-		}
-	},
-	{
-		"c": "@name",
+		"c": "(@name)",
 		"t": "source.coffee meta.inline.function.coffee variable.parameter.function.coffee",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
-		}
-	},
-	{
-		"c": ")",
-		"t": "source.coffee meta.inline.function.coffee punctuation.definition.parameters.begin.coffee",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
@@ -210,10 +188,10 @@
 	},
 	{
 		"c": "()",
-		"t": "source.coffee meta.inline.function.coffee punctuation.definition.parameters.begin.coffee",
+		"t": "source.coffee meta.inline.function.coffee variable.parameter.function.coffee",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
@@ -298,7 +276,7 @@
 	},
 	{
 		"c": "#{",
-		"t": "source.coffee string.quoted.double.coffee meta.embedded.line.coffee punctuation.section.embedded.begin.coffee",
+		"t": "source.coffee string.quoted.double.coffee source.coffee.embedded.source punctuation.section.embedded.coffee",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -308,19 +286,8 @@
 		}
 	},
 	{
-		"c": "@",
-		"t": "source.coffee string.quoted.double.coffee meta.embedded.line.coffee source.coffee variable.other.readwrite.instance.coffee punctuation.definition.variable.coffee",
-		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
-		}
-	},
-	{
-		"c": "name",
-		"t": "source.coffee string.quoted.double.coffee meta.embedded.line.coffee source.coffee variable.other.readwrite.instance.coffee",
+		"c": "@name",
+		"t": "source.coffee string.quoted.double.coffee source.coffee.embedded.source variable.other.readwrite.instance.coffee",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -331,7 +298,7 @@
 	},
 	{
 		"c": "}",
-		"t": "source.coffee string.quoted.double.coffee meta.embedded.line.coffee punctuation.section.embedded.end.coffee source.coffee",
+		"t": "source.coffee string.quoted.double.coffee source.coffee.embedded.source punctuation.section.embedded.coffee",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -421,8 +388,8 @@
 		"c": "Vehicle",
 		"t": "source.coffee meta.class.coffee entity.other.inherited-class.coffee",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
+			"dark_plus": "entity.other.inherited-class: #4EC9B0",
+			"light_plus": "entity.other.inherited-class: #267F99",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
@@ -474,10 +441,10 @@
 	},
 	{
 		"c": "()",
-		"t": "source.coffee meta.inline.function.coffee punctuation.definition.parameters.begin.coffee",
+		"t": "source.coffee meta.inline.function.coffee variable.parameter.function.coffee",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
@@ -562,7 +529,7 @@
 	},
 	{
 		"c": "#{",
-		"t": "source.coffee string.quoted.double.coffee meta.embedded.line.coffee punctuation.section.embedded.begin.coffee",
+		"t": "source.coffee string.quoted.double.coffee source.coffee.embedded.source punctuation.section.embedded.coffee",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -572,19 +539,8 @@
 		}
 	},
 	{
-		"c": "@",
-		"t": "source.coffee string.quoted.double.coffee meta.embedded.line.coffee source.coffee variable.other.readwrite.instance.coffee punctuation.definition.variable.coffee",
-		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
-		}
-	},
-	{
-		"c": "name",
-		"t": "source.coffee string.quoted.double.coffee meta.embedded.line.coffee source.coffee variable.other.readwrite.instance.coffee",
+		"c": "@name",
+		"t": "source.coffee string.quoted.double.coffee source.coffee.embedded.source variable.other.readwrite.instance.coffee",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -595,7 +551,7 @@
 	},
 	{
 		"c": "}",
-		"t": "source.coffee string.quoted.double.coffee meta.embedded.line.coffee punctuation.section.embedded.end.coffee source.coffee",
+		"t": "source.coffee string.quoted.double.coffee source.coffee.embedded.source punctuation.section.embedded.coffee",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -617,7 +573,7 @@
 	},
 	{
 		"c": "c",
-		"t": "source.coffee variable.other.assignment.coffee",
+		"t": "source.coffee variable.assignment.coffee",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -826,7 +782,7 @@
 	},
 	{
 		"c": "vehicles",
-		"t": "source.coffee variable.other.assignment.coffee",
+		"t": "source.coffee variable.assignment.coffee",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -1034,11 +990,22 @@
 		}
 	},
 	{
-		"c": "startRace ",
+		"c": "startRace",
 		"t": "source.coffee meta.function.coffee entity.name.function.coffee",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.coffee meta.function.coffee",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
@@ -1067,33 +1034,11 @@
 		}
 	},
 	{
-		"c": "(",
-		"t": "source.coffee meta.inline.function.coffee punctuation.definition.parameters.begin.coffee",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
-		}
-	},
-	{
-		"c": "vehicles",
+		"c": "(vehicles)",
 		"t": "source.coffee meta.inline.function.coffee variable.parameter.function.coffee",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
-		}
-	},
-	{
-		"c": ")",
-		"t": "source.coffee meta.inline.function.coffee punctuation.definition.parameters.begin.coffee",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
@@ -1255,7 +1200,7 @@
 	},
 	{
 		"c": "fancyRegExp",
-		"t": "source.coffee variable.other.assignment.coffee",
+		"t": "source.coffee variable.assignment.coffee",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -1299,7 +1244,7 @@
 	},
 	{
 		"c": "///",
-		"t": "source.coffee string.regexp.block.coffee punctuation.definition.string.begin.coffee",
+		"t": "source.coffee string.regexp.coffee punctuation.definition.string.begin.coffee",
 		"r": {
 			"dark_plus": "string.regexp: #D16969",
 			"light_plus": "string.regexp: #811F3F",
@@ -1310,7 +1255,7 @@
 	},
 	{
 		"c": "\t",
-		"t": "source.coffee string.regexp.block.coffee",
+		"t": "source.coffee string.regexp.coffee",
 		"r": {
 			"dark_plus": "string.regexp: #D16969",
 			"light_plus": "string.regexp: #811F3F",
@@ -1321,7 +1266,7 @@
 	},
 	{
 		"c": "(",
-		"t": "source.coffee string.regexp.block.coffee meta.group.regexp punctuation.definition.group.regexp",
+		"t": "source.coffee string.regexp.coffee meta.group.regexp punctuation.definition.group.regexp",
 		"r": {
 			"dark_plus": "string.regexp: #D16969",
 			"light_plus": "string.regexp: #811F3F",
@@ -1332,7 +1277,7 @@
 	},
 	{
 		"c": "\\d",
-		"t": "source.coffee string.regexp.block.coffee meta.group.regexp constant.character.character-class.regexp",
+		"t": "source.coffee string.regexp.coffee meta.group.regexp constant.character.character-class.regexp",
 		"r": {
 			"dark_plus": "string.regexp: #D16969",
 			"light_plus": "string.regexp: #811F3F",
@@ -1343,7 +1288,7 @@
 	},
 	{
 		"c": "+",
-		"t": "source.coffee string.regexp.block.coffee meta.group.regexp keyword.operator.quantifier.regexp",
+		"t": "source.coffee string.regexp.coffee meta.group.regexp keyword.operator.quantifier.regexp",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -1354,7 +1299,7 @@
 	},
 	{
 		"c": ")",
-		"t": "source.coffee string.regexp.block.coffee meta.group.regexp punctuation.definition.group.regexp",
+		"t": "source.coffee string.regexp.coffee meta.group.regexp punctuation.definition.group.regexp",
 		"r": {
 			"dark_plus": "string.regexp: #D16969",
 			"light_plus": "string.regexp: #811F3F",
@@ -1365,7 +1310,7 @@
 	},
 	{
 		"c": "\t",
-		"t": "source.coffee string.regexp.block.coffee",
+		"t": "source.coffee string.regexp.coffee",
 		"r": {
 			"dark_plus": "string.regexp: #D16969",
 			"light_plus": "string.regexp: #811F3F",
@@ -1376,7 +1321,7 @@
 	},
 	{
 		"c": "#",
-		"t": "source.coffee string.regexp.block.coffee comment.line.number-sign.coffee punctuation.definition.comment.coffee",
+		"t": "source.coffee string.regexp.coffee comment.line.number-sign.coffee punctuation.definition.comment.coffee",
 		"r": {
 			"dark_plus": "comment: #608B4E",
 			"light_plus": "comment: #008000",
@@ -1387,7 +1332,7 @@
 	},
 	{
 		"c": " numbers",
-		"t": "source.coffee string.regexp.block.coffee comment.line.number-sign.coffee",
+		"t": "source.coffee string.regexp.coffee comment.line.number-sign.coffee",
 		"r": {
 			"dark_plus": "comment: #608B4E",
 			"light_plus": "comment: #008000",
@@ -1398,7 +1343,7 @@
 	},
 	{
 		"c": "\t",
-		"t": "source.coffee string.regexp.block.coffee",
+		"t": "source.coffee string.regexp.coffee",
 		"r": {
 			"dark_plus": "string.regexp: #D16969",
 			"light_plus": "string.regexp: #811F3F",
@@ -1409,7 +1354,7 @@
 	},
 	{
 		"c": "(",
-		"t": "source.coffee string.regexp.block.coffee meta.group.regexp punctuation.definition.group.regexp",
+		"t": "source.coffee string.regexp.coffee meta.group.regexp punctuation.definition.group.regexp",
 		"r": {
 			"dark_plus": "string.regexp: #D16969",
 			"light_plus": "string.regexp: #811F3F",
@@ -1420,7 +1365,7 @@
 	},
 	{
 		"c": "\\w",
-		"t": "source.coffee string.regexp.block.coffee meta.group.regexp constant.character.character-class.regexp",
+		"t": "source.coffee string.regexp.coffee meta.group.regexp constant.character.character-class.regexp",
 		"r": {
 			"dark_plus": "string.regexp: #D16969",
 			"light_plus": "string.regexp: #811F3F",
@@ -1431,7 +1376,7 @@
 	},
 	{
 		"c": "*",
-		"t": "source.coffee string.regexp.block.coffee meta.group.regexp keyword.operator.quantifier.regexp",
+		"t": "source.coffee string.regexp.coffee meta.group.regexp keyword.operator.quantifier.regexp",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -1442,7 +1387,7 @@
 	},
 	{
 		"c": ")",
-		"t": "source.coffee string.regexp.block.coffee meta.group.regexp punctuation.definition.group.regexp",
+		"t": "source.coffee string.regexp.coffee meta.group.regexp punctuation.definition.group.regexp",
 		"r": {
 			"dark_plus": "string.regexp: #D16969",
 			"light_plus": "string.regexp: #811F3F",
@@ -1453,7 +1398,7 @@
 	},
 	{
 		"c": "\t",
-		"t": "source.coffee string.regexp.block.coffee",
+		"t": "source.coffee string.regexp.coffee",
 		"r": {
 			"dark_plus": "string.regexp: #D16969",
 			"light_plus": "string.regexp: #811F3F",
@@ -1464,7 +1409,7 @@
 	},
 	{
 		"c": "#",
-		"t": "source.coffee string.regexp.block.coffee comment.line.number-sign.coffee punctuation.definition.comment.coffee",
+		"t": "source.coffee string.regexp.coffee comment.line.number-sign.coffee punctuation.definition.comment.coffee",
 		"r": {
 			"dark_plus": "comment: #608B4E",
 			"light_plus": "comment: #008000",
@@ -1475,7 +1420,7 @@
 	},
 	{
 		"c": " letters",
-		"t": "source.coffee string.regexp.block.coffee comment.line.number-sign.coffee",
+		"t": "source.coffee string.regexp.coffee comment.line.number-sign.coffee",
 		"r": {
 			"dark_plus": "comment: #608B4E",
 			"light_plus": "comment: #008000",
@@ -1486,7 +1431,7 @@
 	},
 	{
 		"c": "\t",
-		"t": "source.coffee string.regexp.block.coffee",
+		"t": "source.coffee string.regexp.coffee",
 		"r": {
 			"dark_plus": "string.regexp: #D16969",
 			"light_plus": "string.regexp: #811F3F",
@@ -1497,7 +1442,7 @@
 	},
 	{
 		"c": "$",
-		"t": "source.coffee string.regexp.block.coffee keyword.control.anchor.regexp",
+		"t": "source.coffee string.regexp.coffee keyword.control.anchor.regexp",
 		"r": {
 			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
@@ -1508,7 +1453,7 @@
 	},
 	{
 		"c": "\t\t",
-		"t": "source.coffee string.regexp.block.coffee",
+		"t": "source.coffee string.regexp.coffee",
 		"r": {
 			"dark_plus": "string.regexp: #D16969",
 			"light_plus": "string.regexp: #811F3F",
@@ -1519,7 +1464,7 @@
 	},
 	{
 		"c": "#",
-		"t": "source.coffee string.regexp.block.coffee comment.line.number-sign.coffee punctuation.definition.comment.coffee",
+		"t": "source.coffee string.regexp.coffee comment.line.number-sign.coffee punctuation.definition.comment.coffee",
 		"r": {
 			"dark_plus": "comment: #608B4E",
 			"light_plus": "comment: #008000",
@@ -1530,7 +1475,7 @@
 	},
 	{
 		"c": " the end",
-		"t": "source.coffee string.regexp.block.coffee comment.line.number-sign.coffee",
+		"t": "source.coffee string.regexp.coffee comment.line.number-sign.coffee",
 		"r": {
 			"dark_plus": "comment: #608B4E",
 			"light_plus": "comment: #008000",
@@ -1541,7 +1486,7 @@
 	},
 	{
 		"c": "///",
-		"t": "source.coffee string.regexp.block.coffee punctuation.definition.string.end.coffee",
+		"t": "source.coffee string.regexp.coffee punctuation.definition.string.end.coffee",
 		"r": {
 			"dark_plus": "string.regexp: #D16969",
 			"light_plus": "string.regexp: #811F3F",

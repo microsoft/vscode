@@ -53,7 +53,7 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 	private activeTaskPromise: TPromise<ITaskSummary>;
 
 	constructor(configuration: TaskRunnerConfiguration, markerService: IMarkerService, modelService: IModelService, telemetryService: ITelemetryService,
-		outputService: IOutputService, configurationResolverService: IConfigurationResolverService, outputChannelId: string, clearOutput: boolean = true) {
+		outputService: IOutputService, configurationResolverService: IConfigurationResolverService, outputChannelId: string, hasErrors: boolean) {
 		super();
 		this.configuration = configuration;
 		this.markerService = markerService;
@@ -66,11 +66,7 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 		this.activeTaskIdentifier = null;
 		this.activeTaskPromise = null;
 		this.outputChannel = this.outputService.getChannel(outputChannelId);
-
-		if (clearOutput) {
-			this.clearOutput();
-		}
-		this.errorsShown = false;
+		this.errorsShown = !hasErrors;
 	}
 
 
@@ -214,7 +210,7 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 		}
 		args = this.resolveVariables(args);
 		let command: string = this.resolveVariable(commandConfig.name);
-		this.childProcess = new LineProcess(command, args, commandConfig.isShellCommand, this.resolveOptions(commandConfig.options));
+		this.childProcess = new LineProcess(command, args, !!commandConfig.isShellCommand, this.resolveOptions(commandConfig.options));
 		telemetryEvent.command = this.childProcess.getSanitizedCommand();
 		// we have no problem matchers defined. So show the output log
 		if (task.showOutput === ShowOutput.Always || (task.showOutput === ShowOutput.Silent && task.problemMatchers.length === 0)) {

@@ -24,7 +24,7 @@ import { Viewlet } from 'vs/workbench/browser/viewlet';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { append, $, addStandardDisposableListener, EventType, addClass, removeClass, toggleClass } from 'vs/base/browser/dom';
-import { PagedModel, IPagedModel } from 'vs/base/common/paging';
+import { PagedModel, IPagedModel, mergePagers, IPager } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { PagedList } from 'vs/base/browser/ui/list/listPaging';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -40,12 +40,14 @@ import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensions
 import { Query } from '../common/extensionQuery';
 import { OpenGlobalSettingsAction } from 'vs/workbench/parts/preferences/browser/preferencesActions';
 import { IProgressService } from 'vs/platform/progress/common/progress';
+import { IListService } from 'vs/platform/list/browser/listService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IMessageService, CloseAction } from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
 import { IActivityBarService, ProgressBadge, NumberBadge } from 'vs/workbench/services/activity/common/activityBarService';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { IModeService } from 'vs/editor/common/services/modeService';
 
 interface SearchInputEvent extends Event {
 	target: HTMLInputElement;
@@ -73,11 +75,13 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IEditorGroupService private editorInputService: IEditorGroupService,
+		@IListService private listService: IListService,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionTipsService private tipsService: IExtensionTipsService,
 		@IMessageService private messageService: IMessageService,
 		@IViewletService private viewletService: IViewletService,
-		@IExtensionService private extensionService: IExtensionService
+		@IExtensionService private extensionService: IExtensionService,
+		@IModeService private modeService: IModeService
 	) {
 		super(VIEWLET_ID, telemetryService);
 		this.searchDelayer = new ThrottledDelayer(500);
@@ -103,10 +107,14 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		const delegate = new Delegate();
 		const renderer = this.instantiationService.createInstance(Renderer);
 		this.list = new PagedList(this.extensionsBox, delegate, [renderer], {
-			ariaLabel: localize('extensions', "Extensions")
+			ariaLabel: localize('extensions', "Extensions"),
+			keyboardSupport: false
 		});
 
+		this.disposables.push(this.listService.register(this.list.widget));
+
 		const onKeyDown = chain(domEvent(this.searchBox, 'keydown'))
+			.filter(() => this.list.length > 0)
 			.map(e => new StandardKeyboardEvent(e));
 
 		onKeyDown.filter(e => e.keyCode === KeyCode.Enter).on(this.onEnter, this, this.disposables);
@@ -229,26 +237,29 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 	}
 
 	private query(value: string): TPromise<IPagedModel<IExtension>> {
-		if (!value) {
+		if (!value || /@installed/i.test(value)) {
 			// Show installed extensions
+			value = value ? value.replace(/@installed/g, '').trim().toLowerCase() : '';
 			return this.extensionsWorkbenchService.queryLocal()
 				.then(result => result.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName)))
-				.then(result => result.filter(e => e.type === LocalExtensionType.User))
+				.then(result => result.filter(e => e.type === LocalExtensionType.User && e.name.toLowerCase().indexOf(value) > -1))
 				.then(result => new PagedModel(result));
 		}
 
 		if (/@outdated/i.test(value)) {
+			value = value.replace(/@outdated/g, '').trim().toLowerCase();
 			return this.extensionsWorkbenchService.queryLocal()
 				.then(result => result.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName)))
-				.then(extensions => extensions.filter(extension => extension.outdated))
+				.then(extensions => extensions.filter(extension => extension.outdated && extension.name.toLowerCase().indexOf(value) > -1))
 				.then(result => new PagedModel(result));
 		}
 
 		if (/@disabled/i.test(value)) {
+			value = value.replace(/@disabled/g, '').trim().toLowerCase();
 			return this.extensionsWorkbenchService.queryLocal()
 				.then(result => result.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName)))
 				.then(result => this.extensionService.getExtensions()
-					.then(runningExtensions => result.filter(e => runningExtensions.every(r => r.id !== e.identifier))))
+					.then(runningExtensions => result.filter(e => runningExtensions.every(r => r.id !== e.identifier) && e.name.toLowerCase().indexOf(value) > -1)))
 				.then(result => new PagedModel(result));
 		}
 
@@ -273,16 +284,44 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 			return this.getRecommendationsModel(query, options);
 		}
 
-		const text = value = query.value
-			.replace(/\bext:([^\s]+)\b/g, 'tag:"__ext_$1"')
-			.substr(0, 200);
+		const pagers: TPromise<IPager<IExtension>>[] = [];
+		let text = query.value;
+		const extensionRegex = /\bext:([^\s]+)\b/g;
 
-		if (text) {
-			options = assign(options, { text });
+		if (extensionRegex.test(query.value)) {
+			let names: string[] = [];
+
+			text = query.value.replace(extensionRegex, (m, ext) => {
+				names.push(...this.tipsService.getRecommendationsForExtension(ext));
+
+				// Get curated keywords
+				const keywords = this.tipsService.getKeywordsForExtension(ext);
+
+				// Get mode name
+				const modeId = this.modeService.getModeIdByFilenameOrFirstLine(`.${ext}`);
+				const languageName = modeId && this.modeService.getLanguageName(modeId);
+				const languageTag = languageName ? ` tag:"${languageName}"` : '';
+
+				// Construct a rich query
+				return `tag:"__ext_${ext}"${keywords.map(tag => ` tag:${tag}`)}${languageTag}`;
+			});
+
+			if (names.length) {
+				const namesOptions = assign({}, options, { names });
+				pagers.push(this.extensionsWorkbenchService.queryGallery(namesOptions));
+			}
 		}
 
-		return this.extensionsWorkbenchService.queryGallery(options)
-			.then(result => new PagedModel(result));
+		if (text) {
+			options = assign(options, { text: text.substr(0, 350) });
+		}
+
+		pagers.push(this.extensionsWorkbenchService.queryGallery(options));
+
+		return TPromise.join(pagers).then(pagers => {
+			const pager = pagers.length === 2 ? mergePagers(pagers[0], pagers[1]) : pagers[0];
+			return new PagedModel(pager);
+		});
 	}
 
 	private getRecommendationsModel(query: Query, options: IQueryOptions): TPromise<IPagedModel<IExtension>> {

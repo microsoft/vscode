@@ -252,20 +252,22 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 			}
 			if (previousParents.length === 1 || (previousParents.length === 2 && overrideSetting !== null)) {
 				// settings value started
-				const setting = previousParents.length === 1 ? settings[settings.length - 1] : overrideSetting.settings[overrideSetting.settings.length - 1];
-				let valueStartPosition = model.getPositionAt(offset);
-				let valueEndPosition = model.getPositionAt(offset + length);
-				setting.value = value;
-				setting.valueRange = {
-					startLineNumber: valueStartPosition.lineNumber,
-					startColumn: valueStartPosition.column,
-					endLineNumber: valueEndPosition.lineNumber,
-					endColumn: valueEndPosition.column
-				};
-				setting.range = assign(setting.range, {
-					endLineNumber: valueEndPosition.lineNumber,
-					endColumn: valueEndPosition.column
-				});
+				const setting = previousParents.length === 1 ? settings[settings.length - 1] : overrideSetting.overrides[overrideSetting.overrides.length - 1];
+				if (setting) {
+					let valueStartPosition = model.getPositionAt(offset);
+					let valueEndPosition = model.getPositionAt(offset + length);
+					setting.value = value;
+					setting.valueRange = {
+						startLineNumber: valueStartPosition.lineNumber,
+						startColumn: valueStartPosition.column,
+						endLineNumber: valueEndPosition.lineNumber,
+						endColumn: valueEndPosition.column
+					};
+					setting.range = assign(setting.range, {
+						endLineNumber: valueEndPosition.lineNumber,
+						endColumn: valueEndPosition.column
+					});
+				}
 			}
 		}
 		let visitor: JSONVisitor = {
@@ -287,7 +289,7 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 				if (previousParents.length === 1 || (previousParents.length === 2 && overrideSetting !== null)) {
 					// setting started
 					let settingStartPosition = model.getPositionAt(offset);
-					const setting = {
+					const setting: ISetting = {
 						description: [],
 						key: name,
 						keyRange: {
@@ -305,7 +307,8 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 						value: null,
 						valueRange: null,
 						descriptionRanges: null,
-						settings: []
+						overrides: [],
+						overrideOf: overrideSetting
 					};
 					if (previousParents.length === 1) {
 						settings.push(setting);
@@ -313,7 +316,7 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 							overrideSetting = setting;
 						}
 					} else {
-						overrideSetting.settings.push(setting);
+						overrideSetting.overrides.push(setting);
 					}
 				}
 			},
@@ -321,16 +324,18 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 				currentParent = previousParents.pop();
 				if (previousParents.length === 1 || (previousParents.length === 2 && overrideSetting !== null)) {
 					// setting ended
-					const setting = previousParents.length === 1 ? settings[settings.length - 1] : overrideSetting.settings[overrideSetting.settings.length - 1];
-					let valueEndPosition = model.getPositionAt(offset + length);
-					setting.valueRange = assign(setting.valueRange, {
-						endLineNumber: valueEndPosition.lineNumber,
-						endColumn: valueEndPosition.column
-					});
-					setting.range = assign(setting.range, {
-						endLineNumber: valueEndPosition.lineNumber,
-						endColumn: valueEndPosition.column
-					});
+					const setting = previousParents.length === 1 ? settings[settings.length - 1] : overrideSetting.overrides[overrideSetting.overrides.length - 1];
+					if (setting) {
+						let valueEndPosition = model.getPositionAt(offset + length);
+						setting.valueRange = assign(setting.valueRange, {
+							endLineNumber: valueEndPosition.lineNumber,
+							endColumn: valueEndPosition.column
+						});
+						setting.range = assign(setting.range, {
+							endLineNumber: valueEndPosition.lineNumber,
+							endColumn: valueEndPosition.column
+						});
+					}
 
 					if (previousParents.length === 1) {
 						overrideSetting = null;
@@ -354,16 +359,18 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 				currentParent = previousParents.pop();
 				if (previousParents.length === 1 || (previousParents.length === 2 && overrideSetting !== null)) {
 					// setting value ended
-					const setting = previousParents.length === 1 ? settings[settings.length - 1] : overrideSetting.settings[overrideSetting.settings.length - 1];
-					let valueEndPosition = model.getPositionAt(offset + length);
-					setting.valueRange = assign(setting.valueRange, {
-						endLineNumber: valueEndPosition.lineNumber,
-						endColumn: valueEndPosition.column
-					});
-					setting.range = assign(setting.range, {
-						endLineNumber: valueEndPosition.lineNumber,
-						endColumn: valueEndPosition.column
-					});
+					const setting = previousParents.length === 1 ? settings[settings.length - 1] : overrideSetting.overrides[overrideSetting.overrides.length - 1];
+					if (setting) {
+						let valueEndPosition = model.getPositionAt(offset + length);
+						setting.valueRange = assign(setting.valueRange, {
+							endLineNumber: valueEndPosition.lineNumber,
+							endColumn: valueEndPosition.column
+						});
+						setting.range = assign(setting.range, {
+							endLineNumber: valueEndPosition.lineNumber,
+							endColumn: valueEndPosition.column
+						});
+					}
 				}
 			},
 			onLiteralValue: onValue,
@@ -374,7 +381,9 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 				}
 			}
 		};
-		visit(model.getValue(), visitor);
+		if (!model.isDisposed()) {
+			visit(model.getValue(), visitor);
+		}
 		this._settingsGroups = settings.length > 0 ? [<ISettingsGroup>{
 			sections: [
 				{
@@ -441,8 +450,8 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 	}
 
 	private parse() {
-		const configurations = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurations();
-		const settingsGroups = configurations.sort(this.compareConfigurationNodes).reduce((result, config) => this.parseConfig(config, result), []);
+		const configurations = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurations().slice();
+		const settingsGroups = configurations.sort(this.compareConfigurationNodes).reduce((result, config, index, array) => this.parseConfig(config, result, array), []);
 		const mostCommonlyUsed = this.getMostCommonlyUsedSettings(settingsGroups);
 		this._allSettingsGroups = [mostCommonlyUsed, ...settingsGroups];
 		this._content = this.toContent(mostCommonlyUsed, settingsGroups);
@@ -466,7 +475,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 					value: setting.value,
 					range: null,
 					valueRange: null,
-					settings: []
+					overrides: []
 				};
 			}
 			return null;
@@ -485,16 +494,23 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 		};
 	}
 
-	private parseConfig(config: IConfigurationNode, result: ISettingsGroup[], settingsGroup?: ISettingsGroup): ISettingsGroup[] {
-		if (config.title) {
+	private parseConfig(config: IConfigurationNode, result: ISettingsGroup[], configurations: IConfigurationNode[], settingsGroup?: ISettingsGroup): ISettingsGroup[] {
+		let title = config.title;
+		if (!title) {
+			const configWithTitleAndSameId = configurations.filter(c => c.id === config.id && c.title)[0];
+			if (configWithTitleAndSameId) {
+				title = configWithTitleAndSameId.title;
+			}
+		}
+		if (title) {
 			if (!settingsGroup) {
-				settingsGroup = result.filter(g => g.title === config.title)[0];
+				settingsGroup = result.filter(g => g.title === title)[0];
 				if (!settingsGroup) {
-					settingsGroup = { sections: [{ settings: [] }], id: config.id, title: config.title, titleRange: null, range: null };
+					settingsGroup = { sections: [{ settings: [] }], id: config.id, title: title, titleRange: null, range: null };
 					result.push(settingsGroup);
 				}
 			} else {
-				settingsGroup.sections[settingsGroup.sections.length - 1].title = config.title;
+				settingsGroup.sections[settingsGroup.sections.length - 1].title = title;
 			}
 		}
 		if (config.properties) {
@@ -506,12 +522,12 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 				const prop = config.properties[key];
 				const value = prop.default;
 				const description = (prop.description || '').split('\n');
-				return { key, value, description, range: null, keyRange: null, valueRange: null, descriptionRanges: [], settings: [] };
+				return { key, value, description, range: null, keyRange: null, valueRange: null, descriptionRanges: [], overrides: [] };
 			});
 			settingsGroup.sections[settingsGroup.sections.length - 1].settings.push(...configurationSettings);
 		}
 		if (config.allOf) {
-			config.allOf.forEach(c => this.parseConfig(c, result, settingsGroup));
+			config.allOf.forEach(c => this.parseConfig(c, result, configurations, settingsGroup));
 		}
 		return result;
 	}

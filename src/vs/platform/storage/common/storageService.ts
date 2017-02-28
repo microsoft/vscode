@@ -25,7 +25,7 @@ export class StorageService implements IStorageService {
 	public _serviceBrand: any;
 
 	private static COMMON_PREFIX = 'storage://';
-	private static GLOBAL_PREFIX = StorageService.COMMON_PREFIX + 'global/';
+	/*private*/ static GLOBAL_PREFIX = StorageService.COMMON_PREFIX + 'global/';
 	private static WORKSPACE_PREFIX = StorageService.COMMON_PREFIX + 'workspace/';
 	private static WORKSPACE_IDENTIFIER = 'workspaceIdentifier';
 	private static NO_WORKSPACE_IDENTIFIER = '__$noWorkspace__';

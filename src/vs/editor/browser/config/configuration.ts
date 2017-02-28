@@ -12,7 +12,7 @@ import { CommonEditorConfiguration } from 'vs/editor/common/config/commonEditorC
 import { IDimension } from 'vs/editor/common/editorCommon';
 import { FontInfo, BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserver';
-import { FastDomNode } from 'vs/base/browser/styleMutator';
+import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { CharWidthRequest, CharWidthRequestType, readCharWidths } from 'vs/editor/browser/config/charWidthReader';
 
 class CSSBasedConfigurationCache {
@@ -25,17 +25,24 @@ class CSSBasedConfigurationCache {
 		this._values = Object.create(null);
 	}
 
+	private _itemId(item: BareFontInfo): string {
+		return `${browser.getZoomLevel()}-${item.getId()}`;
+	}
+
 	public has(item: BareFontInfo): boolean {
-		return !!this._values[item.getId()];
+		let itemId = this._itemId(item);
+		return !!this._values[itemId];
 	}
 
 	public get(item: BareFontInfo): FontInfo {
-		return this._values[item.getId()];
+		let itemId = this._itemId(item);
+		return this._values[itemId];
 	}
 
 	public put(item: BareFontInfo, value: FontInfo): void {
-		this._keys[item.getId()] = item;
-		this._values[item.getId()] = value;
+		let itemId = this._itemId(item);
+		this._keys[itemId] = item;
+		this._values[itemId] = value;
 	}
 
 	public getKeys(): BareFontInfo[] {
@@ -219,7 +226,7 @@ export class Configuration extends CommonEditorConfiguration {
 		domNode.style.lineHeight = fontInfo.lineHeight + 'px';
 	}
 
-	public static applyFontInfo(domNode: FastDomNode, fontInfo: BareFontInfo): void {
+	public static applyFontInfo(domNode: FastDomNode<HTMLElement>, fontInfo: BareFontInfo): void {
 		domNode.setFontFamily(fontInfo.fontFamily);
 		domNode.setFontWeight(fontInfo.fontWeight);
 		domNode.setFontSize(fontInfo.fontSize);
@@ -283,6 +290,10 @@ export class Configuration extends CommonEditorConfiguration {
 
 	protected _getCanUseTranslate3d(): boolean {
 		return browser.canUseTranslate3d && browser.getZoomLevel() === 0;
+	}
+
+	protected _getPixelRatio(): number {
+		return browser.getPixelRatio();
 	}
 
 	protected readConfiguration(bareFontInfo: BareFontInfo): FontInfo {

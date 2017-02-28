@@ -56,13 +56,13 @@
 	},
 	{
 		"c": "--spacing-unit",
-		"t": "source.css.scss meta.property-list.scss meta.property-name.scss invalid.illegal.scss",
+		"t": "source.css.scss meta.property-list.scss variable.scss",
 		"r": {
-			"dark_plus": "invalid: #F44747",
-			"light_plus": "invalid: #CD3131",
-			"dark_vs": "invalid: #F44747",
-			"light_vs": "invalid: #CD3131",
-			"hc_black": "invalid: #F44747"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -133,13 +133,13 @@
 	},
 	{
 		"c": "--cell-padding",
-		"t": "source.css.scss meta.property-list.scss meta.property-name.scss invalid.illegal.scss",
+		"t": "source.css.scss meta.property-list.scss variable.scss",
 		"r": {
-			"dark_plus": "invalid: #F44747",
-			"light_plus": "invalid: #CD3131",
-			"dark_vs": "invalid: #F44747",
-			"light_vs": "invalid: #CD3131",
-			"hc_black": "invalid: #F44747"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -223,10 +223,10 @@
 		"c": "var",
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss support.function.misc.scss",
 		"r": {
-			"dark_plus": "meta.property-value.scss support.function: #CE9178",
-			"light_plus": "meta.property-value.scss support.function: #0451A5",
+			"dark_plus": "support.function: #DCDCAA",
+			"light_plus": "support.function: #795E26",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.scss support: #0451A5",
+			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -243,13 +243,13 @@
 	},
 	{
 		"c": "--spacing-unit",
-		"t": "source.css.scss meta.property-list.scss meta.property-value.scss variable.parameter.url.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-value.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{
@@ -334,9 +334,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.scss",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.scss: #FF0000",
+			"light_plus": "support.type.property-name: #FF0000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.scss: #FF0000",
+			"light_vs": "support.type.property-name: #FF0000",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -366,10 +366,10 @@
 		"c": "calc",
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss support.function.misc.scss",
 		"r": {
-			"dark_plus": "meta.property-value.scss support.function: #CE9178",
-			"light_plus": "meta.property-value.scss support.function: #0451A5",
+			"dark_plus": "support.function: #DCDCAA",
+			"light_plus": "support.function: #795E26",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.scss support: #0451A5",
+			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -432,10 +432,10 @@
 		"c": "var",
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss support.function.misc.scss",
 		"r": {
-			"dark_plus": "meta.property-value.scss support.function: #CE9178",
-			"light_plus": "meta.property-value.scss support.function: #0451A5",
+			"dark_plus": "support.function: #DCDCAA",
+			"light_plus": "support.function: #795E26",
 			"dark_vs": "default: #D4D4D4",
-			"light_vs": "meta.property-value.scss support: #0451A5",
+			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -452,13 +452,13 @@
 	},
 	{
 		"c": "--spacing-unit",
-		"t": "source.css.scss meta.property-list.scss meta.property-value.scss variable.parameter.url.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-value.scss variable.scss",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
 		}
 	},
 	{

@@ -53,11 +53,13 @@ export function fillInActions(menu: IMenu, context: any, target: IAction[] | { p
 			head.splice(sep, 0, ...actions.slice(pivot));
 
 		} else {
-			if (Array.isArray<IAction>(target)) {
-				target.push(new Separator(), ...actions);
-			} else {
-				target.secondary.push(new Separator(), ...actions);
+			const to = Array.isArray<IAction>(target) ? target : target.secondary;
+
+			if (to.length > 0) {
+				to.push(new Separator());
 			}
+
+			to.push(...actions);
 		}
 	}
 }
@@ -67,6 +69,7 @@ export function createActionItem(action: IAction, keybindingService: IKeybinding
 	if (action instanceof MenuItemAction) {
 		return new MenuItemActionItem(action, keybindingService, messageService);
 	}
+	return undefined;
 }
 
 
@@ -152,7 +155,7 @@ class MenuItemActionItem extends ActionItem {
 
 	_updateTooltip(): void {
 		const element = this.$e.getHTMLElement();
-		const keybinding = this._keybindingService.lookupKeybindings(this._command.id)[0];
+		const [keybinding] = this._keybindingService.lookupKeybindings(this._command.id);
 		const keybindingLabel = keybinding && this._keybindingService.getLabelFor(keybinding);
 
 		element.title = keybindingLabel

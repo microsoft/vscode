@@ -10,6 +10,7 @@
 	"changeIndentation": "Cambiar sangría",
 	"changeMode": "Cambiar modo de lenguaje",
 	"configureAssociationsExt": "Configurar asociación de archivos para '{0}'...",
+	"configureModeSettings": "Configurar los parámetros basados en el lenguaje \"{0}\"...",
 	"currentAssociation": "Asociación actual",
 	"disableTabMode": "Deshabilitar modo de accesibilidad",
 	"endOfLineCarriageReturnLineFeed": "CRLF",

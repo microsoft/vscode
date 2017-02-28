@@ -258,6 +258,7 @@ export class TabsTitleControl extends TitleControl {
 		const labels: IEditorInputLabel[] = [];
 
 		const mapLabelToDuplicates = new LinkedMap<string, IEditorInputLabel[]>();
+		const mapLabelAndDescriptionToDuplicates = new LinkedMap<string, IEditorInputLabel[]>();
 
 		// Build labels and descriptions for each editor
 		editors.forEach(editor => {
@@ -271,17 +272,29 @@ export class TabsTitleControl extends TitleControl {
 			labels.push(item);
 
 			mapLabelToDuplicates.getOrSet(item.name, []).push(item);
+
+			if (typeof description === 'string') {
+				mapLabelAndDescriptionToDuplicates.getOrSet(`${item.name}${item.description}`, []).push(item);
+			}
 		});
 
 		// Mark duplicates and shorten their descriptions
 		const labelDuplicates = mapLabelToDuplicates.values();
 		labelDuplicates.forEach(duplicates => {
 			if (duplicates.length > 1) {
-				const shortenedDescriptions = shorten(duplicates.map(duplicate => duplicate.editor.getDescription()));
-				duplicates.forEach((duplicate, i) => {
-					duplicate.description = shortenedDescriptions[i];
-					duplicate.hasAmbiguousName = true;
+				duplicates = duplicates.filter(d => {
+					// we could have items with equal label and description. in that case it does not make much
+					// sense to produce a shortened version of the label, so we ignore those kind of items
+					return typeof d.description === 'string' && mapLabelAndDescriptionToDuplicates.get(`${d.name}${d.description}`).length === 1;
 				});
+
+				if (duplicates.length > 1) {
+					const shortenedDescriptions = shorten(duplicates.map(duplicate => duplicate.editor.getDescription()));
+					duplicates.forEach((duplicate, i) => {
+						duplicate.description = shortenedDescriptions[i];
+						duplicate.hasAmbiguousName = true;
+					});
+				}
 			}
 		});
 
@@ -518,10 +531,11 @@ export class TabsTitleControl extends TitleControl {
 
 		// Context menu
 		disposables.push(DOM.addDisposableListener(tab, DOM.EventType.CONTEXT_MENU, (e: Event) => {
+			DOM.EventHelper.stop(e, true);
 			const { group, editor } = this.toTabContext(index);
 
 			this.onContextMenu({ group, editor }, e, tab);
-		}));
+		}, true /* use capture to fix https://github.com/Microsoft/vscode/issues/19145 */));
 
 		// Drag start
 		disposables.push(DOM.addDisposableListener(tab, DOM.EventType.DRAG_START, (e: DragEvent) => {
@@ -662,6 +676,9 @@ class TabActionRunner extends ActionRunner {
 
 	public run(action: IAction, context?: any): TPromise<any> {
 		const group = this.group();
+		if (!group) {
+			return TPromise.as(void 0);
+		}
 
 		// Let tab listeners handle tab close action instead
 		if (action.id === CloseEditorAction.ID) {

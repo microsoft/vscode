@@ -58,7 +58,11 @@ export function dirname(path: string): string {
 	} else if (~idx === 0) {
 		return path[0];
 	} else {
-		return path.substring(0, ~idx);
+		let res = path.substring(0, ~idx);
+		if (isWindows && res[res.length - 1] === ':') {
+			res += nativeSep; // make sure drive letters end with backslash
+		}
+		return res;
 	}
 }
 
@@ -383,14 +387,4 @@ export function isValidBasename(name: string): boolean {
 	}
 
 	return true;
-}
-
-export const isAbsoluteRegex = /^((\/|[a-zA-Z]:\\)[^\(\)<>\\'\"\[\]]+)/;
-
-/**
- * If you have access to node, it is recommended to use node's path.isAbsolute().
- * This is a simple regex based approach.
- */
-export function isAbsolute(path: string): boolean {
-	return isAbsoluteRegex.test(path);
 }

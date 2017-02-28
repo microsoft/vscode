@@ -14,12 +14,12 @@ import { CommonEditorConfiguration } from 'vs/editor/common/config/commonEditorC
 import { Cursor } from 'vs/editor/common/controller/cursor';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Model } from 'vs/editor/common/model/model';
-import { MockConfiguration } from 'vs/editor/test/common/mocks/mockConfiguration';
+import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
 import { Range } from 'vs/editor/common/core/range';
 
 export class MockCodeEditor extends CommonCodeEditor {
 	protected _createConfiguration(options: editorCommon.ICodeEditorWidgetCreationOptions): CommonEditorConfiguration {
-		return new MockConfiguration(options);
+		return new TestConfiguration(options);
 	}
 	public getCenteredRangeInViewport(): Range { return null; }
 	public getCompletelyVisibleLinesRangeInViewport(): Range { return null; }
@@ -76,7 +76,7 @@ export class MockScopeLocation implements IContextKeyServiceTarget {
 	setAttribute(attr: string, value: string): void { }
 	removeAttribute(attr: string): void { }
 	hasAttribute(attr: string): boolean { return false; }
-	getAttribute(attr: string): string { return; }
+	getAttribute(attr: string): string { return undefined; }
 }
 
 export function withMockCodeEditor(text: string[], options: editorCommon.ICodeEditorWidgetCreationOptions, callback: (editor: MockCodeEditor, cursor: Cursor) => void): void {

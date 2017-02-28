@@ -13,6 +13,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { findFocusedEditor } from 'vs/editor/common/config/config';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { editorAction, IActionOptions, EditorAction } from 'vs/editor/common/editorCommonExtensions';
+import { CopyOptions } from 'vs/editor/common/controller/textAreaHandler';
 
 import EditorContextKeys = editorCommon.EditorContextKeys;
 
@@ -22,6 +23,14 @@ function conditionalEditorAction(testCommand: string) {
 	if (!browser.supportsExecCommand(testCommand)) {
 		return () => { };
 	}
+	return editorAction;
+}
+
+function conditionalCopyWithSyntaxHighlighting() {
+	if (browser.isEdgeOrIE || !browser.supportsExecCommand('copy')) {
+		return () => { };
+	}
+
 	return editorAction;
 }
 
@@ -134,5 +143,34 @@ class ExecCommandPasteAction extends ExecCommandAction {
 				order: 3
 			}
 		});
+	}
+}
+
+@conditionalCopyWithSyntaxHighlighting()
+class ExecCommandCopyWithSyntaxHighlightingAction extends ExecCommandAction {
+
+	constructor() {
+		super('copy', {
+			id: 'editor.action.clipboardCopyWithSyntaxHighlightingAction',
+			label: nls.localize('actions.clipboard.copyWithSyntaxHighlightingLabel', "Copy With Syntax Highlighting"),
+			alias: 'Copy With Syntax Highlighting',
+			precondition: null,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: null
+			}
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void {
+		var enableEmptySelectionClipboard = editor.getConfiguration().contribInfo.emptySelectionClipboard && browser.enableEmptySelectionClipboard;
+
+		if (!enableEmptySelectionClipboard && editor.getSelection().isEmpty()) {
+			return;
+		}
+
+		CopyOptions.forceCopyWithSyntaxHighlighting = true;
+		super.run(accessor, editor);
+		CopyOptions.forceCopyWithSyntaxHighlighting = false;
 	}
 }

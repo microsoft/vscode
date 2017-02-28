@@ -13,9 +13,11 @@ import { IConfigurationResolverService } from 'vs/workbench/services/configurati
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { toResource } from 'vs/workbench/common/editor';
 
+// TODO@Isidor remove support for env, config. and command. in march
 export class ConfigurationResolverService implements IConfigurationResolverService {
 	_serviceBrand: any;
 	private _workspaceRoot: string;
@@ -33,6 +35,7 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 		this._execPath = environmentService.execPath;
 		Object.keys(envVariables).forEach(key => {
 			this[`env.${key}`] = envVariables[key];
+			this[`env:${key}`] = envVariables[key];
 		});
 	}
 
@@ -75,6 +78,19 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 
 	private get fileExtname(): string {
 		return paths.extname(this.getFilePath());
+	}
+
+	private get lineNumber(): string {
+		const activeEditor = this.editorService.getActiveEditor();
+		if (activeEditor) {
+			const editorControl = (<ICommonCodeEditor>activeEditor.getControl());
+			if (editorControl) {
+				const lineNumber = editorControl.getSelection().positionLineNumber;
+				return String(lineNumber);
+			}
+		}
+
+		return '';
 	}
 
 	private getFilePath(): string {
@@ -125,7 +141,7 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 			if (types.isString(newValue)) {
 				return newValue;
 			} else {
-				return match && match.indexOf('env.') > 0 ? '' : match;
+				return match && (match.indexOf('env.') > 0 || match.indexOf('env:') > 0) ? '' : match;
 			}
 		});
 
@@ -133,8 +149,7 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 	}
 
 	private resolveConfigVariable(value: string, originalValue: string): string {
-		let regexp = /\$\{config\.(.+?)\}/g;
-		return value.replace(regexp, (match: string, name: string) => {
+		const replacer = (match: string, name: string) => {
 			let config = this.configurationService.getConfiguration();
 			let newValue: any;
 			try {
@@ -159,7 +174,9 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 			} else {
 				return this.resolve(newValue) + '';
 			}
-		});
+		};
+
+		return value.replace(/\$\{config\.(.+?)\}/g, replacer).replace(/\$\{config:(.+?)\}/g, replacer);
 	}
 
 	private resolveLiteral(values: IStringDictionary<string | IStringDictionary<string> | string[]>): IStringDictionary<string | IStringDictionary<string> | string[]> {
@@ -206,7 +223,7 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 				if (object[key] && typeof object[key] === 'object') {
 					findInteractiveVariables(object[key]);
 				} else if (typeof object[key] === 'string') {
-					const matches = /\${command.(.+)}/.exec(object[key]);
+					const matches = /\${command[:\.](.+)}/.exec(object[key]);
 					if (matches && matches.length === 2) {
 						const interactiveVariable = matches[1];
 						if (!interactiveVariablesToSubstitutes[interactiveVariable]) {
@@ -232,7 +249,7 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 				return this.commandService.executeCommand<string>(commandId, configuration).then(result => {
 					if (result) {
 						interactiveVariablesToSubstitutes[interactiveVariable].forEach(substitute =>
-							substitute.object[substitute.key] = substitute.object[substitute.key].replace(`\${command.${interactiveVariable}}`, result)
+							substitute.object[substitute.key] = substitute.object[substitute.key].replace(`\${command:${interactiveVariable}}`, result)
 						);
 					} else {
 						substitionCanceled = true;

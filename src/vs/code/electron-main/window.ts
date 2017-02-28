@@ -18,7 +18,9 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import product from 'vs/platform/node/product';
 import { getCommonHTTPHeaders } from 'vs/platform/environment/node/http';
-import { IWindowSettings } from 'vs/platform/windows/common/windows';
+import { IWindowSettings, MenuBarVisibility } from 'vs/platform/windows/common/windows';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+
 
 export interface IWindowState {
 	width?: number;
@@ -32,7 +34,6 @@ export interface IWindowCreationOptions {
 	state: IWindowState;
 	extensionDevelopmentPath?: string;
 	isExtensionTestHost?: boolean;
-	allowFullscreen?: boolean;
 	titleBarStyle?: 'native' | 'custom';
 }
 
@@ -78,6 +79,7 @@ export interface IWindowConfiguration extends ParsedArgs {
 	zoomLevel?: number;
 	fullscreen?: boolean;
 	highContrast?: boolean;
+	baseTheme?: string;
 	accessibilitySupport?: boolean;
 
 	isInitialStartup?: boolean;
@@ -120,21 +122,13 @@ export enum ReadyState {
 
 interface IConfiguration {
 	window: {
-		menuBarVisibility: 'visible' | 'toggle' | 'hidden';
+		menuBarVisibility: MenuBarVisibility;
 	};
 }
 
-export interface IVSCodeWindow {
-	id: number;
-	readyState: ReadyState;
-	win: Electron.BrowserWindow;
+export class VSCodeWindow {
 
-	send(channel: string, ...args: any[]): void;
-}
-
-export class VSCodeWindow implements IVSCodeWindow {
-
-	public static colorThemeStorageKey = 'theme';
+	public static themeStorageKey = 'theme';
 
 	private static MIN_WIDTH = 200;
 	private static MIN_HEIGHT = 120;
@@ -149,8 +143,9 @@ export class VSCodeWindow implements IVSCodeWindow {
 	private _extensionDevelopmentPath: string;
 	private _isExtensionTestHost: boolean;
 	private windowState: IWindowState;
-	private currentMenuBarVisibility: 'visible' | 'toggle' | 'hidden';
+	private currentMenuBarVisibility: MenuBarVisibility;
 	private currentWindowMode: WindowMode;
+	private toDispose: IDisposable[];
 
 	private whenReadyCallbacks: TValueCallback<VSCodeWindow>[];
 
@@ -170,14 +165,15 @@ export class VSCodeWindow implements IVSCodeWindow {
 		this._extensionDevelopmentPath = config.extensionDevelopmentPath;
 		this._isExtensionTestHost = config.isExtensionTestHost;
 		this.whenReadyCallbacks = [];
+		this.toDispose = [];
 
 		// Load window state
 		this.restoreWindowState(config.state);
 
 		// For VS theme we can show directly because background is white
-		const themeId = this.storageService.getItem<string>(VSCodeWindow.colorThemeStorageKey);
-		const usesLightTheme = /vs($| )/.test(themeId);
-		const usesHighContrastTheme = /hc-black($| )/.test(themeId) || (platform.isWindows && systemPreferences.isInvertedColorScheme());
+		const baseTheme = this.getBaseTheme();
+		const usesLightTheme = 'vs' === baseTheme;
+		const usesHighContrastTheme = 'hc-black' === baseTheme || (platform.isWindows && systemPreferences.isInvertedColorScheme());
 
 		// in case we are maximized or fullscreen, only show later after the call to maximize/fullscreen (see below)
 		const isFullscreenOrMaximized = (this.currentWindowMode === WindowMode.Maximized || this.currentWindowMode === WindowMode.Fullscreen);
@@ -201,17 +197,26 @@ export class VSCodeWindow implements IVSCodeWindow {
 			options.icon = path.join(this.environmentService.appRoot, 'resources/linux/code.png'); // Windows and Mac are better off using the embedded icon(s)
 		}
 
+		let useCustomTitleStyle = false;
 		if (platform.isMacintosh && (!this.options.titleBarStyle || this.options.titleBarStyle === 'custom')) {
 			const isDev = !this.environmentService.isBuilt || !!config.extensionDevelopmentPath;
 			if (!isDev) {
-				options.titleBarStyle = 'hidden'; // not enabled when developing due to https://github.com/electron/electron/issues/3647
-				this.hiddenTitleBarStyle = true;
+				useCustomTitleStyle = true; // not enabled when developing due to https://github.com/electron/electron/issues/3647
 			}
+		}
+
+		if (useCustomTitleStyle) {
+			options.titleBarStyle = 'hidden';
+			this.hiddenTitleBarStyle = true;
 		}
 
 		// Create the browser window.
 		this._win = new BrowserWindow(options);
 		this._id = this._win.id;
+
+		if (useCustomTitleStyle) {
+			this._win.setSheetOffset(22); // offset dialogs by the height of the custom title bar if we have any
+		}
 
 		if (isFullscreenOrMaximized) {
 			this.win.maximize();
@@ -415,7 +420,7 @@ export class VSCodeWindow implements IVSCodeWindow {
 		}
 
 		// Handle configuration changes
-		this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config));
+		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config)));
 	}
 
 	private onConfigurationUpdated(config: IConfiguration): void {
@@ -503,6 +508,9 @@ export class VSCodeWindow implements IVSCodeWindow {
 		windowConfiguration.highContrast = platform.isWindows && systemPreferences.isInvertedColorScheme() && (!windowConfig || windowConfig.autoDetectHighContrast);
 		windowConfiguration.accessibilitySupport = app.isAccessibilitySupportEnabled();
 
+		// Theme
+		windowConfiguration.baseTheme = this.getBaseTheme();
+
 		// Perf Counters
 		windowConfiguration.perfStartTime = global.perfStartTime;
 		windowConfiguration.perfAppReady = global.perfAppReady;
@@ -520,6 +528,11 @@ export class VSCodeWindow implements IVSCodeWindow {
 		url += '?config=' + encodeURIComponent(JSON.stringify(config));
 
 		return url;
+	}
+
+	private getBaseTheme(): string {
+		const theme = this.storageService.getItem<string>(VSCodeWindow.themeStorageKey, 'vs-dark');
+		return theme.split(' ')[0];
 	}
 
 	public serializeWindowState(): IWindowState {
@@ -587,14 +600,6 @@ export class VSCodeWindow implements IVSCodeWindow {
 	private validateWindowState(state: IWindowState): IWindowState {
 		if (!state) {
 			return null;
-		}
-
-		if (state.mode === WindowMode.Fullscreen) {
-			if (this.options.allowFullscreen) {
-				return state;
-			}
-
-			state.mode = WindowMode.Normal; // if we do not allow fullscreen, treat this state as normal window state
 		}
 
 		if ([state.x, state.y, state.width, state.height].some(n => typeof n !== 'number')) {
@@ -677,30 +682,37 @@ export class VSCodeWindow implements IVSCodeWindow {
 		this.win.setFullScreen(willBeFullScreen);
 
 		// respect configured menu bar visibility or default to toggle if not set
-		this.setMenuBarVisibility(this.getMenuBarVisibility(this.configurationService.getConfiguration<IConfiguration>(), willBeFullScreen ? 'toggle' : 'visible'), false);
+		this.setMenuBarVisibility(this.currentMenuBarVisibility, false);
 	}
 
-	private getMenuBarVisibility(configuration: IConfiguration, fallback: 'visible' | 'toggle' | 'hidden' = 'visible'): 'visible' | 'toggle' | 'hidden' {
+	private getMenuBarVisibility(configuration: IConfiguration): MenuBarVisibility {
 		const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
 
 		if (!windowConfig || !windowConfig.menuBarVisibility) {
-			return fallback;
+			return 'default';
 		}
 
 		let menuBarVisibility = windowConfig.menuBarVisibility;
 		if (['visible', 'toggle', 'hidden'].indexOf(menuBarVisibility) < 0) {
-			menuBarVisibility = fallback;
+			menuBarVisibility = 'default';
 		}
 
 		return menuBarVisibility;
 	}
 
-	public setMenuBarVisibility(visibility: 'visible' | 'toggle' | 'hidden', notify: boolean = true): void {
+	public setMenuBarVisibility(visibility: MenuBarVisibility, notify: boolean = true): void {
 		if (platform.isMacintosh) {
 			return; // ignore for macOS platform
 		}
 
+		const isFullscreen = this.win.isFullScreen();
+
 		switch (visibility) {
+			case ('default'):
+				this.win.setMenuBarVisibility(!isFullscreen);
+				this.win.setAutoHideMenuBar(isFullscreen);
+				break;
+
 			case ('visible'):
 				this.win.setMenuBarVisibility(true);
 				this.win.setAutoHideMenuBar(false);
@@ -716,8 +728,15 @@ export class VSCodeWindow implements IVSCodeWindow {
 				break;
 
 			case ('hidden'):
-				this.win.setMenuBarVisibility(false);
-				this.win.setAutoHideMenuBar(false);
+				// for some weird reason that I have no explanation for, the menu bar is not hiding when calling
+				// this without timeout (see https://github.com/Microsoft/vscode/issues/19777). there seems to be
+				// a timing issue with us opening the first window and the menu bar getting created. somehow the
+				// fact that we want to hide the menu without being able to bring it back via Alt key makes Electron
+				// still show the menu. Unable to reproduce from a simple Hello World application though...
+				setTimeout(() => {
+					this.win.setMenuBarVisibility(false);
+					this.win.setAutoHideMenuBar(false);
+				});
 				break;
 		};
 	}
@@ -736,6 +755,8 @@ export class VSCodeWindow implements IVSCodeWindow {
 		if (this.showTimeoutHandle) {
 			clearTimeout(this.showTimeoutHandle);
 		}
+
+		this.toDispose = dispose(this.toDispose);
 
 		this._win = null; // Important to dereference the window object to allow for GC
 	}

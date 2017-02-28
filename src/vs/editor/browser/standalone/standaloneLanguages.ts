@@ -239,7 +239,7 @@ export function registerHoverProvider(languageId: string, provider: modes.HoverP
 
 			return toThenable<modes.Hover>(provider.provideHover(model, position, token)).then((value) => {
 				if (!value) {
-					return;
+					return undefined;
 				}
 				if (!value.range && word) {
 					value.range = new Range(position.lineNumber, word.startColumn, position.column, word.endColumn);
@@ -275,7 +275,14 @@ export function registerDefinitionProvider(languageId: string, provider: modes.D
 }
 
 /**
- * Register a type definition provider (used by e.g. go to implementation).
+ * Register a implementation provider (used by e.g. go to implementation).
+ */
+export function registerImplementationProvider(languageId: string, provider: modes.ImplementationProvider): IDisposable {
+	return modes.ImplementationProviderRegistry.register(languageId, provider);
+}
+
+/**
+ * Register a type definition provider (used by e.g. go to type definition).
  */
 export function registerTypeDefinitionProvider(languageId: string, provider: modes.TypeDefinitionProvider): IDisposable {
 	return modes.TypeDefinitionProviderRegistry.register(languageId, provider);
@@ -621,7 +628,7 @@ class SuggestAdapter {
 				result.incomplete = list.isIncomplete;
 			} else if (!value) {
 				// undefined and null are valid results
-				return;
+				return undefined;
 			} else {
 				// warn about everything else
 				console.warn('INVALID result from completion provider. expected CompletionItem-array or CompletionList but got:', value);
@@ -681,6 +688,7 @@ export function createMonacoLanguagesAPI(): typeof monaco.languages {
 		registerDocumentSymbolProvider: registerDocumentSymbolProvider,
 		registerDocumentHighlightProvider: registerDocumentHighlightProvider,
 		registerDefinitionProvider: registerDefinitionProvider,
+		registerImplementationProvider: registerImplementationProvider,
 		registerTypeDefinitionProvider: registerTypeDefinitionProvider,
 		registerCodeLensProvider: registerCodeLensProvider,
 		registerCodeActionProvider: registerCodeActionProvider,

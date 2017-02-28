@@ -10,6 +10,7 @@ import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IClipboardEvent, ICompositionEvent, IKeyboardEventWrapper, ITextAreaWrapper } from 'vs/editor/common/controller/textAreaState';
+import { FastDomNode } from 'vs/base/browser/fastDomNode';
 
 class ClipboardEventWrapper implements IClipboardEvent {
 
@@ -29,9 +30,12 @@ class ClipboardEventWrapper implements IClipboardEvent {
 		return false;
 	}
 
-	public setTextData(text: string): void {
+	public setTextData(text: string, richText: string): void {
 		if (this._event.clipboardData) {
 			this._event.clipboardData.setData('text/plain', text);
+			if (richText !== null) {
+				this._event.clipboardData.setData('text/html', richText);
+			}
 			this._event.preventDefault();
 			return;
 		}
@@ -86,7 +90,7 @@ class KeyboardEventWrapper implements IKeyboardEventWrapper {
 
 export class TextAreaWrapper extends Disposable implements ITextAreaWrapper {
 
-	private _textArea: HTMLTextAreaElement;
+	private _textArea: FastDomNode<HTMLTextAreaElement>;
 
 	private _onKeyDown = this._register(new Emitter<IKeyboardEventWrapper>());
 	public onKeyDown: Event<IKeyboardEventWrapper> = this._onKeyDown.event;
@@ -118,59 +122,66 @@ export class TextAreaWrapper extends Disposable implements ITextAreaWrapper {
 	private _onPaste = this._register(new Emitter<IClipboardEvent>());
 	public onPaste: Event<IClipboardEvent> = this._onPaste.event;
 
-	constructor(textArea: HTMLTextAreaElement) {
+	constructor(_textArea: FastDomNode<HTMLTextAreaElement>) {
 		super();
-		this._textArea = textArea;
+		this._textArea = _textArea;
 
-		this._register(dom.addStandardDisposableListener(this._textArea, 'keydown', (e) => this._onKeyDown.fire(new KeyboardEventWrapper(e))));
-		this._register(dom.addStandardDisposableListener(this._textArea, 'keyup', (e) => this._onKeyUp.fire(new KeyboardEventWrapper(e))));
-		this._register(dom.addStandardDisposableListener(this._textArea, 'keypress', (e) => this._onKeyPress.fire(new KeyboardEventWrapper(e))));
-		this._register(dom.addDisposableListener(this._textArea, 'compositionstart', (e) => this._onCompositionStart.fire(e)));
-		this._register(dom.addDisposableListener(this._textArea, 'compositionupdate', (e) => this._onCompositionUpdate.fire(e)));
-		this._register(dom.addDisposableListener(this._textArea, 'compositionend', (e) => this._onCompositionEnd.fire(e)));
-		this._register(dom.addDisposableListener(this._textArea, 'input', (e) => this._onInput.fire()));
-		this._register(dom.addDisposableListener(this._textArea, 'cut', (e: ClipboardEvent) => this._onCut.fire(new ClipboardEventWrapper(e))));
-		this._register(dom.addDisposableListener(this._textArea, 'copy', (e: ClipboardEvent) => this._onCopy.fire(new ClipboardEventWrapper(e))));
-		this._register(dom.addDisposableListener(this._textArea, 'paste', (e: ClipboardEvent) => this._onPaste.fire(new ClipboardEventWrapper(e))));
+		const textArea = this._textArea.domNode;
+		this._register(dom.addStandardDisposableListener(textArea, 'keydown', (e) => this._onKeyDown.fire(new KeyboardEventWrapper(e))));
+		this._register(dom.addStandardDisposableListener(textArea, 'keyup', (e) => this._onKeyUp.fire(new KeyboardEventWrapper(e))));
+		this._register(dom.addStandardDisposableListener(textArea, 'keypress', (e) => this._onKeyPress.fire(new KeyboardEventWrapper(e))));
+		this._register(dom.addDisposableListener(textArea, 'compositionstart', (e) => this._onCompositionStart.fire(e)));
+		this._register(dom.addDisposableListener(textArea, 'compositionupdate', (e) => this._onCompositionUpdate.fire(e)));
+		this._register(dom.addDisposableListener(textArea, 'compositionend', (e) => this._onCompositionEnd.fire(e)));
+		this._register(dom.addDisposableListener(textArea, 'input', (e) => this._onInput.fire()));
+		this._register(dom.addDisposableListener(textArea, 'cut', (e: ClipboardEvent) => this._onCut.fire(new ClipboardEventWrapper(e))));
+		this._register(dom.addDisposableListener(textArea, 'copy', (e: ClipboardEvent) => this._onCopy.fire(new ClipboardEventWrapper(e))));
+		this._register(dom.addDisposableListener(textArea, 'paste', (e: ClipboardEvent) => this._onPaste.fire(new ClipboardEventWrapper(e))));
 	}
 
-	public get actual(): HTMLTextAreaElement {
+	public get actual(): FastDomNode<HTMLTextAreaElement> {
 		return this._textArea;
 	}
 
 	public getValue(): string {
 		// console.log('current value: ' + this._textArea.value);
-		return this._textArea.value;
+		const textArea = this._textArea.domNode;
+		return textArea.value;
 	}
 
 	public setValue(reason: string, value: string): void {
 		// console.log('reason: ' + reason + ', current value: ' + this._textArea.value + ' => new value: ' + value);
-		this._textArea.value = value;
+		const textArea = this._textArea.domNode;
+		textArea.value = value;
 	}
 
 	public getSelectionStart(): number {
-		return this._textArea.selectionStart;
+		const textArea = this._textArea.domNode;
+		return textArea.selectionStart;
 	}
 
 	public getSelectionEnd(): number {
-		return this._textArea.selectionEnd;
+		const textArea = this._textArea.domNode;
+		return textArea.selectionEnd;
 	}
 
 	public setSelectionRange(selectionStart: number, selectionEnd: number): void {
-		let activeElement = document.activeElement;
-		if (activeElement === this._textArea) {
-			this._textArea.setSelectionRange(selectionStart, selectionEnd);
+		const textArea = this._textArea.domNode;
+		const activeElement = document.activeElement;
+		if (activeElement === textArea) {
+			textArea.setSelectionRange(selectionStart, selectionEnd);
 		} else {
 			this._setSelectionRangeJumpy(selectionStart, selectionEnd);
 		}
 	}
 
 	private _setSelectionRangeJumpy(selectionStart: number, selectionEnd: number): void {
+		const textArea = this._textArea.domNode;
 		try {
-			let scrollState = dom.saveParentsScrollTop(this._textArea);
-			this._textArea.focus();
-			this._textArea.setSelectionRange(selectionStart, selectionEnd);
-			dom.restoreParentsScrollTop(this._textArea, scrollState);
+			let scrollState = dom.saveParentsScrollTop(textArea);
+			textArea.focus();
+			textArea.setSelectionRange(selectionStart, selectionEnd);
+			dom.restoreParentsScrollTop(textArea, scrollState);
 		} catch (e) {
 			// Sometimes IE throws when setting selection (e.g. textarea is off-DOM)
 			console.log('an error has been thrown!');

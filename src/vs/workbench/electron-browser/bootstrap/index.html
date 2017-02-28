@@ -9,6 +9,12 @@
 			.monaco-shell.vs-dark {
 				background-color: #1E1E1E;
 			}
+			.monaco-shell.vs {
+				background-color: #FFFFFF;
+			}
+			.monaco-shell.hc-black {
+				background-color: #000000;
+			}
 		</style>
 
 	</head>
@@ -16,13 +22,13 @@
 		<script>
 			(function() {
 					try {
-						var theme = window.localStorage.getItem('storage://global/workbench.theme');
-						if (theme) {
-							var baseTheme = theme.split(' ')[0];
-							if (baseTheme !== 'vs-dark') {
-								window.document.body.className = 'monaco-shell ' + baseTheme;
+						window.location.search.substring(1).split('&').forEach(p => {
+							var kv = p.split('=');
+							if (kv[0] === 'config' && kv[1]) {
+								let config = JSON.parse(decodeURIComponent(kv[1]));
+								window.document.body.className = 'monaco-shell ' + config.baseTheme;
 							}
-						}
+						});
 					} catch (error) {
 						console.error(error);
 					}

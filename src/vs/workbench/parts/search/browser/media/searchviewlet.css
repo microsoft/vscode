@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 .search-viewlet .search-widgets-container {
-	margin: 6px 9px 0 2px;
+	margin: 0px 9px 0 2px;
+	padding-top: 6px;
 }
 
 .search-viewlet .search-widget .toggle-replace-button {
@@ -30,6 +31,7 @@
 	margin-left: 17px;
 }
 
+.search-viewlet .search-widget .input-box,
 .search-viewlet .search-widget .input-box .monaco-inputbox {
 	height: 25px;
 }
@@ -43,7 +45,6 @@
 	margin-top: 6px;
 	position: relative;
 	display: inline-flex;
-	height: 25px;
 }
 
 .search-viewlet .search-widget .replace-container.disabled {
@@ -72,7 +73,7 @@
 .search-viewlet .query-details {
 	min-height: 1em;
 	position: relative;
-	margin: 0 0 6px 17px;
+	margin: 0 0 0 17px;
 }
 
 .search-viewlet .query-details .more {
@@ -82,6 +83,7 @@
 	cursor: pointer;
 	width: 16px;
 	height: 13px;
+	z-index: 2; /* Force it above the search results message, which has a negative top margin */
 }
 
 .hc-black .monaco-workbench .search-viewlet .query-details .more,
@@ -107,7 +109,7 @@
 }
 
 .search-viewlet .query-details.more .file-types:last-child {
-	padding-bottom: 4px;
+	padding-bottom: 10px;
 }
 
 .search-viewlet .query-details .search-pattern-info {
@@ -143,14 +145,23 @@
 	font-weight: normal;
 }
 
+.search-viewlet .messages {
+	margin-top: -5px;
+	cursor: default;
+}
+
 .search-viewlet .message {
 	padding-left: 22px;
 	padding-right: 22px;
-	padding-top: 2px;
+	padding-top: 0px;
 }
 
 .search-viewlet .message p:first-child {
-	margin-top: 0;
+	margin-top: 0px;
+	margin-bottom: 0px;
+	padding-bottom: 4px;
+	-webkit-user-select: text;
+	user-select: text;
 }
 
 .search-viewlet .filematch {

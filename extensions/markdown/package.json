@@ -16,8 +16,7 @@
 		"onLanguage:markdown",
 		"onCommand:markdown.showPreview",
 		"onCommand:markdown.showPreviewToSide",
-		"onCommand:markdown.showSource",
-		"onLanguage:markdown"
+		"onCommand:markdown.showSource"
 	],
 	"contributes": {
 		"languages": [
@@ -148,11 +147,32 @@
 					"default": 1.6,
 					"description": "%markdown.preview.lineHeight.desc%"
 				},
-				"markdown.preview.experimentalSyncronizationEnabled": {
+				"markdown.preview.scrollPreviewWithEditorSelection": {
 					"type": "boolean",
 					"default": true,
-					"description": "%markdown.preview.experimentalSyncronizationEnabled.desc%"
+					"description": "%markdown.preview.scrollPreviewWithEditorSelection.desc%"
+				},
+				"markdown.preview.markEditorSelection": {
+					"type": "boolean",
+					"default": true,
+					"description": "%markdown.preview.markEditorSelection.desc%"
+				},
+				"markdown.preview.scrollEditorWithPreview": {
+					"type": "boolean",
+					"default": true,
+					"description": "%markdown.preview.scrollEditorWithPreview.desc%"
+				},
+				"markdown.preview.doubleClickToSwitchToEditor": {
+					"type": "boolean",
+					"default": true,
+					"description": "%markdown.preview.doubleClickToSwitchToEditor.desc%"
 				}
+			}
+		},
+		"configurationDefaults": {
+			"[markdown]": {
+				"editor.wordWrap": "on",
+				"editor.quickSuggestions": false
 			}
 		}
 	},
@@ -161,8 +181,11 @@
 	},
 	"dependencies": {
 		"highlight.js": "^9.3.0",
-		"markdown-it": "^6.0.1",
+		"markdown-it": "^8.2.2",
 		"markdown-it-named-headers": "0.0.4",
-		"vscode-extension-telemetry": "^0.0.5"
+		"vscode-extension-telemetry": "^0.0.6"
+	},
+	"devDependencies": {
+		"@types/node": "^7.0.4"
 	}
 }

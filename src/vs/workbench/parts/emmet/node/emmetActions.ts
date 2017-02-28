@@ -12,7 +12,7 @@ import { ICommandKeybindingsOptions } from 'vs/editor/common/config/config';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { grammarsExtPoint, ITMSyntaxExtensionPoint } from 'vs/editor/node/textMate/TMGrammars';
 import { IModeService } from 'vs/editor/common/services/modeService';
-
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { EditorAccessor, IGrammarContributions } from 'vs/workbench/parts/emmet/node/editorAccessor';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IExtensionService, ExtensionPointContribution } from 'vs/platform/extensions/common/extensions';
@@ -21,6 +21,7 @@ import * as emmet from 'emmet';
 import * as path from 'path';
 import * as pfs from 'vs/base/node/pfs';
 import Severity from 'vs/base/common/severity';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 interface IEmmetConfiguration {
 	emmet: {
@@ -69,10 +70,13 @@ class LazyEmmet {
 	private static snippetsFromFile = {};
 	private static syntaxProfilesFromFile = {};
 	private static preferencesFromFile = {};
+	private static workspaceRoot = '';
 
 	public static withConfiguredEmmet(configurationService: IConfigurationService,
 		messageService: IMessageService,
+		workspaceRoot: string,
 		callback: (_emmet: typeof emmet) => void): TPromise<void> {
+		LazyEmmet.workspaceRoot = workspaceRoot;
 		return LazyEmmet._INSTANCE.withEmmetPreferences(configurationService, messageService, callback);
 	}
 
@@ -89,6 +93,8 @@ class LazyEmmet {
 		return this._loadEmmet().then((_emmet: typeof emmet) => {
 			this._messageService = messageService;
 			this._withEmmetPreferences(configurationService, _emmet, callback);
+		}, (e) => {
+			callback(null);
 		});
 	}
 
@@ -133,23 +139,27 @@ class LazyEmmet {
 			LazyEmmet.syntaxProfilesFromFile = {};
 
 			if (extPath && extPath.trim()) {
-				return pfs.dirExists(LazyEmmet.extensionsPath).then(exists => {
+				let dirPath = path.isAbsolute(extPath) ? extPath : path.join(LazyEmmet.workspaceRoot, extPath);
+				let snippetsPath = path.join(dirPath, 'snippets.json');
+				let syntaxProfilesPath = path.join(dirPath, 'syntaxProfiles.json');
+				let preferencesPath = path.join(dirPath, 'preferences.json');
+				return pfs.dirExists(dirPath).then(exists => {
 					if (exists) {
-						let snippetsPromise = this.getEmmetCustomization('snippets.json').then(value => LazyEmmet.snippetsFromFile = value);
-						let profilesPromise = this.getEmmetCustomization('syntaxProfiles.json').then(value => LazyEmmet.syntaxProfilesFromFile = value);
-						let preferencesPromise = this.getEmmetCustomization('preferences.json').then(value => LazyEmmet.preferencesFromFile = value);
+						let snippetsPromise = this.getEmmetCustomization(snippetsPath).then(value => LazyEmmet.snippetsFromFile = value);
+						let profilesPromise = this.getEmmetCustomization(syntaxProfilesPath).then(value => LazyEmmet.syntaxProfilesFromFile = value);
+						let preferencesPromise = this.getEmmetCustomization(preferencesPath).then(value => LazyEmmet.preferencesFromFile = value);
 
 						return TPromise.join([snippetsPromise, profilesPromise, preferencesPromise]);
 					}
 					this._messageService.show(Severity.Error, `The path set in emmet.extensionsPath "${LazyEmmet.extensionsPath}" does not exist.`);
+					return undefined;
 				});
 			}
 		}
 		return TPromise.as(void 0);
 	}
 
-	private getEmmetCustomization(fileName: string): TPromise<any> {
-		let filePath = path.join(LazyEmmet.extensionsPath, fileName);
+	private getEmmetCustomization(filePath: string): TPromise<any> {
 		return pfs.fileExists(filePath).then(fileExists => {
 			if (fileExists) {
 				return pfs.readFile(filePath).then(buff => {
@@ -162,7 +172,6 @@ class LazyEmmet {
 					return parsedData;
 				});
 			}
-			this._messageService.show(Severity.Error, `The file "${filePath}" from emmet.extensionsPath does not exist.`);
 			return {};
 		});
 	}
@@ -216,6 +225,8 @@ export abstract class EmmetEditorAction extends EditorAction {
 		const extensionService = accessor.get(IExtensionService);
 		const modeService = accessor.get(IModeService);
 		const messageService = accessor.get(IMessageService);
+		const contextService = accessor.get(IWorkspaceContextService);
+		const workspaceRoot = contextService.getWorkspace() ? contextService.getWorkspace().resource.fsPath : '';
 
 		return this._withGrammarContributions(extensionService).then((grammarContributions) => {
 
@@ -229,10 +240,14 @@ export abstract class EmmetEditorAction extends EditorAction {
 
 			if (!editorAccessor.isEmmetEnabledMode()) {
 				this.noExpansionOccurred(editor);
-				return;
+				return undefined;
 			}
 
-			return LazyEmmet.withConfiguredEmmet(configurationService, messageService, (_emmet) => {
+			return LazyEmmet.withConfiguredEmmet(configurationService, messageService, workspaceRoot, (_emmet) => {
+				if (!_emmet) {
+					this.noExpansionOccurred(editor);
+					return undefined;
+				}
 				editorAccessor.onBeforeEmmetAction();
 				instantiationService.invokeFunction((accessor) => {
 					this.runEmmetAction(accessor, new EmmetActionContext(editor, _emmet, editorAccessor));
@@ -260,8 +275,16 @@ export class BasicEmmetEditorAction extends EmmetEditorAction {
 	}
 
 	public runEmmetAction(accessor: ServicesAccessor, ctx: EmmetActionContext) {
-		if (!ctx.emmet.run(this.emmetActionName, ctx.editorAccessor)) {
+		const telemetryService = accessor.get(ITelemetryService);
+		try {
+			if (!ctx.emmet.run(this.emmetActionName, ctx.editorAccessor)) {
+				this.noExpansionOccurred(ctx.editor);
+			} else if (this.emmetActionName === 'expand_abbreviation') {
+				telemetryService.publicLog('emmetActionSucceeded', { action: this.emmetActionName });
+			}
+		} catch (err) {
 			this.noExpansionOccurred(ctx.editor);
 		}
+
 	}
 }

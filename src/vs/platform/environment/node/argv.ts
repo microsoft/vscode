@@ -21,7 +21,8 @@ const options: minimist.Opts = {
 		'uninstall-extension',
 		'debugBrkPluginHost',
 		'debugPluginHost',
-		'open-url'
+		'open-url',
+		'prof-startup-timers'
 	],
 	boolean: [
 		'help',
@@ -30,7 +31,7 @@ const options: minimist.Opts = {
 		'diff',
 		'goto',
 		'new-window',
-		'new-window-if-not-first',
+		'unity-launch',
 		'reuse-window',
 		'performance',
 		'verbose',
@@ -68,6 +69,7 @@ function stripAppPath(argv: string[]): string[] {
 	if (index > -1) {
 		return [...argv.slice(0, index), ...argv.slice(index + 1)];
 	}
+	return undefined;
 }
 
 /**

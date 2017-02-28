@@ -70,13 +70,12 @@ namespace Configuration {
 }
 
 export default class TypeScriptFormattingProvider implements DocumentRangeFormattingEditProvider, OnTypeFormattingEditProvider {
-
-	private client: ITypescriptServiceClient;
 	private config: Configuration;
 	private formatOptions: { [key: string]: Proto.FormatCodeSettings | undefined; };
 
-	public constructor(client: ITypescriptServiceClient) {
-		this.client = client;
+	public constructor(
+		private client: ITypescriptServiceClient
+	) {
 		this.config = Configuration.def();
 		this.formatOptions = Object.create(null);
 		Workspace.onDidCloseTextDocument((textDocument) => {
@@ -103,20 +102,20 @@ export default class TypeScriptFormattingProvider implements DocumentRangeFormat
 	}
 
 	private ensureFormatOptions(document: TextDocument, options: FormattingOptions, token: CancellationToken): Promise<Proto.FormatCodeSettings> {
-		let key = document.uri.toString();
-		let currentOptions = this.formatOptions[key];
+		const key = document.uri.toString();
+		const currentOptions = this.formatOptions[key];
 		if (currentOptions && currentOptions.tabSize === options.tabSize && currentOptions.indentSize === options.tabSize && currentOptions.convertTabsToSpaces === options.insertSpaces) {
 			return Promise.resolve(currentOptions);
 		} else {
-			const absPath = this.client.asAbsolutePath(document.uri);
+			const absPath = this.client.normalizePath(document.uri);
 			if (!absPath) {
 				return Promise.resolve(Object.create(null));
 			}
-			let args: Proto.ConfigureRequestArguments = {
+			const args: Proto.ConfigureRequestArguments = {
 				file: absPath,
 				formatOptions: this.getFormatOptions(options)
 			};
-			return this.client.execute('configure', args, token).then((response) => {
+			return this.client.execute('configure', args, token).then(_ => {
 				this.formatOptions[key] = args.formatOptions;
 				return args.formatOptions;
 			});
@@ -139,11 +138,11 @@ export default class TypeScriptFormattingProvider implements DocumentRangeFormat
 	}
 
 	public provideDocumentRangeFormattingEdits(document: TextDocument, range: Range, options: FormattingOptions, token: CancellationToken): Promise<TextEdit[]> {
-		const absPath = this.client.asAbsolutePath(document.uri);
+		const absPath = this.client.normalizePath(document.uri);
 		if (!absPath) {
 			return Promise.resolve([]);
 		}
-		let args: Proto.FormatRequestArgs = {
+		const args: Proto.FormatRequestArgs = {
 			file: absPath,
 			line: range.start.line + 1,
 			offset: range.start.character + 1,
@@ -154,7 +153,7 @@ export default class TypeScriptFormattingProvider implements DocumentRangeFormat
 	}
 
 	public provideOnTypeFormattingEdits(document: TextDocument, position: Position, ch: string, options: FormattingOptions, token: CancellationToken): Promise<TextEdit[]> {
-		const filepath = this.client.asAbsolutePath(document.uri);
+		const filepath = this.client.normalizePath(document.uri);
 		if (!filepath) {
 			return Promise.resolve([]);
 		}

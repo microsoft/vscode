@@ -6,6 +6,29 @@
 'use strict';
 
 (function () {
+	// From https://remysharp.com/2010/07/21/throttling-function-calls
+	function throttle(fn, threshhold, scope) {
+		threshhold || (threshhold = 250);
+		var last, deferTimer;
+		return function () {
+			var context = scope || this;
+
+			var now = +new Date,
+				args = arguments;
+			if (last && now < last + threshhold) {
+				// hold on to it
+				clearTimeout(deferTimer);
+				deferTimer = setTimeout(function () {
+					last = now;
+					fn.apply(context, args);
+				}, threshhold + last - now);
+			} else {
+				last = now;
+				fn.apply(context, args);
+			}
+		};
+	}
+
 	/**
 	 * Find the html elements that map to a specific target line in the editor.
 	 *
@@ -42,10 +65,13 @@
 			if (isNaN(line)) {
 				continue;
 			}
+			const bounds = element.getBoundingClientRect();
 			const entry = { element, line };
-			if (offset >= window.scrollY + element.getBoundingClientRect().top && offset <= window.scrollY + element.getBoundingClientRect().top + element.getBoundingClientRect().height) {
+			if (offset >= window.scrollY + bounds.top && offset <= window.scrollY + bounds.top + bounds.height) {
+				// add progress through element
+				entry.line += (offset - (window.scrollY + bounds.top)) / (bounds.height);
 				return { previous: entry };
-			} else if (offset < window.scrollY + element.getBoundingClientRect().top) {
+			} else if (offset < window.scrollY + bounds.top) {
 				return { previous, next: entry };
 			}
 			previous = entry;
@@ -63,7 +89,7 @@
 	function scrollToRevealSourceLine(line) {
 		const {previous, next} = getElementsForSourceLine(line);
 		marker.update(previous && previous.element);
-		if (previous) {
+		if (previous && window.initialData.scrollPreviewWithEditorSelection) {
 			let scrollTo = 0;
 			if (next) {
 				// Between two elements. Go to percentage offset between them.
@@ -77,23 +103,17 @@
 		}
 	}
 
-	function didUpdateScrollPosition(offset) {
+	function getEditorLineNumberForPageOffset(offset) {
 		const {previous, next} = getLineElementsAtPageOffset(offset);
 		if (previous) {
-			let line = 0;
 			if (next) {
 				const betweenProgress = (offset - window.scrollY - previous.element.getBoundingClientRect().top) / (next.element.getBoundingClientRect().top - previous.element.getBoundingClientRect().top);
-				line = previous.line + Math.floor(betweenProgress * (next.line - previous.line));
+				return previous.line + betweenProgress * (next.line - previous.line);
 			} else {
-				line = previous.line;
+				return previous.line;
 			}
-
-			const args = [window.initialData.source, line];
-			window.parent.postMessage({
-				command: "did-click-link",
-				data: `command:_markdown.didClick?${encodeURIComponent(JSON.stringify(args))}`
-			}, "file://");
 		}
+		return null;
 	}
 
 
@@ -119,44 +139,75 @@
 		}
 	}
 
-	var pageHeight = 0;
+	var scrollDisabled = true;
 	var marker = new ActiveLineMarker();
 
 	window.onload = () => {
-		pageHeight = document.body.getBoundingClientRect().height;
-
-		if (window.initialData.enablePreviewSync) {
-			const initialLine = +window.initialData.line || 0;
-			scrollToRevealSourceLine(initialLine);
+		if (window.initialData.scrollPreviewWithEditorSelection) {
+			const initialLine = +window.initialData.line;
+			if (!isNaN(initialLine)) {
+				setTimeout(() => {
+					scrollDisabled = true;
+					scrollToRevealSourceLine(initialLine);
+				}, 0);
+			}
 		}
 	};
 
 	window.addEventListener('resize', () => {
-		const currentOffset = window.scrollY;
-		const newPageHeight = document.body.getBoundingClientRect().height;
-		const dHeight = newPageHeight / pageHeight;
-		window.scrollTo(0, currentOffset * dHeight);
-		pageHeight = newPageHeight;
+		scrollDisabled = true;
 	}, true);
 
-	if (window.initialData.enablePreviewSync) {
-
-		window.addEventListener('message', event => {
+	window.addEventListener('message', (() => {
+		const doScroll = throttle(line => {
+			scrollDisabled = true;
+			scrollToRevealSourceLine(line);
+		}, 50);
+		return event => {
 			const line = +event.data.line;
 			if (!isNaN(line)) {
-				scrollToRevealSourceLine(line);
+				doScroll(line);
 			}
-		}, false);
-
-		document.ondblclick = (e) => {
-			const offset = e.pageY;
-			didUpdateScrollPosition(offset);
 		};
+	})(), false);
 
-		/**
-		window.onscroll = () => {
-			didUpdateScrollPosition(window.scrollY);
-		};
-		*/
+	document.addEventListener('dblclick', event => {
+		if (!window.initialData.doubleClickToSwitchToEditor) {
+			return;
+		}
+
+		// Ignore clicks on links
+		for (let node = event.target; node; node = node.parentNode) {
+			if (node.tagName === "A") {
+				return;
+			}
+		}
+
+		const offset = event.pageY;
+		const line = getEditorLineNumberForPageOffset(offset);
+		if (!isNaN(line)) {
+			const args = [window.initialData.source, line];
+			window.parent.postMessage({
+				command: "did-click-link",
+				data: `command:_markdown.didClick?${encodeURIComponent(JSON.stringify(args))}`
+			}, "file://");
+		}
+	});
+
+	if (window.initialData.scrollEditorWithPreview) {
+		window.addEventListener('scroll', throttle(() => {
+			if (scrollDisabled) {
+				scrollDisabled = false;
+			} else {
+				const line = getEditorLineNumberForPageOffset(window.scrollY);
+				if (!isNaN(line)) {
+					const args = [window.initialData.source, line];
+					window.parent.postMessage({
+						command: "did-click-link",
+						data: `command:_markdown.revealLine?${encodeURIComponent(JSON.stringify(args))}`
+					}, "file://");
+				}
+			}
+		}, 50));
 	}
 }());

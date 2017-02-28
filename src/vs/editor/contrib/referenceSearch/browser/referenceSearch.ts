@@ -63,14 +63,17 @@ export class ReferenceAction extends EditorAction {
 			id: 'editor.action.referenceSearch.trigger',
 			label: nls.localize('references.action.label', "Find All References"),
 			alias: 'Find All References',
-			precondition: ContextKeyExpr.and(ModeContextKeys.hasReferenceProvider, PeekContext.notInPeekEditor),
+			precondition: ContextKeyExpr.and(
+				ModeContextKeys.hasReferenceProvider,
+				PeekContext.notInPeekEditor,
+				ModeContextKeys.isInEmbeddedEditor.toNegated()),
 			kbOpts: {
 				kbExpr: EditorContextKeys.TextFocus,
 				primary: KeyMod.Shift | KeyCode.F12
 			},
 			menuOpts: {
 				group: 'navigation',
-				order: 1.3
+				order: 1.5
 			}
 		});
 	}
@@ -100,12 +103,12 @@ let findReferencesCommand: ICommandHandler = (accessor: ServicesAccessor, resour
 
 		let control = <editorCommon.ICommonCodeEditor>editor.getControl();
 		if (!control || typeof control.getEditorType !== 'function') {
-			return;
+			return undefined;
 		}
 
 		let controller = ReferencesController.get(control);
 		if (!controller) {
-			return;
+			return undefined;
 		}
 
 		let references = provideReferences(control.getModel(), Position.lift(position)).then(references => new ReferencesModel(references));
@@ -123,12 +126,12 @@ let showReferencesCommand: ICommandHandler = (accessor: ServicesAccessor, resour
 
 		let control = <editorCommon.ICommonCodeEditor>editor.getControl();
 		if (!control || typeof control.getEditorType !== 'function') {
-			return;
+			return undefined;
 		}
 
 		let controller = ReferencesController.get(control);
 		if (!controller) {
-			return;
+			return undefined;
 		}
 
 		return TPromise.as(controller.toggleWidget(

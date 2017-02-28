@@ -8,28 +8,16 @@
 import * as vscode from 'vscode';
 
 import { MarkdownEngine } from './markdownEngine';
+import { TableOfContentsProvider } from './tableOfContentsProvider';
 
 export default class MDDocumentSymbolProvider implements vscode.DocumentSymbolProvider {
 
 	constructor(private engine: MarkdownEngine) { }
 
 	provideDocumentSymbols(document: vscode.TextDocument): vscode.ProviderResult<vscode.SymbolInformation[]> {
-		const tokens = this.engine.parse(document.getText());
-		const headings = tokens.filter(token => token.type === 'heading_open');
-
-		return headings.map(heading => {
-			const lineNumber = heading.map[0];
-			const line = document.lineAt(lineNumber);
-			const location = new vscode.Location(document.uri, line.range);
-
-			// # Header        => 'Header'
-			// ## Header ##    => 'Header'
-			// ## Header ####  => 'Header'
-			// Header ##       => 'Header ##'
-			// =========
-			const text = line.text.replace(/^\s*(#)+\s*(.*?)\s*\1*$/, '$2');
-
-			return new vscode.SymbolInformation(text, vscode.SymbolKind.Module, '', location);
+		const toc = new TableOfContentsProvider(this.engine, document);
+		return toc.getToc().map(entry => {
+			return new vscode.SymbolInformation(entry.text, vscode.SymbolKind.Module, '', entry.location);
 		});
 	}
 }

@@ -21,6 +21,25 @@ suite('Strings', () => {
 		assert(strings.equalsIgnoreCase('ÖL', 'Öl'));
 	});
 
+	test('compareIgnoreCase', function () {
+
+		function assertCompareIgnoreCase(a: string, b: string): void {
+			let actual = strings.compareIgnoreCase(a, b);
+			let expected = strings.compare(a.toLowerCase(), b.toLowerCase());
+			assert.equal(actual, expected, `${a} <> ${b}`);
+		}
+
+		assertCompareIgnoreCase('', '');
+		assertCompareIgnoreCase('abc', 'ABC');
+		assertCompareIgnoreCase('abc', 'ABc');
+		assertCompareIgnoreCase('abc', 'ABcd');
+		assertCompareIgnoreCase('abc', 'abcd');
+		assertCompareIgnoreCase('foo', 'föo');
+		assertCompareIgnoreCase('Code', 'code');
+		assertCompareIgnoreCase('Code', 'cöde');
+
+	});
+
 	test('format', function () {
 		assert.strictEqual(strings.format('Foo Bar'), 'Foo Bar');
 		assert.strictEqual(strings.format('Foo {0} Bar'), 'Foo {0} Bar');
