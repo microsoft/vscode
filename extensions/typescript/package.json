@@ -13,15 +13,13 @@
   "dependencies": {
     "semver": "4.3.6",
     "vscode-extension-telemetry": "^0.0.6",
-    "vscode-nls": "^2.0.1",
-    "typescript": "typescript@2.2.1"
+    "vscode-nls": "^2.0.1"
   },
   "devDependencies": {
     "@types/node": "^7.0.4",
     "@types/semver": "^5.3.30"
   },
   "scripts": {
-    "postinstall": "node ./bin/postinstall",
     "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:typescript ./tsconfig.json",
     "update-grammars": "node ./build/update-grammars.js"
   },
