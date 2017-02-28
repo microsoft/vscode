@@ -738,9 +738,9 @@ export class ReportPerformanceIssueAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<boolean> {
+	public run(appendix?: string): TPromise<boolean> {
 		return this.integrityService.isPure().then(res => {
-			const issueUrl = this.generatePerformanceIssueUrl(product.reportIssueUrl, pkg.name, pkg.version, product.commit, product.date, res.isPure);
+			const issueUrl = this.generatePerformanceIssueUrl(product.reportIssueUrl, pkg.name, pkg.version, product.commit, product.date, res.isPure, appendix);
 
 			window.open(issueUrl);
 
@@ -748,7 +748,15 @@ export class ReportPerformanceIssueAction extends Action {
 		});
 	}
 
-	private generatePerformanceIssueUrl(baseUrl: string, name: string, version: string, commit: string, date: string, isPure: boolean): string {
+	private generatePerformanceIssueUrl(baseUrl: string, name: string, version: string, commit: string, date: string, isPure: boolean, appendix?: string): string {
+
+		if (!appendix) {
+			appendix = `Additional Steps to Reproduce (if any):
+
+1.
+2.`;
+		}
+
 		let nodeModuleLoadTime: number;
 		if (this.environmentService.performance) {
 			nodeModuleLoadTime = this.computeNodeModulesLoadTime();
@@ -775,10 +783,7 @@ ${this.generatePerformanceTable(nodeModuleLoadTime)}
 
 ---
 
-Additional Steps to Reproduce (if any):
-
-1.
-2.`
+${appendix}`
 		);
 
 		return `${baseUrl}${queryStringPrefix}body=${body}`;

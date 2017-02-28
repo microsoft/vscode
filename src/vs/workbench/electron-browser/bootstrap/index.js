@@ -9,7 +9,7 @@
 
 if (window.location.search.indexOf('performance-startup-profile') >= 0) {
 	var profiler = require('v8-profiler');
-	profiler.startProfiling('startup-renderer', true);
+	profiler.startProfiling('renderer', true);
 }
 
 /*global window,document,define*/

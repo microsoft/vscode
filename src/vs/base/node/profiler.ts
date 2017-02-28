@@ -6,7 +6,6 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { homedir } from 'os';
 import { join } from 'path';
 import { writeFile } from 'vs/base/node/pfs';
 
@@ -17,7 +16,7 @@ export function startProfiling(name: string): TPromise<boolean> {
 	});
 }
 
-export function stopProfiling(name: string): TPromise<string> {
+export function stopProfiling(dir: string, prefix: string): TPromise<string> {
 	return lazyV8Profiler.value.then(profiler => {
 		return profiler.stopProfiling();
 	}).then(profile => {
@@ -28,7 +27,7 @@ export function stopProfiling(name: string): TPromise<string> {
 					reject(error);
 					return;
 				}
-				const filepath = join(homedir(), `${name}-${Date.now()}.cpuprofile`);
+				const filepath = join(dir, `${prefix}_${profile.title}.cpuprofile.txt`);
 				writeFile(filepath, result).then(() => resolve(filepath), reject);
 			});
 		});
@@ -41,6 +40,7 @@ declare interface Profiler {
 }
 
 declare interface Profile {
+	title: string;
 	export(callback: (err, data) => void);
 	delete();
 }
