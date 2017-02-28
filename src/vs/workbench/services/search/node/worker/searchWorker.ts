@@ -171,27 +171,9 @@ export class SearchWorkerEngine {
 				}
 
 				const buffer = new Buffer(options.bufferLength);
-				let pos: number;
-				let i: number;
 				let line = '';
 				let lineNumber = 0;
 				let lastBufferHadTrailingCR = false;
-
-				const decodeBuffer = (buffer: NodeBuffer, start: number, end: number): string => {
-					if (options.encoding === UTF8 || options.encoding === UTF8_with_bom) {
-						return buffer.toString(undefined, start, end); // much faster to use built in toString() when encoding is default
-					}
-
-					return decode(buffer.slice(start, end), options.encoding);
-				};
-
-				const lineFinished = (offset: number): void => {
-					line += decodeBuffer(buffer, pos, i + offset);
-					perLineCallback(line, lineNumber);
-					line = '';
-					lineNumber++;
-					pos = i + offset;
-				};
 
 				const readFile = (isFirstRead: boolean, clb: (error: Error) => void): void => {
 					if (this.isCanceled) {
@@ -199,6 +181,22 @@ export class SearchWorkerEngine {
 					}
 
 					fs.read(fd, buffer, 0, buffer.length, null, (error: Error, bytesRead: number, buffer: NodeBuffer) => {
+						const decodeBuffer = (buffer: NodeBuffer, start: number, end: number): string => {
+							if (options.encoding === UTF8 || options.encoding === UTF8_with_bom) {
+								return buffer.toString(undefined, start, end); // much faster to use built in toString() when encoding is default
+							}
+
+							return decode(buffer.slice(start, end), options.encoding);
+						};
+
+						const lineFinished = (offset: number): void => {
+							line += decodeBuffer(buffer, pos, i + offset);
+							perLineCallback(line, lineNumber);
+							line = '';
+							lineNumber++;
+							pos = i + offset;
+						};
+
 						if (error || bytesRead === 0 || this.isCanceled) {
 							return clb(error); // return early if canceled or limit reached or no more bytes to read
 						}
@@ -206,8 +204,8 @@ export class SearchWorkerEngine {
 						let crlfCharSize = 1;
 						let crBytes = [CR];
 						let lfBytes = [LF];
-						pos = 0;
-						i = 0;
+						let pos = 0;
+						let i = 0;
 
 						// Detect encoding and mime when this is the beginning of the file
 						if (isFirstRead) {
