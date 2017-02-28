@@ -1,3 +1,5 @@
+===================BEGIN GENERATOR LOG
+===================END GENERATOR LOG
 microsoft-vscode
 
 THIRD-PARTY SOFTWARE NOTICES AND INFORMATION
@@ -6,33 +8,33 @@ Do Not Translate or Localize
 This project incorporates components from the projects listed below. The original copyright notices and the licenses under which Microsoft received such components are set forth below. Microsoft reserves all rights not expressly granted herein, whether by implication, estoppel or otherwise.
 
 1.	atom/language-c version 0.51.3 (https://github.com/atom/language-c)
-2.	atom/language-coffee-script (https://github.com/atom/language-coffee-script)
-3.	atom/language-css (https://github.com/atom/language-css)
-4.	atom/language-sass version 0.52.0 (https://github.com/atom/language-sass)
-5.	atom/language-xml (https://github.com/atom/language-xml)
-6.	Benvie/JavaScriptNext.tmLanguage (https://github.com/Benvie/JavaScriptNext.tmLanguage)
-7.	chjj-marked version 0.3.2 (https://github.com/npmcomponent/chjj-marked)
-8.	chriskempson/tomorrow-theme (https://github.com/chriskempson/tomorrow-theme)
-9.	Colorsublime-Themes version 0.1.0 (https://github.com/Colorsublime/Colorsublime-Themes)
-10.	daaain/Handlebars (https://github.com/daaain/Handlebars)
-11.	davidrios/jade-tmbundle (https://github.com/davidrios/jade-tmbundle)
-12.	definitelytyped (https://github.com/DefinitelyTyped/DefinitelyTyped)
-13.	demyte/language-cshtml (https://github.com/demyte/language-cshtml)
-14.	dotnet/csharp-tmLanguage version 0.1.0 (https://github.com/dotnet/csharp-tmLanguage)
-15.	freebroccolo/atom-language-swift (https://github.com/freebroccolo/atom-language-swift)
-16.	HTML 5.1 W3C Working Draft version 08 October 2015 (http://www.w3.org/TR/2015/WD-html51-20151008/)
-17.	Ionic documentation version 1.2.4 (https://github.com/driftyco/ionic-site)
-18.	ionide/ionide-fsgrammar (https://github.com/ionide/ionide-fsgrammar)
-19.	js-beautify version 1.6.8 (https://github.com/beautify-web/js-beautify)
-20.	Jxck/assert version 1.0.0 (https://github.com/Jxck/assert)
-21.	language-docker (https://github.com/docker/docker)
-22.	language-go version 0.39.0 (https://github.com/atom/language-go)
-23.	language-less (https://github.com/atom/language-less)
-24.	language-php (https://github.com/atom/language-php)
-25.	language-rust version 0.4.9 (https://github.com/zargony/atom-language-rust)
-26.	MagicStack/MagicPython (https://github.com/MagicStack/MagicPython)
-27.	Microsoft/TypeScript-TmLanguage version 0.0.1 (https://github.com/Microsoft/TypeScript-TmLanguage)
-28.	mmcgrana/textmate-clojure (https://github.com/mmcgrana/textmate-clojure)
+2.	atom/language-clojure (https://github.com/atom/language-clojure)
+3.	atom/language-coffee-script (https://github.com/atom/language-coffee-script)
+4.	atom/language-css (https://github.com/atom/language-css)
+5.	atom/language-sass version 0.52.0 (https://github.com/atom/language-sass)
+6.	atom/language-xml (https://github.com/atom/language-xml)
+7.	Benvie/JavaScriptNext.tmLanguage (https://github.com/Benvie/JavaScriptNext.tmLanguage)
+8.	chjj-marked version 0.3.2 (https://github.com/npmcomponent/chjj-marked)
+9.	chriskempson/tomorrow-theme (https://github.com/chriskempson/tomorrow-theme)
+10.	Colorsublime-Themes version 0.1.0 (https://github.com/Colorsublime/Colorsublime-Themes)
+11.	daaain/Handlebars (https://github.com/daaain/Handlebars)
+12.	davidrios/jade-tmbundle (https://github.com/davidrios/jade-tmbundle)
+13.	definitelytyped (https://github.com/DefinitelyTyped/DefinitelyTyped)
+14.	demyte/language-cshtml (https://github.com/demyte/language-cshtml)
+15.	dotnet/csharp-tmLanguage version 0.1.0 (https://github.com/dotnet/csharp-tmLanguage)
+16.	freebroccolo/atom-language-swift (https://github.com/freebroccolo/atom-language-swift)
+17.	HTML 5.1 W3C Working Draft version 08 October 2015 (http://www.w3.org/TR/2015/WD-html51-20151008/)
+18.	Ionic documentation version 1.2.4 (https://github.com/driftyco/ionic-site)
+19.	ionide/ionide-fsgrammar (https://github.com/ionide/ionide-fsgrammar)
+20.	js-beautify version 1.6.8 (https://github.com/beautify-web/js-beautify)
+21.	Jxck/assert version 1.0.0 (https://github.com/Jxck/assert)
+22.	language-docker (https://github.com/docker/docker)
+23.	language-go version 0.39.0 (https://github.com/atom/language-go)
+24.	language-less (https://github.com/atom/language-less)
+25.	language-php (https://github.com/atom/language-php)
+26.	language-rust version 0.4.9 (https://github.com/zargony/atom-language-rust)
+27.	MagicStack/MagicPython (https://github.com/MagicStack/MagicPython)
+28.	Microsoft/TypeScript-TmLanguage version 0.0.1 (https://github.com/Microsoft/TypeScript-TmLanguage)
 29.	octicons-code version 3.1.0 (https://octicons.github.com)
 30.	octicons-font version 3.1.0 (https://octicons.github.com)
 31.	seti-ui version 0.1.0 (https://github.com/jesseweed/seti-ui)
@@ -101,6 +103,58 @@ express or implied warranty, and with no claim as to its
 suitability for any purpose.
 =========================================
 END OF atom/language-c NOTICES AND INFORMATION
+
+%% atom/language-clojure NOTICES AND INFORMATION BEGIN HERE
+=========================================
+Copyright (c) 2014 GitHub Inc.
+
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of this software and associated documentation files (the
+"Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+
+This package was derived from a TextMate bundle located at
+https://github.com/mmcgrana/textmate-clojure and distributed under the
+following license, located in `LICENSE.md`:
+
+The MIT License (MIT)
+
+Copyright (c) 2010- Mark McGranaghan
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+=========================================
+END OF atom/language-clojure NOTICES AND INFORMATION
 
 %% atom/language-coffee-script NOTICES AND INFORMATION BEGIN HERE
 =========================================
@@ -836,7 +890,7 @@ Apache License
 
    END OF TERMS AND CONDITIONS
 
-   Copyright 2013-2016 Docker, Inc.
+   Copyright 2013-2017 Docker, Inc.
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -1251,32 +1305,6 @@ Copyright (c) Microsoft Corporation.  All rights reserved.
    END OF TERMS AND CONDITIONS
 =========================================
 END OF Microsoft/TypeScript-TmLanguage NOTICES AND INFORMATION
-
-%% mmcgrana/textmate-clojure NOTICES AND INFORMATION BEGIN HERE
-=========================================
-The MIT License (MIT)
-
-Copyright (c) 2010- Mark McGranaghan
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-=========================================
-END OF mmcgrana/textmate-clojure NOTICES AND INFORMATION
 
 %% octicons-code NOTICES AND INFORMATION BEGIN HERE
 =========================================
