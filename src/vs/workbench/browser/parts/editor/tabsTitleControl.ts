@@ -15,7 +15,7 @@ import { MIME_BINARY } from 'vs/base/common/mime';
 import { shorten } from 'vs/base/common/labels';
 import { ActionRunner, IAction } from 'vs/base/common/actions';
 import { Position, IEditorInput } from 'vs/platform/editor/common/editor';
-import { IEditorGroup, IGroupEvent, toResource } from 'vs/workbench/common/editor';
+import { IEditorGroup, toResource } from 'vs/workbench/common/editor';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { EditorLabel } from 'vs/workbench/browser/labels';
@@ -38,6 +38,7 @@ import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElemen
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { extractResources } from 'vs/base/browser/dnd';
 import { LinkedMap } from 'vs/base/common/map';
+import { CloseEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
 
 interface IEditorInputLabel {
 	editor: IEditorInput;
@@ -253,11 +254,6 @@ export class TabsTitleControl extends TitleControl {
 		this.layout();
 	}
 
-	protected onEditorClosed(event: IGroupEvent): void {
-		// keep scroll position stable when closing an inactive tab
-		this.skipOnceRevealActiveTab = true;
-	}
-
 	private getUniqueTabLabels(editors: IEditorInput[]): IEditorInputLabel[] {
 		const labels: IEditorInputLabel[] = [];
 
@@ -368,7 +364,7 @@ export class TabsTitleControl extends TitleControl {
 		bar.push(this.closeEditorAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(this.closeEditorAction) });
 
 		// Eventing
-		const disposable = this.hookTabListeners(tabContainer, index);
+		const disposable = this.hookTabListeners(tabContainer, tabCloseContainer, index);
 
 		this.tabDisposeables.push(combinedDisposable([disposable, bar, editorLabel]));
 
@@ -416,7 +412,7 @@ export class TabsTitleControl extends TitleControl {
 		}
 	}
 
-	private hookTabListeners(tab: HTMLElement, index: number): IDisposable {
+	private hookTabListeners(tab: HTMLElement, tabCloseButton: HTMLElement, index: number): IDisposable {
 		const disposables: IDisposable[] = [];
 
 		// Open on Click
@@ -429,6 +425,19 @@ export class TabsTitleControl extends TitleControl {
 			}
 		}));
 
+		// Close on tab close button Click
+		disposables.push(DOM.addDisposableListener(tabCloseButton, DOM.EventType.MOUSE_UP, (e: MouseEvent) => {
+			DOM.EventHelper.stop(e);
+			tab.blur();
+
+			if (e.button === 0 /* Left Button */) {
+				const { editor, position } = this.toTabContext(index);
+				this.skipOnceRevealActiveTab = true;
+
+				this.editorService.closeEditor(position, editor).done(null, errors.onUnexpectedError);
+			}
+		}));
+
 		// Close on mouse middle click
 		disposables.push(DOM.addDisposableListener(tab, DOM.EventType.MOUSE_UP, (e: MouseEvent) => {
 			DOM.EventHelper.stop(e);
@@ -436,6 +445,7 @@ export class TabsTitleControl extends TitleControl {
 
 			if (e.button === 1 /* Middle Button */) {
 				const { editor, position } = this.toTabContext(index);
+				this.skipOnceRevealActiveTab = true;
 
 				this.editorService.closeEditor(position, editor).done(null, errors.onUnexpectedError);
 			}
@@ -652,6 +662,11 @@ class TabActionRunner extends ActionRunner {
 
 	public run(action: IAction, context?: any): TPromise<any> {
 		const group = this.group();
+
+		// Let tab listeners handle tab close action instead
+		if (action.id === CloseEditorAction.ID) {
+			return TPromise.as(null);
+		}
 
 		return super.run(action, { group, editor: group.getEditor(this.index) });
 	}

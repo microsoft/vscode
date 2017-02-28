@@ -17,7 +17,7 @@ import { BaseEditor, IEditorInputActionContext } from 'vs/workbench/browser/part
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { isCommonCodeEditor, isCommonDiffEditor } from 'vs/editor/common/editorCommon';
 import arrays = require('vs/base/common/arrays');
-import { IEditorStacksModel, IEditorGroup, IEditorIdentifier, EditorInput, IGroupEvent, IStacksModelChangeEvent, toResource } from 'vs/workbench/common/editor';
+import { IEditorStacksModel, IEditorGroup, IEditorIdentifier, EditorInput, IStacksModelChangeEvent, toResource } from 'vs/workbench/common/editor';
 import { EventType as BaseEventType } from 'vs/base/common/events';
 import { IActionItem, ActionsOrientation, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
@@ -138,12 +138,7 @@ export abstract class TitleControl implements ITitleAreaControl {
 
 	private registerListeners(): void {
 		this.toDispose.push(this.editorGroupService.onTabOptionsChanged(options => this.tabOptions = options));
-		this.toDispose.push(this.stacks.onEditorClosed(e => this.onEditorClosed(e)));
 		this.toDispose.push(this.stacks.onModelChanged(e => this.onStacksChanged(e)));
-	}
-
-	protected onEditorClosed(event: IGroupEvent): void {
-		// Subclasses can opt in to react on editor closed
 	}
 
 	private onStacksChanged(e: IStacksModelChangeEvent): void {
