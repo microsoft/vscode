@@ -91,9 +91,7 @@ export function registerCommands(): void {
 			if (!(focused instanceof List)) {
 				const element = focused.getFocus();
 				if (element instanceof Expression) {
-					if (!element.hasChildren) {
-						debugService.getViewModel().setSelectedExpression(element);
-					}
+					debugService.getViewModel().setSelectedExpression(element);
 				}
 			}
 		}

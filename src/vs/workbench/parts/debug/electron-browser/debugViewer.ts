@@ -729,9 +729,7 @@ export class VariablesController extends BaseDebugController {
 		// double click on primitive value: open input box to be able to set the value
 		if (element instanceof Variable && event.detail === 2) {
 			const expression = <debug.IExpression>element;
-			if (!expression.hasChildren) {
-				this.debugService.getViewModel().setSelectedExpression(expression);
-			}
+			this.debugService.getViewModel().setSelectedExpression(expression);
 			return true;
 		}
 
@@ -939,9 +937,7 @@ export class WatchExpressionsController extends BaseDebugController {
 		// double click on primitive value: open input box to be able to select and copy value.
 		if (element instanceof Expression && event.detail === 2) {
 			const expression = <debug.IExpression>element;
-			if (!expression.hasChildren) {
-				this.debugService.getViewModel().setSelectedExpression(expression);
-			}
+			this.debugService.getViewModel().setSelectedExpression(expression);
 			return true;
 		}
 
