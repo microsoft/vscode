@@ -109,11 +109,6 @@ export interface IExtensionManifest {
 	contributes?: IExtensionContributions;
 }
 
-export interface IExtensionIdentity {
-	name: string;
-	publisher: string;
-}
-
 export interface IGalleryExtensionProperties {
 	dependencies?: string[];
 	engine?: string;
@@ -135,6 +130,7 @@ export interface IGalleryExtensionAssets {
 
 export interface IGalleryExtension {
 	uuid: string;
+	id: string;
 	name: string;
 	version: string;
 	date: string;

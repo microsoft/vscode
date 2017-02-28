@@ -11,7 +11,7 @@ import { distinct } from 'vs/base/common/arrays';
 import { getErrorMessage } from 'vs/base/common/errors';
 import { ArraySet } from 'vs/base/common/set';
 import { IGalleryExtension, IExtensionGalleryService, IGalleryExtensionAsset, IQueryOptions, SortBy, SortOrder, IExtensionManifest } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { getGalleryExtensionTelemetryData } from 'vs/platform/extensionManagement/common/extensionTelemetry';
+import { getGalleryExtensionId, getGalleryExtensionTelemetryData } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { assign, getOrDefault } from 'vs/base/common/objects';
 import { IRequestService } from 'vs/platform/request/node/request';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -241,6 +241,7 @@ function toExtension(galleryExtension: IRawGalleryExtension, extensionsGalleryUr
 
 	return {
 		uuid: galleryExtension.extensionId,
+		id: getGalleryExtensionId(galleryExtension.publisher.publisherName, galleryExtension.extensionName),
 		name: galleryExtension.extensionName,
 		version: version.version,
 		date: version.lastUpdated,

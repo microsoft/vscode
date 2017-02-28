@@ -237,7 +237,7 @@ export class ExtensionEditor extends BaseEditor {
 		this.icon.src = extension.iconUrl;
 
 		this.name.textContent = extension.displayName;
-		this.identifier.textContent = `${extension.publisher}.${extension.name}`;
+		this.identifier.textContent = extension.identifier;
 
 		this.publisher.textContent = extension.publisherDisplayName;
 		this.description.textContent = extension.description;

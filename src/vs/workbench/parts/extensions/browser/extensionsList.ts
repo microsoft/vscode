@@ -129,7 +129,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 		this.extensionService.getExtensions().then(enabledExtensions => {
 			const isExtensionRunning = enabledExtensions.some(e => e.id === extension.identifier);
-			const isInstalled = this.extensionsWorkbenchService.local.some(e => e.identifier === extension.identifier);
+			const isInstalled = this.extensionsWorkbenchService.local.some(e => e.id === extension.id);
 			toggleClass(data.element, 'disabled', isInstalled && !isExtensionRunning);
 		});
 
