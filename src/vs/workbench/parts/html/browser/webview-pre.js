@@ -126,12 +126,17 @@ document.addEventListener("DOMContentLoaded", function (event) {
 		const newFrame = document.createElement('iframe');
 		newFrame.setAttribute('id', '_target');
 		newFrame.setAttribute('frameborder', '0');
-		newFrame.setAttribute('sandbox', 'allow-scripts allow-forms');
-		// set DOCTYPE for newDocument explicitly as DOMParser.parseFromString strips it off
-		// and DOCTYPE is needed in the iframe to ensure that the user agent stylesheet is correctly overridden
-		newFrame.setAttribute('srcdoc', '<!DOCTYPE html>\n' + newDocument.documentElement.innerHTML);
+		newFrame.setAttribute('sandbox', 'allow-scripts allow-forms allow-same-origin');
 		newFrame.style.cssText = "margin: 0; overflow: hidden; position: absolute; width: 100%; height: 100%; display: none";
 		document.body.appendChild(newFrame);
+
+		// write new content onto iframe
+		newFrame.contentDocument.open('text/html', 'replace');
+		// set DOCTYPE for newDocument explicitly as DOMParser.parseFromString strips it off
+		// and DOCTYPE is needed in the iframe to ensure that the user agent stylesheet is correctly overridden
+		newFrame.contentDocument.write('<!DOCTYPE html>');
+		newFrame.contentDocument.write(newDocument.documentElement.innerHTML);
+		newFrame.contentDocument.close();
 
 		// workaround for https://github.com/Microsoft/vscode/issues/12865
 		// check new scrollTop and reset if neccessary
