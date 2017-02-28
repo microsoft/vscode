@@ -17,6 +17,7 @@ import {
 	IExtensionManagementService, IExtensionGalleryService, IExtensionEnablementService, IExtensionTipsService, ILocalExtension, LocalExtensionType, IGalleryExtension,
 	DidInstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionEvent, IGalleryExtensionAssets
 } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { getLocalExtensionIdFromManifest, getGalleryExtensionId, getLocalExtensionIdFromGallery } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { ExtensionTipsService } from 'vs/workbench/parts/extensions/electron-browser/extensionTipsService';
 import { TestExtensionEnablementService } from 'vs/platform/extensionManagement/test/common/extensionEnablementService.test';
@@ -306,7 +307,7 @@ suite('ExtensionsWorkbenchService Test', () => {
 			assert.equal(ExtensionState.Uninstalled, extension.state);
 
 			testObject.install(extension);
-			const id = `${gallery.publisher}.${gallery.name}`;
+			const id = getLocalExtensionIdFromGallery(gallery, gallery.version);
 
 			// Installing
 			installEvent.fire({ id, gallery });
@@ -980,9 +981,10 @@ suite('ExtensionsWorkbenchService Test', () => {
 
 	function aLocalExtension(name: string = 'someext', manifest: any = {}, properties: any = {}): ILocalExtension {
 		const localExtension = <ILocalExtension>Object.create({ manifest: {} });
-		assign(localExtension, { type: LocalExtensionType.User, id: generateUuid(), manifest: {} }, properties);
-		assign(localExtension.manifest, { name, publisher: 'pub' }, manifest);
+		assign(localExtension, { type: LocalExtensionType.User, manifest: {} }, properties);
+		assign(localExtension.manifest, { name, publisher: 'pub', version: '1.0.0' }, manifest);
 		localExtension.metadata = { uuid: localExtension.id, publisherId: localExtension.manifest.publisher, publisherDisplayName: 'somename' };
+		localExtension.id = getLocalExtensionIdFromManifest(localExtension.manifest);
 		return localExtension;
 	}
 
@@ -997,9 +999,10 @@ suite('ExtensionsWorkbenchService Test', () => {
 
 	function aGalleryExtension(name: string, properties: any = {}, galleryExtensionProperties: any = {}, assets: IGalleryExtensionAssets = noAssets): IGalleryExtension {
 		const galleryExtension = <IGalleryExtension>Object.create({});
-		assign(galleryExtension, { name, publisher: 'pub', uuid: generateUuid(), properties: {}, assets: {} }, properties);
+		assign(galleryExtension, { name, publisher: 'pub', uuid: generateUuid(), version: '1.0.0', properties: {}, assets: {} }, properties);
 		assign(galleryExtension.properties, { dependencies: [] }, galleryExtensionProperties);
 		assign(galleryExtension.assets, assets);
+		galleryExtension.id = getGalleryExtensionId(galleryExtension.publisher, galleryExtension.name);
 		return <IGalleryExtension>galleryExtension;
 	}
 

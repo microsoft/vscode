@@ -5,11 +5,31 @@
 
 'use strict';
 
-import { ILocalExtension, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ILocalExtension, IGalleryExtension, IExtensionManifest } from 'vs/platform/extensionManagement/common/extensionManagement';
+
+export function getGalleryExtensionId(publisher: string, name: string): string {
+	return `${publisher}.${name.toLocaleLowerCase()}`;
+}
+
+export function getLocalExtensionIdFromGallery(extension: IGalleryExtension, version: string): string {
+	return getLocalExtensionId(extension.id, version);
+}
+
+export function getLocalExtensionIdFromManifest(manifest: IExtensionManifest): string {
+	return getLocalExtensionId(getGalleryExtensionId(manifest.publisher, manifest.name), manifest.version);
+}
+
+export function getGalleryExtensionIdFromLocal(local: ILocalExtension): string {
+	return local.id.replace(/-\d+\.\d+\.\d+$/, '');
+}
+
+function getLocalExtensionId(id: string, version: string): string {
+	return `${id}-${version}`;
+}
 
 export function getLocalExtensionTelemetryData(extension: ILocalExtension): any {
 	return {
-		id: `${extension.manifest.publisher}.${extension.manifest.name}`,
+		id: getGalleryExtensionIdFromLocal(extension),
 		name: extension.manifest.name,
 		galleryId: extension.metadata ? extension.metadata.uuid : null,
 		publisherId: extension.metadata ? extension.metadata.publisherId : null,
@@ -21,7 +41,7 @@ export function getLocalExtensionTelemetryData(extension: ILocalExtension): any 
 
 export function getGalleryExtensionTelemetryData(extension: IGalleryExtension): any {
 	return {
-		id: `${extension.publisher}.${extension.name}`,
+		id: extension.id,
 		name: extension.name,
 		galleryId: extension.uuid,
 		publisherId: extension.publisherId,
