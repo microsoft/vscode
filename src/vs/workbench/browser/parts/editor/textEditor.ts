@@ -51,6 +51,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 	private _editorContainer: Builder;
 	private hasPendingConfigurationChange: boolean;
 	private pendingAutoSaveAll: TPromise<void>;
+	private lastAppliedEditorOptions: IEditorOptions;
 
 	constructor(
 		id: string,
@@ -66,7 +67,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 		super(id, telemetryService);
 
 		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.handleConfigurationChangeEvent(e.config)));
-		this.toUnbind.push(themeService.onDidColorThemeChange(e => this.handleConfigurationChangeEvent(this.configurationService.getConfiguration<IEditorConfiguration>())));
+		this.toUnbind.push(themeService.onDidColorThemeChange(e => this.handleConfigurationChangeEvent()));
 	}
 
 	protected get instantiationService(): IInstantiationService {
@@ -77,9 +78,9 @@ export abstract class BaseTextEditor extends BaseEditor {
 		return this._configurationService;
 	}
 
-	private handleConfigurationChangeEvent(configuration: IEditorConfiguration): void {
+	private handleConfigurationChangeEvent(configuration?: IEditorConfiguration): void {
 		if (this.isVisible()) {
-			this.applyConfiguration(configuration);
+			this.updateEditorConfiguration(configuration);
 		} else {
 			this.hasPendingConfigurationChange = true;
 		}
@@ -87,20 +88,9 @@ export abstract class BaseTextEditor extends BaseEditor {
 
 	private consumePendingConfigurationChangeEvent(): void {
 		if (this.hasPendingConfigurationChange) {
-			this.applyConfiguration(this.configurationService.getConfiguration<IEditorConfiguration>());
+			this.updateEditorConfiguration();
 			this.hasPendingConfigurationChange = false;
 		}
-	}
-
-	private applyConfiguration(configuration: IEditorConfiguration): void {
-		if (!this.editorControl) {
-			return;
-		}
-
-		const editorConfiguration = this.computeConfiguration(configuration);
-
-		// Apply to control
-		this.editorControl.updateOptions(editorConfiguration);
 	}
 
 	protected computeConfiguration(configuration: IEditorConfiguration): IEditorOptions {
@@ -305,8 +295,25 @@ export abstract class BaseTextEditor extends BaseEditor {
 		return null;
 	}
 
-	private updateEditorConfiguration(): void {
-		this.editorControl.updateOptions(this.computeConfiguration(this.configurationService.getConfiguration<IEditorConfiguration>()));
+	private updateEditorConfiguration(configuration = this.configurationService.getConfiguration<IEditorConfiguration>()): void {
+		if (!this.editorControl) {
+			return;
+		}
+
+		const editorConfiguration = this.computeConfiguration(configuration);
+
+		// Try to figure out the actual editor options that changed from the last time we updated the editor.
+		// We do this so that we are not overwriting some dynamic editor settings (e.g. word wrap) that might
+		// have been applied to the editor directly.
+		let editorSettingsToApply = editorConfiguration;
+		if (this.lastAppliedEditorOptions) {
+			editorSettingsToApply = objects.distinct(this.lastAppliedEditorOptions, editorSettingsToApply);
+		}
+
+		if (Object.keys(editorSettingsToApply).length > 0) {
+			this.lastAppliedEditorOptions = editorConfiguration;
+			this.editorControl.updateOptions(editorSettingsToApply);
+		}
 	}
 
 	protected getLanguage(): string {
@@ -331,8 +338,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 	protected abstract getAriaLabel(): string;
 
 	public dispose(): void {
-
-		// Destroy Editor Control
+		this.lastAppliedEditorOptions = void 0;
 		this.editorControl.destroy();
 
 		super.dispose();
