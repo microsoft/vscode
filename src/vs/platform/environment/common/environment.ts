@@ -22,6 +22,7 @@ export interface ParsedArgs {
 	locale?: string;
 	'user-data-dir'?: string;
 	performance?: boolean;
+	['performance-startup-profile']?: boolean;
 	verbose?: boolean;
 	logExtensionHostCommunication?: boolean;
 	'disable-extensions'?: boolean;
