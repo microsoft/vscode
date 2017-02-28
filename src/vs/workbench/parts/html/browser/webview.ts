@@ -18,7 +18,6 @@ import { IColorTheme } from 'vs/workbench/services/themes/common/themeService';
 declare interface WebviewElement extends HTMLElement {
 	src: string;
 	autoSize: 'on';
-	nodeintegration: 'on';
 	preload: string;
 
 	send(channel: string, ...args: any[]);
@@ -43,10 +42,6 @@ MenuRegistry.addCommand({
 
 type ApiThemeClassName = 'vscode-light' | 'vscode-dark' | 'vscode-high-contrast';
 
-export interface WebviewOptions {
-	nodeintegration: boolean;
-}
-
 export default class Webview {
 
 	private _webview: WebviewElement;
@@ -55,7 +50,7 @@ export default class Webview {
 	private _onDidClickLink = new Emitter<URI>();
 	private _onDidLoadContent = new Emitter<{ stats: any }>();
 
-	constructor(parent: HTMLElement, private _styleElement: Element, options: WebviewOptions) {
+	constructor(parent: HTMLElement, private _styleElement: Element) {
 		this._webview = <any>document.createElement('webview');
 
 		this._webview.style.width = '100%';
@@ -63,9 +58,6 @@ export default class Webview {
 		this._webview.style.outline = '0';
 		this._webview.style.opacity = '0';
 		this._webview.autoSize = 'on';
-		if (options.nodeintegration) {
-			this._webview.nodeintegration = 'on';
-		}
 
 		this._webview.preload = require.toUrl('./webview-pre.js');
 		this._webview.src = require.toUrl('./webview.html');
