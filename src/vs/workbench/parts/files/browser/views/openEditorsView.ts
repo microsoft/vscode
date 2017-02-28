@@ -30,7 +30,7 @@ import { CloseAllEditorsAction } from 'vs/workbench/browser/parts/editor/editorA
 import { ToggleEditorLayoutAction } from 'vs/workbench/browser/actions/toggleEditorLayout';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IListService } from 'vs/platform/list/browser/listService';
-import { EditorGroup } from "vs/workbench/common/editor/editorStacksModel";
+import { EditorGroup } from 'vs/workbench/common/editor/editorStacksModel';
 
 const $ = dom.$;
 
