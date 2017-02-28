@@ -494,6 +494,8 @@ export namespace SymbolKind {
 				return 'function';
 			case SymbolKind.Constructor:
 				return 'constructor';
+			case SymbolKind.Field:
+				return 'field';
 			case SymbolKind.Variable:
 				return 'variable';
 			case SymbolKind.Class:
@@ -541,6 +543,8 @@ export namespace SymbolKind {
 				return SymbolKind.Function;
 			case 'constructor':
 				return SymbolKind.Constructor;
+			case 'field':
+				return SymbolKind.Field;
 			case 'variable':
 				return SymbolKind.Variable;
 			case 'class':

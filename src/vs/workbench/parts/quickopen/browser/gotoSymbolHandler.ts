@@ -454,7 +454,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 
 			// Add
 			const icon = SymbolKind.from(element.kind);
-			results.push(new SymbolEntry(i, label, SymbolKind.from(element.kind), description, icon, element.location.range, null, this.editorService, this));
+			results.push(new SymbolEntry(i, label, icon, description, icon, element.location.range, null, this.editorService, this));
 		}
 
 		return results;
