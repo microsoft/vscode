@@ -205,7 +205,7 @@ export class FileService implements IFileService {
 			}
 
 			// 2.) detect mimes
-			return nfcall(mime.detectMimesFromFile, absolutePath).then((detected: mime.IMimeAndEncoding): TPromise<IStreamContent> => {
+			return mime.detectMimesFromFile(absolutePath).then((detected: mime.IMimeAndEncoding) => {
 				const isText = detected.mimes.indexOf(baseMime.MIME_BINARY) === -1;
 
 				// Return error early if client only accepts text and this is not text
