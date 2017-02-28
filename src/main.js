@@ -7,7 +7,9 @@
 
 if (process.argv.indexOf('--performance-startup-profile') >= 0) {
 	var profiler = require('v8-profiler');
-	profiler.startProfiling('startup-main', true);
+	var prefix = require('crypto').randomBytes(2).toString('hex');
+	process.env.VSCODE_PROFILES_PREFIX = prefix;
+	profiler.startProfiling('main', true);
 }
 
 // Perf measurements
