@@ -302,12 +302,17 @@ export abstract class BaseTextEditor extends BaseEditor {
 
 		const editorConfiguration = this.computeConfiguration(configuration);
 
-		// Apply to control if it changed. We do not want to call updateOptions() with the same options
-		// because it could be that from some other place editor options where changed dynamically (e.g.
-		// word wrapping) and configurations can change as a matter of many things, not all editor related
-		if (!this.lastAppliedEditorOptions || !objects.equals(editorConfiguration, this.lastAppliedEditorOptions)) {
+		// Try to figure out the actual editor options that changed from the last time we updated the editor.
+		// We do this so that we are not overwriting some dynamic editor settings (e.g. word wrap) that might
+		// have been applied to the editor directly.
+		let editorSettingsToApply = editorConfiguration;
+		if (this.lastAppliedEditorOptions) {
+			editorSettingsToApply = objects.distinct(this.lastAppliedEditorOptions, editorSettingsToApply);
+		}
+
+		if (Object.keys(editorSettingsToApply).length > 0) {
 			this.lastAppliedEditorOptions = editorConfiguration;
-			this.editorControl.updateOptions(editorConfiguration);
+			this.editorControl.updateOptions(editorSettingsToApply);
 		}
 	}
 
