@@ -170,13 +170,14 @@ export class CommandCenter {
 	}
 
 	@command('git.clone')
-	async clone(): Promise<void> {
+	async clone(telemetryData: { [key: string]: any }): Promise<void> {
 		const url = await window.showInputBox({
 			prompt: localize('repourl', "Repository URL"),
 			ignoreFocusOut: true
 		});
 
 		if (!url) {
+			this.telemetryReporter.sendTelemetryEvent('clone', { ...telemetryData, outcome: 'no_URL' });
 			return;
 		}
 
@@ -187,18 +188,31 @@ export class CommandCenter {
 		});
 
 		if (!parentPath) {
+			this.telemetryReporter.sendTelemetryEvent('clone', { ...telemetryData, outcome: 'no_directory' });
 			return;
 		}
 
 		const clonePromise = this.model.git.clone(url, parentPath);
 		window.setStatusBarMessage(localize('cloning', "Cloning git repository..."), clonePromise);
-		const repositoryPath = await clonePromise;
 
-		const open = localize('openrepo', "Open Repository");
-		const result = await window.showInformationMessage(localize('proposeopen', "Would you like to open the cloned repository?"), open);
+		try {
+			const repositoryPath = await clonePromise;
 
-		if (result === open) {
-			commands.executeCommand('vscode.openFolder', Uri.file(repositoryPath));
+			const open = localize('openrepo', "Open Repository");
+			const result = await window.showInformationMessage(localize('proposeopen', "Would you like to open the cloned repository?"), open);
+
+			const openFolder = result === open;
+			this.telemetryReporter.sendTelemetryEvent('clone', { ...telemetryData, outcome: 'success' }, { openFolder: openFolder ? 1 : 0 });
+			if (openFolder) {
+				commands.executeCommand('vscode.openFolder', Uri.file(repositoryPath));
+			}
+		} catch (err) {
+			if (/already exists and is not an empty directory/.test(err && err.stderr || '')) {
+				this.telemetryReporter.sendTelemetryEvent('clone', { ...telemetryData, outcome: 'directory_not_empty' });
+			} else {
+				this.telemetryReporter.sendTelemetryEvent('clone', { ...telemetryData, outcome: 'error' });
+			}
+			throw err;
 		}
 	}
 
