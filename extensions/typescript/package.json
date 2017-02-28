@@ -285,6 +285,42 @@
         "category": "JavaScript"
       }
     ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "typescript.reloadProjects",
+          "when": "editorLangId == 'typescript'"
+        },
+        {
+          "command": "typescript.reloadProjects",
+          "when": "editorLangId == typescriptreact"
+        },
+        {
+          "command": "javascript.reloadProjects",
+          "when": "editorLangId == 'javascript'"
+        },
+        {
+          "command": "javascript.reloadProjects",
+          "when": "editorLangId == javascriptreact"
+        },
+        {
+          "command": "typescript.goToProjectConfig",
+          "when": "editorLangId == 'typescript'"
+        },
+        {
+          "command": "typescript.goToProjectConfig",
+          "when": "editorLangId == typescriptreact"
+        },
+        {
+          "command": "javascript.goToProjectConfig",
+          "when": "editorLangId == 'javascript'"
+        },
+        {
+          "command": "javascript.goToProjectConfig",
+          "when": "editorLangId == javascriptreact"
+        }
+      ]
+    },
     "breakpoints": [
       {
         "language": "typescript"
