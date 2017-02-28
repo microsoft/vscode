@@ -16,6 +16,7 @@ import aria = require('vs/base/browser/ui/aria/aria');
 import { dispose, IDisposable, Disposables } from 'vs/base/common/lifecycle';
 import errors = require('vs/base/common/errors');
 import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { stopProfiling } from 'vs/base/node/profiler';
 import product from 'vs/platform/node/product';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import pkg from 'vs/platform/node/package';
@@ -123,6 +124,7 @@ export class WorkbenchShell {
 	private contextService: IWorkspaceContextService;
 	private telemetryService: ITelemetryService;
 	private extensionService: MainProcessExtensionService;
+	private windowsService: IWindowsService;
 	private windowIPCService: IWindowIPCService;
 	private timerService: ITimerService;
 
@@ -230,6 +232,25 @@ export class WorkbenchShell {
 		if ((platform.isLinux || platform.isMacintosh) && process.getuid() === 0) {
 			this.messageService.show(Severity.Warning, nls.localize('runningAsRoot', "It is recommended not to run Code as 'root'."));
 		}
+
+		// Profiler: startup cpu profile
+		if (this.environmentService.args['performance-startup-profile']) {
+			stopProfiling('startup-renderer').then(path => {
+				console.log(`cpu profile stored in ${path}`);
+
+				const restart = this.messageService.confirm({
+					type: 'info',
+					message: nls.localize('prof.message', "Successfully created profiles."),
+					detail: nls.localize('prof.detail', "To not lose unsaved work, we strongly recommended to restart '{0}' now.", this.environmentService.appNameLong),
+					primaryButton: nls.localize('prof.restart', "&&Restart")
+				});
+
+				if (restart) {
+					this.windowsService.relaunch({ removeArgs: ['--performance-startup-profile'] });
+				}
+
+			}, err => console.error(err));
+		}
 	}
 
 	private initServiceCollection(container: HTMLElement): [IInstantiationService, ServiceCollection] {
@@ -251,7 +272,8 @@ export class WorkbenchShell {
 		disposables.add(mainProcessClient);
 
 		const windowsChannel = mainProcessClient.getChannel('windows');
-		serviceCollection.set(IWindowsService, new SyncDescriptor(WindowsChannelClient, windowsChannel));
+		this.windowsService = new WindowsChannelClient(windowsChannel);
+		serviceCollection.set(IWindowsService, this.windowsService);
 
 		serviceCollection.set(IWindowService, new SyncDescriptor(WindowService, this.windowIPCService.getWindowId()));
 
