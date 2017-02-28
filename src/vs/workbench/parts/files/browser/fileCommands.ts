@@ -23,8 +23,8 @@ import errors = require('vs/base/common/errors');
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import labels = require('vs/base/common/labels');
-import { IEditorGroupService } from "vs/workbench/services/group/common/groupService";
-import { IMessageService } from "vs/platform/message/common/message";
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { IMessageService } from 'vs/platform/message/common/message';
 
 // Commands
 
