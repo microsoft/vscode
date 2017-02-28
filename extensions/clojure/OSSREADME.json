@@ -1,7 +1,8 @@
 // ATTENTION - THIS DIRECTORY CONTAINS THIRD PARTY OPEN SOURCE MATERIALS:
 [{
-	"name": "mmcgrana/textmate-clojure",
+	"name": "atom/language-clojure",
 	"version": "0.0.0",
 	"license": "MIT",
-	"repositoryURL": "https://github.com/mmcgrana/textmate-clojure"
+	"repositoryURL": "https://github.com/atom/language-clojure",
+	"description": "The file syntaxes/clojure.tmLanguage.json was derived from the Atom package https://github.com/atom/language-clojure which was originally converted from the TextMate bundle https://github.com/mmcgrana/textmate-clojure."
 }]
