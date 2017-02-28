@@ -87,7 +87,7 @@ import { URLChannelClient } from 'vs/platform/url/common/urlIpc';
 import { IURLService } from 'vs/platform/url/common/url';
 import { IBackupService } from 'vs/platform/backup/common/backup';
 import { BackupChannelClient } from 'vs/platform/backup/common/backupIpc';
-import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
+import { ReloadWindowAction, ReportPerformanceIssueAction } from 'vs/workbench/electron-browser/actions';
 import { ExtensionHostProcessWorker } from 'vs/workbench/electron-browser/extensionHost';
 import { ITimerService } from 'vs/workbench/services/timer/common/timerService';
 import { remote } from 'electron';
@@ -96,6 +96,8 @@ import { MainProcessTextMateSyntax } from 'vs/editor/electron-browser/textMate/T
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { readFontInfo } from 'vs/editor/browser/config/configuration';
 import SCMPreview from 'vs/workbench/parts/scm/browser/scmPreview';
+import { readdir } from 'vs/base/node/pfs';
+import { join } from 'path';
 import 'vs/platform/opener/browser/opener.contribution';
 
 /**
@@ -234,20 +236,35 @@ export class WorkbenchShell {
 		}
 
 		// Profiler: startup cpu profile
-		if (this.environmentService.args['performance-startup-profile']) {
-			stopProfiling('startup-renderer').then(path => {
-				console.log(`cpu profile stored in ${path}`);
+		const { performanceStartupProfile } = this.environmentService;
+		if (performanceStartupProfile) {
 
-				const restart = this.messageService.confirm({
-					type: 'info',
-					message: nls.localize('prof.message', "Successfully created profiles."),
-					detail: nls.localize('prof.detail', "To not lose unsaved work, we strongly recommended to restart '{0}' now.", this.environmentService.appNameLong),
-					primaryButton: nls.localize('prof.restart', "&&Restart")
+			stopProfiling(performanceStartupProfile.dir, performanceStartupProfile.prefix).then(() => {
+
+				readdir(performanceStartupProfile.dir).then(files => {
+					return files.filter(value => value.indexOf(performanceStartupProfile.prefix) === 0);
+				}).then(files => {
+
+					const profileFiles = files.reduce((prev, cur) => `${prev}${join(performanceStartupProfile.dir, cur)}\n`, '\n');
+
+					const primaryButton = this.messageService.confirm({
+						type: 'info',
+						message: nls.localize('prof.message', "Successfully created profiles."),
+						detail: nls.localize('prof.detail', "Please create an issue and manually attach the following files:\n{0}", profileFiles),
+						primaryButton: nls.localize('prof.restartAndFileIssue', "Create Issue and Restart"),
+						secondaryButton: nls.localize('prof.restart', "Restart")
+					});
+
+					let createIssue = TPromise.as(undefined);
+					if (primaryButton) {
+						const action = this.workbench.getInstantiationService().createInstance(ReportPerformanceIssueAction, ReportPerformanceIssueAction.ID, ReportPerformanceIssueAction.LABEL);
+
+						createIssue = action.run(`:warning: Make sure to **attach** these files: :warning:\n${files.map(file => `-\`${join(performanceStartupProfile.dir, file)}\``).join('\n')}`).then(() => {
+							return this.windowsService.showItemInFolder(performanceStartupProfile.dir);
+						});
+					}
+					createIssue.then(() => this.windowsService.relaunch({ removeArgs: ['--performance-startup-profile'] }));
 				});
-
-				if (restart) {
-					this.windowsService.relaunch({ removeArgs: ['--performance-startup-profile'] });
-				}
 
 			}, err => console.error(err));
 		}

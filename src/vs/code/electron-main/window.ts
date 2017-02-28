@@ -468,8 +468,11 @@ export class VSCodeWindow {
 			}, 10000);
 		}
 
-		if (this.environmentService.args['performance-startup-profile']) {
-			stopProfiling('startup-main').then(path => console.log(`cpu profile stored in ${path}`), err => console.error(err));
+		// (--performance-startup-profile) save profile to disk
+		const { performanceStartupProfile } = this.environmentService;
+		if (performanceStartupProfile) {
+			stopProfiling(performanceStartupProfile.dir, performanceStartupProfile.prefix)
+				.done(undefined, err => console.error(err));
 		}
 	}
 
