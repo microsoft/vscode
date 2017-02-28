@@ -5,6 +5,11 @@
 
 'use strict';
 
+if (process.argv.indexOf('--performance-startup-profile') >= 0) {
+	var profiler = require('v8-profiler');
+	profiler.startProfiling('startup-main', true);
+}
+
 // Perf measurements
 global.perfStartTime = Date.now();
 

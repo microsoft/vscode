@@ -8,6 +8,7 @@
 import * as path from 'path';
 import * as platform from 'vs/base/common/platform';
 import * as objects from 'vs/base/common/objects';
+import { stopProfiling } from 'vs/base/node/profiler';
 import nls = require('vs/nls');
 import { IStorageService } from 'vs/code/electron-main/storage';
 import { shell, screen, BrowserWindow, systemPreferences, app } from 'electron';
@@ -464,6 +465,10 @@ export class VSCodeWindow implements IVSCodeWindow {
 					this._win.webContents.openDevTools();
 				}
 			}, 10000);
+		}
+
+		if (this.environmentService.args['performance-startup-profile']) {
+			stopProfiling('startup-main').then(path => console.log(`cpu profile stored in ${path}`), err => console.error(err));
 		}
 	}
 
