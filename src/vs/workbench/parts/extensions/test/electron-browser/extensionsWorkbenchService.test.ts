@@ -355,8 +355,18 @@ suite('ExtensionsWorkbenchService Test', () => {
 		assert.ok(!testObject.canInstall(target));
 	});
 
-	test('test canInstall returns true for extensions with gallery', () => {
+	test('test canInstall returns false for a system extension', () => {
 		const local = aLocalExtension('a', { version: '1.0.1' }, { type: LocalExtensionType.System });
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
+		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension(local.manifest.name, { id: local.id })));
+		testObject = instantiationService.createInstance(ExtensionsWorkbenchService);
+		const target = testObject.local[0];
+
+		assert.ok(!testObject.canInstall(target));
+	});
+
+	test('test canInstall returns true for extensions with gallery', () => {
+		const local = aLocalExtension('a', { version: '1.0.1' }, { type: LocalExtensionType.User });
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension(local.manifest.name, { id: local.id })));
 		testObject = instantiationService.createInstance(ExtensionsWorkbenchService);
