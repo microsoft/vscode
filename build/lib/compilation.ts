@@ -33,9 +33,10 @@ function createCompile(build: boolean, emitError?: boolean): (token?: util.ICanc
 	opts.inlineSources = !!build;
 	opts.noFilesystemLookup = true;
 
-	const ts = tsb.create(opts, null, null, err => reporter(err.toString()));
 
 	return function (token?: util.ICancellationToken) {
+		const ts = tsb.create(opts, null, null, err => reporter(err.toString()));
+
 		const utf8Filter = util.filter(data => /(\/|\\)test(\/|\\).*utf8/.test(data.path));
 		const tsFilter = util.filter(data => /\.ts$/.test(data.path));
 		const noDeclarationsFilter = util.filter(data => !(/\.d\.ts$/.test(data.path)));
@@ -48,6 +49,7 @@ function createCompile(build: boolean, emitError?: boolean): (token?: util.ICanc
 			.pipe(tsFilter)
 			.pipe(util.loadSourcemaps())
 			.pipe(ts(token))
+			.pipe(reloadTypeScriptNodeModule())
 			.pipe(noDeclarationsFilter)
 			.pipe(build ? nls() : es.through())
 			.pipe(noDeclarationsFilter.restore)
@@ -64,9 +66,10 @@ function createCompile(build: boolean, emitError?: boolean): (token?: util.ICanc
 }
 
 export function compileTask(out: string, build: boolean): () => NodeJS.ReadWriteStream {
-	const compile = createCompile(build, true);
 
 	return function () {
+		const compile = createCompile(build, true);
+
 		const src = es.merge(
 			gulp.src('src/**', { base: 'src' }),
 			gulp.src('node_modules/typescript/lib/lib.d.ts'),
@@ -81,9 +84,10 @@ export function compileTask(out: string, build: boolean): () => NodeJS.ReadWrite
 }
 
 export function watchTask(out: string, build: boolean): () => NodeJS.ReadWriteStream {
-	const compile = createCompile(build);
 
 	return function () {
+		const compile = createCompile(build);
+
 		const src = es.merge(
 			gulp.src('src/**', { base: 'src' }),
 			gulp.src('node_modules/typescript/lib/lib.d.ts'),
@@ -96,6 +100,53 @@ export function watchTask(out: string, build: boolean): () => NodeJS.ReadWriteSt
 			.pipe(gulp.dest(out))
 			.pipe(monacodtsTask(out, true));
 	};
+}
+
+function reloadTypeScriptNodeModule(): NodeJS.ReadWriteStream {
+	var util = require('gulp-util');
+	function log(message: any, ...rest: any[]): void {
+		util.log(util.colors.cyan('[memory watch dog]'), message, ...rest);
+	}
+
+	function heapUsed(): string {
+		return (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2) + ' MB';
+	}
+
+	return es.through(function(data) {
+		this.emit('data', data);
+	}, function () {
+
+		log('memory usage after compilation finished: ' + heapUsed());
+
+		// It appears we are running into some variant of
+		// https://bugs.chromium.org/p/v8/issues/detail?id=2073
+		//
+		// Even though all references are dropped, some
+		// optimized methods in the TS compiler end up holding references
+		// to the entire TypeScript language host (>600MB)
+		//
+		// The idea is to force v8 to drop references to these
+		// optimized methods, by "reloading" the typescript node module
+
+		log('Reloading typescript node module...');
+
+		var resolvedName = require.resolve('typescript');
+
+		var originalModule = require.cache[resolvedName];
+		delete require.cache[resolvedName];
+		var newExports = require('typescript');
+		require.cache[resolvedName] = originalModule;
+
+		for (var prop in newExports) {
+			if (newExports.hasOwnProperty(prop)) {
+				originalModule.exports[prop] = newExports[prop];
+			}
+		}
+
+		log('typescript node module reloaded.');
+
+		this.emit('end');
+	});
 }
 
 function monacodtsTask(out: string, isWatch: boolean): NodeJS.ReadWriteStream {
