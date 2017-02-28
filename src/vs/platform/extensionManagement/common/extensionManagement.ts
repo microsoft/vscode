@@ -134,7 +134,7 @@ export interface IGalleryExtensionAssets {
 }
 
 export interface IGalleryExtension {
-	id: string;
+	uuid: string;
 	name: string;
 	version: string;
 	date: string;
@@ -151,7 +151,7 @@ export interface IGalleryExtension {
 }
 
 export interface IGalleryMetadata {
-	id: string;
+	uuid: string;
 	publisherId: string;
 	publisherDisplayName: string;
 }

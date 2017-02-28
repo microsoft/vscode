@@ -240,7 +240,7 @@ function toExtension(galleryExtension: IRawGalleryExtension, extensionsGalleryUr
 	};
 
 	return {
-		id: galleryExtension.extensionId,
+		uuid: galleryExtension.extensionId,
 		name: galleryExtension.extensionName,
 		version: version.version,
 		date: version.lastUpdated,
@@ -368,7 +368,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 
 	download(extension: IGalleryExtension): TPromise<string> {
 		return this.loadCompatibleVersion(extension).then(extension => {
-			const zipPath = path.join(tmpdir(), extension.id);
+			const zipPath = path.join(tmpdir(), extension.uuid);
 			const data = getGalleryExtensionTelemetryData(extension);
 			const startTime = new Date().getTime();
 			const log = duration => this.telemetryService.publicLog('galleryService:downloadVSIX', assign(data, { duration }));
@@ -412,7 +412,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			.withFilter(FilterType.Target, 'Microsoft.VisualStudio.Code')
 			.withFilter(FilterType.ExcludeWithFlags, flagsToString(Flags.Unpublished))
 			.withAssetTypes(AssetType.Manifest, AssetType.VSIX)
-			.withFilter(FilterType.ExtensionId, extension.id);
+			.withFilter(FilterType.ExtensionId, extension.uuid);
 
 		return this.queryGallery(query).then(({ galleryExtensions }) => {
 			const [rawExtension] = galleryExtensions;
@@ -479,7 +479,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 						dep.properties.dependencies.forEach(d => dependenciesSet.set(d));
 					}
 				}
-				result = distinct(result.concat(loadedDependencies), d => d.id);
+				result = distinct(result.concat(loadedDependencies), d => d.uuid);
 				const dependencies = dependenciesSet.elements.filter(d => !ExtensionGalleryService.hasExtensionByName(result, d));
 				return this.getDependenciesReccursively(dependencies, result, root);
 			});

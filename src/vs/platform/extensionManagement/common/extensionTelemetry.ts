@@ -11,7 +11,7 @@ export function getLocalExtensionTelemetryData(extension: ILocalExtension): any 
 	return {
 		id: `${extension.manifest.publisher}.${extension.manifest.name}`,
 		name: extension.manifest.name,
-		galleryId: extension.metadata ? extension.metadata.id : null,
+		galleryId: extension.metadata ? extension.metadata.uuid : null,
 		publisherId: extension.metadata ? extension.metadata.publisherId : null,
 		publisherName: extension.manifest.publisher,
 		publisherDisplayName: extension.metadata ? extension.metadata.publisherDisplayName : null,
@@ -23,7 +23,7 @@ export function getGalleryExtensionTelemetryData(extension: IGalleryExtension): 
 	return {
 		id: `${extension.publisher}.${extension.name}`,
 		name: extension.name,
-		galleryId: extension.id,
+		galleryId: extension.uuid,
 		publisherId: extension.publisherId,
 		publisherName: extension.publisher,
 		publisherDisplayName: extension.publisherDisplayName,

@@ -306,9 +306,10 @@ suite('ExtensionsWorkbenchService Test', () => {
 			assert.equal(ExtensionState.Uninstalled, extension.state);
 
 			testObject.install(extension);
+			const id = `${gallery.publisher}.${gallery.name}`;
 
 			// Installing
-			installEvent.fire({ id: gallery.id, gallery });
+			installEvent.fire({ id, gallery });
 			let local = testObject.local;
 			assert.equal(1, local.length);
 			const actual = local[0];
@@ -316,18 +317,18 @@ suite('ExtensionsWorkbenchService Test', () => {
 			assert.equal(ExtensionState.Installing, actual.state);
 
 			// Installed
-			didInstallEvent.fire({ id: gallery.id, gallery, local: aLocalExtension(gallery.name, gallery, gallery) });
+			didInstallEvent.fire({ id, gallery, local: aLocalExtension(gallery.name, gallery, { id }) });
 			assert.equal(ExtensionState.Installed, actual.state);
 			assert.equal(1, testObject.local.length);
 
 			testObject.uninstall(actual);
 
 			// Uninstalling
-			uninstallEvent.fire(gallery.id);
+			uninstallEvent.fire(id);
 			assert.equal(ExtensionState.Uninstalling, actual.state);
 
 			// Uninstalled
-			didUninstallEvent.fire({ id: gallery.id });
+			didUninstallEvent.fire({ id });
 			assert.equal(ExtensionState.Uninstalled, actual.state);
 
 			assert.equal(0, testObject.local.length);
@@ -388,11 +389,11 @@ suite('ExtensionsWorkbenchService Test', () => {
 			assert.equal(ExtensionState.Uninstalled, extension.state);
 
 			testObject.install(extension);
-			installEvent.fire({ id: gallery.id, gallery });
+			installEvent.fire({ id: gallery.uuid, gallery });
 			testObject.onChange(target);
 
 			// Installed
-			didInstallEvent.fire({ id: gallery.id, gallery, local: aLocalExtension(gallery.name, gallery, gallery) });
+			didInstallEvent.fire({ id: gallery.uuid, gallery, local: aLocalExtension(gallery.name, gallery, gallery) });
 
 			assert.ok(target.calledOnce);
 		});
@@ -412,7 +413,7 @@ suite('ExtensionsWorkbenchService Test', () => {
 			testObject.onChange(target);
 
 			// Installing
-			installEvent.fire({ id: gallery.id, gallery });
+			installEvent.fire({ id: gallery.uuid, gallery });
 
 			assert.ok(target.calledOnce);
 		});
@@ -981,7 +982,7 @@ suite('ExtensionsWorkbenchService Test', () => {
 		const localExtension = <ILocalExtension>Object.create({ manifest: {} });
 		assign(localExtension, { type: LocalExtensionType.User, id: generateUuid(), manifest: {} }, properties);
 		assign(localExtension.manifest, { name, publisher: 'pub' }, manifest);
-		localExtension.metadata = { id: localExtension.id, publisherId: localExtension.manifest.publisher, publisherDisplayName: 'somename' };
+		localExtension.metadata = { uuid: localExtension.id, publisherId: localExtension.manifest.publisher, publisherDisplayName: 'somename' };
 		return localExtension;
 	}
 
@@ -996,7 +997,7 @@ suite('ExtensionsWorkbenchService Test', () => {
 
 	function aGalleryExtension(name: string, properties: any = {}, galleryExtensionProperties: any = {}, assets: IGalleryExtensionAssets = noAssets): IGalleryExtension {
 		const galleryExtension = <IGalleryExtension>Object.create({});
-		assign(galleryExtension, { name, publisher: 'pub', id: generateUuid(), properties: {}, assets: {} }, properties);
+		assign(galleryExtension, { name, publisher: 'pub', uuid: generateUuid(), properties: {}, assets: {} }, properties);
 		assign(galleryExtension.properties, { dependencies: [] }, galleryExtensionProperties);
 		assign(galleryExtension.assets, assets);
 		return <IGalleryExtension>galleryExtension;
