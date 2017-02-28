@@ -135,13 +135,13 @@ document.addEventListener("DOMContentLoaded", function (event) {
 
 		// workaround for https://github.com/Microsoft/vscode/issues/12865
 		// check new scrollTop and reset if neccessary
-		setTimeout(function () {
+		newFrame.contentWindow.addEventListener('DOMContentLoaded', function () {
 			if (newFrame.contentDocument.body && scrollTop !== newFrame.contentDocument.body.scrollTop) {
 				newFrame.contentDocument.body.scrollTop = scrollTop;
 			}
 			document.body.removeChild(frame);
 			newFrame.style.display = 'block';
-		}, 0);
+		});
 
 		ipcRenderer.sendToHost('did-set-content', stats);
 	});
