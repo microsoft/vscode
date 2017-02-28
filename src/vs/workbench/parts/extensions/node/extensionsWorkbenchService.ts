@@ -13,7 +13,6 @@ import Event, { Emitter, chain } from 'vs/base/common/event';
 import { index } from 'vs/base/common/arrays';
 import { LinkedMap as Map } from 'vs/base/common/map';
 import { assign } from 'vs/base/common/objects';
-import { isUUID } from 'vs/base/common/uuid';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -439,16 +438,15 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 	}
 
 	private syncWithGallery(): TPromise<void> {
-		const ids = this.installed
-			.filter(e => !!(e.local && e.local.metadata))
-			.map(e => e.local.metadata.id)
-			.filter(id => isUUID(id));
+		const names = this.installed
+			.filter(e => e.type === LocalExtensionType.User)
+			.map(e => e.identifier);
 
-		if (ids.length === 0) {
+		if (names.length === 0) {
 			return TPromise.as(null);
 		}
 
-		return this.queryGallery({ ids, pageSize: ids.length }) as TPromise<any>;
+		return this.queryGallery({ names, pageSize: names.length }) as TPromise<any>;
 	}
 
 	private eventuallyAutoUpdateExtensions(): void {
