@@ -27,8 +27,8 @@ function createCompile(build, emitError) {
     var opts = _.clone(options);
     opts.inlineSources = !!build;
     opts.noFilesystemLookup = true;
+    var ts = tsb.create(opts, null, null, function (err) { return reporter(err.toString()); });
     return function (token) {
-        var ts = tsb.create(opts, null, null, function (err) { return reporter(err.toString()); });
         var utf8Filter = util.filter(function (data) { return /(\/|\\)test(\/|\\).*utf8/.test(data.path); });
         var tsFilter = util.filter(function (data) { return /\.ts$/.test(data.path); });
         var noDeclarationsFilter = util.filter(function (data) { return !(/\.d\.ts$/.test(data.path)); });

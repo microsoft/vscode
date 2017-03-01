@@ -33,9 +33,9 @@ function createCompile(build: boolean, emitError?: boolean): (token?: util.ICanc
 	opts.inlineSources = !!build;
 	opts.noFilesystemLookup = true;
 
+	const ts = tsb.create(opts, null, null, err => reporter(err.toString()));
 
 	return function (token?: util.ICancellationToken) {
-		const ts = tsb.create(opts, null, null, err => reporter(err.toString()));
 
 		const utf8Filter = util.filter(data => /(\/|\\)test(\/|\\).*utf8/.test(data.path));
 		const tsFilter = util.filter(data => /\.ts$/.test(data.path));
