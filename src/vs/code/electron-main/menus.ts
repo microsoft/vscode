@@ -321,6 +321,12 @@ export class VSCodeMenu {
 		const gotoMenuItem = new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'mGoto', comment: ['&& denotes a mnemonic'] }, "&&Go")), submenu: gotoMenu });
 		this.setGotoMenu(gotoMenu);
 
+		// Debug
+		const debugMenu = new Menu();
+		const debugMenuItem = new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'mDebug', comment: ['&& denotes a mnemonic'] }, "&&Debug")), submenu: debugMenu });
+		this.setDebugMenu(debugMenu);
+
+
 		// Mac: Window
 		let macWindowMenuItem: Electron.MenuItem;
 		if (isMacintosh) {
@@ -344,6 +350,7 @@ export class VSCodeMenu {
 		menubar.append(selectionMenuItem);
 		menubar.append(viewMenuItem);
 		menubar.append(gotoMenuItem);
+		menubar.append(debugMenuItem);
 
 		if (macWindowMenuItem) {
 			menubar.append(macWindowMenuItem);
@@ -796,6 +803,52 @@ export class VSCodeMenu {
 			gotoDefinition,
 			gotoLine
 		].forEach(item => gotoMenu.append(item));
+	}
+
+	private setDebugMenu(debugMenu: Electron.Menu): void {
+		const start = this.createMenuItem(nls.localize({ key: 'miStartDebugging', comment: ['&& denotes a mnemonic'] }, "&&Start Debugging"), 'workbench.action.debug.start');
+		const startWithoutDebugging = this.createMenuItem(nls.localize({ key: 'miStartWithoutDebugging', comment: ['&& denotes a mnemonic'] }, "Start &&Without Debugging"), 'workbench.action.debug.run');
+		const stop = this.createMenuItem(nls.localize({ key: 'miStopDebugging', comment: ['&& denotes a mnemonic'] }, "&&Stop Debugging"), 'workbench.action.debug.stop');
+		const restart = this.createMenuItem(nls.localize({ key: 'miRestart Debugging', comment: ['&& denotes a mnemonic'] }, "&&Restart Debugging"), 'workbench.action.debug.restart');
+
+		const configure = this.createMenuItem(nls.localize({ key: 'miConfigure', comment: ['&& denotes a mnemonic'] }, "&&Configure"), 'workbench.action.debug.configure');
+
+		const stepOver = this.createMenuItem(nls.localize({ key: 'miStepOver', comment: ['&& denotes a mnemonic'] }, "Step &&Over"), 'workbench.action.debug.stepOver');
+		const stepInto = this.createMenuItem(nls.localize({ key: 'miStepInto', comment: ['&& denotes a mnemonic'] }, "Step &&Into"), 'workbench.action.debug.stepInto');
+		const stepOut = this.createMenuItem(nls.localize({ key: 'miStepOut', comment: ['&& denotes a mnemonic'] }, "Step O&&ut"), 'workbench.action.debug.stepOut');
+		const continueAction = this.createMenuItem(nls.localize({ key: 'miContinue', comment: ['&& denotes a mnemonic'] }, "&&Continue"), 'workbench.action.debug.continue');
+
+		const toggleBreakpoint = this.createMenuItem(nls.localize({ key: 'miToggleBreakpoint', comment: ['&& denotes a mnemonic'] }, "Toggle &&Breakpoint"), 'editor.debug.action.toggleBreakpoint');
+		const breakpointsMenu = new Menu();
+		breakpointsMenu.append(this.createMenuItem(nls.localize({ key: 'miConditionalBreakpoint', comment: ['&& denotes a mnemonic'] }, "&&Conditional Breakpoint..."), 'editor.debug.action.conditionalBreakpoint'));
+		breakpointsMenu.append(this.createMenuItem(nls.localize({ key: 'miColumnBreakpoint', comment: ['&& denotes a mnemonic'] }, "C&&olumn Breakpoint"), 'editor.debug.action.toggleColumnBreakpoint'));
+		breakpointsMenu.append(this.createMenuItem(nls.localize({ key: 'miFunctionBreakpoint', comment: ['&& denotes a mnemonic'] }, "&&Function Breakpoint..."), 'workbench.debug.viewlet.action.addFunctionBreakpointAction'));
+		const newBreakpoints = new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miNewBreakpoint', comment: ['&& denotes a mnemonic'] }, "&&New Breakpoint")), submenu: breakpointsMenu });
+		const disableAllBreakpoints = this.createMenuItem(nls.localize({ key: 'miDisableAllBreakpoints', comment: ['&& denotes a mnemonic'] }, "Disable A&&ll Breakpoints"), 'workbench.debug.viewlet.action.disableAllBreakpoints');
+		const removeAllBreakpoints = this.createMenuItem(nls.localize({ key: 'miRemoveAllBreakpoints', comment: ['&& denotes a mnemonic'] }, "Remove &&All Breakpoints"), 'workbench.debug.viewlet.action.removeAllBreakpoints');
+
+		const installMoreDebuggers = this.createMenuItem(nls.localize({ key: 'miInstallMoreDebuggers', comment: ['&& denotes a mnemonic'] }, "&&Install More Debuggers..."), 'debug.installMoreDebuggers');
+		[
+			start,
+			startWithoutDebugging,
+			stop,
+			restart,
+			__separator__(),
+			configure,
+			__separator__(),
+			stepOver,
+			stepInto,
+			stepOut,
+			continueAction,
+			__separator__(),
+			toggleBreakpoint,
+			newBreakpoints,
+			disableAllBreakpoints,
+			removeAllBreakpoints,
+			__separator__(),
+			installMoreDebuggers
+		].forEach(item => debugMenu.append(item));
+
 	}
 
 	private setMacWindowMenu(macWindowMenu: Electron.Menu): void {
