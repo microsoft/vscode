@@ -18,9 +18,7 @@ export function showHideStatus() {
 		return;
 	}
 	let doc = vscode.window.activeTextEditor.document;
-	if (vscode.languages.match('javascript', doc) || vscode.languages.match('javascriptreact', doc)
-		|| vscode.languages.match('typescript', doc) || vscode.languages.match('typescriptreact', doc)) {
-
+	if (vscode.languages.match('typescript', doc) || vscode.languages.match('typescriptreact', doc)) {
 		versionBarEntry.show();
 		return;
 	}
