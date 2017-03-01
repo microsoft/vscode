@@ -12,6 +12,8 @@ import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRe
 import { IListService } from 'vs/platform/list/browser/listService';
 import { IDebugService, IEnablement, CONTEXT_NOT_IN_DEBUG_MODE, CONTEXT_IN_DEBUG_MODE, CONTEXT_BREAKPOINTS_FOCUSED, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_VARIABLES_FOCUSED } from 'vs/workbench/parts/debug/common/debug';
 import { Expression, Variable, Breakpoint, FunctionBreakpoint } from 'vs/workbench/parts/debug/common/debugModel';
+import { IExtensionsViewlet, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/parts/extensions/common/extensions';
+import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 
 export function registerCommands(): void {
 
@@ -161,6 +163,22 @@ export function registerCommands(): void {
 					debugService.removeFunctionBreakpoints(element.getId()).done(null, errors.onUnexpectedError);
 				}
 			}
+		}
+	});
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: 'debug.installMoreDebuggers',
+		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+		when: CONTEXT_BREAKPOINTS_FOCUSED,
+		primary: undefined,
+		handler: (accessor) => {
+			const viewletService = accessor.get(IViewletService);
+			return viewletService.openViewlet(EXTENSIONS_VIEWLET_ID, true)
+				.then(viewlet => viewlet as IExtensionsViewlet)
+				.then(viewlet => {
+					viewlet.search('tag:debuggers');
+					viewlet.focus();
+				});
 		}
 	});
 }
