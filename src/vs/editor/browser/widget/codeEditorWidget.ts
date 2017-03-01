@@ -7,6 +7,7 @@
 import 'vs/css!./media/editor';
 import 'vs/css!./media/tokens';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { TPromise } from 'vs/base/common/winjs.base';
 import { IEventEmitter } from 'vs/base/common/eventEmitter';
 import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
@@ -94,7 +95,18 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		}
 
 		this._getActions().forEach((action) => {
-			let internalAction = new InternalEditorAction(action, this, this._instantiationService, this._contextKeyService);
+			const internalAction = new InternalEditorAction(
+				action.id,
+				action.label,
+				action.alias,
+				action.precondition,
+				(): void | TPromise<void> => {
+					return this._instantiationService.invokeFunction((accessor) => {
+						return action.runEditorCommand(accessor, this, null);
+					});
+				},
+				this._contextKeyService
+			);
 			this._actions[internalAction.id] = internalAction;
 		});
 

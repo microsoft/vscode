@@ -5,10 +5,11 @@
 
 'use strict';
 
-import { IDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
+import { empty as emptyDisposable, IDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
+import { TPromise } from 'vs/base/common/winjs.base';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ICommandService, ICommandHandler } from 'vs/platform/commands/common/commands';
+import { CommandsRegistry, ICommandService, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorOptions, IActionDescriptor, ICodeEditorWidgetCreationOptions, IDiffEditorOptions, IModel, IModelChangedEvent, EventType } from 'vs/editor/common/editorCommon';
@@ -21,6 +22,8 @@ import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IStandaloneColorService } from 'vs/editor/common/services/standaloneColorService';
 import { IOSupport } from 'vs/platform/keybinding/common/keybindingResolver';
+import { InternalEditorAction } from 'vs/editor/common/editorAction';
+import { MenuId, MenuRegistry, IMenuItem } from 'vs/platform/actions/common/actions';
 
 /**
  * The options to create an editor.
@@ -113,27 +116,85 @@ export class StandaloneCodeEditor extends CodeEditor implements IStandaloneCodeE
 		return this._contextKeyService.createKey(key, defaultValue);
 	}
 
-	public addAction(descriptor: IActionDescriptor): IDisposable {
-		let addedAction = this._addAction(descriptor);
-		let toDispose = [addedAction.disposable];
+	public addAction(_descriptor: IActionDescriptor): IDisposable {
+		if ((typeof _descriptor.id !== 'string') || (typeof _descriptor.label !== 'string') || (typeof _descriptor.run !== 'function')) {
+			throw new Error('Invalid action descriptor, `id`, `label` and `run` are required properties!');
+		}
 		if (!this._standaloneKeybindingService) {
 			console.warn('Cannot add keybinding because the editor is configured with an unrecognized KeybindingService');
-			return null;
+			return emptyDisposable;
 		}
-		if (Array.isArray(descriptor.keybindings)) {
-			let handler: ICommandHandler = (accessor) => {
-				return this.trigger('keyboard', descriptor.id, null);
+
+		// Read descriptor options
+		const id = _descriptor.id;
+		const label = _descriptor.label;
+		const precondition = ContextKeyExpr.and(
+			ContextKeyExpr.equals('editorId', this.getId()),
+			IOSupport.readKeybindingWhen(_descriptor.precondition)
+		);
+		const keybindings = _descriptor.keybindings;
+		const keybindingsWhen = ContextKeyExpr.and(
+			precondition,
+			IOSupport.readKeybindingWhen(_descriptor.keybindingContext)
+		);
+		const contextMenuGroupId = _descriptor.contextMenuGroupId || null;
+		const contextMenuOrder = _descriptor.contextMenuOrder || 0;
+		const run = (): TPromise<void> => {
+			return TPromise.as(_descriptor.run(this));
+		};
+		// 		return TPromise.as(this._run(this._editor));
+
+
+		let toDispose: IDisposable[] = [];
+
+
+		// Generate a unique id to allow the same descriptor.id across multiple editor instances
+		const uniqueId = this.getId() + ':' + id;
+
+		// Register the command
+		toDispose.push(CommandsRegistry.registerCommand(uniqueId, run));
+
+		// Register the context menu item
+		if (contextMenuGroupId) {
+			let menuItem: IMenuItem = {
+				command: {
+					id: uniqueId,
+					title: label
+				},
+				when: precondition,
+				group: contextMenuGroupId,
+				order: contextMenuOrder
 			};
-			let whenExpression = ContextKeyExpr.and(
-				IOSupport.readKeybindingWhen(descriptor.precondition),
-				IOSupport.readKeybindingWhen(descriptor.keybindingContext),
-			);
+			toDispose.push(MenuRegistry.appendMenuItem(MenuId.EditorContext, menuItem));
+		}
+
+		// Register the keybindings
+		if (Array.isArray(keybindings)) {
 			toDispose = toDispose.concat(
-				descriptor.keybindings.map((kb) => {
-					return this._standaloneKeybindingService.addDynamicKeybinding(addedAction.uniqueId, kb, handler, whenExpression);
+				keybindings.map((kb) => {
+					return this._standaloneKeybindingService.addDynamicKeybinding(uniqueId, kb, run, keybindingsWhen);
 				})
 			);
 		}
+
+		// Finally, register an internal editor action
+		let internalAction = new InternalEditorAction(
+			uniqueId,
+			label,
+			label,
+			precondition,
+			run,
+			this._contextKeyService
+		);
+
+		// Store it under the original id, such that trigger with the original id will work
+		this._actions[id] = internalAction;
+		toDispose.push({
+			dispose: () => {
+				delete this._actions[id];
+			}
+		});
+
 		return combinedDisposable(toDispose);
 	}
 }
