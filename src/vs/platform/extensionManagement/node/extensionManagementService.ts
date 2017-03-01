@@ -19,7 +19,7 @@ import {
 	IGalleryExtension, IExtensionManifest, IGalleryMetadata,
 	InstallExtensionEvent, DidInstallExtensionEvent, DidUninstallExtensionEvent, LocalExtensionType
 } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { getLocalExtensionIdFromGallery, getLocalExtensionIdFromManifest } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { getLocalExtensionIdFromGallery, getLocalExtensionIdFromManifest, getGalleryExtensionIdFromLocal, getIdAndVersionFromLocalExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { localizeManifest } from '../common/extensionNls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Limiter } from 'vs/base/common/async';
@@ -457,7 +457,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 
 	private scanUserExtensions(): TPromise<ILocalExtension[]> {
 		return this.scanExtensions(this.extensionsPath, LocalExtensionType.User).then(extensions => {
-			const byId = values(groupBy(extensions, p => `${p.manifest.publisher}.${p.manifest.name}`));
+			const byId = values(groupBy(extensions, p => getGalleryExtensionIdFromLocal(p)));
 			return byId.map(p => p.sort((a, b) => semver.rcompare(a.manifest.version, b.manifest.version))[0]);
 		});
 	}
@@ -518,9 +518,8 @@ export class ExtensionManagementService implements IExtensionManagementService {
 		return this.scanExtensionFolders(this.extensionsPath)
 			.then(folders => {
 				const galleryFolders = folders
-					.map(folder => ({ folder, match: /^([^.]+\..+)-(\d+\.\d+\.\d+)$/.exec(folder) }))
-					.filter(({ match }) => !!match)
-					.map(({ folder, match }) => ({ folder, id: match[1], version: match[2] }));
+					.map(folder => (assign({ folder }, getIdAndVersionFromLocalExtensionId(folder))))
+					.filter(({ id, version }) => !!id && !!version);
 
 				const byId = values(groupBy(galleryFolders, p => p.id));
 
