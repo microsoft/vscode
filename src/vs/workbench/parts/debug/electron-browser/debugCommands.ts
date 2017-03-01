@@ -36,8 +36,10 @@ export function registerCommands(): void {
 		handler(accessor: ServicesAccessor, request: string, requestArgs: any) {
 			const process = accessor.get(IDebugService).getViewModel().focusedProcess;
 			if (process) {
-				process.session.custom(request, requestArgs).done(undefined, errors.onUnexpectedError);
+				return process.session.custom(request, requestArgs);
 			}
+
+			return undefined;
 		},
 		when: CONTEXT_IN_DEBUG_MODE,
 		primary: undefined
