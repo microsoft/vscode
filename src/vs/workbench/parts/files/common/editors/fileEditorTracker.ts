@@ -21,11 +21,6 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { distinct } from 'vs/base/common/arrays';
 
 export class FileEditorTracker implements IWorkbenchContribution {
-
-	// Delay in ms that we wait at minimum before we update a model from a file change event.
-	// This reduces the chance that a save from the client triggers an update of the editor.
-	private static FILE_CHANGE_UPDATE_DELAY = 2000;
-
 	private stacks: IEditorStacksModel;
 	private toUnbind: IDisposable[];
 
@@ -231,27 +226,24 @@ export class FileEditorTracker implements IWorkbenchContribution {
 				// Note: we also consider the added event because it could be that a file was added
 				// and updated right after.
 				if (e.contains(fileResource, FileChangeType.UPDATED) || e.contains(fileResource, FileChangeType.ADDED)) {
-					const textModel = this.textFileService.models.get(fileResource);
 
 					// Text file: check for last save time
+					const textModel = this.textFileService.models.get(fileResource);
 					if (textModel) {
 						updatedModels.push(textModel);
 
 						// We only ever update models that are in good saved state
 						if (textModel.getState() === ModelState.SAVED) {
+							const codeEditor = editor.getControl() as IEditor;
+							const viewState = codeEditor.saveViewState();
+							const lastKnownMtime = textModel.getLastModifiedTime();
+							textModel.load().done(() => {
 
-							// Force a reopen of the input if this change came in later than our wait interval before we consider it
-							const lastSaveTime = textModel.getLastSaveAttemptTime();
-							if (Date.now() - lastSaveTime > FileEditorTracker.FILE_CHANGE_UPDATE_DELAY) {
-								const codeEditor = <IEditor>editor.getControl();
-								const viewState = codeEditor.saveViewState();
-								const currentMtime = textModel.getLastModifiedTime(); // optimize for the case where the file did actually not change
-								textModel.load().done(() => {
-									if (textModel.getLastModifiedTime() !== currentMtime && codeEditor.getModel() === textModel.textEditorModel) {
-										codeEditor.restoreViewState(viewState);
-									}
-								}, errors.onUnexpectedError);
-							}
+								// only restore the view state if the model mtime changed and the editor is still showing it
+								if (textModel.getLastModifiedTime() !== lastKnownMtime && codeEditor.getModel() === textModel.textEditorModel) {
+									codeEditor.restoreViewState(viewState);
+								}
+							}, errors.onUnexpectedError);
 						}
 					}
 
