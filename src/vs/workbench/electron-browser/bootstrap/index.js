@@ -7,7 +7,7 @@
 
 'use strict';
 
-if (window.location.search.indexOf('performance-startup-profile') >= 0) {
+if (window.location.search.indexOf('prof-startup') >= 0) {
 	var profiler = require('v8-profiler');
 	profiler.startProfiling('renderer', true);
 }

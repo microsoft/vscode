@@ -22,7 +22,7 @@ export interface ParsedArgs {
 	locale?: string;
 	'user-data-dir'?: string;
 	performance?: boolean;
-	'performance-startup-profile'?: string;
+	'prof-startup'?: string;
 	verbose?: boolean;
 	logExtensionHostCommunication?: boolean;
 	'disable-extensions'?: boolean;
@@ -76,7 +76,7 @@ export interface IEnvironmentService {
 	verbose: boolean;
 	wait: boolean;
 	performance: boolean;
-	performanceStartupProfile: { prefix: string, dir: string } | undefined;
+	profileStartup: { prefix: string, dir: string } | undefined;
 
 	mainIPCHandle: string;
 	sharedIPCHandle: string;

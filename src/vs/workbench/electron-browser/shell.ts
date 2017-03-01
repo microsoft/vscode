@@ -236,16 +236,16 @@ export class WorkbenchShell {
 		}
 
 		// Profiler: startup cpu profile
-		const { performanceStartupProfile } = this.environmentService;
-		if (performanceStartupProfile) {
+		const { profileStartup } = this.environmentService;
+		if (profileStartup) {
 
-			stopProfiling(performanceStartupProfile.dir, performanceStartupProfile.prefix).then(() => {
+			stopProfiling(profileStartup.dir, profileStartup.prefix).then(() => {
 
-				readdir(performanceStartupProfile.dir).then(files => {
-					return files.filter(value => value.indexOf(performanceStartupProfile.prefix) === 0);
+				readdir(profileStartup.dir).then(files => {
+					return files.filter(value => value.indexOf(profileStartup.prefix) === 0);
 				}).then(files => {
 
-					const profileFiles = files.reduce((prev, cur) => `${prev}${join(performanceStartupProfile.dir, cur)}\n`, '\n');
+					const profileFiles = files.reduce((prev, cur) => `${prev}${join(profileStartup.dir, cur)}\n`, '\n');
 
 					const primaryButton = this.messageService.confirm({
 						type: 'info',
@@ -259,11 +259,11 @@ export class WorkbenchShell {
 					if (primaryButton) {
 						const action = this.workbench.getInstantiationService().createInstance(ReportPerformanceIssueAction, ReportPerformanceIssueAction.ID, ReportPerformanceIssueAction.LABEL);
 
-						createIssue = action.run(`:warning: Make sure to **attach** these files: :warning:\n${files.map(file => `-\`${join(performanceStartupProfile.dir, file)}\``).join('\n')}`).then(() => {
-							return this.windowsService.showItemInFolder(performanceStartupProfile.dir);
+						createIssue = action.run(`:warning: Make sure to **attach** these files: :warning:\n${files.map(file => `-\`${join(profileStartup.dir, file)}\``).join('\n')}`).then(() => {
+							return this.windowsService.showItemInFolder(profileStartup.dir);
 						});
 					}
-					createIssue.then(() => this.windowsService.relaunch({ removeArgs: ['--performance-startup-profile'] }));
+					createIssue.then(() => this.windowsService.relaunch({ removeArgs: ['--prof-startup'] }));
 				});
 
 			}, err => console.error(err));
