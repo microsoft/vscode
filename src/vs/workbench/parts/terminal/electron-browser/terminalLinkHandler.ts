@@ -32,43 +32,56 @@ export class TerminalLinkHandler {
 	) {
 	}
 
-	public get localLinkRegex(): RegExp {
+	public registerLocalLinkHandler(xterm: any) {
+		xterm.registerLinkMatcher(this._localLinkRegex, (url) => this._handleLocalLink(url), {
+			matchIndex: 1,
+			validationCallback: (link: string, callback: (isValid: boolean) => void) => this._validateLocalLink(link, callback)
+		});
+	}
+
+	protected get _localLinkRegex(): RegExp {
 		if (this._platform === Platform.Windows) {
 			return WINDOWS_LOCAL_LINK_REGEX;
 		}
 		return UNIX_LIKE_LOCAL_LINK_REGEX;
 	}
 
-	public handleLocalLink(link: string): TPromise<void> {
+	private _handleLocalLink(link: string): TPromise<void> {
+		return this._resolvePath(link).then(resolvedLink => {
+			if (!resolvedLink) {
+				return void 0;
+			}
+			const resource = Uri.file(path.normalize(path.resolve(resolvedLink)));
+			return this._editorService.openEditor({ resource }).then(() => void 0);
+		});
+	}
+
+	private _validateLocalLink(link: string, callback: (isValid: boolean) => void): void {
+		console.log('validate');
+		this._resolvePath(link).then(resolvedLink => {
+			callback(!!resolvedLink);
+		});
+	}
+
+	private _resolvePath(link: string): TPromise<string> {
 		if (this._platform === Platform.Windows) {
-			return this._handleWindowsLocalLink(link);
-		}
-		return this._handleUnixLikeLocalLink(link);
-	}
-
-	private _handleUnixLikeLocalLink(link: string): TPromise<void> {
-		// Resolve ~ -> $HOME
-		if (link.charAt(0) === '~') {
-			if (!process.env.HOME) {
-				return TPromise.as(void 0);
+			// Resolve ~ -> %HOMEDRIVE%\%HOMEPATH%
+			if (link.charAt(0) === '~') {
+				if (!process.env.HOMEDRIVE || !process.env.HOMEPATH) {
+					return TPromise.as(void 0);
+				}
+				link = `${process.env.HOMEDRIVE}\\${process.env.HOMEPATH + link.substring(1)}`;
 			}
-			link = process.env.HOME + link.substring(1);
-		}
-		return this._handleCommonLocalLink(link);
-	}
-
-	private _handleWindowsLocalLink(link: string): TPromise<void> {
-		// Resolve ~ -> %HOMEDRIVE%\%HOMEPATH%
-		if (link.charAt(0) === '~') {
-			if (!process.env.HOMEDRIVE || !process.env.HOMEPATH) {
-				return TPromise.as(void 0);
+		} else {
+			// Resolve workspace path . / .. -> <path>/. / <path/..
+			if (link.charAt(0) === '.') {
+				if (!this._contextService.hasWorkspace) {
+					// Abort if no workspace is open
+					return TPromise.as(void 0);
+				}
+				link = path.join(this._contextService.getWorkspace().resource.fsPath, link);
 			}
-			link = `${process.env.HOMEDRIVE}\\${process.env.HOMEPATH + link.substring(1)}`;
 		}
-		return this._handleCommonLocalLink(link);
-	}
-
-	private _handleCommonLocalLink(link: string): TPromise<void> {
 		// Resolve workspace path . / .. -> <path>/. / <path/..
 		if (link.charAt(0) === '.') {
 			if (!this._contextService.hasWorkspace) {
@@ -78,15 +91,12 @@ export class TerminalLinkHandler {
 			link = path.join(this._contextService.getWorkspace().resource.fsPath, link);
 		}
 
-		// Clean up the path
-		const resource = Uri.file(path.normalize(path.resolve(link)));
-
 		// Open an editor if the path exists
 		return pfs.fileExists(link).then(isFile => {
 			if (!isFile) {
-				return void 0;
+				return null;
 			}
-			return this._editorService.openEditor({ resource }).then(() => void 0);
+			return link;
 		});
 	}
 }
