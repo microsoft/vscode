@@ -184,6 +184,11 @@ export interface IEditorInput extends IDisposable {
 	isDirty(): boolean;
 
 	/**
+	 * Reverts this input.
+	 */
+	revert(): TPromise<boolean>;
+
+	/**
 	 * Returns if the other object matches this input.
 	 */
 	matches(other: any): boolean;
