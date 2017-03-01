@@ -49,6 +49,7 @@ CommonEditorRegistry.registerDefaultLanguageCommand('_executeDocumentHighlights'
 class WordHighlighter {
 
 	private editor: editorCommon.ICommonCodeEditor;
+	private occurrencesHighlight: boolean;
 	private model: editorCommon.IModel;
 	private _lastWordRange: Range;
 	private _decorationIds: string[];
@@ -64,6 +65,7 @@ class WordHighlighter {
 
 	constructor(editor: editorCommon.ICommonCodeEditor) {
 		this.editor = editor;
+		this.occurrencesHighlight = this.editor.getConfiguration().contribInfo.occurrencesHighlight;
 		this.model = this.editor.getModel();
 		this.toUnhook = [];
 		this.toUnhook.push(editor.onDidChangeCursorPosition((e: editorCommon.ICursorPositionChangedEvent) => {
@@ -75,6 +77,13 @@ class WordHighlighter {
 		}));
 		this.toUnhook.push(editor.onDidChangeModelContent((e) => {
 			this._stopAll();
+		}));
+		this.toUnhook.push(editor.onDidChangeConfiguration((e) => {
+			let newValue = this.editor.getConfiguration().contribInfo.occurrencesHighlight;
+			if (this.occurrencesHighlight !== newValue) {
+				this.occurrencesHighlight = newValue;
+				this._stopAll();
+			}
 		}));
 
 		this._lastWordRange = null;
@@ -120,6 +129,12 @@ class WordHighlighter {
 	}
 
 	private _onPositionChanged(e: editorCommon.ICursorPositionChangedEvent): void {
+
+		// disabled
+		if (!this.occurrencesHighlight) {
+			this._stopAll();
+			return;
+		}
 
 		// ignore typing & other
 		if (e.reason !== editorCommon.CursorChangeReason.Explicit) {

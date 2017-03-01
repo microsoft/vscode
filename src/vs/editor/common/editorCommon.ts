@@ -486,6 +486,11 @@ export interface IEditorOptions {
 	 */
 	selectionHighlight?: boolean;
 	/**
+	 * Enable semantic occurrences highlight.
+	 * Defaults to true.
+	 */
+	occurrencesHighlight?: boolean;
+	/**
 	 * Show code lens
 	 * Defaults to true.
 	 */
@@ -996,6 +1001,7 @@ export class EditorContribOptions {
 	readonly suggestFontSize: number;
 	readonly suggestLineHeight: number;
 	readonly selectionHighlight: boolean;
+	readonly occurrencesHighlight: boolean;
 	readonly codeLens: boolean;
 	readonly folding: boolean;
 	readonly matchBrackets: boolean;
@@ -1022,6 +1028,7 @@ export class EditorContribOptions {
 		suggestFontSize: number;
 		suggestLineHeight: number;
 		selectionHighlight: boolean;
+		occurrencesHighlight: boolean;
 		codeLens: boolean;
 		folding: boolean;
 		matchBrackets: boolean;
@@ -1044,6 +1051,7 @@ export class EditorContribOptions {
 		this.suggestFontSize = source.suggestFontSize;
 		this.suggestLineHeight = source.suggestLineHeight;
 		this.selectionHighlight = Boolean(source.selectionHighlight);
+		this.occurrencesHighlight = Boolean(source.occurrencesHighlight);
 		this.codeLens = Boolean(source.codeLens);
 		this.folding = Boolean(source.folding);
 		this.matchBrackets = Boolean(source.matchBrackets);
@@ -1072,6 +1080,7 @@ export class EditorContribOptions {
 			&& this.suggestFontSize === other.suggestFontSize
 			&& this.suggestLineHeight === other.suggestLineHeight
 			&& this.selectionHighlight === other.selectionHighlight
+			&& this.occurrencesHighlight === other.occurrencesHighlight
 			&& this.codeLens === other.codeLens
 			&& this.folding === other.folding
 			&& this.matchBrackets === other.matchBrackets
