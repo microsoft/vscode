@@ -418,7 +418,7 @@ export class EnableForWorkspaceAction extends Action implements IExtensionAction
 	private update(): void {
 		this.enabled = false;
 		if (this.extension) {
-			this.enabled = !this.extension.disabledGlobally && this.extension.disabledForWorkspace && this.extensionEnablementService.canEnable(this.extension.identifier);
+			this.enabled = !this.extension.disabledGlobally && this.extension.disabledForWorkspace && this.extensionEnablementService.canEnable(this.extension.id);
 		}
 	}
 
@@ -457,7 +457,7 @@ export class EnableGloballyAction extends Action implements IExtensionAction {
 	private update(): void {
 		this.enabled = false;
 		if (this.extension) {
-			this.enabled = this.extension.disabledGlobally && this.extensionEnablementService.canEnable(this.extension.identifier);
+			this.enabled = this.extension.disabledGlobally && this.extensionEnablementService.canEnable(this.extension.id);
 		}
 	}
 
@@ -513,7 +513,7 @@ export class EnableAction extends Action {
 			return;
 		}
 
-		this.enabled = this.extension.state === ExtensionState.Installed && (this.extension.disabledGlobally || this.extension.disabledForWorkspace) && this.extensionEnablementService.canEnable(this.extension.identifier);
+		this.enabled = this.extension.state === ExtensionState.Installed && (this.extension.disabledGlobally || this.extension.disabledForWorkspace) && this.extensionEnablementService.canEnable(this.extension.id);
 		this.class = this.enabled ? EnableAction.EnabledClass : EnableAction.DisabledClass;
 	}
 
@@ -765,7 +765,7 @@ export class ReloadAction extends Action {
 		const isUninstalled = this.extension.state === ExtensionState.Uninstalled;
 		const isDisabled = this.extension.disabledForWorkspace || this.extension.disabledGlobally;
 
-		const filteredExtensions = runningExtensions.filter(e => e.id === this.extension.identifier);
+		const filteredExtensions = runningExtensions.filter(e => e.id === this.extension.id);
 		const isExtensionRunning = filteredExtensions.length > 0;
 		const isDifferentVersionRunning = filteredExtensions.length > 0 && this.extension.version !== filteredExtensions[0].version;
 
@@ -1247,7 +1247,7 @@ export class EnableAllAction extends Action {
 	}
 
 	private update(): void {
-		this.enabled = this.extensionsWorkbenchService.local.some(e => this.extensionEnablementService.canEnable(e.identifier) && e.disabledGlobally);
+		this.enabled = this.extensionsWorkbenchService.local.some(e => this.extensionEnablementService.canEnable(e.id) && e.disabledGlobally);
 	}
 
 	run(): TPromise<any> {
@@ -1279,7 +1279,7 @@ export class EnableAllWorkpsaceAction extends Action {
 	}
 
 	private update(): void {
-		this.enabled = this.workspaceContextService.hasWorkspace() && this.extensionsWorkbenchService.local.some(e => this.extensionEnablementService.canEnable(e.identifier) && !e.disabledGlobally && e.disabledForWorkspace);
+		this.enabled = this.workspaceContextService.hasWorkspace() && this.extensionsWorkbenchService.local.some(e => this.extensionEnablementService.canEnable(e.id) && !e.disabledGlobally && e.disabledForWorkspace);
 	}
 
 	run(): TPromise<any> {

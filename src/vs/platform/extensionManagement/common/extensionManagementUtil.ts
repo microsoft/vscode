@@ -5,10 +5,10 @@
 
 'use strict';
 
-import { ILocalExtension, IGalleryExtension, IExtensionManifest } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ILocalExtension, IGalleryExtension, IExtensionManifest, EXTENSION_IDENTIFIER_REGEX } from 'vs/platform/extensionManagement/common/extensionManagement';
 
 export function getGalleryExtensionId(publisher: string, name: string): string {
-	return adoptToGalleryExtensioId(`${publisher}.${name}`);
+	return `${publisher}.${name.toLocaleLowerCase()}`;
 }
 
 export function getLocalExtensionIdFromGallery(extension: IGalleryExtension, version: string): string {
@@ -20,7 +20,7 @@ export function getLocalExtensionIdFromManifest(manifest: IExtensionManifest): s
 }
 
 export function getGalleryExtensionIdFromLocal(local: ILocalExtension): string {
-	return adoptToGalleryExtensioId(local.id.replace(/-\d+\.\d+\.\d+$/, ''));
+	return getIdAndVersionFromLocalExtensionId(local.id).id;
 }
 
 export function getIdAndVersionFromLocalExtensionId(localExtensionId: string): { id: string, version: string } {
@@ -29,11 +29,7 @@ export function getIdAndVersionFromLocalExtensionId(localExtensionId: string): {
 }
 
 export function adoptToGalleryExtensioId(id: string): string {
-	return id.toLocaleLowerCase();
-}
-
-export function areSameExtensions(a: { id: string }, b: { id: string }): boolean {
-	return adoptToGalleryExtensioId(a.id) === adoptToGalleryExtensioId(b.id);
+	return id.replace(EXTENSION_IDENTIFIER_REGEX, (match, publisher: string, name: string) => getGalleryExtensionId(publisher, name));
 }
 
 function getLocalExtensionId(id: string, version: string): string {
