@@ -19,7 +19,7 @@ import {
 	IGalleryExtension, IExtensionManifest, IGalleryMetadata,
 	InstallExtensionEvent, DidInstallExtensionEvent, DidUninstallExtensionEvent, LocalExtensionType
 } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { getLocalExtensionIdFromGallery, getLocalExtensionIdFromManifest, getGalleryExtensionIdFromLocal, getIdAndVersionFromLocalExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { getLocalExtensionIdFromGallery, getLocalExtensionIdFromManifest, getGalleryExtensionIdFromLocal, getIdAndVersionFromLocalExtensionId, adoptToGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { localizeManifest } from '../common/extensionNls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Limiter } from 'vs/base/common/async';
@@ -171,8 +171,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 			return TPromise.wrap([]);
 		}
 		// Filter out self
-		const extensionName = `${extension.publisher}.${extension.name}`;
-		const dependencies = extension.properties.dependencies ? extension.properties.dependencies.filter(name => name !== extensionName) : [];
+		const dependencies = extension.properties.dependencies ? extension.properties.dependencies.filter(id => id !== extension.id) : [];
 		if (!dependencies.length) {
 			return TPromise.wrap([]);
 		}
@@ -314,7 +313,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 
 	private hasDependencies(extension: ILocalExtension, installed: ILocalExtension[]): boolean {
 		if (extension.manifest.extensionDependencies && extension.manifest.extensionDependencies.length) {
-			return installed.some(i => extension.manifest.extensionDependencies.indexOf(`${i.manifest.publisher}.${i.manifest.name}`) !== -1);
+			return installed.some(i => extension.manifest.extensionDependencies.indexOf(getGalleryExtensionIdFromLocal(i)) !== -1);
 		}
 		return false;
 	}
@@ -384,7 +383,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 		if (!extension.manifest.extensionDependencies || extension.manifest.extensionDependencies.length === 0) {
 			return [];
 		}
-		const dependenciesToUninstall = installed.filter(i => extension.manifest.extensionDependencies.indexOf(`${i.manifest.publisher}.${i.manifest.name}`) !== -1);
+		const dependenciesToUninstall = installed.filter(i => extension.manifest.extensionDependencies.indexOf(getGalleryExtensionIdFromLocal(i)) !== -1);
 		const depsOfDeps = [];
 		for (const dep of dependenciesToUninstall) {
 			depsOfDeps.push(...this.getDependenciesToUninstallRecursively(dep, installed, checked));
@@ -406,7 +405,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	}
 
 	private getDependents(extension: ILocalExtension, installed: ILocalExtension[]): ILocalExtension[] {
-		return installed.filter(e => e.manifest.extensionDependencies && e.manifest.extensionDependencies.indexOf(`${extension.manifest.publisher}.${extension.manifest.name}`) !== -1);
+		return installed.filter(e => e.manifest.extensionDependencies && e.manifest.extensionDependencies.indexOf(getGalleryExtensionIdFromLocal(extension)) !== -1);
 	}
 
 	private doUninstall(id: string): TPromise<void> {
@@ -476,7 +475,12 @@ export class ExtensionManagementService implements IExtensionManagementService {
 					const changelogUrl = changelog ? URI.file(path.join(extensionPath, changelog)).toString() : null;
 
 					return readManifest(extensionPath)
-						.then<ILocalExtension>(({ manifest, metadata }) => ({ type, id, manifest, metadata, path: extensionPath, readmeUrl, changelogUrl }));
+						.then<ILocalExtension>(({ manifest, metadata }) => {
+							if (manifest.extensionDependencies) {
+								manifest.extensionDependencies = manifest.extensionDependencies.map(id => adoptToGalleryExtensionId(id));
+							}
+							return { type, id, manifest, metadata, path: extensionPath, readmeUrl, changelogUrl };
+						});
 				}).then(null, () => null);
 
 				return limiter.queue(each);
