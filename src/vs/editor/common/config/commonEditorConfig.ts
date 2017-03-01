@@ -194,6 +194,7 @@ class InternalEditorOptionsHelper {
 		{
 			let wordWrap = opts.wordWrap;
 			let wordWrapColumn = toInteger(opts.wordWrapColumn, 1);
+			let wordWrapMinified = toBoolean(opts.wordWrapMinified);
 
 			// Compatibility with old true or false values
 			if (<any>wordWrap === true) {
@@ -202,7 +203,7 @@ class InternalEditorOptionsHelper {
 				wordWrap = 'off';
 			}
 
-			if (isDominatedByLongLines) {
+			if (wordWrapMinified && isDominatedByLongLines) {
 				// Force viewport width wrapping if model is dominated by long lines
 				bareWrappingInfo = {
 					isViewportWrapping: true,
