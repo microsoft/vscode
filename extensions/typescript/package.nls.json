@@ -27,5 +27,6 @@
 	"typescript.goToProjectConfig.title": "Go to Project Configuration",
 	"javascript.goToProjectConfig.title": "Go to Project Configuration",
 	"typescript.referencesCodeLens.enabled": "Enable/disable references CodeLens.",
+	"typescript.implementationsCodeLens.enabled": "Enable/disable implementations CodeLens.",
 	"typescript.selectTypeScriptVersion.title": "Select TypeScript Version"
 }
