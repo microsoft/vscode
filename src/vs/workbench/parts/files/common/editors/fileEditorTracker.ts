@@ -12,13 +12,14 @@ import { IEditor, IEditorViewState, isCommonCodeEditor } from 'vs/editor/common/
 import { IEditor as IBaseEditor } from 'vs/platform/editor/common/editor';
 import { toResource, EditorInput, IEditorStacksModel, SideBySideEditorInput, IEditorGroup } from 'vs/workbench/common/editor';
 import { BINARY_FILE_EDITOR_ID } from 'vs/workbench/parts/files/common/files';
-import { ITextFileService, ModelState } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, ModelState, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { FileOperationEvent, FileOperation, IFileService, FileChangeType, FileChangesEvent } from 'vs/platform/files/common/files';
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { distinct } from 'vs/base/common/arrays';
 
 export class FileEditorTracker implements IWorkbenchContribution {
 
@@ -77,8 +78,8 @@ export class FileEditorTracker implements IWorkbenchContribution {
 
 	private onFileChanges(e: FileChangesEvent): void {
 
-		// Handle updates to visible editors
-		this.handleUpdatesToVisibleEditors(e);
+		// Handle updates
+		this.handleUpdates(e);
 
 		// Handle deletes
 		if (e.gotDeleted()) {
@@ -193,7 +194,33 @@ export class FileEditorTracker implements IWorkbenchContribution {
 		return void 0;
 	}
 
-	private handleUpdatesToVisibleEditors(e: FileChangesEvent) {
+	private handleUpdates(e: FileChangesEvent): void {
+
+		// Collect distinct (saved) models to update.
+		//
+		// Note: we also consider the added event because it could be that a file was added
+		// and updated right after.
+		const modelsToUpdate = distinct([...e.getUpdated(), ...e.getAdded()]
+			.map(u => this.textFileService.models.get(u.resource))
+			.filter(model => model && model.getState() === ModelState.SAVED), m => m.getResource().toString());
+
+		// Handle updates to visible editors specially to preserve view state
+		const visibleModels = this.handleUpdatesToVisibleEditors(e);
+
+		// Handle updates to remaining models that are not visible
+		modelsToUpdate.forEach(model => {
+			if (visibleModels.indexOf(model) >= 0) {
+				return; // already updated
+			}
+
+			// Load model to update
+			model.load().done(null, errors.onUnexpectedError);
+		});
+	}
+
+	private handleUpdatesToVisibleEditors(e: FileChangesEvent): ITextFileEditorModel[] {
+		const models: ITextFileEditorModel[] = [];
+
 		const editors = this.editorService.getVisibleEditors();
 		editors.forEach(editor => {
 			let input = editor.input;
@@ -213,6 +240,7 @@ export class FileEditorTracker implements IWorkbenchContribution {
 
 					// Text file: check for last save time
 					if (textModel) {
+						models.push(textModel);
 
 						// We only ever update models that are in good saved state
 						if (textModel.getState() === ModelState.SAVED) {
@@ -239,6 +267,8 @@ export class FileEditorTracker implements IWorkbenchContribution {
 				}
 			}
 		});
+
+		return models;
 	}
 
 	private isEditorShowingPath(editor: IBaseEditor, resource: URI): boolean {

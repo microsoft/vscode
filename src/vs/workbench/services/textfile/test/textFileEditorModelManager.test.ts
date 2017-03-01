@@ -238,25 +238,6 @@ suite('Files - TextFileEditorModelManager', () => {
 		manager.dispose();
 	});
 
-	test('file change event dispose model if happening > 2 second after last save', function () {
-		const manager: TestTextFileEditorModelManager = instantiationService.createInstance(TestTextFileEditorModelManager);
-
-		const resource = toResource('/path/index.txt');
-
-		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, resource, 'utf8');
-		manager.add(resource, model);
-
-		assert.ok(!model.isDisposed());
-
-		// change event (watcher)
-		accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource, type: FileChangeType.UPDATED }]));
-
-		assert.ok(model.isDisposed());
-		assert.ok(!accessor.modelService.getModel(model.getResource()));
-
-		manager.dispose();
-	});
-
 	test('file change event does NOT dispose model if happening < 2 second after last save', function (done) {
 		const manager: TestTextFileEditorModelManager = instantiationService.createInstance(TestTextFileEditorModelManager);
 

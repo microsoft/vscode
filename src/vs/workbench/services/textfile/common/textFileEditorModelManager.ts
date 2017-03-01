@@ -17,10 +17,6 @@ import { FileOperation, FileOperationEvent, FileChangesEvent, IFileService } fro
 
 export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 
-	// Delay in ms that we wait at minimum before we update a model from a file change event.
-	// This reduces the chance that a save from the client triggers an update of the editor.
-	private static FILE_CHANGE_UPDATE_DELAY = 2000;
-
 	private toUnbind: IDisposable[];
 
 	private _onModelDisposed: Emitter<URI>;
@@ -116,23 +112,6 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 		e.getDeleted().forEach(deleted => {
 			this.disposeModelIfPossible(deleted.resource);
 		});
-
-		// Dispose models that got changed and are not visible. We do this because otherwise
-		// cached file models will be stale from the contents on disk.
-		e.getUpdated()
-			.map(u => this.get(u.resource))
-			.filter(model => {
-				if (!model) {
-					return false;
-				}
-
-				if (Date.now() - model.getLastSaveAttemptTime() < TextFileEditorModelManager.FILE_CHANGE_UPDATE_DELAY) {
-					return false; // this is a weak check to see if the change came from outside the editor or not
-				}
-
-				return true; // ok boss
-			})
-			.forEach(model => this.disposeModelIfPossible(model.getResource()));
 	}
 
 	private canDispose(textModel: ITextFileEditorModel): boolean {
