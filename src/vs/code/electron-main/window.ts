@@ -468,10 +468,10 @@ export class VSCodeWindow {
 			}, 10000);
 		}
 
-		// (--performance-startup-profile) save profile to disk
-		const { performanceStartupProfile } = this.environmentService;
-		if (performanceStartupProfile) {
-			stopProfiling(performanceStartupProfile.dir, performanceStartupProfile.prefix)
+		// (--prof-startup) save profile to disk
+		const { profileStartup } = this.environmentService;
+		if (profileStartup) {
+			stopProfiling(profileStartup.dir, profileStartup.prefix)
 				.done(undefined, err => console.error(err));
 		}
 	}
