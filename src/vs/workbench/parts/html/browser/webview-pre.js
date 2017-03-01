@@ -127,11 +127,6 @@ document.addEventListener("DOMContentLoaded", function (event) {
 
 		// write new content onto iframe
 		newFrame.contentDocument.open('text/html', 'replace');
-		// set DOCTYPE for newDocument explicitly as DOMParser.parseFromString strips it off
-		// and DOCTYPE is needed in the iframe to ensure that the user agent stylesheet is correctly overridden
-		newFrame.contentDocument.write('<!DOCTYPE html>');
-		newFrame.contentDocument.write(newDocument.documentElement.innerHTML);
-		newFrame.contentDocument.close();
 
 		// workaround for https://github.com/Microsoft/vscode/issues/12865
 		// check new scrollTop and reset if neccessary
@@ -142,6 +137,12 @@ document.addEventListener("DOMContentLoaded", function (event) {
 			document.body.removeChild(frame);
 			newFrame.style.display = 'block';
 		});
+
+		// set DOCTYPE for newDocument explicitly as DOMParser.parseFromString strips it off
+		// and DOCTYPE is needed in the iframe to ensure that the user agent stylesheet is correctly overridden
+		newFrame.contentDocument.write('<!DOCTYPE html>');
+		newFrame.contentDocument.write(newDocument.documentElement.innerHTML);
+		newFrame.contentDocument.close();
 
 		ipcRenderer.sendToHost('did-set-content', stats);
 	});
