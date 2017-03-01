@@ -54,14 +54,92 @@ export interface IStandaloneDiffEditor extends IDiffEditor {
 	addCommand(keybinding: number, handler: ICommandHandler, context: string): string;
 	createContextKey<T>(key: string, defaultValue: T): IContextKey<T>;
 	addAction(descriptor: IActionDescriptor): IDisposable;
+
+	getOriginalEditor(): IStandaloneCodeEditor;
+	getModifiedEditor(): IStandaloneCodeEditor;
 }
 
 let LAST_GENERATED_COMMAND_ID = 0;
 
-export class StandaloneEditor extends CodeEditor implements IStandaloneCodeEditor {
+/**
+ * A code editor to be used both by the standalone editor and the standalone diff editor.
+ */
+export class StandaloneCodeEditor extends CodeEditor implements IStandaloneCodeEditor {
 
 	private _standaloneKeybindingService: StandaloneKeybindingService;
 	private _standaloneColorService: IStandaloneColorService;
+
+	constructor(
+		domElement: HTMLElement,
+		options: IEditorConstructionOptions,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@ICodeEditorService codeEditorService: ICodeEditorService,
+		@ICommandService commandService: ICommandService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IStandaloneColorService standaloneColorService: IStandaloneColorService
+	) {
+		options = options || {};
+		if (typeof options.theme === 'string') {
+			options.theme = standaloneColorService.setTheme(options.theme);
+		}
+		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService);
+
+		this._standaloneColorService = standaloneColorService;
+		if (keybindingService instanceof StandaloneKeybindingService) {
+			this._standaloneKeybindingService = keybindingService;
+		}
+	}
+
+	public updateOptions(newOptions: IEditorOptions): void {
+		if (typeof newOptions.theme === 'string') {
+			newOptions.theme = this._standaloneColorService.setTheme(newOptions.theme);
+		}
+		super.updateOptions(newOptions);
+	}
+
+	public addCommand(keybinding: number, handler: ICommandHandler, context: string): string {
+		if (!this._standaloneKeybindingService) {
+			console.warn('Cannot add command because the editor is configured with an unrecognized KeybindingService');
+			return null;
+		}
+		let commandId = 'DYNAMIC_' + (++LAST_GENERATED_COMMAND_ID);
+		let whenExpression = IOSupport.readKeybindingWhen(context);
+		this._standaloneKeybindingService.addDynamicKeybinding(commandId, keybinding, handler, whenExpression);
+		return commandId;
+	}
+
+	public createContextKey<T>(key: string, defaultValue: T): IContextKey<T> {
+		return this._contextKeyService.createKey(key, defaultValue);
+	}
+
+	public addAction(descriptor: IActionDescriptor): IDisposable {
+		let addedAction = this._addAction(descriptor);
+		let toDispose = [addedAction.disposable];
+		if (!this._standaloneKeybindingService) {
+			console.warn('Cannot add keybinding because the editor is configured with an unrecognized KeybindingService');
+			return null;
+		}
+		if (Array.isArray(descriptor.keybindings)) {
+			let handler: ICommandHandler = (accessor) => {
+				return this.trigger('keyboard', descriptor.id, null);
+			};
+			let whenExpression = ContextKeyExpr.and(
+				IOSupport.readKeybindingWhen(descriptor.precondition),
+				IOSupport.readKeybindingWhen(descriptor.keybindingContext),
+			);
+			toDispose = toDispose.concat(
+				descriptor.keybindings.map((kb) => {
+					return this._standaloneKeybindingService.addDynamicKeybinding(addedAction.uniqueId, kb, handler, whenExpression);
+				})
+			);
+		}
+		return combinedDisposable(toDispose);
+	}
+}
+
+export class StandaloneEditor extends StandaloneCodeEditor implements IStandaloneCodeEditor {
+
 	private _contextViewService: IEditorContextViewService;
 	private _ownsModel: boolean;
 	private _toDispose2: IDisposable[];
@@ -79,15 +157,7 @@ export class StandaloneEditor extends CodeEditor implements IStandaloneCodeEdito
 		@IStandaloneColorService standaloneColorService: IStandaloneColorService
 	) {
 		options = options || {};
-		if (typeof options.theme === 'string') {
-			options.theme = standaloneColorService.setTheme(options.theme);
-		}
-		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService);
-		this._standaloneColorService = standaloneColorService;
-
-		if (keybindingService instanceof StandaloneKeybindingService) {
-			this._standaloneKeybindingService = keybindingService;
-		}
+		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService, keybindingService, standaloneColorService);
 
 		this._contextViewService = <IEditorContextViewService>contextViewService;
 		this._toDispose2 = [toDispose];
@@ -119,56 +189,6 @@ export class StandaloneEditor extends CodeEditor implements IStandaloneCodeEdito
 
 	public destroy(): void {
 		this.dispose();
-	}
-
-	public updateOptions(newOptions: IEditorOptions): void {
-		if (typeof newOptions.theme === 'string') {
-			newOptions.theme = this._standaloneColorService.setTheme(newOptions.theme);
-		}
-		super.updateOptions(newOptions);
-	}
-
-	public addCommand(keybinding: number, handler: ICommandHandler, context: string): string {
-		if (!this._standaloneKeybindingService) {
-			console.warn('Cannot add command because the editor is configured with an unrecognized KeybindingService');
-			return null;
-		}
-		let commandId = 'DYNAMIC_' + (++LAST_GENERATED_COMMAND_ID);
-		let whenExpression = IOSupport.readKeybindingWhen(context);
-		this._standaloneKeybindingService.addDynamicKeybinding(commandId, keybinding, handler, whenExpression);
-		return commandId;
-	}
-
-	public createContextKey<T>(key: string, defaultValue: T): IContextKey<T> {
-		if (!this._standaloneKeybindingService) {
-			console.warn('Cannot create context key because the editor is configured with an unrecognized KeybindingService');
-			return null;
-		}
-		return this._contextKeyService.createKey(key, defaultValue);
-	}
-
-	public addAction(descriptor: IActionDescriptor): IDisposable {
-		let addedAction = this._addAction(descriptor);
-		let toDispose = [addedAction.disposable];
-		if (!this._standaloneKeybindingService) {
-			console.warn('Cannot add keybinding because the editor is configured with an unrecognized KeybindingService');
-			return null;
-		}
-		if (Array.isArray(descriptor.keybindings)) {
-			let handler: ICommandHandler = (accessor) => {
-				return this.trigger('keyboard', descriptor.id, null);
-			};
-			let whenExpression = ContextKeyExpr.and(
-				IOSupport.readKeybindingWhen(descriptor.precondition),
-				IOSupport.readKeybindingWhen(descriptor.keybindingContext),
-			);
-			toDispose = toDispose.concat(
-				descriptor.keybindings.map((kb) => {
-					return this._standaloneKeybindingService.addDynamicKeybinding(addedAction.uniqueId, kb, handler, whenExpression);
-				})
-			);
-		}
-		return combinedDisposable(toDispose);
 	}
 
 	_attachModel(model: IModel): void {
@@ -225,46 +245,27 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 		this.dispose();
 	}
 
+	protected _createInnerEditor(instantiationService: IInstantiationService, container: HTMLElement, options: IEditorOptions): CodeEditor {
+		return instantiationService.createInstance(StandaloneCodeEditor, container, options);
+	}
+
+	public getOriginalEditor(): IStandaloneCodeEditor {
+		return <StandaloneCodeEditor>super.getOriginalEditor();
+	}
+
+	public getModifiedEditor(): IStandaloneCodeEditor {
+		return <StandaloneCodeEditor>super.getModifiedEditor();
+	}
+
 	public addCommand(keybinding: number, handler: ICommandHandler, context: string): string {
-		if (!this._standaloneKeybindingService) {
-			console.warn('Cannot add command because the editor is configured with an unrecognized KeybindingService');
-			return null;
-		}
-		let commandId = 'DYNAMIC_' + (++LAST_GENERATED_COMMAND_ID);
-		let whenExpression = IOSupport.readKeybindingWhen(context);
-		this._standaloneKeybindingService.addDynamicKeybinding(commandId, keybinding, handler, whenExpression);
-		return commandId;
+		return this.getModifiedEditor().addCommand(keybinding, handler, context);
 	}
 
 	public createContextKey<T>(key: string, defaultValue: T): IContextKey<T> {
-		if (!this._standaloneKeybindingService) {
-			console.warn('Cannot create context key because the editor is configured with an unrecognized KeybindingService');
-			return null;
-		}
-		return this._contextKeyService.createKey(key, defaultValue);
+		return this.getModifiedEditor().createContextKey(key, defaultValue);
 	}
 
 	public addAction(descriptor: IActionDescriptor): IDisposable {
-		let addedAction = this._addAction(descriptor);
-		let toDispose = [addedAction.disposable];
-		if (!this._standaloneKeybindingService) {
-			console.warn('Cannot add keybinding because the editor is configured with an unrecognized KeybindingService');
-			return null;
-		}
-		if (Array.isArray(descriptor.keybindings)) {
-			let handler: ICommandHandler = (ctx) => {
-				return this.trigger('keyboard', descriptor.id, null);
-			};
-			let whenExpression = ContextKeyExpr.and(
-				IOSupport.readKeybindingWhen(descriptor.precondition),
-				IOSupport.readKeybindingWhen(descriptor.keybindingContext),
-			);
-			toDispose = toDispose.concat(
-				descriptor.keybindings.map((kb) => {
-					return this._standaloneKeybindingService.addDynamicKeybinding(addedAction.uniqueId, kb, handler, whenExpression);
-				})
-			);
-		}
-		return combinedDisposable(toDispose);
+		return this.getModifiedEditor().addAction(descriptor);
 	}
 }

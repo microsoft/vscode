@@ -970,6 +970,8 @@ declare module monaco.editor {
         addCommand(keybinding: number, handler: ICommandHandler, context: string): string;
         createContextKey<T>(key: string, defaultValue: T): IContextKey<T>;
         addAction(descriptor: IActionDescriptor): IDisposable;
+        getOriginalEditor(): IStandaloneCodeEditor;
+        getModifiedEditor(): IStandaloneCodeEditor;
     }
     export interface ICommandHandler {
         (...args: any[]): void;
