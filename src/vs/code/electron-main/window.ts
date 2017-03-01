@@ -8,6 +8,7 @@
 import * as path from 'path';
 import * as platform from 'vs/base/common/platform';
 import * as objects from 'vs/base/common/objects';
+import { stopProfiling } from 'vs/base/node/profiler';
 import nls = require('vs/nls');
 import { IStorageService } from 'vs/code/electron-main/storage';
 import { shell, screen, BrowserWindow, systemPreferences, app } from 'electron';
@@ -465,6 +466,13 @@ export class VSCodeWindow {
 					this._win.webContents.openDevTools();
 				}
 			}, 10000);
+		}
+
+		// (--prof-startup) save profile to disk
+		const { profileStartup } = this.environmentService;
+		if (profileStartup) {
+			stopProfiling(profileStartup.dir, profileStartup.prefix)
+				.done(undefined, err => console.error(err));
 		}
 	}
 

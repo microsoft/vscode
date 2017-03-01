@@ -399,6 +399,11 @@
       "from": "util-deprecate@>=1.0.1 <1.1.0",
       "resolved": "https://registry.npmjs.org/util-deprecate/-/util-deprecate-1.0.2.tgz"
     },
+    "v8-profiler": {
+      "version": "5.6.5",
+      "from": "v8-profiler@5.6.5",
+      "resolved": "git://github.com/jrieken/v8-profiler.git#bc0803a4d4b2150b8a1bbffa80270769007036c2"
+    },
     "vscode-debugprotocol": {
       "version": "1.17.0",
       "from": "vscode-debugprotocol@1.17.0",

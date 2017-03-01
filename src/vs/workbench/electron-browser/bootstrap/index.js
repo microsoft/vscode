@@ -7,6 +7,11 @@
 
 'use strict';
 
+if (window.location.search.indexOf('prof-startup') >= 0) {
+	var profiler = require('v8-profiler');
+	profiler.startProfiling('renderer', true);
+}
+
 /*global window,document,define*/
 
 const path = require('path');
