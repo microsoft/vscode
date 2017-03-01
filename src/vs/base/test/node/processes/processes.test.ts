@@ -25,7 +25,7 @@ function fork(id: string): cp.ChildProcess {
 }
 
 suite('Processes', () => {
-	test('pasero buffered sending - simple data', function (done: () => void) {
+	test('buffered sending - simple data', function (done: () => void) {
 		if (process.env['VSCODE_PID']) {
 			return done(); // TODO@Ben find out why test fails when run from within VS Code
 		}
