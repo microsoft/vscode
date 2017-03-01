@@ -28,32 +28,16 @@ import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProper
 import { TelemetryAppenderChannel } from 'vs/platform/telemetry/common/telemetryIpc';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
-import { ISharedProcessInitData } from './sharedProcess';
+// import { ISharedProcessInitData } from './sharedProcess';
 import { IChoiceService } from 'vs/platform/message/common/message';
 import { ChoiceChannelClient } from 'vs/platform/message/common/messageIpc';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { WindowsChannelClient } from 'vs/platform/windows/common/windowsIpc';
 import { ActiveWindowManager } from 'vs/code/common/windows';
+import { ipcRenderer } from 'electron';
 
-function quit(err?: Error) {
-	if (err) {
-		console.error(err.stack || err);
-	}
-
-	process.exit(err ? 1 : 0);
-}
-
-/**
- * Plan B is to kill oneself if one's parent dies. Much drama.
- */
-function setupPlanB(parentPid: number): void {
-	setInterval(function () {
-		try {
-			process.kill(parentPid, 0); // throws an exception if the main process doesn't exist anymore.
-		} catch (e) {
-			process.exit();
-		}
-	}, 5000);
+interface ISharedProcessInitData {
+	args: any;
 }
 
 const eventPrefix = 'monacoworkbench';
@@ -161,14 +145,13 @@ function setupIPC(hook: string): TPromise<Server> {
 
 function handshake(): TPromise<ISharedProcessInitData> {
 	return new TPromise<ISharedProcessInitData>((c, e) => {
-		process.once('message', c);
-		process.once('error', e);
-		process.send('hello');
+		ipcRenderer.once('handshake', (_, r) => c(r));
+		ipcRenderer.send('handshake');
 	});
 }
 
 setupIPC(process.env['VSCODE_SHARED_IPC_HOOK'])
 	.then(server => handshake()
-		.then(data => main(server, data))
-		.then(() => setupPlanB(process.env['VSCODE_PID']))
-		.done(null, quit));
+		.then(data => main(server, data)));
+	// .then(() => setupPlanB(process.env['VSCODE_PID']))
+	// .done(null, quit));
