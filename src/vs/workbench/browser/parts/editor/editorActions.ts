@@ -534,9 +534,12 @@ export class RevertAndCloseEditorAction extends Action {
 
 	public run(): TPromise<any> {
 		const activeEditor = this.editorService.getActiveEditor();
-		if (activeEditor) {
+		if (activeEditor && activeEditor.input) {
+			const input = activeEditor.input;
+			const position = activeEditor.position;
+
 			return activeEditor.input.revert().then(ok =>
-				this.editorService.closeEditor(activeEditor.position, activeEditor.input)
+				this.editorService.closeEditor(position, input)
 			);
 		}
 
