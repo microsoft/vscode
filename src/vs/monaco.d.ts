@@ -1280,6 +1280,11 @@ declare module monaco.editor {
          */
         wordWrapColumn?: number;
         /**
+         * Force word wrapping when the text appears to be of a minified/generated file.
+         * Defaults to true.
+         */
+        wordWrapMinified?: boolean;
+        /**
          * Control indentation of wrapped lines. Can be: 'none', 'same' or 'indent'.
          * Defaults to 'same' in vscode and to 'none' in monaco-editor.
          */

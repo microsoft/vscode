@@ -28,14 +28,18 @@ class ToggleWordWrapAction extends EditorAction {
 	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
 		let wrappingInfo = editor.getConfiguration().wrappingInfo;
 		let newWordWrap: 'on' | 'off';
+		let newWordWrapMinified: boolean;
 		if (!wrappingInfo.isViewportWrapping) {
 			newWordWrap = 'on';
+			newWordWrapMinified = true;
 		} else {
 			newWordWrap = 'off';
+			newWordWrapMinified = false;
 		}
 
 		editor.updateOptions({
-			wordWrap: newWordWrap
+			wordWrap: newWordWrap,
+			wordWrapMinified: newWordWrapMinified
 		});
 	}
 }
