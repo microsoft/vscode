@@ -380,31 +380,29 @@ export class ExtensionEditor extends BaseEditor {
 			append(this.content, $('p.nocontent')).textContent = localize('noDependencies', "No Dependencies");
 			return;
 		}
-		addClass(this.content, 'loading');
-		this.extensionDependencies.get().then(extensionDependencies => {
-			removeClass(this.content, 'loading');
 
-			const content = $('div', { class: 'subcontent' });
-			const scrollableContent = new DomScrollableElement(content, { canUseTranslate3d: false });
-			append(this.content, scrollableContent.getDomNode());
-			this.contentDisposables.push(scrollableContent);
+		return this.loadContents(() => {
+			return this.extensionDependencies.get().then(extensionDependencies => {
+				const content = $('div', { class: 'subcontent' });
+				const scrollableContent = new DomScrollableElement(content, { canUseTranslate3d: false });
+				append(this.content, scrollableContent.getDomNode());
+				this.contentDisposables.push(scrollableContent);
 
-			const tree = this.renderDependencies(content, extensionDependencies);
-			const layout = () => {
+				const tree = this.renderDependencies(content, extensionDependencies);
+				const layout = () => {
+					scrollableContent.scanDomNode();
+					const scrollState = scrollableContent.getScrollState();
+					tree.layout(scrollState.height);
+				};
+				const removeLayoutParticipant = arrays.insert(this.layoutParticipants, { layout });
+				this.contentDisposables.push(toDisposable(removeLayoutParticipant));
+
+				this.contentDisposables.push(tree);
 				scrollableContent.scanDomNode();
-				const scrollState = scrollableContent.getScrollState();
-				tree.layout(scrollState.height);
-			};
-			const removeLayoutParticipant = arrays.insert(this.layoutParticipants, { layout });
-			this.contentDisposables.push(toDisposable(removeLayoutParticipant));
-
-			this.contentDisposables.push(tree);
-			scrollableContent.scanDomNode();
-		}, error => {
-			removeClass(this.content, 'loading');
-			append(this.content, $('p.nocontent')).textContent = error;
-			this.messageService.show(Severity.Error, error);
-			return;
+			}, error => {
+				append(this.content, $('p.nocontent')).textContent = error;
+				this.messageService.show(Severity.Error, error);
+			});
 		});
 	}
 

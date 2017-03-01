@@ -47,6 +47,10 @@
 	display: flex;
 }
 
+.extensions-viewlet > .extensions .extension.loading {
+	background: url('loading.svg') center center no-repeat;
+}
+
 .extensions-viewlet > .extensions .extension > .icon {
 	width: 42px;
 	height: 42px;
