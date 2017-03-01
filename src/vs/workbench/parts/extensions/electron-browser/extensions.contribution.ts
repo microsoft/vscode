@@ -38,6 +38,7 @@ import { ExtensionsConfigurationSchema, ExtensionsConfigurationSchemaId } from '
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeymapExtensions } from 'vs/workbench/parts/extensions/electron-browser/keymapExtensions';
+import { adoptToGalleryExtensioId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 
 // Singletons
 registerSingleton(IExtensionGalleryService, ExtensionGalleryService);
@@ -174,7 +175,8 @@ jsonRegistry.registerSchema(ExtensionsConfigurationSchemaId, ExtensionsConfigura
 // Register Commands
 CommandsRegistry.registerCommand('_extensions.manage', (accessor: ServicesAccessor, extensionId: string) => {
 	const extensionService = accessor.get(IExtensionsWorkbenchService);
-	const extension = extensionService.local.filter(e => e.identifier === extensionId);
+	extensionId = adoptToGalleryExtensioId(extensionId);
+	const extension = extensionService.local.filter(e => e.id === extensionId);
 	if (extension.length === 1) {
 		extensionService.open(extension[0]).done(null, errors.onUnexpectedError);
 	}

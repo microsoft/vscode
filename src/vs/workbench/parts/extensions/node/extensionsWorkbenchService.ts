@@ -68,10 +68,6 @@ class Extension implements IExtension {
 		return this.local.manifest.displayName || this.local.manifest.name;
 	}
 
-	get identifier(): string {
-		return `${this.publisher}.${this.name}`;
-	}
-
 	get id(): string {
 		if (this.gallery) {
 			return this.gallery.id;
@@ -360,8 +356,8 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			this.installed = result.map(local => {
 				const extension = installedById[local.id] || new Extension(this.galleryService, this.stateProvider, local);
 				extension.local = local;
-				extension.disabledGlobally = globallyDisabledExtensions.indexOf(extension.identifier) !== -1;
-				extension.disabledForWorkspace = workspaceDisabledExtensions.indexOf(extension.identifier) !== -1;
+				extension.disabledGlobally = globallyDisabledExtensions.indexOf(extension.id) !== -1;
+				extension.disabledForWorkspace = workspaceDisabledExtensions.indexOf(extension.id) !== -1;
 				return extension;
 			});
 
@@ -393,9 +389,9 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			.then(extensions => {
 				const map = new Map<string, IExtension>();
 				for (const extension of extensions) {
-					map.set(extension.identifier, extension);
+					map.set(extension.id, extension);
 				}
-				return new ExtensionDependencies(extension, extension.identifier, map);
+				return new ExtensionDependencies(extension, extension.id, map);
 			});
 	}
 
@@ -404,8 +400,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 	}
 
 	private fromGallery(gallery: IGalleryExtension): Extension {
-		const installedByGalleryId = index(this.installed, e => e.id);
-		const installed = installedByGalleryId[gallery.id];
+		const installed = this.installed.filter(installed => installed.id === gallery.id)[0];
 
 		if (installed) {
 			// Loading the compatible version only there is an engine property
@@ -440,15 +435,15 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 	}
 
 	private syncWithGallery(): TPromise<void> {
-		const ids = this.installed
+		const names = this.installed
 			.filter(e => e.type === LocalExtensionType.User)
-			.map(e => e.local.metadata.uuid);
+			.map(e => e.id);
 
-		if (ids.length === 0) {
+		if (names.length === 0) {
 			return TPromise.as(null);
 		}
 
-		return this.queryGallery({ ids, pageSize: ids.length }) as TPromise<any>;
+		return this.queryGallery({ names, pageSize: names.length }) as TPromise<any>;
 	}
 
 	private eventuallyAutoUpdateExtensions(): void {
@@ -589,7 +584,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			if (!enable && (workspace ? i.disabledForWorkspace : i.disabledGlobally)) {
 				return false;
 			}
-			return i.type === LocalExtensionType.User && extension.dependencies.indexOf(i.identifier) !== -1;
+			return i.type === LocalExtensionType.User && extension.dependencies.indexOf(i.id) !== -1;
 		});
 		const depsOfDeps = [];
 		for (const dep of dependenciesToDisable) {
@@ -614,10 +609,10 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 				return false;
 			}
 			return i.dependencies.some(dep => {
-				if (extension.identifier === dep) {
+				if (extension.id === dep) {
 					return true;
 				}
-				return dependencies.some(d => d.identifier === dep);
+				return dependencies.some(d => d.id === dep);
 			});
 		});
 	}
@@ -636,12 +631,12 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 
 	private doSetEnablement(extension: IExtension, enable: boolean, workspace: boolean): TPromise<boolean> {
 		if (workspace) {
-			return this.extensionEnablementService.setEnablement(extension.identifier, enable, workspace);
+			return this.extensionEnablementService.setEnablement(extension.id, enable, workspace);
 		}
 
-		const globalElablement = this.extensionEnablementService.setEnablement(extension.identifier, enable, false);
+		const globalElablement = this.extensionEnablementService.setEnablement(extension.id, enable, false);
 		if (enable && this.workspaceContextService.hasWorkspace()) {
-			const workspaceEnablement = this.extensionEnablementService.setEnablement(extension.identifier, enable, true);
+			const workspaceEnablement = this.extensionEnablementService.setEnablement(extension.id, enable, true);
 			return TPromise.join([globalElablement, workspaceEnablement]).then(values => values[0] || values[1]);
 		}
 		return globalElablement;
@@ -732,12 +727,12 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 	}
 
 	private onEnablementChanged(extensionIdentifier: string) {
-		const [extension] = this.local.filter(e => e.identifier === extensionIdentifier);
+		const [extension] = this.local.filter(e => e.id === extensionIdentifier);
 		if (extension) {
 			const globallyDisabledExtensions = this.extensionEnablementService.getGloballyDisabledExtensions();
 			const workspaceDisabledExtensions = this.extensionEnablementService.getWorkspaceDisabledExtensions();
-			extension.disabledGlobally = globallyDisabledExtensions.indexOf(extension.identifier) !== -1;
-			extension.disabledForWorkspace = workspaceDisabledExtensions.indexOf(extension.identifier) !== -1;
+			extension.disabledGlobally = globallyDisabledExtensions.indexOf(extension.id) !== -1;
+			extension.disabledForWorkspace = workspaceDisabledExtensions.indexOf(extension.id) !== -1;
 			this._onChange.fire();
 		}
 	}
