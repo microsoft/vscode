@@ -166,9 +166,9 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 
 	getLastSaveAttemptTime(): number;
 
-	getLastModifiedTime(): number;
-
 	getState(): ModelState;
+
+	getETag(): string;
 
 	updatePreferredEncoding(encoding: string): void;
 
