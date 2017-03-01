@@ -373,15 +373,19 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 	}
 
 	private _createLeftHandSideEditor(options: editorCommon.IDiffEditorOptions, instantiationService: IInstantiationService): void {
-		this.originalEditor = instantiationService.createInstance(CodeEditor, this._originalDomNode, this._adjustOptionsForLeftHandSide(options, this._originalIsEditable));
+		this.originalEditor = this._createInnerEditor(instantiationService, this._originalDomNode, this._adjustOptionsForLeftHandSide(options, this._originalIsEditable));
 		this._toDispose.push(this.originalEditor.addBulkListener2((events) => this._onOriginalEditorEvents(events)));
 		this._toDispose.push(this.addEmitter2(this.originalEditor));
 	}
 
 	private _createRightHandSideEditor(options: editorCommon.IDiffEditorOptions, instantiationService: IInstantiationService): void {
-		this.modifiedEditor = instantiationService.createInstance(CodeEditor, this._modifiedDomNode, this._adjustOptionsForRightHandSide(options));
+		this.modifiedEditor = this._createInnerEditor(instantiationService, this._modifiedDomNode, this._adjustOptionsForRightHandSide(options));
 		this._toDispose.push(this.modifiedEditor.addBulkListener2((events) => this._onModifiedEditorEvents(events)));
 		this._toDispose.push(this.addEmitter2(this.modifiedEditor));
+	}
+
+	protected _createInnerEditor(instantiationService: IInstantiationService, container: HTMLElement, options: editorCommon.IEditorOptions): CodeEditor {
+		return instantiationService.createInstance(CodeEditor, container, options);
 	}
 
 	public destroy(): void {
@@ -894,7 +898,7 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 		return clonedOptions;
 	}
 
-	private _adjustOptionsForLeftHandSide(options: editorCommon.IDiffEditorOptions, isEditable: boolean): editorCommon.IDiffEditorOptions {
+	private _adjustOptionsForLeftHandSide(options: editorCommon.IDiffEditorOptions, isEditable: boolean): editorCommon.IEditorOptions {
 		let result = this._adjustOptionsForSubEditor(options);
 		result.readOnly = !isEditable;
 		result.overviewRulerLanes = 1;
@@ -902,7 +906,7 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 		return result;
 	}
 
-	private _adjustOptionsForRightHandSide(options: editorCommon.IDiffEditorOptions): editorCommon.IDiffEditorOptions {
+	private _adjustOptionsForRightHandSide(options: editorCommon.IDiffEditorOptions): editorCommon.IEditorOptions {
 		let result = this._adjustOptionsForSubEditor(options);
 		result.revealHorizontalRightPadding = DefaultConfig.editor.revealHorizontalRightPadding + DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH;
 		result.scrollbar.verticalHasArrows = false;
