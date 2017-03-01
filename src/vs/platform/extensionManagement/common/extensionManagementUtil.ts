@@ -46,7 +46,7 @@ export function getLocalExtensionTelemetryData(extension: ILocalExtension): any 
 	return {
 		id: getGalleryExtensionIdFromLocal(extension),
 		name: extension.manifest.name,
-		galleryId: extension.metadata ? extension.metadata.uuid : null,
+		galleryId: null,
 		publisherId: extension.metadata ? extension.metadata.publisherId : null,
 		publisherName: extension.manifest.publisher,
 		publisherDisplayName: extension.metadata ? extension.metadata.publisherDisplayName : null,

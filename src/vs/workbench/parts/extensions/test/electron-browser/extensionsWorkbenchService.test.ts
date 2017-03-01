@@ -983,7 +983,7 @@ suite('ExtensionsWorkbenchService Test', () => {
 		const localExtension = <ILocalExtension>Object.create({ manifest: {} });
 		assign(localExtension, { type: LocalExtensionType.User, manifest: {} }, properties);
 		assign(localExtension.manifest, { name, publisher: 'pub', version: '1.0.0' }, manifest);
-		localExtension.metadata = { uuid: localExtension.id, publisherId: localExtension.manifest.publisher, publisherDisplayName: 'somename' };
+		localExtension.metadata = { id: localExtension.id, publisherId: localExtension.manifest.publisher, publisherDisplayName: 'somename' };
 		localExtension.id = getLocalExtensionIdFromManifest(localExtension.manifest);
 		return localExtension;
 	}
