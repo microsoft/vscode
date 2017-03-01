@@ -15,11 +15,11 @@ import { ITypescriptServiceClient } from '../typescriptService';
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
-export default class TypeScriptReferencesCodeLensProvider extends TypeScriptBaseCodeLensProvider {
+export default class TypeScriptImplementationsCodeLensProvider extends TypeScriptBaseCodeLensProvider {
 	public constructor(
 		client: ITypescriptServiceClient
 	) {
-		super(client, 'referencesCodeLens.enabled');
+		super(client, 'implementationsCodeLens.enabled');
 	}
 
 	resolveCodeLens(inputCodeLens: CodeLens, token: CancellationToken): Promise<CodeLens> {
@@ -29,33 +29,33 @@ export default class TypeScriptReferencesCodeLensProvider extends TypeScriptBase
 			line: codeLens.range.start.line + 1,
 			offset: codeLens.range.start.character + 1
 		};
-		return this.client.execute('references', args, token).then(response => {
+		return this.client.execute('implementation', args, token).then(response => {
 			if (!response || !response.body) {
 				throw codeLens;
 			}
 
-			const locations = response.body.refs
+			const locations = response.body
 				.map(reference =>
 					new Location(this.client.asUrl(reference.file),
 						new Range(
 							reference.start.line - 1, reference.start.offset - 1,
 							reference.end.line - 1, reference.end.offset - 1)))
+				// Exclude original from implementations
 				.filter(location =>
-					// Exclude original definition from references
 					!(location.uri.fsPath === codeLens.document.fsPath &&
-						location.range.start.isEqual(codeLens.range.start)));
+						location.range.start.line === codeLens.range.start.line));
 
 			codeLens.command = {
 				title: locations.length === 1
-					? localize('oneReferenceLabel', '1 reference')
-					: localize('manyReferenceLabel', '{0} references', locations.length),
+					? localize('oneImplementationLabel', '1 implementation')
+					: localize('manyImplementationLabel', '{0} implementations', locations.length),
 				command: 'editor.action.showReferences',
 				arguments: [codeLens.document, codeLens.range.start, locations]
 			};
 			return codeLens;
 		}).catch(() => {
 			codeLens.command = {
-				title: localize('referenceErrorLabel', 'Could not determine references'),
+				title: localize('implementationsErrorLabel', 'Could not determine implementations'),
 				command: ''
 			};
 			return codeLens;
@@ -65,36 +65,33 @@ export default class TypeScriptReferencesCodeLensProvider extends TypeScriptBase
 	protected extractSymbol(
 		document: TextDocument,
 		item: Proto.NavigationTree,
-		_parent: Proto.NavigationTree | null
+		parent: Proto.NavigationTree | null
 	): Range | null {
+		// Handle children of interfaces
+		if (parent && parent.kind === PConst.Kind.interface) {
+			switch (item.kind) {
+				case PConst.Kind.memberFunction:
+				case PConst.Kind.memberVariable:
+				case PConst.Kind.memberGetAccessor:
+				case PConst.Kind.memberSetAccessor:
+					return super.getSymbolRange(document, item);
+			}
+		}
+
 		switch (item.kind) {
-			case PConst.Kind.const:
-			case PConst.Kind.let:
-			case PConst.Kind.variable:
-			case PConst.Kind.function:
-				// Only show references for exported variables
-				if (!item.kindModifiers.match(/\bexport\b/)) {
-					break;
-				}
-			// fallthrough
+			case PConst.Kind.interface:
+				return super.getSymbolRange(document, item);
 
 			case PConst.Kind.class:
-				if (item.text === '<class>') {
-					break;
-				}
-			// fallthrough
-
 			case PConst.Kind.memberFunction:
 			case PConst.Kind.memberVariable:
 			case PConst.Kind.memberGetAccessor:
 			case PConst.Kind.memberSetAccessor:
-			case PConst.Kind.constructorImplementation:
-			case PConst.Kind.interface:
-			case PConst.Kind.type:
-			case PConst.Kind.enum:
-				return super.getSymbolRange(document, item);
+				if (item.kindModifiers.match(/\babstract\b/g)) {
+					return super.getSymbolRange(document, item);
+				}
+				break;
 		}
-
 		return null;
 	}
 }
