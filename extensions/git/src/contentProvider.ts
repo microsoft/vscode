@@ -32,7 +32,8 @@ export class GitContentProvider {
 	constructor(private model: Model) {
 		this.disposables.push(
 			model.onDidChangeRepository(this.eventuallyFireChangeEvents, this),
-			workspace.registerTextDocumentContentProvider('git', this)
+			workspace.registerTextDocumentContentProvider('git', this),
+			workspace.registerTextDocumentContentProvider('git-original', this)
 		);
 
 		setInterval(() => this.cleanup(), FIVE_MINUTES);
@@ -52,6 +53,10 @@ export class GitContentProvider {
 	}
 
 	async provideTextDocumentContent(uri: Uri): Promise<string> {
+		if (uri.scheme === 'git-original') {
+			uri = new Uri().with({ scheme: 'git', path: uri.query });
+		}
+
 		let ref = uri.query;
 
 		if (ref === '~') {
