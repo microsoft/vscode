@@ -59,37 +59,14 @@ export interface IMimeAndEncoding {
 }
 
 function doDetectMimesFromStream(instream: streams.Readable): TPromise<IMimeAndEncoding> {
-	return new TPromise((complete, error) =>
-		stream.readExactlyByStream(instream, BUFFER_READ_MAX_LEN, (err, buffer, bytesRead) => {
-			if (err) {
-				error(error);
-			} else {
-				complete(detectMimeAndEncodingFromBuffer({ buffer, bytesRead }));
-			}
-		})
-	);
+	return stream.readExactlyByStream(instream, BUFFER_READ_MAX_LEN).then(detectMimeAndEncodingFromBuffer);
 }
 
 function doDetectMimesFromFile(absolutePath: string): TPromise<IMimeAndEncoding> {
-	return new TPromise((complete, error) =>
-		stream.readExactlyByFile(absolutePath, BUFFER_READ_MAX_LEN, (err, buffer, bytesRead) => {
-			if (err) {
-				error(error);
-			} else {
-				complete(detectMimeAndEncodingFromBuffer({ buffer, bytesRead }));
-			}
-		})
-	);
+	return stream.readExactlyByFile(absolutePath, BUFFER_READ_MAX_LEN).then(detectMimeAndEncodingFromBuffer);
 }
 
-
-
-export interface ReadResult {
-	buffer: NodeBuffer;
-	bytesRead: number;
-}
-
-export function detectMimeAndEncodingFromBuffer({buffer, bytesRead}: ReadResult): IMimeAndEncoding {
+export function detectMimeAndEncodingFromBuffer({buffer, bytesRead}: stream.ReadResult): IMimeAndEncoding {
 	let enc = encoding.detectEncodingByBOMFromBuffer(buffer, bytesRead);
 
 	// Detect 0 bytes to see if file is binary (ignore for UTF 16 though)

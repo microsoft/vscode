@@ -229,15 +229,10 @@ export class BackupFileService implements IBackupFileService {
 			const readPromises: TPromise<Uri>[] = [];
 
 			model.get().forEach(fileBackup => {
-				readPromises.push(new TPromise<Uri>((c, e) => {
-					readToMatchingString(fileBackup.fsPath, BackupFileService.META_MARKER, 2000, 10000, (error, result) => {
-						if (result === null) {
-							e(error);
-						}
-
-						c(Uri.parse(result));
-					});
-				}));
+				readPromises.push(
+					readToMatchingString(fileBackup.fsPath, BackupFileService.META_MARKER, 2000, 10000)
+						.then(Uri.parse)
+				);
 			});
 
 			return TPromise.join(readPromises);

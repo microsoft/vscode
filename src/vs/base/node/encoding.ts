@@ -91,14 +91,5 @@ export function detectEncodingByBOMFromBuffer(buffer: NodeBuffer, bytesRead: num
  * If no BOM is detected, null will be passed to callback.
  */
 export function detectEncodingByBOM(file: string): TPromise<string> {
-	return new TPromise((complete, error) => {
-		stream.readExactlyByFile(file, 3, (err: Error, buffer: NodeBuffer, bytesRead: number) => {
-			if (err) {
-				error(err);
-			} else {
-				complete(detectEncodingByBOMFromBuffer(buffer, bytesRead));
-			}
-		});
-	});
-
+	return stream.readExactlyByFile(file, 3).then(({buffer, bytesRead}) => detectEncodingByBOMFromBuffer(buffer, bytesRead));
 }
