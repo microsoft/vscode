@@ -22,6 +22,12 @@ class ServiceAccessor {
 	}
 }
 
+function getLastModifiedTime(model: TextFileEditorModel): number {
+	const stat = model.getStat();
+
+	return stat ? stat.mtime : -1;
+}
+
 suite('Files - TextFileEditorModel', () => {
 
 	let instantiationService: IInstantiationService;
@@ -42,7 +48,7 @@ suite('Files - TextFileEditorModel', () => {
 
 		model.load().done(() => {
 			model.textEditorModel.setValue('bar');
-			assert.ok(model.getLastModifiedTime() <= Date.now());
+			assert.ok(getLastModifiedTime(model) <= Date.now());
 
 			return model.save().then(() => {
 				assert.ok(model.getLastSaveAttemptTime() <= Date.now());
@@ -60,11 +66,11 @@ suite('Files - TextFileEditorModel', () => {
 		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8');
 
 		model.setEncoding('utf8', EncodingMode.Encode); // no-op
-		assert.equal(model.getLastModifiedTime(), -1);
+		assert.equal(getLastModifiedTime(model), -1);
 
 		model.setEncoding('utf16', EncodingMode.Encode);
 
-		assert.ok(model.getLastModifiedTime() <= Date.now()); // indicates model was saved due to encoding change
+		assert.ok(getLastModifiedTime(model) <= Date.now()); // indicates model was saved due to encoding change
 
 		model.dispose();
 	});
@@ -188,7 +194,7 @@ suite('Files - TextFileEditorModel', () => {
 		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8');
 
 		model.load().done(() => {
-			const mtime = model.getLastModifiedTime();
+			const mtime = getLastModifiedTime(model);
 			accessor.textFileService.setResolveTextContentErrorOnce(<IFileOperationResult>{
 				message: 'error',
 				fileOperationResult: FileOperationResult.FILE_NOT_MODIFIED_SINCE
@@ -196,7 +202,7 @@ suite('Files - TextFileEditorModel', () => {
 
 			return model.load().then((model: TextFileEditorModel) => {
 				assert.ok(model);
-				assert.equal(model.getLastModifiedTime(), mtime);
+				assert.equal(getLastModifiedTime(model), mtime);
 				model.dispose();
 
 				done();
@@ -267,8 +273,8 @@ suite('Files - TextFileEditorModel', () => {
 			return input2.resolve().then((model2: TextFileEditorModel) => {
 				model1.textEditorModel.setValue('foo');
 
-				const m1Mtime = model1.getLastModifiedTime();
-				const m2Mtime = model2.getLastModifiedTime();
+				const m1Mtime = model1.getStat().mtime;
+				const m2Mtime = model2.getStat().mtime;
 				assert.ok(m1Mtime > 0);
 				assert.ok(m2Mtime > 0);
 
@@ -283,8 +289,8 @@ suite('Files - TextFileEditorModel', () => {
 					accessor.textFileService.saveAll().then(() => {
 						assert.ok(!accessor.textFileService.isDirty(toResource.call(this, '/path/index_async.txt')));
 						assert.ok(!accessor.textFileService.isDirty(toResource.call(this, '/path/index_async2.txt')));
-						assert.ok(model1.getLastModifiedTime() > m1Mtime);
-						assert.ok(model2.getLastModifiedTime() > m2Mtime);
+						assert.ok(model1.getStat().mtime > m1Mtime);
+						assert.ok(model2.getStat().mtime > m2Mtime);
 						assert.ok(model1.getLastSaveAttemptTime() > m1Mtime);
 						assert.ok(model2.getLastSaveAttemptTime() > m2Mtime);
 
