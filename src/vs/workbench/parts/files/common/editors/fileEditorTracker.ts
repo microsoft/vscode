@@ -230,20 +230,22 @@ export class FileEditorTracker implements IWorkbenchContribution {
 					// Text file: check for last save time
 					const textModel = this.textFileService.models.get(fileResource);
 					if (textModel) {
-						updatedModels.push(textModel);
 
 						// We only ever update models that are in good saved state
 						if (textModel.getState() === ModelState.SAVED) {
 							const codeEditor = editor.getControl() as IEditor;
 							const viewState = codeEditor.saveViewState();
-							const lastKnownMtime = textModel.getLastModifiedTime();
+							const lastKnownEtag = textModel.getETag();
+
 							textModel.load().done(() => {
 
-								// only restore the view state if the model mtime changed and the editor is still showing it
-								if (textModel.getLastModifiedTime() !== lastKnownMtime && codeEditor.getModel() === textModel.textEditorModel) {
+								// only restore the view state if the model changed and the editor is still showing it
+								if (textModel.getETag() !== lastKnownEtag && codeEditor.getModel() === textModel.textEditorModel) {
 									codeEditor.restoreViewState(viewState);
 								}
 							}, errors.onUnexpectedError);
+
+							updatedModels.push(textModel);
 						}
 					}
 

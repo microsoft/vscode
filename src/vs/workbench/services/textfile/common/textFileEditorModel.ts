@@ -50,7 +50,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private dirty: boolean;
 	private versionId: number;
 	private bufferSavedVersionId: number;
-	private versionOnDiskStat: IFileStat;
+	private lastResolvedDiskStat: IFileStat;
 	private toDispose: IDisposable[];
 	private blockModelContentChange: boolean;
 	private autoSaveAfterMillies: number;
@@ -286,8 +286,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		let etag: string;
 		if (force) {
 			etag = void 0; // bypass cache if force loading is true
-		} else if (this.versionOnDiskStat) {
-			etag = this.versionOnDiskStat.etag; // otherwise respect etag to support caching
+		} else if (this.lastResolvedDiskStat) {
+			etag = this.lastResolvedDiskStat.etag; // otherwise respect etag to support caching
 		}
 
 		// Resolve Content
@@ -326,7 +326,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			hasChildren: false,
 			children: void 0,
 		};
-		this.updateVersionOnDiskStat(resolvedStat);
+		this.updateLastResolvedDiskStat(resolvedStat);
 
 		// Keep the original encoding to not loose it when saving
 		const oldEncoding = this.contentEncoding;
@@ -601,7 +601,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				return this.fileService.touchFile(this.resource).then(stat => {
 
 					// Updated resolved stat with updated stat since touching it might have changed mtime
-					this.updateVersionOnDiskStat(stat);
+					this.updateLastResolvedDiskStat(stat);
 				}, () => void 0 /* gracefully ignore errors if just touching */);
 			}
 
@@ -617,17 +617,17 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			// Save to Disk
 			// mark the save operation as currently pending with the versionId (it might have changed from a save participant triggering)
 			diag(`doSave(${versionId}) - before updateContent()`, this.resource, new Date());
-			return this.saveSequentializer.setPending(newVersionId, this.fileService.updateContent(this.versionOnDiskStat.resource, this.getValue(), {
+			return this.saveSequentializer.setPending(newVersionId, this.fileService.updateContent(this.lastResolvedDiskStat.resource, this.getValue(), {
 				overwriteReadonly,
 				overwriteEncoding,
-				mtime: this.versionOnDiskStat.mtime,
+				mtime: this.lastResolvedDiskStat.mtime,
 				encoding: this.getEncoding(),
-				etag: this.versionOnDiskStat.etag
+				etag: this.lastResolvedDiskStat.etag
 			}).then(stat => {
 				diag(`doSave(${versionId}) - after updateContent()`, this.resource, new Date());
 
 				// Telemetry
-				this.telemetryService.publicLog('filePUT', { mimeType: guessMimeTypes(this.resource.fsPath).join(', '), ext: paths.extname(this.versionOnDiskStat.resource.fsPath) });
+				this.telemetryService.publicLog('filePUT', { mimeType: guessMimeTypes(this.resource.fsPath).join(', '), ext: paths.extname(this.lastResolvedDiskStat.resource.fsPath) });
 
 				// Update dirty state unless model has changed meanwhile
 				if (versionId === this.versionId) {
@@ -638,7 +638,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				}
 
 				// Updated resolved stat with updated stat
-				this.updateVersionOnDiskStat(stat);
+				this.updateLastResolvedDiskStat(stat);
 
 				// Cancel any content change event promises as they are no longer valid
 				this.contentChangeEventScheduler.cancel();
@@ -692,18 +692,18 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		};
 	}
 
-	private updateVersionOnDiskStat(newVersionOnDiskStat: IFileStat): void {
+	private updateLastResolvedDiskStat(newVersionOnDiskStat: IFileStat): void {
 
 		// First resolve - just take
-		if (!this.versionOnDiskStat) {
-			this.versionOnDiskStat = newVersionOnDiskStat;
+		if (!this.lastResolvedDiskStat) {
+			this.lastResolvedDiskStat = newVersionOnDiskStat;
 		}
 
 		// Subsequent resolve - make sure that we only assign it if the mtime is equal or has advanced.
 		// This is essential a If-Modified-Since check on the client ot prevent race conditions from loading
 		// and saving. If a save comes in late after a revert was called, the mtime could be out of sync.
-		else if (this.versionOnDiskStat.mtime <= newVersionOnDiskStat.mtime) {
-			this.versionOnDiskStat = newVersionOnDiskStat;
+		else if (this.lastResolvedDiskStat.mtime <= newVersionOnDiskStat.mtime) {
+			this.lastResolvedDiskStat = newVersionOnDiskStat;
 		}
 	}
 
@@ -736,7 +736,14 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	 * Returns the time in millies when this working copy was last modified by the user or some other program.
 	 */
 	public getLastModifiedTime(): number {
-		return this.versionOnDiskStat ? this.versionOnDiskStat.mtime : -1;
+		return this.lastResolvedDiskStat ? this.lastResolvedDiskStat.mtime : -1;
+	}
+
+	/**
+	 * Returns the time in millies when this working copy was last modified by the user or some other program.
+	 */
+	public getETag(): string {
+		return this.lastResolvedDiskStat ? this.lastResolvedDiskStat.etag : null;
 	}
 
 	/**
@@ -828,7 +835,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	public isResolved(): boolean {
-		return !types.isUndefinedOrNull(this.versionOnDiskStat);
+		return !types.isUndefinedOrNull(this.lastResolvedDiskStat);
 	}
 
 	/**
