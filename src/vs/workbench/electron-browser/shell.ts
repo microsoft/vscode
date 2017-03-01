@@ -16,6 +16,7 @@ import aria = require('vs/base/browser/ui/aria/aria');
 import { dispose, IDisposable, Disposables } from 'vs/base/common/lifecycle';
 import errors = require('vs/base/common/errors');
 import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { stopProfiling } from 'vs/base/node/profiler';
 import product from 'vs/platform/node/product';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import pkg from 'vs/platform/node/package';
@@ -86,7 +87,7 @@ import { URLChannelClient } from 'vs/platform/url/common/urlIpc';
 import { IURLService } from 'vs/platform/url/common/url';
 import { IBackupService } from 'vs/platform/backup/common/backup';
 import { BackupChannelClient } from 'vs/platform/backup/common/backupIpc';
-import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
+import { ReloadWindowAction, ReportPerformanceIssueAction } from 'vs/workbench/electron-browser/actions';
 import { ExtensionHostProcessWorker } from 'vs/workbench/electron-browser/extensionHost';
 import { ITimerService } from 'vs/workbench/services/timer/common/timerService';
 import { remote } from 'electron';
@@ -95,6 +96,8 @@ import { MainProcessTextMateSyntax } from 'vs/editor/electron-browser/textMate/T
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { readFontInfo } from 'vs/editor/browser/config/configuration';
 import SCMPreview from 'vs/workbench/parts/scm/browser/scmPreview';
+import { readdir } from 'vs/base/node/pfs';
+import { join } from 'path';
 import 'vs/platform/opener/browser/opener.contribution';
 
 /**
@@ -123,6 +126,7 @@ export class WorkbenchShell {
 	private contextService: IWorkspaceContextService;
 	private telemetryService: ITelemetryService;
 	private extensionService: MainProcessExtensionService;
+	private windowsService: IWindowsService;
 	private windowIPCService: IWindowIPCService;
 	private timerService: ITimerService;
 
@@ -230,6 +234,40 @@ export class WorkbenchShell {
 		if ((platform.isLinux || platform.isMacintosh) && process.getuid() === 0) {
 			this.messageService.show(Severity.Warning, nls.localize('runningAsRoot', "It is recommended not to run Code as 'root'."));
 		}
+
+		// Profiler: startup cpu profile
+		const { profileStartup } = this.environmentService;
+		if (profileStartup) {
+
+			stopProfiling(profileStartup.dir, profileStartup.prefix).then(() => {
+
+				readdir(profileStartup.dir).then(files => {
+					return files.filter(value => value.indexOf(profileStartup.prefix) === 0);
+				}).then(files => {
+
+					const profileFiles = files.reduce((prev, cur) => `${prev}${join(profileStartup.dir, cur)}\n`, '\n');
+
+					const primaryButton = this.messageService.confirm({
+						type: 'info',
+						message: nls.localize('prof.message', "Successfully created profiles."),
+						detail: nls.localize('prof.detail', "Please create an issue and manually attach the following files:\n{0}", profileFiles),
+						primaryButton: nls.localize('prof.restartAndFileIssue', "Create Issue and Restart"),
+						secondaryButton: nls.localize('prof.restart', "Restart")
+					});
+
+					let createIssue = TPromise.as(undefined);
+					if (primaryButton) {
+						const action = this.workbench.getInstantiationService().createInstance(ReportPerformanceIssueAction, ReportPerformanceIssueAction.ID, ReportPerformanceIssueAction.LABEL);
+
+						createIssue = action.run(`:warning: Make sure to **attach** these files: :warning:\n${files.map(file => `-\`${join(profileStartup.dir, file)}\``).join('\n')}`).then(() => {
+							return this.windowsService.showItemInFolder(profileStartup.dir);
+						});
+					}
+					createIssue.then(() => this.windowsService.relaunch({ removeArgs: ['--prof-startup'] }));
+				});
+
+			}, err => console.error(err));
+		}
 	}
 
 	private initServiceCollection(container: HTMLElement): [IInstantiationService, ServiceCollection] {
@@ -251,7 +289,8 @@ export class WorkbenchShell {
 		disposables.add(mainProcessClient);
 
 		const windowsChannel = mainProcessClient.getChannel('windows');
-		serviceCollection.set(IWindowsService, new SyncDescriptor(WindowsChannelClient, windowsChannel));
+		this.windowsService = new WindowsChannelClient(windowsChannel);
+		serviceCollection.set(IWindowsService, this.windowsService);
 
 		serviceCollection.set(IWindowService, new SyncDescriptor(WindowService, this.windowIPCService.getWindowId()));
 

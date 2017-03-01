@@ -37,6 +37,7 @@ export interface IWindowsService {
 	unmaximizeWindow(windowId: number): TPromise<void>;
 	setDocumentEdited(windowId: number, flag: boolean): TPromise<void>;
 	quit(): TPromise<void>;
+	relaunch(options: { addArgs?: string[], removeArgs?: string[] }): TPromise<void>;
 
 	// Global methods
 	openWindow(paths: string[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean }): TPromise<void>;

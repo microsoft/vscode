@@ -80,6 +80,7 @@ export class WindowsChannel implements IWindowsChannel {
 			case 'showWindow': return this.service.showWindow(arg);
 			case 'getWindows': return this.service.getWindows();
 			case 'getWindowCount': return this.service.getWindowCount();
+			case 'relaunch': return this.service.relaunch(arg[0]);
 			case 'quit': return this.service.quit();
 			case 'log': return this.service.log(arg[0], arg[1]);
 			case 'closeExtensionHostWindow': return this.service.closeExtensionHostWindow(arg);
@@ -173,6 +174,10 @@ export class WindowsChannelClient implements IWindowsService {
 
 	quit(): TPromise<void> {
 		return this.channel.call('quit');
+	}
+
+	relaunch(options: { addArgs?: string[], removeArgs?: string[] }): TPromise<void> {
+		return this.channel.call('relaunch', [options]);
 	}
 
 	openWindow(paths: string[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean }): TPromise<void> {
