@@ -41,7 +41,7 @@ class PerformanceContribution implements IWorkbenchContribution {
 				.then(() => this._dumpTimersAndQuit(dumpFile))
 				.done(undefined, err => console.error(err));
 
-		} else if (!_envService.args['performance-startup-profile']) {
+		} else if (!_envService.args['prof-startup']) {
 			// notify user of slow start
 			setTimeout(() => {
 				this._checkTimersAndSuggestToProfile();
@@ -86,7 +86,7 @@ class PerformanceContribution implements IWorkbenchContribution {
 
 			if (profile) {
 				this._storageService.store(this.getId(), 'didProfile', StorageScope.GLOBAL);
-				this._windowsService.relaunch({ addArgs: ['--performance-startup-profile'] });
+				this._windowsService.relaunch({ addArgs: ['--prof-startup'] });
 			} else {
 				this._storageService.store(this.getId(), 'didReject', StorageScope.GLOBAL);
 			}

@@ -114,8 +114,8 @@ export class EnvironmentService implements IEnvironmentService {
 	get performance(): boolean { return this._args.performance; }
 
 	@memoize
-	get performanceStartupProfile(): { prefix: string, dir: string } | undefined {
-		if (this._args['performance-startup-profile']) {
+	get profileStartup(): { prefix: string, dir: string } | undefined {
+		if (this._args['prof-startup']) {
 			return {
 				prefix: process.env.VSCODE_PROFILES_PREFIX,
 				dir: os.homedir()
