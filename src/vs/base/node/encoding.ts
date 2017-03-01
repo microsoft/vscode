@@ -7,6 +7,7 @@
 
 import stream = require('vs/base/node/stream');
 import iconv = require('iconv-lite');
+import { TPromise } from 'vs/base/common/winjs.base';
 
 export const UTF8 = 'utf8';
 export const UTF8_with_bom = 'utf8bom';
@@ -87,14 +88,8 @@ export function detectEncodingByBOMFromBuffer(buffer: NodeBuffer, bytesRead: num
 
 /**
  * Detects the Byte Order Mark in a given file.
- * If no BOM is detected, `encoding` will be null.
+ * If no BOM is detected, null will be passed to callback.
  */
-export function detectEncodingByBOM(file: string, callback: (error: Error, encoding: string) => void): void {
-	stream.readExactlyByFile(file, 3, (err: Error, buffer: NodeBuffer, bytesRead: number) => {
-		if (err) {
-			return callback(err, null);
-		}
-
-		return callback(null, detectEncodingByBOMFromBuffer(buffer, bytesRead));
-	});
+export function detectEncodingByBOM(file: string): TPromise<string> {
+	return stream.readExactlyByFile(file, 3).then(({buffer, bytesRead}) => detectEncodingByBOMFromBuffer(buffer, bytesRead));
 }
