@@ -7,11 +7,11 @@
 import { onUnexpectedError } from 'vs/base/common/errors';
 import Event, { fromEventEmitter } from 'vs/base/common/event';
 import { EventEmitter, IEventEmitter } from 'vs/base/common/eventEmitter';
-import { Disposable, IDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ContextKeyExpr, IContextKey, IContextKeyServiceTarget, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKey, IContextKeyServiceTarget, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { CommonEditorConfiguration } from 'vs/editor/common/config/commonEditorConfig';
 import { DefaultConfig } from 'vs/editor/common/config/defaultConfig';
 import { Cursor } from 'vs/editor/common/controller/cursor';
@@ -21,25 +21,16 @@ import { EditorState } from 'vs/editor/common/core/editorState';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { DynamicEditorAction } from 'vs/editor/common/editorAction';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { CharacterHardWrappingLineMapperFactory } from 'vs/editor/common/viewModel/characterHardWrappingLineMapper';
 import { SplitLinesCollection } from 'vs/editor/common/viewModel/splitLinesCollection';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
 import { hash } from 'vs/base/common/hash';
 import { EditorModeContext } from 'vs/editor/common/modes/editorModeContext';
-import { MenuId, MenuRegistry, IMenuItem } from 'vs/platform/actions/common/actions';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IOSupport } from 'vs/platform/keybinding/common/keybindingResolver';
 
 import EditorContextKeys = editorCommon.EditorContextKeys;
 
 let EDITOR_ID = 0;
-
-export interface IAddedAction {
-	uniqueId: string;
-	disposable: IDisposable;
-}
 
 export abstract class CommonCodeEditor extends EventEmitter implements editorCommon.ICommonCodeEditor {
 
@@ -527,55 +518,6 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 
 	public getContribution<T extends editorCommon.IEditorContribution>(id: string): T {
 		return <T>(this._contributions[id] || null);
-	}
-
-	public _addAction(descriptor: editorCommon.IActionDescriptor): IAddedAction {
-		if (
-			(typeof descriptor.id !== 'string')
-			|| (typeof descriptor.label !== 'string')
-			|| (typeof descriptor.run !== 'function')
-		) {
-			throw new Error('Invalid action descriptor, `id`, `label` and `run` are required properties!');
-		}
-		let toDispose: IDisposable[] = [];
-
-		// Generate a unique id to allow the same descriptor.id across multiple editor instances
-		let uniqueId = this.getId() + ':' + descriptor.id;
-
-		let action = new DynamicEditorAction(descriptor.id, descriptor.label, descriptor.run, this);
-
-		// Register the command
-		toDispose.push(CommandsRegistry.registerCommand(uniqueId, () => action.run()));
-
-		if (descriptor.contextMenuGroupId) {
-			let menuItem: IMenuItem = {
-				command: {
-					id: uniqueId,
-					title: descriptor.label
-				},
-				when: ContextKeyExpr.and(
-					ContextKeyExpr.equals('editorId', this.getId()),
-					IOSupport.readKeybindingWhen(descriptor.precondition)
-				),
-				group: descriptor.contextMenuGroupId,
-				order: descriptor.contextMenuOrder || 0
-			};
-
-			// Register the menu item
-			toDispose.push(MenuRegistry.appendMenuItem(MenuId.EditorContext, menuItem));
-		}
-
-		this._actions[action.id] = action;
-		toDispose.push({
-			dispose: () => {
-				delete this._actions[action.id];
-			}
-		});
-
-		return {
-			uniqueId: uniqueId,
-			disposable: combinedDisposable(toDispose)
-		};
 	}
 
 	public getActions(): editorCommon.IEditorAction[] {

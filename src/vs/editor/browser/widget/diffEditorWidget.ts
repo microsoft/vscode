@@ -28,7 +28,6 @@ import { Configuration } from 'vs/editor/browser/config/configuration';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { InlineDecoration } from 'vs/editor/common/viewModel/viewModel';
-import { IAddedAction } from 'vs/editor/common/commonCodeEditor';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ColorId, MetadataConsts, FontStyle } from 'vs/editor/common/modes';
 
@@ -626,10 +625,6 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 
 	public revealRangeAtTop(range: editorCommon.IRange): void {
 		this.modifiedEditor.revealRangeAtTop(range);
-	}
-
-	public _addAction(descriptor: editorCommon.IActionDescriptor): IAddedAction {
-		return this.modifiedEditor._addAction(descriptor);
 	}
 
 	public getActions(): editorCommon.IEditorAction[] {
