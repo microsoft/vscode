@@ -327,14 +327,14 @@ export class Repository {
 			return TPromise.wrapError(localize('errorBuffer', "Can't open file from git"));
 		}
 
-		return detectMimesFromStream(child.stdout, null).then(result =>
-			isBinaryMime(result.mimes) ?
+		return detectMimesFromStream(child.stdout, null).then(result => {
+			return isBinaryMime(result.mimes) ?
 				TPromise.wrapError<string>(<IFileOperationResult>{
 					message: localize('fileBinaryError', "File seems to be binary and cannot be opened as text"),
 					fileOperationResult: FileOperationResult.FILE_IS_BINARY
 				}) :
-				this.doBuffer(object)
-		);
+				this.doBuffer(object);
+		});
 	}
 
 	private doBuffer(object: string): TPromise<string> {
