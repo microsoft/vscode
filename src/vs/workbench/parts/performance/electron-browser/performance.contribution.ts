@@ -63,6 +63,10 @@ class PerformanceContribution implements IWorkbenchContribution {
 
 	private _checkTimersAndSuggestToProfile() {
 
+		const disabled = false;
+		if (disabled) {
+			return;
+		}
 		//TODO(joh) use better heuristics (70th percentile, not vm, etc)
 
 		const value = this._storageService.get(this.getId(), StorageScope.GLOBAL, undefined);
