@@ -58,7 +58,7 @@ suite('Files - FileEditorInput', () => {
 
 		input = instantiationService.createInstance(FileEditorInput, toResource.call(this, '/foo/bar.html'), void 0);
 
-		const inputToResolve: any = instantiationService.createInstance(FileEditorInput, toResource.call(this, '/foo/bar/file.js'), void 0);
+		const inputToResolve = instantiationService.createInstance(FileEditorInput, toResource.call(this, '/foo/bar/file.js'), void 0);
 		const sameOtherInput = instantiationService.createInstance(FileEditorInput, toResource.call(this, '/foo/bar/file.js'), void 0);
 
 		return inputToResolve.resolve(true).then(resolved => {
@@ -69,7 +69,7 @@ suite('Files - FileEditorInput', () => {
 				return sameOtherInput.resolve(true).then(otherResolved => {
 					assert(otherResolved === resolvedModelA); // OK: Resolved Model cached globally per input
 
-					inputToResolve.dispose(false);
+					inputToResolve.dispose();
 
 					return inputToResolve.resolve(true).then(resolved => {
 						assert(resolvedModelA === resolved); // Model is still the same because we had 2 clients
@@ -82,13 +82,13 @@ suite('Files - FileEditorInput', () => {
 						return inputToResolve.resolve(true).then(resolved => {
 							assert(resolvedModelA !== resolved); // Different instance, because input got disposed
 
-							let stat = (<any>resolved).versionOnDiskStat;
+							let stat = resolved.getStat();
 							return inputToResolve.resolve(true).then(resolved => {
-								assert(stat !== (<any>resolved).versionOnDiskStat); // Different stat, because resolve always goes to the server for refresh
+								assert(stat !== resolved.getStat()); // Different stat, because resolve always goes to the server for refresh
 
-								stat = (<any>resolved).versionOnDiskStat;
+								stat = resolved.getStat();
 								return inputToResolve.resolve(false).then(resolved => {
-									assert(stat === (<any>resolved).versionOnDiskStat); // Same stat, because not refreshed
+									assert(stat === resolved.getStat()); // Same stat, because not refreshed
 
 									done();
 								});

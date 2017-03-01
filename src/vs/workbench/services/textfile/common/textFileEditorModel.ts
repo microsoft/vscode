@@ -735,13 +735,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	/**
 	 * Returns the time in millies when this working copy was last modified by the user or some other program.
 	 */
-	public getLastModifiedTime(): number {
-		return this.lastResolvedDiskStat ? this.lastResolvedDiskStat.mtime : -1;
-	}
-
-	/**
-	 * Returns the time in millies when this working copy was last modified by the user or some other program.
-	 */
 	public getETag(): string {
 		return this.lastResolvedDiskStat ? this.lastResolvedDiskStat.etag : null;
 	}
@@ -850,6 +843,13 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	 */
 	public getResource(): URI {
 		return this.resource;
+	}
+
+	/**
+	 * Stat accessor only used by tests.
+	 */
+	public getStat(): IFileStat {
+		return this.lastResolvedDiskStat;
 	}
 
 	public dispose(): void {
