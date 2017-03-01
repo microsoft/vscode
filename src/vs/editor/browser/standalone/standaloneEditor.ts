@@ -123,6 +123,7 @@ export function createDiffEditor(domElement: HTMLElement, options?: IDiffEditorC
 			services.get(IContextKeyService),
 			services.get(IKeybindingService),
 			services.get(IContextViewService),
+			services.get(IStandaloneColorService),
 			services.get(IEditorWorkerService)
 		);
 	});

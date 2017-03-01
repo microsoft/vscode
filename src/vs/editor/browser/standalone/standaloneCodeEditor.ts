@@ -70,7 +70,6 @@ let LAST_GENERATED_COMMAND_ID = 0;
 export class StandaloneCodeEditor extends CodeEditor implements IStandaloneCodeEditor {
 
 	private _standaloneKeybindingService: StandaloneKeybindingService;
-	private _standaloneColorService: IStandaloneColorService;
 
 	constructor(
 		domElement: HTMLElement,
@@ -79,26 +78,13 @@ export class StandaloneCodeEditor extends CodeEditor implements IStandaloneCodeE
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@ICommandService commandService: ICommandService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IStandaloneColorService standaloneColorService: IStandaloneColorService
+		@IKeybindingService keybindingService: IKeybindingService
 	) {
-		options = options || {};
-		if (typeof options.theme === 'string') {
-			options.theme = standaloneColorService.setTheme(options.theme);
-		}
 		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService);
 
-		this._standaloneColorService = standaloneColorService;
 		if (keybindingService instanceof StandaloneKeybindingService) {
 			this._standaloneKeybindingService = keybindingService;
 		}
-	}
-
-	public updateOptions(newOptions: IEditorOptions): void {
-		if (typeof newOptions.theme === 'string') {
-			newOptions.theme = this._standaloneColorService.setTheme(newOptions.theme);
-		}
-		super.updateOptions(newOptions);
 	}
 
 	public addCommand(keybinding: number, handler: ICommandHandler, context: string): string {
@@ -202,6 +188,7 @@ export class StandaloneCodeEditor extends CodeEditor implements IStandaloneCodeE
 export class StandaloneEditor extends StandaloneCodeEditor implements IStandaloneCodeEditor {
 
 	private _contextViewService: IEditorContextViewService;
+	private _standaloneColorService: IStandaloneColorService;
 	private _ownsModel: boolean;
 	private _toDispose2: IDisposable[];
 
@@ -218,9 +205,14 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 		@IStandaloneColorService standaloneColorService: IStandaloneColorService
 	) {
 		options = options || {};
-		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService, keybindingService, standaloneColorService);
+		if (typeof options.theme === 'string') {
+			options.theme = standaloneColorService.setTheme(options.theme);
+		}
+
+		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService, keybindingService);
 
 		this._contextViewService = <IEditorContextViewService>contextViewService;
+		this._standaloneColorService = standaloneColorService;
 		this._toDispose2 = [toDispose];
 
 		let model: IModel = null;
@@ -252,6 +244,13 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 		this.dispose();
 	}
 
+	public updateOptions(newOptions: IEditorOptions): void {
+		if (typeof newOptions.theme === 'string') {
+			newOptions.theme = this._standaloneColorService.setTheme(newOptions.theme);
+		}
+		super.updateOptions(newOptions);
+	}
+
 	_attachModel(model: IModel): void {
 		super._attachModel(model);
 		if (this._view) {
@@ -271,6 +270,7 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 export class StandaloneDiffEditor extends DiffEditorWidget implements IStandaloneDiffEditor {
 
 	private _contextViewService: IEditorContextViewService;
+	private _standaloneColorService: IStandaloneColorService;
 	private _standaloneKeybindingService: StandaloneKeybindingService;
 	private _toDispose2: IDisposable[];
 
@@ -282,8 +282,14 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextViewService contextViewService: IContextViewService,
+		@IStandaloneColorService standaloneColorService: IStandaloneColorService,
 		@IEditorWorkerService editorWorkerService: IEditorWorkerService
 	) {
+		options = options || {};
+		if (typeof options.theme === 'string') {
+			options.theme = standaloneColorService.setTheme(options.theme);
+		}
+
 		super(domElement, options, editorWorkerService, contextKeyService, instantiationService);
 
 		if (keybindingService instanceof StandaloneKeybindingService) {
@@ -291,6 +297,7 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 		}
 
 		this._contextViewService = <IEditorContextViewService>contextViewService;
+		this._standaloneColorService = standaloneColorService;
 
 		this._toDispose2 = [toDispose];
 
@@ -304,6 +311,13 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 
 	public destroy(): void {
 		this.dispose();
+	}
+
+	public updateOptions(newOptions: IEditorOptions): void {
+		if (typeof newOptions.theme === 'string') {
+			newOptions.theme = this._standaloneColorService.setTheme(newOptions.theme);
+		}
+		super.updateOptions(newOptions);
 	}
 
 	protected _createInnerEditor(instantiationService: IInstantiationService, container: HTMLElement, options: IEditorOptions): CodeEditor {
