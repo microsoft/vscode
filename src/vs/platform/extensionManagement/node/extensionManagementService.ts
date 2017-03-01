@@ -255,7 +255,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	private downloadAndInstall(extension: IGalleryExtension): TPromise<ILocalExtension> {
 		const id = getLocalExtensionIdFromGallery(extension, extension.version);
 		const metadata = {
-			uuid: extension.uuid,
+			id: extension.uuid,
 			publisherId: extension.publisherId,
 			publisherDisplayName: extension.publisherDisplayName,
 		};
