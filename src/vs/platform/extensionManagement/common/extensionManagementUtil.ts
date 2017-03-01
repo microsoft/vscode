@@ -25,10 +25,16 @@ export function getGalleryExtensionIdFromLocal(local: ILocalExtension): string {
 
 export function getIdAndVersionFromLocalExtensionId(localExtensionId: string): { id: string, version: string } {
 	const matches = /^([^.]+\..+)-(\d+\.\d+\.\d+)$/.exec(localExtensionId);
-	return matches ? { id: matches[1] ? adoptToGalleryExtensioId(matches[1]) : null, version: matches[2] } : { id: null, version: null };
+	if (matches && matches[1] && matches[2]) {
+		return { id: adoptToGalleryExtensionId(matches[1]), version: matches[2] };
+	}
+	return {
+		id: adoptToGalleryExtensionId(localExtensionId),
+		version: null
+	};
 }
 
-export function adoptToGalleryExtensioId(id: string): string {
+export function adoptToGalleryExtensionId(id: string): string {
 	return id.replace(EXTENSION_IDENTIFIER_REGEX, (match, publisher: string, name: string) => getGalleryExtensionId(publisher, name));
 }
 
