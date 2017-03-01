@@ -467,6 +467,7 @@ export interface IImportResult {
 export interface IFileOperationResult {
 	message: string;
 	fileOperationResult: FileOperationResult;
+	payload?: any;
 }
 
 export enum FileOperationResult {
