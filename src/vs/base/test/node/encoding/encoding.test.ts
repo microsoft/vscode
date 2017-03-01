@@ -13,7 +13,7 @@ suite('Encoding', () => {
 	test('detectBOM UTF-8', (done: (err?: any) => void) => {
 		const file = require.toUrl('./fixtures/some_utf8.css');
 
-		encoding.detectEncodingByBOM(file).then( (encoding : string) => {
+		encoding.detectEncodingByBOM(file).then((encoding: string) => {
 			assert.equal(encoding, 'utf8');
 			done();
 		}, done);
