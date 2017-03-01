@@ -310,8 +310,8 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		// methods
 		create: <any>create,
 		onDidCreateEditor: <any>onDidCreateEditor,
-		createDiffEditor: createDiffEditor,
-		createDiffNavigator: createDiffNavigator,
+		createDiffEditor: <any>createDiffEditor,
+		createDiffNavigator: <any>createDiffNavigator,
 
 		createModel: createModel,
 		setModelLanguage: setModelLanguage,
