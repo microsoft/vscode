@@ -394,7 +394,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 					this.setDirty(false);
 				}
 
-				this.toDispose.push(this.textEditorModel.onDidChangeRawContent((e: IModelContentChangedEvent) => this.onModelContentChanged(e)));
+				this.toDispose.push(this.textEditorModel.onDidChangeRawContent(e => this.onModelContentChanged(e)));
 
 				return this;
 			}, error => {
@@ -598,7 +598,11 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			// to write the contents to disk, as they are already on disk. we still want to trigger
 			// a change on the file though so that external file watchers can be notified
 			if (force && !this.dirty && reason === SaveReason.EXPLICIT && versionId === newVersionId) {
-				return this.fileService.touchFile(this.resource).then(() => void 0, () => void 0 /* gracefully ignore errors if just touching */);
+				return this.fileService.touchFile(this.resource).then(stat => {
+
+					// Updated resolved stat with updated stat since touching it might have changed mtime
+					this.updateVersionOnDiskStat(stat);
+				}, () => void 0 /* gracefully ignore errors if just touching */);
 			}
 
 			// update versionId with its new value (if pre-save changes happened)
@@ -619,7 +623,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				mtime: this.versionOnDiskStat.mtime,
 				encoding: this.getEncoding(),
 				etag: this.versionOnDiskStat.etag
-			}).then((stat: IFileStat) => {
+			}).then(stat => {
 				diag(`doSave(${versionId}) - after updateContent()`, this.resource, new Date());
 
 				// Telemetry
@@ -633,7 +637,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 					diag(`doSave(${versionId}) - not setting dirty to false because versionId did change meanwhile`, this.resource, new Date());
 				}
 
-				// Updated resolved stat with updated stat, and keep old for event
+				// Updated resolved stat with updated stat
 				this.updateVersionOnDiskStat(stat);
 
 				// Cancel any content change event promises as they are no longer valid
