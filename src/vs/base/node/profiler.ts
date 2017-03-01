@@ -6,7 +6,7 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { join } from 'path';
+import { join, basename } from 'path';
 import { writeFile } from 'vs/base/node/pfs';
 
 export function startProfiling(name: string): TPromise<boolean> {
@@ -16,11 +16,17 @@ export function startProfiling(name: string): TPromise<boolean> {
 	});
 }
 
-export function stopProfiling(dir: string, prefix: string): TPromise<string> {
+export function stopProfiling(dir: string, prefix: string, keepPaths: boolean = false): TPromise<string> {
 	return lazyV8Profiler.value.then(profiler => {
 		return profiler.stopProfiling();
 	}).then(profile => {
 		return new TPromise<any>((resolve, reject) => {
+
+			// remove pii paths
+			if (!keepPaths) {
+				removePiiPaths(profile);
+			}
+
 			profile.export(function (error, result) {
 				profile.delete();
 				if (error) {
@@ -34,6 +40,22 @@ export function stopProfiling(dir: string, prefix: string): TPromise<string> {
 	});
 }
 
+function removePiiPaths(profile: Profile) {
+	const stack = [profile.head];
+	while (stack.length > 0) {
+		const element = stack.pop();
+		if (element.url) {
+			const shortUrl = basename(element.url);
+			if (element.url !== shortUrl) {
+				element.url = `pii_removed/${shortUrl}`;
+			}
+		}
+		if (element.children) {
+			stack.push(...element.children);
+		}
+	}
+}
+
 declare interface Profiler {
 	startProfiling(name: string);
 	stopProfiling(): Profile;
@@ -43,6 +65,21 @@ declare interface Profile {
 	title: string;
 	export(callback: (err, data) => void);
 	delete();
+	head: ProfileSample;
+}
+
+declare interface ProfileSample {
+	// bailoutReason:""
+	// callUID:2333
+	// children:Array[39]
+	// functionName:"(root)"
+	// hitCount:0
+	// id:1
+	// lineNumber:0
+	// scriptId:0
+	// url:""
+	url: string;
+	children: ProfileSample[];
 }
 
 const lazyV8Profiler = new class {
