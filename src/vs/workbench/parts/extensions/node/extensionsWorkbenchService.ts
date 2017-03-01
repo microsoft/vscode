@@ -440,15 +440,15 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 	}
 
 	private syncWithGallery(): TPromise<void> {
-		const names = this.installed
+		const ids = this.installed
 			.filter(e => e.type === LocalExtensionType.User)
-			.map(e => e.identifier);
+			.map(e => e.local.metadata.uuid);
 
-		if (names.length === 0) {
+		if (ids.length === 0) {
 			return TPromise.as(null);
 		}
 
-		return this.queryGallery({ names, pageSize: names.length }) as TPromise<any>;
+		return this.queryGallery({ ids, pageSize: ids.length }) as TPromise<any>;
 	}
 
 	private eventuallyAutoUpdateExtensions(): void {
