@@ -59,31 +59,6 @@ export class CloseEditorAction extends Action {
 	}
 }
 
-export class ForceCloseEditorAction extends Action {
-
-	public static ID = 'workbench.action.forceCloseActiveEditor';
-	public static LABEL = nls.localize('forceCloseActiveEditor', "Force Close Editor");
-
-	constructor(
-		id: string,
-		label: string,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-	) {
-		super(id, label);
-	}
-
-	public run(): TPromise<any> {
-		const activeEditor = this.editorService.getActiveEditor();
-		if (activeEditor) {
-			return activeEditor.input.revert().then(ok =>
-				this.editorService.closeEditor(activeEditor.position, activeEditor.input)
-			);
-		}
-
-		return TPromise.as(false);
-	}
-}
-
 export class CloseWindowAction extends Action {
 
 	public static ID = 'workbench.action.closeWindow';
