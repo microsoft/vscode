@@ -124,6 +124,7 @@ function renderRenameBox(debugService: debug.IDebugService, contextViewService: 
 		ariaLabel: options.ariaLabel
 	});
 
+	tree.setHighlight();
 	inputBox.value = options.initialValue ? options.initialValue : '';
 	inputBox.focus();
 	inputBox.select();
