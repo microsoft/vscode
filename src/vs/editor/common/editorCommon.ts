@@ -3180,7 +3180,6 @@ export interface ILineChange extends IChange {
 }
 /**
  * Information about a line in the diff editor
- * @internal
  */
 export interface IDiffLineInformation {
 	readonly equivalentLineNumber: number;
@@ -4065,14 +4064,12 @@ export interface ICommonDiffEditor extends IEditor {
 	/**
 	 * Get information based on computed diff about a line number from the original model.
 	 * If the diff computation is not finished or the model is missing, will return null.
-	 * @internal
 	 */
 	getDiffLineInformationForOriginal(lineNumber: number): IDiffLineInformation;
 
 	/**
 	 * Get information based on computed diff about a line number from the modified model.
 	 * If the diff computation is not finished or the model is missing, will return null.
-	 * @internal
 	 */
 	getDiffLineInformationForModified(lineNumber: number): IDiffLineInformation;
 
