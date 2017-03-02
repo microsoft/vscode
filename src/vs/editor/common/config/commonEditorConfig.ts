@@ -315,6 +315,7 @@ class InternalEditorOptionsHelper {
 			suggestFontSize: opts.suggestFontSize,
 			suggestLineHeight: opts.suggestLineHeight,
 			selectionHighlight: toBoolean(opts.selectionHighlight),
+			occurrencesHighlight: toBoolean(opts.occurrencesHighlight),
 			codeLens: opts.referenceInfos && opts.codeLens,
 			folding: toBoolean(opts.folding),
 			matchBrackets: toBoolean(opts.matchBrackets),
@@ -796,6 +797,11 @@ const editorConfiguration: IConfigurationNode = {
 			'type': 'boolean',
 			'default': DefaultConfig.editor.selectionHighlight,
 			'description': nls.localize('selectionHighlight', "Controls whether the editor should highlight similar matches to the selection")
+		},
+		'editor.occurrencesHighlight': {
+			'type': 'boolean',
+			'default': DefaultConfig.editor.occurrencesHighlight,
+			'description': nls.localize('occurrencesHighlight', "Controls whether the editor should highlight semantic symbol occurrences")
 		},
 		'editor.overviewRulerLanes': {
 			'type': 'integer',

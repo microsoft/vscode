@@ -197,7 +197,7 @@ export class Expression extends ExpressionContainer implements debug.IExpression
 	}
 
 	public evaluate(process: debug.IProcess, stackFrame: debug.IStackFrame, context: string): TPromise<void> {
-		if (!process) {
+		if (!process || (!stackFrame && context !== 'repl')) {
 			this.value = context === 'repl' ? nls.localize('startDebugFirst', "Please start a debug session to evaluate") : Expression.DEFAULT_VALUE;
 			this.available = false;
 			this.reference = 0;

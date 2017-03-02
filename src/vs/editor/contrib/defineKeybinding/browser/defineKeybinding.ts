@@ -179,21 +179,21 @@ export class DefineKeybindingController implements editorCommon.IEditorContribut
 		data.forEach((item) => {
 			let msg: MarkedString[];
 			let className: string;
-			let inlineClassName: string;
+			let beforeContentClassName: string;
 			let overviewRulerColor: string;
 
 			if (!item.label) {
 				// this is the error case
 				msg = [NLS_KB_LAYOUT_ERROR_MESSAGE];
 				className = 'keybindingError';
-				inlineClassName = 'inlineKeybindingError';
+				beforeContentClassName = 'inlineKeybindingError';
 				overviewRulerColor = 'rgba(250, 100, 100, 0.6)';
 			} else {
 				// this is the info case
 				msg = [NLS_KB_LAYOUT_INFO_MESSAGE];
 				msg = msg.concat(this._keybindingService.getLabelFor(item.keybinding));
 				className = 'keybindingInfo';
-				inlineClassName = 'inlineKeybindingInfo';
+				beforeContentClassName = 'inlineKeybindingInfo';
 				overviewRulerColor = 'rgba(100, 100, 250, 0.6)';
 			}
 
@@ -202,7 +202,7 @@ export class DefineKeybindingController implements editorCommon.IEditorContribut
 				range: new Range(item.range.startLineNumber, item.range.startColumn, item.range.startLineNumber, item.range.startColumn + 1),
 				options: {
 					stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-					inlineClassName: inlineClassName
+					beforeContentClassName: beforeContentClassName
 				}
 			});
 

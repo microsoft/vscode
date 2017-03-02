@@ -328,7 +328,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	}
 
 	private get bundledTypeScriptPath(): string {
-		return path.join(__dirname, '..', 'node_modules', 'typescript', 'lib', 'tsserver.js');
+		return require.resolve('typescript/lib/tsserver.js');
 	}
 
 	private get localTypeScriptPath(): string | null {

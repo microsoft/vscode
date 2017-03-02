@@ -1410,6 +1410,11 @@ declare module monaco.editor {
          */
         selectionHighlight?: boolean;
         /**
+         * Enable semantic occurrences highlight.
+         * Defaults to true.
+         */
+        occurrencesHighlight?: boolean;
+        /**
          * Show code lens
          * Defaults to true.
          */
@@ -1612,6 +1617,7 @@ declare module monaco.editor {
         readonly suggestFontSize: number;
         readonly suggestLineHeight: number;
         readonly selectionHighlight: boolean;
+        readonly occurrencesHighlight: boolean;
         readonly codeLens: boolean;
         readonly folding: boolean;
         readonly matchBrackets: boolean;

@@ -140,7 +140,7 @@ export class Renderer implements IRenderer {
 		}
 
 		data.name.textContent = extension.displayName;
-		data.identifier.textContent = extension.identifier;
+		data.identifier.textContent = extension.id;
 		data.author.textContent = extension.publisherDisplayName;
 		data.extensionDependencies = element;
 	}

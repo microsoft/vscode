@@ -60,6 +60,11 @@
 	text-decoration: underline;
 }
 
+.monaco-workbench .panel.integrated-terminal .xterm a.xterm-invalid-link:hover {
+	cursor: text;
+	text-decoration: none;
+}
+
 .monaco-workbench .panel.integrated-terminal .xterm:not(.xterm-cursor-style-underline):not(.xterm-cursor-style-bar).focus .reverse-video,
 .monaco-workbench .panel.integrated-terminal .xterm:not(.xterm-cursor-style-underline):not(.xterm-cursor-style-bar):focus .reverse-video { color: #CCC; }
 .vs-dark .monaco-workbench .panel.integrated-terminal .xterm:not(.xterm-cursor-style-underline):not(.xterm-cursor-style-bar).focus .reverse-video,

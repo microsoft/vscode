@@ -12,11 +12,6 @@
       "from": "semver@4.3.6",
       "resolved": "https://registry.npmjs.org/semver/-/semver-4.3.6.tgz"
     },
-    "typescript": {
-      "version": "2.2.1",
-      "from": "typescript@typescript@2.2.1",
-      "resolved": "https://registry.npmjs.org/typescript/-/typescript-2.2.1.tgz"
-    },
     "vscode-extension-telemetry": {
       "version": "0.0.6",
       "from": "vscode-extension-telemetry@>=0.0.6 <0.0.7",
