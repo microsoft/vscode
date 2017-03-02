@@ -37,7 +37,7 @@ suite('Mime', () => {
 		guess = guessMimeTypes('Randomfile.noregistration', 'RegexesAreNice');
 		assert.deepEqual(guess, ['text/nice-regex', 'text/plain']);
 
-		guess = guessMimeTypes('Randomfile.noregistration', 'RegexesAreNiceee');
+		guess = guessMimeTypes('Randomfile.noregistration', 'RegexesAreNotNice');
 		assert.deepEqual(guess, ['application/unknown']);
 
 		guess = guessMimeTypes('Codefile', 'RegexesAreNice');
