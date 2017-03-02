@@ -173,7 +173,7 @@ export class ExtHostDocuments extends ExtHostDocumentsShape {
 	}
 
 	public $acceptModelAdd(initData: IModelAddedData): void {
-		let data = new ExtHostDocumentData(this._proxy, initData.url, initData.value.lines, initData.value.EOL, initData.modeId, initData.versionId, initData.isDirty);
+		let data = new ExtHostDocumentData(this._proxy, initData.url, initData.lines, initData.EOL, initData.modeId, initData.versionId, initData.isDirty);
 		let key = data.document.uri.toString();
 		if (this._documentData.has(key)) {
 			throw new Error('Document `' + key + '` already exists.');
@@ -263,7 +263,7 @@ export class ExtHostDocumentData extends MirrorModel2 {
 		super.dispose();
 	}
 
-	equalLines({lines}: editorCommon.IRawText): boolean {
+	equalLines({lines}: editorCommon.ITextSource): boolean {
 		const len = lines.length;
 		if (len !== this._lines.length) {
 			return false;
