@@ -620,6 +620,9 @@ export class ThemeService implements IThemeService {
 			if (value === settings.user) {
 				return TPromise.as(null); // nothing to do
 			} else if (value === settings.default) {
+				if (types.isUndefined(settings.user)) {
+					return TPromise.as(null); // nothing to do
+				}
 				value = void 0; // remove configuration from user settings
 			}
 		} else if (settingsTarget === ConfigurationTarget.WORKSPACE) {
