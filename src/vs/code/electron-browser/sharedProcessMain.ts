@@ -13,7 +13,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { EnvironmentService, ParsedArgs } from 'vs/platform/environment/node/environmentService';
 import { ExtensionManagementChannel } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
 import { IExtensionManagementService, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
@@ -28,7 +28,6 @@ import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProper
 import { TelemetryAppenderChannel } from 'vs/platform/telemetry/common/telemetryIpc';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
-// import { ISharedProcessInitData } from './sharedProcess';
 import { IChoiceService } from 'vs/platform/message/common/message';
 import { ChoiceChannelClient } from 'vs/platform/message/common/messageIpc';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
@@ -37,7 +36,7 @@ import { ActiveWindowManager } from 'vs/code/common/windows';
 import { ipcRenderer } from 'electron';
 
 interface ISharedProcessInitData {
-	args: any;
+	args: ParsedArgs;
 }
 
 const eventPrefix = 'monacoworkbench';
@@ -153,5 +152,3 @@ function handshake(): TPromise<ISharedProcessInitData> {
 setupIPC(process.env['VSCODE_SHARED_IPC_HOOK'])
 	.then(server => handshake()
 		.then(data => main(server, data)));
-	// .then(() => setupPlanB(process.env['VSCODE_PID']))
-	// .done(null, quit));
