@@ -8,7 +8,6 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { EmitterEvent } from 'vs/base/common/eventEmitter';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { RawText } from 'vs/editor/common/model/textModel';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import URI from 'vs/base/common/uri';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -103,17 +102,19 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 		let modelUrl = model.uri;
 		this._modelIsSynced[modelUrl.toString()] = true;
 		this._modelToDisposeMap[modelUrl.toString()] = model.addBulkListener((events) => this._onModelEvents(modelUrl, events));
+		const modelRawText = model.toRawText();
 		this._proxy.$acceptModelAdd({
 			url: model.uri,
 			versionId: model.getVersionId(),
-			value: model.toRawText(),
+			lines: modelRawText.lines,
+			EOL: modelRawText.EOL,
 			modeId: model.getLanguageIdentifier().language,
 			isDirty: this._textFileService.isDirty(modelUrl)
 		});
 	}
 
 	private _onModelModeChanged(event: { model: editorCommon.IModel; oldModeId: string; }): void {
-		let {model, oldModeId} = event;
+		let { model, oldModeId } = event;
 		let modelUrl = model.uri;
 		if (!this._modelIsSynced[modelUrl.toString()]) {
 			return;
@@ -240,16 +241,12 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 		}
 	}
 
-	$onVirtualDocumentChange(uri: URI, value: editorCommon.IRawText): void {
+	$onVirtualDocumentChange(uri: URI, value: editorCommon.ITextSource): void {
 		const model = this._modelService.getModel(uri);
 		if (!model) {
 			return;
 		}
-		// fetch the raw text from the ext host but
-		// reuse the current options
-		const {options} = RawText.fromStringWithModelOptions('', model);
-		const raw = <editorCommon.IRawText>{
-			options,
+		const raw: editorCommon.ITextSource = {
 			lines: value.lines,
 			length: value.length,
 			BOM: value.BOM,
