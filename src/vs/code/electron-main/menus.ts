@@ -811,7 +811,8 @@ export class VSCodeMenu {
 		const stop = this.createMenuItem(nls.localize({ key: 'miStopDebugging', comment: ['&& denotes a mnemonic'] }, "&&Stop Debugging"), 'workbench.action.debug.stop');
 		const restart = this.createMenuItem(nls.localize({ key: 'miRestart Debugging', comment: ['&& denotes a mnemonic'] }, "&&Restart Debugging"), 'workbench.action.debug.restart');
 
-		const configure = this.createMenuItem(nls.localize({ key: 'miConfigure', comment: ['&& denotes a mnemonic'] }, "&&Configure"), 'workbench.action.debug.configure');
+		const openConfigurations = this.createMenuItem(nls.localize({ key: 'miOpenConfigurations', comment: ['&& denotes a mnemonic'] }, "Open &&Configurations"), 'workbench.action.debug.configure');
+		const addConfiguration = this.createMenuItem(nls.localize({ key: 'miAddConfiguration', comment: ['&& denotes a mnemonic'] }, "Add Configuration..."), 'debug.addConfiguration');
 
 		const stepOver = this.createMenuItem(nls.localize({ key: 'miStepOver', comment: ['&& denotes a mnemonic'] }, "Step &&Over"), 'workbench.action.debug.stepOver');
 		const stepInto = this.createMenuItem(nls.localize({ key: 'miStepInto', comment: ['&& denotes a mnemonic'] }, "Step &&Into"), 'workbench.action.debug.stepInto');
@@ -825,7 +826,7 @@ export class VSCodeMenu {
 		breakpointsMenu.append(this.createMenuItem(nls.localize({ key: 'miFunctionBreakpoint', comment: ['&& denotes a mnemonic'] }, "&&Function Breakpoint..."), 'workbench.debug.viewlet.action.addFunctionBreakpointAction'));
 		const newBreakpoints = new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miNewBreakpoint', comment: ['&& denotes a mnemonic'] }, "&&New Breakpoint")), submenu: breakpointsMenu });
 		const disableAllBreakpoints = this.createMenuItem(nls.localize({ key: 'miDisableAllBreakpoints', comment: ['&& denotes a mnemonic'] }, "Disable A&&ll Breakpoints"), 'workbench.debug.viewlet.action.disableAllBreakpoints');
-		const removeAllBreakpoints = this.createMenuItem(nls.localize({ key: 'miRemoveAllBreakpoints', comment: ['&& denotes a mnemonic'] }, "Remove &&All Breakpoints"), 'workbench.debug.viewlet.action.removeAllBreakpoints');
+		const removeAllBreakpoints = this.createMenuItem(nls.localize({ key: 'miRemoveAllBreakpoints', comment: ['&& denotes a mnemonic'] }, "&&Remove &&All Breakpoints"), 'workbench.debug.viewlet.action.removeAllBreakpoints');
 
 		const installMoreDebuggers = this.createMenuItem(nls.localize({ key: 'miInstallMoreDebuggers', comment: ['&& denotes a mnemonic'] }, "&&Install More Debuggers..."), 'debug.installMoreDebuggers');
 		[
@@ -834,7 +835,8 @@ export class VSCodeMenu {
 			stop,
 			restart,
 			__separator__(),
-			configure,
+			openConfigurations,
+			addConfiguration,
 			__separator__(),
 			stepOver,
 			stepInto,

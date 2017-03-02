@@ -13,9 +13,9 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
 import { SelectActionItem, IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { EventEmitter } from 'vs/base/common/eventEmitter';
-import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IDebugService, EDITOR_CONTRIBUTION_ID, IDebugEditorContribution } from 'vs/workbench/parts/debug/common/debug';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IDebugService } from 'vs/workbench/parts/debug/common/debug';
 
 const $ = dom.$;
 
@@ -34,7 +34,8 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 		private context: any,
 		private action: IAction,
 		@IDebugService private debugService: IDebugService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService private configurationService: IConfigurationService,
+		@ICommandService private commandService: ICommandService
 	) {
 		super();
 		this.toDispose = [];
@@ -50,18 +51,8 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 		}));
 		this.toDispose.push(this.selectBox.onDidSelect(configurationName => {
 			if (configurationName === StartDebugActionItem.ADD_CONFIGURATION) {
-				const manager = this.debugService.getConfigurationManager();
-				this.selectBox.select(manager.getConfigurationNames().indexOf(this.debugService.getViewModel().selectedConfigurationName));
-				manager.openConfigFile(false).done(editor => {
-					if (editor) {
-						const codeEditor = <ICommonCodeEditor>editor.getControl();
-						if (codeEditor) {
-							return codeEditor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID).addLaunchConfiguration();
-						}
-					}
-
-					return undefined;
-				});
+				this.selectBox.select(this.debugService.getConfigurationManager().getConfigurationNames().indexOf(this.debugService.getViewModel().selectedConfigurationName));
+				this.commandService.executeCommand('debug.addConfiguratoin').done(undefined, errors.onUnexpectedError);
 			} else {
 				this.debugService.getViewModel().setSelectedConfigurationName(configurationName);
 			}
