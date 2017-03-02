@@ -8,8 +8,8 @@
 import Uri from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ITextSource2 } from 'vs/editor/common/editorCommon';
 import { IResolveContentOptions, IUpdateContentOptions } from 'vs/platform/files/common/files';
+import { ITextSource2 } from 'vs/editor/common/model/textSource';
 
 export const IBackupFileService = createDecorator<IBackupFileService>('backupFileService');
 

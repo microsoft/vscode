@@ -20,19 +20,6 @@ import { LanguageIdentifier } from 'vs/editor/common/modes';
 
 var MODEL_ID = 0;
 
-var aliveModels: { [modelId: string]: boolean; } = {};
-
-// var LAST_CNT = 0;
-// setInterval(() => {
-// 	var cnt = Object.keys(aliveModels).length;
-// 	if (cnt === LAST_CNT) {
-// 		return;
-// 	}
-// 	console.warn('ALIVE MODELS:');
-// 	console.log(Object.keys(aliveModels).join('\n'));
-// 	LAST_CNT = cnt;
-// }, 100);
-
 export class Model extends EditableTextModel implements IModel {
 
 	public onDidChangeDecorations(listener: (e: IModelDecorationsChangedEvent) => void): IDisposable {
@@ -57,24 +44,11 @@ export class Model extends EditableTextModel implements IModel {
 		return new Model(rawText, languageIdentifier, uri);
 	}
 
-	public id: string;
+	public readonly id: string;
 
-	private _associatedResource: URI;
+	private readonly _associatedResource: URI;
 	private _attachedEditorCount: number;
 
-	/**
-	 * Instantiates a new model
-	 * @param rawText
-	 *   The raw text buffer. It may start with a UTF-16 BOM, which can be
-	 *   optionally preserved when doing a getValue call. The lines may be
-	 *   separated by different EOL combinations, such as \n or \r\n. These
-	 *   can also be preserved when doing a getValue call.
-	 * @param mode
-	 *   The language service name this model is bound to.
-	 * @param associatedResource
-	 *   The resource associated with this model. If the value is not provided an
-	 *   unique in memory URL is constructed as the associated resource.
-	 */
 	constructor(rawText: IRawText, languageIdentifier: LanguageIdentifier, associatedResource: URI = null) {
 		super([EventType.ModelDispose], rawText, languageIdentifier);
 
@@ -88,15 +62,7 @@ export class Model extends EditableTextModel implements IModel {
 			this._associatedResource = associatedResource;
 		}
 
-
-		if (aliveModels[String(this._associatedResource)]) {
-			throw new Error('Cannot instantiate a second Model with the same URI');
-		}
-
 		this._attachedEditorCount = 0;
-
-		aliveModels[String(this._associatedResource)] = true;
-		// console.log('ALIVE MODELS: ' + Object.keys(aliveModels).join('\n'));
 	}
 
 	public destroy(): void {
@@ -105,24 +71,19 @@ export class Model extends EditableTextModel implements IModel {
 
 	public dispose(): void {
 		this._isDisposing = true;
-		delete aliveModels[String(this._associatedResource)];
 		this.emit(EventType.ModelDispose);
 		super.dispose();
 		this._isDisposing = false;
-		// console.log('ALIVE MODELS: ' + Object.keys(aliveModels).join('\n'));
 	}
 
 	public onBeforeAttached(): void {
 		this._attachedEditorCount++;
-
 		// Warm up tokens for the editor
 		this._warmUpTokens();
 	}
 
 	public onBeforeDetached(): void {
 		this._attachedEditorCount--;
-
-		// Intentional empty (for now)
 	}
 
 	protected _shouldAutoTokenize(): boolean {
