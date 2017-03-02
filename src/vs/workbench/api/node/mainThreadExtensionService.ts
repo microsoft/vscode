@@ -81,7 +81,7 @@ export class MainProcessExtensionService extends AbstractExtensionService<Activa
 		];
 
 		this.scanExtensions().done(extensionDescriptions => {
-			this._onExtensionDescriptions(disabledExtensions.length ? extensionDescriptions.filter(e => disabledExtensions.indexOf(`${e.publisher}.${e.name}`) === -1) : extensionDescriptions);
+			this._onExtensionDescriptions(disabledExtensions.length ? extensionDescriptions.filter(e => disabledExtensions.indexOf(e.id) === -1) : extensionDescriptions);
 		});
 	}
 

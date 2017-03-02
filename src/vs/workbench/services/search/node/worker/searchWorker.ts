@@ -33,7 +33,7 @@ function onError(error: any): void {
 	}
 }
 
-export class SearchWorkerManager implements ISearchWorker {
+export class SearchWorker implements ISearchWorker {
 	private currentSearchEngine: SearchWorkerEngine;
 
 	initialize(): TPromise<void> {

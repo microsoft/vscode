@@ -47,6 +47,7 @@ export interface IPreferencesEditorModel<T> {
 	uri: URI;
 	content: string;
 	getPreference(key: string): T;
+	dispose(): void;
 }
 
 export interface ISettingsEditorModel extends IPreferencesEditorModel<ISetting> {
@@ -68,8 +69,7 @@ export interface IPreferencesService {
 	workspaceSettingsResource: URI;
 	defaultKeybindingsResource: URI;
 
-	createDefaultPreferencesEditorModel<T>(uri: URI): TPromise<IPreferencesEditorModel<T>>;
-	resolvePreferencesEditorModel<T>(uri: URI): TPromise<IPreferencesEditorModel<T>>;
+	createPreferencesEditorModel<T>(uri: URI): TPromise<IPreferencesEditorModel<T>>;
 
 	openSettings(): TPromise<IEditor>;
 	switchSettings(): TPromise<void>;

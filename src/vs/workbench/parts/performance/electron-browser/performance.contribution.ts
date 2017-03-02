@@ -63,7 +63,7 @@ class PerformanceContribution implements IWorkbenchContribution {
 
 	private _checkTimersAndSuggestToProfile() {
 
-		const disabled = false;
+		const disabled = true;
 		if (disabled) {
 			return;
 		}

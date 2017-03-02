@@ -53,6 +53,12 @@ export class GitContentProvider {
 	}
 
 	async provideTextDocumentContent(uri: Uri): Promise<string> {
+		const cacheKey = uri.toString();
+		const timestamp = new Date().getTime();
+		const cacheValue = { uri, timestamp };
+
+		this.cache[cacheKey] = cacheValue;
+
 		if (uri.scheme === 'git-original') {
 			uri = new Uri().with({ scheme: 'git', path: uri.query });
 		}
@@ -65,9 +71,6 @@ export class GitContentProvider {
 			const [indexStatus] = this.model.indexGroup.resources.filter(r => r.original.toString() === uriString);
 			ref = indexStatus ? '' : 'HEAD';
 		}
-
-		const timestamp = new Date().getTime();
-		this.cache[uri.toString()] = { uri, timestamp };
 
 		try {
 			const result = await this.model.show(ref, uri);

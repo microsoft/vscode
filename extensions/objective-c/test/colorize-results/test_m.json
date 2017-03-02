@@ -363,7 +363,18 @@
 		}
 	},
 	{
-		"c": "NSNotification ",
+		"c": "NSNotification",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.function.objc meta.argument-type.objc support.class.cocoa",
+		"r": {
+			"dark_plus": "support.class: #4EC9B0",
+			"light_plus": "support.class: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
 		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.function.objc meta.argument-type.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -452,13 +463,13 @@
 	},
 	{
 		"c": "IBAction",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.function.objc meta.return-type.objc",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.function.objc meta.return-type.objc storage.type.objc",
 		"r": {
-			"dark_plus": "meta.return-type: #4EC9B0",
-			"light_plus": "meta.return-type: #267F99",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "storage.type: #569CD6",
+			"light_plus": "storage.type: #0000FF",
+			"dark_vs": "storage.type: #569CD6",
+			"light_vs": "storage.type: #0000FF",
+			"hc_black": "storage.type: #569CD6"
 		}
 	},
 	{
@@ -507,13 +518,13 @@
 	},
 	{
 		"c": "id",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.function.objc meta.argument-type.objc",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.function.objc meta.argument-type.objc storage.type.id.objc",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "storage.type: #569CD6",
+			"light_plus": "storage.type: #0000FF",
+			"dark_vs": "storage.type: #569CD6",
+			"light_vs": "storage.type: #0000FF",
+			"hc_black": "storage.type: #569CD6"
 		}
 	},
 	{
@@ -550,11 +561,22 @@
 		}
 	},
 	{
-		"c": "    NSString",
+		"c": "    ",
 		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "NSString",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c support.class.cocoa",
+		"r": {
+			"dark_plus": "support.class: #4EC9B0",
+			"light_plus": "support.class: #267F99",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
@@ -594,7 +616,73 @@
 		}
 	},
 	{
-		"c": " NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, ",
+		"c": " ",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c punctuation.whitespace.support.function.leading.cocoa",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "NSSearchPathForDirectoriesInDomains",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c support.function.cocoa",
+		"r": {
+			"dark_plus": "support.function: #DCDCAA",
+			"light_plus": "support.function: #795E26",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "NSDocumentDirectory",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c support.constant.cocoa",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ", ",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "NSUserDomainMask",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c support.constant.cocoa",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ", ",
 		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -671,11 +759,22 @@
 		}
 	},
 	{
-		"c": "    NSOpenPanel",
+		"c": "    ",
 		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "NSOpenPanel",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c support.class.cocoa",
+		"r": {
+			"dark_plus": "support.class: #4EC9B0",
+			"light_plus": "support.class: #267F99",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
@@ -737,7 +836,18 @@
 		}
 	},
 	{
-		"c": "NSOpenPanel ",
+		"c": "NSOpenPanel",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracketed.objc support.class.cocoa",
+		"r": {
+			"dark_plus": "support.class: #4EC9B0",
+			"light_plus": "support.class: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
 		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracketed.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -858,7 +968,18 @@
 		}
 	},
 	{
-		"c": "NSArray ",
+		"c": "NSArray",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracketed.objc meta.function-call.objc meta.bracketed.objc meta.bracketed.objc support.class.cocoa",
+		"r": {
+			"dark_plus": "support.class: #4EC9B0",
+			"light_plus": "support.class: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
 		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracketed.objc meta.function-call.objc meta.bracketed.objc meta.bracketed.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -1166,7 +1287,29 @@
 		}
 	},
 	{
-		"c": "(NSInteger result)",
+		"c": "(",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracketed.objc meta.function-call.objc",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "NSInteger",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracketed.objc meta.function-call.objc support.type.cocoa.leopard",
+		"r": {
+			"dark_plus": "support.type: #4EC9B0",
+			"light_plus": "support.type: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " result)",
 		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracketed.objc meta.function-call.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -1243,7 +1386,29 @@
 		}
 	},
 	{
-		"c": " NSFileHandlingPanelOKButton)",
+		"c": " ",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracketed.objc meta.function-call.objc meta.block.c",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "NSFileHandlingPanelOKButton",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracketed.objc meta.function-call.objc meta.block.c support.constant.cocoa",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ")",
 		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracketed.objc meta.function-call.objc meta.block.c",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -1783,13 +1948,13 @@
 	},
 	{
 		"c": "id",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.function.objc meta.return-type.objc",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.function.objc meta.return-type.objc storage.type.id.objc",
 		"r": {
-			"dark_plus": "meta.return-type: #4EC9B0",
-			"light_plus": "meta.return-type: #267F99",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "storage.type: #569CD6",
+			"light_plus": "storage.type: #0000FF",
+			"dark_vs": "storage.type: #569CD6",
+			"light_vs": "storage.type: #0000FF",
+			"hc_black": "storage.type: #569CD6"
 		}
 	},
 	{
@@ -1849,7 +2014,18 @@
 	},
 	{
 		"c": "id",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.function.objc meta.argument-type.objc",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.function.objc meta.argument-type.objc meta.id-with-protocol.objc storage.type.objc",
+		"r": {
+			"dark_plus": "storage.type: #569CD6",
+			"light_plus": "storage.type: #0000FF",
+			"dark_vs": "storage.type: #569CD6",
+			"light_vs": "storage.type: #0000FF",
+			"hc_black": "storage.type: #569CD6"
+		}
+	},
+	{
+		"c": "<",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.function.objc meta.argument-type.objc meta.id-with-protocol.objc meta.protocol-list.objc punctuation.section.scope.begin.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1859,19 +2035,8 @@
 		}
 	},
 	{
-		"c": "<",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.function.objc meta.argument-type.objc keyword.operator.comparison.c",
-		"r": {
-			"dark_plus": "keyword.operator: #D4D4D4",
-			"light_plus": "keyword.operator: #000000",
-			"dark_vs": "keyword.operator: #D4D4D4",
-			"light_vs": "keyword.operator: #000000",
-			"hc_black": "keyword.operator: #D4D4D4"
-		}
-	},
-	{
 		"c": "anObject",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.function.objc meta.argument-type.objc",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.function.objc meta.argument-type.objc meta.id-with-protocol.objc meta.protocol-list.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1882,13 +2047,13 @@
 	},
 	{
 		"c": ">",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.function.objc meta.argument-type.objc keyword.operator.comparison.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.function.objc meta.argument-type.objc meta.id-with-protocol.objc meta.protocol-list.objc punctuation.section.scope.end.objc",
 		"r": {
-			"dark_plus": "keyword.operator: #D4D4D4",
-			"light_plus": "keyword.operator: #000000",
-			"dark_vs": "keyword.operator: #D4D4D4",
-			"light_vs": "keyword.operator: #000000",
-			"hc_black": "keyword.operator: #D4D4D4"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
@@ -1970,7 +2135,18 @@
 	},
 	{
 		"c": "id",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.function.objc meta.argument-type.objc",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.function.objc meta.argument-type.objc meta.id-with-protocol.objc storage.type.objc",
+		"r": {
+			"dark_plus": "storage.type: #569CD6",
+			"light_plus": "storage.type: #0000FF",
+			"dark_vs": "storage.type: #569CD6",
+			"light_vs": "storage.type: #0000FF",
+			"hc_black": "storage.type: #569CD6"
+		}
+	},
+	{
+		"c": "<",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.function.objc meta.argument-type.objc meta.id-with-protocol.objc meta.protocol-list.objc punctuation.section.scope.begin.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1980,19 +2156,8 @@
 		}
 	},
 	{
-		"c": "<",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.function.objc meta.argument-type.objc keyword.operator.comparison.c",
-		"r": {
-			"dark_plus": "keyword.operator: #D4D4D4",
-			"light_plus": "keyword.operator: #000000",
-			"dark_vs": "keyword.operator: #D4D4D4",
-			"light_vs": "keyword.operator: #000000",
-			"hc_black": "keyword.operator: #D4D4D4"
-		}
-	},
-	{
 		"c": "anotherObject",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.function.objc meta.argument-type.objc",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.function.objc meta.argument-type.objc meta.id-with-protocol.objc meta.protocol-list.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2003,13 +2168,13 @@
 	},
 	{
 		"c": ">",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.function.objc meta.argument-type.objc keyword.operator.comparison.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.function.objc meta.argument-type.objc meta.id-with-protocol.objc meta.protocol-list.objc punctuation.section.scope.end.objc",
 		"r": {
-			"dark_plus": "keyword.operator: #D4D4D4",
-			"light_plus": "keyword.operator: #000000",
-			"dark_vs": "keyword.operator: #D4D4D4",
-			"light_vs": "keyword.operator: #000000",
-			"hc_black": "keyword.operator: #D4D4D4"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
@@ -2354,7 +2519,29 @@
 		}
 	},
 	{
-		"c": "    NSMutableArray ",
+		"c": "    ",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "NSMutableArray",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c support.class.cocoa",
+		"r": {
+			"dark_plus": "support.class: #4EC9B0",
+			"light_plus": "support.class: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
 		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -2420,7 +2607,18 @@
 		}
 	},
 	{
-		"c": "NSMutableArray ",
+		"c": "NSMutableArray",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracketed.objc support.class.cocoa",
+		"r": {
+			"dark_plus": "support.class: #4EC9B0",
+			"light_plus": "support.class: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
 		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracketed.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",

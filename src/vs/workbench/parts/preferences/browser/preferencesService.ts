@@ -88,7 +88,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return this.getEditableSettingsURI(ConfigurationTarget.WORKSPACE);
 	}
 
-	createDefaultPreferencesEditorModel(uri: URI): TPromise<IPreferencesEditorModel<any>> {
+	createPreferencesEditorModel(uri: URI): TPromise<IPreferencesEditorModel<any>> {
 		let promise = this.defaultPreferencesEditorModels.get(uri);
 		if (promise) {
 			return promise;
@@ -112,22 +112,13 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			return promise;
 		}
 
-		return null;
-	}
-
-	public resolvePreferencesEditorModel(uri: URI): TPromise<IPreferencesEditorModel<any>> {
-		const promise = this.defaultPreferencesEditorModels.get(uri);
-		if (promise) {
-			return promise;
-		}
-
 		if (this.getEditableSettingsURI(ConfigurationTarget.USER).fsPath === uri.fsPath) {
-			return this.resolveSettingsEditorModel(ConfigurationTarget.USER);
+			return this.createEditableSettingsEditorModel(ConfigurationTarget.USER);
 		}
 
 		const workspaceSettingsUri = this.getEditableSettingsURI(ConfigurationTarget.WORKSPACE);
 		if (workspaceSettingsUri && workspaceSettingsUri.fsPath === uri.fsPath) {
-			return this.resolveSettingsEditorModel(ConfigurationTarget.WORKSPACE);
+			return this.createEditableSettingsEditorModel(ConfigurationTarget.WORKSPACE);
 		}
 
 		return TPromise.wrap(null);
@@ -219,11 +210,11 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			.then(() => this.editorService.createInput({ resource }));
 	}
 
-	private resolveSettingsEditorModel(configurationTarget: ConfigurationTarget): TPromise<SettingsEditorModel> {
+	private createEditableSettingsEditorModel(configurationTarget: ConfigurationTarget): TPromise<SettingsEditorModel> {
 		const settingsUri = this.getEditableSettingsURI(configurationTarget);
 		if (settingsUri) {
 			return this.textModelResolverService.createModelReference(settingsUri)
-				.then(reference => this.instantiationService.createInstance(SettingsEditorModel, reference.object.textEditorModel, configurationTarget));
+				.then(reference => this.instantiationService.createInstance(SettingsEditorModel, reference, configurationTarget));
 		}
 		return TPromise.wrap(null);
 	}
@@ -290,7 +281,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	private getPosition(language: string, codeEditor: ICommonCodeEditor): TPromise<IPosition> {
-		return this.resolvePreferencesEditorModel(this.userSettingsResource)
+		return this.createPreferencesEditorModel(this.userSettingsResource)
 			.then((settingsModel: IPreferencesEditorModel<ISetting>) => {
 				const languageKey = `[${language}]`;
 				let setting = settingsModel.getPreference(languageKey);
@@ -319,6 +310,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 						let editOperation = EditOperation.insert(new Position(setting.valueRange.endLineNumber, setting.valueRange.endColumn - 1), content);
 						model.pushEditOperations([], [editOperation], () => []);
 						let lineNumber = setting.valueRange.endLineNumber + 1;
+						settingsModel.dispose();
 						return { lineNumber, column: model.getLineMaxColumn(lineNumber) };
 					});
 			});

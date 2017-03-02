@@ -439,6 +439,24 @@ suite('ExtensionsActions Test', () => {
 		});
 	});
 
+	test('Test ManageExtensionAction when extension is queried from gallery and installed', (done) => {
+		const testObject: ExtensionsActions.ManageExtensionAction = instantiationService.createInstance(ExtensionsActions.ManageExtensionAction);
+		const gallery = aGalleryExtension('a');
+		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
+
+		instantiationService.get(IExtensionsWorkbenchService).queryGallery().done(page => {
+			testObject.extension = page.firstPage[0];
+			installEvent.fire({ id: gallery.uuid, gallery });
+			didInstallEvent.fire({ id: gallery.uuid, gallery, local: aLocalExtension('a', gallery, gallery) });
+
+			assert.ok(testObject.enabled);
+			assert.equal('extension-action manage', testObject.class);
+			assert.equal('', testObject.tooltip);
+
+			done();
+		});
+	});
+
 	test('Test ManageExtensionAction when extension is system extension', (done) => {
 		const testObject: ExtensionsActions.ManageExtensionAction = instantiationService.createInstance(ExtensionsActions.ManageExtensionAction);
 		const local = aLocalExtension('a', {}, { type: LocalExtensionType.System });
@@ -1144,7 +1162,7 @@ suite('ExtensionsActions Test', () => {
 		const localExtension = <ILocalExtension>Object.create({ manifest: {} });
 		assign(localExtension, { type: LocalExtensionType.User, manifest: {} }, properties);
 		assign(localExtension.manifest, { name, publisher: 'pub', version: '1.0.0' }, manifest);
-		localExtension.metadata = { uuid: localExtension.id, publisherId: localExtension.manifest.publisher, publisherDisplayName: 'somename' };
+		localExtension.metadata = { id: localExtension.id, publisherId: localExtension.manifest.publisher, publisherDisplayName: 'somename' };
 		localExtension.id = getLocalExtensionIdFromManifest(localExtension.manifest);
 		return localExtension;
 	}

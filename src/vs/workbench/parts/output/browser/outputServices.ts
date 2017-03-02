@@ -42,6 +42,7 @@ export class OutputService implements IOutputService {
 
 	private _outputLinkDetector: OutputLinkProvider;
 	private _outputContentProvider: OutputContentProvider;
+	private _outputPanel: OutputPanel;
 
 	constructor(
 		@IStorageService private storageService: IStorageService,
@@ -147,6 +148,9 @@ export class OutputService implements IOutputService {
 		if (this.activeChannelId === channelId) {
 			const channels = this.getChannels();
 			this.activeChannelId = channels.length ? channels[0].id : undefined;
+			if (this._outputPanel && this.activeChannelId) {
+				this._outputPanel.setInput(OutputEditors.getInstance(this.instantiationService, this.getChannel(this.activeChannelId)), EditorOptions.create({ preserveFocus: true }));
+			}
 			this._onActiveOutputChannel.fire(this.activeChannelId);
 		}
 
@@ -164,7 +168,8 @@ export class OutputService implements IOutputService {
 		this._onActiveOutputChannel.fire(channelId); // emit event that a new channel is active
 
 		return this.panelService.openPanel(OUTPUT_PANEL_ID, !preserveFocus).then((outputPanel: OutputPanel) => {
-			return outputPanel && outputPanel.setInput(OutputEditors.getInstance(this.instantiationService, this.getChannel(channelId)), EditorOptions.create({ preserveFocus: preserveFocus })).
+			this._outputPanel = outputPanel;
+			return outputPanel && outputPanel.setInput(OutputEditors.getInstance(this.instantiationService, this.getChannel(this.activeChannelId)), EditorOptions.create({ preserveFocus: preserveFocus })).
 				then(() => outputPanel);
 		});
 	}

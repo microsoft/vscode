@@ -14,7 +14,7 @@ export class Source {
 
 	constructor(public raw: DebugProtocol.Source, public deemphasize: boolean) {
 		const path = raw.path || raw.name;
-		this.uri = raw.sourceReference > 0 ? uri.parse(Source.INTERNAL_URI_PREFIX + raw.sourceReference + '/' + path) : uri.file(path);
+		this.uri = raw.sourceReference > 0 ? uri.parse(`${Source.INTERNAL_URI_PREFIX}${path}?ref=${raw.sourceReference}`) : uri.file(path);
 	}
 
 	public get name() {
@@ -42,7 +42,6 @@ export class Source {
 			return 0;
 		}
 
-		const uriStr = uri.toString();
-		return parseInt(uriStr.substring(Source.INTERNAL_URI_PREFIX.length, uriStr.lastIndexOf('/')));
+		return parseInt(uri.query.substr('ref='.length));
 	}
 }
