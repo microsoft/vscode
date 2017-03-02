@@ -456,6 +456,9 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 			options.renderIndentGuides = false;
 			options.rulers = [];
 			options.glyphMargin = true;
+			options.minimap = {
+				enabled: false
+			};
 		}
 		return options;
 	}
