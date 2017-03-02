@@ -126,11 +126,13 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 	private writeToDisk(contents: string, operation: IConfigurationEditOperation, resource: URI): TPromise<void> {
 		// Apply all edits to the configuration file
 		const result = this.applyEdits(contents, operation);
+		const backupFile = URI.file(resource.fsPath + '-' + new Date().getTime());
+		return this.fileService.copyFile(resource, backupFile).then(() => {
+			return this.fileService.updateContent(resource, result, { encoding: encoding.UTF8 }).then(() => {
 
-		return this.fileService.updateContent(resource, result, { encoding: encoding.UTF8 }).then(() => {
-
-			// Reload the configuration so that we make sure all parties are updated
-			return this.configurationService.reloadConfiguration().then(() => void 0);
+				// Reload the configuration so that we make sure all parties are updated
+				return this.configurationService.reloadConfiguration().then(() => void 0);
+			});
 		});
 	}
 
