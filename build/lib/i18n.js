@@ -954,4 +954,3 @@ function decodeEntities(value) {
 }
 exports.decodeEntities = decodeEntities;
 //# sourceMappingURL=i18n.js.map
->>>>>>> Implemented transifex push and pull for translations together with json->xlf->json parsing.
