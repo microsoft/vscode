@@ -19,7 +19,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { readToMatchingString } from 'vs/base/node/stream';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { IWindowService } from 'vs/platform/windows/common/windows';
-import { ITextSource2 } from 'vs/editor/common/model/textSource';
+import { IRawTextSource } from 'vs/editor/common/model/textSource';
 
 export interface IBackupFilesModel {
 	resolve(backupRoot: string): TPromise<IBackupFilesModel>;
@@ -239,7 +239,7 @@ export class BackupFileService implements IBackupFileService {
 		});
 	}
 
-	public parseBackupContent(textSource: ITextSource2): string {
+	public parseBackupContent(textSource: IRawTextSource): string {
 		return textSource.lines.slice(1).join(TextModel.getEndOfLine(textSource) || ''); // The first line of a backup text file is the file name
 	}
 

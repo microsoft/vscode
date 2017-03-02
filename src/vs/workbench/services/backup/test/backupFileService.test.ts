@@ -19,9 +19,9 @@ import { FileService } from 'vs/workbench/services/files/node/fileService';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { IBackupService } from 'vs/platform/backup/common/backup';
 import { parseArgs } from 'vs/platform/environment/node/argv';
-import { TextModel } from 'vs/editor/common/model/textModel';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { TestWindowService } from 'vs/workbench/test/workbenchTestServices';
+import { RawTextSource } from 'vs/editor/common/model/textSource';
 
 class TestEnvironmentService extends EnvironmentService {
 
@@ -252,7 +252,7 @@ suite('BackupFileService', () => {
 
 	test('parseBackupContent', () => {
 		test('should separate metadata from content', () => {
-			const textSource = TextModel.toTextSource('metadata\ncontent');
+			const textSource = RawTextSource.fromString('metadata\ncontent');
 			assert.equal(service.parseBackupContent(textSource), 'content');
 		});
 	});
