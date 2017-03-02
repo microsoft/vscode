@@ -24,6 +24,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { DEFAULT_INDENTATION, DEFAULT_TRIM_AUTO_WHITESPACE } from 'vs/editor/common/config/defaultConfig';
 import { PLAINTEXT_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/modesRegistry';
 import { RawText } from 'vs/editor/common/model/textModel';
+import { ITextSource2 } from 'vs/editor/common/model/textSource';
 
 function MODEL_ID(resource: URI): string {
 	return resource.toString();
@@ -338,7 +339,7 @@ export class ModelServiceImpl implements IModelService {
 
 	// --- begin IModelService
 
-	private _createModelData(value: string | editorCommon.ITextSource2, languageIdentifier: LanguageIdentifier, resource: URI): ModelData {
+	private _createModelData(value: string | ITextSource2, languageIdentifier: LanguageIdentifier, resource: URI): ModelData {
 		// create & save the model
 		const options = this.getCreationOptions(languageIdentifier.language);
 
@@ -357,7 +358,7 @@ export class ModelServiceImpl implements IModelService {
 		return modelData;
 	}
 
-	public updateModel(model: editorCommon.IModel, value: string | editorCommon.ITextSource2): void {
+	public updateModel(model: editorCommon.IModel, value: string | ITextSource2): void {
 		let options = this.getCreationOptions(model.getLanguageIdentifier().language);
 		let rawText: editorCommon.IRawText = RawText.toRawText(value, options);
 
@@ -370,7 +371,7 @@ export class ModelServiceImpl implements IModelService {
 		model.setValueFromRawText(rawText);
 	}
 
-	public createModel(value: string | editorCommon.ITextSource2, modeOrPromise: TPromise<IMode> | IMode, resource: URI): editorCommon.IModel {
+	public createModel(value: string | ITextSource2, modeOrPromise: TPromise<IMode> | IMode, resource: URI): editorCommon.IModel {
 		let modelData: ModelData;
 
 		if (!modeOrPromise || TPromise.is(modeOrPromise)) {

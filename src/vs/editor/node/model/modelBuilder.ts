@@ -6,10 +6,10 @@
 
 import { IStringStream } from 'vs/platform/files/common/files';
 import * as crypto from 'crypto';
-import { ITextSource2 } from 'vs/editor/common/editorCommon';
 import * as strings from 'vs/base/common/strings';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { CharCode } from 'vs/base/common/charCode';
+import { ITextSource2 } from 'vs/editor/common/model/textSource';
 
 export interface ModelBuilderResult {
 	readonly hash: string;

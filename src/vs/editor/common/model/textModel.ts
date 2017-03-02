@@ -15,6 +15,7 @@ import { DEFAULT_INDENTATION, DEFAULT_TRIM_AUTO_WHITESPACE } from 'vs/editor/com
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
 import { IndentRange, computeRanges } from 'vs/editor/common/model/indentRanges';
 import { TextModelSearch, SearchParams } from 'vs/editor/common/model/textModelSearch';
+import { ITextSource2 } from 'vs/editor/common/model/textSource';
 
 const LIMIT_FIND_COUNT = 999;
 export const LONG_LINE_BOUNDARY = 1000;
@@ -749,7 +750,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		}
 	}
 
-	public static toTextSource(rawText: string): editorCommon.ITextSource2 {
+	public static toTextSource(rawText: string): ITextSource2 {
 		// Count the number of lines that end with \r\n
 		let carriageReturnCnt = 0;
 		let lastCarriageReturnIndex = -1;
@@ -785,7 +786,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 	 * if text source contains more lines ending with '\r\n', returns '\r\n'.
 	 * Otherwise returns '\n'. More lines end with '\n'.
 	 */
-	public static getEndOfLine(textSource: editorCommon.ITextSource2): string {
+	public static getEndOfLine(textSource: ITextSource2): string {
 		const lineFeedCnt = textSource.lines.length - 1;
 		if (lineFeedCnt === 0) {
 			// This is an empty file or a file with precisely one line
@@ -804,7 +805,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		return TextModel.toRawTextFromTextSource(textSource, opts);
 	}
 
-	public static toRawTextFromTextSource(textSource: editorCommon.ITextSource2, opts: editorCommon.ITextModelCreationOptions): editorCommon.IRawText {
+	public static toRawTextFromTextSource(textSource: ITextSource2, opts: editorCommon.ITextModelCreationOptions): editorCommon.IRawText {
 		let EOL = TextModel.getEndOfLine(textSource);
 		if (!EOL) {
 			// This is an empty file or a file with precisely one line
@@ -897,7 +898,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 
 export class RawText {
 
-	public static toRawText(textSourceOrString: editorCommon.ITextSource2 | string, opts: editorCommon.ITextModelCreationOptions): editorCommon.IRawText {
+	public static toRawText(textSourceOrString: ITextSource2 | string, opts: editorCommon.ITextModelCreationOptions): editorCommon.IRawText {
 		if (typeof textSourceOrString === 'string') {
 			return RawText.fromString(textSourceOrString, opts);
 		} else {
@@ -905,7 +906,7 @@ export class RawText {
 		}
 	}
 
-	public static toRawTextWithModelOptions(textSourceOrString: editorCommon.ITextSource2 | string, model: editorCommon.IModel): editorCommon.IRawText {
+	public static toRawTextWithModelOptions(textSourceOrString: ITextSource2 | string, model: editorCommon.IModel): editorCommon.IRawText {
 		if (typeof textSourceOrString === 'string') {
 			return RawText.fromStringWithModelOptions(textSourceOrString, model);
 		} else {
@@ -917,7 +918,7 @@ export class RawText {
 		return TextModel.toRawText(rawText, opts);
 	}
 
-	public static fromTextSource(textSource: editorCommon.ITextSource2, opts: editorCommon.ITextModelCreationOptions): editorCommon.IRawText {
+	public static fromTextSource(textSource: ITextSource2, opts: editorCommon.ITextModelCreationOptions): editorCommon.IRawText {
 		return TextModel.toRawTextFromTextSource(textSource, opts);
 	}
 
@@ -932,7 +933,7 @@ export class RawText {
 		});
 	}
 
-	public static fromTextSourceWithModelOptions(textSource: editorCommon.ITextSource2, model: editorCommon.IModel): editorCommon.IRawText {
+	public static fromTextSourceWithModelOptions(textSource: ITextSource2, model: editorCommon.IModel): editorCommon.IRawText {
 		let opts = model.getOptions();
 		return TextModel.toRawTextFromTextSource(textSource, {
 			tabSize: opts.tabSize,

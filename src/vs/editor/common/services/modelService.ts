@@ -8,8 +8,9 @@ import Event from 'vs/base/common/event';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IModel, ITextSource2, ITextModelCreationOptions } from 'vs/editor/common/editorCommon';
+import { IModel, ITextModelCreationOptions } from 'vs/editor/common/editorCommon';
 import { IMode } from 'vs/editor/common/modes';
+import { ITextSource2 } from 'vs/editor/common/model/textSource';
 
 export var IModelService = createDecorator<IModelService>('modelService');
 
