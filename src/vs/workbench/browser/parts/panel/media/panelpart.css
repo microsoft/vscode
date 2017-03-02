@@ -25,13 +25,17 @@
 /** Panel Switcher */
 
 .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar {
-	padding-left: 12px;
 	line-height: 35px;
+}
+
+.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:first-child .action-label {
+	margin-left: 12px;
 }
 
 .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label {
 	text-transform: uppercase;
-	margin-right: 33px;
+	margin-left: 16px;
+	margin-right: 16px;
 	font-size: 11px;
 	padding-bottom: 4px; /* puts the bottom border down */
 }
