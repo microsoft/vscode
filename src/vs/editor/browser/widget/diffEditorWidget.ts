@@ -879,6 +879,7 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 	private _adjustOptionsForSubEditor(options: editorCommon.IDiffEditorOptions): editorCommon.IDiffEditorOptions {
 		let clonedOptions: editorCommon.IDiffEditorOptions = objects.clone(options || {});
 		clonedOptions.wordWrap = 'off';
+		clonedOptions.wordWrapMinified = false;
 		clonedOptions.automaticLayout = false;
 		clonedOptions.scrollbar = clonedOptions.scrollbar || {};
 		clonedOptions.scrollbar.vertical = 'visible';
