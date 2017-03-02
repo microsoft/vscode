@@ -277,6 +277,7 @@ export interface IDebugConfiguration {
 	allowBreakpointsEverywhere: boolean;
 	openExplorerOnEnd: boolean;
 	inlineValues: boolean;
+	hideActionBar: boolean;
 }
 
 export interface IGlobalConfig {
