@@ -12,7 +12,7 @@ import { IEncodingSupport, ConfirmResult } from 'vs/workbench/common/editor';
 import { IBaseStat, IResolveContentOptions } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
-import { ITextSource2 } from 'vs/editor/common/model/textSource';
+import { IRawTextSource } from 'vs/editor/common/model/textSource';
 
 /**
  * The save error handler can be installed on the text text file editor model to install code that executes when save errors occur.
@@ -112,7 +112,7 @@ export interface IRawTextContent extends IBaseStat {
 	/**
 	 * The line grouped content of a text file.
 	 */
-	value: ITextSource2;
+	value: IRawTextSource;
 
 	/**
 	 * The line grouped logical hash of a text file.

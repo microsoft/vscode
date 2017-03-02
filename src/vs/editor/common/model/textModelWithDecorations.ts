@@ -14,6 +14,7 @@ import { MarkersTracker, LineMarker } from 'vs/editor/common/model/modelLine';
 import { Position } from 'vs/editor/common/core/position';
 import { INewMarker, TextModelWithMarkers } from 'vs/editor/common/model/textModelWithMarkers';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
+import { ITextSource } from 'vs/editor/common/model/textSource';
 
 class DecorationsTracker {
 
@@ -165,7 +166,7 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 		super.dispose();
 	}
 
-	protected _resetValue(newValue: editorCommon.ITextSource): void {
+	protected _resetValue(newValue: ITextSource): void {
 		super._resetValue(newValue);
 
 		// Destroy all my decorations

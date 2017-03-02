@@ -19,6 +19,7 @@ import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/un
 import { ExtHostContext, MainThreadDocumentsShape, ExtHostDocumentsShape } from './extHost.protocol';
 import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
+import { ITextSource } from 'vs/editor/common/model/textSource';
 
 export class MainThreadDocuments extends MainThreadDocumentsShape {
 	private _modelService: IModelService;
@@ -241,12 +242,12 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 		}
 	}
 
-	$onVirtualDocumentChange(uri: URI, value: editorCommon.ITextSource): void {
+	$onVirtualDocumentChange(uri: URI, value: ITextSource): void {
 		const model = this._modelService.getModel(uri);
 		if (!model) {
 			return;
 		}
-		const raw: editorCommon.ITextSource = {
+		const raw: ITextSource = {
 			lines: value.lines,
 			length: value.length,
 			BOM: value.BOM,

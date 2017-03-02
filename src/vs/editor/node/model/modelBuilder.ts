@@ -9,11 +9,11 @@ import * as crypto from 'crypto';
 import * as strings from 'vs/base/common/strings';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { CharCode } from 'vs/base/common/charCode';
-import { ITextSource2 } from 'vs/editor/common/model/textSource';
+import { IRawTextSource } from 'vs/editor/common/model/textSource';
 
 export interface ModelBuilderResult {
 	readonly hash: string;
-	readonly value: ITextSource2;
+	readonly value: IRawTextSource;
 }
 
 class ModelLineBasedBuilder {
@@ -60,7 +60,7 @@ class ModelLineBasedBuilder {
 	}
 }
 
-export function computeHash(rawText: ITextSource2): string {
+export function computeHash(rawText: IRawTextSource): string {
 	let hash = crypto.createHash('sha1');
 	for (let i = 0, len = rawText.lines.length; i < len; i++) {
 		hash.update(rawText.lines[i] + '\n');

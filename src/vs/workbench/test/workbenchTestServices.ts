@@ -39,7 +39,6 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { IRawTextContent, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { TextModel } from 'vs/editor/common/model/textModel';
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -49,7 +48,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
-import { ITextSource2 } from 'vs/editor/common/model/textSource';
+import { RawTextSource, IRawTextSource } from 'vs/editor/common/model/textSource';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, void 0);
@@ -150,7 +149,7 @@ export class TestTextFileService extends TextFileService {
 		}
 
 		return this.fileService.resolveContent(resource, options).then((content) => {
-			const textSource = TextModel.toTextSource(content.value);
+			const textSource = RawTextSource.fromString(content.value);
 			return <IRawTextContent>{
 				resource: content.resource,
 				name: content.name,
@@ -733,7 +732,7 @@ export class TestBackupFileService implements IBackupFileService {
 		return TPromise.as([]);
 	}
 
-	public parseBackupContent(rawText: ITextSource2): string {
+	public parseBackupContent(rawText: IRawTextSource): string {
 		return rawText.lines.join('\n');
 	}
 

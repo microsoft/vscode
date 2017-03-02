@@ -6,10 +6,11 @@
 
 import { IdGenerator } from 'vs/base/common/idGenerator';
 import { Position } from 'vs/editor/common/core/position';
-import { ITextSource, IRawText, ITextModelWithMarkers } from 'vs/editor/common/editorCommon';
+import { IRawText, ITextModelWithMarkers } from 'vs/editor/common/editorCommon';
 import { LineMarker } from 'vs/editor/common/model/modelLine';
 import { TextModelWithTokens } from 'vs/editor/common/model/textModelWithTokens';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
+import { ITextSource } from 'vs/editor/common/model/textSource';
 
 export interface IMarkerIdToMarkerMap {
 	[key: string]: LineMarker;

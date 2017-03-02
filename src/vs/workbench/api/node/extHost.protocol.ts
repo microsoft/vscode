@@ -27,6 +27,7 @@ import { IWorkspace } from 'vs/platform/workspace/common/workspace';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
 import { IResourceEdit } from 'vs/editor/common/services/bulkEdit';
+import { ITextSource } from 'vs/editor/common/model/textSource';
 
 import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { IWorkspaceConfigurationValues } from 'vs/workbench/services/configuration/common/configuration';
@@ -122,7 +123,7 @@ export abstract class MainThreadDocumentsShape {
 	$tryCreateDocument(options?: { language: string; }): TPromise<any> { throw ni(); }
 	$tryOpenDocument(uri: URI): TPromise<any> { throw ni(); }
 	$registerTextContentProvider(handle: number, scheme: string): void { throw ni(); }
-	$onVirtualDocumentChange(uri: URI, value: editorCommon.ITextSource): void { throw ni(); }
+	$onVirtualDocumentChange(uri: URI, value: ITextSource): void { throw ni(); }
 	$unregisterTextContentProvider(handle: number): void { throw ni(); }
 	$trySaveDocument(uri: URI): TPromise<boolean> { throw ni(); }
 }

@@ -21,6 +21,7 @@ import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageCo
 import { LineTokens, LineToken } from 'vs/editor/common/core/lineTokens';
 import { getWordAtText } from 'vs/editor/common/model/wordHelper';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
+import { ITextSource } from 'vs/editor/common/model/textSource';
 
 class ModelTokensChangedEventBuilder {
 
@@ -107,7 +108,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		return false;
 	}
 
-	protected _resetValue(newValue: editorCommon.ITextSource): void {
+	protected _resetValue(newValue: ITextSource): void {
 		super._resetValue(newValue);
 		// Cancel tokenization, clear all tokens and begin tokenizing
 		this._resetTokenizationState();

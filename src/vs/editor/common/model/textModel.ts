@@ -15,7 +15,7 @@ import { DEFAULT_INDENTATION, DEFAULT_TRIM_AUTO_WHITESPACE } from 'vs/editor/com
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
 import { IndentRange, computeRanges } from 'vs/editor/common/model/indentRanges';
 import { TextModelSearch, SearchParams } from 'vs/editor/common/model/textModelSearch';
-import { ITextSource2 } from 'vs/editor/common/model/textSource';
+import { ITextSource, RawTextSource, IRawTextSource } from 'vs/editor/common/model/textSource';
 
 const LIMIT_FIND_COUNT = 999;
 export const LONG_LINE_BOUNDARY = 1000;
@@ -286,7 +286,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		}
 	}
 
-	protected _resetValue(newValue: editorCommon.ITextSource): void {
+	protected _resetValue(newValue: ITextSource): void {
 		this._constructLines(newValue);
 		this._increaseVersionId();
 	}
@@ -304,7 +304,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		};
 	}
 
-	public equals(other: editorCommon.ITextSource): boolean {
+	public equals(other: ITextSource): boolean {
 		this._assertNotDisposed();
 		if (this._BOM !== other.BOM) {
 			return false;
@@ -340,7 +340,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		this.setValueFromRawText(rawText);
 	}
 
-	public setValueFromRawText(newValue: editorCommon.ITextSource): void {
+	public setValueFromRawText(newValue: ITextSource): void {
 		this._assertNotDisposed();
 		if (newValue === null) {
 			// There's nothing to do
@@ -750,43 +750,12 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		}
 	}
 
-	public static toTextSource(rawText: string): ITextSource2 {
-		// Count the number of lines that end with \r\n
-		let carriageReturnCnt = 0;
-		let lastCarriageReturnIndex = -1;
-		while ((lastCarriageReturnIndex = rawText.indexOf('\r', lastCarriageReturnIndex + 1)) !== -1) {
-			carriageReturnCnt++;
-		}
-
-		const containsRTL = strings.containsRTL(rawText);
-		const isBasicASCII = (containsRTL ? false : strings.isBasicASCII(rawText));
-
-		// Split the text into lines
-		const lines = rawText.split(/\r\n|\r|\n/);
-
-		// Remove the BOM (if present)
-		let BOM = '';
-		if (strings.startsWithUTF8BOM(lines[0])) {
-			BOM = strings.UTF8_BOM_CHARACTER;
-			lines[0] = lines[0].substr(1);
-		}
-
-		return {
-			BOM: BOM,
-			lines: lines,
-			length: rawText.length,
-			containsRTL: containsRTL,
-			isBasicASCII: isBasicASCII,
-			totalCRCount: carriageReturnCnt
-		};
-	}
-
 	/**
 	 * if text source is empty or with precisely one line, returns null. No end of line is detected.
 	 * if text source contains more lines ending with '\r\n', returns '\r\n'.
 	 * Otherwise returns '\n'. More lines end with '\n'.
 	 */
-	public static getEndOfLine(textSource: ITextSource2): string {
+	public static getEndOfLine(textSource: IRawTextSource): string {
 		const lineFeedCnt = textSource.lines.length - 1;
 		if (lineFeedCnt === 0) {
 			// This is an empty file or a file with precisely one line
@@ -801,11 +770,11 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 	}
 
 	public static toRawText(rawText: string, opts: editorCommon.ITextModelCreationOptions): editorCommon.IRawText {
-		const textSource = TextModel.toTextSource(rawText);
+		const textSource = RawTextSource.fromString(rawText);
 		return TextModel.toRawTextFromTextSource(textSource, opts);
 	}
 
-	public static toRawTextFromTextSource(textSource: ITextSource2, opts: editorCommon.ITextModelCreationOptions): editorCommon.IRawText {
+	public static toRawTextFromTextSource(textSource: IRawTextSource, opts: editorCommon.ITextModelCreationOptions): editorCommon.IRawText {
 		let EOL = TextModel.getEndOfLine(textSource);
 		if (!EOL) {
 			// This is an empty file or a file with precisely one line
@@ -841,7 +810,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		};
 	}
 
-	private _constructLines(rawText: editorCommon.ITextSource): void {
+	private _constructLines(rawText: ITextSource): void {
 		const tabSize = this._options.tabSize;
 		let rawLines = rawText.lines;
 		let modelLines: ModelLine[] = [];
@@ -898,7 +867,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 
 export class RawText {
 
-	public static toRawText(textSourceOrString: ITextSource2 | string, opts: editorCommon.ITextModelCreationOptions): editorCommon.IRawText {
+	public static toRawText(textSourceOrString: IRawTextSource | string, opts: editorCommon.ITextModelCreationOptions): editorCommon.IRawText {
 		if (typeof textSourceOrString === 'string') {
 			return RawText.fromString(textSourceOrString, opts);
 		} else {
@@ -906,7 +875,7 @@ export class RawText {
 		}
 	}
 
-	public static toRawTextWithModelOptions(textSourceOrString: ITextSource2 | string, model: editorCommon.IModel): editorCommon.IRawText {
+	public static toRawTextWithModelOptions(textSourceOrString: IRawTextSource | string, model: editorCommon.IModel): editorCommon.IRawText {
 		if (typeof textSourceOrString === 'string') {
 			return RawText.fromStringWithModelOptions(textSourceOrString, model);
 		} else {
@@ -918,7 +887,7 @@ export class RawText {
 		return TextModel.toRawText(rawText, opts);
 	}
 
-	public static fromTextSource(textSource: ITextSource2, opts: editorCommon.ITextModelCreationOptions): editorCommon.IRawText {
+	public static fromTextSource(textSource: IRawTextSource, opts: editorCommon.ITextModelCreationOptions): editorCommon.IRawText {
 		return TextModel.toRawTextFromTextSource(textSource, opts);
 	}
 
@@ -933,7 +902,7 @@ export class RawText {
 		});
 	}
 
-	public static fromTextSourceWithModelOptions(textSource: ITextSource2, model: editorCommon.IModel): editorCommon.IRawText {
+	public static fromTextSourceWithModelOptions(textSource: IRawTextSource, model: editorCommon.IModel): editorCommon.IRawText {
 		let opts = model.getOptions();
 		return TextModel.toRawTextFromTextSource(textSource, {
 			tabSize: opts.tabSize,

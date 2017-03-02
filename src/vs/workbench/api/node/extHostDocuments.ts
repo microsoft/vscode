@@ -20,6 +20,7 @@ import * as vscode from 'vscode';
 import { asWinJsPromise } from 'vs/base/common/async';
 import { getWordAtText, ensureValidWordDefinition } from 'vs/editor/common/model/wordHelper';
 import { MainContext, MainThreadDocumentsShape, ExtHostDocumentsShape, IModelAddedData } from './extHost.protocol';
+import { ITextSource } from 'vs/editor/common/model/textSource';
 
 const _modeId2WordDefinition = new Map<string, RegExp>();
 
@@ -263,7 +264,7 @@ export class ExtHostDocumentData extends MirrorModel2 {
 		super.dispose();
 	}
 
-	equalLines({lines}: editorCommon.ITextSource): boolean {
+	equalLines({lines}: ITextSource): boolean {
 		const len = lines.length;
 		if (len !== this._lines.length) {
 			return false;
