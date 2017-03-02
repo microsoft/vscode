@@ -127,7 +127,7 @@ export class StartAction extends AbstractDebugAction {
 	}
 
 	public run(): TPromise<any> {
-		return this.commandService.executeCommand('workbench.action.files.save').then(() => {
+		return this.commandService.executeCommand('workbench.action.files.saveIfDirty').then(() => {
 			if (this.debugService.getModel().getProcesses().length === 0) {
 				this.debugService.removeReplExpressions();
 			}
