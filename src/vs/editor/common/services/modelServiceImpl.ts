@@ -365,7 +365,7 @@ export class ModelServiceImpl implements IModelService {
 		}
 
 		// Otherwise update model
-		model.setValueFromRawText(textSource);
+		model.setValueFromTextSource(textSource);
 	}
 
 	public createModel(value: string | IRawTextSource, modeOrPromise: TPromise<IMode> | IMode, resource: URI): editorCommon.IModel {

@@ -215,11 +215,10 @@ class EditorModelManager extends Disposable {
 
 		let modelUrl = resource.toString();
 
-		const textModelData = model.toRawText();
 		this._proxy.acceptNewModel({
 			url: model.uri.toString(),
-			lines: textModelData.text.lines,
-			EOL: textModelData.text.EOL,
+			lines: model.getLinesContent(),
+			EOL: model.getEOL(),
 			versionId: model.getVersionId()
 		});
 

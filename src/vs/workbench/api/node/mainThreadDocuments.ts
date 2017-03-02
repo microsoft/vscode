@@ -103,12 +103,11 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 		let modelUrl = model.uri;
 		this._modelIsSynced[modelUrl.toString()] = true;
 		this._modelToDisposeMap[modelUrl.toString()] = model.addBulkListener((events) => this._onModelEvents(modelUrl, events));
-		const textModelData = model.toRawText();
 		this._proxy.$acceptModelAdd({
 			url: model.uri,
 			versionId: model.getVersionId(),
-			lines: textModelData.text.lines,
-			EOL: textModelData.text.EOL,
+			lines: model.getLinesContent(),
+			EOL: model.getEOL(),
 			modeId: model.getLanguageIdentifier().language,
 			isDirty: this._textFileService.isDirty(modelUrl)
 		});
@@ -257,7 +256,7 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 		};
 
 		if (!model.equals(raw)) {
-			model.setValueFromRawText(raw);
+			model.setValueFromTextSource(raw);
 		}
 	}
 }

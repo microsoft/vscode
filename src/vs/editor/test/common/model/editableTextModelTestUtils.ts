@@ -90,7 +90,7 @@ export function assertSyncedModels(text: string, callback: (model: EditableTextM
 		assertLineMapping(model, 'model');
 	}
 
-	var mirrorModel2 = new MirrorModel2(null, model.toRawText().text.lines, model.getEOL(), model.getVersionId());
+	var mirrorModel2 = new MirrorModel2(null, model.getLinesContent(), model.getEOL(), model.getVersionId());
 	var mirrorModel2PrevVersionId = model.getVersionId();
 
 	model.onDidChangeContent((e: editorCommon.IModelContentChangedEvent2) => {

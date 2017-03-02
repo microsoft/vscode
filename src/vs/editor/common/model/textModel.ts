@@ -263,7 +263,6 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 	protected _createContentChangedFlushEvent(): editorCommon.IModelContentChangedFlushEvent {
 		return {
 			changeType: editorCommon.EventType.ModelRawContentChangedFlush,
-			detail: this.toRawText(),
 			versionId: this._versionId,
 			// TODO@Alex -> remove these fields from here
 			isUndoing: false,
@@ -289,21 +288,6 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 	protected _resetValue(newValue: ITextSource): void {
 		this._constructLines(newValue);
 		this._increaseVersionId();
-	}
-
-	public toRawText(): ITextModelData {
-		this._assertNotDisposed();
-		return {
-			text: {
-				BOM: this._BOM,
-				EOL: this._EOL,
-				lines: this.getLinesContent(),
-				length: this.getValueLength(),
-				containsRTL: this._mightContainRTL,
-				isBasicASCII: !this._mightContainNonBasicASCII
-			},
-			options: this._options
-		};
 	}
 
 	public equals(other: ITextSource): boolean {
@@ -332,10 +316,10 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 			return;
 		}
 		const textSource = TextSource.fromString(value, this._options.defaultEOL);
-		this.setValueFromRawText(textSource);
+		this.setValueFromTextSource(textSource);
 	}
 
-	public setValueFromRawText(newValue: ITextSource): void {
+	public setValueFromTextSource(newValue: ITextSource): void {
 		this._assertNotDisposed();
 		if (newValue === null) {
 			// There's nothing to do
