@@ -1272,6 +1272,21 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			return Position.ONE; // can only be ONE
 		}
 
+		const config = this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>();
+		const reuseIfOpen = config.workbench.editor.reuseIfOpen;
+		// Respect option to reveal an editor if it is open (not necessarily already visible)
+		const skipReuse = (options && options.index) || arg1;
+		if(!skipReuse && reuseIfOpen) {
+			const groups = this.stacks.groups;
+			for(let i = 0; i < groups.length; i++) {
+				const editors = groups[i].getEditors();
+				for(let j = 0; j < editors.length; j++) {
+					if(input.matches(editors[j]))
+						return i;
+				}
+			}
+		}
+
 		// Respect option to reveal an editor if it is already visible
 		if (options && options.revealIfVisible) {
 			const editorsToCheck: BaseEditor[] = [];

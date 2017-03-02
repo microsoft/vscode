@@ -107,6 +107,11 @@ configurationRegistry.registerConfiguration({
 			'default': 'right',
 			'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'editorOpenPositioning' }, "Controls where editors open. Select 'left' or 'right' to open editors to the left or right of the current active one. Select 'first' or 'last' to open editors independently from the currently active one.")
 		},
+		'workbench.editor.reuseIfOpen': {
+			'type': 'boolean',
+			'description': nls.localize('reuseIfOpen', "Controls if a document should be open only in one editor, in any group, wherever it was open first (if possible). Does not (cannot) apply in edge cases (like splitting the view with only one document open)"),
+			'default': false
+		},
 		'workbench.quickOpen.closeOnFocusLost': {
 			'type': 'boolean',
 			'description': nls.localize('closeOnFocusLost', "Controls if Quick Open should close automatically once it loses focus."),
