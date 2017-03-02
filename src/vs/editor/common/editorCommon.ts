@@ -21,7 +21,7 @@ import { IndentRange } from 'vs/editor/common/model/indentRanges';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
-import { ITextSource, ITextModelData } from 'vs/editor/common/model/textSource';
+import { ITextSource } from 'vs/editor/common/model/textSource';
 
 /**
  * @internal
@@ -1726,7 +1726,7 @@ export interface ITextModel {
 	 * Replace the entire text buffer value contained in this model.
 	 * @internal
 	 */
-	setValueFromRawText(newValue: ITextSource): void;
+	setValueFromTextSource(newValue: ITextSource): void;
 
 	/**
 	 * Get the text stored in this model.
@@ -1740,12 +1740,6 @@ export interface ITextModel {
 	 * Get the length of the text stored in this model.
 	 */
 	getValueLength(eol?: EndOfLinePreference, preserveBOM?: boolean): number;
-
-	/**
-	 * Get the raw text stored in this model.
-	 * @internal
-	 */
-	toRawText(): ITextModelData;
 
 	/**
 	 * Check if the raw text stored in this model equals another raw text.
@@ -2463,10 +2457,6 @@ export interface IModelContentChangedEvent {
  * @internal
  */
 export interface IModelContentChangedFlushEvent extends IModelContentChangedEvent {
-	/**
-	 * The new text content of the model.
-	 */
-	readonly detail: ITextModelData;
 }
 /**
  * An event describing that a line has changed in a model.

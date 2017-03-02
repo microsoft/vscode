@@ -52,15 +52,15 @@ function assertGuess(expectedInsertSpaces: boolean, expectedTabSize: number, tex
 	}
 }
 
-suite('TextModel.toRawText', () => {
+suite('TextModelData.fromString', () => {
 
-	function testToRawText(text: string, expected: ITextModelData): void {
+	function testTextModelDataFromString(text: string, expected: ITextModelData): void {
 		let actual = TextModelData.fromString(text, TextModel.DEFAULT_CREATION_OPTIONS);
 		assert.deepEqual(actual, expected);
 	}
 
 	test('one line text', () => {
-		testToRawText('Hello world!', {
+		testTextModelDataFromString('Hello world!', {
 			text: {
 				BOM: '',
 				EOL: '\n',
@@ -81,7 +81,7 @@ suite('TextModel.toRawText', () => {
 	});
 
 	test('multiline text', () => {
-		testToRawText('Hello,\r\ndear friend\nHow\rare\r\nyou?', {
+		testTextModelDataFromString('Hello,\r\ndear friend\nHow\rare\r\nyou?', {
 			text: {
 				BOM: '',
 				EOL: '\r\n',
@@ -106,7 +106,7 @@ suite('TextModel.toRawText', () => {
 	});
 
 	test('Non Basic ASCII 1', () => {
-		testToRawText('Hello,\nZürich', {
+		testTextModelDataFromString('Hello,\nZürich', {
 			text: {
 				BOM: '',
 				EOL: '\n',
@@ -128,7 +128,7 @@ suite('TextModel.toRawText', () => {
 	});
 
 	test('containsRTL 1', () => {
-		testToRawText('Hello,\nזוהי עובדה מבוססת שדעתו', {
+		testTextModelDataFromString('Hello,\nזוהי עובדה מבוססת שדעתו', {
 			text: {
 				BOM: '',
 				EOL: '\n',
@@ -150,7 +150,7 @@ suite('TextModel.toRawText', () => {
 	});
 
 	test('containsRTL 2', () => {
-		testToRawText('Hello,\nهناك حقيقة مثبتة منذ زمن طويل', {
+		testTextModelDataFromString('Hello,\nهناك حقيقة مثبتة منذ زمن طويل', {
 			text: {
 				BOM: '',
 				EOL: '\n',
