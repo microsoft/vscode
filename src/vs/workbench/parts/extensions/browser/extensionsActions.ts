@@ -373,7 +373,7 @@ export class ManageExtensionAction extends Action {
 		this.class = ManageExtensionAction.HideManageExtensionClass;
 		this.tooltip = '';
 		this.enabled = false;
-		if (this.extension && this.extension.type === LocalExtensionType.User) {
+		if (this.extension && this.extension.type !== LocalExtensionType.System) {
 			const state = this.extension.state;
 			this.enabled = state === ExtensionState.Installed;
 			this.class = this.enabled || state === ExtensionState.Uninstalling ? ManageExtensionAction.Class : ManageExtensionAction.HideManageExtensionClass;
