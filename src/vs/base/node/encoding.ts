@@ -92,10 +92,10 @@ export function detectEncodingByBOMFromBuffer(buffer: NodeBuffer, bytesRead: num
  * If no BOM is detected, null will be passed to callback.
  */
 export function detectEncodingByBOM(file: string): TPromise<string> {
-	return stream.readExactlyByFile(file, 3).then(({buffer, bytesRead}) => detectEncodingByBOMFromBuffer(buffer, bytesRead));
+	return stream.readExactlyByFile(file, 3).then(({ buffer, bytesRead }) => detectEncodingByBOMFromBuffer(buffer, bytesRead));
 }
 
-const IGNORE_ENCODINGS = ['ascii', 'utf-8', 'utf-16', 'urf-32'];
+const IGNORE_ENCODINGS = ['ascii', 'utf-8', 'utf-16', 'utf-32'];
 /**
  * Detects the encoding from buffer.
  */
