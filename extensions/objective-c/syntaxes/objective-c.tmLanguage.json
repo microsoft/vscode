@@ -130,6 +130,15 @@
 					"name": "punctuation.definition.keyword.objc"
 				}
 			},
+			"match": "(@)(autoreleasepool)\\b",
+			"name": "keyword.control.autoreleasepool.objc"
+		},
+		{
+			"captures": {
+				"1": {
+					"name": "punctuation.definition.keyword.objc"
+				}
+			},
 			"match": "(@)(synchronized)\\b",
 			"name": "keyword.control.synchronize.objc"
 		},
