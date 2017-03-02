@@ -9,11 +9,12 @@ import * as assert from 'assert';
 import { SmartSnippetInserter } from 'vs/editor/contrib/defineKeybinding/common/smartSnippetInserter';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { Position } from 'vs/editor/common/core/position';
+import { TextModelData } from 'vs/editor/common/model/textSource';
 
 suite('SmartSnippetInserter', () => {
 
 	function testSmartSnippetInserter(text: string[], runner: (assert: (desiredPos: Position, pos: Position, prepend: string, append: string) => void) => void): void {
-		let model = new TextModel([], TextModel.toRawText(text.join('\n'), TextModel.DEFAULT_CREATION_OPTIONS));
+		let model = new TextModel([], TextModelData.fromString(text.join('\n'), TextModel.DEFAULT_CREATION_OPTIONS));
 		runner((desiredPos, pos, prepend, append) => {
 			let actual = SmartSnippetInserter.insertSnippet(model, desiredPos);
 			let expected = {

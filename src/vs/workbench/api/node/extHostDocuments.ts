@@ -7,7 +7,6 @@
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { regExpLeadsToEndlessLoop } from 'vs/base/common/strings';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { RawText } from 'vs/editor/common/model/textModel';
 import { MirrorModel2 } from 'vs/editor/common/model/mirrorModel2';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import Event, { Emitter } from 'vs/base/common/event';
@@ -20,7 +19,7 @@ import * as vscode from 'vscode';
 import { asWinJsPromise } from 'vs/base/common/async';
 import { getWordAtText, ensureValidWordDefinition } from 'vs/editor/common/model/wordHelper';
 import { MainContext, MainThreadDocumentsShape, ExtHostDocumentsShape, IModelAddedData } from './extHost.protocol';
-import { ITextSource } from 'vs/editor/common/model/textSource';
+import { ITextSource, TextSource } from 'vs/editor/common/model/textSource';
 
 const _modeId2WordDefinition = new Map<string, RegExp>();
 
@@ -137,17 +136,11 @@ export class ExtHostDocuments extends ExtHostDocumentsShape {
 						}
 
 						// create lines and compare
-						const raw = RawText.fromString(value, {
-							defaultEOL: editorCommon.DefaultEndOfLine.CRLF,
-							tabSize: 0,
-							detectIndentation: false,
-							insertSpaces: false,
-							trimAutoWhitespace: false
-						});
+						const textSource = TextSource.fromString(value, editorCommon.DefaultEndOfLine.CRLF);
 
 						// broadcast event when content changed
-						if (!document.equalLines(raw)) {
-							return this._proxy.$onVirtualDocumentChange(<URI>uri, raw);
+						if (!document.equalLines(textSource)) {
+							return this._proxy.$onVirtualDocumentChange(<URI>uri, textSource);
 						}
 
 					}, onUnexpectedError);

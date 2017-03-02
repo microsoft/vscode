@@ -6,11 +6,11 @@
 
 import { IdGenerator } from 'vs/base/common/idGenerator';
 import { Position } from 'vs/editor/common/core/position';
-import { IRawText, ITextModelWithMarkers } from 'vs/editor/common/editorCommon';
+import { ITextModelWithMarkers } from 'vs/editor/common/editorCommon';
 import { LineMarker } from 'vs/editor/common/model/modelLine';
 import { TextModelWithTokens } from 'vs/editor/common/model/textModelWithTokens';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
-import { ITextSource } from 'vs/editor/common/model/textSource';
+import { ITextModelData, ITextSource } from 'vs/editor/common/model/textSource';
 
 export interface IMarkerIdToMarkerMap {
 	[key: string]: LineMarker;
@@ -29,8 +29,8 @@ export class TextModelWithMarkers extends TextModelWithTokens implements ITextMo
 	private _markerIdGenerator: IdGenerator;
 	protected _markerIdToMarker: IMarkerIdToMarkerMap;
 
-	constructor(allowedEventTypes: string[], rawText: IRawText, languageIdentifier: LanguageIdentifier) {
-		super(allowedEventTypes, rawText, languageIdentifier);
+	constructor(allowedEventTypes: string[], textModelData: ITextModelData, languageIdentifier: LanguageIdentifier) {
+		super(allowedEventTypes, textModelData, languageIdentifier);
 		this._markerIdGenerator = new IdGenerator((++_INSTANCE_COUNT) + ';');
 		this._markerIdToMarker = Object.create(null);
 	}

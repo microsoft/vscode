@@ -21,7 +21,7 @@ import { IndentRange } from 'vs/editor/common/model/indentRanges';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
-import { ITextSource } from 'vs/editor/common/model/textSource';
+import { ITextSource, ITextModelData } from 'vs/editor/common/model/textSource';
 
 /**
  * @internal
@@ -1745,7 +1745,7 @@ export interface ITextModel {
 	 * Get the raw text stored in this model.
 	 * @internal
 	 */
-	toRawText(): IRawText;
+	toRawText(): ITextModelData;
 
 	/**
 	 * Check if the raw text stored in this model equals another raw text.
@@ -2459,22 +2459,6 @@ export interface IModelContentChangedEvent {
 }
 
 /**
- * The raw text backing a model.
- * @internal
- */
-export interface IRawText extends ITextSource {
-	/**
-	 * The options associated with this text.
-	 */
-	readonly options: {
-		readonly tabSize: number;
-		readonly insertSpaces: boolean;
-		readonly defaultEOL: DefaultEndOfLine;
-		readonly trimAutoWhitespace: boolean;
-	};
-}
-
-/**
  * An event describing that a model has been reset to a new value.
  * @internal
  */
@@ -2482,7 +2466,7 @@ export interface IModelContentChangedFlushEvent extends IModelContentChangedEven
 	/**
 	 * The new text content of the model.
 	 */
-	readonly detail: IRawText;
+	readonly detail: ITextModelData;
 }
 /**
  * An event describing that a line has changed in a model.

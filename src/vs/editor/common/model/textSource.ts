@@ -5,6 +5,8 @@
 'use strict';
 
 import * as strings from 'vs/base/common/strings';
+import { DefaultEndOfLine, ITextModelCreationOptions, TextModelResolvedOptions } from 'vs/editor/common/editorCommon';
+import { guessIndentation } from 'vs/editor/common/model/indentationGuesser';
 
 /**
  * A processed string ready to be turned into an editor model.
@@ -99,4 +101,106 @@ export interface ITextSource {
 	 * The text contains only characters inside the ASCII range 32-126 or \t \r \n
 	 */
 	readonly isBasicASCII: boolean;
+}
+
+export class TextSource {
+
+	/**
+	 * if text source is empty or with precisely one line, returns null. No end of line is detected.
+	 * if text source contains more lines ending with '\r\n', returns '\r\n'.
+	 * Otherwise returns '\n'. More lines end with '\n'.
+	 */
+	private static _getEOL(rawTextSource: IRawTextSource, defaultEOL: DefaultEndOfLine): '\r\n' | '\n' {
+		const lineFeedCnt = rawTextSource.lines.length - 1;
+		if (lineFeedCnt === 0) {
+			// This is an empty file or a file with precisely one line
+			return (defaultEOL === DefaultEndOfLine.LF ? '\n' : '\r\n');
+		}
+		if (rawTextSource.totalCRCount > lineFeedCnt / 2) {
+			// More than half of the file contains \r\n ending lines
+			return '\r\n';
+		}
+		// At least one line more ends in \n
+		return '\n';
+	}
+
+	public static fromRawTextSource(rawTextSource: IRawTextSource, defaultEOL: DefaultEndOfLine): ITextSource {
+		return {
+			length: rawTextSource.length,
+			lines: rawTextSource.lines,
+			BOM: rawTextSource.BOM,
+			EOL: this._getEOL(rawTextSource, defaultEOL),
+			containsRTL: rawTextSource.containsRTL,
+			isBasicASCII: rawTextSource.isBasicASCII,
+		};
+	}
+
+	public static fromString(text: string, defaultEOL: DefaultEndOfLine): ITextSource {
+		return this.fromRawTextSource(RawTextSource.fromString(text), defaultEOL);
+	}
+
+	public static create(source: string | IRawTextSource, defaultEOL: DefaultEndOfLine): ITextSource {
+		if (typeof source === 'string') {
+			return this.fromString(source, defaultEOL);
+		}
+
+		return this.fromRawTextSource(source, defaultEOL);
+	}
+
+}
+
+export interface ITextModelData {
+	readonly text: ITextSource;
+	readonly options: {
+		readonly tabSize: number;
+		readonly insertSpaces: boolean;
+		readonly defaultEOL: DefaultEndOfLine;
+		readonly trimAutoWhitespace: boolean;
+	};
+}
+
+export class TextModelData {
+
+	private static _fromTextSource(textSource: ITextSource, opts: ITextModelCreationOptions): ITextModelData {
+		let resolvedOpts: TextModelResolvedOptions;
+		if (opts.detectIndentation) {
+			const guessedIndentation = guessIndentation(textSource.lines, opts.tabSize, opts.insertSpaces);
+			resolvedOpts = new TextModelResolvedOptions({
+				tabSize: guessedIndentation.tabSize,
+				insertSpaces: guessedIndentation.insertSpaces,
+				trimAutoWhitespace: opts.trimAutoWhitespace,
+				defaultEOL: opts.defaultEOL
+			});
+		} else {
+			resolvedOpts = new TextModelResolvedOptions({
+				tabSize: opts.tabSize,
+				insertSpaces: opts.insertSpaces,
+				trimAutoWhitespace: opts.trimAutoWhitespace,
+				defaultEOL: opts.defaultEOL
+			});
+		}
+
+		return {
+			text: textSource,
+			options: resolvedOpts
+		};
+	}
+
+	public static fromRawTextSource(rawTextSource: IRawTextSource, opts: ITextModelCreationOptions): ITextModelData {
+		const textSource = TextSource.fromRawTextSource(rawTextSource, opts.defaultEOL);
+		return this._fromTextSource(textSource, opts);
+	}
+
+	public static fromString(text: string, opts: ITextModelCreationOptions): ITextModelData {
+		const textSource = TextSource.fromString(text, opts.defaultEOL);
+		return this._fromTextSource(textSource, opts);
+	}
+
+	public static create(source: string | IRawTextSource, opts: ITextModelCreationOptions): ITextModelData {
+		if (typeof source === 'string') {
+			return this.fromString(source, opts);
+		}
+		return this.fromRawTextSource(source, opts);
+	}
+
 }

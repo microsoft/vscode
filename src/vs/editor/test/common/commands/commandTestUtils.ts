@@ -31,7 +31,7 @@ export function testCommand(
 
 	cursor.trigger('tests', editorCommon.Handler.ExecuteCommand, commandFactory(cursor.getSelection()));
 
-	let actualValue = model.toRawText().lines;
+	let actualValue = model.toRawText().text.lines;
 	assert.deepEqual(actualValue, expectedLines);
 
 	let actualSelection = cursor.getSelection();
