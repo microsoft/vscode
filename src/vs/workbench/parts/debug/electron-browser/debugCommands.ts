@@ -7,10 +7,11 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import severity from 'vs/base/common/severity';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import * as errors from 'vs/base/common/errors';
+import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IListService } from 'vs/platform/list/browser/listService';
-import { IDebugService, IEnablement, CONTEXT_NOT_IN_DEBUG_MODE, CONTEXT_IN_DEBUG_MODE, CONTEXT_BREAKPOINTS_FOCUSED, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_VARIABLES_FOCUSED } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, IEnablement, CONTEXT_NOT_IN_DEBUG_MODE, CONTEXT_IN_DEBUG_MODE, CONTEXT_BREAKPOINTS_FOCUSED, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_VARIABLES_FOCUSED, EDITOR_CONTRIBUTION_ID, IDebugEditorContribution } from 'vs/workbench/parts/debug/common/debug';
 import { Expression, Variable, Breakpoint, FunctionBreakpoint } from 'vs/workbench/parts/debug/common/debugModel';
 import { IExtensionsViewlet, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/parts/extensions/common/extensions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -169,7 +170,7 @@ export function registerCommands(): void {
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: 'debug.installMoreDebuggers',
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-		when: CONTEXT_BREAKPOINTS_FOCUSED,
+		when: undefined,
 		primary: undefined,
 		handler: (accessor) => {
 			const viewletService = accessor.get(IViewletService);
@@ -179,6 +180,26 @@ export function registerCommands(): void {
 					viewlet.search('tag:debuggers');
 					viewlet.focus();
 				});
+		}
+	});
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: 'debug.addConfiguration',
+		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+		when: undefined,
+		primary: undefined,
+		handler: (accessor) => {
+			const manager = accessor.get(IDebugService).getConfigurationManager();
+			return manager.openConfigFile(false).done(editor => {
+				if (editor) {
+					const codeEditor = <ICommonCodeEditor>editor.getControl();
+					if (codeEditor) {
+						return codeEditor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID).addLaunchConfiguration();
+					}
+				}
+
+				return undefined;
+			});
 		}
 	});
 }
