@@ -276,8 +276,8 @@ export class TerminalInstance implements ITerminalInstance {
 		this.updateConfig();
 	}
 
-	public registerLinkMatcher(regex: RegExp, handler: (url: string) => void, matchIndex?: number): number {
-		return this._xterm.registerLinkMatcher(regex, handler, matchIndex);
+	public registerLinkMatcher(regex: RegExp, handler: (url: string) => void, matchIndex?: number, validationCallback?: (uri: string, callback: (isValid: boolean) => void) => void): number {
+		return this._linkHandler.registerCustomLinkHandler(this._xterm, regex, handler, matchIndex, validationCallback);
 	}
 
 	public deregisterLinkMatcher(linkMatcherId: number): void {
