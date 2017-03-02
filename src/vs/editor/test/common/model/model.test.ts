@@ -313,7 +313,7 @@ suite('Editor Model - Model', () => {
 
 			assert.equal(e.changeType, EventType.ModelRawContentChangedFlush);
 
-			assert.deepEqual((<IModelContentChangedFlushEvent>e).detail.lines, ['new value']);
+			assert.deepEqual((<IModelContentChangedFlushEvent>e).detail.text.lines, ['new value']);
 		});
 		thisModel.setValue('new value');
 		assert.equal(listenerCalls, 1, 'listener calls');

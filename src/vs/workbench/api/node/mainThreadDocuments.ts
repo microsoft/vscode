@@ -103,12 +103,12 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 		let modelUrl = model.uri;
 		this._modelIsSynced[modelUrl.toString()] = true;
 		this._modelToDisposeMap[modelUrl.toString()] = model.addBulkListener((events) => this._onModelEvents(modelUrl, events));
-		const modelRawText = model.toRawText();
+		const textModelData = model.toRawText();
 		this._proxy.$acceptModelAdd({
 			url: model.uri,
 			versionId: model.getVersionId(),
-			lines: modelRawText.lines,
-			EOL: modelRawText.EOL,
+			lines: textModelData.text.lines,
+			EOL: textModelData.text.EOL,
 			modeId: model.getLanguageIdentifier().language,
 			isDirty: this._textFileService.isDirty(modelUrl)
 		});

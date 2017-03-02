@@ -14,7 +14,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { Position } from 'vs/editor/common/core/position';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
-import { ITextSource } from 'vs/editor/common/model/textSource';
+import { ITextModelData, ITextSource } from 'vs/editor/common/model/textSource';
 
 export interface IValidatedEditOperation {
 	sortIndex: number;
@@ -51,9 +51,9 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 
 	private _trimAutoWhitespaceLines: number[];
 
-	constructor(allowedEventTypes: string[], rawText: editorCommon.IRawText, languageIdentifier: LanguageIdentifier) {
+	constructor(allowedEventTypes: string[], textModelData: ITextModelData, languageIdentifier: LanguageIdentifier) {
 		allowedEventTypes.push(editorCommon.EventType.ModelRawContentChanged);
-		super(allowedEventTypes, rawText, languageIdentifier);
+		super(allowedEventTypes, textModelData, languageIdentifier);
 
 		this._commandManager = new EditStack(this);
 

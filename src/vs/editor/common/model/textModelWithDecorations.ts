@@ -14,7 +14,7 @@ import { MarkersTracker, LineMarker } from 'vs/editor/common/model/modelLine';
 import { Position } from 'vs/editor/common/core/position';
 import { INewMarker, TextModelWithMarkers } from 'vs/editor/common/model/textModelWithMarkers';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
-import { ITextSource } from 'vs/editor/common/model/textSource';
+import { ITextModelData, ITextSource } from 'vs/editor/common/model/textSource';
 
 class DecorationsTracker {
 
@@ -140,9 +140,9 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 	private _internalDecorations: { [internalDecorationId: number]: InternalDecoration; };
 	private _multiLineDecorationsMap: { [key: string]: InternalDecoration; };
 
-	constructor(allowedEventTypes: string[], rawText: editorCommon.IRawText, languageIdentifier: LanguageIdentifier) {
+	constructor(allowedEventTypes: string[], textModelData: ITextModelData, languageIdentifier: LanguageIdentifier) {
 		allowedEventTypes.push(editorCommon.EventType.ModelDecorationsChanged);
-		super(allowedEventTypes, rawText, languageIdentifier);
+		super(allowedEventTypes, textModelData, languageIdentifier);
 
 		this._instanceId = nextInstanceId();
 		this._lastDecorationId = 0;

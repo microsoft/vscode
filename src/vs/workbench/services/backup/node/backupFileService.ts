@@ -17,9 +17,9 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IFileService } from 'vs/platform/files/common/files';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { readToMatchingString } from 'vs/base/node/stream';
-import { TextModel } from 'vs/editor/common/model/textModel';
 import { IWindowService } from 'vs/platform/windows/common/windows';
-import { IRawTextSource } from 'vs/editor/common/model/textSource';
+import { TextSource, IRawTextSource } from 'vs/editor/common/model/textSource';
+import { DefaultEndOfLine } from 'vs/editor/common/editorCommon';
 
 export interface IBackupFilesModel {
 	resolve(backupRoot: string): TPromise<IBackupFilesModel>;
@@ -239,8 +239,9 @@ export class BackupFileService implements IBackupFileService {
 		});
 	}
 
-	public parseBackupContent(textSource: IRawTextSource): string {
-		return textSource.lines.slice(1).join(TextModel.getEndOfLine(textSource) || ''); // The first line of a backup text file is the file name
+	public parseBackupContent(rawTextSource: IRawTextSource): string {
+		const textSource = TextSource.fromRawTextSource(rawTextSource, DefaultEndOfLine.LF);
+		return textSource.lines.slice(1).join(textSource.EOL); // The first line of a backup text file is the file name
 	}
 
 	protected getBackupResource(resource: Uri): Uri {

@@ -7,13 +7,14 @@
 import URI from 'vs/base/common/uri';
 import {
 	EventType, IModel, ITextModelCreationOptions, IModelDecorationsChangedEvent,
-	IModelOptionsChangedEvent, IModelLanguageChangedEvent, IRawText
+	IModelOptionsChangedEvent, IModelLanguageChangedEvent
 } from 'vs/editor/common/editorCommon';
 import { EditableTextModel } from 'vs/editor/common/model/editableTextModel';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { BulkListenerCallback } from 'vs/base/common/eventEmitter';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
+import { ITextModelData, TextModelData } from 'vs/editor/common/model/textSource';
 
 // The hierarchy is:
 // Model -> EditableTextModel -> TextModelWithDecorations -> TextModelWithTrackedRanges -> TextModelWithMarkers -> TextModelWithTokens -> TextModel
@@ -40,8 +41,7 @@ export class Model extends EditableTextModel implements IModel {
 	}
 
 	public static createFromString(text: string, options: ITextModelCreationOptions = TextModel.DEFAULT_CREATION_OPTIONS, languageIdentifier: LanguageIdentifier = null, uri: URI = null): Model {
-		let rawText = TextModel.toRawText(text, options);
-		return new Model(rawText, languageIdentifier, uri);
+		return new Model(TextModelData.fromString(text, options), languageIdentifier, uri);
 	}
 
 	public readonly id: string;
@@ -49,8 +49,8 @@ export class Model extends EditableTextModel implements IModel {
 	private readonly _associatedResource: URI;
 	private _attachedEditorCount: number;
 
-	constructor(rawText: IRawText, languageIdentifier: LanguageIdentifier, associatedResource: URI = null) {
-		super([EventType.ModelDispose], rawText, languageIdentifier);
+	constructor(textModelData: ITextModelData, languageIdentifier: LanguageIdentifier, associatedResource: URI = null) {
+		super([EventType.ModelDispose], textModelData, languageIdentifier);
 
 		// Generate a new unique model id
 		MODEL_ID++;

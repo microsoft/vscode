@@ -18,6 +18,7 @@ import { TextModelWithTokens } from 'vs/editor/common/model/textModelWithTokens'
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
+import { TextModelData } from 'vs/editor/common/model/textSource';
 
 suite('TextModelWithTokens', () => {
 
@@ -77,7 +78,7 @@ suite('TextModelWithTokens', () => {
 
 		let model = new TextModelWithTokens(
 			[],
-			TextModel.toRawText(contents.join('\n'), TextModel.DEFAULT_CREATION_OPTIONS),
+			TextModelData.fromString(contents.join('\n'), TextModel.DEFAULT_CREATION_OPTIONS),
 			languageIdentifier
 		);
 

@@ -8,10 +8,11 @@ import * as assert from 'assert';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { DefaultEndOfLine, IRawText } from 'vs/editor/common/editorCommon';
+import { DefaultEndOfLine } from 'vs/editor/common/editorCommon';
+import { TextModelData, ITextModelData } from 'vs/editor/common/model/textSource';
 
 function testGuessIndentation(defaultInsertSpaces: boolean, defaultTabSize: number, expectedInsertSpaces: boolean, expectedTabSize: number, text: string[], msg?: string): void {
-	var m = new TextModel([], TextModel.toRawText(text.join('\n'), {
+	var m = new TextModel([], TextModelData.fromString(text.join('\n'), {
 		tabSize: defaultTabSize,
 		insertSpaces: defaultInsertSpaces,
 		detectIndentation: true,
@@ -53,21 +54,23 @@ function assertGuess(expectedInsertSpaces: boolean, expectedTabSize: number, tex
 
 suite('TextModel.toRawText', () => {
 
-	function testToRawText(text: string, expected: IRawText): void {
-		let actual = TextModel.toRawText(text, TextModel.DEFAULT_CREATION_OPTIONS);
+	function testToRawText(text: string, expected: ITextModelData): void {
+		let actual = TextModelData.fromString(text, TextModel.DEFAULT_CREATION_OPTIONS);
 		assert.deepEqual(actual, expected);
 	}
 
 	test('one line text', () => {
 		testToRawText('Hello world!', {
-			BOM: '',
-			EOL: '\n',
-			length: 12,
-			'lines': [
-				'Hello world!'
-			],
-			containsRTL: false,
-			isBasicASCII: true,
+			text: {
+				BOM: '',
+				EOL: '\n',
+				length: 12,
+				'lines': [
+					'Hello world!'
+				],
+				containsRTL: false,
+				isBasicASCII: true
+			},
 			options: {
 				defaultEOL: DefaultEndOfLine.LF,
 				insertSpaces: true,
@@ -79,18 +82,20 @@ suite('TextModel.toRawText', () => {
 
 	test('multiline text', () => {
 		testToRawText('Hello,\r\ndear friend\nHow\rare\r\nyou?', {
-			BOM: '',
-			EOL: '\r\n',
-			length: 33,
-			'lines': [
-				'Hello,',
-				'dear friend',
-				'How',
-				'are',
-				'you?'
-			],
-			containsRTL: false,
-			isBasicASCII: true,
+			text: {
+				BOM: '',
+				EOL: '\r\n',
+				length: 33,
+				'lines': [
+					'Hello,',
+					'dear friend',
+					'How',
+					'are',
+					'you?'
+				],
+				containsRTL: false,
+				isBasicASCII: true
+			},
 			options: {
 				defaultEOL: DefaultEndOfLine.LF,
 				insertSpaces: true,
@@ -102,15 +107,17 @@ suite('TextModel.toRawText', () => {
 
 	test('Non Basic ASCII 1', () => {
 		testToRawText('Hello,\nZürich', {
-			BOM: '',
-			EOL: '\n',
-			length: 13,
-			'lines': [
-				'Hello,',
-				'Zürich'
-			],
-			containsRTL: false,
-			isBasicASCII: false,
+			text: {
+				BOM: '',
+				EOL: '\n',
+				length: 13,
+				'lines': [
+					'Hello,',
+					'Zürich'
+				],
+				containsRTL: false,
+				isBasicASCII: false
+			},
 			options: {
 				defaultEOL: DefaultEndOfLine.LF,
 				insertSpaces: true,
@@ -122,15 +129,17 @@ suite('TextModel.toRawText', () => {
 
 	test('containsRTL 1', () => {
 		testToRawText('Hello,\nזוהי עובדה מבוססת שדעתו', {
-			BOM: '',
-			EOL: '\n',
-			length: 30,
-			'lines': [
-				'Hello,',
-				'זוהי עובדה מבוססת שדעתו'
-			],
-			containsRTL: true,
-			isBasicASCII: false,
+			text: {
+				BOM: '',
+				EOL: '\n',
+				length: 30,
+				'lines': [
+					'Hello,',
+					'זוהי עובדה מבוססת שדעתו'
+				],
+				containsRTL: true,
+				isBasicASCII: false
+			},
 			options: {
 				defaultEOL: DefaultEndOfLine.LF,
 				insertSpaces: true,
@@ -142,15 +151,17 @@ suite('TextModel.toRawText', () => {
 
 	test('containsRTL 2', () => {
 		testToRawText('Hello,\nهناك حقيقة مثبتة منذ زمن طويل', {
-			BOM: '',
-			EOL: '\n',
-			length: 36,
-			'lines': [
-				'Hello,',
-				'هناك حقيقة مثبتة منذ زمن طويل'
-			],
-			containsRTL: true,
-			isBasicASCII: false,
+			text: {
+				BOM: '',
+				EOL: '\n',
+				length: 36,
+				'lines': [
+					'Hello,',
+					'هناك حقيقة مثبتة منذ زمن طويل'
+				],
+				containsRTL: true,
+				isBasicASCII: false
+			},
 			options: {
 				defaultEOL: DefaultEndOfLine.LF,
 				insertSpaces: true,
@@ -166,7 +177,7 @@ suite('Editor Model - TextModel', () => {
 
 	test('getValueLengthInRange', () => {
 
-		var m = new TextModel([], TextModel.toRawText('My First Line\r\nMy Second Line\r\nMy Third Line', TextModel.DEFAULT_CREATION_OPTIONS));
+		var m = new TextModel([], TextModelData.fromString('My First Line\r\nMy Second Line\r\nMy Third Line', TextModel.DEFAULT_CREATION_OPTIONS));
 		assert.equal(m.getValueLengthInRange(new Range(1, 1, 1, 1)), ''.length);
 		assert.equal(m.getValueLengthInRange(new Range(1, 1, 1, 2)), 'M'.length);
 		assert.equal(m.getValueLengthInRange(new Range(1, 2, 1, 3)), 'y'.length);
@@ -179,7 +190,7 @@ suite('Editor Model - TextModel', () => {
 		assert.equal(m.getValueLengthInRange(new Range(1, 2, 3, 1000)), 'y First Line\r\nMy Second Line\r\nMy Third Line'.length);
 		assert.equal(m.getValueLengthInRange(new Range(1, 1, 1000, 1000)), 'My First Line\r\nMy Second Line\r\nMy Third Line'.length);
 
-		m = new TextModel([], TextModel.toRawText('My First Line\nMy Second Line\nMy Third Line', TextModel.DEFAULT_CREATION_OPTIONS));
+		m = new TextModel([], TextModelData.fromString('My First Line\nMy Second Line\nMy Third Line', TextModel.DEFAULT_CREATION_OPTIONS));
 		assert.equal(m.getValueLengthInRange(new Range(1, 1, 1, 1)), ''.length);
 		assert.equal(m.getValueLengthInRange(new Range(1, 1, 1, 2)), 'M'.length);
 		assert.equal(m.getValueLengthInRange(new Range(1, 2, 1, 3)), 'y'.length);
@@ -548,7 +559,7 @@ suite('Editor Model - TextModel', () => {
 
 	test('validatePosition', () => {
 
-		let m = new TextModel([], TextModel.toRawText('line one\nline two', TextModel.DEFAULT_CREATION_OPTIONS));
+		let m = new TextModel([], TextModelData.fromString('line one\nline two', TextModel.DEFAULT_CREATION_OPTIONS));
 
 		assert.deepEqual(m.validatePosition(new Position(0, 0)), new Position(1, 1));
 		assert.deepEqual(m.validatePosition(new Position(0, 1)), new Position(1, 1));
@@ -577,7 +588,7 @@ suite('Editor Model - TextModel', () => {
 
 	test('validatePosition around high-low surrogate pairs 1', () => {
 
-		let m = new TextModel([], TextModel.toRawText('a📚b', TextModel.DEFAULT_CREATION_OPTIONS));
+		let m = new TextModel([], TextModelData.fromString('a📚b', TextModel.DEFAULT_CREATION_OPTIONS));
 
 		assert.deepEqual(m.validatePosition(new Position(0, 0)), new Position(1, 1));
 		assert.deepEqual(m.validatePosition(new Position(0, 1)), new Position(1, 1));
@@ -604,7 +615,7 @@ suite('Editor Model - TextModel', () => {
 
 	test('validatePosition around high-low surrogate pairs 2', () => {
 
-		let m = new TextModel([], TextModel.toRawText('a📚📚b', TextModel.DEFAULT_CREATION_OPTIONS));
+		let m = new TextModel([], TextModelData.fromString('a📚📚b', TextModel.DEFAULT_CREATION_OPTIONS));
 
 		assert.deepEqual(m.validatePosition(new Position(1, 1)), new Position(1, 1));
 		assert.deepEqual(m.validatePosition(new Position(1, 2)), new Position(1, 2));
@@ -618,7 +629,7 @@ suite('Editor Model - TextModel', () => {
 
 	test('validateRange around high-low surrogate pairs 1', () => {
 
-		let m = new TextModel([], TextModel.toRawText('a📚b', TextModel.DEFAULT_CREATION_OPTIONS));
+		let m = new TextModel([], TextModelData.fromString('a📚b', TextModel.DEFAULT_CREATION_OPTIONS));
 
 		assert.deepEqual(m.validateRange(new Range(0, 0, 0, 1)), new Range(1, 1, 1, 1));
 		assert.deepEqual(m.validateRange(new Range(0, 0, 0, 7)), new Range(1, 1, 1, 1));
@@ -646,7 +657,7 @@ suite('Editor Model - TextModel', () => {
 
 	test('validateRange around high-low surrogate pairs 2', () => {
 
-		let m = new TextModel([], TextModel.toRawText('a📚📚b', TextModel.DEFAULT_CREATION_OPTIONS));
+		let m = new TextModel([], TextModelData.fromString('a📚📚b', TextModel.DEFAULT_CREATION_OPTIONS));
 
 		assert.deepEqual(m.validateRange(new Range(0, 0, 0, 1)), new Range(1, 1, 1, 1));
 		assert.deepEqual(m.validateRange(new Range(0, 0, 0, 7)), new Range(1, 1, 1, 1));
@@ -689,7 +700,7 @@ suite('Editor Model - TextModel', () => {
 
 	test('modifyPosition', () => {
 
-		var m = new TextModel([], TextModel.toRawText('line one\nline two', TextModel.DEFAULT_CREATION_OPTIONS));
+		var m = new TextModel([], TextModelData.fromString('line one\nline two', TextModel.DEFAULT_CREATION_OPTIONS));
 		assert.deepEqual(m.modifyPosition(new Position(1, 1), 0), new Position(1, 1));
 		assert.deepEqual(m.modifyPosition(new Position(0, 0), 0), new Position(1, 1));
 		assert.deepEqual(m.modifyPosition(new Position(30, 1), 0), new Position(2, 9));
@@ -719,12 +730,14 @@ suite('Editor Model - TextModel', () => {
 
 	test('normalizeIndentation 1', () => {
 		let model = new TextModel([], {
-			length: 0,
-			lines: [],
-			BOM: '',
-			EOL: '\n',
-			containsRTL: false,
-			isBasicASCII: true,
+			text: {
+				length: 0,
+				lines: [],
+				BOM: '',
+				EOL: '\n',
+				containsRTL: false,
+				isBasicASCII: true
+			},
 			options: {
 				tabSize: 4,
 				insertSpaces: false,
@@ -760,12 +773,14 @@ suite('Editor Model - TextModel', () => {
 
 	test('normalizeIndentation 2', () => {
 		let model = new TextModel([], {
-			length: 0,
-			lines: [],
-			BOM: '',
-			EOL: '\n',
-			containsRTL: false,
-			isBasicASCII: true,
+			text: {
+				length: 0,
+				lines: [],
+				BOM: '',
+				EOL: '\n',
+				containsRTL: false,
+				isBasicASCII: true
+			},
 			options: {
 				tabSize: 4,
 				insertSpaces: true,
@@ -792,24 +807,24 @@ suite('Editor Model - TextModel', () => {
 suite('TextModel.mightContainRTL', () => {
 
 	test('nope', () => {
-		let model = new TextModel([], TextModel.toRawText('hello world!', TextModel.DEFAULT_CREATION_OPTIONS));
+		let model = new TextModel([], TextModelData.fromString('hello world!', TextModel.DEFAULT_CREATION_OPTIONS));
 		assert.equal(model.mightContainRTL(), false);
 	});
 
 	test('yes', () => {
-		let model = new TextModel([], TextModel.toRawText('Hello,\nזוהי עובדה מבוססת שדעתו', TextModel.DEFAULT_CREATION_OPTIONS));
+		let model = new TextModel([], TextModelData.fromString('Hello,\nזוהי עובדה מבוססת שדעתו', TextModel.DEFAULT_CREATION_OPTIONS));
 		assert.equal(model.mightContainRTL(), true);
 	});
 
 	test('setValue resets 1', () => {
-		let model = new TextModel([], TextModel.toRawText('hello world!', TextModel.DEFAULT_CREATION_OPTIONS));
+		let model = new TextModel([], TextModelData.fromString('hello world!', TextModel.DEFAULT_CREATION_OPTIONS));
 		assert.equal(model.mightContainRTL(), false);
 		model.setValue('Hello,\nזוהי עובדה מבוססת שדעתו');
 		assert.equal(model.mightContainRTL(), true);
 	});
 
 	test('setValue resets 2', () => {
-		let model = new TextModel([], TextModel.toRawText('Hello,\nهناك حقيقة مثبتة منذ زمن طويل', TextModel.DEFAULT_CREATION_OPTIONS));
+		let model = new TextModel([], TextModelData.fromString('Hello,\nهناك حقيقة مثبتة منذ زمن طويل', TextModel.DEFAULT_CREATION_OPTIONS));
 		assert.equal(model.mightContainRTL(), true);
 		model.setValue('hello world!');
 		assert.equal(model.mightContainRTL(), false);
@@ -820,7 +835,7 @@ suite('TextModel.mightContainRTL', () => {
 suite('TextModel.getLineIndentGuide', () => {
 	function assertIndentGuides(lines: [number, string][]): void {
 		let text = lines.map(l => l[1]).join('\n');
-		let model = new TextModel([], TextModel.toRawText(text, TextModel.DEFAULT_CREATION_OPTIONS));
+		let model = new TextModel([], TextModelData.fromString(text, TextModel.DEFAULT_CREATION_OPTIONS));
 
 		let actual: [number, string][] = [];
 		for (let line = 1; line <= model.getLineCount(); line++) {
