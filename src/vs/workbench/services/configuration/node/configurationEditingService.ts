@@ -126,13 +126,10 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 	private writeToDisk(contents: string, operation: IConfigurationEditOperation, resource: URI): TPromise<void> {
 		// Apply all edits to the configuration file
 		const result = this.applyEdits(contents, operation);
-		const backupFile = URI.file(resource.fsPath + '-' + new Date().getTime());
-		return this.fileService.copyFile(resource, backupFile).then(() => {
-			return this.fileService.updateContent(resource, result, { encoding: encoding.UTF8 }).then(() => {
+		return this.fileService.updateContent(resource, result, { encoding: encoding.UTF8 }).then(() => {
 
-				// Reload the configuration so that we make sure all parties are updated
-				return this.configurationService.reloadConfiguration().then(() => void 0);
-			});
+			// Reload the configuration so that we make sure all parties are updated
+			return this.configurationService.reloadConfiguration().then(() => void 0);
 		});
 	}
 
@@ -173,8 +170,8 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 	}
 
 	private applyEdits(content: string, edit: IConfigurationEditOperation): string {
-		const {tabSize, insertSpaces} = this.configurationService.getConfiguration<{ tabSize: number; insertSpaces: boolean }>('editor');
-		const {key, value} = edit;
+		const { tabSize, insertSpaces } = this.configurationService.getConfiguration<{ tabSize: number; insertSpaces: boolean }>('editor');
+		const { key, value } = edit;
 		// Without key, the entire settings file is being replaced, so we just use JSON.stringify
 		if (!key) {
 			return JSON.stringify(value, null, insertSpaces ? strings.repeat(' ', tabSize) : '\t');
@@ -187,10 +184,10 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 	}
 
 	private getEdits(content: string, edit: IConfigurationEditOperation): Edit[] {
-		const {tabSize, insertSpaces} = this.configurationService.getConfiguration<{ tabSize: number; insertSpaces: boolean }>('editor');
-		const {eol} = this.configurationService.getConfiguration<{ eol: string }>('files');
+		const { tabSize, insertSpaces } = this.configurationService.getConfiguration<{ tabSize: number; insertSpaces: boolean }>('editor');
+		const { eol } = this.configurationService.getConfiguration<{ eol: string }>('files');
 
-		const {key, value, overrideIdentifier} = edit;
+		const { key, value, overrideIdentifier } = edit;
 		return setProperty(content, overrideIdentifier ? [keyFromOverrideIdentifier(overrideIdentifier), key] : [key], value, { tabSize, insertSpaces, eol });
 	}
 
