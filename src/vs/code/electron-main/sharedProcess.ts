@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { assign } from 'vs/base/common/objects';
+import { memoize } from 'vs/base/common/decorators';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { BrowserWindow, ipcMain } from 'electron';
@@ -12,27 +13,46 @@ export interface ISharedProcessInitData {
 	args: ParsedArgs;
 }
 
-export function spawnSharedProcess(initData: ISharedProcessInitData, appRoot: string, nodeCachedDataDir: string): TPromise<void> {
-	const window = new BrowserWindow();
-	const config = assign({ appRoot, nodeCachedDataDir });
+export class SharedProcess {
 
-	const url = `${require.toUrl('vs/code/electron-browser/sharedProcess.html')}?config=${encodeURIComponent(JSON.stringify(config))}`;
-	window.loadURL(url);
-	// window.webContents.openDevTools();
-	window.hide();
+	private window: Electron.BrowserWindow;
 
-	// Prevent the window from dying
-	window.on('close', e => {
-		if (window.isVisible()) {
-			e.preventDefault();
-			window.hide();
-		}
-	});
+	@memoize
+	get onReady(): TPromise<void> {
+		this.window = new BrowserWindow();
+		const config = assign({ appRoot: this.appRoot, nodeCachedDataDir: this.nodeCachedDataDir });
 
-	return new TPromise<void>((c, e) => {
-		ipcMain.once('handshake', ({ sender }) => {
-			sender.send('handshake', initData);
-			c(null);
+		const url = `${require.toUrl('vs/code/electron-browser/sharedProcess.html')}?config=${encodeURIComponent(JSON.stringify(config))}`;
+		this.window.loadURL(url);
+		this.window.webContents.openDevTools();
+		// this.window.hide();
+
+		// Prevent the window from dying
+		this.window.on('close', e => {
+			if (this.window.isVisible()) {
+				e.preventDefault();
+				this.window.hide();
+			}
 		});
-	});
+
+		return new TPromise<void>((c, e) => {
+			ipcMain.once('handshake', ({ sender }) => {
+				sender.send('handshake', this.initData);
+				c(null);
+			});
+		});
+	}
+
+	constructor(
+		private initData: ISharedProcessInitData,
+		private appRoot: string,
+		private nodeCachedDataDir: string
+	) { }
+
+	dispose(): void {
+		if (this.window) {
+			this.window.close();
+			this.window = null;
+		}
+	}
 }
