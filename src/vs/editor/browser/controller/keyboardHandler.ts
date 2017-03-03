@@ -17,7 +17,7 @@ import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
 import { IViewController } from 'vs/editor/browser/editorBrowser';
 import { Configuration } from 'vs/editor/browser/config/configuration';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
-import { VisibleRange } from 'vs/editor/common/view/renderingContext';
+import { HorizontalRange } from 'vs/editor/common/view/renderingContext';
 import { TextAreaWrapper } from 'vs/editor/browser/controller/input/textAreaWrapper';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
@@ -25,10 +25,22 @@ import { FastDomNode } from 'vs/base/browser/fastDomNode';
 export interface IKeyboardHandlerHelper {
 	viewDomNode: FastDomNode<HTMLElement>;
 	textArea: FastDomNode<HTMLTextAreaElement>;
-	visibleRangeForPositionRelativeToEditor(lineNumber: number, column: number): VisibleRange;
+	visibleRangeForPositionRelativeToEditor(lineNumber: number, column: number): HorizontalRange;
+	getVerticalOffsetForLineNumber(lineNumber: number): number;
 	flushAnyAccumulatedEvents(): void;
 }
 
+class TextAreaVisiblePosition {
+	_textAreaVisiblePosition: void;
+
+	public readonly top: number;
+	public readonly left: number;
+
+	constructor(top: number, left: number) {
+		this.top = top;
+		this.left = left;
+	}
+}
 export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 
 	private _context: ViewContext;
@@ -41,8 +53,9 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 	private contentLeft: number;
 	private contentWidth: number;
 	private scrollLeft: number;
+	private scrollTop: number;
 
-	private visibleRange: VisibleRange;
+	private visiblePosition: TextAreaVisiblePosition;
 
 	constructor(context: ViewContext, viewController: IViewController, viewHelper: IKeyboardHandlerHelper) {
 		super();
@@ -52,10 +65,12 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 		this.textArea = new TextAreaWrapper(viewHelper.textArea);
 		Configuration.applyFontInfo(this.textArea.actual, this._context.configuration.editor.fontInfo);
 		this.viewHelper = viewHelper;
+		this.visiblePosition = null;
 
 		this.contentLeft = this._context.configuration.editor.layoutInfo.contentLeft;
 		this.contentWidth = this._context.configuration.editor.layoutInfo.contentWidth;
 		this.scrollLeft = 0;
+		this.scrollTop = 0;
 
 		this.textAreaHandler = new TextAreaHandler(browser, this._getStrategy(), this.textArea, this._context.model, () => this.viewHelper.flushAnyAccumulatedEvents());
 
@@ -72,8 +87,8 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 			}
 		}));
 		this._toDispose.push(this.textAreaHandler.onCompositionStart((e) => {
-			let lineNumber = e.showAtLineNumber;
-			let column = e.showAtColumn;
+			const lineNumber = e.showAtLineNumber;
+			const column = e.showAtColumn;
 
 			this._context.privateViewEventBus.emit(new viewEvents.ViewRevealRangeRequestEvent(
 				new Range(lineNumber, column, lineNumber, column),
@@ -83,11 +98,15 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 			));
 
 			// Find range pixel position
-			this.visibleRange = this.viewHelper.visibleRangeForPositionRelativeToEditor(lineNumber, column);
+			const visibleRange = this.viewHelper.visibleRangeForPositionRelativeToEditor(lineNumber, column);
 
-			if (this.visibleRange) {
-				this.textArea.actual.setTop(this.visibleRange.top);
-				this.textArea.actual.setLeft(this.contentLeft + this.visibleRange.left - this.scrollLeft);
+			if (visibleRange) {
+				this.visiblePosition = new TextAreaVisiblePosition(
+					this.viewHelper.getVerticalOffsetForLineNumber(lineNumber),
+					visibleRange.left
+				);
+				this.textArea.actual.setTop(this.visiblePosition.top - this.scrollTop);
+				this.textArea.actual.setLeft(this.contentLeft + this.visiblePosition.left - this.scrollLeft);
 			}
 
 			// Show the textarea
@@ -127,7 +146,7 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 			this.textArea.actual.setTop(0);
 			this.viewHelper.viewDomNode.removeClassName('ime-input');
 
-			this.visibleRange = null;
+			this.visiblePosition = null;
 
 			this.viewController.compositionEnd('keyboard');
 		}));
@@ -190,9 +209,10 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 
 	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		this.scrollLeft = e.scrollLeft;
-		if (this.visibleRange) {
-			this.textArea.actual.setTop(this.visibleRange.top);
-			this.textArea.actual.setLeft(this.contentLeft + this.visibleRange.left - this.scrollLeft);
+		this.scrollTop = e.scrollTop;
+		if (this.visiblePosition) {
+			this.textArea.actual.setTop(this.visiblePosition.top - this.scrollTop);
+			this.textArea.actual.setLeft(this.contentLeft + this.visiblePosition.left - this.scrollLeft);
 		}
 		return false;
 	}

@@ -11,7 +11,7 @@ import { Position } from 'vs/editor/common/core/position';
 
 export interface IViewLines {
 	linesVisibleRangesForRange(range: Range, includeNewLines: boolean): LineVisibleRanges[];
-	visibleRangesForRange2(range: Range, deltaTop: number): VisibleRange[];
+	visibleRangesForRange2(range: Range): HorizontalRange[];
 }
 
 export class RenderingContext implements IRenderingContext {
@@ -75,11 +75,9 @@ export class RenderingContext implements IRenderingContext {
 		return this._viewLines.linesVisibleRangesForRange(range, includeNewLines);
 	}
 
-	public visibleRangeForPosition(position: Position): VisibleRange {
-		const deltaTop = this.viewportData.visibleRangesDeltaTop;
+	public visibleRangeForPosition(position: Position): HorizontalRange {
 		const visibleRanges = this._viewLines.visibleRangesForRange2(
-			new Range(position.lineNumber, position.column, position.lineNumber, position.column),
-			deltaTop
+			new Range(position.lineNumber, position.column, position.lineNumber, position.column)
 		);
 		if (!visibleRanges) {
 			return null;
@@ -113,7 +111,7 @@ export interface IRenderingContext extends IRestrictedRenderingContext {
 
 	linesVisibleRangesForRange(range: Range, includeNewLines: boolean): LineVisibleRanges[];
 
-	visibleRangeForPosition(position: Position): VisibleRange;
+	visibleRangeForPosition(position: Position): HorizontalRange;
 }
 
 export class LineVisibleRanges {
@@ -125,20 +123,6 @@ export class LineVisibleRanges {
 	constructor(lineNumber: number, ranges: HorizontalRange[]) {
 		this.lineNumber = lineNumber;
 		this.ranges = ranges;
-	}
-}
-
-export class VisibleRange {
-	_visibleRangeBrand: void;
-
-	public top: number;
-	public left: number;
-	public width: number;
-
-	constructor(top: number, left: number, width: number) {
-		this.top = top | 0;
-		this.left = left | 0;
-		this.width = width | 0;
 	}
 }
 

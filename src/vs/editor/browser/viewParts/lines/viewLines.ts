@@ -16,7 +16,7 @@ import { ViewLineOptions, DomReadingContext, ViewLine } from 'vs/editor/browser/
 import { Configuration } from 'vs/editor/browser/config/configuration';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
-import { IViewLines, VisibleRange, LineVisibleRanges } from 'vs/editor/common/view/renderingContext';
+import { IViewLines, HorizontalRange, LineVisibleRanges } from 'vs/editor/common/view/renderingContext';
 import { IViewLayout } from 'vs/editor/common/viewModel/viewModel';
 import { PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
@@ -24,11 +24,9 @@ import * as viewEvents from 'vs/editor/common/view/viewEvents';
 class LastRenderedData {
 
 	private _currentVisibleRange: Range;
-	private _bigNumbersDelta: number;
 
 	constructor() {
 		this._currentVisibleRange = new Range(1, 1, 1, 1);
-		this._bigNumbersDelta = 0;
 	}
 
 	public getCurrentVisibleRange(): Range {
@@ -37,14 +35,6 @@ class LastRenderedData {
 
 	public setCurrentVisibleRange(currentVisibleRange: Range): void {
 		this._currentVisibleRange = currentVisibleRange;
-	}
-
-	public getBigNumbersDelta(): number {
-		return this._bigNumbersDelta;
-	}
-
-	public setBigNumbersDelta(bigNumbersDelta: number): void {
-		this._bigNumbersDelta = bigNumbersDelta;
 	}
 }
 
@@ -333,7 +323,7 @@ export class ViewLines extends ViewLayer<ViewLine> implements IViewLines {
 		return visibleRanges;
 	}
 
-	public visibleRangesForRange2(range: Range, deltaTop: number): VisibleRange[] {
+	public visibleRangesForRange2(range: Range): HorizontalRange[] {
 
 		if (this.shouldRender()) {
 			// Cannot read from the DOM because it is dirty
@@ -346,9 +336,8 @@ export class ViewLines extends ViewLayer<ViewLine> implements IViewLines {
 			return null;
 		}
 
-		let result: VisibleRange[] = [];
+		let result: HorizontalRange[] = [];
 		let domReadingContext = new DomReadingContext(this.domNode.domNode, this._textRangeRestingSpot);
-		let bigNumbersDelta = this._lastRenderedData.getBigNumbersDelta();
 
 		let rendStartLineNumber = this._linesCollection.getStartLineNumber();
 		let rendEndLineNumber = this._linesCollection.getEndLineNumber();
@@ -366,10 +355,7 @@ export class ViewLines extends ViewLayer<ViewLine> implements IViewLines {
 				continue;
 			}
 
-			let adjustedLineNumberVerticalOffset = this._viewLayout.getVerticalOffsetForLineNumber(lineNumber) - bigNumbersDelta + deltaTop;
-			for (let i = 0, len = visibleRangesForLine.length; i < len; i++) {
-				result.push(new VisibleRange(adjustedLineNumberVerticalOffset, visibleRangesForLine[i].left, visibleRangesForLine[i].width));
-			}
+			result = result.concat(visibleRangesForLine);
 		}
 
 		if (result.length === 0) {
@@ -414,7 +400,6 @@ export class ViewLines extends ViewLayer<ViewLine> implements IViewLines {
 	public renderText(viewportData: ViewportData, onAfterLinesRendered: () => void): void {
 		// (1) render lines - ensures lines are in the DOM
 		super._renderLines(viewportData);
-		this._lastRenderedData.setBigNumbersDelta(viewportData.bigNumbersDelta);
 		this._lastRenderedData.setCurrentVisibleRange(viewportData.visibleRange);
 		this.domNode.setWidth(this._viewLayout.getScrollWidth());
 		this.domNode.setHeight(Math.min(this._viewLayout.getScrollHeight(), 1000000));
@@ -522,7 +507,7 @@ export class ViewLines extends ViewLayer<ViewLine> implements IViewLines {
 		let viewportStartX = viewport.left;
 		let viewportEndX = viewportStartX + viewport.width;
 
-		let visibleRanges = this.visibleRangesForRange2(range, 0);
+		let visibleRanges = this.visibleRangesForRange2(range);
 		let boxStartX = Number.MAX_VALUE;
 		let boxEndX = 0;
 
