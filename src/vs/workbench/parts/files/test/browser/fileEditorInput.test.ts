@@ -15,6 +15,7 @@ import { EncodingMode } from 'vs/workbench/common/editor';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { FileOperationResult, IFileOperationResult } from 'vs/platform/files/common/files';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
+import { Verbosity } from 'vs/platform/editor/common/editor';
 
 function toResource(path) {
 	return URI.file(join('C:\\', new Buffer(this.test.fullTitle()).toString('base64'), path));
@@ -49,7 +50,7 @@ suite('Files - FileEditorInput', () => {
 		assert(!input.matches(null));
 		assert.ok(input.getName());
 		assert.ok(input.getDescription());
-		assert.ok(input.getDescription(true));
+		assert.ok(input.getTitle(Verbosity.SHORT));
 
 		assert.strictEqual('file.js', input.getName());
 

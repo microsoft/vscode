@@ -14,7 +14,7 @@ import { isMacintosh } from 'vs/base/common/platform';
 import { MIME_BINARY } from 'vs/base/common/mime';
 import { shorten } from 'vs/base/common/labels';
 import { ActionRunner, IAction } from 'vs/base/common/actions';
-import { Position, IEditorInput } from 'vs/platform/editor/common/editor';
+import { Position, IEditorInput, Verbosity } from 'vs/platform/editor/common/editor';
 import { IEditorGroup, toResource } from 'vs/workbench/common/editor';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -44,7 +44,7 @@ interface IEditorInputLabel {
 	name: string;
 	hasAmbiguousName?: boolean;
 	description?: string;
-	verboseDescription?: string;
+	title?: string;
 }
 
 export class TabsTitleControl extends TitleControl {
@@ -211,11 +211,11 @@ export class TabsTitleControl extends TitleControl {
 				const label = labels[index];
 				const name = label.name;
 				const description = label.hasAmbiguousName && label.description ? label.description : '';
-				const verboseDescription = label.verboseDescription || '';
+				const title = label.title || '';
 
 				// Container
 				tabContainer.setAttribute('aria-label', `${name}, tab`);
-				tabContainer.title = verboseDescription;
+				tabContainer.title = title;
 				['off', 'left'].forEach(option => {
 					const domAction = this.tabOptions.tabCloseButton === option ? DOM.addClass : DOM.removeClass;
 					domAction(tabContainer, `close-button-${option}`);
@@ -264,7 +264,7 @@ export class TabsTitleControl extends TitleControl {
 				editor,
 				name: editor.getName(),
 				description,
-				verboseDescription: editor.getDescription(true)
+				title: editor.getTitle(Verbosity.LONG)
 			};
 			labels.push(item);
 

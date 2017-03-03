@@ -24,6 +24,11 @@ const winExcludedPathCharactersClause = '[^\\0<>\\?\\|\\/\\s!$`&*()\\[\\]+\'":;]
 /** A regex that matches paths in the form c:\path, ~\path, .\path */
 const WINDOWS_LOCAL_LINK_REGEX = new RegExp('(' + winPathPrefix + '?(' + winPathSeparatorClause + '(' + winExcludedPathCharactersClause + ')+)+)');
 
+/** Higher than local link, lower than hypertext */
+const CUSTOM_LINK_PRIORITY = -1;
+/** Lowest */
+const LOCAL_LINK_PRIORITY = -2;
+
 export class TerminalLinkHandler {
 	constructor(
 		private _platform: Platform,
@@ -32,10 +37,19 @@ export class TerminalLinkHandler {
 	) {
 	}
 
-	public registerLocalLinkHandler(xterm: any) {
-		xterm.registerLinkMatcher(this._localLinkRegex, (url) => this._handleLocalLink(url), {
+	public registerCustomLinkHandler(xterm: any, regex: RegExp, handler: (string) => void, matchIndex?: number, validationCallback?: (uri: string, callback: (isValid: boolean) => void) => void): number {
+		return xterm.registerLinkMatcher(regex, handler, {
+			matchIndex,
+			validationCallback,
+			priority: CUSTOM_LINK_PRIORITY
+		});
+	}
+
+	public registerLocalLinkHandler(xterm: any): number {
+		return xterm.registerLinkMatcher(this._localLinkRegex, (url) => this._handleLocalLink(url), {
 			matchIndex: 1,
-			validationCallback: (link: string, callback: (isValid: boolean) => void) => this._validateLocalLink(link, callback)
+			validationCallback: (link: string, callback: (isValid: boolean) => void) => this._validateLocalLink(link, callback),
+			priority: LOCAL_LINK_PRIORITY
 		});
 	}
 
@@ -57,7 +71,6 @@ export class TerminalLinkHandler {
 	}
 
 	private _validateLocalLink(link: string, callback: (isValid: boolean) => void): void {
-		console.log('validate');
 		this._resolvePath(link).then(resolvedLink => {
 			callback(!!resolvedLink);
 		});

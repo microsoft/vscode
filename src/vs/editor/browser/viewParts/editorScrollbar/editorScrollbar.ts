@@ -163,10 +163,10 @@ export class EditorScrollbar extends ViewPart {
 	public onFocusChanged(e: viewEvents.ViewFocusChangedEvent): boolean {
 		return false;
 	}
-	public onLineChanged(e: viewEvents.ViewLineChangedEvent): boolean {
+	public onLineMappingChanged(e: viewEvents.ViewLineMappingChangedEvent): boolean {
 		return false;
 	}
-	public onLineMappingChanged(e: viewEvents.ViewLineMappingChangedEvent): boolean {
+	public onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
 		return false;
 	}
 	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
