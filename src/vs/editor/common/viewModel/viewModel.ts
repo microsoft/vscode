@@ -21,7 +21,6 @@ export interface IViewLayout {
 	getScrollHeight(): number;
 	getScrollTop(): number;
 	getCurrentViewport(): Viewport;
-	getScrolledTopFromAbsoluteTop(top: number): number;
 	getVerticalOffsetForLineNumber(lineNumber: number): number;
 	setScrollPosition(position: INewScrollPosition): void;
 

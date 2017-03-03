@@ -7,21 +7,27 @@
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { IConfiguration } from 'vs/editor/common/editorCommon';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
-import { IVisibleLine, ViewLayer } from 'vs/editor/browser/view/viewLayer';
+import { IVisibleLine, VisibleLinesCollection, IVisibleLinesHost } from 'vs/editor/browser/view/viewLayer';
 import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
 import { Configuration } from 'vs/editor/browser/config/configuration';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { ViewPart } from 'vs/editor/browser/view/viewPart';
 
-export class ViewOverlays extends ViewLayer<ViewOverlayLine> {
+export class ViewOverlays extends ViewPart implements IVisibleLinesHost<ViewOverlayLine> {
 
+	private readonly _visibleLines: VisibleLinesCollection<ViewOverlayLine>;
+	protected readonly domNode: FastDomNode<HTMLElement>;
 	private _dynamicOverlays: DynamicViewOverlay[];
 	private _isFocused: boolean;
 
 	constructor(context: ViewContext) {
 		super(context);
+
+		this._visibleLines = new VisibleLinesCollection<ViewOverlayLine>(this);
+		this.domNode = this._visibleLines.domNode;
 
 		this._dynamicOverlays = [];
 		this._isFocused = false;
@@ -58,6 +64,14 @@ export class ViewOverlays extends ViewLayer<ViewOverlayLine> {
 		return this.domNode.domNode;
 	}
 
+	// ---- begin IVisibleLinesHost
+
+	public createVisibleLine(): ViewOverlayLine {
+		return new ViewOverlayLine(this._context.configuration, this._dynamicOverlays);
+	}
+
+	// ---- end IVisibleLinesHost
+
 	public addDynamicOverlay(overlay: DynamicViewOverlay): void {
 		this._dynamicOverlays.push(overlay);
 	}
@@ -65,27 +79,42 @@ export class ViewOverlays extends ViewLayer<ViewOverlayLine> {
 	// ----- event handlers
 
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		super.onConfigurationChanged(e);
-		let startLineNumber = this._linesCollection.getStartLineNumber();
-		let endLineNumber = this._linesCollection.getEndLineNumber();
+		this._visibleLines.onConfigurationChanged(e);
+		let startLineNumber = this._visibleLines.getStartLineNumber();
+		let endLineNumber = this._visibleLines.getEndLineNumber();
 		for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
-			let line = this._linesCollection.getLine(lineNumber);
+			let line = this._visibleLines.getVisibleLine(lineNumber);
 			line.onConfigurationChanged(e);
 		}
 		return true;
 	}
-
+	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
+		return this._visibleLines.onFlushed(e);
+	}
 	public onFocusChanged(e: viewEvents.ViewFocusChangedEvent): boolean {
 		this._isFocused = e.isFocused;
 		return true;
 	}
-
-	// ----- end event handlers
-
-	_createLine(): ViewOverlayLine {
-		return new ViewOverlayLine(this._context.configuration, this._dynamicOverlays);
+	public onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
+		return this._visibleLines.onLinesChanged(e);
+	}
+	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
+		return this._visibleLines.onLinesDeleted(e);
+	}
+	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
+		return this._visibleLines.onLinesInserted(e);
+	}
+	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
+		return this._visibleLines.onScrollChanged(e) || true;
+	}
+	public onTokensChanged(e: viewEvents.ViewTokensChangedEvent): boolean {
+		return this._visibleLines.onTokensChanged(e);
+	}
+	public onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
+		return this._visibleLines.onZonesChanged(e);
 	}
 
+	// ----- end event handlers
 
 	public prepareRender(ctx: RenderingContext): void {
 		let toRender = this._dynamicOverlays.filter(overlay => overlay.shouldRender());
@@ -107,7 +136,7 @@ export class ViewOverlays extends ViewLayer<ViewOverlayLine> {
 	}
 
 	_viewOverlaysRender(ctx: RestrictedRenderingContext): void {
-		super._renderLines(ctx.viewportData);
+		this._visibleLines.renderLines(ctx.viewportData);
 	}
 }
 
@@ -211,13 +240,11 @@ export class ContentViewOverlays extends ViewOverlays {
 export class MarginViewOverlays extends ViewOverlays {
 
 	private _contentLeft: number;
-	private _canUseTranslate3d: boolean;
 
 	constructor(context: ViewContext) {
 		super(context);
 
 		this._contentLeft = this._context.configuration.editor.layoutInfo.contentLeft;
-		this._canUseTranslate3d = this._context.configuration.editor.viewInfo.canUseTranslate3d;
 
 		this.domNode.setClassName(editorBrowser.ClassNames.MARGIN_VIEW_OVERLAYS);
 		this.domNode.setWidth(1);
@@ -229,10 +256,6 @@ export class MarginViewOverlays extends ViewOverlays {
 		let shouldRender = false;
 		if (e.fontInfo) {
 			Configuration.applyFontInfo(this.domNode, this._context.configuration.editor.fontInfo);
-			shouldRender = true;
-		}
-		if (e.viewInfo.canUseTranslate3d) {
-			this._canUseTranslate3d = this._context.configuration.editor.viewInfo.canUseTranslate3d;
 			shouldRender = true;
 		}
 		if (e.layoutInfo) {

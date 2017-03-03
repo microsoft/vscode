@@ -233,11 +233,11 @@ export class ViewContentWidgets extends ViewPart {
 
 		// And its left
 		let actualLeft = topLeft.left;
-		if (actualLeft + width > ctx.viewportLeft + ctx.viewportWidth) {
-			actualLeft = ctx.viewportLeft + ctx.viewportWidth - width;
+		if (actualLeft + width > ctx.scrollLeft + ctx.viewportWidth) {
+			actualLeft = ctx.scrollLeft + ctx.viewportWidth - width;
 		}
-		if (actualLeft < ctx.viewportLeft) {
-			actualLeft = ctx.viewportLeft;
+		if (actualLeft < ctx.scrollLeft) {
+			actualLeft = ctx.scrollLeft;
 		}
 
 		return {
@@ -250,7 +250,7 @@ export class ViewContentWidgets extends ViewPart {
 	}
 
 	private _layoutBoxInPage(topLeft: Coordinate, width: number, height: number, ctx: RenderingContext): IBoxLayoutResult {
-		let left0 = topLeft.left - ctx.viewportLeft;
+		let left0 = topLeft.left - ctx.scrollLeft;
 
 		if (left0 + width < 0 || left0 > this._contentWidth) {
 			return null;
@@ -314,7 +314,7 @@ export class ViewContentWidgets extends ViewPart {
 			return null;
 		}
 
-		const top = ctx.getVerticalOffsetForLineNumber(position.lineNumber) - ctx.viewportTop;
+		const top = ctx.getVerticalOffsetForLineNumber(position.lineNumber) - ctx.scrollTop;
 		return new Coordinate(top, visibleRange.left);
 	}
 
@@ -429,7 +429,7 @@ export class ViewContentWidgets extends ViewPart {
 					domNode.setTop(data[widgetId].top);
 					domNode.setLeft(data[widgetId].left);
 				} else {
-					domNode.setTop(data[widgetId].top + ctx.viewportTop - ctx.bigNumbersDelta);
+					domNode.setTop(data[widgetId].top + ctx.scrollTop - ctx.bigNumbersDelta);
 					domNode.setLeft(data[widgetId].left);
 				}
 				if (!widget.isVisible) {

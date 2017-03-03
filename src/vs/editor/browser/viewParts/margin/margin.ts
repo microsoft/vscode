@@ -78,7 +78,7 @@ export class Margin extends ViewPart {
 	}
 
 	public render(ctx: RestrictedRenderingContext): void {
-		const adjustedScrollTop = ctx.viewportTop - ctx.bigNumbersDelta;
+		const adjustedScrollTop = ctx.scrollTop - ctx.bigNumbersDelta;
 		if (this._canUseTranslate3d) {
 			let transform = 'translate3d(0px, ' + -adjustedScrollTop + 'px, 0px)';
 			this._domNode.setTransform(transform);
