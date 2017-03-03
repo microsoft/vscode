@@ -25,10 +25,11 @@ export abstract class RestrictedRenderingContext {
 	public readonly visibleRange: Range;
 	public readonly bigNumbersDelta: number;
 
-	public readonly viewportTop: number;
+	public readonly scrollTop: number;
+	public readonly scrollLeft: number;
+
 	public readonly viewportWidth: number;
 	public readonly viewportHeight: number;
-	public readonly viewportLeft: number;
 
 	private readonly _viewLayout: IViewLayout;
 
@@ -43,14 +44,14 @@ export abstract class RestrictedRenderingContext {
 		this.bigNumbersDelta = this.viewportData.bigNumbersDelta;
 
 		const vInfo = this._viewLayout.getCurrentViewport();
+		this.scrollTop = vInfo.top;
+		this.scrollLeft = vInfo.left;
 		this.viewportWidth = vInfo.width;
 		this.viewportHeight = vInfo.height;
-		this.viewportLeft = vInfo.left;
-		this.viewportTop = vInfo.top;
 	}
 
 	public getScrolledTopFromAbsoluteTop(absoluteTop: number): number {
-		return this._viewLayout.getScrolledTopFromAbsoluteTop(absoluteTop);
+		return absoluteTop - this.scrollTop;
 	}
 
 	public getVerticalOffsetForLineNumber(lineNumber: number): number {
@@ -59,8 +60,8 @@ export abstract class RestrictedRenderingContext {
 
 	public lineIsVisible(lineNumber: number): boolean {
 		return (
-			this.viewportData.visibleRange.startLineNumber <= lineNumber
-			&& lineNumber <= this.viewportData.visibleRange.endLineNumber
+			this.visibleRange.startLineNumber <= lineNumber
+			&& lineNumber <= this.visibleRange.endLineNumber
 		);
 	}
 

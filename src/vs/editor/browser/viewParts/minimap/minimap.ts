@@ -645,7 +645,7 @@ export class Minimap extends ViewPart {
 			this._shadow.setClassName('minimap-shadow-hidden');
 			return;
 		}
-		if (renderingCtx.viewportLeft + renderingCtx.viewportWidth >= renderingCtx.scrollWidth) {
+		if (renderingCtx.scrollLeft + renderingCtx.viewportWidth >= renderingCtx.scrollWidth) {
 			this._shadow.setClassName('minimap-shadow-hidden');
 		} else {
 			this._shadow.setClassName('minimap-shadow-visible');
