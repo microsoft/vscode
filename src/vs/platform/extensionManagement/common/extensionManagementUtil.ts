@@ -7,6 +7,13 @@
 
 import { ILocalExtension, IGalleryExtension, IExtensionManifest, EXTENSION_IDENTIFIER_REGEX } from 'vs/platform/extensionManagement/common/extensionManagement';
 
+export function areSameExtensions(a: { id: string }, b: { id: string }): boolean {
+	if (a.id === b.id) {
+		return true;
+	}
+	return adoptToGalleryExtensionId(a.id) === adoptToGalleryExtensionId(b.id);
+}
+
 export function getGalleryExtensionId(publisher: string, name: string): string {
 	return `${publisher}.${name.toLocaleLowerCase()}`;
 }
