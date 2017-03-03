@@ -113,7 +113,8 @@ export class Colorizer {
 
 	public static colorizeModelLine(model: IModel, lineNumber: number, tabSize: number = 4): string {
 		let content = model.getLineContent(lineNumber);
-		let tokens = model.getLineTokens(lineNumber, false);
+		model.forceTokenization(lineNumber);
+		let tokens = model.getLineTokens(lineNumber);
 		let inflatedTokens = tokens.inflate();
 		return this.colorizeLine(content, model.mightContainRTL(), inflatedTokens, tabSize);
 	}

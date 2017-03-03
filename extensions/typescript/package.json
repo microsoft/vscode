@@ -164,6 +164,11 @@
           "default": true,
           "description": "%format.insertSpaceAfterFunctionKeywordForAnonymousFunctions%"
         },
+        "typescript.format.insertSpaceBeforeFunctionParenthesis": {
+          "type": "boolean",
+          "default": false,
+          "description": "%format.insertSpaceBeforeFunctionParenthesis%"
+        },
         "typescript.format.insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis": {
           "type": "boolean",
           "default": false,
@@ -228,6 +233,11 @@
           "type": "boolean",
           "default": true,
           "description": "%format.insertSpaceAfterFunctionKeywordForAnonymousFunctions%"
+        },
+        "javascript.format.insertSpaceBeforeFunctionParenthesis": {
+          "type": "boolean",
+          "default": false,
+          "description": "%format.insertSpaceBeforeFunctionParenthesis%"
         },
         "javascript.format.insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis": {
           "type": "boolean",
