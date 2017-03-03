@@ -395,7 +395,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 					window.showWarningMessage(localize('noServerFound', 'The path {0} doesn\'t point to a valid tsserver install. Falling back to bundled TypeScript version.', path.dirname(modulePath)));
 					modulePath = this.bundledTypeScriptPath;
 					if (!fs.existsSync(modulePath)) {
-						window.showErrorMessage(localize('noBundledServerFound', 'Could not find VSCode\'s tsserver install. Please try reinstalling VSCode'));
+						window.showErrorMessage(localize('noBundledServerFound', 'VSCode\'s tsserver was deleted by a another application such as a misbehaving virus detection tool. Please reinstall VS Code.'));
 						return reject(new Error('Could not find bundled tsserver.js'));
 					}
 				}
