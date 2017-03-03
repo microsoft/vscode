@@ -761,8 +761,9 @@ export class SearchViewlet extends Viewlet {
 		this.inputPatternIncludes.setWidth(this.size.width - 28 /* container margin */);
 		this.inputPatternGlobalExclusions.width = this.size.width - 28 /* container margin */ - 24 /* actions */;
 
-		let searchResultContainerSize = this.size.height -
-			dom.getTotalHeight(this.messages.getHTMLElement()) -
+		const messagesSize = this.messages.isHidden() ? 0 : dom.getTotalHeight(this.messages.getHTMLElement());
+		const searchResultContainerSize = this.size.height -
+			messagesSize -
 			dom.getTotalHeight(this.searchWidgetsContainer.getContainer());
 
 		this.results.style({ height: searchResultContainerSize + 'px' });
