@@ -7,6 +7,7 @@
 	"workbench.action.terminal.clear": "Очистить",
 	"workbench.action.terminal.copySelection": "Скопировать выделение",
 	"workbench.action.terminal.focus": "Фокус на терминале",
+	"workbench.action.terminal.focusAtIndex": "Фокус на терминале {0}",
 	"workbench.action.terminal.focusNext": "Фокус на следующем терминале",
 	"workbench.action.terminal.focusPrevious": "Фокус на предыдущем терминале",
 	"workbench.action.terminal.kill": "Завершить активный экземпляр терминала",
