@@ -21,7 +21,7 @@ import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { ViewController, TriggerCursorHandler } from 'vs/editor/browser/view/viewController';
 import { ViewEventDispatcher } from 'vs/editor/common/view/viewEventDispatcher';
 import { ContentViewOverlays, MarginViewOverlays } from 'vs/editor/browser/view/viewOverlays';
-import { LayoutProvider } from 'vs/editor/browser/viewLayout/layoutProvider';
+import { LayoutProvider } from 'vs/editor/common/viewLayout/viewLayout';
 import { ViewContentWidgets } from 'vs/editor/browser/viewParts/contentWidgets/contentWidgets';
 import { CurrentLineHighlightOverlay } from 'vs/editor/browser/viewParts/currentLineHighlight/currentLineHighlight';
 import { CurrentLineMarginHighlightOverlay } from 'vs/editor/browser/viewParts/currentLineMarginHighlight/currentLineMarginHighlight';
