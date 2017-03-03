@@ -167,7 +167,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		return result;
 	}
 
-	public getLineTokens(lineNumber: number, inaccurateTokensAcceptable: boolean = false): LineTokens {
+	public getLineTokens(lineNumber: number, inaccurateTokensAcceptable: boolean): LineTokens {
 		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
 			throw new Error('Illegal value ' + lineNumber + ' for `lineNumber`');
 		}
