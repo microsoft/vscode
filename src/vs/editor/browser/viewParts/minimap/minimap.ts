@@ -343,11 +343,11 @@ class RenderData {
 		};
 	}
 
+	public onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
+		return this._renderedLines.onLinesChanged(e.fromLineNumber, e.toLineNumber);
+	}
 	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): void {
 		this._renderedLines.onLinesDeleted(e.fromLineNumber, e.toLineNumber);
-	}
-	public onLineChanged(e: viewEvents.ViewLineChangedEvent): boolean {
-		return this._renderedLines.onLineChanged(e.lineNumber);
 	}
 	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): void {
 		this._renderedLines.onLinesInserted(e.fromLineNumber, e.toLineNumber);
@@ -596,9 +596,9 @@ export class Minimap extends ViewPart {
 		this._lastRenderData = null;
 		return true;
 	}
-	public onLineChanged(e: viewEvents.ViewLineChangedEvent): boolean {
+	public onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
 		if (this._lastRenderData) {
-			return this._lastRenderData.onLineChanged(e);
+			return this._lastRenderData.onLinesChanged(e);
 		}
 		return false;
 	}

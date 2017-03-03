@@ -155,7 +155,7 @@ export class RenderedLinesCollection<T extends ILine> {
 		return deleted;
 	}
 
-	public onLineChanged(changedLineNumber: number): boolean {
+	public onLinesChanged(changeFromLineNumber: number, changeToLineNumber: number): boolean {
 		if (this.getCount() === 0) {
 			// no lines
 			return false;
@@ -164,14 +164,17 @@ export class RenderedLinesCollection<T extends ILine> {
 		let startLineNumber = this.getStartLineNumber();
 		let endLineNumber = this.getEndLineNumber();
 
-		if (changedLineNumber < startLineNumber || changedLineNumber > endLineNumber) {
-			// a line has been changed above or below the viewport
-			return false;
+		let someoneNotified = false;
+
+		for (let changedLineNumber = changeFromLineNumber; changedLineNumber <= changeToLineNumber; changedLineNumber++) {
+			if (changedLineNumber >= startLineNumber && changedLineNumber <= endLineNumber) {
+				// Notify the line
+				this._lines[changedLineNumber - this._rendLineNumberStart].onContentChanged();
+				someoneNotified = true;
+			}
 		}
 
-		// Notify the line
-		this._lines[changedLineNumber - this._rendLineNumberStart].onContentChanged();
-		return true;
+		return someoneNotified;
 	}
 
 	public onLinesInserted(insertFromLineNumber: number, insertToLineNumber: number): T[] {
@@ -283,8 +286,8 @@ export abstract class ViewLayer<T extends IVisibleLine> extends ViewPart {
 		return true;
 	}
 
-	public onLineChanged(e: viewEvents.ViewLineChangedEvent): boolean {
-		return this._linesCollection.onLineChanged(e.lineNumber);
+	public onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
+		return this._linesCollection.onLinesChanged(e.fromLineNumber, e.toLineNumber);
 	}
 
 	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {

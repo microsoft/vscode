@@ -50,10 +50,10 @@ export class ViewEventHandler {
 	public onFocusChanged(e: viewEvents.ViewFocusChangedEvent): boolean {
 		return false;
 	}
-	public onLineChanged(e: viewEvents.ViewLineChangedEvent): boolean {
+	public onLineMappingChanged(e: viewEvents.ViewLineMappingChangedEvent): boolean {
 		return false;
 	}
-	public onLineMappingChanged(e: viewEvents.ViewLineMappingChangedEvent): boolean {
+	public onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
 		return false;
 	}
 	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
@@ -128,14 +128,14 @@ export class ViewEventHandler {
 					}
 					break;
 
-				case viewEvents.ViewEventType.ViewLineChanged:
-					if (this.onLineChanged(e)) {
+				case viewEvents.ViewEventType.ViewLineMappingChanged:
+					if (this.onLineMappingChanged(e)) {
 						shouldRender = true;
 					}
 					break;
 
-				case viewEvents.ViewEventType.ViewLineMappingChanged:
-					if (this.onLineMappingChanged(e)) {
+				case viewEvents.ViewEventType.ViewLinesChanged:
+					if (this.onLinesChanged(e)) {
 						shouldRender = true;
 					}
 					break;
