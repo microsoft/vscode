@@ -5,8 +5,7 @@
 'use strict';
 
 import * as strings from 'vs/base/common/strings';
-import { DefaultEndOfLine, ITextModelCreationOptions, TextModelResolvedOptions } from 'vs/editor/common/editorCommon';
-import { guessIndentation } from 'vs/editor/common/model/indentationGuesser';
+import { DefaultEndOfLine } from 'vs/editor/common/editorCommon';
 
 /**
  * A processed string ready to be turned into an editor model.
@@ -145,62 +144,6 @@ export class TextSource {
 		}
 
 		return this.fromRawTextSource(source, defaultEOL);
-	}
-
-}
-
-export interface ITextModelData {
-	readonly text: ITextSource;
-	readonly options: {
-		readonly tabSize: number;
-		readonly insertSpaces: boolean;
-		readonly defaultEOL: DefaultEndOfLine;
-		readonly trimAutoWhitespace: boolean;
-	};
-}
-
-export class TextModelData {
-
-	private static _fromTextSource(textSource: ITextSource, opts: ITextModelCreationOptions): ITextModelData {
-		let resolvedOpts: TextModelResolvedOptions;
-		if (opts.detectIndentation) {
-			const guessedIndentation = guessIndentation(textSource.lines, opts.tabSize, opts.insertSpaces);
-			resolvedOpts = new TextModelResolvedOptions({
-				tabSize: guessedIndentation.tabSize,
-				insertSpaces: guessedIndentation.insertSpaces,
-				trimAutoWhitespace: opts.trimAutoWhitespace,
-				defaultEOL: opts.defaultEOL
-			});
-		} else {
-			resolvedOpts = new TextModelResolvedOptions({
-				tabSize: opts.tabSize,
-				insertSpaces: opts.insertSpaces,
-				trimAutoWhitespace: opts.trimAutoWhitespace,
-				defaultEOL: opts.defaultEOL
-			});
-		}
-
-		return {
-			text: textSource,
-			options: resolvedOpts
-		};
-	}
-
-	public static fromRawTextSource(rawTextSource: IRawTextSource, opts: ITextModelCreationOptions): ITextModelData {
-		const textSource = TextSource.fromRawTextSource(rawTextSource, opts.defaultEOL);
-		return this._fromTextSource(textSource, opts);
-	}
-
-	public static fromString(text: string, opts: ITextModelCreationOptions): ITextModelData {
-		const textSource = TextSource.fromString(text, opts.defaultEOL);
-		return this._fromTextSource(textSource, opts);
-	}
-
-	public static create(source: string | IRawTextSource, opts: ITextModelCreationOptions): ITextModelData {
-		if (typeof source === 'string') {
-			return this.fromString(source, opts);
-		}
-		return this.fromRawTextSource(source, opts);
 	}
 
 }
