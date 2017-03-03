@@ -395,7 +395,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 					throw new Error('ViewImpl.pointerHandler.visibleRangeForPosition2: View is disposed');
 				}
 				this._flushAccumulatedAndRenderNow();
-				let visibleRanges = this.viewLines.visibleRangesForRange2(new Range(lineNumber, column, lineNumber, column), 0);
+				let visibleRanges = this.viewLines.visibleRangesForRange2(new Range(lineNumber, column, lineNumber, column));
 				if (!visibleRanges) {
 					return null;
 				}
@@ -421,12 +421,17 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 					throw new Error('ViewImpl.keyboardHandler.visibleRangeForPositionRelativeToEditor: View is disposed');
 				}
 				this._flushAccumulatedAndRenderNow();
-				let linesViewPortData = this.layoutProvider.getLinesViewportData();
-				let visibleRanges = this.viewLines.visibleRangesForRange2(new Range(lineNumber, column, lineNumber, column), linesViewPortData.visibleRangesDeltaTop);
+				let visibleRanges = this.viewLines.visibleRangesForRange2(new Range(lineNumber, column, lineNumber, column));
 				if (!visibleRanges) {
 					return null;
 				}
 				return visibleRanges[0];
+			},
+			getVerticalOffsetForLineNumber: (lineNumber: number) => {
+				if (this._isDisposed) {
+					throw new Error('ViewImpl.keyboardHandler.getVerticalOffsetForLineNumber: View is disposed');
+				}
+				return this.layoutProvider.getVerticalOffsetForLineNumber(lineNumber);
 			},
 			flushAnyAccumulatedEvents: () => {
 				this._flushAnyAccumulatedEvents();
@@ -618,7 +623,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 					});
 					let viewPosition = this._context.model.coordinatesConverter.convertModelPositionToViewPosition(modelPosition);
 					this._flushAccumulatedAndRenderNow();
-					let visibleRanges = this.viewLines.visibleRangesForRange2(new Range(viewPosition.lineNumber, viewPosition.column, viewPosition.lineNumber, viewPosition.column), 0);
+					let visibleRanges = this.viewLines.visibleRangesForRange2(new Range(viewPosition.lineNumber, viewPosition.column, viewPosition.lineNumber, viewPosition.column));
 					if (!visibleRanges) {
 						return -1;
 					}

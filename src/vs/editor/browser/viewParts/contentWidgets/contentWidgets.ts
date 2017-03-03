@@ -11,7 +11,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ClassNames, ContentWidgetPositionPreference, IContentWidget } from 'vs/editor/browser/editorBrowser';
 import { ViewPart, PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
-import { VisibleRange, IRenderingContext, IRestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
+import { IRenderingContext, IRestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
 import { Position } from 'vs/editor/common/core/position';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
@@ -43,6 +43,18 @@ interface IMyWidgetRenderData {
 
 interface IMyRenderData {
 	[id: string]: IMyWidgetRenderData;
+}
+
+class Coordinate {
+	_coordinateBrand: void;
+
+	public readonly top: number;
+	public readonly left: number;
+
+	constructor(top: number, left: number) {
+		this.top = top;
+		this.left = left;
+	}
 }
 
 export class ViewContentWidgets extends ViewPart {
@@ -203,15 +215,15 @@ export class ViewContentWidgets extends ViewPart {
 		return false;
 	}
 
-	private _layoutBoxInViewport(visibleRange: VisibleRange, width: number, height: number, ctx: IRenderingContext): IBoxLayoutResult {
+	private _layoutBoxInViewport(topLeft: Coordinate, width: number, height: number, ctx: IRenderingContext): IBoxLayoutResult {
 		// Our visible box is split horizontally by the current line => 2 boxes
 
 		// a) the box above the line
-		let aboveLineTop = visibleRange.top;
+		let aboveLineTop = topLeft.top;
 		let heightAboveLine = aboveLineTop;
 
 		// b) the box under the line
-		let underLineTop = visibleRange.top + this._lineHeight;
+		let underLineTop = topLeft.top + this._lineHeight;
 		let heightUnderLine = ctx.viewportHeight - underLineTop;
 
 		let aboveTop = aboveLineTop - height;
@@ -220,7 +232,7 @@ export class ViewContentWidgets extends ViewPart {
 		let fitsBelow = (heightUnderLine >= height);
 
 		// And its left
-		let actualLeft = visibleRange.left;
+		let actualLeft = topLeft.left;
 		if (actualLeft + width > ctx.viewportLeft + ctx.viewportWidth) {
 			actualLeft = ctx.viewportLeft + ctx.viewportWidth - width;
 		}
@@ -237,15 +249,15 @@ export class ViewContentWidgets extends ViewPart {
 		};
 	}
 
-	private _layoutBoxInPage(visibleRange: VisibleRange, width: number, height: number, ctx: IRenderingContext): IBoxLayoutResult {
-		let left0 = visibleRange.left - ctx.viewportLeft;
+	private _layoutBoxInPage(topLeft: Coordinate, width: number, height: number, ctx: IRenderingContext): IBoxLayoutResult {
+		let left0 = topLeft.left - ctx.viewportLeft;
 
 		if (left0 + width < 0 || left0 > this._contentWidth) {
 			return null;
 		}
 
-		let aboveTop = visibleRange.top - height;
-		let belowTop = visibleRange.top + this._lineHeight;
+		let aboveTop = topLeft.top - height;
+		let belowTop = topLeft.top + this._lineHeight;
 		let left = left0 + this._contentLeft;
 
 		let domNodePosition = dom.getDomNodePagePosition(this._viewDomNode.domNode);
@@ -283,23 +295,27 @@ export class ViewContentWidgets extends ViewPart {
 		return { aboveTop, fitsAbove, belowTop, fitsBelow, left };
 	}
 
-	private _prepareRenderWidgetAtExactPosition(position: Position, ctx: IRenderingContext): IMyWidgetRenderData {
-		let visibleRange = ctx.visibleRangeForPosition(position);
+	private _prepareRenderWidgetAtExactPosition(topLeft: Coordinate): IMyWidgetRenderData {
+		return {
+			top: topLeft.top,
+			left: topLeft.left
+		};
+	}
 
+	private _prepareRenderWidgetAtExactPositionOverflowing(topLeft: Coordinate): IMyWidgetRenderData {
+		let r = this._prepareRenderWidgetAtExactPosition(topLeft);
+		r.left += this._contentLeft;
+		return r;
+	}
+
+	private _getTopLeft(ctx: IRenderingContext, position: Position): Coordinate {
+		const visibleRange = ctx.visibleRangeForPosition(position);
 		if (!visibleRange) {
 			return null;
 		}
 
-		return {
-			top: visibleRange.top,
-			left: visibleRange.left
-		};
-	}
-
-	private _prepareRenderWidgetAtExactPositionOverflowing(position: Position, ctx: IRenderingContext): IMyWidgetRenderData {
-		let r = this._prepareRenderWidgetAtExactPosition(position, ctx);
-		r.left += this._contentLeft;
-		return r;
+		const top = ctx.getVerticalOffsetForLineNumber(position.lineNumber) - ctx.viewportTop;
+		return new Coordinate(top, visibleRange.left);
 	}
 
 	private _prepareRenderWidget(widgetData: IWidgetData, ctx: IRenderingContext): IMyWidgetRenderData {
@@ -323,8 +339,8 @@ export class ViewContentWidgets extends ViewPart {
 				return;
 			}
 
-			const visibleRange = ctx.visibleRangeForPosition(position);
-			if (!visibleRange) {
+			const topLeft = this._getTopLeft(ctx, position);
+			if (!topLeft) {
 				return null;
 			}
 
@@ -333,9 +349,9 @@ export class ViewContentWidgets extends ViewPart {
 			const height = domNode.clientHeight;
 
 			if (widgetData.allowEditorOverflow) {
-				placement = this._layoutBoxInPage(visibleRange, width, height, ctx);
+				placement = this._layoutBoxInPage(topLeft, width, height, ctx);
 			} else {
-				placement = this._layoutBoxInViewport(visibleRange, width, height, ctx);
+				placement = this._layoutBoxInViewport(topLeft, width, height, ctx);
 			}
 		};
 
@@ -368,15 +384,20 @@ export class ViewContentWidgets extends ViewPart {
 						};
 					}
 				} else {
+					const topLeft = this._getTopLeft(ctx, position);
+					if (!topLeft) {
+						// Widget outside of viewport
+						return null;
+					}
 					if (widgetData.allowEditorOverflow) {
-						return this._prepareRenderWidgetAtExactPositionOverflowing(position, ctx);
+						return this._prepareRenderWidgetAtExactPositionOverflowing(topLeft);
 					} else {
-						return this._prepareRenderWidgetAtExactPosition(position, ctx);
+						return this._prepareRenderWidgetAtExactPosition(topLeft);
 					}
 				}
 			}
 		}
-		return undefined;
+		return null;
 	}
 
 	public prepareRender(ctx: IRenderingContext): void {
