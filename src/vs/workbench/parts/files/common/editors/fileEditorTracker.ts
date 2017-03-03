@@ -19,6 +19,7 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { distinct } from 'vs/base/common/arrays';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export class FileEditorTracker implements IWorkbenchContribution {
 	private stacks: IEditorStacksModel;
@@ -29,7 +30,8 @@ export class FileEditorTracker implements IWorkbenchContribution {
 		@ITextFileService private textFileService: ITextFileService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@IFileService private fileService: IFileService
+		@IFileService private fileService: IFileService,
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		this.toUnbind = [];
 		this.stacks = editorGroupService.getStacksModel();
@@ -103,7 +105,29 @@ export class FileEditorTracker implements IWorkbenchContribution {
 			}
 
 			if (matches) {
-				input.dispose();
+				// TODO@Ben this is for debugging https://github.com/Microsoft/vscode/issues/13665
+				if (this.environmentService.verbose) {
+					this.fileService.existsFile(input.getResource()).done(exists => {
+						if (!exists) {
+							input.dispose();
+							console.warn(`[13665] The file ${input.getResource().fsPath} actually does not exist anymore.`);
+							setTimeout(() => {
+								this.fileService.existsFile(input.getResource()).done(exists => {
+									console.warn(`[13665] The file ${input.getResource().fsPath} after 2 seconds exists: ${exists}`);
+								}, error => {
+									console.error(`[13665] Error checking existance for ${input.getResource().fsPath} after 2 seconds!`, error);
+								});
+							}, 2000);
+						} else {
+							console.warn(`[13665] The file ${input.getResource().fsPath} actually still exists!`);
+						}
+					}, error => {
+						console.error(`[13665] Error checking existance for ${input.getResource().fsPath}`, error);
+						input.dispose();
+					});
+				} else {
+					input.dispose();
+				}
 			}
 		});
 	}

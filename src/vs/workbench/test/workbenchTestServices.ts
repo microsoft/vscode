@@ -49,6 +49,7 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { RawTextSource, IRawTextSource } from 'vs/editor/common/model/textSource';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, void 0);
@@ -203,6 +204,7 @@ export function workbenchInstantiationService(): IInstantiationService {
 	instantiationService.stub(IWindowsService, new TestWindowsService());
 	instantiationService.stub(ITextFileService, <ITextFileService>instantiationService.createInstance(TestTextFileService));
 	instantiationService.stub(ITextModelResolverService, <ITextModelResolverService>instantiationService.createInstance(TextModelResolverService));
+	instantiationService.stub(IEnvironmentService, TestEnvironmentService);
 
 	return instantiationService;
 }
