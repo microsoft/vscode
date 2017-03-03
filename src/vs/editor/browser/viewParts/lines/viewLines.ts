@@ -433,14 +433,15 @@ export class ViewLines extends ViewLayer<ViewLine> implements IViewLines {
 		}
 
 		// (4) handle scrolling
+		const adjustedScrollTop = this._viewLayout.getScrollTop() - viewportData.bigNumbersDelta;
 		if (this._canUseTranslate3d) {
-			let transform = 'translate3d(' + -this._viewLayout.getScrollLeft() + 'px, ' + viewportData.visibleRangesDeltaTop + 'px, 0px)';
+			let transform = 'translate3d(' + -this._viewLayout.getScrollLeft() + 'px, ' + -adjustedScrollTop + 'px, 0px)';
 			this._linesContent.setTransform(transform);
 			this._linesContent.setTop(0);
 			this._linesContent.setLeft(0);
 		} else {
 			this._linesContent.setTransform('');
-			this._linesContent.setTop(viewportData.visibleRangesDeltaTop);
+			this._linesContent.setTop(-adjustedScrollTop);
 			this._linesContent.setLeft(-this._viewLayout.getScrollLeft());
 		}
 

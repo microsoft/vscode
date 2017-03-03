@@ -647,14 +647,12 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 			throw new Error('ViewImpl.getCompletelyVisibleLinesRangeInViewport: View is disposed');
 		}
 
-		let partialData = this.layoutProvider.getLinesViewportData();
-		let startLineNumber = partialData.startLineNumber === partialData.endLineNumber || partialData.relativeVerticalOffset[0] >= partialData.viewportTop ? partialData.startLineNumber : partialData.startLineNumber + 1;
-		let endLineNumber = partialData.relativeVerticalOffset[partialData.relativeVerticalOffset.length - 1] + this._context.configuration.editor.lineHeight <= partialData.viewportTop + partialData.viewportHeight ? partialData.endLineNumber : partialData.endLineNumber - 1;
-		let completelyVisibleLinesRange = new Range(
-			startLineNumber,
+		const partialData = this.layoutProvider.getLinesViewportData();
+		const completelyVisibleLinesRange = new Range(
+			partialData.completelyVisibleStartLineNumber,
 			1,
-			endLineNumber,
-			this._context.model.getLineMaxColumn(endLineNumber)
+			partialData.completelyVisibleEndLineNumber,
+			this._context.model.getLineMaxColumn(partialData.completelyVisibleEndLineNumber)
 		);
 
 		return this._context.model.coordinatesConverter.convertViewRangeToModelRange(completelyVisibleLinesRange);

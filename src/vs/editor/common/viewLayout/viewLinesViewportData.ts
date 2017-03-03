@@ -8,33 +8,41 @@ import { ViewLineRenderingData, IViewModel, ViewModelDecoration } from 'vs/edito
 import { Range } from 'vs/editor/common/core/range';
 
 export interface IPartialViewLinesViewportData {
-	viewportTop: number;
-	viewportHeight: number;
-	bigNumbersDelta: number;
-	visibleRangesDeltaTop: number;
-	startLineNumber: number;
-	endLineNumber: number;
-	relativeVerticalOffset: number[];
+	/**
+	 * Value to be substracted from `scrollTop` (in order to vertical offset numbers < 1MM)
+	 */
+	readonly bigNumbersDelta: number;
+	/**
+	 * The first (partially) visible line number.
+	 */
+	readonly startLineNumber: number;
+	/**
+	 * The last (partially) visible line number.
+	 */
+	readonly endLineNumber: number;
+	/**
+	 * relativeVerticalOffset[i] is the gap that must be left between line at
+	 * i - 1 + `startLineNumber` and i + `startLineNumber`.
+	 */
+	readonly relativeVerticalOffset: number[];
 	/**
 	 * The centered line in the viewport.
 	 */
-	centeredLineNumber: number;
+	readonly centeredLineNumber: number;
+	/**
+	 * The first completely visible line number.
+	 */
+	readonly completelyVisibleStartLineNumber: number;
+	/**
+	 * The last completely visible line number.
+	 */
+	readonly completelyVisibleEndLineNumber: number;
 }
 
 /**
  * Contains all data needed to render at a specific viewport.
  */
 export class ViewportData {
-
-	/**
-	 * The absolute top offset of the viewport in px.
-	 */
-	public readonly viewportTop: number;
-
-	/**
-	 * The height of the viewport in px.
-	 */
-	public readonly viewportHeight: number;
 
 	/**
 	 * The line number at which to start rendering (inclusive).
@@ -57,8 +65,10 @@ export class ViewportData {
 	 */
 	public readonly visibleRange: Range;
 
+	/**
+	 * Value to be substracted from `scrollTop` (in order to vertical offset numbers < 1MM)
+	 */
 	public readonly bigNumbersDelta: number;
-	public readonly visibleRangesDeltaTop: number;
 
 	private readonly _model: IViewModel;
 
@@ -66,13 +76,10 @@ export class ViewportData {
 		partialData: IPartialViewLinesViewportData,
 		model: IViewModel
 	) {
-		this.viewportTop = partialData.viewportTop | 0;
-		this.viewportHeight = partialData.viewportHeight | 0;
 		this.startLineNumber = partialData.startLineNumber | 0;
 		this.endLineNumber = partialData.endLineNumber | 0;
 		this.relativeVerticalOffset = partialData.relativeVerticalOffset;
 		this.bigNumbersDelta = partialData.bigNumbersDelta | 0;
-		this.visibleRangesDeltaTop = partialData.visibleRangesDeltaTop | 0;
 
 		this._model = model;
 

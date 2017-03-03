@@ -78,13 +78,14 @@ export class Margin extends ViewPart {
 	}
 
 	public render(ctx: IRestrictedRenderingContext): void {
+		const adjustedScrollTop = ctx.viewportTop - ctx.bigNumbersDelta;
 		if (this._canUseTranslate3d) {
-			let transform = 'translate3d(0px, ' + ctx.viewportData.visibleRangesDeltaTop + 'px, 0px)';
+			let transform = 'translate3d(0px, ' + -adjustedScrollTop + 'px, 0px)';
 			this._domNode.setTransform(transform);
 			this._domNode.setTop(0);
 		} else {
 			this._domNode.setTransform('');
-			this._domNode.setTop(ctx.viewportData.visibleRangesDeltaTop);
+			this._domNode.setTop(-adjustedScrollTop);
 		}
 
 		let height = Math.min(ctx.scrollHeight, 1000000);
