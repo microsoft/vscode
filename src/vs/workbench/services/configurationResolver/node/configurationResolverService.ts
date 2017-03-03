@@ -248,9 +248,13 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 
 				return this.commandService.executeCommand<string>(commandId, configuration).then(result => {
 					if (result) {
-						interactiveVariablesToSubstitutes[interactiveVariable].forEach(substitute =>
-							substitute.object[substitute.key] = substitute.object[substitute.key].replace(`\${command:${interactiveVariable}}`, result).replace(`\${command.${interactiveVariable}}`, result)
-						);
+						interactiveVariablesToSubstitutes[interactiveVariable].forEach(substitute => {
+							if (substitute.object[substitute.key].indexOf(`\${command:${interactiveVariable}}`) >= 0) {
+								substitute.object[substitute.key] = substitute.object[substitute.key].replace(`\${command:${interactiveVariable}}`, result);
+							} else if (substitute.object[substitute.key].indexOf(`\${command.${interactiveVariable}}`) >= 0) {
+								substitute.object[substitute.key] = substitute.object[substitute.key].replace(`\${command.${interactiveVariable}}`, result);
+							}
+						});
 					} else {
 						substitionCanceled = true;
 					}
