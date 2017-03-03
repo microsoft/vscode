@@ -14,9 +14,8 @@ export interface IViewLines {
 	visibleRangesForRange2(range: Range): HorizontalRange[];
 }
 
-export class RenderingContext implements IRenderingContext {
-
-	_renderingContextBrand: void;
+export abstract class RestrictedRenderingContext {
+	_restrictedRenderingContextBrand: void;
 
 	public readonly viewportData: ViewportData;
 
@@ -32,10 +31,8 @@ export class RenderingContext implements IRenderingContext {
 	public readonly viewportLeft: number;
 
 	private readonly _viewLayout: IViewLayout;
-	private readonly _viewLines: IViewLines;
 
-	constructor(viewLines: IViewLines, viewLayout: IViewLayout, viewportData: ViewportData) {
-		this._viewLines = viewLines;
+	constructor(viewLayout: IViewLayout, viewportData: ViewportData) {
 		this._viewLayout = viewLayout;
 		this.viewportData = viewportData;
 
@@ -71,6 +68,18 @@ export class RenderingContext implements IRenderingContext {
 		return this.viewportData.getDecorationsInViewport();
 	}
 
+}
+
+export class RenderingContext extends RestrictedRenderingContext {
+	_renderingContextBrand: void;
+
+	private readonly _viewLines: IViewLines;
+
+	constructor(viewLayout: IViewLayout, viewportData: ViewportData, viewLines: IViewLines) {
+		super(viewLayout, viewportData);
+		this._viewLines = viewLines;
+	}
+
 	public linesVisibleRangesForRange(range: Range, includeNewLines: boolean): LineVisibleRanges[] {
 		return this._viewLines.linesVisibleRangesForRange(range, includeNewLines);
 	}
@@ -84,34 +93,6 @@ export class RenderingContext implements IRenderingContext {
 		}
 		return visibleRanges[0];
 	}
-}
-
-export interface IRestrictedRenderingContext {
-	readonly viewportData: ViewportData;
-
-	readonly scrollWidth: number;
-	readonly scrollHeight: number;
-
-	readonly visibleRange: Range;
-	readonly bigNumbersDelta: number;
-
-	readonly viewportTop: number;
-	readonly viewportWidth: number;
-	readonly viewportHeight: number;
-	readonly viewportLeft: number;
-
-	getScrolledTopFromAbsoluteTop(absoluteTop: number): number;
-	getVerticalOffsetForLineNumber(lineNumber: number): number;
-	lineIsVisible(lineNumber: number): boolean;
-
-	getDecorationsInViewport(): ViewModelDecoration[];
-}
-
-export interface IRenderingContext extends IRestrictedRenderingContext {
-
-	linesVisibleRangesForRange(range: Range, includeNewLines: boolean): LineVisibleRanges[];
-
-	visibleRangeForPosition(position: Position): HorizontalRange;
 }
 
 export class LineVisibleRanges {

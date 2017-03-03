@@ -11,7 +11,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ClassNames, ContentWidgetPositionPreference, IContentWidget } from 'vs/editor/browser/editorBrowser';
 import { ViewPart, PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
-import { IRenderingContext, IRestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
+import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
 import { Position } from 'vs/editor/common/core/position';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
@@ -215,7 +215,7 @@ export class ViewContentWidgets extends ViewPart {
 		return false;
 	}
 
-	private _layoutBoxInViewport(topLeft: Coordinate, width: number, height: number, ctx: IRenderingContext): IBoxLayoutResult {
+	private _layoutBoxInViewport(topLeft: Coordinate, width: number, height: number, ctx: RenderingContext): IBoxLayoutResult {
 		// Our visible box is split horizontally by the current line => 2 boxes
 
 		// a) the box above the line
@@ -249,7 +249,7 @@ export class ViewContentWidgets extends ViewPart {
 		};
 	}
 
-	private _layoutBoxInPage(topLeft: Coordinate, width: number, height: number, ctx: IRenderingContext): IBoxLayoutResult {
+	private _layoutBoxInPage(topLeft: Coordinate, width: number, height: number, ctx: RenderingContext): IBoxLayoutResult {
 		let left0 = topLeft.left - ctx.viewportLeft;
 
 		if (left0 + width < 0 || left0 > this._contentWidth) {
@@ -308,7 +308,7 @@ export class ViewContentWidgets extends ViewPart {
 		return r;
 	}
 
-	private _getTopLeft(ctx: IRenderingContext, position: Position): Coordinate {
+	private _getTopLeft(ctx: RenderingContext, position: Position): Coordinate {
 		const visibleRange = ctx.visibleRangeForPosition(position);
 		if (!visibleRange) {
 			return null;
@@ -318,7 +318,7 @@ export class ViewContentWidgets extends ViewPart {
 		return new Coordinate(top, visibleRange.left);
 	}
 
-	private _prepareRenderWidget(widgetData: IWidgetData, ctx: IRenderingContext): IMyWidgetRenderData {
+	private _prepareRenderWidget(widgetData: IWidgetData, ctx: RenderingContext): IMyWidgetRenderData {
 		if (!widgetData.position || !widgetData.preference) {
 			return null;
 		}
@@ -400,7 +400,7 @@ export class ViewContentWidgets extends ViewPart {
 		return null;
 	}
 
-	public prepareRender(ctx: IRenderingContext): void {
+	public prepareRender(ctx: RenderingContext): void {
 		let data: IMyRenderData = {};
 
 		let keys = Object.keys(this._widgets);
@@ -415,7 +415,7 @@ export class ViewContentWidgets extends ViewPart {
 		this._renderData = data;
 	}
 
-	public render(ctx: IRestrictedRenderingContext): void {
+	public render(ctx: RestrictedRenderingContext): void {
 		let data = this._renderData;
 
 		let keys = Object.keys(this._widgets);

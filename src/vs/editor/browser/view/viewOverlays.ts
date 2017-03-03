@@ -11,7 +11,7 @@ import { IVisibleLine, ViewLayer } from 'vs/editor/browser/view/viewLayer';
 import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
 import { Configuration } from 'vs/editor/browser/config/configuration';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
-import { IRenderingContext, IRestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
+import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
@@ -87,7 +87,7 @@ export class ViewOverlays extends ViewLayer<ViewOverlayLine> {
 	}
 
 
-	public prepareRender(ctx: IRenderingContext): void {
+	public prepareRender(ctx: RenderingContext): void {
 		let toRender = this._dynamicOverlays.filter(overlay => overlay.shouldRender());
 
 		for (let i = 0, len = toRender.length; i < len; i++) {
@@ -99,14 +99,14 @@ export class ViewOverlays extends ViewLayer<ViewOverlayLine> {
 		return null;
 	}
 
-	public render(ctx: IRestrictedRenderingContext): void {
+	public render(ctx: RestrictedRenderingContext): void {
 		// Overwriting to bypass `shouldRender` flag
 		this._viewOverlaysRender(ctx);
 
 		this.domNode.toggleClassName('focused', this._isFocused);
 	}
 
-	_viewOverlaysRender(ctx: IRestrictedRenderingContext): void {
+	_viewOverlaysRender(ctx: RestrictedRenderingContext): void {
 		super._renderLines(ctx.viewportData);
 	}
 }
@@ -201,7 +201,7 @@ export class ContentViewOverlays extends ViewOverlays {
 
 	// --- end event handlers
 
-	_viewOverlaysRender(ctx: IRestrictedRenderingContext): void {
+	_viewOverlaysRender(ctx: RestrictedRenderingContext): void {
 		super._viewOverlaysRender(ctx);
 
 		this.domNode.setWidth(Math.max(ctx.scrollWidth, this._contentWidth));
@@ -246,7 +246,7 @@ export class MarginViewOverlays extends ViewOverlays {
 		return super.onScrollChanged(e) || e.scrollHeightChanged;
 	}
 
-	_viewOverlaysRender(ctx: IRestrictedRenderingContext): void {
+	_viewOverlaysRender(ctx: RestrictedRenderingContext): void {
 		super._viewOverlaysRender(ctx);
 		let height = Math.min(ctx.scrollHeight, 1000000);
 		this.domNode.setHeight(height);
