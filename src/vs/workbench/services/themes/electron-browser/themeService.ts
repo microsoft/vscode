@@ -360,7 +360,9 @@ export class ThemeService implements IThemeService {
 			}
 			return promise.then(_ => {
 				if (backupLocation) {
-					this.messageService.show(Severity.Info, nls.localize('migration.completed', 'New theme settings have been added to the user settings. Backup available at {0}.', backupLocation));
+					let message = nls.localize('migration.completed', 'New theme settings have been added to the user settings. Backup available at {0}.', backupLocation);
+					this.messageService.show(Severity.Info, message);
+					console.log(message);
 				}
 			});
 		});
