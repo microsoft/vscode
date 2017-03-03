@@ -219,6 +219,10 @@
 			"name": "support.variable.foundation"
 		},
 		{
+			"match": "(<#\\().*?(\\)#>)\\b",
+			"name": "support.snippet.xcode"
+		},
+		{
 			"captures": {
 				"1": {
 					"name": "punctuation.whitespace.support.function.cocoa.leopard"
