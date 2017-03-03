@@ -27,7 +27,7 @@ export function getLocalExtensionIdFromManifest(manifest: IExtensionManifest): s
 }
 
 export function getGalleryExtensionIdFromLocal(local: ILocalExtension): string {
-	return getIdAndVersionFromLocalExtensionId(local.id).id;
+	return getGalleryExtensionId(local.manifest.publisher, local.manifest.name);
 }
 
 export function getIdAndVersionFromLocalExtensionId(localExtensionId: string): { id: string, version: string } {
