@@ -2041,7 +2041,8 @@ export interface ITokenizedModel extends ITextModel {
 	setMode(languageIdentifier: LanguageIdentifier): void;
 
 	/**
-	 * Returns the true (inner-most) language mode at a given position.
+	 * Returns the real (inner-most) language mode at a given position.
+	 * The result might be inaccurate. Use `forceTokenization` to ensure accurate tokens.
 	 * @internal
 	 */
 	getLanguageIdAtPosition(lineNumber: number, column: number): LanguageId;

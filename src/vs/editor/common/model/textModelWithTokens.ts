@@ -228,10 +228,6 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		}
 		let { lineNumber, column } = this.validatePosition({ lineNumber: _lineNumber, column: _column });
 
-		this._withModelTokensChangedEventBuilder((eventBuilder) => {
-			this._updateTokensUntilLine(eventBuilder, lineNumber);
-		});
-
 		let lineTokens = this._getLineTokens(lineNumber);
 		let token = lineTokens.findTokenAtOffset(column - 1);
 		return token.languageId;
