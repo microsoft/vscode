@@ -108,9 +108,12 @@ export class SearchWidget extends Widget {
 	private _onReplaceAll = this._register(new Emitter<void>());
 	public onReplaceAll: Event<void> = this._onReplaceAll.event;
 
+	private hasBeenCleared: boolean;
+
 	constructor(container: Builder, private contextViewService: IContextViewService, options: ISearchWidgetOptions = Object.create(null),
 		private keyBindingService: IContextKeyService, private keyBindingService2: IKeybindingService, private instantiationService: IInstantiationService) {
 		super();
+		this.setHasBeenCleared(false);
 		this.searchHistory = new HistoryNavigator<string>();
 		this.replaceActive = Constants.ReplaceActiveKey.bindTo(this.keyBindingService);
 		this.searchInputBoxFocussed = Constants.SearchInputBoxFocussedKey.bindTo(this.keyBindingService);
@@ -137,12 +140,17 @@ export class SearchWidget extends Widget {
 		}
 	}
 
+	public setHasBeenCleared(cleared : boolean): void {
+		this.hasBeenCleared = cleared;
+	}
+
 	public setWidth(width: number) {
 		this.searchInput.setWidth(width - 2);
 		this.replaceInput.width = width - 28;
 	}
 
 	public clear() {
+		this.setHasBeenCleared(true);
 		this.searchInput.clear();
 		this.replaceInput.value = '';
 		this.setReplaceAllActionState(false);
@@ -170,7 +178,14 @@ export class SearchWidget extends Widget {
 	}
 
 	public showPreviousSearchTerm() {
-		let previous = this.searchHistory.previous();
+		let previous;
+		if(this.hasBeenCleared){
+			this.setHasBeenCleared(false);
+			 previous = this.searchHistory.current();
+
+		}else{
+		 	previous = this.searchHistory.previous();
+		}
 		if (previous) {
 			this.searchInput.setValue(previous);
 		}
