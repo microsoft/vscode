@@ -91,6 +91,7 @@ class InsertSnippetAction extends EditorAction {
 			if (langId) {
 				languageId = modeService.getLanguageIdentifier(langId).id;
 			} else {
+				editor.getModel().forceTokenization(lineNumber);
 				languageId = editor.getModel().getLanguageIdAtPosition(lineNumber, column);
 
 				// validate the `languageId` to ensure this is a user
