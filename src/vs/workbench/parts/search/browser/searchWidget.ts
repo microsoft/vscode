@@ -183,7 +183,7 @@ export class SearchWidget extends Widget {
 			this.setHasBeenCleared(false);
 			previous = this.searchHistory.current();
 		} else {
-		 	previous = this.searchHistory.previous();
+			previous = this.searchHistory.previous();
 		}
 		if (previous) {
 			this.searchInput.setValue(previous);
