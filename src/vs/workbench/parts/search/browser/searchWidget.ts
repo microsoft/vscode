@@ -140,7 +140,7 @@ export class SearchWidget extends Widget {
 		}
 	}
 
-	public setHasBeenCleared(cleared : boolean): void {
+	public setHasBeenCleared(cleared: boolean): void {
 		this.hasBeenCleared = cleared;
 	}
 
@@ -179,11 +179,10 @@ export class SearchWidget extends Widget {
 
 	public showPreviousSearchTerm() {
 		let previous;
-		if(this.hasBeenCleared){
+		if (this.hasBeenCleared) {
 			this.setHasBeenCleared(false);
-			 previous = this.searchHistory.current();
-
-		}else{
+			previous = this.searchHistory.current();
+		} else {
 		 	previous = this.searchHistory.previous();
 		}
 		if (previous) {
