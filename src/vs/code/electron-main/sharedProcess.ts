@@ -18,8 +18,8 @@ export function spawnSharedProcess(initData: ISharedProcessInitData, appRoot: st
 
 	const url = `${require.toUrl('vs/code/electron-browser/sharedProcess.html')}?config=${encodeURIComponent(JSON.stringify(config))}`;
 	window.loadURL(url);
-	window.webContents.openDevTools();
-	// window.hide();
+	// window.webContents.openDevTools();
+	window.hide();
 
 	// Prevent the window from dying
 	window.on('close', e => {
