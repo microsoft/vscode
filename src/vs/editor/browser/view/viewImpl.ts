@@ -906,7 +906,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 			this.keyboardHandler.writeToTextArea();
 		}
 
-		let renderingContext = new RenderingContext(this.viewLines, this.layoutProvider, viewportData);
+		let renderingContext = new RenderingContext(this.layoutProvider, viewportData, this.viewLines);
 
 		// Render the rest of the parts
 		for (let i = 0, len = viewPartsToRender.length; i < len; i++) {

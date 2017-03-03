@@ -10,7 +10,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { TextEditorCursorStyle } from 'vs/editor/common/editorCommon';
 import { Configuration } from 'vs/editor/browser/config/configuration';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
-import { IRenderingContext, IRestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
+import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
 export interface IViewCursorRenderData {
@@ -136,7 +136,7 @@ export class ViewCursor {
 		return true;
 	}
 
-	private _prepareRender(ctx: IRenderingContext): ViewCursorRenderData {
+	private _prepareRender(ctx: RenderingContext): ViewCursorRenderData {
 		if (this._cursorStyle === TextEditorCursorStyle.Line || this._cursorStyle === TextEditorCursorStyle.LineThin) {
 			const visibleRange = ctx.visibleRangeForPosition(this._position);
 			if (!visibleRange) {
@@ -173,11 +173,11 @@ export class ViewCursor {
 		return new ViewCursorRenderData(top, range.left, width, textContent);
 	}
 
-	public prepareRender(ctx: IRenderingContext): void {
+	public prepareRender(ctx: RenderingContext): void {
 		this._renderData = this._prepareRender(ctx);
 	}
 
-	public render(ctx: IRestrictedRenderingContext): IViewCursorRenderData {
+	public render(ctx: RestrictedRenderingContext): IViewCursorRenderData {
 		if (!this._renderData) {
 			this._domNode.setDisplay('none');
 			return null;

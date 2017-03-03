@@ -8,7 +8,7 @@
 import 'vs/css!./glyphMargin';
 import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
-import { IRenderingContext } from 'vs/editor/common/view/renderingContext';
+import { RenderingContext } from 'vs/editor/common/view/renderingContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
 export class DecorationToRender {
@@ -148,7 +148,7 @@ export class GlyphMarginOverlay extends DedupOverlay {
 
 	// --- end event handlers
 
-	protected _getDecorations(ctx: IRenderingContext): DecorationToRender[] {
+	protected _getDecorations(ctx: RenderingContext): DecorationToRender[] {
 		let decorations = ctx.getDecorationsInViewport();
 		let r: DecorationToRender[] = [];
 		for (let i = 0, len = decorations.length; i < len; i++) {
@@ -161,7 +161,7 @@ export class GlyphMarginOverlay extends DedupOverlay {
 		return r;
 	}
 
-	public prepareRender(ctx: IRenderingContext): void {
+	public prepareRender(ctx: RenderingContext): void {
 		if (!this._glyphMargin) {
 			this._renderResult = null;
 			return;
