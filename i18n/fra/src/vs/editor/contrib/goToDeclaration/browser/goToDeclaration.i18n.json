@@ -13,5 +13,6 @@
 	"actions.previewDecl.label": "Apercu de définition",
 	"generic.noResults": "Définition introuvable",
 	"meta.title": " – {0} définitions",
-	"multipleResults": "Cliquez pour afficher {0} définitions."
+	"multipleResults": "Cliquez pour afficher {0} définitions.",
+	"noResultWord": "Définition introuvable pour '{0}'"
 }

@@ -13,5 +13,6 @@
 	"actions.previewDecl.label": "Ver la definición",
 	"generic.noResults": "No se encontró ninguna definición",
 	"meta.title": " – {0} definiciones",
-	"multipleResults": "Haga clic para mostrar {0} definiciones."
+	"multipleResults": "Haga clic para mostrar {0} definiciones.",
+	"noResultWord": "No se encontró ninguna definición para \"{0}\""
 }

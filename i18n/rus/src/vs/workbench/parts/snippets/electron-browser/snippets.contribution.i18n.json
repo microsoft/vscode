@@ -6,7 +6,7 @@
 {
 	"openSnippet.errorOnCreate": "Не удалось создать {0}.",
 	"openSnippet.label": "Открыть пользовательские фрагменты",
-	"openSnippet.pickLanguage": "Выберите язык для фрагмента.",
+	"openSnippet.pickLanguage": "Выберите язык для фрагментов кода",
 	"preferences": "Параметры",
 	"snippetSchema.json": "Настройка фрагмента пользователя",
 	"snippetSchema.json.body": "Содержимое фрагмента. Используйте \"${id}\", \"${id:label}\", \"${1:label}\" для переменных и \"$0\", \"$1\" для положений курсора",
