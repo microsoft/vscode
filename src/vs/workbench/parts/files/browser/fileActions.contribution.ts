@@ -223,7 +223,7 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(ShowActiveFileInExplor
 registry.registerWorkbenchAction(new SyncActionDescriptor(CollapseExplorerView, CollapseExplorerView.ID, CollapseExplorerView.LABEL), 'Files: Collapse Folders in Explorer', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(RefreshExplorerView, RefreshExplorerView.ID, RefreshExplorerView.LABEL), 'Files: Refresh Explorer', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(SaveFileAsAction, SaveFileAsAction.ID, SaveFileAsAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_S }), 'Files: Save As...', category);
-registry.registerWorkbenchAction(new SyncActionDescriptor(SaveIfDirtyFileAction, SaveIfDirtyFileAction.ID, SaveIfDirtyFileAction.LABEL), 'Files: Save If Dirty...', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(SaveIfDirtyFileAction, SaveIfDirtyFileAction.ID, SaveIfDirtyFileAction.LABEL), 'Files: Save If Dirty', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(GlobalNewUntitledFileAction, GlobalNewUntitledFileAction.ID, GlobalNewUntitledFileAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_N }), 'Files: New Untitled File', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(GlobalRevealInOSAction, GlobalRevealInOSAction.ID, GlobalRevealInOSAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_R) }), 'Files: Reveal Active File', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(ShowOpenedFileInNewWindow, ShowOpenedFileInNewWindow.ID, ShowOpenedFileInNewWindow.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_O) }), 'Files: Open Active File in New Window', category);
