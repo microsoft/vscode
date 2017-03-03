@@ -69,6 +69,11 @@
 					"light": "./media/ViewSource.svg",
 					"dark": "./media/ViewSource_inverse.svg"
 				}
+			},
+			{
+				"command": "markdown.showPreviewSecuritySelector",
+				"title": "%markdown.showPreviewSecuritySelector.title%",
+				"category": "Markdown"
 			}
 		],
 		"menus": {
@@ -83,6 +88,10 @@
 					"when": "resourceScheme == markdown",
 					"command": "markdown.showSource",
 					"group": "navigation"
+				},
+				{
+					"when": "resourceScheme == markdown",
+					"command": "markdown.showPreviewSecuritySelector"
 				}
 			],
 			"explorer/context": [
@@ -183,7 +192,8 @@
 		"highlight.js": "^9.3.0",
 		"markdown-it": "^8.2.2",
 		"markdown-it-named-headers": "0.0.4",
-		"vscode-extension-telemetry": "^0.0.6"
+		"vscode-extension-telemetry": "^0.0.6",
+		"vscode-nls": "^2.0.2"
 	},
 	"devDependencies": {
 		"@types/node": "^7.0.4"
