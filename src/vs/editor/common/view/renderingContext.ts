@@ -56,10 +56,8 @@ export class RenderingContext implements IRenderingContext {
 		return this._viewLayout.getScrolledTopFromAbsoluteTop(absoluteTop);
 	}
 
-	public getViewportVerticalOffsetForLineNumber(lineNumber: number): number {
-		const verticalOffset = this._viewLayout.getVerticalOffsetForLineNumber(lineNumber);
-		const scrolledTop = this._viewLayout.getScrolledTopFromAbsoluteTop(verticalOffset);
-		return scrolledTop;
+	public getVerticalOffsetForLineNumber(lineNumber: number): number {
+		return this._viewLayout.getVerticalOffsetForLineNumber(lineNumber);
 	}
 
 	public lineIsVisible(lineNumber: number): boolean {
@@ -105,7 +103,7 @@ export interface IRestrictedRenderingContext {
 	readonly viewportLeft: number;
 
 	getScrolledTopFromAbsoluteTop(absoluteTop: number): number;
-	getViewportVerticalOffsetForLineNumber(lineNumber: number): number;
+	getVerticalOffsetForLineNumber(lineNumber: number): number;
 	lineIsVisible(lineNumber: number): boolean;
 
 	getDecorationsInViewport(): ViewModelDecoration[];

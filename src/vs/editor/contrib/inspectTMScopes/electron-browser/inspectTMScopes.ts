@@ -163,6 +163,7 @@ class InspectTMScopesWidget extends Disposable implements IContentWidget {
 
 	private static _ID = 'editor.contrib.inspectTMScopesWidget';
 
+	// Editor.IContentWidget.allowEditorOverflow
 	public readonly allowEditorOverflow = true;
 
 	private _isDisposed: boolean;
