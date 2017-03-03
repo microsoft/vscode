@@ -14,7 +14,7 @@ import { TextModel } from 'vs/editor/common/model/textModel';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { BulkListenerCallback } from 'vs/base/common/eventEmitter';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
-import { ITextModelData, TextModelData } from 'vs/editor/common/model/textSource';
+import { IRawTextSource, RawTextSource } from 'vs/editor/common/model/textSource';
 
 // The hierarchy is:
 // Model -> EditableTextModel -> TextModelWithDecorations -> TextModelWithTrackedRanges -> TextModelWithMarkers -> TextModelWithTokens -> TextModel
@@ -41,7 +41,7 @@ export class Model extends EditableTextModel implements IModel {
 	}
 
 	public static createFromString(text: string, options: ITextModelCreationOptions = TextModel.DEFAULT_CREATION_OPTIONS, languageIdentifier: LanguageIdentifier = null, uri: URI = null): Model {
-		return new Model(TextModelData.fromString(text, options), languageIdentifier, uri);
+		return new Model(RawTextSource.fromString(text), options, languageIdentifier, uri);
 	}
 
 	public readonly id: string;
@@ -49,8 +49,8 @@ export class Model extends EditableTextModel implements IModel {
 	private readonly _associatedResource: URI;
 	private _attachedEditorCount: number;
 
-	constructor(textModelData: ITextModelData, languageIdentifier: LanguageIdentifier, associatedResource: URI = null) {
-		super([EventType.ModelDispose], textModelData, languageIdentifier);
+	constructor(rawTextSource: IRawTextSource, creationOptions: ITextModelCreationOptions, languageIdentifier: LanguageIdentifier, associatedResource: URI = null) {
+		super([EventType.ModelDispose], rawTextSource, creationOptions, languageIdentifier);
 
 		// Generate a new unique model id
 		MODEL_ID++;

@@ -15,10 +15,15 @@ import { DEFAULT_INDENTATION, DEFAULT_TRIM_AUTO_WHITESPACE } from 'vs/editor/com
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
 import { IndentRange, computeRanges } from 'vs/editor/common/model/indentRanges';
 import { TextModelSearch, SearchParams } from 'vs/editor/common/model/textModelSearch';
-import { ITextModelData, TextSource, ITextSource } from 'vs/editor/common/model/textSource';
+import { TextSource, ITextSource, IRawTextSource, RawTextSource } from 'vs/editor/common/model/textSource';
 
 const LIMIT_FIND_COUNT = 999;
 export const LONG_LINE_BOUNDARY = 1000;
+
+export interface ITextModelCreationData {
+	readonly text: ITextSource;
+	readonly options: editorCommon.TextModelResolvedOptions;
+}
 
 export class TextModel extends OrderGuaranteeEventEmitter implements editorCommon.ITextModel {
 	private static MODEL_SYNC_LIMIT = 5 * 1024 * 1024; // 5 MB
@@ -31,6 +36,37 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		defaultEOL: editorCommon.DefaultEndOfLine.LF,
 		trimAutoWhitespace: DEFAULT_TRIM_AUTO_WHITESPACE,
 	};
+
+	public static createFromString(text: string, options: editorCommon.ITextModelCreationOptions = TextModel.DEFAULT_CREATION_OPTIONS): TextModel {
+		return new TextModel([], RawTextSource.fromString(text), options);
+	}
+
+	public static resolveCreationData(rawTextSource: IRawTextSource, options: editorCommon.ITextModelCreationOptions): ITextModelCreationData {
+		const textSource = TextSource.fromRawTextSource(rawTextSource, options.defaultEOL);
+
+		let resolvedOpts: editorCommon.TextModelResolvedOptions;
+		if (options.detectIndentation) {
+			const guessedIndentation = guessIndentation(textSource.lines, options.tabSize, options.insertSpaces);
+			resolvedOpts = new editorCommon.TextModelResolvedOptions({
+				tabSize: guessedIndentation.tabSize,
+				insertSpaces: guessedIndentation.insertSpaces,
+				trimAutoWhitespace: options.trimAutoWhitespace,
+				defaultEOL: options.defaultEOL
+			});
+		} else {
+			resolvedOpts = new editorCommon.TextModelResolvedOptions({
+				tabSize: options.tabSize,
+				insertSpaces: options.insertSpaces,
+				trimAutoWhitespace: options.trimAutoWhitespace,
+				defaultEOL: options.defaultEOL
+			});
+		}
+
+		return {
+			text: textSource,
+			options: resolvedOpts
+		};
+	}
 
 	/*protected*/ _lines: ModelLine[];
 	protected _EOL: string;
@@ -52,9 +88,11 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 	private _shouldSimplifyMode: boolean;
 	private _shouldDenyMode: boolean;
 
-	constructor(allowedEventTypes: string[], textModelData: ITextModelData) {
+	constructor(allowedEventTypes: string[], rawTextSource: IRawTextSource, creationOptions: editorCommon.ITextModelCreationOptions) {
 		allowedEventTypes.push(editorCommon.EventType.ModelRawContentChanged, editorCommon.EventType.ModelOptionsChanged, editorCommon.EventType.ModelContentChanged2);
 		super(allowedEventTypes);
+
+		const textModelData = TextModel.resolveCreationData(rawTextSource, creationOptions);
 
 		this._shouldSimplifyMode = (textModelData.text.length > TextModel.MODEL_SYNC_LIMIT);
 		this._shouldDenyMode = (textModelData.text.length > TextModel.MODEL_TOKENIZATION_LIMIT);

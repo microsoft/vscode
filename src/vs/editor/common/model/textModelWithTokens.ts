@@ -21,7 +21,7 @@ import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageCo
 import { LineTokens, LineToken } from 'vs/editor/common/core/lineTokens';
 import { getWordAtText } from 'vs/editor/common/model/wordHelper';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
-import { ITextModelData, ITextSource } from 'vs/editor/common/model/textSource';
+import { ITextSource, IRawTextSource } from 'vs/editor/common/model/textSource';
 
 class ModelTokensChangedEventBuilder {
 
@@ -71,10 +71,10 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 
 	private _revalidateTokensTimeout: number;
 
-	constructor(allowedEventTypes: string[], textModelData: ITextModelData, languageIdentifier: LanguageIdentifier) {
+	constructor(allowedEventTypes: string[], rawTextSource: IRawTextSource, creationOptions: editorCommon.ITextModelCreationOptions, languageIdentifier: LanguageIdentifier) {
 		allowedEventTypes.push(editorCommon.EventType.ModelTokensChanged);
 		allowedEventTypes.push(editorCommon.EventType.ModelLanguageChanged);
-		super(allowedEventTypes, textModelData);
+		super(allowedEventTypes, rawTextSource, creationOptions);
 
 		this._languageIdentifier = languageIdentifier || NULL_LANGUAGE_IDENTIFIER;
 		this._tokenizationListener = TokenizationRegistry.onDidChange((e) => {
