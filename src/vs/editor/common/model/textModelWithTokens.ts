@@ -167,15 +167,19 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		return result;
 	}
 
-	public getLineTokens(lineNumber: number, inaccurateTokensAcceptable: boolean): LineTokens {
+	public forceTokenization(lineNumber: number): void {
 		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
 			throw new Error('Illegal value ' + lineNumber + ' for `lineNumber`');
 		}
 
-		if (!inaccurateTokensAcceptable) {
-			this._withModelTokensChangedEventBuilder((eventBuilder) => {
-				this._updateTokensUntilLine(eventBuilder, lineNumber, true);
-			});
+		this._withModelTokensChangedEventBuilder((eventBuilder) => {
+			this._updateTokensUntilLine(eventBuilder, lineNumber);
+		});
+	}
+
+	public getLineTokens(lineNumber: number): LineTokens {
+		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
+			throw new Error('Illegal value ' + lineNumber + ' for `lineNumber`');
 		}
 
 		return this._getLineTokens(lineNumber);
@@ -225,7 +229,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		let { lineNumber, column } = this.validatePosition({ lineNumber: _lineNumber, column: _column });
 
 		this._withModelTokensChangedEventBuilder((eventBuilder) => {
-			this._updateTokensUntilLine(eventBuilder, lineNumber, true);
+			this._updateTokensUntilLine(eventBuilder, lineNumber);
 		});
 
 		let lineTokens = this._getLineTokens(lineNumber);
@@ -311,7 +315,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 					}
 				}
 
-				this._updateTokensUntilLine(eventBuilder, lineNumber, false);
+				this._updateTokensUntilLine(eventBuilder, lineNumber);
 				tokenizedChars += currentCharsToTokenize;
 
 				// Skip the lines that got tokenized
@@ -326,7 +330,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		});
 	}
 
-	private _updateTokensUntilLine(eventBuilder: ModelTokensChangedEventBuilder, lineNumber: number, emitEvents: boolean): void {
+	private _updateTokensUntilLine(eventBuilder: ModelTokensChangedEventBuilder, lineNumber: number): void {
 		if (!this._tokenizationSupport) {
 			this._invalidLineStartIndex = this._lines.length;
 			return;
