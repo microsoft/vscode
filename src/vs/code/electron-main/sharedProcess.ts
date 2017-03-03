@@ -24,8 +24,8 @@ export class SharedProcess {
 
 		const url = `${require.toUrl('vs/code/electron-browser/sharedProcess.html')}?config=${encodeURIComponent(JSON.stringify(config))}`;
 		this.window.loadURL(url);
-		this.window.webContents.openDevTools();
-		// this.window.hide();
+		// this.window.webContents.openDevTools();
+		this.window.hide();
 
 		// Prevent the window from dying
 		this.window.on('close', e => {
