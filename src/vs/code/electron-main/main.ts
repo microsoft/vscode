@@ -44,7 +44,7 @@ import { EnvironmentService } from 'vs/platform/environment/node/environmentServ
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
 import { IRequestService } from 'vs/platform/request/node/request';
-import { RequestService } from 'vs/platform/request/node/requestService';
+import { RequestService } from 'vs/platform/request/electron-main/requestService';
 import { IURLService } from 'vs/platform/url/common/url';
 import { URLChannel } from 'vs/platform/url/common/urlIpc';
 import { URLService } from 'vs/platform/url/electron-main/urlService';
