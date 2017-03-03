@@ -62,6 +62,11 @@
       "from": "vscode-extension-telemetry@>=0.0.6 <0.0.7",
       "resolved": "https://registry.npmjs.org/vscode-extension-telemetry/-/vscode-extension-telemetry-0.0.6.tgz"
     },
+    "vscode-nls": {
+      "version": "2.0.2",
+      "from": "vscode-nls@latest",
+      "resolved": "https://registry.npmjs.org/vscode-nls/-/vscode-nls-2.0.2.tgz"
+    },
     "winreg": {
       "version": "1.2.3",
       "from": "winreg@1.2.3",
