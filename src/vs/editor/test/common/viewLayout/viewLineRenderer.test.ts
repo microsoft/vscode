@@ -9,7 +9,7 @@ import { renderViewLine, RenderLineInput, CharacterMapping } from 'vs/editor/com
 import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
 import { CharCode } from 'vs/base/common/charCode';
 import { MetadataConsts } from 'vs/editor/common/modes';
-import { Decoration } from 'vs/editor/common/viewLayout/viewLineParts';
+import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
 
 suite('viewLineRenderer.renderLine', () => {
 
@@ -639,7 +639,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			false,
 			0,
 			[createPart(21, 3)],
-			[new Decoration(1, 22, 'link', false)],
+			[new LineDecoration(1, 22, 'link', false)],
 			4,
 			10,
 			-1,
@@ -673,7 +673,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 				createPart(84, 6),
 			],
 			[
-				new Decoration(13, 51, 'detected-link', false)
+				new LineDecoration(13, 51, 'detected-link', false)
 			],
 			4,
 			10,
@@ -930,9 +930,9 @@ suite('viewLineRenderer.renderLine 2', () => {
 			0,
 			[createPart(11, 0)],
 			[
-				new Decoration(5, 7, 'a', false),
-				new Decoration(1, 3, 'b', false),
-				new Decoration(2, 8, 'c', false),
+				new LineDecoration(5, 7, 'a', false),
+				new LineDecoration(1, 3, 'b', false),
+				new LineDecoration(2, 8, 'c', false),
 			],
 			4,
 			10,
