@@ -27,7 +27,7 @@ import { Server, serve, connect } from 'vs/base/parts/ipc/node/ipc.net';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { AskpassChannel } from 'vs/workbench/parts/git/common/gitIpc';
 import { GitAskpassService } from 'vs/workbench/parts/git/electron-main/askpassService';
-import { spawnSharedProcess } from 'vs/code/electron-main/sharedProcess';
+import { SharedProcess } from 'vs/code/electron-main/sharedProcess';
 import { Mutex } from 'windows-mutex';
 import { LaunchService, ILaunchChannel, LaunchChannel, LaunchChannelClient, ILaunchService } from './launch';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -144,8 +144,9 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 	// Spawn shared process
 	const initData = { args: environmentService.args };
 
-	const sharedProcess = spawnSharedProcess(initData, environmentService.appRoot, environmentService.nodeCachedDataDir)
-		.then(disposable => connect(environmentService.sharedIPCHandle, 'main'));
+	const sharedProcess = new SharedProcess(initData, environmentService.appRoot, environmentService.nodeCachedDataDir);
+	const sharedProcessClient = sharedProcess.onReady
+		.then(() => connect(environmentService.sharedIPCHandle, 'main'));
 
 	// Create a new service collection, because the telemetry service
 	// requires a connection to shared process, which was only established
@@ -158,7 +159,7 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 	services.set(ILaunchService, new SyncDescriptor(LaunchService));
 
 	if (environmentService.isBuilt && !environmentService.isExtensionDevelopment && !!product.enableTelemetry) {
-		const channel = getDelayedChannel<ITelemetryAppenderChannel>(sharedProcess.then(c => c.getChannel('telemetryAppender')));
+		const channel = getDelayedChannel<ITelemetryAppenderChannel>(sharedProcessClient.then(c => c.getChannel('telemetryAppender')));
 		const appender = new TelemetryAppenderClient(channel);
 		const commonProperties = resolveCommonProperties(product.commit, pkg.version);
 		const piiPaths = [environmentService.appRoot, environmentService.extensionsPath];
@@ -173,6 +174,12 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 	instantiationService2.invokeFunction(accessor => {
 		// TODO@Joao: unfold this
 		windowsMainService = accessor.get(IWindowsMainService);
+
+		windowsMainService.onWindowClose(() => {
+			if (windowsMainService.getWindowCount() === 0) {
+				sharedProcess.dispose();
+			}
+		});
 
 		// Register more Main IPC services
 		const launchService = accessor.get(ILaunchService);
@@ -195,7 +202,7 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 		const windowsService = accessor.get(IWindowsService);
 		const windowsChannel = new WindowsChannel(windowsService);
 		electronIpcServer.registerChannel('windows', windowsChannel);
-		sharedProcess.done(client => client.registerChannel('windows', windowsChannel));
+		sharedProcessClient.done(client => client.registerChannel('windows', windowsChannel));
 
 		// Make sure we associate the program with the app user model id
 		// This will help Windows to associate the running program with
