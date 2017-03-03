@@ -2016,7 +2016,7 @@ export interface ITokenizedModel extends ITextModel {
 	 * @param inaccurateTokensAcceptable Are inaccurate tokens acceptable? Defaults to false
 	 * @internal
 	 */
-	getLineTokens(lineNumber: number, inaccurateTokensAcceptable?: boolean): LineTokens;
+	getLineTokens(lineNumber: number, inaccurateTokensAcceptable: boolean): LineTokens;
 
 	/**
 	 * Get the language associated with this model.

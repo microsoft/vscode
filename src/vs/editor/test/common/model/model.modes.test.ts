@@ -59,98 +59,98 @@ suite('Editor Model - Model Modes 1', () => {
 	});
 
 	test('model calls syntax highlighter 1', () => {
-		thisModel.getLineTokens(1);
+		thisModel.getLineTokens(1, false);
 		checkAndClear(['1']);
 	});
 
 	test('model calls syntax highlighter 2', () => {
-		thisModel.getLineTokens(2);
+		thisModel.getLineTokens(2, false);
 		checkAndClear(['1', '2']);
 
-		thisModel.getLineTokens(2);
+		thisModel.getLineTokens(2, false);
 		checkAndClear([]);
 	});
 
 	test('model caches states', () => {
-		thisModel.getLineTokens(1);
+		thisModel.getLineTokens(1, false);
 		checkAndClear(['1']);
 
-		thisModel.getLineTokens(2);
+		thisModel.getLineTokens(2, false);
 		checkAndClear(['2']);
 
-		thisModel.getLineTokens(3);
+		thisModel.getLineTokens(3, false);
 		checkAndClear(['3']);
 
-		thisModel.getLineTokens(4);
+		thisModel.getLineTokens(4, false);
 		checkAndClear(['4']);
 
-		thisModel.getLineTokens(5);
+		thisModel.getLineTokens(5, false);
 		checkAndClear(['5']);
 
-		thisModel.getLineTokens(5);
+		thisModel.getLineTokens(5, false);
 		checkAndClear([]);
 	});
 
 	test('model invalidates states for one line insert', () => {
-		thisModel.getLineTokens(5);
+		thisModel.getLineTokens(5, false);
 		checkAndClear(['1', '2', '3', '4', '5']);
 
 		thisModel.applyEdits([EditOperation.insert(new Position(1, 1), '-')]);
-		thisModel.getLineTokens(5);
+		thisModel.getLineTokens(5, false);
 		checkAndClear(['-']);
 
-		thisModel.getLineTokens(5);
+		thisModel.getLineTokens(5, false);
 		checkAndClear([]);
 	});
 
 	test('model invalidates states for many lines insert', () => {
-		thisModel.getLineTokens(5);
+		thisModel.getLineTokens(5, false);
 		checkAndClear(['1', '2', '3', '4', '5']);
 
 		thisModel.applyEdits([EditOperation.insert(new Position(1, 1), '0\n-\n+')]);
 		assert.equal(thisModel.getLineCount(), 7);
-		thisModel.getLineTokens(7);
+		thisModel.getLineTokens(7, false);
 		checkAndClear(['0', '-', '+']);
 
-		thisModel.getLineTokens(7);
+		thisModel.getLineTokens(7, false);
 		checkAndClear([]);
 	});
 
 	test('model invalidates states for one new line', () => {
-		thisModel.getLineTokens(5);
+		thisModel.getLineTokens(5, false);
 		checkAndClear(['1', '2', '3', '4', '5']);
 
 		thisModel.applyEdits([EditOperation.insert(new Position(1, 2), '\n')]);
 		thisModel.applyEdits([EditOperation.insert(new Position(2, 1), 'a')]);
-		thisModel.getLineTokens(6);
+		thisModel.getLineTokens(6, false);
 		checkAndClear(['1', 'a']);
 	});
 
 	test('model invalidates states for one line delete', () => {
-		thisModel.getLineTokens(5);
+		thisModel.getLineTokens(5, false);
 		checkAndClear(['1', '2', '3', '4', '5']);
 
 		thisModel.applyEdits([EditOperation.insert(new Position(1, 2), '-')]);
-		thisModel.getLineTokens(5);
+		thisModel.getLineTokens(5, false);
 		checkAndClear(['1']);
 
 		thisModel.applyEdits([EditOperation.delete(new Range(1, 1, 1, 2))]);
-		thisModel.getLineTokens(5);
+		thisModel.getLineTokens(5, false);
 		checkAndClear(['-']);
 
-		thisModel.getLineTokens(5);
+		thisModel.getLineTokens(5, false);
 		checkAndClear([]);
 	});
 
 	test('model invalidates states for many lines delete', () => {
-		thisModel.getLineTokens(5);
+		thisModel.getLineTokens(5, false);
 		checkAndClear(['1', '2', '3', '4', '5']);
 
 		thisModel.applyEdits([EditOperation.delete(new Range(1, 1, 3, 1))]);
-		thisModel.getLineTokens(3);
+		thisModel.getLineTokens(3, false);
 		checkAndClear(['3']);
 
-		thisModel.getLineTokens(3);
+		thisModel.getLineTokens(3, false);
 		checkAndClear([]);
 	});
 });
@@ -227,17 +227,17 @@ suite('Editor Model - Model Modes 2', () => {
 	});
 
 	test('getTokensForInvalidLines one text insert', () => {
-		thisModel.getLineTokens(5);
+		thisModel.getLineTokens(5, false);
 		statesEqual(thisModel, ['', 'Line1', 'Line2', 'Line3', 'Line4', 'Line5']);
 		thisModel.applyEdits([EditOperation.insert(new Position(1, 6), '-')]);
 		invalidEqual(thisModel, [0]);
 		statesEqual(thisModel, ['', 'Line1', 'Line2', 'Line3', 'Line4', 'Line5']);
-		thisModel.getLineTokens(5);
+		thisModel.getLineTokens(5, false);
 		statesEqual(thisModel, ['', 'Line1-', 'Line2', 'Line3', 'Line4', 'Line5']);
 	});
 
 	test('getTokensForInvalidLines two text insert', () => {
-		thisModel.getLineTokens(5);
+		thisModel.getLineTokens(5, false);
 		statesEqual(thisModel, ['', 'Line1', 'Line2', 'Line3', 'Line4', 'Line5']);
 		thisModel.applyEdits([
 			EditOperation.insert(new Position(1, 6), '-'),
@@ -245,46 +245,46 @@ suite('Editor Model - Model Modes 2', () => {
 		]);
 
 		invalidEqual(thisModel, [0, 2]);
-		thisModel.getLineTokens(5);
+		thisModel.getLineTokens(5, false);
 		statesEqual(thisModel, ['', 'Line1-', 'Line2', 'Line3-', 'Line4', 'Line5']);
 	});
 
 	test('getTokensForInvalidLines one multi-line text insert, one small text insert', () => {
-		thisModel.getLineTokens(5);
+		thisModel.getLineTokens(5, false);
 		statesEqual(thisModel, ['', 'Line1', 'Line2', 'Line3', 'Line4', 'Line5']);
 		thisModel.applyEdits([EditOperation.insert(new Position(1, 6), '\nNew line\nAnother new line')]);
 		thisModel.applyEdits([EditOperation.insert(new Position(5, 6), '-')]);
 		invalidEqual(thisModel, [0, 4]);
-		thisModel.getLineTokens(7);
+		thisModel.getLineTokens(7, false);
 		statesEqual(thisModel, ['', 'Line1', 'New line', 'Another new line', 'Line2', 'Line3-', 'Line4', 'Line5']);
 	});
 
 	test('getTokensForInvalidLines one delete text', () => {
-		thisModel.getLineTokens(5);
+		thisModel.getLineTokens(5, false);
 		statesEqual(thisModel, ['', 'Line1', 'Line2', 'Line3', 'Line4', 'Line5']);
 		thisModel.applyEdits([EditOperation.delete(new Range(1, 1, 1, 5))]);
 		invalidEqual(thisModel, [0]);
-		thisModel.getLineTokens(5);
+		thisModel.getLineTokens(5, false);
 		statesEqual(thisModel, ['', '1', 'Line2', 'Line3', 'Line4', 'Line5']);
 	});
 
 	test('getTokensForInvalidLines one line delete text', () => {
-		thisModel.getLineTokens(5);
+		thisModel.getLineTokens(5, false);
 		statesEqual(thisModel, ['', 'Line1', 'Line2', 'Line3', 'Line4', 'Line5']);
 		thisModel.applyEdits([EditOperation.delete(new Range(1, 1, 2, 1))]);
 		invalidEqual(thisModel, [0]);
 		statesEqual(thisModel, ['', 'Line2', 'Line3', 'Line4', 'Line5']);
-		thisModel.getLineTokens(4);
+		thisModel.getLineTokens(4, false);
 		statesEqual(thisModel, ['', 'Line2', 'Line3', 'Line4', 'Line5']);
 	});
 
 	test('getTokensForInvalidLines multiple lines delete text', () => {
-		thisModel.getLineTokens(5);
+		thisModel.getLineTokens(5, false);
 		statesEqual(thisModel, ['', 'Line1', 'Line2', 'Line3', 'Line4', 'Line5']);
 		thisModel.applyEdits([EditOperation.delete(new Range(1, 1, 3, 3))]);
 		invalidEqual(thisModel, [0]);
 		statesEqual(thisModel, ['', 'Line3', 'Line4', 'Line5']);
-		thisModel.getLineTokens(3);
+		thisModel.getLineTokens(3, false);
 		statesEqual(thisModel, ['', 'ne3', 'Line4', 'Line5']);
 	});
 });

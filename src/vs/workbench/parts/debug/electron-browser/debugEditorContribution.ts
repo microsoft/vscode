@@ -514,7 +514,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 					continue;
 				}
 
-				const lineTokens = model.getLineTokens(lineNumber);
+				const lineTokens = model.getLineTokens(lineNumber, false);
 				for (let token = lineTokens.firstToken(); !!token; token = token.next()) {
 					const tokenStr = lineContent.substring(token.startOffset, token.endOffset);
 

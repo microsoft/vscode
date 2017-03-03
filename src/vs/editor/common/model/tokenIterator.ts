@@ -82,7 +82,7 @@ export class TokenIterator implements editorCommon.ITokenIterator {
 
 		position = findClosestNonEmptyLine(model, position);
 		if (position) {
-			let lineTokens = this._model.getLineTokens(position.lineNumber);
+			let lineTokens = this._model.getLineTokens(position.lineNumber, false);
 			let currentToken = lineTokens.findTokenAtOffset(position.column - 1);
 			if (currentToken) {
 				this._prev = this._next = new TokenInfo(currentToken, position.lineNumber);
@@ -99,7 +99,7 @@ export class TokenIterator implements editorCommon.ITokenIterator {
 		let next = this._next._actual.next();
 		while (!next && lineNumber < this._lineCount) {
 			lineNumber++;
-			let currentLineTokens = this._model.getLineTokens(lineNumber);
+			let currentLineTokens = this._model.getLineTokens(lineNumber, false);
 			next = currentLineTokens.firstToken();
 		}
 
@@ -120,7 +120,7 @@ export class TokenIterator implements editorCommon.ITokenIterator {
 		let prev = this._prev._actual.prev();
 		while (!prev && lineNumber > 1) {
 			lineNumber--;
-			let currentLineTokens = this._model.getLineTokens(lineNumber);
+			let currentLineTokens = this._model.getLineTokens(lineNumber, false);
 			prev = currentLineTokens.lastToken();
 		}
 
