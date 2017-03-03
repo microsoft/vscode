@@ -35,7 +35,7 @@ export interface ILineMapperFactory {
 }
 
 export interface IModel {
-	getLineTokens(lineNumber: number, inaccurateTokensAcceptable: boolean): LineTokens;
+	getLineTokens(lineNumber: number): LineTokens;
 	getLineContent(lineNumber: number): string;
 	getLineMinColumn(lineNumber: number): number;
 	getLineMaxColumn(lineNumber: number): number;
@@ -90,7 +90,7 @@ class VisibleIdentitySplitLine implements ISplitLine {
 	}
 
 	public getViewLineData(model: IModel, modelLineNumber: number, outputLineIndex: number): ViewLineData {
-		let lineTokens = model.getLineTokens(modelLineNumber, true);
+		let lineTokens = model.getLineTokens(modelLineNumber);
 		let lineContent = lineTokens.getLineContent();
 		return new ViewLineData(
 			lineContent,
@@ -263,7 +263,7 @@ export class SplitLine implements ISplitLine {
 		if (outputLineIndex > 0) {
 			deltaStartIndex = this.wrappedIndentLength;
 		}
-		let lineTokens = model.getLineTokens(modelLineNumber, true);
+		let lineTokens = model.getLineTokens(modelLineNumber);
 
 		return new ViewLineData(
 			lineContent,

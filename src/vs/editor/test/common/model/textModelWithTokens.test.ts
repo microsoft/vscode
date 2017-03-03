@@ -266,7 +266,10 @@ suite('TextModelWithTokens regression tests', () => {
 
 	test('Microsoft/monaco-editor#122: Unhandled Exception: TypeError: Unable to get property \'replace\' of undefined or null reference', () => {
 		function assertViewLineTokens(model: Model, lineNumber: number, forceTokenization: boolean, expected: ViewLineToken[]): void {
-			let actual = model.getLineTokens(lineNumber, !forceTokenization).inflate();
+			if (forceTokenization) {
+				model.forceTokenization(lineNumber);
+			}
+			let actual = model.getLineTokens(lineNumber).inflate();
 			let decode = (token: ViewLineToken) => {
 				return {
 					endIndex: token.endIndex,
