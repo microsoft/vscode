@@ -9,6 +9,7 @@ import Severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IExtensionDescription, IExtensionService, IExtensionsStatus, ExtensionPointContribution } from 'vs/platform/extensions/common/extensions';
 import { IExtensionPoint } from 'vs/platform/extensions/common/extensionsRegistry';
+import { adoptToGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 
 const hasOwnProperty = Object.hasOwnProperty;
 
@@ -292,6 +293,7 @@ export class ExtensionDescriptionRegistry {
 	}
 
 	public getExtensionDescription(extensionId: string): IExtensionDescription {
+		extensionId = adoptToGalleryExtensionId(extensionId);
 		if (!hasOwnProperty.call(this._extensionsMap, extensionId)) {
 			return null;
 		}
