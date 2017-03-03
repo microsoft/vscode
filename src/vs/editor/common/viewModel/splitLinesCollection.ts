@@ -655,9 +655,7 @@ export class SplitLinesCollection {
 		this.prefixSumComputer.changeValue(lineIndex, newOutputLineCount);
 
 		if (changeFrom <= changeTo) {
-			for (let i = changeFrom; i <= changeTo; i++) {
-				eventsCollector.emit(new viewEvents.ViewLineChangedEvent(i));
-			}
+			eventsCollector.emit(new viewEvents.ViewLinesChangedEvent(changeFrom, changeTo));
 		}
 		if (insertFrom <= insertTo) {
 			eventsCollector.emit(new viewEvents.ViewLinesInsertedEvent(insertFrom, insertTo));
