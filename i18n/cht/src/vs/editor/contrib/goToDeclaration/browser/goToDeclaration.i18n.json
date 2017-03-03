@@ -13,5 +13,6 @@
 	"actions.previewDecl.label": "預覽定義",
 	"generic.noResults": "找不到任何定義",
 	"meta.title": " - {0} 個定義",
-	"multipleResults": "按一下以顯示 {0} 項定義。"
+	"multipleResults": "按一下以顯示 {0} 項定義。",
+	"noResultWord": "找不到 '{0}' 的定義"
 }

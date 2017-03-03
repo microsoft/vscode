@@ -7,6 +7,7 @@
 	"allowBreakpointsEverywhere": "Consente l'impostazione del punto di interruzione in qualsiasi file",
 	"debug": "Debug",
 	"debugCategory": "Debug",
+	"debugCommands": "Configurazione di debug",
 	"debugConfigurationTitle": "Debug",
 	"debugPanel": "Console di debug",
 	"inlineValues": "Mostra i valori delle variabili inline nell'editor durante il debug",
