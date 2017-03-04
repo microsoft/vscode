@@ -29,6 +29,9 @@ const CUSTOM_LINK_PRIORITY = -1;
 /** Lowest */
 const LOCAL_LINK_PRIORITY = -2;
 
+export type XtermLinkMatcherHandler = (event: MouseEvent, uri: string) => void;
+export type XtermLinkMatcherValidationCallback = (uri: string, callback: (isValid: boolean) => void) => void;
+
 export class TerminalLinkHandler {
 	constructor(
 		private _platform: Platform,
@@ -37,11 +40,8 @@ export class TerminalLinkHandler {
 	) {
 	}
 
-	public registerCustomLinkHandler(xterm: any, regex: RegExp, handler: (string) => void, matchIndex?: number, validationCallback?: (uri: string, callback: (isValid: boolean) => void) => void): number {
-		const wrappedHandler = (event, uri) => {
-			return handler(uri);
-		};
-		return xterm.registerLinkMatcher(regex, wrappedHandler, {
+	public registerCustomLinkHandler(xterm: any, regex: RegExp, handler: (string) => void, matchIndex?: number, validationCallback?: XtermLinkMatcherValidationCallback): number {
+		return xterm.registerLinkMatcher(regex, this._wrapLinkHandler(handler), {
 			matchIndex,
 			validationCallback,
 			priority: CUSTOM_LINK_PRIORITY
@@ -49,11 +49,17 @@ export class TerminalLinkHandler {
 	}
 
 	public registerLocalLinkHandler(xterm: any): number {
-		return xterm.registerLinkMatcher(this._localLinkRegex, (event, url) => this._handleLocalLink(event, url), {
+		return xterm.registerLinkMatcher(this._localLinkRegex, this._wrapLinkHandler(url => this._handleLocalLink(url)), {
 			matchIndex: 1,
 			validationCallback: (link: string, callback: (isValid: boolean) => void) => this._validateLocalLink(link, callback),
 			priority: LOCAL_LINK_PRIORITY
 		});
+	}
+
+	private _wrapLinkHandler(handler: (string) => void): XtermLinkMatcherHandler {
+		return (event, uri) => {
+			return handler(uri);
+		};
 	}
 
 	protected get _localLinkRegex(): RegExp {
@@ -63,7 +69,7 @@ export class TerminalLinkHandler {
 		return UNIX_LIKE_LOCAL_LINK_REGEX;
 	}
 
-	private _handleLocalLink(event: MouseEvent, link: string): TPromise<void> {
+	private _handleLocalLink(link: string): TPromise<void> {
 		return this._resolvePath(link).then(resolvedLink => {
 			if (!resolvedLink) {
 				return void 0;
