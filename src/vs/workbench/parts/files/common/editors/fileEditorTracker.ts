@@ -138,13 +138,13 @@ export class FileEditorTracker implements IWorkbenchContribution {
 				// flag.
 				let checkExists: TPromise<boolean>;
 				if (isExternal) {
-					checkExists = this.fileService.existsFile(resource);
+					checkExists = TPromise.timeout(100).then(() => this.fileService.existsFile(resource));
 				} else {
 					checkExists = TPromise.as(false);
 				}
 
 				checkExists.done(exists => {
-					if (!exists) {
+					if (!exists && !input.isDisposed()) {
 						input.dispose();
 					} else if (this.environmentService.verbose) {
 						console.warn(`File exists even though we received a delete event: ${resource.toString()}`);

@@ -213,7 +213,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 	public dispose(): void {
 
 		// Listeners
-		dispose(this.toUnbind);
+		this.toUnbind = dispose(this.toUnbind);
 
 		super.dispose();
 	}
