@@ -1524,6 +1524,9 @@ export class Cursor extends EventEmitter {
 
 		if (up) {
 			let viewLine = range.endLineNumber - noOfLines;
+			if (viewLine <= 0) {
+				viewLine = 1;
+			}
 			let viewColumn = cursor.viewModel.getLineFirstNonWhitespaceColumn(viewLine);
 			cursor.moveViewPosition(inSelectionMode, viewLine, viewColumn, 0, true);
 		} else {
