@@ -38,7 +38,10 @@ export class TerminalLinkHandler {
 	}
 
 	public registerCustomLinkHandler(xterm: any, regex: RegExp, handler: (string) => void, matchIndex?: number, validationCallback?: (uri: string, callback: (isValid: boolean) => void) => void): number {
-		return xterm.registerLinkMatcher(regex, handler, {
+		const wrappedHandler = (event, uri) => {
+			return handler(uri);
+		};
+		return xterm.registerLinkMatcher(regex, wrappedHandler, {
 			matchIndex,
 			validationCallback,
 			priority: CUSTOM_LINK_PRIORITY
@@ -46,7 +49,7 @@ export class TerminalLinkHandler {
 	}
 
 	public registerLocalLinkHandler(xterm: any): number {
-		return xterm.registerLinkMatcher(this._localLinkRegex, (url) => this._handleLocalLink(url), {
+		return xterm.registerLinkMatcher(this._localLinkRegex, (event, url) => this._handleLocalLink(event, url), {
 			matchIndex: 1,
 			validationCallback: (link: string, callback: (isValid: boolean) => void) => this._validateLocalLink(link, callback),
 			priority: LOCAL_LINK_PRIORITY
@@ -60,7 +63,7 @@ export class TerminalLinkHandler {
 		return UNIX_LIKE_LOCAL_LINK_REGEX;
 	}
 
-	private _handleLocalLink(link: string): TPromise<void> {
+	private _handleLocalLink(event: MouseEvent, link: string): TPromise<void> {
 		return this._resolvePath(link).then(resolvedLink => {
 			if (!resolvedLink) {
 				return void 0;
