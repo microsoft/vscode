@@ -1523,14 +1523,11 @@ export class Cursor extends EventEmitter {
 		let inSelectionMode = !!ctx.eventData.select;
 
 		if (up) {
-			let viewLine = range.endLineNumber - noOfLines;
-			if (viewLine <= 0) {
-				viewLine = 1;
-			}
+			let viewLine = Math.max(range.endLineNumber - noOfLines, 1);
 			let viewColumn = cursor.viewModel.getLineFirstNonWhitespaceColumn(viewLine);
 			cursor.moveViewPosition(inSelectionMode, viewLine, viewColumn, 0, true);
 		} else {
-			let viewLine = range.startLineNumber + noOfLines;
+			let viewLine = Math.min(range.startLineNumber + noOfLines, cursor.viewModel.getLineCount());
 			let viewColumn = cursor.viewModel.getLineFirstNonWhitespaceColumn(viewLine);
 			cursor.moveViewPosition(inSelectionMode, viewLine, viewColumn, 0, true);
 		}
