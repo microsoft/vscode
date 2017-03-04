@@ -22,11 +22,13 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { distinct } from 'vs/base/common/arrays';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { once } from 'vs/base/common/event';
 
 export class FileEditorTracker implements IWorkbenchContribution {
 	private stacks: IEditorStacksModel;
 	private toUnbind: IDisposable[];
-	private closeOnExternalFileDelete: boolean;
+	protected closeOnExternalFileDelete: boolean;
+	private mapResourceToUndoDirtyFromExternalDelete: { [resource: string]: () => void };
 
 	constructor(
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
@@ -39,6 +41,7 @@ export class FileEditorTracker implements IWorkbenchContribution {
 	) {
 		this.toUnbind = [];
 		this.stacks = editorGroupService.getStacksModel();
+		this.mapResourceToUndoDirtyFromExternalDelete = Object.create(null);
 
 		this.onConfigurationUpdated(configurationService.getConfiguration<IWorkbenchEditorConfiguration>());
 
@@ -91,12 +94,45 @@ export class FileEditorTracker implements IWorkbenchContribution {
 
 	private onFileChanges(e: FileChangesEvent): void {
 
+		// Handle added
+		if (e.gotAdded()) {
+			this.handleAdded(e);
+		}
+
 		// Handle updates
 		this.handleUpdates(e);
 
 		// Handle deletes
 		if (e.gotDeleted()) {
 			this.handleDeletes(e, true);
+		}
+	}
+
+	private handleAdded(e: FileChangesEvent): void {
+
+		// Flag models as saved that are identical to disk contents
+		// (only if we do not dispose from external deletes and caused them to be dirty)
+		if (!this.closeOnExternalFileDelete) {
+			const fileInputs = this.getOpenedFileInputs();
+			fileInputs.forEach(input => {
+				if (!input.isDirty()) {
+					return; // we are only interested in dirty editors
+				}
+
+				const resource = input.getResource();
+
+				// file showing in editor was added
+				if (e.contains(resource, FileChangeType.ADDED)) {
+					const undo = this.mapResourceToUndoDirtyFromExternalDelete[resource.toString()];
+					if (undo) {
+						const model = this.textFileService.models.get(resource);
+						if (model && model.getState() === ModelState.DIRTY) {
+							undo();
+						}
+						this.mapResourceToUndoDirtyFromExternalDelete[resource.toString()] = void 0;
+					}
+				}
+			});
 		}
 	}
 
@@ -123,11 +159,15 @@ export class FileEditorTracker implements IWorkbenchContribution {
 				matches = paths.isEqualOrParent(resource.toString(), arg1.toString());
 			}
 
+			if (!matches) {
+				return;
+			}
+
 			// Handle deletes in opened editors depending on:
 			// - the user has not disabled the setting closeOnExternalFileDelete
 			// - the file change is local or external
 			// - the input is not resolved (we need to dispose because we cannot restore otherwise since we do not have the contents)
-			if (matches && (this.closeOnExternalFileDelete || !isExternal || !input.isResolved())) {
+			if (this.closeOnExternalFileDelete || !isExternal || !input.isResolved()) {
 
 				// We have received reports of users seeing delete events even though the file still
 				// exists (network shares issue: https://github.com/Microsoft/vscode/issues/13665).
@@ -150,6 +190,18 @@ export class FileEditorTracker implements IWorkbenchContribution {
 						console.warn(`File exists even though we received a delete event: ${resource.toString()}`);
 					}
 				});
+			}
+
+			// Otherwise we want to keep the editor open and mark it as dirty since its underlying resource was deleted
+			else {
+				const model = this.textFileService.models.get(resource);
+				if (model && model.getState() === ModelState.SAVED) {
+					const undo = model.setDirty(true);
+					this.mapResourceToUndoDirtyFromExternalDelete[resource.toString()] = undo;
+					once(model.onDispose)(() => {
+						this.mapResourceToUndoDirtyFromExternalDelete[resource.toString()] = void 0;
+					});
+				}
 			}
 		});
 	}
