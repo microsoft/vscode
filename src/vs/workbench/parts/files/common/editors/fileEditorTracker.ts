@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import { TPromise } from 'vs/base/common/winjs.base';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import errors = require('vs/base/common/errors');
 import URI from 'vs/base/common/uri';
@@ -106,48 +107,49 @@ export class FileEditorTracker implements IWorkbenchContribution {
 				return; // we never dispose dirty files
 			}
 
+			const resource = input.getResource();
+
 			// Special case: a resource was renamed to the same path with different casing. Since our paths
 			// API is treating the paths as equal (they are on disk), we end up disposing the input we just
 			// renamed. The workaround is to detect that we do not dispose any input we are moving the file to
-			if (movedTo && movedTo.fsPath === input.getResource().fsPath) {
+			if (movedTo && movedTo.fsPath === resource.fsPath) {
 				return;
 			}
 
 			let matches = false;
 			if (arg1 instanceof FileChangesEvent) {
-				matches = arg1.contains(input.getResource(), FileChangeType.DELETED);
+				matches = arg1.contains(resource, FileChangeType.DELETED);
 			} else {
-				matches = paths.isEqualOrParent(input.getResource().toString(), arg1.toString());
+				matches = paths.isEqualOrParent(resource.toString(), arg1.toString());
 			}
 
 			// Handle deletes in opened editors depending on:
 			// - the user has not disabled the setting closeOnExternalFileDelete
 			// - the file change is local or external
-			// - the input is not resolved (we need to dispose because we cannot restore otherwise)
+			// - the input is not resolved (we need to dispose because we cannot restore otherwise since we do not have the contents)
 			if (matches && (this.closeOnExternalFileDelete || !isExternal || !input.isResolved())) {
-				// TODO@Ben this is for debugging https://github.com/Microsoft/vscode/issues/13665
-				if (this.environmentService.verbose) {
-					this.fileService.existsFile(input.getResource()).done(exists => {
-						if (!exists) {
-							input.dispose();
-							console.warn(`[13665] The file ${input.getResource().fsPath} actually does not exist anymore.`);
-							setTimeout(() => {
-								this.fileService.existsFile(input.getResource()).done(exists => {
-									console.warn(`[13665] The file ${input.getResource().fsPath} after 2 seconds exists: ${exists}`);
-								}, error => {
-									console.error(`[13665] Error checking existance for ${input.getResource().fsPath} after 2 seconds!`, error);
-								});
-							}, 2000);
-						} else {
-							console.warn(`[13665] The file ${input.getResource().fsPath} actually still exists!`);
-						}
-					}, error => {
-						console.error(`[13665] Error checking existance for ${input.getResource().fsPath}`, error);
-						input.dispose();
-					});
+
+				// We have received reports of users seeing delete events even though the file still
+				// exists (network shares issue: https://github.com/Microsoft/vscode/issues/13665).
+				// Since we do not want to close an editor without reason, we have to check if the
+				// file is really gone and not just a faulty file event (TODO@Ben revisit when we
+				// have a more stable file watcher in place for this scenario).
+				// This only applies to external file events, so we need to check for the isExternal
+				// flag.
+				let checkExists: TPromise<boolean>;
+				if (isExternal) {
+					checkExists = this.fileService.existsFile(resource);
 				} else {
-					input.dispose();
+					checkExists = TPromise.as(false);
 				}
+
+				checkExists.done(exists => {
+					if (!exists) {
+						input.dispose();
+					} else if (this.environmentService.verbose) {
+						console.warn(`File exists even though we received a delete event: ${resource.toString()}`);
+					}
+				});
 			}
 		});
 	}
