@@ -198,7 +198,6 @@ export class FindReplaceState implements IDisposable {
 		}
 		if (typeof newState.isFindInSelection !== 'undefined') {
 			if (this._isFindInSelection !== newState.isFindInSelection) {
-				console.log('FindInSelectionStateChanged')
 				this._isFindInSelection = newState.isFindInSelection;
 				changeEvent.isFindInSelection = true;
 				somethingChanged = true;
