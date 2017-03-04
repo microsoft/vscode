@@ -107,6 +107,11 @@ export class DefineKeybindingController implements editorCommon.IEditorContribut
 	}
 
 	private _onAccepted(keybinding: string): void {
+		let regexp = new RegExp(/\\/g);
+		let backslash = regexp.test(keybinding);
+		if (backslash) {
+			keybinding = keybinding.slice(0, -1) + '\\\\';
+		}
 		let snippetText = [
 			'{',
 			'\t"key": ' + JSON.stringify(keybinding) + ',',
