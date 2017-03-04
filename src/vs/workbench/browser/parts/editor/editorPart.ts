@@ -723,7 +723,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			return TPromise.as(false); // no veto
 		}
 
-		const {editor} = identifier;
+		const { editor } = identifier;
 
 		const res = editor.confirmSave();
 		switch (res) {
@@ -1272,31 +1272,22 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			return Position.ONE; // can only be ONE
 		}
 
-		const config = this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>();
-		const reuseIfOpen = config.workbench.editor.reuseIfOpen;
-		// Respect option to reveal an editor if it is open (not necessarily already visible)
-		const skipReuse = (options && options.index) || arg1;
-		if(!skipReuse && reuseIfOpen) {
-			const groups = this.stacks.groups;
-			for(let i = 0; i < groups.length; i++) {
-				const editors = groups[i].getEditors();
-				for(let j = 0; j < editors.length; j++) {
-					if(input.matches(editors[j]))
-						return i;
-				}
+		// Respect option to reveal an editor if it is already visible
+		if (options && options.revealIfVisible) {
+			const group = this.stacks.findGroup(input, true);
+			if (null !== group) {
+				return this.stacks.positionOfGroup(group);
 			}
 		}
 
-		// Respect option to reveal an editor if it is already visible
-		if (options && options.revealIfVisible) {
-			const editorsToCheck: BaseEditor[] = [];
-			if (activeEditor) { editorsToCheck.push(activeEditor); }
-			visibleEditors.forEach(e => { if (e !== activeEditor) { editorsToCheck.push(e); } });
-			for (let i = 0; i < editorsToCheck.length; i++) {
-				const editorToCheck = editorsToCheck[i];
-				if (input.matches(editorToCheck.input)) {
-					return editorToCheck.position;
-				}
+		const config = this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>();
+		const revealIfOpen = config.workbench.editor.revealIfOpen;
+		// Respect option to reveal an editor if it is open (not necessarily visible)
+		const skipReuse = (options && options.index) || arg1;
+		if (!skipReuse && revealIfOpen) {
+			const group = this.stacks.findGroup(input, false);
+			if (null !== group) {
+				return this.stacks.positionOfGroup(group);
 			}
 		}
 
@@ -1341,7 +1332,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 				const visibleEditors: EditorIdentifier[] = [];
 				const hiddenEditors: EditorIdentifier[] = [];
 				this.pendingEditorInputsToClose.forEach(identifier => {
-					const {group, editor} = identifier;
+					const { group, editor } = identifier;
 
 					if (group.isActive(editor)) {
 						visibleEditors.push(identifier);

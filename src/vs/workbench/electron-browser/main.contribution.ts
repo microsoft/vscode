@@ -107,9 +107,9 @@ configurationRegistry.registerConfiguration({
 			'default': 'right',
 			'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'editorOpenPositioning' }, "Controls where editors open. Select 'left' or 'right' to open editors to the left or right of the current active one. Select 'first' or 'last' to open editors independently from the currently active one.")
 		},
-		'workbench.editor.reuseIfOpen': {
+		'workbench.editor.revealIfOpen': {
 			'type': 'boolean',
-			'description': nls.localize('reuseIfOpen', "Controls if a document should be open only in one editor, in any group, wherever it was open first (if possible). Does not (cannot) apply in edge cases (like splitting the view with only one document open)"),
+			'description': nls.localize('revealIfOpen', "Controls if an editor is revealed in any of the visible groups if opened. If disabled, an editor will prefer to open in the currently active editor group. If enabled, an already opened editor will be revealed instead of opened again in the currently active editor group. Note that there are some cases where this setting is ignored, e.g. when forcing an editor to open in a specific group or to the side of the currently active group."),
 			'default': false
 		},
 		'workbench.quickOpen.closeOnFocusLost': {
