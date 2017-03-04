@@ -17,6 +17,7 @@ export interface FindReplaceStateChangedEvent {
 	isRevealed: boolean;
 	isReplaceRevealed: boolean;
 	isRegex: boolean;
+	isFindInSelection: boolean;
 	wholeWord: boolean;
 	matchCase: boolean;
 	searchScope: boolean;
@@ -34,6 +35,7 @@ export interface INewFindReplaceState {
 	wholeWord?: boolean;
 	matchCase?: boolean;
 	searchScope?: Range;
+	isFindInSelection?: boolean;
 }
 
 export class FindReplaceState implements IDisposable {
@@ -45,6 +47,7 @@ export class FindReplaceState implements IDisposable {
 	private _isRevealed: boolean;
 	private _isReplaceRevealed: boolean;
 	private _isRegex: boolean;
+	private _isFindInSelection: boolean;
 	private _wholeWord: boolean;
 	private _matchCase: boolean;
 	private _searchScope: Range;
@@ -58,6 +61,7 @@ export class FindReplaceState implements IDisposable {
 	public get isRevealed(): boolean { return this._isRevealed; }
 	public get isReplaceRevealed(): boolean { return this._isReplaceRevealed; }
 	public get isRegex(): boolean { return this._isRegex; }
+	public get isFindInSelection(): boolean { return this._isFindInSelection; }
 	public get wholeWord(): boolean { return this._wholeWord; }
 	public get matchCase(): boolean { return this._matchCase; }
 	public get searchScope(): Range { return this._searchScope; }
@@ -97,6 +101,7 @@ export class FindReplaceState implements IDisposable {
 			isRevealed: false,
 			isReplaceRevealed: false,
 			isRegex: false,
+			isFindInSelection: false,
 			wholeWord: false,
 			matchCase: false,
 			searchScope: false,
@@ -146,6 +151,7 @@ export class FindReplaceState implements IDisposable {
 			isRevealed: false,
 			isReplaceRevealed: false,
 			isRegex: false,
+			isFindInSelection: false,
 			wholeWord: false,
 			matchCase: false,
 			searchScope: false,
@@ -187,6 +193,14 @@ export class FindReplaceState implements IDisposable {
 			if (this._isRegex !== newState.isRegex) {
 				this._isRegex = newState.isRegex;
 				changeEvent.isRegex = true;
+				somethingChanged = true;
+			}
+		}
+		if (typeof newState.isFindInSelection !== 'undefined') {
+			if (this._isFindInSelection !== newState.isFindInSelection) {
+				console.log('FindInSelectionStateChanged')
+				this._isFindInSelection = newState.isFindInSelection;
+				changeEvent.isFindInSelection = true;
 				somethingChanged = true;
 			}
 		}

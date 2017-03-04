@@ -218,6 +218,9 @@ export class FindWidget extends Widget implements IOverlayWidget {
 		if (e.isRegex) {
 			this._findInput.setRegex(this._state.isRegex);
 		}
+		if (e.isFindInSelection) {
+			this._toggleSelectionFind.checked = this._state.isFindInSelection;
+		}
 		if (e.wholeWord) {
 			this._findInput.setWholeWords(this._state.wholeWord);
 		}
@@ -507,7 +510,7 @@ export class FindWidget extends Widget implements IOverlayWidget {
 		// Toggle selection button
 		this._toggleSelectionFind = this._register(new SimpleCheckbox({
 			parent: findPart,
-			title: NLS_TOGGLE_SELECTION_FIND_TITLE,
+			title: NLS_TOGGLE_SELECTION_FIND_TITLE + this._keybindingLabelFor(FIND_IDS.ToggleFindInSelectionCommand),
 			onChange: () => {
 				if (this._toggleSelectionFind.checked) {
 					let selection = this._codeEditor.getSelection();

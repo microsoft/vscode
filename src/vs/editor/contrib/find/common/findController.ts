@@ -14,7 +14,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import * as strings from 'vs/base/common/strings';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { editorAction, commonEditorContribution, ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
-import { FIND_IDS, FindModelBoundToEditorModel, ToggleCaseSensitiveKeybinding, ToggleRegexKeybinding, ToggleWholeWordKeybinding, ShowPreviousFindTermKeybinding, ShowNextFindTermKeybinding } from 'vs/editor/contrib/find/common/findModel';
+import { FIND_IDS, FindModelBoundToEditorModel, ToggleCaseSensitiveKeybinding, ToggleRegexKeybinding, ToggleWholeWordKeybinding, ShowPreviousFindTermKeybinding, ShowNextFindTermKeybinding, ToggleFindInSelectionKeybinding } from 'vs/editor/contrib/find/common/findModel';
 import { FindReplaceState, FindReplaceStateChangedEvent, INewFindReplaceState } from 'vs/editor/contrib/find/common/findState';
 import { DocumentHighlightProviderRegistry } from 'vs/editor/common/modes';
 import { RunOnceScheduler, Delayer } from 'vs/base/common/async';
@@ -151,6 +151,10 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 
 	public toggleRegex(): void {
 		this._state.change({ isRegex: !this._state.isRegex }, false);
+	}
+
+	public toggleFindInSelection(): void {
+		this._state.change({ isFindInSelection: !this._state.isFindInSelection }, false);
 	}
 
 	public setSearchString(searchString: string): void {
@@ -1052,6 +1056,21 @@ CommonEditorRegistry.registerEditorCommand(new FindCommand({
 		linux: ToggleRegexKeybinding.linux
 	}
 }));
+
+CommonEditorRegistry.registerEditorCommand(new FindCommand({
+	id: FIND_IDS.ToggleFindInSelectionCommand,
+	precondition: CONTEXT_FIND_WIDGET_VISIBLE,
+	handler: x => x.toggleFindInSelection(),
+	kbOpts: {
+		weight: CommonEditorRegistry.commandWeight(5),
+		kbExpr: EditorContextKeys.Focus,
+		primary: ToggleFindInSelectionKeybinding.primary,
+		mac: ToggleFindInSelectionKeybinding.mac,
+		win: ToggleFindInSelectionKeybinding.win,
+		linux: ToggleFindInSelectionKeybinding.linux
+	}
+}));
+
 
 CommonEditorRegistry.registerEditorCommand(new FindCommand({
 	id: FIND_IDS.ReplaceOneAction,
