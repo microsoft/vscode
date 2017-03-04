@@ -12,7 +12,7 @@ import * as types from 'vs/base/common/types';
 import { IThemeExtensionPoint } from 'vs/platform/theme/common/themeExtensionPoint';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/platform/extensions/common/extensionsRegistry';
-import { IThemeService, IThemeSetting, IColorTheme, IFileIconTheme, VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME, COLOR_THEME_SETTING, ICON_THEME_SETTING } from 'vs/workbench/services/themes/common/themeService';
+import { IThemeService, IThemeSetting, IColorTheme, IFileIconTheme, VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME, COLOR_THEME_SETTING, COLOR_THEME_OVERRIDE_SETTING, COLOR_THEME_OVERRIDE_SETTING_LIGHT, COLOR_THEME_OVERRIDE_SETTING_DARK, ICON_THEME_SETTING } from 'vs/workbench/services/themes/common/themeService';
 import { EditorStylesContribution, SearchViewStylesContribution, TerminalStylesContribution } from 'vs/workbench/services/themes/electron-browser/stylesContributions';
 import { getBaseThemeId, getSyntaxThemeId, isDarkTheme, isLightTheme } from 'vs/platform/theme/common/themes';
 import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
@@ -226,6 +226,9 @@ export class ThemeService implements IThemeService {
 
 	private knownColorThemes: ColorThemeData[];
 	private currentColorTheme: IColorTheme;
+	private colorThemeOverrides: IThemeSetting[] = [];
+	private lightColorThemeOverrides: IThemeSetting[] = [];
+	private darkColorThemeOverrides: IThemeSetting[] = [];
 	private container: HTMLElement;
 	private onColorThemeChange: Emitter<IColorTheme>;
 
@@ -340,6 +343,7 @@ export class ThemeService implements IThemeService {
 	private initialize(): TPromise<any> {
 		let colorThemeSetting = this.configurationService.lookup<string>(COLOR_THEME_SETTING).value;
 		let iconThemeSetting = this.configurationService.lookup<string>(ICON_THEME_SETTING).value || '';
+		this.initializeColorThemeOverrides();
 
 		return Promise.join([
 			this.findThemeDataBySettingsId(colorThemeSetting, DEFAULT_THEME_ID).then(theme => {
@@ -354,9 +358,23 @@ export class ThemeService implements IThemeService {
 	private installConfigurationListener() {
 		this.configurationService.onDidUpdateConfiguration(e => {
 			let colorThemeSetting = this.configurationService.lookup<string>(COLOR_THEME_SETTING).value;
-			if (colorThemeSetting !== this.currentColorTheme.settingsId) {
+
+			// Allows COLOR_THEME_OVERRIDE_SETTING to change without this code needing to change
+			let overridesChanged = COLOR_THEME_OVERRIDE_SETTING.split('.').reduce((config, property) => {
+				if (config) {
+					config = config[property];
+				}
+				return config;
+			}, e.sourceConfig);
+
+			if (overridesChanged) {
+				this.initializeColorThemeOverrides();
+			}
+
+			if (overridesChanged || colorThemeSetting !== this.currentColorTheme.settingsId) {
 				this.findThemeDataBySettingsId(colorThemeSetting, null).then(theme => {
 					if (theme) {
+						theme.isLoaded = theme.isLoaded && !overridesChanged;
 						this.setColorTheme(theme.id, null);
 					}
 				});
@@ -375,6 +393,7 @@ export class ThemeService implements IThemeService {
 		if (!themeId) {
 			return TPromise.as(null);
 		}
+		// Relies on loaded being set to false when config changes
 		if (themeId === this.currentColorTheme.id && this.currentColorTheme.isLoaded) {
 			return this.writeColorThemeConfiguration(settingsTarget);
 		}
@@ -404,7 +423,7 @@ export class ThemeService implements IThemeService {
 
 		return this.findThemeData(themeId, DEFAULT_THEME_ID).then(themeData => {
 			if (themeData) {
-				return applyTheme(themeData, onApply);
+				return applyTheme(themeData, this.getColorThemeOverrides(themeData.isDarkTheme(), themeData.isLightTheme()), onApply);
 			}
 			return null;
 		});
@@ -419,6 +438,19 @@ export class ThemeService implements IThemeService {
 
 	public getColorTheme() {
 		return this.currentColorTheme;
+	}
+
+	private getColorThemeOverrides(useDark?: boolean, useLight?: boolean) {
+		let overrides = this.colorThemeOverrides;
+		if (useDark) { overrides = overrides.concat(this.darkColorThemeOverrides); };
+		if (useLight) { overrides = overrides.concat(this.lightColorThemeOverrides); };
+		return overrides;
+	}
+
+	private initializeColorThemeOverrides() {
+		this.colorThemeOverrides = this.configurationService.lookup<IThemeSetting[]>(COLOR_THEME_OVERRIDE_SETTING).value || [];
+		this.lightColorThemeOverrides = this.configurationService.lookup<IThemeSetting[]>(COLOR_THEME_OVERRIDE_SETTING_LIGHT).value || [];
+		this.darkColorThemeOverrides = this.configurationService.lookup<IThemeSetting[]>(COLOR_THEME_OVERRIDE_SETTING_DARK).value || [];
 	}
 
 	private findThemeData(themeId: string, defaultId?: string): TPromise<ColorThemeData> {
@@ -844,13 +876,17 @@ function toCSSSelector(str: string) {
 	return str;
 }
 
-function applyTheme(theme: ColorThemeData, onApply: (theme: ColorThemeData) => TPromise<IColorTheme>): TPromise<IColorTheme> {
-	if (theme.styleSheetContent) {
+function applyTheme(theme: ColorThemeData, overrides: any[], onApply: (theme: ColorThemeData) => TPromise<IColorTheme>): TPromise<IColorTheme> {
+	overrides = overrides || [];
+	// TODO: As written, if there are overrides then the theme will always be reloaded
+	// If the overall approach of this patch is approved, this should be optimized to only
+	// load the theme if the overrides have not changed since it was loaded
+	if (theme.styleSheetContent && overrides.length === 0) {
 		_applyRules(theme.styleSheetContent, colorThemeRulesClassName);
 		return TPromise.as(onApply(theme));
 	}
 	return _loadThemeDocument(getBaseThemeId(theme.id), theme.path).then(themeSettings => {
-		theme.settings = themeSettings;
+		theme.settings = themeSettings.concat(overrides);
 		let styleSheetContent = _processThemeObject(theme.id, themeSettings);
 		theme.styleSheetContent = styleSheetContent;
 		theme.isLoaded = true;

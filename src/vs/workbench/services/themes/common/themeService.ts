@@ -16,6 +16,9 @@ export const VS_DARK_THEME = 'vs-dark';
 export const VS_HC_THEME = 'hc-black';
 
 export const COLOR_THEME_SETTING = 'workbench.colorTheme';
+export const COLOR_THEME_OVERRIDE_SETTING = 'workbench.colorThemeOverrides';
+export const COLOR_THEME_OVERRIDE_SETTING_LIGHT = COLOR_THEME_OVERRIDE_SETTING + '.light';
+export const COLOR_THEME_OVERRIDE_SETTING_DARK = COLOR_THEME_OVERRIDE_SETTING + '.dark';
 export const ICON_THEME_SETTING = 'workbench.iconTheme';
 
 export interface IColorTheme {
