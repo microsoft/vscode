@@ -1516,8 +1516,20 @@ export class Cursor extends EventEmitter {
 				noOfLines = cursor.config.pageSize * noOfLines;
 				break;
 			case editorCommon.EditorScrollByUnit.HalfPage:
-				noOfLines = Math.round(cursor.config.pageSize / 2) * noOfLines;
+				noOfLines = Math.round(cursor.config.pageSize * noOfLines / 2);
 				break;
+		}
+		let range = cursor.getCompletelyVisibleViewLinesRangeInViewport();
+		let inSelectionMode = !!ctx.eventData.select;
+
+		if (up) {
+			let viewLine = range.endLineNumber - noOfLines;
+			let viewColumn = cursor.viewModel.getLineFirstNonWhitespaceColumn(viewLine);
+			cursor.moveViewPosition(inSelectionMode, viewLine, viewColumn, 0, true);
+		} else {
+			let viewLine = range.startLineNumber + noOfLines;
+			let viewColumn = cursor.viewModel.getLineFirstNonWhitespaceColumn(viewLine);
+			cursor.moveViewPosition(inSelectionMode, viewLine, viewColumn, 0, true);
 		}
 		this.emitCursorScrollRequest((up ? -1 : 1) * noOfLines, !!editorScrollArg.revealCursor);
 		return true;
