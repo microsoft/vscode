@@ -199,6 +199,10 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		});
 	}
 
+	public isResolved(): boolean {
+		return !!this.textFileService.models.get(this.resource);
+	}
+
 	public getTelemetryDescriptor(): { [key: string]: any; } {
 		const descriptor = super.getTelemetryDescriptor();
 		descriptor['resource'] = telemetryURIDescriptor(this.getResource());

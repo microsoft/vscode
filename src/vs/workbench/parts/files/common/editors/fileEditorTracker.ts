@@ -9,7 +9,7 @@ import errors = require('vs/base/common/errors');
 import URI from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
 import { IEditor, IEditorViewState, isCommonCodeEditor } from 'vs/editor/common/editorCommon';
-import { toResource, IEditorStacksModel, SideBySideEditorInput, IEditorGroup } from 'vs/workbench/common/editor';
+import { toResource, IEditorStacksModel, SideBySideEditorInput, IEditorGroup, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { BINARY_FILE_EDITOR_ID } from 'vs/workbench/parts/files/common/files';
 import { ITextFileService, ModelState, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { FileOperationEvent, FileOperation, IFileService, FileChangeType, FileChangesEvent } from 'vs/platform/files/common/files';
@@ -20,10 +20,12 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { distinct } from 'vs/base/common/arrays';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class FileEditorTracker implements IWorkbenchContribution {
 	private stacks: IEditorStacksModel;
 	private toUnbind: IDisposable[];
+	private closeOnExternalFileDelete: boolean;
 
 	constructor(
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
@@ -31,10 +33,13 @@ export class FileEditorTracker implements IWorkbenchContribution {
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IFileService private fileService: IFileService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		this.toUnbind = [];
 		this.stacks = editorGroupService.getStacksModel();
+
+		this.onConfigurationUpdated(configurationService.getConfiguration<IWorkbenchEditorConfiguration>());
 
 		this.registerListeners();
 	}
@@ -53,6 +58,17 @@ export class FileEditorTracker implements IWorkbenchContribution {
 
 		// Lifecycle
 		this.lifecycleService.onShutdown(this.dispose, this);
+
+		// Configuration
+		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config)));
+	}
+
+	private onConfigurationUpdated(configuration: IWorkbenchEditorConfiguration): void {
+		if (configuration.workbench && configuration.workbench.editor && typeof configuration.workbench.editor.closeOnExternalFileDelete === 'boolean') {
+			this.closeOnExternalFileDelete = configuration.workbench.editor.closeOnExternalFileDelete;
+		} else {
+			this.closeOnExternalFileDelete = true; // default
+		}
 	}
 
 	// Note: there is some duplication with the other file event handler below. Since we cannot always rely on the disk events
@@ -68,7 +84,7 @@ export class FileEditorTracker implements IWorkbenchContribution {
 
 		// Handle deletes
 		if (e.operation === FileOperation.DELETE || e.operation === FileOperation.MOVE) {
-			this.handleDeletes(e.resource, e.target ? e.target.resource : void 0);
+			this.handleDeletes(e.resource, false, e.target ? e.target.resource : void 0);
 		}
 	}
 
@@ -79,11 +95,11 @@ export class FileEditorTracker implements IWorkbenchContribution {
 
 		// Handle deletes
 		if (e.gotDeleted()) {
-			this.handleDeletes(e);
+			this.handleDeletes(e, true);
 		}
 	}
 
-	private handleDeletes(arg1: URI | FileChangesEvent, movedTo?: URI): void {
+	private handleDeletes(arg1: URI | FileChangesEvent, isExternal: boolean, movedTo?: URI): void {
 		const fileInputs = this.getOpenedFileInputs();
 		fileInputs.forEach(input => {
 			if (input.isDirty()) {
@@ -104,7 +120,11 @@ export class FileEditorTracker implements IWorkbenchContribution {
 				matches = paths.isEqualOrParent(input.getResource().toString(), arg1.toString());
 			}
 
-			if (matches) {
+			// Handle deletes in opened editors depending on:
+			// - the user has not disabled the setting closeOnExternalFileDelete
+			// - the file change is local or external
+			// - the input is not resolved (we need to dispose because we cannot restore otherwise)
+			if (matches && (this.closeOnExternalFileDelete || !isExternal || !input.isResolved())) {
 				// TODO@Ben this is for debugging https://github.com/Microsoft/vscode/issues/13665
 				if (this.environmentService.verbose) {
 					this.fileService.existsFile(input.getResource()).done(exists => {

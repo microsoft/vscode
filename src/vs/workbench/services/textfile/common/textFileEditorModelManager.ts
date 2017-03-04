@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Event, { Emitter, debounceEvent } from 'vs/base/common/event';
+import Event, { Emitter, debounceEvent, once } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
@@ -14,8 +14,12 @@ import { ModelState, ITextFileEditorModel, ITextFileEditorModelManager, TextFile
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { FileOperation, FileOperationEvent, FileChangesEvent, IFileService } from 'vs/platform/files/common/files';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 
 export class TextFileEditorModelManager implements ITextFileEditorModelManager {
+
+	protected disposeOnExternalFileDelete: boolean;
 
 	private toUnbind: IDisposable[];
 
@@ -38,11 +42,14 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 	private mapResourceToModel: { [resource: string]: ITextFileEditorModel; };
 	private mapResourceToPendingModelLoaders: { [resource: string]: TPromise<ITextFileEditorModel> };
 
+	private mapResourceToUndoDirtyFromExternalDelete: { [resource: string]: () => void };
+
 	constructor(
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@IFileService private fileService: IFileService
+		@IFileService private fileService: IFileService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		this.toUnbind = [];
 
@@ -68,6 +75,10 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 		this.mapResourceToModelContentChangeListener = Object.create(null);
 		this.mapResourceToPendingModelLoaders = Object.create(null);
 
+		this.mapResourceToUndoDirtyFromExternalDelete = Object.create(null);
+
+		this.onConfigurationUpdated(configurationService.getConfiguration<IWorkbenchEditorConfiguration>());
+
 		this.registerListeners();
 	}
 
@@ -83,6 +94,17 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 
 		// Lifecycle
 		this.lifecycleService.onShutdown(this.dispose, this);
+
+		// Configuration
+		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config)));
+	}
+
+	private onConfigurationUpdated(configuration: IWorkbenchEditorConfiguration): void {
+		if (configuration.workbench && configuration.workbench.editor && typeof configuration.workbench.editor.closeOnExternalFileDelete === 'boolean') {
+			this.disposeOnExternalFileDelete = configuration.workbench.editor.closeOnExternalFileDelete;
+		} else {
+			this.disposeOnExternalFileDelete = true; // default
+		}
 	}
 
 	private onEditorsChanged(): void {
@@ -100,6 +122,26 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 		}
 	}
 
+	private dirtyModelIfPossible(resource: URI): void {
+		const model = this.get(resource);
+		if (this.canDirty(model)) {
+			const undo = model.setDirty(true);
+			this.mapResourceToUndoDirtyFromExternalDelete[resource.toString()] = undo;
+			once(model.onDispose)(() => {
+				this.mapResourceToUndoDirtyFromExternalDelete[resource.toString()] = void 0;
+			});
+		}
+	}
+
+	private undirtyModelIfPossible(resource: URI): void {
+		const model = this.get(resource);
+		if (this.canUndirty(model)) {
+			const undo = this.mapResourceToUndoDirtyFromExternalDelete[resource.toString()];
+			undo();
+			this.mapResourceToUndoDirtyFromExternalDelete[resource.toString()] = void 0;
+		}
+	}
+
 	private onFileOperation(e: FileOperationEvent): void {
 		if (e.operation === FileOperation.MOVE || e.operation === FileOperation.DELETE) {
 			this.disposeModelIfPossible(e.resource); // dispose models of moved or deleted files
@@ -108,31 +150,64 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 
 	private onFileChanges(e: FileChangesEvent): void {
 
-		// Dispose inputs that got deleted
+		// Flag models as saved that are identical to disk contents (only if we do not dispose from external deletes and caused them to be dirty)
+		e.getAdded().forEach(added => {
+			if (!this.disposeOnExternalFileDelete) {
+				this.undirtyModelIfPossible(added.resource);
+			}
+		});
+
+		// Dispose models that got deleted or mark them as dirty based on settings
 		e.getDeleted().forEach(deleted => {
-			this.disposeModelIfPossible(deleted.resource);
+			if (!this.disposeOnExternalFileDelete) {
+				this.dirtyModelIfPossible(deleted.resource);
+			} else {
+				this.disposeModelIfPossible(deleted.resource);
+			}
 		});
 	}
 
-	private canDispose(textModel: ITextFileEditorModel): boolean {
-		if (!textModel) {
+	private hasState(model: ITextFileEditorModel, state: ModelState): boolean {
+		if (!model) {
 			return false; // we need data!
 		}
 
-		if (textModel.isDisposed()) {
+		if (model.isDisposed()) {
 			return false; // already disposed
+		}
+
+		if (this.mapResourceToPendingModelLoaders[model.getResource().toString()]) {
+			return false; // not yet loaded
+		}
+
+		return model.getState() === state;
+	}
+
+	private canDispose(textModel: ITextFileEditorModel): boolean {
+		if (!this.hasState(textModel, ModelState.SAVED)) {
+			return false; // not healthy
 		}
 
 		if (textModel.textEditorModel && textModel.textEditorModel.isAttachedToEditor()) {
 			return false; // never dispose when attached to editor
 		}
 
-		if (textModel.getState() !== ModelState.SAVED) {
-			return false; // never dispose unsaved models
+		return true;
+	}
+
+	private canDirty(model: ITextFileEditorModel): boolean {
+		return this.hasState(model, ModelState.SAVED);
+	}
+
+	private canUndirty(model: ITextFileEditorModel): boolean {
+		if (!this.hasState(model, ModelState.DIRTY)) {
+			return false; // only dirty models
 		}
 
-		if (this.mapResourceToPendingModelLoaders[textModel.getResource().toString()]) {
-			return false; // never dispose models that we are about to load at the same time
+		const resource = model.getResource();
+		const undo = this.mapResourceToUndoDirtyFromExternalDelete[resource.toString()];
+		if (!undo) {
+			return false; // we have no known undo function stored for this model
 		}
 
 		return true;

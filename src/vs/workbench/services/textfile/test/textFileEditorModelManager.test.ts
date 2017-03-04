@@ -20,6 +20,10 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 
 export class TestTextFileEditorModelManager extends TextFileEditorModelManager {
 
+	public setDisposeOnExternalFileDelete(value: boolean): void {
+		this.disposeOnExternalFileDelete = value;
+	}
+
 	protected debounceDelay(): number {
 		return 10;
 	}
@@ -238,7 +242,63 @@ suite('Files - TextFileEditorModelManager', () => {
 		manager.dispose();
 	});
 
-	test('file change event does NOT dispose model if happening < 2 second after last save', function (done) {
+	test('file event delete marks model unread when closeOnExternalFileDelete is true', function (done) {
+		const manager: TestTextFileEditorModelManager = instantiationService.createInstance(TestTextFileEditorModelManager);
+		manager.setDisposeOnExternalFileDelete(false);
+
+		const resource = toResource('/path/index.txt');
+
+		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, resource, 'utf8');
+		manager.add(resource, model);
+
+		model.load().done(() => {
+			assert.ok(!model.isDisposed());
+
+			// delete event (watcher)
+			accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource, type: FileChangeType.DELETED }]));
+
+			assert.ok(model.isDirty());
+
+			// added event (watcher)
+			accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource, type: FileChangeType.ADDED }]));
+
+			assert.ok(!model.isDirty());
+
+			manager.dispose();
+			done();
+		}, error => onError(error, done));
+	});
+
+	test('file event delete marks model unread when closeOnExternalFileDelete is true unless model changed meanwhile', function (done) {
+		const manager: TestTextFileEditorModelManager = instantiationService.createInstance(TestTextFileEditorModelManager);
+		manager.setDisposeOnExternalFileDelete(false);
+
+		const resource = toResource('/path/index.txt');
+
+		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, resource, 'utf8');
+		manager.add(resource, model);
+
+		model.load().done(() => {
+			assert.ok(!model.isDisposed());
+
+			// delete event (watcher)
+			accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource, type: FileChangeType.DELETED }]));
+
+			assert.ok(model.isDirty());
+
+			model.textEditorModel.setValue('some more changes');
+
+			// added event (watcher)
+			accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource, type: FileChangeType.ADDED }]));
+
+			assert.ok(model.isDirty());
+
+			manager.dispose();
+			done();
+		}, error => onError(error, done));
+	});
+
+	test('file change event does NOT dispose models', function (done) {
 		const manager: TestTextFileEditorModelManager = instantiationService.createInstance(TestTextFileEditorModelManager);
 
 		const resource = toResource('/path/index.txt');
