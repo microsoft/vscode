@@ -1234,7 +1234,9 @@ export class TreeModel extends Events.EventEmitter {
 	public focusLast(eventPayload?: any): void {
 		var nav = this.getNavigator(this.input);
 		var item = nav.last();
-
+		while (item.hasChildren()) {
+			item = item.lastChild;
+		}
 		if (item) {
 			this.setFocus(item, eventPayload);
 		}
