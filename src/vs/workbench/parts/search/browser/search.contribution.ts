@@ -183,7 +183,15 @@ configurationRegistry.registerConfiguration({
 		'search.exclude': {
 			'type': 'object',
 			'description': nls.localize('exclude', "Configure glob patterns for excluding files and folders in searches. Inherits all glob patterns from the files.exclude setting."),
-			'default': { '**/node_modules': true, '**/bower_components': true },
+			'default': { 
+				'**/node_modules': true,
+				'**/bower_components': true,
+				'**/*.min.js': true,
+				'**/*.min.css': true,
+				'**/.#*': true,
+				'**/*.o': true,
+				'**/*.class': true
+			},
 			'additionalProperties': {
 				'anyOf': [
 					{
