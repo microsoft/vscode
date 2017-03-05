@@ -468,6 +468,10 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 
 			// Re-emit to outside
 			this._onGroupFocusChanged.fire();
+
+		} else {
+			// Reveal active tab when focus gained even if it is the last active editor
+			this.layoutTitleControls();
 		}
 	}
 
@@ -1864,13 +1868,16 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 			this.layoutEditor(position);
 		});
 
-		// Layout title controls
-		POSITIONS.forEach(position => {
-			this.getTitleAreaControl(position).layout();
-		});
+		this.layoutTitleControls();
 
 		// Update minimized state
 		this.updateMinimizedState();
+	}
+
+	private layoutTitleControls(): void {
+		POSITIONS.forEach(position => {
+			this.getTitleAreaControl(position).layout();
+		});
 	}
 
 	private layoutEditor(position: Position): void {
