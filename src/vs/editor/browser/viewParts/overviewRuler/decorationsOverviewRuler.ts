@@ -9,7 +9,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ViewPart } from 'vs/editor/browser/view/viewPart';
 import { OverviewRulerImpl } from 'vs/editor/browser/viewParts/overviewRuler/overviewRulerImpl';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
-import { IRenderingContext, IRestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
+import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
 import { Position } from 'vs/editor/common/core/position';
 import { TokenizationRegistry } from 'vs/editor/common/modes';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -201,11 +201,11 @@ export class DecorationsOverviewRuler extends ViewPart {
 		return zones;
 	}
 
-	public prepareRender(ctx: IRenderingContext): void {
+	public prepareRender(ctx: RenderingContext): void {
 		// Nothing to read
 	}
 
-	public render(ctx: IRestrictedRenderingContext): void {
+	public render(ctx: RestrictedRenderingContext): void {
 		if (this._shouldUpdateDecorations || this._shouldUpdateCursorPosition) {
 
 			if (this._shouldUpdateDecorations) {

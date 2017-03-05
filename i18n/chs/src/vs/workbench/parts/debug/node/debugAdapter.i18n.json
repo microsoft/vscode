@@ -14,5 +14,7 @@
 	"debugServer": "仅用于调试扩展开发: 如果已指定端口，VS 代码会尝试连接到在服务器模式中运行的调试适配器",
 	"debugType": "配置类型。",
 	"debugWindowsConfiguration": "特定于 Windows 的启动配置属性。",
-	"internalConsoleOptions": "内部调试控制台的控制行为。"
+	"deprecatedVariables": "已弃用 \"env.\"、\"config.\" 和 \"command.\"，改用 \"env:\"、\"config:\" 和 \"command:\"。",
+	"internalConsoleOptions": "内部调试控制台的控制行为。",
+	"node2NotSupported": "不再支持 \"node2\"，改用 \"node\"，并将“协议”属性设为“检查器”。"
 }

@@ -796,6 +796,7 @@ declare module monaco.editor {
     export function createDiffEditor(domElement: HTMLElement, options?: IDiffEditorConstructionOptions, override?: IEditorOverrideServices): IStandaloneDiffEditor;
 
     export interface IDiffNavigator {
+        revealFirst: boolean;
         canNavigate(): boolean;
         next(): void;
         previous(): void;
@@ -970,6 +971,8 @@ declare module monaco.editor {
         addCommand(keybinding: number, handler: ICommandHandler, context: string): string;
         createContextKey<T>(key: string, defaultValue: T): IContextKey<T>;
         addAction(descriptor: IActionDescriptor): IDisposable;
+        getOriginalEditor(): IStandaloneCodeEditor;
+        getModifiedEditor(): IStandaloneCodeEditor;
     }
     export interface ICommandHandler {
         (...args: any[]): void;
@@ -1280,6 +1283,11 @@ declare module monaco.editor {
          */
         wordWrapColumn?: number;
         /**
+         * Force word wrapping when the text appears to be of a minified/generated file.
+         * Defaults to true.
+         */
+        wordWrapMinified?: boolean;
+        /**
          * Control indentation of wrapped lines. Can be: 'none', 'same' or 'indent'.
          * Defaults to 'same' in vscode and to 'none' in monaco-editor.
          */
@@ -1401,6 +1409,11 @@ declare module monaco.editor {
          * Defaults to true.
          */
         selectionHighlight?: boolean;
+        /**
+         * Enable semantic occurrences highlight.
+         * Defaults to true.
+         */
+        occurrencesHighlight?: boolean;
         /**
          * Show code lens
          * Defaults to true.
@@ -1604,6 +1617,7 @@ declare module monaco.editor {
         readonly suggestFontSize: number;
         readonly suggestLineHeight: number;
         readonly selectionHighlight: boolean;
+        readonly occurrencesHighlight: boolean;
         readonly codeLens: boolean;
         readonly folding: boolean;
         readonly matchBrackets: boolean;
@@ -2860,6 +2874,13 @@ declare module monaco.editor {
         readonly charChanges: ICharChange[];
     }
 
+    /**
+     * Information about a line in the diff editor
+     */
+    export interface IDiffLineInformation {
+        readonly equivalentLineNumber: number;
+    }
+
     export interface INewScrollPosition {
         scrollLeft?: number;
         scrollTop?: number;
@@ -3301,6 +3322,16 @@ declare module monaco.editor {
          * Get the computed diff information.
          */
         getLineChanges(): ILineChange[];
+        /**
+         * Get information based on computed diff about a line number from the original model.
+         * If the diff computation is not finished or the model is missing, will return null.
+         */
+        getDiffLineInformationForOriginal(lineNumber: number): IDiffLineInformation;
+        /**
+         * Get information based on computed diff about a line number from the modified model.
+         * If the diff computation is not finished or the model is missing, will return null.
+         */
+        getDiffLineInformationForModified(lineNumber: number): IDiffLineInformation;
         /**
          * @see ICodeEditor.getValue
          */

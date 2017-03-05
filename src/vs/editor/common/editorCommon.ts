@@ -21,6 +21,7 @@ import { IndentRange } from 'vs/editor/common/model/indentRanges';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
+import { ITextSource } from 'vs/editor/common/model/textSource';
 
 /**
  * @internal
@@ -358,6 +359,11 @@ export interface IEditorOptions {
 	 */
 	wordWrapColumn?: number;
 	/**
+	 * Force word wrapping when the text appears to be of a minified/generated file.
+	 * Defaults to true.
+	 */
+	wordWrapMinified?: boolean;
+	/**
 	 * Control indentation of wrapped lines. Can be: 'none', 'same' or 'indent'.
 	 * Defaults to 'same' in vscode and to 'none' in monaco-editor.
 	 */
@@ -480,6 +486,11 @@ export interface IEditorOptions {
 	 * Defaults to true.
 	 */
 	selectionHighlight?: boolean;
+	/**
+	 * Enable semantic occurrences highlight.
+	 * Defaults to true.
+	 */
+	occurrencesHighlight?: boolean;
 	/**
 	 * Show code lens
 	 * Defaults to true.
@@ -991,6 +1002,7 @@ export class EditorContribOptions {
 	readonly suggestFontSize: number;
 	readonly suggestLineHeight: number;
 	readonly selectionHighlight: boolean;
+	readonly occurrencesHighlight: boolean;
 	readonly codeLens: boolean;
 	readonly folding: boolean;
 	readonly matchBrackets: boolean;
@@ -1017,6 +1029,7 @@ export class EditorContribOptions {
 		suggestFontSize: number;
 		suggestLineHeight: number;
 		selectionHighlight: boolean;
+		occurrencesHighlight: boolean;
 		codeLens: boolean;
 		folding: boolean;
 		matchBrackets: boolean;
@@ -1039,6 +1052,7 @@ export class EditorContribOptions {
 		this.suggestFontSize = source.suggestFontSize;
 		this.suggestLineHeight = source.suggestLineHeight;
 		this.selectionHighlight = Boolean(source.selectionHighlight);
+		this.occurrencesHighlight = Boolean(source.occurrencesHighlight);
 		this.codeLens = Boolean(source.codeLens);
 		this.folding = Boolean(source.folding);
 		this.matchBrackets = Boolean(source.matchBrackets);
@@ -1067,6 +1081,7 @@ export class EditorContribOptions {
 			&& this.suggestFontSize === other.suggestFontSize
 			&& this.suggestLineHeight === other.suggestLineHeight
 			&& this.selectionHighlight === other.selectionHighlight
+			&& this.occurrencesHighlight === other.occurrencesHighlight
 			&& this.codeLens === other.codeLens
 			&& this.folding === other.folding
 			&& this.matchBrackets === other.matchBrackets
@@ -1711,7 +1726,7 @@ export interface ITextModel {
 	 * Replace the entire text buffer value contained in this model.
 	 * @internal
 	 */
-	setValueFromRawText(newValue: ITextSource): void;
+	setValueFromTextSource(newValue: ITextSource): void;
 
 	/**
 	 * Get the text stored in this model.
@@ -1725,12 +1740,6 @@ export interface ITextModel {
 	 * Get the length of the text stored in this model.
 	 */
 	getValueLength(eol?: EndOfLinePreference, preserveBOM?: boolean): number;
-
-	/**
-	 * Get the raw text stored in this model.
-	 * @internal
-	 */
-	toRawText(): IRawText;
 
 	/**
 	 * Check if the raw text stored in this model equals another raw text.
@@ -2002,12 +2011,17 @@ export interface IFoundBracket {
 export interface ITokenizedModel extends ITextModel {
 
 	/**
-	 * Tokenize if necessary and get the tokens for the line `lineNumber`.
-	 * @param lineNumber The line number
-	 * @param inaccurateTokensAcceptable Are inaccurate tokens acceptable? Defaults to false
+	 * Force tokenization information for `lineNumber` to be accurate.
 	 * @internal
 	 */
-	getLineTokens(lineNumber: number, inaccurateTokensAcceptable?: boolean): LineTokens;
+	forceTokenization(lineNumber: number): void;
+
+	/**
+	 * Get the tokens for the line `lineNumber`.
+	 * The tokens might be inaccurate. Use `forceTokenization` to ensure accurate tokens.
+	 * @internal
+	 */
+	getLineTokens(lineNumber: number): LineTokens;
 
 	/**
 	 * Get the language associated with this model.
@@ -2027,7 +2041,8 @@ export interface ITokenizedModel extends ITextModel {
 	setMode(languageIdentifier: LanguageIdentifier): void;
 
 	/**
-	 * Returns the true (inner-most) language mode at a given position.
+	 * Returns the real (inner-most) language mode at a given position.
+	 * The result might be inaccurate. Use `forceTokenization` to ensure accurate tokens.
 	 * @internal
 	 */
 	getLanguageIdAtPosition(lineNumber: number, column: number): LanguageId;
@@ -2444,92 +2459,10 @@ export interface IModelContentChangedEvent {
 }
 
 /**
- * The raw text backing a model.
- * @internal
- */
-export interface ITextSource {
-	/**
-	 * The entire text length.
-	 */
-	readonly length: number;
-	/**
-	 * The text split into lines.
-	 */
-	readonly lines: string[];
-	/**
-	 * The BOM (leading character sequence of the file).
-	 */
-	readonly BOM: string;
-	/**
-	 * The end of line sequence.
-	 */
-	readonly EOL: string;
-	/**
-	 * The text contains Unicode characters classified as "R" or "AL".
-	 */
-	readonly containsRTL: boolean;
-	/**
-	 * The text contains only characters inside the ASCII range 32-126 or \t \r \n
-	 */
-	readonly isBasicASCII: boolean;
-}
-
-/**
- * The text source
- * @internal
- */
-export interface ITextSource2 {
-	/**
-	 * The entire text length.
-	 */
-	readonly length: number;
-	/**
-	 * The text split into lines.
-	 */
-	readonly lines: string[];
-	/**
-	 * The BOM (leading character sequence of the file).
-	 */
-	readonly BOM: string;
-	/**
-	 * The number of lines ending with '\r\n'
-	 */
-	readonly totalCRCount: number;
-	/**
-	 * The text contains Unicode characters classified as "R" or "AL".
-	 */
-	readonly containsRTL: boolean;
-	/**
-	 * The text contains only characters inside the ASCII range 32-126 or \t \r \n
-	 */
-	readonly isBasicASCII: boolean;
-}
-
-/**
- * The raw text backing a model.
- * @internal
- */
-export interface IRawText extends ITextSource {
-	/**
-	 * The options associated with this text.
-	 */
-	readonly options: {
-		readonly tabSize: number;
-		readonly insertSpaces: boolean;
-		readonly defaultEOL: DefaultEndOfLine;
-		readonly trimAutoWhitespace: boolean;
-	};
-}
-
-/**
  * An event describing that a model has been reset to a new value.
  * @internal
  */
 export interface IModelContentChangedFlushEvent extends IModelContentChangedEvent {
-	/**
-	 * The new text content of the model.
-	 */
-	readonly detail: IRawText;
 }
 /**
  * An event describing that a line has changed in a model.
@@ -3175,7 +3108,6 @@ export interface ILineChange extends IChange {
 }
 /**
  * Information about a line in the diff editor
- * @internal
  */
 export interface IDiffLineInformation {
 	readonly equivalentLineNumber: number;
@@ -4060,14 +3992,12 @@ export interface ICommonDiffEditor extends IEditor {
 	/**
 	 * Get information based on computed diff about a line number from the original model.
 	 * If the diff computation is not finished or the model is missing, will return null.
-	 * @internal
 	 */
 	getDiffLineInformationForOriginal(lineNumber: number): IDiffLineInformation;
 
 	/**
 	 * Get information based on computed diff about a line number from the modified model.
 	 * If the diff computation is not finished or the model is missing, will return null.
-	 * @internal
 	 */
 	getDiffLineInformationForModified(lineNumber: number): IDiffLineInformation;
 

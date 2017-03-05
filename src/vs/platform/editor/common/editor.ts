@@ -159,6 +159,12 @@ export enum Direction {
 	RIGHT
 }
 
+export enum Verbosity {
+	SHORT,
+	MEDIUM,
+	LONG
+}
+
 export interface IEditorInput extends IDisposable {
 
 	onDispose: Event<void>;
@@ -174,6 +180,11 @@ export interface IEditorInput extends IDisposable {
 	getDescription(verbose?: boolean): string;
 
 	/**
+	 * Returns the display title of this input.
+	 */
+	getTitle(verbosity?: Verbosity): string;
+
+	/**
 	 * Resolves the input.
 	 */
 	resolve(): TPromise<IEditorModel>;
@@ -182,6 +193,11 @@ export interface IEditorInput extends IDisposable {
 	 * Returns if this input is dirty or not.
 	 */
 	isDirty(): boolean;
+
+	/**
+	 * Reverts this input.
+	 */
+	revert(): TPromise<boolean>;
 
 	/**
 	 * Returns if the other object matches this input.

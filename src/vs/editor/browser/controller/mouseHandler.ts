@@ -16,7 +16,7 @@ import { MouseTarget, MouseTargetFactory } from 'vs/editor/browser/controller/mo
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { TimeoutTimer, RunOnceScheduler } from 'vs/base/common/async';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
-import { VisibleRange } from 'vs/editor/common/view/renderingContext';
+import { HorizontalRange } from 'vs/editor/common/view/renderingContext';
 import { EditorMouseEventFactory, GlobalEditorMouseMoveMonitor, EditorMouseEvent, createEditorPagePosition, ClientCoordinates } from 'vs/editor/browser/editorDom';
 import { StandardMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { EditorZoom } from 'vs/editor/common/config/editorZoom';
@@ -108,7 +108,7 @@ export interface IPointerHandlerHelper {
 	 */
 	getPositionFromDOMInfo(spanNode: HTMLElement, offset: number): Position;
 
-	visibleRangeForPosition2(lineNumber: number, column: number): VisibleRange;
+	visibleRangeForPosition2(lineNumber: number, column: number): HorizontalRange;
 	getLineWidth(lineNumber: number): number;
 }
 

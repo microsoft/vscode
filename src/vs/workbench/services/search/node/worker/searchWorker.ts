@@ -33,7 +33,7 @@ function onError(error: any): void {
 	}
 }
 
-export class SearchWorkerManager implements ISearchWorker {
+export class SearchWorker implements ISearchWorker {
 	private currentSearchEngine: SearchWorkerEngine;
 
 	initialize(): TPromise<void> {
@@ -209,7 +209,7 @@ export class SearchWorkerEngine {
 
 						// Detect encoding and mime when this is the beginning of the file
 						if (isFirstRead) {
-							const mimeAndEncoding = detectMimeAndEncodingFromBuffer(buffer, bytesRead);
+							const mimeAndEncoding = detectMimeAndEncodingFromBuffer({ buffer, bytesRead });
 							if (mimeAndEncoding.mimes[mimeAndEncoding.mimes.length - 1] !== baseMime.MIME_TEXT) {
 								return clb(null); // skip files that seem binary
 							}

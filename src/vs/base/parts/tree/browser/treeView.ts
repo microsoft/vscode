@@ -945,7 +945,7 @@ export class TreeView extends HeightMap {
 
 			} else if (skipDiff || diff.length) {
 				this.onRemoveItems(new ArrayIterator(previousChildrenIds));
-				this.onInsertItems(new ArrayIterator(afterModelItems));
+				this.onInsertItems(new ArrayIterator(afterModelItems), item.getDepth() > 0 ? item.id : null);
 			}
 
 			if (skipDiff || diff.length) {

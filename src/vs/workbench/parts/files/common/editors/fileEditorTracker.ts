@@ -9,23 +9,19 @@ import errors = require('vs/base/common/errors');
 import URI from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
 import { IEditor, IEditorViewState, isCommonCodeEditor } from 'vs/editor/common/editorCommon';
-import { IEditor as IBaseEditor } from 'vs/platform/editor/common/editor';
-import { toResource, EditorInput, IEditorStacksModel, SideBySideEditorInput, IEditorGroup } from 'vs/workbench/common/editor';
+import { toResource, IEditorStacksModel, SideBySideEditorInput, IEditorGroup } from 'vs/workbench/common/editor';
 import { BINARY_FILE_EDITOR_ID } from 'vs/workbench/parts/files/common/files';
-import { ITextFileService, ModelState } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, ModelState, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { FileOperationEvent, FileOperation, IFileService, FileChangeType, FileChangesEvent } from 'vs/platform/files/common/files';
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { distinct } from 'vs/base/common/arrays';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export class FileEditorTracker implements IWorkbenchContribution {
-
-	// Delay in ms that we wait at minimum before we update a model from a file change event.
-	// This reduces the chance that a save from the client triggers an update of the editor.
-	private static FILE_CHANGE_UPDATE_DELAY = 2000;
-
 	private stacks: IEditorStacksModel;
 	private toUnbind: IDisposable[];
 
@@ -34,7 +30,8 @@ export class FileEditorTracker implements IWorkbenchContribution {
 		@ITextFileService private textFileService: ITextFileService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@IFileService private fileService: IFileService
+		@IFileService private fileService: IFileService,
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		this.toUnbind = [];
 		this.stacks = editorGroupService.getStacksModel();
@@ -77,8 +74,8 @@ export class FileEditorTracker implements IWorkbenchContribution {
 
 	private onFileChanges(e: FileChangesEvent): void {
 
-		// Handle updates to visible editors
-		this.handleUpdatesToVisibleEditors(e);
+		// Handle updates
+		this.handleUpdates(e);
 
 		// Handle deletes
 		if (e.gotDeleted()) {
@@ -108,7 +105,29 @@ export class FileEditorTracker implements IWorkbenchContribution {
 			}
 
 			if (matches) {
-				input.dispose();
+				// TODO@Ben this is for debugging https://github.com/Microsoft/vscode/issues/13665
+				if (this.environmentService.verbose) {
+					this.fileService.existsFile(input.getResource()).done(exists => {
+						if (!exists) {
+							input.dispose();
+							console.warn(`[13665] The file ${input.getResource().fsPath} actually does not exist anymore.`);
+							setTimeout(() => {
+								this.fileService.existsFile(input.getResource()).done(exists => {
+									console.warn(`[13665] The file ${input.getResource().fsPath} after 2 seconds exists: ${exists}`);
+								}, error => {
+									console.error(`[13665] Error checking existance for ${input.getResource().fsPath} after 2 seconds!`, error);
+								});
+							}, 2000);
+						} else {
+							console.warn(`[13665] The file ${input.getResource().fsPath} actually still exists!`);
+						}
+					}, error => {
+						console.error(`[13665] Error checking existance for ${input.getResource().fsPath}`, error);
+						input.dispose();
+					});
+				} else {
+					input.dispose();
+				}
 			}
 		});
 	}
@@ -193,42 +212,64 @@ export class FileEditorTracker implements IWorkbenchContribution {
 		return void 0;
 	}
 
-	private handleUpdatesToVisibleEditors(e: FileChangesEvent) {
-		const editors = this.editorService.getVisibleEditors();
-		editors.forEach(editor => {
-			let input = editor.input;
-			if (input instanceof SideBySideEditorInput) {
-				input = this.getMatchingFileEditorInputFromSideBySide(<SideBySideEditorInput>input, e);
+	private handleUpdates(e: FileChangesEvent): void {
+
+		// Collect distinct (saved) models to update.
+		//
+		// Note: we also consider the added event because it could be that a file was added
+		// and updated right after.
+		const modelsToUpdate = distinct([...e.getUpdated(), ...e.getAdded()]
+			.map(u => this.textFileService.models.get(u.resource))
+			.filter(model => model && model.getState() === ModelState.SAVED), m => m.getResource().toString());
+
+		// Handle updates to visible editors specially to preserve view state
+		const visibleModels = this.handleUpdatesToVisibleEditors(e);
+
+		// Handle updates to remaining models that are not visible
+		modelsToUpdate.forEach(model => {
+			if (visibleModels.indexOf(model) >= 0) {
+				return; // already updated
 			}
 
-			// File Editor Input
-			if (input instanceof FileEditorInput) {
-				const fileInputResource = input.getResource();
+			// Load model to update
+			model.load().done(null, errors.onUnexpectedError);
+		});
+	}
 
-				// Input got added or updated, so check for model and update
+	private handleUpdatesToVisibleEditors(e: FileChangesEvent): ITextFileEditorModel[] {
+		const updatedModels: ITextFileEditorModel[] = [];
+
+		const editors = this.editorService.getVisibleEditors();
+		editors.forEach(editor => {
+			const fileResource = toResource(editor.input, { filter: 'file', supportSideBySide: true });
+
+			// File Editor
+			if (fileResource) {
+
+				// File got added or updated, so check for model and update
 				// Note: we also consider the added event because it could be that a file was added
 				// and updated right after.
-				if (e.contains(fileInputResource, FileChangeType.UPDATED) || e.contains(fileInputResource, FileChangeType.ADDED)) {
-					const textModel = this.textFileService.models.get(fileInputResource);
+				if (e.contains(fileResource, FileChangeType.UPDATED) || e.contains(fileResource, FileChangeType.ADDED)) {
 
 					// Text file: check for last save time
+					const textModel = this.textFileService.models.get(fileResource);
 					if (textModel) {
 
 						// We only ever update models that are in good saved state
 						if (textModel.getState() === ModelState.SAVED) {
-							const lastSaveTime = textModel.getLastSaveAttemptTime();
+							const codeEditor = editor.getControl() as IEditor;
+							const viewState = codeEditor.saveViewState();
+							const lastKnownEtag = textModel.getETag();
 
-							// Force a reopen of the input if this change came in later than our wait interval before we consider it
-							if (Date.now() - lastSaveTime > FileEditorTracker.FILE_CHANGE_UPDATE_DELAY) {
-								const codeEditor = <IEditor>editor.getControl();
-								const viewState = codeEditor.saveViewState();
-								const currentMtime = textModel.getLastModifiedTime(); // optimize for the case where the file did actually not change
-								textModel.load().done(() => {
-									if (textModel.getLastModifiedTime() !== currentMtime && this.isEditorShowingPath(editor, textModel.getResource())) {
-										codeEditor.restoreViewState(viewState);
-									}
-								}, errors.onUnexpectedError);
-							}
+							textModel.load().done(() => {
+
+								// only restore the view state if the model changed and the editor is still showing it
+								if (textModel.getETag() !== lastKnownEtag && codeEditor.getModel() === textModel.textEditorModel) {
+									codeEditor.restoreViewState(viewState);
+								}
+							}, errors.onUnexpectedError);
+
+							updatedModels.push(textModel);
 						}
 					}
 
@@ -239,48 +280,8 @@ export class FileEditorTracker implements IWorkbenchContribution {
 				}
 			}
 		});
-	}
 
-	private isEditorShowingPath(editor: IBaseEditor, resource: URI): boolean {
-
-		// Only relevant if Editor is visible
-		if (!editor.isVisible()) {
-			return false;
-		}
-
-		// Only relevant if Input is set
-		let input = editor.input;
-		if (!input) {
-			return false;
-		}
-
-		// Support side by side editor input too
-		if (input instanceof SideBySideEditorInput) {
-			input = (<SideBySideEditorInput>input).master;
-		}
-
-		return input instanceof FileEditorInput && input.getResource().toString() === resource.toString();
-	}
-
-	private getMatchingFileEditorInputFromSideBySide(input: SideBySideEditorInput, e: FileChangesEvent): FileEditorInput {
-
-		// First try master
-		const master = input.master;
-		const res = this.getMatchingFileEditorInputFromInput(master, e);
-		if (res) {
-			return res;
-		}
-
-		// Second try details
-		return this.getMatchingFileEditorInputFromInput(input.details, e);
-	}
-
-	private getMatchingFileEditorInputFromInput(input: EditorInput, e: FileChangesEvent): FileEditorInput {
-		if (input instanceof FileEditorInput && e.contains(input.getResource(), FileChangeType.UPDATED)) {
-			return input;
-		}
-
-		return null;
+		return updatedModels;
 	}
 
 	public dispose(): void {

@@ -243,6 +243,7 @@ const configurationValueWhitelist = [
 	'editor.quickSuggestionsDelay',
 	'editor.snippetSuggestions',
 	'editor.selectionHighlight',
+	'editor.occurrencesHighlight',
 	'editor.glyphMargin',
 	'editor.wordSeparators',
 	'editor.mouseWheelScrollSensitivity',

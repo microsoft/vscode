@@ -9,7 +9,7 @@ import 'vs/css!./rulers';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { ViewPart } from 'vs/editor/browser/view/viewPart';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
-import { IRenderingContext, IRestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
+import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
 export class Rulers extends ViewPart {
@@ -51,7 +51,7 @@ export class Rulers extends ViewPart {
 
 	// --- end event handlers
 
-	public prepareRender(ctx: IRenderingContext): void {
+	public prepareRender(ctx: RenderingContext): void {
 		// Nothing to read
 	}
 
@@ -85,7 +85,7 @@ export class Rulers extends ViewPart {
 		}
 	}
 
-	public render(ctx: IRestrictedRenderingContext): void {
+	public render(ctx: RestrictedRenderingContext): void {
 
 		this._ensureRulersCount();
 

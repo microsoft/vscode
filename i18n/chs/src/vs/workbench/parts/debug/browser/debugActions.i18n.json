@@ -34,6 +34,7 @@
 	"restartDebug": "重启",
 	"restartFrame": "重新启动框架",
 	"reverseContinue": "反向",
+	"selectAndStartDebugging": "选择并开始调试",
 	"setValue": "设置值",
 	"startDebug": "开始调试",
 	"startWithoutDebugging": "开始执行(不调试)",

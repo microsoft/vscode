@@ -9,7 +9,7 @@ import * as platform from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { IConfiguration } from 'vs/editor/common/editorCommon';
-import { Decoration } from 'vs/editor/common/viewLayout/viewLineParts';
+import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
 import { renderViewLine, RenderLineInput, CharacterMapping } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { ClassNames } from 'vs/editor/browser/editorBrowser';
 import { IVisibleLine } from 'vs/editor/browser/view/viewLayer';
@@ -149,7 +149,7 @@ export class ViewLine implements IVisibleLine {
 
 		const lineData = viewportData.getViewLineRenderingData(lineNumber);
 		const options = this._options;
-		const actualInlineDecorations = Decoration.filter(lineData.inlineDecorations, lineNumber, lineData.minColumn, lineData.maxColumn);
+		const actualInlineDecorations = LineDecoration.filter(lineData.inlineDecorations, lineNumber, lineData.minColumn, lineData.maxColumn);
 		let renderLineInput = new RenderLineInput(
 			options.useMonospaceOptimizations,
 			lineData.content,

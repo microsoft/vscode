@@ -17,9 +17,9 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IFileService } from 'vs/platform/files/common/files';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { readToMatchingString } from 'vs/base/node/stream';
-import { ITextSource2 } from 'vs/editor/common/editorCommon';
-import { TextModel } from 'vs/editor/common/model/textModel';
 import { IWindowService } from 'vs/platform/windows/common/windows';
+import { TextSource, IRawTextSource } from 'vs/editor/common/model/textSource';
+import { DefaultEndOfLine } from 'vs/editor/common/editorCommon';
 
 export interface IBackupFilesModel {
 	resolve(backupRoot: string): TPromise<IBackupFilesModel>;
@@ -229,23 +229,19 @@ export class BackupFileService implements IBackupFileService {
 			const readPromises: TPromise<Uri>[] = [];
 
 			model.get().forEach(fileBackup => {
-				readPromises.push(new TPromise<Uri>((c, e) => {
-					readToMatchingString(fileBackup.fsPath, BackupFileService.META_MARKER, 2000, 10000, (error, result) => {
-						if (result === null) {
-							e(error);
-						}
-
-						c(Uri.parse(result));
-					});
-				}));
+				readPromises.push(
+					readToMatchingString(fileBackup.fsPath, BackupFileService.META_MARKER, 2000, 10000)
+						.then(Uri.parse)
+				);
 			});
 
 			return TPromise.join(readPromises);
 		});
 	}
 
-	public parseBackupContent(textSource: ITextSource2): string {
-		return textSource.lines.slice(1).join(TextModel.getEndOfLine(textSource) || ''); // The first line of a backup text file is the file name
+	public parseBackupContent(rawTextSource: IRawTextSource): string {
+		const textSource = TextSource.fromRawTextSource(rawTextSource, DefaultEndOfLine.LF);
+		return textSource.lines.slice(1).join(textSource.EOL); // The first line of a backup text file is the file name
 	}
 
 	protected getBackupResource(resource: Uri): Uri {

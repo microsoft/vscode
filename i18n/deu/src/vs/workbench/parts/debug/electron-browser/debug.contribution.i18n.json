@@ -7,6 +7,7 @@
 	"allowBreakpointsEverywhere": "Ermöglicht das Festlegen von Haltepunkten für alle Dateien.",
 	"debug": "Debuggen",
 	"debugCategory": "Debuggen",
+	"debugCommands": "Debugkonfiguration",
 	"debugConfigurationTitle": "Debuggen",
 	"debugPanel": "Debugging-Konsole",
 	"inlineValues": "Variablenwerte beim Debuggen in Editor eingebunden anzeigen",

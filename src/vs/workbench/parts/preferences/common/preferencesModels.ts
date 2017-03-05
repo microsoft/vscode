@@ -8,18 +8,20 @@ import * as strings from 'vs/base/common/strings';
 import { assign } from 'vs/base/common/objects';
 import { LinkedMap as Map } from 'vs/base/common/map';
 import URI from 'vs/base/common/uri';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { IReference } from 'vs/base/common/lifecycle';
 import { Registry } from 'vs/platform/platform';
 import { visit, JSONVisitor } from 'vs/base/common/json';
 import { IModel, IRange } from 'vs/editor/common/editorCommon';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
+import { EditorModel } from 'vs/workbench/common/editor';
 import { IConfigurationNode, IConfigurationRegistry, Extensions, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
 import { ISettingsEditorModel, IKeybindingsEditorModel, ISettingsGroup, ISetting, IFilterResult, ISettingsSection } from 'vs/workbench/parts/preferences/common/preferences';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { IMatch, or, matchesContiguousSubString, matchesPrefix, matchesCamelCase, matchesWords } from 'vs/base/common/filters';
+import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
 
-export abstract class AbstractSettingsModel extends Disposable {
+export abstract class AbstractSettingsModel extends EditorModel {
 
 	public get groupsTerms(): string[] {
 		return this.settingsGroups.map(group => '@' + group.id);
@@ -198,9 +200,12 @@ export abstract class AbstractSettingsModel extends Disposable {
 export class SettingsEditorModel extends AbstractSettingsModel implements ISettingsEditorModel {
 
 	private _settingsGroups: ISettingsGroup[];
+	private model: IModel;
 
-	constructor(private model: IModel, private _configurationTarget: ConfigurationTarget) {
+	constructor(reference: IReference<ITextEditorModel>, private _configurationTarget: ConfigurationTarget) {
 		super();
+		this.model = reference.object.textEditorModel;
+		this._register(this.onDispose(() => reference.dispose()));
 		this._register(this.model.onDidChangeContent(() => {
 			this._settingsGroups = null;
 		}));
@@ -625,6 +630,10 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 			result.push(indent + '// ' + line);
 		}
 	}
+
+	public dispose(): void {
+		// Not disposable
+	}
 }
 
 export class DefaultKeybindingsEditorModel implements IKeybindingsEditorModel<any> {
@@ -648,5 +657,9 @@ export class DefaultKeybindingsEditorModel implements IKeybindingsEditorModel<an
 
 	public getPreference(): any {
 		return null;
+	}
+
+	public dispose(): void {
+		// Not disposable
 	}
 }

@@ -17,6 +17,7 @@ import json = require('vs/base/common/json');
 import Types = require('vs/base/common/types');
 import { isValidExtensionDescription } from 'vs/platform/extensions/node/extensionValidator';
 import * as semver from 'semver';
+import { getIdAndVersionFromLocalExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 
 const MANIFEST_FILE = 'package.json';
 
@@ -313,15 +314,13 @@ export class ExtensionScanner {
 							return;
 						}
 
-						const match = /^([^.]+\..+)-(\d+\.\d+\.\d+)$/.exec(folder);
+						const {id, version} = getIdAndVersionFromLocalExtensionId(folder);
 
-						if (!match) {
+						if (!id && !version) {
 							nonGallery.push(folder);
 							return;
 						}
 
-						const id = match[1];
-						const version = match[2];
 						gallery.push({ folder, id, version });
 					});
 

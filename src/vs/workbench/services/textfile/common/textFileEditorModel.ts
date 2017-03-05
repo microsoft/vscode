@@ -16,7 +16,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import paths = require('vs/base/common/paths');
 import diagnostics = require('vs/base/common/diagnostics');
 import types = require('vs/base/common/types');
-import { IModelContentChangedEvent, ITextSource2 } from 'vs/editor/common/editorCommon';
+import { IModelContentChangedEvent } from 'vs/editor/common/editorCommon';
 import { IMode } from 'vs/editor/common/modes';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { ITextFileService, IAutoSaveConfiguration, ModelState, ITextFileEditorModel, IModelSaveOptions, ISaveErrorHandler, ISaveParticipant, StateChange, SaveReason, IRawTextContent } from 'vs/workbench/services/textfile/common/textfiles';
@@ -31,6 +31,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { anonymize } from 'vs/platform/telemetry/common/telemetryUtils';
 import { RunOnceScheduler } from 'vs/base/common/async';
+import { IRawTextSource } from 'vs/editor/common/model/textSource';
 
 /**
  * The text file editor model listens to changes to its underlying code editor model and saves these changes through the file service back to the disk.
@@ -50,7 +51,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private dirty: boolean;
 	private versionId: number;
 	private bufferSavedVersionId: number;
-	private versionOnDiskStat: IFileStat;
+	private lastResolvedDiskStat: IFileStat;
 	private toDispose: IDisposable[];
 	private blockModelContentChange: boolean;
 	private autoSaveAfterMillies: number;
@@ -286,8 +287,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		let etag: string;
 		if (force) {
 			etag = void 0; // bypass cache if force loading is true
-		} else if (this.versionOnDiskStat) {
-			etag = this.versionOnDiskStat.etag; // otherwise respect etag to support caching
+		} else if (this.lastResolvedDiskStat) {
+			etag = this.lastResolvedDiskStat.etag; // otherwise respect etag to support caching
 		}
 
 		// Resolve Content
@@ -326,7 +327,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			hasChildren: false,
 			children: void 0,
 		};
-		this.updateVersionOnDiskStat(resolvedStat);
+		this.updateLastResolvedDiskStat(resolvedStat);
 
 		// Keep the original encoding to not loose it when saving
 		const oldEncoding = this.contentEncoding;
@@ -355,7 +356,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return this.doCreateTextModel(content.resource, content.value, backup);
 	}
 
-	private doUpdateTextModel(value: string | ITextSource2): TPromise<EditorModel> {
+	private doUpdateTextModel(value: string | IRawTextSource): TPromise<EditorModel> {
 		diag('load() - updated text editor model', this.resource, new Date());
 
 		this.setDirty(false); // Ensure we are not tracking a stale state
@@ -370,7 +371,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return TPromise.as<EditorModel>(this);
 	}
 
-	private doCreateTextModel(resource: URI, value: string | ITextSource2, backup: URI): TPromise<EditorModel> {
+	private doCreateTextModel(resource: URI, value: string | IRawTextSource, backup: URI): TPromise<EditorModel> {
 		diag('load() - created text editor model', this.resource, new Date());
 
 		this.createTextEditorModelPromise = this.doLoadBackup(backup).then(backupContent => {
@@ -394,7 +395,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 					this.setDirty(false);
 				}
 
-				this.toDispose.push(this.textEditorModel.onDidChangeRawContent((e: IModelContentChangedEvent) => this.onModelContentChanged(e)));
+				this.toDispose.push(this.textEditorModel.onDidChangeRawContent(e => this.onModelContentChanged(e)));
 
 				return this;
 			}, error => {
@@ -598,7 +599,11 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			// to write the contents to disk, as they are already on disk. we still want to trigger
 			// a change on the file though so that external file watchers can be notified
 			if (force && !this.dirty && reason === SaveReason.EXPLICIT && versionId === newVersionId) {
-				return this.fileService.touchFile(this.resource).then(() => void 0, () => void 0 /* gracefully ignore errors if just touching */);
+				return this.fileService.touchFile(this.resource).then(stat => {
+
+					// Updated resolved stat with updated stat since touching it might have changed mtime
+					this.updateLastResolvedDiskStat(stat);
+				}, () => void 0 /* gracefully ignore errors if just touching */);
 			}
 
 			// update versionId with its new value (if pre-save changes happened)
@@ -613,17 +618,17 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			// Save to Disk
 			// mark the save operation as currently pending with the versionId (it might have changed from a save participant triggering)
 			diag(`doSave(${versionId}) - before updateContent()`, this.resource, new Date());
-			return this.saveSequentializer.setPending(newVersionId, this.fileService.updateContent(this.versionOnDiskStat.resource, this.getValue(), {
+			return this.saveSequentializer.setPending(newVersionId, this.fileService.updateContent(this.lastResolvedDiskStat.resource, this.getValue(), {
 				overwriteReadonly,
 				overwriteEncoding,
-				mtime: this.versionOnDiskStat.mtime,
+				mtime: this.lastResolvedDiskStat.mtime,
 				encoding: this.getEncoding(),
-				etag: this.versionOnDiskStat.etag
-			}).then((stat: IFileStat) => {
+				etag: this.lastResolvedDiskStat.etag
+			}).then(stat => {
 				diag(`doSave(${versionId}) - after updateContent()`, this.resource, new Date());
 
 				// Telemetry
-				this.telemetryService.publicLog('filePUT', { mimeType: guessMimeTypes(this.resource.fsPath).join(', '), ext: paths.extname(this.versionOnDiskStat.resource.fsPath) });
+				this.telemetryService.publicLog('filePUT', { mimeType: guessMimeTypes(this.resource.fsPath).join(', '), ext: paths.extname(this.lastResolvedDiskStat.resource.fsPath) });
 
 				// Update dirty state unless model has changed meanwhile
 				if (versionId === this.versionId) {
@@ -633,8 +638,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 					diag(`doSave(${versionId}) - not setting dirty to false because versionId did change meanwhile`, this.resource, new Date());
 				}
 
-				// Updated resolved stat with updated stat, and keep old for event
-				this.updateVersionOnDiskStat(stat);
+				// Updated resolved stat with updated stat
+				this.updateLastResolvedDiskStat(stat);
 
 				// Cancel any content change event promises as they are no longer valid
 				this.contentChangeEventScheduler.cancel();
@@ -688,18 +693,18 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		};
 	}
 
-	private updateVersionOnDiskStat(newVersionOnDiskStat: IFileStat): void {
+	private updateLastResolvedDiskStat(newVersionOnDiskStat: IFileStat): void {
 
 		// First resolve - just take
-		if (!this.versionOnDiskStat) {
-			this.versionOnDiskStat = newVersionOnDiskStat;
+		if (!this.lastResolvedDiskStat) {
+			this.lastResolvedDiskStat = newVersionOnDiskStat;
 		}
 
 		// Subsequent resolve - make sure that we only assign it if the mtime is equal or has advanced.
 		// This is essential a If-Modified-Since check on the client ot prevent race conditions from loading
 		// and saving. If a save comes in late after a revert was called, the mtime could be out of sync.
-		else if (this.versionOnDiskStat.mtime <= newVersionOnDiskStat.mtime) {
-			this.versionOnDiskStat = newVersionOnDiskStat;
+		else if (this.lastResolvedDiskStat.mtime <= newVersionOnDiskStat.mtime) {
+			this.lastResolvedDiskStat = newVersionOnDiskStat;
 		}
 	}
 
@@ -731,8 +736,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	/**
 	 * Returns the time in millies when this working copy was last modified by the user or some other program.
 	 */
-	public getLastModifiedTime(): number {
-		return this.versionOnDiskStat ? this.versionOnDiskStat.mtime : -1;
+	public getETag(): string {
+		return this.lastResolvedDiskStat ? this.lastResolvedDiskStat.etag : null;
 	}
 
 	/**
@@ -824,7 +829,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	public isResolved(): boolean {
-		return !types.isUndefinedOrNull(this.versionOnDiskStat);
+		return !types.isUndefinedOrNull(this.lastResolvedDiskStat);
 	}
 
 	/**
@@ -839,6 +844,13 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	 */
 	public getResource(): URI {
 		return this.resource;
+	}
+
+	/**
+	 * Stat accessor only used by tests.
+	 */
+	public getStat(): IFileStat {
+		return this.lastResolvedDiskStat;
 	}
 
 	public dispose(): void {
