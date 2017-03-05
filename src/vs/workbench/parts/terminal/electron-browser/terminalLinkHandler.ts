@@ -29,7 +29,7 @@ const CUSTOM_LINK_PRIORITY = -1;
 /** Lowest */
 const LOCAL_LINK_PRIORITY = -2;
 
-export type XtermLinkMatcherHandler = (event: MouseEvent, uri: string) => void;
+export type XtermLinkMatcherHandler = (event: MouseEvent, uri: string) => boolean | void;
 export type XtermLinkMatcherValidationCallback = (uri: string, callback: (isValid: boolean) => void) => void;
 
 export class TerminalLinkHandler {
@@ -40,7 +40,11 @@ export class TerminalLinkHandler {
 	) {
 	}
 
-	public registerCustomLinkHandler(xterm: any, regex: RegExp, handler: (string) => void, matchIndex?: number, validationCallback?: XtermLinkMatcherValidationCallback): number {
+	public initialize(xterm: any) {
+		xterm.attachHypertextLinkHandler(this._wrapLinkHandler(() => true));
+	}
+
+	public registerCustomLinkHandler(xterm: any, regex: RegExp, handler: (uri: string) => void, matchIndex?: number, validationCallback?: XtermLinkMatcherValidationCallback): number {
 		return xterm.registerLinkMatcher(regex, this._wrapLinkHandler(handler), {
 			matchIndex,
 			validationCallback,
@@ -49,15 +53,25 @@ export class TerminalLinkHandler {
 	}
 
 	public registerLocalLinkHandler(xterm: any): number {
-		return xterm.registerLinkMatcher(this._localLinkRegex, this._wrapLinkHandler(url => this._handleLocalLink(url)), {
+		const wrappedHandler = this._wrapLinkHandler(url => {
+			this._handleLocalLink(url);
+			return;
+		});
+		return xterm.registerLinkMatcher(this._localLinkRegex, wrappedHandler, {
 			matchIndex: 1,
 			validationCallback: (link: string, callback: (isValid: boolean) => void) => this._validateLocalLink(link, callback),
 			priority: LOCAL_LINK_PRIORITY
 		});
 	}
 
-	private _wrapLinkHandler(handler: (string) => void): XtermLinkMatcherHandler {
-		return (event, uri) => {
+	private _wrapLinkHandler(handler: (uri: string) => boolean | void): XtermLinkMatcherHandler {
+		return (event: MouseEvent, uri: string) => {
+			// Require ctrl/cmd on click
+			if (this._platform === Platform.Mac ? !event.metaKey : !event.ctrlKey) {
+				// TODO: Show hint on fail
+				event.preventDefault();
+				return false;
+			}
 			return handler(uri);
 		};
 	}
