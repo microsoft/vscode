@@ -15,7 +15,7 @@ import { MIME_BINARY } from 'vs/base/common/mime';
 import { shorten } from 'vs/base/common/labels';
 import { ActionRunner, IAction } from 'vs/base/common/actions';
 import { Position, IEditorInput } from 'vs/platform/editor/common/editor';
-import { IEditorGroup, toResource } from 'vs/workbench/common/editor';
+import { IEditorGroup, IGroupEvent, toResource } from 'vs/workbench/common/editor';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { EditorLabel } from 'vs/workbench/browser/labels';
@@ -38,7 +38,6 @@ import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElemen
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { extractResources } from 'vs/base/browser/dnd';
 import { LinkedMap } from 'vs/base/common/map';
-import { CloseEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
 
 interface IEditorInputLabel {
 	editor: IEditorInput;
@@ -374,10 +373,10 @@ export class TabsTitleControl extends TitleControl {
 		tabContainer.appendChild(tabCloseContainer);
 
 		const bar = new ActionBar(tabCloseContainer, { ariaLabel: nls.localize('araLabelTabActions', "Tab actions"), actionRunner: new TabActionRunner(() => this.context, index) });
-		bar.push(this.closeEditorAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(this.closeEditorAction) });
+		bar.push(this.closeEditorNoLayoutTitleAreaAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(this.closeEditorNoLayoutTitleAreaAction) });
 
 		// Eventing
-		const disposable = this.hookTabListeners(tabContainer, tabCloseContainer, index);
+		const disposable = this.hookTabListeners(tabContainer, index);
 
 		this.tabDisposeables.push(combinedDisposable([disposable, bar, editorLabel]));
 
@@ -402,7 +401,6 @@ export class TabsTitleControl extends TitleControl {
 		if (this.skipOnceRevealActiveTab) {
 			this.skipOnceRevealActiveTab = false;
 		} else {
-			// Reveal the active tab
 			const containerScrollPosX = this.tabsContainer.scrollLeft;
 			const activeTabPosX = this.activeTab.offsetLeft;
 			const activeTabWidth = this.activeTab.offsetWidth;
@@ -425,7 +423,7 @@ export class TabsTitleControl extends TitleControl {
 		}
 	}
 
-	private hookTabListeners(tab: HTMLElement, tabCloseButton: HTMLElement, index: number): IDisposable {
+	private hookTabListeners(tab: HTMLElement, index: number): IDisposable {
 		const disposables: IDisposable[] = [];
 
 		// Open on Click
@@ -435,19 +433,6 @@ export class TabsTitleControl extends TitleControl {
 			const { editor, position } = this.toTabContext(index);
 			if (e.button === 0 /* Left Button */ && !DOM.findParentWithClass((e.target || e.srcElement) as HTMLElement, 'monaco-action-bar', 'tab')) {
 				setTimeout(() => this.editorService.openEditor(editor, null, position).done(null, errors.onUnexpectedError)); // timeout to keep focus in editor after mouse up
-			}
-		}));
-
-		// Close on tab close button Click
-		disposables.push(DOM.addDisposableListener(tabCloseButton, DOM.EventType.MOUSE_UP, (e: MouseEvent) => {
-			DOM.EventHelper.stop(e);
-			tab.blur();
-
-			if (e.button === 0 /* Left Button */) {
-				const { editor, position } = this.toTabContext(index);
-				this.skipOnceRevealActiveTab = true;
-
-				this.editorService.closeEditor(position, editor).done(null, errors.onUnexpectedError);
 			}
 		}));
 
@@ -666,6 +651,12 @@ export class TabsTitleControl extends TitleControl {
 
 		return !isCopy || source.id === target.id;
 	}
+
+	protected onEditorClosed(e: IGroupEvent): void {
+		if (!e.layoutTitleArea) {
+			this.skipOnceRevealActiveTab = true;
+		}
+	}
 }
 
 class TabActionRunner extends ActionRunner {
@@ -678,11 +669,6 @@ class TabActionRunner extends ActionRunner {
 		const group = this.group();
 		if (!group) {
 			return TPromise.as(void 0);
-		}
-
-		// Let tab listeners handle tab close action instead
-		if (action.id === CloseEditorAction.ID) {
-			return TPromise.as(null);
 		}
 
 		return super.run(action, { group, editor: group.getEditor(this.index) });

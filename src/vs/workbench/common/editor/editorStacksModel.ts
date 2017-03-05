@@ -371,11 +371,13 @@ export class EditorGroup implements IEditorGroup {
 			pinned = false;
 		}
 
+		let layoutTitleArea = !editor.isClosingNoLayoutTitleArea();
+
 		// Remove from arrays
 		this.splice(index, true);
 
 		// Event
-		this.fireEvent(this._onEditorClosed, { editor, pinned, index }, true);
+		this.fireEvent(this._onEditorClosed, { editor, pinned, index, layoutTitleArea }, true);
 	}
 
 	public closeEditors(except: EditorInput, direction?: Direction): void {

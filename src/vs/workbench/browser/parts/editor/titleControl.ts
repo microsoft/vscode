@@ -17,7 +17,7 @@ import { BaseEditor, IEditorInputActionContext } from 'vs/workbench/browser/part
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { isCommonCodeEditor, isCommonDiffEditor } from 'vs/editor/common/editorCommon';
 import arrays = require('vs/base/common/arrays');
-import { IEditorStacksModel, IEditorGroup, IEditorIdentifier, EditorInput, IStacksModelChangeEvent, toResource } from 'vs/workbench/common/editor';
+import { IEditorStacksModel, IEditorGroup, IEditorIdentifier, EditorInput, IGroupEvent, IStacksModelChangeEvent, toResource } from 'vs/workbench/common/editor';
 import { EventType as BaseEventType } from 'vs/base/common/events';
 import { IActionItem, ActionsOrientation, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
@@ -32,7 +32,7 @@ import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Keybinding } from 'vs/base/common/keyCodes';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { CloseEditorsInGroupAction, SplitEditorAction, CloseEditorAction, KeepEditorAction, CloseOtherEditorsInGroupAction, CloseRightEditorsInGroupAction, ShowEditorsInGroupAction } from 'vs/workbench/browser/parts/editor/editorActions';
+import { CloseEditorsInGroupAction, SplitEditorAction, CloseEditorAction, CloseEditorNoLayoutTitleAreaAction, KeepEditorAction, CloseOtherEditorsInGroupAction, CloseRightEditorsInGroupAction, ShowEditorsInGroupAction } from 'vs/workbench/browser/parts/editor/editorActions';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { createActionItem, fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { IMenuService, MenuId, IMenu, ExecuteCommandAction } from 'vs/platform/actions/common/actions';
@@ -66,7 +66,7 @@ export abstract class TitleControl implements ITitleAreaControl {
 
 	protected dragged: boolean;
 
-	protected closeEditorAction: CloseEditorAction;
+	protected closeEditorNoLayoutTitleAreaAction: CloseEditorNoLayoutTitleAreaAction;
 	protected pinEditorAction: KeepEditorAction;
 	protected closeOtherEditorsAction: CloseOtherEditorsInGroupAction;
 	protected closeRightEditorsAction: CloseRightEditorsInGroupAction;
@@ -138,7 +138,12 @@ export abstract class TitleControl implements ITitleAreaControl {
 
 	private registerListeners(): void {
 		this.toDispose.push(this.editorGroupService.onTabOptionsChanged(options => this.tabOptions = options));
+		this.toDispose.push(this.stacks.onEditorClosed(e => this.onEditorClosed(e)));
 		this.toDispose.push(this.stacks.onModelChanged(e => this.onStacksChanged(e)));
+	}
+
+	protected onEditorClosed(e: IGroupEvent): void {
+		// Subclasses can opt in to react on editor closed
 	}
 
 	private onStacksChanged(e: IStacksModelChangeEvent): void {
@@ -219,7 +224,7 @@ export abstract class TitleControl implements ITitleAreaControl {
 	}
 
 	private initActions(): void {
-		this.closeEditorAction = this.instantiationService.createInstance(CloseEditorAction, CloseEditorAction.ID, nls.localize('close', "Close"));
+		this.closeEditorNoLayoutTitleAreaAction = this.instantiationService.createInstance(CloseEditorNoLayoutTitleAreaAction, CloseEditorAction.ID, nls.localize('close', "Close"));
 		this.closeOtherEditorsAction = this.instantiationService.createInstance(CloseOtherEditorsInGroupAction, CloseOtherEditorsInGroupAction.ID, nls.localize('closeOthers', "Close Others"));
 		this.closeRightEditorsAction = this.instantiationService.createInstance(CloseRightEditorsInGroupAction, CloseRightEditorsInGroupAction.ID, nls.localize('closeRight', "Close to the Right"));
 		this.closeEditorsInGroupAction = this.instantiationService.createInstance(CloseEditorsInGroupAction, CloseEditorsInGroupAction.ID, nls.localize('closeAll', "Close All"));
@@ -383,7 +388,7 @@ export abstract class TitleControl implements ITitleAreaControl {
 
 		const primaryEditorActionIds = primaryEditorActions.map(a => a.id);
 		if (!this.tabOptions.showTabs) {
-			primaryEditorActionIds.push(this.closeEditorAction.id); // always show "Close" when tabs are disabled
+			primaryEditorActionIds.push(this.closeEditorNoLayoutTitleAreaAction.id); // always show "Close" when tabs are disabled
 		}
 
 		const secondaryEditorActionIds = secondaryEditorActions.map(a => a.id);
@@ -397,7 +402,7 @@ export abstract class TitleControl implements ITitleAreaControl {
 			this.editorActionsToolbar.setActions(primaryEditorActions, secondaryEditorActions)();
 
 			if (!this.tabOptions.showTabs) {
-				this.editorActionsToolbar.addPrimaryAction(this.closeEditorAction)();
+				this.editorActionsToolbar.addPrimaryAction(this.closeEditorNoLayoutTitleAreaAction)();
 			}
 
 			this.currentPrimaryEditorActionIds = primaryEditorActionIds;
@@ -456,7 +461,7 @@ export abstract class TitleControl implements ITitleAreaControl {
 
 		// Actions: For all editors
 		const actions: IAction[] = [
-			this.closeEditorAction,
+			this.closeEditorNoLayoutTitleAreaAction,
 			this.closeOtherEditorsAction
 		];
 
@@ -483,7 +488,7 @@ export abstract class TitleControl implements ITitleAreaControl {
 		[
 			this.splitEditorAction,
 			this.showEditorsInGroupAction,
-			this.closeEditorAction,
+			this.closeEditorNoLayoutTitleAreaAction,
 			this.closeRightEditorsAction,
 			this.closeOtherEditorsAction,
 			this.closeEditorsInGroupAction,
