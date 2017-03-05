@@ -69,6 +69,7 @@ export class TerminalLinkHandler {
 			// Require ctrl/cmd on click
 			if (this._platform === Platform.Mac ? !event.metaKey : !event.ctrlKey) {
 				// TODO: Show hint on fail
+				new TerminalLinkMessage(<HTMLElement>event.target, 'Hold ctrl and click to follow link');
 				event.preventDefault();
 				return false;
 			}
@@ -134,5 +135,55 @@ export class TerminalLinkHandler {
 			}
 			return link;
 		});
+	}
+}
+
+class TerminalLinkMessage {
+
+	// Editor.IContentWidget.allowEditorOverflow
+	readonly allowEditorOverflow = true;
+	readonly suppressMouseDown = false;
+
+	// private _editor: ICodeEditor;
+	// private _position: editorCommon.IPosition;
+	private _domNode: HTMLDivElement;
+
+	// static fadeOut(messageWidget: MessageWidget): IDisposable {
+	// 	let handle: number;
+	// 	const dispose = () => {
+	// 		messageWidget.dispose();
+	// 		clearTimeout(handle);
+	// 		messageWidget.getDomNode().removeEventListener('animationend', dispose);
+	// 	};
+	// 	handle = setTimeout(dispose, 110);
+	// 	messageWidget.getDomNode().addEventListener('animationend', dispose);
+	// 	messageWidget.getDomNode().classList.add('fadeOut');
+	// 	return { dispose };
+	// }
+
+	constructor(parentElement: HTMLElement, text: string) {
+		this._domNode = document.createElement('div');
+		this._domNode.style.position = 'absolute';
+		this._domNode.style.left = '0px';
+		this._domNode.style.bottom = '100%';
+		this._domNode.classList.add('terminal-overlaymessage');
+
+		const message = document.createElement('div');
+		message.classList.add('message');
+		message.textContent = text;
+		this._domNode.appendChild(message);
+
+		const anchor = document.createElement('div');
+		anchor.classList.add('anchor');
+		this._domNode.appendChild(anchor);
+
+		// this._editor.addContentWidget(this);
+		parentElement.appendChild(this._domNode);
+		this._domNode.classList.add('fadeIn');
+
+	}
+
+	dispose() {
+		// this._editor.removeContentWidget(this);
 	}
 }
