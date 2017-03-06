@@ -9,7 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import errors = require('vs/base/common/errors');
 import objects = require('vs/base/common/objects');
 import URI from 'vs/base/common/uri';
-import * as editorCommon from 'vs/editor/common/editorCommon';
+import { ICursorPositionChangedEvent, IEditor } from 'vs/editor/common/editorCommon';
 import { IEditor as IBaseEditor, IEditorInput, ITextEditorOptions, IResourceInput } from 'vs/platform/editor/common/editor';
 import { EditorInput, IGroupEvent, IEditorRegistry, Extensions, toResource, IEditorGroup } from 'vs/workbench/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -47,13 +47,17 @@ export class EditorState {
 		return this._selection;
 	}
 
-	public justifiesNewPushState(other: EditorState): boolean {
+	public justifiesNewPushState(other: EditorState, event?: ICursorPositionChangedEvent): boolean {
 		if (!this._editorInput.matches(other._editorInput)) {
 			return true; // push different editor inputs
 		}
 
 		if (!Selection.isISelection(this._selection) || !Selection.isISelection(other._selection)) {
 			return true; // unknown selections
+		}
+
+		if (event && event.source === 'api') {
+			return true; // always let API source win (e.g. "Go to definition" should add a history entry)
 		}
 
 		const liftedSelection = Selection.liftSelection(this._selection);
@@ -126,14 +130,14 @@ export abstract class BaseHistoryService {
 		const control = getCodeEditor(activeEditor);
 		if (control) {
 			this.activeEditorListeners.push(control.onDidChangeCursorPosition(event => {
-				this.handleEditorSelectionChangeEvent(activeEditor);
+				this.handleEditorSelectionChangeEvent(activeEditor, event);
 			}));
 		}
 	}
 
 	protected abstract handleExcludesChange(): void;
 
-	protected abstract handleEditorSelectionChangeEvent(editor?: IBaseEditor): void;
+	protected abstract handleEditorSelectionChangeEvent(editor?: IBaseEditor, event?: ICursorPositionChangedEvent): void;
 
 	protected abstract handleActiveEditorChange(editor?: IBaseEditor): void;
 
@@ -293,8 +297,8 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		});
 	}
 
-	protected handleEditorSelectionChangeEvent(editor?: IBaseEditor): void {
-		this.handleEditorEventInStack(editor);
+	protected handleEditorSelectionChangeEvent(editor?: IBaseEditor, event?: ICursorPositionChangedEvent): void {
+		this.handleEditorEventInStack(editor, event);
 	}
 
 	protected handleActiveEditorChange(editor?: IBaseEditor): void {
@@ -369,7 +373,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		this.history = this.history.filter(e => !this.matches(arg1, e));
 	}
 
-	private handleEditorEventInStack(editor: IBaseEditor): void {
+	private handleEditorEventInStack(editor: IBaseEditor, event?: ICursorPositionChangedEvent): void {
 		const control = getCodeEditor(editor);
 
 		// treat editor changes that happen as part of stack navigation specially
@@ -387,7 +391,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		}
 
 		if (control && editor.input) {
-			this.handleTextEditorEvent(editor, control);
+			this.handleTextEditorEvent(editor, control, event);
 
 			return;
 		}
@@ -399,9 +403,9 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		}
 	}
 
-	private handleTextEditorEvent(editor: IBaseEditor, editorControl: editorCommon.IEditor): void {
+	private handleTextEditorEvent(editor: IBaseEditor, editorControl: IEditor, event?: ICursorPositionChangedEvent): void {
 		const stateCandidate = new EditorState(editor.input, editorControl.getSelection());
-		if (!this.currentFileEditorState || this.currentFileEditorState.justifiesNewPushState(stateCandidate)) {
+		if (!this.currentFileEditorState || this.currentFileEditorState.justifiesNewPushState(stateCandidate, event)) {
 			this.currentFileEditorState = stateCandidate;
 
 			let options: ITextEditorOptions;
