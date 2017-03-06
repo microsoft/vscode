@@ -159,8 +159,8 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		}
 
 		const state = model.getState();
-		if (state === ModelState.CONFLICT || state === ModelState.ERROR) {
-			return true; // always indicate dirty state if we are in conflict or error state
+		if (state === ModelState.CONFLICT || state === ModelState.ORPHAN || state === ModelState.ERROR) {
+			return true; // always indicate dirty state if we are in conflict, orphan or error state
 		}
 
 		if (this.textFileService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {

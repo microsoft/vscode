@@ -60,12 +60,14 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private contentChangeEventScheduler: RunOnceScheduler;
 	private saveSequentializer: SaveSequentializer;
 	private disposed: boolean;
-	private inConflictMode: boolean;
-	private inErrorMode: boolean;
 	private lastSaveAttemptTime: number;
 	private createTextEditorModelPromise: TPromise<TextFileEditorModel>;
 	private _onDidContentChange: Emitter<StateChange>;
 	private _onDidStateChange: Emitter<StateChange>;
+
+	private inConflictMode: boolean;
+	private inOrphanMode: boolean;
+	private inErrorMode: boolean;
 
 	constructor(
 		resource: URI,
@@ -187,7 +189,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.cancelAutoSavePromise();
 
 		// Unset flags
-		const undo = this.doSetDirty(false);
+		const undo = this.setDirty(false);
 
 		let loadPromise: TPromise<EditorModel>;
 		if (soft) {
@@ -285,7 +287,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		// NotModified status is expected and can be handled gracefully
 		if (result === FileOperationResult.FILE_NOT_MODIFIED_SINCE) {
-			this.doSetDirty(false); // Ensure we are not tracking a stale state
+			this.setDirty(false); // Ensure we are not tracking a stale state
 
 			return TPromise.as<EditorModel>(this);
 		}
@@ -342,7 +344,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private doUpdateTextModel(value: string | IRawTextSource): TPromise<EditorModel> {
 		diag('load() - updated text editor model', this.resource, new Date());
 
-		this.doSetDirty(false); // Ensure we are not tracking a stale state
+		this.setDirty(false); // Ensure we are not tracking a stale state
 
 		this.blockModelContentChange = true;
 		try {
@@ -367,7 +369,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				// We also want to trigger auto save if it is enabled to simulate the exact same behaviour
 				// you would get if manually making the model dirty (fixes https://github.com/Microsoft/vscode/issues/16977)
 				if (hasBackupContent) {
-					this.setDirty(true);
+					this.makeDirty();
 					if (this.autoSaveAfterMilliesEnabled) {
 						this.doAutoSave(this.versionId);
 					}
@@ -375,7 +377,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 				// Ensure we are not tracking a stale state
 				else {
-					this.doSetDirty(false);
+					this.setDirty(false);
 				}
 
 				this.toDispose.push(this.textEditorModel.onDidChangeRawContent(e => this.onModelContentChanged(e)));
@@ -421,12 +423,14 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// In this case we clear the dirty flag and emit a SAVED event to indicate this state.
 		// Note: we currently only do this check when auto-save is turned off because there you see
 		// a dirty indicator that you want to get rid of when undoing to the saved version.
-		if (!this.autoSaveAfterMilliesEnabled && this.textEditorModel.getAlternativeVersionId() === this.bufferSavedVersionId) {
+		// Note: if the model is in orphan mode, we cannot clear the dirty indicator because there
+		// is no version on disk after all.
+		if (!this.autoSaveAfterMilliesEnabled && !this.inOrphanMode && this.textEditorModel.getAlternativeVersionId() === this.bufferSavedVersionId) {
 			diag('onModelContentChanged() - model content changed back to last saved version', this.resource, new Date());
 
 			// Clear flags
 			const wasDirty = this.dirty;
-			this.doSetDirty(false);
+			this.setDirty(false);
 
 			// Emit event
 			if (wasDirty) {
@@ -439,11 +443,11 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		diag('onModelContentChanged() - model content changed and marked as dirty', this.resource, new Date());
 
 		// Mark as dirty
-		this.setDirty(true);
+		this.makeDirty();
 
 		// Start auto save process unless we are in conflict resolution mode and unless it is disabled
 		if (this.autoSaveAfterMilliesEnabled) {
-			if (!this.inConflictMode) {
+			if (!this.inConflictMode && !this.inOrphanMode) {
 				this.doAutoSave(this.versionId);
 			} else {
 				diag('makeDirty() - prevented save because we are in conflict resolution mode', this.resource, new Date());
@@ -454,46 +458,16 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.contentChangeEventScheduler.schedule();
 	}
 
-	public setDirty(dirty: boolean, disableUndoToSaved?: boolean): () => void {
+	private makeDirty(): void {
 
 		// Track dirty state and version id
 		const wasDirty = this.dirty;
-		const doUndo = this.doSetDirty(dirty);
+		this.setDirty(true);
 
-		// Clar our buffered saved version if the caller does not want to support that
-		// undo to the last known saved version should clear the dirty flag on the model
-		if (disableUndoToSaved) {
-			this.bufferSavedVersionId = void 0;
-		}
-
-		// Handle eventing
-		if (!wasDirty && dirty) {
+		// Emit as Event if we turned dirty
+		if (!wasDirty) {
 			this._onDidStateChange.fire(StateChange.DIRTY);
-		} else if (wasDirty && !dirty) {
-			this._onDidStateChange.fire(StateChange.SAVED);
 		}
-
-		// Return function to undo properly the current version ID
-		const currentVersionId = this.versionId;
-		return () => {
-
-			// Do some validation checks to prevent faulty undo():
-			// - version id did not change in the meantime
-			// - state matches what we set it to when this operation was running
-			const state = this.getState();
-			if (this.versionId === currentVersionId && ((dirty && state === ModelState.DIRTY) || (!dirty && state === ModelState.SAVED))) {
-
-				// Revert
-				doUndo();
-
-				// Events
-				if (this.dirty) {
-					this._onDidStateChange.fire(StateChange.DIRTY);
-				} else {
-					this._onDidStateChange.fire(StateChange.SAVED);
-				}
-			}
-		};
 	}
 
 	private doAutoSave(versionId: number): TPromise<void> {
@@ -646,7 +620,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				// Update dirty state unless model has changed meanwhile
 				if (versionId === this.versionId) {
 					diag(`doSave(${versionId}) - setting dirty to false because versionId did not change`, this.resource, new Date());
-					this.doSetDirty(false);
+					this.setDirty(false);
 				} else {
 					diag(`doSave(${versionId}) - not setting dirty to false because versionId did change meanwhile`, this.resource, new Date());
 				}
@@ -679,15 +653,17 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}));
 	}
 
-	private doSetDirty(dirty: boolean): () => void {
+	private setDirty(dirty: boolean): () => void {
 		const wasDirty = this.dirty;
-		const wasInConflictResolutionMode = this.inConflictMode;
+		const wasInConflictMode = this.inConflictMode;
+		const wasInOrphanMode = this.inOrphanMode;
 		const wasInErrorMode = this.inErrorMode;
 		const oldBufferSavedVersionId = this.bufferSavedVersionId;
 
 		if (!dirty) {
 			this.dirty = false;
 			this.inConflictMode = false;
+			this.inOrphanMode = false;
 			this.inErrorMode = false;
 
 			// we remember the models alternate version id to remember when the version
@@ -705,7 +681,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// Return function to revert this call
 		return () => {
 			this.dirty = wasDirty;
-			this.inConflictMode = wasInConflictResolutionMode;
+			this.inConflictMode = wasInConflictMode;
+			this.inOrphanMode = wasInOrphanMode;
 			this.inErrorMode = wasInErrorMode;
 			this.bufferSavedVersionId = oldBufferSavedVersionId;
 		};
@@ -766,6 +743,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			return ModelState.CONFLICT;
 		}
 
+		if (this.inOrphanMode) {
+			return ModelState.ORPHAN;
+		}
+
 		if (this.inErrorMode) {
 			return ModelState.ERROR;
 		}
@@ -800,7 +781,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			// Save
 			if (!this.isDirty()) {
 				this.versionId++; // needs to increment because we change the model potentially
-				this.setDirty(true);
+				this.makeDirty();
 			}
 
 			if (!this.inConflictMode) {
@@ -871,9 +852,49 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return this.lastResolvedDiskStat;
 	}
 
+	/**
+	 * Makes this model an orphan, indicating that the file on disk no longer exists. Returns
+	 * a function to undo this and go back to the previous state.
+	 */
+	public setOrphaned(): () => void {
+
+		// Only saved models can turn into orphans
+		if (this.getState() !== ModelState.SAVED) {
+			return () => { };
+		}
+
+		// Mark as dirty
+		const undo = this.setDirty(true);
+
+		// Mark as oprhaned
+		this.inOrphanMode = true;
+
+		// Emit as Event if we turned dirty
+		this._onDidStateChange.fire(StateChange.DIRTY);
+
+		// Return undo function
+		const currentVersionId = this.versionId;
+		return () => {
+
+			// Leave orphan mode
+			this.inOrphanMode = false;
+
+			// Undo is only valid if version is the one we left with
+			if (this.versionId === currentVersionId) {
+
+				// Revert
+				undo();
+
+				// Events
+				this._onDidStateChange.fire(StateChange.SAVED);
+			}
+		};
+	}
+
 	public dispose(): void {
 		this.disposed = true;
 		this.inConflictMode = false;
+		this.inOrphanMode = false;
 		this.inErrorMode = false;
 
 		this.toDispose = dispose(this.toDispose);
