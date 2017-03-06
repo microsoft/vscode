@@ -73,7 +73,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 		assert.equal(delta.removedEditors, undefined);
 	});
 
-	test('ignore huge model from editor', () => {
+	test('ignore huge model from editor', function () {
 		this.timeout(1000 * 60); // increase timeout for this one test
 
 		const data = new Array(2 + (5 * 1024 * 1024)).join(' ');
