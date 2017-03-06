@@ -175,8 +175,9 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 		// TODO@Joao: unfold this
 		windowsMainService = accessor.get(IWindowsMainService);
 
+		// TODO@Joao: so ugly...
 		windowsMainService.onWindowClose(() => {
-			if (windowsMainService.getWindowCount() === 0) {
+			if (!platform.isMacintosh && windowsMainService.getWindowCount() === 0) {
 				sharedProcess.dispose();
 			}
 		});
@@ -223,6 +224,7 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 			}
 
 			configurationService.dispose();
+			sharedProcess.dispose();
 		}
 
 		// Dispose on app quit
