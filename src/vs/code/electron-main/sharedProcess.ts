@@ -5,6 +5,7 @@
 
 import { assign } from 'vs/base/common/objects';
 import { memoize } from 'vs/base/common/decorators';
+import { IDisposable, toDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { BrowserWindow, ipcMain } from 'electron';
@@ -16,6 +17,7 @@ export interface ISharedProcessInitData {
 export class SharedProcess {
 
 	private window: Electron.BrowserWindow;
+	private disposables: IDisposable[] = [];
 
 	@memoize
 	get onReady(): TPromise<void> {
@@ -26,12 +28,23 @@ export class SharedProcess {
 		this.window.loadURL(url);
 
 		// Prevent the window from dying
-		this.window.on('close', e => {
+		const onClose = e => {
 			if (this.window.isVisible()) {
 				e.preventDefault();
 				this.window.hide();
 			}
-		});
+		};
+
+		this.window.on('close', onClose);
+		this.disposables.push(toDisposable(() => this.window.removeListener('close', onClose)));
+
+		this.disposables.push(toDisposable(() => {
+			// Electron seems to crash on Windows without this setTimeout :|
+			setTimeout(() => {
+				this.window.close();
+				this.window = null;
+			}, 0);
+		}));
 
 		return new TPromise<void>((c, e) => {
 			ipcMain.once('handshake', ({ sender }) => {
@@ -66,9 +79,6 @@ export class SharedProcess {
 	}
 
 	dispose(): void {
-		if (this.window) {
-			this.window.close();
-			this.window = null;
-		}
+		this.disposables = dispose(this.disposables);
 	}
 }
