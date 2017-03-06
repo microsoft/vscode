@@ -69,7 +69,7 @@ export class DragAndDropController implements editorCommon.IEditorContribution {
 				});
 				this._editor.setSelections(newSelections);
 			} else {
-				this._editor.executeCommand(DragAndDropController.ID, new DragAndDropCommand(this._dragSelection, newCursorPosition));
+				this._editor.executeCommand(DragAndDropController.ID, new DragAndDropCommand(this._dragSelection, newCursorPosition, mouseEvent.event.altKey));
 			}
 		}
 
