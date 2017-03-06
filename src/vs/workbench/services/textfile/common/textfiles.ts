@@ -176,8 +176,6 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 
 	revert(soft?: boolean): TPromise<void>;
 
-	setConflictResolutionMode(): void;
-
 	getValue(): string;
 
 	isDirty(): boolean;

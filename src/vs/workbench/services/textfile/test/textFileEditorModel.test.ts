@@ -210,31 +210,6 @@ suite('Files - TextFileEditorModel', () => {
 		}, error => onError(error, done));
 	});
 
-	test('Conflict Resolution Mode', function (done) {
-		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8');
-
-		model.load().done(() => {
-			model.setConflictResolutionMode();
-			model.textEditorModel.setValue('foo');
-
-			assert.ok(model.isDirty());
-			assert.equal(model.getState(), ModelState.CONFLICT);
-
-			return model.revert().then(() => {
-				model.textEditorModel.setValue('bar');
-				assert.ok(model.isDirty());
-
-				return model.save().then(() => {
-					assert.ok(!model.isDirty());
-
-					model.dispose();
-
-					done();
-				});
-			});
-		}, error => onError(error, done));
-	});
-
 	test('Auto Save triggered when model changes', function (done) {
 		let eventCounter = 0;
 		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index.txt'), 'utf8');

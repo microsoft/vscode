@@ -60,7 +60,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private contentChangeEventScheduler: RunOnceScheduler;
 	private saveSequentializer: SaveSequentializer;
 	private disposed: boolean;
-	private inConflictResolutionMode: boolean;
+	private inConflictMode: boolean;
 	private inErrorMode: boolean;
 	private lastSaveAttemptTime: number;
 	private createTextEditorModelPromise: TPromise<TextFileEditorModel>;
@@ -171,16 +171,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	 */
 	public static setSaveParticipant(handler: ISaveParticipant): void {
 		TextFileEditorModel.saveParticipant = handler;
-	}
-
-	/**
-	 * When set, will disable any saving (including auto save) until the model is loaded again. This allows to resolve save conflicts
-	 * without running into subsequent save errors when editing the model.
-	 */
-	public setConflictResolutionMode(): void {
-		diag('setConflictResolutionMode() - enabled conflict resolution mode', this.resource, new Date());
-
-		this.inConflictResolutionMode = true;
 	}
 
 	/**
@@ -453,7 +443,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		// Start auto save process unless we are in conflict resolution mode and unless it is disabled
 		if (this.autoSaveAfterMilliesEnabled) {
-			if (!this.inConflictResolutionMode) {
+			if (!this.inConflictMode) {
 				this.doAutoSave(this.versionId);
 			} else {
 				diag('makeDirty() - prevented save because we are in conflict resolution mode', this.resource, new Date());
@@ -672,8 +662,13 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			}, error => {
 				diag(`doSave(${versionId}) - exit - resulted in a save error: ${error.toString()}`, this.resource, new Date());
 
-				// Flag as error state
+				// Flag as error state in the model
 				this.inErrorMode = true;
+
+				// Look out for a save conflict
+				if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_MODIFIED_SINCE) {
+					this.inConflictMode = true;
+				}
 
 				// Show to user
 				this.onSaveError(error);
@@ -686,13 +681,13 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	private doSetDirty(dirty: boolean): () => void {
 		const wasDirty = this.dirty;
-		const wasInConflictResolutionMode = this.inConflictResolutionMode;
+		const wasInConflictResolutionMode = this.inConflictMode;
 		const wasInErrorMode = this.inErrorMode;
 		const oldBufferSavedVersionId = this.bufferSavedVersionId;
 
 		if (!dirty) {
 			this.dirty = false;
-			this.inConflictResolutionMode = false;
+			this.inConflictMode = false;
 			this.inErrorMode = false;
 
 			// we remember the models alternate version id to remember when the version
@@ -710,7 +705,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// Return function to revert this call
 		return () => {
 			this.dirty = wasDirty;
-			this.inConflictResolutionMode = wasInConflictResolutionMode;
+			this.inConflictMode = wasInConflictResolutionMode;
 			this.inErrorMode = wasInErrorMode;
 			this.bufferSavedVersionId = oldBufferSavedVersionId;
 		};
@@ -767,7 +762,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	 * Returns the state this text text file editor model is in with regards to changes and saving.
 	 */
 	public getState(): ModelState {
-		if (this.inConflictResolutionMode) {
+		if (this.inConflictMode) {
 			return ModelState.CONFLICT;
 		}
 
@@ -808,7 +803,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				this.setDirty(true);
 			}
 
-			if (!this.inConflictResolutionMode) {
+			if (!this.inConflictMode) {
 				this.save({ overwriteEncoding: true }).done(null, onUnexpectedError);
 			}
 		}
@@ -878,7 +873,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	public dispose(): void {
 		this.disposed = true;
-		this.inConflictResolutionMode = false;
+		this.inConflictMode = false;
 		this.inErrorMode = false;
 
 		this.toDispose = dispose(this.toDispose);
