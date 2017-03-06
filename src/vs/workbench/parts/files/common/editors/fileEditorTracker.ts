@@ -13,7 +13,7 @@ import { IEditor, IEditorViewState, isCommonCodeEditor } from 'vs/editor/common/
 import { toResource, IEditorStacksModel, SideBySideEditorInput, IEditorGroup, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { BINARY_FILE_EDITOR_ID } from 'vs/workbench/parts/files/common/files';
 import { ITextFileService, ModelState, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
-import { FileOperationEvent, FileOperation, IFileService, FileChangeType, FileChangesEvent } from 'vs/platform/files/common/files';
+import { FileOperationEvent, FileOperation, IFileService, FileChangeType, FileChangesEvent, isEqual, indexOf } from 'vs/platform/files/common/files';
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
@@ -245,7 +245,7 @@ export class FileEditorTracker implements IWorkbenchContribution {
 						if (oldResource.toString() === resource.toString()) {
 							reopenFileResource = newResource; // file got moved
 						} else {
-							const index = resource.fsPath.indexOf(oldResource.fsPath);
+							const index = indexOf(resource.fsPath, oldResource.fsPath);
 							reopenFileResource = URI.file(paths.join(newResource.fsPath, resource.fsPath.substr(index + oldResource.fsPath.length + 1))); // parent folder got moved
 						}
 
@@ -274,7 +274,7 @@ export class FileEditorTracker implements IWorkbenchContribution {
 			const editor = editors[i];
 			if (editor && editor.position === stacks.positionOfGroup(group)) {
 				const resource = toResource(editor.input, { filter: 'file' });
-				if (resource && resource.fsPath === resource.fsPath) {
+				if (resource && isEqual(resource.fsPath, resource.fsPath)) {
 					const control = editor.getControl();
 					if (isCommonCodeEditor(control)) {
 						return control.saveViewState();

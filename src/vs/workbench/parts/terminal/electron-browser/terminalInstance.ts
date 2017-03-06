@@ -196,6 +196,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._xtermElement = document.createElement('div');
 
 		this._xterm.open(this._xtermElement);
+		this._linkHandler.initialize(this._xterm);
 		this._linkHandler.registerLocalLinkHandler(this._xterm);
 		this._xterm.attachCustomKeydownHandler((event: KeyboardEvent) => {
 			// Disable all input if the terminal is exiting

@@ -94,7 +94,7 @@ export class ContextMenuService implements IContextMenuService {
 					} else {
 						const label = this.keybindingService.getLabelFor(keybinding);
 						if (label) {
-							options.label = `${options.label} 〔${label}〕`;
+							options.label = `${options.label} (${label})`;
 						}
 					}
 				}

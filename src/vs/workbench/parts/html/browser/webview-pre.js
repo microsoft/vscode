@@ -142,7 +142,7 @@ document.addEventListener("DOMContentLoaded", function (event) {
 
 			// bubble out link-clicks
 			if (newFrame.contentDocument.body) {
-				newFrame.contentDocument.body.addEventListener("click", handleInnerClick);
+				newFrame.contentDocument.body.addEventListener('click', handleInnerClick);
 			}
 
 			if (frame) {
