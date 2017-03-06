@@ -17,6 +17,7 @@ import Event from 'vs/base/common/event';
 export interface ICommandAction {
 	id: string;
 	title: string;
+	alias?: string;
 	category?: string;
 	iconClass?: string;
 }
