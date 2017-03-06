@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 "use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
 var fs = require("fs");
 var ts = require("typescript");
 var path = require("path");
@@ -147,9 +148,11 @@ function getMassagedTopLevelDeclarationText(sourceFile, declaration) {
                 if (memberText.indexOf('@internal') >= 0 || memberText.indexOf('private') >= 0) {
                     // console.log('BEFORE: ', result);
                     result = result.replace(memberText, '');
+                    // console.log('AFTER: ', result);
                 }
             }
             catch (err) {
+                // life..
             }
         });
     }
@@ -199,7 +202,7 @@ function format(text) {
             insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets: false,
             insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces: true,
             placeOpenBraceOnNewLineForFunctions: false,
-            placeOpenBraceOnNewLineForControlBlocks: false
+            placeOpenBraceOnNewLineForControlBlocks: false,
         };
     }
 }

@@ -112,7 +112,7 @@ function reloadTypeScriptNodeModule(): NodeJS.ReadWriteStream {
 		return (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2) + ' MB';
 	}
 
-	return es.through(function(data) {
+	return es.through(function (data) {
 		this.emit('data', data);
 	}, function () {
 
@@ -165,7 +165,7 @@ function monacodtsTask(out: string, isWatch: boolean): NodeJS.ReadWriteStream {
 		}
 	}
 
-	const setInputFile = (filePath: string, contents:string) => {
+	const setInputFile = (filePath: string, contents: string) => {
 		if (inputFiles[filePath] === contents) {
 			// no change
 			return;

@@ -61,7 +61,7 @@ export function src(extensionName: string, version: string): Stream {
 			const result = JSON.parse(rawResult);
 			const extension = result.results[0].extensions[0];
 			if (!extension) {
-				return error(`No such extension: ${ extension }`);
+				return error(`No such extension: ${extension}`);
 			}
 
 			const metadata = {
@@ -72,15 +72,15 @@ export function src(extensionName: string, version: string): Stream {
 
 			const extensionVersion = extension.versions.filter(v => v.version === version)[0];
 			if (!extensionVersion) {
-				return error(`No such extension version: ${ extensionName } @ ${ version }`);
+				return error(`No such extension version: ${extensionName} @ ${version}`);
 			}
 
 			const asset = extensionVersion.files.filter(f => f.assetType === 'Microsoft.VisualStudio.Services.VSIXPackage')[0];
 			if (!asset) {
-				return error(`No VSIX found for extension version: ${ extensionName } @ ${ version }`);
+				return error(`No VSIX found for extension version: ${extensionName} @ ${version}`);
 			}
 
-			util.log('Downloading extension:', util.colors.yellow(`${ extensionName }@${ version }`), '...');
+			util.log('Downloading extension:', util.colors.yellow(`${extensionName}@${version}`), '...');
 
 			const options = {
 				base: asset.source,
