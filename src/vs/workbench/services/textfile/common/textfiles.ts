@@ -180,8 +180,6 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 
 	getResource(): URI;
 
-	getLastSaveAttemptTime(): number;
-
 	getState(): ModelState;
 
 	getETag(): string;
@@ -194,11 +192,7 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 
 	getValue(): string;
 
-	setOrphaned(): () => void;
-
 	isDirty(): boolean;
-
-	isResolved(): boolean;
 
 	isDisposed(): boolean;
 }

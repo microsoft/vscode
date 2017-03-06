@@ -23,6 +23,7 @@ import { distinct } from 'vs/base/common/arrays';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { once } from 'vs/base/common/event';
+import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 
 export class FileEditorTracker implements IWorkbenchContribution {
 	private stacks: IEditorStacksModel;
@@ -185,7 +186,7 @@ export class FileEditorTracker implements IWorkbenchContribution {
 
 			// Otherwise we want to keep the editor open and mark it as dirty since its underlying resource was deleted
 			else {
-				const model = this.textFileService.models.get(resource);
+				const model = this.textFileService.models.get(resource) as TextFileEditorModel;
 				if (model && model.getState() === ModelState.SAVED) {
 					const undo = model.setOrphaned();
 					this.mapResourceToUndoDirtyFromExternalDelete[resource.toString()] = undo;
