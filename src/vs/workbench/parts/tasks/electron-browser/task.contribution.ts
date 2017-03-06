@@ -79,6 +79,202 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 let $ = Builder.$;
 let tasksCategory = nls.localize('tasksCategory', "Tasks");
 
+class AbstractTaskAction extends Action {
+
+	protected taskService: ITaskService;
+	protected telemetryService: ITelemetryService;
+	protected messageService: IMessageService;
+	protected contextService: IWorkspaceContextService;
+
+	constructor(id: string, label: string, @ITaskService taskService: ITaskService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IMessageService messageService: IMessageService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService) {
+
+		super(id, label);
+		this.taskService = taskService;
+		this.telemetryService = telemetryService;
+		this.messageService = messageService;
+		this.contextService = contextService;
+	}
+
+	protected canRun(): boolean {
+		if (!this.contextService.hasWorkspace()) {
+			this.messageService.show(Severity.Info, nls.localize('AbstractTaskAction.noWorkspace', 'Tasks are only available on a workspace folder.'));
+			return false;
+		}
+		return true;
+	}
+}
+
+class BuildAction extends AbstractTaskAction {
+	public static ID = 'workbench.action.tasks.build';
+	public static TEXT = nls.localize('BuildAction.label', "Run Build Task");
+
+	constructor(id: string, label: string, @ITaskService taskService: ITaskService, @ITelemetryService telemetryService: ITelemetryService,
+		@IMessageService messageService: IMessageService, @IWorkspaceContextService contextService: IWorkspaceContextService) {
+		super(id, label, taskService, telemetryService, messageService, contextService);
+	}
+
+	public run(): TPromise<ITaskSummary> {
+		if (!this.canRun()) {
+			return TPromise.as(undefined);
+		}
+		return this.taskService.build();
+	}
+}
+
+class TestAction extends AbstractTaskAction {
+	public static ID = 'workbench.action.tasks.test';
+	public static TEXT = nls.localize('TestAction.label', "Run Test Task");
+
+	constructor(id: string, label: string, @ITaskService taskService: ITaskService, @ITelemetryService telemetryService: ITelemetryService,
+		@IMessageService messageService: IMessageService, @IWorkspaceContextService contextService: IWorkspaceContextService) {
+		super(id, label, taskService, telemetryService, messageService, contextService);
+	}
+
+	public run(): TPromise<ITaskSummary> {
+		if (!this.canRun()) {
+			return TPromise.as(undefined);
+		}
+		return this.taskService.runTest();
+	}
+}
+
+class RebuildAction extends AbstractTaskAction {
+	public static ID = 'workbench.action.tasks.rebuild';
+	public static TEXT = nls.localize('RebuildAction.label', 'Run Rebuild Task');
+
+	constructor(id: string, label: string, @ITaskService taskService: ITaskService, @ITelemetryService telemetryService: ITelemetryService,
+		@IMessageService messageService: IMessageService, @IWorkspaceContextService contextService: IWorkspaceContextService) {
+		super(id, label, taskService, telemetryService, messageService, contextService);
+	}
+
+	public run(): TPromise<ITaskSummary> {
+		if (!this.canRun()) {
+			return TPromise.as(undefined);
+		}
+		return this.taskService.rebuild();
+	}
+}
+
+class CleanAction extends AbstractTaskAction {
+	public static ID = 'workbench.action.tasks.clean';
+	public static TEXT = nls.localize('CleanAction.label', 'Run Clean Task');
+
+	constructor(id: string, label: string, @ITaskService taskService: ITaskService, @ITelemetryService telemetryService: ITelemetryService,
+		@IMessageService messageService: IMessageService, @IWorkspaceContextService contextService: IWorkspaceContextService) {
+		super(id, label, taskService, telemetryService, messageService, contextService);
+	}
+
+	public run(): TPromise<ITaskSummary> {
+		if (!this.canRun()) {
+			return TPromise.as(undefined);
+		}
+		return this.taskService.clean();
+	}
+}
+
+class CommandAction extends AbstractTaskAction {
+	constructor(id: string, label: string, private taskId: string, @ITaskService taskService: ITaskService, @ITelemetryService telemetryService: ITelemetryService,
+		@IMessageService messageService: IMessageService, @IWorkspaceContextService contextService: IWorkspaceContextService) {
+		super(id, label, taskService, telemetryService, messageService, contextService);
+	}
+
+	public run(): TPromise<ITaskSummary> {
+		if (!this.canRun()) {
+			return TPromise.as(undefined);
+		}
+		return this.taskService.run(this.taskId);
+	}
+}
+
+
+class TerminateAction extends AbstractTaskAction {
+	public static ID = 'workbench.action.tasks.terminate';
+	public static TEXT = nls.localize('TerminateAction.label', "Terminate Running Task");
+
+	constructor(id: string, label: string, @ITaskService taskService: ITaskService, @ITelemetryService telemetryService: ITelemetryService,
+		@IMessageService messageService: IMessageService, @IWorkspaceContextService contextService: IWorkspaceContextService,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label, taskService, telemetryService, messageService, contextService);
+	}
+
+	public run(): TPromise<TerminateResponse> {
+		if (!this.canRun()) {
+			return TPromise.as(undefined);
+		}
+		if (this.taskService.inTerminal()) {
+			this.messageService.show(Severity.Info, {
+				message: nls.localize('TerminateAction.terminalSystem', 'The tasks are executed in the integrated terminal. Use the terminal to manage the tasks.'),
+				actions: [new ViewTerminalAction(this.terminalService), new CloseMessageAction()]
+			});
+			return undefined;
+		} else {
+			return this.taskService.isActive().then((active) => {
+				if (active) {
+					return this.taskService.terminate().then((response) => {
+						if (response.success) {
+							return undefined;
+						} else if (response.code && response.code === TerminateResponseCode.ProcessNotFound) {
+							this.messageService.show(Severity.Error, nls.localize('TerminateAction.noProcess', 'The launched process doesn\'t exist anymore. If the task spawned background tasks exiting VS Code might result in orphaned processes.'));
+							return undefined;
+						} else {
+							return Promise.wrapError(nls.localize('TerminateAction.failed', 'Failed to terminate running task'));
+						}
+					});
+				}
+				return undefined;
+			});
+		}
+	}
+}
+
+class ShowLogAction extends AbstractTaskAction {
+	public static ID = 'workbench.action.tasks.showLog';
+	public static TEXT = nls.localize('ShowLogAction.label', "Show Task Log");
+
+	private outputService: IOutputService;
+
+	constructor(id: string, label: string, @ITaskService taskService: ITaskService, @ITelemetryService telemetryService: ITelemetryService,
+		@IMessageService messageService: IMessageService, @IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IOutputService outputService: IOutputService) {
+
+		super(id, label, taskService, telemetryService, messageService, contextService);
+		this.outputService = outputService;
+	}
+
+	public run(): TPromise<IEditor> {
+		if (!this.canRun()) {
+			return TPromise.as(undefined);
+		}
+		return this.outputService.getChannel(TaskService.OutputChannelId).show(true);
+	}
+}
+
+class RunTaskAction extends AbstractTaskAction {
+
+	public static ID = 'workbench.action.tasks.runTask';
+	public static TEXT = nls.localize('RunTaskAction.label', "Run Task");
+	private quickOpenService: IQuickOpenService;
+
+	constructor(id: string, label: string, @IQuickOpenService quickOpenService: IQuickOpenService,
+		@ITaskService taskService: ITaskService, @ITelemetryService telemetryService: ITelemetryService,
+		@IMessageService messageService: IMessageService, @IWorkspaceContextService contextService: IWorkspaceContextService) {
+		super(id, label, taskService, telemetryService, messageService, contextService);
+		this.quickOpenService = quickOpenService;
+	}
+
+	public run(event?: any): Promise {
+		if (!this.canRun()) {
+			return TPromise.as(undefined);
+		}
+		this.quickOpenService.show('task ');
+		return TPromise.as(null);
+	}
+}
+
 abstract class OpenTaskConfigurationAction extends Action {
 
 	private configurationService: IConfigurationService;
@@ -982,10 +1178,7 @@ class TaskService extends EventEmitter implements ITaskService {
 				let closeAction = new CloseMessageAction();
 				let action: Action = needsConfig
 					? this.getConfigureAction(buildError.code)
-					: new Action(
-						'workbench.action.tasks.terminate',
-						nls.localize('TerminateAction.label', "Terminate Running Task"),
-						undefined, true, () => { this.runTerminateCommand(); return TPromise.as<void>(undefined); });
+					: new TerminateAction(TerminateAction.ID, TerminateAction.TEXT, this, this.telemetryService, this.messageService, this.contextService, this.terminalService);
 				closeAction.closeFunction = this.messageService.show(buildError.severity, { message: buildError.message, actions: [action, closeAction] });
 			} else {
 				this.messageService.show(buildError.severity, buildError.message);
@@ -1059,6 +1252,13 @@ class TaskService extends EventEmitter implements ITaskService {
 
 let workbenchActionsRegistry = <IWorkbenchActionRegistry>Registry.as(WorkbenchActionExtensions.WorkbenchActions);
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ConfigureTaskRunnerAction, ConfigureTaskRunnerAction.ID, ConfigureTaskRunnerAction.TEXT), 'Tasks: Configure Task Runner', tasksCategory);
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(BuildAction, BuildAction.ID, BuildAction.TEXT, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_B }), 'Tasks: Run Build Task', tasksCategory);
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(TestAction, TestAction.ID, TestAction.TEXT), 'Tasks: Run Test Task', tasksCategory);
+// workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(RebuildAction, RebuildAction.ID, RebuildAction.TEXT), tasksCategory);
+// workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(CleanAction, CleanAction.ID, CleanAction.TEXT), tasksCategory);
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(TerminateAction, TerminateAction.ID, TerminateAction.TEXT), 'Tasks: Terminate Running Task', tasksCategory);
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ShowLogAction, ShowLogAction.ID, ShowLogAction.TEXT), 'Tasks: Show Task Log', tasksCategory);
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(RunTaskAction, RunTaskAction.ID, RunTaskAction.TEXT), 'Tasks: Run Task', tasksCategory);
 
 MenuRegistry.addCommand({ id: 'workbench.action.tasks.showLog', title: nls.localize('ShowLogAction.label', "Show Task Log"), category: tasksCategory });
 MenuRegistry.addCommand({ id: 'workbench.action.tasks.runTask', title: nls.localize('RunTaskAction.label', "Run Task"), category: tasksCategory });
