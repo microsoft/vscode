@@ -493,7 +493,12 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// Return function to undo properly the current version ID
 		const currentVersionId = this.versionId;
 		return () => {
-			if (this.versionId === currentVersionId) {
+
+			// Do some validation checks to prevent faulty undo():
+			// - version id did not change in the meantime
+			// - state matches what we set it to when this operation was running
+			const state = this.getState();
+			if (this.versionId === currentVersionId && ((dirty && state === ModelState.DIRTY) || (!dirty && state === ModelState.SAVED))) {
 
 				// Revert
 				doUndo();

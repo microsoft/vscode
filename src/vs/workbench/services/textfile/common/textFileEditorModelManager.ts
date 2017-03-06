@@ -93,10 +93,8 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 		// TODO@Ben this is a workaround until we have adopted model references from
 		// the resolver service (https://github.com/Microsoft/vscode/issues/17888)
 
-		this.getAll().forEach(model => {
-			if (this.canDispose(model)) {
-				model.dispose();
-			}
+		this.getAll(void 0, model => this.canDispose(model)).forEach(model => {
+			model.dispose();
 		});
 	}
 
@@ -289,7 +287,7 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 		});
 	}
 
-	public getAll(resource?: URI): ITextFileEditorModel[] {
+	public getAll(resource?: URI, filter?: (model: ITextFileEditorModel) => boolean): ITextFileEditorModel[] {
 		if (resource) {
 			const res = this.mapResourceToModel[resource.toString()];
 
@@ -299,7 +297,10 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 		const keys = Object.keys(this.mapResourceToModel);
 		const res: ITextFileEditorModel[] = [];
 		for (let i = 0; i < keys.length; i++) {
-			res.push(this.mapResourceToModel[keys[i]]);
+			const model = this.mapResourceToModel[keys[i]];
+			if (!filter || filter(model)) {
+				res.push(model);
+			}
 		}
 
 		return res;

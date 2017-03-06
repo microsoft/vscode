@@ -113,22 +113,17 @@ export class FileEditorTracker implements IWorkbenchContribution {
 		// Flag models as saved that are identical to disk contents
 		// (only if we do not dispose from external deletes and caused them to be dirty)
 		if (!this.closeOnExternalFileDelete) {
-			const fileInputs = this.getOpenedFileInputs();
-			fileInputs.forEach(input => {
-				if (!input.isDirty()) {
-					return; // we are only interested in dirty editors
-				}
+			const dirtyFileEditors = this.getOpenedFileEditors(true /* dirty only */);
+			dirtyFileEditors.forEach(editor => {
+				const resource = editor.getResource();
 
-				const resource = input.getResource();
+				// See if we have a stored undo operation for this editor
+				const undo = this.mapResourceToUndoDirtyFromExternalDelete[resource.toString()];
+				if (undo) {
 
-				// file showing in editor was added
-				if (e.contains(resource, FileChangeType.ADDED)) {
-					const undo = this.mapResourceToUndoDirtyFromExternalDelete[resource.toString()];
-					if (undo) {
-						const model = this.textFileService.models.get(resource);
-						if (model && model.getState() === ModelState.DIRTY) {
-							undo();
-						}
+					// file showing in editor was added
+					if (e.contains(resource, FileChangeType.ADDED)) {
+						undo();
 						this.mapResourceToUndoDirtyFromExternalDelete[resource.toString()] = void 0;
 					}
 				}
@@ -137,13 +132,9 @@ export class FileEditorTracker implements IWorkbenchContribution {
 	}
 
 	private handleDeletes(arg1: URI | FileChangesEvent, isExternal: boolean, movedTo?: URI): void {
-		const fileInputs = this.getOpenedFileInputs();
-		fileInputs.forEach(input => {
-			if (input.isDirty()) {
-				return; // we never dispose dirty files
-			}
-
-			const resource = input.getResource();
+		const nonDirtyFileEditors = this.getOpenedFileEditors(false /* non dirty only */);
+		nonDirtyFileEditors.forEach(editor => {
+			const resource = editor.getResource();
 
 			// Special case: a resource was renamed to the same path with different casing. Since our paths
 			// API is treating the paths as equal (they are on disk), we end up disposing the input we just
@@ -167,7 +158,7 @@ export class FileEditorTracker implements IWorkbenchContribution {
 			// - the user has not disabled the setting closeOnExternalFileDelete
 			// - the file change is local or external
 			// - the input is not resolved (we need to dispose because we cannot restore otherwise since we do not have the contents)
-			if (this.closeOnExternalFileDelete || !isExternal || !input.isResolved()) {
+			if (this.closeOnExternalFileDelete || !isExternal || !editor.isResolved()) {
 
 				// We have received reports of users seeing delete events even though the file still
 				// exists (network shares issue: https://github.com/Microsoft/vscode/issues/13665).
@@ -184,8 +175,8 @@ export class FileEditorTracker implements IWorkbenchContribution {
 				}
 
 				checkExists.done(exists => {
-					if (!exists && !input.isDisposed()) {
-						input.dispose();
+					if (!exists && !editor.isDisposed()) {
+						editor.dispose();
 					} else if (this.environmentService.verbose) {
 						console.warn(`File exists even though we received a delete event: ${resource.toString()}`);
 					}
@@ -206,30 +197,36 @@ export class FileEditorTracker implements IWorkbenchContribution {
 		});
 	}
 
-	private getOpenedFileInputs(): FileEditorInput[] {
-		const inputs: FileEditorInput[] = [];
+	private getOpenedFileEditors(dirtyState: boolean): FileEditorInput[] {
+		const editors: FileEditorInput[] = [];
 
 		const stacks = this.editorGroupService.getStacksModel();
 		stacks.groups.forEach(group => {
-			group.getEditors().forEach(input => {
-				if (input instanceof FileEditorInput) {
-					inputs.push(input);
-				} else if (input instanceof SideBySideEditorInput) {
-					const master = input.master;
-					const details = input.details;
+			group.getEditors().forEach(editor => {
+				if (editor instanceof FileEditorInput) {
+					if (!!editor.isDirty() === dirtyState) {
+						editors.push(editor);
+					}
+				} else if (editor instanceof SideBySideEditorInput) {
+					const master = editor.master;
+					const details = editor.details;
 
 					if (master instanceof FileEditorInput) {
-						inputs.push(master);
+						if (!!master.isDirty() === dirtyState) {
+							editors.push(master);
+						}
 					}
 
 					if (details instanceof FileEditorInput) {
-						inputs.push(details);
+						if (!!details.isDirty() === dirtyState) {
+							editors.push(details);
+						}
 					}
 				}
 			});
 		});
 
-		return inputs;
+		return editors;
 	}
 
 	private handleMovedFileInOpenedEditors(oldResource: URI, newResource: URI): void {
