@@ -24,8 +24,7 @@ export class SharedProcess {
 
 		const url = `${require.toUrl('vs/code/electron-browser/sharedProcess.html')}?config=${encodeURIComponent(JSON.stringify(config))}`;
 		this.window.loadURL(url);
-		// this.window.webContents.openDevTools();
-		this.window.hide();
+		this.hide();
 
 		// Prevent the window from dying
 		this.window.on('close', e => {
@@ -48,6 +47,24 @@ export class SharedProcess {
 		private appRoot: string,
 		private nodeCachedDataDir: string
 	) { }
+
+	toggle(): void {
+		if (this.window.isVisible()) {
+			this.hide();
+		} else {
+			this.show();
+		}
+	}
+
+	show(): void {
+		this.window.show();
+		this.window.webContents.openDevTools();
+	}
+
+	hide(): void {
+		this.window.webContents.closeDevTools();
+		this.window.hide();
+	}
 
 	dispose(): void {
 		if (this.window) {

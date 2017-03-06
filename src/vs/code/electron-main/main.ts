@@ -155,7 +155,7 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 
 	services.set(IUpdateService, new SyncDescriptor(UpdateService));
 	services.set(IWindowsMainService, new SyncDescriptor(WindowsManager));
-	services.set(IWindowsService, new SyncDescriptor(WindowsService));
+	services.set(IWindowsService, new SyncDescriptor(WindowsService, sharedProcess));
 	services.set(ILaunchService, new SyncDescriptor(LaunchService));
 
 	if (environmentService.isBuilt && !environmentService.isExtensionDevelopment && !!product.enableTelemetry) {
