@@ -86,7 +86,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	private memento: any;
 	private stacks: EditorStacksModel;
 	private tabOptions: ITabOptions;
-	private showTabs: boolean;
+	private forceHideTabs: boolean;
 	private doNotFireTabOptionsChanged: boolean;
 
 	private _onEditorsChanged: Emitter<void>;
@@ -192,7 +192,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 				previewEditors: newPreviewEditors,
 				showIcons: editorConfig.showIcons,
 				tabCloseButton: editorConfig.tabCloseButton,
-				showTabs: this.showTabs === undefined ? editorConfig.showTabs : this.showTabs
+				showTabs: this.forceHideTabs ? false : editorConfig.showTabs
 			};
 
 			if (!this.doNotFireTabOptionsChanged && !objects.equals(oldTabOptions, this.tabOptions)) {
@@ -220,9 +220,10 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		this.telemetryService.publicLog('editorClosed', event.editor.getTelemetryDescriptor());
 	}
 
-	public hideTabs(hidden: boolean): void {
-		this.showTabs = !hidden;
-		this.tabOptions.showTabs = !hidden;
+	public hideTabs(forceHide: boolean): void {
+		this.forceHideTabs = forceHide;
+		const config = this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>();
+		this.tabOptions.showTabs = forceHide ? false : config && config.workbench && config.workbench.editor && config.workbench.editor.showTabs;
 		this._onTabOptionsChanged.fire(this.tabOptions);
 	}
 
