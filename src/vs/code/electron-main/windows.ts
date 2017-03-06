@@ -448,7 +448,7 @@ export class WindowsManager implements IWindowsMainService {
 					openFilesInNewWindow = true; // only on macOS do we allow to open files in a new window if this is triggered via DOCK context
 				}
 
-				if (!openConfig.cli.extensionDevelopmentPath && windowConfig && (windowConfig.openFilesInNewWindow === 'on' || windowConfig.openFilesInNewWindow === 'off' || <any>windowConfig.openFilesInNewWindow === false /* TODO@Ben migration */)) {
+				if (!openConfig.cli.extensionDevelopmentPath && windowConfig && (windowConfig.openFilesInNewWindow === 'on' || windowConfig.openFilesInNewWindow === 'off')) {
 					openFilesInNewWindow = (windowConfig.openFilesInNewWindow === 'on');
 				}
 			}
