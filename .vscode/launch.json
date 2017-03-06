@@ -45,7 +45,7 @@
 			"request": "attach",
 			"name": "Attach to Extension Host",
 			"protocol": "legacy",
-			"port": 5870,
+			"port": 2999,
 			"sourceMaps": true,
 			"restart": true,
 			"outFiles": [
