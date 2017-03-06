@@ -60,7 +60,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 
 	test('ignore huge model', () => {
 
-		const data = new Array(2 + (5 * 1024 * 1024)).join('!');
+		const data = new Array(2 + (5 * 1024 * 1024)).join(' ');
 		const model = modelService.createModel(data, null, null);
 		assert.ok(model.isTooLargeForHavingARichMode());
 
@@ -74,8 +74,9 @@ suite('MainThreadDocumentsAndEditors', () => {
 	});
 
 	test('ignore huge model from editor', () => {
+		this.timeout(1000 * 60); // increase timeout for this one test
 
-		const data = new Array(2 + (5 * 1024 * 1024)).join('!');
+		const data = new Array(2 + (5 * 1024 * 1024)).join(' ');
 		const model = modelService.createModel(data, null, null);
 		const editor = mockCodeEditor(null, { model });
 
