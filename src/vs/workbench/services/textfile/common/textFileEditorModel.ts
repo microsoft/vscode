@@ -471,11 +471,17 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.contentChangeEventScheduler.schedule();
 	}
 
-	public setDirty(dirty: boolean): () => void {
+	public setDirty(dirty: boolean, disableUndoToSaved?: boolean): () => void {
 
 		// Track dirty state and version id
 		const wasDirty = this.dirty;
 		const doUndo = this.doSetDirty(dirty);
+
+		// Clar our buffered saved version if the caller does not want to support that
+		// undo to the last known saved version should clear the dirty flag on the model
+		if (disableUndoToSaved) {
+			this.bufferSavedVersionId = void 0;
+		}
 
 		// Handle eventing
 		if (!wasDirty && dirty) {

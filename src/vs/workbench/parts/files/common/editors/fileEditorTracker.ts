@@ -196,7 +196,7 @@ export class FileEditorTracker implements IWorkbenchContribution {
 			else {
 				const model = this.textFileService.models.get(resource);
 				if (model && model.getState() === ModelState.SAVED) {
-					const undo = model.setDirty(true);
+					const undo = model.setDirty(true, true /* prevent undo to saved version because there is none */);
 					this.mapResourceToUndoDirtyFromExternalDelete[resource.toString()] = undo;
 					once(model.onDispose)(() => {
 						this.mapResourceToUndoDirtyFromExternalDelete[resource.toString()] = void 0;

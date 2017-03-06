@@ -182,7 +182,7 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 
 	isDirty(): boolean;
 
-	setDirty(dirty: boolean): () => void;
+	setDirty(dirty: boolean, disableUndoToSaved?: boolean): () => void;
 
 	isResolved(): boolean;
 
