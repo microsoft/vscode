@@ -7,6 +7,7 @@
 	"allowBreakpointsEverywhere": "Permite establecer un punto de interrupción en cualquier archivo.",
 	"debug": "Depurar",
 	"debugCategory": "Depurar",
+	"debugCommands": "Configuración de depuración",
 	"debugConfigurationTitle": "Depurar",
 	"debugPanel": "Consola de depuración",
 	"inlineValues": "Mostrar valores de variable en línea en el editor durante la depuración",

@@ -7,6 +7,7 @@
 	"workbench.action.terminal.clear": "クリア",
 	"workbench.action.terminal.copySelection": "選択内容のコピー",
 	"workbench.action.terminal.focus": "端末にフォーカス",
+	"workbench.action.terminal.focusAtIndex": "ターミナル {0} にフォーカス",
 	"workbench.action.terminal.focusNext": "次の端末にフォーカス",
 	"workbench.action.terminal.focusPrevious": "前の端末にフォーカス",
 	"workbench.action.terminal.kill": "アクティブな端末インスタンスを強制終了",

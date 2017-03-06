@@ -7,6 +7,7 @@
 	"workbench.action.terminal.clear": "Cancella",
 	"workbench.action.terminal.copySelection": "Copia selezione",
 	"workbench.action.terminal.focus": "Sposta stato attivo su terminale",
+	"workbench.action.terminal.focusAtIndex": "Sposta stato attivo su terminale {0}",
 	"workbench.action.terminal.focusNext": "Sposta stato attivo su terminale successivo",
 	"workbench.action.terminal.focusPrevious": "Sposta stato attivo su terminale precedente",
 	"workbench.action.terminal.kill": "Termina istanza attiva del terminale",

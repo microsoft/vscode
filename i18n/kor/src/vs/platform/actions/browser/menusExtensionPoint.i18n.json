@@ -7,6 +7,7 @@
 	"dup": "`명령` 섹션에 `{0}` 명령이 여러 번 나타납니다.",
 	"dupe.command": "메뉴 항목이 동일한 명령을 기본값과 alt 명령으로 참조합니다.",
 	"menuId.invalid": "`{0}`은(는) 유효한 메뉴 식별자가 아닙니다.",
+	"menus.commandPalette": "명령 팔레트",
 	"menus.editorContext": "편집기 상황에 맞는 메뉴",
 	"menus.editorTabContext": "편집기 탭 상황에 맞는 메뉴",
 	"menus.editorTitle": "편집기 제목 메뉴",

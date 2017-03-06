@@ -7,6 +7,7 @@
 	"allowBreakpointsEverywhere": "允许在任何文件中设置断点",
 	"debug": "调试",
 	"debugCategory": "调试",
+	"debugCommands": "调试配置",
 	"debugConfigurationTitle": "调试",
 	"debugPanel": "调试控制台",
 	"inlineValues": "调试时，在编辑器中显示变量值内联",

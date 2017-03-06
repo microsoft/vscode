@@ -118,27 +118,32 @@ function reloadTypeScriptNodeModule() {
     });
 }
 function monacodtsTask(out, isWatch) {
-    var timer = null;
-    var runSoon = function (howSoon) {
-        if (timer !== null) {
-            clearTimeout(timer);
-            timer = null;
+    var neededFiles = {};
+    monacodts.getFilesToWatch(out).forEach(function (filePath) {
+        filePath = path.normalize(filePath);
+        neededFiles[filePath] = true;
+    });
+    var inputFiles = {};
+    for (var filePath in neededFiles) {
+        if (/\bsrc(\/|\\)vs\b/.test(filePath)) {
+            // This file is needed from source => simply read it now
+            inputFiles[filePath] = fs.readFileSync(filePath).toString();
         }
-        timer = setTimeout(function () {
-            timer = null;
-            runNow();
-        }, howSoon);
+    }
+    var setInputFile = function (filePath, contents) {
+        if (inputFiles[filePath] === contents) {
+            // no change
+            return;
+        }
+        inputFiles[filePath] = contents;
+        var neededInputFilesCount = Object.keys(neededFiles).length;
+        var availableInputFilesCount = Object.keys(inputFiles).length;
+        if (neededInputFilesCount === availableInputFilesCount) {
+            run();
+        }
     };
-    var runNow = function () {
-        if (timer !== null) {
-            clearTimeout(timer);
-            timer = null;
-        }
-        // if (reporter.hasErrors()) {
-        // 	monacodts.complainErrors();
-        // 	return;
-        // }
-        var result = monacodts.run(out);
+    var run = function () {
+        var result = monacodts.run(out, inputFiles);
         if (!result.isTheSame) {
             if (isWatch) {
                 fs.writeFileSync(result.filePath, result.content);
@@ -150,26 +155,16 @@ function monacodtsTask(out, isWatch) {
     };
     var resultStream;
     if (isWatch) {
-        var filesToWatchMap_1 = {};
-        monacodts.getFilesToWatch(out).forEach(function (filePath) {
-            filesToWatchMap_1[path.normalize(filePath)] = true;
-        });
         watch('build/monaco/*').pipe(es.through(function () {
-            runSoon(5000);
+            run();
         }));
-        resultStream = es.through(function (data) {
-            var filePath = path.normalize(data.path);
-            if (filesToWatchMap_1[filePath]) {
-                runSoon(5000);
-            }
-            this.emit('data', data);
-        });
     }
-    else {
-        resultStream = es.through(null, function () {
-            runNow();
-            this.emit('end');
-        });
-    }
+    resultStream = es.through(function (data) {
+        var filePath = path.normalize(data.path);
+        if (neededFiles[filePath]) {
+            setInputFile(filePath, data.contents.toString());
+        }
+        this.emit('data', data);
+    });
     return resultStream;
 }

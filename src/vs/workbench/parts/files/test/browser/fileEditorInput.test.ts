@@ -59,10 +59,12 @@ suite('Files - FileEditorInput', () => {
 
 		input = instantiationService.createInstance(FileEditorInput, toResource.call(this, '/foo/bar.html'), void 0);
 
-		const inputToResolve = instantiationService.createInstance(FileEditorInput, toResource.call(this, '/foo/bar/file.js'), void 0);
-		const sameOtherInput = instantiationService.createInstance(FileEditorInput, toResource.call(this, '/foo/bar/file.js'), void 0);
+		const inputToResolve: FileEditorInput = instantiationService.createInstance(FileEditorInput, toResource.call(this, '/foo/bar/file.js'), void 0);
+		const sameOtherInput: FileEditorInput = instantiationService.createInstance(FileEditorInput, toResource.call(this, '/foo/bar/file.js'), void 0);
 
 		return inputToResolve.resolve(true).then(resolved => {
+			assert.ok(inputToResolve.isResolved());
+
 			const resolvedModelA = resolved;
 			return inputToResolve.resolve(true).then(resolved => {
 				assert(resolvedModelA === resolved); // OK: Resolved Model cached globally per input

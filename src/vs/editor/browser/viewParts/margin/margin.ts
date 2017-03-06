@@ -9,7 +9,7 @@ import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { ClassNames } from 'vs/editor/browser/editorBrowser';
 import { ViewPart } from 'vs/editor/browser/view/viewPart';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
-import { IRenderingContext, IRestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
+import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
 export class Margin extends ViewPart {
@@ -73,18 +73,19 @@ export class Margin extends ViewPart {
 
 	// --- end event handlers
 
-	public prepareRender(ctx: IRenderingContext): void {
+	public prepareRender(ctx: RenderingContext): void {
 		// Nothing to read
 	}
 
-	public render(ctx: IRestrictedRenderingContext): void {
+	public render(ctx: RestrictedRenderingContext): void {
+		const adjustedScrollTop = ctx.scrollTop - ctx.bigNumbersDelta;
 		if (this._canUseTranslate3d) {
-			let transform = 'translate3d(0px, ' + ctx.viewportData.visibleRangesDeltaTop + 'px, 0px)';
+			let transform = 'translate3d(0px, ' + -adjustedScrollTop + 'px, 0px)';
 			this._domNode.setTransform(transform);
 			this._domNode.setTop(0);
 		} else {
 			this._domNode.setTransform('');
-			this._domNode.setTop(ctx.viewportData.visibleRangesDeltaTop);
+			this._domNode.setTop(-adjustedScrollTop);
 		}
 
 		let height = Math.min(ctx.scrollHeight, 1000000);

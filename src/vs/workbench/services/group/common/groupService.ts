@@ -116,7 +116,7 @@ export interface IEditorGroupService {
 	getStacksModel(): IEditorStacksModel;
 
 	/**
-	 * Returns true if tabs are shown, false otherwise.
+	 * Returns tab options.
 	 */
 	getTabOptions(): ITabOptions;
 }

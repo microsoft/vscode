@@ -7,6 +7,7 @@
 	"allowBreakpointsEverywhere": "Разрешает задание точки останова в любом файле",
 	"debug": "Отладка",
 	"debugCategory": "Отладка",
+	"debugCommands": "Конфигурация отладки",
 	"debugConfigurationTitle": "Отладка",
 	"debugPanel": "Консоль отладки",
 	"inlineValues": "Показывать значения переменных в редакторе во время отладки",

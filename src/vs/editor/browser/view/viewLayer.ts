@@ -4,9 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { ViewPart } from 'vs/editor/browser/view/viewPart';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
@@ -32,28 +30,23 @@ export interface IVisibleLine {
 	layoutLine(lineNumber: number, deltaTop: number): void;
 }
 
-interface IRendererContext<T extends IVisibleLine> {
-	readonly domNode: HTMLElement;
-	rendLineNumberStart: number;
-	lines: T[];
-	linesLength: number;
-	readonly viewportData: ViewportData;
-}
-
 export interface ILine {
 	onContentChanged(): void;
 	onTokensChanged(): void;
 }
 
 export class RenderedLinesCollection<T extends ILine> {
+	private readonly _createLine: () => T;
 	private _lines: T[];
 	private _rendLineNumberStart: number;
-	private _createLine: () => T;
 
 	constructor(createLine: () => T) {
-		this._lines = [];
-		this._rendLineNumberStart = 1;
 		this._createLine = createLine;
+		this._set(1, []);
+	}
+
+	public flush(): void {
+		this._set(1, []);
 	}
 
 	_set(rendLineNumberStart: number, lines: T[]): void {
@@ -251,27 +244,29 @@ export class RenderedLinesCollection<T extends ILine> {
 	}
 }
 
-export abstract class ViewLayer<T extends IVisibleLine> extends ViewPart {
+export interface IVisibleLinesHost<T extends IVisibleLine> {
+	createVisibleLine(): T;
+}
 
-	protected domNode: FastDomNode<HTMLElement>;
-	protected _linesCollection: RenderedLinesCollection<T>;
-	private _renderer: ViewLayerRenderer<T>;
+export class VisibleLinesCollection<T extends IVisibleLine> {
 
-	constructor(context: ViewContext) {
-		super(context);
+	private readonly _host: IVisibleLinesHost<T>;
+	public readonly domNode: FastDomNode<HTMLElement>;
+	private readonly _linesCollection: RenderedLinesCollection<T>;
 
+	constructor(host: IVisibleLinesHost<T>) {
+		this._host = host;
 		this.domNode = this._createDomNode();
-
-		this._linesCollection = new RenderedLinesCollection<T>(() => this._createLine());
-
-		this._renderer = new ViewLayerRenderer<T>(
-			() => this._createLine()
-		);
+		this._linesCollection = new RenderedLinesCollection<T>(() => this._host.createVisibleLine());
 	}
 
-	public dispose(): void {
-		super.dispose();
-		this._linesCollection = null;
+	private _createDomNode(): FastDomNode<HTMLElement> {
+		let domNode = createFastDomNode(document.createElement('div'));
+		domNode.setClassName('view-layer');
+		domNode.setPosition('absolute');
+		domNode.domNode.setAttribute('role', 'presentation');
+		domNode.domNode.setAttribute('aria-hidden', 'true');
+		return domNode;
 	}
 
 	// ---- begin view event handlers
@@ -281,7 +276,7 @@ export abstract class ViewLayer<T extends IVisibleLine> extends ViewPart {
 	}
 
 	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
-		this._linesCollection = new RenderedLinesCollection<T>(() => this._createLine());
+		this._linesCollection.flush();
 		// No need to clear the dom node because a full .innerHTML will occur in ViewLayerRenderer._render
 		return true;
 	}
@@ -334,56 +329,61 @@ export abstract class ViewLayer<T extends IVisibleLine> extends ViewPart {
 
 	// ---- end view event handlers
 
-	public _renderLines(viewportData: ViewportData): void {
+	public getStartLineNumber(): number {
+		return this._linesCollection.getStartLineNumber();
+	}
+
+	public getEndLineNumber(): number {
+		return this._linesCollection.getEndLineNumber();
+	}
+
+	public getVisibleLine(lineNumber: number): T {
+		return this._linesCollection.getLine(lineNumber);
+	}
+
+	public renderLines(viewportData: ViewportData): void {
 
 		let inp = this._linesCollection._get();
 
+		let renderer = new ViewLayerRenderer<T>(this.domNode.domNode, this._host, viewportData);
+
 		let ctx: IRendererContext<T> = {
-			domNode: this.domNode.domNode,
 			rendLineNumberStart: inp.rendLineNumberStart,
 			lines: inp.lines,
-			linesLength: inp.lines.length,
-			viewportData: viewportData
+			linesLength: inp.lines.length
 		};
 
 		// Decide if this render will do a single update (single large .innerHTML) or many updates (inserting/removing dom nodes)
-		let resCtx = this._renderer.renderWithManyUpdates(ctx, viewportData.startLineNumber, viewportData.endLineNumber, viewportData.relativeVerticalOffset);
+		let resCtx = renderer.render(ctx, viewportData.startLineNumber, viewportData.endLineNumber, viewportData.relativeVerticalOffset);
 
 		this._linesCollection._set(resCtx.rendLineNumberStart, resCtx.lines);
 	}
+}
 
-	private _createDomNode(): FastDomNode<HTMLElement> {
-		let domNode = createFastDomNode(document.createElement('div'));
-		domNode.setClassName('view-layer');
-		domNode.setPosition('absolute');
-		domNode.domNode.setAttribute('role', 'presentation');
-		domNode.domNode.setAttribute('aria-hidden', 'true');
-		return domNode;
-	}
-
-	protected abstract _createLine(): T;
+interface IRendererContext<T extends IVisibleLine> {
+	rendLineNumberStart: number;
+	lines: T[];
+	linesLength: number;
 }
 
 class ViewLayerRenderer<T extends IVisibleLine> {
 
-	private _createLine: () => T;
+	readonly domNode: HTMLElement;
+	readonly host: IVisibleLinesHost<T>;
+	readonly viewportData: ViewportData;
 
-	constructor(createLine: () => T) {
-		this._createLine = createLine;
+	constructor(domNode: HTMLElement, host: IVisibleLinesHost<T>, viewportData: ViewportData) {
+		this.domNode = domNode;
+		this.host = host;
+		this.viewportData = viewportData;
 	}
 
-	public renderWithManyUpdates(ctx: IRendererContext<T>, startLineNumber: number, stopLineNumber: number, deltaTop: number[]): IRendererContext<T> {
-		return this._render(ctx, startLineNumber, stopLineNumber, deltaTop);
-	}
-
-	private _render(inContext: IRendererContext<T>, startLineNumber: number, stopLineNumber: number, deltaTop: number[]): IRendererContext<T> {
+	public render(inContext: IRendererContext<T>, startLineNumber: number, stopLineNumber: number, deltaTop: number[]): IRendererContext<T> {
 
 		let ctx: IRendererContext<T> = {
-			domNode: inContext.domNode,
 			rendLineNumberStart: inContext.rendLineNumberStart,
 			lines: inContext.lines.slice(0),
-			linesLength: inContext.linesLength,
-			viewportData: inContext.viewportData,
+			linesLength: inContext.linesLength
 		};
 
 		if ((ctx.rendLineNumberStart + ctx.linesLength - 1 < startLineNumber) || (stopLineNumber < ctx.rendLineNumberStart)) {
@@ -392,7 +392,7 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 			ctx.linesLength = stopLineNumber - startLineNumber + 1;
 			ctx.lines = [];
 			for (let x = startLineNumber; x <= stopLineNumber; x++) {
-				ctx.lines[x - startLineNumber] = this._createLine();
+				ctx.lines[x - startLineNumber] = this.host.createVisibleLine();
 			}
 			this._finishRendering(ctx, true, deltaTop);
 			return ctx;
@@ -467,7 +467,7 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 		let newLines: T[] = [];
 		let newLinesLen = 0;
 		for (let lineNumber = fromLineNumber; lineNumber <= toLineNumber; lineNumber++) {
-			newLines[newLinesLen++] = this._createLine();
+			newLines[newLinesLen++] = this.host.createVisibleLine();
 		}
 		ctx.lines = newLines.concat(ctx.lines);
 	}
@@ -476,7 +476,7 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 		for (let i = 0; i < removeCount; i++) {
 			let lineDomNode = ctx.lines[i].getDomNode();
 			if (lineDomNode) {
-				ctx.domNode.removeChild(lineDomNode);
+				this.domNode.removeChild(lineDomNode);
 			}
 		}
 		ctx.lines.splice(0, removeCount);
@@ -486,7 +486,7 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 		let newLines: T[] = [];
 		let newLinesLen = 0;
 		for (let lineNumber = fromLineNumber; lineNumber <= toLineNumber; lineNumber++) {
-			newLines[newLinesLen++] = this._createLine();
+			newLines[newLinesLen++] = this.host.createVisibleLine();
 		}
 		ctx.lines = ctx.lines.concat(newLines);
 	}
@@ -497,21 +497,21 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 		for (let i = 0; i < removeCount; i++) {
 			let lineDomNode = ctx.lines[removeIndex + i].getDomNode();
 			if (lineDomNode) {
-				ctx.domNode.removeChild(lineDomNode);
+				this.domNode.removeChild(lineDomNode);
 			}
 		}
 		ctx.lines.splice(removeIndex, removeCount);
 	}
 
 	private _finishRenderingNewLines(ctx: IRendererContext<T>, domNodeIsEmpty: boolean, newLinesHTML: string[], wasNew: boolean[]): void {
-		let lastChild = <HTMLElement>ctx.domNode.lastChild;
+		let lastChild = <HTMLElement>this.domNode.lastChild;
 		if (domNodeIsEmpty || !lastChild) {
-			ctx.domNode.innerHTML = newLinesHTML.join('');
+			this.domNode.innerHTML = newLinesHTML.join('');
 		} else {
 			lastChild.insertAdjacentHTML('afterend', newLinesHTML.join(''));
 		}
 
-		let currChild = <HTMLElement>ctx.domNode.lastChild;
+		let currChild = <HTMLElement>this.domNode.lastChild;
 		for (let i = ctx.linesLength - 1; i >= 0; i--) {
 			let line = ctx.lines[i];
 			if (wasNew[i]) {
@@ -553,7 +553,7 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 			wasNew[i] = false;
 			wasInvalid[i] = false;
 
-			let renderResult = line.renderLine(lineNumber, deltaTop[i], ctx.viewportData);
+			let renderResult = line.renderLine(lineNumber, deltaTop[i], this.viewportData);
 
 			if (renderResult !== null) {
 				// Line needs rendering
@@ -581,4 +581,3 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 		}
 	}
 }
-

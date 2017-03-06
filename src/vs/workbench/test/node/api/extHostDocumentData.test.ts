@@ -7,13 +7,13 @@
 
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
-import { ExtHostDocumentData } from 'vs/workbench/api/node/extHostDocuments';
+import { ExtHostDocumentData } from 'vs/workbench/api/node/extHostDocumentData';
 import { Position } from 'vs/workbench/api/node/extHostTypes';
 import { Range as CodeEditorRange } from 'vs/editor/common/core/range';
 import * as EditorCommon from 'vs/editor/common/editorCommon';
 
 
-suite('ExtHostDocument', () => {
+suite('ExtHostDocumentData', () => {
 
 	let data: ExtHostDocumentData;
 
@@ -87,7 +87,7 @@ suite('ExtHostDocument', () => {
 	test('line, issue #5704', function () {
 
 		let line = data.document.lineAt(0);
-		let {range, rangeIncludingLineBreak} = line;
+		let { range, rangeIncludingLineBreak } = line;
 		assert.equal(range.end.line, 0);
 		assert.equal(range.end.character, 16);
 		assert.equal(rangeIncludingLineBreak.end.line, 1);
@@ -243,7 +243,7 @@ enum AssertDocumentLineMappingDirection {
 	PositionToOffset
 }
 
-suite('ExtHostDocument updates line mapping', () => {
+suite('ExtHostDocumentData updates line mapping', () => {
 
 	function positionToStr(position: { line: number; character: number; }): string {
 		return '(' + position.line + ',' + position.character + ')';

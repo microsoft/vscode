@@ -8,9 +8,9 @@ import * as assert from 'assert';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { TextEditorLineNumbersStyle } from 'vs/workbench/api/node/extHostTypes';
 import { TextEditorCursorStyle } from 'vs/editor/common/editorCommon';
-import { IResolvedTextEditorConfiguration, ITextEditorConfigurationUpdate } from 'vs/workbench/api/node/mainThreadEditorsTracker';
+import { IResolvedTextEditorConfiguration, ITextEditorConfigurationUpdate } from 'vs/workbench/api/node/mainThreadEditor';
 import { MainThreadEditorsShape } from 'vs/workbench/api/node/extHost.protocol';
-import { ExtHostTextEditorOptions } from 'vs/workbench/api/node/extHostEditors';
+import { ExtHostTextEditorOptions } from 'vs/workbench/api/node/extHostTextEditor';
 
 suite('ExtHostTextEditorOptions', () => {
 
