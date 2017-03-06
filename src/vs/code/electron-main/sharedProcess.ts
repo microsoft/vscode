@@ -19,12 +19,11 @@ export class SharedProcess {
 
 	@memoize
 	get onReady(): TPromise<void> {
-		this.window = new BrowserWindow();
+		this.window = new BrowserWindow({ show: false });
 		const config = assign({ appRoot: this.appRoot, nodeCachedDataDir: this.nodeCachedDataDir });
 
 		const url = `${require.toUrl('vs/code/electron-browser/sharedProcess.html')}?config=${encodeURIComponent(JSON.stringify(config))}`;
 		this.window.loadURL(url);
-		this.hide();
 
 		// Prevent the window from dying
 		this.window.on('close', e => {
