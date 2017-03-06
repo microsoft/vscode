@@ -3,13 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import Event, { Emitter } from 'vs/base/common/event';
 import * as errors from 'vs/base/common/errors';
-import platform = require('vs/base/common/platform');
+import * as nls from 'vs/nls';
+import * as platform from 'vs/base/common/platform';
+import Event, { Emitter } from 'vs/base/common/event';
+import product from 'vs/platform/node/product';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ILifecycleService, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITerminalInstance, ITerminalService, IShellLaunchConfig, KEYBINDING_CONTEXT_TERMINAL_FOCUS, TERMINAL_PANEL_ID } from 'vs/workbench/parts/terminal/common/terminal';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -46,7 +50,9 @@ export class TerminalService implements ITerminalService {
 		@IConfigurationService private _configurationService: IConfigurationService,
 		@IInstantiationService private _instantiationService: IInstantiationService,
 		@IPanelService private _panelService: IPanelService,
-		@IPartService private _partService: IPartService
+		@IPartService private _partService: IPartService,
+		@ILifecycleService private _lifecycleService: ILifecycleService,
+		@IWindowIPCService private _windowService: IWindowIPCService
 	) {
 		this._terminalInstances = [];
 		this._activeTerminalInstanceIndex = 0;
@@ -58,6 +64,7 @@ export class TerminalService implements ITerminalService {
 		this._onInstancesChanged = new Emitter<string>();
 
 		this._configurationService.onDidUpdateConfiguration(() => this.updateConfig());
+		this._lifecycleService.onWillShutdown(event => event.veto(this._onWillShutdown(event.reason)));
 		this._terminalFocusContextKey = KEYBINDING_CONTEXT_TERMINAL_FOCUS.bindTo(this._contextKeyService);
 		this._configHelper = this._instantiationService.createInstance(TerminalConfigHelper, platform.platform);
 		this._linkHandler = this._instantiationService.createInstance(TerminalLinkHandler, platform.platform);
@@ -81,6 +88,34 @@ export class TerminalService implements ITerminalService {
 		}
 		this._onInstancesChanged.fire();
 		return terminalInstance;
+	}
+
+	private _onWillShutdown(e: ShutdownReason): boolean {
+		if (this.terminalInstances.length === 0) {
+			// No terminal instances, don't veto
+			return false;
+		}
+		// Veto based on response to message
+		return this._showTerminalCloseConfirmation();
+	}
+
+	private _showTerminalCloseConfirmation(): boolean {
+		const cancelId = 1;
+		let message;
+		if (this.terminalInstances.length === 1) {
+			message = nls.localize('terminalService.terminalCloseConfirmationSingular', "There is an active terminal session, do you want to kill it?");
+		} else {
+			message = nls.localize('terminalService.terminalCloseConfirmationPlural', "There are {0} active terminal sessions, do you want to kill them?", this.terminalInstances.length);
+		}
+		const opts: Electron.ShowMessageBoxOptions = {
+			title: product.nameLong,
+			message,
+			type: 'warning',
+			buttons: [nls.localize('yes', "Yes"), nls.localize('cancel', "Cancel")],
+			noLink: true,
+			cancelId
+		};
+		return this._windowService.getWindow().showMessageBox(opts) === cancelId;
 	}
 
 	public getInstanceLabels(): string[] {
