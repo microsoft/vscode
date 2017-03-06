@@ -9,6 +9,7 @@ import Event, { Emitter } from 'vs/base/common/event';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { toResource } from 'vs/workbench/common/editor';
+import { isEqual } from 'vs/platform/files/common/files';
 
 export interface IRangeHighlightDecoration {
 	resource: URI;
@@ -54,7 +55,7 @@ export class RangeHighlightDecorations implements IDisposable {
 	private getEditor(resourceRange: IRangeHighlightDecoration): editorCommon.ICommonCodeEditor {
 		const fileResource = toResource(this.editorService.getActiveEditorInput(), { filter: 'file' });
 		if (fileResource) {
-			if (fileResource.fsPath === resourceRange.resource.fsPath) {
+			if (isEqual(fileResource.fsPath, resourceRange.resource.fsPath)) {
 				return <editorCommon.ICommonCodeEditor>this.editorService.getActiveEditor().getControl();
 			}
 		}
