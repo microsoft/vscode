@@ -12,10 +12,10 @@ import { fromEventEmitter } from 'vs/base/node/event';
 import { IMessagePassingProtocol, ClientConnectionEvent, IPCServer, IPCClient } from 'vs/base/parts/ipc/common/ipc';
 import { join } from 'path';
 import { tmpdir } from 'os';
-import { randomBytes } from 'crypto';
+import { generateUuid } from 'vs/base/common/uuid';
 
 export function generateRandomPipeName(): string {
-	const randomSuffix = randomBytes(21).toString('hex');
+	const randomSuffix = generateUuid();
 	if (process.platform === 'win32') {
 		return `\\\\.\\pipe\\vscode-${randomSuffix}-sock`;
 	} else {
