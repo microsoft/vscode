@@ -212,9 +212,6 @@ class ResolveSaveConflictMessage implements IMessageWithAction {
 
 					return this.editorService.openEditor({ leftResource: URI.from({ scheme: CONFLICT_RESOLUTION_SCHEME, path: resource.fsPath }), rightResource: resource, label: editorLabel, options: { pinned: true } }).then(() => {
 
-						// We have to bring the model into conflict resolution mode to prevent subsequent save erros when the user makes edits
-						this.model.setConflictResolutionMode();
-
 						// Inform user
 						pendingResolveSaveConflictMessages.push(this.messageService.show(Severity.Info, nls.localize('userGuide', "Use the actions in the editor tool bar to either **undo** your changes or **overwrite** the content on disk with your changes")));
 					});
