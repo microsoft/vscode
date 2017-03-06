@@ -184,13 +184,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	/**
-	 * Answers if this model is currently in conflic resolution mode or not.
-	 */
-	public isInConflictResolutionMode(): boolean {
-		return this.inConflictResolutionMode;
-	}
-
-	/**
 	 * Discards any local changes and replaces the model with the contents of the version on disk.
 	 *
 	 * @param if the parameter soft is true, will not attempt to load the contents from disk.

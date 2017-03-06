@@ -219,7 +219,6 @@ suite('Files - TextFileEditorModel', () => {
 
 			assert.ok(model.isDirty());
 			assert.equal(model.getState(), ModelState.CONFLICT);
-			assert.ok(model.isInConflictResolutionMode());
 
 			return model.revert().then(() => {
 				model.textEditorModel.setValue('bar');
