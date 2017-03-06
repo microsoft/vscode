@@ -64,6 +64,7 @@ export function request(options: IRequestOptions): TPromise<IRequestContext> {
 		const opts: https.RequestOptions = {
 			hostname: endpoint.hostname,
 			port: endpoint.port ? parseInt(endpoint.port) : (endpoint.protocol === 'https:' ? 443 : 80),
+			protocol: endpoint.protocol,
 			path: endpoint.path,
 			method: options.type || 'GET',
 			headers: options.headers,
