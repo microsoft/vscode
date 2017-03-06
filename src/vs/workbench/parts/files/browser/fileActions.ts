@@ -25,7 +25,7 @@ import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { VIEWLET_ID } from 'vs/workbench/parts/files/common/files';
 import labels = require('vs/base/common/labels');
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IFileService, IFileStat } from 'vs/platform/files/common/files';
+import { IFileService, IFileStat, isEqual } from 'vs/platform/files/common/files';
 import { toResource, IEditorIdentifier, EditorInput } from 'vs/workbench/common/editor';
 import { FileStat, NewStatPlaceholder } from 'vs/workbench/parts/files/common/explorerViewModel';
 import { ExplorerView } from 'vs/workbench/parts/files/browser/views/explorerView';
@@ -297,7 +297,7 @@ class RenameFileAction extends BaseRenameAction {
 			let renamed: URI;
 
 			// If the dirty file itself got moved, just reparent it to the target folder
-			if (this.element.resource.fsPath === d.fsPath) {
+			if (isEqual(this.element.resource.fsPath, d.fsPath)) {
 				renamed = URI.file(targetPath);
 			}
 
