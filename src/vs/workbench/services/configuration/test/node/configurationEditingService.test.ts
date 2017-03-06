@@ -107,6 +107,9 @@ suite('ConfigurationEditingService', () => {
 	}
 
 	function setUpServices(noWorkspace: boolean = false): TPromise<void> {
+		// Clear services if they are already created
+		clearServices();
+
 		instantiationService = new TestInstantiationService();
 		instantiationService.stub(IEnvironmentService, new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, globalSettingsFile));
 		instantiationService.stub(IWorkspaceContextService, new WorkspaceContextService(noWorkspace ? null : { resource: URI.file(workspaceDir) }));
@@ -129,21 +132,28 @@ suite('ConfigurationEditingService', () => {
 	}
 
 	teardown(() => {
-		(<WorkspaceConfigurationService>instantiationService.get(IConfigurationService)).dispose();
+		clearServices();
 		return clearWorkspace();
 	});
+
+	function clearServices(): void {
+		if (instantiationService) {
+			const configuraitonService = <WorkspaceConfigurationService>instantiationService.get(IConfigurationService);
+			if (configuraitonService) {
+				configuraitonService.dispose();
+			}
+			instantiationService = null;
+		}
+	}
 
 	function clearWorkspace(): TPromise<void> {
 		return new TPromise<void>((c, e) => {
 			if (parentDir) {
-				extfs.del(parentDir, os.tmpdir(), () => { }, () => {
-					parentDir = null;
-					c(null);
-				});
+				extfs.del(parentDir, os.tmpdir(), () => c(null), () => c(null));
 			} else {
 				c(null);
 			}
-		});
+		}).then(() => parentDir = null);
 	}
 
 	test('errors cases - invalid key', () => {

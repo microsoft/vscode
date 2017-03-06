@@ -4,23 +4,71 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import URI from 'vs/base/common/uri';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { EmitterEvent } from 'vs/base/common/eventEmitter';
+import { setDisposableTimeout } from 'vs/base/common/async';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
-import URI from 'vs/base/common/uri';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
 import { TextFileModelChangeEvent, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { ExtHostContext, MainThreadDocumentsShape, ExtHostDocumentsShape } from './extHost.protocol';
 import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { ITextSource } from 'vs/editor/common/model/textSource';
 import { MainThreadDocumentsAndEditors } from './mainThreadDocumentsAndEditors';
+import * as editorCommon from 'vs/editor/common/editorCommon';
+import { ITextEditorModel } from "vs/workbench/common/editor";
+
+class TimeoutReference {
+
+	private static _delay = 1000 * 60 * 3;
+
+	private _timer: IDisposable;
+	private _disposed = false;
+
+	constructor(
+		readonly codeEditorService: ICodeEditorService,
+		readonly editorGroupService: IEditorGroupService,
+		readonly reference: IReference<ITextEditorModel>
+	) {
+
+		const check = () => {
+			if (!this.isUsed()) {
+				this.dispose();
+			} else {
+				this._timer = setDisposableTimeout(check, TimeoutReference._delay);
+			}
+		};
+		this._timer = setDisposableTimeout(check, TimeoutReference._delay);
+	}
+
+	dispose(): void {
+		if (!this._disposed) {
+			this._disposed = true;
+			dispose(this.reference, this._timer);
+		}
+	}
+
+	private isUsed(): boolean {
+		for (const editor of this.codeEditorService.listCodeEditors()) {
+			if (editor.getModel() === this.reference.object.textEditorModel) {
+				return true;
+			}
+		}
+		for (const group of this.editorGroupService.getStacksModel().groups) {
+			if (group.contains(this.reference.object.textEditorModel.uri)) {
+				return true;
+			}
+		}
+		return false;
+	}
+}
 
 export class MainThreadDocuments extends MainThreadDocumentsShape {
 
@@ -31,6 +79,8 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 	private _codeEditorService: ICodeEditorService;
 	private _fileService: IFileService;
 	private _untitledEditorService: IUntitledEditorService;
+	private _editorGroupService: IEditorGroupService;
+
 	private _toDispose: IDisposable[];
 	private _modelToDisposeMap: { [modelUrl: string]: IDisposable; };
 	private _proxy: ExtHostDocumentsShape;
@@ -46,7 +96,8 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IFileService fileService: IFileService,
 		@ITextModelResolverService textModelResolverService: ITextModelResolverService,
-		@IUntitledEditorService untitledEditorService: IUntitledEditorService
+		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
+		@IEditorGroupService editorGroupService: IEditorGroupService
 	) {
 		super();
 		this._modelService = modelService;
@@ -56,6 +107,8 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 		this._codeEditorService = codeEditorService;
 		this._fileService = fileService;
 		this._untitledEditorService = untitledEditorService;
+		this._editorGroupService = editorGroupService;
+
 		this._proxy = threadService.get(ExtHostContext.ExtHostDocuments);
 		this._modelIsSynced = {};
 
@@ -181,11 +234,12 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 
 	private _handleAsResourceInput(uri: URI): TPromise<boolean> {
 		return this._textModelResolverService.createModelReference(uri).then(ref => {
+			// TimeoutReference will check every 3 min if the
+			// reference is still in use. This is quite harsh to
+			// extensions but we don't want them to make us hold
+			// on to model indefinitely
+			this._toDispose.push(new TimeoutReference(this._codeEditorService, this._editorGroupService, ref));
 			const result = !!ref.object;
-
-			// TODO@Joao TODO@Joh when should this model reference be disposed?
-			// ref.dispose();
-
 			return result;
 		});
 	}

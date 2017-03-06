@@ -357,20 +357,25 @@ suite('Files - TextFileEditorModel', () => {
 		}, error => onError(error, done));
 	});
 
-	test('setOrphaned basics', function (done) {
+	test('Orphaned models', function (done) {
 		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8');
 
 		return model.load().then(() => {
 			let undo = model.setOrphaned();
 			assert.equal(model.isDirty(), true);
+			assert.equal(model.getState(), ModelState.ORPHAN);
+
 			undo();
 			assert.equal(model.isDirty(), false);
+			assert.notEqual(model.getState(), ModelState.ORPHAN);
 
-			// can not undo when model changed meanwhile
+			// can not undo when model changed meanwhile (but orphaned state clears)
 			undo = model.setOrphaned();
+			assert.equal(model.getState(), ModelState.ORPHAN);
 			model.textEditorModel.setValue('foo');
 			undo();
 			assert.equal(model.isDirty(), true);
+			assert.notEqual(model.getState(), ModelState.ORPHAN);
 
 			done();
 		}, error => onError(error, done));
