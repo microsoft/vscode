@@ -10,12 +10,12 @@ import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
-import { join, basename } from 'vs/base/common/paths';
+import { join } from 'vs/base/common/paths';
 import { workbenchInstantiationService, TestEditorGroupService, createFileInput, TestFileService } from 'vs/workbench/test/workbenchTestServices';
 import { onError } from 'vs/base/test/common/utils';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
-import { FileOperation, FileOperationEvent, FileChangesEvent, FileChangeType, IFileService } from 'vs/platform/files/common/files';
+import { IFileService } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/modelService';
 
 export class TestTextFileEditorModelManager extends TextFileEditorModelManager {
@@ -23,17 +23,6 @@ export class TestTextFileEditorModelManager extends TextFileEditorModelManager {
 	protected debounceDelay(): number {
 		return 10;
 	}
-}
-
-function toStat(resource: URI) {
-	return {
-		resource,
-		isDirectory: false,
-		hasChildren: false,
-		name: basename(resource.fsPath),
-		mtime: Date.now(),
-		etag: 'etag'
-	};
 }
 
 class ServiceAccessor {
@@ -177,93 +166,6 @@ suite('Files - TextFileEditorModelManager', () => {
 		assert.ok(!accessor.modelService.getModel(model.getResource()));
 
 		manager.dispose();
-	});
-
-	test('local file changes dispose model - delete', function () {
-		const manager: TestTextFileEditorModelManager = instantiationService.createInstance(TestTextFileEditorModelManager);
-
-		const resource = toResource('/path/index.txt');
-
-		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, resource, 'utf8');
-		manager.add(resource, model);
-
-		assert.ok(!model.isDisposed());
-
-		// delete operation
-		accessor.fileService.fireAfterOperation(new FileOperationEvent(resource, FileOperation.DELETE));
-
-		assert.ok(model.isDisposed());
-
-		model.dispose();
-		assert.ok(!accessor.modelService.getModel(model.getResource()));
-
-		manager.dispose();
-	});
-
-	test('local file changes dispose model - move', function () {
-		const manager: TestTextFileEditorModelManager = instantiationService.createInstance(TestTextFileEditorModelManager);
-
-		const resource = toResource('/path/index.txt');
-
-		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, resource, 'utf8');
-		manager.add(resource, model);
-
-		assert.ok(!model.isDisposed());
-
-		// move operation
-		accessor.fileService.fireAfterOperation(new FileOperationEvent(resource, FileOperation.MOVE, toStat(toResource('/path/index_moved.txt'))));
-
-		assert.ok(model.isDisposed());
-		assert.ok(!accessor.modelService.getModel(model.getResource()));
-
-		manager.dispose();
-	});
-
-	test('file event delete dispose model', function () {
-		const manager: TestTextFileEditorModelManager = instantiationService.createInstance(TestTextFileEditorModelManager);
-
-		const resource = toResource('/path/index.txt');
-
-		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, resource, 'utf8');
-		manager.add(resource, model);
-
-		assert.ok(!model.isDisposed());
-
-		// delete event (watcher)
-		accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource, type: FileChangeType.DELETED }]));
-
-		assert.ok(model.isDisposed());
-		assert.ok(!accessor.modelService.getModel(model.getResource()));
-
-		manager.dispose();
-	});
-
-	test('file change event does NOT dispose model if happening < 2 second after last save', function (done) {
-		const manager: TestTextFileEditorModelManager = instantiationService.createInstance(TestTextFileEditorModelManager);
-
-		const resource = toResource('/path/index.txt');
-
-		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, resource, 'utf8');
-		manager.add(resource, model);
-
-		assert.ok(!model.isDisposed());
-
-		model.load().done(resolved => {
-			model.textEditorModel.setValue('changed');
-			return model.save().then(() => {
-
-				// change event (watcher)
-				accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource, type: FileChangeType.UPDATED }]));
-
-				assert.ok(!model.isDisposed());
-
-				model.dispose();
-				assert.ok(!accessor.modelService.getModel(model.getResource()));
-
-				manager.dispose();
-				done();
-			});
-		}, error => onError(error, done));
 	});
 
 	test('events', function (done) {

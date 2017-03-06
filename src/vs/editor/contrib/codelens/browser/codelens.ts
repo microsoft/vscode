@@ -49,6 +49,9 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 
 	private static ID: number = 0;
 
+	// Editor.IContentWidget.allowEditorOverflow
+	readonly allowEditorOverflow = false;
+
 	public suppressMouseDown: boolean;
 
 	private _id: string;

@@ -106,6 +106,7 @@ CommonEditorRegistry.registerEditorCommand(new MessageCommand({
 
 class MessageWidget implements IContentWidget {
 
+	// Editor.IContentWidget.allowEditorOverflow
 	readonly allowEditorOverflow = true;
 	readonly suppressMouseDown = false;
 

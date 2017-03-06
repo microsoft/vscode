@@ -34,6 +34,7 @@
 	"restartDebug": "Перезапустить",
 	"restartFrame": "Перезапустить кадр",
 	"reverseContinue": "Обратно",
+	"selectAndStartDebugging": "Выбрать и начать отладку",
 	"setValue": "Задать значение",
 	"startDebug": "Начать отладку",
 	"startWithoutDebugging": "Начать без отладки",

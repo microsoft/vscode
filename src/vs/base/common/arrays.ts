@@ -67,6 +67,52 @@ export function findFirst<T>(array: T[], p: (x: T) => boolean): number {
 }
 
 /**
+ * Takes two *sorted* arrays and computes their delta (removed, added elements).
+ * Finishes in `Math.min(before.length, after.length)` steps.
+ * @param before
+ * @param after
+ * @param compare
+ */
+export function delta<T>(before: T[], after: T[], compare: (a: T, b: T) => number) {
+
+	const removed: T[] = [];
+	const added: T[] = [];
+
+	let beforeIdx = 0;
+	let afterIdx = 0;
+
+	while (true) {
+		if (beforeIdx === before.length) {
+			added.push(...after.slice(afterIdx));
+			break;
+		}
+		if (afterIdx === after.length) {
+			removed.push(...before.slice(beforeIdx));
+			break;
+		}
+
+		const beforeElement = before[beforeIdx];
+		const afterElement = after[afterIdx];
+		const n = compare(beforeElement, afterElement);
+		if (n === 0) {
+			// equal
+			beforeIdx += 1;
+			afterIdx += 1;
+		} else if (n < 0) {
+			// beforeElement is smaller -> before element removed
+			removed.push(beforeElement);
+			beforeIdx += 1;
+		} else if (n > 0) {
+			// beforeElement is greater -> after element added
+			added.push(afterElement);
+			afterIdx += 1;
+		}
+	}
+
+	return { removed, added };
+}
+
+/**
  * Returns the top N elements from the array.
  *
  * Faster than sorting the entire array when the array is a lot larger than N.

@@ -86,6 +86,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	private memento: any;
 	private stacks: EditorStacksModel;
 	private tabOptions: ITabOptions;
+	private showTabs: boolean;
 	private doNotFireTabOptionsChanged: boolean;
 
 	private _onEditorsChanged: Emitter<void>;
@@ -191,7 +192,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 				previewEditors: newPreviewEditors,
 				showIcons: editorConfig.showIcons,
 				tabCloseButton: editorConfig.tabCloseButton,
-				showTabs: editorConfig.showTabs
+				showTabs: this.showTabs === undefined ? editorConfig.showTabs : this.showTabs
 			};
 
 			if (!this.doNotFireTabOptionsChanged && !objects.equals(oldTabOptions, this.tabOptions)) {
@@ -220,12 +221,9 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	}
 
 	public hideTabs(hidden: boolean): void {
-		this.doNotFireTabOptionsChanged = hidden;
-		if (hidden) {
-			this._onTabOptionsChanged.fire({ showTabs: false });
-		} else {
-			this._onTabOptionsChanged.fire(this.tabOptions);
-		}
+		this.showTabs = !hidden;
+		this.tabOptions.showTabs = !hidden;
+		this._onTabOptionsChanged.fire(this.tabOptions);
 	}
 
 	public get onEditorsChanged(): Event<void> {

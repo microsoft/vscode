@@ -150,29 +150,36 @@ function reloadTypeScriptNodeModule(): NodeJS.ReadWriteStream {
 }
 
 function monacodtsTask(out: string, isWatch: boolean): NodeJS.ReadWriteStream {
-	let timer: NodeJS.Timer = null;
 
-	const runSoon = function (howSoon: number) {
-		if (timer !== null) {
-			clearTimeout(timer);
-			timer = null;
+	const neededFiles: { [file: string]: boolean; } = {};
+	monacodts.getFilesToWatch(out).forEach(function (filePath) {
+		filePath = path.normalize(filePath);
+		neededFiles[filePath] = true;
+	});
+
+	const inputFiles: { [file: string]: string; } = {};
+	for (let filePath in neededFiles) {
+		if (/\bsrc(\/|\\)vs\b/.test(filePath)) {
+			// This file is needed from source => simply read it now
+			inputFiles[filePath] = fs.readFileSync(filePath).toString();
 		}
-		timer = setTimeout(function () {
-			timer = null;
-			runNow();
-		}, howSoon);
+	}
+
+	const setInputFile = (filePath: string, contents:string) => {
+		if (inputFiles[filePath] === contents) {
+			// no change
+			return;
+		}
+		inputFiles[filePath] = contents;
+		const neededInputFilesCount = Object.keys(neededFiles).length;
+		const availableInputFilesCount = Object.keys(inputFiles).length;
+		if (neededInputFilesCount === availableInputFilesCount) {
+			run();
+		}
 	};
 
-	const runNow = function () {
-		if (timer !== null) {
-			clearTimeout(timer);
-			timer = null;
-		}
-		// if (reporter.hasErrors()) {
-		// 	monacodts.complainErrors();
-		// 	return;
-		// }
-		const result = monacodts.run(out);
+	const run = () => {
+		const result = monacodts.run(out, inputFiles);
 		if (!result.isTheSame) {
 			if (isWatch) {
 				fs.writeFileSync(result.filePath, result.content);
@@ -185,32 +192,18 @@ function monacodtsTask(out: string, isWatch: boolean): NodeJS.ReadWriteStream {
 	let resultStream: NodeJS.ReadWriteStream;
 
 	if (isWatch) {
-
-		const filesToWatchMap: { [file: string]: boolean; } = {};
-		monacodts.getFilesToWatch(out).forEach(function (filePath) {
-			filesToWatchMap[path.normalize(filePath)] = true;
-		});
-
 		watch('build/monaco/*').pipe(es.through(function () {
-			runSoon(5000);
+			run();
 		}));
-
-		resultStream = es.through(function (data) {
-			const filePath = path.normalize(data.path);
-			if (filesToWatchMap[filePath]) {
-				runSoon(5000);
-			}
-			this.emit('data', data);
-		});
-
-	} else {
-
-		resultStream = es.through(null, function () {
-			runNow();
-			this.emit('end');
-		});
-
 	}
+
+	resultStream = es.through(function (data) {
+		const filePath = path.normalize(data.path);
+		if (neededFiles[filePath]) {
+			setInputFile(filePath, data.contents.toString());
+		}
+		this.emit('data', data);
+	});
 
 	return resultStream;
 }

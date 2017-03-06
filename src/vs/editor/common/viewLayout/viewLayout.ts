@@ -227,8 +227,4 @@ export class LayoutProvider extends Disposable implements IViewLayout {
 	public setScrollPosition(position: editorCommon.INewScrollPosition): void {
 		this._scrollable.updateState(position);
 	}
-	public getScrolledTopFromAbsoluteTop(top: number): number {
-		const scrollState = this._scrollable.getState();
-		return top - scrollState.scrollTop;
-	}
 }
