@@ -95,15 +95,6 @@ export class SaveErrorHandler implements ISaveErrorHandler, IWorkbenchContributi
 
 		// Dirty write prevention
 		if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_MODIFIED_SINCE) {
-
-			// TODO@Ben remove me once https://github.com/Microsoft/vscode/issues/13665 is resolved
-			if (error.payload) {
-				error.payload.modelValue = model.getValue();
-				error.payload.modelValueLength = error.payload.modelValue.length;
-
-				console.log(JSON.stringify(error.payload));
-			}
-
 			message = this.instantiationService.createInstance(ResolveSaveConflictMessage, model, null);
 		}
 
