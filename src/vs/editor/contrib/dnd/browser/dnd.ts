@@ -22,7 +22,6 @@ export class DragAndDropController implements editorCommon.IEditorContribution {
 
 	private _editor: ICodeEditor;
 	private _toUnhook: IDisposable[];
-	private _active: boolean;
 	private _dragSelection: Selection;
 	private _dndDecorationIds: string[];
 
@@ -35,23 +34,26 @@ export class DragAndDropController implements editorCommon.IEditorContribution {
 		this._toUnhook = [];
 		this._toUnhook.push(this._editor.onMouseDrag((e: IEditorMouseEvent) => this._onEditorMouseDrag(e)));
 		this._toUnhook.push(this._editor.onMouseDrop((e: IEditorMouseEvent) => this._onEditorMouseDrop(e)));
-		this._active = false;
 		this._dndDecorationIds = [];
+		this._dragSelection = null;
 	}
 
 	private _onEditorMouseDrag(mouseEvent: IEditorMouseEvent): void {
 		let target = mouseEvent.target;
 
-		if (this._active) {
-			this.showAt(target.position);
-		} else {
+		if (this._dragSelection === null) {
 			let possibleSelections = this._editor.getSelections().filter(selection => selection.containsPosition(target.position));
-
 			if (possibleSelections.length === 1) {
-				this._active = true;
 				this._dragSelection = possibleSelections[0];
-				this.showAt(target.position);
+			} else {
+				return;
 			}
+		}
+
+		if (this._dragSelection.containsPosition(target.position)) {
+			this._removeDecoration();
+		} else {
+			this.showAt(target.position);
 		}
 	}
 
@@ -59,22 +61,22 @@ export class DragAndDropController implements editorCommon.IEditorContribution {
 		if (mouseEvent.target && (this._hitContent(mouseEvent.target) || this._hitMargin(mouseEvent.target)) && mouseEvent.target.position) {
 			let newCursorPosition = new Position(mouseEvent.target.position.lineNumber, mouseEvent.target.position.column);
 
-			if (this._dragSelection.containsPosition(newCursorPosition)) {
+			if (this._dragSelection === null) {
 				let newSelections = this._editor.getSelections().map(selection => {
-					if (selection.equalsSelection(this._dragSelection)) {
+					if (selection.containsPosition(newCursorPosition)) {
 						return new Selection(newCursorPosition.lineNumber, newCursorPosition.column, newCursorPosition.lineNumber, newCursorPosition.column);
 					} else {
 						return selection;
 					}
 				});
 				this._editor.setSelections(newSelections);
-			} else {
+			} else if (!this._dragSelection.containsPosition(newCursorPosition)) {
 				this._editor.executeCommand(DragAndDropController.ID, new DragAndDropCommand(this._dragSelection, newCursorPosition, mouseEvent.event.altKey));
 			}
 		}
 
 		this._removeDecoration();
-		this._active = false;
+		this._dragSelection = null;
 	}
 
 	public showAt(position: Position): void {
