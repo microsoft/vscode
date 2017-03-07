@@ -81,7 +81,7 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 		@IConfigurationService private _configurationService: IConfigurationService) {
 	}
 
-	private get _config(): ITerminalConfiguration { return this._configurationService.getConfiguration<ITerminalConfiguration>(); }
+	private get _config(): ITerminalConfiguration { return this._configurationService.getConfiguration<ITerminalConfiguration>('terminal.integrated'); }
 
 	public getTheme(baseThemeId: string): string[] {
 		return DEFAULT_ANSI_COLORS[baseThemeId];
@@ -119,7 +119,7 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 	public getFont(): ITerminalFont {
 		const config = this._configurationService.getConfiguration();
 		const editorConfig = (<IEditorConfiguration>config).editor;
-		const terminalConfig = (<ITerminalConfiguration>config).terminal.integrated;
+		const terminalConfig = this._config;
 
 		const fontFamily = terminalConfig.fontFamily || editorConfig.fontFamily;
 		let fontSize = this._toInteger(terminalConfig.fontSize, 0);
@@ -135,23 +135,23 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 	}
 
 	public getFontLigaturesEnabled(): boolean {
-		return this._config.terminal.integrated.fontLigatures;
+		return this._config.fontLigatures;
 	}
 
 	public getCursorBlink(): boolean {
-		return this._config.terminal.integrated.cursorBlinking;
+		return this._config.cursorBlinking;
 	}
 
 	public getCursorStyle(): string {
-		return this._config.terminal.integrated.cursorStyle;
+		return this._config.cursorStyle;
 	}
 
 	public getRightClickCopyPaste(): boolean {
-		return this._config.terminal.integrated.rightClickCopyPaste;
+		return this._config.rightClickCopyPaste;
 	}
 
 	public getCommandsToSkipShell(): string[] {
-		return this._config.terminal.integrated.commandsToSkipShell;
+		return this._config.commandsToSkipShell;
 	}
 
 	public mergeDefaultShellPathAndArgs(shell: IShellLaunchConfig): IShellLaunchConfig {
@@ -159,37 +159,35 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 
 		shell.executable = '';
 		shell.args = [];
-
-		const integrated = config && config.terminal && config.terminal.integrated;
-		if (integrated && integrated.shell && integrated.shellArgs) {
+		if (config && config.shell && config.shellArgs) {
 			if (this._platform === Platform.Windows) {
-				shell.executable = integrated.shell.windows;
-				shell.args = integrated.shellArgs.windows;
+				shell.executable = config.shell.windows;
+				shell.args = config.shellArgs.windows;
 			} else if (this._platform === Platform.Mac) {
-				shell.executable = integrated.shell.osx;
-				shell.args = integrated.shellArgs.osx;
+				shell.executable = config.shell.osx;
+				shell.args = config.shellArgs.osx;
 			} else if (this._platform === Platform.Linux) {
-				shell.executable = integrated.shell.linux;
-				shell.args = integrated.shellArgs.linux;
+				shell.executable = config.shell.linux;
+				shell.args = config.shellArgs.linux;
 			}
 		}
 		return shell;
 	}
 
 	public getScrollback(): number {
-		return this._config.terminal.integrated.scrollback;
+		return this._config.scrollback;
 	}
 
 	public isSetLocaleVariables(): boolean {
-		return this._config.terminal.integrated.setLocaleVariables;
+		return this._config.setLocaleVariables;
 	}
 
 	public getCwd(): string {
-		return this._config.terminal.integrated.cwd;
+		return this._config.cwd;
 	}
 
 	public getConfirmOnExit(): boolean {
-		return this._config.terminal.integrated.confirmOnExit;
+		return this._config.confirmOnExit;
 	}
 
 	private _toInteger(source: any, minimum?: number): number {
