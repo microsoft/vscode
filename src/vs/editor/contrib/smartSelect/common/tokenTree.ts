@@ -165,6 +165,7 @@ class ModelRawTokenScanner {
 		while (!this._next && this._lineNumber < this._lineCount) {
 			this._lineNumber++;
 			this._lineText = this._model.getLineContent(this._lineNumber);
+			this._model.forceTokenization(this._lineNumber);
 			let currentLineTokens = this._model.getLineTokens(this._lineNumber);
 			this._next = currentLineTokens.firstToken();
 		}

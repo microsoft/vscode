@@ -76,6 +76,14 @@ function getPath(arg1: URI | string | IWorkspaceProvider): string {
 	return (<URI>arg1).fsPath;
 }
 
+export function tildify(path: string, userHome: string): string {
+	if (path && (platform.isMacintosh || platform.isLinux) && path.indexOf(userHome) === 0) {
+		path = `~${path.substr(userHome.length)}`;
+	}
+
+	return path;
+}
+
 /**
  * Shortens the paths but keeps them easy to distinguish.
  * Replaces not important parts with ellipsis.

@@ -13,5 +13,6 @@
 	"actions.previewDecl.label": "Peek-Definition",
 	"generic.noResults": "Keine Definition gefunden",
 	"meta.title": " – {0} Definitionen",
-	"multipleResults": "Klicken Sie, um {0} Definitionen anzuzeigen."
+	"multipleResults": "Klicken Sie, um {0} Definitionen anzuzeigen.",
+	"noResultWord": "Keine Definition gefunden für \"{0}\"."
 }

@@ -10,19 +10,18 @@ import { Range } from 'vs/editor/common/core/range';
 import { TextEditorCursorStyle } from 'vs/editor/common/editorCommon';
 import { Configuration } from 'vs/editor/browser/config/configuration';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
-import { IRenderingContext, IRestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
+import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
 export interface IViewCursorRenderData {
 	domNode: HTMLElement;
 	position: Position;
-	contentTop: number;
 	contentLeft: number;
 	width: number;
 	height: number;
 }
 
-export class ViewCursorRenderData {
+class ViewCursorRenderData {
 	public readonly top: number;
 	public readonly left: number;
 	public readonly width: number;
@@ -137,9 +136,9 @@ export class ViewCursor {
 		return true;
 	}
 
-	private _prepareRender(ctx: IRenderingContext): ViewCursorRenderData {
+	private _prepareRender(ctx: RenderingContext): ViewCursorRenderData {
 		if (this._cursorStyle === TextEditorCursorStyle.Line || this._cursorStyle === TextEditorCursorStyle.LineThin) {
-			let visibleRange = ctx.visibleRangeForPosition(this._position);
+			const visibleRange = ctx.visibleRangeForPosition(this._position);
 			if (!visibleRange) {
 				// Outside viewport
 				return null;
@@ -150,34 +149,35 @@ export class ViewCursor {
 			} else {
 				width = 1;
 			}
-			return new ViewCursorRenderData(visibleRange.top, visibleRange.left, width, '');
+			const top = ctx.getVerticalOffsetForLineNumber(this._position.lineNumber) - ctx.bigNumbersDelta;
+			return new ViewCursorRenderData(top, visibleRange.left, width, '');
 		}
 
-		let visibleRangeForCharacter = ctx.linesVisibleRangesForRange(new Range(this._position.lineNumber, this._position.column, this._position.lineNumber, this._position.column + 1), false);
+		const visibleRangeForCharacter = ctx.linesVisibleRangesForRange(new Range(this._position.lineNumber, this._position.column, this._position.lineNumber, this._position.column + 1), false);
 
 		if (!visibleRangeForCharacter || visibleRangeForCharacter.length === 0 || visibleRangeForCharacter[0].ranges.length === 0) {
 			// Outside viewport
 			return null;
 		}
 
-		let range = visibleRangeForCharacter[0].ranges[0];
-		let top = ctx.getViewportVerticalOffsetForLineNumber(this._position.lineNumber);
-		let width = range.width < 1 ? this._typicalHalfwidthCharacterWidth : range.width;
+		const range = visibleRangeForCharacter[0].ranges[0];
+		const width = range.width < 1 ? this._typicalHalfwidthCharacterWidth : range.width;
 
 		let textContent = '';
 		if (this._cursorStyle === TextEditorCursorStyle.Block) {
-			let lineContent = this._context.model.getLineContent(this._position.lineNumber);
+			const lineContent = this._context.model.getLineContent(this._position.lineNumber);
 			textContent = lineContent.charAt(this._position.column - 1);
 		}
 
+		const top = ctx.getVerticalOffsetForLineNumber(this._position.lineNumber) - ctx.bigNumbersDelta;
 		return new ViewCursorRenderData(top, range.left, width, textContent);
 	}
 
-	public prepareRender(ctx: IRenderingContext): void {
+	public prepareRender(ctx: RenderingContext): void {
 		this._renderData = this._prepareRender(ctx);
 	}
 
-	public render(ctx: IRestrictedRenderingContext): IViewCursorRenderData {
+	public render(ctx: RestrictedRenderingContext): IViewCursorRenderData {
 		if (!this._renderData) {
 			this._domNode.setDisplay('none');
 			return null;
@@ -188,9 +188,8 @@ export class ViewCursor {
 			this._domNode.domNode.textContent = this._lastRenderedContent;
 		}
 
-		let top = this._renderData.top + ctx.viewportTop - ctx.bigNumbersDelta;
 		this._domNode.setDisplay('block');
-		this._domNode.setTop(top);
+		this._domNode.setTop(this._renderData.top);
 		this._domNode.setLeft(this._renderData.left);
 		this._domNode.setWidth(this._renderData.width);
 		this._domNode.setLineHeight(this._lineHeight);
@@ -199,7 +198,6 @@ export class ViewCursor {
 		return {
 			domNode: this._domNode.domNode,
 			position: this._position,
-			contentTop: top,
 			contentLeft: this._renderData.left,
 			height: this._lineHeight,
 			width: 2

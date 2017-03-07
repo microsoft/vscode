@@ -13,5 +13,6 @@
 	"actions.previewDecl.label": "정의 피킹(Peeking)",
 	"generic.noResults": "정의를 찾을 수 없음",
 	"meta.title": " – 정의 {0}개",
-	"multipleResults": "{0}개 정의를 표시하려면 클릭하세요."
+	"multipleResults": "{0}개 정의를 표시하려면 클릭하세요.",
+	"noResultWord": "'{0}'에 대한 정의를 찾을 수 없습니다."
 }

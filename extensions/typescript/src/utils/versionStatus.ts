@@ -17,11 +17,19 @@ export function showHideStatus() {
 		versionBarEntry.hide();
 		return;
 	}
+
 	let doc = vscode.window.activeTextEditor.document;
 	if (vscode.languages.match('typescript', doc) || vscode.languages.match('typescriptreact', doc)) {
 		versionBarEntry.show();
 		return;
 	}
+
+	if (!vscode.window.activeTextEditor.viewColumn) {
+		// viewColumn is undefined for the debug/output panel, but we still want
+		// to show the version info
+		return;
+	}
+
 	versionBarEntry.hide();
 }
 

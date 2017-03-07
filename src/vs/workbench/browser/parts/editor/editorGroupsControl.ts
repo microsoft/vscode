@@ -962,7 +962,7 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 			const editorService = $this.editorService;
 			const groupService = $this.editorGroupService;
 
-			const splitEditor = (typeof splitTo === 'number'); // TODO@Ben ugly split code should benefit from empty group support once available!
+			const splitEditor = (typeof splitTo === 'number');
 			const freeGroup = (stacks.groups.length === 1) ? Position.TWO : Position.THREE;
 
 			// Check for transfer from title control

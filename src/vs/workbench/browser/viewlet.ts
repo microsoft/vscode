@@ -229,7 +229,7 @@ export class ToggleViewletAction extends Action {
 		id: string,
 		name: string,
 		viewletId: string,
-		@IViewletService private viewletService: IViewletService,
+		@IViewletService protected viewletService: IViewletService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
 	) {
 		super(id, name);

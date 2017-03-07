@@ -36,6 +36,7 @@ import {
 } from 'vs/workbench/parts/extensions/browser/extensionsActions';
 import { InstallVSIXAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
 import { IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, SortBy, SortOrder, IQueryOptions, LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
 import { Query } from '../common/extensionQuery';
 import { OpenGlobalSettingsAction } from 'vs/workbench/parts/preferences/browser/preferencesActions';
@@ -259,7 +260,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 			return this.extensionsWorkbenchService.queryLocal()
 				.then(result => result.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName)))
 				.then(result => this.extensionService.getExtensions()
-					.then(runningExtensions => result.filter(e => runningExtensions.every(r => r.id !== e.id) && e.name.toLowerCase().indexOf(value) > -1)))
+					.then(runningExtensions => result.filter(e => runningExtensions.every(r => !areSameExtensions(r, e)) && e.name.toLowerCase().indexOf(value) > -1)))
 				.then(result => new PagedModel(result));
 		}
 

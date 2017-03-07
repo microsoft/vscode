@@ -221,14 +221,14 @@ export class LinesLayout {
 
 		// Find first line number
 		// We don't live in a perfect world, so the line number might start before or after verticalOffset1
-		let startLineNumber = this.getLineNumberAtOrAfterVerticalOffset(verticalOffset1) | 0;
+		const startLineNumber = this.getLineNumberAtOrAfterVerticalOffset(verticalOffset1) | 0;
+		const startLineNumberVerticalOffset = this.getVerticalOffsetForLineNumber(startLineNumber) | 0;
 
 		let endLineNumber = this._lineCount | 0;
-		let startLineNumberVerticalOffset = this.getVerticalOffsetForLineNumber(startLineNumber) | 0;
 
 		// Also keep track of what whitespace we've got
 		let whitespaceIndex = this._whitespaces.getFirstWhitespaceIndexAfterLineNumber(startLineNumber) | 0;
-		let whitespaceCount = this._whitespaces.getCount() | 0;
+		const whitespaceCount = this._whitespaces.getCount() | 0;
 		let currentWhitespaceHeight: number;
 		let currentWhitespaceAfterLineNumber: number;
 
@@ -257,7 +257,7 @@ export class LinesLayout {
 
 		let linesOffsets: number[] = [];
 
-		let verticalCenter = verticalOffset1 + (verticalOffset2 - verticalOffset1) / 2;
+		const verticalCenter = verticalOffset1 + (verticalOffset2 - verticalOffset1) / 2;
 		let centeredLineNumber = -1;
 
 		// Figure out how far the lines go
@@ -304,15 +304,30 @@ export class LinesLayout {
 			centeredLineNumber = endLineNumber;
 		}
 
+		const endLineNumberVerticalOffset = this.getVerticalOffsetForLineNumber(endLineNumber) | 0;
+
+		let completelyVisibleStartLineNumber = startLineNumber;
+		let completelyVisibleEndLineNumber = endLineNumber;
+
+		if (completelyVisibleStartLineNumber < completelyVisibleEndLineNumber) {
+			if (startLineNumberVerticalOffset < verticalOffset1) {
+				completelyVisibleStartLineNumber++;
+			}
+		}
+		if (completelyVisibleStartLineNumber < completelyVisibleEndLineNumber) {
+			if (endLineNumberVerticalOffset + lineHeight > verticalOffset2) {
+				completelyVisibleEndLineNumber--;
+			}
+		}
+
 		return {
-			viewportTop: verticalOffset1 - bigNumbersDelta,
-			viewportHeight: verticalOffset2 - verticalOffset1,
 			bigNumbersDelta: bigNumbersDelta,
 			startLineNumber: startLineNumber,
 			endLineNumber: endLineNumber,
-			visibleRangesDeltaTop: -(verticalOffset1 - bigNumbersDelta),
 			relativeVerticalOffset: linesOffsets,
-			centeredLineNumber: centeredLineNumber
+			centeredLineNumber: centeredLineNumber,
+			completelyVisibleStartLineNumber: completelyVisibleStartLineNumber,
+			completelyVisibleEndLineNumber: completelyVisibleEndLineNumber
 		};
 	}
 

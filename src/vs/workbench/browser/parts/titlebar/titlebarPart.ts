@@ -23,12 +23,12 @@ import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { isMacintosh, isLinux } from 'vs/base/common/platform';
 import nls = require('vs/nls');
 import * as labels from 'vs/base/common/labels';
-import { EditorInput, toResource } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { Verbosity } from 'vs/platform/editor/common/editor';
 
 export class TitlebarPart extends Part implements ITitleService {
 
@@ -66,7 +66,7 @@ export class TitlebarPart extends Part implements ITitleService {
 
 		this.isPure = true;
 		this.activeEditorListeners = [];
-		this.workspacePath = contextService.hasWorkspace() ? this.tildify(labels.getPathLabel(contextService.getWorkspace().resource)) : '';
+		this.workspacePath = contextService.hasWorkspace() ? labels.tildify(labels.getPathLabel(contextService.getWorkspace().resource), environmentService.userHome) : '';
 
 		this.init();
 
@@ -163,12 +163,11 @@ export class TitlebarPart extends Part implements ITitleService {
 	private doGetWindowTitle(): string {
 		const input = this.editorService.getActiveEditorInput();
 		const workspace = this.contextService.getWorkspace();
-		const file = toResource(input, { filter: 'file' });
 
 		// Variables
-		const activeEditorShort = input ? input.getName() : '';
-		const activeEditorMedium = file ? labels.getPathLabel(file, this.contextService) : activeEditorShort;
-		const activeEditorLong = file ? this.tildify(labels.getPathLabel(file)) : activeEditorMedium;
+		const activeEditorShort = input ? input.getTitle(Verbosity.SHORT) : '';
+		const activeEditorMedium = input ? input.getTitle(Verbosity.MEDIUM) : activeEditorShort;
+		const activeEditorLong = input ? input.getTitle(Verbosity.LONG) : activeEditorMedium;
 		const rootName = workspace ? workspace.name : '';
 		const rootPath = workspace ? this.workspacePath : '';
 		const dirty = input && input.isDirty() ? TitlebarPart.TITLE_DIRTY : '';
@@ -185,14 +184,6 @@ export class TitlebarPart extends Part implements ITitleService {
 			appName,
 			separator: { label: separator }
 		});
-	}
-
-	private tildify(path: string): string {
-		if (path && (isMacintosh || isLinux) && path.indexOf(this.environmentService.userHome) === 0) {
-			path = `~${path.substr(this.environmentService.userHome.length)}`;
-		}
-
-		return path;
 	}
 
 	public createContentArea(parent: Builder): Builder {

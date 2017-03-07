@@ -502,11 +502,20 @@ export class MouseTargetFactory {
 			for (let i = 0, len = lastViewCursorsRenderData.length; i < len; i++) {
 				const d = lastViewCursorsRenderData[i];
 
+				if (mouseContentHorizontalOffset < d.contentLeft) {
+					// mouse position is to the left of the cursor
+					continue;
+				}
+				if (mouseContentHorizontalOffset > d.contentLeft + d.width) {
+					// mouse position is to the right of the cursor
+					continue;
+				}
+
+				const cursorVerticalOffset = ctx.getVerticalOffsetForLineNumber(d.position.lineNumber);
+
 				if (
-					d.contentLeft <= mouseContentHorizontalOffset
-					&& mouseContentHorizontalOffset <= d.contentLeft + d.width
-					&& d.contentTop <= mouseVerticalOffset
-					&& mouseVerticalOffset <= d.contentTop + d.height
+					cursorVerticalOffset <= mouseVerticalOffset
+					&& mouseVerticalOffset <= cursorVerticalOffset + d.height
 				) {
 					return request.fulfill(MouseTargetType.CONTENT_TEXT, d.position);
 				}

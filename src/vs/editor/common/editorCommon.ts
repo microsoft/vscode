@@ -2011,12 +2011,17 @@ export interface IFoundBracket {
 export interface ITokenizedModel extends ITextModel {
 
 	/**
-	 * Tokenize if necessary and get the tokens for the line `lineNumber`.
-	 * @param lineNumber The line number
-	 * @param inaccurateTokensAcceptable Are inaccurate tokens acceptable? Defaults to false
+	 * Force tokenization information for `lineNumber` to be accurate.
 	 * @internal
 	 */
-	getLineTokens(lineNumber: number, inaccurateTokensAcceptable?: boolean): LineTokens;
+	forceTokenization(lineNumber: number): void;
+
+	/**
+	 * Get the tokens for the line `lineNumber`.
+	 * The tokens might be inaccurate. Use `forceTokenization` to ensure accurate tokens.
+	 * @internal
+	 */
+	getLineTokens(lineNumber: number): LineTokens;
 
 	/**
 	 * Get the language associated with this model.
@@ -2036,7 +2041,8 @@ export interface ITokenizedModel extends ITextModel {
 	setMode(languageIdentifier: LanguageIdentifier): void;
 
 	/**
-	 * Returns the true (inner-most) language mode at a given position.
+	 * Returns the real (inner-most) language mode at a given position.
+	 * The result might be inaccurate. Use `forceTokenization` to ensure accurate tokens.
 	 * @internal
 	 */
 	getLanguageIdAtPosition(lineNumber: number, column: number): LanguageId;

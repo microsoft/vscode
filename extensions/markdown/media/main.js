@@ -89,7 +89,7 @@
 	function scrollToRevealSourceLine(line) {
 		const {previous, next} = getElementsForSourceLine(line);
 		marker.update(previous && previous.element);
-		if (previous && window.initialData.scrollPreviewWithEditorSelection) {
+		if (previous && settings.scrollPreviewWithEditorSelection) {
 			let scrollTo = 0;
 			if (next) {
 				// Between two elements. Go to percentage offset between them.
@@ -141,10 +141,11 @@
 
 	var scrollDisabled = true;
 	var marker = new ActiveLineMarker();
+	const settings = JSON.parse(document.getElementById('vscode-markdown-preview-data').getAttribute('data-settings'));
 
 	window.onload = () => {
-		if (window.initialData.scrollPreviewWithEditorSelection) {
-			const initialLine = +window.initialData.line;
+		if (settings.scrollPreviewWithEditorSelection) {
+			const initialLine = +settings.line;
 			if (!isNaN(initialLine)) {
 				setTimeout(() => {
 					scrollDisabled = true;
@@ -172,7 +173,7 @@
 	})(), false);
 
 	document.addEventListener('dblclick', event => {
-		if (!window.initialData.doubleClickToSwitchToEditor) {
+		if (!settings.doubleClickToSwitchToEditor) {
 			return;
 		}
 
@@ -186,7 +187,7 @@
 		const offset = event.pageY;
 		const line = getEditorLineNumberForPageOffset(offset);
 		if (!isNaN(line)) {
-			const args = [window.initialData.source, line];
+			const args = [settings.source, line];
 			window.parent.postMessage({
 				command: "did-click-link",
 				data: `command:_markdown.didClick?${encodeURIComponent(JSON.stringify(args))}`
@@ -194,14 +195,14 @@
 		}
 	});
 
-	if (window.initialData.scrollEditorWithPreview) {
+	if (settings.scrollEditorWithPreview) {
 		window.addEventListener('scroll', throttle(() => {
 			if (scrollDisabled) {
 				scrollDisabled = false;
 			} else {
 				const line = getEditorLineNumberForPageOffset(window.scrollY);
 				if (!isNaN(line)) {
-					const args = [window.initialData.source, line];
+					const args = [settings.source, line];
 					window.parent.postMessage({
 						command: "did-click-link",
 						data: `command:_markdown.revealLine?${encodeURIComponent(JSON.stringify(args))}`

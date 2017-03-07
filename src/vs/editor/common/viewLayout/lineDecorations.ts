@@ -7,8 +7,8 @@
 import { InlineDecoration } from 'vs/editor/common/viewModel/viewModel';
 import { Constants } from 'vs/editor/common/core/uint';
 
-export class Decoration {
-	_decorationBrand: void;
+export class LineDecoration {
+	_lineDecorationBrand: void;
 
 	public readonly startColumn: number;
 	public readonly endColumn: number;
@@ -22,7 +22,7 @@ export class Decoration {
 		this.insertsBeforeOrAfter = insertsBeforeOrAfter;
 	}
 
-	private static _equals(a: Decoration, b: Decoration): boolean {
+	private static _equals(a: LineDecoration, b: LineDecoration): boolean {
 		return (
 			a.startColumn === b.startColumn
 			&& a.endColumn === b.endColumn
@@ -31,26 +31,26 @@ export class Decoration {
 		);
 	}
 
-	public static equalsArr(a: Decoration[], b: Decoration[]): boolean {
+	public static equalsArr(a: LineDecoration[], b: LineDecoration[]): boolean {
 		let aLen = a.length;
 		let bLen = b.length;
 		if (aLen !== bLen) {
 			return false;
 		}
 		for (let i = 0; i < aLen; i++) {
-			if (!Decoration._equals(a[i], b[i])) {
+			if (!LineDecoration._equals(a[i], b[i])) {
 				return false;
 			}
 		}
 		return true;
 	}
 
-	public static filter(lineDecorations: InlineDecoration[], lineNumber: number, minLineColumn: number, maxLineColumn: number): Decoration[] {
+	public static filter(lineDecorations: InlineDecoration[], lineNumber: number, minLineColumn: number, maxLineColumn: number): LineDecoration[] {
 		if (lineDecorations.length === 0) {
 			return [];
 		}
 
-		let result: Decoration[] = [], resultLen = 0;
+		let result: LineDecoration[] = [], resultLen = 0;
 
 		for (let i = 0, len = lineDecorations.length; i < len; i++) {
 			let d = lineDecorations[i];
@@ -74,13 +74,13 @@ export class Decoration {
 				continue;
 			}
 
-			result[resultLen++] = new Decoration(startColumn, endColumn, d.inlineClassName, d.insertsBeforeOrAfter);
+			result[resultLen++] = new LineDecoration(startColumn, endColumn, d.inlineClassName, d.insertsBeforeOrAfter);
 		}
 
 		return result;
 	}
 
-	public static compare(a: Decoration, b: Decoration): number {
+	public static compare(a: LineDecoration, b: LineDecoration): number {
 		if (a.startColumn === b.startColumn) {
 			if (a.endColumn === b.endColumn) {
 				if (a.className < b.className) {
@@ -172,7 +172,7 @@ export class LineDecorationsNormalizer {
 	/**
 	 * Normalize line decorations. Overlapping decorations will generate multiple segments
 	 */
-	public static normalize(lineDecorations: Decoration[]): DecorationSegment[] {
+	public static normalize(lineDecorations: LineDecoration[]): DecorationSegment[] {
 		if (lineDecorations.length === 0) {
 			return [];
 		}

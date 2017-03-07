@@ -13,5 +13,6 @@
 	"actions.previewDecl.label": "查看定义",
 	"generic.noResults": "找不到定义",
 	"meta.title": " – {0} 定义",
-	"multipleResults": "单击显示 {0} 个定义。"
+	"multipleResults": "单击显示 {0} 个定义。",
+	"noResultWord": "未找到“{0}”的任何定义"
 }

@@ -24,6 +24,14 @@ const winExcludedPathCharactersClause = '[^\\0<>\\?\\|\\/\\s!$`&*()\\[\\]+\'":;]
 /** A regex that matches paths in the form c:\path, ~\path, .\path */
 const WINDOWS_LOCAL_LINK_REGEX = new RegExp('(' + winPathPrefix + '?(' + winPathSeparatorClause + '(' + winExcludedPathCharactersClause + ')+)+)');
 
+/** Higher than local link, lower than hypertext */
+const CUSTOM_LINK_PRIORITY = -1;
+/** Lowest */
+const LOCAL_LINK_PRIORITY = -2;
+
+export type XtermLinkMatcherHandler = (event: MouseEvent, uri: string) => boolean | void;
+export type XtermLinkMatcherValidationCallback = (uri: string, callback: (isValid: boolean) => void) => void;
+
 export class TerminalLinkHandler {
 	constructor(
 		private _platform: Platform,
@@ -32,11 +40,40 @@ export class TerminalLinkHandler {
 	) {
 	}
 
-	public registerLocalLinkHandler(xterm: any) {
-		xterm.registerLinkMatcher(this._localLinkRegex, (url) => this._handleLocalLink(url), {
-			matchIndex: 1,
-			validationCallback: (link: string, callback: (isValid: boolean) => void) => this._validateLocalLink(link, callback)
+	public initialize(xterm: any) {
+		xterm.attachHypertextLinkHandler(this._wrapLinkHandler(() => true));
+	}
+
+	public registerCustomLinkHandler(xterm: any, regex: RegExp, handler: (uri: string) => void, matchIndex?: number, validationCallback?: XtermLinkMatcherValidationCallback): number {
+		return xterm.registerLinkMatcher(regex, this._wrapLinkHandler(handler), {
+			matchIndex,
+			validationCallback,
+			priority: CUSTOM_LINK_PRIORITY
 		});
+	}
+
+	public registerLocalLinkHandler(xterm: any): number {
+		const wrappedHandler = this._wrapLinkHandler(url => {
+			this._handleLocalLink(url);
+			return;
+		});
+		return xterm.registerLinkMatcher(this._localLinkRegex, wrappedHandler, {
+			matchIndex: 1,
+			validationCallback: (link: string, callback: (isValid: boolean) => void) => this._validateLocalLink(link, callback),
+			priority: LOCAL_LINK_PRIORITY
+		});
+	}
+
+	private _wrapLinkHandler(handler: (uri: string) => boolean | void): XtermLinkMatcherHandler {
+		return (event: MouseEvent, uri: string) => {
+			// Require ctrl/cmd on click
+			if (this._platform === Platform.Mac ? !event.metaKey : !event.ctrlKey) {
+				// TODO: Show hint on fail
+				event.preventDefault();
+				return false;
+			}
+			return handler(uri);
+		};
 	}
 
 	protected get _localLinkRegex(): RegExp {
@@ -57,7 +94,6 @@ export class TerminalLinkHandler {
 	}
 
 	private _validateLocalLink(link: string, callback: (isValid: boolean) => void): void {
-		console.log('validate');
 		this._resolvePath(link).then(resolvedLink => {
 			callback(!!resolvedLink);
 		});
