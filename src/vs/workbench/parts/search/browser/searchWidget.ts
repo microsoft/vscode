@@ -174,6 +174,7 @@ export class SearchWidget extends Widget {
 		if (this.searchInput.getValue().length === 0) {
 			previous = this.searchHistory.current();
 		} else {
+			this.searchHistory.addIfNotPresent(this.searchInput.getValue());
 			previous = this.searchHistory.previous();
 		}
 		if (previous) {
