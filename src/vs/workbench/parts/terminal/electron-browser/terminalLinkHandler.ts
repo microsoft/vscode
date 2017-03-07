@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from 'vs/nls';
 import * as path from 'path';
+import * as platform from 'vs/base/common/platform';
 import * as pfs from 'vs/base/node/pfs';
 import Uri from 'vs/base/common/uri';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ITerminalInstance } from 'vs/workbench/parts/terminal/common/terminal';
-import { Platform } from 'vs/base/common/platform';
 import { TPromise } from 'vs/base/common/winjs.base';
 
 const pathPrefix = '(\\.\\.?|\\~)';
@@ -37,7 +38,7 @@ export class TerminalLinkHandler {
 	constructor(
 		private _instance: ITerminalInstance,
 		private _xterm: any,
-		private _platform: Platform,
+		private _platform: platform.Platform,
 		@IWorkbenchEditorService private _editorService: IWorkbenchEditorService,
 		@IWorkspaceContextService private _contextService: IWorkspaceContextService
 	) {
@@ -67,9 +68,15 @@ export class TerminalLinkHandler {
 	private _wrapLinkHandler(handler: (uri: string) => boolean | void): XtermLinkMatcherHandler {
 		return (event: MouseEvent, uri: string) => {
 			// Require ctrl/cmd on click
-			if (this._platform === Platform.Mac ? !event.metaKey : !event.ctrlKey) {
+			if (this._platform === platform.Platform.Mac ? !event.metaKey : !event.ctrlKey) {
 				const link = <HTMLElement>event.target;
-				this._instance.showMessage(link.offsetLeft, link.offsetTop, 'Hold ctrl and click to follow link');
+				let message: string;
+				if (platform.isMacintosh) {
+					message = nls.localize('terminalLinkHandler.followLinkCmd', 'Use cmd+click to follow link');
+				} else {
+					message = nls.localize('terminalLinkHandler.followLinkCtrl', 'Use ctrl+click to follow link');
+				}
+				this._instance.showMessage(link.offsetLeft, link.offsetTop, message);
 				event.preventDefault();
 				return false;
 			}
@@ -78,7 +85,7 @@ export class TerminalLinkHandler {
 	}
 
 	protected get _localLinkRegex(): RegExp {
-		if (this._platform === Platform.Windows) {
+		if (this._platform === platform.Platform.Windows) {
 			return WINDOWS_LOCAL_LINK_REGEX;
 		}
 		return UNIX_LIKE_LOCAL_LINK_REGEX;
@@ -101,7 +108,7 @@ export class TerminalLinkHandler {
 	}
 
 	private _resolvePath(link: string): TPromise<string> {
-		if (this._platform === Platform.Windows) {
+		if (this._platform === platform.Platform.Windows) {
 			// Resolve ~ -> %HOMEDRIVE%\%HOMEPATH%
 			if (link.charAt(0) === '~') {
 				if (!process.env.HOMEDRIVE || !process.env.HOMEPATH) {
