@@ -125,7 +125,7 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 
 			// Content Security Policy
 			const nonce = new Date().getTime() + '' + new Date().getMilliseconds();
-			let csp = `<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' http: https: data:; media-src 'self' http: https: data:; child-src 'none'; script-src 'nonce-${nonce}'; style-src 'nonce-${nonce}' 'self' 'unsafe-inline' http: https: data:;">`;
+			let csp = `<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' http: https: data:; media-src 'self' http: https: data:; child-src 'none'; script-src 'nonce-${nonce}'; style-src 'self' 'unsafe-inline' http: https: data:;">`;
 			if (this.cspArbiter.isEnhancedSecurityDisableForWorkspace()) {
 				csp = '';
 			}
