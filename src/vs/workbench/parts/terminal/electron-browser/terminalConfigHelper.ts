@@ -81,6 +81,8 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 		@IConfigurationService private _configurationService: IConfigurationService) {
 	}
 
+	private get _config(): ITerminalConfiguration { return this._configurationService.getConfiguration<ITerminalConfiguration>(); }
+
 	public getTheme(baseThemeId: string): string[] {
 		return DEFAULT_ANSI_COLORS[baseThemeId];
 	}
@@ -133,32 +135,27 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 	}
 
 	public getFontLigaturesEnabled(): boolean {
-		const terminalConfig = this._configurationService.getConfiguration<ITerminalConfiguration>();
-		return terminalConfig.terminal.integrated.fontLigatures;
+		return this._config.terminal.integrated.fontLigatures;
 	}
 
 	public getCursorBlink(): boolean {
-		const terminalConfig = this._configurationService.getConfiguration<ITerminalConfiguration>();
-		return terminalConfig.terminal.integrated.cursorBlinking;
+		return this._config.terminal.integrated.cursorBlinking;
 	}
 
 	public getCursorStyle(): string {
-		const terminalConfig = this._configurationService.getConfiguration<ITerminalConfiguration>();
-		return terminalConfig.terminal.integrated.cursorStyle;
+		return this._config.terminal.integrated.cursorStyle;
 	}
 
 	public getRightClickCopyPaste(): boolean {
-		const config = this._configurationService.getConfiguration<ITerminalConfiguration>();
-		return config.terminal.integrated.rightClickCopyPaste;
+		return this._config.terminal.integrated.rightClickCopyPaste;
 	}
 
 	public getCommandsToSkipShell(): string[] {
-		const config = this._configurationService.getConfiguration<ITerminalConfiguration>();
-		return config.terminal.integrated.commandsToSkipShell;
+		return this._config.terminal.integrated.commandsToSkipShell;
 	}
 
 	public mergeDefaultShellPathAndArgs(shell: IShellLaunchConfig): IShellLaunchConfig {
-		const config = this._configurationService.getConfiguration<ITerminalConfiguration>();
+		const config = this._config;
 
 		shell.executable = '';
 		shell.args = [];
@@ -180,23 +177,19 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 	}
 
 	public getScrollback(): number {
-		const config = this._configurationService.getConfiguration<ITerminalConfiguration>();
-		return config.terminal.integrated.scrollback;
+		return this._config.terminal.integrated.scrollback;
 	}
 
 	public isSetLocaleVariables(): boolean {
-		const config = this._configurationService.getConfiguration<ITerminalConfiguration>();
-		return config.terminal.integrated.setLocaleVariables;
+		return this._config.terminal.integrated.setLocaleVariables;
 	}
 
 	public getCwd(): string {
-		const config = this._configurationService.getConfiguration<ITerminalConfiguration>();
-		return config.terminal.integrated.cwd;
+		return this._config.terminal.integrated.cwd;
 	}
 
 	public getConfirmOnExit(): boolean {
-		const config = this._configurationService.getConfiguration<ITerminalConfiguration>();
-		return config.terminal.integrated.confirmOnExit;
+		return this._config.terminal.integrated.confirmOnExit;
 	}
 
 	private _toInteger(source: any, minimum?: number): number {
