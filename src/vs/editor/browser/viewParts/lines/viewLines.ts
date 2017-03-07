@@ -188,14 +188,6 @@ export class ViewLines extends ViewLayer<ViewLine> implements IViewLines {
 		this.domNode.setWidth(e.scrollWidth);
 		return super.onScrollChanged(e) || true;
 	}
-	public onScrollRequest(e: viewEvents.ViewScrollRequestEvent): boolean {
-		let currentScrollTop = this._viewLayout.getScrollTop();
-		let newScrollTop = currentScrollTop + e.deltaLines * this._lineHeight;
-		this._viewLayout.setScrollPosition({
-			scrollTop: newScrollTop
-		});
-		return true;
-	}
 
 	// ---- end view event handlers
 
