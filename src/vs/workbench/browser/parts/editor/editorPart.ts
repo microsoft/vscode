@@ -87,6 +87,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	private stacks: EditorStacksModel;
 	private tabOptions: ITabOptions;
 	private doNotFireTabOptionsChanged: boolean;
+	private revealIfOpen: boolean;
 
 	private _onEditorsChanged: Emitter<void>;
 	private _onEditorsMoved: Emitter<void>;
@@ -150,6 +151,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 				showTabs: editorConfig.showTabs,
 				tabCloseButton: editorConfig.tabCloseButton
 			};
+			this.revealIfOpen = config.workbench.editor.revealIfOpen;
 
 			this.telemetryService.publicLog('workbenchEditorConfiguration', editorConfig);
 		} else {
@@ -159,6 +161,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 				showTabs: true,
 				tabCloseButton: 'right'
 			};
+			this.revealIfOpen = false;
 		}
 
 		this.registerListeners();
@@ -197,6 +200,8 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			if (!this.doNotFireTabOptionsChanged && !objects.equals(oldTabOptions, this.tabOptions)) {
 				this._onTabOptionsChanged.fire(this.tabOptions);
 			}
+
+			this.revealIfOpen = configuration.workbench.editor.revealIfOpen;
 		}
 	}
 
@@ -1275,18 +1280,16 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		// Respect option to reveal an editor if it is already visible
 		if (options && options.revealIfVisible) {
 			const group = this.stacks.findGroup(input, true);
-			if (null !== group) {
+			if (group) {
 				return this.stacks.positionOfGroup(group);
 			}
 		}
 
-		const config = this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>();
-		const revealIfOpen = config.workbench.editor.revealIfOpen;
 		// Respect option to reveal an editor if it is open (not necessarily visible)
 		const skipReuse = (options && options.index) || arg1;
-		if (!skipReuse && revealIfOpen) {
-			const group = this.stacks.findGroup(input, false);
-			if (null !== group) {
+		if (!skipReuse && this.revealIfOpen) {
+			const group = this.stacks.findGroup(input);
+			if (group) {
 				return this.stacks.positionOfGroup(group);
 			}
 		}
