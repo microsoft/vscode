@@ -302,4 +302,13 @@ export interface ITerminalInstance {
 	 * @param shell The new launch configuration.
 	 */
 	reuseTerminal(shell?: IShellLaunchConfig): void;
+
+	/**
+	 * Show a message in the terminal for a brief period.
+	 *
+	 * @param left The left position to show the message at.
+	 * @param top The top position to show the message at.
+	 * @param text The message to show.
+	 */
+	showMessage(left: number, top: number, text: string): void;
 }

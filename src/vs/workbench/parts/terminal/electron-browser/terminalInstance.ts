@@ -23,10 +23,12 @@ import { ITerminalInstance, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_
 import { ITerminalProcessFactory } from 'vs/workbench/parts/terminal/electron-browser/terminal';
 import { IWorkspace, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { TabFocus } from 'vs/editor/common/config/commonEditorConfig';
 import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 import { TerminalLinkHandler } from 'vs/workbench/parts/terminal/electron-browser/terminalLinkHandler';
+import { TerminalWidgetManager } from 'vs/workbench/parts/terminal/electron-browser/terminalWidgetManager';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -68,6 +70,9 @@ export class TerminalInstance implements ITerminalInstance {
 	private _cols: number;
 	private _rows: number;
 
+	private _widgetManager: TerminalWidgetManager;
+	private _linkHandler: TerminalLinkHandler;
+
 	public get id(): number { return this._id; }
 	public get processId(): number { return this._processId; }
 	public get onDisposed(): Event<ITerminalInstance> { return this._onDisposed.event; }
@@ -79,7 +84,6 @@ export class TerminalInstance implements ITerminalInstance {
 	public constructor(
 		private _terminalFocusContextKey: IContextKey<boolean>,
 		private _configHelper: TerminalConfigHelper,
-		private _linkHandler: TerminalLinkHandler,
 		private _container: HTMLElement,
 		private _shellLaunchConfig: IShellLaunchConfig,
 		@IContextKeyService private _contextKeyService: IContextKeyService,
@@ -87,7 +91,8 @@ export class TerminalInstance implements ITerminalInstance {
 		@IMessageService private _messageService: IMessageService,
 		@IPanelService private _panelService: IPanelService,
 		@IWorkspaceContextService private _contextService: IWorkspaceContextService,
-		@IWorkbenchEditorService private _editorService: IWorkbenchEditorService
+		@IWorkbenchEditorService private _editorService: IWorkbenchEditorService,
+		@IInstantiationService private _instantiationService: IInstantiationService
 	) {
 		this._instanceDisposables = [];
 		this._processDisposables = [];
@@ -196,8 +201,8 @@ export class TerminalInstance implements ITerminalInstance {
 		this._xtermElement = document.createElement('div');
 
 		this._xterm.open(this._xtermElement);
-		this._linkHandler.initialize(this._xterm);
-		this._linkHandler.registerLocalLinkHandler(this._xterm);
+		this._linkHandler = this._instantiationService.createInstance(TerminalLinkHandler, this, this._xterm, platform.platform);
+		this._linkHandler.registerLocalLinkHandler();
 		this._xterm.attachCustomKeydownHandler((event: KeyboardEvent) => {
 			// Disable all input if the terminal is exiting
 			if (this._isExiting) {
@@ -267,6 +272,7 @@ export class TerminalInstance implements ITerminalInstance {
 		}));
 
 		this._wrapperElement.appendChild(this._xtermElement);
+		this._widgetManager = new TerminalWidgetManager(this._configHelper, this._wrapperElement);
 		this._container.appendChild(this._wrapperElement);
 
 		const computedStyle = window.getComputedStyle(this._container);
@@ -278,7 +284,7 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public registerLinkMatcher(regex: RegExp, handler: (url: string) => void, matchIndex?: number, validationCallback?: (uri: string, callback: (isValid: boolean) => void) => void): number {
-		return this._linkHandler.registerCustomLinkHandler(this._xterm, regex, handler, matchIndex, validationCallback);
+		return this._linkHandler.registerCustomLinkHandler(regex, handler, matchIndex, validationCallback);
 	}
 
 	public deregisterLinkMatcher(linkMatcherId: number): void {
@@ -685,6 +691,10 @@ export class TerminalInstance implements ITerminalInstance {
 		if (this._xterm) {
 			this._xterm.resize(this._cols, this._rows);
 			this._xterm.element.style.width = terminalWidth + 'px';
+			// console.log(this._xterm.element.querySelector('.xterm-rows'));
+			// const rowsElement = this._xterm.element.querySelector('.xterm-rows');
+			// console.log(rowsElement.getBoundingClientRect());
+			// this._widgetManager.layout(rowsElement.getBoundingClientRect().height);
 		}
 		if (this._process.connected) {
 			this._process.send({
@@ -693,6 +703,10 @@ export class TerminalInstance implements ITerminalInstance {
 				rows: this._rows
 			});
 		}
+	}
+
+	public showMessage(left: number, top: number, text: string): void {
+		this._widgetManager.showMessage(left, top, text);
 	}
 
 	public static setTerminalProcessFactory(factory: ITerminalProcessFactory): void {
