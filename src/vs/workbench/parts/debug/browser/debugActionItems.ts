@@ -52,7 +52,7 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 		this.toDispose.push(this.selectBox.onDidSelect(configurationName => {
 			if (configurationName === StartDebugActionItem.ADD_CONFIGURATION) {
 				this.selectBox.select(this.debugService.getConfigurationManager().getConfigurationNames().indexOf(this.debugService.getViewModel().selectedConfigurationName));
-				this.commandService.executeCommand('debug.addConfiguratoin').done(undefined, errors.onUnexpectedError);
+				this.commandService.executeCommand('debug.addConfiguration').done(undefined, errors.onUnexpectedError);
 			} else {
 				this.debugService.getViewModel().setSelectedConfigurationName(configurationName);
 			}
