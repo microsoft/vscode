@@ -21,8 +21,9 @@ export class TerminalWidgetManager {
 	) {
 		this._container = document.createElement('div');
 		this._container.classList.add('terminal-widget-overlay');
-		this._initTerminalHeightWatcher(terminalWrapper);
 		terminalWrapper.appendChild(this._container);
+
+		this._initTerminalHeightWatcher(terminalWrapper);
 	}
 
 	private _initTerminalHeightWatcher(terminalWrapper: HTMLElement) {
@@ -48,8 +49,6 @@ export class TerminalWidgetManager {
 	}
 
 	public refreshHeight(): void {
-		console.log('refreshHeight', this._xtermViewport);
-		console.log('refreshHeight', this._xtermViewport.style.height);
 		this._container.style.height = this._xtermViewport.style.height;
 	}
 }
