@@ -186,7 +186,8 @@
 		}
 	},
 	"scripts": {
-		"vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:markdown ./tsconfig.json"
+		"vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:markdown ./tsconfig.json",
+		"update-grammar": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ./syntaxes/gulpfile.js"
 	},
 	"dependencies": {
 		"highlight.js": "^9.3.0",
@@ -196,6 +197,8 @@
 		"vscode-nls": "^2.0.2"
 	},
 	"devDependencies": {
-		"@types/node": "^7.0.4"
+		"@types/node": "^7.0.4",
+		"gulp-rename": "^1.2.2",
+		"gulp-replace": "^0.5.4"
 	}
 }
