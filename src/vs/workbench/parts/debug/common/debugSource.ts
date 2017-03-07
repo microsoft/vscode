@@ -12,7 +12,7 @@ export class Source {
 
 	constructor(public raw: DebugProtocol.Source, public deemphasize: boolean) {
 		const path = raw.path || raw.name;
-		this.uri = raw.sourceReference > 0 ? uri.parse(`${DEBUG_SCHEME}:${path}?ref=${raw.sourceReference}`) : uri.file(path);
+		this.uri = raw.sourceReference > 0 ? uri.parse(`${DEBUG_SCHEME}:${path}`) : uri.file(path);
 	}
 
 	public get name() {
@@ -33,13 +33,5 @@ export class Source {
 
 	public static isInMemory(uri: uri): boolean {
 		return uri.toString().indexOf(`${DEBUG_SCHEME}:`) === 0;
-	}
-
-	public static getSourceReference(uri: uri): number {
-		if (!Source.isInMemory(uri)) {
-			return 0;
-		}
-
-		return parseInt(uri.query.substr('ref='.length));
 	}
 }
