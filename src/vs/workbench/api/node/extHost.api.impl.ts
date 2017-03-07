@@ -368,10 +368,10 @@ export function createApiFactory(initData: IInitData, threadService: IThreadServ
 			set textDocuments(value) {
 				throw errors.readonly();
 			},
-			openTextDocument(uriOrFileNameOrOptions?: vscode.Uri | string | { language?: string; contents?: string; }) {
+			openTextDocument(uriOrFileNameOrOptions?: vscode.Uri | string | { language?: string; content?: string; }) {
 				let uriPromise: TPromise<URI>;
 
-				let options = uriOrFileNameOrOptions as { language?: string; contents?: string; };
+				let options = uriOrFileNameOrOptions as { language?: string; content?: string; };
 				if (!options || typeof options.language === 'string') {
 					uriPromise = extHostDocuments.createDocumentData(options);
 				} else if (typeof uriOrFileNameOrOptions === 'string') {
