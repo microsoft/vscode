@@ -87,7 +87,7 @@ import { URLChannelClient } from 'vs/platform/url/common/urlIpc';
 import { IURLService } from 'vs/platform/url/common/url';
 import { IBackupService } from 'vs/platform/backup/common/backup';
 import { BackupChannelClient } from 'vs/platform/backup/common/backupIpc';
-import { ReloadWindowAction, ReportPerformanceIssueAction } from 'vs/workbench/electron-browser/actions';
+import { ReportPerformanceIssueAction } from 'vs/workbench/electron-browser/actions';
 import { ExtensionHostProcessWorker } from 'vs/workbench/electron-browser/extensionHost';
 import { ITimerService } from 'vs/workbench/services/timer/common/timerService';
 import { remote } from 'electron';
@@ -296,16 +296,8 @@ export class WorkbenchShell {
 
 		const sharedProcess = connectNet(this.environmentService.sharedIPCHandle, `window:${this.windowIPCService.getWindowId()}`);
 		sharedProcess.done(client => {
-
 			// Choice channel
 			client.registerChannel('choice', instantiationService.createInstance(ChoiceChannel));
-
-			client.onClose(() => {
-				this.messageService.show(Severity.Error, {
-					message: nls.localize('sharedProcessCrashed', "The shared process terminated unexpectedly. Please reload the window to recover."),
-					actions: [instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, ReloadWindowAction.LABEL)]
-				});
-			});
 		}, errors.onUnexpectedError);
 
 		// Storage Sevice

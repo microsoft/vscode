@@ -12,7 +12,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { ExtensionManagementChannel } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
 import { IExtensionManagementService, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -21,39 +21,23 @@ import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/ex
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
 import { IRequestService } from 'vs/platform/request/node/request';
-import { RequestService } from 'vs/platform/request/node/requestService';
+import { RequestService } from 'vs/platform/request/electron-browser/requestService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { combinedAppender, NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
 import { TelemetryAppenderChannel } from 'vs/platform/telemetry/common/telemetryIpc';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
-import { ISharedProcessInitData } from './sharedProcess';
 import { IChoiceService } from 'vs/platform/message/common/message';
 import { ChoiceChannelClient } from 'vs/platform/message/common/messageIpc';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { WindowsChannelClient } from 'vs/platform/windows/common/windowsIpc';
 import { ActiveWindowManager } from 'vs/code/common/windows';
+import { ipcRenderer } from 'electron';
 
-function quit(err?: Error) {
-	if (err) {
-		console.error(err.stack || err);
-	}
-
-	process.exit(err ? 1 : 0);
-}
-
-/**
- * Plan B is to kill oneself if one's parent dies. Much drama.
- */
-function setupPlanB(parentPid: number): void {
-	setInterval(function () {
-		try {
-			process.kill(parentPid, 0); // throws an exception if the main process doesn't exist anymore.
-		} catch (e) {
-			process.exit();
-		}
-	}, 5000);
+interface ISharedProcessInitData {
+	sharedIPCHandle: string;
+	args: ParsedArgs;
 }
 
 const eventPrefix = 'monacoworkbench';
@@ -159,16 +143,17 @@ function setupIPC(hook: string): TPromise<Server> {
 	return setup(true);
 }
 
-function handshake(): TPromise<ISharedProcessInitData> {
+function startHandshake(): TPromise<ISharedProcessInitData> {
 	return new TPromise<ISharedProcessInitData>((c, e) => {
-		process.once('message', c);
-		process.once('error', e);
-		process.send('hello');
+		ipcRenderer.once('handshake:hey there', (_, r) => c(r));
+		ipcRenderer.send('handshake:hello');
 	});
 }
 
-setupIPC(process.env['VSCODE_SHARED_IPC_HOOK'])
-	.then(server => handshake()
-		.then(data => main(server, data))
-		.then(() => setupPlanB(process.env['VSCODE_PID']))
-		.done(null, quit));
+function handshake(): TPromise<void> {
+	return startHandshake()
+		.then((data) => setupIPC(data.sharedIPCHandle).then(server => main(server, data)))
+		.then(() => ipcRenderer.send('handshake:im ready'));
+}
+
+handshake();
