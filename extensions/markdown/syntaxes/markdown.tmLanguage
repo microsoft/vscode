@@ -717,7 +717,6 @@
 							<string>punctuation.definition.markdown</string>
 						</dict>
 					</dict>
-
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -769,7 +768,6 @@
 							<string>punctuation.definition.markdown</string>
 						</dict>
 					</dict>
-
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -821,7 +819,6 @@
 							<string>punctuation.definition.markdown</string>
 						</dict>
 					</dict>
-
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -873,7 +870,6 @@
 							<string>punctuation.definition.markdown</string>
 						</dict>
 					</dict>
-
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -925,7 +921,6 @@
 							<string>punctuation.definition.markdown</string>
 						</dict>
 					</dict>
-
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -1028,7 +1023,6 @@
 							<string>punctuation.definition.markdown</string>
 						</dict>
 					</dict>
-
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -1048,18 +1042,6 @@
 				</dict>
 				<key>fenced_code_block_php</key>
 				<dict>
-					<key>comment</key>
-					<string>
-					In fenced PHP code blocks, we match a "fuzzy" version of the PHP language.
-					This is because code blocks may be an incomplete PHP script that lacks a script
-					section start tag, and we still want to provide syntax highlighting, rather
-					than adhering to the actual grammar, where everything not prepended by a
-					start tag would be ignored. Additionally, we want to provide highlighting
-					for potential non-PHP languages (in particular HTML).
-
-					There are certainly plenty of edge cases here, but this seems to cover most popular
-					scenarios, and also appears to be consistent with the approach that GitHub takes.
-					</string>
 					<key>begin</key>
 					<string>(^|\G)(\s*)([`~]{3,})\s*((php|php3|php4|php5|phpt|phtml|aw|ctp)(\s+[^`~]*)?$)</string>
 					<key>name</key>
@@ -1092,7 +1074,6 @@
 							<string>punctuation.definition.markdown</string>
 						</dict>
 					</dict>
-
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -1103,14 +1084,6 @@
 							<key>patterns</key>
 							<array>
 								<dict>
-									<key>comment</key>
-									<string>
-
-
-									Left to its own devices, the PHP grammar will match HTML as a combination of operators
-									and constants. Therefore, HTML must take precedence over PHP in order to get proper
-									syntax highlighting.
-									</string>
 									<key>include</key>
 									<string>text.html.basic</string>
 								</dict>
@@ -1156,7 +1129,6 @@
 							<string>punctuation.definition.markdown</string>
 						</dict>
 					</dict>
-
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -1208,7 +1180,6 @@
 							<string>punctuation.definition.markdown</string>
 						</dict>
 					</dict>
-
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -1260,7 +1231,6 @@
 							<string>punctuation.definition.markdown</string>
 						</dict>
 					</dict>
-
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -1312,7 +1282,6 @@
 							<string>punctuation.definition.markdown</string>
 						</dict>
 					</dict>
-
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -1364,7 +1333,6 @@
 							<string>punctuation.definition.markdown</string>
 						</dict>
 					</dict>
-
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -1416,7 +1384,6 @@
 							<string>punctuation.definition.markdown</string>
 						</dict>
 					</dict>
-
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -1468,7 +1435,6 @@
 							<string>punctuation.definition.markdown</string>
 						</dict>
 					</dict>
-
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -1520,7 +1486,6 @@
 							<string>punctuation.definition.markdown</string>
 						</dict>
 					</dict>
-
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -1674,7 +1639,6 @@
 							<string>punctuation.definition.markdown</string>
 						</dict>
 					</dict>
-
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -1726,7 +1690,6 @@
 							<string>punctuation.definition.markdown</string>
 						</dict>
 					</dict>
-
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -1778,7 +1741,6 @@
 							<string>punctuation.definition.markdown</string>
 						</dict>
 					</dict>
-
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -1830,7 +1792,6 @@
 							<string>punctuation.definition.markdown</string>
 						</dict>
 					</dict>
-
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -1882,7 +1843,6 @@
 							<string>punctuation.definition.markdown</string>
 						</dict>
 					</dict>
-
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -1934,7 +1894,6 @@
 							<string>punctuation.definition.markdown</string>
 						</dict>
 					</dict>
-
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -1986,7 +1945,6 @@
 							<string>punctuation.definition.markdown</string>
 						</dict>
 					</dict>
-
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -2038,7 +1996,6 @@
 							<string>punctuation.definition.markdown</string>
 						</dict>
 					</dict>
-
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -2090,7 +2047,6 @@
 							<string>punctuation.definition.markdown</string>
 						</dict>
 					</dict>
-
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -2142,7 +2098,6 @@
 							<string>punctuation.definition.markdown</string>
 						</dict>
 					</dict>
-
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -2194,7 +2149,6 @@
 							<string>punctuation.definition.markdown</string>
 						</dict>
 					</dict>
-
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -2215,7 +2169,7 @@
 				<key>fenced_code_block_objc</key>
 				<dict>
 					<key>begin</key>
-					<string>(^|\G)(\s*)([`~]{3,})\s*((objectivec|mm|objc|obj-c|m|h)(\s+[^`~]*)?$)</string>
+					<string>(^|\G)(\s*)([`~]{3,})\s*((objectivec|objective-c|mm|objc|obj-c|m|h)(\s+[^`~]*)?$)</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
 					<key>end</key>
@@ -2246,7 +2200,6 @@
 							<string>punctuation.definition.markdown</string>
 						</dict>
 					</dict>
-
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -2298,7 +2251,6 @@
 							<string>punctuation.definition.markdown</string>
 						</dict>
 					</dict>
-
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -2350,7 +2302,6 @@
 							<string>punctuation.definition.markdown</string>
 						</dict>
 					</dict>
-
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -2453,7 +2404,6 @@
 							<string>punctuation.definition.markdown</string>
 						</dict>
 					</dict>
-
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -2505,7 +2455,6 @@
 							<string>punctuation.definition.markdown</string>
 						</dict>
 					</dict>
-
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -2523,7 +2472,7 @@
 						</dict>
 					</array>
 				</dict>
-                <key>fenced_code_block_scala</key>
+				<key>fenced_code_block_scala</key>
 				<dict>
 					<key>begin</key>
 					<string>(^|\G)(\s*)([`~]{3,})\s*((scala|sbt)(\s+[^`~]*)?$)</string>
@@ -2557,7 +2506,6 @@
 							<string>punctuation.definition.markdown</string>
 						</dict>
 					</dict>
-
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -2609,7 +2557,6 @@
 							<string>punctuation.definition.markdown</string>
 						</dict>
 					</dict>
-
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -2661,7 +2608,6 @@
 							<string>punctuation.definition.markdown</string>
 						</dict>
 					</dict>
-
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -2713,7 +2659,6 @@
 							<string>punctuation.definition.markdown</string>
 						</dict>
 					</dict>
-
 					<key>patterns</key>
 					<array>
 						<dict>
