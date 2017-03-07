@@ -40,6 +40,7 @@ export interface IWindowsService {
 	relaunch(options: { addArgs?: string[], removeArgs?: string[] }): TPromise<void>;
 
 	// Shared process
+	whenSharedProcessReady(): TPromise<void>;
 	toggleSharedProcess(): TPromise<void>;
 
 	// Global methods

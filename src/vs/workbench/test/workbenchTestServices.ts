@@ -920,6 +920,9 @@ export class TestWindowsService implements IWindowsService {
 	relaunch(options: { addArgs?: string[], removeArgs?: string[] }): TPromise<void> {
 		return TPromise.as(void 0);
 	}
+	whenSharedProcessReady(): TPromise<void> {
+		return TPromise.as(void 0);
+	}
 	toggleSharedProcess(): TPromise<void> {
 		return TPromise.as(void 0);
 	}

@@ -143,7 +143,7 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 
 	// Spawn shared process
 	const sharedProcess = new SharedProcess(environmentService, userEnv);
-	const sharedProcessClient = sharedProcess.onReady
+	const sharedProcessClient = sharedProcess.whenReady()
 		.then(() => connect(environmentService.sharedIPCHandle, 'main'));
 
 	// Create a new service collection, because the telemetry service

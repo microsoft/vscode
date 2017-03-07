@@ -17,7 +17,7 @@ export class SharedProcess {
 	private disposables: IDisposable[] = [];
 
 	@memoize
-	get onReady(): TPromise<void> {
+	private get _whenReady(): TPromise<void> {
 		this.window = new BrowserWindow({ show: false });
 		const config = assign({
 			appRoot: this.environmentService.appRoot,
@@ -59,7 +59,7 @@ export class SharedProcess {
 					args: this.environmentService.args
 				});
 
-				sender.once('handshake:im ready', () => c(null));
+				ipcMain.once('handshake:im ready', () => c(null));
 			});
 		});
 	}
@@ -68,6 +68,10 @@ export class SharedProcess {
 		private environmentService: IEnvironmentService,
 		private userEnv: IProcessEnvironment
 	) { }
+
+	whenReady(): TPromise<void> {
+		return this._whenReady;
+	}
 
 	toggle(): void {
 		if (this.window.isVisible()) {
