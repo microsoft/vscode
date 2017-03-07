@@ -24,7 +24,7 @@ export class HistoryNavigator<T> implements INavigator<T> {
 	}
 
 	public addIfNotPresent(t: T) {
-		if(!this._history.contains(t)) {
+		if (!this._history.contains(t)) {
 			this.add(t);
 		}
 	}
