@@ -7,6 +7,7 @@
 	"workbench.action.terminal.clear": "清除",
 	"workbench.action.terminal.copySelection": "複製選取項目",
 	"workbench.action.terminal.focus": "聚焦終端機",
+	"workbench.action.terminal.focusAtIndex": "聚焦終端機 {0}",
 	"workbench.action.terminal.focusNext": "聚焦下一個終端機",
 	"workbench.action.terminal.focusPrevious": "聚焦上一個終端機",
 	"workbench.action.terminal.kill": "終止使用中的終端機執行個體",

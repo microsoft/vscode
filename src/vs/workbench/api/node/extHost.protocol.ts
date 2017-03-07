@@ -35,7 +35,7 @@ import { IWorkspaceConfigurationValues } from 'vs/workbench/services/configurati
 import { IPickOpenEntry, IPickOptions } from 'vs/platform/quickOpen/common/quickOpen';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkspaceSymbol } from 'vs/workbench/parts/search/common/search';
-import { IApplyEditsOptions, IUndoStopOptions, TextEditorRevealType, ITextEditorConfigurationUpdate, IResolvedTextEditorConfiguration, ISelectionChangeEvent } from './mainThreadEditorsTracker';
+import { IApplyEditsOptions, IUndoStopOptions, TextEditorRevealType, ITextEditorConfigurationUpdate, IResolvedTextEditorConfiguration, ISelectionChangeEvent } from './mainThreadEditor';
 
 import { InternalTreeExplorerNodeContent } from 'vs/workbench/parts/explorers/common/treeExplorerViewModel';
 
@@ -290,12 +290,10 @@ export interface IModelAddedData {
 }
 export abstract class ExtHostDocumentsShape {
 	$provideTextDocumentContent(handle: number, uri: URI): TPromise<string> { throw ni(); }
-	$acceptModelAdd(initData: IModelAddedData): void { throw ni(); }
 	$acceptModelModeChanged(strURL: string, oldModeId: string, newModeId: string): void { throw ni(); }
 	$acceptModelSaved(strURL: string): void { throw ni(); }
 	$acceptModelDirty(strURL: string): void { throw ni(); }
 	$acceptModelReverted(strURL: string): void { throw ni(); }
-	$acceptModelRemoved(strURL: string): void { throw ni(); }
 	$acceptModelChanged(strURL: string, events: editorCommon.IModelContentChangedEvent2[], isDirty: boolean): void { throw ni(); }
 }
 
@@ -314,13 +312,23 @@ export interface ITextEditorPositionData {
 	[id: string]: EditorPosition;
 }
 export abstract class ExtHostEditorsShape {
-	$acceptTextEditorAdd(data: ITextEditorAddData): void { throw ni(); }
 	$acceptOptionsChanged(id: string, opts: IResolvedTextEditorConfiguration): void { throw ni(); }
 	$acceptSelectionsChanged(id: string, event: ISelectionChangeEvent): void { throw ni(); }
-	$acceptActiveEditorAndVisibleEditors(id: string, visibleIds: string[]): void { throw ni(); }
 	$acceptEditorPositionData(data: ITextEditorPositionData): void { throw ni(); }
-	$acceptTextEditorRemove(id: string): void { throw ni(); }
 }
+
+export interface IDocumentsAndEditorsDelta {
+	removedDocuments?: string[];
+	addedDocuments?: IModelAddedData[];
+	removedEditors?: string[];
+	addedEditors?: ITextEditorAddData[];
+	newActiveEditor?: string;
+}
+
+export abstract class ExtHostDocumentsAndEditorsShape {
+	$acceptDocumentsAndEditorsDelta(delta: IDocumentsAndEditorsDelta): void { throw ni(); }
+}
+
 
 export abstract class ExtHostTreeExplorersShape {
 	$provideRootNode(providerId: string): TPromise<InternalTreeExplorerNodeContent> { throw ni(); };
@@ -432,6 +440,7 @@ export const ExtHostContext = {
 	ExtHostCommands: createExtId<ExtHostCommandsShape>('ExtHostCommands', ExtHostCommandsShape),
 	ExtHostConfiguration: createExtId<ExtHostConfigurationShape>('ExtHostConfiguration', ExtHostConfigurationShape),
 	ExtHostDiagnostics: createExtId<ExtHostDiagnosticsShape>('ExtHostDiagnostics', ExtHostDiagnosticsShape),
+	ExtHostDocumentsAndEditors: createExtId<ExtHostDocumentsAndEditorsShape>('ExtHostDocumentsAndEditors', ExtHostDocumentsAndEditorsShape),
 	ExtHostDocuments: createExtId<ExtHostDocumentsShape>('ExtHostDocuments', ExtHostDocumentsShape),
 	ExtHostDocumentSaveParticipant: createExtId<ExtHostDocumentSaveParticipantShape>('ExtHostDocumentSaveParticipant', ExtHostDocumentSaveParticipantShape),
 	ExtHostEditors: createExtId<ExtHostEditorsShape>('ExtHostEditors', ExtHostEditorsShape),

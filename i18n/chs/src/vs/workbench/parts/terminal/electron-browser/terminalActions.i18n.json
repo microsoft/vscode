@@ -7,6 +7,7 @@
 	"workbench.action.terminal.clear": "清除",
 	"workbench.action.terminal.copySelection": "复制所选内容",
 	"workbench.action.terminal.focus": "聚焦于终端",
+	"workbench.action.terminal.focusAtIndex": "焦点终端 {0}",
 	"workbench.action.terminal.focusNext": "聚焦于下一终端",
 	"workbench.action.terminal.focusPrevious": "聚焦于上一终端",
 	"workbench.action.terminal.kill": "终止活动终端实例",

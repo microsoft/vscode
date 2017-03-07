@@ -29,6 +29,7 @@ import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiati
 import { IListService } from 'vs/platform/list/browser/listService';
 import { explorerItemToFileResource } from 'vs/workbench/parts/files/common/files';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { isEqual } from 'vs/platform/files/common/files';
 
 export function isSearchViewletFocussed(viewletService: IViewletService): boolean {
 	let activeViewlet = viewletService.getActiveViewlet();
@@ -150,6 +151,22 @@ export class OpenSearchViewletAction extends ToggleViewletAction {
 		super(id, label, Constants.VIEWLET_ID, viewletService, editorService);
 	}
 
+	public run(): TPromise<any> {
+		const activeViewlet = this.viewletService.getActiveViewlet();
+		const searchViewletWasOpen = activeViewlet && activeViewlet.getId() === Constants.VIEWLET_ID;
+
+		return super.run().then(() => {
+			if (!searchViewletWasOpen) {
+				// Get the search viewlet and ensure that 'replace' is collapsed
+				const searchViewlet = this.viewletService.getActiveViewlet();
+				if (searchViewlet && searchViewlet.getId() === Constants.VIEWLET_ID) {
+					const searchAndReplaceWidget = (<SearchViewlet>searchViewlet).searchAndReplaceWidget;
+					searchAndReplaceWidget.toggleReplace(false);
+				}
+			}
+		});
+	}
+
 }
 
 export class FocusActiveEditorAction extends Action {
@@ -168,33 +185,40 @@ export class FocusActiveEditorAction extends Action {
 
 }
 
-export class FindInFilesAction extends Action {
+export abstract class FindOrReplaceInFilesAction extends Action {
 
-	constructor(id: string, label: string, @IViewletService private viewletService: IViewletService) {
+	constructor(id: string, label: string, private viewletService: IViewletService,
+		private expandSearchReplaceWidget: boolean, private selectWidgetText, private focusReplace) {
 		super(id, label);
 	}
 
 	public run(): TPromise<any> {
-		return this.viewletService.openViewlet(Constants.VIEWLET_ID, true);
+		const viewlet = this.viewletService.getActiveViewlet();
+		const searchViewletWasOpen = viewlet && viewlet.getId() === Constants.VIEWLET_ID;
+		return this.viewletService.openViewlet(Constants.VIEWLET_ID, true).then((viewlet) => {
+			if (!searchViewletWasOpen || this.expandSearchReplaceWidget) {
+				const searchAndReplaceWidget = (<SearchViewlet>viewlet).searchAndReplaceWidget;
+				searchAndReplaceWidget.toggleReplace(this.expandSearchReplaceWidget);
+				searchAndReplaceWidget.focus(this.selectWidgetText, this.focusReplace);
+			}
+		});
 	}
-
 }
 
-export class ReplaceInFilesAction extends Action {
+export class FindInFilesAction extends FindOrReplaceInFilesAction {
+
+	constructor(id: string, label: string, @IViewletService viewletService: IViewletService) {
+		super(id, label, viewletService, /*expandSearchReplaceWidget=*/false, /*selectWidgetText=*/true, /*focusReplace=*/false);
+	}
+}
+
+export class ReplaceInFilesAction extends FindOrReplaceInFilesAction {
 
 	public static ID = 'workbench.action.replaceInFiles';
 	public static LABEL = nls.localize('replaceInFiles', "Replace in Files");
 
-	constructor(id: string, label: string, @IViewletService private viewletService: IViewletService) {
-		super(id, label);
-	}
-
-	public run(): TPromise<any> {
-		return this.viewletService.openViewlet(Constants.VIEWLET_ID, true).then((viewlet) => {
-			let searchAndReplaceWidget = (<SearchViewlet>viewlet).searchAndReplaceWidget;
-			searchAndReplaceWidget.toggleReplace(true);
-			searchAndReplaceWidget.focus(false, true);
-		});
+	constructor(id: string, label: string, @IViewletService viewletService: IViewletService) {
+		super(id, label, viewletService, /*expandSearchReplaceWidget=*/true, /*selectWidgetText=*/false, /*focusReplace=*/true);
 	}
 }
 
@@ -502,7 +526,7 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 	private hasToOpenFile(): boolean {
 		const file = toResource(this.editorService.getActiveEditorInput(), { filter: 'file' });
 		if (file) {
-			return file.fsPath === this.element.parent().resource().fsPath;
+			return isEqual(file.fsPath, this.element.parent().resource().fsPath);
 		}
 		return false;
 	}

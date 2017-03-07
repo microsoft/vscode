@@ -196,6 +196,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._xtermElement = document.createElement('div');
 
 		this._xterm.open(this._xtermElement);
+		this._linkHandler.initialize(this._xterm);
 		this._linkHandler.registerLocalLinkHandler(this._xterm);
 		this._xterm.attachCustomKeydownHandler((event: KeyboardEvent) => {
 			// Disable all input if the terminal is exiting
@@ -276,8 +277,8 @@ export class TerminalInstance implements ITerminalInstance {
 		this.updateConfig();
 	}
 
-	public registerLinkMatcher(regex: RegExp, handler: (url: string) => void, matchIndex?: number): number {
-		return this._xterm.registerLinkMatcher(regex, handler, matchIndex);
+	public registerLinkMatcher(regex: RegExp, handler: (url: string) => void, matchIndex?: number, validationCallback?: (uri: string, callback: (isValid: boolean) => void) => void): number {
+		return this._linkHandler.registerCustomLinkHandler(this._xterm, regex, handler, matchIndex, validationCallback);
 	}
 
 	public deregisterLinkMatcher(linkMatcherId: number): void {

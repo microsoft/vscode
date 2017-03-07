@@ -356,14 +356,17 @@ export class CommandsHandler extends QuickOpenHandler {
 			const label = action.item.category
 				? nls.localize('cat.title', "{0}: {1}", action.item.category, action.item.title)
 				: action.item.title;
-			const highlights = wordFilter(searchValue, label);
-			if (!highlights) {
-				continue;
+			if (label) {
+				const labelHighlights = wordFilter(searchValue, label);
+				const [keybind] = this.keybindingService.lookupKeybindings(action.item.id);
+				const keyLabel = keybind ? this.keybindingService.getLabelFor(keybind) : '';
+				const keyAriaLabel = keybind ? this.keybindingService.getAriaLabelFor(keybind) : '';
+				const alias = action.item.alias ? action.item.alias : null;
+				const aliasHighlights = alias ? wordFilter(searchValue, alias) : null;
+				if (labelHighlights || aliasHighlights) {
+					entries.push(this.instantiationService.createInstance(ActionCommandEntry, keyLabel, keyAriaLabel, label, alias, labelHighlights, aliasHighlights, action));
+				}
 			}
-			const [keybind] = this.keybindingService.lookupKeybindings(action.item.id);
-			const keyLabel = keybind ? this.keybindingService.getLabelFor(keybind) : '';
-			const keyAriaLabel = keybind ? this.keybindingService.getAriaLabelFor(keybind) : '';
-			entries.push(this.instantiationService.createInstance(ActionCommandEntry, keyLabel, keyAriaLabel, label, null, highlights, null, action));
 		}
 
 		return entries;

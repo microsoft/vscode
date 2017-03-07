@@ -50,7 +50,6 @@ export abstract class BaseTextEditor extends BaseEditor {
 	private editorControl: IEditor;
 	private _editorContainer: Builder;
 	private hasPendingConfigurationChange: boolean;
-	private pendingAutoSaveAll: TPromise<void>;
 	private lastAppliedEditorOptions: IEditorOptions;
 
 	constructor(
@@ -155,36 +154,26 @@ export abstract class BaseTextEditor extends BaseEditor {
 	}
 
 	private onEditorFocusLost(): void {
-		if (this.pendingAutoSaveAll) {
-			return; // save is already triggered
-		}
-
-		if (this.textFileService.getAutoSaveMode() === AutoSaveMode.ON_FOCUS_CHANGE && this.textFileService.isDirty()) {
-			this.saveAll(SaveReason.FOCUS_CHANGE);
-		}
+		this.maybeTriggerSaveAll(SaveReason.FOCUS_CHANGE);
 	}
 
 	private onWindowFocusLost(): void {
-		if (this.pendingAutoSaveAll) {
-			return; // save is already triggered
-		}
-
-		if (this.textFileService.getAutoSaveMode() === AutoSaveMode.ON_WINDOW_CHANGE && this.textFileService.isDirty()) {
-			this.saveAll(SaveReason.WINDOW_CHANGE);
-		}
+		this.maybeTriggerSaveAll(SaveReason.WINDOW_CHANGE);
 	}
 
-	private saveAll(reason: SaveReason): void {
-		this.pendingAutoSaveAll = this.textFileService.saveAll(void 0, reason).then(() => {
-			this.pendingAutoSaveAll = void 0;
+	private maybeTriggerSaveAll(reason: SaveReason): void {
+		const mode = this.textFileService.getAutoSaveMode();
 
-			return void 0;
-		}, error => {
-			this.pendingAutoSaveAll = void 0;
-			errors.onUnexpectedError(error);
-
-			return void 0;
-		});
+		// Determine if we need to save all. In case of a window focus change we also save if auto save mode
+		// is configured to be ON_FOCUS_CHANGE (editor focus change)
+		if (
+			(reason === SaveReason.WINDOW_CHANGE && (mode === AutoSaveMode.ON_FOCUS_CHANGE || mode === AutoSaveMode.ON_WINDOW_CHANGE)) ||
+			(reason === SaveReason.FOCUS_CHANGE && mode === AutoSaveMode.ON_FOCUS_CHANGE)
+		) {
+			if (this.textFileService.isDirty()) {
+				this.textFileService.saveAll(void 0, reason).done(null, errors.onUnexpectedError);
+			}
+		}
 	}
 
 	/**

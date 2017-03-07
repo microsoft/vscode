@@ -15,6 +15,7 @@ import { EncodingMode } from 'vs/workbench/common/editor';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { FileOperationResult, IFileOperationResult } from 'vs/platform/files/common/files';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
+import { Verbosity } from 'vs/platform/editor/common/editor';
 
 function toResource(path) {
 	return URI.file(join('C:\\', new Buffer(this.test.fullTitle()).toString('base64'), path));
@@ -49,7 +50,7 @@ suite('Files - FileEditorInput', () => {
 		assert(!input.matches(null));
 		assert.ok(input.getName());
 		assert.ok(input.getDescription());
-		assert.ok(input.getDescription(true));
+		assert.ok(input.getTitle(Verbosity.SHORT));
 
 		assert.strictEqual('file.js', input.getName());
 
@@ -58,10 +59,12 @@ suite('Files - FileEditorInput', () => {
 
 		input = instantiationService.createInstance(FileEditorInput, toResource.call(this, '/foo/bar.html'), void 0);
 
-		const inputToResolve = instantiationService.createInstance(FileEditorInput, toResource.call(this, '/foo/bar/file.js'), void 0);
-		const sameOtherInput = instantiationService.createInstance(FileEditorInput, toResource.call(this, '/foo/bar/file.js'), void 0);
+		const inputToResolve: FileEditorInput = instantiationService.createInstance(FileEditorInput, toResource.call(this, '/foo/bar/file.js'), void 0);
+		const sameOtherInput: FileEditorInput = instantiationService.createInstance(FileEditorInput, toResource.call(this, '/foo/bar/file.js'), void 0);
 
 		return inputToResolve.resolve(true).then(resolved => {
+			assert.ok(inputToResolve.isResolved());
+
 			const resolvedModelA = resolved;
 			return inputToResolve.resolve(true).then(resolved => {
 				assert(resolvedModelA === resolved); // OK: Resolved Model cached globally per input

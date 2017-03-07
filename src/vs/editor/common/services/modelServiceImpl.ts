@@ -23,7 +23,7 @@ import * as platform from 'vs/base/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { DEFAULT_INDENTATION, DEFAULT_TRIM_AUTO_WHITESPACE } from 'vs/editor/common/config/defaultConfig';
 import { PLAINTEXT_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/modesRegistry';
-import { IRawTextSource, TextModelData, TextSource } from 'vs/editor/common/model/textSource';
+import { IRawTextSource, TextSource, RawTextSource } from 'vs/editor/common/model/textSource';
 
 function MODEL_ID(resource: URI): string {
 	return resource.toString();
@@ -341,7 +341,8 @@ export class ModelServiceImpl implements IModelService {
 	private _createModelData(value: string | IRawTextSource, languageIdentifier: LanguageIdentifier, resource: URI): ModelData {
 		// create & save the model
 		const options = this.getCreationOptions(languageIdentifier.language);
-		let model: Model = new Model(TextModelData.create(value, options), languageIdentifier, resource);
+		const rawTextSource = (typeof value === 'string' ? RawTextSource.fromString(value) : value);
+		let model: Model = new Model(rawTextSource, options, languageIdentifier, resource);
 		let modelId = MODEL_ID(model.uri);
 
 		if (this._models[modelId]) {
