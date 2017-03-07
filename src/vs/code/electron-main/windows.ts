@@ -950,9 +950,9 @@ export class WindowsManager implements IWindowsMainService {
 				displayToUse = screen.getDisplayMatching(lastActive.getBounds());
 			}
 
-			// fallback to first display
+			// fallback to primary display or first display
 			if (!displayToUse) {
-				displayToUse = displays[0];
+				displayToUse = screen.getPrimaryDisplay() || displays[0];
 			}
 		}
 
