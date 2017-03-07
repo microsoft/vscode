@@ -39,6 +39,9 @@ export interface IWindowsService {
 	quit(): TPromise<void>;
 	relaunch(options: { addArgs?: string[], removeArgs?: string[] }): TPromise<void>;
 
+	// Shared process
+	toggleSharedProcess(): TPromise<void>;
+
 	// Global methods
 	openWindow(paths: string[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean }): TPromise<void>;
 	openNewWindow(): TPromise<void>;

@@ -27,9 +27,8 @@ import { Server, serve, connect } from 'vs/base/parts/ipc/node/ipc.net';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { AskpassChannel } from 'vs/workbench/parts/git/common/gitIpc';
 import { GitAskpassService } from 'vs/workbench/parts/git/electron-main/askpassService';
-import { spawnSharedProcess } from 'vs/code/node/sharedProcess';
+import { SharedProcess } from 'vs/code/electron-main/sharedProcess';
 import { Mutex } from 'windows-mutex';
-import { IDisposable } from 'vs/base/common/lifecycle';
 import { LaunchService, ILaunchChannel, LaunchChannel, LaunchChannelClient, ILaunchService } from './launch';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
@@ -45,7 +44,7 @@ import { EnvironmentService } from 'vs/platform/environment/node/environmentServ
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
 import { IRequestService } from 'vs/platform/request/node/request';
-import { RequestService } from 'vs/platform/request/node/requestService';
+import { RequestService } from 'vs/platform/request/electron-main/requestService';
 import { IURLService } from 'vs/platform/url/common/url';
 import { URLChannel } from 'vs/platform/url/common/urlIpc';
 import { URLService } from 'vs/platform/url/electron-main/urlService';
@@ -143,18 +142,9 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 	const electronIpcServer = new ElectronIPCServer();
 
 	// Spawn shared process
-	const initData = { args: environmentService.args };
-	const options = {
-		allowOutput: !environmentService.isBuilt || environmentService.verbose,
-		debugPort: environmentService.isBuilt ? null : 5871
-	};
-
-	let sharedProcessDisposable: IDisposable;
-
-	const sharedProcess = spawnSharedProcess(initData, options).then(disposable => {
-		sharedProcessDisposable = disposable;
-		return connect(environmentService.sharedIPCHandle, 'main');
-	});
+	const sharedProcess = new SharedProcess(environmentService, userEnv);
+	const sharedProcessClient = sharedProcess.onReady
+		.then(() => connect(environmentService.sharedIPCHandle, 'main'));
 
 	// Create a new service collection, because the telemetry service
 	// requires a connection to shared process, which was only established
@@ -163,11 +153,11 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 
 	services.set(IUpdateService, new SyncDescriptor(UpdateService));
 	services.set(IWindowsMainService, new SyncDescriptor(WindowsManager));
-	services.set(IWindowsService, new SyncDescriptor(WindowsService));
+	services.set(IWindowsService, new SyncDescriptor(WindowsService, sharedProcess));
 	services.set(ILaunchService, new SyncDescriptor(LaunchService));
 
 	if (environmentService.isBuilt && !environmentService.isExtensionDevelopment && !!product.enableTelemetry) {
-		const channel = getDelayedChannel<ITelemetryAppenderChannel>(sharedProcess.then(c => c.getChannel('telemetryAppender')));
+		const channel = getDelayedChannel<ITelemetryAppenderChannel>(sharedProcessClient.then(c => c.getChannel('telemetryAppender')));
 		const appender = new TelemetryAppenderClient(channel);
 		const commonProperties = resolveCommonProperties(product.commit, pkg.version);
 		const piiPaths = [environmentService.appRoot, environmentService.extensionsPath];
@@ -182,6 +172,13 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 	instantiationService2.invokeFunction(accessor => {
 		// TODO@Joao: unfold this
 		windowsMainService = accessor.get(IWindowsMainService);
+
+		// TODO@Joao: so ugly...
+		windowsMainService.onWindowClose(() => {
+			if (!platform.isMacintosh && windowsMainService.getWindowCount() === 0) {
+				sharedProcess.dispose();
+			}
+		});
 
 		// Register more Main IPC services
 		const launchService = accessor.get(ILaunchService);
@@ -204,7 +201,7 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 		const windowsService = accessor.get(IWindowsService);
 		const windowsChannel = new WindowsChannel(windowsService);
 		electronIpcServer.registerChannel('windows', windowsChannel);
-		sharedProcess.done(client => client.registerChannel('windows', windowsChannel));
+		sharedProcessClient.done(client => client.registerChannel('windows', windowsChannel));
 
 		// Make sure we associate the program with the app user model id
 		// This will help Windows to associate the running program with
@@ -220,15 +217,12 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 				mainIpcServer = null;
 			}
 
-			if (sharedProcessDisposable) {
-				sharedProcessDisposable.dispose();
-			}
-
 			if (windowsMutex) {
 				windowsMutex.release();
 			}
 
 			configurationService.dispose();
+			sharedProcess.dispose();
 		}
 
 		// Dispose on app quit
@@ -399,7 +393,6 @@ function start(): void {
 		const instanceEnv: typeof process.env = {
 			VSCODE_PID: String(process.pid),
 			VSCODE_IPC_HOOK: environmentService.mainIPCHandle,
-			VSCODE_SHARED_IPC_HOOK: environmentService.sharedIPCHandle,
 			VSCODE_NLS_CONFIG: process.env['VSCODE_NLS_CONFIG']
 		};
 
