@@ -64,7 +64,7 @@ export abstract class TerminalService implements ITerminalService {
 	public abstract setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
 
 	private _onWillShutdown(): boolean {
-		if (!this.configHelper.getConfirmOnExit()) {
+		if (!this.configHelper.config.confirmOnExit) {
 			// Don't veto if configured to skip confirmation
 			return false;
 		}

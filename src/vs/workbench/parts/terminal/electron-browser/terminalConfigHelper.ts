@@ -8,6 +8,12 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ITerminalConfiguration, ITerminalConfigHelper, ITerminalFont, IShellLaunchConfig } from 'vs/workbench/parts/terminal/common/terminal';
 import { Platform } from 'vs/base/common/platform';
 
+interface IFullTerminalConfiguration {
+	terminal: {
+		integrated: ITerminalConfiguration;
+	};
+}
+
 const DEFAULT_LINE_HEIGHT = 1.2;
 
 const DEFAULT_ANSI_COLORS = {
@@ -81,7 +87,9 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 		@IConfigurationService private _configurationService: IConfigurationService) {
 	}
 
-	private get _config(): ITerminalConfiguration { return this._configurationService.getConfiguration<ITerminalConfiguration>('terminal.integrated'); }
+	public get config(): ITerminalConfiguration {
+		return this._configurationService.getConfiguration<IFullTerminalConfiguration>().terminal.integrated;
+	}
 
 	public getTheme(baseThemeId: string): string[] {
 		return DEFAULT_ANSI_COLORS[baseThemeId];
@@ -119,7 +127,7 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 	public getFont(): ITerminalFont {
 		const config = this._configurationService.getConfiguration();
 		const editorConfig = (<IEditorConfiguration>config).editor;
-		const terminalConfig = this._config;
+		const terminalConfig = this.config;
 
 		const fontFamily = terminalConfig.fontFamily || editorConfig.fontFamily;
 		let fontSize = this._toInteger(terminalConfig.fontSize, 0);
@@ -134,28 +142,8 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 		return this._measureFont(fontFamily, fontSize, lineHeight);
 	}
 
-	public getFontLigaturesEnabled(): boolean {
-		return this._config.fontLigatures;
-	}
-
-	public getCursorBlink(): boolean {
-		return this._config.cursorBlinking;
-	}
-
-	public getCursorStyle(): string {
-		return this._config.cursorStyle;
-	}
-
-	public getRightClickCopyPaste(): boolean {
-		return this._config.rightClickCopyPaste;
-	}
-
-	public getCommandsToSkipShell(): string[] {
-		return this._config.commandsToSkipShell;
-	}
-
 	public mergeDefaultShellPathAndArgs(shell: IShellLaunchConfig): IShellLaunchConfig {
-		const config = this._config;
+		const config = this.config;
 
 		shell.executable = '';
 		shell.args = [];
@@ -172,22 +160,6 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 			}
 		}
 		return shell;
-	}
-
-	public getScrollback(): number {
-		return this._config.scrollback;
-	}
-
-	public isSetLocaleVariables(): boolean {
-		return this._config.setLocaleVariables;
-	}
-
-	public getCwd(): string {
-		return this._config.cwd;
-	}
-
-	public getConfirmOnExit(): boolean {
-		return this._config.confirmOnExit;
 	}
 
 	private _toInteger(source: any, minimum?: number): number {

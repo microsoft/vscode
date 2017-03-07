@@ -78,7 +78,7 @@ suite('Workbench - TerminalInstance', () => {
 	suite('_getCwd', () => {
 		let instance: TestTerminalInstance;
 		let instantiationService: TestInstantiationService;
-		let configHelper: { getCwd: () => string };
+		let configHelper: { config: { cwd: string } };
 
 		setup(() => {
 			let contextKeyService = new MockKeybindingService();
@@ -90,7 +90,9 @@ suite('Workbench - TerminalInstance', () => {
 			instantiationService.stub(IKeybindingService, keybindingService);
 			instantiationService.stub(IContextKeyService, contextKeyService);
 			configHelper = {
-				getCwd: () => null
+				config: {
+					cwd: null
+				}
 			};
 			instance = instantiationService.createInstance(TestTerminalInstance, terminalFocusContextKey, configHelper, null, null, null);
 		});
@@ -109,30 +111,30 @@ suite('Workbench - TerminalInstance', () => {
 		});
 
 		test('should use an absolute custom cwd as is', () => {
-			configHelper.getCwd = () => '/foo';
+			configHelper.config.cwd = '/foo';
 			assertPathsMatch(instance._getCwd({ executable: null, args: [] }, null), '/foo');
 		});
 
 		test('should normalize a relative custom cwd against the workspace path', () => {
-			configHelper.getCwd = () => 'foo';
+			configHelper.config.cwd = 'foo';
 			assertPathsMatch(instance._getCwd({ executable: null, args: [] }, { resource: Uri.file('/bar') }), '/bar/foo');
-			configHelper.getCwd = () => './foo';
+			configHelper.config.cwd = './foo';
 			assertPathsMatch(instance._getCwd({ executable: null, args: [] }, { resource: Uri.file('/bar') }), '/bar/foo');
-			configHelper.getCwd = () => '../foo';
+			configHelper.config.cwd = '../foo';
 			assertPathsMatch(instance._getCwd({ executable: null, args: [] }, { resource: Uri.file('/bar') }, ), '/foo');
 		});
 
 		test('should fall back for relative a custom cwd that doesn\'t have a workspace', () => {
-			configHelper.getCwd = () => 'foo';
+			configHelper.config.cwd = 'foo';
 			assertPathsMatch(instance._getCwd({ executable: null, args: [] }, null), os.homedir());
-			configHelper.getCwd = () => './foo';
+			configHelper.config.cwd = './foo';
 			assertPathsMatch(instance._getCwd({ executable: null, args: [] }, null), os.homedir());
-			configHelper.getCwd = () => '../foo';
+			configHelper.config.cwd = '../foo';
 			assertPathsMatch(instance._getCwd({ executable: null, args: [] }, null), os.homedir());
 		});
 
 		test('should ignore custom cwd when told to ignore', () => {
-			configHelper.getCwd = () => '/foo';
+			configHelper.config.cwd = '/foo';
 			assertPathsMatch(instance._getCwd({ executable: null, args: [], ignoreConfigurationCwd: true }, { resource: Uri.file('/bar') }), '/bar');
 		});
 	});

@@ -61,15 +61,9 @@ export interface ITerminalConfiguration {
 }
 
 export interface ITerminalConfigHelper {
+	config: ITerminalConfiguration;
 	getTheme(baseThemeId: string): string[];
 	getFont(): ITerminalFont;
-	getFontLigaturesEnabled(): boolean;
-	getCursorBlink(): boolean;
-	getRightClickCopyPaste(): boolean;
-	getCommandsToSkipShell(): string[];
-	getScrollback(): number;
-	getCwd(): string;
-	getConfirmOnExit(): boolean;
 }
 
 export interface ITerminalFont {
