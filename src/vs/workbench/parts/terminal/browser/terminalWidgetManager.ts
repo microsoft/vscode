@@ -15,7 +15,6 @@ export class TerminalWidgetManager {
 	private _messageListeners: IDisposable[] = [];
 
 	constructor(
-		// private _instance: ITerminalInstance,
 		private _configHelper: ITerminalConfigHelper,
 		terminalWrapper: HTMLElement
 	) {
@@ -95,7 +94,6 @@ class MessageWidget {
 		anchor.classList.add('anchor');
 		this._domNode.appendChild(anchor);
 
-		// this._editor.addContentWidget(this);
 		this._container.appendChild(this._domNode);
 		this._domNode.classList.add('fadeIn');
 	}
