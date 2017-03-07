@@ -170,7 +170,13 @@ export class SearchWidget extends Widget {
 	}
 
 	public showPreviousSearchTerm() {
-		let previous = this.searchHistory.previous();
+		let previous;
+		if (this.searchInput.getValue().length === 0) {
+			previous = this.searchHistory.current();
+		} else {
+			this.searchHistory.addIfNotPresent(this.searchInput.getValue());
+			previous = this.searchHistory.previous();
+		}
 		if (previous) {
 			this.searchInput.setValue(previous);
 		}
