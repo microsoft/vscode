@@ -5,6 +5,7 @@
 
 import * as lifecycle from 'vs/base/common/lifecycle';
 import uri from 'vs/base/common/uri';
+import * as paths from 'vs/base/common/paths';
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { guessMimeTypes, MIME_TEXT } from 'vs/base/common/mime';
@@ -14,7 +15,6 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITextModelResolverService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { DEBUG_SCHEME, IDebugService, State } from 'vs/workbench/parts/debug/common/debug';
-import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 
 export class DebugContentProvider implements IWorkbenchContribution, ITextModelContentProvider {
 
@@ -45,8 +45,10 @@ export class DebugContentProvider implements IWorkbenchContribution, ITextModelC
 		if (!process) {
 			return TPromise.wrapError(localize('unable', "Unable to resolve the resource without a debug session"));
 		}
+		const source = process.sources.get(resource);
+		const rawSource = source ? source.raw : { path: paths.normalize(resource.fsPath, true) };
 
-		return process.session.source({ sourceReference: Source.getSourceReference(resource) }).then(response => {
+		return process.session.source({ sourceReference: source ? source.reference : undefined, source: rawSource }).then(response => {
 			const mime = response.body.mimeType || guessMimeTypes(resource.toString())[0];
 			const modePromise = this.modeService.getOrCreateMode(mime);
 			const model = this.modelService.createModel(response.body.content, modePromise, resource);
