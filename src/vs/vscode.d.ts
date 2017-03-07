@@ -4085,7 +4085,7 @@ declare module 'vscode' {
 		 * @param options Options to control how the document will be created.
 		 * @return A promise that resolves to a [document](#TextDocument).
 		 */
-		export function openTextDocument(options?: { language: string; }): Thenable<TextDocument>;
+		export function openTextDocument(options?: { language?: string; contents?: string; }): Thenable<TextDocument>;
 
 		/**
 		 * Register a text document content provider.
