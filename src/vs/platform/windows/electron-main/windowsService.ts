@@ -21,6 +21,7 @@ import { OpenContext } from 'vs/code/common/windows';
 import { IWindowsMainService } from 'vs/code/electron-main/windows';
 
 export interface ISharedProcess {
+	whenReady(): TPromise<void>;
 	toggle(): void;
 }
 
@@ -285,6 +286,10 @@ export class WindowsService implements IWindowsService, IDisposable {
 		app.quit();
 		app.once('quit', () => app.relaunch({ args }));
 		return TPromise.as(null);
+	}
+
+	whenSharedProcessReady(): TPromise<void> {
+		return this.sharedProcess.whenReady();
 	}
 
 	toggleSharedProcess(): TPromise<void> {

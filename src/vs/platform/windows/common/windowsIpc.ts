@@ -37,6 +37,7 @@ export interface IWindowsChannel extends IChannel {
 	call(command: 'getWindows'): TPromise<{ id: number; path: string; title: string; }[]>;
 	call(command: 'getWindowCount'): TPromise<number>;
 	call(command: 'relaunch', arg: { addArgs?: string[], removeArgs?: string[] }): TPromise<number>;
+	call(command: 'whenSharedProcessReady'): TPromise<void>;
 	call(command: 'toggleSharedProcess'): TPromise<void>;
 	call(command: 'log', arg: [string, string[]]): TPromise<void>;
 	call(command: 'closeExtensionHostWindow', arg: string): TPromise<void>;
@@ -83,6 +84,7 @@ export class WindowsChannel implements IWindowsChannel {
 			case 'getWindows': return this.service.getWindows();
 			case 'getWindowCount': return this.service.getWindowCount();
 			case 'relaunch': return this.service.relaunch(arg[0]);
+			case 'whenSharedProcessReady': return this.service.whenSharedProcessReady();
 			case 'toggleSharedProcess': return this.service.toggleSharedProcess();
 			case 'quit': return this.service.quit();
 			case 'log': return this.service.log(arg[0], arg[1]);
@@ -181,6 +183,10 @@ export class WindowsChannelClient implements IWindowsService {
 
 	relaunch(options: { addArgs?: string[], removeArgs?: string[] }): TPromise<void> {
 		return this.channel.call('relaunch', [options]);
+	}
+
+	whenSharedProcessReady(): TPromise<void> {
+		return this.channel.call('whenSharedProcessReady');
 	}
 
 	toggleSharedProcess(): TPromise<void> {
