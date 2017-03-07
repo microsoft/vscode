@@ -25,7 +25,11 @@ import errors = require('vs/base/common/errors');
 import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-
+import { IFileService } from 'vs/platform/files/common/files';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IMessageService } from 'vs/platform/message/common/message';
+import Severity from 'vs/base/common/severity';
+import URI from 'vs/base/common/uri';
 
 import { $ } from 'vs/base/browser/builder';
 import Event, { Emitter } from 'vs/base/common/event';
@@ -240,6 +244,9 @@ export class ThemeService implements IThemeService {
 		@IWindowIPCService private windowService: IWindowIPCService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService,
+		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IFileService private fileService: IFileService,
+		@IMessageService private messageService: IMessageService,
 		@ITelemetryService private telemetryService: ITelemetryService) {
 
 		this.container = container;
@@ -316,25 +323,49 @@ export class ThemeService implements IThemeService {
 		return this.onFileIconThemeChange.event;
 	}
 
+	private backupSettings(): TPromise<string> {
+		let resource = URI.file(this.environmentService.appSettingsPath);
+		let backupFileLocation = URI.file(resource.fsPath + '-' + new Date().getTime() + '.backup');
+		return this.fileService.copyFile(resource, backupFileLocation, true).then(_ => backupFileLocation.fsPath, err => {
+			if (err && err.code === 'ENOENT') {
+				return TPromise.as(null); // ignore, user config file doesn't exist yet
+			}
+			return TPromise.wrapError(err);
+		});
+	}
+
 	private migrate(): TPromise<any> {
-		let promises = [];
 		let legacyColorThemeId = this.storageService.get('workbench.theme', StorageScope.GLOBAL, void 0);
-		if (!types.isUndefined(legacyColorThemeId)) {
-			this.storageService.remove('workbench.theme', StorageScope.GLOBAL);
-			promises.push(this.findThemeData(legacyColorThemeId, DEFAULT_THEME_ID).then(theme => {
-				let value = theme ? theme.settingsId : DEFAULT_THEME_SETTING_VALUE;
-				return this.writeConfiguration(COLOR_THEME_SETTING, value, ConfigurationTarget.USER).then(null, error => null);
-			}));
-		}
 		let legacyIconThemeId = this.storageService.get('workbench.iconTheme', StorageScope.GLOBAL, void 0);
-		if (!types.isUndefined(legacyIconThemeId)) {
-			this.storageService.remove('workbench.iconTheme', StorageScope.GLOBAL);
-			promises.push(this._findIconThemeData(legacyIconThemeId).then(theme => {
-				let value = theme ? theme.settingsId : null;
-				return this.writeConfiguration(ICON_THEME_SETTING, value, ConfigurationTarget.USER).then(null, error => null);
-			}));
+		if (types.isUndefined(legacyColorThemeId) && types.isUndefined(legacyIconThemeId)) {
+			return TPromise.as(null);
 		}
-		return TPromise.join(promises);
+		return this.backupSettings().then(backupLocation => {
+			let promise = TPromise.as(null);
+			if (!types.isUndefined(legacyColorThemeId)) {
+				this.storageService.remove('workbench.theme', StorageScope.GLOBAL);
+				promise = this.findThemeData(legacyColorThemeId, DEFAULT_THEME_ID).then(theme => {
+					let value = theme ? theme.settingsId : DEFAULT_THEME_SETTING_VALUE;
+					return this.writeConfiguration(COLOR_THEME_SETTING, value, ConfigurationTarget.USER).then(null, error => null);
+				});
+			}
+			if (!types.isUndefined(legacyIconThemeId)) {
+				this.storageService.remove('workbench.iconTheme', StorageScope.GLOBAL);
+				promise = promise.then(_ => {
+					return this._findIconThemeData(legacyIconThemeId).then(theme => {
+						let value = theme ? theme.settingsId : null;
+						return this.writeConfiguration(ICON_THEME_SETTING, value, ConfigurationTarget.USER).then(null, error => null);
+					});
+				});
+			}
+			return promise.then(_ => {
+				if (backupLocation) {
+					let message = nls.localize('migration.completed', 'New theme settings have been added to the user settings. Backup available at {0}.', backupLocation);
+					this.messageService.show(Severity.Info, message);
+					console.log(message);
+				}
+			});
+		});
 	}
 
 	private initialize(): TPromise<any> {
@@ -620,6 +651,9 @@ export class ThemeService implements IThemeService {
 			if (value === settings.user) {
 				return TPromise.as(null); // nothing to do
 			} else if (value === settings.default) {
+				if (types.isUndefined(settings.user)) {
+					return TPromise.as(null); // nothing to do
+				}
 				value = void 0; // remove configuration from user settings
 			}
 		} else if (settingsTarget === ConfigurationTarget.WORKSPACE) {
