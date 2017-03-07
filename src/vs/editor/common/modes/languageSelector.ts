@@ -91,7 +91,7 @@ export function score(selector: LanguageSelector, candidateUri: URI, candidateLa
 		}
 
 	} else {
-		return undefined;
+		return 0;
 	}
 }
 
