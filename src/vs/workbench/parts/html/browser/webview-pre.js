@@ -157,7 +157,6 @@ document.addEventListener("DOMContentLoaded", function (event) {
 		newFrame.contentDocument.write(newDocument.documentElement.innerHTML);
 		newFrame.contentDocument.close();
 
-
 		ipcRenderer.sendToHost('did-set-content', stats);
 	});
 
@@ -165,7 +164,7 @@ document.addEventListener("DOMContentLoaded", function (event) {
 	ipcRenderer.on('message', function (event, data) {
 		const target = getTarget();
 		if (target) {
-			target.contentWindow.postMessage(data, '*');
+			target.contentWindow.postMessage(data, document.location.origin);
 		}
 	});
 
