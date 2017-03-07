@@ -1815,4 +1815,38 @@ suite('Editor Stacks Model', () => {
 		group1.openEditor(input3, { active: true });
 		assert.equal(group1.indexOf(input3), 1);
 	});
+
+	test('Stack - Multiple Editors - find group based on input', function () {
+		const model = create();
+
+		const group1 = model.openGroup('group1');
+		const group2 = model.openGroup('group2');
+
+		const g1_input1 = input();
+		const g1_input2 = input();
+		const g2_input1 = input();
+		const g2_input2 = input();
+		const unmatched_input = input();
+
+		group1.openEditor(g1_input1, { active: true, pinned: true });
+		group1.openEditor(g1_input2, { active: true, pinned: true });
+		group2.openEditor(g2_input1, { active: true, pinned: true });
+		group2.openEditor(g2_input2, { active: true, pinned: true });
+
+		const found_group1 = model.findGroup(g1_input2, true);
+		const notfound1 = model.findGroup(g1_input1, true);
+
+		const found1_group2 = model.findGroup(g2_input1, false);
+		const found2_group2 = model.findGroup(g2_input2, false);
+
+		const notfound2 = model.findGroup(unmatched_input, false);
+		const notfound3 = model.findGroup(unmatched_input, true);
+
+		assert.equal(found_group1, group1);
+		assert.equal(notfound1, null);
+		assert.equal(found1_group2, group2);
+		assert.equal(found2_group2, group2);
+		assert.equal(notfound2, null);
+		assert.equal(notfound3, null);
+	});
 });

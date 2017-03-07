@@ -944,6 +944,29 @@ export class EditorStacksModel implements IEditorStacksModel {
 		return this._groups.indexOf(group);
 	}
 
+	public findGroup(editorInput: EditorInput, activeOnly?: boolean): EditorGroup {
+		// prefer to check activeGroup and activeEditor first
+		let groupsToCheck: EditorGroup[] = [];
+		const activeGroup = this.activeGroup;
+		if (activeGroup) { groupsToCheck.push(activeGroup); }
+		this.groups.forEach(g => { if (g !== activeGroup) { groupsToCheck.push(g); } });
+		for (let i = 0; i < groupsToCheck.length; i++) {
+			let editorsToCheck: EditorInput[] = [];
+			const group = groupsToCheck[i];
+			const activeEditor = group.activeEditor;
+			if (activeEditor) { editorsToCheck.push(activeEditor); }
+			group.getEditors().forEach(e => { if (e !== activeEditor) { editorsToCheck.push(e) } });
+			for (let j = 0; j < editorsToCheck.length; j++) {
+				const editor = editorsToCheck[j];
+				if ((!activeOnly || group.isActive(editor))
+					&& editorInput.matches(editor)) {
+					return group;
+				}
+			}
+		}
+		return undefined;
+	}
+
 	public positionOfGroup(group: IEditorGroup): Position;
 	public positionOfGroup(group: EditorGroup): Position;
 	public positionOfGroup(group: EditorGroup): Position {

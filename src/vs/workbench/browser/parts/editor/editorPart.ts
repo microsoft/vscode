@@ -88,6 +88,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	private tabOptions: ITabOptions;
 	private forceHideTabs: boolean;
 	private doNotFireTabOptionsChanged: boolean;
+	private revealIfOpen: boolean;
 
 	private _onEditorsChanged: Emitter<void>;
 	private _onEditorsMoved: Emitter<void>;
@@ -151,6 +152,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 				showTabs: editorConfig.showTabs,
 				tabCloseButton: editorConfig.tabCloseButton
 			};
+			this.revealIfOpen = config.workbench.editor.revealIfOpen;
 
 			this.telemetryService.publicLog('workbenchEditorConfiguration', editorConfig);
 		} else {
@@ -160,6 +162,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 				showTabs: true,
 				tabCloseButton: 'right'
 			};
+			this.revealIfOpen = false;
 		}
 
 		this.registerListeners();
@@ -198,6 +201,8 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			if (!this.doNotFireTabOptionsChanged && !objects.equals(oldTabOptions, this.tabOptions)) {
 				this._onTabOptionsChanged.fire(this.tabOptions);
 			}
+
+			this.revealIfOpen = configuration.workbench.editor.revealIfOpen;
 		}
 	}
 
@@ -722,7 +727,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			return TPromise.as(false); // no veto
 		}
 
-		const {editor} = identifier;
+		const { editor } = identifier;
 
 		const res = editor.confirmSave();
 		switch (res) {
@@ -1273,14 +1278,18 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		// Respect option to reveal an editor if it is already visible
 		if (options && options.revealIfVisible) {
-			const editorsToCheck: BaseEditor[] = [];
-			if (activeEditor) { editorsToCheck.push(activeEditor); }
-			visibleEditors.forEach(e => { if (e !== activeEditor) { editorsToCheck.push(e); } });
-			for (let i = 0; i < editorsToCheck.length; i++) {
-				const editorToCheck = editorsToCheck[i];
-				if (input.matches(editorToCheck.input)) {
-					return editorToCheck.position;
-				}
+			const group = this.stacks.findGroup(input, true);
+			if (group) {
+				return this.stacks.positionOfGroup(group);
+			}
+		}
+
+		// Respect option to reveal an editor if it is open (not necessarily visible)
+		const skipReuse = (options && options.index) || arg1;
+		if (!skipReuse && this.revealIfOpen) {
+			const group = this.stacks.findGroup(input);
+			if (group) {
+				return this.stacks.positionOfGroup(group);
 			}
 		}
 
@@ -1325,7 +1334,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 				const visibleEditors: EditorIdentifier[] = [];
 				const hiddenEditors: EditorIdentifier[] = [];
 				this.pendingEditorInputsToClose.forEach(identifier => {
-					const {group, editor} = identifier;
+					const { group, editor } = identifier;
 
 					if (group.isActive(editor)) {
 						visibleEditors.push(identifier);
