@@ -41,7 +41,6 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		let terminalInstance = this._instantiationService.createInstance(TerminalInstance,
 			this._terminalFocusContextKey,
 			this._configHelper,
-			// this._linkHandler,
 			this._terminalContainer,
 			shell);
 		terminalInstance.addDisposable(terminalInstance.onTitleChanged(this._onInstanceTitleChanged.fire, this._onInstanceTitleChanged));
