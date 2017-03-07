@@ -151,7 +151,7 @@ export class TerminalPanel extends Panel {
 				// occurs on the selection itself.
 				this._terminalService.getActiveInstance().focus();
 			} else if (event.which === 3) {
-				if (this._terminalService.configHelper.getRightClickCopyPaste()) {
+				if (this._terminalService.configHelper.config.rightClickCopyPaste) {
 					let terminal = this._terminalService.getActiveInstance();
 					if (terminal.hasSelection()) {
 						terminal.copySelection();
@@ -238,7 +238,7 @@ export class TerminalPanel extends Panel {
 			return;
 		}
 		let newFont = this._terminalService.configHelper.getFont();
-		DOM.toggleClass(this._parentDomElement, 'enable-ligatures', this._terminalService.configHelper.getFontLigaturesEnabled());
+		DOM.toggleClass(this._parentDomElement, 'enable-ligatures', this._terminalService.configHelper.config.fontLigatures);
 		if (!this._font || this._fontsDiffer(this._font, newFont)) {
 			this._fontStyleElement.innerHTML = '.monaco-workbench .panel.integrated-terminal .xterm {' +
 				`font-family: ${newFont.fontFamily};` +
