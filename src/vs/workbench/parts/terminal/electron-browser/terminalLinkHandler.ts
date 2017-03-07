@@ -8,6 +8,7 @@ import * as pfs from 'vs/base/node/pfs';
 import Uri from 'vs/base/common/uri';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { ITerminalInstance } from 'vs/workbench/parts/terminal/common/terminal';
 import { Platform } from 'vs/base/common/platform';
 import { TPromise } from 'vs/base/common/winjs.base';
 
@@ -34,30 +35,29 @@ export type XtermLinkMatcherValidationCallback = (uri: string, callback: (isVali
 
 export class TerminalLinkHandler {
 	constructor(
+		private _instance: ITerminalInstance,
+		private _xterm: any,
 		private _platform: Platform,
 		@IWorkbenchEditorService private _editorService: IWorkbenchEditorService,
 		@IWorkspaceContextService private _contextService: IWorkspaceContextService
 	) {
+		this._xterm.attachHypertextLinkHandler(this._wrapLinkHandler(() => true));
 	}
 
-	public initialize(xterm: any) {
-		xterm.attachHypertextLinkHandler(this._wrapLinkHandler(() => true));
-	}
-
-	public registerCustomLinkHandler(xterm: any, regex: RegExp, handler: (uri: string) => void, matchIndex?: number, validationCallback?: XtermLinkMatcherValidationCallback): number {
-		return xterm.registerLinkMatcher(regex, this._wrapLinkHandler(handler), {
+	public registerCustomLinkHandler(regex: RegExp, handler: (uri: string) => void, matchIndex?: number, validationCallback?: XtermLinkMatcherValidationCallback): number {
+		return this._xterm.registerLinkMatcher(regex, this._wrapLinkHandler(handler), {
 			matchIndex,
 			validationCallback,
 			priority: CUSTOM_LINK_PRIORITY
 		});
 	}
 
-	public registerLocalLinkHandler(xterm: any): number {
+	public registerLocalLinkHandler(): number {
 		const wrappedHandler = this._wrapLinkHandler(url => {
 			this._handleLocalLink(url);
 			return;
 		});
-		return xterm.registerLinkMatcher(this._localLinkRegex, wrappedHandler, {
+		return this._xterm.registerLinkMatcher(this._localLinkRegex, wrappedHandler, {
 			matchIndex: 1,
 			validationCallback: (link: string, callback: (isValid: boolean) => void) => this._validateLocalLink(link, callback),
 			priority: LOCAL_LINK_PRIORITY
@@ -68,8 +68,11 @@ export class TerminalLinkHandler {
 		return (event: MouseEvent, uri: string) => {
 			// Require ctrl/cmd on click
 			if (this._platform === Platform.Mac ? !event.metaKey : !event.ctrlKey) {
-				// TODO: Show hint on fail
-				new TerminalLinkMessage(<HTMLElement>event.target, 'Hold ctrl and click to follow link');
+				const link = <HTMLElement>event.target;
+				console.log(link.offsetParent);
+				console.log(link.offsetTop);
+				console.log(link.clientTop);
+				this._instance.showMessage(link.offsetLeft, link.offsetTop, 'Hold ctrl and click to follow link');
 				event.preventDefault();
 				return false;
 			}
@@ -135,55 +138,5 @@ export class TerminalLinkHandler {
 			}
 			return link;
 		});
-	}
-}
-
-class TerminalLinkMessage {
-
-	// Editor.IContentWidget.allowEditorOverflow
-	readonly allowEditorOverflow = true;
-	readonly suppressMouseDown = false;
-
-	// private _editor: ICodeEditor;
-	// private _position: editorCommon.IPosition;
-	private _domNode: HTMLDivElement;
-
-	// static fadeOut(messageWidget: MessageWidget): IDisposable {
-	// 	let handle: number;
-	// 	const dispose = () => {
-	// 		messageWidget.dispose();
-	// 		clearTimeout(handle);
-	// 		messageWidget.getDomNode().removeEventListener('animationend', dispose);
-	// 	};
-	// 	handle = setTimeout(dispose, 110);
-	// 	messageWidget.getDomNode().addEventListener('animationend', dispose);
-	// 	messageWidget.getDomNode().classList.add('fadeOut');
-	// 	return { dispose };
-	// }
-
-	constructor(parentElement: HTMLElement, text: string) {
-		this._domNode = document.createElement('div');
-		this._domNode.style.position = 'absolute';
-		this._domNode.style.left = '0px';
-		this._domNode.style.bottom = '100%';
-		this._domNode.classList.add('terminal-overlaymessage');
-
-		const message = document.createElement('div');
-		message.classList.add('message');
-		message.textContent = text;
-		this._domNode.appendChild(message);
-
-		const anchor = document.createElement('div');
-		anchor.classList.add('anchor');
-		this._domNode.appendChild(anchor);
-
-		// this._editor.addContentWidget(this);
-		parentElement.appendChild(this._domNode);
-		this._domNode.classList.add('fadeIn');
-
-	}
-
-	dispose() {
-		// this._editor.removeContentWidget(this);
 	}
 }

@@ -3,7 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.monaco-workbench .terminal-widget-overlay {
+	position: absolute;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	pointer-events: none;
+}
+
 .monaco-workbench .panel.integrated-terminal .terminal-overlaymessage {
+	/* This font list is sourced from a .monaco-shell style */
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", "Ubuntu", "Droid Sans", sans-serif;
+	font-size: 13px;
 	padding-bottom: 8px;
 }
 
