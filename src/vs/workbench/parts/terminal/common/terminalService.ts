@@ -64,6 +64,10 @@ export abstract class TerminalService implements ITerminalService {
 	public abstract setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
 
 	private _onWillShutdown(): boolean {
+		if (!this.configHelper.getConfirmOnExit()) {
+			// Don't veto if configured to skip confirmation
+			return false;
+		}
 		if (this.terminalInstances.length === 0) {
 			// No terminal instances, don't veto
 			return false;
