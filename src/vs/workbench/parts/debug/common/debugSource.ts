@@ -10,11 +10,9 @@ export class Source {
 
 	public uri: uri;
 
-	private static INTERNAL_URI_PREFIX = `${DEBUG_SCHEME}:///`;
-
 	constructor(public raw: DebugProtocol.Source, public deemphasize: boolean) {
 		const path = raw.path || raw.name;
-		this.uri = raw.sourceReference > 0 ? uri.parse(`${Source.INTERNAL_URI_PREFIX}${path}?ref=${raw.sourceReference}`) : uri.file(path);
+		this.uri = raw.sourceReference > 0 ? uri.parse(`${DEBUG_SCHEME}:${path}?ref=${raw.sourceReference}`) : uri.file(path);
 	}
 
 	public get name() {
@@ -34,7 +32,7 @@ export class Source {
 	}
 
 	public static isInMemory(uri: uri): boolean {
-		return uri.toString().indexOf(Source.INTERNAL_URI_PREFIX) === 0;
+		return uri.toString().indexOf(`${DEBUG_SCHEME}:`) === 0;
 	}
 
 	public static getSourceReference(uri: uri): number {
