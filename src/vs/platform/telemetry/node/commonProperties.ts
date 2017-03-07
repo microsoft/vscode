@@ -17,7 +17,7 @@ export function resolveCommonProperties(commit: string, version: string): TPromi
 	result['version'] = version;
 	result['common.osVersion'] = os.release();
 	result['common.platform'] = Platform.Platform[Platform.platform];
-	const promise = getStableMachineId().then(value => result['common.machineId'] = value);
+	const promise = getStableMachineId().then(value => result['common.mainProcess.machineId'] = value);
 
 	// dynamic properties which value differs on each call
 	let seq = 0;
