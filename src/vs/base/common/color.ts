@@ -259,7 +259,6 @@ export class Color {
 	}
 
 	private readonly rgba: RGBA;
-	private hsla: HSLA;
 
 	private constructor(arg: string | RGBA) {
 		if (arg instanceof RGBA) {
@@ -267,7 +266,6 @@ export class Color {
 		} else {
 			this.rgba = hex2rgba(arg);
 		}
-		this.hsla = null;
 	}
 
 	public equals(other: Color): boolean {
@@ -390,10 +388,7 @@ export class Color {
 	}
 
 	public toHSLA(): HSLA {
-		if (this.hsla === null) {
-			this.hsla = rgba2hsla(this.rgba);
-		}
-		return this.hsla;
+		return rgba2hsla(this.rgba);
 	}
 
 	public toRGBA(): RGBA {
