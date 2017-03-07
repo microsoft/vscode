@@ -516,9 +516,6 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		this.outgoingEvents.emitScrollChanged(e);
 		return false;
 	}
-	public onScrollRequest(e: editorCommon.ICursorScrollRequestEvent): boolean {
-		return e.revealCursor ? this.revealCursor() : false;
-	}
 	private revealCursor(): boolean {
 		this.triggerCursorHandler('revealCursor', editorCommon.Handler.CursorMove, { to: editorCommon.CursorMovePosition.ViewPortIfOutside });
 		return false;
