@@ -105,7 +105,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 		const heapService = new ExtHostHeapService();
 
-		commands = new ExtHostCommands(threadService, null, heapService);
+		commands = new ExtHostCommands(threadService, heapService);
 		threadService.set(ExtHostContext.ExtHostCommands, commands);
 		threadService.setTestInstance(MainContext.MainThreadCommands, instantiationService.createInstance(MainThreadCommands));
 		ExtHostApiCommands.register(commands);

@@ -8,7 +8,6 @@ import { IThreadService } from 'vs/workbench/services/thread/common/threadServic
 import { validateConstraint } from 'vs/base/common/types';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ExtHostEditors } from 'vs/workbench/api/node/extHostTextEditors';
 import * as extHostTypes from 'vs/workbench/api/node/extHostTypes';
 import * as extHostTypeConverter from 'vs/workbench/api/node/extHostTypeConverters';
 import { cloneAndChange } from 'vs/base/common/objects';
@@ -28,16 +27,13 @@ export class ExtHostCommands extends ExtHostCommandsShape {
 
 	private _commands = new Map<string, CommandHandler>();
 	private _proxy: MainThreadCommandsShape;
-	private _extHostEditors: ExtHostEditors;
 	private _converter: CommandsConverter;
 
 	constructor(
 		threadService: IThreadService,
-		extHostEditors: ExtHostEditors,
 		heapService: ExtHostHeapService
 	) {
 		super();
-		this._extHostEditors = extHostEditors;
 		this._proxy = threadService.get(MainContext.MainThreadCommands);
 		this._converter = new CommandsConverter(this, heapService);
 	}
