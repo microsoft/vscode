@@ -146,13 +146,15 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		const config = configurationService.getConfiguration<IWorkbenchEditorConfiguration>();
 		if (config && config.workbench && config.workbench.editor) {
 			const editorConfig = config.workbench.editor;
+
 			this.tabOptions = {
 				previewEditors: editorConfig.enablePreview,
 				showIcons: editorConfig.showIcons,
 				showTabs: editorConfig.showTabs,
 				tabCloseButton: editorConfig.tabCloseButton
 			};
-			this.revealIfOpen = config.workbench.editor.revealIfOpen;
+
+			this.revealIfOpen = editorConfig.revealIfOpen;
 
 			this.telemetryService.publicLog('workbenchEditorConfiguration', editorConfig);
 		} else {
@@ -162,6 +164,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 				showTabs: true,
 				tabCloseButton: 'right'
 			};
+
 			this.revealIfOpen = false;
 		}
 
@@ -202,7 +205,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 				this._onTabOptionsChanged.fire(this.tabOptions);
 			}
 
-			this.revealIfOpen = configuration.workbench.editor.revealIfOpen;
+			this.revealIfOpen = editorConfig.revealIfOpen;
 		}
 	}
 
@@ -1285,8 +1288,8 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		}
 
 		// Respect option to reveal an editor if it is open (not necessarily visible)
-		const skipReuse = (options && options.index) || arg1;
-		if (!skipReuse && this.revealIfOpen) {
+		const skipRevealIfOpen = (options && options.index) || arg1;
+		if (!skipRevealIfOpen && this.revealIfOpen) {
 			const group = this.stacks.findGroup(input);
 			if (group) {
 				return this.stacks.positionOfGroup(group);

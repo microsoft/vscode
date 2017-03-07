@@ -944,27 +944,23 @@ export class EditorStacksModel implements IEditorStacksModel {
 		return this._groups.indexOf(group);
 	}
 
-	public findGroup(editorInput: EditorInput, activeOnly?: boolean): EditorGroup {
-		// prefer to check activeGroup and activeEditor first
-		let groupsToCheck: EditorGroup[] = [];
-		const activeGroup = this.activeGroup;
-		if (activeGroup) { groupsToCheck.push(activeGroup); }
-		this.groups.forEach(g => { if (g !== activeGroup) { groupsToCheck.push(g); } });
+	public findGroup(editor: EditorInput, activeOnly?: boolean): EditorGroup {
+		const groupsToCheck = (this.activeGroup ? [this.activeGroup] : []).concat(this.groups.filter(g => g !== this.activeGroup));
+
 		for (let i = 0; i < groupsToCheck.length; i++) {
-			let editorsToCheck: EditorInput[] = [];
 			const group = groupsToCheck[i];
-			const activeEditor = group.activeEditor;
-			if (activeEditor) { editorsToCheck.push(activeEditor); }
-			group.getEditors().forEach(e => { if (e !== activeEditor) { editorsToCheck.push(e) } });
+			const editorsToCheck = (group.activeEditor ? [group.activeEditor] : []).concat(group.getEditors().filter(e => e !== group.activeEditor));
+
 			for (let j = 0; j < editorsToCheck.length; j++) {
-				const editor = editorsToCheck[j];
-				if ((!activeOnly || group.isActive(editor))
-					&& editorInput.matches(editor)) {
+				const editorToCheck = editorsToCheck[j];
+
+				if ((!activeOnly || group.isActive(editorToCheck)) && editor.matches(editorToCheck)) {
 					return group;
 				}
 			}
 		}
-		return undefined;
+
+		return void 0;
 	}
 
 	public positionOfGroup(group: IEditorGroup): Position;
