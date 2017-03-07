@@ -516,7 +516,12 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		this.outgoingEvents.emitScrollChanged(e);
 		return false;
 	}
-	public onScrollRequest(e: editorCommon.ICursorScrollRequestEvent): boolean {
+	public onScrollRequest(e: viewEvents.ViewScrollRequestEvent): boolean {
+		let currentScrollTop = this.layoutProvider.getScrollTop();
+		let newScrollTop = currentScrollTop + e.deltaLines * this._context.configuration.editor.lineHeight;
+		this.layoutProvider.setScrollPosition({
+			scrollTop: newScrollTop
+		});
 		return e.revealCursor ? this.revealCursor() : false;
 	}
 	private revealCursor(): boolean {
