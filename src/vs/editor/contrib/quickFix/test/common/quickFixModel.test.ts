@@ -18,7 +18,7 @@ import { CodeActionProviderRegistry, LanguageIdentifier } from 'vs/editor/common
 suite('QuickFix', () => {
 	const languageIdentifier = new LanguageIdentifier('foo-lang', 3);
 
-	let uri = URI.parse('fake:path');
+	let uri = URI.parse('untitled:path');
 	let model = Model.createFromString('foobar  foo bar\nfarboo far boo', undefined, languageIdentifier, uri);
 	let markerService: MarkerService;
 	let editor: ICommonCodeEditor;

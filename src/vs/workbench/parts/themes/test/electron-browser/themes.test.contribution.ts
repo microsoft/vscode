@@ -49,8 +49,8 @@ class ThemeDocument {
 		this._theme = theme;
 		this._cache = Object.create(null);
 		this._defaultColor = '#000000';
-		for (let i = 0, len = this._theme.settings.length; i < len; i++) {
-			let rule = this._theme.settings[i];
+		for (let i = 0, len = this._theme.tokenColors.length; i < len; i++) {
+			let rule = this._theme.tokenColors[i];
 			if (!rule.scope) {
 				this._defaultColor = rule.settings.foreground;
 			}

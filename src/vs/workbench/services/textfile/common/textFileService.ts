@@ -14,7 +14,7 @@ import Event, { Emitter } from 'vs/base/common/event';
 import platform = require('vs/base/common/platform');
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
-import { IRevertOptions, IResult, ITextFileOperationResult, ITextFileService, IRawTextContent, IAutoSaveConfiguration, AutoSaveMode, SaveReason, ITextFileEditorModelManager, ITextFileEditorModel, ISaveOptions } from 'vs/workbench/services/textfile/common/textfiles';
+import { IRevertOptions, IResult, ITextFileOperationResult, ITextFileService, IRawTextContent, IAutoSaveConfiguration, AutoSaveMode, SaveReason, ITextFileEditorModelManager, ITextFileEditorModel, ISaveOptions, ModelState } from 'vs/workbench/services/textfile/common/textfiles';
 import { ConfirmResult } from 'vs/workbench/common/editor';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { ILifecycleService, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
@@ -477,7 +477,14 @@ export abstract class TextFileService implements ITextFileService {
 	}
 
 	private doSaveAllFiles(arg1?: any /* URI[] */, reason?: SaveReason): TPromise<ITextFileOperationResult> {
-		const dirtyFileModels = this.getDirtyFileModels(Array.isArray(arg1) ? arg1 : void 0 /* Save All */);
+		const dirtyFileModels = this.getDirtyFileModels(Array.isArray(arg1) ? arg1 : void 0 /* Save All */)
+			.filter(model => {
+				if ((model.getState() === ModelState.CONFLICT || model.getState() === ModelState.ORPHAN) && (reason === SaveReason.AUTO || reason === SaveReason.FOCUS_CHANGE || reason === SaveReason.WINDOW_CHANGE)) {
+					return false; // if model is in an orphan or in save conflict, do not save unless save reason is explicit or not provided at all
+				}
+
+				return true;
+			});
 
 		const mapResourceToResult: { [resource: string]: IResult } = Object.create(null);
 		dirtyFileModels.forEach(m => {

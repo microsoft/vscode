@@ -139,7 +139,14 @@ export class TextModelResolverService implements ITextModelResolverService {
 		}
 
 		const ref = this.resourceModelCollection.acquire(resource.toString());
-		return ref.object.then(model => ({ object: model, dispose: () => ref.dispose() }));
+
+		return ref.object.then(
+			model => ({ object: model, dispose: () => ref.dispose() }),
+			err => {
+				ref.dispose();
+				return TPromise.wrapError(err);
+			}
+		);
 	}
 
 	registerTextModelContentProvider(scheme: string, provider: ITextModelContentProvider): IDisposable {

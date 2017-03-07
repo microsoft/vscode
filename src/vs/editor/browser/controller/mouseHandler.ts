@@ -428,10 +428,6 @@ class MouseDownOperation extends Disposable {
 		) {
 			this._mouseState.isDragAndDrop = true;
 			this._isActive = true;
-			this._viewController.emitMouseDrag({
-				event: e,
-				target: this._createMouseTarget(e, true)
-			});
 
 			this._mouseMoveMonitor.startMonitoring(
 				createMouseMoveEventMerger(null),

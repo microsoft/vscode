@@ -221,9 +221,15 @@ export function rimraf(dir:string):(cb:any)=>void {
 
 	const retry = cb => {
 		_rimraf(dir, { maxBusyTries: 1 }, (err:any) => {
-			if (!err) return cb();
-			if (err.code === 'ENOTEMPTY' && ++retries < 5) return setTimeout(() => retry(cb), 10);
-			else return cb(err);
+			if (!err) {
+				return cb();
+			};
+
+			if (err.code === 'ENOTEMPTY' && ++retries < 5) {
+				return setTimeout(() => retry(cb), 10);
+			}
+
+			return cb(err);
 		});
 	};
 

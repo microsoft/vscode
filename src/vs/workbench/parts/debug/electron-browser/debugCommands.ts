@@ -177,7 +177,7 @@ export function registerCommands(): void {
 			return viewletService.openViewlet(EXTENSIONS_VIEWLET_ID, true)
 				.then(viewlet => viewlet as IExtensionsViewlet)
 				.then(viewlet => {
-					viewlet.search('tag:debuggers');
+					viewlet.search('tag:debuggers @sort:installs');
 					viewlet.focus();
 				});
 		}
