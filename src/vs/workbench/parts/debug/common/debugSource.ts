@@ -10,7 +10,7 @@ export class Source {
 
 	public uri: uri;
 
-	private static INTERNAL_URI_PREFIX = `${DEBUG_SCHEME}://internal/`;
+	private static INTERNAL_URI_PREFIX = `${DEBUG_SCHEME}:///`;
 
 	constructor(public raw: DebugProtocol.Source, public deemphasize: boolean) {
 		const path = raw.path || raw.name;
