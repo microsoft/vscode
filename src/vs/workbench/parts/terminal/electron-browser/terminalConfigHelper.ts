@@ -194,6 +194,11 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 		return config.terminal.integrated.cwd;
 	}
 
+	public getConfirmOnExit(): boolean {
+		const config = this._configurationService.getConfiguration<ITerminalConfiguration>();
+		return config.terminal.integrated.confirmOnExit;
+	}
+
 	private _toInteger(source: any, minimum?: number): number {
 		let r = parseInt(source, 10);
 		if (isNaN(r)) {

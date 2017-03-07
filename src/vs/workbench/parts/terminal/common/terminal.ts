@@ -58,7 +58,8 @@ export interface ITerminalConfiguration {
 			setLocaleVariables: boolean,
 			scrollback: number,
 			commandsToSkipShell: string[],
-			cwd: string
+			cwd: string,
+			confirmOnExit: boolean
 		}
 	};
 }
@@ -72,6 +73,7 @@ export interface ITerminalConfigHelper {
 	getCommandsToSkipShell(): string[];
 	getScrollback(): number;
 	getCwd(): string;
+	getConfirmOnExit(): boolean;
 }
 
 export interface ITerminalFont {

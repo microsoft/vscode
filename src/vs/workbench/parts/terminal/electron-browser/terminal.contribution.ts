@@ -129,6 +129,11 @@ configurationRegistry.registerConfiguration({
 			'type': 'string',
 			'default': undefined
 		},
+		'terminal.integrated.confirmOnExit': {
+			'description': nls.localize('terminal.integrated.confirmOnExit', "Whether to confirm on exit if there are active terminal sessions."),
+			'type': 'boolean',
+			'default': false
+		},
 		'terminal.integrated.commandsToSkipShell': {
 			'description': nls.localize('terminal.integrated.commandsToSkipShell', "A set of command IDs whose keybindings will not be sent to the shell and instead always be handled by Code. This allows the use of keybindings that would normally be consumed by the shell to act the same as when the terminal is not focused, for example ctrl+p to launch Quick Open."),
 			'type': 'array',
@@ -174,7 +179,6 @@ configurationRegistry.registerConfiguration({
 				debugActions.PauseAction.ID,
 				OpenNextRecentlyUsedEditorInGroupAction.ID,
 				OpenPreviousRecentlyUsedEditorInGroupAction.ID
-
 			].sort()
 		}
 	}
