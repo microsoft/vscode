@@ -258,6 +258,9 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 
 		// Install Menu
 		instantiationService2.createInstance(VSCodeMenu);
+
+		// Start shared process here
+		sharedProcess.spawn();
 	});
 }
 
