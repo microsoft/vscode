@@ -11,7 +11,7 @@
 	pointer-events: none;
 }
 
-.monaco-workbench .panel.integrated-terminal .terminal-overlaymessage {
+.monaco-workbench .panel.integrated-terminal .terminal-message-widget {
 	/* This font list is sourced from a .monaco-shell style */
 	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", "Ubuntu", "Droid Sans", sans-serif;
 	font-size: 13px;
@@ -22,7 +22,7 @@
 	from { opacity: 0; }
 	to { opacity: 1; }
 }
-.monaco-workbench .panel.integrated-terminal .terminal-overlaymessage.fadeIn {
+.monaco-workbench .panel.integrated-terminal .terminal-message-widget.fadeIn {
 	animation: fadeIn 150ms ease-out;
 }
 
@@ -30,17 +30,17 @@
 	from { opacity: 1; }
 	to { opacity: 0; }
 }
-.monaco-workbench .panel.integrated-terminal .terminal-overlaymessage.fadeOut {
+.monaco-workbench .panel.integrated-terminal .terminal-message-widget.fadeOut {
 	animation: fadeOut 100ms ease-out;
 }
 
-.monaco-workbench .panel.integrated-terminal .terminal-overlaymessage .message {
+.monaco-workbench .panel.integrated-terminal .terminal-message-widget .message {
 	padding: 1px 4px;
 	background: #1382CE;
 	color: white;
 }
 
-.monaco-workbench .panel.integrated-terminal .terminal-overlaymessage .anchor {
+.monaco-workbench .panel.integrated-terminal .terminal-message-widget .anchor {
 	width: 0 !important;
 	height: 0 !important;
 	border-color: transparent;
