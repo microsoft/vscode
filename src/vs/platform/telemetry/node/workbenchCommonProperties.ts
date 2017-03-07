@@ -32,7 +32,12 @@ export function resolveWorkbenchCommonProperties(storageService: IStorageService
 
 		const promises: TPromise<any>[] = [];
 		promises.push(getOrCreateInstanceId(storageService).then(value => result['common.instanceId'] = value));
-		promises.push(getOrCreateMachineId(storageService).then(value => result['common.machineId'] = value));
+		promises.push(getOrCreateMachineId(storageService).then(value => {
+			result['common.machineId'] = value;
+			if (result['common.main.machineId'] === value) {
+				delete result['common.main.machineId'];
+			}
+		}));
 
 		if (process.platform === 'win32') {
 			promises.push(getSqmUserId(storageService).then(value => result['common.sqm.userid'] = value));
