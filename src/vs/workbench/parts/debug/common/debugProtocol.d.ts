@@ -732,7 +732,9 @@ declare module DebugProtocol {
 
 	/** Arguments for 'source' request. */
 	export interface SourceArguments {
-		/** The reference to the source. This is the value received in Source.reference. */
+		/** The source: either source.path or source.sourceReference must be specified. */
+		source?: Source;
+		/** For backward compatibility: The reference to the source. This is the value received in Source.reference. */
 		sourceReference: number;
 	}
 
