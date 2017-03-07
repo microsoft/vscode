@@ -42,7 +42,12 @@ export class SharedProcess {
 		this.disposables.push(toDisposable(() => {
 			// Electron seems to crash on Windows without this setTimeout :|
 			setTimeout(() => {
-				this.window.close();
+				try {
+					this.window.close();
+				} catch (err) {
+					// ignore, as electron is already shutting down
+				}
+
 				this.window = null;
 			}, 0);
 		}));
