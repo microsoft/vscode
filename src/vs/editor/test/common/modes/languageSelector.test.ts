@@ -58,6 +58,16 @@ suite('LanguageSelector', function () {
 		assert.equal(score({ pattern: '**/*.fb', scheme: 'file' }, model.uri, model.language), 10);
 		assert.equal(score({ pattern: '**/*.fb' }, URI.parse('foo:bar'), model.language), 0);
 		assert.equal(score({ pattern: '**/*.fb', scheme: 'foo' }, URI.parse('foo:bar'), model.language), 0);
+
+		let doc = {
+			uri: URI.parse('git:/my/file.js'),
+			langId: 'javascript'
+		};
+		assert.equal(score('javascript', doc.uri, doc.langId), 0); // 0;
+		assert.equal(score({ language: 'javascript', scheme: 'git' }, doc.uri, doc.langId), 10); // 10;
+		assert.equal(score('*', doc.uri, doc.langId), 5); // 5
+		assert.equal(score('fooLang', doc.uri, doc.langId), 0); // 0
+		assert.equal(score(['fooLang', '*'], doc.uri, doc.langId), 5); // 5
 	});
 
 	test('score, max(filters)', function () {
