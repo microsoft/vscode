@@ -13,19 +13,17 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITerminalInstance, ITerminalService, IShellLaunchConfig } from 'vs/workbench/parts/terminal/common/terminal';
+import { ITerminalInstance, ITerminalService, IShellLaunchConfig, ITerminalConfigHelper } from 'vs/workbench/parts/terminal/common/terminal';
 import { TerminalService as AbstractTerminalService } from 'vs/workbench/parts/terminal/common/terminalService';
 import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 import { TerminalInstance } from 'vs/workbench/parts/terminal/electron-browser/terminalInstance';
 import { TerminalLinkHandler } from 'vs/workbench/parts/terminal/electron-browser/terminalLinkHandler';
 
 export class TerminalService extends AbstractTerminalService implements ITerminalService {
-	public _serviceBrand: any;
-
 	private _configHelper: TerminalConfigHelper;
 	private _linkHandler: TerminalLinkHandler;
 
-	public get configHelper(): TerminalConfigHelper { return this._configHelper; };
+	public get configHelper(): ITerminalConfigHelper { return this._configHelper; };
 
 	constructor(
 		@IContextKeyService _contextKeyService: IContextKeyService,

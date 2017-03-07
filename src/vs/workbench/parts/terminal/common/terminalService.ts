@@ -10,10 +10,12 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITerminalInstance, KEYBINDING_CONTEXT_TERMINAL_FOCUS, TERMINAL_PANEL_ID } from 'vs/workbench/parts/terminal/common/terminal';
+import { ITerminalService, ITerminalInstance, IShellLaunchConfig, ITerminalConfigHelper, KEYBINDING_CONTEXT_TERMINAL_FOCUS, TERMINAL_PANEL_ID } from 'vs/workbench/parts/terminal/common/terminal';
 import { TPromise } from 'vs/base/common/winjs.base';
 
-export abstract class TerminalService {
+export abstract class TerminalService implements ITerminalService {
+	public _serviceBrand: any;
+
 	protected _terminalFocusContextKey: IContextKey<boolean>;
 	protected _terminalContainer: HTMLElement;
 	protected _onInstancesChanged: Emitter<string>;
@@ -32,6 +34,8 @@ export abstract class TerminalService {
 	public get onInstanceTitleChanged(): Event<string> { return this._onInstanceTitleChanged.event; }
 	public get onInstancesChanged(): Event<string> { return this._onInstancesChanged.event; }
 	public get terminalInstances(): ITerminalInstance[] { return this._terminalInstances; }
+
+	public abstract get configHelper(): ITerminalConfigHelper;
 
 	constructor(
 		@IContextKeyService private _contextKeyService: IContextKeyService,
@@ -55,6 +59,10 @@ export abstract class TerminalService {
 		this.onInstanceDisposed((terminalInstance) => { this._removeInstance(terminalInstance); });
 	}
 
+	protected abstract _showTerminalCloseConfirmation(): boolean;
+	public abstract createInstance(shell?: IShellLaunchConfig): ITerminalInstance;
+	public abstract setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
+
 	private _onWillShutdown(): boolean {
 		if (this.terminalInstances.length === 0) {
 			// No terminal instances, don't veto
@@ -63,8 +71,6 @@ export abstract class TerminalService {
 		// Veto based on response to message
 		return this._showTerminalCloseConfirmation();
 	}
-
-	protected abstract _showTerminalCloseConfirmation(): boolean;
 
 	public getInstanceLabels(): string[] {
 		return this._terminalInstances.map((instance, index) => `${index + 1}: ${instance.title}`);
