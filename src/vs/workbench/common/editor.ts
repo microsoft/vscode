@@ -907,6 +907,7 @@ export interface IWorkbenchEditorConfiguration {
 			enablePreviewFromQuickOpen: boolean;
 			closeOnExternalFileDelete: boolean;
 			openPositioning: 'left' | 'right' | 'first' | 'last';
+			revealIfOpen: boolean;
 		}
 	};
 }
