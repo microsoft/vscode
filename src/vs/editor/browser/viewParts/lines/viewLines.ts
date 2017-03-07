@@ -197,14 +197,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		this.domNode.setWidth(e.scrollWidth);
 		return this._visibleLines.onScrollChanged(e) || true;
 	}
-	public onScrollRequest(e: viewEvents.ViewScrollRequestEvent): boolean {
-		let currentScrollTop = this._viewLayout.getScrollTop();
-		let newScrollTop = currentScrollTop + e.deltaLines * this._lineHeight;
-		this._viewLayout.setScrollPosition({
-			scrollTop: newScrollTop
-		});
-		return true;
-	}
+
 	public onTokensChanged(e: viewEvents.ViewTokensChangedEvent): boolean {
 		return this._visibleLines.onTokensChanged(e);
 	}
