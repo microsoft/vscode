@@ -27,9 +27,8 @@ import { Server, serve, connect } from 'vs/base/parts/ipc/node/ipc.net';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { AskpassChannel } from 'vs/workbench/parts/git/common/gitIpc';
 import { GitAskpassService } from 'vs/workbench/parts/git/electron-main/askpassService';
-import { spawnSharedProcess } from 'vs/code/node/sharedProcess';
+import { spawnSharedProcess } from 'vs/code/electron-main/sharedProcess';
 import { Mutex } from 'windows-mutex';
-import { IDisposable } from 'vs/base/common/lifecycle';
 import { LaunchService, ILaunchChannel, LaunchChannel, LaunchChannelClient, ILaunchService } from './launch';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
@@ -45,7 +44,7 @@ import { EnvironmentService } from 'vs/platform/environment/node/environmentServ
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
 import { IRequestService } from 'vs/platform/request/node/request';
-import { RequestService } from 'vs/platform/request/node/requestService';
+import { RequestService } from 'vs/platform/request/electron-main/requestService';
 import { IURLService } from 'vs/platform/url/common/url';
 import { URLChannel } from 'vs/platform/url/common/urlIpc';
 import { URLService } from 'vs/platform/url/electron-main/urlService';
@@ -144,17 +143,9 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 
 	// Spawn shared process
 	const initData = { args: environmentService.args };
-	const options = {
-		allowOutput: !environmentService.isBuilt || environmentService.verbose,
-		debugPort: environmentService.isBuilt ? null : 5871
-	};
 
-	let sharedProcessDisposable: IDisposable;
-
-	const sharedProcess = spawnSharedProcess(initData, options).then(disposable => {
-		sharedProcessDisposable = disposable;
-		return connect(environmentService.sharedIPCHandle, 'main');
-	});
+	const sharedProcess = spawnSharedProcess(initData, environmentService.appRoot, environmentService.nodeCachedDataDir)
+		.then(disposable => connect(environmentService.sharedIPCHandle, 'main'));
 
 	// Create a new service collection, because the telemetry service
 	// requires a connection to shared process, which was only established
@@ -218,10 +209,6 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 			if (mainIpcServer) {
 				mainIpcServer.dispose();
 				mainIpcServer = null;
-			}
-
-			if (sharedProcessDisposable) {
-				sharedProcessDisposable.dispose();
 			}
 
 			if (windowsMutex) {
