@@ -132,6 +132,10 @@ function hex2rgba(hex: string): RGBA {
 	return new RGBA(255, 0, 0, 255);
 }
 
+export function isValidHexColor(hex: string): boolean {
+	return /^#[0-9a-f]{6}([0-9a-f]{2})?$/i.test(hex);
+}
+
 function _parseHexDigit(charCode: CharCode): number {
 	switch (charCode) {
 		case CharCode.Digit0: return 0;
