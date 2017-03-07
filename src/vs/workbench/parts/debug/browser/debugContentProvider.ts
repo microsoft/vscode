@@ -5,6 +5,7 @@
 
 import * as lifecycle from 'vs/base/common/lifecycle';
 import uri from 'vs/base/common/uri';
+import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { guessMimeTypes, MIME_TEXT } from 'vs/base/common/mime';
 import { IModel } from 'vs/editor/common/editorCommon';
@@ -40,8 +41,9 @@ export class DebugContentProvider implements IWorkbenchContribution, ITextModelC
 
 	public provideTextContent(resource: uri): TPromise<IModel> {
 		const process = this.debugService.getViewModel().focusedProcess;
+
 		if (!process) {
-			return TPromise.as(null);
+			return TPromise.wrapError(localize('unable', "Unable to resolve the resource without a debug session"));
 		}
 
 		return process.session.source({ sourceReference: Source.getSourceReference(resource) }).then(response => {
