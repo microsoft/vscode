@@ -34,7 +34,7 @@
 }
 
 .monaco-workbench .panel.integrated-terminal .xterm a:not(.xterm-invalid-link) {
-	/* To support message box sizing*/
+	/* To support message box sizing */
 	position: relative;
 }
 

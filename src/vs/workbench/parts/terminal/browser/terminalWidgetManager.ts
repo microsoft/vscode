@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
+import { ITerminalConfigHelper } from 'vs/workbench/parts/terminal/common/terminal';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { setDisposableTimeout } from 'vs/base/common/async';
 
@@ -16,7 +16,7 @@ export class TerminalWidgetManager {
 
 	constructor(
 		// private _instance: ITerminalInstance,
-		private _configHelper: TerminalConfigHelper,
+		private _configHelper: ITerminalConfigHelper,
 		terminalWrapper: HTMLElement
 	) {
 		this._container = document.createElement('div');
