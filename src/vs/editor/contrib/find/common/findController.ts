@@ -205,7 +205,10 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 		// Overwrite isReplaceRevealed
 		if (opts.forceRevealReplace) {
 			stateChanges.isReplaceRevealed = true;
+		} else if (!this._findWidgetVisible.get()) {
+			stateChanges.isReplaceRevealed = false;
 		}
+
 
 		this._state.change(stateChanges, false);
 
