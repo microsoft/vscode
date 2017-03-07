@@ -16,7 +16,7 @@ import { ExtensionMessageCollector } from 'vs/platform/extensions/common/extensi
 import { ITokenizationSupport, TokenizationRegistry, IState, LanguageId } from 'vs/editor/common/modes';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { INITIAL, StackElement, IGrammar, Registry, IEmbeddedLanguagesMap as IEmbeddedLanguagesMap2 } from 'vscode-textmate';
-import { IThemeService, IThemeSetting } from 'vs/workbench/services/themes/common/themeService';
+import { IThemeService, ITokenColorizationRule } from 'vs/workbench/services/themes/common/themeService';
 import { ITextMateService } from 'vs/editor/node/textMate/textMateService';
 import { grammarsExtPoint, IEmbeddedLanguagesMap, ITMSyntaxExtensionPoint } from 'vs/editor/node/textMate/TMGrammars';
 import { TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/token';
@@ -160,7 +160,7 @@ export class MainProcessTextMateSyntax implements ITextMateService {
 		return result;
 	}
 
-	static _removeInvalidColors(settings: IThemeSetting[]): IThemeSetting[] {
+	static _removeInvalidColors(settings: ITokenColorizationRule[]): ITokenColorizationRule[] {
 		if (!Array.isArray(settings)) {
 			return settings;
 		}
@@ -181,8 +181,9 @@ export class MainProcessTextMateSyntax implements ITextMateService {
 
 	private _updateTheme(): void {
 		let colorTheme = this._themeService.getColorTheme();
+
 		// Remove unparsable foreground colors
-		let settings = MainProcessTextMateSyntax._removeInvalidColors(colorTheme.settings);
+		let settings = MainProcessTextMateSyntax._removeInvalidColors(colorTheme.tokenColors);
 
 		this._grammarRegistry.setTheme({ name: colorTheme.label, settings: settings });
 		let colorMap = MainProcessTextMateSyntax._toColorMap(this._grammarRegistry.getColorMap());

@@ -3,331 +3,295 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IThemeSetting } from 'vs/workbench/services/themes/common/themeService';
+import nls = require('vs/nls');
+
+import { ITokenColorizationRule, IColorMap } from 'vs/workbench/services/themes/common/themeService';
 import { Color } from 'vs/base/common/color';
-import { getBaseThemeId, getSyntaxThemeId } from 'vs/platform/theme/common/themes';
+import { ITheme, Extensions, IThemingRegistry } from 'vs/platform/theme/common/themingRegistry';
+import { Registry } from 'vs/platform/platform';
 
-interface ThemeGlobalSettings {
-	background?: string;
-	foreground?: string;
-	fontStyle?: string;
-	caret?: string;
-	invisibles?: string;
-	guide?: string;
+let themingRegistry = <IThemingRegistry>Registry.as(Extensions.ThemingContribution);
 
-	lineHighlight?: string;
-	rangeHighlight?: string;
-
-	hoverHighlight?: string;
-
-	selection?: string;
-	inactiveSelection?: string;
-	selectionHighlight?: string;
-
-	findRangeHighlight?: string;
-	findMatchHighlight?: string;
-	currentFindMatchHighlight?: string;
-
-	wordHighlight?: string;
-	wordHighlightStrong?: string;
-
-	referenceHighlight?: string;
-
-	linkForeground?: string;
-	activeLinkForeground?: string;
-
-	ansiBlack?: string;
-	ansiRed?: string;
-	ansiGreen?: string;
-	ansiYellow?: string;
-	ansiBlue?: string;
-	ansiMagenta?: string;
-	ansiCyan?: string;
-	ansiWhite?: string;
-	ansiBrightBlack?: string;
-	ansiBrightRed?: string;
-	ansiBrightGreen?: string;
-	ansiBrightYellow?: string;
-	ansiBrightBlue?: string;
-	ansiBrightMagenta?: string;
-	ansiBrightCyan?: string;
-	ansiBrightWhite?: string;
+export function generateStyleSheetContent(theme: ITheme): string {
+	let cssRules = [];
+	themingRegistry.getThemingParticipants().forEach(participant => {
+		participant(theme, cssRules);
+	});
+	return cssRules.join('\n');
 }
 
-class Theme {
-
-	private selector: string;
-	private settings: IThemeSetting[];
-	private globalSettings: ThemeGlobalSettings = null;
-
-	constructor(private themeId: string, themeSettings: IThemeSetting[]) {
-		this.selector = `${getBaseThemeId(themeId)}.${getSyntaxThemeId(themeId)}`;
-		this.settings = themeSettings;
-		let globalSettings = this.settings.filter(s => !s.scope);
-		if (globalSettings.length > 0) {
-			this.globalSettings = globalSettings[0].settings;
-		}
+const settingToColorIdMapping: { [settingId: string]: string[] } = {};
+function addSettingMapping(settingId: string, colorId: string) {
+	let colorIds = settingToColorIdMapping[settingId];
+	if (!colorIds) {
+		settingToColorIdMapping[settingId] = colorIds = [];
 	}
-
-	public getSelector(): string {
-		return this.selector;
-	}
-
-	public hasGlobalSettings(): boolean {
-		return !!this.globalSettings;
-	}
-
-	public getGlobalSettings(): ThemeGlobalSettings {
-		return this.globalSettings;
-	}
-
-	public getSettings(): IThemeSetting[] {
-		return this.settings;
-	}
-
+	colorIds.push(colorId);
 }
 
-abstract class StyleRules {
-	public abstract getCssRules(theme: Theme, cssRules: string[]): void;
-}
-
-export class EditorStylesContribution {
-
-	public contributeStyles(themeId: string, themeSettings: IThemeSetting[], cssRules: string[]) {
-		let editorStyleRules = [
-			new EditorBackgroundStyleRules(),
-			new EditorCursorStyleRules(),
-			new EditorWhiteSpaceStyleRules(),
-			new EditorIndentGuidesStyleRules(),
-			new EditorLineHighlightStyleRules(),
-			new EditorSelectionStyleRules(),
-			new EditorWordHighlightStyleRules(),
-			new EditorFindStyleRules(),
-			new EditorReferenceSearchStyleRules(),
-			new EditorHoverHighlightStyleRules(),
-			new EditorLinkStyleRules()
-		];
-		let theme = new Theme(themeId, themeSettings);
-		if (theme.hasGlobalSettings()) {
-			editorStyleRules.forEach((editorStyleRule => {
-				editorStyleRule.getCssRules(theme, cssRules);
-			}));
-		}
-	}
-}
-
-export class SearchViewStylesContribution {
-
-	public contributeStyles(themeId: string, themeSettings: IThemeSetting[], cssRules: string[]): void {
-		let theme = new Theme(themeId, themeSettings);
-		if (theme.hasGlobalSettings()) {
-			if (theme.getGlobalSettings().findMatchHighlight) {
-				let color = Color.fromHex(theme.getGlobalSettings().findMatchHighlight);
-				cssRules.push(`.${theme.getSelector()} .search-viewlet .findInFileMatch { background-color: ${color}; }`);
-				cssRules.push(`.${theme.getSelector()} .search-viewlet .highlight { background-color: ${color}; }`);
+export function initializeColorMapsFromSettings(resultRules: ITokenColorizationRule[], resultColors: IColorMap): void {
+	for (let rule of resultRules) {
+		if (!rule.scope) {
+			let settings = rule.settings;
+			for (let key in settings) {
+				let mappings = settingToColorIdMapping[key];
+				if (mappings) {
+					let color = Color.fromHex(settings[key]);
+					for (let colorId of mappings) {
+						resultColors[colorId] = color;
+					}
+				}
 			}
 		}
 	}
 }
 
-export class TerminalStylesContribution {
+// search viewlet
 
-	private static ansiColorMap = {
-		ansiBlack: 0,
-		ansiRed: 1,
-		ansiGreen: 2,
-		ansiYellow: 3,
-		ansiBlue: 4,
-		ansiMagenta: 5,
-		ansiCyan: 6,
-		ansiWhite: 7,
-		ansiBrightBlack: 8,
-		ansiBrightRed: 9,
-		ansiBrightGreen: 10,
-		ansiBrightYellow: 11,
-		ansiBrightBlue: 12,
-		ansiBrightMagenta: 13,
-		ansiBrightCyan: 14,
-		ansiBrightWhite: 15
-	};
-
-	/**
-	 * Converts a CSS hex color (#rrggbb) to a CSS rgba color (rgba(r, g, b, a)).
-	 */
-	private _convertHexCssColorToRgba(hex: string, alpha: number): string {
-		const r = parseInt(hex.substr(1, 2), 16);
-		const g = parseInt(hex.substr(3, 2), 16);
-		const b = parseInt(hex.substr(5, 2), 16);
-		return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+themingRegistry.registerThemingParticipant((theme: ITheme, cssRules: string[]) => {
+	let matchHighlightColor = theme.getColor(editorFindMatchHighlight);
+	if (matchHighlightColor) {
+		cssRules.push(`.${theme.selector} .search-viewlet .findInFileMatch { background-color: ${matchHighlightColor}; }`);
+		cssRules.push(`.${theme.selector} .search-viewlet .highlight { background-color: ${matchHighlightColor}; }`);
 	}
+});
 
-	public contributeStyles(themeId: string, themeSettings: IThemeSetting[], cssRules: string[]): void {
-		const theme = new Theme(themeId, themeSettings);
-		if (theme.hasGlobalSettings()) {
-			const keys = Object.keys(theme.getGlobalSettings());
-			keys.filter(key => key.indexOf('ansi') === 0).forEach(key => {
-				if (key in TerminalStylesContribution.ansiColorMap) {
-					const color = theme.getGlobalSettings()[key];
-					const index = TerminalStylesContribution.ansiColorMap[key];
-					const rgba = this._convertHexCssColorToRgba(color, 0.996);
-					cssRules.push(`.${theme.getSelector()} .panel.integrated-terminal .xterm .xterm-color-${index} { color: ${color}; }`);
-					cssRules.push(`.${theme.getSelector()} .panel.integrated-terminal .xterm .xterm-color-${index}::selection { background-color: ${rgba}; }`);
-					cssRules.push(`.${theme.getSelector()} .panel.integrated-terminal .xterm .xterm-bg-color-${index} { background-color: ${color}; }`);
-					cssRules.push(`.${theme.getSelector()} .panel.integrated-terminal .xterm .xterm-bg-color-${index}::selection { color: ${color}; }`);
-				}
-			});
-		}
-	}
+
+const ansiColorMap = {
+	ansiBlack: 0,
+	ansiRed: 1,
+	ansiGreen: 2,
+	ansiYellow: 3,
+	ansiBlue: 4,
+	ansiMagenta: 5,
+	ansiCyan: 6,
+	ansiWhite: 7,
+	ansiBrightBlack: 8,
+	ansiBrightRed: 9,
+	ansiBrightGreen: 10,
+	ansiBrightYellow: 11,
+	ansiBrightBlue: 12,
+	ansiBrightMagenta: 13,
+	ansiBrightCyan: 14,
+	ansiBrightWhite: 15
+};
+const keyPrefix = 'terminal.';
+
+for (let key in ansiColorMap) {
+	let id = keyPrefix + key;
+	themingRegistry.registerColor(id, nls.localize('terminal.ansiColor', 'Color for terminal {0} color', key));
+	addSettingMapping(key, id);
 }
 
 
-abstract class EditorStyleRules extends StyleRules {
-
-	protected addBackgroundColorRule(theme: Theme, selector: string, color: string | Color, rules: string[]): void {
+themingRegistry.registerThemingParticipant((theme: ITheme, cssRules: string[]) => {
+	for (let key in ansiColorMap) {
+		const color = theme.getColor(keyPrefix + key);
 		if (color) {
-			color = color instanceof Color ? color : Color.fromHex(color);
-			rules.push(`.monaco-editor.${theme.getSelector()} ${selector} { background-color: ${color}; }`);
-		}
+			const index = ansiColorMap[key];
+			const rgba = color.transparent(0.996);
+			cssRules.push(`.${theme.selector} .panel.integrated-terminal .xterm .xterm-color-${index} { color: ${color}; }`);
+			cssRules.push(`.${theme.selector} .panel.integrated-terminal .xterm .xterm-color-${index}::selection { background-color: ${rgba}; }`);
+			cssRules.push(`.${theme.selector} .panel.integrated-terminal .xterm .xterm-bg-color-${index} { background-color: ${color}; }`);
+			cssRules.push(`.${theme.selector} .panel.integrated-terminal .xterm .xterm-bg-color-${index}::selection { color: ${color}; }`);
+		};
 	}
+});
 
-}
-
-class EditorBackgroundStyleRules extends EditorStyleRules {
-	public getCssRules(theme: Theme, cssRules: string[]): void {
-		let themeSelector = theme.getSelector();
-		if (theme.getGlobalSettings().background) {
-			let background = Color.fromHex(theme.getGlobalSettings().background);
-			this.addBackgroundColorRule(theme, '.monaco-editor-background', background, cssRules);
-			this.addBackgroundColorRule(theme, '.glyph-margin', background, cssRules);
-			cssRules.push(`.${themeSelector} .monaco-workbench .monaco-editor-background { background-color: ${background}; }`);
-		}
+function addBackgroundColorRule(theme: ITheme, selector: string, color: Color, rules: string[]): void {
+	if (color) {
+		rules.push(`.monaco-editor.${theme.selector} ${selector} { background-color: ${color}; }`);
 	}
 }
 
-class EditorHoverHighlightStyleRules extends EditorStyleRules {
-	public getCssRules(theme: Theme, cssRules: string[]): void {
-		this.addBackgroundColorRule(theme, '.hoverHighlight', theme.getGlobalSettings().hoverHighlight, cssRules);
+const editorBackground = 'editor.background';
+themingRegistry.registerColor(editorBackground, nls.localize('background', 'Editor background color'));
+addSettingMapping('background', editorBackground);
+
+themingRegistry.registerThemingParticipant((theme: ITheme, cssRules: string[]) => {
+	let background = theme.getColor(editorBackground);
+	if (background) {
+		addBackgroundColorRule(theme, '.monaco-editor-background', background, cssRules);
+		addBackgroundColorRule(theme, '.glyph-margin', background, cssRules);
+		cssRules.push(`.${theme.selector} .monaco-workbench .monaco-editor-background { background-color: ${background}; }`);
 	}
+});
+
+
+const editorHoverHighlight = 'editor.hoverHighlight';
+themingRegistry.registerColor(editorHoverHighlight, nls.localize('hoverHighlight', 'Background color of the editor hover'));
+addSettingMapping('hoverHighlight', editorHoverHighlight);
+
+themingRegistry.registerThemingParticipant((theme: ITheme, cssRules: string[]) => {
+	addBackgroundColorRule(theme, '.hoverHighlight', theme.getColor(editorHoverHighlight), cssRules);
+});
+
+const editorActiveLinkForeground = 'editor.activeLinkForeground';
+themingRegistry.registerColor(editorActiveLinkForeground, nls.localize('activeLinkForeground', 'Color of active links'));
+addSettingMapping('hoverHighlight', editorHoverHighlight);
+
+const editorLinkForeground = 'editor.linkForeground';
+themingRegistry.registerColor(editorLinkForeground, nls.localize('linkForeground', 'Color of links'));
+addSettingMapping('linkForeground', editorLinkForeground);
+
+themingRegistry.registerThemingParticipant((theme: ITheme, cssRules: string[]) => {
+	let activeLinkForeground = theme.getColor(editorActiveLinkForeground);
+	if (activeLinkForeground) {
+		cssRules.push(`.monaco-editor.${theme.selector} .detected-link-active { color: ${activeLinkForeground} !important; }`);
+		cssRules.push(`.monaco-editor.${theme.selector} .goto-definition-link { color: ${activeLinkForeground} !important; }`);
+	}
+	let linkForeground = theme.getColor(editorLinkForeground);
+	if (linkForeground) {
+		cssRules.push(`.monaco-editor.${theme.selector} .detected-link { color: ${linkForeground} !important; }`);
+	}
+});
+
+const editorSelection = 'editor.selection';
+themingRegistry.registerColor(editorSelection, nls.localize('selection', 'Color of the editor selection'));
+addSettingMapping('selection', editorSelection);
+
+const editorInactiveSelection = 'editor.inactiveSelection';
+themingRegistry.registerColor(editorInactiveSelection, nls.localize('inactiveSelection', 'Color of the inactive editor selection'));
+addSettingMapping('inactiveSelection', editorInactiveSelection);
+
+const editorSelectionHighlightColor = 'editor.selectionHighlightColor';
+themingRegistry.registerColor(editorSelectionHighlightColor, nls.localize('selectionHighlightColor', 'Background color of regions highlighted while selecting'));
+addSettingMapping('selectionHighlightColor', editorSelectionHighlightColor);
+
+themingRegistry.registerThemingParticipant((theme: ITheme, cssRules: string[]) => {
+	let selection = theme.getColor(editorSelection);
+	if (selection) {
+		addBackgroundColorRule(theme, '.focused .selected-text', selection, cssRules);
+	}
+
+	let inactiveSelection = theme.getColor(editorInactiveSelection);
+	if (inactiveSelection) {
+		addBackgroundColorRule(theme, '.selected-text', inactiveSelection, cssRules);
+	} else if (selection) {
+		addBackgroundColorRule(theme, '.selected-text', selection.transparent(0.5), cssRules);
+	}
+
+	let selectionHighlightColor = getSelectionHighlightColor(theme);
+	if (selectionHighlightColor) {
+		addBackgroundColorRule(theme, '.focused .selectionHighlight', selectionHighlightColor, cssRules);
+		addBackgroundColorRule(theme, '.selectionHighlight', selectionHighlightColor.transparent(0.5), cssRules);
+	}
+});
+
+function getSelectionHighlightColor(theme: ITheme) {
+	let selectionHighlight = theme.getColor(editorSelectionHighlightColor);
+	if (selectionHighlight) {
+		return selectionHighlight;
+	}
+
+	let selection = theme.getColor(editorSelection);
+	let background = theme.getColor(editorBackground);
+
+	if (selection && background) {
+		return deriveLessProminentColor(selection, background);
+	}
+
+	return null;
 }
 
-class EditorLinkStyleRules extends EditorStyleRules {
-	public getCssRules(theme: Theme, cssRules: string[]): void {
-		if (theme.getGlobalSettings().activeLinkForeground) {
-			cssRules.push(`.monaco-editor.${theme.getSelector()} .detected-link-active { color: ${Color.fromHex(theme.getGlobalSettings().activeLinkForeground)} !important; }`);
-			cssRules.push(`.monaco-editor.${theme.getSelector()} .goto-definition-link { color: ${Color.fromHex(theme.getGlobalSettings().activeLinkForeground)} !important; }`);
-		}
-		if (theme.getGlobalSettings().linkForeground) {
-			cssRules.push(`.monaco-editor.${theme.getSelector()} .detected-link { color: ${Color.fromHex(theme.getGlobalSettings().linkForeground)} !important; }`);
-		}
+const editorWordHighlight = 'editor.wordHighlight';
+themingRegistry.registerColor(editorWordHighlight, nls.localize('wordHighlight', 'Background color of a symbol during read-access, like reading a variable'));
+addSettingMapping('wordHighlight', editorWordHighlight);
+
+const editorWordHighlightString = 'editor.wordHighlightStrong';
+themingRegistry.registerColor(editorWordHighlightString, nls.localize('wordHighlightStrong', 'Background color of a symbol during write-access, like writing to a variable'));
+addSettingMapping('wordHighlightStrong', editorWordHighlightString);
+
+themingRegistry.registerThemingParticipant((theme: ITheme, cssRules: string[]) => {
+	addBackgroundColorRule(theme, '.wordHighlight', theme.getColor(editorWordHighlight), cssRules);
+	addBackgroundColorRule(theme, '.wordHighlightStrong', theme.getColor(editorWordHighlightString), cssRules);
+});
+
+const editorFindMatchHighlight = 'editor.findMatchHighlight';
+themingRegistry.registerColor(editorFindMatchHighlight, nls.localize('findMatchHighlight', 'Background color of regions matching the search'));
+addSettingMapping('findMatchHighlight', editorFindMatchHighlight);
+
+const editorCurrentFindMatchHighlight = 'editor.currentFindMatchHighlight';
+themingRegistry.registerColor(editorCurrentFindMatchHighlight, nls.localize('currentFindMatchHighlight', 'Background color of the current region matching the search'));
+addSettingMapping('currentFindMatchHighlight', editorCurrentFindMatchHighlight);
+
+const editorFindRangeHighlight = 'editor.findRangeHighlight';
+themingRegistry.registerColor(editorFindRangeHighlight, nls.localize('findRangeHighlight', 'Background color of regions selected for search'));
+addSettingMapping('findRangeHighlight', editorFindRangeHighlight);
+
+themingRegistry.registerThemingParticipant((theme: ITheme, cssRules: string[]) => {
+	addBackgroundColorRule(theme, '.findMatch', theme.getColor(editorFindMatchHighlight), cssRules);
+	addBackgroundColorRule(theme, '.currentFindMatch', theme.getColor(editorCurrentFindMatchHighlight), cssRules);
+	addBackgroundColorRule(theme, '.findScope', theme.getColor(editorFindRangeHighlight), cssRules);
+});
+
+const referencesFindMatchHighlight = 'references.findMatchHighlight';
+themingRegistry.registerColor(referencesFindMatchHighlight, nls.localize('referencesFindMatchHighlight', 'References view match highlight color'));
+addSettingMapping('findMatchHighlight', referencesFindMatchHighlight);
+
+const referencesReferenceHighlight = 'references.referenceHighlight';
+themingRegistry.registerColor(referencesReferenceHighlight, nls.localize('referencesReferenceHighlight', 'References range highlight color'));
+addSettingMapping('referenceHighlight', referencesReferenceHighlight);
+
+themingRegistry.registerThemingParticipant((theme: ITheme, cssRules: string[]) => {
+	addBackgroundColorRule(theme, '.reference-zone-widget .ref-tree .referenceMatch', theme.getColor(referencesFindMatchHighlight), cssRules);
+	addBackgroundColorRule(theme, '.reference-zone-widget .preview .reference-decoration', theme.getColor(referencesReferenceHighlight), cssRules);
+});
+
+
+const editorLineHighlight = 'editor.lineHighlight';
+themingRegistry.registerColor(editorLineHighlight, nls.localize('lineHighlight', 'Editor line highlight color'));
+addSettingMapping('lineHighlight', editorLineHighlight);
+
+const editorRangeHighlight = 'editor.rangeHighlight';
+themingRegistry.registerColor(editorRangeHighlight, nls.localize('rangeHighlight', 'Background color of range highlighted, like by Quick open and Find features'));
+addSettingMapping('rangeHighlight', editorRangeHighlight);
+
+themingRegistry.registerThemingParticipant((theme: ITheme, cssRules: string[]) => {
+	let lineHighlight = theme.getColor(editorLineHighlight);
+	if (lineHighlight) {
+		cssRules.push(`.monaco-editor.${theme.selector} .view-overlays .current-line { background-color: ${lineHighlight}; border: none; }`);
+		cssRules.push(`.monaco-editor.${theme.selector} .margin-view-overlays .current-line-margin { background-color: ${lineHighlight}; border: none; }`);
 	}
-}
+	addBackgroundColorRule(theme, '.rangeHighlight', theme.getColor(editorRangeHighlight), cssRules);
+});
 
-class EditorSelectionStyleRules extends EditorStyleRules {
-	public getCssRules(theme: Theme, cssRules: string[]): void {
-		if (theme.getGlobalSettings().selection) {
-			this.addBackgroundColorRule(theme, '.focused .selected-text', theme.getGlobalSettings().selection, cssRules);
-		}
+const editorCursor = 'editor.cursor';
+themingRegistry.registerColor(editorCursor, nls.localize('caret', 'Editor cursor color'));
+addSettingMapping('caret', editorCursor);
 
-		if (theme.getGlobalSettings().inactiveSelection) {
-			this.addBackgroundColorRule(theme, '.selected-text', theme.getGlobalSettings().inactiveSelection, cssRules);
-		} else if (theme.getGlobalSettings().selection) {
-			let selection = Color.fromHex(theme.getGlobalSettings().selection);
-			this.addBackgroundColorRule(theme, '.selected-text', selection.transparent(0.5), cssRules);
-		}
-
-		let selectionHighlightColor = this.getSelectionHighlightColor(theme);
-		if (selectionHighlightColor) {
-			this.addBackgroundColorRule(theme, '.focused .selectionHighlight', selectionHighlightColor, cssRules);
-			this.addBackgroundColorRule(theme, '.selectionHighlight', selectionHighlightColor.transparent(0.5), cssRules);
-		}
+themingRegistry.registerThemingParticipant((theme: ITheme, cssRules: string[]) => {
+	let caret = theme.getColor(editorCursor);
+	if (caret) {
+		let oppositeCaret = caret.opposite();
+		cssRules.push(`.monaco-editor.${theme.selector} .cursor { background-color: ${caret}; border-color: ${caret}; color: ${oppositeCaret}; }`);
 	}
+});
 
-	private getSelectionHighlightColor(theme: Theme) {
-		if (theme.getGlobalSettings().selectionHighlight) {
-			return Color.fromHex(theme.getGlobalSettings().selectionHighlight);
-		}
+const editorInvisibles = 'editor.invisibles';
+themingRegistry.registerColor(editorInvisibles, nls.localize('invisibles', 'Editor invisibles color'));
+addSettingMapping('invisibles', editorInvisibles);
 
-		if (theme.getGlobalSettings().selection && theme.getGlobalSettings().background) {
-			let selection = Color.fromHex(theme.getGlobalSettings().selection);
-			let background = Color.fromHex(theme.getGlobalSettings().background);
-			return deriveLessProminentColor(selection, background);
-		}
-
-		return null;
+themingRegistry.registerThemingParticipant((theme: ITheme, cssRules: string[]) => {
+	let invisibles = theme.getColor(editorInvisibles);
+	if (invisibles) {
+		cssRules.push(`.vs-whitespace { color: ${invisibles} !important; }`);
 	}
-}
+});
 
-class EditorWordHighlightStyleRules extends EditorStyleRules {
-	public getCssRules(theme: Theme, cssRules: string[]): void {
-		this.addBackgroundColorRule(theme, '.wordHighlight', theme.getGlobalSettings().wordHighlight, cssRules);
-		this.addBackgroundColorRule(theme, '.wordHighlightStrong', theme.getGlobalSettings().wordHighlightStrong, cssRules);
-	}
-}
+const editorGuide = 'editor.guide';
+themingRegistry.registerColor(editorGuide, nls.localize('guide', 'Editor guide color'));
+addSettingMapping('guide', editorGuide);
 
-class EditorFindStyleRules extends EditorStyleRules {
-	public getCssRules(theme: Theme, cssRules: string[]): void {
-		this.addBackgroundColorRule(theme, '.findMatch', theme.getGlobalSettings().findMatchHighlight, cssRules);
-		this.addBackgroundColorRule(theme, '.currentFindMatch', theme.getGlobalSettings().currentFindMatchHighlight, cssRules);
-		this.addBackgroundColorRule(theme, '.findScope', theme.getGlobalSettings().findRangeHighlight, cssRules);
+themingRegistry.registerThemingParticipant((theme: ITheme, cssRules: string[]) => {
+	let color = theme.getColor(editorGuide);
+	if (!color) {
+		color = theme.getColor(editorInvisibles);
 	}
-}
-
-class EditorReferenceSearchStyleRules extends EditorStyleRules {
-	public getCssRules(theme: Theme, cssRules: string[]): void {
-		this.addBackgroundColorRule(theme, '.reference-zone-widget .ref-tree .referenceMatch', theme.getGlobalSettings().findMatchHighlight, cssRules);
-		this.addBackgroundColorRule(theme, '.reference-zone-widget .preview .reference-decoration', theme.getGlobalSettings().referenceHighlight, cssRules);
+	if (color !== null) {
+		cssRules.push(`.monaco-editor.${theme.selector} .lines-content .cigr { background: ${color}; }`);
 	}
-}
-
-class EditorLineHighlightStyleRules extends EditorStyleRules {
-	public getCssRules(theme: Theme, cssRules: string[]): void {
-		if (theme.getGlobalSettings().lineHighlight) {
-			cssRules.push(`.monaco-editor.${theme.getSelector()} .view-overlays .current-line { background-color: ${Color.fromHex(theme.getGlobalSettings().lineHighlight)}; border: none; }`);
-			cssRules.push(`.monaco-editor.${theme.getSelector()} .margin-view-overlays .current-line-margin { background-color: ${Color.fromHex(theme.getGlobalSettings().lineHighlight)}; border: none; }`);
-		}
-		this.addBackgroundColorRule(theme, '.rangeHighlight', theme.getGlobalSettings().rangeHighlight, cssRules);
-	}
-}
-
-class EditorCursorStyleRules extends EditorStyleRules {
-	public getCssRules(theme: Theme, cssRules: string[]): void {
-		let themeSelector = theme.getSelector();
-		if (theme.getGlobalSettings().caret) {
-			let caret = Color.fromHex(theme.getGlobalSettings().caret);
-			let oppositeCaret = caret.opposite();
-			cssRules.push(`.monaco-editor.${themeSelector} .cursor { background-color: ${caret}; border-color: ${caret}; color: ${oppositeCaret}; }`);
-		}
-	}
-}
-
-class EditorWhiteSpaceStyleRules extends EditorStyleRules {
-	public getCssRules(theme: Theme, cssRules: string[]): void {
-		if (theme.getGlobalSettings().invisibles) {
-			let invisibles = Color.fromHex(theme.getGlobalSettings().invisibles);
-			cssRules.push(`.vs-whitespace { color: ${invisibles} !important; }`);
-		}
-	}
-}
-
-class EditorIndentGuidesStyleRules extends EditorStyleRules {
-	public getCssRules(theme: Theme, cssRules: string[]): void {
-		let themeSelector = theme.getSelector();
-		let color = this.getColor(theme.getGlobalSettings());
-		if (color !== null) {
-			cssRules.push(`.monaco-editor.${themeSelector} .lines-content .cigr { background: ${color}; }`);
-		}
-	}
-
-	private getColor(theme: ThemeGlobalSettings): Color {
-		if (theme.guide) {
-			return Color.fromHex(theme.guide);
-		}
-		if (theme.invisibles) {
-			return Color.fromHex(theme.invisibles);
-		}
-		return null;
-	}
-}
+});
 
 function deriveLessProminentColor(from: Color, backgroundColor: Color): Color {
 	let contrast = from.getContrast(backgroundColor);
