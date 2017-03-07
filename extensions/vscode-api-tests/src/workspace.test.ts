@@ -100,6 +100,15 @@ suite('workspace-namespace', () => {
 		});
 	});
 
+	test('openTextDocument, untitled without path but language ID and contents', function () {
+		return workspace.openTextDocument({ language: 'html', contents: '<h1>Hello world!</h1>' }).then(doc => {
+			assert.equal(doc.uri.scheme, 'untitled');
+			assert.equal(doc.languageId, 'html');
+			assert.ok(doc.isDirty);
+			assert.equal(doc.getText(), '<h1>Hello world!</h1>');
+		});
+	});
+
 	test('openTextDocument, untitled closes on save', function (done) {
 		const path = join(workspace.rootPath || '', './newfile.txt');
 

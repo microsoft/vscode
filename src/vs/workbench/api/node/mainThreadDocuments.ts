@@ -228,8 +228,8 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 		});
 	}
 
-	$tryCreateDocument(options?: { language: string }): TPromise<URI> {
-		return this._doCreateUntitled(void 0, options ? options.language : void 0);
+	$tryCreateDocument(options?: { language?: string, contents?: string }): TPromise<URI> {
+		return this._doCreateUntitled(void 0, options ? options.language : void 0, options ? options.contents : void 0);
 	}
 
 	private _handleAsResourceInput(uri: URI): TPromise<boolean> {
@@ -252,8 +252,8 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 		}, err => this._doCreateUntitled(asFileUri).then(resource => !!resource));
 	}
 
-	private _doCreateUntitled(uri?: URI, modeId?: string): TPromise<URI> {
-		let input = this._untitledEditorService.createOrGet(uri, modeId);
+	private _doCreateUntitled(uri?: URI, modeId?: string, initialValue?: string): TPromise<URI> {
+		let input = this._untitledEditorService.createOrGet(uri, modeId, initialValue);
 		return input.resolve(true).then(model => {
 			if (!this._modelIsSynced[input.getResource().toString()]) {
 				throw new Error(`expected URI ${input.getResource().toString()} to have come to LIFE`);
