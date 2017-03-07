@@ -10,6 +10,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { BrowserWindow, ipcMain } from 'electron';
+import { PromiseSource } from 'vs/base/common/async';
 
 export class SharedProcess {
 
@@ -64,13 +65,21 @@ export class SharedProcess {
 		});
 	}
 
+	private spawnPromiseSource: PromiseSource<void>;
+
 	constructor(
 		private environmentService: IEnvironmentService,
 		private userEnv: IProcessEnvironment
-	) { }
+	) {
+		this.spawnPromiseSource = new PromiseSource<void>();
+	}
+
+	spawn(): void {
+		this.spawnPromiseSource.complete();
+	}
 
 	whenReady(): TPromise<void> {
-		return this._whenReady;
+		return this.spawnPromiseSource.value.then(() => this._whenReady);
 	}
 
 	toggle(): void {
