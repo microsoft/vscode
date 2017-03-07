@@ -691,10 +691,6 @@ export class TerminalInstance implements ITerminalInstance {
 		if (this._xterm) {
 			this._xterm.resize(this._cols, this._rows);
 			this._xterm.element.style.width = terminalWidth + 'px';
-			// console.log(this._xterm.element.querySelector('.xterm-rows'));
-			// const rowsElement = this._xterm.element.querySelector('.xterm-rows');
-			// console.log(rowsElement.getBoundingClientRect());
-			// this._widgetManager.layout(rowsElement.getBoundingClientRect().height);
 		}
 		if (this._process.connected) {
 			this._process.send({

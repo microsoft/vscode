@@ -69,9 +69,6 @@ export class TerminalLinkHandler {
 			// Require ctrl/cmd on click
 			if (this._platform === Platform.Mac ? !event.metaKey : !event.ctrlKey) {
 				const link = <HTMLElement>event.target;
-				console.log(link.offsetParent);
-				console.log(link.offsetTop);
-				console.log(link.clientTop);
 				this._instance.showMessage(link.offsetLeft, link.offsetTop, 'Hold ctrl and click to follow link');
 				event.preventDefault();
 				return false;
