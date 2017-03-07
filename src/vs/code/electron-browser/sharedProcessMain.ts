@@ -36,6 +36,7 @@ import { ActiveWindowManager } from 'vs/code/common/windows';
 import { ipcRenderer } from 'electron';
 
 interface ISharedProcessInitData {
+	sharedIPCHandle: string;
 	args: ParsedArgs;
 }
 
@@ -142,13 +143,17 @@ function setupIPC(hook: string): TPromise<Server> {
 	return setup(true);
 }
 
-function handshake(): TPromise<ISharedProcessInitData> {
+function startHandshake(): TPromise<ISharedProcessInitData> {
 	return new TPromise<ISharedProcessInitData>((c, e) => {
-		ipcRenderer.once('handshake', (_, r) => c(r));
-		ipcRenderer.send('handshake');
+		ipcRenderer.once('handshake:hey there', (_, r) => c(r));
+		ipcRenderer.send('handshake:hello');
 	});
 }
 
-setupIPC(process.env['VSCODE_SHARED_IPC_HOOK'])
-	.then(server => handshake()
-		.then(data => main(server, data)));
+function handshake(): TPromise<void> {
+	return startHandshake()
+		.then((data) => setupIPC(data.sharedIPCHandle).then(server => main(server, data)))
+		.then(() => ipcRenderer.send('handshake:im ready'));
+}
+
+handshake();

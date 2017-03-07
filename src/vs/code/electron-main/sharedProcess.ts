@@ -6,13 +6,10 @@
 import { assign } from 'vs/base/common/objects';
 import { memoize } from 'vs/base/common/decorators';
 import { IDisposable, toDisposable, dispose } from 'vs/base/common/lifecycle';
-import { ParsedArgs } from 'vs/platform/environment/common/environment';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { IProcessEnvironment } from 'vs/base/common/platform';
 import { BrowserWindow, ipcMain } from 'electron';
-
-export interface ISharedProcessInitData {
-	args: ParsedArgs;
-}
 
 export class SharedProcess {
 
@@ -22,7 +19,11 @@ export class SharedProcess {
 	@memoize
 	get onReady(): TPromise<void> {
 		this.window = new BrowserWindow({ show: false });
-		const config = assign({ appRoot: this.appRoot, nodeCachedDataDir: this.nodeCachedDataDir });
+		const config = assign({
+			appRoot: this.environmentService.appRoot,
+			nodeCachedDataDir: this.environmentService.nodeCachedDataDir,
+			userEnv: this.userEnv
+		});
 
 		const url = `${require.toUrl('vs/code/electron-browser/sharedProcess.html')}?config=${encodeURIComponent(JSON.stringify(config))}`;
 		this.window.loadURL(url);
@@ -47,17 +48,20 @@ export class SharedProcess {
 		}));
 
 		return new TPromise<void>((c, e) => {
-			ipcMain.once('handshake', ({ sender }) => {
-				sender.send('handshake', this.initData);
-				c(null);
+			ipcMain.once('handshake:hello', ({ sender }) => {
+				sender.send('handshake:hey there', {
+					sharedIPCHandle: this.environmentService.sharedIPCHandle,
+					args: this.environmentService.args
+				});
+
+				sender.once('handshake:im ready', () => c(null));
 			});
 		});
 	}
 
 	constructor(
-		private initData: ISharedProcessInitData,
-		private appRoot: string,
-		private nodeCachedDataDir: string
+		private environmentService: IEnvironmentService,
+		private userEnv: IProcessEnvironment
 	) { }
 
 	toggle(): void {

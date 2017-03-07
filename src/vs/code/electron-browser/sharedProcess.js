@@ -51,6 +51,9 @@ function main() {
 	const args = parseURLQueryArgs();
 	const configuration = JSON.parse(args['config'] || '{}') || {};
 
+	// Correctly inherit the parent's environment
+	assign(process.env, configuration.userEnv);
+
 	// Get the nls configuration into the process.env as early as possible.
 	var nlsConfig = { availableLanguages: {} };
 	const config = process.env['VSCODE_NLS_CONFIG'];

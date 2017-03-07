@@ -142,9 +142,7 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 	const electronIpcServer = new ElectronIPCServer();
 
 	// Spawn shared process
-	const initData = { args: environmentService.args };
-
-	const sharedProcess = new SharedProcess(initData, environmentService.appRoot, environmentService.nodeCachedDataDir);
+	const sharedProcess = new SharedProcess(environmentService, userEnv);
 	const sharedProcessClient = sharedProcess.onReady
 		.then(() => connect(environmentService.sharedIPCHandle, 'main'));
 
@@ -395,7 +393,6 @@ function start(): void {
 		const instanceEnv: typeof process.env = {
 			VSCODE_PID: String(process.pid),
 			VSCODE_IPC_HOOK: environmentService.mainIPCHandle,
-			VSCODE_SHARED_IPC_HOOK: environmentService.sharedIPCHandle,
 			VSCODE_NLS_CONFIG: process.env['VSCODE_NLS_CONFIG']
 		};
 
