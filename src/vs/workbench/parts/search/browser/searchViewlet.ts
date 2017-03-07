@@ -668,7 +668,7 @@ export class SearchViewlet extends Viewlet {
 		if (visible && !this.editorService.getActiveEditor()) {
 			let focus = this.tree.getFocus();
 			if (focus) {
-				this.onFocus(focus);
+				this.onFocus(focus, true);
 			}
 		}
 

@@ -917,11 +917,15 @@ export class TestWindowsService implements IWindowsService {
 	quit(): TPromise<void> {
 		return TPromise.as(void 0);
 	}
-
 	relaunch(options: { addArgs?: string[], removeArgs?: string[] }): TPromise<void> {
 		return TPromise.as(void 0);
 	}
-
+	whenSharedProcessReady(): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+	toggleSharedProcess(): TPromise<void> {
+		return TPromise.as(void 0);
+	}
 	// Global methods
 	openWindow(paths: string[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean }): TPromise<void> {
 		return TPromise.as(void 0);

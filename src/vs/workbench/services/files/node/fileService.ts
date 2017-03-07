@@ -621,26 +621,9 @@ export class FileService implements IFileService {
 
 						// Find out if content length has changed
 						if (options.etag !== etag(stat.size, options.mtime)) {
-
-							// TODO@Ben remove me once https://github.com/Microsoft/vscode/issues/13665 is resolved
-							let payload: any;
-							if (this.options.verboseLogging) {
-								const contents = fs.readFileSync(absolutePath);
-								const value = contents.toString();
-
-								payload = {
-									diskByteLength: contents.length,
-									diskValueLength: value.length,
-									diskValue: value,
-									options,
-									stat
-								};
-							}
-
 							return TPromise.wrapError(<IFileOperationResult>{
 								message: 'File Modified Since',
-								fileOperationResult: FileOperationResult.FILE_MODIFIED_SINCE,
-								payload
+								fileOperationResult: FileOperationResult.FILE_MODIFIED_SINCE
 							});
 						}
 					}

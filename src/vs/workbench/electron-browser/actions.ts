@@ -905,3 +905,17 @@ export class OpenIntroductoryVideosUrlAction extends Action {
 		return null;
 	}
 }
+
+export class ToggleSharedProcessAction extends Action {
+
+	static ID = 'workbench.action.toggleSharedProcess';
+	static LABEL = nls.localize('toggleSharedProcess', "Toggle Shared Process");
+
+	constructor(id: string, label: string, @IWindowsService private windowsService: IWindowsService) {
+		super(id, label);
+	}
+
+	run(): TPromise<void> {
+		return this.windowsService.toggleSharedProcess();
+	}
+}

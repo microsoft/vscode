@@ -448,8 +448,10 @@ export class Thread implements debug.IThread {
 				if (!rsf) {
 					return new StackFrame(this, 0, new Source({ name: UNKNOWN_SOURCE_LABEL }, true), nls.localize('unknownStack', "Unknown stack location"), null, null);
 				}
+				const source = rsf.source ? new Source(rsf.source, rsf.source.presentationHint === 'deemphasize') : new Source({ name: UNKNOWN_SOURCE_LABEL }, true);
+				this.process.sources.set(source.uri, source);
 
-				return new StackFrame(this, rsf.id, rsf.source ? new Source(rsf.source, rsf.source.presentationHint === 'deemphasize') : new Source({ name: UNKNOWN_SOURCE_LABEL }, true), rsf.name, rsf.line, rsf.column);
+				return new StackFrame(this, rsf.id, source, rsf.name, rsf.line, rsf.column);
 			});
 		}, (err: Error) => {
 			if (this.stoppedDetails) {
@@ -492,9 +494,11 @@ export class Thread implements debug.IThread {
 export class Process implements debug.IProcess {
 
 	private threads: Map<number, Thread>;
+	public sources: Map<uri, Source>;
 
 	constructor(public configuration: debug.IConfig, private _session: debug.ISession & debug.ITreeElement) {
 		this.threads = new Map<number, Thread>();
+		this.sources = new Map<uri, Source>();
 	}
 
 	public get session(): debug.ISession {

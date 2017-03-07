@@ -12,9 +12,7 @@ import * as types from 'vs/base/common/types';
 import { IThemeExtensionPoint } from 'vs/platform/theme/common/themeExtensionPoint';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/platform/extensions/common/extensionsRegistry';
-import { IThemeService, IThemeSetting, IColorTheme, IFileIconTheme, VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME, COLOR_THEME_SETTING, ICON_THEME_SETTING } from 'vs/workbench/services/themes/common/themeService';
-import { EditorStylesContribution, SearchViewStylesContribution, TerminalStylesContribution } from 'vs/workbench/services/themes/electron-browser/stylesContributions';
-import { getBaseThemeId, getSyntaxThemeId, isDarkTheme, isLightTheme } from 'vs/platform/theme/common/themes';
+import { IThemeService, IColorTheme, IFileIconTheme, ExtensionData, VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME, COLOR_THEME_SETTING, ICON_THEME_SETTING } from 'vs/workbench/services/themes/common/themeService';
 import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -25,12 +23,17 @@ import errors = require('vs/base/common/errors');
 import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-
+import { IFileService } from 'vs/platform/files/common/files';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IMessageService } from 'vs/platform/message/common/message';
+import Severity from 'vs/base/common/severity';
+import URI from 'vs/base/common/uri';
+import { Extensions } from 'vs/platform/theme/common/themingRegistry';
+import { ColorThemeData } from './colorThemeData';
 
 import { $ } from 'vs/base/browser/builder';
 import Event, { Emitter } from 'vs/base/common/event';
 
-import * as plist from 'fast-plist';
 import pfs = require('vs/base/node/pfs');
 
 // implementation
@@ -38,7 +41,7 @@ import pfs = require('vs/base/node/pfs');
 const DEFAULT_THEME_ID = 'vs-dark vscode-theme-defaults-themes-dark_plus-json';
 const DEFAULT_THEME_SETTING_VALUE = 'Default Dark+';
 
-const defaultBaseTheme = getBaseThemeId(DEFAULT_THEME_ID);
+const defaultBaseTheme = 'vs-dark';
 
 const defaultThemeExtensionId = 'vscode-theme-defaults';
 const oldDefaultThemeExtensionId = 'vscode-theme-colorful-defaults';
@@ -109,33 +112,7 @@ let iconThemeExtPoint = ExtensionsRegistry.registerExtensionPoint<IThemeExtensio
 	}
 });
 
-class ColorThemeData implements IColorTheme {
-	id: string;
-	label: string;
-	settingsId: string;
-	description?: string;
-	settings?: IThemeSetting[];
-	isLoaded: boolean;
-	path?: string;
-	styleSheetContent?: string;
-	extensionData: ExtensionData;
 
-	isLightTheme() {
-		return isLightTheme(this.id);
-	}
-
-	isDarkTheme() {
-		return isDarkTheme(this.id);
-	}
-
-	getSyntaxThemeId() {
-		return getSyntaxThemeId(this.id);
-	}
-
-	getBaseThemeId() {
-		return getBaseThemeId(this.id);
-	}
-}
 
 interface IInternalIconThemeData extends IFileIconTheme {
 	id: string;
@@ -184,42 +161,17 @@ interface IconThemeDocument extends IconsAssociation {
 	highContrast?: IconsAssociation;
 }
 
-interface ExtensionData {
-	extensionId: string;
-	extensionPublisher: string;
-	extensionName: string;
-	extensionIsBuiltin: boolean;
-}
-
 const noFileIconTheme: IFileIconTheme = {
 	id: '',
 	label: '',
 	settingsId: null,
 	hasFileIcons: false,
 	hasFolderIcons: false,
-	isLoaded: true
+	isLoaded: true,
+	extensionData: null
 };
 
-let defaultThemeColors: { [baseTheme: string]: IThemeSetting[] } = {
-	'vs': [
-		{ scope: 'token.info-token', settings: { foreground: '#316bcd' } },
-		{ scope: 'token.warn-token', settings: { foreground: '#cd9731' } },
-		{ scope: 'token.error-token', settings: { foreground: '#cd3131' } },
-		{ scope: 'token.debug-token', settings: { foreground: 'purple' } }
-	],
-	'vs-dark': [
-		{ scope: 'token.info-token', settings: { foreground: '#6796e6' } },
-		{ scope: 'token.warn-token', settings: { foreground: '#cd9731' } },
-		{ scope: 'token.error-token', settings: { foreground: '#f44747' } },
-		{ scope: 'token.debug-token', settings: { foreground: '#b267e6' } }
-	],
-	'hc-black': [
-		{ scope: 'token.info-token', settings: { foreground: '#6796e6' } },
-		{ scope: 'token.warn-token', settings: { foreground: '#008000' } },
-		{ scope: 'token.error-token', settings: { foreground: '#FF0000' } },
-		{ scope: 'token.debug-token', settings: { foreground: '#b267e6' } }
-	],
-};
+
 
 export class ThemeService implements IThemeService {
 	_serviceBrand: any;
@@ -240,6 +192,9 @@ export class ThemeService implements IThemeService {
 		@IWindowIPCService private windowService: IWindowIPCService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService,
+		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IFileService private fileService: IFileService,
+		@IMessageService private messageService: IMessageService,
 		@ITelemetryService private telemetryService: ITelemetryService) {
 
 		this.container = container;
@@ -257,7 +212,7 @@ export class ThemeService implements IThemeService {
 		initialTheme.label = '';
 		initialTheme.settingsId = null;
 		initialTheme.isLoaded = false;
-		initialTheme.settings = [{
+		initialTheme.tokenColors = [{
 			settings: {
 				foreground: foreground,
 				background: background
@@ -273,7 +228,8 @@ export class ThemeService implements IThemeService {
 			settingsId: null,
 			isLoaded: false,
 			hasFileIcons: false,
-			hasFolderIcons: false
+			hasFolderIcons: false,
+			extensionData: null
 		};
 		this.onFileIconThemeChange = new Emitter<IFileIconTheme>();
 
@@ -316,25 +272,49 @@ export class ThemeService implements IThemeService {
 		return this.onFileIconThemeChange.event;
 	}
 
+	private backupSettings(): TPromise<string> {
+		let resource = URI.file(this.environmentService.appSettingsPath);
+		let backupFileLocation = URI.file(resource.fsPath + '-' + new Date().getTime() + '.backup');
+		return this.fileService.copyFile(resource, backupFileLocation, true).then(_ => backupFileLocation.fsPath, err => {
+			if (err && err.code === 'ENOENT') {
+				return TPromise.as(null); // ignore, user config file doesn't exist yet
+			}
+			return TPromise.wrapError(err);
+		});
+	}
+
 	private migrate(): TPromise<any> {
-		let promises = [];
 		let legacyColorThemeId = this.storageService.get('workbench.theme', StorageScope.GLOBAL, void 0);
-		if (!types.isUndefined(legacyColorThemeId)) {
-			this.storageService.remove('workbench.theme', StorageScope.GLOBAL);
-			promises.push(this.findThemeData(legacyColorThemeId, DEFAULT_THEME_ID).then(theme => {
-				let value = theme ? theme.settingsId : DEFAULT_THEME_SETTING_VALUE;
-				return this.writeConfiguration(COLOR_THEME_SETTING, value, ConfigurationTarget.USER).then(null, error => null);
-			}));
-		}
 		let legacyIconThemeId = this.storageService.get('workbench.iconTheme', StorageScope.GLOBAL, void 0);
-		if (!types.isUndefined(legacyIconThemeId)) {
-			this.storageService.remove('workbench.iconTheme', StorageScope.GLOBAL);
-			promises.push(this._findIconThemeData(legacyIconThemeId).then(theme => {
-				let value = theme ? theme.settingsId : null;
-				return this.writeConfiguration(ICON_THEME_SETTING, value, ConfigurationTarget.USER).then(null, error => null);
-			}));
+		if (types.isUndefined(legacyColorThemeId) && types.isUndefined(legacyIconThemeId)) {
+			return TPromise.as(null);
 		}
-		return TPromise.join(promises);
+		return this.backupSettings().then(backupLocation => {
+			let promise = TPromise.as(null);
+			if (!types.isUndefined(legacyColorThemeId)) {
+				this.storageService.remove('workbench.theme', StorageScope.GLOBAL);
+				promise = this.findThemeData(legacyColorThemeId, DEFAULT_THEME_ID).then(theme => {
+					let value = theme ? theme.settingsId : DEFAULT_THEME_SETTING_VALUE;
+					return this.writeConfiguration(COLOR_THEME_SETTING, value, ConfigurationTarget.USER).then(null, error => null);
+				});
+			}
+			if (!types.isUndefined(legacyIconThemeId)) {
+				this.storageService.remove('workbench.iconTheme', StorageScope.GLOBAL);
+				promise = promise.then(_ => {
+					return this._findIconThemeData(legacyIconThemeId).then(theme => {
+						let value = theme ? theme.settingsId : null;
+						return this.writeConfiguration(ICON_THEME_SETTING, value, ConfigurationTarget.USER).then(null, error => null);
+					});
+				});
+			}
+			return promise.then(_ => {
+				if (backupLocation) {
+					let message = nls.localize('migration.completed', 'New theme settings have been added to the user settings. Backup available at {0}.', backupLocation);
+					this.messageService.show(Severity.Info, message);
+					console.log(message);
+				}
+			});
+		});
 	}
 
 	private initialize(): TPromise<any> {
@@ -620,6 +600,9 @@ export class ThemeService implements IThemeService {
 			if (value === settings.user) {
 				return TPromise.as(null); // nothing to do
 			} else if (value === settings.default) {
+				if (types.isUndefined(settings.user)) {
+					return TPromise.as(null); // nothing to do
+				}
 				value = void 0; // remove configuration from user settings
 			}
 		} else if (settingsTarget === ConfigurationTarget.WORKSPACE) {
@@ -845,68 +828,14 @@ function toCSSSelector(str: string) {
 }
 
 function applyTheme(theme: ColorThemeData, onApply: (theme: ColorThemeData) => TPromise<IColorTheme>): TPromise<IColorTheme> {
-	if (theme.styleSheetContent) {
+	return theme.ensureLoaded().then(_ => {
 		_applyRules(theme.styleSheetContent, colorThemeRulesClassName);
-		return TPromise.as(onApply(theme));
-	}
-	return _loadThemeDocument(getBaseThemeId(theme.id), theme.path).then(themeSettings => {
-		theme.settings = themeSettings;
-		let styleSheetContent = _processThemeObject(theme.id, themeSettings);
-		theme.styleSheetContent = styleSheetContent;
-		theme.isLoaded = true;
-		_applyRules(styleSheetContent, colorThemeRulesClassName);
 		return onApply(theme);
 	}, error => {
 		return TPromise.wrapError(nls.localize('error.cannotloadtheme', "Unable to load {0}", theme.path));
 	});
 }
 
-function _loadThemeDocument(baseTheme: string, themePath: string): TPromise<IThemeSetting[]> {
-	return pfs.readFile(themePath).then(content => {
-		let allSettings = defaultThemeColors[baseTheme] || [];
-		if (Paths.extname(themePath) === '.json') {
-			let errors: Json.ParseError[] = [];
-			let contentValue = Json.parse(content.toString(), errors);
-			if (errors.length > 0) {
-				return TPromise.wrapError(new Error(nls.localize('error.cannotparsejson', "Problems parsing JSON theme file: {0}", errors.map(e => Json.getParseErrorMessage(e.error)).join(', '))));
-			}
-			if (!Array.isArray(contentValue.settings)) {
-				return TPromise.wrapError(new Error(nls.localize({ key: 'error.invalidformat', comment: ['{0} will be replaced by a path. "settings" must not be translated.'] }, "Problem parsing JSON theme file: {0}. 'settings' is not array.")));
-			}
-			allSettings = allSettings.concat(contentValue.settings); // will clone
-			if (contentValue.include) {
-				return _loadThemeDocument(baseTheme, Paths.join(Paths.dirname(themePath), contentValue.include)).then(settings => {
-					allSettings = settings.concat(allSettings);
-					return TPromise.as(allSettings);
-				});
-			}
-			return TPromise.as(allSettings);
-		}
-		try {
-			let contentValue = plist.parse(content.toString());
-			let settings: IThemeSetting[] = contentValue.settings;
-			if (!Array.isArray(settings)) {
-				return TPromise.wrapError(new Error(nls.localize('error.plist.invalidformat', "Problem parsing theme file: {0}. 'settings' is not array.")));
-			}
-			allSettings = allSettings.concat(settings); // will clone
-			return TPromise.as(allSettings);
-		} catch (e) {
-			return TPromise.wrapError(new Error(nls.localize('error.cannotparse', "Problems parsing theme file: {0}", e.message)));
-		}
-	});
-}
-
-function _processThemeObject(themeId: string, themeSettings: IThemeSetting[]): string {
-	let cssRules: string[] = [];
-
-	if (Array.isArray(themeSettings)) {
-		new EditorStylesContribution().contributeStyles(themeId, themeSettings, cssRules);
-		new SearchViewStylesContribution().contributeStyles(themeId, themeSettings, cssRules);
-		new TerminalStylesContribution().contributeStyles(themeId, themeSettings, cssRules);
-	}
-
-	return cssRules.join('\n');
-}
 
 let colorThemeRulesClassName = 'contributedColorTheme';
 let iconThemeRulesClassName = 'contributedIconTheme';

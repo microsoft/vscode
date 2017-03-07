@@ -317,17 +317,12 @@ setExtractKeyCode((e: KeyboardEvent) => {
 		return KeyCodeUtils.fromString(char);
 	}
 
-	if (Platform.isMacintosh && _b24_interestingVirtualKeyCodes[e.keyCode] && typeof (<any>e).keyIdentifier === 'string') {
-		let keyIdentifier: string = (<any>e).keyIdentifier;
-		let strCharCode = keyIdentifier.substr(2);
+	if (Platform.isMacintosh && _b24_interestingVirtualKeyCodes[e.keyCode] && typeof e.key === 'string') {
 		try {
-			let charCode = parseInt(strCharCode, 16);
-			let char = String.fromCharCode(charCode);
 			let unfixMap = _b24_getActualKeyCodeMap();
-			if (unfixMap[char]) {
-				return unfixMap[char];
+			if (unfixMap[e.key]) {
+				return unfixMap[e.key];
 			}
-			// console.log(keyIdentifier + ' => ' + char);
 		} catch (err) {
 		}
 	}

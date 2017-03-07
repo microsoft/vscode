@@ -210,32 +210,6 @@ suite('Files - TextFileEditorModel', () => {
 		}, error => onError(error, done));
 	});
 
-	test('Conflict Resolution Mode', function (done) {
-		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8');
-
-		model.load().done(() => {
-			model.setConflictResolutionMode();
-			model.textEditorModel.setValue('foo');
-
-			assert.ok(model.isDirty());
-			assert.equal(model.getState(), ModelState.CONFLICT);
-			assert.ok(model.isInConflictResolutionMode());
-
-			return model.revert().then(() => {
-				model.textEditorModel.setValue('bar');
-				assert.ok(model.isDirty());
-
-				return model.save().then(() => {
-					assert.ok(!model.isDirty());
-
-					model.dispose();
-
-					done();
-				});
-			});
-		}, error => onError(error, done));
-	});
-
 	test('Auto Save triggered when model changes', function (done) {
 		let eventCounter = 0;
 		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index.txt'), 'utf8');
@@ -380,6 +354,30 @@ suite('Files - TextFileEditorModel', () => {
 			}, err => {
 				assert.ok(false);
 			});
+		}, error => onError(error, done));
+	});
+
+	test('Orphaned models', function (done) {
+		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8');
+
+		return model.load().then(() => {
+			let undo = model.setOrphaned();
+			assert.equal(model.isDirty(), true);
+			assert.equal(model.getState(), ModelState.ORPHAN);
+
+			undo();
+			assert.equal(model.isDirty(), false);
+			assert.notEqual(model.getState(), ModelState.ORPHAN);
+
+			// can not undo when model changed meanwhile (but orphaned state clears)
+			undo = model.setOrphaned();
+			assert.equal(model.getState(), ModelState.ORPHAN);
+			model.textEditorModel.setValue('foo');
+			undo();
+			assert.equal(model.isDirty(), true);
+			assert.notEqual(model.getState(), ModelState.ORPHAN);
+
+			done();
 		}, error => onError(error, done));
 	});
 
