@@ -15,7 +15,7 @@ import { Registry } from 'vs/platform/platform';
 import { toResource, SideBySideEditorInput, EditorOptions, EditorInput, IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
 import { BaseEditor, EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
-import { IEditorControl, IEditor } from 'vs/platform/editor/common/editor';
+import { IEditorControl, IEditor, Position } from 'vs/platform/editor/common/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
@@ -159,6 +159,16 @@ export class PreferencesEditor extends BaseEditor {
 		this.defaultSettingsEditorContextKey.set(false);
 		this.sideBySidePreferencesWidget.clearInput();
 		super.clearInput();
+	}
+
+	protected setEditorVisible(visible: boolean, position: Position): void {
+		this.sideBySidePreferencesWidget.setEditorVisible(visible, position);
+		super.setEditorVisible(visible, position);
+	}
+
+	public changePosition(position: Position): void {
+		this.sideBySidePreferencesWidget.changePosition(position);
+		super.changePosition(position);
 	}
 
 	private updateInput(oldInput: PreferencesEditorInput, newInput: PreferencesEditorInput, options?: EditorOptions): TPromise<void> {
@@ -360,6 +370,18 @@ class SideBySidePreferencesWidget extends Widget {
 	public clearInput(): void {
 		if (this.editablePreferencesEditor) {
 			this.editablePreferencesEditor.clearInput();
+		}
+	}
+
+	public setEditorVisible(visible: boolean, position: Position): void {
+		if (this.editablePreferencesEditor) {
+			this.editablePreferencesEditor.setVisible(visible, position);
+		}
+	}
+
+	public changePosition(position: Position): void {
+		if (this.editablePreferencesEditor) {
+			this.editablePreferencesEditor.changePosition(position);
 		}
 	}
 
