@@ -15,7 +15,7 @@ import { Registry } from 'vs/platform/platform';
 import { toResource, SideBySideEditorInput, EditorOptions, EditorInput, IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
 import { BaseEditor, EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
-import { IEditorControl, IEditor, Position } from 'vs/platform/editor/common/editor';
+import { IEditorControl, IEditor, Position, Verbosity } from 'vs/platform/editor/common/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
@@ -58,6 +58,10 @@ export class PreferencesEditorInput extends SideBySideEditorInput {
 
 	getTypeId(): string {
 		return PreferencesEditorInput.ID;
+	}
+
+	public getTitle(verbosity: Verbosity): string {
+		return this.master.getTitle(verbosity);
 	}
 }
 
