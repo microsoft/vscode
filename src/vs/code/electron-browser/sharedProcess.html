@@ -6,23 +6,7 @@
 	<meta charset="utf-8" />
 </head>
 
-<body class="monaco-shell vs-dark" aria-label="">
-	<script>
-		(function () {
-			try {
-				window.location.search.substring(1).split('&').forEach(p => {
-					var kv = p.split('=');
-					if (kv[0] === 'config' && kv[1]) {
-						let config = JSON.parse(decodeURIComponent(kv[1]));
-						window.document.body.className = 'monaco-shell ' + config.baseTheme;
-					}
-				});
-			} catch (error) {
-				console.error(error);
-			}
-		})();
-	</script>
-
+<body aria-label="">
 	Shared Process
 </body>
 
