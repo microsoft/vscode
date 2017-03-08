@@ -9,6 +9,11 @@ var path = require('path');
 var fs = require('fs');
 var plist = require('fast-plist');
 
+var mappings = {
+	"ansiBlack": ["terminalAnsiBlack"], "ansiRed": ["terminalAnsiRed"], "ansiGreen": ["terminalAnsiGreen"], "ansiYellow": ["terminalAnsiYellow"], "ansiBlue": ["terminalAnsiBlue"], "ansiMagenta": ["terminalAnsiMagenta"], "ansiCyan": ["terminalAnsiCyan"], "ansiWhite": ["terminalAnsiWhite"], "ansiBrightBlack": ["terminalAnsiBrightBlack"], "ansiBrightRed": ["terminalAnsiBrightRed"], "ansiBrightGreen": ["terminalAnsiBrightGreen"], "ansiBrightYellow": ["terminalAnsiBrightYellow"], "ansiBrightBlue": ["terminalAnsiBrightBlue"], "ansiBrightMagenta": ["terminalAnsiBrightMagenta"], "ansiBrightCyan": ["terminalAnsiBrightCyan"], "ansiBrightWhite": ["terminalAnsiBrightWhite"], "background": ["editorBackground"],
+	"hoverHighlight": ["editorHoverHighlight", "editorHoverHighlight"], "linkForeground": ["editorLinkForeground"], "selection": ["editorSelection"], "inactiveSelection": ["editorInactiveSelection"], "selectionHighlightColor": ["editorSelectionHighlightColor"], "wordHighlight": ["editorWordHighlight"], "wordHighlightStrong": ["editorWordHighlightStrong"], "findMatchHighlight": ["editorFindMatchHighlight", "referencesFindMatchHighlight"], "currentFindMatchHighlight": ["editorCurrentFindMatchHighlight"], "findRangeHighlight": ["editorFindRangeHighlight"], "referenceHighlight": ["referencesReferenceHighlight"], "lineHighlight": ["editorLineHighlight"], "rangeHighlight": ["editorRangeHighlight"], "caret": ["editorCursor"], "invisibles": ["editorInvisibles"], "guide": ["editorGuide"]
+};
+
 exports.update = function (srcName, destName) {
 	try {
 		console.log('reading ', srcName);
@@ -17,6 +22,7 @@ exports.update = function (srcName, destName) {
 		let theme = plist.parse(plistContent);
 		let settings = theme.settings;
 		if (Array.isArray(settings)) {
+			let colorMap = {};
 			for (let entry of settings) {
 				let scope = entry.scope;
 				if (scope) {
@@ -24,10 +30,25 @@ exports.update = function (srcName, destName) {
 					if (parts.length > 1) {
 						entry.scope = parts;
 					}
+				} else {
+					var entrySettings = entry.settings;
+					for (let entry in entrySettings) {
+						let mapping = mappings[entry];
+						if (mapping) {
+							for (let newKey of mapping) {
+								colorMap[newKey] = entrySettings[entry];
+							}
+							if (entry !== 'foreground' && entry !== 'background') {
+								delete entrySettings[entry];
+							}
+						}
+					}
+
 				}
 			}
+			result.name = theme.name;
 			result.syntaxTokens = settings;
-			result.colors = {};
+			result.colors = colorMap;
 		}
 		fs.writeFileSync(destName, JSON.stringify(result, null, '\t'));
 	} catch (e) {
