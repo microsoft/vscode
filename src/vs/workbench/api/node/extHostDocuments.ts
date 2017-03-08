@@ -101,7 +101,7 @@ export class ExtHostDocuments extends ExtHostDocumentsShape {
 		return promise;
 	}
 
-	public createDocumentData(options?: { language?: string; contents?: string }): TPromise<URI> {
+	public createDocumentData(options?: { language?: string; content?: string }): TPromise<URI> {
 		return this._proxy.$tryCreateDocument(options);
 	}
 
