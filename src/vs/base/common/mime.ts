@@ -20,7 +20,6 @@ export interface ITextMimeAssociation {
 	extension?: string;
 	filepattern?: string;
 	firstline?: RegExp;
-	userInstalled?: boolean;
 	userConfigured?: boolean;
 }
 
@@ -33,7 +32,6 @@ interface ITextMimeAssociationItem extends ITextMimeAssociation {
 
 let registeredAssociations: ITextMimeAssociationItem[] = [];
 let nonUserRegisteredAssociations: ITextMimeAssociationItem[] = [];
-let userInstalledRegisteredAssociations: ITextMimeAssociationItem[] = [];
 let userRegisteredAssociations: ITextMimeAssociationItem[] = [];
 
 /**
@@ -45,11 +43,7 @@ export function registerTextMime(association: ITextMimeAssociation): void {
 	const associationItem = toTextMimeAssociationItem(association);
 	registeredAssociations.push(associationItem);
 	if (!associationItem.userConfigured) {
-		if (associationItem.userInstalled) {
-			userInstalledRegisteredAssociations.push(associationItem);
-		} else {
-			nonUserRegisteredAssociations.push(associationItem);
-		}
+		nonUserRegisteredAssociations.push(associationItem);
 	} else {
 		userRegisteredAssociations.push(associationItem);
 	}
@@ -103,7 +97,6 @@ export function clearTextMimes(onlyUserConfigured?: boolean): void {
 	if (!onlyUserConfigured) {
 		registeredAssociations = [];
 		nonUserRegisteredAssociations = [];
-		userInstalledRegisteredAssociations = [];
 		userRegisteredAssociations = [];
 	} else {
 		registeredAssociations = registeredAssociations.filter(a => !a.userConfigured);
@@ -120,27 +113,21 @@ export function guessMimeTypes(path: string, firstLine?: string): string[] {
 	}
 
 	path = path.toLowerCase();
-	const filename = paths.basename(path);
+	let filename = paths.basename(path);
 
 	// 1.) User configured mappings have highest priority
-	const configuredMime = guessMimeTypeByPath(path, filename, userRegisteredAssociations);
+	let configuredMime = guessMimeTypeByPath(path, filename, userRegisteredAssociations);
 	if (configuredMime) {
 		return [configuredMime, MIME_TEXT];
 	}
 
-	// 2.) Extension mappings have second highest priority
-	const extensionMime = guessMimeTypeByPath(path, filename, userInstalledRegisteredAssociations);
-	if (extensionMime) {
-		return [extensionMime, MIME_TEXT];
+	// 2.) Registered mappings have middle priority
+	let registeredMime = guessMimeTypeByPath(path, filename, nonUserRegisteredAssociations);
+	if (registeredMime) {
+		return [registeredMime, MIME_TEXT];
 	}
 
-	// 3.) Built in mappings have second lowest priority
-	const nonUserMime = guessMimeTypeByPath(path, filename, nonUserRegisteredAssociations);
-	if (nonUserMime) {
-		return [nonUserMime, MIME_TEXT];
-	}
-
-	// 4.) Firstline has lowest priority
+	// 3.) Firstline has lowest priority
 	if (firstLine) {
 		let firstlineMime = guessMimeTypeByFirstline(firstLine);
 		if (firstlineMime) {
@@ -156,7 +143,9 @@ function guessMimeTypeByPath(path: string, filename: string, associations: IText
 	let patternMatch: ITextMimeAssociationItem;
 	let extensionMatch: ITextMimeAssociationItem;
 
-	for (let i = 0; i < associations.length; i++) {
+	// We want to prioritize associations based on the order they are registered so that the last registered
+	// association wins over all other. This is for https://github.com/Microsoft/vscode/issues/20074
+	for (let i = associations.length - 1; i >= 0; i--) {
 		let association = associations[i];
 
 		// First exact name match
