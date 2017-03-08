@@ -7,7 +7,7 @@
 import { regExpLeadsToEndlessLoop } from 'vs/base/common/strings';
 import { MirrorModel2 } from 'vs/editor/common/model/mirrorModel2';
 import URI from 'vs/base/common/uri';
-import { Range, Position } from 'vs/workbench/api/node/extHostTypes';
+import { Range, Position, EndOfLine } from 'vs/workbench/api/node/extHostTypes';
 import * as vscode from 'vscode';
 import { getWordAtText, ensureValidWordDefinition } from 'vs/editor/common/model/wordHelper';
 import { MainThreadDocumentsShape } from './extHost.protocol';
@@ -70,6 +70,7 @@ export class ExtHostDocumentData extends MirrorModel2 {
 				get isDirty() { return data._isDirty; },
 				save() { return data._proxy.$trySaveDocument(data._uri); },
 				getText(range?) { return range ? data._getTextInRange(range) : data.getText(); },
+				get eol() { return data._eol === '\n' ? EndOfLine.LF : EndOfLine.CRLF; },
 				get lineCount() { return data._lines.length; },
 				lineAt(lineOrPos) { return data.lineAt(lineOrPos); },
 				offsetAt(pos) { return data.offsetAt(pos); },

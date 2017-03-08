@@ -126,6 +126,12 @@ declare module 'vscode' {
 		save(): Thenable<boolean>;
 
 		/**
+		 * The [end of line](#EndOfLine) sequence that is predominately
+		 * used in this document.
+		 */
+		readonly eol: EndOfLine;
+
+		/**
 		 * The number of lines in this document.
 		 */
 		readonly lineCount: number;
