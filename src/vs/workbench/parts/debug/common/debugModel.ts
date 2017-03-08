@@ -367,7 +367,7 @@ export class StackFrame implements debug.IStackFrame {
 	}
 
 	public openInEditor(editorService: IWorkbenchEditorService, preserveFocus?: boolean, sideBySide?: boolean): TPromise<any> {
-		return this.source.deemphasize ? TPromise.as(true) : editorService.openEditor({
+		return editorService.openEditor({
 			resource: this.source.uri,
 			description: this.source.origin,
 			options: {
@@ -448,8 +448,12 @@ export class Thread implements debug.IThread {
 				if (!rsf) {
 					return new StackFrame(this, 0, new Source({ name: UNKNOWN_SOURCE_LABEL }, true), nls.localize('unknownStack', "Unknown stack location"), null, null);
 				}
-				const source = rsf.source ? new Source(rsf.source, rsf.source.presentationHint === 'deemphasize') : new Source({ name: UNKNOWN_SOURCE_LABEL }, true);
-				this.process.sources.set(source.uri.toString(), source);
+				let source = rsf.source ? new Source(rsf.source, rsf.source.presentationHint === 'deemphasize') : new Source({ name: UNKNOWN_SOURCE_LABEL }, true);
+				if (this.process.sources.has(source.uri.toString())) {
+					source = this.process.sources.get(source.uri.toString());
+				} else {
+					this.process.sources.set(source.uri.toString(), source);
+				}
 
 				return new StackFrame(this, rsf.id, source, rsf.name, rsf.line, rsf.column);
 			});
