@@ -585,19 +585,6 @@ export class Process implements debug.IProcess {
 		}
 	}
 
-	public deemphasizeSource(uri: uri): void {
-		this.threads.forEach(thread => {
-			const callStack = thread.getCallStack();
-			if (callStack) {
-				callStack.forEach(stackFrame => {
-					if (stackFrame.source.uri.toString() === uri.toString()) {
-						stackFrame.source.deemphasize = true;
-					}
-				});
-			}
-		});
-	}
-
 	public completions(frameId: number, text: string, position: Position, overwriteBefore: number): TPromise<ISuggestion[]> {
 		if (!this.session.capabilities.supportsCompletionsRequest) {
 			return TPromise.as([]);
@@ -975,7 +962,11 @@ export class Model implements debug.IModel {
 	}
 
 	public deemphasizeSource(uri: uri): void {
-		this.processes.forEach(p => p.deemphasizeSource(uri));
+		this.processes.forEach(p => {
+			if (p.sources.has(uri.toString())) {
+				p.sources.get(uri.toString()).deemphasize = true;
+			}
+		});
 		this._onDidChangeCallStack.fire();
 	}
 
