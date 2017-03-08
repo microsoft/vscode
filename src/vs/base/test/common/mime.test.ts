@@ -92,8 +92,17 @@ suite('Mime', () => {
 	});
 
 	test('Mimes Priority - User configured wins', () => {
+		registerTextMime({ id: 'monaco', extension: '.monaco.xml', mime: 'text/monaco-xml-builtin', userInstalled: false });
+		registerTextMime({ id: 'monaco', extension: '.monaco.xml', mime: 'text/monaco-xml', userInstalled: true });
 		registerTextMime({ id: 'monaco', extension: '.monaco.xnl', mime: 'text/monaco', userConfigured: true });
-		registerTextMime({ id: 'monaco', extension: '.monaco.xml', mime: 'text/monaco-xml' });
+
+		let guess = guessMimeTypes('foo.monaco.xnl');
+		assert.deepEqual(guess, ['text/monaco', 'text/plain']);
+	});
+
+	test('Mimes Priority - Extension configured wins over built in', () => {
+		registerTextMime({ id: 'monaco', extension: '.monaco.xml', mime: 'text/monaco-xml', userInstalled: false });
+		registerTextMime({ id: 'monaco', extension: '.monaco.xnl', mime: 'text/monaco', userInstalled: true });
 
 		let guess = guessMimeTypes('foo.monaco.xnl');
 		assert.deepEqual(guess, ['text/monaco', 'text/plain']);
