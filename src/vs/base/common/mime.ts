@@ -20,6 +20,7 @@ export interface ITextMimeAssociation {
 	extension?: string;
 	filepattern?: string;
 	firstline?: RegExp;
+	userInstalled?: boolean;
 	userConfigured?: boolean;
 }
 
@@ -32,6 +33,7 @@ interface ITextMimeAssociationItem extends ITextMimeAssociation {
 
 let registeredAssociations: ITextMimeAssociationItem[] = [];
 let nonUserRegisteredAssociations: ITextMimeAssociationItem[] = [];
+let userInstalledRegisteredAssociations: ITextMimeAssociationItem[] = [];
 let userRegisteredAssociations: ITextMimeAssociationItem[] = [];
 
 /**
@@ -43,7 +45,11 @@ export function registerTextMime(association: ITextMimeAssociation): void {
 	const associationItem = toTextMimeAssociationItem(association);
 	registeredAssociations.push(associationItem);
 	if (!associationItem.userConfigured) {
-		nonUserRegisteredAssociations.push(associationItem);
+		if (associationItem.userInstalled) {
+			userInstalledRegisteredAssociations.push(associationItem);
+		} else {
+			nonUserRegisteredAssociations.push(associationItem);
+		}
 	} else {
 		userRegisteredAssociations.push(associationItem);
 	}
@@ -97,6 +103,7 @@ export function clearTextMimes(onlyUserConfigured?: boolean): void {
 	if (!onlyUserConfigured) {
 		registeredAssociations = [];
 		nonUserRegisteredAssociations = [];
+		userInstalledRegisteredAssociations = [];
 		userRegisteredAssociations = [];
 	} else {
 		registeredAssociations = registeredAssociations.filter(a => !a.userConfigured);
@@ -113,21 +120,27 @@ export function guessMimeTypes(path: string, firstLine?: string): string[] {
 	}
 
 	path = path.toLowerCase();
-	let filename = paths.basename(path);
+	const filename = paths.basename(path);
 
 	// 1.) User configured mappings have highest priority
-	let configuredMime = guessMimeTypeByPath(path, filename, userRegisteredAssociations);
+	const configuredMime = guessMimeTypeByPath(path, filename, userRegisteredAssociations);
 	if (configuredMime) {
 		return [configuredMime, MIME_TEXT];
 	}
 
-	// 2.) Registered mappings have middle priority
-	let registeredMime = guessMimeTypeByPath(path, filename, nonUserRegisteredAssociations);
-	if (registeredMime) {
-		return [registeredMime, MIME_TEXT];
+	// 2.) Extension mappings have second highest priority
+	const extensionMime = guessMimeTypeByPath(path, filename, userInstalledRegisteredAssociations);
+	if (extensionMime) {
+		return [extensionMime, MIME_TEXT];
 	}
 
-	// 3.) Firstline has lowest priority
+	// 3.) Built in mappings have second lowest priority
+	const nonUserMime = guessMimeTypeByPath(path, filename, nonUserRegisteredAssociations);
+	if (nonUserMime) {
+		return [nonUserMime, MIME_TEXT];
+	}
+
+	// 4.) Firstline has lowest priority
 	if (firstLine) {
 		let firstlineMime = guessMimeTypeByFirstline(firstLine);
 		if (firstlineMime) {
