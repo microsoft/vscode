@@ -33,7 +33,7 @@
 	"welcomePage.showCommandsDescription": "Acceda rápidamente y busque comandos desde el panel de control ({0})",
 	"welcomePage.showOnStartup": "Mostrar página principal al inicio",
 	"welcomePage.stackOverflow": "Desbordamiento de la pila",
-	"welcomePage.start": "3Iniciar",
+	"welcomePage.start": "Iniciar",
 	"welcomePage.sublime": "Sublime",
 	"welcomePage.sublimeCurrent": "Sublime (actual)",
 	"welcomePage.vim": "Vim",
