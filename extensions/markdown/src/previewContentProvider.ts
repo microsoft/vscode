@@ -146,6 +146,7 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 				</head>
 				<body class="${scrollBeyondLastLine ? 'scrollBeyondLastLine' : ''} ${wordWrap ? 'wordWrap' : ''} ${!!markdownConfig.get('preview.markEditorSelection') ? 'showEditorSelection' : ''}">
 					${body}
+					<div class="code-line" data-line="${document.lineCount}"></div>
 					<script src="${this.getMediaPath('main.js')}" nonce="${nonce}"></script>
 				</body>
 				</html>`;
