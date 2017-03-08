@@ -12,6 +12,7 @@ import { SimpleWorkerClient, logOnceWebWorkerWarning } from 'vs/base/common/work
 import { DefaultWorkerFactory } from 'vs/base/worker/defaultWorkerFactory';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
+import { Position } from 'vs/editor/common/core/position';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { EditorSimpleWorkerImpl } from 'vs/editor/common/services/editorSimpleWorker';
@@ -46,14 +47,7 @@ export class EditorWorkerServiceImpl implements IEditorWorkerService {
 				return wireCancellationToken(token, this._workerManager.withWorker().then(client => client.computeLinks(model.uri)));
 			}
 		});
-		const completionProvider = modes.SuggestRegistry.register('*', <modes.ISuggestSupport>{
-			provideCompletionItems: (model, position, token) => {
-				if (configurationService.lookup<boolean>('editor.wordBasedSuggestions').value) {
-					return this._workerManager.withWorker().then(client => client.textualSuggest(model.uri, position));
-				}
-				return undefined;
-			}
-		});
+		const completionProvider = modes.SuggestRegistry.register('*', new WordBasedCompletionItemProvider(this._workerManager, configurationService));
 		this._registrations = [linkProvider, completionProvider];
 	}
 
@@ -81,7 +75,24 @@ export class EditorWorkerServiceImpl implements IEditorWorkerService {
 	public navigateValueSet(resource: URI, range: editorCommon.IRange, up: boolean): TPromise<modes.IInplaceReplaceSupportResult> {
 		return this._workerManager.withWorker().then(client => client.navigateValueSet(resource, range, up));
 	}
+}
 
+class WordBasedCompletionItemProvider implements modes.ISuggestSupport {
+
+	private readonly _workerManager: WorkerManager;
+	private readonly _configurationService: IConfigurationService;
+
+	constructor(workerManager: WorkerManager, configurationService: IConfigurationService) {
+		this._workerManager = workerManager;
+		this._configurationService = configurationService;
+	}
+
+	provideCompletionItems(model: editorCommon.IModel, position: Position): TPromise<modes.ISuggestResult> {
+		if (!this._configurationService.lookup<boolean>('editor.wordBasedSuggestions').value) {
+			return undefined;
+		}
+		return this._workerManager.withWorker().then(client => client.textualSuggest(model.uri, position));
+	}
 }
 
 class WorkerManager extends Disposable {
