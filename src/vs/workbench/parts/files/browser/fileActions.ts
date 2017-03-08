@@ -1341,7 +1341,6 @@ export abstract class BaseSaveFileAction extends BaseActionWithErrorReporting {
 	}
 
 	public abstract isSaveAs(): boolean;
-	protected abstract isForce(): boolean;
 
 	public setResource(resource: URI): void {
 		this.resource = resource;
@@ -1424,24 +1423,10 @@ export abstract class BaseSaveFileAction extends BaseActionWithErrorReporting {
 			}
 
 			// Just save
-			return this.textFileService.save(source, { force: this.isForce() /* force a change to the file to trigger external watchers if any */ });
+			return this.textFileService.save(source, { force: true /* force a change to the file to trigger external watchers if any */ });
 		}
 
 		return TPromise.as(false);
-	}
-}
-
-export class SaveIfDirtyFileAction extends BaseSaveFileAction {
-
-	public static ID = 'workbench.action.files.saveIfDirty';
-	public static LABEL = nls.localize('saveIfDirty', "Save If Dirty");
-
-	public isSaveAs(): boolean {
-		return false;
-	}
-
-	protected isForce(): boolean {
-		return false;
 	}
 }
 
@@ -1453,10 +1438,6 @@ export class SaveFileAction extends BaseSaveFileAction {
 	public isSaveAs(): boolean {
 		return false;
 	}
-
-	protected isForce(): boolean {
-		return true;
-	}
 }
 
 export class SaveFileAsAction extends BaseSaveFileAction {
@@ -1465,10 +1446,6 @@ export class SaveFileAsAction extends BaseSaveFileAction {
 	public static LABEL = nls.localize('saveAs', "Save As...");
 
 	public isSaveAs(): boolean {
-		return true;
-	}
-
-	protected isForce(): boolean {
 		return true;
 	}
 }
