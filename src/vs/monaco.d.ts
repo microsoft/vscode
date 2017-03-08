@@ -3944,6 +3944,7 @@ declare module monaco.editor {
 
     export class FontInfo extends BareFontInfo {
         readonly _editorStylingBrand: void;
+        readonly isTrusted: boolean;
         readonly isMonospace: boolean;
         readonly typicalHalfwidthCharacterWidth: number;
         readonly typicalFullwidthCharacterWidth: number;
@@ -3952,6 +3953,7 @@ declare module monaco.editor {
     }
     export class BareFontInfo {
         readonly _bareFontInfoBrand: void;
+        readonly zoomLevel: number;
         readonly fontFamily: string;
         readonly fontWeight: string;
         readonly fontSize: number;

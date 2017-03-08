@@ -94,7 +94,8 @@ import { remote } from 'electron';
 import { ITextMateService } from 'vs/editor/node/textMate/textMateService';
 import { MainProcessTextMateSyntax } from 'vs/editor/electron-browser/textMate/TMSyntax';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
-import { readFontInfo } from 'vs/editor/browser/config/configuration';
+import { restoreFontInfo, readFontInfo, saveFontInfo } from 'vs/editor/browser/config/configuration';
+import * as browser from 'vs/base/browser/browser';
 import SCMPreview from 'vs/workbench/parts/scm/browser/scmPreview';
 import { readdir } from 'vs/base/node/pfs';
 import { join } from 'path';
@@ -305,6 +306,10 @@ export class WorkbenchShell {
 		this.storageService = instantiationService.createInstance(StorageService, window.localStorage, disableWorkspaceStorage ? inMemoryLocalStorageInstance : window.localStorage);
 		serviceCollection.set(IStorageService, this.storageService);
 
+		// Warm up font cache information before building up too many dom elements
+		restoreFontInfo(this.storageService);
+		readFontInfo(BareFontInfo.createFromRawSettings(this.configurationService.getConfiguration('editor'), browser.getZoomLevel()));
+
 		// Telemetry
 		if (this.environmentService.isBuilt && !this.environmentService.isExtensionDevelopment && !!product.enableTelemetry) {
 			const channel = getDelayedChannel<ITelemetryAppenderChannel>(sharedProcess.then(c => c.getChannel('telemetryAppender')));
@@ -345,6 +350,7 @@ export class WorkbenchShell {
 
 		const lifecycleService = instantiationService.createInstance(LifecycleService);
 		this.toUnbind.push(lifecycleService.onShutdown(reason => disposables.dispose()));
+		this.toUnbind.push(lifecycleService.onShutdown(reason => saveFontInfo(this.storageService)));
 		serviceCollection.set(ILifecycleService, lifecycleService);
 		disposables.add(lifecycleTelemetry(this.telemetryService, lifecycleService));
 
@@ -413,9 +419,6 @@ export class WorkbenchShell {
 		errors.setUnexpectedErrorHandler((error: any) => {
 			this.onUnexpectedError(error);
 		});
-
-		// Warm up font cache information before building up too many dom elements
-		readFontInfo(BareFontInfo.createFromRawSettings(this.configurationService.getConfiguration('editor')));
 
 		// Shell Class for CSS Scoping
 		$(this.container).addClass('monaco-shell');
