@@ -75,10 +75,10 @@ const ansiColorMap = {
 	ansiBrightCyan: 14,
 	ansiBrightWhite: 15
 };
-const keyPrefix = 'terminal.';
+const keyPrefix = 'terminal';
 
 for (let key in ansiColorMap) {
-	let id = keyPrefix + key;
+	let id = keyPrefix + key[0].toUpperCase() + key.substr(1);
 	themingRegistry.registerColor(id, nls.localize('terminal.ansiColor', 'Color for terminal {0} color', key));
 	addSettingMapping(key, id);
 }
@@ -104,7 +104,7 @@ function addBackgroundColorRule(theme: ITheme, selector: string, color: Color, r
 	}
 }
 
-const editorBackground = 'editor.background';
+const editorBackground = 'editorBackground';
 themingRegistry.registerColor(editorBackground, nls.localize('background', 'Editor background color'));
 addSettingMapping('background', editorBackground);
 
@@ -118,7 +118,7 @@ themingRegistry.registerThemingParticipant((theme: ITheme, cssRules: string[]) =
 });
 
 
-const editorHoverHighlight = 'editor.hoverHighlight';
+const editorHoverHighlight = 'editorHoverHighlight';
 themingRegistry.registerColor(editorHoverHighlight, nls.localize('hoverHighlight', 'Background color of the editor hover'));
 addSettingMapping('hoverHighlight', editorHoverHighlight);
 
@@ -126,11 +126,11 @@ themingRegistry.registerThemingParticipant((theme: ITheme, cssRules: string[]) =
 	addBackgroundColorRule(theme, '.hoverHighlight', theme.getColor(editorHoverHighlight), cssRules);
 });
 
-const editorActiveLinkForeground = 'editor.activeLinkForeground';
+const editorActiveLinkForeground = 'editorActiveLinkForeground';
 themingRegistry.registerColor(editorActiveLinkForeground, nls.localize('activeLinkForeground', 'Color of active links'));
 addSettingMapping('hoverHighlight', editorHoverHighlight);
 
-const editorLinkForeground = 'editor.linkForeground';
+const editorLinkForeground = 'editorLinkForeground';
 themingRegistry.registerColor(editorLinkForeground, nls.localize('linkForeground', 'Color of links'));
 addSettingMapping('linkForeground', editorLinkForeground);
 
@@ -146,15 +146,15 @@ themingRegistry.registerThemingParticipant((theme: ITheme, cssRules: string[]) =
 	}
 });
 
-const editorSelection = 'editor.selection';
+const editorSelection = 'editorSelection';
 themingRegistry.registerColor(editorSelection, nls.localize('selection', 'Color of the editor selection'));
 addSettingMapping('selection', editorSelection);
 
-const editorInactiveSelection = 'editor.inactiveSelection';
+const editorInactiveSelection = 'editorInactiveSelection';
 themingRegistry.registerColor(editorInactiveSelection, nls.localize('inactiveSelection', 'Color of the inactive editor selection'));
 addSettingMapping('inactiveSelection', editorInactiveSelection);
 
-const editorSelectionHighlightColor = 'editor.selectionHighlightColor';
+const editorSelectionHighlightColor = 'editorSelectionHighlightColor';
 themingRegistry.registerColor(editorSelectionHighlightColor, nls.localize('selectionHighlightColor', 'Background color of regions highlighted while selecting'));
 addSettingMapping('selectionHighlightColor', editorSelectionHighlightColor);
 
@@ -194,11 +194,11 @@ function getSelectionHighlightColor(theme: ITheme) {
 	return null;
 }
 
-const editorWordHighlight = 'editor.wordHighlight';
+const editorWordHighlight = 'editorWordHighlight';
 themingRegistry.registerColor(editorWordHighlight, nls.localize('wordHighlight', 'Background color of a symbol during read-access, like reading a variable'));
 addSettingMapping('wordHighlight', editorWordHighlight);
 
-const editorWordHighlightString = 'editor.wordHighlightStrong';
+const editorWordHighlightString = 'editorWordHighlightStrong';
 themingRegistry.registerColor(editorWordHighlightString, nls.localize('wordHighlightStrong', 'Background color of a symbol during write-access, like writing to a variable'));
 addSettingMapping('wordHighlightStrong', editorWordHighlightString);
 
@@ -207,15 +207,15 @@ themingRegistry.registerThemingParticipant((theme: ITheme, cssRules: string[]) =
 	addBackgroundColorRule(theme, '.wordHighlightStrong', theme.getColor(editorWordHighlightString), cssRules);
 });
 
-const editorFindMatchHighlight = 'editor.findMatchHighlight';
+const editorFindMatchHighlight = 'editorFindMatchHighlight';
 themingRegistry.registerColor(editorFindMatchHighlight, nls.localize('findMatchHighlight', 'Background color of regions matching the search'));
 addSettingMapping('findMatchHighlight', editorFindMatchHighlight);
 
-const editorCurrentFindMatchHighlight = 'editor.currentFindMatchHighlight';
+const editorCurrentFindMatchHighlight = 'editorCurrentFindMatchHighlight';
 themingRegistry.registerColor(editorCurrentFindMatchHighlight, nls.localize('currentFindMatchHighlight', 'Background color of the current region matching the search'));
 addSettingMapping('currentFindMatchHighlight', editorCurrentFindMatchHighlight);
 
-const editorFindRangeHighlight = 'editor.findRangeHighlight';
+const editorFindRangeHighlight = 'editorFindRangeHighlight';
 themingRegistry.registerColor(editorFindRangeHighlight, nls.localize('findRangeHighlight', 'Background color of regions selected for search'));
 addSettingMapping('findRangeHighlight', editorFindRangeHighlight);
 
@@ -225,11 +225,11 @@ themingRegistry.registerThemingParticipant((theme: ITheme, cssRules: string[]) =
 	addBackgroundColorRule(theme, '.findScope', theme.getColor(editorFindRangeHighlight), cssRules);
 });
 
-const referencesFindMatchHighlight = 'references.findMatchHighlight';
+const referencesFindMatchHighlight = 'referencesFindMatchHighlight';
 themingRegistry.registerColor(referencesFindMatchHighlight, nls.localize('referencesFindMatchHighlight', 'References view match highlight color'));
 addSettingMapping('findMatchHighlight', referencesFindMatchHighlight);
 
-const referencesReferenceHighlight = 'references.referenceHighlight';
+const referencesReferenceHighlight = 'referencesReferenceHighlight';
 themingRegistry.registerColor(referencesReferenceHighlight, nls.localize('referencesReferenceHighlight', 'References range highlight color'));
 addSettingMapping('referenceHighlight', referencesReferenceHighlight);
 
@@ -239,11 +239,11 @@ themingRegistry.registerThemingParticipant((theme: ITheme, cssRules: string[]) =
 });
 
 
-const editorLineHighlight = 'editor.lineHighlight';
+const editorLineHighlight = 'editorLineHighlight';
 themingRegistry.registerColor(editorLineHighlight, nls.localize('lineHighlight', 'Editor line highlight color'));
 addSettingMapping('lineHighlight', editorLineHighlight);
 
-const editorRangeHighlight = 'editor.rangeHighlight';
+const editorRangeHighlight = 'editorRangeHighlight';
 themingRegistry.registerColor(editorRangeHighlight, nls.localize('rangeHighlight', 'Background color of range highlighted, like by Quick open and Find features'));
 addSettingMapping('rangeHighlight', editorRangeHighlight);
 
@@ -256,7 +256,7 @@ themingRegistry.registerThemingParticipant((theme: ITheme, cssRules: string[]) =
 	addBackgroundColorRule(theme, '.rangeHighlight', theme.getColor(editorRangeHighlight), cssRules);
 });
 
-const editorCursor = 'editor.cursor';
+const editorCursor = 'editorCursor';
 themingRegistry.registerColor(editorCursor, nls.localize('caret', 'Editor cursor color'));
 addSettingMapping('caret', editorCursor);
 
@@ -268,7 +268,7 @@ themingRegistry.registerThemingParticipant((theme: ITheme, cssRules: string[]) =
 	}
 });
 
-const editorInvisibles = 'editor.invisibles';
+const editorInvisibles = 'editorInvisibles';
 themingRegistry.registerColor(editorInvisibles, nls.localize('invisibles', 'Editor invisibles color'));
 addSettingMapping('invisibles', editorInvisibles);
 
@@ -279,7 +279,7 @@ themingRegistry.registerThemingParticipant((theme: ITheme, cssRules: string[]) =
 	}
 });
 
-const editorGuide = 'editor.guide';
+const editorGuide = 'editorGuide';
 themingRegistry.registerColor(editorGuide, nls.localize('guide', 'Editor guide color'));
 addSettingMapping('guide', editorGuide);
 
