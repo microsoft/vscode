@@ -16,15 +16,17 @@ export function startProfiling(name: string): TPromise<boolean> {
 	});
 }
 
-export function stopProfiling(dir: string, prefix: string, keepPaths: boolean = false): TPromise<string> {
+const _isRunningOutOfDev = process.env['VSCODE_DEV'];
+
+export function stopProfiling(dir: string, prefix: string): TPromise<string> {
 	return lazyV8Profiler.value.then(profiler => {
 		return profiler.stopProfiling();
 	}).then(profile => {
 		return new TPromise<any>((resolve, reject) => {
 
 			// remove pii paths
-			if (!keepPaths) {
-				removePiiPaths(profile);
+			if (!_isRunningOutOfDev) {
+				removePiiPaths(profile); // remove pii from our users
 			}
 
 			profile.export(function (error, result) {
@@ -33,7 +35,10 @@ export function stopProfiling(dir: string, prefix: string, keepPaths: boolean = 
 					reject(error);
 					return;
 				}
-				const filepath = join(dir, `${prefix}_${profile.title}.cpuprofile.txt`);
+				let filepath = join(dir, `${prefix}_${profile.title}.cpuprofile`);
+				if (!_isRunningOutOfDev) {
+					filepath += '.txt'; // github issues must be: txt, zip, png, gif
+				}
 				writeFile(filepath, result).then(() => resolve(filepath), reject);
 			});
 		});
