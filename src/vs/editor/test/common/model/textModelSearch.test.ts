@@ -9,7 +9,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { FindMatch, EndOfLineSequence } from 'vs/editor/common/editorCommon';
 import { Range } from 'vs/editor/common/core/range';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { TextModelSearch, SearchParams } from 'vs/editor/common/model/textModelSearch';
+import { TextModelSearch, SearchParams, SearchData } from 'vs/editor/common/model/textModelSearch';
 
 // --------- Find
 suite('TextModelSearch', () => {
@@ -542,7 +542,7 @@ suite('TextModelSearch', () => {
 		model.dispose();
 	});
 
-	function assertParseSearchResult(searchString: string, isRegex: boolean, matchCase: boolean, wholeWord: boolean, expected: RegExp): void {
+	function assertParseSearchResult(searchString: string, isRegex: boolean, matchCase: boolean, wholeWord: boolean, expected: SearchData): void {
 		let searchParams = new SearchParams(searchString, isRegex, matchCase, wholeWord);
 		let actual = searchParams.parseSearchRequest();
 		assert.deepEqual(actual, expected);
@@ -555,24 +555,24 @@ suite('TextModelSearch', () => {
 	});
 
 	test('parseSearchRequest non regex', () => {
-		assertParseSearchResult('foo', false, false, false, /foo/gi);
-		assertParseSearchResult('foo', false, false, true, /\bfoo\b/gi);
-		assertParseSearchResult('foo', false, true, false, /foo/g);
-		assertParseSearchResult('foo', false, true, true, /\bfoo\b/g);
-		assertParseSearchResult('foo\\n', false, false, false, /foo\\n/gi);
-		assertParseSearchResult('foo\\\\n', false, false, false, /foo\\\\n/gi);
-		assertParseSearchResult('foo\\r', false, false, false, /foo\\r/gi);
-		assertParseSearchResult('foo\\\\r', false, false, false, /foo\\\\r/gi);
+		assertParseSearchResult('foo', false, false, false, new SearchData(/foo/gi, null));
+		assertParseSearchResult('foo', false, false, true, new SearchData(/\bfoo\b/gi, null));
+		assertParseSearchResult('foo', false, true, false, new SearchData(/foo/g, 'foo'));
+		assertParseSearchResult('foo', false, true, true, new SearchData(/\bfoo\b/g, null));
+		assertParseSearchResult('foo\\n', false, false, false, new SearchData(/foo\\n/gi, null));
+		assertParseSearchResult('foo\\\\n', false, false, false, new SearchData(/foo\\\\n/gi, null));
+		assertParseSearchResult('foo\\r', false, false, false, new SearchData(/foo\\r/gi, null));
+		assertParseSearchResult('foo\\\\r', false, false, false, new SearchData(/foo\\\\r/gi, null));
 	});
 
 	test('parseSearchRequest regex', () => {
-		assertParseSearchResult('foo', true, false, false, /foo/gi);
-		assertParseSearchResult('foo', true, false, true, /\bfoo\b/gi);
-		assertParseSearchResult('foo', true, true, false, /foo/g);
-		assertParseSearchResult('foo', true, true, true, /\bfoo\b/g);
-		assertParseSearchResult('foo\\n', true, false, false, /foo\n/gim);
-		assertParseSearchResult('foo\\\\n', true, false, false, /foo\\n/gi);
-		assertParseSearchResult('foo\\r', true, false, false, /foo\r/gim);
-		assertParseSearchResult('foo\\\\r', true, false, false, /foo\\r/gi);
+		assertParseSearchResult('foo', true, false, false, new SearchData(/foo/gi, null));
+		assertParseSearchResult('foo', true, false, true, new SearchData(/\bfoo\b/gi, null));
+		assertParseSearchResult('foo', true, true, false, new SearchData(/foo/g, null));
+		assertParseSearchResult('foo', true, true, true, new SearchData(/\bfoo\b/g, null));
+		assertParseSearchResult('foo\\n', true, false, false, new SearchData(/foo\n/gim, null));
+		assertParseSearchResult('foo\\\\n', true, false, false, new SearchData(/foo\\n/gi, null));
+		assertParseSearchResult('foo\\r', true, false, false, new SearchData(/foo\r/gim, null));
+		assertParseSearchResult('foo\\\\r', true, false, false, new SearchData(/foo\\r/gi, null));
 	});
 });
