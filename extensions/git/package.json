@@ -510,12 +510,12 @@
         {
           "command": "git.openFile",
           "group": "navigation",
-          "when": "isInDiffEditor"
+          "when": "isInDiffEditor && resourceScheme == file"
         },
         {
           "command": "git.openChange",
           "group": "navigation",
-          "when": "!isInDiffEditor"
+          "when": "!isInDiffEditor && resourceScheme == file"
         }
       ]
     },
