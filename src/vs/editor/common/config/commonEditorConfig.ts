@@ -543,7 +543,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 			canUseTranslate3d = false;
 		}
 
-		let bareFontInfo = BareFontInfo.createFromRawSettings(opts);
+		let bareFontInfo = BareFontInfo.createFromRawSettings(opts, this.getZoomLevel());
 
 		return InternalEditorOptionsHelper.createInternalEditorOptions(
 			this.getOuterWidth(),
@@ -597,6 +597,8 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 	protected abstract _getPixelRatio(): number;
 
 	protected abstract readConfiguration(styling: BareFontInfo): FontInfo;
+
+	protected abstract getZoomLevel(): number;
 }
 
 const configurationRegistry = <IConfigurationRegistry>Registry.as(Extensions.Configuration);

@@ -14,6 +14,7 @@ import { FontInfo, BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserver';
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { CharWidthRequest, CharWidthRequestType, readCharWidths } from 'vs/editor/browser/config/charWidthReader';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 
 class CSSBasedConfigurationCache {
 
@@ -25,33 +26,74 @@ class CSSBasedConfigurationCache {
 		this._values = Object.create(null);
 	}
 
-	private _itemId(item: BareFontInfo): string {
-		return `${browser.getZoomLevel()}-${item.getId()}`;
-	}
-
 	public has(item: BareFontInfo): boolean {
-		let itemId = this._itemId(item);
+		let itemId = item.getId();
 		return !!this._values[itemId];
 	}
 
 	public get(item: BareFontInfo): FontInfo {
-		let itemId = this._itemId(item);
+		let itemId = item.getId();
 		return this._values[itemId];
 	}
 
 	public put(item: BareFontInfo, value: FontInfo): void {
-		let itemId = this._itemId(item);
+		let itemId = item.getId();
 		this._keys[itemId] = item;
 		this._values[itemId] = value;
+	}
+
+	public remove(item: BareFontInfo): void {
+		let itemId = item.getId();
+		delete this._keys[itemId];
+		delete this._values[itemId];
 	}
 
 	public getKeys(): BareFontInfo[] {
 		return Object.keys(this._keys).map(id => this._keys[id]);
 	}
+
+	public getValues(): FontInfo[] {
+		return Object.keys(this._keys).map(id => this._values[id]);
+	}
 }
 
 export function readFontInfo(bareFontInfo: BareFontInfo): FontInfo {
 	return CSSBasedConfiguration.INSTANCE.readConfiguration(bareFontInfo);
+}
+
+export function restoreFontInfo(storageService: IStorageService): void {
+	let strStoredFontInfo = storageService.get('editorFontInfo', StorageScope.GLOBAL);
+	if (typeof strStoredFontInfo !== 'string') {
+		return;
+	}
+	let storedFontInfo: ISerializedFontInfo[] = null;
+	try {
+		storedFontInfo = JSON.parse(strStoredFontInfo);
+	} catch (err) {
+		return;
+	}
+	if (!Array.isArray(storedFontInfo)) {
+		return;
+	}
+	CSSBasedConfiguration.INSTANCE.restoreFontInfo(storedFontInfo);
+}
+
+export function saveFontInfo(storageService: IStorageService): void {
+	let knownFontInfo = CSSBasedConfiguration.INSTANCE.saveFontInfo();
+	storageService.store('editorFontInfo', JSON.stringify(knownFontInfo), StorageScope.GLOBAL);
+}
+
+export interface ISerializedFontInfo {
+	readonly zoomLevel: number;
+	readonly fontFamily: string;
+	readonly fontWeight: string;
+	readonly fontSize: number;
+	readonly lineHeight: number;
+	readonly isMonospace: boolean;
+	readonly typicalHalfwidthCharacterWidth: number;
+	readonly typicalFullwidthCharacterWidth: number;
+	readonly spaceWidth: number;
+	readonly maxDigitWidth: number;
 }
 
 class CSSBasedConfiguration extends Disposable {
@@ -78,6 +120,37 @@ class CSSBasedConfiguration extends Disposable {
 		super.dispose();
 	}
 
+	public saveFontInfo(): ISerializedFontInfo[] {
+		// Only save trusted font info (that has been measured in this running instance)
+		return this._cache.getValues().filter(item => item.isTrusted);
+	}
+
+	public restoreFontInfo(savedFontInfo: ISerializedFontInfo[]): void {
+		// Take all the saved font info and insert them in the cache without the trusted flag.
+		// The reason for this is that a font might have been installed on the OS in the meantime.
+		for (let i = 0, len = savedFontInfo.length; i < len; i++) {
+			let fontInfo = new FontInfo(savedFontInfo[i], false);
+			this._cache.put(fontInfo, fontInfo);
+		}
+
+		// Remove saved font info that does not have the trusted flag.
+		// (this forces it to be re-read).
+		setTimeout(() => {
+			let values = this._cache.getValues();
+			let somethingRemoved = false;
+			for (let i = 0, len = values.length; i < len; i++) {
+				let item = values[i];
+				if (!item.isTrusted) {
+					somethingRemoved = true;
+					this._cache.remove(item);
+				}
+			}
+			if (somethingRemoved) {
+				this._onDidChange.fire();
+			}
+		}, 5000);
+	}
+
 	public readConfiguration(bareFontInfo: BareFontInfo): FontInfo {
 		if (!this._cache.has(bareFontInfo)) {
 			let readConfig = CSSBasedConfiguration._actualReadConfiguration(bareFontInfo);
@@ -85,6 +158,7 @@ class CSSBasedConfiguration extends Disposable {
 			if (readConfig.typicalHalfwidthCharacterWidth <= 2 || readConfig.typicalFullwidthCharacterWidth <= 2 || readConfig.spaceWidth <= 2 || readConfig.maxDigitWidth <= 2) {
 				// Hey, it's Bug 14341 ... we couldn't read
 				readConfig = new FontInfo({
+					zoomLevel: browser.getZoomLevel(),
 					fontFamily: readConfig.fontFamily,
 					fontWeight: readConfig.fontWeight,
 					fontSize: readConfig.fontSize,
@@ -94,7 +168,7 @@ class CSSBasedConfiguration extends Disposable {
 					typicalFullwidthCharacterWidth: Math.max(readConfig.typicalFullwidthCharacterWidth, 5),
 					spaceWidth: Math.max(readConfig.spaceWidth, 5),
 					maxDigitWidth: Math.max(readConfig.maxDigitWidth, 5),
-				});
+				}, true);
 				this._installChangeMonitor();
 			}
 
@@ -204,6 +278,7 @@ class CSSBasedConfiguration extends Disposable {
 		}
 
 		return new FontInfo({
+			zoomLevel: browser.getZoomLevel(),
 			fontFamily: bareFontInfo.fontFamily,
 			fontWeight: bareFontInfo.fontWeight,
 			fontSize: bareFontInfo.fontSize,
@@ -213,7 +288,7 @@ class CSSBasedConfiguration extends Disposable {
 			typicalFullwidthCharacterWidth: typicalFullwidthCharacter.width,
 			spaceWidth: space.width,
 			maxDigitWidth: maxDigitWidth
-		});
+		}, true);
 	}
 }
 
@@ -236,7 +311,7 @@ export class Configuration extends CommonEditorConfiguration {
 	constructor(options: any, referenceDomElement: HTMLElement = null) {
 		super(options, new ElementSizeObserver(referenceDomElement, () => this._onReferenceDomElementSizeChanged()));
 
-		this._register(CSSBasedConfiguration.INSTANCE.onDidChange(() => () => this._onCSSBasedConfigurationChanged()));
+		this._register(CSSBasedConfiguration.INSTANCE.onDidChange(() => this._onCSSBasedConfigurationChanged()));
 
 		if (this._configWithDefaults.getEditorOptions().automaticLayout) {
 			this._elementSizeObserver.startObserving();
@@ -298,5 +373,9 @@ export class Configuration extends CommonEditorConfiguration {
 
 	protected readConfiguration(bareFontInfo: BareFontInfo): FontInfo {
 		return CSSBasedConfiguration.INSTANCE.readConfiguration(bareFontInfo);
+	}
+
+	protected getZoomLevel(): number {
+		return browser.getZoomLevel();
 	}
 }
