@@ -52,7 +52,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { ITelemetryAppenderChannel, TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
-import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
+import { resolveCommonProperties, machineIdStorageKey, machineIdIpcChannel } from 'vs/platform/telemetry/node/commonProperties';
 import { getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
 import product from 'vs/platform/node/product';
 import pkg from 'vs/platform/node/package';
@@ -94,6 +94,7 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 	const environmentService = accessor.get(IEnvironmentService);
 	const lifecycleService = accessor.get(ILifecycleService);
 	const configurationService = accessor.get(IConfigurationService) as ConfigurationService<any>;
+	const storageService = accessor.get(IStorageService);
 	let windowsMainService: IWindowsMainService;
 
 	// We handle uncaught exceptions here to prevent electron from opening a dialog to the user
@@ -116,6 +117,11 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 		if (err.stack) {
 			console.error(err.stack);
 		}
+	});
+
+	ipc.on(machineIdIpcChannel, (event, machineId: string) => {
+		logService.log('IPC#vscode-machineId');
+		storageService.setItem(machineIdStorageKey, machineId);
 	});
 
 	logService.log('Starting VS Code in verbose mode');
@@ -159,7 +165,11 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 	if (environmentService.isBuilt && !environmentService.isExtensionDevelopment && !!product.enableTelemetry) {
 		const channel = getDelayedChannel<ITelemetryAppenderChannel>(sharedProcessClient.then(c => c.getChannel('telemetryAppender')));
 		const appender = new TelemetryAppenderClient(channel);
-		const commonProperties = resolveCommonProperties(product.commit, pkg.version);
+		const commonProperties = resolveCommonProperties(product.commit, pkg.version)
+			.then(result => Object.defineProperty(result, 'common.machineId', {
+				get: () => storageService.getItem(machineIdStorageKey),
+				enumerable: true
+			}));
 		const piiPaths = [environmentService.appRoot, environmentService.extensionsPath];
 		const config: ITelemetryServiceConfig = { appender, commonProperties, piiPaths };
 		services.set(ITelemetryService, new SyncDescriptor(TelemetryService, config));

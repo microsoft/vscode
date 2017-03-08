@@ -10,7 +10,8 @@ import * as errors from 'vs/base/common/errors';
 import * as uuid from 'vs/base/common/uuid';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { getMachineId, virtualMachineHint } from 'vs/base/node/id';
-import { resolveCommonProperties } from '../node/commonProperties';
+import { resolveCommonProperties, machineIdStorageKey, machineIdIpcChannel } from '../node/commonProperties';
+import { ipcRenderer as ipc } from 'electron';
 
 const SQM_KEY: string = '\\Software\\Microsoft\\SQMClient';
 
@@ -50,15 +51,22 @@ function getOrCreateInstanceId(storageService: IStorageService): TPromise<string
 }
 
 function getOrCreateMachineId(storageService: IStorageService): TPromise<string> {
-	const key = 'telemetry.machineId';
-	let result = storageService.get(key);
+	return _getOrCreateMachineId(storageService)
+		.then(value => {
+			ipc.send(machineIdIpcChannel, value);
+			return value;
+		});
+}
+
+function _getOrCreateMachineId(storageService: IStorageService): TPromise<string> {
+	let result = storageService.get(machineIdStorageKey);
 
 	if (result) {
 		return TPromise.as(result);
 	}
 
 	return getMachineId().then(result => {
-		storageService.store(key, result);
+		storageService.store(machineIdStorageKey, result);
 		return result;
 	});
 }
