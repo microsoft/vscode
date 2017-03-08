@@ -99,13 +99,12 @@ export function _futureMachineIdExperiment(): string {
 
 let machineId: TPromise<string>;
 export function getMachineId(): TPromise<string> {
-	return machineId || (machineId = getStableMachineId()
+	return machineId || (machineId = getMacMachineId()
 		.then(id => id || uuid.generateUuid())); // fallback, generate a UUID
 }
 
-let stableMachineId: TPromise<string>;
-export function getStableMachineId(): TPromise<string> {
-	return stableMachineId || (stableMachineId = new TPromise<string>(resolve => {
+function getMacMachineId(): TPromise<string> {
+	return new TPromise<string>(resolve => {
 		try {
 			getmac.getMac((error, macAddress) => {
 				if (!error) {
@@ -118,5 +117,5 @@ export function getStableMachineId(): TPromise<string> {
 			errors.onUnexpectedError(err);
 			resolve(undefined);
 		}
-	}));
+	});
 }
