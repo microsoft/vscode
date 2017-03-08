@@ -77,6 +77,27 @@ export class EditorWorkerServiceImpl implements IEditorWorkerService {
 	}
 }
 
+class WordBasedCompletionConfig {
+
+	static fromOldConfig(value: boolean): WordBasedCompletionConfig {
+		return new WordBasedCompletionConfig(value, value, value);
+	}
+
+	constructor(
+		readonly suggestInStrings: boolean,
+		readonly suggestInComments: boolean,
+		readonly suggestInCode: boolean
+	) {
+
+	}
+
+	accept(tokenType: modes.StandardTokenType): boolean {
+		return (tokenType === modes.StandardTokenType.String && this.suggestInStrings)
+			|| (tokenType === modes.StandardTokenType.Comment && this.suggestInComments)
+			|| (tokenType === modes.StandardTokenType.Other && this.suggestInCode);
+	}
+}
+
 class WordBasedCompletionItemProvider implements modes.ISuggestSupport {
 
 	private readonly _workerManager: WorkerManager;
@@ -88,10 +109,18 @@ class WordBasedCompletionItemProvider implements modes.ISuggestSupport {
 	}
 
 	provideCompletionItems(model: editorCommon.IModel, position: Position): TPromise<modes.ISuggestResult> {
-		if (!this._configurationService.lookup<boolean>('editor.wordBasedSuggestions').value) {
+
+		// TODO(joh) should we force tokenization?
+		// model.forceTokenization(position.lineNumber);
+		const config = WordBasedCompletionConfig.fromOldConfig(this._configurationService.lookup<boolean>('editor.wordBasedSuggestions').value);
+		const tokens = model.getLineTokens(position.lineNumber);
+		const { tokenType } = tokens.findTokenAtOffset(position.column - 1);
+
+		if (config.accept(tokenType)) {
+			return this._workerManager.withWorker().then(client => client.textualSuggest(model.uri, position));
+		} else {
 			return undefined;
 		}
-		return this._workerManager.withWorker().then(client => client.textualSuggest(model.uri, position));
 	}
 }
 
