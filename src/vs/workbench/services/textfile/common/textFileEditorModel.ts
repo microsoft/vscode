@@ -16,7 +16,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import paths = require('vs/base/common/paths');
 import diagnostics = require('vs/base/common/diagnostics');
 import types = require('vs/base/common/types');
-import { IModelContentChangedEvent } from 'vs/editor/common/editorCommon';
+import { EventType as EditorEventType } from 'vs/editor/common/editorCommon';
 import { IMode } from 'vs/editor/common/modes';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { ITextFileService, IAutoSaveConfiguration, ModelState, ITextFileEditorModel, IModelSaveOptions, ISaveErrorHandler, ISaveParticipant, StateChange, SaveReason, IRawTextContent } from 'vs/workbench/services/textfile/common/textfiles';
@@ -380,7 +380,19 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 					this.setDirty(false);
 				}
 
-				this.toDispose.push(this.textEditorModel.onDidChangeRawContent(e => this.onModelContentChanged(e)));
+				this.toDispose.push(this.textEditorModel.addBulkListener((events) => {
+					let hasContentChangeEvent = false;
+					for (let i = 0, len = events.length; i < len; i++) {
+						let eventType = events[i].getType();
+						if (eventType === EditorEventType.ModelContentChanged2) {
+							hasContentChangeEvent = true;
+							break;
+						}
+					}
+					if (hasContentChangeEvent) {
+						this.onModelContentChanged();
+					}
+				}));
 
 				return this;
 			}, error => {
@@ -407,8 +419,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return modeService.getOrCreateModeByFilenameOrFirstLine(this.resource.fsPath, firstLineText);
 	}
 
-	private onModelContentChanged(e: IModelContentChangedEvent): void {
-		diag(`onModelContentChanged(${e.changeType}) - enter`, this.resource, new Date());
+	private onModelContentChanged(): void {
+		diag(`onModelContentChanged() - enter`, this.resource, new Date());
 
 		// In any case increment the version id because it tracks the textual content state of the model at all times
 		this.versionId++;
