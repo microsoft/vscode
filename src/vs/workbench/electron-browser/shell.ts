@@ -30,7 +30,8 @@ import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry
 import { IdleMonitor, UserStatus } from 'vs/platform/telemetry/browser/idleMonitor';
 import ErrorTelemetry from 'vs/platform/telemetry/browser/errorTelemetry';
 import { ElectronWindow } from 'vs/workbench/electron-browser/window';
-import { resolveWorkbenchCommonProperties } from 'vs/platform/telemetry/node/workbenchCommonProperties';
+import { resolveWorkbenchCommonProperties, getOrCreateMachineId } from 'vs/platform/telemetry/node/workbenchCommonProperties';
+import { machineIdIpcChannel } from 'vs/platform/telemetry/node/commonProperties';
 import { WorkspaceStats } from 'vs/workbench/services/telemetry/common/workspaceStats';
 import { IWindowIPCService, WindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
 import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
@@ -90,7 +91,7 @@ import { BackupChannelClient } from 'vs/platform/backup/common/backupIpc';
 import { ReportPerformanceIssueAction } from 'vs/workbench/electron-browser/actions';
 import { ExtensionHostProcessWorker } from 'vs/workbench/electron-browser/extensionHost';
 import { ITimerService } from 'vs/workbench/services/timer/common/timerService';
-import { remote } from 'electron';
+import { remote, ipcRenderer as ipc } from 'electron';
 import { ITextMateService } from 'vs/editor/node/textMate/textMateService';
 import { MainProcessTextMateSyntax } from 'vs/editor/electron-browser/textMate/TMSyntax';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
@@ -311,6 +312,7 @@ export class WorkbenchShell {
 		readFontInfo(BareFontInfo.createFromRawSettings(this.configurationService.getConfiguration('editor'), browser.getZoomLevel()));
 
 		// Telemetry
+		this.sendMachineIdToMain(this.storageService);
 		if (this.environmentService.isBuilt && !this.environmentService.isExtensionDevelopment && !!product.enableTelemetry) {
 			const channel = getDelayedChannel<ITelemetryAppenderChannel>(sharedProcess.then(c => c.getChannel('telemetryAppender')));
 			const commit = product.commit;
@@ -411,6 +413,12 @@ export class WorkbenchShell {
 		serviceCollection.set(IBackupService, new SyncDescriptor(BackupChannelClient, backupChannel));
 
 		return [instantiationService, serviceCollection];
+	}
+
+	private sendMachineIdToMain(storageService: IStorageService) {
+		getOrCreateMachineId(storageService).then(machineId => {
+			ipc.send(machineIdIpcChannel, machineId);
+		}).then(null, errors.onUnexpectedError);
 	}
 
 	public open(): void {

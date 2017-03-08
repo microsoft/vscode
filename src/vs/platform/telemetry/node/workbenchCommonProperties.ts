@@ -10,8 +10,7 @@ import * as errors from 'vs/base/common/errors';
 import * as uuid from 'vs/base/common/uuid';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { getMachineId, virtualMachineHint } from 'vs/base/node/id';
-import { resolveCommonProperties, machineIdStorageKey, machineIdIpcChannel } from '../node/commonProperties';
-import { ipcRenderer as ipc } from 'electron';
+import { resolveCommonProperties, machineIdStorageKey } from '../node/commonProperties';
 
 const SQM_KEY: string = '\\Software\\Microsoft\\SQMClient';
 
@@ -50,15 +49,7 @@ function getOrCreateInstanceId(storageService: IStorageService): TPromise<string
 	return TPromise.as(result);
 }
 
-function getOrCreateMachineId(storageService: IStorageService): TPromise<string> {
-	return _getOrCreateMachineId(storageService)
-		.then(value => {
-			ipc.send(machineIdIpcChannel, value);
-			return value;
-		});
-}
-
-function _getOrCreateMachineId(storageService: IStorageService): TPromise<string> {
+export function getOrCreateMachineId(storageService: IStorageService): TPromise<string> {
 	let result = storageService.get(machineIdStorageKey);
 
 	if (result) {
