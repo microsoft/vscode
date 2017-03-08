@@ -63,6 +63,7 @@ class ConfigClass implements IConfiguration {
 			},
 			fixedOverflowWidgets: false,
 			overviewRulerLanes: 2,
+			hideOverviewRulerBorder: false,
 			cursorBlinking: 'blink',
 			mouseWheelZoom: false,
 			cursorStyle: 'line',
