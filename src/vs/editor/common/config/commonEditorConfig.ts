@@ -280,7 +280,7 @@ class InternalEditorOptionsHelper {
 			revealHorizontalRightPadding: toInteger(opts.revealHorizontalRightPadding, 0),
 			roundedSelection: toBoolean(opts.roundedSelection),
 			overviewRulerLanes: toInteger(opts.overviewRulerLanes, 0, 3),
-			hideOverviewRulerBorder: toBoolean(opts.hideOverviewRulerBorder),
+			overviewRulerBorder: toBoolean(opts.overviewRulerBorder),
 			cursorBlinking: cursorBlinkingStyleFromString(opts.cursorBlinking),
 			mouseWheelZoom: toBoolean(opts.mouseWheelZoom),
 			cursorStyle: cursorStyleFromString(opts.cursorStyle),
@@ -811,10 +811,10 @@ const editorConfiguration: IConfigurationNode = {
 			'default': 3,
 			'description': nls.localize('overviewRulerLanes', "Controls the number of decorations that can show up at the same position in the overview ruler")
 		},
-		'editor.hideOverviewRulerBorder': {
+		'editor.overviewRulerBorder': {
 			'type': 'boolean',
-			'default': false,
-			'description': nls.localize('hideOverviewRulerBorder', "Controls if a border should be drawn around the overview ruler.")
+			'default': DefaultConfig.editor.overviewRulerBorder,
+			'description': nls.localize('overviewRulerBorder', "Controls if a border should be drawn around the overview ruler.")
 		},
 		'editor.cursorBlinking': {
 			'type': 'string',

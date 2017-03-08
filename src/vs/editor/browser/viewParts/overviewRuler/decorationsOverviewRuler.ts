@@ -29,7 +29,7 @@ export class DecorationsOverviewRuler extends ViewPart {
 
 	private _overviewRuler: OverviewRulerImpl;
 
-	private _hideBorder: boolean;
+	private _renderBorder: boolean;
 
 	private _shouldUpdateDecorations: boolean;
 	private _shouldUpdateCursorPosition: boolean;
@@ -57,7 +57,7 @@ export class DecorationsOverviewRuler extends ViewPart {
 		this._overviewRuler.setUseDarkColor(!themes.isLightTheme(theme), false);
 		this._overviewRuler.setLayout(this._context.configuration.editor.layoutInfo.overviewRuler, false);
 
-		this._hideBorder = this._context.configuration.editor.viewInfo.hideOverviewRulerBorder;
+		this._renderBorder = this._context.configuration.editor.viewInfo.overviewRulerBorder;
 
 		this._updateBackground(false);
 		this._tokensColorTrackerListener = TokenizationRegistry.onDidChange((e) => {
@@ -107,6 +107,11 @@ export class DecorationsOverviewRuler extends ViewPart {
 
 		if (prevLanesCount !== newLanesCount) {
 			this._overviewRuler.setLanesCount(newLanesCount, false);
+			shouldRender = true;
+		}
+
+		if (e.viewInfo.overviewRulerBorder) {
+			this._renderBorder = this._context.configuration.editor.viewInfo.overviewRulerBorder;
 			shouldRender = true;
 		}
 
@@ -237,7 +242,7 @@ export class DecorationsOverviewRuler extends ViewPart {
 
 		let hasRendered = this._overviewRuler.render(false);
 
-		if (hasRendered && !this._hideBorder && this._overviewRuler.getLanesCount() > 0 && (this._zonesFromDecorations.length > 0 || this._zonesFromCursors.length > 0)) {
+		if (hasRendered && this._renderBorder && this._overviewRuler.getLanesCount() > 0 && (this._zonesFromDecorations.length > 0 || this._zonesFromCursors.length > 0)) {
 			let ctx2 = this._overviewRuler.getDomNode().getContext('2d');
 			ctx2.beginPath();
 			ctx2.lineWidth = 1;
