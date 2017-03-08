@@ -296,9 +296,9 @@ export interface IEditorOptions {
 	overviewRulerLanes?: number;
 	/**
 	 * Controls if a border should be drawn around the overview ruler.
-	 * Defaults to `false`.
+	 * Defaults to `true`.
 	 */
-	hideOverviewRulerBorder?: boolean;
+	overviewRulerBorder?: boolean;
 	/**
 	 * Control the cursor animation style, possible values are 'blink', 'smooth', 'phase', 'expand' and 'solid'.
 	 * Defaults to 'blink'.
@@ -771,7 +771,7 @@ export class InternalEditorViewOptions {
 	readonly revealHorizontalRightPadding: number;
 	readonly roundedSelection: boolean;
 	readonly overviewRulerLanes: number;
-	readonly hideOverviewRulerBorder: boolean;
+	readonly overviewRulerBorder: boolean;
 	readonly cursorBlinking: TextEditorCursorBlinkingStyle;
 	readonly mouseWheelZoom: boolean;
 	readonly cursorStyle: TextEditorCursorStyle;
@@ -805,7 +805,7 @@ export class InternalEditorViewOptions {
 		revealHorizontalRightPadding: number;
 		roundedSelection: boolean;
 		overviewRulerLanes: number;
-		hideOverviewRulerBorder: boolean;
+		overviewRulerBorder: boolean;
 		cursorBlinking: TextEditorCursorBlinkingStyle;
 		mouseWheelZoom: boolean;
 		cursorStyle: TextEditorCursorStyle;
@@ -835,7 +835,7 @@ export class InternalEditorViewOptions {
 		this.revealHorizontalRightPadding = source.revealHorizontalRightPadding | 0;
 		this.roundedSelection = Boolean(source.roundedSelection);
 		this.overviewRulerLanes = source.overviewRulerLanes | 0;
-		this.hideOverviewRulerBorder = Boolean(source.hideOverviewRulerBorder);
+		this.overviewRulerBorder = Boolean(source.overviewRulerBorder);
 		this.cursorBlinking = source.cursorBlinking | 0;
 		this.mouseWheelZoom = Boolean(source.mouseWheelZoom);
 		this.cursorStyle = source.cursorStyle | 0;
@@ -899,7 +899,7 @@ export class InternalEditorViewOptions {
 			&& this.revealHorizontalRightPadding === other.revealHorizontalRightPadding
 			&& this.roundedSelection === other.roundedSelection
 			&& this.overviewRulerLanes === other.overviewRulerLanes
-			&& this.hideOverviewRulerBorder === other.hideOverviewRulerBorder
+			&& this.overviewRulerBorder === other.overviewRulerBorder
 			&& this.cursorBlinking === other.cursorBlinking
 			&& this.mouseWheelZoom === other.mouseWheelZoom
 			&& this.cursorStyle === other.cursorStyle
@@ -936,7 +936,7 @@ export class InternalEditorViewOptions {
 			revealHorizontalRightPadding: this.revealHorizontalRightPadding !== newOpts.revealHorizontalRightPadding,
 			roundedSelection: this.roundedSelection !== newOpts.roundedSelection,
 			overviewRulerLanes: this.overviewRulerLanes !== newOpts.overviewRulerLanes,
-			hideOverviewRulerBorder: this.hideOverviewRulerBorder !== newOpts.hideOverviewRulerBorder,
+			overviewRulerBorder: this.overviewRulerBorder !== newOpts.overviewRulerBorder,
 			cursorBlinking: this.cursorBlinking !== newOpts.cursorBlinking,
 			mouseWheelZoom: this.mouseWheelZoom !== newOpts.mouseWheelZoom,
 			cursorStyle: this.cursorStyle !== newOpts.cursorStyle,
@@ -977,7 +977,7 @@ export interface IViewConfigurationChangedEvent {
 	readonly revealHorizontalRightPadding: boolean;
 	readonly roundedSelection: boolean;
 	readonly overviewRulerLanes: boolean;
-	readonly hideOverviewRulerBorder: boolean;
+	readonly overviewRulerBorder: boolean;
 	readonly cursorBlinking: boolean;
 	readonly mouseWheelZoom: boolean;
 	readonly cursorStyle: boolean;

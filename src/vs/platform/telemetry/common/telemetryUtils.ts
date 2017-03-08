@@ -252,7 +252,7 @@ const configurationValueWhitelist = [
 	'http.proxyStrictSSL',
 	'terminal.integrated.fontFamily',
 	'editor.overviewRulerLanes',
-	'editor.hideOverviewRulerBorder',
+	'editor.overviewRulerBorder',
 	'editor.wordBasedSuggestions',
 	'editor.hideCursorInOverviewRuler',
 	'editor.trimAutoWhitespace',
