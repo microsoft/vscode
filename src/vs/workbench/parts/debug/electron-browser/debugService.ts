@@ -562,7 +562,7 @@ export class DebugService implements debug.IDebugService {
 	}
 
 	public createProcess(configurationOrName: debug.IConfig | string): TPromise<any> {
-		return this.configurationService.reloadConfiguration()	// make sure configuration is up to date
+		return this.textFileService.saveAll().then(() => this.configurationService.reloadConfiguration())	// make sure configuration is up to date
 			.then(() => this.extensionService.onReady()
 				.then(() => {
 					const compound = typeof configurationOrName === 'string' ? this.configurationManager.getCompound(configurationOrName) : null;
