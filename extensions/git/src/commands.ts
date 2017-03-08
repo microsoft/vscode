@@ -242,6 +242,10 @@ export class CommandCenter {
 
 	@command('git.openFile')
 	async openFile(uri?: Uri): Promise<void> {
+		if (uri && uri.scheme === 'file') {
+			return await commands.executeCommand<void>('vscode.open', uri);
+		}
+
 		const resource = this.resolveSCMResource(uri);
 
 		if (!resource) {
