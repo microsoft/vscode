@@ -542,6 +542,11 @@ export class Model implements Disposable {
 			} catch (err) {
 				if (err.gitErrorCode === GitErrorCodes.NotAGitRepository) {
 					this.repositoryDisposable.dispose();
+
+					const disposables: Disposable[] = [];
+					this.onWorkspaceChange(this.onFSChange, this, disposables);
+					this.repositoryDisposable = combinedDisposable(disposables);
+
 					this.state = State.NotAGitRepository;
 				}
 
