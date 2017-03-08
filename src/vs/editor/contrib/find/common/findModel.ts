@@ -17,6 +17,7 @@ import { ReplaceAllCommand } from './replaceAllCommand';
 import { Selection } from 'vs/editor/common/core/selection';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IKeybindings } from 'vs/platform/keybinding/common/keybinding';
+import { Constants } from 'vs/editor/common/core/uint';
 
 export const ToggleCaseSensitiveKeybinding: IKeybindings = {
 	primary: KeyMod.Alt | KeyCode.KEY_C,
@@ -385,7 +386,7 @@ export class FindModelBoundToEditorModel {
 		let findScope = this._decorations.getFindScope();
 		let replacePattern = this._getReplacePattern();
 		// Get all the ranges (even more than the highlighted ones)
-		let matches = this._findMatches(findScope, replacePattern.hasReplacementPatterns, Number.MAX_VALUE);
+		let matches = this._findMatches(findScope, replacePattern.hasReplacementPatterns, Constants.MAX_SAFE_SMALL_INTEGER);
 
 		let replaceStrings: string[] = [];
 		for (let i = 0, len = matches.length; i < len; i++) {
@@ -406,7 +407,7 @@ export class FindModelBoundToEditorModel {
 		let findScope = this._decorations.getFindScope();
 
 		// Get all the ranges (even more than the highlighted ones)
-		let matches = this._findMatches(findScope, false, Number.MAX_VALUE);
+		let matches = this._findMatches(findScope, false, Constants.MAX_SAFE_SMALL_INTEGER);
 		let selections = matches.map(m => new Selection(m.range.startLineNumber, m.range.startColumn, m.range.endLineNumber, m.range.endColumn));
 
 		// If one of the ranges is the editor selection, then maintain it as primary
