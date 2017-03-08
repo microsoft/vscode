@@ -94,29 +94,31 @@ function _loadThemeDocument(baseTheme: string, themePath: string, resultRules: I
 			if (errors.length > 0) {
 				return TPromise.wrapError(new Error(nls.localize('error.cannotparsejson', "Problems parsing JSON theme file: {0}", errors.map(e => Json.getParseErrorMessage(e.error)).join(', '))));
 			}
-			if (Array.isArray(contentValue.settings)) {
-				// legacy information
-				resultRules.push(...contentValue.settings);
-				initializeColorMapsFromSettings(contentValue.settings, resultColors);
-			} else {
-				if (!Array.isArray(contentValue.syntaxTokens) && typeof contentValue.colors !== 'object') {
-					return TPromise.wrapError(new Error(nls.localize({ key: 'error.invalidformat', comment: ['{0} will be replaced by a path. Values in quotes should not be translated.'] }, "Problem parsing JSON theme file: {0}. Expecting 'syntaxTokens' and 'colors'.")));
-				}
-				if (contentValue.syntaxTokens) {
-					resultRules.push(...contentValue.syntaxTokens);
-				}
-				if (contentValue.colors) {
-					for (let colorId in contentValue.colors) {
-						let colorHex = contentValue.colors[colorId];
-						resultColors[colorId] = Color.fromHex(colorHex);
+			let includeCompletes = TPromise.as(null);
+			if (contentValue.include) {
+				includeCompletes = _loadThemeDocument(baseTheme, Paths.join(Paths.dirname(themePath), contentValue.include), resultRules, resultColors);
+			}
+			return includeCompletes.then(_ => {
+				if (Array.isArray(contentValue.settings)) {
+					// legacy information
+					resultRules.push(...contentValue.settings);
+					initializeColorMapsFromSettings(contentValue.settings, resultColors);
+				} else {
+					if (!Array.isArray(contentValue.syntaxTokens) && typeof contentValue.colors !== 'object') {
+						return TPromise.wrapError(new Error(nls.localize({ key: 'error.invalidformat', comment: ['{0} will be replaced by a path. Values in quotes should not be translated.'] }, "Problem parsing JSON theme file: {0}. Expecting 'syntaxTokens' and 'colors'.")));
+					}
+					if (contentValue.syntaxTokens) {
+						resultRules.push(...contentValue.syntaxTokens);
+					}
+					if (contentValue.colors) {
+						for (let colorId in contentValue.colors) {
+							let colorHex = contentValue.colors[colorId];
+							resultColors[colorId] = Color.fromHex(colorHex);
+						}
 					}
 				}
-			}
-
-			if (contentValue.include) {
-				return _loadThemeDocument(baseTheme, Paths.join(Paths.dirname(themePath), contentValue.include), resultRules, resultColors);
-			}
-			return TPromise.as(null);
+				return null;
+			});
 		}
 		try {
 			let contentValue = plist.parse(content.toString());
