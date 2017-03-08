@@ -202,7 +202,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 					enabled: breakpoint.enabled,
 					condition: breakpoint.condition,
 					hitCondition: breakpoint.hitCondition,
-					column: decorationRange.startColumn
+					column: breakpoint.column ? decorationRange.startColumn : undefined
 				});
 			}
 		}
