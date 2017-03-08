@@ -28,10 +28,6 @@ export class Source {
 	}
 
 	public get inMemory() {
-		return Source.isInMemory(this.uri);
-	}
-
-	public static isInMemory(uri: uri): boolean {
-		return uri.toString().indexOf(`${DEBUG_SCHEME}:`) === 0;
+		return this.uri.toString().indexOf(`${DEBUG_SCHEME}:`) === 0;
 	}
 }
