@@ -7,7 +7,7 @@
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ReplacePattern, parseReplaceString } from 'vs/editor/contrib/find/common/replacePattern';
-import { ReplaceCommand } from 'vs/editor/common/commands/replaceCommand';
+import { ReplaceCommand, ReplaceCommandThatPreservesSelection } from 'vs/editor/common/commands/replaceCommand';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -18,6 +18,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IKeybindings } from 'vs/platform/keybinding/common/keybinding';
 import { Constants } from 'vs/editor/common/core/uint';
+import { SearchParams } from 'vs/editor/common/model/textModelSearch';
 
 export const ToggleCaseSensitiveKeybinding: IKeybindings = {
 	primary: KeyMod.Alt | KeyCode.KEY_C,
@@ -223,7 +224,7 @@ export class FindModelBoundToEditorModel {
 			before = searchRange.getEndPosition();
 		}
 
-		let {lineNumber, column} = before;
+		let { lineNumber, column } = before;
 		let model = this._editor.getModel();
 
 		let position = new Position(lineNumber, column);
@@ -294,7 +295,7 @@ export class FindModelBoundToEditorModel {
 			after = searchRange.getStartPosition();
 		}
 
-		let {lineNumber, column} = after;
+		let { lineNumber, column } = after;
 		let model = this._editor.getModel();
 
 		let position = new Position(lineNumber, column);
@@ -383,8 +384,45 @@ export class FindModelBoundToEditorModel {
 			return;
 		}
 
-		let findScope = this._decorations.getFindScope();
-		let replacePattern = this._getReplacePattern();
+		const findScope = this._decorations.getFindScope();
+
+		if (findScope === null && this._state.matchesCount >= MATCHES_LIMIT) {
+			// Doing a replace on the entire file that is over 1k matches
+			this._largeReplaceAll();
+		} else {
+			this._regularReplaceAll(findScope);
+		}
+
+		this.research(false);
+	}
+
+	private _largeReplaceAll(): void {
+		const searchParams = new SearchParams(this._state.searchString, this._state.isRegex, this._state.matchCase, this._state.wholeWord);
+		const searchData = searchParams.parseSearchRequest();
+		if (!searchData) {
+			return;
+		}
+
+		const model = this._editor.getModel();
+		const modelText = model.getValue(editorCommon.EndOfLinePreference.LF);
+		const fullModelRange = model.getFullModelRange();
+
+		const replacePattern = this._getReplacePattern();
+		let resultText: string;
+		if (replacePattern.hasReplacementPatterns) {
+			resultText = modelText.replace(searchData.regex, function () {
+				return replacePattern.buildReplaceString(<string[]><any>arguments);
+			});
+		} else {
+			resultText = modelText.replace(searchData.regex, replacePattern.buildReplaceString(null));
+		}
+
+		let command = new ReplaceCommandThatPreservesSelection(fullModelRange, resultText, this._editor.getSelection());
+		this._executeEditorCommand('replaceAll', command);
+	}
+
+	private _regularReplaceAll(findScope: Range): void {
+		const replacePattern = this._getReplacePattern();
 		// Get all the ranges (even more than the highlighted ones)
 		let matches = this._findMatches(findScope, replacePattern.hasReplacementPatterns, Constants.MAX_SAFE_SMALL_INTEGER);
 
@@ -395,8 +433,6 @@ export class FindModelBoundToEditorModel {
 
 		let command = new ReplaceAllCommand(this._editor.getSelection(), matches.map(m => m.range), replaceStrings);
 		this._executeEditorCommand('replaceAll', command);
-
-		this.research(false);
 	}
 
 	public selectAllMatches(): void {
