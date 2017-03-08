@@ -536,7 +536,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 	private _computeInternalOptions(): editorCommon.InternalEditorOptions {
 		let opts = this._configWithDefaults.getEditorOptions();
 
-		let editorClassName = this._getEditorClassName(opts.theme, toBoolean(opts.fontLigatures));
+		let editorClassName = this._getEditorClassName(opts.theme, toBoolean(opts.fontLigatures), opts.mouseStyle);
 
 		let disableTranslate3d = toBoolean(opts.disableTranslate3d);
 		let canUseTranslate3d = this._getCanUseTranslate3d();
@@ -587,7 +587,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 		return r ? r : 1;
 	}
 
-	protected abstract _getEditorClassName(theme: string, fontLigatures: boolean): string;
+	protected abstract _getEditorClassName(theme: string, fontLigatures: boolean, mouseDrag: 'text' | 'default' | 'copy'): string;
 
 	protected abstract getOuterWidth(): number;
 

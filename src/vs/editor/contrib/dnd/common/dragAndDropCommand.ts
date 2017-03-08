@@ -15,17 +15,17 @@ export class DragAndDropCommand implements editorCommon.ICommand {
 	private selection: Selection;
 	private targetPosition: Position;
 	private targetSelection: Selection;
-	private altKey: boolean;
+	private copy: boolean;
 
-	constructor(selection: Selection, targetPosition: Position, altKey: boolean) {
+	constructor(selection: Selection, targetPosition: Position, copy: boolean) {
 		this.selection = selection;
 		this.targetPosition = targetPosition;
-		this.altKey = altKey;
+		this.copy = copy;
 	}
 
 	public getEditOperations(model: editorCommon.ITokenizedModel, builder: editorCommon.IEditOperationBuilder): void {
 		let text = model.getValueInRange(this.selection);
-		if (!this.altKey) {
+		if (!this.copy) {
 			builder.addEditOperation(this.selection, null);
 		}
 		builder.addEditOperation(new Range(this.targetPosition.lineNumber, this.targetPosition.column, this.targetPosition.lineNumber, this.targetPosition.column), text);
@@ -35,7 +35,7 @@ export class DragAndDropCommand implements editorCommon.ICommand {
 			return;
 		}
 
-		if (this.altKey) {
+		if (this.copy) {
 			this.targetSelection = new Selection(
 				this.targetPosition.lineNumber,
 				this.targetPosition.column,
