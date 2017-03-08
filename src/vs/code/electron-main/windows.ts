@@ -121,6 +121,7 @@ export interface IWindowsMainService {
 	removeFromRecentPathsList(path: string): void;
 	removeFromRecentPathsList(paths: string[]): void;
 	clearRecentPathsList(): void;
+	updateWindowsJumpList(): void;
 	quit(): void;
 }
 
@@ -140,8 +141,6 @@ export class WindowsManager implements IWindowsMainService {
 
 	private windowsState: IWindowsState;
 	private lastClosedWindowState: IWindowState;
-
-	private firstWindowLoading: boolean;
 
 	private _onRecentPathsChange = new Emitter<void>();
 	onRecentPathsChange: CommonEvent<void> = this._onRecentPathsChange.event;
@@ -251,9 +250,6 @@ export class WindowsManager implements IWindowsMainService {
 		// Update our windows state before quitting and before closing windows
 		this.lifecycleService.onBeforeWindowClose(win => this.onBeforeWindowClose(win));
 		this.lifecycleService.onBeforeQuit(() => this.onBeforeQuit());
-
-		// Update jump list when recent paths change
-		this.onRecentPathsChange(() => this.updateWindowsJumpList());
 	}
 
 	// Note that onBeforeQuit() and onBeforeWindowClose() are fired in different order depending on the OS:
@@ -862,7 +858,6 @@ export class WindowsManager implements IWindowsMainService {
 			vscodeWindow.win.webContents.removeAllListeners('devtools-reload-page'); // remove built in listener so we can handle this on our own
 			vscodeWindow.win.webContents.on('devtools-reload-page', () => this.reload(vscodeWindow));
 			vscodeWindow.win.webContents.on('crashed', () => this.onWindowError(vscodeWindow, WindowError.CRASHED));
-			vscodeWindow.win.webContents.on('did-start-loading', () => this.onWindowStartLoading(vscodeWindow));
 			vscodeWindow.win.on('unresponsive', () => this.onWindowError(vscodeWindow, WindowError.UNRESPONSIVE));
 			vscodeWindow.win.on('closed', () => this.onWindowClosed(vscodeWindow));
 
@@ -1265,24 +1260,9 @@ export class WindowsManager implements IWindowsMainService {
 		return pathA === pathB;
 	}
 
-	private onWindowStartLoading(win: VSCodeWindow): void {
-		if (!this.firstWindowLoading) {
-			this.firstWindowLoading = true;
-
-			// Apply jump list when our first window is loading. We do this because
-			// setJumpList() seems to take quite a bit of time and would block window
-			// loading ( = startup performance) significantly otherwise
-			setTimeout(() => this.updateWindowsJumpList()); // unwind from onWindowStartLoading event
-		}
-	}
-
-	private updateWindowsJumpList(): void {
+	public updateWindowsJumpList(): void {
 		if (!platform.isWindows) {
 			return; // only on windows
-		}
-
-		if (!this.firstWindowLoading) {
-			return; // push this out until a window starts loading for perf reasons
 		}
 
 		const jumpList: Electron.JumpListCategory[] = [];

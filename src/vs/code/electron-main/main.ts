@@ -259,6 +259,10 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 		// Install Menu
 		instantiationService2.createInstance(VSCodeMenu);
 
+		// Jump List
+		windowsMainService.updateWindowsJumpList();
+		windowsMainService.onRecentPathsChange(() => windowsMainService.updateWindowsJumpList());
+
 		// Start shared process here
 		sharedProcess.spawn();
 	});
