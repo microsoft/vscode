@@ -6,6 +6,8 @@
 'use strict';
 
 import { Event } from 'vscode';
+import { dirname } from 'path';
+import * as fs from 'fs';
 
 export function log(...args: any[]): void {
 	console.log.apply(console, ['git:', ...args]);
@@ -103,4 +105,46 @@ export function groupBy<T>(arr: T[], fn: (el: T) => string): { [key: string]: T[
 
 export function denodeify<R>(fn: Function): (...args) => Promise<R> {
 	return (...args) => new Promise((c, e) => fn(...args, (err, r) => err ? e(err) : c(r)));
+}
+
+export function nfcall<R>(fn: Function, ...args): Promise<R> {
+	return new Promise((c, e) => fn(...args, (err, r) => err ? e(err) : c(r)));
+}
+
+export async function mkdirp(path: string, mode?: number): Promise<boolean> {
+	const mkdir = async () => {
+		try {
+			await nfcall(fs.mkdir, path, mode);
+		} catch (err) {
+			if (err.code === 'EEXIST') {
+				const stat = await nfcall<fs.Stats>(fs.stat, path);
+
+				if (stat.isDirectory) {
+					return;
+				}
+
+				throw new Error(`'${path}' exists and is not a directory.`);
+			}
+
+			throw err;
+		}
+	};
+
+	// is root?
+	if (path === dirname(path)) {
+		return true;
+	}
+
+	try {
+		await mkdir();
+	} catch (err) {
+		if (err.code !== 'ENOENT') {
+			throw err;
+		}
+
+		await mkdirp(dirname(path), mode);
+		await mkdir();
+	}
+
+	return true;
 }

@@ -9,7 +9,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import * as cp from 'child_process';
-import { assign, uniqBy, groupBy, denodeify, IDisposable, toDisposable, dispose } from './util';
+import { assign, uniqBy, groupBy, denodeify, IDisposable, toDisposable, dispose, mkdirp } from './util';
 import { EventEmitter, Event } from 'vscode';
 import * as nls from 'vscode-nls';
 
@@ -298,6 +298,7 @@ export class Git {
 		const folderName = url.replace(/^.*\//, '').replace(/\.git$/, '') || 'repository';
 		const folderPath = path.join(parentPath, folderName);
 
+		await mkdirp(parentPath);
 		await this.exec(parentPath, ['clone', url, folderPath]);
 		return folderPath;
 	}
