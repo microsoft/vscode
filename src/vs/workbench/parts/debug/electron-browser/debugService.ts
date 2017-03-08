@@ -548,9 +548,7 @@ export class DebugService implements debug.IDebugService {
 	}
 
 	public renameWatchExpression(id: string, newName: string): TPromise<void> {
-		return this.model.renameWatchExpression(this.viewModel.focusedProcess, this.viewModel.focusedStackFrame, id, newName)
-			// Evaluate all watch expressions and fetch variables again since watch expression evaluation might have changed some.
-			.then(() => this.focusStackFrameAndEvaluate(this.viewModel.focusedStackFrame, this.viewModel.focusedProcess));
+		return this.model.renameWatchExpression(this.viewModel.focusedProcess, this.viewModel.focusedStackFrame, id, newName);
 	}
 
 	public moveWatchExpression(id: string, position: number): void {

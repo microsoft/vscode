@@ -927,7 +927,8 @@ export class Model implements debug.IModel {
 		const filtered = this.watchExpressions.filter(we => we.getId() === id);
 		if (filtered.length === 1) {
 			filtered[0].name = newName;
-			return filtered[0].evaluate(process, stackFrame, 'watch').then(() => {
+			// Evaluate all watch expressions again since the new watch expression might have changed some.
+			return this.evaluateWatchExpressions(process, stackFrame).then(() => {
 				this._onDidChangeWatchExpressions.fire(filtered[0]);
 			});
 		}
