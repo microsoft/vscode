@@ -14,15 +14,39 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { editorAction, ServicesAccessor, EditorAction, commonEditorContribution } from 'vs/editor/common/editorCommonExtensions';
 import { OnTypeFormattingEditProviderRegistry, DocumentRangeFormattingEditProviderRegistry } from 'vs/editor/common/modes';
 import { getOnTypeFormattingEdits, getDocumentFormattingEdits, getDocumentRangeFormattingEdits } from '../common/format';
-import { EditOperationsCommand } from './formatCommand';
+import { EditOperationsCommand } from '../common/formatCommand';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { CharacterSet } from 'vs/editor/common/core/characterClassifier';
 import { Range } from 'vs/editor/common/core/range';
+import { alert } from 'vs/base/browser/ui/aria/aria';
 
 import ModeContextKeys = editorCommon.ModeContextKeys;
 import EditorContextKeys = editorCommon.EditorContextKeys;
+
+
+function alertFormattingEdits(edits: editorCommon.ISingleEditOperation[]): void {
+
+	let { range } = edits[0];
+	for (let i = 1; i < edits.length; i++) {
+		range = Range.plusRange(range, edits[i].range);
+	}
+	const { startLineNumber, endLineNumber } = range;
+	if (startLineNumber === endLineNumber) {
+		if (edits.length === 1) {
+			alert(nls.localize('hint11', "Made 1 formatting edit on line {0}", startLineNumber));
+		} else {
+			alert(nls.localize('hintn1', "Made {0} formatting edits on line {1}", edits.length, startLineNumber));
+		}
+	} else {
+		if (edits.length === 1) {
+			alert(nls.localize('hint1n', "Made 1 formatting edit between lines {0} and {1}", startLineNumber, endLineNumber));
+		} else {
+			alert(nls.localize('hintnn', "Made {0} formatting edits between lines {1} and {2}", edits.length, startLineNumber, endLineNumber));
+		}
+	}
+}
 
 @commonEditorContribution
 class FormatOnType implements editorCommon.IEditorContribution {
@@ -134,6 +158,7 @@ class FormatOnType implements editorCommon.IEditorContribution {
 			}
 
 			this.editor.executeCommand(this.getId(), new EditOperationsCommand(edits, this.editor.getSelection()));
+			alertFormattingEdits(edits);
 
 		}, (err) => {
 			unbind.dispose();
@@ -218,6 +243,7 @@ class FormatOnPaste implements editorCommon.IEditorContribution {
 			}
 			const command = new EditOperationsCommand(edits, this.editor.getSelection());
 			this.editor.executeCommand(this.getId(), command);
+			alertFormattingEdits(edits);
 		});
 	}
 
@@ -252,6 +278,7 @@ export abstract class AbstractFormatAction extends EditorAction {
 			}
 			const command = new EditOperationsCommand(edits, editor.getSelection());
 			editor.executeCommand(this.id, command);
+			alertFormattingEdits(edits);
 			editor.focus();
 		});
 	}
@@ -284,7 +311,7 @@ export class FormatDocumentAction extends AbstractFormatAction {
 
 	protected _getFormattingEdits(editor: editorCommon.ICommonCodeEditor): TPromise<editorCommon.ISingleEditOperation[]> {
 		const model = editor.getModel();
-		const { tabSize, insertSpaces} = model.getOptions();
+		const { tabSize, insertSpaces } = model.getOptions();
 		return getDocumentFormattingEdits(model, { tabSize, insertSpaces });
 	}
 }
@@ -311,7 +338,7 @@ export class FormatSelectionAction extends AbstractFormatAction {
 
 	protected _getFormattingEdits(editor: editorCommon.ICommonCodeEditor): TPromise<editorCommon.ISingleEditOperation[]> {
 		const model = editor.getModel();
-		const { tabSize, insertSpaces} = model.getOptions();
+		const { tabSize, insertSpaces } = model.getOptions();
 		return getDocumentRangeFormattingEdits(model, editor.getSelection(), { tabSize, insertSpaces });
 	}
 }
@@ -328,7 +355,7 @@ CommandsRegistry.registerCommand('editor.action.format', accessor => {
 			_getFormattingEdits(editor: editorCommon.ICommonCodeEditor): TPromise<editorCommon.ISingleEditOperation[]> {
 				const model = editor.getModel();
 				const editorSelection = editor.getSelection();
-				const {tabSize, insertSpaces } = model.getOptions();
+				const { tabSize, insertSpaces } = model.getOptions();
 
 				return editorSelection.isEmpty()
 					? getDocumentFormattingEdits(model, { tabSize, insertSpaces })
