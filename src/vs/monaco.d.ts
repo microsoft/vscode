@@ -1219,6 +1219,11 @@ declare module monaco.editor {
          */
         overviewRulerLanes?: number;
         /**
+         * Controls if a border should be drawn around the overview ruler.
+         * Defaults to `false`.
+         */
+        hideOverviewRulerBorder?: boolean;
+        /**
          * Control the cursor animation style, possible values are 'blink', 'smooth', 'phase', 'expand' and 'solid'.
          * Defaults to 'blink'.
          */
@@ -1551,6 +1556,7 @@ declare module monaco.editor {
         readonly revealHorizontalRightPadding: number;
         readonly roundedSelection: boolean;
         readonly overviewRulerLanes: number;
+        readonly hideOverviewRulerBorder: boolean;
         readonly cursorBlinking: TextEditorCursorBlinkingStyle;
         readonly mouseWheelZoom: boolean;
         readonly cursorStyle: TextEditorCursorStyle;
@@ -1582,6 +1588,7 @@ declare module monaco.editor {
         readonly revealHorizontalRightPadding: boolean;
         readonly roundedSelection: boolean;
         readonly overviewRulerLanes: boolean;
+        readonly hideOverviewRulerBorder: boolean;
         readonly cursorBlinking: boolean;
         readonly mouseWheelZoom: boolean;
         readonly cursorStyle: boolean;
