@@ -67,6 +67,7 @@ class ConfigClass implements IConfiguration {
 			cursorBlinking: 'blink',
 			mouseWheelZoom: false,
 			cursorStyle: 'line',
+			mouseStyle: 'text',
 			fontLigatures: false,
 			disableTranslate3d: false,
 			disableMonospaceOptimizations: false,

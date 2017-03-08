@@ -337,7 +337,7 @@ export class Configuration extends CommonEditorConfiguration {
 		super.dispose();
 	}
 
-	protected _getEditorClassName(theme: string, fontLigatures: boolean): string {
+	protected _getEditorClassName(theme: string, fontLigatures: boolean, mouseStyle: 'text' | 'default' | 'copy'): string {
 		let extra = '';
 		if (browser.isIE) {
 			extra += 'ie ';
@@ -351,6 +351,11 @@ export class Configuration extends CommonEditorConfiguration {
 		}
 		if (fontLigatures) {
 			extra += 'enable-ligatures ';
+		}
+		if (mouseStyle === 'default') {
+			extra += 'mouse-default ';
+		} else if (mouseStyle === 'copy') {
+			extra += 'mouse-copy ';
 		}
 		return 'monaco-editor ' + extra + theme;
 	}

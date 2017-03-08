@@ -310,6 +310,12 @@ export interface IEditorOptions {
 	 */
 	mouseWheelZoom?: boolean;
 	/**
+	 * Control the mouse pointer style, either 'text' or 'default' or 'copy'
+	 * Defaults to 'text'
+	 * @internal
+	 */
+	mouseStyle?: 'text' | 'default' | 'copy';
+	/**
 	 * Control the cursor style, either 'block' or 'line'.
 	 * Defaults to 'line'.
 	 */

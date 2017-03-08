@@ -6,7 +6,9 @@
 'use strict';
 
 import 'vs/css!./dnd';
+import { IMouseEvent } from "vs/base/browser/mouseEvent";
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { isWindows } from 'vs/base/common/platform';
 import { ICodeEditor, IEditorMouseEvent, IMouseTarget } from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -38,6 +40,18 @@ export class DragAndDropController implements editorCommon.IEditorContribution {
 		this._dragSelection = null;
 	}
 
+	private isDragAndCopy(mouseEvent: IMouseEvent) {
+		if (isWindows && mouseEvent.ctrlKey) {
+			return true;
+		}
+
+		if (!isWindows && mouseEvent.altKey) {
+			return true;
+		}
+
+		return false;
+	}
+
 	private _onEditorMouseDrag(mouseEvent: IEditorMouseEvent): void {
 		let target = mouseEvent.target;
 
@@ -48,6 +62,16 @@ export class DragAndDropController implements editorCommon.IEditorContribution {
 			} else {
 				return;
 			}
+		}
+
+		if (this.isDragAndCopy(mouseEvent.event)) {
+			this._editor.updateOptions({
+				mouseStyle: 'copy'
+			});
+		} else {
+			this._editor.updateOptions({
+				mouseStyle: 'default'
+			});
 		}
 
 		if (this._dragSelection.containsPosition(target.position)) {
@@ -71,9 +95,13 @@ export class DragAndDropController implements editorCommon.IEditorContribution {
 				});
 				this._editor.setSelections(newSelections);
 			} else if (!this._dragSelection.containsPosition(newCursorPosition)) {
-				this._editor.executeCommand(DragAndDropController.ID, new DragAndDropCommand(this._dragSelection, newCursorPosition, mouseEvent.event.altKey));
+				this._editor.executeCommand(DragAndDropController.ID, new DragAndDropCommand(this._dragSelection, newCursorPosition, this.isDragAndCopy(mouseEvent.event)));
 			}
 		}
+
+		this._editor.updateOptions({
+			mouseStyle: 'text'
+		});
 
 		this._removeDecoration();
 		this._dragSelection = null;
