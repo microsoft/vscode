@@ -12,16 +12,14 @@
   },
   "dependencies": {
     "semver": "4.3.6",
-    "vscode-extension-telemetry": "^0.0.5",
-    "vscode-nls": "^2.0.1",
-    "typescript": "typescript@2.2.1-insiders.20170217"
+    "vscode-extension-telemetry": "^0.0.6",
+    "vscode-nls": "^2.0.1"
   },
   "devDependencies": {
     "@types/node": "^7.0.4",
     "@types/semver": "^5.3.30"
   },
   "scripts": {
-    "postinstall": "node ./bin/postinstall",
     "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:typescript ./tsconfig.json",
     "update-grammars": "node ./build/update-grammars.js"
   },
@@ -36,7 +34,6 @@
     "onCommand:typescript.selectTypeScriptVersion",
     "onCommand:javascript.goToProjectConfig",
     "onCommand:typescript.goToProjectConfig",
-    "onCommand:_typescript.tryCompleteJsDoc",
     "workspaceContains:jsconfig.json",
     "workspaceContains:tsconfig.json"
   ],
@@ -84,28 +81,6 @@
         }
       }
     ],
-    "keybindings": [
-      {
-        "key": "enter",
-        "command": "_typescript.tryCompleteJsDoc",
-        "when": "editorTextFocus && !suggestWidgetVisible && editorLangId == 'typescript'"
-      },
-      {
-        "key": "enter",
-        "command": "_typescript.tryCompleteJsDoc",
-        "when": "editorTextFocus && !suggestWidgetVisible && editorLangId == 'typescriptreact'"
-      },
-      {
-        "key": "enter",
-        "command": "_typescript.tryCompleteJsDoc",
-        "when": "editorTextFocus && !suggestWidgetVisible && editorLangId == 'javascript'"
-      },
-      {
-        "key": "enter",
-        "command": "_typescript.tryCompleteJsDoc",
-        "when": "editorTextFocus && !suggestWidgetVisible && editorLangId == 'javascriptreact'"
-      }
-    ],
     "configuration": {
       "type": "object",
       "title": "%configuration.typescript%",
@@ -133,6 +108,11 @@
           "type": "boolean",
           "default": false,
           "description": "%typescript.referencesCodeLens.enabled%"
+        },
+        "typescript.implementationsCodeLens.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "%typescript.implementationsCodeLens.enabled%"
         },
         "typescript.tsserver.trace": {
           "type": "string",
@@ -183,6 +163,11 @@
           "type": "boolean",
           "default": true,
           "description": "%format.insertSpaceAfterFunctionKeywordForAnonymousFunctions%"
+        },
+        "typescript.format.insertSpaceBeforeFunctionParenthesis": {
+          "type": "boolean",
+          "default": false,
+          "description": "%format.insertSpaceBeforeFunctionParenthesis%"
         },
         "typescript.format.insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis": {
           "type": "boolean",
@@ -249,6 +234,11 @@
           "default": true,
           "description": "%format.insertSpaceAfterFunctionKeywordForAnonymousFunctions%"
         },
+        "javascript.format.insertSpaceBeforeFunctionParenthesis": {
+          "type": "boolean",
+          "default": false,
+          "description": "%format.insertSpaceBeforeFunctionParenthesis%"
+        },
         "javascript.format.insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis": {
           "type": "boolean",
           "default": false,
@@ -308,6 +298,42 @@
         "category": "JavaScript"
       }
     ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "typescript.reloadProjects",
+          "when": "editorLangId == 'typescript'"
+        },
+        {
+          "command": "typescript.reloadProjects",
+          "when": "editorLangId == typescriptreact"
+        },
+        {
+          "command": "javascript.reloadProjects",
+          "when": "editorLangId == 'javascript'"
+        },
+        {
+          "command": "javascript.reloadProjects",
+          "when": "editorLangId == javascriptreact"
+        },
+        {
+          "command": "typescript.goToProjectConfig",
+          "when": "editorLangId == 'typescript'"
+        },
+        {
+          "command": "typescript.goToProjectConfig",
+          "when": "editorLangId == typescriptreact"
+        },
+        {
+          "command": "javascript.goToProjectConfig",
+          "when": "editorLangId == 'javascript'"
+        },
+        {
+          "command": "javascript.goToProjectConfig",
+          "when": "editorLangId == javascriptreact"
+        }
+      ]
+    },
     "breakpoints": [
       {
         "language": "typescript"

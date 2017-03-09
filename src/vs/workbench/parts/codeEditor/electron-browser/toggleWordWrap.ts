@@ -8,8 +8,6 @@ import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { editorAction, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
-import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
-import { IMessageService, Severity } from 'vs/platform/message/common/message';
 
 @editorAction
 class ToggleWordWrapAction extends EditorAction {
@@ -28,19 +26,20 @@ class ToggleWordWrapAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
-		const configurationEditingService = accessor.get(IConfigurationEditingService);
-		const messageService = accessor.get(IMessageService);
-
 		let wrappingInfo = editor.getConfiguration().wrappingInfo;
-		let newWordWrap: boolean;
+		let newWordWrap: 'on' | 'off';
+		let newWordWrapMinified: boolean;
 		if (!wrappingInfo.isViewportWrapping) {
-			newWordWrap = true;
+			newWordWrap = 'on';
+			newWordWrapMinified = true;
 		} else {
-			newWordWrap = false;
+			newWordWrap = 'off';
+			newWordWrapMinified = false;
 		}
 
-		configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: 'editor.wordWrap', value: newWordWrap }).then(null, error => {
-			messageService.show(Severity.Error, error);
+		editor.updateOptions({
+			wordWrap: newWordWrap,
+			wordWrapMinified: newWordWrapMinified
 		});
 	}
 }

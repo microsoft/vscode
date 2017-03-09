@@ -37,7 +37,7 @@ suite('Mime', () => {
 		guess = guessMimeTypes('Randomfile.noregistration', 'RegexesAreNice');
 		assert.deepEqual(guess, ['text/nice-regex', 'text/plain']);
 
-		guess = guessMimeTypes('Randomfile.noregistration', 'RegexesAreNiceee');
+		guess = guessMimeTypes('Randomfile.noregistration', 'RegexesAreNotNice');
 		assert.deepEqual(guess, ['application/unknown']);
 
 		guess = guessMimeTypes('Codefile', 'RegexesAreNice');
@@ -105,5 +105,13 @@ suite('Mime', () => {
 
 		let guess = guessMimeTypes('/some/path/dot.monaco.xml');
 		assert.deepEqual(guess, ['text/monaco', 'text/plain']);
+	});
+
+	test('Mimes Priority - Last registered mime wins', () => {
+		registerTextMime({ id: 'monaco', filepattern: '**/dot.monaco.xml', mime: 'text/monaco' });
+		registerTextMime({ id: 'other', filepattern: '**/dot.monaco.xml', mime: 'text/other' });
+
+		let guess = guessMimeTypes('/some/path/dot.monaco.xml');
+		assert.deepEqual(guess, ['text/other', 'text/plain']);
 	});
 });

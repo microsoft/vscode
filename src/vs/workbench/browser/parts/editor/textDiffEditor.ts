@@ -34,6 +34,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IModeService } from 'vs/editor/common/services/modeService';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 /**
  * The text editor that leverages the diff text editor for the editing experience.
@@ -53,10 +54,11 @@ export class TextDiffEditor extends BaseTextEditor {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IThemeService themeService: IThemeService,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@IModeService modeService: IModeService
+		@IEditorGroupService editorGroupService: IEditorGroupService,
+		@IModeService modeService: IModeService,
+		@ITextFileService textFileService: ITextFileService
 	) {
-		super(TextDiffEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, modeService);
+		super(TextDiffEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, modeService, textFileService, editorGroupService);
 	}
 
 	public getTitle(): string {
@@ -281,24 +283,8 @@ export class TextDiffEditor extends BaseTextEditor {
 	public getSecondaryActions(): IAction[] {
 		const actions = super.getSecondaryActions();
 
-		const control = this.getControl();
-
-		let inlineModeActive = control && !control.renderSideBySide;
-		const inlineLabel = nls.localize('inlineDiffLabel', "Switch to Inline View");
-		const sideBySideLabel = nls.localize('sideBySideDiffLabel', "Switch to Side by Side View");
-
 		// Action to toggle editor mode from inline to side by side
-		const toggleEditorModeAction = new Action('toggle.diff.editorMode', inlineModeActive ? sideBySideLabel : inlineLabel, null, true, () => {
-			this.getControl().updateOptions(<IDiffEditorOptions>{
-				renderSideBySide: inlineModeActive
-			});
-
-			inlineModeActive = !inlineModeActive;
-			toggleEditorModeAction.label = inlineModeActive ? sideBySideLabel : inlineLabel;
-
-			return TPromise.as(true);
-		});
-
+		const toggleEditorModeAction = new ToggleEditorModeAction(this);
 		toggleEditorModeAction.order = 50; // Closer to the end
 
 		actions.push(...[
@@ -353,5 +339,36 @@ class NavigateAction extends Action {
 
 	public updateEnablement(): void {
 		this.enabled = this.editor.getDiffNavigator().canNavigate();
+	}
+}
+
+class ToggleEditorModeAction extends Action {
+	private static ID = 'toggle.diff.editorMode';
+	private static INLINE_LABEL = nls.localize('inlineDiffLabel', "Switch to Inline View");
+	private static SIDEBYSIDE_LABEL = nls.localize('sideBySideDiffLabel', "Switch to Side by Side View");
+
+	constructor(private editor: TextDiffEditor) {
+		super(ToggleEditorModeAction.ID);
+	}
+
+	public get label(): string {
+		return ToggleEditorModeAction.isInlineMode(this.editor) ? ToggleEditorModeAction.SIDEBYSIDE_LABEL : ToggleEditorModeAction.INLINE_LABEL;
+	}
+
+	public run(): TPromise<any> {
+		const inlineModeActive = ToggleEditorModeAction.isInlineMode(this.editor);
+
+		const control = this.editor.getControl();
+		control.updateOptions(<IDiffEditorOptions>{
+			renderSideBySide: inlineModeActive
+		});
+
+		return TPromise.as(true);
+	}
+
+	private static isInlineMode(editor: TextDiffEditor): boolean {
+		const control = editor.getControl();
+
+		return control && !control.renderSideBySide;
 	}
 }

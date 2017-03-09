@@ -5,32 +5,16 @@
 
 'use strict';
 
-import { Uri, commands, scm, Disposable, SCMResourceGroup, SCMResource, window, workspace, QuickPickItem, OutputChannel, computeDiff, Range, WorkspaceEdit, Position } from 'vscode';
+import { Uri, commands, scm, Disposable, window, workspace, QuickPickItem, OutputChannel, computeDiff, Range, WorkspaceEdit, Position } from 'vscode';
 import { Ref, RefType } from './git';
 import { Model, Resource, Status, CommitOptions } from './model';
 import * as staging from './staging';
 import * as path from 'path';
+import * as os from 'os';
+import TelemetryReporter from 'vscode-extension-telemetry';
 import * as nls from 'vscode-nls';
 
 const localize = nls.loadMessageBundle();
-
-function resolveGitURI(uri: Uri): SCMResource | SCMResourceGroup | undefined {
-	if (uri.authority !== 'git') {
-		return;
-	}
-
-	return scm.getResourceFromURI(uri);
-}
-
-function resolveGitResource(uri: Uri): Resource | undefined {
-	const resource = resolveGitURI(uri);
-
-	if (!(resource instanceof Resource)) {
-		return;
-	}
-
-	return resource;
-}
 
 class CheckoutItem implements QuickPickItem {
 
@@ -94,14 +78,15 @@ export class CommandCenter {
 
 	constructor(
 		model: Model | undefined,
-		private outputChannel: OutputChannel
+		private outputChannel: OutputChannel,
+		private telemetryReporter: TelemetryReporter
 	) {
 		if (model) {
 			this.model = model;
 		}
 
 		this.disposables = Commands
-			.map(({ commandId, method }) => commands.registerCommand(commandId, this.createCommand(method)));
+			.map(({ commandId, method }) => commands.registerCommand(commandId, this.createCommand(commandId, method)));
 	}
 
 	@command('git.refresh')
@@ -184,44 +169,106 @@ export class CommandCenter {
 		return '';
 	}
 
+	/**
+	 * Attempts to clone a git repository. Throws descriptive errors
+	 * for usual error cases. Returns whether the user chose to open
+	 * the resulting folder or otherwise.
+	 *
+	 * This only exists for the walkthrough contribution to have good
+	 * telemetry.
+	 *
+	 * TODO@Christof: when all the telemetry questions are answered,
+	 * please clean this up into a single clone method.
+	 */
+	@command('_git.clone')
+	async _clone(): Promise<boolean> {
+		const url = await window.showInputBox({
+			prompt: localize('repourl', "Repository URL"),
+			ignoreFocusOut: true
+		});
+
+		if (!url) {
+			throw new Error('no_URL');
+		}
+
+		const parentPath = await window.showInputBox({
+			prompt: localize('parent', "Parent Directory"),
+			value: os.homedir(),
+			ignoreFocusOut: true
+		});
+
+		if (!parentPath) {
+			throw new Error('no_directory');
+		}
+
+		const clonePromise = this.model.git.clone(url, parentPath);
+		window.setStatusBarMessage(localize('cloning', "Cloning git repository..."), clonePromise);
+		let repositoryPath: string;
+
+		try {
+			repositoryPath = await clonePromise;
+		} catch (err) {
+			if (/already exists and is not an empty directory/.test(err && err.stderr || '')) {
+				throw new Error('directory_not_empty');
+			}
+
+			throw err;
+		}
+
+		const open = localize('openrepo', "Open Repository");
+		const result = await window.showInformationMessage(localize('proposeopen', "Would you like to open the cloned repository?"), open);
+		const openFolder = result === open;
+
+		if (openFolder) {
+			commands.executeCommand('vscode.openFolder', Uri.file(repositoryPath));
+		}
+
+		return openFolder;
+	}
+
+	@command('git.clone')
+	async clone(): Promise<void> {
+		try {
+			await this._clone();
+		} catch (err) {
+			// noop
+		}
+	}
+
 	@command('git.init')
 	async init(): Promise<void> {
 		await this.model.init();
 	}
 
 	@command('git.openFile')
-	async openFile(uri: Uri): Promise<void> {
-		const scmResource = resolveGitResource(uri);
-
-		if (scmResource) {
-			return await commands.executeCommand<void>('vscode.open', scmResource.uri);
+	async openFile(uri?: Uri): Promise<void> {
+		if (uri && uri.scheme === 'file') {
+			return await commands.executeCommand<void>('vscode.open', uri);
 		}
 
-		return await commands.executeCommand<void>('vscode.open', uri.with({ scheme: 'file' }));
+		const resource = this.resolveSCMResource(uri);
+
+		if (!resource) {
+			return;
+		}
+
+		return await commands.executeCommand<void>('vscode.open', resource.uri);
 	}
 
 	@command('git.openChange')
-	async openChange(uri: Uri): Promise<void> {
-		const scmResource = resolveGitResource(uri);
+	async openChange(uri?: Uri): Promise<void> {
+		const resource = this.resolveSCMResource(uri);
 
-		if (scmResource) {
-			return await this.open(scmResource);
+		if (!resource) {
+			return;
 		}
 
-		if (uri.scheme === 'file') {
-			const uriString = uri.toString();
-			const resource = this.model.workingTreeGroup.resources.filter(r => r.uri.toString() === uriString)[0]
-				|| this.model.indexGroup.resources.filter(r => r.uri.toString() === uriString)[0];
-
-			if (resource) {
-				return await this.open(resource);
-			}
-		}
+		return await this.open(resource);
 	}
 
 	@command('git.stage')
-	async stage(uri: Uri): Promise<void> {
-		const resource = resolveGitResource(uri);
+	async stage(uri?: Uri): Promise<void> {
+		const resource = this.resolveSCMResource(uri);
 
 		if (!resource) {
 			return;
@@ -317,8 +364,8 @@ export class CommandCenter {
 	}
 
 	@command('git.unstage')
-	async unstage(uri: Uri): Promise<void> {
-		const resource = resolveGitResource(uri);
+	async unstage(uri?: Uri): Promise<void> {
+		const resource = this.resolveSCMResource(uri);
 
 		if (!resource) {
 			return;
@@ -375,8 +422,8 @@ export class CommandCenter {
 	}
 
 	@command('git.clean')
-	async clean(uri: Uri): Promise<void> {
-		const resource = resolveGitResource(uri);
+	async clean(uri?: Uri): Promise<void> {
+		const resource = this.resolveSCMResource(uri);
 
 		if (!resource) {
 			return;
@@ -446,14 +493,15 @@ export class CommandCenter {
 
 			return await window.showInputBox({
 				placeHolder: localize('commit message', "Commit message"),
-				prompt: localize('provide commit message', "Please provide a commit message")
+				prompt: localize('provide commit message', "Please provide a commit message"),
+				ignoreFocusOut: true
 			});
 		};
 
 		const didCommit = await this.smartCommit(getCommitMessage, opts);
 
 		if (message && didCommit) {
-			scm.inputBox.value = '';
+			scm.inputBox.value = await this.model.getCommitTemplate();
 		}
 	}
 
@@ -467,7 +515,7 @@ export class CommandCenter {
 		const didCommit = await this.smartCommit(async () => scm.inputBox.value);
 
 		if (didCommit) {
-			scm.inputBox.value = '';
+			scm.inputBox.value = await this.model.getCommitTemplate();
 		}
 	}
 
@@ -535,7 +583,8 @@ export class CommandCenter {
 	async branch(): Promise<void> {
 		const result = await window.showInputBox({
 			placeHolder: localize('branch name', "Branch name"),
-			prompt: localize('provide branch name', "Please provide a branch name")
+			prompt: localize('provide branch name', "Please provide a branch name"),
+			ignoreFocusOut: true
 		});
 
 		if (!result) {
@@ -661,12 +710,14 @@ export class CommandCenter {
 		this.outputChannel.show();
 	}
 
-	private createCommand(method: Function): (...args: any[]) => any {
+	private createCommand(id: string, method: Function): (...args: any[]) => any {
 		return (...args) => {
 			if (!this.model) {
 				window.showInformationMessage(localize('disabled', "Git is either disabled or not supported in this workspace"));
 				return;
 			}
+
+			this.telemetryReporter.sendTelemetryEvent('git.command', { command: id });
 
 			const result = Promise.resolve(method.apply(this, args));
 
@@ -701,6 +752,30 @@ export class CommandCenter {
 				}
 			});
 		};
+	}
+
+	private resolveSCMResource(uri?: Uri): Resource | undefined {
+		uri = uri || window.activeTextEditor && window.activeTextEditor.document.uri;
+
+		if (!uri) {
+			return;
+		}
+
+		if (uri.scheme === 'scm' && uri.authority === 'git') {
+			const resource = scm.getResourceFromURI(uri);
+			return resource instanceof Resource ? resource : undefined;
+		}
+
+		if (uri.scheme === 'git') {
+			uri = uri.with({ scheme: 'file' });
+		}
+
+		if (uri.scheme === 'file') {
+			const uriString = uri.toString();
+
+			return this.model.workingTreeGroup.resources.filter(r => r.uri.toString() === uriString)[0]
+				|| this.model.indexGroup.resources.filter(r => r.uri.toString() === uriString)[0];
+		}
 	}
 
 	dispose(): void {

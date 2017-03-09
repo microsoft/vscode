@@ -548,9 +548,7 @@ export class DebugService implements debug.IDebugService {
 	}
 
 	public renameWatchExpression(id: string, newName: string): TPromise<void> {
-		return this.model.renameWatchExpression(this.viewModel.focusedProcess, this.viewModel.focusedStackFrame, id, newName)
-			// Evaluate all watch expressions and fetch variables again since watch expression evaluation might have changed some.
-			.then(() => this.focusStackFrameAndEvaluate(this.viewModel.focusedStackFrame, this.viewModel.focusedProcess));
+		return this.model.renameWatchExpression(this.viewModel.focusedProcess, this.viewModel.focusedStackFrame, id, newName);
 	}
 
 	public moveWatchExpression(id: string, position: number): void {
@@ -562,10 +560,7 @@ export class DebugService implements debug.IDebugService {
 	}
 
 	public createProcess(configurationOrName: debug.IConfig | string): TPromise<any> {
-		const sessionId = generateUuid();
-		this.setStateAndEmit(sessionId, debug.State.Initializing);
-
-		return this.configurationService.reloadConfiguration()	// make sure configuration is up to date
+		return this.textFileService.saveAll().then(() => this.configurationService.reloadConfiguration())	// make sure configuration is up to date
 			.then(() => this.extensionService.onReady()
 				.then(() => {
 					const compound = typeof configurationOrName === 'string' ? this.configurationManager.getCompound(configurationOrName) : null;
@@ -589,9 +584,9 @@ export class DebugService implements debug.IDebugService {
 						}
 
 						if (!this.configurationManager.getAdapter(resolvedConfig.type)) {
-							return resolvedConfig.type ? TPromise.wrapError(new Error(nls.localize('debugTypeNotSupported', "Configured debug type '{0}' is not supported.", resolvedConfig.type)))
-								: TPromise.wrapError(errors.create(nls.localize('debugTypeMissing', "Missing property 'type' for the chosen launch configuration."),
-									{ actions: [this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL), CloseAction] }));
+							const message = resolvedConfig.type ? nls.localize('debugTypeNotSupported', "Configured debug type '{0}' is not supported.", resolvedConfig.type) :
+								nls.localize('debugTypeMissing', "Missing property 'type' for the chosen launch configuration.");
+							return TPromise.wrapError(errors.create(message, { actions: [this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL), CloseAction] }));
 						}
 
 						return this.runPreLaunchTask(resolvedConfig.preLaunchTask).then((taskSummary: ITaskSummary) => {
@@ -599,7 +594,7 @@ export class DebugService implements debug.IDebugService {
 							const successExitCode = taskSummary && taskSummary.exitCode === 0;
 							const failureExitCode = taskSummary && taskSummary.exitCode !== undefined && taskSummary.exitCode !== 0;
 							if (successExitCode || (errorCount === 0 && !failureExitCode)) {
-								return this.doCreateProcess(sessionId, resolvedConfig);
+								return this.doCreateProcess(resolvedConfig);
 							}
 
 							this.messageService.show(severity.Error, {
@@ -609,7 +604,7 @@ export class DebugService implements debug.IDebugService {
 								actions: [
 									new Action('debug.continue', nls.localize('debugAnyway', "Debug Anyway"), null, true, () => {
 										this.messageService.hideAll();
-										return this.doCreateProcess(sessionId, resolvedConfig);
+										return this.doCreateProcess(resolvedConfig);
 									}),
 									this.instantiationService.createInstance(ToggleMarkersPanelAction, ToggleMarkersPanelAction.ID, ToggleMarkersPanelAction.LABEL),
 									CloseAction
@@ -640,7 +635,10 @@ export class DebugService implements debug.IDebugService {
 				}));
 	}
 
-	private doCreateProcess(sessionId: string, configuration: debug.IConfig): TPromise<any> {
+
+	private doCreateProcess(configuration: debug.IConfig): TPromise<any> {
+		const sessionId = generateUuid();
+		this.setStateAndEmit(sessionId, debug.State.Initializing);
 
 		return this.telemetryService.getTelemetryInfo().then(info => {
 			const telemetryInfo: { [key: string]: string } = Object.create(null);
@@ -807,13 +805,11 @@ export class DebugService implements debug.IDebugService {
 			return session.attach({ port });
 		}
 
-		const sessionId = generateUuid();
-		this.setStateAndEmit(sessionId, debug.State.Initializing);
 		const config = this.configurationManager.getConfiguration(this.viewModel.selectedConfigurationName);
 		return this.configurationManager.resloveConfiguration(config).then(resolvedConfig => {
 			resolvedConfig.request = 'attach';
 			resolvedConfig.port = port;
-			this.doCreateProcess(sessionId, resolvedConfig);
+			this.doCreateProcess(resolvedConfig);
 		});
 	}
 
@@ -836,6 +832,10 @@ export class DebugService implements debug.IDebugService {
 				setTimeout(() => {
 					// Read the configuration again if a launch.json exists, if not just use the inmemory configuration #19366
 					const config = this.configurationManager.getConfiguration(process.configuration.name);
+					if (config) {
+						// Take the type from the process since the debug extension might overwrite it #21316
+						config.type = process.configuration.type;
+					}
 					this.createProcess(config || process.configuration).then(() => c(null), err => e(err));
 				}, 300);
 			})
@@ -943,19 +943,8 @@ export class DebugService implements debug.IDebugService {
 			const breakpointsToSend = distinct(this.model.getBreakpoints().filter(bp => this.model.areBreakpointsActivated() && bp.enabled && bp.uri.toString() === modelUri.toString()),
 				bp => bp.lineNumber.toString());
 
-			let rawSource: DebugProtocol.Source;
-			for (let t of process.getAllThreads()) {
-				const callStack = t.getCallStack();
-				if (callStack) {
-					for (let sf of callStack) {
-						if (sf.source.uri.toString() === modelUri.toString()) {
-							rawSource = sf.source.raw;
-							break;
-						}
-					}
-				}
-			}
-			rawSource = rawSource || { path: paths.normalize(modelUri.fsPath, true), name: paths.basename(modelUri.fsPath) };
+			const source = process.sources.get(modelUri.toString());
+			const rawSource = source ? source.raw : { path: paths.normalize(modelUri.fsPath, true) };
 
 			return session.setBreakpoints({
 				source: rawSource,

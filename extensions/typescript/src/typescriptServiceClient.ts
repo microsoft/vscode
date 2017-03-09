@@ -12,7 +12,7 @@ import * as fs from 'fs';
 import * as electron from './utils/electron';
 import { Reader } from './utils/wireProtocol';
 
-import { workspace, window, Uri, CancellationToken, OutputChannel, Memento, MessageItem, QuickPickItem, EventEmitter, Event, commands, WorkspaceConfiguration } from 'vscode';
+import { workspace, window, Uri, CancellationToken, Disposable, OutputChannel, Memento, MessageItem, QuickPickItem, EventEmitter, Event, commands, WorkspaceConfiguration } from 'vscode';
 import * as Proto from './protocol';
 import { ITypescriptServiceClient, ITypescriptServiceClientHost, API } from './typescriptService';
 
@@ -125,7 +125,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	private telemetryReporter: TelemetryReporter;
 
 
-	constructor(host: ITypescriptServiceClientHost, storagePath: string | undefined, globalState: Memento, private workspaceState: Memento) {
+	constructor(host: ITypescriptServiceClientHost, storagePath: string | undefined, globalState: Memento, private workspaceState: Memento, disposables: Disposable[]) {
 		this.host = host;
 		this.storagePath = storagePath;
 		this.globalState = globalState;
@@ -155,7 +155,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		this._apiVersion = new API('1.0.0');
 		this._checkGlobalTSCVersion = true;
 		this.trace = this.readTrace();
-		workspace.onDidChangeConfiguration(() => {
+		disposables.push(workspace.onDidChangeConfiguration(() => {
 			this.trace = this.readTrace();
 			let oldglobalTsdk = this.globalTsdk;
 			let oldLocalTsdk = this.localTsdk;
@@ -167,9 +167,10 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			if (this.servicePromise === null && (oldglobalTsdk !== this.globalTsdk || oldLocalTsdk !== this.localTsdk)) {
 				this.startService();
 			}
-		});
+		}));
 		if (this.packageInfo && this.packageInfo.aiKey) {
 			this.telemetryReporter = new TelemetryReporter(this.packageInfo.name, this.packageInfo.version, this.packageInfo.aiKey);
+			disposables.push(this.telemetryReporter);
 		}
 		this.startService();
 	}
@@ -327,7 +328,11 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	}
 
 	private get bundledTypeScriptPath(): string {
-		return path.join(__dirname, '..', 'node_modules', 'typescript', 'lib', 'tsserver.js');
+		try {
+			return require.resolve('typescript/lib/tsserver.js');
+		} catch (e) {
+			return '';
+		}
 	}
 
 	private get localTypeScriptPath(): string | null {
@@ -391,9 +396,12 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 
 				this.info(`Using tsserver from location: ${modulePath}`);
 				if (!fs.existsSync(modulePath)) {
-					window.showWarningMessage(localize('noServerFound', 'The path {0} doesn\'t point to a valid tsserver install. Falling back to bundled TypeScript version.', path.dirname(modulePath)));
+					window.showWarningMessage(localize('noServerFound', 'The path {0} doesn\'t point to a valid tsserver install. Falling back to bundled TypeScript version.', modulePath ? path.dirname(modulePath) : ''));
+					if (!this.bundledTypeScriptPath) {
+						window.showErrorMessage(localize('noBundledServerFound', 'VSCode\'s tsserver was deleted by another application such as a misbehaving virus detection tool. Please reinstall VS Code.'));
+						return reject(new Error('Could not find bundled tsserver.js'));
+					}
 					modulePath = this.bundledTypeScriptPath;
-					// TODO check again?
 				}
 
 				let version = this.getTypeScriptVersion(modulePath);
@@ -481,9 +489,9 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		return this.showVersionPicker(false);
 	}
 
-	private showVersionPicker(firstRun: boolean) {
+	private showVersionPicker(firstRun: boolean): Thenable<string> {
 		const modulePath = this.modulePath || this.globalTypescriptPath;
-		if (!workspace.rootPath) {
+		if (!workspace.rootPath || !modulePath) {
 			return Promise.resolve(modulePath);
 		}
 
@@ -646,16 +654,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			if (this.numberRestarts > 5) {
 				let prompt: Thenable<MyMessageItem | undefined> | undefined = undefined;
 				this.numberRestarts = 0;
-				if (diff < 60 * 1000 /* 1 Minutes */) {
-					this.lastStart = Date.now();
-					prompt = window.showWarningMessage<MyMessageItem>(
-						localize('serverDied', 'The TypeScript language service died unexpectedly 5 times in the last 5 Minutes.'),
-						{
-							title: localize('serverDiedReportIssue', 'Report Issue'),
-							id: MessageAction.reportIssue,
-							isCloseAffordance: true
-						});
-				} else if (diff < 10 * 1000 /* 10 seconds */) {
+				if (diff < 10 * 1000 /* 10 seconds */) {
 					this.lastStart = Date.now();
 					startService = false;
 					prompt = window.showErrorMessage<MyMessageItem>(
@@ -666,6 +665,15 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 							isCloseAffordance: true
 						});
 					this.logTelemetry('serviceExited');
+				} else if (diff < 60 * 1000 /* 1 Minutes */) {
+					this.lastStart = Date.now();
+					prompt = window.showWarningMessage<MyMessageItem>(
+						localize('serverDied', 'The TypeScript language service died unexpectedly 5 times in the last 5 Minutes.'),
+						{
+							title: localize('serverDiedReportIssue', 'Report Issue'),
+							id: MessageAction.reportIssue,
+							isCloseAffordance: true
+						});
 				}
 				if (prompt) {
 					prompt.then(item => {

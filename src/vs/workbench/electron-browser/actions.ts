@@ -692,10 +692,7 @@ export class ReportIssueAction extends Action {
 		const body = encodeURIComponent(
 			`- VSCode Version: ${name} ${version}${isPure ? '' : ' **[Unsupported]**'} (${product.commit || 'Commit unknown'}, ${product.date || 'Date unknown'})
 - OS Version: ${osVersion}
-- Extensions:
-
-${this.generateExtensionTable(extensions)}
-
+- Extensions: ${this.generateExtensionTable(extensions)}
 ---
 
 Steps to Reproduce:
@@ -708,13 +705,21 @@ Steps to Reproduce:
 	}
 
 	private generateExtensionTable(extensions: ILocalExtension[]): string {
+		if (!extensions.length) {
+			return 'none';
+		}
+
 		let tableHeader = `|Extension|Author|Version|
 |---|---|---|`;
 		const table = extensions.map(e => {
 			return `|${e.manifest.name}|${e.manifest.publisher}|${e.manifest.version}|`;
 		}).join('\n');
 
-		return `${tableHeader}\n${table}`;
+		return `
+
+${tableHeader}\n${table};
+
+`;
 	}
 }
 
@@ -733,9 +738,9 @@ export class ReportPerformanceIssueAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<boolean> {
+	public run(appendix?: string): TPromise<boolean> {
 		return this.integrityService.isPure().then(res => {
-			const issueUrl = this.generatePerformanceIssueUrl(product.reportIssueUrl, pkg.name, pkg.version, product.commit, product.date, res.isPure);
+			const issueUrl = this.generatePerformanceIssueUrl(product.reportIssueUrl, pkg.name, pkg.version, product.commit, product.date, res.isPure, appendix);
 
 			window.open(issueUrl);
 
@@ -743,7 +748,15 @@ export class ReportPerformanceIssueAction extends Action {
 		});
 	}
 
-	private generatePerformanceIssueUrl(baseUrl: string, name: string, version: string, commit: string, date: string, isPure: boolean): string {
+	private generatePerformanceIssueUrl(baseUrl: string, name: string, version: string, commit: string, date: string, isPure: boolean, appendix?: string): string {
+
+		if (!appendix) {
+			appendix = `Additional Steps to Reproduce (if any):
+
+1.
+2.`;
+		}
+
 		let nodeModuleLoadTime: number;
 		if (this.environmentService.performance) {
 			nodeModuleLoadTime = this.computeNodeModulesLoadTime();
@@ -770,10 +783,7 @@ ${this.generatePerformanceTable(nodeModuleLoadTime)}
 
 ---
 
-Additional Steps to Reproduce (if any):
-
-1.
-2.`
+${appendix}`
 		);
 
 		return `${baseUrl}${queryStringPrefix}body=${body}`;
@@ -893,5 +903,19 @@ export class OpenIntroductoryVideosUrlAction extends Action {
 	public run(): TPromise<void> {
 		window.open(OpenIntroductoryVideosUrlAction.URL);
 		return null;
+	}
+}
+
+export class ToggleSharedProcessAction extends Action {
+
+	static ID = 'workbench.action.toggleSharedProcess';
+	static LABEL = nls.localize('toggleSharedProcess', "Toggle Shared Process");
+
+	constructor(id: string, label: string, @IWindowsService private windowsService: IWindowsService) {
+		super(id, label);
+	}
+
+	run(): TPromise<void> {
+		return this.windowsService.toggleSharedProcess();
 	}
 }

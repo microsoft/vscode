@@ -40,7 +40,7 @@ import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/action
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IThemeService, VS_HC_THEME, VS_DARK_THEME } from 'vs/workbench/services/themes/common/themeService';
 import * as browser from 'vs/base/browser/browser';
-import { ReloadWindowAction, ToggleDevToolsAction, ShowStartupPerformance, OpenRecentAction } from 'vs/workbench/electron-browser/actions';
+import { ReloadWindowAction, ToggleDevToolsAction, ShowStartupPerformance, OpenRecentAction, ToggleSharedProcessAction } from 'vs/workbench/electron-browser/actions';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -319,7 +319,7 @@ export class ElectronWindow {
 						getAnchor: () => target,
 						getActions: () => TPromise.as(TextInputActions),
 						getKeyBinding: action => {
-							const [kb] = this.keybindingService.lookupKeybindings(action.id);
+							const [kb] = this.keybindingService.lookupKeybindings2(action.id);
 
 							return kb;
 						}
@@ -335,6 +335,7 @@ export class ElectronWindow {
 		workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ReloadWindowAction, ReloadWindowAction.ID, ReloadWindowAction.LABEL, isDeveloping ? { primary: KeyMod.CtrlCmd | KeyCode.KEY_R } : void 0), 'Reload Window');
 		workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleDevToolsAction, ToggleDevToolsAction.ID, ToggleDevToolsAction.LABEL, isDeveloping ? { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_I, mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_I } } : void 0), 'Developer: Toggle Developer Tools', developerCategory);
 		workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ShowStartupPerformance, ShowStartupPerformance.ID, ShowStartupPerformance.LABEL), 'Developer: Startup Performance', developerCategory);
+		workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleSharedProcessAction, ToggleSharedProcessAction.ID, ToggleSharedProcessAction.LABEL), 'Developer: Toggle Shared Process', developerCategory);
 
 		// Action registered here to prevent a keybinding conflict with reload window
 		const fileCategory = nls.localize('file', "File");
@@ -344,20 +345,20 @@ export class ElectronWindow {
 	private resolveKeybindings(actionIds: string[]): TPromise<{ id: string; label: string, isNative: boolean; }[]> {
 		return this.partService.joinCreation().then(() => {
 			return arrays.coalesce(actionIds.map(id => {
-				const bindings = this.keybindingService.lookupKeybindings(id);
+				const bindings = this.keybindingService.lookupKeybindings2(id);
 
 				// return the first binding that can be represented by electron
 				for (let i = 0; i < bindings.length; i++) {
 					const binding = bindings[i];
 
 					// first try to resolve a native accelerator
-					const electronAccelerator = this.keybindingService.getElectronAcceleratorFor(binding);
+					const electronAccelerator = binding.getElectronAccelerator();
 					if (electronAccelerator) {
 						return { id, label: electronAccelerator, isNative: true };
 					}
 
 					// we need this fallback to support keybindings that cannot show in electron menus (e.g. chords)
-					const acceleratorLabel = this.keybindingService.getLabelFor(binding);
+					const acceleratorLabel = binding.getLabel();
 					if (acceleratorLabel) {
 						return { id, label: acceleratorLabel, isNative: false };
 					}

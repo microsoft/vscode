@@ -9,6 +9,7 @@
 	"breakpointAdded": "已新增中斷點，行 {0}，檔案 {1}",
 	"breakpointRemoved": "已移除中斷點，行 {0}，檔案 {1}",
 	"compoundMustHaveConfigurations": "複合必須設有 \"configurations\" 屬性，才能啟動多個組態。",
+	"configMissing": "'launch.json' 中遺漏組態 '{0}'。",
 	"debugAnyway": "仍要偵錯",
 	"debugTypeMissing": "遺漏所選啟動設定的屬性 'type'。",
 	"debugTypeNotSupported": "不支援設定的偵錯類型 '{0}'。",

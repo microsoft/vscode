@@ -505,7 +505,7 @@ export class ReferenceWidget extends PeekViewWidget {
 		private _contextService: IWorkspaceContextService,
 		private _instantiationService: IInstantiationService
 	) {
-		super(editor, { frameColor: '#007ACC', showFrame: false, showArrow: true, isResizeable: true });
+		super(editor, { showFrame: false, showArrow: true, isResizeable: true });
 
 		this._instantiationService = this._instantiationService.createChild(new ServiceCollection([IPeekViewService, this]));
 		this.create();
@@ -543,7 +543,7 @@ export class ReferenceWidget extends PeekViewWidget {
 	protected _fillBody(containerElement: HTMLElement): void {
 		var container = $(containerElement);
 
-		container.addClass('reference-zone-widget');
+		this.setCssClass('reference-zone-widget');
 
 		// message pane
 		container.div({ 'class': 'messages' }, div => {
@@ -557,7 +557,10 @@ export class ReferenceWidget extends PeekViewWidget {
 				scrollBeyondLastLine: false,
 				scrollbar: DefaultConfig.editor.scrollbar,
 				overviewRulerLanes: 2,
-				fixedOverflowWidgets: true
+				fixedOverflowWidgets: true,
+				minimap: {
+					enabled: false
+				}
 			};
 
 			this._preview = this._instantiationService.createInstance(EmbeddedCodeEditorWidget, div.getHTMLElement(), options, this.editor);

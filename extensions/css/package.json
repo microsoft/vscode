@@ -64,6 +64,11 @@
                   "default": true,
                   "description": "%css.validate.desc%"
                 },
+                "css.colorDecorators.enable": {
+                  "type": "boolean",
+                  "default": true,
+                  "description": "%css.colorDecorators.enable.desc%"
+                },
                 "css.lint.compatibleVendorPrefixes": {
                   "type": "string",
                   "enum": [
@@ -271,6 +276,11 @@
                   "default": true,
                   "description": "%scss.validate.desc%"
                 },
+                "scss.colorDecorators.enable": {
+                  "type": "boolean",
+                  "default": true,
+                  "description": "%scss.colorDecorators.enable.desc%"
+                },
                 "scss.lint.compatibleVendorPrefixes": {
                   "type": "string",
                   "enum": [
@@ -468,6 +478,11 @@
                   "type": "boolean",
                   "default": true,
                   "description": "%less.validate.desc%"
+                },
+                "less.colorDecorators.enable": {
+                  "type": "boolean",
+                  "default": true,
+                  "description": "%less.colorDecorators.enable.desc%"
                 },
                 "less.lint.compatibleVendorPrefixes": {
                   "type": "string",

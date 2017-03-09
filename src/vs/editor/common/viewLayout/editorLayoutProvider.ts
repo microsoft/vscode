@@ -15,7 +15,7 @@ export interface IEditorLayoutProviderOpts {
 
 	showLineNumbers: boolean;
 	lineNumbersMinChars: number;
-	maxLineNumber: number;
+	lineNumbersDigitCount: number;
 
 	lineDecorationsWidth: number;
 
@@ -28,6 +28,8 @@ export interface IEditorLayoutProviderOpts {
 	horizontalScrollbarHeight: number;
 
 	minimap: boolean;
+	minimapRenderCharacters: boolean;
+	minimapMaxColumn: number;
 	pixelRatio: number;
 }
 
@@ -39,7 +41,7 @@ export class EditorLayoutProvider {
 		const lineHeight = _opts.lineHeight | 0;
 		const showLineNumbers = Boolean(_opts.showLineNumbers);
 		const lineNumbersMinChars = _opts.lineNumbersMinChars | 0;
-		const maxLineNumber = _opts.maxLineNumber | 0;
+		const lineNumbersDigitCount = _opts.lineNumbersDigitCount | 0;
 		const lineDecorationsWidth = _opts.lineDecorationsWidth | 0;
 		const typicalHalfwidthCharacterWidth = Number(_opts.typicalHalfwidthCharacterWidth);
 		const maxDigitWidth = Number(_opts.maxDigitWidth);
@@ -48,11 +50,13 @@ export class EditorLayoutProvider {
 		const scrollbarArrowSize = _opts.scrollbarArrowSize | 0;
 		const horizontalScrollbarHeight = _opts.horizontalScrollbarHeight | 0;
 		const minimap = Boolean(_opts.minimap);
+		const minimapRenderCharacters = Boolean(_opts.minimapRenderCharacters);
+		const minimapMaxColumn = _opts.minimapMaxColumn | 0;
 		const pixelRatio = Number(_opts.pixelRatio);
 
 		let lineNumbersWidth = 0;
 		if (showLineNumbers) {
-			let digitCount = Math.max(this.digitCount(maxLineNumber), lineNumbersMinChars);
+			let digitCount = Math.max(lineNumbersDigitCount, lineNumbersMinChars);
 			lineNumbersWidth = Math.round(digitCount * maxDigitWidth);
 		}
 
@@ -78,10 +82,10 @@ export class EditorLayoutProvider {
 		} else {
 			let minimapCharWidth: number;
 			if (pixelRatio >= 2) {
-				renderMinimap = RenderMinimap.Large;
+				renderMinimap = minimapRenderCharacters ? RenderMinimap.Large : RenderMinimap.LargeBlocks;
 				minimapCharWidth = 2 / pixelRatio;
 			} else {
-				renderMinimap = RenderMinimap.Small;
+				renderMinimap = minimapRenderCharacters ? RenderMinimap.Small : RenderMinimap.SmallBlocks;
 				minimapCharWidth = 1 / pixelRatio;
 			}
 
@@ -98,6 +102,10 @@ export class EditorLayoutProvider {
 			// minimapWidth = ((remainingWidth - verticalScrollbarWidth) * minimapCharWidth) / (typicalHalfwidthCharacterWidth + minimapCharWidth)
 
 			minimapWidth = Math.max(0, Math.floor(((remainingWidth - verticalScrollbarWidth) * minimapCharWidth) / (typicalHalfwidthCharacterWidth + minimapCharWidth)));
+			let minimapColumns = minimapWidth / minimapCharWidth;
+			if (minimapColumns > minimapMaxColumn) {
+				minimapWidth = Math.floor(minimapMaxColumn * minimapCharWidth);
+			}
 			contentWidth = remainingWidth - minimapWidth;
 		}
 
@@ -142,12 +150,5 @@ export class EditorLayoutProvider {
 		});
 	}
 
-	private static digitCount(n: number): number {
-		var r = 0;
-		while (n) {
-			n = Math.floor(n / 10);
-			r++;
-		}
-		return r ? r : 1;
-	}
+
 }

@@ -9,6 +9,7 @@
 	"breakpointAdded": "파일 {1}, 줄 {0}에 중단점이 추가되었습니다.",
 	"breakpointRemoved": "파일 {1}, 줄 {0}에서 중단점이 제거되었습니다.",
 	"compoundMustHaveConfigurations": "여러 구성을 시작하려면 복합에 \"configurations\" 특성 집합이 있어야 합니다.",
+	"configMissing": "'{0}' 구성이 'launch.json'에 없습니다.",
 	"debugAnyway": "디버그",
 	"debugTypeMissing": "선택한 시작 구성에 대한 'type' 속성이 없습니다.",
 	"debugTypeNotSupported": "구성된 디버그 형식 '{0}'은(는) 지원되지 않습니다.",

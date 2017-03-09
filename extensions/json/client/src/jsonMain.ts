@@ -35,6 +35,7 @@ export function activate(context: ExtensionContext) {
 
 	let packageInfo = getPackageInfo(context);
 	let telemetryReporter: TelemetryReporter = packageInfo && new TelemetryReporter(packageInfo.name, packageInfo.version, packageInfo.aiKey);
+	context.subscriptions.push(telemetryReporter);
 
 	// The server is implemented in node
 	let serverModule = context.asAbsolutePath(path.join('server', 'out', 'jsonServerMain.js'));
@@ -99,7 +100,7 @@ function getSchemaAssociation(context: ExtensionContext): ISchemaAssociations {
 			let jsonValidation = packageJSON.contributes.jsonValidation;
 			if (Array.isArray(jsonValidation)) {
 				jsonValidation.forEach(jv => {
-					let {fileMatch, url} = jv;
+					let { fileMatch, url } = jv;
 					if (fileMatch && url) {
 						if (url[0] === '.' && url[1] === '/') {
 							url = Uri.file(path.join(extension.extensionPath, url)).toString();

@@ -12,6 +12,7 @@ import { SimpleWorkerClient, logOnceWebWorkerWarning } from 'vs/base/common/work
 import { DefaultWorkerFactory } from 'vs/base/worker/defaultWorkerFactory';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
+import { Position } from 'vs/editor/common/core/position';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { EditorSimpleWorkerImpl } from 'vs/editor/common/services/editorSimpleWorker';
@@ -46,15 +47,7 @@ export class EditorWorkerServiceImpl implements IEditorWorkerService {
 				return wireCancellationToken(token, this._workerManager.withWorker().then(client => client.computeLinks(model.uri)));
 			}
 		});
-		const completionProvider = modes.SuggestRegistry.register('*', <modes.ISuggestSupport>{
-			triggerCharacters: [],
-			provideCompletionItems: (model, position, token) => {
-				if (configurationService.lookup<boolean>('editor.wordBasedSuggestions').value) {
-					return this._workerManager.withWorker().then(client => client.textualSuggest(model.uri, position));
-				}
-				return undefined;
-			}
-		});
+		const completionProvider = modes.SuggestRegistry.register('*', new WordBasedCompletionItemProvider(this._workerManager, configurationService));
 		this._registrations = [linkProvider, completionProvider];
 	}
 
@@ -82,7 +75,45 @@ export class EditorWorkerServiceImpl implements IEditorWorkerService {
 	public navigateValueSet(resource: URI, range: editorCommon.IRange, up: boolean): TPromise<modes.IInplaceReplaceSupportResult> {
 		return this._workerManager.withWorker().then(client => client.navigateValueSet(resource, range, up));
 	}
+}
 
+class WordBasedCompletionItemProvider implements modes.ISuggestSupport {
+
+	private readonly _workerManager: WorkerManager;
+	private readonly _configurationService: IConfigurationService;
+
+	constructor(workerManager: WorkerManager, configurationService: IConfigurationService) {
+		this._workerManager = workerManager;
+		this._configurationService = configurationService;
+	}
+
+	provideCompletionItems(model: editorCommon.IModel, position: Position): TPromise<modes.ISuggestResult> {
+
+		const { wordBasedSuggestions } = this._configurationService.getConfiguration<editorCommon.IEditorOptions>('editor');
+
+		if (wordBasedSuggestions === false) {
+			// simple -> disabled everywhere
+			return undefined;
+
+		} else if (wordBasedSuggestions === true) {
+			// simple -> enabled for all tokens
+			return this._workerManager.withWorker().then(client => client.textualSuggest(model.uri, position));
+
+		} else {
+			// check with token type and config
+			const tokens = model.getLineTokens(position.lineNumber);
+			const { tokenType } = tokens.findTokenAtOffset(position.column - 1);
+			const shoudSuggestHere = (tokenType === modes.StandardTokenType.Comment && wordBasedSuggestions.comments)
+				|| (tokenType === modes.StandardTokenType.String && wordBasedSuggestions.strings)
+				|| (tokenType === modes.StandardTokenType.Other && wordBasedSuggestions.default);
+
+			if (shoudSuggestHere) {
+				return this._workerManager.withWorker().then(client => client.textualSuggest(model.uri, position));
+			} else {
+				return undefined;
+			}
+		}
+	}
 }
 
 class WorkerManager extends Disposable {
@@ -218,7 +249,8 @@ class EditorModelManager extends Disposable {
 
 		this._proxy.acceptNewModel({
 			url: model.uri.toString(),
-			value: model.toRawText(),
+			lines: model.getLinesContent(),
+			EOL: model.getEOL(),
 			versionId: model.getVersionId()
 		});
 

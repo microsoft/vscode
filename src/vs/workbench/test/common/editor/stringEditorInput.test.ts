@@ -27,7 +27,7 @@ suite('Workbench - StringEditorInput', () => {
 
 	setup(() => {
 		instantiationService = new TestInstantiationService();
-		editorService = <WorkbenchEditorService.IWorkbenchEditorService>instantiationService.stub(WorkbenchEditorService.IWorkbenchEditorService, new TestEditorService(function () { }));
+		editorService = <WorkbenchEditorService.IWorkbenchEditorService>instantiationService.stub(WorkbenchEditorService.IWorkbenchEditorService, new TestEditorService());
 		modeService = instantiationService.stub(IModeService, ModeServiceImpl);
 		modelService = <IModelService>instantiationService.stub(IModelService, stubModelService(instantiationService));
 	});

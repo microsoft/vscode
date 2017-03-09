@@ -422,11 +422,10 @@ export abstract class CompositePart<T extends Composite> extends Part {
 				actionItemProvider: (action: Action) => this.actionItemProvider(action),
 				orientation: ActionsOrientation.HORIZONTAL,
 				getKeyBinding: (action) => {
-					const [kb] = this.keybindingService.lookupKeybindings(action.id);
+					const [kb] = this.keybindingService.lookupKeybindings2(action.id);
 
 					return kb;
 				},
-				getKeyBindingLabel: (key) => this.keybindingService.getLabelFor(key)
 			});
 		});
 

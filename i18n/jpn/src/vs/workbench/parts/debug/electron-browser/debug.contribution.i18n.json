@@ -7,6 +7,7 @@
 	"allowBreakpointsEverywhere": "任意のファイルにブレークポイントを設定できるようにする",
 	"debug": "デバッグ",
 	"debugCategory": "デバッグ",
+	"debugCommands": "デバッグ構成",
 	"debugConfigurationTitle": "デバッグ",
 	"debugPanel": "デバッグ コンソール",
 	"inlineValues": "デバッグ中にエディターの行内に変数値を表示します",

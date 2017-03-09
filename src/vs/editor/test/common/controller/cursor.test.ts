@@ -19,7 +19,7 @@ import {
 import { Model } from 'vs/editor/common/model/model';
 import { IndentAction, IndentationRule } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { MockConfiguration } from 'vs/editor/test/common/mocks/mockConfiguration';
+import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { viewModelHelper } from 'vs/editor/test/common/editorTestUtils';
@@ -139,7 +139,7 @@ suite('Editor Controller - Cursor', () => {
 	const LINE5 = '1';
 
 	let thisModel: Model;
-	let thisConfiguration: MockConfiguration;
+	let thisConfiguration: TestConfiguration;
 	let thisCursor: Cursor;
 
 	setup(() => {
@@ -151,7 +151,7 @@ suite('Editor Controller - Cursor', () => {
 			LINE5;
 
 		thisModel = Model.createFromString(text);
-		thisConfiguration = new MockConfiguration(null);
+		thisConfiguration = new TestConfiguration(null);
 		thisCursor = new Cursor(thisConfiguration, thisModel, viewModelHelper(thisModel), false);
 	});
 
@@ -749,33 +749,33 @@ suite('Editor Controller - Cursor', () => {
 		// let LINE1 = '    \tMy First Line\t ';
 		moveTo(thisCursor, 1, 1);
 		cursorCommand(thisCursor, H.ExpandLineSelection);
-		assertCursor(thisCursor, new Selection(1, 1, 1, LINE1.length + 1));
+		assertCursor(thisCursor, new Selection(1, 1, 2, 1));
 
 		moveTo(thisCursor, 1, 2);
 		cursorCommand(thisCursor, H.ExpandLineSelection);
-		assertCursor(thisCursor, new Selection(1, 1, 1, LINE1.length + 1));
+		assertCursor(thisCursor, new Selection(1, 1, 2, 1));
 
 		moveTo(thisCursor, 1, 5);
 		cursorCommand(thisCursor, H.ExpandLineSelection);
-		assertCursor(thisCursor, new Selection(1, 1, 1, LINE1.length + 1));
+		assertCursor(thisCursor, new Selection(1, 1, 2, 1));
 
 		moveTo(thisCursor, 1, 19);
 		cursorCommand(thisCursor, H.ExpandLineSelection);
-		assertCursor(thisCursor, new Selection(1, 1, 1, LINE1.length + 1));
+		assertCursor(thisCursor, new Selection(1, 1, 2, 1));
 
 		moveTo(thisCursor, 1, 20);
 		cursorCommand(thisCursor, H.ExpandLineSelection);
-		assertCursor(thisCursor, new Selection(1, 1, 1, LINE1.length + 1));
+		assertCursor(thisCursor, new Selection(1, 1, 2, 1));
 
 		moveTo(thisCursor, 1, 21);
 		cursorCommand(thisCursor, H.ExpandLineSelection);
-		assertCursor(thisCursor, new Selection(1, 1, 1, LINE1.length + 1));
+		assertCursor(thisCursor, new Selection(1, 1, 2, 1));
 		cursorCommand(thisCursor, H.ExpandLineSelection);
-		assertCursor(thisCursor, new Selection(1, 1, 2, LINE2.length + 1));
+		assertCursor(thisCursor, new Selection(1, 1, 3, 1));
 		cursorCommand(thisCursor, H.ExpandLineSelection);
-		assertCursor(thisCursor, new Selection(1, 1, 3, LINE3.length + 1));
+		assertCursor(thisCursor, new Selection(1, 1, 4, 1));
 		cursorCommand(thisCursor, H.ExpandLineSelection);
-		assertCursor(thisCursor, new Selection(1, 1, 4, LINE4.length + 1));
+		assertCursor(thisCursor, new Selection(1, 1, 5, 1));
 		cursorCommand(thisCursor, H.ExpandLineSelection);
 		assertCursor(thisCursor, new Selection(1, 1, 5, LINE5.length + 1));
 		cursorCommand(thisCursor, H.ExpandLineSelection);
@@ -854,7 +854,7 @@ suite('Editor Controller - Cursor', () => {
 			'\t\t}',
 			'\t}'
 		].join('\n'));
-		let cursor = new Cursor(new MockConfiguration(null), model, viewModelHelper(model), true);
+		let cursor = new Cursor(new TestConfiguration(null), model, viewModelHelper(model), true);
 
 		moveTo(cursor, 1, 7, false);
 		assertCursor(cursor, new Position(1, 7));
@@ -888,7 +888,7 @@ suite('Editor Controller - Cursor', () => {
 			'var concat = require("gulp-concat");',
 			'var newer = require("gulp-newer");',
 		].join('\n'));
-		let cursor = new Cursor(new MockConfiguration(null), model, viewModelHelper(model), true);
+		let cursor = new Cursor(new TestConfiguration(null), model, viewModelHelper(model), true);
 
 		moveTo(cursor, 1, 4, false);
 		assertCursor(cursor, new Position(1, 4));
@@ -923,7 +923,7 @@ suite('Editor Controller - Cursor', () => {
 			'<property id="SomeThing" key="SomeKey" value="000"/>',
 			'<property id="SomeThing" key="SomeKey" value="00X"/>',
 		].join('\n'));
-		let cursor = new Cursor(new MockConfiguration(null), model, viewModelHelper(model), true);
+		let cursor = new Cursor(new TestConfiguration(null), model, viewModelHelper(model), true);
 
 		moveTo(cursor, 10, 10, false);
 		assertCursor(cursor, new Position(10, 10));
@@ -981,7 +981,7 @@ suite('Editor Controller - Cursor', () => {
 			'<property id="SomeThing" key="SomeKey" value="000"/>',
 			'<property id="SomeThing" key="SomeKey" value="00X"/>',
 		].join('\n'));
-		let cursor = new Cursor(new MockConfiguration(null), model, viewModelHelper(model), true);
+		let cursor = new Cursor(new TestConfiguration(null), model, viewModelHelper(model), true);
 
 		moveTo(cursor, 10, 10, false);
 		assertCursor(cursor, new Position(10, 10));
@@ -1026,7 +1026,7 @@ suite('Editor Controller - Cursor', () => {
 			'var concat = require("gulp-concat");',
 			'var newer = require("gulp-newer");',
 		].join('\n'));
-		let cursor = new Cursor(new MockConfiguration(null), model, viewModelHelper(model), true);
+		let cursor = new Cursor(new TestConfiguration(null), model, viewModelHelper(model), true);
 
 		moveTo(cursor, 1, 4, false);
 		assertCursor(cursor, new Position(1, 4));
@@ -1570,7 +1570,7 @@ suite('Editor Controller - Regression tests', () => {
 			'qwerty'
 		];
 		let model = Model.createFromString(text.join('\n'));
-		let cursor = new Cursor(new MockConfiguration(null), model, viewModelHelper(model), true);
+		let cursor = new Cursor(new TestConfiguration(null), model, viewModelHelper(model), true);
 
 		moveTo(cursor, 2, 1, false);
 		assertCursor(cursor, new Selection(2, 1, 2, 1));
@@ -1588,7 +1588,7 @@ suite('Editor Controller - Regression tests', () => {
 			''
 		];
 		model = Model.createFromString(text.join('\n'));
-		cursor = new Cursor(new MockConfiguration(null), model, viewModelHelper(model), true);
+		cursor = new Cursor(new TestConfiguration(null), model, viewModelHelper(model), true);
 
 		moveTo(cursor, 2, 1, false);
 		assertCursor(cursor, new Selection(2, 1, 2, 1));
@@ -3218,7 +3218,7 @@ interface ICursorOpts {
 
 function usingCursor(opts: ICursorOpts, callback: (model: Model, cursor: Cursor) => void): void {
 	let model = Model.createFromString(opts.text.join('\n'), opts.modelOpts, opts.languageIdentifier);
-	let config = new MockConfiguration(opts.editorOpts);
+	let config = new TestConfiguration(opts.editorOpts);
 	let cursor = new Cursor(config, model, viewModelHelper(model), false);
 
 	callback(model, cursor);
@@ -3462,6 +3462,148 @@ suite('ElectricCharacter', () => {
 			moveTo(cursor, 2, 5);
 			cursorCommand(cursor, H.Type, { text: '*' }, 'keyboard');
 			assert.deepEqual(model.getLineContent(2), '  /** */');
+		});
+		mode.dispose();
+	});
+});
+
+suite('autoClosingPairs', () => {
+
+	class AutoClosingMode extends MockMode {
+
+		private static _id = new LanguageIdentifier('autoClosingMode', 3);
+
+		constructor() {
+			super(AutoClosingMode._id);
+			this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
+				autoClosingPairs: [
+					{ open: '{', close: '}' },
+					{ open: '[', close: ']' },
+					{ open: '(', close: ')' },
+					{ open: '\'', close: '\'', notIn: ['string', 'comment'] },
+					{ open: '\"', close: '\"', notIn: ['string'] },
+					{ open: '`', close: '`', notIn: ['string', 'comment'] },
+					{ open: '/**', close: ' */', notIn: ['string'] }
+				],
+			}));
+		}
+	}
+
+	const enum ColumnType {
+		Normal = 0,
+		Special1 = 1,
+		Special2 = 2
+	}
+
+	function extractSpecialColumns(maxColumn: number, annotatedLine: string): ColumnType[] {
+		let result: ColumnType[] = [];
+		for (let j = 1; j <= maxColumn; j++) {
+			result[j] = ColumnType.Normal;
+		}
+		let column = 1;
+		for (let j = 0; j < annotatedLine.length; j++) {
+			if (annotatedLine.charAt(j) === '|') {
+				result[column] = ColumnType.Special1;
+			} else if (annotatedLine.charAt(j) === '!') {
+				result[column] = ColumnType.Special2;
+			} else {
+				column++;
+			}
+		}
+		return result;
+	}
+
+	function assertType(model: Model, cursor: Cursor, lineNumber: number, column: number, chr: string, expectedInsert: string, message: string): void {
+		let lineContent = model.getLineContent(lineNumber);
+		let expected = lineContent.substr(0, column - 1) + expectedInsert + lineContent.substr(column - 1);
+		moveTo(cursor, lineNumber, column);
+		cursorCommand(cursor, H.Type, { text: chr }, 'keyboard');
+		assert.deepEqual(model.getLineContent(lineNumber), expected, message);
+		cursorCommand(cursor, H.Undo);
+	}
+
+	test('open parens', () => {
+		let mode = new AutoClosingMode();
+		usingCursor({
+			text: [
+				'var a = [];',
+				'var b = `asd`;',
+				'var c = \'asd\';',
+				'var d = "asd";',
+				'var e = /*3*/	3;',
+				'var f = /** 3 */3;',
+				'var g = (3+5);',
+				'var h = { a: \'value\' };',
+			],
+			languageIdentifier: mode.getLanguageIdentifier()
+		}, (model, cursor) => {
+
+			let autoClosePositions = [
+				'var| a| =| [|];|',
+				'var| b| =| `asd`;|',
+				'var| c| =| \'asd\';|',
+				'var| d| =| "asd";|',
+				'var| e| =| /*3*/|	3;|',
+				'var| f| =| /**| 3| */3;|',
+				'var| g| =| (3+5|);|',
+				'var| h| =| {| a:| \'value\'| |};|',
+			];
+			for (let i = 0, len = autoClosePositions.length; i < len; i++) {
+				const lineNumber = i + 1;
+				const autoCloseColumns = extractSpecialColumns(model.getLineMaxColumn(lineNumber), autoClosePositions[i]);
+
+				for (let column = 1; column < autoCloseColumns.length; column++) {
+					if (autoCloseColumns[column] === ColumnType.Special1) {
+						assertType(model, cursor, lineNumber, column, '(', '()', `auto closes @ (${lineNumber}, ${column})`);
+					} else {
+						assertType(model, cursor, lineNumber, column, '(', '(', `does not auto close @ (${lineNumber}, ${column})`);
+					}
+				}
+			}
+		});
+		mode.dispose();
+	});
+
+	test('quote', () => {
+		let mode = new AutoClosingMode();
+		usingCursor({
+			text: [
+				'var a = [];',
+				'var b = `asd`;',
+				'var c = \'asd\';',
+				'var d = "asd";',
+				'var e = /*3*/	3;',
+				'var f = /** 3 */3;',
+				'var g = (3+5);',
+				'var h = { a: \'value\' };',
+			],
+			languageIdentifier: mode.getLanguageIdentifier()
+		}, (model, cursor) => {
+
+			let autoClosePositions = [
+				'var| a| =| [|];|',
+				'var| b| =| |`asd|`;|',
+				'var| c| =| !\'asd!\';|',
+				'var| d| =| |"asd|";|',
+				'var| e| =| /*3*/|	3;|',
+				'var| f| =| /**| 3| */3;|',
+				'var| g| =| (3+5|);|',
+				'var| h| =| {| a:| !\'value!\'| |};|',
+			];
+			for (let i = 0, len = autoClosePositions.length; i < len; i++) {
+				const lineNumber = i + 1;
+				const autoCloseColumns = extractSpecialColumns(model.getLineMaxColumn(lineNumber), autoClosePositions[i]);
+
+				for (let column = 1; column < autoCloseColumns.length; column++) {
+					if (autoCloseColumns[column] === ColumnType.Special1) {
+						assertType(model, cursor, lineNumber, column, '\'', '\'\'', `auto closes @ (${lineNumber}, ${column})`);
+					} else if (autoCloseColumns[column] === ColumnType.Special2) {
+						assertType(model, cursor, lineNumber, column, '\'', '', `over types @ (${lineNumber}, ${column})`);
+					} else {
+						assertType(model, cursor, lineNumber, column, '\'', '\'', `does not auto close @ (${lineNumber}, ${column})`);
+					}
+				}
+			}
 		});
 		mode.dispose();
 	});

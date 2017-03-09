@@ -215,6 +215,7 @@ export function registerCommands(): void {
 				const list = focused;
 
 				list.setFocus([0]);
+				list.reveal(0);
 			}
 
 			// Tree
@@ -241,6 +242,7 @@ export function registerCommands(): void {
 				const list = focused;
 
 				list.setFocus([list.length - 1]);
+				list.reveal(list.length - 1);
 			}
 
 			// Tree
@@ -259,6 +261,10 @@ export function registerCommands(): void {
 		when: ListFocusContext,
 		primary: KeyCode.Enter,
 		secondary: [KeyMod.CtrlCmd | KeyCode.Enter],
+		mac: {
+			primary: KeyCode.Enter,
+			secondary: [KeyMod.CtrlCmd | KeyCode.Enter, KeyMod.CtrlCmd | KeyCode.DownArrow]
+		},
 		handler: (accessor) => {
 			const listService = accessor.get(IListService);
 			const focused = listService.getFocused();

@@ -58,7 +58,11 @@ export function dirname(path: string): string {
 	} else if (~idx === 0) {
 		return path[0];
 	} else {
-		return path.substring(0, ~idx);
+		let res = path.substring(0, ~idx);
+		if (isWindows && res[res.length - 1] === ':') {
+			res += nativeSep; // make sure drive letters end with backslash
+		}
+		return res;
 	}
 }
 

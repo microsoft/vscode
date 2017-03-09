@@ -48,6 +48,10 @@ suite('Paths', () => {
 		assert.equal(paths.dirname('/'), '/');
 		assert.equal(paths.dirname('\\'), '\\');
 		assert.equal(paths.dirname('foo'), '.');
+		if (platform.isWindows) {
+			assert.equal(paths.dirname('c:\\some\\file.txt'), 'c:\\some');
+			assert.equal(paths.dirname('c:\\some'), 'c:\\');
+		}
 	});
 
 	test('normalize', () => {

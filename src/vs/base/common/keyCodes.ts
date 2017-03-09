@@ -5,6 +5,8 @@
 
 'use strict';
 
+import { IHTMLContentElement } from 'vs/base/common/htmlContent';
+
 /**
  * Virtual Key Codes, the value does not hold any inherent meaning.
  * Inspired somewhat from https://msdn.microsoft.com/en-us/library/windows/desktop/dd375731(v=vs.85).aspx
@@ -438,7 +440,7 @@ export function KeyChord(firstPart: number, secondPart: number): number {
 	return (firstPart | chordPart) >>> 0;
 }
 
-export class BinaryKeybindings {
+class BinaryKeybindings {
 
 	public static extractFirstPart(keybinding: number): number {
 		return (keybinding & 0x0000ffff) >>> 0;
@@ -486,16 +488,32 @@ export class BinaryKeybindings {
 	}
 }
 
-export class Keybinding {
+export function createKeybinding(keybinding: number): Keybinding {
+	if (BinaryKeybindings.hasChord(keybinding)) {
+		return new ChordKeybinding(keybinding);
+	}
+	return new SimpleKeybinding(keybinding);
+}
 
-	public value: number;
+export class SimpleKeybinding {
+	public readonly value: number;
 
 	constructor(keybinding: number) {
 		this.value = keybinding;
 	}
 
+	/**
+	 * @internal
+	 */
+	public isChord(): this is ChordKeybinding {
+		return false;
+	}
+
+	/**
+	 * @internal
+	 */
 	public equals(other: Keybinding): boolean {
-		return this.value === other.value;
+		return (other && this.value === other.value);
 	}
 
 	public hasCtrlCmd(): boolean {
@@ -521,4 +539,41 @@ export class Keybinding {
 	public getKeyCode(): KeyCode {
 		return BinaryKeybindings.extractKeyCode(this.value);
 	}
+}
+
+export class ChordKeybinding {
+	public readonly value: number;
+
+	constructor(keybinding: number) {
+		this.value = keybinding;
+	}
+
+	public isChord(): this is ChordKeybinding {
+		return true;
+	}
+
+	public equals(other: Keybinding): boolean {
+		return (other && this.value === other.value);
+	}
+
+	public extractFirstPart(): SimpleKeybinding {
+		return new SimpleKeybinding(BinaryKeybindings.extractFirstPart(this.value));
+	}
+
+	public extractChordPart(): SimpleKeybinding {
+		return new SimpleKeybinding(BinaryKeybindings.extractChordPart(this.value));
+	}
+}
+
+export type Keybinding = SimpleKeybinding | ChordKeybinding;
+
+/**
+ * A resolved keybinding.
+ */
+export abstract class ResolvedKeybinding {
+	public abstract getLabel(): string;
+	public abstract getAriaLabel(): string;
+	public abstract getHTMLLabel(): IHTMLContentElement[];
+	public abstract getElectronAccelerator(): string;
+	public abstract getUserSettingsLabel(): string;
 }

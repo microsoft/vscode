@@ -50,6 +50,7 @@ export class QuickFixController implements IEditorContribution {
 		this._updateLightBulbTitle();
 
 		this._disposables.push(
+			this._quickFixContextMenu.onDidExecuteCodeAction(_ => this._model.trigger('auto')),
 			this._lightBulbWidget.onClick(this._handleLightBulbSelect, this),
 			this._model.onDidChangeFixes(e => this._onQuickFixEvent(e)),
 			this._keybindingService.onDidUpdateKeybindings(this._updateLightBulbTitle, this)
@@ -88,7 +89,7 @@ export class QuickFixController implements IEditorContribution {
 	}
 
 	public triggerFromEditorSelection(): void {
-		this._model.triggerManual();
+		this._model.trigger('manual');
 	}
 
 	private _updateLightBulbTitle(): void {

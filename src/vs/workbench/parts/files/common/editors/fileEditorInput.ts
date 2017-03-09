@@ -18,6 +18,8 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { telemetryURIDescriptor } from 'vs/platform/telemetry/common/telemetryUtils';
+import { Verbosity } from 'vs/platform/editor/common/editor';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 /**
  * A file editor input is the input type for the file editor of file system resources.
@@ -29,7 +31,10 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 
 	private name: string;
 	private description: string;
-	private verboseDescription: string;
+
+	private shortTitle: string;
+	private mediumTitle: string;
+	private longTitle: string;
 
 	private toUnbind: IDisposable[];
 
@@ -41,7 +46,8 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		preferredEncoding: string,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@ITextFileService private textFileService: ITextFileService
+		@ITextFileService private textFileService: ITextFileService,
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		super();
 
@@ -76,7 +82,9 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		// Reset resource dependent properties
 		this.name = null;
 		this.description = null;
-		this.verboseDescription = null;
+		this.shortTitle = null;
+		this.mediumTitle = null;
+		this.longTitle = null;
 	}
 
 	public getResource(): URI {
@@ -125,20 +133,23 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		return this.name;
 	}
 
-	public getDescription(verbose?: boolean): string {
-		if (!verbose) {
-			if (!this.description) {
-				this.description = labels.getPathLabel(paths.dirname(this.resource.fsPath), this.contextService);
-			}
-
-			return this.description;
+	public getDescription(): string {
+		if (!this.description) {
+			this.description = labels.getPathLabel(paths.dirname(this.resource.fsPath), this.contextService);
 		}
 
-		if (!this.verboseDescription) {
-			this.verboseDescription = labels.getPathLabel(this.resource.fsPath);
-		}
+		return this.description;
+	}
 
-		return this.verboseDescription;
+	public getTitle(verbosity: Verbosity): string {
+		switch (verbosity) {
+			case Verbosity.SHORT:
+				return this.shortTitle ? this.shortTitle : (this.shortTitle = this.getName());
+			case Verbosity.MEDIUM:
+				return this.mediumTitle ? this.mediumTitle : (this.mediumTitle = labels.getPathLabel(this.resource, this.contextService));
+			case Verbosity.LONG:
+				return this.longTitle ? this.longTitle : (this.longTitle = labels.tildify(labels.getPathLabel(this.resource), this.environmentService.userHome));
+		}
 	}
 
 	public isDirty(): boolean {
@@ -148,8 +159,8 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		}
 
 		const state = model.getState();
-		if (state === ModelState.CONFLICT || state === ModelState.ERROR) {
-			return true; // always indicate dirty state if we are in conflict or error state
+		if (state === ModelState.CONFLICT || state === ModelState.ORPHAN || state === ModelState.ERROR) {
+			return true; // always indicate dirty state if we are in conflict, orphan or error state
 		}
 
 		if (this.textFileService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
@@ -188,6 +199,10 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		});
 	}
 
+	public isResolved(): boolean {
+		return !!this.textFileService.models.get(this.resource);
+	}
+
 	public getTelemetryDescriptor(): { [key: string]: any; } {
 		const descriptor = super.getTelemetryDescriptor();
 		descriptor['resource'] = telemetryURIDescriptor(this.getResource());
@@ -198,7 +213,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 	public dispose(): void {
 
 		// Listeners
-		dispose(this.toUnbind);
+		this.toUnbind = dispose(this.toUnbind);
 
 		super.dispose();
 	}

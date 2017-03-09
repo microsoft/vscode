@@ -162,6 +162,7 @@ class InspectTokensWidget extends Disposable implements IContentWidget {
 
 	private static _ID = 'editor.contrib.inspectTokensWidget';
 
+	// Editor.IContentWidget.allowEditorOverflow
 	public allowEditorOverflow = true;
 
 	private _editor: ICodeEditor;

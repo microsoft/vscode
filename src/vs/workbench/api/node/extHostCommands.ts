@@ -8,7 +8,6 @@ import { IThreadService } from 'vs/workbench/services/thread/common/threadServic
 import { validateConstraint } from 'vs/base/common/types';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ExtHostEditors } from 'vs/workbench/api/node/extHostEditors';
 import * as extHostTypes from 'vs/workbench/api/node/extHostTypes';
 import * as extHostTypeConverter from 'vs/workbench/api/node/extHostTypeConverters';
 import { cloneAndChange } from 'vs/base/common/objects';
@@ -28,16 +27,13 @@ export class ExtHostCommands extends ExtHostCommandsShape {
 
 	private _commands = new Map<string, CommandHandler>();
 	private _proxy: MainThreadCommandsShape;
-	private _extHostEditors: ExtHostEditors;
 	private _converter: CommandsConverter;
 
 	constructor(
 		threadService: IThreadService,
-		extHostEditors: ExtHostEditors,
 		heapService: ExtHostHeapService
 	) {
 		super();
-		this._extHostEditors = extHostEditors;
 		this._proxy = threadService.get(MainContext.MainThreadCommands);
 		this._converter = new CommandsConverter(this, heapService);
 	}
@@ -102,7 +98,7 @@ export class ExtHostCommands extends ExtHostCommandsShape {
 			return TPromise.wrapError<T>(`Contributed command '${id}' does not exist.`);
 		}
 
-		let {callback, thisArg, description} = command;
+		let { callback, thisArg, description } = command;
 
 		if (description) {
 			for (let i = 0; i < description.args.length; i++) {
@@ -140,7 +136,7 @@ export class ExtHostCommands extends ExtHostCommandsShape {
 	$getContributedCommandHandlerDescriptions(): TPromise<{ [id: string]: string | ICommandHandlerDescription }> {
 		const result: { [id: string]: string | ICommandHandlerDescription } = Object.create(null);
 		this._commands.forEach((command, id) => {
-			let {description} = command;
+			let { description } = command;
 			if (description) {
 				result[id] = description;
 			}

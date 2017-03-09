@@ -6,7 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { Color, RGBA, HSLA } from 'vs/base/common/color';
+import { Color, RGBA, HSLA, isValidHexColor } from 'vs/base/common/color';
 
 suite('Color', () => {
 
@@ -107,6 +107,33 @@ suite('Color', () => {
 		assertParseColor('#0f0F0f', new RGBA(15, 15, 15, 255));
 		assertParseColor('#a0A0a0', new RGBA(160, 160, 160, 255));
 		assertParseColor('#FFFFFF', new RGBA(255, 255, 255, 255));
+	});
+
+	test('isValidHexColor', function () {
+		// invalid
+		assert.equal(isValidHexColor(null), false);
+		assert.equal(isValidHexColor(''), false);
+		assert.equal(isValidHexColor('#'), false);
+		assert.equal(isValidHexColor('#0102030'), false);
+
+		// somewhat valid
+		assert.equal(isValidHexColor('#FFFFG0'), false);
+		assert.equal(isValidHexColor('#FFFFg0'), false);
+		assert.equal(isValidHexColor('#-FFF00'), false);
+
+		// valid
+		assert.equal(isValidHexColor('#000000'), true);
+		assert.equal(isValidHexColor('#010203'), true);
+		assert.equal(isValidHexColor('#040506'), true);
+		assert.equal(isValidHexColor('#070809'), true);
+		assert.equal(isValidHexColor('#0a0A0a'), true);
+		assert.equal(isValidHexColor('#0b0B0b'), true);
+		assert.equal(isValidHexColor('#0c0C0c'), true);
+		assert.equal(isValidHexColor('#0d0D0d'), true);
+		assert.equal(isValidHexColor('#0e0E0e'), true);
+		assert.equal(isValidHexColor('#0f0F0f'), true);
+		assert.equal(isValidHexColor('#a0A0a0'), true);
+		assert.equal(isValidHexColor('#FFFFFF'), true);
 	});
 
 	test('isLighterColor', function () {

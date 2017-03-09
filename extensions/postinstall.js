@@ -7,28 +7,24 @@
 
 const fs = require('fs');
 const path = require('path');
+const toDelete = new Set(['tsc.js', 'tsserverlibrary.js', 'typescriptServices.js']);
 
-function removeFile(filePath) {
-	try {
-		fs.unlinkSync(filePath);
-		console.log(`removed '${filePath}'`);
-	} catch (e) {
-		console.warn(e);
+const root = path.join(__dirname, 'node_modules', 'typescript', 'lib');
+for (let name of fs.readdirSync(root)) {
+	if (name === 'lib.d.ts' || name.match(/^lib\..*\.d\.ts$/) || name === 'protocol.d.ts') {
+		continue;
+	}
+	if (name === 'typescript.js' || name === 'typescript.d.ts') {
+		// used by html and extension editing
+		continue;
+	}
+
+	if (toDelete.has(name) || name.match(/\.d\.ts$/)) {
+		try {
+			fs.unlinkSync(path.join(root, name));
+			console.log(`removed '${path.join(root, name)}'`);
+		} catch (e) {
+			console.warn(e);
+		}
 	}
 }
-
-// delete unused typescript stuff in lib folder
-const libPath = path.dirname(require.resolve('typescript'));
-for (let name of fs.readdirSync(libPath)) {
-	if (name !== 'typescript.d.ts' && name !== 'typescript.js' && name !== 'lib.es6.d.ts') {
-		removeFile(path.join(libPath, name));
-	}
-}
-
-// delete unused typescript stuff in bin folder
-const binPath = path.join(path.dirname(libPath), 'bin');
-for (let name of fs.readdirSync(binPath)) {
-	removeFile(path.join(binPath, name));
-}
-
-removeFile(path.join(path.dirname(libPath), 'Gulpfile.ts'));

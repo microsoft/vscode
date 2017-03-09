@@ -236,11 +236,11 @@ export interface ISuggestResult {
  */
 export interface ISuggestSupport {
 
-	triggerCharacters: string[];
+	triggerCharacters?: string[];
 
-	provideCompletionItems(model: editorCommon.IReadOnlyModel, position: Position, token: CancellationToken): ISuggestResult | Thenable<ISuggestResult>;
+	provideCompletionItems(model: editorCommon.IModel, position: Position, token: CancellationToken): ISuggestResult | Thenable<ISuggestResult>;
 
-	resolveCompletionItem?(model: editorCommon.IReadOnlyModel, position: Position, item: ISuggestion, token: CancellationToken): ISuggestion | Thenable<ISuggestion>;
+	resolveCompletionItem?(model: editorCommon.IModel, position: Position, item: ISuggestion, token: CancellationToken): ISuggestion | Thenable<ISuggestion>;
 }
 
 /**
@@ -494,6 +494,8 @@ export namespace SymbolKind {
 				return 'function';
 			case SymbolKind.Constructor:
 				return 'constructor';
+			case SymbolKind.Field:
+				return 'field';
 			case SymbolKind.Variable:
 				return 'variable';
 			case SymbolKind.Class:
@@ -541,6 +543,8 @@ export namespace SymbolKind {
 				return SymbolKind.Function;
 			case 'constructor':
 				return SymbolKind.Constructor;
+			case 'field':
+				return SymbolKind.Field;
 			case 'variable':
 				return SymbolKind.Variable;
 			case 'class':

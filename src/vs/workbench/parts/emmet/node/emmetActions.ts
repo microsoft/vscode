@@ -21,6 +21,7 @@ import * as emmet from 'emmet';
 import * as path from 'path';
 import * as pfs from 'vs/base/node/pfs';
 import Severity from 'vs/base/common/severity';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 interface IEmmetConfiguration {
 	emmet: {
@@ -274,9 +275,12 @@ export class BasicEmmetEditorAction extends EmmetEditorAction {
 	}
 
 	public runEmmetAction(accessor: ServicesAccessor, ctx: EmmetActionContext) {
+		const telemetryService = accessor.get(ITelemetryService);
 		try {
 			if (!ctx.emmet.run(this.emmetActionName, ctx.editorAccessor)) {
 				this.noExpansionOccurred(ctx.editor);
+			} else if (this.emmetActionName === 'expand_abbreviation') {
+				telemetryService.publicLog('emmetActionSucceeded', { action: this.emmetActionName });
 			}
 		} catch (err) {
 			this.noExpansionOccurred(ctx.editor);

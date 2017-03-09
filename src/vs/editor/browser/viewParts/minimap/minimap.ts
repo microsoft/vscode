@@ -8,7 +8,7 @@
 import 'vs/css!./minimap';
 import { ViewPart } from 'vs/editor/browser/view/viewPart';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
-import { IRenderingContext, IRestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
+import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
 import { getOrCreateMinimapCharRenderer } from 'vs/editor/common/view/runtimeMinimapCharRenderer';
 import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
@@ -17,20 +17,56 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { CharCode } from 'vs/base/common/charCode';
 import { IViewLayout, ViewLineData } from 'vs/editor/common/viewModel/viewModel';
 import { ColorId } from 'vs/editor/common/modes';
-import { FastDomNode, createFastDomNode } from 'vs/base/browser/styleMutator';
+import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { EditorScrollbar } from 'vs/editor/browser/viewParts/editorScrollbar/editorScrollbar';
 import { RenderedLinesCollection, ILine } from 'vs/editor/browser/view/viewLayer';
 import { Range } from 'vs/editor/common/core/range';
 import { RGBA } from 'vs/base/common/color';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { ScrollEvent } from 'vs/base/common/scrollable';
+import { GlobalMouseMoveMonitor, IStandardMouseMoveEventData, standardMouseMoveMerger } from 'vs/base/browser/globalMouseMoveMonitor';
+import * as platform from 'vs/base/common/platform';
 
 const enum RenderMinimap {
 	None = 0,
 	Small = 1,
-	Large = 2
+	Large = 2,
+	SmallBlocks = 3,
+	LargeBlocks = 4,
 }
+
+function getMinimapLineHeight(renderMinimap: RenderMinimap): number {
+	if (renderMinimap === RenderMinimap.Large) {
+		return Constants.x2_CHAR_HEIGHT;
+	}
+	if (renderMinimap === RenderMinimap.LargeBlocks) {
+		return Constants.x2_CHAR_HEIGHT + 2;
+	}
+	if (renderMinimap === RenderMinimap.Small) {
+		return Constants.x1_CHAR_HEIGHT;
+	}
+	// RenderMinimap.SmallBlocks
+	return Constants.x1_CHAR_HEIGHT + 1;
+}
+
+function getMinimapCharWidth(renderMinimap: RenderMinimap): number {
+	if (renderMinimap === RenderMinimap.Large) {
+		return Constants.x2_CHAR_WIDTH;
+	}
+	if (renderMinimap === RenderMinimap.LargeBlocks) {
+		return Constants.x2_CHAR_WIDTH;
+	}
+	if (renderMinimap === RenderMinimap.Small) {
+		return Constants.x1_CHAR_WIDTH;
+	}
+	// RenderMinimap.SmallBlocks
+	return Constants.x1_CHAR_WIDTH;
+}
+
+/**
+ * The orthogonal distance to the slider at which dragging "resets". This implements "snapping"
+ */
+const MOUSE_DRAG_RESET_DISTANCE = 140;
 
 class MinimapOptions {
 
@@ -128,7 +164,7 @@ class MinimapLayout {
 		scrollbarSliderCenter: number
 	) {
 		const pixelRatio = options.pixelRatio;
-		const minimapLineHeight = (options.renderMinimap === RenderMinimap.Large ? Constants.x2_CHAR_HEIGHT : Constants.x1_CHAR_HEIGHT);
+		const minimapLineHeight = getMinimapLineHeight(options.renderMinimap);
 		const minimapLinesFitting = Math.floor(options.canvasInnerHeight / minimapLineHeight);
 		const lineHeight = options.lineHeight;
 
@@ -212,7 +248,17 @@ class MinimapLayout {
 		}
 
 		this.sliderTop = Math.floor((viewportStartLineNumber - this.startLineNumber) * minimapLineHeight / pixelRatio);
-		this.sliderHeight = Math.floor(viewportLineCount * minimapLineHeight / pixelRatio);
+		if (viewportEndLineNumber === lineCount) {
+			// The last line is in the viewport => try to extend slider height below the painted lines
+			let desiredSliderHeight = Math.floor(expectedViewportLineCount * minimapLineHeight / pixelRatio);
+			if (this.sliderTop + desiredSliderHeight > options.minimapHeight) {
+				this.sliderHeight = options.minimapHeight - this.sliderTop;
+			} else {
+				this.sliderHeight = desiredSliderHeight;
+			}
+		} else {
+			this.sliderHeight = Math.floor(viewportLineCount * minimapLineHeight / pixelRatio);
+		}
 	}
 }
 
@@ -297,17 +343,17 @@ class RenderData {
 		};
 	}
 
-	public onModelLinesDeleted(e: viewEvents.IViewLinesDeletedEvent): void {
-		this._renderedLines.onModelLinesDeleted(e.fromLineNumber, e.toLineNumber);
+	public onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
+		return this._renderedLines.onLinesChanged(e.fromLineNumber, e.toLineNumber);
 	}
-	public onModelLineChanged(e: viewEvents.IViewLineChangedEvent): boolean {
-		return this._renderedLines.onModelLineChanged(e.lineNumber);
+	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): void {
+		this._renderedLines.onLinesDeleted(e.fromLineNumber, e.toLineNumber);
 	}
-	public onModelLinesInserted(e: viewEvents.IViewLinesInsertedEvent): void {
-		this._renderedLines.onModelLinesInserted(e.fromLineNumber, e.toLineNumber);
+	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): void {
+		this._renderedLines.onLinesInserted(e.fromLineNumber, e.toLineNumber);
 	}
-	public onModelTokensChanged(e: viewEvents.IViewTokensChangedEvent): boolean {
-		return this._renderedLines.onModelTokensChanged(e.ranges);
+	public onTokensChanged(e: viewEvents.ViewTokensChangedEvent): boolean {
+		return this._renderedLines.onTokensChanged(e.ranges);
 	}
 }
 
@@ -370,11 +416,13 @@ export class Minimap extends ViewPart {
 	private readonly _editorScrollbar: EditorScrollbar;
 
 	private readonly _domNode: FastDomNode<HTMLElement>;
+	private readonly _shadow: FastDomNode<HTMLElement>;
 	private readonly _canvas: FastDomNode<HTMLCanvasElement>;
 	private readonly _slider: FastDomNode<HTMLElement>;
 	private readonly _tokensColorTracker: MinimapTokensColorTracker;
-	private readonly _tokensColorTrackerListener: IDisposable;
 	private readonly _mouseDownListener: IDisposable;
+	private readonly _sliderMouseMoveMonitor: GlobalMouseMoveMonitor<IStandardMouseMoveEventData>;
+	private readonly _sliderMouseDownListener: IDisposable;
 
 	private readonly _minimapCharRenderer: MinimapCharRenderer;
 
@@ -392,8 +440,13 @@ export class Minimap extends ViewPart {
 		this._buffers = null;
 
 		this._domNode = createFastDomNode(document.createElement('div'));
+		this._domNode.setClassName('minimap');
 		this._domNode.setPosition('absolute');
 		this._domNode.setRight(this._context.configuration.editor.layoutInfo.verticalScrollbarWidth);
+
+		this._shadow = createFastDomNode(document.createElement('div'));
+		this._shadow.setClassName('minimap-shadow-hidden');
+		this._domNode.domNode.appendChild(this._shadow.domNode);
 
 		this._canvas = createFastDomNode(document.createElement('canvas'));
 		this._canvas.setPosition('absolute');
@@ -406,7 +459,6 @@ export class Minimap extends ViewPart {
 		this._domNode.domNode.appendChild(this._slider.domNode);
 
 		this._tokensColorTracker = MinimapTokensColorTracker.getInstance();
-		this._tokensColorTrackerListener = this._tokensColorTracker.onDidChange(() => this._buffers = null);
 
 		this._minimapCharRenderer = getOrCreateMinimapCharRenderer();
 
@@ -422,27 +474,77 @@ export class Minimap extends ViewPart {
 			if (!this._lastRenderData) {
 				return;
 			}
-			const minimapLineHeight = (renderMinimap === RenderMinimap.Large ? Constants.x2_CHAR_HEIGHT : Constants.x1_CHAR_HEIGHT);
+			const minimapLineHeight = getMinimapLineHeight(renderMinimap);
 			const internalOffsetY = this._options.pixelRatio * e.browserEvent.offsetY;
 			const lineIndex = Math.floor(internalOffsetY / minimapLineHeight);
 
 			let lineNumber = lineIndex + this._lastRenderData.renderedLayout.startLineNumber;
 			lineNumber = Math.min(lineNumber, this._context.model.getLineCount());
 
-			let revealPositionEvent: viewEvents.IViewRevealRangeEvent = {
-				_viewRevealRangeEventBrand: void 0,
-				range: new Range(lineNumber, 1, lineNumber, 1),
-				verticalType: editorCommon.VerticalRevealType.Center,
-				revealHorizontal: false,
-				revealCursor: false
-			};
-			this._context.privateViewEventBus.emit(viewEvents.ViewEventNames.RevealRangeEvent, revealPositionEvent);
+			this._context.privateViewEventBus.emit(new viewEvents.ViewRevealRangeRequestEvent(
+				new Range(lineNumber, 1, lineNumber, 1),
+				editorCommon.VerticalRevealType.Center,
+				false,
+				false
+			));
+		});
+
+		this._sliderMouseMoveMonitor = new GlobalMouseMoveMonitor<IStandardMouseMoveEventData>();
+
+		this._sliderMouseDownListener = dom.addStandardDisposableListener(this._slider.domNode, 'mousedown', (e) => {
+			e.preventDefault();
+
+			if (e.leftButton) {
+				const initialMouseOrthogonalPosition = e.posx;
+				const initialScrollTop = this._viewLayout.getScrollTop();
+				const initialSliderCenter = (this._slider.getTop() + this._slider.getHeight() / 2);
+				const draggingDeltaCenter = e.posy - initialSliderCenter;
+				this._slider.toggleClassName('active', true);
+
+				this._sliderMouseMoveMonitor.startMonitoring(
+					standardMouseMoveMerger,
+					(mouseMoveData: IStandardMouseMoveEventData) => {
+						const mouseOrthogonalPosition = mouseMoveData.posx;
+						const mouseOrthogonalDelta = Math.abs(mouseOrthogonalPosition - initialMouseOrthogonalPosition);
+						if (platform.isWindows && mouseOrthogonalDelta > MOUSE_DRAG_RESET_DISTANCE) {
+							// The mouse has wondered away from the slider => reset dragging
+							this._viewLayout.setScrollPosition({
+								scrollTop: initialScrollTop
+							});
+						} else {
+							const pixelRatio = this._options.pixelRatio;
+							const minimapLineHeight = getMinimapLineHeight(this._options.renderMinimap);
+							const entireCanvasOuterHeight = this._context.model.getLineCount() * minimapLineHeight / pixelRatio;
+							const representableHeight = Math.min(entireCanvasOuterHeight, this._options.canvasOuterHeight);
+
+							// Account for the fact that the minimap does not render the extra space below the viewport
+							let discountScrollHeight = 0;
+							if (this._context.configuration.editor.viewInfo.scrollBeyondLastLine) {
+								discountScrollHeight = this._canvas.getHeight() - this._context.configuration.editor.lineHeight;
+							}
+							const scrollHeight = this._viewLayout.getScrollHeight() - discountScrollHeight;
+
+							const desiredSliderCenter = mouseMoveData.posy - draggingDeltaCenter;
+							const desiredScrollCenter = desiredSliderCenter * (scrollHeight / representableHeight);
+							const desiredScrollTop = desiredScrollCenter - this._canvas.getHeight() / 2;
+
+							this._viewLayout.setScrollPosition({
+								scrollTop: desiredScrollTop
+							});
+						}
+					},
+					() => {
+						this._slider.toggleClassName('active', false);
+					}
+				);
+			}
 		});
 	}
 
 	public dispose(): void {
-		this._tokensColorTrackerListener.dispose();
 		this._mouseDownListener.dispose();
+		this._sliderMouseMoveMonitor.dispose();
+		this._sliderMouseDownListener.dispose();
 		super.dispose();
 	}
 
@@ -453,12 +555,12 @@ export class Minimap extends ViewPart {
 	private _applyLayout(): void {
 		this._domNode.setWidth(this._options.minimapWidth);
 		this._domNode.setHeight(this._options.minimapHeight);
+		this._shadow.setHeight(this._options.minimapHeight);
 		this._canvas.setWidth(this._options.canvasOuterWidth);
 		this._canvas.setHeight(this._options.canvasOuterHeight);
 		this._canvas.domNode.width = this._options.canvasInnerWidth;
 		this._canvas.domNode.height = this._options.canvasInnerHeight;
 		this._slider.setWidth(this._options.minimapWidth);
-		this._buffers = null;
 	}
 
 	private _getBuffer(): ImageData {
@@ -473,8 +575,6 @@ export class Minimap extends ViewPart {
 		return this._buffers.getBuffer();
 	}
 
-	// ---- begin view event handlers
-
 	private _onOptionsMaybeChanged(): boolean {
 		let opts = new MinimapOptions(this._context.configuration);
 		if (this._options.equals(opts)) {
@@ -482,59 +582,73 @@ export class Minimap extends ViewPart {
 		}
 		this._options = opts;
 		this._lastRenderData = null;
+		this._buffers = null;
 		this._applyLayout();
 		return true;
 	}
 
-	public onModelFlushed(): boolean {
+	// ---- begin view event handlers
+
+	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
+		return this._onOptionsMaybeChanged();
+	}
+	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
 		this._lastRenderData = null;
 		return true;
 	}
-	public onModelLinesDeleted(e: viewEvents.IViewLinesDeletedEvent): boolean {
+	public onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
 		if (this._lastRenderData) {
-			this._lastRenderData.onModelLinesDeleted(e);
-		}
-		return true;
-	}
-	public onModelLineChanged(e: viewEvents.IViewLineChangedEvent): boolean {
-		if (this._lastRenderData) {
-			return this._lastRenderData.onModelLineChanged(e);
+			return this._lastRenderData.onLinesChanged(e);
 		}
 		return false;
 	}
-	public onModelLinesInserted(e: viewEvents.IViewLinesInsertedEvent): boolean {
+	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
 		if (this._lastRenderData) {
-			this._lastRenderData.onModelLinesInserted(e);
+			this._lastRenderData.onLinesDeleted(e);
 		}
 		return true;
 	}
-	public onModelTokensChanged(e: viewEvents.IViewTokensChangedEvent): boolean {
+	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
 		if (this._lastRenderData) {
-			return this._lastRenderData.onModelTokensChanged(e);
+			this._lastRenderData.onLinesInserted(e);
+		}
+		return true;
+	}
+	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
+		return true;
+	}
+	public onTokensChanged(e: viewEvents.ViewTokensChangedEvent): boolean {
+		if (this._lastRenderData) {
+			return this._lastRenderData.onTokensChanged(e);
 		}
 		return false;
 	}
-	public onConfigurationChanged(e: editorCommon.IConfigurationChangedEvent): boolean {
-		return this._onOptionsMaybeChanged();
+	public onTokensColorsChanged(e: viewEvents.ViewTokensColorsChangedEvent): boolean {
+		this._lastRenderData = null;
+		this._buffers = null;
+		return true;
 	}
-	public onScrollChanged(e: ScrollEvent): boolean {
-		return e.scrollTopChanged || e.scrollHeightChanged;
-	}
-	public onZonesChanged(): boolean {
+	public onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
 		this._lastRenderData = null;
 		return true;
 	}
 
 	// --- end event handlers
 
-	public prepareRender(ctx: IRenderingContext): void {
+	public prepareRender(ctx: RenderingContext): void {
 		// Nothing to read
 	}
 
-	public render(renderingCtx: IRestrictedRenderingContext): void {
+	public render(renderingCtx: RestrictedRenderingContext): void {
 		const renderMinimap = this._options.renderMinimap;
 		if (renderMinimap === RenderMinimap.None) {
+			this._shadow.setClassName('minimap-shadow-hidden');
 			return;
+		}
+		if (renderingCtx.scrollLeft + renderingCtx.viewportWidth >= renderingCtx.scrollWidth) {
+			this._shadow.setClassName('minimap-shadow-hidden');
+		} else {
+			this._shadow.setClassName('minimap-shadow-visible');
 		}
 
 		const layout = new MinimapLayout(
@@ -551,7 +665,7 @@ export class Minimap extends ViewPart {
 
 		const startLineNumber = layout.startLineNumber;
 		const endLineNumber = layout.endLineNumber;
-		const minimapLineHeight = (renderMinimap === RenderMinimap.Large ? Constants.x2_CHAR_HEIGHT : Constants.x1_CHAR_HEIGHT);
+		const minimapLineHeight = getMinimapLineHeight(renderMinimap);
 
 		const imageData = this._getBuffer();
 
@@ -694,7 +808,7 @@ export class Minimap extends ViewPart {
 	): void {
 		const content = lineData.content;
 		const tokens = lineData.tokens;
-		const charWidth = (renderMinimap === RenderMinimap.Large ? Constants.x2_CHAR_WIDTH : Constants.x1_CHAR_WIDTH);
+		const charWidth = getMinimapCharWidth(renderMinimap);
 		const maxDx = target.width - charWidth;
 
 		let dx = 0;
@@ -725,8 +839,13 @@ export class Minimap extends ViewPart {
 				} else {
 					if (renderMinimap === RenderMinimap.Large) {
 						minimapCharRenderer.x2RenderChar(target, dx, dy, charCode, tokenColor, backgroundColor, useLighterFont);
-					} else {
+					} else if (renderMinimap === RenderMinimap.Small) {
 						minimapCharRenderer.x1RenderChar(target, dx, dy, charCode, tokenColor, backgroundColor, useLighterFont);
+					} else if (renderMinimap === RenderMinimap.LargeBlocks) {
+						minimapCharRenderer.x2BlockRenderChar(target, dx, dy, tokenColor, backgroundColor, useLighterFont);
+					} else {
+						// RenderMinimap.SmallBlocks
+						minimapCharRenderer.x1BlockRenderChar(target, dx, dy, tokenColor, backgroundColor, useLighterFont);
 					}
 					dx += charWidth;
 				}

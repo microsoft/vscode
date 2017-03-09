@@ -36,44 +36,34 @@ export const TerminalCursorStyle = {
 };
 
 export interface ITerminalConfiguration {
-	terminal: {
-		integrated: {
-			shell: {
-				linux: string,
-				osx: string,
-				windows: string
-			},
-			shellArgs: {
-				linux: string[],
-				osx: string[],
-				windows: string[]
-			},
-			rightClickCopyPaste: boolean,
-			cursorBlinking: boolean,
-			cursorStyle: string,
-			fontFamily: string,
-			fontLigatures: boolean,
-			fontSize: number,
-			lineHeight: number,
-			setLocaleVariables: boolean,
-			scrollback: number,
-			commandsToSkipShell: string[],
-			cwd: string,
-			flowControl: boolean
-		}
+	shell: {
+		linux: string;
+		osx: string;
+		windows: string;
 	};
+	shellArgs: {
+		linux: string[];
+		osx: string[];
+		windows: string[];
+	};
+	rightClickCopyPaste: boolean;
+	cursorBlinking: boolean;
+	cursorStyle: string;
+	fontFamily: string;
+	fontLigatures: boolean;
+	fontSize: number;
+	lineHeight: number;
+	setLocaleVariables: boolean;
+	scrollback: number;
+	commandsToSkipShell: string[];
+	cwd: string;
+	confirmOnExit: boolean;
 }
 
 export interface ITerminalConfigHelper {
+	config: ITerminalConfiguration;
 	getTheme(baseThemeId: string): string[];
 	getFont(): ITerminalFont;
-	getFontLigaturesEnabled(): boolean;
-	getFlowControl(): boolean;
-	getCursorBlink(): boolean;
-	getRightClickCopyPaste(): boolean;
-	getCommandsToSkipShell(): string[];
-	getScrollback(): number;
-	getCwd(): string;
 }
 
 export interface ITerminalFont {
@@ -186,9 +176,11 @@ export interface ITerminalInstance {
 	 * @param handler The callback when the link is called.
 	 * @param matchIndex The index of the link from the regex.match(html) call. This defaults to 0
 	 * (for regular expressions without capture groups).
+	 * @param validationCallback A callback which can be used to validate the link after it has been
+	 * added to the DOM.
 	 * @return The ID of the new matcher, this can be used to deregister.
 	 */
-	registerLinkMatcher(regex: RegExp, handler: (url: string) => void, matchIndex?: number): number;
+	registerLinkMatcher(regex: RegExp, handler: (url: string) => void, matchIndex?: number, validationCallback?: (uri: string, callback: (isValid: boolean) => void) => void): number;
 
 	/**
 	 * Deregisters a link matcher if it has been registered.

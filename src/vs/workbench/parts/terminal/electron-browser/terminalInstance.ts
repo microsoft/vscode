@@ -134,19 +134,19 @@ export class TerminalInstance implements ITerminalInstance {
 	 * Evaluates and sets the cols and rows of the terminal if possible.
 	 * @param width The width of the container.
 	 * @param height The height of the container.
-	 * @return Whether cols and rows were set.
+	 * @return The terminal's width if it requires a layout.
 	 */
-	private _evaluateColsAndRows(width: number, height: number): boolean {
+	private _evaluateColsAndRows(width: number, height: number): number {
 		// The font needs to have been initialized
 		const font = this._configHelper.getFont();
 		if (!font || !font.charWidth || !font.charHeight) {
-			return false;
+			return null;
 		}
 
 		// TODO: Fetch size from panel so initial size is correct
 		// The panel is minimized
 		if (!height) {
-			return false;
+			return null;
 		} else {
 			// Trigger scroll event manually so that the viewport's scroll area is synced. This
 			// needs to happen otherwise its scrollTop value is invalid when the panel is toggled as
@@ -163,7 +163,7 @@ export class TerminalInstance implements ITerminalInstance {
 		const innerWidth = width - padding * 2;
 		this._cols = Math.floor(innerWidth / font.charWidth);
 		this._rows = Math.floor(height / font.charHeight);
-		return true;
+		return innerWidth;
 	}
 
 	/**
@@ -171,7 +171,7 @@ export class TerminalInstance implements ITerminalInstance {
 	 */
 	protected _createXterm(): void {
 		this._xterm = xterm({
-			scrollback: this._configHelper.getScrollback()
+			scrollback: this._configHelper.config.scrollback
 		});
 		this._process.on('message', (message) => this._sendPtyDataToXterm(message));
 		this._xterm.on('data', (data) => {
@@ -196,7 +196,8 @@ export class TerminalInstance implements ITerminalInstance {
 		this._xtermElement = document.createElement('div');
 
 		this._xterm.open(this._xtermElement);
-		this._xterm.registerLinkMatcher(this._linkHandler.localLinkRegex, (url) => this._linkHandler.handleLocalLink(url), 1);
+		this._linkHandler.initialize(this._xterm);
+		this._linkHandler.registerLocalLinkHandler(this._xterm);
 		this._xterm.attachCustomKeydownHandler((event: KeyboardEvent) => {
 			// Disable all input if the terminal is exiting
 			if (this._isExiting) {
@@ -276,8 +277,8 @@ export class TerminalInstance implements ITerminalInstance {
 		this.updateConfig();
 	}
 
-	public registerLinkMatcher(regex: RegExp, handler: (url: string) => void, matchIndex?: number): number {
-		return this._xterm.registerLinkMatcher(regex, handler, matchIndex);
+	public registerLinkMatcher(regex: RegExp, handler: (url: string) => void, matchIndex?: number, validationCallback?: (uri: string, callback: (isValid: boolean) => void) => void): number {
+		return this._linkHandler.registerCustomLinkHandler(this._xterm, regex, handler, matchIndex, validationCallback);
 	}
 
 	public deregisterLinkMatcher(linkMatcherId: number): void {
@@ -413,7 +414,7 @@ export class TerminalInstance implements ITerminalInstance {
 		// TODO: Handle non-existent customCwd
 		if (!shell.ignoreConfigurationCwd) {
 			// Evaluate custom cwd first
-			const customCwd = this._configHelper.getCwd();
+			const customCwd = this._configHelper.config.cwd;
 			if (customCwd) {
 				if (path.isAbsolute(customCwd)) {
 					cwd = customCwd;
@@ -432,7 +433,7 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	protected _createProcess(workspace: IWorkspace, shell: IShellLaunchConfig): void {
-		const locale = this._configHelper.isSetLocaleVariables() ? platform.locale : undefined;
+		const locale = this._configHelper.config.setLocaleVariables ? platform.locale : undefined;
 		if (!shell.executable) {
 			this._configHelper.mergeDefaultShellPathAndArgs(shell);
 		}
@@ -562,9 +563,7 @@ export class TerminalInstance implements ITerminalInstance {
 			});
 		}
 		env['PTYCWD'] = cwd;
-		if (locale) {
-			env['LANG'] = TerminalInstance._getLangEnvVariable(locale);
-		}
+		env['LANG'] = TerminalInstance._getLangEnvVariable(locale);
 		if (cols && rows) {
 			env['PTYCOLS'] = cols.toString();
 			env['PTYROWS'] = rows.toString();
@@ -615,12 +614,12 @@ export class TerminalInstance implements ITerminalInstance {
 		return newEnv;
 	}
 
-	private static _getLangEnvVariable(locale: string) {
-		const parts = locale.split('-');
+	private static _getLangEnvVariable(locale?: string) {
+		const parts = locale ? locale.split('-') : [];
 		const n = parts.length;
-		const language = parts[0];
 		if (n === 0) {
-			return '';
+			// Fallback to en_US to prevent possible encoding issues.
+			return 'en_US.UTF-8';
 		}
 		if (n === 1) {
 			// app.getLocale can return just a language without a variant, fill in the variant for
@@ -636,8 +635,8 @@ export class TerminalInstance implements ITerminalInstance {
 				ru: 'RU',
 				zh: 'CN'
 			};
-			if (language in languageVariants) {
-				parts.push(languageVariants[language]);
+			if (parts[0] in languageVariants) {
+				parts.push(languageVariants[parts[0]]);
 			}
 		} else {
 			// Ensure the variant is uppercase
@@ -647,17 +646,10 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public updateConfig(): void {
-		this._setFlowControl(this._configHelper.getFlowControl());
-		this._setCursorBlink(this._configHelper.getCursorBlink());
-		this._setCursorStyle(this._configHelper.getCursorStyle());
-		this._setCommandsToSkipShell(this._configHelper.getCommandsToSkipShell());
-		this._setScrollback(this._configHelper.getScrollback());
-	}
-
-	private _setFlowControl(flowControl: boolean): void {
-		if (this._xterm && this._xterm.getOption('useFlowControl') !== flowControl) {
-			this._xterm.setOption('useFlowControl', flowControl);
-		}
+		this._setCursorBlink(this._configHelper.config.cursorBlinking);
+		this._setCursorStyle(this._configHelper.config.cursorStyle);
+		this._setCommandsToSkipShell(this._configHelper.config.commandsToSkipShell);
+		this._setScrollback(this._configHelper.config.scrollback);
 	}
 
 	private _setCursorBlink(blink: boolean): void {
@@ -686,13 +678,13 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public layout(dimension: Dimension): void {
-		const needsLayout = this._evaluateColsAndRows(dimension.width, dimension.height);
-		if (!needsLayout) {
+		const terminalWidth = this._evaluateColsAndRows(dimension.width, dimension.height);
+		if (!terminalWidth) {
 			return;
 		}
 		if (this._xterm) {
 			this._xterm.resize(this._cols, this._rows);
-			this._xterm.element.style.width = innerWidth + 'px';
+			this._xterm.element.style.width = terminalWidth + 'px';
 		}
 		if (this._process.connected) {
 			this._process.send({

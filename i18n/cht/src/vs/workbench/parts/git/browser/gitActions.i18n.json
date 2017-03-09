@@ -14,6 +14,7 @@
 	"commitMessage": "認可訊息",
 	"commitStaged": "認可已分段",
 	"commitStaged2": "認可已分段",
+	"commitStagedAmend": "認可暫存 (修改)",
 	"commitStagedSignedOff": "認可暫存 (已登出)",
 	"confirmPublishMessage": "確定要將 '{0}' 發行至 '{1}' 嗎?",
 	"confirmPublishMessageButton": "發行(&&P)",

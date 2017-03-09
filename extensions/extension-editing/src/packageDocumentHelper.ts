@@ -33,7 +33,7 @@ export class PackageDocument {
 			// Suggestion model word matching includes quotes,
 			// hence exclude the starting quote from the snippet and the range
 			// ending quote gets replaced
-			if (text.startsWith('"')) {
+			if (text && text.startsWith('"')) {
 				range = new vscode.Range(new vscode.Position(range.start.line, range.start.character + 1), range.end);
 				snippet = snippet.substring(1);
 			}
@@ -46,7 +46,7 @@ export class PackageDocument {
 			})]);
 		}
 
-		if (location.path.length === 3 && location.previousNode && location.previousNode.value.startsWith('[')) {
+		if (location.path.length === 3 && location.previousNode && typeof location.previousNode.value === 'string' && location.previousNode.value.startsWith('[')) {
 
 			// Suggestion model word matching includes starting quote and open sqaure bracket
 			// Hence exclude them from the proposal range

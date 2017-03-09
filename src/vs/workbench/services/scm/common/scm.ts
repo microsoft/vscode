@@ -10,7 +10,6 @@ import URI from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import Event from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IModel } from 'vs/editor/common/editorCommon';
 
 export interface IBaselineResourceProvider {
 	getBaselineResource(resource: URI): TPromise<URI>;
@@ -45,8 +44,14 @@ export interface ISCMProvider extends IDisposable {
 	readonly state?: string;
 
 	open(uri: ISCMResource): TPromise<void>;
+	acceptChanges(): TPromise<void>;
 	drag(from: ISCMResource, to: ISCMResourceGroup): TPromise<void>;
 	getOriginalResource(uri: URI): TPromise<URI>;
+}
+
+export interface ISCMInput {
+	value: string;
+	readonly onDidChange: Event<string>;
 }
 
 export interface ISCMService {
@@ -54,8 +59,8 @@ export interface ISCMService {
 	readonly _serviceBrand: any;
 	readonly onDidChangeProvider: Event<ISCMProvider>;
 	readonly providers: ISCMProvider[];
+	readonly input: ISCMInput;
 	activeProvider: ISCMProvider | undefined;
-	readonly inputBoxModel: IModel;
 
 	registerSCMProvider(provider: ISCMProvider): IDisposable;
 }

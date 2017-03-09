@@ -102,6 +102,7 @@ export interface IProcess extends ITreeElement {
 	name: string;
 	configuration: IConfig;
 	session: ISession;
+	sources: Map<string, Source>;
 	isAttach(): boolean;
 	getThread(threadId: number): IThread;
 	getAllThreads(): IThread[];
@@ -277,6 +278,7 @@ export interface IDebugConfiguration {
 	allowBreakpointsEverywhere: boolean;
 	openExplorerOnEnd: boolean;
 	inlineValues: boolean;
+	hideActionBar: boolean;
 }
 
 export interface IGlobalConfig {

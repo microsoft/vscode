@@ -519,6 +519,34 @@ export class CloseEditorAction extends Action {
 	}
 }
 
+export class RevertAndCloseEditorAction extends Action {
+
+	public static ID = 'workbench.action.revertAndCloseActiveEditor';
+	public static LABEL = nls.localize('revertAndCloseActiveEditor', "Revert and Close Editor");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		const activeEditor = this.editorService.getActiveEditor();
+		if (activeEditor && activeEditor.input) {
+			const input = activeEditor.input;
+			const position = activeEditor.position;
+
+			return activeEditor.input.revert().then(ok =>
+				this.editorService.closeEditor(position, input)
+			);
+		}
+
+		return TPromise.as(false);
+	}
+}
+
 export class CloseLeftEditorsInGroupAction extends Action {
 
 	public static ID = 'workbench.action.closeEditorsToTheLeft';

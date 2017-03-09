@@ -8,6 +8,7 @@
 			"id": "groovy",
 			"aliases": ["Groovy", "groovy"],
 			"extensions": [".groovy", ".gvy", ".gradle"],
+			"filenames": [ "Jenkinsfile" ],
 			"firstLine": "^#!.*\\bgroovy\\b",
 			"configuration": "./language-configuration.json"
 		}],
