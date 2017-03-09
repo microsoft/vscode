@@ -263,10 +263,6 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		return KeybindingLabels.toCustomHTMLLabel(keybinding, getNativeLabelProvider());
 	}
 
-	public getAriaLabelFor(keybinding: Keybinding): string {
-		return KeybindingLabels.toCustomLabel(keybinding, getNativeAriaLabelProvider());
-	}
-
 	public getElectronAcceleratorFor(keybinding: Keybinding): string {
 		if (platform.isWindows) {
 			// electron menus always do the correct rendering on Windows

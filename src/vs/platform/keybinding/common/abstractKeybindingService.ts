@@ -95,10 +95,6 @@ export abstract class AbstractKeybindingService implements IKeybindingService {
 		return KeybindingLabels._toUSHTMLLabel(keybinding);
 	}
 
-	public getAriaLabelFor(keybinding: Keybinding): string {
-		return KeybindingLabels._toUSAriaLabel(keybinding);
-	}
-
 	public getElectronAcceleratorFor(keybinding: Keybinding): string {
 		return KeybindingLabels._toElectronAccelerator(keybinding);
 	}

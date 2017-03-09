@@ -297,9 +297,9 @@ export class CommandsHandler extends QuickOpenHandler {
 
 		for (let i = 0; i < actionDescriptors.length; i++) {
 			const actionDescriptor = actionDescriptors[i];
-			const [keybind] = this.keybindingService.lookupKeybindings(actionDescriptor.id);
-			const keyLabel = keybind ? this.keybindingService.getLabelFor(keybind) : '';
-			const keyAriaLabel = keybind ? this.keybindingService.getAriaLabelFor(keybind) : '';
+			const [keybind] = this.keybindingService.lookupKeybindings2(actionDescriptor.id);
+			const keyLabel = keybind ? keybind.getLabel() : '';
+			const keyAriaLabel = keybind ? keybind.getAriaLabel() : '';
 
 			if (actionDescriptor.label) {
 
@@ -329,9 +329,9 @@ export class CommandsHandler extends QuickOpenHandler {
 		for (let i = 0; i < actions.length; i++) {
 			const action = actions[i];
 
-			const [keybind] = this.keybindingService.lookupKeybindings(action.id);
-			const keyLabel = keybind ? this.keybindingService.getLabelFor(keybind) : '';
-			const keyAriaLabel = keybind ? this.keybindingService.getAriaLabelFor(keybind) : '';
+			const [keybind] = this.keybindingService.lookupKeybindings2(action.id);
+			const keyLabel = keybind ? keybind.getLabel() : '';
+			const keyAriaLabel = keybind ? keybind.getAriaLabel() : '';
 			const label = action.label;
 
 			if (label) {
@@ -358,9 +358,9 @@ export class CommandsHandler extends QuickOpenHandler {
 				: action.item.title;
 			if (label) {
 				const labelHighlights = wordFilter(searchValue, label);
-				const [keybind] = this.keybindingService.lookupKeybindings(action.item.id);
-				const keyLabel = keybind ? this.keybindingService.getLabelFor(keybind) : '';
-				const keyAriaLabel = keybind ? this.keybindingService.getAriaLabelFor(keybind) : '';
+				const [keybind] = this.keybindingService.lookupKeybindings2(action.item.id);
+				const keyLabel = keybind ? keybind.getLabel() : '';
+				const keyAriaLabel = keybind ? keybind.getAriaLabel() : '';
 				const alias = action.item.alias ? action.item.alias : null;
 				const aliasHighlights = alias ? wordFilter(searchValue, alias) : null;
 				if (labelHighlights || aliasHighlights) {
