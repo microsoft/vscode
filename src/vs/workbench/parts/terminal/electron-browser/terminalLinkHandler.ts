@@ -72,9 +72,9 @@ export class TerminalLinkHandler {
 				const link = <HTMLElement>event.target;
 				let message: string;
 				if (platform.isMacintosh) {
-					message = nls.localize('terminalLinkHandler.followLinkCmd', 'Use cmd+click to follow link');
+					message = nls.localize('terminalLinkHandler.followLinkCmd', 'Cmd + click to follow link');
 				} else {
-					message = nls.localize('terminalLinkHandler.followLinkCtrl', 'Use ctrl+click to follow link');
+					message = nls.localize('terminalLinkHandler.followLinkCtrl', 'Ctrl + click to follow link');
 				}
 				this._instance.showMessage(link.offsetLeft, link.offsetTop, message);
 				event.preventDefault();
