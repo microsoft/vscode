@@ -154,6 +154,7 @@ export default class Webview {
 			--font-family: ${fontFamily};
 			--font-weight: ${fontWeight};
 			--font-size: ${fontSize};
+			-webkit-overflow-scrolling: touch;
 		}
 		body {
 			background-color: var(--background-color);
