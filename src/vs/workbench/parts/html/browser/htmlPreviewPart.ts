@@ -18,7 +18,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { HtmlInput } from 'vs/workbench/parts/html/common/htmlInput';
-import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
+import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITextModelResolverService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 
@@ -32,7 +32,7 @@ export class HtmlPreviewPart extends BaseEditor {
 	static ID: string = 'workbench.editor.htmlPreviewPart';
 
 	private _textModelResolverService: ITextModelResolverService;
-	private _themeService: IThemeService;
+	private _themeService: IWorkbenchThemeService;
 	private _openerService: IOpenerService;
 	private _webview: Webview;
 	private _webviewDisposables: IDisposable[];
@@ -48,7 +48,7 @@ export class HtmlPreviewPart extends BaseEditor {
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@ITextModelResolverService textModelResolverService: ITextModelResolverService,
-		@IThemeService themeService: IThemeService,
+		@IWorkbenchThemeService themeService: IWorkbenchThemeService,
 		@IOpenerService openerService: IOpenerService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService
 	) {

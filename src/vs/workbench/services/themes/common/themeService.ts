@@ -9,8 +9,9 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import Event from 'vs/base/common/event';
 import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { Color } from 'vs/base/common/color';
+import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
 
-export let IThemeService = createDecorator<IThemeService>('themeService');
+export let IWorkbenchThemeService = createDecorator<IWorkbenchThemeService>('themeService');
 
 export const VS_LIGHT_THEME = 'vs';
 export const VS_DARK_THEME = 'vs-dark';
@@ -19,7 +20,7 @@ export const VS_HC_THEME = 'hc-black';
 export const COLOR_THEME_SETTING = 'workbench.colorTheme';
 export const ICON_THEME_SETTING = 'workbench.iconTheme';
 
-export interface IColorTheme {
+export interface IColorTheme extends ITheme {
 	readonly id: string;
 	readonly label: string;
 	readonly settingsId: string;
@@ -27,7 +28,6 @@ export interface IColorTheme {
 	readonly description?: string;
 	readonly isLoaded: boolean;
 	readonly tokenColors?: ITokenColorizationRule[];
-	readonly colorMap?: IColorMap;
 
 	isLightTheme(): boolean;
 	isDarkTheme(): boolean;
@@ -51,7 +51,7 @@ export interface IFileIconTheme {
 	readonly hasFolderIcons?: boolean;
 }
 
-export interface IThemeService {
+export interface IWorkbenchThemeService extends IThemeService {
 	_serviceBrand: any;
 	setColorTheme(themeId: string, settingsTarget: ConfigurationTarget): TPromise<IColorTheme>;
 	getColorTheme(): IColorTheme;

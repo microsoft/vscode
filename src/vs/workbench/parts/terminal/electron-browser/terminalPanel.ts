@@ -15,7 +15,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ITerminalService, ITerminalFont, TERMINAL_PANEL_ID } from 'vs/workbench/parts/terminal/common/terminal';
-import { IThemeService, IColorTheme } from 'vs/workbench/services/themes/common/themeService';
+import { IWorkbenchThemeService, IColorTheme } from 'vs/workbench/services/themes/common/themeService';
 import { KillTerminalAction, CreateNewTerminalAction, SwitchTerminalInstanceAction, SwitchTerminalInstanceActionItem, CopyTerminalSelectionAction, TerminalPasteAction, ClearTerminalAction } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
 import { Panel } from 'vs/workbench/browser/panel';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
@@ -39,7 +39,7 @@ export class TerminalPanel extends Panel {
 		@IInstantiationService private _instantiationService: IInstantiationService,
 		@IKeybindingService private _keybindingService: IKeybindingService,
 		@ITerminalService private _terminalService: ITerminalService,
-		@IThemeService private _themeService: IThemeService,
+		@IWorkbenchThemeService private _themeService: IWorkbenchThemeService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
 		super(TERMINAL_PANEL_ID, telemetryService);
