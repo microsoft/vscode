@@ -77,27 +77,6 @@ export class EditorWorkerServiceImpl implements IEditorWorkerService {
 	}
 }
 
-class WordBasedCompletionConfig {
-
-	static fromOldConfig(value: boolean): WordBasedCompletionConfig {
-		return new WordBasedCompletionConfig(value, value, value);
-	}
-
-	constructor(
-		readonly suggestInStrings: boolean,
-		readonly suggestInComments: boolean,
-		readonly suggestInCode: boolean
-	) {
-
-	}
-
-	accept(tokenType: modes.StandardTokenType): boolean {
-		return (tokenType === modes.StandardTokenType.String && this.suggestInStrings)
-			|| (tokenType === modes.StandardTokenType.Comment && this.suggestInComments)
-			|| (tokenType === modes.StandardTokenType.Other && this.suggestInCode);
-	}
-}
-
 class WordBasedCompletionItemProvider implements modes.ISuggestSupport {
 
 	private readonly _workerManager: WorkerManager;
@@ -110,16 +89,29 @@ class WordBasedCompletionItemProvider implements modes.ISuggestSupport {
 
 	provideCompletionItems(model: editorCommon.IModel, position: Position): TPromise<modes.ISuggestResult> {
 
-		// TODO(joh) should we force tokenization?
-		// model.forceTokenization(position.lineNumber);
-		const config = WordBasedCompletionConfig.fromOldConfig(this._configurationService.lookup<boolean>('editor.wordBasedSuggestions').value);
-		const tokens = model.getLineTokens(position.lineNumber);
-		const { tokenType } = tokens.findTokenAtOffset(position.column - 1);
+		const { wordBasedSuggestions } = this._configurationService.getConfiguration<editorCommon.IEditorOptions>('editor');
 
-		if (config.accept(tokenType)) {
-			return this._workerManager.withWorker().then(client => client.textualSuggest(model.uri, position));
-		} else {
+		if (wordBasedSuggestions === false) {
+			// simple -> disabled everywhere
 			return undefined;
+
+		} else if (wordBasedSuggestions === true) {
+			// simple -> enabled for all tokens
+			return this._workerManager.withWorker().then(client => client.textualSuggest(model.uri, position));
+
+		} else {
+			// check with token type and config
+			const tokens = model.getLineTokens(position.lineNumber);
+			const { tokenType } = tokens.findTokenAtOffset(position.column - 1);
+			const shoudSuggestHere = (tokenType === modes.StandardTokenType.Comment && wordBasedSuggestions.comments)
+				|| (tokenType === modes.StandardTokenType.String && wordBasedSuggestions.strings)
+				|| (tokenType === modes.StandardTokenType.Other && wordBasedSuggestions.default);
+
+			if (shoudSuggestHere) {
+				return this._workerManager.withWorker().then(client => client.textualSuggest(model.uri, position));
+			} else {
+				return undefined;
+			}
 		}
 	}
 }

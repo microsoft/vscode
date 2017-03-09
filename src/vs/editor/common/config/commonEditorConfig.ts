@@ -780,7 +780,26 @@ const editorConfiguration: IConfigurationNode = {
 			'description': nls.localize('emptySelectionClipboard', "Controls whether copying without a selection copies the current line.")
 		},
 		'editor.wordBasedSuggestions': {
-			'type': 'boolean',
+			'anyOf': [
+				'boolean',
+				{
+					type: 'object',
+					properties: {
+						strings: {
+							type: 'boolean',
+							description: nls.localize('wordBasedSuggestions.strings', "Enable word based suggestions inside strings.")
+						},
+						comments: {
+							type: 'boolean',
+							description: nls.localize('wordBasedSuggestions.comments', "Enable word based suggestions inside comments.")
+						},
+						default: {
+							type: 'boolean',
+							description: nls.localize('wordBasedSuggestions.default', "Enable word based suggestions outside of strings and comments.")
+						},
+					}
+				}
+			],
 			'default': DefaultConfig.editor.wordBasedSuggestions,
 			'description': nls.localize('wordBasedSuggestions', "Enable word based suggestions.")
 		},
