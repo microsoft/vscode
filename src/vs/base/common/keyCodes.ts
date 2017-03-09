@@ -438,7 +438,7 @@ export function KeyChord(firstPart: number, secondPart: number): number {
 	return (firstPart | chordPart) >>> 0;
 }
 
-export class BinaryKeybindings {
+class BinaryKeybindings {
 
 	public static extractFirstPart(keybinding: number): number {
 		return (keybinding & 0x0000ffff) >>> 0;

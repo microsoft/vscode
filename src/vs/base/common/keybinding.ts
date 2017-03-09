@@ -8,7 +8,7 @@
 import * as nls from 'vs/nls';
 import * as defaultPlatform from 'vs/base/common/platform';
 import { IHTMLContentElement } from 'vs/base/common/htmlContent';
-import { Keybinding, KeyCode, KeyMod, KeyChord, KeyCodeUtils, BinaryKeybindings, USER_SETTINGS } from 'vs/base/common/keyCodes';
+import { Keybinding, SimpleKeybinding, KeyCode, KeyMod, KeyChord, KeyCodeUtils, USER_SETTINGS } from 'vs/base/common/keyCodes';
 
 export interface ISimplifiedPlatform {
 	isMacintosh: boolean;
@@ -41,8 +41,8 @@ export class KeybindingLabels {
 	 * Format the binding to a format appropiate for the user settings file.
 	 * @internal
 	 */
-	public static toUserSettingsLabel(value: number, Platform: ISimplifiedPlatform = defaultPlatform): string {
-		let result = _asString(value, UserSettingsKeyLabelProvider.INSTANCE, Platform);
+	public static toUserSettingsLabel(keybinding: Keybinding, Platform: ISimplifiedPlatform = defaultPlatform): string {
+		let result = _asString(keybinding, UserSettingsKeyLabelProvider.INSTANCE, Platform);
 		result = result.toLowerCase();
 
 		if (Platform.isMacintosh) {
@@ -146,7 +146,7 @@ export class KeybindingLabels {
 	 * @internal
 	 */
 	public static _toUSLabel(keybinding: Keybinding, Platform: ISimplifiedPlatform = defaultPlatform): string {
-		return _asString(keybinding.value, (Platform.isMacintosh ? MacUIKeyLabelProvider.INSTANCE : ClassicUIKeyLabelProvider.INSTANCE), Platform);
+		return _asString(keybinding, (Platform.isMacintosh ? MacUIKeyLabelProvider.INSTANCE : ClassicUIKeyLabelProvider.INSTANCE), Platform);
 	}
 
 	/**
@@ -154,7 +154,7 @@ export class KeybindingLabels {
 	 * @internal
 	 */
 	public static _toUSAriaLabel(keybinding: Keybinding, Platform: ISimplifiedPlatform = defaultPlatform): string {
-		return _asString(keybinding.value, AriaKeyLabelProvider.INSTANCE, Platform);
+		return _asString(keybinding, AriaKeyLabelProvider.INSTANCE, Platform);
 	}
 
 	/**
@@ -162,7 +162,7 @@ export class KeybindingLabels {
 	 * @internal
 	 */
 	public static _toUSHTMLLabel(keybinding: Keybinding, Platform: ISimplifiedPlatform = defaultPlatform): IHTMLContentElement[] {
-		return _asHTML(keybinding.value, (Platform.isMacintosh ? MacUIKeyLabelProvider.INSTANCE : ClassicUIKeyLabelProvider.INSTANCE), Platform);
+		return _asHTML(keybinding, (Platform.isMacintosh ? MacUIKeyLabelProvider.INSTANCE : ClassicUIKeyLabelProvider.INSTANCE), Platform);
 	}
 
 	/**
@@ -170,7 +170,7 @@ export class KeybindingLabels {
 	 * @internal
 	 */
 	public static toCustomLabel(keybinding: Keybinding, labelProvider: IKeyBindingLabelProvider, Platform: ISimplifiedPlatform = defaultPlatform): string {
-		return _asString(keybinding.value, labelProvider, Platform);
+		return _asString(keybinding, labelProvider, Platform);
 	}
 
 	/**
@@ -178,7 +178,7 @@ export class KeybindingLabels {
 	 * @internal
 	 */
 	public static toCustomHTMLLabel(keybinding: Keybinding, labelProvider: IKeyBindingLabelProvider, Platform: ISimplifiedPlatform = defaultPlatform): IHTMLContentElement[] {
-		return _asHTML(keybinding.value, labelProvider, Platform);
+		return _asHTML(keybinding, labelProvider, Platform);
 	}
 
 	/**
@@ -187,16 +187,16 @@ export class KeybindingLabels {
 	 * @internal
 	 */
 	public static _toElectronAccelerator(keybinding: Keybinding, Platform: ISimplifiedPlatform = defaultPlatform): string {
-		if (BinaryKeybindings.hasChord(keybinding.value)) {
+		if (keybinding.isChord()) {
 			// Electron cannot handle chords
 			return null;
 		}
-		let keyCode = BinaryKeybindings.extractKeyCode(keybinding.value);
+		let keyCode = keybinding.getKeyCode();
 		if (keyCode >= KeyCode.NUMPAD_0 && keyCode <= KeyCode.NUMPAD_DIVIDE) {
 			// Electron cannot handle numpad keys
 			return null;
 		}
-		return _asString(keybinding.value, ElectronAcceleratorLabelProvider.INSTANCE, Platform);
+		return _asString(keybinding, ElectronAcceleratorLabelProvider.INSTANCE, Platform);
 	}
 }
 
@@ -328,13 +328,13 @@ class UserSettingsKeyLabelProvider implements IKeyBindingLabelProvider {
 	}
 }
 
-function _asString(keybinding: number, labelProvider: IKeyBindingLabelProvider, Platform: ISimplifiedPlatform): string {
-	let result: string[] = [],
-		ctrlCmd = BinaryKeybindings.hasCtrlCmd(keybinding),
-		shift = BinaryKeybindings.hasShift(keybinding),
-		alt = BinaryKeybindings.hasAlt(keybinding),
-		winCtrl = BinaryKeybindings.hasWinCtrl(keybinding),
-		keyCode = BinaryKeybindings.extractKeyCode(keybinding);
+function _simpleAsString(keybinding: SimpleKeybinding, labelProvider: IKeyBindingLabelProvider, Platform: ISimplifiedPlatform): string {
+	let result: string[] = [];
+	let ctrlCmd = keybinding.hasCtrlCmd();
+	let shift = keybinding.hasShift();
+	let alt = keybinding.hasAlt();
+	let winCtrl = keybinding.hasWinCtrl();
+	let keyCode = keybinding.getKeyCode();
 
 	let keyLabel = labelProvider.getLabelForKey(keyCode);
 	if (!keyLabel) {
@@ -366,13 +366,17 @@ function _asString(keybinding: number, labelProvider: IKeyBindingLabelProvider, 
 	// the actual key
 	result.push(keyLabel);
 
-	var actualResult = result.join(labelProvider.modifierSeparator);
+	return result.join(labelProvider.modifierSeparator);
+}
 
-	if (BinaryKeybindings.hasChord(keybinding)) {
-		return actualResult + ' ' + _asString(BinaryKeybindings.extractChordPart(keybinding), labelProvider, Platform);
+function _asString(keybinding: Keybinding, labelProvider: IKeyBindingLabelProvider, Platform: ISimplifiedPlatform): string {
+	if (keybinding.isChord()) {
+		let firstPart = _simpleAsString(keybinding.extractFirstPart(), labelProvider, Platform);
+		let secondPart = _simpleAsString(keybinding.extractChordPart(), labelProvider, Platform);
+		return firstPart + ' ' + secondPart;
+	} else {
+		return _simpleAsString(keybinding, labelProvider, Platform);
 	}
-
-	return actualResult;
 }
 
 function _pushKey(result: IHTMLContentElement[], str: string): void {
@@ -389,13 +393,13 @@ function _pushKey(result: IHTMLContentElement[], str: string): void {
 	});
 }
 
-function _asHTML(keybinding: number, labelProvider: IKeyBindingLabelProvider, Platform: ISimplifiedPlatform, isChord: boolean = false): IHTMLContentElement[] {
-	let result: IHTMLContentElement[] = [],
-		ctrlCmd = BinaryKeybindings.hasCtrlCmd(keybinding),
-		shift = BinaryKeybindings.hasShift(keybinding),
-		alt = BinaryKeybindings.hasAlt(keybinding),
-		winCtrl = BinaryKeybindings.hasWinCtrl(keybinding),
-		keyCode = BinaryKeybindings.extractKeyCode(keybinding);
+function _simpleAsHTML(keybinding: SimpleKeybinding, labelProvider: IKeyBindingLabelProvider, Platform: ISimplifiedPlatform, isChord: boolean = false): IHTMLContentElement[] {
+	let result: IHTMLContentElement[] = [];
+	let ctrlCmd = keybinding.hasCtrlCmd();
+	let shift = keybinding.hasShift();
+	let alt = keybinding.hasAlt();
+	let winCtrl = keybinding.hasWinCtrl();
+	let keyCode = keybinding.getKeyCode();
 
 	let keyLabel = labelProvider.getLabelForKey(keyCode);
 	if (!keyLabel) {
@@ -427,19 +431,20 @@ function _asHTML(keybinding: number, labelProvider: IKeyBindingLabelProvider, Pl
 	// the actual key
 	_pushKey(result, keyLabel);
 
-	let chordTo: IHTMLContentElement[] = null;
+	return result;
+}
 
-	if (BinaryKeybindings.hasChord(keybinding)) {
-		chordTo = _asHTML(BinaryKeybindings.extractChordPart(keybinding), labelProvider, Platform, true);
+function _asHTML(keybinding: Keybinding, labelProvider: IKeyBindingLabelProvider, Platform: ISimplifiedPlatform): IHTMLContentElement[] {
+	let result: IHTMLContentElement[] = [];
+	if (keybinding.isChord()) {
+		result = result.concat(_simpleAsHTML(keybinding.extractFirstPart(), labelProvider, Platform));
 		result.push({
 			tagName: 'span',
 			text: ' '
 		});
-		result = result.concat(chordTo);
-	}
-
-	if (isChord) {
-		return result;
+		result = result.concat(_simpleAsHTML(keybinding.extractChordPart(), labelProvider, Platform));
+	} else {
+		result = result.concat(_simpleAsHTML(keybinding, labelProvider, Platform));
 	}
 
 	return [{

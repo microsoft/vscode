@@ -196,7 +196,7 @@ export class KeybindingResolver {
 			if (KeybindingResolver.whenIsEntirelyIncluded(true, conflict.when, item.when)) {
 				// `item` completely overwrites `conflict`
 				if (this._shouldWarnOnConflict && item.isDefault) {
-					console.warn('Conflict detected, command `' + conflict.commandId + '` cannot be triggered by ' + KeybindingLabels.toUserSettingsLabel(keypress) + ' due to ' + item.command);
+					console.warn('Conflict detected, command `' + conflict.commandId + '` cannot be triggered by ' + KeybindingLabels.toUserSettingsLabel(conflict.keybinding) + ' due to ' + item.command);
 				}
 				KeybindingResolver._push(this._lookupMapUnreachable, conflict.commandId, conflict.keybinding.value);
 			}
@@ -476,7 +476,7 @@ export class IOSupport {
 	}
 
 	public static writeKeybinding(input: number, Platform: ISimplifiedPlatform = platform): string {
-		return KeybindingLabels.toUserSettingsLabel(input, Platform);
+		return KeybindingLabels.toUserSettingsLabel(createKeybinding(input), Platform);
 	}
 
 	public static readKeybinding(input: string, Platform: ISimplifiedPlatform = platform): number {
