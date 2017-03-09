@@ -22,7 +22,7 @@ import { CollapseAllAction as TreeCollapseAction } from 'vs/base/parts/tree/brow
 import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { Keybinding, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { createKeybinding, Keybinding, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { toResource } from 'vs/workbench/common/editor';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -37,11 +37,14 @@ export function isSearchViewletFocussed(viewletService: IViewletService): boolea
 	return activeViewlet && activeViewlet.getId() === Constants.VIEWLET_ID && activeElement && DOM.isAncestor(activeElement, (<SearchViewlet>activeViewlet).getContainer().getHTMLElement());
 }
 
-export function appendKeyBindingLabel(label: string, keyBinding: Keybinding, keyBindingService2: IKeybindingService): string;
-export function appendKeyBindingLabel(label: string, keyBinding: number, keyBindingService2: IKeybindingService): string;
-export function appendKeyBindingLabel(label: string, keyBinding: any, keyBindingService2: IKeybindingService): string {
-	keyBinding = typeof keyBinding === 'number' ? new Keybinding(keyBinding) : keyBinding;
-	return keyBinding ? label + ' (' + keyBindingService2.getLabelFor(keyBinding) + ')' : label;
+export function appendKeyBindingLabel(label: string, keyBinding: number | Keybinding, keyBindingService2: IKeybindingService): string {
+	let kb: Keybinding;
+	if (typeof keyBinding === 'number') {
+		kb = createKeybinding(keyBinding);
+	} else {
+		kb = keyBinding;
+	}
+	return kb ? label + ' (' + keyBindingService2.getLabelFor(kb) + ')' : label;
 }
 
 export class ToggleCaseSensitiveAction extends Action {
