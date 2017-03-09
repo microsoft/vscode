@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { SimpleKeybinding, Keybinding } from 'vs/base/common/keyCodes';
+import { ResolvedKeybinding, Keybinding } from 'vs/base/common/keyCodes';
 import { KeybindingLabels } from 'vs/base/common/keybinding';
 import Event from 'vs/base/common/event';
-import { ResolvedKeybinding, IKeybindingService, IKeybindingEvent } from 'vs/platform/keybinding/common/keybinding';
+import { IKeybindingService, IKeybindingEvent } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKey, IContextKeyService, IContextKeyServiceTarget, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IResolveResult } from 'vs/platform/keybinding/common/keybindingResolver';
 import { SimpleResolvedKeybinding } from 'vs/platform/keybinding/common/abstractKeybindingService';
@@ -72,15 +72,11 @@ export class MockKeybindingService2 implements IKeybindingService {
 		return KeybindingLabels._toUSLabel(keybinding);
 	}
 
-	public getElectronAcceleratorFor(keybinding: Keybinding): string {
-		return KeybindingLabels._toElectronAccelerator(keybinding);
-	}
-
 	public getDefaultKeybindings(): string {
 		return null;
 	}
 
-	public resolveKeybinding(keybinding: SimpleKeybinding): ResolvedKeybinding {
+	public resolveKeybinding(keybinding: Keybinding): ResolvedKeybinding {
 		return new SimpleResolvedKeybinding(keybinding);
 	}
 

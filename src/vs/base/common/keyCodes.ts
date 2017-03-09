@@ -5,6 +5,8 @@
 
 'use strict';
 
+import { IHTMLContentElement } from 'vs/base/common/htmlContent';
+
 /**
  * Virtual Key Codes, the value does not hold any inherent meaning.
  * Inspired somewhat from https://msdn.microsoft.com/en-us/library/windows/desktop/dd375731(v=vs.85).aspx
@@ -564,3 +566,14 @@ export class ChordKeybinding {
 }
 
 export type Keybinding = SimpleKeybinding | ChordKeybinding;
+
+/**
+ * A resolved keybinding.
+ */
+export abstract class ResolvedKeybinding {
+	public abstract getLabel(): string;
+	public abstract getAriaLabel(): string;
+	public abstract getHTMLLabel(): IHTMLContentElement[];
+	public abstract getElectronAccelerator(): string;
+	public abstract getUserSettingsLabel(): string;
+}

@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IHTMLContentElement } from 'vs/base/common/htmlContent';
-import { SimpleKeybinding, Keybinding } from 'vs/base/common/keyCodes';
+import { ResolvedKeybinding, SimpleKeybinding, Keybinding } from 'vs/base/common/keyCodes';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ContextKeyExpr, IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
 import { IResolveResult } from 'vs/platform/keybinding/common/keybindingResolver';
@@ -56,25 +55,13 @@ export interface IKeybindingEvent {
 
 export let IKeybindingService = createDecorator<IKeybindingService>('keybindingService');
 
-/**
- * A resolved keybinding.
- */
-export abstract class ResolvedKeybinding {
-	public abstract getLabel(): string;
-	public abstract getAriaLabel(): string;
-	public abstract getHTMLLabel(): IHTMLContentElement[];
-	public abstract getElectronAccelerator(): string;
-	public abstract getUserSettingsLabel(): string;
-}
-
 export interface IKeybindingService {
 	_serviceBrand: any;
 
 	onDidUpdateKeybindings: Event<IKeybindingEvent>;
 
 	getLabelFor(keybinding: Keybinding): string;
-	getElectronAcceleratorFor(keybinding: Keybinding): string;
-	resolveKeybinding(keybinding: SimpleKeybinding): ResolvedKeybinding;
+	resolveKeybinding(keybinding: Keybinding): ResolvedKeybinding;
 
 	getDefaultKeybindings(): string;
 	lookupKeybindings(commandId: string): Keybinding[];

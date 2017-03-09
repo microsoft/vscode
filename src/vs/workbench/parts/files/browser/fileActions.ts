@@ -43,7 +43,7 @@ import { Position, IResourceInput, IEditorInput } from 'vs/platform/editor/commo
 import { IInstantiationService, IConstructorSignature2, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, IMessageWithAction, IConfirmation, Severity, CancelAction } from 'vs/platform/message/common/message';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { Keybinding } from 'vs/base/common/keyCodes';
+import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 import { IEditorViewState } from 'vs/editor/common/editorCommon';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
@@ -1922,8 +1922,8 @@ export class GlobalCopyPathAction extends Action {
 	}
 }
 
-export function keybindingForAction(id: string, keybindingService: IKeybindingService): Keybinding {
-	const [kb] = keybindingService.lookupKeybindings(id);
+export function keybindingForAction(id: string, keybindingService: IKeybindingService): ResolvedKeybinding {
+	const [kb] = keybindingService.lookupKeybindings2(id);
 
 	return kb;
 }

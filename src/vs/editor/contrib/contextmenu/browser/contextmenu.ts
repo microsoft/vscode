@@ -6,7 +6,7 @@
 
 import * as nls from 'vs/nls';
 import { IAction } from 'vs/base/common/actions';
-import { Keybinding, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { ResolvedKeybinding, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
@@ -174,7 +174,7 @@ export class ContextMenuController implements IEditorContribution {
 			getActionItem: (action) => {
 				var keybinding = this._keybindingFor(action);
 				if (keybinding) {
-					return new ActionItem(action, action, { label: true, keybinding: this._keybindingService.getLabelFor(keybinding) });
+					return new ActionItem(action, action, { label: true, keybinding: keybinding.getLabel() });
 				}
 
 				var customActionItem = <any>action;
@@ -185,7 +185,7 @@ export class ContextMenuController implements IEditorContribution {
 				return null;
 			},
 
-			getKeyBinding: (action): Keybinding => {
+			getKeyBinding: (action): ResolvedKeybinding => {
 				return this._keybindingFor(action);
 			},
 
@@ -199,8 +199,8 @@ export class ContextMenuController implements IEditorContribution {
 		});
 	}
 
-	private _keybindingFor(action: IAction): Keybinding {
-		var [kb] = this._keybindingService.lookupKeybindings(action.id);
+	private _keybindingFor(action: IAction): ResolvedKeybinding {
+		var [kb] = this._keybindingService.lookupKeybindings2(action.id);
 		return kb;
 	}
 

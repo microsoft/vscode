@@ -319,7 +319,7 @@ export class ElectronWindow {
 						getAnchor: () => target,
 						getActions: () => TPromise.as(TextInputActions),
 						getKeyBinding: action => {
-							const [kb] = this.keybindingService.lookupKeybindings(action.id);
+							const [kb] = this.keybindingService.lookupKeybindings2(action.id);
 
 							return kb;
 						}
@@ -345,20 +345,20 @@ export class ElectronWindow {
 	private resolveKeybindings(actionIds: string[]): TPromise<{ id: string; label: string, isNative: boolean; }[]> {
 		return this.partService.joinCreation().then(() => {
 			return arrays.coalesce(actionIds.map(id => {
-				const bindings = this.keybindingService.lookupKeybindings(id);
+				const bindings = this.keybindingService.lookupKeybindings2(id);
 
 				// return the first binding that can be represented by electron
 				for (let i = 0; i < bindings.length; i++) {
 					const binding = bindings[i];
 
 					// first try to resolve a native accelerator
-					const electronAccelerator = this.keybindingService.getElectronAcceleratorFor(binding);
+					const electronAccelerator = binding.getElectronAccelerator();
 					if (electronAccelerator) {
 						return { id, label: electronAccelerator, isNative: true };
 					}
 
 					// we need this fallback to support keybindings that cannot show in electron menus (e.g. chords)
-					const acceleratorLabel = this.keybindingService.getLabelFor(binding);
+					const acceleratorLabel = binding.getLabel();
 					if (acceleratorLabel) {
 						return { id, label: acceleratorLabel, isNative: false };
 					}

@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { Keybinding, SimpleKeybinding, createKeybinding, KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
+import { ResolvedKeybinding, Keybinding, SimpleKeybinding, createKeybinding, KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
 import { SimpleResolvedKeybinding, AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
 import { KeybindingLabels } from 'vs/base/common/keybinding';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -16,7 +16,7 @@ import { ContextKeyExpr, IContextKeyService, IContextKeyServiceTarget } from 'vs
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ResolvedKeybinding, IKeybindingItem } from 'vs/platform/keybinding/common/keybinding';
+import { IKeybindingItem } from 'vs/platform/keybinding/common/keybinding';
 
 suite('AbstractKeybindingService', () => {
 
