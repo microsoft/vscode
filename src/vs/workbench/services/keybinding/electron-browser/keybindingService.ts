@@ -8,7 +8,7 @@ import * as nls from 'vs/nls';
 import { IHTMLContentElement } from 'vs/base/common/htmlContent';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { ResolvedKeybinding, Keybinding } from 'vs/base/common/keyCodes';
-import { KeybindingLabels } from 'vs/base/common/keybinding';
+import { KeybindingLabels } from 'vs/platform/keybinding/common/keybindingLabels';
 import * as platform from 'vs/base/common/platform';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { ExtensionMessageCollector, ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';

@@ -7,7 +7,7 @@
 import * as assert from 'assert';
 import { ResolvedKeybinding, Keybinding, SimpleKeybinding, createKeybinding, KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
 import { SimpleResolvedKeybinding, AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
-import { KeybindingLabels } from 'vs/base/common/keybinding';
+import { KeybindingLabels } from 'vs/platform/keybinding/common/keybindingLabels';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import { ICommandService } from 'vs/platform/commands/common/commands';
