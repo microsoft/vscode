@@ -15,10 +15,12 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IDebugService, IConfig, State, IProcess, IThread, IEnablement, IBreakpoint, IStackFrame, IFunctionBreakpoint, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID, IExpression, REPL_ID }
 	from 'vs/workbench/parts/debug/common/debug';
 import { Variable, Expression, Thread, Breakpoint, Process } from 'vs/workbench/parts/debug/common/debugModel';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { TogglePanelAction } from 'vs/workbench/browser/panel';
+import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 
 export abstract class AbstractDebugAction extends Action {
 
@@ -117,7 +119,8 @@ export class StartAction extends AbstractDebugAction {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@ICommandService private commandService: ICommandService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IFileService private fileService: IFileService
+		@IFileService private fileService: IFileService,
+		@ITextFileService private textFileService: ITextFileService
 	) {
 		super(id, label, 'debug-action start', debugService, keybindingService);
 		this.debugService.getViewModel().onDidSelectConfiguration(() => {
@@ -126,7 +129,7 @@ export class StartAction extends AbstractDebugAction {
 	}
 
 	public run(): TPromise<any> {
-		return this.commandService.executeCommand('workbench.action.files.save').then(() => {
+		return this.textFileService.saveAll().then(() => {
 			if (this.debugService.getModel().getProcesses().length === 0) {
 				this.debugService.removeReplExpressions();
 			}
@@ -192,9 +195,10 @@ export class RunAction extends StartAction {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@ICommandService commandService: ICommandService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@IFileService fileService: IFileService
+		@IFileService fileService: IFileService,
+		@ITextFileService textFileService: ITextFileService
 	) {
-		super(id, label, debugService, keybindingService, commandService, contextService, fileService);
+		super(id, label, debugService, keybindingService, commandService, contextService, fileService, textFileService);
 	}
 
 	protected getDefaultConfiguration(): any {
@@ -207,6 +211,27 @@ export class RunAction extends StartAction {
 		}
 
 		return config;
+	}
+}
+
+export class SelectAndStartAction extends AbstractDebugAction {
+	static ID = 'workbench.action.debug.selectandstart';
+	static LABEL = nls.localize('selectAndStartDebugging', "Select and Start Debugging");
+
+	constructor(id: string, label: string,
+		@IDebugService debugService: IDebugService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@ICommandService commandService: ICommandService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IFileService fileService: IFileService,
+		@IQuickOpenService private quickOpenService: IQuickOpenService
+	) {
+		super(id, label, undefined, debugService, keybindingService);
+		this.quickOpenService = quickOpenService;
+	}
+
+	public run(): TPromise<any> {
+		return this.quickOpenService.show('debug ');
 	}
 }
 

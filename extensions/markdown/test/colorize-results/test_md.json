@@ -1013,7 +1013,7 @@
 	},
 	{
 		"c": ">",
-		"t": "text.html.markdown source.css.embedded.html punctuation.definition.tag.html",
+		"t": "text.html.markdown punctuation.definition.tag.html",
 		"r": {
 			"dark_plus": "punctuation.definition.tag: #808080",
 			"light_plus": "punctuation.definition.tag: #800000",

@@ -86,7 +86,9 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	private memento: any;
 	private stacks: EditorStacksModel;
 	private tabOptions: ITabOptions;
+	private forceHideTabs: boolean;
 	private doNotFireTabOptionsChanged: boolean;
+	private revealIfOpen: boolean;
 
 	private _onEditorsChanged: Emitter<void>;
 	private _onEditorsMoved: Emitter<void>;
@@ -144,12 +146,15 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		const config = configurationService.getConfiguration<IWorkbenchEditorConfiguration>();
 		if (config && config.workbench && config.workbench.editor) {
 			const editorConfig = config.workbench.editor;
+
 			this.tabOptions = {
 				previewEditors: editorConfig.enablePreview,
 				showIcons: editorConfig.showIcons,
 				showTabs: editorConfig.showTabs,
 				tabCloseButton: editorConfig.tabCloseButton
 			};
+
+			this.revealIfOpen = editorConfig.revealIfOpen;
 
 			this.telemetryService.publicLog('workbenchEditorConfiguration', editorConfig);
 		} else {
@@ -159,6 +164,8 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 				showTabs: true,
 				tabCloseButton: 'right'
 			};
+
+			this.revealIfOpen = false;
 		}
 
 		this.registerListeners();
@@ -191,12 +198,14 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 				previewEditors: newPreviewEditors,
 				showIcons: editorConfig.showIcons,
 				tabCloseButton: editorConfig.tabCloseButton,
-				showTabs: editorConfig.showTabs
+				showTabs: this.forceHideTabs ? false : editorConfig.showTabs
 			};
 
 			if (!this.doNotFireTabOptionsChanged && !objects.equals(oldTabOptions, this.tabOptions)) {
 				this._onTabOptionsChanged.fire(this.tabOptions);
 			}
+
+			this.revealIfOpen = editorConfig.revealIfOpen;
 		}
 	}
 
@@ -219,13 +228,11 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		this.telemetryService.publicLog('editorClosed', event.editor.getTelemetryDescriptor());
 	}
 
-	public hideTabs(hidden: boolean): void {
-		this.doNotFireTabOptionsChanged = hidden;
-		if (hidden) {
-			this._onTabOptionsChanged.fire({ showTabs: false });
-		} else {
-			this._onTabOptionsChanged.fire(this.tabOptions);
-		}
+	public hideTabs(forceHide: boolean): void {
+		this.forceHideTabs = forceHide;
+		const config = this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>();
+		this.tabOptions.showTabs = forceHide ? false : config && config.workbench && config.workbench.editor && config.workbench.editor.showTabs;
+		this._onTabOptionsChanged.fire(this.tabOptions);
 	}
 
 	public get onEditorsChanged(): Event<void> {
@@ -723,7 +730,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			return TPromise.as(false); // no veto
 		}
 
-		const {editor} = identifier;
+		const { editor } = identifier;
 
 		const res = editor.confirmSave();
 		switch (res) {
@@ -1274,14 +1281,18 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		// Respect option to reveal an editor if it is already visible
 		if (options && options.revealIfVisible) {
-			const editorsToCheck: BaseEditor[] = [];
-			if (activeEditor) { editorsToCheck.push(activeEditor); }
-			visibleEditors.forEach(e => { if (e !== activeEditor) { editorsToCheck.push(e); } });
-			for (let i = 0; i < editorsToCheck.length; i++) {
-				const editorToCheck = editorsToCheck[i];
-				if (input.matches(editorToCheck.input)) {
-					return editorToCheck.position;
-				}
+			const group = this.stacks.findGroup(input, true);
+			if (group) {
+				return this.stacks.positionOfGroup(group);
+			}
+		}
+
+		// Respect option to reveal an editor if it is open (not necessarily visible)
+		const skipRevealIfOpen = (options && options.index) || arg1;
+		if (!skipRevealIfOpen && this.revealIfOpen) {
+			const group = this.stacks.findGroup(input);
+			if (group) {
+				return this.stacks.positionOfGroup(group);
 			}
 		}
 
@@ -1326,7 +1337,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 				const visibleEditors: EditorIdentifier[] = [];
 				const hiddenEditors: EditorIdentifier[] = [];
 				this.pendingEditorInputsToClose.forEach(identifier => {
-					const {group, editor} = identifier;
+					const { group, editor } = identifier;
 
 					if (group.isActive(editor)) {
 						visibleEditors.push(identifier);

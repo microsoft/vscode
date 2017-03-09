@@ -59,6 +59,7 @@
 	 */
 	function getLineElementsAtPageOffset(offset) {
 		const lines = document.getElementsByClassName('code-line');
+		const position = offset - window.scrollY;
 		let previous = null;
 		for (const element of lines) {
 			const line = +element.getAttribute('data-line');
@@ -67,13 +68,14 @@
 			}
 			const bounds = element.getBoundingClientRect();
 			const entry = { element, line };
-			if (offset >= window.scrollY + bounds.top && offset <= window.scrollY + bounds.top + bounds.height) {
-				// add progress through element
-				entry.line += (offset - (window.scrollY + bounds.top)) / (bounds.height);
-				return { previous: entry };
-			} else if (offset < window.scrollY + bounds.top) {
+			if (position < bounds.top) {
+				if (previous && previous.fractional < 1) {
+					previous.line += previous.fractional;
+					return { previous };
+				}
 				return { previous, next: entry };
 			}
+			entry.fractional = (position - bounds.top) / (bounds.height);
 			previous = entry;
 		}
 		return { previous };
@@ -87,9 +89,9 @@
 	 * Attempt to reveal the element for a source line in the editor.
 	 */
 	function scrollToRevealSourceLine(line) {
-		const {previous, next} = getElementsForSourceLine(line);
+		const { previous, next } = getElementsForSourceLine(line);
 		marker.update(previous && previous.element);
-		if (previous && window.initialData.scrollPreviewWithEditorSelection) {
+		if (previous && settings.scrollPreviewWithEditorSelection) {
 			let scrollTo = 0;
 			if (next) {
 				// Between two elements. Go to percentage offset between them.
@@ -104,7 +106,7 @@
 	}
 
 	function getEditorLineNumberForPageOffset(offset) {
-		const {previous, next} = getLineElementsAtPageOffset(offset);
+		const { previous, next } = getLineElementsAtPageOffset(offset);
 		if (previous) {
 			if (next) {
 				const betweenProgress = (offset - window.scrollY - previous.element.getBoundingClientRect().top) / (next.element.getBoundingClientRect().top - previous.element.getBoundingClientRect().top);
@@ -141,10 +143,11 @@
 
 	var scrollDisabled = true;
 	var marker = new ActiveLineMarker();
+	const settings = JSON.parse(document.getElementById('vscode-markdown-preview-data').getAttribute('data-settings'));
 
 	window.onload = () => {
-		if (window.initialData.scrollPreviewWithEditorSelection) {
-			const initialLine = +window.initialData.line;
+		if (settings.scrollPreviewWithEditorSelection) {
+			const initialLine = +settings.line;
 			if (!isNaN(initialLine)) {
 				setTimeout(() => {
 					scrollDisabled = true;
@@ -172,7 +175,7 @@
 	})(), false);
 
 	document.addEventListener('dblclick', event => {
-		if (!window.initialData.doubleClickToSwitchToEditor) {
+		if (!settings.doubleClickToSwitchToEditor) {
 			return;
 		}
 
@@ -186,7 +189,7 @@
 		const offset = event.pageY;
 		const line = getEditorLineNumberForPageOffset(offset);
 		if (!isNaN(line)) {
-			const args = [window.initialData.source, line];
+			const args = [settings.source, line];
 			window.parent.postMessage({
 				command: "did-click-link",
 				data: `command:_markdown.didClick?${encodeURIComponent(JSON.stringify(args))}`
@@ -194,14 +197,14 @@
 		}
 	});
 
-	if (window.initialData.scrollEditorWithPreview) {
+	if (settings.scrollEditorWithPreview) {
 		window.addEventListener('scroll', throttle(() => {
 			if (scrollDisabled) {
 				scrollDisabled = false;
 			} else {
 				const line = getEditorLineNumberForPageOffset(window.scrollY);
 				if (!isNaN(line)) {
-					const args = [window.initialData.source, line];
+					const args = [settings.source, line];
 					window.parent.postMessage({
 						command: "did-click-link",
 						data: `command:_markdown.revealLine?${encodeURIComponent(JSON.stringify(args))}`

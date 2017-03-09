@@ -123,12 +123,15 @@ export function createDiffEditor(domElement: HTMLElement, options?: IDiffEditorC
 			services.get(IContextKeyService),
 			services.get(IKeybindingService),
 			services.get(IContextViewService),
+			services.get(IStandaloneColorService),
 			services.get(IEditorWorkerService)
 		);
 	});
 }
 
 export interface IDiffNavigator {
+	revealFirst: boolean;
+
 	canNavigate(): boolean;
 	next(): void;
 	previous(): void;
@@ -310,8 +313,8 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		// methods
 		create: <any>create,
 		onDidCreateEditor: <any>onDidCreateEditor,
-		createDiffEditor: createDiffEditor,
-		createDiffNavigator: createDiffNavigator,
+		createDiffEditor: <any>createDiffEditor,
+		createDiffNavigator: <any>createDiffNavigator,
 
 		createModel: createModel,
 		setModelLanguage: setModelLanguage,

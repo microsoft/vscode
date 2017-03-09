@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 /* marker zone */
 
 .monaco-editor .marker-widget {
@@ -12,11 +13,31 @@
 	white-space: nowrap;
 }
 
+.monaco-editor .zone-widget .zone-widget-container.marker-error-widget {
+	border-top-color: #ff5a5a;
+	border-bottom-color: #ff5a5a;
+}
+
+.monaco-editor .zone-widget .zone-widget-container.marker-warning-widget {
+	border-top-color: #5aac5a;
+	border-bottom-color: #5aac5a;
+}
+
+.monaco-editor .zone-widget-arrow.below.marker-error-widget {
+	border-bottom-color: #ff5a5a;
+}
+
+.monaco-editor .zone-widget-arrow.below.marker-warning-widget {
+	border-bottom-color: #5aac5a;
+}
+
 .monaco-editor.vs-dark .marker-widget {
 	background-color: #2D2D30;
 }
 
+
 /* High Contrast Theming */
+
 .monaco-editor.hc-black .marker-widget {
 	background-color: #0C141F;
 }

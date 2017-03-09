@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { BinaryKeybindings, KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
+import { createKeybinding, SimpleKeybinding, KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
 import { IOSupport, KeybindingResolver, NormalizedKeybindingItem } from 'vs/platform/keybinding/common/keybindingResolver';
 import { IKeybindingItem } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyAndExpr, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -27,8 +27,8 @@ suite('Keybinding Service', () => {
 		assert.equal(KeybindingResolver.contextMatchesRules({ bar: 'bz' }, contextRules), false);
 
 		let resolver = new KeybindingResolver([keybindingItem], []);
-		assert.equal(resolver.resolve({ bar: 'baz' }, 0, keybinding).commandId, 'yes');
-		assert.equal(resolver.resolve({ bar: 'bz' }, 0, keybinding), null);
+		assert.equal(resolver.resolve({ bar: 'baz' }, null, new SimpleKeybinding(keybinding)).commandId, 'yes');
+		assert.equal(resolver.resolve({ bar: 'bz' }, null, new SimpleKeybinding(keybinding)), null);
 	});
 
 	test('resolve key with arguments', function () {
@@ -45,7 +45,7 @@ suite('Keybinding Service', () => {
 		};
 
 		let resolver = new KeybindingResolver([keybindingItem], []);
-		assert.equal(resolver.resolve({ bar: 'baz' }, 0, keybinding).commandArgs, commandArgs);
+		assert.equal(resolver.resolve({ bar: 'baz' }, null, new SimpleKeybinding(keybinding)).commandArgs, commandArgs);
 	});
 
 	test('KbAndExpression.equals', function () {
@@ -91,8 +91,8 @@ suite('Keybinding Service', () => {
 		}];
 		let actual = KeybindingResolver.combine(defaults, overrides);
 		assert.deepEqual(actual, [
-			new NormalizedKeybindingItem(KeyCode.KEY_A, 'yes1', null, ContextKeyExpr.equals('1', 'a'), true),
-			new NormalizedKeybindingItem(KeyCode.KEY_B, 'yes2', null, ContextKeyExpr.equals('2', 'b'), false),
+			new NormalizedKeybindingItem(createKeybinding(KeyCode.KEY_A), 'yes1', null, ContextKeyExpr.equals('1', 'a'), true),
+			new NormalizedKeybindingItem(createKeybinding(KeyCode.KEY_B), 'yes2', null, ContextKeyExpr.equals('2', 'b'), false),
 		]);
 	});
 
@@ -119,9 +119,9 @@ suite('Keybinding Service', () => {
 		}];
 		let actual = KeybindingResolver.combine(defaults, overrides);
 		assert.deepEqual(actual, [
-			new NormalizedKeybindingItem(KeyCode.KEY_A, 'yes1', null, ContextKeyExpr.equals('1', 'a'), true),
-			new NormalizedKeybindingItem(KeyCode.KEY_B, 'yes2', null, ContextKeyExpr.equals('2', 'b'), true),
-			new NormalizedKeybindingItem(KeyCode.KEY_C, 'yes3', null, ContextKeyExpr.equals('3', 'c'), false),
+			new NormalizedKeybindingItem(createKeybinding(KeyCode.KEY_A), 'yes1', null, ContextKeyExpr.equals('1', 'a'), true),
+			new NormalizedKeybindingItem(createKeybinding(KeyCode.KEY_B), 'yes2', null, ContextKeyExpr.equals('2', 'b'), true),
+			new NormalizedKeybindingItem(createKeybinding(KeyCode.KEY_C), 'yes3', null, ContextKeyExpr.equals('3', 'c'), false),
 		]);
 	});
 
@@ -148,8 +148,8 @@ suite('Keybinding Service', () => {
 		}];
 		let actual = KeybindingResolver.combine(defaults, overrides);
 		assert.deepEqual(actual, [
-			new NormalizedKeybindingItem(KeyCode.KEY_A, 'yes1', null, ContextKeyExpr.equals('1', 'a'), true),
-			new NormalizedKeybindingItem(KeyCode.KEY_B, 'yes2', null, ContextKeyExpr.equals('2', 'b'), true)
+			new NormalizedKeybindingItem(createKeybinding(KeyCode.KEY_A), 'yes1', null, ContextKeyExpr.equals('1', 'a'), true),
+			new NormalizedKeybindingItem(createKeybinding(KeyCode.KEY_B), 'yes2', null, ContextKeyExpr.equals('2', 'b'), true)
 		]);
 	});
 
@@ -176,8 +176,8 @@ suite('Keybinding Service', () => {
 		}];
 		let actual = KeybindingResolver.combine(defaults, overrides);
 		assert.deepEqual(actual, [
-			new NormalizedKeybindingItem(KeyCode.KEY_A, 'yes1', null, ContextKeyExpr.equals('1', 'a'), true),
-			new NormalizedKeybindingItem(KeyCode.KEY_B, 'yes2', null, ContextKeyExpr.equals('2', 'b'), true)
+			new NormalizedKeybindingItem(createKeybinding(KeyCode.KEY_A), 'yes1', null, ContextKeyExpr.equals('1', 'a'), true),
+			new NormalizedKeybindingItem(createKeybinding(KeyCode.KEY_B), 'yes2', null, ContextKeyExpr.equals('2', 'b'), true)
 		]);
 	});
 
@@ -204,7 +204,7 @@ suite('Keybinding Service', () => {
 		}];
 		let actual = KeybindingResolver.combine(defaults, overrides);
 		assert.deepEqual(actual, [
-			new NormalizedKeybindingItem(KeyCode.KEY_B, 'yes2', null, ContextKeyExpr.equals('2', 'b'), true)
+			new NormalizedKeybindingItem(createKeybinding(KeyCode.KEY_B), 'yes2', null, ContextKeyExpr.equals('2', 'b'), true)
 		]);
 	});
 
@@ -231,7 +231,7 @@ suite('Keybinding Service', () => {
 		}];
 		let actual = KeybindingResolver.combine(defaults, overrides);
 		assert.deepEqual(actual, [
-			new NormalizedKeybindingItem(KeyCode.KEY_B, 'yes2', null, ContextKeyExpr.equals('2', 'b'), true)
+			new NormalizedKeybindingItem(createKeybinding(KeyCode.KEY_B), 'yes2', null, ContextKeyExpr.equals('2', 'b'), true)
 		]);
 	});
 
@@ -258,7 +258,7 @@ suite('Keybinding Service', () => {
 		}];
 		let actual = KeybindingResolver.combine(defaults, overrides);
 		assert.deepEqual(actual, [
-			new NormalizedKeybindingItem(KeyCode.KEY_B, 'yes2', null, ContextKeyExpr.equals('2', 'b'), true)
+			new NormalizedKeybindingItem(createKeybinding(KeyCode.KEY_B), 'yes2', null, ContextKeyExpr.equals('2', 'b'), true)
 		]);
 	});
 
@@ -285,7 +285,7 @@ suite('Keybinding Service', () => {
 		}];
 		let actual = KeybindingResolver.combine(defaults, overrides);
 		assert.deepEqual(actual, [
-			new NormalizedKeybindingItem(KeyCode.KEY_B, 'yes2', null, ContextKeyExpr.equals('2', 'b'), true)
+			new NormalizedKeybindingItem(createKeybinding(KeyCode.KEY_B), 'yes2', null, ContextKeyExpr.equals('2', 'b'), true)
 		]);
 	});
 
@@ -312,7 +312,7 @@ suite('Keybinding Service', () => {
 		}];
 		let actual = KeybindingResolver.combine(defaults, overrides);
 		assert.deepEqual(actual, [
-			new NormalizedKeybindingItem(KeyCode.KEY_B, 'yes2', null, ContextKeyExpr.equals('2', 'b'), true)
+			new NormalizedKeybindingItem(createKeybinding(KeyCode.KEY_B), 'yes2', null, ContextKeyExpr.equals('2', 'b'), true)
 		]);
 	});
 
@@ -497,13 +497,14 @@ suite('Keybinding Service', () => {
 			}
 		};
 
-		let testResolve = (ctx: any, expectedKey: number, commandId: string) => {
+		let testResolve = (ctx: any, _expectedKey: number, commandId: string) => {
+			let expectedKey = createKeybinding(_expectedKey);
 
-			if (BinaryKeybindings.hasChord(expectedKey)) {
-				let firstPart = BinaryKeybindings.extractFirstPart(expectedKey);
-				let chordPart = BinaryKeybindings.extractChordPart(expectedKey);
+			if (expectedKey.isChord()) {
+				let firstPart = expectedKey.extractFirstPart();
+				let chordPart = expectedKey.extractChordPart();
 
-				let result = resolver.resolve(ctx, 0, firstPart);
+				let result = resolver.resolve(ctx, null, firstPart);
 				assert.ok(result !== null, 'Enters chord for ' + commandId);
 				assert.equal(result.commandId, null, 'Enters chord for ' + commandId);
 				assert.equal(result.enterChord, firstPart, 'Enters chord for ' + commandId);
@@ -511,12 +512,12 @@ suite('Keybinding Service', () => {
 				result = resolver.resolve(ctx, firstPart, chordPart);
 				assert.ok(result !== null, 'Enters chord for ' + commandId);
 				assert.equal(result.commandId, commandId, 'Finds chorded command ' + commandId);
-				assert.equal(result.enterChord, 0, 'Finds chorded command ' + commandId);
+				assert.equal(result.enterChord, null, 'Finds chorded command ' + commandId);
 			} else {
-				let result = resolver.resolve(ctx, 0, expectedKey);
+				let result = resolver.resolve(ctx, null, expectedKey);
 				assert.ok(result !== null, 'Finds command ' + commandId);
 				assert.equal(result.commandId, commandId, 'Finds command ' + commandId);
-				assert.equal(result.enterChord, 0, 'Finds command ' + commandId);
+				assert.equal(result.enterChord, null, 'Finds command ' + commandId);
 			}
 		};
 

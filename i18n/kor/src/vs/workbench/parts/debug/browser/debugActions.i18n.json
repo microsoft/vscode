@@ -34,6 +34,7 @@
 	"restartDebug": "다시 시작",
 	"restartFrame": "프레임 다시 시작",
 	"reverseContinue": "반전",
+	"selectAndStartDebugging": "디버깅 선택 및 시작",
 	"setValue": "값 설정",
 	"startDebug": "디버깅 시작",
 	"startWithoutDebugging": "디버깅하지 않고 시작",

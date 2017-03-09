@@ -183,11 +183,22 @@ export class SuggestModel implements IDisposable {
 			}
 		}
 
-		this.triggerCharacterListener = this.editor.onDidType((text: string) => {
-			let lastChar = text.charAt(text.length - 1);
-			let supports = supportsByTriggerCharacter[lastChar];
+		this.triggerCharacterListener = this.editor.onDidType(text => {
+			const lastChar = text.charAt(text.length - 1);
+			const supports = supportsByTriggerCharacter[lastChar];
+
 			if (supports) {
-				this.trigger(true, false, supports);
+				// keep existing items that where not computed by the
+				// supports/providers that want to trigger now
+				const items: ISuggestionItem[] = [];
+				if (this.completionModel) {
+					for (const item of this.completionModel.items) {
+						if (supports.indexOf(item.support) < 0) {
+							items.push(item);
+						}
+					}
+				}
+				this.trigger(true, false, supports, items);
 			}
 		});
 	}
@@ -354,7 +365,7 @@ export class SuggestModel implements IDisposable {
 
 		if (ctx.column > this.context.column && this.completionModel.incomplete) {
 			// typed -> moved cursor RIGHT & incomple model -> retrigger
-			const {complete, incomplete} = this.completionModel.resolveIncompleteInfo();
+			const { complete, incomplete } = this.completionModel.resolveIncompleteInfo();
 			this.trigger(this.state === State.Auto, true, incomplete, complete);
 
 		} else {

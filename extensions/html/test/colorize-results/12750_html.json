@@ -23,7 +23,7 @@
 	},
 	{
 		"c": " ",
-		"t": "text.html.basic source.js.embedded.html",
+		"t": "text.html.basic",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -34,7 +34,7 @@
 	},
 	{
 		"c": "type",
-		"t": "text.html.basic source.js.embedded.html entity.other.attribute-name.html",
+		"t": "text.html.basic entity.other.attribute-name.html",
 		"r": {
 			"dark_plus": "entity.other.attribute-name: #9CDCFE",
 			"light_plus": "entity.other.attribute-name: #FF0000",
@@ -45,7 +45,7 @@
 	},
 	{
 		"c": "=",
-		"t": "text.html.basic source.js.embedded.html",
+		"t": "text.html.basic",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -56,7 +56,7 @@
 	},
 	{
 		"c": "\"",
-		"t": "text.html.basic source.js.embedded.html string.quoted.double.html punctuation.definition.string.begin.html",
+		"t": "text.html.basic string.quoted.double.html punctuation.definition.string.begin.html",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string.quoted.double.html: #0000FF",
@@ -67,7 +67,7 @@
 	},
 	{
 		"c": "text/javascript",
-		"t": "text.html.basic source.js.embedded.html string.quoted.double.html",
+		"t": "text.html.basic string.quoted.double.html",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string.quoted.double.html: #0000FF",
@@ -78,7 +78,7 @@
 	},
 	{
 		"c": "\"",
-		"t": "text.html.basic source.js.embedded.html string.quoted.double.html punctuation.definition.string.end.html",
+		"t": "text.html.basic string.quoted.double.html punctuation.definition.string.end.html",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string.quoted.double.html: #0000FF",
@@ -89,7 +89,7 @@
 	},
 	{
 		"c": ">",
-		"t": "text.html.basic source.js.embedded.html punctuation.definition.tag.html",
+		"t": "text.html.basic punctuation.definition.tag.html",
 		"r": {
 			"dark_plus": "punctuation.definition.tag: #808080",
 			"light_plus": "punctuation.definition.tag: #800000",
@@ -210,7 +210,7 @@
 	},
 	{
 		"c": "</",
-		"t": "text.html.basic source.js.embedded.html punctuation.definition.tag.html",
+		"t": "text.html.basic punctuation.definition.tag.html",
 		"r": {
 			"dark_plus": "punctuation.definition.tag: #808080",
 			"light_plus": "punctuation.definition.tag: #800000",
@@ -221,7 +221,7 @@
 	},
 	{
 		"c": "script",
-		"t": "text.html.basic source.js.embedded.html entity.name.tag.script.html",
+		"t": "text.html.basic entity.name.tag.script.html",
 		"r": {
 			"dark_plus": "entity.name.tag: #569CD6",
 			"light_plus": "entity.name.tag: #800000",
@@ -265,7 +265,7 @@
 	},
 	{
 		"c": ">",
-		"t": "text.html.basic source.js.embedded.html punctuation.definition.tag.html",
+		"t": "text.html.basic punctuation.definition.tag.html",
 		"r": {
 			"dark_plus": "punctuation.definition.tag: #808080",
 			"light_plus": "punctuation.definition.tag: #800000",
@@ -386,7 +386,7 @@
 	},
 	{
 		"c": "</",
-		"t": "text.html.basic source.js.embedded.html punctuation.definition.tag.html",
+		"t": "text.html.basic punctuation.definition.tag.html",
 		"r": {
 			"dark_plus": "punctuation.definition.tag: #808080",
 			"light_plus": "punctuation.definition.tag: #800000",
@@ -397,7 +397,7 @@
 	},
 	{
 		"c": "script",
-		"t": "text.html.basic source.js.embedded.html entity.name.tag.script.html",
+		"t": "text.html.basic entity.name.tag.script.html",
 		"r": {
 			"dark_plus": "entity.name.tag: #569CD6",
 			"light_plus": "entity.name.tag: #800000",

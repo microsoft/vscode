@@ -8,12 +8,9 @@
 	background-image: url('debug.svg');
 }
 
-.monaco-editor .debug-top-stack-frame-line {
-	background: rgba(255, 255, 102, 0.45);
-}
-
+.monaco-editor .debug-top-stack-frame-line,
 .monaco-editor .debug-top-stack-frame-exception-line {
-	background: rgba(242, 222, 222, 0.8);
+	background: rgba(255, 255, 102, 0.45);
 }
 
 .monaco-editor .debug-top-stack-frame-column::before {
@@ -74,7 +71,8 @@
 }
 
 .monaco-editor .debug-top-stack-frame-glyph.debug-breakpoint-glyph,
-.monaco-editor .debug-top-stack-frame-glyph.debug-breakpoint-conditional-glyph {
+.monaco-editor .debug-top-stack-frame-glyph.debug-breakpoint-conditional-glyph,
+.monaco-editor .debug-breakpoint-column.debug-breakpoint-glyph-column.debug-top-stack-frame-column::before {
 	background: url('current-and-breakpoint.svg') center center no-repeat;
 }
 
@@ -181,12 +179,9 @@
 	background: rgba(122, 189, 122, 0.3);
 }
 
-.monaco-editor.vs-dark .debug-top-stack-frame-line {
-	background: rgba(255, 255, 0, 0.2)
-}
-
+.monaco-editor.vs-dark .debug-top-stack-frame-line,
 .monaco-editor.vs-dark .debug-top-stack-frame-exception-line {
-	background-color: rgba(90, 29, 29, 0.6);
+	background-color: rgba(255, 255, 0, 0.2)
 }
 
 .monaco-editor.vs-dark .debug-top-stack-frame-column::before {
@@ -227,7 +222,8 @@
 }
 
 .monaco-editor.vs-dark .debug-top-stack-frame-glyph.debug-breakpoint-glyph,
-.monaco-editor.vs-dark .debug-top-stack-frame-glyph.debug-breakpoint-conditional-glyph {
+.monaco-editor.vs-dark .debug-top-stack-frame-glyph.debug-breakpoint-conditional-glyph,
+.monaco-editor.vs-dark .debug-breakpoint-column.debug-breakpoint-glyph-column.debug-top-stack-frame-column::before {
 	background: url('current-and-breakpoint-dark.svg') center center no-repeat;
 }
 

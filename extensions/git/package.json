@@ -7,6 +7,7 @@
   "engines": {
     "vscode": "^1.5.0"
   },
+  "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
   "enableProposedApi": true,
   "categories": [
     "Other"
@@ -21,6 +22,11 @@
   },
   "contributes": {
     "commands": [
+      {
+        "command": "git.clone",
+        "title": "%command.clone%",
+        "category": "Git"
+      },
       {
         "command": "git.init",
         "title": "%command.init%",
@@ -204,14 +210,6 @@
         "command": "git.showOutput",
         "title": "%command.showOutput%",
         "category": "Git"
-      }
-    ],
-    "keybindings": [
-      {
-        "command": "git.commitWithInput",
-        "key": "ctrl+enter",
-        "mac": "cmd+enter",
-        "when": "inSCMInput"
       }
     ],
     "menus": {
@@ -512,12 +510,12 @@
         {
           "command": "git.openFile",
           "group": "navigation",
-          "when": "isInDiffEditor"
+          "when": "isInDiffEditor && resourceScheme == file"
         },
         {
           "command": "git.openChange",
           "group": "navigation",
-          "when": "!isInDiffEditor"
+          "when": "!isInDiffEditor && resourceScheme == file"
         }
       ]
     },
@@ -546,11 +544,6 @@
         "git.autofetch": {
           "type": "boolean",
           "description": "%config.autofetch%",
-          "default": true
-        },
-        "git.enableLongCommitWarning": {
-          "type": "boolean",
-          "description": "%config.enableLongCommitWarning%",
           "default": true
         },
         "git.confirmSync": {
@@ -583,6 +576,7 @@
     }
   },
   "dependencies": {
+    "vscode-extension-telemetry": "^0.0.6",
     "vscode-nls": "^2.0.1"
   },
   "devDependencies": {

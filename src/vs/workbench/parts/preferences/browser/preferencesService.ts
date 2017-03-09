@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 import 'vs/css!./media/preferences';
 import * as network from 'vs/base/common/network';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -48,7 +49,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	_serviceBrand: any;
 
 	// TODO:@sandy merge these models into editor inputs by extending resource editor model
-	private defaultPreferencesEditorModels: Map<URI, IPreferencesEditorModel<any>>;
+	private defaultPreferencesEditorModels: Map<URI, TPromise<IPreferencesEditorModel<any>>>;
 	private lastOpenedSettingsInput: PreferencesEditorInput = null;
 
 	constructor(
@@ -68,7 +69,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		@IExtensionService private extensionService: IExtensionService
 	) {
 		super();
-		this.defaultPreferencesEditorModels = new Map<URI, IPreferencesEditorModel<any>>();
+		this.defaultPreferencesEditorModels = new Map<URI, TPromise<IPreferencesEditorModel<any>>>();
 		this.editorGroupService.onEditorsChanged(() => {
 			const activeEditorInput = this.editorService.getActiveEditorInput();
 			if (activeEditorInput instanceof PreferencesEditorInput) {
@@ -88,44 +89,37 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return this.getEditableSettingsURI(ConfigurationTarget.WORKSPACE);
 	}
 
-	createDefaultPreferencesEditorModel(uri: URI): TPromise<IPreferencesEditorModel<any>> {
-		const editorModel = this.defaultPreferencesEditorModels.get(uri);
-		if (editorModel) {
-			return TPromise.as(editorModel);
+	createPreferencesEditorModel(uri: URI): TPromise<IPreferencesEditorModel<any>> {
+		let promise = this.defaultPreferencesEditorModels.get(uri);
+		if (promise) {
+			return promise;
 		}
 
 		if (this.defaultSettingsResource.fsPath === uri.fsPath) {
-			return TPromise.join<any>([this.extensionService.onReady(), this.fetchMostCommonlyUsedSettings()])
+			promise = TPromise.join<any>([this.extensionService.onReady(), this.fetchMostCommonlyUsedSettings()])
 				.then(result => {
 					const mostCommonSettings = result[1];
 					const model = this.instantiationService.createInstance(DefaultSettingsEditorModel, uri, mostCommonSettings);
-					this.defaultPreferencesEditorModels.set(uri, model);
 					return model;
 				});
+			this.defaultPreferencesEditorModels.set(uri, promise);
+			return promise;
 		}
 
 		if (this.defaultKeybindingsResource.fsPath === uri.fsPath) {
 			const model = this.instantiationService.createInstance(DefaultKeybindingsEditorModel, uri);
-			this.defaultPreferencesEditorModels.set(uri, model);
-			return TPromise.wrap(model);
-		}
-
-		return null;
-	}
-
-	public resolvePreferencesEditorModel(uri: URI): TPromise<IPreferencesEditorModel<any>> {
-		const model = this.defaultPreferencesEditorModels.get(uri);
-		if (model) {
-			return TPromise.wrap(model);
+			promise = TPromise.wrap(model);
+			this.defaultPreferencesEditorModels.set(uri, promise);
+			return promise;
 		}
 
 		if (this.getEditableSettingsURI(ConfigurationTarget.USER).fsPath === uri.fsPath) {
-			return this.resolveSettingsEditorModel(ConfigurationTarget.USER);
+			return this.createEditableSettingsEditorModel(ConfigurationTarget.USER);
 		}
 
 		const workspaceSettingsUri = this.getEditableSettingsURI(ConfigurationTarget.WORKSPACE);
 		if (workspaceSettingsUri && workspaceSettingsUri.fsPath === uri.fsPath) {
-			return this.resolveSettingsEditorModel(ConfigurationTarget.WORKSPACE);
+			return this.createEditableSettingsEditorModel(ConfigurationTarget.WORKSPACE);
 		}
 
 		return TPromise.wrap(null);
@@ -217,11 +211,11 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			.then(() => this.editorService.createInput({ resource }));
 	}
 
-	private resolveSettingsEditorModel(configurationTarget: ConfigurationTarget): TPromise<SettingsEditorModel> {
+	private createEditableSettingsEditorModel(configurationTarget: ConfigurationTarget): TPromise<SettingsEditorModel> {
 		const settingsUri = this.getEditableSettingsURI(configurationTarget);
 		if (settingsUri) {
 			return this.textModelResolverService.createModelReference(settingsUri)
-				.then(reference => this.instantiationService.createInstance(SettingsEditorModel, reference.object.textEditorModel, configurationTarget));
+				.then(reference => this.instantiationService.createInstance(SettingsEditorModel, reference, configurationTarget));
 		}
 		return TPromise.wrap(null);
 	}
@@ -282,13 +276,13 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			'files.exclude',
 			'editor.cursorStyle',
 			'editor.insertSpaces',
-			'editor.wrappingColumn',
+			'editor.wordWrap',
 			'files.associations'
 		]);
 	}
 
 	private getPosition(language: string, codeEditor: ICommonCodeEditor): TPromise<IPosition> {
-		return this.resolvePreferencesEditorModel(this.userSettingsResource)
+		return this.createPreferencesEditorModel(this.userSettingsResource)
 			.then((settingsModel: IPreferencesEditorModel<ISetting>) => {
 				const languageKey = `[${language}]`;
 				let setting = settingsModel.getPreference(languageKey);
@@ -310,13 +304,14 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 					}
 					return { lineNumber: setting.valueRange.startLineNumber, column: setting.valueRange.startColumn + 1 };
 				}
-				return this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: languageKey, value: {} }, { autoSave: false, writeToBuffer: true })
+				return this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: languageKey, value: {} }, false)
 					.then(() => {
 						setting = settingsModel.getPreference(languageKey);
 						let content = eol + this.spaces(2, configuration) + eol + this.spaces(1, configuration);
 						let editOperation = EditOperation.insert(new Position(setting.valueRange.endLineNumber, setting.valueRange.endColumn - 1), content);
 						model.pushEditOperations([], [editOperation], () => []);
 						let lineNumber = setting.valueRange.endLineNumber + 1;
+						settingsModel.dispose();
 						return { lineNumber, column: model.getLineMaxColumn(lineNumber) };
 					});
 			});

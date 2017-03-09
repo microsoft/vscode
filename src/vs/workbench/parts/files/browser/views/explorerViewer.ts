@@ -26,7 +26,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { ContributableActionProvider } from 'vs/workbench/browser/actionBarRegistry';
 import { IFilesConfiguration } from 'vs/workbench/parts/files/common/files';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IFileOperationResult, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
+import { IFileOperationResult, FileOperationResult, IFileService, isEqual } from 'vs/platform/files/common/files';
 import { DuplicateFileAction, ImportFileAction, keybindingForAction, IEditableData, IFileViewletState } from 'vs/workbench/parts/files/browser/fileActions';
 import { IDataSource, ITree, IElementCallback, IAccessibilityProvider, IRenderer, ContextMenuEvent, ISorter, IFilter, IDragAndDrop, IDragAndDropData, IDragOverReaction, DRAG_OVER_ACCEPT_BUBBLE_DOWN, DRAG_OVER_ACCEPT_BUBBLE_DOWN_COPY, DRAG_OVER_ACCEPT_BUBBLE_UP, DRAG_OVER_ACCEPT_BUBBLE_UP_COPY, DRAG_OVER_REJECT } from 'vs/base/parts/tree/browser/tree';
 import { DesktopDragAndDropData, ExternalElementsDragAndDropData } from 'vs/base/parts/tree/browser/treeDnd';
@@ -45,7 +45,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IMessageService, IConfirmation, Severity } from 'vs/platform/message/common/message';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { Keybinding, KeyCode } from 'vs/base/common/keyCodes';
+import { ResolvedKeybinding, KeyCode } from 'vs/base/common/keyCodes';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMenuService, IMenu, MenuId } from 'vs/platform/actions/common/actions';
 import { fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
@@ -481,7 +481,7 @@ export class FileController extends DefaultController {
 				});
 			},
 			getActionItem: this.state.actionProvider.getActionItem.bind(this.state.actionProvider, tree, stat),
-			getKeyBinding: (a): Keybinding => keybindingForAction(a.id, this.keybindingService),
+			getKeyBinding: (a): ResolvedKeybinding => keybindingForAction(a.id, this.keybindingService),
 			getActionsContext: (event) => {
 				return {
 					viewletState: this.state,
@@ -690,7 +690,7 @@ export class FileDragAndDrop implements IDragAndDrop {
 					return true; // Can not move anything onto itself
 				}
 
-				if (!isCopy && paths.dirname(source.resource.fsPath) === target.resource.fsPath) {
+				if (!isCopy && isEqual(paths.dirname(source.resource.fsPath), target.resource.fsPath)) {
 					return true; // Can not move a file to the same parent unless we copy
 				}
 
@@ -760,7 +760,7 @@ export class FileDragAndDrop implements IDragAndDrop {
 					let moved: URI;
 
 					// If the dirty file itself got moved, just reparent it to the target folder
-					if (source.resource.fsPath === d.fsPath) {
+					if (isEqual(source.resource.fsPath, d.fsPath)) {
 						moved = URI.file(paths.join(target.resource.fsPath, source.name));
 					}
 

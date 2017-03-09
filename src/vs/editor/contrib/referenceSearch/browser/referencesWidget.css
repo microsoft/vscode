@@ -9,6 +9,10 @@
 	border-bottom-width: 1px;
 }
 
+.monaco-editor .reference-zone-widget.zone-widget-arrow.below {
+	background: transparent;
+}
+
 .monaco-editor .zone-widget .zone-widget-container.reference-zone-widget.results-loaded {
 	-webkit-transition: height 100ms ease-in;
 	transition: height 100ms ease-in;

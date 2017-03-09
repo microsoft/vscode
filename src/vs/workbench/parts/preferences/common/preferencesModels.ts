@@ -8,18 +8,20 @@ import * as strings from 'vs/base/common/strings';
 import { assign } from 'vs/base/common/objects';
 import { LinkedMap as Map } from 'vs/base/common/map';
 import URI from 'vs/base/common/uri';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { IReference } from 'vs/base/common/lifecycle';
 import { Registry } from 'vs/platform/platform';
 import { visit, JSONVisitor } from 'vs/base/common/json';
 import { IModel, IRange } from 'vs/editor/common/editorCommon';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
+import { EditorModel } from 'vs/workbench/common/editor';
 import { IConfigurationNode, IConfigurationRegistry, Extensions, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
 import { ISettingsEditorModel, IKeybindingsEditorModel, ISettingsGroup, ISetting, IFilterResult, ISettingsSection } from 'vs/workbench/parts/preferences/common/preferences';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { IMatch, or, matchesContiguousSubString, matchesPrefix, matchesCamelCase, matchesWords } from 'vs/base/common/filters';
+import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
 
-export abstract class AbstractSettingsModel extends Disposable {
+export abstract class AbstractSettingsModel extends EditorModel {
 
 	public get groupsTerms(): string[] {
 		return this.settingsGroups.map(group => '@' + group.id);
@@ -198,9 +200,12 @@ export abstract class AbstractSettingsModel extends Disposable {
 export class SettingsEditorModel extends AbstractSettingsModel implements ISettingsEditorModel {
 
 	private _settingsGroups: ISettingsGroup[];
+	private model: IModel;
 
-	constructor(private model: IModel, private _configurationTarget: ConfigurationTarget) {
+	constructor(reference: IReference<ITextEditorModel>, private _configurationTarget: ConfigurationTarget) {
 		super();
+		this.model = reference.object.textEditorModel;
+		this._register(this.onDispose(() => reference.dispose()));
 		this._register(this.model.onDidChangeContent(() => {
 			this._settingsGroups = null;
 		}));
@@ -381,7 +386,9 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 				}
 			}
 		};
-		visit(model.getValue(), visitor);
+		if (!model.isDisposed()) {
+			visit(model.getValue(), visitor);
+		}
 		this._settingsGroups = settings.length > 0 ? [<ISettingsGroup>{
 			sections: [
 				{
@@ -448,8 +455,8 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 	}
 
 	private parse() {
-		const configurations = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurations();
-		const settingsGroups = configurations.sort(this.compareConfigurationNodes).reduce((result, config) => this.parseConfig(config, result), []);
+		const configurations = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurations().slice();
+		const settingsGroups = configurations.sort(this.compareConfigurationNodes).reduce((result, config, index, array) => this.parseConfig(config, result, array), []);
 		const mostCommonlyUsed = this.getMostCommonlyUsedSettings(settingsGroups);
 		this._allSettingsGroups = [mostCommonlyUsed, ...settingsGroups];
 		this._content = this.toContent(mostCommonlyUsed, settingsGroups);
@@ -492,16 +499,23 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 		};
 	}
 
-	private parseConfig(config: IConfigurationNode, result: ISettingsGroup[], settingsGroup?: ISettingsGroup): ISettingsGroup[] {
-		if (config.title) {
+	private parseConfig(config: IConfigurationNode, result: ISettingsGroup[], configurations: IConfigurationNode[], settingsGroup?: ISettingsGroup): ISettingsGroup[] {
+		let title = config.title;
+		if (!title) {
+			const configWithTitleAndSameId = configurations.filter(c => c.id === config.id && c.title)[0];
+			if (configWithTitleAndSameId) {
+				title = configWithTitleAndSameId.title;
+			}
+		}
+		if (title) {
 			if (!settingsGroup) {
-				settingsGroup = result.filter(g => g.title === config.title)[0];
+				settingsGroup = result.filter(g => g.title === title)[0];
 				if (!settingsGroup) {
-					settingsGroup = { sections: [{ settings: [] }], id: config.id, title: config.title, titleRange: null, range: null };
+					settingsGroup = { sections: [{ settings: [] }], id: config.id, title: title, titleRange: null, range: null };
 					result.push(settingsGroup);
 				}
 			} else {
-				settingsGroup.sections[settingsGroup.sections.length - 1].title = config.title;
+				settingsGroup.sections[settingsGroup.sections.length - 1].title = title;
 			}
 		}
 		if (config.properties) {
@@ -518,7 +532,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 			settingsGroup.sections[settingsGroup.sections.length - 1].settings.push(...configurationSettings);
 		}
 		if (config.allOf) {
-			config.allOf.forEach(c => this.parseConfig(c, result, settingsGroup));
+			config.allOf.forEach(c => this.parseConfig(c, result, configurations, settingsGroup));
 		}
 		return result;
 	}
@@ -616,6 +630,10 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 			result.push(indent + '// ' + line);
 		}
 	}
+
+	public dispose(): void {
+		// Not disposable
+	}
 }
 
 export class DefaultKeybindingsEditorModel implements IKeybindingsEditorModel<any> {
@@ -639,5 +657,9 @@ export class DefaultKeybindingsEditorModel implements IKeybindingsEditorModel<an
 
 	public getPreference(): any {
 		return null;
+	}
+
+	public dispose(): void {
+		// Not disposable
 	}
 }

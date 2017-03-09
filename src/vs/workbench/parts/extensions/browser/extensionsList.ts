@@ -17,6 +17,7 @@ import { once } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { IExtension, IExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/common/extensions';
 import { InstallAction, UpdateAction, BuiltinStatusLabelAction, ManageExtensionAction, ReloadAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
+import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { Label, RatingsWidget, InstallWidget } from 'vs/workbench/parts/extensions/browser/extensionsWidgets';
 import { EventType } from 'vs/base/common/events';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -128,8 +129,8 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		data.extensionDisposables = dispose(data.extensionDisposables);
 
 		this.extensionService.getExtensions().then(enabledExtensions => {
-			const isExtensionRunning = enabledExtensions.some(e => e.id === extension.identifier);
-			const isInstalled = this.extensionsWorkbenchService.local.some(e => e.identifier === extension.identifier);
+			const isExtensionRunning = enabledExtensions.some(e => areSameExtensions(e, extension));
+			const isInstalled = this.extensionsWorkbenchService.local.some(e => e.id === extension.id);
 			toggleClass(data.element, 'disabled', isInstalled && !isExtensionRunning);
 		});
 

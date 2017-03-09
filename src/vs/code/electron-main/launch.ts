@@ -5,7 +5,8 @@
 
 'use strict';
 
-import { IWindowsMainService, OpenContext } from 'vs/code/electron-main/windows';
+import { OpenContext } from 'vs/code/common/windows';
+import { IWindowsMainService } from 'vs/code/electron-main/windows';
 import { VSCodeWindow } from 'vs/code/electron-main/window';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
@@ -94,7 +95,7 @@ export class LaunchService implements ILaunchService {
 		let usedWindows: VSCodeWindow[];
 		if (!!args.extensionDevelopmentPath) {
 			this.windowsService.openExtensionDevelopmentHostWindow({ context, cli: args, userEnv });
-		} else if (args._.length === 0 && (args['new-window'] || args['new-window-if-not-first'])) {
+		} else if (args._.length === 0 && (args['new-window'] || args['unity-launch'])) {
 			usedWindows = this.windowsService.open({ context, cli: args, userEnv, forceNewWindow: true, forceEmpty: true });
 		} else if (args._.length === 0) {
 			usedWindows = [this.windowsService.focusLastActive(args, context)];

@@ -437,6 +437,7 @@ export class MouseTargetFactory {
 
 		result = result || MouseTargetFactory._hitTestContentWidget(ctx, request);
 		result = result || MouseTargetFactory._hitTestOverlayWidget(ctx, request);
+		result = result || MouseTargetFactory._hitTestScrollbarSlider(ctx, request);
 		result = result || MouseTargetFactory._hitTestViewZone(ctx, request);
 		result = result || MouseTargetFactory._hitTestMargin(ctx, request);
 		result = result || MouseTargetFactory._hitTestViewCursor(ctx, request);
@@ -501,11 +502,20 @@ export class MouseTargetFactory {
 			for (let i = 0, len = lastViewCursorsRenderData.length; i < len; i++) {
 				const d = lastViewCursorsRenderData[i];
 
+				if (mouseContentHorizontalOffset < d.contentLeft) {
+					// mouse position is to the left of the cursor
+					continue;
+				}
+				if (mouseContentHorizontalOffset > d.contentLeft + d.width) {
+					// mouse position is to the right of the cursor
+					continue;
+				}
+
+				const cursorVerticalOffset = ctx.getVerticalOffsetForLineNumber(d.position.lineNumber);
+
 				if (
-					d.contentLeft <= mouseContentHorizontalOffset
-					&& mouseContentHorizontalOffset <= d.contentLeft + d.width
-					&& d.contentTop <= mouseVerticalOffset
-					&& mouseVerticalOffset <= d.contentTop + d.height
+					cursorVerticalOffset <= mouseVerticalOffset
+					&& mouseVerticalOffset <= cursorVerticalOffset + d.height
 				) {
 					return request.fulfill(MouseTargetType.CONTENT_TEXT, d.position);
 				}
@@ -582,6 +592,20 @@ export class MouseTargetFactory {
 		}
 
 		return this._createMouseTarget(ctx, request.withTarget(hitTestResult.hitTarget), true);
+	}
+
+	private static _hitTestScrollbarSlider(ctx: HitTestContext, request: HitTestRequest): MouseTarget {
+		if (ElementPath.isChildOfScrollableElement(request.targetPath)) {
+			if (request.target && request.target.nodeType === 1) {
+				let className = request.target.className;
+				if (className && /\b(slider|scrollbar)\b/.test(className)) {
+					const possibleLineNumber = ctx.getLineNumberAtVerticalOffset(request.mouseVerticalOffset);
+					const maxColumn = ctx.model.getLineMaxColumn(possibleLineNumber);
+					return request.fulfill(MouseTargetType.SCROLLBAR, new Position(possibleLineNumber, maxColumn));
+				}
+			}
+		}
+		return null;
 	}
 
 	private static _hitTestScrollbar(ctx: HitTestContext, request: HitTestRequest): MouseTarget {

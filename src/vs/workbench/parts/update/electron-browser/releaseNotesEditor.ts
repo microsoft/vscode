@@ -25,9 +25,10 @@ function renderBody(body: string): string {
 		<html>
 			<head>
 				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
-				<link rel="stylesheet" type="text/css" href="${ require.toUrl('./media/markdown.css')}" >
+				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src http: https: data:; media-src http: https: data:; script-src 'none'; style-src file: http: https:; child-src 'none'; frame-src 'none';">
+				<link rel="stylesheet" type="text/css" href="${require.toUrl('./media/markdown.css')}">
 			</head>
-			<body>${ body}</body>
+			<body>${body}</body>
 		</html>`;
 }
 
@@ -85,8 +86,7 @@ export class ReleaseNotesEditor extends BaseEditor {
 			.then<void>(body => {
 				this.webview = new WebView(
 					this.content,
-					document.querySelector('.monaco-editor-background'),
-					{ nodeintegration: false }
+					document.querySelector('.monaco-editor-background')
 				);
 
 				this.webview.baseUrl = `https://code.visualstudio.com/raw/`;

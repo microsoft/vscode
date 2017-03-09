@@ -160,6 +160,8 @@
 	margin-top: 0px;
 	margin-bottom: 0px;
 	padding-bottom: 4px;
+	-webkit-user-select: text;
+	user-select: text;
 }
 
 .search-viewlet .filematch {

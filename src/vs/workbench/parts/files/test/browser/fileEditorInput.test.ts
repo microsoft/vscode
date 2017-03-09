@@ -15,6 +15,7 @@ import { EncodingMode } from 'vs/workbench/common/editor';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { FileOperationResult, IFileOperationResult } from 'vs/platform/files/common/files';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
+import { Verbosity } from 'vs/platform/editor/common/editor';
 
 function toResource(path) {
 	return URI.file(join('C:\\', new Buffer(this.test.fullTitle()).toString('base64'), path));
@@ -49,7 +50,7 @@ suite('Files - FileEditorInput', () => {
 		assert(!input.matches(null));
 		assert.ok(input.getName());
 		assert.ok(input.getDescription());
-		assert.ok(input.getDescription(true));
+		assert.ok(input.getTitle(Verbosity.SHORT));
 
 		assert.strictEqual('file.js', input.getName());
 
@@ -58,10 +59,12 @@ suite('Files - FileEditorInput', () => {
 
 		input = instantiationService.createInstance(FileEditorInput, toResource.call(this, '/foo/bar.html'), void 0);
 
-		const inputToResolve: any = instantiationService.createInstance(FileEditorInput, toResource.call(this, '/foo/bar/file.js'), void 0);
-		const sameOtherInput = instantiationService.createInstance(FileEditorInput, toResource.call(this, '/foo/bar/file.js'), void 0);
+		const inputToResolve: FileEditorInput = instantiationService.createInstance(FileEditorInput, toResource.call(this, '/foo/bar/file.js'), void 0);
+		const sameOtherInput: FileEditorInput = instantiationService.createInstance(FileEditorInput, toResource.call(this, '/foo/bar/file.js'), void 0);
 
 		return inputToResolve.resolve(true).then(resolved => {
+			assert.ok(inputToResolve.isResolved());
+
 			const resolvedModelA = resolved;
 			return inputToResolve.resolve(true).then(resolved => {
 				assert(resolvedModelA === resolved); // OK: Resolved Model cached globally per input
@@ -69,7 +72,7 @@ suite('Files - FileEditorInput', () => {
 				return sameOtherInput.resolve(true).then(otherResolved => {
 					assert(otherResolved === resolvedModelA); // OK: Resolved Model cached globally per input
 
-					inputToResolve.dispose(false);
+					inputToResolve.dispose();
 
 					return inputToResolve.resolve(true).then(resolved => {
 						assert(resolvedModelA === resolved); // Model is still the same because we had 2 clients
@@ -82,13 +85,13 @@ suite('Files - FileEditorInput', () => {
 						return inputToResolve.resolve(true).then(resolved => {
 							assert(resolvedModelA !== resolved); // Different instance, because input got disposed
 
-							let stat = (<any>resolved).versionOnDiskStat;
+							let stat = resolved.getStat();
 							return inputToResolve.resolve(true).then(resolved => {
-								assert(stat !== (<any>resolved).versionOnDiskStat); // Different stat, because resolve always goes to the server for refresh
+								assert(stat !== resolved.getStat()); // Different stat, because resolve always goes to the server for refresh
 
-								stat = (<any>resolved).versionOnDiskStat;
+								stat = resolved.getStat();
 								return inputToResolve.resolve(false).then(resolved => {
-									assert(stat === (<any>resolved).versionOnDiskStat); // Same stat, because not refreshed
+									assert(stat === resolved.getStat()); // Same stat, because not refreshed
 
 									done();
 								});

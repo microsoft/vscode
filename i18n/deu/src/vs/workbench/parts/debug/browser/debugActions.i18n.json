@@ -34,6 +34,7 @@
 	"restartDebug": "Neu starten",
 	"restartFrame": "Frame neu starten",
 	"reverseContinue": "Umkehren",
+	"selectAndStartDebugging": "Debugging auswählen und starten",
 	"setValue": "Wert festlegen",
 	"startDebug": "Debuggen starten",
 	"startWithoutDebugging": "Ohne Debuggen starten",

@@ -38,7 +38,6 @@ import { IFilesConfiguration, SUPPORTED_ENCODINGS } from 'vs/platform/files/comm
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { StyleMutator } from 'vs/base/browser/styleMutator';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { TabFocus } from 'vs/editor/common/config/commonEditorConfig';
@@ -232,11 +231,16 @@ const nlsEOLLF = nls.localize('endOfLineLineFeed', "LF");
 const nlsEOLCRLF = nls.localize('endOfLineCarriageReturnLineFeed', "CRLF");
 const nlsTabFocusMode = nls.localize('tabFocusModeEnabled', "Tab moves focus");
 
+function _setDisplay(el: HTMLElement, desiredValue: string): void {
+	if (el.style.display !== desiredValue) {
+		el.style.display = desiredValue;
+	}
+}
 function show(el: HTMLElement): void {
-	StyleMutator.setDisplay(el, '');
+	_setDisplay(el, '');
 }
 function hide(el: HTMLElement): void {
-	StyleMutator.setDisplay(el, 'none');
+	_setDisplay(el, 'none');
 }
 
 export class EditorStatus implements IStatusbarItem {

@@ -14,6 +14,7 @@
 	"commitMessage": "커밋 메시지",
 	"commitStaged": "스테이징된 항목 커밋",
 	"commitStaged2": "스테이징된 항목 커밋",
+	"commitStagedAmend": "스테이징된 항목 커밋(수정)",
 	"commitStagedSignedOff": "스테이징된 항목 커밋(로그오프됨)",
 	"confirmPublishMessage": "'{0}'을(를) '{1}'에 게시할까요?",
 	"confirmPublishMessageButton": "게시(&&P)",

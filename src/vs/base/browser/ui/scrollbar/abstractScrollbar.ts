@@ -9,7 +9,7 @@ import * as DomUtils from 'vs/base/browser/dom';
 import { IMouseEvent, StandardMouseEvent, StandardMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { GlobalMouseMoveMonitor, IStandardMouseMoveEventData, standardMouseMoveMerger } from 'vs/base/browser/globalMouseMoveMonitor';
 import { Widget } from 'vs/base/browser/ui/widget';
-import { FastDomNode, createFastDomNode } from 'vs/base/browser/styleMutator';
+import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { ScrollbarState } from 'vs/base/browser/ui/scrollbar/scrollbarState';
 import { ScrollbarArrow, ScrollbarArrowOptions } from 'vs/base/browser/ui/scrollbar/scrollbarArrow';
 import { ScrollbarVisibilityController } from 'vs/base/browser/ui/scrollbar/scrollbarVisibilityController';

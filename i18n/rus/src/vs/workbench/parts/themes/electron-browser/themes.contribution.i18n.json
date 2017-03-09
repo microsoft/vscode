@@ -8,9 +8,9 @@
 	"noIconThemeDesc": "Отключить значки файлов",
 	"noIconThemeLabel": "Нет",
 	"preferences": "Параметры",
-	"problemChangingIconTheme": "Проблема при загрузке темы значка: {0}",
-	"problemChangingTheme": "Проблема с загрузкой темы: {0}",
-	"selectIconTheme.label": "Тема значка файла",
+	"problemChangingIconTheme": "Проблема при задании темы значка: {0}",
+	"problemChangingTheme": "Проблема при задании темы: {0}",
+	"selectIconTheme.label": "Тема значков файлов",
 	"selectTheme.label": "Цветовая тема",
 	"themes.selectIconTheme": "Выбрать тему значка файла",
 	"themes.selectTheme": "Выберите цветовую тему"

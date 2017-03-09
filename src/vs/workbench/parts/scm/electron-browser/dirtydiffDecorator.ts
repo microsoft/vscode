@@ -76,6 +76,7 @@ class DirtyDiffModelDecorator {
 		this.toDispose = [];
 		this.triggerDiff();
 		this.toDispose.push(model.onDidChangeContent(() => this.triggerDiff()));
+		this.toDispose.push(scmService.onDidChangeProvider(() => this.triggerDiff()));
 	}
 
 	private triggerDiff(): winjs.Promise {

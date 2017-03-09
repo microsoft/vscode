@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 'use strict';
+Object.defineProperty(exports, "__esModule", { value: true });
 var es = require("event-stream");
 var debounce = require("debounce");
 var _filter = require("gulp-filter");
@@ -169,12 +170,14 @@ function rimraf(dir) {
     var retries = 0;
     var retry = function (cb) {
         _rimraf(dir, { maxBusyTries: 1 }, function (err) {
-            if (!err)
+            if (!err) {
                 return cb();
-            if (err.code === 'ENOTEMPTY' && ++retries < 5)
+            }
+            ;
+            if (err.code === 'ENOTEMPTY' && ++retries < 5) {
                 return setTimeout(function () { return retry(cb); }, 10);
-            else
-                return cb(err);
+            }
+            return cb(err);
         });
     };
     return function (cb) { return retry(cb); };

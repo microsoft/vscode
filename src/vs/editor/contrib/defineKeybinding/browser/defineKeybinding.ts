@@ -9,13 +9,13 @@ import 'vs/css!./defineKeybinding';
 import * as nls from 'vs/nls';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { MarkedString } from 'vs/base/common/htmlContent';
-import { Keybinding, KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
+import { ResolvedKeybinding, createKeybinding, KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
 import { KeybindingLabels } from 'vs/base/common/keybinding';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
 import { renderHtml } from 'vs/base/browser/htmlContentRenderer';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { StyleMutator } from 'vs/base/browser/styleMutator';
+import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { IOSupport } from 'vs/platform/keybinding/common/keybindingResolver';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -107,6 +107,11 @@ export class DefineKeybindingController implements editorCommon.IEditorContribut
 	}
 
 	private _onAccepted(keybinding: string): void {
+		let regexp = new RegExp(/\\/g);
+		let backslash = regexp.test(keybinding);
+		if (backslash) {
+			keybinding = keybinding.slice(0, -1) + '\\\\';
+		}
 		let snippetText = [
 			'{',
 			'\t"key": ' + JSON.stringify(keybinding) + ',',
@@ -160,7 +165,7 @@ export class DefineKeybindingController implements editorCommon.IEditorContribut
 
 			let numKeybinding = IOSupport.readKeybinding(strKeybinding);
 
-			let keybinding = new Keybinding(numKeybinding);
+			let keybinding = createKeybinding(numKeybinding);
 
 			return {
 				strKeybinding: strKeybinding,
@@ -179,21 +184,21 @@ export class DefineKeybindingController implements editorCommon.IEditorContribut
 		data.forEach((item) => {
 			let msg: MarkedString[];
 			let className: string;
-			let inlineClassName: string;
+			let beforeContentClassName: string;
 			let overviewRulerColor: string;
 
 			if (!item.label) {
 				// this is the error case
 				msg = [NLS_KB_LAYOUT_ERROR_MESSAGE];
 				className = 'keybindingError';
-				inlineClassName = 'inlineKeybindingError';
+				beforeContentClassName = 'inlineKeybindingError';
 				overviewRulerColor = 'rgba(250, 100, 100, 0.6)';
 			} else {
 				// this is the info case
 				msg = [NLS_KB_LAYOUT_INFO_MESSAGE];
 				msg = msg.concat(this._keybindingService.getLabelFor(item.keybinding));
 				className = 'keybindingInfo';
-				inlineClassName = 'inlineKeybindingInfo';
+				beforeContentClassName = 'inlineKeybindingInfo';
 				overviewRulerColor = 'rgba(100, 100, 250, 0.6)';
 			}
 
@@ -202,7 +207,7 @@ export class DefineKeybindingController implements editorCommon.IEditorContribut
 				range: new Range(item.range.startLineNumber, item.range.startColumn, item.range.startLineNumber, item.range.startColumn + 1),
 				options: {
 					stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-					inlineClassName: inlineClassName
+					beforeContentClassName: beforeContentClassName
 				}
 			});
 
@@ -307,14 +312,14 @@ class DefineKeybindingWidget implements IOverlayWidget {
 	private _editor: ICodeEditor;
 	private _keybindingService: IKeybindingService;
 
-	private _domNode: HTMLElement;
+	private _domNode: FastDomNode<HTMLElement>;
 	private _toDispose: IDisposable[];
 
 	private _messageNode: HTMLElement;
 	private _inputNode: HTMLInputElement;
 	private _outputNode: HTMLElement;
 
-	private _lastKeybinding: Keybinding;
+	private _lastKeybinding: ResolvedKeybinding;
 	private _onAccepted: (keybinding: string) => void;
 	private _isVisible: boolean;
 
@@ -325,27 +330,27 @@ class DefineKeybindingWidget implements IOverlayWidget {
 		this._toDispose = [];
 		this._lastKeybinding = null;
 
-		this._domNode = document.createElement('div');
-		this._domNode.className = 'defineKeybindingWidget';
-		StyleMutator.setWidth(this._domNode, DefineKeybindingWidget.WIDTH);
-		StyleMutator.setHeight(this._domNode, DefineKeybindingWidget.HEIGHT);
+		this._domNode = createFastDomNode(document.createElement('div'));
+		this._domNode.setClassName('defineKeybindingWidget');
+		this._domNode.setWidth(DefineKeybindingWidget.WIDTH);
+		this._domNode.setHeight(DefineKeybindingWidget.HEIGHT);
 
-		this._domNode.style.display = 'none';
+		this._domNode.setDisplay('none');
 		this._isVisible = false;
 
 		this._messageNode = document.createElement('div');
 		this._messageNode.className = 'message';
 		this._messageNode.innerText = NLS_DEFINE_MESSAGE;
-		this._domNode.appendChild(this._messageNode);
+		this._domNode.domNode.appendChild(this._messageNode);
 
 		this._inputNode = document.createElement('input');
 		this._inputNode.className = 'input';
 		this._inputNode.type = 'text';
-		this._domNode.appendChild(this._inputNode);
+		this._domNode.domNode.appendChild(this._inputNode);
 
 		this._outputNode = document.createElement('div');
 		this._outputNode.className = 'output';
-		this._domNode.appendChild(this._outputNode);
+		this._domNode.domNode.appendChild(this._outputNode);
 
 		this._toDispose.push(dom.addDisposableListener(this._inputNode, 'keydown', (e) => {
 			let keyEvent = new StandardKeyboardEvent(e);
@@ -356,7 +361,7 @@ class DefineKeybindingWidget implements IOverlayWidget {
 			switch (kb.value) {
 				case KeyCode.Enter:
 					if (this._lastKeybinding) {
-						this._onAccepted(KeybindingLabels.toUserSettingsLabel(this._lastKeybinding.value));
+						this._onAccepted(this._lastKeybinding.getUserSettingsLabel());
 					}
 					this._stop();
 					return;
@@ -366,13 +371,13 @@ class DefineKeybindingWidget implements IOverlayWidget {
 					return;
 			}
 
-			this._lastKeybinding = kb;
+			this._lastKeybinding = this._keybindingService.resolveKeybinding(kb);
 
-			this._inputNode.value = KeybindingLabels.toUserSettingsLabel(this._lastKeybinding.value).toLowerCase();
+			this._inputNode.value = this._lastKeybinding.getUserSettingsLabel().toLowerCase();
 			this._inputNode.title = 'keyCode: ' + keyEvent.browserEvent.keyCode;
 
 			dom.clearNode(this._outputNode);
-			let htmlkb = this._keybindingService.getHTMLLabelFor(this._lastKeybinding);
+			let htmlkb = this._lastKeybinding.getHTMLLabel();
 			htmlkb.forEach((item) => this._outputNode.appendChild(renderHtml(item)));
 		}));
 		this._toDispose.push(this._editor.onDidChangeConfiguration((e) => {
@@ -396,7 +401,7 @@ class DefineKeybindingWidget implements IOverlayWidget {
 	}
 
 	public getDomNode(): HTMLElement {
-		return this._domNode;
+		return this._domNode.domNode;
 	}
 
 	public getPosition(): IOverlayWidgetPosition {
@@ -411,7 +416,7 @@ class DefineKeybindingWidget implements IOverlayWidget {
 		}
 		this._isVisible = true;
 		this._layout();
-		this._domNode.style.display = 'block';
+		this._domNode.setDisplay('block');
 	}
 
 	private _hide(): void {
@@ -419,17 +424,17 @@ class DefineKeybindingWidget implements IOverlayWidget {
 			return;
 		}
 		this._isVisible = false;
-		this._domNode.style.display = 'none';
+		this._domNode.setDisplay('none');
 	}
 
 	private _layout(): void {
 		let editorLayout = this._editor.getLayoutInfo();
 
 		let top = Math.round((editorLayout.height - DefineKeybindingWidget.HEIGHT) / 2);
-		StyleMutator.setTop(this._domNode, top);
+		this._domNode.setTop(top);
 
 		let left = Math.round((editorLayout.width - DefineKeybindingWidget.WIDTH) / 2);
-		StyleMutator.setLeft(this._domNode, left);
+		this._domNode.setLeft(left);
 	}
 
 	public start(): void {

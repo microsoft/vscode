@@ -194,7 +194,7 @@ export abstract class AbstractProcess<TProgressData> {
 					if (err && err.killed) {
 						ee({ killed: this.terminateRequested, stdout: stdout.toString(), stderr: stderr.toString() });
 					} else {
-						this.handleExec(cc, pp, error, stdout, stderr);
+						this.handleExec(cc, pp, error, stdout as any, stderr as any);
 					}
 				});
 			} else {

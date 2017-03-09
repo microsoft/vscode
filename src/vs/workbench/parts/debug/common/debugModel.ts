@@ -197,7 +197,7 @@ export class Expression extends ExpressionContainer implements debug.IExpression
 	}
 
 	public evaluate(process: debug.IProcess, stackFrame: debug.IStackFrame, context: string): TPromise<void> {
-		if (!process) {
+		if (!process || (!stackFrame && context !== 'repl')) {
 			this.value = context === 'repl' ? nls.localize('startDebugFirst', "Please start a debug session to evaluate") : Expression.DEFAULT_VALUE;
 			this.available = false;
 			this.reference = 0;
@@ -367,14 +367,15 @@ export class StackFrame implements debug.IStackFrame {
 	}
 
 	public openInEditor(editorService: IWorkbenchEditorService, preserveFocus?: boolean, sideBySide?: boolean): TPromise<any> {
-		return this.source.deemphasize ? TPromise.as(true) : editorService.openEditor({
+		return editorService.openEditor({
 			resource: this.source.uri,
 			description: this.source.origin,
 			options: {
 				preserveFocus,
 				selection: { startLineNumber: this.lineNumber, startColumn: 1 },
 				revealIfVisible: true,
-				revealInCenterIfOutsideViewport: true
+				revealInCenterIfOutsideViewport: true,
+				pinned: !preserveFocus
 			}
 		}, sideBySide);
 	}
@@ -447,8 +448,14 @@ export class Thread implements debug.IThread {
 				if (!rsf) {
 					return new StackFrame(this, 0, new Source({ name: UNKNOWN_SOURCE_LABEL }, true), nls.localize('unknownStack', "Unknown stack location"), null, null);
 				}
+				let source = rsf.source ? new Source(rsf.source, rsf.source.presentationHint === 'deemphasize') : new Source({ name: UNKNOWN_SOURCE_LABEL }, true);
+				if (this.process.sources.has(source.uri.toString())) {
+					source = this.process.sources.get(source.uri.toString());
+				} else {
+					this.process.sources.set(source.uri.toString(), source);
+				}
 
-				return new StackFrame(this, rsf.id, rsf.source ? new Source(rsf.source, rsf.source.presentationHint === 'deemphasize') : new Source({ name: UNKNOWN_SOURCE_LABEL }, true), rsf.name, rsf.line, rsf.column);
+				return new StackFrame(this, rsf.id, source, rsf.name, rsf.line, rsf.column);
 			});
 		}, (err: Error) => {
 			if (this.stoppedDetails) {
@@ -491,9 +498,11 @@ export class Thread implements debug.IThread {
 export class Process implements debug.IProcess {
 
 	private threads: Map<number, Thread>;
+	public sources: Map<string, Source>;
 
 	constructor(public configuration: debug.IConfig, private _session: debug.ISession & debug.ITreeElement) {
 		this.threads = new Map<number, Thread>();
+		this.sources = new Map<string, Source>();
 	}
 
 	public get session(): debug.ISession {
@@ -580,16 +589,6 @@ export class Process implements debug.IProcess {
 		}
 	}
 
-	public deemphasizeSource(uri: uri): void {
-		this.threads.forEach(thread => {
-			thread.getCallStack().forEach(stackFrame => {
-				if (stackFrame.source.uri.toString() === uri.toString()) {
-					stackFrame.source.deemphasize = true;
-				}
-			});
-		});
-	}
-
 	public completions(frameId: number, text: string, position: Position, overwriteBefore: number): TPromise<ISuggestion[]> {
 		if (!this.session.capabilities.supportsCompletionsRequest) {
 			return TPromise.as([]);
@@ -605,6 +604,7 @@ export class Process implements debug.IProcess {
 				label: item.label,
 				insertText: item.text || item.label,
 				type: item.type,
+				filterText: item.start && item.length && text.substr(item.start, item.length),
 				overwriteBefore: item.length || overwriteBefore
 			})) : [];
 		}, err => []);
@@ -927,7 +927,8 @@ export class Model implements debug.IModel {
 		const filtered = this.watchExpressions.filter(we => we.getId() === id);
 		if (filtered.length === 1) {
 			filtered[0].name = newName;
-			return filtered[0].evaluate(process, stackFrame, 'watch').then(() => {
+			// Evaluate all watch expressions again since the new watch expression might have changed some.
+			return this.evaluateWatchExpressions(process, stackFrame).then(() => {
 				this._onDidChangeWatchExpressions.fire(filtered[0]);
 			});
 		}
@@ -966,7 +967,11 @@ export class Model implements debug.IModel {
 	}
 
 	public deemphasizeSource(uri: uri): void {
-		this.processes.forEach(p => p.deemphasizeSource(uri));
+		this.processes.forEach(p => {
+			if (p.sources.has(uri.toString())) {
+				p.sources.get(uri.toString()).deemphasize = true;
+			}
+		});
 		this._onDidChangeCallStack.fire();
 	}
 

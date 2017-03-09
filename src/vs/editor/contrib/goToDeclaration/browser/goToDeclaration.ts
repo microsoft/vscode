@@ -8,7 +8,6 @@
 import 'vs/css!./goToDeclaration';
 import * as nls from 'vs/nls';
 import { Throttler } from 'vs/base/common/async';
-import { any, filterEvent } from 'vs/base/common/event';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { MarkedString } from 'vs/base/common/htmlContent';
 import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
@@ -25,7 +24,7 @@ import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { editorAction, IActionOptions, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
 import { Location, DefinitionProviderRegistry } from 'vs/editor/common/modes';
-import { ICodeEditor, IEditorMouseEvent, IMouseTarget, IContentWidget, IContentWidgetPosition, ContentWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IEditorMouseEvent, IMouseTarget } from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { getDefinitionsAtPosition, getImplementationsAtPosition, getTypeDefinitionsAtPosition } from 'vs/editor/contrib/goToDeclaration/common/goToDeclaration';
 import { ReferencesController } from 'vs/editor/contrib/referenceSearch/browser/referencesController';
@@ -34,91 +33,17 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { PeekContext } from 'vs/editor/contrib/zoneWidget/browser/peekViewWidget';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
+import { MessageController } from './messageController';
 import * as corePosition from 'vs/editor/common/core/position';
 import ModeContextKeys = editorCommon.ModeContextKeys;
 import EditorContextKeys = editorCommon.EditorContextKeys;
-
-class MessageOverlay implements IContentWidget {
-
-	private static _last: IDisposable;
-
-	static show(editor: ICodeEditor, pos: editorCommon.IPosition, message: string): void {
-
-		dispose(MessageOverlay._last);
-
-		const widget = new MessageOverlay(message, pos.lineNumber, editor.getOffsetForColumn(pos.lineNumber, pos.column));
-		const remove = () => editor.removeContentWidget(widget);
-		editor.addContentWidget(widget);
-
-		const listener = any<any>(
-			filterEvent(editor.onMouseMove, e => {
-				const { position } = e.target;
-				return Math.abs(position.lineNumber - pos.lineNumber) > 1
-					|| Math.abs(position.column - pos.column) > 10;
-			}),
-			editor.onDidChangeCursorPosition,
-			editor.onDidBlurEditorText,
-			editor.onDidDispose,
-			editor.onDidChangeModel
-		)(_ => {
-			listener.dispose();
-			remove();
-		});
-
-
-		MessageOverlay._last = {
-			dispose() {
-				listener.dispose();
-				remove();
-			}
-		};
-	}
-
-	readonly allowEditorOverflow = true;
-	readonly suppressMouseDown = false;
-
-	private _position: editorCommon.IPosition;
-	private _domNode: HTMLDivElement;
-
-	constructor(text: string, lineNumber: number, horizontalOffset: number) {
-		this._position = { lineNumber, column: 1 };
-
-		this._domNode = document.createElement('div');
-		this._domNode.style.paddingLeft = `${horizontalOffset - 6}px`;
-		this._domNode.classList.add('monaco-editor-overlaymessage');
-
-
-		const message = document.createElement('div');
-		message.classList.add('message');
-		message.textContent = text;
-		this._domNode.appendChild(message);
-
-		const anchor = document.createElement('div');
-		anchor.classList.add('anchor');
-		this._domNode.appendChild(anchor);
-	}
-
-	getId(): string {
-		return 'messageoverlay';
-	}
-
-	getDomNode(): HTMLElement {
-		return this._domNode;
-	}
-
-	getPosition(): IContentWidgetPosition {
-		return { position: this._position, preference: [ContentWidgetPositionPreference.ABOVE] };
-	}
-}
-
 
 export class DefinitionActionConfig {
 
 	constructor(
 		public openToSide = false,
 		public openInPeek = false,
-		public filterCurrent = true,
-		public noResultsMessage = nls.localize('generic.noResults', "No definition found")
+		public filterCurrent = true
 	) {
 		//
 	}
@@ -164,7 +89,8 @@ export class DefinitionAction extends EditorAction {
 			}
 
 			if (result.length === 0) {
-				MessageOverlay.show(<ICodeEditor>editor, pos, this._configuration.noResultsMessage);
+				const info = model.getWordAtPosition(pos);
+				MessageController.get(editor).showMessage(this.getNoResultFoundMessage(info), pos);
 				return;
 			}
 
@@ -179,6 +105,12 @@ export class DefinitionAction extends EditorAction {
 
 	protected getDeclarationsAtPosition(model: editorCommon.IModel, position: corePosition.Position): TPromise<Location[]> {
 		return getDefinitionsAtPosition(model, position);
+	}
+
+	protected getNoResultFoundMessage(info?: editorCommon.IWordAtPosition): string {
+		return info && info.word
+			? nls.localize('noResultWord', "No definition found for '{0}'", info.word)
+			: nls.localize('generic.noResults', "No definition found");
 	}
 
 	private _onResult(editorService: IEditorService, editor: editorCommon.ICommonCodeEditor, model: ReferencesModel) {
@@ -301,9 +233,20 @@ export class PeekDefinitionAction extends DefinitionAction {
 	}
 }
 
+export class ImplementationAction extends DefinitionAction {
+	protected getDeclarationsAtPosition(model: editorCommon.IModel, position: corePosition.Position): TPromise<Location[]> {
+		return getImplementationsAtPosition(model, position);
+	}
+
+	protected getNoResultFoundMessage(info?: editorCommon.IWordAtPosition): string {
+		return info && info.word
+			? nls.localize('goToImplementation.noResultWord', "No implementation found for '{0}'", info.word)
+			: nls.localize('goToImplementation.generic.noResults', "No implementation found");
+	}
+}
 
 @editorAction
-export class GoToImplementationAction extends DefinitionAction {
+export class GoToImplementationAction extends ImplementationAction {
 
 	public static ID = 'editor.action.goToImplementation';
 
@@ -325,14 +268,10 @@ export class GoToImplementationAction extends DefinitionAction {
 			}
 		});
 	}
-
-	protected getDeclarationsAtPosition(model: editorCommon.IModel, position: corePosition.Position): TPromise<Location[]> {
-		return getImplementationsAtPosition(model, position);
-	}
 }
 
 @editorAction
-export class PeekImplementationAction extends DefinitionAction {
+export class PeekImplementationAction extends ImplementationAction {
 
 	public static ID = 'editor.action.peekImplementation';
 
@@ -350,14 +289,22 @@ export class PeekImplementationAction extends DefinitionAction {
 			}
 		});
 	}
+}
 
+export class TypeDefinitionAction extends DefinitionAction {
 	protected getDeclarationsAtPosition(model: editorCommon.IModel, position: corePosition.Position): TPromise<Location[]> {
-		return getImplementationsAtPosition(model, position);
+		return getTypeDefinitionsAtPosition(model, position);
+	}
+
+	protected getNoResultFoundMessage(info?: editorCommon.IWordAtPosition): string {
+		return info && info.word
+			? nls.localize('goToTypeDefinition.noResultWord', "No type definition found for '{0}'", info.word)
+			: nls.localize('goToTypeDefinition.generic.noResults', "No type definition found");
 	}
 }
 
 @editorAction
-export class GoToTypeDefintionAction extends DefinitionAction {
+export class GoToTypeDefintionAction extends TypeDefinitionAction {
 
 	public static ID = 'editor.action.goToTypeDefinition';
 
@@ -379,14 +326,10 @@ export class GoToTypeDefintionAction extends DefinitionAction {
 			}
 		});
 	}
-
-	protected getDeclarationsAtPosition(model: editorCommon.IModel, position: corePosition.Position): TPromise<Location[]> {
-		return getTypeDefinitionsAtPosition(model, position);
-	}
 }
 
 @editorAction
-export class PeekTypeDefinitionAction extends DefinitionAction {
+export class PeekTypeDefinitionAction extends TypeDefinitionAction {
 
 	public static ID = 'editor.action.peekTypeDefinition';
 
@@ -403,10 +346,6 @@ export class PeekTypeDefinitionAction extends DefinitionAction {
 				primary: 0
 			}
 		});
-	}
-
-	protected getDeclarationsAtPosition(model: editorCommon.IModel, position: corePosition.Position): TPromise<Location[]> {
-		return getTypeDefinitionsAtPosition(model, position);
 	}
 }
 

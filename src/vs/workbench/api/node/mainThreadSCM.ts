@@ -52,6 +52,14 @@ class MainThreadSCMProvider implements ISCMProvider {
 		return this.proxy.$open(this.id, resource.resourceGroupId, resource.uri.toString());
 	}
 
+	acceptChanges(): TPromise<void> {
+		if (!this.features.supportsAcceptChanges) {
+			return TPromise.as(null);
+		}
+
+		return this.proxy.$acceptChanges(this.id);
+	}
+
 	drag(from: ISCMResource, to: ISCMResourceGroup): TPromise<void> {
 		if (!this.features.supportsDrag) {
 			return TPromise.as(null);
@@ -125,8 +133,8 @@ export class MainThreadSCM extends MainThreadSCMShape {
 		super();
 		this.proxy = threadService.get(ExtHostContext.ExtHostSCM);
 
-		this.inputBoxListener = this.scmService.inputBoxModel.onDidChangeContent(e => {
-			this.proxy.$onInputBoxValueChange(this.scmService.inputBoxModel.getValue());
+		this.inputBoxListener = this.scmService.input.onDidChange(value => {
+			this.proxy.$onInputBoxValueChange(value);
 		});
 	}
 
@@ -156,7 +164,7 @@ export class MainThreadSCM extends MainThreadSCMShape {
 	}
 
 	$setInputBoxValue(value: string): void {
-		this.scmService.inputBoxModel.setValue(value);
+		this.scmService.input.value = value;
 	}
 
 	dispose(): void {

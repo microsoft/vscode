@@ -11,7 +11,7 @@ import { distinct } from 'vs/base/common/arrays';
 import { getErrorMessage } from 'vs/base/common/errors';
 import { ArraySet } from 'vs/base/common/set';
 import { IGalleryExtension, IExtensionGalleryService, IGalleryExtensionAsset, IQueryOptions, SortBy, SortOrder, IExtensionManifest } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { getGalleryExtensionTelemetryData } from 'vs/platform/extensionManagement/common/extensionTelemetry';
+import { getGalleryExtensionId, getGalleryExtensionTelemetryData, adoptToGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { assign, getOrDefault } from 'vs/base/common/objects';
 import { IRequestService } from 'vs/platform/request/node/request';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -220,7 +220,7 @@ function getVersionAsset(version: IRawGalleryExtensionVersion, type: string): IG
 function getDependencies(version: IRawGalleryExtensionVersion): string[] {
 	const values = version.properties ? version.properties.filter(p => p.key === PropertyType.Dependency) : [];
 	const value = values.length > 0 && values[0].value;
-	return value ? value.split(',') : [];
+	return value ? value.split(',').map(v => adoptToGalleryExtensionId(v)) : [];
 }
 
 function getEngine(version: IRawGalleryExtensionVersion): string {
@@ -240,7 +240,8 @@ function toExtension(galleryExtension: IRawGalleryExtension, extensionsGalleryUr
 	};
 
 	return {
-		id: galleryExtension.extensionId,
+		uuid: galleryExtension.extensionId,
+		id: getGalleryExtensionId(galleryExtension.publisher.publisherName, galleryExtension.extensionName),
 		name: galleryExtension.extensionName,
 		version: version.version,
 		date: version.lastUpdated,
@@ -368,7 +369,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 
 	download(extension: IGalleryExtension): TPromise<string> {
 		return this.loadCompatibleVersion(extension).then(extension => {
-			const zipPath = path.join(tmpdir(), extension.id);
+			const zipPath = path.join(tmpdir(), extension.uuid);
 			const data = getGalleryExtensionTelemetryData(extension);
 			const startTime = new Date().getTime();
 			const log = duration => this.telemetryService.publicLog('galleryService:downloadVSIX', assign(data, { duration }));
@@ -412,7 +413,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			.withFilter(FilterType.Target, 'Microsoft.VisualStudio.Code')
 			.withFilter(FilterType.ExcludeWithFlags, flagsToString(Flags.Unpublished))
 			.withAssetTypes(AssetType.Manifest, AssetType.VSIX)
-			.withFilter(FilterType.ExtensionId, extension.id);
+			.withFilter(FilterType.ExtensionId, extension.uuid);
 
 		return this.queryGallery(query).then(({ galleryExtensions }) => {
 			const [rawExtension] = galleryExtensions;
@@ -479,7 +480,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 						dep.properties.dependencies.forEach(d => dependenciesSet.set(d));
 					}
 				}
-				result = distinct(result.concat(loadedDependencies), d => d.id);
+				result = distinct(result.concat(loadedDependencies), d => d.uuid);
 				const dependencies = dependenciesSet.elements.filter(d => !ExtensionGalleryService.hasExtensionByName(result, d));
 				return this.getDependenciesReccursively(dependencies, result, root);
 			});

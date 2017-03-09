@@ -61,8 +61,12 @@ export class SelectColorThemeAction extends Action {
 					target = typeof confValue.workspace !== 'undefined' ? ConfigurationTarget.WORKSPACE : ConfigurationTarget.USER;
 				}
 
-				this.themeService.setColorTheme(theme.id, target)
-					.done(null, err => this.messageService.show(Severity.Info, localize('problemChangingTheme', "Problem setting theme: {0}", err)));
+				this.themeService.setColorTheme(theme.id, target).done(null,
+					err => {
+						this.messageService.show(Severity.Info, localize('problemChangingTheme', "Problem setting theme: {0}", err));
+						this.themeService.setColorTheme(currentTheme.id, null);
+					}
+				);
 			};
 
 			const placeHolder = localize('themes.selectTheme', "Select Color Theme");
@@ -123,8 +127,12 @@ class SelectIconThemeAction extends Action {
 					let confValue = this.configurationService.lookup(ICON_THEME_SETTING);
 					target = typeof confValue.workspace !== 'undefined' ? ConfigurationTarget.WORKSPACE : ConfigurationTarget.USER;
 				}
-				this.themeService.setFileIconTheme(theme && theme.id, target)
-					.done(null, err => this.messageService.show(Severity.Info, localize('problemChangingIconTheme', "Problem setting icon theme: {0}", err.message)));
+				this.themeService.setFileIconTheme(theme && theme.id, target).done(null,
+					err => {
+						this.messageService.show(Severity.Info, localize('problemChangingIconTheme', "Problem setting icon theme: {0}", err.message));
+						this.themeService.setFileIconTheme(currentTheme.id, null);
+					}
+				);
 			};
 
 			const placeHolder = localize('themes.selectIconTheme', "Select File Icon Theme");

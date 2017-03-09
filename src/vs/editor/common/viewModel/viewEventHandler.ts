@@ -4,10 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { EmitterEvent } from 'vs/base/common/eventEmitter';
-import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { ScrollEvent } from 'vs/base/common/scrollable';
 
 export class ViewEventHandler {
 
@@ -35,150 +32,158 @@ export class ViewEventHandler {
 
 	// --- begin event handlers
 
-	public onLineMappingChanged(): boolean {
+	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		return false;
 	}
-	public onModelFlushed(): boolean {
+	public onCursorPositionChanged(e: viewEvents.ViewCursorPositionChangedEvent): boolean {
 		return false;
 	}
-	public onModelDecorationsChanged(e: viewEvents.IViewDecorationsChangedEvent): boolean {
+	public onCursorSelectionChanged(e: viewEvents.ViewCursorSelectionChangedEvent): boolean {
 		return false;
 	}
-	public onModelLinesDeleted(e: viewEvents.IViewLinesDeletedEvent): boolean {
+	public onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
 		return false;
 	}
-	public onModelLineChanged(e: viewEvents.IViewLineChangedEvent): boolean {
+	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
 		return false;
 	}
-	public onModelLinesInserted(e: viewEvents.IViewLinesInsertedEvent): boolean {
+	public onFocusChanged(e: viewEvents.ViewFocusChangedEvent): boolean {
 		return false;
 	}
-	public onModelTokensChanged(e: viewEvents.IViewTokensChangedEvent): boolean {
+	public onLineMappingChanged(e: viewEvents.ViewLineMappingChangedEvent): boolean {
 		return false;
 	}
-	public onCursorPositionChanged(e: viewEvents.IViewCursorPositionChangedEvent): boolean {
+	public onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
 		return false;
 	}
-	public onCursorSelectionChanged(e: viewEvents.IViewCursorSelectionChangedEvent): boolean {
+	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
 		return false;
 	}
-	public onCursorRevealRange(e: viewEvents.IViewRevealRangeEvent): boolean {
+	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
 		return false;
 	}
-	public onCursorScrollRequest(e: viewEvents.IViewScrollRequestEvent): boolean {
+	public onRevealRangeRequest(e: viewEvents.ViewRevealRangeRequestEvent): boolean {
 		return false;
 	}
-	public onConfigurationChanged(e: editorCommon.IConfigurationChangedEvent): boolean {
+	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		return false;
 	}
-	public onScrollChanged(e: ScrollEvent): boolean {
+	public onScrollRequest(e: viewEvents.ViewScrollRequestEvent): boolean {
 		return false;
 	}
-	public onZonesChanged(): boolean {
+	public onTokensChanged(e: viewEvents.ViewTokensChangedEvent): boolean {
 		return false;
 	}
-	public onViewFocusChanged(isFocused: boolean): boolean {
+	public onTokensColorsChanged(e: viewEvents.ViewTokensColorsChangedEvent): boolean {
+		return false;
+	}
+	public onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
 		return false;
 	}
 
 	// --- end event handlers
 
-	public handleEvents(events: EmitterEvent[]): void {
+	public handleEvents(events: viewEvents.ViewEvent[]): void {
 
 		let shouldRender = false;
 
 		for (let i = 0, len = events.length; i < len; i++) {
 			let e = events[i];
-			let data = e.getData();
 
-			switch (e.getType()) {
+			switch (e.type) {
 
-				case viewEvents.ViewEventNames.LineMappingChangedEvent:
-					if (this.onLineMappingChanged()) {
+				case viewEvents.ViewEventType.ViewConfigurationChanged:
+					if (this.onConfigurationChanged(e)) {
 						shouldRender = true;
 					}
 					break;
 
-				case viewEvents.ViewEventNames.ModelFlushedEvent:
-					if (this.onModelFlushed()) {
+				case viewEvents.ViewEventType.ViewCursorPositionChanged:
+					if (this.onCursorPositionChanged(e)) {
 						shouldRender = true;
 					}
 					break;
 
-				case viewEvents.ViewEventNames.LinesDeletedEvent:
-					if (this.onModelLinesDeleted(<viewEvents.IViewLinesDeletedEvent>data)) {
+				case viewEvents.ViewEventType.ViewCursorSelectionChanged:
+					if (this.onCursorSelectionChanged(e)) {
 						shouldRender = true;
 					}
 					break;
 
-				case viewEvents.ViewEventNames.LinesInsertedEvent:
-					if (this.onModelLinesInserted(<viewEvents.IViewLinesInsertedEvent>data)) {
+				case viewEvents.ViewEventType.ViewDecorationsChanged:
+					if (this.onDecorationsChanged(e)) {
 						shouldRender = true;
 					}
 					break;
 
-				case viewEvents.ViewEventNames.LineChangedEvent:
-					if (this.onModelLineChanged(<viewEvents.IViewLineChangedEvent>data)) {
+				case viewEvents.ViewEventType.ViewFlushed:
+					if (this.onFlushed(e)) {
 						shouldRender = true;
 					}
 					break;
 
-				case viewEvents.ViewEventNames.TokensChangedEvent:
-					if (this.onModelTokensChanged(<viewEvents.IViewTokensChangedEvent>data)) {
+				case viewEvents.ViewEventType.ViewFocusChanged:
+					if (this.onFocusChanged(e)) {
 						shouldRender = true;
 					}
 					break;
 
-				case viewEvents.ViewEventNames.DecorationsChangedEvent:
-					if (this.onModelDecorationsChanged(<viewEvents.IViewDecorationsChangedEvent>data)) {
+				case viewEvents.ViewEventType.ViewLineMappingChanged:
+					if (this.onLineMappingChanged(e)) {
 						shouldRender = true;
 					}
 					break;
 
-				case viewEvents.ViewEventNames.CursorPositionChangedEvent:
-					if (this.onCursorPositionChanged(<viewEvents.IViewCursorPositionChangedEvent>data)) {
+				case viewEvents.ViewEventType.ViewLinesChanged:
+					if (this.onLinesChanged(e)) {
 						shouldRender = true;
 					}
 					break;
 
-				case viewEvents.ViewEventNames.CursorSelectionChangedEvent:
-					if (this.onCursorSelectionChanged(<viewEvents.IViewCursorSelectionChangedEvent>data)) {
+				case viewEvents.ViewEventType.ViewLinesDeleted:
+					if (this.onLinesDeleted(e)) {
 						shouldRender = true;
 					}
 					break;
 
-				case viewEvents.ViewEventNames.RevealRangeEvent:
-					if (this.onCursorRevealRange(<viewEvents.IViewRevealRangeEvent>data)) {
+				case viewEvents.ViewEventType.ViewLinesInserted:
+					if (this.onLinesInserted(e)) {
 						shouldRender = true;
 					}
 					break;
 
-				case viewEvents.ViewEventNames.ScrollRequestEvent:
-					if (this.onCursorScrollRequest(<viewEvents.IViewScrollRequestEvent>data)) {
+				case viewEvents.ViewEventType.ViewRevealRangeRequest:
+					if (this.onRevealRangeRequest(e)) {
 						shouldRender = true;
 					}
 					break;
 
-				case editorCommon.EventType.ConfigurationChanged:
-					if (this.onConfigurationChanged(<editorCommon.IConfigurationChangedEvent>data)) {
+				case viewEvents.ViewEventType.ViewScrollChanged:
+					if (this.onScrollChanged(e)) {
 						shouldRender = true;
 					}
 					break;
 
-				case viewEvents.ViewEventNames.ViewScrollChanged:
-					if (this.onScrollChanged(<ScrollEvent>data)) {
+				case viewEvents.ViewEventType.ViewScrollRequest:
+					if (this.onScrollRequest(e)) {
 						shouldRender = true;
 					}
 					break;
 
-				case viewEvents.ViewEventNames.ZonesChanged:
-					if (this.onZonesChanged()) {
+				case viewEvents.ViewEventType.ViewTokensChanged:
+					if (this.onTokensChanged(e)) {
 						shouldRender = true;
 					}
 					break;
 
-				case viewEvents.ViewEventNames.ViewFocusChanged:
-					if (this.onViewFocusChanged(<boolean>data)) {
+				case viewEvents.ViewEventType.ViewTokensColorsChanged:
+					if (this.onTokensColorsChanged(e)) {
+						shouldRender = true;
+					}
+					break;
+
+				case viewEvents.ViewEventType.ViewZonesChanged:
+					if (this.onZonesChanged(e)) {
 						shouldRender = true;
 					}
 					break;

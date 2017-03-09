@@ -60,6 +60,7 @@ export class MarkersPanel extends Panel {
 	private messageBox: HTMLElement;
 
 	private markerFocusContextKey: IContextKey<boolean>;
+	private currentFileGotAddedToMarkersData: boolean = false;
 
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -223,12 +224,27 @@ export class MarkersPanel extends Panel {
 	}
 
 	private onMarkerChanged(changedResources: URI[]) {
+		this.currentFileGotAddedToMarkersData = this.currentFileGotAddedToMarkersData || this.isCurrentFileGotAddedToMarkersData(changedResources);
 		this.updateResources(changedResources);
 		this.delayedRefresh.trigger(() => {
 			this.refreshPanel();
 			this.updateRangeHighlights();
-			this.autoReveal();
+			if (this.currentFileGotAddedToMarkersData) {
+				this.autoReveal();
+				this.currentFileGotAddedToMarkersData = false;
+			}
 		});
+	}
+
+	private isCurrentFileGotAddedToMarkersData(changedResources: URI[]) {
+		if (!this.currentActiveFile) {
+			return false;
+		}
+		const resourceForCurrentActiveFile = this.getResourceForCurrentActiveFile();
+		if (resourceForCurrentActiveFile) {
+			return false;
+		}
+		return changedResources.some(r => r.toString() === this.currentActiveFile.toString());
 	}
 
 	private onEditorsChanged(): void {

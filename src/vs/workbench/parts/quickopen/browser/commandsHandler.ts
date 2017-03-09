@@ -13,9 +13,8 @@ import types = require('vs/base/common/types');
 import { language, LANGUAGE_DEFAULT } from 'vs/base/common/platform';
 import { IAction, Action } from 'vs/base/common/actions';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import strings = require('vs/base/common/strings');
 import { Mode, IEntryRunContext, IAutoFocus } from 'vs/base/parts/quickopen/common/quickOpen';
-import { QuickOpenEntryGroup, IHighlight, QuickOpenModel, QuickOpenEntry } from 'vs/base/parts/quickopen/browser/quickOpenModel';
+import { QuickOpenEntryGroup, IHighlight, QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { SyncActionDescriptor, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
@@ -233,7 +232,6 @@ class ActionCommandEntry extends BaseCommandEntry {
 }
 
 export class CommandsHandler extends QuickOpenHandler {
-	private scorerCache: { [key: string]: number };
 
 	constructor(
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
@@ -243,8 +241,6 @@ export class CommandsHandler extends QuickOpenHandler {
 		@IContextKeyService private contextKeyService: IContextKeyService
 	) {
 		super();
-
-		this.scorerCache = Object.create(null);
 	}
 
 	protected includeWorkbenchCommands(): boolean {
@@ -289,13 +285,8 @@ export class CommandsHandler extends QuickOpenHandler {
 		// Remove duplicates
 		entries = arrays.distinct(entries, (entry) => entry.getLabel() + entry.getGroupLabel());
 
-		// Sort
-		if (searchValue) {
-			const normalizedSearchValue = strings.stripWildcards(searchValue).toLowerCase();
-			entries = entries.sort((elementA, elementB) => QuickOpenEntry.compareByScore(elementA, elementB, searchValue, normalizedSearchValue, this.scorerCache));
-		} else {
-			entries = entries.sort((elementA, elementB) => elementA.getLabel().toLowerCase().localeCompare(elementB.getLabel().toLowerCase()));
-		}
+		// Sort by name
+		entries = entries.sort((elementA, elementB) => elementA.getLabel().toLowerCase().localeCompare(elementB.getLabel().toLowerCase()));
 
 		return TPromise.as(new QuickOpenModel(entries));
 	}
@@ -306,9 +297,9 @@ export class CommandsHandler extends QuickOpenHandler {
 
 		for (let i = 0; i < actionDescriptors.length; i++) {
 			const actionDescriptor = actionDescriptors[i];
-			const [keybind] = this.keybindingService.lookupKeybindings(actionDescriptor.id);
-			const keyLabel = keybind ? this.keybindingService.getLabelFor(keybind) : '';
-			const keyAriaLabel = keybind ? this.keybindingService.getAriaLabelFor(keybind) : '';
+			const [keybind] = this.keybindingService.lookupKeybindings2(actionDescriptor.id);
+			const keyLabel = keybind ? keybind.getLabel() : '';
+			const keyAriaLabel = keybind ? keybind.getAriaLabel() : '';
 
 			if (actionDescriptor.label) {
 
@@ -338,9 +329,9 @@ export class CommandsHandler extends QuickOpenHandler {
 		for (let i = 0; i < actions.length; i++) {
 			const action = actions[i];
 
-			const [keybind] = this.keybindingService.lookupKeybindings(action.id);
-			const keyLabel = keybind ? this.keybindingService.getLabelFor(keybind) : '';
-			const keyAriaLabel = keybind ? this.keybindingService.getAriaLabelFor(keybind) : '';
+			const [keybind] = this.keybindingService.lookupKeybindings2(action.id);
+			const keyLabel = keybind ? keybind.getLabel() : '';
+			const keyAriaLabel = keybind ? keybind.getAriaLabel() : '';
 			const label = action.label;
 
 			if (label) {
@@ -365,14 +356,17 @@ export class CommandsHandler extends QuickOpenHandler {
 			const label = action.item.category
 				? nls.localize('cat.title', "{0}: {1}", action.item.category, action.item.title)
 				: action.item.title;
-			const highlights = wordFilter(searchValue, label);
-			if (!highlights) {
-				continue;
+			if (label) {
+				const labelHighlights = wordFilter(searchValue, label);
+				const [keybind] = this.keybindingService.lookupKeybindings2(action.item.id);
+				const keyLabel = keybind ? keybind.getLabel() : '';
+				const keyAriaLabel = keybind ? keybind.getAriaLabel() : '';
+				const alias = action.item.alias ? action.item.alias : null;
+				const aliasHighlights = alias ? wordFilter(searchValue, alias) : null;
+				if (labelHighlights || aliasHighlights) {
+					entries.push(this.instantiationService.createInstance(ActionCommandEntry, keyLabel, keyAriaLabel, label, alias, labelHighlights, aliasHighlights, action));
+				}
 			}
-			const [keybind] = this.keybindingService.lookupKeybindings(action.item.id);
-			const keyLabel = keybind ? this.keybindingService.getLabelFor(keybind) : '';
-			const keyAriaLabel = keybind ? this.keybindingService.getAriaLabelFor(keybind) : '';
-			entries.push(this.instantiationService.createInstance(ActionCommandEntry, keyLabel, keyAriaLabel, label, null, highlights, null, action));
 		}
 
 		return entries;
@@ -391,12 +385,6 @@ export class CommandsHandler extends QuickOpenHandler {
 
 	public getEmptyLabel(searchString: string): string {
 		return nls.localize('noCommandsMatching', "No commands matching");
-	}
-
-	public onClose(canceled: boolean): void {
-
-		// Clear Cache
-		this.scorerCache = Object.create(null);
 	}
 }
 

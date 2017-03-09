@@ -57,21 +57,26 @@ class ConfigClass implements IConfiguration {
 				horizontalHasArrows: false
 			},
 			minimap: {
-				enabled: false
+				enabled: false,
+				renderCharacters: true,
+				maxColumn: 120
 			},
 			fixedOverflowWidgets: false,
 			overviewRulerLanes: 2,
+			overviewRulerBorder: true,
 			cursorBlinking: 'blink',
 			mouseWheelZoom: false,
 			cursorStyle: 'line',
+			mouseStyle: 'text',
 			fontLigatures: false,
 			disableTranslate3d: false,
 			disableMonospaceOptimizations: false,
 			hideCursorInOverviewRuler: false,
 			scrollBeyondLastLine: true,
 			automaticLayout: false,
-			wrappingColumn: 300,
-			wordWrap: false,
+			wordWrap: 'off',
+			wordWrapColumn: 80,
+			wordWrapMinified: true,
 			wrappingIndent: 'same',
 			wordWrapBreakBeforeCharacters: '([{‘“〈《「『【〔（［｛｢£¥＄￡￥+＋',
 			wordWrapBreakAfterCharacters: ' \t})]?|&,;¢°′″‰℃、。｡､￠，．：；？！％・･ゝゞヽヾーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々〻ｧｨｩｪｫｬｭｮｯｰ’”〉》」』】〕）］｝｣',
@@ -93,11 +98,11 @@ class ConfigClass implements IConfiguration {
 			acceptSuggestionOnCommitCharacter: true,
 			snippetSuggestions: 'bottom',
 			emptySelectionClipboard: true,
-			tabCompletion: false,
 			wordBasedSuggestions: true,
 			suggestFontSize: 0,
 			suggestLineHeight: 0,
 			selectionHighlight: true,
+			occurrencesHighlight: true,
 			codeLens: true,
 			referenceInfos: true,
 			folding: true,
@@ -106,6 +111,8 @@ class ConfigClass implements IConfiguration {
 			renderIndentGuides: false,
 			renderLineHighlight: 'line',
 			useTabStops: true,
+			matchBrackets: true,
+			dragAndDrop: false,
 
 			fontFamily: (
 				platform.isMacintosh ? DEFAULT_MAC_FONT_FAMILY : (platform.isLinux ? DEFAULT_LINUX_FONT_FAMILY : DEFAULT_WINDOWS_FONT_FAMILY)
