@@ -58,11 +58,7 @@ class ThemeDocument {
 	}
 
 	private _generateExplanation(selector: string, color: Color): string {
-		let rgba = color.toRGBA();
-		if (rgba.a === 255) {
-			return `${selector}: ${color.toRGBHex().toUpperCase()}`;
-		}
-		return `${selector}: ${color.toRGBAHex().toUpperCase()}`;
+		return `${selector}: ${color.toRGBAHex(true).toUpperCase()}`;
 	}
 
 	public explainTokenColor(scopes: string, color: Color): string {
