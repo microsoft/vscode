@@ -835,7 +835,7 @@ function applyTheme(theme: ColorThemeData, onApply: (theme: ColorThemeData) => T
 		_applyRules(theme.styleSheetContent, colorThemeRulesClassName);
 		return onApply(theme);
 	}, error => {
-		return TPromise.wrapError(nls.localize('error.cannotloadtheme', "Unable to load {0}", theme.path));
+		return TPromise.wrapError(nls.localize('error.cannotloadtheme', "Unable to load {0}: {1}", theme.path, error.message));
 	});
 }
 

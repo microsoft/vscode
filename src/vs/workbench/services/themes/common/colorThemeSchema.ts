@@ -119,7 +119,7 @@ const schema: IJSONSchema = {
 	type: 'object',
 	properties: {
 		colors: themingRegistry.getColorSchema(),
-		syntaxTokens: {
+		tokenColors: {
 			type: 'array',
 			description: nls.localize('schema.colors', 'Colors for syntax highlighting'),
 			items: {

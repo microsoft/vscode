@@ -47,7 +47,7 @@ exports.update = function (srcName, destName) {
 				}
 			}
 			result.name = theme.name;
-			result.syntaxTokens = settings;
+			result.tokenColors = settings;
 			result.colors = colorMap;
 		}
 		fs.writeFileSync(destName, JSON.stringify(result, null, '\t'));

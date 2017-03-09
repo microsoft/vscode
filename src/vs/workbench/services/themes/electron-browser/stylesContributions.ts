@@ -29,8 +29,9 @@ function addSettingMapping(settingId: string, colorId: string) {
 	colorIds.push(colorId);
 }
 
-export function initializeColorMapsFromSettings(resultRules: ITokenColorizationRule[], resultColors: IColorMap): void {
-	for (let rule of resultRules) {
+export function convertSettings(oldSettings: ITokenColorizationRule[], resultRules: ITokenColorizationRule[], resultColors: IColorMap): void {
+	for (let rule of oldSettings) {
+		resultRules.push(rule);
 		if (!rule.scope) {
 			let settings = rule.settings;
 			for (let key in settings) {
@@ -40,6 +41,9 @@ export function initializeColorMapsFromSettings(resultRules: ITokenColorizationR
 					for (let colorId of mappings) {
 						resultColors[colorId] = color;
 					}
+				}
+				if (key !== 'foreground' && key !== 'background') {
+					delete settings[key];
 				}
 			}
 		}

@@ -7,7 +7,7 @@ import Paths = require('vs/base/common/paths');
 import Json = require('vs/base/common/json');
 import { Color } from 'vs/base/common/color';
 import { ExtensionData, ITokenColorizationRule, IColorTheme, IColorMap } from 'vs/workbench/services/themes/common/themeService';
-import { initializeColorMapsFromSettings, generateStyleSheetContent } from 'vs/workbench/services/themes/electron-browser/stylesContributions';
+import { convertSettings, generateStyleSheetContent } from 'vs/workbench/services/themes/electron-browser/stylesContributions';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { getBaseThemeId, getSyntaxThemeId, isDarkTheme, isLightTheme } from 'vs/platform/theme/common/themes';
 import nls = require('vs/nls');
@@ -44,6 +44,17 @@ export class ColorThemeData implements IColorTheme {
 			});
 		}
 		return TPromise.as(null);
+	}
+
+	toThemeFile() {
+		if (!this.isLoaded) {
+			return '';
+		}
+		let content = { name: this.label, colors: {}, tokenColors: this.tokenColors };
+		for (let key in this.colorMap) {
+			content.colors[key] = this.colorMap[key].toRGBAHex(true);
+		}
+		return JSON.stringify(content, null, '\t');
 	}
 
 	isLightTheme() {
@@ -86,8 +97,10 @@ let defaultThemeColors: { [baseTheme: string]: ITokenColorizationRule[] } = {
 
 function _loadThemeDocument(baseTheme: string, themePath: string, resultRules: ITokenColorizationRule[], resultColors: IColorMap): TPromise<any> {
 	return pfs.readFile(themePath).then(content => {
-		let defaultRules = defaultThemeColors[baseTheme] || [];
-		resultRules.push(...defaultRules);
+		if (resultRules.length === 0) {
+			let defaultRules = defaultThemeColors[baseTheme] || [];
+			resultRules.push(...defaultRules);
+		}
 		if (Paths.extname(themePath) === '.json') {
 			let errors: Json.ParseError[] = [];
 			let contentValue = Json.parse(content.toString(), errors);
@@ -101,14 +114,13 @@ function _loadThemeDocument(baseTheme: string, themePath: string, resultRules: I
 			return includeCompletes.then(_ => {
 				if (Array.isArray(contentValue.settings)) {
 					// legacy information
-					resultRules.push(...contentValue.settings);
-					initializeColorMapsFromSettings(contentValue.settings, resultColors);
+					convertSettings(contentValue.settings, resultRules, resultColors);
 				} else {
-					if (!Array.isArray(contentValue.syntaxTokens) && typeof contentValue.colors !== 'object') {
-						return TPromise.wrapError(new Error(nls.localize({ key: 'error.invalidformat', comment: ['{0} will be replaced by a path. Values in quotes should not be translated.'] }, "Problem parsing JSON theme file: {0}. Expecting 'syntaxTokens' and 'colors'.")));
+					if (!Array.isArray(contentValue.tokenColors) && typeof contentValue.colors !== 'object') {
+						return TPromise.wrapError(new Error(nls.localize({ key: 'error.invalidformat', comment: ['{0} will be replaced by a path. Values in quotes should not be translated.'] }, "Problem parsing JSON theme file: {0}. Expecting 'tokenColors' and 'colors'.", themePath)));
 					}
-					if (contentValue.syntaxTokens) {
-						resultRules.push(...contentValue.syntaxTokens);
+					if (contentValue.tokenColors) {
+						resultRules.push(...contentValue.tokenColors);
 					}
 					if (contentValue.colors) {
 						for (let colorId in contentValue.colors) {
@@ -126,11 +138,12 @@ function _loadThemeDocument(baseTheme: string, themePath: string, resultRules: I
 			if (!Array.isArray(settings)) {
 				return TPromise.wrapError(new Error(nls.localize('error.plist.invalidformat', "Problem parsing theme file: {0}. 'settings' is not array.")));
 			}
-			resultRules.push(...settings);
-			initializeColorMapsFromSettings(settings, resultColors);
+			convertSettings(settings, resultRules, resultColors);
 			return TPromise.as(null);
 		} catch (e) {
 			return TPromise.wrapError(new Error(nls.localize('error.cannotparse', "Problems parsing theme file: {0}", e.message)));
 		}
+	}, error => {
+		return TPromise.wrapError(new Error(nls.localize('error.cannotload', "Problems loading theme file {0}: {1}", themePath, error.message)));
 	});
 }

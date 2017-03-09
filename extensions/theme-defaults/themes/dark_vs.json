@@ -1,6 +1,8 @@
 {
-	"name": "Dark Visual Studio",
-	"settings": [
+	"$schema": "vscode://schemas/color-theme",
+	"name": "Dark (Visual Studio)",
+	"include": "./dark_defaults.json",
+	"tokenColors": [
 		{
 			"settings": {
 				"foreground": "#D4D4D4",
@@ -25,7 +27,6 @@
 				"foreground": "#000080"
 			}
 		},
-
 		{
 			"scope": "comment",
 			"settings": {
@@ -78,9 +79,7 @@
 				"entity.other.attribute-name.parent-selector.css",
 				"entity.other.attribute-name.pseudo-class.css",
 				"entity.other.attribute-name.pseudo-element.css",
-
 				"source.css.less entity.other.attribute-name.id",
-
 				"entity.other.attribute-name.attribute.scss",
 				"entity.other.attribute-name.scss"
 			],
@@ -282,7 +281,10 @@
 			}
 		},
 		{
-			"scope": ["keyword.operator.new", "keyword.operator.expression"],
+			"scope": [
+				"keyword.operator.new",
+				"keyword.operator.expression"
+			],
 			"settings": {
 				"foreground": "#569cd6"
 			}
@@ -316,7 +318,10 @@
 		},
 		{
 			"name": "coloring of the Java import and package identifiers",
-			"scope": ["storage.modifier.import.java", "storage.modifier.package.java"],
+			"scope": [
+				"storage.modifier.import.java",
+				"storage.modifier.package.java"
+			],
 			"settings": {
 				"foreground": "#d4d4d4"
 			}
