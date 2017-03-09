@@ -248,7 +248,7 @@ class DefineKeybindingLauncherWidget implements IOverlayWidget {
 		this._domNode.className = 'defineKeybindingLauncher';
 		this._domNode.style.display = 'none';
 		this._isVisible = false;
-		let [keybinding] = keybindingService.lookupKeybindings2(DefineKeybindingAction.ID);
+		let keybinding = keybindingService.lookupKeybinding(DefineKeybindingAction.ID);
 		let extra = '';
 		if (keybinding) {
 			extra += ' (' + keybinding.getLabel() + ')';

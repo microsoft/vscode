@@ -79,8 +79,8 @@ export class MockKeybindingService2 implements IKeybindingService {
 		return [];
 	}
 
-	public lookupKeybindings2(commandId: string): ResolvedKeybinding[] {
-		return [];
+	public lookupKeybinding(commandId: string): ResolvedKeybinding {
+		return null;
 	}
 
 	public customKeybindingsCount(): number {

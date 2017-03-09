@@ -45,7 +45,7 @@ export abstract class AbstractDebugAction extends Action {
 	}
 
 	public get tooltip(): string {
-		const [keybinding] = this.keybindingService.lookupKeybindings2(this.id);
+		const keybinding = this.keybindingService.lookupKeybinding(this.id);
 		const keybindingLabel = keybinding && keybinding.getLabel();
 
 		return keybindingLabel ? `${this.label} (${keybindingLabel})` : this.label;

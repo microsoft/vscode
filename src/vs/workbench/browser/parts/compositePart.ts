@@ -340,9 +340,9 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			compositeTitle = compositeDescriptor.name;
 		}
 
-		let [keybinding] = this.keybindingService.lookupKeybindings2(compositeId).map(k => k.getLabel());
+		let keybinding = this.keybindingService.lookupKeybinding(compositeId);
 
-		this.titleLabel.updateTitle(compositeId, compositeTitle, keybinding);
+		this.titleLabel.updateTitle(compositeId, compositeTitle, keybinding ? keybinding.getLabel() : undefined);
 
 		this.toolBar.setAriaLabel(nls.localize('ariaCompositeToolbarLabel', "{0} actions", compositeTitle));
 	}
@@ -422,9 +422,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 				actionItemProvider: (action: Action) => this.actionItemProvider(action),
 				orientation: ActionsOrientation.HORIZONTAL,
 				getKeyBinding: (action) => {
-					const [kb] = this.keybindingService.lookupKeybindings2(action.id);
-
-					return kb;
+					return this.keybindingService.lookupKeybinding(action.id);
 				},
 			});
 		});

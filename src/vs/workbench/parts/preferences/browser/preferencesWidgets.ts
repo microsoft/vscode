@@ -326,7 +326,7 @@ export class FloatingClickWidget extends Widget implements IOverlayWidget {
 	) {
 		super();
 		if (keyBindingAction) {
-			let [keybinding] = keybindingService.lookupKeybindings2(keyBindingAction);
+			let keybinding = keybindingService.lookupKeybinding(keyBindingAction);
 			if (keybinding) {
 				this.label += ' (' + keybinding.getLabel() + ')';
 			}

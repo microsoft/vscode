@@ -156,7 +156,6 @@ export class Controller extends treedefaults.DefaultController {
 	}
 
 	private _keybindingFor(action: IAction): ResolvedKeybinding {
-		var [kb] = this._keybindingService.lookupKeybindings2(action.id);
-		return kb;
+		return this._keybindingService.lookupKeybinding(action.id);
 	}
 }

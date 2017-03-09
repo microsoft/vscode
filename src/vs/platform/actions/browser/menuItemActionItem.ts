@@ -155,7 +155,7 @@ class MenuItemActionItem extends ActionItem {
 
 	_updateTooltip(): void {
 		const element = this.$e.getHTMLElement();
-		const [keybinding] = this._keybindingService.lookupKeybindings2(this._command.id);
+		const keybinding = this._keybindingService.lookupKeybinding(this._command.id);
 		const keybindingLabel = keybinding && keybinding.getLabel();
 
 		element.title = keybindingLabel
