@@ -17,7 +17,7 @@ import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstrac
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { KeybindingResolver, IOSupport } from 'vs/platform/keybinding/common/keybindingResolver';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IKeybindingEvent, IKeybindingItem, IUserFriendlyKeybinding, KeybindingSource } from 'vs/platform/keybinding/common/keybinding';
+import { ResolvedKeybinding, IKeybindingEvent, IKeybindingItem, IUserFriendlyKeybinding, KeybindingSource } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingRule, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Registry } from 'vs/platform/platform';
@@ -117,6 +117,45 @@ let keybindingsExtPoint = ExtensionsRegistry.registerExtensionPoint<ContributedK
 	]
 });
 
+export class FancyResolvedKeybinding extends ResolvedKeybinding {
+
+	private readonly _actual: Keybinding;
+
+	constructor(actual: Keybinding) {
+		super();
+		this._actual = actual;
+	}
+
+	public getLabel(): string {
+		return KeybindingLabels.toCustomLabel(this._actual, getNativeLabelProvider());
+	}
+
+	public getAriaLabel(): string {
+		return KeybindingLabels.toCustomLabel(this._actual, getNativeAriaLabelProvider());
+	}
+
+	public getHTMLLabel(): IHTMLContentElement[] {
+		return KeybindingLabels.toCustomHTMLLabel(this._actual, getNativeLabelProvider());
+	}
+
+	public getElectronAccelerator(): string {
+		if (platform.isWindows) {
+			// electron menus always do the correct rendering on Windows
+			return KeybindingLabels._toElectronAccelerator(this._actual);
+		}
+
+		let usLabel = KeybindingLabels._toUSLabel(this._actual);
+		let label = this.getLabel();
+		if (usLabel !== label) {
+			// electron menus are incorrect in rendering (linux) and in rendering and interpreting (mac)
+			// for non US standard keyboard layouts
+			return null;
+		}
+
+		return KeybindingLabels._toElectronAccelerator(this._actual);
+	}
+}
+
 export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
 	private _cachedResolver: KeybindingResolver;
@@ -210,6 +249,10 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		}
 
 		return extraUserKeybindings.map((k, i) => IOSupport.readKeybindingItem(k, i));
+	}
+
+	protected _createResolvedKeybinding(kb: Keybinding): ResolvedKeybinding {
+		return new FancyResolvedKeybinding(kb);
 	}
 
 	public getLabelFor(keybinding: Keybinding): string {
