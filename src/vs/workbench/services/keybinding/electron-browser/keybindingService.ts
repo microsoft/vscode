@@ -7,7 +7,7 @@
 import * as nls from 'vs/nls';
 import { IHTMLContentElement } from 'vs/base/common/htmlContent';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { Keybinding } from 'vs/base/common/keyCodes';
+import { ResolvedKeybinding, Keybinding } from 'vs/base/common/keyCodes';
 import { KeybindingLabels } from 'vs/base/common/keybinding';
 import * as platform from 'vs/base/common/platform';
 import { toDisposable } from 'vs/base/common/lifecycle';
@@ -17,7 +17,7 @@ import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstrac
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { KeybindingResolver, IOSupport } from 'vs/platform/keybinding/common/keybindingResolver';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ResolvedKeybinding, IKeybindingEvent, IKeybindingItem, IUserFriendlyKeybinding, KeybindingSource } from 'vs/platform/keybinding/common/keybinding';
+import { IKeybindingEvent, IKeybindingItem, IUserFriendlyKeybinding, KeybindingSource } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingRule, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Registry } from 'vs/platform/platform';
@@ -261,23 +261,6 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
 	public getLabelFor(keybinding: Keybinding): string {
 		return KeybindingLabels.toCustomLabel(keybinding, getNativeLabelProvider());
-	}
-
-	public getElectronAcceleratorFor(keybinding: Keybinding): string {
-		if (platform.isWindows) {
-			// electron menus always do the correct rendering on Windows
-			return super.getElectronAcceleratorFor(keybinding);
-		}
-
-		let usLabel = KeybindingLabels._toUSLabel(keybinding);
-		let label = this.getLabelFor(keybinding);
-		if (usLabel !== label) {
-			// electron menus are incorrect in rendering (linux) and in rendering and interpreting (mac)
-			// for non US standard keyboard layouts
-			return null;
-		}
-
-		return super.getElectronAcceleratorFor(keybinding);
 	}
 
 	private _handleKeybindingsExtensionPointUser(isBuiltin: boolean, keybindings: ContributedKeyBinding | ContributedKeyBinding[], collector: ExtensionMessageCollector): boolean {

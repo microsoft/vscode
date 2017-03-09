@@ -6,14 +6,14 @@
 
 import * as nls from 'vs/nls';
 import { IHTMLContentElement } from 'vs/base/common/htmlContent';
-import { SimpleKeybinding, Keybinding } from 'vs/base/common/keyCodes';
+import { ResolvedKeybinding, SimpleKeybinding, Keybinding } from 'vs/base/common/keyCodes';
 import { KeybindingLabels } from 'vs/base/common/keybinding';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { ICommandService, CommandsRegistry, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { KeybindingResolver, IResolveResult } from 'vs/platform/keybinding/common/keybindingResolver';
-import { ResolvedKeybinding, IKeybindingEvent, IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IKeybindingEvent, IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService, IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { IMessageService } from 'vs/platform/message/common/message';
@@ -91,16 +91,12 @@ export abstract class AbstractKeybindingService implements IKeybindingService {
 		return this._onDidUpdateKeybindings ? this._onDidUpdateKeybindings.event : Event.None; // Sinon stubbing walks properties on prototype
 	}
 
-	public resolveKeybinding(keybinding: SimpleKeybinding): ResolvedKeybinding {
+	public resolveKeybinding(keybinding: Keybinding): ResolvedKeybinding {
 		return this._createResolvedKeybinding(keybinding);
 	}
 
 	public getLabelFor(keybinding: Keybinding): string {
 		return KeybindingLabels._toUSLabel(keybinding);
-	}
-
-	public getElectronAcceleratorFor(keybinding: Keybinding): string {
-		return KeybindingLabels._toElectronAccelerator(keybinding);
 	}
 
 	public getDefaultKeybindings(): string {
