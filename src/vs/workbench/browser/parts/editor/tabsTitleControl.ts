@@ -15,7 +15,7 @@ import { MIME_BINARY } from 'vs/base/common/mime';
 import { shorten } from 'vs/base/common/labels';
 import { ActionRunner, IAction } from 'vs/base/common/actions';
 import { Position, IEditorInput, Verbosity } from 'vs/platform/editor/common/editor';
-import { IEditorGroup, toResource } from 'vs/workbench/common/editor';
+import { IEditorGroup, IGroupEvent, toResource } from 'vs/workbench/common/editor';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { EditorLabel } from 'vs/workbench/browser/labels';
@@ -54,6 +54,7 @@ export class TabsTitleControl extends TitleControl {
 	private editorLabels: EditorLabel[];
 	private scrollbar: ScrollableElement;
 	private tabDisposeables: IDisposable[];
+	private skipOnceRevealActiveTab: boolean;
 
 	constructor(
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -73,6 +74,7 @@ export class TabsTitleControl extends TitleControl {
 
 		this.tabDisposeables = [];
 		this.editorLabels = [];
+		this.skipOnceRevealActiveTab = false;
 	}
 
 	public setContext(group: IEditorGroup): void {
@@ -372,7 +374,7 @@ export class TabsTitleControl extends TitleControl {
 		tabContainer.appendChild(tabCloseContainer);
 
 		const bar = new ActionBar(tabCloseContainer, { ariaLabel: nls.localize('araLabelTabActions', "Tab actions"), actionRunner: new TabActionRunner(() => this.context, index) });
-		bar.push(this.closeEditorAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(this.closeEditorAction) });
+		bar.push(this.closeEditorNoLayoutTitleAreaAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(this.closeEditorNoLayoutTitleAreaAction) });
 
 		// Eventing
 		const disposable = this.hookTabListeners(tabContainer, index);
@@ -396,25 +398,29 @@ export class TabsTitleControl extends TitleControl {
 			scrollWidth: totalContainerWidth
 		});
 
-		// Always reveal the active one
-		const containerScrollPosX = this.tabsContainer.scrollLeft;
-		const activeTabPosX = this.activeTab.offsetLeft;
-		const activeTabWidth = this.activeTab.offsetWidth;
-		const activeTabFits = activeTabWidth <= visibleContainerWidth;
+		// Do not reveal active tab if told to skip once
+		if (this.skipOnceRevealActiveTab) {
+			this.skipOnceRevealActiveTab = false;
+		} else {
+			const containerScrollPosX = this.tabsContainer.scrollLeft;
+			const activeTabPosX = this.activeTab.offsetLeft;
+			const activeTabWidth = this.activeTab.offsetWidth;
+			const activeTabFits = activeTabWidth <= visibleContainerWidth;
 
-		// Tab is overflowing to the right: Scroll minimally until the element is fully visible to the right
-		// Note: only try to do this if we actually have enough width to give to show the tab fully!
-		if (activeTabFits && containerScrollPosX + visibleContainerWidth < activeTabPosX + activeTabWidth) {
-			this.scrollbar.updateState({
-				scrollLeft: containerScrollPosX + ((activeTabPosX + activeTabWidth) /* right corner of tab */ - (containerScrollPosX + visibleContainerWidth) /* right corner of view port */)
-			});
-		}
+			// Tab is overflowing to the right: Scroll minimally until the element is fully visible to the right
+			// Note: only try to do this if we actually have enough width to give to show the tab fully!
+			if (activeTabFits && containerScrollPosX + visibleContainerWidth < activeTabPosX + activeTabWidth) {
+				this.scrollbar.updateState({
+					scrollLeft: containerScrollPosX + ((activeTabPosX + activeTabWidth) /* right corner of tab */ - (containerScrollPosX + visibleContainerWidth) /* right corner of view port */)
+				});
+			}
 
-		// Tab is overlflowng to the left or does not fit: Scroll it into view to the left
-		else if (containerScrollPosX > activeTabPosX || !activeTabFits) {
-			this.scrollbar.updateState({
-				scrollLeft: this.activeTab.offsetLeft
-			});
+			// Tab is overflowing to the left or does not fit: Scroll it into view to the left
+			else if (containerScrollPosX > activeTabPosX || !activeTabFits) {
+				this.scrollbar.updateState({
+					scrollLeft: this.activeTab.offsetLeft
+				});
+			}
 		}
 	}
 
@@ -438,6 +444,7 @@ export class TabsTitleControl extends TitleControl {
 
 			if (e.button === 1 /* Middle Button */) {
 				const { editor, position } = this.toTabContext(index);
+				this.skipOnceRevealActiveTab = true;
 
 				this.editorService.closeEditor(position, editor).done(null, errors.onUnexpectedError);
 			}
@@ -644,6 +651,12 @@ export class TabsTitleControl extends TitleControl {
 		const isCopy = (e.ctrlKey && !isMacintosh) || (e.altKey && isMacintosh);
 
 		return !isCopy || source.id === target.id;
+	}
+
+	protected onEditorClosed(e: IGroupEvent): void {
+		if (!e.layoutTitleArea) {
+			this.skipOnceRevealActiveTab = true;
+		}
 	}
 }
 

@@ -203,6 +203,11 @@ export interface IEditorInput extends IDisposable {
 	 * Returns if the other object matches this input.
 	 */
 	matches(other: any): boolean;
+
+	/**
+	 * Called when this input is to be closed without layout title area.
+	 */
+	prepareClosingNoLayoutTitleArea(): void;
 }
 
 export interface IEditorOptions {

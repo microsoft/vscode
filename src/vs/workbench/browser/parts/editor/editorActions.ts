@@ -519,6 +519,25 @@ export class CloseEditorAction extends Action {
 	}
 }
 
+export class CloseEditorNoLayoutTitleAreaAction extends CloseEditorAction {
+
+	constructor(
+		id: string,
+		label: string,
+		editorGroupService: IEditorGroupService,
+		editorService: IWorkbenchEditorService
+	) {
+		super(id, label, editorGroupService, editorService);
+	}
+
+	public run(context?: IEditorContext): TPromise<any> {
+		if (context && context.editor) {
+			context.editor.prepareClosingNoLayoutTitleArea();
+		}
+		return super.run(context);
+	}
+}
+
 export class RevertAndCloseEditorAction extends Action {
 
 	public static ID = 'workbench.action.revertAndCloseActiveEditor';
@@ -528,6 +547,7 @@ export class RevertAndCloseEditorAction extends Action {
 		id: string,
 		label: string,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorGroupService private groupService: IEditorGroupService
 	) {
 		super(id, label);
 	}

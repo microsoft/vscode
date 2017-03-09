@@ -138,6 +138,7 @@ export abstract class EditorInput implements IEditorInput {
 	protected _onDidChangeLabel: Emitter<void>;
 
 	private disposed: boolean;
+	private closingNoLayoutTitleArea: boolean;
 
 	constructor() {
 		this._onDidChangeDirty = new Emitter<void>();
@@ -145,6 +146,7 @@ export abstract class EditorInput implements IEditorInput {
 		this._onDispose = new Emitter<void>();
 
 		this.disposed = false;
+		this.closingNoLayoutTitleArea = false;
 	}
 
 	/**
@@ -289,6 +291,20 @@ export abstract class EditorInput implements IEditorInput {
 	 */
 	public isDisposed(): boolean {
 		return this.disposed;
+	}
+
+	/**
+	 * Called when this input is to be closed without layout title area.
+	 */
+	public prepareClosingNoLayoutTitleArea(): void {
+		this.closingNoLayoutTitleArea = true;
+	}
+
+	/**
+	 * Returns true if this input is closing without layout title area.
+	 */
+	public isClosingNoLayoutTitleArea(): boolean {
+		return this.closingNoLayoutTitleArea;
 	}
 }
 
@@ -886,6 +902,7 @@ export interface IGroupEvent {
 	editor: IEditorInput;
 	pinned: boolean;
 	index: number;
+	layoutTitleArea: boolean;
 }
 
 export type GroupIdentifier = number;
