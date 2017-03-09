@@ -259,7 +259,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		return new FancyResolvedKeybinding(kb);
 	}
 
-	public getLabelFor(keybinding: Keybinding): string {
+	protected getLabelFor(keybinding: Keybinding): string {
 		return KeybindingLabels.toCustomLabel(keybinding, getNativeLabelProvider());
 	}
 

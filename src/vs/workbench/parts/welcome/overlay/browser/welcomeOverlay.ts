@@ -178,9 +178,9 @@ class WelcomeOverlay {
 				}
 				$(div).span({ 'class': 'label' }).text(label);
 				if (command) {
-					const shortcut = this.keybindingService.lookupKeybindings(command)
+					const shortcut = this.keybindingService.lookupKeybindings2(command)
 						.slice(0, 1)
-						.map(k => this.keybindingService.getLabelFor(k))[0];
+						.map(k => k.getLabel())[0];
 					if (shortcut) {
 						$(div).span({ 'class': 'shortcut' }).text(shortcut);
 					}

@@ -155,8 +155,8 @@ class MenuItemActionItem extends ActionItem {
 
 	_updateTooltip(): void {
 		const element = this.$e.getHTMLElement();
-		const [keybinding] = this._keybindingService.lookupKeybindings(this._command.id);
-		const keybindingLabel = keybinding && this._keybindingService.getLabelFor(keybinding);
+		const [keybinding] = this._keybindingService.lookupKeybindings2(this._command.id);
+		const keybindingLabel = keybinding && keybinding.getLabel();
 
 		element.title = keybindingLabel
 			? localize('titleAndKb', "{0} ({1})", this._command.label, keybindingLabel)
