@@ -13,7 +13,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { MainThreadWorkspaceShape, ExtHostDocumentSaveParticipantShape } from 'vs/workbench/api/node/extHost.protocol';
 import { TextEdit } from 'vs/workbench/api/node/extHostTypes';
 import { fromRange, TextDocumentSaveReason } from 'vs/workbench/api/node/extHostTypeConverters';
-import { IResourceEdit } from 'vs/editor/common/services/bulkEdit';
+import { IResourceTextEdit } from 'vs/editor/common/services/bulkEdit';
 import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import * as vscode from 'vscode';
@@ -103,8 +103,8 @@ export class ExtHostDocumentSaveParticipant extends ExtHostDocumentSaveParticipa
 
 		const promises: TPromise<any | vscode.TextEdit[]>[] = [];
 
-		const {document, reason} = stubEvent;
-		const {version} = document;
+		const { document, reason } = stubEvent;
+		const { version } = document;
 
 		const event = Object.freeze(<vscode.TextDocumentWillSaveEvent>{
 			document,
@@ -134,10 +134,10 @@ export class ExtHostDocumentSaveParticipant extends ExtHostDocumentSaveParticipa
 
 		}).then(values => {
 
-			const edits: IResourceEdit[] = [];
+			const edits: IResourceTextEdit[] = [];
 			for (const value of values) {
 				if (Array.isArray(value) && (<vscode.TextEdit[]>value).every(e => e instanceof TextEdit)) {
-					for (const {newText, range} of value) {
+					for (const { newText, range } of value) {
 						edits.push({
 							resource: <URI>document.uri,
 							range: fromRange(range),

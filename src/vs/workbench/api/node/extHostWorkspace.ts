@@ -8,7 +8,7 @@ import URI from 'vs/base/common/uri';
 import { normalize } from 'vs/base/common/paths';
 import { relative } from 'path';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
-import { IResourceEdit } from 'vs/editor/common/services/bulkEdit';
+import { IResourceTextEdit } from 'vs/editor/common/services/bulkEdit';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { fromRange } from 'vs/workbench/api/node/extHostTypeConverters';
 import { MainContext, MainThreadWorkspaceShape } from './extHost.protocol';
@@ -70,7 +70,7 @@ export class ExtHostWorkspace {
 
 	appyEdit(edit: vscode.WorkspaceEdit): TPromise<boolean> {
 
-		let resourceEdits: IResourceEdit[] = [];
+		let resourceEdits: IResourceTextEdit[] = [];
 
 		let entries = edit.entries();
 		for (let entry of entries) {

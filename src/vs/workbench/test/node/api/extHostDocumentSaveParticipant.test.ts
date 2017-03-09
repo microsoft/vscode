@@ -13,7 +13,7 @@ import { TextDocumentSaveReason, TextEdit, Position } from 'vs/workbench/api/nod
 import { MainThreadWorkspaceShape } from 'vs/workbench/api/node/extHost.protocol';
 import { ExtHostDocumentSaveParticipant } from 'vs/workbench/api/node/extHostDocumentSaveParticipant';
 import { OneGetThreadService } from './testThreadService';
-import { IResourceEdit } from 'vs/editor/common/services/bulkEdit';
+import { IResourceTextEdit } from 'vs/editor/common/services/bulkEdit';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import * as vscode from 'vscode';
 
@@ -252,7 +252,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 
 	test('event delivery, pushEdits sync', () => {
 
-		let edits: IResourceEdit[];
+		let edits: IResourceTextEdit[];
 		const participant = new ExtHostDocumentSaveParticipant(documents, new class extends MainThreadWorkspaceShape {
 			$applyWorkspaceEdit(_edits) {
 				edits = _edits;
@@ -273,7 +273,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 
 	test('event delivery, concurrent change', () => {
 
-		let edits: IResourceEdit[];
+		let edits: IResourceTextEdit[];
 		const participant = new ExtHostDocumentSaveParticipant(documents, new class extends MainThreadWorkspaceShape {
 			$applyWorkspaceEdit(_edits) {
 				edits = _edits;
@@ -306,7 +306,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 	test('event delivery, two listeners -> two document states', () => {
 
 		const participant = new ExtHostDocumentSaveParticipant(documents, new class extends MainThreadWorkspaceShape {
-			$applyWorkspaceEdit(_edits: IResourceEdit[]) {
+			$applyWorkspaceEdit(_edits: IResourceTextEdit[]) {
 
 				for (const { resource, newText, range } of _edits) {
 					documents.$acceptModelChanged(resource.toString(), [{
