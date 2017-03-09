@@ -154,6 +154,10 @@ export class FancyResolvedKeybinding extends ResolvedKeybinding {
 
 		return KeybindingLabels._toElectronAccelerator(this._actual);
 	}
+
+	public getUserSettingsLabel(): string {
+		return KeybindingLabels.toUserSettingsLabel(this._actual);
+	}
 }
 
 export class WorkbenchKeybindingService extends AbstractKeybindingService {
@@ -257,10 +261,6 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
 	public getLabelFor(keybinding: Keybinding): string {
 		return KeybindingLabels.toCustomLabel(keybinding, getNativeLabelProvider());
-	}
-
-	public getHTMLLabelFor(keybinding: Keybinding): IHTMLContentElement[] {
-		return KeybindingLabels.toCustomHTMLLabel(keybinding, getNativeLabelProvider());
 	}
 
 	public getElectronAcceleratorFor(keybinding: Keybinding): string {
