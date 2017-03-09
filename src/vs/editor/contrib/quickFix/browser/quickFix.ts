@@ -93,10 +93,10 @@ export class QuickFixController implements IEditorContribution {
 	}
 
 	private _updateLightBulbTitle(): void {
-		const [kb] = this._keybindingService.lookupKeybindings(QuickFixAction.Id);
+		const [kb] = this._keybindingService.lookupKeybindings2(QuickFixAction.Id);
 		let title: string;
 		if (kb) {
-			title = nls.localize('quickFixWithKb', "Show Fixes ({0})", this._keybindingService.getLabelFor(kb));
+			title = nls.localize('quickFixWithKb', "Show Fixes ({0})", kb.getLabel());
 		} else {
 			title = nls.localize('quickFix', "Show Fixes");
 		}

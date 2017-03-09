@@ -60,7 +60,6 @@ export interface IKeybindingService {
 
 	onDidUpdateKeybindings: Event<IKeybindingEvent>;
 
-	getLabelFor(keybinding: Keybinding): string;
 	resolveKeybinding(keybinding: Keybinding): ResolvedKeybinding;
 
 	getDefaultKeybindings(): string;

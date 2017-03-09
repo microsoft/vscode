@@ -44,7 +44,7 @@ export class PanelAction extends Action {
 	}
 
 	private getKeybindingLabel(id: string): string {
-		const [keys] = this.keybindingService.lookupKeybindings(id).map(k => this.keybindingService.getLabelFor(k));
+		const [keys] = this.keybindingService.lookupKeybindings2(id).map(k => k.getLabel());
 
 		return keys;
 	}

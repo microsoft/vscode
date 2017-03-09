@@ -167,8 +167,8 @@ export class WatermarkContribution implements IWorkbenchContribution {
 					dl.element('dt', {}, dt => dt.text(entry.text));
 					dl.element('dd', {}, dd => dd.innerHtml(
 						entry.ids
-							.map(id => this.keybindingService.lookupKeybindings(id).slice(0, 1)
-								.map(k => `<span class="shortcuts">${this.keybindingService.getLabelFor(k)}</span>`)
+							.map(id => this.keybindingService.lookupKeybindings2(id).slice(0, 1)
+								.map(k => `<span class="shortcuts">${k.getLabel()}</span>`)
 								.join('') || `<span class="unbound">${UNBOUND}</span>`)
 							.join(' / ')
 					));

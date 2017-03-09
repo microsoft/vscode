@@ -44,7 +44,8 @@ export function appendKeyBindingLabel(label: string, keyBinding: number | Keybin
 	} else {
 		kb = keyBinding;
 	}
-	return kb ? label + ' (' + keyBindingService2.getLabelFor(kb) + ')' : label;
+	let resolvedKb = keyBindingService2.resolveKeybinding(kb);
+	return kb ? label + ' (' + resolvedKb.getLabel() + ')' : label;
 }
 
 export class ToggleCaseSensitiveAction extends Action {

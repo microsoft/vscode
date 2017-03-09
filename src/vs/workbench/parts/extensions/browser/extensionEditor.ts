@@ -670,7 +670,8 @@ export class ExtensionEditor extends BaseEditor {
 		}
 
 		const keyBinding = createKeybinding(KeybindingLabels.fromUserSettingsLabel(key || rawKeyBinding.key));
-		const result = this.keybindingService.getLabelFor(keyBinding);
+		const resolvedKeybinding = this.keybindingService.resolveKeybinding(keyBinding);
+		const result = resolvedKeybinding.getLabel();
 		return result === 'unknown' ? null : result;
 	}
 

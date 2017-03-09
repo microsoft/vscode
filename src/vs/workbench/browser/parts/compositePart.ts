@@ -340,7 +340,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			compositeTitle = compositeDescriptor.name;
 		}
 
-		let [keybinding] = this.keybindingService.lookupKeybindings(compositeId).map(k => this.keybindingService.getLabelFor(k));
+		let [keybinding] = this.keybindingService.lookupKeybindings2(compositeId).map(k => k.getLabel());
 
 		this.titleLabel.updateTitle(compositeId, compositeTitle, keybinding);
 

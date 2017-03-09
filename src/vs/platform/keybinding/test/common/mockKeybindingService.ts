@@ -5,7 +5,6 @@
 'use strict';
 
 import { ResolvedKeybinding, Keybinding } from 'vs/base/common/keyCodes';
-import { KeybindingLabels } from 'vs/base/common/keybinding';
 import Event from 'vs/base/common/event';
 import { IKeybindingService, IKeybindingEvent } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKey, IContextKeyService, IContextKeyServiceTarget, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -66,10 +65,6 @@ export class MockKeybindingService2 implements IKeybindingService {
 
 	public get onDidUpdateKeybindings(): Event<IKeybindingEvent> {
 		return Event.None;
-	}
-
-	public getLabelFor(keybinding: Keybinding): string {
-		return KeybindingLabels._toUSLabel(keybinding);
 	}
 
 	public getDefaultKeybindings(): string {

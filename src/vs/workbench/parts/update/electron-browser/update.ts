@@ -63,13 +63,13 @@ export function loadReleaseNotes(accessor: ServicesAccessor, version: string): T
 
 	const patchKeybindings = (text: string): string => {
 		const kb = (match: string, kb: string) => {
-			const [keybinding] = keybindingService.lookupKeybindings(kb);
+			const [keybinding] = keybindingService.lookupKeybindings2(kb);
 
 			if (!keybinding) {
 				return unassigned;
 			}
 
-			return keybindingService.getLabelFor(keybinding);
+			return keybinding.getLabel();
 		};
 
 		const kbstyle = (match: string, kb: string) => {
@@ -85,7 +85,9 @@ export function loadReleaseNotes(accessor: ServicesAccessor, version: string): T
 				return unassigned;
 			}
 
-			return keybindingService.getLabelFor(keybinding);
+			const resolvedKeybinding = keybindingService.resolveKeybinding(keybinding);
+
+			return resolvedKeybinding.getLabel();
 		};
 
 		return text
