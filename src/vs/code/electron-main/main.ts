@@ -368,7 +368,6 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 function createPaths(environmentService: IEnvironmentService): TPromise<any> {
 	const paths = [
 		environmentService.appSettingsHome,
-		environmentService.userProductHome,
 		environmentService.extensionsPath,
 		environmentService.nodeCachedDataDir
 	];
