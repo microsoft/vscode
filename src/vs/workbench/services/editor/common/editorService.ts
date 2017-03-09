@@ -71,7 +71,7 @@ export interface IWorkbenchEditorService extends IEditorService {
 	/**
 	 * Closes the editor at the provided position.
 	 */
-	closeEditor(position: Position, input: IEditorInput): TPromise<void>;
+	closeEditor(position: Position, input: IEditorInput, force?: boolean): TPromise<void>;
 
 	/**
 	 * Closes editors of a specific group at the provided position. If the optional editor is provided to exclude, it

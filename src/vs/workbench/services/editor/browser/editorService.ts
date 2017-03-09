@@ -28,7 +28,7 @@ export interface IEditorPart {
 	openEditor(input?: IEditorInput, options?: IEditorOptions | ITextEditorOptions, position?: Position): TPromise<BaseEditor>;
 	openEditors(editors: { input: IEditorInput, position: Position, options?: IEditorOptions | ITextEditorOptions }[]): TPromise<BaseEditor[]>;
 	replaceEditors(editors: { toReplace: IEditorInput, replaceWith: IEditorInput, options?: IEditorOptions | ITextEditorOptions }[], position?: Position): TPromise<BaseEditor[]>;
-	closeEditor(position: Position, input: IEditorInput): TPromise<void>;
+	closeEditor(position: Position, input: IEditorInput, force?: boolean): TPromise<void>;
 	closeEditors(position: Position, except?: IEditorInput, direction?: Direction): TPromise<void>;
 	closeAllEditors(except?: Position): TPromise<void>;
 	getActiveEditor(): BaseEditor;
@@ -184,8 +184,8 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		});
 	}
 
-	public closeEditor(position: Position, input: IEditorInput): TPromise<void> {
-		return this.editorPart.closeEditor(position, input);
+	public closeEditor(position: Position, input: IEditorInput, force: boolean = false): TPromise<void> {
+		return this.editorPart.closeEditor(position, input, force);
 	}
 
 	public closeEditors(position: Position, except?: IEditorInput, direction?: Direction): TPromise<void> {

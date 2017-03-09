@@ -522,10 +522,15 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		}
 	}
 
-	public closeEditor(position: Position, input: EditorInput): TPromise<void> {
+	public closeEditor(position: Position, input: EditorInput, force?: boolean): TPromise<void> {
 		const group = this.stacks.groupAt(position);
 		if (!group) {
 			return TPromise.as<void>(null);
+		}
+
+		// Revert editor and close when forced
+		if (force) {
+			return group.activeEditor.revert().then(ok => this.doCloseEditor(group, input));
 		}
 
 		// Check for dirty and veto
