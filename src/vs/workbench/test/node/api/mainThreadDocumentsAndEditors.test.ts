@@ -24,10 +24,13 @@ suite('MainThreadDocumentsAndEditors', () => {
 	let workbenchEditorService: IWorkbenchEditorService;
 	let documentAndEditor: MainThreadDocumentsAndEditors;
 	let deltas: IDocumentsAndEditorsDelta[] = [];
+	const hugeModelString = new Array(2 + (5 * 1024 * 1024)).join('-');
 
 	setup(() => {
 		deltas.length = 0;
-		modelService = new ModelServiceImpl(null, new TestConfigurationService());
+		const configService = new TestConfigurationService();
+		configService.setUserConfiguration('editor', { 'detectIndentation': false });
+		modelService = new ModelServiceImpl(null, configService);
 		codeEditorService = new MockCodeEditorService();
 		textFileService = <ITextFileService>{ isDirty() { return false; } };
 		workbenchEditorService = <IWorkbenchEditorService>{
@@ -58,10 +61,10 @@ suite('MainThreadDocumentsAndEditors', () => {
 		assert.equal(delta.newActiveEditor, null);
 	});
 
-	test('ignore huge model', () => {
+	test('ignore huge model', function () {
+		this.timeout(1000 * 60); // increase timeout for this one test
 
-		const data = new Array(2 + (5 * 1024 * 1024)).join(' ');
-		const model = modelService.createModel(data, null, null);
+		const model = modelService.createModel(hugeModelString, null, null);
 		assert.ok(model.isTooLargeForHavingARichMode());
 
 		assert.equal(deltas.length, 1);
@@ -76,9 +79,8 @@ suite('MainThreadDocumentsAndEditors', () => {
 	test('ignore huge model from editor', function () {
 		this.timeout(1000 * 60); // increase timeout for this one test
 
-		const data = new Array(2 + (5 * 1024 * 1024)).join(' ');
-		const model = modelService.createModel(data, null, null);
-		const editor = mockCodeEditor(null, { model });
+		const model = modelService.createModel(hugeModelString, null, null);
+		const editor = mockCodeEditor(null, { model, wordWrap: 'off', wordWrapMinified: false });
 
 		assert.equal(deltas.length, 1);
 		deltas.length = 0;
