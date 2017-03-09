@@ -8,7 +8,7 @@ import Severity from 'vs/base/common/severity';
 import * as modes from 'vs/editor/common/modes';
 import * as types from './extHostTypes';
 import { Position as EditorPosition } from 'vs/platform/editor/common/editor';
-import { IPosition, ISelection, IRange, IDecorationOptions, ISingleEditOperation } from 'vs/editor/common/editorCommon';
+import { IPosition, ISelection, IRange, IDecorationOptions, ISingleEditOperation, EndOfLineSequence } from 'vs/editor/common/editorCommon';
 import { IWorkspaceSymbol } from 'vs/workbench/parts/search/common/search';
 import * as vscode from 'vscode';
 import URI from 'vs/base/common/uri';
@@ -30,14 +30,14 @@ export interface SelectionLike extends RangeLike {
 }
 
 export function toSelection(selection: ISelection): types.Selection {
-	let {selectionStartLineNumber, selectionStartColumn, positionLineNumber, positionColumn} = selection;
+	let { selectionStartLineNumber, selectionStartColumn, positionLineNumber, positionColumn } = selection;
 	let start = new types.Position(selectionStartLineNumber - 1, selectionStartColumn - 1);
 	let end = new types.Position(positionLineNumber - 1, positionColumn - 1);
 	return new types.Selection(start, end);
 }
 
 export function fromSelection(selection: SelectionLike): ISelection {
-	let {anchor, active} = selection;
+	let { anchor, active } = selection;
 	return {
 		selectionStartLineNumber: anchor.line + 1,
 		selectionStartColumn: anchor.character + 1,
@@ -47,7 +47,7 @@ export function fromSelection(selection: SelectionLike): ISelection {
 }
 
 export function fromRange(range: RangeLike): IRange {
-	let {start, end} = range;
+	let { start, end } = range;
 	return {
 		startLineNumber: start.line + 1,
 		startColumn: start.character + 1,
@@ -57,7 +57,7 @@ export function fromRange(range: RangeLike): IRange {
 }
 
 export function toRange(range: IRange): types.Range {
-	let {startLineNumber, startColumn, endLineNumber, endColumn} = range;
+	let { startLineNumber, startColumn, endLineNumber, endColumn } = range;
 	return new types.Range(startLineNumber - 1, startColumn - 1, endLineNumber - 1, endColumn - 1);
 }
 
@@ -345,3 +345,14 @@ export namespace TextDocumentSaveReason {
 		}
 	}
 }
+
+
+export function fromEOL(eol: vscode.EndOfLine): EndOfLineSequence {
+	if (eol === types.EndOfLine.CRLF) {
+		return EndOfLineSequence.CRLF;
+	} else if (eol === types.EndOfLine.LF) {
+		return EndOfLineSequence.LF;
+	}
+	return undefined;
+}
+

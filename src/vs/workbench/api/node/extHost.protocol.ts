@@ -26,7 +26,7 @@ import { IWorkspace } from 'vs/platform/workspace/common/workspace';
 
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
-import { IResourceTextEdit } from 'vs/editor/common/services/bulkEdit';
+import { IResourceEdit } from 'vs/editor/common/services/bulkEdit';
 import { ITextSource } from 'vs/editor/common/model/textSource';
 
 import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
@@ -234,7 +234,7 @@ export abstract class MainThreadWorkspaceShape {
 	$startSearch(include: string, exclude: string, maxResults: number, requestId: number): Thenable<URI[]> { throw ni(); }
 	$cancelSearch(requestId: number): Thenable<boolean> { throw ni(); }
 	$saveAll(includeUntitled?: boolean): Thenable<boolean> { throw ni(); }
-	$applyWorkspaceEdit(edits: IResourceTextEdit[]): TPromise<boolean> { throw ni(); }
+	$applyWorkspaceEdit(edits: IResourceEdit[]): TPromise<boolean> { throw ni(); }
 }
 
 export abstract class MainProcessExtensionServiceShape {

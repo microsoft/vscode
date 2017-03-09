@@ -66,7 +66,7 @@ export class Position {
 		if (other instanceof Position) {
 			return true;
 		}
-		let {line, character} = <Position>other;
+		let { line, character } = <Position>other;
 		if (typeof line === 'number' && typeof character === 'number') {
 			return true;
 		}
@@ -397,6 +397,20 @@ export class Selection extends Range {
 			anchor: this.anchor
 		};
 	}
+}
+
+export enum EndOfLine {
+	LF = 1,
+	CRLF = 2
+}
+
+export class EndOfLineEdit {
+
+	static readonly LF: EndOfLineEdit = Object.freeze({ newEol: EndOfLine.LF });
+
+	static readonly CRLF: EndOfLineEdit = Object.freeze({ newEol: EndOfLine.CRLF });
+
+	newEol: EndOfLine;
 }
 
 export class TextEdit {
@@ -898,11 +912,6 @@ export enum ViewColumn {
 export enum StatusBarAlignment {
 	Left = 1,
 	Right = 2
-}
-
-export enum EndOfLine {
-	LF = 1,
-	CRLF = 2
 }
 
 export enum TextEditorLineNumbersStyle {

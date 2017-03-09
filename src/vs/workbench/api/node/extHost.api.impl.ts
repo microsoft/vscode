@@ -486,6 +486,7 @@ export function createApiFactory(initData: IInitData, threadService: IThreadServ
 			SymbolKind: extHostTypes.SymbolKind,
 			TextDocumentSaveReason: extHostTypes.TextDocumentSaveReason,
 			TextEdit: extHostTypes.TextEdit,
+			EndOfLineEdit: extHostTypes.EndOfLineEdit,
 			TextEditorCursorStyle: EditorCommon.TextEditorCursorStyle,
 			TextEditorLineNumbersStyle: extHostTypes.TextEditorLineNumbersStyle,
 			TextEditorRevealType: extHostTypes.TextEditorRevealType,

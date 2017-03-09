@@ -1998,6 +1998,28 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * An end-of-line edit represents a change of the [sequence](#TextDocument.eol)
+	 * that separates the lines in a document.
+	 */
+	export class EndOfLineEdit {
+
+		/**
+		 * Use the line feed `\n` character.
+		 */
+		static readonly LF: EndOfLineEdit;
+
+		/**
+		 * Use the carriage return line feed `\r\n` sequence.
+		 */
+		static readonly CRLF: EndOfLineEdit;
+
+		/**
+		 * The new end of line sequence
+		 */
+		newEol: EndOfLine;
+	}
+
+	/**
 	 * A text edit represents edits that should be applied
 	 * to a document.
 	 */
@@ -3962,7 +3984,7 @@ declare module 'vscode' {
 		 *
 		 * @param thenable A thenable that resolves to [pre-save-edits](#TextEdit).
 		 */
-		waitUntil(thenable: Thenable<TextEdit[]>): void;
+		waitUntil(thenable: Thenable<TextEdit[] | EndOfLineEdit>): void;
 
 		/**
 		 * Allows to pause the event loop until the provided thenable resolved.
