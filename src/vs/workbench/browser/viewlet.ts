@@ -344,9 +344,7 @@ export abstract class AdaptiveCollapsibleViewletView extends FixedCollapsibleVie
 			actionItemProvider: (action) => { return this.getActionItem(action); },
 			ariaLabel: nls.localize('viewToolbarAriaLabel', "{0} actions", this.viewName),
 			getKeyBinding: (action) => {
-				const [kb] = this.keybindingService.lookupKeybindings2(action.id);
-
-				return kb;
+				return this.keybindingService.lookupKeybinding(action.id);
 			}
 		});
 		this.toolBar.actionRunner = this.actionRunner;
@@ -477,9 +475,7 @@ export abstract class CollapsibleViewletView extends CollapsibleView implements 
 			actionItemProvider: (action) => { return this.getActionItem(action); },
 			ariaLabel: nls.localize('viewToolbarAriaLabel', "{0} actions", this.viewName),
 			getKeyBinding: (action) => {
-				const [kb] = this.keybindingService.lookupKeybindings2(action.id);
-
-				return kb;
+				return this.keybindingService.lookupKeybinding(action.id);
 			}
 		});
 		this.toolBar.actionRunner = this.actionRunner;

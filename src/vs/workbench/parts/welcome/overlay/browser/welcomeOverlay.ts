@@ -178,11 +178,9 @@ class WelcomeOverlay {
 				}
 				$(div).span({ 'class': 'label' }).text(label);
 				if (command) {
-					const shortcut = this.keybindingService.lookupKeybindings2(command)
-						.slice(0, 1)
-						.map(k => k.getLabel())[0];
+					const shortcut = this.keybindingService.lookupKeybinding(command);
 					if (shortcut) {
-						$(div).span({ 'class': 'shortcut' }).text(shortcut);
+						$(div).span({ 'class': 'shortcut' }).text(shortcut.getLabel());
 					}
 				}
 				if (arrowLast) {

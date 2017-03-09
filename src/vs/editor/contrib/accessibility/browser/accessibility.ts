@@ -138,7 +138,7 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 	}
 
 	private _descriptionForCommand(commandId: string, msg: string, noKbMsg: string): string {
-		let [kb] = this._keybindingService.lookupKeybindings2(commandId);
+		let kb = this._keybindingService.lookupKeybinding(commandId);
 		if (kb) {
 			return strings.format(msg, kb.getAriaLabel());
 		}

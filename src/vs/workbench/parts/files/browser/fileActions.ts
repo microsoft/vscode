@@ -1923,9 +1923,7 @@ export class GlobalCopyPathAction extends Action {
 }
 
 export function keybindingForAction(id: string, keybindingService: IKeybindingService): ResolvedKeybinding {
-	const [kb] = keybindingService.lookupKeybindings2(id);
-
-	return kb;
+	return keybindingService.lookupKeybinding(id);
 }
 
 export function validateFileName(parent: IFileStat, name: string, allowOverwriting: boolean = false): string {

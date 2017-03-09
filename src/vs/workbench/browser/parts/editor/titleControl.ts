@@ -431,9 +431,7 @@ export abstract class TitleControl implements ITitleAreaControl {
 	}
 
 	protected getKeybinding(action: IAction): ResolvedKeybinding {
-		const [kb] = this.keybindingService.lookupKeybindings2(action.id);
-
-		return kb;
+		return this.keybindingService.lookupKeybinding(action.id);
 	}
 
 	protected getKeybindingLabel(action: IAction): string {

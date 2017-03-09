@@ -63,9 +63,20 @@ export interface IKeybindingService {
 	resolveKeybinding(keybinding: Keybinding): ResolvedKeybinding;
 
 	getDefaultKeybindings(): string;
+
+	/**
+	 * @deprecated
+	 */
 	lookupKeybindings(commandId: string): Keybinding[];
-	lookupKeybindings2(commandId: string): ResolvedKeybinding[];
+
+	/**
+	 * Look up the preferred (last defined) keybinding for a command.
+	 * @returns The preferred keybinding or null if the command is not bound.
+	 */
+	lookupKeybinding(commandId: string): ResolvedKeybinding;
+
 	customKeybindingsCount(): number;
+
 	resolve(keybinding: SimpleKeybinding, target: IContextKeyServiceTarget): IResolveResult;
 }
 
