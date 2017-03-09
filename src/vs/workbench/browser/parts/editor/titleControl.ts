@@ -281,7 +281,7 @@ export abstract class TitleControl implements ITitleAreaControl {
 		const primary: IAction[] = [];
 		const secondary: IAction[] = [];
 
-		const {group} = identifier;
+		const { group } = identifier;
 		const position = this.stacks.positionOfGroup(group);
 
 		// Update the resource context
@@ -441,7 +441,7 @@ export abstract class TitleControl implements ITitleAreaControl {
 	}
 
 	protected getContextMenuActions(identifier: IEditorIdentifier): IAction[] {
-		const {editor, group} = identifier;
+		const { editor, group } = identifier;
 
 		// Enablement
 		this.closeOtherEditorsAction.enabled = group.count > 1;

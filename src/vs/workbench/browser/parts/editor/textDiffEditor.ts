@@ -76,7 +76,8 @@ export class TextDiffEditor extends BaseTextEditor {
 		this.previousDiffAction = new NavigateAction(this, false);
 
 		// Support navigation within the diff editor by overriding the editor service within
-		const delegatingEditorService = this.instantiationService.createInstance(DelegatingWorkbenchEditorService, (input: EditorInput, options?: EditorOptions, arg3?: any) => {
+		const delegatingEditorService = this.instantiationService.createInstance(DelegatingWorkbenchEditorService);
+		delegatingEditorService.setEditorOpenHandler((input: EditorInput, options?: EditorOptions, arg3?: any) => {
 
 			// Check if arg4 is a position argument that differs from this editors position
 			if (types.isUndefinedOrNull(arg3) || arg3 === false || arg3 === this.position) {
