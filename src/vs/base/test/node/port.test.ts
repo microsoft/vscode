@@ -11,6 +11,7 @@ import ports = require('vs/base/node/ports');
 
 suite('Ports', () => {
 	test('Finds a free port (no timeout)', function (done: () => void) {
+		this.timeout(1000 * 10); // higher timeout for this test
 
 		// get an initial freeport >= 7000
 		ports.findFreePort(7000, 100, 300000, (initialPort) => {
