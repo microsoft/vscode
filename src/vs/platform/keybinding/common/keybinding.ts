@@ -64,6 +64,7 @@ export abstract class ResolvedKeybinding {
 	public abstract getAriaLabel(): string;
 	public abstract getHTMLLabel(): IHTMLContentElement[];
 	public abstract getElectronAccelerator(): string;
+	public abstract getUserSettingsLabel(): string;
 }
 
 export interface IKeybindingService {
@@ -72,8 +73,8 @@ export interface IKeybindingService {
 	onDidUpdateKeybindings: Event<IKeybindingEvent>;
 
 	getLabelFor(keybinding: Keybinding): string;
-	getHTMLLabelFor(keybinding: Keybinding): IHTMLContentElement[];
 	getElectronAcceleratorFor(keybinding: Keybinding): string;
+	resolveKeybinding(keybinding: SimpleKeybinding): ResolvedKeybinding;
 
 	getDefaultKeybindings(): string;
 	lookupKeybindings(commandId: string): Keybinding[];
