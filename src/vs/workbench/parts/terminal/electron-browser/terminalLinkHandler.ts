@@ -32,7 +32,7 @@ const CUSTOM_LINK_PRIORITY = -1;
 const LOCAL_LINK_PRIORITY = -2;
 
 export type XtermLinkMatcherHandler = (event: MouseEvent, uri: string) => boolean | void;
-export type XtermLinkMatcherValidationCallback = (uri: string, callback: (isValid: boolean) => void) => void;
+export type XtermLinkMatcherValidationCallback = (uri: string, element: HTMLElement, callback: (isValid: boolean) => void) => void;
 
 export class TerminalLinkHandler {
 	constructor(
@@ -42,7 +42,10 @@ export class TerminalLinkHandler {
 		@IWorkbenchEditorService private _editorService: IWorkbenchEditorService,
 		@IWorkspaceContextService private _contextService: IWorkspaceContextService
 	) {
-		this._xterm.attachHypertextLinkHandler(this._wrapLinkHandler(() => true));
+		this._xterm.setHypertextLinkHandler(this._wrapLinkHandler(() => true));
+		this._xterm.setHypertextValidationCallback((uri: string, element: HTMLElement, callback: (isValid: boolean) => void) => {
+			this._validateWebLink(uri, element, callback);
+		});
 	}
 
 	public registerCustomLinkHandler(regex: RegExp, handler: (uri: string) => void, matchIndex?: number, validationCallback?: XtermLinkMatcherValidationCallback): number {
@@ -60,7 +63,7 @@ export class TerminalLinkHandler {
 		});
 		return this._xterm.registerLinkMatcher(this._localLinkRegex, wrappedHandler, {
 			matchIndex: 1,
-			validationCallback: (link: string, callback: (isValid: boolean) => void) => this._validateLocalLink(link, callback),
+			validationCallback: (link: string, element: HTMLElement, callback: (isValid: boolean) => void) => this._validateLocalLink(link, element, callback),
 			priority: LOCAL_LINK_PRIORITY
 		});
 	}
@@ -101,9 +104,26 @@ export class TerminalLinkHandler {
 		});
 	}
 
-	private _validateLocalLink(link: string, callback: (isValid: boolean) => void): void {
+	private _validateLocalLink(link: string, element: HTMLElement, callback: (isValid: boolean) => void): void {
 		this._resolvePath(link).then(resolvedLink => {
+			if (resolvedLink) {
+				this._addTooltipEventListeners(element);
+			}
 			callback(!!resolvedLink);
+		});
+	}
+
+	private _validateWebLink(link: string, element: HTMLElement, callback: (isValid: boolean) => void): void {
+		this._addTooltipEventListeners(element);
+		callback(true);
+	}
+
+	private _addTooltipEventListeners(element: HTMLElement) {
+		element.addEventListener('mouseenter', () => {
+			console.log('enter');
+		});
+		element.addEventListener('mouseleave', () => {
+			console.log('leave');
 		});
 	}
 

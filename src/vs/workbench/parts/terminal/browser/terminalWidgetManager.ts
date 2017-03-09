@@ -85,14 +85,11 @@ class MessageWidget {
 		this._domNode.style.bottom = `${_container.offsetHeight - _top}px`;
 		this._domNode.classList.add('terminal-message-widget');
 
-		const message = document.createElement('div');
-		message.classList.add('message');
-		message.textContent = _text;
-		this._domNode.appendChild(message);
-
-		const anchor = document.createElement('div');
-		anchor.classList.add('anchor');
-		this._domNode.appendChild(anchor);
+		this._domNode.textContent = _text;
+		// const message = document.createElement('div');
+		// message.classList.add('message');
+		// message.textContent = _text;
+		// this._domNode.appendChild(message);
 
 		this._container.appendChild(this._domNode);
 		this._domNode.classList.add('fadeIn');
