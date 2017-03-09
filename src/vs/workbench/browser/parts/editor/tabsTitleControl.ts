@@ -56,6 +56,7 @@ export class TabsTitleControl extends TitleControl {
 	private editorLabels: EditorLabel[];
 	private scrollbar: ScrollableElement;
 	private tabDisposeables: IDisposable[];
+	private blockRevealActiveTab: boolean;
 
 	constructor(
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -71,30 +72,38 @@ export class TabsTitleControl extends TitleControl {
 		@IQuickOpenService quickOpenService: IQuickOpenService,
 		@IWindowService private windowService: IWindowService
 	) {
-		super(contextMenuService, TabsTitleControl.createScopedInstantiationService(instantiationService, editorGroupService), editorService, editorGroupService, contextKeyService, keybindingService, telemetryService, messageService, menuService, quickOpenService);
+		super(contextMenuService, instantiationService, editorService, editorGroupService, contextKeyService, keybindingService, telemetryService, messageService, menuService, quickOpenService);
 
 		this.tabDisposeables = [];
 		this.editorLabels = [];
 	}
 
-	private static createScopedInstantiationService(parent: IInstantiationService, editorGroupService: IEditorGroupService): IInstantiationService {
-		const stacks = editorGroupService.getStacksModel();
-		const delegatingEditorService = parent.createInstance(DelegatingWorkbenchEditorService);
+	protected initActions(services: IInstantiationService): void {
+		super.initActions(this.createScopedInstantiationService());
+	}
+
+	private createScopedInstantiationService(): IInstantiationService {
+		const stacks = this.editorGroupService.getStacksModel();
+		const delegatingEditorService = this.instantiationService.createInstance(DelegatingWorkbenchEditorService);
 
 		// We create a scoped instantiation service to override the behaviour when closing an inactive editor
 		// Specifically we want to move focus back to the editor when an inactive editor is closed from anywhere
 		// in the tabs title control (e.g. mouse middle click, context menu on tab). This is only needed for
 		// the inactive editors because closing the active one will always cause a tab switch that sets focus.
+		// We also want to block the tabs container to reveal the currently active tab because that makes it very
+		// hard to close multiple inactive tabs next to each other.
 		delegatingEditorService.setEditorCloseHandler((position, editor) => {
 			const group = stacks.groupAt(position);
 			if (group && stacks.isActive(group) && !group.isActive(editor)) {
-				editorGroupService.focusGroup(group);
+				this.editorGroupService.focusGroup(group);
 			}
+
+			this.blockRevealActiveTab = true;
 
 			return TPromise.as(void 0);
 		});
 
-		return parent.createChild(new ServiceCollection([IWorkbenchEditorService, delegatingEditorService]));
+		return this.instantiationService.createChild(new ServiceCollection([IWorkbenchEditorService, delegatingEditorService]));
 	}
 
 	public setContext(group: IEditorGroup): void {
@@ -418,7 +427,13 @@ export class TabsTitleControl extends TitleControl {
 			scrollWidth: totalContainerWidth
 		});
 
-		// Always reveal the active one
+		// Return now if we are blocked to reveal the active tab and clear flag
+		if (this.blockRevealActiveTab) {
+			this.blockRevealActiveTab = false;
+			return;
+		}
+
+		// Reveal the active one
 		const containerScrollPosX = this.tabsContainer.scrollLeft;
 		const activeTabPosX = this.activeTab.offsetLeft;
 		const activeTabWidth = this.activeTab.offsetWidth;
