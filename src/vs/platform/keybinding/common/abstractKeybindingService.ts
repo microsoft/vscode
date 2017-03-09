@@ -13,11 +13,37 @@ import Severity from 'vs/base/common/severity';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { ICommandService, CommandsRegistry, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { KeybindingResolver, IResolveResult } from 'vs/platform/keybinding/common/keybindingResolver';
-import { IKeybindingEvent, IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { ResolvedKeybinding, IKeybindingEvent, IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService, IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { IMessageService } from 'vs/platform/message/common/message';
 import Event, { Emitter } from 'vs/base/common/event';
+
+export class SimpleResolvedKeybinding extends ResolvedKeybinding {
+
+	private readonly _actual: Keybinding;
+
+	constructor(actual: Keybinding) {
+		super();
+		this._actual = actual;
+	}
+
+	public getLabel(): string {
+		return KeybindingLabels._toUSLabel(this._actual);
+	}
+
+	public getAriaLabel(): string {
+		return KeybindingLabels._toUSAriaLabel(this._actual);
+	}
+
+	public getHTMLLabel(): IHTMLContentElement[] {
+		return KeybindingLabels._toUSHTMLLabel(this._actual);
+	}
+
+	public getElectronAccelerator(): string {
+		return KeybindingLabels._toElectronAccelerator(this._actual);
+	}
+}
 
 export abstract class AbstractKeybindingService implements IKeybindingService {
 	public _serviceBrand: any;
@@ -55,6 +81,7 @@ export abstract class AbstractKeybindingService implements IKeybindingService {
 	}
 
 	protected abstract _getResolver(): KeybindingResolver;
+	protected abstract _createResolvedKeybinding(kb: Keybinding): ResolvedKeybinding;
 
 	get onDidUpdateKeybindings(): Event<IKeybindingEvent> {
 		return this._onDidUpdateKeybindings ? this._onDidUpdateKeybindings.event : Event.None; // Sinon stubbing walks properties on prototype
@@ -86,6 +113,10 @@ export abstract class AbstractKeybindingService implements IKeybindingService {
 
 	public lookupKeybindings(commandId: string): Keybinding[] {
 		return this._getResolver().lookupKeybinding(commandId);
+	}
+
+	public lookupKeybindings2(commandId: string): ResolvedKeybinding[] {
+		return this.lookupKeybindings(commandId).map(kb => this._createResolvedKeybinding(kb));
 	}
 
 	private _getAllCommandsAsComment(): string {

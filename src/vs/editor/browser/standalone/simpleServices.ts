@@ -11,9 +11,9 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IConfigurationService, IConfigurationServiceEvent, IConfigurationValue, getConfigurationValue, IConfigurationKeys } from 'vs/platform/configuration/common/configuration';
 import { IEditor, IEditorInput, IEditorOptions, IEditorService, IResourceInput, Position } from 'vs/platform/editor/common/editor';
 import { ICommandService, ICommand, ICommandEvent, ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
+import { SimpleResolvedKeybinding, AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
 import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
-import { IKeybindingEvent, IKeybindingItem, KeybindingSource } from 'vs/platform/keybinding/common/keybinding';
+import { ResolvedKeybinding, IKeybindingEvent, IKeybindingItem, KeybindingSource } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfirmation, IMessageService } from 'vs/platform/message/common/message';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -31,6 +31,7 @@ import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRe
 import { MenuId, IMenu, IMenuService } from 'vs/platform/actions/common/actions';
 import { Menu } from 'vs/platform/actions/common/menu';
 import { ITelemetryService, ITelemetryExperiments, ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
+import { Keybinding } from 'vs/base/common/keyCodes';
 
 export class SimpleEditor implements IEditor {
 
@@ -378,6 +379,11 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 	private _getExtraKeybindings(): IKeybindingItem[] {
 		return this._dynamicKeybindings;
 	}
+
+	protected _createResolvedKeybinding(kb: Keybinding): ResolvedKeybinding {
+		return new SimpleResolvedKeybinding(kb);
+	}
+
 }
 
 export class SimpleConfigurationService implements IConfigurationService {

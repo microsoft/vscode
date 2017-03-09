@@ -56,6 +56,16 @@ export interface IKeybindingEvent {
 
 export let IKeybindingService = createDecorator<IKeybindingService>('keybindingService');
 
+/**
+ * A resolved keybinding.
+ */
+export abstract class ResolvedKeybinding {
+	public abstract getLabel(): string;
+	public abstract getAriaLabel(): string;
+	public abstract getHTMLLabel(): IHTMLContentElement[];
+	public abstract getElectronAccelerator(): string;
+}
+
 export interface IKeybindingService {
 	_serviceBrand: any;
 
@@ -68,6 +78,7 @@ export interface IKeybindingService {
 
 	getDefaultKeybindings(): string;
 	lookupKeybindings(commandId: string): Keybinding[];
+	lookupKeybindings2(commandId: string): ResolvedKeybinding[];
 	customKeybindingsCount(): number;
 	resolve(keybinding: SimpleKeybinding, target: IContextKeyServiceTarget): IResolveResult;
 }
