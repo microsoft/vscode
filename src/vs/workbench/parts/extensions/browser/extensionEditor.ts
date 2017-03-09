@@ -36,7 +36,7 @@ import { EditorOptions } from 'vs/workbench/common/editor';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { CombinedInstallAction, UpdateAction, EnableAction, DisableAction, BuiltinStatusLabelAction, ReloadAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
 import WebView from 'vs/workbench/parts/html/browser/webview';
-import { Keybinding } from 'vs/base/common/keyCodes';
+import { createKeybinding } from 'vs/base/common/keyCodes';
 import { KeybindingLabels } from 'vs/base/common/keybinding';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
@@ -669,7 +669,7 @@ export class ExtensionEditor extends BaseEditor {
 			case 'darwin': key = rawKeyBinding.mac; break;
 		}
 
-		const keyBinding = new Keybinding(KeybindingLabels.fromUserSettingsLabel(key || rawKeyBinding.key));
+		const keyBinding = createKeybinding(KeybindingLabels.fromUserSettingsLabel(key || rawKeyBinding.key));
 		const result = this.keybindingService.getLabelFor(keyBinding);
 		return result === 'unknown' ? null : result;
 	}

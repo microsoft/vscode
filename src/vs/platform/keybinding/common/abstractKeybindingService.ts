@@ -6,7 +6,7 @@
 
 import * as nls from 'vs/nls';
 import { IHTMLContentElement } from 'vs/base/common/htmlContent';
-import { Keybinding } from 'vs/base/common/keyCodes';
+import { SimpleKeybinding, Keybinding } from 'vs/base/common/keyCodes';
 import { KeybindingLabels } from 'vs/base/common/keybinding';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
@@ -24,7 +24,7 @@ export abstract class AbstractKeybindingService implements IKeybindingService {
 
 	protected toDispose: IDisposable[] = [];
 
-	private _currentChord: number;
+	private _currentChord: SimpleKeybinding;
 	private _currentChordStatusMessage: IDisposable;
 	protected _onDidUpdateKeybindings: Emitter<IKeybindingEvent>;
 
@@ -44,7 +44,7 @@ export abstract class AbstractKeybindingService implements IKeybindingService {
 		this._statusService = statusService;
 		this._messageService = messageService;
 
-		this._currentChord = 0;
+		this._currentChord = null;
 		this._currentChordStatusMessage = null;
 		this._onDidUpdateKeybindings = new Emitter<IKeybindingEvent>();
 		this.toDispose.push(this._onDidUpdateKeybindings);
@@ -112,16 +112,16 @@ export abstract class AbstractKeybindingService implements IKeybindingService {
 		return '// ' + nls.localize('unboundCommands', "Here are other available commands: ") + '\n// - ' + pretty;
 	}
 
-	public resolve(keybinding: Keybinding, target: IContextKeyServiceTarget): IResolveResult {
+	public resolve(keybinding: SimpleKeybinding, target: IContextKeyServiceTarget): IResolveResult {
 		if (keybinding.isModifierKey()) {
 			return null;
 		}
 
 		const contextValue = this._contextKeyService.getContextValue(target);
-		return this._getResolver().resolve(contextValue, this._currentChord, keybinding.value);
+		return this._getResolver().resolve(contextValue, this._currentChord, keybinding);
 	}
 
-	protected _dispatch(keybinding: Keybinding, target: IContextKeyServiceTarget): boolean {
+	protected _dispatch(keybinding: SimpleKeybinding, target: IContextKeyServiceTarget): boolean {
 		// Check modifier key here and cancel early, it's also checked in resolve as the function
 		// is used externally.
 		let shouldPreventDefault = false;
@@ -135,7 +135,7 @@ export abstract class AbstractKeybindingService implements IKeybindingService {
 			shouldPreventDefault = true;
 			this._currentChord = resolveResult.enterChord;
 			if (this._statusService) {
-				let firstPartLabel = this.getLabelFor(new Keybinding(this._currentChord));
+				let firstPartLabel = this.getLabelFor(this._currentChord);
 				this._currentChordStatusMessage = this._statusService.setStatusMessage(nls.localize('first.chord', "({0}) was pressed. Waiting for second key of chord...", firstPartLabel));
 			}
 			return shouldPreventDefault;
@@ -143,7 +143,7 @@ export abstract class AbstractKeybindingService implements IKeybindingService {
 
 		if (this._statusService && this._currentChord) {
 			if (!resolveResult || !resolveResult.commandId) {
-				let firstPartLabel = this.getLabelFor(new Keybinding(this._currentChord));
+				let firstPartLabel = this.getLabelFor(this._currentChord);
 				let chordPartLabel = this.getLabelFor(keybinding);
 				this._statusService.setStatusMessage(nls.localize('missing.chord', "The key combination ({0}, {1}) is not a command.", firstPartLabel, chordPartLabel), 10 * 1000 /* 10s */);
 				shouldPreventDefault = true;
@@ -153,7 +153,7 @@ export abstract class AbstractKeybindingService implements IKeybindingService {
 			this._currentChordStatusMessage.dispose();
 			this._currentChordStatusMessage = null;
 		}
-		this._currentChord = 0;
+		this._currentChord = null;
 
 		if (resolveResult && resolveResult.commandId) {
 			if (!/^\^/.test(resolveResult.commandId)) {
