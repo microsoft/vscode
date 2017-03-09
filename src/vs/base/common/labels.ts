@@ -134,7 +134,9 @@ export function shorten(paths: string[]): string[] {
 					// suffix subpath treated specially as we consider no match 'x' and 'x/...'
 					if (otherPathIndex !== pathIndex && paths[otherPathIndex] && paths[otherPathIndex].indexOf(subpath) > -1) {
 						const isSubpathEnding: boolean = (start + subpathLength === segments.length);
-						const isOtherPathEnding: boolean = endsWith(paths[otherPathIndex], subpath);
+
+						const subpathWithSep: string = (start > 0 && paths[otherPathIndex].indexOf(nativeSep) > -1) ? nativeSep + subpath : subpath;
+						const isOtherPathEnding: boolean = endsWith(paths[otherPathIndex], subpathWithSep);
 
 						match = !isSubpathEnding || isOtherPathEnding;
 					}
