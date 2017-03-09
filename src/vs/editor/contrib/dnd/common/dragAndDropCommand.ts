@@ -15,19 +15,35 @@ export class DragAndDropCommand implements editorCommon.ICommand {
 	private selection: Selection;
 	private targetPosition: Position;
 	private targetSelection: Selection;
+	private copy: boolean;
 
-	constructor(selection: Selection, targetPosition: Position) {
+	constructor(selection: Selection, targetPosition: Position, copy: boolean) {
 		this.selection = selection;
 		this.targetPosition = targetPosition;
+		this.copy = copy;
 	}
 
 	public getEditOperations(model: editorCommon.ITokenizedModel, builder: editorCommon.IEditOperationBuilder): void {
 		let text = model.getValueInRange(this.selection);
-		builder.addEditOperation(this.selection, null);
+		if (!this.copy) {
+			builder.addEditOperation(this.selection, null);
+		}
 		builder.addEditOperation(new Range(this.targetPosition.lineNumber, this.targetPosition.column, this.targetPosition.lineNumber, this.targetPosition.column), text);
 
 		if (this.selection.containsPosition(this.targetPosition)) {
 			this.targetSelection = this.selection;
+			return;
+		}
+
+		if (this.copy) {
+			this.targetSelection = new Selection(
+				this.targetPosition.lineNumber,
+				this.targetPosition.column,
+				this.selection.endLineNumber - this.selection.startLineNumber + this.targetPosition.lineNumber,
+				this.selection.startLineNumber === this.selection.endLineNumber ?
+					this.targetPosition.column + this.selection.endColumn - this.selection.startColumn :
+					this.selection.endColumn
+			);
 			return;
 		}
 

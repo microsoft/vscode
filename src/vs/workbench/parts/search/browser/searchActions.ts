@@ -22,13 +22,14 @@ import { CollapseAllAction as TreeCollapseAction } from 'vs/base/parts/tree/brow
 import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { Keybinding, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { createKeybinding, ResolvedKeybinding, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { toResource } from 'vs/workbench/common/editor';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { explorerItemToFileResource } from 'vs/workbench/parts/files/common/files';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { isEqual } from 'vs/platform/files/common/files';
 
 export function isSearchViewletFocussed(viewletService: IViewletService): boolean {
 	let activeViewlet = viewletService.getActiveViewlet();
@@ -36,11 +37,14 @@ export function isSearchViewletFocussed(viewletService: IViewletService): boolea
 	return activeViewlet && activeViewlet.getId() === Constants.VIEWLET_ID && activeElement && DOM.isAncestor(activeElement, (<SearchViewlet>activeViewlet).getContainer().getHTMLElement());
 }
 
-export function appendKeyBindingLabel(label: string, keyBinding: Keybinding, keyBindingService2: IKeybindingService): string;
-export function appendKeyBindingLabel(label: string, keyBinding: number, keyBindingService2: IKeybindingService): string;
-export function appendKeyBindingLabel(label: string, keyBinding: any, keyBindingService2: IKeybindingService): string {
-	keyBinding = typeof keyBinding === 'number' ? new Keybinding(keyBinding) : keyBinding;
-	return keyBinding ? label + ' (' + keyBindingService2.getLabelFor(keyBinding) + ')' : label;
+export function appendKeyBindingLabel(label: string, keyBinding: number | ResolvedKeybinding, keyBindingService2: IKeybindingService): string {
+	let resolvedKb: ResolvedKeybinding;
+	if (typeof keyBinding === 'number') {
+		resolvedKb = keyBindingService2.resolveKeybinding(createKeybinding(keyBinding));
+	} else {
+		resolvedKb = keyBinding;
+	}
+	return resolvedKb ? label + ' (' + resolvedKb.getLabel() + ')' : label;
 }
 
 export class ToggleCaseSensitiveAction extends Action {
@@ -525,7 +529,7 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 	private hasToOpenFile(): boolean {
 		const file = toResource(this.editorService.getActiveEditorInput(), { filter: 'file' });
 		if (file) {
-			return file.fsPath === this.element.parent().resource().fsPath;
+			return isEqual(file.fsPath, this.element.parent().resource().fsPath);
 		}
 		return false;
 	}

@@ -8,7 +8,7 @@ import * as assert from 'assert';
 import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
 import { NormalizedKeybindingItem, IOSupport } from 'vs/platform/keybinding/common/keybindingResolver';
 import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
-import { ISimplifiedPlatform } from 'vs/base/common/keybinding';
+import { ISimplifiedPlatform } from 'vs/platform/keybinding/common/keybindingLabels';
 
 suite('Keybinding IO', () => {
 
@@ -134,7 +134,7 @@ suite('Keybinding IO', () => {
 		let userKeybinding = <IUserFriendlyKeybinding>JSON.parse(strJSON)[0];
 		let keybindingItem = IOSupport.readKeybindingItem(userKeybinding, 0);
 		let normalizedKeybindingItem = NormalizedKeybindingItem.fromKeybindingItem(keybindingItem, false);
-		assert.equal(normalizedKeybindingItem.keybinding, 0);
+		assert.equal(normalizedKeybindingItem.keybinding, null);
 	});
 
 	test('test commands args', () => {

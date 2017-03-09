@@ -12,7 +12,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import pfs = require('vs/base/node/pfs');
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IThemeService, IColorTheme } from 'vs/workbench/services/themes/common/themeService';
+import { IWorkbenchThemeService, IColorTheme } from 'vs/workbench/services/themes/common/themeService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { toResource } from 'vs/workbench/common/editor';
 import { ITextMateService } from 'vs/editor/node/textMate/textMateService';
@@ -49,8 +49,8 @@ class ThemeDocument {
 		this._theme = theme;
 		this._cache = Object.create(null);
 		this._defaultColor = '#000000';
-		for (let i = 0, len = this._theme.settings.length; i < len; i++) {
-			let rule = this._theme.settings[i];
+		for (let i = 0, len = this._theme.tokenColors.length; i < len; i++) {
+			let rule = this._theme.tokenColors[i];
 			if (!rule.scope) {
 				this._defaultColor = rule.settings.foreground;
 			}
@@ -58,11 +58,7 @@ class ThemeDocument {
 	}
 
 	private _generateExplanation(selector: string, color: Color): string {
-		let rgba = color.toRGBA();
-		if (rgba.a === 255) {
-			return `${selector}: ${color.toRGBHex().toUpperCase()}`;
-		}
-		return `${selector}: ${color.toRGBAHex().toUpperCase()}`;
+		return `${selector}: ${color.toRGBAHex(true).toUpperCase()}`;
 	}
 
 	public explainTokenColor(scopes: string, color: Color): string {
@@ -96,7 +92,7 @@ class Snapper {
 
 	constructor(
 		@IModeService private modeService: IModeService,
-		@IThemeService private themeService: IThemeService,
+		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
 		@ITextMateService private textMateService: ITextMateService
 	) {
 	}

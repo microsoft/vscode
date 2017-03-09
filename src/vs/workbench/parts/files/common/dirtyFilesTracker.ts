@@ -9,7 +9,7 @@ import nls = require('vs/nls');
 import errors = require('vs/base/common/errors');
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { VIEWLET_ID } from 'vs/workbench/parts/files/common/files';
-import { TextFileModelChangeEvent, ITextFileService, AutoSaveMode } from 'vs/workbench/services/textfile/common/textfiles';
+import { TextFileModelChangeEvent, ITextFileService, AutoSaveMode, ModelState } from 'vs/workbench/services/textfile/common/textfiles';
 import { platform, Platform } from 'vs/base/common/platform';
 import { Position } from 'vs/platform/editor/common/editor';
 import { IWindowService } from 'vs/platform/windows/common/windows';
@@ -80,18 +80,24 @@ export class DirtyFilesTracker implements IWorkbenchContribution {
 			this.updateActivityBadge(); // no indication needed when auto save is enabled for short delay
 		}
 
-		// If files become dirty but are not opened, we open it in the background
-		this.doOpenDirtyResources(e.map(e => e.resource));
+		// If files become dirty but are not opened, we open it in the background unless there are pending to be saved
+		this.doOpenDirtyResources(arrays.distinct(e.filter(e => {
+
+			// Only dirty models that are not PENDING_SAVE
+			const model = this.textFileService.models.get(e.resource);
+			const shouldOpen = model && model.isDirty() && model.getState() !== ModelState.PENDING_SAVE;
+
+			// Only if not open already
+			return shouldOpen && !this.stacks.isOpen(e.resource);
+		}).map(e => e.resource), r => r.toString()));
 	}
 
 	private doOpenDirtyResources(resources: URI[]): void {
-		const dirtyNotOpenedResources = arrays.distinct(resources.filter(r => !this.stacks.isOpen(r) && this.textFileService.isDirty(r)), r => r.toString());
-
 		const activeEditor = this.editorService.getActiveEditor();
 		const activePosition = activeEditor ? activeEditor.position : Position.ONE;
 
 		// Open
-		this.editorService.openEditors(dirtyNotOpenedResources.map(resource => {
+		this.editorService.openEditors(resources.map(resource => {
 			return {
 				input: {
 					resource,

@@ -28,21 +28,32 @@ class CodeLensViewZone implements editorBrowser.IViewZone {
 	public afterLineNumber: number;
 	public heightInLines: number;
 	public suppressMouseDown: boolean;
-
 	public domNode: HTMLElement;
+	private _lastHeight: number;
+	private _onHeight: Function;
 
-	constructor(afterLineNumber: number) {
-
+	constructor(afterLineNumber: number, onHeight: Function) {
 		this.afterLineNumber = afterLineNumber;
+		this._onHeight = onHeight;
+
 		this.heightInLines = 1;
 		this.suppressMouseDown = true;
-
 		this.domNode = document.createElement('div');
 	}
 
 	public setAfterLineNumber(afterLineNumber: number): void {
 		this.afterLineNumber = afterLineNumber;
 	}
+
+	onComputedHeight(height: number): void {
+		if (this._lastHeight === undefined) {
+			this._lastHeight = height;
+		} else if (this._lastHeight !== height) {
+			this._lastHeight = height;
+			this._onHeight();
+		}
+	}
+
 }
 
 class CodeLensContentWidget implements editorBrowser.IContentWidget {
@@ -203,10 +214,14 @@ class CodeLens {
 	private _data: ICodeLensData[];
 	private _editor: editorBrowser.ICodeEditor;
 
-	public constructor(data: ICodeLensData[], editor: editorBrowser.ICodeEditor,
+	public constructor(
+		data: ICodeLensData[],
+		editor: editorBrowser.ICodeEditor,
 		helper: CodeLensHelper,
 		viewZoneChangeAccessor: editorBrowser.IViewZoneChangeAccessor,
-		commandService: ICommandService, messageService: IMessageService) {
+		commandService: ICommandService, messageService: IMessageService,
+		updateCallabck: Function
+	) {
 
 		this._editor = editor;
 		this._data = data;
@@ -228,8 +243,8 @@ class CodeLens {
 			}
 		});
 
-		this._viewZone = new CodeLensViewZone(range.startLineNumber - 1);
 		this._contentWidget = new CodeLensContentWidget(editor, Range.lift(range), commandService, messageService);
+		this._viewZone = new CodeLensViewZone(range.startLineNumber - 1, updateCallabck);
 
 		this._viewZoneId = viewZoneChangeAccessor.addZone(this._viewZone);
 		this._editor.addContentWidget(this._contentWidget);
@@ -320,6 +335,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 	private _currentFindCodeLensSymbolsPromise: TPromise<ICodeLensData[]>;
 	private _modelChangeCounter: number;
 	private _currentFindOccPromise: TPromise<any>;
+	private _detectVisibleLenses: RunOnceScheduler;
 
 	constructor(
 		private _editor: editorBrowser.ICodeEditor,
@@ -397,7 +413,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 		const subscribeToProviders = (result: ICodeLensData[]) => {
 			const seen = new Set<CodeLensProvider>();
 
-			for (const {provider} of result) {
+			for (const { provider } of result) {
 				if (provider.onDidChange && !seen.has(provider)) {
 					providerSubscriptions.add(provider.onDidChange(onEvent));
 					seen.add(provider);
@@ -405,7 +421,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 			}
 		};
 
-		const detectVisible = new RunOnceScheduler(() => {
+		this._detectVisibleLenses = new RunOnceScheduler(() => {
 			this._onViewportChanged(model.getLanguageIdentifier().language);
 		}, 500);
 
@@ -421,14 +437,14 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 				if (counterValue === this._modelChangeCounter) { // only the last one wins
 					this.renderCodeLensSymbols(result);
 					subscribeToProviders(result);
-					detectVisible.schedule();
+					this._detectVisibleLenses.schedule();
 				}
 			}, (error) => {
 				onUnexpectedError(error);
 			});
 		}, 250);
 		this._localToDispose.push(scheduler);
-		this._localToDispose.push(detectVisible);
+		this._localToDispose.push(this._detectVisibleLenses);
 		this._localToDispose.push(model.addBulkListener((events) => {
 			let hadChange = false;
 			for (let i = 0; i < events.length; i++) {
@@ -460,14 +476,14 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 				});
 
 				// Compute new `visible` code lenses
-				detectVisible.schedule();
+				this._detectVisibleLenses.schedule();
 				// Ask for all references again
 				scheduler.schedule();
 			}
 		}));
 		this._localToDispose.push(this._editor.onDidScrollChange((e) => {
 			if (e.scrollTopChanged) {
-				detectVisible.schedule();
+				this._detectVisibleLenses.schedule();
 			}
 		}));
 		this._localToDispose.push({
@@ -541,7 +557,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 						groupsIndex++;
 						codeLensIndex++;
 					} else {
-						this._lenses.splice(codeLensIndex, 0, new CodeLens(groups[groupsIndex], this._editor, helper, accessor, this._commandService, this._messageService));
+						this._lenses.splice(codeLensIndex, 0, new CodeLens(groups[groupsIndex], this._editor, helper, accessor, this._commandService, this._messageService, () => this._detectVisibleLenses.schedule()));
 						codeLensIndex++;
 						groupsIndex++;
 					}
@@ -555,7 +571,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 
 				// Create extra symbols
 				while (groupsIndex < groups.length) {
-					this._lenses.push(new CodeLens(groups[groupsIndex], this._editor, helper, accessor, this._commandService, this._messageService));
+					this._lenses.push(new CodeLens(groups[groupsIndex], this._editor, helper, accessor, this._commandService, this._messageService, () => this._detectVisibleLenses.schedule()));
 					groupsIndex++;
 				}
 

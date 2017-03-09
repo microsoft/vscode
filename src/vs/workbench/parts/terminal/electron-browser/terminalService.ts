@@ -3,65 +3,41 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import Event, { Emitter } from 'vs/base/common/event';
-import * as errors from 'vs/base/common/errors';
-import platform = require('vs/base/common/platform');
-import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import * as nls from 'vs/nls';
+import * as platform from 'vs/base/common/platform';
+import product from 'vs/platform/node/product';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITerminalInstance, ITerminalService, IShellLaunchConfig, KEYBINDING_CONTEXT_TERMINAL_FOCUS, TERMINAL_PANEL_ID } from 'vs/workbench/parts/terminal/common/terminal';
-import { TPromise } from 'vs/base/common/winjs.base';
+import { ITerminalInstance, ITerminalService, IShellLaunchConfig, ITerminalConfigHelper } from 'vs/workbench/parts/terminal/common/terminal';
+import { TerminalService as AbstractTerminalService } from 'vs/workbench/parts/terminal/common/terminalService';
 import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 import { TerminalInstance } from 'vs/workbench/parts/terminal/electron-browser/terminalInstance';
 import { TerminalLinkHandler } from 'vs/workbench/parts/terminal/electron-browser/terminalLinkHandler';
 
-export class TerminalService implements ITerminalService {
-	public _serviceBrand: any;
-
-	private _activeTerminalInstanceIndex: number;
+export class TerminalService extends AbstractTerminalService implements ITerminalService {
 	private _configHelper: TerminalConfigHelper;
 	private _linkHandler: TerminalLinkHandler;
-	private _onActiveInstanceChanged: Emitter<string>;
-	private _onInstanceDisposed: Emitter<ITerminalInstance>;
-	private _onInstanceProcessIdReady: Emitter<ITerminalInstance>;
-	private _onInstanceTitleChanged: Emitter<string>;
-	private _onInstancesChanged: Emitter<string>;
-	private _terminalContainer: HTMLElement;
-	private _terminalFocusContextKey: IContextKey<boolean>;
-	private _terminalInstances: ITerminalInstance[];
 
-	public get activeTerminalInstanceIndex(): number { return this._activeTerminalInstanceIndex; }
-	public get configHelper(): TerminalConfigHelper { return this._configHelper; }
-	public get onActiveInstanceChanged(): Event<string> { return this._onActiveInstanceChanged.event; }
-	public get onInstanceDisposed(): Event<ITerminalInstance> { return this._onInstanceDisposed.event; }
-	public get onInstanceProcessIdReady(): Event<ITerminalInstance> { return this._onInstanceProcessIdReady.event; }
-	public get onInstanceTitleChanged(): Event<string> { return this._onInstanceTitleChanged.event; }
-	public get onInstancesChanged(): Event<string> { return this._onInstancesChanged.event; }
-	public get terminalInstances(): ITerminalInstance[] { return this._terminalInstances; }
+	public get configHelper(): ITerminalConfigHelper { return this._configHelper; };
 
 	constructor(
-		@IContextKeyService private _contextKeyService: IContextKeyService,
-		@IConfigurationService private _configurationService: IConfigurationService,
+		@IContextKeyService _contextKeyService: IContextKeyService,
+		@IConfigurationService _configurationService: IConfigurationService,
+		@IPanelService _panelService: IPanelService,
+		@IPartService _partService: IPartService,
+		@ILifecycleService _lifecycleService: ILifecycleService,
 		@IInstantiationService private _instantiationService: IInstantiationService,
-		@IPanelService private _panelService: IPanelService,
-		@IPartService private _partService: IPartService
+		@IWindowIPCService private _windowService: IWindowIPCService
 	) {
-		this._terminalInstances = [];
-		this._activeTerminalInstanceIndex = 0;
+		super(_contextKeyService, _configurationService, _panelService, _partService, _lifecycleService);
 
-		this._onActiveInstanceChanged = new Emitter<string>();
-		this._onInstanceDisposed = new Emitter<ITerminalInstance>();
-		this._onInstanceProcessIdReady = new Emitter<ITerminalInstance>();
-		this._onInstanceTitleChanged = new Emitter<string>();
-		this._onInstancesChanged = new Emitter<string>();
-
-		this._configurationService.onDidUpdateConfiguration(() => this.updateConfig());
-		this._terminalFocusContextKey = KEYBINDING_CONTEXT_TERMINAL_FOCUS.bindTo(this._contextKeyService);
 		this._configHelper = this._instantiationService.createInstance(TerminalConfigHelper, platform.platform);
 		this._linkHandler = this._instantiationService.createInstance(TerminalLinkHandler, platform.platform);
-		this.onInstanceDisposed((terminalInstance) => { this._removeInstance(terminalInstance); });
 	}
 
 	public createInstance(shell: IShellLaunchConfig = {}): ITerminalInstance {
@@ -83,82 +59,23 @@ export class TerminalService implements ITerminalService {
 		return terminalInstance;
 	}
 
-	public getInstanceLabels(): string[] {
-		return this._terminalInstances.map((instance, index) => `${index + 1}: ${instance.title}`);
-	}
-
-	private _removeInstance(terminalInstance: ITerminalInstance): void {
-		let index = this.terminalInstances.indexOf(terminalInstance);
-		let wasActiveInstance = terminalInstance === this.getActiveInstance();
-		if (index !== -1) {
-			this.terminalInstances.splice(index, 1);
+	protected _showTerminalCloseConfirmation(): boolean {
+		const cancelId = 1;
+		let message;
+		if (this.terminalInstances.length === 1) {
+			message = nls.localize('terminalService.terminalCloseConfirmationSingular', "There is an active terminal session, do you want to kill it?");
+		} else {
+			message = nls.localize('terminalService.terminalCloseConfirmationPlural', "There are {0} active terminal sessions, do you want to kill them?", this.terminalInstances.length);
 		}
-		if (wasActiveInstance && this.terminalInstances.length > 0) {
-			let newIndex = index < this.terminalInstances.length ? index : this.terminalInstances.length - 1;
-			this.setActiveInstanceByIndex(newIndex);
-			if (terminalInstance.hadFocusOnExit) {
-				this.getActiveInstance().focus(true);
-			}
-		}
-		if (this.terminalInstances.length === 0) {
-			this.hidePanel();
-		}
-		this._onInstancesChanged.fire();
-		if (wasActiveInstance) {
-			this._onActiveInstanceChanged.fire();
-		}
-	}
-
-	public getActiveInstance(): ITerminalInstance {
-		if (this.activeTerminalInstanceIndex < 0 || this.activeTerminalInstanceIndex >= this.terminalInstances.length) {
-			return null;
-		}
-		return this.terminalInstances[this.activeTerminalInstanceIndex];
-	}
-
-	public getInstanceFromId(terminalId: number): ITerminalInstance {
-		return this.terminalInstances[this._getIndexFromId(terminalId)];
-	}
-
-	public setActiveInstance(terminalInstance: ITerminalInstance): void {
-		this.setActiveInstanceByIndex(this._getIndexFromId(terminalInstance.id));
-	}
-
-	public setActiveInstanceByIndex(terminalIndex: number): void {
-		if (terminalIndex >= this._terminalInstances.length) {
-			return;
-		}
-		const didInstanceChange = this._activeTerminalInstanceIndex !== terminalIndex;
-		this._activeTerminalInstanceIndex = terminalIndex;
-		this._terminalInstances.forEach((terminalInstance, i) => {
-			terminalInstance.setVisible(i === terminalIndex);
-		});
-		// Only fire the event if there was a change
-		if (didInstanceChange) {
-			this._onActiveInstanceChanged.fire();
-		}
-	}
-
-	public setActiveInstanceToNext(): void {
-		if (this.terminalInstances.length <= 1) {
-			return;
-		}
-		let newIndex = this._activeTerminalInstanceIndex + 1;
-		if (newIndex >= this.terminalInstances.length) {
-			newIndex = 0;
-		}
-		this.setActiveInstanceByIndex(newIndex);
-	}
-
-	public setActiveInstanceToPrevious(): void {
-		if (this.terminalInstances.length <= 1) {
-			return;
-		}
-		let newIndex = this._activeTerminalInstanceIndex - 1;
-		if (newIndex < 0) {
-			newIndex = this.terminalInstances.length - 1;
-		}
-		this.setActiveInstanceByIndex(newIndex);
+		const opts: Electron.ShowMessageBoxOptions = {
+			title: product.nameLong,
+			message,
+			type: 'warning',
+			buttons: [nls.localize('yes', "Yes"), nls.localize('cancel', "Cancel")],
+			noLink: true,
+			cancelId
+		};
+		return this._windowService.getWindow().showMessageBox(opts) === cancelId;
 	}
 
 	public setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void {
@@ -167,49 +84,5 @@ export class TerminalService implements ITerminalService {
 		this._terminalInstances.forEach(terminalInstance => {
 			terminalInstance.attachToElement(this._terminalContainer);
 		});
-	}
-
-	public showPanel(focus?: boolean): TPromise<void> {
-		return new TPromise<void>((complete) => {
-			let panel = this._panelService.getActivePanel();
-			if (!panel || panel.getId() !== TERMINAL_PANEL_ID) {
-				return this._panelService.openPanel(TERMINAL_PANEL_ID, focus).then(() => {
-					if (focus) {
-						this.getActiveInstance().focus(true);
-					}
-					complete(void 0);
-				});
-			} else {
-				if (focus) {
-					this.getActiveInstance().focus(true);
-				}
-				complete(void 0);
-			}
-			return undefined;
-		});
-	}
-
-	public hidePanel(): void {
-		const panel = this._panelService.getActivePanel();
-		if (panel && panel.getId() === TERMINAL_PANEL_ID) {
-			this._partService.setPanelHidden(true).done(undefined, errors.onUnexpectedError);
-		}
-	}
-
-	private _getIndexFromId(terminalId: number): number {
-		let terminalIndex = -1;
-		this.terminalInstances.forEach((terminalInstance, i) => {
-			if (terminalInstance.id === terminalId) {
-				terminalIndex = i;
-			}
-		});
-		if (terminalIndex === -1) {
-			throw new Error(`Terminal with ID ${terminalId} does not exist (has it already been disposed?)`);
-		}
-		return terminalIndex;
-	}
-
-	public updateConfig(): void {
-		this.terminalInstances.forEach(instance => instance.updateConfig());
 	}
 }

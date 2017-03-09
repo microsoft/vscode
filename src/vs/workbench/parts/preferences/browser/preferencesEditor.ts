@@ -15,7 +15,7 @@ import { Registry } from 'vs/platform/platform';
 import { toResource, SideBySideEditorInput, EditorOptions, EditorInput, IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
 import { BaseEditor, EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
-import { IEditorControl, IEditor } from 'vs/platform/editor/common/editor';
+import { IEditorControl, IEditor, Position, Verbosity } from 'vs/platform/editor/common/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
@@ -32,7 +32,7 @@ import { SearchWidget, SettingsTabsWidget } from 'vs/workbench/parts/preferences
 import { ContextKeyExpr, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { CommonEditorRegistry, Command } from 'vs/editor/common/editorCommonExtensions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
+import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -58,6 +58,10 @@ export class PreferencesEditorInput extends SideBySideEditorInput {
 
 	getTypeId(): string {
 		return PreferencesEditorInput.ID;
+	}
+
+	public getTitle(verbosity: Verbosity): string {
+		return this.master.getTitle(verbosity);
 	}
 }
 
@@ -159,6 +163,16 @@ export class PreferencesEditor extends BaseEditor {
 		this.defaultSettingsEditorContextKey.set(false);
 		this.sideBySidePreferencesWidget.clearInput();
 		super.clearInput();
+	}
+
+	protected setEditorVisible(visible: boolean, position: Position): void {
+		this.sideBySidePreferencesWidget.setEditorVisible(visible, position);
+		super.setEditorVisible(visible, position);
+	}
+
+	public changePosition(position: Position): void {
+		this.sideBySidePreferencesWidget.changePosition(position);
+		super.changePosition(position);
 	}
 
 	private updateInput(oldInput: PreferencesEditorInput, newInput: PreferencesEditorInput, options?: EditorOptions): TPromise<void> {
@@ -363,6 +377,18 @@ class SideBySidePreferencesWidget extends Widget {
 		}
 	}
 
+	public setEditorVisible(visible: boolean, position: Position): void {
+		if (this.editablePreferencesEditor) {
+			this.editablePreferencesEditor.setVisible(visible, position);
+		}
+	}
+
+	public changePosition(position: Position): void {
+		if (this.editablePreferencesEditor) {
+			this.editablePreferencesEditor.changePosition(position);
+		}
+	}
+
 	private getOrCreateEditablePreferencesEditor(editorInput: EditorInput): TPromise<BaseEditor> {
 		if (this.editablePreferencesEditor) {
 			return TPromise.as(this.editablePreferencesEditor);
@@ -428,7 +454,7 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IThemeService themeService: IThemeService,
+		@IWorkbenchThemeService themeService: IWorkbenchThemeService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IPreferencesService private preferencesService: IPreferencesService,
 		@IModelService private modelService: IModelService,

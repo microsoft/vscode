@@ -13,10 +13,8 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { ModelState, ITextFileEditorModel, ITextFileEditorModelManager, TextFileModelChangeEvent, StateChange } from 'vs/workbench/services/textfile/common/textfiles';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { FileOperation, FileOperationEvent, FileChangesEvent, IFileService } from 'vs/platform/files/common/files';
 
 export class TextFileEditorModelManager implements ITextFileEditorModelManager {
-
 	private toUnbind: IDisposable[];
 
 	private _onModelDisposed: Emitter<URI>;
@@ -41,8 +39,7 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 	constructor(
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@IFileService private fileService: IFileService
+		@IEditorGroupService private editorGroupService: IEditorGroupService
 	) {
 		this.toUnbind = [];
 
@@ -77,10 +74,6 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 		this.toUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
 		this.toUnbind.push(this.editorGroupService.getStacksModel().onEditorClosed(() => this.onEditorClosed()));
 
-		// File changes
-		this.toUnbind.push(this.fileService.onAfterOperation(e => this.onFileOperation(e)));
-		this.toUnbind.push(this.fileService.onFileChanges(e => this.onFileChanges(e)));
-
 		// Lifecycle
 		this.lifecycleService.onShutdown(this.dispose, this);
 	}
@@ -93,46 +86,41 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 		this.disposeUnusedModels();
 	}
 
-	private disposeModelIfPossible(resource: URI): void {
-		const model = this.get(resource);
-		if (this.canDispose(model)) {
+	private disposeUnusedModels(): void {
+
+		// To not grow our text file model cache infinitly, we dispose models that
+		// are not showing up in any opened editor.
+		// TODO@Ben this is a workaround until we have adopted model references from
+		// the resolver service (https://github.com/Microsoft/vscode/issues/17888)
+
+		this.getAll(void 0, model => this.canDispose(model)).forEach(model => {
 			model.dispose();
-		}
-	}
-
-	private onFileOperation(e: FileOperationEvent): void {
-		if (e.operation === FileOperation.MOVE || e.operation === FileOperation.DELETE) {
-			this.disposeModelIfPossible(e.resource); // dispose models of moved or deleted files
-		}
-	}
-
-	private onFileChanges(e: FileChangesEvent): void {
-
-		// Dispose inputs that got deleted
-		e.getDeleted().forEach(deleted => {
-			this.disposeModelIfPossible(deleted.resource);
 		});
 	}
 
-	private canDispose(textModel: ITextFileEditorModel): boolean {
-		if (!textModel) {
+	private canDispose(model: ITextFileEditorModel): boolean {
+		if (!model) {
 			return false; // we need data!
 		}
 
-		if (textModel.isDisposed()) {
+		if (model.isDisposed()) {
 			return false; // already disposed
 		}
 
-		if (textModel.textEditorModel && textModel.textEditorModel.isAttachedToEditor()) {
-			return false; // never dispose when attached to editor
+		if (this.mapResourceToPendingModelLoaders[model.getResource().toString()]) {
+			return false; // not yet loaded
 		}
 
-		if (textModel.getState() !== ModelState.SAVED) {
-			return false; // never dispose unsaved models
+		if (model.getState() !== ModelState.SAVED) {
+			return false; // not saved
 		}
 
-		if (this.mapResourceToPendingModelLoaders[textModel.getResource().toString()]) {
-			return false; // never dispose models that we are about to load at the same time
+		if (model.textEditorModel && model.textEditorModel.isAttachedToEditor()) {
+			return false; // never dispose when attached to editor (e.g. viewzones)
+		}
+
+		if (this.editorGroupService.getStacksModel().isOpen(model.getResource())) {
+			return false; // never dispose when opened inside an editor (e.g. tabs)
 		}
 
 		return true;
@@ -299,7 +287,7 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 		});
 	}
 
-	public getAll(resource?: URI): ITextFileEditorModel[] {
+	public getAll(resource?: URI, filter?: (model: ITextFileEditorModel) => boolean): ITextFileEditorModel[] {
 		if (resource) {
 			const res = this.mapResourceToModel[resource.toString()];
 
@@ -309,7 +297,10 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 		const keys = Object.keys(this.mapResourceToModel);
 		const res: ITextFileEditorModel[] = [];
 		for (let i = 0; i < keys.length; i++) {
-			res.push(this.mapResourceToModel[keys[i]]);
+			const model = this.mapResourceToModel[keys[i]];
+			if (!filter || filter(model)) {
+				res.push(model);
+			}
 		}
 
 		return res;
@@ -376,21 +367,6 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 		keys = Object.keys(this.mapResourceToModelContentChangeListener);
 		dispose(keys.map(k => this.mapResourceToModelContentChangeListener[k]));
 		this.mapResourceToModelContentChangeListener = Object.create(null);
-	}
-
-	private disposeUnusedModels(): void {
-
-		// To not grow our text file model cache infinitly, we dispose models that
-		// are not showing up in any opened editor.
-
-		// Get all cached file models
-		this.getAll()
-
-			// Only models that are not open inside the editor area
-			.filter(model => !this.editorGroupService.getStacksModel().isOpen(model.getResource()))
-
-			// Dispose
-			.forEach(model => this.disposeModelIfPossible(model.getResource()));
 	}
 
 	public dispose(): void {

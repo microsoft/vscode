@@ -159,8 +159,8 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		}
 
 		const state = model.getState();
-		if (state === ModelState.CONFLICT || state === ModelState.ERROR) {
-			return true; // always indicate dirty state if we are in conflict or error state
+		if (state === ModelState.CONFLICT || state === ModelState.ORPHAN || state === ModelState.ERROR) {
+			return true; // always indicate dirty state if we are in conflict, orphan or error state
 		}
 
 		if (this.textFileService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
@@ -199,6 +199,10 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		});
 	}
 
+	public isResolved(): boolean {
+		return !!this.textFileService.models.get(this.resource);
+	}
+
 	public getTelemetryDescriptor(): { [key: string]: any; } {
 		const descriptor = super.getTelemetryDescriptor();
 		descriptor['resource'] = telemetryURIDescriptor(this.getResource());
@@ -209,7 +213,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 	public dispose(): void {
 
 		// Listeners
-		dispose(this.toUnbind);
+		this.toUnbind = dispose(this.toUnbind);
 
 		super.dispose();
 	}

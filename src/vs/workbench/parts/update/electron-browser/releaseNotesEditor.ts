@@ -12,7 +12,7 @@ import { Builder } from 'vs/base/browser/builder';
 import { append, $ } from 'vs/base/browser/dom';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
+import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { ReleaseNotesInput } from './releaseNotesInput';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import WebView from 'vs/workbench/parts/html/browser/webview';
@@ -25,9 +25,10 @@ function renderBody(body: string): string {
 		<html>
 			<head>
 				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
-				<link rel="stylesheet" type="text/css" href="${ require.toUrl('./media/markdown.css')}" >
+				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src http: https: data:; media-src http: https: data:; script-src 'none'; style-src file: http: https:; child-src 'none'; frame-src 'none';">
+				<link rel="stylesheet" type="text/css" href="${require.toUrl('./media/markdown.css')}">
 			</head>
-			<body>${ body}</body>
+			<body>${body}</body>
 		</html>`;
 }
 
@@ -42,7 +43,7 @@ export class ReleaseNotesEditor extends BaseEditor {
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IThemeService private themeService: IThemeService,
+		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
 		@IOpenerService private openerService: IOpenerService,
 		@IModeService private modeService: IModeService
 	) {

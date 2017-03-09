@@ -21,7 +21,7 @@ suite('Suggest', function () {
 	setup(function () {
 
 		model = Model.createFromString('FOO\nbar\BAR\nfoo', undefined, undefined, URI.parse('foo:bar/path'));
-		registration = SuggestRegistry.register({ pattern: 'bar/path' }, {
+		registration = SuggestRegistry.register({ pattern: 'bar/path', scheme: 'foo' }, {
 			provideCompletionItems() {
 				return {
 					incomplete: false,
@@ -98,7 +98,7 @@ suite('Suggest', function () {
 				};
 			}
 		};
-		const registration = SuggestRegistry.register({ pattern: 'bar/path' }, foo);
+		const registration = SuggestRegistry.register({ pattern: 'bar/path', scheme: 'foo' }, foo);
 
 		provideSuggestionItems(model, new Position(1, 1), undefined, [foo]).then(items => {
 			registration.dispose();

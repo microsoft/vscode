@@ -25,7 +25,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionGalleryService, IExtensionManifest, IKeyBinding } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
+import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
 import { IExtensionsWorkbenchService, IExtensionsViewlet, VIEWLET_ID, IExtension, IExtensionDependencies } from 'vs/workbench/parts/extensions/common/extensions';
 import { Renderer, DataSource, Controller } from 'vs/workbench/parts/extensions/browser/dependenciesViewer';
@@ -36,8 +36,8 @@ import { EditorOptions } from 'vs/workbench/common/editor';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { CombinedInstallAction, UpdateAction, EnableAction, DisableAction, BuiltinStatusLabelAction, ReloadAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
 import WebView from 'vs/workbench/parts/html/browser/webview';
-import { Keybinding } from 'vs/base/common/keyCodes';
-import { KeybindingLabels } from 'vs/base/common/keybinding';
+import { createKeybinding } from 'vs/base/common/keyCodes';
+import { KeybindingLabels } from 'vs/platform/keybinding/common/keybindingLabels';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { IMessageService } from 'vs/platform/message/common/message';
@@ -47,13 +47,15 @@ import { Position } from 'vs/platform/editor/common/editor';
 import { IListService } from 'vs/platform/list/browser/listService';
 
 function renderBody(body: string): string {
+	const nonce = new Date().getTime() + '' + new Date().getMilliseconds();
 	return `<!DOCTYPE html>
 		<html>
 			<head>
 				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
-				<link rel="stylesheet" type="text/css" href="${ require.toUrl('./media/markdown.css')}" >
+				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src http: https: data:; media-src http: https: data:; script-src 'none'; style-src 'nonce-${nonce}'; child-src 'none'; frame-src 'none';">
+				<link rel="stylesheet" type="text/css" href="${require.toUrl('./media/markdown.css')}" nonce="${nonce}" >
 			</head>
-			<body>${ body}</body>
+			<body>${body}</body>
 		</html>`;
 }
 
@@ -152,7 +154,7 @@ export class ExtensionEditor extends BaseEditor {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IViewletService private viewletService: IViewletService,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IThemeService private themeService: IThemeService,
+		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IMessageService private messageService: IMessageService,
 		@IOpenerService private openerService: IOpenerService,
@@ -667,8 +669,9 @@ export class ExtensionEditor extends BaseEditor {
 			case 'darwin': key = rawKeyBinding.mac; break;
 		}
 
-		const keyBinding = new Keybinding(KeybindingLabels.fromUserSettingsLabel(key || rawKeyBinding.key));
-		const result = this.keybindingService.getLabelFor(keyBinding);
+		const keyBinding = createKeybinding(KeybindingLabels.fromUserSettingsLabel(key || rawKeyBinding.key));
+		const resolvedKeybinding = this.keybindingService.resolveKeybinding(keyBinding);
+		const result = resolvedKeybinding.getLabel();
 		return result === 'unknown' ? null : result;
 	}
 

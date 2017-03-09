@@ -116,7 +116,8 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 
 	function assertEvent<E>(event: Event<E>, action: () => any, assert: (e: E) => any) {
 		return new TPromise((resolve, reject) => {
-			event(e => {
+			const sub = event(e => {
+				sub.dispose();
 				try {
 					resolve(assert(e));
 				} catch (err) {
@@ -258,6 +259,68 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 					assert.equal(event.completionModel.items.length, 1);
 					const [first] = event.completionModel.items;
 					assert.equal(first.suggestion.label, 'My Table');
+				});
+			});
+		});
+	});
+
+	test('#21484: Trigger character always force a new completion session', function () {
+
+		disposables.push(SuggestRegistry.register({ scheme: 'test' }, {
+			provideCompletionItems(doc, pos) {
+				return <ISuggestResult>{
+					currentWord: '',
+					incomplete: false,
+					suggestions: [{
+						label: 'foo.bar',
+						type: 'property',
+						insertText: 'foo.bar',
+						overwriteBefore: pos.column - 1
+					}]
+				};
+			}
+		}));
+
+		disposables.push(SuggestRegistry.register({ scheme: 'test' }, {
+			triggerCharacters: ['.'],
+			provideCompletionItems(doc, pos) {
+				return <ISuggestResult>{
+					currentWord: '',
+					incomplete: false,
+					suggestions: [{
+						label: 'boom',
+						type: 'property',
+						insertText: 'boom',
+						overwriteBefore: doc.getLineContent(pos.lineNumber)[pos.column - 2] === '.' ? 0 : pos.column - 1
+					}]
+				};
+			}
+		}));
+
+		model.setValue('');
+
+		return withOracle((model, editor) => {
+
+			return assertEvent(model.onDidSuggest, () => {
+				editor.setPosition({ lineNumber: 1, column: 1 });
+				editor.trigger('keyboard', Handler.Type, { text: 'foo' });
+
+			}, event => {
+				assert.equal(event.auto, true);
+				assert.equal(event.completionModel.items.length, 1);
+				const [first] = event.completionModel.items;
+				assert.equal(first.suggestion.label, 'foo.bar');
+
+				return assertEvent(model.onDidSuggest, () => {
+					editor.trigger('keyboard', Handler.Type, { text: '.' });
+
+				}, event => {
+					assert.equal(event.auto, true);
+					assert.equal(event.completionModel.items.length, 2);
+					const [first, second] = event.completionModel.items;
+					assert.equal(first.suggestion.label, 'boom');
+					assert.equal(second.suggestion.label, 'foo.bar');
+					assert.equal(event.completionModel.topScoreIdx, 1);
 				});
 			});
 		});

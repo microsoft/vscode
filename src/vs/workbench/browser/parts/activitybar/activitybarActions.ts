@@ -21,7 +21,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { dispose } from 'vs/base/common/lifecycle';
-import { Keybinding } from 'vs/base/common/keyCodes';
+import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { IViewletService, } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 
@@ -140,9 +140,9 @@ export class ActivityActionItem extends BaseActionItem {
 	}
 
 	private getKeybindingLabel(id: string): string {
-		const [kb] = this.keybindingService.lookupKeybindings(id);
+		const kb = this.keybindingService.lookupKeybinding(id);
 		if (kb) {
-			return this.keybindingService.getLabelFor(kb);
+			return kb.getLabel();
 		}
 
 		return null;
@@ -454,10 +454,8 @@ export class ViewletOverflowActivityActionItem extends BaseActionItem {
 		});
 	}
 
-	private getKeybinding(action: IAction): Keybinding {
-		const [kb] = this.keybindingService.lookupKeybindings(action.id);
-
-		return kb;
+	private getKeybinding(action: IAction): ResolvedKeybinding {
+		return this.keybindingService.lookupKeybinding(action.id);
 	}
 
 	private getActions(): OpenViewletAction[] {

@@ -59,6 +59,7 @@
 	 */
 	function getLineElementsAtPageOffset(offset) {
 		const lines = document.getElementsByClassName('code-line');
+		const position = offset - window.scrollY;
 		let previous = null;
 		for (const element of lines) {
 			const line = +element.getAttribute('data-line');
@@ -67,13 +68,14 @@
 			}
 			const bounds = element.getBoundingClientRect();
 			const entry = { element, line };
-			if (offset >= window.scrollY + bounds.top && offset <= window.scrollY + bounds.top + bounds.height) {
-				// add progress through element
-				entry.line += (offset - (window.scrollY + bounds.top)) / (bounds.height);
-				return { previous: entry };
-			} else if (offset < window.scrollY + bounds.top) {
+			if (position < bounds.top) {
+				if (previous && previous.fractional < 1) {
+					previous.line += previous.fractional;
+					return { previous };
+				}
 				return { previous, next: entry };
 			}
+			entry.fractional = (position - bounds.top) / (bounds.height);
 			previous = entry;
 		}
 		return { previous };
@@ -87,7 +89,7 @@
 	 * Attempt to reveal the element for a source line in the editor.
 	 */
 	function scrollToRevealSourceLine(line) {
-		const {previous, next} = getElementsForSourceLine(line);
+		const { previous, next } = getElementsForSourceLine(line);
 		marker.update(previous && previous.element);
 		if (previous && settings.scrollPreviewWithEditorSelection) {
 			let scrollTo = 0;
@@ -104,7 +106,7 @@
 	}
 
 	function getEditorLineNumberForPageOffset(offset) {
-		const {previous, next} = getLineElementsAtPageOffset(offset);
+		const { previous, next } = getLineElementsAtPageOffset(offset);
 		if (previous) {
 			if (next) {
 				const betweenProgress = (offset - window.scrollY - previous.element.getBoundingClientRect().top) / (next.element.getBoundingClientRect().top - previous.element.getBoundingClientRect().top);

@@ -40,7 +40,23 @@ export enum ModelState {
 	SAVED,
 	DIRTY,
 	PENDING_SAVE,
+
+	/**
+	 * A model is in conflict mode when changes cannot be saved because the
+	 * underlying file has changed. Models in conflict mode are always dirty.
+	 */
 	CONFLICT,
+
+	/**
+	 * A model is in orphan state when the underlying file has been deleted.
+	 * Models in orphan mode are always dirty.
+	 */
+	ORPHAN,
+
+	/**
+	 * Any error that happens during a save that is not causing the CONFLICT state.
+	 * Models in error mode are always diry.
+	 */
 	ERROR
 }
 
@@ -164,8 +180,6 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 
 	getResource(): URI;
 
-	getLastSaveAttemptTime(): number;
-
 	getState(): ModelState;
 
 	getETag(): string;
@@ -176,13 +190,9 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 
 	revert(soft?: boolean): TPromise<void>;
 
-	setConflictResolutionMode(): void;
-
 	getValue(): string;
 
 	isDirty(): boolean;
-
-	isResolved(): boolean;
 
 	isDisposed(): boolean;
 }

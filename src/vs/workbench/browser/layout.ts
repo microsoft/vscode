@@ -15,7 +15,7 @@ import { IPartService, Position, ILayoutOptions, Parts } from 'vs/workbench/serv
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
+import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { getZoomFactor } from 'vs/base/browser/browser';
@@ -93,7 +93,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IPartService private partService: IPartService,
 		@IViewletService private viewletService: IViewletService,
-		@IThemeService themeService: IThemeService
+		@IWorkbenchThemeService themeService: IWorkbenchThemeService
 	) {
 		this.parent = parent;
 		this.workbenchContainer = workbenchContainer;

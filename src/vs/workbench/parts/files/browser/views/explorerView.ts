@@ -40,7 +40,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ResourceContextKey } from 'vs/workbench/common/resourceContextKey';
-import { IThemeService, IFileIconTheme } from 'vs/workbench/services/themes/common/themeService';
+import { IWorkbenchThemeService, IFileIconTheme } from 'vs/workbench/services/themes/common/themeService';
 
 export class ExplorerView extends CollapsibleViewletView {
 
@@ -50,6 +50,8 @@ export class ExplorerView extends CollapsibleViewletView {
 
 	private static MEMENTO_LAST_ACTIVE_FILE_RESOURCE = 'explorer.memento.lastActiveFileResource';
 	private static MEMENTO_EXPANDED_FOLDER_RESOURCES = 'explorer.memento.expandedFolderResources';
+
+	private static COMMON_SCM_FOLDERS = ['.git', '.svn', '.hg'];
 
 	private explorerViewer: ITree;
 	private filter: FileFilter;
@@ -88,7 +90,7 @@ export class ExplorerView extends CollapsibleViewletView {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IThemeService private themeService: IThemeService
+		@IWorkbenchThemeService private themeService: IWorkbenchThemeService
 	) {
 		super(actionRunner, false, nls.localize('explorerSection', "Files Explorer Section"), messageService, keybindingService, contextMenuService, headerSize);
 
@@ -530,11 +532,15 @@ export class ExplorerView extends CollapsibleViewletView {
 
 		// Filter to the ones we care
 		e = this.filterToAddRemovedOnWorkspacePath(e, (event, segments) => {
-			if (segments[0] !== '.git') {
-				return true; // we like all things outside .git
+			if (
+				segments[0] !== ExplorerView.COMMON_SCM_FOLDERS[0] &&
+				segments[0] !== ExplorerView.COMMON_SCM_FOLDERS[1] &&
+				segments[0] !== ExplorerView.COMMON_SCM_FOLDERS[2]
+			) {
+				return true; // we like all things outside common SCM folders
 			}
 
-			return segments.length === 1; // we only care about the .git folder itself
+			return segments.length === 1; // otherwise we only care about the SCM folder itself
 		});
 
 		// We only ever refresh from files/folders that got added or deleted

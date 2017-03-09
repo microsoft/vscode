@@ -25,7 +25,7 @@ import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { VIEWLET_ID } from 'vs/workbench/parts/files/common/files';
 import labels = require('vs/base/common/labels');
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IFileService, IFileStat } from 'vs/platform/files/common/files';
+import { IFileService, IFileStat, isEqual } from 'vs/platform/files/common/files';
 import { toResource, IEditorIdentifier, EditorInput } from 'vs/workbench/common/editor';
 import { FileStat, NewStatPlaceholder } from 'vs/workbench/parts/files/common/explorerViewModel';
 import { ExplorerView } from 'vs/workbench/parts/files/browser/views/explorerView';
@@ -43,7 +43,7 @@ import { Position, IResourceInput, IEditorInput } from 'vs/platform/editor/commo
 import { IInstantiationService, IConstructorSignature2, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, IMessageWithAction, IConfirmation, Severity, CancelAction } from 'vs/platform/message/common/message';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { Keybinding } from 'vs/base/common/keyCodes';
+import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 import { IEditorViewState } from 'vs/editor/common/editorCommon';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
@@ -297,7 +297,7 @@ class RenameFileAction extends BaseRenameAction {
 			let renamed: URI;
 
 			// If the dirty file itself got moved, just reparent it to the target folder
-			if (this.element.resource.fsPath === d.fsPath) {
+			if (isEqual(this.element.resource.fsPath, d.fsPath)) {
 				renamed = URI.file(targetPath);
 			}
 
@@ -1922,10 +1922,8 @@ export class GlobalCopyPathAction extends Action {
 	}
 }
 
-export function keybindingForAction(id: string, keybindingService: IKeybindingService): Keybinding {
-	const [kb] = keybindingService.lookupKeybindings(id);
-
-	return kb;
+export function keybindingForAction(id: string, keybindingService: IKeybindingService): ResolvedKeybinding {
+	return keybindingService.lookupKeybinding(id);
 }
 
 export function validateFileName(parent: IFileStat, name: string, allowOverwriting: boolean = false): string {

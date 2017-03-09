@@ -280,6 +280,7 @@ class InternalEditorOptionsHelper {
 			revealHorizontalRightPadding: toInteger(opts.revealHorizontalRightPadding, 0),
 			roundedSelection: toBoolean(opts.roundedSelection),
 			overviewRulerLanes: toInteger(opts.overviewRulerLanes, 0, 3),
+			overviewRulerBorder: toBoolean(opts.overviewRulerBorder),
 			cursorBlinking: cursorBlinkingStyleFromString(opts.cursorBlinking),
 			mouseWheelZoom: toBoolean(opts.mouseWheelZoom),
 			cursorStyle: cursorStyleFromString(opts.cursorStyle),
@@ -535,7 +536,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 	private _computeInternalOptions(): editorCommon.InternalEditorOptions {
 		let opts = this._configWithDefaults.getEditorOptions();
 
-		let editorClassName = this._getEditorClassName(opts.theme, toBoolean(opts.fontLigatures));
+		let editorClassName = this._getEditorClassName(opts.theme, toBoolean(opts.fontLigatures), opts.mouseStyle);
 
 		let disableTranslate3d = toBoolean(opts.disableTranslate3d);
 		let canUseTranslate3d = this._getCanUseTranslate3d();
@@ -543,7 +544,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 			canUseTranslate3d = false;
 		}
 
-		let bareFontInfo = BareFontInfo.createFromRawSettings(opts);
+		let bareFontInfo = BareFontInfo.createFromRawSettings(opts, this.getZoomLevel());
 
 		return InternalEditorOptionsHelper.createInternalEditorOptions(
 			this.getOuterWidth(),
@@ -586,7 +587,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 		return r ? r : 1;
 	}
 
-	protected abstract _getEditorClassName(theme: string, fontLigatures: boolean): string;
+	protected abstract _getEditorClassName(theme: string, fontLigatures: boolean, mouseDrag: 'text' | 'default' | 'copy'): string;
 
 	protected abstract getOuterWidth(): number;
 
@@ -597,6 +598,8 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 	protected abstract _getPixelRatio(): number;
 
 	protected abstract readConfiguration(styling: BareFontInfo): FontInfo;
+
+	protected abstract getZoomLevel(): number;
 }
 
 const configurationRegistry = <IConfigurationRegistry>Registry.as(Extensions.Configuration);
@@ -777,7 +780,26 @@ const editorConfiguration: IConfigurationNode = {
 			'description': nls.localize('emptySelectionClipboard', "Controls whether copying without a selection copies the current line.")
 		},
 		'editor.wordBasedSuggestions': {
-			'type': 'boolean',
+			'anyOf': [
+				'boolean',
+				{
+					type: 'object',
+					properties: {
+						strings: {
+							type: 'boolean',
+							description: nls.localize('wordBasedSuggestions.strings', "Enable word based suggestions inside strings.")
+						},
+						comments: {
+							type: 'boolean',
+							description: nls.localize('wordBasedSuggestions.comments', "Enable word based suggestions inside comments.")
+						},
+						default: {
+							type: 'boolean',
+							description: nls.localize('wordBasedSuggestions.default', "Enable word based suggestions outside of strings and comments.")
+						},
+					}
+				}
+			],
 			'default': DefaultConfig.editor.wordBasedSuggestions,
 			'description': nls.localize('wordBasedSuggestions', "Enable word based suggestions.")
 		},
@@ -807,6 +829,11 @@ const editorConfiguration: IConfigurationNode = {
 			'type': 'integer',
 			'default': 3,
 			'description': nls.localize('overviewRulerLanes', "Controls the number of decorations that can show up at the same position in the overview ruler")
+		},
+		'editor.overviewRulerBorder': {
+			'type': 'boolean',
+			'default': DefaultConfig.editor.overviewRulerBorder,
+			'description': nls.localize('overviewRulerBorder', "Controls if a border should be drawn around the overview ruler.")
 		},
 		'editor.cursorBlinking': {
 			'type': 'string',

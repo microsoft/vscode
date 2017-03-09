@@ -67,8 +67,8 @@ import { WorkbenchMessageService } from 'vs/workbench/services/message/browser/m
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
-import { ThemeService } from 'vs/workbench/services/themes/electron-browser/themeService';
+import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/themeService';
+import { WorkbenchThemeService } from 'vs/workbench/services/themes/electron-browser/themeService';
 import { ClipboardService } from 'vs/platform/clipboard/electron-browser/clipboardService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -163,7 +163,7 @@ export class Workbench implements IPartService {
 	private editorService: WorkbenchEditorService;
 	private viewletService: IViewletService;
 	private contextKeyService: IContextKeyService;
-	private themeService: ThemeService;
+	private themeService: WorkbenchThemeService;
 	private keybindingService: IKeybindingService;
 	private backupFileService: IBackupFileService;
 	private configurationEditingService: IConfigurationEditingService;
@@ -527,8 +527,8 @@ export class Workbench implements IPartService {
 		serviceCollection.set(IConfigurationEditingService, this.configurationEditingService);
 
 		// Theme Service
-		this.themeService = this.instantiationService.createInstance(ThemeService, document.body);
-		serviceCollection.set(IThemeService, this.themeService);
+		this.themeService = this.instantiationService.createInstance(WorkbenchThemeService, document.body);
+		serviceCollection.set(IWorkbenchThemeService, this.themeService);
 
 		// Configuration Resolver
 		const workspace = this.contextService.getWorkspace();

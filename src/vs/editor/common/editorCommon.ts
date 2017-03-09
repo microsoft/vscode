@@ -7,6 +7,7 @@
 import { BulkListenerCallback } from 'vs/base/common/eventEmitter';
 import { MarkedString } from 'vs/base/common/htmlContent';
 import * as types from 'vs/base/common/types';
+import * as objects from 'vs/base/common/objects';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ServicesAccessor, IConstructorSignature1 } from 'vs/platform/instantiation/common/instantiation';
@@ -295,6 +296,11 @@ export interface IEditorOptions {
 	 */
 	overviewRulerLanes?: number;
 	/**
+	 * Controls if a border should be drawn around the overview ruler.
+	 * Defaults to `true`.
+	 */
+	overviewRulerBorder?: boolean;
+	/**
 	 * Control the cursor animation style, possible values are 'blink', 'smooth', 'phase', 'expand' and 'solid'.
 	 * Defaults to 'blink'.
 	 */
@@ -304,6 +310,12 @@ export interface IEditorOptions {
 	 * Defaults to false.
 	 */
 	mouseWheelZoom?: boolean;
+	/**
+	 * Control the mouse pointer style, either 'text' or 'default' or 'copy'
+	 * Defaults to 'text'
+	 * @internal
+	 */
+	mouseStyle?: 'text' | 'default' | 'copy';
 	/**
 	 * Control the cursor style, either 'block' or 'line'.
 	 * Defaults to 'line'.
@@ -470,7 +482,7 @@ export interface IEditorOptions {
 	/**
 	 * Enable word based suggestions. Defaults to 'true'
 	 */
-	wordBasedSuggestions?: boolean;
+	wordBasedSuggestions?: boolean | { strings?: boolean, comments?: boolean, default?: boolean };
 	/**
 	 * The font size for the suggest widget.
 	 * Defaults to the editor font size.
@@ -766,6 +778,7 @@ export class InternalEditorViewOptions {
 	readonly revealHorizontalRightPadding: number;
 	readonly roundedSelection: boolean;
 	readonly overviewRulerLanes: number;
+	readonly overviewRulerBorder: boolean;
 	readonly cursorBlinking: TextEditorCursorBlinkingStyle;
 	readonly mouseWheelZoom: boolean;
 	readonly cursorStyle: TextEditorCursorStyle;
@@ -799,6 +812,7 @@ export class InternalEditorViewOptions {
 		revealHorizontalRightPadding: number;
 		roundedSelection: boolean;
 		overviewRulerLanes: number;
+		overviewRulerBorder: boolean;
 		cursorBlinking: TextEditorCursorBlinkingStyle;
 		mouseWheelZoom: boolean;
 		cursorStyle: TextEditorCursorStyle;
@@ -828,6 +842,7 @@ export class InternalEditorViewOptions {
 		this.revealHorizontalRightPadding = source.revealHorizontalRightPadding | 0;
 		this.roundedSelection = Boolean(source.roundedSelection);
 		this.overviewRulerLanes = source.overviewRulerLanes | 0;
+		this.overviewRulerBorder = Boolean(source.overviewRulerBorder);
 		this.cursorBlinking = source.cursorBlinking | 0;
 		this.mouseWheelZoom = Boolean(source.mouseWheelZoom);
 		this.cursorStyle = source.cursorStyle | 0;
@@ -891,6 +906,7 @@ export class InternalEditorViewOptions {
 			&& this.revealHorizontalRightPadding === other.revealHorizontalRightPadding
 			&& this.roundedSelection === other.roundedSelection
 			&& this.overviewRulerLanes === other.overviewRulerLanes
+			&& this.overviewRulerBorder === other.overviewRulerBorder
 			&& this.cursorBlinking === other.cursorBlinking
 			&& this.mouseWheelZoom === other.mouseWheelZoom
 			&& this.cursorStyle === other.cursorStyle
@@ -927,6 +943,7 @@ export class InternalEditorViewOptions {
 			revealHorizontalRightPadding: this.revealHorizontalRightPadding !== newOpts.revealHorizontalRightPadding,
 			roundedSelection: this.roundedSelection !== newOpts.roundedSelection,
 			overviewRulerLanes: this.overviewRulerLanes !== newOpts.overviewRulerLanes,
+			overviewRulerBorder: this.overviewRulerBorder !== newOpts.overviewRulerBorder,
 			cursorBlinking: this.cursorBlinking !== newOpts.cursorBlinking,
 			mouseWheelZoom: this.mouseWheelZoom !== newOpts.mouseWheelZoom,
 			cursorStyle: this.cursorStyle !== newOpts.cursorStyle,
@@ -967,6 +984,7 @@ export interface IViewConfigurationChangedEvent {
 	readonly revealHorizontalRightPadding: boolean;
 	readonly roundedSelection: boolean;
 	readonly overviewRulerLanes: boolean;
+	readonly overviewRulerBorder: boolean;
 	readonly cursorBlinking: boolean;
 	readonly mouseWheelZoom: boolean;
 	readonly cursorStyle: boolean;
@@ -998,7 +1016,7 @@ export class EditorContribOptions {
 	readonly acceptSuggestionOnCommitCharacter: boolean;
 	readonly snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
 	readonly emptySelectionClipboard: boolean;
-	readonly wordBasedSuggestions: boolean;
+	readonly wordBasedSuggestions: boolean | { strings?: boolean, comments?: boolean, default?: boolean };
 	readonly suggestFontSize: number;
 	readonly suggestLineHeight: number;
 	readonly selectionHighlight: boolean;
@@ -1025,7 +1043,7 @@ export class EditorContribOptions {
 		acceptSuggestionOnCommitCharacter: boolean;
 		snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
 		emptySelectionClipboard: boolean;
-		wordBasedSuggestions: boolean;
+		wordBasedSuggestions: boolean | { strings?: boolean, comments?: boolean, default?: boolean };
 		suggestFontSize: number;
 		suggestLineHeight: number;
 		selectionHighlight: boolean;
@@ -1077,7 +1095,7 @@ export class EditorContribOptions {
 			&& this.acceptSuggestionOnCommitCharacter === other.acceptSuggestionOnCommitCharacter
 			&& this.snippetSuggestions === other.snippetSuggestions
 			&& this.emptySelectionClipboard === other.emptySelectionClipboard
-			&& this.wordBasedSuggestions === other.wordBasedSuggestions
+			&& objects.equals(this.wordBasedSuggestions, other.wordBasedSuggestions)
 			&& this.suggestFontSize === other.suggestFontSize
 			&& this.suggestLineHeight === other.suggestLineHeight
 			&& this.selectionHighlight === other.selectionHighlight

@@ -9,12 +9,12 @@ import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import * as json from 'vs/base/common/json';
-import { assign } from 'vs/base/common/objects';
 import * as encoding from 'vs/base/node/encoding';
 import strings = require('vs/base/common/strings');
 import { setProperty } from 'vs/base/common/jsonEdit';
 import { Queue } from 'vs/base/common/async';
-import { applyEdits, Edit } from 'vs/base/common/jsonFormatter';
+import { Edit } from 'vs/base/common/jsonFormatter';
+import { IReference } from 'vs/base/common/lifecycle';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
@@ -26,19 +26,18 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { keyFromOverrideIdentifier } from 'vs/platform/configuration/common/model';
 import { WORKSPACE_CONFIG_DEFAULT_PATH, WORKSPACE_STANDALONE_CONFIGURATIONS } from 'vs/workbench/services/configuration/common/configuration';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IConfigurationEditingService, ConfigurationEditingErrorCode, IConfigurationEditingError, ConfigurationTarget, IConfigurationValue, IConfigurationEditingOptions } from 'vs/workbench/services/configuration/common/configurationEditing';
-import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
+import { IConfigurationEditingService, ConfigurationEditingErrorCode, IConfigurationEditingError, ConfigurationTarget, IConfigurationValue } from 'vs/workbench/services/configuration/common/configurationEditing';
+import { ITextModelResolverService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
 
 interface IConfigurationEditOperation extends IConfigurationValue {
-	target: URI;
+	resource: URI;
 	isWorkspaceStandalone?: boolean;
 }
 
 interface IValidationResult {
 	error?: ConfigurationEditingErrorCode;
 	exists?: boolean;
-	contents?: string;
 }
 
 export class ConfigurationEditingService implements IConfigurationEditingService {
@@ -54,60 +53,28 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 		@IFileService private fileService: IFileService,
 		@ITextModelResolverService private textModelResolverService: ITextModelResolverService,
 		@ITextFileService private textFileService: ITextFileService
-
 	) {
 		this.queue = new Queue<void>();
 	}
 
-	public writeConfiguration(target: ConfigurationTarget, value: IConfigurationValue, options: IConfigurationEditingOptions = null): TPromise<void> {
-		const defaultOptions: IConfigurationEditingOptions = { writeToBuffer: false, autoSave: false };
-		options = assign(defaultOptions, options || {});
-		return this.queue.queue(() => this.doWriteConfiguration(target, value, options)); // queue up writes to prevent race conditions
+	writeConfiguration(target: ConfigurationTarget, value: IConfigurationValue, save: boolean = true): TPromise<void> {
+		return this.queue.queue(() => this.doWriteConfiguration(target, value, save)); // queue up writes to prevent race conditions
 	}
 
-	private doWriteConfiguration(target: ConfigurationTarget, value: IConfigurationValue, options: IConfigurationEditingOptions): TPromise<void> {
+	private doWriteConfiguration(target: ConfigurationTarget, value: IConfigurationValue, save: boolean): TPromise<void> {
 		const operation = this.getConfigurationEditOperation(target, value);
 
-		// First validate before making any edits
-		return this.validate(target, operation, options).then(validation => {
-			if (typeof validation.error === 'number') {
-				// Target cannot contain JSON errors if writing to disk
-				return this.wrapError(validation.error, target);
-			}
-
-			// Create configuration file if missing
-			const resource = operation.target;
-			let ensureConfigurationFile = TPromise.as(null);
-			let contents: string;
-			if (!validation.exists) {
-				contents = '{}';
-				ensureConfigurationFile = this.fileService.updateContent(resource, contents, { encoding: encoding.UTF8 });
-			} else {
-				contents = validation.contents;
-			}
-
-			return ensureConfigurationFile.then(() => {
-				if (options.writeToBuffer) {
-					return this.writeToBuffer(contents, operation, resource, options);
-				} else {
-					return this.writeToDisk(contents, operation, resource);
-				}
-			});
-		});
+		return this.resolveAndValidate(target, operation, save)
+			.then(reference => this.writeToBuffer(reference.object.textEditorModel, operation, save)
+				.then(() => reference.dispose()));
 	}
 
-	private writeToBuffer(contents: string, operation: IConfigurationEditOperation, resource: URI, options: IConfigurationEditingOptions): TPromise<void> {
-		const isDirtyBefore = this.textFileService.isDirty(resource);
-		const edit = this.getEdits(contents, operation)[0];
-		return this.textModelResolverService.createModelReference(resource).
-			then(reference => {
-				if (this.applyEditsToBuffer(edit, reference.object.textEditorModel)) {
-					if (options.autoSave && !isDirtyBefore) {
-						this.textFileService.save(resource);
-					}
-				}
-				reference.dispose();
-			});
+	private writeToBuffer(model: editorCommon.IModel, operation: IConfigurationEditOperation, save: boolean): TPromise<any> {
+		const edit = this.getEdits(model, operation)[0];
+		if (this.applyEditsToBuffer(edit, model) && save) {
+			return this.textFileService.save(operation.resource);
+		}
+		return TPromise.as(null);
 	}
 
 	private applyEditsToBuffer(edit: Edit, model: editorCommon.IModel): boolean {
@@ -121,17 +88,6 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 			return true;
 		}
 		return false;
-	}
-
-	private writeToDisk(contents: string, operation: IConfigurationEditOperation, resource: URI): TPromise<void> {
-		// Apply all edits to the configuration file
-		const result = this.applyEdits(contents, operation);
-
-		return this.fileService.updateContent(resource, result, { encoding: encoding.UTF8 }).then(() => {
-
-			// Reload the configuration so that we make sure all parties are updated
-			return this.configurationService.reloadConfiguration().then(() => void 0);
-		});
 	}
 
 	private wrapError(code: ConfigurationEditingErrorCode, target: ConfigurationTarget): TPromise<any> {
@@ -170,90 +126,77 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 		}
 	}
 
-	private applyEdits(content: string, edit: IConfigurationEditOperation): string {
-		const {tabSize, insertSpaces} = this.configurationService.getConfiguration<{ tabSize: number; insertSpaces: boolean }>('editor');
-		const {key, value} = edit;
+	private getEdits(model: editorCommon.IModel, edit: IConfigurationEditOperation): Edit[] {
+		const {tabSize, insertSpaces} = model.getOptions();
+		const eol = model.getEOL();
+		const {key, value, overrideIdentifier} = edit;
+
 		// Without key, the entire settings file is being replaced, so we just use JSON.stringify
 		if (!key) {
-			return JSON.stringify(value, null, insertSpaces ? strings.repeat(' ', tabSize) : '\t');
+			const content = JSON.stringify(value, null, insertSpaces ? strings.repeat(' ', tabSize) : '\t');
+			return [{
+				content,
+				length: content.length,
+				offset: 0
+			}];
 		}
 
-		const edits = this.getEdits(content, edit);
-		content = applyEdits(content, edits);
-
-		return content;
+		return setProperty(model.getValue(), overrideIdentifier ? [keyFromOverrideIdentifier(overrideIdentifier), key] : [key], value, { tabSize, insertSpaces, eol });
 	}
 
-	private getEdits(content: string, edit: IConfigurationEditOperation): Edit[] {
-		const {tabSize, insertSpaces} = this.configurationService.getConfiguration<{ tabSize: number; insertSpaces: boolean }>('editor');
-		const {eol} = this.configurationService.getConfiguration<{ eol: string }>('files');
-
-		const {key, value, overrideIdentifier} = edit;
-		return setProperty(content, overrideIdentifier ? [keyFromOverrideIdentifier(overrideIdentifier), key] : [key], value, { tabSize, insertSpaces, eol });
+	private resolveModelReference(resource: URI): TPromise<IReference<ITextEditorModel>> {
+		return this.fileService.existsFile(resource)
+			.then(exists => {
+				const result = exists ? TPromise.as(null) : this.fileService.updateContent(resource, '{}', { encoding: encoding.UTF8 });
+				return result.then(() => this.textModelResolverService.createModelReference(resource));
+			});
 	}
 
-	private validate(target: ConfigurationTarget, operation: IConfigurationEditOperation, options: IConfigurationEditingOptions): TPromise<IValidationResult> {
+	private hasParseErrors(model: editorCommon.IModel, operation: IConfigurationEditOperation): boolean {
+		// If we write to a workspace standalone file and replace the entire contents (no key provided)
+		// we can return here because any parse errors can safely be ignored since all contents are replaced
+		if (operation.isWorkspaceStandalone && !operation.key) {
+			return false;
+		}
+		const parseErrors: json.ParseError[] = [];
+		json.parse(model.getValue(), parseErrors, { allowTrailingComma: true });
+		return parseErrors.length > 0;
+	}
+
+	private resolveAndValidate(target: ConfigurationTarget, operation: IConfigurationEditOperation, save: boolean): TPromise<IReference<ITextEditorModel>> {
 
 		// Any key must be a known setting from the registry (unless this is a standalone config)
 		if (!operation.isWorkspaceStandalone) {
 			const validKeys = this.configurationService.keys().default;
 			if (validKeys.indexOf(operation.key) < 0 && !OVERRIDE_PROPERTY_PATTERN.test(operation.key)) {
-				return TPromise.as({ error: ConfigurationEditingErrorCode.ERROR_UNKNOWN_KEY });
+				return this.wrapError(ConfigurationEditingErrorCode.ERROR_UNKNOWN_KEY, target);
 			}
 		}
 
 		// Target cannot be user if is standalone
 		if (operation.isWorkspaceStandalone && target === ConfigurationTarget.USER) {
-			return TPromise.as({ error: ConfigurationEditingErrorCode.ERROR_INVALID_TARGET });
+			return this.wrapError(ConfigurationEditingErrorCode.ERROR_INVALID_TARGET, target);
 		}
 
 		// Target cannot be workspace if no workspace opened
 		if (target === ConfigurationTarget.WORKSPACE && !this.contextService.hasWorkspace()) {
-			return TPromise.as({ error: ConfigurationEditingErrorCode.ERROR_NO_WORKSPACE_OPENED });
+			return this.wrapError(ConfigurationEditingErrorCode.ERROR_NO_WORKSPACE_OPENED, target);
 		}
 
 		// Target cannot be dirty if not writing into buffer
-		const resource = operation.target;
-		if (!options.writeToBuffer && this.textFileService.isDirty(resource)) {
-			return TPromise.as({ error: ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_DIRTY });
+		const resource = operation.resource;
+		if (save && this.textFileService.isDirty(resource)) {
+			return this.wrapError(ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_DIRTY, target);
 		}
 
-		return this.fileService.existsFile(resource).then(exists => {
-			if (!exists) {
-				return { exists };
-			}
-
-			return this.resolveContent(resource, options).then(content => {
-
-				// If we write to a workspace standalone file and replace the entire contents (no key provided)
-				// we can return here because any parse errors can safely be ignored since all contents are replaced
-				if (operation.isWorkspaceStandalone && !operation.key) {
-					return { exists, contents: content };
+		return this.resolveModelReference(operation.resource)
+			.then(reference => {
+				const model = reference.object.textEditorModel;
+				if (this.hasParseErrors(model, operation)) {
+					return this.wrapError(ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION, target);
 				}
-
-				let error = void 0;
-				const parseErrors: json.ParseError[] = [];
-				json.parse(content, parseErrors, { allowTrailingComma: true });
-				if (!options.writeToBuffer && parseErrors.length > 0) {
-					error = ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION;
-				}
-
-				return { exists, contents: content, error };
+				return reference;
 			});
-		});
-	}
-
-	private resolveContent(resource: URI, options: IConfigurationEditingOptions): TPromise<string> {
-		if (options.writeToBuffer) {
-			return this.textModelResolverService.createModelReference(resource).then(reference => {
-				const value = reference.object.textEditorModel.getValue();
-
-				reference.dispose();
-
-				return value;
-			});
-		}
-		return this.fileService.resolveContent(resource, { acceptTextOnly: true, encoding: encoding.UTF8 }).then(content => content.value);
 	}
 
 	private getConfigurationEditOperation(target: ConfigurationTarget, config: IConfigurationValue): IConfigurationEditOperation {
@@ -263,25 +206,25 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 			const standaloneConfigurationKeys = Object.keys(WORKSPACE_STANDALONE_CONFIGURATIONS);
 			for (let i = 0; i < standaloneConfigurationKeys.length; i++) {
 				const key = standaloneConfigurationKeys[i];
-				const target = this.contextService.toResource(WORKSPACE_STANDALONE_CONFIGURATIONS[key]);
+				const resource = this.contextService.toResource(WORKSPACE_STANDALONE_CONFIGURATIONS[key]);
 
 				// Check for prefix
 				if (config.key === key) {
-					return { key: '', value: config.value, target, isWorkspaceStandalone: true };
+					return { key: '', value: config.value, resource, isWorkspaceStandalone: true };
 				}
 
 				// Check for prefix.<setting>
 				const keyPrefix = `${key}.`;
 				if (config.key.indexOf(keyPrefix) === 0) {
-					return { key: config.key.substr(keyPrefix.length), value: config.value, target, isWorkspaceStandalone: true };
+					return { key: config.key.substr(keyPrefix.length), value: config.value, resource, isWorkspaceStandalone: true };
 				}
 			}
 		}
 
 		if (target === ConfigurationTarget.USER) {
-			return { key: config.key, value: config.value, overrideIdentifier: config.overrideIdentifier, target: URI.file(this.environmentService.appSettingsPath) };
+			return { key: config.key, value: config.value, overrideIdentifier: config.overrideIdentifier, resource: URI.file(this.environmentService.appSettingsPath) };
 		}
 
-		return { key: config.key, value: config.value, overrideIdentifier: config.overrideIdentifier, target: this.contextService.toResource(WORKSPACE_CONFIG_DEFAULT_PATH) };
+		return { key: config.key, value: config.value, overrideIdentifier: config.overrideIdentifier, resource: this.contextService.toResource(WORKSPACE_CONFIG_DEFAULT_PATH) };
 	}
 }

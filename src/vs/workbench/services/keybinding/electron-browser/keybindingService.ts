@@ -7,8 +7,8 @@
 import * as nls from 'vs/nls';
 import { IHTMLContentElement } from 'vs/base/common/htmlContent';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { Keybinding } from 'vs/base/common/keyCodes';
-import { KeybindingLabels } from 'vs/base/common/keybinding';
+import { ResolvedKeybinding, Keybinding } from 'vs/base/common/keyCodes';
+import { KeybindingLabels } from 'vs/platform/keybinding/common/keybindingLabels';
 import * as platform from 'vs/base/common/platform';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { ExtensionMessageCollector, ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
@@ -117,6 +117,49 @@ let keybindingsExtPoint = ExtensionsRegistry.registerExtensionPoint<ContributedK
 	]
 });
 
+export class FancyResolvedKeybinding extends ResolvedKeybinding {
+
+	private readonly _actual: Keybinding;
+
+	constructor(actual: Keybinding) {
+		super();
+		this._actual = actual;
+	}
+
+	public getLabel(): string {
+		return KeybindingLabels.toCustomLabel(this._actual, getNativeLabelProvider());
+	}
+
+	public getAriaLabel(): string {
+		return KeybindingLabels.toCustomLabel(this._actual, getNativeAriaLabelProvider());
+	}
+
+	public getHTMLLabel(): IHTMLContentElement[] {
+		return KeybindingLabels.toCustomHTMLLabel(this._actual, getNativeLabelProvider());
+	}
+
+	public getElectronAccelerator(): string {
+		if (platform.isWindows) {
+			// electron menus always do the correct rendering on Windows
+			return KeybindingLabels._toElectronAccelerator(this._actual);
+		}
+
+		let usLabel = KeybindingLabels._toUSLabel(this._actual);
+		let label = this.getLabel();
+		if (usLabel !== label) {
+			// electron menus are incorrect in rendering (linux) and in rendering and interpreting (mac)
+			// for non US standard keyboard layouts
+			return null;
+		}
+
+		return KeybindingLabels._toElectronAccelerator(this._actual);
+	}
+
+	public getUserSettingsLabel(): string {
+		return KeybindingLabels.toUserSettingsLabel(this._actual);
+	}
+}
+
 export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
 	private _cachedResolver: KeybindingResolver;
@@ -212,33 +255,12 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		return extraUserKeybindings.map((k, i) => IOSupport.readKeybindingItem(k, i));
 	}
 
-	public getLabelFor(keybinding: Keybinding): string {
+	protected _createResolvedKeybinding(kb: Keybinding): ResolvedKeybinding {
+		return new FancyResolvedKeybinding(kb);
+	}
+
+	protected getLabelFor(keybinding: Keybinding): string {
 		return KeybindingLabels.toCustomLabel(keybinding, getNativeLabelProvider());
-	}
-
-	public getHTMLLabelFor(keybinding: Keybinding): IHTMLContentElement[] {
-		return KeybindingLabels.toCustomHTMLLabel(keybinding, getNativeLabelProvider());
-	}
-
-	public getAriaLabelFor(keybinding: Keybinding): string {
-		return KeybindingLabels.toCustomLabel(keybinding, getNativeAriaLabelProvider());
-	}
-
-	public getElectronAcceleratorFor(keybinding: Keybinding): string {
-		if (platform.isWindows) {
-			// electron menus always do the correct rendering on Windows
-			return super.getElectronAcceleratorFor(keybinding);
-		}
-
-		let usLabel = KeybindingLabels._toUSLabel(keybinding);
-		let label = this.getLabelFor(keybinding);
-		if (usLabel !== label) {
-			// electron menus are incorrect in rendering (linux) and in rendering and interpreting (mac)
-			// for non US standard keyboard layouts
-			return null;
-		}
-
-		return super.getElectronAcceleratorFor(keybinding);
 	}
 
 	private _handleKeybindingsExtensionPointUser(isBuiltin: boolean, keybindings: ContributedKeyBinding | ContributedKeyBinding[], collector: ExtensionMessageCollector): boolean {

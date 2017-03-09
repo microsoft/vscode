@@ -3370,15 +3370,15 @@ declare namespace Electron {
 		/**
 		 * The URL associated with the PAC file.
 		 */
-		pacScript: string;
+		pacScript?: string;
 		/**
 		 * Rules indicating which proxies to use.
 		 */
-		proxyRules: string;
+		proxyRules?: string;
 		/**
 		 * Rules indicating which URLs should bypass the proxy settings.
 		 */
-		proxyBypassRules: string;
+		proxyBypassRules?: string;
 	}
 
 	interface NetworkEmulationOptions {

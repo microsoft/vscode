@@ -26,6 +26,7 @@ import { SettingsGroupTitleWidget, EditPreferenceWidget } from 'vs/workbench/par
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { RangeHighlightDecorations } from 'vs/workbench/common/editor/rangeDecorations';
 import { IConfigurationEditingService } from 'vs/workbench/services/configuration/common/configurationEditing';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { overrideIdentifierFromKey } from 'vs/platform/configuration/common/model';
 import { IMarkerService, IMarkerData } from 'vs/platform/markers/common/markers';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
@@ -70,6 +71,7 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 	constructor(protected editor: ICodeEditor, public readonly preferencesModel: SettingsEditorModel, public readonly associatedPreferencesModel: IPreferencesEditorModel<ISetting>,
 		@IPreferencesService protected preferencesService: IPreferencesService,
 		@ITelemetryService private telemetryService: ITelemetryService,
+		@ITextFileService private textFileService: ITextFileService,
 		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService,
 		@IMessageService private messageService: IMessageService,
 		@IInstantiationService protected instantiationService: IInstantiationService
@@ -98,7 +100,7 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 	public updatePreference(key: string, value: any, source: ISetting): void {
 		this.telemetryService.publicLog('defaultSettingsActions.copySetting', { userConfigurationKeys: [key] });
 		const overrideIdentifier = source.overrideOf ? overrideIdentifierFromKey(source.overrideOf.key) : null;
-		this.configurationEditingService.writeConfiguration(this.preferencesModel.configurationTarget, { key, value, overrideIdentifier }, { writeToBuffer: true, autoSave: true })
+		this.configurationEditingService.writeConfiguration(this.preferencesModel.configurationTarget, { key, value, overrideIdentifier }, !this.textFileService.isDirty(this.preferencesModel.uri))
 			.then(() => this.onSettingUpdated(source), error => this.messageService.show(Severity.Error, error));
 	}
 
@@ -175,11 +177,12 @@ export class WorkspaceSettingsRenderer extends UserSettingsRenderer implements I
 	constructor(editor: ICodeEditor, preferencesModel: SettingsEditorModel, associatedPreferencesModel: IPreferencesEditorModel<ISetting>,
 		@IPreferencesService preferencesService: IPreferencesService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@ITextFileService textFileService: ITextFileService,
 		@IConfigurationEditingService configurationEditingService: IConfigurationEditingService,
 		@IMessageService messageService: IMessageService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super(editor, preferencesModel, associatedPreferencesModel, preferencesService, telemetryService, configurationEditingService, messageService, instantiationService);
+		super(editor, preferencesModel, associatedPreferencesModel, preferencesService, telemetryService, textFileService, configurationEditingService, messageService, instantiationService);
 		this.untrustedSettingRenderer = this._register(instantiationService.createInstance(UnsupportedWorkspaceSettingsRenderer, editor, preferencesModel));
 	}
 

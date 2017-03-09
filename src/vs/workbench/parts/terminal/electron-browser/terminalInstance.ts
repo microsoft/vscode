@@ -171,7 +171,7 @@ export class TerminalInstance implements ITerminalInstance {
 	 */
 	protected _createXterm(): void {
 		this._xterm = xterm({
-			scrollback: this._configHelper.getScrollback()
+			scrollback: this._configHelper.config.scrollback
 		});
 		this._process.on('message', (message) => this._sendPtyDataToXterm(message));
 		this._xterm.on('data', (data) => {
@@ -414,7 +414,7 @@ export class TerminalInstance implements ITerminalInstance {
 		// TODO: Handle non-existent customCwd
 		if (!shell.ignoreConfigurationCwd) {
 			// Evaluate custom cwd first
-			const customCwd = this._configHelper.getCwd();
+			const customCwd = this._configHelper.config.cwd;
 			if (customCwd) {
 				if (path.isAbsolute(customCwd)) {
 					cwd = customCwd;
@@ -433,7 +433,7 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	protected _createProcess(workspace: IWorkspace, shell: IShellLaunchConfig): void {
-		const locale = this._configHelper.isSetLocaleVariables() ? platform.locale : undefined;
+		const locale = this._configHelper.config.setLocaleVariables ? platform.locale : undefined;
 		if (!shell.executable) {
 			this._configHelper.mergeDefaultShellPathAndArgs(shell);
 		}
@@ -646,10 +646,10 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public updateConfig(): void {
-		this._setCursorBlink(this._configHelper.getCursorBlink());
-		this._setCursorStyle(this._configHelper.getCursorStyle());
-		this._setCommandsToSkipShell(this._configHelper.getCommandsToSkipShell());
-		this._setScrollback(this._configHelper.getScrollback());
+		this._setCursorBlink(this._configHelper.config.cursorBlinking);
+		this._setCursorStyle(this._configHelper.config.cursorStyle);
+		this._setCommandsToSkipShell(this._configHelper.config.commandsToSkipShell);
+		this._setScrollback(this._configHelper.config.scrollback);
 	}
 
 	private _setCursorBlink(blink: boolean): void {

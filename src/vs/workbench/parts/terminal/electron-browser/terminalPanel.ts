@@ -15,7 +15,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ITerminalService, ITerminalFont, TERMINAL_PANEL_ID } from 'vs/workbench/parts/terminal/common/terminal';
-import { IThemeService, IColorTheme } from 'vs/workbench/services/themes/common/themeService';
+import { IWorkbenchThemeService, IColorTheme } from 'vs/workbench/services/themes/common/themeService';
 import { KillTerminalAction, CreateNewTerminalAction, SwitchTerminalInstanceAction, SwitchTerminalInstanceActionItem, CopyTerminalSelectionAction, TerminalPasteAction, ClearTerminalAction } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
 import { Panel } from 'vs/workbench/browser/panel';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
@@ -39,7 +39,7 @@ export class TerminalPanel extends Panel {
 		@IInstantiationService private _instantiationService: IInstantiationService,
 		@IKeybindingService private _keybindingService: IKeybindingService,
 		@ITerminalService private _terminalService: ITerminalService,
-		@IThemeService private _themeService: IThemeService,
+		@IWorkbenchThemeService private _themeService: IWorkbenchThemeService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
 		super(TERMINAL_PANEL_ID, telemetryService);
@@ -151,7 +151,7 @@ export class TerminalPanel extends Panel {
 				// occurs on the selection itself.
 				this._terminalService.getActiveInstance().focus();
 			} else if (event.which === 3) {
-				if (this._terminalService.configHelper.getRightClickCopyPaste()) {
+				if (this._terminalService.configHelper.config.rightClickCopyPaste) {
 					let terminal = this._terminalService.getActiveInstance();
 					if (terminal.hasSelection()) {
 						terminal.copySelection();
@@ -172,7 +172,7 @@ export class TerminalPanel extends Panel {
 					getActions: () => TPromise.as(this._getContextMenuActions()),
 					getActionsContext: () => this._parentDomElement,
 					getKeyBinding: (action) => {
-						const [kb] = this._keybindingService.lookupKeybindings(action.id);
+						const kb = this._keybindingService.lookupKeybinding(action.id);
 						if (kb) {
 							return kb;
 						}
@@ -238,7 +238,7 @@ export class TerminalPanel extends Panel {
 			return;
 		}
 		let newFont = this._terminalService.configHelper.getFont();
-		DOM.toggleClass(this._parentDomElement, 'enable-ligatures', this._terminalService.configHelper.getFontLigaturesEnabled());
+		DOM.toggleClass(this._parentDomElement, 'enable-ligatures', this._terminalService.configHelper.config.fontLigatures);
 		if (!this._font || this._fontsDiffer(this._font, newFont)) {
 			this._fontStyleElement.innerHTML = '.monaco-workbench .panel.integrated-terminal .xterm {' +
 				`font-family: ${newFont.fontFamily};` +

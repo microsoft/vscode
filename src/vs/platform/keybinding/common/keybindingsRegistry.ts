@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { BinaryKeybindings, KeyCodeUtils } from 'vs/base/common/keyCodes';
+import { createKeybinding, KeyCodeUtils } from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
 import { IKeybindingItem, IKeybindings } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -104,8 +104,10 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 
 	private registerDefaultKeybinding(keybinding: number, commandId: string, weight1: number, weight2: number, when: ContextKeyExpr): void {
 		if (platform.isWindows) {
-			if (BinaryKeybindings.hasCtrlCmd(keybinding) && !BinaryKeybindings.hasShift(keybinding) && BinaryKeybindings.hasAlt(keybinding) && !BinaryKeybindings.hasWinCtrl(keybinding)) {
-				if (/^[A-Z0-9\[\]\|\;\'\,\.\/\`]$/.test(KeyCodeUtils.toString(BinaryKeybindings.extractKeyCode(keybinding)))) {
+			let kb = createKeybinding(keybinding);
+			let simpleKb = kb.isChord() ? kb.extractFirstPart() : kb;
+			if (simpleKb.hasCtrlCmd() && !simpleKb.hasShift() && simpleKb.hasAlt() && !simpleKb.hasWinCtrl()) {
+				if (/^[A-Z0-9\[\]\|\;\'\,\.\/\`]$/.test(KeyCodeUtils.toString(simpleKb.getKeyCode()))) {
 					console.warn('Ctrl+Alt+ keybindings should not be used by default under Windows. Offender: ', keybinding, ' for ', commandId);
 				}
 			}

@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 import 'vs/css!./media/preferences';
 import * as network from 'vs/base/common/network';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -303,7 +304,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 					}
 					return { lineNumber: setting.valueRange.startLineNumber, column: setting.valueRange.startColumn + 1 };
 				}
-				return this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: languageKey, value: {} }, { autoSave: false, writeToBuffer: true })
+				return this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: languageKey, value: {} }, false)
 					.then(() => {
 						setting = settingsModel.getPreference(languageKey);
 						let content = eol + this.spaces(2, configuration) + eol + this.spaces(1, configuration);
