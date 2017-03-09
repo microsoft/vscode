@@ -7,6 +7,7 @@
 import { BulkListenerCallback } from 'vs/base/common/eventEmitter';
 import { MarkedString } from 'vs/base/common/htmlContent';
 import * as types from 'vs/base/common/types';
+import * as objects from 'vs/base/common/objects';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ServicesAccessor, IConstructorSignature1 } from 'vs/platform/instantiation/common/instantiation';
@@ -481,7 +482,7 @@ export interface IEditorOptions {
 	/**
 	 * Enable word based suggestions. Defaults to 'true'
 	 */
-	wordBasedSuggestions?: boolean;
+	wordBasedSuggestions?: boolean | { strings?: boolean, comments?: boolean, default?: boolean };
 	/**
 	 * The font size for the suggest widget.
 	 * Defaults to the editor font size.
@@ -1015,7 +1016,7 @@ export class EditorContribOptions {
 	readonly acceptSuggestionOnCommitCharacter: boolean;
 	readonly snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
 	readonly emptySelectionClipboard: boolean;
-	readonly wordBasedSuggestions: boolean;
+	readonly wordBasedSuggestions: boolean | { strings?: boolean, comments?: boolean, default?: boolean };
 	readonly suggestFontSize: number;
 	readonly suggestLineHeight: number;
 	readonly selectionHighlight: boolean;
@@ -1042,7 +1043,7 @@ export class EditorContribOptions {
 		acceptSuggestionOnCommitCharacter: boolean;
 		snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
 		emptySelectionClipboard: boolean;
-		wordBasedSuggestions: boolean;
+		wordBasedSuggestions: boolean | { strings?: boolean, comments?: boolean, default?: boolean };
 		suggestFontSize: number;
 		suggestLineHeight: number;
 		selectionHighlight: boolean;
@@ -1094,7 +1095,7 @@ export class EditorContribOptions {
 			&& this.acceptSuggestionOnCommitCharacter === other.acceptSuggestionOnCommitCharacter
 			&& this.snippetSuggestions === other.snippetSuggestions
 			&& this.emptySelectionClipboard === other.emptySelectionClipboard
-			&& this.wordBasedSuggestions === other.wordBasedSuggestions
+			&& objects.equals(this.wordBasedSuggestions, other.wordBasedSuggestions)
 			&& this.suggestFontSize === other.suggestFontSize
 			&& this.suggestLineHeight === other.suggestLineHeight
 			&& this.selectionHighlight === other.selectionHighlight
