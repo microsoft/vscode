@@ -211,7 +211,7 @@ export class SCMViewlet extends Viewlet {
 		this.inputBox.value = this.scmService.input.value;
 		this.inputBox.onDidChange(value => this.scmService.input.value = value, null, this.disposables);
 		this.scmService.input.onDidChange(value => this.inputBox.value = value, null, this.disposables);
-		this.disposables.push(this.scmService.input.onDidChange(() => this.layout()));
+		this.disposables.push(this.inputBox.onDidHeightChange(() => this.layout()));
 
 		chain(domEvent(this.inputBox.inputElement, 'keydown'))
 			.map(e => new StandardKeyboardEvent(e))
