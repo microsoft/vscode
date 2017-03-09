@@ -16,7 +16,7 @@ class TestTerminalLinkHandler extends TerminalLinkHandler {
 }
 
 class TestXterm {
-	public attachHypertextLinkHandler() { }
+	public setHypertextLinkHandler() { }
 }
 
 suite('Workbench - TerminalLinkHandler', () => {
