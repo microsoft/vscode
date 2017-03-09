@@ -972,6 +972,9 @@ export class EditorStacksModel implements IEditorStacksModel {
 
 		// Return first if we are not jumping groups
 		if (!jumpGroups) {
+			if (!cycleAtEnd) {
+				return null;
+			}
 			return { group: this.activeGroup, editor: this.activeGroup.getEditor(0) };
 		}
 
@@ -1008,6 +1011,9 @@ export class EditorStacksModel implements IEditorStacksModel {
 
 		// Return last if we are not jumping groups
 		if (!jumpGroups) {
+			if (!cycleAtStart) {
+				return null;
+			}
 			return { group: this.activeGroup, editor: this.activeGroup.getEditor(this.activeGroup.count - 1) };
 		}
 

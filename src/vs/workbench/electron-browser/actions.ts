@@ -30,6 +30,10 @@ import * as browser from 'vs/base/browser/browser';
 import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
 import { IEntryRunContext } from 'vs/base/parts/quickopen/common/quickOpen';
 import { ITimerService, IStartupMetrics } from 'vs/workbench/services/timer/common/timerService';
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { IPartService, Parts, Position as SidebarPosition } from 'vs/workbench/services/part/common/partService';
+import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 
 import * as os from 'os';
 import { webFrame } from 'electron';
@@ -903,5 +907,106 @@ export class OpenIntroductoryVideosUrlAction extends Action {
 	public run(): TPromise<void> {
 		window.open(OpenIntroductoryVideosUrlAction.URL);
 		return null;
+	}
+}
+
+export abstract class BaseNavigationAction extends Action {
+
+	constructor(
+		id: string,
+		label: string,
+		@IWorkbenchEditorService protected editorService: IWorkbenchEditorService,
+		@IEditorGroupService protected groupService: IEditorGroupService,
+		@IPanelService protected panelService: IPanelService,
+		@IPartService protected partService: IPartService,
+		@IViewletService protected viewletService: IViewletService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		const isEditorFocus = this.partService.hasFocus(Parts.EDITOR_PART);
+		const isPanelFocus = this.partService.hasFocus(Parts.PANEL_PART);
+		const isSidebarFocus = this.partService.hasFocus(Parts.SIDEBAR_PART);
+
+		const isEditorGroupVertical = this.groupService.getGroupOrientation() === 'vertical';
+		const isSidebarPositionLeft = this.partService.getSideBarPosition() === SidebarPosition.LEFT;
+
+		if (isEditorFocus) {
+			return this.navigateOnEditorFocus(isEditorGroupVertical, isSidebarPositionLeft);
+		}
+
+		if (isPanelFocus) {
+			return this.navigateOnPanelFocus(isEditorGroupVertical, isSidebarPositionLeft);
+		}
+
+		if (isSidebarFocus) {
+			return this.navigateOnSidebarFocus(isEditorGroupVertical, isSidebarPositionLeft);
+		}
+
+		return TPromise.as(false);
+	}
+
+	protected navigateOnEditorFocus(isEditorGroupVertical: boolean, isSidebarPositionLeft: boolean): TPromise<boolean> {
+		return TPromise.as(true);
+	}
+
+	protected navigateOnPanelFocus(isEditorGroupVertical: boolean, isSidebarPositionLeft: boolean): TPromise<boolean> {
+		return TPromise.as(true);
+	}
+
+	protected navigateOnSidebarFocus(isEditorGroupVertical: boolean, isSidebarPositionLeft: boolean): TPromise<boolean> {
+		return TPromise.as(true);
+	}
+
+	protected navigateToPanel(): TPromise<any> {
+		if (!this.partService.isVisible(Parts.PANEL_PART)) {
+			return TPromise.as(false);
+		}
+
+		const activePanelId = this.panelService.getActivePanel().getId();
+		return this.panelService.openPanel(activePanelId, true);
+	}
+
+	protected navigateToSidebar(): TPromise<any> {
+		if (!this.partService.isVisible(Parts.SIDEBAR_PART)) {
+			return TPromise.as(false);
+		}
+
+		const activeViewletId = this.viewletService.getActiveViewlet().getId();
+		return this.viewletService.openViewlet(activeViewletId, true);
+	}
+
+	protected navigateToLastActiveEditor(): TPromise<any> {
+		const model = this.groupService.getStacksModel();
+		if (model.groups.length < 1) {
+			return null;
+		}
+
+		const lastGroup = model.activeGroup;
+		const activeEditor = lastGroup.activeEditor;
+		return this.editorService.openEditor(activeEditor, null, model.positionOfGroup(lastGroup));
+	}
+
+	protected navigateToStartOfEditor(): TPromise<any> {
+		const model = this.groupService.getStacksModel();
+		if (model.groups.length < 1) {
+			return null;
+		}
+
+		const firstGroup = model.getGroup(0);
+		const firstEditor = firstGroup.getEditor(0);
+		return this.editorService.openEditor(firstEditor, null, model.positionOfGroup(firstGroup));
+	}
+
+	protected navigateToEndOfEditor(): TPromise<any> {
+		const model = this.groupService.getStacksModel();
+		if (model.groups.length < 1) {
+			return null;
+		}
+
+		const lastGroup = model.getGroup(model.groups[model.groups.length - 1].id);
+		const lastEditor = lastGroup.getEditor(lastGroup.count - 1);
+		return this.editorService.openEditor(lastEditor, null, model.positionOfGroup(lastGroup));
 	}
 }
