@@ -38,6 +38,8 @@ import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElemen
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { extractResources } from 'vs/base/browser/dnd';
 import { LinkedMap } from 'vs/base/common/map';
+import { DelegatingWorkbenchEditorService } from 'vs/workbench/services/editor/browser/editorService';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 
 interface IEditorInputLabel {
 	editor: IEditorInput;
@@ -69,10 +71,30 @@ export class TabsTitleControl extends TitleControl {
 		@IQuickOpenService quickOpenService: IQuickOpenService,
 		@IWindowService private windowService: IWindowService
 	) {
-		super(contextMenuService, instantiationService, editorService, editorGroupService, contextKeyService, keybindingService, telemetryService, messageService, menuService, quickOpenService);
+		super(contextMenuService, TabsTitleControl.createScopedInstantiationService(instantiationService, editorGroupService), editorService, editorGroupService, contextKeyService, keybindingService, telemetryService, messageService, menuService, quickOpenService);
 
 		this.tabDisposeables = [];
 		this.editorLabels = [];
+	}
+
+	private static createScopedInstantiationService(parent: IInstantiationService, editorGroupService: IEditorGroupService): IInstantiationService {
+		const stacks = editorGroupService.getStacksModel();
+		const delegatingEditorService = parent.createInstance(DelegatingWorkbenchEditorService);
+
+		// We create a scoped instantiation service to override the behaviour when closing an inactive editor
+		// Specifically we want to move focus back to the editor when an inactive editor is closed from anywhere
+		// in the tabs title control (e.g. mouse middle click, context menu on tab). This is only needed for
+		// the inactive editors because closing the active one will always cause a tab switch that sets focus.
+		delegatingEditorService.setEditorCloseHandler((position, editor) => {
+			const group = stacks.groupAt(position);
+			if (group && stacks.isActive(group) && !group.isActive(editor)) {
+				editorGroupService.focusGroup(group);
+			}
+
+			return TPromise.as(void 0);
+		});
+
+		return parent.createChild(new ServiceCollection([IWorkbenchEditorService, delegatingEditorService]));
 	}
 
 	public setContext(group: IEditorGroup): void {
@@ -437,9 +459,7 @@ export class TabsTitleControl extends TitleControl {
 			tab.blur();
 
 			if (e.button === 1 /* Middle Button */) {
-				const { editor, position } = this.toTabContext(index);
-
-				this.editorService.closeEditor(position, editor).done(null, errors.onUnexpectedError);
+				this.closeEditorAction.run(this.toTabContext(index)).done(null, errors.onUnexpectedError);
 			}
 		}));
 
