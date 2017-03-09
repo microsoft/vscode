@@ -7,10 +7,11 @@ import Paths = require('vs/base/common/paths');
 import Json = require('vs/base/common/json');
 import { Color } from 'vs/base/common/color';
 import { ExtensionData, ITokenColorizationRule, IColorTheme, IColorMap } from 'vs/workbench/services/themes/common/themeService';
-import { convertSettings, generateStyleSheetContent } from 'vs/workbench/services/themes/electron-browser/stylesContributions';
+import { convertSettings } from 'vs/workbench/services/themes/electron-browser/stylesContributions';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { getBaseThemeId, getSyntaxThemeId, isDarkTheme, isLightTheme } from 'vs/platform/theme/common/themes';
 import nls = require('vs/nls');
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 import * as plist from 'fast-plist';
 import pfs = require('vs/base/node/pfs');
@@ -21,6 +22,7 @@ export class ColorThemeData implements IColorTheme {
 	label: string;
 	settingsId: string;
 	description?: string;
+	selector: string;
 	tokenColors?: ITokenColorizationRule[];
 	isLoaded: boolean;
 	path?: string;
@@ -28,16 +30,23 @@ export class ColorThemeData implements IColorTheme {
 	extensionData: ExtensionData;
 	colorMap?: IColorMap;
 
-	public ensureLoaded(): TPromise<void> {
+	public getColor(colorId: string): Color {
+		if (this.colorMap) {
+			return this.colorMap[colorId];
+		}
+		return null;
+	}
+
+	public ensureLoaded(themeService: IThemeService): TPromise<void> {
 		if (!this.isLoaded) {
 			let tokenColors = [];
 			let colorMap = {};
 			return _loadThemeDocument(this.getBaseThemeId(), this.path, tokenColors, colorMap).then(_ => {
-				let theme = {
-					selector: this.getBaseThemeId() + '.' + this.getSyntaxThemeId(),
-					getColor: (colorId) => colorMap[colorId]
-				};
-				this.styleSheetContent = generateStyleSheetContent(theme);
+				let cssRules = [];
+				themeService.getThemingParticipants().forEach(p => {
+					p(this, cssRules);
+				});
+				this.styleSheetContent = cssRules.join('\n');
 				this.tokenColors = tokenColors;
 				this.colorMap = colorMap;
 				this.isLoaded = true;

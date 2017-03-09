@@ -38,7 +38,7 @@ import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 import { Registry } from 'vs/platform/platform';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actionRegistry';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { IThemeService, VS_HC_THEME, VS_DARK_THEME } from 'vs/workbench/services/themes/common/themeService';
+import { IWorkbenchThemeService, VS_HC_THEME, VS_DARK_THEME } from 'vs/workbench/services/themes/common/themeService';
 import * as browser from 'vs/base/browser/browser';
 import { ReloadWindowAction, ToggleDevToolsAction, ShowStartupPerformance, OpenRecentAction, ToggleSharedProcessAction } from 'vs/workbench/electron-browser/actions';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
@@ -80,7 +80,7 @@ export class ElectronWindow {
 		@IWindowService private windowService: IWindowService,
 		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
 		@ITitleService private titleService: ITitleService,
-		@IThemeService private themeService: IThemeService,
+		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
 		@IMessageService private messageService: IMessageService,
 		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService,
 		@ICommandService private commandService: ICommandService,

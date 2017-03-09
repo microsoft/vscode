@@ -12,7 +12,7 @@ import * as types from 'vs/base/common/types';
 import { IThemeExtensionPoint } from 'vs/platform/theme/common/themeExtensionPoint';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/platform/extensions/common/extensionsRegistry';
-import { IThemeService, IColorTheme, IFileIconTheme, ExtensionData, VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME, COLOR_THEME_SETTING, ICON_THEME_SETTING } from 'vs/workbench/services/themes/common/themeService';
+import { IWorkbenchThemeService, IColorTheme, IFileIconTheme, ExtensionData, VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME, COLOR_THEME_SETTING, ICON_THEME_SETTING } from 'vs/workbench/services/themes/common/themeService';
 import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -29,6 +29,8 @@ import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
 import { Extensions } from 'vs/platform/theme/common/themingRegistry';
 import { ColorThemeData } from './colorThemeData';
+import { ITheme, IThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { registerParticipants } from 'vs/workbench/services/themes/electron-browser/stylesContributions';
 
 import { $ } from 'vs/base/browser/builder';
 import Event, { Emitter } from 'vs/base/common/event';
@@ -174,9 +176,7 @@ const noFileIconTheme: IFileIconTheme = {
 	extensionData: null
 };
 
-
-
-export class ThemeService implements IThemeService {
+export class WorkbenchThemeService implements IWorkbenchThemeService {
 	_serviceBrand: any;
 
 	private knownColorThemes: ColorThemeData[];
@@ -187,6 +187,8 @@ export class ThemeService implements IThemeService {
 	private knownIconThemes: IInternalIconThemeData[];
 	private currentIconTheme: IFileIconTheme;
 	private onFileIconThemeChange: Emitter<IFileIconTheme>;
+
+	private themingParticipants: IThemingParticipant[];
 
 	constructor(
 		container: HTMLElement,
@@ -202,6 +204,7 @@ export class ThemeService implements IThemeService {
 
 		this.container = container;
 		this.knownColorThemes = [];
+		this.themingParticipants = [];
 
 		// In order to avoid paint flashing for tokens, because
 		// themes are loaded asynchronously, we need to initialize
@@ -213,6 +216,7 @@ export class ThemeService implements IThemeService {
 		let initialTheme = new ColorThemeData();
 		initialTheme.id = isLightTheme ? VS_LIGHT_THEME : VS_DARK_THEME;
 		initialTheme.label = '';
+		initialTheme.selector = isLightTheme ? VS_LIGHT_THEME : VS_DARK_THEME;
 		initialTheme.settingsId = null;
 		initialTheme.isLoaded = false;
 		initialTheme.tokenColors = [{
@@ -271,8 +275,20 @@ export class ThemeService implements IThemeService {
 		return this.onColorThemeChange.event;
 	}
 
+	public get onDidThemeChange(): Event<ITheme> {
+		return this.onColorThemeChange.event;
+	}
+
 	public get onDidFileIconThemeChange(): Event<IFileIconTheme> {
 		return this.onFileIconThemeChange.event;
+	}
+
+	public registerThemingParticipant(participant: IThemingParticipant): void {
+		this.themingParticipants.push(participant);
+	}
+
+	public getThemingParticipants(): IThemingParticipant[] {
+		return this.themingParticipants;
 	}
 
 	private backupSettings(): TPromise<string> {
@@ -321,6 +337,9 @@ export class ThemeService implements IThemeService {
 	}
 
 	private initialize(): TPromise<any> {
+
+		registerParticipants(this);
+
 		let colorThemeSetting = this.configurationService.lookup<string>(COLOR_THEME_SETTING).value;
 		let iconThemeSetting = this.configurationService.lookup<string>(ICON_THEME_SETTING).value || '';
 
@@ -352,6 +371,10 @@ export class ThemeService implements IThemeService {
 				});
 			}
 		});
+	}
+
+	public getTheme(): ITheme {
+		return this.getColorTheme();
 	}
 
 	public setColorTheme(themeId: string, settingsTarget: ConfigurationTarget): TPromise<IColorTheme> {
@@ -387,7 +410,12 @@ export class ThemeService implements IThemeService {
 
 		return this.findThemeData(themeId, DEFAULT_THEME_ID).then(themeData => {
 			if (themeData) {
-				return applyTheme(themeData, onApply);
+				return themeData.ensureLoaded(this).then(_ => {
+					_applyRules(themeData.styleSheetContent, colorThemeRulesClassName);
+					return onApply(themeData);
+				}, error => {
+					return TPromise.wrapError(nls.localize('error.cannotloadtheme', "Unable to load {0}: {1}", themeData.path, error.message));
+				});
 			}
 			return null;
 		});
@@ -472,6 +500,7 @@ export class ThemeService implements IThemeService {
 			themeData.id = `${baseTheme} ${themeSelector}`;
 			themeData.label = theme.label || Paths.basename(theme.path);
 			themeData.settingsId = theme.id || themeData.label;
+			themeData.selector = `${baseTheme}.${themeSelector}`;
 			themeData.description = theme.description;
 			themeData.path = normalizedAbsolutePath;
 			themeData.extensionData = extensionData;
@@ -828,15 +857,6 @@ function toCSSSelector(str: string) {
 		str = '_' + str;
 	}
 	return str;
-}
-
-function applyTheme(theme: ColorThemeData, onApply: (theme: ColorThemeData) => TPromise<IColorTheme>): TPromise<IColorTheme> {
-	return theme.ensureLoaded().then(_ => {
-		_applyRules(theme.styleSheetContent, colorThemeRulesClassName);
-		return onApply(theme);
-	}, error => {
-		return TPromise.wrapError(nls.localize('error.cannotloadtheme', "Unable to load {0}: {1}", theme.path, error.message));
-	});
 }
 
 
