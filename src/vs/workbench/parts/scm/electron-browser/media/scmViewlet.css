@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-workbench > .activitybar > .content .monaco-action-bar .action-label.scm {
-	background-image: url('diff.svg');
-	background-size: 20px;
+	background-image: url('icon.svg');
+	background-size: 26px;
 	background-position: center;
 }
 

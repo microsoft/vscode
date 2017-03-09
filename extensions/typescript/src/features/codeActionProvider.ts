@@ -48,13 +48,18 @@ export default class TypeScriptCodeActionProvider implements CodeActionProvider 
 		if (!file) {
 			return Promise.resolve<Command[]>([]);
 		}
-		const editor = window.activeTextEditor && window.activeTextEditor.document === document ? window.activeTextEditor : undefined;
+		let formattingOptions: FormattingOptions | undefined = undefined;
+		for (const editor of window.visibleTextEditors) {
+			if (editor.document.fileName === document.fileName) {
+				formattingOptions = { tabSize: editor.options.tabSize, insertSpaces: editor.options.insertSpaces } as FormattingOptions;
+				break;
+			}
+		}
 		const source: Source = {
 			uri: document.uri,
 			version: document.version,
 			range: range,
-			formattingOptions: editor
-				? { tabSize: editor.options.tabSize, insertSpaces: editor.options.insertSpaces } as FormattingOptions : undefined
+			formattingOptions: formattingOptions
 		};
 		return this.getSupportedCodeActions(context)
 			.then(supportedActions => {
@@ -121,7 +126,6 @@ export default class TypeScriptCodeActionProvider implements CodeActionProvider 
 			const editedRange = new Range(
 				firstEdit.range.start.line, 0,
 				firstEdit.range.end.line + 1 + (newLines ? newLines.length : 0), 0);
-
 			// TODO: Workaround for https://github.com/Microsoft/TypeScript/issues/12249
 			// apply formatting to the source range until TS returns formatted results
 			return commands.executeCommand('vscode.executeFormatRangeProvider', source.uri, editedRange, source.formattingOptions || {}).then((edits: TextEdit[]) => {

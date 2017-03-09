@@ -308,6 +308,15 @@ export function isParent(path: string, candidate: string): boolean {
 	return path.indexOf(candidate + paths.nativeSep) === 0;
 }
 
+export function indexOf(path: string, candidate: string): number {
+	if (!isLinux) {
+		path = path.toLowerCase();
+		candidate = candidate.toLowerCase();
+	}
+
+	return path.indexOf(candidate);
+}
+
 export interface IBaseStat {
 
 	/**
@@ -467,7 +476,6 @@ export interface IImportResult {
 export interface IFileOperationResult {
 	message: string;
 	fileOperationResult: FileOperationResult;
-	payload?: any;
 }
 
 export enum FileOperationResult {

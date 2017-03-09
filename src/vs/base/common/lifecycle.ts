@@ -2,7 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 'use strict';
+
+import { once } from 'vs/base/common/functional';
 
 export const empty: IDisposable = Object.freeze({
 	dispose() { }
@@ -109,12 +112,12 @@ export abstract class ReferenceCollection<T> {
 		}
 
 		const { object } = reference;
-		const dispose = () => {
+		const dispose = once(() => {
 			if (--reference.counter === 0) {
 				this.destroyReferencedObject(reference.object);
 				delete this.references[key];
 			}
-		};
+		});
 
 		reference.counter++;
 

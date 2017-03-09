@@ -18,7 +18,7 @@ import 'vs/editor/contrib/comment/common/comment';
 import 'vs/editor/contrib/contextmenu/browser/contextmenu';
 import 'vs/editor/contrib/diffNavigator/common/diffNavigator';
 import 'vs/editor/contrib/find/browser/find';
-import 'vs/editor/contrib/format/common/formatActions';
+import 'vs/editor/contrib/format/browser/formatActions';
 import 'vs/editor/contrib/goToDeclaration/browser/goToDeclaration';
 import 'vs/editor/contrib/gotoError/browser/gotoError';
 import 'vs/editor/contrib/hover/browser/hover';

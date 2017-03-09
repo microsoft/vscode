@@ -316,7 +316,7 @@ export class ExtensionScanner {
 
 						const {id, version} = getIdAndVersionFromLocalExtensionId(folder);
 
-						if (!id && !version) {
+						if (!id || !version) {
 							nonGallery.push(folder);
 							return;
 						}

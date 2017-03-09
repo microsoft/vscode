@@ -121,6 +121,7 @@ export interface IWindowsMainService {
 	removeFromRecentPathsList(path: string): void;
 	removeFromRecentPathsList(paths: string[]): void;
 	clearRecentPathsList(): void;
+	updateWindowsJumpList(): void;
 	quit(): void;
 }
 
@@ -171,8 +172,6 @@ export class WindowsManager implements IWindowsMainService {
 
 		this.initialUserEnv = initialUserEnv;
 		this.windowsState = this.storageService.getItem<IWindowsState>(WindowsManager.windowsStateStorageKey) || { openedFolders: [] };
-
-		this.updateWindowsJumpList();
 	}
 
 	private registerListeners(): void {
@@ -251,9 +250,6 @@ export class WindowsManager implements IWindowsMainService {
 		// Update our windows state before quitting and before closing windows
 		this.lifecycleService.onBeforeWindowClose(win => this.onBeforeWindowClose(win));
 		this.lifecycleService.onBeforeQuit(() => this.onBeforeQuit());
-
-		// Update jump list when recent paths change
-		this.onRecentPathsChange(() => this.updateWindowsJumpList());
 	}
 
 	// Note that onBeforeQuit() and onBeforeWindowClose() are fired in different order depending on the OS:
@@ -448,7 +444,7 @@ export class WindowsManager implements IWindowsMainService {
 					openFilesInNewWindow = true; // only on macOS do we allow to open files in a new window if this is triggered via DOCK context
 				}
 
-				if (!openConfig.cli.extensionDevelopmentPath && windowConfig && (windowConfig.openFilesInNewWindow === 'on' || windowConfig.openFilesInNewWindow === 'off' || <any>windowConfig.openFilesInNewWindow === false /* TODO@Ben migration */)) {
+				if (!openConfig.cli.extensionDevelopmentPath && windowConfig && (windowConfig.openFilesInNewWindow === 'on' || windowConfig.openFilesInNewWindow === 'off')) {
 					openFilesInNewWindow = (windowConfig.openFilesInNewWindow === 'on');
 				}
 			}
@@ -713,7 +709,7 @@ export class WindowsManager implements IWindowsMainService {
 		}
 
 		// Open it
-		this.open({ context: openConfig.context, cli: openConfig.cli, forceNewWindow: true, forceEmpty: openConfig.cli._.length === 0 });
+		this.open({ context: openConfig.context, cli: openConfig.cli, forceNewWindow: true, forceEmpty: openConfig.cli._.length === 0, userEnv: openConfig.userEnv });
 	}
 
 	private toConfiguration(config: IOpenConfiguration, workspacePath?: string, filesToOpen?: IPath[], filesToCreate?: IPath[], filesToDiff?: IPath[]): IWindowConfiguration {
@@ -949,9 +945,9 @@ export class WindowsManager implements IWindowsMainService {
 				displayToUse = screen.getDisplayMatching(lastActive.getBounds());
 			}
 
-			// fallback to first display
+			// fallback to primary display or first display
 			if (!displayToUse) {
-				displayToUse = displays[0];
+				displayToUse = screen.getPrimaryDisplay() || displays[0];
 			}
 		}
 
@@ -1264,7 +1260,7 @@ export class WindowsManager implements IWindowsMainService {
 		return pathA === pathB;
 	}
 
-	private updateWindowsJumpList(): void {
+	public updateWindowsJumpList(): void {
 		if (!platform.isWindows) {
 			return; // only on windows
 		}

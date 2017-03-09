@@ -36,42 +36,34 @@ export const TerminalCursorStyle = {
 };
 
 export interface ITerminalConfiguration {
-	terminal: {
-		integrated: {
-			shell: {
-				linux: string,
-				osx: string,
-				windows: string
-			},
-			shellArgs: {
-				linux: string[],
-				osx: string[],
-				windows: string[]
-			},
-			rightClickCopyPaste: boolean,
-			cursorBlinking: boolean,
-			cursorStyle: string,
-			fontFamily: string,
-			fontLigatures: boolean,
-			fontSize: number,
-			lineHeight: number,
-			setLocaleVariables: boolean,
-			scrollback: number,
-			commandsToSkipShell: string[],
-			cwd: string
-		}
+	shell: {
+		linux: string;
+		osx: string;
+		windows: string;
 	};
+	shellArgs: {
+		linux: string[];
+		osx: string[];
+		windows: string[];
+	};
+	rightClickCopyPaste: boolean;
+	cursorBlinking: boolean;
+	cursorStyle: string;
+	fontFamily: string;
+	fontLigatures: boolean;
+	fontSize: number;
+	lineHeight: number;
+	setLocaleVariables: boolean;
+	scrollback: number;
+	commandsToSkipShell: string[];
+	cwd: string;
+	confirmOnExit: boolean;
 }
 
 export interface ITerminalConfigHelper {
+	config: ITerminalConfiguration;
 	getTheme(baseThemeId: string): string[];
 	getFont(): ITerminalFont;
-	getFontLigaturesEnabled(): boolean;
-	getCursorBlink(): boolean;
-	getRightClickCopyPaste(): boolean;
-	getCommandsToSkipShell(): string[];
-	getScrollback(): number;
-	getCwd(): string;
 }
 
 export interface ITerminalFont {

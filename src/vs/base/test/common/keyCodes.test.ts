@@ -5,41 +5,48 @@
 'use strict';
 
 import * as assert from 'assert';
-import { KeyCode, KeyMod, KeyChord, BinaryKeybindings } from 'vs/base/common/keyCodes';
+import { KeyCode, KeyMod, KeyChord, createKeybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
 
 interface ITestKeybinding {
-	ctrlCmd?: boolean;
-	shift?: boolean;
-	alt?: boolean;
-	winCtrl?: boolean;
+	ctrlCmd: boolean;
+	shift: boolean;
+	alt: boolean;
+	winCtrl: boolean;
 	key: KeyCode;
 	chord?: ITestKeybinding;
+}
+
+function decodeSimpleKeybinding(kb: SimpleKeybinding): ITestKeybinding {
+	return {
+		ctrlCmd: kb.hasCtrlCmd(),
+		shift: kb.hasShift(),
+		alt: kb.hasAlt(),
+		winCtrl: kb.hasWinCtrl(),
+		key: kb.getKeyCode()
+	};
+}
+
+function decodeBinaryKeybinding(k: number): ITestKeybinding {
+	let kb = createKeybinding(k);
+	if (kb.isChord()) {
+		let result = decodeSimpleKeybinding(kb.extractFirstPart());
+		result.chord = decodeSimpleKeybinding(kb.extractChordPart());
+		return result;
+	}
+	return decodeSimpleKeybinding(kb);
 }
 
 suite('keyCodes', () => {
 	test('binary encoding', () => {
 		function test(keybinding: ITestKeybinding, k: number): void {
-			keybinding = keybinding || { key: KeyCode.Unknown };
-			assert.equal(BinaryKeybindings.hasCtrlCmd(k), !!keybinding.ctrlCmd);
-			assert.equal(BinaryKeybindings.hasShift(k), !!keybinding.shift);
-			assert.equal(BinaryKeybindings.hasAlt(k), !!keybinding.alt);
-			assert.equal(BinaryKeybindings.hasWinCtrl(k), !!keybinding.winCtrl);
-			assert.equal(BinaryKeybindings.extractKeyCode(k), keybinding.key);
+			keybinding = keybinding || { ctrlCmd: false, shift: false, alt: false, winCtrl: false, key: KeyCode.Unknown };
 
-			let chord = BinaryKeybindings.extractChordPart(k);
-			assert.equal(BinaryKeybindings.hasChord(k), !!keybinding.chord);
-			if (keybinding.chord) {
-				assert.equal(BinaryKeybindings.hasCtrlCmd(chord), !!keybinding.chord.ctrlCmd);
-				assert.equal(BinaryKeybindings.hasShift(chord), !!keybinding.chord.shift);
-				assert.equal(BinaryKeybindings.hasAlt(chord), !!keybinding.chord.alt);
-				assert.equal(BinaryKeybindings.hasWinCtrl(chord), !!keybinding.chord.winCtrl);
-				assert.equal(BinaryKeybindings.extractKeyCode(chord), keybinding.chord.key);
-			}
+			assert.deepEqual(decodeBinaryKeybinding(k), keybinding);
 		}
 
 		test(null, 0);
-		test({ key: KeyCode.Enter }, KeyCode.Enter);
-		test({ key: KeyCode.Enter, chord: { key: KeyCode.Tab } }, KeyChord(KeyCode.Enter, KeyCode.Tab));
+		test({ ctrlCmd: false, shift: false, alt: false, winCtrl: false, key: KeyCode.Enter }, KeyCode.Enter);
+		test({ ctrlCmd: false, shift: false, alt: false, winCtrl: false, key: KeyCode.Enter, chord: { ctrlCmd: false, shift: false, alt: false, winCtrl: false, key: KeyCode.Tab } }, KeyChord(KeyCode.Enter, KeyCode.Tab));
 		test({ ctrlCmd: false, shift: false, alt: false, winCtrl: false, key: KeyCode.Enter }, KeyCode.Enter);
 		test({ ctrlCmd: false, shift: false, alt: false, winCtrl: true, key: KeyCode.Enter }, KeyMod.WinCtrl | KeyCode.Enter);
 		test({ ctrlCmd: false, shift: false, alt: true, winCtrl: false, key: KeyCode.Enter }, KeyMod.Alt | KeyCode.Enter);
@@ -58,11 +65,14 @@ suite('keyCodes', () => {
 		test({ ctrlCmd: true, shift: true, alt: true, winCtrl: true, key: KeyCode.Enter }, KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.Enter);
 
 		let encoded = KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_Y, KeyCode.KEY_Z);
-		let encodedFirstPart = BinaryKeybindings.extractFirstPart(encoded);
-		let encodedSecondPart = BinaryKeybindings.extractChordPart(encoded);
+		let kb = createKeybinding(encoded);
 
-		assert.equal(BinaryKeybindings.hasChord(encoded), true, 'hasChord');
-		assert.equal(encodedFirstPart, KeyMod.CtrlCmd | KeyCode.KEY_Y, 'first part');
-		assert.equal(encodedSecondPart, encodedSecondPart, 'chord part');
+		assert.equal(kb.isChord(), true, 'isCord');
+		if (kb.isChord()) {
+			let firstPart = kb.extractFirstPart();
+			let chordPart = kb.extractChordPart();
+			assert.equal(firstPart.value, KeyMod.CtrlCmd | KeyCode.KEY_Y, 'first part');
+			assert.equal(chordPart.value, KeyCode.KEY_Z, 'chord part');
+		}
 	});
 });

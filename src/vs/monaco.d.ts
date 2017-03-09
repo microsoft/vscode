@@ -363,10 +363,9 @@ declare module monaco {
         static chord(firstPart: number, secondPart: number): number;
     }
 
-    export class Keybinding {
-        value: number;
+    export class SimpleKeybinding {
+        readonly value: number;
         constructor(keybinding: number);
-        equals(other: Keybinding): boolean;
         hasCtrlCmd(): boolean;
         hasShift(): boolean;
         hasAlt(): boolean;
@@ -392,7 +391,7 @@ declare module monaco {
         readonly altKey: boolean;
         readonly metaKey: boolean;
         readonly keyCode: KeyCode;
-        toKeybinding(): Keybinding;
+        toKeybinding(): SimpleKeybinding;
         equals(keybinding: number): boolean;
         preventDefault(): void;
         stopPropagation(): void;
@@ -1219,6 +1218,11 @@ declare module monaco.editor {
          */
         overviewRulerLanes?: number;
         /**
+         * Controls if a border should be drawn around the overview ruler.
+         * Defaults to `true`.
+         */
+        overviewRulerBorder?: boolean;
+        /**
          * Control the cursor animation style, possible values are 'blink', 'smooth', 'phase', 'expand' and 'solid'.
          * Defaults to 'blink'.
          */
@@ -1393,7 +1397,11 @@ declare module monaco.editor {
         /**
          * Enable word based suggestions. Defaults to 'true'
          */
-        wordBasedSuggestions?: boolean;
+        wordBasedSuggestions?: boolean | {
+            strings?: boolean;
+            comments?: boolean;
+            default?: boolean;
+        };
         /**
          * The font size for the suggest widget.
          * Defaults to the editor font size.
@@ -1551,6 +1559,7 @@ declare module monaco.editor {
         readonly revealHorizontalRightPadding: number;
         readonly roundedSelection: boolean;
         readonly overviewRulerLanes: number;
+        readonly overviewRulerBorder: boolean;
         readonly cursorBlinking: TextEditorCursorBlinkingStyle;
         readonly mouseWheelZoom: boolean;
         readonly cursorStyle: TextEditorCursorStyle;
@@ -1582,6 +1591,7 @@ declare module monaco.editor {
         readonly revealHorizontalRightPadding: boolean;
         readonly roundedSelection: boolean;
         readonly overviewRulerLanes: boolean;
+        readonly overviewRulerBorder: boolean;
         readonly cursorBlinking: boolean;
         readonly mouseWheelZoom: boolean;
         readonly cursorStyle: boolean;
@@ -1613,7 +1623,11 @@ declare module monaco.editor {
         readonly acceptSuggestionOnCommitCharacter: boolean;
         readonly snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
         readonly emptySelectionClipboard: boolean;
-        readonly wordBasedSuggestions: boolean;
+        readonly wordBasedSuggestions: boolean | {
+            strings?: boolean;
+            comments?: boolean;
+            default?: boolean;
+        };
         readonly suggestFontSize: number;
         readonly suggestLineHeight: number;
         readonly selectionHighlight: boolean;
@@ -3944,6 +3958,7 @@ declare module monaco.editor {
 
     export class FontInfo extends BareFontInfo {
         readonly _editorStylingBrand: void;
+        readonly isTrusted: boolean;
         readonly isMonospace: boolean;
         readonly typicalHalfwidthCharacterWidth: number;
         readonly typicalFullwidthCharacterWidth: number;
@@ -3952,6 +3967,7 @@ declare module monaco.editor {
     }
     export class BareFontInfo {
         readonly _bareFontInfoBrand: void;
+        readonly zoomLevel: number;
         readonly fontFamily: string;
         readonly fontWeight: string;
         readonly fontSize: number;

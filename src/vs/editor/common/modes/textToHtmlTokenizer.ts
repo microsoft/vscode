@@ -43,10 +43,6 @@ export function tokenizeLineToHTML(text: string, viewLineTokens: ViewLineToken[]
 					}
 					break;
 
-				case CharCode.Space:
-					partContent += '&nbsp;';
-					break;
-
 				case CharCode.LessThan:
 					partContent += '&lt;';
 					break;

@@ -11,7 +11,7 @@
 	"cursorBlinking": "Steuert den Cursoranimationsstil. Gültige Werte sind \"blink\", \"smooth\", \"phase\", \"expand\" und \"solid\".",
 	"cursorStyle": "Steuert den Cursorstil. Gültige Werte sind  \"block\", \"block-outline\", \"line\", \"line-thin\", \"underline\" und \"underline-thin\".",
 	"detectIndentation": "Beim Öffnen einer Datei werden \"editor.tabSize\" und \"editor.insertSpaces\" basierend auf den Dateiinhalten erkannt.",
-	"dragAndDrop": "Steuert, ob der Editor das Verschieben einer Auswahl per Drag&Drop zulässt.",
+	"dragAndDrop": "Steuert, ob der Editor das Verschieben einer Auswahl per Drag and Drop zulässt.",
 	"editorConfigurationTitle": "Editor",
 	"emptySelectionClipboard": "Steuert, ob ein Kopiervorgang ohne Auswahl die aktuelle Zeile kopiert.",
 	"folding": "Steuert, ob für den Editor Codefaltung aktiviert ist.",

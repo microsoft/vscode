@@ -76,11 +76,10 @@ export class NoTabsTitleControl extends TitleControl {
 		}
 
 		const group = this.context;
-		const position = this.stacks.positionOfGroup(group);
 
 		// Close editor on middle mouse click
 		if (e.button === 1 /* Middle Button */) {
-			this.editorService.closeEditor(position, group.activeEditor).done(null, errors.onUnexpectedError);
+			this.closeEditorAction.run({ group, editor: group.activeEditor }).done(null, errors.onUnexpectedError);
 		}
 
 		// Focus editor group unless click on toolbar

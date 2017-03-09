@@ -1,6 +1,8 @@
 {
-	"name": "Light Visual Studio",
-	"settings": [
+	"$schema": "vscode://schemas/color-theme",
+	"name": "Light (Visual Studio)",
+	"include": "./light_defaults.json",
+	"tokenColors": [
 		{
 			"scope": "emphasis",
 			"settings": {
@@ -19,14 +21,12 @@
 				"foreground": "#000080"
 			}
 		},
-
 		{
 			"scope": "comment",
 			"settings": {
 				"foreground": "#008000"
 			}
 		},
-
 		{
 			"scope": "constant.language",
 			"settings": {
@@ -74,9 +74,7 @@
 				"entity.other.attribute-name.parent-selector.css",
 				"entity.other.attribute-name.pseudo-class.css",
 				"entity.other.attribute-name.pseudo-element.css",
-
 				"source.css.less entity.other.attribute-name.id",
-
 				"entity.other.attribute-name.attribute.scss",
 				"entity.other.attribute-name.scss"
 			],
@@ -101,7 +99,6 @@
 			"settings": {
 				"fontStyle": "bold",
 				"foreground": "#000080"
-
 			}
 		},
 		{
@@ -213,24 +210,19 @@
 		},
 		{
 			"scope": [
-
 				"string.comment.buffered.block.jade",
 				"string.quoted.jade",
 				"string.interpolated.jade",
-
 				"string.unquoted.plain.in.yaml",
 				"string.unquoted.plain.out.yaml",
 				"string.unquoted.block.yaml",
 				"string.quoted.single.yaml",
-
 				"string.quoted.double.xml",
 				"string.quoted.single.xml",
 				"string.unquoted.cdata.xml",
-
 				"string.quoted.double.html",
 				"string.quoted.single.html",
 				"string.unquoted.html",
-
 				"string.quoted.single.handlebars",
 				"string.quoted.double.handlebars"
 			],
@@ -275,7 +267,6 @@
 				"variable.css",
 				"variable.scss",
 				"variable.other.less"
-
 			],
 			"settings": {
 				"foreground": "#ff0000"
@@ -306,7 +297,10 @@
 			}
 		},
 		{
-			"scope": ["keyword.operator.new", "keyword.operator.expression"],
+			"scope": [
+				"keyword.operator.new",
+				"keyword.operator.expression"
+			],
 			"settings": {
 				"foreground": "#0000ff"
 			}
@@ -340,7 +334,10 @@
 		},
 		{
 			"name": "coloring of the Java import and package identifiers",
-			"scope": ["storage.modifier.import.java", "storage.modifier.package.java"],
+			"scope": [
+				"storage.modifier.import.java",
+				"storage.modifier.package.java"
+			],
 			"settings": {
 				"foreground": "#000000"
 			}
