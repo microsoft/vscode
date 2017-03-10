@@ -254,6 +254,9 @@ export class RestartAction extends AbstractDebugAction {
 		if (!(process instanceof Process)) {
 			process = this.debugService.getViewModel().focusedProcess;
 		}
+		if (!process) {
+			return TPromise.as(null);
+		}
 
 		if (this.debugService.getModel().getProcesses().length <= 1) {
 			this.debugService.removeReplExpressions();
