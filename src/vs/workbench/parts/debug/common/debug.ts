@@ -49,6 +49,7 @@ export interface IRawModelUpdate {
 
 export interface IRawStoppedDetails {
 	reason: string;
+	description?: string;
 	threadId?: number;
 	text?: string;
 	totalFrames?: number;
