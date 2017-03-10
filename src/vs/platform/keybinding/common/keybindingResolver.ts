@@ -80,8 +80,6 @@ export class KeybindingResolver {
 	private _shouldWarnOnConflict: boolean;
 
 	constructor(defaultKeybindings: IKeybindingItem[], overrides: IKeybindingItem[], shouldWarnOnConflict: boolean = true) {
-		defaultKeybindings = defaultKeybindings.slice(0).sort(sorter);
-
 		this._defaultKeybindings = defaultKeybindings;
 		this._shouldWarnOnConflict = shouldWarnOnConflict;
 
@@ -390,19 +388,6 @@ function rightPaddedString(str: string, minChars: number): string {
 		return str + (new Array(minChars - str.length).join(' '));
 	}
 	return str;
-}
-
-function sorter(a: IKeybindingItem, b: IKeybindingItem): number {
-	if (a.weight1 !== b.weight1) {
-		return a.weight1 - b.weight1;
-	}
-	if (a.command < b.command) {
-		return -1;
-	}
-	if (a.command > b.command) {
-		return 1;
-	}
-	return a.weight2 - b.weight2;
 }
 
 export class OutputBuilder {
