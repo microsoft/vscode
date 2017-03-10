@@ -411,6 +411,10 @@ export class EndOfLineEdit {
 	static readonly CRLF: EndOfLineEdit = Object.freeze({ newEol: EndOfLine.CRLF });
 
 	newEol: EndOfLine;
+
+	constructor(newEol: EndOfLine) {
+		this.newEol = newEol;
+	}
 }
 
 export class TextEdit {
