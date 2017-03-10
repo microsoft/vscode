@@ -15,7 +15,7 @@ import { ExtensionMessageCollector, ExtensionsRegistry } from 'vs/platform/exten
 import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
-import { KeybindingResolver, IOSupport } from 'vs/platform/keybinding/common/keybindingResolver';
+import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IKeybindingEvent, IKeybindingItem, IUserFriendlyKeybinding, KeybindingSource } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -30,6 +30,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { NormalizedKeybindingItem } from 'vs/platform/keybinding/common/normalizedKeybindingItem';
+import { KeybindingIO } from 'vs/platform/keybinding/common/keybindingIO';
 
 interface ContributedKeyBinding {
 	command: string;
@@ -255,7 +256,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 			});
 		}
 
-		return extraUserKeybindings.map((k, i) => IOSupport.readKeybindingItem(k, i));
+		return extraUserKeybindings.map((k, i) => KeybindingIO.readKeybindingItem(k, i));
 	}
 
 	protected _createResolvedKeybinding(kb: Keybinding): ResolvedKeybinding {
@@ -314,10 +315,10 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 			id: command,
 			when: ContextKeyExpr.deserialize(when),
 			weight: weight,
-			primary: IOSupport.readKeybinding(key),
-			mac: mac && { primary: IOSupport.readKeybinding(mac) },
-			linux: linux && { primary: IOSupport.readKeybinding(linux) },
-			win: win && { primary: IOSupport.readKeybinding(win) }
+			primary: KeybindingIO.readKeybinding(key),
+			mac: mac && { primary: KeybindingIO.readKeybinding(mac) },
+			linux: linux && { primary: KeybindingIO.readKeybinding(linux) },
+			win: win && { primary: KeybindingIO.readKeybinding(win) }
 		};
 
 		if (!desc.primary && !desc.mac && !desc.linux && !desc.win) {

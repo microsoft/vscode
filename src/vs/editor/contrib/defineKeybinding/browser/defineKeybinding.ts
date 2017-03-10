@@ -16,7 +16,7 @@ import * as dom from 'vs/base/browser/dom';
 import { renderHtml } from 'vs/base/browser/htmlContentRenderer';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { IOSupport } from 'vs/platform/keybinding/common/keybindingResolver';
+import { KeybindingIO } from 'vs/platform/keybinding/common/keybindingIO';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { Range } from 'vs/editor/common/core/range';
@@ -163,7 +163,7 @@ export class DefineKeybindingController implements editorCommon.IEditorContribut
 			let strKeybinding = text.substring(1, text.length - 1);
 			strKeybinding = strKeybinding.replace(/\\\\/g, '\\');
 
-			let numKeybinding = IOSupport.readKeybinding(strKeybinding);
+			let numKeybinding = KeybindingIO.readKeybinding(strKeybinding);
 
 			let keybinding = createKeybinding(numKeybinding);
 			let resolvedKeybinding = this._keybindingService.resolveKeybinding(keybinding);
