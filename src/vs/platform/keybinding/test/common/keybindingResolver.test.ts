@@ -6,8 +6,9 @@
 
 import * as assert from 'assert';
 import { createKeybinding, SimpleKeybinding, KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
-import { KeybindingResolver, NormalizedKeybindingItem } from 'vs/platform/keybinding/common/keybindingResolver';
+import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
 import { ContextKeyAndExpr, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { NormalizedKeybindingItem } from 'vs/platform/keybinding/common/normalizedKeybindingItem';
 
 suite('KeybindingResolver', () => {
 

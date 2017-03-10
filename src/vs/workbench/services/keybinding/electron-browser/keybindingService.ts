@@ -15,7 +15,7 @@ import { ExtensionMessageCollector, ExtensionsRegistry } from 'vs/platform/exten
 import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
-import { KeybindingResolver, IOSupport, NormalizedKeybindingItem } from 'vs/platform/keybinding/common/keybindingResolver';
+import { KeybindingResolver, IOSupport } from 'vs/platform/keybinding/common/keybindingResolver';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IKeybindingEvent, IKeybindingItem, IUserFriendlyKeybinding, KeybindingSource } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -29,6 +29,7 @@ import { ConfigWatcher } from 'vs/base/node/config';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { NormalizedKeybindingItem } from 'vs/platform/keybinding/common/normalizedKeybindingItem';
 
 interface ContributedKeyBinding {
 	command: string;
