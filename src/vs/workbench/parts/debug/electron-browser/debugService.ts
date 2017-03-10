@@ -941,8 +941,7 @@ export class DebugService implements debug.IDebugService {
 				return TPromise.as(null);
 			}
 
-			const breakpointsToSend = distinct(this.model.getBreakpoints().filter(bp => this.model.areBreakpointsActivated() && bp.enabled && bp.uri.toString() === modelUri.toString()),
-				bp => bp.lineNumber.toString());
+			const breakpointsToSend = this.model.getBreakpoints().filter(bp => this.model.areBreakpointsActivated() && bp.enabled && bp.uri.toString() === modelUri.toString());
 
 			const source = process.sources.get(modelUri.toString());
 			const rawSource = source ? source.raw : { path: paths.normalize(modelUri.fsPath, true) };
