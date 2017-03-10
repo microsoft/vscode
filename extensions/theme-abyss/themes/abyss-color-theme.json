@@ -1,6 +1,6 @@
 {
-	"name": "Ofer 1",
-	"syntaxTokens": [
+	"name": "Abyss",
+	"tokenColors": [
 		{
 			"settings": {
 				"background": "#000c18",
@@ -213,6 +213,7 @@
 	],
 	"colors": {
 		"editorBackground": "#000c18",
+		"editorForeground": "#6688cc",
 		"editorCursor": "#ddbb88",
 		"editorInvisibles": "#002040",
 		"editorLineHighlight": "#082050",
