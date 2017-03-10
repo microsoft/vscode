@@ -5,7 +5,6 @@
 
 import { ITerminalConfigHelper } from 'vs/workbench/parts/terminal/common/terminal';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { setDisposableTimeout } from 'vs/base/common/async';
 
 export class TerminalWidgetManager {
 	private _container: HTMLElement;
@@ -28,26 +27,24 @@ export class TerminalWidgetManager {
 	private _initTerminalHeightWatcher(terminalWrapper: HTMLElement) {
 		// Watch the xterm.js viewport for style changes and do a layout if it changes
 		this._xtermViewport = <HTMLElement>terminalWrapper.querySelector('.xterm-viewport');
-		const mutationObserver = new MutationObserver(() => this.refreshHeight());
+		const mutationObserver = new MutationObserver(() => this._refreshHeight());
 		mutationObserver.observe(this._xtermViewport, { attributes: true, attributeFilter: ['style'] });
 	}
 
 	public showMessage(left: number, top: number, text: string): void {
 		dispose(this._messageWidget);
 		this._messageListeners = dispose(this._messageListeners);
-
 		this._messageWidget = new MessageWidget(this._container, left, top, text);
-
-		// close after 3s
-		this._messageListeners.push(setDisposableTimeout(() => this.closeMessage(), 3000));
 	}
 
-	closeMessage(): void {
+	public closeMessage(): void {
 		this._messageListeners = dispose(this._messageListeners);
-		this._messageListeners.push(MessageWidget.fadeOut(this._messageWidget));
+		if (this._messageWidget) {
+			this._messageListeners.push(MessageWidget.fadeOut(this._messageWidget));
+		}
 	}
 
-	public refreshHeight(): void {
+	private _refreshHeight(): void {
 		this._container.style.height = this._xtermViewport.style.height;
 	}
 }
@@ -60,7 +57,7 @@ class MessageWidget {
 	public get text(): string { return this._text; }
 	public get domNode(): HTMLElement { return this._domNode; }
 
-	static fadeOut(messageWidget: MessageWidget): IDisposable {
+	public static fadeOut(messageWidget: MessageWidget): IDisposable {
 		let handle: number;
 		const dispose = () => {
 			messageWidget.dispose();
@@ -83,19 +80,12 @@ class MessageWidget {
 		this._domNode.style.position = 'absolute';
 		this._domNode.style.left = `${_left}px`;
 		this._domNode.style.bottom = `${_container.offsetHeight - _top}px`;
-		this._domNode.classList.add('terminal-message-widget');
-
+		this._domNode.classList.add('terminal-message-widget', 'fadeIn');
 		this._domNode.textContent = _text;
-		// const message = document.createElement('div');
-		// message.classList.add('message');
-		// message.textContent = _text;
-		// this._domNode.appendChild(message);
-
 		this._container.appendChild(this._domNode);
-		this._domNode.classList.add('fadeIn');
 	}
 
-	dispose() {
+	public dispose(): void {
 		if (this.domNode.parentElement === this._container) {
 			this._container.removeChild(this.domNode);
 		}
