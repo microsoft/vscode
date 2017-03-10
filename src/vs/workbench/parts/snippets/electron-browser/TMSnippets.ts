@@ -79,13 +79,7 @@ export class MainProcessTextMateSnippet implements IWorkbenchContribution {
 		let modeId = snippet.language;
 		let languageIdentifier = this._modeService.getLanguageIdentifier(modeId);
 		if (languageIdentifier) {
-			let disposable = this._modeService.onDidCreateMode(mode => {
-				if (mode.getId() !== modeId) {
-					return;
-				}
-				readAndRegisterSnippets(this._snippetService, languageIdentifier, normalizedAbsolutePath, extensionName);
-				disposable.dispose();
-			});
+			readAndRegisterSnippets(this._snippetService, languageIdentifier, normalizedAbsolutePath, extensionName);
 		}
 	}
 }
@@ -93,7 +87,7 @@ export class MainProcessTextMateSnippet implements IWorkbenchContribution {
 export function readAndRegisterSnippets(snippetService: ISnippetsService, languageIdentifier: LanguageIdentifier, filePath: string, ownerName: string): TPromise<void> {
 	return readFile(filePath).then(fileContents => {
 		let snippets = parseSnippetFile(fileContents.toString(), ownerName);
-		snippetService.registerSnippets(languageIdentifier, snippets, filePath);
+		snippetService.registerSnippets(languageIdentifier.id, snippets, filePath);
 	});
 }
 
