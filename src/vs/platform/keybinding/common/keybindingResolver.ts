@@ -22,16 +22,11 @@ interface ICommandMap {
 	[keypress: string]: NormalizedKeybindingItem[];
 }
 
-interface IChordsMap {
-	[keypress: string]: ICommandMap;
-}
-
 export class KeybindingResolver {
 	private readonly _defaultKeybindings: NormalizedKeybindingItem[];
 	private readonly _shouldWarnOnConflict: boolean;
 	private readonly _defaultBoundCommands: IBoundCommands;
 	private readonly _map: ICommandMap;
-	private readonly _chords: IChordsMap;
 	private readonly _lookupMap: Map<string, NormalizedKeybindingItem[]>;
 
 	constructor(defaultKeybindings: NormalizedKeybindingItem[], overrides: NormalizedKeybindingItem[], shouldWarnOnConflict: boolean = true) {
@@ -44,7 +39,6 @@ export class KeybindingResolver {
 		}
 
 		this._map = Object.create(null);
-		this._chords = Object.create(null);
 		this._lookupMap = new Map<string, NormalizedKeybindingItem[]>();
 
 		let allKeybindings = KeybindingResolver.combine(defaultKeybindings, overrides);
@@ -55,18 +49,7 @@ export class KeybindingResolver {
 				continue;
 			}
 
-			if (k.keypressChordPart !== null) {
-				// This is a chord
-				this._chords[k.keypressFirstPart] = this._chords[k.keypressFirstPart] || Object.create(null);
-				this._chords[k.keypressFirstPart][k.keypressChordPart] = this._chords[k.keypressFirstPart][k.keypressChordPart] || [];
-				this._chords[k.keypressFirstPart][k.keypressChordPart].push(k);
-
-				this._addKeyPress(k.keypressFirstPart, k);
-
-			} else {
-				this._addKeyPress(k.keypressFirstPart, k);
-
-			}
+			this._addKeyPress(k.keypressFirstPart, k);
 		}
 	}
 
@@ -256,11 +239,15 @@ export class KeybindingResolver {
 		let lookupMap: NormalizedKeybindingItem[] = null;
 
 		if (currentChord !== null) {
-			let chords = this._chords[currentChord];
-			if (!chords) {
-				return null;
+			// Fetch all chord bindings for `currentChord`
+			lookupMap = [];
+			let candidates = this._map[currentChord];
+			for (let i = 0, len = candidates.length; i < len; i++) {
+				let candidate = candidates[i];
+				if (candidate.keypressChordPart === keypress) {
+					lookupMap.push(candidate);
+				}
 			}
-			lookupMap = chords[keypress];
 		} else {
 			lookupMap = this._map[keypress];
 		}
