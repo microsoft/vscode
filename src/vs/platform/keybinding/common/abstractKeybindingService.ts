@@ -95,10 +95,6 @@ export abstract class AbstractKeybindingService implements IKeybindingService {
 		return this._createResolvedKeybinding(keybinding);
 	}
 
-	protected getLabelFor(keybinding: Keybinding): string {
-		return KeybindingLabels._toUSLabel(keybinding);
-	}
-
 	public getDefaultKeybindings(): string {
 		return this._getResolver().getDefaultKeybindings() + '\n\n' + this._getAllCommandsAsComment();
 	}
@@ -166,7 +162,7 @@ export abstract class AbstractKeybindingService implements IKeybindingService {
 			shouldPreventDefault = true;
 			this._currentChord = resolveResult.enterChord;
 			if (this._statusService) {
-				let firstPartLabel = this.getLabelFor(this._currentChord);
+				let firstPartLabel = this._createResolvedKeybinding(this._currentChord).getLabel();
 				this._currentChordStatusMessage = this._statusService.setStatusMessage(nls.localize('first.chord', "({0}) was pressed. Waiting for second key of chord...", firstPartLabel));
 			}
 			return shouldPreventDefault;
@@ -174,8 +170,8 @@ export abstract class AbstractKeybindingService implements IKeybindingService {
 
 		if (this._statusService && this._currentChord) {
 			if (!resolveResult || !resolveResult.commandId) {
-				let firstPartLabel = this.getLabelFor(this._currentChord);
-				let chordPartLabel = this.getLabelFor(keybinding);
+				let firstPartLabel = this._createResolvedKeybinding(this._currentChord).getLabel();
+				let chordPartLabel = this._createResolvedKeybinding(keybinding).getLabel();
 				this._statusService.setStatusMessage(nls.localize('missing.chord', "The key combination ({0}, {1}) is not a command.", firstPartLabel, chordPartLabel), 10 * 1000 /* 10s */);
 				shouldPreventDefault = true;
 			}
@@ -187,11 +183,10 @@ export abstract class AbstractKeybindingService implements IKeybindingService {
 		this._currentChord = null;
 
 		if (resolveResult && resolveResult.commandId) {
-			if (!/^\^/.test(resolveResult.commandId)) {
+			if (!resolveResult.bubble) {
 				shouldPreventDefault = true;
 			}
-			let commandId = resolveResult.commandId.replace(/^\^/, '');
-			this._commandService.executeCommand(commandId, resolveResult.commandArgs || {}).done(undefined, err => {
+			this._commandService.executeCommand(resolveResult.commandId, resolveResult.commandArgs || {}).done(undefined, err => {
 				this._messageService.show(Severity.Warning, err);
 			});
 		}

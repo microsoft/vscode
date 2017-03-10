@@ -261,10 +261,6 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		return new FancyResolvedKeybinding(kb);
 	}
 
-	protected getLabelFor(keybinding: Keybinding): string {
-		return KeybindingLabels.toCustomLabel(keybinding, getNativeLabelProvider());
-	}
-
 	private _handleKeybindingsExtensionPointUser(isBuiltin: boolean, keybindings: ContributedKeyBinding | ContributedKeyBinding[], collector: ExtensionMessageCollector): boolean {
 		if (isContributedKeyBindingsArray(keybindings)) {
 			let commandAdded = false;

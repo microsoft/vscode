@@ -9,11 +9,13 @@ import { ISimplifiedPlatform, KeybindingLabels } from 'vs/platform/keybinding/co
 import * as platform from 'vs/base/common/platform';
 import { IKeybindingItem, IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { CharCode } from "vs/base/common/charCode";
 
 export interface IResolveResult {
 	enterChord: SimpleKeybinding;
 	commandId: string;
 	commandArgs: any;
+	bubble: boolean;
 }
 
 export interface IBoundCommands {
@@ -346,14 +348,19 @@ export class KeybindingResolver {
 			return {
 				enterChord: keypress,
 				commandId: null,
-				commandArgs: null
+				commandArgs: null,
+				bubble: false
 			};
 		}
 
+		let bubble = (result.commandId ? result.commandId.charCodeAt(0) === CharCode.Caret : false);
+		let commandId = (result.commandId ? result.commandId.replace(/^\^/, '') : result.commandId);
+
 		return {
 			enterChord: null,
-			commandId: result.commandId,
-			commandArgs: result.commandArgs
+			commandId: commandId,
+			commandArgs: result.commandArgs,
+			bubble: bubble
 		};
 	}
 
