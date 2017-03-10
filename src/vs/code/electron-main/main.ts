@@ -8,6 +8,7 @@
 import { app, ipcMain as ipc, BrowserWindow } from 'electron';
 import { assign } from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { parseMainProcessArgv } from 'vs/platform/environment/node/argv';
 import { mkdirp } from 'vs/base/node/pfs';
 import { validatePaths } from 'vs/code/electron-main/paths';
@@ -56,6 +57,7 @@ import { resolveCommonProperties, machineIdStorageKey, machineIdIpcChannel } fro
 import { getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
 import product from 'vs/platform/node/product';
 import pkg from 'vs/platform/node/package';
+import { AuthHandler } from './auth';
 import * as fs from 'original-fs';
 
 
@@ -221,6 +223,8 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 			app.setAppUserModelId(product.win32AppUserModelId);
 		}
 
+		const disposables: IDisposable[] = [];
+
 		function dispose() {
 			if (mainIpcServer) {
 				mainIpcServer.dispose();
@@ -233,6 +237,7 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 
 			configurationService.dispose();
 			sharedProcess.dispose();
+			disposables.forEach(d => d.dispose());
 		}
 
 		// Dispose on app quit
@@ -275,6 +280,9 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 
 		// Start shared process here
 		sharedProcess.spawn();
+
+		const authHandler = instantiationService2.createInstance(AuthHandler);
+		disposables.push(authHandler);
 	});
 }
 
