@@ -720,11 +720,6 @@ export class Repository {
 		}
 	}
 
-	async sync(): Promise<void> {
-		await this.pull();
-		await this.push();
-	}
-
 	async getStatus(): Promise<IFileStatus[]> {
 		const executionResult = await this.run(['status', '-z', '-u']);
 		const status = executionResult.stdout;
