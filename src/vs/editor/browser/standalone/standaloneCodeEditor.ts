@@ -21,7 +21,6 @@ import { CodeEditor } from 'vs/editor/browser/codeEditor';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IStandaloneColorService } from 'vs/editor/common/services/standaloneColorService';
-import { IOSupport } from 'vs/platform/keybinding/common/keybindingResolver';
 import { InternalEditorAction } from 'vs/editor/common/editorAction';
 import { MenuId, MenuRegistry, IMenuItem } from 'vs/platform/actions/common/actions';
 
@@ -93,7 +92,7 @@ export class StandaloneCodeEditor extends CodeEditor implements IStandaloneCodeE
 			return null;
 		}
 		let commandId = 'DYNAMIC_' + (++LAST_GENERATED_COMMAND_ID);
-		let whenExpression = IOSupport.readKeybindingWhen(context);
+		let whenExpression = ContextKeyExpr.deserialize(context);
 		this._standaloneKeybindingService.addDynamicKeybinding(commandId, keybinding, handler, whenExpression);
 		return commandId;
 	}
@@ -116,23 +115,21 @@ export class StandaloneCodeEditor extends CodeEditor implements IStandaloneCodeE
 		const label = _descriptor.label;
 		const precondition = ContextKeyExpr.and(
 			ContextKeyExpr.equals('editorId', this.getId()),
-			IOSupport.readKeybindingWhen(_descriptor.precondition)
+			ContextKeyExpr.deserialize(_descriptor.precondition)
 		);
 		const keybindings = _descriptor.keybindings;
 		const keybindingsWhen = ContextKeyExpr.and(
 			precondition,
-			IOSupport.readKeybindingWhen(_descriptor.keybindingContext)
+			ContextKeyExpr.deserialize(_descriptor.keybindingContext)
 		);
 		const contextMenuGroupId = _descriptor.contextMenuGroupId || null;
 		const contextMenuOrder = _descriptor.contextMenuOrder || 0;
 		const run = (): TPromise<void> => {
 			return TPromise.as(_descriptor.run(this));
 		};
-		// 		return TPromise.as(this._run(this._editor));
 
 
 		let toDispose: IDisposable[] = [];
-
 
 		// Generate a unique id to allow the same descriptor.id across multiple editor instances
 		const uniqueId = this.getId() + ':' + id;
