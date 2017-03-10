@@ -305,7 +305,7 @@ export class DebugService implements debug.IDebugService {
 		this.toDisposeOnSessionEnd.get(session.getId()).push(session.onDidTerminateDebugee(event => {
 			aria.status(nls.localize('debuggingStopped', "Debugging stopped."));
 			if (session && session.getId() === event.body.sessionId) {
-				if (event.body && typeof event.body.restart === 'boolean' && event.body.restart) {
+				if (event.body && typeof event.body.restart === 'boolean' && event.body.restart && process) {
 					this.restartProcess(process).done(null, err => this.messageService.show(severity.Error, err.message));
 				} else {
 					session.disconnect().done(null, errors.onUnexpectedError);
@@ -819,10 +819,6 @@ export class DebugService implements debug.IDebugService {
 	}
 
 	public restartProcess(process: debug.IProcess): TPromise<any> {
-		if (!process) {
-			return this.createProcess(this.viewModel.selectedConfigurationName);
-		}
-
 		if (process.session.capabilities.supportsRestartRequest) {
 			return process.session.custom('restart', null);
 		}
