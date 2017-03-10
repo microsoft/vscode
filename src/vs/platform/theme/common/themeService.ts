@@ -7,9 +7,9 @@
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Color } from 'vs/base/common/color';
 import Event from 'vs/base/common/event';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 export let IThemeService = createDecorator<IThemeService>('themeService');
-
 
 export interface ITheme {
 	readonly selector: string;
@@ -33,7 +33,7 @@ export interface IThemeService {
 	/**
 	 * Register a theming participant to the registry.
 	 */
-	registerThemingParticipant(participant: IThemingParticipant): void;
+	registerThemingParticipant(participant: IThemingParticipant): IDisposable;
 
 	/**
 	 * Get all theming participants
