@@ -729,7 +729,8 @@ export class DebugService implements debug.IDebugService {
 					exceptionBreakpoints: this.model.getExceptionBreakpoints(),
 					watchExpressionsCount: this.model.getWatchExpressions().length,
 					extensionName: `${adapter.extensionDescription.publisher}.${adapter.extensionDescription.name}`,
-					isBuiltin: adapter.extensionDescription.isBuiltin
+					isBuiltin: adapter.extensionDescription.isBuiltin,
+					launchJsonExists: !!this.configurationService.getConfiguration<debug.IGlobalConfig>('launch')
 				});
 			}).then(undefined, (error: any) => {
 				if (error instanceof Error && error.message === 'Canceled') {
