@@ -100,7 +100,7 @@ export class QuickFixController implements IEditorContribution {
 		} else {
 			title = nls.localize('quickFix', "Show Fixes");
 		}
-		this._lightBulbWidget.getDomNode().title = title;
+		this._lightBulbWidget.title = title;
 	}
 }
 
