@@ -49,15 +49,16 @@
 
 /* Focus */
 .monaco-list.element-focused { outline: 0 !important; }
-.monaco-list-row.focused { background-color: #DCEBFC; }
-.vs-dark .monaco-list-row.focused { background-color: #073655; }
-.hc-black .monaco-list-row.focused { outline: 1px dotted #f38518; outline-offset: -1px; background: transparent }
+.monaco-list:focus .monaco-list-row.focused { background-color: #DCEBFC; }
+.vs-dark .monaco-list:focus .monaco-list-row.focused { background-color: #073655; }
+.hc-black .monaco-list:focus .monaco-list-row.focused { outline: 1px dotted #f38518; outline-offset: -1px; background: transparent }
 
 /* Selection */
-.vs .monaco-list-row.selected { background-color: #4FA7FF; color: white; }
-.vs-dark .monaco-list-row.selected { background-color: #0E639C; color: white; }
-.hc-black .monaco-list-row.selected { outline: 1px solid #f38518; color: white; }
+.monaco-list .monaco-list-row.selected { background-color: #CCCEDB; color: white; }
+.monaco-list:focus .monaco-list-row.selected { background-color: #4FA7FF; }
+.vs-dark .monaco-list:focus .monaco-list-row.selected { background-color: #0E639C; color: white; }
+.hc-black .monaco-list:focus .monaco-list-row.selected { outline: 1px solid #f38518; color: white; }
 
 /* Selection and focus */
-.vs .monaco-list-row.selected.focused { background-color: #3399FF; color: white; }
-.vs-dark .monaco-list-row.selected.focused { background-color: #094771; color: white; }
+.monaco-list:focus .monaco-list-row.selected.focused { background-color: #3399FF; color: white; }
+.vs-dark .monaco-list:focus .monaco-list-row.selected.focused { background-color: #094771; color: white; }
