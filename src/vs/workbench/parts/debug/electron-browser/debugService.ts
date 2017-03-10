@@ -28,6 +28,7 @@ import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import { TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import * as debug from 'vs/workbench/parts/debug/common/debug';
 import { RawDebugSession } from 'vs/workbench/parts/debug/electron-browser/rawDebugSession';
@@ -55,6 +56,11 @@ const DEBUG_FUNCTION_BREAKPOINTS_KEY = 'debug.functionbreakpoint';
 const DEBUG_EXCEPTION_BREAKPOINTS_KEY = 'debug.exceptionbreakpoint';
 const DEBUG_WATCH_EXPRESSIONS_KEY = 'debug.watchexpressions';
 const DEBUG_SELECTED_CONFIG_NAME_KEY = 'debug.selectedconfigname';
+
+interface StartSessionResult {
+	status: 'ok' | 'initialConfiguration' | 'saveConfiguration';
+	content?: string;
+};
 
 export class DebugService implements debug.IDebugService {
 	public _serviceBrand: any;
@@ -92,6 +98,7 @@ export class DebugService implements debug.IDebugService {
 		@ITaskService private taskService: ITaskService,
 		@IFileService private fileService: IFileService,
 		@IConfigurationService private configurationService: IConfigurationService,
+		@ICommandService private commandService: ICommandService
 	) {
 		this.toDispose = [];
 		this.toDisposeOnSessionEnd = new Map<string, lifecycle.IDisposable[]>();
@@ -559,24 +566,63 @@ export class DebugService implements debug.IDebugService {
 		this.model.removeWatchExpressions(id);
 	}
 
-	public createProcess(configurationOrName: debug.IConfig | string): TPromise<any> {
+	public startDebugging(configName?: string, noDebug = false): TPromise<any> {
+		return this.textFileService.saveAll().then(() => {
+			if (this.model.getProcesses().length === 0) {
+				this.removeReplExpressions();
+			}
+			const manager = this.getConfigurationManager();
+			configName = configName || this.viewModel.selectedConfigurationName;
+			const config = manager.getConfiguration(configName);
+			const compound = manager.getCompound(configName);
+			if (compound) {
+				if (!compound.configurations) {
+					return TPromise.wrapError(new Error(nls.localize({ key: 'compoundMustHaveConfigurations', comment: ['compound indicates a "compounds" configuration item', '"configurations" is an attribute and should not be localized'] },
+						"Compound must have \"configurations\" attribute set in order to start multiple configurations.")));
+				}
+
+				return TPromise.join(compound.configurations.map(name => this.startDebugging(name)));
+			}
+			if (configName && !config) {
+				return TPromise.wrapError(new Error(nls.localize('configMissing', "Configuration '{0}' is missing in 'launch.json'.", configName)));
+			}
+
+			return manager.getStartSessionCommand(config ? config.type : undefined).then(commandAndType => {
+				if (noDebug && config) {
+					config.noDebug = true;
+				}
+				if (commandAndType && commandAndType.command) {
+					const defaultConfig = noDebug ? { noDebug: true } : {};
+					return this.commandService.executeCommand(commandAndType.command, config || defaultConfig).then((result: StartSessionResult) => {
+						if (this.contextService.getWorkspace()) {
+							if (result && result.status === 'initialConfiguration') {
+								return manager.openConfigFile(false, commandAndType.type);
+							}
+
+							if (result && result.status === 'saveConfiguration') {
+								return this.fileService.updateContent(manager.configFileUri, result.content).then(() => manager.openConfigFile(false));
+							}
+						}
+						return undefined;
+					});
+				}
+
+				if (config) {
+					return this.createProcess(config);
+				}
+				if (this.contextService.getWorkspace() && commandAndType) {
+					return manager.openConfigFile(false, commandAndType.type);
+				}
+
+				return undefined;
+			});
+		});
+	}
+
+	public createProcess(config: debug.IConfig): TPromise<any> {
 		return this.textFileService.saveAll().then(() => this.configurationService.reloadConfiguration())	// make sure configuration is up to date
 			.then(() => this.extensionService.onReady()
 				.then(() => {
-					const compound = typeof configurationOrName === 'string' ? this.configurationManager.getCompound(configurationOrName) : null;
-					if (compound) {
-						if (!compound.configurations) {
-							return TPromise.wrapError(new Error(nls.localize({ key: 'compoundMustHaveConfigurations', comment: ['compound indicates a "compounds" configuration item', '"configurations" is an attribute and should not be localized'] },
-								"Compound must have \"configurations\" attribute set in order to start multiple configurations.")));
-						}
-
-						return TPromise.join(compound.configurations.map(name => this.createProcess(name)));
-					}
-					const config = typeof configurationOrName === 'string' ? this.configurationManager.getConfiguration(configurationOrName) : configurationOrName;
-					if (!config) {
-						return TPromise.wrapError(new Error(nls.localize('configMissing', "Configuration '{0}' is missing in 'launch.json'.", configurationOrName)));
-					}
-
 					return this.configurationManager.resloveConfiguration(config).then(resolvedConfig => {
 						if (!resolvedConfig) {
 							// User canceled resolving of interactive variables, silently return
