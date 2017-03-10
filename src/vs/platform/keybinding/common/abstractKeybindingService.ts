@@ -49,12 +49,17 @@ export class SimpleResolvedKeybinding extends ResolvedKeybinding {
 	}
 }
 
+interface CurrentChord {
+	keypress: string;
+	label: string;
+}
+
 export abstract class AbstractKeybindingService implements IKeybindingService {
 	public _serviceBrand: any;
 
 	protected toDispose: IDisposable[] = [];
 
-	private _currentChord: SimpleKeybinding;
+	private _currentChord: CurrentChord;
 	private _currentChordStatusMessage: IDisposable;
 	protected _onDidUpdateKeybindings: Emitter<IKeybindingEvent>;
 
@@ -145,7 +150,9 @@ export abstract class AbstractKeybindingService implements IKeybindingService {
 		}
 
 		const contextValue = this._contextKeyService.getContextValue(target);
-		return this._getResolver().resolve(contextValue, this._currentChord, keybinding);
+		const currentChord = this._currentChord ? this._currentChord.keypress : null;
+		const keypress = keybinding.value.toString();
+		return this._getResolver().resolve(contextValue, currentChord, keypress);
 	}
 
 	protected _dispatch(keybinding: SimpleKeybinding, target: IContextKeyServiceTarget): boolean {
@@ -156,23 +163,27 @@ export abstract class AbstractKeybindingService implements IKeybindingService {
 			return shouldPreventDefault;
 		}
 
-		const resolveResult = this.resolve(keybinding, target);
+		const contextValue = this._contextKeyService.getContextValue(target);
+		const currentChord = this._currentChord ? this._currentChord.keypress : null;
+		const keypress = keybinding.value.toString();
+		const keypressLabel = this._createResolvedKeybinding(keybinding).getLabel();
+		const resolveResult = this._getResolver().resolve(contextValue, currentChord, keypress);
 
 		if (resolveResult && resolveResult.enterChord) {
 			shouldPreventDefault = true;
-			this._currentChord = resolveResult.enterChord;
+			this._currentChord = {
+				keypress: keypress,
+				label: keypressLabel
+			};
 			if (this._statusService) {
-				let firstPartLabel = this._createResolvedKeybinding(this._currentChord).getLabel();
-				this._currentChordStatusMessage = this._statusService.setStatusMessage(nls.localize('first.chord', "({0}) was pressed. Waiting for second key of chord...", firstPartLabel));
+				this._currentChordStatusMessage = this._statusService.setStatusMessage(nls.localize('first.chord', "({0}) was pressed. Waiting for second key of chord...", keypressLabel));
 			}
 			return shouldPreventDefault;
 		}
 
 		if (this._statusService && this._currentChord) {
 			if (!resolveResult || !resolveResult.commandId) {
-				let firstPartLabel = this._createResolvedKeybinding(this._currentChord).getLabel();
-				let chordPartLabel = this._createResolvedKeybinding(keybinding).getLabel();
-				this._statusService.setStatusMessage(nls.localize('missing.chord', "The key combination ({0}, {1}) is not a command.", firstPartLabel, chordPartLabel), 10 * 1000 /* 10s */);
+				this._statusService.setStatusMessage(nls.localize('missing.chord', "The key combination ({0}, {1}) is not a command.", this._currentChord.label, keypressLabel), 10 * 1000 /* 10s */);
 				shouldPreventDefault = true;
 			}
 		}

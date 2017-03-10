@@ -25,8 +25,8 @@ suite('KeybindingResolver', () => {
 		assert.equal(KeybindingResolver.contextMatchesRules({ bar: 'bz' }, contextRules), false);
 
 		let resolver = new KeybindingResolver([keybindingItem], []);
-		assert.equal(resolver.resolve({ bar: 'baz' }, null, new SimpleKeybinding(keybinding)).commandId, 'yes');
-		assert.equal(resolver.resolve({ bar: 'bz' }, null, new SimpleKeybinding(keybinding)), null);
+		assert.equal(resolver.resolve({ bar: 'baz' }, null, new SimpleKeybinding(keybinding).value.toString()).commandId, 'yes');
+		assert.equal(resolver.resolve({ bar: 'bz' }, null, new SimpleKeybinding(keybinding).value.toString()), null);
 	});
 
 	test('resolve key with arguments', function () {
@@ -36,7 +36,7 @@ suite('KeybindingResolver', () => {
 		let keybindingItem = kbItem(keybinding, 'yes', commandArgs, contextRules, true);
 
 		let resolver = new KeybindingResolver([keybindingItem], []);
-		assert.equal(resolver.resolve({ bar: 'baz' }, null, new SimpleKeybinding(keybinding)).commandArgs, commandArgs);
+		assert.equal(resolver.resolve({ bar: 'baz' }, null, new SimpleKeybinding(keybinding).value.toString()).commandArgs, commandArgs);
 	});
 
 	test('KeybindingResolver.combine simple 1', function () {
@@ -320,23 +320,23 @@ suite('KeybindingResolver', () => {
 			let expectedKey = createKeybinding(_expectedKey);
 
 			if (expectedKey.isChord()) {
-				let firstPart = expectedKey.extractFirstPart();
-				let chordPart = expectedKey.extractChordPart();
+				let firstPart = expectedKey.extractFirstPart().value.toString();
+				let chordPart = expectedKey.extractChordPart().value.toString();
 
 				let result = resolver.resolve(ctx, null, firstPart);
 				assert.ok(result !== null, 'Enters chord for ' + commandId);
 				assert.equal(result.commandId, null, 'Enters chord for ' + commandId);
-				assert.equal(result.enterChord, firstPart, 'Enters chord for ' + commandId);
+				assert.equal(result.enterChord, true, 'Enters chord for ' + commandId);
 
 				result = resolver.resolve(ctx, firstPart, chordPart);
 				assert.ok(result !== null, 'Enters chord for ' + commandId);
 				assert.equal(result.commandId, commandId, 'Finds chorded command ' + commandId);
-				assert.equal(result.enterChord, null, 'Finds chorded command ' + commandId);
+				assert.equal(result.enterChord, false, 'Finds chorded command ' + commandId);
 			} else {
-				let result = resolver.resolve(ctx, null, expectedKey);
+				let result = resolver.resolve(ctx, null, expectedKey.value.toString());
 				assert.ok(result !== null, 'Finds command ' + commandId);
 				assert.equal(result.commandId, commandId, 'Finds command ' + commandId);
-				assert.equal(result.enterChord, null, 'Finds command ' + commandId);
+				assert.equal(result.enterChord, false, 'Finds command ' + commandId);
 			}
 		};
 
