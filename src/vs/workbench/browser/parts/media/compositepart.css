@@ -17,8 +17,13 @@
 }
 
 .monaco-workbench > .part > .composite.title > .title-label span {
-	color: #6f6f6f;
 	text-transform: uppercase;
+}
+
+/* TODO@theme */
+
+.monaco-workbench > .part > .composite.title > .title-label span {
+	color: #6f6f6f;
 }
 
 .vs-dark .monaco-workbench > .part > .composite.title > .title-label span  {

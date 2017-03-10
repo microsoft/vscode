@@ -71,8 +71,12 @@ declare module DebugProtocol {
 	export interface StoppedEvent extends Event {
 		// event: 'stopped';
 		body: {
-			/** The reason for the event (such as: 'step', 'breakpoint', 'exception', 'pause'). This string is shown in the UI. */
+			/** The reason for the event (such as: 'step', 'breakpoint', 'exception', 'pause', 'entry').
+				For backward compatibility this string is shown in the UI if the 'description' attribute is missing (but it must not be translated).
+			*/
 			reason: string;
+			/** The full reason for the event, e.g. 'Paused on exception'. This string is shown in the UI as is. */
+			description?: string;
 			/** The thread which was stopped. */
 			threadId?: number;
 			/** Additional information. E.g. if reason is 'exception', text contains the exception name. This string is shown in the UI. */
@@ -732,9 +736,9 @@ declare module DebugProtocol {
 
 	/** Arguments for 'source' request. */
 	export interface SourceArguments {
-		/** The source: either source.path or source.sourceReference must be specified. */
+		/** Specifies the source content to load. Either source.path or source.sourceReference must be specified. */
 		source?: Source;
-		/** For backward compatibility: The reference to the source. This is the value received in Source.reference. */
+		/** The reference to the source. This is the same as source.sourceReference. This is provided for backward compatibility since old backends do not understand the 'source' attribute. */
 		sourceReference: number;
 	}
 

@@ -20,7 +20,7 @@ import { IRequestService } from 'vs/platform/request/node/request';
 import { asText } from 'vs/base/node/request';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { createKeybinding } from 'vs/base/common/keyCodes';
-import { KeybindingLabels } from 'vs/platform/keybinding/common/keybindingLabels';
+import { KeybindingIO } from 'vs/platform/keybinding/common/keybindingIO';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -73,7 +73,7 @@ export function loadReleaseNotes(accessor: ServicesAccessor, version: string): T
 		};
 
 		const kbstyle = (match: string, kb: string) => {
-			const code = KeybindingLabels.fromUserSettingsLabel(kb);
+			const code = KeybindingIO.readKeybinding(kb);
 
 			if (!code) {
 				return unassigned;

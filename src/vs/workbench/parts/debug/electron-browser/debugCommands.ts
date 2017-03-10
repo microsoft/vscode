@@ -11,7 +11,7 @@ import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IListService } from 'vs/platform/list/browser/listService';
-import { IDebugService, IEnablement, CONTEXT_NOT_IN_DEBUG_MODE, CONTEXT_IN_DEBUG_MODE, CONTEXT_BREAKPOINTS_FOCUSED, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_VARIABLES_FOCUSED, EDITOR_CONTRIBUTION_ID, IDebugEditorContribution } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, IConfig, IEnablement, CONTEXT_NOT_IN_DEBUG_MODE, CONTEXT_IN_DEBUG_MODE, CONTEXT_BREAKPOINTS_FOCUSED, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_VARIABLES_FOCUSED, EDITOR_CONTRIBUTION_ID, IDebugEditorContribution } from 'vs/workbench/parts/debug/common/debug';
 import { Expression, Variable, Breakpoint, FunctionBreakpoint } from 'vs/workbench/parts/debug/common/debugModel';
 import { IExtensionsViewlet, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/parts/extensions/common/extensions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -21,13 +21,18 @@ export function registerCommands(): void {
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: '_workbench.startDebug',
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-		handler(accessor: ServicesAccessor, configurationOrName: any) {
+		handler(accessor: ServicesAccessor, configurationOrName: IConfig | string) {
 			const debugService = accessor.get(IDebugService);
 			if (!configurationOrName) {
 				configurationOrName = debugService.getViewModel().selectedConfigurationName;
 			}
 
-			return debugService.createProcess(configurationOrName);
+			if (typeof configurationOrName === 'string') {
+				debugService.getViewModel().setSelectedConfigurationName(configurationOrName);
+				return debugService.startDebugging();
+			} else {
+				return debugService.createProcess(configurationOrName);
+			}
 		},
 		when: CONTEXT_NOT_IN_DEBUG_MODE,
 		primary: undefined

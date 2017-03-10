@@ -8,7 +8,7 @@
 import * as nls from 'vs/nls';
 import * as defaultPlatform from 'vs/base/common/platform';
 import { IHTMLContentElement } from 'vs/base/common/htmlContent';
-import { Keybinding, SimpleKeybinding, KeyCode, KeyMod, KeyChord, KeyCodeUtils, USER_SETTINGS } from 'vs/base/common/keyCodes';
+import { Keybinding, SimpleKeybinding, KeyCode, KeyCodeUtils, USER_SETTINGS } from 'vs/base/common/keyCodes';
 
 export interface ISimplifiedPlatform {
 	isMacintosh: boolean;
@@ -52,93 +52,6 @@ export class KeybindingLabels {
 		}
 
 		return result;
-	}
-
-	/**
-	 * @internal
-	 */
-	public static fromUserSettingsLabel(input: string, Platform: ISimplifiedPlatform = defaultPlatform): number {
-		if (!input) {
-			return null;
-		}
-		input = input.toLowerCase().trim();
-
-		let ctrlCmd = false,
-			shift = false,
-			alt = false,
-			winCtrl = false,
-			key: string = '';
-
-		while (/^(ctrl|shift|alt|meta|win|cmd)(\+|\-)/.test(input)) {
-			if (/^ctrl(\+|\-)/.test(input)) {
-				if (Platform.isMacintosh) {
-					winCtrl = true;
-				} else {
-					ctrlCmd = true;
-				}
-				input = input.substr('ctrl-'.length);
-			}
-			if (/^shift(\+|\-)/.test(input)) {
-				shift = true;
-				input = input.substr('shift-'.length);
-			}
-			if (/^alt(\+|\-)/.test(input)) {
-				alt = true;
-				input = input.substr('alt-'.length);
-			}
-			if (/^meta(\+|\-)/.test(input)) {
-				if (Platform.isMacintosh) {
-					ctrlCmd = true;
-				} else {
-					winCtrl = true;
-				}
-				input = input.substr('meta-'.length);
-			}
-			if (/^win(\+|\-)/.test(input)) {
-				if (Platform.isMacintosh) {
-					ctrlCmd = true;
-				} else {
-					winCtrl = true;
-				}
-				input = input.substr('win-'.length);
-			}
-			if (/^cmd(\+|\-)/.test(input)) {
-				if (Platform.isMacintosh) {
-					ctrlCmd = true;
-				} else {
-					winCtrl = true;
-				}
-				input = input.substr('cmd-'.length);
-			}
-		}
-
-		let chord: number = 0;
-
-		let firstSpaceIdx = input.indexOf(' ');
-		if (firstSpaceIdx > 0) {
-			key = input.substring(0, firstSpaceIdx);
-			chord = KeybindingLabels.fromUserSettingsLabel(input.substring(firstSpaceIdx), Platform);
-		} else {
-			key = input;
-		}
-
-		let keyCode = USER_SETTINGS.toKeyCode(key);
-
-		let result = 0;
-		if (ctrlCmd) {
-			result |= KeyMod.CtrlCmd;
-		}
-		if (shift) {
-			result |= KeyMod.Shift;
-		}
-		if (alt) {
-			result |= KeyMod.Alt;
-		}
-		if (winCtrl) {
-			result |= KeyMod.WinCtrl;
-		}
-		result |= keyCode;
-		return KeyChord(result, chord);
 	}
 
 	/**

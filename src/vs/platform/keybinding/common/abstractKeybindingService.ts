@@ -18,6 +18,8 @@ import { IContextKeyService, IContextKeyServiceTarget } from 'vs/platform/contex
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { IMessageService } from 'vs/platform/message/common/message';
 import Event, { Emitter } from 'vs/base/common/event';
+import { KeybindingIO, OutputBuilder } from 'vs/platform/keybinding/common/keybindingIO';
+import { NormalizedKeybindingItem } from 'vs/platform/keybinding/common/normalizedKeybindingItem';
 
 export class SimpleResolvedKeybinding extends ResolvedKeybinding {
 
@@ -49,12 +51,17 @@ export class SimpleResolvedKeybinding extends ResolvedKeybinding {
 	}
 }
 
+interface CurrentChord {
+	keypress: string;
+	label: string;
+}
+
 export abstract class AbstractKeybindingService implements IKeybindingService {
 	public _serviceBrand: any;
 
 	protected toDispose: IDisposable[] = [];
 
-	private _currentChord: SimpleKeybinding;
+	private _currentChord: CurrentChord;
 	private _currentChordStatusMessage: IDisposable;
 	protected _onDidUpdateKeybindings: Emitter<IKeybindingEvent>;
 
@@ -96,7 +103,54 @@ export abstract class AbstractKeybindingService implements IKeybindingService {
 	}
 
 	public getDefaultKeybindings(): string {
-		return this._getResolver().getDefaultKeybindings() + '\n\n' + this._getAllCommandsAsComment();
+		const resolver = this._getResolver();
+		const defaultKeybindings = resolver.getDefaultKeybindings();
+		const boundCommands = resolver.getDefaultBoundCommands();
+		return (
+			AbstractKeybindingService._getDefaultKeybindings(defaultKeybindings)
+			+ '\n\n'
+			+ AbstractKeybindingService._getAllCommandsAsComment(boundCommands)
+		);
+	}
+
+	private static _getDefaultKeybindings(defaultKeybindings: NormalizedKeybindingItem[]): string {
+		let out = new OutputBuilder();
+		out.writeLine('[');
+
+		let lastIndex = defaultKeybindings.length - 1;
+		defaultKeybindings.forEach((k, index) => {
+			KeybindingIO.writeKeybindingItem(out, k);
+			if (index !== lastIndex) {
+				out.writeLine(',');
+			} else {
+				out.writeLine();
+			}
+		});
+		out.writeLine(']');
+		return out.toString();
+	}
+
+	private static _getAllCommandsAsComment(boundCommands: Map<string, boolean>): string {
+		const commands = CommandsRegistry.getCommands();
+		const unboundCommands: string[] = [];
+
+		for (let id in commands) {
+			if (id[0] === '_' || id.indexOf('vscode.') === 0) { // private command
+				continue;
+			}
+			if (typeof commands[id].description === 'object'
+				&& !isFalsyOrEmpty((<ICommandHandlerDescription>commands[id].description).args)) { // command with args
+				continue;
+			}
+			if (boundCommands.get(id) === true) {
+				continue;
+			}
+			unboundCommands.push(id);
+		}
+
+		let pretty = unboundCommands.sort().join('\n// - ');
+
+		return '// ' + nls.localize('unboundCommands', "Here are other available commands: ") + '\n// - ' + pretty;
 	}
 
 	public customKeybindingsCount(): number {
@@ -115,37 +169,15 @@ export abstract class AbstractKeybindingService implements IKeybindingService {
 		return this._createResolvedKeybinding(result.keybinding);
 	}
 
-	private _getAllCommandsAsComment(): string {
-		const commands = CommandsRegistry.getCommands();
-		const unboundCommands: string[] = [];
-		const boundCommands = this._getResolver().getDefaultBoundCommands();
-
-		for (let id in commands) {
-			if (id[0] === '_' || id.indexOf('vscode.') === 0) { // private command
-				continue;
-			}
-			if (typeof commands[id].description === 'object'
-				&& !isFalsyOrEmpty((<ICommandHandlerDescription>commands[id].description).args)) { // command with args
-				continue;
-			}
-			if (boundCommands[id]) {
-				continue;
-			}
-			unboundCommands.push(id);
-		}
-
-		let pretty = unboundCommands.sort().join('\n// - ');
-
-		return '// ' + nls.localize('unboundCommands', "Here are other available commands: ") + '\n// - ' + pretty;
-	}
-
 	public resolve(keybinding: SimpleKeybinding, target: IContextKeyServiceTarget): IResolveResult {
 		if (keybinding.isModifierKey()) {
 			return null;
 		}
 
 		const contextValue = this._contextKeyService.getContextValue(target);
-		return this._getResolver().resolve(contextValue, this._currentChord, keybinding);
+		const currentChord = this._currentChord ? this._currentChord.keypress : null;
+		const keypress = keybinding.value.toString();
+		return this._getResolver().resolve(contextValue, currentChord, keypress);
 	}
 
 	protected _dispatch(keybinding: SimpleKeybinding, target: IContextKeyServiceTarget): boolean {
@@ -156,23 +188,27 @@ export abstract class AbstractKeybindingService implements IKeybindingService {
 			return shouldPreventDefault;
 		}
 
-		const resolveResult = this.resolve(keybinding, target);
+		const contextValue = this._contextKeyService.getContextValue(target);
+		const currentChord = this._currentChord ? this._currentChord.keypress : null;
+		const keypress = keybinding.value.toString();
+		const keypressLabel = this._createResolvedKeybinding(keybinding).getLabel();
+		const resolveResult = this._getResolver().resolve(contextValue, currentChord, keypress);
 
 		if (resolveResult && resolveResult.enterChord) {
 			shouldPreventDefault = true;
-			this._currentChord = resolveResult.enterChord;
+			this._currentChord = {
+				keypress: keypress,
+				label: keypressLabel
+			};
 			if (this._statusService) {
-				let firstPartLabel = this._createResolvedKeybinding(this._currentChord).getLabel();
-				this._currentChordStatusMessage = this._statusService.setStatusMessage(nls.localize('first.chord', "({0}) was pressed. Waiting for second key of chord...", firstPartLabel));
+				this._currentChordStatusMessage = this._statusService.setStatusMessage(nls.localize('first.chord', "({0}) was pressed. Waiting for second key of chord...", keypressLabel));
 			}
 			return shouldPreventDefault;
 		}
 
 		if (this._statusService && this._currentChord) {
 			if (!resolveResult || !resolveResult.commandId) {
-				let firstPartLabel = this._createResolvedKeybinding(this._currentChord).getLabel();
-				let chordPartLabel = this._createResolvedKeybinding(keybinding).getLabel();
-				this._statusService.setStatusMessage(nls.localize('missing.chord', "The key combination ({0}, {1}) is not a command.", firstPartLabel, chordPartLabel), 10 * 1000 /* 10s */);
+				this._statusService.setStatusMessage(nls.localize('missing.chord', "The key combination ({0}, {1}) is not a command.", this._currentChord.label, keypressLabel), 10 * 1000 /* 10s */);
 				shouldPreventDefault = true;
 			}
 		}

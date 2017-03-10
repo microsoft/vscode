@@ -498,7 +498,15 @@ export class Model implements Disposable {
 
 	@throttle
 	async sync(): Promise<void> {
-		await this.run(Operation.Sync, () => this.repository.sync());
+		await this.run(Operation.Sync, async () => {
+			await this.repository.pull();
+
+			const shouldPush = this.HEAD ? this.HEAD.ahead > 0 : true;
+
+			if (shouldPush) {
+				await this.repository.push();
+			}
+		});
 	}
 
 	async show(ref: string, uri: Uri): Promise<string> {
