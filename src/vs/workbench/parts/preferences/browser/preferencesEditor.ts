@@ -32,7 +32,7 @@ import { SearchWidget, SettingsTabsWidget } from 'vs/workbench/parts/preferences
 import { ContextKeyExpr, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { CommonEditorRegistry, Command } from 'vs/editor/common/editorCommonExtensions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
+import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -454,7 +454,7 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IThemeService themeService: IThemeService,
+		@IWorkbenchThemeService themeService: IWorkbenchThemeService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IPreferencesService private preferencesService: IPreferencesService,
 		@IModelService private modelService: IModelService,

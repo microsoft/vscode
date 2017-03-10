@@ -196,7 +196,8 @@ export class Adapter {
 			};
 			properties['debugServer'] = {
 				type: 'number',
-				description: nls.localize('debugServer', "For debug extension development only: if a port is specified VS Code tries to connect to a debug adapter running in server mode")
+				description: nls.localize('debugServer', "For debug extension development only: if a port is specified VS Code tries to connect to a debug adapter running in server mode"),
+				default: 4711
 			};
 			properties['preLaunchTask'] = {
 				type: ['string', 'null'],
@@ -227,7 +228,7 @@ export class Adapter {
 			};
 			Object.keys(attributes.properties).forEach(name => {
 				// Use schema allOf property to get independent error reporting #21113
-				attributes.properties[name].pattern = attributes.properties[name].pattern || '^(?!\\$\\{(env|config|command)\\.)';
+				attributes.properties[name].pattern = attributes.properties[name].pattern || '^(?!.*\\$\\{(env|config|command)\\.)';
 				attributes.properties[name].patternErrorMessage = attributes.properties[name].patternErrorMessage ||
 					nls.localize('deprecatedVariables', "'env.', 'config.' and 'command.' are deprecated, use 'env:', 'config:' and 'command:' instead.");
 			});

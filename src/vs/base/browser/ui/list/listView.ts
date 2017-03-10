@@ -83,8 +83,7 @@ export class ListView<T> implements IDisposable {
 			alwaysConsumeMouseWheel: true,
 			horizontal: ScrollbarVisibility.Hidden,
 			vertical: ScrollbarVisibility.Auto,
-			useShadows: getOrDefault(options, o => o.useShadows, DefaultOptions.useShadows),
-			saveLastScrollTimeOnClassName: 'monaco-list-row'
+			useShadows: getOrDefault(options, o => o.useShadows, DefaultOptions.useShadows)
 		});
 
 		this._domNode.appendChild(this.scrollableElement.getDomNode());

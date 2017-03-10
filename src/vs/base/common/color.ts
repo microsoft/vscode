@@ -373,9 +373,13 @@ export class Color {
 
 	/**
 	 * Prins the color as #RRGGBBAA
+	 * If 'compact' is set, colors without transparancy will be printed as #RRGGBB
 	 */
-	public toRGBAHex(): string {
+	public toRGBAHex(compact = false): string {
 		const rgba = this.rgba;
+		if (compact && rgba.a === 0xFF) {
+			return this.toRGBHex();
+		}
 		return `#${Color._toTwoDigitHex(rgba.r)}${Color._toTwoDigitHex(rgba.g)}${Color._toTwoDigitHex(rgba.b)}${Color._toTwoDigitHex(rgba.a)}`;
 	}
 

@@ -31,7 +31,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
+import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -53,7 +53,7 @@ export class TextDiffEditor extends BaseTextEditor {
 		@IStorageService storageService: IStorageService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IThemeService themeService: IThemeService,
+		@IWorkbenchThemeService themeService: IWorkbenchThemeService,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IModeService modeService: IModeService,
 		@ITextFileService textFileService: ITextFileService
@@ -76,7 +76,8 @@ export class TextDiffEditor extends BaseTextEditor {
 		this.previousDiffAction = new NavigateAction(this, false);
 
 		// Support navigation within the diff editor by overriding the editor service within
-		const delegatingEditorService = this.instantiationService.createInstance(DelegatingWorkbenchEditorService, (input: EditorInput, options?: EditorOptions, arg3?: any) => {
+		const delegatingEditorService = this.instantiationService.createInstance(DelegatingWorkbenchEditorService);
+		delegatingEditorService.setEditorOpenHandler((input: EditorInput, options?: EditorOptions, arg3?: any) => {
 
 			// Check if arg4 is a position argument that differs from this editors position
 			if (types.isUndefinedOrNull(arg3) || arg3 === false || arg3 === this.position) {

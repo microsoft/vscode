@@ -97,7 +97,7 @@ export class MarkdownEngine {
 		const original = md.renderer.rules[ruleName];
 		md.renderer.rules[ruleName] = (tokens: any, idx: number, options: any, env: any, self: any) => {
 			const token = tokens[idx];
-			if ((token.level === 0 || token.type === 'list_item_open' && token.level === 1) && token.map && token.map.length) {
+			if (token.map && token.map.length) {
 				token.attrSet('data-line', this.firstLine + token.map[0]);
 				token.attrJoin('class', 'code-line');
 			}

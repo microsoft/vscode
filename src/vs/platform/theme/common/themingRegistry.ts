@@ -5,39 +5,42 @@
 'use strict';
 
 import platform = require('vs/platform/platform');
+import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { Color } from 'vs/base/common/color';
+import { ITheme } from 'vs/platform/theme/common/themeService';
+
+
+import nls = require('vs/nls');
 
 export const Extensions = {
 	ThemingContribution: 'base.contributions.theming'
 };
 
 export interface IColorContribution {
-	id: string;
-	description: string;
-	defaults?: IColorDefaults;
+	readonly id: string;
+	readonly description: string;
+	readonly defaults: ColorDefaults;
 }
 
-export interface IColorDefaults {
-	light: Color;
-	dark: Color;
-	highContrast: Color;
+export interface DerivedColor {
+	(theme: ITheme): Color;
 }
 
-export interface ITheme {
-	readonly selector: string;
-	getColor(colorId: string): Color;
+export interface ColorDefaults {
+	light: ColorDescription;
+	dark: ColorDescription;
+	hc: ColorDescription;
 }
 
-export interface IThemingParticipant {
-	(theme: ITheme, result: string[]): void;
-}
+export type ColorDescription = string | IColorContribution | DerivedColor;
+
 
 export interface IThemingRegistry {
 
 	/**
 	 * Register a color to the registry.
 	 */
-	registerColor(id: string, description: string, defaults?: IColorDefaults): void;
+	registerColor(id: string, description: string, defaults?: ColorDefaults): IColorContribution;
 
 	/**
 	 * Get all color contributions
@@ -45,44 +48,81 @@ export interface IThemingRegistry {
 	getColors(): IColorContribution[];
 
 	/**
-	 * Register a theming participant to the registry.
+	 * Gets the color of the given id
 	 */
-	registerThemingParticipant(participant: IThemingParticipant): void;
+	getColor(id: string): IColorContribution;
 
 	/**
-	 * Get all theming participant
+	 * JSON schema of all colors
 	 */
-	getThemingParticipants(): IThemingParticipant[];
+	getColorSchema(): IJSONSchema;
 
+}
+
+export function darken(colorDesc: ColorDescription, factor: number): DerivedColor {
+	return (theme) => {
+		let color = resolveDescription(theme, colorDesc);
+		if (color) {
+			return color.darken(factor);
+		}
+		return null;
+	};
 }
 
 
 class ThemingRegistry implements IThemingRegistry {
 	private colorsById: { [key: string]: IColorContribution };
-	private themingParticipants: IThemingParticipant[];
+	private colorSchema: IJSONSchema = { type: 'object', description: nls.localize('schema.colors', 'Colors used in the workbench.'), properties: {} };
 
 	constructor() {
 		this.colorsById = {};
-		this.themingParticipants = [];
 	}
 
-	public registerColor(id: string, description: string, defaults?: IColorDefaults): void {
-		this.colorsById[id] = { id, description, defaults };
+	public registerColor(id: string, description: string, defaults: ColorDefaults) {
+		let colorContribution: IColorContribution = { id, description, defaults };
+		this.colorsById[id] = colorContribution;
+		this.colorSchema.properties[id] = { type: 'string', description };
+		return colorContribution;
 	}
 
 	public getColors(): IColorContribution[] {
 		return Object.keys(this.colorsById).map(id => this.colorsById[id]);
 	}
 
-	public registerThemingParticipant(participant: IThemingParticipant): void {
-		this.themingParticipants.push(participant);
+	public getColor(id: string): IColorContribution {
+		return this.colorsById[id];
 	}
 
-	public getThemingParticipants(): IThemingParticipant[] {
-		return this.themingParticipants;
+	public getColorSchema(): IJSONSchema {
+		return this.colorSchema;
 	}
 
 }
+
+function resolveDescription(theme: ITheme, colorDesc: ColorDescription): Color {
+	if (typeof colorDesc === 'string') {
+		return Color.fromHex(colorDesc);
+	} else if (typeof colorDesc === 'object' && colorDesc !== null) {
+		let defaults = colorDesc.defaults;
+		if (!defaults) {
+			return null;
+		}
+		if (theme.isDarkTheme()) {
+			return resolveDescription(theme, defaults.dark);
+		} else if (theme.isLightTheme()) {
+			return resolveDescription(theme, defaults.light);
+		} else {
+			return resolveDescription(theme, defaults.hc);
+		}
+	} else if (typeof colorDesc === 'function') {
+		return colorDesc(theme);
+	} else {
+		return null;
+	}
+}
+
+
+
 
 const themingRegistry = new ThemingRegistry();
 platform.Registry.add(Extensions.ThemingContribution, themingRegistry);

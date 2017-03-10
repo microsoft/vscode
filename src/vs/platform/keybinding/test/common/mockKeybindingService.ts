@@ -4,13 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IHTMLContentElement } from 'vs/base/common/htmlContent';
-import { Keybinding } from 'vs/base/common/keyCodes';
-import { KeybindingLabels } from 'vs/base/common/keybinding';
+import { ResolvedKeybinding, Keybinding } from 'vs/base/common/keyCodes';
 import Event from 'vs/base/common/event';
 import { IKeybindingService, IKeybindingEvent } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKey, IContextKeyService, IContextKeyServiceTarget, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IResolveResult } from 'vs/platform/keybinding/common/keybindingResolver';
+import { SimpleResolvedKeybinding } from 'vs/platform/keybinding/common/abstractKeybindingService';
 
 class MockKeybindingContextKey<T> implements IContextKey<T> {
 	private _key: string;
@@ -68,28 +67,20 @@ export class MockKeybindingService2 implements IKeybindingService {
 		return Event.None;
 	}
 
-	public getLabelFor(keybinding: Keybinding): string {
-		return KeybindingLabels._toUSLabel(keybinding);
-	}
-
-	public getHTMLLabelFor(keybinding: Keybinding): IHTMLContentElement[] {
-		return KeybindingLabels._toUSHTMLLabel(keybinding);
-	}
-
-	public getAriaLabelFor(keybinding: Keybinding): string {
-		return KeybindingLabels._toUSAriaLabel(keybinding);
-	}
-
-	public getElectronAcceleratorFor(keybinding: Keybinding): string {
-		return KeybindingLabels._toElectronAccelerator(keybinding);
-	}
-
 	public getDefaultKeybindings(): string {
 		return null;
 	}
 
+	public resolveKeybinding(keybinding: Keybinding): ResolvedKeybinding {
+		return new SimpleResolvedKeybinding(keybinding);
+	}
+
 	public lookupKeybindings(commandId: string): Keybinding[] {
 		return [];
+	}
+
+	public lookupKeybinding(commandId: string): ResolvedKeybinding {
+		return null;
 	}
 
 	public customKeybindingsCount(): number {

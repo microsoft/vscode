@@ -28,7 +28,7 @@ import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { CancelAction } from 'vs/platform/message/common/message';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
+import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 
@@ -49,7 +49,7 @@ export class TextFileEditor extends BaseTextEditor {
 		@IHistoryService private historyService: IHistoryService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IThemeService themeService: IThemeService,
+		@IWorkbenchThemeService themeService: IWorkbenchThemeService,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IModeService modeService: IModeService,
 		@ITextFileService textFileService: ITextFileService,

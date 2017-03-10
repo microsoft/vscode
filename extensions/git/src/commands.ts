@@ -242,6 +242,10 @@ export class CommandCenter {
 
 	@command('git.openFile')
 	async openFile(uri?: Uri): Promise<void> {
+		if (uri && uri.scheme === 'file') {
+			return await commands.executeCommand<void>('vscode.open', uri);
+		}
+
 		const resource = this.resolveSCMResource(uri);
 
 		if (!resource) {
@@ -426,8 +430,8 @@ export class CommandCenter {
 		}
 
 		const basename = path.basename(resource.uri.fsPath);
-		const message = localize('confirm clean', "Are you sure you want to clean changes in {0}?", basename);
-		const yes = localize('clean', "Clean Changes");
+		const message = localize('confirm discard', "Are you sure you want to discard changes in {0}?", basename);
+		const yes = localize('discard', "Discard Changes");
 		const pick = await window.showWarningMessage(message, { modal: true }, yes);
 
 		if (pick !== yes) {
@@ -439,8 +443,8 @@ export class CommandCenter {
 
 	@command('git.cleanAll')
 	async cleanAll(): Promise<void> {
-		const message = localize('confirm clean all', "Are you sure you want to clean all changes?");
-		const yes = localize('clean', "Clean Changes");
+		const message = localize('confirm discard all', "Are you sure you want to discard ALL changes?");
+		const yes = localize('discard', "Discard Changes");
 		const pick = await window.showWarningMessage(message, { modal: true }, yes);
 
 		if (pick !== yes) {

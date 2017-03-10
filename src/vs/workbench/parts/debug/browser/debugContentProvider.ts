@@ -45,7 +45,7 @@ export class DebugContentProvider implements IWorkbenchContribution, ITextModelC
 		if (!process) {
 			return TPromise.wrapError(localize('unable', "Unable to resolve the resource without a debug session"));
 		}
-		const source = process.sources.get(resource);
+		const source = process.sources.get(resource.toString());
 		const rawSource = source ? source.raw : { path: paths.normalize(resource.fsPath, true) };
 
 		return process.session.source({ sourceReference: source ? source.reference : undefined, source: rawSource }).then(response => {

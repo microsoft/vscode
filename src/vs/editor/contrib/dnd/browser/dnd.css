@@ -15,3 +15,10 @@
 	border-right: 2px dotted #fff;
 	color: #000; /* opposite of #fff */
 }
+
+.monaco-editor.mouse-default .view-lines {
+	cursor: default;
+}
+.monaco-editor.mouse-copy .view-lines {
+	cursor: copy;
+}

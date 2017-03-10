@@ -548,9 +548,7 @@ export class DebugService implements debug.IDebugService {
 	}
 
 	public renameWatchExpression(id: string, newName: string): TPromise<void> {
-		return this.model.renameWatchExpression(this.viewModel.focusedProcess, this.viewModel.focusedStackFrame, id, newName)
-			// Evaluate all watch expressions and fetch variables again since watch expression evaluation might have changed some.
-			.then(() => this.focusStackFrameAndEvaluate(this.viewModel.focusedStackFrame, this.viewModel.focusedProcess));
+		return this.model.renameWatchExpression(this.viewModel.focusedProcess, this.viewModel.focusedStackFrame, id, newName);
 	}
 
 	public moveWatchExpression(id: string, position: number): void {
@@ -562,7 +560,7 @@ export class DebugService implements debug.IDebugService {
 	}
 
 	public createProcess(configurationOrName: debug.IConfig | string): TPromise<any> {
-		return this.configurationService.reloadConfiguration()	// make sure configuration is up to date
+		return this.textFileService.saveAll().then(() => this.configurationService.reloadConfiguration())	// make sure configuration is up to date
 			.then(() => this.extensionService.onReady()
 				.then(() => {
 					const compound = typeof configurationOrName === 'string' ? this.configurationManager.getCompound(configurationOrName) : null;
@@ -586,9 +584,9 @@ export class DebugService implements debug.IDebugService {
 						}
 
 						if (!this.configurationManager.getAdapter(resolvedConfig.type)) {
-							return resolvedConfig.type ? TPromise.wrapError(new Error(nls.localize('debugTypeNotSupported', "Configured debug type '{0}' is not supported.", resolvedConfig.type)))
-								: TPromise.wrapError(errors.create(nls.localize('debugTypeMissing', "Missing property 'type' for the chosen launch configuration."),
-									{ actions: [this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL), CloseAction] }));
+							const message = resolvedConfig.type ? nls.localize('debugTypeNotSupported', "Configured debug type '{0}' is not supported.", resolvedConfig.type) :
+								nls.localize('debugTypeMissing', "Missing property 'type' for the chosen launch configuration.");
+							return TPromise.wrapError(errors.create(message, { actions: [this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL), CloseAction] }));
 						}
 
 						return this.runPreLaunchTask(resolvedConfig.preLaunchTask).then((taskSummary: ITaskSummary) => {
@@ -731,7 +729,8 @@ export class DebugService implements debug.IDebugService {
 					exceptionBreakpoints: this.model.getExceptionBreakpoints(),
 					watchExpressionsCount: this.model.getWatchExpressions().length,
 					extensionName: `${adapter.extensionDescription.publisher}.${adapter.extensionDescription.name}`,
-					isBuiltin: adapter.extensionDescription.isBuiltin
+					isBuiltin: adapter.extensionDescription.isBuiltin,
+					launchJsonExists: !!this.configurationService.getConfiguration<debug.IGlobalConfig>('launch')
 				});
 			}).then(undefined, (error: any) => {
 				if (error instanceof Error && error.message === 'Canceled') {
@@ -942,10 +941,9 @@ export class DebugService implements debug.IDebugService {
 				return TPromise.as(null);
 			}
 
-			const breakpointsToSend = distinct(this.model.getBreakpoints().filter(bp => this.model.areBreakpointsActivated() && bp.enabled && bp.uri.toString() === modelUri.toString()),
-				bp => bp.lineNumber.toString());
+			const breakpointsToSend = this.model.getBreakpoints().filter(bp => this.model.areBreakpointsActivated() && bp.enabled && bp.uri.toString() === modelUri.toString());
 
-			const source = process.sources.get(modelUri);
+			const source = process.sources.get(modelUri.toString());
 			const rawSource = source ? source.raw : { path: paths.normalize(modelUri.fsPath, true) };
 
 			return session.setBreakpoints({

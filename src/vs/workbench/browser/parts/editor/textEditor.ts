@@ -21,7 +21,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
+import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { Scope } from 'vs/workbench/common/memento';
 import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -58,7 +58,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 		@IInstantiationService private _instantiationService: IInstantiationService,
 		@IStorageService private storageService: IStorageService,
 		@IConfigurationService private _configurationService: IConfigurationService,
-		@IThemeService private themeService: IThemeService,
+		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
 		@IModeService private modeService: IModeService,
 		@ITextFileService private textFileService: ITextFileService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService

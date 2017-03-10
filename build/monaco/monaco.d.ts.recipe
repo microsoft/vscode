@@ -40,7 +40,7 @@ declare module monaco {
 #include(vs/base/common/cancellation): CancellationTokenSource, CancellationToken
 #include(vs/base/common/uri): URI
 #include(vs/editor/common/standalone/standaloneBase): KeyCode, KeyMod
-#include(vs/base/common/keyCodes): Keybinding
+#include(vs/base/common/keyCodes): SimpleKeybinding
 #include(vs/base/common/htmlContent): MarkedString
 #include(vs/base/browser/keyboardEvent): IKeyboardEvent
 #include(vs/base/browser/mouseEvent): IMouseEvent

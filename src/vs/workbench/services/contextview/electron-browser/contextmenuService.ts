@@ -88,11 +88,11 @@ export class ContextMenuService implements IContextMenuService {
 
 				const keybinding = !!delegate.getKeyBinding ? delegate.getKeyBinding(e) : undefined;
 				if (keybinding) {
-					const electronAccelerator = this.keybindingService.getElectronAcceleratorFor(keybinding);
+					const electronAccelerator = keybinding.getElectronAccelerator();
 					if (electronAccelerator) {
 						options.accelerator = electronAccelerator;
 					} else {
-						const label = this.keybindingService.getLabelFor(keybinding);
+						const label = keybinding.getLabel();
 						if (label) {
 							options.label = `${options.label} (${label})`;
 						}

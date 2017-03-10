@@ -9,8 +9,8 @@ import 'vs/css!./defineKeybinding';
 import * as nls from 'vs/nls';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { MarkedString } from 'vs/base/common/htmlContent';
-import { Keybinding, KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
-import { KeybindingLabels } from 'vs/base/common/keybinding';
+import { ResolvedKeybinding, createKeybinding, KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
+import { KeybindingLabels } from 'vs/platform/keybinding/common/keybindingLabels';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
 import { renderHtml } from 'vs/base/browser/htmlContentRenderer';
@@ -107,6 +107,11 @@ export class DefineKeybindingController implements editorCommon.IEditorContribut
 	}
 
 	private _onAccepted(keybinding: string): void {
+		let regexp = new RegExp(/\\/g);
+		let backslash = regexp.test(keybinding);
+		if (backslash) {
+			keybinding = keybinding.slice(0, -1) + '\\\\';
+		}
 		let snippetText = [
 			'{',
 			'\t"key": ' + JSON.stringify(keybinding) + ',',
@@ -160,13 +165,14 @@ export class DefineKeybindingController implements editorCommon.IEditorContribut
 
 			let numKeybinding = IOSupport.readKeybinding(strKeybinding);
 
-			let keybinding = new Keybinding(numKeybinding);
+			let keybinding = createKeybinding(numKeybinding);
+			let resolvedKeybinding = this._keybindingService.resolveKeybinding(keybinding);
 
 			return {
 				strKeybinding: strKeybinding,
 				keybinding: keybinding,
 				usLabel: KeybindingLabels._toUSLabel(keybinding),
-				label: this._keybindingService.getLabelFor(keybinding),
+				label: resolvedKeybinding.getLabel(),
 				range: range
 			};
 		});
@@ -191,7 +197,7 @@ export class DefineKeybindingController implements editorCommon.IEditorContribut
 			} else {
 				// this is the info case
 				msg = [NLS_KB_LAYOUT_INFO_MESSAGE];
-				msg = msg.concat(this._keybindingService.getLabelFor(item.keybinding));
+				msg = msg.concat(item.label);
 				className = 'keybindingInfo';
 				beforeContentClassName = 'inlineKeybindingInfo';
 				overviewRulerColor = 'rgba(100, 100, 250, 0.6)';
@@ -242,10 +248,10 @@ class DefineKeybindingLauncherWidget implements IOverlayWidget {
 		this._domNode.className = 'defineKeybindingLauncher';
 		this._domNode.style.display = 'none';
 		this._isVisible = false;
-		let [keybinding] = keybindingService.lookupKeybindings(DefineKeybindingAction.ID);
+		let keybinding = keybindingService.lookupKeybinding(DefineKeybindingAction.ID);
 		let extra = '';
 		if (keybinding) {
-			extra += ' (' + keybindingService.getLabelFor(keybinding) + ')';
+			extra += ' (' + keybinding.getLabel() + ')';
 		}
 		this._domNode.appendChild(document.createTextNode(NLS_LAUNCH_MESSAGE + extra));
 
@@ -314,7 +320,7 @@ class DefineKeybindingWidget implements IOverlayWidget {
 	private _inputNode: HTMLInputElement;
 	private _outputNode: HTMLElement;
 
-	private _lastKeybinding: Keybinding;
+	private _lastKeybinding: ResolvedKeybinding;
 	private _onAccepted: (keybinding: string) => void;
 	private _isVisible: boolean;
 
@@ -356,7 +362,7 @@ class DefineKeybindingWidget implements IOverlayWidget {
 			switch (kb.value) {
 				case KeyCode.Enter:
 					if (this._lastKeybinding) {
-						this._onAccepted(KeybindingLabels.toUserSettingsLabel(this._lastKeybinding.value));
+						this._onAccepted(this._lastKeybinding.getUserSettingsLabel());
 					}
 					this._stop();
 					return;
@@ -366,13 +372,13 @@ class DefineKeybindingWidget implements IOverlayWidget {
 					return;
 			}
 
-			this._lastKeybinding = kb;
+			this._lastKeybinding = this._keybindingService.resolveKeybinding(kb);
 
-			this._inputNode.value = KeybindingLabels.toUserSettingsLabel(this._lastKeybinding.value).toLowerCase();
+			this._inputNode.value = this._lastKeybinding.getUserSettingsLabel().toLowerCase();
 			this._inputNode.title = 'keyCode: ' + keyEvent.browserEvent.keyCode;
 
 			dom.clearNode(this._outputNode);
-			let htmlkb = this._keybindingService.getHTMLLabelFor(this._lastKeybinding);
+			let htmlkb = this._lastKeybinding.getHTMLLabel();
 			htmlkb.forEach((item) => this._outputNode.appendChild(renderHtml(item)));
 		}));
 		this._toDispose.push(this._editor.onDidChangeConfiguration((e) => {

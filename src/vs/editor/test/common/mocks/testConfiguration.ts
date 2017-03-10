@@ -36,6 +36,7 @@ export class TestConfiguration extends CommonEditorConfiguration {
 
 	protected readConfiguration(styling: BareFontInfo): FontInfo {
 		return new FontInfo({
+			zoomLevel: 0,
 			fontFamily: 'mockFont',
 			fontWeight: 'normal',
 			fontSize: 14,
@@ -45,6 +46,10 @@ export class TestConfiguration extends CommonEditorConfiguration {
 			typicalFullwidthCharacterWidth: 20,
 			spaceWidth: 10,
 			maxDigitWidth: 10,
-		});
+		}, true);
+	}
+
+	protected getZoomLevel(): number {
+		return 0;
 	}
 }

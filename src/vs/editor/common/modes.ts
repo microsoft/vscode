@@ -238,9 +238,9 @@ export interface ISuggestSupport {
 
 	triggerCharacters?: string[];
 
-	provideCompletionItems(model: editorCommon.IReadOnlyModel, position: Position, token: CancellationToken): ISuggestResult | Thenable<ISuggestResult>;
+	provideCompletionItems(model: editorCommon.IModel, position: Position, token: CancellationToken): ISuggestResult | Thenable<ISuggestResult>;
 
-	resolveCompletionItem?(model: editorCommon.IReadOnlyModel, position: Position, item: ISuggestion, token: CancellationToken): ISuggestion | Thenable<ISuggestion>;
+	resolveCompletionItem?(model: editorCommon.IModel, position: Position, item: ISuggestion, token: CancellationToken): ISuggestion | Thenable<ISuggestion>;
 }
 
 /**

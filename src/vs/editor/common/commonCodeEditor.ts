@@ -769,6 +769,44 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 				},
 			};
 
+			this.listenersToRemove.push(this.model.addBulkListener((events) => {
+				for (let i = 0, len = events.length; i < len; i++) {
+					let eventType = events[i].getType();
+					let e = events[i].getData();
+
+					switch (eventType) {
+						case editorCommon.EventType.ModelDecorationsChanged:
+							this.emit(editorCommon.EventType.ModelDecorationsChanged, e);
+							break;
+
+						case editorCommon.EventType.ModelLanguageChanged:
+							this.domElement.setAttribute('data-mode-id', this.model.getLanguageIdentifier().language);
+							this.emit(editorCommon.EventType.ModelLanguageChanged, e);
+							break;
+
+						case editorCommon.EventType.ModelRawContentChanged:
+							this.emit(editorCommon.EventType.ModelRawContentChanged, e);
+							break;
+
+						case editorCommon.EventType.ModelContentChanged2:
+							this.emit(editorCommon.EventType.ModelContentChanged2, e);
+							break;
+
+						case editorCommon.EventType.ModelOptionsChanged:
+							this.emit(editorCommon.EventType.ModelOptionsChanged, e);
+							break;
+
+						case editorCommon.EventType.ModelDispose:
+							// Someone might destroy the model from under the editor, so prevent any exceptions by setting a null model
+							this.setModel(null);
+							break;
+
+						default:
+						// console.warn("Unhandled model event: ", e);
+					}
+				}
+			}));
+
 			this.cursor = new Cursor(
 				this._configuration,
 				this.model,
@@ -838,44 +876,6 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 
 						default:
 						// console.warn("Unhandled view event: ", e);
-					}
-				}
-			}));
-
-			this.listenersToRemove.push(this.model.addBulkListener((events) => {
-				for (let i = 0, len = events.length; i < len; i++) {
-					let eventType = events[i].getType();
-					let e = events[i].getData();
-
-					switch (eventType) {
-						case editorCommon.EventType.ModelDecorationsChanged:
-							this.emit(editorCommon.EventType.ModelDecorationsChanged, e);
-							break;
-
-						case editorCommon.EventType.ModelLanguageChanged:
-							this.domElement.setAttribute('data-mode-id', this.model.getLanguageIdentifier().language);
-							this.emit(editorCommon.EventType.ModelLanguageChanged, e);
-							break;
-
-						case editorCommon.EventType.ModelRawContentChanged:
-							this.emit(editorCommon.EventType.ModelRawContentChanged, e);
-							break;
-
-						case editorCommon.EventType.ModelContentChanged2:
-							this.emit(editorCommon.EventType.ModelContentChanged2, e);
-							break;
-
-						case editorCommon.EventType.ModelOptionsChanged:
-							this.emit(editorCommon.EventType.ModelOptionsChanged, e);
-							break;
-
-						case editorCommon.EventType.ModelDispose:
-							// Someone might destroy the model from under the editor, so prevent any exceptions by setting a null model
-							this.setModel(null);
-							break;
-
-						default:
-						// console.warn("Unhandled model event: ", e);
 					}
 				}
 			}));

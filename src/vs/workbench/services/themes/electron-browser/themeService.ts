@@ -12,12 +12,11 @@ import * as types from 'vs/base/common/types';
 import { IThemeExtensionPoint } from 'vs/platform/theme/common/themeExtensionPoint';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/platform/extensions/common/extensionsRegistry';
-import { IThemeService, IColorTheme, IFileIconTheme, ExtensionData, VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME, COLOR_THEME_SETTING, ICON_THEME_SETTING } from 'vs/workbench/services/themes/common/themeService';
+import { IWorkbenchThemeService, IColorTheme, IFileIconTheme, ExtensionData, VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME, COLOR_THEME_SETTING, ICON_THEME_SETTING } from 'vs/workbench/services/themes/common/themeService';
 import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Registry } from 'vs/platform/platform';
-import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import errors = require('vs/base/common/errors');
 import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
@@ -30,11 +29,17 @@ import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
 import { Extensions } from 'vs/platform/theme/common/themingRegistry';
 import { ColorThemeData } from './colorThemeData';
+import { ITheme, IThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { registerParticipants } from 'vs/workbench/services/themes/electron-browser/stylesContributions';
 
 import { $ } from 'vs/base/browser/builder';
 import Event, { Emitter } from 'vs/base/common/event';
 
 import pfs = require('vs/base/node/pfs');
+
+import colorThemeSchema = require('vs/workbench/services/themes/common/colorThemeSchema');
+import fileIconThemeSchema = require('vs/workbench/services/themes/common/fileIconThemeSchema');
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 // implementation
 
@@ -171,9 +176,7 @@ const noFileIconTheme: IFileIconTheme = {
 	extensionData: null
 };
 
-
-
-export class ThemeService implements IThemeService {
+export class WorkbenchThemeService implements IWorkbenchThemeService {
 	_serviceBrand: any;
 
 	private knownColorThemes: ColorThemeData[];
@@ -184,6 +187,8 @@ export class ThemeService implements IThemeService {
 	private knownIconThemes: IInternalIconThemeData[];
 	private currentIconTheme: IFileIconTheme;
 	private onFileIconThemeChange: Emitter<IFileIconTheme>;
+
+	private themingParticipants: IThemingParticipant[];
 
 	constructor(
 		container: HTMLElement,
@@ -199,6 +204,7 @@ export class ThemeService implements IThemeService {
 
 		this.container = container;
 		this.knownColorThemes = [];
+		this.themingParticipants = [];
 
 		// In order to avoid paint flashing for tokens, because
 		// themes are loaded asynchronously, we need to initialize
@@ -210,6 +216,7 @@ export class ThemeService implements IThemeService {
 		let initialTheme = new ColorThemeData();
 		initialTheme.id = isLightTheme ? VS_LIGHT_THEME : VS_DARK_THEME;
 		initialTheme.label = '';
+		initialTheme.selector = isLightTheme ? VS_LIGHT_THEME : VS_DARK_THEME;
 		initialTheme.settingsId = null;
 		initialTheme.isLoaded = false;
 		initialTheme.tokenColors = [{
@@ -268,8 +275,27 @@ export class ThemeService implements IThemeService {
 		return this.onColorThemeChange.event;
 	}
 
+	public get onDidThemeChange(): Event<ITheme> {
+		return this.onColorThemeChange.event;
+	}
+
 	public get onDidFileIconThemeChange(): Event<IFileIconTheme> {
 		return this.onFileIconThemeChange.event;
+	}
+
+	public registerThemingParticipant(participant: IThemingParticipant): IDisposable {
+		this.themingParticipants.push(participant);
+
+		return {
+			dispose: () => {
+				const idx = this.themingParticipants.indexOf(participant);
+				this.themingParticipants.splice(idx, 1);
+			}
+		};
+	}
+
+	public getThemingParticipants(): IThemingParticipant[] {
+		return this.themingParticipants;
 	}
 
 	private backupSettings(): TPromise<string> {
@@ -318,6 +344,9 @@ export class ThemeService implements IThemeService {
 	}
 
 	private initialize(): TPromise<any> {
+
+		registerParticipants(this);
+
 		let colorThemeSetting = this.configurationService.lookup<string>(COLOR_THEME_SETTING).value;
 		let iconThemeSetting = this.configurationService.lookup<string>(ICON_THEME_SETTING).value || '';
 
@@ -349,6 +378,10 @@ export class ThemeService implements IThemeService {
 				});
 			}
 		});
+	}
+
+	public getTheme(): ITheme {
+		return this.getColorTheme();
 	}
 
 	public setColorTheme(themeId: string, settingsTarget: ConfigurationTarget): TPromise<IColorTheme> {
@@ -384,7 +417,12 @@ export class ThemeService implements IThemeService {
 
 		return this.findThemeData(themeId, DEFAULT_THEME_ID).then(themeData => {
 			if (themeData) {
-				return applyTheme(themeData, onApply);
+				return themeData.ensureLoaded(this).then(_ => {
+					_applyRules(themeData.styleSheetContent, colorThemeRulesClassName);
+					return onApply(themeData);
+				}, error => {
+					return TPromise.wrapError(nls.localize('error.cannotloadtheme', "Unable to load {0}: {1}", themeData.path, error.message));
+				});
 			}
 			return null;
 		});
@@ -469,6 +507,7 @@ export class ThemeService implements IThemeService {
 			themeData.id = `${baseTheme} ${themeSelector}`;
 			themeData.label = theme.label || Paths.basename(theme.path);
 			themeData.settingsId = theme.id || themeData.label;
+			themeData.selector = `${baseTheme}.${themeSelector}`;
 			themeData.description = theme.description;
 			themeData.path = normalizedAbsolutePath;
 			themeData.extensionData = extensionData;
@@ -827,15 +866,6 @@ function toCSSSelector(str: string) {
 	return str;
 }
 
-function applyTheme(theme: ColorThemeData, onApply: (theme: ColorThemeData) => TPromise<IColorTheme>): TPromise<IColorTheme> {
-	return theme.ensureLoaded().then(_ => {
-		_applyRules(theme.styleSheetContent, colorThemeRulesClassName);
-		return onApply(theme);
-	}, error => {
-		return TPromise.wrapError(nls.localize('error.cannotloadtheme', "Unable to load {0}", theme.path));
-	});
-}
-
 
 let colorThemeRulesClassName = 'contributedColorTheme';
 let iconThemeRulesClassName = 'contributedIconTheme';
@@ -853,212 +883,8 @@ function _applyRules(styleSheetContent: string, rulesClassName: string) {
 	}
 }
 
-const schemaId = 'vscode://schemas/icon-theme';
-const schema: IJSONSchema = {
-	type: 'object',
-	definitions: {
-		folderExpanded: {
-			type: 'string',
-			description: nls.localize('schema.folderExpanded', 'The folder icon for expanded folders. The expanded folder icon is optional. If not set, the icon defined for folder will be shown.')
-		},
-		folder: {
-			type: 'string',
-			description: nls.localize('schema.folder', 'The folder icon for collapsed folders, and if folderExpanded is not set, also for expanded folders.')
-
-		},
-		file: {
-			type: 'string',
-			description: nls.localize('schema.file', 'The default file icon, shown for all files that don\'t match any extension, filename or language id.')
-
-		},
-		folderNames: {
-			type: 'object',
-			description: nls.localize('schema.folderNames', 'Associates folder names to icons. The object key is is the folder name, not including any path segments. No patterns or wildcards are allowed. Folder name matching is case insensitive.'),
-			additionalProperties: {
-				type: 'string',
-				description: nls.localize('schema.folderName', 'The ID of the icon definition for the association.')
-			}
-		},
-		folderNamesExpanded: {
-			type: 'object',
-			description: nls.localize('schema.folderNamesExpanded', 'Associates folder names to icons for expanded folders. The object key is is the folder name, not including any path segments. No patterns or wildcards are allowed. Folder name matching is case insensitive.'),
-			additionalProperties: {
-				type: 'string',
-				description: nls.localize('schema.folderNameExpanded', 'The ID of the icon definition for the association.')
-			}
-		},
-		fileExtensions: {
-			type: 'object',
-			description: nls.localize('schema.fileExtensions', 'Associates file extensions to icons. The object key is is the file extension name. The extension name is the last segment of a file name after the last dot (not including the dot). Extensions are compared case insensitive.'),
-
-			additionalProperties: {
-				type: 'string',
-				description: nls.localize('schema.fileExtension', 'The ID of the icon definition for the association.')
-			}
-		},
-		fileNames: {
-			type: 'object',
-			description: nls.localize('schema.fileNames', 'Associates file names to icons. The object key is is the full file name, but not including any path segments. File name can include dots and a possible file extension. No patterns or wildcards are allowed. File name matching is case insensitive.'),
-
-			additionalProperties: {
-				type: 'string',
-				description: nls.localize('schema.fileName', 'The ID of the icon definition for the association.')
-			}
-		},
-		languageIds: {
-			type: 'object',
-			description: nls.localize('schema.languageIds', 'Associates languages to icons. The object key is the language id as defined in the language contribution point.'),
-
-			additionalProperties: {
-				type: 'string',
-				description: nls.localize('schema.languageId', 'The ID of the icon definition for the association.')
-			}
-		},
-		associations: {
-			type: 'object',
-			properties: {
-				folderExpanded: {
-					$ref: '#/definitions/folderExpanded'
-				},
-				folder: {
-					$ref: '#/definitions/folder'
-				},
-				file: {
-					$ref: '#/definitions/file'
-				},
-				folderNames: {
-					$ref: '#/definitions/folderNames'
-				},
-				folderNamesExpanded: {
-					$ref: '#/definitions/folderNamesExpanded'
-				},
-				fileExtensions: {
-					$ref: '#/definitions/fileExtensions'
-				},
-				fileNames: {
-					$ref: '#/definitions/fileNames'
-				},
-				languageIds: {
-					$ref: '#/definitions/languageIds'
-				}
-			}
-		}
-	},
-	properties: {
-		fonts: {
-			type: 'array',
-			description: nls.localize('schema.fonts', 'Fonts that are used in the icon definitions.'),
-			items: {
-				type: 'object',
-				properties: {
-					id: {
-						type: 'string',
-						description: nls.localize('schema.id', 'The ID of the font.')
-					},
-					src: {
-						type: 'array',
-						description: nls.localize('schema.src', 'The locations of the font.'),
-						items: {
-							type: 'object',
-							properties: {
-								path: {
-									type: 'string',
-									description: nls.localize('schema.font-path', 'The font path, relative to the current icon theme file.'),
-								},
-								format: {
-									type: 'string',
-									description: nls.localize('schema.font-format', 'The format of the font.')
-								}
-							},
-							required: [
-								'path',
-								'format'
-							]
-						}
-					},
-					weight: {
-						type: 'string',
-						description: nls.localize('schema.font-weight', 'The weight of the font.')
-					},
-					style: {
-						type: 'string',
-						description: nls.localize('schema.font-sstyle', 'The style of the font.')
-					},
-					size: {
-						type: 'string',
-						description: nls.localize('schema.font-size', 'The default size of the font.')
-					}
-				},
-				required: [
-					'id',
-					'src'
-				]
-			}
-		},
-		iconDefinitions: {
-			type: 'object',
-			description: nls.localize('schema.iconDefinitions', 'Description of all icons that can be used when associating files to icons.'),
-			additionalProperties: {
-				type: 'object',
-				description: nls.localize('schema.iconDefinition', 'An icon definition. The object key is the ID of the definition.'),
-				properties: {
-					iconPath: {
-						type: 'string',
-						description: nls.localize('schema.iconPath', 'When using a SVG or PNG: The path to the image. The path is relative to the icon set file.')
-					},
-					fontCharacter: {
-						type: 'string',
-						description: nls.localize('schema.fontCharacter', 'When using a glyph font: The character in the font to use.')
-					},
-					fontColor: {
-						type: 'string',
-						description: nls.localize('schema.fontColor', 'When using a glyph font: The color to use.')
-					},
-					fontSize: {
-						type: 'string',
-						description: nls.localize('schema.fontSize', 'When using a font: The font size in percentage to the text font. If not set, defaults to the size in the font definition.')
-					},
-					fontId: {
-						type: 'string',
-						description: nls.localize('schema.fontId', 'When using a font: The id of the font. If not set, defaults to the first font definition.')
-					}
-				}
-			}
-		},
-		folderExpanded: {
-			$ref: '#/definitions/folderExpanded'
-		},
-		folder: {
-			$ref: '#/definitions/folder'
-		},
-		file: {
-			$ref: '#/definitions/file'
-		},
-		folderNames: {
-			$ref: '#/definitions/folderNames'
-		},
-		fileExtensions: {
-			$ref: '#/definitions/fileExtensions'
-		},
-		fileNames: {
-			$ref: '#/definitions/fileNames'
-		},
-		languageIds: {
-			$ref: '#/definitions/languageIds'
-		},
-		light: {
-			$ref: '#/definitions/associations',
-			description: nls.localize('schema.light', 'Optional associations for file icons in light color themes.')
-		},
-		highContrast: {
-			$ref: '#/definitions/associations',
-			description: nls.localize('schema.highContrast', 'Optional associations for file icons in high contrast color themes.')
-		}
-	}
-};
-
-let schemaRegistry = <IJSONContributionRegistry>Registry.as(JSONExtensions.JSONContribution);
-schemaRegistry.registerSchema(schemaId, schema);
+colorThemeSchema.register();
+fileIconThemeSchema.register();
 
 // Configuration: Themes
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);

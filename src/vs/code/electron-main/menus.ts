@@ -68,7 +68,7 @@ class KeybindingsResolver {
 	) {
 		this.commandIds = new Set<string>();
 		this.keybindings = this.storageService.getItem<{ [id: string]: string; }>(KeybindingsResolver.lastKnownKeybindingsMapStorageKey) || Object.create(null);
-		this.keybindingsWatcher = new ConfigWatcher<IUserFriendlyKeybinding[]>(environmentService.appKeybindingsPath, { changeBufferDelay: 1000 /* update after 1s */ });
+		this.keybindingsWatcher = new ConfigWatcher<IUserFriendlyKeybinding[]>(environmentService.appKeybindingsPath, { changeBufferDelay: 100 });
 
 		this.registerListeners();
 	}
