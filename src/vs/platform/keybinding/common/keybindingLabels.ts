@@ -42,7 +42,13 @@ export class KeybindingLabels {
 	 * @internal
 	 */
 	public static toUserSettingsLabel(keybinding: Keybinding, Platform: ISimplifiedPlatform = defaultPlatform): string {
-		let result = _asString(keybinding, UserSettingsKeyLabelProvider.INSTANCE, Platform);
+		let result: string;
+		if (Platform.isMacintosh) {
+			result = MacUserSettingsLabelProvider._toUSLabel(keybinding);
+		} else {
+			result = ClassicUserSettingsLabelProvider._toUSLabel(keybinding);
+		}
+
 		result = result.toLowerCase();
 
 		if (Platform.isMacintosh) {
@@ -59,7 +65,10 @@ export class KeybindingLabels {
 	 * @internal
 	 */
 	public static _toUSLabel(keybinding: Keybinding, Platform: ISimplifiedPlatform = defaultPlatform): string {
-		return _asString(keybinding, (Platform.isMacintosh ? MacUIKeyLabelProvider.INSTANCE : ClassicUIKeyLabelProvider.INSTANCE), Platform);
+		if (Platform.isMacintosh) {
+			return MacUILabelProvider._toUSLabel(keybinding);
+		}
+		return ClassicUILabelProvider._toUSLabel(keybinding);
 	}
 
 	/**
@@ -67,7 +76,10 @@ export class KeybindingLabels {
 	 * @internal
 	 */
 	public static _toUSAriaLabel(keybinding: Keybinding, Platform: ISimplifiedPlatform = defaultPlatform): string {
-		return _asString(keybinding, AriaKeyLabelProvider.INSTANCE, Platform);
+		if (Platform.isMacintosh) {
+			return MacAriaLabelProvider._toUSLabel(keybinding);
+		}
+		return ClassicAriaLabelProvider._toUSLabel(keybinding);
 	}
 
 	/**
@@ -75,23 +87,10 @@ export class KeybindingLabels {
 	 * @internal
 	 */
 	public static _toUSHTMLLabel(keybinding: Keybinding, Platform: ISimplifiedPlatform = defaultPlatform): IHTMLContentElement[] {
-		return _asHTML(keybinding, (Platform.isMacintosh ? MacUIKeyLabelProvider.INSTANCE : ClassicUIKeyLabelProvider.INSTANCE), Platform);
-	}
-
-	/**
-	 * Format the binding to a format appropiate for rendering in the UI
-	 * @internal
-	 */
-	public static toCustomLabel(keybinding: Keybinding, labelProvider: IKeyBindingLabelProvider, Platform: ISimplifiedPlatform = defaultPlatform): string {
-		return _asString(keybinding, labelProvider, Platform);
-	}
-
-	/**
-	 * Format the binding to a format appropiate for rendering in the UI
-	 * @internal
-	 */
-	public static toCustomHTMLLabel(keybinding: Keybinding, labelProvider: IKeyBindingLabelProvider, Platform: ISimplifiedPlatform = defaultPlatform): IHTMLContentElement[] {
-		return _asHTML(keybinding, labelProvider, Platform);
+		if (Platform.isMacintosh) {
+			return MacUILabelProvider._toUSHTMLLabel(keybinding);
+		}
+		return ClassicUILabelProvider._toUSHTMLLabel(keybinding);
 	}
 
 	/**
@@ -109,153 +108,201 @@ export class KeybindingLabels {
 			// Electron cannot handle numpad keys
 			return null;
 		}
-		return _asString(keybinding, ElectronAcceleratorLabelProvider.INSTANCE, Platform);
-	}
-}
-
-export interface IKeyBindingLabelProvider {
-	ctrlKeyLabel: string;
-	shiftKeyLabel: string;
-	altKeyLabel: string;
-	cmdKeyLabel: string;
-	windowsKeyLabel: string;
-	modifierSeparator: string;
-	getLabelForKey(keyCode: KeyCode): string;
-}
-
-/**
- * Print for Electron
- */
-export class ElectronAcceleratorLabelProvider implements IKeyBindingLabelProvider {
-	public static INSTANCE = new ElectronAcceleratorLabelProvider();
-
-	public ctrlKeyLabel = 'Ctrl';
-	public shiftKeyLabel = 'Shift';
-	public altKeyLabel = 'Alt';
-	public cmdKeyLabel = 'Cmd';
-	public windowsKeyLabel = 'Super';
-	public modifierSeparator = '+';
-
-	public getLabelForKey(keyCode: KeyCode): string {
-		switch (keyCode) {
-			case KeyCode.UpArrow:
-				return 'Up';
-			case KeyCode.DownArrow:
-				return 'Down';
-			case KeyCode.LeftArrow:
-				return 'Left';
-			case KeyCode.RightArrow:
-				return 'Right';
+		if (Platform.isMacintosh) {
+			return MacElectronAcceleratorLabelProvider._toUSLabel(keybinding);
 		}
-
-		return KeyCodeUtils.toString(keyCode);
+		return ClassicElectronAcceleratorLabelProvider._toUSLabel(keybinding);
 	}
 }
 
-/**
- * Print for Mac UI
- */
-export class MacUIKeyLabelProvider implements IKeyBindingLabelProvider {
-	public static INSTANCE = new MacUIKeyLabelProvider();
+export interface IKeyCodeLabelProvider {
+	(keyCode: KeyCode): string;
+}
 
-	private static leftArrowUnicodeLabel = '←';
-	private static upArrowUnicodeLabel = '↑';
-	private static rightArrowUnicodeLabel = '→';
-	private static downArrowUnicodeLabel = '↓';
+export interface ModifierLabels {
+	readonly ctrlKey: string;
+	readonly shiftKey: string;
+	readonly altKey: string;
+	readonly metaKey: string;
+	readonly separator: string;
+}
 
-	public ctrlKeyLabel = '⌃';
-	public shiftKeyLabel = '⇧';
-	public altKeyLabel = '⌥';
-	public cmdKeyLabel = '⌘';
-	public windowsKeyLabel = nls.localize('windowsKey', "Windows");
-	public modifierSeparator = '';
+export class LabelProvider {
 
-	public getLabelForKey(keyCode: KeyCode): string {
+	private readonly _isMacintosh: boolean;
+	private readonly _modifierLabels: ModifierLabels;
+	private readonly _keyCodeLabel: (keyCode: KeyCode) => string;
+
+	constructor(isMacintosh: boolean, modifierLabels: ModifierLabels, keyCodeLabel: (keyCode: KeyCode) => string) {
+		this._isMacintosh = isMacintosh;
+		this._modifierLabels = modifierLabels;
+		this._keyCodeLabel = keyCodeLabel;
+	}
+
+	public _toUSLabel(keybinding: Keybinding): string {
+		const [firstPart, chordPart] = PrintableKeypress.fromKeybinding(keybinding, this._keyCodeLabel, this._isMacintosh);
+		return this.toLabel(firstPart, chordPart);
+	}
+
+	public toLabel(firstPart: PrintableKeypress, chordPart: PrintableKeypress): string {
+		return _asString(firstPart, chordPart, this._modifierLabels);
+	}
+
+	public _toUSHTMLLabel(keybinding: Keybinding): IHTMLContentElement[] {
+		const [firstPart, chordPart] = PrintableKeypress.fromKeybinding(keybinding, this._keyCodeLabel, this._isMacintosh);
+		return this.toHTMLLabel(firstPart, chordPart);
+	}
+
+	public toHTMLLabel(firstPart: PrintableKeypress, chordPart: PrintableKeypress): IHTMLContentElement[] {
+		return _asHTML(firstPart, chordPart, this._modifierLabels);
+	}
+}
+
+export const MacUILabelProvider: LabelProvider = new LabelProvider(
+	true,
+	{
+		ctrlKey: '⌃',
+		shiftKey: '⇧',
+		altKey: '⌥',
+		metaKey: '⌘',
+		separator: '',
+	},
+	(keyCode: KeyCode): string => {
 		switch (keyCode) {
 			case KeyCode.LeftArrow:
-				return MacUIKeyLabelProvider.leftArrowUnicodeLabel;
+				return '←';
 			case KeyCode.UpArrow:
-				return MacUIKeyLabelProvider.upArrowUnicodeLabel;
+				return '↑';
 			case KeyCode.RightArrow:
-				return MacUIKeyLabelProvider.rightArrowUnicodeLabel;
+				return '→';
 			case KeyCode.DownArrow:
-				return MacUIKeyLabelProvider.downArrowUnicodeLabel;
+				return '↓';
 		}
-
 		return KeyCodeUtils.toString(keyCode);
 	}
-}
+);
+export const ClassicUILabelProvider: LabelProvider = new LabelProvider(
+	false,
+	{
+		ctrlKey: nls.localize('ctrlKey', "Ctrl"),
+		shiftKey: nls.localize('shiftKey', "Shift"),
+		altKey: nls.localize('altKey', "Alt"),
+		metaKey: nls.localize('windowsKey', "Windows"),
+		separator: '+',
+	},
+	(keyCode: KeyCode) => KeyCodeUtils.toString(keyCode)
+);
 
-/**
- * Aria label provider for Mac.
- */
-export class AriaKeyLabelProvider implements IKeyBindingLabelProvider {
-	public static INSTANCE = new AriaKeyLabelProvider();
+export const MacAriaLabelProvider: LabelProvider = new LabelProvider(
+	true,
+	{
+		ctrlKey: nls.localize('ctrlKey.long', "Control"),
+		shiftKey: nls.localize('shiftKey.long', "Shift"),
+		altKey: nls.localize('altKey.long', "Alt"),
+		metaKey: nls.localize('cmdKey.long', "Command"),
+		separator: '+',
+	},
+	(keyCode: KeyCode) => KeyCodeUtils.toString(keyCode)
+);
+export const ClassicAriaLabelProvider: LabelProvider = new LabelProvider(
+	false,
+	{
+		ctrlKey: nls.localize('ctrlKey.long', "Control"),
+		shiftKey: nls.localize('shiftKey.long', "Shift"),
+		altKey: nls.localize('altKey.long', "Alt"),
+		metaKey: nls.localize('windowsKey.long', "Windows"),
+		separator: '+',
+	},
+	(keyCode: KeyCode) => KeyCodeUtils.toString(keyCode)
+);
 
-	public ctrlKeyLabel = nls.localize('ctrlKey.long', "Control");
-	public shiftKeyLabel = nls.localize('shiftKey.long', "Shift");
-	public altKeyLabel = nls.localize('altKey.long', "Alt");
-	public cmdKeyLabel = nls.localize('cmdKey.long', "Command");
-	public windowsKeyLabel = nls.localize('windowsKey.long', "Windows");
-	public modifierSeparator = '+';
+class AcceleratorLabelProvider extends LabelProvider {
+	constructor(isMacintosh: boolean, modifierLabels: ModifierLabels) {
+		super(
+			isMacintosh,
+			modifierLabels,
+			(keyCode: KeyCode) => {
+				switch (keyCode) {
+					case KeyCode.UpArrow:
+						return 'Up';
+					case KeyCode.DownArrow:
+						return 'Down';
+					case KeyCode.LeftArrow:
+						return 'Left';
+					case KeyCode.RightArrow:
+						return 'Right';
+				}
 
-	public getLabelForKey(keyCode: KeyCode): string {
-		return KeyCodeUtils.toString(keyCode);
+				return KeyCodeUtils.toString(keyCode);
+			}
+		);
 	}
 }
+const MacElectronAcceleratorLabelProvider = new AcceleratorLabelProvider(
+	true,
+	{
+		ctrlKey: 'Ctrl',
+		shiftKey: 'Shift',
+		altKey: 'Alt',
+		metaKey: 'Cmd',
+		separator: '+',
+	}
+);
+const ClassicElectronAcceleratorLabelProvider = new AcceleratorLabelProvider(
+	false,
+	{
+		ctrlKey: 'Ctrl',
+		shiftKey: 'Shift',
+		altKey: 'Alt',
+		metaKey: 'Super',
+		separator: '+',
+	}
+);
 
-/**
- * Print for Windows, Linux UI
- */
-export class ClassicUIKeyLabelProvider implements IKeyBindingLabelProvider {
-	public static INSTANCE = new ClassicUIKeyLabelProvider();
-
-	public ctrlKeyLabel = nls.localize('ctrlKey', "Ctrl");
-	public shiftKeyLabel = nls.localize('shiftKey', "Shift");
-	public altKeyLabel = nls.localize('altKey', "Alt");
-	public cmdKeyLabel = nls.localize('cmdKey', "Command");
-	public windowsKeyLabel = nls.localize('windowsKey', "Windows");
-	public modifierSeparator = '+';
-
-	public getLabelForKey(keyCode: KeyCode): string {
-		return KeyCodeUtils.toString(keyCode);
+class UserSettingsLabelProvider extends LabelProvider {
+	constructor(isMacintosh: boolean) {
+		super(
+			isMacintosh,
+			{
+				ctrlKey: 'Ctrl',
+				shiftKey: 'Shift',
+				altKey: 'Alt',
+				metaKey: 'Meta',
+				separator: '+',
+			},
+			(keyCode: KeyCode) => USER_SETTINGS.fromKeyCode(keyCode)
+		);
 	}
 }
-
-/**
- * Print for the user settings file.
- */
-class UserSettingsKeyLabelProvider implements IKeyBindingLabelProvider {
-	public static INSTANCE = new UserSettingsKeyLabelProvider();
-
-	public ctrlKeyLabel = 'Ctrl';
-	public shiftKeyLabel = 'Shift';
-	public altKeyLabel = 'Alt';
-	public cmdKeyLabel = 'Meta';
-	public windowsKeyLabel = 'Meta';
-
-	public modifierSeparator = '+';
-
-	public getLabelForKey(keyCode: KeyCode): string {
-		return USER_SETTINGS.fromKeyCode(keyCode);
-	}
-}
+const MacUserSettingsLabelProvider = new UserSettingsLabelProvider(true);
+const ClassicUserSettingsLabelProvider = new UserSettingsLabelProvider(false);
 
 export class PrintableKeypress {
 
-	public static fromKeybinding(keybinding: SimpleKeybinding, labelProvider: IKeyBindingLabelProvider, Platform: ISimplifiedPlatform): PrintableKeypress {
+	public static fromSimpleKeybinding(keybinding: SimpleKeybinding, labelProvider: IKeyCodeLabelProvider, isMacintosh: boolean): PrintableKeypress {
 		const ctrlCmd = keybinding.hasCtrlCmd();
 		const winCtrl = keybinding.hasWinCtrl();
 
-		const ctrlKey = Platform.isMacintosh ? winCtrl : ctrlCmd;
-		const metaKey = Platform.isMacintosh ? ctrlCmd : winCtrl;
+		const ctrlKey = isMacintosh ? winCtrl : ctrlCmd;
+		const metaKey = isMacintosh ? ctrlCmd : winCtrl;
 		const shiftKey = keybinding.hasShift();
 		const altKey = keybinding.hasAlt();
 
 		const keyCode = keybinding.getKeyCode();
-		const keyLabel = labelProvider.getLabelForKey(keyCode) || '';
+		const keyLabel = labelProvider(keyCode) || '';
 
 		return new PrintableKeypress(ctrlKey, shiftKey, altKey, metaKey, keyLabel);
+	}
+
+	public static fromKeybinding(keybinding: Keybinding, labelProvider: IKeyCodeLabelProvider, isMacintosh: boolean): [PrintableKeypress, PrintableKeypress] {
+		if (keybinding.isChord()) {
+			const firstPart = PrintableKeypress.fromSimpleKeybinding(keybinding.extractFirstPart(), labelProvider, isMacintosh);
+			const chordPart = PrintableKeypress.fromSimpleKeybinding(keybinding.extractChordPart(), labelProvider, isMacintosh);
+			return [firstPart, chordPart];
+		} else {
+			const printableKeypress = PrintableKeypress.fromSimpleKeybinding(keybinding, labelProvider, isMacintosh);
+			return [printableKeypress, null];
+		}
 	}
 
 	readonly ctrlKey: boolean;
@@ -273,7 +320,7 @@ export class PrintableKeypress {
 	}
 }
 
-function _simpleAsString(keypress: PrintableKeypress, labelProvider: IKeyBindingLabelProvider, Platform: ISimplifiedPlatform): string {
+function _simpleAsString(keypress: PrintableKeypress, labels: ModifierLabels): string {
 	if (!keypress.key) {
 		return '';
 	}
@@ -282,40 +329,36 @@ function _simpleAsString(keypress: PrintableKeypress, labelProvider: IKeyBinding
 
 	// translate modifier keys: Ctrl-Shift-Alt-Meta
 	if (keypress.ctrlKey) {
-		result.push(labelProvider.ctrlKeyLabel);
+		result.push(labels.ctrlKey);
 	}
 
 	if (keypress.shiftKey) {
-		result.push(labelProvider.shiftKeyLabel);
+		result.push(labels.shiftKey);
 	}
 
 	if (keypress.altKey) {
-		result.push(labelProvider.altKeyLabel);
+		result.push(labels.altKey);
 	}
 
 	if (keypress.metaKey) {
-		result.push(Platform.isMacintosh ? labelProvider.cmdKeyLabel : labelProvider.windowsKeyLabel);
+		result.push(labels.metaKey);
 	}
 
 	// the actual key
 	result.push(keypress.key);
 
-	return result.join(labelProvider.modifierSeparator);
+	return result.join(labels.separator);
 }
 
-function _asString(keybinding: Keybinding, labelProvider: IKeyBindingLabelProvider, Platform: ISimplifiedPlatform): string {
-	if (keybinding.isChord()) {
-		const firstPart = PrintableKeypress.fromKeybinding(keybinding.extractFirstPart(), labelProvider, Platform);
-		const secondPart = PrintableKeypress.fromKeybinding(keybinding.extractChordPart(), labelProvider, Platform);
-		return (
-			_simpleAsString(firstPart, labelProvider, Platform)
-			+ ' '
-			+ _simpleAsString(secondPart, labelProvider, Platform)
-		);
-	} else {
-		const printableKeypress = PrintableKeypress.fromKeybinding(keybinding, labelProvider, Platform);
-		return _simpleAsString(printableKeypress, labelProvider, Platform);
+function _asString(firstPart: PrintableKeypress, chordPart: PrintableKeypress, labels: ModifierLabels): string {
+	let result = _simpleAsString(firstPart, labels);
+
+	if (chordPart !== null) {
+		result += ' ';
+		result += _simpleAsString(chordPart, labels);
 	}
+
+	return result;
 }
 
 function _pushKey(result: IHTMLContentElement[], str: string, append: string): void {
@@ -332,48 +375,42 @@ function _pushKey(result: IHTMLContentElement[], str: string, append: string): v
 	}
 }
 
-function _simpleAsHTML(result: IHTMLContentElement[], keypress: PrintableKeypress, labelProvider: IKeyBindingLabelProvider, Platform: ISimplifiedPlatform): void {
+function _simpleAsHTML(result: IHTMLContentElement[], keypress: PrintableKeypress, labels: ModifierLabels): void {
 	if (!keypress.key) {
 		return;
 	}
 
 	// translate modifier keys: Ctrl-Shift-Alt-Meta
 	if (keypress.ctrlKey) {
-		_pushKey(result, labelProvider.ctrlKeyLabel, labelProvider.modifierSeparator);
+		_pushKey(result, labels.ctrlKey, labels.separator);
 	}
 
 	if (keypress.shiftKey) {
-		_pushKey(result, labelProvider.shiftKeyLabel, labelProvider.modifierSeparator);
+		_pushKey(result, labels.shiftKey, labels.separator);
 	}
 
 	if (keypress.altKey) {
-		_pushKey(result, labelProvider.altKeyLabel, labelProvider.modifierSeparator);
+		_pushKey(result, labels.altKey, labels.separator);
 	}
 
 	if (keypress.metaKey) {
-		_pushKey(result, Platform.isMacintosh ? labelProvider.cmdKeyLabel : labelProvider.windowsKeyLabel, labelProvider.modifierSeparator);
+		_pushKey(result, labels.metaKey, labels.separator);
 	}
 
 	// the actual key
 	_pushKey(result, keypress.key, null);
 }
 
-function _asHTML(keybinding: Keybinding, labelProvider: IKeyBindingLabelProvider, Platform: ISimplifiedPlatform): IHTMLContentElement[] {
+function _asHTML(firstPart: PrintableKeypress, chordPart: PrintableKeypress, labels: ModifierLabels): IHTMLContentElement[] {
 	let result: IHTMLContentElement[] = [];
-	if (keybinding.isChord()) {
-		const firstPart = PrintableKeypress.fromKeybinding(keybinding.extractFirstPart(), labelProvider, Platform);
-		const secondPart = PrintableKeypress.fromKeybinding(keybinding.extractChordPart(), labelProvider, Platform);
+	_simpleAsHTML(result, firstPart, labels);
 
-		_simpleAsHTML(result, firstPart, labelProvider, Platform);
+	if (chordPart !== null) {
 		result.push({
 			tagName: 'span',
 			text: ' '
 		});
-		_simpleAsHTML(result, secondPart, labelProvider, Platform);
-	} else {
-		const printableKeypress = PrintableKeypress.fromKeybinding(keybinding, labelProvider, Platform);
-
-		_simpleAsHTML(result, printableKeypress, labelProvider, Platform);
+		_simpleAsHTML(result, chordPart, labels);
 	}
 
 	return [{

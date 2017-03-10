@@ -7,7 +7,7 @@
 import * as nativeKeymap from 'native-keymap';
 import { KeyCode, KeyCodeUtils } from 'vs/base/common/keyCodes';
 import { CharCode } from 'vs/base/common/charCode';
-import { IKeyBindingLabelProvider, MacUIKeyLabelProvider, ClassicUIKeyLabelProvider, AriaKeyLabelProvider } from 'vs/platform/keybinding/common/keybindingLabels';
+import { IKeyCodeLabelProvider } from 'vs/platform/keybinding/common/keybindingLabels';
 import { lookupKeyCode, setExtractKeyCode } from 'vs/base/browser/keyboardEvent';
 import Platform = require('vs/base/common/platform');
 
@@ -332,27 +332,47 @@ setExtractKeyCode((e: KeyboardEvent) => {
 	return lookupKeyCode(e);
 });
 
-let nativeAriaLabelProvider: IKeyBindingLabelProvider = null;
-export function getNativeAriaLabelProvider(): IKeyBindingLabelProvider {
-	if (!nativeAriaLabelProvider) {
+let nativeUIKeyCodeLabelProvider: IKeyCodeLabelProvider = null;
+export function getNativeUIKeyCodeLabelProvider(): IKeyCodeLabelProvider {
+	if (!nativeUIKeyCodeLabelProvider) {
 		let remaps = getNativeLabelProviderRemaps();
-		nativeAriaLabelProvider = new NativeAriaKeyLabelProvider(remaps);
+		nativeUIKeyCodeLabelProvider = (keyCode: KeyCode): string => {
+			if (remaps[keyCode] !== null) {
+				return remaps[keyCode].render();
+			}
+
+			if (Platform.isMacintosh) {
+				switch (keyCode) {
+					case KeyCode.LeftArrow:
+						return '←';
+					case KeyCode.UpArrow:
+						return '↑';
+					case KeyCode.RightArrow:
+						return '→';
+					case KeyCode.DownArrow:
+						return '↓';
+				}
+			}
+
+			return KeyCodeUtils.toString(keyCode);
+		};
 	}
-	return nativeAriaLabelProvider;
+	return nativeUIKeyCodeLabelProvider;
 }
 
-let nativeLabelProvider: IKeyBindingLabelProvider = null;
-export function getNativeLabelProvider(): IKeyBindingLabelProvider {
-	if (!nativeLabelProvider) {
+let nativeAriaKeyCodeLabelProvider: IKeyCodeLabelProvider = null;
+export function getNativeAriaKeyCodeLabelProvider(): IKeyCodeLabelProvider {
+	if (!nativeAriaKeyCodeLabelProvider) {
 		let remaps = getNativeLabelProviderRemaps();
+		nativeAriaKeyCodeLabelProvider = (keyCode: KeyCode): string => {
+			if (remaps[keyCode] !== null) {
+				return remaps[keyCode].render();
+			}
 
-		if (Platform.isMacintosh) {
-			nativeLabelProvider = new NativeMacUIKeyLabelProvider(remaps);
-		} else {
-			nativeLabelProvider = new NativeClassicUIKeyLabelProvider(remaps);
-		}
+			return KeyCodeUtils.toString(keyCode);
+		};
 	}
-	return nativeLabelProvider;
+	return nativeAriaKeyCodeLabelProvider;
 }
 
 class NativeLabel {
@@ -463,43 +483,4 @@ function getNativeLabelProviderRemaps(): NativeLabel[] {
 	}
 	return nativeLabelRemaps;
 
-}
-
-class NativeMacUIKeyLabelProvider extends MacUIKeyLabelProvider {
-	constructor(private remaps: NativeLabel[]) {
-		super();
-	}
-
-	public getLabelForKey(keyCode: KeyCode): string {
-		if (this.remaps[keyCode] !== null) {
-			return this.remaps[keyCode].render();
-		}
-		return super.getLabelForKey(keyCode);
-	}
-}
-
-class NativeClassicUIKeyLabelProvider extends ClassicUIKeyLabelProvider {
-	constructor(private remaps: NativeLabel[]) {
-		super();
-	}
-
-	public getLabelForKey(keyCode: KeyCode): string {
-		if (this.remaps[keyCode] !== null) {
-			return this.remaps[keyCode].render();
-		}
-		return super.getLabelForKey(keyCode);
-	}
-}
-
-class NativeAriaKeyLabelProvider extends AriaKeyLabelProvider {
-	constructor(private remaps: NativeLabel[]) {
-		super();
-	}
-
-	public getLabelForKey(keyCode: KeyCode): string {
-		if (this.remaps[keyCode] !== null) {
-			return this.remaps[keyCode].render();
-		}
-		return super.getLabelForKey(keyCode);
-	}
 }

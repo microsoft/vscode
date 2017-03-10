@@ -8,7 +8,7 @@ import * as nls from 'vs/nls';
 import { IHTMLContentElement } from 'vs/base/common/htmlContent';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { ResolvedKeybinding, Keybinding } from 'vs/base/common/keyCodes';
-import { KeybindingLabels } from 'vs/platform/keybinding/common/keybindingLabels';
+import { KeybindingLabels, PrintableKeypress, MacUILabelProvider, ClassicUILabelProvider, MacAriaLabelProvider, ClassicAriaLabelProvider } from 'vs/platform/keybinding/common/keybindingLabels';
 import * as platform from 'vs/base/common/platform';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { ExtensionMessageCollector, ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
@@ -23,7 +23,7 @@ import { IKeybindingRule, KeybindingsRegistry } from 'vs/platform/keybinding/com
 import { Registry } from 'vs/platform/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { keybindingsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
-import { getCurrentKeyboardLayout, getNativeLabelProvider, getNativeAriaLabelProvider } from 'vs/workbench/services/keybinding/electron-browser/nativeKeymap';
+import { getCurrentKeyboardLayout, getNativeUIKeyCodeLabelProvider, getNativeAriaKeyCodeLabelProvider } from 'vs/workbench/services/keybinding/electron-browser/nativeKeymap';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { ConfigWatcher } from 'vs/base/node/config';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -129,15 +129,33 @@ export class FancyResolvedKeybinding extends ResolvedKeybinding {
 	}
 
 	public getLabel(): string {
-		return KeybindingLabels.toCustomLabel(this._actual, getNativeLabelProvider());
+		const keyCodeLabelProvider = getNativeUIKeyCodeLabelProvider();
+		const [firstPart, chordPart] = PrintableKeypress.fromKeybinding(this._actual, keyCodeLabelProvider, platform.isMacintosh);
+
+		if (platform.isMacintosh) {
+			return MacUILabelProvider.toLabel(firstPart, chordPart);
+		}
+		return ClassicUILabelProvider.toLabel(firstPart, chordPart);
 	}
 
 	public getAriaLabel(): string {
-		return KeybindingLabels.toCustomLabel(this._actual, getNativeAriaLabelProvider());
+		const keyCodeLabelProvider = getNativeAriaKeyCodeLabelProvider();
+		const [firstPart, chordPart] = PrintableKeypress.fromKeybinding(this._actual, keyCodeLabelProvider, platform.isMacintosh);
+
+		if (platform.isMacintosh) {
+			return MacAriaLabelProvider.toLabel(firstPart, chordPart);
+		}
+		return ClassicAriaLabelProvider.toLabel(firstPart, chordPart);
 	}
 
 	public getHTMLLabel(): IHTMLContentElement[] {
-		return KeybindingLabels.toCustomHTMLLabel(this._actual, getNativeLabelProvider());
+		const keyCodeLabelProvider = getNativeUIKeyCodeLabelProvider();
+		const [firstPart, chordPart] = PrintableKeypress.fromKeybinding(this._actual, keyCodeLabelProvider, platform.isMacintosh);
+
+		if (platform.isMacintosh) {
+			return MacUILabelProvider.toHTMLLabel(firstPart, chordPart);
+		}
+		return ClassicUILabelProvider.toHTMLLabel(firstPart, chordPart);
 	}
 
 	public getElectronAccelerator(): string {
