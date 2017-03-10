@@ -81,6 +81,7 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 	public panelContainer: HTMLElement;
 
 	private _charMeasureElement: HTMLElement;
+	private _lastFontMeasurement: ITerminalFont;
 
 	public constructor(
 		private _platform: Platform,
@@ -109,15 +110,20 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 		this._charMeasureElement.innerText = 'X';
 		const rect = this._charMeasureElement.getBoundingClientRect();
 		style.display = 'none';
-		const charWidth = rect.width;
-		const charHeight = rect.height;
-		return {
+
+		// Bounding client rect was invalid, use last font measurement if available.
+		if (this._lastFontMeasurement && !rect.width && !rect.height) {
+			return this._lastFontMeasurement;
+		}
+
+		this._lastFontMeasurement = {
 			fontFamily,
 			fontSize: fontSize + 'px',
 			lineHeight,
-			charWidth,
-			charHeight
+			charWidth: rect.width,
+			charHeight: rect.height
 		};
+		return this._lastFontMeasurement;
 	}
 
 	/**
