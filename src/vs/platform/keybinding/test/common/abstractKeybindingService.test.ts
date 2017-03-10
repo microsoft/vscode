@@ -11,12 +11,11 @@ import { KeybindingLabels } from 'vs/platform/keybinding/common/keybindingLabels
 import { IDisposable } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
+import { KeybindingResolver, NormalizedKeybindingItem } from 'vs/platform/keybinding/common/keybindingResolver';
 import { ContextKeyExpr, IContextKeyService, IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IKeybindingItem } from 'vs/platform/keybinding/common/keybinding';
 
 suite('AbstractKeybindingService', () => {
 
@@ -47,7 +46,7 @@ suite('AbstractKeybindingService', () => {
 		}
 	}
 
-	let createTestKeybindingService: (items: IKeybindingItem[], contextValue?: any) => TestKeybindingService = null;
+	let createTestKeybindingService: (items: NormalizedKeybindingItem[], contextValue?: any) => TestKeybindingService = null;
 	let currentContextValue: any = null;
 	let executeCommandCalls: { commandId: string; args: any[]; }[] = null;
 	let showMessageCalls: { sev: Severity, message: any; }[] = null;
@@ -60,7 +59,7 @@ suite('AbstractKeybindingService', () => {
 		statusMessageCalls = [];
 		statusMessageCallsDisposed = [];
 
-		createTestKeybindingService = (items: IKeybindingItem[]): TestKeybindingService => {
+		createTestKeybindingService = (items: NormalizedKeybindingItem[]): TestKeybindingService => {
 
 			let contextKeyService: IContextKeyService = {
 				_serviceBrand: undefined,
@@ -128,15 +127,9 @@ suite('AbstractKeybindingService', () => {
 		statusMessageCallsDisposed = null;
 	});
 
-	let lastWeight = 0;
-	function kbItem(keybinding: number, command: string, when: ContextKeyExpr = null): IKeybindingItem {
-		return {
-			keybinding: keybinding,
-			when: when,
-			command: command,
-			weight1: ++lastWeight,
-			weight2: 0
-		};
+	function kbItem(keybinding: number, command: string, when: ContextKeyExpr = null): NormalizedKeybindingItem {
+		let kb = (keybinding !== 0 ? createKeybinding(keybinding) : null);
+		return new NormalizedKeybindingItem(kb, command, null, when, true);
 	}
 
 	test('issue #16498: chord mode is quit for invalid chords', () => {

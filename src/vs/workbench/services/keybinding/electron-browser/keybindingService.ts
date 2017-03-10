@@ -15,10 +15,10 @@ import { ExtensionMessageCollector, ExtensionsRegistry } from 'vs/platform/exten
 import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
-import { KeybindingResolver, IOSupport } from 'vs/platform/keybinding/common/keybindingResolver';
+import { KeybindingResolver, IOSupport, NormalizedKeybindingItem } from 'vs/platform/keybinding/common/keybindingResolver';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IKeybindingEvent, IKeybindingItem, IUserFriendlyKeybinding, KeybindingSource } from 'vs/platform/keybinding/common/keybinding';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingRule, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Registry } from 'vs/platform/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -236,7 +236,9 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
 	protected _getResolver(): KeybindingResolver {
 		if (!this._cachedResolver) {
-			this._cachedResolver = new KeybindingResolver(KeybindingsRegistry.getDefaultKeybindings(), this._getExtraKeybindings(this._firstTimeComputingResolver));
+			const defaults = KeybindingsRegistry.getDefaultKeybindings().map(k => NormalizedKeybindingItem.fromKeybindingItem(k, true));
+			const overrides = this._getExtraKeybindings(this._firstTimeComputingResolver).map(k => NormalizedKeybindingItem.fromKeybindingItem(k, false));
+			this._cachedResolver = new KeybindingResolver(defaults, overrides);
 			this._firstTimeComputingResolver = false;
 		}
 		return this._cachedResolver;
@@ -313,7 +315,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
 		let desc = {
 			id: command,
-			when: IOSupport.readKeybindingWhen(when),
+			when: ContextKeyExpr.deserialize(when),
 			weight: weight,
 			primary: IOSupport.readKeybinding(key),
 			mac: mac && { primary: IOSupport.readKeybinding(mac) },

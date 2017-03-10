@@ -68,7 +68,7 @@ export class NormalizedKeybindingItem {
 }
 
 export class KeybindingResolver {
-	private _defaultKeybindings: IKeybindingItem[];
+	private _defaultKeybindings: NormalizedKeybindingItem[];
 	private _defaultBoundCommands: IBoundCommands;
 	private _map: ICommandMap;
 	private _chords: IChordsMap;
@@ -79,7 +79,7 @@ export class KeybindingResolver {
 	private _lookupMapUnreachable: Map<string, ArrayBuffer>;
 	private _shouldWarnOnConflict: boolean;
 
-	constructor(defaultKeybindings: IKeybindingItem[], overrides: IKeybindingItem[], shouldWarnOnConflict: boolean = true) {
+	constructor(defaultKeybindings: NormalizedKeybindingItem[], overrides: NormalizedKeybindingItem[], shouldWarnOnConflict: boolean = true) {
 		this._defaultKeybindings = defaultKeybindings;
 		this._shouldWarnOnConflict = shouldWarnOnConflict;
 
@@ -146,11 +146,11 @@ export class KeybindingResolver {
 
 	}
 
-	public static combine(rawDefaults: IKeybindingItem[], rawOverrides: IKeybindingItem[]): NormalizedKeybindingItem[] {
-		let defaults = rawDefaults.map(kb => NormalizedKeybindingItem.fromKeybindingItem(kb, true));
+	public static combine(defaults: NormalizedKeybindingItem[], rawOverrides: NormalizedKeybindingItem[]): NormalizedKeybindingItem[] {
+		defaults = defaults.slice(0);
 		let overrides: NormalizedKeybindingItem[] = [];
 		for (let i = 0, len = rawOverrides.length; i < len; i++) {
-			let override = NormalizedKeybindingItem.fromKeybindingItem(rawOverrides[i], false);
+			let override = rawOverrides[i];
 			if (!override.command || override.command.length === 0 || override.command.charAt(0) !== '-') {
 				overrides.push(override);
 				continue;
@@ -412,7 +412,7 @@ export class OutputBuilder {
 
 export class IOSupport {
 
-	public static writeKeybindingItem(out: OutputBuilder, item: IKeybindingItem): void {
+	public static writeKeybindingItem(out: OutputBuilder, item: NormalizedKeybindingItem): void {
 		let quotedSerializedKeybinding = JSON.stringify(IOSupport.writeKeybinding(item.keybinding));
 		out.write(`{ "key": ${rightPaddedString(quotedSerializedKeybinding + ',', 25)} "command": `);
 
@@ -437,7 +437,7 @@ export class IOSupport {
 
 		let when: ContextKeyExpr = null;
 		if (typeof input.when === 'string') {
-			when = IOSupport.readKeybindingWhen(input.when);
+			when = ContextKeyExpr.deserialize(input.when);
 		}
 
 		let command: string = null;
@@ -460,15 +460,11 @@ export class IOSupport {
 		};
 	}
 
-	public static writeKeybinding(input: number, Platform: ISimplifiedPlatform = platform): string {
-		return KeybindingLabels.toUserSettingsLabel(createKeybinding(input), Platform);
+	public static writeKeybinding(keybinding: Keybinding, Platform: ISimplifiedPlatform = platform): string {
+		return KeybindingLabels.toUserSettingsLabel(keybinding, Platform);
 	}
 
 	public static readKeybinding(input: string, Platform: ISimplifiedPlatform = platform): number {
 		return KeybindingLabels.fromUserSettingsLabel(input, Platform);
-	}
-
-	public static readKeybindingWhen(input: string): ContextKeyExpr {
-		return ContextKeyExpr.deserialize(input);
 	}
 }
