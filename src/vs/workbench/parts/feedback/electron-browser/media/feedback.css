@@ -157,10 +157,6 @@
 	display: inline-block;
 }
 
-.monaco-shell .statusbar-item > .dropdown.send-feedback:hover {
-	background-color: rgba(255, 255, 255, 0.12);
-}
-
 .monaco-shell .statusbar-item > .dropdown.send-feedback > .dropdown-label.send-feedback {
 	background: url('smiley.svg') center center no-repeat;
 	width: 26px;
