@@ -14,7 +14,7 @@ export let IThemeService = createDecorator<IThemeService>('themeService');
 export interface ITheme {
 	readonly selector: string;
 	readonly label: string;
-	getColor(colorId: string): Color;
+	getColor(color: string): Color;
 
 	isLightTheme(): boolean;
 	isDarkTheme(): boolean;
