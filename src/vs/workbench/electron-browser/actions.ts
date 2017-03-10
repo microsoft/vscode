@@ -1173,3 +1173,38 @@ export class NavigateUpAction extends BaseNavigationAction {
 		return TPromise.as(true);
 	}
 }
+
+export class NavigateDownAction extends BaseNavigationAction {
+
+	public static ID = 'workbench.action.navigateDown';
+	public static LABEL = nls.localize('navigateDown', "Navigate Down");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@IEditorGroupService groupService: IEditorGroupService,
+		@IPanelService panelService: IPanelService,
+		@IPartService partService: IPartService,
+		@IViewletService viewletService: IViewletService
+	) {
+		super(id, label, editorService, groupService, panelService, partService, viewletService);
+	}
+
+	protected navigateOnEditorFocus(isEditorGroupVertical, isSidebarPositionLeft): TPromise<boolean> {
+		if (isEditorGroupVertical) {
+			return this.navigateToPanel();
+		}
+		return this.navigateDownFromEditor();
+	}
+
+	private navigateDownFromEditor(): TPromise<boolean> {
+		const model = this.groupService.getStacksModel();
+		const nextPosition = model.positionOfGroup(model.activeGroup) + 1;
+		if (nextPosition >= model.groups.length) {
+			return this.navigateToPanel();
+		}
+		this.groupService.focusGroup(nextPosition);
+		return TPromise.as(true);
+	}
+}
