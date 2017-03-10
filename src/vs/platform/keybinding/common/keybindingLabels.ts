@@ -190,7 +190,7 @@ export class MacUIKeyLabelProvider implements IKeyBindingLabelProvider {
  * Aria label provider for Mac.
  */
 export class AriaKeyLabelProvider implements IKeyBindingLabelProvider {
-	public static INSTANCE = new MacUIKeyLabelProvider();
+	public static INSTANCE = new AriaKeyLabelProvider();
 
 	public ctrlKeyLabel = nls.localize('ctrlKey.long', "Control");
 	public shiftKeyLabel = nls.localize('shiftKey.long', "Shift");
@@ -240,6 +240,68 @@ class UserSettingsKeyLabelProvider implements IKeyBindingLabelProvider {
 		return USER_SETTINGS.fromKeyCode(keyCode);
 	}
 }
+
+// export class PrintableKeypress {
+
+// 	public static fromKeybinding(keybinding: SimpleKeybinding, labelProvider: IKeyBindingLabelProvider, Platform: ISimplifiedPlatform): PrintableKeypress {
+// 		const ctrlCmd = keybinding.hasCtrlCmd();
+// 		const winCtrl = keybinding.hasWinCtrl();
+
+// 		const ctrlKey = Platform.isMacintosh ? winCtrl : ctrlCmd;
+// 		const metaKey = Platform.isMacintosh ? ctrlCmd : winCtrl;
+// 		const shiftKey = keybinding.hasShift();
+// 		const altKey = keybinding.hasAlt();
+
+// 		const keyCode = keybinding.getKeyCode();
+// 		const keyLabel = labelProvider.getLabelForKey(keyCode) || '';
+
+// 		return new PrintableKeypress(ctrlKey, shiftKey, altKey, metaKey, keyLabel);
+// 	}
+
+// 	readonly ctrlKey: boolean;
+// 	readonly shiftKey: boolean;
+// 	readonly altKey: boolean;
+// 	readonly metaKey: boolean;
+// 	readonly key: string;
+
+// 	constructor(ctrlKey: boolean, shiftKey: boolean, altKey: boolean, metaKey: boolean, key: string) {
+// 		this.ctrlKey = ctrlKey;
+// 		this.shiftKey = shiftKey;
+// 		this.altKey = altKey;
+// 		this.metaKey = metaKey;
+// 		this.key = key;
+// 	}
+// }
+
+// function _simpleAsString2(keypress: PrintableKeypress, labelProvider: IKeyBindingLabelProvider, Platform: ISimplifiedPlatform): string {
+// 	if (!keypress.key) {
+// 		return '';
+// 	}
+
+// 	let result: string[] = [];
+
+// 	// translate modifier keys: Ctrl-Shift-Alt-Meta
+// 	if (keypress.ctrlKey) {
+// 		result.push(labelProvider.ctrlKeyLabel);
+// 	}
+
+// 	if (keypress.shiftKey) {
+// 		result.push(labelProvider.shiftKeyLabel);
+// 	}
+
+// 	if (keypress.altKey) {
+// 		result.push(labelProvider.altKeyLabel);
+// 	}
+
+// 	if (keypress.metaKey) {
+// 		result.push(Platform.isMacintosh ? labelProvider.cmdKeyLabel : labelProvider.windowsKeyLabel);
+// 	}
+
+// 	// the actual key
+// 	result.push(keypress.key);
+
+// 	return result.join(labelProvider.modifierSeparator);
+// }
 
 function _simpleAsString(keybinding: SimpleKeybinding, labelProvider: IKeyBindingLabelProvider, Platform: ISimplifiedPlatform): string {
 	let result: string[] = [];
