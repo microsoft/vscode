@@ -38,7 +38,7 @@
 	"config.checkoutType": "控制列出哪些分支类型",
 	"config.confirmSync": "同步 GIT 存储库前请先进行确认",
 	"config.countBadge": "控制 GIT 徽章计数器",
-	"config.enableLongCommitWarning": "是否应警告提交长段消息",
+	"config.enableLongCommitWarning": "是否针对长段提交消息进行警告",
 	"config.enabled": "是否已启用 GIT",
 	"config.path": "可执行 GIT 的路径"
 }
