@@ -106,6 +106,71 @@ export class SplitEditorAction extends Action {
 	}
 }
 
+export class JoinEditorsAction extends Action {
+
+	public static ID = 'workbench.action.joinEditors';
+	public static LABEL = nls.localize('joinEditors', "Join Editors");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService
+	) {
+		super(id, label, 'join-editors-action');
+	}
+
+	public run(context?: IEditorContext): TPromise<any> {
+		let editorToJoin: IEditor;
+		if (context) {
+			editorToJoin = this.editorService.getVisibleEditors()[this.editorGroupService.getStacksModel().positionOfGroup(context.group)];
+		} else {
+			editorToJoin = this.editorService.getActiveEditor();
+		}
+
+		// Return if no editor to join
+		if (!editorToJoin) {
+			return TPromise.as(true);
+		}
+
+		const visibleEditors = this.editorService.getVisibleEditors();
+
+		// Return if has no other group to join to
+		if (visibleEditors.length <= 1) {
+			return TPromise.as(true);
+		}
+
+		const toJoinPosition = editorToJoin.position;
+		let targetPosition: number;
+
+		// Join to next group if is position one, otherwise join to previous group
+		if (toJoinPosition === Position.ONE) {
+			targetPosition = toJoinPosition + 1;
+		} else {
+			targetPosition = toJoinPosition - 1;
+		}
+
+		const toJoinEditorInput = editorToJoin.input;
+		const toJoinGroup = this.editorGroupService.getStacksModel().groupAt(toJoinPosition);
+		const targetGroup = this.editorGroupService.getStacksModel().groupAt(targetPosition);
+
+		const toJoinEditors = toJoinGroup.getEditors();
+		const toJoinEditorsTotalCount = toJoinEditors.length;
+
+		// If an editor exists in joining group and target group, only the editor in the joining group is kept.
+		if (targetPosition < toJoinPosition) {
+			toJoinEditors.forEach(e => this.editorGroupService.moveEditor(e, toJoinPosition, targetPosition, targetGroup.count));
+		} else {
+			toJoinEditors.forEach(e => this.editorGroupService.moveEditor(e, toJoinPosition, targetPosition, toJoinEditorsTotalCount - toJoinGroup.count));
+		}
+
+		// Re-activate the active editor
+		this.editorService.openEditor(toJoinEditorInput);
+
+		return TPromise.as(true);
+	}
+}
+
 export class NavigateBetweenGroupsAction extends Action {
 
 	public static ID = 'workbench.action.navigateEditorGroups';
