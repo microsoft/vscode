@@ -1079,3 +1079,58 @@ export class NavigateLeftAction extends BaseNavigationAction {
 		return TPromise.as(false);
 	}
 }
+
+export class NavigateRightAction extends BaseNavigationAction {
+
+	public static ID = 'workbench.action.navigateRight';
+	public static LABEL = nls.localize('navigateRight', "Navigate Right");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@IEditorGroupService groupService: IEditorGroupService,
+		@IPanelService panelService: IPanelService,
+		@IPartService partService: IPartService,
+		@IViewletService viewletService: IViewletService
+	) {
+		super(id, label, editorService, groupService, panelService, partService, viewletService);
+	}
+
+	protected navigateOnEditorFocus(isEditorGroupVertical, isSidebarPositionLeft): TPromise<boolean> {
+		if (isEditorGroupVertical) {
+			return this.navigateRightFromEditor(true, isSidebarPositionLeft);
+		}
+		return this.navigateRightFromEditor(false, isSidebarPositionLeft);
+	}
+
+	protected navigateOnPanelFocus(isEditorGroupVertical, isSidebarPositionLeft): TPromise<boolean> {
+		if (!isSidebarPositionLeft) {
+			return this.navigateToSidebar();
+		}
+		return TPromise.as(false);
+	}
+
+	protected navigateOnSidebarFocus(isEditorGroupVertical, isSidebarPositionLeft): TPromise<boolean> {
+		if (!isSidebarPositionLeft) {
+			return TPromise.as(false);
+		}
+		if (isEditorGroupVertical) {
+			return this.navigateToStartOfEditor();
+		}
+		return this.navigateToLastActiveEditor();
+	}
+
+	private navigateRightFromEditor(jumpGroups: boolean, isSidebarPositionLeft: boolean): TPromise<boolean> {
+		const model = this.groupService.getStacksModel();
+		let result = model.next(jumpGroups, false);
+		if (result) {
+			return this.editorService.openEditor(result.editor, null, model.positionOfGroup(result.group))
+				.then(ok => true);
+		}
+		if (!isSidebarPositionLeft) {
+			return this.navigateToSidebar();
+		}
+		return TPromise.as(false);
+	}
+}
