@@ -117,16 +117,18 @@ export default class JsDocCompletionHelper implements CompletionItemProvider {
 			line: position.line + 1,
 			offset: position.character + 1
 		};
-		return this.client.execute('docCommentTemplate', args)
-			.then((res: DocCommandTemplateResponse) => {
-				if (!res || !res.body) {
-					return false;
-				}
-				return editor.insertSnippet(
-					this.templateToSnippet(res.body.newText),
-					position,
-					{ undoStopBefore: false, undoStopAfter: true });
-			}, () => false);
+		return Promise.race([
+			this.client.execute('docCommentTemplate', args),
+			new Promise((_, reject) => setTimeout(reject, 250))
+		]).then((res: DocCommandTemplateResponse) => {
+			if (!res || !res.body) {
+				return false;
+			}
+			return editor.insertSnippet(
+				this.templateToSnippet(res.body.newText),
+				position,
+				{ undoStopBefore: false, undoStopAfter: true });
+		}, () => false);
 	}
 
 	private templateToSnippet(template: string): SnippetString {
