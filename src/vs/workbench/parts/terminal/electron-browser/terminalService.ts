@@ -17,11 +17,9 @@ import { ITerminalInstance, ITerminalService, IShellLaunchConfig, ITerminalConfi
 import { TerminalService as AbstractTerminalService } from 'vs/workbench/parts/terminal/common/terminalService';
 import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 import { TerminalInstance } from 'vs/workbench/parts/terminal/electron-browser/terminalInstance';
-import { TerminalLinkHandler } from 'vs/workbench/parts/terminal/electron-browser/terminalLinkHandler';
 
 export class TerminalService extends AbstractTerminalService implements ITerminalService {
 	private _configHelper: TerminalConfigHelper;
-	private _linkHandler: TerminalLinkHandler;
 
 	public get configHelper(): ITerminalConfigHelper { return this._configHelper; };
 
@@ -37,14 +35,12 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		super(_contextKeyService, _configurationService, _panelService, _partService, _lifecycleService);
 
 		this._configHelper = this._instantiationService.createInstance(TerminalConfigHelper, platform.platform);
-		this._linkHandler = this._instantiationService.createInstance(TerminalLinkHandler, platform.platform);
 	}
 
 	public createInstance(shell: IShellLaunchConfig = {}): ITerminalInstance {
 		let terminalInstance = this._instantiationService.createInstance(TerminalInstance,
 			this._terminalFocusContextKey,
 			this._configHelper,
-			this._linkHandler,
 			this._terminalContainer,
 			shell);
 		terminalInstance.addDisposable(terminalInstance.onTitleChanged(this._onInstanceTitleChanged.fire, this._onInstanceTitleChanged));
