@@ -318,72 +318,62 @@ function _asString(keybinding: Keybinding, labelProvider: IKeyBindingLabelProvid
 	}
 }
 
-function _pushKey(result: IHTMLContentElement[], str: string): void {
-	if (result.length > 0) {
-		result.push({
-			tagName: 'span',
-			text: '+'
-		});
-	}
+function _pushKey(result: IHTMLContentElement[], str: string, append: string): void {
 	result.push({
 		tagName: 'span',
 		className: 'monaco-kbkey',
 		text: str
 	});
+	if (append) {
+		result.push({
+			tagName: 'span',
+			text: '+'
+		});
+	}
 }
 
-function _simpleAsHTML(keybinding: SimpleKeybinding, labelProvider: IKeyBindingLabelProvider, Platform: ISimplifiedPlatform, isChord: boolean = false): IHTMLContentElement[] {
-	let result: IHTMLContentElement[] = [];
-	let ctrlCmd = keybinding.hasCtrlCmd();
-	let shift = keybinding.hasShift();
-	let alt = keybinding.hasAlt();
-	let winCtrl = keybinding.hasWinCtrl();
-	let keyCode = keybinding.getKeyCode();
-
-	let keyLabel = labelProvider.getLabelForKey(keyCode);
-	if (!keyLabel) {
-		// cannot trigger this key code under this kb layout
-		return [];
+function _simpleAsHTML(result: IHTMLContentElement[], keypress: PrintableKeypress, labelProvider: IKeyBindingLabelProvider, Platform: ISimplifiedPlatform): void {
+	if (!keypress.key) {
+		return;
 	}
 
 	// translate modifier keys: Ctrl-Shift-Alt-Meta
-	if ((ctrlCmd && !Platform.isMacintosh) || (winCtrl && Platform.isMacintosh)) {
-		_pushKey(result, labelProvider.ctrlKeyLabel);
+	if (keypress.ctrlKey) {
+		_pushKey(result, labelProvider.ctrlKeyLabel, labelProvider.modifierSeparator);
 	}
 
-	if (shift) {
-		_pushKey(result, labelProvider.shiftKeyLabel);
+	if (keypress.shiftKey) {
+		_pushKey(result, labelProvider.shiftKeyLabel, labelProvider.modifierSeparator);
 	}
 
-	if (alt) {
-		_pushKey(result, labelProvider.altKeyLabel);
+	if (keypress.altKey) {
+		_pushKey(result, labelProvider.altKeyLabel, labelProvider.modifierSeparator);
 	}
 
-	if (ctrlCmd && Platform.isMacintosh) {
-		_pushKey(result, labelProvider.cmdKeyLabel);
-	}
-
-	if (winCtrl && !Platform.isMacintosh) {
-		_pushKey(result, labelProvider.windowsKeyLabel);
+	if (keypress.metaKey) {
+		_pushKey(result, Platform.isMacintosh ? labelProvider.cmdKeyLabel : labelProvider.windowsKeyLabel, labelProvider.modifierSeparator);
 	}
 
 	// the actual key
-	_pushKey(result, keyLabel);
-
-	return result;
+	_pushKey(result, keypress.key, null);
 }
 
 function _asHTML(keybinding: Keybinding, labelProvider: IKeyBindingLabelProvider, Platform: ISimplifiedPlatform): IHTMLContentElement[] {
 	let result: IHTMLContentElement[] = [];
 	if (keybinding.isChord()) {
-		result = result.concat(_simpleAsHTML(keybinding.extractFirstPart(), labelProvider, Platform));
+		const firstPart = PrintableKeypress.fromKeybinding(keybinding.extractFirstPart(), labelProvider, Platform);
+		const secondPart = PrintableKeypress.fromKeybinding(keybinding.extractChordPart(), labelProvider, Platform);
+
+		_simpleAsHTML(result, firstPart, labelProvider, Platform);
 		result.push({
 			tagName: 'span',
 			text: ' '
 		});
-		result = result.concat(_simpleAsHTML(keybinding.extractChordPart(), labelProvider, Platform));
+		_simpleAsHTML(result, secondPart, labelProvider, Platform);
 	} else {
-		result = result.concat(_simpleAsHTML(keybinding, labelProvider, Platform));
+		const printableKeypress = PrintableKeypress.fromKeybinding(keybinding, labelProvider, Platform);
+
+		_simpleAsHTML(result, printableKeypress, labelProvider, Platform);
 	}
 
 	return [{

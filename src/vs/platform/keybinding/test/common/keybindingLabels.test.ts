@@ -174,6 +174,22 @@ suite('KeybindingLabels', () => {
 			assert.deepEqual(KeybindingLabels._toUSHTMLLabel(createKeybinding(keybinding), Platform), expected);
 		}
 
+		assertHTMLLabel(WINDOWS, KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.KEY_A, [{
+			tagName: 'span',
+			className: 'monaco-kb',
+			children: [
+				{ tagName: 'span', className: 'monaco-kbkey', text: 'Ctrl' },
+				{ tagName: 'span', text: '+' },
+				{ tagName: 'span', className: 'monaco-kbkey', text: 'Shift' },
+				{ tagName: 'span', text: '+' },
+				{ tagName: 'span', className: 'monaco-kbkey', text: 'Alt' },
+				{ tagName: 'span', text: '+' },
+				{ tagName: 'span', className: 'monaco-kbkey', text: 'Windows' },
+				{ tagName: 'span', text: '+' },
+				{ tagName: 'span', className: 'monaco-kbkey', text: 'A' },
+			]
+		}]);
+
 		assertHTMLLabel(WINDOWS, KeyChord(KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.KEY_A, KeyCode.KEY_B), [{
 			tagName: 'span',
 			className: 'monaco-kb',
