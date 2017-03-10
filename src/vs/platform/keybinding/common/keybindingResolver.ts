@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { createKeybinding, SimpleKeybinding, Keybinding } from 'vs/base/common/keyCodes';
+import { createKeybinding, Keybinding } from 'vs/base/common/keyCodes';
 import { ISimplifiedPlatform, KeybindingLabels } from 'vs/platform/keybinding/common/keybindingLabels';
 import * as platform from 'vs/base/common/platform';
 import { IKeybindingItem, IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
@@ -12,7 +12,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { CharCode } from "vs/base/common/charCode";
 
 export interface IResolveResult {
-	enterChord: SimpleKeybinding;
+	enterChord: boolean;
 	commandId: string;
 	commandArgs: any;
 	bubble: boolean;
@@ -23,17 +23,19 @@ export interface IBoundCommands {
 }
 
 interface ICommandMap {
-	[partialKeybinding: number]: NormalizedKeybindingItem[];
+	[keypress: string]: NormalizedKeybindingItem[];
 }
 
 interface IChordsMap {
-	[partialKeybinding: number]: ICommandMap;
+	[keypress: string]: ICommandMap;
 }
 
 export class NormalizedKeybindingItem {
 	_normalizedKeybindingItemBrand: void;
 
 	public readonly keybinding: Keybinding;
+	public readonly keypressFirstPart: string;
+	public readonly keypressChordPart: string;
 	public readonly bubble: boolean;
 	public readonly command: string;
 	public readonly commandArgs: any;
@@ -54,6 +56,18 @@ export class NormalizedKeybindingItem {
 
 	constructor(keybinding: Keybinding, command: string, commandArgs: any, when: ContextKeyExpr, isDefault: boolean) {
 		this.keybinding = keybinding;
+
+		if (keybinding === null) {
+			this.keypressFirstPart = null;
+			this.keypressChordPart = null;
+		} else if (keybinding.isChord()) {
+			this.keypressFirstPart = keybinding.extractFirstPart().value.toString();
+			this.keypressChordPart = keybinding.extractChordPart().value.toString();
+		} else {
+			this.keypressFirstPart = keybinding.value.toString();
+			this.keypressChordPart = null;
+		}
+
 		this.bubble = (command ? command.charCodeAt(0) === CharCode.Caret : false);
 		this.command = this.bubble ? command.substr(1) : command;
 		this.commandArgs = commandArgs;
@@ -86,33 +100,34 @@ export class KeybindingResolver {
 		let allKeybindings = KeybindingResolver.combine(defaultKeybindings, overrides);
 		for (let i = 0, len = allKeybindings.length; i < len; i++) {
 			let k = allKeybindings[i];
-			if (k.keybinding === null) {
+			if (k.keypressFirstPart === null) {
+				// unbound
 				continue;
 			}
 
-			if (k.keybinding.isChord()) {
+			if (k.keypressChordPart !== null) {
 				// This is a chord
-				let keybindingFirstPart = k.keybinding.extractFirstPart().value;
-				let keybindingChordPart = k.keybinding.extractChordPart().value;
+				this._chords[k.keypressFirstPart] = this._chords[k.keypressFirstPart] || Object.create(null);
+				this._chords[k.keypressFirstPart][k.keypressChordPart] = this._chords[k.keypressFirstPart][k.keypressChordPart] || [];
+				this._chords[k.keypressFirstPart][k.keypressChordPart].push(k);
 
-				this._chords[keybindingFirstPart] = this._chords[keybindingFirstPart] || Object.create(null);
-				this._chords[keybindingFirstPart][keybindingChordPart] = this._chords[keybindingFirstPart][keybindingChordPart] || [];
-				this._chords[keybindingFirstPart][keybindingChordPart].push(k);
-
-				this._addKeyPress(keybindingFirstPart, k);
+				this._addKeyPress(k.keypressFirstPart, k);
 
 			} else {
-				this._addKeyPress(k.keybinding.value, k);
+				this._addKeyPress(k.keypressFirstPart, k);
 
 			}
 		}
 	}
 
-	private static _isTargetedForRemoval(defaultKb: NormalizedKeybindingItem, keybinding: Keybinding, command: string, when: ContextKeyExpr): boolean {
+	private static _isTargetedForRemoval(defaultKb: NormalizedKeybindingItem, keypressFirstPart: string, keypressChordPart: string, command: string, when: ContextKeyExpr): boolean {
 		if (defaultKb.command !== command) {
 			return false;
 		}
-		if (keybinding && !keybinding.equals(defaultKb.keybinding)) {
+		if (keypressFirstPart && defaultKb.keypressFirstPart !== keypressFirstPart) {
+			return false;
+		}
+		if (keypressChordPart && defaultKb.keypressChordPart !== keypressChordPart) {
 			return false;
 		}
 		if (when) {
@@ -134,17 +149,18 @@ export class KeybindingResolver {
 		defaults = defaults.slice(0);
 		let overrides: NormalizedKeybindingItem[] = [];
 		for (let i = 0, len = rawOverrides.length; i < len; i++) {
-			let override = rawOverrides[i];
+			const override = rawOverrides[i];
 			if (!override.command || override.command.length === 0 || override.command.charAt(0) !== '-') {
 				overrides.push(override);
 				continue;
 			}
 
-			let commandToRemove = override.command.substr(1);
-			let keybindingToRemove = override.keybinding;
-			let whenToRemove = override.when;
+			const command = override.command.substr(1);
+			const keypressFirstPart = override.keypressFirstPart;
+			const keypressChordPart = override.keypressChordPart;
+			const when = override.when;
 			for (let j = defaults.length - 1; j >= 0; j--) {
-				if (this._isTargetedForRemoval(defaults[j], keybindingToRemove, commandToRemove, whenToRemove)) {
+				if (this._isTargetedForRemoval(defaults[j], keypressFirstPart, keypressChordPart, command, when)) {
 					defaults.splice(j, 1);
 				}
 			}
@@ -152,7 +168,7 @@ export class KeybindingResolver {
 		return defaults.concat(overrides);
 	}
 
-	private _addKeyPress(keypress: number, item: NormalizedKeybindingItem): void {
+	private _addKeyPress(keypress: string, item: NormalizedKeybindingItem): void {
 
 		if (!this._map[keypress]) {
 			// There is no conflict so far
@@ -170,7 +186,10 @@ export class KeybindingResolver {
 				continue;
 			}
 
-			if (conflict.keybinding.isChord() && item.keybinding.isChord() && conflict.keybinding.value !== item.keybinding.value) {
+			const conflictIsChord = (conflict.keypressChordPart !== null);
+			const itemIsChord = (item.keypressChordPart !== null);
+
+			if (conflictIsChord && itemIsChord && conflict.keypressChordPart !== item.keypressChordPart) {
 				// The conflict only shares the chord start with this command
 				continue;
 			}
@@ -178,7 +197,7 @@ export class KeybindingResolver {
 			if (KeybindingResolver.whenIsEntirelyIncluded(true, conflict.when, item.when)) {
 				// `item` completely overwrites `conflict`
 				if (this._shouldWarnOnConflict && item.isDefault) {
-					console.warn('Conflict detected, command `' + conflict.command + '` cannot be triggered by ' + KeybindingLabels.toUserSettingsLabel(conflict.keybinding) + ' due to ' + item.command);
+					console.warn('Conflict detected, command `' + conflict.command + '` cannot be triggered due to ' + item.command);
 				}
 
 				// Remove conflict from the lookupMap
@@ -295,18 +314,18 @@ export class KeybindingResolver {
 		return items[items.length - 1];
 	}
 
-	public resolve(context: any, currentChord: SimpleKeybinding, keypress: SimpleKeybinding): IResolveResult {
+	public resolve(context: any, currentChord: string, keypress: string): IResolveResult {
 		// console.log('resolve: ' + Keybinding.toUserSettingsLabel(keypress));
 		let lookupMap: NormalizedKeybindingItem[] = null;
 
 		if (currentChord !== null) {
-			let chords = this._chords[currentChord.value];
+			let chords = this._chords[currentChord];
 			if (!chords) {
 				return null;
 			}
-			lookupMap = chords[keypress.value];
+			lookupMap = chords[keypress];
 		} else {
-			lookupMap = this._map[keypress.value];
+			lookupMap = this._map[keypress];
 		}
 
 		let result = this._findCommand(context, lookupMap);
@@ -314,9 +333,9 @@ export class KeybindingResolver {
 			return null;
 		}
 
-		if (currentChord === null && result.keybinding.isChord()) {
+		if (currentChord === null && result.keypressChordPart !== null) {
 			return {
-				enterChord: keypress,
+				enterChord: true,
 				commandId: null,
 				commandArgs: null,
 				bubble: false
@@ -324,7 +343,7 @@ export class KeybindingResolver {
 		}
 
 		return {
-			enterChord: null,
+			enterChord: false,
 			commandId: result.command,
 			commandArgs: result.commandArgs,
 			bubble: result.bubble
