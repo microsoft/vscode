@@ -277,7 +277,7 @@ export class CallStackView extends CollapsibleViewletView {
 			// Only show the global pause message if we do not display threads.
 			// Otherwsie there will be a pause message per thread and there is no need for a global one.
 			if (newTreeInput instanceof Thread && newTreeInput.stoppedDetails) {
-				this.pauseMessageLabel.text(nls.localize('debugStopped', "Paused on {0}", newTreeInput.stoppedDetails.reason));
+				this.pauseMessageLabel.text(newTreeInput.stoppedDetails.description || nls.localize('debugStopped', "Paused on {0}", newTreeInput.stoppedDetails.reason));
 				if (newTreeInput.stoppedDetails.text) {
 					this.pauseMessageLabel.title(newTreeInput.stoppedDetails.text);
 				}

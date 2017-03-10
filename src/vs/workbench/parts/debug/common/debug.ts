@@ -49,6 +49,7 @@ export interface IRawModelUpdate {
 
 export interface IRawStoppedDetails {
 	reason: string;
+	description?: string;
 	threadId?: number;
 	text?: string;
 	totalFrames?: number;
@@ -489,9 +490,16 @@ export interface IDebugService {
 	removeWatchExpressions(id?: string): void;
 
 	/**
+	 * Starts debugging. If the configName is not passed uses the selected configuration in the debug dropdown.
+	 * Also saves all files, manages if compounds are present in the configuration
+	 * and calls the startSessionCommand if an adapter registered it.
+	 */
+	startDebugging(configName?: string, noDebug?: boolean): TPromise<any>;
+
+	/**
 	 * Creates a new debug process. Depending on the configuration will either 'launch' or 'attach'.
 	 */
-	createProcess(configurationOrName: IConfig | string): TPromise<any>;
+	createProcess(config: IConfig): TPromise<any>;
 
 	/**
 	 * Restarts a process or creates a new one if there is no active session.

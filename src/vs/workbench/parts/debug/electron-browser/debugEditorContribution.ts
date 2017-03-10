@@ -115,11 +115,10 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 	private registerListeners(): void {
 		this.toDispose.push(this.editor.onMouseDown((e: IEditorMouseEvent) => {
-			if (e.target.type !== MouseTargetType.GUTTER_GLYPH_MARGIN || /* after last line */ e.target.detail) {
+			if (e.target.type !== MouseTargetType.GUTTER_GLYPH_MARGIN || /* after last line */ e.target.detail || !this.marginFreeFromNonDebugDecorations(e.target.position.lineNumber)) {
 				return;
 			}
 			const canSetBreakpoints = this.debugService.getConfigurationManager().canSetBreakpointsIn(this.editor.getModel());
-
 			const lineNumber = e.target.position.lineNumber;
 			const uri = this.editor.getModel().uri;
 
@@ -150,7 +149,8 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 		this.toDispose.push(this.editor.onMouseMove((e: IEditorMouseEvent) => {
 			let showBreakpointHintAtLineNumber = -1;
-			if (e.target.type === MouseTargetType.GUTTER_GLYPH_MARGIN && this.debugService.getConfigurationManager().canSetBreakpointsIn(this.editor.getModel())) {
+			if (e.target.type === MouseTargetType.GUTTER_GLYPH_MARGIN && this.debugService.getConfigurationManager().canSetBreakpointsIn(this.editor.getModel()) &&
+				this.marginFreeFromNonDebugDecorations(e.target.position.lineNumber)) {
 				if (!e.target.detail) {
 					// is not after last line
 					showBreakpointHintAtLineNumber = e.target.position.lineNumber;
@@ -202,6 +202,19 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			return this.hoverWidget.showAt(range, focus);
 		}
 		return undefined;
+	}
+
+	private marginFreeFromNonDebugDecorations(line: number): boolean {
+		const decorations = this.editor.getLineDecorations(line);
+		if (decorations) {
+			for (const {options} of decorations) {
+				if (options.glyphMarginClassName && options.glyphMarginClassName.indexOf('debug') === -1) {
+					return false;
+				}
+			}
+		}
+
+		return true;
 	}
 
 	private ensureBreakpointHintDecoration(showBreakpointHintAtLineNumber: number): void {

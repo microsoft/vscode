@@ -139,7 +139,7 @@ function main() {
 
 	window.document.documentElement.setAttribute('lang', locale);
 
-	const enableDeveloperTools = process.env['VSCODE_DEV'] || !!configuration.extensionDevelopmentPath;
+	const enableDeveloperTools = (process.env['VSCODE_DEV'] || !!configuration.extensionDevelopmentPath) && !configuration.extensionTestsPath;
 	const unbind = registerListeners(enableDeveloperTools);
 
 	// disable pinch zoom & apply zoom level early to avoid glitches
@@ -193,7 +193,6 @@ function main() {
 			timers.afterLoadWorkbenchMain = new Date();
 
 			process.lazyEnv.then(function () {
-
 				require('vs/workbench/electron-browser/main')
 					.startup(configuration)
 					.done(function () {
@@ -202,7 +201,6 @@ function main() {
 						onError(error, enableDeveloperTools);
 					});
 			});
-
 		});
 	});
 }
