@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { Keybinding } from 'vs/base/common/keyCodes';
+import { Keybinding, KeyMod, KeyChord, USER_SETTINGS } from 'vs/base/common/keyCodes';
 import { ISimplifiedPlatform, KeybindingLabels } from 'vs/platform/keybinding/common/keybindingLabels';
 import * as platform from 'vs/base/common/platform';
 import { IKeybindingItem, IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
@@ -66,7 +66,87 @@ export class KeybindingIO {
 	}
 
 	public static readKeybinding(input: string, Platform: ISimplifiedPlatform = platform): number {
-		return KeybindingLabels.fromUserSettingsLabel(input, Platform);
+		if (!input) {
+			return null;
+		}
+		input = input.toLowerCase().trim();
+
+		let ctrlCmd = false,
+			shift = false,
+			alt = false,
+			winCtrl = false,
+			key: string = '';
+
+		while (/^(ctrl|shift|alt|meta|win|cmd)(\+|\-)/.test(input)) {
+			if (/^ctrl(\+|\-)/.test(input)) {
+				if (Platform.isMacintosh) {
+					winCtrl = true;
+				} else {
+					ctrlCmd = true;
+				}
+				input = input.substr('ctrl-'.length);
+			}
+			if (/^shift(\+|\-)/.test(input)) {
+				shift = true;
+				input = input.substr('shift-'.length);
+			}
+			if (/^alt(\+|\-)/.test(input)) {
+				alt = true;
+				input = input.substr('alt-'.length);
+			}
+			if (/^meta(\+|\-)/.test(input)) {
+				if (Platform.isMacintosh) {
+					ctrlCmd = true;
+				} else {
+					winCtrl = true;
+				}
+				input = input.substr('meta-'.length);
+			}
+			if (/^win(\+|\-)/.test(input)) {
+				if (Platform.isMacintosh) {
+					ctrlCmd = true;
+				} else {
+					winCtrl = true;
+				}
+				input = input.substr('win-'.length);
+			}
+			if (/^cmd(\+|\-)/.test(input)) {
+				if (Platform.isMacintosh) {
+					ctrlCmd = true;
+				} else {
+					winCtrl = true;
+				}
+				input = input.substr('cmd-'.length);
+			}
+		}
+
+		let chord: number = 0;
+
+		let firstSpaceIdx = input.indexOf(' ');
+		if (firstSpaceIdx > 0) {
+			key = input.substring(0, firstSpaceIdx);
+			chord = KeybindingIO.readKeybinding(input.substring(firstSpaceIdx), Platform);
+		} else {
+			key = input;
+		}
+
+		let keyCode = USER_SETTINGS.toKeyCode(key);
+
+		let result = 0;
+		if (ctrlCmd) {
+			result |= KeyMod.CtrlCmd;
+		}
+		if (shift) {
+			result |= KeyMod.Shift;
+		}
+		if (alt) {
+			result |= KeyMod.Alt;
+		}
+		if (winCtrl) {
+			result |= KeyMod.WinCtrl;
+		}
+		result |= keyCode;
+		return KeyChord(result, chord);
 	}
 }
 
