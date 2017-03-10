@@ -123,7 +123,9 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 	}
 
 	public getDefaultKeybindings(): IKeybindingItem[] {
-		return this._keybindings;
+		let result = this._keybindings.slice(0);
+		result.sort(sorter);
+		return result;
 	}
 }
 export let KeybindingsRegistry: IKeybindingsRegistry = new KeybindingsRegistryImpl();
@@ -133,3 +135,16 @@ export let Extensions = {
 	EditorModes: 'platform.keybindingsRegistry'
 };
 Registry.add(Extensions.EditorModes, KeybindingsRegistry);
+
+function sorter(a: IKeybindingItem, b: IKeybindingItem): number {
+	if (a.weight1 !== b.weight1) {
+		return a.weight1 - b.weight1;
+	}
+	if (a.command < b.command) {
+		return -1;
+	}
+	if (a.command > b.command) {
+		return 1;
+	}
+	return a.weight2 - b.weight2;
+}
