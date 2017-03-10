@@ -27,7 +27,6 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IMessageService } from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
-import { Extensions } from 'vs/platform/theme/common/themingRegistry';
 import { ColorThemeData } from './colorThemeData';
 import { ITheme, IThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { registerParticipants } from 'vs/workbench/services/themes/electron-browser/stylesContributions';
@@ -40,6 +39,7 @@ import pfs = require('vs/base/node/pfs');
 import colorThemeSchema = require('vs/workbench/services/themes/common/colorThemeSchema');
 import fileIconThemeSchema = require('vs/workbench/services/themes/common/fileIconThemeSchema');
 import { IDisposable } from 'vs/base/common/lifecycle';
+
 
 // implementation
 
@@ -417,8 +417,10 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 		return this.findThemeData(themeId, DEFAULT_THEME_ID).then(themeData => {
 			if (themeData) {
-				return themeData.ensureLoaded(this).then(_ => {
-					_applyRules(themeData.styleSheetContent, colorThemeRulesClassName);
+				return themeData.ensureLoaded().then(_ => {
+					let cssRules = [];
+					this.getThemingParticipants().forEach(p => p(themeData, cssRules));
+					_applyRules(cssRules.join('\n'), colorThemeRulesClassName);
 					return onApply(themeData);
 				}, error => {
 					return TPromise.wrapError(nls.localize('error.cannotloadtheme', "Unable to load {0}: {1}", themeData.path, error.message));

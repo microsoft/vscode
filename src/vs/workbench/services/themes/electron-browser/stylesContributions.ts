@@ -86,7 +86,7 @@ addSettingMapping('hoverHighlight', editorHoverHighlight);
 
 
 const editorActiveLinkForeground = 'editorActiveLinkForeground';
-themingRegistry.registerColor(editorActiveLinkForeground, nls.localize('activeLinkForeground', 'Color of active links'));
+themingRegistry.registerColor(editorActiveLinkForeground, nls.localize('activeLinkForeground', 'Color of active links'), { dark: '#4E94CE', light: '#0000FF', hc: '#00FFFF' });
 addSettingMapping('hoverHighlight', editorHoverHighlight);
 
 const editorLinkForeground = 'editorLinkForeground';
