@@ -39,7 +39,7 @@ import pfs = require('vs/base/node/pfs');
 
 import colorThemeSchema = require('vs/workbench/services/themes/common/colorThemeSchema');
 import fileIconThemeSchema = require('vs/workbench/services/themes/common/fileIconThemeSchema');
-
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 // implementation
 
@@ -283,8 +283,15 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		return this.onFileIconThemeChange.event;
 	}
 
-	public registerThemingParticipant(participant: IThemingParticipant): void {
+	public registerThemingParticipant(participant: IThemingParticipant): IDisposable {
 		this.themingParticipants.push(participant);
+
+		return {
+			dispose: () => {
+				const idx = this.themingParticipants.indexOf(participant);
+				this.themingParticipants.splice(idx, 1);
+			}
+		};
 	}
 
 	public getThemingParticipants(): IThemingParticipant[] {
