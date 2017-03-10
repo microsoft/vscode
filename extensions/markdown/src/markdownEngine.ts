@@ -31,6 +31,10 @@ export class MarkdownEngine {
 
 	private currentDocument: vscode.Uri;
 
+	constructor(
+		private plugins: vscode.Uri[]
+	) { }
+
 	private get engine(): MarkdownIt {
 		if (!this.md) {
 			const hljs = require('highlight.js');
@@ -48,6 +52,15 @@ export class MarkdownEngine {
 			}).use(mdnh, {
 				slugify: (header: string) => TableOfContentsProvider.slugify(header)
 			});
+
+			for (const plugin of this.plugins) {
+				try {
+					const mod = require(plugin.fsPath);
+					this.md = mod.default(this.md);
+				} catch (e) {
+					// noop
+				}
+			}
 
 			for (const renderName of ['paragraph_open', 'heading_open', 'image', 'code_block', 'blockquote_open', 'list_item_open']) {
 				this.addLineNumberRenderer(this.md, renderName);

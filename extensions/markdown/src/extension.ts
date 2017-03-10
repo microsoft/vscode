@@ -63,6 +63,19 @@ class ExtensionContentSecurityProlicyArbiter implements ContentSecurityPolicyArb
 
 var telemetryReporter: TelemetryReporter | null;
 
+const resolveExtensionResources = (extension: vscode.Extension<any>, resoures: string[] | string | undefined): vscode.Uri[] => {
+	if (!resoures) {
+		return [];
+	}
+	if (!Array.isArray(resoures)) {
+		resoures = [resoures];
+	}
+	return resoures.map((p: string) => {
+		const resource = path.join(extension.extensionPath, p);
+		return vscode.Uri.file(resource);
+	});
+};
+
 export function activate(context: vscode.ExtensionContext) {
 	const packageInfo = getPackageInfo();
 	telemetryReporter = packageInfo && new TelemetryReporter(packageInfo.name, packageInfo.version, packageInfo.aiKey);
@@ -70,10 +83,24 @@ export function activate(context: vscode.ExtensionContext) {
 		context.subscriptions.push(telemetryReporter);
 	}
 
-	const cspArbiter = new ExtensionContentSecurityProlicyArbiter(context.globalState);
-	const engine = new MarkdownEngine();
+	const extraStyles: vscode.Uri[] = [];
+	const extraScripts: vscode.Uri[] = [];
+	const plugins: vscode.Uri[] = [];
 
-	const contentProvider = new MDDocumentContentProvider(engine, context, cspArbiter);
+	for (const extension of vscode.extensions.all) {
+		if (!extension.packageJSON || !extension.packageJSON.contributesTo || !extension.packageJSON.contributesTo['vscode.markdown']) {
+			continue;
+		}
+		const contrib = extension.packageJSON.contributesTo['vscode.markdown'];
+		extraStyles.push(...(resolveExtensionResources(extension, contrib.styles)));
+		extraScripts.push(...(resolveExtensionResources(extension, contrib.scripts)));
+		plugins.push(...(resolveExtensionResources(extension, contrib.plugins)));
+	}
+
+	const cspArbiter = new ExtensionContentSecurityProlicyArbiter(context.globalState);
+	const engine = new MarkdownEngine(plugins);
+
+	const contentProvider = new MDDocumentContentProvider(engine, context, cspArbiter, extraStyles, extraScripts);
 	const contentProviderRegistration = vscode.workspace.registerTextDocumentContentProvider('markdown', contentProvider);
 
 	const symbolsProvider = new MDDocumentSymbolProvider(engine);
