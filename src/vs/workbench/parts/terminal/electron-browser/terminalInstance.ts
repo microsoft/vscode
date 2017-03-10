@@ -44,6 +44,7 @@ export class TerminalInstance implements ITerminalInstance {
 	private static readonly EOL_REGEX = /\r?\n/g;
 
 	private static _terminalProcessFactory: ITerminalProcessFactory = new StandardTerminalProcessFactory();
+	private static _lastKnownDimensions: Dimension = null;
 	private static _idCounter = 1;
 
 	private _id: number;
@@ -137,16 +138,26 @@ export class TerminalInstance implements ITerminalInstance {
 	 * @return The terminal's width if it requires a layout.
 	 */
 	private _evaluateColsAndRows(width: number, height: number): number {
+		const dimension = this._getDimension(width, height);
+		if (!dimension) {
+			return null;
+		}
+		const font = this._configHelper.getFont();
+		this._cols = Math.floor(dimension.width / font.charWidth);
+		this._rows = Math.floor(dimension.height / font.charHeight);
+		return dimension.width;
+	}
+
+	private _getDimension(width: number, height: number): Dimension {
 		// The font needs to have been initialized
 		const font = this._configHelper.getFont();
 		if (!font || !font.charWidth || !font.charHeight) {
 			return null;
 		}
 
-		// TODO: Fetch size from panel so initial size is correct
 		// The panel is minimized
 		if (!height) {
-			return null;
+			return TerminalInstance._lastKnownDimensions;
 		} else {
 			// Trigger scroll event manually so that the viewport's scroll area is synced. This
 			// needs to happen otherwise its scrollTop value is invalid when the panel is toggled as
@@ -161,9 +172,8 @@ export class TerminalInstance implements ITerminalInstance {
 		// Use left padding as right padding, right padding is not defined in CSS just in case
 		// xterm.js causes an unexpected overflow.
 		const innerWidth = width - padding * 2;
-		this._cols = Math.floor(innerWidth / font.charWidth);
-		this._rows = Math.floor(height / font.charHeight);
-		return innerWidth;
+		TerminalInstance._lastKnownDimensions = new Dimension(innerWidth, height);
+		return TerminalInstance._lastKnownDimensions;
 	}
 
 	/**
