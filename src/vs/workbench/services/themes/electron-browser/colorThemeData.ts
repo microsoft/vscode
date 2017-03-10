@@ -11,10 +11,15 @@ import { convertSettings } from 'vs/workbench/services/themes/electron-browser/s
 import { TPromise } from 'vs/base/common/winjs.base';
 import { getBaseThemeId, getSyntaxThemeId, isDarkTheme, isLightTheme } from 'vs/platform/theme/common/themes';
 import nls = require('vs/nls');
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import * as types from 'vs/base/common/types';
 
 import * as plist from 'fast-plist';
 import pfs = require('vs/base/node/pfs');
+
+import { Extensions, IThemingRegistry, resolveColorValue } from 'vs/platform/theme/common/themingRegistry';
+import { Registry } from 'vs/platform/platform';
+
+let themingRegistry = <IThemingRegistry>Registry.as(Extensions.ThemingContribution);
 
 export class ColorThemeData implements IColorTheme {
 
@@ -26,27 +31,39 @@ export class ColorThemeData implements IColorTheme {
 	tokenColors?: ITokenColorizationRule[];
 	isLoaded: boolean;
 	path?: string;
-	styleSheetContent?: string;
 	extensionData: ExtensionData;
 	colorMap?: IColorMap;
 
 	public getColor(colorId: string): Color {
-		if (this.colorMap) {
-			return this.colorMap[colorId];
+		if (!this.colorMap) {
+			// not yet initialized
+			return null;
 		}
-		return null;
+
+		let color = this.colorMap[colorId];
+		if (types.isUndefined(color)) {
+			color = null;
+			let colorDesc = themingRegistry.getColor(colorId);
+			if (colorDesc && colorDesc.defaults) {
+				let defaults = colorDesc.defaults;
+				if (this.isLightTheme()) {
+					color = resolveColorValue(defaults.light, this);
+				} else if (this.isDarkTheme()) {
+					color = resolveColorValue(defaults.dark, this);
+				} else {
+					color = resolveColorValue(defaults.hc, this);
+				}
+			}
+			this.colorMap[colorId] = color;
+		}
+		return color;
 	}
 
-	public ensureLoaded(themeService: IThemeService): TPromise<void> {
+	public ensureLoaded(): TPromise<void> {
 		if (!this.isLoaded) {
 			let tokenColors = [];
 			let colorMap = {};
 			return _loadThemeDocument(this.getBaseThemeId(), this.path, tokenColors, colorMap).then(_ => {
-				let cssRules = [];
-				themeService.getThemingParticipants().forEach(p => {
-					p(this, cssRules);
-				});
-				this.styleSheetContent = cssRules.join('\n');
 				this.tokenColors = tokenColors;
 				this.colorMap = colorMap;
 				this.isLoaded = true;

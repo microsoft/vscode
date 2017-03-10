@@ -9,7 +9,6 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { Color } from 'vs/base/common/color';
 import { ITheme } from 'vs/platform/theme/common/themeService';
 
-
 import nls = require('vs/nls');
 
 export const Extensions = {
@@ -27,12 +26,13 @@ export interface DerivedColor {
 }
 
 export interface ColorDefaults {
-	light: ColorDescription;
-	dark: ColorDescription;
-	hc: ColorDescription;
+	light: ColorValue;
+	dark: ColorValue;
+	hc: ColorValue;
 }
 
-export type ColorDescription = string | IColorContribution | DerivedColor;
+// either a hex color literal (#RRGGBB or #RRBBGGAA) or a refence to other color or a derived color
+export type ColorValue = string | IColorContribution | DerivedColor;
 
 
 export interface IThemingRegistry {
@@ -59,9 +59,9 @@ export interface IThemingRegistry {
 
 }
 
-export function darken(colorDesc: ColorDescription, factor: number): DerivedColor {
+export function darken(colorValue: ColorValue, factor: number): DerivedColor {
 	return (theme) => {
-		let color = resolveDescription(theme, colorDesc);
+		let color = resolveColorValue(colorValue, theme);
 		if (color) {
 			return color.darken(factor);
 		}
@@ -78,7 +78,7 @@ class ThemingRegistry implements IThemingRegistry {
 		this.colorsById = {};
 	}
 
-	public registerColor(id: string, description: string, defaults: ColorDefaults) {
+	public registerColor(id: string, description: string, defaults: ColorDefaults): IColorContribution {
 		let colorContribution: IColorContribution = { id, description, defaults };
 		this.colorsById[id] = colorContribution;
 		this.colorSchema.properties[id] = { type: 'string', description };
@@ -99,29 +99,21 @@ class ThemingRegistry implements IThemingRegistry {
 
 }
 
-function resolveDescription(theme: ITheme, colorDesc: ColorDescription): Color {
-	if (typeof colorDesc === 'string') {
-		return Color.fromHex(colorDesc);
-	} else if (typeof colorDesc === 'object' && colorDesc !== null) {
-		let defaults = colorDesc.defaults;
-		if (!defaults) {
-			return null;
-		}
-		if (theme.isDarkTheme()) {
-			return resolveDescription(theme, defaults.dark);
-		} else if (theme.isLightTheme()) {
-			return resolveDescription(theme, defaults.light);
-		} else {
-			return resolveDescription(theme, defaults.hc);
-		}
-	} else if (typeof colorDesc === 'function') {
-		return colorDesc(theme);
-	} else {
+/**
+ * @param colorValue Resolve a color value in the context of a theme
+ */
+export function resolveColorValue(colorValue: ColorValue, theme: ITheme): Color {
+	if (colorValue === null) {
 		return null;
+	} else if (typeof colorValue === 'string') {
+		return Color.fromHex(colorValue);
+	} else if (typeof colorValue === 'object' && colorValue.id) {
+		return theme.getColor(colorValue.id);
+	} else if (typeof colorValue === 'function') {
+		return colorValue(theme);
 	}
+	return null;
 }
-
-
 
 
 const themingRegistry = new ThemingRegistry();
