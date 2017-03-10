@@ -1998,28 +1998,6 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * An end-of-line edit represents a change of the [sequence](#TextDocument.eol)
-	 * that separates the lines in a document.
-	 */
-	export class EndOfLineEdit {
-
-		/**
-		 * Use the line feed `\n` character.
-		 */
-		static readonly LF: EndOfLineEdit;
-
-		/**
-		 * Use the carriage return line feed `\r\n` sequence.
-		 */
-		static readonly CRLF: EndOfLineEdit;
-
-		/**
-		 * The new end of line sequence
-		 */
-		newEol: EndOfLine;
-	}
-
-	/**
 	 * A text edit represents edits that should be applied
 	 * to a document.
 	 */
@@ -2068,6 +2046,34 @@ declare module 'vscode' {
 		 * @param newText A string.
 		 */
 		constructor(range: Range, newText: string);
+	}
+
+	/**
+	 * Represents a change of the [eol-sequence](#TextDocument.eol) that is used in a document.
+	 */
+	export class EndOfLineEdit {
+
+		/**
+		 * Use the line feed `\n` character.
+		 */
+		static readonly LF: EndOfLineEdit;
+
+		/**
+		 * Use the carriage return line feed `\r\n` sequence.
+		 */
+		static readonly CRLF: EndOfLineEdit;
+
+		/**
+		 * The new end of line sequence
+		 */
+		newEol: EndOfLine;
+
+		/**
+		 * Create a new EndOfLineEdit.
+		 *
+		 * @param newEol A new end of line sequence.
+		 */
+		constructor(newEol: EndOfLine);
 	}
 
 	/**
