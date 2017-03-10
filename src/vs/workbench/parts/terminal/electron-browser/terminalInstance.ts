@@ -211,8 +211,6 @@ export class TerminalInstance implements ITerminalInstance {
 		this._xtermElement = document.createElement('div');
 
 		this._xterm.open(this._xtermElement);
-		this._linkHandler = this._instantiationService.createInstance(TerminalLinkHandler, this, this._xterm, platform.platform);
-		this._linkHandler.registerLocalLinkHandler();
 		this._xterm.attachCustomKeydownHandler((event: KeyboardEvent) => {
 			// Disable all input if the terminal is exiting
 			if (this._isExiting) {
@@ -283,6 +281,8 @@ export class TerminalInstance implements ITerminalInstance {
 
 		this._wrapperElement.appendChild(this._xtermElement);
 		this._widgetManager = new TerminalWidgetManager(this._configHelper, this._wrapperElement);
+		this._linkHandler = this._instantiationService.createInstance(TerminalLinkHandler, this._widgetManager, this._xterm, platform.platform);
+		this._linkHandler.registerLocalLinkHandler();
 		this._container.appendChild(this._wrapperElement);
 
 		const computedStyle = window.getComputedStyle(this._container);
@@ -709,10 +709,6 @@ export class TerminalInstance implements ITerminalInstance {
 				rows: this._rows
 			});
 		}
-	}
-
-	public showMessage(left: number, top: number, text: string): void {
-		this._widgetManager.showMessage(left, top, text);
 	}
 
 	public static setTerminalProcessFactory(factory: ITerminalProcessFactory): void {

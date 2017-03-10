@@ -10,7 +10,7 @@ import * as pfs from 'vs/base/node/pfs';
 import Uri from 'vs/base/common/uri';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ITerminalInstance } from 'vs/workbench/parts/terminal/common/terminal';
+import { TerminalWidgetManager } from 'vs/workbench/parts/terminal/browser/terminalWidgetManager';
 import { TPromise } from 'vs/base/common/winjs.base';
 
 const pathPrefix = '(\\.\\.?|\\~)';
@@ -36,7 +36,7 @@ export type XtermLinkMatcherValidationCallback = (uri: string, element: HTMLElem
 
 export class TerminalLinkHandler {
 	constructor(
-		private _instance: ITerminalInstance,
+		private _widgetManager: TerminalWidgetManager,
 		private _xterm: any,
 		private _platform: platform.Platform,
 		@IWorkbenchEditorService private _editorService: IWorkbenchEditorService,
@@ -72,14 +72,6 @@ export class TerminalLinkHandler {
 		return (event: MouseEvent, uri: string) => {
 			// Require ctrl/cmd on click
 			if (this._platform === platform.Platform.Mac ? !event.metaKey : !event.ctrlKey) {
-				const link = <HTMLElement>event.target;
-				let message: string;
-				if (platform.isMacintosh) {
-					message = nls.localize('terminalLinkHandler.followLinkCmd', 'Cmd + click to follow link');
-				} else {
-					message = nls.localize('terminalLinkHandler.followLinkCtrl', 'Ctrl + click to follow link');
-				}
-				this._instance.showMessage(link.offsetLeft, link.offsetTop, message);
 				event.preventDefault();
 				return false;
 			}
@@ -119,11 +111,21 @@ export class TerminalLinkHandler {
 	}
 
 	private _addTooltipEventListeners(element: HTMLElement) {
+		let timeout = null;
 		element.addEventListener('mouseenter', () => {
-			console.log('enter');
+			timeout = setTimeout(() => {
+				let message: string;
+				if (platform.isMacintosh) {
+					message = nls.localize('terminalLinkHandler.followLinkCmd', 'Cmd + click to follow link');
+				} else {
+					message = nls.localize('terminalLinkHandler.followLinkCtrl', 'Ctrl + click to follow link');
+				}
+				this._widgetManager.showMessage(element.offsetLeft, element.offsetTop, message);
+			}, 500);
 		});
 		element.addEventListener('mouseleave', () => {
-			console.log('leave');
+			clearTimeout(timeout);
+			this._widgetManager.closeMessage();
 		});
 	}
 
