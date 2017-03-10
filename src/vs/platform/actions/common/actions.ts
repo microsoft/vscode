@@ -71,7 +71,6 @@ export interface IMenuService {
 }
 
 export interface IMenuRegistry {
-	commands: { [id: string]: ICommandAction };
 	addCommand(userCommand: ICommandAction): boolean;
 	getCommand(id: string): ICommandAction;
 	appendMenuItem(menu: MenuId, item: IMenuItem): IDisposable;
@@ -80,24 +79,24 @@ export interface IMenuRegistry {
 
 export const MenuRegistry: IMenuRegistry = new class {
 
-	commands: { [id: string]: ICommandAction } = Object.create(null);
+	private _commands: { [id: string]: ICommandAction } = Object.create(null);
 
-	menuItems: { [loc: string]: IMenuItem[] } = Object.create(null);
+	private _menuItems: { [loc: string]: IMenuItem[] } = Object.create(null);
 
 	addCommand(command: ICommandAction): boolean {
-		const old = this.commands[command.id];
-		this.commands[command.id] = command;
+		const old = this._commands[command.id];
+		this._commands[command.id] = command;
 		return old !== void 0;
 	}
 
 	getCommand(id: string): ICommandAction {
-		return this.commands[id];
+		return this._commands[id];
 	}
 
 	appendMenuItem({ id }: MenuId, item: IMenuItem): IDisposable {
-		let array = this.menuItems[id];
+		let array = this._menuItems[id];
 		if (!array) {
-			this.menuItems[id] = array = [item];
+			this._menuItems[id] = array = [item];
 		} else {
 			array.push(item);
 		}
@@ -112,7 +111,7 @@ export const MenuRegistry: IMenuRegistry = new class {
 	}
 
 	getMenuItems({ id }: MenuId): IMenuItem[] {
-		const result = this.menuItems[id] || [];
+		const result = this._menuItems[id] || [];
 
 		if (id === MenuId.CommandPalette.id) {
 			// CommandPalette is special because it shows
@@ -130,9 +129,9 @@ export const MenuRegistry: IMenuRegistry = new class {
 				set.add(alt.id);
 			}
 		}
-		for (let id in this.commands) {
+		for (let id in this._commands) {
 			if (!set.has(id)) {
-				result.push({ command: this.commands[id] });
+				result.push({ command: this._commands[id] });
 			}
 		}
 	}

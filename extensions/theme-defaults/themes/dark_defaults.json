@@ -1,0 +1,8 @@
+{
+	"$schema": "vscode://schemas/color-theme",
+	"name": "Dark Default Colors",
+	"colors": {
+		"editorBackground": "#1e1e1e",
+		"editorForeground": "#D4D4D4"
+	}
+}

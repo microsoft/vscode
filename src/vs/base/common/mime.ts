@@ -143,7 +143,9 @@ function guessMimeTypeByPath(path: string, filename: string, associations: IText
 	let patternMatch: ITextMimeAssociationItem;
 	let extensionMatch: ITextMimeAssociationItem;
 
-	for (let i = 0; i < associations.length; i++) {
+	// We want to prioritize associations based on the order they are registered so that the last registered
+	// association wins over all other. This is for https://github.com/Microsoft/vscode/issues/20074
+	for (let i = associations.length - 1; i >= 0; i--) {
 		let association = associations[i];
 
 		// First exact name match

@@ -879,7 +879,7 @@ export interface IEditorIdentifier {
 }
 
 export interface IEditorContext extends IEditorIdentifier {
-	event: any;
+	event?: any;
 }
 
 export interface IGroupEvent {

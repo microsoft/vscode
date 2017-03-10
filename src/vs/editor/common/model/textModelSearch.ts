@@ -54,7 +54,7 @@ export class SearchParams {
 		return false;
 	}
 
-	public parseSearchRequest(): RegExp {
+	public parseSearchRequest(): SearchData {
 		if (this.searchString === '') {
 			return null;
 		}
@@ -83,7 +83,30 @@ export class SearchParams {
 			return null;
 		}
 
-		return regex;
+		let canUseSimpleSearch = (!this.isRegex && !this.wholeWord && !multiline);
+		if (canUseSimpleSearch && this.searchString.toLowerCase() !== this.searchString.toUpperCase()) {
+			// casing might make a difference
+			canUseSimpleSearch = this.matchCase;
+		}
+
+		return new SearchData(regex, canUseSimpleSearch ? this.searchString : null);
+	}
+}
+
+export class SearchData {
+
+	/**
+	 * The regex to search for. Always defined.
+	 */
+	public readonly regex: RegExp;
+	/**
+	 * The simple string to search for (if possible).
+	 */
+	public readonly simpleSearch: string;
+
+	constructor(regex: RegExp, simpleSearch: string) {
+		this.regex = regex;
+		this.simpleSearch = simpleSearch;
 	}
 }
 
@@ -101,15 +124,15 @@ function createFindMatch(range: Range, rawMatches: RegExpExecArray, captureMatch
 export class TextModelSearch {
 
 	public static findMatches(model: TextModel, searchParams: SearchParams, searchRange: Range, captureMatches: boolean, limitResultCount: number): FindMatch[] {
-		const regex = searchParams.parseSearchRequest();
-		if (!regex) {
+		const searchData = searchParams.parseSearchRequest();
+		if (!searchData) {
 			return [];
 		}
 
-		if (regex.multiline) {
-			return this._doFindMatchesMultiline(model, searchRange, regex, captureMatches, limitResultCount);
+		if (searchData.regex.multiline) {
+			return this._doFindMatchesMultiline(model, searchRange, searchData.regex, captureMatches, limitResultCount);
 		}
-		return this._doFindMatchesLineByLine(model, searchRange, regex, captureMatches, limitResultCount);
+		return this._doFindMatchesLineByLine(model, searchRange, searchData, captureMatches, limitResultCount);
 	}
 
 	/**
@@ -188,36 +211,52 @@ export class TextModelSearch {
 		return result;
 	}
 
-	private static _doFindMatchesLineByLine(model: TextModel, searchRange: Range, searchRegex: RegExp, captureMatches: boolean, limitResultCount: number): FindMatch[] {
+	private static _doFindMatchesLineByLine(model: TextModel, searchRange: Range, searchData: SearchData, captureMatches: boolean, limitResultCount: number): FindMatch[] {
 		const result: FindMatch[] = [];
-		let counter = 0;
+		let resultLen = 0;
 
 		// Early case for a search range that starts & stops on the same line number
 		if (searchRange.startLineNumber === searchRange.endLineNumber) {
 			const text = model.getLineContent(searchRange.startLineNumber).substring(searchRange.startColumn - 1, searchRange.endColumn - 1);
-			counter = this._findMatchesInLine(searchRegex, text, searchRange.startLineNumber, searchRange.startColumn - 1, counter, result, captureMatches, limitResultCount);
+			resultLen = this._findMatchesInLine(searchData, text, searchRange.startLineNumber, searchRange.startColumn - 1, resultLen, result, captureMatches, limitResultCount);
 			return result;
 		}
 
 		// Collect results from first line
 		const text = model.getLineContent(searchRange.startLineNumber).substring(searchRange.startColumn - 1);
-		counter = this._findMatchesInLine(searchRegex, text, searchRange.startLineNumber, searchRange.startColumn - 1, counter, result, captureMatches, limitResultCount);
+		resultLen = this._findMatchesInLine(searchData, text, searchRange.startLineNumber, searchRange.startColumn - 1, resultLen, result, captureMatches, limitResultCount);
 
 		// Collect results from middle lines
-		for (let lineNumber = searchRange.startLineNumber + 1; lineNumber < searchRange.endLineNumber && counter < limitResultCount; lineNumber++) {
-			counter = this._findMatchesInLine(searchRegex, model.getLineContent(lineNumber), lineNumber, 0, counter, result, captureMatches, limitResultCount);
+		for (let lineNumber = searchRange.startLineNumber + 1; lineNumber < searchRange.endLineNumber && resultLen < limitResultCount; lineNumber++) {
+			resultLen = this._findMatchesInLine(searchData, model.getLineContent(lineNumber), lineNumber, 0, resultLen, result, captureMatches, limitResultCount);
 		}
 
 		// Collect results from last line
-		if (counter < limitResultCount) {
+		if (resultLen < limitResultCount) {
 			const text = model.getLineContent(searchRange.endLineNumber).substring(0, searchRange.endColumn - 1);
-			counter = this._findMatchesInLine(searchRegex, text, searchRange.endLineNumber, 0, counter, result, captureMatches, limitResultCount);
+			resultLen = this._findMatchesInLine(searchData, text, searchRange.endLineNumber, 0, resultLen, result, captureMatches, limitResultCount);
 		}
 
 		return result;
 	}
 
-	private static _findMatchesInLine(searchRegex: RegExp, text: string, lineNumber: number, deltaOffset: number, counter: number, result: FindMatch[], captureMatches: boolean, limitResultCount: number): number {
+	private static _findMatchesInLine(searchData: SearchData, text: string, lineNumber: number, deltaOffset: number, resultLen: number, result: FindMatch[], captureMatches: boolean, limitResultCount: number): number {
+		if (!captureMatches && searchData.simpleSearch) {
+			const searchString = searchData.simpleSearch;
+			const searchStringLen = searchString.length;
+
+			let lastMatchIndex = -searchStringLen;
+			while ((lastMatchIndex = text.indexOf(searchString, lastMatchIndex + searchStringLen)) !== -1) {
+				const range = new Range(lineNumber, lastMatchIndex + 1 + deltaOffset, lineNumber, lastMatchIndex + 1 + searchStringLen + deltaOffset);
+				result[resultLen++] = new FindMatch(range, null);
+				if (resultLen >= limitResultCount) {
+					return resultLen;
+				}
+			}
+			return resultLen;
+		}
+
+		const searchRegex = searchData.regex;
 		let m: RegExpExecArray;
 		// Reset regex to search from the beginning
 		searchRegex.lastIndex = 0;
@@ -227,32 +266,31 @@ export class TextModelSearch {
 				const range = new Range(lineNumber, m.index + 1 + deltaOffset, lineNumber, m.index + 1 + m[0].length + deltaOffset);
 				if (result.length > 0 && range.equalsRange(result[result.length - 1].range)) {
 					// Exit early if the regex matches the same range
-					return counter;
+					return resultLen;
 				}
-				result.push(createFindMatch(range, m, captureMatches));
-				counter++;
-				if (counter >= limitResultCount) {
-					return counter;
+				result[resultLen++] = createFindMatch(range, m, captureMatches);
+				if (resultLen >= limitResultCount) {
+					return resultLen;
 				}
 				if (m.index + m[0].length === text.length) {
 					// Reached the end of the line
-					return counter;
+					return resultLen;
 				}
 			}
 		} while (m);
-		return counter;
+		return resultLen;
 	}
 
 	public static findNextMatch(model: TextModel, searchParams: SearchParams, searchStart: Position, captureMatches: boolean): FindMatch {
-		const regex = searchParams.parseSearchRequest();
-		if (!regex) {
+		const searchData = searchParams.parseSearchRequest();
+		if (!searchData) {
 			return null;
 		}
 
-		if (regex.multiline) {
-			return this._doFindNextMatchMultiline(model, searchStart, regex, captureMatches);
+		if (searchData.regex.multiline) {
+			return this._doFindNextMatchMultiline(model, searchStart, searchData.regex, captureMatches);
 		}
-		return this._doFindNextMatchLineByLine(model, searchStart, regex, captureMatches);
+		return this._doFindNextMatchLineByLine(model, searchStart, searchData.regex, captureMatches);
 	}
 
 	private static _doFindNextMatchMultiline(model: TextModel, searchStart: Position, searchRegex: RegExp, captureMatches: boolean): FindMatch {
@@ -319,15 +357,15 @@ export class TextModelSearch {
 	}
 
 	public static findPreviousMatch(model: TextModel, searchParams: SearchParams, searchStart: Position, captureMatches: boolean): FindMatch {
-		const regex = searchParams.parseSearchRequest();
-		if (!regex) {
+		const searchData = searchParams.parseSearchRequest();
+		if (!searchData) {
 			return null;
 		}
 
-		if (regex.multiline) {
-			return this._doFindPreviousMatchMultiline(model, searchStart, regex, captureMatches);
+		if (searchData.regex.multiline) {
+			return this._doFindPreviousMatchMultiline(model, searchStart, searchData.regex, captureMatches);
 		}
-		return this._doFindPreviousMatchLineByLine(model, searchStart, regex, captureMatches);
+		return this._doFindPreviousMatchLineByLine(model, searchStart, searchData.regex, captureMatches);
 	}
 
 	private static _doFindPreviousMatchMultiline(model: TextModel, searchStart: Position, searchRegex: RegExp, captureMatches: boolean): FindMatch {

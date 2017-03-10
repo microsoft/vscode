@@ -11,8 +11,8 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IConfigurationService, IConfigurationServiceEvent, IConfigurationValue, getConfigurationValue, IConfigurationKeys } from 'vs/platform/configuration/common/configuration';
 import { IEditor, IEditorInput, IEditorOptions, IEditorService, IResourceInput, Position } from 'vs/platform/editor/common/editor';
 import { ICommandService, ICommand, ICommandEvent, ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
-import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
+import { SimpleResolvedKeybinding, AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
+import { KeybindingResolver, NormalizedKeybindingItem } from 'vs/platform/keybinding/common/keybindingResolver';
 import { IKeybindingEvent, IKeybindingItem, KeybindingSource } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfirmation, IMessageService } from 'vs/platform/message/common/message';
@@ -31,6 +31,7 @@ import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRe
 import { MenuId, IMenu, IMenuService } from 'vs/platform/actions/common/actions';
 import { Menu } from 'vs/platform/actions/common/menu';
 import { ITelemetryService, ITelemetryExperiments, ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
+import { ResolvedKeybinding, Keybinding } from 'vs/base/common/keyCodes';
 
 export class SimpleEditor implements IEditor {
 
@@ -370,14 +371,17 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 
 	protected _getResolver(): KeybindingResolver {
 		if (!this._cachedResolver) {
-			this._cachedResolver = new KeybindingResolver(KeybindingsRegistry.getDefaultKeybindings(), this._getExtraKeybindings());
+			const defaults = KeybindingsRegistry.getDefaultKeybindings().map(k => NormalizedKeybindingItem.fromKeybindingItem(k, true));
+			const overrides = this._dynamicKeybindings.map(k => NormalizedKeybindingItem.fromKeybindingItem(k, false));
+			this._cachedResolver = new KeybindingResolver(defaults, overrides);
 		}
 		return this._cachedResolver;
 	}
 
-	private _getExtraKeybindings(): IKeybindingItem[] {
-		return this._dynamicKeybindings;
+	protected _createResolvedKeybinding(kb: Keybinding): ResolvedKeybinding {
+		return new SimpleResolvedKeybinding(kb);
 	}
+
 }
 
 export class SimpleConfigurationService implements IConfigurationService {

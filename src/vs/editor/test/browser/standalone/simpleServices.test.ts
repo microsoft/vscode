@@ -9,7 +9,7 @@ import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyServ
 import { SimpleConfigurationService, SimpleMessageService, StandaloneKeybindingService, StandaloneCommandService } from 'vs/editor/browser/standalone/simpleServices';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { Keybinding, KeyCode } from 'vs/base/common/keyCodes';
+import { SimpleKeybinding, KeyCode } from 'vs/base/common/keyCodes';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 
 suite('StandaloneKeybindingService', () => {
@@ -46,7 +46,7 @@ suite('StandaloneKeybindingService', () => {
 		}, null);
 
 		keybindingService.dispatch(<any>{
-			toKeybinding: () => new Keybinding(KeyCode.F9),
+			toKeybinding: () => new SimpleKeybinding(KeyCode.F9),
 			preventDefault: () => { }
 		});
 

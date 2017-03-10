@@ -1,5 +1,7 @@
 {
-	"name": "Dark Visual Studio",
+	"$schema": "vscode://schemas/color-theme",
+	"name": "Dark High Contrast",
+	"include": "./hc_black_defaults.json",
 	"settings": [
 		{
 			"settings": {

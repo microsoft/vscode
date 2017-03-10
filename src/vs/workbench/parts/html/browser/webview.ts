@@ -145,7 +145,7 @@ export default class Webview {
 	}
 
 	style(theme: IColorTheme): void {
-		const {color, backgroundColor, fontFamily, fontWeight, fontSize} = window.getComputedStyle(this._styleElement);
+		const { color, backgroundColor, fontFamily, fontWeight, fontSize } = window.getComputedStyle(this._styleElement);
 
 		let value = `
 		:root {

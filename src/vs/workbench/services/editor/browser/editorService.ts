@@ -185,6 +185,10 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 	}
 
 	public closeEditor(position: Position, input: IEditorInput): TPromise<void> {
+		return this.doCloseEditor(position, input);
+	}
+
+	protected doCloseEditor(position: Position, input: IEditorInput): TPromise<void> {
 		return this.editorPart.closeEditor(position, input);
 	}
 
@@ -270,23 +274,26 @@ function toDiffLabel(res1: URI, res2: URI, context: IWorkspaceProvider): string 
 	return nls.localize('compareLabels', "{0} ↔ {1}", leftName, rightName);
 }
 
-export interface IDelegatingWorkbenchEditorServiceHandler {
+export interface IEditorOpenHandler {
 	(input: IEditorInput, options?: EditorOptions, sideBySide?: boolean): TPromise<BaseEditor>;
 	(input: IEditorInput, options?: EditorOptions, position?: Position): TPromise<BaseEditor>;
 }
 
+export interface IEditorCloseHandler {
+	(position: Position, input: IEditorInput): TPromise<void>;
+}
+
 /**
  * Subclass of workbench editor service that delegates all calls to the provided editor service. Subclasses can choose to override the behavior
- * of openEditor() by providing a handler. The handler returns a promise that resolves to an editor to indicate if an action has been taken.
- * If falsify is returned, the service will delegate to editor service for handling the call to openEditor().
+ * of openEditor() and closeEditor() by providing a handler.
  *
- * This gives clients a chance to override the behavior of openEditor() to match their context.
+ * This gives clients a chance to override the behavior of openEditor() and closeEditor().
  */
 export class DelegatingWorkbenchEditorService extends WorkbenchEditorService {
-	private handler: IDelegatingWorkbenchEditorServiceHandler;
+	private editorOpenHandler: IEditorOpenHandler;
+	private editorCloseHandler: IEditorCloseHandler;
 
 	constructor(
-		handler: IDelegatingWorkbenchEditorServiceHandler,
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
@@ -298,19 +305,35 @@ export class DelegatingWorkbenchEditorService extends WorkbenchEditorService {
 			workspaceContextService,
 			instantiationService
 		);
+	}
 
-		this.handler = handler;
+	public setEditorOpenHandler(handler: IEditorOpenHandler): void {
+		this.editorOpenHandler = handler;
+	}
+
+	public setEditorCloseHandler(handler: IEditorCloseHandler): void {
+		this.editorCloseHandler = handler;
 	}
 
 	protected doOpenEditor(input: IEditorInput, options?: EditorOptions, sideBySide?: boolean): TPromise<IEditor>;
 	protected doOpenEditor(input: IEditorInput, options?: EditorOptions, position?: Position): TPromise<IEditor>;
 	protected doOpenEditor(input: IEditorInput, options?: EditorOptions, arg3?: any): TPromise<IEditor> {
-		return this.handler(input, options, arg3).then(editor => {
+		const handleOpen = this.editorOpenHandler ? this.editorOpenHandler(input, options, arg3) : TPromise.as(void 0);
+
+		return handleOpen.then(editor => {
 			if (editor) {
 				return TPromise.as<BaseEditor>(editor);
 			}
 
 			return super.doOpenEditor(input, options, arg3);
+		});
+	}
+
+	protected doCloseEditor(position: Position, input: IEditorInput): TPromise<void> {
+		const handleClose = this.editorCloseHandler ? this.editorCloseHandler(position, input) : TPromise.as(void 0);
+
+		return handleClose.then(() => {
+			return super.doCloseEditor(position, input);
 		});
 	}
 }

@@ -228,8 +228,8 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 		});
 	}
 
-	$tryCreateDocument(options?: { language?: string, contents?: string }): TPromise<URI> {
-		return this._doCreateUntitled(void 0, options ? options.language : void 0, options ? options.contents : void 0);
+	$tryCreateDocument(options?: { language?: string, content?: string }): TPromise<URI> {
+		return this._doCreateUntitled(void 0, options ? options.language : void 0, options ? options.content : void 0);
 	}
 
 	private _handleAsResourceInput(uri: URI): TPromise<boolean> {
