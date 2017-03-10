@@ -56,8 +56,9 @@
 /* Selection */
 .monaco-list .monaco-list-row.selected { background-color: #CCCEDB; color: white; }
 .monaco-list:focus .monaco-list-row.selected { background-color: #4FA7FF; }
-.vs-dark .monaco-list:focus .monaco-list-row.selected { background-color: #0E639C; color: white; }
-.hc-black .monaco-list:focus .monaco-list-row.selected { outline: 1px solid #f38518; color: white; }
+.vs-dark .monaco-list .monaco-list-row.selected { background-color: #3F3F46; color: white; }
+.vs-dark .monaco-list:focus .monaco-list-row.selected { background-color: #0E639C; }
+.hc-black .monaco-list .monaco-list-row.selected { outline: 1px solid #f38518; color: white; }
 
 /* Selection and focus */
 .monaco-list:focus .monaco-list-row.selected.focused { background-color: #3399FF; color: white; }
