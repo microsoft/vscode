@@ -1024,3 +1024,58 @@ export abstract class BaseNavigationAction extends Action {
 		return this.editorService.openEditor(lastEditor, null, model.positionOfGroup(lastGroup));
 	}
 }
+
+export class NavigateLeftAction extends BaseNavigationAction {
+
+	public static ID = 'workbench.action.navigateLeft';
+	public static LABEL = nls.localize('navigateLeft', "Navigate Left");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@IEditorGroupService groupService: IEditorGroupService,
+		@IPanelService panelService: IPanelService,
+		@IPartService partService: IPartService,
+		@IViewletService viewletService: IViewletService
+	) {
+		super(id, label, editorService, groupService, panelService, partService, viewletService);
+	}
+
+	protected navigateOnEditorFocus(isEditorGroupVertical, isSidebarPositionLeft): TPromise<boolean> {
+		if (isEditorGroupVertical) {
+			return this.navigateLeftFromEditor(true, isSidebarPositionLeft);
+		}
+		return this.navigateLeftFromEditor(false, isSidebarPositionLeft);
+	}
+
+	protected navigateOnPanelFocus(isEditorGroupVertical, isSidebarPositionLeft): TPromise<boolean> {
+		if (isSidebarPositionLeft) {
+			return this.navigateToSidebar();
+		}
+		return TPromise.as(false);
+	}
+
+	protected navigateOnSidebarFocus(isEditorGroupVertical, isSidebarPositionLeft): TPromise<boolean> {
+		if (isSidebarPositionLeft) {
+			return TPromise.as(false);
+		}
+		if (isEditorGroupVertical) {
+			return this.navigateToEndOfEditor();
+		}
+		return this.navigateToLastActiveEditor();
+	}
+
+	private navigateLeftFromEditor(jumpGroups: boolean, isSidebarPositionLeft: boolean): TPromise<boolean> {
+		const model = this.groupService.getStacksModel();
+		let result = model.previous(jumpGroups, false);
+		if (result) {
+			return this.editorService.openEditor(result.editor, null, model.positionOfGroup(result.group))
+				.then(ok => true);
+		}
+		if (isSidebarPositionLeft) {
+			return this.navigateToSidebar();
+		}
+		return TPromise.as(false);
+	}
+}
