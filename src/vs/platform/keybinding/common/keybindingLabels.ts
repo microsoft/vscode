@@ -158,15 +158,15 @@ export class ElectronAcceleratorLabelProvider implements IKeyBindingLabelProvide
 export class MacUIKeyLabelProvider implements IKeyBindingLabelProvider {
 	public static INSTANCE = new MacUIKeyLabelProvider();
 
-	private static leftArrowUnicodeLabel = String.fromCharCode(8592);
-	private static upArrowUnicodeLabel = String.fromCharCode(8593);
-	private static rightArrowUnicodeLabel = String.fromCharCode(8594);
-	private static downArrowUnicodeLabel = String.fromCharCode(8595);
+	private static leftArrowUnicodeLabel = '←';
+	private static upArrowUnicodeLabel = '↑';
+	private static rightArrowUnicodeLabel = '→';
+	private static downArrowUnicodeLabel = '↓';
 
-	public ctrlKeyLabel = '\u2303';
-	public shiftKeyLabel = '\u21E7';
-	public altKeyLabel = '\u2325';
-	public cmdKeyLabel = '\u2318';
+	public ctrlKeyLabel = '⌃';
+	public shiftKeyLabel = '⇧';
+	public altKeyLabel = '⌥';
+	public cmdKeyLabel = '⌘';
 	public windowsKeyLabel = nls.localize('windowsKey', "Windows");
 	public modifierSeparator = '';
 
@@ -241,116 +241,80 @@ class UserSettingsKeyLabelProvider implements IKeyBindingLabelProvider {
 	}
 }
 
-// export class PrintableKeypress {
+export class PrintableKeypress {
 
-// 	public static fromKeybinding(keybinding: SimpleKeybinding, labelProvider: IKeyBindingLabelProvider, Platform: ISimplifiedPlatform): PrintableKeypress {
-// 		const ctrlCmd = keybinding.hasCtrlCmd();
-// 		const winCtrl = keybinding.hasWinCtrl();
+	public static fromKeybinding(keybinding: SimpleKeybinding, labelProvider: IKeyBindingLabelProvider, Platform: ISimplifiedPlatform): PrintableKeypress {
+		const ctrlCmd = keybinding.hasCtrlCmd();
+		const winCtrl = keybinding.hasWinCtrl();
 
-// 		const ctrlKey = Platform.isMacintosh ? winCtrl : ctrlCmd;
-// 		const metaKey = Platform.isMacintosh ? ctrlCmd : winCtrl;
-// 		const shiftKey = keybinding.hasShift();
-// 		const altKey = keybinding.hasAlt();
+		const ctrlKey = Platform.isMacintosh ? winCtrl : ctrlCmd;
+		const metaKey = Platform.isMacintosh ? ctrlCmd : winCtrl;
+		const shiftKey = keybinding.hasShift();
+		const altKey = keybinding.hasAlt();
 
-// 		const keyCode = keybinding.getKeyCode();
-// 		const keyLabel = labelProvider.getLabelForKey(keyCode) || '';
+		const keyCode = keybinding.getKeyCode();
+		const keyLabel = labelProvider.getLabelForKey(keyCode) || '';
 
-// 		return new PrintableKeypress(ctrlKey, shiftKey, altKey, metaKey, keyLabel);
-// 	}
+		return new PrintableKeypress(ctrlKey, shiftKey, altKey, metaKey, keyLabel);
+	}
 
-// 	readonly ctrlKey: boolean;
-// 	readonly shiftKey: boolean;
-// 	readonly altKey: boolean;
-// 	readonly metaKey: boolean;
-// 	readonly key: string;
+	readonly ctrlKey: boolean;
+	readonly shiftKey: boolean;
+	readonly altKey: boolean;
+	readonly metaKey: boolean;
+	readonly key: string;
 
-// 	constructor(ctrlKey: boolean, shiftKey: boolean, altKey: boolean, metaKey: boolean, key: string) {
-// 		this.ctrlKey = ctrlKey;
-// 		this.shiftKey = shiftKey;
-// 		this.altKey = altKey;
-// 		this.metaKey = metaKey;
-// 		this.key = key;
-// 	}
-// }
+	constructor(ctrlKey: boolean, shiftKey: boolean, altKey: boolean, metaKey: boolean, key: string) {
+		this.ctrlKey = ctrlKey;
+		this.shiftKey = shiftKey;
+		this.altKey = altKey;
+		this.metaKey = metaKey;
+		this.key = key;
+	}
+}
 
-// function _simpleAsString2(keypress: PrintableKeypress, labelProvider: IKeyBindingLabelProvider, Platform: ISimplifiedPlatform): string {
-// 	if (!keypress.key) {
-// 		return '';
-// 	}
-
-// 	let result: string[] = [];
-
-// 	// translate modifier keys: Ctrl-Shift-Alt-Meta
-// 	if (keypress.ctrlKey) {
-// 		result.push(labelProvider.ctrlKeyLabel);
-// 	}
-
-// 	if (keypress.shiftKey) {
-// 		result.push(labelProvider.shiftKeyLabel);
-// 	}
-
-// 	if (keypress.altKey) {
-// 		result.push(labelProvider.altKeyLabel);
-// 	}
-
-// 	if (keypress.metaKey) {
-// 		result.push(Platform.isMacintosh ? labelProvider.cmdKeyLabel : labelProvider.windowsKeyLabel);
-// 	}
-
-// 	// the actual key
-// 	result.push(keypress.key);
-
-// 	return result.join(labelProvider.modifierSeparator);
-// }
-
-function _simpleAsString(keybinding: SimpleKeybinding, labelProvider: IKeyBindingLabelProvider, Platform: ISimplifiedPlatform): string {
-	let result: string[] = [];
-	let ctrlCmd = keybinding.hasCtrlCmd();
-	let shift = keybinding.hasShift();
-	let alt = keybinding.hasAlt();
-	let winCtrl = keybinding.hasWinCtrl();
-	let keyCode = keybinding.getKeyCode();
-
-	let keyLabel = labelProvider.getLabelForKey(keyCode);
-	if (!keyLabel) {
-		// cannot trigger this key code under this kb layout
+function _simpleAsString(keypress: PrintableKeypress, labelProvider: IKeyBindingLabelProvider, Platform: ISimplifiedPlatform): string {
+	if (!keypress.key) {
 		return '';
 	}
 
+	let result: string[] = [];
+
 	// translate modifier keys: Ctrl-Shift-Alt-Meta
-	if ((ctrlCmd && !Platform.isMacintosh) || (winCtrl && Platform.isMacintosh)) {
+	if (keypress.ctrlKey) {
 		result.push(labelProvider.ctrlKeyLabel);
 	}
 
-	if (shift) {
+	if (keypress.shiftKey) {
 		result.push(labelProvider.shiftKeyLabel);
 	}
 
-	if (alt) {
+	if (keypress.altKey) {
 		result.push(labelProvider.altKeyLabel);
 	}
 
-	if (ctrlCmd && Platform.isMacintosh) {
-		result.push(labelProvider.cmdKeyLabel);
-	}
-
-	if (winCtrl && !Platform.isMacintosh) {
-		result.push(labelProvider.windowsKeyLabel);
+	if (keypress.metaKey) {
+		result.push(Platform.isMacintosh ? labelProvider.cmdKeyLabel : labelProvider.windowsKeyLabel);
 	}
 
 	// the actual key
-	result.push(keyLabel);
+	result.push(keypress.key);
 
 	return result.join(labelProvider.modifierSeparator);
 }
 
 function _asString(keybinding: Keybinding, labelProvider: IKeyBindingLabelProvider, Platform: ISimplifiedPlatform): string {
 	if (keybinding.isChord()) {
-		let firstPart = _simpleAsString(keybinding.extractFirstPart(), labelProvider, Platform);
-		let secondPart = _simpleAsString(keybinding.extractChordPart(), labelProvider, Platform);
-		return firstPart + ' ' + secondPart;
+		const firstPart = PrintableKeypress.fromKeybinding(keybinding.extractFirstPart(), labelProvider, Platform);
+		const secondPart = PrintableKeypress.fromKeybinding(keybinding.extractChordPart(), labelProvider, Platform);
+		return (
+			_simpleAsString(firstPart, labelProvider, Platform)
+			+ ' '
+			+ _simpleAsString(secondPart, labelProvider, Platform)
+		);
 	} else {
-		return _simpleAsString(keybinding, labelProvider, Platform);
+		const printableKeypress = PrintableKeypress.fromKeybinding(keybinding, labelProvider, Platform);
+		return _simpleAsString(printableKeypress, labelProvider, Platform);
 	}
 }
 
