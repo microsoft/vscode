@@ -30,7 +30,7 @@
 	zoom: 1; /* prevent zooming */
 }
 
-/* Theming */
+/* TODO@theme */
 
 .vs .monaco-workbench > .part.titlebar {
 	background: #ddd;
@@ -38,7 +38,8 @@
 }
 
 .vs .monaco-workbench > .part.titlebar.blurred {
-	opacity: 0.6;
+	background: rgba(221, 221, 221, 0.6);
+	color: rgba(51, 51, 51, 0.6);
 }
 
 .vs-dark .monaco-workbench > .part.titlebar {
@@ -46,8 +47,9 @@
 	color: #ccc;
 }
 
-.vs-dark .monaco-workbench > .part.titlebar.blurred > .window-title {
-	opacity: 0.6;
+.vs-dark .monaco-workbench > .part.titlebar.blurred {
+	background: rgba(60, 60, 60, 0.6);
+	color: rgba(204, 204, 204, 0.6);
 }
 
 .hc-black .monaco-workbench > .part.titlebar {
