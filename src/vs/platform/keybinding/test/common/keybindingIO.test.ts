@@ -6,9 +6,10 @@
 
 import * as assert from 'assert';
 import { createKeybinding, KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
-import { NormalizedKeybindingItem, IOSupport } from 'vs/platform/keybinding/common/keybindingResolver';
+import { IOSupport } from 'vs/platform/keybinding/common/keybindingResolver';
 import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
 import { ISimplifiedPlatform } from 'vs/platform/keybinding/common/keybindingLabels';
+import { NormalizedKeybindingItem } from 'vs/platform/keybinding/common/normalizedKeybindingItem';
 
 suite('Keybinding IO', () => {
 
