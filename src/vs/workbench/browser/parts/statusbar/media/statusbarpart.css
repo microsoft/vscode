@@ -62,7 +62,7 @@
 	text-decoration: none;
 }
 
-/* Theming */
+/* TODO@theme */
 
 .vs .monaco-workbench > .part.statusbar,
 .vs-dark .monaco-workbench > .part.statusbar,

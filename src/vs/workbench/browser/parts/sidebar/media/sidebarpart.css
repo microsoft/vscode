@@ -3,14 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench > .sidebar > .title > .title-actions {
-	background-color: rgb(243, 243, 243);
-}
-
-.vs-dark .monaco-workbench > .sidebar > .title > .title-actions {
-	background-color: rgb(37, 37, 38);
-}
-
 .monaco-workbench > .sidebar > .content {
 	overflow: hidden;
 }
@@ -60,7 +52,16 @@
 	height: 16px;
 }
 
-/* High Contrast Theming */
+/* TODO@theme */
+
+.vs .monaco-workbench > .sidebar > .title > .title-actions {
+	background-color: rgb(243, 243, 243);
+}
+
+.vs-dark .monaco-workbench > .sidebar > .title > .title-actions {
+	background-color: rgb(37, 37, 38);
+}
+
 .hc-black .monaco-workbench > .sidebar.left {
 	border-right: 1px solid #6FC3DF;
 }
