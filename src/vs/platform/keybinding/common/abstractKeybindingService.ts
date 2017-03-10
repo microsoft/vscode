@@ -12,7 +12,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { ICommandService, CommandsRegistry, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
-import { KeybindingResolver, IResolveResult, IBoundCommands } from 'vs/platform/keybinding/common/keybindingResolver';
+import { KeybindingResolver, IResolveResult } from 'vs/platform/keybinding/common/keybindingResolver';
 import { IKeybindingEvent, IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService, IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
@@ -130,7 +130,7 @@ export abstract class AbstractKeybindingService implements IKeybindingService {
 		return out.toString();
 	}
 
-	private static _getAllCommandsAsComment(boundCommands: IBoundCommands): string {
+	private static _getAllCommandsAsComment(boundCommands: Map<string, boolean>): string {
 		const commands = CommandsRegistry.getCommands();
 		const unboundCommands: string[] = [];
 
@@ -142,7 +142,7 @@ export abstract class AbstractKeybindingService implements IKeybindingService {
 				&& !isFalsyOrEmpty((<ICommandHandlerDescription>commands[id].description).args)) { // command with args
 				continue;
 			}
-			if (boundCommands[id]) {
+			if (boundCommands.get(id) === true) {
 				continue;
 			}
 			unboundCommands.push(id);
