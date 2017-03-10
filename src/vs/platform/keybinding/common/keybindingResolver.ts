@@ -6,7 +6,6 @@
 
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { NormalizedKeybindingItem } from 'vs/platform/keybinding/common/normalizedKeybindingItem';
-import { KeybindingIO, OutputBuilder } from 'vs/platform/keybinding/common/keybindingIO';
 
 export interface IResolveResult {
 	enterChord: boolean;
@@ -225,21 +224,8 @@ export class KeybindingResolver {
 		return this._defaultBoundCommands;
 	}
 
-	public getDefaultKeybindings(): string {
-		let out = new OutputBuilder();
-		out.writeLine('[');
-
-		let lastIndex = this._defaultKeybindings.length - 1;
-		this._defaultKeybindings.forEach((k, index) => {
-			KeybindingIO.writeKeybindingItem(out, k);
-			if (index !== lastIndex) {
-				out.writeLine(',');
-			} else {
-				out.writeLine();
-			}
-		});
-		out.writeLine(']');
-		return out.toString();
+	public getDefaultKeybindings(): NormalizedKeybindingItem[] {
+		return this._defaultKeybindings;
 	}
 
 	public lookupKeybindings(commandId: string): NormalizedKeybindingItem[] {

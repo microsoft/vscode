@@ -12,12 +12,14 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { ICommandService, CommandsRegistry, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
-import { KeybindingResolver, IResolveResult } from 'vs/platform/keybinding/common/keybindingResolver';
+import { KeybindingResolver, IResolveResult, IBoundCommands } from 'vs/platform/keybinding/common/keybindingResolver';
 import { IKeybindingEvent, IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService, IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { IMessageService } from 'vs/platform/message/common/message';
 import Event, { Emitter } from 'vs/base/common/event';
+import { KeybindingIO, OutputBuilder } from 'vs/platform/keybinding/common/keybindingIO';
+import { NormalizedKeybindingItem } from 'vs/platform/keybinding/common/normalizedKeybindingItem';
 
 export class SimpleResolvedKeybinding extends ResolvedKeybinding {
 
@@ -101,29 +103,36 @@ export abstract class AbstractKeybindingService implements IKeybindingService {
 	}
 
 	public getDefaultKeybindings(): string {
-		return this._getResolver().getDefaultKeybindings() + '\n\n' + this._getAllCommandsAsComment();
+		const resolver = this._getResolver();
+		const defaultKeybindings = resolver.getDefaultKeybindings();
+		const boundCommands = resolver.getDefaultBoundCommands();
+		return (
+			AbstractKeybindingService._getDefaultKeybindings(defaultKeybindings)
+			+ '\n\n'
+			+ AbstractKeybindingService._getAllCommandsAsComment(boundCommands)
+		);
 	}
 
-	public customKeybindingsCount(): number {
-		return 0;
+	private static _getDefaultKeybindings(defaultKeybindings: NormalizedKeybindingItem[]): string {
+		let out = new OutputBuilder();
+		out.writeLine('[');
+
+		let lastIndex = defaultKeybindings.length - 1;
+		defaultKeybindings.forEach((k, index) => {
+			KeybindingIO.writeKeybindingItem(out, k);
+			if (index !== lastIndex) {
+				out.writeLine(',');
+			} else {
+				out.writeLine();
+			}
+		});
+		out.writeLine(']');
+		return out.toString();
 	}
 
-	public lookupKeybindings(commandId: string): Keybinding[] {
-		return this._getResolver().lookupKeybindings(commandId).map(item => item.keybinding);
-	}
-
-	public lookupKeybinding(commandId: string): ResolvedKeybinding {
-		let result = this._getResolver().lookupPrimaryKeybinding(commandId);
-		if (!result) {
-			return null;
-		}
-		return this._createResolvedKeybinding(result.keybinding);
-	}
-
-	private _getAllCommandsAsComment(): string {
+	private static _getAllCommandsAsComment(boundCommands: IBoundCommands): string {
 		const commands = CommandsRegistry.getCommands();
 		const unboundCommands: string[] = [];
-		const boundCommands = this._getResolver().getDefaultBoundCommands();
 
 		for (let id in commands) {
 			if (id[0] === '_' || id.indexOf('vscode.') === 0) { // private command
@@ -142,6 +151,22 @@ export abstract class AbstractKeybindingService implements IKeybindingService {
 		let pretty = unboundCommands.sort().join('\n// - ');
 
 		return '// ' + nls.localize('unboundCommands', "Here are other available commands: ") + '\n// - ' + pretty;
+	}
+
+	public customKeybindingsCount(): number {
+		return 0;
+	}
+
+	public lookupKeybindings(commandId: string): Keybinding[] {
+		return this._getResolver().lookupKeybindings(commandId).map(item => item.keybinding);
+	}
+
+	public lookupKeybinding(commandId: string): ResolvedKeybinding {
+		let result = this._getResolver().lookupPrimaryKeybinding(commandId);
+		if (!result) {
+			return null;
+		}
+		return this._createResolvedKeybinding(result.keybinding);
 	}
 
 	public resolve(keybinding: SimpleKeybinding, target: IContextKeyServiceTarget): IResolveResult {
