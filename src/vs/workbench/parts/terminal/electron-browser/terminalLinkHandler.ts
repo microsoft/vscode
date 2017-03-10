@@ -3,12 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from 'vs/nls';
 import * as path from 'path';
+import * as platform from 'vs/base/common/platform';
 import * as pfs from 'vs/base/node/pfs';
 import Uri from 'vs/base/common/uri';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { Platform } from 'vs/base/common/platform';
+import { TerminalWidgetManager } from 'vs/workbench/parts/terminal/browser/terminalWidgetManager';
 import { TPromise } from 'vs/base/common/winjs.base';
 
 const pathPrefix = '(\\.\\.?|\\~)';
@@ -30,36 +32,38 @@ const CUSTOM_LINK_PRIORITY = -1;
 const LOCAL_LINK_PRIORITY = -2;
 
 export type XtermLinkMatcherHandler = (event: MouseEvent, uri: string) => boolean | void;
-export type XtermLinkMatcherValidationCallback = (uri: string, callback: (isValid: boolean) => void) => void;
+export type XtermLinkMatcherValidationCallback = (uri: string, element: HTMLElement, callback: (isValid: boolean) => void) => void;
 
 export class TerminalLinkHandler {
 	constructor(
-		private _platform: Platform,
+		private _widgetManager: TerminalWidgetManager,
+		private _xterm: any,
+		private _platform: platform.Platform,
 		@IWorkbenchEditorService private _editorService: IWorkbenchEditorService,
 		@IWorkspaceContextService private _contextService: IWorkspaceContextService
 	) {
+		this._xterm.setHypertextLinkHandler(this._wrapLinkHandler(() => true));
+		this._xterm.setHypertextValidationCallback((uri: string, element: HTMLElement, callback: (isValid: boolean) => void) => {
+			this._validateWebLink(uri, element, callback);
+		});
 	}
 
-	public initialize(xterm: any) {
-		xterm.attachHypertextLinkHandler(this._wrapLinkHandler(() => true));
-	}
-
-	public registerCustomLinkHandler(xterm: any, regex: RegExp, handler: (uri: string) => void, matchIndex?: number, validationCallback?: XtermLinkMatcherValidationCallback): number {
-		return xterm.registerLinkMatcher(regex, this._wrapLinkHandler(handler), {
+	public registerCustomLinkHandler(regex: RegExp, handler: (uri: string) => void, matchIndex?: number, validationCallback?: XtermLinkMatcherValidationCallback): number {
+		return this._xterm.registerLinkMatcher(regex, this._wrapLinkHandler(handler), {
 			matchIndex,
 			validationCallback,
 			priority: CUSTOM_LINK_PRIORITY
 		});
 	}
 
-	public registerLocalLinkHandler(xterm: any): number {
+	public registerLocalLinkHandler(): number {
 		const wrappedHandler = this._wrapLinkHandler(url => {
 			this._handleLocalLink(url);
 			return;
 		});
-		return xterm.registerLinkMatcher(this._localLinkRegex, wrappedHandler, {
+		return this._xterm.registerLinkMatcher(this._localLinkRegex, wrappedHandler, {
 			matchIndex: 1,
-			validationCallback: (link: string, callback: (isValid: boolean) => void) => this._validateLocalLink(link, callback),
+			validationCallback: (link: string, element: HTMLElement, callback: (isValid: boolean) => void) => this._validateLocalLink(link, element, callback),
 			priority: LOCAL_LINK_PRIORITY
 		});
 	}
@@ -67,8 +71,7 @@ export class TerminalLinkHandler {
 	private _wrapLinkHandler(handler: (uri: string) => boolean | void): XtermLinkMatcherHandler {
 		return (event: MouseEvent, uri: string) => {
 			// Require ctrl/cmd on click
-			if (this._platform === Platform.Mac ? !event.metaKey : !event.ctrlKey) {
-				// TODO: Show hint on fail
+			if (this._platform === platform.Platform.Mac ? !event.metaKey : !event.ctrlKey) {
 				event.preventDefault();
 				return false;
 			}
@@ -77,7 +80,7 @@ export class TerminalLinkHandler {
 	}
 
 	protected get _localLinkRegex(): RegExp {
-		if (this._platform === Platform.Windows) {
+		if (this._platform === platform.Platform.Windows) {
 			return WINDOWS_LOCAL_LINK_REGEX;
 		}
 		return UNIX_LIKE_LOCAL_LINK_REGEX;
@@ -93,14 +96,41 @@ export class TerminalLinkHandler {
 		});
 	}
 
-	private _validateLocalLink(link: string, callback: (isValid: boolean) => void): void {
+	private _validateLocalLink(link: string, element: HTMLElement, callback: (isValid: boolean) => void): void {
 		this._resolvePath(link).then(resolvedLink => {
+			if (resolvedLink) {
+				this._addTooltipEventListeners(element);
+			}
 			callback(!!resolvedLink);
 		});
 	}
 
+	private _validateWebLink(link: string, element: HTMLElement, callback: (isValid: boolean) => void): void {
+		this._addTooltipEventListeners(element);
+		callback(true);
+	}
+
+	private _addTooltipEventListeners(element: HTMLElement) {
+		let timeout = null;
+		element.addEventListener('mouseenter', () => {
+			timeout = setTimeout(() => {
+				let message: string;
+				if (platform.isMacintosh) {
+					message = nls.localize('terminalLinkHandler.followLinkCmd', 'Cmd + click to follow link');
+				} else {
+					message = nls.localize('terminalLinkHandler.followLinkCtrl', 'Ctrl + click to follow link');
+				}
+				this._widgetManager.showMessage(element.offsetLeft, element.offsetTop, message);
+			}, 500);
+		});
+		element.addEventListener('mouseleave', () => {
+			clearTimeout(timeout);
+			this._widgetManager.closeMessage();
+		});
+	}
+
 	private _resolvePath(link: string): TPromise<string> {
-		if (this._platform === Platform.Windows) {
+		if (this._platform === platform.Platform.Windows) {
 			// Resolve ~ -> %HOMEDRIVE%\%HOMEPATH%
 			if (link.charAt(0) === '~') {
 				if (!process.env.HOMEDRIVE || !process.env.HOMEPATH) {

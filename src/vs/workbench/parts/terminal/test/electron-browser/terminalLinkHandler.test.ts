@@ -15,10 +15,15 @@ class TestTerminalLinkHandler extends TerminalLinkHandler {
 	}
 }
 
+class TestXterm {
+	public setHypertextLinkHandler() { }
+	public setHypertextValidationCallback() { }
+}
+
 suite('Workbench - TerminalLinkHandler', () => {
 	suite('localLinkRegex', () => {
 		test('Windows', () => {
-			const regex = new TestTerminalLinkHandler(Platform.Windows, null, null).localLinkRegex;
+			const regex = new TestTerminalLinkHandler(null, new TestXterm(), Platform.Windows, null, null).localLinkRegex;
 			function testLink(link: string) {
 				assert.equal(` ${link} `.match(regex)[1], link);
 				assert.equal(`:${link}:`.match(regex)[1], link);
@@ -39,7 +44,7 @@ suite('Workbench - TerminalLinkHandler', () => {
 		});
 
 		test('Linux', () => {
-			const regex = new TestTerminalLinkHandler(Platform.Linux, null, null).localLinkRegex;
+			const regex = new TestTerminalLinkHandler(null, new TestXterm(), Platform.Linux, null, null).localLinkRegex;
 			function testLink(link: string) {
 				assert.equal(` ${link} `.match(regex)[1], link);
 				assert.equal(`:${link}:`.match(regex)[1], link);
