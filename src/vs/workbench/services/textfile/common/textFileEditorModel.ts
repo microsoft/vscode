@@ -41,6 +41,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	public static ID = 'workbench.editors.files.textFileEditorModel';
 
 	public static DEFAULT_CONTENT_CHANGE_BUFFER_DELAY = CONTENT_CHANGE_EVENT_BUFFER_DELAY;
+	public static DEFAULT_ORPHANED_CHANGE_BUFFER_DELAY = 100;
 
 	private static saveErrorHandler: ISaveErrorHandler;
 	private static saveParticipant: ISaveParticipant;
@@ -58,6 +59,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private autoSaveAfterMilliesEnabled: boolean;
 	private autoSavePromise: TPromise<void>;
 	private contentChangeEventScheduler: RunOnceScheduler;
+	private orphanedChangeEventScheduler: RunOnceScheduler;
 	private saveSequentializer: SaveSequentializer;
 	private disposed: boolean;
 	private lastSaveAttemptTime: number;
@@ -101,6 +103,9 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.contentChangeEventScheduler = new RunOnceScheduler(() => this._onDidContentChange.fire(StateChange.CONTENT_CHANGE), TextFileEditorModel.DEFAULT_CONTENT_CHANGE_BUFFER_DELAY);
 		this.toDispose.push(this.contentChangeEventScheduler);
 
+		this.orphanedChangeEventScheduler = new RunOnceScheduler(() => this._onDidStateChange.fire(StateChange.ORPHANED_CHANGE), TextFileEditorModel.DEFAULT_ORPHANED_CHANGE_BUFFER_DELAY);
+		this.toDispose.push(this.orphanedChangeEventScheduler);
+
 		this.updateAutoSaveConfiguration(textFileService.getAutoSaveConfiguration());
 
 		this.registerListeners();
@@ -123,20 +128,22 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	private onFileChanges(e: FileChangesEvent): void {
-		const oldOrphaned = this.inOrphanMode;
 
 		// Handle added if we are in orphan mode
 		if (this.inOrphanMode && e.contains(this.resource, FileChangeType.ADDED)) {
-			this.inOrphanMode = false;
+			this.setOrphaned(false);
 		}
 
 		// Handle deletes
 		if (!this.inOrphanMode && e.contains(this.resource, FileChangeType.DELETED)) {
-			this.inOrphanMode = true;
+			this.setOrphaned(true);
 		}
+	}
 
-		if (oldOrphaned !== this.inOrphanMode) {
-			this._onDidStateChange.fire(StateChange.ORPHANED_CHANGE);
+	private setOrphaned(orphaned: boolean): void {
+		if (this.inOrphanMode !== orphaned) {
+			this.inOrphanMode = orphaned;
+			this.orphanedChangeEventScheduler.schedule();
 		}
 	}
 
@@ -226,6 +233,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			// FileNotFound means the file got deleted meanwhile, so emit revert event because thats ok
 			if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
 				this._onDidStateChange.fire(StateChange.REVERTED);
+				this.setOrphaned(true); // we also know that the file is orphaned, so set it
 			}
 
 			// Set flags back to previous values, we are still dirty if revert failed
@@ -298,7 +306,15 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// Resolve Content
 		return this.textFileService
 			.resolveTextContent(this.resource, { acceptTextOnly: true, etag, encoding: this.preferredEncoding })
-			.then(content => this.loadWithContent(content), (error: IFileOperationResult) => this.handleLoadError(error));
+			.then(content => this.handleLoadSuccess(content), error => this.handleLoadError(error));
+	}
+
+	private handleLoadSuccess(content: IRawTextContent): TPromise<EditorModel> {
+
+		// Clear orphaned state when load was successful
+		this.setOrphaned(false);
+
+		return this.loadWithContent(content);
 	}
 
 	private handleLoadError(error: IFileOperationResult): TPromise<EditorModel> {
@@ -314,6 +330,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// Ignore any error if we have a resolved file model already. This helps when for example
 		// a file was deleted meanwhile but we still have the previous contents.
 		if (this.isResolved()) {
+			if (result === FileOperationResult.FILE_NOT_FOUND) {
+				this.setOrphaned(true); // transition to orphaned state when file not found
+			}
+
 			return TPromise.as<EditorModel>(this);
 		}
 
@@ -884,7 +904,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.createTextEditorModelPromise = null;
 
 		this.cancelAutoSavePromise();
-		this.contentChangeEventScheduler.cancel();
 
 		super.dispose();
 	}

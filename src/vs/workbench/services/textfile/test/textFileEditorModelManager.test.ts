@@ -183,6 +183,7 @@ suite('Files - TextFileEditorModelManager', () => {
 		let contentCounter = 0;
 
 		TextFileEditorModel.DEFAULT_CONTENT_CHANGE_BUFFER_DELAY = 0;
+		TextFileEditorModel.DEFAULT_ORPHANED_CHANGE_BUFFER_DELAY = 0;
 
 		manager.onModelDirty(e => {
 			dirtyCounter++;
@@ -221,7 +222,6 @@ suite('Files - TextFileEditorModelManager', () => {
 		manager.loadOrCreate(resource1, 'utf8').done(model1 => {
 			accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource: resource1, type: FileChangeType.DELETED }]));
 			accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource: resource1, type: FileChangeType.ADDED }]));
-			assert.equal(orphanedCounter, 2);
 
 			return manager.loadOrCreate(resource2, 'utf8').then(model2 => {
 				model1.textEditorModel.setValue('changed');
@@ -244,6 +244,7 @@ suite('Files - TextFileEditorModelManager', () => {
 							// content change event if done async
 							TPromise.timeout(0).then(() => {
 								assert.equal(contentCounter, 2);
+								assert.equal(orphanedCounter, 2);
 
 								model1.dispose();
 								model2.dispose();

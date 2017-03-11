@@ -375,13 +375,12 @@ suite('Files - TextFileEditorModel', () => {
 		}, error => onError(error, done));
 	});
 
-	test('Orphaned models', function () {
+	test('Orphaned models - state and event', function (done) {
 		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8');
 
-		let eventCounter = 0;
 		model.onDidStateChange(e => {
 			if (e === StateChange.ORPHANED_CHANGE) {
-				eventCounter++;
+				done();
 			}
 		});
 
@@ -390,8 +389,6 @@ suite('Files - TextFileEditorModel', () => {
 
 		accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource: model.getResource(), type: FileChangeType.ADDED }]));
 		assert.ok(!model.hasState(ModelState.ORPHAN));
-
-		assert.equal(eventCounter, 2);
 	});
 
 	test('SaveSequentializer - pending basics', function (done) {
