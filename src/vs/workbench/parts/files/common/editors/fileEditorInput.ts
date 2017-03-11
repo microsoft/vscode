@@ -138,12 +138,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 			this.name = paths.basename(this.resource.fsPath);
 		}
 
-		const model = this.textFileService.models.get(this.resource);
-		if (model && model.hasState(ModelState.ORPHAN)) {
-			return localize('fileDeletedName', "{0} (deleted from disk)", this.name);
-		}
-
-		return this.name;
+		return this.decorateOrphanedFiles(this.name);
 	}
 
 	public getDescription(): string {
@@ -155,14 +150,29 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 	}
 
 	public getTitle(verbosity: Verbosity): string {
+		let title: string;
 		switch (verbosity) {
 			case Verbosity.SHORT:
-				return this.shortTitle ? this.shortTitle : (this.shortTitle = this.getName());
+				title = this.shortTitle ? this.shortTitle : (this.shortTitle = this.getName());
+				break;
 			case Verbosity.MEDIUM:
-				return this.mediumTitle ? this.mediumTitle : (this.mediumTitle = labels.getPathLabel(this.resource, this.contextService));
+				title = this.mediumTitle ? this.mediumTitle : (this.mediumTitle = labels.getPathLabel(this.resource, this.contextService));
+				break;
 			case Verbosity.LONG:
-				return this.longTitle ? this.longTitle : (this.longTitle = labels.tildify(labels.getPathLabel(this.resource), this.environmentService.userHome));
+				title = this.longTitle ? this.longTitle : (this.longTitle = labels.tildify(labels.getPathLabel(this.resource), this.environmentService.userHome));
+				break;
 		}
+
+		return this.decorateOrphanedFiles(title);
+	}
+
+	private decorateOrphanedFiles(label: string): string {
+		const model = this.textFileService.models.get(this.resource);
+		if (model && model.hasState(ModelState.ORPHAN)) {
+			return localize('orphanedFile', "{0} (deleted from disk)", label);
+		}
+
+		return label;
 	}
 
 	public isDirty(): boolean {
