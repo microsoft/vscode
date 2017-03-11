@@ -106,10 +106,10 @@ export class SplitEditorAction extends Action {
 	}
 }
 
-export class JoinEditorsAction extends Action {
+export class JoinTwoGroupsAction extends Action {
 
-	public static ID = 'workbench.action.joinEditors';
-	public static LABEL = nls.localize('joinEditors', "Join Editors");
+	public static ID = 'workbench.action.joinTwoGroups';
+	public static LABEL = nls.localize('joinTwoGroups', "Join Editors of Two Groups");
 
 	constructor(
 		id: string,
@@ -117,55 +117,51 @@ export class JoinEditorsAction extends Action {
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService
 	) {
-		super(id, label, 'join-editors-action');
+		super(id, label);
 	}
 
 	public run(context?: IEditorContext): TPromise<any> {
-		let editorToJoin: IEditor;
-		if (context) {
-			editorToJoin = this.editorService.getVisibleEditors()[this.editorGroupService.getStacksModel().positionOfGroup(context.group)];
-		} else {
-			editorToJoin = this.editorService.getActiveEditor();
-		}
 
-		// Return if no editor to join
-		if (!editorToJoin) {
-			return TPromise.as(true);
-		}
-
-		const visibleEditors = this.editorService.getVisibleEditors();
+		const editorStacksModel = this.editorGroupService.getStacksModel();
 
 		// Return if has no other group to join to
-		if (visibleEditors.length <= 1) {
+		if (editorStacksModel.groups.length <= 1) {
 			return TPromise.as(true);
 		}
 
-		const toJoinPosition = editorToJoin.position;
-		let targetPosition: number;
+		let fromPosition: number;
+		let toPosition: number;
 
-		// Join to next group if is position one, otherwise join to previous group
-		if (toJoinPosition === Position.ONE) {
-			targetPosition = toJoinPosition + 1;
+		// Joining group is from context, or the active group
+		if (context) {
+			fromPosition = editorStacksModel.positionOfGroup(context.group);
 		} else {
-			targetPosition = toJoinPosition - 1;
+			fromPosition = editorStacksModel.positionOfGroup(editorStacksModel.activeGroup);
 		}
 
-		const toJoinEditorInput = editorToJoin.input;
-		const toJoinGroup = this.editorGroupService.getStacksModel().groupAt(toJoinPosition);
-		const targetGroup = this.editorGroupService.getStacksModel().groupAt(targetPosition);
-
-		const toJoinEditors = toJoinGroup.getEditors();
-		const toJoinEditorsTotalCount = toJoinEditors.length;
-
-		// If an editor exists in joining group and target group, only the editor in the joining group is kept.
-		if (targetPosition < toJoinPosition) {
-			toJoinEditors.forEach(e => this.editorGroupService.moveEditor(e, toJoinPosition, targetPosition, targetGroup.count));
+		// Target group is next group if joining from position one, otherwise it is the previous group
+		if (fromPosition === Position.ONE) {
+			toPosition = fromPosition + 1;
 		} else {
-			toJoinEditors.forEach(e => this.editorGroupService.moveEditor(e, toJoinPosition, targetPosition, toJoinEditorsTotalCount - toJoinGroup.count));
+			toPosition = fromPosition - 1;
 		}
 
-		// Re-activate the active editor
-		this.editorService.openEditor(toJoinEditorInput);
+		const fromGroup = editorStacksModel.groupAt(fromPosition);
+		const toGroup = editorStacksModel.groupAt(toPosition);
+
+		const activeEditor = fromGroup.activeEditor;
+		const fromGroupEditors = fromGroup.getEditors();
+		const fromGroupTotalCount = fromGroupEditors.length;
+
+		// If an editor exists in both groups, only the editor in the joining group is kept
+		if (toPosition < fromPosition) {
+			fromGroupEditors.forEach(e => this.editorGroupService.moveEditor(e, fromPosition, toPosition, toGroup.count, true));
+		} else {
+			fromGroupEditors.forEach(e => this.editorGroupService.moveEditor(e, fromPosition, toPosition, fromGroupTotalCount - fromGroup.count, true));
+		}
+
+		// Regain focus on the active editor
+		this.editorService.openEditor(activeEditor);
 
 		return TPromise.as(true);
 	}
