@@ -22,8 +22,8 @@ import { once } from 'vs/base/common/event';
 
 class TestFileEditorTracker extends FileEditorTracker {
 
-	setCloseOnExternalFileDelete(value: boolean): void {
-		this.closeOnExternalFileDelete = value;
+	setCloseOnFileDelete(value: boolean): void {
+		this.closeOnFileDelete = value;
 	}
 }
 
@@ -127,12 +127,12 @@ suite('Files - FileEditorTracker', () => {
 		});
 	});
 
-	test('marks dirty when resource gets deleted and undirty when added again - remote file changes - closeOnExternalFileDelete = false', function (done) {
+	test('marks dirty when resource gets deleted and undirty when added again - remote file changes - closeOnFileDelete = false', function (done) {
 		const stacks = accessor.editorGroupService.getStacksModel() as EditorStacksModel;
 		const group = stacks.openGroup('first', true);
 
 		const tracker = instantiationService.createInstance(TestFileEditorTracker);
-		tracker.setCloseOnExternalFileDelete(false);
+		tracker.setCloseOnFileDelete(false);
 		assert.ok(tracker);
 
 		const resource = toResource.call(this, '/foo/bar/updatefile.js');
@@ -150,12 +150,12 @@ suite('Files - FileEditorTracker', () => {
 		});
 	});
 
-	test('marks dirty when resource gets deleted and undirty when added again unless model changed meanwhile - remote file changes - closeOnExternalFileDelete = false', function (done) {
+	test('marks dirty when resource gets deleted and undirty when added again unless model changed meanwhile - remote file changes - closeOnFileDelete = false', function (done) {
 		const stacks = accessor.editorGroupService.getStacksModel() as EditorStacksModel;
 		const group = stacks.openGroup('first', true);
 
 		const tracker = instantiationService.createInstance(TestFileEditorTracker);
-		tracker.setCloseOnExternalFileDelete(false);
+		tracker.setCloseOnFileDelete(false);
 		assert.ok(tracker);
 
 		const resource = toResource.call(this, '/foo/bar/updatefile.js');

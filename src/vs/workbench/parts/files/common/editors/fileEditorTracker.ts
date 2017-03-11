@@ -28,7 +28,7 @@ import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textF
 export class FileEditorTracker implements IWorkbenchContribution {
 	private stacks: IEditorStacksModel;
 	private toUnbind: IDisposable[];
-	protected closeOnExternalFileDelete: boolean;
+	protected closeOnFileDelete: boolean;
 	private mapResourceToUndoDirtyFromExternalDelete: { [resource: string]: () => void };
 
 	constructor(
@@ -69,10 +69,10 @@ export class FileEditorTracker implements IWorkbenchContribution {
 	}
 
 	private onConfigurationUpdated(configuration: IWorkbenchEditorConfiguration): void {
-		if (configuration.workbench && configuration.workbench.editor && typeof configuration.workbench.editor.closeOnExternalFileDelete === 'boolean') {
-			this.closeOnExternalFileDelete = configuration.workbench.editor.closeOnExternalFileDelete;
+		if (configuration.workbench && configuration.workbench.editor && typeof configuration.workbench.editor.closeOnFileDelete === 'boolean') {
+			this.closeOnFileDelete = configuration.workbench.editor.closeOnFileDelete;
 		} else {
-			this.closeOnExternalFileDelete = true; // default
+			this.closeOnFileDelete = true; // default
 		}
 	}
 
@@ -113,7 +113,7 @@ export class FileEditorTracker implements IWorkbenchContribution {
 
 		// Flag models as saved that are identical to disk contents
 		// (only if we do not dispose from external deletes and caused them to be dirty)
-		if (!this.closeOnExternalFileDelete) {
+		if (!this.closeOnFileDelete) {
 			const dirtyFileEditors = this.getOpenedFileEditors(true /* dirty only */);
 			dirtyFileEditors.forEach(editor => {
 				const resource = editor.getResource();
@@ -156,10 +156,10 @@ export class FileEditorTracker implements IWorkbenchContribution {
 			}
 
 			// Handle deletes in opened editors depending on:
-			// - the user has not disabled the setting closeOnExternalFileDelete
+			// - the user has not disabled the setting closeOnFileDelete
 			// - the file change is local or external
 			// - the input is not resolved (we need to dispose because we cannot restore otherwise since we do not have the contents)
-			if (this.closeOnExternalFileDelete || !isExternal || !editor.isResolved()) {
+			if (this.closeOnFileDelete || !isExternal || !editor.isResolved()) {
 
 				// We have received reports of users seeing delete events even though the file still
 				// exists (network shares issue: https://github.com/Microsoft/vscode/issues/13665).
