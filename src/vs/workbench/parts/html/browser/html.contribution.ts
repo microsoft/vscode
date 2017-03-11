@@ -72,7 +72,7 @@ CommandsRegistry.registerCommand('_workbench.htmlZone', function (accessor: Serv
 
 });
 
-CommandsRegistry.registerCommand('_workbench.previewHtml', function (accessor: ServicesAccessor, resource: URI | string, position?: EditorPosition, label?: string) {
+CommandsRegistry.registerCommand('_workbench.previewHtml', function (accessor: ServicesAccessor, resource: URI | string, position?: EditorPosition, label?: string, preserveFocus?: boolean) {
 
 	const uri = resource instanceof URI ? resource : URI.parse(resource);
 	label = label || uri.fsPath;
@@ -97,7 +97,7 @@ CommandsRegistry.registerCommand('_workbench.previewHtml', function (accessor: S
 	}
 
 	return accessor.get(IWorkbenchEditorService)
-		.openEditor(input, { pinned: true }, position)
+		.openEditor(input, { pinned: true, preserveFocus: preserveFocus }, position)
 		.then(editor => true);
 });
 
