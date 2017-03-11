@@ -589,28 +589,37 @@ export abstract class TextFileService implements ITextFileService {
 	}
 
 	private doSaveTextFileAs(sourceModel: ITextFileEditorModel | UntitledEditorModel, resource: URI, target: URI): TPromise<void> {
+		let targetModelResolver: TPromise<ITextFileEditorModel>;
 
-		// create the target file empty if it does not exist already
-		return this.fileService.resolveFile(target).then(stat => stat, () => null).then(stat => stat || this.fileService.updateContent(target, '')).then(stat => {
+		// Prefer an existing model if it is already loaded for the given target resource
+		const targetModel = this.models.get(target);
+		if (targetModel && targetModel.isResolved()) {
+			targetModelResolver = TPromise.as(targetModel);
+		}
 
-			// resolve a model for the file (which can be binary if the file is not a text file)
-			return this.models.loadOrCreate(target).then((targetModel: ITextFileEditorModel) => {
-
-				// take over encoding and model value from source model
-				targetModel.updatePreferredEncoding(sourceModel.getEncoding());
-				targetModel.textEditorModel.setValue(sourceModel.getValue());
-
-				// save model
-				return targetModel.save();
-			}, error => {
-
-				// binary model: delete the file and run the operation again
-				if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_IS_BINARY || (<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_TOO_LARGE) {
-					return this.fileService.del(target).then(() => this.doSaveTextFileAs(sourceModel, resource, target));
-				}
-
-				return TPromise.wrapError(error);
+		// Otherwise create the target file empty if it does not exist already and resolve it from there
+		else {
+			targetModelResolver = this.fileService.resolveFile(target).then(stat => stat, () => null).then(stat => stat || this.fileService.updateContent(target, '')).then(stat => {
+				return this.models.loadOrCreate(target);
 			});
+		}
+
+		return targetModelResolver.then(targetModel => {
+
+			// take over encoding and model value from source model
+			targetModel.updatePreferredEncoding(sourceModel.getEncoding());
+			targetModel.textEditorModel.setValue(sourceModel.getValue());
+
+			// save model
+			return targetModel.save();
+		}, error => {
+
+			// binary model: delete the file and run the operation again
+			if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_IS_BINARY || (<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_TOO_LARGE) {
+				return this.fileService.del(target).then(() => this.doSaveTextFileAs(sourceModel, resource, target));
+			}
+
+			return TPromise.wrapError(error);
 		});
 	}
 

@@ -195,6 +195,8 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 
 	isDirty(): boolean;
 
+	isResolved(): boolean;
+
 	isDisposed(): boolean;
 }
 
