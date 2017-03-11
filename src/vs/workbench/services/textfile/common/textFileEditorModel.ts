@@ -641,11 +641,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			// to write the contents to disk, as they are already on disk. we still want to trigger
 			// a change on the file though so that external file watchers can be notified
 			if (force && !this.dirty && reason === SaveReason.EXPLICIT && versionId === newVersionId) {
-				return this.fileService.touchFile(this.resource).then(stat => {
-
-					// Updated resolved stat with updated stat since touching it might have changed mtime
-					this.updateLastResolvedDiskStat(stat);
-				}, () => void 0 /* gracefully ignore errors if just touching */);
+				return this.doTouch();
 			}
 
 			// update versionId with its new value (if pre-save changes happened)
@@ -706,6 +702,18 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				this._onDidStateChange.fire(StateChange.SAVE_ERROR);
 			}));
 		}));
+	}
+
+	private doTouch(): TPromise<void> {
+		if (this.inOrphanMode) {
+			return TPromise.as(void 0); // do not create the file if this model is orphaned
+		}
+
+		return this.fileService.touchFile(this.resource).then(stat => {
+
+			// Updated resolved stat with updated stat since touching it might have changed mtime
+			this.updateLastResolvedDiskStat(stat);
+		}, () => void 0 /* gracefully ignore errors if just touching */);
 	}
 
 	private setDirty(dirty: boolean): () => void {
