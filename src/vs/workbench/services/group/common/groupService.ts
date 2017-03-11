@@ -106,9 +106,10 @@ export interface IEditorGroupService {
 
 	/**
 	 * Moves an editor from one group to another. The index in the group is optional.
+	 * The inactive option is applied when moving across groups.
 	 */
-	moveEditor(input: IEditorInput, from: IEditorGroup, to: IEditorGroup, index?: number): void;
-	moveEditor(input: IEditorInput, from: Position, to: Position, index?: number): void;
+	moveEditor(input: IEditorInput, from: IEditorGroup, to: IEditorGroup, index?: number, inactive?: boolean): void;
+	moveEditor(input: IEditorInput, from: Position, to: Position, index?: number, inactive?: boolean): void;
 
 	/**
 	 * Provides access to the editor stacks model

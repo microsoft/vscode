@@ -808,9 +808,9 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		this._onEditorsMoved.fire();
 	}
 
-	public moveEditor(input: EditorInput, from: EditorGroup, to: EditorGroup, index?: number): void;
-	public moveEditor(input: EditorInput, from: Position, to: Position, index?: number): void;
-	public moveEditor(input: EditorInput, arg2: any, arg3: any, index?: number): void {
+	public moveEditor(input: EditorInput, from: EditorGroup, to: EditorGroup, index?: number, inactive?: boolean): void;
+	public moveEditor(input: EditorInput, from: Position, to: Position, index?: number, inactive?: boolean): void;
+	public moveEditor(input: EditorInput, arg2: any, arg3: any, index?: number, inactive?: boolean): void {
 		const fromGroup = (typeof arg2 === 'number') ? this.stacks.groupAt(arg2) : arg2;
 		if (!fromGroup) {
 			return;
@@ -825,7 +825,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		else {
 			const toPosition = (typeof arg3 === 'number') ? arg3 : this.stacks.positionOfGroup(arg3);
 
-			this.doMoveEditorAcrossGroups(input, fromGroup, toPosition, index);
+			this.doMoveEditorAcrossGroups(input, fromGroup, toPosition, index, inactive);
 		}
 	}
 
@@ -844,7 +844,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		group.pin(input);
 	}
 
-	private doMoveEditorAcrossGroups(input: EditorInput, fromGroup: EditorGroup, to: Position, index?: number): void {
+	private doMoveEditorAcrossGroups(input: EditorInput, fromGroup: EditorGroup, to: Position, index?: number, inactive?: boolean): void {
 		if (fromGroup.count === 1) {
 			const toGroup = this.stacks.groupAt(to);
 			if (!toGroup && this.stacks.positionOfGroup(fromGroup) < to) {
@@ -853,12 +853,12 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		}
 
 		// When moving an editor, try to preserve as much view state as possible by checking
-		// for th editor to be a text editor and creating the options accordingly if so
-		let options = EditorOptions.create({ pinned: true, index });
+		// for the editor to be a text editor and creating the options accordingly if so
+		let options = EditorOptions.create({ pinned: true, index, inactive });
 		const activeEditor = this.getActiveEditor();
 		const codeEditor = getCodeEditor(activeEditor);
 		if (codeEditor && activeEditor.position === this.stacks.positionOfGroup(fromGroup) && input.matches(activeEditor.input)) {
-			options = TextEditorOptions.create({ pinned: true, index });
+			options = TextEditorOptions.create({ pinned: true, index, inactive });
 			(<TextEditorOptions>options).fromEditor(codeEditor);
 		}
 
