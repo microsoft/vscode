@@ -155,9 +155,9 @@ export class JoinTwoGroupsAction extends Action {
 
 		// If an editor exists in both groups, only the editor in the joining group is kept
 		if (toPosition < fromPosition) {
-			fromGroupEditors.forEach(e => this.editorGroupService.moveEditor(e, fromPosition, toPosition, toGroup.count, true));
+			fromGroupEditors.forEach(e => this.editorGroupService.moveEditor(e, fromPosition, toPosition, { index: toGroup.count, inactive: true }));
 		} else {
-			fromGroupEditors.forEach(e => this.editorGroupService.moveEditor(e, fromPosition, toPosition, fromGroupTotalCount - fromGroup.count, true));
+			fromGroupEditors.forEach(e => this.editorGroupService.moveEditor(e, fromPosition, toPosition, { index: fromGroupTotalCount - fromGroup.count, inactive: true }));
 		}
 
 		// Regain focus on the active editor
