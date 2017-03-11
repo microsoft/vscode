@@ -115,7 +115,7 @@ function moveActiveTab(args: ActiveEditorMoveArguments, activeEditor: IEditor, a
 	}
 
 	index = index < 0 ? 0 : index >= editorGroup.count ? editorGroup.count - 1 : index;
-	editorGroupsService.moveEditor(activeEditor.input, editorGroup, editorGroup, index);
+	editorGroupsService.moveEditor(activeEditor.input, editorGroup, editorGroup, { index });
 }
 
 function moveActiveEditorToGroup(args: ActiveEditorMoveArguments, activeEditor: IEditor, accessor: ServicesAccessor): void {
