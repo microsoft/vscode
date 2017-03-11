@@ -12,6 +12,7 @@ import errors = require('vs/base/common/errors');
 import objects = require('vs/base/common/objects');
 import Event, { Emitter } from 'vs/base/common/event';
 import platform = require('vs/base/common/platform');
+import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IRevertOptions, IResult, ITextFileOperationResult, ITextFileService, IRawTextContent, IAutoSaveConfiguration, AutoSaveMode, SaveReason, ITextFileEditorModelManager, ITextFileEditorModel, ISaveOptions, ModelState } from 'vs/workbench/services/textfile/common/textfiles';
@@ -19,7 +20,7 @@ import { ConfirmResult } from 'vs/workbench/common/editor';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { ILifecycleService, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IFileService, IResolveContentOptions, IFilesConfiguration, IFileOperationResult, FileOperationResult, AutoSaveConfiguration, HotExitConfiguration } from 'vs/platform/files/common/files';
+import { IFileService, IResolveContentOptions, IFilesConfiguration, IFileOperationResult, FileOperationResult, AutoSaveConfiguration, HotExitConfiguration, FollowSavePathConfiguration } from 'vs/platform/files/common/files';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -55,6 +56,9 @@ export abstract class TextFileService implements ITextFileService {
 	private configuredAutoSaveOnWindowChange: boolean;
 
 	private configuredHotExit: string;
+
+	private configuredFollowSavePath: string;
+	private lastValidActivePath: string;
 
 	constructor(
 		@ILifecycleService private lifecycleService: ILifecycleService,
@@ -118,6 +122,9 @@ export abstract class TextFileService implements ITextFileService {
 
 		// Configuration changes
 		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationChange(e.config)));
+
+		// Save follow path
+		this.toUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
 	}
 
 	private beforeShutdown(reason: ShutdownReason): boolean | TPromise<boolean> {
@@ -353,6 +360,9 @@ export abstract class TextFileService implements ITextFileService {
 		} else {
 			this.configuredHotExit = hotExitMode;
 		}
+
+		// Untitled editor follow save path
+		this.configuredFollowSavePath = configuration && configuration.files ? configuration.files.followSavePath : FollowSavePathConfiguration.OFF;
 	}
 
 	public getDirty(resources?: URI[]): URI[] {
@@ -620,6 +630,10 @@ export abstract class TextFileService implements ITextFileService {
 			return URI.file(paths.join(workspace.resource.fsPath, this.untitledEditorService.get(untitledResource).suggestFileName())).fsPath;
 		}
 
+		if (this.configuredFollowSavePath === FollowSavePathConfiguration.ON) {
+			return URI.file(paths.join(this.lastValidActivePath, this.untitledEditorService.get(untitledResource).suggestFileName())).fsPath;
+		}
+
 		return this.untitledEditorService.get(untitledResource).suggestFileName();
 	}
 
@@ -708,5 +722,20 @@ export abstract class TextFileService implements ITextFileService {
 
 		// Clear all caches
 		this._models.clear();
+	}
+
+	private onEditorsChanged(): void {
+		if (this.configuredFollowSavePath !== FollowSavePathConfiguration.ON) {
+			return;
+		}
+
+		const stacks = this.editorGroupService.getStacksModel();
+		stacks.groups.forEach(group => {
+			group.getEditors().forEach(input => {
+				if (stacks.isActive(group) && group.isActive(input) && input instanceof FileEditorInput) {
+					this.lastValidActivePath = paths.dirname(input.getResource().fsPath);
+				}
+			});
+		});
 	}
 }
