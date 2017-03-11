@@ -15,8 +15,13 @@ import DOM = require('vs/base/browser/dom');
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { BoundedLinkedMap } from 'vs/base/common/map';
 
+
+interface MapExtToMediaMimes {
+	[index: string]: string;
+}
+
 // Known media mimes that we can handle
-const mapExtToMediaMimes = {
+const mapExtToMediaMimes: MapExtToMediaMimes = {
 	'.bmp': 'image/bmp',
 	'.gif': 'image/gif',
 	'.jpg': 'image/jpg',
