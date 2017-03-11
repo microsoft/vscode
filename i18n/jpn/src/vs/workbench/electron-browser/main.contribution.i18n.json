@@ -48,7 +48,7 @@
 	"workbenchConfigurationTitle": "ワークベンチ",
 	"zenMode.fullScreen": "Zen Mode をオンにするとワークベンチを自動的に全画面モードに切り替えるかどうかを制御します。",
 	"zenMode.hideStatusBar": "Zen Mode をオンにするとワークベンチの下部にあるステータス バーを非表示にするかどうかを制御します。",
-	"zenMode.hideTabs": "Zen Mode をオンにするとワークベンチ タブを非表示にするかどうかを制御します。",
+	"zenMode.hideTabs": "Zen Mode をオンにしたときにワークベンチ タブも非表示にするかどうかを制御します。",
 	"zenMode.restore": "Zen Mode で終了したウィンドウを Zen Mode に復元するかどうかを制御します。",
 	"zenModeConfigurationTitle": "Zen Mode",
 	"zoomLevel": "ウィンドウのズーム レベルを調整します。元のサイズは 0 で、1 つ上げるごとに (1 など) 20% ずつ拡大することを表し、1 つ下げるごとに (-1 など) 20% ずつ縮小することを表します。小数点以下の桁数を入力して、さらに細かくズーム レベルを調整することもできます。"

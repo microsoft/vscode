@@ -41,7 +41,7 @@
 	"renderControlCharacters": "エディターで制御文字を表示する必要があるかどうかを制御します",
 	"renderIndentGuides": "エディターでインデントのガイドを表示する必要があるかどうかを制御します",
 	"renderIndicators": "差分エディターが追加/削除された変更に +/- インジケーターを示すかどうかを制御します",
-	"renderLineHighlight": "エディターが現在の行をどのように強調表示するかを制御します。考えられる値は 'なし'、'余白'、'行、'すべて' です。",
+	"renderLineHighlight": "エディターが現在の行をどのように強調表示するかを制御します。考えられる値は 'none'、'gutter'、'line'、'all' です。",
 	"renderWhitespace": "エディターで空白文字を表示する方法を制御します。'none'、'boundary' および 'all' が使用可能です。'boundary' オプションでは、単語間の単一スペースは表示されません。",
 	"roundedSelection": "選択範囲の角を丸くするかどうかを制御します",
 	"rulers": "垂直ルーラーを表示する列",

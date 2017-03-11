@@ -18,7 +18,7 @@
 	"JsonSchema.pattern.endLine": "問題の最終行の一致グループ インデックス。既定は undefined です",
 	"JsonSchema.pattern.file": "ファイル名の一致グループ インデックス。省略すると、1 が使用されます。",
 	"JsonSchema.pattern.line": "問題の行の一致グループ インデックス。既定は 2 です",
-	"JsonSchema.pattern.location": "問題の場所の一致グループ インデックス。有効な場所のパターンは (line)、(line,column)、(startLine,startColumn,endLine,endColumn) です。省略すると、行と列が想定されます。",
+	"JsonSchema.pattern.location": "問題の場所の一致グループ インデックス。有効な場所のパターンは (line)、(line,column)、(startLine,startColumn,endLine,endColumn) です。省略すると、 (line,column) が想定されます。",
 	"JsonSchema.pattern.loop": "複数行マッチャー ループは、このパターンが一致する限りループで実行されるかどうかを示します。複数行パターン内の最後のパターンでのみ指定できます。",
 	"JsonSchema.pattern.message": "メッセージの一致グループ インデックス。省略した場合、場所を指定すると既定は 4 で、場所を指定しないと既定は 5 です。",
 	"JsonSchema.pattern.regexp": "出力のエラー、警告、または情報を検索する正規表現。",
