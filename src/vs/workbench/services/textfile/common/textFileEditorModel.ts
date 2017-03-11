@@ -23,7 +23,7 @@ import { ITextFileService, IAutoSaveConfiguration, ModelState, ITextFileEditorMo
 import { EncodingMode, EditorModel } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { IBackupFileService, BACKUP_FILE_RESOLVE_OPTIONS } from 'vs/workbench/services/backup/common/backup';
-import { IFileService, IFileStat, IFileOperationResult, FileOperationResult, IContent, CONTENT_CHANGE_EVENT_BUFFER_DELAY } from 'vs/platform/files/common/files';
+import { IFileService, IFileStat, IFileOperationResult, FileOperationResult, IContent, CONTENT_CHANGE_EVENT_BUFFER_DELAY, FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -107,6 +107,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	private registerListeners(): void {
+		this.toDispose.push(this.fileService.onFileChanges(e => this.onFileChanges(e)));
 		this.toDispose.push(this.textFileService.onAutoSaveConfigurationChange(config => this.updateAutoSaveConfiguration(config)));
 		this.toDispose.push(this.textFileService.onFilesAssociationChange(e => this.onFilesAssociationChange()));
 		this.toDispose.push(this.onDidStateChange(e => {
@@ -119,6 +120,24 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				this._onDidContentChange.fire(StateChange.REVERTED);
 			}
 		}));
+	}
+
+	private onFileChanges(e: FileChangesEvent): void {
+		const oldOrphaned = this.inOrphanMode;
+
+		// Handle added if we are in orphan mode
+		if (this.inOrphanMode && e.contains(this.resource, FileChangeType.ADDED)) {
+			this.inOrphanMode = false;
+		}
+
+		// Handle deletes
+		if (!this.inOrphanMode && e.contains(this.resource, FileChangeType.DELETED)) {
+			this.inOrphanMode = true;
+		}
+
+		if (oldOrphaned !== this.inOrphanMode) {
+			this._onDidStateChange.fire(StateChange.ORPHANED_CHANGE);
+		}
 	}
 
 	private updateAutoSaveConfiguration(config: IAutoSaveConfiguration): void {
@@ -292,6 +311,12 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			return TPromise.as<EditorModel>(this);
 		}
 
+		// Ignore any error if we have a resolved file model already. This helps when for example
+		// a file was deleted meanwhile but we still have the previous contents.
+		if (this.isResolved()) {
+			return TPromise.as<EditorModel>(this);
+		}
+
 		// Otherwise bubble up the error
 		return TPromise.wrapError(error);
 	}
@@ -435,9 +460,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// In this case we clear the dirty flag and emit a SAVED event to indicate this state.
 		// Note: we currently only do this check when auto-save is turned off because there you see
 		// a dirty indicator that you want to get rid of when undoing to the saved version.
-		// Note: if the model is in orphan mode, we cannot clear the dirty indicator because there
-		// is no version on disk after all.
-		if (!this.autoSaveAfterMilliesEnabled && !this.inOrphanMode && this.textEditorModel.getAlternativeVersionId() === this.bufferSavedVersionId) {
+		if (!this.autoSaveAfterMilliesEnabled && this.textEditorModel.getAlternativeVersionId() === this.bufferSavedVersionId) {
 			diag('onModelContentChanged() - model content changed back to last saved version', this.resource, new Date());
 
 			// Clear flags
@@ -459,7 +482,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		// Start auto save process unless we are in conflict resolution mode and unless it is disabled
 		if (this.autoSaveAfterMilliesEnabled) {
-			if (!this.inConflictMode && !this.inOrphanMode) {
+			if (!this.inConflictMode) {
 				this.doAutoSave(this.versionId);
 			} else {
 				diag('makeDirty() - prevented save because we are in conflict resolution mode', this.resource, new Date());
@@ -668,14 +691,12 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private setDirty(dirty: boolean): () => void {
 		const wasDirty = this.dirty;
 		const wasInConflictMode = this.inConflictMode;
-		const wasInOrphanMode = this.inOrphanMode;
 		const wasInErrorMode = this.inErrorMode;
 		const oldBufferSavedVersionId = this.bufferSavedVersionId;
 
 		if (!dirty) {
 			this.dirty = false;
 			this.inConflictMode = false;
-			this.inOrphanMode = false;
 			this.inErrorMode = false;
 
 			// we remember the models alternate version id to remember when the version
@@ -694,7 +715,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return () => {
 			this.dirty = wasDirty;
 			this.inConflictMode = wasInConflictMode;
-			this.inOrphanMode = wasInOrphanMode;
 			this.inErrorMode = wasInErrorMode;
 			this.bufferSavedVersionId = oldBufferSavedVersionId;
 		};
@@ -748,33 +768,23 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	/**
-	 * Returns the state this text text file editor model is in with regards to changes and saving.
+	 * Answers if this model is in a specific state.
 	 */
-	public getState(): ModelState {
-		if (this.inConflictMode) {
-			return ModelState.CONFLICT;
+	public hasState(state: ModelState): boolean {
+		switch (state) {
+			case ModelState.CONFLICT:
+				return this.inConflictMode;
+			case ModelState.DIRTY:
+				return this.dirty;
+			case ModelState.ERROR:
+				return this.inErrorMode;
+			case ModelState.ORPHAN:
+				return this.inOrphanMode;
+			case ModelState.PENDING_SAVE:
+				return this.saveSequentializer.hasPendingSave();
+			case ModelState.SAVED:
+				return !this.dirty;
 		}
-
-		if (this.inOrphanMode) {
-			return ModelState.ORPHAN;
-		}
-
-		if (this.inErrorMode) {
-			return ModelState.ERROR;
-		}
-
-		if (!this.dirty) {
-			return ModelState.SAVED;
-		}
-
-		if (this.saveSequentializer.hasPendingSave()) {
-			return ModelState.PENDING_SAVE;
-		}
-
-		if (this.dirty) {
-			return ModelState.DIRTY;
-		}
-		return undefined;
 	}
 
 	public getEncoding(): string {
@@ -862,45 +872,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	 */
 	public getStat(): IFileStat {
 		return this.lastResolvedDiskStat;
-	}
-
-	/**
-	 * Makes this model an orphan, indicating that the file on disk no longer exists. Returns
-	 * a function to undo this and go back to the previous state.
-	 */
-	public setOrphaned(): () => void {
-
-		// Only saved models can turn into orphans
-		if (this.getState() !== ModelState.SAVED) {
-			return () => { };
-		}
-
-		// Mark as dirty
-		const undo = this.setDirty(true);
-
-		// Mark as oprhaned
-		this.inOrphanMode = true;
-
-		// Emit as Event if we turned dirty
-		this._onDidStateChange.fire(StateChange.DIRTY);
-
-		// Return undo function
-		const currentVersionId = this.versionId;
-		return () => {
-
-			// Leave orphan mode
-			this.inOrphanMode = false;
-
-			// Undo is only valid if version is the one we left with
-			if (this.versionId === currentVersionId) {
-
-				// Revert
-				undo();
-
-				// Events
-				this._onDidStateChange.fire(StateChange.SAVED);
-			}
-		};
 	}
 
 	public dispose(): void {

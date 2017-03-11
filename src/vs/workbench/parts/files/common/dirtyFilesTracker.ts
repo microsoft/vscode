@@ -85,7 +85,7 @@ export class DirtyFilesTracker implements IWorkbenchContribution {
 
 			// Only dirty models that are not PENDING_SAVE
 			const model = this.textFileService.models.get(e.resource);
-			const shouldOpen = model && model.isDirty() && model.getState() !== ModelState.PENDING_SAVE;
+			const shouldOpen = model && model.isDirty() && !model.hasState(ModelState.PENDING_SAVE);
 
 			// Only if not open already
 			return shouldOpen && !this.stacks.isOpen(e.resource);

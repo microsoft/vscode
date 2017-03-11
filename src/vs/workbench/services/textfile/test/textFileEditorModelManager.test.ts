@@ -15,7 +15,7 @@ import { workbenchInstantiationService, TestEditorGroupService, createFileInput,
 import { onError } from 'vs/base/test/common/utils';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
-import { IFileService } from 'vs/platform/files/common/files';
+import { IFileService, FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/modelService';
 
 export class TestTextFileEditorModelManager extends TextFileEditorModelManager {
@@ -178,6 +178,7 @@ suite('Files - TextFileEditorModelManager', () => {
 		let revertedCounter = 0;
 		let savedCounter = 0;
 		let encodingCounter = 0;
+		let orphanedCounter = 0;
 		let disposeCounter = 0;
 		let contentCounter = 0;
 
@@ -203,6 +204,11 @@ suite('Files - TextFileEditorModelManager', () => {
 			assert.equal(e.resource.toString(), resource1.toString());
 		});
 
+		manager.onModelOrphanedChanged(e => {
+			orphanedCounter++;
+			assert.equal(e.resource.toString(), resource1.toString());
+		});
+
 		manager.onModelContentChanged(e => {
 			contentCounter++;
 			assert.equal(e.resource.toString(), resource1.toString());
@@ -213,6 +219,10 @@ suite('Files - TextFileEditorModelManager', () => {
 		});
 
 		manager.loadOrCreate(resource1, 'utf8').done(model1 => {
+			accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource: resource1, type: FileChangeType.DELETED }]));
+			accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource: resource1, type: FileChangeType.ADDED }]));
+			assert.equal(orphanedCounter, 2);
+
 			return manager.loadOrCreate(resource2, 'utf8').then(model2 => {
 				model1.textEditorModel.setValue('changed');
 				model1.updatePreferredEncoding('utf16');

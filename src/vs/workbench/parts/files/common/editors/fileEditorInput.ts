@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import paths = require('vs/base/common/paths');
 import labels = require('vs/base/common/labels');
@@ -68,11 +69,18 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		this.toUnbind.push(this.textFileService.models.onModelSaveError(e => this.onDirtyStateChange(e)));
 		this.toUnbind.push(this.textFileService.models.onModelSaved(e => this.onDirtyStateChange(e)));
 		this.toUnbind.push(this.textFileService.models.onModelReverted(e => this.onDirtyStateChange(e)));
+		this.toUnbind.push(this.textFileService.models.onModelOrphanedChanged(e => this.onModelOrphanedChanged(e)));
 	}
 
 	private onDirtyStateChange(e: TextFileModelChangeEvent): void {
 		if (e.resource.toString() === this.resource.toString()) {
 			this._onDidChangeDirty.fire();
+		}
+	}
+
+	private onModelOrphanedChanged(e: TextFileModelChangeEvent): void {
+		if (e.resource.toString() === this.resource.toString()) {
+			this._onDidChangeLabel.fire();
 		}
 	}
 
@@ -130,6 +138,11 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 			this.name = paths.basename(this.resource.fsPath);
 		}
 
+		const model = this.textFileService.models.get(this.resource);
+		if (model && model.hasState(ModelState.ORPHAN)) {
+			return localize('fileDeletedName', "{0} (deleted from disk)", this.name);
+		}
+
 		return this.name;
 	}
 
@@ -158,9 +171,8 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 			return false;
 		}
 
-		const state = model.getState();
-		if (state === ModelState.CONFLICT || state === ModelState.ORPHAN || state === ModelState.ERROR) {
-			return true; // always indicate dirty state if we are in conflict, orphan or error state
+		if (model.hasState(ModelState.CONFLICT) || model.hasState(ModelState.ERROR)) {
+			return true; // always indicate dirty state if we are in conflict or error state
 		}
 
 		if (this.textFileService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {

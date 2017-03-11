@@ -88,6 +88,44 @@ suite('Files - FileEditorTracker', () => {
 		tracker.dispose();
 	});
 
+	test('disposes input when resource gets deleted - local file changes - even when closeOnFileDelete = false', function () {
+		const stacks = accessor.editorGroupService.getStacksModel() as EditorStacksModel;
+		const group = stacks.openGroup('first', true);
+
+		const tracker = instantiationService.createInstance(TestFileEditorTracker);
+		tracker.setCloseOnFileDelete(false);
+		assert.ok(tracker);
+
+		const parent = toResource.call(this, '/foo/bar');
+		const resource = toResource.call(this, '/foo/bar/updatefile.js');
+		let input = instantiationService.createInstance(FileEditorInput, resource, void 0);
+		group.openEditor(input);
+
+		assert.ok(!input.isDisposed());
+
+		accessor.fileService.fireAfterOperation(new FileOperationEvent(resource, FileOperation.DELETE));
+		assert.ok(input.isDisposed());
+		group.closeEditor(input);
+
+		input = instantiationService.createInstance(FileEditorInput, resource, void 0);
+		group.openEditor(input);
+
+		const other = toResource.call(this, '/foo/barfoo');
+
+		accessor.fileService.fireAfterOperation(new FileOperationEvent(other, FileOperation.DELETE));
+		assert.ok(!input.isDisposed());
+
+		accessor.fileService.fireAfterOperation(new FileOperationEvent(parent, FileOperation.DELETE));
+		assert.ok(input.isDisposed());
+
+		// Move
+		const to = toResource.call(this, '/foo/barfoo/change.js');
+		accessor.fileService.fireAfterOperation(new FileOperationEvent(resource, FileOperation.MOVE, to));
+		assert.ok(input.isDisposed());
+
+		tracker.dispose();
+	});
+
 	test('disposes when resource gets deleted - remote file changes', function (done) {
 		const stacks = accessor.editorGroupService.getStacksModel() as EditorStacksModel;
 		const group = stacks.openGroup('first', true);
@@ -127,7 +165,7 @@ suite('Files - FileEditorTracker', () => {
 		});
 	});
 
-	test('marks dirty when resource gets deleted and undirty when added again - remote file changes - closeOnFileDelete = false', function (done) {
+	test('keeps open when resource gets deleted - remote file changes - closeOnFileDelete = false', function () {
 		const stacks = accessor.editorGroupService.getStacksModel() as EditorStacksModel;
 		const group = stacks.openGroup('first', true);
 
@@ -139,40 +177,11 @@ suite('Files - FileEditorTracker', () => {
 		let input = instantiationService.createInstance(FileEditorInput, resource, void 0);
 		group.openEditor(input);
 
-		input.resolve().then(() => {
-			accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource, type: FileChangeType.DELETED }]));
-			assert.equal(input.isDirty(), true);
+		accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource, type: FileChangeType.DELETED }]));
 
-			accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource, type: FileChangeType.ADDED }]));
-			assert.equal(input.isDirty(), false);
+		assert.ok(!input.isDisposed());
 
-			done();
-		});
-	});
-
-	test('marks dirty when resource gets deleted and undirty when added again unless model changed meanwhile - remote file changes - closeOnFileDelete = false', function (done) {
-		const stacks = accessor.editorGroupService.getStacksModel() as EditorStacksModel;
-		const group = stacks.openGroup('first', true);
-
-		const tracker = instantiationService.createInstance(TestFileEditorTracker);
-		tracker.setCloseOnFileDelete(false);
-		assert.ok(tracker);
-
-		const resource = toResource.call(this, '/foo/bar/updatefile.js');
-		let input = instantiationService.createInstance(FileEditorInput, resource, void 0);
-		group.openEditor(input);
-
-		input.resolve().then(model => {
-			accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource, type: FileChangeType.DELETED }]));
-			assert.equal(input.isDirty(), true);
-
-			model.textEditorModel.setValue('This is cool');
-
-			accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource, type: FileChangeType.ADDED }]));
-			assert.equal(input.isDirty(), true);
-
-			done();
-		});
+		tracker.dispose();
 	});
 
 	test('file change event updates model', function (done) {
