@@ -169,6 +169,9 @@ suite('Files - TextFileEditorModelManager', () => {
 	});
 
 	test('events', function (done) {
+		TextFileEditorModel.DEFAULT_CONTENT_CHANGE_BUFFER_DELAY = 0;
+		TextFileEditorModel.DEFAULT_ORPHANED_CHANGE_BUFFER_DELAY = 0;
+
 		const manager: TestTextFileEditorModelManager = instantiationService.createInstance(TestTextFileEditorModelManager);
 
 		const resource1 = toResource('/path/index.txt');
@@ -182,37 +185,40 @@ suite('Files - TextFileEditorModelManager', () => {
 		let disposeCounter = 0;
 		let contentCounter = 0;
 
-		TextFileEditorModel.DEFAULT_CONTENT_CHANGE_BUFFER_DELAY = 0;
-		TextFileEditorModel.DEFAULT_ORPHANED_CHANGE_BUFFER_DELAY = 0;
-
 		manager.onModelDirty(e => {
-			dirtyCounter++;
-			assert.equal(e.resource.toString(), resource1.toString());
+			if (e.resource.toString() === resource1.toString()) {
+				dirtyCounter++;
+			}
 		});
 
 		manager.onModelReverted(e => {
-			revertedCounter++;
-			assert.equal(e.resource.toString(), resource1.toString());
+			if (e.resource.toString() === resource1.toString()) {
+				revertedCounter++;
+			}
 		});
 
 		manager.onModelSaved(e => {
-			savedCounter++;
-			assert.equal(e.resource.toString(), resource1.toString());
+			if (e.resource.toString() === resource1.toString()) {
+				savedCounter++;
+			}
 		});
 
 		manager.onModelEncodingChanged(e => {
-			encodingCounter++;
-			assert.equal(e.resource.toString(), resource1.toString());
+			if (e.resource.toString() === resource1.toString()) {
+				encodingCounter++;
+			}
 		});
 
 		manager.onModelOrphanedChanged(e => {
-			orphanedCounter++;
-			assert.equal(e.resource.toString(), resource1.toString());
+			if (e.resource.toString() === resource1.toString()) {
+				orphanedCounter++;
+			}
 		});
 
 		manager.onModelContentChanged(e => {
-			contentCounter++;
-			assert.equal(e.resource.toString(), resource1.toString());
+			if (e.resource.toString() === resource1.toString()) {
+				contentCounter++;
+			}
 		});
 
 		manager.onModelDisposed(e => {
@@ -242,9 +248,9 @@ suite('Files - TextFileEditorModelManager', () => {
 							assert.equal(encodingCounter, 2);
 
 							// content change event if done async
-							TPromise.timeout(0).then(() => {
+							TPromise.timeout(10).then(() => {
 								assert.equal(contentCounter, 2);
-								assert.equal(orphanedCounter, 2);
+								assert.equal(orphanedCounter, 1);
 
 								model1.dispose();
 								model2.dispose();
