@@ -146,7 +146,7 @@ export class MainProcessTextMateSyntax implements ITextMateService {
 
 		this._modeService.onDidCreateMode((mode) => {
 			let modeId = mode.getId();
-			if (this._languageToScope[modeId]) {
+			if (this._languageToScope.has(modeId)) {
 				this.registerDefinition(modeId);
 			}
 		});
@@ -234,7 +234,7 @@ export class MainProcessTextMateSyntax implements ITextMateService {
 
 		let modeId = syntax.language;
 		if (modeId) {
-			this._languageToScope[modeId] = syntax.scopeName;
+			this._languageToScope.set(modeId, syntax.scopeName);
 		}
 	}
 
@@ -257,7 +257,7 @@ export class MainProcessTextMateSyntax implements ITextMateService {
 	}
 
 	private _createGrammar(modeId: string): TPromise<ICreateGrammarResult> {
-		let scopeName = this._languageToScope[modeId];
+		let scopeName = this._languageToScope.get(modeId);
 		let languageRegistration = this._scopeRegistry.getLanguageRegistration(scopeName);
 		if (!languageRegistration) {
 			// No TM grammar defined
