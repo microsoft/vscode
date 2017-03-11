@@ -305,7 +305,7 @@ export class LRUCache<T> extends BoundedLinkedMap<T> {
 
 class Node<E> {
 	element?: E;
-	readonly children = new Map<string, E>();
+	readonly children = new Map<string, Node<E>>();
 }
 
 /**
@@ -330,7 +330,7 @@ export class TrieMap<E> {
 		// find insertion node
 		let node = this._root;
 		for (; i < parts.length; i++) {
-			let child = node.children[parts[i]];
+			let child = node.children.get(parts[i]);
 			if (child) {
 				node = child;
 				continue;
@@ -342,7 +342,7 @@ export class TrieMap<E> {
 		let newNode: Node<E>;
 		for (; i < parts.length; i++) {
 			newNode = new Node<E>();
-			node.children[parts[i]] = newNode;
+			node.children.set(parts[i], newNode);
 			node = newNode;
 		}
 
@@ -355,7 +355,7 @@ export class TrieMap<E> {
 		let { children } = this._root;
 		let node: Node<E>;
 		for (const part of parts) {
-			node = children[part];
+			node = children.get(part);
 			if (!node) {
 				return undefined;
 			}
@@ -371,7 +371,7 @@ export class TrieMap<E> {
 		let lastNode: Node<E>;
 		let { children } = this._root;
 		for (const part of parts) {
-			const node = children[part];
+			const node = children.get(part);
 			if (!node) {
 				break;
 			}
@@ -395,7 +395,7 @@ export class TrieMap<E> {
 		let { children } = this._root;
 		let node: Node<E>;
 		for (const part of parts) {
-			node = children[part];
+			node = children.get(part);
 			if (!node) {
 				return undefined;
 			}
