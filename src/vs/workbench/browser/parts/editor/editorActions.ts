@@ -125,7 +125,7 @@ export class JoinTwoGroupsAction extends Action {
 		const editorStacksModel = this.editorGroupService.getStacksModel();
 
 		// Return if has no other group to join to
-		if (editorStacksModel.groups.length <= 1) {
+		if (editorStacksModel.groups.length < 2) {
 			return TPromise.as(true);
 		}
 
@@ -151,17 +151,21 @@ export class JoinTwoGroupsAction extends Action {
 
 		const activeEditor = fromGroup.activeEditor;
 		const fromGroupEditors = fromGroup.getEditors();
-		const fromGroupTotalCount = fromGroupEditors.length;
 
-		// If an editor exists in both groups, only the editor in the joining group is kept
-		if (toPosition < fromPosition) {
-			fromGroupEditors.forEach(e => this.editorGroupService.moveEditor(e, fromPosition, toPosition, { index: toGroup.count, inactive: true }));
-		} else {
-			fromGroupEditors.forEach(e => this.editorGroupService.moveEditor(e, fromPosition, toPosition, { index: fromGroupTotalCount - fromGroup.count, inactive: true }));
-		}
+		// Insert the editors to the start if moving to the next group, otherwise insert to the end
+		// If an editor exists in both groups, its index is respected as in the joining group
+		const movingToNextGroup = fromPosition < toPosition;
+		let index = movingToNextGroup ? 0 : toGroup.count;
 
-		// Regain focus on the active editor
-		this.editorService.openEditor(activeEditor);
+		// Inactive and preserve focus options are used to prevent unnecessary switchings of active editor or group
+		fromGroupEditors.forEach(e => {
+			const inactive = e !== activeEditor;
+			this.editorGroupService.moveEditor(e, fromPosition, toPosition, { index, inactive, preserveFocus: inactive });
+			index = movingToNextGroup ? index + 1 : toGroup.count;
+		});
+
+		// Focus may be lost when the joining group is closed, regain focus on the target group
+		this.editorGroupService.focusGroup(toGroup);
 
 		return TPromise.as(true);
 	}

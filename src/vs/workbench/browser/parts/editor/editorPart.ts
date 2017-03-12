@@ -856,14 +856,15 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		const index = moveOptions && moveOptions.index;
 		const inactive = moveOptions && moveOptions.inactive;
+		const preserveFocus = moveOptions && moveOptions.preserveFocus;
 
 		// When moving an editor, try to preserve as much view state as possible by checking
 		// for the editor to be a text editor and creating the options accordingly if so
-		let options = EditorOptions.create({ pinned: true, index, inactive });
+		let options = EditorOptions.create({ pinned: true, index, inactive, preserveFocus });
 		const activeEditor = this.getActiveEditor();
 		const codeEditor = getCodeEditor(activeEditor);
 		if (codeEditor && activeEditor.position === this.stacks.positionOfGroup(fromGroup) && input.matches(activeEditor.input)) {
-			options = TextEditorOptions.create({ pinned: true, index, inactive });
+			options = TextEditorOptions.create({ pinned: true, index, inactive, preserveFocus });
 			(<TextEditorOptions>options).fromEditor(codeEditor);
 		}
 
