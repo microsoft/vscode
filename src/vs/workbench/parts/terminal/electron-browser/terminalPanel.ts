@@ -235,6 +235,7 @@ export class TerminalPanel extends Panel {
 				`font-family: ${newFont.fontFamily};` +
 				`font-size: ${newFont.fontSize};` +
 				`line-height: ${newFont.lineHeight};` +
+				`font-weight: ${newFont.fontWeight};` +
 				'}';
 			this._font = newFont;
 		}
