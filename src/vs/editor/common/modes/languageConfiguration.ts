@@ -142,6 +142,11 @@ export interface IAutoClosingPairConditional extends IAutoClosingPair {
 	notIn?: string[];
 }
 
+export interface IRegExp {
+	pattern: string;
+	flags?: string;
+}
+
 /**
  * Describes what to do with the indentation when pressing Enter.
  */

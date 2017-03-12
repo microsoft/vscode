@@ -7,7 +7,7 @@
 import * as nls from 'vs/nls';
 import { parse } from 'vs/base/common/json';
 import { readFile } from 'vs/base/node/pfs';
-import { CharacterPair, LanguageConfiguration, IAutoClosingPair, IAutoClosingPairConditional, CommentRule } from 'vs/editor/common/modes/languageConfiguration';
+import { CharacterPair, LanguageConfiguration, IAutoClosingPair, IAutoClosingPairConditional, CommentRule, IRegExp } from 'vs/editor/common/modes/languageConfiguration';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
@@ -21,6 +21,7 @@ interface ILanguageConfiguration {
 	brackets?: CharacterPair[];
 	autoClosingPairs?: (CharacterPair | IAutoClosingPairConditional)[];
 	surroundingPairs?: (CharacterPair | IAutoClosingPair)[];
+	wordPattern?: string | IRegExp;
 }
 
 export class LanguageConfigurationFileHandler {
@@ -83,6 +84,26 @@ export class LanguageConfigurationFileHandler {
 
 		if (configuration.surroundingPairs) {
 			richEditConfig.surroundingPairs = this._mapCharacterPairs(configuration.surroundingPairs);
+		}
+
+		if (configuration.wordPattern) {
+			let pattern = '';
+			let flags = '';
+
+			if (typeof configuration.wordPattern === 'string') {
+				pattern = configuration.wordPattern;
+			} else if (typeof configuration.wordPattern === 'object') {
+				pattern = configuration.wordPattern.pattern;
+				flags = configuration.wordPattern.flags;
+			}
+
+			if (pattern) {
+				try {
+					richEditConfig.wordPattern = new RegExp(pattern, flags);
+				} catch (error) {
+					// Malformed regexes are ignored
+				}
+			}
 		}
 
 		LanguageConfigurationRegistry.register(languageIdentifier, richEditConfig);
@@ -208,6 +229,25 @@ const schema: IJSONSchema = {
 				}]
 			}
 		},
+		wordPattern: {
+			default: '',
+			description: nls.localize('schema.wordPattern', 'The word definition for the language.'),
+			type: ['string', 'object'],
+			properties: {
+				pattern: {
+					type: 'string',
+					description: nls.localize('schema.wordPattern.pattern', 'The RegExp pattern used to match words.'),
+					default: '',
+				},
+				flags: {
+					type: 'string',
+					description: nls.localize('schema.wordPattern.flags', 'The RegExp flags used to match words.'),
+					default: 'g',
+					pattern: '^([gimuy]+)$',
+					patternErrorMessage: nls.localize('schema.wordPattern.flags.errorMessage', 'Must match the pattern `/^([gimuy]+)$/`.')
+				}
+			}
+		}
 	}
 };
 let schemaRegistry = <IJSONContributionRegistry>Registry.as(Extensions.JSONContribution);
