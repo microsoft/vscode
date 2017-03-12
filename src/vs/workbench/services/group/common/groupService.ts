@@ -29,6 +29,7 @@ export interface ITabOptions {
 export interface IMoveOptions {
 	index?: number;
 	inactive?: boolean;
+	preserveFocus?: boolean;
 }
 
 /**
