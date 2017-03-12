@@ -50,7 +50,7 @@ DEFAULT_TERMINAL_LINUX_READY.then(defaultTerminalLinux => {
 				'description': nls.localize('terminal.external.linuxExec', "Customizes which terminal to run on Linux."),
 				'default': defaultTerminalLinux,
 				'isExecutable': true
-			},
+			}
 		}
 	});
 });
