@@ -8,6 +8,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { isNumber } from 'vs/base/common/types';
 import { memoize } from 'vs/base/common/decorators';
 import * as DOM from 'vs/base/browser/dom';
+import * as platform from 'vs/base/common/platform';
 import { EventType as TouchEventType } from 'vs/base/browser/touch';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -184,6 +185,7 @@ class KeyboardController<T> implements IDisposable {
 	private onEnter(e: StandardKeyboardEvent): void {
 		e.preventDefault();
 		e.stopPropagation();
+		this.list.setSelection(this.list.getFocus());
 		this.list.open(this.list.getFocus());
 	}
 
@@ -268,8 +270,23 @@ class MouseController<T> implements IDisposable {
 		e.preventDefault();
 		e.stopPropagation();
 		this.view.domNode.focus();
-		this.list.setFocus([e.index]);
-		this.list.open([e.index]);
+
+		const focus = e.index;
+		this.list.setFocus([focus]);
+
+		if (platform.isMacintosh ? e.altKey : e.ctrlKey) {
+			const selection = this.list.getSelection();
+			const newSelection = selection.filter(i => i !== focus);
+
+			if (selection.length === newSelection.length) {
+				this.list.setSelection([...newSelection, focus].sort());
+			} else {
+				this.list.setSelection(newSelection);
+			}
+		} else {
+			this.list.setSelection([focus]);
+			this.list.open([focus]);
+		}
 	}
 
 	dispose() {
@@ -542,7 +559,6 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	}
 
 	open(indexes: number[]): void {
-		this.setSelection(indexes);
 		this._onOpen.fire(indexes);
 	}
 
