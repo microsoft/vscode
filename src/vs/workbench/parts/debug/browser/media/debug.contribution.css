@@ -84,11 +84,6 @@
 	background: url('stackframe-and-breakpoint.svg') center center no-repeat;
 }
 
-/* Status */
-.monaco-workbench.debugging > .part.statusbar {
-	background: #CC6633 !important;
-}
-
 /* Error editor */
 .debug-error-editor:focus {
 	outline: none !important;
@@ -230,4 +225,10 @@
 .hc-black .monaco-editor .debug-top-stack-frame-line {
 	background: rgba(255, 246, 0, .8);
 	mix-blend-mode: lighten; /* Preserves text selection's contrast */
+}
+
+/* TODO@theme */
+
+.monaco-workbench.debugging > .part.statusbar {
+	background: #CC6633 !important;
 }

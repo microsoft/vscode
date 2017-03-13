@@ -5,8 +5,6 @@
 
 'use strict';
 
-import 'vs/css!./media/files.contribution';
-
 import URI from 'vs/base/common/uri';
 import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, ToggleViewletAction } from 'vs/workbench/browser/viewlet';
 import nls = require('vs/nls');
