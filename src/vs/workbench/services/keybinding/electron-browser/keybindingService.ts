@@ -8,12 +8,12 @@ import * as nls from 'vs/nls';
 import { IHTMLContentElement } from 'vs/base/common/htmlContent';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { ResolvedKeybinding, Keybinding } from 'vs/base/common/keyCodes';
-import { KeybindingLabels, PrintableKeypress, MacUILabelProvider, ClassicUILabelProvider, MacAriaLabelProvider, ClassicAriaLabelProvider } from 'vs/platform/keybinding/common/keybindingLabels';
-import * as platform from 'vs/base/common/platform';
+import { PrintableKeypress, UILabelProvider, AriaLabelProvider } from 'vs/platform/keybinding/common/keybindingLabels';
+import { OS, OperatingSystem } from 'vs/base/common/platform';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { ExtensionMessageCollector, ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
 import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
+import { AbstractKeybindingService, USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/abstractKeybindingService';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -130,41 +130,34 @@ export class FancyResolvedKeybinding extends ResolvedKeybinding {
 
 	public getLabel(): string {
 		const keyCodeLabelProvider = getNativeUIKeyCodeLabelProvider();
-		const [firstPart, chordPart] = PrintableKeypress.fromKeybinding(this._actual, keyCodeLabelProvider, platform.isMacintosh);
+		const [firstPart, chordPart] = PrintableKeypress.fromKeybinding2(this._actual, keyCodeLabelProvider, OS);
 
-		if (platform.isMacintosh) {
-			return MacUILabelProvider.toLabel(firstPart, chordPart);
-		}
-		return ClassicUILabelProvider.toLabel(firstPart, chordPart);
+		return UILabelProvider.toLabel2(firstPart, chordPart, OS);
 	}
 
 	public getAriaLabel(): string {
 		const keyCodeLabelProvider = getNativeAriaKeyCodeLabelProvider();
-		const [firstPart, chordPart] = PrintableKeypress.fromKeybinding(this._actual, keyCodeLabelProvider, platform.isMacintosh);
+		const [firstPart, chordPart] = PrintableKeypress.fromKeybinding2(this._actual, keyCodeLabelProvider, OS);
 
-		if (platform.isMacintosh) {
-			return MacAriaLabelProvider.toLabel(firstPart, chordPart);
-		}
-		return ClassicAriaLabelProvider.toLabel(firstPart, chordPart);
+		return AriaLabelProvider.toLabel2(firstPart, chordPart, OS);
 	}
 
 	public getHTMLLabel(): IHTMLContentElement[] {
 		const keyCodeLabelProvider = getNativeUIKeyCodeLabelProvider();
-		const [firstPart, chordPart] = PrintableKeypress.fromKeybinding(this._actual, keyCodeLabelProvider, platform.isMacintosh);
+		const [firstPart, chordPart] = PrintableKeypress.fromKeybinding2(this._actual, keyCodeLabelProvider, OS);
 
-		if (platform.isMacintosh) {
-			return MacUILabelProvider.toHTMLLabel(firstPart, chordPart);
-		}
-		return ClassicUILabelProvider.toHTMLLabel(firstPart, chordPart);
+		return UILabelProvider.toHTMLLabel2(firstPart, chordPart, OS);
 	}
 
 	public getElectronAccelerator(): string {
-		if (platform.isWindows) {
+		const usResolvedKeybinding = new USLayoutResolvedKeybinding(this._actual, OS);
+
+		if (OS === OperatingSystem.Windows) {
 			// electron menus always do the correct rendering on Windows
-			return KeybindingLabels._toElectronAccelerator(this._actual);
+			return usResolvedKeybinding.getElectronAccelerator();
 		}
 
-		let usLabel = KeybindingLabels._toUSLabel(this._actual);
+		let usLabel = usResolvedKeybinding.getLabel();
 		let label = this.getLabel();
 		if (usLabel !== label) {
 			// electron menus are incorrect in rendering (linux) and in rendering and interpreting (mac)
@@ -172,11 +165,11 @@ export class FancyResolvedKeybinding extends ResolvedKeybinding {
 			return null;
 		}
 
-		return KeybindingLabels._toElectronAccelerator(this._actual);
+		return usResolvedKeybinding.getElectronAccelerator();
 	}
 
 	public getUserSettingsLabel(): string {
-		return KeybindingLabels.toUserSettingsLabel(this._actual);
+		return KeybindingIO.writeKeybinding(this._actual, OS);
 	}
 }
 
@@ -274,7 +267,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 			});
 		}
 
-		return extraUserKeybindings.map((k, i) => KeybindingIO.readKeybindingItem(k, i));
+		return extraUserKeybindings.map((k, i) => KeybindingIO.readKeybindingItem(k, i, OS));
 	}
 
 	protected _createResolvedKeybinding(kb: Keybinding): ResolvedKeybinding {
@@ -333,10 +326,10 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 			id: command,
 			when: ContextKeyExpr.deserialize(when),
 			weight: weight,
-			primary: KeybindingIO.readKeybinding(key),
-			mac: mac && { primary: KeybindingIO.readKeybinding(mac) },
-			linux: linux && { primary: KeybindingIO.readKeybinding(linux) },
-			win: win && { primary: KeybindingIO.readKeybinding(win) }
+			primary: KeybindingIO.readKeybinding(key, OS),
+			mac: mac && { primary: KeybindingIO.readKeybinding(mac, OS) },
+			linux: linux && { primary: KeybindingIO.readKeybinding(linux, OS) },
+			win: win && { primary: KeybindingIO.readKeybinding(win, OS) }
 		};
 
 		if (!desc.primary && !desc.mac && !desc.linux && !desc.win) {

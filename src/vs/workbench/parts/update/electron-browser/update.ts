@@ -26,6 +26,7 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IUpdateService } from 'vs/platform/update/common/update';
 import * as semver from 'semver';
+import { OS } from 'vs/base/common/platform';
 
 class ApplyUpdateAction extends Action {
 	constructor( @IUpdateService private updateService: IUpdateService) {
@@ -73,7 +74,7 @@ export function loadReleaseNotes(accessor: ServicesAccessor, version: string): T
 		};
 
 		const kbstyle = (match: string, kb: string) => {
-			const code = KeybindingIO.readKeybinding(kb);
+			const code = KeybindingIO.readKeybinding(kb, OS);
 
 			if (!code) {
 				return unassigned;

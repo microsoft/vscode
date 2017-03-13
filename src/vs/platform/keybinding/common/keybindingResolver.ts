@@ -228,7 +228,6 @@ export class KeybindingResolver {
 	}
 
 	public resolve(context: any, currentChord: string, keypress: string): IResolveResult {
-		// console.log('resolve: ' + Keybinding.toUserSettingsLabel(keypress));
 		let lookupMap: NormalizedKeybindingItem[] = null;
 
 		if (currentChord !== null) {

@@ -6,8 +6,8 @@
 
 import * as nls from 'vs/nls';
 import { IHTMLContentElement } from 'vs/base/common/htmlContent';
-import { ResolvedKeybinding, SimpleKeybinding, Keybinding } from 'vs/base/common/keyCodes';
-import { KeybindingLabels } from 'vs/platform/keybinding/common/keybindingLabels';
+import { ResolvedKeybinding, SimpleKeybinding, Keybinding, KeyCode, KeyCodeUtils } from 'vs/base/common/keyCodes';
+import { PrintableKeypress, UILabelProvider, AriaLabelProvider, ElectronAcceleratorLabelProvider } from 'vs/platform/keybinding/common/keybindingLabels';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
@@ -20,34 +20,90 @@ import { IMessageService } from 'vs/platform/message/common/message';
 import Event, { Emitter } from 'vs/base/common/event';
 import { KeybindingIO, OutputBuilder } from 'vs/platform/keybinding/common/keybindingIO';
 import { NormalizedKeybindingItem } from 'vs/platform/keybinding/common/normalizedKeybindingItem';
+import { OS, OperatingSystem } from 'vs/base/common/platform';
 
-export class SimpleResolvedKeybinding extends ResolvedKeybinding {
+/**
+ * Do not instantiate. Use KeybindingService to get a ResolvedKeybinding.
+ */
+export class USLayoutResolvedKeybinding extends ResolvedKeybinding {
 
 	private readonly _actual: Keybinding;
+	private readonly _os: OperatingSystem;
 
-	constructor(actual: Keybinding) {
+	constructor(actual: Keybinding, os: OperatingSystem) {
 		super();
 		this._actual = actual;
+		this._os = os;
+	}
+
+	private static _usKeyCodeToUILabel(keyCode: KeyCode, OS: OperatingSystem): string {
+		if (OS === OperatingSystem.Macintosh) {
+			switch (keyCode) {
+				case KeyCode.LeftArrow:
+					return '←';
+				case KeyCode.UpArrow:
+					return '↑';
+				case KeyCode.RightArrow:
+					return '→';
+				case KeyCode.DownArrow:
+					return '↓';
+			}
+		}
+		return KeyCodeUtils.toString(keyCode);
+	}
+
+	private static _usKeyCodeToAriaLabel(keyCode: KeyCode, OS: OperatingSystem): string {
+		return KeyCodeUtils.toString(keyCode);
 	}
 
 	public getLabel(): string {
-		return KeybindingLabels._toUSLabel(this._actual);
+		const [firstPart, chordPart] = PrintableKeypress.fromKeybinding2(this._actual, USLayoutResolvedKeybinding._usKeyCodeToUILabel, this._os);
+		return UILabelProvider.toLabel2(firstPart, chordPart, this._os);
 	}
 
 	public getAriaLabel(): string {
-		return KeybindingLabels._toUSAriaLabel(this._actual);
+		const [firstPart, chordPart] = PrintableKeypress.fromKeybinding2(this._actual, USLayoutResolvedKeybinding._usKeyCodeToAriaLabel, this._os);
+		return AriaLabelProvider.toLabel2(firstPart, chordPart, this._os);
 	}
 
 	public getHTMLLabel(): IHTMLContentElement[] {
-		return KeybindingLabels._toUSHTMLLabel(this._actual);
+		const [firstPart, chordPart] = PrintableKeypress.fromKeybinding2(this._actual, USLayoutResolvedKeybinding._usKeyCodeToUILabel, this._os);
+		return UILabelProvider.toHTMLLabel2(firstPart, chordPart, this._os);
+	}
+
+	private static _usKeyCodeToElectronAccelerator(keyCode: KeyCode, OS: OperatingSystem): string {
+		switch (keyCode) {
+			case KeyCode.UpArrow:
+				return 'Up';
+			case KeyCode.DownArrow:
+				return 'Down';
+			case KeyCode.LeftArrow:
+				return 'Left';
+			case KeyCode.RightArrow:
+				return 'Right';
+		}
+
+		return KeyCodeUtils.toString(keyCode);
 	}
 
 	public getElectronAccelerator(): string {
-		return KeybindingLabels._toElectronAccelerator(this._actual);
+		if (this._actual.isChord()) {
+			// Electron cannot handle chords
+			return null;
+		}
+
+		let keyCode = this._actual.getKeyCode();
+		if (keyCode >= KeyCode.NUMPAD_0 && keyCode <= KeyCode.NUMPAD_DIVIDE) {
+			// Electron cannot handle numpad keys
+			return null;
+		}
+
+		const [firstPart, chordPart] = PrintableKeypress.fromKeybinding2(this._actual, USLayoutResolvedKeybinding._usKeyCodeToElectronAccelerator, this._os);
+		return ElectronAcceleratorLabelProvider.toLabel2(firstPart, chordPart, this._os);
 	}
 
 	public getUserSettingsLabel(): string {
-		return KeybindingLabels.toUserSettingsLabel(this._actual);
+		return KeybindingIO.writeKeybinding(this._actual, this._os);
 	}
 }
 
@@ -119,7 +175,7 @@ export abstract class AbstractKeybindingService implements IKeybindingService {
 
 		let lastIndex = defaultKeybindings.length - 1;
 		defaultKeybindings.forEach((k, index) => {
-			KeybindingIO.writeKeybindingItem(out, k);
+			KeybindingIO.writeKeybindingItem(out, k, OS);
 			if (index !== lastIndex) {
 				out.writeLine(',');
 			} else {
