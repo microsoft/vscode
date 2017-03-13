@@ -359,8 +359,13 @@ export function matchesFuzzy(word: string, wordToMatchAgainst: string, enableSep
 }
 
 export function matchesFuzzy2(pattern: string, word: string): IMatch[] | undefined {
+
+	pattern = pattern.toLowerCase();
+	word = word.toLowerCase();
+
 	let result: IMatch[] = [];
 	let lastMatch: IMatch;
+
 	let patternPos = 0;
 	let wordPos = 0;
 	while (patternPos < pattern.length && wordPos < word.length) {
@@ -369,14 +374,12 @@ export function matchesFuzzy2(pattern: string, word: string): IMatch[] | undefin
 			if (lastMatch && lastMatch.end === wordPos) {
 				lastMatch.end += 1;
 			} else {
-				lastMatch = {
-					start: wordPos,
-					end: wordPos + 1
-				};
+				lastMatch = { start: wordPos, end: wordPos + 1 };
 				result.push(lastMatch);
 			}
 		}
 		wordPos += 1;
 	}
-	return lastMatch ? result : undefined;
+
+	return result.length > 0 ? result : undefined;
 }
