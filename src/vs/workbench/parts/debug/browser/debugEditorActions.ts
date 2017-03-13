@@ -122,9 +122,9 @@ class ConditionalBreakpointAction extends EditorAction {
 	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
 		const debugService = accessor.get(IDebugService);
 
-		const lineNumber = editor.getPosition().lineNumber;
+		const { lineNumber, column } = editor.getPosition();
 		if (debugService.getConfigurationManager().canSetBreakpointsIn(editor.getModel())) {
-			editor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID).showBreakpointWidget(lineNumber);
+			editor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID).showBreakpointWidget(lineNumber, column);
 		}
 	}
 }
