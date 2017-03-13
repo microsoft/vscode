@@ -8,13 +8,19 @@
 }
 
 .monaco-workbench .binarydiff-right {
-	border-left: 3px solid #DDD;
+	border-left: 3px solid;
+}
+
+/* TODO@theme */
+
+.vs .monaco-workbench .binarydiff-right {
+	border-left-color: #DDD;
 }
 
 .vs-dark .monaco-workbench .binarydiff-right {
-	border-left: 3px solid rgb(20, 20, 20);
+	border-left-color: #141414;
 }
 
 .hc-black .monaco-workbench .binarydiff-right {
-	border-left: 3px solid #6FC3DF;
+	border-left-color: #6FC3DF;
 }

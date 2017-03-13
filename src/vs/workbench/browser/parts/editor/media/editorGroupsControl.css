@@ -3,14 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.vs .monaco-workbench > .editor > .content.drag {
-	background-color: #ECECEC;
-}
-
-.vs-dark .monaco-workbench > .editor > .content.drag {
-	background-color: #2D2D2D;
-}
-
 .monaco-workbench > .editor > .content.dragging > .monaco-sash {
 	display: none; /* hide sashes while dragging editors around */
 }
@@ -27,20 +19,10 @@
 	opacity: 0; /* initially not visible until moving around */
 }
 
-.vs #monaco-workbench-editor-drop-overlay,
-.vs .monaco-workbench > .editor.empty > .content.dropfeedback {
-	background-color: rgba(51,153,255, 0.18);
-}
-
-.vs-dark #monaco-workbench-editor-drop-overlay,
-.vs-dark .monaco-workbench > .editor.empty > .content.dropfeedback {
-	background-color: rgba(83, 89, 93, 0.5);
-}
-
 .hc-black #monaco-workbench-editor-drop-overlay,
 .hc-black .monaco-workbench > .editor.empty > .content.dropfeedback {
 	background: none !important;
-	outline: 2px dashed #f38518;
+	outline: 2px dashed;
 	outline-offset: -2px;
 }
 
@@ -68,63 +50,63 @@
 }
 
 .vs .monaco-workbench > .editor > .content.vertical-layout > .one-editor-silo.dragging {
-	border-left: 1px solid #E7E7E7;
-	border-right: 1px solid #E7E7E7;
+	border-left: 1px solid;
+	border-right: 1px solid;
 }
 
 .vs .monaco-workbench > .editor > .content.horizontal-layout > .one-editor-silo.dragging {
-	border-top: 1px solid #E7E7E7;
-	border-bottom: 1px solid #E7E7E7;
+	border-top: 1px solid;
+	border-bottom: 1px solid;
 }
 
 .vs .monaco-workbench > .editor > .content.vertical-layout > .one-editor-silo.editor-two,
 .vs .monaco-workbench > .editor > .content.vertical-layout > .one-editor-silo.editor-three {
-	border-left: 1px solid #E7E7E7;
+	border-left: 1px solid;
 }
 
 .vs .monaco-workbench > .editor > .content.horizontal-layout > .one-editor-silo.editor-two,
 .vs .monaco-workbench > .editor > .content.horizontal-layout > .one-editor-silo.editor-three {
-	border-top: 1px solid #E7E7E7;
+	border-top: 1px solid;
 }
 
 .vs-dark .monaco-workbench > .editor > .content.vertical-layout > .one-editor-silo.dragging {
-	border-left: 1px solid #444;
-	border-right: 1px solid #444;
+	border-left: 1px solid;
+	border-right: 1px solid;
 }
 
 .vs-dark .monaco-workbench > .editor > .content.horizontal-layout > .one-editor-silo.dragging {
-	border-top: 1px solid #444;
-	border-bottom: 1px solid #444;
+	border-top: 1px solid;
+	border-bottom: 1px solid;
 }
 
 .vs-dark .monaco-workbench > .editor > .content.vertical-layout > .one-editor-silo.editor-two,
 .vs-dark .monaco-workbench > .editor > .content.vertical-layout > .one-editor-silo.editor-three {
-	border-left: 1px solid #444;
+	border-left: 1px solid;
 }
 
 .vs-dark .monaco-workbench > .editor > .content.horizontal-layout > .one-editor-silo.editor-two,
 .vs-dark .monaco-workbench > .editor > .content.horizontal-layout > .one-editor-silo.editor-three {
-	border-top: 1px solid #444;
+	border-top: 1px solid;
 }
 
 .hc-black .monaco-workbench > .editor > .content.vertical-layout > .one-editor-silo.dragging {
-	border-left: 1px solid #6FC3DF;
-	border-right: 1px solid #6FC3DF;
+	border-left: 1px solid;
+	border-right: 1px solid;
 }
 
 .hc-black .monaco-workbench > .editor > .content.horizontal-layout > .one-editor-silo.dragging {
-	border-top: 1px solid #6FC3DF;
-	border-bottom: 1px solid #6FC3DF;
+	border-top: 1px solid;
+	border-bottom: 1px solid;
 }
 
 .hc-black .monaco-workbench > .editor > .content.vertical-layout > .one-editor-silo.editor-two,
 .hc-black .monaco-workbench > .editor > .content.vertical-layout > .one-editor-silo.editor-three {
-	border-left: 1px solid #6FC3DF;
+	border-left: 1px solid;
 }
 
 .hc-black .monaco-workbench > .editor > .content.horizontal-layout > .one-editor-silo.editor-two,
 .hc-black .monaco-workbench > .editor > .content.horizontal-layout > .one-editor-silo.editor-three {
-	border-top: 1px solid #6FC3DF;
+	border-top: 1px solid;
 }
 
 .monaco-workbench > .editor > .content.vertical-layout > .one-editor-silo.draggedunder {
@@ -149,4 +131,89 @@
 
 .monaco-workbench > .editor > .content > .one-editor-silo > .container > .editor-container {
 	height: calc(100% - 35px); /* Editor is below editor title */
+}
+
+/* TODO@theme */
+
+.vs .monaco-workbench > .editor > .content.drag {
+	background-color: #ECECEC;
+}
+
+.vs-dark .monaco-workbench > .editor > .content.drag {
+	background-color: #2D2D2D;
+}
+
+.vs #monaco-workbench-editor-drop-overlay,
+.vs .monaco-workbench > .editor.empty > .content.dropfeedback {
+	background-color: rgba(51,153,255, 0.18);
+}
+
+.vs-dark #monaco-workbench-editor-drop-overlay,
+.vs-dark .monaco-workbench > .editor.empty > .content.dropfeedback {
+	background-color: rgba(83, 89, 93, 0.5);
+}
+
+.hc-black #monaco-workbench-editor-drop-overlay,
+.hc-black .monaco-workbench > .editor.empty > .content.dropfeedback {
+	outline-color: #f38518;
+}
+
+.vs .monaco-workbench > .editor > .content.vertical-layout > .one-editor-silo.dragging {
+	border-left-color: #E7E7E7;
+	border-right-color: #E7E7E7;
+}
+
+.vs .monaco-workbench > .editor > .content.horizontal-layout > .one-editor-silo.dragging {
+	border-top-color: #E7E7E7;
+	border-bottom-color: #E7E7E7;
+}
+
+.vs .monaco-workbench > .editor > .content.vertical-layout > .one-editor-silo.editor-two,
+.vs .monaco-workbench > .editor > .content.vertical-layout > .one-editor-silo.editor-three {
+	border-left-color: #E7E7E7;
+}
+
+.vs .monaco-workbench > .editor > .content.horizontal-layout > .one-editor-silo.editor-two,
+.vs .monaco-workbench > .editor > .content.horizontal-layout > .one-editor-silo.editor-three {
+	border-top-color: #E7E7E7;
+}
+
+.vs-dark .monaco-workbench > .editor > .content.vertical-layout > .one-editor-silo.dragging {
+	border-left-color: #444;
+	border-right-color: #444;
+}
+
+.vs-dark .monaco-workbench > .editor > .content.horizontal-layout > .one-editor-silo.dragging {
+	border-top-color: #444;
+	border-bottom-color: #444;
+}
+
+.vs-dark .monaco-workbench > .editor > .content.vertical-layout > .one-editor-silo.editor-two,
+.vs-dark .monaco-workbench > .editor > .content.vertical-layout > .one-editor-silo.editor-three {
+	border-left-color: #444;
+}
+
+.vs-dark .monaco-workbench > .editor > .content.horizontal-layout > .one-editor-silo.editor-two,
+.vs-dark .monaco-workbench > .editor > .content.horizontal-layout > .one-editor-silo.editor-three {
+	border-top-color: #444;
+}
+
+.hc-black .monaco-workbench > .editor > .content.vertical-layout > .one-editor-silo.dragging {
+	border-left-color: #6FC3DF;
+	border-right-color: #6FC3DF;
+}
+
+.hc-black .monaco-workbench > .editor > .content.horizontal-layout > .one-editor-silo.dragging {
+	border-top-color: #6FC3DF;
+	border-bottom-color: #6FC3DF;
+}
+
+.hc-black .monaco-workbench > .editor > .content.vertical-layout > .one-editor-silo.editor-two,
+.hc-black .monaco-workbench > .editor > .content.vertical-layout > .one-editor-silo.editor-three {
+	border-left-color: #6FC3DF;
+}
+
+.hc-black .monaco-workbench > .editor > .content.horizontal-layout > .one-editor-silo.editor-two,
+.hc-black .monaco-workbench > .editor > .content.horizontal-layout > .one-editor-silo.editor-three {
+	border-top-color: #6FC3DF;
 }
