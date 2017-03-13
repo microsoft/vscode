@@ -150,6 +150,10 @@ export class TerminalInstance implements ITerminalInstance {
 		const font = this._configHelper.getFont();
 		this._cols = Math.floor(dimension.width / font.charWidth);
 		this._rows = Math.floor(dimension.height / font.charHeight);
+		// Caps cols at 159 on Windows due to #19665 (hopefully temporary)
+		if (platform.isWindows && this._cols >= 160) {
+			this._cols = 159;
+		}
 		return dimension.width;
 	}
 
