@@ -9,7 +9,7 @@ import * as DOM from 'vs/base/browser/dom';
 import { Delayer } from 'vs/base/common/async';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { flatten, distinct } from 'vs/base/common/arrays';
-import { ArrayNavigator, IIterator } from 'vs/base/common/iterator';
+import { ArrayNavigator, INavigator } from 'vs/base/common/iterator';
 import { IAction } from 'vs/base/common/actions';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import Event, { Emitter } from 'vs/base/common/event';
@@ -36,7 +36,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 export interface IPreferencesRenderer<T> extends IDisposable {
 	preferencesModel: IPreferencesEditorModel<T>;
 	associatedPreferencesModel: IPreferencesEditorModel<T>;
-	iterator: IIterator<T>;
+	iterator: INavigator<T>;
 
 	onFocusPreference: Event<T>;
 	onClearFocusPreference: Event<T>;
@@ -86,7 +86,7 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 		this._register(this.editor.getModel().onDidChangeContent(() => this.modelChangeDelayer.trigger(() => this.onModelChanged())));
 	}
 
-	public get iterator(): IIterator<ISetting> {
+	public get iterator(): INavigator<ISetting> {
 		return null;
 	}
 
@@ -230,7 +230,7 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 		this._register(this.settingsGroupTitleRenderer.onHiddenAreasChanged(() => this.hiddenAreasRenderer.render()));
 	}
 
-	public get iterator(): IIterator<ISetting> {
+	public get iterator(): INavigator<ISetting> {
 		return this.filteredSettingsNavigationRenderer;
 	}
 
@@ -577,7 +577,7 @@ export class HighlightPreferencesRenderer extends Disposable {
 	}
 }
 
-class FilteredSettingsNavigationRenderer extends Disposable implements IIterator<ISetting> {
+class FilteredSettingsNavigationRenderer extends Disposable implements INavigator<ISetting> {
 
 	private iterator: ArrayNavigator<ISetting>;
 
@@ -587,6 +587,26 @@ class FilteredSettingsNavigationRenderer extends Disposable implements IIterator
 
 	public next(): ISetting {
 		return this.iterator.next() || this.iterator.first();
+	}
+
+	public previous(): ISetting {
+		return this.iterator.previous() || this.iterator.last();
+	}
+
+	public parent(): ISetting {
+		return this.iterator.parent();
+	}
+
+	public first(): ISetting {
+		return this.iterator.first();
+	}
+
+	public last(): ISetting {
+		return this.iterator.last();
+	}
+
+	public current(): ISetting {
+		return this.iterator.current();
 	}
 
 	public render(filteredGroups: ISettingsGroup[]) {
