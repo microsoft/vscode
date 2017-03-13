@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/* TODO@theme */
+
 .vs-dark .side-by-side-editor > .master-editor-container {
 	box-shadow: -6px 0 5px -5px black;
 }
