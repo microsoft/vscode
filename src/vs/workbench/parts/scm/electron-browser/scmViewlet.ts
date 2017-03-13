@@ -17,7 +17,7 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { List } from 'vs/base/browser/ui/list/listWidget';
-import { IDelegate, IRenderer, IListMouseEvent } from 'vs/base/browser/ui/list/list';
+import { IDelegate, IRenderer, IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
 import { VIEWLET_ID } from 'vs/workbench/parts/scm/common/scm';
 import { FileLabel } from 'vs/workbench/browser/labels';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
@@ -308,7 +308,7 @@ export class SCMViewlet extends Viewlet {
 		return createActionItem(action, this.keybindingService, this.messageService);
 	}
 
-	private onListContextMenu(e: IListMouseEvent<ISCMResourceGroup | ISCMResource>): void {
+	private onListContextMenu(e: IListContextMenuEvent<ISCMResourceGroup | ISCMResource>): void {
 		const element = e.element;
 		let actions: IAction[];
 
@@ -319,7 +319,7 @@ export class SCMViewlet extends Viewlet {
 		}
 
 		this.contextMenuService.showContextMenu({
-			getAnchor: () => ({ x: e.clientX + 1, y: e.clientY }),
+			getAnchor: () => e.anchor,
 			getActions: () => TPromise.as(actions)
 		});
 	}
