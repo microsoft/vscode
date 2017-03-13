@@ -111,10 +111,10 @@ export class FileEditorTracker implements IWorkbenchContribution {
 			// - the input is not resolved (we need to dispose because we cannot restore otherwise since we do not have the contents)
 			if (this.closeOnFileDelete || !isExternal || !editor.isResolved()) {
 
-				// Special case: a resource was renamed to the same path with different casing. Since our paths
-				// API is treating the paths as equal (they are on disk), we end up disposing the input we just
-				// renamed. The workaround is to detect that we do not dispose any input we are moving the file to
-				if (movedTo && movedTo.fsPath === resource.fsPath) {
+				// Do NOT close any opened editor that matches the resource path (either equal or being parent) of the
+				// resource we move to (movedTo). Otherwise we would close a resource that has been renamed to the same
+				// path but different casing. 
+				if (movedTo && (isEqual(resource.fsPath, movedTo.fsPath) || isParent(resource.fsPath, movedTo.fsPath)) && resource.fsPath.indexOf(movedTo.fsPath) === 0) {
 					return;
 				}
 
