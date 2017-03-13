@@ -230,15 +230,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			this._onDidStateChange.fire(StateChange.REVERTED);
 		}, error => {
 
-			// FileNotFound means the file got deleted meanwhile, so emit revert event because thats ok
-			if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
-				this._onDidStateChange.fire(StateChange.REVERTED);
-			}
-
 			// Set flags back to previous values, we are still dirty if revert failed
-			else {
-				undo();
-			}
+			undo();
 
 			return TPromise.wrapError(error);
 		});
