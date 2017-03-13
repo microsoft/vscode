@@ -86,7 +86,7 @@ export class KeybindingIO {
 	}
 
 	public static writeKeybinding(keybinding: Keybinding, OS: OperatingSystem): string {
-		const [firstPart, chordPart] = PrintableKeypress.fromKeybinding2(keybinding, this._keyCodeToStr, OS);
+		const [firstPart, chordPart] = PrintableKeypress.fromKeybinding(keybinding, this._keyCodeToStr, OS);
 
 		let result = UserSettingsLabelProvider.toLabel2(firstPart, chordPart, OS);
 		return result.toLowerCase();

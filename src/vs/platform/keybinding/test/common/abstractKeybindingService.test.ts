@@ -129,8 +129,14 @@ suite('AbstractKeybindingService', () => {
 	});
 
 	function kbItem(keybinding: number, command: string, when: ContextKeyExpr = null): NormalizedKeybindingItem {
-		let kb = (keybinding !== 0 ? createKeybinding(keybinding) : null);
-		return new NormalizedKeybindingItem(kb, command, null, when, true);
+		return NormalizedKeybindingItem.fromKeybindingItem({
+			keybinding: keybinding,
+			command: command,
+			commandArgs: null,
+			when: when,
+			weight1: 0,
+			weight2: 0
+		}, true);
 	}
 
 	function toUsLabel(keybinding: number): string {

@@ -23,7 +23,7 @@ import { NormalizedKeybindingItem } from 'vs/platform/keybinding/common/normaliz
 import { OS, OperatingSystem } from 'vs/base/common/platform';
 
 /**
- * Do not instantiate. Use KeybindingService to get a ResolvedKeybinding.
+ * Do not instantiate. Use KeybindingService to get a ResolvedKeybinding seeded with information about the current kb layout.
  */
 export class USLayoutResolvedKeybinding extends ResolvedKeybinding {
 
@@ -57,17 +57,17 @@ export class USLayoutResolvedKeybinding extends ResolvedKeybinding {
 	}
 
 	public getLabel(): string {
-		const [firstPart, chordPart] = PrintableKeypress.fromKeybinding2(this._actual, USLayoutResolvedKeybinding._usKeyCodeToUILabel, this._os);
+		const [firstPart, chordPart] = PrintableKeypress.fromKeybinding(this._actual, USLayoutResolvedKeybinding._usKeyCodeToUILabel, this._os);
 		return UILabelProvider.toLabel2(firstPart, chordPart, this._os);
 	}
 
 	public getAriaLabel(): string {
-		const [firstPart, chordPart] = PrintableKeypress.fromKeybinding2(this._actual, USLayoutResolvedKeybinding._usKeyCodeToAriaLabel, this._os);
+		const [firstPart, chordPart] = PrintableKeypress.fromKeybinding(this._actual, USLayoutResolvedKeybinding._usKeyCodeToAriaLabel, this._os);
 		return AriaLabelProvider.toLabel2(firstPart, chordPart, this._os);
 	}
 
 	public getHTMLLabel(): IHTMLContentElement[] {
-		const [firstPart, chordPart] = PrintableKeypress.fromKeybinding2(this._actual, USLayoutResolvedKeybinding._usKeyCodeToUILabel, this._os);
+		const [firstPart, chordPart] = PrintableKeypress.fromKeybinding(this._actual, USLayoutResolvedKeybinding._usKeyCodeToUILabel, this._os);
 		return UILabelProvider.toHTMLLabel2(firstPart, chordPart, this._os);
 	}
 
@@ -98,7 +98,7 @@ export class USLayoutResolvedKeybinding extends ResolvedKeybinding {
 			return null;
 		}
 
-		const [firstPart, chordPart] = PrintableKeypress.fromKeybinding2(this._actual, USLayoutResolvedKeybinding._usKeyCodeToElectronAccelerator, this._os);
+		const [firstPart, chordPart] = PrintableKeypress.fromKeybinding(this._actual, USLayoutResolvedKeybinding._usKeyCodeToElectronAccelerator, this._os);
 		return ElectronAcceleratorLabelProvider.toLabel2(firstPart, chordPart, this._os);
 	}
 

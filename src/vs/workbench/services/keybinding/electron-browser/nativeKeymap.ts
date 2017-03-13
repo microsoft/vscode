@@ -7,7 +7,7 @@
 import * as nativeKeymap from 'native-keymap';
 import { KeyCode, KeyCodeUtils } from 'vs/base/common/keyCodes';
 import { CharCode } from 'vs/base/common/charCode';
-import { IKeyCodeLabelProvider2 } from 'vs/platform/keybinding/common/keybindingLabels';
+import { IKeyCodeLabelProvider } from 'vs/platform/keybinding/common/keybindingLabels';
 import { lookupKeyCode, setExtractKeyCode } from 'vs/base/browser/keyboardEvent';
 import Platform = require('vs/base/common/platform');
 
@@ -332,8 +332,8 @@ setExtractKeyCode((e: KeyboardEvent) => {
 	return lookupKeyCode(e);
 });
 
-let nativeUIKeyCodeLabelProvider: IKeyCodeLabelProvider2 = null;
-export function getNativeUIKeyCodeLabelProvider(): IKeyCodeLabelProvider2 {
+let nativeUIKeyCodeLabelProvider: IKeyCodeLabelProvider = null;
+export function getNativeUIKeyCodeLabelProvider(): IKeyCodeLabelProvider {
 	if (!nativeUIKeyCodeLabelProvider) {
 		let remaps = getNativeLabelProviderRemaps();
 		nativeUIKeyCodeLabelProvider = (keyCode: KeyCode, OS: Platform.OperatingSystem): string => {
@@ -360,8 +360,8 @@ export function getNativeUIKeyCodeLabelProvider(): IKeyCodeLabelProvider2 {
 	return nativeUIKeyCodeLabelProvider;
 }
 
-let nativeAriaKeyCodeLabelProvider: IKeyCodeLabelProvider2 = null;
-export function getNativeAriaKeyCodeLabelProvider(): IKeyCodeLabelProvider2 {
+let nativeAriaKeyCodeLabelProvider: IKeyCodeLabelProvider = null;
+export function getNativeAriaKeyCodeLabelProvider(): IKeyCodeLabelProvider {
 	if (!nativeAriaKeyCodeLabelProvider) {
 		let remaps = getNativeLabelProviderRemaps();
 		nativeAriaKeyCodeLabelProvider = (keyCode: KeyCode, OS: Platform.OperatingSystem): string => {

@@ -10,13 +10,13 @@ import { OperatingSystem } from 'vs/base/common/platform';
 import { IHTMLContentElement } from 'vs/base/common/htmlContent';
 import { Keybinding, SimpleKeybinding, KeyCode } from 'vs/base/common/keyCodes';
 
-export interface IKeyCodeLabelProvider2 {
+export interface IKeyCodeLabelProvider {
 	(keyCode: KeyCode, OS: OperatingSystem): string;
 }
 
 export class PrintableKeypress {
 
-	public static fromSimpleKeybinding2(keybinding: SimpleKeybinding, labelProvider: IKeyCodeLabelProvider2, OS: OperatingSystem): PrintableKeypress {
+	public static fromSimpleKeybinding(keybinding: SimpleKeybinding, labelProvider: IKeyCodeLabelProvider, OS: OperatingSystem): PrintableKeypress {
 		const ctrlCmd = keybinding.hasCtrlCmd();
 		const winCtrl = keybinding.hasWinCtrl();
 
@@ -31,13 +31,13 @@ export class PrintableKeypress {
 		return new PrintableKeypress(ctrlKey, shiftKey, altKey, metaKey, keyLabel);
 	}
 
-	public static fromKeybinding2(keybinding: Keybinding, labelProvider: IKeyCodeLabelProvider2, OS: OperatingSystem): [PrintableKeypress, PrintableKeypress] {
+	public static fromKeybinding(keybinding: Keybinding, labelProvider: IKeyCodeLabelProvider, OS: OperatingSystem): [PrintableKeypress, PrintableKeypress] {
 		if (keybinding.isChord()) {
-			const firstPart = PrintableKeypress.fromSimpleKeybinding2(keybinding.extractFirstPart(), labelProvider, OS);
-			const chordPart = PrintableKeypress.fromSimpleKeybinding2(keybinding.extractChordPart(), labelProvider, OS);
+			const firstPart = PrintableKeypress.fromSimpleKeybinding(keybinding.extractFirstPart(), labelProvider, OS);
+			const chordPart = PrintableKeypress.fromSimpleKeybinding(keybinding.extractChordPart(), labelProvider, OS);
 			return [firstPart, chordPart];
 		} else {
-			const printableKeypress = PrintableKeypress.fromSimpleKeybinding2(keybinding, labelProvider, OS);
+			const printableKeypress = PrintableKeypress.fromSimpleKeybinding(keybinding, labelProvider, OS);
 			return [printableKeypress, null];
 		}
 	}
