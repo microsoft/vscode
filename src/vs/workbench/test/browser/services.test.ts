@@ -343,7 +343,7 @@ suite('Workbench UI Services', () => {
 		});
 	});
 
-	test('DelegatingWorkbenchEditorService', function () {
+	test('DelegatingWorkbenchEditorService', function (done) {
 		let instantiationService = workbenchInstantiationService();
 		let activeInput: EditorInput = instantiationService.createInstance(FileEditorInput, toResource.call(this, '/something.js'), void 0);
 
@@ -372,13 +372,23 @@ suite('Workbench UI Services', () => {
 		let ed = instantiationService.createInstance(MyEditor, 'my.editor');
 
 		let inp = instantiationService.createInstance(StringEditorInput, 'name', 'description', 'hello world', 'text/plain', false);
-		let delegate: any = instantiationService.createInstance(<any>DelegatingWorkbenchEditorService, (input: EditorInput, options?: EditorOptions, arg3?: any) => {
+		let delegate = instantiationService.createInstance(DelegatingWorkbenchEditorService);
+		delegate.setEditorOpenHandler((input, options?) => {
 			assert.strictEqual(input, inp);
 
 			return TPromise.as(ed);
 		});
 
+		delegate.setEditorCloseHandler((position, input) => {
+			assert.strictEqual(input, inp);
+
+			done();
+
+			return TPromise.as(void 0);
+		});
+
 		delegate.openEditor(inp);
+		delegate.closeEditor(0, inp);
 	});
 
 	test('ScopedService', () => {

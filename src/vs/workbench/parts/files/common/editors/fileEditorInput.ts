@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import paths = require('vs/base/common/paths');
 import labels = require('vs/base/common/labels');
@@ -68,11 +69,18 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		this.toUnbind.push(this.textFileService.models.onModelSaveError(e => this.onDirtyStateChange(e)));
 		this.toUnbind.push(this.textFileService.models.onModelSaved(e => this.onDirtyStateChange(e)));
 		this.toUnbind.push(this.textFileService.models.onModelReverted(e => this.onDirtyStateChange(e)));
+		this.toUnbind.push(this.textFileService.models.onModelOrphanedChanged(e => this.onModelOrphanedChanged(e)));
 	}
 
 	private onDirtyStateChange(e: TextFileModelChangeEvent): void {
 		if (e.resource.toString() === this.resource.toString()) {
 			this._onDidChangeDirty.fire();
+		}
+	}
+
+	private onModelOrphanedChanged(e: TextFileModelChangeEvent): void {
+		if (e.resource.toString() === this.resource.toString()) {
+			this._onDidChangeLabel.fire();
 		}
 	}
 
@@ -130,7 +138,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 			this.name = paths.basename(this.resource.fsPath);
 		}
 
-		return this.name;
+		return this.decorateOrphanedFiles(this.name);
 	}
 
 	public getDescription(): string {
@@ -142,14 +150,29 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 	}
 
 	public getTitle(verbosity: Verbosity): string {
+		let title: string;
 		switch (verbosity) {
 			case Verbosity.SHORT:
-				return this.shortTitle ? this.shortTitle : (this.shortTitle = this.getName());
+				title = this.shortTitle ? this.shortTitle : (this.shortTitle = this.getName());
+				break;
 			case Verbosity.MEDIUM:
-				return this.mediumTitle ? this.mediumTitle : (this.mediumTitle = labels.getPathLabel(this.resource, this.contextService));
+				title = this.mediumTitle ? this.mediumTitle : (this.mediumTitle = labels.getPathLabel(this.resource, this.contextService));
+				break;
 			case Verbosity.LONG:
-				return this.longTitle ? this.longTitle : (this.longTitle = labels.tildify(labels.getPathLabel(this.resource), this.environmentService.userHome));
+				title = this.longTitle ? this.longTitle : (this.longTitle = labels.tildify(labels.getPathLabel(this.resource), this.environmentService.userHome));
+				break;
 		}
+
+		return this.decorateOrphanedFiles(title);
+	}
+
+	private decorateOrphanedFiles(label: string): string {
+		const model = this.textFileService.models.get(this.resource);
+		if (model && model.hasState(ModelState.ORPHAN)) {
+			return localize('orphanedFile', "{0} (deleted from disk)", label);
+		}
+
+		return label;
 	}
 
 	public isDirty(): boolean {
@@ -158,9 +181,8 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 			return false;
 		}
 
-		const state = model.getState();
-		if (state === ModelState.CONFLICT || state === ModelState.ORPHAN || state === ModelState.ERROR) {
-			return true; // always indicate dirty state if we are in conflict, orphan or error state
+		if (model.hasState(ModelState.CONFLICT) || model.hasState(ModelState.ERROR)) {
+			return true; // always indicate dirty state if we are in conflict or error state
 		}
 
 		if (this.textFileService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {

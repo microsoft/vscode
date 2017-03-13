@@ -12,7 +12,7 @@ import paths = require('vs/base/common/paths');
 import { IEditor, IEditorViewState, isCommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { toResource, IEditorStacksModel, SideBySideEditorInput, IEditorGroup, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { BINARY_FILE_EDITOR_ID } from 'vs/workbench/parts/files/common/files';
-import { ITextFileService, ModelState, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { FileOperationEvent, FileOperation, IFileService, FileChangeType, FileChangesEvent, isEqual, indexOf, isParent } from 'vs/platform/files/common/files';
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
@@ -22,14 +22,11 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { distinct } from 'vs/base/common/arrays';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { once } from 'vs/base/common/event';
-import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 
 export class FileEditorTracker implements IWorkbenchContribution {
 	private stacks: IEditorStacksModel;
 	private toUnbind: IDisposable[];
-	protected closeOnExternalFileDelete: boolean;
-	private mapResourceToUndoDirtyFromExternalDelete: { [resource: string]: () => void };
+	protected closeOnFileDelete: boolean;
 
 	constructor(
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
@@ -42,7 +39,6 @@ export class FileEditorTracker implements IWorkbenchContribution {
 	) {
 		this.toUnbind = [];
 		this.stacks = editorGroupService.getStacksModel();
-		this.mapResourceToUndoDirtyFromExternalDelete = Object.create(null);
 
 		this.onConfigurationUpdated(configurationService.getConfiguration<IWorkbenchEditorConfiguration>());
 
@@ -69,10 +65,10 @@ export class FileEditorTracker implements IWorkbenchContribution {
 	}
 
 	private onConfigurationUpdated(configuration: IWorkbenchEditorConfiguration): void {
-		if (configuration.workbench && configuration.workbench.editor && typeof configuration.workbench.editor.closeOnExternalFileDelete === 'boolean') {
-			this.closeOnExternalFileDelete = configuration.workbench.editor.closeOnExternalFileDelete;
+		if (configuration.workbench && configuration.workbench.editor && typeof configuration.workbench.editor.closeOnFileDelete === 'boolean') {
+			this.closeOnFileDelete = configuration.workbench.editor.closeOnFileDelete;
 		} else {
-			this.closeOnExternalFileDelete = true; // default
+			this.closeOnFileDelete = true; // default
 		}
 	}
 
@@ -95,11 +91,6 @@ export class FileEditorTracker implements IWorkbenchContribution {
 
 	private onFileChanges(e: FileChangesEvent): void {
 
-		// Handle added
-		if (e.gotAdded()) {
-			this.handleAdded(e);
-		}
-
 		// Handle updates
 		this.handleUpdates(e);
 
@@ -109,57 +100,34 @@ export class FileEditorTracker implements IWorkbenchContribution {
 		}
 	}
 
-	private handleAdded(e: FileChangesEvent): void {
-
-		// Flag models as saved that are identical to disk contents
-		// (only if we do not dispose from external deletes and caused them to be dirty)
-		if (!this.closeOnExternalFileDelete) {
-			const dirtyFileEditors = this.getOpenedFileEditors(true /* dirty only */);
-			dirtyFileEditors.forEach(editor => {
-				const resource = editor.getResource();
-
-				// See if we have a stored undo operation for this editor
-				const undo = this.mapResourceToUndoDirtyFromExternalDelete[resource.toString()];
-				if (undo) {
-
-					// file showing in editor was added
-					if (e.contains(resource, FileChangeType.ADDED)) {
-						undo();
-						this.mapResourceToUndoDirtyFromExternalDelete[resource.toString()] = void 0;
-					}
-				}
-			});
-		}
-	}
-
 	private handleDeletes(arg1: URI | FileChangesEvent, isExternal: boolean, movedTo?: URI): void {
-		const nonDirtyFileEditors = this.getOpenedFileEditors(false /* non dirty only */);
+		const nonDirtyFileEditors = this.getOpenedFileEditors(false /* non-dirty only */);
 		nonDirtyFileEditors.forEach(editor => {
 			const resource = editor.getResource();
 
-			// Special case: a resource was renamed to the same path with different casing. Since our paths
-			// API is treating the paths as equal (they are on disk), we end up disposing the input we just
-			// renamed. The workaround is to detect that we do not dispose any input we are moving the file to
-			if (movedTo && movedTo.fsPath === resource.fsPath) {
-				return;
-			}
-
-			let matches = false;
-			if (arg1 instanceof FileChangesEvent) {
-				matches = arg1.contains(resource, FileChangeType.DELETED);
-			} else {
-				matches = isEqual(resource.fsPath, arg1.fsPath) || isParent(resource.fsPath, arg1.fsPath);
-			}
-
-			if (!matches) {
-				return;
-			}
-
 			// Handle deletes in opened editors depending on:
-			// - the user has not disabled the setting closeOnExternalFileDelete
+			// - the user has not disabled the setting closeOnFileDelete
 			// - the file change is local or external
 			// - the input is not resolved (we need to dispose because we cannot restore otherwise since we do not have the contents)
-			if (this.closeOnExternalFileDelete || !isExternal || !editor.isResolved()) {
+			if (this.closeOnFileDelete || !isExternal || !editor.isResolved()) {
+
+				// Special case: a resource was renamed to the same path with different casing. Since our paths
+				// API is treating the paths as equal (they are on disk), we end up disposing the input we just
+				// renamed. The workaround is to detect that we do not dispose any input we are moving the file to
+				if (movedTo && movedTo.fsPath === resource.fsPath) {
+					return;
+				}
+
+				let matches = false;
+				if (arg1 instanceof FileChangesEvent) {
+					matches = arg1.contains(resource, FileChangeType.DELETED);
+				} else {
+					matches = isEqual(resource.fsPath, arg1.fsPath) || isParent(resource.fsPath, arg1.fsPath);
+				}
+
+				if (!matches) {
+					return;
+				}
 
 				// We have received reports of users seeing delete events even though the file still
 				// exists (network shares issue: https://github.com/Microsoft/vscode/issues/13665).
@@ -182,18 +150,6 @@ export class FileEditorTracker implements IWorkbenchContribution {
 						console.warn(`File exists even though we received a delete event: ${resource.toString()}`);
 					}
 				});
-			}
-
-			// Otherwise we want to keep the editor open and mark it as dirty since its underlying resource was deleted
-			else {
-				const model = this.textFileService.models.get(resource) as TextFileEditorModel;
-				if (model && model.getState() === ModelState.SAVED) {
-					const undo = model.setOrphaned();
-					this.mapResourceToUndoDirtyFromExternalDelete[resource.toString()] = undo;
-					once(model.onDispose)(() => {
-						this.mapResourceToUndoDirtyFromExternalDelete[resource.toString()] = void 0;
-					});
-				}
 			}
 		});
 	}
@@ -292,7 +248,7 @@ export class FileEditorTracker implements IWorkbenchContribution {
 		// and updated right after.
 		const modelsToUpdate = distinct([...e.getUpdated(), ...e.getAdded()]
 			.map(u => this.textFileService.models.get(u.resource))
-			.filter(model => model && model.getState() === ModelState.SAVED), m => m.getResource().toString());
+			.filter(model => model && !model.isDirty()), m => m.getResource().toString());
 
 		// Handle updates to visible editors specially to preserve view state
 		const visibleModels = this.handleUpdatesToVisibleEditors(e);
@@ -328,7 +284,7 @@ export class FileEditorTracker implements IWorkbenchContribution {
 					if (textModel) {
 
 						// We only ever update models that are in good saved state
-						if (textModel.getState() === ModelState.SAVED) {
+						if (!textModel.isDirty()) {
 							const codeEditor = editor.getControl() as IEditor;
 							const viewState = codeEditor.saveViewState();
 							const lastKnownEtag = textModel.getETag();
