@@ -81,7 +81,8 @@ export interface IShellLaunchConfig {
 	executable?: string;
 	/**
 	 * The CLI arguments to use with executable, a string[] is in argv format and will be escaped,
-	 * a string is in "CommandLine" pre-escaped format and will be used as is.
+	 * a string is in "CommandLine" pre-escaped format and will be used as is. The string option is
+	 * only supported on Windows and will throw an exception if used on macOS or Linux.
 	 */
 	args?: string[] | string;
 	/**
