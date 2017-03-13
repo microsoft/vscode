@@ -357,3 +357,26 @@ export function matchesFuzzy(word: string, wordToMatchAgainst: string, enableSep
 	// Default Filter
 	return enableSeparateSubstringMatching ? fuzzySeparateFilter(word, wordToMatchAgainst) : fuzzyContiguousFilter(word, wordToMatchAgainst);
 }
+
+export function matchesFuzzy2(pattern: string, word: string): IMatch[] | undefined {
+	let result: IMatch[] = [];
+	let lastMatch: IMatch;
+	let patternPos = 0;
+	let wordPos = 0;
+	while (patternPos < pattern.length && wordPos < word.length) {
+		if (pattern.charAt(patternPos) === word.charAt(wordPos)) {
+			patternPos += 1;
+			if (lastMatch && lastMatch.end === wordPos) {
+				lastMatch.end += 1;
+			} else {
+				lastMatch = {
+					start: wordPos,
+					end: wordPos + 1
+				};
+				result.push(lastMatch);
+			}
+		}
+		wordPos += 1;
+	}
+	return lastMatch ? result : undefined;
+}
