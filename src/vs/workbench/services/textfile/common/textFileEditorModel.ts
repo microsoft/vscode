@@ -233,7 +233,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			// FileNotFound means the file got deleted meanwhile, so emit revert event because thats ok
 			if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
 				this._onDidStateChange.fire(StateChange.REVERTED);
-				this.setOrphaned(true); // we also know that the file is orphaned, so set it
 			}
 
 			// Set flags back to previous values, we are still dirty if revert failed
@@ -320,6 +319,9 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private handleLoadError(error: IFileOperationResult): TPromise<EditorModel> {
 		const result = error.fileOperationResult;
 
+		// Apply orphaned state based on error code
+		this.setOrphaned(result === FileOperationResult.FILE_NOT_FOUND);
+
 		// NotModified status is expected and can be handled gracefully
 		if (result === FileOperationResult.FILE_NOT_MODIFIED_SINCE) {
 			this.setDirty(false); // Ensure we are not tracking a stale state
@@ -327,13 +329,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			return TPromise.as<EditorModel>(this);
 		}
 
-		// Ignore any error if we have a resolved file model already. This helps when for example
-		// a file was deleted meanwhile but we still have the previous contents.
-		if (this.isResolved()) {
-			if (result === FileOperationResult.FILE_NOT_FOUND) {
-				this.setOrphaned(true); // transition to orphaned state when file not found
-			}
-
+		// Ignore when a model has been resolved once and the file was deleted meanwhile. Since
+		// we already have the model loaded, we can return to this state and update the orphaned
+		// flag to indicate that this model has no version on disk anymore.
+		if (this.isResolved() && result === FileOperationResult.FILE_NOT_FOUND) {
 			return TPromise.as<EditorModel>(this);
 		}
 
