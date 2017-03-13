@@ -32,9 +32,7 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 	constructor(
 		private engine: MarkdownEngine,
 		private context: vscode.ExtensionContext,
-		private cspArbiter: ContentSecurityPolicyArbiter,
-		private extraStyles: Array<vscode.Uri>,
-		private extraScripts: Array<vscode.Uri>
+		private cspArbiter: ContentSecurityPolicyArbiter
 	) { }
 
 	private getMediaPath(mediaFile: string): string {
@@ -99,7 +97,7 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 		const baseStyles = [
 			this.getMediaPath('markdown.css'),
 			this.getMediaPath('tomorrow.css')
-		].concat(this.extraStyles.map(x => x.fsPath));
+		];
 
 		return `${baseStyles.map(href => `<link rel="stylesheet" type="text/css" href="${href}">`).join('\n')}
 			${this.getSettingsOverrideStyles(nonce)}
@@ -107,7 +105,7 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 	}
 
 	private getScripts(nonce: string): string {
-		const scripts = [this.getMediaPath('main.js')].concat(this.extraScripts.map(x => x.fsPath));
+		const scripts = [this.getMediaPath('main.js')];
 		return scripts
 			.map(source => `<script src="${source}" nonce="${nonce}"></script>`)
 			.join('\n');

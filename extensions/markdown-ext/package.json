@@ -1,0 +1,31 @@
+{
+	"name": "vscode-markdown-ext",
+	"displayName": "VS Code Markdown ext",
+	"description": "Example markdown extension extension",
+	"version": "0.0.1",
+	"publisher": "Microsoft",
+	"engines": {
+		"vscode": "^1.0.0"
+	},
+	"main": "./out/extension",
+	"categories": [
+		"Languages"
+	],
+	"activationEvents": [
+		"onLanguage:markdown",
+		"onCommand:markdown.showPreview",
+		"onCommand:markdown.showPreviewToSide"
+	],
+	"scripts": {
+		"vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:markdown-ext ./tsconfig.json"
+	},
+	"dependencies": {
+		"markdown-it-emoji": "^1.3.0"
+	},
+	"devDependencies": {
+		"@types/node": "^7.0.4"
+	},
+	"extensionDependencies": [
+		"Microsoft.vscode-markdown"
+	]
+}
