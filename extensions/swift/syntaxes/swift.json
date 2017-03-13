@@ -8,7 +8,7 @@
   "patterns": [
     {
       "name": "keyword.declaration.swift",
-      "match": "\\b(class|deinit|enum|extension|import|init|inout|internal|let|operator|private|protocol|public|static|struct|subscript|typealias|var)\\b"
+      "match": "\\b(class|deinit|enum|extension|import|init|inout|internal|let|operator|private|fileprivate|protocol|public|open|static|struct|subscript|typealias|var)\\b"
     },
     {
       "name": "keyword.statement.swift",
@@ -28,7 +28,7 @@
     },
     {
       "name": "keyword.reserved.swift",
-      "match": "\\b(associativity|convenience|dynamic|didSet|final|get|infix|lazy|left|mutating|none|nonmutating|optional|override|postfix|precedence|prefix|Protocol|required|right|set|Type|unowned|weak|willSet)\\b"
+      "match": "\\b(associativity|convenience|dynamic|didSet|final|get|infix|lazy|left|mutating|none|nonmutating|optional|override|postfix|precedence|prefix|Protocol|required|right|set|Type|unowned|weak|willSet|newValue|oldValue)\\b"
     },
     {
       "include": "#comment"
