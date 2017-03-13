@@ -93,7 +93,7 @@ export class LightBulbWidget implements IDisposable {
 		this._currentLine = e.range.startLineNumber;
 		this._decorationIds = this._editor.deltaDecorations(this._decorationIds, [{
 			options: this._options,
-			range: e.range
+			range: { ...e.range, endLineNumber: e.range.startLineNumber }
 		}]);
 	}
 
