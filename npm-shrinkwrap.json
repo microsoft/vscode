@@ -333,9 +333,9 @@
       "resolved": "https://registry.npmjs.org/process-nextick-args/-/process-nextick-args-1.0.7.tgz"
     },
     "node-pty": {
-      "version": "0.6.2",
-      "from": "node-pty@0.6.2",
-      "resolved": "https://registry.npmjs.org/node-pty/-/node-pty-0.6.2.tgz",
+      "version": "0.6.3",
+      "from": "node-pty@0.6.3",
+      "resolved": "https://registry.npmjs.org/node-pty/-/node-pty-0.6.3.tgz",
       "dependencies": {
         "nan": {
           "version": "2.5.0",
