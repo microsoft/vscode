@@ -108,10 +108,6 @@
 	background: url("action-close-focus.svg") center center no-repeat;
 }
 
-.explorer-viewlet .explorer-open-editors .monaco-action-bar {
-	background-color: transparent !important;
-}
-
 .explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row:not(:hover) > .content.dirty > .monaco-action-bar .close-editor-action {
 	background: url("action-close-dirty.svg") center center no-repeat;
 }

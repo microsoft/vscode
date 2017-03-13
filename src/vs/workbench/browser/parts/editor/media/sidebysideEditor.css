@@ -5,10 +5,10 @@
 
 /* TODO@theme */
 
-.vs-dark .side-by-side-editor > .master-editor-container {
-	box-shadow: -6px 0 5px -5px black;
+.vs .monaco-workbench .side-by-side-editor > .master-editor-container {
+	box-shadow: -6px 0 5px -5px #DDD;
 }
 
-.side-by-side-editor > .master-editor-container {
-	box-shadow: -6px 0 5px -5px #DDD;
+.vs-dark .monaco-workbench .side-by-side-editor > .master-editor-container {
+	box-shadow: -6px 0 5px -5px black;
 }
