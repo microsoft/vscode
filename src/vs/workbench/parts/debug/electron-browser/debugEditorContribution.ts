@@ -28,7 +28,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IContextMenuService, ContextSubMenu } from 'vs/platform/contextview/browser/contextView';
 import { DebugHoverWidget } from 'vs/workbench/parts/debug/electron-browser/debugHover';
 import { RemoveBreakpointAction, EditConditionalBreakpointAction, EnableBreakpointAction, DisableBreakpointAction, AddConditionalBreakpointAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { IDebugEditorContribution, IDebugService, State, IBreakpoint, EDITOR_CONTRIBUTION_ID, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, IStackFrame, IDebugConfiguration, IExpression } from 'vs/workbench/parts/debug/common/debug';
@@ -89,16 +89,42 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		this.toggleExceptionWidget();
 	}
 
-	private getContextMenuActions(breakpoint: IBreakpoint, uri: uri, lineNumber: number): TPromise<IAction[]> {
-		const actions: IAction[] = [];
-		if (breakpoint) {
+	private getContextMenuActions(breakpoints: IBreakpoint[], uri: uri, lineNumber: number): TPromise<(IAction | ContextSubMenu)[]> {
+		const actions: (IAction | ContextSubMenu)[] = [];
+		if (breakpoints.length === 1) {
 			actions.push(this.instantiationService.createInstance(RemoveBreakpointAction, RemoveBreakpointAction.ID, RemoveBreakpointAction.LABEL));
-			actions.push(this.instantiationService.createInstance(EditConditionalBreakpointAction, EditConditionalBreakpointAction.ID, EditConditionalBreakpointAction.LABEL, this.editor, lineNumber));
-			if (breakpoint.enabled) {
+			actions.push(this.instantiationService.createInstance(EditConditionalBreakpointAction, EditConditionalBreakpointAction.ID, EditConditionalBreakpointAction.LABEL, this.editor));
+			if (breakpoints[0].enabled) {
 				actions.push(this.instantiationService.createInstance(DisableBreakpointAction, DisableBreakpointAction.ID, DisableBreakpointAction.LABEL));
 			} else {
 				actions.push(this.instantiationService.createInstance(EnableBreakpointAction, EnableBreakpointAction.ID, EnableBreakpointAction.LABEL));
 			}
+		} else if (breakpoints.length > 1) {
+			actions.push(new Action(
+				'removeBreakpointsOnLine',
+				nls.localize('removeBreakpointOnLine', "Remove Breakpoints"),
+				null,
+				true,
+				() => TPromise.join(breakpoints.map(bp => this.debugService.removeBreakpoints(bp.getId())))
+			));
+
+			actions.push(new ContextSubMenu(nls.localize('editBreakpoints', "Edit Breakpoints"), breakpoints.sort((first, second) => first.column - second.column).map(bp =>
+				new Action('editBreakpoint',
+					bp.column ? nls.localize('editBreakpointOnColumn', "Edit Breakpoint on Column {0}", bp.column) : nls.localize('editLineBrekapoint', "Edit Line Breakpoint"),
+					null,
+					true,
+					() => TPromise.as(this.editor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID).showBreakpointWidget(bp.lineNumber, bp.column))
+				)
+			)));
+
+			const disable = breakpoints.some(bp => bp.enabled);
+			actions.push(new Action(
+				disable ? 'disableBreakpoints' : 'enableBreakpoints',
+				disable ? nls.localize('disableBreakpoints', "Disable Breakpoints") : nls.localize('enableBreakpoints', "Enable Breakpoints"),
+				null,
+				true,
+				() => TPromise.join(breakpoints.map(bp => this.debugService.enableOrDisableBreakpoints(!disable, bp)))
+			));
 		} else {
 			actions.push(new Action(
 				'addBreakpoint',
@@ -128,12 +154,12 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 				}
 
 				const anchor = { x: e.event.posx + 1, y: e.event.posy };
-				const breakpoint = this.debugService.getModel().getBreakpoints().filter(bp => bp.lineNumber === lineNumber && bp.uri.toString() === uri.toString()).pop();
+				const breakpoints = this.debugService.getModel().getBreakpoints().filter(bp => bp.lineNumber === lineNumber && bp.uri.toString() === uri.toString());
 
 				this.contextMenuService.showContextMenu({
 					getAnchor: () => anchor,
-					getActions: () => this.getContextMenuActions(breakpoint, uri, lineNumber),
-					getActionsContext: () => breakpoint
+					getActions: () => this.getContextMenuActions(breakpoints, uri, lineNumber),
+					getActionsContext: () => breakpoints.length ? breakpoints[0] : undefined
 				});
 			} else {
 				const breakpoints = this.debugService.getModel().getBreakpoints()
@@ -299,12 +325,12 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	// end hover business
 
 	// breakpoint widget
-	public showBreakpointWidget(lineNumber: number): void {
+	public showBreakpointWidget(lineNumber: number, column: number): void {
 		if (this.breakpointWidget) {
 			this.breakpointWidget.dispose();
 		}
 
-		this.breakpointWidget = this.instantiationService.createInstance(BreakpointWidget, this.editor, lineNumber);
+		this.breakpointWidget = this.instantiationService.createInstance(BreakpointWidget, this.editor, lineNumber, column);
 		this.breakpointWidget.show({ lineNumber, column: 1 }, 2);
 		this.breakpointWidgetVisible.set(true);
 	}

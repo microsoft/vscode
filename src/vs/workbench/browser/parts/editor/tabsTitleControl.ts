@@ -627,7 +627,7 @@ export class TabsTitleControl extends TitleControl {
 
 			// Move editor to target position and index
 			if (this.isMoveOperation(e, draggedEditor.group, group)) {
-				this.editorGroupService.moveEditor(draggedEditor.editor, draggedEditor.group, group, targetIndex);
+				this.editorGroupService.moveEditor(draggedEditor.editor, draggedEditor.group, group, { index: targetIndex });
 			}
 
 			// Copy: just open editor at target index

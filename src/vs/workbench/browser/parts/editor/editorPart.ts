@@ -24,7 +24,7 @@ import { BaseEditor, EditorDescriptor } from 'vs/workbench/browser/parts/editor/
 import { IEditorRegistry, Extensions as EditorExtensions, EditorInput, EditorOptions, ConfirmResult, IWorkbenchEditorConfiguration, IEditorDescriptor, TextEditorOptions, SideBySideEditorInput, TextCompareEditorVisible, TEXT_DIFF_EDITOR_ID } from 'vs/workbench/common/editor';
 import { EditorGroupsControl, Rochade, IEditorGroupsControl, ProgressState } from 'vs/workbench/browser/parts/editor/editorGroupsControl';
 import { WorkbenchProgressService } from 'vs/workbench/services/progress/browser/progressService';
-import { IEditorGroupService, GroupOrientation, GroupArrangement, ITabOptions } from 'vs/workbench/services/group/common/groupService';
+import { IEditorGroupService, GroupOrientation, GroupArrangement, ITabOptions, IMoveOptions } from 'vs/workbench/services/group/common/groupService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditorPart } from 'vs/workbench/services/editor/browser/editorService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
@@ -808,9 +808,9 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		this._onEditorsMoved.fire();
 	}
 
-	public moveEditor(input: EditorInput, from: EditorGroup, to: EditorGroup, index?: number): void;
-	public moveEditor(input: EditorInput, from: Position, to: Position, index?: number): void;
-	public moveEditor(input: EditorInput, arg2: any, arg3: any, index?: number): void {
+	public moveEditor(input: EditorInput, from: EditorGroup, to: EditorGroup, moveOptions?: IMoveOptions): void;
+	public moveEditor(input: EditorInput, from: Position, to: Position, moveOptions?: IMoveOptions): void;
+	public moveEditor(input: EditorInput, arg2: any, arg3: any, moveOptions?: IMoveOptions): void {
 		const fromGroup = (typeof arg2 === 'number') ? this.stacks.groupAt(arg2) : arg2;
 		if (!fromGroup) {
 			return;
@@ -818,18 +818,20 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		// Move within group
 		if (arg2 === arg3) {
-			this.doMoveEditorInsideGroups(input, fromGroup, index);
+			this.doMoveEditorInsideGroups(input, fromGroup, moveOptions);
 		}
 
 		// Move across groups
 		else {
 			const toPosition = (typeof arg3 === 'number') ? arg3 : this.stacks.positionOfGroup(arg3);
 
-			this.doMoveEditorAcrossGroups(input, fromGroup, toPosition, index);
+			this.doMoveEditorAcrossGroups(input, fromGroup, toPosition, moveOptions);
 		}
 	}
 
-	private doMoveEditorInsideGroups(input: EditorInput, group: EditorGroup, toIndex: number): void {
+	private doMoveEditorInsideGroups(input: EditorInput, group: EditorGroup, moveOptions?: IMoveOptions): void {
+		let toIndex = moveOptions && moveOptions.index;
+
 		if (typeof toIndex !== 'number') {
 			return; // do nothing if we move into same group without index
 		}
@@ -844,7 +846,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		group.pin(input);
 	}
 
-	private doMoveEditorAcrossGroups(input: EditorInput, fromGroup: EditorGroup, to: Position, index?: number): void {
+	private doMoveEditorAcrossGroups(input: EditorInput, fromGroup: EditorGroup, to: Position, moveOptions?: IMoveOptions): void {
 		if (fromGroup.count === 1) {
 			const toGroup = this.stacks.groupAt(to);
 			if (!toGroup && this.stacks.positionOfGroup(fromGroup) < to) {
@@ -852,13 +854,17 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			}
 		}
 
+		const index = moveOptions && moveOptions.index;
+		const inactive = moveOptions && moveOptions.inactive;
+		const preserveFocus = moveOptions && moveOptions.preserveFocus;
+
 		// When moving an editor, try to preserve as much view state as possible by checking
-		// for th editor to be a text editor and creating the options accordingly if so
-		let options = EditorOptions.create({ pinned: true, index });
+		// for the editor to be a text editor and creating the options accordingly if so
+		let options = EditorOptions.create({ pinned: true, index, inactive, preserveFocus });
 		const activeEditor = this.getActiveEditor();
 		const codeEditor = getCodeEditor(activeEditor);
 		if (codeEditor && activeEditor.position === this.stacks.positionOfGroup(fromGroup) && input.matches(activeEditor.input)) {
-			options = TextEditorOptions.create({ pinned: true, index });
+			options = TextEditorOptions.create({ pinned: true, index, inactive, preserveFocus });
 			(<TextEditorOptions>options).fromEditor(codeEditor);
 		}
 

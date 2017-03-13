@@ -49,7 +49,6 @@ export enum ModelState {
 
 	/**
 	 * A model is in orphan state when the underlying file has been deleted.
-	 * Models in orphan mode are always dirty.
 	 */
 	ORPHAN,
 
@@ -67,7 +66,8 @@ export enum StateChange {
 	SAVED,
 	REVERTED,
 	ENCODING,
-	CONTENT_CHANGE
+	CONTENT_CHANGE,
+	ORPHANED_CHANGE
 }
 
 export class TextFileModelChangeEvent {
@@ -151,6 +151,7 @@ export interface ITextFileEditorModelManager {
 	onModelSaveError: Event<TextFileModelChangeEvent>;
 	onModelSaved: Event<TextFileModelChangeEvent>;
 	onModelReverted: Event<TextFileModelChangeEvent>;
+	onModelOrphanedChanged: Event<TextFileModelChangeEvent>;
 
 	onModelsDirty: Event<TextFileModelChangeEvent[]>;
 	onModelsSaveError: Event<TextFileModelChangeEvent[]>;
@@ -180,7 +181,7 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 
 	getResource(): URI;
 
-	getState(): ModelState;
+	hasState(state: ModelState): boolean;
 
 	getETag(): string;
 
@@ -193,6 +194,8 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 	getValue(): string;
 
 	isDirty(): boolean;
+
+	isResolved(): boolean;
 
 	isDisposed(): boolean;
 }

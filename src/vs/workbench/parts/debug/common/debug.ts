@@ -530,7 +530,7 @@ export interface IDebugService {
 // Editor interfaces
 export interface IDebugEditorContribution extends IEditorContribution {
 	showHover(range: Range, focus: boolean): TPromise<void>;
-	showBreakpointWidget(lineNumber: number): void;
+	showBreakpointWidget(lineNumber: number, column: number): void;
 	closeBreakpointWidget(): void;
 	addLaunchConfiguration(): TPromise<any>;
 }

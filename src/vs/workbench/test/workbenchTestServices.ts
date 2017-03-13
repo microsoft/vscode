@@ -32,7 +32,7 @@ import { ILifecycleService, ShutdownEvent, ShutdownReason } from 'vs/platform/li
 import { EditorStacksModel } from 'vs/workbench/common/editor/editorStacksModel';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { IEditorGroupService, GroupArrangement, GroupOrientation, ITabOptions } from 'vs/workbench/services/group/common/groupService';
+import { IEditorGroupService, GroupArrangement, GroupOrientation, ITabOptions, IMoveOptions } from 'vs/workbench/services/group/common/groupService';
 import { TextFileService } from 'vs/workbench/services/textfile/common/textFileService';
 import { FileOperationEvent, IFileService, IResolveContentOptions, IFileOperationResult, IFileStat, IImportResult, FileChangesEvent, IResolveFileOptions, IContent, IUpdateContentOptions, IStreamContent } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -449,9 +449,9 @@ export class TestEditorGroupService implements IEditorGroupService {
 	public unpinEditor(arg1: any, input: IEditorInput): void {
 	}
 
-	public moveEditor(input: IEditorInput, from: IEditorGroup, to: IEditorGroup, index?: number): void;
-	public moveEditor(input: IEditorInput, from: Position, to: Position, index?: number): void;
-	public moveEditor(input: IEditorInput, from: any, to: any, index?: number): void {
+	public moveEditor(input: IEditorInput, from: IEditorGroup, to: IEditorGroup, moveOptions?: IMoveOptions): void;
+	public moveEditor(input: IEditorInput, from: Position, to: Position, moveOptions?: IMoveOptions): void;
+	public moveEditor(input: IEditorInput, from: any, to: any, moveOptions?: IMoveOptions): void {
 	}
 
 	public getStacksModel(): EditorStacksModel {

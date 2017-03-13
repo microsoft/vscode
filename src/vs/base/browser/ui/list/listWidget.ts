@@ -8,12 +8,13 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { isNumber } from 'vs/base/common/types';
 import { memoize } from 'vs/base/common/decorators';
 import * as DOM from 'vs/base/browser/dom';
+import * as platform from 'vs/base/common/platform';
 import { EventType as TouchEventType } from 'vs/base/browser/touch';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import Event, { Emitter, EventBufferer, chain, mapEvent, fromCallback } from 'vs/base/common/event';
+import Event, { Emitter, EventBufferer, chain, mapEvent, fromCallback, createEmptyEvent, any } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
-import { IDelegate, IRenderer, IListEvent, IListMouseEvent } from './list';
+import { IDelegate, IRenderer, IListEvent, IListMouseEvent, IListContextMenuEvent } from './list';
 import { ListView, IListViewOptions } from './listView';
 
 export interface IIdentityProvider<T> {
@@ -162,6 +163,7 @@ class TraitSpliceable<T> implements ISpliceable<T> {
 }
 
 class KeyboardController<T> implements IDisposable {
+
 	private disposables: IDisposable[];
 
 	constructor(
@@ -183,6 +185,7 @@ class KeyboardController<T> implements IDisposable {
 	private onEnter(e: StandardKeyboardEvent): void {
 		e.preventDefault();
 		e.stopPropagation();
+		this.list.setSelection(this.list.getFocus());
 		this.list.open(this.list.getFocus());
 	}
 
@@ -227,6 +230,27 @@ class MouseController<T> implements IDisposable {
 
 	private disposables: IDisposable[];
 
+	@memoize get onContextMenu(): Event<IListContextMenuEvent<T>> {
+		const fromKeyboard = chain(domEvent(this.view.domNode, 'keydown'))
+			.map(e => new StandardKeyboardEvent(e))
+			.filter(e => this.list.getFocus().length > 0)
+			.filter(e => e.keyCode === KeyCode.ContextMenu || (e.shiftKey && e.keyCode === KeyCode.F10))
+			.map(e => {
+				const index = this.list.getFocus()[0];
+				const element = this.view.element(index);
+				const anchor = this.view.domElement(index);
+				return { index, element, anchor };
+			})
+			.filter(({ anchor }) => !!anchor)
+			.event;
+
+		const fromMouse = chain(fromCallback(handler => this.view.addListener('contextmenu', handler)))
+			.map(({ element, index, clientX, clientY }) => ({ element, index, anchor: { x: clientX + 1, y: clientY } }))
+			.event;
+
+		return any<IListContextMenuEvent<T>>(fromKeyboard, fromMouse);
+	}
+
 	constructor(
 		private list: List<T>,
 		private view: ListView<T>
@@ -246,8 +270,23 @@ class MouseController<T> implements IDisposable {
 		e.preventDefault();
 		e.stopPropagation();
 		this.view.domNode.focus();
-		this.list.setFocus([e.index]);
-		this.list.open([e.index]);
+
+		const focus = e.index;
+		this.list.setFocus([focus]);
+
+		if (platform.isMacintosh ? e.altKey : e.ctrlKey) {
+			const selection = this.list.getSelection();
+			const newSelection = selection.filter(i => i !== focus);
+
+			if (selection.length === newSelection.length) {
+				this.list.setSelection([...newSelection, focus].sort());
+			} else {
+				this.list.setSelection(newSelection);
+			}
+		} else {
+			this.list.setSelection([focus]);
+			this.list.open([focus]);
+		}
 	}
 
 	dispose() {
@@ -287,8 +326,9 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		return mapEvent(this.eventBufferer.wrapEvent(this.selection.onChange), e => this.toListEvent(e));
 	}
 
-	@memoize get onContextMenu(): Event<IListMouseEvent<T>> {
-		return fromCallback(handler => this.view.addListener('contextmenu', handler));
+	private _onContextMenu: Event<IListContextMenuEvent<T>> = createEmptyEvent();
+	get onContextMenu(): Event<IListContextMenuEvent<T>> {
+		return this._onContextMenu;
 	}
 
 	private _onOpen = new Emitter<number[]>();
@@ -338,11 +378,14 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		this.disposables.push(tracker.addBlurListener(() => this._onDOMBlur.fire()));
 
 		if (typeof options.keyboardSupport !== 'boolean' || options.keyboardSupport) {
-			this.disposables.push(new KeyboardController(this, this.view));
+			const controller = new KeyboardController(this, this.view);
+			this.disposables.push(controller);
 		}
 
 		if (typeof options.mouseSupport !== 'boolean' || options.mouseSupport) {
-			this.disposables.push(new MouseController(this, this.view));
+			const controller = new MouseController(this, this.view);
+			this.disposables.push(controller);
+			this._onContextMenu = controller.onContextMenu;
 		}
 
 		this.onFocusChange(this._onFocusChange, this, this.disposables);
@@ -516,7 +559,6 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	}
 
 	open(indexes: number[]): void {
-		this.setSelection(indexes);
 		this._onOpen.fire(indexes);
 	}
 

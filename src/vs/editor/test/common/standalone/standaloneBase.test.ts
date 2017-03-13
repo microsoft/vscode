@@ -7,8 +7,9 @@
 import * as assert from 'assert';
 import { KeyCode as StandaloneKeyCode, Severity as StandaloneSeverity } from 'vs/editor/common/standalone/standaloneBase';
 import { createKeybinding, KeyCode as RuntimeKeyCode } from 'vs/base/common/keyCodes';
-import { KeybindingLabels } from 'vs/platform/keybinding/common/keybindingLabels';
 import RuntimeSeverity from 'vs/base/common/severity';
+import { KeybindingIO } from 'vs/platform/keybinding/common/keybindingIO';
+import { OS } from 'vs/base/common/platform';
 
 suite('StandaloneBase', () => {
 	test('exports enums correctly', () => {
@@ -139,7 +140,7 @@ suite('KeyCode', () => {
 	});
 
 	test('getUserSettingsKeybindingRegex', () => {
-		let regex = new RegExp(KeybindingLabels.getUserSettingsKeybindingRegex());
+		let regex = new RegExp(KeybindingIO.getUserSettingsKeybindingRegex());
 
 		function testIsGood(userSettingsLabel: string, message: string = userSettingsLabel): void {
 			let userSettings = '"' + userSettingsLabel.replace(/\\/g, '\\\\') + '"';
@@ -157,7 +158,7 @@ suite('KeyCode', () => {
 			if (ignore[keyCode]) {
 				continue;
 			}
-			let userSettings = KeybindingLabels.toUserSettingsLabel(createKeybinding(keyCode));
+			let userSettings = KeybindingIO.writeKeybinding(createKeybinding(keyCode), OS);
 			testIsGood(userSettings, keyCode + ' - ' + StandaloneKeyCode[keyCode] + ' - ' + userSettings);
 		}
 

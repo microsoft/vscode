@@ -491,7 +491,7 @@ export class DragAndDrop extends DefaultDragAndDrop {
 
 		if (draggedElement) {
 			if (draggedElement instanceof OpenEditor) {
-				this.editorGroupService.moveEditor(draggedElement.editorInput, model.positionOfGroup(draggedElement.editorGroup), positionOfTargetGroup, index);
+				this.editorGroupService.moveEditor(draggedElement.editorInput, model.positionOfGroup(draggedElement.editorGroup), positionOfTargetGroup, { index });
 			} else {
 				this.editorGroupService.moveGroup(model.positionOfGroup(draggedElement), positionOfTargetGroup);
 			}

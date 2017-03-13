@@ -642,6 +642,7 @@ export class TextEditorOptions extends EditorOptions {
 		options.revealIfVisible = settings.revealIfVisible;
 		options.pinned = settings.pinned;
 		options.index = settings.index;
+		options.inactive = settings.inactive;
 
 		if (settings.selection) {
 			options.startLineNumber = settings.selection.startLineNumber;
@@ -905,7 +906,7 @@ export interface IWorkbenchEditorConfiguration {
 			showIcons: boolean;
 			enablePreview: boolean;
 			enablePreviewFromQuickOpen: boolean;
-			closeOnExternalFileDelete: boolean;
+			closeOnFileDelete: boolean;
 			openPositioning: 'left' | 'right' | 'first' | 'last';
 			revealIfOpen: boolean;
 		}

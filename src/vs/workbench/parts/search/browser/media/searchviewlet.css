@@ -336,6 +336,10 @@
 	border: 1px dashed rgb(51, 255, 46);
 }
 
+.monaco-workbench .search-viewlet a.prominent {
+	text-decoration: underline;
+}
+
 /* Theming */
 
 .search-viewlet .highlight {
