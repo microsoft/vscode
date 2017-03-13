@@ -905,7 +905,7 @@ export interface IWorkbenchEditorConfiguration {
 			showIcons: boolean;
 			enablePreview: boolean;
 			enablePreviewFromQuickOpen: boolean;
-			closeOnExternalFileDelete: boolean;
+			closeOnFileDelete: boolean;
 			openPositioning: 'left' | 'right' | 'first' | 'last';
 			revealIfOpen: boolean;
 		}

@@ -11,14 +11,14 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { EncodingMode } from 'vs/workbench/common/editor';
 import { TextFileEditorModel, SaveSequentializer } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { ITextFileService, ModelState, StateChange } from 'vs/workbench/services/textfile/common/textfiles';
-import { workbenchInstantiationService, TestTextFileService, createFileInput } from 'vs/workbench/test/workbenchTestServices';
+import { workbenchInstantiationService, TestTextFileService, createFileInput, TestFileService } from 'vs/workbench/test/workbenchTestServices';
 import { onError, toResource } from 'vs/base/test/common/utils';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
-import { FileOperationResult, IFileOperationResult } from 'vs/platform/files/common/files';
+import { FileOperationResult, IFileOperationResult, IFileService, FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/modelService';
 
 class ServiceAccessor {
-	constructor( @ITextFileService public textFileService: TestTextFileService, @IModelService public modelService: IModelService) {
+	constructor( @ITextFileService public textFileService: TestTextFileService, @IModelService public modelService: IModelService, @IFileService public fileService: TestFileService) {
 	}
 }
 
@@ -99,7 +99,7 @@ suite('Files - TextFileEditorModel', () => {
 
 	test('Load does not trigger save', function (done) {
 		const model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index.txt'), 'utf8');
-		assert.equal(model.getState(), ModelState.SAVED);
+		assert.ok(model.hasState(ModelState.SAVED));
 
 		model.onDidStateChange(e => {
 			assert.ok(e !== StateChange.DIRTY && e !== StateChange.SAVED);
@@ -123,7 +123,7 @@ suite('Files - TextFileEditorModel', () => {
 			model.textEditorModel.setValue('foo');
 
 			assert.ok(model.isDirty());
-			assert.equal(model.getState(), ModelState.DIRTY);
+			assert.ok(model.hasState(ModelState.DIRTY));
 			return model.load().then(() => {
 				assert.ok(model.isDirty());
 
@@ -203,6 +203,24 @@ suite('Files - TextFileEditorModel', () => {
 			return model.load().then((model: TextFileEditorModel) => {
 				assert.ok(model);
 				assert.equal(getLastModifiedTime(model), mtime);
+				model.dispose();
+
+				done();
+			});
+		}, error => onError(error, done));
+	});
+
+	test('Load error is handled gracefully if model already exists', function (done) {
+		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8');
+
+		model.load().done(() => {
+			accessor.textFileService.setResolveTextContentErrorOnce(<IFileOperationResult>{
+				message: 'error',
+				fileOperationResult: FileOperationResult.FILE_NOT_FOUND
+			});
+
+			return model.load().then((model: TextFileEditorModel) => {
+				assert.ok(model);
 				model.dispose();
 
 				done();
@@ -357,28 +375,20 @@ suite('Files - TextFileEditorModel', () => {
 		}, error => onError(error, done));
 	});
 
-	test('Orphaned models', function (done) {
+	test('Orphaned models - state and event', function (done) {
 		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8');
 
-		return model.load().then(() => {
-			let undo = model.setOrphaned();
-			assert.equal(model.isDirty(), true);
-			assert.equal(model.getState(), ModelState.ORPHAN);
+		model.onDidStateChange(e => {
+			if (e === StateChange.ORPHANED_CHANGE) {
+				done();
+			}
+		});
 
-			undo();
-			assert.equal(model.isDirty(), false);
-			assert.notEqual(model.getState(), ModelState.ORPHAN);
+		accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource: model.getResource(), type: FileChangeType.DELETED }]));
+		assert.ok(model.hasState(ModelState.ORPHAN));
 
-			// can not undo when model changed meanwhile (but orphaned state clears)
-			undo = model.setOrphaned();
-			assert.equal(model.getState(), ModelState.ORPHAN);
-			model.textEditorModel.setValue('foo');
-			undo();
-			assert.equal(model.isDirty(), true);
-			assert.notEqual(model.getState(), ModelState.ORPHAN);
-
-			done();
-		}, error => onError(error, done));
+		accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource: model.getResource(), type: FileChangeType.ADDED }]));
+		assert.ok(!model.hasState(ModelState.ORPHAN));
 	});
 
 	test('SaveSequentializer - pending basics', function (done) {
