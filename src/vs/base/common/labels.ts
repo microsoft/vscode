@@ -88,6 +88,30 @@ export function tildify(path: string, userHome: string): string {
  * Shortens the paths but keeps them easy to distinguish.
  * Replaces not important parts with ellipsis.
  * Every shorten path matches only one original path and vice versa.
+ *
+ * Algorithm for shortening paths is as follows:
+ * 1. For every path in list, find unique substring of that path.
+ * 2. Unique substring along with ellipsis is shortened path of that path.
+ * 3. To find unique substring of path, consider every segment of length from 1 to path.length of path from end of string
+ *    and if present segment is not substring to any other paths then present segment is unique path,
+ *    else check if it is not present as suffix of any other path and present segment is suffix of path itself,
+ *    if it is true take present segment as unique path.
+ * 4. Apply ellipsis to unique segment according to whether segment is present at start/in-between/end of path.
+ *
+ * Example 1
+ * 1. consider 2 paths i.e. ['a\\b\\c\\d', 'a\\f\\b\\c\\d']
+ * 2. find unique path of first path,
+ * 	a. 'd' is present in path2 and is suffix of path2, hence not unique of present path.
+ * 	b. 'c' is present in path2 and 'c' is not suffix of present path, similarly for 'b' and 'a' also.
+ * 	c. 'd\\c' is suffix of path2.
+ *  d. 'b\\c' is not suffix of present path.
+ *  e. 'a\\b' is not present in path2, hence unique path is 'a\\b...'.
+ * 3. for path2, 'f' is not present in path1 hence unique is '...\\f\\...'.
+ *
+ * Example 2
+ * 1. consider 2 paths i.e. ['a\\b', 'a\\b\\c'].
+ * 	a. Even if 'b' is present in path2, as 'b' is suffix of path1 and is not suffix of path2, unique path will be '...\\b'.
+ * 2. for path2, 'c' is not present in path1 hence unique path is '..\\c'.
  */
 const ellipsis = '\u2026';
 const unc = '\\\\';
@@ -134,7 +158,11 @@ export function shorten(paths: string[]): string[] {
 					// suffix subpath treated specially as we consider no match 'x' and 'x/...'
 					if (otherPathIndex !== pathIndex && paths[otherPathIndex] && paths[otherPathIndex].indexOf(subpath) > -1) {
 						const isSubpathEnding: boolean = (start + subpathLength === segments.length);
-						const isOtherPathEnding: boolean = endsWith(paths[otherPathIndex], subpath);
+
+						// Adding separator as prefix for subpath, such that 'endsWith(src, trgt)' considers subpath as directory name instead of plain string.
+						// prefix is not added when either subpath is root directory or path[otherPathIndex] does not have multiple directories.
+						const subpathWithSep: string = (start > 0 && paths[otherPathIndex].indexOf(nativeSep) > -1) ? nativeSep + subpath : subpath;
+						const isOtherPathEnding: boolean = endsWith(paths[otherPathIndex], subpathWithSep);
 
 						match = !isSubpathEnding || isOtherPathEnding;
 					}
