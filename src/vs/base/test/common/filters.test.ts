@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { IFilter, or, matchesPrefix, matchesStrictPrefix, matchesCamelCase, matchesSubString, matchesContiguousSubString, matchesWords } from 'vs/base/common/filters';
+import { IFilter, or, matchesPrefix, matchesStrictPrefix, matchesCamelCase, matchesSubString, matchesContiguousSubString, matchesWords, matchesFuzzy3 } from 'vs/base/common/filters';
 
 function filterOk(filter: IFilter, word: string, wordToMatchAgainst: string, highlights?: { start: number; end: number; }[]) {
 	let r = filter(word, wordToMatchAgainst);
@@ -191,5 +191,37 @@ suite('Filters', () => {
 
 		assert.ok(matchesWords('gipu', 'Category: Git: Pull', true) === null);
 		assert.deepEqual(matchesWords('pu', 'Category: Git: Pull', true), [{ start: 15, end: 17 }]);
+	});
+
+	test('FuzzyMatchAndScore', function () {
+		// function toString(word: string, matches: IMatch[], score: number) {
+		// 	let underline = '';
+		// 	let lastEnd = 0;
+		// 	for (const { start, end } of matches) {
+		// 		underline += new Array(1 + start - lastEnd).join(' ');
+		// 		underline += new Array(1 + end - start).join('^');
+		// 		lastEnd = end;
+		// 	}
+		// 	return `${word} (score: ${score})\n${underline}`;
+		// }
+
+		let [matches] = matchesFuzzy3('LLL', 'SVisualLoggerLogsList');
+		assert.deepEqual(matches, [{ start: 7, end: 8 }, { start: 13, end: 14 }, { start: 17, end: 18 }]);
+
+		[matches] = matchesFuzzy3('foobar', 'foobar');
+		assert.deepEqual(matches, [{ start: 0, end: 6 }]);
+
+		[matches] = matchesFuzzy3('tk', 'The Black Knight');
+		assert.deepEqual(matches, [{ start: 0, end: 1 }, { start: 10, end: 11 }]);
+
+		[matches] = matchesFuzzy3('Cat', 'charAt');
+		assert.deepEqual(matches, [{ start: 0, end: 1 }, { start: 4, end: 6 }]);
+
+		[matches] = matchesFuzzy3('Cat', 'charCodeAt');
+		assert.deepEqual(matches, [{ start: 4, end: 5 }, { start: 8, end: 10 }]);
+
+		[matches] = matchesFuzzy3('Cat', 'concat');
+		assert.deepEqual(matches, [{ start: 0, end: 1 }, { start: 4, end: 6 }]);
+
 	});
 });

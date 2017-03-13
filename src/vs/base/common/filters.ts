@@ -383,3 +383,90 @@ export function matchesFuzzy2(pattern: string, word: string): IMatch[] | undefin
 
 	return result.length > 0 ? result : undefined;
 }
+
+export function matchesFuzzy3(pattern: string, word: string) {
+	return _doMatchesFuzzy3(
+		pattern, pattern.toLowerCase(), 0,
+		word, word.toLowerCase(), 0,
+		[], 0
+	);
+}
+function _doMatchesFuzzy3(
+	pattern: string, lowPattern: string, patternPos: number,
+	word: string, lowWord: string, wordPos: number,
+	positions: number[], score: number
+): [IMatch[], number] {
+
+	let retryPoints: number[] = [];
+	let lastDidMatch = false;
+
+	while (patternPos < lowPattern.length && wordPos < lowWord.length) {
+		const charLowPattern = lowPattern.charAt(patternPos);
+		const charLowWord = lowWord.charAt(wordPos);
+
+		if (charLowPattern === charLowWord) {
+
+			if (positions.length === 0) {
+				score = -Math.min(wordPos, 3) * 3; // penalty -> gaps at start
+			} else if (lastDidMatch) {
+				score += 1; // bonus -> subsequent match
+			}
+
+			if (charLowWord !== word.charAt(wordPos)) {
+				score += 10; // bonus -> upper-case
+
+			} else if (wordPos > 0 && word.charAt(wordPos).match(_separator)) {
+				score += 10; // bonus -> after a separator
+
+			} else {
+				// keep this as a retry point
+				retryPoints.push(patternPos, wordPos + 1, positions.length, score);
+			}
+
+			patternPos += 1;
+			positions.push(wordPos);
+			lastDidMatch = true;
+
+		} else {
+			lastDidMatch = false;
+			score -= 1; // penalty -> gaps in match
+		}
+
+		wordPos += 1;
+	}
+
+	if (positions.length === 0) {
+		return undefined;
+	}
+
+	const matches: IMatch[] = [];
+	let lastMatch: IMatch;
+	for (const pos of positions) {
+		if (lastMatch && lastMatch.end === pos) {
+			lastMatch.end += 1;
+		} else {
+			lastMatch = { start: pos, end: pos + 1 };
+			matches.push(lastMatch);
+		}
+	}
+
+	let result: [IMatch[], number] = [matches, score];
+
+	// try alternative matches
+	for (let i = 0; i < retryPoints.length; i += 4) {
+		const alt = _doMatchesFuzzy3(
+			pattern, lowPattern, retryPoints[i],
+			word, lowWord, retryPoints[i + 1],
+			positions.slice(0, retryPoints[i + 2]), retryPoints[i + 3]
+		);
+		if (alt && alt[1] > result[1]) {
+			result = alt;
+		}
+	}
+
+	return result;
+}
+
+const _separator = /[-_. ]/;
+
+
