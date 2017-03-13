@@ -30,7 +30,7 @@ import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import {
-	CloseEditorsInGroupAction, CloseEditorsInOtherGroupsAction, CloseAllEditorsAction, MoveGroupLeftAction, MoveGroupRightAction, SplitEditorAction, KeepEditorAction, CloseOtherEditorsInGroupAction, OpenToSideAction, RevertAndCloseEditorAction,
+	CloseEditorsInGroupAction, CloseEditorsInOtherGroupsAction, CloseAllEditorsAction, MoveGroupLeftAction, MoveGroupRightAction, SplitEditorAction, JoinTwoGroupsAction, KeepEditorAction, CloseOtherEditorsInGroupAction, OpenToSideAction, RevertAndCloseEditorAction,
 	NavigateBetweenGroupsAction, FocusActiveGroupAction, FocusFirstGroupAction, FocusSecondGroupAction, FocusThirdGroupAction, EvenGroupWidthsAction, MaximizeGroupAction, MinimizeOtherGroupsAction, FocusPreviousGroup, FocusNextGroup, ShowEditorsInGroupOneAction,
 	toEditorQuickOpenEntry, CloseLeftEditorsInGroupAction, CloseRightEditorsInGroupAction, OpenNextEditor, OpenPreviousEditor, NavigateBackwardsAction, NavigateForwardAction, ReopenClosedEditorAction, OpenPreviousRecentlyUsedEditorInGroupAction, NAVIGATE_IN_GROUP_ONE_PREFIX,
 	OpenPreviousEditorFromHistoryAction, ShowAllEditorsAction, NAVIGATE_ALL_EDITORS_GROUP_PREFIX, ClearEditorHistoryAction, ShowEditorsInGroupTwoAction, MoveEditorRightInGroupAction, OpenNextEditorInGroup, OpenPreviousEditorInGroup,
@@ -331,6 +331,7 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(CloseEditorsInGroupAct
 registry.registerWorkbenchAction(new SyncActionDescriptor(CloseOtherEditorsInGroupAction, CloseOtherEditorsInGroupAction.ID, CloseOtherEditorsInGroupAction.LABEL, { primary: null, mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_T } }), 'View: Close Other Editors', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(CloseEditorsInOtherGroupsAction, CloseEditorsInOtherGroupsAction.ID, CloseEditorsInOtherGroupsAction.LABEL), 'View: Close Editors in Other Groups', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(SplitEditorAction, SplitEditorAction.ID, SplitEditorAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.US_BACKSLASH }), 'View: Split Editor', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(JoinTwoGroupsAction, JoinTwoGroupsAction.ID, JoinTwoGroupsAction.LABEL), 'View: Join Editors of Two Groups', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(NavigateBetweenGroupsAction, NavigateBetweenGroupsAction.ID, NavigateBetweenGroupsAction.LABEL), 'View: Navigate Between Editor Groups', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(FocusActiveGroupAction, FocusActiveGroupAction.ID, FocusActiveGroupAction.LABEL), 'View: Focus Active Editor Group', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(FocusFirstGroupAction, FocusFirstGroupAction.ID, FocusFirstGroupAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_1 }), 'View: Focus First Editor Group', category);
