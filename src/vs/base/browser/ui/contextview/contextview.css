@@ -7,36 +7,3 @@
 	position: absolute;
 	z-index: 1000;
 }
-
-/* Tooltips */
-.context-view .tooltip {
-	padding: 5px;
-	position: relative;
-	margin-top: 4px;
-	margin-right: 4px;
-	max-width: 350px;
-
-	-webkit-animation: fadeIn 0.15s linear;
-	-o-animation: fadeIn 0.15s linear;
-	-moz-animation: fadeIn 0.15s linear;
-	-ms-animation: fadeIn 0.15s linear;
-	animation: fadeIn 0.15s linear;
-}
-
-.context-view .tooltip:before,
-.context-view .tooltip:after {
-	content: '';
-	position: absolute;
-	border-color: transparent;
-	border-style: solid;
-}
-
-.context-view.bottom.right .tooltip:before {
-	top: -12px;
-	right: 12px;
-}
-
-.context-view.bottom.right .tooltip:after {
-	top: -9px;
-	right: 13px;
-}
