@@ -45,6 +45,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { Position } from 'vs/platform/editor/common/editor';
 import { IListService } from 'vs/platform/list/browser/listService';
+import { OS } from 'vs/base/common/platform';
 
 function renderBody(body: string): string {
 	const nonce = new Date().getTime() + '' + new Date().getMilliseconds();
@@ -669,7 +670,7 @@ export class ExtensionEditor extends BaseEditor {
 			case 'darwin': key = rawKeyBinding.mac; break;
 		}
 
-		const keyBinding = createKeybinding(KeybindingIO.readKeybinding(key || rawKeyBinding.key));
+		const keyBinding = createKeybinding(KeybindingIO.readKeybinding(key || rawKeyBinding.key, OS));
 		const resolvedKeybinding = this.keybindingService.resolveKeybinding(keyBinding);
 		const result = resolvedKeybinding.getLabel();
 		return result === 'unknown' ? null : result;

@@ -7,7 +7,7 @@
 import { createKeybinding, Keybinding } from 'vs/base/common/keyCodes';
 import { IKeybindingItem } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { CharCode } from "vs/base/common/charCode";
+import { CharCode } from 'vs/base/common/charCode';
 
 export class NormalizedKeybindingItem {
 	_normalizedKeybindingItemBrand: void;

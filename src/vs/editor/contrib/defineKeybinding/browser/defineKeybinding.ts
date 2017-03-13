@@ -10,7 +10,6 @@ import * as nls from 'vs/nls';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { MarkedString } from 'vs/base/common/htmlContent';
 import { ResolvedKeybinding, createKeybinding, KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
-import { KeybindingLabels } from 'vs/platform/keybinding/common/keybindingLabels';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
 import { renderHtml } from 'vs/base/browser/htmlContentRenderer';
@@ -27,6 +26,8 @@ import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { CodeSnippet } from 'vs/editor/contrib/snippet/common/snippet';
 import { SnippetController } from 'vs/editor/contrib/snippet/common/snippetController';
 import { SmartSnippetInserter } from 'vs/editor/contrib/defineKeybinding/common/smartSnippetInserter';
+import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/abstractKeybindingService';
+import { OS } from 'vs/base/common/platform';
 
 import EditorContextKeys = editorCommon.EditorContextKeys;
 
@@ -153,7 +154,7 @@ export class DefineKeybindingController implements editorCommon.IEditorContribut
 	private _dec: string[] = [];
 	private _updateDecorationsNow(): void {
 		let model = this._editor.getModel();
-		let regex = KeybindingLabels.getUserSettingsKeybindingRegex();
+		let regex = KeybindingIO.getUserSettingsKeybindingRegex();
 
 		var m = model.findMatches(regex, false, true, false, false, false).map(m => m.range);
 
@@ -163,15 +164,16 @@ export class DefineKeybindingController implements editorCommon.IEditorContribut
 			let strKeybinding = text.substring(1, text.length - 1);
 			strKeybinding = strKeybinding.replace(/\\\\/g, '\\');
 
-			let numKeybinding = KeybindingIO.readKeybinding(strKeybinding);
+			let numKeybinding = KeybindingIO.readKeybinding(strKeybinding, OS);
 
 			let keybinding = createKeybinding(numKeybinding);
 			let resolvedKeybinding = this._keybindingService.resolveKeybinding(keybinding);
 
+			const usResolvedKeybinding = new USLayoutResolvedKeybinding(keybinding, OS);
 			return {
 				strKeybinding: strKeybinding,
 				keybinding: keybinding,
-				usLabel: KeybindingLabels._toUSLabel(keybinding),
+				usLabel: usResolvedKeybinding.getLabel(),
 				label: resolvedKeybinding.getLabel(),
 				range: range
 			};

@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { Keybinding, KeyMod, KeyChord, USER_SETTINGS } from 'vs/base/common/keyCodes';
-import { ISimplifiedPlatform, KeybindingLabels } from 'vs/platform/keybinding/common/keybindingLabels';
-import * as platform from 'vs/base/common/platform';
+import { Keybinding, KeyMod, KeyChord, USER_SETTINGS, KeyCode } from 'vs/base/common/keyCodes';
+import { PrintableKeypress, UserSettingsLabelProvider } from 'vs/platform/keybinding/common/keybindingLabels';
+import { OperatingSystem } from 'vs/base/common/platform';
 import { IKeybindingItem, IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { NormalizedKeybindingItem } from 'vs/platform/keybinding/common/normalizedKeybindingItem';
 
 export class KeybindingIO {
 
-	public static writeKeybindingItem(out: OutputBuilder, item: NormalizedKeybindingItem): void {
-		let quotedSerializedKeybinding = JSON.stringify(KeybindingIO.writeKeybinding(item.keybinding));
+	public static writeKeybindingItem(out: OutputBuilder, item: NormalizedKeybindingItem, OS: OperatingSystem): void {
+		let quotedSerializedKeybinding = JSON.stringify(KeybindingIO.writeKeybinding(item.keybinding, OS));
 		out.write(`{ "key": ${rightPaddedString(quotedSerializedKeybinding + ',', 25)} "command": `);
 
 		let serializedWhen = item.when ? item.when.serialize() : '';
@@ -30,10 +30,10 @@ export class KeybindingIO {
 		out.write('}');
 	}
 
-	public static readKeybindingItem(input: IUserFriendlyKeybinding, index: number): IKeybindingItem {
+	public static readKeybindingItem(input: IUserFriendlyKeybinding, index: number, OS: OperatingSystem): IKeybindingItem {
 		let key: number = 0;
 		if (typeof input.key === 'string') {
-			key = KeybindingIO.readKeybinding(input.key);
+			key = KeybindingIO.readKeybinding(input.key, OS);
 		}
 
 		let when: ContextKeyExpr = null;
@@ -61,11 +61,38 @@ export class KeybindingIO {
 		};
 	}
 
-	public static writeKeybinding(keybinding: Keybinding, Platform: ISimplifiedPlatform = platform): string {
-		return KeybindingLabels.toUserSettingsLabel(keybinding, Platform);
+	private static _cachedKeybindingRegex: string = null;
+
+	/**
+	 * @internal
+	 */
+	public static getUserSettingsKeybindingRegex(): string {
+		if (!this._cachedKeybindingRegex) {
+			let numpadKey = 'numpad(0|1|2|3|4|5|6|7|8|9|_multiply|_add|_subtract|_decimal|_divide|_separator)';
+			let oemKey = '`|\\-|=|\\[|\\]|\\\\\\\\|;|\'|,|\\.|\\/|oem_8|oem_102';
+			let specialKey = 'left|up|right|down|pageup|pagedown|end|home|tab|enter|escape|space|backspace|delete|pausebreak|capslock|insert|contextmenu|numlock|scrolllock';
+			let casualKey = '[a-z]|[0-9]|f(1|2|3|4|5|6|7|8|9|10|11|12|13|14|15|16|17|18|19)';
+			let key = '((' + [numpadKey, oemKey, specialKey, casualKey].join(')|(') + '))';
+			let mod = '((ctrl|shift|alt|cmd|win|meta)\\+)*';
+			let keybinding = '(' + mod + key + ')';
+
+			this._cachedKeybindingRegex = '"\\s*(' + keybinding + '(\\s+' + keybinding + ')?' + ')\\s*"';
+		}
+		return this._cachedKeybindingRegex;
 	}
 
-	public static readKeybinding(input: string, Platform: ISimplifiedPlatform = platform): number {
+	private static _keyCodeToStr(keyCode: KeyCode, OS: OperatingSystem): string {
+		return USER_SETTINGS.fromKeyCode(keyCode);
+	}
+
+	public static writeKeybinding(keybinding: Keybinding, OS: OperatingSystem): string {
+		const [firstPart, chordPart] = PrintableKeypress.fromKeybinding2(keybinding, this._keyCodeToStr, OS);
+
+		let result = UserSettingsLabelProvider.toLabel2(firstPart, chordPart, OS);
+		return result.toLowerCase();
+	}
+
+	public static readKeybinding(input: string, OS: OperatingSystem): number {
 		if (!input) {
 			return null;
 		}
@@ -79,7 +106,7 @@ export class KeybindingIO {
 
 		while (/^(ctrl|shift|alt|meta|win|cmd)(\+|\-)/.test(input)) {
 			if (/^ctrl(\+|\-)/.test(input)) {
-				if (Platform.isMacintosh) {
+				if (OS === OperatingSystem.Macintosh) {
 					winCtrl = true;
 				} else {
 					ctrlCmd = true;
@@ -95,7 +122,7 @@ export class KeybindingIO {
 				input = input.substr('alt-'.length);
 			}
 			if (/^meta(\+|\-)/.test(input)) {
-				if (Platform.isMacintosh) {
+				if (OS === OperatingSystem.Macintosh) {
 					ctrlCmd = true;
 				} else {
 					winCtrl = true;
@@ -103,7 +130,7 @@ export class KeybindingIO {
 				input = input.substr('meta-'.length);
 			}
 			if (/^win(\+|\-)/.test(input)) {
-				if (Platform.isMacintosh) {
+				if (OS === OperatingSystem.Macintosh) {
 					ctrlCmd = true;
 				} else {
 					winCtrl = true;
@@ -111,7 +138,7 @@ export class KeybindingIO {
 				input = input.substr('win-'.length);
 			}
 			if (/^cmd(\+|\-)/.test(input)) {
-				if (Platform.isMacintosh) {
+				if (OS === OperatingSystem.Macintosh) {
 					ctrlCmd = true;
 				} else {
 					winCtrl = true;
@@ -125,7 +152,7 @@ export class KeybindingIO {
 		let firstSpaceIdx = input.indexOf(' ');
 		if (firstSpaceIdx > 0) {
 			key = input.substring(0, firstSpaceIdx);
-			chord = KeybindingIO.readKeybinding(input.substring(firstSpaceIdx), Platform);
+			chord = KeybindingIO.readKeybinding(input.substring(firstSpaceIdx), OS);
 		} else {
 			key = input;
 		}

@@ -11,7 +11,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IConfigurationService, IConfigurationServiceEvent, IConfigurationValue, getConfigurationValue, IConfigurationKeys } from 'vs/platform/configuration/common/configuration';
 import { IEditor, IEditorInput, IEditorOptions, IEditorService, IResourceInput, Position } from 'vs/platform/editor/common/editor';
 import { ICommandService, ICommand, ICommandEvent, ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { SimpleResolvedKeybinding, AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
+import { USLayoutResolvedKeybinding, AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
 import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
 import { IKeybindingEvent, IKeybindingItem, KeybindingSource } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -33,6 +33,7 @@ import { Menu } from 'vs/platform/actions/common/menu';
 import { ITelemetryService, ITelemetryExperiments, ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
 import { ResolvedKeybinding, Keybinding } from 'vs/base/common/keyCodes';
 import { NormalizedKeybindingItem } from 'vs/platform/keybinding/common/normalizedKeybindingItem';
+import { OS } from 'vs/base/common/platform';
 
 export class SimpleEditor implements IEditor {
 
@@ -380,7 +381,7 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 	}
 
 	protected _createResolvedKeybinding(kb: Keybinding): ResolvedKeybinding {
-		return new SimpleResolvedKeybinding(kb);
+		return new USLayoutResolvedKeybinding(kb, OS);
 	}
 
 }
