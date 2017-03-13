@@ -162,6 +162,7 @@ class TraitSpliceable<T> implements ISpliceable<T> {
 }
 
 class KeyboardController<T> implements IDisposable {
+
 	private disposables: IDisposable[];
 
 	constructor(
@@ -227,8 +228,25 @@ class MouseController<T> implements IDisposable {
 
 	private disposables: IDisposable[];
 
-	@memoize get onContextMenu(): Event<IListMouseEvent<T>> {
-		return fromCallback(handler => this.view.addListener('contextmenu', handler));
+	@memoize get onContextMenu(): Event<IListContextMenuEvent<T>> {
+		const fromKeyboard = chain(domEvent(this.view.domNode, 'keydown'))
+			.map(e => new StandardKeyboardEvent(e))
+			.filter(e => this.list.getFocus().length > 0)
+			.filter(e => e.keyCode === KeyCode.ContextMenu || (e.shiftKey && e.keyCode === KeyCode.F10))
+			.map(e => {
+				const index = this.list.getFocus()[0];
+				const element = this.view.element(index);
+				const anchor = this.view.domElement(index);
+				return { index, element, anchor };
+			})
+			.filter(({ anchor }) => !!anchor)
+			.event;
+
+		const fromMouse = chain(fromCallback(handler => this.view.addListener('contextmenu', handler)))
+			.map(({ element, index, clientX, clientY }) => ({ element, index, anchor: { x: clientX + 1, y: clientY } }))
+			.event;
+
+		return any<IListContextMenuEvent<T>>(fromKeyboard, fromMouse);
 	}
 
 	constructor(
@@ -343,17 +361,14 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		this.disposables.push(tracker.addBlurListener(() => this._onDOMBlur.fire()));
 
 		if (typeof options.keyboardSupport !== 'boolean' || options.keyboardSupport) {
-			this.disposables.push(new KeyboardController(this, this.view));
+			const controller = new KeyboardController(this, this.view);
+			this.disposables.push(controller);
 		}
 
 		if (typeof options.mouseSupport !== 'boolean' || options.mouseSupport) {
 			const controller = new MouseController(this, this.view);
 			this.disposables.push(controller);
-
-			this._onContextMenu = any(
-				this._onContextMenu,
-				mapEvent(controller.onContextMenu, ({ element, index, clientX, clientY }) => ({ element, index, anchor: { x: clientX + 1, y: clientY } }))
-			);
+			this._onContextMenu = controller.onContextMenu;
 		}
 
 		this.onFocusChange(this._onFocusChange, this, this.disposables);
