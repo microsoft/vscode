@@ -79,8 +79,11 @@ export interface IShellLaunchConfig {
 	name?: string;
 	/** The shell executable (bash, cmd, etc.). */
 	executable?: string;
-	/** The CLI arguments to use with executable. */
-	args?: string[];
+	/**
+	 * The CLI arguments to use with executable, a string[] is in argv format and will be escaped,
+	 * a string is in "CommandLine" pre-escaped format and will be used as is.
+	 */
+	args?: string[] | string;
 	/**
 	 * The current working directory of the terminal, this overrides the `terminal.integrated.cwd`
 	 * settings key.

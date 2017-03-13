@@ -522,7 +522,9 @@ export class TerminalInstance implements ITerminalInstance {
 			if (exitCode) {
 				if (this._isLaunching) {
 					let args = '';
-					if (this._shellLaunchConfig.args && this._shellLaunchConfig.args.length) {
+					if (typeof this._shellLaunchConfig.args === 'string') {
+						args = this._shellLaunchConfig.args;
+					} else if (this._shellLaunchConfig.args && this._shellLaunchConfig.args.length) {
 						args = ' ' + this._shellLaunchConfig.args.map(a => {
 							if (a.indexOf(' ') !== -1) {
 								return `'${a}'`;
@@ -578,9 +580,11 @@ export class TerminalInstance implements ITerminalInstance {
 		env['PTYPID'] = process.pid.toString();
 		env['PTYSHELL'] = shell.executable;
 		if (shell.args) {
-			shell.args.forEach((arg, i) => {
-				env[`PTYSHELLARG${i}`] = arg;
-			});
+			if (typeof shell.args === 'string') {
+				env[`PTYSHELLCMDLINE`] = shell.args;
+			} else {
+				shell.args.forEach((arg, i) => env[`PTYSHELLARG${i}`] = arg);
+			}
 		}
 		env['PTYCWD'] = cwd;
 		env['LANG'] = TerminalInstance._getLangEnvVariable(locale);
