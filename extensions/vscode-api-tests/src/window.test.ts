@@ -290,6 +290,17 @@ suite('window namespace tests', () => {
 		});
 	});
 
+	test('showQuickPick, never resolve promise and cancel - #22453', function () {
+
+		const result = window.showQuickPick(new Promise<string[]>(resolve => { }));
+
+		const a = result.then(value => {
+			assert.equal(value, undefined);
+		});
+		const b = commands.executeCommand('workbench.action.closeQuickOpen'),
+		return Promise.all([a, b]);
+	});
+
 	test('editor, selection change kind', () => {
 		return workspace.openTextDocument(join(workspace.rootPath || '', './far.js')).then(doc => window.showTextDocument(doc)).then(editor => {
 
