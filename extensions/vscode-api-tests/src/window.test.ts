@@ -297,7 +297,7 @@ suite('window namespace tests', () => {
 		const a = result.then(value => {
 			assert.equal(value, undefined);
 		});
-		const b = commands.executeCommand('workbench.action.closeQuickOpen'),
+		const b = commands.executeCommand('workbench.action.closeQuickOpen');
 		return Promise.all([a, b]);
 	});
 
