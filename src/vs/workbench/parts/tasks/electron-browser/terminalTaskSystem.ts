@@ -391,7 +391,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 			} else {
 				(this.terminalService.configHelper as TerminalConfigHelper).mergeDefaultShellPathAndArgs(shellLaunchConfig);
 			}
-			let shellArgs = shellLaunchConfig.args.slice(0);
+			let shellArgs = <string[]>shellLaunchConfig.args.slice(0);
 			let toAdd: string[] = [];
 			let commandLine = args && args.length > 0 ? `${command} ${args.join(' ')}` : `${command}`;
 			if (Platform.isWindows) {
