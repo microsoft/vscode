@@ -30,23 +30,26 @@ export class NormalizedKeybindingItem {
 		if (source.keybinding !== 0) {
 			keybinding = createKeybinding(source.keybinding);
 		}
-		return new NormalizedKeybindingItem(keybinding, source.command, source.commandArgs, when, isDefault);
+
+		let keypressFirstPart: string;
+		let keypressChordPart: string;
+		if (keybinding === null) {
+			keypressFirstPart = null;
+			keypressChordPart = null;
+		} else if (keybinding.isChord()) {
+			keypressFirstPart = keybinding.extractFirstPart().value.toString();
+			keypressChordPart = keybinding.extractChordPart().value.toString();
+		} else {
+			keypressFirstPart = keybinding.value.toString();
+			keypressChordPart = null;
+		}
+		return new NormalizedKeybindingItem(keybinding, keypressFirstPart, keypressChordPart, source.command, source.commandArgs, when, isDefault);
 	}
 
-	constructor(keybinding: Keybinding, command: string, commandArgs: any, when: ContextKeyExpr, isDefault: boolean) {
+	constructor(keybinding: Keybinding, keypressFirstPart: string, keypressChordPart: string, command: string, commandArgs: any, when: ContextKeyExpr, isDefault: boolean) {
 		this.keybinding = keybinding;
-
-		if (keybinding === null) {
-			this.keypressFirstPart = null;
-			this.keypressChordPart = null;
-		} else if (keybinding.isChord()) {
-			this.keypressFirstPart = keybinding.extractFirstPart().value.toString();
-			this.keypressChordPart = keybinding.extractChordPart().value.toString();
-		} else {
-			this.keypressFirstPart = keybinding.value.toString();
-			this.keypressChordPart = null;
-		}
-
+		this.keypressFirstPart = keypressFirstPart;
+		this.keypressChordPart = keypressChordPart;
 		this.bubble = (command ? command.charCodeAt(0) === CharCode.Caret : false);
 		this.command = this.bubble ? command.substr(1) : command;
 		this.commandArgs = commandArgs;

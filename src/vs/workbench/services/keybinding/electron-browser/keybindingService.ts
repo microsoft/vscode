@@ -130,21 +130,21 @@ export class FancyResolvedKeybinding extends ResolvedKeybinding {
 
 	public getLabel(): string {
 		const keyCodeLabelProvider = getNativeUIKeyCodeLabelProvider();
-		const [firstPart, chordPart] = PrintableKeypress.fromKeybinding2(this._actual, keyCodeLabelProvider, OS);
+		const [firstPart, chordPart] = PrintableKeypress.fromKeybinding(this._actual, keyCodeLabelProvider, OS);
 
 		return UILabelProvider.toLabel2(firstPart, chordPart, OS);
 	}
 
 	public getAriaLabel(): string {
 		const keyCodeLabelProvider = getNativeAriaKeyCodeLabelProvider();
-		const [firstPart, chordPart] = PrintableKeypress.fromKeybinding2(this._actual, keyCodeLabelProvider, OS);
+		const [firstPart, chordPart] = PrintableKeypress.fromKeybinding(this._actual, keyCodeLabelProvider, OS);
 
 		return AriaLabelProvider.toLabel2(firstPart, chordPart, OS);
 	}
 
 	public getHTMLLabel(): IHTMLContentElement[] {
 		const keyCodeLabelProvider = getNativeUIKeyCodeLabelProvider();
-		const [firstPart, chordPart] = PrintableKeypress.fromKeybinding2(this._actual, keyCodeLabelProvider, OS);
+		const [firstPart, chordPart] = PrintableKeypress.fromKeybinding(this._actual, keyCodeLabelProvider, OS);
 
 		return UILabelProvider.toHTMLLabel2(firstPart, chordPart, OS);
 	}
