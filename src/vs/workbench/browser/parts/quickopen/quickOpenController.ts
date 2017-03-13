@@ -318,15 +318,14 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 			this.pickOpenWidget.layout(this.layoutDimensions);
 		}
 
-		// Detect cancellation while pick promise is loading
-		let cancelTriggered = false;
-		this.pickOpenWidget.setCallbacks({
-			onOk: () => { /* ignore, handle later */ },
-			onCancel: () => { cancelTriggered = true; },
-			onType: (value: string) => { /* ignore, handle later */ },
-		});
-
 		return new TPromise<IPickOpenEntry | string>((complete, error, progress) => {
+
+			// Detect cancellation while pick promise is loading
+			this.pickOpenWidget.setCallbacks({
+				onCancel: () => { complete(void 0); },
+				onOk: () => { /* ignore, handle later */ },
+				onType: (value: string) => { /* ignore, handle later */ },
+			});
 
 			// hide widget when being cancelled
 			token.onCancellationRequested(e => {
@@ -339,7 +338,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 
 			// Resolve picks
 			picksPromise.then(picks => {
-				if (this.currentPickerToken !== currentPickerToken || cancelTriggered) {
+				if (this.currentPickerToken !== currentPickerToken) {
 					return complete(void 0); // Return as canceled if another request came after or user canceled
 				}
 
@@ -827,7 +826,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 
 			const entry = this.instantiationService.createInstance(EditorHistoryEntry, input);
 
-			const {labelHighlights, descriptionHighlights} = QuickOpenEntry.highlight(entry, searchValue);
+			const { labelHighlights, descriptionHighlights } = QuickOpenEntry.highlight(entry, searchValue);
 			entry.setHighlights(labelHighlights, descriptionHighlights);
 
 			results.push(entry);
