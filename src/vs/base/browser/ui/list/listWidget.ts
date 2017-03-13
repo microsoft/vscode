@@ -11,9 +11,9 @@ import * as DOM from 'vs/base/browser/dom';
 import { EventType as TouchEventType } from 'vs/base/browser/touch';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import Event, { Emitter, EventBufferer, chain, mapEvent, fromCallback } from 'vs/base/common/event';
+import Event, { Emitter, EventBufferer, chain, mapEvent, fromCallback, createEmptyEvent, any } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
-import { IDelegate, IRenderer, IListEvent, IListMouseEvent } from './list';
+import { IDelegate, IRenderer, IListEvent, IListMouseEvent, IListContextMenuEvent } from './list';
 import { ListView, IListViewOptions } from './listView';
 
 export interface IIdentityProvider<T> {
@@ -227,6 +227,10 @@ class MouseController<T> implements IDisposable {
 
 	private disposables: IDisposable[];
 
+	@memoize get onContextMenu(): Event<IListMouseEvent<T>> {
+		return fromCallback(handler => this.view.addListener('contextmenu', handler));
+	}
+
 	constructor(
 		private list: List<T>,
 		private view: ListView<T>
@@ -287,8 +291,9 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		return mapEvent(this.eventBufferer.wrapEvent(this.selection.onChange), e => this.toListEvent(e));
 	}
 
-	@memoize get onContextMenu(): Event<IListMouseEvent<T>> {
-		return fromCallback(handler => this.view.addListener('contextmenu', handler));
+	private _onContextMenu: Event<IListContextMenuEvent<T>> = createEmptyEvent();
+	get onContextMenu(): Event<IListContextMenuEvent<T>> {
+		return this._onContextMenu;
 	}
 
 	private _onOpen = new Emitter<number[]>();
@@ -342,7 +347,13 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		}
 
 		if (typeof options.mouseSupport !== 'boolean' || options.mouseSupport) {
-			this.disposables.push(new MouseController(this, this.view));
+			const controller = new MouseController(this, this.view);
+			this.disposables.push(controller);
+
+			this._onContextMenu = any(
+				this._onContextMenu,
+				mapEvent(controller.onContextMenu, ({ element, index, clientX, clientY }) => ({ element, index, anchor: { x: clientX + 1, y: clientY } }))
+			);
 		}
 
 		this.onFocusChange(this._onFocusChange, this, this.disposables);
