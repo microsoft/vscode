@@ -17,7 +17,7 @@ export interface IToken {
 interface MarkdownIt {
 	render(text: string): string;
 
-	parse(text: string): IToken[];
+	parse(text: string, env: any): IToken[];
 
 	utils: any;
 }
@@ -83,9 +83,10 @@ export class MarkdownEngine {
 		return this.engine.render(text);
 	}
 
-	public parse(source: string): IToken[] {
+	public parse(document: vscode.Uri, source: string): IToken[] {
 		const {text, offset} = this.stripFrontmatter(source);
-		return this.engine.parse(text).map(token => {
+		this.currentDocument = document;
+		return this.engine.parse(text, {}).map(token => {
 			if (token.map) {
 				token.map[0] += offset;
 			}
