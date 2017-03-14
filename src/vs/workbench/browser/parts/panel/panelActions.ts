@@ -118,6 +118,8 @@ export class ToggleMaximizedPanelAction extends Action {
 
 	public static ID = 'workbench.action.toggleMaximizedPanel';
 	public static LABEL = nls.localize('toggleMaximizedPanel', "Toggle Maximized Panel");
+	private static MAXIMIZE_LABEL = nls.localize('maximizePanel', "Maximize Panel");
+	private static MINIMIZE_LABEL = nls.localize('minimizePanel', "Minimize Panel");
 	private toDispose: IDisposable[];
 
 	constructor(
@@ -128,7 +130,9 @@ export class ToggleMaximizedPanelAction extends Action {
 		super(id, label, partService.isPanelMaximized() ? 'minimize-panel-action' : 'maximize-panel-action');
 		this.toDispose = [];
 		this.toDispose.push(partService.onEditorLayout(() => {
-			this.class = this.partService.isPanelMaximized() ? 'minimize-panel-action' : 'maximize-panel-action';
+			const maximized = this.partService.isPanelMaximized();
+			this.class = maximized ? 'minimize-panel-action' : 'maximize-panel-action';
+			this.label = maximized ? ToggleMaximizedPanelAction.MINIMIZE_LABEL : ToggleMaximizedPanelAction.MAXIMIZE_LABEL;
 		}));
 	}
 
