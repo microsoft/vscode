@@ -290,10 +290,14 @@ export class FileChangesEvent extends events.Event {
 	}
 }
 
-export function isEqual(path1: string, path2: string) {
+export function isEqual(path1: string, path2: string): boolean {
 	const identityEquals = (path1 === path2);
 	if (isLinux || identityEquals) {
 		return identityEquals;
+	}
+
+	if (path1.length !== path2.length) {
+		return false;
 	}
 
 	return path1.toLowerCase() === path2.toLowerCase();
