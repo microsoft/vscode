@@ -7,9 +7,9 @@
 
 import { OperatingSystem } from 'vs/base/common/platform';
 import { SimpleKeybinding, KeyCode } from 'vs/base/common/keyCodes';
-import { KeyboardEventCode, KeyboardEventCodeUtils } from "vs/workbench/services/keybinding/common/keyboardEventCode";
-import { PrintableKeypress } from "vs/platform/keybinding/common/keybindingLabels";
-import { CharCode } from "vs/base/common/charCode";
+import { KeyboardEventCode, KeyboardEventCodeUtils } from 'vs/workbench/services/keybinding/common/keyboardEventCode';
+import { PrintableKeypress } from 'vs/platform/keybinding/common/keybindingLabels';
+import { CharCode } from 'vs/base/common/charCode';
 
 export interface IKeyMapping {
 	value: string;
