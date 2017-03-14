@@ -926,10 +926,12 @@ export class ToggleSharedProcessAction extends Action {
 
 export abstract class BaseNavigationAction extends Action {
 
+	protected NEXT = 'next';
+	protected PREVIOUS = 'previous';
+
 	constructor(
 		id: string,
 		label: string,
-		@IWorkbenchEditorService protected editorService: IWorkbenchEditorService,
 		@IEditorGroupService protected groupService: IEditorGroupService,
 		@IPanelService protected panelService: IPanelService,
 		@IPartService protected partService: IPartService,
@@ -991,6 +993,19 @@ export abstract class BaseNavigationAction extends Action {
 		return this.viewletService.openViewlet(activeViewletId, true);
 	}
 
+	protected navigateAcrossEditorGroup(direction: string): TPromise<any> {
+		const model = this.groupService.getStacksModel();
+		const currentPosition = model.positionOfGroup(model.activeGroup);
+		const nextPosition = direction === this.NEXT ? currentPosition + 1 : currentPosition - 1;
+
+		if (nextPosition < 0 || nextPosition > model.groups.length - 1) {
+			return TPromise.as(false);
+		}
+
+		this.groupService.focusGroup(nextPosition);
+		return TPromise.as(true);
+	}
+
 	protected navigateToLastActiveGroup(): TPromise<any> {
 		const model = this.groupService.getStacksModel();
 		const lastActiveGroup = model.activeGroup;
@@ -1019,20 +1034,25 @@ export class NavigateLeftAction extends BaseNavigationAction {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IEditorGroupService groupService: IEditorGroupService,
 		@IPanelService panelService: IPanelService,
 		@IPartService partService: IPartService,
 		@IViewletService viewletService: IViewletService
 	) {
-		super(id, label, editorService, groupService, panelService, partService, viewletService);
+		super(id, label, groupService, panelService, partService, viewletService);
 	}
 
 	protected navigateOnEditorFocus(isEditorGroupVertical, isSidebarPositionLeft): TPromise<boolean> {
-		if (isEditorGroupVertical) {
-			return this.navigateLeftFromEditor(true, isSidebarPositionLeft);
+		if (!isEditorGroupVertical) {
+			return this.navigateToSidebar();
 		}
-		return this.navigateLeftFromEditor(false, isSidebarPositionLeft);
+		return this.navigateAcrossEditorGroup(this.PREVIOUS)
+			.then(didNavigate => {
+				if (!didNavigate && isSidebarPositionLeft) {
+					return this.navigateToSidebar();
+				}
+				return TPromise.as(true);
+			});
 	}
 
 	protected navigateOnPanelFocus(isEditorGroupVertical, isSidebarPositionLeft): TPromise<boolean> {
@@ -1051,19 +1071,6 @@ export class NavigateLeftAction extends BaseNavigationAction {
 		}
 		return this.navigateToLastActiveGroup();
 	}
-
-	private navigateLeftFromEditor(jumpGroups: boolean, isSidebarPositionLeft: boolean): TPromise<boolean> {
-		const model = this.groupService.getStacksModel();
-		let result = model.previous(jumpGroups, false);
-		if (result) {
-			return this.editorService.openEditor(result.editor, null, model.positionOfGroup(result.group))
-				.then(ok => true);
-		}
-		if (isSidebarPositionLeft) {
-			return this.navigateToSidebar();
-		}
-		return TPromise.as(false);
-	}
 }
 
 export class NavigateRightAction extends BaseNavigationAction {
@@ -1074,20 +1081,25 @@ export class NavigateRightAction extends BaseNavigationAction {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IEditorGroupService groupService: IEditorGroupService,
 		@IPanelService panelService: IPanelService,
 		@IPartService partService: IPartService,
 		@IViewletService viewletService: IViewletService
 	) {
-		super(id, label, editorService, groupService, panelService, partService, viewletService);
+		super(id, label, groupService, panelService, partService, viewletService);
 	}
 
 	protected navigateOnEditorFocus(isEditorGroupVertical, isSidebarPositionLeft): TPromise<boolean> {
-		if (isEditorGroupVertical) {
-			return this.navigateRightFromEditor(true, isSidebarPositionLeft);
+		if (!isEditorGroupVertical) {
+			return this.navigateToSidebar();
 		}
-		return this.navigateRightFromEditor(false, isSidebarPositionLeft);
+		return this.navigateAcrossEditorGroup(this.NEXT)
+			.then(didNavigate => {
+				if (!didNavigate && !isSidebarPositionLeft) {
+					return this.navigateToSidebar();
+				}
+				return TPromise.as(true);
+			});
 	}
 
 	protected navigateOnPanelFocus(isEditorGroupVertical, isSidebarPositionLeft): TPromise<boolean> {
@@ -1106,19 +1118,6 @@ export class NavigateRightAction extends BaseNavigationAction {
 		}
 		return this.navigateToLastActiveGroup();
 	}
-
-	private navigateRightFromEditor(jumpGroups: boolean, isSidebarPositionLeft: boolean): TPromise<boolean> {
-		const model = this.groupService.getStacksModel();
-		let result = model.next(jumpGroups, false);
-		if (result) {
-			return this.editorService.openEditor(result.editor, null, model.positionOfGroup(result.group))
-				.then(ok => true);
-		}
-		if (!isSidebarPositionLeft) {
-			return this.navigateToSidebar();
-		}
-		return TPromise.as(false);
-	}
 }
 
 export class NavigateUpAction extends BaseNavigationAction {
@@ -1129,20 +1128,19 @@ export class NavigateUpAction extends BaseNavigationAction {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IEditorGroupService groupService: IEditorGroupService,
 		@IPanelService panelService: IPanelService,
 		@IPartService partService: IPartService,
 		@IViewletService viewletService: IViewletService
 	) {
-		super(id, label, editorService, groupService, panelService, partService, viewletService);
+		super(id, label, groupService, panelService, partService, viewletService);
 	}
 
 	protected navigateOnEditorFocus(isEditorGroupVertical, isSidebarPositionLeft): TPromise<boolean> {
 		if (isEditorGroupVertical) {
 			return TPromise.as(false);
 		}
-		return this.navigateUpFromEditor();
+		return this.navigateAcrossEditorGroup(this.PREVIOUS);
 	}
 
 	protected navigateOnPanelFocus(isEditorGroupVertical, isSidebarPositionLeft): TPromise<boolean> {
@@ -1150,13 +1148,6 @@ export class NavigateUpAction extends BaseNavigationAction {
 			return this.navigateToLastActiveGroup();
 		}
 		return this.navigateToLastEditorGroup();
-	}
-
-	private navigateUpFromEditor(): TPromise<boolean> {
-		const model = this.groupService.getStacksModel();
-		const position = model.positionOfGroup(model.activeGroup);
-		this.groupService.focusGroup(position - 1);
-		return TPromise.as(true);
 	}
 }
 
@@ -1168,29 +1159,24 @@ export class NavigateDownAction extends BaseNavigationAction {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IEditorGroupService groupService: IEditorGroupService,
 		@IPanelService panelService: IPanelService,
 		@IPartService partService: IPartService,
 		@IViewletService viewletService: IViewletService
 	) {
-		super(id, label, editorService, groupService, panelService, partService, viewletService);
+		super(id, label, groupService, panelService, partService, viewletService);
 	}
 
 	protected navigateOnEditorFocus(isEditorGroupVertical, isSidebarPositionLeft): TPromise<boolean> {
 		if (isEditorGroupVertical) {
 			return this.navigateToPanel();
 		}
-		return this.navigateDownFromEditor();
-	}
-
-	private navigateDownFromEditor(): TPromise<boolean> {
-		const model = this.groupService.getStacksModel();
-		const nextPosition = model.positionOfGroup(model.activeGroup) + 1;
-		if (nextPosition >= model.groups.length) {
-			return this.navigateToPanel();
-		}
-		this.groupService.focusGroup(nextPosition);
-		return TPromise.as(true);
+		return this.navigateAcrossEditorGroup(this.NEXT)
+			.then(didNavigate => {
+				if (didNavigate) {
+					return TPromise.as(true);
+				}
+				return this.navigateToPanel();
+			});
 	}
 }
