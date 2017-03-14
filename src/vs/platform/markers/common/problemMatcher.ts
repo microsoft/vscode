@@ -1388,11 +1388,13 @@ export namespace Schemas {
 	LegacyProblemMatcher.properties = Objects.clone(LegacyProblemMatcher.properties);
 	LegacyProblemMatcher.properties['watchedTaskBeginsRegExp'] = {
 		type: 'string',
-		description: localize('ProblemMatcherSchema.watchedBegin', 'A regular expression signaling that a watched tasks begins executing triggered through file watching.')
+		deprecationMessage: localize('LegacyProblemMatcherSchema.watchedBegin.deprecated', 'This property is deprecated. Use the watching property instead.'),
+		description: localize('LegacyProblemMatcherSchema.watchedBegin', 'A regular expression signaling that a watched tasks begins executing triggered through file watching.')
 	};
 	LegacyProblemMatcher.properties['watchedTaskEndsRegExp'] = {
 		type: 'string',
-		description: localize('ProblemMatcherSchema.watchedEnd', 'A regular expression signaling that a watched tasks ends executing.')
+		deprecationMessage: localize('LegacyProblemMatcherSchema.watchedEnd.deprecated', 'This property is deprecated. Use the watching property instead.'),
+		description: localize('LegacyProblemMatcherSchema.watchedEnd', 'A regular expression signaling that a watched tasks ends executing.')
 	};
 
 	export const NamedProblemMatcher: IJSONSchema = Objects.clone(ProblemMatcher);
