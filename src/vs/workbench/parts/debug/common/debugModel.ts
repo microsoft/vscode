@@ -370,7 +370,8 @@ export class StackFrame implements IStackFrame {
 	}
 
 	public openInEditor(editorService: IWorkbenchEditorService, preserveFocus?: boolean, sideBySide?: boolean): TPromise<any> {
-		return editorService.openEditor({
+
+		return this.source.name === UNKNOWN_SOURCE_LABEL ? TPromise.as(null) : editorService.openEditor({
 			resource: this.source.uri,
 			description: this.source.origin,
 			options: {
@@ -449,9 +450,9 @@ export class Thread implements IThread {
 
 			return response.body.stackFrames.map((rsf, level) => {
 				if (!rsf) {
-					return new StackFrame(this, 0, new Source({ name: UNKNOWN_SOURCE_LABEL }, true), nls.localize('unknownStack', "Unknown stack location"), null, null);
+					return new StackFrame(this, 0, new Source({ name: UNKNOWN_SOURCE_LABEL }, rsf.presentationHint), nls.localize('unknownStack', "Unknown stack location"), null, null);
 				}
-				let source = rsf.source ? new Source(rsf.source, rsf.source.presentationHint === 'deemphasize') : new Source({ name: UNKNOWN_SOURCE_LABEL }, true);
+				let source = rsf.source ? new Source(rsf.source, rsf.source.presentationHint) : new Source({ name: UNKNOWN_SOURCE_LABEL }, rsf.presentationHint);
 				if (this.process.sources.has(source.uri.toString())) {
 					source = this.process.sources.get(source.uri.toString());
 				} else {
@@ -972,7 +973,7 @@ export class Model implements IModel {
 	public deemphasizeSource(uri: uri): void {
 		this.processes.forEach(p => {
 			if (p.sources.has(uri.toString())) {
-				p.sources.get(uri.toString()).deemphasize = true;
+				p.sources.get(uri.toString()).presenationHint = 'deemphasize';
 			}
 		});
 		this._onDidChangeCallStack.fire();
