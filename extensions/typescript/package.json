@@ -34,6 +34,7 @@
     "onCommand:typescript.selectTypeScriptVersion",
     "onCommand:javascript.goToProjectConfig",
     "onCommand:typescript.goToProjectConfig",
+    "onCommand:typescript.restartTsServer",
     "workspaceContains:jsconfig.json",
     "workspaceContains:tsconfig.json"
   ],
@@ -296,6 +297,11 @@
         "command": "javascript.goToProjectConfig",
         "title": "%javascript.goToProjectConfig.title%",
         "category": "JavaScript"
+      },
+      {
+        "command": "typescript.restartTsServer",
+        "title": "%typescript.restartTsServer.title%",
+        "category": "TypeScript"
       }
     ],
     "menus": {
