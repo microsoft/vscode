@@ -25,6 +25,10 @@ import { Range } from 'vs/editor/common/core/range';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { CONTEXT_FIND_INPUT_FOCUSSED } from 'vs/editor/contrib/find/common/findController';
 
+import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
+import { ITheme, ICssStyleCollector, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { Color } from 'vs/base/common/color';
+
 export interface IFindController {
 	replace(): void;
 	replaceAll(): void;
@@ -766,5 +770,17 @@ class SimpleButton extends Widget {
 
 	public toggleClass(className: string, shouldHaveIt: boolean): void {
 		dom.toggleClass(this._domNode, className, shouldHaveIt);
+	}
+}
+
+registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+	addBackgroundColorRule(theme, '.findMatch', theme.getColor(colorRegistry.editorFindMatchHighlight), collector);
+	addBackgroundColorRule(theme, '.currentFindMatch', theme.getColor(colorRegistry.editorCurrentFindMatchHighlight), collector);
+	addBackgroundColorRule(theme, '.findScope', theme.getColor(colorRegistry.editorFindRangeHighlight), collector);
+});
+
+function addBackgroundColorRule(theme: ITheme, selector: string, color: Color, collector: ICssStyleCollector): void {
+	if (color) {
+		collector.addRule(`.monaco-editor.${theme.selector} ${selector} { background-color: ${color}; }`);
 	}
 }

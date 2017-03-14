@@ -6,7 +6,7 @@
 import Paths = require('vs/base/common/paths');
 import Json = require('vs/base/common/json');
 import { Color } from 'vs/base/common/color';
-import { ExtensionData, ITokenColorizationRule, IColorTheme, IColorMap } from 'vs/workbench/services/themes/common/themeService';
+import { ExtensionData, ITokenColorizationRule, IColorTheme, IColorMap, VS_LIGHT_THEME, VS_HC_THEME } from 'vs/workbench/services/themes/common/themeService';
 import { convertSettings } from 'vs/workbench/services/themes/electron-browser/stylesContributions';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { getBaseThemeId, getSyntaxThemeId, isDarkTheme, isLightTheme } from 'vs/platform/theme/common/themes';
@@ -16,10 +16,11 @@ import * as types from 'vs/base/common/types';
 import * as plist from 'fast-plist';
 import pfs = require('vs/base/node/pfs');
 
-import { Extensions, IThemingRegistry, resolveColorValue } from 'vs/platform/theme/common/themingRegistry';
+import { Extensions, IColorRegistry, ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
+import { ThemeType } from 'vs/platform/theme/common/themeService';
 import { Registry } from 'vs/platform/platform';
 
-let themingRegistry = <IThemingRegistry>Registry.as(Extensions.ThemingContribution);
+let colorRegistry = <IColorRegistry>Registry.as(Extensions.ColorContribution);
 
 export class ColorThemeData implements IColorTheme {
 
@@ -34,26 +35,14 @@ export class ColorThemeData implements IColorTheme {
 	extensionData: ExtensionData;
 	colorMap?: IColorMap;
 
-	public getColor(colorId: string): Color {
+	public getColor(colorId: ColorIdentifier, useDefault?: boolean): Color {
 		if (!this.colorMap) {
-			// not yet initialized
-			return null;
+			return null; // not yet initialized
 		}
 
 		let color = this.colorMap[colorId];
-		if (types.isUndefined(color)) {
-			color = null;
-			let colorDesc = themingRegistry.getColor(colorId);
-			if (colorDesc && colorDesc.defaults) {
-				let defaults = colorDesc.defaults;
-				if (this.isLightTheme()) {
-					color = resolveColorValue(defaults.light, this);
-				} else if (this.isDarkTheme()) {
-					color = resolveColorValue(defaults.dark, this);
-				} else {
-					color = resolveColorValue(defaults.hc, this);
-				}
-			}
+		if (useDefault !== false && types.isUndefined(color)) {
+			color = colorRegistry.resolveDefaultColor(colorId, this);
 			this.colorMap[colorId] = color;
 		}
 		return color;
@@ -81,6 +70,14 @@ export class ColorThemeData implements IColorTheme {
 			content.colors[key] = this.colorMap[key].toRGBAHex(true);
 		}
 		return JSON.stringify(content, null, '\t');
+	}
+
+	get type(): ThemeType {
+		switch (this.getBaseThemeId()) {
+			case VS_LIGHT_THEME: return 'light';
+			case VS_HC_THEME: return 'hc';
+			default: return 'dark';
+		}
 	}
 
 	isLightTheme() {

@@ -28,8 +28,7 @@ import { IMessageService } from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
 import { ColorThemeData } from './colorThemeData';
-import { ITheme, IThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { registerParticipants } from 'vs/workbench/services/themes/electron-browser/stylesContributions';
+import { ITheme, IThemingParticipant, Extensions as ThemingExtensions, IThemingRegistry } from 'vs/platform/theme/common/themeService';
 
 import { $ } from 'vs/base/browser/builder';
 import Event, { Emitter } from 'vs/base/common/event';
@@ -52,6 +51,8 @@ const defaultThemeExtensionId = 'vscode-theme-defaults';
 const oldDefaultThemeExtensionId = 'vscode-theme-colorful-defaults';
 
 const fileIconsEnabledClass = 'file-icons-enabled';
+
+const themingRegistry = Registry.as<IThemingRegistry>(ThemingExtensions.ThemingContribution);
 
 function validateThemeId(theme: string): string {
 	// migrations
@@ -116,8 +117,6 @@ let iconThemeExtPoint = ExtensionsRegistry.registerExtensionPoint<IThemeExtensio
 		required: ['path', 'id']
 	}
 });
-
-
 
 interface IInternalIconThemeData extends IFileIconTheme {
 	id: string;
@@ -275,15 +274,11 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		return this.onColorThemeChange.event;
 	}
 
-	public get onDidThemeChange(): Event<ITheme> {
-		return this.onColorThemeChange.event;
-	}
-
 	public get onDidFileIconThemeChange(): Event<IFileIconTheme> {
 		return this.onFileIconThemeChange.event;
 	}
 
-	public registerThemingParticipant(participant: IThemingParticipant): IDisposable {
+	public onThemeChange(participant: IThemingParticipant): IDisposable {
 		this.themingParticipants.push(participant);
 
 		return {
@@ -292,10 +287,6 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 				this.themingParticipants.splice(idx, 1);
 			}
 		};
-	}
-
-	public getThemingParticipants(): IThemingParticipant[] {
-		return this.themingParticipants;
 	}
 
 	private backupSettings(): TPromise<string> {
@@ -344,8 +335,6 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 	}
 
 	private initialize(): TPromise<any> {
-
-		registerParticipants(this);
 
 		let colorThemeSetting = this.configurationService.lookup<string>(COLOR_THEME_SETTING).value;
 		let iconThemeSetting = this.configurationService.lookup<string>(ICON_THEME_SETTING).value || '';
@@ -419,7 +408,17 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			if (themeData) {
 				return themeData.ensureLoaded().then(_ => {
 					let cssRules = [];
-					this.getThemingParticipants().forEach(p => p(themeData, cssRules));
+					let hasRule = {};
+					let ruleCollector = {
+						addRule: (rule: string) => {
+							if (!hasRule[rule]) {
+								cssRules.push(rule);
+								hasRule[rule] = true;
+							}
+						}
+					};
+					this.themingParticipants.forEach(p => p(themeData, ruleCollector));
+					themingRegistry.getThemingParticipants().forEach(p => p(themeData, ruleCollector));
 					_applyRules(cssRules.join('\n'), colorThemeRulesClassName);
 					return onApply(themeData);
 				}, error => {
