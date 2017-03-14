@@ -8,8 +8,8 @@
 import { OperatingSystem } from 'vs/base/common/platform';
 import { SimpleKeybinding, KeyCode } from 'vs/base/common/keyCodes';
 import { KeyboardEventCode, KeyboardEventCodeUtils } from 'vs/workbench/services/keybinding/common/keyboardEventCode';
-import { PrintableKeypress } from 'vs/platform/keybinding/common/keybindingLabels';
 import { CharCode } from 'vs/base/common/charCode';
+import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/abstractKeybindingService';
 
 export interface IKeyMapping {
 	value: string;
@@ -25,6 +25,18 @@ export interface IKeyMapping {
 
 export interface IKeyboardMapping {
 	[code: string]: IKeyMapping;
+}
+
+const LOG = true;
+function log(str: string): void {
+	if (LOG) {
+		console.info(str);
+	}
+}
+
+function cannotMapSimpleKeybinding(keybinding: SimpleKeybinding, OS: OperatingSystem, reason: string): void {
+	let usLayout = new USLayoutResolvedKeybinding(keybinding, OS);
+	log(`No key combination can produce desired simple keybinding: ${usLayout.getUserSettingsLabel()} - ${reason}.`);
 }
 
 /**
@@ -123,6 +135,22 @@ interface KeyCombo {
 	mod: ModifierState;
 }
 
+export class HardwareKeyPress {
+	readonly ctrlKey: boolean;
+	readonly shiftKey: boolean;
+	readonly altKey: boolean;
+	readonly metaKey: boolean;
+	readonly code: KeyboardEventCode;
+
+	constructor(ctrlKey: boolean, shiftKey: boolean, altKey: boolean, metaKey: boolean, code: KeyboardEventCode) {
+		this.ctrlKey = ctrlKey;
+		this.shiftKey = shiftKey;
+		this.altKey = altKey;
+		this.metaKey = metaKey;
+		this.code = code;
+	}
+}
+
 export class KeyboardMapper {
 
 	private readonly _OS: OperatingSystem;
@@ -140,7 +168,7 @@ export class KeyboardMapper {
 			if (mapping.hasOwnProperty(strCode)) {
 				const code = KeyboardEventCodeUtils.toEnum(strCode);
 				if (code === KeyboardEventCode.None) {
-					console.warn(`Unknown code ${strCode} in mapping.`);
+					log(`Unknown code ${strCode} in mapping.`);
 					continue;
 				}
 
@@ -158,7 +186,7 @@ export class KeyboardMapper {
 		for (let i = 0; i < REMAP_CHARS.length; i++) {
 			const charCode = REMAP_CHARS[i];
 			if (!this._remapChars[charCode]) {
-				// console.info(`Could not find any key combination producing '${String.fromCharCode(charCode)}'`);
+				log(`Could not find any key combination producing '${String.fromCharCode(charCode)}'`);
 			}
 		}
 	}
@@ -176,9 +204,15 @@ export class KeyboardMapper {
 			return;
 		}
 		if (this._remapChars[charCode]) {
-			// console.info(`Multiple key combinations can produce '${char}'`);
-			// already remaped
-			return;
+			let currentRemap = this._remapChars[charCode];
+			if (currentRemap.mod === mod) {
+				log(`Multiple key combinations with the same modifiers can produce '${char}... which one to pick?'`);
+				return;
+			}
+			if (currentRemap.mod < mod) {
+				// already remaped to a simpler key combo than this one
+				return;
+			}
 		}
 		this._remapChars[charCode] = {
 			code: code,
@@ -186,33 +220,40 @@ export class KeyboardMapper {
 		};
 	}
 
-	private _mapSimpleKeybinding(ctrlKey: boolean, altKey: boolean, metaKey: boolean, charCode: number): PrintableKeypress {
+	private _mapSimpleKeybinding(source: SimpleKeybinding, ctrlKey: boolean, altKey: boolean, metaKey: boolean, charCode: number): HardwareKeyPress {
 		const keyCombo = this._remapChars[charCode];
 		if (!keyCombo) {
-			console.info('Cannot produce desired kb...');
+			cannotMapSimpleKeybinding(source, this._OS, `'${String.fromCharCode(charCode)}' cannot be produced`);
 			return null;
 		}
-
-		// console.log(`_mapSimpleKeybinding ctrlKey: ${ctrlKey}, altKey: ${altKey}, metaKey: ${metaKey}, char: ${String.fromCharCode(charCode)}`);
-		// console.log(` => ${KeyboardEventCodeUtils.toString(keyCombo.code)}, ${keyCombo.mod}`);
 
 		let shiftKey = false;
 		if (keyCombo.mod === ModifierState.Shift) {
+			// we need shift to produce this character
 			shiftKey = true;
 		} else if (keyCombo.mod === ModifierState.AltGr) {
-			console.error('TODO');
-			console.log(`_mapSimpleKeybinding ctrlKey: ${ctrlKey}, altKey: ${altKey}, metaKey: ${metaKey}, char: ${String.fromCharCode(charCode)}`);
-			console.log(` => ${KeyboardEventCodeUtils.toString(keyCombo.code)}, ${keyCombo.mod}`);
-			return null;
+			// we need ctrl and alt to produce this character
+			if (ctrlKey !== false || altKey !== false) {
+				cannotMapSimpleKeybinding(source, this._OS, `ctrl or alt modifiers are needed to produce '${String.fromCharCode(charCode)}'`);
+				return null;
+			}
+			ctrlKey = true;
+			altKey = true;
 		} else if (keyCombo.mod === ModifierState.ShiftAltGr) {
-			console.error('TODO');
-			return null;
+			// we need ctrl, alt and shift to produce this character
+			if (ctrlKey !== false || altKey !== false) {
+				cannotMapSimpleKeybinding(source, this._OS, `ctrl or alt modifiers are needed to produce '${String.fromCharCode(charCode)}'`);
+				return null;
+			}
+			ctrlKey = true;
+			altKey = true;
+			shiftKey = true;
 		}
 
-		return new PrintableKeypress(ctrlKey, shiftKey, altKey, metaKey, KeyboardEventCodeUtils.toString(keyCombo.code));
+		return new HardwareKeyPress(ctrlKey, shiftKey, altKey, metaKey, keyCombo.code);
 	}
 
-	public mapSimpleKeybinding(keybinding: SimpleKeybinding): PrintableKeypress {
+	public mapSimpleKeybinding(keybinding: SimpleKeybinding): HardwareKeyPress {
 		const ctrlCmd = keybinding.hasCtrlCmd();
 		const winCtrl = keybinding.hasWinCtrl();
 
@@ -224,7 +265,7 @@ export class KeyboardMapper {
 
 		if (IMMUTABLE_KEY_CODE_TO_CODE[keyCode] !== -1) {
 			const keyboardEventCode = IMMUTABLE_KEY_CODE_TO_CODE[keyCode];
-			return new PrintableKeypress(ctrlKey, shiftKey, altKey, metaKey, KeyboardEventCodeUtils.toString(keyboardEventCode));
+			return new HardwareKeyPress(ctrlKey, shiftKey, altKey, metaKey, keyboardEventCode);
 		}
 
 		let desiredCharCode = 0;
@@ -276,11 +317,11 @@ export class KeyboardMapper {
 		if (desiredCharCode === 0) {
 			// OEM_8 = 91,
 			// OEM_102 = 92,
-			console.info('Cannot produce desired kb...');
+			cannotMapSimpleKeybinding(keybinding, this._OS, `unknown character`);
 			return null;
 		}
 
-		return this._mapSimpleKeybinding(ctrlKey, altKey, metaKey, desiredCharCode);
+		return this._mapSimpleKeybinding(keybinding, ctrlKey, altKey, metaKey, desiredCharCode);
 	}
 }
 
