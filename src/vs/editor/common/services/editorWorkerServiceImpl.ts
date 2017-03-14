@@ -105,7 +105,7 @@ class WordBasedCompletionItemProvider implements modes.ISuggestSupport {
 			const { tokenType } = tokens.findTokenAtOffset(position.column - 1);
 			const shoudSuggestHere = (tokenType === modes.StandardTokenType.Comment && wordBasedSuggestions.comments)
 				|| (tokenType === modes.StandardTokenType.String && wordBasedSuggestions.strings)
-				|| (tokenType === modes.StandardTokenType.Other && wordBasedSuggestions.default);
+				|| (tokenType === modes.StandardTokenType.Other && wordBasedSuggestions.other);
 
 			if (shoudSuggestHere) {
 				return this._workerManager.withWorker().then(client => client.textualSuggest(model.uri, position));

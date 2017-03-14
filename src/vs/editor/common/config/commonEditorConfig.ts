@@ -793,9 +793,9 @@ const editorConfiguration: IConfigurationNode = {
 							type: 'boolean',
 							description: nls.localize('wordBasedSuggestions.comments', "Enable word based suggestions inside comments.")
 						},
-						default: {
+						other: {
 							type: 'boolean',
-							description: nls.localize('wordBasedSuggestions.default', "Enable word based suggestions outside of strings and comments.")
+							description: nls.localize('wordBasedSuggestions.other', "Enable word based suggestions outside of strings and comments.")
 						},
 					}
 				}

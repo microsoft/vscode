@@ -482,7 +482,7 @@ export interface IEditorOptions {
 	/**
 	 * Enable word based suggestions. Defaults to 'true'
 	 */
-	wordBasedSuggestions?: boolean | { strings?: boolean, comments?: boolean, default?: boolean };
+	wordBasedSuggestions?: boolean | { strings?: boolean, comments?: boolean, other?: boolean };
 	/**
 	 * The font size for the suggest widget.
 	 * Defaults to the editor font size.

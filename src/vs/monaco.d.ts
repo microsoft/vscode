@@ -1400,7 +1400,7 @@ declare module monaco.editor {
         wordBasedSuggestions?: boolean | {
             strings?: boolean;
             comments?: boolean;
-            default?: boolean;
+            other?: boolean;
         };
         /**
          * The font size for the suggest widget.
