@@ -9,16 +9,40 @@ import Severity from 'vs/base/common/severity';
 import * as UUID from 'vs/base/common/uuid';
 
 import * as Platform from 'vs/base/common/platform';
+import { ValidationStatus } from 'vs/base/common/parsers';
 import { ProblemMatcher, FileLocationKind, ProblemPattern, ApplyToKind } from 'vs/platform/markers/common/problemMatcher';
 
 import * as TaskSystem from 'vs/workbench/parts/tasks/common/taskSystem';
-import { parse, ParseResult, ILogger, ExternalTaskRunnerConfiguration } from 'vs/workbench/parts/tasks/common/taskConfiguration';
+import { parse, ParseResult, IProblemReporter, ExternalTaskRunnerConfiguration } from 'vs/workbench/parts/tasks/common/taskConfiguration';
 
-class Logger implements ILogger {
+class ProblemReporter implements IProblemReporter {
+
+	private _validationStatus: ValidationStatus = new ValidationStatus();
+
 	public receivedMessage: boolean = false;
 	public lastMessage: string = undefined;
 
-	public log(message: string): void {
+	public info(message: string): void {
+		this.log(message);
+	}
+
+	public warn(message: string): void {
+		this.log(message);
+	}
+
+	public error(message: string): void {
+		this.log(message);
+	}
+
+	public fatal(message: string): void {
+		this.log(message);
+	}
+
+	public get status(): ValidationStatus {
+		return this._validationStatus;
+	}
+
+	private log(message: string): void {
 		this.receivedMessage = true;
 		this.lastMessage = message;
 	}
@@ -281,9 +305,9 @@ class PatternBuilder {
 }
 
 function testDefaultProblemMatcher(external: ExternalTaskRunnerConfiguration, resolved: number) {
-	let logger = new Logger();
-	let result = parse(external, logger);
-	assert.ok(!logger.receivedMessage);
+	let reporter = new ProblemReporter();
+	let result = parse(external, reporter);
+	assert.ok(!reporter.receivedMessage);
 	let config = result.configuration;
 	let keys = Object.keys(config.tasks);
 	assert.strictEqual(keys.length, 1);
@@ -294,10 +318,10 @@ function testDefaultProblemMatcher(external: ExternalTaskRunnerConfiguration, re
 }
 
 function testConfiguration(external: ExternalTaskRunnerConfiguration, builder: ConfiguationBuilder): void {
-	let logger = new Logger();
-	let result = parse(external, logger);
-	if (logger.receivedMessage) {
-		assert.ok(false, logger.lastMessage);
+	let reporter = new ProblemReporter();
+	let result = parse(external, reporter);
+	if (reporter.receivedMessage) {
+		assert.ok(false, reporter.lastMessage);
 	}
 	assertConfiguration(result, builder.result);
 }
@@ -719,7 +743,7 @@ suite('Tasks Configuration parsing tests', () => {
 		let external: ExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',
-			problemMatcher: '$tsc'
+			problemMatcher: '$msCompile'
 		};
 		testDefaultProblemMatcher(external, 1);
 	});
@@ -728,7 +752,7 @@ suite('Tasks Configuration parsing tests', () => {
 		let external: ExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',
-			problemMatcher: ['$tsc', '$msCompile']
+			problemMatcher: ['$eslint-compact', '$msCompile']
 		};
 		testDefaultProblemMatcher(external, 2);
 	});
