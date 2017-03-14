@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContext } from 'vs/platform/contextkey/common/contextkey';
 import { NormalizedKeybindingItem } from 'vs/platform/keybinding/common/normalizedKeybindingItem';
 
 export interface IResolveResult {
@@ -227,7 +227,7 @@ export class KeybindingResolver {
 		return items[items.length - 1];
 	}
 
-	public resolve(context: any, currentChord: string, keypress: string): IResolveResult {
+	public resolve(context: IContext, currentChord: string, keypress: string): IResolveResult {
 		let lookupMap: NormalizedKeybindingItem[] = null;
 
 		if (currentChord !== null) {
@@ -278,7 +278,7 @@ export class KeybindingResolver {
 		};
 	}
 
-	private _findCommand(context: any, matches: NormalizedKeybindingItem[]): NormalizedKeybindingItem {
+	private _findCommand(context: IContext, matches: NormalizedKeybindingItem[]): NormalizedKeybindingItem {
 		for (let i = matches.length - 1; i >= 0; i--) {
 			let k = matches[i];
 
@@ -292,7 +292,7 @@ export class KeybindingResolver {
 		return null;
 	}
 
-	public static contextMatchesRules(context: any, rules: ContextKeyExpr): boolean {
+	public static contextMatchesRules(context: IContext, rules: ContextKeyExpr): boolean {
 		if (!rules) {
 			return true;
 		}
