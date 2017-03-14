@@ -33,19 +33,34 @@ export class ColorThemeData implements IColorTheme {
 	isLoaded: boolean;
 	path?: string;
 	extensionData: ExtensionData;
-	colorMap?: IColorMap;
+	colorMap: IColorMap = {};
+	defaultColorMap: IColorMap = {};
+
 
 	public getColor(colorId: ColorIdentifier, useDefault?: boolean): Color {
-		if (!this.colorMap) {
-			return null; // not yet initialized
-		}
-
 		let color = this.colorMap[colorId];
 		if (useDefault !== false && types.isUndefined(color)) {
-			color = colorRegistry.resolveDefaultColor(colorId, this);
-			this.colorMap[colorId] = color;
+			color = this.getDefault(colorId);
 		}
 		return color;
+	}
+
+	private getDefault(colorId: ColorIdentifier): Color {
+		let color = this.defaultColorMap[colorId];
+		if (types.isUndefined(color)) {
+			color = colorRegistry.resolveDefaultColor(colorId, this);
+			this.defaultColorMap[colorId] = color;
+		}
+		return color;
+	}
+
+	public isDefault(colorId: ColorIdentifier): boolean {
+		let color = this.colorMap[colorId];
+		if (types.isUndefined(color)) {
+			return true;
+		}
+		let defaultValue = this.getDefault(colorId);
+		return color === null ? defaultValue === null : color.equals(defaultValue);
 	}
 
 	public ensureLoaded(): TPromise<void> {
@@ -55,6 +70,7 @@ export class ColorThemeData implements IColorTheme {
 			return _loadThemeDocument(this.getBaseThemeId(), this.path, tokenColors, colorMap).then(_ => {
 				this.tokenColors = tokenColors;
 				this.colorMap = colorMap;
+				this.defaultColorMap = {};
 				this.isLoaded = true;
 			});
 		}

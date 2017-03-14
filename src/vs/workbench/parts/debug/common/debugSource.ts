@@ -10,7 +10,7 @@ export class Source {
 
 	public uri: uri;
 
-	constructor(public raw: DebugProtocol.Source, public deemphasize: boolean) {
+	constructor(public raw: DebugProtocol.Source, public presenationHint: string) {
 		const path = raw.path || raw.name;
 		this.uri = raw.sourceReference > 0 ? uri.parse(`${DEBUG_SCHEME}:${path}`) : uri.file(path);
 	}
