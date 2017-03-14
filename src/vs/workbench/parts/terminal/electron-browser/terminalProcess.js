@@ -63,6 +63,9 @@ sendProcessId();
 setupTitlePolling();
 
 function getArgs() {
+	if (process.env['PTYSHELLCMDLINE']) {
+		return process.env['PTYSHELLCMDLINE'];
+	}
 	var args = [];
 	var i = 0;
 	while (process.env['PTYSHELLARG' + i]) {
@@ -79,7 +82,8 @@ function cleanEnv() {
 		'PTYPID',
 		'PTYSHELL',
 		'PTYCOLS',
-		'PTYROWS'
+		'PTYROWS',
+		'PTYSHELLCMDLINE'
 	];
 	keys.forEach(function (key) {
 		if (process.env[key]) {
