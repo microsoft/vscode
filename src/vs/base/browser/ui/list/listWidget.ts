@@ -97,6 +97,12 @@ class Trait<T> implements ISpliceable<boolean>, IDisposable {
 		DOM.toggleClass(container, this._trait, this.contains(index));
 	}
 
+	/**
+	 * Sets the indexes which should have this trait.
+	 *
+	 * @param indexes Indexes which should have this trait.
+	 * @return The old indexes which had this trait.
+	 */
 	set(indexes: number[]): number[] {
 		const result = this.indexes;
 		this.indexes = indexes;
