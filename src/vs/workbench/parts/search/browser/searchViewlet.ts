@@ -58,6 +58,8 @@ import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/un
 import { OpenFolderAction, OpenFileFolderAction } from 'vs/workbench/browser/actions/fileActions';
 import * as Constants from 'vs/workbench/parts/search/common/constants';
 import { IListService } from 'vs/platform/list/browser/listService';
+import { IThemeService, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
+import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
 
 export class SearchViewlet extends Viewlet {
 
@@ -112,7 +114,8 @@ export class SearchViewlet extends Viewlet {
 		@IReplaceService private replaceService: IReplaceService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IPreferencesService private preferencesService: IPreferencesService,
-		@IListService private listService: IListService
+		@IListService private listService: IListService,
+		@IThemeService private themeService: IThemeService
 	) {
 		super(Constants.VIEWLET_ID, telemetryService);
 
@@ -128,6 +131,8 @@ export class SearchViewlet extends Viewlet {
 		this.toUnbind.push(this.untitledEditorService.onDidChangeDirty(e => this.onUntitledDidChangeDirty(e)));
 		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config)));
 
+		this.toUnbind.push(this.themeService.onThemeChange(this.applyTheme.bind(this)));
+
 		this.selectCurrentMatchEmitter = new Emitter<string>();
 		debounceEvent(this.selectCurrentMatchEmitter.event, (l, e) => e, 100, /*leading=*/true)
 			(() => this.selectCurrentMatch());
@@ -137,6 +142,14 @@ export class SearchViewlet extends Viewlet {
 
 	private onConfigurationUpdated(configuration: any): void {
 		this.updateGlobalPatternExclusions(configuration);
+	}
+
+	private applyTheme(theme: ITheme, collector: ICssStyleCollector) {
+		let matchHighlightColor = theme.getColor(colorRegistry.editorFindMatchHighlight);
+		if (matchHighlightColor) {
+			collector.addRule(`.search-viewlet .findInFileMatch { background-color: ${matchHighlightColor}; }`);
+			collector.addRule(`.search-viewlet .highlight { background-color: ${matchHighlightColor}; }`);
+		}
 	}
 
 	public create(parent: Builder): TPromise<void> {
