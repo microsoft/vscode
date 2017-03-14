@@ -115,7 +115,7 @@ export class SearchViewlet extends Viewlet {
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IPreferencesService private preferencesService: IPreferencesService,
 		@IListService private listService: IListService,
-		@IThemeService private themeService: IThemeService
+		@IThemeService protected themeService: IThemeService
 	) {
 		super(Constants.VIEWLET_ID, telemetryService);
 

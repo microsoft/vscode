@@ -35,6 +35,7 @@ import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export interface ICompositeTitleLabel {
 
@@ -70,6 +71,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		protected partService: IPartService,
 		private keybindingService: IKeybindingService,
 		protected instantiationService: IInstantiationService,
+		themeService: IThemeService,
 		private registry: CompositeRegistry<T>,
 		private activeCompositeSettingsKey: string,
 		private nameForTelemetry: string,
@@ -78,7 +80,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		id: string,
 		options: IPartOptions
 	) {
-		super(id, options);
+		super(id, options, themeService);
 
 		this.instantiatedCompositeListeners = [];
 		this.mapCompositeToCompositeContainer = {};

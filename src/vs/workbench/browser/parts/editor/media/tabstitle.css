@@ -200,38 +200,30 @@
 /* TODO@theme */
 
 .vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.tabs.shows-tabs {
-	background: #F3F3F3;
+	background-color: #F3F3F3;
 }
 
 .vs-dark .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.tabs.shows-tabs {
-	background: #252526;
+	background-color: #252526;
 }
 
 .hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.tabs.shows-tabs {
 	border-bottom-color: #6FC3DF;
 }
 
-.vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab:not(.active) {
-	background-color: #ECECEC;
-}
-
-.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab:not(.active) {
-	background-color: #2D2D2D;
-}
-
-.vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab  {
+.vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab {
 	border-left-color: #F3F3F3;
 }
 
-.vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.active:last-child  {
+.vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.active:last-child {
 	border-right-color: #F3F3F3;
 }
 
-.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab  {
+.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab {
 	border-left-color: #252526;
 }
 
-.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.active:last-child  {
+.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.active:last-child {
 	border-right-color: #252526;
 }
 
@@ -249,11 +241,11 @@
 }
 
 .hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.active,
-.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.active:hover  {
+.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.active:hover {
 	outline-color: #f38518;
 }
 
-.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab:hover  {
+.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab:hover {
 	outline-color: #f38518;
 }
 

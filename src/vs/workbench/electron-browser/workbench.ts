@@ -1037,7 +1037,7 @@ export class Workbench implements IPartService {
 	private createPanelPart(): void {
 		const panelPartContainer = $(this.workbench)
 			.div({
-				'class': ['part', 'panel', 'monaco-editor-background'],
+				'class': ['part', 'panel'],
 				id: Identifiers.PANEL_PART,
 				role: 'complementary'
 			});
@@ -1048,7 +1048,7 @@ export class Workbench implements IPartService {
 	private createEditorPart(): void {
 		const editorContainer = $(this.workbench)
 			.div({
-				'class': ['part', 'editor', 'monaco-editor-background', 'empty'],
+				'class': ['part', 'editor', 'empty'],
 				id: Identifiers.EDITOR_PART,
 				role: 'main'
 			});

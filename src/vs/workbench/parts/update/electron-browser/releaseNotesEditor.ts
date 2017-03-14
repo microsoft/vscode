@@ -43,7 +43,7 @@ export class ReleaseNotesEditor extends BaseEditor {
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
+		@IWorkbenchThemeService protected themeService: IWorkbenchThemeService,
 		@IOpenerService private openerService: IOpenerService,
 		@IModeService private modeService: IModeService
 	) {

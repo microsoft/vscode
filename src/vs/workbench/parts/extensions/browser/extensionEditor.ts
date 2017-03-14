@@ -155,7 +155,7 @@ export class ExtensionEditor extends BaseEditor {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IViewletService private viewletService: IViewletService,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
+		@IWorkbenchThemeService protected themeService: IWorkbenchThemeService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IMessageService private messageService: IMessageService,
 		@IOpenerService private openerService: IOpenerService,

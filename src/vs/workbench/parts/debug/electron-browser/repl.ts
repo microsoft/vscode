@@ -86,7 +86,7 @@ export class Repl extends Panel implements IPrivateReplService {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IStorageService private storageService: IStorageService,
 		@IPanelService private panelService: IPanelService,
-		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
+		@IWorkbenchThemeService protected themeService: IWorkbenchThemeService,
 		@IModelService private modelService: IModelService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IListService private listService: IListService
