@@ -402,7 +402,7 @@ export interface IDebugService {
 	/**
 	 * Allows to register on debug state changes.
 	 */
-	onDidChangeState: Event<void>;
+	onDidChangeState: Event<State>;
 
 	/**
 	 * Gets the current configuration manager.

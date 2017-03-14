@@ -52,8 +52,8 @@ export class DebugViewlet extends Viewlet {
 		this.viewletSettings = this.getMemento(storageService, Scope.WORKSPACE);
 		this.toDispose = [];
 		this.views = [];
-		this.toDispose.push(this.debugService.onDidChangeState(() => {
-			this.onDebugServiceStateChange();
+		this.toDispose.push(this.debugService.onDidChangeState(state => {
+			this.onDebugServiceStateChange(state);
 		}));
 		lifecycleService.onShutdown(this.store, this);
 	}
@@ -139,12 +139,12 @@ export class DebugViewlet extends Viewlet {
 		return null;
 	}
 
-	private onDebugServiceStateChange(): void {
+	private onDebugServiceStateChange(state: State): void {
 		if (this.progressRunner) {
 			this.progressRunner.done();
 		}
 
-		if (this.debugService.state === State.Initializing) {
+		if (state === State.Initializing) {
 			this.progressRunner = this.progressService.show(true);
 		} else {
 			this.progressRunner = null;

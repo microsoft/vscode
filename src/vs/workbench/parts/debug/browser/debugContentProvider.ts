@@ -28,8 +28,8 @@ export class DebugContentProvider implements IWorkbenchContribution, ITextModelC
 	) {
 		textModelResolverService.registerTextModelContentProvider(DEBUG_SCHEME, this);
 		this.modelsToDispose = [];
-		this.debugService.onDidChangeState(() => {
-			if (this.debugService.state === State.Inactive) {
+		this.debugService.onDidChangeState(state => {
+			if (state === State.Inactive) {
 				this.modelsToDispose = lifecycle.dispose(this.modelsToDispose);
 			}
 		});

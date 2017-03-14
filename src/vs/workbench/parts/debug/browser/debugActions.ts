@@ -33,7 +33,7 @@ export abstract class AbstractDebugAction extends Action {
 	) {
 		super(id, label, cssClass, false);
 		this.toDispose = [];
-		this.toDispose.push(this.debugService.onDidChangeState(() => this.updateEnablement()));
+		this.toDispose.push(this.debugService.onDidChangeState(state => this.updateEnablement(state)));
 
 		this.updateLabel(label);
 		this.updateEnablement();
@@ -54,8 +54,8 @@ export abstract class AbstractDebugAction extends Action {
 		this.label = newLabel;
 	}
 
-	protected updateEnablement(): void {
-		this.enabled = this.isEnabled(this.debugService.state);
+	protected updateEnablement(state = this.debugService.state): void {
+		this.enabled = this.isEnabled(state);
 	}
 
 	protected isEnabled(state: State): boolean {
