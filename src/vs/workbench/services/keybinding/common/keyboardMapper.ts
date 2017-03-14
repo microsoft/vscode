@@ -6,10 +6,12 @@
 'use strict';
 
 import { OperatingSystem } from 'vs/base/common/platform';
-import { SimpleKeybinding, KeyCode } from 'vs/base/common/keyCodes';
+import { SimpleKeybinding, KeyCode, ResolvedKeybinding, Keybinding, KeyCodeUtils } from 'vs/base/common/keyCodes';
 import { KeyboardEventCode, KeyboardEventCodeUtils } from 'vs/workbench/services/keybinding/common/keyboardEventCode';
-import { PrintableKeypress } from 'vs/platform/keybinding/common/keybindingLabels';
 import { CharCode } from 'vs/base/common/charCode';
+import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/abstractKeybindingService';
+import { IHTMLContentElement } from 'vs/base/common/htmlContent';
+import { PrintableKeypress, UILabelProvider, AriaLabelProvider } from 'vs/platform/keybinding/common/keybindingLabels';
 
 export interface IKeyMapping {
 	value: string;
@@ -27,10 +29,23 @@ export interface IKeyboardMapping {
 	[code: string]: IKeyMapping;
 }
 
+const LOG = false;
+function log(str: string): void {
+	if (LOG) {
+		console.info(str);
+	}
+}
+
+function cannotMapSimpleKeybinding(keybinding: SimpleKeybinding, OS: OperatingSystem, reason: string): void {
+	let usLayout = new USLayoutResolvedKeybinding(keybinding, OS);
+	log(`No key combination can produce desired simple keybinding: ${usLayout.getUserSettingsLabel()} - ${reason}.`);
+}
+
 /**
  * -1 if a KeyCode => keyboardEvent.code mapping depends on kb layout.
  */
 const IMMUTABLE_KEY_CODE_TO_CODE: KeyboardEventCode[] = [];
+const IMMUTABLE_CODE_TO_KEY_CODE: KeyCode[] = [];
 
 /**
  * Chars that will be remapped.
@@ -118,17 +133,107 @@ const enum ModifierState {
 	ShiftAltGr = 3
 }
 
-interface KeyCombo {
-	code: KeyboardEventCode;
-	mod: ModifierState;
+export class HardwareKeypress {
+	readonly ctrlKey: boolean;
+	readonly shiftKey: boolean;
+	readonly altKey: boolean;
+	readonly metaKey: boolean;
+	readonly code: KeyboardEventCode;
+
+	constructor(ctrlKey: boolean, shiftKey: boolean, altKey: boolean, metaKey: boolean, code: KeyboardEventCode) {
+		this.ctrlKey = ctrlKey;
+		this.shiftKey = shiftKey;
+		this.altKey = altKey;
+		this.metaKey = metaKey;
+		this.code = code;
+	}
+
+	public toPrintableKeypress(key: string): PrintableKeypress {
+		return new PrintableKeypress(this.ctrlKey, this.shiftKey, this.altKey, this.metaKey, key);
+	}
+}
+
+export class NativeResolvedKeybinding extends ResolvedKeybinding {
+
+	private readonly _mapper: KeyboardMapper;
+	private readonly _OS: OperatingSystem;
+	private readonly _firstPart: HardwareKeypress;
+	private readonly _chordPart: HardwareKeypress;
+
+	constructor(mapper: KeyboardMapper, OS: OperatingSystem, firstPart: HardwareKeypress, chordPart: HardwareKeypress) {
+		super();
+		this._mapper = mapper;
+		this._OS = OS;
+		this._firstPart = firstPart;
+		this._chordPart = chordPart;
+	}
+
+	public getLabel(): string {
+		let firstPart = this._firstPart.toPrintableKeypress(this._mapper.getUILabelForHardwareCode(this._firstPart.code));
+		let chordPart = this._chordPart ? this._chordPart.toPrintableKeypress(this._mapper.getUILabelForHardwareCode(this._chordPart.code)) : null;
+
+		return UILabelProvider.toLabel2(firstPart, chordPart, this._OS);
+	}
+
+	public getAriaLabel(): string {
+		let firstPart = this._firstPart.toPrintableKeypress(this._mapper.getAriaLabelForHardwareCode(this._firstPart.code));
+		let chordPart = this._chordPart ? this._chordPart.toPrintableKeypress(this._mapper.getAriaLabelForHardwareCode(this._chordPart.code)) : null;
+
+		return AriaLabelProvider.toLabel2(firstPart, chordPart, this._OS);
+	}
+
+	public getHTMLLabel(): IHTMLContentElement[] {
+		let firstPart = this._firstPart.toPrintableKeypress(this._mapper.getUILabelForHardwareCode(this._firstPart.code));
+		let chordPart = this._chordPart ? this._chordPart.toPrintableKeypress(this._mapper.getUILabelForHardwareCode(this._chordPart.code)) : null;
+
+		return UILabelProvider.toHTMLLabel2(firstPart, chordPart, this._OS);
+	}
+
+	public getElectronAccelerator(): string {
+		throw new Error('TODO!');
+		// const usResolvedKeybinding = new USLayoutResolvedKeybinding(this._actual, OS);
+
+		// if (OS === OperatingSystem.Windows) {
+		// 	// electron menus always do the correct rendering on Windows
+		// 	return usResolvedKeybinding.getElectronAccelerator();
+		// }
+
+		// let usLabel = usResolvedKeybinding.getLabel();
+		// let label = this.getLabel();
+		// if (usLabel !== label) {
+		// 	// electron menus are incorrect in rendering (linux) and in rendering and interpreting (mac)
+		// 	// for non US standard keyboard layouts
+		// 	return null;
+		// }
+
+		// return usResolvedKeybinding.getElectronAccelerator();
+	}
+
+	public getUserSettingsLabel(): string {
+		throw new Error('TODO!');
+		// return KeybindingIO.writeKeybinding(this._actual, OS);
+	}
+}
+
+interface IHardwareCodeMapping {
+	value: number;
+	withShift: number;
+	withAltGr: number;
+	withShiftAltGr: number;
+
+	valueIsDeadKey: boolean;
+	withShiftIsDeadKey: boolean;
+	withAltGrIsDeadKey: boolean;
+	withShiftAltGrIsDeadKey: boolean;
 }
 
 export class KeyboardMapper {
 
 	private readonly _OS: OperatingSystem;
-	private readonly _remapChars: KeyCombo[];
+	private readonly _remapChars: HardwareKeypress[][];
+	private readonly _mappings: IHardwareCodeMapping[];
 
-	constructor(mapping: IKeyboardMapping, OS: OperatingSystem) {
+	constructor(mappings: IKeyboardMapping, OS: OperatingSystem) {
 
 		this._remapChars = [];
 		let maxCharCode = REMAP_CHARS.reduce((prev, curr) => Math.max(prev, curr));
@@ -136,20 +241,37 @@ export class KeyboardMapper {
 			this._remapChars[i] = null;
 		}
 
-		for (let strCode in mapping) {
-			if (mapping.hasOwnProperty(strCode)) {
+		this._mappings = [];
+		for (let strCode in mappings) {
+			if (mappings.hasOwnProperty(strCode)) {
 				const code = KeyboardEventCodeUtils.toEnum(strCode);
 				if (code === KeyboardEventCode.None) {
-					console.warn(`Unknown code ${strCode} in mapping.`);
+					log(`Unknown code ${strCode} in mapping.`);
 					continue;
 				}
 
-				const results = mapping[strCode];
+				const mapping = mappings[strCode];
+				const value = KeyboardMapper._getCharCode(mapping.value);
+				const withShift = KeyboardMapper._getCharCode(mapping.withShift);
+				const withAltGr = KeyboardMapper._getCharCode(mapping.withAltGr);
+				const withShiftAltGr = KeyboardMapper._getCharCode(mapping.withShiftAltGr);
 
-				this._register(code, ModifierState.None, results.value);
-				this._register(code, ModifierState.Shift, results.withShift);
-				this._register(code, ModifierState.AltGr, results.withAltGr);
-				this._register(code, ModifierState.ShiftAltGr, results.withShiftAltGr);
+				this._mappings[code] = {
+					value: value,
+					withShift: withShift,
+					withAltGr: withAltGr,
+					withShiftAltGr: withShiftAltGr,
+
+					valueIsDeadKey: mapping.valueIsDeadKey,
+					withShiftIsDeadKey: mapping.withShiftIsDeadKey,
+					withAltGrIsDeadKey: mapping.withAltGrIsDeadKey,
+					withShiftAltGrIsDeadKey: mapping.withShiftAltGrIsDeadKey,
+				};
+
+				this._register(code, false, false, false, value);
+				this._register(code, false, true, false, withShift);
+				this._register(code, true, false, true, withAltGr);
+				this._register(code, true, true, true, withShiftAltGr);
 			}
 		}
 
@@ -157,17 +279,56 @@ export class KeyboardMapper {
 
 		for (let i = 0; i < REMAP_CHARS.length; i++) {
 			const charCode = REMAP_CHARS[i];
-			if (!this._remapChars[charCode]) {
-				// console.info(`Could not find any key combination producing '${String.fromCharCode(charCode)}'`);
+			let combos = this._remapChars[charCode];
+			if (combos === null) {
+				log(`Could not find any key combination producing '${String.fromCharCode(charCode)}'`);
+			} else if (combos.length > 1) {
+				combos.sort((a, b) => {
+					let aModCnt = (a.ctrlKey ? 1 : 0) + (a.altKey ? 1 : 0) + (a.shiftKey ? 1 : 0) + (a.metaKey ? 1 : 0);
+					let bModCnt = (b.ctrlKey ? 1 : 0) + (b.altKey ? 1 : 0) + (b.shiftKey ? 1 : 0) + (b.metaKey ? 1 : 0);
+					if (aModCnt === bModCnt) {
+						return a.code - b.code;
+					}
+					return aModCnt - bModCnt;
+				});
 			}
 		}
 	}
 
-	private _register(code: KeyboardEventCode, mod: ModifierState, char: string): void {
+	private static _getCharCode(char: string): number {
 		if (char.length === 0) {
+			return 0;
+		}
+		return this._combiningToRegularCharCode(char.charCodeAt(0));
+	}
+
+	/**
+	 * Attempt to map a combining character to a regular one that renders the same way.
+	 *
+	 * To the brave person following me: Good Luck!
+	 * https://www.compart.com/en/unicode/bidiclass/NSM
+	 */
+	private static _combiningToRegularCharCode(charCode: number): number {
+		switch (charCode) {
+			case CharCode.U_Combining_Grave_Accent: return CharCode.U_GRAVE_ACCENT;
+			case CharCode.U_Combining_Acute_Accent: return CharCode.U_ACUTE_ACCENT;
+			case CharCode.U_Combining_Circumflex_Accent: return CharCode.U_CIRCUMFLEX;
+			case CharCode.U_Combining_Tilde: return CharCode.U_SMALL_TILDE;
+			case CharCode.U_Combining_Macron: return CharCode.U_MACRON;
+			case CharCode.U_Combining_Overline: return CharCode.U_OVERLINE;
+			case CharCode.U_Combining_Breve: return CharCode.U_BREVE;
+			case CharCode.U_Combining_Dot_Above: return CharCode.U_DOT_ABOVE;
+			case CharCode.U_Combining_Diaeresis: return CharCode.U_DIAERESIS;
+			case CharCode.U_Combining_Ring_Above: return CharCode.U_RING_ABOVE;
+			case CharCode.U_Combining_Double_Acute_Accent: return CharCode.U_DOUBLE_ACUTE_ACCENT;
+		}
+		return charCode;
+	}
+
+	private _register(code: KeyboardEventCode, ctrlKey: boolean, shiftKey: boolean, altKey: boolean, charCode: number): void {
+		if (charCode === 0) {
 			return;
 		}
-		const charCode = char.charCodeAt(0);
 
 		if (REMAP_CHARS.indexOf(charCode) === -1) {
 			return;
@@ -175,44 +336,62 @@ export class KeyboardMapper {
 		if (REMAP_KEYBOARD_EVENT_CODES.indexOf(code) === -1) {
 			return;
 		}
-		if (this._remapChars[charCode]) {
-			// console.info(`Multiple key combinations can produce '${char}'`);
-			// already remaped
+
+		let entry = new HardwareKeypress(ctrlKey, shiftKey, altKey, false, code);
+
+		if (this._remapChars[charCode] === null) {
+			// no duplicates so far
+			this._remapChars[charCode] = [entry];
 			return;
 		}
-		this._remapChars[charCode] = {
-			code: code,
-			mod: mod
-		};
+
+		const list = this._remapChars[charCode];
+		// Do not register if it already sits under the same code
+		for (let i = 0, len = list.length; i < len; i++) {
+			if (list[i].code === code) {
+				return;
+			}
+		}
+		list.push(entry);
 	}
 
-	private _mapSimpleKeybinding(ctrlKey: boolean, altKey: boolean, metaKey: boolean, charCode: number): PrintableKeypress {
-		const keyCombo = this._remapChars[charCode];
-		if (!keyCombo) {
-			console.info('Cannot produce desired kb...');
+	private _doMapSimpleKeybinding(source: SimpleKeybinding, keyCombo: HardwareKeypress, ctrlKey: boolean, altKey: boolean, metaKey: boolean, charCode: number): HardwareKeypress {
+		if ((keyCombo.ctrlKey && ctrlKey) || (keyCombo.altKey && altKey)) {
+			cannotMapSimpleKeybinding(source, this._OS, `ctrl or alt modifiers are needed to produce '${String.fromCharCode(charCode)}'`);
 			return null;
 		}
 
-		// console.log(`_mapSimpleKeybinding ctrlKey: ${ctrlKey}, altKey: ${altKey}, metaKey: ${metaKey}, char: ${String.fromCharCode(charCode)}`);
-		// console.log(` => ${KeyboardEventCodeUtils.toString(keyCombo.code)}, ${keyCombo.mod}`);
-
-		let shiftKey = false;
-		if (keyCombo.mod === ModifierState.Shift) {
-			shiftKey = true;
-		} else if (keyCombo.mod === ModifierState.AltGr) {
-			console.error('TODO');
-			console.log(`_mapSimpleKeybinding ctrlKey: ${ctrlKey}, altKey: ${altKey}, metaKey: ${metaKey}, char: ${String.fromCharCode(charCode)}`);
-			console.log(` => ${KeyboardEventCodeUtils.toString(keyCombo.code)}, ${keyCombo.mod}`);
-			return null;
-		} else if (keyCombo.mod === ModifierState.ShiftAltGr) {
-			console.error('TODO');
-			return null;
+		const shiftKey = keyCombo.shiftKey;
+		if (keyCombo.ctrlKey) {
+			ctrlKey = true;
+		}
+		if (keyCombo.altKey) {
+			altKey = true;
 		}
 
-		return new PrintableKeypress(ctrlKey, shiftKey, altKey, metaKey, KeyboardEventCodeUtils.toString(keyCombo.code));
+		return new HardwareKeypress(ctrlKey, shiftKey, altKey, metaKey, keyCombo.code);
 	}
 
-	public mapSimpleKeybinding(keybinding: SimpleKeybinding): PrintableKeypress {
+	private _mapSimpleKeybinding(source: SimpleKeybinding, ctrlKey: boolean, altKey: boolean, metaKey: boolean, charCode: number): HardwareKeypress[] {
+		const keyCombos = this._remapChars[charCode];
+
+		let result: HardwareKeypress[] = [], resultLen = 0;
+		if (keyCombos !== null) {
+			for (let i = 0, len = keyCombos.length; i < len; i++) {
+				const keyCombo = keyCombos[i];
+				let oneResult = this._doMapSimpleKeybinding(source, keyCombo, ctrlKey, altKey, metaKey, charCode);
+				if (oneResult !== null) {
+					result[resultLen++] = oneResult;
+				}
+			}
+		} else {
+			cannotMapSimpleKeybinding(source, this._OS, `'${String.fromCharCode(charCode)}' cannot be produced`);
+		}
+
+		return result;
+	}
+
+	public mapSimpleKeybinding(keybinding: SimpleKeybinding): HardwareKeypress[] {
 		const ctrlCmd = keybinding.hasCtrlCmd();
 		const winCtrl = keybinding.hasWinCtrl();
 
@@ -224,7 +403,7 @@ export class KeyboardMapper {
 
 		if (IMMUTABLE_KEY_CODE_TO_CODE[keyCode] !== -1) {
 			const keyboardEventCode = IMMUTABLE_KEY_CODE_TO_CODE[keyCode];
-			return new PrintableKeypress(ctrlKey, shiftKey, altKey, metaKey, KeyboardEventCodeUtils.toString(keyboardEventCode));
+			return [new HardwareKeypress(ctrlKey, shiftKey, altKey, metaKey, keyboardEventCode)];
 		}
 
 		let desiredCharCode = 0;
@@ -276,24 +455,96 @@ export class KeyboardMapper {
 		if (desiredCharCode === 0) {
 			// OEM_8 = 91,
 			// OEM_102 = 92,
-			console.info('Cannot produce desired kb...');
+			cannotMapSimpleKeybinding(keybinding, this._OS, `unknown character`);
 			return null;
 		}
 
-		return this._mapSimpleKeybinding(ctrlKey, altKey, metaKey, desiredCharCode);
+		return this._mapSimpleKeybinding(keybinding, ctrlKey, altKey, metaKey, desiredCharCode);
+	}
+
+	public getUILabelForHardwareCode(code: KeyboardEventCode): string {
+		return this._getLabelForHardwareCode(code, true);
+	}
+
+	public getAriaLabelForHardwareCode(code: KeyboardEventCode): string {
+		return this._getLabelForHardwareCode(code, false);
+	}
+
+	private _getLabelForHardwareCode(code: KeyboardEventCode, isUI: boolean): string {
+		if (isUI && this._OS === OperatingSystem.Macintosh) {
+			switch (code) {
+				case KeyboardEventCode.ArrowLeft:
+					return '←';
+				case KeyboardEventCode.ArrowUp:
+					return '↑';
+				case KeyboardEventCode.ArrowRight:
+					return '→';
+				case KeyboardEventCode.ArrowDown:
+					return '↓';
+			}
+		}
+		if (IMMUTABLE_CODE_TO_KEY_CODE[code] !== -1) {
+			const keyCode = IMMUTABLE_CODE_TO_KEY_CODE[code];
+			return KeyCodeUtils.toString(keyCode);
+		}
+
+		const mapping = this._mappings[code];
+		if (!mapping) {
+			// uh-oh
+			return 'Unknown';
+		}
+
+		if (mapping.value >= CharCode.a && mapping.value <= CharCode.z) {
+			return String.fromCharCode(CharCode.A + (mapping.value - CharCode.a));
+		}
+
+		if (mapping.value) {
+			return String.fromCharCode(mapping.value);
+		}
+
+		throw new Error('TODO!');
+	}
+
+	public resolveKeybinding(keybinding: Keybinding): NativeResolvedKeybinding[] {
+		let result: NativeResolvedKeybinding[] = [], resultLen = 0;
+
+		if (keybinding.isChord()) {
+			const firstParts = this.mapSimpleKeybinding(keybinding.extractFirstPart());
+			const chordParts = this.mapSimpleKeybinding(keybinding.extractChordPart());
+
+			for (let i = 0, len = firstParts.length; i < len; i++) {
+				const firstPart = firstParts[i];
+				for (let j = 0, lenJ = chordParts.length; j < lenJ; j++) {
+					const chordPart = chordParts[j];
+
+					result[resultLen++] = new NativeResolvedKeybinding(this, this._OS, firstPart, chordPart);
+				}
+			}
+		} else {
+			const firstParts = this.mapSimpleKeybinding(keybinding);
+
+			for (let i = 0, len = firstParts.length; i < len; i++) {
+				const firstPart = firstParts[i];
+
+				result[resultLen++] = new NativeResolvedKeybinding(this, this._OS, firstPart, null);
+			}
+		}
+
+		return result;
 	}
 }
 
 (function () {
-	let currentLength = 0;
+	for (let i = 0; i <= KeyCode.MAX_VALUE; i++) {
+		IMMUTABLE_KEY_CODE_TO_CODE[i] = -1;
+	}
+	for (let i = 0; i <= KeyboardEventCode.MAX_VALUE; i++) {
+		IMMUTABLE_CODE_TO_KEY_CODE[i] = -1;
+	}
+
 	function d(keyCode: KeyCode, code: KeyboardEventCode): void {
-		if (keyCode > currentLength) {
-			for (let i = currentLength; i < keyCode; i++) {
-				IMMUTABLE_KEY_CODE_TO_CODE[i] = -1;
-			}
-		}
 		IMMUTABLE_KEY_CODE_TO_CODE[keyCode] = code;
-		currentLength = keyCode + 1;
+		IMMUTABLE_CODE_TO_KEY_CODE[code] = keyCode;
 	}
 
 	// Unknown = 0,
