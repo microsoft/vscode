@@ -23,11 +23,16 @@ export interface ITheme {
 
 	/**
 	 * Resolves the color of the given color identifer. If the theme does not
-	 * sepcify the color, the default color is returned unless <code>useDefault</code> is set to false.
+	 * specify the color, the default color is returned unless <code>useDefault</code> is set to false.
 	 * @param color the id of the color
 	 * @param useDefault specifies if the default color should be used. If not set, the default is used.
 	 */
 	getColor(color: ColorIdentifier, useDefault?: boolean): Color;
+
+	/**
+	 * Returns wheter the current color matches the default color
+	 */
+	isDefault(color: ColorIdentifier): boolean;
 }
 
 export interface ICssStyleCollector {

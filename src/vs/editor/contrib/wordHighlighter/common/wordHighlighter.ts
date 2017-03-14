@@ -16,12 +16,12 @@ import { DocumentHighlight, DocumentHighlightKind, DocumentHighlightProviderRegi
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Position } from 'vs/editor/common/core/position';
 
-import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
+import { registerColor, editorSelectionHighlightColor, editorBackground, editorSelection } from 'vs/platform/theme/common/colorRegistry';
 import { ITheme, ICssStyleCollector, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
 
-export const editorWordHighlight = colorRegistry.registerColor('editorWordHighlight', { dark: '#575757B8', light: '#57575740', hc: null }, nls.localize('wordHighlight', 'Background color of a symbol during read-access, like reading a variable'));
-export const editorWordHighlightString = colorRegistry.registerColor('editorWordHighlightStrong', { dark: '#004972B8', light: '#0e639c40', hc: null }, nls.localize('wordHighlightStrong', 'Background color of a symbol during write-access, like writing to a variable'));
+export const editorWordHighlight = registerColor('editorWordHighlight', { dark: '#575757B8', light: '#57575740', hc: null }, nls.localize('wordHighlight', 'Background color of a symbol during read-access, like reading a variable'));
+export const editorWordHighlightString = registerColor('editorWordHighlightStrong', { dark: '#004972B8', light: '#0e639c40', hc: null }, nls.localize('wordHighlightStrong', 'Background color of a symbol during write-access, like writing to a variable'));
 
 
 export function getOccurrencesAtPosition(model: editorCommon.IReadOnlyModel, position: Position): TPromise<DocumentHighlight[]> {
@@ -331,19 +331,14 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 });
 
 function getSelectionHighlightColor(theme: ITheme) {
-	let selectionHighlight = theme.getColor(colorRegistry.editorSelectionHighlightColor);
-	if (selectionHighlight) {
-		return selectionHighlight;
+	if (theme.isDefault(editorSelectionHighlightColor) && (!theme.isDefault(editorBackground) || !theme.isDefault(editorSelection))) {
+		let selection = theme.getColor(editorSelection);
+		let background = theme.getColor(editorBackground);
+		if (selection && background) {
+			return deriveLessProminentColor(selection, background);
+		}
 	}
-
-	let selection = theme.getColor(colorRegistry.editorSelection);
-	let background = theme.getColor(colorRegistry.editorBackground);
-
-	if (selection && background) {
-		return deriveLessProminentColor(selection, background);
-	}
-
-	return null;
+	return theme.getColor(editorSelectionHighlightColor);
 }
 
 function addBackgroundColorRule(theme: ITheme, selector: string, color: Color, collector: ICssStyleCollector): void {
