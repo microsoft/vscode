@@ -396,6 +396,10 @@ export class ExplorerView extends CollapsibleViewletView {
 	}
 
 	private onFileOperation(e: FileOperationEvent): void {
+		if (!this.root) {
+			return; // ignore if not yet created
+		}
+
 		let modelElement: FileStat;
 		let parent: FileStat;
 		let parentResource: URI;
