@@ -169,10 +169,10 @@ export class KeyboardMapper {
 
 				const results = mapping[strCode];
 
-				this._register(code, ModifierState.None, results.value);
-				this._register(code, ModifierState.Shift, results.withShift);
-				this._register(code, ModifierState.AltGr, results.withAltGr);
-				this._register(code, ModifierState.ShiftAltGr, results.withShiftAltGr);
+				this._register(code, false, false, false, KeyboardMapper._getCharCode(results.value));
+				this._register(code, false, true, false, KeyboardMapper._getCharCode(results.withShift));
+				this._register(code, true, false, true, KeyboardMapper._getCharCode(results.withAltGr));
+				this._register(code, true, true, true, KeyboardMapper._getCharCode(results.withShiftAltGr));
 			}
 		}
 
@@ -180,17 +180,56 @@ export class KeyboardMapper {
 
 		for (let i = 0; i < REMAP_CHARS.length; i++) {
 			const charCode = REMAP_CHARS[i];
-			if (this._remapChars2[charCode] === null) {
+			let combos = this._remapChars2[charCode];
+			if (combos === null) {
 				log(`Could not find any key combination producing '${String.fromCharCode(charCode)}'`);
+			} else if (combos.length > 1) {
+				combos.sort((a, b) => {
+					let aModCnt = (a.ctrlKey ? 1 : 0) + (a.altKey ? 1 : 0) + (a.shiftKey ? 1 : 0) + (a.metaKey ? 1 : 0);
+					let bModCnt = (b.ctrlKey ? 1 : 0) + (b.altKey ? 1 : 0) + (b.shiftKey ? 1 : 0) + (b.metaKey ? 1 : 0);
+					if (aModCnt === bModCnt) {
+						return a.code - b.code;
+					}
+					return aModCnt - bModCnt;
+				});
 			}
 		}
 	}
 
-	private _register(code: KeyboardEventCode, mod: ModifierState, char: string): void {
+	private static _getCharCode(char: string): number {
 		if (char.length === 0) {
+			return 0;
+		}
+		return this._combiningToRegularCharCode(char.charCodeAt(0));
+	}
+
+	/**
+	 * Attempt to map a combining character to a regular one that renders the same way.
+	 *
+	 * To the brave person following me: Good Luck!
+	 * https://www.compart.com/en/unicode/bidiclass/NSM
+	 */
+	private static _combiningToRegularCharCode(charCode: number): number {
+		switch (charCode) {
+			case CharCode.U_Combining_Grave_Accent: return CharCode.U_GRAVE_ACCENT;
+			case CharCode.U_Combining_Acute_Accent: return CharCode.U_ACUTE_ACCENT;
+			case CharCode.U_Combining_Circumflex_Accent: return CharCode.U_CIRCUMFLEX;
+			case CharCode.U_Combining_Tilde: return CharCode.U_SMALL_TILDE;
+			case CharCode.U_Combining_Macron: return CharCode.U_MACRON;
+			case CharCode.U_Combining_Overline: return CharCode.U_OVERLINE;
+			case CharCode.U_Combining_Breve: return CharCode.U_BREVE;
+			case CharCode.U_Combining_Dot_Above: return CharCode.U_DOT_ABOVE;
+			case CharCode.U_Combining_Diaeresis: return CharCode.U_DIAERESIS;
+			case CharCode.U_Combining_Ring_Above: return CharCode.U_RING_ABOVE;
+			case CharCode.U_Combining_Double_Acute_Accent: return CharCode.U_DOUBLE_ACUTE_ACCENT;
+		}
+		return charCode;
+	}
+
+	private _register(code: KeyboardEventCode, ctrlKey: boolean, shiftKey: boolean, altKey: boolean, charCode: number): void {
+		if (charCode === 0) {
 			return;
 		}
-		const charCode = char.charCodeAt(0);
 
 		if (REMAP_CHARS.indexOf(charCode) === -1) {
 			return;
@@ -199,18 +238,7 @@ export class KeyboardMapper {
 			return;
 		}
 
-		let entry: HardwareKeyPress = null;
-		if (mod === ModifierState.None) {
-			entry = new HardwareKeyPress(false, false, false, false, code);
-		} else if (mod === ModifierState.Shift) {
-			entry = new HardwareKeyPress(false, true, false, false, code);
-		} else if (mod === ModifierState.AltGr) {
-			entry = new HardwareKeyPress(true, false, true, false, code);
-		} else if (mod === ModifierState.ShiftAltGr) {
-			entry = new HardwareKeyPress(true, true, true, false, code);
-		} else {
-			throw new Error('unexpected');
-		}
+		let entry = new HardwareKeyPress(ctrlKey, shiftKey, altKey, false, code);
 
 		if (this._remapChars2[charCode] === null) {
 			// no duplicates so far
