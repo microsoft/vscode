@@ -48,3 +48,8 @@
 	max-height: initial;
 	cursor: zoom-out;
 }
+
+.monaco-resource-viewer .open-external,
+.monaco-resource-viewer .open-external:hover {
+	cursor: pointer;
+}
