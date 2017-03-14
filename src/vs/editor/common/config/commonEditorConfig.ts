@@ -801,7 +801,7 @@ const editorConfiguration: IConfigurationNode = {
 				}
 			],
 			'default': DefaultConfig.editor.wordBasedSuggestions,
-			'description': nls.localize('wordBasedSuggestions', "Enable word based suggestions.")
+			'description': nls.localize('wordBasedSuggestions', "Controls whether completions should be computed based on words in the document.")
 		},
 		'editor.suggestFontSize': {
 			'type': 'integer',
