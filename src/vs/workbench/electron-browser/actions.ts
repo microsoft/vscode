@@ -991,37 +991,23 @@ export abstract class BaseNavigationAction extends Action {
 		return this.viewletService.openViewlet(activeViewletId, true);
 	}
 
-	protected navigateToLastActiveEditor(): TPromise<any> {
+	protected navigateToLastActiveGroup(): TPromise<any> {
 		const model = this.groupService.getStacksModel();
-		if (model.groups.length < 1) {
-			return null;
-		}
-
-		const lastGroup = model.activeGroup;
-		const activeEditor = lastGroup.activeEditor;
-		return this.editorService.openEditor(activeEditor, null, model.positionOfGroup(lastGroup));
+		const lastActiveGroup = model.activeGroup;
+		this.groupService.focusGroup(lastActiveGroup);
+		return TPromise.as(true);
 	}
 
-	protected navigateToStartOfEditor(): TPromise<any> {
-		const model = this.groupService.getStacksModel();
-		if (model.groups.length < 1) {
-			return null;
-		}
-
-		const firstGroup = model.getGroup(0);
-		const firstEditor = firstGroup.getEditor(0);
-		return this.editorService.openEditor(firstEditor, null, model.positionOfGroup(firstGroup));
+	protected navigateToFirstEditorGroup(): TPromise<any> {
+		this.groupService.focusGroup(0);
+		return TPromise.as(true);
 	}
 
-	protected navigateToEndOfEditor(): TPromise<any> {
+	protected navigateToLastEditorGroup(): TPromise<any> {
 		const model = this.groupService.getStacksModel();
-		if (model.groups.length < 1) {
-			return null;
-		}
-
-		const lastGroup = model.getGroup(model.groups[model.groups.length - 1].id);
-		const lastEditor = lastGroup.getEditor(lastGroup.count - 1);
-		return this.editorService.openEditor(lastEditor, null, model.positionOfGroup(lastGroup));
+		const lastEditorGroupPosition = model.groups.length - 1;
+		this.groupService.focusGroup(lastEditorGroupPosition);
+		return TPromise.as(true);
 	}
 }
 
@@ -1061,9 +1047,9 @@ export class NavigateLeftAction extends BaseNavigationAction {
 			return TPromise.as(false);
 		}
 		if (isEditorGroupVertical) {
-			return this.navigateToEndOfEditor();
+			return this.navigateToLastEditorGroup();
 		}
-		return this.navigateToLastActiveEditor();
+		return this.navigateToLastActiveGroup();
 	}
 
 	private navigateLeftFromEditor(jumpGroups: boolean, isSidebarPositionLeft: boolean): TPromise<boolean> {
@@ -1116,9 +1102,9 @@ export class NavigateRightAction extends BaseNavigationAction {
 			return TPromise.as(false);
 		}
 		if (isEditorGroupVertical) {
-			return this.navigateToStartOfEditor();
+			return this.navigateToFirstEditorGroup();
 		}
-		return this.navigateToLastActiveEditor();
+		return this.navigateToLastActiveGroup();
 	}
 
 	private navigateRightFromEditor(jumpGroups: boolean, isSidebarPositionLeft: boolean): TPromise<boolean> {
@@ -1161,9 +1147,9 @@ export class NavigateUpAction extends BaseNavigationAction {
 
 	protected navigateOnPanelFocus(isEditorGroupVertical, isSidebarPositionLeft): TPromise<boolean> {
 		if (isEditorGroupVertical) {
-			return this.navigateToLastActiveEditor();
+			return this.navigateToLastActiveGroup();
 		}
-		return this.navigateToEndOfEditor();
+		return this.navigateToLastEditorGroup();
 	}
 
 	private navigateUpFromEditor(): TPromise<boolean> {
