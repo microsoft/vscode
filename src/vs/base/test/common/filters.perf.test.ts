@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { fuzzyContiguousFilter, matchesFuzzy2, matchesFuzzy3 } from 'vs/base/common/filters';
+import { fuzzyContiguousFilter, matchesFuzzy2, matchesFuzzy3, matchesFuzzy4 } from 'vs/base/common/filters';
 
 const fuzz = require.__$__nodeRequire('fuzzaldrin-plus');
 const data = <{ label: string }[]>require.__$__nodeRequire(require.toUrl('./filters.perf.data.json'));
@@ -36,7 +36,7 @@ perfSuite('Performance - fuzzyMatch', function () {
 				}
 			}
 		}
-		console.log(Date.now() - t1, count, (count / (Date.now() - t1)).toPrecision(5));
+		console.log('fuzzyContiguousFilter', Date.now() - t1, count);
 		assert.ok(count > 0);
 	});
 
@@ -53,7 +53,7 @@ perfSuite('Performance - fuzzyMatch', function () {
 				}
 			}
 		}
-		console.log(Date.now() - t1, count, (count / (Date.now() - t1)).toPrecision(5));
+		console.log('matchesFuzzy2', Date.now() - t1, count);
 		assert.ok(count > 0);
 	});
 
@@ -70,7 +70,24 @@ perfSuite('Performance - fuzzyMatch', function () {
 				}
 			}
 		}
-		console.log(Date.now() - t1, count, (count / (Date.now() - t1)).toPrecision(5));
+		console.log('matchesFuzzy3', Date.now() - t1, count);
+		assert.ok(count > 0);
+	});
+
+	test('matchesFuzzy4', function () {
+		const t1 = Date.now();
+		let count = 0;
+		for (const pattern of patterns) {
+			for (const item of data) {
+				if (item.label) {
+					const matches = matchesFuzzy4(pattern, item.label);
+					if (matches) {
+						count += 1;
+					}
+				}
+			}
+		}
+		console.log('matchesFuzzy4', Date.now() - t1, count);
 		assert.ok(count > 0);
 	});
 
@@ -88,7 +105,7 @@ perfSuite('Performance - fuzzyMatch', function () {
 				}
 			}
 		}
-		console.log(Date.now() - t1, count, (count / (Date.now() - t1)).toPrecision(5));
+		console.log('fuzzaldrin', Date.now() - t1, count);
 		assert.ok(count > 0);
 	});
 });
