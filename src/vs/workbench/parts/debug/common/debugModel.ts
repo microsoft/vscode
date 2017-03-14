@@ -454,7 +454,9 @@ export class Thread implements IThread {
 				}
 				let source = rsf.source ? new Source(rsf.source, rsf.source.presentationHint) : new Source({ name: UNKNOWN_SOURCE_LABEL }, rsf.presentationHint);
 				if (this.process.sources.has(source.uri.toString())) {
-					source = this.process.sources.get(source.uri.toString());
+					const alreadyCreatedSource = this.process.sources.get(source.uri.toString());
+					alreadyCreatedSource.presenationHint = source.presenationHint;
+					source = alreadyCreatedSource;
 				} else {
 					this.process.sources.set(source.uri.toString(), source);
 				}
