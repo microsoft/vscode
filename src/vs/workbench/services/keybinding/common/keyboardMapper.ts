@@ -130,11 +130,6 @@ const enum ModifierState {
 	ShiftAltGr = 3
 }
 
-interface KeyCombo {
-	code: KeyboardEventCode;
-	mod: ModifierState;
-}
-
 export class HardwareKeyPress {
 	readonly ctrlKey: boolean;
 	readonly shiftKey: boolean;
@@ -154,7 +149,7 @@ export class HardwareKeyPress {
 export class KeyboardMapper {
 
 	private readonly _OS: OperatingSystem;
-	private readonly _remapChars2: KeyCombo[][];
+	private readonly _remapChars2: HardwareKeyPress[][];
 
 	constructor(mapping: IKeyboardMapping, OS: OperatingSystem) {
 
@@ -203,10 +198,20 @@ export class KeyboardMapper {
 		if (REMAP_KEYBOARD_EVENT_CODES.indexOf(code) === -1) {
 			return;
 		}
-		const entry: KeyCombo = {
-			code: code,
-			mod: mod
-		};
+
+		let entry: HardwareKeyPress = null;
+		if (mod === ModifierState.None) {
+			entry = new HardwareKeyPress(false, false, false, false, code);
+		} else if (mod === ModifierState.Shift) {
+			entry = new HardwareKeyPress(false, true, false, false, code);
+		} else if (mod === ModifierState.AltGr) {
+			entry = new HardwareKeyPress(true, false, true, false, code);
+		} else if (mod === ModifierState.ShiftAltGr) {
+			entry = new HardwareKeyPress(true, true, true, false, code);
+		} else {
+			throw new Error('unexpected');
+		}
+
 		if (this._remapChars2[charCode] === null) {
 			// no duplicates so far
 			this._remapChars2[charCode] = [entry];
@@ -223,28 +228,18 @@ export class KeyboardMapper {
 		list.push(entry);
 	}
 
-	private _doMapSimpleKeybinding(source: SimpleKeybinding, keyCombo: KeyCombo, ctrlKey: boolean, altKey: boolean, metaKey: boolean, charCode: number): HardwareKeyPress {
-		let shiftKey = false;
-		if (keyCombo.mod === ModifierState.Shift) {
-			// we need shift to produce this character
-			shiftKey = true;
-		} else if (keyCombo.mod === ModifierState.AltGr) {
-			// we need ctrl and alt to produce this character
-			if (ctrlKey !== false || altKey !== false) {
-				cannotMapSimpleKeybinding(source, this._OS, `ctrl or alt modifiers are needed to produce '${String.fromCharCode(charCode)}'`);
-				return null;
-			}
+	private _doMapSimpleKeybinding(source: SimpleKeybinding, keyCombo: HardwareKeyPress, ctrlKey: boolean, altKey: boolean, metaKey: boolean, charCode: number): HardwareKeyPress {
+		if ((keyCombo.ctrlKey && ctrlKey) || (keyCombo.altKey && altKey)) {
+			cannotMapSimpleKeybinding(source, this._OS, `ctrl or alt modifiers are needed to produce '${String.fromCharCode(charCode)}'`);
+			return null;
+		}
+
+		const shiftKey = keyCombo.shiftKey;
+		if (keyCombo.ctrlKey) {
 			ctrlKey = true;
+		}
+		if (keyCombo.altKey) {
 			altKey = true;
-		} else if (keyCombo.mod === ModifierState.ShiftAltGr) {
-			// we need ctrl, alt and shift to produce this character
-			if (ctrlKey !== false || altKey !== false) {
-				cannotMapSimpleKeybinding(source, this._OS, `ctrl or alt modifiers are needed to produce '${String.fromCharCode(charCode)}'`);
-				return null;
-			}
-			ctrlKey = true;
-			altKey = true;
-			shiftKey = true;
 		}
 
 		return new HardwareKeyPress(ctrlKey, shiftKey, altKey, metaKey, keyCombo.code);
