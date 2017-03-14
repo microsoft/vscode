@@ -361,7 +361,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		const sameUri = exceptionSf.source.uri.toString() === model.uri.toString();
 		if (this.exceptionWidget && !sameUri) {
 			this.closeExceptionWidget();
-		} else if (focusedSf.thread.stoppedDetails.reason === 'exception' && sameUri) {
+		} else if (sameUri && focusedSf.thread.stoppedDetails && focusedSf.thread.stoppedDetails.reason === 'exception') {
 			this.showExceptionWidget(exceptionSf.lineNumber, exceptionSf.column);
 		}
 	}
