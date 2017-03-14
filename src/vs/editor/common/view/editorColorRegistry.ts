@@ -60,13 +60,12 @@ function applyEditorStyles(theme: ITheme, collector: ICssStyleCollector) {
 		addBackgroundColorRule(theme, '.focused .selected-text', selection, collector);
 	}
 
-	let inactiveSelection = theme.getColor(colorRegistry.editorInactiveSelection, false);
-	if (inactiveSelection) {
-		addBackgroundColorRule(theme, '.selected-text', inactiveSelection, collector);
-	} else if (selection) {
+	if (theme.isDefault(colorRegistry.editorInactiveSelection) && !theme.isDefault(colorRegistry.editorSelection)) {
 		addBackgroundColorRule(theme, '.selected-text', selection.transparent(0.5), collector);
+	} else {
+		let inactiveSelection = theme.getColor(colorRegistry.editorInactiveSelection);
+		addBackgroundColorRule(theme, '.selected-text', inactiveSelection, collector);
 	}
-
 
 	addBackgroundColorRule(theme, '.reference-zone-widget .ref-tree .referenceMatch', theme.getColor(referencesFindMatchHighlight), collector);
 	addBackgroundColorRule(theme, '.reference-zone-widget .preview .reference-decoration', theme.getColor(referencesReferenceHighlight), collector);

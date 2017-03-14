@@ -130,7 +130,7 @@ export const editorForeground = registerColor('editorForeground', { light: '#333
  */
 export const editorSelection = registerColor('editorSelection', { light: '#ADD6FF', dark: '#264F78', hc: '#f3f518' }, nls.localize('editorSelection', 'Color of the editor selection'));
 export const editorInactiveSelection = registerColor('editorInactiveSelection', { light: '#E5EBF1', dark: '#3A3D41', hc: null }, nls.localize('editorInactiveSelection', 'Color of the inactive editor selection'));
-export const editorSelectionHighlightColor = registerColor('editorSelectionHighlightColor', { light: Color.white, dark: '#1E1E1E', hc: Color.black }, nls.localize('editorsSelectionHighlightColor', 'Background color of regions highlighted while selecting'));
+export const editorSelectionHighlightColor = registerColor('editorSelectionHighlightColor', { light: '#add6ff4d', dark: '#add6ff26', hc: null }, nls.localize('editorsSelectionHighlightColor', 'Background color of regions highlighted while selecting'));
 
 /**
  * Editor find match colors.
@@ -147,6 +147,16 @@ export function darken(colorValue: ColorValue, factor: number): ColorFunction {
 		let color = resolveColorValue(colorValue, theme);
 		if (color) {
 			return color.darken(factor);
+		}
+		return null;
+	};
+}
+
+export function transparent(colorValue: ColorValue, factor: number): ColorFunction {
+	return (theme) => {
+		let color = resolveColorValue(colorValue, theme);
+		if (color) {
+			return color.transparent(factor);
 		}
 		return null;
 	};
