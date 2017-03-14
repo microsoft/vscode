@@ -42,7 +42,7 @@ export interface IWindowsChannel extends IChannel {
 	call(command: 'log', arg: [string, string[]]): TPromise<void>;
 	call(command: 'closeExtensionHostWindow', arg: string): TPromise<void>;
 	call(command: 'showItemInFolder', arg: string): TPromise<void>;
-	call(command: 'openExternal', arg: string): TPromise<void>;
+	call(command: 'openExternal', arg: string): TPromise<boolean>;
 	call(command: 'startCrashReporter', arg: Electron.CrashReporterStartOptions): TPromise<void>;
 	call(command: string, arg?: any): TPromise<any>;
 }
@@ -225,7 +225,7 @@ export class WindowsChannelClient implements IWindowsService {
 		return this.channel.call('showItemInFolder', path);
 	}
 
-	openExternal(url: string): TPromise<void> {
+	openExternal(url: string): TPromise<boolean> {
 		return this.channel.call('openExternal', url);
 	}
 
