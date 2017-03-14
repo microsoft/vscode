@@ -975,7 +975,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 		return this._groups[position];
 	}
 
-	public next(jumpGroups: boolean): IEditorIdentifier {
+	public next(jumpGroups: boolean, cycleAtEnd = true): IEditorIdentifier {
 		this.ensureLoaded();
 
 		if (!this.activeGroup) {
@@ -991,6 +991,9 @@ export class EditorStacksModel implements IEditorStacksModel {
 
 		// Return first if we are not jumping groups
 		if (!jumpGroups) {
+			if (!cycleAtEnd) {
+				return null;
+			}
 			return { group: this.activeGroup, editor: this.activeGroup.getEditor(0) };
 		}
 
@@ -1001,12 +1004,17 @@ export class EditorStacksModel implements IEditorStacksModel {
 			return { group: nextGroup, editor: nextGroup.getEditor(0) };
 		}
 
+		// Return null if we are not cycling at the end
+		if (!cycleAtEnd) {
+			return null;
+		}
+
 		// Return first in first group
 		const firstGroup = this.groups[0];
 		return { group: firstGroup, editor: firstGroup.getEditor(0) };
 	}
 
-	public previous(jumpGroups: boolean): IEditorIdentifier {
+	public previous(jumpGroups: boolean, cycleAtStart = true): IEditorIdentifier {
 		this.ensureLoaded();
 
 		if (!this.activeGroup) {
@@ -1022,6 +1030,9 @@ export class EditorStacksModel implements IEditorStacksModel {
 
 		// Return last if we are not jumping groups
 		if (!jumpGroups) {
+			if (!cycleAtStart) {
+				return null;
+			}
 			return { group: this.activeGroup, editor: this.activeGroup.getEditor(this.activeGroup.count - 1) };
 		}
 
@@ -1030,6 +1041,11 @@ export class EditorStacksModel implements IEditorStacksModel {
 		const previousGroup = this.groups[indexOfGroup - 1];
 		if (previousGroup) {
 			return { group: previousGroup, editor: previousGroup.getEditor(previousGroup.count - 1) };
+		}
+
+		// Return null if we are not cycling at the start
+		if (!cycleAtStart) {
+			return null;
 		}
 
 		// Return last in last group

@@ -1461,14 +1461,20 @@ suite('Editor Stacks Model', () => {
 		model.setActive(group1);
 		group1.setActive(input1);
 
-		let previous = model.previous(true /* jump groups */);
+		let previous = model.previous(true, false /* jump groups, do NOT cycle at start*/);
+		assert.equal(previous, null);
+
+		previous = model.previous(true /* jump groups */);
 		assert.equal(previous.group, group2);
 		assert.equal(previous.editor, input6);
 
 		model.setActive(<EditorGroup>previous.group);
 		(<EditorGroup>previous.group).setActive(<EditorInput>previous.editor);
 
-		let next = model.next(true /* jump groups */);
+		let next = model.next(true, false /* jump groups, do NOT cycle at end */);
+		assert.equal(next, null);
+
+		next = model.next(true /* jump groups */);
 		assert.equal(next.group, group1);
 		assert.equal(next.editor, input1);
 
@@ -1512,14 +1518,20 @@ suite('Editor Stacks Model', () => {
 		model.setActive(group1);
 		group1.setActive(input1);
 
-		let previous = model.previous(false /* do NOT jump groups */);
+		let previous = model.previous(false, false /* do NOT jump groups, do NOT cycle at start*/);
+		assert.equal(previous, null);
+
+		previous = model.previous(false /* do NOT jump groups */);
 		assert.equal(previous.group, group1);
 		assert.equal(previous.editor, input3);
 
 		model.setActive(<EditorGroup>previous.group);
 		(<EditorGroup>previous.group).setActive(<EditorInput>previous.editor);
 
-		let next = model.next(false /* do NOT jump groups */);
+		let next = model.next(false, false /* do NOT jump groups, do NOT cycle at end */);
+		assert.equal(next, null);
+
+		next = model.next(false /* do NOT jump groups */);
 		assert.equal(next.group, group1);
 		assert.equal(next.editor, input1);
 
