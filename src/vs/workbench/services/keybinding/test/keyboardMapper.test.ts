@@ -7,12 +7,27 @@
 
 import * as assert from 'assert';
 import { mac_de_ch } from 'vs/workbench/services/keybinding/test/mac_de_ch';
+import { linux_de_ch } from 'vs/workbench/services/keybinding/test/linux_de_ch';
 import { KeyMod, KeyCode, SimpleKeybinding, createKeybinding } from 'vs/base/common/keyCodes';
 import { KeyboardMapper } from 'vs/workbench/services/keybinding/common/keyboardMapper';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { UserSettingsLabelProvider, PrintableKeypress } from 'vs/platform/keybinding/common/keybindingLabels';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/abstractKeybindingService';
 import { KeyboardEventCodeUtils } from "vs/workbench/services/keybinding/common/keyboardEventCode";
+
+function _assertKeybindingTranslation(mapper: KeyboardMapper, OS: OperatingSystem, kb: number, expected: string[]): void {
+	let actualHardwareKeypresses = mapper.mapSimpleKeybinding(new SimpleKeybinding(kb));
+	let actualPrintableKeypresses = actualHardwareKeypresses.map(k => new PrintableKeypress(
+		k.ctrlKey,
+		k.shiftKey,
+		k.altKey,
+		k.metaKey,
+		KeyboardEventCodeUtils.toString(k.code)
+	));
+	let actual = actualPrintableKeypresses.map(kp => UserSettingsLabelProvider.toLabel2(kp, null, OS));
+	let usLayout = new USLayoutResolvedKeybinding(createKeybinding(kb), OS);
+	assert.deepEqual(actual, expected, `"${usLayout.getUserSettingsLabel()}" -- actual: "${actual}" -- expected: "${expected}"`);
+}
 
 suite('keyboardMapper - MAC de_ch', () => {
 
@@ -23,17 +38,11 @@ suite('keyboardMapper - MAC de_ch', () => {
 	});
 
 	function assertKeybindingTranslation(kb: number, expected: string): void {
-		let actualHardwareKeypress = mapper.mapSimpleKeybinding(new SimpleKeybinding(kb));
-		let actualPrintableKeypress = actualHardwareKeypress ? new PrintableKeypress(
-			actualHardwareKeypress.ctrlKey,
-			actualHardwareKeypress.shiftKey,
-			actualHardwareKeypress.altKey,
-			actualHardwareKeypress.metaKey,
-			KeyboardEventCodeUtils.toString(actualHardwareKeypress.code)
-		) : null;
-		let actual = actualPrintableKeypress ? UserSettingsLabelProvider.toLabel2(actualPrintableKeypress, null, OperatingSystem.Macintosh) : null;
-		let usLayout = new USLayoutResolvedKeybinding(createKeybinding(kb), OperatingSystem.Macintosh);
-		assert.deepEqual(actual, expected, `"${usLayout.getUserSettingsLabel()}" -- actual: "${actual}" -- expected: "${expected}"`);
+		if (expected === null) {
+			_assertKeybindingTranslation(mapper, OperatingSystem.Macintosh, kb, []);
+		} else {
+			_assertKeybindingTranslation(mapper, OperatingSystem.Macintosh, kb, [expected]);
+		}
 	}
 
 	test('mapSimpleKeybinding unchanged', () => {
@@ -315,5 +324,300 @@ suite('keyboardMapper - MAC de_ch', () => {
 		});
 		// OEM_8
 		// OEM_102
+	});
+});
+
+
+suite('keyboardMapper - LINUX de_ch', () => {
+
+	let mapper: KeyboardMapper;
+
+	suiteSetup(() => {
+		mapper = new KeyboardMapper(linux_de_ch, OperatingSystem.Linux);
+	});
+
+	function assertKeybindingTranslation(kb: number, expected: string): void {
+		_assertKeybindingTranslation(mapper, OperatingSystem.Linux, kb, [expected]);
+	}
+
+	test('mapSimpleKeybinding unchanged', () => {
+		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyCode.KEY_1, 'Ctrl+Digit1');
+		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyCode.KEY_B, 'Ctrl+KeyB');
+		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_B, 'Ctrl+Shift+KeyB');
+
+		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.KEY_B, 'Ctrl+Shift+Alt+Meta+KeyB');
+	});
+
+	test('mapSimpleKeybinding flips Y and Z', () => {
+		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyCode.KEY_Z, 'Ctrl+KeyY');
+		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyCode.KEY_Y, 'Ctrl+KeyZ');
+	});
+
+	test('mapSimpleKeybinding other key codes', () => {
+		interface IExpected {
+			noModifiers: string;
+			ctrl: string;
+			alt: string;
+			meta: string;
+			ctrl_alt: string;
+			ctrl_meta: string;
+			alt_meta: string;
+			ctrl_alt_meta: string;
+		}
+		function assertForAllModifiers(base: number, expected: IExpected): void {
+			assertKeybindingTranslation(base, expected.noModifiers);
+			assertKeybindingTranslation(KeyMod.CtrlCmd | base, expected.ctrl);
+			assertKeybindingTranslation(KeyMod.Alt | base, expected.alt);
+			assertKeybindingTranslation(KeyMod.WinCtrl | base, expected.meta);
+			assertKeybindingTranslation(KeyMod.CtrlCmd | KeyMod.Alt | base, expected.ctrl_alt);
+			assertKeybindingTranslation(KeyMod.CtrlCmd | KeyMod.WinCtrl | base, expected.ctrl_meta);
+			assertKeybindingTranslation(KeyMod.Alt | KeyMod.WinCtrl | base, expected.alt_meta);
+			assertKeybindingTranslation(KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.WinCtrl | base, expected.ctrl_alt_meta);
+		}
+
+		// ;
+		assertForAllModifiers(KeyCode.US_SEMICOLON, {
+			noModifiers: 'Shift+Comma',
+			ctrl: 'Ctrl+Shift+Comma',
+			alt: 'Shift+Alt+Comma',
+			meta: 'Shift+Meta+Comma',
+			ctrl_alt: 'Ctrl+Shift+Alt+Comma',
+			ctrl_meta: 'Ctrl+Shift+Meta+Comma',
+			alt_meta: 'Shift+Alt+Meta+Comma',
+			ctrl_alt_meta: 'Ctrl+Shift+Alt+Meta+Comma',
+		});
+		// :
+		assertForAllModifiers(KeyMod.Shift | KeyCode.US_SEMICOLON, {
+			noModifiers: 'Shift+Period',
+			ctrl: 'Ctrl+Shift+Period',
+			alt: 'Shift+Alt+Period',
+			meta: 'Shift+Meta+Period',
+			ctrl_alt: 'Ctrl+Shift+Alt+Period',
+			ctrl_meta: 'Ctrl+Shift+Meta+Period',
+			alt_meta: 'Shift+Alt+Meta+Period',
+			ctrl_alt_meta: 'Ctrl+Shift+Alt+Meta+Period',
+		});
+		// =
+		assertForAllModifiers(KeyCode.US_EQUAL, {
+			noModifiers: 'Shift+Digit0',
+			ctrl: 'Ctrl+Shift+Digit0',
+			alt: 'Shift+Alt+Digit0',
+			meta: 'Shift+Meta+Digit0',
+			ctrl_alt: 'Ctrl+Shift+Alt+Digit0',
+			ctrl_meta: 'Ctrl+Shift+Meta+Digit0',
+			alt_meta: 'Shift+Alt+Meta+Digit0',
+			ctrl_alt_meta: 'Ctrl+Shift+Alt+Meta+Digit0',
+		});
+		// +
+		assertForAllModifiers(KeyMod.Shift | KeyCode.US_EQUAL, {
+			noModifiers: 'Shift+Digit1',
+			ctrl: 'Ctrl+Shift+Digit1',
+			alt: 'Shift+Alt+Digit1',
+			meta: 'Shift+Meta+Digit1',
+			ctrl_alt: 'Ctrl+Shift+Alt+Digit1',
+			ctrl_meta: 'Ctrl+Shift+Meta+Digit1',
+			alt_meta: 'Shift+Alt+Meta+Digit1',
+			ctrl_alt_meta: 'Ctrl+Shift+Alt+Meta+Digit1',
+		});
+		// ,
+		assertForAllModifiers(KeyCode.US_COMMA, {
+			noModifiers: 'Comma',
+			ctrl: 'Ctrl+Comma',
+			alt: 'Alt+Comma',
+			meta: 'Meta+Comma',
+			ctrl_alt: 'Ctrl+Alt+Comma',
+			ctrl_meta: 'Ctrl+Meta+Comma',
+			alt_meta: 'Alt+Meta+Comma',
+			ctrl_alt_meta: 'Ctrl+Alt+Meta+Comma',
+		});
+		// // <
+		// assertForAllModifiers(KeyMod.Shift | KeyCode.US_COMMA, {
+		// 	noModifiers: 'Backquote',
+		// 	ctrl: 'Cmd+Backquote',
+		// 	alt: 'Alt+Backquote',
+		// 	meta: 'Ctrl+Backquote',
+		// 	ctrl_alt: 'Alt+Cmd+Backquote',
+		// 	ctrl_meta: 'Ctrl+Cmd+Backquote',
+		// 	alt_meta: 'Ctrl+Alt+Backquote',
+		// 	ctrl_alt_meta: 'Ctrl+Alt+Cmd+Backquote',
+		// });
+		// // -
+		// assertForAllModifiers(KeyCode.US_MINUS, {
+		// 	noModifiers: 'Slash',
+		// 	ctrl: 'Cmd+Slash',
+		// 	alt: 'Alt+Slash',
+		// 	meta: 'Ctrl+Slash',
+		// 	ctrl_alt: 'Alt+Cmd+Slash',
+		// 	ctrl_meta: 'Ctrl+Cmd+Slash',
+		// 	alt_meta: 'Ctrl+Alt+Slash',
+		// 	ctrl_alt_meta: 'Ctrl+Alt+Cmd+Slash',
+		// });
+		// // _
+		// assertForAllModifiers(KeyMod.Shift | KeyCode.US_MINUS, {
+		// 	noModifiers: 'Shift+Slash',
+		// 	ctrl: 'Shift+Cmd+Slash',
+		// 	alt: 'Shift+Alt+Slash',
+		// 	meta: 'Ctrl+Shift+Slash',
+		// 	ctrl_alt: 'Shift+Alt+Cmd+Slash',
+		// 	ctrl_meta: 'Ctrl+Shift+Cmd+Slash',
+		// 	alt_meta: 'Ctrl+Shift+Alt+Slash',
+		// 	ctrl_alt_meta: 'Ctrl+Shift+Alt+Cmd+Slash',
+		// });
+		// // .
+		// assertForAllModifiers(KeyCode.US_DOT, {
+		// 	noModifiers: 'Period',
+		// 	ctrl: 'Cmd+Period',
+		// 	alt: 'Alt+Period',
+		// 	meta: 'Ctrl+Period',
+		// 	ctrl_alt: 'Alt+Cmd+Period',
+		// 	ctrl_meta: 'Ctrl+Cmd+Period',
+		// 	alt_meta: 'Ctrl+Alt+Period',
+		// 	ctrl_alt_meta: 'Ctrl+Alt+Cmd+Period',
+		// });
+		// // >
+		// assertForAllModifiers(KeyMod.Shift | KeyCode.US_DOT, {
+		// 	noModifiers: 'Shift+Backquote',
+		// 	ctrl: 'Shift+Cmd+Backquote',
+		// 	alt: 'Shift+Alt+Backquote',
+		// 	meta: 'Ctrl+Shift+Backquote',
+		// 	ctrl_alt: 'Shift+Alt+Cmd+Backquote',
+		// 	ctrl_meta: 'Ctrl+Shift+Cmd+Backquote',
+		// 	alt_meta: 'Ctrl+Shift+Alt+Backquote',
+		// 	ctrl_alt_meta: 'Ctrl+Shift+Alt+Cmd+Backquote',
+		// });
+		// // /
+		// assertForAllModifiers(KeyCode.US_SLASH, {
+		// 	noModifiers: 'Shift+Digit7',
+		// 	ctrl: 'Shift+Cmd+Digit7',
+		// 	alt: 'Shift+Alt+Digit7',
+		// 	meta: 'Ctrl+Shift+Digit7',
+		// 	ctrl_alt: 'Shift+Alt+Cmd+Digit7',
+		// 	ctrl_meta: 'Ctrl+Shift+Cmd+Digit7',
+		// 	alt_meta: 'Ctrl+Shift+Alt+Digit7',
+		// 	ctrl_alt_meta: 'Ctrl+Shift+Alt+Cmd+Digit7',
+		// });
+		// // ?
+		// assertForAllModifiers(KeyMod.Shift | KeyCode.US_SLASH, {
+		// 	noModifiers: 'Shift+Minus',
+		// 	ctrl: 'Shift+Cmd+Minus',
+		// 	alt: 'Shift+Alt+Minus',
+		// 	meta: 'Ctrl+Shift+Minus',
+		// 	ctrl_alt: 'Shift+Alt+Cmd+Minus',
+		// 	ctrl_meta: 'Ctrl+Shift+Cmd+Minus',
+		// 	alt_meta: 'Ctrl+Shift+Alt+Minus',
+		// 	ctrl_alt_meta: 'Ctrl+Shift+Alt+Cmd+Minus',
+		// });
+		// // `
+		// assertForAllModifiers(KeyCode.US_BACKTICK, {
+		// 	noModifiers: 'Shift+Equal',
+		// 	ctrl: 'Shift+Cmd+Equal',
+		// 	alt: 'Shift+Alt+Equal',
+		// 	meta: 'Ctrl+Shift+Equal',
+		// 	ctrl_alt: 'Shift+Alt+Cmd+Equal',
+		// 	ctrl_meta: 'Ctrl+Shift+Cmd+Equal',
+		// 	alt_meta: 'Ctrl+Shift+Alt+Equal',
+		// 	ctrl_alt_meta: 'Ctrl+Shift+Alt+Cmd+Equal',
+		// });
+		// // ~
+		// assertForAllModifiers(KeyMod.Shift | KeyCode.US_BACKTICK, {
+		// 	noModifiers: 'Ctrl+Alt+KeyN',
+		// 	ctrl: 'Ctrl+Alt+Cmd+KeyN',
+		// 	alt: null,
+		// 	meta: null,
+		// 	ctrl_alt: null,
+		// 	ctrl_meta: null,
+		// 	alt_meta: null,
+		// 	ctrl_alt_meta: null,
+		// });
+		// // [
+		// assertForAllModifiers(KeyCode.US_OPEN_SQUARE_BRACKET, {
+		// 	noModifiers: 'Ctrl+Alt+Digit5',
+		// 	ctrl: 'Ctrl+Alt+Cmd+Digit5',
+		// 	alt: null,
+		// 	meta: null,
+		// 	ctrl_alt: null,
+		// 	ctrl_meta: null,
+		// 	alt_meta: null,
+		// 	ctrl_alt_meta: null,
+		// });
+		// // {
+		// assertForAllModifiers(KeyMod.Shift | KeyCode.US_OPEN_SQUARE_BRACKET, {
+		// 	noModifiers: 'Ctrl+Alt+Digit8',
+		// 	ctrl: 'Ctrl+Alt+Cmd+Digit8',
+		// 	alt: null,
+		// 	meta: null,
+		// 	ctrl_alt: null,
+		// 	ctrl_meta: null,
+		// 	alt_meta: null,
+		// 	ctrl_alt_meta: null,
+		// });
+		// // \
+		// assertForAllModifiers(KeyCode.US_BACKSLASH, {
+		// 	noModifiers: 'Ctrl+Shift+Alt+Digit7',
+		// 	ctrl: 'Ctrl+Shift+Alt+Cmd+Digit7',
+		// 	alt: null,
+		// 	meta: null,
+		// 	ctrl_alt: null,
+		// 	ctrl_meta: null,
+		// 	alt_meta: null,
+		// 	ctrl_alt_meta: null,
+		// });
+		// // |
+		// assertForAllModifiers(KeyMod.Shift | KeyCode.US_BACKSLASH, {
+		// 	noModifiers: 'Ctrl+Alt+Digit7',
+		// 	ctrl: 'Ctrl+Alt+Cmd+Digit7',
+		// 	alt: null,
+		// 	meta: null,
+		// 	ctrl_alt: null,
+		// 	ctrl_meta: null,
+		// 	alt_meta: null,
+		// 	ctrl_alt_meta: null,
+		// });
+		// // ]
+		// assertForAllModifiers(KeyCode.US_CLOSE_SQUARE_BRACKET, {
+		// 	noModifiers: 'Ctrl+Alt+Digit6',
+		// 	ctrl: 'Ctrl+Alt+Cmd+Digit6',
+		// 	alt: null,
+		// 	meta: null,
+		// 	ctrl_alt: null,
+		// 	ctrl_meta: null,
+		// 	alt_meta: null,
+		// 	ctrl_alt_meta: null,
+		// });
+		// // }
+		// assertForAllModifiers(KeyMod.Shift | KeyCode.US_CLOSE_SQUARE_BRACKET, {
+		// 	noModifiers: 'Ctrl+Alt+Digit9',
+		// 	ctrl: 'Ctrl+Alt+Cmd+Digit9',
+		// 	alt: null,
+		// 	meta: null,
+		// 	ctrl_alt: null,
+		// 	ctrl_meta: null,
+		// 	alt_meta: null,
+		// 	ctrl_alt_meta: null,
+		// });
+		// // '
+		// assertForAllModifiers(KeyCode.US_QUOTE, {
+		// 	noModifiers: 'Minus',
+		// 	ctrl: 'Cmd+Minus',
+		// 	alt: 'Alt+Minus',
+		// 	meta: 'Ctrl+Minus',
+		// 	ctrl_alt: 'Alt+Cmd+Minus',
+		// 	ctrl_meta: 'Ctrl+Cmd+Minus',
+		// 	alt_meta: 'Ctrl+Alt+Minus',
+		// 	ctrl_alt_meta: 'Ctrl+Alt+Cmd+Minus',
+		// });
+		// // "
+		// assertForAllModifiers(KeyMod.Shift | KeyCode.US_QUOTE, {
+		// 	noModifiers: 'Shift+Digit2',
+		// 	ctrl: 'Shift+Cmd+Digit2',
+		// 	alt: 'Shift+Alt+Digit2',
+		// 	meta: 'Ctrl+Shift+Digit2',
+		// 	ctrl_alt: 'Shift+Alt+Cmd+Digit2',
+		// 	ctrl_meta: 'Ctrl+Shift+Cmd+Digit2',
+		// 	alt_meta: 'Ctrl+Shift+Alt+Digit2',
+		// 	ctrl_alt_meta: 'Ctrl+Shift+Alt+Cmd+Digit2',
+		// });
+		// // OEM_8
+		// // OEM_102
 	});
 });
