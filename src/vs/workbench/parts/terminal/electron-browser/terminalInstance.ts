@@ -192,6 +192,9 @@ export class TerminalInstance implements ITerminalInstance {
 		this._xterm = xterm({
 			scrollback: this._configHelper.config.scrollback
 		});
+		if (this._shellLaunchConfig.initialText) {
+			this._xterm.writeln(this._shellLaunchConfig.initialText);
+		}
 		this._process.on('message', (message) => this._sendPtyDataToXterm(message));
 		this._xterm.on('data', (data) => {
 			if (this._process) {
