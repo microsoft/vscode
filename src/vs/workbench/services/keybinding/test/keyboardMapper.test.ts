@@ -336,8 +336,14 @@ suite('keyboardMapper - LINUX de_ch', () => {
 		mapper = new KeyboardMapper(linux_de_ch, OperatingSystem.Linux);
 	});
 
-	function assertKeybindingTranslation(kb: number, expected: string): void {
-		_assertKeybindingTranslation(mapper, OperatingSystem.Linux, kb, [expected]);
+	function assertKeybindingTranslation(kb: number, expected: string | string[]): void {
+		if (typeof expected === 'string') {
+			_assertKeybindingTranslation(mapper, OperatingSystem.Linux, kb, [expected]);
+		} else if (Array.isArray(expected)) {
+			_assertKeybindingTranslation(mapper, OperatingSystem.Linux, kb, expected);
+		} else {
+			_assertKeybindingTranslation(mapper, OperatingSystem.Linux, kb, []);
+		}
 	}
 
 	test('mapSimpleKeybinding unchanged', () => {
@@ -355,14 +361,14 @@ suite('keyboardMapper - LINUX de_ch', () => {
 
 	test('mapSimpleKeybinding other key codes', () => {
 		interface IExpected {
-			noModifiers: string;
-			ctrl: string;
-			alt: string;
-			meta: string;
-			ctrl_alt: string;
-			ctrl_meta: string;
-			alt_meta: string;
-			ctrl_alt_meta: string;
+			noModifiers: string | string[];
+			ctrl: string | string[];
+			alt: string | string[];
+			meta: string | string[];
+			ctrl_alt: string | string[];
+			ctrl_meta: string | string[];
+			alt_meta: string | string[];
+			ctrl_alt_meta: string | string[];
 		}
 		function assertForAllModifiers(base: number, expected: IExpected): void {
 			assertKeybindingTranslation(base, expected.noModifiers);
@@ -430,194 +436,194 @@ suite('keyboardMapper - LINUX de_ch', () => {
 			alt_meta: 'Alt+Meta+Comma',
 			ctrl_alt_meta: 'Ctrl+Alt+Meta+Comma',
 		});
-		// // <
-		// assertForAllModifiers(KeyMod.Shift | KeyCode.US_COMMA, {
-		// 	noModifiers: 'Backquote',
-		// 	ctrl: 'Cmd+Backquote',
-		// 	alt: 'Alt+Backquote',
-		// 	meta: 'Ctrl+Backquote',
-		// 	ctrl_alt: 'Alt+Cmd+Backquote',
-		// 	ctrl_meta: 'Ctrl+Cmd+Backquote',
-		// 	alt_meta: 'Ctrl+Alt+Backquote',
-		// 	ctrl_alt_meta: 'Ctrl+Alt+Cmd+Backquote',
-		// });
-		// // -
-		// assertForAllModifiers(KeyCode.US_MINUS, {
-		// 	noModifiers: 'Slash',
-		// 	ctrl: 'Cmd+Slash',
-		// 	alt: 'Alt+Slash',
-		// 	meta: 'Ctrl+Slash',
-		// 	ctrl_alt: 'Alt+Cmd+Slash',
-		// 	ctrl_meta: 'Ctrl+Cmd+Slash',
-		// 	alt_meta: 'Ctrl+Alt+Slash',
-		// 	ctrl_alt_meta: 'Ctrl+Alt+Cmd+Slash',
-		// });
-		// // _
-		// assertForAllModifiers(KeyMod.Shift | KeyCode.US_MINUS, {
-		// 	noModifiers: 'Shift+Slash',
-		// 	ctrl: 'Shift+Cmd+Slash',
-		// 	alt: 'Shift+Alt+Slash',
-		// 	meta: 'Ctrl+Shift+Slash',
-		// 	ctrl_alt: 'Shift+Alt+Cmd+Slash',
-		// 	ctrl_meta: 'Ctrl+Shift+Cmd+Slash',
-		// 	alt_meta: 'Ctrl+Shift+Alt+Slash',
-		// 	ctrl_alt_meta: 'Ctrl+Shift+Alt+Cmd+Slash',
-		// });
-		// // .
-		// assertForAllModifiers(KeyCode.US_DOT, {
-		// 	noModifiers: 'Period',
-		// 	ctrl: 'Cmd+Period',
-		// 	alt: 'Alt+Period',
-		// 	meta: 'Ctrl+Period',
-		// 	ctrl_alt: 'Alt+Cmd+Period',
-		// 	ctrl_meta: 'Ctrl+Cmd+Period',
-		// 	alt_meta: 'Ctrl+Alt+Period',
-		// 	ctrl_alt_meta: 'Ctrl+Alt+Cmd+Period',
-		// });
-		// // >
-		// assertForAllModifiers(KeyMod.Shift | KeyCode.US_DOT, {
-		// 	noModifiers: 'Shift+Backquote',
-		// 	ctrl: 'Shift+Cmd+Backquote',
-		// 	alt: 'Shift+Alt+Backquote',
-		// 	meta: 'Ctrl+Shift+Backquote',
-		// 	ctrl_alt: 'Shift+Alt+Cmd+Backquote',
-		// 	ctrl_meta: 'Ctrl+Shift+Cmd+Backquote',
-		// 	alt_meta: 'Ctrl+Shift+Alt+Backquote',
-		// 	ctrl_alt_meta: 'Ctrl+Shift+Alt+Cmd+Backquote',
-		// });
-		// // /
-		// assertForAllModifiers(KeyCode.US_SLASH, {
-		// 	noModifiers: 'Shift+Digit7',
-		// 	ctrl: 'Shift+Cmd+Digit7',
-		// 	alt: 'Shift+Alt+Digit7',
-		// 	meta: 'Ctrl+Shift+Digit7',
-		// 	ctrl_alt: 'Shift+Alt+Cmd+Digit7',
-		// 	ctrl_meta: 'Ctrl+Shift+Cmd+Digit7',
-		// 	alt_meta: 'Ctrl+Shift+Alt+Digit7',
-		// 	ctrl_alt_meta: 'Ctrl+Shift+Alt+Cmd+Digit7',
-		// });
-		// // ?
-		// assertForAllModifiers(KeyMod.Shift | KeyCode.US_SLASH, {
-		// 	noModifiers: 'Shift+Minus',
-		// 	ctrl: 'Shift+Cmd+Minus',
-		// 	alt: 'Shift+Alt+Minus',
-		// 	meta: 'Ctrl+Shift+Minus',
-		// 	ctrl_alt: 'Shift+Alt+Cmd+Minus',
-		// 	ctrl_meta: 'Ctrl+Shift+Cmd+Minus',
-		// 	alt_meta: 'Ctrl+Shift+Alt+Minus',
-		// 	ctrl_alt_meta: 'Ctrl+Shift+Alt+Cmd+Minus',
-		// });
-		// // `
-		// assertForAllModifiers(KeyCode.US_BACKTICK, {
-		// 	noModifiers: 'Shift+Equal',
-		// 	ctrl: 'Shift+Cmd+Equal',
-		// 	alt: 'Shift+Alt+Equal',
-		// 	meta: 'Ctrl+Shift+Equal',
-		// 	ctrl_alt: 'Shift+Alt+Cmd+Equal',
-		// 	ctrl_meta: 'Ctrl+Shift+Cmd+Equal',
-		// 	alt_meta: 'Ctrl+Shift+Alt+Equal',
-		// 	ctrl_alt_meta: 'Ctrl+Shift+Alt+Cmd+Equal',
-		// });
-		// // ~
-		// assertForAllModifiers(KeyMod.Shift | KeyCode.US_BACKTICK, {
-		// 	noModifiers: 'Ctrl+Alt+KeyN',
-		// 	ctrl: 'Ctrl+Alt+Cmd+KeyN',
-		// 	alt: null,
-		// 	meta: null,
-		// 	ctrl_alt: null,
-		// 	ctrl_meta: null,
-		// 	alt_meta: null,
-		// 	ctrl_alt_meta: null,
-		// });
-		// // [
-		// assertForAllModifiers(KeyCode.US_OPEN_SQUARE_BRACKET, {
-		// 	noModifiers: 'Ctrl+Alt+Digit5',
-		// 	ctrl: 'Ctrl+Alt+Cmd+Digit5',
-		// 	alt: null,
-		// 	meta: null,
-		// 	ctrl_alt: null,
-		// 	ctrl_meta: null,
-		// 	alt_meta: null,
-		// 	ctrl_alt_meta: null,
-		// });
-		// // {
-		// assertForAllModifiers(KeyMod.Shift | KeyCode.US_OPEN_SQUARE_BRACKET, {
-		// 	noModifiers: 'Ctrl+Alt+Digit8',
-		// 	ctrl: 'Ctrl+Alt+Cmd+Digit8',
-		// 	alt: null,
-		// 	meta: null,
-		// 	ctrl_alt: null,
-		// 	ctrl_meta: null,
-		// 	alt_meta: null,
-		// 	ctrl_alt_meta: null,
-		// });
-		// // \
-		// assertForAllModifiers(KeyCode.US_BACKSLASH, {
-		// 	noModifiers: 'Ctrl+Shift+Alt+Digit7',
-		// 	ctrl: 'Ctrl+Shift+Alt+Cmd+Digit7',
-		// 	alt: null,
-		// 	meta: null,
-		// 	ctrl_alt: null,
-		// 	ctrl_meta: null,
-		// 	alt_meta: null,
-		// 	ctrl_alt_meta: null,
-		// });
-		// // |
-		// assertForAllModifiers(KeyMod.Shift | KeyCode.US_BACKSLASH, {
-		// 	noModifiers: 'Ctrl+Alt+Digit7',
-		// 	ctrl: 'Ctrl+Alt+Cmd+Digit7',
-		// 	alt: null,
-		// 	meta: null,
-		// 	ctrl_alt: null,
-		// 	ctrl_meta: null,
-		// 	alt_meta: null,
-		// 	ctrl_alt_meta: null,
-		// });
-		// // ]
-		// assertForAllModifiers(KeyCode.US_CLOSE_SQUARE_BRACKET, {
-		// 	noModifiers: 'Ctrl+Alt+Digit6',
-		// 	ctrl: 'Ctrl+Alt+Cmd+Digit6',
-		// 	alt: null,
-		// 	meta: null,
-		// 	ctrl_alt: null,
-		// 	ctrl_meta: null,
-		// 	alt_meta: null,
-		// 	ctrl_alt_meta: null,
-		// });
-		// // }
-		// assertForAllModifiers(KeyMod.Shift | KeyCode.US_CLOSE_SQUARE_BRACKET, {
-		// 	noModifiers: 'Ctrl+Alt+Digit9',
-		// 	ctrl: 'Ctrl+Alt+Cmd+Digit9',
-		// 	alt: null,
-		// 	meta: null,
-		// 	ctrl_alt: null,
-		// 	ctrl_meta: null,
-		// 	alt_meta: null,
-		// 	ctrl_alt_meta: null,
-		// });
-		// // '
-		// assertForAllModifiers(KeyCode.US_QUOTE, {
-		// 	noModifiers: 'Minus',
-		// 	ctrl: 'Cmd+Minus',
-		// 	alt: 'Alt+Minus',
-		// 	meta: 'Ctrl+Minus',
-		// 	ctrl_alt: 'Alt+Cmd+Minus',
-		// 	ctrl_meta: 'Ctrl+Cmd+Minus',
-		// 	alt_meta: 'Ctrl+Alt+Minus',
-		// 	ctrl_alt_meta: 'Ctrl+Alt+Cmd+Minus',
-		// });
-		// // "
-		// assertForAllModifiers(KeyMod.Shift | KeyCode.US_QUOTE, {
-		// 	noModifiers: 'Shift+Digit2',
-		// 	ctrl: 'Shift+Cmd+Digit2',
-		// 	alt: 'Shift+Alt+Digit2',
-		// 	meta: 'Ctrl+Shift+Digit2',
-		// 	ctrl_alt: 'Shift+Alt+Cmd+Digit2',
-		// 	ctrl_meta: 'Ctrl+Shift+Cmd+Digit2',
-		// 	alt_meta: 'Ctrl+Shift+Alt+Digit2',
-		// 	ctrl_alt_meta: 'Ctrl+Shift+Alt+Cmd+Digit2',
-		// });
-		// // OEM_8
-		// // OEM_102
+		// <
+		assertForAllModifiers(KeyMod.Shift | KeyCode.US_COMMA, {
+			noModifiers: ['IntlBackslash', 'Ctrl+Shift+Alt+KeyZ'],
+			ctrl: 'Ctrl+IntlBackslash',
+			alt: 'Alt+IntlBackslash',
+			meta: ['Meta+IntlBackslash', 'Ctrl+Shift+Alt+Meta+KeyZ'],
+			ctrl_alt: 'Ctrl+Alt+IntlBackslash',
+			ctrl_meta: 'Ctrl+Meta+IntlBackslash',
+			alt_meta: 'Alt+Meta+IntlBackslash',
+			ctrl_alt_meta: 'Ctrl+Alt+Meta+IntlBackslash',
+		});
+		// -
+		assertForAllModifiers(KeyCode.US_MINUS, {
+			noModifiers: 'Slash',
+			ctrl: 'Ctrl+Slash',
+			alt: 'Alt+Slash',
+			meta: 'Meta+Slash',
+			ctrl_alt: 'Ctrl+Alt+Slash',
+			ctrl_meta: 'Ctrl+Meta+Slash',
+			alt_meta: 'Alt+Meta+Slash',
+			ctrl_alt_meta: 'Ctrl+Alt+Meta+Slash',
+		});
+		// _
+		assertForAllModifiers(KeyMod.Shift | KeyCode.US_MINUS, {
+			noModifiers: 'Shift+Slash',
+			ctrl: 'Ctrl+Shift+Slash',
+			alt: 'Shift+Alt+Slash',
+			meta: 'Shift+Meta+Slash',
+			ctrl_alt: 'Ctrl+Shift+Alt+Slash',
+			ctrl_meta: 'Ctrl+Shift+Meta+Slash',
+			alt_meta: 'Shift+Alt+Meta+Slash',
+			ctrl_alt_meta: 'Ctrl+Shift+Alt+Meta+Slash',
+		});
+		// .
+		assertForAllModifiers(KeyCode.US_DOT, {
+			noModifiers: 'Period',
+			ctrl: 'Ctrl+Period',
+			alt: 'Alt+Period',
+			meta: 'Meta+Period',
+			ctrl_alt: 'Ctrl+Alt+Period',
+			ctrl_meta: 'Ctrl+Meta+Period',
+			alt_meta: 'Alt+Meta+Period',
+			ctrl_alt_meta: 'Ctrl+Alt+Meta+Period',
+		});
+		// >
+		assertForAllModifiers(KeyMod.Shift | KeyCode.US_DOT, {
+			noModifiers: ['Shift+IntlBackslash', 'Ctrl+Shift+Alt+KeyX'],
+			ctrl: 'Ctrl+Shift+IntlBackslash',
+			alt: 'Shift+Alt+IntlBackslash',
+			meta: ['Shift+Meta+IntlBackslash', 'Ctrl+Shift+Alt+Meta+KeyX'],
+			ctrl_alt: 'Ctrl+Shift+Alt+IntlBackslash',
+			ctrl_meta: 'Ctrl+Shift+Meta+IntlBackslash',
+			alt_meta: 'Shift+Alt+Meta+IntlBackslash',
+			ctrl_alt_meta: 'Ctrl+Shift+Alt+Meta+IntlBackslash',
+		});
+		// /
+		assertForAllModifiers(KeyCode.US_SLASH, {
+			noModifiers: 'Shift+Digit7',
+			ctrl: 'Ctrl+Shift+Digit7',
+			alt: 'Shift+Alt+Digit7',
+			meta: 'Shift+Meta+Digit7',
+			ctrl_alt: 'Ctrl+Shift+Alt+Digit7',
+			ctrl_meta: 'Ctrl+Shift+Meta+Digit7',
+			alt_meta: 'Shift+Alt+Meta+Digit7',
+			ctrl_alt_meta: 'Ctrl+Shift+Alt+Meta+Digit7',
+		});
+		// ?
+		assertForAllModifiers(KeyMod.Shift | KeyCode.US_SLASH, {
+			noModifiers: 'Shift+Minus',
+			ctrl: 'Ctrl+Shift+Minus',
+			alt: 'Shift+Alt+Minus',
+			meta: 'Shift+Meta+Minus',
+			ctrl_alt: 'Ctrl+Shift+Alt+Minus',
+			ctrl_meta: 'Ctrl+Shift+Meta+Minus',
+			alt_meta: 'Shift+Alt+Meta+Minus',
+			ctrl_alt_meta: 'Ctrl+Shift+Alt+Meta+Minus',
+		});
+		// `
+		assertForAllModifiers(KeyCode.US_BACKTICK, {
+			noModifiers: 'Shift+Equal',
+			ctrl: 'Ctrl+Shift+Equal',
+			alt: 'Shift+Alt+Equal',
+			meta: 'Shift+Meta+Equal',
+			ctrl_alt: 'Ctrl+Shift+Alt+Equal',
+			ctrl_meta: 'Ctrl+Shift+Meta+Equal',
+			alt_meta: 'Shift+Alt+Meta+Equal',
+			ctrl_alt_meta: 'Ctrl+Shift+Alt+Meta+Equal',
+		});
+		// ~
+		assertForAllModifiers(KeyMod.Shift | KeyCode.US_BACKTICK, {
+			noModifiers: null,
+			ctrl: null,
+			alt: null,
+			meta: null,
+			ctrl_alt: null,
+			ctrl_meta: null,
+			alt_meta: null,
+			ctrl_alt_meta: null,
+		});
+		// [
+		assertForAllModifiers(KeyCode.US_OPEN_SQUARE_BRACKET, {
+			noModifiers: 'Ctrl+Alt+BracketLeft',
+			ctrl: null,
+			alt: null,
+			meta: 'Ctrl+Alt+Meta+BracketLeft',
+			ctrl_alt: null,
+			ctrl_meta: null,
+			alt_meta: null,
+			ctrl_alt_meta: null,
+		});
+		// {
+		assertForAllModifiers(KeyMod.Shift | KeyCode.US_OPEN_SQUARE_BRACKET, {
+			noModifiers: 'Ctrl+Alt+Quote',
+			ctrl: null,
+			alt: null,
+			meta: 'Ctrl+Alt+Meta+Quote',
+			ctrl_alt: null,
+			ctrl_meta: null,
+			alt_meta: null,
+			ctrl_alt_meta: null,
+		});
+		// \
+		assertForAllModifiers(KeyCode.US_BACKSLASH, {
+			noModifiers: 'Ctrl+Alt+IntlBackslash',
+			ctrl: null,
+			alt: null,
+			meta: 'Ctrl+Alt+Meta+IntlBackslash',
+			ctrl_alt: null,
+			ctrl_meta: null,
+			alt_meta: null,
+			ctrl_alt_meta: null,
+		});
+		// |
+		assertForAllModifiers(KeyMod.Shift | KeyCode.US_BACKSLASH, {
+			noModifiers: ['Ctrl+Alt+Digit1', 'Ctrl+Alt+Digit7'],
+			ctrl: null,
+			alt: null,
+			meta: ['Ctrl+Alt+Meta+Digit1', 'Ctrl+Alt+Meta+Digit7'],
+			ctrl_alt: null,
+			ctrl_meta: null,
+			alt_meta: null,
+			ctrl_alt_meta: null,
+		});
+		// ]
+		assertForAllModifiers(KeyCode.US_CLOSE_SQUARE_BRACKET, {
+			noModifiers: ['Ctrl+Alt+Digit9', 'Ctrl+Alt+BracketRight'],
+			ctrl: null,
+			alt: null,
+			meta: ['Ctrl+Alt+Meta+Digit9', 'Ctrl+Alt+Meta+BracketRight'],
+			ctrl_alt: null,
+			ctrl_meta: null,
+			alt_meta: null,
+			ctrl_alt_meta: null,
+		});
+		// }
+		assertForAllModifiers(KeyMod.Shift | KeyCode.US_CLOSE_SQUARE_BRACKET, {
+			noModifiers: ['Ctrl+Alt+Digit0', 'Ctrl+Alt+Backslash'],
+			ctrl: null,
+			alt: null,
+			meta: ['Ctrl+Alt+Meta+Digit0', 'Ctrl+Alt+Meta+Backslash'],
+			ctrl_alt: null,
+			ctrl_meta: null,
+			alt_meta: null,
+			ctrl_alt_meta: null,
+		});
+		// '
+		assertForAllModifiers(KeyCode.US_QUOTE, {
+			noModifiers: 'Minus',
+			ctrl: 'Ctrl+Minus',
+			alt: 'Alt+Minus',
+			meta: 'Meta+Minus',
+			ctrl_alt: 'Ctrl+Alt+Minus',
+			ctrl_meta: 'Ctrl+Meta+Minus',
+			alt_meta: 'Alt+Meta+Minus',
+			ctrl_alt_meta: 'Ctrl+Alt+Meta+Minus',
+		});
+		// "
+		assertForAllModifiers(KeyMod.Shift | KeyCode.US_QUOTE, {
+			noModifiers: 'Shift+Digit2',
+			ctrl: 'Ctrl+Shift+Digit2',
+			alt: 'Shift+Alt+Digit2',
+			meta: 'Shift+Meta+Digit2',
+			ctrl_alt: 'Ctrl+Shift+Alt+Digit2',
+			ctrl_meta: 'Ctrl+Shift+Meta+Digit2',
+			alt_meta: 'Shift+Alt+Meta+Digit2',
+			ctrl_alt_meta: 'Ctrl+Shift+Alt+Meta+Digit2',
+		});
+		// OEM_8
+		// OEM_102
 	});
 });
