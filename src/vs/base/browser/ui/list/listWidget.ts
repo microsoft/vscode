@@ -306,6 +306,33 @@ const DefaultOptions: IListOptions<any> = {
 	mouseSupport: true
 };
 
+/**
+ * Given two sorted collections of numbers, returns the exclusive
+ * disjunction between them (XOR).
+ */
+function exclusiveDisjunction(one: number[], other: number[]): number[] {
+	const result = [];
+	let i = 0, j = 0;
+
+	while (i < one.length || j < other.length) {
+		if (i >= one.length) {
+			result.push(other[j++]);
+		} else if (j >= other.length) {
+			result.push(one[i++]);
+		} else if (one[i] === other[j]) {
+			i++;
+			j++;
+			continue;
+		} else if (one[i] < other[j]) {
+			result.push(one[i++]);
+		} else {
+			result.push(other[j++]);
+		}
+	}
+
+	return result;
+}
+
 export class List<T> implements ISpliceable<T>, IDisposable {
 
 	private static InstanceCount = 0;
@@ -421,8 +448,11 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 	setSelection(indexes: number[]): void {
 		this.eventBufferer.bufferEvents(() => {
-			indexes = indexes.concat(this.selection.set(indexes));
-			indexes.forEach(i => this.view.splice(i, 1, [this.view.element(i)]));
+			indexes = indexes.sort();
+
+			const oldIndexes = this.selection.set(indexes);
+			const diffIndexes = exclusiveDisjunction(oldIndexes, indexes);
+			diffIndexes.forEach(i => this.view.splice(i, 1, [this.view.element(i)]));
 		});
 	}
 
@@ -449,8 +479,11 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 	setFocus(indexes: number[]): void {
 		this.eventBufferer.bufferEvents(() => {
-			indexes = indexes.concat(this.focus.set(indexes));
-			indexes.forEach(i => this.view.splice(i, 1, [this.view.element(i)]));
+			indexes = indexes.sort();
+
+			const oldIndexes = this.focus.set(indexes);
+			const diffIndexes = exclusiveDisjunction(oldIndexes, indexes);
+			diffIndexes.forEach(i => this.view.splice(i, 1, [this.view.element(i)]));
 		});
 	}
 
