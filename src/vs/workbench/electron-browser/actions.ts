@@ -924,10 +924,12 @@ export class ToggleSharedProcessAction extends Action {
 	}
 }
 
-export abstract class BaseNavigationAction extends Action {
+enum Direction {
+	Next,
+	Previous,
+}
 
-	protected NEXT = 'next';
-	protected PREVIOUS = 'previous';
+export abstract class BaseNavigationAction extends Action {
 
 	constructor(
 		id: string,
@@ -993,10 +995,10 @@ export abstract class BaseNavigationAction extends Action {
 		return this.viewletService.openViewlet(activeViewletId, true);
 	}
 
-	protected navigateAcrossEditorGroup(direction: string): TPromise<any> {
+	protected navigateAcrossEditorGroup(direction): TPromise<any> {
 		const model = this.groupService.getStacksModel();
 		const currentPosition = model.positionOfGroup(model.activeGroup);
-		const nextPosition = direction === this.NEXT ? currentPosition + 1 : currentPosition - 1;
+		const nextPosition = direction === Direction.Next ? currentPosition + 1 : currentPosition - 1;
 
 		if (nextPosition < 0 || nextPosition > model.groups.length - 1) {
 			return TPromise.as(false);
@@ -1029,7 +1031,7 @@ export abstract class BaseNavigationAction extends Action {
 export class NavigateLeftAction extends BaseNavigationAction {
 
 	public static ID = 'workbench.action.navigateLeft';
-	public static LABEL = nls.localize('navigateLeft', "Navigate Left");
+	public static LABEL = nls.localize('navigateLeft', "Move to the View Part on the Left");
 
 	constructor(
 		id: string,
@@ -1044,9 +1046,12 @@ export class NavigateLeftAction extends BaseNavigationAction {
 
 	protected navigateOnEditorFocus(isEditorGroupVertical, isSidebarPositionLeft): TPromise<boolean> {
 		if (!isEditorGroupVertical) {
-			return this.navigateToSidebar();
+			if (isSidebarPositionLeft) {
+				return this.navigateToSidebar();
+			}
+			return TPromise.as(false);
 		}
-		return this.navigateAcrossEditorGroup(this.PREVIOUS)
+		return this.navigateAcrossEditorGroup(Direction.Previous)
 			.then(didNavigate => {
 				if (!didNavigate && isSidebarPositionLeft) {
 					return this.navigateToSidebar();
@@ -1076,7 +1081,7 @@ export class NavigateLeftAction extends BaseNavigationAction {
 export class NavigateRightAction extends BaseNavigationAction {
 
 	public static ID = 'workbench.action.navigateRight';
-	public static LABEL = nls.localize('navigateRight', "Navigate Right");
+	public static LABEL = nls.localize('navigateRight', "Move to the View Part on the Right");
 
 	constructor(
 		id: string,
@@ -1091,9 +1096,12 @@ export class NavigateRightAction extends BaseNavigationAction {
 
 	protected navigateOnEditorFocus(isEditorGroupVertical, isSidebarPositionLeft): TPromise<boolean> {
 		if (!isEditorGroupVertical) {
-			return this.navigateToSidebar();
+			if (!isSidebarPositionLeft) {
+				return this.navigateToSidebar();
+			}
+			return TPromise.as(false);
 		}
-		return this.navigateAcrossEditorGroup(this.NEXT)
+		return this.navigateAcrossEditorGroup(Direction.Next)
 			.then(didNavigate => {
 				if (!didNavigate && !isSidebarPositionLeft) {
 					return this.navigateToSidebar();
@@ -1123,7 +1131,7 @@ export class NavigateRightAction extends BaseNavigationAction {
 export class NavigateUpAction extends BaseNavigationAction {
 
 	public static ID = 'workbench.action.navigateUp';
-	public static LABEL = nls.localize('navigateUp', "Navigate Up");
+	public static LABEL = nls.localize('navigateUp', "Move to the View Part Above");
 
 	constructor(
 		id: string,
@@ -1140,7 +1148,7 @@ export class NavigateUpAction extends BaseNavigationAction {
 		if (isEditorGroupVertical) {
 			return TPromise.as(false);
 		}
-		return this.navigateAcrossEditorGroup(this.PREVIOUS);
+		return this.navigateAcrossEditorGroup(Direction.Previous);
 	}
 
 	protected navigateOnPanelFocus(isEditorGroupVertical, isSidebarPositionLeft): TPromise<boolean> {
@@ -1154,7 +1162,7 @@ export class NavigateUpAction extends BaseNavigationAction {
 export class NavigateDownAction extends BaseNavigationAction {
 
 	public static ID = 'workbench.action.navigateDown';
-	public static LABEL = nls.localize('navigateDown', "Navigate Down");
+	public static LABEL = nls.localize('navigateDown', "Move to the View Part Below");
 
 	constructor(
 		id: string,
@@ -1171,7 +1179,7 @@ export class NavigateDownAction extends BaseNavigationAction {
 		if (isEditorGroupVertical) {
 			return this.navigateToPanel();
 		}
-		return this.navigateAcrossEditorGroup(this.NEXT)
+		return this.navigateAcrossEditorGroup(Direction.Next)
 			.then(didNavigate => {
 				if (didNavigate) {
 					return TPromise.as(true);
