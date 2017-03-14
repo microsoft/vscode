@@ -381,7 +381,11 @@ export function matchesFuzzy2(pattern: string, word: string): IMatch[] | undefin
 		wordPos += 1;
 	}
 
-	return result.length > 0 ? result : undefined;
+	if (patternPos !== pattern.length) {
+		return undefined;
+	}
+
+	return result;
 }
 
 export function matchesFuzzy3(pattern: string, word: string) {
@@ -435,7 +439,7 @@ function _doMatchesFuzzy3(
 		wordPos += 1;
 	}
 
-	if (positions.length === 0) {
+	if (patternPos !== lowPattern.length) {
 		return undefined;
 	}
 
@@ -470,3 +474,103 @@ function _doMatchesFuzzy3(
 const _separator = /[-_. ]/;
 
 
+export function matchesFuzzy4(pattern: string, word: string): [IMatch[], number] {
+
+	const lowPattern = pattern.toLowerCase();
+	const lowWord = word.toLowerCase();
+	const [landmarkWord, landmarkPositions] = computeLandmarks(word, lowWord);
+
+	let landmarkPos = 0;
+	let wordPos = 0;
+	let patternPos = 1;
+	let charLowPattern = lowPattern.charAt(0);
+	let result: IMatch[] = [];
+	let lastMatch: IMatch;
+	let score = 0;
+
+	if (charLowPattern === lowWord.charAt(0)) {
+		lastMatch = { start: wordPos, end: wordPos + 1 };
+		result.push(lastMatch);
+		wordPos = 1;
+		landmarkPos = 1;
+		if (pattern.charAt(0) === word.charAt(0)) {
+			score += 10;
+		}
+
+	} else if ((landmarkPos = landmarkWord.indexOf(charLowPattern)) >= 0) {
+		wordPos = landmarkPositions[landmarkPos];
+
+		score += 10 - Math.min(9, wordPos * 3);
+		lastMatch = { start: wordPos, end: wordPos + 1 };
+		result.push(lastMatch);
+
+		wordPos += 1;
+		landmarkPos += 1;
+
+	} else {
+		return undefined;
+	}
+
+	while (patternPos < lowPattern.length && wordPos < lowWord.length) {
+		charLowPattern = lowPattern.charAt(patternPos);
+		let match = false;
+		if (landmarkPos < landmarkWord.length && charLowPattern === landmarkWord.charAt(landmarkPos)) {
+			let newWordPos = landmarkPositions[landmarkPos];
+			match = true;
+			score += 10 - (newWordPos - wordPos);
+			wordPos = newWordPos;
+			landmarkPos += 1;
+			patternPos += 1;
+
+		} else if (charLowPattern === lowWord.charAt(wordPos)) {
+			match = true;
+			patternPos += 1;
+		}
+
+		if (match) {
+			if (lastMatch && lastMatch.end === wordPos) {
+				lastMatch.end += 1;
+				score += 1;
+			} else {
+				lastMatch = { start: wordPos, end: wordPos + 1 };
+				result.push(lastMatch);
+			}
+		}
+
+		wordPos += 1;
+		if (wordPos >= landmarkPositions[landmarkPos]) {
+			landmarkPos += 1;
+		}
+	}
+
+	if (patternPos !== lowPattern.length) {
+		return undefined;
+	}
+
+	// substract uncovered remainder
+	score -= lowWord.length - wordPos;
+
+	return [result, score];
+}
+
+function computeLandmarks(word: string, lowWord: string): [string, number[]] {
+	let result: string = '';
+	let positions: number[] = [];
+	let lastCh: string;
+
+	for (let pos = 0; pos < word.length; pos++) {
+		const ch = word.charAt(pos);
+		if (!result // first character is a landmark
+			|| (lastCh === '_' || lastCh === '-' || lastCh === ' ') // last was separator
+			|| ch !== lowWord.charAt(pos) // upper-case
+		) {
+			result += ch;
+			positions.push(pos);
+		}
+		lastCh = ch;
+	}
+
+	result = result.toLowerCase();
+
+	return [result, positions];
+}
