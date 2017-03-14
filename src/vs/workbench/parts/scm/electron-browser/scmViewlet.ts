@@ -174,7 +174,7 @@ export class SCMViewlet extends Viewlet {
 		@IMessageService private messageService: IMessageService,
 		@IListService private listService: IListService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
+		@IWorkbenchThemeService protected themeService: IWorkbenchThemeService,
 		@IMenuService private menuService: IMenuService,
 		@IModelService private modelService: IModelService
 	) {

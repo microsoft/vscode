@@ -58,7 +58,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 		@IInstantiationService private _instantiationService: IInstantiationService,
 		@IStorageService private storageService: IStorageService,
 		@IConfigurationService private _configurationService: IConfigurationService,
-		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
+		@IWorkbenchThemeService protected themeService: IWorkbenchThemeService,
 		@IModeService private modeService: IModeService,
 		@ITextFileService private textFileService: ITextFileService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService

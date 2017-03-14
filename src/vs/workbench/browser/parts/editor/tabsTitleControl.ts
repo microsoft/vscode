@@ -40,6 +40,8 @@ import { extractResources } from 'vs/base/browser/dnd';
 import { LinkedMap } from 'vs/base/common/map';
 import { DelegatingWorkbenchEditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { INACTIVE_TAB_BACKGROUND, ACTIVE_TAB_BACKGROUND } from 'vs/workbench/browser/styles';
 
 interface IEditorInputLabel {
 	editor: IEditorInput;
@@ -70,9 +72,10 @@ export class TabsTitleControl extends TitleControl {
 		@IMessageService messageService: IMessageService,
 		@IMenuService menuService: IMenuService,
 		@IQuickOpenService quickOpenService: IQuickOpenService,
-		@IWindowService private windowService: IWindowService
+		@IWindowService private windowService: IWindowService,
+		@IThemeService themeService: IThemeService
 	) {
-		super(contextMenuService, instantiationService, editorService, editorGroupService, contextKeyService, keybindingService, telemetryService, messageService, menuService, quickOpenService);
+		super(contextMenuService, instantiationService, editorService, editorGroupService, contextKeyService, keybindingService, telemetryService, messageService, menuService, quickOpenService, themeService);
 
 		this.tabDisposeables = [];
 		this.editorLabels = [];
@@ -123,7 +126,7 @@ export class TabsTitleControl extends TitleControl {
 		DOM.addClass(this.tabsContainer, 'tabs-container');
 
 		// Forward scrolling inside the container to our custom scrollbar
-		this.toDispose.push(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.SCROLL, e => {
+		this.toUnbind.push(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.SCROLL, e => {
 			if (DOM.hasClass(this.tabsContainer, 'scroll')) {
 				this.scrollbar.updateState({
 					scrollLeft: this.tabsContainer.scrollLeft // during DND the  container gets scrolled so we need to update the custom scrollbar
@@ -132,7 +135,7 @@ export class TabsTitleControl extends TitleControl {
 		}));
 
 		// New file when double clicking on tabs container (but not tabs)
-		this.toDispose.push(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.DBLCLICK, e => {
+		this.toUnbind.push(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.DBLCLICK, e => {
 			const target = e.target;
 			if (target instanceof HTMLElement && target.className.indexOf('tabs-container') === 0) {
 				DOM.EventHelper.stop(e);
@@ -161,7 +164,7 @@ export class TabsTitleControl extends TitleControl {
 		this.titleContainer.appendChild(this.scrollbar.getDomNode());
 
 		// Drag over
-		this.toDispose.push(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.DRAG_OVER, (e: DragEvent) => {
+		this.toUnbind.push(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.DRAG_OVER, (e: DragEvent) => {
 			DOM.addClass(this.tabsContainer, 'scroll'); // enable support to scroll while dragging
 
 			const target = e.target;
@@ -171,19 +174,19 @@ export class TabsTitleControl extends TitleControl {
 		}));
 
 		// Drag leave
-		this.toDispose.push(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.DRAG_LEAVE, (e: DragEvent) => {
+		this.toUnbind.push(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.DRAG_LEAVE, (e: DragEvent) => {
 			DOM.removeClass(this.tabsContainer, 'dropfeedback');
 			DOM.removeClass(this.tabsContainer, 'scroll');
 		}));
 
 		// Drag end
-		this.toDispose.push(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.DRAG_END, (e: DragEvent) => {
+		this.toUnbind.push(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.DRAG_END, (e: DragEvent) => {
 			DOM.removeClass(this.tabsContainer, 'dropfeedback');
 			DOM.removeClass(this.tabsContainer, 'scroll');
 		}));
 
 		// Drop onto tabs container
-		this.toDispose.push(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.DROP, (e: DragEvent) => {
+		this.toUnbind.push(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.DROP, (e: DragEvent) => {
 			DOM.removeClass(this.tabsContainer, 'dropfeedback');
 			DOM.removeClass(this.tabsContainer, 'scroll');
 
@@ -261,10 +264,12 @@ export class TabsTitleControl extends TitleControl {
 				if (isActive) {
 					DOM.addClass(tabContainer, 'active');
 					tabContainer.setAttribute('aria-selected', 'true');
+					tabContainer.style.backgroundColor = this.getColor(ACTIVE_TAB_BACKGROUND);
 					this.activeTab = tabContainer;
 				} else {
 					DOM.removeClass(tabContainer, 'active');
 					tabContainer.setAttribute('aria-selected', 'false');
+					tabContainer.style.backgroundColor = this.getColor(INACTIVE_TAB_BACKGROUND);
 				}
 
 				// Dirty State
@@ -391,7 +396,7 @@ export class TabsTitleControl extends TitleControl {
 		tabContainer.draggable = true;
 		tabContainer.tabIndex = 0;
 		tabContainer.setAttribute('role', 'presentation'); // cannot use role "tab" here due to https://github.com/Microsoft/vscode/issues/8659
-		DOM.addClass(tabContainer, 'tab monaco-editor-background');
+		DOM.addClass(tabContainer, 'tab');
 
 		// Tab Editor Label
 		const editorLabel = this.instantiationService.createInstance(EditorLabel, tabContainer, void 0);
