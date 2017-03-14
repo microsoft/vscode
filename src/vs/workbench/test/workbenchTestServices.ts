@@ -238,6 +238,7 @@ export class TestMessageService implements IMessageService {
 }
 
 export class TestPartService implements IPartService {
+
 	public _serviceBrand: any;
 
 	private _onTitleBarVisibilityChange = new Emitter<void>();
@@ -304,6 +305,10 @@ export class TestPartService implements IPartService {
 	public setPanelHidden(hidden: boolean): TPromise<void> { return TPromise.as(null); }
 
 	public toggleMaximizedPanel(): void { }
+
+	public isPanelMaximized(): boolean {
+		return false;
+	}
 
 	public getSideBarPosition() {
 		return 0;
