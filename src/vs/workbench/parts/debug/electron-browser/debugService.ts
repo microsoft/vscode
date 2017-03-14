@@ -66,7 +66,7 @@ export class DebugService implements debug.IDebugService {
 	public _serviceBrand: any;
 
 	private sessionStates: Map<string, debug.State>;
-	private _onDidChangeState: Emitter<void>;
+	private _onDidChangeState: Emitter<debug.State>;
 	private model: Model;
 	private viewModel: ViewModel;
 	private configurationManager: ConfigurationManager;
@@ -103,7 +103,7 @@ export class DebugService implements debug.IDebugService {
 		this.toDispose = [];
 		this.toDisposeOnSessionEnd = new Map<string, lifecycle.IDisposable[]>();
 		this.breakpointsToSendOnResourceSaved = new Set<string>();
-		this._onDidChangeState = new Emitter<void>();
+		this._onDidChangeState = new Emitter<debug.State>();
 		this.sessionStates = new Map<string, debug.State>();
 
 		this.configurationManager = this.instantiationService.createInstance(ConfigurationManager);
@@ -450,7 +450,7 @@ export class DebugService implements debug.IDebugService {
 		return debug.State.Inactive;
 	}
 
-	public get onDidChangeState(): Event<void> {
+	public get onDidChangeState(): Event<debug.State> {
 		return this._onDidChangeState.event;
 	}
 
@@ -460,7 +460,7 @@ export class DebugService implements debug.IDebugService {
 		} else {
 			this.sessionStates.set(sessionId, newState);
 		}
-		this._onDidChangeState.fire();
+		this._onDidChangeState.fire(this.state);
 	}
 
 	public get enabled(): boolean {
@@ -479,7 +479,7 @@ export class DebugService implements debug.IDebugService {
 		}
 
 		this.viewModel.setFocusedStackFrame(stackFrame, process);
-		this._onDidChangeState.fire();
+		this._onDidChangeState.fire(this.state);
 
 		return this.model.evaluateWatchExpressions(process, stackFrame);
 	}
