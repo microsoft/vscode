@@ -501,6 +501,16 @@ _defaultPatterns['go'] = {
 	column: 6,
 	message: 7
 };
+_defaultPatterns['haxe'] = {
+	regexp: /^(.+):(\d+): (?:lines \d+-(\d+)|character(?:s (\d+)-| )(\d+)) : (?:(Warning) : )?(.*)$/,
+	file: 1,
+	line: 2,
+	endLine: 3,
+	column: 4,
+	endColumn: 5,
+	severity: 6,
+	message: 7
+};
 
 export function defaultPattern(name: 'msCompile'): ProblemPattern;
 export function defaultPattern(name: 'tsc'): ProblemPattern;
@@ -511,6 +521,7 @@ export function defaultPattern(name: 'lessCompile'): ProblemPattern;
 export function defaultPattern(name: 'jshint'): ProblemPattern;
 export function defaultPattern(name: 'gulp-tsc'): ProblemPattern;
 export function defaultPattern(name: 'go'): ProblemPattern;
+export function defaultPattern(name: 'haxe'): ProblemPattern;
 export function defaultPattern(name: 'jshint-stylish'): ProblemPattern[];
 export function defaultPattern(name: string): ProblemPattern | ProblemPattern[];
 export function defaultPattern(name: string): ProblemPattern | ProblemPattern[] {
@@ -1143,4 +1154,11 @@ registry.add('go', {
 	fileLocation: FileLocationKind.Relative,
 	filePrefix: '${cwd}',
 	pattern: defaultPattern('go')
+});
+
+registry.add('haxe', {
+	owner: 'haxe',
+	applyTo: ApplyToKind.allDocuments,
+	fileLocation: FileLocationKind.Relative,
+	pattern: defaultPattern('haxe')
 });
