@@ -6,6 +6,7 @@
 import 'vs/css!./media/panelpart';
 import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { Action } from 'vs/base/common/actions';
 import { Registry } from 'vs/platform/platform';
@@ -113,23 +114,33 @@ class FocusPanelAction extends Action {
 	}
 }
 
-class ToggleMaximizedPanelAction extends Action {
+export class ToggleMaximizedPanelAction extends Action {
 
 	public static ID = 'workbench.action.toggleMaximizedPanel';
 	public static LABEL = nls.localize('toggleMaximizedPanel', "Toggle Maximized Panel");
+	private toDispose: IDisposable[];
 
 	constructor(
 		id: string,
 		label: string,
 		@IPartService private partService: IPartService
 	) {
-		super(id, label);
+		super(id, label, partService.isPanelMaximized() ? 'minimize-panel-action' : 'maximize-panel-action');
+		this.toDispose = [];
+		this.toDispose.push(partService.onEditorLayout(() => {
+			this.class = this.partService.isPanelMaximized() ? 'minimize-panel-action' : 'maximize-panel-action';
+		}));
 	}
 
 	public run(): TPromise<any> {
 		// Show panel
 		return this.partService.setPanelHidden(false)
 			.then(() => this.partService.toggleMaximizedPanel());
+	}
+
+	public dispose(): void {
+		super.dispose();
+		this.toDispose = dispose(this.toDispose);
 	}
 }
 

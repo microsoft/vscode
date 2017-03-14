@@ -70,6 +70,24 @@
 	background: url('close.svg') center center no-repeat;
 }
 
+.monaco-workbench .maximize-panel-action {
+	background: url('up.svg') center center no-repeat;
+}
+
+.vs-dark .monaco-workbench .maximize-panel-action,
+.hc-black .monaco-workbench .maximize-panel-action {
+	background: url('up-inverse.svg') center center no-repeat;
+}
+
+.monaco-workbench .minimize-panel-action {
+	background: url('down.svg') center center no-repeat;
+}
+
+.vs-dark .monaco-workbench .minimize-panel-action,
+.hc-black .monaco-workbench .minimize-panel-action {
+	background: url('down-inverse.svg') center center no-repeat;
+}
+
 .vs-dark .monaco-workbench .hide-panel-action,
 .hc-black .monaco-workbench .hide-panel-action {
 	background: url('close-inverse.svg') center center no-repeat;

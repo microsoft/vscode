@@ -799,6 +799,10 @@ export class Workbench implements IPartService {
 		this.workbenchLayout.layout({ toggleMaximizedPanel: true });
 	}
 
+	public isPanelMaximized(): boolean {
+		return this.workbenchLayout.isPanelMaximized();
+	}
+
 	public getSideBarPosition(): Position {
 		return this.sideBarPosition;
 	}
