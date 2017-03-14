@@ -410,4 +410,6 @@ export const enum KeyboardEventCode {
 	MailReply,
 	MailForward,
 	MailSend,
+
+	MAX_VALUE
 }

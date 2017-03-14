@@ -8,12 +8,13 @@
 import * as assert from 'assert';
 import { mac_de_ch } from 'vs/workbench/services/keybinding/test/mac_de_ch';
 import { linux_de_ch } from 'vs/workbench/services/keybinding/test/linux_de_ch';
-import { KeyMod, KeyCode, SimpleKeybinding, createKeybinding } from 'vs/base/common/keyCodes';
+import { KeyMod, KeyCode, SimpleKeybinding, createKeybinding, Keybinding } from 'vs/base/common/keyCodes';
 import { KeyboardMapper } from 'vs/workbench/services/keybinding/common/keyboardMapper';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { UserSettingsLabelProvider, PrintableKeypress } from 'vs/platform/keybinding/common/keybindingLabels';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/abstractKeybindingService';
-import { KeyboardEventCodeUtils } from "vs/workbench/services/keybinding/common/keyboardEventCode";
+import { KeyboardEventCodeUtils } from 'vs/workbench/services/keybinding/common/keyboardEventCode';
+import { IHTMLContentElement } from "vs/base/common/htmlContent";
 
 function _assertKeybindingTranslation(mapper: KeyboardMapper, OS: OperatingSystem, kb: number, expected: string[]): void {
 	let actualHardwareKeypresses = mapper.mapSimpleKeybinding(new SimpleKeybinding(kb));
@@ -325,6 +326,104 @@ suite('keyboardMapper - MAC de_ch', () => {
 		// OEM_8
 		// OEM_102
 	});
+
+	test('resolveKeybinding - all labels', () => {
+		function _assertAllLabels(keybinding: Keybinding, labels: string[], ariaLabels: string[], htmlLabel: IHTMLContentElement[][]): void {
+			const kb = mapper.resolveKeybinding(keybinding);
+
+			let actualLabels = kb.map(k => k.getLabel());
+			assert.deepEqual(actualLabels, labels);
+
+			let actualAriaLabels = kb.map(k => k.getAriaLabel());
+			assert.deepEqual(actualAriaLabels, ariaLabels);
+
+			let actualHTMLLabels = kb.map(k => k.getHTMLLabel());
+			assert.deepEqual(actualHTMLLabels, htmlLabel);
+		}
+
+		function assertAllLabels(keybinding: Keybinding, label: string | string[], ariaLabel: string | string[], htmlLabel: IHTMLContentElement[][]): void {
+			let _labels = (typeof label === 'string' ? [label] : label);
+			let _ariaLabels = (typeof ariaLabel === 'string' ? [ariaLabel] : ariaLabel);
+			_assertAllLabels(keybinding, _labels, _ariaLabels, htmlLabel);
+		}
+
+
+		// TODO: ElectronAccelerator, UserSettings
+		assertAllLabels(
+			createKeybinding(KeyMod.CtrlCmd | KeyCode.KEY_Z),
+			'⌘Z',
+			'Command+Z',
+			[[{
+				tagName: 'span',
+				className: 'monaco-kb',
+				children: [
+					{ tagName: 'span', className: 'monaco-kbkey', text: '⌘' },
+					{ tagName: 'span', className: 'monaco-kbkey', text: 'Z' },
+				]
+			}]]
+		);
+	});
+
+	test('resolveKeybinding - aria labels', () => {
+		function assertAriaLabels(keybinding: number, label: string | string[]): void {
+			let _labels = (typeof label === 'string' ? [label] : label);
+			const kb = mapper.resolveKeybinding(createKeybinding(keybinding));
+			let actualLabels = kb.map(k => k.getAriaLabel());
+			assert.deepEqual(actualLabels, _labels);
+		}
+
+		assertAriaLabels(KeyMod.CtrlCmd | KeyCode.KEY_1, 'Command+1');
+		assertAriaLabels(KeyMod.CtrlCmd | KeyCode.KEY_B, 'Command+B');
+		assertAriaLabels(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_B, 'Shift+Command+B');
+		assertAriaLabels(KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.KEY_B, 'Control+Shift+Alt+Command+B');
+		assertAriaLabels(KeyMod.CtrlCmd | KeyCode.KEY_Z, 'Command+Z');
+		assertAriaLabels(KeyMod.CtrlCmd | KeyCode.KEY_Y, 'Command+Y');
+
+		// ;
+		assertAriaLabels(KeyCode.US_SEMICOLON, 'Shift+,');
+		// :
+		assertAriaLabels(KeyMod.Shift | KeyCode.US_SEMICOLON, 'Shift+.');
+		// =
+		assertAriaLabels(KeyCode.US_EQUAL, 'Shift+0');
+		// +
+		assertAriaLabels(KeyMod.Shift | KeyCode.US_EQUAL, 'Shift+1');
+		// ,
+		assertAriaLabels(KeyCode.US_COMMA, ',');
+		// <
+		assertAriaLabels(KeyMod.Shift | KeyCode.US_COMMA, '<');
+		// -
+		assertAriaLabels(KeyCode.US_MINUS, '-');
+		// _
+		assertAriaLabels(KeyMod.Shift | KeyCode.US_MINUS, 'Shift+-');
+		// .
+		assertAriaLabels(KeyCode.US_DOT, '.');
+		// >
+		assertAriaLabels(KeyMod.Shift | KeyCode.US_DOT, 'Shift+<');
+		// /
+		assertAriaLabels(KeyCode.US_SLASH, 'Shift+7');
+		// ?
+		assertAriaLabels(KeyMod.Shift | KeyCode.US_SLASH, 'Shift+\'');
+		// `
+		assertAriaLabels(KeyCode.US_BACKTICK, 'Shift+^');
+		// ~
+		assertAriaLabels(KeyMod.Shift | KeyCode.US_BACKTICK, 'Control+Alt+N');
+		// [
+		assertAriaLabels(KeyCode.US_OPEN_SQUARE_BRACKET, 'Control+Alt+5');
+		// {
+		assertAriaLabels(KeyMod.Shift | KeyCode.US_OPEN_SQUARE_BRACKET, 'Control+Alt+8');
+		// \
+		assertAriaLabels(KeyCode.US_BACKSLASH, 'Control+Shift+Alt+7');
+		// |
+		assertAriaLabels(KeyMod.Shift | KeyCode.US_BACKSLASH, 'Control+Alt+7');
+		// ]
+		assertAriaLabels(KeyCode.US_CLOSE_SQUARE_BRACKET, 'Control+Alt+6');
+		// }
+		assertAriaLabels(KeyMod.Shift | KeyCode.US_CLOSE_SQUARE_BRACKET, 'Control+Alt+9');
+		// '
+		assertAriaLabels(KeyCode.US_QUOTE, '\'');
+		// "
+		assertAriaLabels(KeyMod.Shift | KeyCode.US_QUOTE, 'Shift+2');
+	});
 });
 
 
@@ -625,5 +724,67 @@ suite('keyboardMapper - LINUX de_ch', () => {
 		});
 		// OEM_8
 		// OEM_102
+	});
+
+
+	test('resolveKeybinding - aria labels', () => {
+		function assertAriaLabels(keybinding: number, label: string | string[]): void {
+			let _labels = (typeof label === 'string' ? [label] : label);
+			const kb = mapper.resolveKeybinding(createKeybinding(keybinding));
+			let actualLabels = kb.map(k => k.getAriaLabel());
+			assert.deepEqual(actualLabels, _labels);
+		}
+
+		assertAriaLabels(KeyMod.CtrlCmd | KeyCode.KEY_1, 'Control+1');
+		assertAriaLabels(KeyMod.CtrlCmd | KeyCode.KEY_B, 'Control+B');
+		assertAriaLabels(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_B, 'Control+Shift+B');
+		assertAriaLabels(KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.KEY_B, 'Control+Shift+Alt+Windows+B');
+		assertAriaLabels(KeyMod.CtrlCmd | KeyCode.KEY_Z, 'Control+Z');
+		assertAriaLabels(KeyMod.CtrlCmd | KeyCode.KEY_Y, 'Control+Y');
+
+		// ;
+		assertAriaLabels(KeyCode.US_SEMICOLON, 'Shift+,');
+		// :
+		assertAriaLabels(KeyMod.Shift | KeyCode.US_SEMICOLON, 'Shift+.');
+		// =
+		assertAriaLabels(KeyCode.US_EQUAL, 'Shift+0');
+		// +
+		assertAriaLabels(KeyMod.Shift | KeyCode.US_EQUAL, 'Shift+1');
+		// ,
+		assertAriaLabels(KeyCode.US_COMMA, ',');
+		// <
+		assertAriaLabels(KeyMod.Shift | KeyCode.US_COMMA, ['<', 'Control+Shift+Alt+Y']);
+		// -
+		assertAriaLabels(KeyCode.US_MINUS, '-');
+		// _
+		assertAriaLabels(KeyMod.Shift | KeyCode.US_MINUS, 'Shift+-');
+		// .
+		assertAriaLabels(KeyCode.US_DOT, '.');
+		// >
+		assertAriaLabels(KeyMod.Shift | KeyCode.US_DOT, ['Shift+<', 'Control+Shift+Alt+X']);
+		// /
+		assertAriaLabels(KeyCode.US_SLASH, 'Shift+7');
+		// ?
+		assertAriaLabels(KeyMod.Shift | KeyCode.US_SLASH, 'Shift+\'');
+		// `
+		assertAriaLabels(KeyCode.US_BACKTICK, 'Shift+^');
+		// ~
+		assertAriaLabels(KeyMod.Shift | KeyCode.US_BACKTICK, []);
+		// [
+		assertAriaLabels(KeyCode.US_OPEN_SQUARE_BRACKET, 'Control+Alt+ü');
+		// {
+		assertAriaLabels(KeyMod.Shift | KeyCode.US_OPEN_SQUARE_BRACKET, 'Control+Alt+ä');
+		// \
+		assertAriaLabels(KeyCode.US_BACKSLASH, 'Control+Alt+<');
+		// |
+		assertAriaLabels(KeyMod.Shift | KeyCode.US_BACKSLASH, ['Control+Alt+1', 'Control+Alt+7']);
+		// ]
+		assertAriaLabels(KeyCode.US_CLOSE_SQUARE_BRACKET, ['Control+Alt+9', 'Control+Alt+¨']);
+		// }
+		assertAriaLabels(KeyMod.Shift | KeyCode.US_CLOSE_SQUARE_BRACKET, ['Control+Alt+0', 'Control+Alt+$']);
+		// '
+		assertAriaLabels(KeyCode.US_QUOTE, '\'');
+		// "
+		assertAriaLabels(KeyMod.Shift | KeyCode.US_QUOTE, 'Shift+2');
 	});
 });
