@@ -574,120 +574,120 @@ export class DebugService implements debug.IDebugService {
 	}
 
 	public startDebugging(configName?: string, noDebug = false): TPromise<any> {
-		return this.textFileService.saveAll().then(() => {
-			if (this.model.getProcesses().length === 0) {
-				this.removeReplExpressions();
-			}
-			const manager = this.getConfigurationManager();
-			configName = configName || this.viewModel.selectedConfigurationName;
-			const config = manager.getConfiguration(configName);
-			const compound = manager.getCompound(configName);
-			if (compound) {
-				if (!compound.configurations) {
-					return TPromise.wrapError(new Error(nls.localize({ key: 'compoundMustHaveConfigurations', comment: ['compound indicates a "compounds" configuration item', '"configurations" is an attribute and should not be localized'] },
-						"Compound must have \"configurations\" attribute set in order to start multiple configurations.")));
+		// make sure to save all files and that the configuration is up to date
+		return this.textFileService.saveAll().then(() => this.configurationService.reloadConfiguration().then(() =>
+			this.extensionService.onReady().then(() => {
+				if (this.model.getProcesses().length === 0) {
+					this.removeReplExpressions();
+				}
+				const manager = this.getConfigurationManager();
+				configName = configName || this.viewModel.selectedConfigurationName;
+				const config = manager.getConfiguration(configName);
+				const compound = manager.getCompound(configName);
+				if (compound) {
+					if (!compound.configurations) {
+						return TPromise.wrapError(new Error(nls.localize({ key: 'compoundMustHaveConfigurations', comment: ['compound indicates a "compounds" configuration item', '"configurations" is an attribute and should not be localized'] },
+							"Compound must have \"configurations\" attribute set in order to start multiple configurations.")));
+					}
+
+					return TPromise.join(compound.configurations.map(name => this.startDebugging(name)));
+				}
+				if (configName && !config) {
+					return TPromise.wrapError(new Error(nls.localize('configMissing', "Configuration '{0}' is missing in 'launch.json'.", configName)));
 				}
 
-				return TPromise.join(compound.configurations.map(name => this.startDebugging(name)));
-			}
-			if (configName && !config) {
-				return TPromise.wrapError(new Error(nls.localize('configMissing', "Configuration '{0}' is missing in 'launch.json'.", configName)));
-			}
+				return manager.getStartSessionCommand(config ? config.type : undefined).then(commandAndType => {
+					if (noDebug && config) {
+						config.noDebug = true;
+					}
+					if (commandAndType && commandAndType.command) {
+						const defaultConfig = noDebug ? { noDebug: true } : {};
+						return this.commandService.executeCommand(commandAndType.command, config || defaultConfig).then((result: StartSessionResult) => {
+							if (this.contextService.getWorkspace()) {
+								if (result && result.status === 'initialConfiguration') {
+									return manager.openConfigFile(false, commandAndType.type);
+								}
 
-			return manager.getStartSessionCommand(config ? config.type : undefined).then(commandAndType => {
-				if (noDebug && config) {
-					config.noDebug = true;
-				}
-				if (commandAndType && commandAndType.command) {
-					const defaultConfig = noDebug ? { noDebug: true } : {};
-					return this.commandService.executeCommand(commandAndType.command, config || defaultConfig).then((result: StartSessionResult) => {
-						if (this.contextService.getWorkspace()) {
-							if (result && result.status === 'initialConfiguration') {
-								return manager.openConfigFile(false, commandAndType.type);
+								if (result && result.status === 'saveConfiguration') {
+									return this.fileService.updateContent(manager.configFileUri, result.content).then(() => manager.openConfigFile(false));
+								}
 							}
+							return undefined;
+						});
+					}
 
-							if (result && result.status === 'saveConfiguration') {
-								return this.fileService.updateContent(manager.configFileUri, result.content).then(() => manager.openConfigFile(false));
-							}
-						}
-						return undefined;
-					});
-				}
+					if (config) {
+						return this.createProcess(config);
+					}
+					if (this.contextService.getWorkspace() && commandAndType) {
+						return manager.openConfigFile(false, commandAndType.type);
+					}
 
-				if (config) {
-					return this.createProcess(config);
-				}
-				if (this.contextService.getWorkspace() && commandAndType) {
-					return manager.openConfigFile(false, commandAndType.type);
-				}
-
-				return undefined;
-			});
-		});
+					return undefined;
+				});
+			})
+		));
 	}
 
 	public createProcess(config: debug.IConfig): TPromise<any> {
-		return this.textFileService.saveAll().then(() => this.configurationService.reloadConfiguration())	// make sure configuration is up to date
-			.then(() => this.extensionService.onReady()
-				.then(() => {
-					return this.configurationManager.resloveConfiguration(config).then(resolvedConfig => {
-						if (!resolvedConfig) {
-							// User canceled resolving of interactive variables, silently return
-							return undefined;
-						}
+		return this.textFileService.saveAll().then(() =>
+			this.configurationManager.resloveConfiguration(config).then(resolvedConfig => {
+				if (!resolvedConfig) {
+					// User canceled resolving of interactive variables, silently return
+					return undefined;
+				}
 
-						if (!this.configurationManager.getAdapter(resolvedConfig.type)) {
-							const message = resolvedConfig.type ? nls.localize('debugTypeNotSupported', "Configured debug type '{0}' is not supported.", resolvedConfig.type) :
-								nls.localize('debugTypeMissing', "Missing property 'type' for the chosen launch configuration.");
-							return TPromise.wrapError(errors.create(message, { actions: [this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL), CloseAction] }));
-						}
+				if (!this.configurationManager.getAdapter(resolvedConfig.type)) {
+					const message = resolvedConfig.type ? nls.localize('debugTypeNotSupported', "Configured debug type '{0}' is not supported.", resolvedConfig.type) :
+						nls.localize('debugTypeMissing', "Missing property 'type' for the chosen launch configuration.");
+					return TPromise.wrapError(errors.create(message, { actions: [this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL), CloseAction] }));
+				}
 
-						return this.runPreLaunchTask(resolvedConfig.preLaunchTask).then((taskSummary: ITaskSummary) => {
-							const errorCount = resolvedConfig.preLaunchTask ? this.markerService.getStatistics().errors : 0;
-							const successExitCode = taskSummary && taskSummary.exitCode === 0;
-							const failureExitCode = taskSummary && taskSummary.exitCode !== undefined && taskSummary.exitCode !== 0;
-							if (successExitCode || (errorCount === 0 && !failureExitCode)) {
+				return this.runPreLaunchTask(resolvedConfig.preLaunchTask).then((taskSummary: ITaskSummary) => {
+					const errorCount = resolvedConfig.preLaunchTask ? this.markerService.getStatistics().errors : 0;
+					const successExitCode = taskSummary && taskSummary.exitCode === 0;
+					const failureExitCode = taskSummary && taskSummary.exitCode !== undefined && taskSummary.exitCode !== 0;
+					if (successExitCode || (errorCount === 0 && !failureExitCode)) {
+						return this.doCreateProcess(resolvedConfig);
+					}
+
+					this.messageService.show(severity.Error, {
+						message: errorCount > 1 ? nls.localize('preLaunchTaskErrors', "Build errors have been detected during preLaunchTask '{0}'.", resolvedConfig.preLaunchTask) :
+							errorCount === 1 ? nls.localize('preLaunchTaskError', "Build error has been detected during preLaunchTask '{0}'.", resolvedConfig.preLaunchTask) :
+								nls.localize('preLaunchTaskExitCode', "The preLaunchTask '{0}' terminated with exit code {1}.", resolvedConfig.preLaunchTask, taskSummary.exitCode),
+						actions: [
+							new Action('debug.continue', nls.localize('debugAnyway', "Debug Anyway"), null, true, () => {
+								this.messageService.hideAll();
 								return this.doCreateProcess(resolvedConfig);
-							}
-
-							this.messageService.show(severity.Error, {
-								message: errorCount > 1 ? nls.localize('preLaunchTaskErrors', "Build errors have been detected during preLaunchTask '{0}'.", resolvedConfig.preLaunchTask) :
-									errorCount === 1 ? nls.localize('preLaunchTaskError', "Build error has been detected during preLaunchTask '{0}'.", resolvedConfig.preLaunchTask) :
-										nls.localize('preLaunchTaskExitCode', "The preLaunchTask '{0}' terminated with exit code {1}.", resolvedConfig.preLaunchTask, taskSummary.exitCode),
-								actions: [
-									new Action('debug.continue', nls.localize('debugAnyway', "Debug Anyway"), null, true, () => {
-										this.messageService.hideAll();
-										return this.doCreateProcess(resolvedConfig);
-									}),
-									this.instantiationService.createInstance(ToggleMarkersPanelAction, ToggleMarkersPanelAction.ID, ToggleMarkersPanelAction.LABEL),
-									CloseAction
-								]
-							});
-							return undefined;
-						}, (err: TaskError) => {
-							if (err.code !== TaskErrors.NotConfigured) {
-								throw err;
-							}
-
-							this.messageService.show(err.severity, {
-								message: err.message,
-								actions: [this.taskService.configureAction(), CloseAction]
-							});
-						});
-					}, err => {
-						if (!this.contextService.getWorkspace()) {
-							return this.messageService.show(severity.Error, nls.localize('noFolderWorkspaceDebugError', "The active file can not be debugged. Make sure it is saved on disk and that you have a debug extension installed for that file type."));
-						}
-
-						return this.configurationManager.openConfigFile(false).then(openend => {
-							if (openend) {
-								this.messageService.show(severity.Info, nls.localize('NewLaunchConfig', "Please set up the launch configuration file for your application. {0}", err.message));
-							}
-						});
+							}),
+							this.instantiationService.createInstance(ToggleMarkersPanelAction, ToggleMarkersPanelAction.ID, ToggleMarkersPanelAction.LABEL),
+							CloseAction
+						]
 					});
-				}));
-	}
+					return undefined;
+				}, (err: TaskError) => {
+					if (err.code !== TaskErrors.NotConfigured) {
+						throw err;
+					}
 
+					this.messageService.show(err.severity, {
+						message: err.message,
+						actions: [this.taskService.configureAction(), CloseAction]
+					});
+				});
+			}, err => {
+				if (!this.contextService.getWorkspace()) {
+					return this.messageService.show(severity.Error, nls.localize('noFolderWorkspaceDebugError', "The active file can not be debugged. Make sure it is saved on disk and that you have a debug extension installed for that file type."));
+				}
+
+				return this.configurationManager.openConfigFile(false).then(openend => {
+					if (openend) {
+						this.messageService.show(severity.Info, nls.localize('NewLaunchConfig', "Please set up the launch configuration file for your application. {0}", err.message));
+					}
+				});
+			})
+		);
+	}
 
 	private doCreateProcess(configuration: debug.IConfig): TPromise<any> {
 		const sessionId = generateUuid();
