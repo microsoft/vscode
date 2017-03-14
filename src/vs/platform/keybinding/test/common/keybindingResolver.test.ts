@@ -7,8 +7,10 @@
 import * as assert from 'assert';
 import { createKeybinding, SimpleKeybinding, KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
 import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
-import { ContextKeyAndExpr, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IContext, ContextKeyAndExpr, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { NormalizedKeybindingItem } from 'vs/platform/keybinding/common/normalizedKeybindingItem';
+
+const createContext = ctx => ({ getValue: key => ctx[key] });
 
 suite('KeybindingResolver', () => {
 
@@ -28,12 +30,12 @@ suite('KeybindingResolver', () => {
 		let contextRules = ContextKeyExpr.equals('bar', 'baz');
 		let keybindingItem = kbItem(keybinding, 'yes', null, contextRules, true);
 
-		assert.equal(KeybindingResolver.contextMatchesRules({ bar: 'baz' }, contextRules), true);
-		assert.equal(KeybindingResolver.contextMatchesRules({ bar: 'bz' }, contextRules), false);
+		assert.equal(KeybindingResolver.contextMatchesRules(createContext({ bar: 'baz' }), contextRules), true);
+		assert.equal(KeybindingResolver.contextMatchesRules(createContext({ bar: 'bz' }), contextRules), false);
 
 		let resolver = new KeybindingResolver([keybindingItem], []);
-		assert.equal(resolver.resolve({ bar: 'baz' }, null, new SimpleKeybinding(keybinding).value.toString()).commandId, 'yes');
-		assert.equal(resolver.resolve({ bar: 'bz' }, null, new SimpleKeybinding(keybinding).value.toString()), null);
+		assert.equal(resolver.resolve(createContext({ bar: 'baz' }), null, new SimpleKeybinding(keybinding).value.toString()).commandId, 'yes');
+		assert.equal(resolver.resolve(createContext({ bar: 'bz' }), null, new SimpleKeybinding(keybinding).value.toString()), null);
 	});
 
 	test('resolve key with arguments', function () {
@@ -43,7 +45,7 @@ suite('KeybindingResolver', () => {
 		let keybindingItem = kbItem(keybinding, 'yes', commandArgs, contextRules, true);
 
 		let resolver = new KeybindingResolver([keybindingItem], []);
-		assert.equal(resolver.resolve({ bar: 'baz' }, null, new SimpleKeybinding(keybinding).value.toString()).commandArgs, commandArgs);
+		assert.equal(resolver.resolve(createContext({ bar: 'baz' }), null, new SimpleKeybinding(keybinding).value.toString()).commandArgs, commandArgs);
 	});
 
 	test('KeybindingResolver.combine simple 1', function () {
@@ -323,7 +325,7 @@ suite('KeybindingResolver', () => {
 			}
 		};
 
-		let testResolve = (ctx: any, _expectedKey: number, commandId: string) => {
+		let testResolve = (ctx: IContext, _expectedKey: number, commandId: string) => {
 			let expectedKey = createKeybinding(_expectedKey);
 
 			if (expectedKey.isChord()) {
@@ -350,30 +352,30 @@ suite('KeybindingResolver', () => {
 		testKey('first', []);
 
 		testKey('second', [KeyCode.KEY_Z, KeyCode.KEY_X]);
-		testResolve({ key2: true }, KeyCode.KEY_X, 'second');
-		testResolve({}, KeyCode.KEY_Z, 'second');
+		testResolve(createContext({ key2: true }), KeyCode.KEY_X, 'second');
+		testResolve(createContext({}), KeyCode.KEY_Z, 'second');
 
 		testKey('third', [KeyCode.KEY_X]);
-		testResolve({ key3: true }, KeyCode.KEY_X, 'third');
+		testResolve(createContext({ key3: true }), KeyCode.KEY_X, 'third');
 
 		testKey('fourth', []);
 
 		testKey('fifth', [KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_Y, KeyCode.KEY_Z)]);
-		testResolve({}, KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_Y, KeyCode.KEY_Z), 'fifth');
+		testResolve(createContext({}), KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_Y, KeyCode.KEY_Z), 'fifth');
 
 		testKey('seventh', [KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_K)]);
-		testResolve({}, KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_K), 'seventh');
+		testResolve(createContext({}), KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_K), 'seventh');
 
 		testKey('uncomment lines', [KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_U)]);
-		testResolve({}, KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_U), 'uncomment lines');
+		testResolve(createContext({}), KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_U), 'uncomment lines');
 
 		testKey('comment lines', [KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_C)]);
-		testResolve({}, KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_C), 'comment lines');
+		testResolve(createContext({}), KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_C), 'comment lines');
 
 		testKey('unreachablechord', []);
 
 		testKey('eleven', [KeyMod.CtrlCmd | KeyCode.KEY_G]);
-		testResolve({}, KeyMod.CtrlCmd | KeyCode.KEY_G, 'eleven');
+		testResolve(createContext({}), KeyMod.CtrlCmd | KeyCode.KEY_G, 'eleven');
 
 		testKey('sixth', []);
 	});

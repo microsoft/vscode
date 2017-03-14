@@ -230,7 +230,7 @@ export abstract class AbstractKeybindingService implements IKeybindingService {
 			return null;
 		}
 
-		const contextValue = this._contextKeyService.getContextValue(target);
+		const contextValue = this._contextKeyService.getContext(target);
 		const currentChord = this._currentChord ? this._currentChord.keypress : null;
 		const keypress = keybinding.value.toString();
 		return this._getResolver().resolve(contextValue, currentChord, keypress);
@@ -244,7 +244,7 @@ export abstract class AbstractKeybindingService implements IKeybindingService {
 			return shouldPreventDefault;
 		}
 
-		const contextValue = this._contextKeyService.getContextValue(target);
+		const contextValue = this._contextKeyService.getContext(target);
 		const currentChord = this._currentChord ? this._currentChord.keypress : null;
 		const keypress = keybinding.value.toString();
 		const keypressLabel = this._createResolvedKeybinding(keybinding).getLabel();

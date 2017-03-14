@@ -53,7 +53,7 @@ export class MockKeybindingService implements IContextKeyService {
 	public getContextKeyValue(key: string) {
 		return;
 	}
-	public getContextValue(domNode: HTMLElement): any {
+	public getContext(domNode: HTMLElement): any {
 		return null;
 	}
 	public createScoped(domNode: HTMLElement): IContextKeyService {
