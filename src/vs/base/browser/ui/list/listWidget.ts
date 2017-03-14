@@ -285,7 +285,7 @@ class MouseController<T> implements IDisposable {
 			const newSelection = selection.filter(i => i !== focus);
 
 			if (selection.length === newSelection.length) {
-				this.list.setSelection([...newSelection, focus].sort());
+				this.list.setSelection([...newSelection, focus]);
 			} else {
 				this.list.setSelection(newSelection);
 			}
@@ -338,6 +338,8 @@ function exclusiveDisjunction(one: number[], other: number[]): number[] {
 
 	return result;
 }
+
+const numericSort = (a: number, b: number) => a - b;
 
 export class List<T> implements ISpliceable<T>, IDisposable {
 
@@ -453,9 +455,9 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	}
 
 	setSelection(indexes: number[]): void {
-		this.eventBufferer.bufferEvents(() => {
-			indexes = indexes.sort();
+		indexes = indexes.sort(numericSort);
 
+		this.eventBufferer.bufferEvents(() => {
 			const oldIndexes = this.selection.set(indexes);
 			const diffIndexes = exclusiveDisjunction(oldIndexes, indexes);
 			diffIndexes.forEach(i => this.view.splice(i, 1, [this.view.element(i)]));
@@ -484,9 +486,9 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	}
 
 	setFocus(indexes: number[]): void {
-		this.eventBufferer.bufferEvents(() => {
-			indexes = indexes.sort();
+		indexes = indexes.sort(numericSort);
 
+		this.eventBufferer.bufferEvents(() => {
 			const oldIndexes = this.focus.set(indexes);
 			const diffIndexes = exclusiveDisjunction(oldIndexes, indexes);
 			diffIndexes.forEach(i => this.view.splice(i, 1, [this.view.element(i)]));
