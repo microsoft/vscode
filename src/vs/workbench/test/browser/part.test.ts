@@ -13,21 +13,7 @@ import { IWorkspaceContextService, WorkspaceContextService } from 'vs/platform/w
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { StorageService, InMemoryLocalStorage } from 'vs/platform/storage/common/storageService';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
-import { IThemeService, ITheme, IThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { IDisposable } from 'vs/base/common/lifecycle';
-
-class TestThemeService implements IThemeService {
-
-	_serviceBrand: any;
-
-	getTheme(): ITheme {
-		throw new Error('Method not implemented.');
-	}
-
-	onThemeChange(participant: IThemingParticipant): IDisposable {
-		return { dispose: () => { } };
-	}
-}
+import { TestThemeService } from 'vs/workbench/test/workbenchTestServices';
 
 class MyPart extends Part {
 

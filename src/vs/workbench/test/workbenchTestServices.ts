@@ -52,6 +52,7 @@ import { RawTextSource, IRawTextSource } from 'vs/editor/common/model/textSource
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IThemeService, ITheme, IThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { Color } from "vs/base/common/color";
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, void 0);
@@ -973,12 +974,28 @@ export class TestWindowsService implements IWindowsService {
 	}
 }
 
+export class TestTheme implements ITheme {
+	selector: string;
+	label: string;
+	type: 'light' | 'dark' | 'hc';
+
+	getColor(color: string, useDefault?: boolean): Color {
+		throw new Error('Method not implemented.');
+	}
+
+	isDefault(color: string): boolean {
+		throw new Error('Method not implemented.');
+	}
+}
+
+const testTheme = new TestTheme();
+
 export class TestThemeService implements IThemeService {
 
 	_serviceBrand: any;
 
 	getTheme(): ITheme {
-		throw new Error('Method not implemented.');
+		return testTheme;
 	}
 
 	onThemeChange(participant: IThemingParticipant): IDisposable {
