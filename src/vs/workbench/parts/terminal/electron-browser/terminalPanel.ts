@@ -89,7 +89,6 @@ export class TerminalPanel extends Panel {
 			} else {
 				return super.setVisible(visible).then(() => {
 					return this._terminalService.createInstance().then(instance => {
-						;
 						if (instance) {
 							this._updateFont();
 							this._updateTheme();
