@@ -14,7 +14,7 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IQuickOpenService, IPickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
+import { IQuickOpenService, IPickOpenEntry, IPickOptions } from 'vs/platform/quickOpen/common/quickOpen';
 import { ITerminalInstance, ITerminalService, IShellLaunchConfig, ITerminalConfigHelper } from 'vs/workbench/parts/terminal/common/terminal';
 import { TerminalService as AbstractTerminalService } from 'vs/workbench/parts/terminal/common/terminalService';
 import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
@@ -48,7 +48,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		const executableReadyPromise = shell.executable ? TPromise.as(shell.executable) : this._chooseWindowsExecutable();
 		return executableReadyPromise.then(executable => {
 			if (!executable) {
-				console.log('error');
+				// Silently cancel if no shell is selected by the user
 				return TPromise.as(null);
 			}
 			shell.executable = executable;
@@ -72,8 +72,11 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 
 	private _chooseWindowsExecutable(): TPromise<string> {
 		return this._detectWindowsShells().then(shells => {
-			return this._quickOpenService.pick(shells).then(value => {
-				return TPromise.as(value.detail);
+			const options: IPickOptions = {
+				placeHolder: nls.localize('terminal.integrated.chooseWindowsShell', "Select your preferred terminal shell, you can change this later in your settings")
+			};
+			return this._quickOpenService.pick(shells, options).then(value => {
+				return TPromise.as(value ? value.description : null);
 			});
 		});
 	}
@@ -86,24 +89,24 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 				`${windir}\\System32\\cmd.exe`
 			],
 			PowerShell: [
-				`${windir}\\Sysnative\\WindowsPowerShell\\v1.0\\powerShell.exe`,
-				`${windir}\\System32\\WindowsPowerShell\\v1.0\\powerShell.exe`
+				`${windir}\\Sysnative\\WindowsPowerShell\\v1.0\\powershell.exe`,
+				`${windir}\\System32\\WindowsPowerShell\\v1.0\\powershell.exe`
 			],
 			'WSL Bash': [`${windir}\\Sysnative\\bash.exe`],
 			'Git Bash': [
+				`${process.env['ProgramW6432']}\\Git\\bin\\bash.exe`,
+				`${process.env['ProgramW6432']}\\Git\\usr\\bin\\bash.exe`,
 				`${process.env['ProgramFiles']}\\Git\\bin\\bash.exe`,
 				`${process.env['ProgramFiles']}\\Git\\usr\\bin\\bash.exe`,
-			],
-			'bash': ['/bin/bash'],
-			'zsh': ['/bin/zsh']
+			]
 		};
 		const promises: TPromise<[string, string]>[] = [];
 		Object.keys(expectedLocations).forEach(key => promises.push(this._validateShellPaths(key, expectedLocations[key])));
 		return TPromise.join(promises).then(results => {
 			return results.filter(result => !!result).map(result => {
-				return {
+				return <IPickOpenEntry>{
 					label: result[0],
-					detail: result[1]
+					description: result[1]
 				};
 			});
 		});
