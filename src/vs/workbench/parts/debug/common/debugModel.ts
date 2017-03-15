@@ -624,12 +624,11 @@ export class Process implements IProcess {
 			column: position.column,
 			line: position.lineNumber
 		}).then(response => {
-			console.log(response.body.targets);
 			return response && response.body && response.body.targets ? response.body.targets.map(item => (<ISuggestion>{
 				label: item.label,
 				insertText: item.text || item.label,
 				type: item.type,
-				filterText: item.start && item.length && text.substr(item.start, item.length),
+				filterText: item.start && item.length && text.substr(item.start, item.length).concat(item.label),
 				overwriteBefore: item.length || overwriteBefore
 			})) : [];
 		}, err => []);
