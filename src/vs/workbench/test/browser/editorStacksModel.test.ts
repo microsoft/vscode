@@ -23,6 +23,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import 'vs/workbench/browser/parts/editor/baseEditor';
+import { isLinux } from 'vs/base/common/platform';
 
 function create(): EditorStacksModel {
 	let inst = new TestInstantiationService();
@@ -1559,6 +1560,7 @@ suite('Editor Stacks Model', () => {
 		assert.ok(!model.isOpen(URI.file('/hello/world.txt')));
 
 		const input1Resource = URI.file('/hello/world.txt');
+		const input1ResourceUpper = URI.file('/hello/WORLD.txt');
 		const input1 = input(void 0, false, input1Resource);
 		group1.openEditor(input1);
 
@@ -1567,12 +1569,25 @@ suite('Editor Stacks Model', () => {
 		assert.equal(model.count(input1Resource), 1);
 		assert.equal(group1.getEditor(input1Resource), input1);
 
+		if (isLinux) {
+			assert.ok(!group1.getEditor(input1ResourceUpper));
+			assert.equal(model.count(input1ResourceUpper), 0);
+			assert.ok(!model.isOpen(input1ResourceUpper));
+			assert.ok(!group1.contains(input1ResourceUpper));
+		} else {
+			assert.equal(group1.getEditor(input1ResourceUpper), input1);
+			assert.equal(model.count(input1ResourceUpper), 1);
+			assert.ok(model.isOpen(input1ResourceUpper));
+			assert.ok(group1.contains(input1ResourceUpper));
+		}
+
 		group2.openEditor(input1);
 		group1.closeEditor(input1);
 
 		assert.ok(model.isOpen(input1Resource));
 		assert.ok(!group1.contains(input1Resource));
 		assert.ok(!group1.getEditor(input1Resource));
+		assert.ok(!group1.getEditor(input1ResourceUpper));
 		assert.ok(group2.contains(input1Resource));
 		assert.equal(group2.getEditor(input1Resource), input1);
 		assert.equal(model.count(input1Resource), 1);
