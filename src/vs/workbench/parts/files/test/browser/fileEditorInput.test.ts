@@ -16,6 +16,7 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { FileOperationResult, IFileOperationResult } from 'vs/platform/files/common/files';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { Verbosity } from 'vs/platform/editor/common/editor';
+import { isLinux } from 'vs/base/common/platform';
 
 function toResource(path) {
 	return URI.file(join('C:\\', new Buffer(this.test.fullTitle()).toString('base64'), path));
@@ -106,10 +107,19 @@ suite('Files - FileEditorInput', () => {
 	test('matches', function () {
 		const input1 = instantiationService.createInstance(FileEditorInput, toResource.call(this, '/foo/bar/updatefile.js'), void 0);
 		const input2 = instantiationService.createInstance(FileEditorInput, toResource.call(this, '/foo/bar/updatefile.js'), void 0);
+		const input3 = instantiationService.createInstance(FileEditorInput, toResource.call(this, '/foo/bar/other.js'), void 0);
+		const input2Upper = instantiationService.createInstance(FileEditorInput, toResource.call(this, '/foo/bar/UPDATEFILE.js'), void 0);
 
 		assert.strictEqual(input1.matches(null), false);
 		assert.strictEqual(input1.matches(input1), true);
 		assert.strictEqual(input1.matches(input2), true);
+		assert.strictEqual(input1.matches(input3), false);
+
+		if (isLinux) {
+			assert.strictEqual(input1.matches(input2Upper), false);
+		} else {
+			assert.strictEqual(input1.matches(input2Upper), true);
+		}
 	});
 
 	test('getEncoding/setEncoding', function (done) {
