@@ -672,21 +672,21 @@ export function _matchRecursive(
 		&& ((value = _matchRecursive(pattern, lowPattern, upPattern, patternPos + 1, word, lowWord, wordPos + 1, matches)) >= 0)
 	) {
 		matches.unshift(wordPos);
-		return (pattern.charAt(patternPos) === word.charAt(wordPos) ? 11 : 9) + value;
+		return (pattern.charAt(patternPos) === word.charAt(wordPos) ? 17 : 11) + value;
 	}
 
 	if ((idx = lowWord.indexOf(`_${lowPatternChar}`, wordPos)) >= 0
 		&& ((value = _matchRecursive(pattern, lowPattern, upPattern, patternPos + 1, word, lowWord, idx + 2, matches)) >= 0)
 	) {
 		matches.unshift(idx + 1);
-		return (pattern.charAt(patternPos) === word.charAt(idx + 1) ? 11 : 9) + value;
+		return (pattern.charAt(patternPos) === word.charAt(idx + 1) ? 17 : 11) + value;
 	}
 
 	if ((idx = word.indexOf(upPattern.charAt(patternPos), wordPos)) >= 0
 		&& ((value = _matchRecursive(pattern, lowPattern, upPattern, patternPos + 1, word, lowWord, idx + 1, matches)) >= 0)
 	) {
 		matches.unshift(idx);
-		return (pattern.charAt(patternPos) === word.charAt(idx) ? 11 : 9) + value;
+		return (pattern.charAt(patternPos) === word.charAt(idx) ? 17 : 11) + value;
 	}
 
 	if (patternPos > 0
