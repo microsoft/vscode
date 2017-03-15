@@ -358,25 +358,18 @@ export function matchesFuzzy(word: string, wordToMatchAgainst: string, enableSep
 	return enableSeparateSubstringMatching ? fuzzySeparateFilter(word, wordToMatchAgainst) : fuzzyContiguousFilter(word, wordToMatchAgainst);
 }
 
-export function matchesFuzzy2(pattern: string, word: string): IMatch[] | undefined {
+export function matchesFuzzy2(pattern: string, word: string): number[] {
 
 	pattern = pattern.toLowerCase();
 	word = word.toLowerCase();
 
-	let result: IMatch[] = [];
-	let lastMatch: IMatch;
-
+	let matches: number[] = [];
 	let patternPos = 0;
 	let wordPos = 0;
 	while (patternPos < pattern.length && wordPos < word.length) {
 		if (pattern.charAt(patternPos) === word.charAt(wordPos)) {
 			patternPos += 1;
-			if (lastMatch && lastMatch.end === wordPos) {
-				lastMatch.end += 1;
-			} else {
-				lastMatch = { start: wordPos, end: wordPos + 1 };
-				result.push(lastMatch);
-			}
+			matches.push(wordPos);
 		}
 		wordPos += 1;
 	}
@@ -385,237 +378,54 @@ export function matchesFuzzy2(pattern: string, word: string): IMatch[] | undefin
 		return undefined;
 	}
 
-	return result;
+	return matches;
 }
 
-export function matchesFuzzy3(pattern: string, word: string) {
-	return _doMatchesFuzzy3(
-		pattern, pattern.toLowerCase(), 0,
-		word, word.toLowerCase(), 0,
-		[], 0
-	);
-}
-function _doMatchesFuzzy3(
-	pattern: string, lowPattern: string, patternPos: number,
-	word: string, lowWord: string, wordPos: number,
-	positions: number[], score: number
-): [IMatch[], number] {
 
-	let retryPoints: number[] = [];
-	let lastDidMatch = false;
-
-	while (patternPos < lowPattern.length && wordPos < lowWord.length) {
-		const charLowPattern = lowPattern.charAt(patternPos);
-		const charLowWord = lowWord.charAt(wordPos);
-
-		if (charLowPattern === charLowWord) {
-
-			if (positions.length === 0) {
-				score = -Math.min(wordPos, 3) * 3; // penalty -> gaps at start
-			} else if (lastDidMatch) {
-				score += 1; // bonus -> subsequent match
-			}
-
-			if (charLowWord !== word.charAt(wordPos)) {
-				score += 10; // bonus -> upper-case
-
-			} else if (wordPos > 0 && word.charAt(wordPos).match(_separator)) {
-				score += 10; // bonus -> after a separator
-
-			} else {
-				// keep this as a retry point
-				retryPoints.push(patternPos, wordPos + 1, positions.length, score);
-			}
-
-			patternPos += 1;
-			positions.push(wordPos);
-			lastDidMatch = true;
-
-		} else {
-			lastDidMatch = false;
-			score -= 1; // penalty -> gaps in match
-		}
-
-		wordPos += 1;
+let table: number[][];
+(function initTable() {
+	table = [];
+	let zeroArray: number[] = [];
+	for (let i = 0; i < 100 + 1; ++i) {
+		zeroArray.push(-i);
 	}
-
-	if (patternPos !== lowPattern.length) {
-		return undefined;
+	for (let i = 0; i < 100 + 1; ++i) {
+		let t = zeroArray.slice(0);
+		t[0] = -i;
+		table.push(t);
 	}
+})();
 
-	const matches: IMatch[] = [];
-	let lastMatch: IMatch;
-	for (const pos of positions) {
-		if (lastMatch && lastMatch.end === pos) {
-			lastMatch.end += 1;
-		} else {
-			lastMatch = { start: pos, end: pos + 1 };
-			matches.push(lastMatch);
-		}
-	}
-
-	let result: [IMatch[], number] = [matches, score];
-
-	// try alternative matches
-	for (let i = 0; i < retryPoints.length; i += 4) {
-		const alt = _doMatchesFuzzy3(
-			pattern, lowPattern, retryPoints[i],
-			word, lowWord, retryPoints[i + 1],
-			positions.slice(0, retryPoints[i + 2]), retryPoints[i + 3]
-		);
-		if (alt && alt[1] > result[1]) {
-			result = alt;
-		}
-	}
-
-	return result;
-}
-
-const _separator = /[-_. ]/;
-
-
-export function matchesFuzzy4(pattern: string, word: string): [IMatch[], number] {
-
-	const lowPattern = pattern.toLowerCase();
-	const lowWord = word.toLowerCase();
-	const [landmarkWord, landmarkPositions] = computeLandmarks(word, lowWord);
-
-	let landmarkPos = 0;
-	let wordPos = 0;
-	let patternPos = 1;
-	let charLowPattern = lowPattern.charAt(0);
-	let result: IMatch[] = [];
-	let lastMatch: IMatch;
-	let score = 0;
-
-	if (charLowPattern === lowWord.charAt(0)) {
-		lastMatch = { start: wordPos, end: wordPos + 1 };
-		result.push(lastMatch);
-		wordPos = 1;
-		landmarkPos = 1;
-		if (pattern.charAt(0) === word.charAt(0)) {
-			score += 10;
-		}
-
-	} else if ((landmarkPos = landmarkWord.indexOf(charLowPattern)) >= 0) {
-		wordPos = landmarkPositions[landmarkPos];
-
-		score += 10 - Math.min(9, wordPos * 3);
-		lastMatch = { start: wordPos, end: wordPos + 1 };
-		result.push(lastMatch);
-
-		wordPos += 1;
-		landmarkPos += 1;
-
+function score(pattern: string, patternPos: number, word: string, wordPos: number) {
+	if (pattern.charAt(patternPos) === word.charAt(wordPos)) {
+		return 2;
 	} else {
-		return undefined;
+		return -2;
 	}
-
-	while (patternPos < lowPattern.length && wordPos < lowWord.length) {
-		charLowPattern = lowPattern.charAt(patternPos);
-		let match = false;
-		if (landmarkPos < landmarkWord.length && charLowPattern === landmarkWord.charAt(landmarkPos)) {
-			let newWordPos = landmarkPositions[landmarkPos];
-			match = true;
-			score += 10 - (newWordPos - wordPos);
-			wordPos = newWordPos;
-			landmarkPos += 1;
-			patternPos += 1;
-
-		} else if (charLowPattern === lowWord.charAt(wordPos)) {
-			match = true;
-			patternPos += 1;
-		}
-
-		if (match) {
-			if (lastMatch && lastMatch.end === wordPos) {
-				lastMatch.end += 1;
-				score += 1;
-			} else {
-				lastMatch = { start: wordPos, end: wordPos + 1 };
-				result.push(lastMatch);
-			}
-		}
-
-		wordPos += 1;
-		if (wordPos >= landmarkPositions[landmarkPos]) {
-			landmarkPos += 1;
-		}
-	}
-
-	if (patternPos !== lowPattern.length) {
-		return undefined;
-	}
-
-	// substract uncovered remainder
-	score -= lowWord.length - wordPos;
-
-	return [result, score];
 }
 
-function computeLandmarks(word: string, lowWord: string): [string, number[]] {
-	let result: string = '';
-	let positions: number[] = [];
-	let lastCh: string;
+export function fuzzyLCS(pattern: string, word: string) {
 
-	for (let pos = 0; pos < word.length; pos++) {
-		const ch = word.charAt(pos);
-		if (!result // first character is a landmark
-			|| (lastCh === '_' || lastCh === '-' || lastCh === ' ') // last was separator
-			|| ch !== lowWord.charAt(pos) // upper-case
-		) {
-			result += ch;
-			positions.push(pos);
-		}
-		lastCh = ch;
-	}
+	for (let i = 1; i < pattern.length + 1; ++i) {
+		let oneMatch = false;
+		for (let j = 1; j < word.length + 1; ++j) {
 
-	result = result.toLowerCase();
+			let s = score(pattern, i - 1, word, j - i);
 
-	return [result, positions];
-}
+			table[i][j] = Math.max(
+				table[i - 1][j - 1] + s,
+				table[i - 1][j],
+				table[i][j - 1]
+			);
 
-// function print(m: number[][]) {
-// 	for (const n of m) {
-// 		console.log(n.join('|'));
-// 	}
-// }
-export function matchesFuzzy5(pattern: string, word: string) {
-
-	// create matrix
-	const matrix: number[][] = [[0]];
-	for (let i = 1; i <= pattern.length; i++) {
-		matrix.push([-i]);
-	}
-	for (let i = 1; i <= word.length; i++) {
-		matrix[0].push(-i);
-	}
-
-	for (let i = 0; i < pattern.length; i++) {
-
-		let match = false;
-
-		for (let j = 0; j < word.length; j++) {
-
-			let diagScore = 0;
-			if (pattern[i] === word[j]) {
-				diagScore = 1 + matrix[i][j];
-				match = true;
-			} else {
-				diagScore = -1 + matrix[i][j];
+			if (s > 0) {
+				oneMatch = true;
 			}
-
-			let upScore = -1 + matrix[i][j + 1];
-			let leftScore = -1 + matrix[i + 1][j];
-
-			matrix[i + 1][j + 1] = Math.max(diagScore, upScore, leftScore);
 		}
-
-		if (!match) {
+		if (!oneMatch) {
 			return undefined;
 		}
 	}
-	// print(matrix);
 
 	return [];
 }
