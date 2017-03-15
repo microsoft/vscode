@@ -32,6 +32,12 @@ export abstract class Part extends WorkbenchComponent {
 		super(id, themeService);
 	}
 
+	protected onThemeChange(): void {
+		if (this.parent) {
+			this.updateStyles(); // only call if our create() method has been called
+		}
+	}
+
 	/**
 	 * Note: Clients should not call this method, the workbench calls this
 	 * method. Calling it otherwise may result in unexpected behavior.
