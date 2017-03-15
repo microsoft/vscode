@@ -208,7 +208,8 @@ export class QuickOpenEntry {
 		if (entry.getResource()) {
 
 			// Highlight entire label and description if searching for full absolute path
-			if (lookFor.toLowerCase() === entry.getResource().fsPath.toLowerCase()) {
+			const fsPath = entry.getResource().fsPath;
+			if (lookFor.length === fsPath.length && lookFor.toLowerCase() === fsPath.toLowerCase()) {
 				labelHighlights.push({ start: 0, end: label.length });
 				descriptionHighlights.push({ start: 0, end: description.length });
 			}

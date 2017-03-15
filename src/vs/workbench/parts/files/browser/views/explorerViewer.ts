@@ -27,6 +27,7 @@ import { ContributableActionProvider } from 'vs/workbench/browser/actionBarRegis
 import { IFilesConfiguration } from 'vs/workbench/parts/files/common/files';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IFileOperationResult, FileOperationResult, IFileService, isEqual } from 'vs/platform/files/common/files';
+import { ResourceMap } from 'vs/base/common/map';
 import { DuplicateFileAction, ImportFileAction, keybindingForAction, IEditableData, IFileViewletState } from 'vs/workbench/parts/files/browser/fileActions';
 import { IDataSource, ITree, IElementCallback, IAccessibilityProvider, IRenderer, ContextMenuEvent, ISorter, IFilter, IDragAndDrop, IDragAndDropData, IDragOverReaction, DRAG_OVER_ACCEPT_BUBBLE_DOWN, DRAG_OVER_ACCEPT_BUBBLE_DOWN_COPY, DRAG_OVER_ACCEPT_BUBBLE_UP, DRAG_OVER_ACCEPT_BUBBLE_UP_COPY, DRAG_OVER_REJECT } from 'vs/base/parts/tree/browser/tree';
 import { DesktopDragAndDropData, ExternalElementsDragAndDropData } from 'vs/base/parts/tree/browser/treeDnd';
@@ -212,11 +213,11 @@ export class FileActionProvider extends ContributableActionProvider {
 
 export class FileViewletState implements IFileViewletState {
 	private _actionProvider: FileActionProvider;
-	private editableStats: { [resource: string]: IEditableData; };
+	private editableStats: ResourceMap<IEditableData>;
 
 	constructor() {
 		this._actionProvider = new FileActionProvider(this);
-		this.editableStats = Object.create(null);
+		this.editableStats = new ResourceMap<IEditableData>();
 	}
 
 	public get actionProvider(): FileActionProvider {
@@ -224,17 +225,17 @@ export class FileViewletState implements IFileViewletState {
 	}
 
 	public getEditableData(stat: FileStat): IEditableData {
-		return this.editableStats[stat.resource && stat.resource.toString()];
+		return this.editableStats.get(stat.resource);
 	}
 
 	public setEditable(stat: FileStat, editableData: IEditableData): void {
 		if (editableData) {
-			this.editableStats[stat.resource && stat.resource.toString()] = editableData;
+			this.editableStats.set(stat.resource, editableData);
 		}
 	}
 
 	public clearEditable(stat: FileStat): void {
-		delete this.editableStats[stat.resource && stat.resource.toString()];
+		this.editableStats.delete(stat.resource);
 	}
 }
 

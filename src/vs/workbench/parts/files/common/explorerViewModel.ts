@@ -239,7 +239,7 @@ export class FileStat implements IFileStat {
 	public find(resource: URI): FileStat {
 
 		// Return if path found
-		if (isEqual(resource.toString(), this.resource.toString())) {
+		if (isEqual(resource.fsPath, this.resource.fsPath)) {
 			return this;
 		}
 
@@ -251,7 +251,7 @@ export class FileStat implements IFileStat {
 		for (let i = 0; i < this.children.length; i++) {
 			const child = this.children[i];
 
-			if (isEqual(resource.toString(), child.resource.toString())) {
+			if (isEqual(resource.fsPath, child.resource.fsPath)) {
 				return child;
 			}
 
