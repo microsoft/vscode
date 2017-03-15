@@ -23,33 +23,42 @@ export class TerminalSupport {
 		}
 
 		let delay = 0;
-		if (!TerminalSupport.integratedTerminalInstance) {
-			TerminalSupport.integratedTerminalInstance = terminalService.createInstance({ name: args.title || nls.localize('debug.terminal.title', "debuggee") });
+		let terminalPromise: TPromise<ITerminalInstance>;
+		if (TerminalSupport.integratedTerminalInstance) {
+			terminalPromise = TPromise.as(TerminalSupport.integratedTerminalInstance);
+		} else {
+			terminalPromise = terminalService.createInstance({ name: args.title || nls.localize('debug.terminal.title', "debuggee") });
 			delay = 2000;	// delay the first sendText so that the newly created terminal is ready.
 		}
-		if (!TerminalSupport.terminalDisposedListener) {
-			// React on terminal disposed and check if that is the debug terminal #12956
-			TerminalSupport.terminalDisposedListener = terminalService.onInstanceDisposed(terminal => {
-				if (TerminalSupport.integratedTerminalInstance && TerminalSupport.integratedTerminalInstance.id === terminal.id) {
-					TerminalSupport.integratedTerminalInstance = null;
-				}
+		return terminalPromise.then(instance => {
+			if (!instance) {
+				throw new Error('Could not create terminal instance');
+			}
+			TerminalSupport.integratedTerminalInstance = instance;
+			if (!TerminalSupport.terminalDisposedListener) {
+				// React on terminal disposed and check if that is the debug terminal #12956
+				TerminalSupport.terminalDisposedListener = terminalService.onInstanceDisposed(terminal => {
+					if (TerminalSupport.integratedTerminalInstance && TerminalSupport.integratedTerminalInstance.id === terminal.id) {
+						TerminalSupport.integratedTerminalInstance = null;
+					}
+				});
+			}
+			terminalService.setActiveInstance(TerminalSupport.integratedTerminalInstance);
+			terminalService.showPanel(true);
+
+			return new TPromise<void>((c, e) => {
+
+				setTimeout(() => {
+					if (TerminalSupport.integratedTerminalInstance) {
+						const command = this.prepareCommand(args, configurationService);
+						TerminalSupport.integratedTerminalInstance.sendText(command, true);
+						c(void 0);
+					} else {
+						e(new Error(nls.localize('debug.terminal.not.available.error', "Integrated terminal not available")));
+					}
+				}, delay);
+
 			});
-		}
-		terminalService.setActiveInstance(TerminalSupport.integratedTerminalInstance);
-		terminalService.showPanel(true);
-
-		return new TPromise<void>((c, e) => {
-
-			setTimeout(() => {
-				if (TerminalSupport.integratedTerminalInstance) {
-					const command = this.prepareCommand(args, configurationService);
-					TerminalSupport.integratedTerminalInstance.sendText(command, true);
-					c(void 0);
-				} else {
-					e(new Error(nls.localize('debug.terminal.not.available.error', "Integrated terminal not available")));
-				}
-			}, delay);
-
 		});
 	}
 
