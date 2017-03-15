@@ -18,6 +18,7 @@ import scorer = require('vs/base/common/scorer');
 import strings = require('vs/base/common/strings');
 import { PPromise, TPromise } from 'vs/base/common/winjs.base';
 import { Engine as FileSearchEngine } from 'vs/workbench/services/search/node/fileSearch';
+import { MAX_FILE_SIZE } from 'vs/platform/files/common/files';
 import { RipgrepEngine } from 'vs/workbench/services/search/node/ripgrepTextSearch';
 import { IRawSearchService, IRawSearch, IRawFileMatch, ISerializedFileMatch, ISerializedSearchProgressItem, ISerializedSearchComplete, ISearchEngine } from './search';
 import { ICachedSearchStats, IProgress } from 'vs/platform/search/common/search';
@@ -35,6 +36,7 @@ export class SearchService implements IRawSearchService {
 	}
 
 	public textSearch(config: IRawSearch): PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem> {
+		config.maxFilesize = MAX_FILE_SIZE;
 		let engine = new RipgrepEngine(config);
 		return this.doTextSearch(engine, SearchService.BATCH_SIZE);
 	}
