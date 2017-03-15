@@ -901,7 +901,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			.div()
 			.addClass('content');
 
-		this.updateStyles(contentArea);
+		this.updateStyles();
 
 		// get settings
 		this.memento = this.getMemento(this.storageService, MementoScope.WORKSPACE);
@@ -914,10 +914,9 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		return contentArea;
 	}
 
-	protected updateStyles(contentArea = this.getContentArea()): void {
-		if (contentArea) {
-			contentArea.style('background-color', this.getColor(editorBackground));
-		}
+	protected updateStyles(): void {
+		const container = this.getContainer();
+		container.style('background-color', this.getColor(editorBackground));
 	}
 
 	private onGroupFocusChanged(): void {

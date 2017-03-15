@@ -52,12 +52,16 @@ export class WorkbenchComponent extends Disposable implements IWorkbenchComponen
 
 		// Hook up to theme changes
 		if (this.themeService) {
-			this.toUnbind.push(this.themeService.onThemeChange(() => this.updateStyles()));
+			this.toUnbind.push(this.themeService.onThemeChange(() => this.onThemeChange()));
 		}
 	}
 
 	protected getColor(id: string): string {
 		return this.themeService.getTheme().getColor(id).toString();
+	}
+
+	protected onThemeChange(): void {
+		this.updateStyles();
 	}
 
 	protected updateStyles(): void {

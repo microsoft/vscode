@@ -97,15 +97,14 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
 	public createContentArea(parent: Builder): Builder {
 		const contentArea = super.createContentArea(parent);
-		this.updateStyles(contentArea);
+		this.updateStyles();
 
 		return contentArea;
 	}
 
-	protected updateStyles(contentArea = this.getContentArea()): void {
-		if (contentArea) {
-			contentArea.style('background-color', this.getColor(PANEL_BACKGROUND));
-		}
+	protected updateStyles(): void {
+		const container = this.getContainer();
+		container.style('background-color', this.getColor(PANEL_BACKGROUND));
 	}
 
 	public openPanel(id: string, focus?: boolean): TPromise<Panel> {
