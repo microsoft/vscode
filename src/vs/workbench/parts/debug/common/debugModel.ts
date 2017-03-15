@@ -104,12 +104,21 @@ export class ExpressionContainer implements IExpressionContainer {
 
 	constructor(
 		protected process: IProcess,
-		public reference: number,
+		private _reference: number,
 		private id: string,
 		public namedVariables = 0,
 		public indexedVariables = 0,
 		private startOfVariables = 0
 	) { }
+
+	public get reference(): number {
+		return this._reference;
+	}
+
+	public set reference(value: number) {
+		this._reference = value;
+		this.children = undefined; // invalidate children cache
+	}
 
 	public getChildren(): TPromise<IExpression[]> {
 		if (!this.children) {
@@ -218,7 +227,6 @@ export class Expression extends ExpressionContainer implements IExpression {
 		}
 
 		this.process = process;
-		this.children = undefined; // invalidate children cache
 		return process.session.evaluate({
 			expression: this.name,
 			frameId: stackFrame ? stackFrame.frameId : undefined,
