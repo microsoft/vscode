@@ -61,7 +61,7 @@ export class FileStat implements IFileStat {
 			// the folder is fully resolved if either it has a list of children or the client requested this by using the resolveTo
 			// array of resource path to resolve.
 			stat.isDirectoryResolved = !!raw.children || (!!resolveTo && resolveTo.some((r) => {
-				return paths.isEqualOrParent(r.fsPath, stat.resource.fsPath);
+				return isEqual(r.fsPath, stat.resource.fsPath) || isParent(r.fsPath, stat.resource.fsPath);
 			}));
 
 			// Recurse into children
