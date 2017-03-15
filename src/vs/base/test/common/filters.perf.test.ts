@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as assert from 'assert';
-import { fuzzyContiguousFilter, matchesFuzzy2, matchesFuzzy3, matchesFuzzy4, matchesFuzzy5 } from 'vs/base/common/filters';
+// import * as assert from 'assert';
+import { fuzzyContiguousFilter, matchesFuzzy2, matchesFuzzy3, matchesFuzzy4, matchesFuzzy5, matchFuzzy6 } from 'vs/base/common/filters';
 
-const fuzz = require.__$__nodeRequire('fuzzaldrin-plus');
 const data = <{ label: string }[]>require.__$__nodeRequire(require.toUrl('./filters.perf.data.json'));
 const patterns = ['cci', 'ida', 'pos', 'CCI', 'enbled', 'callback', 'gGame'];
 
@@ -23,110 +22,29 @@ perfSuite('Performance - fuzzyMatch', function () {
 
 	console.log(`Matching ${data.length} items against ${patterns.length} patterns...`);
 
-	test('fuzzyContiguousFilter', function () {
-		const t1 = Date.now();
-		let count = 0;
-		for (const pattern of patterns) {
-			for (const item of data) {
-				if (item.label) {
-					const matches = fuzzyContiguousFilter(pattern, item.label);
-					if (matches) {
+	function perfTest(name: string, match: (pattern: string, word: string) => any) {
+		test(name, function () {
+
+			const t1 = Date.now();
+			let count = 0;
+			for (const pattern of patterns) {
+				for (const item of data) {
+					if (item.label) {
 						count += 1;
+						match(pattern, item.label);
 					}
 				}
 			}
-		}
-		console.log('fuzzyContiguousFilter', Date.now() - t1, count);
-		assert.ok(count > 0);
-	});
+			console.log(name, Date.now() - t1, `${(count / (Date.now() - t1)).toPrecision(6)}/ms`);
+		});
+	}
 
-	test('matchesFuzzy2', function () {
-		const t1 = Date.now();
-		let count = 0;
-		for (const pattern of patterns) {
-			for (const item of data) {
-				if (item.label) {
-					const matches = matchesFuzzy2(pattern, item.label);
-					if (matches) {
-						count += 1;
-					}
-				}
-			}
-		}
-		console.log('matchesFuzzy2', Date.now() - t1, count);
-		assert.ok(count > 0);
-	});
+	perfTest('fuzzyContiguousFilter', fuzzyContiguousFilter);
+	perfTest('matchesFuzzy2', matchesFuzzy2);
+	perfTest('matchesFuzzy3', matchesFuzzy3);
+	perfTest('matchesFuzzy4', matchesFuzzy4);
+	perfTest('matchesFuzzy5', matchesFuzzy5);
+	perfTest('matchFuzzy6', matchFuzzy6);
 
-	test('matchesFuzzy3', function () {
-		const t1 = Date.now();
-		let count = 0;
-		for (const pattern of patterns) {
-			for (const item of data) {
-				if (item.label) {
-					const matches = matchesFuzzy3(pattern, item.label);
-					if (matches) {
-						count += 1;
-					}
-				}
-			}
-		}
-		console.log('matchesFuzzy3', Date.now() - t1, count);
-		assert.ok(count > 0);
-	});
-
-	test('matchesFuzzy4', function () {
-		const t1 = Date.now();
-		let count = 0;
-		for (const pattern of patterns) {
-			for (const item of data) {
-				if (item.label) {
-					const matches = matchesFuzzy4(pattern, item.label);
-					if (matches) {
-						count += 1;
-					}
-				}
-			}
-		}
-		console.log('matchesFuzzy4', Date.now() - t1, count);
-		assert.ok(count > 0);
-	});
-
-	test('matchesFuzzy5', function () {
-
-		matchesFuzzy5('ACGTC', 'AGTC');
-
-		const t1 = Date.now();
-		let count = 0;
-		for (const pattern of patterns) {
-			for (const item of data) {
-				if (item.label) {
-					const matches = matchesFuzzy5(pattern, item.label);
-					if (matches) {
-						count += 1;
-					}
-				}
-			}
-		}
-		console.log('matchesFuzzy5', Date.now() - t1, count);
-		assert.ok(count > 0);
-	});
-
-	test('fuzzaldrin', function () {
-		const t1 = Date.now();
-		let count = 0;
-		for (const pattern of patterns) {
-			for (const item of data) {
-				if (item.label) {
-					const matches = fuzz.match(item.label, pattern);
-					// fuzz.score(item.label, pattern);
-					if (matches) {
-						count += 1;
-					}
-				}
-			}
-		}
-		console.log('fuzzaldrin', Date.now() - t1, count);
-		assert.ok(count > 0);
-	});
 });
 

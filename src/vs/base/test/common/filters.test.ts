@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { IFilter, or, matchesPrefix, matchesStrictPrefix, matchesCamelCase, matchesSubString, matchesContiguousSubString, matchesWords, matchesFuzzy3, matchesFuzzy4 } from 'vs/base/common/filters';
+import { IFilter, or, matchesPrefix, matchesStrictPrefix, matchesCamelCase, matchesSubString, matchesContiguousSubString, matchesWords, matchFuzzy6 } from 'vs/base/common/filters';
 
 function filterOk(filter: IFilter, word: string, wordToMatchAgainst: string, highlights?: { start: number; end: number; }[]) {
 	let r = filter(word, wordToMatchAgainst);
@@ -194,105 +194,36 @@ suite('Filters', () => {
 	});
 
 	test('FuzzyMatchAndScore', function () {
-		// function toString(word: string, matches: IMatch[], score: number) {
-		// 	let underline = '';
-		// 	let lastEnd = 0;
-		// 	for (const { start, end } of matches) {
-		// 		underline += new Array(1 + start - lastEnd).join(' ');
-		// 		underline += new Array(1 + end - start).join('^');
-		// 		lastEnd = end;
-		// 	}
-		// 	return `${word} (score: ${score})\n${underline}`;
-		// }
 
-		let [matches] = matchesFuzzy3('LLL', 'SVisualLoggerLogsList');
-		assert.deepEqual(matches, [{ start: 7, end: 8 }, { start: 13, end: 14 }, { start: 17, end: 18 }]);
-
-		[matches] = matchesFuzzy3('foobar', 'foobar');
-		assert.deepEqual(matches, [{ start: 0, end: 6 }]);
-
-		[matches] = matchesFuzzy3('tk', 'The Black Knight');
-		assert.deepEqual(matches, [{ start: 0, end: 1 }, { start: 10, end: 11 }]);
-
-		[matches] = matchesFuzzy3('Cat', 'charAt');
-		assert.deepEqual(matches, [{ start: 0, end: 1 }, { start: 4, end: 6 }]);
-
-		[matches] = matchesFuzzy3('Cat', 'charCodeAt');
-		assert.deepEqual(matches, [{ start: 4, end: 5 }, { start: 8, end: 10 }]);
-
-		[matches] = matchesFuzzy3('Cat', 'concat');
-		assert.deepEqual(matches, [{ start: 0, end: 1 }, { start: 4, end: 6 }]);
-
-		[matches] = matchesFuzzy4('LLL', 'SVisualLoggerLogsList');
-		assert.deepEqual(matches, [{ start: 7, end: 8 }, { start: 13, end: 14 }, { start: 17, end: 18 }]);
-
-		[matches] = matchesFuzzy4('foobar', 'foobar');
-		assert.deepEqual(matches, [{ start: 0, end: 6 }]);
-
-		[matches] = matchesFuzzy4('tk', 'The Black Knight');
-		assert.deepEqual(matches, [{ start: 0, end: 1 }, { start: 10, end: 11 }]);
-
-		[matches] = matchesFuzzy4('Cat', 'charAt');
-		assert.deepEqual(matches, [{ start: 0, end: 1 }, { start: 4, end: 6 }]);
-
-		[matches] = matchesFuzzy4('Cat', 'charCodeAt');
-		assert.deepEqual(matches, [{ start: 0, end: 1 }, { start: 2, end: 3 }, { start: 9, end: 10 }]);
-
-		[matches] = matchesFuzzy4('Cat', 'concat');
-		assert.deepEqual(matches, [{ start: 0, end: 1 }, { start: 4, end: 6 }]);
-
-	});
-
-	test('matchFuzzy', function () {
-
-		function assertTopScore(pattern: string, expected: number, ...words: string[]) {
-			let topScore = Number.MIN_VALUE;
-			let topIdx = 0;
-			for (let i = 0; i < words.length; i++) {
-				const word = words[i];
-				const match = matchesFuzzy4(pattern, word);
-				if (match) {
-					const [, score] = match;
-					console.log(`${pattern} -> ${word}, ${score}`);
-					if (score > topScore) {
-						topScore = score;
-						topIdx = i;
-					}
+		function assertMatch(pattern: string, word: string, decoratedWord?: string) {
+			let r = matchFuzzy6(pattern, word);
+			assert.ok(Boolean(r) === Boolean(decoratedWord));
+			if (r) {
+				const [, matches] = r;
+				let pos = 0;
+				for (let i = 0; i < matches.length; i++) {
+					let actual = matches[i];
+					let expected = decoratedWord.indexOf('^', pos) - i;
+					assert.equal(actual, expected);
+					pos = expected + 1 + i;
 				}
 			}
-			// assert.equal(topIdx, expected);
-			console.log(topIdx, expected);
-
 		}
 
-		assertTopScore('Foo', 1, 'foo', 'Foo', 'foo');
 
-		assertTopScore('CC', 1, 'camelCase', 'CamelCase');
-		assertTopScore('cC', 0, 'camelCase', 'CamelCase');
-		assertTopScore('cC', 1, 'ccfoo', 'camelCase');
-		assertTopScore('cC', 1, 'ccfoo', 'camelCase', 'foo-cC-bar');
-
-		// issue #17836
-		assertTopScore('p', 0, 'parse', 'posix', 'sep', 'pafdsa', 'path', 'p');
-		assertTopScore('pa', 0, 'parse', 'posix', 'sep', 'pafdsa', 'path', 'p');
-
-		// issue #14583
-		assertTopScore('log', 3, 'HTMLOptGroupElement', 'ScrollLogicalPosition', 'SVGFEMorphologyElement', 'log');
-		assertTopScore('e', 2, 'AbstractWorker', 'ActiveXObject', 'else');
-
-		// issue #14446
-		assertTopScore('workbench.sideb', 1, 'workbench.editor.defaultSideBySideLayout', 'workbench.sideBar.location');
-
-		// issue #11423
-		assertTopScore('editor.r', 2, 'diffEditor.renderSideBySide', 'editor.overviewRulerlanes', 'editor.renderControlCharacter', 'editor.renderWhitespace');
-		assertTopScore('editor.R', 1, 'diffEditor.renderSideBySide', 'editor.overviewRulerlanes', 'editor.renderControlCharacter', 'editor.renderWhitespace');
-		assertTopScore('Editor.r', 0, 'diffEditor.renderSideBySide', 'editor.overviewRulerlanes', 'editor.renderControlCharacter', 'editor.renderWhitespace');
-
-		assertTopScore('-mo', 1, '-ms-ime-mode', '-moz-columns');
-		// dupe, issue #14861
-		assertTopScore('convertModelPosition', 0, 'convertModelPositionToViewPosition', 'convertViewToModelPosition');
-		// dupe, issue #14942
-		assertTopScore('is', 0, 'isValidViewletId', 'import statement');
+		assertMatch('BK', 'the_black_knight', 'the_^black_^knight');
+		assertMatch('LLL', 'SVisualLoggerLogsList', 'SVisual^Logger^Logs^List');
+		assertMatch('LLLL', 'SVisualLoggerLogsList', 'SVisua^l^Logger^Logs^List');
+		assertMatch('sl', 'SVisualLoggerLogsList', '^SVisual^LoggerLogsList');
+		assertMatch('foobar', 'foobar', '^f^o^o^b^a^r');
+		assertMatch('gp', 'Git: Pull', '^Git: ^Pull');
+		assertMatch('gp', 'Git_Git_Pull', '^Git_Git_^Pull');
+		assertMatch('g p', 'Git: Pull', '^Git:^ ^Pull');
+		assertMatch('gip', 'Git: Pull', '^G^it: ^Pull');
+		assertMatch('no', 'match');
+		assertMatch('no', '');
+		assertMatch('', 'match');
 
 	});
+
 });
