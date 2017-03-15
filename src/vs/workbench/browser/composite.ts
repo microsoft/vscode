@@ -13,6 +13,7 @@ import { AsyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IComposite } from 'vs/workbench/common/composite';
 import { IEditorControl } from 'vs/platform/editor/common/editor';
 import Event, { Emitter } from 'vs/base/common/event';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 /**
  * Composites are layed out in the sidebar and panel part of the workbench. At a time only one composite
@@ -35,8 +36,12 @@ export abstract class Composite extends WorkbenchComponent implements IComposite
 	/**
 	 * Create a new composite with the given ID and context.
 	 */
-	constructor(id: string, @ITelemetryService private _telemetryService: ITelemetryService) {
-		super(id);
+	constructor(
+		id: string,
+		private _telemetryService: ITelemetryService,
+		themeService: IThemeService
+	) {
+		super(id, themeService);
 
 		this.visible = false;
 		this._onTitleAreaUpdate = new Emitter<void>();

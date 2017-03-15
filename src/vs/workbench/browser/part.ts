@@ -8,6 +8,7 @@
 import 'vs/css!./media/part';
 import { Dimension, Builder } from 'vs/base/browser/builder';
 import { WorkbenchComponent } from 'vs/workbench/common/component';
+import { IThemeService, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 
 export interface IPartOptions {
 	hasTitle?: boolean;
@@ -23,8 +24,20 @@ export abstract class Part extends WorkbenchComponent {
 	private contentArea: Builder;
 	private partLayout: PartLayout;
 
-	constructor(id: string, private options: IPartOptions) {
-		super(id);
+	constructor(
+		id: string,
+		private options: IPartOptions,
+		themeService: IThemeService
+	) {
+		super(id, themeService);
+	}
+
+	protected onThemeChange(theme: ITheme, collector: ICssStyleCollector): void {
+
+		// only call if our create() method has been called
+		if (this.parent) {
+			super.onThemeChange(theme, collector);
+		}
 	}
 
 	/**

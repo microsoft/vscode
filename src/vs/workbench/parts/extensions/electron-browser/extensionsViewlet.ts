@@ -49,6 +49,7 @@ import Severity from 'vs/base/common/severity';
 import { IActivityBarService, ProgressBadge, NumberBadge } from 'vs/workbench/services/activity/common/activityBarService';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IModeService } from 'vs/editor/common/services/modeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 interface SearchInputEvent extends Event {
 	target: HTMLInputElement;
@@ -82,9 +83,10 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		@IMessageService private messageService: IMessageService,
 		@IViewletService private viewletService: IViewletService,
 		@IExtensionService private extensionService: IExtensionService,
-		@IModeService private modeService: IModeService
+		@IModeService private modeService: IModeService,
+		@IThemeService themeService: IThemeService
 	) {
-		super(VIEWLET_ID, telemetryService);
+		super(VIEWLET_ID, telemetryService, themeService);
 		this.searchDelayer = new ThrottledDelayer(500);
 
 		this.disposables.push(viewletService.onDidViewletOpen(this.onViewletOpen, this, this.disposables));

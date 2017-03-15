@@ -39,10 +39,10 @@ export class TerminalPanel extends Panel {
 		@IInstantiationService private _instantiationService: IInstantiationService,
 		@IKeybindingService private _keybindingService: IKeybindingService,
 		@ITerminalService private _terminalService: ITerminalService,
-		@IWorkbenchThemeService private _themeService: IWorkbenchThemeService,
+		@IWorkbenchThemeService protected themeService: IWorkbenchThemeService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
-		super(TERMINAL_PANEL_ID, telemetryService);
+		super(TERMINAL_PANEL_ID, telemetryService, themeService);
 	}
 
 	public create(parent: Builder): TPromise<any> {
@@ -62,7 +62,7 @@ export class TerminalPanel extends Panel {
 
 		this._terminalService.setContainers(this.getContainer().getHTMLElement(), this._terminalContainer);
 
-		this._register(this._themeService.onDidColorThemeChange(theme => this._updateTheme(theme)));
+		this._register(this.themeService.onDidColorThemeChange(theme => this._updateTheme(theme)));
 		this._register(this._configurationService.onDidUpdateConfiguration(() => this._updateFont()));
 		this._updateFont();
 		this._updateTheme();
@@ -204,7 +204,7 @@ export class TerminalPanel extends Panel {
 
 	private _updateTheme(colorTheme?: IColorTheme): void {
 		if (!colorTheme) {
-			colorTheme = this._themeService.getColorTheme();
+			colorTheme = this.themeService.getColorTheme();
 		}
 		let baseThemeId = colorTheme.getBaseThemeId();
 		if (baseThemeId === this._currentBaseThemeId) {

@@ -7,6 +7,7 @@
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { Scope, Memento } from 'vs/workbench/common/memento';
 import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IThemeService, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 
 /**
  * Base class of any core/ui component in the workbench. Examples include services, extensions, parts, viewlets and quick open.
@@ -38,13 +39,35 @@ export class WorkbenchComponent extends Disposable implements IWorkbenchComponen
 	private _toUnbind: IDisposable[];
 	private id: string;
 	private componentMemento: Memento;
+	private theme: ITheme;
 
-	constructor(id: string) {
+	constructor(
+		id: string,
+		protected themeService: IThemeService
+	) {
 		super();
 
 		this._toUnbind = [];
 		this.id = id;
 		this.componentMemento = new Memento(this.id);
+		this.theme = themeService.getTheme();
+
+		// Hook up to theme changes
+		this.toUnbind.push(this.themeService.onThemeChange((theme, collector) => this.onThemeChange(theme, collector)));
+	}
+
+	protected onThemeChange(theme: ITheme, collector: ICssStyleCollector): void {
+		this.theme = theme;
+
+		this.updateStyles(theme, collector);
+	}
+
+	protected updateStyles(theme: ITheme, collector: ICssStyleCollector): void {
+		// Subclasses to override
+	}
+
+	protected getColor(id: string): string {
+		return this.theme.getColor(id).toString();
 	}
 
 	protected get toUnbind() {
