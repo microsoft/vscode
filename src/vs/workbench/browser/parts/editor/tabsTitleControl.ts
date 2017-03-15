@@ -41,7 +41,7 @@ import { LinkedMap } from 'vs/base/common/map';
 import { DelegatingWorkbenchEditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { INACTIVE_TAB_BACKGROUND, ACTIVE_TAB_BACKGROUND } from 'vs/workbench/browser/styles';
+import { INACTIVE_TAB_BACKGROUND, ACTIVE_TAB_BACKGROUND } from 'vs/workbench/common/theme';
 
 interface IEditorInputLabel {
 	editor: IEditorInput;

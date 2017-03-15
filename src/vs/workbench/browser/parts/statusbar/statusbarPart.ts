@@ -27,7 +27,7 @@ import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { Action } from 'vs/base/common/actions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { STATUS_BAR_BACKGROUND, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_BACKGROUND } from 'vs/workbench/browser/styles';
+import { STATUS_BAR_BACKGROUND, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_BACKGROUND } from 'vs/workbench/common/theme';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 export class StatusbarPart extends Part implements IStatusbarService {

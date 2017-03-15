@@ -7,7 +7,7 @@
 
 import 'vs/css!./media/part';
 import { Dimension, Builder } from 'vs/base/browser/builder';
-import { WorkbenchComponent } from 'vs/workbench/common/component';
+import { Component } from 'vs/workbench/common/component';
 import { IThemeService, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 
 export interface IPartOptions {
@@ -18,7 +18,7 @@ export interface IPartOptions {
  * Parts are layed out in the workbench and have their own layout that arranges an optional title
  * and mandatory content area to show content.
  */
-export abstract class Part extends WorkbenchComponent {
+export abstract class Part extends Component {
 	private parent: Builder;
 	private titleArea: Builder;
 	private contentArea: Builder;

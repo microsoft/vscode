@@ -7,7 +7,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { Dimension, Builder } from 'vs/base/browser/builder';
 import { IAction, IActionRunner, ActionRunner } from 'vs/base/common/actions';
 import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { WorkbenchComponent } from 'vs/workbench/common/component';
+import { Component } from 'vs/workbench/common/component';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { AsyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IComposite } from 'vs/workbench/common/composite';
@@ -25,7 +25,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
  * layout(), focus(), dispose(). During use of the workbench, a composite will often receive a setVisible,
  * layout and focus call, but only one create and dispose call.
  */
-export abstract class Composite extends WorkbenchComponent implements IComposite {
+export abstract class Composite extends Component implements IComposite {
 	private _telemetryData: any = {};
 	private visible: boolean;
 	private parent: Builder;
