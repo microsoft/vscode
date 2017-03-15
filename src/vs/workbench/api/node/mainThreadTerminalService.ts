@@ -38,7 +38,7 @@ export class MainThreadTerminalService extends MainThreadTerminalServiceShape {
 			waitOnExit,
 			ignoreConfigurationCwd: true
 		};
-		return TPromise.as(this.terminalService.createInstance(shellLaunchConfig).id);
+		return this.terminalService.createInstance(shellLaunchConfig).then(instance => instance.id);
 	}
 
 	public $show(terminalId: number, preserveFocus: boolean): void {
