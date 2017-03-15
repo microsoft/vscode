@@ -90,7 +90,10 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 				`${windir}\\System32\\WindowsPowerShell\\v1.0\\powerShell.exe`
 			],
 			'WSL Bash': [`${windir}\\Sysnative\\bash.exe`],
-			'Git Bash': [`${process.env['ProgramFiles']}\\Git\\bin\\bash.exe`],
+			'Git Bash': [
+				`${process.env['ProgramFiles']}\\Git\\bin\\bash.exe`,
+				`${process.env['ProgramFiles']}\\Git\\usr\\bin\\bash.exe`,
+			],
 			'bash': ['/bin/bash'],
 			'zsh': ['/bin/zsh']
 		};
