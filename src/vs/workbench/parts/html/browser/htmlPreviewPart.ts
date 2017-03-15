@@ -21,6 +21,7 @@ import { HtmlInput } from 'vs/workbench/parts/html/common/htmlInput';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITextModelResolverService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
+import { Parts, IPartService } from 'vs/workbench/services/part/common/partService';
 
 import Webview from './webview';
 
@@ -50,7 +51,8 @@ export class HtmlPreviewPart extends BaseEditor {
 		@ITextModelResolverService textModelResolverService: ITextModelResolverService,
 		@IWorkbenchThemeService themeService: IWorkbenchThemeService,
 		@IOpenerService openerService: IOpenerService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IPartService private partService: IPartService
 	) {
 		super(HtmlPreviewPart.ID, telemetryService);
 
@@ -83,7 +85,7 @@ export class HtmlPreviewPart extends BaseEditor {
 
 	private get webview(): Webview {
 		if (!this._webview) {
-			this._webview = new Webview(this._container, document.querySelector('.monaco-editor-background'));
+			this._webview = new Webview(this._container, this.partService.getContainer(Parts.EDITOR_PART));
 			this._webview.baseUrl = this._baseUrl && this._baseUrl.toString(true);
 
 			this._webviewDisposables = [

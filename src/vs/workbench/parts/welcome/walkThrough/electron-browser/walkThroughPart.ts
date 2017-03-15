@@ -428,7 +428,7 @@ export class WalkThroughPart extends BaseEditor {
 	}
 
 	private style(div: HTMLElement) {
-		const styleElement = document.querySelector('.monaco-editor-background');
+		const styleElement = document.querySelector('.monaco-editor-background'); // TODO@theme styles should come in via theme registry
 		const {color, backgroundColor, fontFamily, fontWeight, fontSize} = window.getComputedStyle(styleElement);
 		div.style.color = color;
 		div.style.backgroundColor = backgroundColor;
