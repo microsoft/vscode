@@ -638,7 +638,7 @@ export function fuzzyMatchAndScore(pattern: string, word: string): [number, numb
 
 	let matches: number[] = [];
 	let score = _matchRecursive(
-		pattern.toLowerCase(), pattern.toUpperCase(), 0,
+		pattern, pattern.toLowerCase(), pattern.toUpperCase(), 0,
 		word, word.toLowerCase(), 0,
 		matches
 	);
@@ -654,7 +654,7 @@ export function fuzzyMatchAndScore(pattern: string, word: string): [number, numb
 }
 
 export function _matchRecursive(
-	lowPattern: string, upPattern: string, patternPos: number,
+	pattern: string, lowPattern: string, upPattern: string, patternPos: number,
 	word: string, lowWord: string, wordPos: number,
 	matches: number[]
 ): number {
@@ -667,30 +667,31 @@ export function _matchRecursive(
 	let idx = -1;
 	let value = 0;
 
-	if ((patternPos === wordPos && lowPatternChar === lowWord.charAt(wordPos))
-		&& ((value = _matchRecursive(lowPattern, upPattern, patternPos + 1, word, lowWord, wordPos + 1, matches)) >= 0)
+	if ((patternPos === wordPos
+		&& lowPatternChar === lowWord.charAt(wordPos))
+		&& ((value = _matchRecursive(pattern, lowPattern, upPattern, patternPos + 1, word, lowWord, wordPos + 1, matches)) >= 0)
 	) {
 		matches.unshift(wordPos);
-		return 11 + value;
+		return (pattern.charAt(patternPos) === word.charAt(wordPos) ? 11 : 9) + value;
 	}
 
 	if ((idx = lowWord.indexOf(`_${lowPatternChar}`, wordPos)) >= 0
-		&& ((value = _matchRecursive(lowPattern, upPattern, patternPos + 1, word, lowWord, idx + 2, matches)) >= 0)
+		&& ((value = _matchRecursive(pattern, lowPattern, upPattern, patternPos + 1, word, lowWord, idx + 2, matches)) >= 0)
 	) {
 		matches.unshift(idx + 1);
-		return 7 + value;
+		return (pattern.charAt(patternPos) === word.charAt(idx + 1) ? 11 : 9) + value;
 	}
 
 	if ((idx = word.indexOf(upPattern.charAt(patternPos), wordPos)) >= 0
-		&& ((value = _matchRecursive(lowPattern, upPattern, patternPos + 1, word, lowWord, idx + 1, matches)) >= 0)
+		&& ((value = _matchRecursive(pattern, lowPattern, upPattern, patternPos + 1, word, lowWord, idx + 1, matches)) >= 0)
 	) {
 		matches.unshift(idx);
-		return 7 + value;
+		return (pattern.charAt(patternPos) === word.charAt(idx) ? 11 : 9) + value;
 	}
 
 	if (patternPos > 0
 		&& (idx = lowWord.indexOf(lowPatternChar, wordPos)) >= 0
-		&& ((value = _matchRecursive(lowPattern, upPattern, patternPos + 1, word, lowWord, idx + 1, matches)) >= 0)
+		&& ((value = _matchRecursive(pattern, lowPattern, upPattern, patternPos + 1, word, lowWord, idx + 1, matches)) >= 0)
 	) {
 		matches.unshift(idx);
 		return 1 + value;
