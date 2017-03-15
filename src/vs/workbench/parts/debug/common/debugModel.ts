@@ -100,6 +100,7 @@ export class ExpressionContainer implements IExpressionContainer {
 
 	public valueChanged: boolean;
 	private _value: string;
+	protected children: TPromise<IExpression[]>;
 
 	constructor(
 		protected process: IProcess,
@@ -111,6 +112,14 @@ export class ExpressionContainer implements IExpressionContainer {
 	) { }
 
 	public getChildren(): TPromise<IExpression[]> {
+		if (!this.children) {
+			this.children = this.doGetChildren();
+		}
+
+		return this.children;
+	}
+
+	private doGetChildren(): TPromise<IExpression[]> {
 		if (!this.hasChildren) {
 			return TPromise.as([]);
 		}
@@ -209,6 +218,7 @@ export class Expression extends ExpressionContainer implements IExpression {
 		}
 
 		this.process = process;
+		this.children = undefined; // invalidate children cache
 		return process.session.evaluate({
 			expression: this.name,
 			frameId: stackFrame ? stackFrame.frameId : undefined,
@@ -606,6 +616,7 @@ export class Process implements IProcess {
 			column: position.column,
 			line: position.lineNumber
 		}).then(response => {
+			console.log(response.body.targets);
 			return response && response.body && response.body.targets ? response.body.targets.map(item => (<ISuggestion>{
 				label: item.label,
 				insertText: item.text || item.label,
