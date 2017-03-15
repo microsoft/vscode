@@ -123,7 +123,7 @@ export interface ITerminalService {
 	onInstanceTitleChanged: Event<string>;
 	terminalInstances: ITerminalInstance[];
 
-	createInstance(shell?: IShellLaunchConfig): ITerminalInstance;
+	createInstance(shell?: IShellLaunchConfig): TPromise<ITerminalInstance>;
 	getInstanceFromId(terminalId: number): ITerminalInstance;
 	getInstanceLabels(): string[];
 	getActiveInstance(): ITerminalInstance;
@@ -131,6 +131,7 @@ export interface ITerminalService {
 	setActiveInstanceByIndex(terminalIndex: number): void;
 	setActiveInstanceToNext(): void;
 	setActiveInstanceToPrevious(): void;
+	getActiveOrCreateInstance(): TPromise<ITerminalInstance>;
 
 	showPanel(focus?: boolean): TPromise<void>;
 	hidePanel(): void;
