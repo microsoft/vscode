@@ -919,20 +919,16 @@ export class DebugService implements debug.IDebugService {
 		const bpsExist = this.model.getBreakpoints().length > 0;
 		const process = this.model.getProcesses().filter(p => p.getId() === session.getId()).pop();
 		this.telemetryService.publicLog('debugSessionStop', {
-			type: process.configuration.type,
+			type: process && process.configuration.type,
 			success: session.emittedStopped || !bpsExist,
 			sessionLengthInSeconds: session.getLengthInSeconds(),
 			breakpointCount: this.model.getBreakpoints().length,
 			watchExpressionsCount: this.model.getWatchExpressions().length
 		});
 
-		try {
-			this.toDisposeOnSessionEnd.set(session.getId(), lifecycle.dispose(this.toDisposeOnSessionEnd.get(session.getId())));
-		} catch (e) {
-			// an internal module might be open so the dispose can throw -> ignore and continue with stop session.
-		}
+		this.model.removeProcess(session.getId());
 
-		this.model.removeProcess(process.getId());
+		this.toDisposeOnSessionEnd.set(session.getId(), lifecycle.dispose(this.toDisposeOnSessionEnd.get(session.getId())));
 		const focusedProcess = this.viewModel.focusedProcess;
 		if (focusedProcess && focusedProcess.getId() === session.getId()) {
 			this.focusStackFrameAndEvaluate(null).done(null, errors.onUnexpectedError);
