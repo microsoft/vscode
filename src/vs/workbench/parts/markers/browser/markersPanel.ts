@@ -35,6 +35,7 @@ import { RangeHighlightDecorations } from 'vs/workbench/common/editor/rangeDecor
 import { ContributableActionProvider } from 'vs/workbench/browser/actionBarRegistry';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IListService } from 'vs/platform/list/browser/listService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export class MarkersPanel extends Panel {
 
@@ -70,9 +71,10 @@ export class MarkersPanel extends Panel {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IListService private listService: IListService
+		@IListService private listService: IListService,
+		@IThemeService themeService: IThemeService
 	) {
-		super(Constants.MARKERS_PANEL_ID, telemetryService);
+		super(Constants.MARKERS_PANEL_ID, telemetryService, themeService);
 		this.toDispose = [];
 		this.delayedRefresh = new Delayer<void>(500);
 		this.autoExpanded = new Set.ArraySet<string>();

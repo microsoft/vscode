@@ -27,7 +27,7 @@ export abstract class Part extends WorkbenchComponent {
 	constructor(
 		id: string,
 		private options: IPartOptions,
-		themeService?: IThemeService
+		themeService: IThemeService
 	) {
 		super(id, themeService);
 	}

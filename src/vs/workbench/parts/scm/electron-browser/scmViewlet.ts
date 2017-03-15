@@ -178,7 +178,7 @@ export class SCMViewlet extends Viewlet {
 		@IMenuService private menuService: IMenuService,
 		@IModelService private modelService: IModelService
 	) {
-		super(VIEWLET_ID, telemetryService);
+		super(VIEWLET_ID, telemetryService, themeService);
 
 		this.menus = this.instantiationService.createInstance(SCMMenus);
 		this.menus.onDidChangeTitle(this.updateTitleArea, this, this.disposables);

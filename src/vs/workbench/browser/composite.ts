@@ -39,7 +39,7 @@ export abstract class Composite extends WorkbenchComponent implements IComposite
 	constructor(
 		id: string,
 		private _telemetryService: ITelemetryService,
-		themeService?: IThemeService
+		themeService: IThemeService
 	) {
 		super(id, themeService);
 

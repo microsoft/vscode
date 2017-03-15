@@ -49,7 +49,7 @@ export class ReleaseNotesEditor extends BaseEditor {
 		@IModeService private modeService: IModeService,
 		@IPartService private partService: IPartService
 	) {
-		super(ReleaseNotesEditor.ID, telemetryService);
+		super(ReleaseNotesEditor.ID, telemetryService, themeService);
 	}
 
 	createEditor(parent: Builder): void {

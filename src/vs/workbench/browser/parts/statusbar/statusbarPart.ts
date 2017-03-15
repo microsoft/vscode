@@ -26,6 +26,7 @@ import { IStatusbarService, IStatusbarEntry } from 'vs/platform/statusbar/common
 import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { Action } from 'vs/base/common/actions';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export class StatusbarPart extends Part implements IStatusbarService {
 
@@ -40,9 +41,10 @@ export class StatusbarPart extends Part implements IStatusbarService {
 
 	constructor(
 		id: string,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IThemeService themeService: IThemeService
 	) {
-		super(id, { hasTitle: false });
+		super(id, { hasTitle: false }, themeService);
 
 		this.toDispose = [];
 	}

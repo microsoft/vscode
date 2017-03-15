@@ -33,7 +33,6 @@ export class HtmlPreviewPart extends BaseEditor {
 	static ID: string = 'workbench.editor.htmlPreviewPart';
 
 	private _textModelResolverService: ITextModelResolverService;
-	private _themeService: IWorkbenchThemeService;
 	private _openerService: IOpenerService;
 	private _webview: Webview;
 	private _webviewDisposables: IDisposable[];
@@ -49,15 +48,14 @@ export class HtmlPreviewPart extends BaseEditor {
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@ITextModelResolverService textModelResolverService: ITextModelResolverService,
-		@IWorkbenchThemeService themeService: IWorkbenchThemeService,
+		@IWorkbenchThemeService protected themeService: IWorkbenchThemeService,
 		@IOpenerService openerService: IOpenerService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IPartService private partService: IPartService
 	) {
-		super(HtmlPreviewPart.ID, telemetryService);
+		super(HtmlPreviewPart.ID, telemetryService, themeService);
 
 		this._textModelResolverService = textModelResolverService;
-		this._themeService = themeService;
 		this._openerService = openerService;
 		this._baseUrl = contextService.toResource('/');
 	}
@@ -118,8 +116,8 @@ export class HtmlPreviewPart extends BaseEditor {
 			this._webviewDisposables = dispose(this._webviewDisposables);
 			this._webview = undefined;
 		} else {
-			this._themeChangeSubscription = this._themeService.onDidColorThemeChange(themeId => this.webview.style(themeId));
-			this.webview.style(this._themeService.getColorTheme());
+			this._themeChangeSubscription = this.themeService.onDidColorThemeChange(themeId => this.webview.style(themeId));
+			this.webview.style(this.themeService.getColorTheme());
 
 			if (this._hasValidModel()) {
 				this._modelChangeSubscription = this.model.onDidChangeContent(() => this.webview.contents = this.model.getLinesContent());

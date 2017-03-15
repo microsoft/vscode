@@ -17,6 +17,7 @@ import { VSash } from 'vs/base/browser/ui/sash/sash';
 
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export class SideBySideEditor extends BaseEditor {
 
@@ -34,9 +35,10 @@ export class SideBySideEditor extends BaseEditor {
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IThemeService themeService: IThemeService
 	) {
-		super(SideBySideEditor.ID, telemetryService);
+		super(SideBySideEditor.ID, telemetryService, themeService);
 	}
 
 	protected createEditor(parent: Builder): void {

@@ -50,6 +50,8 @@ import { IWindowsService, IWindowService } from 'vs/platform/windows/common/wind
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { RawTextSource, IRawTextSource } from 'vs/editor/common/model/textSource';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IThemeService, ITheme, IThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, void 0);
@@ -205,6 +207,7 @@ export function workbenchInstantiationService(): IInstantiationService {
 	instantiationService.stub(ITextFileService, <ITextFileService>instantiationService.createInstance(TestTextFileService));
 	instantiationService.stub(ITextModelResolverService, <ITextModelResolverService>instantiationService.createInstance(TextModelResolverService));
 	instantiationService.stub(IEnvironmentService, TestEnvironmentService);
+	instantiationService.stub(IThemeService, new TestThemeService());
 
 	return instantiationService;
 }
@@ -967,5 +970,18 @@ export class TestWindowsService implements IWindowsService {
 	// TODO: this is a bit backwards
 	startCrashReporter(config: Electron.CrashReporterStartOptions): TPromise<void> {
 		return TPromise.as(void 0);
+	}
+}
+
+export class TestThemeService implements IThemeService {
+
+	_serviceBrand: any;
+
+	getTheme(): ITheme {
+		throw new Error('Method not implemented.');
+	}
+
+	onThemeChange(participant: IThemingParticipant): IDisposable {
+		return { dispose: () => { } };
 	}
 }

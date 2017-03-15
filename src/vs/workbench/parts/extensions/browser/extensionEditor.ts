@@ -163,7 +163,7 @@ export class ExtensionEditor extends BaseEditor {
 		@IListService private listService: IListService,
 		@IPartService private partService: IPartService
 	) {
-		super(ExtensionEditor.ID, telemetryService);
+		super(ExtensionEditor.ID, telemetryService, themeService);
 		this._highlight = null;
 		this.highlightDisposable = empty;
 		this.disposables = [];
