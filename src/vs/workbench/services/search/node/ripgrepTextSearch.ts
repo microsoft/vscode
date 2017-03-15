@@ -44,7 +44,6 @@ export class RipgrepEngine implements ISearchEngine<ISerializedFileMatch[]> {
 
 	private searchNextFolder(onResult: (match: ISerializedFileMatch[]) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISerializedSearchComplete) => void): void {
 		if (this.config.rootFolders.length) {
-			// TODO search all root folders
 			this.searchFolder(this.config.rootFolders.shift(), onResult, onProgress, done);
 		}
 	}
@@ -172,11 +171,15 @@ export class RipgrepEngine implements ISearchEngine<ISerializedFileMatch[]> {
 		const args = ['--heading', '-uu', '--line-number', '--color', 'ansi', '--colors', 'path:none', '--colors', 'line:none', '--colors', 'match:fg:red', '--colors', 'match:style:nobold']; // -uu == Skip gitignore files, and hidden files/folders
 		args.push(this.config.contentPattern.isCaseSensitive ? '--case-sensitive' : '--ignore-case');
 
-		// TODO: extraFiles, filePattern ?
 		if (this.config.includePattern) {
 			Object.keys(this.config.includePattern).forEach(inclKey => {
 				const inclValue = this.config.includePattern[inclKey];
 				if (typeof inclValue === 'boolean' && inclValue) {
+					// globs added to ripgrep don't match from the root by default, so add a /
+					if (inclKey.charAt(0) !== '*') {
+						inclKey = '/' + inclKey;
+					}
+
 					args.push('-g', inclKey);
 				} else if (inclValue && inclValue.when) {
 					// Possible?
@@ -184,11 +187,15 @@ export class RipgrepEngine implements ISearchEngine<ISerializedFileMatch[]> {
 			});
 		}
 
-		// TODO, -g excludes globs that match anywhere within the path. Our globs should match from the root.
 		if (this.config.excludePattern) {
 			Object.keys(this.config.excludePattern).forEach(exclKey => {
 				const exclValue = this.config.excludePattern[exclKey];
 				if (typeof exclValue === 'boolean' && exclValue) {
+					// globs added to ripgrep don't match from the root by default, so add a /
+					if (exclKey.charAt(0) !== '*') {
+						exclKey = '/' + exclKey;
+					}
+
 					args.push('-g', `!${exclKey}`);
 				} else if (exclValue && exclValue.when) {
 					this.postProcessExclusions.push(exclValue);
