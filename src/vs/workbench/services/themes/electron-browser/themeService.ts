@@ -22,11 +22,9 @@ import errors = require('vs/base/common/errors');
 import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { IFileService } from 'vs/platform/files/common/files';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IMessageService } from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
-import URI from 'vs/base/common/uri';
 import { ColorThemeData } from './colorThemeData';
 import { ITheme, IThemingParticipant, Extensions as ThemingExtensions, IThemingRegistry } from 'vs/platform/theme/common/themeService';
 
@@ -197,7 +195,6 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IFileService private fileService: IFileService,
 		@IMessageService private messageService: IMessageService,
 		@ITelemetryService private telemetryService: ITelemetryService) {
 
@@ -290,12 +287,14 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 	}
 
 	private backupSettings(): TPromise<string> {
-		let resource = URI.file(this.environmentService.appSettingsPath);
-		let backupFileLocation = URI.file(resource.fsPath + '-' + new Date().getTime() + '.backup');
-		return this.fileService.copyFile(resource, backupFileLocation, true).then(_ => backupFileLocation.fsPath, err => {
+		let resource = this.environmentService.appSettingsPath;
+		let backupFileLocation = resource + '-' + new Date().getTime() + '.backup';
+		return pfs.readFile(resource).then(content => {
+			return pfs.writeFile(backupFileLocation, content).then(_ => backupFileLocation);
+		}, err => {
 			if (err && err.code === 'ENOENT') {
 				return TPromise.as(null); // ignore, user config file doesn't exist yet
-			}
+			};
 			return TPromise.wrapError(err);
 		});
 	}
