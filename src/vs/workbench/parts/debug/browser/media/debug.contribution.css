@@ -226,9 +226,3 @@
 	background: rgba(255, 246, 0, .8);
 	mix-blend-mode: lighten; /* Preserves text selection's contrast */
 }
-
-/* TODO@theme */
-
-.monaco-workbench.debugging > .part.statusbar {
-	background: #CC6633 !important;
-}

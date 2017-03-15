@@ -965,11 +965,6 @@ export class Workbench implements IPartService {
 			this.workbench.addClass('nopanel');
 		}
 
-		// Apply no-workspace state as CSS class
-		if (!this.contextService.hasWorkspace()) {
-			this.workbench.addClass('no-workspace');
-		}
-
 		// Apply title style if shown
 		const titleStyle = this.getCustomTitleBarStyle();
 		if (titleStyle) {
