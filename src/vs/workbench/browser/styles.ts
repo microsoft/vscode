@@ -15,7 +15,7 @@ export const ACTIVE_TAB_BACKGROUND = registerColor('activeTabBackground', {
 export const INACTIVE_TAB_BACKGROUND = registerColor('inactiveTabBackground', {
 	dark: '#2D2D2D',
 	light: '#ECECEC',
-	hc: '#000000'
+	hc: '#00000000'
 }, nls.localize('inactiveTabBackground', "Inactive Tab background color. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group."));
 
 export const PANEL_BACKGROUND = registerColor('panelBackground', {

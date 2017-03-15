@@ -117,7 +117,7 @@ export class SearchViewlet extends Viewlet {
 		@IListService private listService: IListService,
 		@IThemeService protected themeService: IThemeService
 	) {
-		super(Constants.VIEWLET_ID, telemetryService);
+		super(Constants.VIEWLET_ID, telemetryService, themeService);
 
 		this.toDispose = [];
 		this.viewletVisible = Constants.SearchViewletVisibleKey.bindTo(contextKeyService);
