@@ -21,15 +21,13 @@ export class RipgrepEngine implements ISearchEngine<ISerializedFileMatch> {
 	private static MATCH_START_MARKER = '\u001b[m\u001b[31m';
 	private static MATCH_END_MARKER = '\u001b[m';
 
-	private config: IRawSearch;
 	private isDone = false;
 	private rgProc: cp.ChildProcess;
 	private postProcessExclusions: glob.SiblingClause[] = [];
 
 	private numResults = 0;
 
-	constructor(config: IRawSearch) {
-		this.config = config;
+	constructor(private config: IRawSearch) {
 	}
 
 	cancel(): void {
@@ -85,7 +83,7 @@ export class RipgrepEngine implements ISearchEngine<ISerializedFileMatch> {
 
 					const realTextParts: string[] = [];
 
-					for (let i = 0; i < text.length - (RipgrepEngine.MATCH_END_MARKER.length - 1); i++) {
+					for (let i = 0; i < text.length - (RipgrepEngine.MATCH_END_MARKER.length - 1);) {
 						if (text.substr(i, RipgrepEngine.MATCH_START_MARKER.length) === RipgrepEngine.MATCH_START_MARKER) {
 							// Match start
 							const chunk = text.slice(lastMatchEndPos, i);
@@ -113,10 +111,9 @@ export class RipgrepEngine implements ISearchEngine<ISerializedFileMatch> {
 								});
 							}
 						} else {
-							// blank line
+							i++;
+							textRealIdx++;
 						}
-
-						textRealIdx++;
 					}
 
 					const chunk = text.slice(lastMatchEndPos);
@@ -197,6 +194,10 @@ export class RipgrepEngine implements ISearchEngine<ISerializedFileMatch> {
 					this.postProcessExclusions.push(exclValue);
 				}
 			});
+		}
+
+		if (this.config.maxFilesize) {
+			args.push('--max-filesize', this.config.maxFilesize + '');
 		}
 
 		if (this.config.contentPattern.isRegExp) {
