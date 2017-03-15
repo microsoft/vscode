@@ -187,8 +187,7 @@ export class Repl extends Panel implements IPrivateReplService {
 				const focusedProcess = this.debugService.getViewModel().focusedProcess;
 				const completions = focusedProcess ? focusedProcess.completions(frameId, text, position, overwriteBefore) : TPromise.as([]);
 				return wireCancellationToken(token, completions.then(suggestions => ({
-					suggestions,
-					incomplete: true
+					suggestions
 				})));
 			}
 		});
