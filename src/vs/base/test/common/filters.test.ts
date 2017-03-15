@@ -259,8 +259,8 @@ suite('Filters', () => {
 
 		assertTopScore('CC', 1, 'camelCase', 'CamelCase');
 		assertTopScore('cC', 0, 'camelCase', 'CamelCase');
-		// assertTopScore('cC', 1, 'ccfoo', 'camelCase');
-		// assertTopScore('cC', 1, 'ccfoo', 'camelCase', 'foo-cC-bar');
+		assertTopScore('cC', 1, 'ccfoo', 'camelCase');
+		assertTopScore('cC', 1, 'ccfoo', 'camelCase', 'foo-cC-bar');
 
 		// issue #17836
 		assertTopScore('p', 0, 'parse', 'posix', 'pafdsa', 'path', 'p');
