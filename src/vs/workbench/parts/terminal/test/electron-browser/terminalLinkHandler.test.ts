@@ -113,5 +113,13 @@ suite('Workbench - TerminalLinkHandler', () => {
 			assert.equal(linkHandler.preprocessPath('/absolute/path/file3'), '/absolute/path/file3');
 			stub.restore();
 		});
+
+		test('No Workspace', () => {
+			const linkHandler = new TestTerminalLinkHandler(null, new TestXterm(), Platform.Linux, null, new WorkspaceContextService(null));
+
+			assert.equal(linkHandler.preprocessPath('./src/file1'), null);
+			assert.equal(linkHandler.preprocessPath('src/file2'), null);
+			assert.equal(linkHandler.preprocessPath('/absolute/path/file3'), '/absolute/path/file3');
+		});
 	});
 });
