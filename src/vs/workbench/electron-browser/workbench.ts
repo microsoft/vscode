@@ -67,8 +67,6 @@ import { WorkbenchMessageService } from 'vs/workbench/services/message/browser/m
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/themeService';
-import { WorkbenchThemeService } from 'vs/workbench/services/themes/electron-browser/themeService';
 import { ClipboardService } from 'vs/platform/clipboard/electron-browser/clipboardService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -116,7 +114,6 @@ export interface IWorkbenchStartedInfo {
 	restoreViewletDuration: number;
 	restoreEditorsDuration: number;
 	pinnedViewlets: string[];
-	themeId: string;
 }
 
 export interface IWorkbenchCallbacks {
@@ -163,7 +160,6 @@ export class Workbench implements IPartService {
 	private editorService: WorkbenchEditorService;
 	private viewletService: IViewletService;
 	private contextKeyService: IContextKeyService;
-	private themeService: WorkbenchThemeService;
 	private keybindingService: IKeybindingService;
 	private backupFileService: IBackupFileService;
 	private configurationEditingService: IConfigurationEditingService;
@@ -353,7 +349,6 @@ export class Workbench implements IPartService {
 						restoreViewletDuration: viewletRestoreStopWatch ? viewletRestoreStopWatch.elapsed() : 0,
 						restoreEditorsDuration: editorRestoreStopWatch.elapsed(),
 						pinnedViewlets: this.activitybarPart.getPinned(),
-						themeId: this.themeService.getColorTheme().id
 					});
 				}
 
@@ -434,10 +429,6 @@ export class Workbench implements IPartService {
 		const { serviceCollection } = this.workbenchParams;
 
 		this.toDispose.push(this.lifecycleService.onShutdown(this.shutdownComponents, this));
-
-		// Theme Service
-		this.themeService = this.instantiationService.createInstance(WorkbenchThemeService, document.body);
-		serviceCollection.set(IWorkbenchThemeService, this.themeService);
 
 		// Services we contribute
 		serviceCollection.set(IPartService, this);
