@@ -140,7 +140,7 @@ export class TerminalLinkHandler {
 
 			//resolve relative paths
 			if (!link.match('^' + winDrivePrefix)) {
-				if (!this._contextService.hasWorkspace) {
+				if (!this._contextService.hasWorkspace()) {
 					// Abort if no workspace is open
 					return null;
 				}
@@ -149,7 +149,7 @@ export class TerminalLinkHandler {
 		}
 		// Resolve workspace path . | .. | <relative_path> -> <path>/. | <path>/.. | <path>/<relative_path>
 		else if (link.charAt(0) !== '/' && link.charAt(0) !== '~') {
-			if (!this._contextService.hasWorkspace) {
+			if (!this._contextService.hasWorkspace()) {
 				// Abort if no workspace is open
 				return null;
 			}
