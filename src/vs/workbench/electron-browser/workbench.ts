@@ -435,6 +435,10 @@ export class Workbench implements IPartService {
 
 		this.toDispose.push(this.lifecycleService.onShutdown(this.shutdownComponents, this));
 
+		// Theme Service
+		this.themeService = this.instantiationService.createInstance(WorkbenchThemeService, document.body);
+		serviceCollection.set(IWorkbenchThemeService, this.themeService);
+
 		// Services we contribute
 		serviceCollection.set(IPartService, this);
 
@@ -525,10 +529,6 @@ export class Workbench implements IPartService {
 		// Configuration Editing
 		this.configurationEditingService = this.instantiationService.createInstance(ConfigurationEditingService);
 		serviceCollection.set(IConfigurationEditingService, this.configurationEditingService);
-
-		// Theme Service
-		this.themeService = this.instantiationService.createInstance(WorkbenchThemeService, document.body);
-		serviceCollection.set(IWorkbenchThemeService, this.themeService);
 
 		// Configuration Resolver
 		const workspace = this.contextService.getWorkspace();
