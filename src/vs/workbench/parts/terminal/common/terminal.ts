@@ -79,8 +79,12 @@ export interface IShellLaunchConfig {
 	name?: string;
 	/** The shell executable (bash, cmd, etc.). */
 	executable?: string;
-	/** The CLI arguments to use with executable. */
-	args?: string[];
+	/**
+	 * The CLI arguments to use with executable, a string[] is in argv format and will be escaped,
+	 * a string is in "CommandLine" pre-escaped format and will be used as is. The string option is
+	 * only supported on Windows and will throw an exception if used on macOS or Linux.
+	 */
+	args?: string[] | string;
 	/**
 	 * The current working directory of the terminal, this overrides the `terminal.integrated.cwd`
 	 * settings key.
@@ -98,6 +102,13 @@ export interface IShellLaunchConfig {
 	ignoreConfigurationCwd?: boolean;
 	/** Whether to wait for a key press before closing the terminal. */
 	waitOnExit?: boolean;
+	/**
+	 * A string including ANSI escape sequences that will be written to the terminal emulator
+	 * _before_ the terminal process has launched, a trailing \n is added at the end of the string.
+	 * This allows for example the terminal instance to display a styled message as the first line
+	 * of the terminal. Use \x1b over \033 or \e for the escape control character.
+	 */
+	initialText?: string;
 }
 
 export interface ITerminalService {
