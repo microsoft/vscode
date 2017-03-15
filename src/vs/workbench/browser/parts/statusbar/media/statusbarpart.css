@@ -64,25 +64,8 @@
 
 /* TODO@theme */
 
-.vs .monaco-workbench > .part.statusbar,
-.vs-dark .monaco-workbench > .part.statusbar,
-.hc-black .monaco-workbench > .part.statusbar {
-	color: white;
-}
-
-.vs .monaco-workbench > .part.statusbar,
-.vs-dark .monaco-workbench > .part.statusbar {
-	background: #007ACC;
-}
-
 .hc-black .monaco-workbench > .part.statusbar {
 	border-top-color: #6FC3DF;
-	background-color: #000;
-}
-
-.vs .monaco-workbench.no-workspace > .part.statusbar,
-.vs-dark .monaco-workbench.no-workspace > .part.statusbar {
-	background: #68217A;
 }
 
 .vs .monaco-workbench > .part.statusbar > .statusbar-item a:hover:not([disabled]):not(.disabled),

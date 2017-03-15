@@ -764,10 +764,6 @@ export class DebugService implements debug.IDebugService {
 					this.viewletService.openViewlet(debug.VIEWLET_ID);
 				}
 
-				// Do not change status bar to orange if we are just running without debug.
-				if (!configuration.noDebug) {
-					this.partService.addClass('debugging');
-				}
 				this.extensionService.activateByEvent(`onDebug:${configuration.type}`).done(null, errors.onUnexpectedError);
 				this.inDebugMode.set(true);
 				this.debugType.set(configuration.type);
@@ -936,7 +932,6 @@ export class DebugService implements debug.IDebugService {
 		this.updateStateAndEmit(session.getId(), debug.State.Inactive);
 
 		if (this.model.getProcesses().length === 0) {
-			this.partService.removeClass('debugging');
 			// set breakpoints back to unverified since the session ended.
 			const data: { [id: string]: { line: number, verified: boolean } } = {};
 			this.model.getBreakpoints().forEach(bp => {
