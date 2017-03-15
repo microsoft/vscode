@@ -275,65 +275,67 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 				watchingProblemMatcher.aboutToStart();
 				let delayer: Async.Delayer<any> = null;
 				let decoder = new TerminalDecoder();
-				[terminal, executedCommand] = this.createTerminal(task);
-				const onData = terminal.onData((data: string) => {
-					decoder.write(data).forEach(line => {
-						watchingProblemMatcher.processLine(line);
-						if (delayer === null) {
-							delayer = new Async.Delayer(3000);
-						}
-						delayer.trigger(() => {
-							watchingProblemMatcher.forceDelivery();
-							delayer = null;
+				this.createTerminal(task).then(([terminal, executedCommand]) => {
+					const onData = terminal.onData((data: string) => {
+						decoder.write(data).forEach(line => {
+							watchingProblemMatcher.processLine(line);
+							if (delayer === null) {
+								delayer = new Async.Delayer(3000);
+							}
+							delayer.trigger(() => {
+								watchingProblemMatcher.forceDelivery();
+								delayer = null;
+							});
 						});
 					});
-				});
-				const onExit = terminal.onExit((exitCode) => {
-					onData.dispose();
-					onExit.dispose();
-					delete this.activeTasks[task.id];
-					if (this.primaryTerminal && this.primaryTerminal.terminal === terminal) {
-						this.primaryTerminal.busy = false;
-					}
-					this.idleTaskTerminals[task.id] = terminal.id.toString();
-					watchingProblemMatcher.dispose();
-					toUnbind = dispose(toUnbind);
-					toUnbind = null;
-					for (let i = 0; i < eventCounter; i++) {
-						this.emit(TaskSystemEvents.Inactive, event);
-					}
-					eventCounter = 0;
-					if (exitCode && exitCode === 1 && watchingProblemMatcher.numberOfMatches === 0 && task.showOutput !== ShowOutput.Never) {
-						this.terminalService.setActiveInstance(terminal);
-						this.terminalService.showPanel(false);
-					}
-					resolve({ exitCode });
+					const onExit = terminal.onExit((exitCode) => {
+						onData.dispose();
+						onExit.dispose();
+						delete this.activeTasks[task.id];
+						if (this.primaryTerminal && this.primaryTerminal.terminal === terminal) {
+							this.primaryTerminal.busy = false;
+						}
+						this.idleTaskTerminals[task.id] = terminal.id.toString();
+						watchingProblemMatcher.dispose();
+						toUnbind = dispose(toUnbind);
+						toUnbind = null;
+						for (let i = 0; i < eventCounter; i++) {
+							this.emit(TaskSystemEvents.Inactive, event);
+						}
+						eventCounter = 0;
+						if (exitCode && exitCode === 1 && watchingProblemMatcher.numberOfMatches === 0 && task.showOutput !== ShowOutput.Never) {
+							this.terminalService.setActiveInstance(terminal);
+							this.terminalService.showPanel(false);
+						}
+						resolve({ exitCode });
+					});
 				});
 			});
 		} else {
 			promise = new TPromise<ITaskSummary>((resolve, reject) => {
-				[terminal, executedCommand] = this.createTerminal(task);
-				this.emit(TaskSystemEvents.Active, event);
-				let decoder = new TerminalDecoder();
-				let startStopProblemMatcher = new StartStopProblemCollector(this.resolveMatchers(task.problemMatchers), this.markerService, this.modelService);
-				const onData = terminal.onData((data: string) => {
-					decoder.write(data).forEach((line) => {
-						startStopProblemMatcher.processLine(line);
+				this.createTerminal(task).then(([terminal, executedCommand]) => {
+					this.emit(TaskSystemEvents.Active, event);
+					let decoder = new TerminalDecoder();
+					let startStopProblemMatcher = new StartStopProblemCollector(this.resolveMatchers(task.problemMatchers), this.markerService, this.modelService);
+					const onData = terminal.onData((data: string) => {
+						decoder.write(data).forEach((line) => {
+							startStopProblemMatcher.processLine(line);
+						});
 					});
-				});
-				const onExit = terminal.onExit((exitCode) => {
-					onData.dispose();
-					onExit.dispose();
-					delete this.activeTasks[task.id];
-					if (this.primaryTerminal && this.primaryTerminal.terminal === terminal) {
-						this.primaryTerminal.busy = false;
-					}
-					this.idleTaskTerminals[task.id] = terminal.id.toString();
-					startStopProblemMatcher.processLine(decoder.end());
-					startStopProblemMatcher.done();
-					startStopProblemMatcher.dispose();
-					this.emit(TaskSystemEvents.Inactive, event);
-					resolve({ exitCode });
+					const onExit = terminal.onExit((exitCode) => {
+						onData.dispose();
+						onExit.dispose();
+						delete this.activeTasks[task.id];
+						if (this.primaryTerminal && this.primaryTerminal.terminal === terminal) {
+							this.primaryTerminal.busy = false;
+						}
+						this.idleTaskTerminals[task.id] = terminal.id.toString();
+						startStopProblemMatcher.processLine(decoder.end());
+						startStopProblemMatcher.done();
+						startStopProblemMatcher.dispose();
+						this.emit(TaskSystemEvents.Inactive, event);
+						resolve({ exitCode });
+					});
 				});
 			});
 		}
@@ -368,7 +370,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 		});
 	}
 
-	private createTerminal(task: TaskDescription): [ITerminalInstance, string] {
+	private createTerminal(task: TaskDescription): TPromise<[ITerminalInstance, string]> {
 		let options = this.resolveOptions(task.command.options);
 		let { command, args } = this.resolveCommandAndArgs(task);
 		let terminalName = nls.localize('TerminalTaskSystem.terminalName', 'Task - {0}', task.name);
@@ -448,31 +450,35 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 			if (taskTerminal) {
 				delete this.idleTaskTerminals[task.id];
 				taskTerminal.terminal.reuseTerminal(shellLaunchConfig);
-				return [taskTerminal.terminal, command];
+				return TPromise.as([taskTerminal.terminal, command]);
 			}
 		}
 		if (this.primaryTerminal && !this.primaryTerminal.busy) {
 			this.primaryTerminal.terminal.reuseTerminal(shellLaunchConfig);
 			this.primaryTerminal.busy = true;
-			return [this.primaryTerminal.terminal, command];
+			return TPromise.as([this.primaryTerminal.terminal, command]);
 		}
-		const result = this.terminalService.createInstance(shellLaunchConfig);
-		const key = result.id.toString();
-		result.onDisposed((terminal) => {
-			let terminalData = this.terminals[key];
-			if (terminalData) {
-				delete this.terminals[key];
-				delete this.idleTaskTerminals[terminalData.lastTask];
+		return this.terminalService.createInstance(shellLaunchConfig).then(result => {
+			if (!result) {
+				throw new Error('Could not create terminal instance');
 			}
-			if (this.primaryTerminal && this.primaryTerminal.terminal === terminal) {
-				this.primaryTerminal = undefined;
+			const key = result.id.toString();
+			result.onDisposed((terminal) => {
+				let terminalData = this.terminals[key];
+				if (terminalData) {
+					delete this.terminals[key];
+					delete this.idleTaskTerminals[terminalData.lastTask];
+				}
+				if (this.primaryTerminal && this.primaryTerminal.terminal === terminal) {
+					this.primaryTerminal = undefined;
+				}
+			});
+			this.terminals[key] = { terminal: result, lastTask: task.id };
+			if (!task.isBackground && !this.primaryTerminal) {
+				this.primaryTerminal = { terminal: result, busy: true };
 			}
+			return [result, command];
 		});
-		this.terminals[key] = { terminal: result, lastTask: task.id };
-		if (!task.isBackground && !this.primaryTerminal) {
-			this.primaryTerminal = { terminal: result, busy: true };
-		}
-		return [result, command];
 	}
 
 	private resolveCommandAndArgs(task: TaskDescription): { command: string, args: string[] } {
