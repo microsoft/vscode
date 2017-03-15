@@ -574,3 +574,48 @@ function computeLandmarks(word: string, lowWord: string): [string, number[]] {
 
 	return [result, positions];
 }
+
+// function print(m: number[][]) {
+// 	for (const n of m) {
+// 		console.log(n.join('|'));
+// 	}
+// }
+export function matchesFuzzy5(pattern: string, word: string) {
+
+	// create matrix
+	const matrix: number[][] = [[0]];
+	for (let i = 1; i <= pattern.length; i++) {
+		matrix.push([-i]);
+	}
+	for (let i = 1; i <= word.length; i++) {
+		matrix[0].push(-i);
+	}
+
+	for (let i = 0; i < pattern.length; i++) {
+
+		let match = false;
+
+		for (let j = 0; j < word.length; j++) {
+
+			let diagScore = 0;
+			if (pattern[i] === word[j]) {
+				diagScore = 1 + matrix[i][j];
+				match = true;
+			} else {
+				diagScore = -1 + matrix[i][j];
+			}
+
+			let upScore = -1 + matrix[i][j + 1];
+			let leftScore = -1 + matrix[i + 1][j];
+
+			matrix[i + 1][j + 1] = Math.max(diagScore, upScore, leftScore);
+		}
+
+		if (!match) {
+			return undefined;
+		}
+	}
+	// print(matrix);
+
+	return [];
+}
