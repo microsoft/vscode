@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { fuzzyContiguousFilter, matchesFuzzy2, matchesFuzzy3, matchesFuzzy4 } from 'vs/base/common/filters';
+import { fuzzyContiguousFilter, matchesFuzzy2, matchesFuzzy3, matchesFuzzy4, matchesFuzzy5 } from 'vs/base/common/filters';
 
 const fuzz = require.__$__nodeRequire('fuzzaldrin-plus');
 const data = <{ label: string }[]>require.__$__nodeRequire(require.toUrl('./filters.perf.data.json'));
@@ -88,6 +88,26 @@ perfSuite('Performance - fuzzyMatch', function () {
 			}
 		}
 		console.log('matchesFuzzy4', Date.now() - t1, count);
+		assert.ok(count > 0);
+	});
+
+	test('matchesFuzzy5', function () {
+
+		matchesFuzzy5('ACGTC', 'AGTC');
+
+		const t1 = Date.now();
+		let count = 0;
+		for (const pattern of patterns) {
+			for (const item of data) {
+				if (item.label) {
+					const matches = matchesFuzzy5(pattern, item.label);
+					if (matches) {
+						count += 1;
+					}
+				}
+			}
+		}
+		console.log('matchesFuzzy5', Date.now() - t1, count);
 		assert.ok(count > 0);
 	});
 
