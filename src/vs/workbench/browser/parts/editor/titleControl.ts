@@ -37,6 +37,8 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { createActionItem, fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { IMenuService, MenuId, IMenu, ExecuteCommandAction } from 'vs/platform/actions/common/actions';
 import { ResourceContextKey } from 'vs/workbench/common/resourceContextKey';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { WorkbenchComponent } from 'vs/workbench/common/component';
 
 export interface IToolbarActions {
 	primary: IAction[];
@@ -56,13 +58,12 @@ export interface ITitleAreaControl {
 	dispose(): void;
 }
 
-export abstract class TitleControl implements ITitleAreaControl {
+export abstract class TitleControl extends WorkbenchComponent implements ITitleAreaControl {
 
 	private static draggedEditor: IEditorIdentifier;
 
 	protected stacks: IEditorStacksModel;
 	protected context: IEditorGroup;
-	protected toDispose: IDisposable[];
 
 	protected dragged: boolean;
 
@@ -99,19 +100,21 @@ export abstract class TitleControl implements ITitleAreaControl {
 		@ITelemetryService protected telemetryService: ITelemetryService,
 		@IMessageService protected messageService: IMessageService,
 		@IMenuService protected menuService: IMenuService,
-		@IQuickOpenService protected quickOpenService: IQuickOpenService
+		@IQuickOpenService protected quickOpenService: IQuickOpenService,
+		@IThemeService protected themeService: IThemeService
 	) {
-		this.toDispose = [];
+		super('workbench.parts.editor.title', themeService);
+
 		this.stacks = editorGroupService.getStacksModel();
 		this.mapActionsToEditors = Object.create(null);
 
 		this.scheduler = new RunOnceScheduler(() => this.onSchedule(), 0);
-		this.toDispose.push(this.scheduler);
+		this.toUnbind.push(this.scheduler);
 
 		this.resourceContext = instantiationService.createInstance(ResourceContextKey);
 
 		this.contextMenu = this.menuService.createMenu(MenuId.EditorTitleContext, this.contextKeyService);
-		this.toDispose.push(this.contextMenu);
+		this.toUnbind.push(this.contextMenu);
 
 		this.initActions(this.instantiationService);
 		this.registerListeners();
@@ -134,7 +137,7 @@ export abstract class TitleControl implements ITitleAreaControl {
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.stacks.onModelChanged(e => this.onStacksChanged(e)));
+		this.toUnbind.push(this.stacks.onModelChanged(e => this.onStacksChanged(e)));
 	}
 
 	private onStacksChanged(e: IStacksModelChangeEvent): void {
@@ -152,6 +155,10 @@ export abstract class TitleControl implements ITitleAreaControl {
 
 		// Split editor
 		this.splitEditorAction.enabled = groupCount < 3;
+	}
+
+	protected updateStyles(): void {
+		this.update(true); // run an update when the theme changes to new styles
 	}
 
 	private onSchedule(): void {
@@ -233,7 +240,7 @@ export abstract class TitleControl implements ITitleAreaControl {
 		});
 
 		// Action Run Handling
-		this.toDispose.push(this.editorActionsToolbar.actionRunner.addListener2(BaseEventType.RUN, (e: any) => {
+		this.toUnbind.push(this.editorActionsToolbar.actionRunner.addListener2(BaseEventType.RUN, (e: any) => {
 
 			// Check for Error
 			if (e.error && !errors.isPromiseCanceledError(e.error)) {
@@ -472,7 +479,7 @@ export abstract class TitleControl implements ITitleAreaControl {
 	}
 
 	public dispose(): void {
-		dispose(this.toDispose);
+		super.dispose();
 
 		// Actions
 		[

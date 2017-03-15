@@ -59,7 +59,7 @@ import { OpenFolderAction, OpenFileFolderAction } from 'vs/workbench/browser/act
 import * as Constants from 'vs/workbench/parts/search/common/constants';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { IThemeService, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
+import { editorFindMatchHighlight } from 'vs/platform/theme/common/colorRegistry';
 
 export class SearchViewlet extends Viewlet {
 
@@ -115,9 +115,9 @@ export class SearchViewlet extends Viewlet {
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IPreferencesService private preferencesService: IPreferencesService,
 		@IListService private listService: IListService,
-		@IThemeService private themeService: IThemeService
+		@IThemeService protected themeService: IThemeService
 	) {
-		super(Constants.VIEWLET_ID, telemetryService);
+		super(Constants.VIEWLET_ID, telemetryService, themeService);
 
 		this.toDispose = [];
 		this.viewletVisible = Constants.SearchViewletVisibleKey.bindTo(contextKeyService);
@@ -131,8 +131,6 @@ export class SearchViewlet extends Viewlet {
 		this.toUnbind.push(this.untitledEditorService.onDidChangeDirty(e => this.onUntitledDidChangeDirty(e)));
 		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config)));
 
-		this.toUnbind.push(this.themeService.onThemeChange(this.applyTheme.bind(this)));
-
 		this.selectCurrentMatchEmitter = new Emitter<string>();
 		debounceEvent(this.selectCurrentMatchEmitter.event, (l, e) => e, 100, /*leading=*/true)
 			(() => this.selectCurrentMatch());
@@ -144,8 +142,8 @@ export class SearchViewlet extends Viewlet {
 		this.updateGlobalPatternExclusions(configuration);
 	}
 
-	private applyTheme(theme: ITheme, collector: ICssStyleCollector) {
-		let matchHighlightColor = theme.getColor(colorRegistry.editorFindMatchHighlight);
+	protected updateStyles(theme: ITheme, collector: ICssStyleCollector) {
+		let matchHighlightColor = theme.getColor(editorFindMatchHighlight);
 		if (matchHighlightColor) {
 			collector.addRule(`.search-viewlet .findInFileMatch { background-color: ${matchHighlightColor}; }`);
 			collector.addRule(`.search-viewlet .highlight { background-color: ${matchHighlightColor}; }`);

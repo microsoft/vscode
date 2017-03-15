@@ -92,7 +92,7 @@ export class WalkThroughPart extends BaseEditor {
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
+		@IWorkbenchThemeService protected themeService: IWorkbenchThemeService,
 		@IOpenerService private openerService: IOpenerService,
 		@IFileService private fileService: IFileService,
 		@IModelService protected modelService: IModelService,
@@ -102,7 +102,7 @@ export class WalkThroughPart extends BaseEditor {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IModeService private modeService: IModeService
 	) {
-		super(WalkThroughPart.ID, telemetryService);
+		super(WalkThroughPart.ID, telemetryService, themeService);
 		this.editorFocus = WALK_THROUGH_FOCUS.bindTo(this.contextKeyService);
 	}
 
@@ -370,7 +370,7 @@ export class WalkThroughPart extends BaseEditor {
 						}
 					}));
 
-					this.contentDisposables.push(this.themeService.onDidColorThemeChange(theme => editor.updateOptions({ theme: theme.id })));
+					this.contentDisposables.push(this.themeService.onDidColorThemeChange(theme => editor.updateOptions({ theme: theme.id }))); // TODO@theme this should be done from the editor itself and not from the outside
 					this.contentDisposables.push(this.configurationService.onDidUpdateConfiguration(() => editor.updateOptions(this.getEditorOptions(snippet.textEditorModel.getModeId()))));
 
 					this.contentDisposables.push(once(editor.onMouseDown)(() => {
@@ -428,7 +428,7 @@ export class WalkThroughPart extends BaseEditor {
 	}
 
 	private style(div: HTMLElement) {
-		const styleElement = document.querySelector('.monaco-editor-background');
+		const styleElement = document.querySelector('.monaco-editor-background'); // TODO@theme styles should come in via theme registry
 		const {color, backgroundColor, fontFamily, fontWeight, fontSize} = window.getComputedStyle(styleElement);
 		div.style.color = color;
 		div.style.backgroundColor = backgroundColor;

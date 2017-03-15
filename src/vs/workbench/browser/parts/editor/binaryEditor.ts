@@ -16,6 +16,7 @@ import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel'
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 /*
  * This class is only intended to be subclassed and not instantiated.
@@ -29,9 +30,10 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 
 	constructor(
 		id: string,
-		telemetryService: ITelemetryService
+		telemetryService: ITelemetryService,
+		themeService: IThemeService
 	) {
-		super(id, telemetryService);
+		super(id, telemetryService, themeService);
 
 		this._onMetadataChanged = new Emitter<void>();
 	}

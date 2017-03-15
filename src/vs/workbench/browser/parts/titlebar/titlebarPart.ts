@@ -29,6 +29,7 @@ import { EditorInput } from 'vs/workbench/common/editor';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { Verbosity } from 'vs/platform/editor/common/editor';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export class TitlebarPart extends Part implements ITitleService {
 
@@ -60,9 +61,10 @@ export class TitlebarPart extends Part implements ITitleService {
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IIntegrityService private integrityService: IIntegrityService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IThemeService themeService: IThemeService
 	) {
-		super(id, { hasTitle: false });
+		super(id, { hasTitle: false }, themeService);
 
 		this.isPure = true;
 		this.activeEditorListeners = [];

@@ -46,6 +46,7 @@ import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { Position } from 'vs/platform/editor/common/editor';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { OS } from 'vs/base/common/platform';
+import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 
 function renderBody(body: string): string {
 	const nonce = new Date().getTime() + '' + new Date().getMilliseconds();
@@ -155,13 +156,14 @@ export class ExtensionEditor extends BaseEditor {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IViewletService private viewletService: IViewletService,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
+		@IWorkbenchThemeService protected themeService: IWorkbenchThemeService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IMessageService private messageService: IMessageService,
 		@IOpenerService private openerService: IOpenerService,
-		@IListService private listService: IListService
+		@IListService private listService: IListService,
+		@IPartService private partService: IPartService
 	) {
-		super(ExtensionEditor.ID, telemetryService);
+		super(ExtensionEditor.ID, telemetryService, themeService);
 		this._highlight = null;
 		this.highlightDisposable = empty;
 		this.disposables = [];
@@ -320,11 +322,7 @@ export class ExtensionEditor extends BaseEditor {
 			.then(marked.parse)
 			.then(renderBody)
 			.then<void>(body => {
-				const webview = new WebView(
-					this.content,
-					document.querySelector('.monaco-editor-background')
-				);
-
+				const webview = new WebView(this.content, this.partService.getContainer(Parts.EDITOR_PART));
 				webview.style(this.themeService.getColorTheme());
 				webview.contents = [body];
 

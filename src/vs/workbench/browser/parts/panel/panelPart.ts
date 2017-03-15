@@ -24,6 +24,8 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ActionsOrientation, ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ClosePanelAction, PanelAction, ToggleMaximizedPanelAction } from 'vs/workbench/browser/parts/panel/panelActions';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { PANEL_BACKGROUND } from 'vs/workbench/browser/styles';
 
 export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
@@ -44,7 +46,8 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IPartService partService: IPartService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IThemeService themeService: IThemeService
 	) {
 		super(
 			messageService,
@@ -54,6 +57,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			partService,
 			keybindingService,
 			instantiationService,
+			themeService,
 			Registry.as<PanelRegistry>(PanelExtensions.Panels),
 			PanelPart.activePanelSettingsKey,
 			'panel',
@@ -89,6 +93,18 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
 	public get onDidPanelClose(): Event<IPanel> {
 		return this._onDidCompositeClose.event;
+	}
+
+	public createContentArea(parent: Builder): Builder {
+		const contentArea = super.createContentArea(parent);
+		this.updateStyles();
+
+		return contentArea;
+	}
+
+	protected updateStyles(): void {
+		const container = this.getContainer();
+		container.style('background-color', this.getColor(PANEL_BACKGROUND));
 	}
 
 	public openPanel(id: string, focus?: boolean): TPromise<Panel> {
