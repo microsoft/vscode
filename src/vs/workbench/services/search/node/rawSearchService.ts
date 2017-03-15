@@ -264,9 +264,8 @@ export class SearchService implements IRawSearchService {
 		return new PPromise<ISerializedSearchComplete, IRawProgressItem<ISerializedFileMatch>>((c, e, p) => {
 			// Use BatchedCollector to get new results to the frontend every 2s at least, until 50 results have been returned
 			const collector = new BatchedCollector<ISerializedFileMatch>(batchSize, p);
-			engine.search((matches) => {
-				const totalMatches = matches.reduce((acc, m) => acc + m.numMatches, 0);
-				collector.addItems(matches, totalMatches);
+			engine.search((match) => {
+				collector.addItem(match, match.numMatches);
 			}, (progress) => {
 				p(progress);
 			}, (error, stats) => {
@@ -380,20 +379,20 @@ class BatchedCollector<T> {
 	constructor(private maxBatchSize: number, private cb: (items: T | T[]) => void) {
 	}
 
-	addItems(items: T[], size: number): void {
-		if (!items) {
+	addItem(item: T, size: number): void {
+		if (!item) {
 			return;
 		}
 
 		if (this.maxBatchSize > 0) {
-			this.addItemsToBatch(items, size);
+			this.addItemToBatch(item, size);
 		} else {
-			this.cb(items);
+			this.cb(item);
 		}
 	}
 
-	private addItemsToBatch(items: T[], size: number): void {
-		this.batch = this.batch.concat(items);
+	private addItemToBatch(item: T, size: number): void {
+		this.batch.push(item);
 		this.batchSize += size;
 		if (this.totalNumberCompleted < BatchedCollector.START_BATCH_AFTER_COUNT) {
 			// Flush because we aren't batching yet

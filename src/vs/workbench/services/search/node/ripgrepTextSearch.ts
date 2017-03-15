@@ -14,7 +14,7 @@ import { ILineMatch, IProgress } from 'vs/platform/search/common/search';
 
 import { ISerializedFileMatch, ISerializedSearchComplete, IRawSearch, ISearchEngine } from './search';
 
-export class RipgrepEngine implements ISearchEngine<ISerializedFileMatch[]> {
+export class RipgrepEngine implements ISearchEngine<ISerializedFileMatch> {
 	private static RESULT_REGEX = /^\u001b\[m(\d+)\u001b\[m:(.*)$/;
 	private static FILE_REGEX = /^\u001b\[m(.+)\u001b\[m$/;
 
@@ -38,17 +38,14 @@ export class RipgrepEngine implements ISearchEngine<ISerializedFileMatch[]> {
 		this.rgProc.kill();
 	}
 
-	search(onResult: (match: ISerializedFileMatch[]) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISerializedSearchComplete) => void): void {
-		this.searchNextFolder(onResult, onProgress, done);
-	}
-
-	private searchNextFolder(onResult: (match: ISerializedFileMatch[]) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISerializedSearchComplete) => void): void {
+	search(onResult: (match: ISerializedFileMatch) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISerializedSearchComplete) => void): void {
 		if (this.config.rootFolders.length) {
-			this.searchFolder(this.config.rootFolders.shift(), onResult, onProgress, done);
+			// Only a single root folder supported by VS Code right now
+			this.searchFolder(this.config.rootFolders[0], onResult, onProgress, done);
 		}
 	}
 
-	private searchFolder(rootFolder: string, onResult: (match: ISerializedFileMatch[]) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISerializedSearchComplete) => void): void {
+	private searchFolder(rootFolder: string, onResult: (match: ISerializedFileMatch) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISerializedSearchComplete) => void): void {
 		const rgArgs = this.getRgArgs();
 		console.log(`rg ${rgArgs.join(' ')}, cwd: ${rootFolder}`);
 		this.rgProc = cp.spawn(rgPath, rgArgs, { cwd: rootFolder });
@@ -109,7 +106,7 @@ export class RipgrepEngine implements ISearchEngine<ISerializedFileMatch[]> {
 
 							if (this.numResults >= this.config.maxResults) {
 								this.cancel();
-								onResult([fileMatch.serialize()]);
+								onResult(fileMatch.serialize());
 								done(null, {
 									limitHit: true,
 									stats: null
@@ -133,7 +130,7 @@ export class RipgrepEngine implements ISearchEngine<ISerializedFileMatch[]> {
 						// Line is a file path - send all collected results for the previous file path
 						if (fileMatch) {
 							// Check fileMatch against other exclude globs, and fix numResults
-							onResult([fileMatch.serialize()]);
+							onResult(fileMatch.serialize());
 						}
 
 						fileMatch = new FileMatch(path.join(rootFolder, r[1]));
@@ -153,8 +150,7 @@ export class RipgrepEngine implements ISearchEngine<ISerializedFileMatch[]> {
 			this.rgProc = null;
 			console.log(`closed with ${code}`);
 			if (fileMatch) {
-				console.log(`calling onResult`);
-				onResult([fileMatch.serialize()]);
+				onResult(fileMatch.serialize());
 			}
 
 			if (!this.isDone) {
