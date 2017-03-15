@@ -100,4 +100,5 @@ export interface IWindowSettings {
 	autoDetectHighContrast: boolean;
 	menuBarVisibility: MenuBarVisibility;
 	newWindowDimensions: 'default' | 'inherit' | 'maximized' | 'fullscreen';
+	enableMenuBarMnemonics: boolean;
 }
