@@ -33,9 +33,9 @@ import { IEditorStacksModel, IStacksModelChangeEvent, IEditorGroup, EditorOption
 import { extractResources } from 'vs/base/browser/dnd';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
-import { WorkbenchComponent } from 'vs/workbench/common/component';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
+import { Themable } from 'vs/workbench/common/theme';
 
 export enum Rochade {
 	NONE,
@@ -85,7 +85,7 @@ export interface IEditorGroupsControl {
 /**
  * Helper class to manage multiple side by side editors for the editor part.
  */
-export class EditorGroupsControl extends WorkbenchComponent implements IEditorGroupsControl, IVerticalSashLayoutProvider, IHorizontalSashLayoutProvider {
+export class EditorGroupsControl extends Themable implements IEditorGroupsControl, IVerticalSashLayoutProvider, IHorizontalSashLayoutProvider {
 
 	private static TITLE_AREA_CONTROL_KEY = '__titleAreaControl';
 	private static PROGRESS_BAR_CONTROL_KEY = '__progressBar';
@@ -144,7 +144,7 @@ export class EditorGroupsControl extends WorkbenchComponent implements IEditorGr
 		@IWindowService private windowService: IWindowService,
 		@IThemeService themeService: IThemeService
 	) {
-		super('workbench.parts.editor.groups', themeService);
+		super(themeService);
 
 		this.stacks = editorGroupService.getStacksModel();
 

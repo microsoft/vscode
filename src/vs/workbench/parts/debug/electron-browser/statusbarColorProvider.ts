@@ -8,10 +8,9 @@ import { localize } from 'vs/nls';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
-import { WorkbenchComponent } from 'vs/workbench/common/component';
 import { IDebugService, State } from 'vs/workbench/parts/debug/common/debug';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { STATUS_BAR_NO_FOLDER_BACKGROUND, STATUS_BAR_BACKGROUND } from 'vs/workbench/browser/styles';
+import { STATUS_BAR_NO_FOLDER_BACKGROUND, STATUS_BAR_BACKGROUND, Themable } from 'vs/workbench/common/theme';
 
 // colors for theming
 
@@ -21,7 +20,7 @@ export const STATUS_BAR_DEBUGGING_BACKGROUND = registerColor('statusBarDebugging
 	hc: '#CC6633'
 }, localize('statusBarDebuggingBackground', "Status bar background color when a program is being debugged. The status bar is shown in the bottom of the window"));
 
-export class StatusBarColorProvider extends WorkbenchComponent implements IWorkbenchContribution {
+export class StatusBarColorProvider extends Themable implements IWorkbenchContribution {
 	private static ID = 'debug.statusbarColorProvider';
 
 	constructor(
@@ -30,7 +29,7 @@ export class StatusBarColorProvider extends WorkbenchComponent implements IWorkb
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IPartService private partService: IPartService
 	) {
-		super(StatusBarColorProvider.ID, themeService);
+		super(themeService);
 
 		this.registerListeners();
 	}

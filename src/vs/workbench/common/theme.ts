@@ -5,6 +5,8 @@
 
 import nls = require('vs/nls');
 import { registerColor, editorBackground } from 'vs/platform/theme/common/colorRegistry';
+import { IDisposable, Disposable, dispose } from 'vs/base/common/lifecycle';
+import { IThemeService, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 
 // < --- Tabs --- >
 
@@ -49,3 +51,47 @@ export const STATUS_BAR_NO_FOLDER_BACKGROUND = registerColor('statusBarNoFolderB
 	light: '#68217A',
 	hc: '#00000000'
 }, nls.localize('statusBarNoFolderBackground', "Status bar background color when no folder is opened. The status bar is shown in the bottom of the window"));
+
+/**
+ * Base class for all themable workbench components.
+ */
+export class Themable extends Disposable {
+	private _toUnbind: IDisposable[];
+	private theme: ITheme;
+
+	constructor(
+		protected themeService: IThemeService
+	) {
+		super();
+
+		this._toUnbind = [];
+		this.theme = themeService.getTheme();
+
+		// Hook up to theme changes
+		this._toUnbind.push(this.themeService.onThemeChange((theme, collector) => this.onThemeChange(theme, collector)));
+	}
+
+	protected get toUnbind() {
+		return this._toUnbind;
+	}
+
+	protected onThemeChange(theme: ITheme, collector: ICssStyleCollector): void {
+		this.theme = theme;
+
+		this.updateStyles(theme, collector);
+	}
+
+	protected updateStyles(theme: ITheme, collector: ICssStyleCollector): void {
+		// Subclasses to override
+	}
+
+	protected getColor(id: string): string {
+		return this.theme.getColor(id).toString();
+	}
+
+	public dispose(): void {
+		this._toUnbind = dispose(this._toUnbind);
+
+		super.dispose();
+	}
+}

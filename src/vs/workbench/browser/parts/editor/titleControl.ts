@@ -38,7 +38,7 @@ import { createActionItem, fillInActions } from 'vs/platform/actions/browser/men
 import { IMenuService, MenuId, IMenu, ExecuteCommandAction } from 'vs/platform/actions/common/actions';
 import { ResourceContextKey } from 'vs/workbench/common/resourceContextKey';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { WorkbenchComponent } from 'vs/workbench/common/component';
+import { Themable } from 'vs/workbench/common/theme';
 
 export interface IToolbarActions {
 	primary: IAction[];
@@ -58,7 +58,7 @@ export interface ITitleAreaControl {
 	dispose(): void;
 }
 
-export abstract class TitleControl extends WorkbenchComponent implements ITitleAreaControl {
+export abstract class TitleControl extends Themable implements ITitleAreaControl {
 
 	private static draggedEditor: IEditorIdentifier;
 
@@ -103,7 +103,7 @@ export abstract class TitleControl extends WorkbenchComponent implements ITitleA
 		@IQuickOpenService protected quickOpenService: IQuickOpenService,
 		@IThemeService protected themeService: IThemeService
 	) {
-		super('workbench.parts.editor.title', themeService);
+		super(themeService);
 
 		this.stacks = editorGroupService.getStacksModel();
 		this.mapActionsToEditors = Object.create(null);
