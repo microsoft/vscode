@@ -620,7 +620,21 @@ export function matchesFuzzy5(pattern: string, word: string) {
 	return [];
 }
 
-export function matchFuzzy6(pattern: string, word: string): [number, number[]] {
+export function createMatches(position: number[]): IMatch[] {
+	let ret: IMatch[] = [];
+	let last: IMatch;
+	for (const pos of position) {
+		if (last && last.end === pos) {
+			last.end += 1;
+		} else {
+			last = { start: pos, end: pos + 1 };
+			ret.push(last);
+		}
+	}
+	return ret;
+}
+
+export function fuzzyMatchAndScore(pattern: string, word: string): [number, number[]] {
 
 	let matches: number[] = [];
 	let score = _matchRecursive(
@@ -633,9 +647,8 @@ export function matchFuzzy6(pattern: string, word: string): [number, number[]] {
 		return undefined;
 	}
 
-	// score -= 1;
-	score -= word.length - pattern.length; // penalty -> uncovered
-	score -= Math.min(matches[0], 3) * 3; // penalty -> late match
+	score -= Math.min(matches[0], 3) * 3; // penalty for first matching character
+	score -= (1 + matches[matches.length - 1]) - (pattern.length); // penalty for all non matching characters between first and last
 
 	return [score, matches];
 }
@@ -655,7 +668,7 @@ export function _matchRecursive(
 	let value = 0;
 
 	if ((patternPos === wordPos && lowPatternChar === lowWord.charAt(wordPos))
-		&& ((value = _matchRecursive(lowPattern, upPattern, patternPos + 1, word, lowWord, wordPos + 1, matches)))
+		&& ((value = _matchRecursive(lowPattern, upPattern, patternPos + 1, word, lowWord, wordPos + 1, matches)) >= 0)
 	) {
 		matches.unshift(wordPos);
 		return 11 + value;
@@ -675,7 +688,8 @@ export function _matchRecursive(
 		return 7 + value;
 	}
 
-	if ((idx = lowWord.indexOf(lowPatternChar, wordPos)) >= 0
+	if (patternPos > 0
+		&& (idx = lowWord.indexOf(lowPatternChar, wordPos)) >= 0
 		&& ((value = _matchRecursive(lowPattern, upPattern, patternPos + 1, word, lowWord, idx + 1, matches)) >= 0)
 	) {
 		matches.unshift(idx);
