@@ -59,10 +59,10 @@ export class WorkbenchComponent extends Disposable implements IWorkbenchComponen
 	protected onThemeChange(theme: ITheme, collector: ICssStyleCollector): void {
 		this.theme = theme;
 
-		this.updateStyles(collector);
+		this.updateStyles(theme, collector);
 	}
 
-	protected updateStyles(collector: ICssStyleCollector): void {
+	protected updateStyles(theme: ITheme, collector: ICssStyleCollector): void {
 		// Subclasses to override
 	}
 
