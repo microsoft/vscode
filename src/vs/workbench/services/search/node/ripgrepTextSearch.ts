@@ -5,7 +5,6 @@
 'use strict';
 
 import * as cp from 'child_process';
-import * as path from 'path';
 import { rgPath } from 'vscode-ripgrep';
 
 import * as strings from 'vs/base/common/strings';
@@ -44,8 +43,8 @@ export class RipgrepEngine implements ISearchEngine<ISerializedFileMatch> {
 	}
 
 	private searchFolder(rootFolder: string, onResult: (match: ISerializedFileMatch) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISerializedSearchComplete) => void): void {
-		const rgArgs = this.getRgArgs();
-		console.log(`rg ${rgArgs.join(' ')}, cwd: ${rootFolder}`);
+		const rgArgs = this.getRgArgs(rootFolder);
+		// console.log(`rg ${rgArgs.join(' ')}, cwd: ${rootFolder}`);
 		this.rgProc = cp.spawn(rgPath, rgArgs, { cwd: rootFolder });
 
 		let fileMatch: FileMatch;
@@ -56,7 +55,7 @@ export class RipgrepEngine implements ISearchEngine<ISerializedFileMatch> {
 				remainder + data.toString() :
 				data.toString();
 
-			const dataLines: string[] = dataStr.split('\n');
+			const dataLines: string[] = dataStr.split(/\r\n|\n/);
 			remainder = dataLines.pop();
 
 			for (let l = 0; l < dataLines.length; l++) {
@@ -130,7 +129,7 @@ export class RipgrepEngine implements ISearchEngine<ISerializedFileMatch> {
 							onResult(fileMatch.serialize());
 						}
 
-						fileMatch = new FileMatch(path.join(rootFolder, r[1]));
+						fileMatch = new FileMatch(r[1]);
 					} else {
 						// Line is empty (or malformed)
 					}
@@ -139,7 +138,7 @@ export class RipgrepEngine implements ISearchEngine<ISerializedFileMatch> {
 		});
 
 		this.rgProc.stderr.on('data', data => {
-			console.log('stderr');
+			console.log('stderr:');
 			console.log(data.toString());
 		});
 
@@ -160,7 +159,7 @@ export class RipgrepEngine implements ISearchEngine<ISerializedFileMatch> {
 		});
 	}
 
-	private getRgArgs(): string[] {
+	private getRgArgs(rootFolder: string): string[] {
 		const args = ['--heading', '-uu', '--line-number', '--color', 'ansi', '--colors', 'path:none', '--colors', 'line:none', '--colors', 'match:fg:red', '--colors', 'match:style:nobold']; // -uu == Skip gitignore files, and hidden files/folders
 		args.push(this.config.contentPattern.isCaseSensitive ? '--case-sensitive' : '--ignore-case');
 
@@ -213,6 +212,8 @@ export class RipgrepEngine implements ISearchEngine<ISerializedFileMatch> {
 				args.push('--fixed-strings', this.config.contentPattern.pattern);
 			}
 		}
+
+		args.push('--', rootFolder);
 
 		return args;
 	}
