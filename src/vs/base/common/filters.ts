@@ -79,7 +79,7 @@ function _matchesPrefix(ignoreCase: boolean, word: string, wordToMatchAgainst: s
 		}
 
 		if (ignoreCase) {
-			if (isAlphanumeric(wordChar) && isAlphanumeric(wordToMatchAgainstChar)) {
+			if (isAsciiLetter(wordChar) && isAsciiLetter(wordToMatchAgainstChar)) {
 				const diff = wordChar - wordToMatchAgainstChar;
 				if (diff === 32 || diff === -32) {
 					// ascii -> equalIgnoreCase
@@ -155,7 +155,11 @@ function isWhitespace(code: number): boolean {
 }
 
 function isAlphanumeric(code: number): boolean {
-	return isLower(code) || isUpper(code);
+	return isLower(code) || isUpper(code) || isNumber(code);
+}
+
+function isAsciiLetter(code: number): boolean {
+	return (code >= CharCode.a && code <= CharCode.z) || (code >= CharCode.A && code <= CharCode.Z);
 }
 
 function join(head: IMatch, tail: IMatch[]): IMatch[] {
