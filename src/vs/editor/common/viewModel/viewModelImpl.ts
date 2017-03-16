@@ -649,7 +649,8 @@ export class ViewModel implements IViewModel {
 			+ `font-family: ${fontInfo.fontFamily};`
 			+ `font-weight: ${fontInfo.fontWeight};`
 			+ `font-size: ${fontInfo.fontSize}px;`
-			+ `line-height: ${fontInfo.lineHeight}px`
+			+ `line-height: ${fontInfo.lineHeight}px;`
+			+ `white-space: pre;`
 			+ `">`
 			+ this._getHTMLToCopy(range, colorMap)
 			+ '</div>'
