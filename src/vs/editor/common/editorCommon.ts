@@ -421,7 +421,7 @@ export interface IEditorOptions {
 	 * Enable quick suggestions (shadow suggestions)
 	 * Defaults to true.
 	 */
-	quickSuggestions?: boolean;
+	quickSuggestions?: boolean | { other: boolean, comments: boolean, strings: boolean };
 	/**
 	 * Quick suggestions show delay (in ms)
 	 * Defaults to 500 (ms)
@@ -1005,7 +1005,7 @@ export class EditorContribOptions {
 	readonly selectionClipboard: boolean;
 	readonly hover: boolean;
 	readonly contextmenu: boolean;
-	readonly quickSuggestions: boolean;
+	readonly quickSuggestions: boolean | { other: boolean, comments: boolean, strings: boolean };
 	readonly quickSuggestionsDelay: number;
 	readonly parameterHints: boolean;
 	readonly iconsInSuggestions: boolean;
@@ -1032,7 +1032,7 @@ export class EditorContribOptions {
 		selectionClipboard: boolean;
 		hover: boolean;
 		contextmenu: boolean;
-		quickSuggestions: boolean;
+		quickSuggestions: boolean | { other: boolean, comments: boolean, strings: boolean };
 		quickSuggestionsDelay: number;
 		parameterHints: boolean;
 		iconsInSuggestions: boolean;
@@ -1055,7 +1055,7 @@ export class EditorContribOptions {
 		this.selectionClipboard = Boolean(source.selectionClipboard);
 		this.hover = Boolean(source.hover);
 		this.contextmenu = Boolean(source.contextmenu);
-		this.quickSuggestions = Boolean(source.quickSuggestions);
+		this.quickSuggestions = source.quickSuggestions;
 		this.quickSuggestionsDelay = source.quickSuggestionsDelay || 0;
 		this.parameterHints = Boolean(source.parameterHints);
 		this.iconsInSuggestions = Boolean(source.iconsInSuggestions);
@@ -1084,7 +1084,7 @@ export class EditorContribOptions {
 			this.selectionClipboard === other.selectionClipboard
 			&& this.hover === other.hover
 			&& this.contextmenu === other.contextmenu
-			&& this.quickSuggestions === other.quickSuggestions
+			&& objects.equals(this.quickSuggestions, other.quickSuggestions)
 			&& this.quickSuggestionsDelay === other.quickSuggestionsDelay
 			&& this.parameterHints === other.parameterHints
 			&& this.iconsInSuggestions === other.iconsInSuggestions
