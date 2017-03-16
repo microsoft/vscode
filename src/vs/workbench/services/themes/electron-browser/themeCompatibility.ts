@@ -3,15 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import nls = require('vs/nls');
-
 import { ITokenColorizationRule, IColorMap } from 'vs/workbench/services/themes/common/themeService';
 import { Color } from 'vs/base/common/color';
 import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
-import { ITheme, ICssStyleCollector, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 
 import * as editorColorRegistry from 'vs/editor/common/view/editorColorRegistry';
 import * as wordHighlighter from 'vs/editor/contrib/wordHighlighter/common/wordHighlighter';
+import { ansiColorIdentifiers } from 'vs/workbench/parts/terminal/electron-browser/terminalColorRegistry';
 
 
 const settingToColorIdMapping: { [settingId: string]: string[] } = {};
@@ -64,48 +62,12 @@ addSettingMapping('caret', editorColorRegistry.editorCursor);
 addSettingMapping('invisibles', editorColorRegistry.editorInvisibles);
 addSettingMapping('guide', editorColorRegistry.editorGuide);
 
+const ansiColorMap = ['ansiBlack', 'ansiRed', 'ansiGreen', 'ansiYellow', 'ansiBlue', 'ansiMagenta', 'ansiCyan', 'ansiWhite',
+	'ansiBrightBlack', 'ansiBrightRed', 'ansiBrightGreen', 'ansiBrightYellow', 'ansiBrightBlue', 'ansiBrightMagenta', 'ansiBrightCyan', 'ansiBrightWhite'
+];
 
-const ansiColorMap = {
-	ansiBlack: 0,
-	ansiRed: 1,
-	ansiGreen: 2,
-	ansiYellow: 3,
-	ansiBlue: 4,
-	ansiMagenta: 5,
-	ansiCyan: 6,
-	ansiWhite: 7,
-	ansiBrightBlack: 8,
-	ansiBrightRed: 9,
-	ansiBrightGreen: 10,
-	ansiBrightYellow: 11,
-	ansiBrightBlue: 12,
-	ansiBrightMagenta: 13,
-	ansiBrightCyan: 14,
-	ansiBrightWhite: 15
-};
-const keyPrefix = 'terminal';
-
-for (let key in ansiColorMap) {
-	let id = keyPrefix + key[0].toUpperCase() + key.substr(1);
-	colorRegistry.registerColor(id, null, nls.localize('terminal.ansiColor', 'Color for terminal {0} color', key));
-	addSettingMapping(key, id);
+for (let i = 0; i < ansiColorIdentifiers.length; i++) {
+	addSettingMapping(ansiColorMap[i], ansiColorIdentifiers[i]);
 }
-
-function updateTerminalStyles(theme: ITheme, collector: ICssStyleCollector) {
-	for (let key in ansiColorMap) {
-		let id = keyPrefix + key[0].toUpperCase() + key.substr(1);
-		const color = theme.getColor(id);
-		if (color) {
-			const index = ansiColorMap[key];
-			const rgba = color.transparent(0.996);
-			collector.addRule(`.${theme.selector} .panel.integrated-terminal .xterm .xterm-color-${index} { color: ${color}; }`);
-			collector.addRule(`.${theme.selector} .panel.integrated-terminal .xterm .xterm-color-${index}::selection { background-color: ${rgba}; }`);
-			collector.addRule(`.${theme.selector} .panel.integrated-terminal .xterm .xterm-bg-color-${index} { background-color: ${color}; }`);
-			collector.addRule(`.${theme.selector} .panel.integrated-terminal .xterm .xterm-bg-color-${index}::selection { color: ${color}; }`);
-		};
-	}
-}
-
-registerThemingParticipant(updateTerminalStyles);
 
 

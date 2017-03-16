@@ -7,7 +7,7 @@ import Paths = require('vs/base/common/paths');
 import Json = require('vs/base/common/json');
 import { Color } from 'vs/base/common/color';
 import { ExtensionData, ITokenColorizationRule, IColorTheme, IColorMap, VS_LIGHT_THEME, VS_HC_THEME } from 'vs/workbench/services/themes/common/themeService';
-import { convertSettings } from 'vs/workbench/services/themes/electron-browser/stylesContributions';
+import { convertSettings } from 'vs/workbench/services/themes/electron-browser/themeCompatibility';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { getBaseThemeId, getSyntaxThemeId, isDarkTheme, isLightTheme } from 'vs/platform/theme/common/themes';
 import nls = require('vs/nls');
