@@ -482,7 +482,7 @@ export interface IEditorOptions {
 	/**
 	 * Enable word based suggestions. Defaults to 'true'
 	 */
-	wordBasedSuggestions?: boolean | { strings?: boolean, comments?: boolean, other?: boolean };
+	wordBasedSuggestions?: boolean;
 	/**
 	 * The font size for the suggest widget.
 	 * Defaults to the editor font size.
@@ -1016,7 +1016,7 @@ export class EditorContribOptions {
 	readonly acceptSuggestionOnCommitCharacter: boolean;
 	readonly snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
 	readonly emptySelectionClipboard: boolean;
-	readonly wordBasedSuggestions: boolean | { strings?: boolean, comments?: boolean, default?: boolean };
+	readonly wordBasedSuggestions: boolean;
 	readonly suggestFontSize: number;
 	readonly suggestLineHeight: number;
 	readonly selectionHighlight: boolean;
@@ -1043,7 +1043,7 @@ export class EditorContribOptions {
 		acceptSuggestionOnCommitCharacter: boolean;
 		snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
 		emptySelectionClipboard: boolean;
-		wordBasedSuggestions: boolean | { strings?: boolean, comments?: boolean, default?: boolean };
+		wordBasedSuggestions: boolean;
 		suggestFontSize: number;
 		suggestLineHeight: number;
 		selectionHighlight: boolean;

@@ -1397,11 +1397,7 @@ declare module monaco.editor {
         /**
          * Enable word based suggestions. Defaults to 'true'
          */
-        wordBasedSuggestions?: boolean | {
-            strings?: boolean;
-            comments?: boolean;
-            other?: boolean;
-        };
+        wordBasedSuggestions?: boolean;
         /**
          * The font size for the suggest widget.
          * Defaults to the editor font size.
@@ -1623,11 +1619,7 @@ declare module monaco.editor {
         readonly acceptSuggestionOnCommitCharacter: boolean;
         readonly snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
         readonly emptySelectionClipboard: boolean;
-        readonly wordBasedSuggestions: boolean | {
-            strings?: boolean;
-            comments?: boolean;
-            default?: boolean;
-        };
+        readonly wordBasedSuggestions: boolean;
         readonly suggestFontSize: number;
         readonly suggestLineHeight: number;
         readonly selectionHighlight: boolean;
