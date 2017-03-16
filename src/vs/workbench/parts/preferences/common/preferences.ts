@@ -88,6 +88,7 @@ export interface IKeybindingsEditor extends IEditor {
 
 	search(filter: string): void;
 	defineKeybinding(keybindingEntry: IKeybindingItemEntry): TPromise<any>;
+	removeKeybinding(keybindingEntry: IKeybindingItemEntry): TPromise<any>;
 }
 
 export const KEYBINDINGS_EDITOR_ID = 'workbench.editor.keybindings';
@@ -96,3 +97,6 @@ export const CONTEXT_KEYBINDINGS_EDITOR = new RawContextKey<boolean>('inKeybindi
 export const CONTEXT_KEYBINDING_FOCUS = new RawContextKey<boolean>('keybindingFocus', false);
 
 export const SETTINGS_EDITOR_COMMAND_SEARCH = 'settings.action.search';
+export const KEYBINDINGS_EDITOR_COMMAND_SEARCH = 'keybindings.editor.search';
+export const KEYBINDINGS_EDITOR_COMMAND_DEFINE = 'keybindings.editor.define';
+export const KEYBINDINGS_EDITOR_COMMAND_REMOVE = 'keybindings.editor.remove';
