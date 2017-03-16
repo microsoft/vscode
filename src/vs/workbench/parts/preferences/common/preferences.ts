@@ -75,7 +75,7 @@ export interface IPreferencesService {
 	switchSettings(): TPromise<void>;
 	openGlobalSettings(): TPromise<IEditor>;
 	openWorkspaceSettings(): TPromise<IEditor>;
-	openGlobalKeybindingSettings(): TPromise<void>;
+	openGlobalKeybindingSettings(textual: boolean): TPromise<void>;
 
 	configureSettingsForLanguage(language: string): void;
 }

@@ -5,7 +5,6 @@
 
 import 'vs/css!./media/keybindingsEditor';
 import { localize } from 'vs/nls';
-import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Delayer } from 'vs/base/common/async';
 import * as DOM from 'vs/base/browser/dom';
@@ -21,10 +20,9 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService, IKeybindingItem2, KeybindingSource } from 'vs/platform/keybinding/common/keybinding';
 import { SearchWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { DefineKeybindingWidget } from 'vs/workbench/parts/preferences/browser/keybindingWidgets';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { renderHtml } from 'vs/base/browser/htmlContentRenderer';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IKeybindingEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { List } from 'vs/base/browser/ui/list/listWidget';
@@ -82,10 +80,9 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IKeybindingService private keybindingsService: IKeybindingService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IPreferencesService private preferencesService: IPreferencesService,
 		@IKeybindingEditingService private keybindingEditingService: IKeybindingEditingService,
 		@IListService private listService: IListService,
 		@IInstantiationService private instantiationService: IInstantiationService
@@ -157,7 +154,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		const openKeybindingsContainer = DOM.append(this.headerContainer, $('.open-keybindings-container'));
 		DOM.append(openKeybindingsContainer, $('span', null, localize('header-message', "For advanced customizations open and edit ")));
 		const fileElement = DOM.append(openKeybindingsContainer, $('span.file-name', null, localize('keybindings-file-name', "keybindings.json")));
-		this._register(DOM.addDisposableListener(fileElement, DOM.EventType.CLICK, () => this.editorService.openEditor({ resource: URI.file(this.environmentService.appKeybindingsPath), options: { pinned: true } })));
+		this._register(DOM.addDisposableListener(fileElement, DOM.EventType.CLICK, () => this.preferencesService.openGlobalKeybindingSettings(true)));
 	}
 
 	private createBody(parent: HTMLElement): void {

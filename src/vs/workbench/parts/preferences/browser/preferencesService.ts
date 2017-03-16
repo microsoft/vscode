@@ -16,7 +16,7 @@ import { EditorInput, toResource } from 'vs/workbench/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { IEditor } from 'vs/platform/editor/common/editor';
+import { Position as EditorPosition, IEditor } from 'vs/platform/editor/common/editor';
 import { ICommonCodeEditor, IPosition } from 'vs/editor/common/editorCommon';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -164,9 +164,23 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		}
 	}
 
-	openGlobalKeybindingSettings(): TPromise<void> {
-		return this.editorService.openEditor(this.instantiationService.createInstance(KeybindingsEditorInput), { pinned: true }).then(() => null);
+	openGlobalKeybindingSettings(textual: boolean): TPromise<void> {
+		if (textual) {
+			const emptyContents = '// ' + nls.localize('emptyKeybindingsHeader', "Place your key bindings in this file to overwrite the defaults") + '\n[\n]';
+			const editableKeybindings = URI.file(this.environmentService.appKeybindingsPath);
 
+			// Create as needed and open in editor
+			return this.createIfNotExists(editableKeybindings, emptyContents).then(() => {
+				return this.editorService.openEditors([
+					{ input: { resource: this.defaultKeybindingsResource, options: { pinned: true }, label: nls.localize('defaultKeybindings', "Default Keybindings"), description: '' }, position: EditorPosition.ONE },
+					{ input: { resource: editableKeybindings, options: { pinned: true } }, position: EditorPosition.TWO },
+				]).then(() => {
+					this.editorGroupService.focusGroup(EditorPosition.TWO);
+				});
+			});
+
+		}
+		return this.editorService.openEditor(this.instantiationService.createInstance(KeybindingsEditorInput), { pinned: true }).then(() => null);
 	}
 
 	configureSettingsForLanguage(language: string): void {
