@@ -224,6 +224,11 @@ export class SettingsTabsWidget extends Widget {
 	}
 }
 
+export interface SearchOptions extends IInputOptions {
+	navigateByEnter?: boolean;
+	navigateByArrows?: boolean;
+}
+
 export class SearchWidget extends Widget {
 
 	public domNode: HTMLElement;
@@ -238,7 +243,7 @@ export class SearchWidget extends Widget {
 	private _onNavigate = this._register(new Emitter<boolean>());
 	public onNavigate: Event<boolean> = this._onNavigate.event;
 
-	constructor(parent: HTMLElement, protected options: IInputOptions,
+	constructor(parent: HTMLElement, protected options: SearchOptions,
 		@IContextViewService private contextViewService: IContextViewService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IInstantiationService protected instantiationService: IInstantiationService
@@ -299,15 +304,21 @@ export class SearchWidget extends Widget {
 		let handled = false;
 		switch (keyboardEvent.keyCode) {
 			case KeyCode.Enter:
-				this._onNavigate.fire(keyboardEvent.shiftKey);
-				handled = true;
+				if (this.options.navigateByEnter) {
+					this._onNavigate.fire(keyboardEvent.shiftKey);
+					handled = true;
+				}
 				break;
 			case KeyCode.UpArrow:
-				this._onNavigate.fire(true);
+				if (this.options.navigateByArrows) {
+					this._onNavigate.fire(true);
+				}
 				handled = true;
 				break;
 			case KeyCode.DownArrow:
-				this._onNavigate.fire(false);
+				if (this.options.navigateByArrows) {
+					this._onNavigate.fire(false);
+				}
 				handled = true;
 				break;
 			case KeyCode.Escape:

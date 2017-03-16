@@ -194,7 +194,8 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		this.headerContainer = DOM.append(parent, $('.keybindings-header'));
 		this.searchWidget = this._register(this.instantiationService.createInstance(SearchWidget, DOM.append(this.headerContainer, $('.search-container')), {
 			ariaLabel: localize('SearchKeybindings.AriaLabel', "Search keybindings"),
-			placeholder: localize('SearchKeybindings.Placeholder', "Search keybindings")
+			placeholder: localize('SearchKeybindings.Placeholder', "Search keybindings"),
+			navigateByArrows: true
 		}));
 		this._register(this.searchWidget.onDidChange(searchValue => this.delayedFiltering.trigger(() => this.render())));
 		this._register(this.searchWidget.onNavigate(back => this._onNavigate(back)));
