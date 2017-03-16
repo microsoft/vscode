@@ -266,7 +266,7 @@
 |                     Alt+Digit5 |   5   |                     Alt+5 |                     Alt+5 |
 |                Ctrl+Alt+Digit5 |   [   |                         [ |                Ctrl+Alt+5 |
 |               Shift+Alt+Digit5 |   %   |               Shift+Alt+5 |               Shift+Alt+5 |
-|          Ctrl+Shift+Alt+Digit5 |   [   |                         [ |          Ctrl+Shift+Alt+5 |
+|          Ctrl+Shift+Alt+Digit5 |   [   |          Ctrl+Shift+Alt+[ |          Ctrl+Shift+Alt+5 |
 |                         Digit6 |   6   |                         6 |                         6 |
 |                    Ctrl+Digit6 |   6   |                    Ctrl+6 |                    Ctrl+6 |
 |                   Shift+Digit6 |   &   |                   Shift+6 |                   Shift+6 |
@@ -274,7 +274,7 @@
 |                     Alt+Digit6 |   6   |                     Alt+6 |                     Alt+6 |
 |                Ctrl+Alt+Digit6 |   ]   |                         ] |                Ctrl+Alt+6 |
 |               Shift+Alt+Digit6 |   &   |               Shift+Alt+6 |               Shift+Alt+6 |
-|          Ctrl+Shift+Alt+Digit6 |   ]   |                         ] |          Ctrl+Shift+Alt+6 |
+|          Ctrl+Shift+Alt+Digit6 |   ]   |          Ctrl+Shift+Alt+] |          Ctrl+Shift+Alt+6 |
 |                         Digit7 |   7   |                         7 |                         7 |
 |                    Ctrl+Digit7 |   7   |                    Ctrl+7 |                    Ctrl+7 |
 |                   Shift+Digit7 |   /   |                         / |                   Shift+7 |

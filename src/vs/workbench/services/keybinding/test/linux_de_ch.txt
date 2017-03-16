@@ -40,7 +40,7 @@
 |                       Alt+KeyE |   e   |                     Alt+E |                     Alt+E |
 |                  Ctrl+Alt+KeyE |   €   |                Ctrl+Alt+E |                Ctrl+Alt+E |
 |                 Shift+Alt+KeyE |   E   |               Shift+Alt+E |               Shift+Alt+E |
-|            Ctrl+Shift+Alt+KeyE |   E   |                   Shift+E |          Ctrl+Shift+Alt+E |
+|            Ctrl+Shift+Alt+KeyE |   E   |          Ctrl+Shift+Alt+E |          Ctrl+Shift+Alt+E |
 --------------------------------------------------------------------------------------------------
 |       HW Code combination      |  Key  |    KeyCode combination    |          UI label         |
 --------------------------------------------------------------------------------------------------
@@ -116,9 +116,9 @@
 |                     Shift+KeyN |   N   |                   Shift+N |                   Shift+N |
 |                Ctrl+Shift+KeyN |   N   |              Ctrl+Shift+N |              Ctrl+Shift+N |
 |                       Alt+KeyN |   n   |                     Alt+N |                     Alt+N |
-|                  Ctrl+Alt+KeyN |   n   |                         N |                Ctrl+Alt+N |
+|                  Ctrl+Alt+KeyN |   n   |                Ctrl+Alt+N |                Ctrl+Alt+N |
 |                 Shift+Alt+KeyN |   N   |               Shift+Alt+N |               Shift+Alt+N |
-|            Ctrl+Shift+Alt+KeyN |   N   |                   Shift+N |          Ctrl+Shift+Alt+N |
+|            Ctrl+Shift+Alt+KeyN |   N   |          Ctrl+Shift+Alt+N |          Ctrl+Shift+Alt+N |
 |                           KeyO |   o   |                         O |                         O |
 |                      Ctrl+KeyO |   o   |                    Ctrl+O |                    Ctrl+O |
 |                     Shift+KeyO |   O   |                   Shift+O |                   Shift+O |

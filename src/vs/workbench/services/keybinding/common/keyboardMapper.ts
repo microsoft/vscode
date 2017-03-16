@@ -197,17 +197,32 @@ export class KeyboardMapper {
 		// Handle all `withShiftAltGr` entries
 		for (let i = mappings.length - 1; i >= 0; i--) {
 			const mapping = mappings[i];
-			this._registerCharCode(mapping.code, true, true, true, mapping.withShiftAltGr);
+			const withShiftAltGr = mapping.withShiftAltGr;
+			if (withShiftAltGr === mapping.withAltGr || withShiftAltGr === mapping.withShift || withShiftAltGr === mapping.value) {
+				// handled below
+				continue;
+			}
+			this._registerCharCode(mapping.code, true, true, true, withShiftAltGr);
 		}
 		// Handle all `withAltGr` entries
 		for (let i = mappings.length - 1; i >= 0; i--) {
 			const mapping = mappings[i];
-			this._registerCharCode(mapping.code, true, false, true, mapping.withAltGr);
+			const withAltGr = mapping.withAltGr;
+			if (withAltGr === mapping.withShift || withAltGr === mapping.value) {
+				// handled below
+				continue;
+			}
+			this._registerCharCode(mapping.code, true, false, true, withAltGr);
 		}
 		// Handle all `withShift` entries
 		for (let i = mappings.length - 1; i >= 0; i--) {
 			const mapping = mappings[i];
-			this._registerCharCode(mapping.code, false, true, false, mapping.withShift);
+			const withShift = mapping.withShift;
+			if (withShift === mapping.value) {
+				// handled below
+				continue;
+			}
+			this._registerCharCode(mapping.code, false, true, false, withShift);
 		}
 		// Handle all `value` entries
 		for (let i = mappings.length - 1; i >= 0; i--) {
