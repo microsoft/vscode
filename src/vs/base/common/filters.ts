@@ -367,7 +367,7 @@ export function matchesFuzzy2(pattern: string, word: string): number[] {
 	let patternPos = 0;
 	let wordPos = 0;
 	while (patternPos < pattern.length && wordPos < word.length) {
-		if (pattern.charAt(patternPos) === word.charAt(wordPos)) {
+		if (pattern[patternPos] === word[wordPos]) {
 			patternPos += 1;
 			matches.push(wordPos);
 		}
@@ -381,53 +381,97 @@ export function matchesFuzzy2(pattern: string, word: string): number[] {
 	return matches;
 }
 
+const table: number[][] = [];
+const gap = -1;
 
-let table: number[][];
 (function initTable() {
-	table = [];
-	let zeroArray: number[] = [];
-	for (let i = 0; i < 100 + 1; ++i) {
-		zeroArray.push(-i);
+	let firstRow: number[] = [0];
+	table.push(firstRow);
+	for (let i = 1; i < 100; i++) {
+		firstRow.push(i * gap);
 	}
-	for (let i = 0; i < 100 + 1; ++i) {
-		let t = zeroArray.slice(0);
-		t[0] = -i;
-		table.push(t);
+	for (let i = 0; i < 100; i++) {
+		let row = new Array(100);
+		row[0] = i * gap;
+		table.push(row);
 	}
 })();
 
-function score(pattern: string, patternPos: number, word: string, wordPos: number) {
-	if (pattern.charAt(patternPos) === word.charAt(wordPos)) {
-		return 2;
-	} else {
-		return -2;
-	}
-}
 
-export function fuzzyLCS(pattern: string, word: string) {
+export function fuzzyLCS(pattern: string, word: string): [number, number[]] {
+
+	const lowPattern = pattern.toLowerCase();
+	const upPattern = pattern.toUpperCase();
+	const lowWord = word.toLowerCase();
+
+	let matches: number[] = [];
+	let score = 0;
 
 	for (let i = 1; i < pattern.length + 1; ++i) {
-		let oneMatch = false;
+		let topMatch = -1;
+		let topMatchIdx = 0;
 		for (let j = 1; j < word.length + 1; ++j) {
 
-			let s = score(pattern, i - 1, word, j - i);
+			let match = gap;
 
-			table[i][j] = Math.max(
-				table[i - 1][j - 1] + s,
-				table[i - 1][j],
-				table[i][j - 1]
-			);
+			if (lowPattern[i - 1] === lowWord[j - 1]) {
+				// some kind of match
 
-			if (s > 0) {
-				oneMatch = true;
+				if (pattern[i - 1] === word[j - 1]
+					&& (lowWord[j - 1] !== word[j - i] || i === j)
+				) {
+					// upper-case match or perfect match at start
+					match = 13;
+
+				} else if (j > 1 && word[j - 2] === '_') {
+					// after separator
+					match = 11;
+
+				} else if (upPattern[i - 1] === word[j - 1]) {
+					// upper-case hit
+					match = 11;
+
+				} else {
+					// normal match
+					match = 1;
+				}
+			}
+
+			let diag = table[i - 1][j - 1] + match;
+			let top = table[i - 1][j] + gap;
+			let left = table[i][j - 1] + gap;
+
+			if (diag > top) {
+				if (diag > left) {
+					table[i][j] = diag;
+				} else {
+					table[i][j] = left;
+				}
+			} else {
+				if (top > left) {
+					table[i][j] = top;
+				} else {
+					table[i][j] = left;
+				}
+			}
+
+			if (match > topMatch) {
+				topMatch = match;
+				topMatchIdx = j - 1;
 			}
 		}
-		if (!oneMatch) {
+		if (topMatch < 0 || i !== 0 && topMatch === 1) {
+			// no match for first character or matched
+			// something unintersting in the middle
 			return undefined;
+
+		} else {
+			matches.push(topMatchIdx);
+			score += topMatch;
 		}
 	}
 
-	return [];
+	return [score, matches];
 }
 
 export function createMatches(position: number[]): IMatch[] {
@@ -473,30 +517,30 @@ export function _matchRecursive(
 		return 0;
 	}
 
-	const lowPatternChar = lowPattern.charAt(patternPos);
+	const lowPatternChar = lowPattern[patternPos];
 	let idx = -1;
 	let value = 0;
 
 	if ((patternPos === wordPos
-		&& lowPatternChar === lowWord.charAt(wordPos))
+		&& lowPatternChar === lowWord[wordPos])
 		&& ((value = _matchRecursive(pattern, lowPattern, upPattern, patternPos + 1, word, lowWord, wordPos + 1, matches)) >= 0)
 	) {
 		matches.unshift(wordPos);
-		return (pattern.charAt(patternPos) === word.charAt(wordPos) ? 17 : 11) + value;
+		return (pattern[patternPos] === word[wordPos] ? 17 : 11) + value;
 	}
 
 	if ((idx = lowWord.indexOf(`_${lowPatternChar}`, wordPos)) >= 0
 		&& ((value = _matchRecursive(pattern, lowPattern, upPattern, patternPos + 1, word, lowWord, idx + 2, matches)) >= 0)
 	) {
 		matches.unshift(idx + 1);
-		return (pattern.charAt(patternPos) === word.charAt(idx + 1) ? 17 : 11) + value;
+		return (pattern[patternPos] === word[idx + 1] ? 17 : 11) + value;
 	}
 
-	if ((idx = word.indexOf(upPattern.charAt(patternPos), wordPos)) >= 0
+	if ((idx = word.indexOf(upPattern[patternPos], wordPos)) >= 0
 		&& ((value = _matchRecursive(pattern, lowPattern, upPattern, patternPos + 1, word, lowWord, idx + 1, matches)) >= 0)
 	) {
 		matches.unshift(idx);
-		return (pattern.charAt(patternPos) === word.charAt(idx) ? 17 : 11) + value;
+		return (pattern[patternPos] === word[idx] ? 17 : 11) + value;
 	}
 
 	if (patternPos > 0

@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { IFilter, or, matchesPrefix, matchesStrictPrefix, matchesCamelCase, matchesSubString, matchesContiguousSubString, matchesWords, fuzzyMatchAndScore } from 'vs/base/common/filters';
+import { IFilter, or, matchesPrefix, matchesStrictPrefix, matchesCamelCase, matchesSubString, matchesContiguousSubString, matchesWords, fuzzyMatchAndScore, fuzzyLCS } from 'vs/base/common/filters';
 
 function filterOk(filter: IFilter, word: string, wordToMatchAgainst: string, highlights?: { start: number; end: number; }[]) {
 	let r = filter(word, wordToMatchAgainst);
@@ -195,8 +195,8 @@ suite('Filters', () => {
 
 	test('fuzzyMatchAndScore', function () {
 
-		function assertMatches(pattern: string, word: string, decoratedWord?: string) {
-			let r = fuzzyMatchAndScore(pattern, word);
+		function assertMatches(pattern: string, word: string, decoratedWord?: string, filter = fuzzyMatchAndScore) {
+			let r = filter(pattern, word);
 			assert.ok(Boolean(r) === Boolean(decoratedWord));
 			if (r) {
 				const [, matches] = r;
@@ -234,6 +234,14 @@ suite('Filters', () => {
 		assertMatches('ccm', 'cacmelCase', '^ca^c^melCase');
 		assertMatches('ccm', 'camelCase');
 		assertMatches('ccm', 'camelCasecm', '^camel^Casec^m');
+
+		assertMatches('ob', 'foobar', undefined, fuzzyLCS);
+		assertMatches('BK', 'the_black_knight', 'the_^black_^knight', fuzzyLCS);
+		// assertMatches('BB', 'bakB', '^bak^B', fuzzyLCS);
+		// assertMatches('b', 'bakB', '^bakB', fuzzyLCS);
+		// assertMatches('B', 'bakB', 'bak^B', fuzzyLCS);
+		// assertMatches('ba', 'bakB', '^b^akB', fuzzyLCS);
+		// assertMatches('Ba', 'bakBa', 'bak^B^a', fuzzyLCS);
 	});
 
 	test('topScore', function () {
