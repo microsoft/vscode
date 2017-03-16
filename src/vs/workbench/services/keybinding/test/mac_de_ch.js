@@ -4,9 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IKeyboardMapping } from 'vs/workbench/services/keybinding/common/keyboardMapper';
-
-export const mac_de_ch: IKeyboardMapping = {
+define({
 	Hyper: {
 		value: '',
 		valueIsDeadKey: false,
@@ -1917,4 +1915,4 @@ export const mac_de_ch: IKeyboardMapping = {
 		withShiftAltGr: '',
 		withShiftAltGrIsDeadKey: false
 	}
-};
+});
