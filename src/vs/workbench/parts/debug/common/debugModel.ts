@@ -100,17 +100,35 @@ export class ExpressionContainer implements IExpressionContainer {
 
 	public valueChanged: boolean;
 	private _value: string;
+	protected children: TPromise<IExpression[]>;
 
 	constructor(
 		protected process: IProcess,
-		public reference: number,
+		private _reference: number,
 		private id: string,
 		public namedVariables = 0,
 		public indexedVariables = 0,
 		private startOfVariables = 0
 	) { }
 
+	public get reference(): number {
+		return this._reference;
+	}
+
+	public set reference(value: number) {
+		this._reference = value;
+		this.children = undefined; // invalidate children cache
+	}
+
 	public getChildren(): TPromise<IExpression[]> {
+		if (!this.children) {
+			this.children = this.doGetChildren();
+		}
+
+		return this.children;
+	}
+
+	private doGetChildren(): TPromise<IExpression[]> {
 		if (!this.hasChildren) {
 			return TPromise.as([]);
 		}
@@ -610,7 +628,7 @@ export class Process implements IProcess {
 				label: item.label,
 				insertText: item.text || item.label,
 				type: item.type,
-				filterText: item.start && item.length && text.substr(item.start, item.length),
+				filterText: item.start && item.length && text.substr(item.start, item.length).concat(item.label),
 				overwriteBefore: item.length || overwriteBefore
 			})) : [];
 		}, err => []);

@@ -24,6 +24,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import Event from 'vs/base/common/event';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export class SidebarPart extends CompositePart<Viewlet> {
 
@@ -41,7 +42,8 @@ export class SidebarPart extends CompositePart<Viewlet> {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IPartService partService: IPartService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IThemeService themeService: IThemeService
 	) {
 		super(
 			messageService,
@@ -51,6 +53,7 @@ export class SidebarPart extends CompositePart<Viewlet> {
 			partService,
 			keybindingService,
 			instantiationService,
+			themeService,
 			Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets),
 			SidebarPart.activeViewletSettingsKey,
 			'sideBar',

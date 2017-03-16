@@ -94,7 +94,7 @@ export class KeybindingIO {
 
 	public static readKeybinding(input: string, OS: OperatingSystem): number {
 		if (!input) {
-			return null;
+			return 0;
 		}
 		input = input.toLowerCase().trim();
 
