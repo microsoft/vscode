@@ -155,7 +155,7 @@ function isWhitespace(code: number): boolean {
 }
 
 function isAlphanumeric(code: number): boolean {
-	return isLower(code) || isUpper(code) || isNumber(code);
+	return isLower(code) || isUpper(code);
 }
 
 function join(head: IMatch, tail: IMatch[]): IMatch[] {
