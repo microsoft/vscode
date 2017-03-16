@@ -29,6 +29,7 @@ import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorMo
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
+import { ResourceMap } from 'vs/base/common/map';
 
 export interface IBackupResult {
 	didBackup: boolean;
@@ -486,22 +487,22 @@ export abstract class TextFileService implements ITextFileService {
 				return true;
 			});
 
-		const mapResourceToResult: { [resource: string]: IResult } = Object.create(null);
+		const mapResourceToResult = new ResourceMap<IResult>();
 		dirtyFileModels.forEach(m => {
-			mapResourceToResult[m.getResource().toString()] = {
+			mapResourceToResult.set(m.getResource(), {
 				source: m.getResource()
-			};
+			});
 		});
 
 		return TPromise.join(dirtyFileModels.map(model => {
 			return model.save({ reason }).then(() => {
 				if (!model.isDirty()) {
-					mapResourceToResult[model.getResource().toString()].success = true;
+					mapResourceToResult.get(model.getResource()).success = true;
 				}
 			});
 		})).then(r => {
 			return {
-				results: Object.keys(mapResourceToResult).map(k => mapResourceToResult[k])
+				results: mapResourceToResult.values()
 			};
 		});
 	}
@@ -652,34 +653,35 @@ export abstract class TextFileService implements ITextFileService {
 	private doRevertAllFiles(resources?: URI[], options?: IRevertOptions): TPromise<ITextFileOperationResult> {
 		const fileModels = options && options.force ? this.getFileModels(resources) : this.getDirtyFileModels(resources);
 
-		const mapResourceToResult: { [resource: string]: IResult } = Object.create(null);
+		const mapResourceToResult = new ResourceMap<IResult>();
 		fileModels.forEach(m => {
-			mapResourceToResult[m.getResource().toString()] = {
+			mapResourceToResult.set(m.getResource(), {
 				source: m.getResource()
-			};
+			});
 		});
 
 		return TPromise.join(fileModels.map(model => {
 			return model.revert(options && options.soft).then(() => {
 				if (!model.isDirty()) {
-					mapResourceToResult[model.getResource().toString()].success = true;
+					mapResourceToResult.get(model.getResource()).success = true;
 				}
 			}, error => {
 
 				// FileNotFound means the file got deleted meanwhile, so still record as successful revert
 				if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
-					mapResourceToResult[model.getResource().toString()].success = true;
+					mapResourceToResult.get(model.getResource()).success = true;
 				}
 
 				// Otherwise bubble up the error
 				else {
 					return TPromise.wrapError(error);
 				}
+
 				return undefined;
 			});
 		})).then(r => {
 			return {
-				results: Object.keys(mapResourceToResult).map(k => mapResourceToResult[k])
+				results: mapResourceToResult.values()
 			};
 		});
 	}

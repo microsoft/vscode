@@ -996,7 +996,7 @@ export class PasteFileAction extends BaseFileAction {
 		}
 
 		// Check if target is ancestor of pasted folder
-		if (this.element.resource.toString() !== fileToCopy.resource.toString() && (isEqual(this.element.resource.fsPath, fileToCopy.resource.fsPath) || isParent(this.element.resource.fsPath, fileToCopy.resource.fsPath))) {
+		if (!isEqual(this.element.resource.fsPath, fileToCopy.resource.fsPath) && (isEqual(this.element.resource.fsPath, fileToCopy.resource.fsPath) || isParent(this.element.resource.fsPath, fileToCopy.resource.fsPath))) {
 			return false;
 		}
 
@@ -1007,7 +1007,7 @@ export class PasteFileAction extends BaseFileAction {
 
 		// Find target
 		let target: FileStat;
-		if (this.element.resource.toString() === fileToCopy.resource.toString()) {
+		if (isEqual(this.element.resource.fsPath, fileToCopy.resource.fsPath)) {
 			target = this.element.parent;
 		} else {
 			target = this.element.isDirectory ? this.element : this.element.parent;
@@ -1313,7 +1313,7 @@ export class CompareResourcesAction extends Action {
 		}
 
 		// Check if target is identical to source
-		if (this.resource.toString() === globalResourceToCompare.toString()) {
+		if (isEqual(this.resource.fsPath, globalResourceToCompare.fsPath)) {
 			return false;
 		}
 
@@ -1408,7 +1408,7 @@ export abstract class BaseSaveFileAction extends BaseActionWithErrorReporting {
 				const editor = getCodeEditor(activeEditor);
 				if (editor) {
 					const activeResource = toResource(activeEditor.input, { supportSideBySide: true, filter: ['file', 'untitled'] });
-					if (activeResource && activeResource.toString() === source.toString()) {
+					if (activeResource && isEqual(activeResource.fsPath, source.fsPath)) {
 						viewStateOfSource = editor.saveViewState();
 					}
 				}
