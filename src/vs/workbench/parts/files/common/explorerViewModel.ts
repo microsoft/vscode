@@ -5,7 +5,6 @@
 
 'use strict';
 
-import assert = require('vs/base/common/assert');
 import URI from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
 import { IFileStat, isEqual, isParent } from 'vs/platform/files/common/files';
@@ -85,7 +84,9 @@ export class FileStat implements IFileStat {
 	 * exists locally.
 	 */
 	public static mergeLocalWithDisk(disk: FileStat, local: FileStat): void {
-		assert.ok(disk.resource.toString() === local.resource.toString(), 'Merging only supported for stats with the same resource');
+		if (!isEqual(disk.resource.fsPath, local.resource.fsPath)) {
+			return; // Merging only supported for stats with the same resource
+		}
 
 		// Stop merging when a folder is not resolved to avoid loosing local data
 		const mergingDirectories = disk.isDirectory || local.isDirectory;
