@@ -69,7 +69,7 @@
 }
 
 .keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row.keybindings-list-header,
-.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row.even {
+.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row.even:not(.focused) {
 	background-color: rgba(130, 130, 130, 0.04);
 }
 
