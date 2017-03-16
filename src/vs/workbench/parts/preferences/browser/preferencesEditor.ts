@@ -123,7 +123,10 @@ export class PreferencesEditor extends BaseEditor {
 
 		this.headerContainer = DOM.append(parentElement, DOM.$('.preferences-header'));
 
-		this.searchWidget = this._register(this.instantiationService.createInstance(SearchWidget, this.headerContainer));
+		this.searchWidget = this._register(this.instantiationService.createInstance(SearchWidget, this.headerContainer, {
+			ariaLabel: nls.localize('SearchSettingsWidget.AriaLabel', "Search settings"),
+			placeholder: nls.localize('SearchSettingsWidget.Placeholder', "Search Settings")
+		}));
 		this._register(this.searchWidget.onDidChange(value => this.filterPreferences(value.trim())));
 		this._register(this.searchWidget.onEnter(value => this.preferencesRenderers.focusNextPreference()));
 

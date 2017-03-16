@@ -81,4 +81,7 @@ export interface IPreferencesService {
 }
 
 export const CONTEXT_SETTINGS_EDITOR = new RawContextKey<boolean>('settingsEditor', false);
+export const CONTEXT_KEYBINDINGS_EDITOR = new RawContextKey<boolean>('inKeybindingsEditor', false);
+
 export const SETTINGS_EDITOR_COMMAND_SEARCH = 'settings.action.search';
+export const ACTION_DEFINE_KEYBINDING = 'kebindings.action.define';
