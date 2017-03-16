@@ -8,7 +8,7 @@
 import 'vs/css!./media/part';
 import { Dimension, Builder } from 'vs/base/browser/builder';
 import { Component } from 'vs/workbench/common/component';
-import { IThemeService, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
+import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 
 export interface IPartOptions {
 	hasTitle?: boolean;
@@ -32,11 +32,11 @@ export abstract class Part extends Component {
 		super(id, themeService);
 	}
 
-	protected onThemeChange(theme: ITheme, collector: ICssStyleCollector): void {
+	protected onThemeChange(theme: ITheme): void {
 
 		// only call if our create() method has been called
 		if (this.parent) {
-			super.onThemeChange(theme, collector);
+			super.onThemeChange(theme);
 		}
 	}
 
