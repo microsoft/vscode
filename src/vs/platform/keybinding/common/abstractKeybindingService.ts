@@ -13,7 +13,7 @@ import Severity from 'vs/base/common/severity';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { ICommandService, CommandsRegistry, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { KeybindingResolver, IResolveResult } from 'vs/platform/keybinding/common/keybindingResolver';
-import { IKeybindingEvent, IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IKeybindingEvent, IKeybindingService, IKeybindingItem2, KeybindingSource } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService, IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { IMessageService } from 'vs/platform/message/common/message';
@@ -167,6 +167,15 @@ export abstract class AbstractKeybindingService implements IKeybindingService {
 			+ '\n\n'
 			+ AbstractKeybindingService._getAllCommandsAsComment(boundCommands)
 		);
+	}
+
+	public getKeybindings(): IKeybindingItem2[] {
+		return this._getResolver().getKeybindings().map(keybinding => ({
+			keybinding: this.resolveKeybinding(keybinding.keybinding),
+			command: keybinding.command,
+			when: keybinding.when,
+			source: keybinding.isDefault ? KeybindingSource.Default : KeybindingSource.User
+		}));
 	}
 
 	private static _getDefaultKeybindings(defaultKeybindings: NormalizedKeybindingItem[]): string {

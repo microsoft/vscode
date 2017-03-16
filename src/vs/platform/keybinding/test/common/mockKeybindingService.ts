@@ -6,7 +6,7 @@
 
 import { ResolvedKeybinding, Keybinding } from 'vs/base/common/keyCodes';
 import Event from 'vs/base/common/event';
-import { IKeybindingService, IKeybindingEvent } from 'vs/platform/keybinding/common/keybinding';
+import { IKeybindingService, IKeybindingEvent, IKeybindingItem2 } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKey, IContextKeyService, IContextKeyServiceTarget, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IResolveResult } from 'vs/platform/keybinding/common/keybindingResolver';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/abstractKeybindingService';
@@ -70,6 +70,10 @@ export class MockKeybindingService2 implements IKeybindingService {
 
 	public getDefaultKeybindings(): string {
 		return null;
+	}
+
+	public getKeybindings(): IKeybindingItem2[] {
+		return [];
 	}
 
 	public resolveKeybinding(keybinding: Keybinding): ResolvedKeybinding {
