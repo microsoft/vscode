@@ -175,7 +175,14 @@ export class RipgrepParser extends EventEmitter {
 				lastMatchEndPos = i;
 				this.numResults++;
 
-				this.checkHitLimit();
+				// Check hit maxResults limit
+				if (this.numResults >= this.maxResults) {
+					// Replace preview with what we have so far, TODO@Rob
+					lineMatch.preview = realTextParts.join('');
+					this.cancel();
+					this.onResult();
+					this.emit('hitLimit');
+				}
 			} else {
 				i++;
 				textRealIdx++;
@@ -185,6 +192,7 @@ export class RipgrepParser extends EventEmitter {
 		const chunk = text.slice(lastMatchEndPos);
 		realTextParts.push(chunk);
 
+		// Replace preview with version without color codes
 		const preview = realTextParts.join('');
 		lineMatch.preview = preview;
 	}
@@ -193,16 +201,7 @@ export class RipgrepParser extends EventEmitter {
 		this.emit('result', this.fileMatch.serialize());
 		this.fileMatch = null;
 	}
-
-	private checkHitLimit(): void {
-		if (this.numResults >= this.maxResults) {
-			this.cancel();
-			this.onResult();
-			this.emit('hitLimit');
-		}
-	}
 }
-
 
 export class FileMatch implements ISerializedFileMatch {
 	path: string;
