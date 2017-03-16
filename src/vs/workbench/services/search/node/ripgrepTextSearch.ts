@@ -293,8 +293,7 @@ function globExprsToRgGlobs(patterns: glob.IExpression): { globArgs: string[], s
 }
 
 function getRgArgs(config: IRawSearch, rootFolder: string): { args: string[], siblingClauses: glob.SiblingClause[] } {
-	// -uu == Skip gitignore files, and hidden files/folders
-	const args = ['--heading', '-uu', '--line-number', '--color', 'ansi', '--colors', 'path:none', '--colors', 'line:none', '--colors', 'match:fg:red', '--colors', 'match:style:nobold'];
+	const args = ['--heading', '--line-number', '--color', 'ansi', '--colors', 'path:none', '--colors', 'line:none', '--colors', 'match:fg:red', '--colors', 'match:style:nobold'];
 	args.push(config.contentPattern.isCaseSensitive ? '--case-sensitive' : '--ignore-case');
 
 	if (config.includePattern) {
