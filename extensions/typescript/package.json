@@ -382,14 +382,14 @@
         "name": "tsc",
         "owner": "typescript",
         "applyTo": "closedDocuments",
-        "fileLocation": ["relative", "$cwd"],
+        "fileLocation": ["relative", "${cwd}"],
 	      "pattern": "$tsc"
       },
       {
         "name": "tsc-watch",
         "owner": "typescript",
         "applyTo": "closedDocuments",
-        "fileLocation": ["relative", "$cwd"],
+        "fileLocation": ["relative", "${cwd}"],
         "pattern": "$tsc",
         "watching": {
           "activeOnStart": true,
