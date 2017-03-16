@@ -428,4 +428,5 @@ export class Color {
 	public static readonly green = new Color(new RGBA(0, 255, 0, 255));
 	public static readonly cyan = new Color(new RGBA(0, 255, 255, 255));
 	public static readonly lightgrey = new Color(new RGBA(211, 211, 211, 255));
+	public static readonly transparent = new Color(new RGBA(0, 0, 0, 0));
 }
