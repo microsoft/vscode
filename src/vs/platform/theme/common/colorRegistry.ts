@@ -90,7 +90,7 @@ class ColorRegistry implements IColorRegistry {
 
 	public resolveDefaultColor(id: ColorIdentifier, theme: ITheme): Color {
 		let colorDesc = this.colorsById[id];
-		if (colorDesc) {
+		if (colorDesc && colorDesc.defaults) {
 			let colorValue = colorDesc.defaults[theme.type];
 			return resolveColorValue(colorValue, theme);
 		}

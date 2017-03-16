@@ -38,6 +38,8 @@ import { IProgressService } from 'vs/platform/progress/common/progress';
 import { EditorStacksModel, EditorGroup, EditorIdentifier, GroupEvent } from 'vs/workbench/common/editor/editorStacksModel';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 
 class ProgressMonitor {
 
@@ -118,9 +120,10 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		@IPartService private partService: IPartService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IThemeService themeService: IThemeService
 	) {
-		super(id, { hasTitle: false });
+		super(id, { hasTitle: false }, themeService);
 
 		this._onEditorsChanged = new Emitter<void>();
 		this._onEditorsMoved = new Emitter<void>();
@@ -907,6 +910,11 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		this.toUnbind.push(this.editorGroupsControl.onGroupFocusChanged(() => this.onGroupFocusChanged()));
 
 		return contentArea;
+	}
+
+	protected updateStyles(): void {
+		const container = this.getContainer();
+		container.style('background-color', this.getColor(editorBackground));
 	}
 
 	private onGroupFocusChanged(): void {

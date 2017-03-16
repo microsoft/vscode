@@ -43,6 +43,13 @@ export interface IKeybindingItem {
 	weight2: number;
 }
 
+export interface IKeybindingItem2 {
+	keybinding: ResolvedKeybinding;
+	command: string;
+	source: KeybindingSource;
+	when: ContextKeyExpr;
+}
+
 export enum KeybindingSource {
 	Default = 1,
 	User
@@ -63,6 +70,8 @@ export interface IKeybindingService {
 	resolveKeybinding(keybinding: Keybinding): ResolvedKeybinding;
 
 	getDefaultKeybindings(): string;
+
+	getKeybindings(): IKeybindingItem2[];
 
 	/**
 	 * @deprecated

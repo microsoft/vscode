@@ -318,9 +318,7 @@ export class ElectronWindow {
 					this.contextMenuService.showContextMenu({
 						getAnchor: () => target,
 						getActions: () => TPromise.as(TextInputActions),
-						getKeyBinding: action => {
-							return this.keybindingService.lookupKeybinding(action.id);
-						}
+						getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id)
 					});
 				}
 			}
@@ -344,6 +342,9 @@ export class ElectronWindow {
 		return this.partService.joinCreation().then(() => {
 			return arrays.coalesce(actionIds.map(id => {
 				const binding = this.keybindingService.lookupKeybinding(id);
+				if (!binding) {
+					return null;
+				}
 
 				// first try to resolve a native accelerator
 				const electronAccelerator = binding.getElectronAccelerator();

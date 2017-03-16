@@ -13,7 +13,7 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference, IViewZone } from 'vs/editor/browser/editorBrowser';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
+import { InputBox, IInputOptions } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ISettingsGroup } from 'vs/workbench/parts/preferences/common/preferences';
@@ -238,10 +238,10 @@ export class SearchWidget extends Widget {
 	private _onEnter = this._register(new Emitter<void>());
 	public onEnter: Event<void> = this._onEnter.event;
 
-	constructor(parent: HTMLElement,
+	constructor(parent: HTMLElement, protected options: IInputOptions,
 		@IContextViewService private contextViewService: IContextViewService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService protected instantiationService: IInstantiationService
 	) {
 		super();
 		this.create(parent);
@@ -257,12 +257,13 @@ export class SearchWidget extends Widget {
 	private createSearchContainer(searchContainer: HTMLElement) {
 		this.searchContainer = searchContainer;
 		const searchInput = DOM.append(this.searchContainer, DOM.$('div.settings-search-input'));
-		this.inputBox = this._register(new InputBox(searchInput, this.contextViewService, {
-			ariaLabel: localize('SearchSettingsWidget.AriaLabel', "Search settings"),
-			placeholder: localize('SearchSettingsWidget.Placeholder', "Search Settings")
-		}));
+		this.inputBox = this.createInputBox(searchInput);
 		this.inputBox.onDidChange(value => this._onDidChange.fire(value));
 		this.onkeyup(this.inputBox.inputElement, (e) => this._onKeyUp(e));
+	}
+
+	protected createInputBox(parent: HTMLElement): InputBox {
+		return this._register(new InputBox(parent, this.contextViewService, this.options));
 	}
 
 	public showMessage(message: string, count: number): void {
@@ -280,7 +281,6 @@ export class SearchWidget extends Widget {
 			DOM.removeClass(this.countElement, 'hide');
 			this.inputBox.inputElement.style.paddingRight = DOM.getTotalWidth(this.countElement) + 20 + 'px';
 		}
-
 	}
 
 	public focus() {
