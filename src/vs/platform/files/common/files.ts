@@ -304,6 +304,10 @@ export function isEqual(path1: string, path2: string): boolean {
 }
 
 export function isParent(path: string, candidate: string): boolean {
+	if (candidate.length > path.length) {
+		return false;
+	}
+
 	if (!isLinux) {
 		path = path.toLowerCase();
 		candidate = candidate.toLowerCase();

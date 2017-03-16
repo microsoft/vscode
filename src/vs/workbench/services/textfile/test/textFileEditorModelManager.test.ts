@@ -17,6 +17,7 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { IFileService, FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/modelService';
+import { isLinux } from 'vs/base/common/platform';
 
 export class TestTextFileEditorModelManager extends TextFileEditorModelManager {
 
@@ -55,12 +56,20 @@ suite('Files - TextFileEditorModelManager', () => {
 		const model2: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource('/path/random2.txt'), 'utf8');
 		const model3: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource('/path/random3.txt'), 'utf8');
 
-		manager.add(URI.file('/test.html'), <any>model1);
-		manager.add(URI.file('/some/other.html'), <any>model2);
-		manager.add(URI.file('/some/this.txt'), <any>model3);
+		manager.add(URI.file('/test.html'), model1);
+		manager.add(URI.file('/some/other.html'), model2);
+		manager.add(URI.file('/some/this.txt'), model3);
+
+		const fileUpper = URI.file('/TEST.html');
 
 		assert(!manager.get(URI.file('foo')));
 		assert.strictEqual(manager.get(URI.file('/test.html')), model1);
+
+		if (isLinux) {
+			assert.ok(!manager.get(fileUpper));
+		} else {
+			assert.strictEqual(manager.get(fileUpper), model1);
+		}
 
 		let result = manager.getAll();
 		assert.strictEqual(3, result.length);
@@ -74,15 +83,29 @@ suite('Files - TextFileEditorModelManager', () => {
 		result = manager.getAll(URI.file('/some/other.html'));
 		assert.strictEqual(1, result.length);
 
+		result = manager.getAll(fileUpper);
+		if (isLinux) {
+			assert.strictEqual(0, result.length);
+		} else {
+			assert.strictEqual(1, result.length);
+		}
+
 		manager.remove(URI.file(''));
 
 		result = manager.getAll();
 		assert.strictEqual(3, result.length);
 
-		manager.remove(URI.file('/test.html'));
-
+		manager.remove(URI.file('/some/other.html'));
 		result = manager.getAll();
 		assert.strictEqual(2, result.length);
+
+		manager.remove(fileUpper);
+		result = manager.getAll();
+		if (isLinux) {
+			assert.strictEqual(2, result.length);
+		} else {
+			assert.strictEqual(1, result.length);
+		}
 
 		manager.clear();
 		result = manager.getAll();
@@ -127,9 +150,9 @@ suite('Files - TextFileEditorModelManager', () => {
 		const model2: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource('/path/random2.txt'), 'utf8');
 		const model3: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource('/path/random3.txt'), 'utf8');
 
-		manager.add(URI.file('/test.html'), <any>model1);
-		manager.add(URI.file('/some/other.html'), <any>model2);
-		manager.add(URI.file('/some/this.txt'), <any>model3);
+		manager.add(URI.file('/test.html'), model1);
+		manager.add(URI.file('/some/other.html'), model2);
+		manager.add(URI.file('/some/this.txt'), model3);
 
 		assert.strictEqual(manager.get(URI.file('/test.html')), model1);
 
