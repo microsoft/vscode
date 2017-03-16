@@ -93,7 +93,8 @@ for (let key in ansiColorMap) {
 
 function updateTerminalStyles(theme: ITheme, collector: ICssStyleCollector) {
 	for (let key in ansiColorMap) {
-		const color = theme.getColor(keyPrefix + key);
+		let id = keyPrefix + key[0].toUpperCase() + key.substr(1);
+		const color = theme.getColor(id);
 		if (color) {
 			const index = ansiColorMap[key];
 			const rgba = color.transparent(0.996);
