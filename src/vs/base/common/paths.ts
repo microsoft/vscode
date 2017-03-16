@@ -311,14 +311,6 @@ export function isUNC(path: string): boolean {
 	return true;
 }
 
-function isPosixAbsolute(path: string): boolean {
-	return path && path[0] === '/';
-}
-
-export function makePosixAbsolute(path: string): string {
-	return isPosixAbsolute(normalize(path)) ? path : sep + path;
-}
-
 // Reference: https://en.wikipedia.org/wiki/Filename
 const INVALID_FILE_CHARS = isWindows ? /[\\/:\*\?"<>\|]/g : /[\\/]/g;
 const WINDOWS_FORBIDDEN_NAMES = /^(con|prn|aux|clock\$|nul|lpt[0-9]|com[0-9])$/i;
