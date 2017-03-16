@@ -20,7 +20,7 @@ export const ACTIVE_TAB_BACKGROUND = registerColor('activeTabBackground', {
 export const INACTIVE_TAB_BACKGROUND = registerColor('inactiveTabBackground', {
 	dark: '#2D2D2D',
 	light: '#ECECEC',
-	hc: '#00000000'
+	hc: Color.transparent
 }, nls.localize('inactiveTabBackground', "Inactive Tab background color. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group."));
 
 
@@ -50,13 +50,13 @@ export const STATUS_BAR_FOREGROUND = registerColor('statusBarForeground', {
 export const STATUS_BAR_BACKGROUND = registerColor('statusBarBackground', {
 	dark: '#007ACC',
 	light: '#007ACC',
-	hc: '#00000000'
+	hc: Color.transparent
 }, nls.localize('statusBarBackground', "Standard status bar background color. The status bar is shown in the bottom of the window"));
 
 export const STATUS_BAR_NO_FOLDER_BACKGROUND = registerColor('statusBarNoFolderBackground', {
 	dark: '#68217A',
 	light: '#68217A',
-	hc: '#00000000'
+	hc: Color.transparent
 }, nls.localize('statusBarNoFolderBackground', "Status bar background color when no folder is opened. The status bar is shown in the bottom of the window"));
 
 /**
