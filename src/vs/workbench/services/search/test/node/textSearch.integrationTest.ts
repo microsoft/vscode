@@ -65,7 +65,7 @@ function doRipgrepSearchTest(config: IRawSearch, expectedResultCount: number): T
 
 function doSearchTest(config: IRawSearch, expectedResultCount: number, done) {
 	return doLegacySearchTest(config, expectedResultCount)
-		.then(() => doRipgrepSearchTest(config, expectedResultCount))
+		// .then(() => doRipgrepSearchTest(config, expectedResultCount))
 		.then(done, done);
 }
 

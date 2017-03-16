@@ -31,6 +31,7 @@ export class RipgrepEngine implements ISearchEngine<ISerializedFileMatch> {
 		this.rgProc.kill();
 	}
 
+	// TODO@Rob - make promise-based once the old search is gone, and I don't need them to have matching interfaces anymore
 	search(onResult: (match: ISerializedFileMatch) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISerializedSearchComplete) => void): void {
 		if (this.config.rootFolders.length) {
 			this.searchFolder(this.config.rootFolders[0], onResult, onProgress, done);
