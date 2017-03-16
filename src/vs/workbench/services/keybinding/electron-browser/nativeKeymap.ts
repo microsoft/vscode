@@ -336,12 +336,12 @@ let nativeUIKeyCodeLabelProvider: IKeyCodeLabelProvider = null;
 export function getNativeUIKeyCodeLabelProvider(): IKeyCodeLabelProvider {
 	if (!nativeUIKeyCodeLabelProvider) {
 		let remaps = getNativeLabelProviderRemaps();
-		nativeUIKeyCodeLabelProvider = (keyCode: KeyCode): string => {
+		nativeUIKeyCodeLabelProvider = (keyCode: KeyCode, OS: Platform.OperatingSystem): string => {
 			if (remaps[keyCode] !== null) {
 				return remaps[keyCode].render();
 			}
 
-			if (Platform.isMacintosh) {
+			if (OS === Platform.OperatingSystem.Macintosh) {
 				switch (keyCode) {
 					case KeyCode.LeftArrow:
 						return '←';
@@ -364,7 +364,7 @@ let nativeAriaKeyCodeLabelProvider: IKeyCodeLabelProvider = null;
 export function getNativeAriaKeyCodeLabelProvider(): IKeyCodeLabelProvider {
 	if (!nativeAriaKeyCodeLabelProvider) {
 		let remaps = getNativeLabelProviderRemaps();
-		nativeAriaKeyCodeLabelProvider = (keyCode: KeyCode): string => {
+		nativeAriaKeyCodeLabelProvider = (keyCode: KeyCode, OS: Platform.OperatingSystem): string => {
 			if (remaps[keyCode] !== null) {
 				return remaps[keyCode].render();
 			}

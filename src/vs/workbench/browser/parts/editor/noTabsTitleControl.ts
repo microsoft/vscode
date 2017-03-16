@@ -29,16 +29,16 @@ export class NoTabsTitleControl extends TitleControl {
 		this.titleContainer = parent;
 
 		// Pin on double click
-		this.toDispose.push(DOM.addDisposableListener(this.titleContainer, DOM.EventType.DBLCLICK, (e: MouseEvent) => this.onTitleDoubleClick(e)));
+		this.toUnbind.push(DOM.addDisposableListener(this.titleContainer, DOM.EventType.DBLCLICK, (e: MouseEvent) => this.onTitleDoubleClick(e)));
 
 		// Detect mouse click
-		this.toDispose.push(DOM.addDisposableListener(this.titleContainer, DOM.EventType.CLICK, (e: MouseEvent) => this.onTitleClick(e)));
+		this.toUnbind.push(DOM.addDisposableListener(this.titleContainer, DOM.EventType.CLICK, (e: MouseEvent) => this.onTitleClick(e)));
 
 		// Editor Label
 		this.editorLabel = this.instantiationService.createInstance(EditorLabel, this.titleContainer, void 0);
-		this.toDispose.push(this.editorLabel);
-		this.toDispose.push(DOM.addDisposableListener(this.editorLabel.labelElement, DOM.EventType.CLICK, (e: MouseEvent) => this.onTitleLabelClick(e)));
-		this.toDispose.push(DOM.addDisposableListener(this.editorLabel.descriptionElement, DOM.EventType.CLICK, (e: MouseEvent) => this.onTitleLabelClick(e)));
+		this.toUnbind.push(this.editorLabel);
+		this.toUnbind.push(DOM.addDisposableListener(this.editorLabel.labelElement, DOM.EventType.CLICK, (e: MouseEvent) => this.onTitleLabelClick(e)));
+		this.toUnbind.push(DOM.addDisposableListener(this.editorLabel.descriptionElement, DOM.EventType.CLICK, (e: MouseEvent) => this.onTitleLabelClick(e)));
 
 		// Right Actions Container
 		const actionsContainer = document.createElement('div');
@@ -49,7 +49,7 @@ export class NoTabsTitleControl extends TitleControl {
 		this.createEditorActionsToolBar(actionsContainer);
 
 		// Context Menu
-		this.toDispose.push(DOM.addDisposableListener(this.titleContainer, DOM.EventType.CONTEXT_MENU, (e: Event) => this.onContextMenu({ group: this.context, editor: this.context.activeEditor }, e, this.titleContainer)));
+		this.toUnbind.push(DOM.addDisposableListener(this.titleContainer, DOM.EventType.CONTEXT_MENU, (e: Event) => this.onContextMenu({ group: this.context, editor: this.context.activeEditor }, e, this.titleContainer)));
 	}
 
 	private onTitleLabelClick(e: MouseEvent): void {

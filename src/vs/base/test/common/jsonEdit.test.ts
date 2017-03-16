@@ -119,4 +119,16 @@ suite('JSON - edits', () => {
 		edits = removeProperty(content, ['a'], formatterOptions);
 		assertEdit(content, edits, '{\n  "x": "y"\n}');
 	});
+
+	test('insert item to empty array', () => {
+		let content = '[\n]';
+		let edits = setProperty(content, [-1], 'bar', formatterOptions);
+		assertEdit(content, edits, '[\n  "bar"\n]');
+	});
+
+	test('insert item', () => {
+		let content = '[\n  1,\n  2\n]';
+		let edits = setProperty(content, [-1], 'bar', formatterOptions);
+		assertEdit(content, edits, '[\n  1,\n  2,\n  "bar"\n]');
+	});
 });

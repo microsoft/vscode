@@ -69,7 +69,6 @@ export class DefinitionAction extends EditorAction {
 
 			// * remove falsy references
 			// * remove reference at the current pos
-			// * collapse ranges to start pos
 			let result: Location[] = [];
 			for (let i = 0; i < references.length; i++) {
 				let reference = references[i];
@@ -83,7 +82,7 @@ export class DefinitionAction extends EditorAction {
 
 					result.push({
 						uri,
-						range: Range.collapseToStart(range)
+						range
 					});
 				}
 			}

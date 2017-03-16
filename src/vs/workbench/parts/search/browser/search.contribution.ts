@@ -204,6 +204,11 @@ configurationRegistry.registerConfiguration({
 				]
 			}
 		},
+		'search.useRipgrep': {
+			'type': 'boolean',
+			'description': nls.localize('useRipgrep', "Controls whether to use ripgrep in text search"),
+			'default': false
+		},
 		'search.quickOpen.includeSymbols': {
 			'type': 'boolean',
 			'description': nls.localize('search.quickOpen.includeSymbols', "Configure to include results from a global symbol search in the file results for Quick Open."),

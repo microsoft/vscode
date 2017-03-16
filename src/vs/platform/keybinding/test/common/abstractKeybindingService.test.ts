@@ -6,8 +6,7 @@
 
 import * as assert from 'assert';
 import { ResolvedKeybinding, Keybinding, SimpleKeybinding, createKeybinding, KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
-import { SimpleResolvedKeybinding, AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
-import { KeybindingLabels } from 'vs/platform/keybinding/common/keybindingLabels';
+import { USLayoutResolvedKeybinding, AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -17,6 +16,7 @@ import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { NormalizedKeybindingItem } from 'vs/platform/keybinding/common/normalizedKeybindingItem';
+import { OS } from 'vs/base/common/platform';
 
 suite('AbstractKeybindingService', () => {
 
@@ -39,7 +39,7 @@ suite('AbstractKeybindingService', () => {
 		}
 
 		protected _createResolvedKeybinding(kb: Keybinding): ResolvedKeybinding {
-			return new SimpleResolvedKeybinding(kb);
+			return new USLayoutResolvedKeybinding(kb, OS);
 		}
 
 		public dispatch(keybinding: SimpleKeybinding): boolean {
@@ -129,8 +129,19 @@ suite('AbstractKeybindingService', () => {
 	});
 
 	function kbItem(keybinding: number, command: string, when: ContextKeyExpr = null): NormalizedKeybindingItem {
-		let kb = (keybinding !== 0 ? createKeybinding(keybinding) : null);
-		return new NormalizedKeybindingItem(kb, command, null, when, true);
+		return NormalizedKeybindingItem.fromKeybindingItem({
+			keybinding: keybinding,
+			command: command,
+			commandArgs: null,
+			when: when,
+			weight1: 0,
+			weight2: 0
+		}, true);
+	}
+
+	function toUsLabel(keybinding: number): string {
+		const usResolvedKeybinding = new USLayoutResolvedKeybinding(createKeybinding(keybinding), OS);
+		return usResolvedKeybinding.getLabel();
 	}
 
 	test('issue #16498: chord mode is quit for invalid chords', () => {
@@ -146,7 +157,7 @@ suite('AbstractKeybindingService', () => {
 		assert.deepEqual(executeCommandCalls, []);
 		assert.deepEqual(showMessageCalls, []);
 		assert.deepEqual(statusMessageCalls, [
-			`(${KeybindingLabels._toUSLabel(createKeybinding(KeyMod.CtrlCmd | KeyCode.KEY_K))}) was pressed. Waiting for second key of chord...`
+			`(${toUsLabel(KeyMod.CtrlCmd | KeyCode.KEY_K)}) was pressed. Waiting for second key of chord...`
 		]);
 		assert.deepEqual(statusMessageCallsDisposed, []);
 		executeCommandCalls = [];
@@ -160,10 +171,10 @@ suite('AbstractKeybindingService', () => {
 		assert.deepEqual(executeCommandCalls, []);
 		assert.deepEqual(showMessageCalls, []);
 		assert.deepEqual(statusMessageCalls, [
-			`The key combination (${KeybindingLabels._toUSLabel(createKeybinding(KeyMod.CtrlCmd | KeyCode.KEY_K))}, ${KeybindingLabels._toUSLabel(createKeybinding(KeyCode.Backspace))}) is not a command.`
+			`The key combination (${toUsLabel(KeyMod.CtrlCmd | KeyCode.KEY_K)}, ${toUsLabel(KeyCode.Backspace)}) is not a command.`
 		]);
 		assert.deepEqual(statusMessageCallsDisposed, [
-			`(${KeybindingLabels._toUSLabel(createKeybinding(KeyMod.CtrlCmd | KeyCode.KEY_K))}) was pressed. Waiting for second key of chord...`
+			`(${toUsLabel(KeyMod.CtrlCmd | KeyCode.KEY_K)}) was pressed. Waiting for second key of chord...`
 		]);
 		executeCommandCalls = [];
 		showMessageCalls = [];
@@ -261,7 +272,7 @@ suite('AbstractKeybindingService', () => {
 		assert.deepEqual(executeCommandCalls, []);
 		assert.deepEqual(showMessageCalls, []);
 		assert.deepEqual(statusMessageCalls, [
-			`(${KeybindingLabels._toUSLabel(createKeybinding(KeyMod.CtrlCmd | KeyCode.KEY_K))}) was pressed. Waiting for second key of chord...`
+			`(${toUsLabel(KeyMod.CtrlCmd | KeyCode.KEY_K)}) was pressed. Waiting for second key of chord...`
 		]);
 		assert.deepEqual(statusMessageCallsDisposed, []);
 		executeCommandCalls = [];
@@ -280,7 +291,7 @@ suite('AbstractKeybindingService', () => {
 		assert.deepEqual(showMessageCalls, []);
 		assert.deepEqual(statusMessageCalls, []);
 		assert.deepEqual(statusMessageCallsDisposed, [
-			`(${KeybindingLabels._toUSLabel(createKeybinding(KeyMod.CtrlCmd | KeyCode.KEY_K))}) was pressed. Waiting for second key of chord...`
+			`(${toUsLabel(KeyMod.CtrlCmd | KeyCode.KEY_K)}) was pressed. Waiting for second key of chord...`
 		]);
 		executeCommandCalls = [];
 		showMessageCalls = [];

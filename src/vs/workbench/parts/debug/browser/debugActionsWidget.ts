@@ -86,8 +86,8 @@ export class DebugActionsWidget implements IWorkbenchContribution {
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.debugService.onDidChangeState(() => this.update()));
-		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(() => this.update()));
+		this.toDispose.push(this.debugService.onDidChangeState(state => this.update(state)));
+		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(() => this.update(this.debugService.state)));
 		this.toDispose.push(this.actionBar.actionRunner.addListener2(EventType.RUN, (e: any) => {
 			// check for error
 			if (e.error && !errors.isPromiseCanceledError(e.error)) {
@@ -154,8 +154,8 @@ export class DebugActionsWidget implements IWorkbenchContribution {
 		return DebugActionsWidget.ID;
 	}
 
-	private update(): void {
-		if (this.debugService.state === State.Inactive || this.configurationService.getConfiguration<IDebugConfiguration>('debug').hideActionBar) {
+	private update(state: State): void {
+		if (state === State.Inactive || this.configurationService.getConfiguration<IDebugConfiguration>('debug').hideActionBar) {
 			return this.hide();
 		}
 
@@ -208,7 +208,7 @@ export class DebugActionsWidget implements IWorkbenchContribution {
 
 		const state = this.debugService.state;
 		const process = this.debugService.getViewModel().focusedProcess;
-		const attached = process && strings.equalsIgnoreCase(process.configuration.request, 'attach') && !strings.equalsIgnoreCase(process.configuration.type, 'extensionHost');
+		const attached = process && process.configuration.request && strings.equalsIgnoreCase(process.configuration.request, 'attach') && !strings.equalsIgnoreCase(process.configuration.type, 'extensionHost');
 
 		return this.allActions.filter(a => {
 			if (a.id === ContinueAction.ID) {

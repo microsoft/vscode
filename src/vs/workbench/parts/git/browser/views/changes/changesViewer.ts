@@ -330,7 +330,6 @@ export class Renderer implements tree.IRenderer {
 		};
 
 		const repositoryRoot = this.gitService.getModel().getRepositoryRoot();
-		const workspaceRoot = this.contextService.getWorkspace().resource.fsPath;
 
 		const status = fileStatus.getStatus();
 		const renamePath = fileStatus.getRename();
@@ -344,7 +343,7 @@ export class Renderer implements tree.IRenderer {
 		data.status.title = Renderer.statusToTitle(status);
 
 		const resource = URI.file(paths.normalize(paths.join(repositoryRoot, path)));
-		let isInWorkspace = paths.isEqualOrParent(resource.fsPath, workspaceRoot);
+		let isInWorkspace = this.contextService.isInsideWorkspace(resource);
 
 		let rename = '';
 		let renameFolder = '';
@@ -358,7 +357,7 @@ export class Renderer implements tree.IRenderer {
 			data.renameFolder.textContent = folder;
 
 			const resource = URI.file(paths.normalize(paths.join(repositoryRoot, renamePath)));
-			isInWorkspace = paths.isEqualOrParent(resource.fsPath, workspaceRoot);
+			isInWorkspace = this.contextService.isInsideWorkspace(resource);
 		}
 
 		if (isInWorkspace) {

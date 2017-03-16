@@ -14,7 +14,7 @@ import { IEditor as IBaseEditor, IEditorInput, ITextEditorOptions, IResourceInpu
 import { EditorInput, IGroupEvent, IEditorRegistry, Extensions, toResource, IEditorGroup } from 'vs/workbench/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { FileChangesEvent, IFileService, FileChangeType } from 'vs/platform/files/common/files';
+import { FileChangesEvent, IFileService, FileChangeType, isEqual } from 'vs/platform/files/common/files';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -590,12 +590,12 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		if (arg2 instanceof EditorInput) {
 			const file = toResource(arg2, { filter: 'file' });
 
-			return file && file.toString() === resource.toString();
+			return file && isEqual(file.fsPath, resource.fsPath);
 		}
 
 		const resourceInput = arg2 as IResourceInput;
 
-		return resourceInput && resourceInput.resource.toString() === resource.toString();
+		return resourceInput && isEqual(resourceInput.resource.fsPath, resource.fsPath);
 	}
 
 	public getHistory(): (IEditorInput | IResourceInput)[] {

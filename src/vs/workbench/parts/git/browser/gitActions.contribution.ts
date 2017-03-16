@@ -529,7 +529,7 @@ export class RevertRangesAction extends baseeditor.EditorInputAction {
 
 		const confirm = {
 			message: nls.localize('confirmRevertMessage', "Are you sure you want to revert the selected changes?"),
-			detail: nls.localize('', "This action is irreversible!"),
+			detail: nls.localize('irreversible', "This action is irreversible!"),
 			primaryButton: nls.localize({ key: 'revertChangesLabel', comment: ['&& denotes a mnemonic'] }, "&&Revert Changes")
 		};
 

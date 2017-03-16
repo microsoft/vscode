@@ -1336,7 +1336,11 @@ declare module monaco.editor {
          * Enable quick suggestions (shadow suggestions)
          * Defaults to true.
          */
-        quickSuggestions?: boolean;
+        quickSuggestions?: boolean | {
+            other: boolean;
+            comments: boolean;
+            strings: boolean;
+        };
         /**
          * Quick suggestions show delay (in ms)
          * Defaults to 500 (ms)
@@ -1397,11 +1401,7 @@ declare module monaco.editor {
         /**
          * Enable word based suggestions. Defaults to 'true'
          */
-        wordBasedSuggestions?: boolean | {
-            strings?: boolean;
-            comments?: boolean;
-            default?: boolean;
-        };
+        wordBasedSuggestions?: boolean;
         /**
          * The font size for the suggest widget.
          * Defaults to the editor font size.
@@ -1612,7 +1612,11 @@ declare module monaco.editor {
         readonly selectionClipboard: boolean;
         readonly hover: boolean;
         readonly contextmenu: boolean;
-        readonly quickSuggestions: boolean;
+        readonly quickSuggestions: boolean | {
+            other: boolean;
+            comments: boolean;
+            strings: boolean;
+        };
         readonly quickSuggestionsDelay: number;
         readonly parameterHints: boolean;
         readonly iconsInSuggestions: boolean;
@@ -1623,11 +1627,7 @@ declare module monaco.editor {
         readonly acceptSuggestionOnCommitCharacter: boolean;
         readonly snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
         readonly emptySelectionClipboard: boolean;
-        readonly wordBasedSuggestions: boolean | {
-            strings?: boolean;
-            comments?: boolean;
-            default?: boolean;
-        };
+        readonly wordBasedSuggestions: boolean;
         readonly suggestFontSize: number;
         readonly suggestLineHeight: number;
         readonly selectionHighlight: boolean;
