@@ -58,7 +58,7 @@ import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/un
 import { OpenFolderAction, OpenFileFolderAction } from 'vs/workbench/browser/actions/fileActions';
 import * as Constants from 'vs/workbench/parts/search/common/constants';
 import { IListService } from 'vs/platform/list/browser/listService';
-import { IThemeService, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
+import { IThemeService, ITheme, ICssStyleCollector, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorFindMatchHighlight } from 'vs/platform/theme/common/colorRegistry';
 
 export class SearchViewlet extends Viewlet {
@@ -140,14 +140,6 @@ export class SearchViewlet extends Viewlet {
 
 	private onConfigurationUpdated(configuration: any): void {
 		this.updateGlobalPatternExclusions(configuration);
-	}
-
-	protected updateStyles(theme: ITheme, collector: ICssStyleCollector) {
-		let matchHighlightColor = theme.getColor(editorFindMatchHighlight);
-		if (matchHighlightColor) {
-			collector.addRule(`.search-viewlet .findInFileMatch { background-color: ${matchHighlightColor}; }`);
-			collector.addRule(`.search-viewlet .highlight { background-color: ${matchHighlightColor}; }`);
-		}
 	}
 
 	public create(parent: Builder): TPromise<void> {
@@ -1373,3 +1365,11 @@ export class SearchViewlet extends Viewlet {
 		super.dispose();
 	}
 }
+
+registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+	let matchHighlightColor = theme.getColor(editorFindMatchHighlight);
+	if (matchHighlightColor) {
+		collector.addRule(`.search-viewlet .findInFileMatch { background-color: ${matchHighlightColor}; }`);
+		collector.addRule(`.search-viewlet .highlight { background-color: ${matchHighlightColor}; }`);
+	}
+});

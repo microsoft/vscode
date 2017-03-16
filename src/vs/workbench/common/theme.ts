@@ -6,7 +6,7 @@
 import nls = require('vs/nls');
 import { registerColor, editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IDisposable, Disposable, dispose } from 'vs/base/common/lifecycle';
-import { IThemeService, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
+import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { Color, RGBA } from 'vs/base/common/color';
 
 // < --- Tabs --- >
@@ -75,20 +75,20 @@ export class Themable extends Disposable {
 		this.theme = themeService.getTheme();
 
 		// Hook up to theme changes
-		this._toUnbind.push(this.themeService.onThemeChange((theme, collector) => this.onThemeChange(theme, collector)));
+		this._toUnbind.push(this.themeService.onThemeChange(theme => this.onThemeChange(theme)));
 	}
 
 	protected get toUnbind() {
 		return this._toUnbind;
 	}
 
-	protected onThemeChange(theme: ITheme, collector: ICssStyleCollector): void {
+	protected onThemeChange(theme: ITheme): void {
 		this.theme = theme;
 
-		this.updateStyles(theme, collector);
+		this.updateStyles(theme);
 	}
 
-	protected updateStyles(theme: ITheme, collector: ICssStyleCollector): void {
+	protected updateStyles(theme: ITheme): void {
 		// Subclasses to override
 	}
 
