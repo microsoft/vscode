@@ -14,7 +14,7 @@ import { OperatingSystem } from 'vs/base/common/platform';
 import { UserSettingsLabelProvider, PrintableKeypress } from 'vs/platform/keybinding/common/keybindingLabels';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/abstractKeybindingService';
 import { KeyboardEventCodeUtils, KeyboardEventCode } from 'vs/workbench/services/keybinding/common/keyboardEventCode';
-import { IHTMLContentElement } from "vs/base/common/htmlContent";
+import { IHTMLContentElement } from 'vs/base/common/htmlContent';
 
 function _assertKeybindingTranslation(mapper: KeyboardMapper, OS: OperatingSystem, kb: number, expected: string[]): void {
 	let keybindingLabel = new USLayoutResolvedKeybinding(createKeybinding(kb), OS).getUserSettingsLabel();
