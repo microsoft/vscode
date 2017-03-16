@@ -28,6 +28,7 @@ import debugActions = require('vs/workbench/parts/debug/browser/debugActions');
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { OpenNextRecentlyUsedEditorInGroupAction, OpenPreviousRecentlyUsedEditorInGroupAction, FocusActiveGroupAction } from 'vs/workbench/browser/parts/editor/editorActions';
 import { DefaultConfig } from 'vs/editor/common/config/defaultConfig';
+import { registerColors } from './terminalColorRegistry';
 
 let configurationRegistry = <IConfigurationRegistry>Registry.as(Extensions.Configuration);
 configurationRegistry.registerConfiguration({
@@ -257,3 +258,5 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ClearTerminalAct
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_K,
 	linux: { primary: null }
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KeybindingsRegistry.WEIGHT.workbenchContrib(1)), 'Terminal: Clear', category);
+
+registerColors();
