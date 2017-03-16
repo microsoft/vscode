@@ -29,7 +29,6 @@ import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import pfs = require('vs/base/node/pfs');
 import encoding = require('vs/base/node/encoding');
 import mime = require('vs/base/node/mime');
-import flow = require('vs/base/node/flow');
 import { FileWatcher as UnixWatcherService } from 'vs/workbench/services/files/node/watcher/unix/watcherService';
 import { FileWatcher as WindowsWatcherService } from 'vs/workbench/services/files/node/watcher/win32/watcherService';
 import { toFileChangesEvent, normalize, IRawFileChange } from 'vs/workbench/services/files/node/watcher/common';
@@ -823,104 +822,89 @@ export class StatResolver {
 				});
 			}
 
-			return new TPromise((c, e) => {
+			return this.resolveChildren(this.resource.fsPath, absoluteTargetPaths, options && options.resolveSingleChildDescendants).then(children => {
+				fileStat.hasChildren = children && children.length > 0;
+				fileStat.children = children || [];
 
-				// Load children
-				this.resolveChildren(this.resource.fsPath, absoluteTargetPaths, options && options.resolveSingleChildDescendants, (children) => {
-					children = arrays.coalesce(children); // we don't want those null children (could be permission denied when reading a child)
-					fileStat.hasChildren = children && children.length > 0;
-					fileStat.children = children || [];
-
-					c(fileStat);
-				});
+				return fileStat;
 			});
+
 		}
 	}
 
-	private resolveChildren(absolutePath: string, absoluteTargetPaths: string[], resolveSingleChildDescendants: boolean, callback: (children: IFileStat[]) => void): void {
-		extfs.readdir(absolutePath, (error: Error, files: string[]) => {
-			if (error) {
+	private resolveChildren(absolutePath: string, absoluteTargetPaths: string[], resolveSingleChildDescendants: boolean): TPromise<IFileStat[]> {
+
+		const forEachFile = (isSigleChild: boolean) => (file: string): TPromise<IFileStat> => {
+			const fileResource = uri.file(paths.resolve(absolutePath, file));
+			let fileStat: fs.Stats;
+
+			const stat = (): TPromise<fs.Stats> => nfcall(fs.stat, fileResource.fsPath);
+
+			const countChildren = (fsstat: fs.Stats): TPromise<number> =>
+				(fsstat.isDirectory()) ?
+					nfcall(extfs.readdir, fileResource.fsPath).then(result => result.length, err => 0) :
+					TPromise.wrap(0);
+
+			const resolve = (childCount: number): TPromise<IFileStat> => {
+				const childStat: IFileStat = {
+					resource: fileResource,
+					isDirectory: fileStat.isDirectory(),
+					hasChildren: childCount > 0,
+					name: file,
+					mtime: fileStat.mtime.getTime(),
+					etag: etag(fileStat),
+					size: fileStat.size
+				};
+
+				// Return early for files
+				if (!fileStat.isDirectory()) {
+					return TPromise.wrap(childStat);
+				}
+
+				// Handle Folder
+				let resolveFolderChildren = false;
+				if (isSigleChild && resolveSingleChildDescendants) {
+					resolveFolderChildren = true;
+				} else if (childCount > 0 && absoluteTargetPaths && absoluteTargetPaths.some(targetPath => isEqual(targetPath, fileResource.fsPath) || isParent(targetPath, fileResource.fsPath))) {
+					resolveFolderChildren = true;
+				}
+
+				// Continue resolving children based on condition
+				if (resolveFolderChildren) {
+					return this.resolveChildren(fileResource.fsPath, absoluteTargetPaths, resolveSingleChildDescendants).then(children => {
+						children = arrays.coalesce(children);  // we don't want those null children
+						childStat.hasChildren = children && children.length > 0;
+						childStat.children = children || [];
+
+						return childStat;
+					});
+				}
+
+				// Otherwise return result
+				else {
+					return TPromise.wrap(childStat);
+				}
+			};
+
+
+			return stat().then(countChildren).then(resolve);
+		};
+
+
+		return nfcall(extfs.readdir, absolutePath).then((files: string[]) => {
+			const isSingleChild: boolean = files.length === 1;
+
+			// for each file in the folder
+			return TPromise.join(files.map(forEachFile(isSingleChild)));
+		}).then(stats => stats,
+			//error logging
+			error => {
 				if (this.verboseLogging) {
 					console.error(error);
 				}
-
-				return callback(null); // return - we might not have permissions to read the folder
-			}
-
-			// for each file in the folder
-			flow.parallel(files, (file: string, clb: (error: Error, children: IFileStat) => void) => {
-				const fileResource = uri.file(paths.resolve(absolutePath, file));
-				let fileStat: fs.Stats;
-				const $this = this;
-
-				flow.sequence(
-					function onError(error: Error): void {
-						if ($this.verboseLogging) {
-							console.error(error);
-						}
-
-						clb(null, null); // return - we might not have permissions to read the folder or stat the file
-					},
-
-					function stat(): void {
-						fs.stat(fileResource.fsPath, this);
-					},
-
-					function countChildren(fsstat: fs.Stats): void {
-						fileStat = fsstat;
-
-						if (fileStat.isDirectory()) {
-							extfs.readdir(fileResource.fsPath, (error, result) => {
-								this(null, result ? result.length : 0);
-							});
-						} else {
-							this(null, 0);
-						}
-					},
-
-					function resolve(childCount: number): void {
-						const childStat: IFileStat = {
-							resource: fileResource,
-							isDirectory: fileStat.isDirectory(),
-							hasChildren: childCount > 0,
-							name: file,
-							mtime: fileStat.mtime.getTime(),
-							etag: etag(fileStat),
-							size: fileStat.size
-						};
-
-						// Return early for files
-						if (!fileStat.isDirectory()) {
-							return clb(null, childStat);
-						}
-
-						// Handle Folder
-						let resolveFolderChildren = false;
-						if (files.length === 1 && resolveSingleChildDescendants) {
-							resolveFolderChildren = true;
-						} else if (childCount > 0 && absoluteTargetPaths && absoluteTargetPaths.some(targetPath => isEqual(targetPath, fileResource.fsPath) || isParent(targetPath, fileResource.fsPath))) {
-							resolveFolderChildren = true;
-						}
-
-						// Continue resolving children based on condition
-						if (resolveFolderChildren) {
-							$this.resolveChildren(fileResource.fsPath, absoluteTargetPaths, resolveSingleChildDescendants, children => {
-								children = arrays.coalesce(children);  // we don't want those null children
-								childStat.hasChildren = children && children.length > 0;
-								childStat.children = children || [];
-
-								clb(null, childStat);
-							});
-						}
-
-						// Otherwise return result
-						else {
-							clb(null, childStat);
-						}
-					});
-			}, (errors, result) => {
-				callback(result);
+				return [];
 			});
-		});
 	}
+
 }
+
