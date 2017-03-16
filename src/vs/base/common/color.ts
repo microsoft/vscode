@@ -25,7 +25,7 @@ export class RGBA {
 	 */
 	public readonly a: number;
 
-	constructor(r: number, g: number, b: number, a: number) {
+	constructor(r: number, g: number, b: number, a: number = 255) {
 		this.r = RGBA._clampInt_0_255(r);
 		this.g = RGBA._clampInt_0_255(g);
 		this.b = RGBA._clampInt_0_255(b);
