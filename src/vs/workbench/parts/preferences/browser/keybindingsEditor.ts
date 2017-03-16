@@ -15,12 +15,12 @@ import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorInput } from 'vs/workbench/common/editor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { KeybindingsEditorModel, IKeybindingItemEntry, IKeybindingItem, IListEntry, KEYBINDING_ENTRY_TEMPLATE_ID, KEYBINDING_HEADER_TEMPLATE_ID } from 'vs/workbench/parts/preferences/common/keybindingsEditorModel';
+import { KeybindingsEditorModel, IKeybindingItemEntry, IListEntry, KEYBINDING_ENTRY_TEMPLATE_ID, KEYBINDING_HEADER_TEMPLATE_ID } from 'vs/workbench/parts/preferences/common/keybindingsEditorModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService, KeybindingSource } from 'vs/platform/keybinding/common/keybinding';
 import { SearchWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { DefineKeybindingWidget } from 'vs/workbench/parts/preferences/browser/keybindingWidgets';
-import { IPreferencesService, IKeybindingsEditor, CONTEXT_KEYBINDING_FOCUS, KEYBINDINGS_EDITOR_ID, CONTEXT_KEYBINDINGS_EDITOR } from 'vs/workbench/parts/preferences/common/preferences';
+import { IPreferencesService, IKeybindingsEditor, CONTEXT_KEYBINDING_FOCUS, KEYBINDINGS_EDITOR_ID, CONTEXT_KEYBINDINGS_EDITOR, KEYBINDINGS_EDITOR_COMMAND_REMOVE } from 'vs/workbench/parts/preferences/common/preferences';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { renderHtml } from 'vs/base/browser/htmlContentRenderer';
 import { IKeybindingEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
@@ -29,6 +29,7 @@ import { List } from 'vs/base/browser/ui/list/listWidget';
 import { IDelegate, IRenderer, IListContextMenuEvent, IListEvent } from 'vs/base/browser/ui/list/list';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IChoiceService, Severity } from 'vs/platform/message/common/message';
 
 let $ = DOM.$;
 
@@ -85,6 +86,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		@IKeybindingEditingService private keybindingEditingService: IKeybindingEditingService,
 		@IListService private listService: IListService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
+		@IChoiceService private choiceService: IChoiceService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super(KeybindingsEditor.ID, telemetryService, themeService);
@@ -161,6 +163,21 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		});
 	}
 
+	removeKeybinding(keybindingEntry: IKeybindingItemEntry): TPromise<any> {
+		if (keybindingEntry.keybindingItem.keybinding) { // This should be a pre-condition
+			const options: string[] = [localize('ok', "Ok"), localize('cancel', "Cancel")];
+			return this.choiceService.choose(Severity.Info, localize('confirmRemove', "Remove keybinding '{0}' from command '{1}'", keybindingEntry.keybindingItem.keybinding.getAriaLabel(), keybindingEntry.keybindingItem.commandLabel || keybindingEntry.keybindingItem.commandLabel), options, true)
+				.then(option => {
+					if (option === 0) {
+						return this.keybindingEditingService.removeKeybinding(keybindingEntry.keybindingItem);
+					}
+					return null;
+				})
+				.then(() => this.focus());
+		}
+		return TPromise.as(null);
+	}
+
 	search(filter: string): void {
 		this.searchWidget.focus();
 	}
@@ -223,7 +240,8 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		if (e.element.templateId === KEYBINDING_ENTRY_TEMPLATE_ID) {
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => e.anchor,
-				getActions: () => TPromise.as([this.createRemoveAction((<IKeybindingItemEntry>e.element).keybindingItem)])
+				getActions: () => TPromise.as([this.createRemoveAction(<IKeybindingItemEntry>e.element)]),
+				getKeyBinding: (action) => this.keybindingsService.lookupKeybinding(action.id)
 			});
 		}
 	}
@@ -243,12 +261,12 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		}
 	}
 
-	private createRemoveAction(keybinding: IKeybindingItem): IAction {
+	private createRemoveAction(keybindingItem: IKeybindingItemEntry): IAction {
 		return <IAction>{
 			label: localize('removeLabel', "Remove Keybinding"),
-			enabled: !!keybinding.keybinding,
-			id: 'removeKeybinding',
-			run: () => this.keybindingEditingService.removeKeybinding(keybinding)
+			enabled: !!keybindingItem.keybindingItem.keybinding,
+			id: KEYBINDINGS_EDITOR_COMMAND_REMOVE,
+			run: () => this.removeKeybinding(keybindingItem)
 		};
 	}
 }

@@ -156,7 +156,7 @@
 }
 
 .keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row.selected > .column.actions .monaco-action-bar,
-.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row.focused > .column.actions .monaco-action-bar,
+.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list:focus .monaco-list-row.focused > .column.actions .monaco-action-bar,
 .keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row:hover > .column.actions .monaco-action-bar {
 	display: flex;
 }
