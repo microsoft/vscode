@@ -100,12 +100,20 @@ export class TestContextService implements IWorkspaceContextService {
 	}
 
 	public toWorkspaceRelativePath(resource: URI, toOSPath?: boolean): string {
-		return paths.makePosixAbsolute(paths.normalize(resource.fsPath.substr('c:'.length), toOSPath));
+		return makePosixAbsolute(paths.normalize(resource.fsPath.substr('c:'.length), toOSPath));
 	}
 
 	public toResource(workspaceRelativePath: string): URI {
 		return URI.file(paths.join('C:\\', workspaceRelativePath));
 	}
+}
+
+function isPosixAbsolute(path: string): boolean {
+	return path && path[0] === '/';
+}
+
+function makePosixAbsolute(path: string): string {
+	return isPosixAbsolute(paths.normalize(path)) ? path : paths.sep + path;
 }
 
 export class TestTextFileService extends TextFileService {
