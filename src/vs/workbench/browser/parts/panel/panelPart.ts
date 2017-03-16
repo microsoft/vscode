@@ -25,7 +25,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ActionsOrientation, ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ClosePanelAction, PanelAction, ToggleMaximizedPanelAction } from 'vs/workbench/browser/parts/panel/panelActions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
+import { PANEL_BACKGROUND, PANEL_BORDER_TOP_COLOR } from 'vs/workbench/common/theme';
 
 export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
@@ -95,16 +95,12 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		return this._onDidCompositeClose.event;
 	}
 
-	public createContentArea(parent: Builder): Builder {
-		const contentArea = super.createContentArea(parent);
-		this.updateStyles();
-
-		return contentArea;
-	}
-
 	protected updateStyles(): void {
 		const container = this.getContainer();
 		container.style('background-color', this.getColor(PANEL_BACKGROUND));
+
+		const title = this.getTitleArea();
+		title.style('border-top-color', this.getColor(PANEL_BORDER_TOP_COLOR));
 	}
 
 	public openPanel(id: string, focus?: boolean): TPromise<Panel> {

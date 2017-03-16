@@ -31,6 +31,12 @@ export const PANEL_BACKGROUND = registerColor('panelBackground', {
 	hc: editorBackground
 }, nls.localize('panelBackground', "Panel background color. Panels are shown below the editor area and contain views like output and integrated terminal."));
 
+export const PANEL_BORDER_TOP_COLOR = registerColor('panelBorderTopColor', {
+	dark: '#80808059', // rgba(128, 128, 128, 0.35)
+	light: '#80808059', // rgba(128, 128, 128, 0.35)
+	hc: '#6FC3DF'
+}, nls.localize('panelBorderTopColor', "Panel border color on the top separating to the editor. Panels are shown below the editor area and contain views like output and integrated terminal."));
+
 
 // < --- Status --- >
 
