@@ -90,29 +90,10 @@ class WordBasedCompletionItemProvider implements modes.ISuggestSupport {
 	provideCompletionItems(model: editorCommon.IModel, position: Position): TPromise<modes.ISuggestResult> {
 
 		const { wordBasedSuggestions } = this._configurationService.getConfiguration<editorCommon.IEditorOptions>('editor');
-
-		if (wordBasedSuggestions === false) {
-			// simple -> disabled everywhere
+		if (!wordBasedSuggestions) {
 			return undefined;
-
-		} else if (wordBasedSuggestions === true) {
-			// simple -> enabled for all tokens
-			return this._workerManager.withWorker().then(client => client.textualSuggest(model.uri, position));
-
-		} else {
-			// check with token type and config
-			const tokens = model.getLineTokens(position.lineNumber);
-			const { tokenType } = tokens.findTokenAtOffset(position.column - 1);
-			const shoudSuggestHere = (tokenType === modes.StandardTokenType.Comment && wordBasedSuggestions.comments)
-				|| (tokenType === modes.StandardTokenType.String && wordBasedSuggestions.strings)
-				|| (tokenType === modes.StandardTokenType.Other && wordBasedSuggestions.other);
-
-			if (shoudSuggestHere) {
-				return this._workerManager.withWorker().then(client => client.textualSuggest(model.uri, position));
-			} else {
-				return undefined;
-			}
 		}
+		return this._workerManager.withWorker().then(client => client.textualSuggest(model.uri, position));
 	}
 }
 
