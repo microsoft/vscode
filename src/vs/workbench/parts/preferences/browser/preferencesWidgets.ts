@@ -235,8 +235,8 @@ export class SearchWidget extends Widget {
 	private _onDidChange = this._register(new Emitter<string>());
 	public onDidChange: Event<string> = this._onDidChange.event;
 
-	private _onEnter = this._register(new Emitter<void>());
-	public onEnter: Event<void> = this._onEnter.event;
+	private _onEnter = this._register(new Emitter<boolean>());
+	public onEnter: Event<boolean> = this._onEnter.event;
 
 	constructor(parent: HTMLElement, protected options: IInputOptions,
 		@IContextViewService private contextViewService: IContextViewService,
@@ -299,7 +299,7 @@ export class SearchWidget extends Widget {
 		let handled = false;
 		switch (keyboardEvent.keyCode) {
 			case KeyCode.Enter:
-				this._onEnter.fire();
+				this._onEnter.fire(keyboardEvent.shiftKey);
 				handled = true;
 				break;
 			case KeyCode.Escape:
