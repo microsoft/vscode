@@ -9,25 +9,41 @@ import * as assert from 'assert';
 import { mac_de_ch } from 'vs/workbench/services/keybinding/test/mac_de_ch';
 import { linux_de_ch } from 'vs/workbench/services/keybinding/test/linux_de_ch';
 import { KeyMod, KeyCode, SimpleKeybinding, createKeybinding, Keybinding } from 'vs/base/common/keyCodes';
-import { KeyboardMapper } from 'vs/workbench/services/keybinding/common/keyboardMapper';
+import { KeyboardMapper, HardwareKeypress } from 'vs/workbench/services/keybinding/common/keyboardMapper';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { UserSettingsLabelProvider, PrintableKeypress } from 'vs/platform/keybinding/common/keybindingLabels';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/abstractKeybindingService';
-import { KeyboardEventCodeUtils } from 'vs/workbench/services/keybinding/common/keyboardEventCode';
+import { KeyboardEventCodeUtils, KeyboardEventCode } from 'vs/workbench/services/keybinding/common/keyboardEventCode';
 import { IHTMLContentElement } from "vs/base/common/htmlContent";
 
 function _assertKeybindingTranslation(mapper: KeyboardMapper, OS: OperatingSystem, kb: number, expected: string[]): void {
-	let actualHardwareKeypresses = mapper.mapSimpleKeybinding(new SimpleKeybinding(kb));
-	let actualPrintableKeypresses = actualHardwareKeypresses.map(k => new PrintableKeypress(
-		k.ctrlKey,
-		k.shiftKey,
-		k.altKey,
-		k.metaKey,
-		KeyboardEventCodeUtils.toString(k.code)
-	));
-	let actual = actualPrintableKeypresses.map(kp => UserSettingsLabelProvider.toLabel2(kp, null, OS));
-	let usLayout = new USLayoutResolvedKeybinding(createKeybinding(kb), OS);
-	assert.deepEqual(actual, expected, `"${usLayout.getUserSettingsLabel()}" -- actual: "${actual}" -- expected: "${expected}"`);
+	let keybindingLabel = new USLayoutResolvedKeybinding(createKeybinding(kb), OS).getUserSettingsLabel();
+
+	// console.log(`HANDLING ${keybindingLabel}`);
+
+	let actualHardwareKeypresses = mapper.simpleKeybindingToHardwareKeypress(new SimpleKeybinding(kb));
+	if (actualHardwareKeypresses.length === 0) {
+		assert.deepEqual([], expected, `simpleKeybindingToHardwareKeypress -- "${keybindingLabel}" -- actual: "[]" -- expected: "${expected}"`);
+		return;
+	}
+
+	let actual = actualHardwareKeypresses
+		.map(k => new PrintableKeypress(k.ctrlKey, k.shiftKey, k.altKey, k.metaKey, KeyboardEventCodeUtils.toString(k.code)))
+		.map(kp => UserSettingsLabelProvider.toLabel2(kp, null, OS));
+	assert.deepEqual(actual, expected, `simpleKeybindingToHardwareKeypress -- "${keybindingLabel}" -- actual: "${actual}" -- expected: "${expected}"`);
+
+	// Now also check the reverse map ...
+	actualHardwareKeypresses.forEach(k => {
+		const hardwareKeypressLabel = `${k.ctrlKey ? 'ctrl+' : ''}${k.shiftKey ? 'shift+' : ''}${k.altKey ? 'alt+' : ''}${k.metaKey ? 'meta+' : ''}${KeyboardEventCodeUtils.toString(k.code)}`;
+		const reversed = mapper.hardwareKeypressToSimpleKeybinding(k);
+		if (!reversed) {
+			assert.fail(`${keybindingLabel} -> ${hardwareKeypressLabel} -> null`);
+			return;
+		}
+
+		const reversedLabel = new USLayoutResolvedKeybinding(reversed, OS).getUserSettingsLabel();
+		assert.equal(reversedLabel, keybindingLabel, `${keybindingLabel} -> ${hardwareKeypressLabel} -> ${reversedLabel}`);
+	});
 }
 
 suite('keyboardMapper - MAC de_ch', () => {
@@ -38,15 +54,17 @@ suite('keyboardMapper - MAC de_ch', () => {
 		mapper = new KeyboardMapper(mac_de_ch, OperatingSystem.Macintosh);
 	});
 
-	function assertKeybindingTranslation(kb: number, expected: string): void {
-		if (expected === null) {
-			_assertKeybindingTranslation(mapper, OperatingSystem.Macintosh, kb, []);
-		} else {
+	function assertKeybindingTranslation(kb: number, expected: string | string[]): void {
+		if (typeof expected === 'string') {
 			_assertKeybindingTranslation(mapper, OperatingSystem.Macintosh, kb, [expected]);
+		} else if (Array.isArray(expected)) {
+			_assertKeybindingTranslation(mapper, OperatingSystem.Macintosh, kb, expected);
+		} else {
+			_assertKeybindingTranslation(mapper, OperatingSystem.Macintosh, kb, []);
 		}
 	}
 
-	test('mapSimpleKeybinding unchanged', () => {
+	test('simpleKeybindingToHardwareKeypress unchanged', () => {
 		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyCode.KEY_1, 'Cmd+Digit1');
 		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyCode.KEY_B, 'Cmd+KeyB');
 		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_B, 'Shift+Cmd+KeyB');
@@ -54,21 +72,21 @@ suite('keyboardMapper - MAC de_ch', () => {
 		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.KEY_B, 'Ctrl+Shift+Alt+Cmd+KeyB');
 	});
 
-	test('mapSimpleKeybinding flips Y and Z', () => {
+	test('simpleKeybindingToHardwareKeypress flips Y and Z', () => {
 		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyCode.KEY_Z, 'Cmd+KeyY');
 		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyCode.KEY_Y, 'Cmd+KeyZ');
 	});
 
-	test('mapSimpleKeybinding other key codes', () => {
+	test('simpleKeybindingToHardwareKeypress other key codes', () => {
 		interface IExpected {
-			noModifiers: string;
-			cmd: string;
-			alt: string;
-			ctrl: string;
-			cmd_alt: string;
-			cmd_ctrl: string;
-			alt_ctrl: string;
-			cmd_alt_ctrl: string;
+			noModifiers: string | string[];
+			cmd: string | string[];
+			alt: string | string[];
+			ctrl: string | string[];
+			cmd_alt: string | string[];
+			cmd_ctrl: string | string[];
+			alt_ctrl: string | string[];
+			cmd_alt_ctrl: string | string[];
 		}
 		function assertForAllModifiers(base: number, expected: IExpected): void {
 			assertKeybindingTranslation(base, expected.noModifiers);
@@ -199,8 +217,8 @@ suite('keyboardMapper - MAC de_ch', () => {
 			ctrl: 'Ctrl+Shift+Digit7',
 			cmd_alt: 'Shift+Alt+Cmd+Digit7',
 			cmd_ctrl: 'Ctrl+Shift+Cmd+Digit7',
-			alt_ctrl: 'Ctrl+Shift+Alt+Digit7',
-			cmd_alt_ctrl: 'Ctrl+Shift+Alt+Cmd+Digit7',
+			alt_ctrl: null,
+			cmd_alt_ctrl: null,
 		});
 		// ?
 		assertForAllModifiers(KeyMod.Shift | KeyCode.US_SLASH, {
@@ -237,8 +255,8 @@ suite('keyboardMapper - MAC de_ch', () => {
 		});
 		// [
 		assertForAllModifiers(KeyCode.US_OPEN_SQUARE_BRACKET, {
-			noModifiers: 'Ctrl+Alt+Digit5',
-			cmd: 'Ctrl+Alt+Cmd+Digit5',
+			noModifiers: ['Ctrl+Alt+Digit5', 'Ctrl+Shift+Alt+Digit5'],
+			cmd: ['Ctrl+Alt+Cmd+Digit5', 'Ctrl+Shift+Alt+Cmd+Digit5'],
 			alt: null,
 			ctrl: null,
 			cmd_alt: null,
@@ -281,8 +299,8 @@ suite('keyboardMapper - MAC de_ch', () => {
 		});
 		// ]
 		assertForAllModifiers(KeyCode.US_CLOSE_SQUARE_BRACKET, {
-			noModifiers: 'Ctrl+Alt+Digit6',
-			cmd: 'Ctrl+Alt+Cmd+Digit6',
+			noModifiers: ['Ctrl+Alt+Digit6', 'Ctrl+Shift+Alt+Digit6'],
+			cmd: ['Ctrl+Alt+Cmd+Digit6', 'Ctrl+Shift+Alt+Cmd+Digit6'],
 			alt: null,
 			ctrl: null,
 			cmd_alt: null,
@@ -408,7 +426,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 		// ~
 		assertAriaLabels(KeyMod.Shift | KeyCode.US_BACKTICK, 'Control+Alt+N');
 		// [
-		assertAriaLabels(KeyCode.US_OPEN_SQUARE_BRACKET, 'Control+Alt+5');
+		assertAriaLabels(KeyCode.US_OPEN_SQUARE_BRACKET, ['Control+Alt+5', 'Control+Shift+Alt+5']);
 		// {
 		assertAriaLabels(KeyMod.Shift | KeyCode.US_OPEN_SQUARE_BRACKET, 'Control+Alt+8');
 		// \
@@ -416,7 +434,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 		// |
 		assertAriaLabels(KeyMod.Shift | KeyCode.US_BACKSLASH, 'Control+Alt+7');
 		// ]
-		assertAriaLabels(KeyCode.US_CLOSE_SQUARE_BRACKET, 'Control+Alt+6');
+		assertAriaLabels(KeyCode.US_CLOSE_SQUARE_BRACKET, ['Control+Alt+6', 'Control+Shift+Alt+6']);
 		// }
 		assertAriaLabels(KeyMod.Shift | KeyCode.US_CLOSE_SQUARE_BRACKET, 'Control+Alt+9');
 		// '
@@ -445,7 +463,15 @@ suite('keyboardMapper - LINUX de_ch', () => {
 		}
 	}
 
-	test('mapSimpleKeybinding unchanged', () => {
+	function assertHardwareKeypressTranslation(ctrlKey: boolean, shiftKey: boolean, altKey: boolean, metaKey: boolean, code: KeyboardEventCode, expected: string): void {
+		const keypress = new HardwareKeypress(ctrlKey, shiftKey, altKey, metaKey, code);
+		const actual = mapper.hardwareKeypressToSimpleKeybinding(keypress);
+		const usLayout = actual ? new USLayoutResolvedKeybinding(actual, OperatingSystem.Linux) : null;
+		const actualLabel = usLayout ? usLayout.getUserSettingsLabel() : null;
+		assert.deepEqual(actualLabel, expected, `${ctrlKey ? 'ctrl+' : ''}${shiftKey ? 'shift+' : ''}${altKey ? 'alt+' : ''}${metaKey ? 'meta+' : ''}${KeyboardEventCodeUtils.toString(code)} -- actual: ${actualLabel} -- expected: ${expected}`);
+	}
+
+	test('simpleKeybindingToHardwareKeypress unchanged', () => {
 		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyCode.KEY_1, 'Ctrl+Digit1');
 		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyCode.KEY_B, 'Ctrl+KeyB');
 		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_B, 'Ctrl+Shift+KeyB');
@@ -453,12 +479,34 @@ suite('keyboardMapper - LINUX de_ch', () => {
 		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.KEY_B, 'Ctrl+Shift+Alt+Meta+KeyB');
 	});
 
-	test('mapSimpleKeybinding flips Y and Z', () => {
+	test('hardwareKeypressToSimpleKeybinding unchanged', () => {
+		assertHardwareKeypressTranslation(true, false, false, false, KeyboardEventCode.Digit1, 'ctrl+1');
+		assertHardwareKeypressTranslation(true, false, false, false, KeyboardEventCode.KeyB, 'ctrl+b');
+		assertHardwareKeypressTranslation(true, true, false, false, KeyboardEventCode.KeyB, 'ctrl+shift+b');
+		// ctrl+shift+alt+meta+KeyB => ’
+		assertHardwareKeypressTranslation(true, true, true, true, KeyboardEventCode.KeyB, 'ctrl+shift+alt+meta+b');
+	});
+
+	test('simpleKeybindingToHardwareKeypress flips Y and Z', () => {
 		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyCode.KEY_Z, 'Ctrl+KeyY');
 		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyCode.KEY_Y, 'Ctrl+KeyZ');
 	});
 
-	test('mapSimpleKeybinding other key codes', () => {
+	test('hardwareKeypressToSimpleKeybinding flips Y and Z', () => {
+		assertHardwareKeypressTranslation(false, false, false, false, KeyboardEventCode.KeyY, 'z');
+		assertHardwareKeypressTranslation(true, false, false, false, KeyboardEventCode.KeyY, 'ctrl+z');
+		assertHardwareKeypressTranslation(false, true, false, false, KeyboardEventCode.KeyY, 'shift+z');
+		assertHardwareKeypressTranslation(false, false, true, false, KeyboardEventCode.KeyY, 'alt+z');
+		assertHardwareKeypressTranslation(false, false, false, true, KeyboardEventCode.KeyY, 'meta+z');
+
+		assertHardwareKeypressTranslation(false, false, false, false, KeyboardEventCode.KeyZ, 'y');
+		assertHardwareKeypressTranslation(true, false, false, false, KeyboardEventCode.KeyZ, 'ctrl+y');
+		assertHardwareKeypressTranslation(false, true, false, false, KeyboardEventCode.KeyZ, 'shift+y');
+		assertHardwareKeypressTranslation(false, false, true, false, KeyboardEventCode.KeyZ, 'alt+y');
+		assertHardwareKeypressTranslation(false, false, false, true, KeyboardEventCode.KeyZ, 'meta+y');
+	});
+
+	test('simpleKeybindingToHardwareKeypress other key codes', () => {
 		interface IExpected {
 			noModifiers: string | string[];
 			ctrl: string | string[];
@@ -541,10 +589,10 @@ suite('keyboardMapper - LINUX de_ch', () => {
 			ctrl: 'Ctrl+IntlBackslash',
 			alt: 'Alt+IntlBackslash',
 			meta: ['Meta+IntlBackslash', 'Ctrl+Shift+Alt+Meta+KeyZ'],
-			ctrl_alt: 'Ctrl+Alt+IntlBackslash',
+			ctrl_alt: null,
 			ctrl_meta: 'Ctrl+Meta+IntlBackslash',
 			alt_meta: 'Alt+Meta+IntlBackslash',
-			ctrl_alt_meta: 'Ctrl+Alt+Meta+IntlBackslash',
+			ctrl_alt_meta: null,
 		});
 		// -
 		assertForAllModifiers(KeyCode.US_MINUS, {
@@ -585,10 +633,10 @@ suite('keyboardMapper - LINUX de_ch', () => {
 			ctrl: 'Ctrl+Shift+IntlBackslash',
 			alt: 'Shift+Alt+IntlBackslash',
 			meta: ['Shift+Meta+IntlBackslash', 'Ctrl+Shift+Alt+Meta+KeyX'],
-			ctrl_alt: 'Ctrl+Shift+Alt+IntlBackslash',
+			ctrl_alt: null,//'Ctrl+Shift+Alt+IntlBackslash',
 			ctrl_meta: 'Ctrl+Shift+Meta+IntlBackslash',
 			alt_meta: 'Shift+Alt+Meta+IntlBackslash',
-			ctrl_alt_meta: 'Ctrl+Shift+Alt+Meta+IntlBackslash',
+			ctrl_alt_meta: null,//'Ctrl+Shift+Alt+Meta+IntlBackslash',
 		});
 		// /
 		assertForAllModifiers(KeyCode.US_SLASH, {
@@ -651,10 +699,10 @@ suite('keyboardMapper - LINUX de_ch', () => {
 			ctrl: null,
 			alt: null,
 			meta: 'Ctrl+Alt+Meta+Quote',
-			ctrl_alt: null,
+			ctrl_alt: 'Ctrl+Shift+Alt+BracketLeft',
 			ctrl_meta: null,
 			alt_meta: null,
-			ctrl_alt_meta: null,
+			ctrl_alt_meta: 'Ctrl+Shift+Alt+Meta+BracketLeft',
 		});
 		// \
 		assertForAllModifiers(KeyCode.US_BACKSLASH, {
@@ -673,10 +721,10 @@ suite('keyboardMapper - LINUX de_ch', () => {
 			ctrl: null,
 			alt: null,
 			meta: ['Ctrl+Alt+Meta+Digit1', 'Ctrl+Alt+Meta+Digit7'],
-			ctrl_alt: null,
+			ctrl_alt: 'Ctrl+Shift+Alt+IntlBackslash',
 			ctrl_meta: null,
 			alt_meta: null,
-			ctrl_alt_meta: null,
+			ctrl_alt_meta: 'Ctrl+Shift+Alt+Meta+IntlBackslash',
 		});
 		// ]
 		assertForAllModifiers(KeyCode.US_CLOSE_SQUARE_BRACKET, {
@@ -695,10 +743,10 @@ suite('keyboardMapper - LINUX de_ch', () => {
 			ctrl: null,
 			alt: null,
 			meta: ['Ctrl+Alt+Meta+Digit0', 'Ctrl+Alt+Meta+Backslash'],
-			ctrl_alt: null,
+			ctrl_alt: ['Ctrl+Shift+Alt+Digit9', 'Ctrl+Shift+Alt+BracketRight'],
 			ctrl_meta: null,
 			alt_meta: null,
-			ctrl_alt_meta: null,
+			ctrl_alt_meta: ['Ctrl+Shift+Alt+Meta+Digit9', 'Ctrl+Shift+Alt+Meta+BracketRight'],
 		});
 		// '
 		assertForAllModifiers(KeyCode.US_QUOTE, {
@@ -724,6 +772,26 @@ suite('keyboardMapper - LINUX de_ch', () => {
 		});
 		// OEM_8
 		// OEM_102
+	});
+
+	test('hardwareKeypressToSimpleKeybinding other key codes', () => {
+		assertHardwareKeypressTranslation(false, false, false, false, KeyboardEventCode.Comma, ',');
+		assertHardwareKeypressTranslation(false, false, false, true, KeyboardEventCode.Comma, 'meta+,');
+		assertHardwareKeypressTranslation(false, false, true, false, KeyboardEventCode.Comma, 'alt+,');
+		assertHardwareKeypressTranslation(false, false, true, true, KeyboardEventCode.Comma, 'alt+meta+,');
+		assertHardwareKeypressTranslation(false, true, false, false, KeyboardEventCode.Comma, ';');
+		assertHardwareKeypressTranslation(false, true, false, true, KeyboardEventCode.Comma, 'meta+;');
+		assertHardwareKeypressTranslation(false, true, true, false, KeyboardEventCode.Comma, 'alt+;');
+		assertHardwareKeypressTranslation(false, true, true, true, KeyboardEventCode.Comma, 'alt+meta+;');
+
+		assertHardwareKeypressTranslation(true, false, false, false, KeyboardEventCode.Comma, 'ctrl+,');
+		assertHardwareKeypressTranslation(true, false, false, true, KeyboardEventCode.Comma, 'ctrl+meta+,');
+		assertHardwareKeypressTranslation(true, false, true, false, KeyboardEventCode.Comma, 'ctrl+alt+,');
+		assertHardwareKeypressTranslation(true, false, true, true, KeyboardEventCode.Comma, 'ctrl+alt+meta+,');
+		assertHardwareKeypressTranslation(true, true, false, false, KeyboardEventCode.Comma, 'ctrl+;');
+		assertHardwareKeypressTranslation(true, true, false, true, KeyboardEventCode.Comma, 'ctrl+meta+;');
+		assertHardwareKeypressTranslation(true, true, true, false, KeyboardEventCode.Comma, 'ctrl+alt+;');
+		assertHardwareKeypressTranslation(true, true, true, true, KeyboardEventCode.Comma, 'ctrl+alt+meta+;');
 	});
 
 
