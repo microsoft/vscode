@@ -49,16 +49,24 @@ suite('Files', () => {
 
 	test('isEqual', function () {
 		assert.ok(isEqual('/some/path', '/some/path'));
+		assert.ok(isEqual(URI.file('/some/path'), URI.file('/some/path')));
 		assert.ok(isEqual('c:\\some\\path', 'c:\\some\\path'));
+		assert.ok(isEqual(URI.file('c:\\some\\path'), URI.file('c:\\some\\path')));
 		assert.ok(!isEqual('/some/path', '/some/other/path'));
+		assert.ok(!isEqual(URI.file('/some/path'), URI.file('/some/other/path')));
 		assert.ok(!isEqual('c:\\some\\path', 'c:\\some\\other\\path'));
+		assert.ok(!isEqual(URI.file('c:\\some\\path'), URI.file('c:\\some\\other\\path')));
 
 		if (isLinux) {
 			assert.ok(!isEqual('/some/path', '/some/PATH'));
+			assert.ok(!isEqual(URI.file('/some/path'), URI.file('/some/PATH')));
 		} else {
-			assert.ok(isEqual('/some/path', '/some/PATH'));
-			assert.ok(isEqual('c:\\some\\path', 'c:\\some\\PATH'));
+			assert.ok(isEqual(URI.file('/some/path'), URI.file('/some/PATH')));
+			assert.ok(isEqual(URI.file('c:\\some\\path'), URI.file('c:\\some\\PATH')));
 		}
+
+		assert.ok(isEqual(URI.parse('some://cool/uri'), URI.parse('some://cool/uri')));
+		assert.ok(!isEqual(URI.parse('some://cool/uri'), URI.parse('some://other/uri')));
 	});
 
 	test('isParent', function () {

@@ -339,6 +339,16 @@ suite('Map', () => {
 		map.set(resource2, '2');
 		map.set(resource3, true);
 
+		const values = map.values();
+		assert.equal(values[0], 1);
+		assert.equal(values[1], '2');
+		assert.equal(values[2], true);
+
+		let counter = 0;
+		map.forEach(value => {
+			assert.equal(value, values[counter++]);
+		});
+
 		const obj = Object.create(null);
 		map.set(resource4, obj);
 
@@ -384,6 +394,12 @@ suite('Map', () => {
 		assert.ok(!map.get(resource2));
 		assert.ok(!map.get(resource3));
 		assert.ok(!map.has(resource1));
+
+		map.set(resource1, false);
+		map.set(resource2, 0);
+
+		assert.ok(map.has(resource1));
+		assert.ok(map.has(resource2));
 	});
 
 	test('ResourceMap - files', function () {

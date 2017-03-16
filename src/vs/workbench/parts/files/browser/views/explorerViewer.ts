@@ -112,7 +112,8 @@ export class FileDataSource implements IDataSource {
 		}
 
 		// Return if root reached
-		if (this.contextService.hasWorkspace() && stat.resource.toString() === this.contextService.getWorkspace().resource.toString()) {
+		const workspace = this.contextService.getWorkspace();
+		if (workspace && isEqual(stat.resource.fsPath, workspace.resource.fsPath)) {
 			return TPromise.as(null);
 		}
 
@@ -411,7 +412,8 @@ export class FileController extends DefaultController {
 		}
 
 		// Handle root
-		if (this.contextService.getWorkspace() && stat.resource.toString() === this.contextService.getWorkspace().resource.toString()) {
+		const workspace = this.contextService.getWorkspace();
+		if (workspace && isEqual(stat.resource.fsPath, workspace.resource.fsPath)) {
 			tree.clearFocus(payload);
 			tree.clearSelection(payload);
 
@@ -687,7 +689,7 @@ export class FileDragAndDrop implements IDragAndDrop {
 					return true; // NewStatPlaceholders can not be moved
 				}
 
-				if (source.resource.toString() === target.resource.toString()) {
+				if (isEqual(source.resource.fsPath, target.resource.fsPath)) {
 					return true; // Can not move anything onto itself
 				}
 
@@ -710,7 +712,8 @@ export class FileDragAndDrop implements IDragAndDrop {
 			return fromDesktop || isCopy ? DRAG_OVER_ACCEPT_BUBBLE_DOWN_COPY(true) : DRAG_OVER_ACCEPT_BUBBLE_DOWN(true);
 		}
 
-		if (target.resource.toString() !== this.contextService.getWorkspace().resource.toString()) {
+		const workspace = this.contextService.getWorkspace();
+		if (workspace && !isEqual(target.resource.fsPath, workspace.resource.fsPath)) {
 			return fromDesktop || isCopy ? DRAG_OVER_ACCEPT_BUBBLE_UP_COPY : DRAG_OVER_ACCEPT_BUBBLE_UP;
 		}
 

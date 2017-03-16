@@ -36,6 +36,7 @@ import { ContributableActionProvider } from 'vs/workbench/browser/actionBarRegis
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { isEqual } from 'vs/platform/files/common/files';
 
 export class MarkersPanel extends Panel {
 
@@ -246,7 +247,7 @@ export class MarkersPanel extends Panel {
 		if (resourceForCurrentActiveFile) {
 			return false;
 		}
-		return changedResources.some(r => r.toString() === this.currentActiveFile.toString());
+		return changedResources.some(r => isEqual(r, this.currentActiveFile));
 	}
 
 	private onEditorsChanged(): void {
@@ -333,7 +334,7 @@ export class MarkersPanel extends Panel {
 	private getResourceForCurrentActiveFile(): Resource {
 		if (this.currentActiveFile) {
 			let resources = this.markersModel.filteredResources.filter((resource): boolean => {
-				return this.currentActiveFile.toString() === resource.uri.toString();
+				return isEqual(this.currentActiveFile, resource.uri);
 			});
 			return resources.length > 0 ? resources[0] : null;
 		}
@@ -344,7 +345,7 @@ export class MarkersPanel extends Panel {
 		let selectedElement = this.tree.getSelection();
 		if (selectedElement && selectedElement.length > 0) {
 			if (selectedElement[0] instanceof Marker) {
-				if (resource.uri.toString() === selectedElement[0].marker.resource.toString()) {
+				if (isEqual(resource.uri, selectedElement[0].marker.resource)) {
 					return true;
 				}
 			}

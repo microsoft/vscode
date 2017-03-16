@@ -15,7 +15,6 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { Registry } from 'vs/platform/platform';
 import { Position, Direction } from 'vs/platform/editor/common/editor';
-import { Schemas } from 'vs/base/common/network';
 import { isEqual } from 'vs/platform/files/common/files';
 import { ResourceMap } from 'vs/base/common/map';
 
@@ -200,10 +199,8 @@ export class EditorGroup implements IEditorGroup {
 		for (let i = 0; i < this.editors.length; i++) {
 			const editor = this.editors[i];
 			const editorResource = toResource(editor, { supportSideBySide: true });
-			if (editorResource && editorResource.scheme === resource.scheme) {
-				if (resource.scheme === Schemas.file && isEqual(editorResource.fsPath, resource.fsPath) || (resource.scheme !== Schemas.file && editorResource.toString() === resource.toString())) {
-					return editor;
-				}
+			if (isEqual(editorResource, resource)) {
+				return editor;
 			}
 		}
 

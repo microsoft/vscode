@@ -20,6 +20,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IRawSearch, ISerializedSearchComplete, ISerializedSearchProgressItem, ISerializedFileMatch, IRawSearchService } from './search';
 import { ISearchChannel, SearchChannelClient } from './searchIpc';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ResourceMap } from 'vs/base/common/map';
 
 export class SearchService implements ISearchService {
 	public _serviceBrand: any;
@@ -69,7 +70,7 @@ export class SearchService implements ISearchService {
 			let flushLocalResultsOnce = function () {
 				if (!localResultsFlushed) {
 					localResultsFlushed = true;
-					Object.keys(localResults).map((key) => localResults[key]).filter((res) => !!res).forEach(onProgress);
+					localResults.values().filter((res) => !!res).forEach(onProgress);
 				}
 			};
 
@@ -81,7 +82,7 @@ export class SearchService implements ISearchService {
 					flushLocalResultsOnce();
 					onComplete({
 						limitHit: complete.limitHit,
-						results: complete.results.filter((match) => typeof localResults[match.resource.toString()] === 'undefined'), // dont override local results
+						results: complete.results.filter((match) => !localResults.has(match.resource)), // dont override local results
 						stats: complete.stats
 					});
 				},
@@ -98,7 +99,7 @@ export class SearchService implements ISearchService {
 
 					// Match
 					if (progress.resource) {
-						if (typeof localResults[progress.resource.toString()] === 'undefined') { // don't override local results
+						if (!localResults.has(progress.resource)) { // don't override local results
 							onProgress(progress);
 						}
 					}
@@ -111,8 +112,8 @@ export class SearchService implements ISearchService {
 		}, () => rawSearchQuery && rawSearchQuery.cancel());
 	}
 
-	private getLocalResults(query: ISearchQuery): { [resourcePath: string]: IFileMatch; } {
-		let localResults: { [resourcePath: string]: IFileMatch; } = Object.create(null);
+	private getLocalResults(query: ISearchQuery): ResourceMap<IFileMatch> {
+		const localResults = new ResourceMap<IFileMatch>();
 
 		if (query.type === QueryType.Text) {
 			let models = this.modelService.getModels();
@@ -142,13 +143,13 @@ export class SearchService implements ISearchService {
 				let matches = model.findMatches(query.contentPattern.pattern, false, query.contentPattern.isRegExp, query.contentPattern.isCaseSensitive, query.contentPattern.isWordMatch, false);
 				if (matches.length) {
 					let fileMatch = new FileMatch(resource);
-					localResults[resource.toString()] = fileMatch;
+					localResults.set(resource, fileMatch);
 
 					matches.forEach((match) => {
 						fileMatch.lineMatches.push(new LineMatch(model.getLineContent(match.range.startLineNumber), match.range.startLineNumber - 1, [[match.range.startColumn - 1, match.range.endColumn - match.range.startColumn]]));
 					});
 				} else {
-					localResults[resource.toString()] = false; // flag as empty result
+					localResults.set(resource, false);
 				}
 			});
 		}

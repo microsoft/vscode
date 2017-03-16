@@ -12,6 +12,7 @@ import events = require('vs/base/common/events');
 import { isLinux } from 'vs/base/common/platform';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import Event from 'vs/base/common/event';
+import { Schemas } from 'vs/base/common/network';
 
 export const IFileService = createDecorator<IFileService>('fileService');
 
@@ -290,17 +291,49 @@ export class FileChangesEvent extends events.Event {
 	}
 }
 
-export function isEqual(path1: string, path2: string): boolean {
-	const identityEquals = (path1 === path2);
+export function isEqual(resourceA: URI, resourceB: URI): boolean;
+export function isEqual(pathA: string, pathB: string): boolean;
+export function isEqual(resourceOrPathA: string | URI, resourceOrPathB: string | URI): boolean {
+	const identityEquals = (resourceOrPathA === resourceOrPathB);
+	if (identityEquals) {
+		return true;
+	}
+
+	if (!resourceOrPathA || !resourceOrPathB) {
+		return false;
+	}
+
+	// Compare by URI
+	if (typeof resourceOrPathA !== 'string') {
+		const resourceA = resourceOrPathA;
+		const resourceB = resourceOrPathB as URI;
+
+		if (resourceA.scheme !== resourceB.scheme) {
+			return false;
+		}
+
+		// File URIs compare by fsPath
+		if (resourceA.scheme === Schemas.file) {
+			return isEqual(resourceA.fsPath, resourceB.fsPath);
+		}
+
+		// Non-file URIs compare by full string
+		return resourceA.toString() === resourceB.toString();
+	}
+
+	// Compare by Path
+	const pathA = resourceOrPathA;
+	const pathB = resourceOrPathB as string;
+
 	if (isLinux || identityEquals) {
 		return identityEquals;
 	}
 
-	if (path1.length !== path2.length) {
+	if (pathA.length !== pathB.length) {
 		return false;
 	}
 
-	return path1.toLowerCase() === path2.toLowerCase();
+	return pathA.toLowerCase() === pathB.toLowerCase();
 }
 
 export function isParent(path: string, candidate: string): boolean {

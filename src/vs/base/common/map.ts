@@ -443,6 +443,13 @@ export class ResourceMap<T> {
 		this.map.forEach(clb);
 	}
 
+	public values(): T[] {
+		const values: T[] = [];
+		this.map.forEach(value => values.push(value));
+
+		return values;
+	}
+
 	private toKey(resource: URI): string {
 		let key: string;
 
