@@ -5,18 +5,15 @@
 
 'use strict';
 
-import 'vs/css!./defineKeybinding';
 import * as nls from 'vs/nls';
+import * as dom from 'vs/base/browser/dom';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { MarkedString } from 'vs/base/common/htmlContent';
-import { ResolvedKeybinding, createKeybinding, KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
+import { createKeybinding, KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import * as dom from 'vs/base/browser/dom';
-import { renderHtml } from 'vs/base/browser/htmlContentRenderer';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { KeybindingIO } from 'vs/platform/keybinding/common/keybindingIO';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -25,14 +22,14 @@ import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPosit
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { CodeSnippet } from 'vs/editor/contrib/snippet/common/snippet';
 import { SnippetController } from 'vs/editor/contrib/snippet/common/snippetController';
-import { SmartSnippetInserter } from 'vs/editor/contrib/defineKeybinding/common/smartSnippetInserter';
+import { SmartSnippetInserter } from 'vs/workbench/parts/preferences/common/smartSnippetInserter';
+import { DefineKeybindingOverlayWidget } from 'vs/workbench/parts/preferences/browser/keybindingWidgets';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/abstractKeybindingService';
 import { OS } from 'vs/base/common/platform';
 
 import EditorContextKeys = editorCommon.EditorContextKeys;
 
 const NLS_LAUNCH_MESSAGE = nls.localize('defineKeybinding.start', "Define Keybinding");
-const NLS_DEFINE_MESSAGE = nls.localize('defineKeybinding.initial', "Press desired key combination and ENTER");
 const NLS_KB_LAYOUT_INFO_MESSAGE = nls.localize('defineKeybinding.kbLayoutInfoMessage', "For your current keyboard layout press ");
 const NLS_KB_LAYOUT_ERROR_MESSAGE = nls.localize('defineKeybinding.kbLayoutErrorMessage', "You won't be able to produce this key combination under your current keyboard layout.");
 
@@ -50,20 +47,21 @@ export class DefineKeybindingController implements editorCommon.IEditorContribut
 	private _editor: ICodeEditor;
 	private _keybindingService: IKeybindingService;
 	private _launchWidget: DefineKeybindingLauncherWidget;
-	private _defineWidget: DefineKeybindingWidget;
+	private _defineWidget: DefineKeybindingOverlayWidget;
 	private _toDispose: IDisposable[];
 	private _modelToDispose: IDisposable[];
 	private _updateDecorations: RunOnceScheduler;
 
 	constructor(
 		editor: ICodeEditor,
-		@IKeybindingService keybindingService: IKeybindingService
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		this._editor = editor;
 		this._keybindingService = keybindingService;
 		this._toDispose = [];
 		this._launchWidget = new DefineKeybindingLauncherWidget(this._editor, keybindingService, () => this.launch());
-		this._defineWidget = new DefineKeybindingWidget(this._editor, keybindingService, (keybinding) => this._onAccepted(keybinding));
+		this._defineWidget = instantiationService.createInstance(DefineKeybindingOverlayWidget, this._editor);
 
 		this._toDispose.push(this._editor.onDidChangeConfiguration((e) => {
 			if (isInterestingEditorModel(this._editor)) {
@@ -103,29 +101,32 @@ export class DefineKeybindingController implements editorCommon.IEditorContribut
 
 	public launch(): void {
 		if (isInterestingEditorModel(this._editor)) {
-			this._defineWidget.start();
+			this._defineWidget.start().then(keybinding => this._onAccepted(keybinding));
 		}
 	}
 
 	private _onAccepted(keybinding: string): void {
-		let regexp = new RegExp(/\\/g);
-		let backslash = regexp.test(keybinding);
-		if (backslash) {
-			keybinding = keybinding.slice(0, -1) + '\\\\';
+		this._editor.focus();
+		if (keybinding) {
+			let regexp = new RegExp(/\\/g);
+			let backslash = regexp.test(keybinding);
+			if (backslash) {
+				keybinding = keybinding.slice(0, -1) + '\\\\';
+			}
+			let snippetText = [
+				'{',
+				'\t"key": ' + JSON.stringify(keybinding) + ',',
+				'\t"command": "${1:commandId}",',
+				'\t"when": "${2:editorTextFocus}"',
+				'}$0'
+			].join('\n');
+
+			let smartInsertInfo = SmartSnippetInserter.insertSnippet(this._editor.getModel(), this._editor.getPosition());
+			snippetText = smartInsertInfo.prepend + snippetText + smartInsertInfo.append;
+			this._editor.setPosition(smartInsertInfo.position);
+
+			SnippetController.get(this._editor).run(CodeSnippet.fromTextmate(snippetText), 0, 0);
 		}
-		let snippetText = [
-			'{',
-			'\t"key": ' + JSON.stringify(keybinding) + ',',
-			'\t"command": "${1:commandId}",',
-			'\t"when": "${2:editorTextFocus}"',
-			'}$0'
-		].join('\n');
-
-		let smartInsertInfo = SmartSnippetInserter.insertSnippet(this._editor.getModel(), this._editor.getPosition());
-		snippetText = smartInsertInfo.prepend + snippetText + smartInsertInfo.append;
-		this._editor.setPosition(smartInsertInfo.position);
-
-		SnippetController.get(this._editor).run(CodeSnippet.fromTextmate(snippetText), 0, 0);
 	}
 
 	private _onModel(): void {
@@ -305,158 +306,6 @@ class DefineKeybindingLauncherWidget implements IOverlayWidget {
 	}
 }
 
-
-class DefineKeybindingWidget implements IOverlayWidget {
-
-	private static ID = 'editor.contrib.defineKeybindingWidget';
-	private static WIDTH = 340;
-	private static HEIGHT = 90;
-
-	private _editor: ICodeEditor;
-	private _keybindingService: IKeybindingService;
-
-	private _domNode: FastDomNode<HTMLElement>;
-	private _toDispose: IDisposable[];
-
-	private _messageNode: HTMLElement;
-	private _inputNode: HTMLInputElement;
-	private _outputNode: HTMLElement;
-
-	private _lastKeybinding: ResolvedKeybinding;
-	private _onAccepted: (keybinding: string) => void;
-	private _isVisible: boolean;
-
-	constructor(editor: ICodeEditor, keybindingService: IKeybindingService, onAccepted: (keybinding: string) => void) {
-		this._editor = editor;
-		this._keybindingService = keybindingService;
-		this._onAccepted = onAccepted;
-		this._toDispose = [];
-		this._lastKeybinding = null;
-
-		this._domNode = createFastDomNode(document.createElement('div'));
-		this._domNode.setClassName('defineKeybindingWidget');
-		this._domNode.setWidth(DefineKeybindingWidget.WIDTH);
-		this._domNode.setHeight(DefineKeybindingWidget.HEIGHT);
-
-		this._domNode.setDisplay('none');
-		this._isVisible = false;
-
-		this._messageNode = document.createElement('div');
-		this._messageNode.className = 'message';
-		this._messageNode.innerText = NLS_DEFINE_MESSAGE;
-		this._domNode.domNode.appendChild(this._messageNode);
-
-		this._inputNode = document.createElement('input');
-		this._inputNode.className = 'input';
-		this._inputNode.type = 'text';
-		this._domNode.domNode.appendChild(this._inputNode);
-
-		this._outputNode = document.createElement('div');
-		this._outputNode.className = 'output';
-		this._domNode.domNode.appendChild(this._outputNode);
-
-		this._toDispose.push(dom.addDisposableListener(this._inputNode, 'keydown', (e) => {
-			let keyEvent = new StandardKeyboardEvent(e);
-			keyEvent.preventDefault();
-			keyEvent.stopPropagation();
-
-			let kb = keyEvent.toKeybinding();
-			switch (kb.value) {
-				case KeyCode.Enter:
-					if (this._lastKeybinding) {
-						this._onAccepted(this._lastKeybinding.getUserSettingsLabel());
-					}
-					this._stop();
-					return;
-
-				case KeyCode.Escape:
-					this._stop();
-					return;
-			}
-
-			this._lastKeybinding = this._keybindingService.resolveKeybinding(kb);
-
-			this._inputNode.value = this._lastKeybinding.getUserSettingsLabel().toLowerCase();
-			this._inputNode.title = 'keyCode: ' + keyEvent.browserEvent.keyCode;
-
-			dom.clearNode(this._outputNode);
-			let htmlkb = this._lastKeybinding.getHTMLLabel();
-			htmlkb.forEach((item) => this._outputNode.appendChild(renderHtml(item)));
-		}));
-		this._toDispose.push(this._editor.onDidChangeConfiguration((e) => {
-			if (this._isVisible) {
-				this._layout();
-			}
-		}));
-
-		this._toDispose.push(dom.addDisposableListener(this._inputNode, 'blur', (e) => this._stop()));
-
-		this._editor.addOverlayWidget(this);
-	}
-
-	public dispose(): void {
-		this._editor.removeOverlayWidget(this);
-		this._toDispose = dispose(this._toDispose);
-	}
-
-	public getId(): string {
-		return DefineKeybindingWidget.ID;
-	}
-
-	public getDomNode(): HTMLElement {
-		return this._domNode.domNode;
-	}
-
-	public getPosition(): IOverlayWidgetPosition {
-		return {
-			preference: null
-		};
-	}
-
-	private _show(): void {
-		if (this._isVisible) {
-			return;
-		}
-		this._isVisible = true;
-		this._layout();
-		this._domNode.setDisplay('block');
-	}
-
-	private _hide(): void {
-		if (!this._isVisible) {
-			return;
-		}
-		this._isVisible = false;
-		this._domNode.setDisplay('none');
-	}
-
-	private _layout(): void {
-		let editorLayout = this._editor.getLayoutInfo();
-
-		let top = Math.round((editorLayout.height - DefineKeybindingWidget.HEIGHT) / 2);
-		this._domNode.setTop(top);
-
-		let left = Math.round((editorLayout.width - DefineKeybindingWidget.WIDTH) / 2);
-		this._domNode.setLeft(left);
-	}
-
-	public start(): void {
-		this._editor.revealPositionInCenterIfOutsideViewport(this._editor.getPosition());
-
-		this._show();
-
-		this._lastKeybinding = null;
-		this._inputNode.value = '';
-		dom.clearNode(this._outputNode);
-		this._inputNode.focus();
-	}
-
-	private _stop(): void {
-		this._editor.focus();
-		this._hide();
-	}
-}
-
 @editorAction
 export class DefineKeybindingAction extends EditorAction {
 
@@ -484,7 +333,6 @@ export class DefineKeybindingAction extends EditorAction {
 			controller.launch();
 		}
 	}
-
 }
 
 function isInterestingEditorModel(editor: editorCommon.ICommonCodeEditor): boolean {

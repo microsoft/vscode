@@ -6,6 +6,7 @@
 import 'vs/css!./media/keybindings';
 import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { Disposable } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { ResolvedKeybinding, KeyCode } from 'vs/base/common/keyCodes';
@@ -18,6 +19,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Dimension } from 'vs/base/browser/builder';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
 
 class KeybindingInputWidget extends Widget {
 
@@ -77,12 +79,18 @@ export class DefineKeybindingWidget extends Widget {
 
 	private _onHide = this._register(new Emitter<void>());
 
-	constructor(parent: HTMLElement,
-		@IKeybindingService private keybindingService: IKeybindingService,
+	constructor(parent: HTMLElement, @IKeybindingService private keybindingService: IKeybindingService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super();
-		this.create(parent);
+		this.create();
+		if (parent) {
+			dom.append(parent, this._domNode.domNode);
+		}
+	}
+
+	get domNode(): HTMLElement {
+		return this._domNode.domNode;
 	}
 
 	define(): TPromise<string> {
@@ -115,14 +123,12 @@ export class DefineKeybindingWidget extends Widget {
 		this._domNode.setLeft(left);
 	}
 
-	private create(parent: HTMLElement): void {
+	private create(): void {
 		this._domNode = createFastDomNode(document.createElement('div'));
 		this._domNode.setDisplay('none');
 		this._domNode.setClassName('defineKeybindingWidget');
 		this._domNode.setWidth(DefineKeybindingWidget.WIDTH);
 		this._domNode.setHeight(DefineKeybindingWidget.HEIGHT);
-
-		dom.append(parent, this._domNode.domNode);
 		dom.append(this._domNode.domNode, dom.$('.message', null, nls.localize('defineKeybinding.initial', "Press desired key combination and ENTER. ESCAPE to cancel.")));
 
 		this._keybindingInputWidget = this.instantiationService.createInstance(KeybindingInputWidget, this._domNode.domNode, {});
@@ -147,7 +153,50 @@ export class DefineKeybindingWidget extends Widget {
 	}
 
 	private hide(): void {
+		this._domNode.setDisplay('none');
 		this._isVisible = false;
 		this._onHide.fire();
+	}
+}
+
+export class DefineKeybindingOverlayWidget extends Disposable implements IOverlayWidget {
+
+	private static ID = 'editor.contrib.defineKeybindingWidget';
+
+	private readonly _widget: DefineKeybindingWidget;
+
+	constructor(private _editor: ICodeEditor,
+		@IInstantiationService instantiationService: IInstantiationService
+	) {
+		super();
+
+		this._widget = instantiationService.createInstance(DefineKeybindingWidget, null);
+		this._editor.addOverlayWidget(this);
+	}
+
+	public getId(): string {
+		return DefineKeybindingOverlayWidget.ID;
+	}
+
+	public getDomNode(): HTMLElement {
+		return this._widget.domNode;
+	}
+
+	public getPosition(): IOverlayWidgetPosition {
+		return {
+			preference: null
+		};
+	}
+
+	public dispose(): void {
+		this._editor.removeOverlayWidget(this);
+		super.dispose();
+	}
+
+	public start(): TPromise<string> {
+		this._editor.revealPositionInCenterIfOutsideViewport(this._editor.getPosition());
+		const layoutInfo = this._editor.getLayoutInfo();
+		this._widget.layout(new Dimension(layoutInfo.width, layoutInfo.height));
+		return this._widget.define();
 	}
 }

@@ -3,36 +3,38 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.keybindings-editor .defineKeybindingWidget {
+.defineKeybindingWidget {
 	padding: 10px;
 	position: absolute;
 }
 
-.keybindings-editor .defineKeybindingWidget .message {
+.defineKeybindingWidget .message {
 	width: 400px;
 	text-align: center;
 	white-space: nowrap;
 }
 
-.keybindings-editor .defineKeybindingWidget .monaco-inputbox,
-.keybindings-editor .defineKeybindingWidget .output {
+.defineKeybindingWidget .monaco-inputbox,
+.defineKeybindingWidget .output {
 	margin-top:10px;
+	width: 400px;
 	display: block;
 	text-align: center;
 }
 
 /* Theming */
-.keybindings-editor .defineKeybindingWidget {
+.defineKeybindingWidget {
 	background-color: #EFEFF2;
 	box-shadow: 0 2px 8px #A8A8A8;
 }
 
-.vs-dark .keybindings-editor .defineKeybindingWidget {
+.vs-dark .defineKeybindingWidget {
 	background-color: #2D2D30;
 	box-shadow: 0 2px 8px #000;
 }
 
-.keybindings-editor .inlineKeybindingInfo:before {
+/* Editor decorations */
+.monaco-editor .inlineKeybindingInfo:before {
 	margin: 0.2em 0.1em 0 0.1em;
 	content:" ";
 	display:inline-block;
@@ -42,7 +44,7 @@
 	background-size: 0.9em;
 }
 
-.keybindings-editor .inlineKeybindingError:before {
+.monaco-editor .inlineKeybindingError:before {
 	margin: 0.1em 0.1em 0 0.1em;
 	content:" ";
 	display:inline-block;
@@ -52,17 +54,16 @@
 	background-size: 1em;
 }
 
-.keybindings-editor .keybindingInfo {
+.monaco-editor .keybindingInfo {
 	box-shadow:	inset 0 0 0 1px #B9B9B9;
 	background-color: rgba(100, 100, 250, 0.2);
 }
 
-.keybindings-editor .keybindingError {
+.monaco-editor .keybindingError {
 	box-shadow:	inset 0 0 0 1px #B9B9B9;
 	background-color: rgba(250, 100, 100, 0.2);
 }
 
-/* for keybindings rendered as HTML */
 /* for keybindings rendered as HTML */
 .monaco-kb {
 	white-space: nowrap;
@@ -79,4 +80,13 @@
 	line-height: 10px;
 	font-size: 11px;
 	padding: 3px 5px;
+}
+
+/* launcher widget */
+.monaco-editor .defineKeybindingLauncher {
+	background: #007ACC;
+	color: white;
+	padding: 10px;
+	border-radius: 5px;
+	cursor: pointer;
 }
