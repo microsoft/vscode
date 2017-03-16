@@ -34,7 +34,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { IEditorGroupService, GroupArrangement, GroupOrientation, ITabOptions, IMoveOptions } from 'vs/workbench/services/group/common/groupService';
 import { TextFileService } from 'vs/workbench/services/textfile/common/textFileService';
-import { FileOperationEvent, IFileService, IResolveContentOptions, IFileOperationResult, IFileStat, IImportResult, FileChangesEvent, IResolveFileOptions, IContent, IUpdateContentOptions, IStreamContent } from 'vs/platform/files/common/files';
+import { FileOperationEvent, IFileService, IResolveContentOptions, IFileOperationResult, IFileStat, IImportResult, FileChangesEvent, IResolveFileOptions, IContent, IUpdateContentOptions, IStreamContent, isEqual, isParent } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
@@ -52,7 +52,7 @@ import { RawTextSource, IRawTextSource } from 'vs/editor/common/model/textSource
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IThemeService, ITheme, IThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { Color } from "vs/base/common/color";
+import { Color } from 'vs/base/common/color';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, void 0);
@@ -93,7 +93,7 @@ export class TestContextService implements IWorkspaceContextService {
 
 	public isInsideWorkspace(resource: URI): boolean {
 		if (resource && this.workspace) {
-			return paths.isEqualOrParent(resource.fsPath, this.workspace.resource.fsPath);
+			return isEqual(resource.fsPath, this.workspace.resource.fsPath) || isParent(resource.fsPath, this.workspace.resource.fsPath);
 		}
 
 		return false;
