@@ -197,7 +197,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 			placeholder: localize('SearchKeybindings.Placeholder', "Search keybindings")
 		}));
 		this._register(this.searchWidget.onDidChange(searchValue => this.delayedFiltering.trigger(() => this.render())));
-		this._register(this.searchWidget.onDidChange(searchValue => this.delayedFiltering.trigger(() => this.render())));
+		this._register(this.searchWidget.onNavigate(back => this._onNavigate(back)));
 
 		const openKeybindingsContainer = DOM.append(this.headerContainer, $('.open-keybindings-container'));
 		DOM.append(openKeybindingsContainer, $('span', null, localize('header-message', "For advanced customizations open and edit ")));
@@ -234,6 +234,13 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 	private renderKeybindingsData(keybindingsData: IKeybindingItemEntry[]): void {
 		this.keybindingsList.splice(0, this.keybindingsList.length, [{ id: 'keybinding-header-entry', templateId: KEYBINDING_HEADER_TEMPLATE_ID }, ...keybindingsData]);
 		this.keybindingsList.layout(this.dimension.height - DOM.getDomNodePagePosition(this.headerContainer).height);
+	}
+
+	private _onNavigate(back: boolean): void {
+		if (!back) {
+			this.keybindingsList.getHTMLElement().focus();
+			this.keybindingsList.setFocus([0]);
+		}
 	}
 
 	private onContextMenu(e: IListContextMenuEvent<IListEntry>): void {

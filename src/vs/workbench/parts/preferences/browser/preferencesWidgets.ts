@@ -235,8 +235,8 @@ export class SearchWidget extends Widget {
 	private _onDidChange = this._register(new Emitter<string>());
 	public onDidChange: Event<string> = this._onDidChange.event;
 
-	private _onEnter = this._register(new Emitter<boolean>());
-	public onEnter: Event<boolean> = this._onEnter.event;
+	private _onNavigate = this._register(new Emitter<boolean>());
+	public onNavigate: Event<boolean> = this._onNavigate.event;
 
 	constructor(parent: HTMLElement, protected options: IInputOptions,
 		@IContextViewService private contextViewService: IContextViewService,
@@ -259,7 +259,7 @@ export class SearchWidget extends Widget {
 		const searchInput = DOM.append(this.searchContainer, DOM.$('div.settings-search-input'));
 		this.inputBox = this.createInputBox(searchInput);
 		this.inputBox.onDidChange(value => this._onDidChange.fire(value));
-		this.onkeyup(this.inputBox.inputElement, (e) => this._onKeyUp(e));
+		this.onkeydown(this.inputBox.inputElement, (e) => this._onKeyDown(e));
 	}
 
 	protected createInputBox(parent: HTMLElement): InputBox {
@@ -295,11 +295,19 @@ export class SearchWidget extends Widget {
 		return this.inputBox.value;
 	}
 
-	private _onKeyUp(keyboardEvent: IKeyboardEvent): void {
+	private _onKeyDown(keyboardEvent: IKeyboardEvent): void {
 		let handled = false;
 		switch (keyboardEvent.keyCode) {
 			case KeyCode.Enter:
-				this._onEnter.fire(keyboardEvent.shiftKey);
+				this._onNavigate.fire(keyboardEvent.shiftKey);
+				handled = true;
+				break;
+			case KeyCode.UpArrow:
+				this._onNavigate.fire(true);
+				handled = true;
+				break;
+			case KeyCode.DownArrow:
+				this._onNavigate.fire(false);
 				handled = true;
 				break;
 			case KeyCode.Escape:
