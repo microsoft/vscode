@@ -134,6 +134,7 @@ interface IHardwareCodeMapping {
 export class KeyboardMapper {
 
 	private readonly _OS: OperatingSystem;
+	private readonly _codeInfo: IHardwareCodeMapping[];
 	private readonly _hwToKb: number[] = [];
 	private readonly _hwToLabel: string[] = [];
 	private readonly _kbToHw: number[][] = [];
@@ -154,6 +155,7 @@ export class KeyboardMapper {
 			}
 		}
 
+		this._codeInfo = [];
 		let mappings: IHardwareCodeMapping[] = [], mappingsLen = 0;
 		for (let strCode in rawMappings) {
 			if (rawMappings.hasOwnProperty(strCode)) {
@@ -180,6 +182,7 @@ export class KeyboardMapper {
 					withShiftAltGr: withShiftAltGr,
 				};
 				mappings[mappingsLen++] = mapping;
+				this._codeInfo[code] = mapping;
 
 				if (value >= CharCode.a && value <= CharCode.z) {
 					this._hwToLabel[code] = String.fromCharCode(CharCode.A + (value - CharCode.a));
@@ -235,19 +238,78 @@ export class KeyboardMapper {
 		}
 	}
 
-	private _register(
-		hwCtrlKey: boolean, hwShiftKey: boolean, hwAltKey: boolean, code: KeyboardEventCode,
-		kbCtrlKey: boolean, kbShiftKey: boolean, kbAltKey: boolean, keyCode: KeyCode,
-	): void {
-		let hwEncoded = this._encode(hwCtrlKey, hwShiftKey, hwAltKey, code);
-		let kbEncoded = this._encode(kbCtrlKey, kbShiftKey, kbAltKey, keyCode);
+	public dumpDebugInfo(): string {
+		let result: string[] = [];
 
-		this._hwToKb[hwEncoded] = kbEncoded;
+		let cnt = 0;
+		for (let code = KeyboardEventCode.None; code < KeyboardEventCode.MAX_VALUE; code++) {
+			if (IMMUTABLE_CODE_TO_KEY_CODE[code] !== -1) {
+				continue;
+			}
 
-		if (keyCode !== KeyCode.Unknown) {
-			this._kbToHw[kbEncoded] = this._kbToHw[kbEncoded] || [];
-			this._kbToHw[kbEncoded].unshift(hwEncoded);
+			if (cnt % 5 === 0) {
+				result.push(`--------------------------------------------------------------------------------------------------`);
+				result.push(`|       HW Code combination      |  Key  |    KeyCode combination    |          UI label         |`);
+				result.push(`--------------------------------------------------------------------------------------------------`);
+			}
+			cnt++;
+
+			const mapping = this._codeInfo[code];
+			const strCode = KeyboardEventCodeUtils.toString(code);
+			const uiLabel = this._hwToLabel[code];
+
+			for (let mod = 0; mod < 8; mod++) {
+				const hwCtrlKey = (mod & 0b0001) ? true : false;
+				const hwShiftKey = (mod & 0b0010) ? true : false;
+				const hwAltKey = (mod & 0b0100) ? true : false;
+				const strHw = `${hwCtrlKey ? 'Ctrl+' : ''}${hwShiftKey ? 'Shift+' : ''}${hwAltKey ? 'Alt+' : ''}${strCode}`;
+				const uiHwLabel = `${hwCtrlKey ? 'Ctrl+' : ''}${hwShiftKey ? 'Shift+' : ''}${hwAltKey ? 'Alt+' : ''}${uiLabel}`;
+
+				let key = 0;
+				if (mapping) {
+					if (hwCtrlKey && hwShiftKey && hwAltKey) {
+						key = mapping.withShiftAltGr;
+					} else if (hwCtrlKey && hwAltKey) {
+						key = mapping.withAltGr;
+					} else if (hwShiftKey) {
+						key = mapping.withShift;
+					} else {
+						key = mapping.value;
+					}
+				}
+				let strKey: string = ' --- ';
+				if (key !== 0) {
+					if (key >= CharCode.U_Combining_Grave_Accent && key <= CharCode.U_Combining_Latin_Small_Letter_X) {
+						// combining
+						strKey = 'U+' + key.toString(16);
+					} else {
+						strKey = '  ' + String.fromCharCode(key) + '  ';
+					}
+				}
+
+				const hwEncoded = this._encode(hwCtrlKey, hwShiftKey, hwAltKey, code);
+				const kbEncoded = this._hwToKb[hwEncoded];
+				const kbCtrlKey = (kbEncoded & 0b0001) ? true : false;
+				const kbShiftKey = (kbEncoded & 0b0010) ? true : false;
+				const kbAltKey = (kbEncoded & 0b0100) ? true : false;
+				const keyCode = (kbEncoded >>> 3);
+				const strKb = `${kbCtrlKey ? 'Ctrl+' : ''}${kbShiftKey ? 'Shift+' : ''}${kbAltKey ? 'Alt+' : ''}${KeyCodeUtils.toString(keyCode)}`;
+
+				result.push(`| ${this._leftPad(strHw, 30)} | ${strKey} | ${this._leftPad(strKb, 25)} | ${this._leftPad(uiHwLabel, 25)} |`);
+
+			}
 		}
+
+		result.push(`--------------------------------------------------------------------------------------------------`);
+
+		return result.join('\n');
+	}
+
+	private _leftPad(str: string, cnt: number): string {
+		while (str.length < cnt) {
+			str = ' ' + str;
+		}
+		return str;
 	}
 
 	private _registerIfUnknown(
@@ -293,7 +355,7 @@ export class KeyboardMapper {
 		hwCtrlKey: boolean, hwShiftKey: boolean, hwAltKey: boolean, code: KeyboardEventCode,
 		kbShiftKey: boolean, keyCode: KeyCode,
 	): void {
-		this._register(
+		this._registerIfUnknown(
 			hwCtrlKey, hwShiftKey, hwAltKey, code,
 			false, kbShiftKey, false, keyCode
 		);
