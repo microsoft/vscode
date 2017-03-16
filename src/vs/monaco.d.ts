@@ -1336,7 +1336,11 @@ declare module monaco.editor {
          * Enable quick suggestions (shadow suggestions)
          * Defaults to true.
          */
-        quickSuggestions?: boolean;
+        quickSuggestions?: boolean | {
+            other: boolean;
+            comments: boolean;
+            strings: boolean;
+        };
         /**
          * Quick suggestions show delay (in ms)
          * Defaults to 500 (ms)
@@ -1608,7 +1612,11 @@ declare module monaco.editor {
         readonly selectionClipboard: boolean;
         readonly hover: boolean;
         readonly contextmenu: boolean;
-        readonly quickSuggestions: boolean;
+        readonly quickSuggestions: boolean | {
+            other: boolean;
+            comments: boolean;
+            strings: boolean;
+        };
         readonly quickSuggestionsDelay: number;
         readonly parameterHints: boolean;
         readonly iconsInSuggestions: boolean;
