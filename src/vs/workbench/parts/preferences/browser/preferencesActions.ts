@@ -10,7 +10,8 @@ import URI from 'vs/base/common/uri';
 import { Action } from 'vs/base/common/actions';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IQuickOpenService, IPickOpenEntry, IFilePickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
-import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
+import { IPreferencesService, IKeybindingsEditor, KEYBINDINGS_EDITOR_ID } from 'vs/workbench/parts/preferences/common/preferences';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class OpenGlobalSettingsAction extends Action {
 
@@ -112,5 +113,52 @@ export class ConfigureLanguageBasedSettingsAction extends Action {
 				return undefined;
 			});
 
+	}
+}
+
+export class DefineKeybindingAction extends Action {
+
+	public static ID = 'keybindings.editor.define';
+	public static LABEL = nls.localize('keybindings.editor.define', "Define Keybinding");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		const activeEditor = this.editorService.getActiveEditor();
+		if (activeEditor.getId() === KEYBINDINGS_EDITOR_ID) {
+			const keybindingsEditor = activeEditor as IKeybindingsEditor;
+			if (keybindingsEditor.activeKeybindingEntry) {
+				return keybindingsEditor.defineKeybinding(keybindingsEditor.activeKeybindingEntry);
+			}
+		}
+		return TPromise.as(null);
+	}
+}
+
+export class SearchKeybindingAction extends Action {
+
+	public static ID = 'keybindings.editor.search';
+	public static LABEL = nls.localize('keybindings.editor.search', "Search Keybindings");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		const activeEditor = this.editorService.getActiveEditor();
+		if (activeEditor.getId() === KEYBINDINGS_EDITOR_ID) {
+			(activeEditor as IKeybindingsEditor).search('');
+		}
+		return TPromise.as(null);
 	}
 }
