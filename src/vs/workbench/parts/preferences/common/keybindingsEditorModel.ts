@@ -14,8 +14,15 @@ import { EditorModel } from 'vs/workbench/common/editor';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IKeybindingService, IKeybindingItem2, KeybindingSource } from 'vs/platform/keybinding/common/keybinding';
 
-export interface IKeybindingItemEntry {
+export const KEYBINDING_ENTRY_TEMPLATE_ID = 'keybinding.entry.template';
+export const KEYBINDING_HEADER_TEMPLATE_ID = 'keybinding.header.template';
+
+export interface IListEntry {
 	id: string;
+	templateId: string;
+}
+
+export interface IKeybindingItemEntry extends IListEntry {
 	keybindingItem: IKeybindingItem;
 	commandIdMatches?: IMatch[];
 	commandLabelMatches?: IMatch[];
@@ -42,7 +49,7 @@ export class KeybindingsEditorModel extends EditorModel {
 	public fetch(searchValue: string): IKeybindingItemEntry[] {
 		searchValue = searchValue.trim();
 		return searchValue ? this.fetchKeybindingItems(searchValue) :
-			this._keybindingItems.map(keybindingItem => ({ id: KeybindingsEditorModel.getId(keybindingItem), keybindingItem }));
+			this._keybindingItems.map(keybindingItem => ({ id: KeybindingsEditorModel.getId(keybindingItem), keybindingItem, templateId: KEYBINDING_ENTRY_TEMPLATE_ID }));
 	}
 
 	private fetchKeybindingItems(searchValue: string): IKeybindingItemEntry[] {
@@ -54,6 +61,7 @@ export class KeybindingsEditorModel extends EditorModel {
 			if (keybindingMatches || commandIdMatches || commandLabelMatches) {
 				result.push({
 					id: KeybindingsEditorModel.getId(keybindingItem),
+					templateId: KEYBINDING_ENTRY_TEMPLATE_ID,
 					commandLabelMatches,
 					keybindingItem,
 					keybindingMatches,
