@@ -15,6 +15,8 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { Registry } from 'vs/platform/platform';
 import { Position, Direction } from 'vs/platform/editor/common/editor';
+import { isEqual } from 'vs/platform/files/common/files';
+import { ResourceMap } from 'vs/base/common/map';
 
 export interface GroupEvent extends IGroupEvent {
 	editor: EditorInput;
@@ -52,7 +54,7 @@ export class EditorGroup implements IEditorGroup {
 
 	private editors: EditorInput[];
 	private mru: EditorInput[];
-	private mapResourceToEditorCount: { [resource: string]: number };
+	private mapResourceToEditorCount: ResourceMap<number>;
 
 	private preview: EditorInput; // editor in preview state
 	private active: EditorInput;  // editor in active state
@@ -82,7 +84,7 @@ export class EditorGroup implements IEditorGroup {
 		this.editors = [];
 		this.mru = [];
 		this.toDispose = [];
-		this.mapResourceToEditorCount = Object.create(null);
+		this.mapResourceToEditorCount = new ResourceMap<number>();
 		this.onConfigurationUpdated(configurationService.getConfiguration<IWorkbenchEditorConfiguration>());
 
 		this._onEditorActivated = new Emitter<EditorInput>();
@@ -197,7 +199,7 @@ export class EditorGroup implements IEditorGroup {
 		for (let i = 0; i < this.editors.length; i++) {
 			const editor = this.editors[i];
 			const editorResource = toResource(editor, { supportSideBySide: true });
-			if (editorResource && editorResource.toString() === resource.toString()) {
+			if (isEqual(editorResource, resource)) {
 				return editor;
 			}
 		}
@@ -558,7 +560,7 @@ export class EditorGroup implements IEditorGroup {
 
 			// It is possible to have the same resource opened twice (once as normal input and once as diff input)
 			// So we need to do ref counting on the resource to provide the correct picture
-			let counter = this.mapResourceToEditorCount[resource.toString()] || 0;
+			let counter = this.mapResourceToEditorCount.get(resource) || 0;
 			let newCounter: number;
 			if (remove) {
 				if (counter > 1) {
@@ -568,7 +570,7 @@ export class EditorGroup implements IEditorGroup {
 				newCounter = counter + 1;
 			}
 
-			this.mapResourceToEditorCount[resource.toString()] = newCounter;
+			this.mapResourceToEditorCount.set(resource, newCounter);
 		}
 	}
 
@@ -593,7 +595,7 @@ export class EditorGroup implements IEditorGroup {
 			return this.indexOf(arg1) >= 0;
 		}
 
-		const counter = this.mapResourceToEditorCount[(<URI>arg1).toString()];
+		const counter = this.mapResourceToEditorCount.get(arg1);
 
 		return typeof counter === 'number' && counter > 0;
 	}

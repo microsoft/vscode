@@ -183,12 +183,10 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 
 		return withOracle(model => {
 			return TPromise.join([
-				assertEvent(model.onDidSuggest, function () {
+				assertEvent(model.onDidCancel, function () {
 					model.trigger(true);
 				}, function (event) {
-					assert.equal(event.auto, true);
-					assert.equal(event.isFrozen, false);
-					assert.equal(event.completionModel.items.length, 0);
+					assert.equal(event.retrigger, false);
 				}),
 				assertEvent(model.onDidSuggest, function () {
 					model.trigger(false);

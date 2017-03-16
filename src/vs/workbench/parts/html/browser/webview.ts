@@ -14,6 +14,7 @@ import { addDisposableListener, addClass } from 'vs/base/browser/dom';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { MenuRegistry } from 'vs/platform/actions/common/actions';
 import { IColorTheme } from 'vs/workbench/services/themes/common/themeService';
+import { editorBackground, editorForeground } from 'vs/platform/theme/common/colorRegistry';
 
 declare interface WebviewElement extends HTMLElement {
 	src: string;
@@ -145,12 +146,12 @@ export default class Webview {
 	}
 
 	style(theme: IColorTheme): void {
-		const { color, backgroundColor, fontFamily, fontWeight, fontSize } = window.getComputedStyle(this._styleElement);
+		const { fontFamily, fontWeight, fontSize } = window.getComputedStyle(this._styleElement); // TODO@theme avoid styleElement
 
 		let value = `
 		:root {
-			--background-color: ${backgroundColor};
-			--color: ${color};
+			--background-color: ${theme.getColor(editorBackground)};
+			--color: ${theme.getColor(editorForeground)};
 			--font-family: ${fontFamily};
 			--font-weight: ${fontWeight};
 			--font-size: ${fontSize};

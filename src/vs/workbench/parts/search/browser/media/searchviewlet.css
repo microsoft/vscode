@@ -388,6 +388,7 @@
 
 .vs-dark .search-viewlet .message {
 	color: #FFF;
+	opacity: .5;
 }
 
 .vs-dark .search-viewlet .filematch {

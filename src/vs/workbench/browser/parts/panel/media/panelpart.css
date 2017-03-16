@@ -93,16 +93,7 @@
 	background: url('close-inverse.svg') center center no-repeat;
 }
 
-/** TODO@theme */
-
-.vs .monaco-workbench > .part.panel .title,
-.vs-dark .monaco-workbench > .part.panel .title {
-	border-top-color: rgba(128, 128, 128, 0.35);
-}
-
-.hc-black .monaco-workbench > .part.panel .title {
-	border-top-color: #6FC3DF;
-}
+/** TODO@theme (widgets) */
 
 .vs .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label {
 	color: rgba(66, 66, 66, 0.75);

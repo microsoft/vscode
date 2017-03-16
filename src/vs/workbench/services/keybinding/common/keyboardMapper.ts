@@ -6,10 +6,9 @@
 'use strict';
 
 import { OperatingSystem } from 'vs/base/common/platform';
-import { SimpleKeybinding, KeyCode, ResolvedKeybinding, Keybinding, KeyCodeUtils } from 'vs/base/common/keyCodes';
+import { SimpleKeybinding, KeyCode, ResolvedKeybinding, Keybinding, KeyCodeUtils, KeyMod } from 'vs/base/common/keyCodes';
 import { KeyboardEventCode, KeyboardEventCodeUtils } from 'vs/workbench/services/keybinding/common/keyboardEventCode';
 import { CharCode } from 'vs/base/common/charCode';
-import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/abstractKeybindingService';
 import { IHTMLContentElement } from 'vs/base/common/htmlContent';
 import { PrintableKeypress, UILabelProvider, AriaLabelProvider } from 'vs/platform/keybinding/common/keybindingLabels';
 
@@ -36,109 +35,18 @@ function log(str: string): void {
 	}
 }
 
-function cannotMapSimpleKeybinding(keybinding: SimpleKeybinding, OS: OperatingSystem, reason: string): void {
-	let usLayout = new USLayoutResolvedKeybinding(keybinding, OS);
-	log(`No key combination can produce desired simple keybinding: ${usLayout.getUserSettingsLabel()} - ${reason}.`);
-}
-
 /**
- * -1 if a KeyCode => keyboardEvent.code mapping depends on kb layout.
+ * -1 if a HwCode => KeyCode mapping depends on kb layout.
  */
-const IMMUTABLE_KEY_CODE_TO_CODE: KeyboardEventCode[] = [];
 const IMMUTABLE_CODE_TO_KEY_CODE: KeyCode[] = [];
-
-/**
- * Chars that will be remapped.
- */
-const REMAP_CHARS = [
-	CharCode.a, CharCode.b, CharCode.c, CharCode.d, CharCode.e, CharCode.f, CharCode.g,
-	CharCode.h, CharCode.i, CharCode.j, CharCode.k, CharCode.l, CharCode.m, CharCode.n,
-	CharCode.o, CharCode.p, CharCode.q, CharCode.r, CharCode.s, CharCode.t, CharCode.u,
-	CharCode.v, CharCode.w, CharCode.x, CharCode.y, CharCode.z,
-
-	CharCode.A, CharCode.B, CharCode.C, CharCode.D, CharCode.E, CharCode.F, CharCode.G,
-	CharCode.H, CharCode.I, CharCode.J, CharCode.K, CharCode.L, CharCode.M, CharCode.N,
-	CharCode.O, CharCode.P, CharCode.Q, CharCode.R, CharCode.S, CharCode.T, CharCode.U,
-	CharCode.V, CharCode.W, CharCode.X, CharCode.Y, CharCode.Z,
-
-	CharCode.Semicolon, CharCode.Colon,
-	CharCode.Equals, CharCode.Plus,
-	CharCode.Comma, CharCode.LessThan,
-	CharCode.Dash, CharCode.Underline,
-	CharCode.Period, CharCode.GreaterThan,
-	CharCode.Slash, CharCode.QuestionMark,
-	CharCode.BackTick, CharCode.Tilde,
-	CharCode.OpenSquareBracket, CharCode.OpenCurlyBrace,
-	CharCode.Backslash, CharCode.Pipe,
-	CharCode.CloseSquareBracket, CharCode.CloseCurlyBrace,
-	CharCode.SingleQuote, CharCode.DoubleQuote,
-];
-
-const REMAP_KEYBOARD_EVENT_CODES = [
-	KeyboardEventCode.KeyA,
-	KeyboardEventCode.KeyB,
-	KeyboardEventCode.KeyC,
-	KeyboardEventCode.KeyD,
-	KeyboardEventCode.KeyE,
-	KeyboardEventCode.KeyF,
-	KeyboardEventCode.KeyG,
-	KeyboardEventCode.KeyH,
-	KeyboardEventCode.KeyI,
-	KeyboardEventCode.KeyJ,
-	KeyboardEventCode.KeyK,
-	KeyboardEventCode.KeyL,
-	KeyboardEventCode.KeyM,
-	KeyboardEventCode.KeyN,
-	KeyboardEventCode.KeyO,
-	KeyboardEventCode.KeyP,
-	KeyboardEventCode.KeyQ,
-	KeyboardEventCode.KeyR,
-	KeyboardEventCode.KeyS,
-	KeyboardEventCode.KeyT,
-	KeyboardEventCode.KeyU,
-	KeyboardEventCode.KeyV,
-	KeyboardEventCode.KeyW,
-	KeyboardEventCode.KeyX,
-	KeyboardEventCode.KeyY,
-	KeyboardEventCode.KeyZ,
-	KeyboardEventCode.Digit1,
-	KeyboardEventCode.Digit2,
-	KeyboardEventCode.Digit3,
-	KeyboardEventCode.Digit4,
-	KeyboardEventCode.Digit5,
-	KeyboardEventCode.Digit6,
-	KeyboardEventCode.Digit7,
-	KeyboardEventCode.Digit8,
-	KeyboardEventCode.Digit9,
-	KeyboardEventCode.Digit0,
-	KeyboardEventCode.Minus,
-	KeyboardEventCode.Equal,
-	KeyboardEventCode.BracketLeft,
-	KeyboardEventCode.BracketRight,
-	KeyboardEventCode.Backslash,
-	KeyboardEventCode.IntlHash,
-	KeyboardEventCode.Semicolon,
-	KeyboardEventCode.Quote,
-	KeyboardEventCode.Backquote,
-	KeyboardEventCode.Comma,
-	KeyboardEventCode.Period,
-	KeyboardEventCode.Slash,
-	KeyboardEventCode.IntlBackslash
-];
-
-const enum ModifierState {
-	None = 0,
-	Shift = 1,
-	AltGr = 2,
-	ShiftAltGr = 3
-}
+const CHAR_CODE_TO_KEY_CODE: { keyCode: KeyCode; shiftKey: boolean }[] = [];
 
 export class HardwareKeypress {
-	readonly ctrlKey: boolean;
-	readonly shiftKey: boolean;
-	readonly altKey: boolean;
-	readonly metaKey: boolean;
-	readonly code: KeyboardEventCode;
+	public readonly ctrlKey: boolean;
+	public readonly shiftKey: boolean;
+	public readonly altKey: boolean;
+	public readonly metaKey: boolean;
+	public readonly code: KeyboardEventCode;
 
 	constructor(ctrlKey: boolean, shiftKey: boolean, altKey: boolean, metaKey: boolean, code: KeyboardEventCode) {
 		this.ctrlKey = ctrlKey;
@@ -216,90 +124,314 @@ export class NativeResolvedKeybinding extends ResolvedKeybinding {
 }
 
 interface IHardwareCodeMapping {
+	code: KeyboardEventCode;
 	value: number;
 	withShift: number;
 	withAltGr: number;
 	withShiftAltGr: number;
-
-	valueIsDeadKey: boolean;
-	withShiftIsDeadKey: boolean;
-	withAltGrIsDeadKey: boolean;
-	withShiftAltGrIsDeadKey: boolean;
 }
 
 export class KeyboardMapper {
 
 	private readonly _OS: OperatingSystem;
-	private readonly _remapChars: HardwareKeypress[][];
-	private readonly _mappings: IHardwareCodeMapping[];
+	private readonly _hwToKb: number[] = [];
+	private readonly _hwToLabel: string[] = [];
+	private readonly _kbToHw: number[][] = [];
 
-	constructor(mappings: IKeyboardMapping, OS: OperatingSystem) {
+	constructor(rawMappings: IKeyboardMapping, OS: OperatingSystem) {
 
-		this._remapChars = [];
-		let maxCharCode = REMAP_CHARS.reduce((prev, curr) => Math.max(prev, curr));
-		for (let i = 0; i <= maxCharCode; i++) {
-			this._remapChars[i] = null;
+		this._OS = OS;
+
+		this._hwToKb = [];
+		this._kbToHw = [];
+		this._hwToLabel = [];
+
+		for (let code = KeyboardEventCode.None; code < KeyboardEventCode.MAX_VALUE; code++) {
+			const immutableKeyCode = IMMUTABLE_CODE_TO_KEY_CODE[code];
+			if (immutableKeyCode !== -1) {
+				this._registerAllCombos1(false, false, false, code, immutableKeyCode);
+				this._hwToLabel[code] = KeyCodeUtils.toString(immutableKeyCode);
+			}
 		}
 
-		this._mappings = [];
-		for (let strCode in mappings) {
-			if (mappings.hasOwnProperty(strCode)) {
+		let mappings: IHardwareCodeMapping[] = [], mappingsLen = 0;
+		for (let strCode in rawMappings) {
+			if (rawMappings.hasOwnProperty(strCode)) {
 				const code = KeyboardEventCodeUtils.toEnum(strCode);
 				if (code === KeyboardEventCode.None) {
 					log(`Unknown code ${strCode} in mapping.`);
 					continue;
 				}
+				if (IMMUTABLE_CODE_TO_KEY_CODE[code] !== -1) {
+					continue;
+				}
 
-				const mapping = mappings[strCode];
-				const value = KeyboardMapper._getCharCode(mapping.value);
-				const withShift = KeyboardMapper._getCharCode(mapping.withShift);
-				const withAltGr = KeyboardMapper._getCharCode(mapping.withAltGr);
-				const withShiftAltGr = KeyboardMapper._getCharCode(mapping.withShiftAltGr);
+				const rawMapping = rawMappings[strCode];
+				const value = KeyboardMapper._getCharCode(rawMapping.value);
+				const withShift = KeyboardMapper._getCharCode(rawMapping.withShift);
+				const withAltGr = KeyboardMapper._getCharCode(rawMapping.withAltGr);
+				const withShiftAltGr = KeyboardMapper._getCharCode(rawMapping.withShiftAltGr);
 
-				this._mappings[code] = {
+				const mapping: IHardwareCodeMapping = {
+					code: code,
 					value: value,
 					withShift: withShift,
 					withAltGr: withAltGr,
 					withShiftAltGr: withShiftAltGr,
-
-					valueIsDeadKey: mapping.valueIsDeadKey,
-					withShiftIsDeadKey: mapping.withShiftIsDeadKey,
-					withAltGrIsDeadKey: mapping.withAltGrIsDeadKey,
-					withShiftAltGrIsDeadKey: mapping.withShiftAltGrIsDeadKey,
 				};
+				mappings[mappingsLen++] = mapping;
 
-				this._register(code, false, false, false, value);
-				this._register(code, false, true, false, withShift);
-				this._register(code, true, false, true, withAltGr);
-				this._register(code, true, true, true, withShiftAltGr);
+				if (value >= CharCode.a && value <= CharCode.z) {
+					this._hwToLabel[code] = String.fromCharCode(CharCode.A + (value - CharCode.a));
+				} else if (value) {
+					this._hwToLabel[code] = String.fromCharCode(value);
+				} else {
+					this._hwToLabel[code] = null;
+				}
 			}
 		}
 
-		this._OS = OS;
+		// Handle all `withShiftAltGr` entries
+		for (let i = mappings.length - 1; i >= 0; i--) {
+			const mapping = mappings[i];
+			this._registerCharCode(mapping.code, true, true, true, mapping.withShiftAltGr);
+		}
+		// Handle all `withAltGr` entries
+		for (let i = mappings.length - 1; i >= 0; i--) {
+			const mapping = mappings[i];
+			this._registerCharCode(mapping.code, true, false, true, mapping.withAltGr);
+		}
+		// Handle all `withShift` entries
+		for (let i = mappings.length - 1; i >= 0; i--) {
+			const mapping = mappings[i];
+			this._registerCharCode(mapping.code, false, true, false, mapping.withShift);
+		}
+		// Handle all `value` entries
+		for (let i = mappings.length - 1; i >= 0; i--) {
+			const mapping = mappings[i];
+			this._registerCharCode(mapping.code, false, false, false, mapping.value);
+		}
+		// // Handle all left-over available digits
+		this._registerAllCombos1(false, false, false, KeyboardEventCode.Digit1, KeyCode.KEY_1);
+		this._registerAllCombos1(false, false, false, KeyboardEventCode.Digit2, KeyCode.KEY_2);
+		this._registerAllCombos1(false, false, false, KeyboardEventCode.Digit3, KeyCode.KEY_3);
+		this._registerAllCombos1(false, false, false, KeyboardEventCode.Digit4, KeyCode.KEY_4);
+		this._registerAllCombos1(false, false, false, KeyboardEventCode.Digit5, KeyCode.KEY_5);
+		this._registerAllCombos1(false, false, false, KeyboardEventCode.Digit6, KeyCode.KEY_6);
+		this._registerAllCombos1(false, false, false, KeyboardEventCode.Digit7, KeyCode.KEY_7);
+		this._registerAllCombos1(false, false, false, KeyboardEventCode.Digit8, KeyCode.KEY_8);
+		this._registerAllCombos1(false, false, false, KeyboardEventCode.Digit9, KeyCode.KEY_9);
+		this._registerAllCombos1(false, false, false, KeyboardEventCode.Digit0, KeyCode.KEY_0);
 
-		for (let i = 0; i < REMAP_CHARS.length; i++) {
-			const charCode = REMAP_CHARS[i];
-			let combos = this._remapChars[charCode];
-			if (combos === null) {
-				log(`Could not find any key combination producing '${String.fromCharCode(charCode)}'`);
-			} else if (combos.length > 1) {
-				combos.sort((a, b) => {
-					let aModCnt = (a.ctrlKey ? 1 : 0) + (a.altKey ? 1 : 0) + (a.shiftKey ? 1 : 0) + (a.metaKey ? 1 : 0);
-					let bModCnt = (b.ctrlKey ? 1 : 0) + (b.altKey ? 1 : 0) + (b.shiftKey ? 1 : 0) + (b.metaKey ? 1 : 0);
-					if (aModCnt === bModCnt) {
-						return a.code - b.code;
-					}
-					return aModCnt - bModCnt;
-				});
+		for (let i = 0; i < KeyboardEventCode.MAX_VALUE; i++) {
+			let base = (i << 3);
+			for (let j = 0; j < 8; j++) {
+				let actual = base + j;
+				let entry = this._hwToKb[actual];
+				if (typeof entry === 'undefined') {
+					log(`${KeyboardEventCodeUtils.toString(i)} - ${j.toString(2)} --- is missing`);
+				}
 			}
 		}
 	}
 
-	private static _getCharCode(char: string): number {
-		if (char.length === 0) {
-			return 0;
+	private _register(
+		hwCtrlKey: boolean, hwShiftKey: boolean, hwAltKey: boolean, code: KeyboardEventCode,
+		kbCtrlKey: boolean, kbShiftKey: boolean, kbAltKey: boolean, keyCode: KeyCode,
+	): void {
+		let hwEncoded = this._encode(hwCtrlKey, hwShiftKey, hwAltKey, code);
+		let kbEncoded = this._encode(kbCtrlKey, kbShiftKey, kbAltKey, keyCode);
+
+		this._hwToKb[hwEncoded] = kbEncoded;
+
+		if (keyCode !== KeyCode.Unknown) {
+			this._kbToHw[kbEncoded] = this._kbToHw[kbEncoded] || [];
+			this._kbToHw[kbEncoded].unshift(hwEncoded);
 		}
-		return this._combiningToRegularCharCode(char.charCodeAt(0));
+	}
+
+	private _registerIfUnknown(
+		hwCtrlKey: boolean, hwShiftKey: boolean, hwAltKey: boolean, code: KeyboardEventCode,
+		kbCtrlKey: boolean, kbShiftKey: boolean, kbAltKey: boolean, keyCode: KeyCode,
+	): void {
+		let hwEncoded = this._encode(hwCtrlKey, hwShiftKey, hwAltKey, code);
+		let kbEncoded = this._encode(kbCtrlKey, kbShiftKey, kbAltKey, keyCode);
+
+		let existing = this._hwToKb[hwEncoded] | 0;
+		let existingKeyCode = existing >>> 3;
+
+		if (existingKeyCode !== 0) {
+			return;
+		}
+
+		this._hwToKb[hwEncoded] = kbEncoded;
+
+		this._kbToHw[kbEncoded] = this._kbToHw[kbEncoded] || [];
+		this._kbToHw[kbEncoded].unshift(hwEncoded);
+	}
+
+	private _registerAllCombos1(
+		_ctrlKey: boolean, _shiftKey: boolean, _altKey: boolean, code: KeyboardEventCode,
+		keyCode: KeyCode,
+	): void {
+		for (let _ctrl = (_ctrlKey ? 1 : 0); _ctrl <= 1; _ctrl++) {
+			const ctrlKey = (_ctrl ? true : false);
+			for (let _shift = (_shiftKey ? 1 : 0); _shift <= 1; _shift++) {
+				const shiftKey = (_shift ? true : false);
+				for (let _alt = (_altKey ? 1 : 0); _alt <= 1; _alt++) {
+					const altKey = (_alt ? true : false);
+					this._registerIfUnknown(
+						ctrlKey, shiftKey, altKey, code,
+						ctrlKey, shiftKey, altKey, keyCode
+					);
+				}
+			}
+		}
+	}
+
+	private _registerAllCombos(
+		hwCtrlKey: boolean, hwShiftKey: boolean, hwAltKey: boolean, code: KeyboardEventCode,
+		kbShiftKey: boolean, keyCode: KeyCode,
+	): void {
+		this._register(
+			hwCtrlKey, hwShiftKey, hwAltKey, code,
+			false, kbShiftKey, false, keyCode
+		);
+
+		if (!kbShiftKey) {
+			for (let _ctrl = (hwCtrlKey ? 1 : 0); _ctrl <= 1; _ctrl++) {
+				const ctrlKey = (_ctrl ? true : false);
+				for (let _alt = (hwAltKey ? 1 : 0); _alt <= 1; _alt++) {
+					const altKey = (_alt ? true : false);
+					this._registerIfUnknown(
+						ctrlKey, hwShiftKey, altKey, code,
+						ctrlKey, kbShiftKey, altKey, keyCode
+					);
+					this._registerIfUnknown(
+						ctrlKey, true, altKey, code,
+						ctrlKey, true, altKey, keyCode
+					);
+				}
+			}
+		} else {
+			for (let _ctrl = (hwCtrlKey ? 1 : 0); _ctrl <= 1; _ctrl++) {
+				const ctrlKey = (_ctrl ? true : false);
+				for (let _alt = (hwAltKey ? 1 : 0); _alt <= 1; _alt++) {
+					const altKey = (_alt ? true : false);
+					this._registerIfUnknown(
+						ctrlKey, hwShiftKey, altKey, code,
+						ctrlKey, kbShiftKey, altKey, keyCode
+					);
+				}
+			}
+		}
+	}
+
+	private _registerCharCode(code: KeyboardEventCode, ctrlKey: boolean, shiftKey: boolean, altKey: boolean, charCode: number): void {
+
+		let _kb = KeyboardMapper._charCodeToKb(charCode);
+		let kb = _kb ? {
+			ctrlKey: false,
+			shiftKey: _kb.shiftKey,
+			altKey: false,
+			keyCode: _kb.keyCode
+		} : null;
+
+		if (!_kb) {
+			this._registerAllCombos1(ctrlKey, shiftKey, altKey, code, KeyCode.Unknown);
+			return;
+		}
+
+		this._registerAllCombos(
+			ctrlKey, shiftKey, altKey, code,
+			kb.shiftKey, kb.keyCode
+		);
+	}
+
+	public simpleKeybindingToHardwareKeypress(keybinding: SimpleKeybinding): HardwareKeypress[] {
+		const ctrlCmd = keybinding.hasCtrlCmd();
+		const winCtrl = keybinding.hasWinCtrl();
+		const ctrlKey = (this._OS === OperatingSystem.Macintosh ? winCtrl : ctrlCmd);
+		const metaKey = (this._OS === OperatingSystem.Macintosh ? ctrlCmd : winCtrl);
+		const shiftKey = keybinding.hasShift();
+		const altKey = keybinding.hasAlt();
+		const keyCode = keybinding.getKeyCode();
+
+		const kbEncoded = this._encode(ctrlKey, shiftKey, altKey, keyCode);
+		const hwEncoded = this._kbToHw[kbEncoded];
+
+		let result: HardwareKeypress[] = [];
+		if (hwEncoded) {
+			for (let i = 0, len = hwEncoded.length; i < len; i++) {
+				result[i] = this._decodeHw(hwEncoded[i], metaKey);
+			}
+		}
+		return result;
+	}
+
+	public hardwareKeypressToSimpleKeybinding(keypress: HardwareKeypress): SimpleKeybinding {
+		const hwEncoded = this._encode(keypress.ctrlKey, keypress.shiftKey, keypress.altKey, keypress.code);
+		const kbEncoded = this._hwToKb[hwEncoded];
+		if (!kbEncoded) {
+			return null;
+		}
+
+		return this._decodeKb(kbEncoded, keypress.metaKey);
+	}
+
+	public getUILabelForHardwareCode(code: KeyboardEventCode): string {
+		if (this._OS === OperatingSystem.Macintosh) {
+			switch (code) {
+				case KeyboardEventCode.ArrowLeft:
+					return '←';
+				case KeyboardEventCode.ArrowUp:
+					return '↑';
+				case KeyboardEventCode.ArrowRight:
+					return '→';
+				case KeyboardEventCode.ArrowDown:
+					return '↓';
+			}
+		}
+		return this._hwToLabel[code];
+	}
+
+	public getAriaLabelForHardwareCode(code: KeyboardEventCode): string {
+		return this._hwToLabel[code];
+	}
+
+	public resolveKeybinding(keybinding: Keybinding): NativeResolvedKeybinding[] {
+		let result: NativeResolvedKeybinding[] = [], resultLen = 0;
+
+		if (keybinding.isChord()) {
+			const firstParts = this.simpleKeybindingToHardwareKeypress(keybinding.extractFirstPart());
+			const chordParts = this.simpleKeybindingToHardwareKeypress(keybinding.extractChordPart());
+
+			for (let i = 0, len = firstParts.length; i < len; i++) {
+				const firstPart = firstParts[i];
+				for (let j = 0, lenJ = chordParts.length; j < lenJ; j++) {
+					const chordPart = chordParts[j];
+
+					result[resultLen++] = new NativeResolvedKeybinding(this, this._OS, firstPart, chordPart);
+				}
+			}
+		} else {
+			const firstParts = this.simpleKeybindingToHardwareKeypress(keybinding);
+
+			for (let i = 0, len = firstParts.length; i < len; i++) {
+				const firstPart = firstParts[i];
+
+				result[resultLen++] = new NativeResolvedKeybinding(this, this._OS, firstPart, null);
+			}
+		}
+
+		return result;
+	}
+
+	private static _charCodeToKb(charCode: number): { keyCode: KeyCode; shiftKey: boolean } {
+		if (charCode < CHAR_CODE_TO_KEY_CODE.length) {
+			return CHAR_CODE_TO_KEY_CODE[charCode];
+		}
+		return null;
 	}
 
 	/**
@@ -308,7 +440,11 @@ export class KeyboardMapper {
 	 * To the brave person following me: Good Luck!
 	 * https://www.compart.com/en/unicode/bidiclass/NSM
 	 */
-	private static _combiningToRegularCharCode(charCode: number): number {
+	private static _getCharCode(char: string): number {
+		if (char.length === 0) {
+			return 0;
+		}
+		const charCode = char.charCodeAt(0);
 		switch (charCode) {
 			case CharCode.U_Combining_Grave_Accent: return CharCode.U_GRAVE_ACCENT;
 			case CharCode.U_Combining_Acute_Accent: return CharCode.U_ACUTE_ACCENT;
@@ -325,311 +461,293 @@ export class KeyboardMapper {
 		return charCode;
 	}
 
-	private _register(code: KeyboardEventCode, ctrlKey: boolean, shiftKey: boolean, altKey: boolean, charCode: number): void {
-		if (charCode === 0) {
-			return;
-		}
-
-		if (REMAP_CHARS.indexOf(charCode) === -1) {
-			return;
-		}
-		if (REMAP_KEYBOARD_EVENT_CODES.indexOf(code) === -1) {
-			return;
-		}
-
-		let entry = new HardwareKeypress(ctrlKey, shiftKey, altKey, false, code);
-
-		if (this._remapChars[charCode] === null) {
-			// no duplicates so far
-			this._remapChars[charCode] = [entry];
-			return;
-		}
-
-		const list = this._remapChars[charCode];
-		// Do not register if it already sits under the same code
-		for (let i = 0, len = list.length; i < len; i++) {
-			if (list[i].code === code) {
-				return;
-			}
-		}
-		list.push(entry);
+	private _encode(ctrlKey: boolean, shiftKey: boolean, altKey: boolean, principal: number): number {
+		return (
+			((ctrlKey ? 1 : 0) << 0)
+			| ((shiftKey ? 1 : 0) << 1)
+			| ((altKey ? 1 : 0) << 2)
+			| principal << 3
+		) >>> 0;
 	}
 
-	private _doMapSimpleKeybinding(source: SimpleKeybinding, keyCombo: HardwareKeypress, ctrlKey: boolean, altKey: boolean, metaKey: boolean, charCode: number): HardwareKeypress {
-		if ((keyCombo.ctrlKey && ctrlKey) || (keyCombo.altKey && altKey)) {
-			cannotMapSimpleKeybinding(source, this._OS, `ctrl or alt modifiers are needed to produce '${String.fromCharCode(charCode)}'`);
-			return null;
-		}
+	private _decodeHw(hwEncoded: number, metaKey: boolean): HardwareKeypress {
+		const ctrlKey = (hwEncoded & 0b0001) ? true : false;
+		const shiftKey = (hwEncoded & 0b0010) ? true : false;
+		const altKey = (hwEncoded & 0b0100) ? true : false;
+		const code = (hwEncoded >>> 3);
 
-		const shiftKey = keyCombo.shiftKey;
-		if (keyCombo.ctrlKey) {
-			ctrlKey = true;
-		}
-		if (keyCombo.altKey) {
-			altKey = true;
-		}
-
-		return new HardwareKeypress(ctrlKey, shiftKey, altKey, metaKey, keyCombo.code);
+		return new HardwareKeypress(ctrlKey, shiftKey, altKey, metaKey, code);
 	}
 
-	private _mapSimpleKeybinding(source: SimpleKeybinding, ctrlKey: boolean, altKey: boolean, metaKey: boolean, charCode: number): HardwareKeypress[] {
-		const keyCombos = this._remapChars[charCode];
+	private _decodeKb(kbEncoded: number, metaKey: boolean): SimpleKeybinding {
+		const ctrlKey = (kbEncoded & 0b001) ? true : false;
+		const shiftKey = (kbEncoded & 0b010) ? true : false;
+		const altKey = (kbEncoded & 0b100) ? true : false;
+		const keyCode = (kbEncoded >>> 3);
 
-		let result: HardwareKeypress[] = [], resultLen = 0;
-		if (keyCombos !== null) {
-			for (let i = 0, len = keyCombos.length; i < len; i++) {
-				const keyCombo = keyCombos[i];
-				let oneResult = this._doMapSimpleKeybinding(source, keyCombo, ctrlKey, altKey, metaKey, charCode);
-				if (oneResult !== null) {
-					result[resultLen++] = oneResult;
-				}
-			}
-		} else {
-			cannotMapSimpleKeybinding(source, this._OS, `'${String.fromCharCode(charCode)}' cannot be produced`);
-		}
+		const ctrlCmd = (this._OS === OperatingSystem.Macintosh ? metaKey : ctrlKey);
+		const winCtrl = (this._OS === OperatingSystem.Macintosh ? ctrlKey : metaKey);
 
-		return result;
-	}
-
-	public mapSimpleKeybinding(keybinding: SimpleKeybinding): HardwareKeypress[] {
-		const ctrlCmd = keybinding.hasCtrlCmd();
-		const winCtrl = keybinding.hasWinCtrl();
-
-		const ctrlKey = (this._OS === OperatingSystem.Macintosh ? winCtrl : ctrlCmd);
-		const metaKey = (this._OS === OperatingSystem.Macintosh ? ctrlCmd : winCtrl);
-		const shiftKey = keybinding.hasShift();
-		const altKey = keybinding.hasAlt();
-		const keyCode = keybinding.getKeyCode();
-
-		if (IMMUTABLE_KEY_CODE_TO_CODE[keyCode] !== -1) {
-			const keyboardEventCode = IMMUTABLE_KEY_CODE_TO_CODE[keyCode];
-			return [new HardwareKeypress(ctrlKey, shiftKey, altKey, metaKey, keyboardEventCode)];
-		}
-
-		let desiredCharCode = 0;
-
-		if (keyCode >= KeyCode.KEY_A && keyCode <= KeyCode.KEY_Z) {
-			if (shiftKey) {
-				desiredCharCode = CharCode.A + (keyCode - KeyCode.KEY_A);
-			} else {
-				desiredCharCode = CharCode.a + (keyCode - KeyCode.KEY_A);
-			}
-		} else {
-			switch (keyCode) {
-				case KeyCode.US_SEMICOLON:
-					desiredCharCode = (!shiftKey ? CharCode.Semicolon : CharCode.Colon);
-					break;
-				case KeyCode.US_EQUAL:
-					desiredCharCode = (!shiftKey ? CharCode.Equals : CharCode.Plus);
-					break;
-				case KeyCode.US_COMMA:
-					desiredCharCode = (!shiftKey ? CharCode.Comma : CharCode.LessThan);
-					break;
-				case KeyCode.US_MINUS:
-					desiredCharCode = (!shiftKey ? CharCode.Dash : CharCode.Underline);
-					break;
-				case KeyCode.US_DOT:
-					desiredCharCode = (!shiftKey ? CharCode.Period : CharCode.GreaterThan);
-					break;
-				case KeyCode.US_SLASH:
-					desiredCharCode = (!shiftKey ? CharCode.Slash : CharCode.QuestionMark);
-					break;
-				case KeyCode.US_BACKTICK:
-					desiredCharCode = (!shiftKey ? CharCode.BackTick : CharCode.Tilde);
-					break;
-				case KeyCode.US_OPEN_SQUARE_BRACKET:
-					desiredCharCode = (!shiftKey ? CharCode.OpenSquareBracket : CharCode.OpenCurlyBrace);
-					break;
-				case KeyCode.US_BACKSLASH:
-					desiredCharCode = (!shiftKey ? CharCode.Backslash : CharCode.Pipe);
-					break;
-				case KeyCode.US_CLOSE_SQUARE_BRACKET:
-					desiredCharCode = (!shiftKey ? CharCode.CloseSquareBracket : CharCode.CloseCurlyBrace);
-					break;
-				case KeyCode.US_QUOTE:
-					desiredCharCode = (!shiftKey ? CharCode.SingleQuote : CharCode.DoubleQuote);
-					break;
-			}
-		}
-
-		if (desiredCharCode === 0) {
-			// OEM_8 = 91,
-			// OEM_102 = 92,
-			cannotMapSimpleKeybinding(keybinding, this._OS, `unknown character`);
-			return null;
-		}
-
-		return this._mapSimpleKeybinding(keybinding, ctrlKey, altKey, metaKey, desiredCharCode);
-	}
-
-	public getUILabelForHardwareCode(code: KeyboardEventCode): string {
-		return this._getLabelForHardwareCode(code, true);
-	}
-
-	public getAriaLabelForHardwareCode(code: KeyboardEventCode): string {
-		return this._getLabelForHardwareCode(code, false);
-	}
-
-	private _getLabelForHardwareCode(code: KeyboardEventCode, isUI: boolean): string {
-		if (isUI && this._OS === OperatingSystem.Macintosh) {
-			switch (code) {
-				case KeyboardEventCode.ArrowLeft:
-					return '←';
-				case KeyboardEventCode.ArrowUp:
-					return '↑';
-				case KeyboardEventCode.ArrowRight:
-					return '→';
-				case KeyboardEventCode.ArrowDown:
-					return '↓';
-			}
-		}
-		if (IMMUTABLE_CODE_TO_KEY_CODE[code] !== -1) {
-			const keyCode = IMMUTABLE_CODE_TO_KEY_CODE[code];
-			return KeyCodeUtils.toString(keyCode);
-		}
-
-		const mapping = this._mappings[code];
-		if (!mapping) {
-			// uh-oh
-			return 'Unknown';
-		}
-
-		if (mapping.value >= CharCode.a && mapping.value <= CharCode.z) {
-			return String.fromCharCode(CharCode.A + (mapping.value - CharCode.a));
-		}
-
-		if (mapping.value) {
-			return String.fromCharCode(mapping.value);
-		}
-
-		throw new Error('TODO!');
-	}
-
-	public resolveKeybinding(keybinding: Keybinding): NativeResolvedKeybinding[] {
-		let result: NativeResolvedKeybinding[] = [], resultLen = 0;
-
-		if (keybinding.isChord()) {
-			const firstParts = this.mapSimpleKeybinding(keybinding.extractFirstPart());
-			const chordParts = this.mapSimpleKeybinding(keybinding.extractChordPart());
-
-			for (let i = 0, len = firstParts.length; i < len; i++) {
-				const firstPart = firstParts[i];
-				for (let j = 0, lenJ = chordParts.length; j < lenJ; j++) {
-					const chordPart = chordParts[j];
-
-					result[resultLen++] = new NativeResolvedKeybinding(this, this._OS, firstPart, chordPart);
-				}
-			}
-		} else {
-			const firstParts = this.mapSimpleKeybinding(keybinding);
-
-			for (let i = 0, len = firstParts.length; i < len; i++) {
-				const firstPart = firstParts[i];
-
-				result[resultLen++] = new NativeResolvedKeybinding(this, this._OS, firstPart, null);
-			}
-		}
-
-		return result;
+		return new SimpleKeybinding(
+			(ctrlCmd ? KeyMod.CtrlCmd : 0)
+			| (winCtrl ? KeyMod.WinCtrl : 0)
+			| (shiftKey ? KeyMod.Shift : 0)
+			| (altKey ? KeyMod.Alt : 0)
+			| keyCode
+		);
 	}
 }
 
 (function () {
-	for (let i = 0; i <= KeyCode.MAX_VALUE; i++) {
-		IMMUTABLE_KEY_CODE_TO_CODE[i] = -1;
-	}
 	for (let i = 0; i <= KeyboardEventCode.MAX_VALUE; i++) {
 		IMMUTABLE_CODE_TO_KEY_CODE[i] = -1;
 	}
 
-	function d(keyCode: KeyCode, code: KeyboardEventCode): void {
-		IMMUTABLE_KEY_CODE_TO_CODE[keyCode] = code;
+	function define(code: KeyboardEventCode, keyCode: KeyCode): void {
 		IMMUTABLE_CODE_TO_KEY_CODE[code] = keyCode;
 	}
 
-	// Unknown = 0,
+	define(KeyboardEventCode.None, KeyCode.Unknown);
+	define(KeyboardEventCode.Hyper, KeyCode.Unknown);
+	define(KeyboardEventCode.Super, KeyCode.Unknown);
+	define(KeyboardEventCode.Fn, KeyCode.Unknown);
+	define(KeyboardEventCode.FnLock, KeyCode.Unknown);
+	define(KeyboardEventCode.Suspend, KeyCode.Unknown);
+	define(KeyboardEventCode.Resume, KeyCode.Unknown);
+	define(KeyboardEventCode.Turbo, KeyCode.Unknown);
+	define(KeyboardEventCode.Sleep, KeyCode.Unknown);
+	define(KeyboardEventCode.WakeUp, KeyCode.Unknown);
+	// define(KeyboardEventCode.KeyA, KeyCode.Unknown);
+	// define(KeyboardEventCode.KeyB, KeyCode.Unknown);
+	// define(KeyboardEventCode.KeyC, KeyCode.Unknown);
+	// define(KeyboardEventCode.KeyD, KeyCode.Unknown);
+	// define(KeyboardEventCode.KeyE, KeyCode.Unknown);
+	// define(KeyboardEventCode.KeyF, KeyCode.Unknown);
+	// define(KeyboardEventCode.KeyG, KeyCode.Unknown);
+	// define(KeyboardEventCode.KeyH, KeyCode.Unknown);
+	// define(KeyboardEventCode.KeyI, KeyCode.Unknown);
+	// define(KeyboardEventCode.KeyJ, KeyCode.Unknown);
+	// define(KeyboardEventCode.KeyK, KeyCode.Unknown);
+	// define(KeyboardEventCode.KeyL, KeyCode.Unknown);
+	// define(KeyboardEventCode.KeyM, KeyCode.Unknown);
+	// define(KeyboardEventCode.KeyN, KeyCode.Unknown);
+	// define(KeyboardEventCode.KeyO, KeyCode.Unknown);
+	// define(KeyboardEventCode.KeyP, KeyCode.Unknown);
+	// define(KeyboardEventCode.KeyQ, KeyCode.Unknown);
+	// define(KeyboardEventCode.KeyR, KeyCode.Unknown);
+	// define(KeyboardEventCode.KeyS, KeyCode.Unknown);
+	// define(KeyboardEventCode.KeyT, KeyCode.Unknown);
+	// define(KeyboardEventCode.KeyU, KeyCode.Unknown);
+	// define(KeyboardEventCode.KeyV, KeyCode.Unknown);
+	// define(KeyboardEventCode.KeyW, KeyCode.Unknown);
+	// define(KeyboardEventCode.KeyX, KeyCode.Unknown);
+	// define(KeyboardEventCode.KeyY, KeyCode.Unknown);
+	// define(KeyboardEventCode.KeyZ, KeyCode.Unknown);
+	// define(KeyboardEventCode.Digit1, KeyCode.Unknown);
+	// define(KeyboardEventCode.Digit2, KeyCode.Unknown);
+	// define(KeyboardEventCode.Digit3, KeyCode.Unknown);
+	// define(KeyboardEventCode.Digit4, KeyCode.Unknown);
+	// define(KeyboardEventCode.Digit5, KeyCode.Unknown);
+	// define(KeyboardEventCode.Digit6, KeyCode.Unknown);
+	// define(KeyboardEventCode.Digit7, KeyCode.Unknown);
+	// define(KeyboardEventCode.Digit8, KeyCode.Unknown);
+	// define(KeyboardEventCode.Digit9, KeyCode.Unknown);
+	// define(KeyboardEventCode.Digit0, KeyCode.Unknown);
+	define(KeyboardEventCode.Enter, KeyCode.Enter);
+	define(KeyboardEventCode.Escape, KeyCode.Escape);
+	define(KeyboardEventCode.Backspace, KeyCode.Backspace);
+	define(KeyboardEventCode.Tab, KeyCode.Tab);
+	define(KeyboardEventCode.Space, KeyCode.Space);
+	// define(KeyboardEventCode.Minus, KeyCode.Unknown);
+	// define(KeyboardEventCode.Equal, KeyCode.Unknown);
+	// define(KeyboardEventCode.BracketLeft, KeyCode.Unknown);
+	// define(KeyboardEventCode.BracketRight, KeyCode.Unknown);
+	// define(KeyboardEventCode.Backslash, KeyCode.Unknown);
+	// define(KeyboardEventCode.IntlHash, KeyCode.Unknown);
+	// define(KeyboardEventCode.Semicolon, KeyCode.Unknown);
+	// define(KeyboardEventCode.Quote, KeyCode.Unknown);
+	// define(KeyboardEventCode.Backquote, KeyCode.Unknown);
+	// define(KeyboardEventCode.Comma, KeyCode.Unknown);
+	// define(KeyboardEventCode.Period, KeyCode.Unknown);
+	// define(KeyboardEventCode.Slash, KeyCode.Unknown);
+	define(KeyboardEventCode.CapsLock, KeyCode.CapsLock);
+	define(KeyboardEventCode.F1, KeyCode.F1);
+	define(KeyboardEventCode.F2, KeyCode.F2);
+	define(KeyboardEventCode.F3, KeyCode.F3);
+	define(KeyboardEventCode.F4, KeyCode.F4);
+	define(KeyboardEventCode.F5, KeyCode.F5);
+	define(KeyboardEventCode.F6, KeyCode.F6);
+	define(KeyboardEventCode.F7, KeyCode.F7);
+	define(KeyboardEventCode.F8, KeyCode.F8);
+	define(KeyboardEventCode.F9, KeyCode.F9);
+	define(KeyboardEventCode.F10, KeyCode.F10);
+	define(KeyboardEventCode.F11, KeyCode.F11);
+	define(KeyboardEventCode.F12, KeyCode.F12);
+	define(KeyboardEventCode.PrintScreen, KeyCode.Unknown);
+	define(KeyboardEventCode.ScrollLock, KeyCode.ScrollLock);
+	define(KeyboardEventCode.Pause, KeyCode.PauseBreak);
+	define(KeyboardEventCode.Insert, KeyCode.Insert);
+	define(KeyboardEventCode.Home, KeyCode.Home);
+	define(KeyboardEventCode.PageUp, KeyCode.PageUp);
+	define(KeyboardEventCode.Delete, KeyCode.Delete);
+	define(KeyboardEventCode.End, KeyCode.End);
+	define(KeyboardEventCode.PageDown, KeyCode.PageDown);
+	define(KeyboardEventCode.ArrowRight, KeyCode.RightArrow);
+	define(KeyboardEventCode.ArrowLeft, KeyCode.LeftArrow);
+	define(KeyboardEventCode.ArrowDown, KeyCode.DownArrow);
+	define(KeyboardEventCode.ArrowUp, KeyCode.UpArrow);
+	define(KeyboardEventCode.NumLock, KeyCode.NumLock);
+	define(KeyboardEventCode.NumpadDivide, KeyCode.NUMPAD_DIVIDE);
+	define(KeyboardEventCode.NumpadMultiply, KeyCode.NUMPAD_MULTIPLY);
+	define(KeyboardEventCode.NumpadSubtract, KeyCode.NUMPAD_SUBTRACT);
+	define(KeyboardEventCode.NumpadAdd, KeyCode.NUMPAD_ADD);
+	define(KeyboardEventCode.NumpadEnter, KeyCode.Enter); // TODO
+	define(KeyboardEventCode.Numpad1, KeyCode.NUMPAD_1);
+	define(KeyboardEventCode.Numpad2, KeyCode.NUMPAD_2);
+	define(KeyboardEventCode.Numpad3, KeyCode.NUMPAD_3);
+	define(KeyboardEventCode.Numpad4, KeyCode.NUMPAD_4);
+	define(KeyboardEventCode.Numpad5, KeyCode.NUMPAD_5);
+	define(KeyboardEventCode.Numpad6, KeyCode.NUMPAD_6);
+	define(KeyboardEventCode.Numpad7, KeyCode.NUMPAD_7);
+	define(KeyboardEventCode.Numpad8, KeyCode.NUMPAD_8);
+	define(KeyboardEventCode.Numpad9, KeyCode.NUMPAD_9);
+	define(KeyboardEventCode.Numpad0, KeyCode.NUMPAD_0);
+	define(KeyboardEventCode.NumpadDecimal, KeyCode.NUMPAD_DECIMAL);
+	// define(KeyboardEventCode.IntlBackslash, KeyCode.Unknown);
+	define(KeyboardEventCode.ContextMenu, KeyCode.ContextMenu);
+	define(KeyboardEventCode.Power, KeyCode.Unknown);
+	define(KeyboardEventCode.NumpadEqual, KeyCode.Unknown);
+	define(KeyboardEventCode.F13, KeyCode.F13);
+	define(KeyboardEventCode.F14, KeyCode.F14);
+	define(KeyboardEventCode.F15, KeyCode.F15);
+	define(KeyboardEventCode.F16, KeyCode.F16);
+	define(KeyboardEventCode.F17, KeyCode.F17);
+	define(KeyboardEventCode.F18, KeyCode.F18);
+	define(KeyboardEventCode.F19, KeyCode.F19);
+	define(KeyboardEventCode.F20, KeyCode.Unknown);
+	define(KeyboardEventCode.F21, KeyCode.Unknown);
+	define(KeyboardEventCode.F22, KeyCode.Unknown);
+	define(KeyboardEventCode.F23, KeyCode.Unknown);
+	define(KeyboardEventCode.F24, KeyCode.Unknown);
+	define(KeyboardEventCode.Open, KeyCode.Unknown);
+	define(KeyboardEventCode.Help, KeyCode.Unknown);
+	define(KeyboardEventCode.Select, KeyCode.Unknown);
+	define(KeyboardEventCode.Again, KeyCode.Unknown);
+	define(KeyboardEventCode.Undo, KeyCode.Unknown);
+	define(KeyboardEventCode.Cut, KeyCode.Unknown);
+	define(KeyboardEventCode.Copy, KeyCode.Unknown);
+	define(KeyboardEventCode.Paste, KeyCode.Unknown);
+	define(KeyboardEventCode.Find, KeyCode.Unknown);
+	define(KeyboardEventCode.AudioVolumeMute, KeyCode.Unknown);
+	define(KeyboardEventCode.AudioVolumeUp, KeyCode.Unknown);
+	define(KeyboardEventCode.AudioVolumeDown, KeyCode.Unknown);
+	define(KeyboardEventCode.NumpadComma, KeyCode.NUMPAD_SEPARATOR);
+	define(KeyboardEventCode.IntlRo, KeyCode.Unknown);
+	define(KeyboardEventCode.KanaMode, KeyCode.Unknown);
+	define(KeyboardEventCode.IntlYen, KeyCode.Unknown);
+	define(KeyboardEventCode.Convert, KeyCode.Unknown);
+	define(KeyboardEventCode.NonConvert, KeyCode.Unknown);
+	define(KeyboardEventCode.Lang1, KeyCode.Unknown);
+	define(KeyboardEventCode.Lang2, KeyCode.Unknown);
+	define(KeyboardEventCode.Lang3, KeyCode.Unknown);
+	define(KeyboardEventCode.Lang4, KeyCode.Unknown);
+	define(KeyboardEventCode.Lang5, KeyCode.Unknown);
+	define(KeyboardEventCode.Abort, KeyCode.Unknown);
+	define(KeyboardEventCode.Props, KeyCode.Unknown);
+	define(KeyboardEventCode.NumpadParenLeft, KeyCode.Unknown);
+	define(KeyboardEventCode.NumpadParenRight, KeyCode.Unknown);
+	define(KeyboardEventCode.NumpadBackspace, KeyCode.Unknown);
+	define(KeyboardEventCode.NumpadMemoryStore, KeyCode.Unknown);
+	define(KeyboardEventCode.NumpadMemoryRecall, KeyCode.Unknown);
+	define(KeyboardEventCode.NumpadMemoryClear, KeyCode.Unknown);
+	define(KeyboardEventCode.NumpadMemoryAdd, KeyCode.Unknown);
+	define(KeyboardEventCode.NumpadMemorySubtract, KeyCode.Unknown);
+	define(KeyboardEventCode.NumpadClear, KeyCode.Unknown);
+	define(KeyboardEventCode.NumpadClearEntry, KeyCode.Unknown);
+	define(KeyboardEventCode.ControlLeft, KeyCode.Ctrl); // TODO
+	define(KeyboardEventCode.ShiftLeft, KeyCode.Shift); // TODO
+	define(KeyboardEventCode.AltLeft, KeyCode.Alt); // TODO
+	define(KeyboardEventCode.MetaLeft, KeyCode.Meta); // TODO
+	define(KeyboardEventCode.ControlRight, KeyCode.Ctrl); // TODO
+	define(KeyboardEventCode.ShiftRight, KeyCode.Shift); // TODO
+	define(KeyboardEventCode.AltRight, KeyCode.Alt); // TODO
+	define(KeyboardEventCode.MetaRight, KeyCode.Meta); // TODO
+	define(KeyboardEventCode.BrightnessUp, KeyCode.Unknown);
+	define(KeyboardEventCode.BrightnessDown, KeyCode.Unknown);
+	define(KeyboardEventCode.MediaPlay, KeyCode.Unknown);
+	define(KeyboardEventCode.MediaRecord, KeyCode.Unknown);
+	define(KeyboardEventCode.MediaFastForward, KeyCode.Unknown);
+	define(KeyboardEventCode.MediaRewind, KeyCode.Unknown);
+	define(KeyboardEventCode.MediaTrackNext, KeyCode.Unknown);
+	define(KeyboardEventCode.MediaTrackPrevious, KeyCode.Unknown);
+	define(KeyboardEventCode.MediaStop, KeyCode.Unknown);
+	define(KeyboardEventCode.Eject, KeyCode.Unknown);
+	define(KeyboardEventCode.MediaPlayPause, KeyCode.Unknown);
+	define(KeyboardEventCode.MediaSelect, KeyCode.Unknown);
+	define(KeyboardEventCode.LaunchMail, KeyCode.Unknown);
+	define(KeyboardEventCode.LaunchApp2, KeyCode.Unknown);
+	define(KeyboardEventCode.LaunchApp1, KeyCode.Unknown);
+	define(KeyboardEventCode.SelectTask, KeyCode.Unknown);
+	define(KeyboardEventCode.LaunchScreenSaver, KeyCode.Unknown);
+	define(KeyboardEventCode.BrowserSearch, KeyCode.Unknown);
+	define(KeyboardEventCode.BrowserHome, KeyCode.Unknown);
+	define(KeyboardEventCode.BrowserBack, KeyCode.Unknown);
+	define(KeyboardEventCode.BrowserForward, KeyCode.Unknown);
+	define(KeyboardEventCode.BrowserStop, KeyCode.Unknown);
+	define(KeyboardEventCode.BrowserRefresh, KeyCode.Unknown);
+	define(KeyboardEventCode.BrowserFavorites, KeyCode.Unknown);
+	define(KeyboardEventCode.ZoomToggle, KeyCode.Unknown);
+	define(KeyboardEventCode.MailReply, KeyCode.Unknown);
+	define(KeyboardEventCode.MailForward, KeyCode.Unknown);
+	define(KeyboardEventCode.MailSend, KeyCode.Unknown);
+})();
 
-	d(KeyCode.Backspace, KeyboardEventCode.Backspace);
-	d(KeyCode.Tab, KeyboardEventCode.Tab);
-	d(KeyCode.Enter, KeyboardEventCode.Enter);
+(function () {
+	function define(charCode: number, keyCode: KeyCode, shiftKey: boolean): void {
+		for (let i = CHAR_CODE_TO_KEY_CODE.length; i < charCode; i++) {
+			CHAR_CODE_TO_KEY_CODE[i] = null;
+		}
+		CHAR_CODE_TO_KEY_CODE[charCode] = { keyCode: keyCode, shiftKey: shiftKey };
+	}
 
-	d(KeyCode.Shift, KeyboardEventCode.ShiftLeft);
-	// TODO => ShiftLeft, ShiftRight
+	for (let chCode = CharCode.A; chCode <= CharCode.Z; chCode++) {
+		define(chCode, KeyCode.KEY_A + (chCode - CharCode.A), true);
+	}
 
-	d(KeyCode.Ctrl, KeyboardEventCode.ControlLeft);
-	// TODO => ControlLeft, ControlRight
+	for (let chCode = CharCode.a; chCode <= CharCode.z; chCode++) {
+		define(chCode, KeyCode.KEY_A + (chCode - CharCode.a), false);
+	}
 
-	d(KeyCode.Alt, KeyboardEventCode.AltLeft);
-	// TODO => AltLeft, AltRight
+	define(CharCode.Semicolon, KeyCode.US_SEMICOLON, false);
+	define(CharCode.Colon, KeyCode.US_SEMICOLON, true);
 
-	d(KeyCode.PauseBreak, KeyboardEventCode.Pause);
-	d(KeyCode.CapsLock, KeyboardEventCode.CapsLock);
-	d(KeyCode.Escape, KeyboardEventCode.Escape);
-	d(KeyCode.Space, KeyboardEventCode.Space);
-	d(KeyCode.PageUp, KeyboardEventCode.PageUp);
-	d(KeyCode.PageDown, KeyboardEventCode.PageDown);
-	d(KeyCode.End, KeyboardEventCode.End);
-	d(KeyCode.Home, KeyboardEventCode.Home);
-	d(KeyCode.LeftArrow, KeyboardEventCode.ArrowLeft);
-	d(KeyCode.UpArrow, KeyboardEventCode.ArrowUp);
-	d(KeyCode.RightArrow, KeyboardEventCode.ArrowRight);
-	d(KeyCode.DownArrow, KeyboardEventCode.ArrowDown);
-	d(KeyCode.Insert, KeyboardEventCode.Insert);
-	d(KeyCode.Delete, KeyboardEventCode.Delete);
+	define(CharCode.Equals, KeyCode.US_EQUAL, false);
+	define(CharCode.Plus, KeyCode.US_EQUAL, true);
 
-	d(KeyCode.KEY_0, KeyboardEventCode.Digit0);
-	d(KeyCode.KEY_1, KeyboardEventCode.Digit1);
-	d(KeyCode.KEY_2, KeyboardEventCode.Digit2);
-	d(KeyCode.KEY_3, KeyboardEventCode.Digit3);
-	d(KeyCode.KEY_4, KeyboardEventCode.Digit4);
-	d(KeyCode.KEY_5, KeyboardEventCode.Digit5);
-	d(KeyCode.KEY_6, KeyboardEventCode.Digit6);
-	d(KeyCode.KEY_7, KeyboardEventCode.Digit7);
-	d(KeyCode.KEY_8, KeyboardEventCode.Digit8);
-	d(KeyCode.KEY_9, KeyboardEventCode.Digit9);
+	define(CharCode.Comma, KeyCode.US_COMMA, false);
+	define(CharCode.LessThan, KeyCode.US_COMMA, true);
 
-	d(KeyCode.Meta, KeyboardEventCode.MetaLeft);
-	// TODO => MetaLeft, MetaRight
-	d(KeyCode.ContextMenu, KeyboardEventCode.ContextMenu);
+	define(CharCode.Dash, KeyCode.US_MINUS, false);
+	define(CharCode.Underline, KeyCode.US_MINUS, true);
 
-	d(KeyCode.F1, KeyboardEventCode.F1);
-	d(KeyCode.F2, KeyboardEventCode.F2);
-	d(KeyCode.F3, KeyboardEventCode.F3);
-	d(KeyCode.F4, KeyboardEventCode.F4);
-	d(KeyCode.F5, KeyboardEventCode.F5);
-	d(KeyCode.F6, KeyboardEventCode.F6);
-	d(KeyCode.F7, KeyboardEventCode.F7);
-	d(KeyCode.F8, KeyboardEventCode.F8);
-	d(KeyCode.F9, KeyboardEventCode.F9);
-	d(KeyCode.F10, KeyboardEventCode.F10);
-	d(KeyCode.F11, KeyboardEventCode.F11);
-	d(KeyCode.F12, KeyboardEventCode.F12);
-	d(KeyCode.F13, KeyboardEventCode.F13);
-	d(KeyCode.F14, KeyboardEventCode.F14);
-	d(KeyCode.F15, KeyboardEventCode.F15);
-	d(KeyCode.F16, KeyboardEventCode.F16);
-	d(KeyCode.F17, KeyboardEventCode.F17);
-	d(KeyCode.F18, KeyboardEventCode.F18);
-	d(KeyCode.F19, KeyboardEventCode.F19);
+	define(CharCode.Period, KeyCode.US_DOT, false);
+	define(CharCode.GreaterThan, KeyCode.US_DOT, true);
 
-	d(KeyCode.NumLock, KeyboardEventCode.NumLock);
-	d(KeyCode.ScrollLock, KeyboardEventCode.ScrollLock);
+	define(CharCode.Slash, KeyCode.US_SLASH, false);
+	define(CharCode.QuestionMark, KeyCode.US_SLASH, true);
 
-	d(KeyCode.NUMPAD_0, KeyboardEventCode.Numpad0);
-	d(KeyCode.NUMPAD_1, KeyboardEventCode.Numpad1);
-	d(KeyCode.NUMPAD_2, KeyboardEventCode.Numpad2);
-	d(KeyCode.NUMPAD_3, KeyboardEventCode.Numpad3);
-	d(KeyCode.NUMPAD_4, KeyboardEventCode.Numpad4);
-	d(KeyCode.NUMPAD_5, KeyboardEventCode.Numpad5);
-	d(KeyCode.NUMPAD_6, KeyboardEventCode.Numpad6);
-	d(KeyCode.NUMPAD_7, KeyboardEventCode.Numpad7);
-	d(KeyCode.NUMPAD_8, KeyboardEventCode.Numpad8);
-	d(KeyCode.NUMPAD_9, KeyboardEventCode.Numpad9);
+	define(CharCode.BackTick, KeyCode.US_BACKTICK, false);
+	define(CharCode.Tilde, KeyCode.US_BACKTICK, true);
 
-	d(KeyCode.NUMPAD_MULTIPLY, KeyboardEventCode.NumpadMultiply);
-	d(KeyCode.NUMPAD_ADD, KeyboardEventCode.NumpadAdd);
-	d(KeyCode.NUMPAD_SEPARATOR, KeyboardEventCode.NumpadComma);
-	d(KeyCode.NUMPAD_SUBTRACT, KeyboardEventCode.NumpadSubtract);
-	d(KeyCode.NUMPAD_DECIMAL, KeyboardEventCode.NumpadDecimal);
-	d(KeyCode.NUMPAD_DIVIDE, KeyboardEventCode.NumpadDivide);
+	define(CharCode.OpenSquareBracket, KeyCode.US_OPEN_SQUARE_BRACKET, false);
+	define(CharCode.OpenCurlyBrace, KeyCode.US_OPEN_SQUARE_BRACKET, true);
+
+	define(CharCode.Backslash, KeyCode.US_BACKSLASH, false);
+	define(CharCode.Pipe, KeyCode.US_BACKSLASH, true);
+
+	define(CharCode.CloseSquareBracket, KeyCode.US_CLOSE_SQUARE_BRACKET, false);
+	define(CharCode.CloseCurlyBrace, KeyCode.US_CLOSE_SQUARE_BRACKET, true);
+
+	define(CharCode.SingleQuote, KeyCode.US_QUOTE, false);
+	define(CharCode.DoubleQuote, KeyCode.US_QUOTE, true);
 })();

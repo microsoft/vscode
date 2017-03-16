@@ -58,15 +58,16 @@ export abstract class BaseTextEditor extends BaseEditor {
 		@IInstantiationService private _instantiationService: IInstantiationService,
 		@IStorageService private storageService: IStorageService,
 		@IConfigurationService private _configurationService: IConfigurationService,
-		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
+		@IWorkbenchThemeService protected themeService: IWorkbenchThemeService,
 		@IModeService private modeService: IModeService,
 		@ITextFileService private textFileService: ITextFileService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService
 	) {
-		super(id, telemetryService);
+		super(id, telemetryService, themeService);
 
 		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.handleConfigurationChangeEvent(e.config)));
-		this.toUnbind.push(themeService.onDidColorThemeChange(e => this.handleConfigurationChangeEvent()));
+		this.toUnbind.push(themeService.onDidColorThemeChange(e => this.handleConfigurationChangeEvent())); // TODO@theme this should be done from the editor itself and not from the outside
+
 	}
 
 	protected get instantiationService(): IInstantiationService {
