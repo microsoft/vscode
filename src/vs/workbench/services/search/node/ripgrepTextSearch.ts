@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import { EventEmitter } from 'events';
+
 import * as cp from 'child_process';
 import { rgPath } from 'vscode-ripgrep';
 
@@ -14,140 +16,62 @@ import { ILineMatch, IProgress } from 'vs/platform/search/common/search';
 import { ISerializedFileMatch, ISerializedSearchComplete, IRawSearch, ISearchEngine } from './search';
 
 export class RipgrepEngine implements ISearchEngine<ISerializedFileMatch> {
-	private static RESULT_REGEX = /^\u001b\[m(\d+)\u001b\[m:(.*)$/;
-	private static FILE_REGEX = /^\u001b\[m(.+)\u001b\[m$/;
-
-	private static MATCH_START_MARKER = '\u001b[m\u001b[31m';
-	private static MATCH_END_MARKER = '\u001b[m';
-
 	private isDone = false;
 	private rgProc: cp.ChildProcess;
-	private postProcessExclusions: glob.SiblingClause[] = [];
+	private postProcessExclusions: glob.SiblingClause[];
 
-	private numResults = 0;
+	private ripgrepParser: RipgrepParser;
 
 	constructor(private config: IRawSearch) {
 	}
 
 	cancel(): void {
 		this.isDone = true;
-
+		this.ripgrepParser.cancel();
 		this.rgProc.kill();
 	}
 
 	search(onResult: (match: ISerializedFileMatch) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISerializedSearchComplete) => void): void {
 		if (this.config.rootFolders.length) {
-			// Only a single root folder supported by VS Code right now
 			this.searchFolder(this.config.rootFolders[0], onResult, onProgress, done);
+		} else {
+			done(null, {
+				limitHit: false,
+				stats: null
+			});
 		}
 	}
 
 	private searchFolder(rootFolder: string, onResult: (match: ISerializedFileMatch) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISerializedSearchComplete) => void): void {
-		const rgArgs = this.getRgArgs(rootFolder);
+		const rgArgs = getRgArgs(this.config, rootFolder);
+		this.postProcessExclusions = rgArgs.siblingClauses;
+
 		// console.log(`rg ${rgArgs.join(' ')}, cwd: ${rootFolder}`);
-		this.rgProc = cp.spawn(rgPath, rgArgs, { cwd: rootFolder });
+		this.rgProc = cp.spawn(rgPath, rgArgs.args, { cwd: rootFolder });
 
-		let fileMatch: FileMatch;
-		let remainder: string;
+		this.ripgrepParser = new RipgrepParser(this.config.maxResults);
+		this.ripgrepParser.on('result', onResult);
+		this.ripgrepParser.on('hitLimit', () => {
+			this.cancel();
+			done(null, {
+				limitHit: true,
+				stats: null
+			});
+		});
+
 		this.rgProc.stdout.on('data', data => {
-			// If the previous data chunk didn't end in a newline, append it to this chunk
-			const dataStr = remainder ?
-				remainder + data.toString() :
-				data.toString();
-
-			const dataLines: string[] = dataStr.split(/\r\n|\n/);
-			remainder = dataLines.pop();
-
-			for (let l = 0; l < dataLines.length; l++) {
-				const outputLine = dataLines[l];
-				if (this.isDone) {
-					break;
-				}
-
-				let r = outputLine.match(RipgrepEngine.RESULT_REGEX);
-				if (r) {
-					// Line is a result - add to collected results for the current file path
-					const line = parseInt(r[1]) - 1;
-					const text = r[2];
-
-					const lineMatch = new LineMatch(text, line);
-					fileMatch.addMatch(lineMatch);
-
-					let lastMatchEndPos = 0;
-					let matchTextStartPos = -1;
-
-					// Track positions with color codes subtracted - offsets in the final text preview result
-					let matchTextStartRealIdx = -1;
-					let textRealIdx = 0;
-
-					const realTextParts: string[] = [];
-
-					for (let i = 0; i < text.length - (RipgrepEngine.MATCH_END_MARKER.length - 1);) {
-						if (text.substr(i, RipgrepEngine.MATCH_START_MARKER.length) === RipgrepEngine.MATCH_START_MARKER) {
-							// Match start
-							const chunk = text.slice(lastMatchEndPos, i);
-							realTextParts.push(chunk);
-							i += RipgrepEngine.MATCH_START_MARKER.length;
-							matchTextStartPos = i;
-							matchTextStartRealIdx = textRealIdx;
-						} else if (text.substr(i, RipgrepEngine.MATCH_END_MARKER.length) === RipgrepEngine.MATCH_END_MARKER) {
-							// Match end
-							const chunk = text.slice(matchTextStartPos, i);
-							realTextParts.push(chunk);
-							lineMatch.addMatch(matchTextStartRealIdx, textRealIdx - matchTextStartRealIdx);
-							matchTextStartPos = -1;
-							matchTextStartRealIdx = -1;
-							i += RipgrepEngine.MATCH_END_MARKER.length;
-							lastMatchEndPos = i;
-							this.numResults++;
-
-							if (this.numResults >= this.config.maxResults) {
-								this.cancel();
-								onResult(fileMatch.serialize());
-								done(null, {
-									limitHit: true,
-									stats: null
-								});
-							}
-						} else {
-							i++;
-							textRealIdx++;
-						}
-					}
-
-					const chunk = text.slice(lastMatchEndPos);
-					realTextParts.push(chunk);
-
-					const preview = realTextParts.join('');
-					lineMatch.preview = preview;
-				} else {
-					r = outputLine.match(RipgrepEngine.FILE_REGEX);
-					if (r) {
-						// Line is a file path - send all collected results for the previous file path
-						if (fileMatch) {
-							// Check fileMatch against other exclude globs, and fix numResults
-							onResult(fileMatch.serialize());
-						}
-
-						fileMatch = new FileMatch(r[1]);
-					} else {
-						// Line is empty (or malformed)
-					}
-				}
-			}
+			this.ripgrepParser.handleData(data);
 		});
 
 		this.rgProc.stderr.on('data', data => {
+			// TODO@rob remove console.logs
 			console.log('stderr:');
 			console.log(data.toString());
 		});
 
 		this.rgProc.on('close', code => {
 			this.rgProc = null;
-			console.log(`closed with ${code}`);
-			if (fileMatch) {
-				onResult(fileMatch.serialize());
-			}
+			// console.log(`closed with ${code}`);
 
 			if (!this.isDone) {
 				this.isDone = true;
@@ -158,64 +82,124 @@ export class RipgrepEngine implements ISearchEngine<ISerializedFileMatch> {
 			}
 		});
 	}
+}
 
-	private getRgArgs(rootFolder: string): string[] {
-		const args = ['--heading', '-uu', '--line-number', '--color', 'ansi', '--colors', 'path:none', '--colors', 'line:none', '--colors', 'match:fg:red', '--colors', 'match:style:nobold']; // -uu == Skip gitignore files, and hidden files/folders
-		args.push(this.config.contentPattern.isCaseSensitive ? '--case-sensitive' : '--ignore-case');
+export class RipgrepParser extends EventEmitter {
+	private static RESULT_REGEX = /^\u001b\[m(\d+)\u001b\[m:(.*)$/;
+	private static FILE_REGEX = /^\u001b\[m(.+)\u001b\[m$/;
 
-		if (this.config.includePattern) {
-			Object.keys(this.config.includePattern).forEach(inclKey => {
-				const inclValue = this.config.includePattern[inclKey];
-				if (typeof inclValue === 'boolean' && inclValue) {
-					// globs added to ripgrep don't match from the root by default, so add a /
-					if (inclKey.charAt(0) !== '*') {
-						inclKey = '/' + inclKey;
-					}
+	private static MATCH_START_MARKER = '\u001b[m\u001b[31m';
+	private static MATCH_END_MARKER = '\u001b[m';
 
-					args.push('-g', inclKey);
-				} else if (inclValue && inclValue.when) {
-					// Possible?
-				}
-			});
-		}
+	private fileMatch: FileMatch;
+	private remainder: string;
+	private isDone: boolean;
 
-		if (this.config.excludePattern) {
-			Object.keys(this.config.excludePattern).forEach(exclKey => {
-				const exclValue = this.config.excludePattern[exclKey];
-				if (typeof exclValue === 'boolean' && exclValue) {
-					// globs added to ripgrep don't match from the root by default, so add a /
-					if (exclKey.charAt(0) !== '*') {
-						exclKey = '/' + exclKey;
-					}
+	private numResults = 0;
 
-					args.push('-g', `!${exclKey}`);
-				} else if (exclValue && exclValue.when) {
-					this.postProcessExclusions.push(exclValue);
-				}
-			});
-		}
+	constructor(private maxResults: number) {
+		super();
+	}
 
-		if (this.config.maxFilesize) {
-			args.push('--max-filesize', this.config.maxFilesize + '');
-		}
+	public cancel(): void {
+		this.isDone = true;
+	}
 
-		if (this.config.contentPattern.isRegExp) {
-			if (this.config.contentPattern.isWordMatch) {
-				args.push('--word-regexp');
+	public handleData(data: string | Buffer): void {
+		// If the previous data chunk didn't end in a newline, append it to this chunk
+		const dataStr = this.remainder ?
+			this.remainder + data.toString() :
+			data.toString();
+
+		const dataLines: string[] = dataStr.split(/\r\n|\n/);
+		this.remainder = dataLines[dataLines.length - 1] ? dataLines.pop() : null;
+
+		for (let l = 0; l < dataLines.length; l++) {
+			const outputLine = dataLines[l].trim();
+			if (this.isDone) {
+				break;
 			}
 
-			args.push('--regexp', this.config.contentPattern.pattern);
-		} else {
-			if (this.config.contentPattern.isWordMatch) {
-				args.push('--word-regexp', '--regexp', strings.escapeRegExpCharacters(this.config.contentPattern.pattern));
+			let r: RegExpMatchArray;
+			if (!outputLine) {
+				if (this.fileMatch) {
+					this.onResult();
+				}
+			} else if (r = outputLine.match(RipgrepParser.RESULT_REGEX)) {
+				// Line is a result - add to collected results for the current file path
+				this.handleMatchLine(outputLine, parseInt(r[1]) - 1, r[2]);
+			} else if (r = outputLine.match(RipgrepParser.FILE_REGEX)) {
+				// Line is a file path - send all collected results for the previous file path
+				if (this.fileMatch) {
+					// TODO@Rob Check fileMatch against other exclude globs
+					this.onResult();
+				}
+
+				this.fileMatch = new FileMatch(r[1]);
 			} else {
-				args.push('--fixed-strings', this.config.contentPattern.pattern);
+				// Line is malformed
+			}
+		}
+	}
+
+	private handleMatchLine(outputLine: string, lineNum: number, text: string): void {
+		const lineMatch = new LineMatch(text, lineNum);
+		this.fileMatch.addMatch(lineMatch);
+
+		let lastMatchEndPos = 0;
+		let matchTextStartPos = -1;
+
+		// Track positions with color codes subtracted - offsets in the final text preview result
+		let matchTextStartRealIdx = -1;
+		let textRealIdx = 0;
+
+		const realTextParts: string[] = [];
+
+		// todo@Rob Consider just rewriting with a regex. I think perf will be fine.
+		for (let i = 0; i < text.length - (RipgrepParser.MATCH_END_MARKER.length - 1);) {
+			if (text.substr(i, RipgrepParser.MATCH_START_MARKER.length) === RipgrepParser.MATCH_START_MARKER) {
+				// Match start
+				const chunk = text.slice(lastMatchEndPos, i);
+				realTextParts.push(chunk);
+				i += RipgrepParser.MATCH_START_MARKER.length;
+				matchTextStartPos = i;
+				matchTextStartRealIdx = textRealIdx;
+			} else if (text.substr(i, RipgrepParser.MATCH_END_MARKER.length) === RipgrepParser.MATCH_END_MARKER) {
+				// Match end
+				const chunk = text.slice(matchTextStartPos, i);
+				realTextParts.push(chunk);
+				lineMatch.addMatch(matchTextStartRealIdx, textRealIdx - matchTextStartRealIdx);
+				matchTextStartPos = -1;
+				matchTextStartRealIdx = -1;
+				i += RipgrepParser.MATCH_END_MARKER.length;
+				lastMatchEndPos = i;
+				this.numResults++;
+
+				this.checkHitLimit();
+			} else {
+				i++;
+				textRealIdx++;
 			}
 		}
 
-		args.push('--', rootFolder);
+		const chunk = text.slice(lastMatchEndPos);
+		realTextParts.push(chunk);
 
-		return args;
+		const preview = realTextParts.join('');
+		lineMatch.preview = preview;
+	}
+
+	private onResult(): void {
+		this.emit('result', this.fileMatch.serialize());
+		this.fileMatch = null;
+	}
+
+	private checkHitLimit(): void {
+		if (this.numResults >= this.maxResults) {
+			this.cancel();
+			this.onResult();
+			this.emit('hitLimit');
+		}
 	}
 }
 
@@ -286,4 +270,69 @@ export class LineMatch implements ILineMatch {
 
 		return result;
 	}
+}
+
+function globExprsToRgGlobs(patterns: glob.IExpression): { globArgs: string[], siblingClauses: glob.SiblingClause[] } {
+	const globArgs: string[] = [];
+	const siblingClauses: glob.SiblingClause[] = [];
+	Object.keys(patterns)
+		.forEach(key => {
+			const value = patterns[key];
+			if (typeof value === 'boolean' && value) {
+				// globs added to ripgrep don't match from the root by default, so add a /
+				if (key.charAt(0) !== '*') {
+					key = '/' + key;
+				}
+
+				globArgs.push(key);
+			} else if (value && value.when) {
+				siblingClauses.push(value);
+			}
+		});
+
+	return { globArgs, siblingClauses };
+}
+
+function getRgArgs(config: IRawSearch, rootFolder: string): { args: string[], siblingClauses: glob.SiblingClause[] } {
+	// -uu == Skip gitignore files, and hidden files/folders
+	const args = ['--heading', '-uu', '--line-number', '--color', 'ansi', '--colors', 'path:none', '--colors', 'line:none', '--colors', 'match:fg:red', '--colors', 'match:style:nobold'];
+	args.push(config.contentPattern.isCaseSensitive ? '--case-sensitive' : '--ignore-case');
+
+	if (config.includePattern) {
+		// I don't think includePattern can have siblingClauses
+		globExprsToRgGlobs(config.includePattern).globArgs.forEach(globArg => {
+			args.push('-g', globArg);
+		});
+	}
+
+	let siblingClauses: glob.SiblingClause[] = [];
+	if (config.excludePattern) {
+		const rgGlobs = globExprsToRgGlobs(config.excludePattern);
+		rgGlobs.globArgs
+			.forEach(rgGlob => args.push('-g', `!${rgGlob}`));
+		siblingClauses = rgGlobs.siblingClauses;
+	}
+
+	if (config.maxFilesize) {
+		args.push('--max-filesize', config.maxFilesize + '');
+	}
+
+	if (config.contentPattern.isRegExp) {
+		if (config.contentPattern.isWordMatch) {
+			args.push('--word-regexp');
+		}
+
+		args.push('--regexp', config.contentPattern.pattern);
+	} else {
+		if (config.contentPattern.isWordMatch) {
+			args.push('--word-regexp', '--regexp', strings.escapeRegExpCharacters(config.contentPattern.pattern));
+		} else {
+			args.push('--fixed-strings', config.contentPattern.pattern);
+		}
+	}
+
+	// Folder to search
+	args.push('--', rootFolder);
+
+	return { args, siblingClauses };
 }
