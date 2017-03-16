@@ -101,6 +101,8 @@ import SCMPreview from 'vs/workbench/parts/scm/browser/scmPreview';
 import { readdir } from 'vs/base/node/pfs';
 import { join } from 'path';
 import 'vs/platform/opener/browser/opener.contribution';
+import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/themeService';
+import { WorkbenchThemeService } from 'vs/workbench/services/themes/electron-browser/themeService';
 
 /**
  * Services that we require for the Shell
@@ -131,6 +133,7 @@ export class WorkbenchShell {
 	private windowsService: IWindowsService;
 	private windowIPCService: IWindowIPCService;
 	private timerService: ITimerService;
+	private themeService: WorkbenchThemeService;
 
 	private container: HTMLElement;
 	private toUnbind: IDisposable[];
@@ -213,7 +216,7 @@ export class WorkbenchShell {
 			'workbench.filesToCreate': filesToCreate && filesToCreate.length || undefined,
 			'workbench.filesToDiff': filesToDiff && filesToDiff.length || undefined,
 			customKeybindingsCount: info.customKeybindingsCount,
-			theme: info.themeId,
+			theme: this.themeService.getColorTheme().id,
 			language: platform.language,
 			experiments: this.telemetryService.getExperiments(),
 			pinnedViewlets: info.pinnedViewlets
@@ -377,6 +380,9 @@ export class WorkbenchShell {
 		this.extensionService.onReady().done(() => {
 			this.timerService.afterExtensionLoad = new Date();
 		});
+
+		this.themeService = instantiationService.createInstance(WorkbenchThemeService, document.body);
+		serviceCollection.set(IWorkbenchThemeService, this.themeService);
 
 		serviceCollection.set(ICommandService, new SyncDescriptor(CommandService));
 

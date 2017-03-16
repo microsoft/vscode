@@ -16,14 +16,16 @@ import { StringEditorInput } from 'vs/workbench/common/editor/stringEditorInput'
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
-import { workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
+import { workbenchInstantiationService, TestThemeService } from 'vs/workbench/test/workbenchTestServices';
+
+const NullThemeService = new TestThemeService();
 
 let EditorRegistry: IEditorRegistry = Platform.Registry.as(Extensions.Editors);
 
 export class MyEditor extends BaseEditor {
 
 	constructor(id: string, @ITelemetryService telemetryService: ITelemetryService) {
-		super(id, telemetryService);
+		super(id, NullTelemetryService, NullThemeService);
 	}
 
 	getId(): string {
@@ -42,7 +44,7 @@ export class MyEditor extends BaseEditor {
 export class MyOtherEditor extends BaseEditor {
 
 	constructor(id: string, @ITelemetryService telemetryService: ITelemetryService) {
-		super(id, telemetryService);
+		super(id, NullTelemetryService, NullThemeService);
 	}
 
 	getId(): string {

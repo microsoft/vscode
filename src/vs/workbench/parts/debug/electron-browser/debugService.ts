@@ -764,10 +764,6 @@ export class DebugService implements debug.IDebugService {
 					this.viewletService.openViewlet(debug.VIEWLET_ID);
 				}
 
-				// Do not change status bar to orange if we are just running without debug.
-				if (!configuration.noDebug) {
-					this.partService.addClass('debugging');
-				}
 				this.extensionService.activateByEvent(`onDebug:${configuration.type}`).done(null, errors.onUnexpectedError);
 				this.inDebugMode.set(true);
 				this.debugType.set(configuration.type);
@@ -919,20 +915,16 @@ export class DebugService implements debug.IDebugService {
 		const bpsExist = this.model.getBreakpoints().length > 0;
 		const process = this.model.getProcesses().filter(p => p.getId() === session.getId()).pop();
 		this.telemetryService.publicLog('debugSessionStop', {
-			type: process.configuration.type,
+			type: process && process.configuration.type,
 			success: session.emittedStopped || !bpsExist,
 			sessionLengthInSeconds: session.getLengthInSeconds(),
 			breakpointCount: this.model.getBreakpoints().length,
 			watchExpressionsCount: this.model.getWatchExpressions().length
 		});
 
-		try {
-			this.toDisposeOnSessionEnd.set(session.getId(), lifecycle.dispose(this.toDisposeOnSessionEnd.get(session.getId())));
-		} catch (e) {
-			// an internal module might be open so the dispose can throw -> ignore and continue with stop session.
-		}
+		this.model.removeProcess(session.getId());
 
-		this.model.removeProcess(process.getId());
+		this.toDisposeOnSessionEnd.set(session.getId(), lifecycle.dispose(this.toDisposeOnSessionEnd.get(session.getId())));
 		const focusedProcess = this.viewModel.focusedProcess;
 		if (focusedProcess && focusedProcess.getId() === session.getId()) {
 			this.focusStackFrameAndEvaluate(null).done(null, errors.onUnexpectedError);
@@ -940,7 +932,6 @@ export class DebugService implements debug.IDebugService {
 		this.updateStateAndEmit(session.getId(), debug.State.Inactive);
 
 		if (this.model.getProcesses().length === 0) {
-			this.partService.removeClass('debugging');
 			// set breakpoints back to unverified since the session ended.
 			const data: { [id: string]: { line: number, verified: boolean } } = {};
 			this.model.getBreakpoints().forEach(bp => {

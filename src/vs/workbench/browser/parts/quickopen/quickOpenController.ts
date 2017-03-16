@@ -32,7 +32,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { getIconClasses } from 'vs/workbench/browser/labels';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { EditorInput, toResource, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
-import { WorkbenchComponent } from 'vs/workbench/common/component';
+import { Component } from 'vs/workbench/common/component';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { KeyMod } from 'vs/base/common/keyCodes';
@@ -48,6 +48,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IListService } from 'vs/platform/list/browser/listService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 const HELP_PREFIX = '?';
 
@@ -72,7 +73,7 @@ interface IInternalPickOptions {
 	onDidType?: (value: string) => any;
 }
 
-export class QuickOpenController extends WorkbenchComponent implements IQuickOpenService {
+export class QuickOpenController extends Component implements IQuickOpenService {
 
 	private static MAX_SHORT_RESPONSE_TIME = 500;
 
@@ -108,9 +109,10 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 		@IHistoryService private historyService: IHistoryService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IPartService private partService: IPartService,
-		@IListService private listService: IListService
+		@IListService private listService: IListService,
+		@IThemeService themeService: IThemeService
 	) {
-		super(QuickOpenController.ID);
+		super(QuickOpenController.ID, themeService);
 
 		this.mapResolvedHandlersToPrefix = {};
 		this.handlerOnOpenCalled = {};
