@@ -46,10 +46,12 @@ export class ExceptionWidget extends ZoneWidget {
 	}
 
 	protected _doLayout(heightInPixel: number, widthInPixel: number): void {
-		// Reload the height with respect to the exception text content and relayout it to match the line count.
-		this.container.style.height = 'initial';
+		if (this._viewZone) {
+			// Reload the height with respect to the exception text content and relayout it to match the line count.
+			this.container.style.height = 'initial';
 
-		const computedLinesNumber = Math.ceil(this.container.offsetHeight / this.editor.getConfiguration().fontInfo.lineHeight);
-		this._relayout(computedLinesNumber);
+			const computedLinesNumber = Math.ceil(this.container.offsetHeight / this.editor.getConfiguration().fontInfo.lineHeight);
+			this._relayout(computedLinesNumber);
+		}
 	}
 }
