@@ -128,7 +128,7 @@ export class PreferencesEditor extends BaseEditor {
 			placeholder: nls.localize('SearchSettingsWidget.Placeholder', "Search Settings")
 		}));
 		this._register(this.searchWidget.onDidChange(value => this.filterPreferences(value.trim())));
-		this._register(this.searchWidget.onEnter(shift => this.preferencesRenderers.focusNextPreference(!shift)));
+		this._register(this.searchWidget.onNavigate(shift => this.preferencesRenderers.focusNextPreference(!shift)));
 
 		this.settingsTabsWidget = this._register(this.instantiationService.createInstance(SettingsTabsWidget, this.headerContainer));
 		this._register(this.settingsTabsWidget.onSwitch(() => this.switchSettings()));
