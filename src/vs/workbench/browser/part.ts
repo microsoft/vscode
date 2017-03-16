@@ -40,6 +40,10 @@ export abstract class Part extends Component {
 		}
 	}
 
+	protected updateStyles(): void {
+		// Subclasses to override
+	}
+
 	/**
 	 * Note: Clients should not call this method, the workbench calls this
 	 * method. Calling it otherwise may result in unexpected behavior.
@@ -52,6 +56,8 @@ export abstract class Part extends Component {
 		this.contentArea = this.createContentArea(parent);
 
 		this.partLayout = new PartLayout(this.parent, this.options, this.titleArea, this.contentArea);
+
+		this.updateStyles();
 	}
 
 	/**
@@ -66,6 +72,13 @@ export abstract class Part extends Component {
 	 */
 	protected createTitleArea(parent: Builder): Builder {
 		return null;
+	}
+
+	/**
+	 * Returns the title area container.
+	 */
+	protected getTitleArea(): Builder {
+		return this.titleArea;
 	}
 
 	/**

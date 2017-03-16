@@ -127,8 +127,6 @@ export class StatusbarPart extends Part implements IStatusbarService {
 			return dispose;
 		}));
 
-		this.updateStyles();
-
 		return this.statusItemsContainer;
 	}
 
