@@ -28,7 +28,7 @@ import { IFilesConfiguration } from 'vs/workbench/parts/files/common/files';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IFileOperationResult, FileOperationResult, IFileService, isEqual, isParent } from 'vs/platform/files/common/files';
 import { ResourceMap } from 'vs/base/common/map';
-import { DuplicateFileAction, ImportFileAction, keybindingForAction, IEditableData, IFileViewletState } from 'vs/workbench/parts/files/browser/fileActions';
+import { DuplicateFileAction, ImportFileAction, IEditableData, IFileViewletState } from 'vs/workbench/parts/files/browser/fileActions';
 import { IDataSource, ITree, IElementCallback, IAccessibilityProvider, IRenderer, ContextMenuEvent, ISorter, IFilter, IDragAndDrop, IDragAndDropData, IDragOverReaction, DRAG_OVER_ACCEPT_BUBBLE_DOWN, DRAG_OVER_ACCEPT_BUBBLE_DOWN_COPY, DRAG_OVER_ACCEPT_BUBBLE_UP, DRAG_OVER_ACCEPT_BUBBLE_UP_COPY, DRAG_OVER_REJECT } from 'vs/base/parts/tree/browser/tree';
 import { DesktopDragAndDropData, ExternalElementsDragAndDropData } from 'vs/base/parts/tree/browser/treeDnd';
 import { ClickBehavior, DefaultController } from 'vs/base/parts/tree/browser/treeDefaults';
@@ -484,7 +484,7 @@ export class FileController extends DefaultController {
 				});
 			},
 			getActionItem: this.state.actionProvider.getActionItem.bind(this.state.actionProvider, tree, stat),
-			getKeyBinding: (a): ResolvedKeybinding => keybindingForAction(a.id, this.keybindingService),
+			getKeyBinding: (a): ResolvedKeybinding => this.keybindingService.lookupKeybinding(a.id),
 			getActionsContext: (event) => {
 				return {
 					viewletState: this.state,

@@ -174,13 +174,7 @@ export class TerminalPanel extends Panel {
 					getAnchor: () => anchor,
 					getActions: () => TPromise.as(this._getContextMenuActions()),
 					getActionsContext: () => this._parentDomElement,
-					getKeyBinding: (action) => {
-						const kb = this._keybindingService.lookupKeybinding(action.id);
-						if (kb) {
-							return kb;
-						}
-						return null;
-					}
+					getKeyBinding: (action) => this._keybindingService.lookupKeybinding(action.id)
 				});
 			}
 			this._cancelContextMenu = false;
