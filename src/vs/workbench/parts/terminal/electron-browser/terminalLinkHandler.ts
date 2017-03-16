@@ -119,18 +119,15 @@ export class TerminalLinkHandler {
 		let toDispose: IDisposable[] = [];
 		toDispose.push(dom.addDisposableListener(window, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			if (e.key === 'Control') {
-				console.log('add');
 				element.classList.add('ctrl-held');
 			}
 		}));
 		toDispose.push(dom.addDisposableListener(window, dom.EventType.KEY_UP, (e: KeyboardEvent) => {
 			if (e.key === 'Control') {
-				console.log('remove');
 				element.classList.remove('ctrl-held');
 			}
 		}));
 		toDispose.push(dom.addDisposableListener(element, dom.EventType.CLICK, (e: MouseEvent) => {
-			console.log('click');
 			element.classList.remove('ctrl-held');
 		}));
 		toDispose.push(dom.addDisposableListener(element, dom.EventType.MOUSE_OVER, () => {
@@ -145,11 +142,11 @@ export class TerminalLinkHandler {
 				isMessageShowing = true;
 			}, 500);
 		}));
-		element.addEventListener('mouseleave', () => {
+		toDispose.push(dom.addDisposableListener(element, dom.EventType.MOUSE_OUT, () => {
 			clearTimeout(timeout);
 			this._widgetManager.closeMessage();
 			isMessageShowing = false;
-		});
+		}));
 	}
 
 	private _resolvePath(link: string): TPromise<string> {
