@@ -11,7 +11,7 @@ import { isMacintosh } from 'vs/base/common/platform';
 import { ActionItem, BaseActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Scope, IActionBarRegistry, Extensions as ActionBarExtensions, ActionBarContributor } from 'vs/workbench/browser/actionBarRegistry';
 import { IEditorInputActionContext, IEditorInputAction, EditorInputActionContributor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { GlobalNewUntitledFileAction, SaveFileAsAction, OpenFileAction, ShowOpenedFileInNewWindow, CopyPathAction, GlobalCopyPathAction, RevealInOSAction, GlobalRevealInOSAction, pasteIntoFocusedFilesExplorerViewItem, FocusOpenEditorsView, FocusFilesExplorer, GlobalCompareResourcesAction, GlobalNewFileAction, GlobalNewFolderAction, RevertFileAction, SaveFilesAction, SaveAllAction, SaveFileAction, keybindingForAction, MoveFileToTrashAction, TriggerRenameFileAction, PasteFileAction, CopyFileAction, SelectResourceForCompareAction, CompareResourcesAction, NewFolderAction, NewFileAction, OpenToSideAction, ShowActiveFileInExplorer, CollapseExplorerView, RefreshExplorerView } from 'vs/workbench/parts/files/browser/fileActions';
+import { GlobalNewUntitledFileAction, SaveFileAsAction, OpenFileAction, ShowOpenedFileInNewWindow, CopyPathAction, GlobalCopyPathAction, RevealInOSAction, GlobalRevealInOSAction, pasteIntoFocusedFilesExplorerViewItem, FocusOpenEditorsView, FocusFilesExplorer, GlobalCompareResourcesAction, GlobalNewFileAction, GlobalNewFolderAction, RevertFileAction, SaveFilesAction, SaveAllAction, SaveFileAction, MoveFileToTrashAction, TriggerRenameFileAction, PasteFileAction, CopyFileAction, SelectResourceForCompareAction, CompareResourcesAction, NewFolderAction, NewFileAction, OpenToSideAction, ShowActiveFileInExplorer, CollapseExplorerView, RefreshExplorerView } from 'vs/workbench/parts/files/browser/fileActions';
 import { RevertLocalChangesAction, AcceptLocalChangesAction, CONFLICT_RESOLUTION_SCHEME } from 'vs/workbench/parts/files/browser/saveErrorHandler';
 import { SyncActionDescriptor, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
@@ -28,6 +28,7 @@ import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/c
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { explorerItemToFileResource, ExplorerFocusCondition, FilesExplorerFocusCondition } from 'vs/workbench/parts/files/common/files';
+import { isEqual } from 'vs/platform/files/common/files';
 
 class FilesViewerActionContributor extends ActionBarContributor {
 
@@ -90,7 +91,7 @@ class FilesViewerActionContributor extends ActionBarContributor {
 		}
 
 		const workspace = this.contextService.getWorkspace();
-		const isRoot = workspace && stat.resource.toString() === workspace.resource.toString();
+		const isRoot = workspace && isEqual(stat.resource.fsPath, workspace.resource.fsPath);
 
 		// Copy File/Folder
 		if (!isRoot) {
@@ -132,7 +133,7 @@ class FilesViewerActionContributor extends ActionBarContributor {
 		if (context && context.element instanceof FileStat) {
 
 			// Any other item with keybinding
-			const keybinding = keybindingForAction(action.id, this.keybindingService);
+			const keybinding = this.keybindingService.lookupKeybinding(action.id);
 			if (keybinding) {
 				return new ActionItem(context, action, { label: true, keybinding: keybinding.getLabel() });
 			}

@@ -642,6 +642,7 @@ export class TextEditorOptions extends EditorOptions {
 		options.revealIfVisible = settings.revealIfVisible;
 		options.pinned = settings.pinned;
 		options.index = settings.index;
+		options.inactive = settings.inactive;
 
 		if (settings.selection) {
 			options.startLineNumber = settings.selection.startLineNumber;
@@ -842,8 +843,8 @@ export interface IEditorStacksModel {
 	positionOfGroup(group: IEditorGroup): Position;
 	groupAt(position: Position): IEditorGroup;
 
-	next(jumpGroups: boolean): IEditorIdentifier;
-	previous(jumpGroups: boolean): IEditorIdentifier;
+	next(jumpGroups: boolean, cycleAtEnd?: boolean): IEditorIdentifier;
+	previous(jumpGroups: boolean, cycleAtStart?: boolean): IEditorIdentifier;
 
 	isOpen(editor: IEditorInput): boolean;
 	isOpen(resource: URI): boolean;
@@ -905,7 +906,7 @@ export interface IWorkbenchEditorConfiguration {
 			showIcons: boolean;
 			enablePreview: boolean;
 			enablePreviewFromQuickOpen: boolean;
-			closeOnExternalFileDelete: boolean;
+			closeOnFileDelete: boolean;
 			openPositioning: 'left' | 'right' | 'first' | 'last';
 			revealIfOpen: boolean;
 		}

@@ -25,7 +25,7 @@ export class RGBA {
 	 */
 	public readonly a: number;
 
-	constructor(r: number, g: number, b: number, a: number) {
+	constructor(r: number, g: number, b: number, a: number = 255) {
 		this.r = RGBA._clampInt_0_255(r);
 		this.g = RGBA._clampInt_0_255(g);
 		this.b = RGBA._clampInt_0_255(b);
@@ -420,4 +420,13 @@ export class Color {
 		factor = factor * (lum1 - lum2) / lum1;
 		return of.darken(factor);
 	}
+
+	public static readonly white = new Color(new RGBA(255, 255, 255, 255));
+	public static readonly black = new Color(new RGBA(0, 0, 0, 255));
+	public static readonly red = new Color(new RGBA(255, 0, 0, 255));
+	public static readonly blue = new Color(new RGBA(0, 0, 255, 255));
+	public static readonly green = new Color(new RGBA(0, 255, 0, 255));
+	public static readonly cyan = new Color(new RGBA(0, 255, 255, 255));
+	public static readonly lightgrey = new Color(new RGBA(211, 211, 211, 255));
+	public static readonly transparent = new Color(new RGBA(0, 0, 0, 0));
 }

@@ -78,7 +78,3 @@
 .monaco-workbench > .part > .content  .progress-container .progress-bit {
 	height: 2px;
 }
-
-.monaco-workbench > .part > .status {
-	display: none; /* Parts have to opt in to show status area */
-}

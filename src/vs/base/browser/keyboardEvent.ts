@@ -220,6 +220,8 @@ export class StandardKeyboardEvent implements IKeyboardEvent {
 		this.metaKey = this.metaKey || this.keyCode === KeyCode.Meta;
 
 		this._asKeybinding = this._computeKeybinding();
+
+		// console.log(`code: ${e.code}, keyCode: ${e.keyCode}, key: ${e.key}`);
 	}
 
 	public preventDefault(): void {

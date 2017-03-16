@@ -571,9 +571,25 @@ export type Keybinding = SimpleKeybinding | ChordKeybinding;
  * A resolved keybinding.
  */
 export abstract class ResolvedKeybinding {
+	/**
+	 * This prints the binding in a format suitable for displaying in the UI.
+	 */
 	public abstract getLabel(): string;
+	/**
+	 * This prints the binding in a format suitable for ARIA.
+	 */
 	public abstract getAriaLabel(): string;
+	/**
+	 * This prints the binding in a format suitable for displaying in the UI.
+	 */
 	public abstract getHTMLLabel(): IHTMLContentElement[];
+	/**
+	 * This prints the binding in a format suitable for electron's accelerators.
+	 * See https://github.com/electron/electron/blob/master/docs/api/accelerator.md
+	 */
 	public abstract getElectronAccelerator(): string;
+	/**
+	 * This prints the binding in a format suitable for user settings.
+	 */
 	public abstract getUserSettingsLabel(): string;
 }

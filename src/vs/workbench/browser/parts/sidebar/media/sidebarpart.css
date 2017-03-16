@@ -12,6 +12,14 @@
 	visibility: hidden !important;
 }
 
+.hc-black .monaco-workbench > .sidebar.left {
+	border-right: 1px solid;
+}
+
+.hc-black .monaco-workbench > .sidebar.right {
+	border-left: 1px solid;
+}
+
 .monaco-workbench .viewlet .collapsible.header .title {
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -55,19 +63,19 @@
 /* TODO@theme */
 
 .vs .monaco-workbench > .sidebar > .title > .title-actions {
-	background-color: rgb(243, 243, 243);
+	background-color: #f3f3f3;
 }
 
 .vs-dark .monaco-workbench > .sidebar > .title > .title-actions {
-	background-color: rgb(37, 37, 38);
+	background-color: #252526;
 }
 
 .hc-black .monaco-workbench > .sidebar.left {
-	border-right: 1px solid #6FC3DF;
+	border-right-color: #6FC3DF;
 }
 
 .hc-black .monaco-workbench > .sidebar.right {
-	border-left: 1px solid #6FC3DF;
+	border-left-color: #6FC3DF;
 }
 
 .hc-black .monaco-workbench > .sidebar > .title > .title-actions {

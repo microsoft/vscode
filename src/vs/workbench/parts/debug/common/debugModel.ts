@@ -100,17 +100,35 @@ export class ExpressionContainer implements IExpressionContainer {
 
 	public valueChanged: boolean;
 	private _value: string;
+	protected children: TPromise<IExpression[]>;
 
 	constructor(
 		protected process: IProcess,
-		public reference: number,
+		private _reference: number,
 		private id: string,
 		public namedVariables = 0,
 		public indexedVariables = 0,
 		private startOfVariables = 0
 	) { }
 
+	public get reference(): number {
+		return this._reference;
+	}
+
+	public set reference(value: number) {
+		this._reference = value;
+		this.children = undefined; // invalidate children cache
+	}
+
 	public getChildren(): TPromise<IExpression[]> {
+		if (!this.children) {
+			this.children = this.doGetChildren();
+		}
+
+		return this.children;
+	}
+
+	private doGetChildren(): TPromise<IExpression[]> {
 		if (!this.hasChildren) {
 			return TPromise.as([]);
 		}
@@ -370,7 +388,8 @@ export class StackFrame implements IStackFrame {
 	}
 
 	public openInEditor(editorService: IWorkbenchEditorService, preserveFocus?: boolean, sideBySide?: boolean): TPromise<any> {
-		return editorService.openEditor({
+
+		return this.source.name === UNKNOWN_SOURCE_LABEL ? TPromise.as(null) : editorService.openEditor({
 			resource: this.source.uri,
 			description: this.source.origin,
 			options: {
@@ -449,11 +468,13 @@ export class Thread implements IThread {
 
 			return response.body.stackFrames.map((rsf, level) => {
 				if (!rsf) {
-					return new StackFrame(this, 0, new Source({ name: UNKNOWN_SOURCE_LABEL }, true), nls.localize('unknownStack', "Unknown stack location"), null, null);
+					return new StackFrame(this, 0, new Source({ name: UNKNOWN_SOURCE_LABEL }, rsf.presentationHint), nls.localize('unknownStack', "Unknown stack location"), null, null);
 				}
-				let source = rsf.source ? new Source(rsf.source, rsf.source.presentationHint === 'deemphasize') : new Source({ name: UNKNOWN_SOURCE_LABEL }, true);
+				let source = rsf.source ? new Source(rsf.source, rsf.source.presentationHint) : new Source({ name: UNKNOWN_SOURCE_LABEL }, rsf.presentationHint);
 				if (this.process.sources.has(source.uri.toString())) {
-					source = this.process.sources.get(source.uri.toString());
+					const alreadyCreatedSource = this.process.sources.get(source.uri.toString());
+					alreadyCreatedSource.presenationHint = source.presenationHint;
+					source = alreadyCreatedSource;
 				} else {
 					this.process.sources.set(source.uri.toString(), source);
 				}
@@ -607,7 +628,7 @@ export class Process implements IProcess {
 				label: item.label,
 				insertText: item.text || item.label,
 				type: item.type,
-				filterText: item.start && item.length && text.substr(item.start, item.length),
+				filterText: item.start && item.length && text.substr(item.start, item.length).concat(item.label),
 				overwriteBefore: item.length || overwriteBefore
 			})) : [];
 		}, err => []);
@@ -972,7 +993,7 @@ export class Model implements IModel {
 	public deemphasizeSource(uri: uri): void {
 		this.processes.forEach(p => {
 			if (p.sources.has(uri.toString())) {
-				p.sources.get(uri.toString()).deemphasize = true;
+				p.sources.get(uri.toString()).presenationHint = 'deemphasize';
 			}
 		});
 		this._onDidChangeCallStack.fire();

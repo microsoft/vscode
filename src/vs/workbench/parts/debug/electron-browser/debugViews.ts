@@ -120,8 +120,7 @@ export class VariablesView extends CollapsibleViewletView {
 				this.onFocusStackFrameScheduler.schedule();
 			}
 		}));
-		this.toDispose.push(this.debugService.onDidChangeState(() => {
-			const state = this.debugService.state;
+		this.toDispose.push(this.debugService.onDidChangeState(state => {
 			collapseAction.enabled = state === State.Running || state === State.Stopped;
 		}));
 

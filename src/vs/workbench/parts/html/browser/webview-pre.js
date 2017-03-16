@@ -132,6 +132,10 @@ document.addEventListener("DOMContentLoaded", function (event) {
 
 		// write new content onto iframe
 		newFrame.contentDocument.open('text/html', 'replace');
+		newFrame.contentWindow.onbeforeunload = function (e) {
+			console.log('prevented webview navigation');
+			return false;
+		};
 
 		// workaround for https://github.com/Microsoft/vscode/issues/12865
 		// check new scrollTop and reset if neccessary

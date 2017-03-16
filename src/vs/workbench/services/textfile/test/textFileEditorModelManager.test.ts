@@ -15,8 +15,9 @@ import { workbenchInstantiationService, TestEditorGroupService, createFileInput,
 import { onError } from 'vs/base/test/common/utils';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
-import { IFileService } from 'vs/platform/files/common/files';
+import { IFileService, FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/modelService';
+import { isLinux } from 'vs/base/common/platform';
 
 export class TestTextFileEditorModelManager extends TextFileEditorModelManager {
 
@@ -55,12 +56,20 @@ suite('Files - TextFileEditorModelManager', () => {
 		const model2: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource('/path/random2.txt'), 'utf8');
 		const model3: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource('/path/random3.txt'), 'utf8');
 
-		manager.add(URI.file('/test.html'), <any>model1);
-		manager.add(URI.file('/some/other.html'), <any>model2);
-		manager.add(URI.file('/some/this.txt'), <any>model3);
+		manager.add(URI.file('/test.html'), model1);
+		manager.add(URI.file('/some/other.html'), model2);
+		manager.add(URI.file('/some/this.txt'), model3);
+
+		const fileUpper = URI.file('/TEST.html');
 
 		assert(!manager.get(URI.file('foo')));
 		assert.strictEqual(manager.get(URI.file('/test.html')), model1);
+
+		if (isLinux) {
+			assert.ok(!manager.get(fileUpper));
+		} else {
+			assert.strictEqual(manager.get(fileUpper), model1);
+		}
 
 		let result = manager.getAll();
 		assert.strictEqual(3, result.length);
@@ -74,15 +83,29 @@ suite('Files - TextFileEditorModelManager', () => {
 		result = manager.getAll(URI.file('/some/other.html'));
 		assert.strictEqual(1, result.length);
 
+		result = manager.getAll(fileUpper);
+		if (isLinux) {
+			assert.strictEqual(0, result.length);
+		} else {
+			assert.strictEqual(1, result.length);
+		}
+
 		manager.remove(URI.file(''));
 
 		result = manager.getAll();
 		assert.strictEqual(3, result.length);
 
-		manager.remove(URI.file('/test.html'));
-
+		manager.remove(URI.file('/some/other.html'));
 		result = manager.getAll();
 		assert.strictEqual(2, result.length);
+
+		manager.remove(fileUpper);
+		result = manager.getAll();
+		if (isLinux) {
+			assert.strictEqual(2, result.length);
+		} else {
+			assert.strictEqual(1, result.length);
+		}
 
 		manager.clear();
 		result = manager.getAll();
@@ -127,9 +150,9 @@ suite('Files - TextFileEditorModelManager', () => {
 		const model2: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource('/path/random2.txt'), 'utf8');
 		const model3: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource('/path/random3.txt'), 'utf8');
 
-		manager.add(URI.file('/test.html'), <any>model1);
-		manager.add(URI.file('/some/other.html'), <any>model2);
-		manager.add(URI.file('/some/this.txt'), <any>model3);
+		manager.add(URI.file('/test.html'), model1);
+		manager.add(URI.file('/some/other.html'), model2);
+		manager.add(URI.file('/some/this.txt'), model3);
 
 		assert.strictEqual(manager.get(URI.file('/test.html')), model1);
 
@@ -169,6 +192,9 @@ suite('Files - TextFileEditorModelManager', () => {
 	});
 
 	test('events', function (done) {
+		TextFileEditorModel.DEFAULT_CONTENT_CHANGE_BUFFER_DELAY = 0;
+		TextFileEditorModel.DEFAULT_ORPHANED_CHANGE_BUFFER_DELAY = 0;
+
 		const manager: TestTextFileEditorModelManager = instantiationService.createInstance(TestTextFileEditorModelManager);
 
 		const resource1 = toResource('/path/index.txt');
@@ -178,34 +204,44 @@ suite('Files - TextFileEditorModelManager', () => {
 		let revertedCounter = 0;
 		let savedCounter = 0;
 		let encodingCounter = 0;
+		let orphanedCounter = 0;
 		let disposeCounter = 0;
 		let contentCounter = 0;
 
-		TextFileEditorModel.DEFAULT_CONTENT_CHANGE_BUFFER_DELAY = 0;
-
 		manager.onModelDirty(e => {
-			dirtyCounter++;
-			assert.equal(e.resource.toString(), resource1.toString());
+			if (e.resource.toString() === resource1.toString()) {
+				dirtyCounter++;
+			}
 		});
 
 		manager.onModelReverted(e => {
-			revertedCounter++;
-			assert.equal(e.resource.toString(), resource1.toString());
+			if (e.resource.toString() === resource1.toString()) {
+				revertedCounter++;
+			}
 		});
 
 		manager.onModelSaved(e => {
-			savedCounter++;
-			assert.equal(e.resource.toString(), resource1.toString());
+			if (e.resource.toString() === resource1.toString()) {
+				savedCounter++;
+			}
 		});
 
 		manager.onModelEncodingChanged(e => {
-			encodingCounter++;
-			assert.equal(e.resource.toString(), resource1.toString());
+			if (e.resource.toString() === resource1.toString()) {
+				encodingCounter++;
+			}
+		});
+
+		manager.onModelOrphanedChanged(e => {
+			if (e.resource.toString() === resource1.toString()) {
+				orphanedCounter++;
+			}
 		});
 
 		manager.onModelContentChanged(e => {
-			contentCounter++;
-			assert.equal(e.resource.toString(), resource1.toString());
+			if (e.resource.toString() === resource1.toString()) {
+				contentCounter++;
+			}
 		});
 
 		manager.onModelDisposed(e => {
@@ -213,6 +249,9 @@ suite('Files - TextFileEditorModelManager', () => {
 		});
 
 		manager.loadOrCreate(resource1, 'utf8').done(model1 => {
+			accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource: resource1, type: FileChangeType.DELETED }]));
+			accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource: resource1, type: FileChangeType.ADDED }]));
+
 			return manager.loadOrCreate(resource2, 'utf8').then(model2 => {
 				model1.textEditorModel.setValue('changed');
 				model1.updatePreferredEncoding('utf16');
@@ -232,8 +271,9 @@ suite('Files - TextFileEditorModelManager', () => {
 							assert.equal(encodingCounter, 2);
 
 							// content change event if done async
-							TPromise.timeout(0).then(() => {
+							TPromise.timeout(10).then(() => {
 								assert.equal(contentCounter, 2);
+								assert.equal(orphanedCounter, 1);
 
 								model1.dispose();
 								model2.dispose();

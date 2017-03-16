@@ -38,6 +38,12 @@
 	white-space: nowrap;
 }
 
+/* List overrides */
+
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row.focused { background-color: #DCEBFC; }
+.vs-dark .monaco-editor .suggest-widget .monaco-list .monaco-list-row.focused { background-color: #073655; }
+.hc-black .monaco-editor .suggest-widget .monaco-list .monaco-list-row.focused { outline: 1px dotted #f38518; outline-offset: -1px; background: transparent }
+
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents {
 	flex: 1;
 	height: 100%;

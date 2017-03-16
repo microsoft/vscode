@@ -84,11 +84,6 @@
 	background: url('stackframe-and-breakpoint.svg') center center no-repeat;
 }
 
-/* Status */
-.monaco-workbench.debugging > .part.statusbar {
-	background: #CC6633 !important;
-}
-
 /* Error editor */
 .debug-error-editor:focus {
 	outline: none !important;

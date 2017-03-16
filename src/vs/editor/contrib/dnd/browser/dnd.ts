@@ -6,7 +6,7 @@
 'use strict';
 
 import 'vs/css!./dnd';
-import { IMouseEvent } from "vs/base/browser/mouseEvent";
+import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { isWindows } from 'vs/base/common/platform';
 import { ICodeEditor, IEditorMouseEvent, IMouseTarget } from 'vs/editor/browser/editorBrowser';

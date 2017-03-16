@@ -35,6 +35,7 @@ export interface IQueryOptions {
 	sortByScore?: boolean;
 	cacheKey?: string;
 	fileEncoding?: string;
+	useRipgrep?: boolean;
 }
 
 export interface ISearchQuery extends IQueryOptions {
@@ -127,6 +128,7 @@ export class LineMatch implements ILineMatch {
 export interface ISearchConfiguration extends IFilesConfiguration {
 	search: {
 		exclude: IExpression;
+		useRipgrep: boolean;
 	};
 }
 

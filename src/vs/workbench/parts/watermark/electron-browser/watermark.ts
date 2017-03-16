@@ -5,7 +5,7 @@
 'use strict';
 
 import 'vs/css!./watermark';
-import { $ } from 'vs/base/browser/builder';
+import { $, Builder } from 'vs/base/browser/builder';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
 import { isMacintosh } from 'vs/base/common/platform';
@@ -13,9 +13,11 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import * as nls from 'vs/nls';
 import { Registry } from 'vs/platform/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { GlobalQuickOpenAction } from 'vs/workbench/browser/parts/quickopen/quickopen.contribution';
 import { KeybindingsReferenceAction, OpenRecentAction } from 'vs/workbench/electron-browser/actions';
 import { ShowRecommendedKeymapExtensionsAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
@@ -130,17 +132,34 @@ const UNBOUND = nls.localize('watermark.unboundCommand', "unbound");
 export class WatermarkContribution implements IWorkbenchContribution {
 
 	private toDispose: IDisposable[] = [];
+	private watermark: Builder;
+	private enabled: boolean;
 
 	constructor(
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IPartService private partService: IPartService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@ITelemetryService private telemetryService: ITelemetryService
+		@ITelemetryService private telemetryService: ITelemetryService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		lifecycleService.onShutdown(this.dispose, this);
 		this.partService.joinCreation().then(() => {
-			this.create();
+			this.enabled = this.configurationService.lookup<boolean>('workbench.tips.enabled').value;
+			if (this.enabled) {
+				this.create();
+			}
+		});
+		this.configurationService.onDidUpdateConfiguration(e => {
+			const enabled = this.configurationService.lookup<boolean>('workbench.tips.enabled').value;
+			if (enabled !== this.enabled) {
+				this.enabled = enabled;
+				if (this.enabled) {
+					this.create();
+				} else {
+					this.destroy();
+				}
+			}
 		});
 	}
 
@@ -150,10 +169,11 @@ export class WatermarkContribution implements IWorkbenchContribution {
 
 	private create(): void {
 		const container = this.partService.getContainer(Parts.EDITOR_PART);
+		container.classList.add('has-watermark');
 
-		const watermark = $()
+		this.watermark = $()
 			.div({ 'class': 'watermark' });
-		const box = $(watermark)
+		const box = $(this.watermark)
 			.div({ 'class': 'watermark-box' });
 		const folder = this.contextService.hasWorkspace();
 		const newUser = this.telemetryService.getExperiments().showNewUserWatermark;
@@ -184,10 +204,18 @@ export class WatermarkContribution implements IWorkbenchContribution {
 			container.classList[height <= 478 ? 'add' : 'remove']('max-height-478px');
 		};
 		update();
-		watermark.build(container.firstElementChild as HTMLElement, 0);
+		this.watermark.build(container.firstElementChild as HTMLElement, 0);
 		layout();
 		this.toDispose.push(this.keybindingService.onDidUpdateKeybindings(update));
 		this.toDispose.push(this.partService.onEditorLayout(layout));
+	}
+
+	private destroy(): void {
+		if (this.watermark) {
+			this.watermark.destroy();
+			this.partService.getContainer(Parts.EDITOR_PART).classList.remove('has-watermark');
+			this.dispose();
+		}
 	}
 
 	public dispose(): void {
@@ -197,3 +225,17 @@ export class WatermarkContribution implements IWorkbenchContribution {
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(WatermarkContribution);
+
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
+	.registerConfiguration({
+		'id': 'workbench',
+		'order': 7,
+		'title': nls.localize('workbenchConfigurationTitle', "Workbench"),
+		'properties': {
+			'workbench.tips.enabled': {
+				'type': 'boolean',
+				'default': true,
+				'description': nls.localize('tips.enabled', "When enabled, will show the watermark tips when no editor is open.")
+			},
+		}
+	});

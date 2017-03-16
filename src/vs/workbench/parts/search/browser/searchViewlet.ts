@@ -30,7 +30,7 @@ import { Scope } from 'vs/workbench/common/memento';
 import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { getOutOfWorkspaceEditorResources } from 'vs/workbench/common/editor';
-import { FileChangeType, FileChangesEvent, IFileService } from 'vs/platform/files/common/files';
+import { FileChangeType, FileChangesEvent, IFileService, isEqual } from 'vs/platform/files/common/files';
 import { Viewlet } from 'vs/workbench/browser/viewlet';
 import { Match, FileMatch, SearchModel, FileMatchOrMatch, IChangeEvent, ISearchWorkbenchService } from 'vs/workbench/parts/search/common/searchModel';
 import { QueryBuilder } from 'vs/workbench/parts/search/common/searchQuery';
@@ -58,6 +58,8 @@ import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/un
 import { OpenFolderAction, OpenFileFolderAction } from 'vs/workbench/browser/actions/fileActions';
 import * as Constants from 'vs/workbench/parts/search/common/constants';
 import { IListService } from 'vs/platform/list/browser/listService';
+import { IThemeService, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
+import { editorFindMatchHighlight } from 'vs/platform/theme/common/colorRegistry';
 
 export class SearchViewlet extends Viewlet {
 
@@ -112,9 +114,10 @@ export class SearchViewlet extends Viewlet {
 		@IReplaceService private replaceService: IReplaceService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IPreferencesService private preferencesService: IPreferencesService,
-		@IListService private listService: IListService
+		@IListService private listService: IListService,
+		@IThemeService protected themeService: IThemeService
 	) {
-		super(Constants.VIEWLET_ID, telemetryService);
+		super(Constants.VIEWLET_ID, telemetryService, themeService);
 
 		this.toDispose = [];
 		this.viewletVisible = Constants.SearchViewletVisibleKey.bindTo(contextKeyService);
@@ -137,6 +140,14 @@ export class SearchViewlet extends Viewlet {
 
 	private onConfigurationUpdated(configuration: any): void {
 		this.updateGlobalPatternExclusions(configuration);
+	}
+
+	protected updateStyles(theme: ITheme, collector: ICssStyleCollector) {
+		let matchHighlightColor = theme.getColor(editorFindMatchHighlight);
+		if (matchHighlightColor) {
+			collector.addRule(`.search-viewlet .findInFileMatch { background-color: ${matchHighlightColor}; }`);
+			collector.addRule(`.search-viewlet .highlight { background-color: ${matchHighlightColor}; }`);
+		}
 	}
 
 	public create(parent: Builder): TPromise<void> {
@@ -881,7 +892,7 @@ export class SearchViewlet extends Viewlet {
 			return;
 		}
 
-		if (workspace.resource.toString() === resource.toString()) {
+		if (isEqual(workspace.resource.fsPath, resource.fsPath)) {
 			this.inputPatternIncludes.setValue('');
 			this.searchWidget.focus();
 			return;
@@ -979,8 +990,11 @@ export class SearchViewlet extends Viewlet {
 
 		// Progress total is 100.0% for more progress bar granularity
 		let progressTotal = 1000;
-		let progressRunner = this.progressService.show(progressTotal);
 		let progressWorked = 0;
+
+		let progressRunner = query.useRipgrep ?
+			this.progressService.show(/*infinite=*/true) :
+			this.progressService.show(progressTotal);
 
 		this.loading = true;
 		this.searchWidget.searchInput.clearMessage();
@@ -1006,7 +1020,7 @@ export class SearchViewlet extends Viewlet {
 			isDone = true;
 
 			// Complete up to 100% as needed
-			if (completed) {
+			if (completed && !query.useRipgrep) {
 				progressRunner.worked(progressTotal - progressWorked);
 				setTimeout(() => progressRunner.done(), 200);
 			} else {
@@ -1135,26 +1149,28 @@ export class SearchViewlet extends Viewlet {
 				return;
 			}
 
-			// Progress bar update
-			let fakeProgress = true;
-			if (total > 0 && worked > 0) {
-				let ratio = Math.round((worked / total) * progressTotal);
-				if (ratio > progressWorked) { // never show less progress than what we have already
-					progressRunner.worked(ratio - progressWorked);
-					progressWorked = ratio;
-					fakeProgress = false;
+			if (!query.useRipgrep) {
+				// Progress bar update
+				let fakeProgress = true;
+				if (total > 0 && worked > 0) {
+					let ratio = Math.round((worked / total) * progressTotal);
+					if (ratio > progressWorked) { // never show less progress than what we have already
+						progressRunner.worked(ratio - progressWorked);
+						progressWorked = ratio;
+						fakeProgress = false;
+					}
 				}
-			}
 
-			// Fake progress up to 90%, or when actual progress beats it
-			const fakeMax = 900;
-			const fakeMultiplier = 12;
-			if (fakeProgress && progressWorked < fakeMax) {
-				// Linearly decrease the rate of fake progress.
-				// 1 is the smallest allowed amount of progress.
-				const fakeAmt = Math.round((fakeMax - progressWorked) / fakeMax * fakeMultiplier) || 1;
-				progressWorked += fakeAmt;
-				progressRunner.worked(fakeAmt);
+				// Fake progress up to 90%, or when actual progress beats it
+				const fakeMax = 900;
+				const fakeMultiplier = 12;
+				if (fakeProgress && progressWorked < fakeMax) {
+					// Linearly decrease the rate of fake progress.
+					// 1 is the smallest allowed amount of progress.
+					const fakeAmt = Math.round((fakeMax - progressWorked) / fakeMax * fakeMultiplier) || 1;
+					progressWorked += fakeAmt;
+					progressRunner.worked(fakeAmt);
+				}
 			}
 
 			// Search result tree update
@@ -1177,7 +1193,7 @@ export class SearchViewlet extends Viewlet {
 
 		this.searchWidget.setReplaceAllActionState(false);
 		// this.replaceService.disposeAllReplacePreviews();
-		this.viewModel.search(query).done(onComplete, onError, onProgress);
+		this.viewModel.search(query).done(onComplete, onError, query.useRipgrep ? undefined : onProgress);
 	}
 
 	private updateSearchResultCount(): void {

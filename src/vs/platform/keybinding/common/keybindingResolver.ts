@@ -16,6 +16,7 @@ export interface IResolveResult {
 
 export class KeybindingResolver {
 	private readonly _defaultKeybindings: NormalizedKeybindingItem[];
+	private readonly _keybindings: NormalizedKeybindingItem[];
 	private readonly _shouldWarnOnConflict: boolean;
 	private readonly _defaultBoundCommands: Map<string, boolean>;
 	private readonly _map: Map<string, NormalizedKeybindingItem[]>;
@@ -34,9 +35,9 @@ export class KeybindingResolver {
 		this._map = new Map<string, NormalizedKeybindingItem[]>();
 		this._lookupMap = new Map<string, NormalizedKeybindingItem[]>();
 
-		let allKeybindings = KeybindingResolver.combine(defaultKeybindings, overrides);
-		for (let i = 0, len = allKeybindings.length; i < len; i++) {
-			let k = allKeybindings[i];
+		this._keybindings = KeybindingResolver.combine(defaultKeybindings, overrides);
+		for (let i = 0, len = this._keybindings.length; i < len; i++) {
+			let k = this._keybindings[i];
 			if (k.keypressFirstPart === null) {
 				// unbound
 				continue;
@@ -204,6 +205,10 @@ export class KeybindingResolver {
 		return this._defaultKeybindings;
 	}
 
+	public getKeybindings(): NormalizedKeybindingItem[] {
+		return this._keybindings;
+	}
+
 	public lookupKeybindings(commandId: string): NormalizedKeybindingItem[] {
 		let items = this._lookupMap.get(commandId);
 		if (typeof items === 'undefined' || items.length === 0) {
@@ -228,7 +233,6 @@ export class KeybindingResolver {
 	}
 
 	public resolve(context: any, currentChord: string, keypress: string): IResolveResult {
-		// console.log('resolve: ' + Keybinding.toUserSettingsLabel(keypress));
 		let lookupMap: NormalizedKeybindingItem[] = null;
 
 		if (currentChord !== null) {

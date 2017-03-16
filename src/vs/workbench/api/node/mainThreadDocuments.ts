@@ -23,7 +23,7 @@ import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService'
 import { ITextSource } from 'vs/editor/common/model/textSource';
 import { MainThreadDocumentsAndEditors } from './mainThreadDocumentsAndEditors';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { ITextEditorModel } from "vs/workbench/common/editor";
+import { ITextEditorModel } from 'vs/workbench/common/editor';
 
 class TimeoutReference {
 

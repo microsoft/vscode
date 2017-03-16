@@ -140,6 +140,11 @@ export class ListView<T> implements IDisposable {
 		return this.items[index].element;
 	}
 
+	domElement(index: number): HTMLElement {
+		const row = this.items[index].row;
+		return row && row.domNode;
+	}
+
 	elementHeight(index: number): number {
 		return this.items[index].size;
 	}

@@ -66,6 +66,16 @@
 		{
 			"type": "node",
 			"request": "attach",
+			"name": "Attach to Search process",
+			"port": 7890,
+			"sourceMaps": true,
+			"outFiles": [
+				"${workspaceRoot}/out/**/*.js"
+			]
+		},
+		{
+			"type": "node",
+			"request": "attach",
 			"name": "Attach to CLI Process",
 			"protocol": "legacy",
 			"port": 5874,
@@ -109,7 +119,7 @@
 			"request": "attach",
 			"name": "Attach to VS Code",
 			"port": 9222,
-			"sourceMaps": true
+			"url": "*"
 		},
 		{
 			"type": "chrome",
@@ -123,8 +133,7 @@
 			},
 			"linux": {
 				"runtimeExecutable": "${workspaceRoot}/scripts/code.sh"
-			},
-			"sourceMaps": true
+			}
 		}
 	]
 }

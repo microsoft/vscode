@@ -297,9 +297,9 @@ export class CommandsHandler extends QuickOpenHandler {
 
 		for (let i = 0; i < actionDescriptors.length; i++) {
 			const actionDescriptor = actionDescriptors[i];
-			const keybind = this.keybindingService.lookupKeybinding(actionDescriptor.id);
-			const keyLabel = keybind ? keybind.getLabel() : '';
-			const keyAriaLabel = keybind ? keybind.getAriaLabel() : '';
+			const keybinding = this.keybindingService.lookupKeybinding(actionDescriptor.id);
+			const keyLabel = keybinding ? keybinding.getLabel() : '';
+			const keyAriaLabel = keybinding ? keybinding.getAriaLabel() : '';
 
 			if (actionDescriptor.label) {
 
@@ -329,9 +329,9 @@ export class CommandsHandler extends QuickOpenHandler {
 		for (let i = 0; i < actions.length; i++) {
 			const action = actions[i];
 
-			const keybind = this.keybindingService.lookupKeybinding(action.id);
-			const keyLabel = keybind ? keybind.getLabel() : '';
-			const keyAriaLabel = keybind ? keybind.getAriaLabel() : '';
+			const keybinding = this.keybindingService.lookupKeybinding(action.id);
+			const keyLabel = keybinding ? keybinding.getLabel() : '';
+			const keyAriaLabel = keybinding ? keybinding.getAriaLabel() : '';
 			const label = action.label;
 
 			if (label) {
@@ -358,9 +358,9 @@ export class CommandsHandler extends QuickOpenHandler {
 				: action.item.title;
 			if (label) {
 				const labelHighlights = wordFilter(searchValue, label);
-				const keybind = this.keybindingService.lookupKeybinding(action.item.id);
-				const keyLabel = keybind ? keybind.getLabel() : '';
-				const keyAriaLabel = keybind ? keybind.getAriaLabel() : '';
+				const keybinding = this.keybindingService.lookupKeybinding(action.item.id);
+				const keyLabel = keybinding ? keybinding.getLabel() : '';
+				const keyAriaLabel = keybinding ? keybinding.getAriaLabel() : '';
 				const alias = action.item.alias ? action.item.alias : null;
 				const aliasHighlights = alias ? wordFilter(searchValue, alias) : null;
 				if (labelHighlights || aliasHighlights) {

@@ -226,6 +226,15 @@
 	padding-right: 0.8em;
 }
 
+.debug-viewlet .debug-call-stack .stack-frame.label {
+	text-align: center;
+	font-style: italic;
+}
+
+.debug-viewlet .debug-call-stack .stack-frame.label > .file {
+	display: none;
+}
+
 .debug-viewlet .debug-call-stack .stack-frame > .file {
 	float: right;
 }

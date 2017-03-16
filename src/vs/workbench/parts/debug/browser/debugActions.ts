@@ -33,7 +33,7 @@ export abstract class AbstractDebugAction extends Action {
 	) {
 		super(id, label, cssClass, false);
 		this.toDispose = [];
-		this.toDispose.push(this.debugService.onDidChangeState(() => this.updateEnablement()));
+		this.toDispose.push(this.debugService.onDidChangeState(state => this.updateEnablement(state)));
 
 		this.updateLabel(label);
 		this.updateEnablement();
@@ -54,8 +54,8 @@ export abstract class AbstractDebugAction extends Action {
 		this.label = newLabel;
 	}
 
-	protected updateEnablement(): void {
-		this.enabled = this.isEnabled(this.debugService.state);
+	protected updateEnablement(state = this.debugService.state): void {
+		this.enabled = this.isEnabled(state);
 	}
 
 	protected isEnabled(state: State): boolean {
@@ -543,7 +543,7 @@ export class AddConditionalBreakpointAction extends AbstractDebugAction {
 	}
 
 	public run(): TPromise<any> {
-		this.editor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID).showBreakpointWidget(this.lineNumber);
+		this.editor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID).showBreakpointWidget(this.lineNumber, undefined);
 		return TPromise.as(null);
 	}
 }
@@ -554,7 +554,6 @@ export class EditConditionalBreakpointAction extends AbstractDebugAction {
 
 	constructor(id: string, label: string,
 		private editor: ICodeEditor,
-		private lineNumber: number,
 		@IDebugService debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
 	) {
@@ -562,7 +561,7 @@ export class EditConditionalBreakpointAction extends AbstractDebugAction {
 	}
 
 	public run(breakpoint: IBreakpoint): TPromise<any> {
-		this.editor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID).showBreakpointWidget(this.lineNumber);
+		this.editor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID).showBreakpointWidget(breakpoint.lineNumber, breakpoint.column);
 		return TPromise.as(null);
 	}
 }

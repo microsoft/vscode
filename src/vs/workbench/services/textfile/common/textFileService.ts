@@ -29,6 +29,7 @@ import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorMo
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
+import { ResourceMap } from 'vs/base/common/map';
 
 export interface IBackupResult {
 	didBackup: boolean;
@@ -479,29 +480,29 @@ export abstract class TextFileService implements ITextFileService {
 	private doSaveAllFiles(arg1?: any /* URI[] */, reason?: SaveReason): TPromise<ITextFileOperationResult> {
 		const dirtyFileModels = this.getDirtyFileModels(Array.isArray(arg1) ? arg1 : void 0 /* Save All */)
 			.filter(model => {
-				if ((model.getState() === ModelState.CONFLICT || model.getState() === ModelState.ORPHAN) && (reason === SaveReason.AUTO || reason === SaveReason.FOCUS_CHANGE || reason === SaveReason.WINDOW_CHANGE)) {
-					return false; // if model is in an orphan or in save conflict, do not save unless save reason is explicit or not provided at all
+				if (model.hasState(ModelState.CONFLICT) && (reason === SaveReason.AUTO || reason === SaveReason.FOCUS_CHANGE || reason === SaveReason.WINDOW_CHANGE)) {
+					return false; // if model is in save conflict, do not save unless save reason is explicit or not provided at all
 				}
 
 				return true;
 			});
 
-		const mapResourceToResult: { [resource: string]: IResult } = Object.create(null);
+		const mapResourceToResult = new ResourceMap<IResult>();
 		dirtyFileModels.forEach(m => {
-			mapResourceToResult[m.getResource().toString()] = {
+			mapResourceToResult.set(m.getResource(), {
 				source: m.getResource()
-			};
+			});
 		});
 
 		return TPromise.join(dirtyFileModels.map(model => {
 			return model.save({ reason }).then(() => {
 				if (!model.isDirty()) {
-					mapResourceToResult[model.getResource().toString()].success = true;
+					mapResourceToResult.get(model.getResource()).success = true;
 				}
 			});
 		})).then(r => {
 			return {
-				results: Object.keys(mapResourceToResult).map(k => mapResourceToResult[k])
+				results: mapResourceToResult.values()
 			};
 		});
 	}
@@ -589,28 +590,37 @@ export abstract class TextFileService implements ITextFileService {
 	}
 
 	private doSaveTextFileAs(sourceModel: ITextFileEditorModel | UntitledEditorModel, resource: URI, target: URI): TPromise<void> {
+		let targetModelResolver: TPromise<ITextFileEditorModel>;
 
-		// create the target file empty if it does not exist already
-		return this.fileService.resolveFile(target).then(stat => stat, () => null).then(stat => stat || this.fileService.updateContent(target, '')).then(stat => {
+		// Prefer an existing model if it is already loaded for the given target resource
+		const targetModel = this.models.get(target);
+		if (targetModel && targetModel.isResolved()) {
+			targetModelResolver = TPromise.as(targetModel);
+		}
 
-			// resolve a model for the file (which can be binary if the file is not a text file)
-			return this.models.loadOrCreate(target).then((targetModel: ITextFileEditorModel) => {
-
-				// take over encoding and model value from source model
-				targetModel.updatePreferredEncoding(sourceModel.getEncoding());
-				targetModel.textEditorModel.setValue(sourceModel.getValue());
-
-				// save model
-				return targetModel.save();
-			}, error => {
-
-				// binary model: delete the file and run the operation again
-				if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_IS_BINARY || (<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_TOO_LARGE) {
-					return this.fileService.del(target).then(() => this.doSaveTextFileAs(sourceModel, resource, target));
-				}
-
-				return TPromise.wrapError(error);
+		// Otherwise create the target file empty if it does not exist already and resolve it from there
+		else {
+			targetModelResolver = this.fileService.resolveFile(target).then(stat => stat, () => null).then(stat => stat || this.fileService.updateContent(target, '')).then(stat => {
+				return this.models.loadOrCreate(target);
 			});
+		}
+
+		return targetModelResolver.then(targetModel => {
+
+			// take over encoding and model value from source model
+			targetModel.updatePreferredEncoding(sourceModel.getEncoding());
+			targetModel.textEditorModel.setValue(sourceModel.getValue());
+
+			// save model
+			return targetModel.save();
+		}, error => {
+
+			// binary model: delete the file and run the operation again
+			if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_IS_BINARY || (<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_TOO_LARGE) {
+				return this.fileService.del(target).then(() => this.doSaveTextFileAs(sourceModel, resource, target));
+			}
+
+			return TPromise.wrapError(error);
 		});
 	}
 
@@ -643,34 +653,35 @@ export abstract class TextFileService implements ITextFileService {
 	private doRevertAllFiles(resources?: URI[], options?: IRevertOptions): TPromise<ITextFileOperationResult> {
 		const fileModels = options && options.force ? this.getFileModels(resources) : this.getDirtyFileModels(resources);
 
-		const mapResourceToResult: { [resource: string]: IResult } = Object.create(null);
+		const mapResourceToResult = new ResourceMap<IResult>();
 		fileModels.forEach(m => {
-			mapResourceToResult[m.getResource().toString()] = {
+			mapResourceToResult.set(m.getResource(), {
 				source: m.getResource()
-			};
+			});
 		});
 
 		return TPromise.join(fileModels.map(model => {
 			return model.revert(options && options.soft).then(() => {
 				if (!model.isDirty()) {
-					mapResourceToResult[model.getResource().toString()].success = true;
+					mapResourceToResult.get(model.getResource()).success = true;
 				}
 			}, error => {
 
 				// FileNotFound means the file got deleted meanwhile, so still record as successful revert
 				if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
-					mapResourceToResult[model.getResource().toString()].success = true;
+					mapResourceToResult.get(model.getResource()).success = true;
 				}
 
 				// Otherwise bubble up the error
 				else {
 					return TPromise.wrapError(error);
 				}
+
 				return undefined;
 			});
 		})).then(r => {
 			return {
-				results: Object.keys(mapResourceToResult).map(k => mapResourceToResult[k])
+				results: mapResourceToResult.values()
 			};
 		});
 	}
