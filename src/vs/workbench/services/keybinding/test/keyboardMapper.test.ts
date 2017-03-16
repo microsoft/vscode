@@ -150,6 +150,22 @@ suite('keyboardMapper - LINUX de_ch', () => {
 	});
 });
 
+suite('keyboardMapper - LINUX de_ch', () => {
+
+	let mapper: KeyboardMapper;
+
+	suiteSetup((done) => {
+		createKeyboardMapper('linux_en_us', OperatingSystem.Linux).then((_mapper) => {
+			mapper = _mapper;
+			done();
+		}, done);
+	});
+
+	test('mapping', (done) => {
+		assertMapping(mapper, 'linux_en_us.txt', done);
+	});
+});
+
 function _assertKeybindingTranslation(mapper: KeyboardMapper, OS: OperatingSystem, kb: number, _expected: string | string[]): void {
 	let expected: string[];
 	if (typeof _expected === 'string') {
