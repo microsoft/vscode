@@ -5,6 +5,10 @@
 
 'use strict';
 
+import URI from 'vs/base/common/uri';
+import { Schemas } from 'vs/base/common/network';
+import { isLinux } from 'vs/base/common/platform';
+
 export interface Key {
 	toString(): string;
 }
@@ -348,7 +352,7 @@ export class TrieMap<E> {
 	lookUp(path: string): E {
 		const parts = this._splitter(path);
 
-		let {children} = this._root;
+		let { children } = this._root;
 		let node: Node<E>;
 		for (const part of parts) {
 			node = children[part];
@@ -365,7 +369,7 @@ export class TrieMap<E> {
 		const parts = this._splitter(path);
 
 		let lastNode: Node<E>;
-		let {children} = this._root;
+		let { children } = this._root;
 		for (const part of parts) {
 			const node = children[part];
 			if (!node) {
@@ -388,7 +392,7 @@ export class TrieMap<E> {
 	findSuperstr(path: string): TrieMap<E> {
 		const parts = this._splitter(path);
 
-		let {children} = this._root;
+		let { children } = this._root;
 		let node: Node<E>;
 		for (const part of parts) {
 			node = children[part];
@@ -401,5 +405,57 @@ export class TrieMap<E> {
 		const result = new TrieMap<E>(this._splitter);
 		result._root = node;
 		return result;
+	}
+}
+
+export class ResourceMap<T> {
+	private map: Map<string, T>;
+
+	constructor() {
+		this.map = new Map<string, T>();
+	}
+
+	public set(resource: URI, value: T): void {
+		this.map.set(this.toKey(resource), value);
+	}
+
+	public get(resource: URI): T {
+		return this.map.get(this.toKey(resource));
+	}
+
+	public has(resource: URI): boolean {
+		return this.map.has(this.toKey(resource));
+	}
+
+	public get size(): number {
+		return this.map.size;
+	}
+
+	public clear(): void {
+		this.map.clear();
+	}
+
+	public delete(resource: URI): boolean {
+		return this.map.delete(this.toKey(resource));
+	}
+
+	public forEach(clb: (value: T) => void): void {
+		this.map.forEach(clb);
+	}
+
+	private toKey(resource: URI): string {
+		let key: string;
+
+		if (resource.scheme === Schemas.file) {
+			key = resource.fsPath;
+
+			if (!isLinux) {
+				key = key.toLowerCase();
+			}
+		} else {
+			key = resource.toString();
+		}
+
+		return key;
 	}
 }
