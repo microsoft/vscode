@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { createKeybinding, KeyCode, KeyMod, KeyChord, KeyCodeUtils } from 'vs/base/common/keyCodes';
+import { createKeybinding, KeyCode, KeyMod, KeyChord, KeyCodeUtils, createRuntimeKeybinding } from 'vs/base/common/keyCodes';
 import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
 import { OS, OperatingSystem } from 'vs/base/common/platform';
 import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
@@ -31,7 +31,7 @@ suite('keybindingIO', () => {
 			if (ignore[keyCode]) {
 				continue;
 			}
-			let usLayoutResolvedKeybinding = new USLayoutResolvedKeybinding(createKeybinding(keyCode), OS);
+			let usLayoutResolvedKeybinding = new USLayoutResolvedKeybinding(createRuntimeKeybinding(createKeybinding(keyCode), OS), OS);
 			let userSettings = usLayoutResolvedKeybinding.getUserSettingsLabel();
 			testIsGood(userSettings, keyCode + ' - ' + KeyCodeUtils.toString(keyCode) + ' - ' + userSettings);
 		}
@@ -57,7 +57,7 @@ suite('keybindingIO', () => {
 	test('serialize/deserialize', function () {
 
 		function testOneSerialization(keybinding: number, expected: string, msg: string, OS: OperatingSystem): void {
-			let usLayoutResolvedKeybinding = new USLayoutResolvedKeybinding(createKeybinding(keybinding), OS);
+			let usLayoutResolvedKeybinding = new USLayoutResolvedKeybinding(createRuntimeKeybinding(createKeybinding(keybinding), OS), OS);
 			let actualSerialized = usLayoutResolvedKeybinding.getUserSettingsLabel();
 			assert.equal(actualSerialized, expected, expected + ' - ' + msg);
 		}

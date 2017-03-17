@@ -6,6 +6,7 @@
 'use strict';
 
 import { IHTMLContentElement } from 'vs/base/common/htmlContent';
+import { OperatingSystem } from 'vs/base/common/platform';
 
 /**
  * Virtual Key Codes, the value does not hold any inherent meaning.
@@ -566,6 +567,67 @@ export class ChordKeybinding {
 }
 
 export type Keybinding = SimpleKeybinding | ChordKeybinding;
+
+export function createRuntimeKeybinding(keybinding: Keybinding, OS: OperatingSystem): RuntimeKeybinding {
+	if (keybinding.isChord()) {
+		return new ChordRuntimeKeybinding(
+			createSimpleRuntimeKeybinding(keybinding.extractFirstPart(), OS),
+			createSimpleRuntimeKeybinding(keybinding.extractChordPart(), OS),
+		);
+	}
+	return createSimpleRuntimeKeybinding(keybinding, OS);
+}
+
+export function createSimpleRuntimeKeybinding(keybinding: SimpleKeybinding, OS: OperatingSystem): SimpleRuntimeKeybinding {
+	const ctrlCmd = keybinding.hasCtrlCmd();
+	const winCtrl = keybinding.hasWinCtrl();
+	const ctrlKey = (OS === OperatingSystem.Macintosh ? winCtrl : ctrlCmd);
+	const metaKey = (OS === OperatingSystem.Macintosh ? ctrlCmd : winCtrl);
+
+	const shiftKey = keybinding.hasShift();
+	const altKey = keybinding.hasAlt();
+
+	const keyCode = keybinding.getKeyCode();
+
+	return new SimpleRuntimeKeybinding(ctrlKey, shiftKey, altKey, metaKey, keyCode);
+}
+
+export const enum RuntimeKeybindingType {
+	Simple = 1,
+	Chord = 2
+}
+
+export class SimpleRuntimeKeybinding {
+	public readonly type = RuntimeKeybindingType.Simple;
+
+	public readonly ctrlKey: boolean;
+	public readonly shiftKey: boolean;
+	public readonly altKey: boolean;
+	public readonly metaKey: boolean;
+	public readonly keyCode: KeyCode;
+
+	constructor(ctrlKey: boolean, shiftKey: boolean, altKey: boolean, metaKey: boolean, keyCode: KeyCode) {
+		this.ctrlKey = ctrlKey;
+		this.shiftKey = shiftKey;
+		this.altKey = altKey;
+		this.metaKey = metaKey;
+		this.keyCode = keyCode;
+	}
+}
+
+export class ChordRuntimeKeybinding {
+	public readonly type = RuntimeKeybindingType.Chord;
+
+	public readonly firstPart: SimpleRuntimeKeybinding;
+	public readonly chordPart: SimpleRuntimeKeybinding;
+
+	constructor(firstPart: SimpleRuntimeKeybinding, chordPart: SimpleRuntimeKeybinding) {
+		this.firstPart = firstPart;
+		this.chordPart = chordPart;
+	}
+}
+
+export type RuntimeKeybinding = SimpleRuntimeKeybinding | ChordRuntimeKeybinding;
 
 /**
  * A resolved keybinding.

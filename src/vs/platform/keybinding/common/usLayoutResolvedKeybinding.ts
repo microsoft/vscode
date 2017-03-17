@@ -5,7 +5,7 @@
 'use strict';
 
 import { IHTMLContentElement } from 'vs/base/common/htmlContent';
-import { ResolvedKeybinding, Keybinding, KeyCode, KeyCodeUtils, USER_SETTINGS } from 'vs/base/common/keyCodes';
+import { ResolvedKeybinding, KeyCode, KeyCodeUtils, USER_SETTINGS, RuntimeKeybinding, RuntimeKeybindingType, SimpleRuntimeKeybinding } from 'vs/base/common/keyCodes';
 import { PrintableKeypress, UILabelProvider, AriaLabelProvider, ElectronAcceleratorLabelProvider, UserSettingsLabelProvider } from 'vs/platform/keybinding/common/keybindingLabels';
 import { OperatingSystem } from 'vs/base/common/platform';
 
@@ -14,13 +14,13 @@ import { OperatingSystem } from 'vs/base/common/platform';
  */
 export class USLayoutResolvedKeybinding extends ResolvedKeybinding {
 
-	private readonly _actual: Keybinding;
+	private readonly _actual: RuntimeKeybinding;
 	private readonly _os: OperatingSystem;
 
-	constructor(actual: Keybinding, os: OperatingSystem) {
+	constructor(actual: RuntimeKeybinding, OS: OperatingSystem) {
 		super();
 		this._actual = actual;
-		this._os = os;
+		this._os = OS;
 	}
 
 	private static _usKeyCodeToUILabel(keyCode: KeyCode, OS: OperatingSystem): string {
@@ -74,12 +74,12 @@ export class USLayoutResolvedKeybinding extends ResolvedKeybinding {
 	}
 
 	public getElectronAccelerator(): string {
-		if (this._actual.isChord()) {
+		if (this._actual.type === RuntimeKeybindingType.Chord) {
 			// Electron cannot handle chords
 			return null;
 		}
 
-		let keyCode = this._actual.getKeyCode();
+		let keyCode = this._actual.keyCode;
 		if (keyCode >= KeyCode.NUMPAD_0 && keyCode <= KeyCode.NUMPAD_DIVIDE) {
 			// Electron cannot handle numpad keys
 			return null;
@@ -101,43 +101,35 @@ export class USLayoutResolvedKeybinding extends ResolvedKeybinding {
 	}
 
 	public isChord(): boolean {
-		return this._actual.isChord();
+		return (this._actual.type === RuntimeKeybindingType.Chord);
 	}
 
 	public hasCtrlModifier(): boolean {
-		if (this._actual.isChord()) {
+		if (this._actual.type === RuntimeKeybindingType.Chord) {
 			return false;
 		}
-		if (this._os === OperatingSystem.Macintosh) {
-			return this._actual.hasWinCtrl();
-		} else {
-			return this._actual.hasCtrlCmd();
-		}
+		return this._actual.ctrlKey;
 	}
 
 	public hasShiftModifier(): boolean {
-		if (this._actual.isChord()) {
+		if (this._actual.type === RuntimeKeybindingType.Chord) {
 			return false;
 		}
-		return this._actual.hasShift();
+		return this._actual.shiftKey;
 	}
 
 	public hasAltModifier(): boolean {
-		if (this._actual.isChord()) {
+		if (this._actual.type === RuntimeKeybindingType.Chord) {
 			return false;
 		}
-		return this._actual.hasAlt();
+		return this._actual.altKey;
 	}
 
 	public hasMetaModifier(): boolean {
-		if (this._actual.isChord()) {
+		if (this._actual.type === RuntimeKeybindingType.Chord) {
 			return false;
 		}
-		if (this._os === OperatingSystem.Macintosh) {
-			return this._actual.hasCtrlCmd();
-		} else {
-			return this._actual.hasWinCtrl();
-		}
+		return this._actual.metaKey;
 	}
 
 	public getDispatchParts(): [string, string] {
@@ -146,13 +138,33 @@ export class USLayoutResolvedKeybinding extends ResolvedKeybinding {
 		if (this._actual === null) {
 			keypressFirstPart = null;
 			keypressChordPart = null;
-		} else if (this._actual.isChord()) {
-			keypressFirstPart = this._actual.extractFirstPart().value.toString();
-			keypressChordPart = this._actual.extractChordPart().value.toString();
+		} else if (this._actual.type === RuntimeKeybindingType.Chord) {
+			keypressFirstPart = USLayoutResolvedKeybinding.getDispatchStr(this._actual.firstPart);
+			keypressChordPart = USLayoutResolvedKeybinding.getDispatchStr(this._actual.chordPart);
 		} else {
-			keypressFirstPart = this._actual.value.toString();
+			keypressFirstPart = USLayoutResolvedKeybinding.getDispatchStr(this._actual);
 			keypressChordPart = null;
 		}
 		return [keypressFirstPart, keypressChordPart];
+	}
+
+	public static getDispatchStr(keybinding: SimpleRuntimeKeybinding): string {
+		let result = '';
+
+		if (keybinding.ctrlKey) {
+			result += 'ctrl+';
+		}
+		if (keybinding.shiftKey) {
+			result += 'shift+';
+		}
+		if (keybinding.altKey) {
+			result += 'alt+';
+		}
+		if (keybinding.metaKey) {
+			result += 'meta+';
+		}
+		result += KeyCodeUtils.toString(keybinding.keyCode);
+
+		return result;
 	}
 }
