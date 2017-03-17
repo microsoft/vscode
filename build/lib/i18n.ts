@@ -32,7 +32,7 @@ interface Item {
 	comment: string;
 }
 
-interface Resource {
+export interface Resource {
 	name: string;
 	project: string;
 }
@@ -191,7 +191,7 @@ export class XLF {
         }
 
         this.appendNewLine(`<trans-unit id="${item.id}">`, 4);
-        this.appendNewLine(`<source xml:lang="en">${encodeEntities(item.message)}</source>`, 6);
+        this.appendNewLine(`<source xml:lang="en">${item.message}</source>`, 6);
 
         if (item.comment) {
             this.appendNewLine(`<note>${item.comment}</note>`, 6);
@@ -570,7 +570,7 @@ export function prepareXlfFiles(projectName?: string, extensionName?: string): T
 	);
 }
 
-function getResource(sourceFile: string): Resource {
+export function getResource(sourceFile: string): Resource {
 	const editorProject: string = 'vscode-editor',
 		workbenchProject: string = 'vscode-workbench';
 	let resource: string;

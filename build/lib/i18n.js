@@ -9,14 +9,12 @@ var fs = require("fs");
 var event_stream_1 = require("event-stream");
 var File = require("vinyl");
 var Is = require("is");
-var util = require('gulp-util');
 var xml2js = require("xml2js");
 var glob = require("glob");
 var util = require('gulp-util');
 var request = require('request');
 var es = require('event-stream');
 var iconv = require('iconv-lite');
-
 function log(message) {
     var rest = [];
     for (var _i = 1; _i < arguments.length; _i++) {
@@ -44,7 +42,6 @@ var BundledFormat;
     }
     BundledFormat.is = is;
 })(BundledFormat || (BundledFormat = {}));
-
 var PackageJsonFormat;
 (function (PackageJsonFormat) {
     function is(value) {
@@ -148,7 +145,7 @@ var XLF = (function () {
             //throw new Error('No item ID or value specified.');
         }
         this.appendNewLine("<trans-unit id=\"" + item.id + "\">", 4);
-        this.appendNewLine("<source xml:lang=\"en\">" + encodeEntities(item.message) + "</source>", 6);
+        this.appendNewLine("<source xml:lang=\"en\">" + item.message + "</source>", 6);
         if (item.comment) {
             this.appendNewLine("<note>" + item.comment + "</note>", 6);
         }
@@ -211,7 +208,6 @@ XLF.parse = function (xlfString) {
     });
 };
 exports.XLF = XLF;
-
 var vscodeLanguages = [
     'chs',
     'cht',
@@ -243,7 +239,6 @@ var iso639_3_to_2 = {
     'sve': 'sv-se',
     'trk': 'tr'
 };
-
 var iso639_2_to_3 = {
     'zh-cn': 'chs',
     'zh-tw': 'cht',
@@ -264,7 +259,6 @@ var iso639_2_to_3 = {
     'sv-se': 'sve',
     'tr': 'trk'
 };
-
 function sortLanguages(directoryNames) {
     return directoryNames.map(function (dirName) {
         var lower = dirName.toLowerCase();
@@ -316,7 +310,6 @@ function stripComments(content) {
     });
     return result;
 }
-;
 function escapeCharacters(value) {
     var result = [];
     for (var i = 0; i < value.length; i++) {
@@ -485,7 +478,6 @@ function processNlsFiles(opts) {
     });
 }
 exports.processNlsFiles = processNlsFiles;
-
 function prepareXlfFiles(projectName, extensionName) {
     return event_stream_1.through(function (file) {
         if (!file.isBuffer()) {
@@ -541,6 +533,7 @@ function getResource(sourceFile) {
     }
     throw new Error("Could not identify the XLF bundle for " + sourceFile);
 }
+exports.getResource = getResource;
 function importBundleJson(file, json, stream) {
     var transifexEditorXlfs = Object.create(null);
     for (var source in json.keys) {
