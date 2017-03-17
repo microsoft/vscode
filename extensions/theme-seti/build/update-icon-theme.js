@@ -28,9 +28,12 @@ function getCommitSha(repoId, repoPath) {
 	});
 }
 
-function download(urlString) {
+function download(source) {
+	if (source.startsWith('.')) {
+		return readFile(source);
+	}
 	return new Promise((c, e) => {
-		var _url = url.parse(urlString);
+		var _url = url.parse(source);
 		var options = { host: _url.host, port: _url.port, path: _url.path, headers: { 'User-Agent': 'NodeJS' }};
 		var content = '';
 		https.get(options, function (response) {
@@ -45,9 +48,25 @@ function download(urlString) {
 	});
 }
 
-function downloadBinary(urlString, dest) {
+function readFile(fileName) {
 	return new Promise((c, e) => {
-		https.get(urlString, function (response) {
+		fs.readFile(fileName, function(err, data) {
+			if (err) {
+				e(err);
+			} else {
+				c(data.toString());
+			}
+		});
+	});
+}
+
+function downloadBinary(source, dest) {
+	if (source.startsWith('.')) {
+		return copyFile(source, dest);
+	}
+
+	return new Promise((c, e) => {
+		https.get(source, function (response) {
 			switch(response.statusCode) {
 				case 200:
 					var file = fs.createWriteStream(dest);
@@ -72,6 +91,29 @@ function downloadBinary(urlString, dest) {
 					e(new Error('Server responded with status code ' + response.statusCode));
 			}
 		});
+	});
+}
+
+function copyFile(fileName, dest) {
+	return new Promise((c, e) => {
+		var cbCalled = false;
+		function handleError(err) {
+			if (!cbCalled) {
+				e(err);
+				cbCalled = true;
+			}
+		}
+		var rd = fs.createReadStream(fileName);
+		rd.on("error", handleError);
+		var wr = fs.createWriteStream(dest);
+		wr.on("error", handleError);
+		wr.on("close", function() {
+			if (!cbCalled) {
+				c();
+				cbCalled = true;
+			}
+		});
+		rd.pipe(wr);
 	});
 }
 
@@ -111,13 +153,23 @@ function getLanguageMappings() {
 	return langToExt;
 }
 
+//var font = 'https://raw.githubusercontent.com/jesseweed/seti-ui/master/styles/_fonts/seti/seti.woff';
+var font = '../../../seti-ui/styles/_fonts/seti/seti.woff';
+
 exports.copyFont = function() {
-	var fontURI = 'https://raw.githubusercontent.com/jesseweed/seti-ui/master/styles/_fonts/seti/seti.woff';
-	return downloadBinary(fontURI, './icons/seti.woff');
+	return downloadBinary(font, './icons/seti.woff');
 };
 
+//var fontMappings = 'https://raw.githubusercontent.com/jesseweed/seti-ui/master/styles/_fonts/seti.less';
+//var mappings = 'https://raw.githubusercontent.com/jesseweed/seti-ui/master/styles/icons/mapping.less';
+//var colors = 'https://raw.githubusercontent.com/jesseweed/seti-ui/master/styles/ui-variables.less';
+
+var fontMappings = '../../../seti-ui/styles/_fonts/seti.less';
+var mappings = '../../../seti-ui/styles/icons/mapping.less';
+var colors = '../../../seti-ui/styles/ui-variables.less';
+
 exports.update = function () {
-	var fontMappings = 'https://raw.githubusercontent.com/jesseweed/seti-ui/master/styles/_fonts/seti.less';
+
 	console.log('Reading from ' + fontMappings);
 	var def2Content = {};
 	var ext2Def = {};
@@ -192,7 +244,6 @@ exports.update = function () {
 			def2Content['_' + match[1]] = match[2];
 		}
 
-		var mappings = 'https://raw.githubusercontent.com/jesseweed/seti-ui/master/styles/icons/mapping.less';
 		return download(mappings).then(function (content) {
 			var regex2 = /\.icon-(?:set|partial)\('([\w-\.]+)',\s*'([\w-]+)',\s*(@[\w-]+)\)/g;
 			while ((match = regex2.exec(content)) !== null) {
@@ -226,7 +277,7 @@ exports.update = function () {
 				}
 			}
 
-			var colors = 'https://raw.githubusercontent.com/jesseweed/seti-ui/master/styles/ui-variables.less';
+
 			return download(colors).then(function (content) {
 				var regex3 = /(@[\w-]+):\s*(#[0-9a-z]+)/g;
 				while ((match = regex3.exec(content)) !== null) {
