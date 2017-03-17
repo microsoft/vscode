@@ -10,7 +10,6 @@
 	"closeMessages": "Benachrichtigungs-E-Mail schließen",
 	"closeWindow": "Fenster schließen",
 	"current": "Aktuelles Fenster",
-	"diffLeftRightLabel": "{0} ⟷ {1}",
 	"files": "Dateien",
 	"folders": "Ordner",
 	"keybindingsReference": "Referenz für Tastenkombinationen",
@@ -29,6 +28,7 @@
 	"toggleDevTools": "Entwicklertools umschalten",
 	"toggleFullScreen": "Vollbild umschalten",
 	"toggleMenuBar": "Menüleiste umschalten",
+	"toggleSharedProcess": "Freigegebenen Prozess umschalten",
 	"zoomIn": "Vergrößern",
 	"zoomOut": "Verkleinern",
 	"zoomReset": "Zoom zurücksetzen"

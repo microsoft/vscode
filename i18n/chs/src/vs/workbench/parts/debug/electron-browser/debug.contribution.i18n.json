@@ -10,6 +10,7 @@
 	"debugCommands": "调试配置",
 	"debugConfigurationTitle": "调试",
 	"debugPanel": "调试控制台",
+	"hideActionBar": "控制是否应该隐藏浮点调试操作栏",
 	"inlineValues": "调试时，在编辑器中显示变量值内联",
 	"openExplorerOnEnd": "调试会话结束时自动打开资源管理器视图",
 	"toggleDebugPanel": "调试控制台",

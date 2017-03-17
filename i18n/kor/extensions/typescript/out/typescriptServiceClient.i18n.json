@@ -8,6 +8,7 @@
 	"channelName": "TypeScript",
 	"later": "이상",
 	"learnMore": "자세한 정보",
+	"noBundledServerFound": "잘못 동작하는 바이러스 감지 도구와 같은 다른 응용 프로그램에서 VSCode의 tsserver가 삭제되었습니다. VS Code를 다시 설치하세요.",
 	"noServerFound": "경로 {0}이(가) 올바른 tsserver 설치를 가리키지 않습니다. 포함된 TypeScript 버전을 대신 사용합니다.",
 	"reloadBlurb": "창을 다시 로드하여 변경 내용 적용",
 	"reloadTitle": "다시 로드",
