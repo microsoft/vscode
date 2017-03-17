@@ -748,7 +748,7 @@ class EditSettingRenderer extends Disposable {
 							break;
 						}
 						if (lineNumber >= setting.range.startLineNumber && lineNumber <= setting.range.endLineNumber) {
-							if (setting.overrides.length > 0) {
+							if (!this.isDefaultSettings() && setting.overrides.length) {
 								// Only one level because override settings cannot have override settings
 								for (const overrideSetting of setting.overrides) {
 									if (lineNumber >= overrideSetting.range.startLineNumber && lineNumber <= overrideSetting.range.endLineNumber) {
