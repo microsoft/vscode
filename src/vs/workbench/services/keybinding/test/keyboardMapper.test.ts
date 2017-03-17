@@ -37,7 +37,11 @@ function assertMapping(mapper: KeyboardMapper, file: string, done: (err?: any) =
 		if (actual !== expected) {
 			writeFile(filePath, actual);
 		}
-		assert.deepEqual(actual, expected);
+		try {
+			assert.deepEqual(actual, expected);
+		} catch (err) {
+			return done(err);
+		}
 		done();
 	}, done);
 }
