@@ -7,11 +7,6 @@
 	padding: 11px 0px 0px 27px;
 }
 
-.keybindings-editor,
-.keybindings-editor > .keybindings-body {
-	height: 100%;
-}
-
 /* header styling */
 
 .keybindings-editor > .keybindings-header {
