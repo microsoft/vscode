@@ -68,7 +68,7 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 		return vscode.Uri.file(path.join(path.dirname(resource.fsPath), href)).toString();
 	}
 
-	private computeCustomStyleSheetIncludes(uri: vscode.Uri, _nonce: string): string {
+	private computeCustomStyleSheetIncludes(uri: vscode.Uri): string {
 		const styles = vscode.workspace.getConfiguration('markdown')['styles'];
 		if (styles && Array.isArray(styles) && styles.length > 0) {
 			return styles.map((style) => {
@@ -91,6 +91,24 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 				${+lineHeight > 0 ? `line-height: ${lineHeight};` : ''}
 			}
 		</style>`;
+	}
+
+	private getStyles(uri: vscode.Uri, nonce: string): string {
+		const baseStyles = [
+			this.getMediaPath('markdown.css'),
+			this.getMediaPath('tomorrow.css')
+		];
+
+		return `${baseStyles.map(href => `<link rel="stylesheet" type="text/css" href="${href}">`).join('\n')}
+			${this.getSettingsOverrideStyles(nonce)}
+			${this.computeCustomStyleSheetIncludes(uri)}`;
+	}
+
+	private getScripts(nonce: string): string {
+		const scripts = [this.getMediaPath('main.js')];
+		return scripts
+			.map(source => `<script src="${source}" nonce="${nonce}"></script>`)
+			.join('\n');
 	}
 
 	public provideTextDocumentContent(uri: vscode.Uri): Thenable<string> {
@@ -138,16 +156,13 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 					${csp}
 					<meta id="vscode-markdown-preview-data" data-settings="${JSON.stringify(initialData).replace(/"/g, '&quot;')}" data-strings="${JSON.stringify(previewStrings).replace(/"/g, '&quot;')}">
 					<script src="${this.getMediaPath('csp.js')}" nonce="${nonce}"></script>
-					<link rel="stylesheet" type="text/css" href="${this.getMediaPath('markdown.css')}">
-					<link rel="stylesheet" type="text/css" href="${this.getMediaPath('tomorrow.css')}">
-					${this.getSettingsOverrideStyles(nonce)}
-					${this.computeCustomStyleSheetIncludes(uri, nonce)}
+					${this.getStyles(uri, nonce)}
 					<base href="${document.uri.toString(true)}">
 				</head>
 				<body class="${scrollBeyondLastLine ? 'scrollBeyondLastLine' : ''} ${wordWrap ? 'wordWrap' : ''} ${!!markdownConfig.get('preview.markEditorSelection') ? 'showEditorSelection' : ''}">
 					${body}
 					<div class="code-line" data-line="${document.lineCount}"></div>
-					<script src="${this.getMediaPath('main.js')}" nonce="${nonce}"></script>
+					${this.getScripts(nonce)}
 				</body>
 				</html>`;
 		});
