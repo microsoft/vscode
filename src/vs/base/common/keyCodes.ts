@@ -489,109 +489,6 @@ class BinaryKeybindings {
 	}
 }
 
-export function createKeybinding(keybinding: number): Keybinding {
-	if (BinaryKeybindings.hasChord(keybinding)) {
-		return new ChordKeybinding(keybinding);
-	}
-	return new SimpleKeybinding(keybinding);
-}
-
-export class SimpleKeybinding {
-	public readonly value: number;
-
-	constructor(keybinding: number) {
-		this.value = keybinding;
-	}
-
-	/**
-	 * @internal
-	 */
-	public isChord(): this is ChordKeybinding {
-		return false;
-	}
-
-	/**
-	 * @internal
-	 */
-	public equals(other: Keybinding): boolean {
-		return (other && this.value === other.value);
-	}
-
-	public hasCtrlCmd(): boolean {
-		return BinaryKeybindings.hasCtrlCmd(this.value);
-	}
-
-	public hasShift(): boolean {
-		return BinaryKeybindings.hasShift(this.value);
-	}
-
-	public hasAlt(): boolean {
-		return BinaryKeybindings.hasAlt(this.value);
-	}
-
-	public hasWinCtrl(): boolean {
-		return BinaryKeybindings.hasWinCtrl(this.value);
-	}
-
-	public isModifierKey(): boolean {
-		return BinaryKeybindings.isModifierKey(this.value);
-	}
-
-	public getKeyCode(): KeyCode {
-		return BinaryKeybindings.extractKeyCode(this.value);
-	}
-}
-
-export class ChordKeybinding {
-	public readonly value: number;
-
-	constructor(keybinding: number) {
-		this.value = keybinding;
-	}
-
-	public isChord(): this is ChordKeybinding {
-		return true;
-	}
-
-	public equals(other: Keybinding): boolean {
-		return (other && this.value === other.value);
-	}
-
-	public extractFirstPart(): SimpleKeybinding {
-		return new SimpleKeybinding(BinaryKeybindings.extractFirstPart(this.value));
-	}
-
-	public extractChordPart(): SimpleKeybinding {
-		return new SimpleKeybinding(BinaryKeybindings.extractChordPart(this.value));
-	}
-}
-
-export type Keybinding = SimpleKeybinding | ChordKeybinding;
-
-export function _createRuntimeKeybinding(keybinding: Keybinding, OS: OperatingSystem): RuntimeKeybinding {
-	if (keybinding.isChord()) {
-		return new ChordRuntimeKeybinding(
-			_createSimpleRuntimeKeybinding(keybinding.extractFirstPart(), OS),
-			_createSimpleRuntimeKeybinding(keybinding.extractChordPart(), OS),
-		);
-	}
-	return _createSimpleRuntimeKeybinding(keybinding, OS);
-}
-
-function _createSimpleRuntimeKeybinding(keybinding: SimpleKeybinding, OS: OperatingSystem): SimpleRuntimeKeybinding {
-	const ctrlCmd = keybinding.hasCtrlCmd();
-	const winCtrl = keybinding.hasWinCtrl();
-	const ctrlKey = (OS === OperatingSystem.Macintosh ? winCtrl : ctrlCmd);
-	const metaKey = (OS === OperatingSystem.Macintosh ? ctrlCmd : winCtrl);
-
-	const shiftKey = keybinding.hasShift();
-	const altKey = keybinding.hasAlt();
-
-	const keyCode = keybinding.getKeyCode();
-
-	return new SimpleRuntimeKeybinding(ctrlKey, shiftKey, altKey, metaKey, keyCode);
-}
-
 export function createRuntimeKeybinding(keybinding: number, OS: OperatingSystem): RuntimeKeybinding {
 	if (keybinding === 0) {
 		return null;
@@ -605,7 +502,7 @@ export function createRuntimeKeybinding(keybinding: number, OS: OperatingSystem)
 	return createSimpleRuntimeKeybinding(keybinding, OS);
 }
 
-function createSimpleRuntimeKeybinding(keybinding: number, OS: OperatingSystem): SimpleRuntimeKeybinding {
+export function createSimpleRuntimeKeybinding(keybinding: number, OS: OperatingSystem): SimpleRuntimeKeybinding {
 
 	const ctrlCmd = BinaryKeybindings.hasCtrlCmd(keybinding);
 	const winCtrl = BinaryKeybindings.hasWinCtrl(keybinding);
@@ -640,6 +537,29 @@ export class SimpleRuntimeKeybinding {
 		this.altKey = altKey;
 		this.metaKey = metaKey;
 		this.keyCode = keyCode;
+	}
+
+	public equals(other: RuntimeKeybinding): boolean {
+		if (other.type !== RuntimeKeybindingType.Simple) {
+			return false;
+		}
+		return (
+			this.ctrlKey === other.ctrlKey
+			&& this.shiftKey === other.shiftKey
+			&& this.altKey === other.altKey
+			&& this.metaKey === other.metaKey
+			&& this.keyCode === other.keyCode
+		);
+	}
+
+	public isModifierKey(): boolean {
+		return (
+			this.keyCode === KeyCode.Unknown
+			|| this.keyCode === KeyCode.Ctrl
+			|| this.keyCode === KeyCode.Meta
+			|| this.keyCode === KeyCode.Alt
+			|| this.keyCode === KeyCode.Shift
+		);
 	}
 }
 

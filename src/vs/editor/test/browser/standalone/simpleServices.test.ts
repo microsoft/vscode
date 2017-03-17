@@ -9,14 +9,14 @@ import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyServ
 import { SimpleConfigurationService, SimpleMessageService, StandaloneKeybindingService, StandaloneCommandService } from 'vs/editor/browser/standalone/simpleServices';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { SimpleKeybinding, KeyCode } from 'vs/base/common/keyCodes';
+import { KeyCode, SimpleRuntimeKeybinding } from 'vs/base/common/keyCodes';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 
 suite('StandaloneKeybindingService', () => {
 
 	class TestStandaloneKeybindingService extends StandaloneKeybindingService {
 		public dispatch(e: IKeyboardEvent): void {
-			let shouldPreventDefault = super._dispatch(e.toKeybinding(), e.target);
+			let shouldPreventDefault = super._dispatch(e.toRuntimeKeybinding(), e.target);
 			if (shouldPreventDefault) {
 				e.preventDefault();
 			}
@@ -46,7 +46,7 @@ suite('StandaloneKeybindingService', () => {
 		}, null);
 
 		keybindingService.dispatch(<any>{
-			toKeybinding: () => new SimpleKeybinding(KeyCode.F9),
+			toRuntimeKeybinding: () => new SimpleRuntimeKeybinding(false, false, false, false, KeyCode.F9),
 			preventDefault: () => { }
 		});
 

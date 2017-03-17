@@ -6,7 +6,7 @@
 'use strict';
 
 import { OperatingSystem } from 'vs/base/common/platform';
-import { SimpleKeybinding, KeyCode, ResolvedKeybinding, Keybinding, KeyCodeUtils, KeyMod } from 'vs/base/common/keyCodes';
+import { KeyCode, ResolvedKeybinding, KeyCodeUtils, SimpleRuntimeKeybinding, RuntimeKeybinding, RuntimeKeybindingType } from 'vs/base/common/keyCodes';
 import { KeyboardEventCode, KeyboardEventCodeUtils, IMMUTABLE_CODE_TO_KEY_CODE } from 'vs/workbench/services/keybinding/common/keyboardEventCode';
 import { CharCode } from 'vs/base/common/charCode';
 import { IHTMLContentElement } from 'vs/base/common/htmlContent';
@@ -444,28 +444,20 @@ export class KeyboardMapper {
 		);
 	}
 
-	public simpleKeybindingToHardwareKeypress(keybinding: SimpleKeybinding): HardwareKeypress[] {
-		const ctrlCmd = keybinding.hasCtrlCmd();
-		const winCtrl = keybinding.hasWinCtrl();
-		const ctrlKey = (this._OS === OperatingSystem.Macintosh ? winCtrl : ctrlCmd);
-		const metaKey = (this._OS === OperatingSystem.Macintosh ? ctrlCmd : winCtrl);
-		const shiftKey = keybinding.hasShift();
-		const altKey = keybinding.hasAlt();
-		const keyCode = keybinding.getKeyCode();
-
-		const kbEncoded = this._encode(ctrlKey, shiftKey, altKey, keyCode);
+	public simpleKeybindingToHardwareKeypress(keybinding: SimpleRuntimeKeybinding): HardwareKeypress[] {
+		const kbEncoded = this._encode(keybinding.ctrlKey, keybinding.shiftKey, keybinding.altKey, keybinding.keyCode);
 		const hwEncoded = this._kbToHw[kbEncoded];
 
 		let result: HardwareKeypress[] = [];
 		if (hwEncoded) {
 			for (let i = 0, len = hwEncoded.length; i < len; i++) {
-				result[i] = this._decodeHw(hwEncoded[i], metaKey);
+				result[i] = this._decodeHw(hwEncoded[i], keybinding.metaKey);
 			}
 		}
 		return result;
 	}
 
-	public hardwareKeypressToSimpleKeybinding(keypress: HardwareKeypress): SimpleKeybinding {
+	public hardwareKeypressToSimpleKeybinding(keypress: HardwareKeypress): SimpleRuntimeKeybinding {
 		const hwEncoded = this._encode(keypress.ctrlKey, keypress.shiftKey, keypress.altKey, keypress.code);
 		const kbEncoded = this._hwToKb[hwEncoded];
 		if (!kbEncoded) {
@@ -495,12 +487,12 @@ export class KeyboardMapper {
 		return this._hwToLabel[code];
 	}
 
-	public resolveKeybinding(keybinding: Keybinding): NativeResolvedKeybinding[] {
+	public resolveKeybinding(keybinding: RuntimeKeybinding): NativeResolvedKeybinding[] {
 		let result: NativeResolvedKeybinding[] = [], resultLen = 0;
 
-		if (keybinding.isChord()) {
-			const firstParts = this.simpleKeybindingToHardwareKeypress(keybinding.extractFirstPart());
-			const chordParts = this.simpleKeybindingToHardwareKeypress(keybinding.extractChordPart());
+		if (keybinding.type === RuntimeKeybindingType.Chord) {
+			const firstParts = this.simpleKeybindingToHardwareKeypress(keybinding.firstPart);
+			const chordParts = this.simpleKeybindingToHardwareKeypress(keybinding.chordPart);
 
 			for (let i = 0, len = firstParts.length; i < len; i++) {
 				const firstPart = firstParts[i];
@@ -575,21 +567,18 @@ export class KeyboardMapper {
 		return new HardwareKeypress(ctrlKey, shiftKey, altKey, metaKey, code);
 	}
 
-	private _decodeKb(kbEncoded: number, metaKey: boolean): SimpleKeybinding {
+	private _decodeKb(kbEncoded: number, metaKey: boolean): SimpleRuntimeKeybinding {
 		const ctrlKey = (kbEncoded & 0b001) ? true : false;
 		const shiftKey = (kbEncoded & 0b010) ? true : false;
 		const altKey = (kbEncoded & 0b100) ? true : false;
 		const keyCode = (kbEncoded >>> 3);
 
-		const ctrlCmd = (this._OS === OperatingSystem.Macintosh ? metaKey : ctrlKey);
-		const winCtrl = (this._OS === OperatingSystem.Macintosh ? ctrlKey : metaKey);
-
-		return new SimpleKeybinding(
-			(ctrlCmd ? KeyMod.CtrlCmd : 0)
-			| (winCtrl ? KeyMod.WinCtrl : 0)
-			| (shiftKey ? KeyMod.Shift : 0)
-			| (altKey ? KeyMod.Alt : 0)
-			| keyCode
+		return new SimpleRuntimeKeybinding(
+			ctrlKey,
+			shiftKey,
+			altKey,
+			metaKey,
+			keyCode
 		);
 	}
 }

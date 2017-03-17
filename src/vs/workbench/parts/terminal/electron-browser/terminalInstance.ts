@@ -227,7 +227,7 @@ export class TerminalInstance implements ITerminalInstance {
 			// Skip processing by xterm.js of keyboard events that resolve to commands described
 			// within commandsToSkipShell
 			const standardKeyboardEvent = new StandardKeyboardEvent(event);
-			const keybinding = standardKeyboardEvent.toKeybinding();
+			const keybinding = standardKeyboardEvent.toRuntimeKeybinding();
 			const resolveResult = this._keybindingService.resolve(keybinding, standardKeyboardEvent.target);
 			if (resolveResult && this._skipTerminalCommands.some(k => k === resolveResult.commandId)) {
 				event.preventDefault();
