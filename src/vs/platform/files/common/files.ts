@@ -334,15 +334,23 @@ export function isEqual(resourceOrPathA: string | URI, resourceOrPathB: string |
 }
 
 export function isParent(path: string, candidate: string): boolean {
+	if (!path || !candidate || path === candidate) {
+		return false;
+	}
+
 	if (candidate.length > path.length) {
 		return false;
 	}
 
-	if (!isLinux) {
-		return beginsWithIgnoreCase(path, candidate + paths.nativeSep);
+	if (candidate.charAt(candidate.length - 1) !== paths.nativeSep) {
+		candidate += paths.nativeSep;
 	}
 
-	return path.indexOf(candidate + paths.nativeSep) === 0;
+	if (!isLinux) {
+		return beginsWithIgnoreCase(path, candidate);
+	}
+
+	return path.indexOf(candidate) === 0;
 }
 
 export function isEqualOrParent(path: string, candidate: string): boolean {
@@ -350,20 +358,37 @@ export function isEqualOrParent(path: string, candidate: string): boolean {
 		return true;
 	}
 
+	if (!path || !candidate) {
+		return false;
+	}
+
 	if (candidate.length > path.length) {
 		return false;
 	}
 
 	if (!isLinux) {
-		path = path.toLowerCase();
-		candidate = candidate.toLowerCase();
-
-		if (path === candidate) {
-			return true;
+		const beginsWith = beginsWithIgnoreCase(path, candidate);
+		if (!beginsWith) {
+			return false;
 		}
+
+		if (candidate.length === path.length) {
+			return true; // same path, different casing
+		}
+
+		let sepOffset = candidate.length;
+		if (candidate.charAt(candidate.length - 1) === paths.nativeSep) {
+			sepOffset--; // adjust the expected sep offset in case our candidate already ends in separator character
+		}
+
+		return path.charAt(sepOffset) === paths.nativeSep;
 	}
 
-	return path.indexOf(candidate + paths.nativeSep) === 0;
+	if (candidate.charAt(candidate.length - 1) !== paths.nativeSep) {
+		candidate += paths.nativeSep;
+	}
+
+	return path.indexOf(candidate) === 0;
 }
 
 export function indexOf(path: string, candidate: string): number {
