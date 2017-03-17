@@ -9,6 +9,7 @@ import { Color } from 'vs/base/common/color';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import platform = require('vs/platform/platform');
 import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
+import Event, { Emitter } from 'vs/base/common/event';
 
 export let IThemeService = createDecorator<IThemeService>('themeService');
 
@@ -49,9 +50,9 @@ export interface IThemeService {
 	getTheme(): ITheme;
 
 	/**
-	 * Register a theming participant that is invoked on every theme change.
+	 * Register a theming participant that is invoked after every theme change.
 	 */
-	onThemeChange(participant: IThemingParticipant): IDisposable;
+	onThemeChange: Event<ITheme>;
 
 }
 
@@ -68,24 +69,32 @@ export interface IThemingRegistry {
 	onThemeChange(participant: IThemingParticipant): IDisposable;
 
 	getThemingParticipants(): IThemingParticipant[];
+
+	readonly onThemingParticipantAdded: Event<IThemingParticipant>;
 }
 
 class ThemingRegistry implements IThemingRegistry {
 	private themingParticipants: IThemingParticipant[] = [];
+	private onThemingParticipantAddedEmitter: Emitter<IThemingParticipant>;
 
 	constructor() {
 		this.themingParticipants = [];
+		this.onThemingParticipantAddedEmitter = new Emitter<IThemingParticipant>();
 	}
 
 	public onThemeChange(participant: IThemingParticipant): IDisposable {
 		this.themingParticipants.push(participant);
-
+		this.onThemingParticipantAddedEmitter.fire(participant);
 		return {
 			dispose: () => {
 				const idx = this.themingParticipants.indexOf(participant);
 				this.themingParticipants.splice(idx, 1);
 			}
 		};
+	}
+
+	public get onThemingParticipantAdded(): Event<IThemingParticipant> {
+		return this.onThemingParticipantAddedEmitter.event;
 	}
 
 	public getThemingParticipants(): IThemingParticipant[] {

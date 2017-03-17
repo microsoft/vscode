@@ -27,7 +27,7 @@ import { IMessageService } from 'vs/platform/message/common/message';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import Severity from 'vs/base/common/severity';
 import { ColorThemeData } from './colorThemeData';
-import { ITheme, IThemingParticipant, Extensions as ThemingExtensions, IThemingRegistry } from 'vs/platform/theme/common/themeService';
+import { ITheme, Extensions as ThemingExtensions, IThemingRegistry } from 'vs/platform/theme/common/themeService';
 
 import { $ } from 'vs/base/browser/builder';
 import Event, { Emitter } from 'vs/base/common/event';
@@ -186,7 +186,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 	private currentIconTheme: IFileIconTheme;
 	private onFileIconThemeChange: Emitter<IFileIconTheme>;
 
-	private themingParticipants: IThemingParticipant[];
+	private themingParticipantChangeListener: IDisposable;
 	private _configurationWriter: ConfigurationWriter;
 
 	constructor(
@@ -202,7 +202,6 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 		this.container = container;
 		this.knownColorThemes = [];
-		this.themingParticipants = [];
 
 		// In order to avoid paint flashing for tokens, because
 		// themes are loaded asynchronously, we need to initialize
@@ -277,15 +276,8 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		return this.onFileIconThemeChange.event;
 	}
 
-	public onThemeChange(participant: IThemingParticipant): IDisposable {
-		this.themingParticipants.push(participant);
-
-		return {
-			dispose: () => {
-				const idx = this.themingParticipants.indexOf(participant);
-				this.themingParticipants.splice(idx, 1);
-			}
-		};
+	public get onThemeChange(): Event<ITheme> {
+		return this.onColorThemeChange.event;
 	}
 
 	private backupSettings(): TPromise<string> {
@@ -384,6 +376,11 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 		themeId = validateThemeId(themeId); // migrate theme ids
 
+		if (this.themingParticipantChangeListener) {
+			this.themingParticipantChangeListener.dispose();
+			this.themingParticipantChangeListener = null;
+		}
+
 		let onApply = (newTheme: ColorThemeData) => {
 			let newThemeId = newTheme.id;
 			if (this.container) {
@@ -393,6 +390,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 				$(this.container).addClass(newThemeId);
 			}
 			this.currentColorTheme = newTheme;
+			this.themingParticipantChangeListener = themingRegistry.onThemingParticipantAdded(p => this.updateDynamicCSSRules(this.currentColorTheme));
 
 			this.sendTelemetry(newTheme.id, newTheme.extensionData, 'color');
 
@@ -408,19 +406,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		return this.findThemeData(themeId, DEFAULT_THEME_ID).then(themeData => {
 			if (themeData) {
 				return themeData.ensureLoaded().then(_ => {
-					let cssRules = [];
-					let hasRule = {};
-					let ruleCollector = {
-						addRule: (rule: string) => {
-							if (!hasRule[rule]) {
-								cssRules.push(rule);
-								hasRule[rule] = true;
-							}
-						}
-					};
-					this.themingParticipants.forEach(p => p(themeData, ruleCollector));
-					themingRegistry.getThemingParticipants().forEach(p => p(themeData, ruleCollector));
-					_applyRules(cssRules.join('\n'), colorThemeRulesClassName);
+					this.updateDynamicCSSRules(themeData);
 					return onApply(themeData);
 				}, error => {
 					return TPromise.wrapError(nls.localize('error.cannotloadtheme', "Unable to load {0}: {1}", themeData.path, error.message));
@@ -428,6 +414,21 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			}
 			return null;
 		});
+	}
+
+	private updateDynamicCSSRules(themeData: ITheme) {
+		let cssRules = [];
+		let hasRule = {};
+		let ruleCollector = {
+			addRule: (rule: string) => {
+				if (!hasRule[rule]) {
+					cssRules.push(rule);
+					hasRule[rule] = true;
+				}
+			}
+		};
+		themingRegistry.getThemingParticipants().forEach(p => p(themeData, ruleCollector));
+		_applyRules(cssRules.join('\n'), colorThemeRulesClassName);
 	}
 
 	private writeColorThemeConfiguration(settingsTarget: ConfigurationTarget): TPromise<IFileIconTheme> {
