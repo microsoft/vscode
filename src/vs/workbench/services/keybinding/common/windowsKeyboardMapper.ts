@@ -102,13 +102,13 @@ export class WindowsKeyboardMapper {
 		let result: string[] = [];
 
 		let cnt = 0;
+		result.push(`--------------------------------------------------------------------------------------------------`);
 		for (let code = KeyboardEventCode.None; code < KeyboardEventCode.MAX_VALUE; code++) {
 			if (IMMUTABLE_CODE_TO_KEY_CODE[code] !== -1) {
 				continue;
 			}
 
-			if (cnt % 5 === 0) {
-				result.push(`--------------------------------------------------------------------------------------------------`);
+			if (cnt % 6 === 0) {
 				result.push(`|       HW Code combination      |  Key  |    KeyCode combination    |          UI label         |`);
 				result.push(`--------------------------------------------------------------------------------------------------`);
 			}
@@ -154,9 +154,9 @@ export class WindowsKeyboardMapper {
 
 				result.push(`| ${this._leftPad(strHw, 30)} | ${strKey} | ${this._leftPad(strKb, 25)} | ${this._leftPad(uiHwLabel, 25)} |`);
 			}
+			result.push(`--------------------------------------------------------------------------------------------------`);
 		}
 
-		result.push(`--------------------------------------------------------------------------------------------------`);
 
 		return result.join('\n');
 	}

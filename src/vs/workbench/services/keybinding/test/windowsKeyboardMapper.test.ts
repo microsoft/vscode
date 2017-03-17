@@ -32,7 +32,11 @@ function assertMapping(mapper: WindowsKeyboardMapper, file: string, done: (err?:
 		if (actual !== expected) {
 			writeFile(filePath, actual);
 		}
-		assert.deepEqual(actual, expected);
+		try {
+			assert.deepEqual(actual, expected);
+		} catch (err) {
+			return done(err);
+		}
 		done();
 	}, done);
 }
