@@ -207,7 +207,7 @@ configurationRegistry.registerConfiguration({
 		'search.useRipgrep': {
 			'type': 'boolean',
 			'description': nls.localize('useRipgrep', "Controls whether to use ripgrep in text search"),
-			'default': false
+			'default': true
 		},
 		'search.quickOpen.includeSymbols': {
 			'type': 'boolean',
