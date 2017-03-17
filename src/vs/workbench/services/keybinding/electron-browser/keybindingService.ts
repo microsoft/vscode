@@ -30,7 +30,7 @@ import { ConfigWatcher } from 'vs/base/node/config';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { NormalizedKeybindingItem } from 'vs/platform/keybinding/common/normalizedKeybindingItem';
+import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { KeybindingIO, OutputBuilder } from 'vs/workbench/services/keybinding/common/keybindingIO';
 
 interface ContributedKeyBinding {
@@ -321,15 +321,15 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		return this._cachedResolver;
 	}
 
-	private _toNormalizedKeybindingItems(items: IKeybindingItem[], isDefault: boolean): NormalizedKeybindingItem[] {
-		let result: NormalizedKeybindingItem[] = [], resultLen = 0;
+	private _toNormalizedKeybindingItems(items: IKeybindingItem[], isDefault: boolean): ResolvedKeybindingItem[] {
+		let result: ResolvedKeybindingItem[] = [], resultLen = 0;
 		for (let i = 0, len = items.length; i < len; i++) {
 			const item = items[i];
 			const when = (item.when ? item.when.normalize() : null);
 			const keybinding = (item.keybinding !== 0 ? createKeybinding(item.keybinding) : null);
 			const resolvedKeybinding = (keybinding !== null ? this._createResolvedKeybinding(keybinding) : null);
 
-			result[resultLen++] = new NormalizedKeybindingItem(resolvedKeybinding, item.command, item.commandArgs, when, isDefault);
+			result[resultLen++] = new ResolvedKeybindingItem(resolvedKeybinding, item.command, item.commandArgs, when, isDefault);
 		}
 
 		return result;
@@ -428,7 +428,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		);
 	}
 
-	private static _getDefaultKeybindings(defaultKeybindings: NormalizedKeybindingItem[]): string {
+	private static _getDefaultKeybindings(defaultKeybindings: ResolvedKeybindingItem[]): string {
 		let out = new OutputBuilder();
 		out.writeLine('[');
 

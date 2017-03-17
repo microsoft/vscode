@@ -15,7 +15,7 @@ import { ContextKeyExpr, IContextKeyService, IContextKeyServiceTarget } from 'vs
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { NormalizedKeybindingItem } from 'vs/platform/keybinding/common/normalizedKeybindingItem';
+import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { OS } from 'vs/base/common/platform';
 
 suite('AbstractKeybindingService', () => {
@@ -47,7 +47,7 @@ suite('AbstractKeybindingService', () => {
 		}
 	}
 
-	let createTestKeybindingService: (items: NormalizedKeybindingItem[], contextValue?: any) => TestKeybindingService = null;
+	let createTestKeybindingService: (items: ResolvedKeybindingItem[], contextValue?: any) => TestKeybindingService = null;
 	let currentContextValue: any = null;
 	let executeCommandCalls: { commandId: string; args: any[]; }[] = null;
 	let showMessageCalls: { sev: Severity, message: any; }[] = null;
@@ -60,7 +60,7 @@ suite('AbstractKeybindingService', () => {
 		statusMessageCalls = [];
 		statusMessageCallsDisposed = [];
 
-		createTestKeybindingService = (items: NormalizedKeybindingItem[]): TestKeybindingService => {
+		createTestKeybindingService = (items: ResolvedKeybindingItem[]): TestKeybindingService => {
 
 			let contextKeyService: IContextKeyService = {
 				_serviceBrand: undefined,
@@ -128,9 +128,9 @@ suite('AbstractKeybindingService', () => {
 		statusMessageCallsDisposed = null;
 	});
 
-	function kbItem(keybinding: number, command: string, when: ContextKeyExpr = null): NormalizedKeybindingItem {
+	function kbItem(keybinding: number, command: string, when: ContextKeyExpr = null): ResolvedKeybindingItem {
 		const resolvedKeybinding = (keybinding !== 0 ? new USLayoutResolvedKeybinding(createKeybinding(keybinding), OS) : null);
-		return new NormalizedKeybindingItem(
+		return new ResolvedKeybindingItem(
 			resolvedKeybinding,
 			command,
 			null,

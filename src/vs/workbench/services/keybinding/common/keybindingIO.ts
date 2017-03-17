@@ -8,11 +8,11 @@ import { KeyMod, KeyChord, USER_SETTINGS } from 'vs/base/common/keyCodes';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { IKeybindingItem, IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { NormalizedKeybindingItem } from 'vs/platform/keybinding/common/normalizedKeybindingItem';
+import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 
 export class KeybindingIO {
 
-	public static writeKeybindingItem(out: OutputBuilder, item: NormalizedKeybindingItem, OS: OperatingSystem): void {
+	public static writeKeybindingItem(out: OutputBuilder, item: ResolvedKeybindingItem, OS: OperatingSystem): void {
 		let quotedSerializedKeybinding = JSON.stringify(item.resolvedKeybinding.getUserSettingsLabel());
 		out.write(`{ "key": ${rightPaddedString(quotedSerializedKeybinding + ',', 25)} "command": `);
 

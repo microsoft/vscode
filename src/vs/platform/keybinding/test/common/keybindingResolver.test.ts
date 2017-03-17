@@ -8,15 +8,15 @@ import * as assert from 'assert';
 import { createKeybinding, SimpleKeybinding, KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
 import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
 import { ContextKeyAndExpr, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { NormalizedKeybindingItem } from 'vs/platform/keybinding/common/normalizedKeybindingItem';
+import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/abstractKeybindingService';
 import { OS } from 'vs/base/common/platform';
 
 suite('KeybindingResolver', () => {
 
-	function kbItem(keybinding: number, command: string, commandArgs: any, when: ContextKeyExpr, isDefault: boolean): NormalizedKeybindingItem {
+	function kbItem(keybinding: number, command: string, commandArgs: any, when: ContextKeyExpr, isDefault: boolean): ResolvedKeybindingItem {
 		const resolvedKeybinding = (keybinding !== 0 ? new USLayoutResolvedKeybinding(createKeybinding(keybinding), OS) : null);
-		return new NormalizedKeybindingItem(
+		return new ResolvedKeybindingItem(
 			resolvedKeybinding,
 			command,
 			commandArgs,
@@ -232,7 +232,7 @@ suite('KeybindingResolver', () => {
 
 	test('resolve command', function () {
 
-		function _kbItem(keybinding: number, command: string, when: ContextKeyExpr): NormalizedKeybindingItem {
+		function _kbItem(keybinding: number, command: string, when: ContextKeyExpr): ResolvedKeybindingItem {
 			return kbItem(keybinding, command, null, when, true);
 		}
 
