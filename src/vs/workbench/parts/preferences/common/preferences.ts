@@ -96,6 +96,6 @@ export const CONTEXT_KEYBINDINGS_EDITOR = new RawContextKey<boolean>('inKeybindi
 export const CONTEXT_KEYBINDING_FOCUS = new RawContextKey<boolean>('keybindingFocus', false);
 
 export const SETTINGS_EDITOR_COMMAND_SEARCH = 'settings.action.search';
-export const KEYBINDINGS_EDITOR_COMMAND_SEARCH = 'keybindings.editor.search';
-export const KEYBINDINGS_EDITOR_COMMAND_DEFINE = 'keybindings.editor.define';
-export const KEYBINDINGS_EDITOR_COMMAND_REMOVE = 'keybindings.editor.remove';
+export const KEYBINDINGS_EDITOR_COMMAND_SEARCH = 'keybindings.editor.searchKeybindings';
+export const KEYBINDINGS_EDITOR_COMMAND_DEFINE = 'keybindings.editor.defineKeybinding';
+export const KEYBINDINGS_EDITOR_COMMAND_REMOVE = 'keybindings.editor.removeKeybinding';
