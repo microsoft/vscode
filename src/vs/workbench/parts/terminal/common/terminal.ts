@@ -62,7 +62,6 @@ export interface ITerminalConfiguration {
 
 export interface ITerminalConfigHelper {
 	config: ITerminalConfiguration;
-	getTheme(baseThemeId: string): string[];
 	getFont(): ITerminalFont;
 }
 
