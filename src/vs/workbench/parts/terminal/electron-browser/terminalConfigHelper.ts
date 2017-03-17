@@ -83,13 +83,12 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 		if (fontSize <= 0) {
 			fontSize = DefaultConfig.editor.fontSize;
 		}
-		let fontWeight = terminalConfig.fontWeight;
 		let lineHeight = terminalConfig.lineHeight <= 0 ? DEFAULT_LINE_HEIGHT : terminalConfig.lineHeight;
 		if (!lineHeight) {
 			lineHeight = DEFAULT_LINE_HEIGHT;
 		}
 
-		return this._measureFont(fontFamily, fontSize, lineHeight, fontWeight);
+		return this._measureFont(fontFamily, fontSize, lineHeight);
 	}
 
 	public mergeDefaultShellPathAndArgs(shell: IShellLaunchConfig): IShellLaunchConfig {

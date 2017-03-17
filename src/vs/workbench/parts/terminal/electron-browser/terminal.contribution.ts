@@ -106,10 +106,10 @@ configurationRegistry.registerConfiguration({
 			'type': 'number',
 			'default': 1.2
 		},
-		'terminal.integrated.fontWeight': {
+		'terminal.integrated.enableBold': {
 			'type': 'string',
 			'description': nls.localize('terminal.integrated.fontWeight', "Customizes font weight in terminal."),
-			'default': 'normal'
+			'default': true
 		},
 		'terminal.integrated.cursorBlinking': {
 			'description': nls.localize('terminal.integrated.cursorBlinking', "Controls whether the terminal cursor blinks."),

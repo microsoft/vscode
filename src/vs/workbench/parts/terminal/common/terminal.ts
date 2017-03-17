@@ -52,7 +52,6 @@ export interface ITerminalConfiguration {
 	fontFamily: string;
 	fontLigatures: boolean;
 	fontSize: number;
-	fontWeight: string;
 	lineHeight: number;
 	setLocaleVariables: boolean;
 	scrollback: number;
@@ -72,7 +71,6 @@ export interface ITerminalFont {
 	lineHeight: number;
 	charWidth: number;
 	charHeight: number;
-	fontWeight: string;
 }
 
 export interface IShellLaunchConfig {
