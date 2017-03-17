@@ -7,7 +7,7 @@
 import * as nls from 'vs/nls';
 import { IHTMLContentElement } from 'vs/base/common/htmlContent';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { ResolvedKeybinding, Keybinding, createKeybinding, KeyCode, USER_SETTINGS, RuntimeKeybinding, RuntimeKeybindingType, SimpleRuntimeKeybinding, KeyCodeUtils, createRuntimeKeybinding } from 'vs/base/common/keyCodes';
+import { ResolvedKeybinding, KeyCode, USER_SETTINGS, RuntimeKeybinding, RuntimeKeybindingType, SimpleRuntimeKeybinding, KeyCodeUtils } from 'vs/base/common/keyCodes';
 import { PrintableKeypress, UILabelProvider, AriaLabelProvider, UserSettingsLabelProvider } from 'vs/platform/keybinding/common/keybindingLabels';
 import { OS, OperatingSystem } from 'vs/base/common/platform';
 import { toDisposable } from 'vs/base/common/lifecycle';
@@ -338,8 +338,8 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		for (let i = 0, len = items.length; i < len; i++) {
 			const item = items[i];
 			const when = (item.when ? item.when.normalize() : null);
-			const keybinding = (item.keybinding !== 0 ? createKeybinding(item.keybinding) : null);
-			const resolvedKeybinding = (keybinding !== null ? this._createResolvedKeybinding(keybinding) : null);
+			const keybinding = item.keybinding;
+			const resolvedKeybinding = (keybinding ? this._createResolvedKeybinding(keybinding) : null);
 
 			result[resultLen++] = new ResolvedKeybindingItem(resolvedKeybinding, item.command, item.commandArgs, when, isDefault);
 		}
@@ -360,8 +360,8 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		return extraUserKeybindings.map((k, i) => KeybindingIO.readKeybindingItem(k, i, OS));
 	}
 
-	protected _createResolvedKeybinding(kb: Keybinding): ResolvedKeybinding {
-		return new FancyResolvedKeybinding(createRuntimeKeybinding(kb, OS));
+	protected _createResolvedKeybinding(kb: RuntimeKeybinding): ResolvedKeybinding {
+		return new FancyResolvedKeybinding(kb);
 	}
 
 	private _handleKeybindingsExtensionPointUser(isBuiltin: boolean, keybindings: ContributedKeyBinding | ContributedKeyBinding[], collector: ExtensionMessageCollector): boolean {
