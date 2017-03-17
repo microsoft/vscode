@@ -9,7 +9,7 @@ import { createKeybinding, KeyCode, KeyMod, KeyChord, KeyCodeUtils } from 'vs/ba
 import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
 import { OS, OperatingSystem } from 'vs/base/common/platform';
 import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
-import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/abstractKeybindingService';
+import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
 
 suite('keybindingIO', () => {
 	test('getUserSettingsKeybindingRegex', () => {

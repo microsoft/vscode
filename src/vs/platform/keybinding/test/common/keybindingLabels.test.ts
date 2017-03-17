@@ -7,7 +7,7 @@
 import * as assert from 'assert';
 import { createKeybinding, KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
 import { IHTMLContentElement } from 'vs/base/common/htmlContent';
-import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/abstractKeybindingService';
+import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
 import { OperatingSystem } from 'vs/base/common/platform';
 
 suite('KeybindingLabels', () => {
