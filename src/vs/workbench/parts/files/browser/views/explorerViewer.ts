@@ -26,7 +26,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { ContributableActionProvider } from 'vs/workbench/browser/actionBarRegistry';
 import { IFilesConfiguration } from 'vs/workbench/parts/files/common/files';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IFileOperationResult, FileOperationResult, IFileService, isEqual, isParent } from 'vs/platform/files/common/files';
+import { IFileOperationResult, FileOperationResult, IFileService, isEqual, isEqualOrParent } from 'vs/platform/files/common/files';
 import { ResourceMap } from 'vs/base/common/map';
 import { DuplicateFileAction, ImportFileAction, IEditableData, IFileViewletState } from 'vs/workbench/parts/files/browser/fileActions';
 import { IDataSource, ITree, IElementCallback, IAccessibilityProvider, IRenderer, ContextMenuEvent, ISorter, IFilter, IDragAndDrop, IDragAndDropData, IDragOverReaction, DRAG_OVER_ACCEPT_BUBBLE_DOWN, DRAG_OVER_ACCEPT_BUBBLE_DOWN_COPY, DRAG_OVER_ACCEPT_BUBBLE_UP, DRAG_OVER_ACCEPT_BUBBLE_UP_COPY, DRAG_OVER_REJECT } from 'vs/base/parts/tree/browser/tree';
@@ -697,7 +697,7 @@ export class FileDragAndDrop implements IDragAndDrop {
 					return true; // Can not move a file to the same parent unless we copy
 				}
 
-				if (isEqual(target.resource.fsPath, source.resource.fsPath) || isParent(target.resource.fsPath, source.resource.fsPath)) {
+				if (isEqualOrParent(target.resource.fsPath, source.resource.fsPath)) {
 					return true; // Can not move a parent folder into one of its children
 				}
 
@@ -759,7 +759,7 @@ export class FileDragAndDrop implements IDragAndDrop {
 				};
 
 				// 1. check for dirty files that are being moved and backup to new target
-				const dirty = this.textFileService.getDirty().filter(d => isEqual(d.fsPath, source.resource.fsPath) || isParent(d.fsPath, source.resource.fsPath));
+				const dirty = this.textFileService.getDirty().filter(d => isEqualOrParent(d.fsPath, source.resource.fsPath));
 				return TPromise.join(dirty.map(d => {
 					let moved: URI;
 
@@ -802,7 +802,7 @@ export class FileDragAndDrop implements IDragAndDrop {
 
 								// Move with overwrite if the user confirms
 								if (this.messageService.confirm(confirm)) {
-									const targetDirty = this.textFileService.getDirty().filter(d => isEqual(d.fsPath, targetResource.fsPath) || isParent(d.fsPath, targetResource.fsPath));
+									const targetDirty = this.textFileService.getDirty().filter(d => isEqualOrParent(d.fsPath, targetResource.fsPath));
 
 									// Make sure to revert all dirty in target first to be able to overwrite properly
 									return this.textFileService.revertAll(targetDirty, { soft: true /* do not attempt to load content from disk */ }).then(() => {

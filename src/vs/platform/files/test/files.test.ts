@@ -8,7 +8,7 @@
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
 import { join } from 'vs/base/common/paths';
-import { FileChangeType, FileChangesEvent, isEqual, isParent, indexOf } from 'vs/platform/files/common/files';
+import { FileChangeType, FileChangesEvent, isEqual, isParent, isEqualOrParent, indexOf } from 'vs/platform/files/common/files';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 
 suite('Files', () => {
@@ -94,8 +94,41 @@ suite('Files', () => {
 		}
 	});
 
+	test('isEqualOrParent', function () {
+		assert(isEqualOrParent('foo/bar/test.ts', 'foo'));
+		assert(isEqualOrParent('/', '/'));
+		assert(isEqualOrParent('/foo', '/foo'));
+		assert(!isEqualOrParent('/foo', '/f'));
+		assert(!isEqualOrParent('/foo', '/foo/b'));
+		assert(isEqualOrParent('foo/bar/test.ts', 'foo/bar'));
+		assert(!isEqualOrParent('foo/bar/test.ts', '/foo/bar'));
+		assert(!isEqualOrParent('foo/bar/test.ts', 'foo/barr'));
+		assert(isEqualOrParent('foo/bar/test.ts', 'foo/bar/test.ts'));
+		assert(!isEqualOrParent('foo/bar/test.ts', 'foo/bar/test'));
+		assert(!isEqualOrParent('foo/bar/test.ts', 'foo/bar/test.'));
+
+		if (!isLinux) {
+			assert(isEqualOrParent('/foo', '/fOO'));
+			assert(isEqualOrParent('/fOO', '/foo'));
+			assert(isEqualOrParent('foo/bar/test.ts', 'foo/BAR/test.ts'));
+			assert(!isEqualOrParent('foo/bar/test.ts', 'foo/BAR/test.'));
+		}
+
+		if (isWindows) {
+			assert.ok(!isEqualOrParent('c:\\some\\path', 'c:\\some\\path'));
+			assert.ok(isEqualOrParent('c:\\some\\path', 'c:\\some'));
+			assert.ok(!isEqualOrParent('c:\\some\\path', 'c:\\some\\path'));
+			assert.ok(isEqualOrParent('c:\\some\\path', 'c:\\some'));
+		}
+	});
+
 	test('indexOf', function () {
 		assert.equal(indexOf('/some/path', '/some/path'), 0);
+		assert.equal(indexOf('/some/path/more', '/some/path'), 0);
+
+		assert.equal(indexOf('c:\\some\\path', 'c:\\some\\path'), 0);
+		assert.equal(indexOf('c:\\some\\path\\more', 'c:\\some\\path'), 0);
+
 		assert.equal(indexOf('/some/path', '/some/other/path'), -1);
 
 		if (isLinux) {

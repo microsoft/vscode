@@ -13,6 +13,7 @@ import { isLinux } from 'vs/base/common/platform';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import Event from 'vs/base/common/event';
 import { Schemas } from 'vs/base/common/network';
+import { equalsIgnoreCase, beginsWithIgnoreCase } from 'vs/base/common/strings';
 
 export const IFileService = createDecorator<IFileService>('fileService');
 
@@ -231,7 +232,7 @@ export class FileChangesEvent extends events.Event {
 
 			// For deleted also return true when deleted folder is parent of target path
 			if (type === FileChangeType.DELETED) {
-				return isEqual(resource.fsPath, change.resource.fsPath) || isParent(resource.fsPath, change.resource.fsPath);
+				return isEqualOrParent(resource.fsPath, change.resource.fsPath);
 			}
 
 			return isEqual(resource.fsPath, change.resource.fsPath);
@@ -325,15 +326,11 @@ export function isEqual(resourceOrPathA: string | URI, resourceOrPathB: string |
 	const pathA = resourceOrPathA;
 	const pathB = resourceOrPathB as string;
 
-	if (isLinux || identityEquals) {
+	if (isLinux) {
 		return identityEquals;
 	}
 
-	if (pathA.length !== pathB.length) {
-		return false;
-	}
-
-	return pathA.toLowerCase() === pathB.toLowerCase();
+	return equalsIgnoreCase(pathA, pathB);
 }
 
 export function isParent(path: string, candidate: string): boolean {
@@ -342,14 +339,42 @@ export function isParent(path: string, candidate: string): boolean {
 	}
 
 	if (!isLinux) {
+		return beginsWithIgnoreCase(path, candidate + paths.nativeSep);
+	}
+
+	return path.indexOf(candidate + paths.nativeSep) === 0;
+}
+
+export function isEqualOrParent(path: string, candidate: string): boolean {
+	if (path === candidate) {
+		return true;
+	}
+
+	if (candidate.length > path.length) {
+		return false;
+	}
+
+	if (!isLinux) {
 		path = path.toLowerCase();
 		candidate = candidate.toLowerCase();
+
+		if (path === candidate) {
+			return true;
+		}
 	}
 
 	return path.indexOf(candidate + paths.nativeSep) === 0;
 }
 
 export function indexOf(path: string, candidate: string): number {
+	if (candidate.length > path.length) {
+		return -1;
+	}
+
+	if (path === candidate) {
+		return 0;
+	}
+
 	if (!isLinux) {
 		path = path.toLowerCase();
 		candidate = candidate.toLowerCase();

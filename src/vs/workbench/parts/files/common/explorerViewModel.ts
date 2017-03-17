@@ -7,7 +7,7 @@
 
 import URI from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
-import { IFileStat, isEqual, isParent } from 'vs/platform/files/common/files';
+import { IFileStat, isEqual, isParent, isEqualOrParent } from 'vs/platform/files/common/files';
 import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
 import { IEditorInput } from 'vs/platform/editor/common/editor';
 import { IEditorGroup, toResource } from 'vs/workbench/common/editor';
@@ -61,7 +61,7 @@ export class FileStat implements IFileStat {
 			// the folder is fully resolved if either it has a list of children or the client requested this by using the resolveTo
 			// array of resource path to resolve.
 			stat.isDirectoryResolved = !!raw.children || (!!resolveTo && resolveTo.some((r) => {
-				return isEqual(r.fsPath, stat.resource.fsPath) || isParent(r.fsPath, stat.resource.fsPath);
+				return isEqualOrParent(r.fsPath, stat.resource.fsPath);
 			}));
 
 			// Recurse into children
