@@ -91,7 +91,6 @@ export interface IKeybindingsEditor extends IEditor {
 	removeKeybinding(keybindingEntry: IKeybindingItemEntry): TPromise<any>;
 }
 
-export const KEYBINDINGS_EDITOR_ID = 'workbench.editor.keybindings';
 export const CONTEXT_SETTINGS_EDITOR = new RawContextKey<boolean>('inSettingsEditor', false);
 export const CONTEXT_KEYBINDINGS_EDITOR = new RawContextKey<boolean>('inKeybindings', false);
 export const CONTEXT_KEYBINDING_FOCUS = new RawContextKey<boolean>('keybindingFocus', false);
