@@ -373,7 +373,11 @@ export function equalsIgnoreCase(a: string, b: string): boolean {
 		return false;
 	}
 
-	for (let i = 0; i < len1; i++) {
+	return doEqualsIgnoreCase(a, b);
+}
+
+export function doEqualsIgnoreCase(a: string, b: string, stopAt = a.length): boolean {
+	for (let i = 0; i < stopAt; i++) {
 
 		let codeA = a.charCodeAt(i),
 			codeB = b.charCodeAt(i);
@@ -394,6 +398,15 @@ export function equalsIgnoreCase(a: string, b: string): boolean {
 	}
 
 	return true;
+}
+
+export function beginsWithIgnoreCase(str: string, candidate: string): boolean {
+	const candidateLength = candidate.length;
+	if (candidate.length > str.length) {
+		return false;
+	}
+
+	return doEqualsIgnoreCase(str, candidate, candidateLength);
 }
 
 /**
