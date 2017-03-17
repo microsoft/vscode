@@ -43,7 +43,8 @@ export class QueryBuilder {
 			cacheKey: options.cacheKey,
 			fileEncoding: options.fileEncoding,
 			contentPattern: contentPattern,
-			useRipgrep: configuration.search.useRipgrep
+			useRipgrep: configuration.search.useRipgrep,
+			useIgnoreFiles: options.useIgnoreFiles
 		};
 	}
 }

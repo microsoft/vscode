@@ -331,6 +331,11 @@ function getRgArgs(config: IRawSearch): { args: string[], siblingClauses: glob.S
 		}
 	}
 
+	if (!config.useIgnoreFiles) {
+		// Don't use .gitignore or .ignore
+		args.push('--no-ignore');
+	}
+
 	// Folder to search
 	args.push('--', './');
 

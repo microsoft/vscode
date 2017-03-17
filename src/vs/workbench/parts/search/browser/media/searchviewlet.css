@@ -299,6 +299,17 @@
 	background: url('pattern-dark.svg') center center no-repeat;
 }
 
+.vs .monaco-workbench .search-viewlet .query-details .file-types .controls>.custom-checkbox.useIgnoreFiles {
+	background: url('git.svg') center center no-repeat;
+	background-size: 20px 20px;
+}
+
+.vs-dark .monaco-workbench .search-viewlet .query-details .file-types .controls>.custom-checkbox.useIgnoreFiles,
+.hc-black .monaco-workbench .search-viewlet .query-details .file-types .controls>.custom-checkbox.useIgnoreFiles {
+	background: url('git-dark.svg') center center no-repeat;
+	background-size: 20px 20px;
+}
+
 .search-viewlet .findInFileMatch,
 .monaco-editor .findInFileMatch {
 	background-color: rgba(234, 92, 0, 0.3);
