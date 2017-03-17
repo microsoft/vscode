@@ -3,11 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as dom from 'vs/base/browser/dom';
 import * as nls from 'vs/nls';
 import * as path from 'path';
 import * as platform from 'vs/base/common/platform';
 import * as pfs from 'vs/base/node/pfs';
 import Uri from 'vs/base/common/uri';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { TerminalWidgetManager } from 'vs/workbench/parts/terminal/browser/terminalWidgetManager';
@@ -35,6 +37,8 @@ export type XtermLinkMatcherHandler = (event: MouseEvent, uri: string) => boolea
 export type XtermLinkMatcherValidationCallback = (uri: string, element: HTMLElement, callback: (isValid: boolean) => void) => void;
 
 export class TerminalLinkHandler {
+	private _tooltipDisposables: IDisposable[] = [];
+
 	constructor(
 		private _widgetManager: TerminalWidgetManager,
 		private _xterm: any,
@@ -66,6 +70,10 @@ export class TerminalLinkHandler {
 			validationCallback: (link: string, element: HTMLElement, callback: (isValid: boolean) => void) => this._validateLocalLink(link, element, callback),
 			priority: LOCAL_LINK_PRIORITY
 		});
+	}
+
+	public disposeTooltipListeners(): void {
+		this._tooltipDisposables = dispose(this._tooltipDisposables);
 	}
 
 	private _wrapLinkHandler(handler: (uri: string) => boolean | void): XtermLinkMatcherHandler {
@@ -112,7 +120,8 @@ export class TerminalLinkHandler {
 
 	private _addTooltipEventListeners(element: HTMLElement) {
 		let timeout = null;
-		element.addEventListener('mouseenter', () => {
+		let isMessageShowing = false;
+		this._tooltipDisposables.push(dom.addDisposableListener(element, dom.EventType.MOUSE_OVER, () => {
 			timeout = setTimeout(() => {
 				let message: string;
 				if (platform.isMacintosh) {
@@ -121,12 +130,14 @@ export class TerminalLinkHandler {
 					message = nls.localize('terminalLinkHandler.followLinkCtrl', 'Ctrl + click to follow link');
 				}
 				this._widgetManager.showMessage(element.offsetLeft, element.offsetTop, message);
+				isMessageShowing = true;
 			}, 500);
-		});
-		element.addEventListener('mouseleave', () => {
+		}));
+		this._tooltipDisposables.push(dom.addDisposableListener(element, dom.EventType.MOUSE_OUT, () => {
 			clearTimeout(timeout);
 			this._widgetManager.closeMessage();
-		});
+			isMessageShowing = false;
+		}));
 	}
 
 	private _resolvePath(link: string): TPromise<string> {
