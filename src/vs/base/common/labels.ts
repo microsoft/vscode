@@ -7,8 +7,9 @@
 import URI from 'vs/base/common/uri';
 import platform = require('vs/base/common/platform');
 import types = require('vs/base/common/types');
-import { nativeSep, isEqualOrParent, normalize } from 'vs/base/common/paths';
+import { nativeSep, normalize } from 'vs/base/common/paths';
 import { endsWith, ltrim } from 'vs/base/common/strings';
+import { isEqual, isParent } from 'vs/platform/files/common/files';
 
 export interface ILabelProvider {
 
@@ -44,7 +45,7 @@ export function getPathLabel(resource: URI | string, basePathProvider?: URI | st
 
 	const basepath = basePathProvider && getPath(basePathProvider);
 
-	if (basepath && isEqualOrParent(absolutePath, basepath)) {
+	if (basepath && (isEqual(absolutePath, basepath) || isParent(absolutePath, basepath))) {
 		if (basepath === absolutePath) {
 			return ''; // no label if pathes are identical
 		}

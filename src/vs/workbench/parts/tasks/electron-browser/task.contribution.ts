@@ -25,6 +25,7 @@ import { match } from 'vs/base/common/glob';
 import { setTimeout } from 'vs/base/common/platform';
 import { TerminateResponse, TerminateResponseCode } from 'vs/base/common/processes';
 import * as strings from 'vs/base/common/strings';
+import { ValidationStatus, ValidationState } from 'vs/base/common/parsers';
 
 import { Registry } from 'vs/platform/platform';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
@@ -40,6 +41,7 @@ import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { ProblemMatcherRegistry } from 'vs/platform/markers/common/problemMatcher';
 
 
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -448,6 +450,43 @@ class NullTaskSystem extends EventEmitter implements ITaskSystem {
 	}
 }
 
+class ProblemReporter implements TaskConfig.IProblemReporter {
+
+	private _validationStatus: ValidationStatus;
+
+	constructor(private _outputChannel: IOutputChannel) {
+		this._validationStatus = new ValidationStatus();
+	}
+
+	public info(message: string): void {
+		this._validationStatus.state = ValidationState.Info;
+		this._outputChannel.append(message + '\n');
+	}
+
+	public warn(message: string): void {
+		this._validationStatus.state = ValidationState.Warning;
+		this._outputChannel.append(message + '\n');
+	}
+
+	public error(message: string): void {
+		this._validationStatus.state = ValidationState.Error;
+		this._outputChannel.append(message + '\n');
+	}
+
+	public fatal(message: string): void {
+		this._validationStatus.state = ValidationState.Fatal;
+		this._outputChannel.append(message + '\n');
+	}
+
+	public get status(): ValidationStatus {
+		return this._validationStatus;
+	}
+
+	public clearOutput(): void {
+		this._outputChannel.clear();
+	}
+}
+
 class TaskService extends EventEmitter implements ITaskService {
 
 	private static autoDetectTelemetryName: string = 'taskServer.autoDetect';
@@ -591,14 +630,6 @@ class TaskService extends EventEmitter implements ITaskService {
 		});
 	}
 
-	public log(value: string): void {
-		this.outputChannel.append(value + '\n');
-	}
-
-	public clearOutput(): void {
-		this.outputChannel.clear();
-	}
-
 	private showOutput(): void {
 		this.outputChannel.show(true);
 	}
@@ -621,7 +652,8 @@ class TaskService extends EventEmitter implements ITaskService {
 				this._taskSystemPromise = TPromise.as(this._taskSystem);
 			} else {
 				let hasError = false;
-				this._taskSystemPromise = TPromise.as(this.configurationService.getConfiguration<TaskConfig.ExternalTaskRunnerConfiguration>('tasks')).then((config) => {
+				this._taskSystemPromise = ProblemMatcherRegistry.onReady().then(() => {
+					let config = this.configurationService.getConfiguration<TaskConfig.ExternalTaskRunnerConfiguration>('tasks');
 					let parseErrors: string[] = config ? (<any>config).$parseErrors : null;
 					if (parseErrors) {
 						let isAffected = false;
@@ -690,7 +722,8 @@ class TaskService extends EventEmitter implements ITaskService {
 							throw new TaskError(Severity.Info, nls.localize('TaskSystem.noConfiguration', 'No task runner configured.'), TaskErrors.NotConfigured);
 						}
 						let result: ITaskSystem = null;
-						let parseResult = TaskConfig.parse(config, this);
+						let problemReporter = new ProblemReporter(this.outputChannel);
+						let parseResult = TaskConfig.parse(config, problemReporter);
 						if (!parseResult.validationStatus.isOK()) {
 							this.outputChannel.show(true);
 							hasError = true;
@@ -741,7 +774,7 @@ class TaskService extends EventEmitter implements ITaskService {
 				}
 			}
 			if (isAffected) {
-				this.log(nls.localize('TaskSystem.invalidTaskJson', 'Error: The content of the tasks.json file has syntax errors. Please correct them before executing a task.\n'));
+				this.outputChannel.append(nls.localize('TaskSystem.invalidTaskJson', 'Error: The content of the tasks.json file has syntax errors. Please correct them before executing a task.\n'));
 				this.showOutput();
 				return TPromise.wrapError(undefined);
 			}
@@ -785,12 +818,13 @@ class TaskService extends EventEmitter implements ITaskService {
 			if (!config) {
 				return undefined;
 			}
-			let parseResult = TaskConfig.parse(config, this);
+			let problemReporter = new ProblemReporter(this.outputChannel);
+			let parseResult = TaskConfig.parse(config, problemReporter);
 			if (!parseResult.validationStatus.isOK()) {
 				this.showOutput();
 			}
-			if (parseResult.validationStatus.isFatal()) {
-				this.log(nls.localize('TaskSystem.configurationErrors', 'Error: the provided task configuration has validation errors and can\'t not be used. Please correct the errors first.'));
+			if (problemReporter.status.isFatal()) {
+				problemReporter.fatal(nls.localize('TaskSystem.configurationErrors', 'Error: the provided task configuration has validation errors and can\'t not be used. Please correct the errors first.'));
 				return undefined;
 			}
 			return parseResult.configuration;

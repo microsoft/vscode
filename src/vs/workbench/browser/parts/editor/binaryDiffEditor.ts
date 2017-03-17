@@ -20,6 +20,7 @@ import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel'
 import { DiffEditorModel } from 'vs/workbench/common/editor/diffEditorModel';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 /**
  * An implementation of editor for diffing binary files like images or videos.
@@ -44,9 +45,10 @@ export class BinaryResourceDiffEditor extends BaseEditor implements IVerticalSas
 	private startLeftContainerWidth: number;
 
 	constructor(
-		@ITelemetryService telemetryService: ITelemetryService
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IThemeService themeService: IThemeService
 	) {
-		super(BinaryResourceDiffEditor.ID, telemetryService);
+		super(BinaryResourceDiffEditor.ID, telemetryService, themeService);
 
 		this._onMetadataChanged = new Emitter<void>();
 	}

@@ -30,6 +30,7 @@ import { IPreferencesService, IPreferencesEditorModel, ISetting } from 'vs/workb
 import { SettingsEditorModel, DefaultSettingsEditorModel, DefaultKeybindingsEditorModel } from 'vs/workbench/parts/preferences/common/preferencesModels';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DefaultPreferencesEditorInput, PreferencesEditorInput } from 'vs/workbench/parts/preferences/browser/preferencesEditor';
+import { KeybindingsEditorInput } from 'vs/workbench/parts/preferences/browser/keybindingsEditor';
 import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
@@ -163,19 +164,23 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		}
 	}
 
-	openGlobalKeybindingSettings(): TPromise<void> {
-		const emptyContents = '// ' + nls.localize('emptyKeybindingsHeader', "Place your key bindings in this file to overwrite the defaults") + '\n[\n]';
-		const editableKeybindings = URI.file(this.environmentService.appKeybindingsPath);
+	openGlobalKeybindingSettings(textual: boolean): TPromise<void> {
+		if (textual) {
+			const emptyContents = '// ' + nls.localize('emptyKeybindingsHeader', "Place your key bindings in this file to overwrite the defaults") + '\n[\n]';
+			const editableKeybindings = URI.file(this.environmentService.appKeybindingsPath);
 
-		// Create as needed and open in editor
-		return this.createIfNotExists(editableKeybindings, emptyContents).then(() => {
-			return this.editorService.openEditors([
-				{ input: { resource: this.defaultKeybindingsResource, options: { pinned: true }, label: nls.localize('defaultKeybindings', "Default Keybindings"), description: '' }, position: EditorPosition.ONE },
-				{ input: { resource: editableKeybindings, options: { pinned: true } }, position: EditorPosition.TWO },
-			]).then(() => {
-				this.editorGroupService.focusGroup(EditorPosition.TWO);
+			// Create as needed and open in editor
+			return this.createIfNotExists(editableKeybindings, emptyContents).then(() => {
+				return this.editorService.openEditors([
+					{ input: { resource: this.defaultKeybindingsResource, options: { pinned: true }, label: nls.localize('defaultKeybindings', "Default Keybindings"), description: '' }, position: EditorPosition.ONE },
+					{ input: { resource: editableKeybindings, options: { pinned: true } }, position: EditorPosition.TWO },
+				]).then(() => {
+					this.editorGroupService.focusGroup(EditorPosition.TWO);
+				});
 			});
-		});
+
+		}
+		return this.editorService.openEditor(this.instantiationService.createInstance(KeybindingsEditorInput), { pinned: true }).then(() => null);
 	}
 
 	configureSettingsForLanguage(language: string): void {

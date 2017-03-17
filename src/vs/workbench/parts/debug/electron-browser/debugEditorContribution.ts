@@ -19,10 +19,9 @@ import { StandardTokenType } from 'vs/editor/common/modes';
 import { DEFAULT_WORD_REGEXP } from 'vs/editor/common/model/wordHelper';
 import { ICodeEditor, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
-import { IDecorationOptions, IModelDecorationOptions, MouseTargetType, IModelDeltaDecoration, TrackedRangeStickiness, IPosition } from 'vs/editor/common/editorCommon';
+import { IDecorationOptions, IModelDecorationOptions, MouseTargetType, IModelDeltaDecoration, TrackedRangeStickiness, IPosition, Handler } from 'vs/editor/common/editorCommon';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -100,15 +99,16 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 				actions.push(this.instantiationService.createInstance(EnableBreakpointAction, EnableBreakpointAction.ID, EnableBreakpointAction.LABEL));
 			}
 		} else if (breakpoints.length > 1) {
-			actions.push(new Action(
-				'removeBreakpointsOnLine',
-				nls.localize('removeBreakpointOnLine', "Remove Breakpoints"),
+			const sorted = breakpoints.sort((first, second) => first.column - second.column);
+			actions.push(new ContextSubMenu(nls.localize('removeBreakpoints', "Remove Breakpoints"), sorted.map(bp => new Action(
+				'removeColumnBreakpoint',
+				bp.column ? nls.localize('removeBreakpointOnColumn', "Remove Breakpoint on Column {0}", bp.column) : nls.localize('removeLineBreakpoint', "Remove Line Breakpoint"),
 				null,
 				true,
-				() => TPromise.join(breakpoints.map(bp => this.debugService.removeBreakpoints(bp.getId())))
-			));
+				() => this.debugService.removeBreakpoints(bp.getId())
+			))));
 
-			actions.push(new ContextSubMenu(nls.localize('editBreakpoints', "Edit Breakpoints"), breakpoints.sort((first, second) => first.column - second.column).map(bp =>
+			actions.push(new ContextSubMenu(nls.localize('editBreakpoints', "Edit Breakpoints"), sorted.map(bp =>
 				new Action('editBreakpoint',
 					bp.column ? nls.localize('editBreakpointOnColumn', "Edit Breakpoint on Column {0}", bp.column) : nls.localize('editLineBrekapoint', "Edit Line Breakpoint"),
 					null,
@@ -117,14 +117,14 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 				)
 			)));
 
-			const disable = breakpoints.some(bp => bp.enabled);
-			actions.push(new Action(
-				disable ? 'disableBreakpoints' : 'enableBreakpoints',
-				disable ? nls.localize('disableBreakpoints', "Disable Breakpoints") : nls.localize('enableBreakpoints', "Enable Breakpoints"),
+			actions.push(new ContextSubMenu(nls.localize('enableDisableBreakpoints', "Enable/Disable Breakpoints"), sorted.map(bp => new Action(
+				bp.enabled ? 'disableColumnBreakpoint' : 'enableColumnBreakpoint',
+				bp.enabled ? (bp.column ? nls.localize('disableColumnBreakpoint', "Disable Breakpoint on Column {0}", bp.column) : nls.localize('disableBreakpointOnLine', "Disable Line Breakpoint"))
+					: (bp.column ? nls.localize('enableBreakpoints', "Enable Breakpoint on Column {0}", bp.column) : nls.localize('enableBreakpointOnLine', "Enable Line Breakpoint")),
 				null,
 				true,
-				() => TPromise.join(breakpoints.map(bp => this.debugService.enableOrDisableBreakpoints(!disable, bp)))
-			));
+				() => this.debugService.enableOrDisableBreakpoints(!bp.enabled, bp)
+			))));
 		} else {
 			actions.push(new Action(
 				'addBreakpoint',
@@ -360,7 +360,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		const sameUri = exceptionSf.source.uri.toString() === model.uri.toString();
 		if (this.exceptionWidget && !sameUri) {
 			this.closeExceptionWidget();
-		} else if (focusedSf.thread.stoppedDetails.reason === 'exception' && sameUri) {
+		} else if (sameUri && focusedSf.thread.stoppedDetails && focusedSf.thread.stoppedDetails.reason === 'exception') {
 			this.showExceptionWidget(exceptionSf.lineNumber, exceptionSf.column);
 		}
 	}
@@ -395,7 +395,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 	public addLaunchConfiguration(): TPromise<any> {
 		this.telemetryService.publicLog('debug/addLaunchConfiguration');
-		let configurationsPosition: IPosition;
+		let configurationsArrayPosition: IPosition;
 		const model = this.editor.getModel();
 		let depthInArray = 0;
 		let lastProperty: string;
@@ -406,7 +406,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			},
 			onArrayBegin: (offset: number, length: number) => {
 				if (lastProperty === 'configurations' && depthInArray === 0) {
-					configurationsPosition = model.getPositionAt(offset);
+					configurationsArrayPosition = model.getPositionAt(offset + 1);
 				}
 				depthInArray++;
 			},
@@ -416,21 +416,27 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		});
 
 		this.editor.focus();
-		if (!configurationsPosition) {
+		if (!configurationsArrayPosition) {
 			return this.commandService.executeCommand('editor.action.triggerSuggest');
 		}
 
-		const insertLineAfter = (lineNumber: number): TPromise<any> => {
-			if (this.editor.getModel().getLineLastNonWhitespaceColumn(lineNumber + 1) === 0) {
-				this.editor.setSelection(new Selection(lineNumber + 1, Number.MAX_VALUE, lineNumber + 1, Number.MAX_VALUE));
+		const insertLine = (position: IPosition): TPromise<any> => {
+			// Check if there are more characters on a line after a "configurations": [, if yes enter a newline
+			if (this.editor.getModel().getLineLastNonWhitespaceColumn(position.lineNumber) > position.column) {
+				this.editor.setPosition(position);
+				this.editor.trigger(this.getId(), Handler.LineBreakInsert, undefined);
+			}
+			// Check if there is already an empty line to insert suggest, if yes just place the cursor
+			if (this.editor.getModel().getLineLastNonWhitespaceColumn(position.lineNumber + 1) === 0) {
+				this.editor.setPosition({ lineNumber: position.lineNumber + 1, column: Constants.MAX_SAFE_SMALL_INTEGER });
 				return TPromise.as(null);
 			}
 
-			this.editor.setSelection(new Selection(lineNumber, Number.MAX_VALUE, lineNumber, Number.MAX_VALUE));
+			this.editor.setPosition(position);
 			return this.commandService.executeCommand('editor.action.insertLineAfter');
 		};
 
-		return insertLineAfter(configurationsPosition.lineNumber).then(() => this.commandService.executeCommand('editor.action.triggerSuggest'));
+		return insertLine(configurationsArrayPosition).then(() => this.commandService.executeCommand('editor.action.triggerSuggest'));
 	}
 
 	private static BREAKPOINT_HELPER_DECORATION: IModelDecorationOptions = {

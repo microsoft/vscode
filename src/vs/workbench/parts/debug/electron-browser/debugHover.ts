@@ -169,6 +169,10 @@ export class DebugHoverWidget implements IContentWidget {
 		const expressionRange = this.getExactExpressionRange(lineContent, range);
 		// use regex to extract the sub-expression #9821
 		const matchingExpression = lineContent.substring(expressionRange.startColumn - 1, expressionRange.endColumn);
+		if (!matchingExpression) {
+			return TPromise.as(this.hide());
+		}
+
 		let promise: TPromise<IExpression>;
 		if (process.session.capabilities.supportsEvaluateForHovers) {
 			const result = new Expression(matchingExpression);

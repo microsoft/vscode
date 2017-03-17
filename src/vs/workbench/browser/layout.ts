@@ -71,6 +71,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 	private startPanelHeight: number;
 	private panelHeight: number;
 	private panelHeightBeforeMaximized: number;
+	private panelMaximized: boolean;
 	private panelWidth: number;
 	private layoutEditorGroupsVertically: boolean;
 
@@ -107,6 +108,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		this.toUnbind = [];
 		this.partLayoutInfo = this.getPartLayoutInfo();
 		this.panelHeightBeforeMaximized = 0;
+		this.panelMaximized = false;
 
 		this.sashX = new Sash(this.workbenchContainer.getHTMLElement(), this, {
 			baseSize: 5
@@ -342,9 +344,13 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 			panelHeight = sidebarSize.height * DEFAULT_PANEL_HEIGHT_COEFFICIENT;
 		}
 		if (options && options.toggleMaximizedPanel) {
-			const heightToSwap = panelHeight;
-			panelHeight = panelHeight === maxPanelHeight ? Math.max(this.partLayoutInfo.panel.minHeight, Math.min(this.panelHeightBeforeMaximized, maxPanelHeight)) : maxPanelHeight;
-			this.panelHeightBeforeMaximized = heightToSwap;
+			panelHeight = this.panelMaximized ? Math.max(this.partLayoutInfo.panel.minHeight, Math.min(this.panelHeightBeforeMaximized, maxPanelHeight)) : maxPanelHeight;
+		}
+		this.panelMaximized = panelHeight === maxPanelHeight;
+		if (panelHeight / maxPanelHeight < 0.7) {
+			// Remember the previous height only if the panel size is not too large.
+			// To get a nice minimize effect even if a user dragged the panel sash to maximum.
+			this.panelHeightBeforeMaximized = panelHeight;
 		}
 		const panelDimension = new Dimension(this.workbenchSize.width - sidebarSize.width - activityBarSize.width, panelHeight);
 		this.panelWidth = panelDimension.width;
@@ -527,6 +533,10 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 
 	public getHorizontalSashWidth(sash: Sash): number {
 		return this.panelWidth;
+	}
+
+	public isPanelMaximized(): boolean {
+		return this.panelMaximized;
 	}
 
 	public dispose(): void {

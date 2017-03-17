@@ -301,7 +301,7 @@ class InternalEditorOptionsHelper {
 			selectionClipboard: toBoolean(opts.selectionClipboard),
 			hover: toBoolean(opts.hover),
 			contextmenu: toBoolean(opts.contextmenu),
-			quickSuggestions: toBoolean(opts.quickSuggestions),
+			quickSuggestions: typeof opts.quickSuggestions === 'object' ? { other: true, ...opts.quickSuggestions } : toBoolean(opts.quickSuggestions),
 			quickSuggestionsDelay: toInteger(opts.quickSuggestionsDelay),
 			parameterHints: toBoolean(opts.parameterHints),
 			iconsInSuggestions: toBoolean(opts.iconsInSuggestions),
@@ -723,9 +723,31 @@ const editorConfiguration: IConfigurationNode = {
 			'description': nls.localize('mouseWheelScrollSensitivity', "A multiplier to be used on the `deltaX` and `deltaY` of mouse wheel scroll events")
 		},
 		'editor.quickSuggestions': {
-			'type': 'boolean',
+			'anyOf': [
+				'boolean',
+				{
+					type: 'object',
+					properties: {
+						strings: {
+							type: 'boolean',
+							default: false,
+							description: nls.localize('quickSuggestions.strings', "Enable quick suggestions inside strings.")
+						},
+						comments: {
+							type: 'boolean',
+							default: false,
+							description: nls.localize('quickSuggestions.comments', "Enable quick suggestions inside comments.")
+						},
+						other: {
+							type: 'boolean',
+							default: true,
+							description: nls.localize('quickSuggestions.other', "Enable quick suggestions outside of strings and comments.")
+						},
+					}
+				}
+			],
 			'default': DefaultConfig.editor.quickSuggestions,
-			'description': nls.localize('quickSuggestions', "Controls if quick suggestions should show up or not while typing")
+			'description': nls.localize('quickSuggestions', "Controls if suggestions should automatically show up while typing")
 		},
 		'editor.quickSuggestionsDelay': {
 			'type': 'integer',
@@ -780,28 +802,9 @@ const editorConfiguration: IConfigurationNode = {
 			'description': nls.localize('emptySelectionClipboard', "Controls whether copying without a selection copies the current line.")
 		},
 		'editor.wordBasedSuggestions': {
-			'anyOf': [
-				'boolean',
-				{
-					type: 'object',
-					properties: {
-						strings: {
-							type: 'boolean',
-							description: nls.localize('wordBasedSuggestions.strings', "Enable word based suggestions inside strings.")
-						},
-						comments: {
-							type: 'boolean',
-							description: nls.localize('wordBasedSuggestions.comments', "Enable word based suggestions inside comments.")
-						},
-						default: {
-							type: 'boolean',
-							description: nls.localize('wordBasedSuggestions.default', "Enable word based suggestions outside of strings and comments.")
-						},
-					}
-				}
-			],
+			'type': 'boolean',
 			'default': DefaultConfig.editor.wordBasedSuggestions,
-			'description': nls.localize('wordBasedSuggestions', "Enable word based suggestions.")
+			'description': nls.localize('wordBasedSuggestions', "Controls whether completions should be computed based on words in the document.")
 		},
 		'editor.suggestFontSize': {
 			'type': 'integer',

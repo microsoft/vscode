@@ -10,10 +10,10 @@ import { IStringDictionary } from 'vs/base/common/collections';
 import * as Types from 'vs/base/common/types';
 import * as UUID from 'vs/base/common/uuid';
 
-import { ValidationStatus, ValidationState, ILogger, Parser } from 'vs/base/common/parsers';
+import { IProblemReporter, Parser } from 'vs/base/common/parsers';
 import { Executable, ExecutableParser, Config as ProcessConfig } from 'vs/base/common/processes';
 
-import { ProblemMatcher, Config as ProblemMatcherConfig, ProblemMatcherParser } from 'vs/platform/markers/common/problemMatcher';
+import { ProblemMatcher, Config as ProblemMatcherConfig, ProblemMatcherParser, ProblemMatcherRegistry } from 'vs/platform/markers/common/problemMatcher';
 
 export namespace Config {
 
@@ -159,11 +159,8 @@ export interface ParserSettings {
 
 export class TaskParser extends Parser {
 
-	private resolver: { get(name: string): ProblemMatcher; };
-
-	constructor(resolver: { get(name: string): ProblemMatcher; }, logger: ILogger, validationStatus: ValidationStatus = new ValidationStatus()) {
-		super(logger, validationStatus);
-		this.resolver = resolver;
+	constructor(problemReporter: IProblemReporter) {
+		super(problemReporter);
 	}
 
 	public parse(json: Config.Task, parserSettings: ParserSettings = { globals: null, emptyExecutable: false, emptyCommand: false }): Task {
@@ -181,17 +178,15 @@ export class TaskParser extends Parser {
 			trigger = <string[]>json.trigger;
 		}
 		if (name === null && trigger === null) {
-			this.status.state = ValidationState.Error;
-			this.log(NLS.localize('TaskParser.nameOrTrigger', 'A task must either define a name or a trigger.'));
+			this.error(NLS.localize('TaskParser.nameOrTrigger', 'A task must either define a name or a trigger.'));
 			return null;
 		}
-		let executable: Executable = json.executable ? (new ExecutableParser(this.logger, this.status)).parse(json.executable, { emptyCommand: !!parserSettings.emptyCommand }) : null;
+		let executable: Executable = json.executable ? (new ExecutableParser(this.problemReporter)).parse(json.executable, { emptyCommand: !!parserSettings.emptyCommand }) : null;
 		if (!executable && parserSettings.globals) {
 			executable = parserSettings.globals;
 		}
 		if (executable === null && !parserSettings.emptyExecutable) {
-			this.status.state = ValidationState.Error;
-			this.log(NLS.localize('TaskParser.noExecutable', 'A task must must define a valid executable.'));
+			this.error(NLS.localize('TaskParser.noExecutable', 'A task must must define a valid executable.'));
 			return null;
 		}
 		let isWatching: boolean = false;
@@ -235,9 +230,9 @@ export class TaskParser extends Parser {
 
 	private parseProblemMatcher(json: string | ProblemMatcherConfig.ProblemMatcher): ProblemMatcher {
 		if (Types.isString(json)) {
-			return json.length > 0 && json.charAt(0) === '$' ? this.resolver.get(json.substr(1)) : null;
+			return json.length > 0 && json.charAt(0) === '$' ? ProblemMatcherRegistry.get(json.substr(1)) : null;
 		} else if (Types.isObject(json)) {
-			return new ProblemMatcherParser(this.resolver, this.logger, this.status).parse(<ProblemMatcherConfig.ProblemMatcher>json);
+			return new ProblemMatcherParser(this.problemReporter).parse(<ProblemMatcherConfig.ProblemMatcher>json);
 		} else {
 			return null;
 		}

@@ -22,14 +22,12 @@ import errors = require('vs/base/common/errors');
 import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { IFileService } from 'vs/platform/files/common/files';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IMessageService } from 'vs/platform/message/common/message';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import Severity from 'vs/base/common/severity';
-import URI from 'vs/base/common/uri';
 import { ColorThemeData } from './colorThemeData';
-import { ITheme, IThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { registerParticipants } from 'vs/workbench/services/themes/electron-browser/stylesContributions';
+import { ITheme, Extensions as ThemingExtensions, IThemingRegistry } from 'vs/platform/theme/common/themeService';
 
 import { $ } from 'vs/base/browser/builder';
 import Event, { Emitter } from 'vs/base/common/event';
@@ -52,6 +50,8 @@ const defaultThemeExtensionId = 'vscode-theme-defaults';
 const oldDefaultThemeExtensionId = 'vscode-theme-colorful-defaults';
 
 const fileIconsEnabledClass = 'file-icons-enabled';
+
+const themingRegistry = Registry.as<IThemingRegistry>(ThemingExtensions.ThemingContribution);
 
 function validateThemeId(theme: string): string {
 	// migrations
@@ -116,8 +116,6 @@ let iconThemeExtPoint = ExtensionsRegistry.registerExtensionPoint<IThemeExtensio
 		required: ['path', 'id']
 	}
 });
-
-
 
 interface IInternalIconThemeData extends IFileIconTheme {
 	id: string;
@@ -188,7 +186,8 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 	private currentIconTheme: IFileIconTheme;
 	private onFileIconThemeChange: Emitter<IFileIconTheme>;
 
-	private themingParticipants: IThemingParticipant[];
+	private themingParticipantChangeListener: IDisposable;
+	private _configurationWriter: ConfigurationWriter;
 
 	constructor(
 		container: HTMLElement,
@@ -196,15 +195,13 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		@IStorageService private storageService: IStorageService,
 		@IWindowIPCService private windowService: IWindowIPCService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IFileService private fileService: IFileService,
 		@IMessageService private messageService: IMessageService,
-		@ITelemetryService private telemetryService: ITelemetryService) {
+		@ITelemetryService private telemetryService: ITelemetryService,
+		@IInstantiationService private instantiationService: IInstantiationService) {
 
 		this.container = container;
 		this.knownColorThemes = [];
-		this.themingParticipants = [];
 
 		// In order to avoid paint flashing for tokens, because
 		// themes are loaded asynchronously, we need to initialize
@@ -275,36 +272,23 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		return this.onColorThemeChange.event;
 	}
 
-	public get onDidThemeChange(): Event<ITheme> {
-		return this.onColorThemeChange.event;
-	}
-
 	public get onDidFileIconThemeChange(): Event<IFileIconTheme> {
 		return this.onFileIconThemeChange.event;
 	}
 
-	public registerThemingParticipant(participant: IThemingParticipant): IDisposable {
-		this.themingParticipants.push(participant);
-
-		return {
-			dispose: () => {
-				const idx = this.themingParticipants.indexOf(participant);
-				this.themingParticipants.splice(idx, 1);
-			}
-		};
-	}
-
-	public getThemingParticipants(): IThemingParticipant[] {
-		return this.themingParticipants;
+	public get onThemeChange(): Event<ITheme> {
+		return this.onColorThemeChange.event;
 	}
 
 	private backupSettings(): TPromise<string> {
-		let resource = URI.file(this.environmentService.appSettingsPath);
-		let backupFileLocation = URI.file(resource.fsPath + '-' + new Date().getTime() + '.backup');
-		return this.fileService.copyFile(resource, backupFileLocation, true).then(_ => backupFileLocation.fsPath, err => {
+		let resource = this.environmentService.appSettingsPath;
+		let backupFileLocation = resource + '-' + new Date().getTime() + '.backup';
+		return pfs.readFile(resource).then(content => {
+			return pfs.writeFile(backupFileLocation, content).then(_ => backupFileLocation);
+		}, err => {
 			if (err && err.code === 'ENOENT') {
 				return TPromise.as(null); // ignore, user config file doesn't exist yet
-			}
+			};
 			return TPromise.wrapError(err);
 		});
 	}
@@ -321,7 +305,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 				this.storageService.remove('workbench.theme', StorageScope.GLOBAL);
 				promise = this.findThemeData(legacyColorThemeId, DEFAULT_THEME_ID).then(theme => {
 					let value = theme ? theme.settingsId : DEFAULT_THEME_SETTING_VALUE;
-					return this.writeConfiguration(COLOR_THEME_SETTING, value, ConfigurationTarget.USER).then(null, error => null);
+					return this.configurationWriter.writeConfiguration(COLOR_THEME_SETTING, value, ConfigurationTarget.USER).then(null, error => null);
 				});
 			}
 			if (!types.isUndefined(legacyIconThemeId)) {
@@ -329,7 +313,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 				promise = promise.then(_ => {
 					return this._findIconThemeData(legacyIconThemeId).then(theme => {
 						let value = theme ? theme.settingsId : null;
-						return this.writeConfiguration(ICON_THEME_SETTING, value, ConfigurationTarget.USER).then(null, error => null);
+						return this.configurationWriter.writeConfiguration(ICON_THEME_SETTING, value, ConfigurationTarget.USER).then(null, error => null);
 					});
 				});
 			}
@@ -344,8 +328,6 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 	}
 
 	private initialize(): TPromise<any> {
-
-		registerParticipants(this);
 
 		let colorThemeSetting = this.configurationService.lookup<string>(COLOR_THEME_SETTING).value;
 		let iconThemeSetting = this.configurationService.lookup<string>(ICON_THEME_SETTING).value || '';
@@ -394,6 +376,11 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 		themeId = validateThemeId(themeId); // migrate theme ids
 
+		if (this.themingParticipantChangeListener) {
+			this.themingParticipantChangeListener.dispose();
+			this.themingParticipantChangeListener = null;
+		}
+
 		let onApply = (newTheme: ColorThemeData) => {
 			let newThemeId = newTheme.id;
 			if (this.container) {
@@ -403,6 +390,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 				$(this.container).addClass(newThemeId);
 			}
 			this.currentColorTheme = newTheme;
+			this.themingParticipantChangeListener = themingRegistry.onThemingParticipantAdded(p => this.updateDynamicCSSRules(this.currentColorTheme));
 
 			this.sendTelemetry(newTheme.id, newTheme.extensionData, 'color');
 
@@ -418,9 +406,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		return this.findThemeData(themeId, DEFAULT_THEME_ID).then(themeData => {
 			if (themeData) {
 				return themeData.ensureLoaded().then(_ => {
-					let cssRules = [];
-					this.getThemingParticipants().forEach(p => p(themeData, cssRules));
-					_applyRules(cssRules.join('\n'), colorThemeRulesClassName);
+					this.updateDynamicCSSRules(themeData);
 					return onApply(themeData);
 				}, error => {
 					return TPromise.wrapError(nls.localize('error.cannotloadtheme', "Unable to load {0}: {1}", themeData.path, error.message));
@@ -430,9 +416,24 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		});
 	}
 
+	private updateDynamicCSSRules(themeData: ITheme) {
+		let cssRules = [];
+		let hasRule = {};
+		let ruleCollector = {
+			addRule: (rule: string) => {
+				if (!hasRule[rule]) {
+					cssRules.push(rule);
+					hasRule[rule] = true;
+				}
+			}
+		};
+		themingRegistry.getThemingParticipants().forEach(p => p(themeData, ruleCollector));
+		_applyRules(cssRules.join('\n'), colorThemeRulesClassName);
+	}
+
 	private writeColorThemeConfiguration(settingsTarget: ConfigurationTarget): TPromise<IFileIconTheme> {
 		if (!types.isUndefinedOrNull(settingsTarget)) {
-			return this.writeConfiguration(COLOR_THEME_SETTING, this.currentColorTheme.settingsId, settingsTarget).then(_ => this.currentColorTheme);
+			return this.configurationWriter.writeConfiguration(COLOR_THEME_SETTING, this.currentColorTheme.settingsId, settingsTarget).then(_ => this.currentColorTheme);
 		}
 		return TPromise.as(this.currentColorTheme);
 	}
@@ -630,28 +631,17 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 	private writeFileIconConfiguration(settingsTarget: ConfigurationTarget): TPromise<IFileIconTheme> {
 		if (!types.isUndefinedOrNull(settingsTarget)) {
-			return this.writeConfiguration(ICON_THEME_SETTING, this.currentIconTheme.settingsId, settingsTarget).then(_ => this.currentIconTheme);
+			return this.configurationWriter.writeConfiguration(ICON_THEME_SETTING, this.currentIconTheme.settingsId, settingsTarget).then(_ => this.currentIconTheme);
 		}
 		return TPromise.as(this.currentIconTheme);
 	}
 
-	private writeConfiguration(key: string, value: any, settingsTarget: ConfigurationTarget): TPromise<any> {
-		let settings = this.configurationService.lookup(key);
-		if (settingsTarget === ConfigurationTarget.USER) {
-			if (value === settings.user) {
-				return TPromise.as(null); // nothing to do
-			} else if (value === settings.default) {
-				if (types.isUndefined(settings.user)) {
-					return TPromise.as(null); // nothing to do
-				}
-				value = void 0; // remove configuration from user settings
-			}
-		} else if (settingsTarget === ConfigurationTarget.WORKSPACE) {
-			if (value === settings.value) {
-				return TPromise.as(null); // nothing to do
-			}
+	private get configurationWriter(): ConfigurationWriter {
+		// separate out the ConfigurationWriter to avoid a dependency of the IConfigurationEditingService
+		if (!this._configurationWriter) {
+			this._configurationWriter = this.instantiationService.createInstance(ConfigurationWriter);
 		}
-		return this.configurationEditingService.writeConfiguration(settingsTarget, { key, value });
+		return this._configurationWriter;
 	}
 
 	private _findIconThemeData(iconTheme: string): TPromise<IInternalIconThemeData> {
@@ -887,6 +877,30 @@ function _applyRules(styleSheetContent: string, rulesClassName: string) {
 
 colorThemeSchema.register();
 fileIconThemeSchema.register();
+
+class ConfigurationWriter {
+	constructor( @IConfigurationService private configurationService: IConfigurationService, @IConfigurationEditingService private configurationEditingService: IConfigurationEditingService) {
+	}
+
+	public writeConfiguration(key: string, value: any, settingsTarget: ConfigurationTarget): TPromise<any> {
+		let settings = this.configurationService.lookup(key);
+		if (settingsTarget === ConfigurationTarget.USER) {
+			if (value === settings.user) {
+				return TPromise.as(null); // nothing to do
+			} else if (value === settings.default) {
+				if (types.isUndefined(settings.user)) {
+					return TPromise.as(null); // nothing to do
+				}
+				value = void 0; // remove configuration from user settings
+			}
+		} else if (settingsTarget === ConfigurationTarget.WORKSPACE) {
+			if (value === settings.value) {
+				return TPromise.as(null); // nothing to do
+			}
+		}
+		return this.configurationEditingService.writeConfiguration(settingsTarget, { key, value });
+	}
+}
 
 // Configuration: Themes
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);

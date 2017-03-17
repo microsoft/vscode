@@ -8,9 +8,9 @@ import { Registry } from 'vs/platform/platform';
 import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
-import { Extensions as ThemeingExtensions, IThemingRegistry } from 'vs/platform/theme/common/themingRegistry';
+import { Extensions as ThemeingExtensions, IColorRegistry } from 'vs/platform/theme/common/colorRegistry';
 
-let themingRegistry = <IThemingRegistry>Registry.as(ThemeingExtensions.ThemingContribution);
+let themingRegistry = <IColorRegistry>Registry.as(ThemeingExtensions.ColorContribution);
 let textMateScopes = [
 	'comment',
 	'comment.block',

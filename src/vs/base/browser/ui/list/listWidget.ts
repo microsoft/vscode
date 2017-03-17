@@ -97,6 +97,12 @@ class Trait<T> implements ISpliceable<boolean>, IDisposable {
 		DOM.toggleClass(container, this._trait, this.contains(index));
 	}
 
+	/**
+	 * Sets the indexes which should have this trait.
+	 *
+	 * @param indexes Indexes which should have this trait.
+	 * @return The old indexes which had this trait.
+	 */
 	set(indexes: number[]): number[] {
 		const result = this.indexes;
 		this.indexes = indexes;
@@ -279,7 +285,7 @@ class MouseController<T> implements IDisposable {
 			const newSelection = selection.filter(i => i !== focus);
 
 			if (selection.length === newSelection.length) {
-				this.list.setSelection([...newSelection, focus].sort());
+				this.list.setSelection([...newSelection, focus]);
 			} else {
 				this.list.setSelection(newSelection);
 			}
@@ -305,6 +311,35 @@ const DefaultOptions: IListOptions<any> = {
 	keyboardSupport: true,
 	mouseSupport: true
 };
+
+/**
+ * Given two sorted collections of numbers, returns the exclusive
+ * disjunction between them (XOR).
+ */
+function exclusiveDisjunction(one: number[], other: number[]): number[] {
+	const result = [];
+	let i = 0, j = 0;
+
+	while (i < one.length || j < other.length) {
+		if (i >= one.length) {
+			result.push(other[j++]);
+		} else if (j >= other.length) {
+			result.push(one[i++]);
+		} else if (one[i] === other[j]) {
+			i++;
+			j++;
+			continue;
+		} else if (one[i] < other[j]) {
+			result.push(one[i++]);
+		} else {
+			result.push(other[j++]);
+		}
+	}
+
+	return result;
+}
+
+const numericSort = (a: number, b: number) => a - b;
 
 export class List<T> implements ISpliceable<T>, IDisposable {
 
@@ -420,9 +455,12 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	}
 
 	setSelection(indexes: number[]): void {
+		indexes = indexes.sort(numericSort);
+
 		this.eventBufferer.bufferEvents(() => {
-			indexes = indexes.concat(this.selection.set(indexes));
-			indexes.forEach(i => this.view.splice(i, 1, [this.view.element(i)]));
+			const oldIndexes = this.selection.set(indexes);
+			const diffIndexes = exclusiveDisjunction(oldIndexes, indexes);
+			diffIndexes.forEach(i => this.view.splice(i, 1, [this.view.element(i)]));
 		});
 	}
 
@@ -448,9 +486,12 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	}
 
 	setFocus(indexes: number[]): void {
+		indexes = indexes.sort(numericSort);
+
 		this.eventBufferer.bufferEvents(() => {
-			indexes = indexes.concat(this.focus.set(indexes));
-			indexes.forEach(i => this.view.splice(i, 1, [this.view.element(i)]));
+			const oldIndexes = this.focus.set(indexes);
+			const diffIndexes = exclusiveDisjunction(oldIndexes, indexes);
+			diffIndexes.forEach(i => this.view.splice(i, 1, [this.view.element(i)]));
 		});
 	}
 
