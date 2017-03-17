@@ -6,21 +6,18 @@
 
 import * as nls from 'vs/nls';
 import { IHTMLContentElement } from 'vs/base/common/htmlContent';
-import { ResolvedKeybinding, SimpleKeybinding, Keybinding, KeyCode, KeyCodeUtils } from 'vs/base/common/keyCodes';
-import { PrintableKeypress, UILabelProvider, AriaLabelProvider, ElectronAcceleratorLabelProvider } from 'vs/platform/keybinding/common/keybindingLabels';
+import { ResolvedKeybinding, SimpleKeybinding, Keybinding, KeyCode, KeyCodeUtils, USER_SETTINGS } from 'vs/base/common/keyCodes';
+import { PrintableKeypress, UILabelProvider, AriaLabelProvider, ElectronAcceleratorLabelProvider, UserSettingsLabelProvider } from 'vs/platform/keybinding/common/keybindingLabels';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
-import { isFalsyOrEmpty } from 'vs/base/common/arrays';
-import { ICommandService, CommandsRegistry, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import { KeybindingResolver, IResolveResult } from 'vs/platform/keybinding/common/keybindingResolver';
 import { IKeybindingEvent, IKeybindingService, IKeybindingItem2, KeybindingSource } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService, IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { IMessageService } from 'vs/platform/message/common/message';
 import Event, { Emitter } from 'vs/base/common/event';
-import { KeybindingIO, OutputBuilder } from 'vs/platform/keybinding/common/keybindingIO';
-import { NormalizedKeybindingItem } from 'vs/platform/keybinding/common/normalizedKeybindingItem';
-import { OS, OperatingSystem } from 'vs/base/common/platform';
+import { OperatingSystem } from 'vs/base/common/platform';
 
 /**
  * Do not instantiate. Use KeybindingService to get a ResolvedKeybinding seeded with information about the current kb layout.
@@ -102,8 +99,15 @@ export class USLayoutResolvedKeybinding extends ResolvedKeybinding {
 		return ElectronAcceleratorLabelProvider.toLabel2(firstPart, chordPart, this._os);
 	}
 
+	private static _usKeyCodeToUserSettings(keyCode: KeyCode, OS: OperatingSystem): string {
+		return USER_SETTINGS.fromKeyCode(keyCode);
+	}
+
 	public getUserSettingsLabel(): string {
-		return KeybindingIO.writeKeybinding(this._actual, this._os);
+		const [firstPart, chordPart] = PrintableKeypress.fromKeybinding(this._actual, USLayoutResolvedKeybinding._usKeyCodeToUserSettings, this._os);
+
+		let result = UserSettingsLabelProvider.toLabel2(firstPart, chordPart, this._os);
+		return result.toLowerCase();
 	}
 }
 
@@ -159,14 +163,7 @@ export abstract class AbstractKeybindingService implements IKeybindingService {
 	}
 
 	public getDefaultKeybindings(): string {
-		const resolver = this._getResolver();
-		const defaultKeybindings = resolver.getDefaultKeybindings();
-		const boundCommands = resolver.getDefaultBoundCommands();
-		return (
-			AbstractKeybindingService._getDefaultKeybindings(defaultKeybindings)
-			+ '\n\n'
-			+ AbstractKeybindingService._getAllCommandsAsComment(boundCommands)
-		);
+		return '';
 	}
 
 	public getKeybindings(): IKeybindingItem2[] {
@@ -176,46 +173,6 @@ export abstract class AbstractKeybindingService implements IKeybindingService {
 			when: keybinding.when,
 			source: keybinding.isDefault ? KeybindingSource.Default : KeybindingSource.User
 		}));
-	}
-
-	private static _getDefaultKeybindings(defaultKeybindings: NormalizedKeybindingItem[]): string {
-		let out = new OutputBuilder();
-		out.writeLine('[');
-
-		let lastIndex = defaultKeybindings.length - 1;
-		defaultKeybindings.forEach((k, index) => {
-			KeybindingIO.writeKeybindingItem(out, k, OS);
-			if (index !== lastIndex) {
-				out.writeLine(',');
-			} else {
-				out.writeLine();
-			}
-		});
-		out.writeLine(']');
-		return out.toString();
-	}
-
-	private static _getAllCommandsAsComment(boundCommands: Map<string, boolean>): string {
-		const commands = CommandsRegistry.getCommands();
-		const unboundCommands: string[] = [];
-
-		for (let id in commands) {
-			if (id[0] === '_' || id.indexOf('vscode.') === 0) { // private command
-				continue;
-			}
-			if (typeof commands[id].description === 'object'
-				&& !isFalsyOrEmpty((<ICommandHandlerDescription>commands[id].description).args)) { // command with args
-				continue;
-			}
-			if (boundCommands.get(id) === true) {
-				continue;
-			}
-			unboundCommands.push(id);
-		}
-
-		let pretty = unboundCommands.sort().join('\n// - ');
-
-		return '// ' + nls.localize('unboundCommands', "Here are other available commands: ") + '\n// - ' + pretty;
 	}
 
 	public customKeybindingsCount(): number {

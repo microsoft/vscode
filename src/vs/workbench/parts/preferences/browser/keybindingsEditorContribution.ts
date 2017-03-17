@@ -11,7 +11,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { MarkedString } from 'vs/base/common/htmlContent';
 import { createKeybinding, KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { KeybindingIO } from 'vs/platform/keybinding/common/keybindingIO';
+import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';

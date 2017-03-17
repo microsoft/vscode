@@ -16,7 +16,8 @@ import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/c
 import { AbstractKeybindingService, USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/abstractKeybindingService';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
-import { ICommandService } from 'vs/platform/commands/common/commands';
+import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { ICommandService, CommandsRegistry, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { IKeybindingEvent, IKeybindingItem, IUserFriendlyKeybinding, KeybindingSource } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingRule, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -30,7 +31,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { NormalizedKeybindingItem } from 'vs/platform/keybinding/common/normalizedKeybindingItem';
-import { KeybindingIO } from 'vs/platform/keybinding/common/keybindingIO';
+import { KeybindingIO, OutputBuilder } from 'vs/workbench/services/keybinding/common/keybindingIO';
 
 interface ContributedKeyBinding {
 	command: string;
@@ -337,6 +338,57 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		}
 
 		return desc;
+	}
+
+	public getDefaultKeybindings(): string {
+		const resolver = this._getResolver();
+		const defaultKeybindings = resolver.getDefaultKeybindings();
+		const boundCommands = resolver.getDefaultBoundCommands();
+		return (
+			WorkbenchKeybindingService._getDefaultKeybindings(defaultKeybindings)
+			+ '\n\n'
+			+ WorkbenchKeybindingService._getAllCommandsAsComment(boundCommands)
+		);
+	}
+
+	private static _getDefaultKeybindings(defaultKeybindings: NormalizedKeybindingItem[]): string {
+		let out = new OutputBuilder();
+		out.writeLine('[');
+
+		let lastIndex = defaultKeybindings.length - 1;
+		defaultKeybindings.forEach((k, index) => {
+			KeybindingIO.writeKeybindingItem(out, k, OS);
+			if (index !== lastIndex) {
+				out.writeLine(',');
+			} else {
+				out.writeLine();
+			}
+		});
+		out.writeLine(']');
+		return out.toString();
+	}
+
+	private static _getAllCommandsAsComment(boundCommands: Map<string, boolean>): string {
+		const commands = CommandsRegistry.getCommands();
+		const unboundCommands: string[] = [];
+
+		for (let id in commands) {
+			if (id[0] === '_' || id.indexOf('vscode.') === 0) { // private command
+				continue;
+			}
+			if (typeof commands[id].description === 'object'
+				&& !isFalsyOrEmpty((<ICommandHandlerDescription>commands[id].description).args)) { // command with args
+				continue;
+			}
+			if (boundCommands.get(id) === true) {
+				continue;
+			}
+			unboundCommands.push(id);
+		}
+
+		let pretty = unboundCommands.sort().join('\n// - ');
+
+		return '// ' + nls.localize('unboundCommands', "Here are other available commands: ") + '\n// - ' + pretty;
 	}
 }
 
