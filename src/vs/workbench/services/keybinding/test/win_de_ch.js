@@ -310,14 +310,14 @@ define({
 		vkey: 'VK_OEM_4',
 		value: '\'',
 		withShift: '?',
-		withAltGr: '',
+		withAltGr: '´',
 		withShiftAltGr: ''
 	},
 	Equal: {
 		vkey: 'VK_OEM_6',
-		value: '',
-		withShift: '',
-		withAltGr: '',
+		value: '^',
+		withShift: '`',
+		withAltGr: '~',
 		withShiftAltGr: ''
 	},
 	BracketLeft: {
@@ -329,7 +329,7 @@ define({
 	},
 	BracketRight: {
 		vkey: 'VK_OEM_3',
-		value: '',
+		value: '¨',
 		withShift: '!',
 		withAltGr: ']',
 		withShiftAltGr: ''
