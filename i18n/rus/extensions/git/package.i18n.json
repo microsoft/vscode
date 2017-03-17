@@ -6,8 +6,8 @@
 {
 	"command.branch": "Создать ветвь...",
 	"command.checkout": "Извлечь в...",
-	"command.clean": "Очистить файл",
-	"command.cleanAll": "Очистить все файлы",
+	"command.clean": "Удалить файл",
+	"command.cleanAll": "Удалить все файлы",
 	"command.clone": "Клонировать",
 	"command.commit": "Зафиксировать",
 	"command.commitAll": "Зафиксировать все",

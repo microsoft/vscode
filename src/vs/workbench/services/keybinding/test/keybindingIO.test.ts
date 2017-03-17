@@ -5,18 +5,60 @@
 'use strict';
 
 import * as assert from 'assert';
-import { createKeybinding, KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
-import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
-import { NormalizedKeybindingItem } from 'vs/platform/keybinding/common/normalizedKeybindingItem';
-import { KeybindingIO } from 'vs/platform/keybinding/common/keybindingIO';
+import { KeyCode, KeyMod, KeyChord, KeyCodeUtils, createRuntimeKeybinding } from 'vs/base/common/keyCodes';
+import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
 import { OS, OperatingSystem } from 'vs/base/common/platform';
+import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
+import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
 
-suite('Keybinding IO', () => {
+suite('keybindingIO', () => {
+	test('getUserSettingsKeybindingRegex', () => {
+		let regex = new RegExp(KeybindingIO.getUserSettingsKeybindingRegex());
+
+		function testIsGood(userSettingsLabel: string, message: string = userSettingsLabel): void {
+			let userSettings = '"' + userSettingsLabel.replace(/\\/g, '\\\\') + '"';
+			let isGood = regex.test(userSettings);
+			assert.ok(isGood, message);
+		}
+
+		// check that all key codes are covered by the regex
+		let ignore: boolean[] = [];
+		ignore[KeyCode.Shift] = true;
+		ignore[KeyCode.Ctrl] = true;
+		ignore[KeyCode.Alt] = true;
+		ignore[KeyCode.Meta] = true;
+		for (let keyCode = KeyCode.Unknown + 1; keyCode < KeyCode.MAX_VALUE; keyCode++) {
+			if (ignore[keyCode]) {
+				continue;
+			}
+			let usLayoutResolvedKeybinding = new USLayoutResolvedKeybinding(createRuntimeKeybinding(keyCode, OS), OS);
+			let userSettings = usLayoutResolvedKeybinding.getUserSettingsLabel();
+			testIsGood(userSettings, keyCode + ' - ' + KeyCodeUtils.toString(keyCode) + ' - ' + userSettings);
+		}
+
+		// one modifier
+		testIsGood('ctrl+a');
+		testIsGood('shift+a');
+		testIsGood('alt+a');
+		testIsGood('cmd+a');
+		testIsGood('meta+a');
+		testIsGood('win+a');
+
+		// more modifiers
+		testIsGood('ctrl+shift+a');
+		testIsGood('shift+alt+a');
+		testIsGood('ctrl+shift+alt+a');
+
+		// chords
+		testIsGood('ctrl+a ctrl+a');
+	});
+
 
 	test('serialize/deserialize', function () {
 
 		function testOneSerialization(keybinding: number, expected: string, msg: string, OS: OperatingSystem): void {
-			let actualSerialized = KeybindingIO.writeKeybinding(createKeybinding(keybinding), OS);
+			let usLayoutResolvedKeybinding = new USLayoutResolvedKeybinding(createRuntimeKeybinding(keybinding, OS), OS);
+			let actualSerialized = usLayoutResolvedKeybinding.getUserSettingsLabel();
 			assert.equal(actualSerialized, expected, expected + ' - ' + msg);
 		}
 		function testSerialization(keybinding: number, expectedWin: string, expectedMac: string, expectedLinux: string): void {
@@ -110,36 +152,31 @@ suite('Keybinding IO', () => {
 		testDeserialization(' ctrl-shift-alt-win-A ', ' shift-alt-cmd-Ctrl-A ', ' ctrl-shift-alt-META-A ', KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.KEY_A);
 	});
 
-
 	test('issue #10452 - invalid command', () => {
 		let strJSON = `[{ "key": "ctrl+k ctrl+f", "command": ["firstcommand", "seccondcommand"] }]`;
 		let userKeybinding = <IUserFriendlyKeybinding>JSON.parse(strJSON)[0];
 		let keybindingItem = KeybindingIO.readKeybindingItem(userKeybinding, 0, OS);
-		let normalizedKeybindingItem = NormalizedKeybindingItem.fromKeybindingItem(keybindingItem, false);
-		assert.equal(normalizedKeybindingItem.command, null);
+		assert.equal(keybindingItem.command, null);
 	});
 
 	test('issue #10452 - invalid when', () => {
 		let strJSON = `[{ "key": "ctrl+k ctrl+f", "command": "firstcommand", "when": [] }]`;
 		let userKeybinding = <IUserFriendlyKeybinding>JSON.parse(strJSON)[0];
 		let keybindingItem = KeybindingIO.readKeybindingItem(userKeybinding, 0, OS);
-		let normalizedKeybindingItem = NormalizedKeybindingItem.fromKeybindingItem(keybindingItem, false);
-		assert.equal(normalizedKeybindingItem.when, null);
+		assert.equal(keybindingItem.when, null);
 	});
 
 	test('issue #10452 - invalid key', () => {
 		let strJSON = `[{ "key": [], "command": "firstcommand" }]`;
 		let userKeybinding = <IUserFriendlyKeybinding>JSON.parse(strJSON)[0];
 		let keybindingItem = KeybindingIO.readKeybindingItem(userKeybinding, 0, OS);
-		let normalizedKeybindingItem = NormalizedKeybindingItem.fromKeybindingItem(keybindingItem, false);
-		assert.equal(normalizedKeybindingItem.keybinding, null);
+		assert.equal(keybindingItem.keybinding, null);
 	});
 
 	test('test commands args', () => {
 		let strJSON = `[{ "key": "ctrl+k ctrl+f", "command": "firstcommand", "when": [], "args": { "text": "theText" } }]`;
 		let userKeybinding = <IUserFriendlyKeybinding>JSON.parse(strJSON)[0];
 		let keybindingItem = KeybindingIO.readKeybindingItem(userKeybinding, 0, OS);
-		let normalizedKeybindingItem = NormalizedKeybindingItem.fromKeybindingItem(keybindingItem, false);
-		assert.equal(normalizedKeybindingItem.commandArgs.text, 'theText');
+		assert.equal(keybindingItem.commandArgs.text, 'theText');
 	});
 });

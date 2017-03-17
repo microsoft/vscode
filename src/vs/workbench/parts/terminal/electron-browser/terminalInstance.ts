@@ -227,7 +227,7 @@ export class TerminalInstance implements ITerminalInstance {
 			// Skip processing by xterm.js of keyboard events that resolve to commands described
 			// within commandsToSkipShell
 			const standardKeyboardEvent = new StandardKeyboardEvent(event);
-			const keybinding = standardKeyboardEvent.toKeybinding();
+			const keybinding = standardKeyboardEvent.toRuntimeKeybinding();
 			const resolveResult = this._keybindingService.resolve(keybinding, standardKeyboardEvent.target);
 			if (resolveResult && this._skipTerminalCommands.some(k => k === resolveResult.commandId)) {
 				event.preventDefault();
@@ -489,6 +489,8 @@ export class TerminalInstance implements ITerminalInstance {
 
 	private _sendPtyDataToXterm(message: { type: string, content: string }): void {
 		if (message.type === 'data') {
+			this._widgetManager.closeMessage();
+			this._linkHandler.disposeTooltipListeners();
 			this._xterm.write(message.content);
 		}
 	}

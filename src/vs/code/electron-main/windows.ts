@@ -30,7 +30,7 @@ import CommonEvent, { Emitter } from 'vs/base/common/event';
 import product from 'vs/platform/node/product';
 import { OpenContext } from 'vs/code/common/windows';
 import { ITelemetryService, ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
-import { isParent, isEqual } from 'vs/platform/files/common/files';
+import { isParent, isEqual, isEqualOrParent } from 'vs/platform/files/common/files';
 
 enum WindowError {
 	UNRESPONSIVE,
@@ -1113,7 +1113,7 @@ export class WindowsManager implements IWindowsMainService {
 				}
 
 				// match on file path
-				if (typeof w.openedWorkspacePath === 'string' && filePath && (isEqual(filePath, w.openedWorkspacePath) || isParent(filePath, w.openedWorkspacePath))) {
+				if (typeof w.openedWorkspacePath === 'string' && filePath && isEqualOrParent(filePath, w.openedWorkspacePath)) {
 					return true;
 				}
 

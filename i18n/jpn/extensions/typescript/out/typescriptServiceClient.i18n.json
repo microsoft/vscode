@@ -8,6 +8,7 @@
 	"channelName": "TypeScript",
 	"later": "後続",
 	"learnMore": "詳細情報",
+	"noBundledServerFound": "適切に動作しないウイルス検出ツールなどの他のアプリケーションにより、VSCode の tsserver は削除されました。VS Code を再インストールしてください。",
 	"noServerFound": "パス {0} は、有効な tsserver インストールを指していません。バンドルされている TypeScript バージョンにフォールバックしています。",
 	"reloadBlurb": "ウィンドウを再度読み込んで、変更を適用します",
 	"reloadTitle": "再読み込む",

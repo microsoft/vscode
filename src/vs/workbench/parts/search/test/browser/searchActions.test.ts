@@ -17,8 +17,9 @@ import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/abstractKeybindingService';
+import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
 import { OS } from 'vs/base/common/platform';
+import { RuntimeKeybinding } from "vs/base/common/keyCodes";
 
 suite('Search Actions', () => {
 
@@ -29,7 +30,7 @@ suite('Search Actions', () => {
 		instantiationService = new TestInstantiationService();
 		instantiationService.stub(IModelService, stubModelService(instantiationService));
 		instantiationService.stub(IKeybindingService, {});
-		instantiationService.stub(IKeybindingService, 'resolveKeybinding', (keybinding) => new USLayoutResolvedKeybinding(keybinding, OS));
+		instantiationService.stub(IKeybindingService, 'resolveKeybinding', (keybinding: RuntimeKeybinding) => new USLayoutResolvedKeybinding(keybinding, OS));
 		counter = 0;
 	});
 

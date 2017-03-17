@@ -6,8 +6,8 @@
 {
 	"command.branch": "분기 만들기...",
 	"command.checkout": "다음으로 체크 아웃...",
-	"command.clean": "파일 정리",
-	"command.cleanAll": "모든 파일 정리",
+	"command.clean": "파일 삭제",
+	"command.cleanAll": "모든 파일 삭제",
 	"command.clone": "복제",
 	"command.commit": "커밋",
 	"command.commitAll": "모두 커밋",

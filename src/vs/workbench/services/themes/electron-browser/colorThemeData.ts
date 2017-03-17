@@ -12,6 +12,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { getBaseThemeId, getSyntaxThemeId, isDarkTheme, isLightTheme } from 'vs/platform/theme/common/themes';
 import nls = require('vs/nls');
 import * as types from 'vs/base/common/types';
+import * as objects from 'vs/base/common/objects';
 
 import * as plist from 'fast-plist';
 import pfs = require('vs/base/node/pfs');
@@ -88,6 +89,26 @@ export class ColorThemeData implements IColorTheme {
 		return JSON.stringify(content, null, '\t');
 	}
 
+	toStorageData() {
+		let colorMapData = {};
+		for (let key in this.colorMap) {
+			colorMapData[key] = this.colorMap[key].toRGBAHex(true);
+		}
+		return JSON.stringify({
+			id: this.id,
+			label: this.label,
+			settingsId: this.settingsId,
+			selector: this.selector,
+			tokenColors: this.tokenColors,
+			extensionData: this.extensionData,
+			colorMap: colorMapData
+		});
+	}
+
+	hasEqualData(other: ColorThemeData) {
+		return objects.equals(this.colorMap, other.colorMap) && objects.equals(this.tokenColors, other.tokenColors);
+	}
+
 	get type(): ThemeType {
 		switch (this.getBaseThemeId()) {
 			case VS_LIGHT_THEME: return 'light';
@@ -111,6 +132,22 @@ export class ColorThemeData implements IColorTheme {
 	getBaseThemeId() {
 		return getBaseThemeId(this.id);
 	}
+}
+
+export function fromStorageData(input: string): ColorThemeData {
+	let data = JSON.parse(input);
+	let theme = new ColorThemeData();
+	for (let key in data) {
+		if (key !== 'colorMap') {
+			theme[key] = data[key];
+		} else {
+			let colorMapData = data[key];
+			for (let id in colorMapData) {
+				theme.colorMap[id] = Color.fromHex(colorMapData[id]);
+			}
+		}
+	}
+	return theme;
 }
 
 let defaultThemeColors: { [baseTheme: string]: ITokenColorizationRule[] } = {

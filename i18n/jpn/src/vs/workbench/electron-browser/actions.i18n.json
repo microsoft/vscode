@@ -10,7 +10,6 @@
 	"closeMessages": "通知メッセージを閉じる",
 	"closeWindow": "ウィンドウを閉じる",
 	"current": "現在のウィンドウ",
-	"diffLeftRightLabel": "{0} ⟷ {1}",
 	"files": "ファイル",
 	"folders": "フォルダー",
 	"keybindingsReference": "キーボード ショートカットの参照",
@@ -29,6 +28,7 @@
 	"toggleDevTools": "開発者ツールの切り替え",
 	"toggleFullScreen": "全画面表示の切り替え",
 	"toggleMenuBar": "メニュー バーの切り替え",
+	"toggleSharedProcess": "共有プロセスを切り替える",
 	"zoomIn": "拡大",
 	"zoomOut": "縮小",
 	"zoomReset": "ズームのリセット"

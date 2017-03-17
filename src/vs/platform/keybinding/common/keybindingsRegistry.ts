@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { createKeybinding, KeyCodeUtils } from 'vs/base/common/keyCodes';
-import * as platform from 'vs/base/common/platform';
+import { SimpleRuntimeKeybinding, KeyCode, RuntimeKeybindingType, createRuntimeKeybinding } from 'vs/base/common/keyCodes';
+import { OS, OperatingSystem } from 'vs/base/common/platform';
 import { IKeybindingItem, IKeybindings } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { CommandsRegistry, ICommandHandler, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
@@ -66,11 +66,11 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 	 * Take current platform into account and reduce to primary & secondary.
 	 */
 	private static bindToCurrentPlatform(kb: IKeybindings): { primary?: number; secondary?: number[]; } {
-		if (platform.isWindows) {
+		if (OS === OperatingSystem.Windows) {
 			if (kb && kb.win) {
 				return kb.win;
 			}
-		} else if (platform.isMacintosh) {
+		} else if (OS === OperatingSystem.Macintosh) {
 			if (kb && kb.mac) {
 				return kb.mac;
 			}
@@ -86,12 +86,10 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 	public registerKeybindingRule(rule: IKeybindingRule): void {
 		let actualKb = KeybindingsRegistryImpl.bindToCurrentPlatform(rule);
 
-		// here
 		if (actualKb && actualKb.primary) {
 			this.registerDefaultKeybinding(actualKb.primary, rule.id, rule.weight, 0, rule.when);
 		}
 
-		// here
 		if (actualKb && Array.isArray(actualKb.secondary)) {
 			actualKb.secondary.forEach((k, i) => this.registerDefaultKeybinding(k, rule.id, rule.weight, -i - 1, rule.when));
 		}
@@ -102,18 +100,49 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		CommandsRegistry.registerCommand(desc.id, desc);
 	}
 
+	private static _mightProduceChar(keyCode: KeyCode): boolean {
+		if (keyCode >= KeyCode.KEY_0 && keyCode <= KeyCode.KEY_9) {
+			return true;
+		}
+		if (keyCode >= KeyCode.KEY_A && keyCode <= KeyCode.KEY_Z) {
+			return true;
+		}
+		return (
+			keyCode === KeyCode.US_SEMICOLON
+			|| keyCode === KeyCode.US_EQUAL
+			|| keyCode === KeyCode.US_COMMA
+			|| keyCode === KeyCode.US_MINUS
+			|| keyCode === KeyCode.US_DOT
+			|| keyCode === KeyCode.US_SLASH
+			|| keyCode === KeyCode.US_BACKTICK
+			|| keyCode === KeyCode.US_OPEN_SQUARE_BRACKET
+			|| keyCode === KeyCode.US_BACKSLASH
+			|| keyCode === KeyCode.US_CLOSE_SQUARE_BRACKET
+			|| keyCode === KeyCode.US_QUOTE
+			|| keyCode === KeyCode.OEM_8
+			|| keyCode === KeyCode.OEM_102
+		);
+	}
+
+	private _assertNoCtrlAlt(keybinding: SimpleRuntimeKeybinding, commandId: string): void {
+		if (keybinding.ctrlKey && keybinding.altKey && !keybinding.metaKey) {
+			if (KeybindingsRegistryImpl._mightProduceChar(keybinding.keyCode)) {
+				console.warn('Ctrl+Alt+ keybindings should not be used by default under Windows. Offender: ', keybinding, ' for ', commandId);
+			}
+		}
+	}
+
 	private registerDefaultKeybinding(keybinding: number, commandId: string, weight1: number, weight2: number, when: ContextKeyExpr): void {
-		if (platform.isWindows) {
-			let kb = createKeybinding(keybinding);
-			let simpleKb = kb.isChord() ? kb.extractFirstPart() : kb;
-			if (simpleKb.hasCtrlCmd() && !simpleKb.hasShift() && simpleKb.hasAlt() && !simpleKb.hasWinCtrl()) {
-				if (/^[A-Z0-9\[\]\|\;\'\,\.\/\`]$/.test(KeyCodeUtils.toString(simpleKb.getKeyCode()))) {
-					console.warn('Ctrl+Alt+ keybindings should not be used by default under Windows. Offender: ', keybinding, ' for ', commandId);
-				}
+		const runtimeKeybinding = createRuntimeKeybinding(keybinding, OS);
+		if (OS === OperatingSystem.Windows) {
+			if (runtimeKeybinding.type === RuntimeKeybindingType.Chord) {
+				this._assertNoCtrlAlt(runtimeKeybinding.firstPart, commandId);
+			} else {
+				this._assertNoCtrlAlt(runtimeKeybinding, commandId);
 			}
 		}
 		this._keybindings.push({
-			keybinding: keybinding,
+			keybinding: runtimeKeybinding,
 			command: commandId,
 			commandArgs: null,
 			when: when,

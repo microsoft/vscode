@@ -4,9 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IKeyboardMapping } from 'vs/workbench/services/keybinding/common/keyboardMapper';
-
-export const linux_de_ch: IKeyboardMapping = {
+define({
 	Sleep: { value: '', withShift: '', withAltGr: '', withShiftAltGr: '' },
 	WakeUp: { value: '', withShift: '', withAltGr: '', withShiftAltGr: '' },
 	KeyA: {
@@ -490,4 +488,4 @@ export const linux_de_ch: IKeyboardMapping = {
 	MailReply: { value: '', withShift: '', withAltGr: '', withShiftAltGr: '' },
 	MailForward: { value: '', withShift: '', withAltGr: '', withShiftAltGr: '' },
 	MailSend: { value: '', withShift: '', withAltGr: '', withShiftAltGr: '' }
-};
+});

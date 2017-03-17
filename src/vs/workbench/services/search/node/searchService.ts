@@ -236,7 +236,8 @@ export class DiskSearch {
 			maxResults: query.maxResults,
 			sortByScore: query.sortByScore,
 			cacheKey: query.cacheKey,
-			useRipgrep: query.useRipgrep
+			useRipgrep: query.useRipgrep,
+			useIgnoreFiles: query.useIgnoreFiles
 		};
 
 		if (query.type === QueryType.Text) {

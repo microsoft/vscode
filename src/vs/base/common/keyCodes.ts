@@ -6,6 +6,7 @@
 'use strict';
 
 import { IHTMLContentElement } from 'vs/base/common/htmlContent';
+import { OperatingSystem } from 'vs/base/common/platform';
 
 /**
  * Virtual Key Codes, the value does not hold any inherent meaning.
@@ -488,84 +489,93 @@ class BinaryKeybindings {
 	}
 }
 
-export function createKeybinding(keybinding: number): Keybinding {
-	if (BinaryKeybindings.hasChord(keybinding)) {
-		return new ChordKeybinding(keybinding);
+export function createRuntimeKeybinding(keybinding: number, OS: OperatingSystem): RuntimeKeybinding {
+	if (keybinding === 0) {
+		return null;
 	}
-	return new SimpleKeybinding(keybinding);
+	if (BinaryKeybindings.hasChord(keybinding)) {
+		return new ChordRuntimeKeybinding(
+			createSimpleRuntimeKeybinding(BinaryKeybindings.extractFirstPart(keybinding), OS),
+			createSimpleRuntimeKeybinding(BinaryKeybindings.extractChordPart(keybinding), OS),
+		);
+	}
+	return createSimpleRuntimeKeybinding(keybinding, OS);
 }
 
-export class SimpleKeybinding {
-	public readonly value: number;
+export function createSimpleRuntimeKeybinding(keybinding: number, OS: OperatingSystem): SimpleRuntimeKeybinding {
 
-	constructor(keybinding: number) {
-		this.value = keybinding;
+	const ctrlCmd = BinaryKeybindings.hasCtrlCmd(keybinding);
+	const winCtrl = BinaryKeybindings.hasWinCtrl(keybinding);
+	const ctrlKey = (OS === OperatingSystem.Macintosh ? winCtrl : ctrlCmd);
+	const metaKey = (OS === OperatingSystem.Macintosh ? ctrlCmd : winCtrl);
+
+	const shiftKey = BinaryKeybindings.hasShift(keybinding);
+	const altKey = BinaryKeybindings.hasAlt(keybinding);
+
+	const keyCode = BinaryKeybindings.extractKeyCode(keybinding);
+
+	return new SimpleRuntimeKeybinding(ctrlKey, shiftKey, altKey, metaKey, keyCode);
+}
+
+export const enum RuntimeKeybindingType {
+	Simple = 1,
+	Chord = 2
+}
+
+export class SimpleRuntimeKeybinding {
+	public readonly type = RuntimeKeybindingType.Simple;
+
+	public readonly ctrlKey: boolean;
+	public readonly shiftKey: boolean;
+	public readonly altKey: boolean;
+	public readonly metaKey: boolean;
+	public readonly keyCode: KeyCode;
+
+	constructor(ctrlKey: boolean, shiftKey: boolean, altKey: boolean, metaKey: boolean, keyCode: KeyCode) {
+		this.ctrlKey = ctrlKey;
+		this.shiftKey = shiftKey;
+		this.altKey = altKey;
+		this.metaKey = metaKey;
+		this.keyCode = keyCode;
 	}
 
-	/**
-	 * @internal
-	 */
-	public isChord(): this is ChordKeybinding {
-		return false;
-	}
-
-	/**
-	 * @internal
-	 */
-	public equals(other: Keybinding): boolean {
-		return (other && this.value === other.value);
-	}
-
-	public hasCtrlCmd(): boolean {
-		return BinaryKeybindings.hasCtrlCmd(this.value);
-	}
-
-	public hasShift(): boolean {
-		return BinaryKeybindings.hasShift(this.value);
-	}
-
-	public hasAlt(): boolean {
-		return BinaryKeybindings.hasAlt(this.value);
-	}
-
-	public hasWinCtrl(): boolean {
-		return BinaryKeybindings.hasWinCtrl(this.value);
+	public equals(other: RuntimeKeybinding): boolean {
+		if (other.type !== RuntimeKeybindingType.Simple) {
+			return false;
+		}
+		return (
+			this.ctrlKey === other.ctrlKey
+			&& this.shiftKey === other.shiftKey
+			&& this.altKey === other.altKey
+			&& this.metaKey === other.metaKey
+			&& this.keyCode === other.keyCode
+		);
 	}
 
 	public isModifierKey(): boolean {
-		return BinaryKeybindings.isModifierKey(this.value);
-	}
-
-	public getKeyCode(): KeyCode {
-		return BinaryKeybindings.extractKeyCode(this.value);
-	}
-}
-
-export class ChordKeybinding {
-	public readonly value: number;
-
-	constructor(keybinding: number) {
-		this.value = keybinding;
-	}
-
-	public isChord(): this is ChordKeybinding {
-		return true;
-	}
-
-	public equals(other: Keybinding): boolean {
-		return (other && this.value === other.value);
-	}
-
-	public extractFirstPart(): SimpleKeybinding {
-		return new SimpleKeybinding(BinaryKeybindings.extractFirstPart(this.value));
-	}
-
-	public extractChordPart(): SimpleKeybinding {
-		return new SimpleKeybinding(BinaryKeybindings.extractChordPart(this.value));
+		return (
+			this.keyCode === KeyCode.Unknown
+			|| this.keyCode === KeyCode.Ctrl
+			|| this.keyCode === KeyCode.Meta
+			|| this.keyCode === KeyCode.Alt
+			|| this.keyCode === KeyCode.Shift
+		);
 	}
 }
 
-export type Keybinding = SimpleKeybinding | ChordKeybinding;
+export class ChordRuntimeKeybinding {
+	public readonly type = RuntimeKeybindingType.Chord;
+
+	public readonly firstPart: SimpleRuntimeKeybinding;
+	public readonly chordPart: SimpleRuntimeKeybinding;
+
+	constructor(firstPart: SimpleRuntimeKeybinding, chordPart: SimpleRuntimeKeybinding) {
+		this.firstPart = firstPart;
+		this.chordPart = chordPart;
+	}
+}
+
+export type RuntimeKeybinding = SimpleRuntimeKeybinding | ChordRuntimeKeybinding;
 
 /**
  * A resolved keybinding.
@@ -592,4 +602,34 @@ export abstract class ResolvedKeybinding {
 	 * This prints the binding in a format suitable for user settings.
 	 */
 	public abstract getUserSettingsLabel(): string;
+
+	/**
+	 * Is the binding a chord?
+	 */
+	public abstract isChord(): boolean;
+	/**
+	 * Does this binding use the ctrl modifier key.
+	 * If it is a chord, it always returns false.
+	 */
+	public abstract hasCtrlModifier(): boolean;
+	/**
+	 * Does this binding use the shift modifier key.
+	 * If it is a chord, it always returns false.
+	 */
+	public abstract hasShiftModifier(): boolean;
+	/**
+	 * Does this binding use the alt modifier key.
+	 * If it is a chord, it always returns false.
+	 */
+	public abstract hasAltModifier(): boolean;
+	/**
+	 * Does this binding use the meta modifier key.
+	 * If it is a chord, it always returns false.
+	 */
+	public abstract hasMetaModifier(): boolean;
+
+	/**
+	 * Returns the firstPart, chordPart that should be used for dispatching.
+	 */
+	public abstract getDispatchParts(): [string, string];
 }

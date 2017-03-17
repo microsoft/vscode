@@ -6,8 +6,8 @@
 {
 	"command.branch": "Crear rama...",
 	"command.checkout": "Desproteger en...",
-	"command.clean": "Limpiar archivo",
-	"command.cleanAll": "Limpiar todos los archivos",
+	"command.clean": "Descartar archivo",
+	"command.cleanAll": "Descartar todos los archivos",
 	"command.clone": "Clonar",
 	"command.commit": "Confirmar",
 	"command.commitAll": "Confirmar todo",

@@ -3,11 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as dom from 'vs/base/browser/dom';
 import * as nls from 'vs/nls';
 import * as path from 'path';
 import * as platform from 'vs/base/common/platform';
 import * as pfs from 'vs/base/node/pfs';
 import Uri from 'vs/base/common/uri';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { TerminalWidgetManager } from 'vs/workbench/parts/terminal/browser/terminalWidgetManager';
@@ -17,15 +19,14 @@ const pathPrefix = '(\\.\\.?|\\~)';
 const pathSeparatorClause = '\\/';
 const excludedPathCharactersClause = '[^\\0\\s!$`&*()\\[\\]+\'":;]'; // '":; are allowed in paths but they are often separators so ignore them
 const escapedExcludedPathCharactersClause = '(\\\\s|\\\\!|\\\\$|\\\\`|\\\\&|\\\\*|(|)|\\+)';
-/** A regex that matches paths in the form /path, ~/path, ./path, ../path */
-const UNIX_LIKE_LOCAL_LINK_REGEX = new RegExp('(' + pathPrefix + '?(' + pathSeparatorClause + '(' + excludedPathCharactersClause + '|' + escapedExcludedPathCharactersClause + ')+)+)');
-
-const winPathPrefix = '([a-zA-Z]:|\\.\\.?|\\~)';
+/** A regex that matches paths in the form /foo, ~/foo, ./foo, ../foo, foo/bar */
+const UNIX_LIKE_LOCAL_LINK_REGEX = new RegExp('((' + pathPrefix + '|(' + excludedPathCharactersClause + '|' + escapedExcludedPathCharactersClause + ')+)?(' + pathSeparatorClause + '(' + excludedPathCharactersClause + '|' + escapedExcludedPathCharactersClause + ')+)+)');
+const winDrivePrefix = '[a-zA-Z]:';
+const winPathPrefix = '(' + winDrivePrefix + '|\\.\\.?|\\~)';
 const winPathSeparatorClause = '(\\\\|\\/)';
 const winExcludedPathCharactersClause = '[^\\0<>\\?\\|\\/\\s!$`&*()\\[\\]+\'":;]';
-/** A regex that matches paths in the form c:\path, ~\path, .\path */
-const WINDOWS_LOCAL_LINK_REGEX = new RegExp('(' + winPathPrefix + '?(' + winPathSeparatorClause + '(' + winExcludedPathCharactersClause + ')+)+)');
-
+/** A regex that matches paths in the form c:\foo, ~\foo, .\foo, ..\foo, foo\bar */
+const WINDOWS_LOCAL_LINK_REGEX = new RegExp('((' + winPathPrefix + '|(' + winExcludedPathCharactersClause + ')+)?(' + winPathSeparatorClause + '(' + winExcludedPathCharactersClause + ')+)+)');
 /** Higher than local link, lower than hypertext */
 const CUSTOM_LINK_PRIORITY = -1;
 /** Lowest */
@@ -35,6 +36,8 @@ export type XtermLinkMatcherHandler = (event: MouseEvent, uri: string) => boolea
 export type XtermLinkMatcherValidationCallback = (uri: string, element: HTMLElement, callback: (isValid: boolean) => void) => void;
 
 export class TerminalLinkHandler {
+	private _tooltipDisposables: IDisposable[] = [];
+
 	constructor(
 		private _widgetManager: TerminalWidgetManager,
 		private _xterm: any,
@@ -66,6 +69,10 @@ export class TerminalLinkHandler {
 			validationCallback: (link: string, element: HTMLElement, callback: (isValid: boolean) => void) => this._validateLocalLink(link, element, callback),
 			priority: LOCAL_LINK_PRIORITY
 		});
+	}
+
+	public disposeTooltipListeners(): void {
+		this._tooltipDisposables = dispose(this._tooltipDisposables);
 	}
 
 	private _wrapLinkHandler(handler: (uri: string) => boolean | void): XtermLinkMatcherHandler {
@@ -112,7 +119,8 @@ export class TerminalLinkHandler {
 
 	private _addTooltipEventListeners(element: HTMLElement) {
 		let timeout = null;
-		element.addEventListener('mouseenter', () => {
+		let isMessageShowing = false;
+		this._tooltipDisposables.push(dom.addDisposableListener(element, dom.EventType.MOUSE_OVER, () => {
 			timeout = setTimeout(() => {
 				let message: string;
 				if (platform.isMacintosh) {
@@ -121,40 +129,51 @@ export class TerminalLinkHandler {
 					message = nls.localize('terminalLinkHandler.followLinkCtrl', 'Ctrl + click to follow link');
 				}
 				this._widgetManager.showMessage(element.offsetLeft, element.offsetTop, message);
+				isMessageShowing = true;
 			}, 500);
-		});
-		element.addEventListener('mouseleave', () => {
+		}));
+		this._tooltipDisposables.push(dom.addDisposableListener(element, dom.EventType.MOUSE_OUT, () => {
 			clearTimeout(timeout);
 			this._widgetManager.closeMessage();
-		});
+			isMessageShowing = false;
+		}));
 	}
 
-	private _resolvePath(link: string): TPromise<string> {
+	protected _preprocessPath(link: string): string {
 		if (this._platform === platform.Platform.Windows) {
 			// Resolve ~ -> %HOMEDRIVE%\%HOMEPATH%
 			if (link.charAt(0) === '~') {
 				if (!process.env.HOMEDRIVE || !process.env.HOMEPATH) {
-					return TPromise.as(void 0);
+					return null;
 				}
 				link = `${process.env.HOMEDRIVE}\\${process.env.HOMEPATH + link.substring(1)}`;
 			}
-		} else {
-			// Resolve workspace path . / .. -> <path>/. / <path/..
-			if (link.charAt(0) === '.') {
-				if (!this._contextService.hasWorkspace) {
+
+			// Resolve relative paths (.\a, ..\a, ~\a, a\b)
+			if (!link.match('^' + winDrivePrefix)) {
+				if (!this._contextService.hasWorkspace()) {
 					// Abort if no workspace is open
-					return TPromise.as(void 0);
+					return null;
 				}
 				link = path.join(this._contextService.getWorkspace().resource.fsPath, link);
 			}
 		}
-		// Resolve workspace path . / .. -> <path>/. / <path/..
-		if (link.charAt(0) === '.') {
-			if (!this._contextService.hasWorkspace) {
+		// Resolve workspace path . | .. | <relative_path> -> <path>/. | <path>/.. | <path>/<relative_path>
+		else if (link.charAt(0) !== '/' && link.charAt(0) !== '~') {
+			if (!this._contextService.hasWorkspace()) {
 				// Abort if no workspace is open
-				return TPromise.as(void 0);
+				return null;
 			}
 			link = path.join(this._contextService.getWorkspace().resource.fsPath, link);
+		}
+		return link;
+	}
+
+	private _resolvePath(link: string): TPromise<string> {
+		link = this._preprocessPath(link);
+
+		if (!link) {
+			return TPromise.as(void 0);
 		}
 
 		// Open an editor if the path exists

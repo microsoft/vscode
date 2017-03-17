@@ -14,7 +14,7 @@ import dom = require('vs/base/browser/dom');
 import mouse = require('vs/base/browser/mouseEvent');
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import _ = require('vs/base/parts/tree/browser/tree');
-import { Keybinding, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { KeyCode, KeyMod, RuntimeKeybinding, createRuntimeKeybinding, SimpleRuntimeKeybinding } from 'vs/base/common/keyCodes';
 
 export interface ILegacyTemplateData {
 	root: HTMLElement;
@@ -97,7 +97,7 @@ export interface IControllerOptions {
 }
 
 interface IKeybindingDispatcherItem {
-	keybinding: number;
+	keybinding: RuntimeKeybinding;
 	callback: IKeyBindingCallback;
 }
 
@@ -111,16 +111,16 @@ export class KeybindingDispatcher {
 
 	public set(keybinding: number, callback: IKeyBindingCallback) {
 		this._arr.push({
-			keybinding: keybinding,
+			keybinding: createRuntimeKeybinding(keybinding, platform.OS),
 			callback: callback
 		});
 	}
 
-	public dispatch(keybinding: Keybinding): IKeyBindingCallback {
+	public dispatch(keybinding: SimpleRuntimeKeybinding): IKeyBindingCallback {
 		// Loop from the last to the first to handle overwrites
 		for (let i = this._arr.length - 1; i >= 0; i--) {
 			let item = this._arr[i];
-			if (keybinding.value === item.keybinding) {
+			if (keybinding.equals(item.keybinding)) {
 				return item.callback;
 			}
 		}
@@ -264,7 +264,7 @@ export class DefaultController implements _.IController {
 	}
 
 	private onKey(bindings: KeybindingDispatcher, tree: _.ITree, event: IKeyboardEvent): boolean {
-		var handler = bindings.dispatch(event.toKeybinding());
+		var handler = bindings.dispatch(event.toRuntimeKeybinding());
 		if (handler) {
 			if (handler(tree, event)) {
 				event.preventDefault();

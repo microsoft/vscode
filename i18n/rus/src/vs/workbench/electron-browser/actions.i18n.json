@@ -10,7 +10,6 @@
 	"closeMessages": "Закрыть уведомления",
 	"closeWindow": "Закрыть окно",
 	"current": "Текущее окно",
-	"diffLeftRightLabel": "{0} ⟷ {1}",
 	"files": "файлы",
 	"folders": "папки",
 	"keybindingsReference": "Справочник по сочетаниям клавиш",
@@ -29,6 +28,7 @@
 	"toggleDevTools": "Переключить средства разработчика",
 	"toggleFullScreen": "Полноэкранный режим",
 	"toggleMenuBar": "Переключить строку меню",
+	"toggleSharedProcess": "Переключить общий процесс",
 	"zoomIn": "Увеличить",
 	"zoomOut": "Уменьшить",
 	"zoomReset": "Сбросить масштаб"

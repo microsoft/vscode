@@ -39,7 +39,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { isParent, isEqual } from 'vs/platform/files/common/files';
+import { isEqualOrParent } from 'vs/platform/files/common/files';
 
 import IGitService = git.IGitService;
 
@@ -453,12 +453,12 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 		const resource = WorkbenchEditorCommon.toResource(input, { filter: 'file' });
 		if (resource) {
 			const workspaceRoot = this.contextService.getWorkspace().resource.fsPath;
-			if (!workspaceRoot || !isEqual(resource.fsPath, workspaceRoot) || !isParent(resource.fsPath, workspaceRoot)) {
+			if (!workspaceRoot || !isEqualOrParent(resource.fsPath, workspaceRoot)) {
 				return null; // out of workspace not yet supported
 			}
 
 			const repositoryRoot = this.gitService.getModel().getRepositoryRoot();
-			if (!repositoryRoot || !isEqual(resource.fsPath, repositoryRoot) || !isParent(resource.fsPath, repositoryRoot)) {
+			if (!repositoryRoot || !isEqualOrParent(resource.fsPath, repositoryRoot)) {
 				return null; // out of repository not supported
 			}
 

@@ -41,7 +41,7 @@ import { LinkedMap } from 'vs/base/common/map';
 import { DelegatingWorkbenchEditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { INACTIVE_TAB_BACKGROUND, ACTIVE_TAB_BACKGROUND } from 'vs/workbench/common/theme';
+import { INACTIVE_TAB_BACKGROUND, ACTIVE_TAB_BACKGROUND, ACTIVE_TAB_ACTIVE_GROUP_FOREGROUND, ACTIVE_TAB_INACTIVE_GROUP_FOREGROUND, INACTIVE_TAB_ACTIVE_GROUP_FOREGROUND, INACTIVE_TAB_INACTIVE_GROUP_FOREGROUND } from 'vs/workbench/common/theme';
 
 interface IEditorInputLabel {
 	editor: IEditorInput;
@@ -223,8 +223,8 @@ export class TabsTitleControl extends TitleControl {
 		const group = this.context;
 
 		// Tabs container activity state
-		const isActive = this.stacks.isActive(group);
-		if (isActive) {
+		const isGroupActive = this.stacks.isActive(group);
+		if (isGroupActive) {
 			DOM.addClass(this.titleContainer, 'active');
 		} else {
 			DOM.removeClass(this.titleContainer, 'active');
@@ -239,7 +239,7 @@ export class TabsTitleControl extends TitleControl {
 			const tabContainer = this.tabsContainer.children[index];
 			if (tabContainer instanceof HTMLElement) {
 				const isPinned = group.isPinned(index);
-				const isActive = group.isActive(editor);
+				const isTabActive = group.isActive(editor);
 				const isDirty = editor.isDirty();
 
 				const label = labels[index];
@@ -261,15 +261,18 @@ export class TabsTitleControl extends TitleControl {
 				tabLabel.setLabel({ name, description, resource: toResource(editor, { supportSideBySide: true }) }, { extraClasses: ['tab-label'], italic: !isPinned });
 
 				// Active state
-				if (isActive) {
+				if (isTabActive) {
 					DOM.addClass(tabContainer, 'active');
 					tabContainer.setAttribute('aria-selected', 'true');
 					tabContainer.style.backgroundColor = this.getColor(ACTIVE_TAB_BACKGROUND);
+					tabLabel.element.style.color = this.getColor(isGroupActive ? ACTIVE_TAB_ACTIVE_GROUP_FOREGROUND : ACTIVE_TAB_INACTIVE_GROUP_FOREGROUND);
+
 					this.activeTab = tabContainer;
 				} else {
 					DOM.removeClass(tabContainer, 'active');
 					tabContainer.setAttribute('aria-selected', 'false');
 					tabContainer.style.backgroundColor = this.getColor(INACTIVE_TAB_BACKGROUND);
+					tabLabel.element.style.color = this.getColor(isGroupActive ? INACTIVE_TAB_ACTIVE_GROUP_FOREGROUND : INACTIVE_TAB_INACTIVE_GROUP_FOREGROUND);
 				}
 
 				// Dirty State
