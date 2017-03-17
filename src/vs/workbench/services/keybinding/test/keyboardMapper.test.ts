@@ -6,7 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { KeyMod, KeyCode, createRuntimeKeybinding, SimpleRuntimeKeybinding, RuntimeKeybinding } from 'vs/base/common/keyCodes';
+import { KeyMod, KeyCode, createKeybinding, SimpleKeybinding, Keybinding } from 'vs/base/common/keyCodes';
 import { KeyboardMapper, IKeyboardMapping } from 'vs/workbench/services/keybinding/common/keyboardMapper';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { UserSettingsLabelProvider, PrintableKeypress } from 'vs/platform/keybinding/common/keybindingLabels';
@@ -81,7 +81,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 	});
 
 	test('resolveKeybinding', () => {
-		function _assertAllLabels(keybinding: RuntimeKeybinding, labels: string[], ariaLabels: string[], htmlLabel: IHTMLContentElement[][]): void {
+		function _assertAllLabels(keybinding: Keybinding, labels: string[], ariaLabels: string[], htmlLabel: IHTMLContentElement[][]): void {
 			const kb = mapper.resolveKeybinding(keybinding);
 
 			let actualLabels = kb.map(k => k.getLabel());
@@ -94,7 +94,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 			assert.deepEqual(actualHTMLLabels, htmlLabel);
 		}
 
-		function assertAllLabels(keybinding: RuntimeKeybinding, label: string | string[], ariaLabel: string | string[], htmlLabel: IHTMLContentElement[][]): void {
+		function assertAllLabels(keybinding: Keybinding, label: string | string[], ariaLabel: string | string[], htmlLabel: IHTMLContentElement[][]): void {
 			let _labels = (typeof label === 'string' ? [label] : label);
 			let _ariaLabels = (typeof ariaLabel === 'string' ? [ariaLabel] : ariaLabel);
 			_assertAllLabels(keybinding, _labels, _ariaLabels, htmlLabel);
@@ -102,7 +102,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 
 		// TODO: ElectronAccelerator, UserSettings
 		assertAllLabels(
-			createRuntimeKeybinding(KeyMod.CtrlCmd | KeyCode.KEY_Z, OperatingSystem.Macintosh),
+			createKeybinding(KeyMod.CtrlCmd | KeyCode.KEY_Z, OperatingSystem.Macintosh),
 			'⌘Z',
 			'Command+Z',
 			[[{
@@ -179,11 +179,11 @@ function _assertKeybindingTranslation(mapper: KeyboardMapper, OS: OperatingSyste
 		expected = [];
 	}
 
-	const runtimeKeybinding = createRuntimeKeybinding(kb, OS);
+	const runtimeKeybinding = createKeybinding(kb, OS);
 
 	const keybindingLabel = new USLayoutResolvedKeybinding(runtimeKeybinding, OS).getUserSettingsLabel();
 
-	const actualHardwareKeypresses = mapper.simpleKeybindingToHardwareKeypress(<SimpleRuntimeKeybinding>runtimeKeybinding);
+	const actualHardwareKeypresses = mapper.simpleKeybindingToHardwareKeypress(<SimpleKeybinding>runtimeKeybinding);
 	if (actualHardwareKeypresses.length === 0) {
 		assert.deepEqual([], expected, `simpleKeybindingToHardwareKeypress -- "${keybindingLabel}" -- actual: "[]" -- expected: "${expected}"`);
 		return;

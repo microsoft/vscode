@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { ResolvedKeybinding, RuntimeKeybinding, SimpleRuntimeKeybinding } from 'vs/base/common/keyCodes';
+import { ResolvedKeybinding, Keybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ContextKeyExpr, IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
 import { IResolveResult } from 'vs/platform/keybinding/common/keybindingResolver';
@@ -15,32 +15,6 @@ export interface IUserFriendlyKeybinding {
 	command: string;
 	args?: any;
 	when?: string;
-}
-
-export interface IKeybindings {
-	primary: number;
-	secondary?: number[];
-	win?: {
-		primary: number;
-		secondary?: number[];
-	};
-	linux?: {
-		primary: number;
-		secondary?: number[];
-	};
-	mac?: {
-		primary: number;
-		secondary?: number[];
-	};
-}
-
-export interface IKeybindingItem {
-	keybinding: RuntimeKeybinding;
-	command: string;
-	commandArgs?: any;
-	when: ContextKeyExpr;
-	weight1: number;
-	weight2: number;
 }
 
 export interface IKeybindingItem2 {
@@ -67,7 +41,7 @@ export interface IKeybindingService {
 
 	onDidUpdateKeybindings: Event<IKeybindingEvent>;
 
-	resolveKeybinding(keybinding: RuntimeKeybinding): ResolvedKeybinding;
+	resolveKeybinding(keybinding: Keybinding): ResolvedKeybinding;
 
 	getDefaultKeybindings(): string;
 
@@ -87,6 +61,6 @@ export interface IKeybindingService {
 
 	customKeybindingsCount(): number;
 
-	resolve(keybinding: SimpleRuntimeKeybinding, target: IContextKeyServiceTarget): IResolveResult;
+	resolve(keybinding: SimpleKeybinding, target: IContextKeyServiceTarget): IResolveResult;
 }
 

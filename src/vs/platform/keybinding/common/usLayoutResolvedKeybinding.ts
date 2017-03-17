@@ -5,7 +5,7 @@
 'use strict';
 
 import { IHTMLContentElement } from 'vs/base/common/htmlContent';
-import { ResolvedKeybinding, KeyCode, KeyCodeUtils, USER_SETTINGS, RuntimeKeybinding, RuntimeKeybindingType, SimpleRuntimeKeybinding } from 'vs/base/common/keyCodes';
+import { ResolvedKeybinding, KeyCode, KeyCodeUtils, USER_SETTINGS, Keybinding, KeybindingType, SimpleKeybinding } from 'vs/base/common/keyCodes';
 import { PrintableKeypress, UILabelProvider, AriaLabelProvider, ElectronAcceleratorLabelProvider, UserSettingsLabelProvider } from 'vs/platform/keybinding/common/keybindingLabels';
 import { OperatingSystem } from 'vs/base/common/platform';
 
@@ -14,10 +14,10 @@ import { OperatingSystem } from 'vs/base/common/platform';
  */
 export class USLayoutResolvedKeybinding extends ResolvedKeybinding {
 
-	private readonly _actual: RuntimeKeybinding;
+	private readonly _actual: Keybinding;
 	private readonly _os: OperatingSystem;
 
-	constructor(actual: RuntimeKeybinding, OS: OperatingSystem) {
+	constructor(actual: Keybinding, OS: OperatingSystem) {
 		super();
 		this._actual = actual;
 		this._os = OS;
@@ -74,7 +74,7 @@ export class USLayoutResolvedKeybinding extends ResolvedKeybinding {
 	}
 
 	public getElectronAccelerator(): string {
-		if (this._actual.type === RuntimeKeybindingType.Chord) {
+		if (this._actual.type === KeybindingType.Chord) {
 			// Electron cannot handle chords
 			return null;
 		}
@@ -101,32 +101,32 @@ export class USLayoutResolvedKeybinding extends ResolvedKeybinding {
 	}
 
 	public isChord(): boolean {
-		return (this._actual.type === RuntimeKeybindingType.Chord);
+		return (this._actual.type === KeybindingType.Chord);
 	}
 
 	public hasCtrlModifier(): boolean {
-		if (this._actual.type === RuntimeKeybindingType.Chord) {
+		if (this._actual.type === KeybindingType.Chord) {
 			return false;
 		}
 		return this._actual.ctrlKey;
 	}
 
 	public hasShiftModifier(): boolean {
-		if (this._actual.type === RuntimeKeybindingType.Chord) {
+		if (this._actual.type === KeybindingType.Chord) {
 			return false;
 		}
 		return this._actual.shiftKey;
 	}
 
 	public hasAltModifier(): boolean {
-		if (this._actual.type === RuntimeKeybindingType.Chord) {
+		if (this._actual.type === KeybindingType.Chord) {
 			return false;
 		}
 		return this._actual.altKey;
 	}
 
 	public hasMetaModifier(): boolean {
-		if (this._actual.type === RuntimeKeybindingType.Chord) {
+		if (this._actual.type === KeybindingType.Chord) {
 			return false;
 		}
 		return this._actual.metaKey;
@@ -138,7 +138,7 @@ export class USLayoutResolvedKeybinding extends ResolvedKeybinding {
 		if (this._actual === null) {
 			keypressFirstPart = null;
 			keypressChordPart = null;
-		} else if (this._actual.type === RuntimeKeybindingType.Chord) {
+		} else if (this._actual.type === KeybindingType.Chord) {
 			keypressFirstPart = USLayoutResolvedKeybinding.getDispatchStr(this._actual.firstPart);
 			keypressChordPart = USLayoutResolvedKeybinding.getDispatchStr(this._actual.chordPart);
 		} else {
@@ -148,7 +148,7 @@ export class USLayoutResolvedKeybinding extends ResolvedKeybinding {
 		return [keypressFirstPart, keypressChordPart];
 	}
 
-	public static getDispatchStr(keybinding: SimpleRuntimeKeybinding): string {
+	public static getDispatchStr(keybinding: SimpleKeybinding): string {
 		let result = '';
 
 		if (keybinding.ctrlKey) {

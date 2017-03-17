@@ -14,7 +14,7 @@ import dom = require('vs/base/browser/dom');
 import mouse = require('vs/base/browser/mouseEvent');
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import _ = require('vs/base/parts/tree/browser/tree');
-import { KeyCode, KeyMod, RuntimeKeybinding, createRuntimeKeybinding, SimpleRuntimeKeybinding } from 'vs/base/common/keyCodes';
+import { KeyCode, KeyMod, Keybinding, createKeybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
 
 export interface ILegacyTemplateData {
 	root: HTMLElement;
@@ -97,7 +97,7 @@ export interface IControllerOptions {
 }
 
 interface IKeybindingDispatcherItem {
-	keybinding: RuntimeKeybinding;
+	keybinding: Keybinding;
 	callback: IKeyBindingCallback;
 }
 
@@ -111,12 +111,12 @@ export class KeybindingDispatcher {
 
 	public set(keybinding: number, callback: IKeyBindingCallback) {
 		this._arr.push({
-			keybinding: createRuntimeKeybinding(keybinding, platform.OS),
+			keybinding: createKeybinding(keybinding, platform.OS),
 			callback: callback
 		});
 	}
 
-	public dispatch(keybinding: SimpleRuntimeKeybinding): IKeyBindingCallback {
+	public dispatch(keybinding: SimpleKeybinding): IKeyBindingCallback {
 		// Loop from the last to the first to handle overwrites
 		for (let i = this._arr.length - 1; i >= 0; i--) {
 			let item = this._arr[i];

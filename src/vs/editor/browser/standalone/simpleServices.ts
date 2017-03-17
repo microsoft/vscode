@@ -14,7 +14,7 @@ import { ICommandService, ICommand, ICommandEvent, ICommandHandler, CommandsRegi
 import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
 import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
-import { IKeybindingEvent, IKeybindingItem, KeybindingSource } from 'vs/platform/keybinding/common/keybinding';
+import { IKeybindingEvent, KeybindingSource } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfirmation, IMessageService } from 'vs/platform/message/common/message';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -28,11 +28,11 @@ import { ITextModelResolverService, ITextModelContentProvider, ITextEditorModel 
 import { IDisposable, IReference, ImmortalReference, combinedDisposable } from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingsRegistry, IKeybindingItem } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { MenuId, IMenu, IMenuService } from 'vs/platform/actions/common/actions';
 import { Menu } from 'vs/platform/actions/common/menu';
 import { ITelemetryService, ITelemetryExperiments, ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
-import { ResolvedKeybinding, RuntimeKeybinding, createRuntimeKeybinding } from 'vs/base/common/keyCodes';
+import { ResolvedKeybinding, Keybinding, createKeybinding } from 'vs/base/common/keyCodes';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { OS } from 'vs/base/common/platform';
 
@@ -334,7 +334,7 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 		let toDispose: IDisposable[] = [];
 
 		this._dynamicKeybindings.push({
-			keybinding: createRuntimeKeybinding(keybinding, OS),
+			keybinding: createKeybinding(keybinding, OS),
 			command: commandId,
 			when: when,
 			weight1: 1000,
@@ -395,7 +395,7 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 		return result;
 	}
 
-	protected _createResolvedKeybinding(kb: RuntimeKeybinding): ResolvedKeybinding {
+	protected _createResolvedKeybinding(kb: Keybinding): ResolvedKeybinding {
 		return new USLayoutResolvedKeybinding(kb, OS);
 	}
 

@@ -22,7 +22,7 @@ import { CollapseAllAction as TreeCollapseAction } from 'vs/base/parts/tree/brow
 import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ResolvedKeybinding, KeyCode, KeyMod, createRuntimeKeybinding } from 'vs/base/common/keyCodes';
+import { ResolvedKeybinding, KeyCode, KeyMod, createKeybinding } from 'vs/base/common/keyCodes';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { toResource } from 'vs/workbench/common/editor';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -41,7 +41,7 @@ export function isSearchViewletFocussed(viewletService: IViewletService): boolea
 export function appendKeyBindingLabel(label: string, keyBinding: number | ResolvedKeybinding, keyBindingService2: IKeybindingService): string {
 	let resolvedKb: ResolvedKeybinding;
 	if (typeof keyBinding === 'number') {
-		resolvedKb = keyBindingService2.resolveKeybinding(createRuntimeKeybinding(keyBinding, OS));
+		resolvedKb = keyBindingService2.resolveKeybinding(createKeybinding(keyBinding, OS));
 	} else {
 		resolvedKb = keyBinding;
 	}

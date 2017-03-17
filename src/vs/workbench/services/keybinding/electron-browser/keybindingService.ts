@@ -7,7 +7,7 @@
 import * as nls from 'vs/nls';
 import { IHTMLContentElement } from 'vs/base/common/htmlContent';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { ResolvedKeybinding, KeyCode, USER_SETTINGS, RuntimeKeybinding, RuntimeKeybindingType, SimpleRuntimeKeybinding, KeyCodeUtils } from 'vs/base/common/keyCodes';
+import { ResolvedKeybinding, KeyCode, USER_SETTINGS, Keybinding, KeybindingType, SimpleKeybinding, KeyCodeUtils } from 'vs/base/common/keyCodes';
 import { PrintableKeypress, UILabelProvider, AriaLabelProvider, UserSettingsLabelProvider } from 'vs/platform/keybinding/common/keybindingLabels';
 import { OS, OperatingSystem } from 'vs/base/common/platform';
 import { toDisposable } from 'vs/base/common/lifecycle';
@@ -18,9 +18,9 @@ import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayo
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IKeybindingEvent, IKeybindingItem, IUserFriendlyKeybinding, KeybindingSource } from 'vs/platform/keybinding/common/keybinding';
+import { IKeybindingEvent, IUserFriendlyKeybinding, KeybindingSource } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IKeybindingRule, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { IKeybindingRule, IKeybindingItem, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Registry } from 'vs/platform/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { keybindingsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
@@ -122,9 +122,9 @@ let keybindingsExtPoint = ExtensionsRegistry.registerExtensionPoint<ContributedK
 
 export class FancyResolvedKeybinding extends ResolvedKeybinding {
 
-	private readonly _actual: RuntimeKeybinding;
+	private readonly _actual: Keybinding;
 
-	constructor(actual: RuntimeKeybinding) {
+	constructor(actual: Keybinding) {
 		super();
 		this._actual = actual;
 	}
@@ -181,32 +181,32 @@ export class FancyResolvedKeybinding extends ResolvedKeybinding {
 	}
 
 	public isChord(): boolean {
-		return (this._actual.type === RuntimeKeybindingType.Chord);
+		return (this._actual.type === KeybindingType.Chord);
 	}
 
 	public hasCtrlModifier(): boolean {
-		if (this._actual.type === RuntimeKeybindingType.Chord) {
+		if (this._actual.type === KeybindingType.Chord) {
 			return false;
 		}
 		return this._actual.ctrlKey;
 	}
 
 	public hasShiftModifier(): boolean {
-		if (this._actual.type === RuntimeKeybindingType.Chord) {
+		if (this._actual.type === KeybindingType.Chord) {
 			return false;
 		}
 		return this._actual.shiftKey;
 	}
 
 	public hasAltModifier(): boolean {
-		if (this._actual.type === RuntimeKeybindingType.Chord) {
+		if (this._actual.type === KeybindingType.Chord) {
 			return false;
 		}
 		return this._actual.altKey;
 	}
 
 	public hasMetaModifier(): boolean {
-		if (this._actual.type === RuntimeKeybindingType.Chord) {
+		if (this._actual.type === KeybindingType.Chord) {
 			return false;
 		}
 		return this._actual.metaKey;
@@ -218,7 +218,7 @@ export class FancyResolvedKeybinding extends ResolvedKeybinding {
 		if (this._actual === null) {
 			keypressFirstPart = null;
 			keypressChordPart = null;
-		} else if (this._actual.type === RuntimeKeybindingType.Chord) {
+		} else if (this._actual.type === KeybindingType.Chord) {
 			keypressFirstPart = this._getDispatchPart(this._actual.firstPart);
 			keypressChordPart = this._getDispatchPart(this._actual.chordPart);
 		} else {
@@ -228,7 +228,7 @@ export class FancyResolvedKeybinding extends ResolvedKeybinding {
 		return [keypressFirstPart, keypressChordPart];
 	}
 
-	private _getDispatchPart(keybinding: SimpleRuntimeKeybinding): string {
+	private _getDispatchPart(keybinding: SimpleKeybinding): string {
 		let result = '';
 
 		if (keybinding.ctrlKey) {
@@ -360,7 +360,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		return extraUserKeybindings.map((k, i) => KeybindingIO.readKeybindingItem(k, i, OS));
 	}
 
-	protected _createResolvedKeybinding(kb: RuntimeKeybinding): ResolvedKeybinding {
+	protected _createResolvedKeybinding(kb: Keybinding): ResolvedKeybinding {
 		return new FancyResolvedKeybinding(kb);
 	}
 
