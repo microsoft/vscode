@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { createKeybinding, KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
+import { createKeybinding, KeyCode, KeyMod, KeyChord, createRuntimeKeybinding } from 'vs/base/common/keyCodes';
 import { IHTMLContentElement } from 'vs/base/common/htmlContent';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
 import { OperatingSystem } from 'vs/base/common/platform';
@@ -13,7 +13,7 @@ import { OperatingSystem } from 'vs/base/common/platform';
 suite('KeybindingLabels', () => {
 
 	function assertUSLabel(OS: OperatingSystem, keybinding: number, expected: string): void {
-		const usResolvedKeybinding = new USLayoutResolvedKeybinding(createKeybinding(keybinding), OS);
+		const usResolvedKeybinding = new USLayoutResolvedKeybinding(createRuntimeKeybinding(createKeybinding(keybinding), OS), OS);
 		assert.equal(usResolvedKeybinding.getLabel(), expected);
 	}
 
@@ -118,7 +118,7 @@ suite('KeybindingLabels', () => {
 
 	test('Aria label', () => {
 		function assertAriaLabel(OS: OperatingSystem, keybinding: number, expected: string): void {
-			const usResolvedKeybinding = new USLayoutResolvedKeybinding(createKeybinding(keybinding), OS);
+			const usResolvedKeybinding = new USLayoutResolvedKeybinding(createRuntimeKeybinding(createKeybinding(keybinding), OS), OS);
 			assert.equal(usResolvedKeybinding.getAriaLabel(), expected);
 		}
 
@@ -129,7 +129,7 @@ suite('KeybindingLabels', () => {
 
 	test('Electron Accelerator label', () => {
 		function assertElectronAcceleratorLabel(OS: OperatingSystem, keybinding: number, expected: string): void {
-			const usResolvedKeybinding = new USLayoutResolvedKeybinding(createKeybinding(keybinding), OS);
+			const usResolvedKeybinding = new USLayoutResolvedKeybinding(createRuntimeKeybinding(createKeybinding(keybinding), OS), OS);
 			assert.equal(usResolvedKeybinding.getElectronAccelerator(), expected);
 		}
 
@@ -156,7 +156,7 @@ suite('KeybindingLabels', () => {
 
 	test('User Settings label', () => {
 		function assertElectronAcceleratorLabel(OS: OperatingSystem, keybinding: number, expected: string): void {
-			const usResolvedKeybinding = new USLayoutResolvedKeybinding(createKeybinding(keybinding), OS);
+			const usResolvedKeybinding = new USLayoutResolvedKeybinding(createRuntimeKeybinding(createKeybinding(keybinding), OS), OS);
 			assert.equal(usResolvedKeybinding.getUserSettingsLabel(), expected);
 		}
 
@@ -172,7 +172,7 @@ suite('KeybindingLabels', () => {
 
 	test('US HTML label', () => {
 		function assertHTMLLabel(OS: OperatingSystem, keybinding: number, expected: IHTMLContentElement[]): void {
-			const usResolvedKeybinding = new USLayoutResolvedKeybinding(createKeybinding(keybinding), OS);
+			const usResolvedKeybinding = new USLayoutResolvedKeybinding(createRuntimeKeybinding(createKeybinding(keybinding), OS), OS);
 			assert.deepEqual(usResolvedKeybinding.getHTMLLabel(), expected);
 		}
 

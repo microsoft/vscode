@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { createKeybinding, SimpleKeybinding, KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
+import { createKeybinding, SimpleKeybinding, KeyCode, KeyMod, KeyChord, createRuntimeKeybinding, createSimpleRuntimeKeybinding } from 'vs/base/common/keyCodes';
 import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
 import { ContextKeyAndExpr, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
@@ -15,7 +15,7 @@ import { OS } from 'vs/base/common/platform';
 suite('KeybindingResolver', () => {
 
 	function kbItem(keybinding: number, command: string, commandArgs: any, when: ContextKeyExpr, isDefault: boolean): ResolvedKeybindingItem {
-		const resolvedKeybinding = (keybinding !== 0 ? new USLayoutResolvedKeybinding(createKeybinding(keybinding), OS) : null);
+		const resolvedKeybinding = (keybinding !== 0 ? new USLayoutResolvedKeybinding(createRuntimeKeybinding(createKeybinding(keybinding), OS), OS) : null);
 		return new ResolvedKeybindingItem(
 			resolvedKeybinding,
 			command,
@@ -23,6 +23,11 @@ suite('KeybindingResolver', () => {
 			when,
 			isDefault
 		);
+	}
+
+	function getDispatchStr(kb: SimpleKeybinding): string {
+		let runtimeKb = createSimpleRuntimeKeybinding(kb, OS);
+		return USLayoutResolvedKeybinding.getDispatchStr(runtimeKb);
 	}
 
 	test('resolve key', function () {
@@ -34,8 +39,8 @@ suite('KeybindingResolver', () => {
 		assert.equal(KeybindingResolver.contextMatchesRules({ bar: 'bz' }, contextRules), false);
 
 		let resolver = new KeybindingResolver([keybindingItem], []);
-		assert.equal(resolver.resolve({ bar: 'baz' }, null, new SimpleKeybinding(keybinding).value.toString()).commandId, 'yes');
-		assert.equal(resolver.resolve({ bar: 'bz' }, null, new SimpleKeybinding(keybinding).value.toString()), null);
+		assert.equal(resolver.resolve({ bar: 'baz' }, null, getDispatchStr(new SimpleKeybinding(keybinding))).commandId, 'yes');
+		assert.equal(resolver.resolve({ bar: 'bz' }, null, getDispatchStr(new SimpleKeybinding(keybinding))), null);
 	});
 
 	test('resolve key with arguments', function () {
@@ -45,7 +50,7 @@ suite('KeybindingResolver', () => {
 		let keybindingItem = kbItem(keybinding, 'yes', commandArgs, contextRules, true);
 
 		let resolver = new KeybindingResolver([keybindingItem], []);
-		assert.equal(resolver.resolve({ bar: 'baz' }, null, new SimpleKeybinding(keybinding).value.toString()).commandArgs, commandArgs);
+		assert.equal(resolver.resolve({ bar: 'baz' }, null, getDispatchStr(new SimpleKeybinding(keybinding))).commandArgs, commandArgs);
 	});
 
 	test('KeybindingResolver.combine simple 1', function () {
@@ -321,7 +326,7 @@ suite('KeybindingResolver', () => {
 			let lookupResult = resolver.lookupKeybindings(commandId);
 			assert.equal(lookupResult.length, expectedKeys.length, 'Length mismatch @ commandId ' + commandId + '; GOT: ' + JSON.stringify(lookupResult, null, '\t'));
 			for (let i = 0, len = lookupResult.length; i < len; i++) {
-				const expected = new USLayoutResolvedKeybinding(createKeybinding(expectedKeys[i]), OS);
+				const expected = new USLayoutResolvedKeybinding(createRuntimeKeybinding(createKeybinding(expectedKeys[i]), OS), OS);
 
 				assert.equal(lookupResult[i].resolvedKeybinding.getUserSettingsLabel(), expected.getUserSettingsLabel(), 'value mismatch @ commandId ' + commandId);
 			}
@@ -331,8 +336,8 @@ suite('KeybindingResolver', () => {
 			let expectedKey = createKeybinding(_expectedKey);
 
 			if (expectedKey.isChord()) {
-				let firstPart = expectedKey.extractFirstPart().value.toString();
-				let chordPart = expectedKey.extractChordPart().value.toString();
+				let firstPart = getDispatchStr(expectedKey.extractFirstPart());
+				let chordPart = getDispatchStr(expectedKey.extractChordPart());
 
 				let result = resolver.resolve(ctx, null, firstPart);
 				assert.ok(result !== null, 'Enters chord for ' + commandId);
@@ -344,7 +349,7 @@ suite('KeybindingResolver', () => {
 				assert.equal(result.commandId, commandId, 'Finds chorded command ' + commandId);
 				assert.equal(result.enterChord, false, 'Finds chorded command ' + commandId);
 			} else {
-				let result = resolver.resolve(ctx, null, expectedKey.value.toString());
+				let result = resolver.resolve(ctx, null, getDispatchStr(expectedKey));
 				assert.ok(result !== null, 'Finds command ' + commandId);
 				assert.equal(result.commandId, commandId, 'Finds command ' + commandId);
 				assert.equal(result.enterChord, false, 'Finds command ' + commandId);

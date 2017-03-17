@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { ResolvedKeybinding, Keybinding, SimpleKeybinding, createKeybinding, KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
+import { ResolvedKeybinding, Keybinding, SimpleKeybinding, createKeybinding, KeyCode, KeyMod, KeyChord, createRuntimeKeybinding } from 'vs/base/common/keyCodes';
 import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -40,7 +40,7 @@ suite('AbstractKeybindingService', () => {
 		}
 
 		protected _createResolvedKeybinding(kb: Keybinding): ResolvedKeybinding {
-			return new USLayoutResolvedKeybinding(kb, OS);
+			return new USLayoutResolvedKeybinding(createRuntimeKeybinding(kb, OS), OS);
 		}
 
 		public dispatch(keybinding: SimpleKeybinding): boolean {
@@ -130,7 +130,7 @@ suite('AbstractKeybindingService', () => {
 	});
 
 	function kbItem(keybinding: number, command: string, when: ContextKeyExpr = null): ResolvedKeybindingItem {
-		const resolvedKeybinding = (keybinding !== 0 ? new USLayoutResolvedKeybinding(createKeybinding(keybinding), OS) : null);
+		const resolvedKeybinding = (keybinding !== 0 ? new USLayoutResolvedKeybinding(createRuntimeKeybinding(createKeybinding(keybinding), OS), OS) : null);
 		return new ResolvedKeybindingItem(
 			resolvedKeybinding,
 			command,
@@ -141,7 +141,7 @@ suite('AbstractKeybindingService', () => {
 	}
 
 	function toUsLabel(keybinding: number): string {
-		const usResolvedKeybinding = new USLayoutResolvedKeybinding(createKeybinding(keybinding), OS);
+		const usResolvedKeybinding = new USLayoutResolvedKeybinding(createRuntimeKeybinding(createKeybinding(keybinding), OS), OS);
 		return usResolvedKeybinding.getLabel();
 	}
 

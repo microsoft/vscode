@@ -32,7 +32,7 @@ import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRe
 import { MenuId, IMenu, IMenuService } from 'vs/platform/actions/common/actions';
 import { Menu } from 'vs/platform/actions/common/menu';
 import { ITelemetryService, ITelemetryExperiments, ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
-import { ResolvedKeybinding, Keybinding, createKeybinding } from 'vs/base/common/keyCodes';
+import { ResolvedKeybinding, Keybinding, createKeybinding, createRuntimeKeybinding } from 'vs/base/common/keyCodes';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { OS } from 'vs/base/common/platform';
 
@@ -396,7 +396,7 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 	}
 
 	protected _createResolvedKeybinding(kb: Keybinding): ResolvedKeybinding {
-		return new USLayoutResolvedKeybinding(kb, OS);
+		return new USLayoutResolvedKeybinding(createRuntimeKeybinding(kb, OS), OS);
 	}
 
 }

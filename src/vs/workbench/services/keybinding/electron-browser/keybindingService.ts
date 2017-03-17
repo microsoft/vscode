@@ -7,7 +7,7 @@
 import * as nls from 'vs/nls';
 import { IHTMLContentElement } from 'vs/base/common/htmlContent';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { ResolvedKeybinding, Keybinding, createKeybinding, KeyCode, USER_SETTINGS } from 'vs/base/common/keyCodes';
+import { ResolvedKeybinding, Keybinding, createKeybinding, KeyCode, USER_SETTINGS, RuntimeKeybinding, RuntimeKeybindingType, SimpleRuntimeKeybinding, KeyCodeUtils, createRuntimeKeybinding } from 'vs/base/common/keyCodes';
 import { PrintableKeypress, UILabelProvider, AriaLabelProvider, UserSettingsLabelProvider } from 'vs/platform/keybinding/common/keybindingLabels';
 import { OS, OperatingSystem } from 'vs/base/common/platform';
 import { toDisposable } from 'vs/base/common/lifecycle';
@@ -122,9 +122,9 @@ let keybindingsExtPoint = ExtensionsRegistry.registerExtensionPoint<ContributedK
 
 export class FancyResolvedKeybinding extends ResolvedKeybinding {
 
-	private readonly _actual: Keybinding;
+	private readonly _actual: RuntimeKeybinding;
 
-	constructor(actual: Keybinding) {
+	constructor(actual: RuntimeKeybinding) {
 		super();
 		this._actual = actual;
 	}
@@ -181,43 +181,35 @@ export class FancyResolvedKeybinding extends ResolvedKeybinding {
 	}
 
 	public isChord(): boolean {
-		return this._actual.isChord();
+		return (this._actual.type === RuntimeKeybindingType.Chord);
 	}
 
 	public hasCtrlModifier(): boolean {
-		if (this._actual.isChord()) {
+		if (this._actual.type === RuntimeKeybindingType.Chord) {
 			return false;
 		}
-		if (OS === OperatingSystem.Macintosh) {
-			return this._actual.hasWinCtrl();
-		} else {
-			return this._actual.hasCtrlCmd();
-		}
+		return this._actual.ctrlKey;
 	}
 
 	public hasShiftModifier(): boolean {
-		if (this._actual.isChord()) {
+		if (this._actual.type === RuntimeKeybindingType.Chord) {
 			return false;
 		}
-		return this._actual.hasShift();
+		return this._actual.shiftKey;
 	}
 
 	public hasAltModifier(): boolean {
-		if (this._actual.isChord()) {
+		if (this._actual.type === RuntimeKeybindingType.Chord) {
 			return false;
 		}
-		return this._actual.hasAlt();
+		return this._actual.altKey;
 	}
 
 	public hasMetaModifier(): boolean {
-		if (this._actual.isChord()) {
+		if (this._actual.type === RuntimeKeybindingType.Chord) {
 			return false;
 		}
-		if (OS === OperatingSystem.Macintosh) {
-			return this._actual.hasCtrlCmd();
-		} else {
-			return this._actual.hasWinCtrl();
-		}
+		return this._actual.metaKey;
 	}
 
 	public getDispatchParts(): [string, string] {
@@ -226,14 +218,34 @@ export class FancyResolvedKeybinding extends ResolvedKeybinding {
 		if (this._actual === null) {
 			keypressFirstPart = null;
 			keypressChordPart = null;
-		} else if (this._actual.isChord()) {
-			keypressFirstPart = this._actual.extractFirstPart().value.toString();
-			keypressChordPart = this._actual.extractChordPart().value.toString();
+		} else if (this._actual.type === RuntimeKeybindingType.Chord) {
+			keypressFirstPart = this._getDispatchPart(this._actual.firstPart);
+			keypressChordPart = this._getDispatchPart(this._actual.chordPart);
 		} else {
-			keypressFirstPart = this._actual.value.toString();
+			keypressFirstPart = this._getDispatchPart(this._actual);
 			keypressChordPart = null;
 		}
 		return [keypressFirstPart, keypressChordPart];
+	}
+
+	private _getDispatchPart(keybinding: SimpleRuntimeKeybinding): string {
+		let result = '';
+
+		if (keybinding.ctrlKey) {
+			result += 'ctrl+';
+		}
+		if (keybinding.shiftKey) {
+			result += 'shift+';
+		}
+		if (keybinding.altKey) {
+			result += 'alt+';
+		}
+		if (keybinding.metaKey) {
+			result += 'meta+';
+		}
+		result += KeyCodeUtils.toString(keybinding.keyCode);
+
+		return result;
 	}
 }
 
@@ -349,7 +361,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 	}
 
 	protected _createResolvedKeybinding(kb: Keybinding): ResolvedKeybinding {
-		return new FancyResolvedKeybinding(kb);
+		return new FancyResolvedKeybinding(createRuntimeKeybinding(kb, OS));
 	}
 
 	private _handleKeybindingsExtensionPointUser(isBuiltin: boolean, keybindings: ContributedKeyBinding | ContributedKeyBinding[], collector: ExtensionMessageCollector): boolean {

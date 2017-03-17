@@ -6,7 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { KeyMod, KeyCode, SimpleKeybinding, createKeybinding, Keybinding } from 'vs/base/common/keyCodes';
+import { KeyMod, KeyCode, SimpleKeybinding, createKeybinding, Keybinding, createRuntimeKeybinding } from 'vs/base/common/keyCodes';
 import { KeyboardMapper, IKeyboardMapping } from 'vs/workbench/services/keybinding/common/keyboardMapper';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { UserSettingsLabelProvider, PrintableKeypress } from 'vs/platform/keybinding/common/keybindingLabels';
@@ -179,7 +179,7 @@ function _assertKeybindingTranslation(mapper: KeyboardMapper, OS: OperatingSyste
 	} else {
 		expected = [];
 	}
-	let keybindingLabel = new USLayoutResolvedKeybinding(createKeybinding(kb), OS).getUserSettingsLabel();
+	let keybindingLabel = new USLayoutResolvedKeybinding(createRuntimeKeybinding(createKeybinding(kb), OS), OS).getUserSettingsLabel();
 
 	let actualHardwareKeypresses = mapper.simpleKeybindingToHardwareKeypress(new SimpleKeybinding(kb));
 	if (actualHardwareKeypresses.length === 0) {
@@ -201,7 +201,7 @@ function _assertKeybindingTranslation(mapper: KeyboardMapper, OS: OperatingSyste
 			return;
 		}
 
-		const reversedLabel = new USLayoutResolvedKeybinding(reversed, OS).getUserSettingsLabel();
+		const reversedLabel = new USLayoutResolvedKeybinding(createRuntimeKeybinding(reversed, OS), OS).getUserSettingsLabel();
 		assert.equal(reversedLabel, keybindingLabel, `${keybindingLabel} -> ${hardwareKeypressLabel} -> ${reversedLabel}`);
 	});
 }

@@ -103,8 +103,10 @@ export abstract class AbstractKeybindingService implements IKeybindingService {
 
 		const contextValue = this._contextKeyService.getContextValue(target);
 		const currentChord = this._currentChord ? this._currentChord.keypress : null;
-		const keypress = keybinding.value.toString();
-		return this._getResolver().resolve(contextValue, currentChord, keypress);
+		const resolvedKeybinding = this._createResolvedKeybinding(keybinding);
+		const [firstPart,] = resolvedKeybinding.getDispatchParts();
+		// We know for a fact the chordPart is null since we're using a single keypress
+		return this._getResolver().resolve(contextValue, currentChord, firstPart);
 	}
 
 	protected _dispatch(keybinding: SimpleKeybinding, target: IContextKeyServiceTarget): boolean {
@@ -117,14 +119,15 @@ export abstract class AbstractKeybindingService implements IKeybindingService {
 
 		const contextValue = this._contextKeyService.getContextValue(target);
 		const currentChord = this._currentChord ? this._currentChord.keypress : null;
-		const keypress = keybinding.value.toString();
+		const resolvedKeybinding = this._createResolvedKeybinding(keybinding);
+		const [firstPart,] = resolvedKeybinding.getDispatchParts();
 		const keypressLabel = this._createResolvedKeybinding(keybinding).getLabel();
-		const resolveResult = this._getResolver().resolve(contextValue, currentChord, keypress);
+		const resolveResult = this._getResolver().resolve(contextValue, currentChord, firstPart);
 
 		if (resolveResult && resolveResult.enterChord) {
 			shouldPreventDefault = true;
 			this._currentChord = {
-				keypress: keypress,
+				keypress: firstPart,
 				label: keypressLabel
 			};
 			if (this._statusService) {
