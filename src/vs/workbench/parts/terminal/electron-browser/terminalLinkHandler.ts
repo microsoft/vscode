@@ -119,7 +119,6 @@ export class TerminalLinkHandler {
 	}
 
 	private _addTooltipEventListeners(element: HTMLElement) {
-		// TODO: Use disposable listeners
 		let timeout = null;
 		let isMessageShowing = false;
 		this._tooltipDisposables.push(dom.addDisposableListener(element, dom.EventType.MOUSE_OVER, () => {
