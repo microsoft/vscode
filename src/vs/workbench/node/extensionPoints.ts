@@ -17,7 +17,7 @@ import json = require('vs/base/common/json');
 import Types = require('vs/base/common/types');
 import { isValidExtensionDescription } from 'vs/platform/extensions/node/extensionValidator';
 import * as semver from 'semver';
-import { getIdAndVersionFromLocalExtensionId, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { getIdAndVersionFromLocalExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 
 const MANIFEST_FILE = 'package.json';
 
@@ -237,7 +237,7 @@ class ExtensionManifestValidator extends ExtensionManifestHandler {
 		});
 
 		// id := `publisher.name`
-		extensionDescription.id = getGalleryExtensionId(extensionDescription.publisher, extensionDescription.name);
+		extensionDescription.id = `${extensionDescription.publisher}.${extensionDescription.name}`;
 
 		// main := absolutePath(`main`)
 		if (extensionDescription.main) {
@@ -316,7 +316,7 @@ export class ExtensionScanner {
 
 						const {id, version} = getIdAndVersionFromLocalExtensionId(folder);
 
-						if (!id && !version) {
+						if (!id || !version) {
 							nonGallery.push(folder);
 							return;
 						}

@@ -9,7 +9,6 @@ import * as path from 'path';
 import * as fs from 'original-fs';
 import * as platform from 'vs/base/common/platform';
 import * as nls from 'vs/nls';
-import * as paths from 'vs/base/common/paths';
 import * as types from 'vs/base/common/types';
 import * as arrays from 'vs/base/common/arrays';
 import { assign, mixin } from 'vs/base/common/objects';
@@ -31,6 +30,7 @@ import CommonEvent, { Emitter } from 'vs/base/common/event';
 import product from 'vs/platform/node/product';
 import { OpenContext } from 'vs/code/common/windows';
 import { ITelemetryService, ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
+import { isParent, isEqual, isEqualOrParent } from 'vs/platform/files/common/files';
 
 enum WindowError {
 	UNRESPONSIVE,
@@ -121,6 +121,7 @@ export interface IWindowsMainService {
 	removeFromRecentPathsList(path: string): void;
 	removeFromRecentPathsList(paths: string[]): void;
 	clearRecentPathsList(): void;
+	updateWindowsJumpList(): void;
 	quit(): void;
 }
 
@@ -171,8 +172,6 @@ export class WindowsManager implements IWindowsMainService {
 
 		this.initialUserEnv = initialUserEnv;
 		this.windowsState = this.storageService.getItem<IWindowsState>(WindowsManager.windowsStateStorageKey) || { openedFolders: [] };
-
-		this.updateWindowsJumpList();
 	}
 
 	private registerListeners(): void {
@@ -235,8 +234,8 @@ export class WindowsManager implements IWindowsMainService {
 				// Send to windows
 				if (target) {
 					const otherWindowsWithTarget = WindowsManager.WINDOWS.filter(w => w.id !== windowId && typeof w.openedWorkspacePath === 'string');
-					const directTargetMatch = otherWindowsWithTarget.filter(w => this.isPathEqual(target, w.openedWorkspacePath));
-					const parentTargetMatch = otherWindowsWithTarget.filter(w => paths.isEqualOrParent(target, w.openedWorkspacePath));
+					const directTargetMatch = otherWindowsWithTarget.filter(w => isEqual(target, w.openedWorkspacePath));
+					const parentTargetMatch = otherWindowsWithTarget.filter(w => isParent(target, w.openedWorkspacePath));
 
 					const targetWindow = directTargetMatch.length ? directTargetMatch[0] : parentTargetMatch[0]; // prefer direct match over parent match
 					if (targetWindow) {
@@ -251,9 +250,6 @@ export class WindowsManager implements IWindowsMainService {
 		// Update our windows state before quitting and before closing windows
 		this.lifecycleService.onBeforeWindowClose(win => this.onBeforeWindowClose(win));
 		this.lifecycleService.onBeforeQuit(() => this.onBeforeQuit());
-
-		// Update jump list when recent paths change
-		this.onRecentPathsChange(() => this.updateWindowsJumpList());
 	}
 
 	// Note that onBeforeQuit() and onBeforeWindowClose() are fired in different order depending on the OS:
@@ -321,7 +317,7 @@ export class WindowsManager implements IWindowsMainService {
 		// Any non extension host window with same workspace
 		else if (!win.isExtensionDevelopmentHost && !!win.openedWorkspacePath) {
 			this.windowsState.openedFolders.forEach(o => {
-				if (this.isPathEqual(o.workspacePath, win.openedWorkspacePath)) {
+				if (isEqual(o.workspacePath, win.openedWorkspacePath)) {
 					o.uiState = state.uiState;
 				}
 			});
@@ -448,7 +444,7 @@ export class WindowsManager implements IWindowsMainService {
 					openFilesInNewWindow = true; // only on macOS do we allow to open files in a new window if this is triggered via DOCK context
 				}
 
-				if (!openConfig.cli.extensionDevelopmentPath && windowConfig && (windowConfig.openFilesInNewWindow === 'on' || windowConfig.openFilesInNewWindow === 'off' || <any>windowConfig.openFilesInNewWindow === false /* TODO@Ben migration */)) {
+				if (!openConfig.cli.extensionDevelopmentPath && windowConfig && (windowConfig.openFilesInNewWindow === 'on' || windowConfig.openFilesInNewWindow === 'off')) {
 					openFilesInNewWindow = (windowConfig.openFilesInNewWindow === 'on');
 				}
 			}
@@ -514,7 +510,7 @@ export class WindowsManager implements IWindowsMainService {
 
 			// Open remaining ones
 			allFoldersToOpen.forEach(folderToOpen => {
-				if (windowsOnWorkspacePath.some(win => this.isPathEqual(win.openedWorkspacePath, folderToOpen))) {
+				if (windowsOnWorkspacePath.some(win => isEqual(win.openedWorkspacePath, folderToOpen))) {
 					return; // ignore folders that are already open
 				}
 
@@ -688,7 +684,7 @@ export class WindowsManager implements IWindowsMainService {
 		// Reload an existing extension development host window on the same path
 		// We currently do not allow more than one extension development window
 		// on the same extension path.
-		let res = WindowsManager.WINDOWS.filter(w => w.config && this.isPathEqual(w.config.extensionDevelopmentPath, openConfig.cli.extensionDevelopmentPath));
+		let res = WindowsManager.WINDOWS.filter(w => w.config && isEqual(w.config.extensionDevelopmentPath, openConfig.cli.extensionDevelopmentPath));
 		if (res && res.length === 1) {
 			this.reload(res[0], openConfig.cli);
 			res[0].focus(); // make sure it gets focus and is restored
@@ -713,7 +709,7 @@ export class WindowsManager implements IWindowsMainService {
 		}
 
 		// Open it
-		this.open({ context: openConfig.context, cli: openConfig.cli, forceNewWindow: true, forceEmpty: openConfig.cli._.length === 0 });
+		this.open({ context: openConfig.context, cli: openConfig.cli, forceNewWindow: true, forceEmpty: openConfig.cli._.length === 0, userEnv: openConfig.userEnv });
 	}
 
 	private toConfiguration(config: IOpenConfiguration, workspacePath?: string, filesToOpen?: IPath[], filesToCreate?: IPath[], filesToDiff?: IPath[]): IWindowConfiguration {
@@ -910,7 +906,7 @@ export class WindowsManager implements IWindowsMainService {
 
 		// Known Folder - load from stored settings if any
 		if (configuration.workspacePath) {
-			const stateForWorkspace = this.windowsState.openedFolders.filter(o => this.isPathEqual(o.workspacePath, configuration.workspacePath)).map(o => o.uiState);
+			const stateForWorkspace = this.windowsState.openedFolders.filter(o => isEqual(o.workspacePath, configuration.workspacePath)).map(o => o.uiState);
 			if (stateForWorkspace.length) {
 				return stateForWorkspace[0];
 			}
@@ -949,9 +945,9 @@ export class WindowsManager implements IWindowsMainService {
 				displayToUse = screen.getDisplayMatching(lastActive.getBounds());
 			}
 
-			// fallback to first display
+			// fallback to primary display or first display
 			if (!displayToUse) {
-				displayToUse = displays[0];
+				displayToUse = screen.getPrimaryDisplay() || displays[0];
 			}
 		}
 
@@ -1107,17 +1103,17 @@ export class WindowsManager implements IWindowsMainService {
 			const res = windowsToTest.filter(w => {
 
 				// match on workspace
-				if (typeof w.openedWorkspacePath === 'string' && (this.isPathEqual(w.openedWorkspacePath, workspacePath))) {
+				if (typeof w.openedWorkspacePath === 'string' && (isEqual(w.openedWorkspacePath, workspacePath))) {
 					return true;
 				}
 
 				// match on file
-				if (typeof w.openedFilePath === 'string' && this.isPathEqual(w.openedFilePath, filePath)) {
+				if (typeof w.openedFilePath === 'string' && isEqual(w.openedFilePath, filePath)) {
 					return true;
 				}
 
 				// match on file path
-				if (typeof w.openedWorkspacePath === 'string' && filePath && paths.isEqualOrParent(filePath, w.openedWorkspacePath)) {
+				if (typeof w.openedWorkspacePath === 'string' && filePath && isEqualOrParent(filePath, w.openedWorkspacePath)) {
 					return true;
 				}
 
@@ -1240,31 +1236,7 @@ export class WindowsManager implements IWindowsMainService {
 		this._onWindowClose.fire(win.id);
 	}
 
-	private isPathEqual(pathA: string, pathB: string): boolean {
-		if (pathA === pathB) {
-			return true;
-		}
-
-		if (!pathA || !pathB) {
-			return false;
-		}
-
-		pathA = path.normalize(pathA);
-		pathB = path.normalize(pathB);
-
-		if (pathA === pathB) {
-			return true;
-		}
-
-		if (!platform.isLinux) {
-			pathA = pathA.toLowerCase();
-			pathB = pathB.toLowerCase();
-		}
-
-		return pathA === pathB;
-	}
-
-	private updateWindowsJumpList(): void {
+	public updateWindowsJumpList(): void {
 		if (!platform.isWindows) {
 			return; // only on windows
 		}

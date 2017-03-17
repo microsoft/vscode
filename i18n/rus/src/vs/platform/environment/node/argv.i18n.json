@@ -19,6 +19,7 @@
 	"optionsUpperCase": "Параметры",
 	"paths": "пути",
 	"performance": "Запустите с включенной командой \"Developer: Startup Performance\".",
+	"prof-startup": "Запустить профилировщик ЦП при запуске",
 	"reuseWindow": "Принудительно открыть файл или папку в последнем активном окне.",
 	"showVersions": "Показать версии установленных расширений при указании параметра --list-extension.",
 	"uninstallExtension": "Удаляет расширение.",

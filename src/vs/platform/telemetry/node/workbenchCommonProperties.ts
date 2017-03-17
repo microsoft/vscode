@@ -10,7 +10,7 @@ import * as errors from 'vs/base/common/errors';
 import * as uuid from 'vs/base/common/uuid';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { getMachineId, virtualMachineHint } from 'vs/base/node/id';
-import { resolveCommonProperties } from '../node/commonProperties';
+import { resolveCommonProperties, machineIdStorageKey } from '../node/commonProperties';
 
 const SQM_KEY: string = '\\Software\\Microsoft\\SQMClient';
 
@@ -49,16 +49,15 @@ function getOrCreateInstanceId(storageService: IStorageService): TPromise<string
 	return TPromise.as(result);
 }
 
-function getOrCreateMachineId(storageService: IStorageService): TPromise<string> {
-	const key = 'telemetry.machineId';
-	let result = storageService.get(key);
+export function getOrCreateMachineId(storageService: IStorageService): TPromise<string> {
+	let result = storageService.get(machineIdStorageKey);
 
 	if (result) {
 		return TPromise.as(result);
 	}
 
 	return getMachineId().then(result => {
-		storageService.store(key, result);
+		storageService.store(machineIdStorageKey, result);
 		return result;
 	});
 }

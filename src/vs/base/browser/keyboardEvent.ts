@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { Keybinding, KeyCode, KeyCodeUtils, KeyMod } from 'vs/base/common/keyCodes';
+import { KeyCode, KeyCodeUtils, KeyMod, SimpleKeybinding } from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
 import * as browser from 'vs/base/browser/browser';
 
@@ -175,7 +175,10 @@ export interface IKeyboardEvent {
 	readonly metaKey: boolean;
 	readonly keyCode: KeyCode;
 
-	toKeybinding(): Keybinding;
+	/**
+	 * @internal
+	 */
+	toRuntimeKeybinding(): SimpleKeybinding;
 	equals(keybinding: number): boolean;
 
 	preventDefault(): void;
@@ -198,7 +201,8 @@ export class StandardKeyboardEvent implements IKeyboardEvent {
 	public readonly metaKey: boolean;
 	public readonly keyCode: KeyCode;
 
-	private _asKeybinding: Keybinding;
+	private _asKeybinding: number;
+	private _asRuntimeKeybinding: SimpleKeybinding;
 
 	constructor(source: KeyboardEvent) {
 		let e = <KeyboardEvent>source;
@@ -220,6 +224,9 @@ export class StandardKeyboardEvent implements IKeyboardEvent {
 		this.metaKey = this.metaKey || this.keyCode === KeyCode.Meta;
 
 		this._asKeybinding = this._computeKeybinding();
+		this._asRuntimeKeybinding = this._computeRuntimeKeybinding();
+
+		// console.log(`code: ${e.code}, keyCode: ${e.keyCode}, key: ${e.key}`);
 	}
 
 	public preventDefault(): void {
@@ -234,15 +241,15 @@ export class StandardKeyboardEvent implements IKeyboardEvent {
 		}
 	}
 
-	public toKeybinding(): Keybinding {
-		return this._asKeybinding;
+	public toRuntimeKeybinding(): SimpleKeybinding {
+		return this._asRuntimeKeybinding;
 	}
 
 	public equals(other: number): boolean {
-		return this._asKeybinding.value === other;
+		return this._asKeybinding === other;
 	}
 
-	private _computeKeybinding(): Keybinding {
+	private _computeKeybinding(): number {
 		let key = KeyCode.Unknown;
 		if (this.keyCode !== KeyCode.Ctrl && this.keyCode !== KeyCode.Shift && this.keyCode !== KeyCode.Alt && this.keyCode !== KeyCode.Meta) {
 			key = this.keyCode;
@@ -263,6 +270,14 @@ export class StandardKeyboardEvent implements IKeyboardEvent {
 		}
 		result |= key;
 
-		return new Keybinding(result);
+		return result;
+	}
+
+	private _computeRuntimeKeybinding(): SimpleKeybinding {
+		let key = KeyCode.Unknown;
+		if (this.keyCode !== KeyCode.Ctrl && this.keyCode !== KeyCode.Shift && this.keyCode !== KeyCode.Alt && this.keyCode !== KeyCode.Meta) {
+			key = this.keyCode;
+		}
+		return new SimpleKeybinding(this.ctrlKey, this.shiftKey, this.altKey, this.metaKey, key);
 	}
 }

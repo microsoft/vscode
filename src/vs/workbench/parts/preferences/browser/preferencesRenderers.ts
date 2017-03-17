@@ -9,7 +9,7 @@ import * as DOM from 'vs/base/browser/dom';
 import { Delayer } from 'vs/base/common/async';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { flatten, distinct } from 'vs/base/common/arrays';
-import { ArrayNavigator, IIterator } from 'vs/base/common/iterator';
+import { ArrayNavigator, INavigator } from 'vs/base/common/iterator';
 import { IAction } from 'vs/base/common/actions';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import Event, { Emitter } from 'vs/base/common/event';
@@ -26,6 +26,7 @@ import { SettingsGroupTitleWidget, EditPreferenceWidget } from 'vs/workbench/par
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { RangeHighlightDecorations } from 'vs/workbench/common/editor/rangeDecorations';
 import { IConfigurationEditingService } from 'vs/workbench/services/configuration/common/configurationEditing';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { overrideIdentifierFromKey } from 'vs/platform/configuration/common/model';
 import { IMarkerService, IMarkerData } from 'vs/platform/markers/common/markers';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
@@ -35,7 +36,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 export interface IPreferencesRenderer<T> extends IDisposable {
 	preferencesModel: IPreferencesEditorModel<T>;
 	associatedPreferencesModel: IPreferencesEditorModel<T>;
-	iterator: IIterator<T>;
+	iterator: INavigator<T>;
 
 	onFocusPreference: Event<T>;
 	onClearFocusPreference: Event<T>;
@@ -70,6 +71,7 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 	constructor(protected editor: ICodeEditor, public readonly preferencesModel: SettingsEditorModel, public readonly associatedPreferencesModel: IPreferencesEditorModel<ISetting>,
 		@IPreferencesService protected preferencesService: IPreferencesService,
 		@ITelemetryService private telemetryService: ITelemetryService,
+		@ITextFileService private textFileService: ITextFileService,
 		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService,
 		@IMessageService private messageService: IMessageService,
 		@IInstantiationService protected instantiationService: IInstantiationService
@@ -84,7 +86,7 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 		this._register(this.editor.getModel().onDidChangeContent(() => this.modelChangeDelayer.trigger(() => this.onModelChanged())));
 	}
 
-	public get iterator(): IIterator<ISetting> {
+	public get iterator(): INavigator<ISetting> {
 		return null;
 	}
 
@@ -98,7 +100,7 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 	public updatePreference(key: string, value: any, source: ISetting): void {
 		this.telemetryService.publicLog('defaultSettingsActions.copySetting', { userConfigurationKeys: [key] });
 		const overrideIdentifier = source.overrideOf ? overrideIdentifierFromKey(source.overrideOf.key) : null;
-		this.configurationEditingService.writeConfiguration(this.preferencesModel.configurationTarget, { key, value, overrideIdentifier }, { writeToBuffer: true, autoSave: true })
+		this.configurationEditingService.writeConfiguration(this.preferencesModel.configurationTarget, { key, value, overrideIdentifier }, !this.textFileService.isDirty(this.preferencesModel.uri))
 			.then(() => this.onSettingUpdated(source), error => this.messageService.show(Severity.Error, error));
 	}
 
@@ -175,11 +177,12 @@ export class WorkspaceSettingsRenderer extends UserSettingsRenderer implements I
 	constructor(editor: ICodeEditor, preferencesModel: SettingsEditorModel, associatedPreferencesModel: IPreferencesEditorModel<ISetting>,
 		@IPreferencesService preferencesService: IPreferencesService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@ITextFileService textFileService: ITextFileService,
 		@IConfigurationEditingService configurationEditingService: IConfigurationEditingService,
 		@IMessageService messageService: IMessageService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super(editor, preferencesModel, associatedPreferencesModel, preferencesService, telemetryService, configurationEditingService, messageService, instantiationService);
+		super(editor, preferencesModel, associatedPreferencesModel, preferencesService, telemetryService, textFileService, configurationEditingService, messageService, instantiationService);
 		this.untrustedSettingRenderer = this._register(instantiationService.createInstance(UnsupportedWorkspaceSettingsRenderer, editor, preferencesModel));
 	}
 
@@ -227,7 +230,7 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 		this._register(this.settingsGroupTitleRenderer.onHiddenAreasChanged(() => this.hiddenAreasRenderer.render()));
 	}
 
-	public get iterator(): IIterator<ISetting> {
+	public get iterator(): INavigator<ISetting> {
 		return this.filteredSettingsNavigationRenderer;
 	}
 
@@ -574,7 +577,7 @@ export class HighlightPreferencesRenderer extends Disposable {
 	}
 }
 
-class FilteredSettingsNavigationRenderer extends Disposable implements IIterator<ISetting> {
+class FilteredSettingsNavigationRenderer extends Disposable implements INavigator<ISetting> {
 
 	private iterator: ArrayNavigator<ISetting>;
 
@@ -584,6 +587,26 @@ class FilteredSettingsNavigationRenderer extends Disposable implements IIterator
 
 	public next(): ISetting {
 		return this.iterator.next() || this.iterator.first();
+	}
+
+	public previous(): ISetting {
+		return this.iterator.previous() || this.iterator.last();
+	}
+
+	public parent(): ISetting {
+		return this.iterator.parent();
+	}
+
+	public first(): ISetting {
+		return this.iterator.first();
+	}
+
+	public last(): ISetting {
+		return this.iterator.last();
+	}
+
+	public current(): ISetting {
+		return this.iterator.current();
 	}
 
 	public render(filteredGroups: ISettingsGroup[]) {
@@ -725,7 +748,7 @@ class EditSettingRenderer extends Disposable {
 							break;
 						}
 						if (lineNumber >= setting.range.startLineNumber && lineNumber <= setting.range.endLineNumber) {
-							if (setting.overrides.length > 0) {
+							if (!this.isDefaultSettings() && setting.overrides.length) {
 								// Only one level because override settings cannot have override settings
 								for (const overrideSetting of setting.overrides) {
 									if (lineNumber >= overrideSetting.range.startLineNumber && lineNumber <= overrideSetting.range.endLineNumber) {

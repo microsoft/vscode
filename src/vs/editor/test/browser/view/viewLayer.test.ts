@@ -325,7 +325,7 @@ suite('RenderedLinesCollection onLineChanged', () => {
 			new TestLine('old8'),
 			new TestLine('old9')
 		]);
-		let actualPinged = col.onLineChanged(changedLineNumber);
+		let actualPinged = col.onLinesChanged(changedLineNumber, changedLineNumber);
 		assert.deepEqual(actualPinged, expectedPinged);
 		assertState(col, expectedState);
 	}

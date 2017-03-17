@@ -17,7 +17,7 @@ export interface IToken {
 interface MarkdownIt {
 	render(text: string): string;
 
-	parse(text: string): IToken[];
+	parse(text: string, env: any): IToken[];
 
 	utils: any;
 }
@@ -30,6 +30,26 @@ export class MarkdownEngine {
 	private firstLine: number;
 
 	private currentDocument: vscode.Uri;
+
+	private plugins: Array<(md: any) => any> = [];
+
+	constructor() { }
+
+	public addPlugin(factory: (md: any) => any): void {
+		if (this.md) {
+			this.usePlugin(factory);
+		} else {
+			this.plugins.push(factory);
+		}
+	}
+
+	private usePlugin(factory: (md: any) => any): void {
+		try {
+			this.md = factory(this.md);
+		} catch (e) {
+			// noop
+		}
+	}
 
 	private get engine(): MarkdownIt {
 		if (!this.md) {
@@ -48,6 +68,11 @@ export class MarkdownEngine {
 			}).use(mdnh, {
 				slugify: (header: string) => TableOfContentsProvider.slugify(header)
 			});
+
+			for (const plugin of this.plugins) {
+				this.usePlugin(plugin);
+			}
+			this.plugins = [];
 
 			for (const renderName of ['paragraph_open', 'heading_open', 'image', 'code_block', 'blockquote_open', 'list_item_open']) {
 				this.addLineNumberRenderer(this.md, renderName);
@@ -83,9 +108,10 @@ export class MarkdownEngine {
 		return this.engine.render(text);
 	}
 
-	public parse(source: string): IToken[] {
+	public parse(document: vscode.Uri, source: string): IToken[] {
 		const {text, offset} = this.stripFrontmatter(source);
-		return this.engine.parse(text).map(token => {
+		this.currentDocument = document;
+		return this.engine.parse(text, {}).map(token => {
 			if (token.map) {
 				token.map[0] += offset;
 			}
@@ -97,7 +123,7 @@ export class MarkdownEngine {
 		const original = md.renderer.rules[ruleName];
 		md.renderer.rules[ruleName] = (tokens: any, idx: number, options: any, env: any, self: any) => {
 			const token = tokens[idx];
-			if ((token.level === 0 || token.type === 'list_item_open' && token.level === 1) && token.map && token.map.length) {
+			if (token.map && token.map.length) {
 				token.attrSet('data-line', this.firstLine + token.map[0]);
 				token.attrJoin('class', 'code-line');
 			}

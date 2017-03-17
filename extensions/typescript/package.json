@@ -164,6 +164,11 @@
           "default": true,
           "description": "%format.insertSpaceAfterFunctionKeywordForAnonymousFunctions%"
         },
+        "typescript.format.insertSpaceBeforeFunctionParenthesis": {
+          "type": "boolean",
+          "default": false,
+          "description": "%format.insertSpaceBeforeFunctionParenthesis%"
+        },
         "typescript.format.insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis": {
           "type": "boolean",
           "default": false,
@@ -228,6 +233,11 @@
           "type": "boolean",
           "default": true,
           "description": "%format.insertSpaceAfterFunctionKeywordForAnonymousFunctions%"
+        },
+        "javascript.format.insertSpaceBeforeFunctionParenthesis": {
+          "type": "boolean",
+          "default": false,
+          "description": "%format.insertSpaceBeforeFunctionParenthesis%"
         },
         "javascript.format.insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis": {
           "type": "boolean",
@@ -354,6 +364,42 @@
       {
         "fileMatch": "typings.json",
         "url": "http://json.schemastore.org/typings"
+      }
+    ],
+    "problemPatterns": [
+      {
+        "name": "tsc",
+        "regexp": "^([^\\s].*)\\((\\d+|\\d+,\\d+|\\d+,\\d+,\\d+,\\d+)\\):\\s+(error|warning|info)\\s+(TS\\d+)\\s*:\\s*(.*)$",
+        "file": 1,
+        "location": 2,
+        "severity": 3,
+        "code": 4,
+        "message": 5
+      }
+    ],
+    "problemMatchers": [
+      {
+        "name": "tsc",
+        "owner": "typescript",
+        "applyTo": "closedDocuments",
+        "fileLocation": ["relative", "${cwd}"],
+	      "pattern": "$tsc"
+      },
+      {
+        "name": "tsc-watch",
+        "owner": "typescript",
+        "applyTo": "closedDocuments",
+        "fileLocation": ["relative", "${cwd}"],
+        "pattern": "$tsc",
+        "watching": {
+          "activeOnStart": true,
+          "beginsPattern": {
+            "regexp": "^\\s*(?:message TS6032:|\\d{1,2}:\\d{1,2}:\\d{1,2}(?: AM| PM)? -) File change detected\\. Starting incremental compilation\\.\\.\\."
+          },
+          "endsPattern": {
+            "regexp": "^\\s*(?:message TS6042:|\\d{1,2}:\\d{1,2}:\\d{1,2}(?: AM| PM)? -) Compilation complete\\. Watching for file changes\\."
+          }
+        }
       }
     ]
   }

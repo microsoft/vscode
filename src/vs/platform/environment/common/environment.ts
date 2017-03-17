@@ -50,7 +50,6 @@ export interface IEnvironmentService {
 	appRoot: string;
 
 	userHome: string;
-	userProductHome: string;
 	userDataPath: string;
 
 	appNameLong: string;

@@ -261,6 +261,10 @@ export function registerCommands(): void {
 		when: ListFocusContext,
 		primary: KeyCode.Enter,
 		secondary: [KeyMod.CtrlCmd | KeyCode.Enter],
+		mac: {
+			primary: KeyCode.Enter,
+			secondary: [KeyMod.CtrlCmd | KeyCode.Enter, KeyMod.CtrlCmd | KeyCode.DownArrow]
+		},
 		handler: (accessor) => {
 			const listService = accessor.get(IListService);
 			const focused = listService.getFocused();
@@ -268,6 +272,7 @@ export function registerCommands(): void {
 			// List
 			if (focused instanceof List) {
 				const list = focused;
+				list.setSelection(list.getFocus());
 				list.open(list.getFocus());
 			}
 

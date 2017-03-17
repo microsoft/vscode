@@ -21,7 +21,7 @@ import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { ViewController, TriggerCursorHandler } from 'vs/editor/browser/view/viewController';
 import { ViewEventDispatcher } from 'vs/editor/common/view/viewEventDispatcher';
 import { ContentViewOverlays, MarginViewOverlays } from 'vs/editor/browser/view/viewOverlays';
-import { LayoutProvider } from 'vs/editor/browser/viewLayout/layoutProvider';
+import { LayoutProvider } from 'vs/editor/common/viewLayout/viewLayout';
 import { ViewContentWidgets } from 'vs/editor/browser/viewParts/contentWidgets/contentWidgets';
 import { CurrentLineHighlightOverlay } from 'vs/editor/browser/viewParts/currentLineHighlight/currentLineHighlight';
 import { CurrentLineMarginHighlightOverlay } from 'vs/editor/browser/viewParts/currentLineMarginHighlight/currentLineMarginHighlight';
@@ -395,7 +395,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 					throw new Error('ViewImpl.pointerHandler.visibleRangeForPosition2: View is disposed');
 				}
 				this._flushAccumulatedAndRenderNow();
-				let visibleRanges = this.viewLines.visibleRangesForRange2(new Range(lineNumber, column, lineNumber, column), 0);
+				let visibleRanges = this.viewLines.visibleRangesForRange2(new Range(lineNumber, column, lineNumber, column));
 				if (!visibleRanges) {
 					return null;
 				}
@@ -421,12 +421,17 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 					throw new Error('ViewImpl.keyboardHandler.visibleRangeForPositionRelativeToEditor: View is disposed');
 				}
 				this._flushAccumulatedAndRenderNow();
-				let linesViewPortData = this.layoutProvider.getLinesViewportData();
-				let visibleRanges = this.viewLines.visibleRangesForRange2(new Range(lineNumber, column, lineNumber, column), linesViewPortData.visibleRangesDeltaTop);
+				let visibleRanges = this.viewLines.visibleRangesForRange2(new Range(lineNumber, column, lineNumber, column));
 				if (!visibleRanges) {
 					return null;
 				}
 				return visibleRanges[0];
+			},
+			getVerticalOffsetForLineNumber: (lineNumber: number) => {
+				if (this._isDisposed) {
+					throw new Error('ViewImpl.keyboardHandler.getVerticalOffsetForLineNumber: View is disposed');
+				}
+				return this.layoutProvider.getVerticalOffsetForLineNumber(lineNumber);
 			},
 			flushAnyAccumulatedEvents: () => {
 				this._flushAnyAccumulatedEvents();
@@ -511,7 +516,12 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		this.outgoingEvents.emitScrollChanged(e);
 		return false;
 	}
-	public onScrollRequest(e: editorCommon.ICursorScrollRequestEvent): boolean {
+	public onScrollRequest(e: viewEvents.ViewScrollRequestEvent): boolean {
+		let currentScrollTop = this.layoutProvider.getScrollTop();
+		let newScrollTop = currentScrollTop + e.deltaLines * this._context.configuration.editor.lineHeight;
+		this.layoutProvider.setScrollPosition({
+			scrollTop: newScrollTop
+		});
 		return e.revealCursor ? this.revealCursor() : false;
 	}
 	private revealCursor(): boolean {
@@ -618,7 +628,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 					});
 					let viewPosition = this._context.model.coordinatesConverter.convertModelPositionToViewPosition(modelPosition);
 					this._flushAccumulatedAndRenderNow();
-					let visibleRanges = this.viewLines.visibleRangesForRange2(new Range(viewPosition.lineNumber, viewPosition.column, viewPosition.lineNumber, viewPosition.column), 0);
+					let visibleRanges = this.viewLines.visibleRangesForRange2(new Range(viewPosition.lineNumber, viewPosition.column, viewPosition.lineNumber, viewPosition.column));
 					if (!visibleRanges) {
 						return -1;
 					}
@@ -642,14 +652,12 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 			throw new Error('ViewImpl.getCompletelyVisibleLinesRangeInViewport: View is disposed');
 		}
 
-		let partialData = this.layoutProvider.getLinesViewportData();
-		let startLineNumber = partialData.startLineNumber === partialData.endLineNumber || partialData.relativeVerticalOffset[0] >= partialData.viewportTop ? partialData.startLineNumber : partialData.startLineNumber + 1;
-		let endLineNumber = partialData.relativeVerticalOffset[partialData.relativeVerticalOffset.length - 1] + this._context.configuration.editor.lineHeight <= partialData.viewportTop + partialData.viewportHeight ? partialData.endLineNumber : partialData.endLineNumber - 1;
-		let completelyVisibleLinesRange = new Range(
-			startLineNumber,
+		const partialData = this.layoutProvider.getLinesViewportData();
+		const completelyVisibleLinesRange = new Range(
+			partialData.completelyVisibleStartLineNumber,
 			1,
-			endLineNumber,
-			this._context.model.getLineMaxColumn(endLineNumber)
+			partialData.completelyVisibleEndLineNumber,
+			this._context.model.getLineMaxColumn(partialData.completelyVisibleEndLineNumber)
 		);
 
 		return this._context.model.coordinatesConverter.convertViewRangeToModelRange(completelyVisibleLinesRange);
@@ -903,7 +911,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 			this.keyboardHandler.writeToTextArea();
 		}
 
-		let renderingContext = new RenderingContext(this.viewLines, this.layoutProvider, viewportData);
+		let renderingContext = new RenderingContext(this.layoutProvider, viewportData, this.viewLines);
 
 		// Render the rest of the parts
 		for (let i = 0, len = viewPartsToRender.length; i < len; i++) {

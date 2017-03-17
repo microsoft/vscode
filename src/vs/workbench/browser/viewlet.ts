@@ -229,7 +229,7 @@ export class ToggleViewletAction extends Action {
 		id: string,
 		name: string,
 		viewletId: string,
-		@IViewletService private viewletService: IViewletService,
+		@IViewletService protected viewletService: IViewletService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
 	) {
 		super(id, name);
@@ -343,12 +343,7 @@ export abstract class AdaptiveCollapsibleViewletView extends FixedCollapsibleVie
 			orientation: ActionsOrientation.HORIZONTAL,
 			actionItemProvider: (action) => { return this.getActionItem(action); },
 			ariaLabel: nls.localize('viewToolbarAriaLabel', "{0} actions", this.viewName),
-			getKeyBinding: (action) => {
-				const [kb] = this.keybindingService.lookupKeybindings(action.id);
-
-				return kb;
-			},
-			getKeyBindingLabel: (key) => this.keybindingService.getLabelFor(key)
+			getKeyBinding: (action) => this.keybindingService.lookupKeybinding(action.id)
 		});
 		this.toolBar.actionRunner = this.actionRunner;
 		this.toolBar.setActions(prepareActions(this.getActions()), prepareActions(this.getSecondaryActions()))();
@@ -477,12 +472,7 @@ export abstract class CollapsibleViewletView extends CollapsibleView implements 
 			orientation: ActionsOrientation.HORIZONTAL,
 			actionItemProvider: (action) => { return this.getActionItem(action); },
 			ariaLabel: nls.localize('viewToolbarAriaLabel', "{0} actions", this.viewName),
-			getKeyBinding: (action) => {
-				const [kb] = this.keybindingService.lookupKeybindings(action.id);
-
-				return kb;
-			},
-			getKeyBindingLabel: (key) => this.keybindingService.getLabelFor(key)
+			getKeyBinding: (action) => this.keybindingService.lookupKeybinding(action.id)
 		});
 		this.toolBar.actionRunner = this.actionRunner;
 		this.toolBar.setActions(prepareActions(this.getActions()), prepareActions(this.getSecondaryActions()))();

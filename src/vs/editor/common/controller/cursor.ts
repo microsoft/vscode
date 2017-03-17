@@ -103,8 +103,34 @@ export class Cursor extends EventEmitter {
 		this._isHandling = false;
 
 		this.modelUnbinds = [];
-		this.modelUnbinds.push(this.model.onDidChangeRawContent((e) => {
-			this._onModelContentChanged(e);
+
+		this.modelUnbinds.push(this.model.addBulkListener((events) => {
+			if (this._isHandling) {
+				return;
+			}
+
+			let hadContentChange = false;
+			let hadFlushEvent = false;
+			for (let i = 0, len = events.length; i < len; i++) {
+				const event = events[i];
+				const eventType = event.getType();
+
+				if (eventType === editorCommon.EventType.ModelRawContentChanged) {
+					hadContentChange = true;
+					const changeEvent = <editorCommon.IModelContentChangedEvent>event.getData();
+
+					if (changeEvent.changeType === editorCommon.EventType.ModelRawContentChangedFlush) {
+						hadFlushEvent = true;
+						break;
+					}
+				}
+			}
+
+			if (!hadContentChange) {
+				return;
+			}
+
+			this._onModelContentChanged(hadFlushEvent);
 		}));
 		this.modelUnbinds.push(this.model.onDidChangeLanguage((e) => {
 			this._onModelLanguageChanged();
@@ -200,8 +226,8 @@ export class Cursor extends EventEmitter {
 		this.cursors.updateMode();
 	}
 
-	private _onModelContentChanged(e: editorCommon.IModelContentChangedEvent): void {
-		if (e.changeType === editorCommon.EventType.ModelRawContentChangedFlush) {
+	private _onModelContentChanged(hadFlushEvent: boolean): void {
+		if (hadFlushEvent) {
 			// a model.setValue() was called
 			this.cursors.dispose();
 

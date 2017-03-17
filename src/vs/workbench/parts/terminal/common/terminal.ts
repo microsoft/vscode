@@ -36,42 +36,33 @@ export const TerminalCursorStyle = {
 };
 
 export interface ITerminalConfiguration {
-	terminal: {
-		integrated: {
-			shell: {
-				linux: string,
-				osx: string,
-				windows: string
-			},
-			shellArgs: {
-				linux: string[],
-				osx: string[],
-				windows: string[]
-			},
-			rightClickCopyPaste: boolean,
-			cursorBlinking: boolean,
-			cursorStyle: string,
-			fontFamily: string,
-			fontLigatures: boolean,
-			fontSize: number,
-			lineHeight: number,
-			setLocaleVariables: boolean,
-			scrollback: number,
-			commandsToSkipShell: string[],
-			cwd: string
-		}
+	shell: {
+		linux: string;
+		osx: string;
+		windows: string;
 	};
+	shellArgs: {
+		linux: string[];
+		osx: string[];
+		windows: string[];
+	};
+	rightClickCopyPaste: boolean;
+	cursorBlinking: boolean;
+	cursorStyle: string;
+	fontFamily: string;
+	fontLigatures: boolean;
+	fontSize: number;
+	lineHeight: number;
+	setLocaleVariables: boolean;
+	scrollback: number;
+	commandsToSkipShell: string[];
+	cwd: string;
+	confirmOnExit: boolean;
 }
 
 export interface ITerminalConfigHelper {
-	getTheme(baseThemeId: string): string[];
+	config: ITerminalConfiguration;
 	getFont(): ITerminalFont;
-	getFontLigaturesEnabled(): boolean;
-	getCursorBlink(): boolean;
-	getRightClickCopyPaste(): boolean;
-	getCommandsToSkipShell(): string[];
-	getScrollback(): number;
-	getCwd(): string;
 }
 
 export interface ITerminalFont {
@@ -87,8 +78,12 @@ export interface IShellLaunchConfig {
 	name?: string;
 	/** The shell executable (bash, cmd, etc.). */
 	executable?: string;
-	/** The CLI arguments to use with executable. */
-	args?: string[];
+	/**
+	 * The CLI arguments to use with executable, a string[] is in argv format and will be escaped,
+	 * a string is in "CommandLine" pre-escaped format and will be used as is. The string option is
+	 * only supported on Windows and will throw an exception if used on macOS or Linux.
+	 */
+	args?: string[] | string;
 	/**
 	 * The current working directory of the terminal, this overrides the `terminal.integrated.cwd`
 	 * settings key.
@@ -106,6 +101,13 @@ export interface IShellLaunchConfig {
 	ignoreConfigurationCwd?: boolean;
 	/** Whether to wait for a key press before closing the terminal. */
 	waitOnExit?: boolean;
+	/**
+	 * A string including ANSI escape sequences that will be written to the terminal emulator
+	 * _before_ the terminal process has launched, a trailing \n is added at the end of the string.
+	 * This allows for example the terminal instance to display a styled message as the first line
+	 * of the terminal. Use \x1b over \033 or \e for the escape control character.
+	 */
+	initialText?: string;
 }
 
 export interface ITerminalService {
@@ -184,9 +186,11 @@ export interface ITerminalInstance {
 	 * @param handler The callback when the link is called.
 	 * @param matchIndex The index of the link from the regex.match(html) call. This defaults to 0
 	 * (for regular expressions without capture groups).
+	 * @param validationCallback A callback which can be used to validate the link after it has been
+	 * added to the DOM.
 	 * @return The ID of the new matcher, this can be used to deregister.
 	 */
-	registerLinkMatcher(regex: RegExp, handler: (url: string) => void, matchIndex?: number): number;
+	registerLinkMatcher(regex: RegExp, handler: (url: string) => void, matchIndex?: number, validationCallback?: (uri: string, element: HTMLElement, callback: (isValid: boolean) => void) => void): number;
 
 	/**
 	 * Deregisters a link matcher if it has been registered.

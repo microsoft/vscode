@@ -5,13 +5,13 @@
 
 'use strict';
 
-import assert = require('vs/base/common/assert');
 import URI from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
-import { IFileStat, isEqual, isParent } from 'vs/platform/files/common/files';
+import { IFileStat, isEqual, isParent, isEqualOrParent } from 'vs/platform/files/common/files';
 import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
 import { IEditorInput } from 'vs/platform/editor/common/editor';
 import { IEditorGroup, toResource } from 'vs/workbench/common/editor';
+import { ResourceMap } from 'vs/base/common/map';
 
 export enum StatType {
 	FILE,
@@ -61,7 +61,7 @@ export class FileStat implements IFileStat {
 			// the folder is fully resolved if either it has a list of children or the client requested this by using the resolveTo
 			// array of resource path to resolve.
 			stat.isDirectoryResolved = !!raw.children || (!!resolveTo && resolveTo.some((r) => {
-				return paths.isEqualOrParent(r.fsPath, stat.resource.fsPath);
+				return isEqualOrParent(r.fsPath, stat.resource.fsPath);
 			}));
 
 			// Recurse into children
@@ -84,7 +84,9 @@ export class FileStat implements IFileStat {
 	 * exists locally.
 	 */
 	public static mergeLocalWithDisk(disk: FileStat, local: FileStat): void {
-		assert.ok(disk.resource.toString() === local.resource.toString(), 'Merging only supported for stats with the same resource');
+		if (!isEqual(disk.resource.fsPath, local.resource.fsPath)) {
+			return; // Merging only supported for stats with the same resource
+		}
 
 		// Stop merging when a folder is not resolved to avoid loosing local data
 		const mergingDirectories = disk.isDirectory || local.isDirectory;
@@ -104,9 +106,9 @@ export class FileStat implements IFileStat {
 		if (mergingDirectories && disk.isDirectoryResolved) {
 
 			// Map resource => stat
-			const oldLocalChildren: { [resource: string]: FileStat; } = Object.create(null);
+			const oldLocalChildren = new ResourceMap<FileStat>();
 			local.children.forEach((localChild: FileStat) => {
-				oldLocalChildren[localChild.resource.toString()] = localChild;
+				oldLocalChildren.set(localChild.resource, localChild);
 			});
 
 			// Clear current children
@@ -114,7 +116,7 @@ export class FileStat implements IFileStat {
 
 			// Merge received children
 			disk.children.forEach((diskChild: FileStat) => {
-				const formerLocalChild = oldLocalChildren[diskChild.resource.toString()];
+				const formerLocalChild = oldLocalChildren.get(diskChild.resource);
 
 				// Existing child: merge
 				if (formerLocalChild) {
@@ -177,7 +179,7 @@ export class FileStat implements IFileStat {
 	 */
 	public removeChild(child: FileStat): void {
 		for (let i = 0; i < this.children.length; i++) {
-			if (this.children[i].resource.toString() === child.resource.toString()) {
+			if (isEqual(this.children[i].resource.fsPath, child.resource.fsPath)) {
 				this.children.splice(i, 1);
 				break;
 			}
@@ -239,7 +241,7 @@ export class FileStat implements IFileStat {
 	public find(resource: URI): FileStat {
 
 		// Return if path found
-		if (isEqual(resource.toString(), this.resource.toString())) {
+		if (isEqual(resource.fsPath, this.resource.fsPath)) {
 			return this;
 		}
 
@@ -251,7 +253,7 @@ export class FileStat implements IFileStat {
 		for (let i = 0; i < this.children.length; i++) {
 			const child = this.children[i];
 
-			if (isEqual(resource.toString(), child.resource.toString())) {
+			if (isEqual(resource.fsPath, child.resource.fsPath)) {
 				return child;
 			}
 
@@ -291,7 +293,7 @@ export class NewStatPlaceholder extends FileStat {
 	}
 
 	public getId(): string {
-		return 'new-stat-placeholder:' + this.id + ':' + this.parent.resource.toString();
+		return `new-stat-placeholder:${this.id}:${this.parent.resource.toString()}`;
 	}
 
 	public isDirectoryPlaceholder(): boolean {

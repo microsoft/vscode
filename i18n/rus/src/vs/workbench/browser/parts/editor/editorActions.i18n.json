@@ -41,6 +41,7 @@
 	"openPreviousRecentlyUsedEditorInGroup": "Открыть предыдущий недавно использованный редактор в группе",
 	"openToSide": "Открыть сбоку",
 	"reopenClosedEditor": "Открыть закрытый редактор",
+	"revertAndCloseActiveEditor": "Отменить изменения и закрыть редактор",
 	"showAllEditors": "Показать все редакторы",
 	"showEditorsInFirstGroup": "Показать редакторы в первой группе",
 	"showEditorsInGroup": "Показать редакторы в группе",

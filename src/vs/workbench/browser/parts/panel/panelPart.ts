@@ -23,7 +23,9 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ActionsOrientation, ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ClosePanelAction, PanelAction } from 'vs/workbench/browser/parts/panel/panelActions';
+import { ClosePanelAction, PanelAction, ToggleMaximizedPanelAction } from 'vs/workbench/browser/parts/panel/panelActions';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { PANEL_BACKGROUND, PANEL_BORDER_TOP_COLOR } from 'vs/workbench/common/theme';
 
 export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
@@ -44,7 +46,8 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IPartService partService: IPartService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IThemeService themeService: IThemeService
 	) {
 		super(
 			messageService,
@@ -54,6 +57,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			partService,
 			keybindingService,
 			instantiationService,
+			themeService,
 			Registry.as<PanelRegistry>(PanelExtensions.Panels),
 			PanelPart.activePanelSettingsKey,
 			'panel',
@@ -91,6 +95,14 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		return this._onDidCompositeClose.event;
 	}
 
+	protected updateStyles(): void {
+		const container = this.getContainer();
+		container.style('background-color', this.getColor(PANEL_BACKGROUND));
+
+		const title = this.getTitleArea();
+		title.style('border-top-color', this.getColor(PANEL_BORDER_TOP_COLOR));
+	}
+
 	public openPanel(id: string, focus?: boolean): TPromise<Panel> {
 		if (this.blockOpeningPanel) {
 			return TPromise.as(null); // Workaround against a potential race condition
@@ -116,7 +128,10 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	}
 
 	protected getActions(): IAction[] {
-		return [this.instantiationService.createInstance(ClosePanelAction, ClosePanelAction.ID, ClosePanelAction.LABEL)];
+		return [
+			this.instantiationService.createInstance(ToggleMaximizedPanelAction, ToggleMaximizedPanelAction.ID, ToggleMaximizedPanelAction.LABEL),
+			this.instantiationService.createInstance(ClosePanelAction, ClosePanelAction.ID, ClosePanelAction.LABEL)
+		];
 	}
 
 	public getActivePanel(): IPanel {

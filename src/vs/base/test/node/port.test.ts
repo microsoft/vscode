@@ -11,6 +11,8 @@ import ports = require('vs/base/node/ports');
 
 suite('Ports', () => {
 	test('Finds a free port (no timeout)', function (done: () => void) {
+		this.timeout(1000 * 10); // higher timeout for this test
+
 		if (process.env['VSCODE_PID']) {
 			return done(); // TODO@Ben find out why test fails when run from within VS Code
 		}

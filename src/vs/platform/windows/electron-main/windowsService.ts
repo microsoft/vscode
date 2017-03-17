@@ -20,6 +20,11 @@ import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { OpenContext } from 'vs/code/common/windows';
 import { IWindowsMainService } from 'vs/code/electron-main/windows';
 
+export interface ISharedProcess {
+	whenReady(): TPromise<void>;
+	toggle(): void;
+}
+
 export class WindowsService implements IWindowsService, IDisposable {
 
 	_serviceBrand: any;
@@ -30,6 +35,7 @@ export class WindowsService implements IWindowsService, IDisposable {
 	onWindowFocus: Event<number> = fromEventEmitter(app, 'browser-window-focus', (_, w: Electron.BrowserWindow) => w.id);
 
 	constructor(
+		private sharedProcess: ISharedProcess,
 		@IWindowsMainService private windowsMainService: IWindowsMainService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IURLService urlService: IURLService
@@ -279,6 +285,15 @@ export class WindowsService implements IWindowsService, IDisposable {
 		}
 		app.quit();
 		app.once('quit', () => app.relaunch({ args }));
+		return TPromise.as(null);
+	}
+
+	whenSharedProcessReady(): TPromise<void> {
+		return this.sharedProcess.whenReady();
+	}
+
+	toggleSharedProcess(): TPromise<void> {
+		this.sharedProcess.toggle();
 		return TPromise.as(null);
 	}
 

@@ -68,7 +68,7 @@ class KeybindingsResolver {
 	) {
 		this.commandIds = new Set<string>();
 		this.keybindings = this.storageService.getItem<{ [id: string]: string; }>(KeybindingsResolver.lastKnownKeybindingsMapStorageKey) || Object.create(null);
-		this.keybindingsWatcher = new ConfigWatcher<IUserFriendlyKeybinding[]>(environmentService.appKeybindingsPath, { changeBufferDelay: 1000 /* update after 1s */ });
+		this.keybindingsWatcher = new ConfigWatcher<IUserFriendlyKeybinding[]>(environmentService.appKeybindingsPath, { changeBufferDelay: 100 });
 
 		this.registerListeners();
 	}
@@ -532,7 +532,7 @@ export class VSCodeMenu {
 		}, false));
 	}
 
-	private isOptionClick(event: Electron.Event): boolean {
+	private isOptionClick(event: Electron.Event & Electron.Modifiers): boolean {
 		return event && ((!isMacintosh && (event.ctrlKey || event.shiftKey)) || (isMacintosh && (event.metaKey || event.altKey)));
 	}
 
@@ -1064,11 +1064,11 @@ export class VSCodeMenu {
 			// the keybinding is not native so we cannot show it as part of the accelerator of
 			// the menu item. we fallback to a different strategy so that we always display it
 			else {
-				const bindingIndex = options.label.indexOf('〔');
+				const bindingIndex = options.label.indexOf('(');
 				if (bindingIndex >= 0) {
-					options.label = `${options.label.substr(0, bindingIndex)} 〔${binding.label}〕`;
+					options.label = `${options.label.substr(0, bindingIndex)} (${binding.label})`;
 				} else {
-					options.label = `${options.label} 〔${binding.label}〕`;
+					options.label = `${options.label} (${binding.label})`;
 				}
 			}
 		}

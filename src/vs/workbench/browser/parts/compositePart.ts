@@ -35,6 +35,7 @@ import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export interface ICompositeTitleLabel {
 
@@ -70,6 +71,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		protected partService: IPartService,
 		private keybindingService: IKeybindingService,
 		protected instantiationService: IInstantiationService,
+		themeService: IThemeService,
 		private registry: CompositeRegistry<T>,
 		private activeCompositeSettingsKey: string,
 		private nameForTelemetry: string,
@@ -78,7 +80,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		id: string,
 		options: IPartOptions
 	) {
-		super(id, options);
+		super(id, options, themeService);
 
 		this.instantiatedCompositeListeners = [];
 		this.mapCompositeToCompositeContainer = {};
@@ -340,9 +342,9 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			compositeTitle = compositeDescriptor.name;
 		}
 
-		let [keybinding] = this.keybindingService.lookupKeybindings(compositeId).map(k => this.keybindingService.getLabelFor(k));
+		const keybinding = this.keybindingService.lookupKeybinding(compositeId);
 
-		this.titleLabel.updateTitle(compositeId, compositeTitle, keybinding);
+		this.titleLabel.updateTitle(compositeId, compositeTitle, keybinding ? keybinding.getLabel() : undefined);
 
 		this.toolBar.setAriaLabel(nls.localize('ariaCompositeToolbarLabel', "{0} actions", compositeTitle));
 	}
@@ -421,12 +423,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			this.toolBar = new ToolBar(div.getHTMLElement(), this.contextMenuService, {
 				actionItemProvider: (action: Action) => this.actionItemProvider(action),
 				orientation: ActionsOrientation.HORIZONTAL,
-				getKeyBinding: (action) => {
-					const [kb] = this.keybindingService.lookupKeybindings(action.id);
-
-					return kb;
-				},
-				getKeyBindingLabel: (key) => this.keybindingService.getLabelFor(key)
+				getKeyBinding: (action) => this.keybindingService.lookupKeybinding(action.id)
 			});
 		});
 

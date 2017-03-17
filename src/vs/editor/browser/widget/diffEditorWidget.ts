@@ -19,7 +19,7 @@ import { DefaultConfig } from 'vs/editor/common/config/defaultConfig';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
-import { Decoration } from 'vs/editor/common/viewLayout/viewLineParts';
+import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
 import { renderViewLine, RenderLineInput } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { CodeEditor } from 'vs/editor/browser/codeEditor';
@@ -879,6 +879,7 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 	private _adjustOptionsForSubEditor(options: editorCommon.IDiffEditorOptions): editorCommon.IDiffEditorOptions {
 		let clonedOptions: editorCommon.IDiffEditorOptions = objects.clone(options || {});
 		clonedOptions.wordWrap = 'off';
+		clonedOptions.wordWrapMinified = false;
 		clonedOptions.automaticLayout = false;
 		clonedOptions.scrollbar = clonedOptions.scrollbar || {};
 		clonedOptions.scrollbar.vertical = 'visible';
@@ -1902,7 +1903,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 	private renderOriginalLine(count: number, originalModel: editorCommon.IModel, config: editorCommon.InternalEditorOptions, tabSize: number, lineNumber: number, decorations: InlineDecoration[]): string[] {
 		let lineContent = originalModel.getLineContent(lineNumber);
 
-		let actualDecorations = Decoration.filter(decorations, lineNumber, 1, lineContent.length + 1);
+		let actualDecorations = LineDecoration.filter(decorations, lineNumber, 1, lineContent.length + 1);
 
 		const defaultMetadata = (
 			(FontStyle.None << MetadataConsts.FONT_STYLE_OFFSET)

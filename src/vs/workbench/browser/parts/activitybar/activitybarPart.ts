@@ -30,6 +30,7 @@ import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { ToggleActivityBarVisibilityAction } from 'vs/workbench/browser/actions/toggleActivityBarVisibility';
 import SCMPreview from 'vs/workbench/parts/scm/browser/scmPreview';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 interface IViewletActivity {
 	badge: IBadge;
@@ -64,9 +65,10 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		@IStorageService private storageService: IStorageService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IPartService private partService: IPartService
+		@IPartService private partService: IPartService,
+		@IThemeService themeService: IThemeService
 	) {
-		super(id, { hasTitle: false });
+		super(id, { hasTitle: false }, themeService);
 
 		this.viewletIdToActionItems = Object.create(null);
 		this.viewletIdToActions = Object.create(null);

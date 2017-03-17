@@ -21,7 +21,7 @@
 				"configuration": "./language-configuration.json"
 			},
 			{
-				"id": "objective-c++",
+				"id": "objective-cpp",
 				"extensions": [
 					".mm"
 				],
@@ -38,7 +38,7 @@
 				"path": "./syntaxes/objective-c.tmLanguage.json"
 			},
 			{
-				"language": "objective-c++",
+				"language": "objective-cpp",
 				"scopeName": "source.objcpp",
 				"path": "./syntaxes/objective-c++.tmLanguage.json"
 			}

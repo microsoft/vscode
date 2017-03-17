@@ -9,7 +9,7 @@ import * as nls from 'vs/nls';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { getPathLabel } from 'vs/base/common/labels';
 import Event, { Emitter } from 'vs/base/common/event';
-import { IDisposable, dispose, Disposables, empty as EmptyDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, Disposables, IReference } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import * as strings from 'vs/base/common/strings';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -36,7 +36,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { PeekViewWidget, IPeekViewService } from 'vs/editor/contrib/zoneWidget/browser/peekViewWidget';
 import { FileReferences, OneReference, ReferencesModel } from './referencesModel';
-import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
+import { ITextModelResolverService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 
 class DecorationsManager implements IDisposable {
 
@@ -493,7 +493,7 @@ export class ReferenceWidget extends PeekViewWidget {
 	private _treeContainer: Builder;
 	private _sash: VSash;
 	private _preview: ICodeEditor;
-	private _previewModelReference: IDisposable = EmptyDisposable;
+	private _previewModelReference: IReference<ITextEditorModel>;
 	private _previewNotAvailableMessage: Model;
 	private _previewContainer: Builder;
 	private _messageContainer: Builder;
@@ -513,7 +513,7 @@ export class ReferenceWidget extends PeekViewWidget {
 
 	public dispose(): void {
 		this.setModel(null);
-		dispose<IDisposable>(this._preview, this._previewNotAvailableMessage, this._tree, this._sash);
+		dispose<IDisposable>(this._preview, this._previewNotAvailableMessage, this._tree, this._sash, this._previewModelReference);
 		super.dispose();
 	}
 
@@ -730,8 +730,7 @@ export class ReferenceWidget extends PeekViewWidget {
 				return;
 			}
 
-			this._previewModelReference.dispose();
-			this._previewModelReference = EmptyDisposable;
+			dispose(this._previewModelReference);
 
 			// show in editor
 			const model = ref.object;

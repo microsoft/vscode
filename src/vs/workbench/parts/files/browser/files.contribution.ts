@@ -5,8 +5,6 @@
 
 'use strict';
 
-import 'vs/css!./media/files.contribution';
-
 import URI from 'vs/base/common/uri';
 import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, ToggleViewletAction } from 'vs/workbench/browser/viewlet';
 import nls = require('vs/nls');
@@ -26,7 +24,7 @@ import { TextFileEditor } from 'vs/workbench/parts/files/browser/editors/textFil
 import { BinaryFileEditor } from 'vs/workbench/parts/files/browser/editors/binaryFileEditor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { SyncDescriptor, AsyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { IKeybindings } from 'vs/platform/keybinding/common/keybinding';
+import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
@@ -183,7 +181,7 @@ configurationRegistry.registerConfiguration({
 		'files.exclude': {
 			'type': 'object',
 			'description': nls.localize('exclude', "Configure glob patterns for excluding files and folders."),
-			'default': { '**/.git': true, '**/.svn': true, '**/.hg': true, '**/.DS_Store': true },
+			'default': { '**/.git': true, '**/.svn': true, '**/.hg': true, '**/CVS': true, '**/.DS_Store': true },
 			'additionalProperties': {
 				'anyOf': [
 					{

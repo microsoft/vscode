@@ -12,6 +12,8 @@ import events = require('vs/base/common/events');
 import { isLinux } from 'vs/base/common/platform';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import Event from 'vs/base/common/event';
+import { Schemas } from 'vs/base/common/network';
+import { equalsIgnoreCase, beginsWithIgnoreCase } from 'vs/base/common/strings';
 
 export const IFileService = createDecorator<IFileService>('fileService');
 
@@ -230,7 +232,7 @@ export class FileChangesEvent extends events.Event {
 
 			// For deleted also return true when deleted folder is parent of target path
 			if (type === FileChangeType.DELETED) {
-				return isEqual(resource.fsPath, change.resource.fsPath) || isParent(resource.fsPath, change.resource.fsPath);
+				return isEqualOrParent(resource.fsPath, change.resource.fsPath);
 			}
 
 			return isEqual(resource.fsPath, change.resource.fsPath);
@@ -290,22 +292,120 @@ export class FileChangesEvent extends events.Event {
 	}
 }
 
-export function isEqual(path1: string, path2: string) {
-	const identityEquals = (path1 === path2);
-	if (isLinux || identityEquals) {
+export function isEqual(resourceA: URI, resourceB: URI): boolean;
+export function isEqual(pathA: string, pathB: string): boolean;
+export function isEqual(resourceOrPathA: string | URI, resourceOrPathB: string | URI): boolean {
+	const identityEquals = (resourceOrPathA === resourceOrPathB);
+	if (identityEquals) {
+		return true;
+	}
+
+	if (!resourceOrPathA || !resourceOrPathB) {
+		return false;
+	}
+
+	// Compare by URI
+	if (typeof resourceOrPathA !== 'string') {
+		const resourceA = resourceOrPathA;
+		const resourceB = resourceOrPathB as URI;
+
+		if (resourceA.scheme !== resourceB.scheme) {
+			return false;
+		}
+
+		// File URIs compare by fsPath
+		if (resourceA.scheme === Schemas.file) {
+			return isEqual(resourceA.fsPath, resourceB.fsPath);
+		}
+
+		// Non-file URIs compare by full string
+		return resourceA.toString() === resourceB.toString();
+	}
+
+	// Compare by Path
+	const pathA = resourceOrPathA;
+	const pathB = resourceOrPathB as string;
+
+	if (isLinux) {
 		return identityEquals;
 	}
 
-	return path1.toLowerCase() === path2.toLowerCase();
+	return equalsIgnoreCase(pathA, pathB);
 }
 
 export function isParent(path: string, candidate: string): boolean {
+	if (!path || !candidate || path === candidate) {
+		return false;
+	}
+
+	if (candidate.length > path.length) {
+		return false;
+	}
+
+	if (candidate.charAt(candidate.length - 1) !== paths.nativeSep) {
+		candidate += paths.nativeSep;
+	}
+
+	if (!isLinux) {
+		return beginsWithIgnoreCase(path, candidate);
+	}
+
+	return path.indexOf(candidate) === 0;
+}
+
+export function isEqualOrParent(path: string, candidate: string): boolean {
+	if (path === candidate) {
+		return true;
+	}
+
+	if (!path || !candidate) {
+		return false;
+	}
+
+	if (candidate.length > path.length) {
+		return false;
+	}
+
+	if (!isLinux) {
+		const beginsWith = beginsWithIgnoreCase(path, candidate);
+		if (!beginsWith) {
+			return false;
+		}
+
+		if (candidate.length === path.length) {
+			return true; // same path, different casing
+		}
+
+		let sepOffset = candidate.length;
+		if (candidate.charAt(candidate.length - 1) === paths.nativeSep) {
+			sepOffset--; // adjust the expected sep offset in case our candidate already ends in separator character
+		}
+
+		return path.charAt(sepOffset) === paths.nativeSep;
+	}
+
+	if (candidate.charAt(candidate.length - 1) !== paths.nativeSep) {
+		candidate += paths.nativeSep;
+	}
+
+	return path.indexOf(candidate) === 0;
+}
+
+export function indexOf(path: string, candidate: string): number {
+	if (candidate.length > path.length) {
+		return -1;
+	}
+
+	if (path === candidate) {
+		return 0;
+	}
+
 	if (!isLinux) {
 		path = path.toLowerCase();
 		candidate = candidate.toLowerCase();
 	}
 
-	return path.indexOf(candidate + paths.nativeSep) === 0;
+	return path.indexOf(candidate);
 }
 
 export interface IBaseStat {
@@ -467,7 +567,6 @@ export interface IImportResult {
 export interface IFileOperationResult {
 	message: string;
 	fileOperationResult: FileOperationResult;
-	payload?: any;
 }
 
 export enum FileOperationResult {

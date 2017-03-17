@@ -37,7 +37,7 @@ import * as debug from 'vs/workbench/parts/debug/common/debug';
 import { ClearReplAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { ReplHistory } from 'vs/workbench/parts/debug/common/replHistory';
 import { Panel } from 'vs/workbench/browser/panel';
-import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
+import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IListService } from 'vs/platform/list/browser/listService';
 
@@ -86,12 +86,12 @@ export class Repl extends Panel implements IPrivateReplService {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IStorageService private storageService: IStorageService,
 		@IPanelService private panelService: IPanelService,
-		@IThemeService private themeService: IThemeService,
+		@IWorkbenchThemeService protected themeService: IWorkbenchThemeService,
 		@IModelService private modelService: IModelService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IListService private listService: IListService
 	) {
-		super(debug.REPL_ID, telemetryService);
+		super(debug.REPL_ID, telemetryService, themeService);
 
 		this.replInputHeight = Repl.REPL_INPUT_INITIAL_HEIGHT;
 		this.toDispose = [];
@@ -102,7 +102,7 @@ export class Repl extends Panel implements IPrivateReplService {
 		this.toDispose.push(this.debugService.getModel().onDidChangeReplElements(() => {
 			this.refreshReplElements(this.debugService.getModel().getReplElements().length === 0);
 		}));
-		this.toDispose.push(this.themeService.onDidColorThemeChange(e => this.replInput.updateOptions(this.getReplInputOptions())));
+		this.toDispose.push(this.themeService.onDidColorThemeChange(e => this.replInput.updateOptions(this.getReplInputOptions()))); // TODO@theme this should be done from the editor itself and not from the outside
 		this.toDispose.push(this.panelService.onDidPanelOpen(panel => this.refreshReplElements(true)));
 	}
 
@@ -187,8 +187,7 @@ export class Repl extends Panel implements IPrivateReplService {
 				const focusedProcess = this.debugService.getViewModel().focusedProcess;
 				const completions = focusedProcess ? focusedProcess.completions(frameId, text, position, overwriteBefore) : TPromise.as([]);
 				return wireCancellationToken(token, completions.then(suggestions => ({
-					suggestions,
-					incomplete: true
+					suggestions
 				})));
 			}
 		});

@@ -36,6 +36,7 @@ import {
 } from 'vs/workbench/parts/extensions/browser/extensionsActions';
 import { InstallVSIXAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
 import { IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, SortBy, SortOrder, IQueryOptions, LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
 import { Query } from '../common/extensionQuery';
 import { OpenGlobalSettingsAction } from 'vs/workbench/parts/preferences/browser/preferencesActions';
@@ -48,6 +49,7 @@ import Severity from 'vs/base/common/severity';
 import { IActivityBarService, ProgressBadge, NumberBadge } from 'vs/workbench/services/activity/common/activityBarService';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IModeService } from 'vs/editor/common/services/modeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 interface SearchInputEvent extends Event {
 	target: HTMLInputElement;
@@ -81,9 +83,10 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		@IMessageService private messageService: IMessageService,
 		@IViewletService private viewletService: IViewletService,
 		@IExtensionService private extensionService: IExtensionService,
-		@IModeService private modeService: IModeService
+		@IModeService private modeService: IModeService,
+		@IThemeService themeService: IThemeService
 	) {
-		super(VIEWLET_ID, telemetryService);
+		super(VIEWLET_ID, telemetryService, themeService);
 		this.searchDelayer = new ThrottledDelayer(500);
 
 		this.disposables.push(viewletService.onDidViewletOpen(this.onViewletOpen, this, this.disposables));
@@ -259,7 +262,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 			return this.extensionsWorkbenchService.queryLocal()
 				.then(result => result.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName)))
 				.then(result => this.extensionService.getExtensions()
-					.then(runningExtensions => result.filter(e => runningExtensions.every(r => r.id !== e.id) && e.name.toLowerCase().indexOf(value) > -1)))
+					.then(runningExtensions => result.filter(e => runningExtensions.every(r => !areSameExtensions(r, e)) && e.name.toLowerCase().indexOf(value) > -1)))
 				.then(result => new PagedModel(result));
 		}
 

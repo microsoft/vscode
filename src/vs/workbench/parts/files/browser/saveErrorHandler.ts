@@ -27,12 +27,13 @@ import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textF
 import { ITextModelResolverService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IModel } from 'vs/editor/common/editorCommon';
 import { toResource } from 'vs/workbench/common/editor';
+import { ResourceMap } from 'vs/base/common/map';
 
 export const CONFLICT_RESOLUTION_SCHEME = 'conflictResolution';
 
 // A handler for save error happening with conflict resolution actions
 export class SaveErrorHandler implements ISaveErrorHandler, IWorkbenchContribution, ITextModelContentProvider {
-	private messages: { [resource: string]: () => void };
+	private messages: ResourceMap<() => void>;
 	private toUnbind: IDisposable[];
 
 	constructor(
@@ -43,7 +44,7 @@ export class SaveErrorHandler implements ISaveErrorHandler, IWorkbenchContributi
 		@IModeService private modeService: IModeService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
-		this.messages = Object.create(null);
+		this.messages = new ResourceMap<() => void>();
 		this.toUnbind = [];
 
 		// Register as text model content provider that supports to load a resource as it actually
@@ -82,10 +83,10 @@ export class SaveErrorHandler implements ISaveErrorHandler, IWorkbenchContributi
 	}
 
 	private onFileSavedOrReverted(resource: URI): void {
-		const hideMessage = this.messages[resource.toString()];
+		const hideMessage = this.messages.get(resource);
 		if (hideMessage) {
 			hideMessage();
-			this.messages[resource.toString()] = void 0;
+			this.messages.delete(resource);
 		}
 	}
 
@@ -95,15 +96,6 @@ export class SaveErrorHandler implements ISaveErrorHandler, IWorkbenchContributi
 
 		// Dirty write prevention
 		if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_MODIFIED_SINCE) {
-
-			// TODO@Ben remove me once https://github.com/Microsoft/vscode/issues/13665 is resolved
-			if (error.payload) {
-				error.payload.modelValue = model.getValue();
-				error.payload.modelValueLength = error.payload.modelValue.length;
-
-				console.log(JSON.stringify(error.payload));
-			}
-
 			message = this.instantiationService.createInstance(ResolveSaveConflictMessage, model, null);
 		}
 
@@ -166,11 +158,13 @@ export class SaveErrorHandler implements ISaveErrorHandler, IWorkbenchContributi
 		}
 
 		// Show message and keep function to hide in case the file gets saved/reverted
-		this.messages[model.getResource().toString()] = this.messageService.show(Severity.Error, message);
+		this.messages.set(model.getResource(), this.messageService.show(Severity.Error, message));
 	}
 
 	public dispose(): void {
 		this.toUnbind = dispose(this.toUnbind);
+
+		this.messages.clear();
 	}
 }
 
@@ -211,9 +205,6 @@ class ResolveSaveConflictMessage implements IMessageWithAction {
 					const editorLabel = nls.localize('saveConflictDiffLabel', "{0} (on disk) ↔ {1} (in {2}) - Resolve save conflict", name, name, this.environmentService.appNameLong);
 
 					return this.editorService.openEditor({ leftResource: URI.from({ scheme: CONFLICT_RESOLUTION_SCHEME, path: resource.fsPath }), rightResource: resource, label: editorLabel, options: { pinned: true } }).then(() => {
-
-						// We have to bring the model into conflict resolution mode to prevent subsequent save erros when the user makes edits
-						this.model.setConflictResolutionMode();
 
 						// Inform user
 						pendingResolveSaveConflictMessages.push(this.messageService.show(Severity.Info, nls.localize('userGuide', "Use the actions in the editor tool bar to either **undo** your changes or **overwrite** the content on disk with your changes")));

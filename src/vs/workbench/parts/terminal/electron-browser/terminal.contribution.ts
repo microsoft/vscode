@@ -6,6 +6,7 @@
 import 'vs/css!./media/scrollbar';
 import 'vs/css!./media/terminal';
 import 'vs/css!./media/xterm';
+import 'vs/css!./media/widgets';
 import * as panel from 'vs/workbench/browser/panel';
 import * as platform from 'vs/base/common/platform';
 import nls = require('vs/nls');
@@ -27,6 +28,7 @@ import debugActions = require('vs/workbench/parts/debug/browser/debugActions');
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { OpenNextRecentlyUsedEditorInGroupAction, OpenPreviousRecentlyUsedEditorInGroupAction, FocusActiveGroupAction } from 'vs/workbench/browser/parts/editor/editorActions';
 import { DefaultConfig } from 'vs/editor/common/config/defaultConfig';
+import { registerColors } from './terminalColorRegistry';
 
 let configurationRegistry = <IConfigurationRegistry>Registry.as(Extensions.Configuration);
 configurationRegistry.registerConfiguration({
@@ -129,6 +131,11 @@ configurationRegistry.registerConfiguration({
 			'type': 'string',
 			'default': undefined
 		},
+		'terminal.integrated.confirmOnExit': {
+			'description': nls.localize('terminal.integrated.confirmOnExit', "Whether to confirm on exit if there are active terminal sessions."),
+			'type': 'boolean',
+			'default': false
+		},
 		'terminal.integrated.commandsToSkipShell': {
 			'description': nls.localize('terminal.integrated.commandsToSkipShell', "A set of command IDs whose keybindings will not be sent to the shell and instead always be handled by Code. This allows the use of keybindings that would normally be consumed by the shell to act the same as when the terminal is not focused, for example ctrl+p to launch Quick Open."),
 			'type': 'array',
@@ -174,7 +181,6 @@ configurationRegistry.registerConfiguration({
 				debugActions.PauseAction.ID,
 				OpenNextRecentlyUsedEditorInGroupAction.ID,
 				OpenPreviousRecentlyUsedEditorInGroupAction.ID
-
 			].sort()
 		}
 	}
@@ -252,3 +258,5 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ClearTerminalAct
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_K,
 	linux: { primary: null }
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KeybindingsRegistry.WEIGHT.workbenchContrib(1)), 'Terminal: Clear', category);
+
+registerColors();

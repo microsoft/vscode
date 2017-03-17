@@ -8,7 +8,7 @@
 import 'vs/css!./minimap';
 import { ViewPart } from 'vs/editor/browser/view/viewPart';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
-import { IRenderingContext, IRestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
+import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
 import { getOrCreateMinimapCharRenderer } from 'vs/editor/common/view/runtimeMinimapCharRenderer';
 import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
@@ -343,11 +343,11 @@ class RenderData {
 		};
 	}
 
+	public onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
+		return this._renderedLines.onLinesChanged(e.fromLineNumber, e.toLineNumber);
+	}
 	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): void {
 		this._renderedLines.onLinesDeleted(e.fromLineNumber, e.toLineNumber);
-	}
-	public onLineChanged(e: viewEvents.ViewLineChangedEvent): boolean {
-		return this._renderedLines.onLineChanged(e.lineNumber);
 	}
 	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): void {
 		this._renderedLines.onLinesInserted(e.fromLineNumber, e.toLineNumber);
@@ -596,9 +596,9 @@ export class Minimap extends ViewPart {
 		this._lastRenderData = null;
 		return true;
 	}
-	public onLineChanged(e: viewEvents.ViewLineChangedEvent): boolean {
+	public onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
 		if (this._lastRenderData) {
-			return this._lastRenderData.onLineChanged(e);
+			return this._lastRenderData.onLinesChanged(e);
 		}
 		return false;
 	}
@@ -635,17 +635,17 @@ export class Minimap extends ViewPart {
 
 	// --- end event handlers
 
-	public prepareRender(ctx: IRenderingContext): void {
+	public prepareRender(ctx: RenderingContext): void {
 		// Nothing to read
 	}
 
-	public render(renderingCtx: IRestrictedRenderingContext): void {
+	public render(renderingCtx: RestrictedRenderingContext): void {
 		const renderMinimap = this._options.renderMinimap;
 		if (renderMinimap === RenderMinimap.None) {
 			this._shadow.setClassName('minimap-shadow-hidden');
 			return;
 		}
-		if (renderingCtx.viewportLeft + renderingCtx.viewportWidth >= renderingCtx.scrollWidth) {
+		if (renderingCtx.scrollLeft + renderingCtx.viewportWidth >= renderingCtx.scrollWidth) {
 			this._shadow.setClassName('minimap-shadow-hidden');
 		} else {
 			this._shadow.setClassName('minimap-shadow-visible');

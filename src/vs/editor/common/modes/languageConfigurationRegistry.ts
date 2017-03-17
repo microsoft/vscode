@@ -399,7 +399,8 @@ export class LanguageConfigurationRegistryImpl {
 	}
 
 	private getScopedLineTokens(model: ITokenizedModel, lineNumber: number) {
-		let lineTokens = model.getLineTokens(lineNumber, false);
+		model.forceTokenization(lineNumber);
+		let lineTokens = model.getLineTokens(lineNumber);
 		let column = model.getLineMaxColumn(lineNumber);
 		let scopedLineTokens = createScopedLineTokens(lineTokens, column - 1);
 		return scopedLineTokens;

@@ -15,7 +15,7 @@ export class MockDebugService implements debug.IDebugService {
 		return null;
 	}
 
-	public get onDidChangeState(): Event<void> {
+	public get onDidChangeState(): Event<debug.State> {
 		return null;
 	}
 
@@ -71,7 +71,11 @@ export class MockDebugService implements debug.IDebugService {
 
 	public removeWatchExpressions(id?: string): void { }
 
-	public createProcess(configurationOrName: debug.IConfig | string): TPromise<any> {
+	public startDebugging(configName?: string, noDebug?: boolean): TPromise<any> {
+		return TPromise.as(null);
+	}
+
+	public createProcess(config: debug.IConfig): TPromise<any> {
 		return TPromise.as(null);
 	}
 

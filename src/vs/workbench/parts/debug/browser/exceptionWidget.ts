@@ -24,6 +24,7 @@ export class ExceptionWidget extends ZoneWidget {
 		this.create();
 		const onDidLayoutChangeScheduler = new RunOnceScheduler(() => this._doLayout(undefined, undefined), 50);
 		this._disposables.add(this.editor.onDidLayoutChange(() => onDidLayoutChangeScheduler.schedule()));
+		this._disposables.add(onDidLayoutChangeScheduler);
 	}
 
 	protected _fillContainer(container: HTMLElement): void {
@@ -34,7 +35,7 @@ export class ExceptionWidget extends ZoneWidget {
 		this.container.style.lineHeight = `${fontInfo.lineHeight}px`;
 
 		let title = $('.title');
-		title.textContent = nls.localize('exceptionThrown', 'Exception occured');
+		title.textContent = nls.localize('exceptionThrown', 'Exception occurred');
 		dom.append(container, title);
 
 		const thread = this.debugService.getViewModel().focusedThread;

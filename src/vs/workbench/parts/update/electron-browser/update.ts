@@ -19,13 +19,14 @@ import { ReleaseNotesInput } from 'vs/workbench/parts/update/electron-browser/re
 import { IRequestService } from 'vs/platform/request/node/request';
 import { asText } from 'vs/base/node/request';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { Keybinding } from 'vs/base/common/keyCodes';
-import { KeybindingLabels } from 'vs/base/common/keybinding';
+import { createKeybinding } from 'vs/base/common/keyCodes';
+import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IUpdateService } from 'vs/platform/update/common/update';
 import * as semver from 'semver';
+import { OS } from 'vs/base/common/platform';
 
 class ApplyUpdateAction extends Action {
 	constructor( @IUpdateService private updateService: IUpdateService) {
@@ -63,29 +64,31 @@ export function loadReleaseNotes(accessor: ServicesAccessor, version: string): T
 
 	const patchKeybindings = (text: string): string => {
 		const kb = (match: string, kb: string) => {
-			const [keybinding] = keybindingService.lookupKeybindings(kb);
+			const keybinding = keybindingService.lookupKeybinding(kb);
 
 			if (!keybinding) {
 				return unassigned;
 			}
 
-			return keybindingService.getLabelFor(keybinding);
+			return keybinding.getLabel();
 		};
 
 		const kbstyle = (match: string, kb: string) => {
-			const code = KeybindingLabels.fromUserSettingsLabel(kb);
+			const code = KeybindingIO.readKeybinding(kb, OS);
 
 			if (!code) {
 				return unassigned;
 			}
 
-			const keybinding = new Keybinding(code);
+			const keybinding = createKeybinding(code, OS);
 
 			if (!keybinding) {
 				return unassigned;
 			}
 
-			return keybindingService.getLabelFor(keybinding);
+			const resolvedKeybinding = keybindingService.resolveKeybinding(keybinding);
+
+			return resolvedKeybinding.getLabel();
 		};
 
 		return text

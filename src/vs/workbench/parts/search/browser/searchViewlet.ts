@@ -30,7 +30,7 @@ import { Scope } from 'vs/workbench/common/memento';
 import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { getOutOfWorkspaceEditorResources } from 'vs/workbench/common/editor';
-import { FileChangeType, FileChangesEvent, IFileService } from 'vs/platform/files/common/files';
+import { FileChangeType, FileChangesEvent, IFileService, isEqual } from 'vs/platform/files/common/files';
 import { Viewlet } from 'vs/workbench/browser/viewlet';
 import { Match, FileMatch, SearchModel, FileMatchOrMatch, IChangeEvent, ISearchWorkbenchService } from 'vs/workbench/parts/search/common/searchModel';
 import { QueryBuilder } from 'vs/workbench/parts/search/common/searchQuery';
@@ -58,6 +58,8 @@ import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/un
 import { OpenFolderAction, OpenFileFolderAction } from 'vs/workbench/browser/actions/fileActions';
 import * as Constants from 'vs/workbench/parts/search/common/constants';
 import { IListService } from 'vs/platform/list/browser/listService';
+import { IThemeService, ITheme, ICssStyleCollector, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { editorFindMatchHighlight } from 'vs/platform/theme/common/colorRegistry';
 
 export class SearchViewlet extends Viewlet {
 
@@ -112,9 +114,10 @@ export class SearchViewlet extends Viewlet {
 		@IReplaceService private replaceService: IReplaceService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IPreferencesService private preferencesService: IPreferencesService,
-		@IListService private listService: IListService
+		@IListService private listService: IListService,
+		@IThemeService protected themeService: IThemeService
 	) {
-		super(Constants.VIEWLET_ID, telemetryService);
+		super(Constants.VIEWLET_ID, telemetryService, themeService);
 
 		this.toDispose = [];
 		this.viewletVisible = Constants.SearchViewletVisibleKey.bindTo(contextKeyService);
@@ -160,6 +163,7 @@ export class SearchViewlet extends Viewlet {
 		let exclusionsUsePattern = this.viewletSettings['query.exclusionsUsePattern'];
 		let includesUsePattern = this.viewletSettings['query.includesUsePattern'];
 		let patternIncludes = this.viewletSettings['query.folderIncludes'] || '';
+		let useIgnoreFiles = this.viewletSettings['query.useIgnoreFiles'];
 
 		this.queryDetails = this.searchWidgetsContainer.div({ 'class': ['query-details'] }, (builder) => {
 			builder.div({ 'class': 'more', 'tabindex': 0, 'role': 'button', 'title': nls.localize('moreSearch', "Toggle Search Details") })
@@ -201,12 +205,14 @@ export class SearchViewlet extends Viewlet {
 				let title = nls.localize('searchScope.excludes', "files to exclude");
 				builder.element('h4', { text: title });
 
+				const configuration = this.configurationService.getConfiguration<ISearchConfiguration>();
 				this.inputPatternExclusions = new PatternInputWidget(builder.getContainer(), this.contextViewService, {
 					ariaLabel: nls.localize('label.excludes', 'Search Exclude Patterns')
-				});
+				}, configuration.search.useRipgrep);
 
 				this.inputPatternExclusions.setIsGlobPattern(exclusionsUsePattern);
 				this.inputPatternExclusions.setValue(patternExclusions);
+				this.inputPatternExclusions.setUseIgnoreFiles(useIgnoreFiles);
 
 				this.inputPatternExclusions
 					.on(FindInput.OPTION_CHANGE, (e) => {
@@ -668,7 +674,7 @@ export class SearchViewlet extends Viewlet {
 		if (visible && !this.editorService.getActiveEditor()) {
 			let focus = this.tree.getFocus();
 			if (focus) {
-				this.onFocus(focus);
+				this.onFocus(focus, true);
 			}
 		}
 
@@ -761,8 +767,9 @@ export class SearchViewlet extends Viewlet {
 		this.inputPatternIncludes.setWidth(this.size.width - 28 /* container margin */);
 		this.inputPatternGlobalExclusions.width = this.size.width - 28 /* container margin */ - 24 /* actions */;
 
-		let searchResultContainerSize = this.size.height -
-			dom.getTotalHeight(this.messages.getHTMLElement()) -
+		const messagesSize = this.messages.isHidden() ? 0 : dom.getTotalHeight(this.messages.getHTMLElement());
+		const searchResultContainerSize = this.size.height -
+			messagesSize -
 			dom.getTotalHeight(this.searchWidgetsContainer.getContainer());
 
 		this.results.style({ height: searchResultContainerSize + 'px' });
@@ -880,7 +887,7 @@ export class SearchViewlet extends Viewlet {
 			return;
 		}
 
-		if (workspace.resource.toString() === resource.toString()) {
+		if (isEqual(workspace.resource.fsPath, resource.fsPath)) {
 			this.inputPatternIncludes.setValue('');
 			this.searchWidget.focus();
 			return;
@@ -898,14 +905,15 @@ export class SearchViewlet extends Viewlet {
 	}
 
 	public onQueryChanged(rerunQuery: boolean, preserveFocus?: boolean): void {
-		let isRegex = this.searchWidget.searchInput.getRegex();
-		let isWholeWords = this.searchWidget.searchInput.getWholeWords();
-		let isCaseSensitive = this.searchWidget.searchInput.getCaseSensitive();
-		let contentPattern = this.searchWidget.searchInput.getValue();
-		let patternExcludes = this.inputPatternExclusions.getValue().trim();
-		let exclusionsUsePattern = this.inputPatternExclusions.isGlobPattern();
-		let patternIncludes = this.inputPatternIncludes.getValue().trim();
-		let includesUsePattern = this.inputPatternIncludes.isGlobPattern();
+		const isRegex = this.searchWidget.searchInput.getRegex();
+		const isWholeWords = this.searchWidget.searchInput.getWholeWords();
+		const isCaseSensitive = this.searchWidget.searchInput.getCaseSensitive();
+		const contentPattern = this.searchWidget.searchInput.getValue();
+		const patternExcludes = this.inputPatternExclusions.getValue().trim();
+		const exclusionsUsePattern = this.inputPatternExclusions.isGlobPattern();
+		const patternIncludes = this.inputPatternIncludes.getValue().trim();
+		const includesUsePattern = this.inputPatternIncludes.isGlobPattern();
+		const useIgnoreFiles = this.inputPatternExclusions.useIgnoreFiles();
 
 		// store memento
 		this.viewletSettings['query.contentPattern'] = contentPattern;
@@ -916,6 +924,7 @@ export class SearchViewlet extends Viewlet {
 		this.viewletSettings['query.exclusionsUsePattern'] = exclusionsUsePattern;
 		this.viewletSettings['query.folderIncludes'] = patternIncludes;
 		this.viewletSettings['query.includesUsePattern'] = includesUsePattern;
+		this.viewletSettings['query.useIgnoreFiles'] = useIgnoreFiles;
 
 		if (!rerunQuery) {
 			return;
@@ -954,7 +963,8 @@ export class SearchViewlet extends Viewlet {
 			extraFileResources: getOutOfWorkspaceEditorResources(this.editorGroupService, this.contextService),
 			excludePattern: excludes,
 			maxResults: SearchViewlet.MAX_TEXT_RESULTS,
-			includePattern: includes
+			includePattern: includes,
+			useIgnoreFiles
 		};
 
 		this.onQueryTriggered(this.queryBuilder.text(content, options), patternExcludes, patternIncludes);
@@ -978,8 +988,11 @@ export class SearchViewlet extends Viewlet {
 
 		// Progress total is 100.0% for more progress bar granularity
 		let progressTotal = 1000;
-		let progressRunner = this.progressService.show(progressTotal);
 		let progressWorked = 0;
+
+		let progressRunner = query.useRipgrep ?
+			this.progressService.show(/*infinite=*/true) :
+			this.progressService.show(progressTotal);
 
 		this.loading = true;
 		this.searchWidget.searchInput.clearMessage();
@@ -1005,7 +1018,7 @@ export class SearchViewlet extends Viewlet {
 			isDone = true;
 
 			// Complete up to 100% as needed
-			if (completed) {
+			if (completed && !query.useRipgrep) {
 				progressRunner.worked(progressTotal - progressWorked);
 				setTimeout(() => progressRunner.done(), 200);
 			} else {
@@ -1134,26 +1147,28 @@ export class SearchViewlet extends Viewlet {
 				return;
 			}
 
-			// Progress bar update
-			let fakeProgress = true;
-			if (total > 0 && worked > 0) {
-				let ratio = Math.round((worked / total) * progressTotal);
-				if (ratio > progressWorked) { // never show less progress than what we have already
-					progressRunner.worked(ratio - progressWorked);
-					progressWorked = ratio;
-					fakeProgress = false;
+			if (!query.useRipgrep) {
+				// Progress bar update
+				let fakeProgress = true;
+				if (total > 0 && worked > 0) {
+					let ratio = Math.round((worked / total) * progressTotal);
+					if (ratio > progressWorked) { // never show less progress than what we have already
+						progressRunner.worked(ratio - progressWorked);
+						progressWorked = ratio;
+						fakeProgress = false;
+					}
 				}
-			}
 
-			// Fake progress up to 90%, or when actual progress beats it
-			const fakeMax = 900;
-			const fakeMultiplier = 12;
-			if (fakeProgress && progressWorked < fakeMax) {
-				// Linearly decrease the rate of fake progress.
-				// 1 is the smallest allowed amount of progress.
-				const fakeAmt = Math.round((fakeMax - progressWorked) / fakeMax * fakeMultiplier) || 1;
-				progressWorked += fakeAmt;
-				progressRunner.worked(fakeAmt);
+				// Fake progress up to 90%, or when actual progress beats it
+				const fakeMax = 900;
+				const fakeMultiplier = 12;
+				if (fakeProgress && progressWorked < fakeMax) {
+					// Linearly decrease the rate of fake progress.
+					// 1 is the smallest allowed amount of progress.
+					const fakeAmt = Math.round((fakeMax - progressWorked) / fakeMax * fakeMultiplier) || 1;
+					progressWorked += fakeAmt;
+					progressRunner.worked(fakeAmt);
+				}
 			}
 
 			// Search result tree update
@@ -1176,7 +1191,7 @@ export class SearchViewlet extends Viewlet {
 
 		this.searchWidget.setReplaceAllActionState(false);
 		// this.replaceService.disposeAllReplacePreviews();
-		this.viewModel.search(query).done(onComplete, onError, onProgress);
+		this.viewModel.search(query).done(onComplete, onError, query.useRipgrep ? undefined : onProgress);
 	}
 
 	private updateSearchResultCount(): void {
@@ -1356,3 +1371,11 @@ export class SearchViewlet extends Viewlet {
 		super.dispose();
 	}
 }
+
+registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+	let matchHighlightColor = theme.getColor(editorFindMatchHighlight);
+	if (matchHighlightColor) {
+		collector.addRule(`.search-viewlet .findInFileMatch { background-color: ${matchHighlightColor}; }`);
+		collector.addRule(`.search-viewlet .highlight { background-color: ${matchHighlightColor}; }`);
+	}
+});

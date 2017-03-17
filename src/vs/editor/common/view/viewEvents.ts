@@ -17,8 +17,8 @@ export const enum ViewEventType {
 	ViewDecorationsChanged = 4,
 	ViewFlushed = 5,
 	ViewFocusChanged = 6,
-	ViewLineChanged = 7,
-	ViewLineMappingChanged = 8,
+	ViewLineMappingChanged = 7,
+	ViewLinesChanged = 8,
 	ViewLinesDeleted = 9,
 	ViewLinesInserted = 10,
 	ViewRevealRangeRequest = 11,
@@ -122,26 +122,31 @@ export class ViewFocusChangedEvent {
 	}
 }
 
-export class ViewLineChangedEvent {
-
-	public readonly type = ViewEventType.ViewLineChanged;
-
-	/**
-	 * The line that has changed.
-	 */
-	public readonly lineNumber: number;
-
-	constructor(lineNumber: number) {
-		this.lineNumber = lineNumber;
-	}
-}
-
 export class ViewLineMappingChangedEvent {
 
 	public readonly type = ViewEventType.ViewLineMappingChanged;
 
 	constructor() {
 		// Nothing to do
+	}
+}
+
+export class ViewLinesChangedEvent {
+
+	public readonly type = ViewEventType.ViewLinesChanged;
+
+	/**
+	 * The first line that has changed.
+	 */
+	public readonly fromLineNumber: number;
+	/**
+	 * The last line that has changed.
+	 */
+	public readonly toLineNumber: number;
+
+	constructor(fromLineNumber: number, toLineNumber: number) {
+		this.fromLineNumber = fromLineNumber;
+		this.toLineNumber = toLineNumber;
 	}
 }
 
@@ -296,7 +301,7 @@ export type ViewEvent = (
 	| ViewDecorationsChangedEvent
 	| ViewFlushedEvent
 	| ViewFocusChangedEvent
-	| ViewLineChangedEvent
+	| ViewLinesChangedEvent
 	| ViewLineMappingChangedEvent
 	| ViewLinesDeletedEvent
 	| ViewLinesInsertedEvent

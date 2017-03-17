@@ -93,3 +93,38 @@ export function detectEncodingByBOMFromBuffer(buffer: NodeBuffer, bytesRead: num
 export function detectEncodingByBOM(file: string): TPromise<string> {
 	return stream.readExactlyByFile(file, 3).then(({buffer, bytesRead}) => detectEncodingByBOMFromBuffer(buffer, bytesRead));
 }
+
+/**
+ * The encodings that are allowed in a settings file don't match the canonical encoding labels specified by WHATWG.
+ * See https://encoding.spec.whatwg.org/#names-and-labels
+ * Iconv-lite strips all non-alphanumeric characters, but ripgrep doesn't. For backcompat, allow these labels.
+ */
+export function toCanonicalName(enc: string): string {
+	switch (enc) {
+		case 'shiftjis':
+			return 'shift-jis';
+		case 'utf16le':
+			return 'utf-16le';
+		case 'utf16be':
+			return 'utf-16be';
+		case 'big5hkcs':
+			return 'big5-hkcs';
+		case 'eucjp':
+			return 'euc-jp';
+		case 'euckr':
+			return 'euc-kr';
+		case 'koi8r':
+			return 'koi8-r';
+		case 'koi8u':
+			return 'koi8-u';
+		case 'macroman':
+			return 'x-mac-roman';
+		default:
+			const m = enc.match(/windows(\d+)/);
+			if (m) {
+				return 'windows-' + m[1];
+			}
+
+			return enc;
+	}
+}

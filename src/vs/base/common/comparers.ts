@@ -7,15 +7,27 @@
 import scorer = require('vs/base/common/scorer');
 import strings = require('vs/base/common/strings');
 
-let intlFileNameComparer: Intl.Collator;
+let intlFileNameCollator: Intl.Collator;
+let intlFileNameCollatorIsNumeric: boolean;
 
 export function setFileNameComparer(collator: Intl.Collator): void {
-	intlFileNameComparer = collator;
+	intlFileNameCollator = collator;
+	intlFileNameCollatorIsNumeric = collator.resolvedOptions().numeric;
 }
 
 export function compareFileNames(one: string, other: string): number {
-	if (intlFileNameComparer) {
-		return intlFileNameComparer.compare(one || '', other || '');
+	if (intlFileNameCollator) {
+		const a = one || '';
+		const b = other || '';
+		const result = intlFileNameCollator.compare(a, b);
+
+		// Using the numeric option in the collator will
+		// make compare(`foo1`, `foo01`) === 0. We must disambiguate.
+		if (intlFileNameCollatorIsNumeric && result === 0 && a !== b) {
+			return a < b ? -1 : 1;
+		}
+
+		return result;
 	}
 
 	return noIntlCompareFileNames(one, other);

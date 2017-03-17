@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 'use strict';
+Object.defineProperty(exports, "__esModule", { value: true });
 var es = require("event-stream");
 var _ = require("underscore");
 var util = require("gulp-util");
@@ -29,6 +30,7 @@ try {
     fs.mkdirSync(path.dirname(buildLogPath));
 }
 catch (err) {
+    // ignore
 }
 function log() {
     var errors = _.flatten(allErrors);
@@ -45,6 +47,7 @@ function log() {
         fs.writeFileSync(buildLogPath, JSON.stringify(messages));
     }
     catch (err) {
+        //noop
     }
     util.log("Finished " + util.colors.green('compilation') + " with " + errors.length + " errors after " + util.colors.magenta((new Date().getTime() - startTime) + ' ms'));
 }

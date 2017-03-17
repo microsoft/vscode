@@ -649,7 +649,8 @@ export class ViewModel implements IViewModel {
 			+ `font-family: ${fontInfo.fontFamily};`
 			+ `font-weight: ${fontInfo.fontWeight};`
 			+ `font-size: ${fontInfo.fontSize}px;`
-			+ `line-height: ${fontInfo.lineHeight}px`
+			+ `line-height: ${fontInfo.lineHeight}px;`
+			+ `white-space: pre;`
 			+ `">`
 			+ this._getHTMLToCopy(range, colorMap)
 			+ '</div>'
@@ -667,7 +668,7 @@ export class ViewModel implements IViewModel {
 		let result = '';
 
 		for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
-			const lineTokens = this.model.getLineTokens(lineNumber, true);
+			const lineTokens = this.model.getLineTokens(lineNumber);
 			const lineContent = lineTokens.getLineContent();
 			const startOffset = (lineNumber === startLineNumber ? startColumn - 1 : 0);
 			const endOffset = (lineNumber === endLineNumber ? endColumn - 1 : lineContent.length);

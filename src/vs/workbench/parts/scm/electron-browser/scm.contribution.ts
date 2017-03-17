@@ -67,7 +67,7 @@ if (SCMPreview.enabled) {
 		'vs/workbench/parts/scm/electron-browser/scmViewlet',
 		'SCMViewlet',
 		VIEWLET_ID,
-		localize('scm', "SCM"),
+		localize('source control', "Source Control"),
 		'scm',
 		36
 	);

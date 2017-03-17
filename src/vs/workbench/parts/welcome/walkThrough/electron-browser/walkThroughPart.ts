@@ -19,7 +19,7 @@ import { EditorOptions } from 'vs/workbench/common/editor';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { WalkThroughInput } from 'vs/workbench/parts/welcome/walkThrough/node/walkThroughInput';
-import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
+import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { marked } from 'vs/base/common/marked/marked';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -92,7 +92,7 @@ export class WalkThroughPart extends BaseEditor {
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IThemeService private themeService: IThemeService,
+		@IWorkbenchThemeService protected themeService: IWorkbenchThemeService,
 		@IOpenerService private openerService: IOpenerService,
 		@IFileService private fileService: IFileService,
 		@IModelService protected modelService: IModelService,
@@ -102,7 +102,7 @@ export class WalkThroughPart extends BaseEditor {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IModeService private modeService: IModeService
 	) {
-		super(WalkThroughPart.ID, telemetryService);
+		super(WalkThroughPart.ID, telemetryService, themeService);
 		this.editorFocus = WALK_THROUGH_FOCUS.bindTo(this.contextKeyService);
 	}
 
@@ -370,7 +370,7 @@ export class WalkThroughPart extends BaseEditor {
 						}
 					}));
 
-					this.contentDisposables.push(this.themeService.onDidColorThemeChange(theme => editor.updateOptions({ theme: theme.id })));
+					this.contentDisposables.push(this.themeService.onDidColorThemeChange(theme => editor.updateOptions({ theme: theme.id }))); // TODO@theme this should be done from the editor itself and not from the outside
 					this.contentDisposables.push(this.configurationService.onDidUpdateConfiguration(() => editor.updateOptions(this.getEditorOptions(snippet.textEditorModel.getModeId()))));
 
 					this.contentDisposables.push(once(editor.onMouseDown)(() => {
@@ -428,7 +428,7 @@ export class WalkThroughPart extends BaseEditor {
 	}
 
 	private style(div: HTMLElement) {
-		const styleElement = document.querySelector('.monaco-editor-background');
+		const styleElement = document.querySelector('.monaco-editor-background'); // TODO@theme styles should come in via theme registry
 		const {color, backgroundColor, fontFamily, fontWeight, fontSize} = window.getComputedStyle(styleElement);
 		div.style.color = color;
 		div.style.backgroundColor = backgroundColor;
@@ -439,8 +439,8 @@ export class WalkThroughPart extends BaseEditor {
 
 	private expandMacros(input: string) {
 		return input.replace(/kb\(([a-z.\d\-]+)\)/gi, (match: string, kb: string) => {
-			const [keybinding] = this.keybindingService.lookupKeybindings(kb);
-			const shortcut = keybinding ? this.keybindingService.getLabelFor(keybinding) : UNBOUND_COMMAND;
+			const keybinding = this.keybindingService.lookupKeybinding(kb);
+			const shortcut = keybinding ? keybinding.getLabel() : UNBOUND_COMMAND;
 			return `<span class="shortcut">${strings.escape(shortcut)}</span>`;
 		});
 	}
@@ -449,8 +449,8 @@ export class WalkThroughPart extends BaseEditor {
 		const keys = this.content.querySelectorAll('.shortcut[data-command]');
 		Array.prototype.forEach.call(keys, (key: Element) => {
 			const command = key.getAttribute('data-command');
-			const [keybinding] = command && this.keybindingService.lookupKeybindings(command);
-			const label = keybinding ? this.keybindingService.getLabelFor(keybinding) : UNBOUND_COMMAND;
+			const keybinding = command && this.keybindingService.lookupKeybinding(command);
+			const label = keybinding ? keybinding.getLabel() : UNBOUND_COMMAND;
 			key.appendChild(document.createTextNode(label));
 		});
 	}

@@ -23,6 +23,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import 'vs/workbench/browser/parts/editor/baseEditor';
+import { isLinux } from 'vs/base/common/platform';
 
 function create(): EditorStacksModel {
 	let inst = new TestInstantiationService();
@@ -1461,14 +1462,20 @@ suite('Editor Stacks Model', () => {
 		model.setActive(group1);
 		group1.setActive(input1);
 
-		let previous = model.previous(true /* jump groups */);
+		let previous = model.previous(true, false /* jump groups, do NOT cycle at start*/);
+		assert.equal(previous, null);
+
+		previous = model.previous(true /* jump groups */);
 		assert.equal(previous.group, group2);
 		assert.equal(previous.editor, input6);
 
 		model.setActive(<EditorGroup>previous.group);
 		(<EditorGroup>previous.group).setActive(<EditorInput>previous.editor);
 
-		let next = model.next(true /* jump groups */);
+		let next = model.next(true, false /* jump groups, do NOT cycle at end */);
+		assert.equal(next, null);
+
+		next = model.next(true /* jump groups */);
 		assert.equal(next.group, group1);
 		assert.equal(next.editor, input1);
 
@@ -1512,14 +1519,20 @@ suite('Editor Stacks Model', () => {
 		model.setActive(group1);
 		group1.setActive(input1);
 
-		let previous = model.previous(false /* do NOT jump groups */);
+		let previous = model.previous(false, false /* do NOT jump groups, do NOT cycle at start*/);
+		assert.equal(previous, null);
+
+		previous = model.previous(false /* do NOT jump groups */);
 		assert.equal(previous.group, group1);
 		assert.equal(previous.editor, input3);
 
 		model.setActive(<EditorGroup>previous.group);
 		(<EditorGroup>previous.group).setActive(<EditorInput>previous.editor);
 
-		let next = model.next(false /* do NOT jump groups */);
+		let next = model.next(false, false /* do NOT jump groups, do NOT cycle at end */);
+		assert.equal(next, null);
+
+		next = model.next(false /* do NOT jump groups */);
 		assert.equal(next.group, group1);
 		assert.equal(next.editor, input1);
 
@@ -1547,6 +1560,7 @@ suite('Editor Stacks Model', () => {
 		assert.ok(!model.isOpen(URI.file('/hello/world.txt')));
 
 		const input1Resource = URI.file('/hello/world.txt');
+		const input1ResourceUpper = URI.file('/hello/WORLD.txt');
 		const input1 = input(void 0, false, input1Resource);
 		group1.openEditor(input1);
 
@@ -1555,12 +1569,25 @@ suite('Editor Stacks Model', () => {
 		assert.equal(model.count(input1Resource), 1);
 		assert.equal(group1.getEditor(input1Resource), input1);
 
+		if (isLinux) {
+			assert.ok(!group1.getEditor(input1ResourceUpper));
+			assert.equal(model.count(input1ResourceUpper), 0);
+			assert.ok(!model.isOpen(input1ResourceUpper));
+			assert.ok(!group1.contains(input1ResourceUpper));
+		} else {
+			assert.equal(group1.getEditor(input1ResourceUpper), input1);
+			assert.equal(model.count(input1ResourceUpper), 1);
+			assert.ok(model.isOpen(input1ResourceUpper));
+			assert.ok(group1.contains(input1ResourceUpper));
+		}
+
 		group2.openEditor(input1);
 		group1.closeEditor(input1);
 
 		assert.ok(model.isOpen(input1Resource));
 		assert.ok(!group1.contains(input1Resource));
 		assert.ok(!group1.getEditor(input1Resource));
+		assert.ok(!group1.getEditor(input1ResourceUpper));
 		assert.ok(group2.contains(input1Resource));
 		assert.equal(group2.getEditor(input1Resource), input1);
 		assert.equal(model.count(input1Resource), 1);
@@ -1814,5 +1841,39 @@ suite('Editor Stacks Model', () => {
 
 		group1.openEditor(input3, { active: true });
 		assert.equal(group1.indexOf(input3), 1);
+	});
+
+	test('Stack - Multiple Editors - find group based on input', function () {
+		const model = create();
+
+		const group1 = model.openGroup('group1');
+		const group2 = model.openGroup('group2');
+
+		const g1_input1 = input();
+		const g1_input2 = input();
+		const g2_input1 = input();
+		const g2_input2 = input();
+		const unmatched_input = input();
+
+		group1.openEditor(g1_input1, { active: true, pinned: true });
+		group1.openEditor(g1_input2, { active: true, pinned: true });
+		group2.openEditor(g2_input1, { active: true, pinned: true });
+		group2.openEditor(g2_input2, { active: true, pinned: true });
+
+		const found_group1 = model.findGroup(g1_input2, true);
+		const notfound1 = model.findGroup(g1_input1, true);
+
+		const found1_group2 = model.findGroup(g2_input1, false);
+		const found2_group2 = model.findGroup(g2_input2, false);
+
+		const notfound2 = model.findGroup(unmatched_input, false);
+		const notfound3 = model.findGroup(unmatched_input, true);
+
+		assert.equal(found_group1, group1);
+		assert.equal(notfound1, null);
+		assert.equal(found1_group2, group2);
+		assert.equal(found2_group2, group2);
+		assert.equal(notfound2, null);
+		assert.equal(notfound3, null);
 	});
 });

@@ -14,7 +14,7 @@ import { isMacintosh } from 'vs/base/common/platform';
 import { MIME_BINARY } from 'vs/base/common/mime';
 import { shorten } from 'vs/base/common/labels';
 import { ActionRunner, IAction } from 'vs/base/common/actions';
-import { Position, IEditorInput } from 'vs/platform/editor/common/editor';
+import { Position, IEditorInput, Verbosity } from 'vs/platform/editor/common/editor';
 import { IEditorGroup, toResource } from 'vs/workbench/common/editor';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -38,13 +38,17 @@ import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElemen
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { extractResources } from 'vs/base/browser/dnd';
 import { LinkedMap } from 'vs/base/common/map';
+import { DelegatingWorkbenchEditorService } from 'vs/workbench/services/editor/browser/editorService';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { INACTIVE_TAB_BACKGROUND, ACTIVE_TAB_BACKGROUND, ACTIVE_TAB_ACTIVE_GROUP_FOREGROUND, ACTIVE_TAB_INACTIVE_GROUP_FOREGROUND, INACTIVE_TAB_ACTIVE_GROUP_FOREGROUND, INACTIVE_TAB_INACTIVE_GROUP_FOREGROUND } from 'vs/workbench/common/theme';
 
 interface IEditorInputLabel {
 	editor: IEditorInput;
 	name: string;
 	hasAmbiguousName?: boolean;
 	description?: string;
-	verboseDescription?: string;
+	title?: string;
 }
 
 export class TabsTitleControl extends TitleControl {
@@ -54,6 +58,7 @@ export class TabsTitleControl extends TitleControl {
 	private editorLabels: EditorLabel[];
 	private scrollbar: ScrollableElement;
 	private tabDisposeables: IDisposable[];
+	private blockRevealActiveTab: boolean;
 
 	constructor(
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -67,12 +72,41 @@ export class TabsTitleControl extends TitleControl {
 		@IMessageService messageService: IMessageService,
 		@IMenuService menuService: IMenuService,
 		@IQuickOpenService quickOpenService: IQuickOpenService,
-		@IWindowService private windowService: IWindowService
+		@IWindowService private windowService: IWindowService,
+		@IThemeService themeService: IThemeService
 	) {
-		super(contextMenuService, instantiationService, editorService, editorGroupService, contextKeyService, keybindingService, telemetryService, messageService, menuService, quickOpenService);
+		super(contextMenuService, instantiationService, editorService, editorGroupService, contextKeyService, keybindingService, telemetryService, messageService, menuService, quickOpenService, themeService);
 
 		this.tabDisposeables = [];
 		this.editorLabels = [];
+	}
+
+	protected initActions(services: IInstantiationService): void {
+		super.initActions(this.createScopedInstantiationService());
+	}
+
+	private createScopedInstantiationService(): IInstantiationService {
+		const stacks = this.editorGroupService.getStacksModel();
+		const delegatingEditorService = this.instantiationService.createInstance(DelegatingWorkbenchEditorService);
+
+		// We create a scoped instantiation service to override the behaviour when closing an inactive editor
+		// Specifically we want to move focus back to the editor when an inactive editor is closed from anywhere
+		// in the tabs title control (e.g. mouse middle click, context menu on tab). This is only needed for
+		// the inactive editors because closing the active one will always cause a tab switch that sets focus.
+		// We also want to block the tabs container to reveal the currently active tab because that makes it very
+		// hard to close multiple inactive tabs next to each other.
+		delegatingEditorService.setEditorCloseHandler((position, editor) => {
+			const group = stacks.groupAt(position);
+			if (group && stacks.isActive(group) && !group.isActive(editor)) {
+				this.editorGroupService.focusGroup(group);
+			}
+
+			this.blockRevealActiveTab = true;
+
+			return TPromise.as(void 0);
+		});
+
+		return this.instantiationService.createChild(new ServiceCollection([IWorkbenchEditorService, delegatingEditorService]));
 	}
 
 	public setContext(group: IEditorGroup): void {
@@ -92,7 +126,7 @@ export class TabsTitleControl extends TitleControl {
 		DOM.addClass(this.tabsContainer, 'tabs-container');
 
 		// Forward scrolling inside the container to our custom scrollbar
-		this.toDispose.push(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.SCROLL, e => {
+		this.toUnbind.push(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.SCROLL, e => {
 			if (DOM.hasClass(this.tabsContainer, 'scroll')) {
 				this.scrollbar.updateState({
 					scrollLeft: this.tabsContainer.scrollLeft // during DND the  container gets scrolled so we need to update the custom scrollbar
@@ -101,7 +135,7 @@ export class TabsTitleControl extends TitleControl {
 		}));
 
 		// New file when double clicking on tabs container (but not tabs)
-		this.toDispose.push(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.DBLCLICK, e => {
+		this.toUnbind.push(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.DBLCLICK, e => {
 			const target = e.target;
 			if (target instanceof HTMLElement && target.className.indexOf('tabs-container') === 0) {
 				DOM.EventHelper.stop(e);
@@ -130,7 +164,7 @@ export class TabsTitleControl extends TitleControl {
 		this.titleContainer.appendChild(this.scrollbar.getDomNode());
 
 		// Drag over
-		this.toDispose.push(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.DRAG_OVER, (e: DragEvent) => {
+		this.toUnbind.push(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.DRAG_OVER, (e: DragEvent) => {
 			DOM.addClass(this.tabsContainer, 'scroll'); // enable support to scroll while dragging
 
 			const target = e.target;
@@ -140,19 +174,19 @@ export class TabsTitleControl extends TitleControl {
 		}));
 
 		// Drag leave
-		this.toDispose.push(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.DRAG_LEAVE, (e: DragEvent) => {
+		this.toUnbind.push(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.DRAG_LEAVE, (e: DragEvent) => {
 			DOM.removeClass(this.tabsContainer, 'dropfeedback');
 			DOM.removeClass(this.tabsContainer, 'scroll');
 		}));
 
 		// Drag end
-		this.toDispose.push(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.DRAG_END, (e: DragEvent) => {
+		this.toUnbind.push(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.DRAG_END, (e: DragEvent) => {
 			DOM.removeClass(this.tabsContainer, 'dropfeedback');
 			DOM.removeClass(this.tabsContainer, 'scroll');
 		}));
 
 		// Drop onto tabs container
-		this.toDispose.push(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.DROP, (e: DragEvent) => {
+		this.toUnbind.push(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.DROP, (e: DragEvent) => {
 			DOM.removeClass(this.tabsContainer, 'dropfeedback');
 			DOM.removeClass(this.tabsContainer, 'scroll');
 
@@ -189,8 +223,8 @@ export class TabsTitleControl extends TitleControl {
 		const group = this.context;
 
 		// Tabs container activity state
-		const isActive = this.stacks.isActive(group);
-		if (isActive) {
+		const isGroupActive = this.stacks.isActive(group);
+		if (isGroupActive) {
 			DOM.addClass(this.titleContainer, 'active');
 		} else {
 			DOM.removeClass(this.titleContainer, 'active');
@@ -205,19 +239,20 @@ export class TabsTitleControl extends TitleControl {
 			const tabContainer = this.tabsContainer.children[index];
 			if (tabContainer instanceof HTMLElement) {
 				const isPinned = group.isPinned(index);
-				const isActive = group.isActive(editor);
+				const isTabActive = group.isActive(editor);
 				const isDirty = editor.isDirty();
 
 				const label = labels[index];
 				const name = label.name;
 				const description = label.hasAmbiguousName && label.description ? label.description : '';
-				const verboseDescription = label.verboseDescription || '';
+				const title = label.title || '';
 
 				// Container
 				tabContainer.setAttribute('aria-label', `${name}, tab`);
-				tabContainer.title = verboseDescription;
+				tabContainer.title = title;
+				const tabOptions = this.editorGroupService.getTabOptions();
 				['off', 'left'].forEach(option => {
-					const domAction = this.tabOptions.tabCloseButton === option ? DOM.addClass : DOM.removeClass;
+					const domAction = tabOptions.tabCloseButton === option ? DOM.addClass : DOM.removeClass;
 					domAction(tabContainer, `close-button-${option}`);
 				});
 
@@ -226,13 +261,18 @@ export class TabsTitleControl extends TitleControl {
 				tabLabel.setLabel({ name, description, resource: toResource(editor, { supportSideBySide: true }) }, { extraClasses: ['tab-label'], italic: !isPinned });
 
 				// Active state
-				if (isActive) {
+				if (isTabActive) {
 					DOM.addClass(tabContainer, 'active');
 					tabContainer.setAttribute('aria-selected', 'true');
+					tabContainer.style.backgroundColor = this.getColor(ACTIVE_TAB_BACKGROUND);
+					tabLabel.element.style.color = this.getColor(isGroupActive ? ACTIVE_TAB_ACTIVE_GROUP_FOREGROUND : ACTIVE_TAB_INACTIVE_GROUP_FOREGROUND);
+
 					this.activeTab = tabContainer;
 				} else {
 					DOM.removeClass(tabContainer, 'active');
 					tabContainer.setAttribute('aria-selected', 'false');
+					tabContainer.style.backgroundColor = this.getColor(INACTIVE_TAB_BACKGROUND);
+					tabLabel.element.style.color = this.getColor(isGroupActive ? INACTIVE_TAB_ACTIVE_GROUP_FOREGROUND : INACTIVE_TAB_INACTIVE_GROUP_FOREGROUND);
 				}
 
 				// Dirty State
@@ -264,7 +304,7 @@ export class TabsTitleControl extends TitleControl {
 				editor,
 				name: editor.getName(),
 				description,
-				verboseDescription: editor.getDescription(true)
+				title: editor.getTitle(Verbosity.LONG)
 			};
 			labels.push(item);
 
@@ -311,7 +351,7 @@ export class TabsTitleControl extends TitleControl {
 
 		// Handle Tabs
 		this.handleTabs(group.count);
-		DOM.addClass(this.titleContainer, 'shows-tabs');
+		DOM.removeClass(this.titleContainer, 'empty');
 
 		// Update Tabs
 		this.doUpdate();
@@ -323,7 +363,7 @@ export class TabsTitleControl extends TitleControl {
 		this.tabDisposeables = dispose(this.tabDisposeables);
 		this.editorLabels = [];
 
-		DOM.removeClass(this.titleContainer, 'shows-tabs');
+		DOM.addClass(this.titleContainer, 'empty');
 	}
 
 	private handleTabs(tabsNeeded: number): void {
@@ -359,7 +399,7 @@ export class TabsTitleControl extends TitleControl {
 		tabContainer.draggable = true;
 		tabContainer.tabIndex = 0;
 		tabContainer.setAttribute('role', 'presentation'); // cannot use role "tab" here due to https://github.com/Microsoft/vscode/issues/8659
-		DOM.addClass(tabContainer, 'tab monaco-editor-background');
+		DOM.addClass(tabContainer, 'tab');
 
 		// Tab Editor Label
 		const editorLabel = this.instantiationService.createInstance(EditorLabel, tabContainer, void 0);
@@ -395,7 +435,13 @@ export class TabsTitleControl extends TitleControl {
 			scrollWidth: totalContainerWidth
 		});
 
-		// Always reveal the active one
+		// Return now if we are blocked to reveal the active tab and clear flag
+		if (this.blockRevealActiveTab) {
+			this.blockRevealActiveTab = false;
+			return;
+		}
+
+		// Reveal the active one
 		const containerScrollPosX = this.tabsContainer.scrollLeft;
 		const activeTabPosX = this.activeTab.offsetLeft;
 		const activeTabWidth = this.activeTab.offsetWidth;
@@ -436,9 +482,7 @@ export class TabsTitleControl extends TitleControl {
 			tab.blur();
 
 			if (e.button === 1 /* Middle Button */) {
-				const { editor, position } = this.toTabContext(index);
-
-				this.editorService.closeEditor(position, editor).done(null, errors.onUnexpectedError);
+				this.closeEditorAction.run(this.toTabContext(index)).done(null, errors.onUnexpectedError);
 			}
 		}));
 
@@ -591,7 +635,7 @@ export class TabsTitleControl extends TitleControl {
 
 			// Move editor to target position and index
 			if (this.isMoveOperation(e, draggedEditor.group, group)) {
-				this.editorGroupService.moveEditor(draggedEditor.editor, draggedEditor.group, group, targetIndex);
+				this.editorGroupService.moveEditor(draggedEditor.editor, draggedEditor.group, group, { index: targetIndex });
 			}
 
 			// Copy: just open editor at target index

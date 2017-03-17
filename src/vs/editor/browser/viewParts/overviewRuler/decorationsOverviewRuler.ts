@@ -9,7 +9,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ViewPart } from 'vs/editor/browser/view/viewPart';
 import { OverviewRulerImpl } from 'vs/editor/browser/viewParts/overviewRuler/overviewRulerImpl';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
-import { IRenderingContext, IRestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
+import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
 import { Position } from 'vs/editor/common/core/position';
 import { TokenizationRegistry } from 'vs/editor/common/modes';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -23,9 +23,13 @@ export class DecorationsOverviewRuler extends ViewPart {
 	private static _CURSOR_COLOR = 'rgba(0, 0, 102, 0.8)';
 	private static _CURSOR_COLOR_DARK = 'rgba(152, 152, 152, 0.8)';
 
+	private static _BORDER_COLOR = 'rgba(127,127,127,0.3)';
+
 	private readonly _tokensColorTrackerListener: IDisposable;
 
 	private _overviewRuler: OverviewRulerImpl;
+
+	private _renderBorder: boolean;
 
 	private _shouldUpdateDecorations: boolean;
 	private _shouldUpdateCursorPosition: boolean;
@@ -52,6 +56,8 @@ export class DecorationsOverviewRuler extends ViewPart {
 		let theme = this._context.configuration.editor.viewInfo.theme;
 		this._overviewRuler.setUseDarkColor(!themes.isLightTheme(theme), false);
 		this._overviewRuler.setLayout(this._context.configuration.editor.layoutInfo.overviewRuler, false);
+
+		this._renderBorder = this._context.configuration.editor.viewInfo.overviewRulerBorder;
 
 		this._updateBackground(false);
 		this._tokensColorTrackerListener = TokenizationRegistry.onDidChange((e) => {
@@ -101,6 +107,11 @@ export class DecorationsOverviewRuler extends ViewPart {
 
 		if (prevLanesCount !== newLanesCount) {
 			this._overviewRuler.setLanesCount(newLanesCount, false);
+			shouldRender = true;
+		}
+
+		if (e.viewInfo.overviewRulerBorder) {
+			this._renderBorder = this._context.configuration.editor.viewInfo.overviewRulerBorder;
 			shouldRender = true;
 		}
 
@@ -201,11 +212,11 @@ export class DecorationsOverviewRuler extends ViewPart {
 		return zones;
 	}
 
-	public prepareRender(ctx: IRenderingContext): void {
+	public prepareRender(ctx: RenderingContext): void {
 		// Nothing to read
 	}
 
-	public render(ctx: IRestrictedRenderingContext): void {
+	public render(ctx: RestrictedRenderingContext): void {
 		if (this._shouldUpdateDecorations || this._shouldUpdateCursorPosition) {
 
 			if (this._shouldUpdateDecorations) {
@@ -231,11 +242,11 @@ export class DecorationsOverviewRuler extends ViewPart {
 
 		let hasRendered = this._overviewRuler.render(false);
 
-		if (hasRendered && this._overviewRuler.getLanesCount() > 0 && (this._zonesFromDecorations.length > 0 || this._zonesFromCursors.length > 0)) {
+		if (hasRendered && this._renderBorder && this._overviewRuler.getLanesCount() > 0 && (this._zonesFromDecorations.length > 0 || this._zonesFromCursors.length > 0)) {
 			let ctx2 = this._overviewRuler.getDomNode().getContext('2d');
 			ctx2.beginPath();
 			ctx2.lineWidth = 1;
-			ctx2.strokeStyle = 'rgba(197,197,197,0.8)';
+			ctx2.strokeStyle = DecorationsOverviewRuler._BORDER_COLOR;
 			ctx2.moveTo(0, 0);
 			ctx2.lineTo(0, this._overviewRuler.getPixelHeight());
 			ctx2.stroke();

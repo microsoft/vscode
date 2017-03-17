@@ -79,7 +79,20 @@ export function setProperty(text: string, path: JSONPath, value: any, formatting
 			return withFormatting(text, edit, formattingOptions);
 		}
 	} else if (parent.type === 'array' && typeof lastSegment === 'number') {
-		throw new Error('Array modification not supported yet');
+		let insertIndex = lastSegment;
+		if (insertIndex === -1) {
+			let newProperty = `${JSON.stringify(value)}`;
+			let edit: Edit;
+			if (parent.children.length === 0) {
+				edit = { offset: parent.offset + 1, length: 0, content: newProperty };
+			} else {
+				let previous = parent.children[parent.children.length - 1];
+				edit = { offset: previous.offset + previous.length, length: 0, content: ',' + newProperty };
+			}
+			return withFormatting(text, edit, formattingOptions);
+		} else {
+			throw new Error('Array modification not supported yet');
+		}
 	} else {
 		throw new Error(`Can not add ${typeof lastSegment !== 'number' ? 'index' : 'property'} to parent of type ${parent.type}`);
 	}

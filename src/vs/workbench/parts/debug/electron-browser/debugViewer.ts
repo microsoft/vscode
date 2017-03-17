@@ -510,8 +510,11 @@ export class CallStackRenderer implements IRenderer {
 		data.thread.title = nls.localize('thread', "Thread");
 		data.name.textContent = thread.name;
 
-		data.stateLabel.textContent = thread.stopped ? nls.localize({ key: 'pausedOn', comment: ['indicates reason for program being paused'] }, "Paused on {0}", thread.stoppedDetails.reason)
-			: nls.localize({ key: 'running', comment: ['indicates state'] }, "Running");
+		if (thread.stopped) {
+			data.stateLabel.textContent = thread.stoppedDetails.description || nls.localize({ key: 'pausedOn', comment: ['indicates reason for program being paused'] }, "Paused on {0}", thread.stoppedDetails.reason);
+		} else {
+			data.stateLabel.textContent = nls.localize({ key: 'running', comment: ['indicates state'] }, "Running");
+		}
 	}
 
 	private renderError(element: string, data: IErrorTemplateData) {
@@ -524,7 +527,8 @@ export class CallStackRenderer implements IRenderer {
 	}
 
 	private renderStackFrame(stackFrame: debug.IStackFrame, data: IStackFrameTemplateData): void {
-		stackFrame.source.deemphasize ? dom.addClass(data.stackFrame, 'disabled') : dom.removeClass(data.stackFrame, 'disabled');
+		stackFrame.source.presenationHint === 'deemphasize' ? dom.addClass(data.stackFrame, 'disabled') : dom.removeClass(data.stackFrame, 'disabled');
+		stackFrame.source.presenationHint === 'label' ? dom.addClass(data.stackFrame, 'label') : dom.removeClass(data.stackFrame, 'label');
 		data.file.title = stackFrame.source.raw.path || stackFrame.source.name;
 		if (stackFrame.source.raw.origin) {
 			data.file.title += `\n${stackFrame.source.raw.origin}`;

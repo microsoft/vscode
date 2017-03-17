@@ -108,9 +108,9 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 			[
 				'<div>',
 				'<span style="color: #ff0000;font-style: italic;font-weight: bold;">Ciao</span>',
-				'<span style="color: #000000;">&nbsp;</span>',
+				'<span style="color: #000000;"> </span>',
 				'<span style="color: #00ff00;">hello</span>',
-				'<span style="color: #000000;">&nbsp;</span>',
+				'<span style="color: #000000;"> </span>',
 				'<span style="color: #0000ff;text-decoration: underline;">world!</span>',
 				'</div>'
 			].join('')
@@ -121,9 +121,9 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 			[
 				'<div>',
 				'<span style="color: #ff0000;font-style: italic;font-weight: bold;">Ciao</span>',
-				'<span style="color: #000000;">&nbsp;</span>',
+				'<span style="color: #000000;"> </span>',
 				'<span style="color: #00ff00;">hello</span>',
-				'<span style="color: #000000;">&nbsp;</span>',
+				'<span style="color: #000000;"> </span>',
 				'<span style="color: #0000ff;text-decoration: underline;">w</span>',
 				'</div>'
 			].join('')
@@ -134,9 +134,9 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 			[
 				'<div>',
 				'<span style="color: #ff0000;font-style: italic;font-weight: bold;">Ciao</span>',
-				'<span style="color: #000000;">&nbsp;</span>',
+				'<span style="color: #000000;"> </span>',
 				'<span style="color: #00ff00;">hello</span>',
-				'<span style="color: #000000;">&nbsp;</span>',
+				'<span style="color: #000000;"> </span>',
 				'</div>'
 			].join('')
 		);
@@ -146,9 +146,9 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 			[
 				'<div>',
 				'<span style="color: #ff0000;font-style: italic;font-weight: bold;">iao</span>',
-				'<span style="color: #000000;">&nbsp;</span>',
+				'<span style="color: #000000;"> </span>',
 				'<span style="color: #00ff00;">hello</span>',
-				'<span style="color: #000000;">&nbsp;</span>',
+				'<span style="color: #000000;"> </span>',
 				'</div>'
 			].join('')
 		);
@@ -157,9 +157,9 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 			tokenizeLineToHTML(text, lineTokens, colorMap, 4, 11, 4),
 			[
 				'<div>',
-				'<span style="color: #000000;">&nbsp;</span>',
+				'<span style="color: #000000;"> </span>',
 				'<span style="color: #00ff00;">hello</span>',
-				'<span style="color: #000000;">&nbsp;</span>',
+				'<span style="color: #000000;"> </span>',
 				'</div>'
 			].join('')
 		);
@@ -169,7 +169,7 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 			[
 				'<div>',
 				'<span style="color: #00ff00;">hello</span>',
-				'<span style="color: #000000;">&nbsp;</span>',
+				'<span style="color: #000000;"> </span>',
 				'</div>'
 			].join('')
 		);

@@ -243,7 +243,7 @@
 	},
 	{
 		"c": "\t",
-		"t": "source.shell meta.scope.if-block.shell",
+		"t": "source.shell meta.scope.if-block.shell meta.function.shell",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",

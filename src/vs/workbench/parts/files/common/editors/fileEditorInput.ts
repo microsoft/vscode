@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import paths = require('vs/base/common/paths');
 import labels = require('vs/base/common/labels');
@@ -11,13 +12,15 @@ import URI from 'vs/base/common/uri';
 import { EncodingMode, ConfirmResult, EditorInput, IFileEditorInput } from 'vs/workbench/common/editor';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
-import { IFileOperationResult, FileOperationResult } from 'vs/platform/files/common/files';
+import { IFileOperationResult, FileOperationResult, isEqual } from 'vs/platform/files/common/files';
 import { BINARY_FILE_EDITOR_ID, TEXT_FILE_EDITOR_ID, FILE_EDITOR_INPUT_ID } from 'vs/workbench/parts/files/common/files';
 import { ITextFileService, AutoSaveMode, ModelState, TextFileModelChangeEvent } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { telemetryURIDescriptor } from 'vs/platform/telemetry/common/telemetryUtils';
+import { Verbosity } from 'vs/platform/editor/common/editor';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 /**
  * A file editor input is the input type for the file editor of file system resources.
@@ -29,7 +32,10 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 
 	private name: string;
 	private description: string;
-	private verboseDescription: string;
+
+	private shortTitle: string;
+	private mediumTitle: string;
+	private longTitle: string;
 
 	private toUnbind: IDisposable[];
 
@@ -41,7 +47,8 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		preferredEncoding: string,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@ITextFileService private textFileService: ITextFileService
+		@ITextFileService private textFileService: ITextFileService,
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		super();
 
@@ -62,11 +69,18 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		this.toUnbind.push(this.textFileService.models.onModelSaveError(e => this.onDirtyStateChange(e)));
 		this.toUnbind.push(this.textFileService.models.onModelSaved(e => this.onDirtyStateChange(e)));
 		this.toUnbind.push(this.textFileService.models.onModelReverted(e => this.onDirtyStateChange(e)));
+		this.toUnbind.push(this.textFileService.models.onModelOrphanedChanged(e => this.onModelOrphanedChanged(e)));
 	}
 
 	private onDirtyStateChange(e: TextFileModelChangeEvent): void {
-		if (e.resource.toString() === this.resource.toString()) {
+		if (isEqual(e.resource.fsPath, this.resource.fsPath)) {
 			this._onDidChangeDirty.fire();
+		}
+	}
+
+	private onModelOrphanedChanged(e: TextFileModelChangeEvent): void {
+		if (isEqual(e.resource.fsPath, this.resource.fsPath)) {
+			this._onDidChangeLabel.fire();
 		}
 	}
 
@@ -76,7 +90,9 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		// Reset resource dependent properties
 		this.name = null;
 		this.description = null;
-		this.verboseDescription = null;
+		this.shortTitle = null;
+		this.mediumTitle = null;
+		this.longTitle = null;
 	}
 
 	public getResource(): URI {
@@ -122,23 +138,41 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 			this.name = paths.basename(this.resource.fsPath);
 		}
 
-		return this.name;
+		return this.decorateOrphanedFiles(this.name);
 	}
 
-	public getDescription(verbose?: boolean): string {
-		if (!verbose) {
-			if (!this.description) {
-				this.description = labels.getPathLabel(paths.dirname(this.resource.fsPath), this.contextService);
-			}
-
-			return this.description;
+	public getDescription(): string {
+		if (!this.description) {
+			this.description = labels.getPathLabel(paths.dirname(this.resource.fsPath), this.contextService);
 		}
 
-		if (!this.verboseDescription) {
-			this.verboseDescription = labels.getPathLabel(this.resource.fsPath);
+		return this.description;
+	}
+
+	public getTitle(verbosity: Verbosity): string {
+		let title: string;
+		switch (verbosity) {
+			case Verbosity.SHORT:
+				title = this.shortTitle ? this.shortTitle : (this.shortTitle = this.getName());
+				break;
+			case Verbosity.MEDIUM:
+				title = this.mediumTitle ? this.mediumTitle : (this.mediumTitle = labels.getPathLabel(this.resource, this.contextService));
+				break;
+			case Verbosity.LONG:
+				title = this.longTitle ? this.longTitle : (this.longTitle = labels.tildify(labels.getPathLabel(this.resource), this.environmentService.userHome));
+				break;
 		}
 
-		return this.verboseDescription;
+		return this.decorateOrphanedFiles(title);
+	}
+
+	private decorateOrphanedFiles(label: string): string {
+		const model = this.textFileService.models.get(this.resource);
+		if (model && model.hasState(ModelState.ORPHAN)) {
+			return localize('orphanedFile', "{0} (deleted from disk)", label);
+		}
+
+		return label;
 	}
 
 	public isDirty(): boolean {
@@ -147,8 +181,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 			return false;
 		}
 
-		const state = model.getState();
-		if (state === ModelState.CONFLICT || state === ModelState.ERROR) {
+		if (model.hasState(ModelState.CONFLICT) || model.hasState(ModelState.ERROR)) {
 			return true; // always indicate dirty state if we are in conflict or error state
 		}
 
@@ -188,6 +221,10 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		});
 	}
 
+	public isResolved(): boolean {
+		return !!this.textFileService.models.get(this.resource);
+	}
+
 	public getTelemetryDescriptor(): { [key: string]: any; } {
 		const descriptor = super.getTelemetryDescriptor();
 		descriptor['resource'] = telemetryURIDescriptor(this.getResource());
@@ -198,7 +235,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 	public dispose(): void {
 
 		// Listeners
-		dispose(this.toUnbind);
+		this.toUnbind = dispose(this.toUnbind);
 
 		super.dispose();
 	}
@@ -209,7 +246,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		}
 
 		if (otherInput) {
-			return otherInput instanceof FileEditorInput && (<FileEditorInput>otherInput).resource.toString() === this.resource.toString();
+			return otherInput instanceof FileEditorInput && isEqual(otherInput.resource.fsPath, this.resource.fsPath);
 		}
 
 		return false;

@@ -32,14 +32,13 @@ import { ILifecycleService, ShutdownEvent, ShutdownReason } from 'vs/platform/li
 import { EditorStacksModel } from 'vs/workbench/common/editor/editorStacksModel';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { IEditorGroupService, GroupArrangement, GroupOrientation, ITabOptions } from 'vs/workbench/services/group/common/groupService';
+import { IEditorGroupService, GroupArrangement, GroupOrientation, ITabOptions, IMoveOptions } from 'vs/workbench/services/group/common/groupService';
 import { TextFileService } from 'vs/workbench/services/textfile/common/textFileService';
-import { FileOperationEvent, IFileService, IResolveContentOptions, IFileOperationResult, IFileStat, IImportResult, FileChangesEvent, IResolveFileOptions, IContent, IUpdateContentOptions, IStreamContent } from 'vs/platform/files/common/files';
+import { FileOperationEvent, IFileService, IResolveContentOptions, IFileOperationResult, IFileStat, IImportResult, FileChangesEvent, IResolveFileOptions, IContent, IUpdateContentOptions, IStreamContent, isEqualOrParent } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { IRawTextContent, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { TextModel } from 'vs/editor/common/model/textModel';
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -49,7 +48,11 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
-import { ITextSource2 } from 'vs/editor/common/editorCommon';
+import { RawTextSource, IRawTextSource } from 'vs/editor/common/model/textSource';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IThemeService, ITheme, IThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { Color } from 'vs/base/common/color';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, void 0);
@@ -90,19 +93,27 @@ export class TestContextService implements IWorkspaceContextService {
 
 	public isInsideWorkspace(resource: URI): boolean {
 		if (resource && this.workspace) {
-			return paths.isEqualOrParent(resource.fsPath, this.workspace.resource.fsPath);
+			return isEqualOrParent(resource.fsPath, this.workspace.resource.fsPath);
 		}
 
 		return false;
 	}
 
 	public toWorkspaceRelativePath(resource: URI, toOSPath?: boolean): string {
-		return paths.makePosixAbsolute(paths.normalize(resource.fsPath.substr('c:'.length), toOSPath));
+		return makePosixAbsolute(paths.normalize(resource.fsPath.substr('c:'.length), toOSPath));
 	}
 
 	public toResource(workspaceRelativePath: string): URI {
 		return URI.file(paths.join('C:\\', workspaceRelativePath));
 	}
+}
+
+function isPosixAbsolute(path: string): boolean {
+	return path && path[0] === '/';
+}
+
+function makePosixAbsolute(path: string): string {
+	return isPosixAbsolute(paths.normalize(path)) ? path : paths.sep + path;
 }
 
 export class TestTextFileService extends TextFileService {
@@ -150,7 +161,7 @@ export class TestTextFileService extends TextFileService {
 		}
 
 		return this.fileService.resolveContent(resource, options).then((content) => {
-			const textSource = TextModel.toTextSource(content.value);
+			const textSource = RawTextSource.fromString(content.value);
 			return <IRawTextContent>{
 				resource: content.resource,
 				name: content.name,
@@ -204,6 +215,8 @@ export function workbenchInstantiationService(): IInstantiationService {
 	instantiationService.stub(IWindowsService, new TestWindowsService());
 	instantiationService.stub(ITextFileService, <ITextFileService>instantiationService.createInstance(TestTextFileService));
 	instantiationService.stub(ITextModelResolverService, <ITextModelResolverService>instantiationService.createInstance(TextModelResolverService));
+	instantiationService.stub(IEnvironmentService, TestEnvironmentService);
+	instantiationService.stub(IThemeService, new TestThemeService());
 
 	return instantiationService;
 }
@@ -237,6 +250,7 @@ export class TestMessageService implements IMessageService {
 }
 
 export class TestPartService implements IPartService {
+
 	public _serviceBrand: any;
 
 	private _onTitleBarVisibilityChange = new Emitter<void>();
@@ -303,6 +317,10 @@ export class TestPartService implements IPartService {
 	public setPanelHidden(hidden: boolean): TPromise<void> { return TPromise.as(null); }
 
 	public toggleMaximizedPanel(): void { }
+
+	public isPanelMaximized(): boolean {
+		return false;
+	}
 
 	public getSideBarPosition() {
 		return 0;
@@ -448,9 +466,9 @@ export class TestEditorGroupService implements IEditorGroupService {
 	public unpinEditor(arg1: any, input: IEditorInput): void {
 	}
 
-	public moveEditor(input: IEditorInput, from: IEditorGroup, to: IEditorGroup, index?: number): void;
-	public moveEditor(input: IEditorInput, from: Position, to: Position, index?: number): void;
-	public moveEditor(input: IEditorInput, from: any, to: any, index?: number): void {
+	public moveEditor(input: IEditorInput, from: IEditorGroup, to: IEditorGroup, moveOptions?: IMoveOptions): void;
+	public moveEditor(input: IEditorInput, from: Position, to: Position, moveOptions?: IMoveOptions): void;
+	public moveEditor(input: IEditorInput, from: any, to: any, moveOptions?: IMoveOptions): void {
 	}
 
 	public getStacksModel(): EditorStacksModel {
@@ -733,7 +751,7 @@ export class TestBackupFileService implements IBackupFileService {
 		return TPromise.as([]);
 	}
 
-	public parseBackupContent(rawText: ITextSource2): string {
+	public parseBackupContent(rawText: IRawTextSource): string {
 		return rawText.lines.join('\n');
 	}
 
@@ -916,11 +934,15 @@ export class TestWindowsService implements IWindowsService {
 	quit(): TPromise<void> {
 		return TPromise.as(void 0);
 	}
-
 	relaunch(options: { addArgs?: string[], removeArgs?: string[] }): TPromise<void> {
 		return TPromise.as(void 0);
 	}
-
+	whenSharedProcessReady(): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+	toggleSharedProcess(): TPromise<void> {
+		return TPromise.as(void 0);
+	}
 	// Global methods
 	openWindow(paths: string[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean }): TPromise<void> {
 		return TPromise.as(void 0);
@@ -957,5 +979,34 @@ export class TestWindowsService implements IWindowsService {
 	// TODO: this is a bit backwards
 	startCrashReporter(config: Electron.CrashReporterStartOptions): TPromise<void> {
 		return TPromise.as(void 0);
+	}
+}
+
+export class TestTheme implements ITheme {
+	selector: string;
+	label: string;
+	type: 'light' | 'dark' | 'hc';
+
+	getColor(color: string, useDefault?: boolean): Color {
+		throw new Error('Method not implemented.');
+	}
+
+	isDefault(color: string): boolean {
+		throw new Error('Method not implemented.');
+	}
+}
+
+const testTheme = new TestTheme();
+
+export class TestThemeService implements IThemeService {
+
+	_serviceBrand: any;
+
+	getTheme(): ITheme {
+		return testTheme;
+	}
+
+	onThemeChange(participant: IThemingParticipant): IDisposable {
+		return { dispose: () => { } };
 	}
 }

@@ -18,7 +18,6 @@ import { MirrorModel2 } from 'vs/editor/common/model/mirrorModel2';
 import { IInplaceReplaceSupportResult, ILink, ISuggestResult, ISuggestion } from 'vs/editor/common/modes';
 import { computeLinks } from 'vs/editor/common/modes/linkComputer';
 import { BasicInplaceReplace } from 'vs/editor/common/modes/supports/inplaceReplaceSupport';
-import { IRawModelData } from 'vs/editor/common/services/editorSimpleWorkerCommon';
 import { getWordAtText, ensureValidWordDefinition } from 'vs/editor/common/model/wordHelper';
 import { createMonacoBaseAPI } from 'vs/editor/common/standalone/standaloneBase';
 
@@ -33,6 +32,16 @@ export interface IWorkerContext {
 	 * Get all available mirror models in this worker.
 	 */
 	getMirrorModels(): IMirrorModel[];
+}
+
+/**
+ * @internal
+ */
+export interface IRawModelData {
+	url: string;
+	versionId: number;
+	lines: string[];
+	EOL: string;
 }
 
 /**
@@ -502,7 +511,7 @@ export class EditorSimpleWorkerImpl extends BaseEditorSimpleWorker implements IR
 	}
 
 	public acceptNewModel(data: IRawModelData): void {
-		this._models[data.url] = new MirrorModel(URI.parse(data.url), data.value.lines, data.value.EOL, data.versionId);
+		this._models[data.url] = new MirrorModel(URI.parse(data.url), data.lines, data.EOL, data.versionId);
 	}
 
 	public acceptModelChanged(strURL: string, events: editorCommon.IModelContentChangedEvent2[]): void {

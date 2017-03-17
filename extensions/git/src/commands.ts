@@ -59,7 +59,7 @@ class CheckoutRemoteHeadItem extends CheckoutItem {
 	}
 }
 
-const Commands: { commandId: string; method: Function; }[] = [];
+const Commands: { commandId: string; key: string; method: Function; }[] = [];
 
 function command(commandId: string): Function {
 	return (target: any, key: string, descriptor: any) => {
@@ -67,7 +67,7 @@ function command(commandId: string): Function {
 			throw new Error('not supported');
 		}
 
-		Commands.push({ commandId, method: descriptor.value });
+		Commands.push({ commandId, key, method: descriptor.value });
 	};
 }
 
@@ -86,7 +86,7 @@ export class CommandCenter {
 		}
 
 		this.disposables = Commands
-			.map(({ commandId, method }) => commands.registerCommand(commandId, this.createCommand(commandId, method)));
+			.map(({ commandId, key, method }) => commands.registerCommand(commandId, this.createCommand(commandId, key, method)));
 	}
 
 	@command('git.refresh')
@@ -242,6 +242,10 @@ export class CommandCenter {
 
 	@command('git.openFile')
 	async openFile(uri?: Uri): Promise<void> {
+		if (uri && uri.scheme === 'file') {
+			return await commands.executeCommand<void>('vscode.open', uri);
+		}
+
 		const resource = this.resolveSCMResource(uri);
 
 		if (!resource) {
@@ -426,8 +430,8 @@ export class CommandCenter {
 		}
 
 		const basename = path.basename(resource.uri.fsPath);
-		const message = localize('confirm clean', "Are you sure you want to clean changes in {0}?", basename);
-		const yes = localize('clean', "Clean Changes");
+		const message = localize('confirm discard', "Are you sure you want to discard changes in {0}?", basename);
+		const yes = localize('discard', "Discard Changes");
 		const pick = await window.showWarningMessage(message, { modal: true }, yes);
 
 		if (pick !== yes) {
@@ -439,8 +443,8 @@ export class CommandCenter {
 
 	@command('git.cleanAll')
 	async cleanAll(): Promise<void> {
-		const message = localize('confirm clean all', "Are you sure you want to clean all changes?");
-		const yes = localize('clean', "Clean Changes");
+		const message = localize('confirm discard all', "Are you sure you want to discard ALL changes?");
+		const yes = localize('discard', "Discard Changes");
 		const pick = await window.showWarningMessage(message, { modal: true }, yes);
 
 		if (pick !== yes) {
@@ -706,8 +710,8 @@ export class CommandCenter {
 		this.outputChannel.show();
 	}
 
-	private createCommand(id: string, method: Function): (...args: any[]) => any {
-		return (...args) => {
+	private createCommand(id: string, key: string, method: Function): (...args: any[]) => any {
+		const result = (...args) => {
 			if (!this.model) {
 				window.showInformationMessage(localize('disabled', "Git is either disabled or not supported in this workspace"));
 				return;
@@ -725,12 +729,17 @@ export class CommandCenter {
 						message = localize('clean repo', "Please clean your repository working tree before checkout.");
 						break;
 					default:
-						const lines = (err.stderr || err.message || String(err))
-							.replace(/^error: /, '')
+						const hint = (err.stderr || err.message || String(err))
+							.replace(/^error: /mi, '')
+							.replace(/^> husky.*$/mi, '')
 							.split(/[\r\n]/)
-							.filter(line => !!line);
+							.filter(line => !!line)
+						[0];
 
-						message = lines[0] || 'Git error';
+						message = hint
+							? localize('git error details', "Git: {0}", hint)
+							: localize('git error', "Git error");
+
 						break;
 				}
 
@@ -748,6 +757,11 @@ export class CommandCenter {
 				}
 			});
 		};
+
+		// patch this object, so people can call methods directly
+		this[key] = result;
+
+		return result;
 	}
 
 	private resolveSCMResource(uri?: Uri): Resource | undefined {

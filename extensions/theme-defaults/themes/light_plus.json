@@ -1,13 +1,13 @@
 {
-	"name": "Light+",
+	"$schema": "vscode://schemas/color-theme",
+	"name": "Light+ (default light)",
 	"include": "./light_vs.json",
-	"settings": [
+	"tokenColors": [
 		{
 			"name": "Function declarations",
 			"scope": [
 				"entity.name.function",
 				"support.function",
-
 				"support.constant.handlebars"
 			],
 			"settings": {
@@ -22,12 +22,10 @@
 				"support.type",
 				"entity.name.type",
 				"entity.name.class",
-
 				"storage.type.cs",
 				"storage.type.generic.cs",
 				"storage.type.modifier.cs",
 				"storage.type.variable.cs",
-
 				"storage.type.annotation.java",
 				"storage.type.generic.java",
 				"storage.type.java",
@@ -35,7 +33,6 @@
 				"storage.type.primitive.array.java",
 				"storage.type.primitive.java",
 				"storage.type.token.java",
-
 				"storage.type.groovy",
 				"storage.type.annotation.groovy",
 				"storage.type.parameters.groovy",
@@ -57,7 +54,6 @@
 				"support.constant.math",
 				"support.constant.dom",
 				"support.constant.json",
-
 				"entity.other.inherited-class"
 			],
 			"settings": {

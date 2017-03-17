@@ -8,11 +8,11 @@ import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
+import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
 import { TextDocumentSaveReason, TextEdit, Position } from 'vs/workbench/api/node/extHostTypes';
 import { MainThreadWorkspaceShape } from 'vs/workbench/api/node/extHost.protocol';
 import { ExtHostDocumentSaveParticipant } from 'vs/workbench/api/node/extHostDocumentSaveParticipant';
 import { OneGetThreadService } from './testThreadService';
-import * as EditorCommon from 'vs/editor/common/editorCommon';
 import { IResourceEdit } from 'vs/editor/common/services/bulkEdit';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import * as vscode from 'vscode';
@@ -24,28 +24,18 @@ suite('ExtHostDocumentSaveParticipant', () => {
 	let documents: ExtHostDocuments;
 
 	setup(() => {
-
-		documents = new ExtHostDocuments(OneGetThreadService(null));
-		documents.$acceptModelAdd({
-			isDirty: false,
-			modeId: 'foo',
-			url: resource,
-			versionId: 1,
-			value: {
-				EOL: '\n',
+		const documentsAndEditors = new ExtHostDocumentsAndEditors(OneGetThreadService(null));
+		documentsAndEditors.$acceptDocumentsAndEditorsDelta({
+			addedDocuments: [{
+				isDirty: false,
+				modeId: 'foo',
+				url: resource,
+				versionId: 1,
 				lines: ['foo'],
-				BOM: '',
-				length: -1,
-				containsRTL: false,
-				isBasicASCII: false,
-				options: {
-					tabSize: 4,
-					insertSpaces: true,
-					trimAutoWhitespace: true,
-					defaultEOL: EditorCommon.DefaultEndOfLine.LF
-				}
-			}
+				EOL: '\n',
+			}]
 		});
+		documents = new ExtHostDocuments(OneGetThreadService(null), documentsAndEditors);
 	});
 
 	test('no listeners, no problem', () => {
@@ -318,7 +308,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 		const participant = new ExtHostDocumentSaveParticipant(documents, new class extends MainThreadWorkspaceShape {
 			$applyWorkspaceEdit(_edits: IResourceEdit[]) {
 
-				for (const {resource, newText, range} of _edits) {
+				for (const { resource, newText, range } of _edits) {
 					documents.$acceptModelChanged(resource.toString(), [{
 						range,
 						text: newText,

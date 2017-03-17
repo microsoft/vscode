@@ -333,9 +333,9 @@
       "resolved": "https://registry.npmjs.org/process-nextick-args/-/process-nextick-args-1.0.7.tgz"
     },
     "node-pty": {
-      "version": "0.6.2",
-      "from": "node-pty@0.6.2",
-      "resolved": "https://registry.npmjs.org/node-pty/-/node-pty-0.6.2.tgz",
+      "version": "0.6.3",
+      "from": "node-pty@0.6.3",
+      "resolved": "https://registry.npmjs.org/node-pty/-/node-pty-0.6.3.tgz",
       "dependencies": {
         "nan": {
           "version": "2.5.0",
@@ -409,6 +409,11 @@
       "from": "vscode-debugprotocol@1.17.0",
       "resolved": "https://registry.npmjs.org/vscode-debugprotocol/-/vscode-debugprotocol-1.17.0.tgz"
     },
+    "vscode-ripgrep": {
+      "version": "0.0.11",
+      "from": "vscode-ripgrep@0.0.11",
+      "resolved": "https://registry.npmjs.org/vscode-ripgrep/-/vscode-ripgrep-0.0.11.tgz"
+    },
     "vscode-textmate": {
       "version": "3.1.1",
       "from": "vscode-textmate@3.1.1",
@@ -430,9 +435,9 @@
       "resolved": "https://registry.npmjs.org/winreg/-/winreg-1.2.0.tgz"
     },
     "xterm": {
-      "version": "2.3.2",
-      "from": "Tyriar/xterm.js#vscode-release/1.10",
-      "resolved": "git+https://github.com/Tyriar/xterm.js.git#e849537de7f63497b38470764eaae1dc7794f104"
+      "version": "2.4.0",
+      "from": "Tyriar/xterm.js#vscode-release/1.11",
+      "resolved": "git+https://github.com/Tyriar/xterm.js.git#8a73dba88aa3b96b64a0ef6f7a9d006032805926"
     },
     "yauzl": {
       "version": "2.3.1",

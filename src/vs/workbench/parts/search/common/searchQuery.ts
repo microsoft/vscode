@@ -42,7 +42,9 @@ export class QueryBuilder {
 			sortByScore: options.sortByScore,
 			cacheKey: options.cacheKey,
 			fileEncoding: options.fileEncoding,
-			contentPattern: contentPattern
+			contentPattern: contentPattern,
+			useRipgrep: configuration.search.useRipgrep,
+			useIgnoreFiles: options.useIgnoreFiles
 		};
 	}
 }

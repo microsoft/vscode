@@ -17,7 +17,7 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { List } from 'vs/base/browser/ui/list/listWidget';
-import { IDelegate, IRenderer, IListMouseEvent } from 'vs/base/browser/ui/list/list';
+import { IDelegate, IRenderer, IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
 import { VIEWLET_ID } from 'vs/workbench/parts/scm/common/scm';
 import { FileLabel } from 'vs/workbench/browser/labels';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
@@ -33,7 +33,7 @@ import { IAction, IActionItem } from 'vs/base/common/actions';
 import { createActionItem } from 'vs/platform/actions/browser/menuItemActionItem';
 import { SCMMenus } from './scmMenus';
 import { ActionBar, IActionItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
+import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IModelService } from 'vs/editor/common/services/modelService';
 
@@ -108,7 +108,7 @@ class ResourceRenderer implements IRenderer<ISCMResource, ResourceTemplate> {
 	constructor(
 		private scmMenus: SCMMenus,
 		private actionItemProvider: IActionItemProvider,
-		@IThemeService private themeService: IThemeService,
+		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) { }
 
@@ -174,11 +174,11 @@ export class SCMViewlet extends Viewlet {
 		@IMessageService private messageService: IMessageService,
 		@IListService private listService: IListService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IThemeService private themeService: IThemeService,
+		@IWorkbenchThemeService protected themeService: IWorkbenchThemeService,
 		@IMenuService private menuService: IMenuService,
 		@IModelService private modelService: IModelService
 	) {
-		super(VIEWLET_ID, telemetryService);
+		super(VIEWLET_ID, telemetryService, themeService);
 
 		this.menus = this.instantiationService.createInstance(SCMMenus);
 		this.menus.onDidChangeTitle(this.updateTitleArea, this, this.disposables);
@@ -211,7 +211,7 @@ export class SCMViewlet extends Viewlet {
 		this.inputBox.value = this.scmService.input.value;
 		this.inputBox.onDidChange(value => this.scmService.input.value = value, null, this.disposables);
 		this.scmService.input.onDidChange(value => this.inputBox.value = value, null, this.disposables);
-		this.disposables.push(this.scmService.input.onDidChange(() => this.layout()));
+		this.disposables.push(this.inputBox.onDidHeightChange(() => this.layout()));
 
 		chain(domEvent(this.inputBox.inputElement, 'keydown'))
 			.map(e => new StandardKeyboardEvent(e))
@@ -308,7 +308,7 @@ export class SCMViewlet extends Viewlet {
 		return createActionItem(action, this.keybindingService, this.messageService);
 	}
 
-	private onListContextMenu(e: IListMouseEvent<ISCMResourceGroup | ISCMResource>): void {
+	private onListContextMenu(e: IListContextMenuEvent<ISCMResourceGroup | ISCMResource>): void {
 		const element = e.element;
 		let actions: IAction[];
 
@@ -319,7 +319,7 @@ export class SCMViewlet extends Viewlet {
 		}
 
 		this.contextMenuService.showContextMenu({
-			getAnchor: () => ({ x: e.clientX + 1, y: e.clientY }),
+			getAnchor: () => e.anchor,
 			getActions: () => TPromise.as(actions)
 		});
 	}

@@ -138,3 +138,10 @@ export const clearTimeout = _globals.clearTimeout.bind(_globals);
 
 export const setInterval = _globals.setInterval.bind(_globals);
 export const clearInterval = _globals.clearInterval.bind(_globals);
+
+export const enum OperatingSystem {
+	Windows = 1,
+	Macintosh = 2,
+	Linux = 3
+}
+export const OS = (_isMacintosh ? OperatingSystem.Macintosh : (_isWindows ? OperatingSystem.Windows : OperatingSystem.Linux));

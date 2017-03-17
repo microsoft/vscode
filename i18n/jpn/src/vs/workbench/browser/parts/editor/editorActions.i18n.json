@@ -41,6 +41,7 @@
 	"openPreviousRecentlyUsedEditorInGroup": "グループ内の最近使用したエディターのうち前のエディターを開く",
 	"openToSide": "横に並べて開く",
 	"reopenClosedEditor": "閉じたエディターを再度開く",
+	"revertAndCloseActiveEditor": "元に戻してエディターを閉じる",
 	"showAllEditors": "すべてのエディターを表示する",
 	"showEditorsInFirstGroup": "最初のグループのエディターを表示する",
 	"showEditorsInGroup": "エディターをグループに表示する",

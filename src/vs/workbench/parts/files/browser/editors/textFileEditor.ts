@@ -19,7 +19,7 @@ import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel'
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import { ExplorerViewlet } from 'vs/workbench/parts/files/browser/explorerViewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { IFileOperationResult, FileOperationResult, FileChangesEvent, IFileService } from 'vs/platform/files/common/files';
+import { IFileOperationResult, FileOperationResult, FileChangesEvent, IFileService, isEqual } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -28,7 +28,7 @@ import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { CancelAction } from 'vs/platform/message/common/message';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
+import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 
@@ -49,7 +49,7 @@ export class TextFileEditor extends BaseTextEditor {
 		@IHistoryService private historyService: IHistoryService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IThemeService themeService: IThemeService,
+		@IWorkbenchThemeService themeService: IWorkbenchThemeService,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IModeService modeService: IModeService,
 		@ITextFileService textFileService: ITextFileService,
@@ -123,7 +123,7 @@ export class TextFileEditor extends BaseTextEditor {
 
 			const hasInput = !!this.input;
 			const modelDisposed = textFileModel.isDisposed();
-			const inputChanged = hasInput && this.input.getResource().toString() !== textFileModel.getResource().toString();
+			const inputChanged = hasInput && !isEqual(this.input.getResource().fsPath, textFileModel.getResource().fsPath);
 			if (
 				!hasInput ||		// editor got hidden meanwhile
 				modelDisposed || 	// input got disposed meanwhile
