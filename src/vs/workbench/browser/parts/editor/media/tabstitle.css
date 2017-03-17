@@ -182,14 +182,6 @@
 
 /* TODO@theme */
 
-.vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.tabs.shows-tabs {
-	background-color: #F3F3F3;
-}
-
-.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.tabs.shows-tabs {
-	background-color: #252526;
-}
-
 .hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.tabs.shows-tabs {
 	border-bottom-color: #6FC3DF;
 }
