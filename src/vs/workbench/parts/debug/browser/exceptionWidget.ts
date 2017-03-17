@@ -14,6 +14,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 const $ = dom.$;
 
 export class ExceptionWidget extends ZoneWidget {
+	private onDidLayoutChangeScheduler: RunOnceScheduler;
 
 	constructor(editor: ICodeEditor, private lineNumber: number,
 		@IContextViewService private contextViewService: IContextViewService,
@@ -22,8 +23,8 @@ export class ExceptionWidget extends ZoneWidget {
 		super(editor, { showFrame: true, showArrow: true, frameWidth: 1 });
 
 		this.create();
-		const onDidLayoutChangeScheduler = new RunOnceScheduler(() => this._doLayout(undefined, undefined), 50);
-		this._disposables.add(this.editor.onDidLayoutChange(() => onDidLayoutChangeScheduler.schedule()));
+		this.onDidLayoutChangeScheduler = new RunOnceScheduler(() => this._doLayout(undefined, undefined), 50);
+		this._disposables.add(this.editor.onDidLayoutChange(() => this.onDidLayoutChangeScheduler.schedule()));
 	}
 
 	protected _fillContainer(container: HTMLElement): void {
@@ -46,12 +47,15 @@ export class ExceptionWidget extends ZoneWidget {
 	}
 
 	protected _doLayout(heightInPixel: number, widthInPixel: number): void {
-		if (this._viewZone) {
-			// Reload the height with respect to the exception text content and relayout it to match the line count.
-			this.container.style.height = 'initial';
+		// Reload the height with respect to the exception text content and relayout it to match the line count.
+		this.container.style.height = 'initial';
 
-			const computedLinesNumber = Math.ceil(this.container.offsetHeight / this.editor.getConfiguration().fontInfo.lineHeight);
-			this._relayout(computedLinesNumber);
-		}
+		const computedLinesNumber = Math.ceil(this.container.offsetHeight / this.editor.getConfiguration().fontInfo.lineHeight);
+		this._relayout(computedLinesNumber);
+	}
+
+	public dispose(): void {
+		this._disposables.dispose();
+		super.dispose();
 	}
 }
