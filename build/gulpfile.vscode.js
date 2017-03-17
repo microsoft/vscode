@@ -349,27 +349,18 @@ gulp.task('vscode-translations-update', function() {
 	const pathToExtensions = './extensions/**/*.nls.json';
 	const pathToSetup = 'build/win32/**/{Default.isl,messages.en.isl}';
 
-	gulp.src(pathToMetadata)
-			.pipe(i18n.prepareXlfFiles())
-			.pipe(i18n.pushXlfFiles(apiUrl, apiName, apiToken));
-
-	gulp.src(pathToSetup)
-			.pipe(i18n.prepareXlfFiles())
-			.pipe(i18n.pushXlfFiles(apiUrl, apiName, apiToken));
-
-	return gulp.src(pathToExtensions)
-			.pipe(i18n.prepareXlfFiles('vscode-extensions'))
-			.pipe(i18n.pushXlfFiles(apiUrl, apiName, apiToken));
+	return es.merge(
+		gulp.src(pathToMetadata).pipe(i18n.prepareXlfFiles()),
+		gulp.src(pathToSetup).pipe(i18n.prepareXlfFiles()),
+		gulp.src(pathToExtensions).pipe(i18n.prepareXlfFiles('vscode-extensions'))
+	).pipe(i18n.pushXlfFiles(apiUrl, apiName, apiToken));
 });
 
 gulp.task('vscode-translations-pull', function() {
-	i18n.pullXlfFiles('vscode-editor-workbench', apiUrl, apiName, apiToken)
-			.pipe(i18n.prepareJsonFiles())
-			.pipe(vfs.dest('./i18n'));
-
-	return i18n.pullXlfFiles('vscode-extensions', apiUrl, apiName, apiToken)
-			.pipe(i18n.prepareJsonFiles())
-			.pipe(vfs.dest('./i18n'));
+	return es.merge(
+		i18n.pullXlfFiles('vscode-editor-workbench', apiUrl, apiName, apiToken),
+		i18n.pullXlfFiles('vscode-extensions', apiUrl, apiName, apiToken)
+	).pipe(i18n.prepareJsonFiles()).pipe(vfs.dest('C:/Users/t-mikapo/Documents/Contribution/Localisation/transifex_export/vscode')); // './i18n'
 });
 
 // Sourcemaps

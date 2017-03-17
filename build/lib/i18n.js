@@ -535,7 +535,7 @@ function getResource(sourceFile) {
 }
 exports.getResource = getResource;
 function importBundleJson(file, json, stream) {
-    var transifexEditorXlfs = Object.create(null);
+    var bundleXlfs = Object.create(null);
     for (var source in json.keys) {
         var projectResource = getResource(source);
         var resource = projectResource.name;
@@ -545,12 +545,12 @@ function importBundleJson(file, json, stream) {
         if (keys.length !== messages.length) {
             log('Error:', "There is a mismatch between keys and messages in " + file.relative);
         }
-        var xlf = transifexEditorXlfs[resource] ? transifexEditorXlfs[resource] : transifexEditorXlfs[resource] = new XLF(project);
+        var xlf = bundleXlfs[resource] ? bundleXlfs[resource] : bundleXlfs[resource] = new XLF(project);
         xlf.addFile(source, keys, messages);
     }
-    for (var resource in transifexEditorXlfs) {
-        var newFilePath = transifexEditorXlfs[resource].project + "/" + resource.replace(/\//g, '_') + ".xlf";
-        var xlfFile = new File({ path: newFilePath, contents: new Buffer(transifexEditorXlfs[resource].toString(), 'utf-8') });
+    for (var resource in bundleXlfs) {
+        var newFilePath = bundleXlfs[resource].project + "/" + resource.replace(/\//g, '_') + ".xlf";
+        var xlfFile = new File({ path: newFilePath, contents: new Buffer(bundleXlfs[resource].toString(), 'utf-8') });
         stream.emit('data', xlfFile);
     }
 }
@@ -637,6 +637,8 @@ function importIsl(file, stream) {
     }
 }
 function pushXlfFiles(apiUrl, username, password) {
+    var tryGetPromises = [];
+    var updateCreatePromises = [];
     return event_stream_1.through(function (file) {
         var project = path.dirname(file.relative);
         var fileName = path.basename(file.path);
@@ -646,13 +648,24 @@ function pushXlfFiles(apiUrl, username, password) {
             'password': password
         };
         // Check if resource already exists, if not, then create it.
-        tryGetResource(project, slug, apiUrl, credentials).then(function (exists) {
+        var promise = tryGetResource(project, slug, apiUrl, credentials);
+        tryGetPromises.push(promise);
+        promise.then(function (exists) {
             if (exists) {
-                updateResource(project, slug, file, apiUrl, credentials);
+                promise = updateResource(project, slug, file, apiUrl, credentials);
             }
             else {
-                createResource(project, slug, file, apiUrl, credentials);
+                promise = createResource(project, slug, file, apiUrl, credentials);
             }
+            updateCreatePromises.push(promise);
+        });
+    }, function () {
+        var _this = this;
+        // End the pipe only after all the communication with Transifex API happened
+        Promise.all(tryGetPromises).then(function () {
+            Promise.all(updateCreatePromises).then(function () {
+                _this.emit('end');
+            });
         });
     });
 }
@@ -674,27 +687,30 @@ function tryGetResource(project, slug, apiUrl, credentials) {
     });
 }
 function createResource(project, slug, xlfFile, apiUrl, credentials) {
-    var url = apiUrl + "/project/" + project + "/resources";
-    var options = {
-        'body': {
-            'content': xlfFile.contents.toString(),
-            'name': slug,
-            'slug': slug,
-            'i18n_type': 'XLIFF'
-        },
-        'json': true,
-        'auth': credentials
-    };
-    request.post(url, options, function (err, res) {
-        if (err) {
-            log('Error:', "Failed to create Transifex " + project + "/" + slug + ": " + err);
-        }
-        if (res.statusCode === 201) {
-            log("Resource " + project + "/" + slug + " successfully created on Transifex.");
-        }
-        else {
-            log('Error:', "Something went wrong creating " + slug + " in " + project + ". " + res.statusCode);
-        }
+    return new Promise(function (resolve) {
+        var url = apiUrl + "/project/" + project + "/resources";
+        var options = {
+            'body': {
+                'content': xlfFile.contents.toString(),
+                'name': slug,
+                'slug': slug,
+                'i18n_type': 'XLIFF'
+            },
+            'json': true,
+            'auth': credentials
+        };
+        request.post(url, options, function (err, res) {
+            if (err) {
+                log('Error:', "Failed to create Transifex " + project + "/" + slug + ": " + err);
+            }
+            if (res.statusCode === 201) {
+                log("Resource " + project + "/" + slug + " successfully created on Transifex.");
+                resolve();
+            }
+            else {
+                log('Error:', "Something went wrong creating " + slug + " in " + project + ". " + res.statusCode);
+            }
+        });
     });
 }
 /**
@@ -702,22 +718,25 @@ function createResource(project, slug, xlfFile, apiUrl, credentials) {
  * https://dev.befoolish.co/tx-docs/public/projects/updating-content#what-happens-when-you-update-files
  */
 function updateResource(project, slug, xlfFile, apiUrl, credentials) {
-    var url = apiUrl + "/project/" + project + "/resource/" + slug + "/content";
-    var options = {
-        'body': { 'content': xlfFile.contents.toString() },
-        'json': true,
-        'auth': credentials
-    };
-    request.put(url, options, function (err, res, body) {
-        if (err) {
-            log('Error:', "Failed to update Transifex " + project + "/" + slug + ": " + err);
-        }
-        if (res.statusCode === 200) {
-            log("Resource " + project + "/" + slug + " successfully updated on Transifex. Strings added: " + body['strings_added'] + ", updated: " + body['strings_updated'] + ", deleted: " + body['strings_delete']);
-        }
-        else {
-            log('Error:', "Something went wrong updating " + slug + " in " + project + ". " + res.statusCode);
-        }
+    return new Promise(function (resolve) {
+        var url = apiUrl + "/project/" + project + "/resource/" + slug + "/content";
+        var options = {
+            'body': { 'content': xlfFile.contents.toString() },
+            'json': true,
+            'auth': credentials
+        };
+        request.put(url, options, function (err, res, body) {
+            if (err) {
+                log('Error:', "Failed to update Transifex " + project + "/" + slug + ": " + err);
+            }
+            if (res.statusCode === 200) {
+                log("Resource " + project + "/" + slug + " successfully updated on Transifex. Strings added: " + body['strings_added'] + ", updated: " + body['strings_updated'] + ", deleted: " + body['strings_delete']);
+                resolve();
+            }
+            else {
+                log('Error:', "Something went wrong updating " + slug + " in " + project + ". " + res.statusCode);
+            }
+        });
     });
 }
 function getMetadataResources(pathToMetadata) {
