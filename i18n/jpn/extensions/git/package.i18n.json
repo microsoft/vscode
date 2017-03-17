@@ -6,8 +6,8 @@
 {
 	"command.branch": "分岐の作成...",
 	"command.checkout": "チェックアウト先...",
-	"command.clean": "ファイルのクリーン",
-	"command.cleanAll": "すべてのファイルのクリーン",
+	"command.clean": "ファイルを破棄",
+	"command.cleanAll": "すべてのファイルを破棄",
 	"command.clone": "複製",
 	"command.commit": "コミット",
 	"command.commitAll": "すべてコミット",

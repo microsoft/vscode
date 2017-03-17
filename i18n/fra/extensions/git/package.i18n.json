@@ -6,8 +6,8 @@
 {
 	"command.branch": "Créer une branche...",
 	"command.checkout": "Extraire vers...",
-	"command.clean": "Nettoyer le fichier",
-	"command.cleanAll": "Nettoyer tous les fichiers",
+	"command.clean": "Abandonner le fichier",
+	"command.cleanAll": "Abandonner tous les fichiers",
 	"command.clone": "Cloner",
 	"command.commit": "Valider",
 	"command.commitAll": "Valider tout",

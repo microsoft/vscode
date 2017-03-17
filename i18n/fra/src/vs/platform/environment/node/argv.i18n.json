@@ -19,6 +19,7 @@
 	"optionsUpperCase": "Options",
 	"paths": "chemins",
 	"performance": "Démarrez avec la commande 'Développeur : performance de démarrage' activée.",
+	"prof-startup": "Exécuter le profileur d'UC au démarrage",
 	"reuseWindow": "Forcez l'ouverture d'un fichier ou dossier dans la dernière fenêtre active.",
 	"showVersions": "Affichez les versions des extensions installées, quand --list-extension est utilisé.",
 	"uninstallExtension": "Désinstalle une extension.",

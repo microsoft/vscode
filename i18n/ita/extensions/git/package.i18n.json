@@ -6,8 +6,8 @@
 {
 	"command.branch": "Crea ramo...",
 	"command.checkout": "Estrai in...",
-	"command.clean": "Pulisci file",
-	"command.cleanAll": "Pulisci tutti i file",
+	"command.clean": "Rimuovi file",
+	"command.cleanAll": "Rimuovi tutti i file",
 	"command.clone": "Clona",
 	"command.commit": "Commit",
 	"command.commitAll": "Esegui commit di tutto",

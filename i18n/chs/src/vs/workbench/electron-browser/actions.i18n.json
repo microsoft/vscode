@@ -10,7 +10,6 @@
 	"closeMessages": "关闭通知消息",
 	"closeWindow": "关闭窗口",
 	"current": "当前窗口",
-	"diffLeftRightLabel": "{0} ⟷ {1}",
 	"files": "文件",
 	"folders": "文件夹",
 	"keybindingsReference": "键盘快捷方式引用",
@@ -29,6 +28,7 @@
 	"toggleDevTools": "切换开发人员工具",
 	"toggleFullScreen": "切换全屏",
 	"toggleMenuBar": "切换菜单栏",
+	"toggleSharedProcess": "切换共享进程",
 	"zoomIn": "放大",
 	"zoomOut": "缩小",
 	"zoomReset": "重置缩放"

@@ -7,6 +7,6 @@
 	"copyDefaultValue": "Copia nelle impostazioni",
 	"editTtile": "Modifica",
 	"replaceDefaultValue": "Sostituisci nelle impostazioni",
-	"unsupportedPHPExecutablePathSetting": "Questa deve essere un'impostazione utente. Per configurare PHP per l'area di lavoro, aprire un file PHP e fare clic su 'Percorso' nella barra di stato.",
+	"unsupportedPHPExecutablePathSetting": "Questa deve essere un'impostazione utente. Per configurare PHP per l'area di lavoro, aprire un file PHP e fare clic su 'Percorso PHP' nella barra di stato.",
 	"unsupportedWorkspaceSetting": "Questa deve essere un'impostazione utente."
 }

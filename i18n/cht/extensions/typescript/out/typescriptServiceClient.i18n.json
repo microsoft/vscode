@@ -8,6 +8,7 @@
 	"channelName": "TypeScript",
 	"later": "稍後",
 	"learnMore": "深入了解",
+	"noBundledServerFound": "其他應用程式已刪除了 VSCode 的 tsserver，例如行為不當的病毒偵測工具。請重新安裝 VS Code。",
 	"noServerFound": "路徑 {0} 未指向有效的 tsserver 安裝。即將回復為配套的 TypeScript 版本。",
 	"reloadBlurb": "重新載入視窗以套用變更",
 	"reloadTitle": "重新載入",

@@ -6,8 +6,8 @@
 {
 	"command.branch": "建立分支...",
 	"command.checkout": "簽出至...",
-	"command.clean": "清除檔案",
-	"command.cleanAll": "清除所有檔案",
+	"command.clean": "捨棄檔案",
+	"command.cleanAll": "捨棄所有檔案",
 	"command.clone": "複製",
 	"command.commit": "認可",
 	"command.commitAll": "全部認可",

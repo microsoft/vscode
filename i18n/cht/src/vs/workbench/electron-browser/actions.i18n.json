@@ -10,7 +10,6 @@
 	"closeMessages": "關閉通知訊息",
 	"closeWindow": "關閉視窗",
 	"current": "目前視窗",
-	"diffLeftRightLabel": "{0} ⟷ {1}",
 	"files": "檔案",
 	"folders": "資料夾",
 	"keybindingsReference": "鍵盤快速鍵參考",
@@ -29,6 +28,7 @@
 	"toggleDevTools": "切換開發人員工具",
 	"toggleFullScreen": "切換全螢幕",
 	"toggleMenuBar": "切換功能表列",
+	"toggleSharedProcess": "切換共用處理序",
 	"zoomIn": "放大",
 	"zoomOut": "縮小",
 	"zoomReset": "重設縮放"
