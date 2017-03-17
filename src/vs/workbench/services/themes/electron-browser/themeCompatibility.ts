@@ -26,16 +26,20 @@ export function convertSettings(oldSettings: ITokenColorizationRule[], resultRul
 		resultRules.push(rule);
 		if (!rule.scope) {
 			let settings = rule.settings;
-			for (let key in settings) {
-				let mappings = settingToColorIdMapping[key];
-				if (mappings) {
-					let color = Color.fromHex(settings[key]);
-					for (let colorId of mappings) {
-						resultColors[colorId] = color;
+			if (!settings) {
+				rule.settings = {};
+			} else {
+				for (let key in settings) {
+					let mappings = settingToColorIdMapping[key];
+					if (mappings) {
+						let color = Color.fromHex(settings[key]);
+						for (let colorId of mappings) {
+							resultColors[colorId] = color;
+						}
 					}
-				}
-				if (key !== 'foreground' && key !== 'background') {
-					delete settings[key];
+					if (key !== 'foreground' && key !== 'background') {
+						delete settings[key];
+					}
 				}
 			}
 		}
