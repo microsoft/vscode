@@ -129,14 +129,14 @@ suite('AbstractKeybindingService', () => {
 	});
 
 	function kbItem(keybinding: number, command: string, when: ContextKeyExpr = null): NormalizedKeybindingItem {
-		return NormalizedKeybindingItem.fromKeybindingItem({
-			keybinding: keybinding,
-			command: command,
-			commandArgs: null,
-			when: when,
-			weight1: 0,
-			weight2: 0
-		}, true);
+		const resolvedKeybinding = (keybinding !== 0 ? new USLayoutResolvedKeybinding(createKeybinding(keybinding), OS) : null);
+		return new NormalizedKeybindingItem(
+			resolvedKeybinding,
+			command,
+			null,
+			when,
+			true
+		);
 	}
 
 	function toUsLabel(keybinding: number): string {

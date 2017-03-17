@@ -7,8 +7,8 @@
 import * as nls from 'vs/nls';
 import { IHTMLContentElement } from 'vs/base/common/htmlContent';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { ResolvedKeybinding, Keybinding } from 'vs/base/common/keyCodes';
-import { PrintableKeypress, UILabelProvider, AriaLabelProvider } from 'vs/platform/keybinding/common/keybindingLabels';
+import { ResolvedKeybinding, Keybinding, createKeybinding, KeyCode, USER_SETTINGS } from 'vs/base/common/keyCodes';
+import { PrintableKeypress, UILabelProvider, AriaLabelProvider, UserSettingsLabelProvider } from 'vs/platform/keybinding/common/keybindingLabels';
 import { OS, OperatingSystem } from 'vs/base/common/platform';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { ExtensionMessageCollector, ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
@@ -169,8 +169,15 @@ export class FancyResolvedKeybinding extends ResolvedKeybinding {
 		return usResolvedKeybinding.getElectronAccelerator();
 	}
 
+	private static _usKeyCodeToUserSettings(keyCode: KeyCode, OS: OperatingSystem): string {
+		return USER_SETTINGS.fromKeyCode(keyCode);
+	}
+
 	public getUserSettingsLabel(): string {
-		return KeybindingIO.writeKeybinding(this._actual, OS);
+		const [firstPart, chordPart] = PrintableKeypress.fromKeybinding(this._actual, FancyResolvedKeybinding._usKeyCodeToUserSettings, OS);
+
+		let result = UserSettingsLabelProvider.toLabel2(firstPart, chordPart, OS);
+		return result.toLowerCase();
 	}
 
 	public isChord(): boolean {
@@ -211,6 +218,22 @@ export class FancyResolvedKeybinding extends ResolvedKeybinding {
 		} else {
 			return this._actual.hasWinCtrl();
 		}
+	}
+
+	public getDispatchParts(): [string, string] {
+		let keypressFirstPart: string;
+		let keypressChordPart: string;
+		if (this._actual === null) {
+			keypressFirstPart = null;
+			keypressChordPart = null;
+		} else if (this._actual.isChord()) {
+			keypressFirstPart = this._actual.extractFirstPart().value.toString();
+			keypressChordPart = this._actual.extractChordPart().value.toString();
+		} else {
+			keypressFirstPart = this._actual.value.toString();
+			keypressChordPart = null;
+		}
+		return [keypressFirstPart, keypressChordPart];
 	}
 }
 
@@ -290,12 +313,26 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
 	protected _getResolver(): KeybindingResolver {
 		if (!this._cachedResolver) {
-			const defaults = KeybindingsRegistry.getDefaultKeybindings().map(k => NormalizedKeybindingItem.fromKeybindingItem(k, true));
-			const overrides = this._getExtraKeybindings(this._firstTimeComputingResolver).map(k => NormalizedKeybindingItem.fromKeybindingItem(k, false));
+			const defaults = this._toNormalizedKeybindingItems(KeybindingsRegistry.getDefaultKeybindings(), true);
+			const overrides = this._toNormalizedKeybindingItems(this._getExtraKeybindings(this._firstTimeComputingResolver), false);
 			this._cachedResolver = new KeybindingResolver(defaults, overrides);
 			this._firstTimeComputingResolver = false;
 		}
 		return this._cachedResolver;
+	}
+
+	private _toNormalizedKeybindingItems(items: IKeybindingItem[], isDefault: boolean): NormalizedKeybindingItem[] {
+		let result: NormalizedKeybindingItem[] = [], resultLen = 0;
+		for (let i = 0, len = items.length; i < len; i++) {
+			const item = items[i];
+			const when = (item.when ? item.when.normalize() : null);
+			const keybinding = (item.keybinding !== 0 ? createKeybinding(item.keybinding) : null);
+			const resolvedKeybinding = (keybinding !== null ? this._createResolvedKeybinding(keybinding) : null);
+
+			result[resultLen++] = new NormalizedKeybindingItem(resolvedKeybinding, item.command, item.commandArgs, when, isDefault);
+		}
+
+		return result;
 	}
 
 	private _getExtraKeybindings(isFirstTime: boolean): IKeybindingItem[] {

@@ -137,6 +137,10 @@ export class NativeResolvedKeybinding extends ResolvedKeybinding {
 	public hasMetaModifier(): boolean {
 		throw new Error('TODO!');
 	}
+
+	public getDispatchParts(): [string, string] {
+		throw new Error('TODO!');
+	}
 }
 
 interface IHardwareCodeMapping {

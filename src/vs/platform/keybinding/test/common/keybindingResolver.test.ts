@@ -9,18 +9,20 @@ import { createKeybinding, SimpleKeybinding, KeyCode, KeyMod, KeyChord } from 'v
 import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
 import { ContextKeyAndExpr, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { NormalizedKeybindingItem } from 'vs/platform/keybinding/common/normalizedKeybindingItem';
+import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/abstractKeybindingService';
+import { OS } from 'vs/base/common/platform';
 
 suite('KeybindingResolver', () => {
 
 	function kbItem(keybinding: number, command: string, commandArgs: any, when: ContextKeyExpr, isDefault: boolean): NormalizedKeybindingItem {
-		return NormalizedKeybindingItem.fromKeybindingItem({
-			keybinding: keybinding,
-			command: command,
-			commandArgs: commandArgs,
-			when: when,
-			weight1: 0,
-			weight2: 0
-		}, isDefault);
+		const resolvedKeybinding = (keybinding !== 0 ? new USLayoutResolvedKeybinding(createKeybinding(keybinding), OS) : null);
+		return new NormalizedKeybindingItem(
+			resolvedKeybinding,
+			command,
+			commandArgs,
+			when,
+			isDefault
+		);
 	}
 
 	test('resolve key', function () {
@@ -319,7 +321,9 @@ suite('KeybindingResolver', () => {
 			let lookupResult = resolver.lookupKeybindings(commandId);
 			assert.equal(lookupResult.length, expectedKeys.length, 'Length mismatch @ commandId ' + commandId + '; GOT: ' + JSON.stringify(lookupResult, null, '\t'));
 			for (let i = 0, len = lookupResult.length; i < len; i++) {
-				assert.equal(lookupResult[i].keybinding.value, expectedKeys[i], 'value mismatch @ commandId ' + commandId);
+				const expected = new USLayoutResolvedKeybinding(createKeybinding(expectedKeys[i]), OS);
+
+				assert.equal(lookupResult[i].resolvedKeybinding.getUserSettingsLabel(), expected.getUserSettingsLabel(), 'value mismatch @ commandId ' + commandId);
 			}
 		};
 

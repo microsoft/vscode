@@ -31,7 +31,7 @@ import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRe
 import { MenuId, IMenu, IMenuService } from 'vs/platform/actions/common/actions';
 import { Menu } from 'vs/platform/actions/common/menu';
 import { ITelemetryService, ITelemetryExperiments, ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
-import { ResolvedKeybinding, Keybinding } from 'vs/base/common/keyCodes';
+import { ResolvedKeybinding, Keybinding, createKeybinding } from 'vs/base/common/keyCodes';
 import { NormalizedKeybindingItem } from 'vs/platform/keybinding/common/normalizedKeybindingItem';
 import { OS } from 'vs/base/common/platform';
 
@@ -373,11 +373,25 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 
 	protected _getResolver(): KeybindingResolver {
 		if (!this._cachedResolver) {
-			const defaults = KeybindingsRegistry.getDefaultKeybindings().map(k => NormalizedKeybindingItem.fromKeybindingItem(k, true));
-			const overrides = this._dynamicKeybindings.map(k => NormalizedKeybindingItem.fromKeybindingItem(k, false));
+			const defaults = this._toNormalizedKeybindingItems(KeybindingsRegistry.getDefaultKeybindings(), true);
+			const overrides = this._toNormalizedKeybindingItems(this._dynamicKeybindings, false);
 			this._cachedResolver = new KeybindingResolver(defaults, overrides);
 		}
 		return this._cachedResolver;
+	}
+
+	private _toNormalizedKeybindingItems(items: IKeybindingItem[], isDefault: boolean): NormalizedKeybindingItem[] {
+		let result: NormalizedKeybindingItem[] = [], resultLen = 0;
+		for (let i = 0, len = items.length; i < len; i++) {
+			const item = items[i];
+			const when = (item.when ? item.when.normalize() : null);
+			const keybinding = (item.keybinding !== 0 ? createKeybinding(item.keybinding) : null);
+			const resolvedKeybinding = (keybinding !== null ? this._createResolvedKeybinding(keybinding) : null);
+
+			result[resultLen++] = new NormalizedKeybindingItem(resolvedKeybinding, item.command, item.commandArgs, when, isDefault);
+		}
+
+		return result;
 	}
 
 	protected _createResolvedKeybinding(kb: Keybinding): ResolvedKeybinding {

@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { Keybinding, KeyMod, KeyChord, USER_SETTINGS, KeyCode } from 'vs/base/common/keyCodes';
-import { PrintableKeypress, UserSettingsLabelProvider } from 'vs/platform/keybinding/common/keybindingLabels';
+import { KeyMod, KeyChord, USER_SETTINGS } from 'vs/base/common/keyCodes';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { IKeybindingItem, IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -14,7 +13,7 @@ import { NormalizedKeybindingItem } from 'vs/platform/keybinding/common/normaliz
 export class KeybindingIO {
 
 	public static writeKeybindingItem(out: OutputBuilder, item: NormalizedKeybindingItem, OS: OperatingSystem): void {
-		let quotedSerializedKeybinding = JSON.stringify(KeybindingIO.writeKeybinding(item.keybinding, OS));
+		let quotedSerializedKeybinding = JSON.stringify(item.resolvedKeybinding.getUserSettingsLabel());
 		out.write(`{ "key": ${rightPaddedString(quotedSerializedKeybinding + ',', 25)} "command": `);
 
 		let serializedWhen = item.when ? item.when.serialize() : '';
@@ -79,17 +78,6 @@ export class KeybindingIO {
 			this._cachedKeybindingRegex = '"\\s*(' + keybinding + '(\\s+' + keybinding + ')?' + ')\\s*"';
 		}
 		return this._cachedKeybindingRegex;
-	}
-
-	private static _keyCodeToStr(keyCode: KeyCode, OS: OperatingSystem): string {
-		return USER_SETTINGS.fromKeyCode(keyCode);
-	}
-
-	public static writeKeybinding(keybinding: Keybinding, OS: OperatingSystem): string {
-		const [firstPart, chordPart] = PrintableKeypress.fromKeybinding(keybinding, this._keyCodeToStr, OS);
-
-		let result = UserSettingsLabelProvider.toLabel2(firstPart, chordPart, OS);
-		return result.toLowerCase();
 	}
 
 	public static readKeybinding(input: string, OS: OperatingSystem): number {

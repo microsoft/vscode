@@ -4,15 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { createKeybinding, Keybinding } from 'vs/base/common/keyCodes';
-import { IKeybindingItem } from 'vs/platform/keybinding/common/keybinding';
+import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { CharCode } from 'vs/base/common/charCode';
 
 export class NormalizedKeybindingItem {
 	_normalizedKeybindingItemBrand: void;
 
-	public readonly keybinding: Keybinding;
+	public readonly resolvedKeybinding: ResolvedKeybinding;
 	public readonly keypressFirstPart: string;
 	public readonly keypressChordPart: string;
 	public readonly bubble: boolean;
@@ -21,35 +20,16 @@ export class NormalizedKeybindingItem {
 	public readonly when: ContextKeyExpr;
 	public readonly isDefault: boolean;
 
-	public static fromKeybindingItem(source: IKeybindingItem, isDefault: boolean): NormalizedKeybindingItem {
-		let when: ContextKeyExpr = null;
-		if (source.when) {
-			when = source.when.normalize();
-		}
-		let keybinding: Keybinding = null;
-		if (source.keybinding !== 0) {
-			keybinding = createKeybinding(source.keybinding);
-		}
-
-		let keypressFirstPart: string;
-		let keypressChordPart: string;
-		if (keybinding === null) {
-			keypressFirstPart = null;
-			keypressChordPart = null;
-		} else if (keybinding.isChord()) {
-			keypressFirstPart = keybinding.extractFirstPart().value.toString();
-			keypressChordPart = keybinding.extractChordPart().value.toString();
+	constructor(resolvedKeybinding: ResolvedKeybinding, command: string, commandArgs: any, when: ContextKeyExpr, isDefault: boolean) {
+		this.resolvedKeybinding = resolvedKeybinding;
+		if (resolvedKeybinding) {
+			let [keypressFirstPart, keypressChordPart] = resolvedKeybinding.getDispatchParts();
+			this.keypressFirstPart = keypressFirstPart;
+			this.keypressChordPart = keypressChordPart;
 		} else {
-			keypressFirstPart = keybinding.value.toString();
-			keypressChordPart = null;
+			this.keypressFirstPart = null;
+			this.keypressChordPart = null;
 		}
-		return new NormalizedKeybindingItem(keybinding, keypressFirstPart, keypressChordPart, source.command, source.commandArgs, when, isDefault);
-	}
-
-	constructor(keybinding: Keybinding, keypressFirstPart: string, keypressChordPart: string, command: string, commandArgs: any, when: ContextKeyExpr, isDefault: boolean) {
-		this.keybinding = keybinding;
-		this.keypressFirstPart = keypressFirstPart;
-		this.keypressChordPart = keypressChordPart;
 		this.bubble = (command ? command.charCodeAt(0) === CharCode.Caret : false);
 		this.command = this.bubble ? command.substr(1) : command;
 		this.commandArgs = commandArgs;
