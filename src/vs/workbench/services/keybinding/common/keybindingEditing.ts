@@ -12,7 +12,6 @@ import { IReference, Disposable } from 'vs/base/common/lifecycle';
 import * as json from 'vs/base/common/json';
 import { Edit } from 'vs/base/common/jsonFormatter';
 import { setProperty } from 'vs/base/common/jsonEdit';
-import Event, { Emitter } from 'vs/base/common/event';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
@@ -42,9 +41,6 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 	private queue: Queue<void>;
 
 	private resource: URI = URI.file(this.environmentService.appKeybindingsPath);
-
-	private _onUpdate = this._register(new Emitter<void>());
-	public readonly onUpdate: Event<void> = this._onUpdate.event;
 
 	constructor(
 		@ITextModelResolverService private textModelResolverService: ITextModelResolverService,
@@ -92,7 +88,7 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 	}
 
 	private save(): TPromise<any> {
-		return this.textFileService.save(this.resource).then(() => this._onUpdate.fire());
+		return this.textFileService.save(this.resource);
 	}
 
 	private updateUserKeybinding(newKey: string, keybindingItem: IKeybindingItem2, model: editorCommon.IModel): void {
