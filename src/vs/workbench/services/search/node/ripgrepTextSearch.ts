@@ -48,7 +48,7 @@ export class RipgrepEngine implements ISearchEngine<ISerializedFileMatch> {
 		const rgArgs = getRgArgs(this.config);
 		this.postProcessExclusions = rgArgs.siblingClauses;
 
-		// console.log(`rg ${rgArgs.join(' ')}, cwd: ${rootFolder}`);
+		// console.log(`rg ${rgArgs.args.join(' ')}, cwd: ${rootFolder}`);
 		this.rgProc = cp.spawn(rgPath, rgArgs.args, { cwd: rootFolder });
 
 		this.ripgrepParser = new RipgrepParser(this.config.maxResults, rootFolder);
@@ -317,6 +317,14 @@ function getRgArgs(config: IRawSearch): { args: string[], siblingClauses: glob.S
 		args.push('--max-filesize', config.maxFilesize + '');
 	}
 
+	if (!config.useIgnoreFiles) {
+		// Don't use .gitignore or .ignore
+		args.push('--no-ignore');
+	}
+
+	// Follow symlinks
+	args.push('--follow');
+
 	if (config.contentPattern.isRegExp) {
 		if (config.contentPattern.isWordMatch) {
 			args.push('--word-regexp');
@@ -329,11 +337,6 @@ function getRgArgs(config: IRawSearch): { args: string[], siblingClauses: glob.S
 		} else {
 			args.push('--fixed-strings', config.contentPattern.pattern);
 		}
-	}
-
-	if (!config.useIgnoreFiles) {
-		// Don't use .gitignore or .ignore
-		args.push('--no-ignore');
 	}
 
 	// Folder to search
