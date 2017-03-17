@@ -600,7 +600,7 @@ export function getResource(sourceFile: string): Resource {
 
 
 function importBundleJson(file: File, json: BundledFormat, stream: ThroughStream): void {
-	let transifexEditorXlfs: Map<XLF> = Object.create(null);
+	let bundleXlfs: Map<XLF> = Object.create(null);
 
 	for (let source in json.keys) {
 		const projectResource = getResource(source);
@@ -613,13 +613,13 @@ function importBundleJson(file: File, json: BundledFormat, stream: ThroughStream
 			log('Error:', `There is a mismatch between keys and messages in ${file.relative}`);
 		}
 
-		let xlf = transifexEditorXlfs[resource] ? transifexEditorXlfs[resource] : transifexEditorXlfs[resource] = new XLF(project);
+		let xlf = bundleXlfs[resource] ? bundleXlfs[resource] : bundleXlfs[resource] = new XLF(project);
 		xlf.addFile(source, keys, messages);
 	}
 
-	for (let resource in transifexEditorXlfs) {
-		const newFilePath = `${transifexEditorXlfs[resource].project}/${resource.replace(/\//g, '_')}.xlf`;
-		const xlfFile = new File({ path: newFilePath, contents: new Buffer(transifexEditorXlfs[resource].toString(), 'utf-8')});
+	for (let resource in bundleXlfs) {
+		const newFilePath = `${bundleXlfs[resource].project}/${resource.replace(/\//g, '_')}.xlf`;
+		const xlfFile = new File({ path: newFilePath, contents: new Buffer(bundleXlfs[resource].toString(), 'utf-8')});
 		stream.emit('data', xlfFile);
 	}
 }
@@ -720,6 +720,9 @@ function importIsl(file: File, stream: ThroughStream) {
 }
 
 export function pushXlfFiles(apiUrl: string, username: string, password: string): ThroughStream {
+	let tryGetPromises = [];
+	let updateCreatePromises = [];
+
 	return through(function(file: File) {
 		const project = path.dirname(file.relative);
 		const fileName = path.basename(file.path);
@@ -730,12 +733,23 @@ export function pushXlfFiles(apiUrl: string, username: string, password: string)
 		};
 
 		// Check if resource already exists, if not, then create it.
-		tryGetResource(project, slug, apiUrl, credentials).then(exists => {
+		let promise = tryGetResource(project, slug, apiUrl, credentials);
+		tryGetPromises.push(promise);
+		promise.then(exists => {
 			if (exists) {
-				updateResource(project, slug, file, apiUrl, credentials);
+				promise = updateResource(project, slug, file, apiUrl, credentials);
 			} else {
-				createResource(project, slug, file, apiUrl, credentials);
+				promise = createResource(project, slug, file, apiUrl, credentials);
 			}
+			updateCreatePromises.push(promise);
+		});
+
+	}, function() {
+		// End the pipe only after all the communication with Transifex API happened
+		Promise.all(tryGetPromises).then(() => {
+			Promise.all(updateCreatePromises).then(() => {
+				this.emit('end');
+			});
 		});
 	});
 }
@@ -755,29 +769,32 @@ function tryGetResource(project: string, slug: string, apiUrl: string, credentia
 	});
 }
 
-function createResource(project: string, slug: string, xlfFile: File, apiUrl:string, credentials: any): void {
-	const url = `${apiUrl}/project/${project}/resources`;
-	const options = {
-		'body': {
-			'content': xlfFile.contents.toString(),
-			'name': slug,
-			'slug': slug,
-			'i18n_type': 'XLIFF'
-		},
-		'json': true,
-		'auth': credentials
-	};
+function createResource(project: string, slug: string, xlfFile: File, apiUrl:string, credentials: any): Promise<any> {
+	return new Promise((resolve) => {
+		const url = `${apiUrl}/project/${project}/resources`;
+		const options = {
+			'body': {
+				'content': xlfFile.contents.toString(),
+				'name': slug,
+				'slug': slug,
+				'i18n_type': 'XLIFF'
+			},
+			'json': true,
+			'auth': credentials
+		};
 
-	request.post(url, options, function(err, res) {
-		if (err) {
-			log('Error:', `Failed to create Transifex ${project}/${slug}: ${err}`);
-		}
+		request.post(url, options, function(err, res) {
+			if (err) {
+				log('Error:', `Failed to create Transifex ${project}/${slug}: ${err}`);
+			}
 
-		if (res.statusCode === 201) {
-			log(`Resource ${project}/${slug} successfully created on Transifex.`);
-		} else {
-			log('Error:', `Something went wrong creating ${slug} in ${project}. ${res.statusCode}`);
-		}
+			if (res.statusCode === 201) {
+				log(`Resource ${project}/${slug} successfully created on Transifex.`);
+				resolve();
+			} else {
+				log('Error:', `Something went wrong creating ${slug} in ${project}. ${res.statusCode}`);
+			}
+		});
 	});
 }
 
@@ -785,24 +802,27 @@ function createResource(project: string, slug: string, xlfFile: File, apiUrl:str
  * The following link provides information about how Transifex handles updates of a resource file:
  * https://dev.befoolish.co/tx-docs/public/projects/updating-content#what-happens-when-you-update-files
  */
-function updateResource(project: string, slug: string, xlfFile: File, apiUrl: string, credentials: any) : void {
-	const url = `${apiUrl}/project/${project}/resource/${slug}/content`;
-	const options = {
-		'body': { 'content': xlfFile.contents.toString() },
-		'json': true,
-		'auth': credentials
-	};
+function updateResource(project: string, slug: string, xlfFile: File, apiUrl: string, credentials: any) : Promise<any> {
+	return new Promise((resolve) => {
+		const url = `${apiUrl}/project/${project}/resource/${slug}/content`;
+		const options = {
+			'body': { 'content': xlfFile.contents.toString() },
+			'json': true,
+			'auth': credentials
+		};
 
-	request.put(url, options, function(err, res, body) {
-		if (err) {
-			log('Error:', `Failed to update Transifex ${project}/${slug}: ${err}`);
-		}
+		request.put(url, options, function(err, res, body) {
+			if (err) {
+				log('Error:', `Failed to update Transifex ${project}/${slug}: ${err}`);
+			}
 
-		if (res.statusCode === 200) {
-			log(`Resource ${project}/${slug} successfully updated on Transifex. Strings added: ${body['strings_added']}, updated: ${body['strings_updated']}, deleted: ${body['strings_delete']}`);
-		} else {
-			log('Error:', `Something went wrong updating ${slug} in ${project}. ${res.statusCode}`);
-		}
+			if (res.statusCode === 200) {
+				log(`Resource ${project}/${slug} successfully updated on Transifex. Strings added: ${body['strings_added']}, updated: ${body['strings_updated']}, deleted: ${body['strings_delete']}`);
+				resolve();
+			} else {
+				log('Error:', `Something went wrong updating ${slug} in ${project}. ${res.statusCode}`);
+			}
+		});
 	});
 }
 
