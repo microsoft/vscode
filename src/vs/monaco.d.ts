@@ -362,17 +362,6 @@ declare module monaco {
         static readonly WinCtrl: number;
         static chord(firstPart: number, secondPart: number): number;
     }
-
-    export class SimpleKeybinding {
-        readonly value: number;
-        constructor(keybinding: number);
-        hasCtrlCmd(): boolean;
-        hasShift(): boolean;
-        hasAlt(): boolean;
-        hasWinCtrl(): boolean;
-        isModifierKey(): boolean;
-        getKeyCode(): KeyCode;
-    }
     /**
      * MarkedString can be used to render human readable text. It is either a markdown string
      * or a code-block that provides a language and a code snippet. Note that
@@ -391,7 +380,6 @@ declare module monaco {
         readonly altKey: boolean;
         readonly metaKey: boolean;
         readonly keyCode: KeyCode;
-        toKeybinding(): SimpleKeybinding;
         equals(keybinding: number): boolean;
         preventDefault(): void;
         stopPropagation(): void;

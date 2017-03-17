@@ -46,19 +46,19 @@ class KeybindingInputWidget extends Widget {
 	private onKeyDown(keyboardEvent: IKeyboardEvent): void {
 		keyboardEvent.preventDefault();
 		keyboardEvent.stopPropagation();
-		switch (keyboardEvent.toKeybinding().value) {
-			case KeyCode.Enter:
-				this._onEnter.fire();
-				return;
-			case KeyCode.Escape:
-				this._onEscape.fire();
-				return;
+		if (keyboardEvent.equals(KeyCode.Enter)) {
+			this._onEnter.fire();
+			return;
+		}
+		if (keyboardEvent.equals(KeyCode.Escape)) {
+			this._onEscape.fire();
+			return;
 		}
 		this.printKeybinding(keyboardEvent);
 	}
 
 	private printKeybinding(keyboardEvent: IKeyboardEvent): void {
-		const keybinding = this.keybindingService.resolveKeybinding(keyboardEvent.toKeybinding());
+		const keybinding = this.keybindingService.resolveKeybinding(keyboardEvent.toRuntimeKeybinding());
 		this.inputBox.value = keybinding.getUserSettingsLabel().toLowerCase();
 		this.inputBox.inputElement.title = 'keyCode: ' + keyboardEvent.browserEvent.keyCode;
 		this._onKeybinding.fire(keybinding);

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { ResolvedKeybinding, SimpleKeybinding, Keybinding, RuntimeKeybinding } from 'vs/base/common/keyCodes';
+import { ResolvedKeybinding, RuntimeKeybinding, SimpleRuntimeKeybinding } from 'vs/base/common/keyCodes';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ContextKeyExpr, IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
 import { IResolveResult } from 'vs/platform/keybinding/common/keybindingResolver';
@@ -67,7 +67,7 @@ export interface IKeybindingService {
 
 	onDidUpdateKeybindings: Event<IKeybindingEvent>;
 
-	resolveKeybinding(keybinding: Keybinding): ResolvedKeybinding;
+	resolveKeybinding(keybinding: RuntimeKeybinding): ResolvedKeybinding;
 
 	getDefaultKeybindings(): string;
 
@@ -87,6 +87,6 @@ export interface IKeybindingService {
 
 	customKeybindingsCount(): number;
 
-	resolve(keybinding: SimpleKeybinding, target: IContextKeyServiceTarget): IResolveResult;
+	resolve(keybinding: SimpleRuntimeKeybinding, target: IContextKeyServiceTarget): IResolveResult;
 }
 
