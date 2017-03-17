@@ -67,33 +67,17 @@ function _matchesPrefix(ignoreCase: boolean, word: string, wordToMatchAgainst: s
 		return null;
 	}
 
-	for (let i = 0; i < word.length; i++) {
+	let matches: boolean;
+	if (ignoreCase) {
+		matches = strings.beginsWithIgnoreCase(wordToMatchAgainst, word);
+	} else {
+		matches = wordToMatchAgainst.indexOf(word) === 0;
+	}
 
-		const wordChar = word.charCodeAt(i);
-		const wordToMatchAgainstChar = wordToMatchAgainst.charCodeAt(i);
-
-
-		if (wordChar === wordToMatchAgainstChar) {
-			// equal
-			continue;
-		}
-
-		if (ignoreCase) {
-			if (isAlphanumeric(wordChar) && isAlphanumeric(wordToMatchAgainstChar)) {
-				const diff = wordChar - wordToMatchAgainstChar;
-				if (diff === 32 || diff === -32) {
-					// ascii -> equalIgnoreCase
-					continue;
-				}
-
-			} else if (word[i].toLowerCase() === wordToMatchAgainst[i].toLowerCase()) {
-				// nonAscii -> equalIgnoreCase
-				continue;
-			}
-		}
-
+	if (!matches) {
 		return null;
 	}
+
 	return word.length > 0 ? [{ start: 0, end: word.length }] : [];
 }
 
