@@ -1302,7 +1302,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		}
 
 		// Respect option to reveal an editor if it is open (not necessarily visible)
-		const skipRevealIfOpen = (options && options.index) || arg1;
+		const skipRevealIfOpen = (options && options.index) || arg1 === true /* open to side */ || typeof arg1 === 'number' /* open specific group */;
 		if (!skipRevealIfOpen && this.revealIfOpen) {
 			const group = this.stacks.findGroup(input);
 			if (group) {
