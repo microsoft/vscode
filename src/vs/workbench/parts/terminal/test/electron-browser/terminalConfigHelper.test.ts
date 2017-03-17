@@ -117,27 +117,6 @@ suite('Workbench - TerminalConfigHelper', () => {
 		assert.equal(configHelper.getFont().fontSize, `${DefaultConfig.editor.fontSize}px`, 'The default editor font size should be used when editor.fontSize is < 0 and terminal.integrated.fontSize not set');
 	});
 
-	test('TerminalConfigHelper - getFont fontWeight', function () {
-		let configurationService: IConfigurationService;
-		let configHelper: TerminalConfigHelper;
-
-		configurationService = new MockConfigurationService({
-			editor: {
-				fontFamily: 'foo',
-				fontWeight: 'normal'
-			},
-			terminal: {
-				integrated: {
-					fontFamily: 'bar',
-					fontWeight: 'bold'
-				}
-			}
-		});
-		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService);
-		configHelper.panelContainer = fixture;
-		assert.equal(configHelper.getFont().fontWeight, 'bold', 'terminal.integrated.fontWeight should be selected over editor.fontWeight');
-	});
-
 	test('TerminalConfigHelper - getFont lineHeight', function () {
 		let configurationService: IConfigurationService;
 		let configHelper: TerminalConfigHelper;
