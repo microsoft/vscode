@@ -181,7 +181,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 	_serviceBrand: any;
 
 	private knownColorThemes: ColorThemeData[];
-	private currentColorTheme: IColorTheme;
+	private currentColorTheme: ColorThemeData;
 	private container: HTMLElement;
 	private onColorThemeChange: Emitter<IColorTheme>;
 
@@ -392,6 +392,11 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		return this.findThemeData(themeId, DEFAULT_THEME_ID).then(themeData => {
 			if (themeData) {
 				return themeData.ensureLoaded().then(_ => {
+					if (themeId === this.currentColorTheme.id && !this.currentColorTheme.isLoaded && this.currentColorTheme.hasEqualData(themeData)) {
+						// the loaded theme is identical to the perisisted theme. Don't need to send an event.
+						this.currentColorTheme = themeData;
+						return TPromise.as(themeData);
+					}
 					this.updateDynamicCSSRules(themeData);
 					return this.applyTheme(themeData, settingsTarget);
 				}, error => {
@@ -427,11 +432,11 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		this.currentColorTheme = newTheme;
 		this.themingParticipantChangeListener = themingRegistry.onThemingParticipantAdded(p => this.updateDynamicCSSRules(this.currentColorTheme));
 
+		this.sendTelemetry(newTheme.id, newTheme.extensionData, 'color');
+
 		if (silent) {
 			return TPromise.as(null);
 		}
-
-		this.sendTelemetry(newTheme.id, newTheme.extensionData, 'color');
 
 		this.onColorThemeChange.fire(this.currentColorTheme);
 

@@ -12,6 +12,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { getBaseThemeId, getSyntaxThemeId, isDarkTheme, isLightTheme } from 'vs/platform/theme/common/themes';
 import nls = require('vs/nls');
 import * as types from 'vs/base/common/types';
+import * as objects from 'vs/base/common/objects';
 
 import * as plist from 'fast-plist';
 import pfs = require('vs/base/node/pfs');
@@ -99,10 +100,13 @@ export class ColorThemeData implements IColorTheme {
 			settingsId: this.settingsId,
 			selector: this.selector,
 			tokenColors: this.tokenColors,
-			isLoaded: true,
 			extensionData: this.extensionData,
 			colorMap: colorMapData
 		});
+	}
+
+	hasEqualData(other: ColorThemeData) {
+		return objects.equals(this.colorMap, other.colorMap) && objects.equals(this.tokenColors, other.tokenColors);
 	}
 
 	get type(): ThemeType {
