@@ -89,6 +89,7 @@ export interface IKeybindingsEditor extends IEditor {
 	search(filter: string): void;
 	defineKeybinding(keybindingEntry: IKeybindingItemEntry): TPromise<any>;
 	removeKeybinding(keybindingEntry: IKeybindingItemEntry): TPromise<any>;
+	copyKeybinding(keybindingEntry: IKeybindingItemEntry): TPromise<any>;
 }
 
 export const CONTEXT_SETTINGS_EDITOR = new RawContextKey<boolean>('inSettingsEditor', false);
@@ -99,3 +100,4 @@ export const SETTINGS_EDITOR_COMMAND_SEARCH = 'settings.action.search';
 export const KEYBINDINGS_EDITOR_COMMAND_SEARCH = 'keybindings.editor.searchKeybindings';
 export const KEYBINDINGS_EDITOR_COMMAND_DEFINE = 'keybindings.editor.defineKeybinding';
 export const KEYBINDINGS_EDITOR_COMMAND_REMOVE = 'keybindings.editor.removeKeybinding';
+export const KEYBINDINGS_EDITOR_COMMAND_COPY = 'keybindings.editor.copyKeybindingEntry';

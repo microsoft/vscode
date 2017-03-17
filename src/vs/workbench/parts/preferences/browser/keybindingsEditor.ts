@@ -11,16 +11,17 @@ import * as DOM from 'vs/base/browser/dom';
 import { Builder, Dimension } from 'vs/base/browser/builder';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { IAction } from 'vs/base/common/actions';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionBar, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorInput } from 'vs/workbench/common/editor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { KeybindingsEditorModel, IKeybindingItemEntry, IListEntry, KEYBINDING_ENTRY_TEMPLATE_ID, KEYBINDING_HEADER_TEMPLATE_ID } from 'vs/workbench/parts/preferences/common/keybindingsEditorModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService, KeybindingSource } from 'vs/platform/keybinding/common/keybinding';
+import { IKeybindingService, KeybindingSource, IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
 import { SearchWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { DefineKeybindingWidget } from 'vs/workbench/parts/preferences/browser/keybindingWidgets';
-import { IPreferencesService, IKeybindingsEditor, CONTEXT_KEYBINDING_FOCUS, CONTEXT_KEYBINDINGS_EDITOR, KEYBINDINGS_EDITOR_COMMAND_REMOVE } from 'vs/workbench/parts/preferences/common/preferences';
+import { IPreferencesService, IKeybindingsEditor, CONTEXT_KEYBINDING_FOCUS, CONTEXT_KEYBINDINGS_EDITOR, KEYBINDINGS_EDITOR_COMMAND_REMOVE, KEYBINDINGS_EDITOR_COMMAND_COPY } from 'vs/workbench/parts/preferences/common/preferences';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { renderHtml } from 'vs/base/browser/htmlContentRenderer';
 import { IKeybindingEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
@@ -89,6 +90,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		@IListService private listService: IListService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IChoiceService private choiceService: IChoiceService,
+		@IClipboardService private clipboardService: IClipboardService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super(KeybindingsEditor.ID, telemetryService, themeService);
@@ -187,6 +189,18 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 				})
 				.then(() => this.focus());
 		}
+		return TPromise.as(null);
+	}
+
+	copyKeybinding(keybinding: IKeybindingItemEntry): TPromise<any> {
+		const userFriendlyKeybinding: IUserFriendlyKeybinding = {
+			command: keybinding.keybindingItem.command,
+			key: keybinding.keybindingItem.keybinding ? keybinding.keybindingItem.keybinding.getUserSettingsLabel() : ''
+		};
+		if (keybinding.keybindingItem.when) {
+			userFriendlyKeybinding.when = keybinding.keybindingItem.when.serialize();
+		}
+		this.clipboardService.writeText(JSON.stringify(userFriendlyKeybinding, null, '  '));
 		return TPromise.as(null);
 	}
 
@@ -290,7 +304,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		if (e.element.templateId === KEYBINDING_ENTRY_TEMPLATE_ID) {
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => e.anchor,
-				getActions: () => TPromise.as([this.createRemoveAction(<IKeybindingItemEntry>e.element)]),
+				getActions: () => TPromise.as([this.createCopyAction(<IKeybindingItemEntry>e.element), new Separator(), this.createRemoveAction(<IKeybindingItemEntry>e.element)]),
 				getKeyBinding: (action) => this.keybindingsService.lookupKeybinding(action.id)
 			});
 		}
@@ -317,6 +331,15 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 			enabled: !!keybindingItem.keybindingItem.keybinding,
 			id: KEYBINDINGS_EDITOR_COMMAND_REMOVE,
 			run: () => this.removeKeybinding(keybindingItem)
+		};
+	}
+
+	private createCopyAction(keybindingItem: IKeybindingItemEntry): IAction {
+		return <IAction>{
+			label: localize('copyLabel', "Copy"),
+			enabled: true,
+			id: KEYBINDINGS_EDITOR_COMMAND_COPY,
+			run: () => this.copyKeybinding(keybindingItem)
 		};
 	}
 }
