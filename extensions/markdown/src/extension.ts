@@ -232,11 +232,16 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	}));
 
-	return {
-		addPlugin(factory: (md: any) => any) {
-			engine.addPlugin(factory);
-		}
-	};
+	if (vscode.workspace.getConfiguration('markdown').get('enableExperimentalExtensionApi', false)) {
+		vscode.commands.executeCommand('_markdown.onActivateExtensions')
+			.then(() => void 0, () => void 0);
+
+		return {
+			addPlugin(factory: (md: any) => any) {
+				engine.addPlugin(factory);
+			}
+		};
+	}
 }
 
 
