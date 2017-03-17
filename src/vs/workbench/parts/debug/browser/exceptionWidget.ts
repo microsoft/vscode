@@ -24,6 +24,7 @@ export class ExceptionWidget extends ZoneWidget {
 		this.create();
 		const onDidLayoutChangeScheduler = new RunOnceScheduler(() => this._doLayout(undefined, undefined), 50);
 		this._disposables.add(this.editor.onDidLayoutChange(() => onDidLayoutChangeScheduler.schedule()));
+		this._disposables.add(onDidLayoutChangeScheduler);
 	}
 
 	protected _fillContainer(container: HTMLElement): void {
