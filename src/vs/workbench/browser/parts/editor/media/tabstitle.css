@@ -9,10 +9,6 @@
 	background: inherit !important; /* prevents some ugly flickering when opening first tab */
 }
 
-.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.tabs {
-	border-bottom: 1px solid;
-}
-
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.tabs > .monaco-scrollable-element {
 	flex: 1;
 }
@@ -187,6 +183,7 @@
 /* TODO@theme */
 
 .hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.tabs {
+	border-bottom: 1px solid;
 	border-bottom-color: #6FC3DF;
 }
 

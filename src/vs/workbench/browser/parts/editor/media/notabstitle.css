@@ -21,11 +21,6 @@
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .title-actions {
 	display: flex;
 	flex: initial;
-	opacity: 0.5;
-}
-
-.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.active .title-actions {
-	opacity: 1;
 }
 
 .vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.dirty .title-actions .close-editor-action {
@@ -44,4 +39,18 @@
 .vs-dark .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.dirty .title-actions .close-editor-action:hover,
 .hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.dirty .title-actions .close-editor-action:hover {
 	background: url('close-inverse.svg') center center no-repeat;
+}
+
+/* TODO@theme */
+
+.vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .title-actions,
+.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .title-actions,
+.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .title-actions {
+	opacity: 0.5;
+}
+
+.vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.active .title-actions,
+.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.active .title-actions,
+.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.active .title-actions {
+	opacity: 1;
 }
