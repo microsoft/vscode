@@ -103,6 +103,16 @@ export abstract class AbstractSettingsModel extends EditorModel {
 	}
 
 	private _findMatchesInSetting(searchString: string, setting: ISetting): IRange[] {
+		const result = this._doFindMatchesInSetting(searchString, setting);
+		if (setting.overrides && setting.overrides.length) {
+			for (const subSetting of setting.overrides) {
+				result.push(...this._findMatchesInSetting(searchString, subSetting));
+			}
+		}
+		return result;
+	}
+
+	private _doFindMatchesInSetting(searchString: string, setting: ISetting): IRange[] {
 		const registry: { [qualifiedKey: string]: IJSONSchema } = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
 		const schema: IJSONSchema = registry[setting.key];
 
@@ -404,15 +414,12 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 
 export class DefaultSettingsEditorModel extends AbstractSettingsModel implements ISettingsEditorModel {
 
-	private indent: string;
-
 	private _allSettingsGroups: ISettingsGroup[];
 	private _content: string;
 	private _contentByLines: string[];
 
 	constructor(private _uri: URI, private _mostCommonlyUsedSettingsKeys: string[]) {
 		super();
-		this.indent = '  ';
 	}
 
 	public get uri(): URI {
@@ -523,18 +530,27 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 				settingsGroup = { sections: [{ settings: [] }], id: config.id, title: config.id, titleRange: null, range: null };
 				result.push(settingsGroup);
 			}
-			const configurationSettings: ISetting[] = Object.keys(config.properties).map((key) => {
-				const prop = config.properties[key];
-				const value = prop.default;
-				const description = (prop.description || '').split('\n');
-				return { key, value, description, range: null, keyRange: null, valueRange: null, descriptionRanges: [], overrides: [] };
-			});
+			const configurationSettings: ISetting[] = this.parseSettings(config.properties);
 			settingsGroup.sections[settingsGroup.sections.length - 1].settings.push(...configurationSettings);
 		}
 		if (config.allOf) {
 			config.allOf.forEach(c => this.parseConfig(c, result, configurations, settingsGroup));
 		}
 		return result;
+	}
+
+	private parseSettings(settingsObject: any): ISetting[] {
+		return Object.keys(settingsObject).map((key) => {
+			const prop = settingsObject[key];
+			const value = prop.default;
+			const description = (prop.description || '').split('\n');
+			const overrides = OVERRIDE_PROPERTY_PATTERN.test(key) ? this.parseOverrideSettings(prop.default) : [];
+			return { key, value, description, range: null, keyRange: null, valueRange: null, descriptionRanges: [], overrides };
+		});
+	}
+
+	private parseOverrideSettings(overrideSettings: any): ISetting[] {
+		return Object.keys(overrideSettings).map((key) => ({ key, value: overrideSettings[key], description: [], range: null, keyRange: null, valueRange: null, descriptionRanges: [], overrides: [] }));
 	}
 
 	private compareConfigurationNodes(c1: IConfigurationNode, c2: IConfigurationNode): number {
@@ -577,52 +593,73 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 	}
 
 	private pushGroup(group: ISettingsGroup): ISetting {
+		const indent = '  ';
 		let lastSetting: ISetting = null;
 		this._contentByLines.push('');
 		let groupStart = this._contentByLines.length + 1;
 		for (const section of group.sections) {
 			if (section.title) {
 				let sectionTitleStart = this._contentByLines.length + 1;
-				this.addDescription([section.title], this.indent, this._contentByLines);
+				this.addDescription([section.title], indent, this._contentByLines);
 				section.titleRange = { startLineNumber: sectionTitleStart, startColumn: 1, endLineNumber: this._contentByLines.length, endColumn: this._contentByLines[this._contentByLines.length - 1].length };
 			}
 
 			for (const setting of section.settings) {
-				const settingStart = this._contentByLines.length + 1;
-				setting.descriptionRanges = [];
-				const descriptionPreValue = this.indent + '// ';
-				for (const line of setting.description) {
-					this._contentByLines.push(descriptionPreValue + line);
-					setting.descriptionRanges.push({ startLineNumber: this._contentByLines.length, startColumn: this._contentByLines[this._contentByLines.length - 1].indexOf(line) + 1, endLineNumber: this._contentByLines.length, endColumn: this._contentByLines[this._contentByLines.length - 1].length });
-				}
-
-				let preValueConent = this.indent;
-				const keyString = JSON.stringify(setting.key);
-				preValueConent += keyString;
-				setting.keyRange = { startLineNumber: this._contentByLines.length + 1, startColumn: preValueConent.indexOf(setting.key) + 1, endLineNumber: this._contentByLines.length + 1, endColumn: setting.key.length };
-
-				preValueConent += ': ';
-				const valueStart = this._contentByLines.length + 1;
-				let valueString = JSON.stringify(setting.value, null, this.indent);
-				if (valueString && (typeof setting.value === 'object')) {
-					const mulitLineValue = valueString.split('\n');
-					this._contentByLines.push(preValueConent + mulitLineValue[0]);
-					for (let i = 1; i < mulitLineValue.length; i++) {
-						this._contentByLines.push(this.indent + mulitLineValue[i]);
-					}
-				} else {
-					this._contentByLines.push(preValueConent + valueString);
-				}
-
-				setting.valueRange = { startLineNumber: valueStart, startColumn: preValueConent.length + 1, endLineNumber: this._contentByLines.length, endColumn: this._contentByLines[this._contentByLines.length - 1].length + 1 };
-				this._contentByLines[this._contentByLines.length - 1] += ',';
+				this.pushSetting(setting, indent);
 				lastSetting = setting;
-				this._contentByLines.push('');
-				setting.range = { startLineNumber: settingStart, startColumn: 1, endLineNumber: this._contentByLines.length, endColumn: this._contentByLines[this._contentByLines.length - 1].length };
 			}
 		}
 		group.range = { startLineNumber: groupStart, startColumn: 1, endLineNumber: this._contentByLines.length, endColumn: this._contentByLines[this._contentByLines.length - 1].length };
 		return lastSetting;
+	}
+
+	private pushSetting(setting: ISetting, indent: string): void {
+		const settingStart = this._contentByLines.length + 1;
+		setting.descriptionRanges = [];
+		const descriptionPreValue = indent + '// ';
+		for (const line of setting.description) {
+			this._contentByLines.push(descriptionPreValue + line);
+			setting.descriptionRanges.push({ startLineNumber: this._contentByLines.length, startColumn: this._contentByLines[this._contentByLines.length - 1].indexOf(line) + 1, endLineNumber: this._contentByLines.length, endColumn: this._contentByLines[this._contentByLines.length - 1].length });
+		}
+
+		let preValueConent = indent;
+		const keyString = JSON.stringify(setting.key);
+		preValueConent += keyString;
+		setting.keyRange = { startLineNumber: this._contentByLines.length + 1, startColumn: preValueConent.indexOf(setting.key) + 1, endLineNumber: this._contentByLines.length + 1, endColumn: setting.key.length };
+
+		preValueConent += ': ';
+		const valueStart = this._contentByLines.length + 1;
+		this.pushValue(setting, preValueConent, indent);
+
+		setting.valueRange = { startLineNumber: valueStart, startColumn: preValueConent.length + 1, endLineNumber: this._contentByLines.length, endColumn: this._contentByLines[this._contentByLines.length - 1].length + 1 };
+		this._contentByLines[this._contentByLines.length - 1] += ',';
+		this._contentByLines.push('');
+		setting.range = { startLineNumber: settingStart, startColumn: 1, endLineNumber: this._contentByLines.length, endColumn: this._contentByLines[this._contentByLines.length - 1].length };
+	}
+
+	private pushValue(setting: ISetting, preValueConent: string, indent: string): void {
+		let valueString = JSON.stringify(setting.value, null, indent);
+		if (valueString && (typeof setting.value === 'object')) {
+			if (setting.overrides.length) {
+				this._contentByLines.push(preValueConent + ' {');
+				for (const subSetting of setting.overrides) {
+					this.pushSetting(subSetting, indent + indent);
+					this._contentByLines.pop();
+				}
+				const lastSetting = setting.overrides[setting.overrides.length - 1];
+				const content = this._contentByLines[lastSetting.range.endLineNumber - 2];
+				this._contentByLines[lastSetting.range.endLineNumber - 2] = content.substring(0, content.length - 1);
+				this._contentByLines.push(indent + '}');
+			} else {
+				const mulitLineValue = valueString.split('\n');
+				this._contentByLines.push(preValueConent + mulitLineValue[0]);
+				for (let i = 1; i < mulitLineValue.length; i++) {
+					this._contentByLines.push(indent + mulitLineValue[i]);
+				}
+			}
+		} else {
+			this._contentByLines.push(preValueConent + valueString);
+		}
 	}
 
 	private addDescription(description: string[], indent: string, result: string[]) {
