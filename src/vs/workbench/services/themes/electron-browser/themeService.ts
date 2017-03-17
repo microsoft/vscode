@@ -26,8 +26,9 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import Severity from 'vs/base/common/severity';
-import { ColorThemeData } from './colorThemeData';
+import { ColorThemeData, fromStorageData } from './colorThemeData';
 import { ITheme, Extensions as ThemingExtensions, IThemingRegistry } from 'vs/platform/theme/common/themeService';
+import { editorBackground, editorForeground } from 'vs/platform/theme/common/colorRegistry';
 
 import { $ } from 'vs/base/browser/builder';
 import Event, { Emitter } from 'vs/base/common/event';
@@ -43,6 +44,8 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 
 const DEFAULT_THEME_ID = 'vs-dark vscode-theme-defaults-themes-dark_plus-json';
 const DEFAULT_THEME_SETTING_VALUE = 'Default Dark+';
+
+const PERSISTED_THEME_STORAGE_KEY = 'colorThemeData';
 
 const defaultBaseTheme = 'vs-dark';
 
@@ -202,30 +205,10 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 		this.container = container;
 		this.knownColorThemes = [];
-
-		// In order to avoid paint flashing for tokens, because
-		// themes are loaded asynchronously, we need to initialize
-		// a color theme document with good defaults until the theme is loaded
-		let isLightTheme = (Array.prototype.indexOf.call(document.body.classList, 'vs') >= 0);
-		let foreground = isLightTheme ? '#000000' : '#D4D4D4';
-		let background = isLightTheme ? '#ffffff' : '#1E1E1E';
-
-		let initialTheme = new ColorThemeData();
-		initialTheme.id = isLightTheme ? VS_LIGHT_THEME : VS_DARK_THEME;
-		initialTheme.label = '';
-		initialTheme.selector = isLightTheme ? VS_LIGHT_THEME : VS_DARK_THEME;
-		initialTheme.settingsId = null;
-		initialTheme.isLoaded = false;
-		initialTheme.tokenColors = [{
-			settings: {
-				foreground: foreground,
-				background: background
-			}
-		}];
-		this.currentColorTheme = initialTheme;
-
-		this.onColorThemeChange = new Emitter<IColorTheme>();
+		this.onFileIconThemeChange = new Emitter<IFileIconTheme>();
 		this.knownIconThemes = [];
+		this.onColorThemeChange = new Emitter<IColorTheme>();
+
 		this.currentIconTheme = {
 			id: '',
 			label: '',
@@ -235,7 +218,32 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			hasFolderIcons: false,
 			extensionData: null
 		};
-		this.onFileIconThemeChange = new Emitter<IFileIconTheme>();
+
+		let persistedThemeData = this.storageService.get(PERSISTED_THEME_STORAGE_KEY);
+		if (persistedThemeData) {
+			let themeData = fromStorageData(persistedThemeData);
+			this.updateDynamicCSSRules(themeData);
+			this.applyTheme(themeData, null, true);
+		} else {
+			// In order to avoid paint flashing for tokens, because
+			// themes are loaded asynchronously, we need to initialize
+			// a color theme document with good defaults until the theme is loaded
+			let isLightTheme = (Array.prototype.indexOf.call(document.body.classList, 'vs') >= 0);
+
+			let initialTheme = new ColorThemeData();
+			initialTheme.id = isLightTheme ? VS_LIGHT_THEME : VS_DARK_THEME;
+			initialTheme.label = '';
+			initialTheme.selector = isLightTheme ? VS_LIGHT_THEME : VS_DARK_THEME;
+			initialTheme.settingsId = null;
+			initialTheme.isLoaded = false;
+			initialTheme.tokenColors = [{
+				settings: {
+					foreground: initialTheme.getColor(editorForeground).toRGBAHex(),
+					background: initialTheme.getColor(editorBackground).toRGBAHex()
+				}
+			}];
+			this.currentColorTheme = initialTheme;
+		}
 
 		themesExtPoint.setHandler((extensions) => {
 			for (let ext of extensions) {
@@ -381,33 +389,11 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			this.themingParticipantChangeListener = null;
 		}
 
-		let onApply = (newTheme: ColorThemeData) => {
-			let newThemeId = newTheme.id;
-			if (this.container) {
-				if (this.currentColorTheme) {
-					$(this.container).removeClass(this.currentColorTheme.id);
-				}
-				$(this.container).addClass(newThemeId);
-			}
-			this.currentColorTheme = newTheme;
-			this.themingParticipantChangeListener = themingRegistry.onThemingParticipantAdded(p => this.updateDynamicCSSRules(this.currentColorTheme));
-
-			this.sendTelemetry(newTheme.id, newTheme.extensionData, 'color');
-
-			this.onColorThemeChange.fire(this.currentColorTheme);
-
-			if (settingsTarget !== ConfigurationTarget.WORKSPACE) {
-				this.windowService.broadcast({ channel: 'vscode:changeColorTheme', payload: newTheme.id });
-			}
-
-			return this.writeColorThemeConfiguration(settingsTarget);
-		};
-
 		return this.findThemeData(themeId, DEFAULT_THEME_ID).then(themeData => {
 			if (themeData) {
 				return themeData.ensureLoaded().then(_ => {
 					this.updateDynamicCSSRules(themeData);
-					return onApply(themeData);
+					return this.applyTheme(themeData, settingsTarget);
 				}, error => {
 					return TPromise.wrapError(nls.localize('error.cannotloadtheme', "Unable to load {0}: {1}", themeData.path, error.message));
 				});
@@ -430,6 +416,33 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		themingRegistry.getThemingParticipants().forEach(p => p(themeData, ruleCollector));
 		_applyRules(cssRules.join('\n'), colorThemeRulesClassName);
 	}
+
+	private applyTheme(newTheme: ColorThemeData, settingsTarget: ConfigurationTarget, silent = false): TPromise<IFileIconTheme> {
+		if (this.container) {
+			if (this.currentColorTheme) {
+				$(this.container).removeClass(this.currentColorTheme.id);
+			}
+			$(this.container).addClass(newTheme.id);
+		}
+		this.currentColorTheme = newTheme;
+		this.themingParticipantChangeListener = themingRegistry.onThemingParticipantAdded(p => this.updateDynamicCSSRules(this.currentColorTheme));
+
+		if (silent) {
+			return TPromise.as(null);
+		}
+
+		this.sendTelemetry(newTheme.id, newTheme.extensionData, 'color');
+
+		this.onColorThemeChange.fire(this.currentColorTheme);
+
+		if (settingsTarget !== ConfigurationTarget.WORKSPACE) {
+			this.windowService.broadcast({ channel: 'vscode:changeColorTheme', payload: newTheme.id });
+		}
+		// remember theme data for a quick restore
+		this.storageService.store(PERSISTED_THEME_STORAGE_KEY, newTheme.toStorageData());
+
+		return this.writeColorThemeConfiguration(settingsTarget);
+	};
 
 	private writeColorThemeConfiguration(settingsTarget: ConfigurationTarget): TPromise<IFileIconTheme> {
 		if (!types.isUndefinedOrNull(settingsTarget)) {
