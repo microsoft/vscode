@@ -20,6 +20,10 @@
 	border-left: 1px solid;
 }
 
+.monaco-workbench > .part > .sidebar.title > .title-label span {
+	text-transform: uppercase;
+}
+
 .monaco-workbench .viewlet .collapsible.header .title {
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -61,6 +65,18 @@
 }
 
 /* TODO@theme */
+
+.vs .monaco-workbench > .part > .sidebar.title > .title-label span {
+	color: #6f6f6f;
+}
+
+.vs-dark .monaco-workbench > .part > .sidebar.title > .title-label span  {
+	color: #bbbbbb;
+}
+
+.hc-black .monaco-workbench > .part > .sidebar.title > .title-label span  {
+	color: #fff;
+}
 
 .vs .monaco-workbench > .sidebar > .title > .title-actions {
 	background-color: #f3f3f3;

@@ -105,25 +105,3 @@
 .hc-black .monaco-workbench .show-group-editors-action {
 	background: url('stackview-inverse.svg') center center no-repeat;
 }
-
-/* TODO@theme */
-
-.vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .title-label a,
-.vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab .tab-label a {
-	color: rgba(51, 51, 51, 0.5);
-}
-
-.vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.active .title-label a,
-.vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.active .tabs-container > .tab .tab-label a {
-	color: #333333;
-}
-
-.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .title-label a,
-.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab .tab-label a {
-	color: rgba(255, 255, 255, 0.5);
-}
-
-.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.active .title-label a,
-.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.active .tabs-container > .tab .tab-label a {
-	color: white;
-}
