@@ -568,17 +568,17 @@ export class ChordKeybinding {
 
 export type Keybinding = SimpleKeybinding | ChordKeybinding;
 
-export function createRuntimeKeybinding(keybinding: Keybinding, OS: OperatingSystem): RuntimeKeybinding {
+export function _createRuntimeKeybinding(keybinding: Keybinding, OS: OperatingSystem): RuntimeKeybinding {
 	if (keybinding.isChord()) {
 		return new ChordRuntimeKeybinding(
-			createSimpleRuntimeKeybinding(keybinding.extractFirstPart(), OS),
-			createSimpleRuntimeKeybinding(keybinding.extractChordPart(), OS),
+			_createSimpleRuntimeKeybinding(keybinding.extractFirstPart(), OS),
+			_createSimpleRuntimeKeybinding(keybinding.extractChordPart(), OS),
 		);
 	}
-	return createSimpleRuntimeKeybinding(keybinding, OS);
+	return _createSimpleRuntimeKeybinding(keybinding, OS);
 }
 
-export function createSimpleRuntimeKeybinding(keybinding: SimpleKeybinding, OS: OperatingSystem): SimpleRuntimeKeybinding {
+function _createSimpleRuntimeKeybinding(keybinding: SimpleKeybinding, OS: OperatingSystem): SimpleRuntimeKeybinding {
 	const ctrlCmd = keybinding.hasCtrlCmd();
 	const winCtrl = keybinding.hasWinCtrl();
 	const ctrlKey = (OS === OperatingSystem.Macintosh ? winCtrl : ctrlCmd);
@@ -588,6 +588,34 @@ export function createSimpleRuntimeKeybinding(keybinding: SimpleKeybinding, OS: 
 	const altKey = keybinding.hasAlt();
 
 	const keyCode = keybinding.getKeyCode();
+
+	return new SimpleRuntimeKeybinding(ctrlKey, shiftKey, altKey, metaKey, keyCode);
+}
+
+export function createRuntimeKeybinding(keybinding: number, OS: OperatingSystem): RuntimeKeybinding {
+	if (keybinding === 0) {
+		return null;
+	}
+	if (BinaryKeybindings.hasChord(keybinding)) {
+		return new ChordRuntimeKeybinding(
+			createSimpleRuntimeKeybinding(BinaryKeybindings.extractFirstPart(keybinding), OS),
+			createSimpleRuntimeKeybinding(BinaryKeybindings.extractChordPart(keybinding), OS),
+		);
+	}
+	return createSimpleRuntimeKeybinding(keybinding, OS);
+}
+
+function createSimpleRuntimeKeybinding(keybinding: number, OS: OperatingSystem): SimpleRuntimeKeybinding {
+
+	const ctrlCmd = BinaryKeybindings.hasCtrlCmd(keybinding);
+	const winCtrl = BinaryKeybindings.hasWinCtrl(keybinding);
+	const ctrlKey = (OS === OperatingSystem.Macintosh ? winCtrl : ctrlCmd);
+	const metaKey = (OS === OperatingSystem.Macintosh ? ctrlCmd : winCtrl);
+
+	const shiftKey = BinaryKeybindings.hasShift(keybinding);
+	const altKey = BinaryKeybindings.hasAlt(keybinding);
+
+	const keyCode = BinaryKeybindings.extractKeyCode(keybinding);
 
 	return new SimpleRuntimeKeybinding(ctrlKey, shiftKey, altKey, metaKey, keyCode);
 }

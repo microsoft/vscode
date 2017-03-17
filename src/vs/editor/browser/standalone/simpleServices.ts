@@ -32,7 +32,7 @@ import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRe
 import { MenuId, IMenu, IMenuService } from 'vs/platform/actions/common/actions';
 import { Menu } from 'vs/platform/actions/common/menu';
 import { ITelemetryService, ITelemetryExperiments, ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
-import { ResolvedKeybinding, Keybinding, createKeybinding, createRuntimeKeybinding } from 'vs/base/common/keyCodes';
+import { ResolvedKeybinding, RuntimeKeybinding, createRuntimeKeybinding } from 'vs/base/common/keyCodes';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { OS } from 'vs/base/common/platform';
 
@@ -334,7 +334,7 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 		let toDispose: IDisposable[] = [];
 
 		this._dynamicKeybindings.push({
-			keybinding: keybinding,
+			keybinding: createRuntimeKeybinding(keybinding, OS),
 			command: commandId,
 			when: when,
 			weight1: 1000,
@@ -386,8 +386,8 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 		for (let i = 0, len = items.length; i < len; i++) {
 			const item = items[i];
 			const when = (item.when ? item.when.normalize() : null);
-			const keybinding = (item.keybinding !== 0 ? createKeybinding(item.keybinding) : null);
-			const resolvedKeybinding = (keybinding !== null ? this._createResolvedKeybinding(keybinding) : null);
+			const keybinding = item.keybinding;
+			const resolvedKeybinding = (keybinding ? this._createResolvedKeybinding(keybinding) : null);
 
 			result[resultLen++] = new ResolvedKeybindingItem(resolvedKeybinding, item.command, item.commandArgs, when, isDefault);
 		}
@@ -395,8 +395,8 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 		return result;
 	}
 
-	protected _createResolvedKeybinding(kb: Keybinding): ResolvedKeybinding {
-		return new USLayoutResolvedKeybinding(createRuntimeKeybinding(kb, OS), OS);
+	protected _createResolvedKeybinding(kb: RuntimeKeybinding): ResolvedKeybinding {
+		return new USLayoutResolvedKeybinding(kb, OS);
 	}
 
 }

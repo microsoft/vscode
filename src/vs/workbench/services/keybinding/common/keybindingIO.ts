@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { KeyMod, KeyChord, USER_SETTINGS } from 'vs/base/common/keyCodes';
+import { KeyMod, KeyChord, USER_SETTINGS, createRuntimeKeybinding } from 'vs/base/common/keyCodes';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { IKeybindingItem, IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -51,7 +51,7 @@ export class KeybindingIO {
 		}
 
 		return {
-			keybinding: key,
+			keybinding: createRuntimeKeybinding(key, OS),
 			command: command,
 			commandArgs: commandArgs,
 			when: when,
