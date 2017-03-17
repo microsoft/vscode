@@ -8,8 +8,8 @@ import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { CharCode } from 'vs/base/common/charCode';
 
-export class NormalizedKeybindingItem {
-	_normalizedKeybindingItemBrand: void;
+export class ResolvedKeybindingItem {
+	_resolvedKeybindingItemBrand: void;
 
 	public readonly resolvedKeybinding: ResolvedKeybinding;
 	public readonly keypressFirstPart: string;
