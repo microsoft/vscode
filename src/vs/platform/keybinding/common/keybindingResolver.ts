@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
+import { CommandsRegistry, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 
 export interface IResolveResult {
 	enterChord: boolean;
@@ -302,5 +304,26 @@ export class KeybindingResolver {
 			return true;
 		}
 		return rules.evaluate(context);
+	}
+
+	public static getAllUnboundCommands(boundCommands: Map<string, boolean>): string[] {
+		const commands = CommandsRegistry.getCommands();
+		const unboundCommands: string[] = [];
+
+		for (let id in commands) {
+			if (id[0] === '_' || id.indexOf('vscode.') === 0) { // private command
+				continue;
+			}
+			if (typeof commands[id].description === 'object'
+				&& !isFalsyOrEmpty((<ICommandHandlerDescription>commands[id].description).args)) { // command with args
+				continue;
+			}
+			if (boundCommands.get(id) === true) {
+				continue;
+			}
+			unboundCommands.push(id);
+		}
+
+		return unboundCommands;
 	}
 }

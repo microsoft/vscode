@@ -7,12 +7,12 @@ import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IMatch, IFilter, or, matchesContiguousSubString, matchesPrefix, matchesCamelCase, matchesWords } from 'vs/base/common/filters';
 import { Registry } from 'vs/platform/platform';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { CommonEditorRegistry, EditorAction } from 'vs/editor/common/editorCommonExtensions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
 import { EditorModel } from 'vs/workbench/common/editor';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IKeybindingService, IKeybindingItem2, KeybindingSource } from 'vs/platform/keybinding/common/keybinding';
+import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
 
 export const KEYBINDING_ENTRY_TEMPLATE_ID = 'keybinding.entry.template';
 export const KEYBINDING_HEADER_TEMPLATE_ID = 'keybinding.header.template';
@@ -81,20 +81,17 @@ export class KeybindingsEditorModel extends EditorModel {
 					return editorActions;
 				}, {});
 				this._keybindingItems = this.keybindingsService.getKeybindings().map(keybinding => KeybindingsEditorModel.toKeybindingEntry(keybinding, workbenchActionsRegistry, editorActions));
-				const boundCommands = this._keybindingItems.reduce((boundCommands, keybinding) => {
-					boundCommands[keybinding.command] = true;
+				const boundCommands: Map<string, boolean> = this._keybindingItems.reduce((boundCommands, keybinding) => {
+					boundCommands.set(keybinding.command, true);
 					return boundCommands;
-				}, {});
-				const commandsMap = CommandsRegistry.getCommands();
-				for (const command in commandsMap) {
-					if (!boundCommands[command]) {
-						this._keybindingItems.push(KeybindingsEditorModel.toKeybindingEntry({
-							keybinding: null,
-							command,
-							when: null,
-							source: KeybindingSource.Default
-						}, workbenchActionsRegistry, editorActions));
-					}
+				}, new Map<string, boolean>());
+				for (const command of KeybindingResolver.getAllUnboundCommands(boundCommands)) {
+					this._keybindingItems.push(KeybindingsEditorModel.toKeybindingEntry({
+						keybinding: null,
+						command,
+						when: null,
+						source: KeybindingSource.Default
+					}, workbenchActionsRegistry, editorActions));
 				}
 				this._keybindingItems = this._keybindingItems.sort((a, b) => KeybindingsEditorModel.compareKeybindingData(a, b));
 				return this;
