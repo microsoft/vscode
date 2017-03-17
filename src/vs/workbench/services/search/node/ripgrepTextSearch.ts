@@ -5,6 +5,7 @@
 'use strict';
 
 import { EventEmitter } from 'events';
+import * as path from 'path';
 
 import * as cp from 'child_process';
 import { rgPath } from 'vscode-ripgrep';
@@ -44,13 +45,13 @@ export class RipgrepEngine implements ISearchEngine<ISerializedFileMatch> {
 	}
 
 	private searchFolder(rootFolder: string, onResult: (match: ISerializedFileMatch) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISerializedSearchComplete) => void): void {
-		const rgArgs = getRgArgs(this.config, rootFolder);
+		const rgArgs = getRgArgs(this.config);
 		this.postProcessExclusions = rgArgs.siblingClauses;
 
 		// console.log(`rg ${rgArgs.join(' ')}, cwd: ${rootFolder}`);
 		this.rgProc = cp.spawn(rgPath, rgArgs.args, { cwd: rootFolder });
 
-		this.ripgrepParser = new RipgrepParser(this.config.maxResults);
+		this.ripgrepParser = new RipgrepParser(this.config.maxResults, rootFolder);
 		this.ripgrepParser.on('result', onResult);
 		this.ripgrepParser.on('hitLimit', () => {
 			this.cancel();
@@ -98,7 +99,7 @@ export class RipgrepParser extends EventEmitter {
 
 	private numResults = 0;
 
-	constructor(private maxResults: number) {
+	constructor(private maxResults: number, private rootFolder: string) {
 		super();
 	}
 
@@ -136,7 +137,7 @@ export class RipgrepParser extends EventEmitter {
 					this.onResult();
 				}
 
-				this.fileMatch = new FileMatch(r[1]);
+				this.fileMatch = new FileMatch(path.join(this.rootFolder, r[1]));
 			} else {
 				// Line is malformed
 			}
@@ -293,7 +294,7 @@ function globExprsToRgGlobs(patterns: glob.IExpression): { globArgs: string[], s
 	return { globArgs, siblingClauses };
 }
 
-function getRgArgs(config: IRawSearch, rootFolder: string): { args: string[], siblingClauses: glob.SiblingClause[] } {
+function getRgArgs(config: IRawSearch): { args: string[], siblingClauses: glob.SiblingClause[] } {
 	const args = ['--heading', '--line-number', '--color', 'ansi', '--colors', 'path:none', '--colors', 'line:none', '--colors', 'match:fg:red', '--colors', 'match:style:nobold'];
 	args.push(config.contentPattern.isCaseSensitive ? '--case-sensitive' : '--ignore-case');
 
@@ -331,7 +332,7 @@ function getRgArgs(config: IRawSearch, rootFolder: string): { args: string[], si
 	}
 
 	// Folder to search
-	args.push('--', rootFolder);
+	args.push('--', './');
 
 	return { args, siblingClauses };
 }
