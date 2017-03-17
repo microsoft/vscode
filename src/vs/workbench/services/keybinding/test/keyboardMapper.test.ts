@@ -10,7 +10,7 @@ import { KeyMod, KeyCode, SimpleKeybinding, createKeybinding, Keybinding } from 
 import { KeyboardMapper, IKeyboardMapping } from 'vs/workbench/services/keybinding/common/keyboardMapper';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { UserSettingsLabelProvider, PrintableKeypress } from 'vs/platform/keybinding/common/keybindingLabels';
-import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/abstractKeybindingService';
+import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
 import { KeyboardEventCodeUtils } from 'vs/workbench/services/keybinding/common/keyboardEventCode';
 import { IHTMLContentElement } from 'vs/base/common/htmlContent';
 import { readFile, writeFile } from 'vs/base/node/pfs';

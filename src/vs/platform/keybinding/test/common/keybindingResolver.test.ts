@@ -9,7 +9,7 @@ import { createKeybinding, SimpleKeybinding, KeyCode, KeyMod, KeyChord } from 'v
 import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
 import { ContextKeyAndExpr, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
-import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/abstractKeybindingService';
+import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
 import { OS } from 'vs/base/common/platform';
 
 suite('KeybindingResolver', () => {
