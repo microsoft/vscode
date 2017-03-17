@@ -205,9 +205,10 @@ export class SearchViewlet extends Viewlet {
 				let title = nls.localize('searchScope.excludes', "files to exclude");
 				builder.element('h4', { text: title });
 
+				const configuration = this.configurationService.getConfiguration<ISearchConfiguration>();
 				this.inputPatternExclusions = new PatternInputWidget(builder.getContainer(), this.contextViewService, {
 					ariaLabel: nls.localize('label.excludes', 'Search Exclude Patterns')
-				}, true);
+				}, configuration.search.useRipgrep);
 
 				this.inputPatternExclusions.setIsGlobPattern(exclusionsUsePattern);
 				this.inputPatternExclusions.setValue(patternExclusions);
