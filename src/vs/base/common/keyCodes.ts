@@ -617,4 +617,9 @@ export abstract class ResolvedKeybinding {
 	 * If it is a chord, it always returns false.
 	 */
 	public abstract hasMetaModifier(): boolean;
+
+	/**
+	 * Returns the firstPart, chordPart that should be used for dispatching.
+	 */
+	public abstract getDispatchParts(): [string, string];
 }

@@ -149,6 +149,22 @@ export class USLayoutResolvedKeybinding extends ResolvedKeybinding {
 			return this._actual.hasWinCtrl();
 		}
 	}
+
+	public getDispatchParts(): [string, string] {
+		let keypressFirstPart: string;
+		let keypressChordPart: string;
+		if (this._actual === null) {
+			keypressFirstPart = null;
+			keypressChordPart = null;
+		} else if (this._actual.isChord()) {
+			keypressFirstPart = this._actual.extractFirstPart().value.toString();
+			keypressChordPart = this._actual.extractChordPart().value.toString();
+		} else {
+			keypressFirstPart = this._actual.value.toString();
+			keypressChordPart = null;
+		}
+		return [keypressFirstPart, keypressChordPart];
+	}
 }
 
 interface CurrentChord {
@@ -208,7 +224,7 @@ export abstract class AbstractKeybindingService implements IKeybindingService {
 
 	public getKeybindings(): IKeybindingItem2[] {
 		return this._getResolver().getKeybindings().map(keybinding => ({
-			keybinding: this.resolveKeybinding(keybinding.keybinding),
+			keybinding: keybinding.resolvedKeybinding,
 			command: keybinding.command,
 			when: keybinding.when,
 			source: keybinding.isDefault ? KeybindingSource.Default : KeybindingSource.User
@@ -220,7 +236,7 @@ export abstract class AbstractKeybindingService implements IKeybindingService {
 	}
 
 	public lookupKeybindings(commandId: string): ResolvedKeybinding[] {
-		return this._getResolver().lookupKeybindings(commandId).map(item => this._createResolvedKeybinding(item.keybinding));
+		return this._getResolver().lookupKeybindings(commandId).map(item => item.resolvedKeybinding);
 	}
 
 	public lookupKeybinding(commandId: string): ResolvedKeybinding {
@@ -228,7 +244,7 @@ export abstract class AbstractKeybindingService implements IKeybindingService {
 		if (!result) {
 			return null;
 		}
-		return this._createResolvedKeybinding(result.keybinding);
+		return result.resolvedKeybinding;
 	}
 
 	public resolve(keybinding: SimpleKeybinding, target: IContextKeyServiceTarget): IResolveResult {
