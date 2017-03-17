@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { ResolvedKeybinding, RuntimeKeybinding, SimpleRuntimeKeybinding } from 'vs/base/common/keyCodes';
+import { ResolvedKeybinding, Keybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
 import Event from 'vs/base/common/event';
 import { IKeybindingService, IKeybindingEvent, IKeybindingItem2 } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKey, IContextKeyService, IContextKeyServiceTarget, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -76,7 +76,7 @@ export class MockKeybindingService2 implements IKeybindingService {
 		return [];
 	}
 
-	public resolveKeybinding(keybinding: RuntimeKeybinding): ResolvedKeybinding {
+	public resolveKeybinding(keybinding: Keybinding): ResolvedKeybinding {
 		return new USLayoutResolvedKeybinding(keybinding, OS);
 	}
 
@@ -92,7 +92,7 @@ export class MockKeybindingService2 implements IKeybindingService {
 		return 0;
 	}
 
-	public resolve(keybinding: SimpleRuntimeKeybinding, target: IContextKeyServiceTarget): IResolveResult {
+	public resolve(keybinding: SimpleKeybinding, target: IContextKeyServiceTarget): IResolveResult {
 		return null;
 	}
 }

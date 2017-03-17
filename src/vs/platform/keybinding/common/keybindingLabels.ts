@@ -8,7 +8,7 @@
 import * as nls from 'vs/nls';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { IHTMLContentElement } from 'vs/base/common/htmlContent';
-import { KeyCode, RuntimeKeybinding, RuntimeKeybindingType, SimpleRuntimeKeybinding } from 'vs/base/common/keyCodes';
+import { KeyCode, Keybinding, KeybindingType, SimpleKeybinding } from 'vs/base/common/keyCodes';
 
 export interface IKeyCodeLabelProvider {
 	(keyCode: KeyCode, OS: OperatingSystem): string;
@@ -16,13 +16,13 @@ export interface IKeyCodeLabelProvider {
 
 export class PrintableKeypress {
 
-	private static _fromSimpleKeybinding(k: SimpleRuntimeKeybinding, labelProvider: IKeyCodeLabelProvider, OS: OperatingSystem): PrintableKeypress {
+	private static _fromSimpleKeybinding(k: SimpleKeybinding, labelProvider: IKeyCodeLabelProvider, OS: OperatingSystem): PrintableKeypress {
 		const keyLabel = labelProvider(k.keyCode, OS) || '';
 		return new PrintableKeypress(k.ctrlKey, k.shiftKey, k.altKey, k.metaKey, keyLabel);
 	}
 
-	public static fromKeybinding(keybinding: RuntimeKeybinding, labelProvider: IKeyCodeLabelProvider, OS: OperatingSystem): [PrintableKeypress, PrintableKeypress] {
-		if (keybinding.type === RuntimeKeybindingType.Chord) {
+	public static fromKeybinding(keybinding: Keybinding, labelProvider: IKeyCodeLabelProvider, OS: OperatingSystem): [PrintableKeypress, PrintableKeypress] {
+		if (keybinding.type === KeybindingType.Chord) {
 			const firstPart = PrintableKeypress._fromSimpleKeybinding(keybinding.firstPart, labelProvider, OS);
 			const chordPart = PrintableKeypress._fromSimpleKeybinding(keybinding.chordPart, labelProvider, OS);
 			return [firstPart, chordPart];

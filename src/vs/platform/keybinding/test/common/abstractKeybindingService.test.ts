@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { ResolvedKeybinding, KeyCode, KeyMod, KeyChord, RuntimeKeybinding, createRuntimeKeybinding, createSimpleRuntimeKeybinding } from 'vs/base/common/keyCodes';
+import { ResolvedKeybinding, KeyCode, KeyMod, KeyChord, Keybinding, createKeybinding, createSimpleKeybinding } from 'vs/base/common/keyCodes';
 import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -39,12 +39,12 @@ suite('AbstractKeybindingService', () => {
 			return this._resolver;
 		}
 
-		protected _createResolvedKeybinding(kb: RuntimeKeybinding): ResolvedKeybinding {
+		protected _createResolvedKeybinding(kb: Keybinding): ResolvedKeybinding {
 			return new USLayoutResolvedKeybinding(kb, OS);
 		}
 
 		public dispatch(keybinding: number): boolean {
-			return this._dispatch(createSimpleRuntimeKeybinding(keybinding, OS), null);
+			return this._dispatch(createSimpleKeybinding(keybinding, OS), null);
 		}
 	}
 
@@ -130,7 +130,7 @@ suite('AbstractKeybindingService', () => {
 	});
 
 	function kbItem(keybinding: number, command: string, when: ContextKeyExpr = null): ResolvedKeybindingItem {
-		const resolvedKeybinding = (keybinding !== 0 ? new USLayoutResolvedKeybinding(createRuntimeKeybinding(keybinding, OS), OS) : null);
+		const resolvedKeybinding = (keybinding !== 0 ? new USLayoutResolvedKeybinding(createKeybinding(keybinding, OS), OS) : null);
 		return new ResolvedKeybindingItem(
 			resolvedKeybinding,
 			command,
@@ -141,7 +141,7 @@ suite('AbstractKeybindingService', () => {
 	}
 
 	function toUsLabel(keybinding: number): string {
-		const usResolvedKeybinding = new USLayoutResolvedKeybinding(createRuntimeKeybinding(keybinding, OS), OS);
+		const usResolvedKeybinding = new USLayoutResolvedKeybinding(createKeybinding(keybinding, OS), OS);
 		return usResolvedKeybinding.getLabel();
 	}
 

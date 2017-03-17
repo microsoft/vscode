@@ -4,12 +4,37 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { SimpleRuntimeKeybinding, KeyCode, RuntimeKeybindingType, createRuntimeKeybinding } from 'vs/base/common/keyCodes';
+import { SimpleKeybinding, KeyCode, KeybindingType, createKeybinding, Keybinding } from 'vs/base/common/keyCodes';
 import { OS, OperatingSystem } from 'vs/base/common/platform';
-import { IKeybindingItem, IKeybindings } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { CommandsRegistry, ICommandHandler, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { Registry } from 'vs/platform/platform';
+
+export interface IKeybindingItem {
+	keybinding: Keybinding;
+	command: string;
+	commandArgs?: any;
+	when: ContextKeyExpr;
+	weight1: number;
+	weight2: number;
+}
+
+export interface IKeybindings {
+	primary: number;
+	secondary?: number[];
+	win?: {
+		primary: number;
+		secondary?: number[];
+	};
+	linux?: {
+		primary: number;
+		secondary?: number[];
+	};
+	mac?: {
+		primary: number;
+		secondary?: number[];
+	};
+}
 
 export interface IKeybindingRule extends IKeybindings {
 	id: string;
@@ -124,7 +149,7 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		);
 	}
 
-	private _assertNoCtrlAlt(keybinding: SimpleRuntimeKeybinding, commandId: string): void {
+	private _assertNoCtrlAlt(keybinding: SimpleKeybinding, commandId: string): void {
 		if (keybinding.ctrlKey && keybinding.altKey && !keybinding.metaKey) {
 			if (KeybindingsRegistryImpl._mightProduceChar(keybinding.keyCode)) {
 				console.warn('Ctrl+Alt+ keybindings should not be used by default under Windows. Offender: ', keybinding, ' for ', commandId);
@@ -133,9 +158,9 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 	}
 
 	private registerDefaultKeybinding(keybinding: number, commandId: string, weight1: number, weight2: number, when: ContextKeyExpr): void {
-		const runtimeKeybinding = createRuntimeKeybinding(keybinding, OS);
+		const runtimeKeybinding = createKeybinding(keybinding, OS);
 		if (OS === OperatingSystem.Windows) {
-			if (runtimeKeybinding.type === RuntimeKeybindingType.Chord) {
+			if (runtimeKeybinding.type === KeybindingType.Chord) {
 				this._assertNoCtrlAlt(runtimeKeybinding.firstPart, commandId);
 			} else {
 				this._assertNoCtrlAlt(runtimeKeybinding, commandId);

@@ -9,7 +9,7 @@ import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { MarkedString } from 'vs/base/common/htmlContent';
-import { KeyCode, KeyMod, KeyChord, createRuntimeKeybinding } from 'vs/base/common/keyCodes';
+import { KeyCode, KeyMod, KeyChord, createKeybinding } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -167,7 +167,7 @@ export class DefineKeybindingController implements editorCommon.IEditorContribut
 
 			let numKeybinding = KeybindingIO.readKeybinding(strKeybinding, OS);
 
-			let keybinding = createRuntimeKeybinding(numKeybinding, OS);
+			let keybinding = createKeybinding(numKeybinding, OS);
 			let resolvedKeybinding = this._keybindingService.resolveKeybinding(keybinding);
 
 			const usResolvedKeybinding = new USLayoutResolvedKeybinding(keybinding, OS);

@@ -6,7 +6,7 @@
 'use strict';
 
 import { OperatingSystem } from 'vs/base/common/platform';
-import { KeyCode, ResolvedKeybinding, KeyCodeUtils, SimpleRuntimeKeybinding, RuntimeKeybinding, RuntimeKeybindingType } from 'vs/base/common/keyCodes';
+import { KeyCode, ResolvedKeybinding, KeyCodeUtils, SimpleKeybinding, Keybinding, KeybindingType } from 'vs/base/common/keyCodes';
 import { KeyboardEventCode, KeyboardEventCodeUtils, IMMUTABLE_CODE_TO_KEY_CODE } from 'vs/workbench/services/keybinding/common/keyboardEventCode';
 import { CharCode } from 'vs/base/common/charCode';
 import { IHTMLContentElement } from 'vs/base/common/htmlContent';
@@ -444,7 +444,7 @@ export class KeyboardMapper {
 		);
 	}
 
-	public simpleKeybindingToHardwareKeypress(keybinding: SimpleRuntimeKeybinding): HardwareKeypress[] {
+	public simpleKeybindingToHardwareKeypress(keybinding: SimpleKeybinding): HardwareKeypress[] {
 		const kbEncoded = this._encode(keybinding.ctrlKey, keybinding.shiftKey, keybinding.altKey, keybinding.keyCode);
 		const hwEncoded = this._kbToHw[kbEncoded];
 
@@ -457,7 +457,7 @@ export class KeyboardMapper {
 		return result;
 	}
 
-	public hardwareKeypressToSimpleKeybinding(keypress: HardwareKeypress): SimpleRuntimeKeybinding {
+	public hardwareKeypressToSimpleKeybinding(keypress: HardwareKeypress): SimpleKeybinding {
 		const hwEncoded = this._encode(keypress.ctrlKey, keypress.shiftKey, keypress.altKey, keypress.code);
 		const kbEncoded = this._hwToKb[hwEncoded];
 		if (!kbEncoded) {
@@ -487,10 +487,10 @@ export class KeyboardMapper {
 		return this._hwToLabel[code];
 	}
 
-	public resolveKeybinding(keybinding: RuntimeKeybinding): NativeResolvedKeybinding[] {
+	public resolveKeybinding(keybinding: Keybinding): NativeResolvedKeybinding[] {
 		let result: NativeResolvedKeybinding[] = [], resultLen = 0;
 
-		if (keybinding.type === RuntimeKeybindingType.Chord) {
+		if (keybinding.type === KeybindingType.Chord) {
 			const firstParts = this.simpleKeybindingToHardwareKeypress(keybinding.firstPart);
 			const chordParts = this.simpleKeybindingToHardwareKeypress(keybinding.chordPart);
 
@@ -567,13 +567,13 @@ export class KeyboardMapper {
 		return new HardwareKeypress(ctrlKey, shiftKey, altKey, metaKey, code);
 	}
 
-	private _decodeKb(kbEncoded: number, metaKey: boolean): SimpleRuntimeKeybinding {
+	private _decodeKb(kbEncoded: number, metaKey: boolean): SimpleKeybinding {
 		const ctrlKey = (kbEncoded & 0b001) ? true : false;
 		const shiftKey = (kbEncoded & 0b010) ? true : false;
 		const altKey = (kbEncoded & 0b100) ? true : false;
 		const keyCode = (kbEncoded >>> 3);
 
-		return new SimpleRuntimeKeybinding(
+		return new SimpleKeybinding(
 			ctrlKey,
 			shiftKey,
 			altKey,

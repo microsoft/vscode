@@ -5,7 +5,7 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import { ResolvedKeybinding, RuntimeKeybinding, SimpleRuntimeKeybinding } from 'vs/base/common/keyCodes';
+import { ResolvedKeybinding, Keybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -57,13 +57,13 @@ export abstract class AbstractKeybindingService implements IKeybindingService {
 	}
 
 	protected abstract _getResolver(): KeybindingResolver;
-	protected abstract _createResolvedKeybinding(kb: RuntimeKeybinding): ResolvedKeybinding;
+	protected abstract _createResolvedKeybinding(kb: Keybinding): ResolvedKeybinding;
 
 	get onDidUpdateKeybindings(): Event<IKeybindingEvent> {
 		return this._onDidUpdateKeybindings ? this._onDidUpdateKeybindings.event : Event.None; // Sinon stubbing walks properties on prototype
 	}
 
-	public resolveKeybinding(keybinding: RuntimeKeybinding): ResolvedKeybinding {
+	public resolveKeybinding(keybinding: Keybinding): ResolvedKeybinding {
 		return this._createResolvedKeybinding(keybinding);
 	}
 
@@ -96,7 +96,7 @@ export abstract class AbstractKeybindingService implements IKeybindingService {
 		return result.resolvedKeybinding;
 	}
 
-	public resolve(keybinding: SimpleRuntimeKeybinding, target: IContextKeyServiceTarget): IResolveResult {
+	public resolve(keybinding: SimpleKeybinding, target: IContextKeyServiceTarget): IResolveResult {
 		if (keybinding.isModifierKey()) {
 			return null;
 		}
@@ -109,7 +109,7 @@ export abstract class AbstractKeybindingService implements IKeybindingService {
 		return this._getResolver().resolve(contextValue, currentChord, firstPart);
 	}
 
-	protected _dispatch(keybinding: SimpleRuntimeKeybinding, target: IContextKeyServiceTarget): boolean {
+	protected _dispatch(keybinding: SimpleKeybinding, target: IContextKeyServiceTarget): boolean {
 		// Check modifier key here and cancel early, it's also checked in resolve as the function
 		// is used externally.
 		let shouldPreventDefault = false;

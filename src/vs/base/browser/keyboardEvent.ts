@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { KeyCode, KeyCodeUtils, KeyMod, SimpleRuntimeKeybinding } from 'vs/base/common/keyCodes';
+import { KeyCode, KeyCodeUtils, KeyMod, SimpleKeybinding } from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
 import * as browser from 'vs/base/browser/browser';
 
@@ -178,7 +178,7 @@ export interface IKeyboardEvent {
 	/**
 	 * @internal
 	 */
-	toRuntimeKeybinding(): SimpleRuntimeKeybinding;
+	toRuntimeKeybinding(): SimpleKeybinding;
 	equals(keybinding: number): boolean;
 
 	preventDefault(): void;
@@ -202,7 +202,7 @@ export class StandardKeyboardEvent implements IKeyboardEvent {
 	public readonly keyCode: KeyCode;
 
 	private _asKeybinding: number;
-	private _asRuntimeKeybinding: SimpleRuntimeKeybinding;
+	private _asRuntimeKeybinding: SimpleKeybinding;
 
 	constructor(source: KeyboardEvent) {
 		let e = <KeyboardEvent>source;
@@ -241,7 +241,7 @@ export class StandardKeyboardEvent implements IKeyboardEvent {
 		}
 	}
 
-	public toRuntimeKeybinding(): SimpleRuntimeKeybinding {
+	public toRuntimeKeybinding(): SimpleKeybinding {
 		return this._asRuntimeKeybinding;
 	}
 
@@ -273,11 +273,11 @@ export class StandardKeyboardEvent implements IKeyboardEvent {
 		return result;
 	}
 
-	private _computeRuntimeKeybinding(): SimpleRuntimeKeybinding {
+	private _computeRuntimeKeybinding(): SimpleKeybinding {
 		let key = KeyCode.Unknown;
 		if (this.keyCode !== KeyCode.Ctrl && this.keyCode !== KeyCode.Shift && this.keyCode !== KeyCode.Alt && this.keyCode !== KeyCode.Meta) {
 			key = this.keyCode;
 		}
-		return new SimpleRuntimeKeybinding(this.ctrlKey, this.shiftKey, this.altKey, this.metaKey, key);
+		return new SimpleKeybinding(this.ctrlKey, this.shiftKey, this.altKey, this.metaKey, key);
 	}
 }
