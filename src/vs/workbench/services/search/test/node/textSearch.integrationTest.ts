@@ -12,7 +12,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { FileWalker } from 'vs/workbench/services/search/node/fileSearch';
 import { ISerializedFileMatch, IRawSearch } from 'vs/workbench/services/search/node/search';
 import { Engine as TextSearchEngine } from 'vs/workbench/services/search/node/textSearch';
-// import { RipgrepEngine } from 'vs/workbench/services/search/node/ripgrepTextSearch';
+import { RipgrepEngine } from 'vs/workbench/services/search/node/ripgrepTextSearch';
 import { TextSearchWorkerProvider } from 'vs/workbench/services/search/node/textSearchWorkerProvider';
 
 function countAll(matches: ISerializedFileMatch[]): number {
@@ -46,26 +46,26 @@ function doLegacySearchTest(config: IRawSearch, expectedResultCount: number | Fu
 	});
 }
 
-// function doRipgrepSearchTest(config: IRawSearch, expectedResultCount: number): TPromise<void> {
-// 	return new TPromise<void>(resolve => {
-// 		let engine = new RipgrepEngine(config);
+function doRipgrepSearchTest(config: IRawSearch, expectedResultCount: number): TPromise<void> {
+	return new TPromise<void>(resolve => {
+		let engine = new RipgrepEngine(config);
 
-// 		let c = 0;
-// 		engine.search((result) => {
-// 			if (result) {
-// 				c += result.numMatches;
-// 			}
-// 		}, () => { }, (error) => {
-// 			assert.ok(!error);
-// 			assert.equal(c, expectedResultCount);
-// 			resolve(undefined);
-// 		});
-// 	});
-// }
+		let c = 0;
+		engine.search((result) => {
+			if (result) {
+				c += result.numMatches;
+			}
+		}, () => { }, (error) => {
+			assert.ok(!error);
+			assert.equal(c, expectedResultCount);
+			resolve(undefined);
+		});
+	});
+}
 
 function doSearchTest(config: IRawSearch, expectedResultCount: number, done) {
 	return doLegacySearchTest(config, expectedResultCount)
-		// .then(() => doRipgrepSearchTest(config, expectedResultCount))
+		.then(() => doRipgrepSearchTest(config, expectedResultCount))
 		.then(done, done);
 }
 
@@ -166,7 +166,7 @@ suite('Search-integration', () => {
 		// (Legacy) search can go over the maxResults because it doesn't trim the results from its worker processes to the exact max size.
 		// But the worst-case scenario should be 2*max-1
 		return doLegacySearchTest(config, count => count < maxResults * 2)
-			// .then(() => doRipgrepSearchTest(config, maxResults))
+			.then(() => doRipgrepSearchTest(config, maxResults))
 			.then(done, done);
 	});
 
