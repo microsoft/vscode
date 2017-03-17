@@ -172,6 +172,46 @@ export class FancyResolvedKeybinding extends ResolvedKeybinding {
 	public getUserSettingsLabel(): string {
 		return KeybindingIO.writeKeybinding(this._actual, OS);
 	}
+
+	public isChord(): boolean {
+		return this._actual.isChord();
+	}
+
+	public hasCtrlModifier(): boolean {
+		if (this._actual.isChord()) {
+			return false;
+		}
+		if (OS === OperatingSystem.Macintosh) {
+			return this._actual.hasWinCtrl();
+		} else {
+			return this._actual.hasCtrlCmd();
+		}
+	}
+
+	public hasShiftModifier(): boolean {
+		if (this._actual.isChord()) {
+			return false;
+		}
+		return this._actual.hasShift();
+	}
+
+	public hasAltModifier(): boolean {
+		if (this._actual.isChord()) {
+			return false;
+		}
+		return this._actual.hasAlt();
+	}
+
+	public hasMetaModifier(): boolean {
+		if (this._actual.isChord()) {
+			return false;
+		}
+		if (OS === OperatingSystem.Macintosh) {
+			return this._actual.hasCtrlCmd();
+		} else {
+			return this._actual.hasWinCtrl();
+		}
+	}
 }
 
 export class WorkbenchKeybindingService extends AbstractKeybindingService {

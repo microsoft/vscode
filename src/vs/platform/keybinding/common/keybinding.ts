@@ -74,9 +74,10 @@ export interface IKeybindingService {
 	getKeybindings(): IKeybindingItem2[];
 
 	/**
-	 * @deprecated
+	 * Look up keybindings for a command.
+	 * Use `lookupKeybinding` if you are interested in the preferred keybinding.
 	 */
-	lookupKeybindings(commandId: string): Keybinding[];
+	lookupKeybindings(commandId: string): ResolvedKeybinding[];
 
 	/**
 	 * Look up the preferred (last defined) keybinding for a command.
