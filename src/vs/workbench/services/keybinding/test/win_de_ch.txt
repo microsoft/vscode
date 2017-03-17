@@ -168,20 +168,20 @@
 |          Ctrl+Shift+Alt+Digit0 |  ---  |          Ctrl+Shift+Alt+0 |          Ctrl+Shift+Alt+0 |
 |                          Minus |   '   |                         [ |                         ' |
 |                    Shift+Minus |   ?   |                   Shift+[ |                   Shift+' |
-|                 Ctrl+Alt+Minus |  ---  |                Ctrl+Alt+[ |                Ctrl+Alt+' |
+|                 Ctrl+Alt+Minus |   ´   |                Ctrl+Alt+[ |                Ctrl+Alt+' |
 |           Ctrl+Shift+Alt+Minus |  ---  |          Ctrl+Shift+Alt+[ |          Ctrl+Shift+Alt+' |
-|                          Equal |  ---  |                         ] |                      null |
-|                    Shift+Equal |  ---  |                   Shift+] |                Shift+null |
-|                 Ctrl+Alt+Equal |  ---  |                Ctrl+Alt+] |             Ctrl+Alt+null |
-|           Ctrl+Shift+Alt+Equal |  ---  |          Ctrl+Shift+Alt+] |       Ctrl+Shift+Alt+null |
+|                          Equal |   ^   |                         ] |                         ^ |
+|                    Shift+Equal |   `   |                   Shift+] |                   Shift+^ |
+|                 Ctrl+Alt+Equal |   ~   |                Ctrl+Alt+] |                Ctrl+Alt+^ |
+|           Ctrl+Shift+Alt+Equal |  ---  |          Ctrl+Shift+Alt+] |          Ctrl+Shift+Alt+^ |
 |                    BracketLeft |   ü   |                         ; |                         ü |
 |              Shift+BracketLeft |   è   |                   Shift+; |                   Shift+ü |
 |           Ctrl+Alt+BracketLeft |   [   |                Ctrl+Alt+; |                Ctrl+Alt+ü |
 |     Ctrl+Shift+Alt+BracketLeft |  ---  |          Ctrl+Shift+Alt+; |          Ctrl+Shift+Alt+ü |
-|                   BracketRight |  ---  |                         ` |                      null |
-|             Shift+BracketRight |   !   |                   Shift+` |                Shift+null |
-|          Ctrl+Alt+BracketRight |   ]   |                Ctrl+Alt+` |             Ctrl+Alt+null |
-|    Ctrl+Shift+Alt+BracketRight |  ---  |          Ctrl+Shift+Alt+` |       Ctrl+Shift+Alt+null |
+|                   BracketRight |   ¨   |                         ` |                         ¨ |
+|             Shift+BracketRight |   !   |                   Shift+` |                   Shift+¨ |
+|          Ctrl+Alt+BracketRight |   ]   |                Ctrl+Alt+` |                Ctrl+Alt+¨ |
+|    Ctrl+Shift+Alt+BracketRight |  ---  |          Ctrl+Shift+Alt+` |          Ctrl+Shift+Alt+¨ |
 --------------------------------------------------------------------------------------------------
 |       HW Code combination      |  Key  |    KeyCode combination    |          UI label         |
 --------------------------------------------------------------------------------------------------
