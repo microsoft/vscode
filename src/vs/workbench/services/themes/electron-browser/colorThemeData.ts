@@ -88,6 +88,23 @@ export class ColorThemeData implements IColorTheme {
 		return JSON.stringify(content, null, '\t');
 	}
 
+	toStorageData() {
+		let colorMapData = {};
+		for (let key in this.colorMap) {
+			colorMapData[key] = this.colorMap[key].toRGBAHex(true);
+		}
+		return JSON.stringify({
+			id: this.id,
+			label: this.label,
+			settingsId: this.settingsId,
+			selector: this.selector,
+			tokenColors: this.tokenColors,
+			isLoaded: true,
+			extensionData: this.extensionData,
+			colorMap: colorMapData
+		});
+	}
+
 	get type(): ThemeType {
 		switch (this.getBaseThemeId()) {
 			case VS_LIGHT_THEME: return 'light';
@@ -111,6 +128,22 @@ export class ColorThemeData implements IColorTheme {
 	getBaseThemeId() {
 		return getBaseThemeId(this.id);
 	}
+}
+
+export function fromStorageData(input: string): ColorThemeData {
+	let data = JSON.parse(input);
+	let theme = new ColorThemeData();
+	for (let key in data) {
+		if (key !== 'colorMap') {
+			theme[key] = data[key];
+		} else {
+			let colorMapData = data[key];
+			for (let id in colorMapData) {
+				theme.colorMap[id] = Color.fromHex(colorMapData[id]);
+			}
+		}
+	}
+	return theme;
 }
 
 let defaultThemeColors: { [baseTheme: string]: ITokenColorizationRule[] } = {
