@@ -11,6 +11,18 @@ import { Color, RGBA } from 'vs/base/common/color';
 
 // < --- Tabs --- >
 
+export const TABS_CONTAINER_BACKGROUND = registerColor('tabsContainerBackground', {
+	dark: '#252526',
+	light: '#F3F3F3',
+	hc: Color.transparent
+}, nls.localize('tabsContainerBackground', "Background color of the tabs container. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+
+export const NO_TABS_CONTAINER_BACKGROUND = registerColor('noTabsContainerBackground', {
+	dark: editorBackground,
+	light: editorBackground,
+	hc: editorBackground
+}, nls.localize('noTabsContainerBackground', "Background color of the editor title container when no tabs are enabled."));
+
 export const ACTIVE_TAB_BACKGROUND = registerColor('activeTabBackground', {
 	dark: editorBackground,
 	light: editorBackground,

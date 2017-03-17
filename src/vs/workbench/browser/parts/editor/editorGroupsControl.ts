@@ -35,7 +35,7 @@ import { IWindowService } from 'vs/platform/windows/common/windows';
 import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
-import { Themable } from 'vs/workbench/common/theme';
+import { Themable, TABS_CONTAINER_BACKGROUND, NO_TABS_CONTAINER_BACKGROUND } from 'vs/workbench/common/theme';
 
 export enum Rochade {
 	NONE,
@@ -225,7 +225,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		POSITIONS.forEach(position => {
 			const titleControl = this.getTitleAreaControl(position);
 
-			// TItle Container
+			// Title Container
 			const titleContainer = $(titleControl.getContainer());
 			if (this.tabOptions.showTabs) {
 				titleContainer.addClass('tabs');
@@ -256,6 +256,9 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 					titleControl.refresh();
 				}
 			}
+
+			// Update Styles
+			this.updateStyles();
 		});
 	}
 
@@ -928,8 +931,20 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 	}
 
 	protected updateStyles(): void {
+
+		// Editor container background
 		this.silos.forEach(silo => {
 			silo.style('background-color', this.getColor(editorBackground));
+		});
+
+		// Title control
+		POSITIONS.forEach(position => {
+			const container = this.getTitleAreaControl(position).getContainer();
+			if (this.tabOptions.showTabs) {
+				container.style.backgroundColor = this.getColor(TABS_CONTAINER_BACKGROUND);
+			} else {
+				container.style.backgroundColor = this.getColor(NO_TABS_CONTAINER_BACKGROUND);
+			}
 		});
 	}
 
