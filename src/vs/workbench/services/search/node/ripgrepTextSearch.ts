@@ -10,6 +10,7 @@ import * as path from 'path';
 import * as cp from 'child_process';
 import { rgPath } from 'vscode-ripgrep';
 
+import * as encoding from 'vs/base/node/encoding';
 import * as strings from 'vs/base/common/strings';
 import * as glob from 'vs/base/common/glob';
 import { ILineMatch, IProgress } from 'vs/platform/search/common/search';
@@ -324,6 +325,11 @@ function getRgArgs(config: IRawSearch): { args: string[], siblingClauses: glob.S
 
 	// Follow symlinks
 	args.push('--follow');
+
+	// Set default encoding
+	if (config.fileEncoding) {
+		args.push('--encoding', encoding.toCanonicalName(config.fileEncoding));
+	}
 
 	if (config.contentPattern.isRegExp) {
 		if (config.contentPattern.isWordMatch) {
