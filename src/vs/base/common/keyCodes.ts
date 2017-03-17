@@ -592,4 +592,29 @@ export abstract class ResolvedKeybinding {
 	 * This prints the binding in a format suitable for user settings.
 	 */
 	public abstract getUserSettingsLabel(): string;
+
+	/**
+	 * Is the binding a chord?
+	 */
+	public abstract isChord(): boolean;
+	/**
+	 * Does this binding use the ctrl modifier key.
+	 * If it is a chord, it always returns false.
+	 */
+	public abstract hasCtrlModifier(): boolean;
+	/**
+	 * Does this binding use the shift modifier key.
+	 * If it is a chord, it always returns false.
+	 */
+	public abstract hasShiftModifier(): boolean;
+	/**
+	 * Does this binding use the alt modifier key.
+	 * If it is a chord, it always returns false.
+	 */
+	public abstract hasAltModifier(): boolean;
+	/**
+	 * Does this binding use the meta modifier key.
+	 * If it is a chord, it always returns false.
+	 */
+	public abstract hasMetaModifier(): boolean;
 }

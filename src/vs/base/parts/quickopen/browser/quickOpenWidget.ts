@@ -252,7 +252,7 @@ export class QuickOpenWidget implements IModelProvider {
 							return false;
 						}
 
-						if (k.hasShift() && keyCode === KeyCode.Shift) {
+						if (k.hasShiftModifier() && keyCode === KeyCode.Shift) {
 							if (keyboardEvent.ctrlKey || keyboardEvent.altKey || keyboardEvent.metaKey) {
 								return false; // this is an optimistic check for the shift key being used to navigate back in quick open
 							}
@@ -260,30 +260,16 @@ export class QuickOpenWidget implements IModelProvider {
 							return true;
 						}
 
-						if (k.hasAlt() && keyCode === KeyCode.Alt) {
+						if (k.hasAltModifier() && keyCode === KeyCode.Alt) {
 							return true;
 						}
 
-						// Mac is a bit special
-						if (platform.isMacintosh) {
-							if (k.hasCtrlCmd() && keyCode === KeyCode.Meta) {
-								return true;
-							}
-
-							if (k.hasWinCtrl() && keyCode === KeyCode.Ctrl) {
-								return true;
-							}
+						if (k.hasCtrlModifier() && keyCode === KeyCode.Ctrl) {
+							return true;
 						}
 
-						// Windows/Linux are not :)
-						else {
-							if (k.hasCtrlCmd() && keyCode === KeyCode.Ctrl) {
-								return true;
-							}
-
-							if (k.hasWinCtrl() && keyCode === KeyCode.Meta) {
-								return true;
-							}
+						if (k.hasMetaModifier() && keyCode === KeyCode.Meta) {
+							return true;
 						}
 
 						return false;

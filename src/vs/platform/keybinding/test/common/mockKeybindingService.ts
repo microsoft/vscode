@@ -80,7 +80,7 @@ export class MockKeybindingService2 implements IKeybindingService {
 		return new USLayoutResolvedKeybinding(keybinding, OS);
 	}
 
-	public lookupKeybindings(commandId: string): Keybinding[] {
+	public lookupKeybindings(commandId: string): ResolvedKeybinding[] {
 		return [];
 	}
 

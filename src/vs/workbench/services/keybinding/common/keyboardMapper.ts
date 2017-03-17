@@ -117,6 +117,26 @@ export class NativeResolvedKeybinding extends ResolvedKeybinding {
 		throw new Error('TODO!');
 		// return KeybindingIO.writeKeybinding(this._actual, OS);
 	}
+
+	public isChord(): boolean {
+		throw new Error('TODO!');
+	}
+
+	public hasCtrlModifier(): boolean {
+		throw new Error('TODO!');
+	}
+
+	public hasShiftModifier(): boolean {
+		throw new Error('TODO!');
+	}
+
+	public hasAltModifier(): boolean {
+		throw new Error('TODO!');
+	}
+
+	public hasMetaModifier(): boolean {
+		throw new Error('TODO!');
+	}
 }
 
 interface IHardwareCodeMapping {

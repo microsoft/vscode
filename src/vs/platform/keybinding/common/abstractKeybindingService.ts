@@ -109,6 +109,46 @@ export class USLayoutResolvedKeybinding extends ResolvedKeybinding {
 		let result = UserSettingsLabelProvider.toLabel2(firstPart, chordPart, this._os);
 		return result.toLowerCase();
 	}
+
+	public isChord(): boolean {
+		return this._actual.isChord();
+	}
+
+	public hasCtrlModifier(): boolean {
+		if (this._actual.isChord()) {
+			return false;
+		}
+		if (this._os === OperatingSystem.Macintosh) {
+			return this._actual.hasWinCtrl();
+		} else {
+			return this._actual.hasCtrlCmd();
+		}
+	}
+
+	public hasShiftModifier(): boolean {
+		if (this._actual.isChord()) {
+			return false;
+		}
+		return this._actual.hasShift();
+	}
+
+	public hasAltModifier(): boolean {
+		if (this._actual.isChord()) {
+			return false;
+		}
+		return this._actual.hasAlt();
+	}
+
+	public hasMetaModifier(): boolean {
+		if (this._actual.isChord()) {
+			return false;
+		}
+		if (this._os === OperatingSystem.Macintosh) {
+			return this._actual.hasCtrlCmd();
+		} else {
+			return this._actual.hasWinCtrl();
+		}
+	}
 }
 
 interface CurrentChord {
@@ -179,8 +219,8 @@ export abstract class AbstractKeybindingService implements IKeybindingService {
 		return 0;
 	}
 
-	public lookupKeybindings(commandId: string): Keybinding[] {
-		return this._getResolver().lookupKeybindings(commandId).map(item => item.keybinding);
+	public lookupKeybindings(commandId: string): ResolvedKeybinding[] {
+		return this._getResolver().lookupKeybindings(commandId).map(item => this._createResolvedKeybinding(item.keybinding));
 	}
 
 	public lookupKeybinding(commandId: string): ResolvedKeybinding {
