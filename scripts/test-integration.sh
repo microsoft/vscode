@@ -4,11 +4,15 @@ set -e
 if [[ "$OSTYPE" == "darwin"* ]]; then
 	realpath() { [[ $1 = /* ]] && echo "$1" || echo "$PWD/${1#./}"; }
 	ROOT=$(dirname $(dirname $(realpath "$0")))
+	USERDATADIR=`mktemp -d -t 'myuserdatadir'`
 else
 	ROOT=$(dirname $(dirname $(readlink -f $0)))
+	USERDATADIR=`mktemp -d 2>/dev/null`
 fi
 
 # Integration Tests
-./scripts/code.sh $ROOT/extensions/vscode-api-tests/testWorkspace --extensionDevelopmentPath=$ROOT/extensions/vscode-api-tests --extensionTestsPath=$ROOT/extensions/vscode-api-tests/out --disableExtensions
-./scripts/code.sh $ROOT/extensions/vscode-colorize-tests/test --extensionDevelopmentPath=$ROOT/extensions/vscode-colorize-tests --extensionTestsPath=$ROOT/extensions/vscode-colorize-tests/out
+./scripts/code.sh $ROOT/extensions/vscode-api-tests/testWorkspace --extensionDevelopmentPath=$ROOT/extensions/vscode-api-tests --extensionTestsPath=$ROOT/extensions/vscode-api-tests/out --disableExtensions --user-data-dir=$USERDATADIR
+./scripts/code.sh $ROOT/extensions/vscode-colorize-tests/test --extensionDevelopmentPath=$ROOT/extensions/vscode-colorize-tests --extensionTestsPath=$ROOT/extensions/vscode-colorize-tests/out --user-data-dir=$USERDATADIR
 ./scripts/test.sh --run $ROOT/out/vs/workbench/services/search/test/node/textSearch.integrationTest.js -g integration
+
+rm -r $USERDATADIR
