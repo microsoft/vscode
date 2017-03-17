@@ -351,7 +351,7 @@ export class TabsTitleControl extends TitleControl {
 
 		// Handle Tabs
 		this.handleTabs(group.count);
-		DOM.addClass(this.titleContainer, 'shows-tabs');
+		DOM.removeClass(this.titleContainer, 'empty');
 
 		// Update Tabs
 		this.doUpdate();
@@ -363,7 +363,7 @@ export class TabsTitleControl extends TitleControl {
 		this.tabDisposeables = dispose(this.tabDisposeables);
 		this.editorLabels = [];
 
-		DOM.removeClass(this.titleContainer, 'shows-tabs');
+		DOM.addClass(this.titleContainer, 'empty');
 	}
 
 	private handleTabs(tabsNeeded: number): void {
