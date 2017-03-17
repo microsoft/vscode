@@ -94,3 +94,20 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 	// });
 
 });
+
+
+suite('keyboardMapper - WINDOWS en_us', () => {
+
+	let mapper: WindowsKeyboardMapper;
+
+	suiteSetup((done) => {
+		createKeyboardMapper('win_en_us', OperatingSystem.Macintosh).then((_mapper) => {
+			mapper = _mapper;
+			done();
+		}, done);
+	});
+
+	test('mapping', (done) => {
+		assertMapping(mapper, 'win_en_us.txt', done);
+	});
+});
