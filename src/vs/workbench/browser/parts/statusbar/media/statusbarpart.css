@@ -12,11 +12,6 @@
 	overflow: hidden;
 }
 
-.hc-black .monaco-workbench > .part.statusbar {
-	border-top-width: 1px;
-	border-top-style: solid;
-}
-
 .monaco-workbench > .part.statusbar > .statusbar-item {
 	display: inline-block;
 	line-height: 22px;
@@ -65,6 +60,8 @@
 /* TODO@theme */
 
 .hc-black .monaco-workbench > .part.statusbar {
+	border-top-width: 1px;
+	border-top-style: solid;
 	border-top-color: #6FC3DF;
 }
 
