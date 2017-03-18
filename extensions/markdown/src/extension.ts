@@ -40,7 +40,7 @@ interface PreviewSecurityPickItem extends vscode.QuickPickItem {
 	id: PreviewSecuritySelection;
 }
 
-class ExtensionContentSecurityProlicyArbiter implements ContentSecurityPolicyArbiter {
+class ExtensionContentSecurityPolicyArbiter implements ContentSecurityPolicyArbiter {
 	private readonly key = 'trusted_preview_workspace:';
 
 	constructor(
@@ -58,8 +58,15 @@ class ExtensionContentSecurityProlicyArbiter implements ContentSecurityPolicyArb
 	public removeTrustedWorkspace(rootPath: string): Thenable<void> {
 		return this.globalState.update(this.key + rootPath, false);
 	}
-
 }
+
+const resolveExtensionResources = (extension: vscode.Extension<any>, stylePath: string): vscode.Uri => {
+	const resource = vscode.Uri.parse(stylePath);
+	if (resource.scheme) {
+		return resource;
+	}
+	return vscode.Uri.file(path.join(extension.extensionPath, stylePath));
+};
 
 var telemetryReporter: TelemetryReporter | null;
 
@@ -70,11 +77,42 @@ export function activate(context: vscode.ExtensionContext) {
 		context.subscriptions.push(telemetryReporter);
 	}
 
-	const cspArbiter = new ExtensionContentSecurityProlicyArbiter(context.globalState);
+	const cspArbiter = new ExtensionContentSecurityPolicyArbiter(context.globalState);
 	const engine = new MarkdownEngine();
 
 	const contentProvider = new MDDocumentContentProvider(engine, context, cspArbiter);
 	const contentProviderRegistration = vscode.workspace.registerTextDocumentContentProvider('markdown', contentProvider);
+
+	if (vscode.workspace.getConfiguration('markdown').get('enableExperimentalExtensionApi', false)) {
+		for (const extension of vscode.extensions.all) {
+			const contributes = extension.packageJSON && extension.packageJSON.contributes;
+			if (!contributes) {
+				continue;
+			}
+
+			let styles = contributes['markdown.preview'] && contributes['markdown.preview'].styles;
+			if (styles) {
+				if (!Array.isArray(styles)) {
+					styles = [styles];
+				}
+				for (const style of styles) {
+					try {
+						contentProvider.addStyle(resolveExtensionResources(extension, style));
+					} catch (e) {
+						// noop
+					}
+				}
+			}
+
+			if (contributes['markdownit.plugins']) {
+				extension.activate().then(() => {
+					if (extension.exports && extension.exports.extendMarkdownIt) {
+						engine.addPlugin((md: any) => extension.exports.extendMarkdownIt(md));
+					}
+				});
+			}
+		}
+	}
 
 	const symbolsProvider = new MDDocumentSymbolProvider(engine);
 	const symbolsProviderRegistration = vscode.languages.registerDocumentSymbolProvider({ language: 'markdown' }, symbolsProvider);
@@ -231,18 +269,6 @@ export function activate(context: vscode.ExtensionContext) {
 				});
 		}
 	}));
-
-	if (vscode.workspace.getConfiguration('markdown').get('enableExperimentalExtensionApi', false)) {
-		vscode.commands.executeCommand('_markdown.onActivateExtensions')
-			.then(() => void 0, () => void 0);
-
-		return {
-			addPlugin(factory: (md: any) => any) {
-				engine.addPlugin(factory);
-			}
-		};
-	}
-	return undefined;
 }
 
 

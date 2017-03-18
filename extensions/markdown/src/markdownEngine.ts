@@ -33,8 +33,6 @@ export class MarkdownEngine {
 
 	private plugins: Array<(md: any) => any> = [];
 
-	constructor() { }
-
 	public addPlugin(factory: (md: any) => any): void {
 		if (this.md) {
 			this.usePlugin(factory);
