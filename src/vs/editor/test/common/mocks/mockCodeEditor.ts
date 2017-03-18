@@ -8,7 +8,7 @@ import { EventEmitter, IEventEmitter } from 'vs/base/common/eventEmitter';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { IContextKeyService, IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
-import { MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
+import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { CommonCodeEditor } from 'vs/editor/common/commonCodeEditor';
 import { CommonEditorConfiguration } from 'vs/editor/common/config/commonEditorConfig';
 import { Cursor } from 'vs/editor/common/controller/cursor';
@@ -87,7 +87,7 @@ export function withMockCodeEditor(text: string[], options: editorCommon.ICodeEd
 
 export function mockCodeEditor(text: string[], options: editorCommon.ICodeEditorWidgetCreationOptions): CommonCodeEditor {
 
-	let contextKeyService = new MockKeybindingService();
+	let contextKeyService = new MockContextKeyService();
 
 	let services = new ServiceCollection();
 	services.set(IContextKeyService, contextKeyService);

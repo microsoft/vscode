@@ -157,17 +157,17 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		}
 	}
 
-	private registerDefaultKeybinding(keybinding: number, commandId: string, weight1: number, weight2: number, when: ContextKeyExpr): void {
-		const runtimeKeybinding = createKeybinding(keybinding, OS);
+	private registerDefaultKeybinding(kb: number, commandId: string, weight1: number, weight2: number, when: ContextKeyExpr): void {
+		const keybinding = createKeybinding(kb, OS);
 		if (OS === OperatingSystem.Windows) {
-			if (runtimeKeybinding.type === KeybindingType.Chord) {
-				this._assertNoCtrlAlt(runtimeKeybinding.firstPart, commandId);
+			if (keybinding.type === KeybindingType.Chord) {
+				this._assertNoCtrlAlt(keybinding.firstPart, commandId);
 			} else {
-				this._assertNoCtrlAlt(runtimeKeybinding, commandId);
+				this._assertNoCtrlAlt(keybinding, commandId);
 			}
 		}
 		this._keybindings.push({
-			keybinding: runtimeKeybinding,
+			keybinding: keybinding,
 			command: commandId,
 			commandArgs: null,
 			when: when,

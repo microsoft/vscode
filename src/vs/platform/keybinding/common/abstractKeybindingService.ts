@@ -5,12 +5,12 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import { ResolvedKeybinding, Keybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
+import { ResolvedKeybinding, Keybinding } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { KeybindingResolver, IResolveResult } from 'vs/platform/keybinding/common/keybindingResolver';
-import { IKeybindingEvent, IKeybindingService, IKeybindingItem2, KeybindingSource } from 'vs/platform/keybinding/common/keybinding';
+import { IKeybindingEvent, IKeybindingService, IKeybindingItem2, KeybindingSource, IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService, IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { IMessageService } from 'vs/platform/message/common/message';
@@ -56,16 +56,13 @@ export abstract class AbstractKeybindingService implements IKeybindingService {
 		this.toDispose = dispose(this.toDispose);
 	}
 
-	protected abstract _getResolver(): KeybindingResolver;
-	protected abstract _createResolvedKeybinding(kb: Keybinding): ResolvedKeybinding;
-
 	get onDidUpdateKeybindings(): Event<IKeybindingEvent> {
 		return this._onDidUpdateKeybindings ? this._onDidUpdateKeybindings.event : Event.None; // Sinon stubbing walks properties on prototype
 	}
 
-	public resolveKeybinding(keybinding: Keybinding): ResolvedKeybinding {
-		return this._createResolvedKeybinding(keybinding);
-	}
+	protected abstract _getResolver(): KeybindingResolver;
+	public abstract resolveKeybinding(keybinding: Keybinding): ResolvedKeybinding;
+	public abstract resolveKeyboardEvent(keyboardEvent: IKeyboardEvent): ResolvedKeybinding;
 
 	public getDefaultKeybindings(): string {
 		return '';
@@ -96,32 +93,40 @@ export abstract class AbstractKeybindingService implements IKeybindingService {
 		return result.resolvedKeybinding;
 	}
 
-	public resolve(keybinding: SimpleKeybinding, target: IContextKeyServiceTarget): IResolveResult {
-		if (keybinding.isModifierKey()) {
+	public softDispatch(e: IKeyboardEvent, target: IContextKeyServiceTarget): IResolveResult {
+		const keybinding = this.resolveKeyboardEvent(e);
+		if (keybinding.isChord()) {
+			console.warn('Unexpected keyboard event mapped to a chord');
+			return null;
+		}
+		const [firstPart,] = keybinding.getDispatchParts();
+		if (firstPart === null) {
+			// cannot be dispatched, probably only modifier keys
 			return null;
 		}
 
 		const contextValue = this._contextKeyService.getContextValue(target);
 		const currentChord = this._currentChord ? this._currentChord.keypress : null;
-		const resolvedKeybinding = this._createResolvedKeybinding(keybinding);
-		const [firstPart,] = resolvedKeybinding.getDispatchParts();
-		// We know for a fact the chordPart is null since we're using a single keypress
 		return this._getResolver().resolve(contextValue, currentChord, firstPart);
 	}
 
-	protected _dispatch(keybinding: SimpleKeybinding, target: IContextKeyServiceTarget): boolean {
-		// Check modifier key here and cancel early, it's also checked in resolve as the function
-		// is used externally.
+	protected _dispatch(e: IKeyboardEvent, target: IContextKeyServiceTarget): boolean {
 		let shouldPreventDefault = false;
-		if (keybinding.isModifierKey()) {
+
+		const keybinding = this.resolveKeyboardEvent(e);
+		if (keybinding.isChord()) {
+			console.warn('Unexpected keyboard event mapped to a chord');
+			return null;
+		}
+		const [firstPart,] = keybinding.getDispatchParts();
+		if (firstPart === null) {
+			// cannot be dispatched, probably only modifier keys
 			return shouldPreventDefault;
 		}
 
 		const contextValue = this._contextKeyService.getContextValue(target);
 		const currentChord = this._currentChord ? this._currentChord.keypress : null;
-		const resolvedKeybinding = this._createResolvedKeybinding(keybinding);
-		const [firstPart,] = resolvedKeybinding.getDispatchParts();
-		const keypressLabel = resolvedKeybinding.getLabel();
+		const keypressLabel = keybinding.getLabel();
 		const resolveResult = this._getResolver().resolve(contextValue, currentChord, firstPart);
 
 		if (resolveResult && resolveResult.enterChord) {

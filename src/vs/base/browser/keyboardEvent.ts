@@ -174,11 +174,12 @@ export interface IKeyboardEvent {
 	readonly altKey: boolean;
 	readonly metaKey: boolean;
 	readonly keyCode: KeyCode;
+	readonly code: string;
 
 	/**
 	 * @internal
 	 */
-	toRuntimeKeybinding(): SimpleKeybinding;
+	toKeybinding(): SimpleKeybinding;
 	equals(keybinding: number): boolean;
 
 	preventDefault(): void;
@@ -200,6 +201,7 @@ export class StandardKeyboardEvent implements IKeyboardEvent {
 	public readonly altKey: boolean;
 	public readonly metaKey: boolean;
 	public readonly keyCode: KeyCode;
+	public readonly code: string;
 
 	private _asKeybinding: number;
 	private _asRuntimeKeybinding: SimpleKeybinding;
@@ -215,6 +217,7 @@ export class StandardKeyboardEvent implements IKeyboardEvent {
 		this.altKey = e.altKey;
 		this.metaKey = e.metaKey;
 		this.keyCode = extractKeyCode(e);
+		this.code = e.code;
 
 		// console.info(e.type + ": keyCode: " + e.keyCode + ", which: " + e.which + ", charCode: " + e.charCode + ", detail: " + e.detail + " ====> " + this.keyCode + ' -- ' + KeyCode[this.keyCode]);
 
@@ -241,7 +244,7 @@ export class StandardKeyboardEvent implements IKeyboardEvent {
 		}
 	}
 
-	public toRuntimeKeybinding(): SimpleKeybinding {
+	public toKeybinding(): SimpleKeybinding {
 		return this._asRuntimeKeybinding;
 	}
 

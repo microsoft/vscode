@@ -15,7 +15,7 @@ import { TerminalInstance } from 'vs/workbench/parts/terminal/electron-browser/t
 import { IShellLaunchConfig } from 'vs/workbench/parts/terminal/common/terminal';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { TestMessageService, TestContextService } from 'vs/workbench/test/workbenchTestServices';
-import { MockKeybindingService, MockKeybindingService2 } from 'vs/platform/keybinding/test/common/mockKeybindingService';
+import { MockContextKeyService, MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
@@ -81,8 +81,8 @@ suite('Workbench - TerminalInstance', () => {
 		let configHelper: { config: { cwd: string } };
 
 		setup(() => {
-			let contextKeyService = new MockKeybindingService();
-			let keybindingService = new MockKeybindingService2();
+			let contextKeyService = new MockContextKeyService();
+			let keybindingService = new MockKeybindingService();
 			let terminalFocusContextKey = contextKeyService.createKey('test', false);
 			instantiationService = new TestInstantiationService();
 			instantiationService.stub(IMessageService, new TestMessageService());
