@@ -9,8 +9,8 @@
 
 .monaco-editor.vs		.wordHighlight { background: rgba(87, 87, 87, 0.25); }
 .monaco-editor.vs-dark	.wordHighlight { background: rgba(87, 87, 87, 0.72); }
-.monaco-editor.hc-black	.wordHighlight { background: none; }
+.monaco-editor.hc-black	.wordHighlight { background: none; border: 1px dashed #f38518; box-sizing: border-box; }
 
 .monaco-editor.vs		.wordHighlightStrong { background: rgba(14, 99, 156, 0.25); }
 .monaco-editor.vs-dark	.wordHighlightStrong { background: rgba(0, 73, 114, 0.72); }
-.monaco-editor.hc-black	.wordHighlightStrong { background: none; }
+.monaco-editor.hc-black	.wordHighlightStrong { background: none; border: 1px dashed #f38518; box-sizing: border-box;}

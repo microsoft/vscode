@@ -17,7 +17,7 @@ import * as objects from 'vs/base/common/objects';
 import * as plist from 'fast-plist';
 import pfs = require('vs/base/node/pfs');
 
-import { Extensions, IColorRegistry, ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
+import { Extensions, IColorRegistry, ColorIdentifier, editorBackground, editorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ThemeType } from 'vs/platform/theme/common/themeService';
 import { Registry } from 'vs/platform/platform';
 
@@ -73,6 +73,7 @@ export class ColorThemeData implements IColorTheme {
 				this.colorMap = colorMap;
 				this.defaultColorMap = {};
 				this.isLoaded = true;
+				completeTokenColors(this);
 			});
 		}
 		return TPromise.as(null);
@@ -221,5 +222,21 @@ function _loadThemeDocument(baseTheme: string, themePath: string, resultRules: I
 		}
 	}, error => {
 		return TPromise.wrapError(new Error(nls.localize('error.cannotload', "Problems loading theme file {0}: {1}", themePath, error.message)));
+	});
+}
+
+/**
+ * Make sure that the token colors contain the default fore and background
+ */
+function completeTokenColors(theme: ColorThemeData) {
+	theme.tokenColors.forEach(rule => {
+		if (!rule.scope) {
+			if (!rule.settings.background) {
+				rule.settings.background = theme.getColor(editorBackground).toRGBAHex();
+			}
+			if (!rule.settings.foreground) {
+				rule.settings.foreground = theme.getColor(editorForeground).toRGBAHex();
+			}
+		}
 	});
 }
