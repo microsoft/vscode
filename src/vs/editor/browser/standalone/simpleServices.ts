@@ -14,7 +14,7 @@ import { ICommandService, ICommand, ICommandEvent, ICommandHandler, CommandsRegi
 import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
 import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
-import { IKeybindingEvent, KeybindingSource } from 'vs/platform/keybinding/common/keybinding';
+import { IKeybindingEvent, KeybindingSource, IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfirmation, IMessageService } from 'vs/platform/message/common/message';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -32,7 +32,7 @@ import { KeybindingsRegistry, IKeybindingItem } from 'vs/platform/keybinding/com
 import { MenuId, IMenu, IMenuService } from 'vs/platform/actions/common/actions';
 import { Menu } from 'vs/platform/actions/common/menu';
 import { ITelemetryService, ITelemetryExperiments, ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
-import { ResolvedKeybinding, Keybinding, createKeybinding } from 'vs/base/common/keyCodes';
+import { ResolvedKeybinding, Keybinding, createKeybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { OS } from 'vs/base/common/platform';
 
@@ -323,7 +323,7 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 
 		this.toDispose.push(dom.addDisposableListener(domNode, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			let keyEvent = new StandardKeyboardEvent(e);
-			let shouldPreventDefault = this._dispatch(keyEvent.toRuntimeKeybinding(), keyEvent.target);
+			let shouldPreventDefault = this._dispatch(keyEvent, keyEvent.target);
 			if (shouldPreventDefault) {
 				keyEvent.preventDefault();
 			}
@@ -387,7 +387,7 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 			const item = items[i];
 			const when = (item.when ? item.when.normalize() : null);
 			const keybinding = item.keybinding;
-			const resolvedKeybinding = (keybinding ? this._createResolvedKeybinding(keybinding) : null);
+			const resolvedKeybinding = (keybinding ? this.resolveKeybinding(keybinding) : null);
 
 			result[resultLen++] = new ResolvedKeybindingItem(resolvedKeybinding, item.command, item.commandArgs, when, isDefault);
 		}
@@ -395,10 +395,20 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 		return result;
 	}
 
-	protected _createResolvedKeybinding(kb: Keybinding): ResolvedKeybinding {
+	public resolveKeybinding(kb: Keybinding): ResolvedKeybinding {
 		return new USLayoutResolvedKeybinding(kb, OS);
 	}
 
+	public resolveKeyboardEvent(keyboardEvent: IKeyboardEvent): ResolvedKeybinding {
+		let keybinding = new SimpleKeybinding(
+			keyboardEvent.ctrlKey,
+			keyboardEvent.shiftKey,
+			keyboardEvent.altKey,
+			keyboardEvent.metaKey,
+			keyboardEvent.keyCode
+		);
+		return this.resolveKeybinding(keybinding);
+	}
 }
 
 export class SimpleConfigurationService implements IConfigurationService {

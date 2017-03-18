@@ -7,7 +7,6 @@
 import * as nativeKeymap from 'native-keymap';
 import { KeyCode, KeyCodeUtils } from 'vs/base/common/keyCodes';
 import { CharCode } from 'vs/base/common/charCode';
-import { IKeyCodeLabelProvider } from 'vs/platform/keybinding/common/keybindingLabels';
 import { lookupKeyCode, setExtractKeyCode } from 'vs/base/browser/keyboardEvent';
 import Platform = require('vs/base/common/platform');
 
@@ -332,50 +331,7 @@ setExtractKeyCode((e: KeyboardEvent) => {
 	return lookupKeyCode(e);
 });
 
-let nativeUIKeyCodeLabelProvider: IKeyCodeLabelProvider = null;
-export function getNativeUIKeyCodeLabelProvider(): IKeyCodeLabelProvider {
-	if (!nativeUIKeyCodeLabelProvider) {
-		let remaps = getNativeLabelProviderRemaps();
-		nativeUIKeyCodeLabelProvider = (keyCode: KeyCode, OS: Platform.OperatingSystem): string => {
-			if (remaps[keyCode] !== null) {
-				return remaps[keyCode].render();
-			}
-
-			if (OS === Platform.OperatingSystem.Macintosh) {
-				switch (keyCode) {
-					case KeyCode.LeftArrow:
-						return '←';
-					case KeyCode.UpArrow:
-						return '↑';
-					case KeyCode.RightArrow:
-						return '→';
-					case KeyCode.DownArrow:
-						return '↓';
-				}
-			}
-
-			return KeyCodeUtils.toString(keyCode);
-		};
-	}
-	return nativeUIKeyCodeLabelProvider;
-}
-
-let nativeAriaKeyCodeLabelProvider: IKeyCodeLabelProvider = null;
-export function getNativeAriaKeyCodeLabelProvider(): IKeyCodeLabelProvider {
-	if (!nativeAriaKeyCodeLabelProvider) {
-		let remaps = getNativeLabelProviderRemaps();
-		nativeAriaKeyCodeLabelProvider = (keyCode: KeyCode, OS: Platform.OperatingSystem): string => {
-			if (remaps[keyCode] !== null) {
-				return remaps[keyCode].render();
-			}
-
-			return KeyCodeUtils.toString(keyCode);
-		};
-	}
-	return nativeAriaKeyCodeLabelProvider;
-}
-
-class NativeLabel {
+export class NativeLabel {
 
 	public static Empty = new NativeLabel('', '', '', '');
 
@@ -429,7 +385,7 @@ class NativeLabel {
 }
 
 let nativeLabelRemaps: NativeLabel[] = null;
-function getNativeLabelProviderRemaps(): NativeLabel[] {
+export function getNativeLabelProviderRemaps(): NativeLabel[] {
 	if (!nativeLabelRemaps) {
 		// See https://msdn.microsoft.com/en-us/library/windows/desktop/dd375731(v=vs.85).aspx
 		// See https://github.com/Microsoft/node-native-keymap/blob/master/deps/chromium/keyboard_codes_win.h

@@ -128,16 +128,6 @@
 	border-bottom-color: #E7E7E7;
 }
 
-.vs .monaco-workbench > .editor > .content.vertical-layout > .one-editor-silo.editor-two,
-.vs .monaco-workbench > .editor > .content.vertical-layout > .one-editor-silo.editor-three {
-	border-left-color: #E7E7E7;
-}
-
-.vs .monaco-workbench > .editor > .content.horizontal-layout > .one-editor-silo.editor-two,
-.vs .monaco-workbench > .editor > .content.horizontal-layout > .one-editor-silo.editor-three {
-	border-top-color: #E7E7E7;
-}
-
 .vs-dark .monaco-workbench > .editor > .content.vertical-layout > .one-editor-silo.dragging {
 	border-left-color: #444;
 	border-right-color: #444;
@@ -148,16 +138,6 @@
 	border-bottom-color: #444;
 }
 
-.vs-dark .monaco-workbench > .editor > .content.vertical-layout > .one-editor-silo.editor-two,
-.vs-dark .monaco-workbench > .editor > .content.vertical-layout > .one-editor-silo.editor-three {
-	border-left-color: #444;
-}
-
-.vs-dark .monaco-workbench > .editor > .content.horizontal-layout > .one-editor-silo.editor-two,
-.vs-dark .monaco-workbench > .editor > .content.horizontal-layout > .one-editor-silo.editor-three {
-	border-top-color: #444;
-}
-
 .hc-black .monaco-workbench > .editor > .content.vertical-layout > .one-editor-silo.dragging {
 	border-left-color: #6FC3DF;
 	border-right-color: #6FC3DF;
@@ -166,14 +146,4 @@
 .hc-black .monaco-workbench > .editor > .content.horizontal-layout > .one-editor-silo.dragging {
 	border-top-color: #6FC3DF;
 	border-bottom-color: #6FC3DF;
-}
-
-.hc-black .monaco-workbench > .editor > .content.vertical-layout > .one-editor-silo.editor-two,
-.hc-black .monaco-workbench > .editor > .content.vertical-layout > .one-editor-silo.editor-three {
-	border-left-color: #6FC3DF;
-}
-
-.hc-black .monaco-workbench > .editor > .content.horizontal-layout > .one-editor-silo.editor-two,
-.hc-black .monaco-workbench > .editor > .content.horizontal-layout > .one-editor-silo.editor-three {
-	border-top-color: #6FC3DF;
 }
