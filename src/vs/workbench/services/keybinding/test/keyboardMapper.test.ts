@@ -9,7 +9,7 @@ import * as assert from 'assert';
 import { KeyMod, KeyCode, createKeybinding, SimpleKeybinding, Keybinding } from 'vs/base/common/keyCodes';
 import { KeyboardMapper, IKeyboardMapping } from 'vs/workbench/services/keybinding/common/keyboardMapper';
 import { OperatingSystem } from 'vs/base/common/platform';
-import { UserSettingsLabelProvider, PrintableKeypress } from 'vs/platform/keybinding/common/keybindingLabels';
+import { UserSettingsLabelProvider } from 'vs/platform/keybinding/common/keybindingLabels';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
 import { KeyboardEventCodeUtils } from 'vs/workbench/services/keybinding/common/keyboardEventCode';
 import { IHTMLContentElement } from 'vs/base/common/htmlContent';
@@ -190,20 +190,6 @@ function _assertKeybindingTranslation(mapper: KeyboardMapper, OS: OperatingSyste
 	}
 
 	const actual = actualHardwareKeypresses
-		.map(k => new PrintableKeypress(k.ctrlKey, k.shiftKey, k.altKey, k.metaKey, KeyboardEventCodeUtils.toString(k.code)))
-		.map(kp => UserSettingsLabelProvider.toLabel2(kp, null, OS));
+		.map(k => UserSettingsLabelProvider.toLabel(k, KeyboardEventCodeUtils.toString(k.code), null, null, OS));
 	assert.deepEqual(actual, expected, `simpleKeybindingToHardwareKeypress -- "${keybindingLabel}" -- actual: "${actual}" -- expected: "${expected}"`);
-
-	// Now also check the reverse map ...
-	actualHardwareKeypresses.forEach(k => {
-		const hardwareKeypressLabel = `${k.ctrlKey ? 'ctrl+' : ''}${k.shiftKey ? 'shift+' : ''}${k.altKey ? 'alt+' : ''}${k.metaKey ? 'meta+' : ''}${KeyboardEventCodeUtils.toString(k.code)}`;
-		const reversed = mapper.hardwareKeypressToSimpleKeybinding(k);
-		if (!reversed) {
-			assert.fail(`${keybindingLabel} -> ${hardwareKeypressLabel} -> null`);
-			return;
-		}
-
-		const reversedLabel = new USLayoutResolvedKeybinding(reversed, OS).getUserSettingsLabel();
-		assert.equal(reversedLabel, keybindingLabel, `${keybindingLabel} -> ${hardwareKeypressLabel} -> ${reversedLabel}`);
-	});
 }

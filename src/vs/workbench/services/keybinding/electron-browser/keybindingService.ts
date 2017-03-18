@@ -8,13 +8,12 @@ import * as nls from 'vs/nls';
 import { IHTMLContentElement } from 'vs/base/common/htmlContent';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { ResolvedKeybinding, KeyCode, USER_SETTINGS, Keybinding, KeybindingType, SimpleKeybinding, KeyCodeUtils } from 'vs/base/common/keyCodes';
-import { PrintableKeypress, UILabelProvider, AriaLabelProvider, UserSettingsLabelProvider } from 'vs/platform/keybinding/common/keybindingLabels';
+import { UILabelProvider, AriaLabelProvider, UserSettingsLabelProvider, ElectronAcceleratorLabelProvider } from 'vs/platform/keybinding/common/keybindingLabels';
 import { OS, OperatingSystem } from 'vs/base/common/platform';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { ExtensionMessageCollector, ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
 import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
-import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -24,7 +23,7 @@ import { IKeybindingRule, IKeybindingItem, KeybindingsRegistry } from 'vs/platfo
 import { Registry } from 'vs/platform/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { keybindingsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
-import { getCurrentKeyboardLayout, getNativeUIKeyCodeLabelProvider, getNativeAriaKeyCodeLabelProvider } from 'vs/workbench/services/keybinding/electron-browser/nativeKeymap';
+import { getCurrentKeyboardLayout, getNativeLabelProviderRemaps } from 'vs/workbench/services/keybinding/electron-browser/nativeKeymap';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { ConfigWatcher } from 'vs/base/node/config';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -122,113 +121,163 @@ let keybindingsExtPoint = ExtensionsRegistry.registerExtensionPoint<ContributedK
 
 export class FancyResolvedKeybinding extends ResolvedKeybinding {
 
-	private readonly _actual: Keybinding;
+	private readonly _firstPart: SimpleKeybinding;
+	private readonly _chordPart: SimpleKeybinding;
 
 	constructor(actual: Keybinding) {
 		super();
-		this._actual = actual;
+		if (actual === null) {
+			this._firstPart = null;
+			this._chordPart = null;
+		} else if (actual.type === KeybindingType.Chord) {
+			this._firstPart = actual.firstPart;
+			this._chordPart = actual.chordPart;
+		} else {
+			this._firstPart = actual;
+			this._chordPart = null;
+		}
+	}
+
+	private _keyCodeToUILabel(keyCode: KeyCode): string {
+		if (OS === OperatingSystem.Macintosh) {
+			switch (keyCode) {
+				case KeyCode.LeftArrow:
+					return '←';
+				case KeyCode.UpArrow:
+					return '↑';
+				case KeyCode.RightArrow:
+					return '→';
+				case KeyCode.DownArrow:
+					return '↓';
+			}
+		}
+		let remaps = getNativeLabelProviderRemaps();
+		if (remaps[keyCode] !== null) {
+			return remaps[keyCode].render();
+		}
+
+		return KeyCodeUtils.toString(keyCode);
 	}
 
 	public getLabel(): string {
-		const keyCodeLabelProvider = getNativeUIKeyCodeLabelProvider();
-		const [firstPart, chordPart] = PrintableKeypress.fromKeybinding(this._actual, keyCodeLabelProvider, OS);
+		let firstPart = this._firstPart ? this._keyCodeToUILabel(this._firstPart.keyCode) : null;
+		let chordPart = this._chordPart ? this._keyCodeToUILabel(this._chordPart.keyCode) : null;
+		return UILabelProvider.toLabel(this._firstPart, firstPart, this._chordPart, chordPart, OS);
+	}
 
-		return UILabelProvider.toLabel2(firstPart, chordPart, OS);
+	private _keyCodeToAriaLabel(keyCode: KeyCode): string {
+		let remaps = getNativeLabelProviderRemaps();
+		if (remaps[keyCode] !== null) {
+			return remaps[keyCode].render();
+		}
+		return KeyCodeUtils.toString(keyCode);
 	}
 
 	public getAriaLabel(): string {
-		const keyCodeLabelProvider = getNativeAriaKeyCodeLabelProvider();
-		const [firstPart, chordPart] = PrintableKeypress.fromKeybinding(this._actual, keyCodeLabelProvider, OS);
-
-		return AriaLabelProvider.toLabel2(firstPart, chordPart, OS);
+		let firstPart = this._firstPart ? this._keyCodeToAriaLabel(this._firstPart.keyCode) : null;
+		let chordPart = this._chordPart ? this._keyCodeToAriaLabel(this._chordPart.keyCode) : null;
+		return AriaLabelProvider.toLabel(this._firstPart, firstPart, this._chordPart, chordPart, OS);
 	}
 
 	public getHTMLLabel(): IHTMLContentElement[] {
-		const keyCodeLabelProvider = getNativeUIKeyCodeLabelProvider();
-		const [firstPart, chordPart] = PrintableKeypress.fromKeybinding(this._actual, keyCodeLabelProvider, OS);
-
-		return UILabelProvider.toHTMLLabel2(firstPart, chordPart, OS);
+		let firstPart = this._firstPart ? this._keyCodeToUILabel(this._firstPart.keyCode) : null;
+		let chordPart = this._chordPart ? this._keyCodeToUILabel(this._chordPart.keyCode) : null;
+		return UILabelProvider.toHTMLLabel(this._firstPart, firstPart, this._chordPart, chordPart, OS);
 	}
 
-	public getElectronAccelerator(): string {
-		const usResolvedKeybinding = new USLayoutResolvedKeybinding(this._actual, OS);
-
-		if (OS === OperatingSystem.Windows) {
-			// electron menus always do the correct rendering on Windows
-			return usResolvedKeybinding.getElectronAccelerator();
-		}
-
-		let usLabel = usResolvedKeybinding.getLabel();
-		let label = this.getLabel();
-		if (usLabel !== label) {
-			// electron menus are incorrect in rendering (linux) and in rendering and interpreting (mac)
-			// for non US standard keyboard layouts
+	private _keyCodeToElectronAccelerator(keyCode: KeyCode): string {
+		if (keyCode >= KeyCode.NUMPAD_0 && keyCode <= KeyCode.NUMPAD_DIVIDE) {
+			// Electron cannot handle numpad keys
 			return null;
 		}
 
-		return usResolvedKeybinding.getElectronAccelerator();
+		switch (keyCode) {
+			case KeyCode.UpArrow:
+				return 'Up';
+			case KeyCode.DownArrow:
+				return 'Down';
+			case KeyCode.LeftArrow:
+				return 'Left';
+			case KeyCode.RightArrow:
+				return 'Right';
+		}
+
+		let remaps = getNativeLabelProviderRemaps();
+
+		if (remaps[keyCode] === null) {
+			return KeyCodeUtils.toString(keyCode);
+		}
+
+		let remapped = remaps[keyCode].render();
+		if (OS === OperatingSystem.Windows) {
+			// electron menus always do the correct rendering on Windows
+			return remapped;
+		} else {
+			// electron menus are incorrect in rendering (linux) and in rendering and interpreting (mac)
+			// for non US standard keyboard layouts
+			if (remapped !== KeyCodeUtils.toString(keyCode)) {
+				return null;
+			}
+			return remapped;
+		}
 	}
 
-	private static _usKeyCodeToUserSettings(keyCode: KeyCode, OS: OperatingSystem): string {
-		return USER_SETTINGS.fromKeyCode(keyCode);
+	public getElectronAccelerator(): string {
+		if (this._chordPart !== null) {
+			// Electron cannot handle chords
+			return null;
+		}
+
+		let firstPart = this._firstPart ? this._keyCodeToElectronAccelerator(this._firstPart.keyCode) : null;
+		return ElectronAcceleratorLabelProvider.toLabel(this._firstPart, firstPart, null, null, OS);
 	}
 
 	public getUserSettingsLabel(): string {
-		const [firstPart, chordPart] = PrintableKeypress.fromKeybinding(this._actual, FancyResolvedKeybinding._usKeyCodeToUserSettings, OS);
-
-		let result = UserSettingsLabelProvider.toLabel2(firstPart, chordPart, OS);
+		let firstPart = this._firstPart ? USER_SETTINGS.fromKeyCode(this._firstPart.keyCode) : null;
+		let chordPart = this._chordPart ? USER_SETTINGS.fromKeyCode(this._chordPart.keyCode) : null;
+		let result = UserSettingsLabelProvider.toLabel(this._firstPart, firstPart, this._chordPart, chordPart, OS);
 		return result.toLowerCase();
 	}
 
 	public isChord(): boolean {
-		return (this._actual.type === KeybindingType.Chord);
+		return (this._chordPart ? true : false);
 	}
 
 	public hasCtrlModifier(): boolean {
-		if (this._actual.type === KeybindingType.Chord) {
+		if (this._chordPart) {
 			return false;
 		}
-		return this._actual.ctrlKey;
+		return this._firstPart.ctrlKey;
 	}
 
 	public hasShiftModifier(): boolean {
-		if (this._actual.type === KeybindingType.Chord) {
+		if (this._chordPart) {
 			return false;
 		}
-		return this._actual.shiftKey;
+		return this._firstPart.shiftKey;
 	}
 
 	public hasAltModifier(): boolean {
-		if (this._actual.type === KeybindingType.Chord) {
+		if (this._chordPart) {
 			return false;
 		}
-		return this._actual.altKey;
+		return this._firstPart.altKey;
 	}
 
 	public hasMetaModifier(): boolean {
-		if (this._actual.type === KeybindingType.Chord) {
+		if (this._chordPart) {
 			return false;
 		}
-		return this._actual.metaKey;
+		return this._firstPart.metaKey;
 	}
 
 	public getDispatchParts(): [string, string] {
-		let keypressFirstPart: string;
-		let keypressChordPart: string;
-		if (this._actual === null) {
-			keypressFirstPart = null;
-			keypressChordPart = null;
-		} else if (this._actual.type === KeybindingType.Chord) {
-			keypressFirstPart = this._getDispatchPart(this._actual.firstPart);
-			keypressChordPart = this._getDispatchPart(this._actual.chordPart);
-		} else {
-			keypressFirstPart = this._getDispatchPart(this._actual);
-			keypressChordPart = null;
-		}
-		return [keypressFirstPart, keypressChordPart];
+		let firstPart = this._firstPart ? this._getDispatchStr(this._firstPart) : null;
+		let chordPart = this._chordPart ? this._getDispatchStr(this._chordPart) : null;
+		return [firstPart, chordPart];
 	}
 
-	private _getDispatchPart(keybinding: SimpleKeybinding): string {
+	private _getDispatchStr(keybinding: SimpleKeybinding): string {
 		if (keybinding.isModifierKey()) {
 			return null;
 		}

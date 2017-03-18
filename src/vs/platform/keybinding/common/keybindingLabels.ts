@@ -8,44 +8,6 @@
 import * as nls from 'vs/nls';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { IHTMLContentElement } from 'vs/base/common/htmlContent';
-import { KeyCode, Keybinding, KeybindingType, SimpleKeybinding } from 'vs/base/common/keyCodes';
-
-export interface IKeyCodeLabelProvider {
-	(keyCode: KeyCode, OS: OperatingSystem): string;
-}
-
-export class PrintableKeypress {
-
-	private static _fromSimpleKeybinding(k: SimpleKeybinding, labelProvider: IKeyCodeLabelProvider, OS: OperatingSystem): PrintableKeypress {
-		const keyLabel = labelProvider(k.keyCode, OS) || '';
-		return new PrintableKeypress(k.ctrlKey, k.shiftKey, k.altKey, k.metaKey, keyLabel);
-	}
-
-	public static fromKeybinding(keybinding: Keybinding, labelProvider: IKeyCodeLabelProvider, OS: OperatingSystem): [PrintableKeypress, PrintableKeypress] {
-		if (keybinding.type === KeybindingType.Chord) {
-			const firstPart = PrintableKeypress._fromSimpleKeybinding(keybinding.firstPart, labelProvider, OS);
-			const chordPart = PrintableKeypress._fromSimpleKeybinding(keybinding.chordPart, labelProvider, OS);
-			return [firstPart, chordPart];
-		} else {
-			const printableKeypress = PrintableKeypress._fromSimpleKeybinding(keybinding, labelProvider, OS);
-			return [printableKeypress, null];
-		}
-	}
-
-	readonly ctrlKey: boolean;
-	readonly shiftKey: boolean;
-	readonly altKey: boolean;
-	readonly metaKey: boolean;
-	readonly key: string;
-
-	constructor(ctrlKey: boolean, shiftKey: boolean, altKey: boolean, metaKey: boolean, key: string) {
-		this.ctrlKey = ctrlKey;
-		this.shiftKey = shiftKey;
-		this.altKey = altKey;
-		this.metaKey = metaKey;
-		this.key = key;
-	}
-}
 
 export interface ModifierLabels {
 	readonly ctrlKey: string;
@@ -53,6 +15,13 @@ export interface ModifierLabels {
 	readonly altKey: string;
 	readonly metaKey: string;
 	readonly separator: string;
+}
+
+export interface Modifiers {
+	readonly ctrlKey: boolean;
+	readonly shiftKey: boolean;
+	readonly altKey: boolean;
+	readonly metaKey: boolean;
 }
 
 export class ModifierLabelProvider {
@@ -66,12 +35,18 @@ export class ModifierLabelProvider {
 		this._labels[OperatingSystem.Linux] = linux;
 	}
 
-	public toLabel2(firstPart: PrintableKeypress, chordPart: PrintableKeypress, OS: OperatingSystem): string {
-		return _asString(firstPart, chordPart, this._labels[OS]);
+	public toLabel(firstPartMod: Modifiers, firstPartKey: string, chordPartMod: Modifiers, chordPartKey: string, OS: OperatingSystem): string {
+		if (!firstPartKey && !chordPartKey) {
+			return null;
+		}
+		return _asString(firstPartMod, firstPartKey, chordPartMod, chordPartKey, this._labels[OS]);
 	}
 
-	public toHTMLLabel2(firstPart: PrintableKeypress, chordPart: PrintableKeypress, OS: OperatingSystem): IHTMLContentElement[] {
-		return _asHTML(firstPart, chordPart, this._labels[OS]);
+	public toHTMLLabel(firstPartMod: Modifiers, firstPartKey: string, chordPartMod: Modifiers, chordPartKey: string, OS: OperatingSystem): IHTMLContentElement[] {
+		if (!firstPartKey && !chordPartKey) {
+			return null;
+		}
+		return _asHTML(firstPartMod, firstPartKey, chordPartMod, chordPartKey, this._labels[OS]);
 	}
 }
 
@@ -163,42 +138,42 @@ export const UserSettingsLabelProvider = new ModifierLabelProvider(
 	}
 );
 
-function _simpleAsString(keypress: PrintableKeypress, labels: ModifierLabels): string {
-	if (!keypress.key) {
+function _simpleAsString(modifiers: Modifiers, key: string, labels: ModifierLabels): string {
+	if (!key) {
 		return '';
 	}
 
 	let result: string[] = [];
 
 	// translate modifier keys: Ctrl-Shift-Alt-Meta
-	if (keypress.ctrlKey) {
+	if (modifiers.ctrlKey) {
 		result.push(labels.ctrlKey);
 	}
 
-	if (keypress.shiftKey) {
+	if (modifiers.shiftKey) {
 		result.push(labels.shiftKey);
 	}
 
-	if (keypress.altKey) {
+	if (modifiers.altKey) {
 		result.push(labels.altKey);
 	}
 
-	if (keypress.metaKey) {
+	if (modifiers.metaKey) {
 		result.push(labels.metaKey);
 	}
 
 	// the actual key
-	result.push(keypress.key);
+	result.push(key);
 
 	return result.join(labels.separator);
 }
 
-function _asString(firstPart: PrintableKeypress, chordPart: PrintableKeypress, labels: ModifierLabels): string {
-	let result = _simpleAsString(firstPart, labels);
+function _asString(firstPartMod: Modifiers, firstPartKey: string, chordPartMod: Modifiers, chordPartKey: string, labels: ModifierLabels): string {
+	let result = _simpleAsString(firstPartMod, firstPartKey, labels);
 
-	if (chordPart !== null) {
+	if (chordPartKey) {
 		result += ' ';
-		result += _simpleAsString(chordPart, labels);
+		result += _simpleAsString(chordPartMod, chordPartKey, labels);
 	}
 
 	return result;
@@ -218,42 +193,42 @@ function _pushKey(result: IHTMLContentElement[], str: string, append: string): v
 	}
 }
 
-function _simpleAsHTML(result: IHTMLContentElement[], keypress: PrintableKeypress, labels: ModifierLabels): void {
-	if (!keypress.key) {
+function _simpleAsHTML(result: IHTMLContentElement[], modifiers: Modifiers, key: string, labels: ModifierLabels): void {
+	if (!key) {
 		return;
 	}
 
 	// translate modifier keys: Ctrl-Shift-Alt-Meta
-	if (keypress.ctrlKey) {
+	if (modifiers.ctrlKey) {
 		_pushKey(result, labels.ctrlKey, labels.separator);
 	}
 
-	if (keypress.shiftKey) {
+	if (modifiers.shiftKey) {
 		_pushKey(result, labels.shiftKey, labels.separator);
 	}
 
-	if (keypress.altKey) {
+	if (modifiers.altKey) {
 		_pushKey(result, labels.altKey, labels.separator);
 	}
 
-	if (keypress.metaKey) {
+	if (modifiers.metaKey) {
 		_pushKey(result, labels.metaKey, labels.separator);
 	}
 
 	// the actual key
-	_pushKey(result, keypress.key, null);
+	_pushKey(result, key, null);
 }
 
-function _asHTML(firstPart: PrintableKeypress, chordPart: PrintableKeypress, labels: ModifierLabels): IHTMLContentElement[] {
+function _asHTML(firstPartMod: Modifiers, firstPartKey: string, chordPartMod: Modifiers, chordPartKey: string, labels: ModifierLabels): IHTMLContentElement[] {
 	let result: IHTMLContentElement[] = [];
-	_simpleAsHTML(result, firstPart, labels);
+	_simpleAsHTML(result, firstPartMod, firstPartKey, labels);
 
-	if (chordPart !== null) {
+	if (chordPartKey) {
 		result.push({
 			tagName: 'span',
 			text: ' '
 		});
-		_simpleAsHTML(result, chordPart, labels);
+		_simpleAsHTML(result, chordPartMod, chordPartKey, labels);
 	}
 
 	return [{

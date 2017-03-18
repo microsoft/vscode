@@ -6,7 +6,7 @@
 
 import { IHTMLContentElement } from 'vs/base/common/htmlContent';
 import { ResolvedKeybinding, KeyCode, KeyCodeUtils, USER_SETTINGS, Keybinding, KeybindingType, SimpleKeybinding } from 'vs/base/common/keyCodes';
-import { PrintableKeypress, UILabelProvider, AriaLabelProvider, ElectronAcceleratorLabelProvider, UserSettingsLabelProvider } from 'vs/platform/keybinding/common/keybindingLabels';
+import { UILabelProvider, AriaLabelProvider, ElectronAcceleratorLabelProvider, UserSettingsLabelProvider } from 'vs/platform/keybinding/common/keybindingLabels';
 import { OperatingSystem } from 'vs/base/common/platform';
 
 /**
@@ -14,17 +14,27 @@ import { OperatingSystem } from 'vs/base/common/platform';
  */
 export class USLayoutResolvedKeybinding extends ResolvedKeybinding {
 
-	private readonly _actual: Keybinding;
 	private readonly _os: OperatingSystem;
+	private readonly _firstPart: SimpleKeybinding;
+	private readonly _chordPart: SimpleKeybinding;
 
 	constructor(actual: Keybinding, OS: OperatingSystem) {
 		super();
-		this._actual = actual;
 		this._os = OS;
+		if (actual === null) {
+			this._firstPart = null;
+			this._chordPart = null;
+		} else if (actual.type === KeybindingType.Chord) {
+			this._firstPart = actual.firstPart;
+			this._chordPart = actual.chordPart;
+		} else {
+			this._firstPart = actual;
+			this._chordPart = null;
+		}
 	}
 
-	private static _usKeyCodeToUILabel(keyCode: KeyCode, OS: OperatingSystem): string {
-		if (OS === OperatingSystem.Macintosh) {
+	private _keyCodeToUILabel(keyCode: KeyCode): string {
+		if (this._os === OperatingSystem.Macintosh) {
 			switch (keyCode) {
 				case KeyCode.LeftArrow:
 					return '←';
@@ -39,26 +49,30 @@ export class USLayoutResolvedKeybinding extends ResolvedKeybinding {
 		return KeyCodeUtils.toString(keyCode);
 	}
 
-	private static _usKeyCodeToAriaLabel(keyCode: KeyCode, OS: OperatingSystem): string {
-		return KeyCodeUtils.toString(keyCode);
-	}
-
 	public getLabel(): string {
-		const [firstPart, chordPart] = PrintableKeypress.fromKeybinding(this._actual, USLayoutResolvedKeybinding._usKeyCodeToUILabel, this._os);
-		return UILabelProvider.toLabel2(firstPart, chordPart, this._os);
+		let firstPart = this._firstPart ? this._keyCodeToUILabel(this._firstPart.keyCode) : null;
+		let chordPart = this._chordPart ? this._keyCodeToUILabel(this._chordPart.keyCode) : null;
+		return UILabelProvider.toLabel(this._firstPart, firstPart, this._chordPart, chordPart, this._os);
 	}
 
 	public getAriaLabel(): string {
-		const [firstPart, chordPart] = PrintableKeypress.fromKeybinding(this._actual, USLayoutResolvedKeybinding._usKeyCodeToAriaLabel, this._os);
-		return AriaLabelProvider.toLabel2(firstPart, chordPart, this._os);
+		let firstPart = this._firstPart ? KeyCodeUtils.toString(this._firstPart.keyCode) : null;
+		let chordPart = this._chordPart ? KeyCodeUtils.toString(this._chordPart.keyCode) : null;
+		return AriaLabelProvider.toLabel(this._firstPart, firstPart, this._chordPart, chordPart, this._os);
 	}
 
 	public getHTMLLabel(): IHTMLContentElement[] {
-		const [firstPart, chordPart] = PrintableKeypress.fromKeybinding(this._actual, USLayoutResolvedKeybinding._usKeyCodeToUILabel, this._os);
-		return UILabelProvider.toHTMLLabel2(firstPart, chordPart, this._os);
+		let firstPart = this._firstPart ? this._keyCodeToUILabel(this._firstPart.keyCode) : null;
+		let chordPart = this._chordPart ? this._keyCodeToUILabel(this._chordPart.keyCode) : null;
+		return UILabelProvider.toHTMLLabel(this._firstPart, firstPart, this._chordPart, chordPart, this._os);
 	}
 
-	private static _usKeyCodeToElectronAccelerator(keyCode: KeyCode, OS: OperatingSystem): string {
+	private _keyCodeToElectronAccelerator(keyCode: KeyCode): string {
+		if (keyCode >= KeyCode.NUMPAD_0 && keyCode <= KeyCode.NUMPAD_DIVIDE) {
+			// Electron cannot handle numpad keys
+			return null;
+		}
+
 		switch (keyCode) {
 			case KeyCode.UpArrow:
 				return 'Up';
@@ -74,78 +88,58 @@ export class USLayoutResolvedKeybinding extends ResolvedKeybinding {
 	}
 
 	public getElectronAccelerator(): string {
-		if (this._actual.type === KeybindingType.Chord) {
+		if (this._chordPart !== null) {
 			// Electron cannot handle chords
 			return null;
 		}
 
-		let keyCode = this._actual.keyCode;
-		if (keyCode >= KeyCode.NUMPAD_0 && keyCode <= KeyCode.NUMPAD_DIVIDE) {
-			// Electron cannot handle numpad keys
-			return null;
-		}
-
-		const [firstPart, chordPart] = PrintableKeypress.fromKeybinding(this._actual, USLayoutResolvedKeybinding._usKeyCodeToElectronAccelerator, this._os);
-		return ElectronAcceleratorLabelProvider.toLabel2(firstPart, chordPart, this._os);
-	}
-
-	private static _usKeyCodeToUserSettings(keyCode: KeyCode, OS: OperatingSystem): string {
-		return USER_SETTINGS.fromKeyCode(keyCode);
+		let firstPart = this._firstPart ? this._keyCodeToElectronAccelerator(this._firstPart.keyCode) : null;
+		return ElectronAcceleratorLabelProvider.toLabel(this._firstPart, firstPart, null, null, this._os);
 	}
 
 	public getUserSettingsLabel(): string {
-		const [firstPart, chordPart] = PrintableKeypress.fromKeybinding(this._actual, USLayoutResolvedKeybinding._usKeyCodeToUserSettings, this._os);
-
-		let result = UserSettingsLabelProvider.toLabel2(firstPart, chordPart, this._os);
+		let firstPart = this._firstPart ? USER_SETTINGS.fromKeyCode(this._firstPart.keyCode) : null;
+		let chordPart = this._chordPart ? USER_SETTINGS.fromKeyCode(this._chordPart.keyCode) : null;
+		let result = UserSettingsLabelProvider.toLabel(this._firstPart, firstPart, this._chordPart, chordPart, this._os);
 		return result.toLowerCase();
 	}
 
 	public isChord(): boolean {
-		return (this._actual.type === KeybindingType.Chord);
+		return (this._chordPart ? true : false);
 	}
 
 	public hasCtrlModifier(): boolean {
-		if (this._actual.type === KeybindingType.Chord) {
+		if (this._chordPart) {
 			return false;
 		}
-		return this._actual.ctrlKey;
+		return this._firstPart.ctrlKey;
 	}
 
 	public hasShiftModifier(): boolean {
-		if (this._actual.type === KeybindingType.Chord) {
+		if (this._chordPart) {
 			return false;
 		}
-		return this._actual.shiftKey;
+		return this._firstPart.shiftKey;
 	}
 
 	public hasAltModifier(): boolean {
-		if (this._actual.type === KeybindingType.Chord) {
+		if (this._chordPart) {
 			return false;
 		}
-		return this._actual.altKey;
+		return this._firstPart.altKey;
 	}
 
 	public hasMetaModifier(): boolean {
-		if (this._actual.type === KeybindingType.Chord) {
+		if (this._chordPart) {
 			return false;
 		}
-		return this._actual.metaKey;
+		return this._firstPart.metaKey;
 	}
 
 	public getDispatchParts(): [string, string] {
-		let keypressFirstPart: string;
-		let keypressChordPart: string;
-		if (this._actual === null) {
-			keypressFirstPart = null;
-			keypressChordPart = null;
-		} else if (this._actual.type === KeybindingType.Chord) {
-			keypressFirstPart = USLayoutResolvedKeybinding.getDispatchStr(this._actual.firstPart);
-			keypressChordPart = USLayoutResolvedKeybinding.getDispatchStr(this._actual.chordPart);
-		} else {
-			keypressFirstPart = USLayoutResolvedKeybinding.getDispatchStr(this._actual);
-			keypressChordPart = null;
-		}
-		return [keypressFirstPart, keypressChordPart];
+		let firstPart = this._firstPart ? USLayoutResolvedKeybinding.getDispatchStr(this._firstPart) : null;
+		let chordPart = this._chordPart ? USLayoutResolvedKeybinding.getDispatchStr(this._chordPart) : null;
+		return [firstPart, chordPart];
 	}
 
 	public static getDispatchStr(keybinding: SimpleKeybinding): string {

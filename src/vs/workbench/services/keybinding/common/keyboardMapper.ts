@@ -10,7 +10,7 @@ import { KeyCode, ResolvedKeybinding, KeyCodeUtils, SimpleKeybinding, Keybinding
 import { KeyboardEventCode, KeyboardEventCodeUtils, IMMUTABLE_CODE_TO_KEY_CODE } from 'vs/workbench/services/keybinding/common/keyboardEventCode';
 import { CharCode } from 'vs/base/common/charCode';
 import { IHTMLContentElement } from 'vs/base/common/htmlContent';
-import { PrintableKeypress, UILabelProvider, AriaLabelProvider } from 'vs/platform/keybinding/common/keybindingLabels';
+import { UILabelProvider, AriaLabelProvider } from 'vs/platform/keybinding/common/keybindingLabels';
 
 export interface IKeyMapping {
 	value: string;
@@ -51,10 +51,6 @@ export class HardwareKeypress {
 		this.metaKey = metaKey;
 		this.code = code;
 	}
-
-	public toPrintableKeypress(key: string): PrintableKeypress {
-		return new PrintableKeypress(this.ctrlKey, this.shiftKey, this.altKey, this.metaKey, key);
-	}
 }
 
 export class NativeResolvedKeybinding extends ResolvedKeybinding {
@@ -73,24 +69,21 @@ export class NativeResolvedKeybinding extends ResolvedKeybinding {
 	}
 
 	public getLabel(): string {
-		let firstPart = this._firstPart.toPrintableKeypress(this._mapper.getUILabelForHardwareCode(this._firstPart.code));
-		let chordPart = this._chordPart ? this._chordPart.toPrintableKeypress(this._mapper.getUILabelForHardwareCode(this._chordPart.code)) : null;
-
-		return UILabelProvider.toLabel2(firstPart, chordPart, this._OS);
+		let firstPart = this._firstPart ? this._mapper.getUILabelForHardwareCode(this._firstPart.code) : null;
+		let chordPart = this._chordPart ? this._mapper.getUILabelForHardwareCode(this._chordPart.code) : null;
+		return UILabelProvider.toLabel(this._firstPart, firstPart, this._chordPart, chordPart, this._OS);
 	}
 
 	public getAriaLabel(): string {
-		let firstPart = this._firstPart.toPrintableKeypress(this._mapper.getAriaLabelForHardwareCode(this._firstPart.code));
-		let chordPart = this._chordPart ? this._chordPart.toPrintableKeypress(this._mapper.getAriaLabelForHardwareCode(this._chordPart.code)) : null;
-
-		return AriaLabelProvider.toLabel2(firstPart, chordPart, this._OS);
+		let firstPart = this._firstPart ? this._mapper.getAriaLabelForHardwareCode(this._firstPart.code) : null;
+		let chordPart = this._chordPart ? this._mapper.getAriaLabelForHardwareCode(this._chordPart.code) : null;
+		return AriaLabelProvider.toLabel(this._firstPart, firstPart, this._chordPart, chordPart, this._OS);
 	}
 
 	public getHTMLLabel(): IHTMLContentElement[] {
-		let firstPart = this._firstPart.toPrintableKeypress(this._mapper.getUILabelForHardwareCode(this._firstPart.code));
-		let chordPart = this._chordPart ? this._chordPart.toPrintableKeypress(this._mapper.getUILabelForHardwareCode(this._chordPart.code)) : null;
-
-		return UILabelProvider.toHTMLLabel2(firstPart, chordPart, this._OS);
+		let firstPart = this._firstPart ? this._mapper.getUILabelForHardwareCode(this._firstPart.code) : null;
+		let chordPart = this._chordPart ? this._mapper.getUILabelForHardwareCode(this._chordPart.code) : null;
+		return UILabelProvider.toHTMLLabel(this._firstPart, firstPart, this._chordPart, chordPart, this._OS);
 	}
 
 	public getElectronAccelerator(): string {
@@ -385,7 +378,7 @@ export class KeyboardMapper {
 		}
 	}
 
-	private _registerAllCombos(
+	private _registerAllCombos2(
 		hwCtrlKey: boolean, hwShiftKey: boolean, hwAltKey: boolean, code: KeyboardEventCode,
 		kbShiftKey: boolean, keyCode: KeyCode,
 	): void {
@@ -438,7 +431,7 @@ export class KeyboardMapper {
 			return;
 		}
 
-		this._registerAllCombos(
+		this._registerAllCombos2(
 			ctrlKey, shiftKey, altKey, code,
 			kb.shiftKey, kb.keyCode
 		);
@@ -455,16 +448,6 @@ export class KeyboardMapper {
 			}
 		}
 		return result;
-	}
-
-	public hardwareKeypressToSimpleKeybinding(keypress: HardwareKeypress): SimpleKeybinding {
-		const hwEncoded = this._encode(keypress.ctrlKey, keypress.shiftKey, keypress.altKey, keypress.code);
-		const kbEncoded = this._hwToKb[hwEncoded];
-		if (!kbEncoded) {
-			return null;
-		}
-
-		return this._decodeKb(kbEncoded, keypress.metaKey);
 	}
 
 	public getUILabelForHardwareCode(code: KeyboardEventCode): string {
@@ -565,21 +548,6 @@ export class KeyboardMapper {
 		const code = (hwEncoded >>> 3);
 
 		return new HardwareKeypress(ctrlKey, shiftKey, altKey, metaKey, code);
-	}
-
-	private _decodeKb(kbEncoded: number, metaKey: boolean): SimpleKeybinding {
-		const ctrlKey = (kbEncoded & 0b001) ? true : false;
-		const shiftKey = (kbEncoded & 0b010) ? true : false;
-		const altKey = (kbEncoded & 0b100) ? true : false;
-		const keyCode = (kbEncoded >>> 3);
-
-		return new SimpleKeybinding(
-			ctrlKey,
-			shiftKey,
-			altKey,
-			metaKey,
-			keyCode
-		);
 	}
 }
 
