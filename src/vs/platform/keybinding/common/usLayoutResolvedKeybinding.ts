@@ -149,6 +149,9 @@ export class USLayoutResolvedKeybinding extends ResolvedKeybinding {
 	}
 
 	public static getDispatchStr(keybinding: SimpleKeybinding): string {
+		if (keybinding.isModifierKey()) {
+			return null;
+		}
 		let result = '';
 
 		if (keybinding.ctrlKey) {

@@ -58,7 +58,7 @@ class KeybindingInputWidget extends Widget {
 	}
 
 	private printKeybinding(keyboardEvent: IKeyboardEvent): void {
-		const keybinding = this.keybindingService.resolveKeybinding(keyboardEvent.toRuntimeKeybinding());
+		const keybinding = this.keybindingService.resolveKeyboardEvent(keyboardEvent);
 		this.inputBox.value = keybinding.getUserSettingsLabel().toLowerCase();
 		this.inputBox.inputElement.title = 'keyCode: ' + keyboardEvent.browserEvent.keyCode;
 		this._onKeybinding.fire(keybinding);

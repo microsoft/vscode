@@ -6,7 +6,7 @@
 
 import { ResolvedKeybinding, Keybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
 import Event from 'vs/base/common/event';
-import { IKeybindingService, IKeybindingEvent, IKeybindingItem2 } from 'vs/platform/keybinding/common/keybinding';
+import { IKeybindingService, IKeybindingEvent, IKeybindingItem2, IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKey, IContextKeyService, IContextKeyServiceTarget, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IResolveResult } from 'vs/platform/keybinding/common/keybindingResolver';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
@@ -36,7 +36,7 @@ class MockKeybindingContextKey<T> implements IContextKey<T> {
 	}
 }
 
-export class MockKeybindingService implements IContextKeyService {
+export class MockContextKeyService implements IContextKeyService {
 	public _serviceBrand: any;
 
 	public dispose(): void { }
@@ -61,7 +61,7 @@ export class MockKeybindingService implements IContextKeyService {
 	}
 }
 
-export class MockKeybindingService2 implements IKeybindingService {
+export class MockKeybindingService implements IKeybindingService {
 	public _serviceBrand: any;
 
 	public get onDidUpdateKeybindings(): Event<IKeybindingEvent> {
@@ -80,6 +80,17 @@ export class MockKeybindingService2 implements IKeybindingService {
 		return new USLayoutResolvedKeybinding(keybinding, OS);
 	}
 
+	public resolveKeyboardEvent(keyboardEvent: IKeyboardEvent): ResolvedKeybinding {
+		let keybinding = new SimpleKeybinding(
+			keyboardEvent.ctrlKey,
+			keyboardEvent.shiftKey,
+			keyboardEvent.altKey,
+			keyboardEvent.metaKey,
+			keyboardEvent.keyCode
+		);
+		return this.resolveKeybinding(keybinding);
+	}
+
 	public lookupKeybindings(commandId: string): ResolvedKeybinding[] {
 		return [];
 	}
@@ -92,7 +103,7 @@ export class MockKeybindingService2 implements IKeybindingService {
 		return 0;
 	}
 
-	public resolve(keybinding: SimpleKeybinding, target: IContextKeyServiceTarget): IResolveResult {
+	public softDispatch(keybinding: IKeyboardEvent, target: IContextKeyServiceTarget): IResolveResult {
 		return null;
 	}
 }
