@@ -71,7 +71,7 @@ export interface IColorRegistry {
 
 class ColorRegistry implements IColorRegistry {
 	private colorsById: { [key: string]: ColorContribution };
-	private colorSchema: IJSONSchema = { type: 'object', description: nls.localize('schema.colors', 'Colors used in the workbench.'), properties: {} };
+	private colorSchema: IJSONSchema = { type: 'object', description: nls.localize('schema.colors', "Colors used in the workbench."), properties: {} };
 
 	constructor() {
 		this.colorsById = {};
@@ -114,30 +114,36 @@ export function registerColor(id: string, defaults: ColorDefaults, description: 
 // ----- base colors
 
 /**
+ * Commonly used High contrast colors.
+ */
+export const highContrastBorder = registerColor('highContrastBorder', { light: null, dark: null, hc: '#6FC3DF' }, nls.localize('highContrastBorder', "Border color to separate components when high contrast theme is enabled."));
+export const highContrastOutline = registerColor('highContrastOutline', { light: null, dark: null, hc: '#F38518' }, nls.localize('highContrastOutline', "Outline color for active components when high contrast theme is enabled."));
+
+/**
  * Editor background color.
  * Because of bug https://monacotools.visualstudio.com/DefaultCollection/Monaco/_workitems/edit/13254
  * we are *not* using the color white (or #ffffff, rgba(255,255,255)) but something very close to white.
  */
-export const editorBackground = registerColor('editorBackground', { light: '#fffffe', dark: '#1E1E1E', hc: Color.black }, nls.localize('editorBackground', 'Editor background color'));
+export const editorBackground = registerColor('editorBackground', { light: '#fffffe', dark: '#1E1E1E', hc: Color.black }, nls.localize('editorBackground', "Editor background color"));
 
 /**
  * Editor foreground color.
  */
-export const editorForeground = registerColor('editorForeground', { light: '#333333', dark: '#BBBBBB', hc: Color.white }, nls.localize('editorForeground', 'Editor default foreground color'));
+export const editorForeground = registerColor('editorForeground', { light: '#333333', dark: '#BBBBBB', hc: Color.white }, nls.localize('editorForeground', "Editor default foreground color"));
 
 /**
  * Editor selection colors.
  */
-export const editorSelection = registerColor('editorSelection', { light: '#ADD6FF', dark: '#264F78', hc: '#f3f518' }, nls.localize('editorSelection', 'Color of the editor selection'));
-export const editorInactiveSelection = registerColor('editorInactiveSelection', { light: '#E5EBF1', dark: '#3A3D41', hc: null }, nls.localize('editorInactiveSelection', 'Color of the inactive editor selection'));
-export const editorSelectionHighlightColor = registerColor('editorSelectionHighlightColor', { light: '#add6ff4d', dark: '#add6ff26', hc: null }, nls.localize('editorsSelectionHighlightColor', 'Background color of regions highlighted while selecting'));
+export const editorSelection = registerColor('editorSelection', { light: '#ADD6FF', dark: '#264F78', hc: '#f3f518' }, nls.localize('editorSelection', "Color of the editor selection"));
+export const editorInactiveSelection = registerColor('editorInactiveSelection', { light: '#E5EBF1', dark: '#3A3D41', hc: null }, nls.localize('editorInactiveSelection', "Color of the inactive editor selection"));
+export const editorSelectionHighlightColor = registerColor('editorSelectionHighlightColor', { light: '#add6ff4d', dark: '#add6ff26', hc: null }, nls.localize('editorsSelectionHighlightColor', "Background color of regions highlighted while selecting"));
 
 /**
  * Editor find match colors.
  */
-export const editorFindMatchHighlight = registerColor('editorFindMatchHighlight', { light: '#EA5C0055', dark: '#EA5C0055', hc: null }, nls.localize('findMatchHighlight', 'Background color of regions matching the search'));
-export const editorCurrentFindMatchHighlight = registerColor('editorCurrentFindMatchHighlight', { light: '#A8AC94', dark: '#515C6A', hc: null }, nls.localize('currentFindMatchHighlight', 'Background color of the current region matching the search'));
-export const editorFindRangeHighlight = registerColor('editorFindRangeHighlight', { dark: '#3a3d4166', light: '#b4b4b44d', hc: null }, nls.localize('findRangeHighlight', 'Background color of regions selected for search'));
+export const editorFindMatchHighlight = registerColor('editorFindMatchHighlight', { light: '#EA5C0055', dark: '#EA5C0055', hc: null }, nls.localize('findMatchHighlight', "Background color of regions matching the search"));
+export const editorCurrentFindMatchHighlight = registerColor('editorCurrentFindMatchHighlight', { light: '#A8AC94', dark: '#515C6A', hc: null }, nls.localize('currentFindMatchHighlight', "Background color of the current region matching the search"));
+export const editorFindRangeHighlight = registerColor('editorFindRangeHighlight', { dark: '#3a3d4166', light: '#b4b4b44d', hc: null }, nls.localize('findRangeHighlight', "Background color of regions selected for search"));
 
 
 // ----- color functions
