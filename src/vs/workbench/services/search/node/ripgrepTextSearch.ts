@@ -155,6 +155,7 @@ export class RipgrepParser extends EventEmitter {
 		// Track positions with color codes subtracted - offsets in the final text preview result
 		let matchTextStartRealIdx = -1;
 		let textRealIdx = 0;
+		let hitLimit = false;
 
 		const realTextParts: string[] = [];
 
@@ -171,7 +172,10 @@ export class RipgrepParser extends EventEmitter {
 				// Match end
 				const chunk = text.slice(matchTextStartPos, i);
 				realTextParts.push(chunk);
-				lineMatch.addMatch(matchTextStartRealIdx, textRealIdx - matchTextStartRealIdx);
+				if (!hitLimit) {
+					lineMatch.addMatch(matchTextStartRealIdx, textRealIdx - matchTextStartRealIdx);
+				}
+
 				matchTextStartPos = -1;
 				matchTextStartRealIdx = -1;
 				i += RipgrepParser.MATCH_END_MARKER.length;
@@ -180,11 +184,8 @@ export class RipgrepParser extends EventEmitter {
 
 				// Check hit maxResults limit
 				if (this.numResults >= this.maxResults) {
-					// Replace preview with what we have so far, TODO@Rob
-					lineMatch.preview = realTextParts.join('');
-					this.cancel();
-					this.onResult();
-					this.emit('hitLimit');
+					// Finish the line, then report the result below
+					hitLimit = true;
 				}
 			} else {
 				i++;
@@ -198,6 +199,12 @@ export class RipgrepParser extends EventEmitter {
 		// Replace preview with version without color codes
 		const preview = realTextParts.join('');
 		lineMatch.preview = preview;
+
+		if (hitLimit) {
+			this.cancel();
+			this.onResult();
+			this.emit('hitLimit');
+		}
 	}
 
 	private onResult(): void {
