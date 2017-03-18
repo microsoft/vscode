@@ -8,8 +8,13 @@
 import 'vs/css!./suggest';
 import * as nls from 'vs/nls';
 import * as strings from 'vs/base/common/strings';
+import URI from 'vs/base/common/uri';
 import Event, { Emitter, chain } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { renderMarkedString } from 'vs/base/browser/htmlContentRenderer';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { addClass, append, $, hide, removeClass, show, toggleClass } from 'vs/base/browser/dom';
@@ -26,6 +31,7 @@ import { Context as SuggestContext } from '../common/suggest';
 import { ICompletionItem, CompletionModel } from '../common/completionModel';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { MarkedString } from 'vs/base/common/htmlContent';
 
 const sticky = false; // for development purposes
 
@@ -50,7 +56,36 @@ function canExpandCompletionItem(item: ICompletionItem) {
 	if (suggestion.documentation) {
 		return true;
 	}
-	return (suggestion.detail || '').indexOf('\n') >= 0;
+	const detail = suggestion.detail || '';
+	return Array.isArray(detail) || detail.indexOf('\n') >= 0;
+}
+
+class MarkedStringRenderer {
+
+	constructor(
+		private readonly editor: ICodeEditor,
+		private readonly openerService: IOpenerService,
+		private readonly modeService: IModeService) { }
+
+	public render(markedString: MarkedString): Node {
+		return renderMarkedString(markedString, {
+			actionCallback: (content) => {
+				this.openerService.open(URI.parse(content)).then(void 0, onUnexpectedError);
+			},
+			codeBlockRenderer: (languageAlias, value): string | TPromise<string> => {
+				// In markdown,
+				// it is possible that we stumble upon language aliases (e.g.js instead of javascript)
+				// it is possible no alias is given in which case we fall back to the current editor lang
+				const modeId = languageAlias
+					? this.modeService.getModeIdForLanguageName(languageAlias)
+					: this.editor.getModel().getLanguageIdentifier().language;
+
+				return this.modeService.getOrCreateMode(modeId).then(_ => {
+					return `<div class="code">${tokenizeToString(value, modeId)}</div>`;
+				});
+			}
+		});
+	}
 }
 
 class Renderer implements IRenderer<ICompletionItem, ISuggestionTemplateData> {
@@ -129,7 +164,7 @@ class Renderer implements IRenderer<ICompletionItem, ISuggestionTemplateData> {
 		data.colorspan.style.backgroundColor = '';
 
 		if (suggestion.type === 'color') {
-			let color = matchesColor(suggestion.label) || matchesColor(suggestion.documentation);
+			let color = matchesColor(suggestion.label) || (typeof suggestion.documentation === 'string' && matchesColor(suggestion.documentation));
 			if (color) {
 				data.icon.className = 'icon customcolor';
 				data.colorspan.style.backgroundColor = color;
@@ -137,9 +172,8 @@ class Renderer implements IRenderer<ICompletionItem, ISuggestionTemplateData> {
 		}
 
 		data.highlightedLabel.set(suggestion.label, element.highlights);
-		data.typeLabel.textContent = (suggestion.detail || '').replace(/\n.*$/m, '');
-
-		data.documentation.textContent = suggestion.documentation || '';
+		data.typeLabel.textContent = this.markedStringToText(suggestion.detail).replace(/\n.*$/m, '');
+		data.documentation.textContent = this.markedStringToText(suggestion.documentation);
 
 		if (canExpandCompletionItem(element)) {
 			show(data.documentationDetails);
@@ -162,6 +196,16 @@ class Renderer implements IRenderer<ICompletionItem, ISuggestionTemplateData> {
 	disposeTemplate(templateData: ISuggestionTemplateData): void {
 		templateData.highlightedLabel.dispose();
 		templateData.disposables = dispose(templateData.disposables);
+	}
+
+	private markedStringToText(markedString: string | MarkedString[]): string {
+		if (Array.isArray(markedString)) {
+			return markedString
+				.map(x => typeof x === 'string' ? x : x.value)
+				.join('');
+		} else {
+			return markedString || '';
+		}
 	}
 }
 
@@ -190,7 +234,8 @@ class SuggestionDetails {
 	constructor(
 		container: HTMLElement,
 		private widget: SuggestWidget,
-		private editor: ICodeEditor
+		private editor: ICodeEditor,
+		private markedStringRenderer: MarkedStringRenderer
 	) {
 		this.disposables = [];
 
@@ -235,8 +280,8 @@ class SuggestionDetails {
 		}
 
 		this.titleLabel.set(item.suggestion.label, item.highlights);
-		this.type.innerText = item.suggestion.detail || '';
-		this.docs.textContent = item.suggestion.documentation;
+		this.renderContent(this.type, item.suggestion.detail);
+		this.renderContent(this.docs, item.suggestion.documentation);
 		this.back.onmousedown = e => {
 			e.preventDefault();
 			e.stopPropagation();
@@ -286,6 +331,17 @@ class SuggestionDetails {
 		this.type.style.fontFamily = fontFamily;
 		this.back.style.height = lineHeightPx;
 		this.back.style.width = lineHeightPx;
+	}
+
+	private renderContent(target: HTMLElement, text: string | MarkedString[]) {
+		if (!Array.isArray(text)) {
+			target.innerText = text;
+			return;
+		}
+
+		for (const element of text) {
+			target.appendChild(this.markedStringRenderer.render(element));
+		}
 	}
 
 	dispose(): void {
@@ -339,7 +395,9 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		private editor: ICodeEditor,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IOpenerService openerService: IOpenerService,
+		@IModeService modeService: IModeService
 	) {
 		this.isAuto = false;
 		this.focusedItem = null;
@@ -352,7 +410,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 
 		this.messageElement = append(this.element, $('.message'));
 		this.listElement = append(this.element, $('.tree'));
-		this.details = new SuggestionDetails(this.element, this, this.editor);
+		this.details = new SuggestionDetails(this.element, this, this.editor, new MarkedStringRenderer(this.editor, openerService, modeService));
 
 		let renderer: IRenderer<ICompletionItem, any> = instantiationService.createInstance(Renderer, this, this.editor);
 
