@@ -34,8 +34,8 @@ import { extractResources } from 'vs/base/browser/dnd';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
-import { Themable, TABS_CONTAINER_BACKGROUND, NO_TABS_CONTAINER_BACKGROUND } from 'vs/workbench/common/theme';
+import { editorBackground, highContrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { Themable, TABS_CONTAINER_BACKGROUND, NO_TABS_CONTAINER_BACKGROUND, EDITOR_GROUP_BORDER_COLOR } from 'vs/workbench/common/theme';
 
 export enum Rochade {
 	NONE,
@@ -763,6 +763,9 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 			this.sashOne.setOrientation(this.layoutVertically ? Orientation.VERTICAL : Orientation.HORIZONTAL);
 			this.sashTwo.setOrientation(this.layoutVertically ? Orientation.VERTICAL : Orientation.HORIZONTAL);
 
+			// Update styles
+			this.updateStyles();
+
 			// Trigger layout
 			this.arrangeGroups();
 		}
@@ -931,20 +934,29 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 	}
 
 	protected updateStyles(): void {
+		const isHighContrast = (this.theme.type === 'hc');
 
-		// Editor container background
-		this.silos.forEach(silo => {
+		// Editor container colors
+		this.silos.forEach((silo, index) => {
+
+			// Background
 			silo.style('background-color', this.getColor(editorBackground));
+
+			// Border
+			if (index > Position.ONE) {
+				silo.style('border-left-color', this.getColor(EDITOR_GROUP_BORDER_COLOR));
+				silo.style('border-top-color', this.getColor(EDITOR_GROUP_BORDER_COLOR));
+			}
 		});
 
 		// Title control
 		POSITIONS.forEach(position => {
 			const container = this.getTitleAreaControl(position).getContainer();
-			if (this.tabOptions.showTabs) {
-				container.style.backgroundColor = this.getColor(TABS_CONTAINER_BACKGROUND);
-			} else {
-				container.style.backgroundColor = this.getColor(NO_TABS_CONTAINER_BACKGROUND);
-			}
+
+			container.style.backgroundColor = this.getColor(this.tabOptions.showTabs ? TABS_CONTAINER_BACKGROUND : NO_TABS_CONTAINER_BACKGROUND);
+			container.style.borderBottomWidth = (isHighContrast && this.tabOptions.showTabs) ? '1px' : null;
+			container.style.borderBottomStyle = (isHighContrast && this.tabOptions.showTabs) ? 'solid' : null;
+			container.style.borderBottomColor = (isHighContrast && this.tabOptions.showTabs) ? this.getColor(highContrastBorder) : null;
 		});
 	}
 

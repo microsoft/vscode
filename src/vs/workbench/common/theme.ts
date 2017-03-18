@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import nls = require('vs/nls');
-import { registerColor, editorBackground } from 'vs/platform/theme/common/colorRegistry';
+import { registerColor, editorBackground, highContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IDisposable, Disposable, dispose } from 'vs/base/common/lifecycle';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { Color, RGBA } from 'vs/base/common/color';
@@ -59,6 +59,22 @@ export const INACTIVE_TAB_INACTIVE_GROUP_FOREGROUND = registerColor('inactiveTab
 	hc: Color.white
 }, nls.localize('inactiveTabInactiveGroupForeground', "Inactive tab foreground color in an inactive group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
 
+export const TAB_BORDER = registerColor('tabBorder', {
+	dark: '#252526',
+	light: '#F3F3F3',
+	hc: highContrastBorder
+}, nls.localize('tabBorder', "Border to separate tabs from each other. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+
+
+
+// < --- Editors --- >
+
+export const EDITOR_GROUP_BORDER_COLOR = registerColor('editorGroupBorder', {
+	dark: '#444444',
+	light: '#E7E7E7',
+	hc: highContrastBorder
+}, nls.localize('editorGroupBorder', "Color to separate multiple editor groups from each other. Editor groups are the containers of editors."));
+
 
 
 // < --- Panels --- >
@@ -72,7 +88,7 @@ export const PANEL_BACKGROUND = registerColor('panelBackground', {
 export const PANEL_BORDER_TOP_COLOR = registerColor('panelBorderTopColor', {
 	dark: Color.fromRGBA(new RGBA(128, 128, 128)).transparent(0.35),
 	light: Color.fromRGBA(new RGBA(128, 128, 128)).transparent(0.35),
-	hc: '#6FC3DF'
+	hc: highContrastBorder
 }, nls.localize('panelBorderTopColor', "Panel border color on the top separating to the editor. Panels are shown below the editor area and contain views like output and integrated terminal."));
 
 
@@ -102,7 +118,7 @@ export const STATUS_BAR_NO_FOLDER_BACKGROUND = registerColor('statusBarNoFolderB
  */
 export class Themable extends Disposable {
 	private _toUnbind: IDisposable[];
-	private theme: ITheme;
+	private _theme: ITheme;
 
 	constructor(
 		protected themeService: IThemeService
@@ -110,10 +126,14 @@ export class Themable extends Disposable {
 		super();
 
 		this._toUnbind = [];
-		this.theme = themeService.getTheme();
+		this._theme = themeService.getTheme();
 
 		// Hook up to theme changes
 		this._toUnbind.push(this.themeService.onThemeChange(theme => this.onThemeChange(theme)));
+	}
+
+	protected get theme(): ITheme {
+		return this._theme;
 	}
 
 	protected get toUnbind() {
@@ -121,7 +141,7 @@ export class Themable extends Disposable {
 	}
 
 	protected onThemeChange(theme: ITheme): void {
-		this.theme = theme;
+		this._theme = theme;
 
 		this.updateStyles(theme);
 	}
@@ -131,7 +151,9 @@ export class Themable extends Disposable {
 	}
 
 	protected getColor(id: string): string {
-		return this.theme.getColor(id).toString();
+		const color = this._theme.getColor(id);
+
+		return color ? color.toString() : null;
 	}
 
 	public dispose(): void {

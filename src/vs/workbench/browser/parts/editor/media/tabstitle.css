@@ -182,40 +182,6 @@
 
 /* TODO@theme */
 
-.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.tabs {
-	border-bottom: 1px solid;
-	border-bottom-color: #6FC3DF;
-}
-
-.vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab {
-	border-left-color: #F3F3F3;
-}
-
-.vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.active:last-child {
-	border-right-color: #F3F3F3;
-}
-
-.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab {
-	border-left-color: #252526;
-}
-
-.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.active:last-child {
-	border-right-color: #252526;
-}
-
-.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab:first-child,
-.vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab:first-child {
-	border-left-color: transparent;
-}
-
-.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab:not(:first-child) {
-	border-left-color: #6FC3DF;
-}
-
-.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab:last-child {
-	border-right-color: #6FC3DF;
-}
-
 .hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.active,
 .hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.active:hover {
 	outline-color: #f38518;
