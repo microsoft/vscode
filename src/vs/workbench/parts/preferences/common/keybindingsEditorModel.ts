@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TPromise } from 'vs/base/common/winjs.base';
+import { distinct } from 'vs/base/common/arrays';
 import { IMatch, IFilter, or, matchesContiguousSubString, matchesPrefix, matchesCamelCase, matchesWords } from 'vs/base/common/filters';
 import { Registry } from 'vs/platform/platform';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
@@ -62,17 +63,15 @@ export class KeybindingsEditorModel extends EditorModel {
 	private fetchKeybindingItems(searchValue: string): IKeybindingItemEntry[] {
 		const result: IKeybindingItemEntry[] = [];
 		for (const keybindingItem of this._keybindingItems) {
-			let keybindingMatches: IMatch[] = keybindingItem.keybinding ? KeybindingsEditorModel.matches(searchValue, keybindingItem.keybinding.getAriaLabel(), or(matchesWords, matchesCamelCase)) : null;
-			let commandIdMatches: IMatch[] = KeybindingsEditorModel.matches(searchValue, keybindingItem.command, or(matchesWords, matchesCamelCase));
-			let commandLabelMatches: IMatch[] = keybindingItem.commandLabel ? KeybindingsEditorModel.matches(searchValue, keybindingItem.commandLabel, (word, wordToMatchAgainst) => matchesWords(word, keybindingItem.commandLabel, true)) : null;
-			if (keybindingMatches || commandIdMatches || commandLabelMatches) {
+			let keybindingMatches = new KeybindingMatches(keybindingItem, searchValue);
+			if (keybindingMatches.commandIdMatches || keybindingMatches.commandLabelMatches || keybindingMatches.keybindingMatches) {
 				result.push({
 					id: KeybindingsEditorModel.getId(keybindingItem),
 					templateId: KEYBINDING_ENTRY_TEMPLATE_ID,
-					commandLabelMatches,
+					commandLabelMatches: keybindingMatches.commandLabelMatches,
 					keybindingItem,
-					keybindingMatches,
-					commandIdMatches
+					keybindingMatches: keybindingMatches.keybindingMatches,
+					commandIdMatches: keybindingMatches.commandIdMatches
 				});
 			}
 		}
@@ -153,26 +152,56 @@ export class KeybindingsEditorModel extends EditorModel {
 			source: KeybindingSource.Default
 		};
 	}
+}
 
-	private static matches(searchValue: string, wordToMatchAgainst: string, wordMatchesFilter: IFilter): IMatch[] {
+class KeybindingMatches {
+	public readonly commandIdMatches: IMatch[] = null;
+	public readonly commandLabelMatches: IMatch[] = null;
+	public readonly keybindingMatches: IMatch[] = null;
+
+	constructor(keybindingItem: IKeybindingItem, searchValue: string) {
+		this.commandIdMatches = this.matches(searchValue, keybindingItem.command, or(matchesWords, matchesCamelCase));
+		this.commandLabelMatches = keybindingItem.commandLabel ? this.matches(searchValue, keybindingItem.commandLabel, (word, wordToMatchAgainst) => matchesWords(word, keybindingItem.commandLabel, true)) : null;
+		this.keybindingMatches = keybindingItem.keybinding ? this.keyMatches(searchValue, keybindingItem.keybinding.getAriaLabel(), or(matchesWords, matchesCamelCase)) : null;
+	}
+
+	private matches(searchValue: string, wordToMatchAgainst: string, wordMatchesFilter: IFilter): IMatch[] {
 		let matches = wordFilter(searchValue, wordToMatchAgainst);
 		if (!matches) {
-			const words = searchValue.split(' ');
-			for (const word of words) {
-				const wordMatches = wordMatchesFilter(word, wordToMatchAgainst);
-				if (wordMatches) {
-					matches = [...(matches || []), ...wordMatches];
-				} else {
-					matches = null;
-					break;
-				}
-			}
+			matches = this.matchesWords(searchValue.split(' '), wordToMatchAgainst, wordMatchesFilter);
 		}
 		if (matches) {
-			matches.sort((a, b) => {
-				return a.start - b.start;
-			});
+			matches = this.filterAndSort(matches);
 		}
 		return matches;
+	}
+
+	private keyMatches(searchValue: string, wordToMatchAgainst: string, wordMatchesFilter: IFilter): IMatch[] {
+		let matches = this.matches(searchValue, wordToMatchAgainst, wordMatchesFilter);
+		if (!matches) {
+			matches = this.matchesWords(searchValue.split('+'), wordToMatchAgainst, wordMatchesFilter);
+			if (matches) {
+				matches = this.filterAndSort(matches);
+			}
+		}
+		return matches;
+	}
+
+	private matchesWords(words: string[], wordToMatchAgainst: string, wordMatchesFilter: IFilter): IMatch[] {
+		let matches = [];
+		for (const word of words) {
+			const wordMatches = wordMatchesFilter(word, wordToMatchAgainst);
+			if (wordMatches) {
+				matches = [...(matches || []), ...wordMatches];
+			} else {
+				matches = null;
+				break;
+			}
+		}
+		return matches;
+	}
+
+	private filterAndSort(matches: IMatch[]): IMatch[] {
+		return distinct(matches, (a => a.start + '.' + a.end)).filter(match => !matches.some(m => !(m.start === match.start && m.end === match.end) && (m.start <= match.start && m.end >= match.end))).sort((a, b) => a.start - b.start);;
 	}
 }
