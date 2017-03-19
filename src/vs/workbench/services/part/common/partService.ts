@@ -1,3 +1,4 @@
+import { AccessibilityProvider } from '../../../parts/files/browser/views/openEditorsViewer';
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
@@ -116,4 +117,9 @@ export interface IPartService {
 	 * Toggles the workbench in and out of zen mode - parts get hidden and window goes fullscreen.
 	 */
 	toggleZenMode(): void;
+
+	/**
+	 * Resizes currently focused part on main access
+	 */
+	resizePart(part: Parts, sizeChangePx: number, skipLayout?: boolean): TPromise<void>;
 }
