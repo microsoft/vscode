@@ -37,7 +37,7 @@ export class ExpandViewAction extends Action {
 		const isSidebarFocus = this.partService.hasFocus(Parts.SIDEBAR_PART);
 		const isPanelFocus = this.partService.hasFocus(Parts.PANEL_PART);
 
-		if(isSidebarFocus) {
+		if (isSidebarFocus) {
 			return this.partService.resizePart(Parts.SIDEBAR_PART, RESIZE_INCREMENT);
 		}
 		else if (isPanelFocus) {
@@ -75,7 +75,7 @@ export class ContractViewAction extends Action {
 
 		// we ask but layout may not deliver, if limits silently ignore
 
-		if(isSidebarFocus) {
+		if (isSidebarFocus) {
 			return this.partService.resizePart(Parts.SIDEBAR_PART, -RESIZE_INCREMENT);
 		}
 		else if (isPanelFocus) {
