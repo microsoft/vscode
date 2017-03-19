@@ -2164,3 +2164,7 @@
 .monaco-workbench .panel.integrated-terminal .xterm .xterm-bg-color-255 {
 	background-color: #eeeeee;
 }
+
+.disable-bold{
+	font-weight: normal;
+}
