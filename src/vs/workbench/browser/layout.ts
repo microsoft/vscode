@@ -539,6 +539,48 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		return this.panelMaximized;
 	}
 
+	// Add reset for keyboard support
+	public resetSideBarWidth(): number {
+		this.sidebarWidth = MIN_SIDEBAR_PART_WIDTH;
+		return this.sidebarWidth;
+	}
+
+	// change part size along the main axis
+	public setPartSizeChange(part: Parts, sizeChange: number): boolean {
+
+		switch (part) {
+			case Parts.SIDEBAR_PART:
+				this.sidebarWidth = this.sidebarWidth + sizeChange;
+				return true;
+			case Parts.PANEL_PART:
+				this.panelHeight = this.panelHeight + sizeChange;
+				return true;
+			case Parts.EDITOR_PART:
+				// If we have one editor we can cheat and resize sidebar with the negative delta
+
+				let visibleEditorCount = this.editorService.getVisibleEditors().length;
+				if (visibleEditorCount === 1) {
+					this.sidebarWidth = this.sidebarWidth - sizeChange;
+					return true;
+				}
+				else {
+					// WIP/TBD
+					// We have multiple editors
+					// determine which one, may be split
+					// resize focused. Expand the right side
+					// for horizontal orientation, bottom for hv.
+					// contract is opposite
+				}
+		}
+		// other parts not resizable, no error just silent
+		return(false);
+	}
+
+	public setSideBarWidth(sidebarWidth: number): number {
+		this.sidebarWidth = sidebarWidth;
+		return this.sidebarWidth;
+	}
+
 	public dispose(): void {
 		if (this.toUnbind) {
 			dispose(this.toUnbind);
