@@ -55,6 +55,7 @@ export class TerminalPanel extends Panel {
 
 		this._terminalContainer = document.createElement('div');
 		DOM.addClass(this._terminalContainer, 'terminal-outer-container');
+		DOM.toggleClass(this._parentDomElement, 'disable-bold', !this._terminalService.configHelper.config.enableBold);
 		this._parentDomElement.appendChild(this._themeStyleElement);
 		this._parentDomElement.appendChild(this._fontStyleElement);
 		this._parentDomElement.appendChild(this._terminalContainer);
