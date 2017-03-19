@@ -69,26 +69,6 @@
 				"--no-color"
 			],
 			"showOutput": "never"
-		},
-		{
-			"taskName": "Timeout",
-			"command": ".\\delay.bat",
-			"isShellCommand": true,
-			"args": [
-				"5"
-			],
-			"showOutput": "never"
-		},
-		{
-			"taskName": "Hello",
-			"command": "echo",
-			"isShellCommand": true,
-			"args": [
-				"Christopher"
-			],
-			"showOutput": "always"
 		}
-
-
 	]
 }

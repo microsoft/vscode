@@ -1,7 +1,6 @@
 {
 	"version": "0.1.0",
 	"configurations": [
-
 		{
 			"type": "node",
 			"request": "launch",
@@ -118,15 +117,14 @@
 		{
 			"type": "chrome",
 			"request": "attach",
-			"name": "2 Attach to VS Code",
+			"name": "Attach to VS Code",
 			"port": 9222,
-			"url": "*",
-			"timeout": 30000
+			"url": "*"
 		},
 		{
 			"type": "chrome",
 			"request": "launch",
-			"name": "1 Launch VS Code",
+			"name": "Launch VS Code",
 			"windows": {
 				"runtimeExecutable": "${workspaceRoot}/scripts/code.bat"
 			},
@@ -136,14 +134,6 @@
 			"linux": {
 				"runtimeExecutable": "${workspaceRoot}/scripts/code.sh"
 			}
-
 		}
-
-	],
-	"compounds": [
-        {
-            "name": "L/A VSC",
-            "configurations": ["1 Launch VS Code", "2 Attach to VS Code"]
-        }
 	]
 }
