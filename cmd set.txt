@@ -6,7 +6,7 @@ git clean -xfd
 .\scripts\code
 
 npm run watch
-
+npm cache clean
 
 .\scripts\code.bat --remote-debugging-port=9222
 
