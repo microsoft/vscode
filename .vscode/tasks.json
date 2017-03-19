@@ -78,7 +78,17 @@
 				"5"
 			],
 			"showOutput": "never"
+		},
+		{
+			"taskName": "Hello",
+			"command": "echo",
+			"isShellCommand": true,
+			"args": [
+				"Christopher"
+			],
+			"showOutput": "always"
 		}
+
 
 	]
 }

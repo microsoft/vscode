@@ -118,16 +118,15 @@
 		{
 			"type": "chrome",
 			"request": "attach",
-			"name": "Attach to VS Code",
+			"name": "2 Attach to VS Code",
 			"port": 9222,
 			"url": "*",
-			"timeout": 30000,
-			"preLaunchTask": "Timeout"
+			"timeout": 30000
 		},
 		{
 			"type": "chrome",
 			"request": "launch",
-			"name": "Launch VS Code",
+			"name": "1 Launch VS Code",
 			"windows": {
 				"runtimeExecutable": "${workspaceRoot}/scripts/code.bat"
 			},
@@ -144,7 +143,7 @@
 	"compounds": [
         {
             "name": "L/A VSC",
-            "configurations": ["Launch VS Code", "Attach to VS Code"]
+            "configurations": ["1 Launch VS Code", "2 Attach to VS Code"]
         }
 	]
 }
