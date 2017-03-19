@@ -31,7 +31,7 @@ npm config set python C:\Python27\python.exe
 
 .\scripts\btest install
 
-npm run precommit
+npm run precommit > hygiene-output.txt
 npm config -l
 https://github.com/misoguy/vscode.git
 feature/navigation
