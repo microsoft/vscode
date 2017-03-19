@@ -6,8 +6,9 @@
 
 import { ResolvedKeybinding, Keybinding, KeyCode } from 'vs/base/common/keyCodes';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ContextKeyExpr, IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
 import { IResolveResult } from 'vs/platform/keybinding/common/keybindingResolver';
+import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import Event from 'vs/base/common/event';
 
 export interface IUserFriendlyKeybinding {
@@ -15,13 +16,6 @@ export interface IUserFriendlyKeybinding {
 	command: string;
 	args?: any;
 	when?: string;
-}
-
-export interface IKeybindingItem2 {
-	keybinding: ResolvedKeybinding;
-	command: string;
-	source: KeybindingSource;
-	when: ContextKeyExpr;
 }
 
 export enum KeybindingSource {
@@ -73,7 +67,7 @@ export interface IKeybindingService {
 
 	getDefaultKeybindings(): string;
 
-	getKeybindings(): IKeybindingItem2[];
+	getKeybindings(): ResolvedKeybindingItem[];
 
 	customKeybindingsCount(): number;
 }

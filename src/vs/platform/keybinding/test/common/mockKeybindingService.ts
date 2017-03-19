@@ -6,11 +6,12 @@
 
 import { ResolvedKeybinding, Keybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
 import Event from 'vs/base/common/event';
-import { IKeybindingService, IKeybindingEvent, IKeybindingItem2, IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
+import { IKeybindingService, IKeybindingEvent, IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKey, IContextKeyService, IContextKeyServiceTarget, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IResolveResult } from 'vs/platform/keybinding/common/keybindingResolver';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
 import { OS } from 'vs/base/common/platform';
+import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 
 class MockKeybindingContextKey<T> implements IContextKey<T> {
 	private _key: string;
@@ -72,7 +73,7 @@ export class MockKeybindingService implements IKeybindingService {
 		return null;
 	}
 
-	public getKeybindings(): IKeybindingItem2[] {
+	public getKeybindings(): ResolvedKeybindingItem[] {
 		return [];
 	}
 

@@ -163,7 +163,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		this.overlayContainer.style.display = 'block';
 		return this.defineKeybindingWidget.define().then(key => {
 			if (key) {
-				return this.keybindingEditingService.editKeybinding(key, keybindingEntry.keybindingItem)
+				return this.keybindingEditingService.editKeybinding(key, keybindingEntry.keybindingItem.keybindingItem)
 					.then(() => {
 						if (!keybindingEntry.keybindingItem.keybinding) { // reveal only if keybinding was added because the entry will be placed in different position after rendering
 							this.keybindingItemToReveal = keybindingEntry;
@@ -183,7 +183,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 			return this.choiceService.choose(Severity.Info, localize('confirmRemove', "Remove keybinding '{0}' from command '{1}'", keybindingEntry.keybindingItem.keybinding.getAriaLabel(), keybindingEntry.keybindingItem.commandLabel || keybindingEntry.keybindingItem.commandLabel), options, true)
 				.then(option => {
 					if (option === 0) {
-						return this.keybindingEditingService.removeKeybinding(keybindingEntry.keybindingItem);
+						return this.keybindingEditingService.removeKeybinding(keybindingEntry.keybindingItem.keybindingItem);
 					}
 					return null;
 				})

@@ -3,16 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IMatch, IFilter, or, matchesContiguousSubString, matchesPrefix, matchesCamelCase, matchesWords } from 'vs/base/common/filters';
 import { Registry } from 'vs/platform/platform';
+import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { CommonEditorRegistry, EditorAction } from 'vs/editor/common/editorCommonExtensions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
 import { EditorModel } from 'vs/workbench/common/editor';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
-import { IKeybindingService, IKeybindingItem2, KeybindingSource } from 'vs/platform/keybinding/common/keybinding';
+import { IKeybindingService, KeybindingSource } from 'vs/platform/keybinding/common/keybinding';
+import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 export const KEYBINDING_ENTRY_TEMPLATE_ID = 'keybinding.entry.template';
 export const KEYBINDING_HEADER_TEMPLATE_ID = 'keybinding.header.template';
@@ -29,8 +31,13 @@ export interface IKeybindingItemEntry extends IListEntry {
 	keybindingMatches?: IMatch[];
 }
 
-export interface IKeybindingItem extends IKeybindingItem2 {
+export interface IKeybindingItem {
+	keybinding: ResolvedKeybinding;
+	keybindingItem: ResolvedKeybindingItem;
 	commandLabel: string;
+	command: string;
+	source: KeybindingSource;
+	when: ContextKeyExpr;
 }
 
 const wordFilter = or(matchesPrefix, matchesWords, matchesContiguousSubString);
@@ -86,19 +93,14 @@ export class KeybindingsEditorModel extends EditorModel {
 					return boundCommands;
 				}, new Map<string, boolean>());
 				for (const command of KeybindingResolver.getAllUnboundCommands(boundCommands)) {
-					this._keybindingItems.push(KeybindingsEditorModel.toKeybindingEntry({
-						keybinding: null,
-						command,
-						when: null,
-						source: KeybindingSource.Default
-					}, workbenchActionsRegistry, editorActions));
+					this._keybindingItems.push(KeybindingsEditorModel.toUnassingedKeybindingEntry(command, workbenchActionsRegistry, editorActions));
 				}
 				this._keybindingItems = this._keybindingItems.sort((a, b) => KeybindingsEditorModel.compareKeybindingData(a, b));
 				return this;
 			});
 	}
 
-	private static getId(keybindingItem: IKeybindingItem2): string {
+	private static getId(keybindingItem: IKeybindingItem): string {
 		return keybindingItem.command + (keybindingItem.keybinding ? keybindingItem.keybinding.getAriaLabel() : '') + keybindingItem.source + (keybindingItem.when ? keybindingItem.when.serialize() : '');
 	}
 
@@ -126,16 +128,29 @@ export class KeybindingsEditorModel extends EditorModel {
 		return a.command.localeCompare(b.command);
 	}
 
-	private static toKeybindingEntry(keybinding: IKeybindingItem2, workbenchActionsRegistry: IWorkbenchActionRegistry, editorActions: {}): IKeybindingItem {
+	private static toKeybindingEntry(keybinding: ResolvedKeybindingItem, workbenchActionsRegistry: IWorkbenchActionRegistry, editorActions: {}): IKeybindingItem {
 		const workbenchAction = workbenchActionsRegistry.getWorkbenchAction(keybinding.command);
 		const editorAction: EditorAction = editorActions[keybinding.command];
 		return <IKeybindingItem>{
-			keybinding: keybinding.keybinding,
+			keybinding: keybinding.resolvedKeybinding,
+			keybindingItem: keybinding,
 			command: keybinding.command,
 			commandLabel: editorAction ? editorAction.label : workbenchAction ? workbenchAction.label : '',
 			when: keybinding.when,
-			source: keybinding.source,
-			category: editorAction ? localize('editorCategory', "Editor") : workbenchAction ? workbenchActionsRegistry.getCategory(workbenchAction.id) ? workbenchActionsRegistry.getCategory(workbenchAction.id) : null : null
+			source: keybinding.isDefault ? KeybindingSource.Default : KeybindingSource.User
+		};
+	}
+
+	private static toUnassingedKeybindingEntry(command: string, workbenchActionsRegistry: IWorkbenchActionRegistry, editorActions: {}): IKeybindingItem {
+		const workbenchAction = workbenchActionsRegistry.getWorkbenchAction(command);
+		const editorAction: EditorAction = editorActions[command];
+		return <IKeybindingItem>{
+			keybinding: null,
+			keybindingItem: new ResolvedKeybindingItem(null, command, null, null, true),
+			command: command,
+			commandLabel: editorAction ? editorAction.label : workbenchAction ? workbenchAction.label : '',
+			when: null,
+			source: KeybindingSource.Default
 		};
 	}
 
