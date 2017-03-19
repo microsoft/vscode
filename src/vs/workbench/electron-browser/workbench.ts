@@ -1142,6 +1142,24 @@ export class Workbench implements IPartService {
 		}
 	}
 
+	// Resize requested part along the main axis
+	// layout will do all the math for us and adjusts the other Parts
+	public resizePart(part: Parts, sizeChangePx: number, skipLayout?: boolean): TPromise<void> {
+
+		let promise = TPromise.as(null);
+		this.workbenchLayout.setPartSizeChange(part, sizeChangePx);
+
+		return promise.then(() => {
+
+			// Layout
+			if (!skipLayout) {
+				this.workbenchLayout.layout();
+			}
+		});
+
+	}
+
+
 	private shouldRestoreLastOpenedViewlet(): boolean {
 		if (!this.environmentService.isBuilt) {
 			return true; // always restore sidebar when we are in development mode
