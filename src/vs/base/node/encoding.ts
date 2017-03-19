@@ -97,22 +97,22 @@ export function detectEncodingByBOM(file: string): TPromise<string> {
 
 const IGNORE_ENCODINGS = ['ascii', 'utf-8', 'utf-16', 'utf-32'];
 /**
- * Detects the encoding from buffer.
+ * Guesses the encoding from buffer.
  */
-export function detectEncodingByBuffer(buffer: NodeBuffer): string {
-	let detected = jschardet.detect(buffer);
-	if (!detected || !detected.encoding) {
+export function guessEncodingByBuffer(buffer: NodeBuffer): string {
+	let guessed = jschardet.detect(buffer);
+	if (!guessed || !guessed.encoding) {
 		return null;
 	}
-	let enc = detected.encoding.toLowerCase();
+	let enc = guessed.encoding.toLowerCase();
 
-	// Ignore encodings that cannot detect correctly
+	// Ignore encodings that cannot guess correctly
 	// (http://chardet.readthedocs.io/en/latest/supported-encodings.html)
 	if (0 <= IGNORE_ENCODINGS.indexOf(enc)) {
 		return null;
 	}
 
-	return detected.encoding;
+	return guessed.encoding;
 }
 /**
  * The encodings that are allowed in a settings file don't match the canonical encoding labels specified by WHATWG.

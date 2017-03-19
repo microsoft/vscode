@@ -240,7 +240,7 @@ const configurationValueWhitelist = [
 	'editor.acceptSuggestionOnCommitCharacter',
 	'workbench.editor.showTabs',
 	'files.encoding',
-	'files.autoDetectEncoding',
+	'files.autoGuessEncoding',
 	'editor.quickSuggestionsDelay',
 	'editor.snippetSuggestions',
 	'editor.selectionHighlight',
