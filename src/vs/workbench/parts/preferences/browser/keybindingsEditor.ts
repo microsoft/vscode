@@ -513,6 +513,9 @@ class KeybindingColumn extends Column {
 			let htmlkb = keybindingItemEntry.keybindingItem.keybinding.getHTMLLabel();
 			htmlkb.forEach(item => keybinding.appendChild(renderHtml(item)));
 			keybinding.title = keybindingItemEntry.keybindingItem.keybinding.getAriaLabel();
+			if (keybindingItemEntry.keybindingMatches) {
+				new HighlightedLabel(DOM.append(this.keybindingColumn, $(''))).set(keybindingItemEntry.keybindingItem.keybindingItem.resolvedKeybinding.getAriaLabel(), keybindingItemEntry.keybindingMatches);
+			}
 		}
 	}
 }
