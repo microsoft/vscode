@@ -573,7 +573,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 				}
 		}
 		// other parts not resizable, no error just silent
-		return(false);
+		return false;
 	}
 
 	public setSideBarWidth(sidebarWidth: number): number {
