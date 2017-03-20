@@ -22,12 +22,8 @@ function registerColor(id: string, defaults: colorRegistry.ColorDefaults, descri
 	return colorReg.registerColor(id, defaults, description);
 }
 
-export const editorHoverHighlight = registerColor('editorHoverHighlight', { light: '#ADD6FF26', dark: '#264f7840', hc: '#ADD6FF26' }, nls.localize('hoverHighlight', 'Background color of the editor hover'));
-export const editorActiveLinkForeground = registerColor('editorActiveLinkForeground', { dark: '#4E94CE', light: Color.black, hc: Color.cyan }, nls.localize('activeLinkForeground', 'Color of active links'));
-export const editorLinkForeground = registerColor('editorLinkForeground', { dark: null, light: null, hc: null }, nls.localize('linkForeground', 'Color of links'));
-export const referencesFindMatchHighlight = registerColor('referencesFindMatchHighlight', { dark: '#ea5c004d', light: '#ea5c004d', hc: null }, nls.localize('referencesFindMatchHighlight', 'References view match highlight color'));
-export const referencesReferenceHighlight = registerColor('referencesReferenceHighlight', { dark: '#ff8f0099', light: '#f5d802de', hc: null }, nls.localize('referencesReferenceHighlight', 'References range highlight color'));
 export const editorLineHighlight = registerColor('editorLineHighlight', { dark: null, light: null, hc: null }, nls.localize('lineHighlight', 'Editor line highlight color'));
+export const editorLineHighlightBorder = registerColor('editorLineHighlightBorderCox', { dark: '#282828', light: '#eeeeee', hc: '#f38518' }, nls.localize('lineHighlightBorderBox', 'Editor line highlight border box color'));
 export const editorRangeHighlight = registerColor('editorRangeHighlight', { dark: '#ffffff0b', light: '#fdff0033', hc: null }, nls.localize('rangeHighlight', 'Background color of range highlighted, like by Quick open and Find features'));
 export const editorCursor = registerColor('editorCursor', { dark: '#AEAFAD', light: Color.black, hc: Color.white }, nls.localize('caret', 'Editor cursor color'));
 export const editorInvisibles = registerColor('editorInvisibles', { dark: '#e3e4e229', light: '#33333333', hc: '#e3e4e229' }, nls.localize('invisibles', 'Editor invisibles color'));
@@ -39,34 +35,8 @@ function applyEditorStyles(theme: ITheme, collector: ICssStyleCollector) {
 	let background = theme.getColor(colorRegistry.editorBackground);
 	if (background) {
 		addBackgroundColorRule(theme, '.monaco-editor-background', background, collector);
-		addBackgroundColorRule(theme, '.glyph-margin', background, collector);
 		collector.addRule(`.${theme.selector} .monaco-workbench .monaco-editor-background { background-color: ${background}; }`);
 	}
-
-	addBackgroundColorRule(theme, '.hoverHighlight', theme.getColor(editorHoverHighlight), collector);
-
-	let activeLinkForeground = theme.getColor(editorActiveLinkForeground);
-	if (activeLinkForeground) {
-		collector.addRule(`.monaco-editor.${theme.selector} .detected-link-active { color: ${activeLinkForeground} !important; }`);
-		collector.addRule(`.monaco-editor.${theme.selector} .goto-definition-link { color: ${activeLinkForeground} !important; }`);
-	}
-	let linkForeground = theme.getColor(editorLinkForeground);
-	if (linkForeground) {
-		collector.addRule(`.monaco-editor.${theme.selector} .detected-link { color: ${linkForeground} !important; }`);
-	}
-
-	let selection = theme.getColor(colorRegistry.editorSelection);
-	if (selection) {
-		addBackgroundColorRule(theme, '.focused .selected-text', selection, collector);
-	}
-
-	let inactiveSelection = theme.getColor(colorRegistry.editorInactiveSelection);
-	if (inactiveSelection) {
-		addBackgroundColorRule(theme, '.selected-text', inactiveSelection, collector);
-	}
-
-	addBackgroundColorRule(theme, '.reference-zone-widget .ref-tree .referenceMatch', theme.getColor(referencesFindMatchHighlight), collector);
-	addBackgroundColorRule(theme, '.reference-zone-widget .preview .reference-decoration', theme.getColor(referencesReferenceHighlight), collector);
 
 	let lineHighlight = theme.getColor(editorLineHighlight);
 	if (lineHighlight) {
@@ -77,20 +47,9 @@ function applyEditorStyles(theme: ITheme, collector: ICssStyleCollector) {
 	}
 	addBackgroundColorRule(theme, '.rangeHighlight', theme.getColor(editorRangeHighlight), collector);
 
-	let caret = theme.getColor(editorCursor);
-	if (caret) {
-		let oppositeCaret = caret.opposite();
-		collector.addRule(`.monaco-editor.${theme.selector} .cursor { background-color: ${caret}; border-color: ${caret}; color: ${oppositeCaret}; }`);
-	}
-
 	let invisibles = theme.getColor(editorInvisibles);
 	if (invisibles) {
 		collector.addRule(`.vs-whitespace { color: ${invisibles} !important; }`);
-	}
-
-	let color = theme.getColor(editorGuide);
-	if (color) {
-		collector.addRule(`.monaco-editor.${theme.selector} .lines-content .cigr { background: ${color}; }`);
 	}
 }
 
