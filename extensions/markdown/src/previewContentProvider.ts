@@ -28,12 +28,17 @@ export function getMarkdownUri(uri: vscode.Uri) {
 export class MDDocumentContentProvider implements vscode.TextDocumentContentProvider {
 	private _onDidChange = new vscode.EventEmitter<vscode.Uri>();
 	private _waiting: boolean = false;
+	private extraStyles: Array<vscode.Uri> = [];
 
 	constructor(
 		private engine: MarkdownEngine,
 		private context: vscode.ExtensionContext,
 		private cspArbiter: ContentSecurityPolicyArbiter
 	) { }
+
+	public addStyle(resource: vscode.Uri): void {
+		this.extraStyles.push(resource);
+	}
 
 	private getMediaPath(mediaFile: string): string {
 		return vscode.Uri.file(this.context.asAbsolutePath(path.join('media', mediaFile))).toString();
@@ -97,7 +102,7 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 		const baseStyles = [
 			this.getMediaPath('markdown.css'),
 			this.getMediaPath('tomorrow.css')
-		];
+		].concat(this.extraStyles.map(resource => resource.toString()));
 
 		return `${baseStyles.map(href => `<link rel="stylesheet" type="text/css" href="${href}">`).join('\n')}
 			${this.getSettingsOverrideStyles(nonce)}
@@ -105,8 +110,7 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 	}
 
 	private getScripts(nonce: string): string {
-		const scripts = [this.getMediaPath('main.js')];
-		return scripts
+		return [this.getMediaPath('main.js')]
 			.map(source => `<script src="${source}" nonce="${nonce}"></script>`)
 			.join('\n');
 	}
