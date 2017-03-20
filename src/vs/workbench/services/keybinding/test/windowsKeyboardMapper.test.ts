@@ -10,6 +10,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { WindowsKeyboardMapper, IKeyboardMapping } from 'vs/workbench/services/keybinding/common/windowsKeyboardMapper';
 import { createKeybinding, KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
 import { IResolvedKeybinding, assertResolveKeybinding, readRawMapping, assertMapping, simpleHTMLLabel, chordHTMLLabel } from 'vs/workbench/services/keybinding/test/keyboardMapperTestUtils';
+import { IHTMLContentElement } from 'vs/base/common/htmlContent';
 
 function createKeyboardMapper(file: string): TPromise<WindowsKeyboardMapper> {
 	return readRawMapping<IKeyboardMapping>(file).then((rawMappings) => {
@@ -19,6 +20,14 @@ function createKeyboardMapper(file: string): TPromise<WindowsKeyboardMapper> {
 
 function _assertResolveKeybinding(mapper: WindowsKeyboardMapper, k: number, expected: IResolvedKeybinding): void {
 	assertResolveKeybinding(mapper, createKeybinding(k, OperatingSystem.Windows), [expected]);
+}
+
+function _simpleHTMLLabel(pieces: string[]): IHTMLContentElement {
+	return simpleHTMLLabel(pieces, OperatingSystem.Windows);
+}
+
+function _chordHTMLLabel(firstPart: string[], chordPart: string[]): IHTMLContentElement {
+	return chordHTMLLabel(firstPart, chordPart, OperatingSystem.Windows);
 }
 
 suite('keyboardMapper - WINDOWS de_ch', () => {
@@ -43,7 +52,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 			{
 				label: 'Ctrl+A',
 				ariaLabel: 'Control+A',
-				HTMLLabel: [simpleHTMLLabel(['Ctrl', 'A'])],
+				HTMLLabel: [_simpleHTMLLabel(['Ctrl', 'A'])],
 				electronAccelerator: 'Ctrl+A',
 				userSettingsLabel: 'ctrl+a',
 				isChord: false,
@@ -63,7 +72,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 			{
 				label: 'Ctrl+Z',
 				ariaLabel: 'Control+Z',
-				HTMLLabel: [simpleHTMLLabel(['Ctrl', 'Z'])],
+				HTMLLabel: [_simpleHTMLLabel(['Ctrl', 'Z'])],
 				electronAccelerator: 'Ctrl+Z',
 				userSettingsLabel: 'ctrl+z',
 				isChord: false,
@@ -83,7 +92,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 			{
 				label: 'Ctrl+^',
 				ariaLabel: 'Control+^',
-				HTMLLabel: [simpleHTMLLabel(['Ctrl', '^'])],
+				HTMLLabel: [_simpleHTMLLabel(['Ctrl', '^'])],
 				electronAccelerator: 'Ctrl+]',
 				userSettingsLabel: 'ctrl+]',
 				isChord: false,
@@ -103,7 +112,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 			{
 				label: 'Ctrl+§',
 				ariaLabel: 'Control+§',
-				HTMLLabel: [simpleHTMLLabel(['Ctrl', '§'])],
+				HTMLLabel: [_simpleHTMLLabel(['Ctrl', '§'])],
 				electronAccelerator: 'Ctrl+/',
 				userSettingsLabel: 'ctrl+/',
 				isChord: false,
@@ -123,7 +132,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 			{
 				label: 'Ctrl+K Ctrl+ä',
 				ariaLabel: 'Control+K Control+ä',
-				HTMLLabel: [chordHTMLLabel(['Ctrl', 'K'], ['Ctrl', 'ä'])],
+				HTMLLabel: [_chordHTMLLabel(['Ctrl', 'K'], ['Ctrl', 'ä'])],
 				electronAccelerator: null,
 				userSettingsLabel: 'ctrl+k ctrl+\\',
 				isChord: true,
@@ -159,7 +168,7 @@ suite('keyboardMapper - WINDOWS en_us', () => {
 			{
 				label: 'Ctrl+K Ctrl+\\',
 				ariaLabel: 'Control+K Control+\\',
-				HTMLLabel: [chordHTMLLabel(['Ctrl', 'K'], ['Ctrl', '\\'])],
+				HTMLLabel: [_chordHTMLLabel(['Ctrl', 'K'], ['Ctrl', '\\'])],
 				electronAccelerator: null,
 				userSettingsLabel: 'ctrl+k ctrl+\\',
 				isChord: true,
