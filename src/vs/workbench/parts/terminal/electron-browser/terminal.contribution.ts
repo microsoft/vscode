@@ -106,6 +106,11 @@ configurationRegistry.registerConfiguration({
 			'type': 'number',
 			'default': 1.2
 		},
+		'terminal.integrated.enableBold': {
+			'type': 'boolean',
+			'description': nls.localize('terminal.integrated.enableBold', "Whether to enable bold text within the terminal."),
+			'default': true
+		},
 		'terminal.integrated.cursorBlinking': {
 			'description': nls.localize('terminal.integrated.cursorBlinking', "Controls whether the terminal cursor blinks."),
 			'type': 'boolean',
