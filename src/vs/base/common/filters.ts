@@ -397,6 +397,10 @@ export function createMatches(position: number[]): IMatch[] {
 
 export function fuzzyMatchAndScore(pattern: string, word: string): [number, number[]] {
 
+	if (!pattern) {
+		return [-1, []];
+	}
+
 	let matches: number[] = [];
 	let score = _matchRecursive(
 		pattern, pattern.toLowerCase(), pattern.toUpperCase(), 0,

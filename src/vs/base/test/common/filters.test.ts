@@ -212,7 +212,6 @@ suite('Filters', () => {
 
 		assertMatches('no', 'match', undefined, fuzzyMatchAndScore);
 		assertMatches('no', '', undefined, fuzzyMatchAndScore);
-		assertMatches('', 'match', undefined, fuzzyMatchAndScore);
 		assertMatches('BK', 'the_black_knight', 'the_^black_^knight', fuzzyMatchAndScore);
 		assertMatches('bkn', 'the_black_knight', 'the_^black_^k^night', fuzzyMatchAndScore);
 		assertMatches('bt', 'the_black_knight', 'the_^black_knigh^t', fuzzyMatchAndScore);
@@ -236,13 +235,12 @@ suite('Filters', () => {
 		assertMatches('ccm', 'camelCasecm', '^camel^Casec^m', fuzzyMatchAndScore);
 		assertMatches('myvable', 'myvariable', '^m^y^v^aria^b^l^e', fuzzyMatchAndScore);
 		assertMatches('fdm', 'findModel', '^fin^d^Model', fuzzyMatchAndScore);
-
 	});
 
 	test('topScore', function () {
 
 		function assertTopScore(pattern: string, expected: number, ...words: string[]) {
-			let topScore = -1;
+			let topScore = Number.MIN_VALUE;
 			let topIdx = 0;
 			for (let i = 0; i < words.length; i++) {
 				const word = words[i];
@@ -258,6 +256,7 @@ suite('Filters', () => {
 			assert.equal(topIdx, expected);
 		}
 
+		assertTopScore('cons', 2, 'ArrayBufferConstructor', 'Console', 'console');
 		assertTopScore('Foo', 1, 'foo', 'Foo', 'foo');
 
 		assertTopScore('CC', 1, 'camelCase', 'CamelCase');
