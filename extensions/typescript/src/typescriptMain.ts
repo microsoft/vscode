@@ -105,14 +105,7 @@ export function activate(context: ExtensionContext): void {
 	}));
 
 	context.subscriptions.push(commands.registerCommand('typescript.openTsServerLog', () => {
-		if (!client.logFile) {
-			window.showErrorMessage(localize(
-				'typescript.openTsServerLog.loggingDisabled',
-				'TS Server logging not active. Please set `typescript.tsserver.log` and then reload VS Code to enable logging'));
-			return;
-		}
-		return workspace.openTextDocument(client.logFile)
-			.then(window.showTextDocument);
+		client.openTsServerLogFile();
 	}));
 
 	context.subscriptions.push(

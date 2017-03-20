@@ -48,7 +48,9 @@ interface IPackageInfo {
 }
 
 enum Trace {
-	Off, Messages, Verbose
+	Off,
+	Messages,
+	Verbose
 }
 
 namespace Trace {
@@ -63,6 +65,43 @@ namespace Trace {
 				return Trace.Verbose;
 			default:
 				return Trace.Off;
+		}
+	}
+}
+
+enum TsServerLogLevel {
+	Off,
+	Normal,
+	Terse,
+	Verbose,
+}
+
+namespace TsServerLogLevel {
+	export function fromString(value: string): TsServerLogLevel {
+		switch (value && value.toLowerCase()) {
+			case 'normal':
+				return TsServerLogLevel.Normal;
+			case 'terse':
+				return TsServerLogLevel.Terse;
+			case 'verbose':
+				return TsServerLogLevel.Verbose;
+			case 'off':
+			default:
+				return TsServerLogLevel.Off;
+		}
+	}
+
+	export function toString(value: TsServerLogLevel): string {
+		switch (value) {
+			case TsServerLogLevel.Normal:
+				return 'normal';
+			case TsServerLogLevel.Terse:
+				return 'terse';
+			case TsServerLogLevel.Verbose:
+				return 'verbose';
+			case TsServerLogLevel.Off:
+			default:
+				return 'off';
 		}
 	}
 }
@@ -105,6 +144,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	private trace: Trace;
 	private _output: OutputChannel;
 	private _logFile: string | null = null;
+	private _logLevel: TsServerLogLevel = TsServerLogLevel.Off;
 	private servicePromise: Promise<cp.ChildProcess> | null;
 	private lastError: Error | null;
 	private reader: Reader<Proto.Response>;
@@ -157,6 +197,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		this._apiVersion = new API('1.0.0');
 		this._checkGlobalTSCVersion = true;
 		this.trace = this.readTrace();
+		this._logLevel = this.readTsServerLogLevel();
 		disposables.push(workspace.onDidChangeConfiguration(() => {
 			this.trace = this.readTrace();
 			let oldglobalTsdk = this.globalTsdk;
@@ -223,6 +264,11 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		return result;
 	}
 
+	private readTsServerLogLevel(): TsServerLogLevel {
+		const setting = workspace.getConfiguration().get<string>('typescript.tsserver.log', 'off');
+		return TsServerLogLevel.fromString(setting);
+	}
+
 	public get experimentalAutoBuild(): boolean {
 		return this._experimentalAutoBuild;
 	}
@@ -237,10 +283,6 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 
 	public onReady(): Promise<void> {
 		return this._onReady.promise;
-	}
-
-	public get logFile(): string | null {
-		return this._logFile;
 	}
 
 	private data2String(data: any): string {
@@ -465,10 +507,9 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 					}
 
 					if (this.apiVersion.has222Features()) {
-						const logLevel = tsConfig.get<string>('tsserver.log', 'off');
-						if (logLevel !== 'off') {
+						if (this._logLevel !== TsServerLogLevel.Off) {
 							this._logFile = path.join(os.tmpdir(), `vscode-tsserver-${electron.makeRandomHexString(10)}.log`);
-							args.push('--logVerbosity', logLevel);
+							args.push('--logVerbosity', TsServerLogLevel.toString(this._logLevel));
 							args.push('--logFile', this._logFile);
 						}
 					}
@@ -596,6 +637,39 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 						return modulePath;
 				}
 			});
+	}
+
+	public openTsServerLogFile(): Thenable<boolean> {
+		if (this._logLevel === TsServerLogLevel.Off) {
+			return window.showErrorMessage<MessageItem>(
+				localize(
+					'typescript.openTsServerLog.loggingNotEnabled',
+					'TS Server logging is off. Please set `typescript.tsserver.log` and reload VS Code to enable logging'),
+				{
+					title: localize(
+						'typescript.openTsServerLog.enableAndReloadOption',
+						'Enable logging and reload VSCode'),
+				})
+				.then(selection => {
+					if (selection) {
+						return workspace.getConfiguration().update('typescript.tsserver.log', 'verbose', true).then(() => {
+							commands.executeCommand('workbench.action.reloadWindow');
+							return false;
+						});
+					}
+					return false;
+				});
+		}
+
+		if (!this._logFile) {
+			return window.showWarningMessage(localize(
+				'typescript.openTsServerLog.noLogFile',
+				'TS Server has not started logging.')).then(() => false);
+		}
+
+		return workspace.openTextDocument(this._logFile)
+			.then(window.showTextDocument)
+			.then(editor => !!editor);
 	}
 
 	private serviceStarted(resendModels: boolean): void {
