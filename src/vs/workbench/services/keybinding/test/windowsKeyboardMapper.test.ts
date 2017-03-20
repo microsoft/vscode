@@ -7,13 +7,13 @@
 
 import { OperatingSystem } from 'vs/base/common/platform';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { WindowsKeyboardMapper, IKeyboardMapping } from 'vs/workbench/services/keybinding/common/windowsKeyboardMapper';
+import { WindowsKeyboardMapper, IWindowsKeyboardMapping } from 'vs/workbench/services/keybinding/common/windowsKeyboardMapper';
 import { createKeybinding, KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
 import { IResolvedKeybinding, assertResolveKeybinding, readRawMapping, assertMapping, simpleHTMLLabel, chordHTMLLabel, assertResolveKeyboardEvent } from 'vs/workbench/services/keybinding/test/keyboardMapperTestUtils';
 import { IHTMLContentElement } from 'vs/base/common/htmlContent';
 
 function createKeyboardMapper(file: string): TPromise<WindowsKeyboardMapper> {
-	return readRawMapping<IKeyboardMapping>(file).then((rawMappings) => {
+	return readRawMapping<IWindowsKeyboardMapping>(file).then((rawMappings) => {
 		return new WindowsKeyboardMapper(rawMappings);
 	});
 }

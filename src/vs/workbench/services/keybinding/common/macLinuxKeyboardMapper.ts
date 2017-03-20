@@ -14,7 +14,7 @@ import { UILabelProvider, AriaLabelProvider, UserSettingsLabelProvider, Electron
 import { IKeyboardMapper } from 'vs/workbench/services/keybinding/common/keyboardMapper';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 
-export interface IKeyMapping {
+export interface IMacLinuxKeyMapping {
 	value: string;
 	withShift: string;
 	withAltGr: string;
@@ -26,8 +26,8 @@ export interface IKeyMapping {
 	withShiftAltGrIsDeadKey?: boolean;
 }
 
-export interface IKeyboardMapping {
-	[code: string]: IKeyMapping;
+export interface IMacLinuxKeyboardMapping {
+	[code: string]: IMacLinuxKeyMapping;
 }
 
 const LOG = false;
@@ -160,7 +160,7 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 	private readonly _hwToDispatch: string[] = [];
 	private readonly _kbToHw: number[][] = [];
 
-	constructor(rawMappings: IKeyboardMapping, OS: OperatingSystem) {
+	constructor(rawMappings: IMacLinuxKeyboardMapping, OS: OperatingSystem) {
 
 		this._OS = OS;
 

@@ -14,7 +14,7 @@ import { IHTMLContentElement } from 'vs/base/common/htmlContent';
 import { IKeyboardMapper } from 'vs/workbench/services/keybinding/common/keyboardMapper';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 
-export interface IKeyMapping {
+export interface IWindowsKeyMapping {
 	vkey: string;
 	value: string;
 	withShift: string;
@@ -22,8 +22,8 @@ export interface IKeyMapping {
 	withShiftAltGr: string;
 }
 
-export interface IKeyboardMapping {
-	[code: string]: IKeyMapping;
+export interface IWindowsKeyboardMapping {
+	[code: string]: IWindowsKeyMapping;
 }
 
 const LOG = false;
@@ -182,7 +182,7 @@ export class WindowsKeyboardMapper implements IKeyboardMapper {
 	private readonly _kbToLabel: string[] = [];
 	private readonly _kbExists: boolean[];
 
-	constructor(rawMappings: IKeyboardMapping) {
+	constructor(rawMappings: IWindowsKeyboardMapping) {
 		this._hwToKb = [];
 		this._kbToLabel = [];
 		this._kbExists = [];
