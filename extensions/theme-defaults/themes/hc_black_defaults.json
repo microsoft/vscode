@@ -3,6 +3,7 @@
 	"name": "High Contrast Default Colors",
 	"colors": {
 		"editorBackground": "#000000",
-		"editorForeground": "#FFFFFF"
+		"editorForeground": "#FFFFFF",
+		"editorGuide": "#FFFFFF"
 	}
 }

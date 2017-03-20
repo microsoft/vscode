@@ -16,7 +16,7 @@ import { DocumentHighlight, DocumentHighlightKind, DocumentHighlightProviderRegi
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Position } from 'vs/editor/common/core/position';
 
-import { registerColor, editorSelectionHighlightColor, editorBackground, editorSelection } from 'vs/platform/theme/common/colorRegistry';
+import { registerColor, editorSelectionHighlightColor } from 'vs/platform/theme/common/colorRegistry';
 import { ITheme, ICssStyleCollector, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
 
@@ -319,7 +319,7 @@ class WordHighlighterContribution implements editorCommon.IEditorContribution {
 }
 
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
-	let selectionHighlightColor = getSelectionHighlightColor(theme);
+	let selectionHighlightColor = theme.getColor(editorSelectionHighlightColor);
 	if (selectionHighlightColor) {
 		addBackgroundColorRule(theme, '.focused .selectionHighlight', selectionHighlightColor, collector);
 		addBackgroundColorRule(theme, '.selectionHighlight', selectionHighlightColor.transparent(0.5), collector);
@@ -330,30 +330,8 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 
 });
 
-function getSelectionHighlightColor(theme: ITheme) {
-	if (theme.isDefault(editorSelectionHighlightColor) && (!theme.isDefault(editorBackground) || !theme.isDefault(editorSelection))) {
-		let selection = theme.getColor(editorSelection);
-		let background = theme.getColor(editorBackground);
-		if (selection && background) {
-			return deriveLessProminentColor(selection, background);
-		}
-	}
-	return theme.getColor(editorSelectionHighlightColor);
-}
-
 function addBackgroundColorRule(theme: ITheme, selector: string, color: Color, collector: ICssStyleCollector): void {
 	if (color) {
 		collector.addRule(`.monaco-editor.${theme.selector} ${selector} { background-color: ${color}; }`);
 	}
-}
-
-function deriveLessProminentColor(from: Color, backgroundColor: Color): Color {
-	let contrast = from.getContrast(backgroundColor);
-	if (contrast < 1.7 || contrast > 4.5) {
-		return null;
-	}
-	if (from.isDarkerThan(backgroundColor)) {
-		return Color.getLighterColor(from, backgroundColor, 0.4);
-	}
-	return Color.getDarkerColor(from, backgroundColor, 0.4);
 }
