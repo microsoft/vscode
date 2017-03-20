@@ -5,15 +5,40 @@
 
 declare module 'native-keymap' {
 
-	export interface INativeKeyMap {
-		key_code: string;
+	export interface IWindowsKeyMapping {
+		vkey: string;
 		value: string;
 		withShift: string;
 		withAltGr: string;
 		withShiftAltGr: string;
 	}
+	export interface IWindowsKeyboardMapping {
+		[code: string]: IWindowsKeyMapping;
+	}
+	export interface ILinuxKeyMapping {
+		value: string;
+		withShift: string;
+		withAltGr: string;
+		withShiftAltGr: string;
+	}
+	export interface ILinuxKeyboardMapping {
+		[code: string]: ILinuxKeyMapping;
+	}
+	export interface IMacKeyMapping {
+		value: string;
+		withShift: string;
+		withAltGr: string;
+		withShiftAltGr: string;
+		valueIsDeadKey: boolean;
+		withShiftIsDeadKey: boolean;
+		withAltGrIsDeadKey: boolean;
+		withShiftAltGrIsDeadKey: boolean;
+	}
+	export interface IMacKeyboardMapping {
+		[code: string]: IMacKeyMapping;
+	}
 
-	export function getKeyMap(): INativeKeyMap[];
+	export function getKeyMap(): IWindowsKeyboardMapping | ILinuxKeyboardMapping | IMacKeyboardMapping;
 
 	export interface IWindowsKeyboardLayoutInfo {
 		name: string;
