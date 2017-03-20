@@ -38,6 +38,10 @@ import * as corePosition from 'vs/editor/common/core/position';
 import ModeContextKeys = editorCommon.ModeContextKeys;
 import EditorContextKeys = editorCommon.EditorContextKeys;
 
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegistry';
+
+
 export class DefinitionActionConfig {
 
 	constructor(
@@ -624,3 +628,10 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 		this.toUnhook = dispose(this.toUnhook);
 	}
 }
+
+registerThemingParticipant((theme, collector) => {
+	let activeLinkForeground = theme.getColor(editorActiveLinkForeground);
+	if (activeLinkForeground) {
+		collector.addRule(`.monaco-editor.${theme.selector} .goto-definition-link { color: ${activeLinkForeground} !important; }`);
+	}
+});

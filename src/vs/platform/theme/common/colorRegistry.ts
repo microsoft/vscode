@@ -145,6 +145,12 @@ export const editorFindMatchHighlight = registerColor('editorFindMatchHighlight'
 export const editorCurrentFindMatchHighlight = registerColor('editorCurrentFindMatchHighlight', { light: '#A8AC94', dark: '#515C6A', hc: null }, nls.localize('currentFindMatchHighlight', "Background color of the current region matching the search"));
 export const editorFindRangeHighlight = registerColor('editorFindRangeHighlight', { dark: '#3a3d4166', light: '#b4b4b44d', hc: null }, nls.localize('findRangeHighlight', "Background color of regions selected for search"));
 
+/**
+ * Editor link colors
+ */
+export const editorActiveLinkForeground = registerColor('editorActiveLinkForeground', { dark: '#4E94CE', light: Color.black, hc: Color.cyan }, nls.localize('activeLinkForeground', 'Color of active links'));
+export const editorLinkForeground = registerColor('editorLinkForeground', { dark: null, light: null, hc: null }, nls.localize('linkForeground', 'Color of links'));
+
 
 // ----- color functions
 

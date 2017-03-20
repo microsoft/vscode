@@ -37,6 +37,11 @@ import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeE
 import { PeekViewWidget, IPeekViewService } from 'vs/editor/contrib/zoneWidget/browser/peekViewWidget';
 import { FileReferences, OneReference, ReferencesModel } from './referencesModel';
 import { ITextModelResolverService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
+import { registerColor } from 'vs/platform/theme/common/colorRegistry';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+
+export const referencesFindMatchHighlight = registerColor('referencesFindMatchHighlight', { dark: '#ea5c004d', light: '#ea5c004d', hc: null }, nls.localize('referencesFindMatchHighlight', 'References view match highlight color'));
+export const referencesReferenceHighlight = registerColor('referencesReferenceHighlight', { dark: '#ff8f0099', light: '#f5d802de', hc: null }, nls.localize('referencesReferenceHighlight', 'References range highlight color'));
 
 class DecorationsManager implements IDisposable {
 
@@ -752,3 +757,14 @@ export class ReferenceWidget extends PeekViewWidget {
 		}, onUnexpectedError);
 	}
 }
+
+registerThemingParticipant((theme, collector) => {
+	let referencesFindMatchHighlightColor = theme.getColor(referencesFindMatchHighlight);
+	if (referencesFindMatchHighlightColor) {
+		collector.addRule(`.monaco-editor.${theme.selector} .reference-zone-widget .ref-tree .referenceMatch { background-color: ${referencesFindMatchHighlightColor}; }`);
+	}
+	let referencesReferenceHighlightColor = theme.getColor(referencesReferenceHighlight);
+	if (referencesReferenceHighlightColor) {
+		collector.addRule(`.monaco-editor.${theme.selector} .reference-zone-widget .preview .reference-decoration { background-color: ${referencesReferenceHighlightColor}; }`);
+	}
+});
