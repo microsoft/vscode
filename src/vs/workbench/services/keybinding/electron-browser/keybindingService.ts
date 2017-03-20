@@ -186,6 +186,10 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		});
 	}
 
+	public dumpDebugInfo(): string {
+		return this._keyboardMapper.dumpDebugInfo() + `\n\n\nraw info: \n` + this._keyboardMapper.dumpRawDebugInfo();
+	}
+
 	private _safeGetConfig(): IUserFriendlyKeybinding[] {
 		let rawConfig = this.userKeybindings.getConfig();
 		if (Array.isArray(rawConfig)) {
