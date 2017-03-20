@@ -14,7 +14,7 @@ import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayo
 import { KeyboardEventCodeUtils } from 'vs/workbench/services/keybinding/common/keyboardEventCode';
 import { IHTMLContentElement } from 'vs/base/common/htmlContent';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { readRawMapping, assertMapping, IResolvedKeybinding, assertResolveKeybinding } from 'vs/workbench/services/keybinding/test/keyboardMapperTestUtils';
+import { readRawMapping, assertMapping, IResolvedKeybinding, assertResolveKeybinding, simpleHTMLLabel } from 'vs/workbench/services/keybinding/test/keyboardMapperTestUtils';
 
 function createKeyboardMapper(file: string, OS: OperatingSystem): TPromise<MacLinuxKeyboardMapper> {
 	return readRawMapping<IKeyboardMapping>(file).then((rawMappings) => {
@@ -44,6 +44,14 @@ suite('keyboardMapper - MAC de_ch', () => {
 	function _assertResolveKeybinding(k: number, expected: IResolvedKeybinding[]): void {
 		assertResolveKeybinding(mapper, createKeybinding(k, OperatingSystem.Macintosh), expected);
 	}
+
+	function _simpleHTMLLabel(pieces: string[]): IHTMLContentElement {
+		return simpleHTMLLabel(pieces, OperatingSystem.Macintosh);
+	}
+
+	// function _chordHTMLLabel(firstPart: string[], chordPart: string[]): IHTMLContentElement {
+	// 	return chordHTMLLabel(firstPart, chordPart, OperatingSystem.Macintosh);
+	// }
 
 	test('kb => hw', () => {
 		// unchanged
@@ -104,24 +112,24 @@ suite('keyboardMapper - MAC de_ch', () => {
 		);
 	});
 
-	// test('resolveKeybinding Cmd+B', () => {
-	// 	_assertResolveKeybinding(
-	// 		KeyMod.CtrlCmd | KeyCode.KEY_B,
-	// 		[{
-	// 			label: '⌘A',
-	// 			ariaLabel: 'Control+A',
-	// 			HTMLLabel: [simpleHTMLLabel(['Ctrl', 'A'])],
-	// 			electronAccelerator: 'Ctrl+A',
-	// 			userSettingsLabel: 'ctrl+a',
-	// 			isChord: false,
-	// 			hasCtrlModifier: true,
-	// 			hasShiftModifier: false,
-	// 			hasAltModifier: false,
-	// 			hasMetaModifier: false,
-	// 			dispatchParts: ['ctrl+A', null],
-	// 		}]
-	// 	);
-	// });
+	test('resolveKeybinding Cmd+B', () => {
+		_assertResolveKeybinding(
+			KeyMod.CtrlCmd | KeyCode.KEY_B,
+			[{
+				label: '⌘B',
+				ariaLabel: 'Command+B',
+				HTMLLabel: [_simpleHTMLLabel(['⌘', 'B'])],
+				electronAccelerator: 'Cmd+B',
+				userSettingsLabel: 'cmd+b',
+				isChord: false,
+				hasCtrlModifier: false,
+				hasShiftModifier: false,
+				hasAltModifier: false,
+				hasMetaModifier: true,
+				dispatchParts: ['meta+[KeyB]', null],
+			}]
+		);
+	});
 
 });
 

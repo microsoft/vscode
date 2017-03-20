@@ -6,11 +6,11 @@
 'use strict';
 
 import { OperatingSystem } from 'vs/base/common/platform';
-import { KeyCode, ResolvedKeybinding, KeyCodeUtils, SimpleKeybinding, Keybinding, KeybindingType } from 'vs/base/common/keyCodes';
+import { KeyCode, ResolvedKeybinding, KeyCodeUtils, SimpleKeybinding, Keybinding, KeybindingType, USER_SETTINGS } from 'vs/base/common/keyCodes';
 import { KeyboardEventCode, KeyboardEventCodeUtils, IMMUTABLE_CODE_TO_KEY_CODE } from 'vs/workbench/services/keybinding/common/keyboardEventCode';
 import { CharCode } from 'vs/base/common/charCode';
 import { IHTMLContentElement } from 'vs/base/common/htmlContent';
-import { UILabelProvider, AriaLabelProvider } from 'vs/platform/keybinding/common/keybindingLabels';
+import { UILabelProvider, AriaLabelProvider, UserSettingsLabelProvider, ElectronAcceleratorLabelProvider } from 'vs/platform/keybinding/common/keybindingLabels';
 import { IKeyboardMapper } from 'vs/workbench/services/keybinding/common/keyboardMapper';
 
 export interface IKeyMapping {
@@ -88,28 +88,19 @@ export class NativeResolvedKeybinding extends ResolvedKeybinding {
 	}
 
 	public getElectronAccelerator(): string {
-		throw new Error('TODO!');
-		// const usResolvedKeybinding = new USLayoutResolvedKeybinding(this._actual, OS);
+		if (this._chordPart !== null) {
+			// Electron cannot handle chords
+			return null;
+		}
 
-		// if (OS === OperatingSystem.Windows) {
-		// 	// electron menus always do the correct rendering on Windows
-		// 	return usResolvedKeybinding.getElectronAccelerator();
-		// }
-
-		// let usLabel = usResolvedKeybinding.getLabel();
-		// let label = this.getLabel();
-		// if (usLabel !== label) {
-		// 	// electron menus are incorrect in rendering (linux) and in rendering and interpreting (mac)
-		// 	// for non US standard keyboard layouts
-		// 	return null;
-		// }
-
-		// return usResolvedKeybinding.getElectronAccelerator();
+		let firstPart = this._firstPart ? this._mapper.getElectronLabelForHardwareCode(this._firstPart.code) : null;
+		return ElectronAcceleratorLabelProvider.toLabel(this._firstPart, firstPart, null, null, this._OS);
 	}
 
 	public getUserSettingsLabel(): string {
-		throw new Error('TODO!');
-		// return KeybindingIO.writeKeybinding(this._actual, OS);
+		let firstPart = this._firstPart ? this._mapper.getUserSettingsLabel(this._firstPart.code) : null;
+		let chordPart = this._chordPart ? this._mapper.getUserSettingsLabel(this._chordPart.code) : null;
+		return UserSettingsLabelProvider.toLabel(this._firstPart, firstPart, this._chordPart, chordPart, this._OS);
 	}
 
 	public isChord(): boolean {
@@ -145,34 +136,10 @@ export class NativeResolvedKeybinding extends ResolvedKeybinding {
 	}
 
 	public getDispatchParts(): [string, string] {
-		throw new Error('TODO');
-		// let firstPart = this._firstPart ? this._getDispatchStr(this._firstPart) : null;
-		// let chordPart = this._chordPart ? this._getDispatchStr(this._chordPart) : null;
-		// return [firstPart, chordPart];
+		let firstPart = this._firstPart ? this._mapper.getDispatchStrForHardwareKeypress(this._firstPart) : null;
+		let chordPart = this._chordPart ? this._mapper.getDispatchStrForHardwareKeypress(this._chordPart) : null;
+		return [firstPart, chordPart];
 	}
-
-	// private _getDispatchStr(keybinding: HardwareKeypress): string {
-	// 	if (keybinding.isModifierKey()) {
-	// 		return null;
-	// 	}
-	// 	let result = '';
-
-	// 	if (keybinding.ctrlKey) {
-	// 		result += 'ctrl+';
-	// 	}
-	// 	if (keybinding.shiftKey) {
-	// 		result += 'shift+';
-	// 	}
-	// 	if (keybinding.altKey) {
-	// 		result += 'alt+';
-	// 	}
-	// 	if (keybinding.metaKey) {
-	// 		result += 'meta+';
-	// 	}
-	// 	result += KeyCodeUtils.toString(keybinding.keyCode);
-
-	// 	return result;
-	// }
 }
 
 interface IHardwareCodeMapping {
@@ -547,6 +514,83 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 		result += codeDispatch;
 
 		return result;
+	}
+
+	public getUserSettingsLabel(code: KeyboardEventCode): string {
+		const immutableKeyCode = IMMUTABLE_CODE_TO_KEY_CODE[code];
+		if (immutableKeyCode !== -1) {
+			return USER_SETTINGS.fromKeyCode(immutableKeyCode).toLowerCase();
+		}
+
+		// Check if this hw code always maps to the same kb code and back
+		let constantKeyCode: KeyCode = this._getStableKeyCodeForHWCode(code);
+		if (constantKeyCode !== -1) {
+			return USER_SETTINGS.fromKeyCode(constantKeyCode).toLowerCase();
+		}
+
+		return this._hwToDispatch[code];
+	}
+
+	private _getElectronLabelForKeyCode(keyCode: KeyCode): string {
+		if (keyCode >= KeyCode.NUMPAD_0 && keyCode <= KeyCode.NUMPAD_DIVIDE) {
+			// Electron cannot handle numpad keys
+			return null;
+		}
+
+		switch (keyCode) {
+			case KeyCode.UpArrow:
+				return 'Up';
+			case KeyCode.DownArrow:
+				return 'Down';
+			case KeyCode.LeftArrow:
+				return 'Left';
+			case KeyCode.RightArrow:
+				return 'Right';
+		}
+
+		// electron menus always do the correct rendering on Windows
+		return KeyCodeUtils.toString(keyCode);
+	}
+
+	public getElectronLabelForHardwareCode(code: KeyboardEventCode): string {
+		const immutableKeyCode = IMMUTABLE_CODE_TO_KEY_CODE[code];
+		if (immutableKeyCode !== -1) {
+			return this._getElectronLabelForKeyCode(immutableKeyCode);
+		}
+
+		// Check if this hw code always maps to the same kb code and back
+		let constantKeyCode: KeyCode = this._getStableKeyCodeForHWCode(code);
+		if (constantKeyCode !== -1) {
+			return this._getElectronLabelForKeyCode(constantKeyCode);
+		}
+
+		return null;
+	}
+
+	private _getStableKeyCodeForHWCode(code: KeyboardEventCode): KeyCode {
+		// Check if this hw code always maps to the same kb code and back
+		let constantKeyCode: KeyCode = -1;
+		for (let mod = 0; mod < 8; mod++) {
+			const hwEncoded = ((code << 3) + mod) >>> 0;
+			const kbEncoded = this._hwToKb[hwEncoded];
+			const keyCode = (kbEncoded >>> 3);
+
+			if (constantKeyCode === -1) {
+				constantKeyCode = keyCode;
+			} else if (constantKeyCode !== keyCode) {
+				// maps to different keyCode
+				return -1;
+			}
+
+			// Check that the inverse is true
+			const inverse = this._kbToHw[kbEncoded];
+			if (inverse.length !== 1) {
+				// multiple hw keypresses map to this kb
+				return -1;
+			}
+		}
+
+		return constantKeyCode;
 	}
 
 	public resolveKeybinding(keybinding: Keybinding): NativeResolvedKeybinding[] {

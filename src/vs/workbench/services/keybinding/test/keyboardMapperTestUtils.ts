@@ -11,6 +11,7 @@ import { IKeyboardMapper } from 'vs/workbench/services/keybinding/common/keyboar
 import { Keybinding } from 'vs/base/common/keyCodes';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { readFile, writeFile } from 'vs/base/node/pfs';
+import { OperatingSystem } from 'vs/base/common/platform';
 
 export interface IResolvedKeybinding {
 	label: string;
@@ -45,10 +46,10 @@ export function assertResolveKeybinding(mapper: IKeyboardMapper, keybinding: Key
 	assert.deepEqual(actual, expected);
 }
 
-function _htmlPieces(pieces: string[]): IHTMLContentElement[] {
+function _htmlPieces(pieces: string[], OS: OperatingSystem): IHTMLContentElement[] {
 	let children: IHTMLContentElement[] = [];
 	for (let i = 0, len = pieces.length; i < len; i++) {
-		if (i !== 0) {
+		if (i !== 0 && OS !== OperatingSystem.Macintosh) {
 			children.push({ tagName: 'span', text: '+' });
 		}
 		children.push({ tagName: 'span', className: 'monaco-kbkey', text: pieces[i] });
@@ -56,22 +57,22 @@ function _htmlPieces(pieces: string[]): IHTMLContentElement[] {
 	return children;
 }
 
-export function simpleHTMLLabel(pieces: string[]): IHTMLContentElement {
+export function simpleHTMLLabel(pieces: string[], OS: OperatingSystem): IHTMLContentElement {
 	return {
 		tagName: 'span',
 		className: 'monaco-kb',
-		children: _htmlPieces(pieces)
+		children: _htmlPieces(pieces, OS)
 	};
 }
 
-export function chordHTMLLabel(firstPart: string[], chordPart: string[]): IHTMLContentElement {
+export function chordHTMLLabel(firstPart: string[], chordPart: string[], OS: OperatingSystem): IHTMLContentElement {
 	return {
 		tagName: 'span',
 		className: 'monaco-kb',
 		children: [].concat(
-			_htmlPieces(firstPart),
+			_htmlPieces(firstPart, OS),
 			[{ tagName: 'span', text: ' ' }],
-			_htmlPieces(chordPart)
+			_htmlPieces(chordPart, OS)
 		)
 	};
 }
