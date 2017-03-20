@@ -5,108 +5,20 @@
 
 'use strict';
 
-import * as assert from 'assert';
 import { OperatingSystem } from 'vs/base/common/platform';
-import { readFile, writeFile } from 'vs/base/node/pfs';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { WindowsKeyboardMapper, IKeyboardMapping } from 'vs/workbench/services/keybinding/common/windowsKeyboardMapper';
 import { createKeybinding, KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
-import { IHTMLContentElement } from 'vs/base/common/htmlContent';
+import { IResolvedKeybinding, assertResolveKeybinding, readRawMapping, assertMapping, simpleHTMLLabel, chordHTMLLabel } from 'vs/workbench/services/keybinding/test/keyboardMapperTestUtils';
 
-function createKeyboardMapper(file: string, OS: OperatingSystem): TPromise<WindowsKeyboardMapper> {
-	return readFile(require.toUrl(`vs/workbench/services/keybinding/test/${file}.js`)).then((buff) => {
-		let contents = buff.toString();
-		let func = new Function('define', contents);
-		let rawMappings: IKeyboardMapping = null;
-		func(function (value) {
-			rawMappings = value;
-		});
+function createKeyboardMapper(file: string): TPromise<WindowsKeyboardMapper> {
+	return readRawMapping<IKeyboardMapping>(file).then((rawMappings) => {
 		return new WindowsKeyboardMapper(rawMappings);
 	});
 }
 
-function assertMapping(mapper: WindowsKeyboardMapper, file: string, done: (err?: any) => void): void {
-	const filePath = require.toUrl(`vs/workbench/services/keybinding/test/${file}`);
-
-	readFile(filePath).then((buff) => {
-		let expected = buff.toString();
-		const actual = mapper.dumpDebugInfo();
-		if (actual !== expected) {
-			writeFile(filePath, actual);
-		}
-		try {
-			assert.deepEqual(actual, expected);
-		} catch (err) {
-			return done(err);
-		}
-		done();
-	}, done);
-}
-
-function _htmlPieces(pieces: string[]): IHTMLContentElement[] {
-	let children: IHTMLContentElement[] = [];
-	for (let i = 0, len = pieces.length; i < len; i++) {
-		if (i !== 0) {
-			children.push({ tagName: 'span', text: '+' });
-		}
-		children.push({ tagName: 'span', className: 'monaco-kbkey', text: pieces[i] });
-	}
-	return children;
-}
-
-function simpleHTMLLabel(pieces: string[]): IHTMLContentElement {
-	return {
-		tagName: 'span',
-		className: 'monaco-kb',
-		children: _htmlPieces(pieces)
-	};
-}
-
-function chordHTMLLabel(firstPart: string[], chordPart: string[]): IHTMLContentElement {
-	return {
-		tagName: 'span',
-		className: 'monaco-kb',
-		children: [].concat(
-			_htmlPieces(firstPart),
-			[{ tagName: 'span', text: ' ' }],
-			_htmlPieces(chordPart)
-		)
-	};
-}
-
-interface IResolvedKeybindingExpected {
-	label: string;
-	ariaLabel: string;
-	HTMLLabel: IHTMLContentElement[];
-	electronAccelerator: string;
-	userSettingsLabel: string;
-	isChord: boolean;
-	hasCtrlModifier: boolean;
-	hasShiftModifier: boolean;
-	hasAltModifier: boolean;
-	hasMetaModifier: boolean;
-	dispatchParts: [string, string];
-}
-
-function _assertResolvedKeybinding(mapper: WindowsKeyboardMapper, k: number, expected: IResolvedKeybindingExpected): void {
-	let kbs = mapper.resolveKeybinding(createKeybinding(k, OperatingSystem.Windows));
-	assert.equal(kbs.length, 1);
-	let kb = kbs[0];
-
-	let actual: IResolvedKeybindingExpected = {
-		label: kb.getLabel(),
-		ariaLabel: kb.getAriaLabel(),
-		HTMLLabel: kb.getHTMLLabel(),
-		electronAccelerator: kb.getElectronAccelerator(),
-		userSettingsLabel: kb.getUserSettingsLabel(),
-		isChord: kb.isChord(),
-		hasCtrlModifier: kb.hasCtrlModifier(),
-		hasShiftModifier: kb.hasShiftModifier(),
-		hasAltModifier: kb.hasAltModifier(),
-		hasMetaModifier: kb.hasMetaModifier(),
-		dispatchParts: kb.getDispatchParts(),
-	};
-	assert.deepEqual(actual, expected);
+function _assertResolveKeybinding(mapper: WindowsKeyboardMapper, k: number, expected: IResolvedKeybinding): void {
+	assertResolveKeybinding(mapper, createKeybinding(k, OperatingSystem.Windows), [expected]);
 }
 
 suite('keyboardMapper - WINDOWS de_ch', () => {
@@ -114,7 +26,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 	let mapper: WindowsKeyboardMapper;
 
 	suiteSetup((done) => {
-		createKeyboardMapper('win_de_ch', OperatingSystem.Macintosh).then((_mapper) => {
+		createKeyboardMapper('win_de_ch').then((_mapper) => {
 			mapper = _mapper;
 			done();
 		}, done);
@@ -124,12 +36,9 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 		assertMapping(mapper, 'win_de_ch.txt', done);
 	});
 
-	function assertResolveKeybinding(kb: number, expected: IResolvedKeybindingExpected): void {
-		_assertResolvedKeybinding(mapper, kb, expected);
-	}
-
 	test('resolveKeybinding Ctrl+A', () => {
-		assertResolveKeybinding(
+		_assertResolveKeybinding(
+			mapper,
 			KeyMod.CtrlCmd | KeyCode.KEY_A,
 			{
 				label: 'Ctrl+A',
@@ -148,7 +57,8 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 	});
 
 	test('resolveKeybinding Ctrl+Z', () => {
-		assertResolveKeybinding(
+		_assertResolveKeybinding(
+			mapper,
 			KeyMod.CtrlCmd | KeyCode.KEY_Z,
 			{
 				label: 'Ctrl+Z',
@@ -167,7 +77,8 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 	});
 
 	test('resolveKeybinding Ctrl+]', () => {
-		assertResolveKeybinding(
+		_assertResolveKeybinding(
+			mapper,
 			KeyMod.CtrlCmd | KeyCode.US_CLOSE_SQUARE_BRACKET,
 			{
 				label: 'Ctrl+^',
@@ -186,7 +97,8 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 	});
 
 	test('resolveKeybinding Ctrl+/', () => {
-		assertResolveKeybinding(
+		_assertResolveKeybinding(
+			mapper,
 			KeyMod.CtrlCmd | KeyCode.US_SLASH,
 			{
 				label: 'Ctrl+§',
@@ -205,7 +117,8 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 	});
 
 	test('resolveKeybinding Ctrl+K Ctrl+\\', () => {
-		assertResolveKeybinding(
+		_assertResolveKeybinding(
+			mapper,
 			KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.US_BACKSLASH),
 			{
 				label: 'Ctrl+K Ctrl+ä',
@@ -229,7 +142,7 @@ suite('keyboardMapper - WINDOWS en_us', () => {
 	let mapper: WindowsKeyboardMapper;
 
 	suiteSetup((done) => {
-		createKeyboardMapper('win_en_us', OperatingSystem.Macintosh).then((_mapper) => {
+		createKeyboardMapper('win_en_us').then((_mapper) => {
 			mapper = _mapper;
 			done();
 		}, done);
@@ -239,12 +152,9 @@ suite('keyboardMapper - WINDOWS en_us', () => {
 		assertMapping(mapper, 'win_en_us.txt', done);
 	});
 
-	function assertResolveKeybinding(kb: number, expected: IResolvedKeybindingExpected): void {
-		_assertResolvedKeybinding(mapper, kb, expected);
-	}
-
 	test('resolveKeybinding Ctrl+K Ctrl+\\', () => {
-		assertResolveKeybinding(
+		_assertResolveKeybinding(
+			mapper,
 			KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.US_BACKSLASH),
 			{
 				label: 'Ctrl+K Ctrl+\\',

@@ -7,48 +7,24 @@
 
 import * as assert from 'assert';
 import { KeyMod, KeyCode, createKeybinding, SimpleKeybinding, Keybinding } from 'vs/base/common/keyCodes';
-import { KeyboardMapper, IKeyboardMapping } from 'vs/workbench/services/keybinding/common/keyboardMapper';
+import { MacLinuxKeyboardMapper, IKeyboardMapping } from 'vs/workbench/services/keybinding/common/macLinuxKeyboardMapper';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { UserSettingsLabelProvider } from 'vs/platform/keybinding/common/keybindingLabels';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
 import { KeyboardEventCodeUtils } from 'vs/workbench/services/keybinding/common/keyboardEventCode';
 import { IHTMLContentElement } from 'vs/base/common/htmlContent';
-import { readFile, writeFile } from 'vs/base/node/pfs';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { readRawMapping, assertMapping } from 'vs/workbench/services/keybinding/test/keyboardMapperTestUtils';
 
-function createKeyboardMapper(file: string, OS: OperatingSystem): TPromise<KeyboardMapper> {
-	return readFile(require.toUrl(`vs/workbench/services/keybinding/test/${file}.js`)).then((buff) => {
-		let contents = buff.toString();
-		let func = new Function('define', contents);
-		let rawMappings: IKeyboardMapping = null;
-		func(function (value) {
-			rawMappings = value;
-		});
-		return new KeyboardMapper(rawMappings, OS);
+function createKeyboardMapper(file: string, OS: OperatingSystem): TPromise<MacLinuxKeyboardMapper> {
+	return readRawMapping<IKeyboardMapping>(file).then((rawMappings) => {
+		return new MacLinuxKeyboardMapper(rawMappings, OS);
 	});
-}
-
-function assertMapping(mapper: KeyboardMapper, file: string, done: (err?: any) => void): void {
-	const filePath = require.toUrl(`vs/workbench/services/keybinding/test/${file}`);
-
-	readFile(filePath).then((buff) => {
-		let expected = buff.toString();
-		const actual = mapper.dumpDebugInfo();
-		if (actual !== expected) {
-			writeFile(filePath, actual);
-		}
-		try {
-			assert.deepEqual(actual, expected);
-		} catch (err) {
-			return done(err);
-		}
-		done();
-	}, done);
 }
 
 suite('keyboardMapper - MAC de_ch', () => {
 
-	let mapper: KeyboardMapper;
+	let mapper: MacLinuxKeyboardMapper;
 
 	suiteSetup((done) => {
 		createKeyboardMapper('mac_de_ch', OperatingSystem.Macintosh).then((_mapper) => {
@@ -120,7 +96,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 
 suite('keyboardMapper - LINUX de_ch', () => {
 
-	let mapper: KeyboardMapper;
+	let mapper: MacLinuxKeyboardMapper;
 
 	suiteSetup((done) => {
 		createKeyboardMapper('linux_de_ch', OperatingSystem.Linux).then((_mapper) => {
@@ -155,7 +131,7 @@ suite('keyboardMapper - LINUX de_ch', () => {
 
 suite('keyboardMapper - LINUX de_ch', () => {
 
-	let mapper: KeyboardMapper;
+	let mapper: MacLinuxKeyboardMapper;
 
 	suiteSetup((done) => {
 		createKeyboardMapper('linux_en_us', OperatingSystem.Linux).then((_mapper) => {
@@ -169,7 +145,7 @@ suite('keyboardMapper - LINUX de_ch', () => {
 	});
 });
 
-function _assertKeybindingTranslation(mapper: KeyboardMapper, OS: OperatingSystem, kb: number, _expected: string | string[]): void {
+function _assertKeybindingTranslation(mapper: MacLinuxKeyboardMapper, OS: OperatingSystem, kb: number, _expected: string | string[]): void {
 	let expected: string[];
 	if (typeof _expected === 'string') {
 		expected = [_expected];
