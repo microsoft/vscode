@@ -640,6 +640,14 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	}
 
 	public openTsServerLogFile(): Thenable<boolean> {
+		if (!this.apiVersion.has222Features()) {
+			return window.showErrorMessage(
+				localize(
+					'typescript.openTsServerLog.notSupported',
+					'TS Server logging requires TS 2.2.2+'))
+				.then(() => false);
+		}
+
 		if (this._logLevel === TsServerLogLevel.Off) {
 			return window.showErrorMessage<MessageItem>(
 				localize(
@@ -668,7 +676,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		}
 
 		return workspace.openTextDocument(this._logFile)
-			.then(window.showTextDocument)
+			.then(doc => window.showTextDocument(doc, window.activeTextEditor ? window.activeTextEditor.viewColumn : undefined))
 			.then(editor => !!editor);
 	}
 
