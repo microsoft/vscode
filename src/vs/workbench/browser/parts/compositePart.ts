@@ -43,6 +43,11 @@ export interface ICompositeTitleLabel {
 	 * Asks to update the title for the composite with the given ID.
 	 */
 	updateTitle(id: string, title: string, keybinding?: string): void;
+
+	/**
+	 * Called when theming information changes.
+	 */
+	updateStyles(): void;
 }
 
 export abstract class CompositePart<T extends Composite> extends Part {
@@ -77,6 +82,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		private nameForTelemetry: string,
 		private compositeCSSClass: string,
 		private actionContributionScope: string,
+		private titleForegroundColor: string,
 		id: string,
 		options: IPartOptions
 	) {
@@ -438,12 +444,23 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			titleLabel = div.span();
 		});
 
+		const $this = this;
 		return {
 			updateTitle: (id, title, keybinding) => {
 				titleLabel.safeInnerHtml(title);
 				titleLabel.title(keybinding ? nls.localize('titleTooltip', "{0} ({1})", title, keybinding) : title);
+			},
+			updateStyles: () => {
+				titleLabel.style('color', $this.getColor($this.titleForegroundColor));
 			}
 		};
+	}
+
+	protected updateStyles(): void {
+		super.updateStyles();
+
+		// Forward to title label
+		this.titleLabel.updateStyles();
 	}
 
 	private actionItemProvider(action: Action): IActionItem {

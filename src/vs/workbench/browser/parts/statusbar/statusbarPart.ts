@@ -132,6 +132,8 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	}
 
 	protected updateStyles(): void {
+		super.updateStyles();
+
 		const container = this.getContainer();
 
 		container.style('color', this.getColor(STATUS_BAR_FOREGROUND));

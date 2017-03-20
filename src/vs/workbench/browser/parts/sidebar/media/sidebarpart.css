@@ -55,39 +55,3 @@
 	width: 16px;
 	height: 16px;
 }
-
-/* TODO@theme */
-
-.vs .monaco-workbench > .sidebar > .title > .title-label span {
-	color: #6f6f6f;
-}
-
-.vs-dark .monaco-workbench > .sidebar > .title > .title-label span  {
-	color: #bbbbbb;
-}
-
-.hc-black .monaco-workbench > .sidebar > .title > .title-label span  {
-	color: #fff;
-}
-
-.vs .monaco-workbench > .sidebar > .title > .title-actions {
-	background-color: #f3f3f3;
-}
-
-.vs-dark .monaco-workbench > .sidebar > .title > .title-actions {
-	background-color: #252526;
-}
-
-.hc-black .monaco-workbench > .sidebar.left {
-	border-right: 1px solid;
-	border-right-color: #6FC3DF;
-}
-
-.hc-black .monaco-workbench > .sidebar.right {
-	border-left-color: #6FC3DF;
-	border-left: 1px solid;
-}
-
-.hc-black .monaco-workbench > .sidebar > .title > .title-actions {
-	background-color: #000;
-}

@@ -137,9 +137,9 @@ export const STATUS_BAR_ITEM_HOVER_BACKGROUND = registerColor('statusBarItemHove
 }, nls.localize('statusBarItemHoverBackground', "Status bar item background color when hovering. The status bar is shown in the bottom of the window"));
 
 export const STATUS_BAR_INFO_ITEM_BACKGROUND = registerColor('statusBarInfoItemBackground', {
-	dark: '#388a34',
-	light: '#388a34',
-	hc: '#388a34'
+	dark: '#388A34',
+	light: '#388A34',
+	hc: '#3883A4'
 }, nls.localize('statusBarInfoItemBackground', "Status bar info item background color. The status bar is shown in the bottom of the window"));
 
 export const STATUS_BAR_INFO_ITEM_HOVER_BACKGROUND = registerColor('statusBarInfoItemHoverBackground', {
@@ -147,6 +147,26 @@ export const STATUS_BAR_INFO_ITEM_HOVER_BACKGROUND = registerColor('statusBarInf
 	light: '#369432',
 	hc: '#369432'
 }, nls.localize('statusBarInfoItemHoverBackground', "Status bar info item background color when hovering. The status bar is shown in the bottom of the window"));
+
+
+
+// < --- Activity Bar --- >
+
+export const ACTIVITY_BAR_BACKGROUND = registerColor('activityBarBackground', {
+	dark: '#333333',
+	light: '#2C2C2C',
+	hc: '#000000'
+}, nls.localize('activityBarBackground', "Activity bar background color. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
+
+
+
+// < --- Side Bar --- >
+
+export const SIDE_BAR_TITLE_FOREGROUND = registerColor('sideBarTitleForeground', {
+	dark: '#BBBBBB',
+	light: '#6f6f6f',
+	hc: '#FFFFFF'
+}, nls.localize('sideBarTitleForeground', "Side bar title foreground color. The side bar is the container for views like explorer and search."));
 
 /**
  * Base class for all themable workbench components.
@@ -178,10 +198,10 @@ export class Themable extends Disposable {
 	protected onThemeChange(theme: ITheme): void {
 		this.theme = theme;
 
-		this.updateStyles(theme);
+		this.updateStyles();
 	}
 
-	protected updateStyles(theme: ITheme): void {
+	protected updateStyles(): void {
 		// Subclasses to override
 	}
 

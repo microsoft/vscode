@@ -920,6 +920,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	}
 
 	protected updateStyles(): void {
+		super.updateStyles();
 
 		// Part container
 		const container = this.getContainer();

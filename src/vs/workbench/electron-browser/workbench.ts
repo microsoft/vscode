@@ -817,6 +817,10 @@ export class Workbench implements IPartService {
 		this.activitybarPart.getContainer().addClass(newPositionValue);
 		this.sidebarPart.getContainer().addClass(newPositionValue);
 
+		// Update Styles
+		this.activitybarPart.updateStyles();
+		this.sidebarPart.updateStyles();
+
 		// Layout
 		this.workbenchLayout.layout();
 	}
