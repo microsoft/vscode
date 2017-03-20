@@ -4,4 +4,8 @@ declare module 'jschardet' {
 		confidence: number
 	}
 	export function detect(buffer: NodeBuffer): IDetectedMap;
+
+	export const Constants: {
+		MINIMUM_THRESHOLD: number,
+	}
 }

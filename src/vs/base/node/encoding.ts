@@ -95,7 +95,11 @@ export function detectEncodingByBOM(file: string): TPromise<string> {
 	return stream.readExactlyByFile(file, 3).then(({ buffer, bytesRead }) => detectEncodingByBOMFromBuffer(buffer, bytesRead));
 }
 
+const MINIMUM_THRESHOLD = 0.2; //Todo. Decide how much this should be.
+
 const IGNORE_ENCODINGS = ['ascii', 'utf-8', 'utf-16', 'utf-32'];
+
+jschardet.Constants.MINIMUM_THRESHOLD = MINIMUM_THRESHOLD;
 /**
  * Guesses the encoding from buffer.
  */
