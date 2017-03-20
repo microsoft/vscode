@@ -10,6 +10,8 @@ import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
 import * as editorColorRegistry from 'vs/editor/common/view/editorColorRegistry';
 import * as wordHighlighter from 'vs/editor/contrib/wordHighlighter/common/wordHighlighter';
 import { ansiColorIdentifiers } from 'vs/workbench/parts/terminal/electron-browser/terminalColorRegistry';
+import { editorHoverHighlight } from "vs/editor/contrib/hover/browser/hover";
+import { referencesReferenceHighlight, referencesFindMatchHighlight } from "vs/editor/contrib/referenceSearch/browser/referencesWidget";
 
 
 const settingToColorIdMapping: { [settingId: string]: string[] } = {};
@@ -52,14 +54,14 @@ addSettingMapping('inactiveSelection', colorRegistry.editorInactiveSelection);
 addSettingMapping('selectionHighlightColor', colorRegistry.editorSelectionHighlightColor);
 addSettingMapping('findMatchHighlight', colorRegistry.editorFindMatchHighlight);
 addSettingMapping('currentFindMatchHighlight', colorRegistry.editorCurrentFindMatchHighlight);
-addSettingMapping('hoverHighlight', editorColorRegistry.editorHoverHighlight);
-addSettingMapping('hoverHighlight', editorColorRegistry.editorHoverHighlight);
-addSettingMapping('linkForeground', editorColorRegistry.editorLinkForeground);
+addSettingMapping('hoverHighlight', editorHoverHighlight);
+addSettingMapping('hoverHighlight', editorHoverHighlight);
+addSettingMapping('linkForeground', colorRegistry.editorLinkForeground);
 addSettingMapping('wordHighlight', wordHighlighter.editorWordHighlight);
 addSettingMapping('wordHighlightStrong', wordHighlighter.editorWordHighlightString);
 addSettingMapping('findRangeHighlight', colorRegistry.editorFindRangeHighlight);
-addSettingMapping('findMatchHighlight', editorColorRegistry.referencesFindMatchHighlight);
-addSettingMapping('referenceHighlight', editorColorRegistry.referencesReferenceHighlight);
+addSettingMapping('findMatchHighlight', referencesFindMatchHighlight);
+addSettingMapping('referenceHighlight', referencesReferenceHighlight);
 addSettingMapping('lineHighlight', editorColorRegistry.editorLineHighlight);
 addSettingMapping('rangeHighlight', editorColorRegistry.editorRangeHighlight);
 addSettingMapping('caret', editorColorRegistry.editorCursor);

@@ -16,6 +16,8 @@ import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/v
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { TimeoutTimer } from 'vs/base/common/async';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { editorCursor } from 'vs/editor/common/view/editorColorRegistry';
 
 export class ViewCursors extends ViewPart {
 
@@ -326,3 +328,11 @@ export class ViewCursors extends ViewPart {
 		return this._renderData;
 	}
 }
+
+registerThemingParticipant((theme, collector) => {
+	let caret = theme.getColor(editorCursor);
+	if (caret) {
+		let oppositeCaret = caret.opposite();
+		collector.addRule(`.monaco-editor.${theme.selector} .cursor { background-color: ${caret}; border-color: ${caret}; color: ${oppositeCaret}; }`);
+	}
+});

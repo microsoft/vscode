@@ -6,6 +6,9 @@
 'use strict';
 
 import 'vs/css!./selections';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { editorSelection, editorInactiveSelection } from 'vs/platform/theme/common/colorRegistry';
+
 import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { HorizontalRange, LineVisibleRanges, RenderingContext } from 'vs/editor/common/view/renderingContext';
@@ -396,3 +399,14 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 		return this._renderResult[lineIndex];
 	}
 }
+
+registerThemingParticipant((theme, collector) => {
+	let editorSelectionColor = theme.getColor(editorSelection);
+	if (editorSelectionColor) {
+		collector.addRule(`.monaco-editor.${theme.selector} .focused .selected-text { background-color: ${editorSelectionColor}; }`);
+	}
+	let editorInactiveSelectionColor = theme.getColor(editorInactiveSelection);
+	if (editorInactiveSelectionColor) {
+		collector.addRule(`.monaco-editor.${theme.selector} .selected-text { background-color: ${editorInactiveSelectionColor}; }`);
+	}
+});

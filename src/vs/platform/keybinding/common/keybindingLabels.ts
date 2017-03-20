@@ -116,24 +116,24 @@ export const ElectronAcceleratorLabelProvider = new ModifierLabelProvider(
  */
 export const UserSettingsLabelProvider = new ModifierLabelProvider(
 	{
-		ctrlKey: 'Ctrl',
-		shiftKey: 'Shift',
-		altKey: 'Alt',
-		metaKey: 'Cmd',
+		ctrlKey: 'ctrl',
+		shiftKey: 'shift',
+		altKey: 'alt',
+		metaKey: 'cmd',
 		separator: '+',
 	},
 	{
-		ctrlKey: 'Ctrl',
-		shiftKey: 'Shift',
-		altKey: 'Alt',
-		metaKey: 'Win',
+		ctrlKey: 'ctrl',
+		shiftKey: 'shift',
+		altKey: 'alt',
+		metaKey: 'win',
 		separator: '+',
 	},
 	{
-		ctrlKey: 'Ctrl',
-		shiftKey: 'Shift',
-		altKey: 'Alt',
-		metaKey: 'Meta',
+		ctrlKey: 'ctrl',
+		shiftKey: 'shift',
+		altKey: 'alt',
+		metaKey: 'meta',
 		separator: '+',
 	}
 );

@@ -10,11 +10,12 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { KeybindingResolver, IResolveResult } from 'vs/platform/keybinding/common/keybindingResolver';
-import { IKeybindingEvent, IKeybindingService, IKeybindingItem2, KeybindingSource, IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
+import { IKeybindingEvent, IKeybindingService, IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService, IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { IMessageService } from 'vs/platform/message/common/message';
 import Event, { Emitter } from 'vs/base/common/event';
+import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 
 interface CurrentChord {
 	keypress: string;
@@ -68,13 +69,8 @@ export abstract class AbstractKeybindingService implements IKeybindingService {
 		return '';
 	}
 
-	public getKeybindings(): IKeybindingItem2[] {
-		return this._getResolver().getKeybindings().map(keybinding => ({
-			keybinding: keybinding.resolvedKeybinding,
-			command: keybinding.command,
-			when: keybinding.when,
-			source: keybinding.isDefault ? KeybindingSource.Default : KeybindingSource.User
-		}));
+	public getKeybindings(): ResolvedKeybindingItem[] {
+		return this._getResolver().getKeybindings();
 	}
 
 	public customKeybindingsCount(): number {

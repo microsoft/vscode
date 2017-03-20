@@ -56,33 +56,3 @@
 .monaco-workbench > .part.statusbar > .statusbar-item a:hover:not([disabled]):not(.disabled) {
 	text-decoration: none;
 }
-
-/* TODO@theme */
-
-.hc-black .monaco-workbench > .part.statusbar {
-	border-top-width: 1px;
-	border-top-style: solid;
-	border-top-color: #6FC3DF;
-}
-
-.vs .monaco-workbench > .part.statusbar > .statusbar-item a:hover:not([disabled]):not(.disabled),
-.vs-dark .monaco-workbench > .part.statusbar > .statusbar-item a:hover:not([disabled]):not(.disabled),
-.hc-black .monaco-workbench > .part.statusbar > .statusbar-item a:hover:not([disabled]):not(.disabled) {
-	background-color: rgba(255, 255, 255, 0.12);
-}
-
-.vs .monaco-workbench > .part.statusbar > .statusbar-item a:active:not([disabled]):not(.disabled),
-.vs-dark .monaco-workbench > .part.statusbar > .statusbar-item a:active:not([disabled]):not(.disabled),
-.hc-black .monaco-workbench > .part.statusbar > .statusbar-item a:active:not([disabled]):not(.disabled) {
-	background-color: rgba(255, 255, 255, 0.18);
-}
-
-.vs .monaco-workbench > .part.statusbar > .statusbar-item .status-bar-info,
-.vs-dark .monaco-workbench > .part.statusbar > .statusbar-item .status-bar-info {
-	background-color: #388a34;
-}
-
-.vs .monaco-workbench > .part.statusbar > .statusbar-item a.status-bar-info:hover:not([disabled]):not(.disabled),
-.vs-dark .monaco-workbench > .part.statusbar > .statusbar-item a.status-bar-info:hover:not([disabled]):not(.disabled) {
-	background-color: #369432;
-}

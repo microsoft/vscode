@@ -21,7 +21,12 @@ import { ModesContentHoverWidget } from './modesContentHover';
 import { ModesGlyphHoverWidget } from './modesGlyphHover';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
+import { ITheme, ICssStyleCollector, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { registerColor } from 'vs/platform/theme/common/colorRegistry';
+
 import EditorContextKeys = editorCommon.EditorContextKeys;
+
+export const editorHoverHighlight = registerColor('editorHoverHighlight', { light: '#ADD6FF26', dark: '#264f7840', hc: '#ADD6FF26' }, nls.localize('hoverHighlight', 'Background color of the editor hover'));
 
 @editorContribution
 export class ModesHoverController implements editorCommon.IEditorContribution {
@@ -170,3 +175,10 @@ class ShowHoverAction extends EditorAction {
 		controller.showContentHover(range, true);
 	}
 }
+
+registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+	let editorHoverHighlightColor = theme.getColor(editorHoverHighlight);
+	if (editorHoverHighlightColor) {
+		collector.addRule(`.monaco-editor.${theme.selector} .hoverHighlight { background-color: ${editorHoverHighlightColor}; }`);
+	}
+});
