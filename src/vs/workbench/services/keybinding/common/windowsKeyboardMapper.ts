@@ -179,10 +179,12 @@ export class WindowsKeyboardMapper implements IKeyboardMapper {
 	private readonly _codeInfo: IHardwareCodeMapping[];
 	private readonly _hwToKb: KeyCode[];
 	private readonly _kbToLabel: string[] = [];
+	private readonly _kbExists: boolean[];
 
 	constructor(rawMappings: IKeyboardMapping) {
 		this._hwToKb = [];
 		this._kbToLabel = [];
+		this._kbExists = [];
 		this._kbToLabel[KeyCode.Unknown] = KeyCodeUtils.toString(KeyCode.Unknown);
 
 		for (let code = KeyboardEventCode.None; code < KeyboardEventCode.MAX_VALUE; code++) {
@@ -190,6 +192,7 @@ export class WindowsKeyboardMapper implements IKeyboardMapper {
 			if (immutableKeyCode !== -1) {
 				this._hwToKb[code] = immutableKeyCode;
 				this._kbToLabel[immutableKeyCode] = KeyCodeUtils.toString(immutableKeyCode);
+				this._kbExists[immutableKeyCode] = true;
 			}
 		}
 
@@ -223,6 +226,7 @@ export class WindowsKeyboardMapper implements IKeyboardMapper {
 				this._codeInfo[code] = mapping;
 
 				if (keyCode !== KeyCode.Unknown) {
+					this._kbExists[keyCode] = true;
 					if (value >= CharCode.a && value <= CharCode.z) {
 						this._kbToLabel[keyCode] = String.fromCharCode(CharCode.A + (value - CharCode.a));
 					} else if (value) {
@@ -328,8 +332,17 @@ export class WindowsKeyboardMapper implements IKeyboardMapper {
 
 	public resolveKeybinding(keybinding: Keybinding): WindowsNativeResolvedKeybinding[] {
 		if (keybinding.type === KeybindingType.Chord) {
+			let firstPartKeyCode = keybinding.firstPart.keyCode;
+			let chordPartKeyCode = keybinding.chordPart.keyCode;
+			if (!this._kbExists[firstPartKeyCode] || !this._kbExists[chordPartKeyCode]) {
+				return [];
+			}
 			return [new WindowsNativeResolvedKeybinding(this, keybinding.firstPart, keybinding.chordPart)];
 		} else {
+			let keyCode = keybinding.keyCode;
+			if (!this._kbExists[keyCode]) {
+				return [];
+			}
 			return [new WindowsNativeResolvedKeybinding(this, keybinding, null)];
 		}
 	}

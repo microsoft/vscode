@@ -177,7 +177,7 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 				if (immutableKeyCode === KeyCode.Unknown || immutableKeyCode === KeyCode.Ctrl || immutableKeyCode === KeyCode.Meta || immutableKeyCode === KeyCode.Alt || immutableKeyCode === KeyCode.Shift) {
 					this._hwToDispatch[code] = null; // cannot dispatch on this hw code
 				} else {
-					this._hwToDispatch[code] = KeyCodeUtils.toString(immutableKeyCode);
+					this._hwToDispatch[code] = `[${KeyboardEventCodeUtils.toString(code)}]`;
 				}
 			}
 		}
@@ -377,8 +377,11 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 
 		this._hwToKb[hwEncoded] = kbEncoded;
 
-		this._kbToHw[kbEncoded] = this._kbToHw[kbEncoded] || [];
-		this._kbToHw[kbEncoded].unshift(hwEncoded);
+		if (keyCode !== KeyCode.Unknown) {
+			// Do not save an inverse lookup for Unknown
+			this._kbToHw[kbEncoded] = this._kbToHw[kbEncoded] || [];
+			this._kbToHw[kbEncoded].unshift(hwEncoded);
+		}
 	}
 
 	private _registerAllCombos1(
@@ -568,12 +571,33 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 	}
 
 	private _getStableKeyCodeForHWCode(code: KeyboardEventCode): KeyCode {
+		if (code >= KeyboardEventCode.Digit1 && code <= KeyboardEventCode.Digit0) {
+			// digits are ok
+			switch (code) {
+				case KeyboardEventCode.Digit1: return KeyCode.KEY_1;
+				case KeyboardEventCode.Digit2: return KeyCode.KEY_2;
+				case KeyboardEventCode.Digit3: return KeyCode.KEY_3;
+				case KeyboardEventCode.Digit4: return KeyCode.KEY_4;
+				case KeyboardEventCode.Digit5: return KeyCode.KEY_5;
+				case KeyboardEventCode.Digit6: return KeyCode.KEY_6;
+				case KeyboardEventCode.Digit7: return KeyCode.KEY_7;
+				case KeyboardEventCode.Digit8: return KeyCode.KEY_8;
+				case KeyboardEventCode.Digit9: return KeyCode.KEY_9;
+				case KeyboardEventCode.Digit0: return KeyCode.KEY_0;
+			}
+		}
+
 		// Check if this hw code always maps to the same kb code and back
 		let constantKeyCode: KeyCode = -1;
 		for (let mod = 0; mod < 8; mod++) {
 			const hwEncoded = ((code << 3) + mod) >>> 0;
 			const kbEncoded = this._hwToKb[hwEncoded];
 			const keyCode = (kbEncoded >>> 3);
+
+			if (keyCode === KeyCode.Unknown) {
+				// maps to unknown keyCode
+				return -1;
+			}
 
 			if (constantKeyCode === -1) {
 				constantKeyCode = keyCode;

@@ -6,7 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { KeyMod, KeyCode, createKeybinding, SimpleKeybinding, Keybinding } from 'vs/base/common/keyCodes';
+import { KeyMod, KeyCode, createKeybinding, SimpleKeybinding, KeyChord } from 'vs/base/common/keyCodes';
 import { MacLinuxKeyboardMapper, IKeyboardMapping } from 'vs/workbench/services/keybinding/common/macLinuxKeyboardMapper';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { UserSettingsLabelProvider } from 'vs/platform/keybinding/common/keybindingLabels';
@@ -14,7 +14,7 @@ import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayo
 import { KeyboardEventCodeUtils } from 'vs/workbench/services/keybinding/common/keyboardEventCode';
 import { IHTMLContentElement } from 'vs/base/common/htmlContent';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { readRawMapping, assertMapping, IResolvedKeybinding, assertResolveKeybinding, simpleHTMLLabel } from 'vs/workbench/services/keybinding/test/keyboardMapperTestUtils';
+import { readRawMapping, assertMapping, IResolvedKeybinding, assertResolveKeybinding, simpleHTMLLabel, chordHTMLLabel } from 'vs/workbench/services/keybinding/test/keyboardMapperTestUtils';
 
 function createKeyboardMapper(file: string, OS: OperatingSystem): TPromise<MacLinuxKeyboardMapper> {
 	return readRawMapping<IKeyboardMapping>(file).then((rawMappings) => {
@@ -49,9 +49,9 @@ suite('keyboardMapper - MAC de_ch', () => {
 		return simpleHTMLLabel(pieces, OperatingSystem.Macintosh);
 	}
 
-	// function _chordHTMLLabel(firstPart: string[], chordPart: string[]): IHTMLContentElement {
-	// 	return chordHTMLLabel(firstPart, chordPart, OperatingSystem.Macintosh);
-	// }
+	function _chordHTMLLabel(firstPart: string[], chordPart: string[]): IHTMLContentElement {
+		return chordHTMLLabel(firstPart, chordPart, OperatingSystem.Macintosh);
+	}
 
 	test('kb => hw', () => {
 		// unchanged
@@ -66,42 +66,6 @@ suite('keyboardMapper - MAC de_ch', () => {
 
 		// Ctrl+/
 		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyCode.US_SLASH, 'shift+cmd+Digit7');
-	});
-
-	test('resolveKeybinding', () => {
-		function _assertAllLabels(keybinding: Keybinding, labels: string[], ariaLabels: string[], htmlLabel: IHTMLContentElement[][]): void {
-			const kb = mapper.resolveKeybinding(keybinding);
-
-			let actualLabels = kb.map(k => k.getLabel());
-			assert.deepEqual(actualLabels, labels);
-
-			let actualAriaLabels = kb.map(k => k.getAriaLabel());
-			assert.deepEqual(actualAriaLabels, ariaLabels);
-
-			let actualHTMLLabels = kb.map(k => k.getHTMLLabel());
-			assert.deepEqual(actualHTMLLabels, htmlLabel);
-		}
-
-		function assertAllLabels(keybinding: Keybinding, label: string | string[], ariaLabel: string | string[], htmlLabel: IHTMLContentElement[][]): void {
-			let _labels = (typeof label === 'string' ? [label] : label);
-			let _ariaLabels = (typeof ariaLabel === 'string' ? [ariaLabel] : ariaLabel);
-			_assertAllLabels(keybinding, _labels, _ariaLabels, htmlLabel);
-		}
-
-		// TODO: ElectronAccelerator, UserSettings
-		assertAllLabels(
-			createKeybinding(KeyMod.CtrlCmd | KeyCode.KEY_Z, OperatingSystem.Macintosh),
-			'⌘Z',
-			'Command+Z',
-			[[{
-				tagName: 'span',
-				className: 'monaco-kb',
-				children: [
-					{ tagName: 'span', className: 'monaco-kbkey', text: '⌘' },
-					{ tagName: 'span', className: 'monaco-kbkey', text: 'Z' },
-				]
-			}]]
-		);
 	});
 
 	// TODO: missing
@@ -131,6 +95,176 @@ suite('keyboardMapper - MAC de_ch', () => {
 		);
 	});
 
+	test('resolveKeybinding Cmd+Z', () => {
+		_assertResolveKeybinding(
+			KeyMod.CtrlCmd | KeyCode.KEY_Z,
+			[{
+				label: '⌘Z',
+				ariaLabel: 'Command+Z',
+				HTMLLabel: [_simpleHTMLLabel(['⌘', 'Z'])],
+				electronAccelerator: 'Cmd+Z',
+				userSettingsLabel: 'cmd+z',
+				isChord: false,
+				hasCtrlModifier: false,
+				hasShiftModifier: false,
+				hasAltModifier: false,
+				hasMetaModifier: true,
+				dispatchParts: ['meta+[KeyY]', null],
+			}]
+		);
+	});
+
+	test('resolveKeybinding Cmd+]', () => {
+		_assertResolveKeybinding(
+			KeyMod.CtrlCmd | KeyCode.US_CLOSE_SQUARE_BRACKET,
+			[{
+				label: '⌃⌥⌘6',
+				ariaLabel: 'Control+Alt+Command+6',
+				HTMLLabel: [_simpleHTMLLabel(['⌃', '⌥', '⌘', '6'])],
+				electronAccelerator: 'Ctrl+Alt+Cmd+6',
+				userSettingsLabel: 'ctrl+alt+cmd+6',
+				isChord: false,
+				hasCtrlModifier: true,
+				hasShiftModifier: false,
+				hasAltModifier: true,
+				hasMetaModifier: true,
+				dispatchParts: ['ctrl+alt+meta+[Digit6]', null],
+			}]
+		);
+	});
+
+	test('resolveKeybinding Shift+]', () => {
+		_assertResolveKeybinding(
+			KeyMod.Shift | KeyCode.US_CLOSE_SQUARE_BRACKET,
+			[{
+				label: '⌃⌥9',
+				ariaLabel: 'Control+Alt+9',
+				HTMLLabel: [_simpleHTMLLabel(['⌃', '⌥', '9'])],
+				electronAccelerator: 'Ctrl+Alt+9',
+				userSettingsLabel: 'ctrl+alt+9',
+				isChord: false,
+				hasCtrlModifier: true,
+				hasShiftModifier: false,
+				hasAltModifier: true,
+				hasMetaModifier: false,
+				dispatchParts: ['ctrl+alt+[Digit9]', null],
+			}]
+		);
+	});
+
+	test('resolveKeybinding Cmd+/', () => {
+		_assertResolveKeybinding(
+			KeyMod.CtrlCmd | KeyCode.US_SLASH,
+			[{
+				label: '⇧⌘7',
+				ariaLabel: 'Shift+Command+7',
+				HTMLLabel: [_simpleHTMLLabel(['⇧', '⌘', '7'])],
+				electronAccelerator: 'Shift+Cmd+7',
+				userSettingsLabel: 'shift+cmd+7',
+				isChord: false,
+				hasCtrlModifier: false,
+				hasShiftModifier: true,
+				hasAltModifier: false,
+				hasMetaModifier: true,
+				dispatchParts: ['shift+meta+[Digit7]', null],
+			}]
+		);
+	});
+
+	test('resolveKeybinding Cmd+Shift+/', () => {
+		_assertResolveKeybinding(
+			KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_SLASH,
+			[{
+				label: '⇧⌘\'',
+				ariaLabel: 'Shift+Command+\'',
+				HTMLLabel: [_simpleHTMLLabel(['⇧', '⌘', '\''])],
+				electronAccelerator: null,
+				userSettingsLabel: 'shift+cmd+[Minus]',
+				isChord: false,
+				hasCtrlModifier: false,
+				hasShiftModifier: true,
+				hasAltModifier: false,
+				hasMetaModifier: true,
+				dispatchParts: ['shift+meta+[Minus]', null],
+			}]
+		);
+	});
+
+	test('resolveKeybinding Cmd+K Cmd+\\', () => {
+		_assertResolveKeybinding(
+			KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.US_BACKSLASH),
+			[{
+				label: '⌘K ⌃⇧⌥⌘7',
+				ariaLabel: 'Command+K Control+Shift+Alt+Command+7',
+				HTMLLabel: [_chordHTMLLabel(['⌘', 'K'], ['⌃', '⇧', '⌥', '⌘', '7'])],
+				electronAccelerator: null,
+				userSettingsLabel: 'cmd+k ctrl+shift+alt+cmd+7',
+				isChord: true,
+				hasCtrlModifier: false,
+				hasShiftModifier: false,
+				hasAltModifier: false,
+				hasMetaModifier: false,
+				dispatchParts: ['meta+[KeyK]', 'ctrl+shift+alt+meta+[Digit7]'],
+			}]
+		);
+	});
+
+	test('resolveKeybinding Cmd+K Cmd+=', () => {
+		_assertResolveKeybinding(
+			KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.US_EQUAL),
+			[{
+				label: '⌘K ⇧⌘0',
+				ariaLabel: 'Command+K Shift+Command+0',
+				HTMLLabel: [_chordHTMLLabel(['⌘', 'K'], ['⇧', '⌘', '0'])],
+				electronAccelerator: null,
+				userSettingsLabel: 'cmd+k shift+cmd+0',
+				isChord: true,
+				hasCtrlModifier: false,
+				hasShiftModifier: false,
+				hasAltModifier: false,
+				hasMetaModifier: false,
+				dispatchParts: ['meta+[KeyK]', 'shift+meta+[Digit0]'],
+			}]
+		);
+	});
+
+	test('resolveKeybinding Cmd+DownArrow', () => {
+		_assertResolveKeybinding(
+			KeyMod.CtrlCmd | KeyCode.DownArrow,
+			[{
+				label: '⌘↓',
+				ariaLabel: 'Command+DownArrow',
+				HTMLLabel: [_simpleHTMLLabel(['⌘', '↓'])],
+				electronAccelerator: 'Cmd+Down',
+				userSettingsLabel: 'cmd+down',
+				isChord: false,
+				hasCtrlModifier: false,
+				hasShiftModifier: false,
+				hasAltModifier: false,
+				hasMetaModifier: true,
+				dispatchParts: ['meta+[ArrowDown]', null],
+			}]
+		);
+	});
+
+	test('resolveKeybinding Cmd+NUMPAD_0', () => {
+		_assertResolveKeybinding(
+			KeyMod.CtrlCmd | KeyCode.NUMPAD_0,
+			[{
+				label: '⌘NumPad0',
+				ariaLabel: 'Command+NumPad0',
+				HTMLLabel: [_simpleHTMLLabel(['⌘', 'NumPad0'])],
+				electronAccelerator: null,
+				userSettingsLabel: 'cmd+numpad0',
+				isChord: false,
+				hasCtrlModifier: false,
+				hasShiftModifier: false,
+				hasAltModifier: false,
+				hasMetaModifier: true,
+				dispatchParts: ['meta+[Numpad0]', null],
+			}]
+		);
+	});
 });
 
 suite('keyboardMapper - LINUX de_ch', () => {
@@ -152,6 +286,18 @@ suite('keyboardMapper - LINUX de_ch', () => {
 		_assertKeybindingTranslation(mapper, OperatingSystem.Linux, kb, expected);
 	}
 
+	function _assertResolveKeybinding(k: number, expected: IResolvedKeybinding[]): void {
+		assertResolveKeybinding(mapper, createKeybinding(k, OperatingSystem.Linux), expected);
+	}
+
+	function _simpleHTMLLabel(pieces: string[]): IHTMLContentElement {
+		return simpleHTMLLabel(pieces, OperatingSystem.Linux);
+	}
+
+	function _chordHTMLLabel(firstPart: string[], chordPart: string[]): IHTMLContentElement {
+		return chordHTMLLabel(firstPart, chordPart, OperatingSystem.Linux);
+	}
+
 	test('kb => hw', () => {
 		// unchanged
 		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyCode.KEY_1, 'ctrl+Digit1');
@@ -165,6 +311,184 @@ suite('keyboardMapper - LINUX de_ch', () => {
 
 		// Ctrl+/
 		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyCode.US_SLASH, 'ctrl+shift+Digit7');
+	});
+
+	test('resolveKeybinding Ctrl+A', () => {
+		_assertResolveKeybinding(
+			KeyMod.CtrlCmd | KeyCode.KEY_A,
+			[{
+				label: 'Ctrl+A',
+				ariaLabel: 'Control+A',
+				HTMLLabel: [_simpleHTMLLabel(['Ctrl', 'A'])],
+				electronAccelerator: 'Ctrl+A',
+				userSettingsLabel: 'ctrl+a',
+				isChord: false,
+				hasCtrlModifier: true,
+				hasShiftModifier: false,
+				hasAltModifier: false,
+				hasMetaModifier: false,
+				dispatchParts: ['ctrl+[KeyA]', null],
+			}]
+		);
+	});
+
+	test('resolveKeybinding Ctrl+Z', () => {
+		_assertResolveKeybinding(
+			KeyMod.CtrlCmd | KeyCode.KEY_Z,
+			[{
+				label: 'Ctrl+Z',
+				ariaLabel: 'Control+Z',
+				HTMLLabel: [_simpleHTMLLabel(['Ctrl', 'Z'])],
+				electronAccelerator: 'Ctrl+Z',
+				userSettingsLabel: 'ctrl+z',
+				isChord: false,
+				hasCtrlModifier: true,
+				hasShiftModifier: false,
+				hasAltModifier: false,
+				hasMetaModifier: false,
+				dispatchParts: ['ctrl+[KeyY]', null],
+			}]
+		);
+	});
+
+	test('resolveKeybinding Ctrl+]', () => {
+		_assertResolveKeybinding(
+			KeyMod.CtrlCmd | KeyCode.US_CLOSE_SQUARE_BRACKET,
+			[]
+		);
+	});
+
+	test('resolveKeybinding Shift+]', () => {
+		_assertResolveKeybinding(
+			KeyMod.Shift | KeyCode.US_CLOSE_SQUARE_BRACKET,
+			[{
+				label: 'Ctrl+Alt+0',
+				ariaLabel: 'Control+Alt+0',
+				HTMLLabel: [_simpleHTMLLabel(['Ctrl', 'Alt', '0'])],
+				electronAccelerator: 'Ctrl+Alt+0',
+				userSettingsLabel: 'ctrl+alt+0',
+				isChord: false,
+				hasCtrlModifier: true,
+				hasShiftModifier: false,
+				hasAltModifier: true,
+				hasMetaModifier: false,
+				dispatchParts: ['ctrl+alt+[Digit0]', null],
+			}, {
+				label: 'Ctrl+Alt+$',
+				ariaLabel: 'Control+Alt+$',
+				HTMLLabel: [_simpleHTMLLabel(['Ctrl', 'Alt', '$'])],
+				electronAccelerator: null,
+				userSettingsLabel: 'ctrl+alt+[Backslash]',
+				isChord: false,
+				hasCtrlModifier: true,
+				hasShiftModifier: false,
+				hasAltModifier: true,
+				hasMetaModifier: false,
+				dispatchParts: ['ctrl+alt+[Backslash]', null],
+			}]
+		);
+	});
+
+	test('resolveKeybinding Ctrl+/', () => {
+		_assertResolveKeybinding(
+			KeyMod.CtrlCmd | KeyCode.US_SLASH,
+			[{
+				label: 'Ctrl+Shift+7',
+				ariaLabel: 'Control+Shift+7',
+				HTMLLabel: [_simpleHTMLLabel(['Ctrl', 'Shift', '7'])],
+				electronAccelerator: 'Ctrl+Shift+7',
+				userSettingsLabel: 'ctrl+shift+7',
+				isChord: false,
+				hasCtrlModifier: true,
+				hasShiftModifier: true,
+				hasAltModifier: false,
+				hasMetaModifier: false,
+				dispatchParts: ['ctrl+shift+[Digit7]', null],
+			}]
+		);
+	});
+
+	test('resolveKeybinding Ctrl+Shift+/', () => {
+		_assertResolveKeybinding(
+			KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_SLASH,
+			[{
+				label: 'Ctrl+Shift+\'',
+				ariaLabel: 'Control+Shift+\'',
+				HTMLLabel: [_simpleHTMLLabel(['Ctrl', 'Shift', '\''])],
+				electronAccelerator: null,
+				userSettingsLabel: 'ctrl+shift+[Minus]',
+				isChord: false,
+				hasCtrlModifier: true,
+				hasShiftModifier: true,
+				hasAltModifier: false,
+				hasMetaModifier: false,
+				dispatchParts: ['ctrl+shift+[Minus]', null],
+			}]
+		);
+	});
+
+	test('resolveKeybinding Ctrl+K Ctrl+\\', () => {
+		_assertResolveKeybinding(
+			KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.US_BACKSLASH),
+			[]
+		);
+	});
+
+	test('resolveKeybinding Ctrl+K Ctrl+=', () => {
+		_assertResolveKeybinding(
+			KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.US_EQUAL),
+			[{
+				label: 'Ctrl+K Ctrl+Shift+0',
+				ariaLabel: 'Control+K Control+Shift+0',
+				HTMLLabel: [_chordHTMLLabel(['Ctrl', 'K'], ['Ctrl', 'Shift', '0'])],
+				electronAccelerator: null,
+				userSettingsLabel: 'ctrl+k ctrl+shift+0',
+				isChord: true,
+				hasCtrlModifier: false,
+				hasShiftModifier: false,
+				hasAltModifier: false,
+				hasMetaModifier: false,
+				dispatchParts: ['ctrl+[KeyK]', 'ctrl+shift+[Digit0]'],
+			}]
+		);
+	});
+
+	test('resolveKeybinding Ctrl+DownArrow', () => {
+		_assertResolveKeybinding(
+			KeyMod.CtrlCmd | KeyCode.DownArrow,
+			[{
+				label: 'Ctrl+DownArrow',
+				ariaLabel: 'Control+DownArrow',
+				HTMLLabel: [_simpleHTMLLabel(['Ctrl', 'DownArrow'])],
+				electronAccelerator: 'Ctrl+Down',
+				userSettingsLabel: 'ctrl+down',
+				isChord: false,
+				hasCtrlModifier: true,
+				hasShiftModifier: false,
+				hasAltModifier: false,
+				hasMetaModifier: false,
+				dispatchParts: ['ctrl+[ArrowDown]', null],
+			}]
+		);
+	});
+
+	test('resolveKeybinding Ctrl+NUMPAD_0', () => {
+		_assertResolveKeybinding(
+			KeyMod.CtrlCmd | KeyCode.NUMPAD_0,
+			[{
+				label: 'Ctrl+NumPad0',
+				ariaLabel: 'Control+NumPad0',
+				HTMLLabel: [_simpleHTMLLabel(['Ctrl', 'NumPad0'])],
+				electronAccelerator: null,
+				userSettingsLabel: 'ctrl+numpad0',
+				isChord: false,
+				hasCtrlModifier: true,
+				hasShiftModifier: false,
+				hasAltModifier: false,
+				hasMetaModifier: false,
+				dispatchParts: ['ctrl+[Numpad0]', null],
+			}]
+		);
 	});
 });
 

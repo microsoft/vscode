@@ -18,8 +18,8 @@ function createKeyboardMapper(file: string): TPromise<WindowsKeyboardMapper> {
 	});
 }
 
-function _assertResolveKeybinding(mapper: WindowsKeyboardMapper, k: number, expected: IResolvedKeybinding): void {
-	assertResolveKeybinding(mapper, createKeybinding(k, OperatingSystem.Windows), [expected]);
+function _assertResolveKeybinding(mapper: WindowsKeyboardMapper, k: number, expected: IResolvedKeybinding[]): void {
+	assertResolveKeybinding(mapper, createKeybinding(k, OperatingSystem.Windows), expected);
 }
 
 function _simpleHTMLLabel(pieces: string[]): IHTMLContentElement {
@@ -49,7 +49,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 		_assertResolveKeybinding(
 			mapper,
 			KeyMod.CtrlCmd | KeyCode.KEY_A,
-			{
+			[{
 				label: 'Ctrl+A',
 				ariaLabel: 'Control+A',
 				HTMLLabel: [_simpleHTMLLabel(['Ctrl', 'A'])],
@@ -61,7 +61,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 				hasAltModifier: false,
 				hasMetaModifier: false,
 				dispatchParts: ['ctrl+A', null],
-			}
+			}]
 		);
 	});
 
@@ -69,7 +69,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 		_assertResolveKeybinding(
 			mapper,
 			KeyMod.CtrlCmd | KeyCode.KEY_Z,
-			{
+			[{
 				label: 'Ctrl+Z',
 				ariaLabel: 'Control+Z',
 				HTMLLabel: [_simpleHTMLLabel(['Ctrl', 'Z'])],
@@ -81,7 +81,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 				hasAltModifier: false,
 				hasMetaModifier: false,
 				dispatchParts: ['ctrl+Z', null],
-			}
+			}]
 		);
 	});
 
@@ -89,7 +89,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 		_assertResolveKeybinding(
 			mapper,
 			KeyMod.CtrlCmd | KeyCode.US_CLOSE_SQUARE_BRACKET,
-			{
+			[{
 				label: 'Ctrl+^',
 				ariaLabel: 'Control+^',
 				HTMLLabel: [_simpleHTMLLabel(['Ctrl', '^'])],
@@ -101,7 +101,28 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 				hasAltModifier: false,
 				hasMetaModifier: false,
 				dispatchParts: ['ctrl+]', null],
-			}
+			}]
+		);
+	});
+
+
+	test('resolveKeybinding Shift+]', () => {
+		_assertResolveKeybinding(
+			mapper,
+			KeyMod.Shift | KeyCode.US_CLOSE_SQUARE_BRACKET,
+			[{
+				label: 'Shift+^',
+				ariaLabel: 'Shift+^',
+				HTMLLabel: [_simpleHTMLLabel(['Shift', '^'])],
+				electronAccelerator: 'Shift+]',
+				userSettingsLabel: 'shift+]',
+				isChord: false,
+				hasCtrlModifier: false,
+				hasShiftModifier: true,
+				hasAltModifier: false,
+				hasMetaModifier: false,
+				dispatchParts: ['shift+]', null],
+			}]
 		);
 	});
 
@@ -109,7 +130,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 		_assertResolveKeybinding(
 			mapper,
 			KeyMod.CtrlCmd | KeyCode.US_SLASH,
-			{
+			[{
 				label: 'Ctrl+§',
 				ariaLabel: 'Control+§',
 				HTMLLabel: [_simpleHTMLLabel(['Ctrl', '§'])],
@@ -121,7 +142,27 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 				hasAltModifier: false,
 				hasMetaModifier: false,
 				dispatchParts: ['ctrl+/', null],
-			}
+			}]
+		);
+	});
+
+	test('resolveKeybinding Ctrl+Shift+/', () => {
+		_assertResolveKeybinding(
+			mapper,
+			KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_SLASH,
+			[{
+				label: 'Ctrl+Shift+§',
+				ariaLabel: 'Control+Shift+§',
+				HTMLLabel: [_simpleHTMLLabel(['Ctrl', 'Shift', '§'])],
+				electronAccelerator: 'Ctrl+Shift+/',
+				userSettingsLabel: 'ctrl+shift+/',
+				isChord: false,
+				hasCtrlModifier: true,
+				hasShiftModifier: true,
+				hasAltModifier: false,
+				hasMetaModifier: false,
+				dispatchParts: ['ctrl+shift+/', null],
+			}]
 		);
 	});
 
@@ -129,7 +170,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 		_assertResolveKeybinding(
 			mapper,
 			KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.US_BACKSLASH),
-			{
+			[{
 				label: 'Ctrl+K Ctrl+ä',
 				ariaLabel: 'Control+K Control+ä',
 				HTMLLabel: [_chordHTMLLabel(['Ctrl', 'K'], ['Ctrl', 'ä'])],
@@ -141,7 +182,55 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 				hasAltModifier: false,
 				hasMetaModifier: false,
 				dispatchParts: ['ctrl+K', 'ctrl+\\'],
-			}
+			}]
+		);
+	});
+
+	test('resolveKeybinding Ctrl+K Ctrl+=', () => {
+		_assertResolveKeybinding(
+			mapper,
+			KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.US_EQUAL),
+			[]
+		);
+	});
+
+	test('resolveKeybinding Ctrl+DownArrow', () => {
+		_assertResolveKeybinding(
+			mapper,
+			KeyMod.CtrlCmd | KeyCode.DownArrow,
+			[{
+				label: 'Ctrl+DownArrow',
+				ariaLabel: 'Control+DownArrow',
+				HTMLLabel: [_simpleHTMLLabel(['Ctrl', 'DownArrow'])],
+				electronAccelerator: 'Ctrl+Down',
+				userSettingsLabel: 'ctrl+down',
+				isChord: false,
+				hasCtrlModifier: true,
+				hasShiftModifier: false,
+				hasAltModifier: false,
+				hasMetaModifier: false,
+				dispatchParts: ['ctrl+DownArrow', null],
+			}]
+		);
+	});
+
+	test('resolveKeybinding Ctrl+NUMPAD_0', () => {
+		_assertResolveKeybinding(
+			mapper,
+			KeyMod.CtrlCmd | KeyCode.NUMPAD_0,
+			[{
+				label: 'Ctrl+NumPad0',
+				ariaLabel: 'Control+NumPad0',
+				HTMLLabel: [_simpleHTMLLabel(['Ctrl', 'NumPad0'])],
+				electronAccelerator: null,
+				userSettingsLabel: 'ctrl+numpad0',
+				isChord: false,
+				hasCtrlModifier: true,
+				hasShiftModifier: false,
+				hasAltModifier: false,
+				hasMetaModifier: false,
+				dispatchParts: ['ctrl+NumPad0', null],
+			}]
 		);
 	});
 });
@@ -165,7 +254,7 @@ suite('keyboardMapper - WINDOWS en_us', () => {
 		_assertResolveKeybinding(
 			mapper,
 			KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.US_BACKSLASH),
-			{
+			[{
 				label: 'Ctrl+K Ctrl+\\',
 				ariaLabel: 'Control+K Control+\\',
 				HTMLLabel: [_chordHTMLLabel(['Ctrl', 'K'], ['Ctrl', '\\'])],
@@ -177,7 +266,7 @@ suite('keyboardMapper - WINDOWS en_us', () => {
 				hasAltModifier: false,
 				hasMetaModifier: false,
 				dispatchParts: ['ctrl+K', 'ctrl+\\'],
-			}
+			}]
 		);
 	});
 });
