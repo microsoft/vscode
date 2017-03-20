@@ -135,8 +135,8 @@ export const editorForeground = registerColor('editorForeground', { light: '#333
  * Editor selection colors.
  */
 export const editorSelection = registerColor('editorSelection', { light: '#ADD6FF', dark: '#264F78', hc: '#f3f518' }, nls.localize('editorSelection', "Color of the editor selection"));
-export const editorInactiveSelection = registerColor('editorInactiveSelection', { light: '#E5EBF1', dark: '#3A3D41', hc: null }, nls.localize('editorInactiveSelection', "Color of the inactive editor selection"));
-export const editorSelectionHighlightColor = registerColor('editorSelectionHighlightColor', { light: '#add6ff4d', dark: '#add6ff26', hc: null }, nls.localize('editorsSelectionHighlightColor', "Background color of regions highlighted while selecting"));
+export const editorInactiveSelection = registerColor('editorInactiveSelection', { light: transparent(editorSelection, 0.5), dark: transparent(editorSelection, 0.5), hc: null }, nls.localize('editorInactiveSelection', "Color of the inactive editor selection"));
+export const editorSelectionHighlightColor = registerColor('editorSelectionHighlightColor', { light: lessProminent(editorSelection, editorBackground, 0.3), dark: lessProminent(editorSelection, editorBackground, 0.3), hc: null }, nls.localize('editorsSelectionHighlightColor', "Background color of regions highlighted while selecting"));
 
 /**
  * Editor find match colors.
@@ -163,6 +163,23 @@ export function transparent(colorValue: ColorValue, factor: number): ColorFuncti
 		let color = resolveColorValue(colorValue, theme);
 		if (color) {
 			return color.transparent(factor);
+		}
+		return null;
+	};
+}
+
+export function lessProminent(colorValue: ColorValue, backgroundColorValue: ColorValue, factor: number): ColorFunction {
+	return (theme) => {
+		let from = resolveColorValue(colorValue, theme);
+		if (from) {
+			let backgroundColor = resolveColorValue(backgroundColorValue, theme);
+			if (backgroundColor) {
+				if (from.isDarkerThan(backgroundColor)) {
+					return Color.getLighterColor(from, backgroundColor, factor);
+				}
+				return Color.getDarkerColor(from, backgroundColor, factor);
+			}
+			return from.transparent(factor);
 		}
 		return null;
 	};

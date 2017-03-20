@@ -31,7 +31,7 @@ export const editorLineHighlight = registerColor('editorLineHighlight', { dark: 
 export const editorRangeHighlight = registerColor('editorRangeHighlight', { dark: '#ffffff0b', light: '#fdff0033', hc: null }, nls.localize('rangeHighlight', 'Background color of range highlighted, like by Quick open and Find features'));
 export const editorCursor = registerColor('editorCursor', { dark: '#AEAFAD', light: Color.black, hc: Color.white }, nls.localize('caret', 'Editor cursor color'));
 export const editorInvisibles = registerColor('editorInvisibles', { dark: '#e3e4e229', light: '#33333333', hc: '#e3e4e229' }, nls.localize('invisibles', 'Editor invisibles color'));
-export const editorGuide = registerColor('editorGuide', { dark: '#404040', light: Color.lightgrey, hc: Color.white }, nls.localize('guide', 'Editor guide color'));
+export const editorGuide = registerColor('editorGuide', { dark: editorInvisibles, light: editorInvisibles, hc: editorInvisibles }, nls.localize('guide', 'Editor guide color'));
 
 // TBD: split up and place each rule in the owning part
 function applyEditorStyles(theme: ITheme, collector: ICssStyleCollector) {
@@ -60,10 +60,8 @@ function applyEditorStyles(theme: ITheme, collector: ICssStyleCollector) {
 		addBackgroundColorRule(theme, '.focused .selected-text', selection, collector);
 	}
 
-	if (theme.isDefault(colorRegistry.editorInactiveSelection) && !theme.isDefault(colorRegistry.editorSelection)) {
-		addBackgroundColorRule(theme, '.selected-text', selection.transparent(0.5), collector);
-	} else {
-		let inactiveSelection = theme.getColor(colorRegistry.editorInactiveSelection);
+	let inactiveSelection = theme.getColor(colorRegistry.editorInactiveSelection);
+	if (inactiveSelection) {
 		addBackgroundColorRule(theme, '.selected-text', inactiveSelection, collector);
 	}
 
@@ -91,10 +89,7 @@ function applyEditorStyles(theme: ITheme, collector: ICssStyleCollector) {
 	}
 
 	let color = theme.getColor(editorGuide);
-	if (!color) {
-		color = theme.getColor(editorInvisibles);
-	}
-	if (color !== null) {
+	if (color) {
 		collector.addRule(`.monaco-editor.${theme.selector} .lines-content .cigr { background: ${color}; }`);
 	}
 }
