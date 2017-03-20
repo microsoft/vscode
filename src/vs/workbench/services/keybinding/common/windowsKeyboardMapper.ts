@@ -177,12 +177,14 @@ export class WindowsNativeResolvedKeybinding extends ResolvedKeybinding {
 
 export class WindowsKeyboardMapper implements IKeyboardMapper {
 
+	private readonly _rawMappings: IWindowsKeyboardMapping;
 	private readonly _codeInfo: IHardwareCodeMapping[];
 	private readonly _hwToKb: KeyCode[];
 	private readonly _kbToLabel: string[] = [];
 	private readonly _kbExists: boolean[];
 
 	constructor(rawMappings: IWindowsKeyboardMapping) {
+		this._rawMappings = rawMappings;
 		this._hwToKb = [];
 		this._kbToLabel = [];
 		this._kbExists = [];
@@ -239,6 +241,10 @@ export class WindowsKeyboardMapper implements IKeyboardMapper {
 				this._hwToKb[code] = keyCode;
 			}
 		}
+	}
+
+	public dumpRawDebugInfo(): string {
+		return JSON.stringify(this._rawMappings, null, '\t');
 	}
 
 	public dumpDebugInfo(): string {

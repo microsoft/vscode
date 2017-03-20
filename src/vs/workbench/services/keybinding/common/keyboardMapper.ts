@@ -9,6 +9,7 @@ import { Keybinding, ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 
 export interface IKeyboardMapper {
+	dumpRawDebugInfo(): string;
 	dumpDebugInfo(): string;
 	resolveKeybinding(keybinding: Keybinding): ResolvedKeybinding[];
 	resolveKeyboardEvent(keyboardEvent: IKeyboardEvent): ResolvedKeybinding;

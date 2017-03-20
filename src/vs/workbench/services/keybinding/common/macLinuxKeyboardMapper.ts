@@ -153,6 +153,7 @@ interface IHardwareCodeMapping {
 
 export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 
+	private readonly _rawMappings: IMacLinuxKeyboardMapping;
 	private readonly _OS: OperatingSystem;
 	private readonly _codeInfo: IHardwareCodeMapping[];
 	private readonly _hwToKb: number[] = [];
@@ -161,7 +162,7 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 	private readonly _kbToHw: number[][] = [];
 
 	constructor(rawMappings: IMacLinuxKeyboardMapping, OS: OperatingSystem) {
-
+		this._rawMappings = rawMappings;
 		this._OS = OS;
 
 		this._hwToKb = [];
@@ -281,6 +282,10 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 				}
 			}
 		}
+	}
+
+	public dumpRawDebugInfo(): string {
+		return JSON.stringify(this._rawMappings, null, '\t');
 	}
 
 	public dumpDebugInfo(): string {
