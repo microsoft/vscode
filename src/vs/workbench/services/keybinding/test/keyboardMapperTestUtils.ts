@@ -8,10 +8,11 @@
 import * as assert from 'assert';
 import { IHTMLContentElement } from 'vs/base/common/htmlContent';
 import { IKeyboardMapper } from 'vs/workbench/services/keybinding/common/keyboardMapper';
-import { Keybinding } from 'vs/base/common/keyCodes';
+import { Keybinding, ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { readFile, writeFile } from 'vs/base/node/pfs';
 import { OperatingSystem } from 'vs/base/common/platform';
+import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 
 export interface IResolvedKeybinding {
 	label: string;
@@ -27,22 +28,29 @@ export interface IResolvedKeybinding {
 	dispatchParts: [string, string];
 }
 
+function toIResolvedKeybinding(kb: ResolvedKeybinding): IResolvedKeybinding {
+	return {
+		label: kb.getLabel(),
+		ariaLabel: kb.getAriaLabel(),
+		HTMLLabel: kb.getHTMLLabel(),
+		electronAccelerator: kb.getElectronAccelerator(),
+		userSettingsLabel: kb.getUserSettingsLabel(),
+		isChord: kb.isChord(),
+		hasCtrlModifier: kb.hasCtrlModifier(),
+		hasShiftModifier: kb.hasShiftModifier(),
+		hasAltModifier: kb.hasAltModifier(),
+		hasMetaModifier: kb.hasMetaModifier(),
+		dispatchParts: kb.getDispatchParts(),
+	};
+}
+
 export function assertResolveKeybinding(mapper: IKeyboardMapper, keybinding: Keybinding, expected: IResolvedKeybinding[]): void {
-	let actual: IResolvedKeybinding[] = mapper.resolveKeybinding(keybinding).map((kb => {
-		return {
-			label: kb.getLabel(),
-			ariaLabel: kb.getAriaLabel(),
-			HTMLLabel: kb.getHTMLLabel(),
-			electronAccelerator: kb.getElectronAccelerator(),
-			userSettingsLabel: kb.getUserSettingsLabel(),
-			isChord: kb.isChord(),
-			hasCtrlModifier: kb.hasCtrlModifier(),
-			hasShiftModifier: kb.hasShiftModifier(),
-			hasAltModifier: kb.hasAltModifier(),
-			hasMetaModifier: kb.hasMetaModifier(),
-			dispatchParts: kb.getDispatchParts(),
-		};
-	}));
+	let actual: IResolvedKeybinding[] = mapper.resolveKeybinding(keybinding).map(toIResolvedKeybinding);
+	assert.deepEqual(actual, expected);
+}
+
+export function assertResolveKeyboardEvent(mapper: IKeyboardMapper, keyboardEvent: IKeyboardEvent, expected: IResolvedKeybinding): void {
+	let actual = toIResolvedKeybinding(mapper.resolveKeyboardEvent(keyboardEvent));
 	assert.deepEqual(actual, expected);
 }
 
