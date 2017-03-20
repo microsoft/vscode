@@ -192,25 +192,25 @@ export const TITLE_BAR_ACTIVE_FOREGROUND = registerColor('titleBarActiveForegrou
 	dark: '#CCCCCC',
 	light: '#333333',
 	hc: '#FFFFFF'
-}, nls.localize('titleBarActiveForeground', "Title bar foreground when the window is active. Note that this color is currently only on supported on macOS."));
+}, nls.localize('titleBarActiveForeground', "Title bar foreground when the window is active. Note that this color is currently only supported on macOS."));
 
 export const TITLE_BAR_INACTIVE_FOREGROUND = registerColor('titleBarInactiveForeground', {
 	dark: Color.fromRGBA(new RGBA(204, 204, 204)).transparent(0.6),
 	light: Color.fromRGBA(new RGBA(51, 51, 51)).transparent(0.6),
 	hc: null
-}, nls.localize('titleBarInactiveForeground', "Title bar foreground when the window is inactive. Note that this color is currently only on supported on macOS."));
+}, nls.localize('titleBarInactiveForeground', "Title bar foreground when the window is inactive. Note that this color is currently only supported on macOS."));
 
 export const TITLE_BAR_ACTIVE_BACKGROUND = registerColor('titleBarActiveBackground', {
 	dark: '#3C3C3C',
 	light: '#DDDDDD',
 	hc: '#000000'
-}, nls.localize('titleBarActiveBackground', "Title bar background when the window is active. Note that this color is currently only on supported on macOS."));
+}, nls.localize('titleBarActiveBackground', "Title bar background when the window is active. Note that this color is currently only supported on macOS."));
 
 export const TITLE_BAR_INACTIVE_BACKGROUND = registerColor('titleBarInactiveBackground', {
 	dark: Color.fromRGBA(new RGBA(60, 60, 60)).transparent(0.6),
 	light: Color.fromRGBA(new RGBA(221, 221, 221)).transparent(0.6),
 	hc: null
-}, nls.localize('titleBarInactiveBackground', "Title bar background when the window is inactive. Note that this color is currently only on supported on macOS."));
+}, nls.localize('titleBarInactiveBackground', "Title bar background when the window is inactive. Note that this color is currently only supported on macOS."));
 
 /**
  * Base class for all themable workbench components.
