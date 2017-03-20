@@ -5,7 +5,7 @@
 'use strict';
 
 // import * as assert from 'assert';
-import { fuzzyContiguousFilter, matchesFuzzy2, fuzzyLCS, fuzzyMatchAndScore } from 'vs/base/common/filters';
+import { fuzzyContiguousFilter, matchesFuzzy2, fuzzyMatchAndScore } from 'vs/base/common/filters';
 
 const data = <{ label: string }[]>require.__$__nodeRequire(require.toUrl('./filters.perf.data.json'));
 const patterns = ['cci', 'ida', 'pos', 'CCI', 'enbled', 'callback', 'gGame'];
@@ -41,7 +41,6 @@ perfSuite('Performance - fuzzyMatch', function () {
 
 	perfTest('fuzzyContiguousFilter', fuzzyContiguousFilter);
 	perfTest('matchesFuzzy2', matchesFuzzy2);
-	perfTest('fuzzyLCS', fuzzyLCS);
 	perfTest('fuzzyMatchAndScore', fuzzyMatchAndScore);
 
 });

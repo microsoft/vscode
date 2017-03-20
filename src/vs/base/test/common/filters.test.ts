@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { IFilter, or, matchesPrefix, matchesStrictPrefix, matchesCamelCase, matchesSubString, matchesContiguousSubString, matchesWords, fuzzyMatchAndScore, fuzzyLCS } from 'vs/base/common/filters';
+import { IFilter, or, matchesPrefix, matchesStrictPrefix, matchesCamelCase, matchesSubString, matchesContiguousSubString, matchesWords, fuzzyMatchAndScore } from 'vs/base/common/filters';
 
 function filterOk(filter: IFilter, word: string, wordToMatchAgainst: string, highlights?: { start: number; end: number; }[]) {
 	let r = filter(word, wordToMatchAgainst);
@@ -237,37 +237,6 @@ suite('Filters', () => {
 		assertMatches('myvable', 'myvariable', '^m^y^v^aria^b^l^e', fuzzyMatchAndScore);
 		assertMatches('fdm', 'findModel', '^fin^d^Model', fuzzyMatchAndScore);
 
-		assertMatches('', 'match', undefined, fuzzyLCS);
-		assertMatches('B', 'bakB', 'bak^B', fuzzyLCS);
-		assertMatches('BB', 'bakB', '^bak^B', fuzzyLCS);
-		assertMatches('BK', 'the_black_knight', 'the_^black_^knight', fuzzyLCS);
-		assertMatches('Ba', 'bakBa', 'bak^B^a', fuzzyLCS);
-		assertMatches('LLL', 'SVisualLoggerLogsList', 'SVisual^Logger^Logs^List', fuzzyLCS);
-		// assertMatches('LLLL', 'SVisualLoggerLogsList', undefined, fuzzyLCS);
-		assertMatches('b', 'bakB', '^bakB', fuzzyLCS);
-		assertMatches('ba', 'bakB', '^b^akB', fuzzyLCS);
-		assertMatches('bb', 'bakB', '^bak^B', fuzzyLCS);
-		assertMatches('bkn', 'the_black_knight', 'the_^black_^k^night', fuzzyLCS);
-		// assertMatches('bt', 'the_black_knight', 'the_^black_knigh^t', fuzzyLCS);
-		// assertMatches('bti', 'the_black_knight', undefined, fuzzyLCS);
-		// assertMatches('ccm', 'cacmelCase', '^ca^c^melCase', fuzzyLCS);
-		// assertMatches('ccm', 'camelCase', undefined, fuzzyLCS);
-		// assertMatches('ccm', 'camelCasecm', '^camel^Casec^m', fuzzyLCS);
-		// assertMatches('fob', 'foobar', '^f^oo^bar', fuzzyLCS);
-		// assertMatches('foobar', 'foobar', '^f^o^o^b^a^r', fuzzyLCS);
-		// assertMatches('g p', 'Git: Pull', '^Git:^ ^Pull', fuzzyLCS);
-		// assertMatches('gip', 'Git: Pull', '^G^it: ^Pull', fuzzyLCS);
-		// assertMatches('gp', 'Git: Pull', '^Git: ^Pull', fuzzyLCS);
-		// assertMatches('gp', 'Git_Git_Pull', '^Git_Git_^Pull', fuzzyLCS);
-		// assertMatches('is', 'ImportStatement', '^Import^Statement', fuzzyLCS);
-		// assertMatches('is', 'isValid', '^i^sValid', fuzzyLCS);
-		// assertMatches('lowrd', 'lowWord', '^l^o^wWo^r^d', fuzzyLCS);
-		// assertMatches('no', '', undefined, fuzzyLCS);
-		// assertMatches('no', 'match', undefined, fuzzyLCS);
-		// assertMatches('ob', 'foobar', undefined, fuzzyLCS);
-		// assertMatches('ob', 'foobar', undefined, fuzzyLCS);
-		// assertMatches('sl', 'SVisualLoggerLogsList', '^SVisual^LoggerLogsList', fuzzyLCS);
-		// assertMatches('sllll', 'SVisualLoggerLogsList', '^SVisua^l^Logger^Logs^List', fuzzyLCS);
 	});
 
 	test('topScore', function () {
