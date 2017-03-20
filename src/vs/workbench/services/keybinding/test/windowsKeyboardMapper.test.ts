@@ -9,7 +9,7 @@ import { OperatingSystem } from 'vs/base/common/platform';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { WindowsKeyboardMapper, IKeyboardMapping } from 'vs/workbench/services/keybinding/common/windowsKeyboardMapper';
 import { createKeybinding, KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
-import { IResolvedKeybinding, assertResolveKeybinding, readRawMapping, assertMapping, simpleHTMLLabel, chordHTMLLabel } from 'vs/workbench/services/keybinding/test/keyboardMapperTestUtils';
+import { IResolvedKeybinding, assertResolveKeybinding, readRawMapping, assertMapping, simpleHTMLLabel, chordHTMLLabel, assertResolveKeyboardEvent } from 'vs/workbench/services/keybinding/test/keyboardMapperTestUtils';
 import { IHTMLContentElement } from 'vs/base/common/htmlContent';
 
 function createKeyboardMapper(file: string): TPromise<WindowsKeyboardMapper> {
@@ -85,6 +85,33 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 		);
 	});
 
+	test('resolveKeyboardEvent Ctrl+Z', () => {
+		assertResolveKeyboardEvent(
+			mapper,
+			{
+				ctrlKey: true,
+				shiftKey: false,
+				altKey: false,
+				metaKey: false,
+				keyCode: KeyCode.KEY_Z,
+				code: null
+			},
+			{
+				label: 'Ctrl+Z',
+				ariaLabel: 'Control+Z',
+				HTMLLabel: [_simpleHTMLLabel(['Ctrl', 'Z'])],
+				electronAccelerator: 'Ctrl+Z',
+				userSettingsLabel: 'ctrl+z',
+				isChord: false,
+				hasCtrlModifier: true,
+				hasShiftModifier: false,
+				hasAltModifier: false,
+				hasMetaModifier: false,
+				dispatchParts: ['ctrl+Z', null],
+			}
+		);
+	});
+
 	test('resolveKeybinding Ctrl+]', () => {
 		_assertResolveKeybinding(
 			mapper,
@@ -105,6 +132,32 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 		);
 	});
 
+	test('resolveKeyboardEvent Ctrl+]', () => {
+		assertResolveKeyboardEvent(
+			mapper,
+			{
+				ctrlKey: true,
+				shiftKey: false,
+				altKey: false,
+				metaKey: false,
+				keyCode: KeyCode.US_CLOSE_SQUARE_BRACKET,
+				code: null
+			},
+			{
+				label: 'Ctrl+^',
+				ariaLabel: 'Control+^',
+				HTMLLabel: [_simpleHTMLLabel(['Ctrl', '^'])],
+				electronAccelerator: 'Ctrl+]',
+				userSettingsLabel: 'ctrl+]',
+				isChord: false,
+				hasCtrlModifier: true,
+				hasShiftModifier: false,
+				hasAltModifier: false,
+				hasMetaModifier: false,
+				dispatchParts: ['ctrl+]', null],
+			}
+		);
+	});
 
 	test('resolveKeybinding Shift+]', () => {
 		_assertResolveKeybinding(
@@ -231,6 +284,53 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 				hasMetaModifier: false,
 				dispatchParts: ['ctrl+NumPad0', null],
 			}]
+		);
+	});
+
+	test('resolveKeybinding Ctrl+Home', () => {
+		_assertResolveKeybinding(
+			mapper,
+			KeyMod.CtrlCmd | KeyCode.Home,
+			[{
+				label: 'Ctrl+Home',
+				ariaLabel: 'Control+Home',
+				HTMLLabel: [_simpleHTMLLabel(['Ctrl', 'Home'])],
+				electronAccelerator: 'Ctrl+Home',
+				userSettingsLabel: 'ctrl+home',
+				isChord: false,
+				hasCtrlModifier: true,
+				hasShiftModifier: false,
+				hasAltModifier: false,
+				hasMetaModifier: false,
+				dispatchParts: ['ctrl+Home', null],
+			}]
+		);
+	});
+
+	test('resolveKeyboardEvent Ctrl+Home', () => {
+		assertResolveKeyboardEvent(
+			mapper,
+			{
+				ctrlKey: true,
+				shiftKey: false,
+				altKey: false,
+				metaKey: false,
+				keyCode: KeyCode.Home,
+				code: null
+			},
+			{
+				label: 'Ctrl+Home',
+				ariaLabel: 'Control+Home',
+				HTMLLabel: [_simpleHTMLLabel(['Ctrl', 'Home'])],
+				electronAccelerator: 'Ctrl+Home',
+				userSettingsLabel: 'ctrl+home',
+				isChord: false,
+				hasCtrlModifier: true,
+				hasShiftModifier: false,
+				hasAltModifier: false,
+				hasMetaModifier: false,
+				dispatchParts: ['ctrl+Home', null],
+			}
 		);
 	});
 });
