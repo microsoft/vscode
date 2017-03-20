@@ -87,14 +87,27 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 			dom.removeClass(this.start, 'active');
 		}));
 
-		this.toDispose.push(dom.addDisposableListener(this.start, dom.EventType.KEY_UP, (e: KeyboardEvent) => {
-			let event = new StandardKeyboardEvent(e);
+		this.toDispose.push(dom.addDisposableListener(this.start, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+			const event = new StandardKeyboardEvent(e);
 			if (event.equals(KeyCode.Enter)) {
 				this.actionRunner.run(this.action, this.context).done(null, errors.onUnexpectedError);
 			}
+			if (event.equals(KeyCode.RightArrow)) {
+				this.selectBox.focus();
+				event.stopPropagation();
+			}
 		}));
 
-		this.selectBox.render(dom.append(container, $('.configuration')));
+		const selectBoxContainer = $('.configuration');
+		this.selectBox.render(dom.append(container, selectBoxContainer));
+		this.toDispose.push(dom.addDisposableListener(selectBoxContainer, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+			const event = new StandardKeyboardEvent(e);
+			if (event.equals(KeyCode.LeftArrow)) {
+				this.start.focus();
+				event.stopPropagation();
+			}
+		}));
+
 		this.updateOptions();
 	}
 
@@ -106,8 +119,12 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 		return true;
 	}
 
-	public focus(): void {
-		this.start.focus();
+	public focus(fromRight?: boolean): void {
+		if (fromRight) {
+			this.selectBox.focus();
+		} else {
+			this.start.focus();
+		}
 	}
 
 	public blur(): void {
