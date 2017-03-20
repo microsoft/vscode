@@ -46,7 +46,10 @@
     "@types/mocha": "^2.2.39",
     "@types/semver": "^5.3.30",
     "@types/sinon": "^1.16.34",
+    "@types/through": "^0.0.28",
     "@types/winreg": "^1.2.30",
+    "@types/vinyl": "^2.0.0",
+    "@types/xml2js": "^0.0.33",
     "azure-storage": "^0.3.1",
     "clean-css": "3.4.6",
     "coveralls": "^2.11.11",
@@ -105,7 +108,8 @@
     "underscore": "^1.8.2",
     "vinyl": "^0.4.5",
     "vinyl-fs": "^2.4.3",
-    "vscode-nls-dev": "^2.0.1"
+    "vscode-nls-dev": "^2.0.1",
+    "xml2js": "^0.4.17"
   },
   "repository": {
     "type": "git",
