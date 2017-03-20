@@ -6,16 +6,15 @@
 import * as path from 'path';
 import * as fs from 'fs';
 
-import { through } from 'event-stream';
+import { through, readable } from 'event-stream';
 import { ThroughStream } from 'through';
 import File = require('vinyl');
 import * as Is from 'is';
-import xml2js = require('xml2js');
+import * as xml2js from 'xml2js';
 import * as glob from 'glob';
+import * as http from 'http';
 
 var util = require('gulp-util');
-const request = require('request');
-const es = require('event-stream');
 var iconv  = require('iconv-lite');
 
 function log(message: any, ...rest: any[]): void {
@@ -719,7 +718,7 @@ function importIsl(file: File, stream: ThroughStream) {
 	}
 }
 
-export function pushXlfFiles(apiUrl: string, username: string, password: string): ThroughStream {
+export function pushXlfFiles(apiHostname: string, username: string, password: string): ThroughStream {
 	let tryGetPromises = [];
 	let updateCreatePromises = [];
 
@@ -727,21 +726,20 @@ export function pushXlfFiles(apiUrl: string, username: string, password: string)
 		const project = path.dirname(file.relative);
 		const fileName = path.basename(file.path);
 		const slug = fileName.substr(0, fileName.length - '.xlf'.length);
-		const credentials = {
-			'user': username,
-			'password': password
-		};
+		const credentials = `${username}:${password}`;
 
 		// Check if resource already exists, if not, then create it.
-		let promise = tryGetResource(project, slug, apiUrl, credentials);
+		let promise = tryGetResource(project, slug, apiHostname, credentials);
 		tryGetPromises.push(promise);
 		promise.then(exists => {
 			if (exists) {
-				promise = updateResource(project, slug, file, apiUrl, credentials);
+				promise = updateResource(project, slug, file, apiHostname, credentials);
 			} else {
-				promise = createResource(project, slug, file, apiUrl, credentials);
+				promise = createResource(project, slug, file, apiHostname, credentials);
 			}
 			updateCreatePromises.push(promise);
+		}).catch((reason) => {
+			log('Error:', reason);
 		});
 
 	}, function() {
@@ -749,52 +747,67 @@ export function pushXlfFiles(apiUrl: string, username: string, password: string)
 		Promise.all(tryGetPromises).then(() => {
 			Promise.all(updateCreatePromises).then(() => {
 				this.emit('end');
-			});
-		});
+			}).catch((reason) => log('Error:', reason));
+		}).catch((reason) => log('Error:', reason));
 	});
 }
 
-function tryGetResource(project: string, slug: string, apiUrl: string, credentials: any): Promise<boolean> {
+function tryGetResource(project: string, slug: string, apiHostname: string, credentials: string): Promise<boolean> {
 	return new Promise((resolve, reject) => {
-		const url = `${apiUrl}/project/${project}/resource/${slug}/?details`;
-		request.get(url, { 'auth': credentials }).on('response', function (response) {
+		const options = {
+			hostname: apiHostname,
+			path: `/api/2/project/${project}/resource/${slug}/?details`,
+			auth: credentials,
+			method: 'GET'
+		};
+
+		const request = http.request(options, (response) => {
 			if (response.statusCode === 404) {
 				resolve(false);
 			} else if (response.statusCode === 200) {
 				resolve(true);
 			} else {
-				reject(`Failed to query resource ${slug}. Response: ${response.statusCode} ${response.statusMessage}`);
+				reject(`Failed to query resource ${project}/${slug}. Response: ${response.statusCode} ${response.statusMessage}`);
 			}
+		}).on('error', (err) => {
+			reject(`Failed to get ${project}/${slug} on Transifex: ${err}`);
 		});
+
+		request.end();
 	});
 }
 
-function createResource(project: string, slug: string, xlfFile: File, apiUrl:string, credentials: any): Promise<any> {
-	return new Promise((resolve) => {
-		const url = `${apiUrl}/project/${project}/resources`;
+function createResource(project: string, slug: string, xlfFile: File, apiHostname: string, credentials: any): Promise<any> {
+	return new Promise((resolve, reject) => {
+		const data = JSON.stringify({
+			'content': xlfFile.contents.toString(),
+			'name': slug,
+			'slug': slug,
+			'i18n_type': 'XLIFF'
+		});
 		const options = {
-			'body': {
-				'content': xlfFile.contents.toString(),
-				'name': slug,
-				'slug': slug,
-				'i18n_type': 'XLIFF'
+			hostname: apiHostname,
+			path: `/api/2/project/${project}/resources`,
+			headers: {
+				'Content-Type': 'application/json',
+				'Content-Length': Buffer.byteLength(data)
 			},
-			'json': true,
-			'auth': credentials
+			auth: credentials,
+			method: 'POST'
 		};
 
-		request.post(url, options, function(err, res) {
-			if (err) {
-				log('Error:', `Failed to create Transifex ${project}/${slug}: ${err}`);
-			}
-
+		let request = http.request(options, (res) => {
 			if (res.statusCode === 201) {
 				log(`Resource ${project}/${slug} successfully created on Transifex.`);
-				resolve();
 			} else {
-				log('Error:', `Something went wrong creating ${slug} in ${project}. ${res.statusCode}`);
+				reject(`Something went wrong in the request creating ${slug} in ${project}. ${res.statusCode}`);
 			}
+		}).on('error', (err) => {
+			reject(`Failed to create ${project}/${slug} on Transifex: ${err}`);
 		});
+
+		request.write(data);
+		request.end();
 	});
 }
 
@@ -802,27 +815,42 @@ function createResource(project: string, slug: string, xlfFile: File, apiUrl:str
  * The following link provides information about how Transifex handles updates of a resource file:
  * https://dev.befoolish.co/tx-docs/public/projects/updating-content#what-happens-when-you-update-files
  */
-function updateResource(project: string, slug: string, xlfFile: File, apiUrl: string, credentials: any) : Promise<any> {
-	return new Promise((resolve) => {
-		const url = `${apiUrl}/project/${project}/resource/${slug}/content`;
+function updateResource(project: string, slug: string, xlfFile: File, apiHostname: string, credentials: string) : Promise<any> {
+	return new Promise((resolve, reject) => {
+		const data = JSON.stringify({ content: xlfFile.contents.toString() });
 		const options = {
-			'body': { 'content': xlfFile.contents.toString() },
-			'json': true,
-			'auth': credentials
+			hostname: apiHostname,
+			path: `/api/2/project/${project}/resource/${slug}/content`,
+			headers: {
+				'Content-Type': 'application/json',
+				'Content-Length': Buffer.byteLength(data)
+			},
+			auth: credentials,
+			method: 'PUT'
 		};
 
-		request.put(url, options, function(err, res, body) {
-			if (err) {
-				log('Error:', `Failed to update Transifex ${project}/${slug}: ${err}`);
-			}
-
+		let request = http.request(options, (res) => {
 			if (res.statusCode === 200) {
-				log(`Resource ${project}/${slug} successfully updated on Transifex. Strings added: ${body['strings_added']}, updated: ${body['strings_updated']}, deleted: ${body['strings_delete']}`);
-				resolve();
+				res.setEncoding('utf8');
+
+				let responseBuffer: string = '';
+				res.on('data', function (chunk) {
+					responseBuffer += chunk;
+				});
+				res.on('end', () => {
+					const response = JSON.parse(responseBuffer);
+					log(`Resource ${project}/${slug} successfully updated on Transifex. Strings added: ${response.strings_added}, updated: ${response.strings_added}, deleted: ${response.strings_added}`);
+					resolve();
+				});
 			} else {
-				log('Error:', `Something went wrong updating ${slug} in ${project}. ${res.statusCode}`);
+				reject(`Something went wrong in the request updating ${slug} in ${project}. ${res.statusCode}`);
 			}
+		}).on('error', (err) => {
+			reject(`Failed to update ${project}/${slug} on Transifex: ${err}`);
 		});
+
+		request.write(data);
+		request.end();
 	});
 }
 
@@ -863,7 +891,7 @@ function obtainProjectResources(projectName: string): Resource[] {
 	return resources;
 }
 
-export function pullXlfFiles(projectName: string, apiUrl: string, username: string, password: string, resources?: Resource[]): NodeJS.ReadableStream {
+export function pullXlfFiles(projectName: string, apiHostname: string, username: string, password: string, resources?: Resource[]): NodeJS.ReadableStream {
 	if (!resources) {
 		resources = obtainProjectResources(projectName);
 	}
@@ -871,16 +899,11 @@ export function pullXlfFiles(projectName: string, apiUrl: string, username: stri
 		throw new Error('Transifex projects and resources must be defined to be able to pull translations from Transifex.');
 	}
 
-	const credentials = {
-		'auth': {
-			'user': username,
-			'password': password
-		}
-	};
+	const credentials = `${username}:${password}`;
 	let expectedTranslationsCount = vscodeLanguages.length * resources.length;
 	let translationsRetrieved = 0, called = false;
 
-	return es.readable(function(count, callback) {
+	return readable(function(count, callback) {
 		// Mark end of stream when all resources were retrieved
 		if (translationsRetrieved === expectedTranslationsCount) {
 			return this.emit('end');
@@ -895,25 +918,28 @@ export function pullXlfFiles(projectName: string, apiUrl: string, username: stri
 					const slug = resource.name.replace(/\//g, '_');
 					const project = resource.project;
 					const iso639 = iso639_3_to_2[language];
-					const url = `${apiUrl}/project/${project}/resource/${slug}/translation/${iso639}?file&mode=onlyreviewed`;
+					const options = {
+						hostname: apiHostname,
+						path: `/api/2/project/${project}/resource/${slug}/translation/${iso639}?file&mode=onlyreviewed`,
+						auth: credentials,
+						method: 'GET'
+					};
 
-					let xlfBuffer: string = '', responseCode: number;
-					request.get(url, credentials)
-						.on('response', (response) => {
-							responseCode = response.statusCode;
-						})
-						.on('data', (data) => xlfBuffer += data)
-						.on('end', () => {
-							if (responseCode === 200) {
-								stream.emit('data', new File({ contents: new Buffer(xlfBuffer) }));
-							} else {
-								log('Error:', `${slug} in ${project} returned no data. Response code: ${responseCode}.`);
-							}
-							translationsRetrieved++;
-						})
-						.on('error', (error) => {
-							log('Error:', `Failed to query resource ${slug} with the following error: ${error}`);
-						});
+					let request = http.request(options, (res) => {
+							let xlfBuffer: string = '';
+							res.on('data', (data) => xlfBuffer += data);
+							res.on('end', () => {
+								if (res.statusCode === 200) {
+									stream.emit('data', new File({ contents: new Buffer(xlfBuffer) }));
+								} else {
+									log('Error:', `${slug} in ${project} returned no data. Response code: ${res.statusCode}.`);
+								}
+								translationsRetrieved++;
+							});
+					}).on('error', (err) => {
+						log('Error:', `Failed to query resource ${slug} with the following error: ${err}`);
+					});
+					request.end();
 				});
 			});
 		}
