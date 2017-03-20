@@ -14,7 +14,7 @@ import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayo
 import { KeyboardEventCodeUtils } from 'vs/workbench/services/keybinding/common/keyboardEventCode';
 import { IHTMLContentElement } from 'vs/base/common/htmlContent';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { readRawMapping, assertMapping } from 'vs/workbench/services/keybinding/test/keyboardMapperTestUtils';
+import { readRawMapping, assertMapping, IResolvedKeybinding, assertResolveKeybinding } from 'vs/workbench/services/keybinding/test/keyboardMapperTestUtils';
 
 function createKeyboardMapper(file: string, OS: OperatingSystem): TPromise<MacLinuxKeyboardMapper> {
 	return readRawMapping<IKeyboardMapping>(file).then((rawMappings) => {
@@ -39,6 +39,10 @@ suite('keyboardMapper - MAC de_ch', () => {
 
 	function assertKeybindingTranslation(kb: number, expected: string | string[]): void {
 		_assertKeybindingTranslation(mapper, OperatingSystem.Macintosh, kb, expected);
+	}
+
+	function _assertResolveKeybinding(k: number, expected: IResolvedKeybinding[]): void {
+		assertResolveKeybinding(mapper, createKeybinding(k, OperatingSystem.Macintosh), expected);
 	}
 
 	test('kb => hw', () => {
@@ -91,6 +95,33 @@ suite('keyboardMapper - MAC de_ch', () => {
 			}]]
 		);
 	});
+
+	// TODO: missing
+	test('resolveKeybinding Cmd+A', () => {
+		_assertResolveKeybinding(
+			KeyMod.CtrlCmd | KeyCode.KEY_A,
+			[]
+		);
+	});
+
+	// test('resolveKeybinding Cmd+B', () => {
+	// 	_assertResolveKeybinding(
+	// 		KeyMod.CtrlCmd | KeyCode.KEY_B,
+	// 		[{
+	// 			label: '⌘A',
+	// 			ariaLabel: 'Control+A',
+	// 			HTMLLabel: [simpleHTMLLabel(['Ctrl', 'A'])],
+	// 			electronAccelerator: 'Ctrl+A',
+	// 			userSettingsLabel: 'ctrl+a',
+	// 			isChord: false,
+	// 			hasCtrlModifier: true,
+	// 			hasShiftModifier: false,
+	// 			hasAltModifier: false,
+	// 			hasMetaModifier: false,
+	// 			dispatchParts: ['ctrl+A', null],
+	// 		}]
+	// 	);
+	// });
 
 });
 
