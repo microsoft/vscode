@@ -55,7 +55,6 @@ export class TerminalPanel extends Panel {
 
 		this._terminalContainer = document.createElement('div');
 		DOM.addClass(this._terminalContainer, 'terminal-outer-container');
-		DOM.toggleClass(this._parentDomElement, 'disable-bold', !this._terminalService.configHelper.config.enableBold);
 		this._parentDomElement.appendChild(this._themeStyleElement);
 		this._parentDomElement.appendChild(this._fontStyleElement);
 		this._parentDomElement.appendChild(this._terminalContainer);
@@ -231,6 +230,7 @@ export class TerminalPanel extends Panel {
 		}
 		let newFont = this._terminalService.configHelper.getFont();
 		DOM.toggleClass(this._parentDomElement, 'enable-ligatures', this._terminalService.configHelper.config.fontLigatures);
+		DOM.toggleClass(this._parentDomElement, 'disable-bold', !this._terminalService.configHelper.config.enableBold);
 		if (!this._font || this._fontsDiffer(this._font, newFont)) {
 			this._fontStyleElement.innerHTML = '.monaco-workbench .panel.integrated-terminal .xterm {' +
 				`font-family: ${newFont.fontFamily};` +
