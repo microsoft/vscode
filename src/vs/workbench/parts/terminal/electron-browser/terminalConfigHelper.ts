@@ -16,63 +16,6 @@ interface IFullTerminalConfiguration {
 
 const DEFAULT_LINE_HEIGHT = 1.2;
 
-const DEFAULT_ANSI_COLORS = {
-	'hc-black': [
-		'#000000', // black
-		'#cd0000', // red
-		'#00cd00', // green
-		'#cdcd00', // yellow
-		'#0000ee', // blue
-		'#cd00cd', // magenta
-		'#00cdcd', // cyan
-		'#e5e5e5', // white
-		'#7f7f7f', // bright black
-		'#ff0000', // bright red
-		'#00ff00', // bright green
-		'#ffff00', // bright yellow
-		'#5c5cff', // bright blue
-		'#ff00ff', // bright magenta
-		'#00ffff', // bright cyan
-		'#ffffff'  // bright white
-	],
-	'vs': [
-		'#000000', // black
-		'#cd3131', // red
-		'#00BC00', // green
-		'#949800', // yellow
-		'#0451a5', // blue
-		'#bc05bc', // magenta
-		'#0598bc', // cyan
-		'#555555', // white
-		'#666666', // bright black
-		'#cd3131', // bright red
-		'#14CE14', // bright green
-		'#b5ba00', // bright yellow
-		'#0451a5', // bright blue
-		'#bc05bc', // bright magenta
-		'#0598bc', // bright cyan
-		'#a5a5a5'  // bright white
-	],
-	'vs-dark': [
-		'#000000', // black
-		'#cd3131', // red
-		'#0DBC79', // green
-		'#e5e510', // yellow
-		'#2472c8', // blue
-		'#bc3fbc', // magenta
-		'#11a8cd', // cyan
-		'#e5e5e5', // white
-		'#666666', // bright black
-		'#f14c4c', // bright red
-		'#23d18b', // bright green
-		'#f5f543', // bright yellow
-		'#3b8eea', // bright blue
-		'#d670d6', // bright magenta
-		'#29b8db', // bright cyan
-		'#e5e5e5'  // bright white
-	]
-};
-
 /**
  * Encapsulates terminal configuration logic, the primary purpose of this file is so that platform
  * specific test cases can be written.
@@ -90,10 +33,6 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 
 	public get config(): ITerminalConfiguration {
 		return this._configurationService.getConfiguration<IFullTerminalConfiguration>().terminal.integrated;
-	}
-
-	public getTheme(baseThemeId: string): string[] {
-		return DEFAULT_ANSI_COLORS[baseThemeId];
 	}
 
 	private _measureFont(fontFamily: string, fontSize: number, lineHeight: number): ITerminalFont {
