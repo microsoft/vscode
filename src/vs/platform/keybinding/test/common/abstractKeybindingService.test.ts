@@ -42,8 +42,8 @@ suite('AbstractKeybindingService', () => {
 			return this._resolver;
 		}
 
-		public resolveKeybinding(kb: Keybinding): ResolvedKeybinding {
-			return new USLayoutResolvedKeybinding(kb, OS);
+		public resolveKeybinding(kb: Keybinding): ResolvedKeybinding[] {
+			return [new USLayoutResolvedKeybinding(kb, OS)];
 		}
 
 		public resolveKeyboardEvent(keyboardEvent: IKeyboardEvent): ResolvedKeybinding {
@@ -54,7 +54,7 @@ suite('AbstractKeybindingService', () => {
 				keyboardEvent.metaKey,
 				keyboardEvent.keyCode
 			);
-			return this.resolveKeybinding(keybinding);
+			return this.resolveKeybinding(keybinding)[0];
 		}
 
 		public testDispatch(kb: number): boolean {

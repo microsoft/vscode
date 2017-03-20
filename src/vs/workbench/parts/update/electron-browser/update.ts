@@ -86,9 +86,13 @@ export function loadReleaseNotes(accessor: ServicesAccessor, version: string): T
 				return unassigned;
 			}
 
-			const resolvedKeybinding = keybindingService.resolveKeybinding(keybinding);
+			const resolvedKeybindings = keybindingService.resolveKeybinding(keybinding);
 
-			return resolvedKeybinding.getLabel();
+			if (resolvedKeybindings.length === 0) {
+				return unassigned;
+			}
+
+			return resolvedKeybindings[0].getLabel();
 		};
 
 		return text

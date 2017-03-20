@@ -39,13 +39,16 @@ export function isSearchViewletFocussed(viewletService: IViewletService): boolea
 }
 
 export function appendKeyBindingLabel(label: string, keyBinding: number | ResolvedKeybinding, keyBindingService2: IKeybindingService): string {
-	let resolvedKb: ResolvedKeybinding;
 	if (typeof keyBinding === 'number') {
-		resolvedKb = keyBindingService2.resolveKeybinding(createKeybinding(keyBinding, OS));
+		const resolvedKeybindings = keyBindingService2.resolveKeybinding(createKeybinding(keyBinding, OS));
+		return doAppendKeyBindingLabel(label, resolvedKeybindings.length > 0 ? resolvedKeybindings[0] : null);
 	} else {
-		resolvedKb = keyBinding;
+		return doAppendKeyBindingLabel(label, keyBinding);
 	}
-	return resolvedKb ? label + ' (' + resolvedKb.getLabel() + ')' : label;
+}
+
+function doAppendKeyBindingLabel(label: string, keyBinding: ResolvedKeybinding): string {
+	return keyBinding ? label + ' (' + keyBinding.getLabel() + ')' : label;
 }
 
 export class ToggleCaseSensitiveAction extends Action {
