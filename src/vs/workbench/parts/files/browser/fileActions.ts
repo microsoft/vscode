@@ -1099,8 +1099,8 @@ export class DuplicateFileAction extends BaseFileAction {
 	private toCopyName(name: string, isFolder: boolean): string {
 
 		// file.1.txt=>file.2.txt
-		if (!isFolder && name.match(/(\d+)(\..*)$/)) {
-			return name.replace(/(\d+)(\..*)$/, (match, g1?, g2?) => { return (parseInt(g1) + 1) + g2; });
+		if (!isFolder && name.match(/(.*\.)(\d+)(\..*)$/)) {
+			return name.replace(/(.*\.)(\d+)(\..*)$/, (match, g1?, g2?, g3?) => { return g1 + (parseInt(g2) + 1) + g3; });
 		}
 
 		// file.txt=>file.1.txt
