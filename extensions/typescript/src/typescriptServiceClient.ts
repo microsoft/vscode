@@ -112,6 +112,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	private firstStart: number;
 	private lastStart: number;
 	private numberRestarts: number;
+	private cancellationPipeName: string | null = null;
 
 	private requestQueue: RequestItem[];
 	private pendingResponses: number;
@@ -452,6 +453,10 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 					}
 					if (this.apiVersion.has208Features()) {
 						args.push('--enableTelemetry');
+					}
+					if (this.apiVersion.has220Features()) {
+						this.cancellationPipeName = electron.getPipeName(`tscancellation-${electron.makeRandomHexString(20)}`);
+						args.push('--cancellationPipeName', this.cancellationPipeName + '*');
 					}
 					electron.fork(modulePath, args, options, (err: any, childProcess: cp.ChildProcess) => {
 						if (err) {
@@ -795,6 +800,19 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 				return true;
 			}
 		}
+
+		if (this.apiVersion.has220Features() && this.cancellationPipeName) {
+			if (this.trace !== Trace.Off) {
+				this.logTrace(`TypeScript Service: trying to cancel ongoing request with sequence number ${seq}`);
+			}
+			try {
+				fs.writeFileSync(this.cancellationPipeName + seq, '');
+				return true;
+			} catch (e) {
+				// noop
+			}
+		}
+
 		if (this.trace !== Trace.Off) {
 			this.logTrace(`TypeScript Service: tried to cancel request with sequence number ${seq}. But request got already delivered.`);
 		}
