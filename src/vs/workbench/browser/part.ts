@@ -40,10 +40,6 @@ export abstract class Part extends Component {
 		}
 	}
 
-	protected updateStyles(): void {
-		// Subclasses to override
-	}
-
 	/**
 	 * Note: Clients should not call this method, the workbench calls this
 	 * method. Calling it otherwise may result in unexpected behavior.

@@ -15,29 +15,3 @@
 	text-align: left;
 	background-color: inherit;
 }
-
-/* TODO@theme */
-
-.vs .monaco-workbench > .activitybar > .content {
-	background-color: #2C2C2C;
-}
-
-.vs-dark .monaco-workbench > .activitybar > .content {
-	background-color: #333;
-}
-
-.hc-black .monaco-workbench > .activitybar > .content {
-	background-color: #000;
-}
-
-
-.hc-black .monaco-workbench > .part.activitybar.left .content {
-	box-sizing: border-box; /* helps showing the border when sidebar collapsed */
-	border-right: 1px solid;
-	border-right-color: #6FC3DF;
-}
-
-.hc-black .monaco-workbench > .part.activitybar.right .content {
-	border-left: 1px solid;
-	border-left-color: #6FC3DF;
-}

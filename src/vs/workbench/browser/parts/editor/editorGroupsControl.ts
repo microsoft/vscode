@@ -919,6 +919,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 	}
 
 	protected updateStyles(): void {
+		super.updateStyles();
 
 		// Editor container colors
 		this.silos.forEach((silo, index) => {
