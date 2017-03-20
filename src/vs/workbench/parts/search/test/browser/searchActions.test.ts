@@ -30,7 +30,7 @@ suite('Search Actions', () => {
 		instantiationService = new TestInstantiationService();
 		instantiationService.stub(IModelService, stubModelService(instantiationService));
 		instantiationService.stub(IKeybindingService, {});
-		instantiationService.stub(IKeybindingService, 'resolveKeybinding', (keybinding: Keybinding) => new USLayoutResolvedKeybinding(keybinding, OS));
+		instantiationService.stub(IKeybindingService, 'resolveKeybinding', (keybinding: Keybinding) => [new USLayoutResolvedKeybinding(keybinding, OS)]);
 		counter = 0;
 	});
 

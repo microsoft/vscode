@@ -7,6 +7,8 @@
 import * as assert from 'assert';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
+const createContext = ctx => ({ getValue: key => ctx[key] });
+
 suite('ContextKeyExpr', () => {
 	test('ContextKeyExpr.equals', function () {
 		let a = ContextKeyExpr.and(
@@ -48,11 +50,11 @@ suite('ContextKeyExpr', () => {
 
 	test('evaluate', function () {
 		/* tslint:disable:triple-equals */
-		let context = {
+		let context = createContext({
 			'a': true,
 			'b': false,
 			'c': '5'
-		};
+		});
 		function testExpression(expr: string, expected: boolean): void {
 			let rules = ContextKeyExpr.deserialize(expr);
 			assert.equal(rules.evaluate(context), expected, expr);
