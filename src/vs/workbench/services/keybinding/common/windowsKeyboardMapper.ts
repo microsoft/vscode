@@ -11,6 +11,7 @@ import { CharCode } from 'vs/base/common/charCode';
 import { UILabelProvider, AriaLabelProvider, ElectronAcceleratorLabelProvider, UserSettingsLabelProvider } from 'vs/platform/keybinding/common/keybindingLabels';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { IHTMLContentElement } from 'vs/base/common/htmlContent';
+import { IKeyboardMapper } from 'vs/workbench/services/keybinding/common/keyboardMapper';
 
 export interface IKeyMapping {
 	vkey: string;
@@ -173,7 +174,7 @@ export class WindowsNativeResolvedKeybinding extends ResolvedKeybinding {
 	}
 }
 
-export class WindowsKeyboardMapper {
+export class WindowsKeyboardMapper implements IKeyboardMapper {
 
 	private readonly _codeInfo: IHardwareCodeMapping[];
 	private readonly _hwToKb: KeyCode[];
