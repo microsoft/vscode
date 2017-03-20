@@ -107,8 +107,8 @@ configurationRegistry.registerConfiguration({
 			'default': 1.2
 		},
 		'terminal.integrated.enableBold': {
-			'type': 'string',
-			'description': nls.localize('terminal.integrated.fontWeight', "Customizes font weight in terminal."),
+			'type': 'boolean',
+			'description': nls.localize('terminal.integrated.enableBold', "Whether to enable bold text within the terminal."),
 			'default': true
 		},
 		'terminal.integrated.cursorBlinking': {
