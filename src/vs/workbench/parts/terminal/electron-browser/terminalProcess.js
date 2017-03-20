@@ -48,6 +48,7 @@ ptyProcess.on('data', function (data) {
 });
 
 ptyProcess.on('exit', function (exitCode) {
+	ptyProcess.kill();
 	process.exit(exitCode);
 });
 
