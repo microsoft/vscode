@@ -77,8 +77,8 @@ export class MockKeybindingService implements IKeybindingService {
 		return [];
 	}
 
-	public resolveKeybinding(keybinding: Keybinding): ResolvedKeybinding {
-		return new USLayoutResolvedKeybinding(keybinding, OS);
+	public resolveKeybinding(keybinding: Keybinding): ResolvedKeybinding[] {
+		return [new USLayoutResolvedKeybinding(keybinding, OS)];
 	}
 
 	public resolveKeyboardEvent(keyboardEvent: IKeyboardEvent): ResolvedKeybinding {
@@ -89,7 +89,7 @@ export class MockKeybindingService implements IKeybindingService {
 			keyboardEvent.metaKey,
 			keyboardEvent.keyCode
 		);
-		return this.resolveKeybinding(keybinding);
+		return this.resolveKeybinding(keybinding)[0];
 	}
 
 	public lookupKeybindings(commandId: string): ResolvedKeybinding[] {
