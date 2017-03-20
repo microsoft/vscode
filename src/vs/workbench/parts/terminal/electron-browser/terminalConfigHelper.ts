@@ -87,9 +87,8 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 		return this._measureFont(fontFamily, fontSize, lineHeight);
 	}
 
-	public mergeDefaultShellPathAndArgs(shell: IShellLaunchConfig): IShellLaunchConfig {
+	public mergeDefaultShellPathAndArgs(shell: IShellLaunchConfig): void {
 		const config = this.config;
-
 		shell.executable = '';
 		shell.args = [];
 		if (config && config.shell && config.shellArgs) {
@@ -104,7 +103,6 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 				shell.args = config.shellArgs.linux;
 			}
 		}
-		return shell;
 	}
 
 	private _toInteger(source: any, minimum?: number): number {
