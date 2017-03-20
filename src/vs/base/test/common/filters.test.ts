@@ -195,7 +195,7 @@ suite('Filters', () => {
 
 	test('fuzzyMatchAndScore', function () {
 
-		function assertMatches(pattern: string, word: string, decoratedWord?: string, filter = fuzzyMatchAndScore) {
+		function assertMatches(pattern: string, word: string, decoratedWord: string, filter: typeof fuzzyMatchAndScore) {
 			let r = filter(pattern, word);
 			assert.ok(Boolean(r) === Boolean(decoratedWord));
 			if (r) {
@@ -210,38 +210,62 @@ suite('Filters', () => {
 			}
 		}
 
-		assertMatches('no', 'match');
-		assertMatches('no', '');
-		assertMatches('', 'match');
-		assertMatches('BK', 'the_black_knight', 'the_^black_^knight');
-		assertMatches('bkn', 'the_black_knight', 'the_^black_^k^night');
-		assertMatches('bt', 'the_black_knight', 'the_^black_knigh^t');
-		assertMatches('bti', 'the_black_knight');
-		assertMatches('LLL', 'SVisualLoggerLogsList', 'SVisual^Logger^Logs^List');
-		assertMatches('LLLL', 'SVisualLoggerLogsList');
-		assertMatches('sllll', 'SVisualLoggerLogsList', '^SVisua^l^Logger^Logs^List');
-		assertMatches('sl', 'SVisualLoggerLogsList', '^SVisual^LoggerLogsList');
-		assertMatches('foobar', 'foobar', '^f^o^o^b^a^r');
-		assertMatches('fob', 'foobar', '^f^oo^bar');
-		assertMatches('ob', 'foobar');
-		assertMatches('gp', 'Git: Pull', '^Git: ^Pull');
-		assertMatches('gp', 'Git_Git_Pull', '^Git_Git_^Pull');
-		assertMatches('g p', 'Git: Pull', '^Git:^ ^Pull');
-		assertMatches('gip', 'Git: Pull', '^G^it: ^Pull');
-		assertMatches('is', 'isValid', '^i^sValid');
-		assertMatches('is', 'ImportStatement', '^Import^Statement');
-		assertMatches('lowrd', 'lowWord', '^l^o^wWo^r^d');
-		assertMatches('ccm', 'cacmelCase', '^ca^c^melCase');
-		assertMatches('ccm', 'camelCase');
-		assertMatches('ccm', 'camelCasecm', '^camel^Casec^m');
+		assertMatches('no', 'match', undefined, fuzzyMatchAndScore);
+		assertMatches('no', '', undefined, fuzzyMatchAndScore);
+		assertMatches('', 'match', undefined, fuzzyMatchAndScore);
+		assertMatches('BK', 'the_black_knight', 'the_^black_^knight', fuzzyMatchAndScore);
+		assertMatches('bkn', 'the_black_knight', 'the_^black_^k^night', fuzzyMatchAndScore);
+		assertMatches('bt', 'the_black_knight', 'the_^black_knigh^t', fuzzyMatchAndScore);
+		assertMatches('bti', 'the_black_knight', undefined, fuzzyMatchAndScore);
+		assertMatches('LLL', 'SVisualLoggerLogsList', 'SVisual^Logger^Logs^List', fuzzyMatchAndScore);
+		assertMatches('LLLL', 'SVisualLoggerLogsList', undefined, fuzzyMatchAndScore);
+		assertMatches('sllll', 'SVisualLoggerLogsList', '^SVisua^l^Logger^Logs^List', fuzzyMatchAndScore);
+		assertMatches('sl', 'SVisualLoggerLogsList', '^SVisual^LoggerLogsList', fuzzyMatchAndScore);
+		assertMatches('foobar', 'foobar', '^f^o^o^b^a^r', fuzzyMatchAndScore);
+		assertMatches('fob', 'foobar', '^f^oo^bar', fuzzyMatchAndScore);
+		assertMatches('ob', 'foobar', undefined, fuzzyMatchAndScore);
+		assertMatches('gp', 'Git: Pull', '^Git: ^Pull', fuzzyMatchAndScore);
+		assertMatches('gp', 'Git_Git_Pull', '^Git_Git_^Pull', fuzzyMatchAndScore);
+		assertMatches('g p', 'Git: Pull', '^Git:^ ^Pull', fuzzyMatchAndScore);
+		assertMatches('gip', 'Git: Pull', '^G^it: ^Pull', fuzzyMatchAndScore);
+		assertMatches('is', 'isValid', '^i^sValid', fuzzyMatchAndScore);
+		assertMatches('is', 'ImportStatement', '^Import^Statement', fuzzyMatchAndScore);
+		assertMatches('lowrd', 'lowWord', '^l^o^wWo^r^d', fuzzyMatchAndScore);
+		assertMatches('ccm', 'cacmelCase', '^ca^c^melCase', fuzzyMatchAndScore);
+		assertMatches('ccm', 'camelCase', undefined, fuzzyMatchAndScore);
+		assertMatches('ccm', 'camelCasecm', '^camel^Casec^m', fuzzyMatchAndScore);
 
-		assertMatches('ob', 'foobar', undefined, fuzzyLCS);
+		assertMatches('', 'match', undefined, fuzzyLCS);
+		assertMatches('B', 'bakB', 'bak^B', fuzzyLCS);
+		assertMatches('BB', 'bakB', '^bak^B', fuzzyLCS);
 		assertMatches('BK', 'the_black_knight', 'the_^black_^knight', fuzzyLCS);
-		// assertMatches('BB', 'bakB', '^bak^B', fuzzyLCS);
-		// assertMatches('b', 'bakB', '^bakB', fuzzyLCS);
-		// assertMatches('B', 'bakB', 'bak^B', fuzzyLCS);
-		// assertMatches('ba', 'bakB', '^b^akB', fuzzyLCS);
-		// assertMatches('Ba', 'bakBa', 'bak^B^a', fuzzyLCS);
+		assertMatches('Ba', 'bakBa', 'bak^B^a', fuzzyLCS);
+		assertMatches('LLL', 'SVisualLoggerLogsList', 'SVisual^Logger^Logs^List', fuzzyLCS);
+		// assertMatches('LLLL', 'SVisualLoggerLogsList', undefined, fuzzyLCS);
+		assertMatches('b', 'bakB', '^bakB', fuzzyLCS);
+		assertMatches('ba', 'bakB', '^b^akB', fuzzyLCS);
+		assertMatches('bb', 'bakB', '^bak^B', fuzzyLCS);
+		assertMatches('bkn', 'the_black_knight', 'the_^black_^k^night', fuzzyLCS);
+		// assertMatches('bt', 'the_black_knight', 'the_^black_knigh^t', fuzzyLCS);
+		// assertMatches('bti', 'the_black_knight', undefined, fuzzyLCS);
+		// assertMatches('ccm', 'cacmelCase', '^ca^c^melCase', fuzzyLCS);
+		// assertMatches('ccm', 'camelCase', undefined, fuzzyLCS);
+		// assertMatches('ccm', 'camelCasecm', '^camel^Casec^m', fuzzyLCS);
+		// assertMatches('fob', 'foobar', '^f^oo^bar', fuzzyLCS);
+		// assertMatches('foobar', 'foobar', '^f^o^o^b^a^r', fuzzyLCS);
+		// assertMatches('g p', 'Git: Pull', '^Git:^ ^Pull', fuzzyLCS);
+		// assertMatches('gip', 'Git: Pull', '^G^it: ^Pull', fuzzyLCS);
+		// assertMatches('gp', 'Git: Pull', '^Git: ^Pull', fuzzyLCS);
+		// assertMatches('gp', 'Git_Git_Pull', '^Git_Git_^Pull', fuzzyLCS);
+		// assertMatches('is', 'ImportStatement', '^Import^Statement', fuzzyLCS);
+		// assertMatches('is', 'isValid', '^i^sValid', fuzzyLCS);
+		// assertMatches('lowrd', 'lowWord', '^l^o^wWo^r^d', fuzzyLCS);
+		// assertMatches('no', '', undefined, fuzzyLCS);
+		// assertMatches('no', 'match', undefined, fuzzyLCS);
+		// assertMatches('ob', 'foobar', undefined, fuzzyLCS);
+		// assertMatches('ob', 'foobar', undefined, fuzzyLCS);
+		// assertMatches('sl', 'SVisualLoggerLogsList', '^SVisual^LoggerLogsList', fuzzyLCS);
+		// assertMatches('sllll', 'SVisualLoggerLogsList', '^SVisua^l^Logger^Logs^List', fuzzyLCS);
 	});
 
 	test('topScore', function () {
