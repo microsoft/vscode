@@ -64,13 +64,6 @@
 	outline-offset: -5px;
 }
 
-.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container.dropfeedback,
-.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.dropfeedback {
-	background: none !important;
-	outline: 2px dashed;
-	outline-offset: -5px;
-}
-
 /* Tab Label */
 
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab .tab-label {
@@ -178,30 +171,4 @@
 	cursor: default;
 	flex: initial;
 	padding-left: 4px;
-}
-
-/* TODO@theme */
-
-.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.active,
-.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.active:hover {
-	outline-color: #f38518;
-}
-
-.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab:hover {
-	outline-color: #f38518;
-}
-
-.vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container.dropfeedback,
-.vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.dropfeedback {
-	background-color: #DDECFF;
-}
-
-.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container.dropfeedback,
-.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.dropfeedback {
-	background-color: #383B3D;
-}
-
-.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container.dropfeedback,
-.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.dropfeedback {
-	outline-color: #f38518;
 }

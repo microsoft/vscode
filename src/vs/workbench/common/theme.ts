@@ -14,7 +14,7 @@ import { Color, RGBA } from 'vs/base/common/color';
 export const TABS_CONTAINER_BACKGROUND = registerColor('tabsContainerBackground', {
 	dark: '#252526',
 	light: '#F3F3F3',
-	hc: Color.transparent
+	hc: null
 }, nls.localize('tabsContainerBackground', "Background color of the tabs container. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
 
 export const NO_TABS_CONTAINER_BACKGROUND = registerColor('noTabsContainerBackground', {
@@ -32,7 +32,7 @@ export const ACTIVE_TAB_BACKGROUND = registerColor('activeTabBackground', {
 export const INACTIVE_TAB_BACKGROUND = registerColor('inactiveTabBackground', {
 	dark: '#2D2D2D',
 	light: '#ECECEC',
-	hc: Color.transparent
+	hc: null
 }, nls.localize('inactiveTabBackground', "Inactive tab background color. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
 
 export const ACTIVE_TAB_ACTIVE_GROUP_FOREGROUND = registerColor('activeTabActiveGroupForeground', {
@@ -75,6 +75,17 @@ export const EDITOR_GROUP_BORDER_COLOR = registerColor('editorGroupBorder', {
 	hc: highContrastBorder
 }, nls.localize('editorGroupBorder', "Color to separate multiple editor groups from each other. Editor groups are the containers of editors."));
 
+export const EDITOR_GROUP_BACKGROUND = registerColor('editorGroupBackground', {
+	dark: '#2D2D2D',
+	light: '#ECECEC',
+	hc: null
+}, nls.localize('editorGroupBackground', "Backgrouund color of an editor group. Editor groups are the containers of editors."));
+
+export const EDITOR_DRAG_AND_DROP_BACKGROUND = registerColor('editorDragAndDropBackground', {
+	dark: Color.fromRGBA(new RGBA(83, 89, 93)).transparent(0.5),
+	light: Color.fromRGBA(new RGBA(51, 153, 255)).transparent(0.18),
+	hc: null
+}, nls.localize('editorDragAndDropBackground', "Background color when dragging editors around."));
 
 
 // < --- Panels --- >
@@ -104,13 +115,13 @@ export const STATUS_BAR_FOREGROUND = registerColor('statusBarForeground', {
 export const STATUS_BAR_BACKGROUND = registerColor('statusBarBackground', {
 	dark: '#007ACC',
 	light: '#007ACC',
-	hc: Color.transparent
+	hc: null
 }, nls.localize('statusBarBackground', "Standard status bar background color. The status bar is shown in the bottom of the window"));
 
 export const STATUS_BAR_NO_FOLDER_BACKGROUND = registerColor('statusBarNoFolderBackground', {
 	dark: '#68217A',
 	light: '#68217A',
-	hc: Color.transparent
+	hc: null
 }, nls.localize('statusBarNoFolderBackground', "Status bar background color when no folder is opened. The status bar is shown in the bottom of the window"));
 
 /**
@@ -118,7 +129,7 @@ export const STATUS_BAR_NO_FOLDER_BACKGROUND = registerColor('statusBarNoFolderB
  */
 export class Themable extends Disposable {
 	private _toUnbind: IDisposable[];
-	private _theme: ITheme;
+	private theme: ITheme;
 
 	constructor(
 		protected themeService: IThemeService
@@ -126,14 +137,14 @@ export class Themable extends Disposable {
 		super();
 
 		this._toUnbind = [];
-		this._theme = themeService.getTheme();
+		this.theme = themeService.getTheme();
 
 		// Hook up to theme changes
 		this._toUnbind.push(this.themeService.onThemeChange(theme => this.onThemeChange(theme)));
 	}
 
-	protected get theme(): ITheme {
-		return this._theme;
+	protected get isHighContrastTheme(): boolean {
+		return this.theme.type === 'hc';
 	}
 
 	protected get toUnbind() {
@@ -141,7 +152,7 @@ export class Themable extends Disposable {
 	}
 
 	protected onThemeChange(theme: ITheme): void {
-		this._theme = theme;
+		this.theme = theme;
 
 		this.updateStyles(theme);
 	}
@@ -151,7 +162,7 @@ export class Themable extends Disposable {
 	}
 
 	protected getColor(id: string): string {
-		const color = this._theme.getColor(id);
+		const color = this.theme.getColor(id);
 
 		return color ? color.toString() : null;
 	}
