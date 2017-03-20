@@ -41,7 +41,7 @@
 	background: url('close-inverse.svg') center center no-repeat;
 }
 
-/* TODO@theme */
+/* TODO@theme (widgets) */
 
 .vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .title-actions,
 .vs-dark .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .title-actions,

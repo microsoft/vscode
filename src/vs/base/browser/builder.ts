@@ -857,7 +857,8 @@ export class Builder implements IDisposable {
 	 *  a) a single string passed in as argument will return the style value using the
 	 *  string as key from the current element of the builder.
 	 *  b) two strings passed in will set the style value identified by the first
-	 *  parameter to match the second parameter.
+	 *  parameter to match the second parameter. The second parameter can be null
+	 *  to unset a style
 	 *  c) an object literal passed in will apply the properties of the literal as styles
 	 *  to the current element of the builder.
 	 */
@@ -874,15 +875,19 @@ export class Builder implements IDisposable {
 					this.doSetStyle(prop, value);
 				}
 			}
+
+			return this;
 		}
 
+		const hasFirstP = types.isString(firstP);
+
 		// Get Style Value
-		else if (types.isString(firstP) && !types.isString(secondP)) {
+		if (hasFirstP && types.isUndefined(secondP)) {
 			return this.currentElement.style[this.cssKeyToJavaScriptProperty(firstP)];
 		}
 
 		// Set Style Value
-		else if (types.isString(firstP) && types.isString(secondP)) {
+		else if (hasFirstP) {
 			this.doSetStyle(firstP, secondP);
 		}
 

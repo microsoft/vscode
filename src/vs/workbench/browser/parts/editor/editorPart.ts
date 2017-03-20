@@ -40,6 +40,7 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
+import { EDITOR_GROUP_BACKGROUND } from 'vs/workbench/common/theme';
 
 class ProgressMonitor {
 
@@ -179,7 +180,13 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		this.toUnbind.push(this.stacks.onEditorDisposed(identifier => this.onEditorDisposed(identifier)));
 		this.toUnbind.push(this.stacks.onEditorOpened(identifier => this.onEditorOpened(identifier)));
 		this.toUnbind.push(this.stacks.onEditorClosed(event => this.onEditorClosed(event)));
+		this.toUnbind.push(this.stacks.onGroupOpened(event => this.onEditorGroupOpenedOrClosed()));
+		this.toUnbind.push(this.stacks.onGroupClosed(event => this.onEditorGroupOpenedOrClosed()));
 		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config)));
+	}
+
+	private onEditorGroupOpenedOrClosed(): void {
+		this.updateStyles();
 	}
 
 	private onConfigurationUpdated(configuration: IWorkbenchEditorConfiguration): void {
@@ -913,8 +920,22 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	}
 
 	protected updateStyles(): void {
+
+		// Part container
 		const container = this.getContainer();
 		container.style('background-color', this.getColor(editorBackground));
+
+		// Content area
+		const content = this.getContentArea();
+
+		const groupCount = this.stacks.groups.length;
+		if (groupCount > 1) {
+			content.addClass('multiple-groups');
+		} else {
+			content.removeClass('multiple-groups');
+		}
+
+		content.style('background-color', groupCount > 0 ? this.getColor(EDITOR_GROUP_BACKGROUND) : null);
 	}
 
 	private onGroupFocusChanged(): void {
