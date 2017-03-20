@@ -15,6 +15,7 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { MenuRegistry } from 'vs/platform/actions/common/actions';
 import { IColorTheme } from 'vs/workbench/services/themes/common/themeService';
 import { editorBackground, editorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 declare interface WebviewElement extends HTMLElement {
 	src: string;
@@ -23,6 +24,22 @@ declare interface WebviewElement extends HTMLElement {
 
 	send(channel: string, ...args: any[]);
 	openDevTools(): any;
+	findInPage(value: string, options?: WebviewElementFindInPageOptions);
+	stopFindInPage(action: string);
+}
+
+export class StopFindInPageActions {
+	static clearSelection = 'clearSelection';
+	static keepSelection = 'keepSelection';
+	static activateSelection = 'activateSelection';
+}
+
+export interface WebviewElementFindInPageOptions {
+	forward?: boolean;
+	findNext?: boolean;
+	matchCase?: boolean;
+	wordStart?: boolean;
+	medialCapitalAsWordStart?: boolean;
 }
 
 CommandsRegistry.registerCommand('_webview.openDevTools', function () {
@@ -50,8 +67,9 @@ export default class Webview {
 	private _disposables: IDisposable[];
 	private _onDidClickLink = new Emitter<URI>();
 	private _onDidLoadContent = new Emitter<{ stats: any }>();
+	private _onFoundInPageResults = new Emitter<FoundInPageResults>();
 
-	constructor(parent: HTMLElement, private _styleElement: Element) {
+	constructor(parent: HTMLElement, private _styleElement: Element, private htmlPreviewFocusContexKey?: IContextKey<boolean>) {
 		this._webview = <any>document.createElement('webview');
 
 		this._webview.style.width = '100%';
@@ -96,6 +114,19 @@ export default class Webview {
 					this._onDidLoadContent.fire({ stats });
 					return;
 				}
+			}),
+			addDisposableListener(this._webview, 'focus', (event: KeyboardEvent) => {
+				if (this.htmlPreviewFocusContexKey) {
+					this.htmlPreviewFocusContexKey.set(true);
+				}
+			}),
+			addDisposableListener(this._webview, 'blur', (event: KeyboardEvent) => {
+				if (this.htmlPreviewFocusContexKey) {
+					this.htmlPreviewFocusContexKey.reset();
+				}
+			}),
+			addDisposableListener(this._webview, 'found-in-page', (event) => {
+				this._onFoundInPageResults.fire(event.result);
 			})
 		];
 
@@ -122,6 +153,10 @@ export default class Webview {
 		return this._onDidLoadContent.event;
 	}
 
+	get onFindResults(): Event<FoundInPageResults> {
+		return this._onFoundInPageResults.event;
+	}
+
 	private _send(channel: string, ...args: any[]): void {
 		this._ready
 			.then(() => this._webview.send(channel, ...args))
@@ -143,6 +178,27 @@ export default class Webview {
 
 	public sendMessage(data: any): void {
 		this._send('message', data);
+	}
+
+	/**
+	 * Webviews expose a stateful find API.
+	 * Successive calls to find will move forward or backward through onFindResults
+	 * depending on the supplied options.
+	 *
+	 * @param {string} value The string to search for. Empty strings are ignored.
+	 * @param {WebviewElementFindInPageOptions} [options]
+	 *
+	 * @memberOf Webview
+	 */
+	public find(value: string, options?: WebviewElementFindInPageOptions): void {
+		// Searching with an empty value will throw an exception
+		if (value) {
+			this._webview.findInPage(value, options);
+		}
+	}
+
+	public stopFind(keepSelection?: boolean): void {
+		this._webview.stopFindInPage(keepSelection ? StopFindInPageActions.keepSelection : StopFindInPageActions.clearSelection);
 	}
 
 	style(theme: IColorTheme): void {
@@ -229,4 +285,11 @@ export default class Webview {
 
 		this._send('styles', value, activeTheme);
 	}
+}
+
+export interface FoundInPageResults {
+	requestId: number;
+	activeMatchOrdinal: number;
+	matches: number;
+	selectionArea: any;
 }
