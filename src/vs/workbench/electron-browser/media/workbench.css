@@ -37,25 +37,7 @@
 	z-index: 10000;
 }
 
-.hc-black #monaco-workbench-drop-overlay {
-	background: none !important;
-	outline: 2px dashed;
-	outline-offset: -2px;
-}
-
-/* TODO@theme */
-
-.vs #monaco-workbench-drop-overlay {
-	background-color: rgba(51,153,255, 0.18);
-}
-
-.vs-dark #monaco-workbench-drop-overlay {
-	background-color: rgba(83, 89, 93, 0.5);
-}
-
-.hc-black #monaco-workbench-drop-overlay {
-	outline-color: #f38518;
-}
+/* TODO@theme (widgets) */
 
 .vs-dark .monaco-workbench .monaco-scrollable-element .shadow.top {
 	box-shadow: #000 0 6px 6px -6px inset;
