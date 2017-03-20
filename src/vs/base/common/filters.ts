@@ -388,89 +388,127 @@ const gap = -1;
 	let firstRow: number[] = [0];
 	table.push(firstRow);
 	for (let i = 1; i < 100; i++) {
-		firstRow.push(i * gap);
+		firstRow.push((i * gap) << 2);
 	}
-	for (let i = 0; i < 100; i++) {
+	for (let i = 1; i < 100; i++) {
 		let row = new Array(100);
-		row[0] = i * gap;
+		row[0] = (i * gap) << 2;
 		table.push(row);
 	}
 })();
 
-
 export function fuzzyLCS(pattern: string, word: string): [number, number[]] {
 
+	if (!pattern || !word) {
+		return undefined;
+	}
+
 	const lowPattern = pattern.toLowerCase();
-	const upPattern = pattern.toUpperCase();
 	const lowWord = word.toLowerCase();
+
+	for (let i = 1; i < pattern.length + 1; ++i) {
+
+		let patternPos = i - 1;
+		let hadmatch = false;
+
+		for (let j = 1; j < word.length + 1; ++j) {
+
+			let wordPos = j - 1;
+			let match = gap;
+
+			if (lowPattern[patternPos] === lowWord[wordPos]) {
+				// some kind of match
+				hadmatch = true;
+
+				if (lowWord[wordPos] !== word[wordPos]) {
+					// upper-word-char
+					if (pattern[patternPos] === word[wordPos]) {
+						// upper-case-perfect-match: B -> fooBar
+						match = 15;
+					} else {
+						// upper-case-match: b -> fooBar
+						match = 10;
+					}
+				} else if (wordPos === 0) {
+					// at-start-match
+					if (pattern[patternPos] === word[wordPos]) {
+						match = 15;
+					} else {
+						match = 10;
+					}
+
+				} else if (j > 1 && word[j - 2] === '_') {
+					// post-separator-match: b -> foo_bar
+					match = 10;
+
+				} else if (patternPos > 0) {
+					// normal match : b -> foobar
+					// *only* when already matched something better before
+					match = 1;
+				} else {
+					hadmatch = false;
+				}
+			}
+
+			let diag = (table[i - 1][j - 1] >> 2) + match;
+			let top = (table[i - 1][j] >> 2) + gap;
+			let left = (table[i][j - 1] >> 2) + gap;
+			let arrow = 0;
+			let value = 0;
+
+			if (diag >= top) {
+				if (diag > left) {
+					arrow = 2;
+					value = diag;
+				} else {
+					arrow = 1;
+					value = left;
+				}
+			} else {
+				if (left >= top) {
+					arrow = 1;
+					value = left;
+				} else {
+					arrow = 3;
+					value = top;
+				}
+			}
+
+			table[i][j] = (value << 2) + arrow;
+		}
+
+		if (!hadmatch) {
+			// pattern must match in every row at least once
+			return undefined;
+		}
+	}
 
 	let matches: number[] = [];
 	let score = 0;
 
-	for (let i = 1; i < pattern.length + 1; ++i) {
-		let topMatch = -1;
-		let topMatchIdx = 0;
-		for (let j = 1; j < word.length + 1; ++j) {
+	// back-trace
+	let i = pattern.length;
+	let j = word.length;
+	while (i > 0 && j > 0) {
+		let value = table[i][j];
+		let match = value >> 2;
+		let arrow = value & 0b11;
 
-			let match = gap;
-
-			if (lowPattern[i - 1] === lowWord[j - 1]) {
-				// some kind of match
-
-				if (pattern[i - 1] === word[j - 1]
-					&& (lowWord[j - 1] !== word[j - i] || i === j)
-				) {
-					// upper-case match or perfect match at start
-					match = 13;
-
-				} else if (j > 1 && word[j - 2] === '_') {
-					// after separator
-					match = 11;
-
-				} else if (upPattern[i - 1] === word[j - 1]) {
-					// upper-case hit
-					match = 11;
-
-				} else {
-					// normal match
-					match = 1;
-				}
-			}
-
-			let diag = table[i - 1][j - 1] + match;
-			let top = table[i - 1][j] + gap;
-			let left = table[i][j - 1] + gap;
-
-			if (diag > top) {
-				if (diag > left) {
-					table[i][j] = diag;
-				} else {
-					table[i][j] = left;
-				}
-			} else {
-				if (top > left) {
-					table[i][j] = top;
-				} else {
-					table[i][j] = left;
-				}
-			}
-
-			if (match > topMatch) {
-				topMatch = match;
-				topMatchIdx = j - 1;
-			}
-		}
-		if (topMatch < 0 || i !== 0 && topMatch === 1) {
-			// no match for first character or matched
-			// something unintersting in the middle
+		if (arrow === 1) { // left
+			score -= 1;
+			j -= 1;
+		} else if (arrow === 2) { // diag
+			score += match;
+			matches.unshift(j - 1);
+			i -= 1;
+			j -= 1;
+		} else { // top
+			// cannot happen because it means the characters
+			// didn't match in order of the pattern
 			return undefined;
-
-		} else {
-			matches.push(topMatchIdx);
-			score += topMatch;
 		}
 	}
-
+	// console.log(value, s, a);
 	return [score, matches];
 }
 
