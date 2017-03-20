@@ -12,6 +12,7 @@ import { CharCode } from 'vs/base/common/charCode';
 import { IHTMLContentElement } from 'vs/base/common/htmlContent';
 import { UILabelProvider, AriaLabelProvider, UserSettingsLabelProvider, ElectronAcceleratorLabelProvider } from 'vs/platform/keybinding/common/keybindingLabels';
 import { IKeyboardMapper } from 'vs/workbench/services/keybinding/common/keyboardMapper';
+import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 
 export interface IKeyMapping {
 	value: string;
@@ -605,13 +606,6 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 				// maps to different keyCode
 				return -1;
 			}
-
-			// Check that the inverse is true
-			const inverse = this._kbToHw[kbEncoded];
-			if (inverse.length !== 1) {
-				// multiple hw keypresses map to this kb
-				return -1;
-			}
 		}
 
 		return constantKeyCode;
@@ -643,6 +637,11 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 		}
 
 		return result;
+	}
+
+	public resolveKeyboardEvent(keyboardEvent: IKeyboardEvent): NativeResolvedKeybinding {
+		const keypress = new HardwareKeypress(keyboardEvent.ctrlKey, keyboardEvent.shiftKey, keyboardEvent.altKey, keyboardEvent.metaKey, KeyboardEventCodeUtils.toEnum(keyboardEvent.code));
+		return new NativeResolvedKeybinding(this, this._OS, keypress, null);
 	}
 
 	private static _charCodeToKb(charCode: number): { keyCode: KeyCode; shiftKey: boolean } {

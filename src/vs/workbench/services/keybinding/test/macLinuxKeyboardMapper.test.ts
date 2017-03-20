@@ -14,7 +14,7 @@ import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayo
 import { KeyboardEventCodeUtils } from 'vs/workbench/services/keybinding/common/keyboardEventCode';
 import { IHTMLContentElement } from 'vs/base/common/htmlContent';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { readRawMapping, assertMapping, IResolvedKeybinding, assertResolveKeybinding, simpleHTMLLabel, chordHTMLLabel } from 'vs/workbench/services/keybinding/test/keyboardMapperTestUtils';
+import { readRawMapping, assertMapping, IResolvedKeybinding, assertResolveKeybinding, simpleHTMLLabel, chordHTMLLabel, assertResolveKeyboardEvent } from 'vs/workbench/services/keybinding/test/keyboardMapperTestUtils';
 
 function createKeyboardMapper(file: string, OS: OperatingSystem): TPromise<MacLinuxKeyboardMapper> {
 	return readRawMapping<IKeyboardMapping>(file).then((rawMappings) => {
@@ -114,6 +114,33 @@ suite('keyboardMapper - MAC de_ch', () => {
 		);
 	});
 
+	test('resolveKeyboardEvent Cmd+[KeyY]', () => {
+		assertResolveKeyboardEvent(
+			mapper,
+			{
+				ctrlKey: false,
+				shiftKey: false,
+				altKey: false,
+				metaKey: true,
+				keyCode: -1,
+				code: 'KeyY'
+			},
+			{
+				label: '⌘Z',
+				ariaLabel: 'Command+Z',
+				HTMLLabel: [_simpleHTMLLabel(['⌘', 'Z'])],
+				electronAccelerator: 'Cmd+Z',
+				userSettingsLabel: 'cmd+z',
+				isChord: false,
+				hasCtrlModifier: false,
+				hasShiftModifier: false,
+				hasAltModifier: false,
+				hasMetaModifier: true,
+				dispatchParts: ['meta+[KeyY]', null],
+			}
+		);
+	});
+
 	test('resolveKeybinding Cmd+]', () => {
 		_assertResolveKeybinding(
 			KeyMod.CtrlCmd | KeyCode.US_CLOSE_SQUARE_BRACKET,
@@ -130,6 +157,33 @@ suite('keyboardMapper - MAC de_ch', () => {
 				hasMetaModifier: true,
 				dispatchParts: ['ctrl+alt+meta+[Digit6]', null],
 			}]
+		);
+	});
+
+	test('resolveKeyboardEvent Cmd+[BracketRight]', () => {
+		assertResolveKeyboardEvent(
+			mapper,
+			{
+				ctrlKey: false,
+				shiftKey: false,
+				altKey: false,
+				metaKey: true,
+				keyCode: -1,
+				code: 'BracketRight'
+			},
+			{
+				label: '⌘¨',
+				ariaLabel: 'Command+¨',
+				HTMLLabel: [_simpleHTMLLabel(['⌘', '¨'])],
+				electronAccelerator: null,
+				userSettingsLabel: 'cmd+[BracketRight]',
+				isChord: false,
+				hasCtrlModifier: false,
+				hasShiftModifier: false,
+				hasAltModifier: false,
+				hasMetaModifier: true,
+				dispatchParts: ['meta+[BracketRight]', null],
+			}
 		);
 	});
 
@@ -265,6 +319,52 @@ suite('keyboardMapper - MAC de_ch', () => {
 			}]
 		);
 	});
+
+	test('resolveKeybinding Ctrl+Home', () => {
+		_assertResolveKeybinding(
+			KeyMod.CtrlCmd | KeyCode.Home,
+			[{
+				label: '⌘Home',
+				ariaLabel: 'Command+Home',
+				HTMLLabel: [_simpleHTMLLabel(['⌘', 'Home'])],
+				electronAccelerator: 'Cmd+Home',
+				userSettingsLabel: 'cmd+home',
+				isChord: false,
+				hasCtrlModifier: false,
+				hasShiftModifier: false,
+				hasAltModifier: false,
+				hasMetaModifier: true,
+				dispatchParts: ['meta+[Home]', null],
+			}]
+		);
+	});
+
+	test('resolveKeyboardEvent Ctrl+[Home]', () => {
+		assertResolveKeyboardEvent(
+			mapper,
+			{
+				ctrlKey: false,
+				shiftKey: false,
+				altKey: false,
+				metaKey: true,
+				keyCode: -1,
+				code: 'Home'
+			},
+			{
+				label: '⌘Home',
+				ariaLabel: 'Command+Home',
+				HTMLLabel: [_simpleHTMLLabel(['⌘', 'Home'])],
+				electronAccelerator: 'Cmd+Home',
+				userSettingsLabel: 'cmd+home',
+				isChord: false,
+				hasCtrlModifier: false,
+				hasShiftModifier: false,
+				hasAltModifier: false,
+				hasMetaModifier: true,
+				dispatchParts: ['meta+[Home]', null],
+			}
+		);
+	});
 });
 
 suite('keyboardMapper - LINUX de_ch', () => {
@@ -351,10 +451,64 @@ suite('keyboardMapper - LINUX de_ch', () => {
 		);
 	});
 
+	test('resolveKeyboardEvent Ctrl+[KeyY]', () => {
+		assertResolveKeyboardEvent(
+			mapper,
+			{
+				ctrlKey: true,
+				shiftKey: false,
+				altKey: false,
+				metaKey: false,
+				keyCode: -1,
+				code: 'KeyY'
+			},
+			{
+				label: 'Ctrl+Z',
+				ariaLabel: 'Control+Z',
+				HTMLLabel: [_simpleHTMLLabel(['Ctrl', 'Z'])],
+				electronAccelerator: 'Ctrl+Z',
+				userSettingsLabel: 'ctrl+z',
+				isChord: false,
+				hasCtrlModifier: true,
+				hasShiftModifier: false,
+				hasAltModifier: false,
+				hasMetaModifier: false,
+				dispatchParts: ['ctrl+[KeyY]', null],
+			}
+		);
+	});
+
 	test('resolveKeybinding Ctrl+]', () => {
 		_assertResolveKeybinding(
 			KeyMod.CtrlCmd | KeyCode.US_CLOSE_SQUARE_BRACKET,
 			[]
+		);
+	});
+
+	test('resolveKeyboardEvent Ctrl+[BracketRight]', () => {
+		assertResolveKeyboardEvent(
+			mapper,
+			{
+				ctrlKey: true,
+				shiftKey: false,
+				altKey: false,
+				metaKey: false,
+				keyCode: -1,
+				code: 'BracketRight'
+			},
+			{
+				label: 'Ctrl+¨',
+				ariaLabel: 'Control+¨',
+				HTMLLabel: [_simpleHTMLLabel(['Ctrl', '¨'])],
+				electronAccelerator: null,
+				userSettingsLabel: 'ctrl+[BracketRight]',
+				isChord: false,
+				hasCtrlModifier: true,
+				hasShiftModifier: false,
+				hasAltModifier: false,
+				hasMetaModifier: false,
+				dispatchParts: ['ctrl+[BracketRight]', null],
+			}
 		);
 	});
 
@@ -490,9 +644,55 @@ suite('keyboardMapper - LINUX de_ch', () => {
 			}]
 		);
 	});
+
+	test('resolveKeybinding Ctrl+Home', () => {
+		_assertResolveKeybinding(
+			KeyMod.CtrlCmd | KeyCode.Home,
+			[{
+				label: 'Ctrl+Home',
+				ariaLabel: 'Control+Home',
+				HTMLLabel: [_simpleHTMLLabel(['Ctrl', 'Home'])],
+				electronAccelerator: 'Ctrl+Home',
+				userSettingsLabel: 'ctrl+home',
+				isChord: false,
+				hasCtrlModifier: true,
+				hasShiftModifier: false,
+				hasAltModifier: false,
+				hasMetaModifier: false,
+				dispatchParts: ['ctrl+[Home]', null],
+			}]
+		);
+	});
+
+	test('resolveKeyboardEvent Ctrl+[Home]', () => {
+		assertResolveKeyboardEvent(
+			mapper,
+			{
+				ctrlKey: true,
+				shiftKey: false,
+				altKey: false,
+				metaKey: false,
+				keyCode: -1,
+				code: 'Home'
+			},
+			{
+				label: 'Ctrl+Home',
+				ariaLabel: 'Control+Home',
+				HTMLLabel: [_simpleHTMLLabel(['Ctrl', 'Home'])],
+				electronAccelerator: 'Ctrl+Home',
+				userSettingsLabel: 'ctrl+home',
+				isChord: false,
+				hasCtrlModifier: true,
+				hasShiftModifier: false,
+				hasAltModifier: false,
+				hasMetaModifier: false,
+				dispatchParts: ['ctrl+[Home]', null],
+			}
+		);
+	});
 });
 
-suite('keyboardMapper - LINUX de_ch', () => {
+suite('keyboardMapper - LINUX en_us', () => {
 
 	let mapper: MacLinuxKeyboardMapper;
 
@@ -505,6 +705,308 @@ suite('keyboardMapper - LINUX de_ch', () => {
 
 	test('mapping', (done) => {
 		assertMapping(mapper, 'linux_en_us.txt', done);
+	});
+
+	function _assertResolveKeybinding(k: number, expected: IResolvedKeybinding[]): void {
+		assertResolveKeybinding(mapper, createKeybinding(k, OperatingSystem.Linux), expected);
+	}
+
+	function _simpleHTMLLabel(pieces: string[]): IHTMLContentElement {
+		return simpleHTMLLabel(pieces, OperatingSystem.Linux);
+	}
+
+	function _chordHTMLLabel(firstPart: string[], chordPart: string[]): IHTMLContentElement {
+		return chordHTMLLabel(firstPart, chordPart, OperatingSystem.Linux);
+	}
+
+	test('resolveKeybinding Ctrl+A', () => {
+		_assertResolveKeybinding(
+			KeyMod.CtrlCmd | KeyCode.KEY_A,
+			[{
+				label: 'Ctrl+A',
+				ariaLabel: 'Control+A',
+				HTMLLabel: [_simpleHTMLLabel(['Ctrl', 'A'])],
+				electronAccelerator: 'Ctrl+A',
+				userSettingsLabel: 'ctrl+a',
+				isChord: false,
+				hasCtrlModifier: true,
+				hasShiftModifier: false,
+				hasAltModifier: false,
+				hasMetaModifier: false,
+				dispatchParts: ['ctrl+[KeyA]', null],
+			}]
+		);
+	});
+
+	test('resolveKeybinding Ctrl+Z', () => {
+		_assertResolveKeybinding(
+			KeyMod.CtrlCmd | KeyCode.KEY_Z,
+			[{
+				label: 'Ctrl+Z',
+				ariaLabel: 'Control+Z',
+				HTMLLabel: [_simpleHTMLLabel(['Ctrl', 'Z'])],
+				electronAccelerator: 'Ctrl+Z',
+				userSettingsLabel: 'ctrl+z',
+				isChord: false,
+				hasCtrlModifier: true,
+				hasShiftModifier: false,
+				hasAltModifier: false,
+				hasMetaModifier: false,
+				dispatchParts: ['ctrl+[KeyZ]', null],
+			}]
+		);
+	});
+
+	test('resolveKeyboardEvent Ctrl+[KeyZ]', () => {
+		assertResolveKeyboardEvent(
+			mapper,
+			{
+				ctrlKey: true,
+				shiftKey: false,
+				altKey: false,
+				metaKey: false,
+				keyCode: -1,
+				code: 'KeyZ'
+			},
+			{
+				label: 'Ctrl+Z',
+				ariaLabel: 'Control+Z',
+				HTMLLabel: [_simpleHTMLLabel(['Ctrl', 'Z'])],
+				electronAccelerator: 'Ctrl+Z',
+				userSettingsLabel: 'ctrl+z',
+				isChord: false,
+				hasCtrlModifier: true,
+				hasShiftModifier: false,
+				hasAltModifier: false,
+				hasMetaModifier: false,
+				dispatchParts: ['ctrl+[KeyZ]', null],
+			}
+		);
+	});
+
+	test('resolveKeybinding Ctrl+]', () => {
+		_assertResolveKeybinding(
+			KeyMod.CtrlCmd | KeyCode.US_CLOSE_SQUARE_BRACKET,
+			[{
+				label: 'Ctrl+]',
+				ariaLabel: 'Control+]',
+				HTMLLabel: [_simpleHTMLLabel(['Ctrl', ']'])],
+				electronAccelerator: 'Ctrl+]',
+				userSettingsLabel: 'ctrl+]',
+				isChord: false,
+				hasCtrlModifier: true,
+				hasShiftModifier: false,
+				hasAltModifier: false,
+				hasMetaModifier: false,
+				dispatchParts: ['ctrl+[BracketRight]', null],
+			}]
+		);
+	});
+
+	test('resolveKeyboardEvent Ctrl+[BracketRight]', () => {
+		assertResolveKeyboardEvent(
+			mapper,
+			{
+				ctrlKey: true,
+				shiftKey: false,
+				altKey: false,
+				metaKey: false,
+				keyCode: -1,
+				code: 'BracketRight'
+			},
+			{
+				label: 'Ctrl+]',
+				ariaLabel: 'Control+]',
+				HTMLLabel: [_simpleHTMLLabel(['Ctrl', ']'])],
+				electronAccelerator: 'Ctrl+]',
+				userSettingsLabel: 'ctrl+]',
+				isChord: false,
+				hasCtrlModifier: true,
+				hasShiftModifier: false,
+				hasAltModifier: false,
+				hasMetaModifier: false,
+				dispatchParts: ['ctrl+[BracketRight]', null],
+			}
+		);
+	});
+
+	test('resolveKeybinding Shift+]', () => {
+		_assertResolveKeybinding(
+			KeyMod.Shift | KeyCode.US_CLOSE_SQUARE_BRACKET,
+			[{
+				label: 'Shift+]',
+				ariaLabel: 'Shift+]',
+				HTMLLabel: [_simpleHTMLLabel(['Shift', ']'])],
+				electronAccelerator: 'Shift+]',
+				userSettingsLabel: 'shift+]',
+				isChord: false,
+				hasCtrlModifier: false,
+				hasShiftModifier: true,
+				hasAltModifier: false,
+				hasMetaModifier: false,
+				dispatchParts: ['shift+[BracketRight]', null],
+			}]
+		);
+	});
+
+	test('resolveKeybinding Ctrl+/', () => {
+		_assertResolveKeybinding(
+			KeyMod.CtrlCmd | KeyCode.US_SLASH,
+			[{
+				label: 'Ctrl+/',
+				ariaLabel: 'Control+/',
+				HTMLLabel: [_simpleHTMLLabel(['Ctrl', '/'])],
+				electronAccelerator: 'Ctrl+/',
+				userSettingsLabel: 'ctrl+/',
+				isChord: false,
+				hasCtrlModifier: true,
+				hasShiftModifier: false,
+				hasAltModifier: false,
+				hasMetaModifier: false,
+				dispatchParts: ['ctrl+[Slash]', null],
+			}]
+		);
+	});
+
+	test('resolveKeybinding Ctrl+Shift+/', () => {
+		_assertResolveKeybinding(
+			KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_SLASH,
+			[{
+				label: 'Ctrl+Shift+/',
+				ariaLabel: 'Control+Shift+/',
+				HTMLLabel: [_simpleHTMLLabel(['Ctrl', 'Shift', '/'])],
+				electronAccelerator: 'Ctrl+Shift+/',
+				userSettingsLabel: 'ctrl+shift+/',
+				isChord: false,
+				hasCtrlModifier: true,
+				hasShiftModifier: true,
+				hasAltModifier: false,
+				hasMetaModifier: false,
+				dispatchParts: ['ctrl+shift+[Slash]', null],
+			}]
+		);
+	});
+
+	test('resolveKeybinding Ctrl+K Ctrl+\\', () => {
+		_assertResolveKeybinding(
+			KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.US_BACKSLASH),
+			[{
+				label: 'Ctrl+K Ctrl+\\',
+				ariaLabel: 'Control+K Control+\\',
+				HTMLLabel: [_chordHTMLLabel(['Ctrl', 'K'], ['Ctrl', '\\'])],
+				electronAccelerator: null,
+				userSettingsLabel: 'ctrl+k ctrl+\\',
+				isChord: true,
+				hasCtrlModifier: false,
+				hasShiftModifier: false,
+				hasAltModifier: false,
+				hasMetaModifier: false,
+				dispatchParts: ['ctrl+[KeyK]', 'ctrl+[Backslash]'],
+			}]
+		);
+	});
+
+	test('resolveKeybinding Ctrl+K Ctrl+=', () => {
+		_assertResolveKeybinding(
+			KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.US_EQUAL),
+			[{
+				label: 'Ctrl+K Ctrl+=',
+				ariaLabel: 'Control+K Control+=',
+				HTMLLabel: [_chordHTMLLabel(['Ctrl', 'K'], ['Ctrl', '='])],
+				electronAccelerator: null,
+				userSettingsLabel: 'ctrl+k ctrl+=',
+				isChord: true,
+				hasCtrlModifier: false,
+				hasShiftModifier: false,
+				hasAltModifier: false,
+				hasMetaModifier: false,
+				dispatchParts: ['ctrl+[KeyK]', 'ctrl+[Equal]'],
+			}]
+		);
+	});
+
+	test('resolveKeybinding Ctrl+DownArrow', () => {
+		_assertResolveKeybinding(
+			KeyMod.CtrlCmd | KeyCode.DownArrow,
+			[{
+				label: 'Ctrl+DownArrow',
+				ariaLabel: 'Control+DownArrow',
+				HTMLLabel: [_simpleHTMLLabel(['Ctrl', 'DownArrow'])],
+				electronAccelerator: 'Ctrl+Down',
+				userSettingsLabel: 'ctrl+down',
+				isChord: false,
+				hasCtrlModifier: true,
+				hasShiftModifier: false,
+				hasAltModifier: false,
+				hasMetaModifier: false,
+				dispatchParts: ['ctrl+[ArrowDown]', null],
+			}]
+		);
+	});
+
+	test('resolveKeybinding Ctrl+NUMPAD_0', () => {
+		_assertResolveKeybinding(
+			KeyMod.CtrlCmd | KeyCode.NUMPAD_0,
+			[{
+				label: 'Ctrl+NumPad0',
+				ariaLabel: 'Control+NumPad0',
+				HTMLLabel: [_simpleHTMLLabel(['Ctrl', 'NumPad0'])],
+				electronAccelerator: null,
+				userSettingsLabel: 'ctrl+numpad0',
+				isChord: false,
+				hasCtrlModifier: true,
+				hasShiftModifier: false,
+				hasAltModifier: false,
+				hasMetaModifier: false,
+				dispatchParts: ['ctrl+[Numpad0]', null],
+			}]
+		);
+	});
+
+	test('resolveKeybinding Ctrl+Home', () => {
+		_assertResolveKeybinding(
+			KeyMod.CtrlCmd | KeyCode.Home,
+			[{
+				label: 'Ctrl+Home',
+				ariaLabel: 'Control+Home',
+				HTMLLabel: [_simpleHTMLLabel(['Ctrl', 'Home'])],
+				electronAccelerator: 'Ctrl+Home',
+				userSettingsLabel: 'ctrl+home',
+				isChord: false,
+				hasCtrlModifier: true,
+				hasShiftModifier: false,
+				hasAltModifier: false,
+				hasMetaModifier: false,
+				dispatchParts: ['ctrl+[Home]', null],
+			}]
+		);
+	});
+
+	test('resolveKeyboardEvent Ctrl+[Home]', () => {
+		assertResolveKeyboardEvent(
+			mapper,
+			{
+				ctrlKey: true,
+				shiftKey: false,
+				altKey: false,
+				metaKey: false,
+				keyCode: -1,
+				code: 'Home'
+			},
+			{
+				label: 'Ctrl+Home',
+				ariaLabel: 'Control+Home',
+				HTMLLabel: [_simpleHTMLLabel(['Ctrl', 'Home'])],
+				electronAccelerator: 'Ctrl+Home',
+				userSettingsLabel: 'ctrl+home',
+				isChord: false,
+				hasCtrlModifier: true,
+				hasShiftModifier: false,
+				hasAltModifier: false,
+				hasMetaModifier: false,
+				dispatchParts: ['ctrl+[Home]', null],
+			}
+		);
 	});
 });
 
