@@ -234,6 +234,8 @@ suite('Filters', () => {
 		assertMatches('ccm', 'cacmelCase', '^ca^c^melCase', fuzzyMatchAndScore);
 		assertMatches('ccm', 'camelCase', undefined, fuzzyMatchAndScore);
 		assertMatches('ccm', 'camelCasecm', '^camel^Casec^m', fuzzyMatchAndScore);
+		assertMatches('myvable', 'myvariable', '^m^y^v^aria^b^l^e', fuzzyMatchAndScore);
+		assertMatches('fdm', 'findModel', '^fin^d^Model', fuzzyMatchAndScore);
 
 		assertMatches('', 'match', undefined, fuzzyLCS);
 		assertMatches('B', 'bakB', 'bak^B', fuzzyLCS);
