@@ -525,7 +525,7 @@ export const IMMUTABLE_CODE_TO_KEY_CODE: KeyCode[] = [];
 	define(KeyboardEventCode.NumpadMultiply, KeyCode.NUMPAD_MULTIPLY);
 	define(KeyboardEventCode.NumpadSubtract, KeyCode.NUMPAD_SUBTRACT);
 	define(KeyboardEventCode.NumpadAdd, KeyCode.NUMPAD_ADD);
-	define(KeyboardEventCode.NumpadEnter, KeyCode.Enter); // TODO
+	define(KeyboardEventCode.NumpadEnter, KeyCode.Enter); // Duplicate
 	define(KeyboardEventCode.Numpad1, KeyCode.NUMPAD_1);
 	define(KeyboardEventCode.Numpad2, KeyCode.NUMPAD_2);
 	define(KeyboardEventCode.Numpad3, KeyCode.NUMPAD_3);
@@ -588,14 +588,14 @@ export const IMMUTABLE_CODE_TO_KEY_CODE: KeyCode[] = [];
 	define(KeyboardEventCode.NumpadMemorySubtract, KeyCode.Unknown);
 	define(KeyboardEventCode.NumpadClear, KeyCode.Unknown);
 	define(KeyboardEventCode.NumpadClearEntry, KeyCode.Unknown);
-	define(KeyboardEventCode.ControlLeft, KeyCode.Ctrl); // TODO
-	define(KeyboardEventCode.ShiftLeft, KeyCode.Shift); // TODO
-	define(KeyboardEventCode.AltLeft, KeyCode.Alt); // TODO
-	define(KeyboardEventCode.MetaLeft, KeyCode.Meta); // TODO
-	define(KeyboardEventCode.ControlRight, KeyCode.Ctrl); // TODO
-	define(KeyboardEventCode.ShiftRight, KeyCode.Shift); // TODO
-	define(KeyboardEventCode.AltRight, KeyCode.Alt); // TODO
-	define(KeyboardEventCode.MetaRight, KeyCode.Meta); // TODO
+	define(KeyboardEventCode.ControlLeft, KeyCode.Ctrl); // Duplicate
+	define(KeyboardEventCode.ShiftLeft, KeyCode.Shift); // Duplicate
+	define(KeyboardEventCode.AltLeft, KeyCode.Alt); // Duplicate
+	define(KeyboardEventCode.MetaLeft, KeyCode.Meta); // Duplicate
+	define(KeyboardEventCode.ControlRight, KeyCode.Ctrl); // Duplicate
+	define(KeyboardEventCode.ShiftRight, KeyCode.Shift); // Duplicate
+	define(KeyboardEventCode.AltRight, KeyCode.Alt); // Duplicate
+	define(KeyboardEventCode.MetaRight, KeyCode.Meta); // Duplicate
 	define(KeyboardEventCode.BrightnessUp, KeyCode.Unknown);
 	define(KeyboardEventCode.BrightnessDown, KeyCode.Unknown);
 	define(KeyboardEventCode.MediaPlay, KeyCode.Unknown);

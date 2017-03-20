@@ -12,6 +12,7 @@ import { UILabelProvider, AriaLabelProvider, ElectronAcceleratorLabelProvider, U
 import { OperatingSystem } from 'vs/base/common/platform';
 import { IHTMLContentElement } from 'vs/base/common/htmlContent';
 import { IKeyboardMapper } from 'vs/workbench/services/keybinding/common/keyboardMapper';
+import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 
 export interface IKeyMapping {
 	vkey: string;
@@ -346,6 +347,12 @@ export class WindowsKeyboardMapper implements IKeyboardMapper {
 			return [new WindowsNativeResolvedKeybinding(this, keybinding, null)];
 		}
 	}
+
+	public resolveKeyboardEvent(keyboardEvent: IKeyboardEvent): WindowsNativeResolvedKeybinding {
+		const keybinding = new SimpleKeybinding(keyboardEvent.ctrlKey, keyboardEvent.shiftKey, keyboardEvent.altKey, keyboardEvent.metaKey, keyboardEvent.keyCode);
+		return new WindowsNativeResolvedKeybinding(this, keybinding, null);
+	}
+
 }
 
 
