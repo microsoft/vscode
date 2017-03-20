@@ -92,6 +92,10 @@ export function activate(context: ExtensionContext): void {
 
 	const client = clientHost.serviceClient;
 
+	context.subscriptions.push(commands.registerCommand('typescript.restartTsServer', () => {
+		clientHost.restartTsServer();
+	}));
+
 	context.subscriptions.push(commands.registerCommand('typescript.reloadProjects', () => {
 		clientHost.reloadProjects();
 	}));
@@ -426,6 +430,10 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 
 	public get serviceClient(): TypeScriptServiceClient {
 		return this.client;
+	}
+
+	public restartTsServer(): void {
+		this.client.restartTsServer();
 	}
 
 	public reloadProjects(): void {

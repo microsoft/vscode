@@ -104,7 +104,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	private _experimentalAutoBuild: boolean;
 	private trace: Trace;
 	private _output: OutputChannel;
-	private servicePromise: Promise<cp.ChildProcess> | null;
+	private servicePromise: Thenable<cp.ChildProcess> | null;
 	private lastError: Error | null;
 	private reader: Reader<Proto.Response>;
 	private sequenceNumber: number;
@@ -174,6 +174,18 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			disposables.push(this.telemetryReporter);
 		}
 		this.startService();
+	}
+
+	public restartTsServer(): void {
+		if (this.servicePromise !== null) {
+			this.servicePromise = this.servicePromise.then(cp => {
+				if (cp) {
+					cp.kill();
+				}
+			}).then(() => {
+				return this.startService();
+			});
+		}
 	}
 
 	private extractGlobalTsdk(configuration: WorkspaceConfiguration): string | null {
@@ -314,7 +326,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		}
 	}
 
-	private service(): Promise<cp.ChildProcess> {
+	private service(): Thenable<cp.ChildProcess> {
 		if (this.servicePromise) {
 			return this.servicePromise;
 		}
@@ -373,7 +385,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		return !!this.localTsdk;
 	}
 
-	private startService(resendModels: boolean = false): void {
+	private startService(resendModels: boolean = false): Thenable<cp.ChildProcess> {
 		let modulePath: Thenable<string> = Promise.resolve(this.globalTypescriptPath);
 
 		if (!this.workspaceState.get<boolean>(TypeScriptServiceClient.tsdkMigratedStorageKey, false)) {
@@ -383,7 +395,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			}
 		}
 
-		modulePath.then(modulePath => {
+		return modulePath.then(modulePath => {
 			if (this.workspaceState.get<boolean>(TypeScriptServiceClient.useWorkspaceTsdkStorageKey, false)) {
 				if (workspace.rootPath) {
 					// TODO: check if we need better error handling
@@ -392,7 +404,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			}
 			return modulePath;
 		}).then(modulePath => {
-			this.servicePromise = new Promise<cp.ChildProcess>((resolve, reject) => {
+			return this.servicePromise = new Promise<cp.ChildProcess>((resolve, reject) => {
 				const tsConfig = workspace.getConfiguration('typescript');
 
 				this.info(`Using tsserver from location: ${modulePath}`);
@@ -780,7 +792,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		}
 		this.service().then((childProcess) => {
 			childProcess.stdin.write(JSON.stringify(serverRequest) + '\r\n', 'utf8');
-		}).catch(err => {
+		}).then(undefined, err => {
 			let callback = this.callbacks[serverRequest.seq];
 			if (callback) {
 				callback.e(err);
