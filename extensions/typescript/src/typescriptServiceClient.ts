@@ -8,6 +8,7 @@
 import * as cp from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
+import * as os from 'os';
 
 import * as electron from './utils/electron';
 import { Reader } from './utils/wireProtocol';
@@ -84,7 +85,6 @@ interface MyMessageItem extends MessageItem {
 
 
 export default class TypeScriptServiceClient implements ITypescriptServiceClient {
-
 	private static useWorkspaceTsdkStorageKey = 'typescript.useWorkspaceTsdk';
 	private static tsdkMigratedStorageKey = 'typescript.tsdkMigrated';
 
@@ -104,6 +104,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	private _experimentalAutoBuild: boolean;
 	private trace: Trace;
 	private _output: OutputChannel;
+	private _logFile: string | null = null;
 	private servicePromise: Promise<cp.ChildProcess> | null;
 	private lastError: Error | null;
 	private reader: Reader<Proto.Response>;
@@ -236,6 +237,10 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 
 	public onReady(): Promise<void> {
 		return this._onReady.promise;
+	}
+
+	public get logFile(): string | null {
+		return this._logFile;
 	}
 
 	private data2String(data: any): string {
@@ -458,6 +463,16 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 						this.cancellationPipeName = electron.getPipeName(`tscancellation-${electron.makeRandomHexString(20)}`);
 						args.push('--cancellationPipeName', this.cancellationPipeName + '*');
 					}
+
+					if (this.apiVersion.has222Features()) {
+						const logLevel = tsConfig.get<string>('tsserver.log', 'off');
+						if (logLevel !== 'off') {
+							this._logFile = path.join(os.tmpdir(), `vscode-tsserver-${electron.makeRandomHexString(10)}.log`);
+							args.push('--logVerbosity', logLevel);
+							args.push('--logFile', this._logFile);
+						}
+					}
+
 					electron.fork(modulePath, args, options, (err: any, childProcess: cp.ChildProcess) => {
 						if (err) {
 							this.lastError = err;

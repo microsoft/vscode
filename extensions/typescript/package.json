@@ -114,6 +114,17 @@
           "default": false,
           "description": "%typescript.implementationsCodeLens.enabled%"
         },
+        "typescript.tsserver.log": {
+          "type": "string",
+          "enum": [
+            "off",
+            "terse",
+            "normal",
+            "verbose"
+          ],
+          "default": "off",
+          "description": "%typescript.tsserver.log%"
+        },
         "typescript.tsserver.trace": {
           "type": "string",
           "enum": [
@@ -296,6 +307,11 @@
         "command": "javascript.goToProjectConfig",
         "title": "%javascript.goToProjectConfig.title%",
         "category": "JavaScript"
+      },
+      {
+        "command": "typescript.openTsServerLog",
+        "title": "%typescript.openTsServerLog.title%",
+        "category": "TypeScript"
       }
     ],
     "menus": {
