@@ -103,6 +103,8 @@ import { join } from 'path';
 import 'vs/platform/opener/browser/opener.contribution';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { WorkbenchThemeService } from 'vs/workbench/services/themes/electron-browser/themeService';
+import { registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
+import { WINDOW_FOREGROUND } from 'vs/workbench/common/theme';
 
 /**
  * Services that we require for the Shell
@@ -509,3 +511,10 @@ export class WorkbenchShell {
 		$(this.container).empty();
 	}
 }
+
+registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+	const windowForeground = theme.getColor(WINDOW_FOREGROUND);
+	if (windowForeground) {
+		collector.addRule(`.monaco-shell { color: ${windowForeground}; }`);
+	}
+});

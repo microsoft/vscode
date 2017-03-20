@@ -9,6 +9,16 @@ import { IDisposable, Disposable, dispose } from 'vs/base/common/lifecycle';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { Color, RGBA } from 'vs/base/common/color';
 
+// < --- Workbench --- >
+
+export const WINDOW_FOREGROUND = registerColor('windowForeground', {
+	dark: '#CCCCCC',
+	light: '#6C6C6C',
+	hc: '#FFFFFF'
+}, nls.localize('windowForeground', "Overall window foreground color. This color is only used if not overridden by a component."));
+
+
+
 // < --- Tabs --- >
 
 export const TABS_CONTAINER_BACKGROUND = registerColor('tabsContainerBackground', {
@@ -161,6 +171,12 @@ export const ACTIVITY_BAR_BACKGROUND = registerColor('activityBarBackground', {
 
 
 // < --- Side Bar --- >
+
+export const SIDE_BAR_BACKGROUND = registerColor('sideBarBackground', {
+	dark: '#252526',
+	light: '#F3F3F3',
+	hc: '#000000'
+}, nls.localize('sideBarBackground', "Side bar background color. The side bar is the container for views like explorer and search."));
 
 export const SIDE_BAR_TITLE_FOREGROUND = registerColor('sideBarTitleForeground', {
 	dark: '#BBBBBB',

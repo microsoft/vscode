@@ -26,7 +26,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import Event from 'vs/base/common/event';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { highContrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { SIDE_BAR_TITLE_FOREGROUND } from 'vs/workbench/common/theme';
+import { SIDE_BAR_TITLE_FOREGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 
 export class SidebarPart extends CompositePart<Viewlet> {
 
@@ -80,6 +80,8 @@ export class SidebarPart extends CompositePart<Viewlet> {
 
 		// Part container
 		const container = this.getContainer();
+
+		container.style('background-color', this.getColor(SIDE_BAR_BACKGROUND));
 
 		const useBorder = this.isHighContrastTheme;
 		const isPositionLeft = this.partService.getSideBarPosition() === SideBarPosition.LEFT;

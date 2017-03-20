@@ -206,20 +206,6 @@
 
 /* TODO@theme */
 
-.monaco-shell.vs {
-	color: #6C6C6C;
-}
-
-.monaco-shell.vs-dark {
-	color: #BBB;
-	background-color: #1E1E1E;
-}
-
-.monaco-shell.hc-black {
-	color: #fff;
-	background-color: #000;
-}
-
 .monaco-shell.vs input {
 	background-color: white;
 }
