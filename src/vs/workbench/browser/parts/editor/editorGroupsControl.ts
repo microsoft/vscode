@@ -1145,14 +1145,15 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 				const containers = $this.visibleEditors.filter(e => !!e).map(e => e.getContainer());
 				containers.forEach((container, index) => {
 					if (container && DOM.isAncestor(target, container.getHTMLElement())) {
+						const useOutline = $this.isHighContrastTheme;
 						overlay = $('div').style({
 							top: $this.tabOptions.showTabs ? `${EditorGroupsControl.EDITOR_TITLE_HEIGHT}px` : 0,
 							height: $this.tabOptions.showTabs ? `calc(100% - ${EditorGroupsControl.EDITOR_TITLE_HEIGHT}px` : '100%',
 							backgroundColor: $this.getColor(EDITOR_DRAG_AND_DROP_BACKGROUND),
-							outlineColor: $this.isHighContrastTheme ? $this.getColor(highContrastOutline) : null,
-							outlineOffset: $this.isHighContrastTheme ? '-2px' : null,
-							outlineStyle: $this.isHighContrastTheme ? 'dashed' : null,
-							outlineWidth: $this.isHighContrastTheme ? '2px' : null
+							outlineColor: useOutline ? $this.getColor(highContrastOutline) : null,
+							outlineOffset: useOutline ? '-2px' : null,
+							outlineStyle: useOutline ? 'dashed' : null,
+							outlineWidth: useOutline ? '2px' : null
 						}).id(overlayId);
 
 						overlay.appendTo(container);
