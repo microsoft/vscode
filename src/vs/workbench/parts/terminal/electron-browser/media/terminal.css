@@ -58,6 +58,11 @@
 	font-variant-ligatures: normal;
 }
 
+
+.monaco-workbench .panel.integrated-terminal.disable-bold {
+	font-weight: normal;
+}
+
 /* Terminal actions */
 
 /* Light theme */
