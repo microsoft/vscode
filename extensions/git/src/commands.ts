@@ -6,7 +6,7 @@
 'use strict';
 
 import { Uri, commands, scm, Disposable, window, workspace, QuickPickItem, OutputChannel, computeDiff, Range, WorkspaceEdit, Position } from 'vscode';
-import { Ref, RefType } from './git';
+import { Ref, RefType, Git } from './git';
 import { Model, Resource, Status, CommitOptions } from './model';
 import * as staging from './staging';
 import * as path from 'path';
@@ -59,15 +59,15 @@ class CheckoutRemoteHeadItem extends CheckoutItem {
 	}
 }
 
-const Commands: { commandId: string; key: string; method: Function; }[] = [];
+const Commands: { commandId: string; key: string; method: Function; skipModelCheck: boolean; }[] = [];
 
-function command(commandId: string): Function {
+function command(commandId: string, skipModelCheck = false): Function {
 	return (target: any, key: string, descriptor: any) => {
 		if (!(typeof descriptor.value === 'function')) {
 			throw new Error('not supported');
 		}
 
-		Commands.push({ commandId, key, method: descriptor.value });
+		Commands.push({ commandId, key, method: descriptor.value, skipModelCheck });
 	};
 }
 
@@ -77,6 +77,7 @@ export class CommandCenter {
 	private disposables: Disposable[];
 
 	constructor(
+		private git: Git,
 		model: Model | undefined,
 		private outputChannel: OutputChannel,
 		private telemetryReporter: TelemetryReporter
@@ -86,7 +87,7 @@ export class CommandCenter {
 		}
 
 		this.disposables = Commands
-			.map(({ commandId, key, method }) => commands.registerCommand(commandId, this.createCommand(commandId, key, method)));
+			.map(({ commandId, key, method, skipModelCheck }) => commands.registerCommand(commandId, this.createCommand(commandId, key, method, skipModelCheck)));
 	}
 
 	@command('git.refresh')
@@ -169,19 +170,7 @@ export class CommandCenter {
 		return '';
 	}
 
-	/**
-	 * Attempts to clone a git repository. Throws descriptive errors
-	 * for usual error cases. Returns whether the user chose to open
-	 * the resulting folder or otherwise.
-	 *
-	 * This only exists for the walkthrough contribution to have good
-	 * telemetry.
-	 *
-	 * TODO@Christof: when all the telemetry questions are answered,
-	 * please clean this up into a single clone method.
-	 */
-	@command('_git.clone')
-	async _clone(): Promise<boolean> {
+	private async _clone(): Promise<boolean> {
 		const url = await window.showInputBox({
 			prompt: localize('repourl', "Repository URL"),
 			ignoreFocusOut: true
@@ -201,7 +190,7 @@ export class CommandCenter {
 			throw new Error('no_directory');
 		}
 
-		const clonePromise = this.model.git.clone(url, parentPath);
+		const clonePromise = this.git.clone(url, parentPath);
 		window.setStatusBarMessage(localize('cloning', "Cloning git repository..."), clonePromise);
 		let repositoryPath: string;
 
@@ -226,8 +215,24 @@ export class CommandCenter {
 		return openFolder;
 	}
 
-	@command('git.clone')
-	async clone(): Promise<void> {
+	/**
+	 * Attempts to clone a git repository. Throws descriptive errors
+	 * for usual error cases. Returns whether the user chose to open
+	 * the resulting folder or otherwise.
+	 *
+	 * This only exists for the walkthrough contribution to have good
+	 * telemetry.
+	 *
+	 * TODO@Christof: when all the telemetry questions are answered,
+	 * please clean this up into a single clone method.
+	 */
+	@command('git.clone', true)
+	async clone(): Promise<boolean> {
+		return await this._clone();
+	}
+
+	@command('git.cloneSilent', true)
+	async cloneSilent(): Promise<void> {
 		try {
 			await this._clone();
 		} catch (err) {
@@ -710,9 +715,9 @@ export class CommandCenter {
 		this.outputChannel.show();
 	}
 
-	private createCommand(id: string, key: string, method: Function): (...args: any[]) => any {
+	private createCommand(id: string, key: string, method: Function, skipModelCheck: boolean): (...args: any[]) => any {
 		const result = (...args) => {
-			if (!this.model) {
+			if (!skipModelCheck && !this.model) {
 				window.showInformationMessage(localize('disabled', "Git is either disabled or not supported in this workspace"));
 				return;
 			}
