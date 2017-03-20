@@ -46,8 +46,10 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { Position, IResourceInput } from 'vs/platform/editor/common/editor';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { Themable, EDITOR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
 
 import { remote, ipcRenderer as ipc, webFrame } from 'electron';
+import { highContrastOutline } from "vs/platform/theme/common/colorRegistry";
 
 const dialog = remote.dialog;
 
@@ -62,7 +64,7 @@ const TextInputActions: IAction[] = [
 	new Action('editor.action.selectAll', nls.localize('selectAll', "Select All"), null, true, () => document.execCommand('selectAll') && TPromise.as(true))
 ];
 
-export class ElectronWindow {
+export class ElectronWindow extends Themable {
 
 	private static AUTO_SAVE_SETTING = 'files.autoSave';
 
@@ -80,7 +82,7 @@ export class ElectronWindow {
 		@IWindowService private windowService: IWindowService,
 		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
 		@ITitleService private titleService: ITitleService,
-		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
+		@IWorkbenchThemeService protected themeService: IWorkbenchThemeService,
 		@IMessageService private messageService: IMessageService,
 		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService,
 		@ICommandService private commandService: ICommandService,
@@ -91,6 +93,8 @@ export class ElectronWindow {
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 	) {
+		super(themeService);
+
 		this.win = win;
 		this.windowId = win.id;
 
@@ -131,8 +135,18 @@ export class ElectronWindow {
 				// Find out if folders are dragged and show the appropiate feedback then
 				this.includesFolder(draggedExternalResources).done(includesFolder => {
 					if (includesFolder) {
+						const useOutline = this.isHighContrastTheme;
 						dropOverlay = $(window.document.getElementById(this.partService.getWorkbenchElementId()))
-							.div({ id: 'monaco-workbench-drop-overlay' })
+							.div({
+								id: 'monaco-workbench-drop-overlay'
+							})
+							.style({
+								backgroundColor: this.getColor(EDITOR_DRAG_AND_DROP_BACKGROUND),
+								outlineColor: useOutline ? this.getColor(highContrastOutline) : null,
+								outlineOffset: useOutline ? '-2px' : null,
+								outlineStyle: useOutline ? 'dashed' : null,
+								outlineWidth: useOutline ? '2px' : null
+							})
 							.on(DOM.EventType.DROP, (e: DragEvent) => {
 								DOM.EventHelper.stop(e, true);
 
