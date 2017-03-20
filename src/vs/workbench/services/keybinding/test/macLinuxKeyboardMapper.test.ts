@@ -55,17 +55,17 @@ suite('keyboardMapper - MAC de_ch', () => {
 
 	test('kb => hw', () => {
 		// unchanged
-		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyCode.KEY_1, 'Cmd+Digit1');
-		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyCode.KEY_B, 'Cmd+KeyB');
-		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_B, 'Shift+Cmd+KeyB');
-		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.KEY_B, 'Ctrl+Shift+Alt+Cmd+KeyB');
+		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyCode.KEY_1, 'cmd+Digit1');
+		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyCode.KEY_B, 'cmd+KeyB');
+		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_B, 'shift+cmd+KeyB');
+		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.KEY_B, 'ctrl+shift+alt+cmd+KeyB');
 
 		// flips Y and Z
-		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyCode.KEY_Z, 'Cmd+KeyY');
-		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyCode.KEY_Y, 'Cmd+KeyZ');
+		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyCode.KEY_Z, 'cmd+KeyY');
+		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyCode.KEY_Y, 'cmd+KeyZ');
 
 		// Ctrl+/
-		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyCode.US_SLASH, 'Shift+Cmd+Digit7');
+		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyCode.US_SLASH, 'shift+cmd+Digit7');
 	});
 
 	test('resolveKeybinding', () => {
@@ -154,17 +154,17 @@ suite('keyboardMapper - LINUX de_ch', () => {
 
 	test('kb => hw', () => {
 		// unchanged
-		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyCode.KEY_1, 'Ctrl+Digit1');
-		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyCode.KEY_B, 'Ctrl+KeyB');
-		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_B, 'Ctrl+Shift+KeyB');
-		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.KEY_B, 'Ctrl+Shift+Alt+Meta+KeyB');
+		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyCode.KEY_1, 'ctrl+Digit1');
+		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyCode.KEY_B, 'ctrl+KeyB');
+		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_B, 'ctrl+shift+KeyB');
+		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.KEY_B, 'ctrl+shift+alt+meta+KeyB');
 
 		// flips Y and Z
-		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyCode.KEY_Z, 'Ctrl+KeyY');
-		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyCode.KEY_Y, 'Ctrl+KeyZ');
+		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyCode.KEY_Z, 'ctrl+KeyY');
+		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyCode.KEY_Y, 'ctrl+KeyZ');
 
 		// Ctrl+/
-		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyCode.US_SLASH, 'Ctrl+Shift+Digit7');
+		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyCode.US_SLASH, 'ctrl+shift+Digit7');
 	});
 });
 
