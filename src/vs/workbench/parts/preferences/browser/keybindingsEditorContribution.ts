@@ -160,20 +160,21 @@ export class DefineKeybindingController implements editorCommon.IEditorContribut
 		var m = model.findMatches(regex, false, true, false, false, false).map(m => m.range);
 
 		let data = m.map((range) => {
-			let text = model.getValueInRange(range);
-
-			let strKeybinding = text.substring(1, text.length - 1);
-			strKeybinding = strKeybinding.replace(/\\\\/g, '\\');
-
-			let numKeybinding = KeybindingIO.readKeybinding(strKeybinding, OS);
-
-			let keybinding = createKeybinding(numKeybinding, OS);
-			let resolvedKeybinding = this._keybindingService.resolveKeybinding(keybinding);
-
+			const text = model.getValueInRange(range);
+			const strKeybinding = text.substring(1, text.length - 1).replace(/\\\\/g, '\\');
+			const numKeybinding = KeybindingIO.readKeybinding(strKeybinding, OS);
+			const keybinding = createKeybinding(numKeybinding, OS);
 			const usResolvedKeybinding = new USLayoutResolvedKeybinding(keybinding, OS);
+
+			let label: string = null;
+			const resolvedKeybindings = this._keybindingService.resolveKeybinding(keybinding);
+			if (resolvedKeybindings.length > 0) {
+				label = resolvedKeybindings[0].getLabel();
+			}
+
 			return {
 				usLabel: usResolvedKeybinding.getLabel(),
-				label: resolvedKeybinding.getLabel(),
+				label: label,
 				range: range
 			};
 		});

@@ -7,6 +7,7 @@
 
 import 'vs/css!./suggest';
 import * as nls from 'vs/nls';
+import { createMatches } from 'vs/base/common/filters';
 import * as strings from 'vs/base/common/strings';
 import Event, { Emitter, chain } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -136,7 +137,7 @@ class Renderer implements IRenderer<ICompletionItem, ISuggestionTemplateData> {
 			}
 		}
 
-		data.highlightedLabel.set(suggestion.label, element.highlights);
+		data.highlightedLabel.set(suggestion.label, createMatches(element.matches));
 		data.typeLabel.textContent = (suggestion.detail || '').replace(/\n.*$/m, '');
 
 		data.documentation.textContent = suggestion.documentation || '';
@@ -234,7 +235,7 @@ class SuggestionDetails {
 			return;
 		}
 
-		this.titleLabel.set(item.suggestion.label, item.highlights);
+		this.titleLabel.set(item.suggestion.label, createMatches(item.matches));
 		this.type.innerText = item.suggestion.detail || '';
 		this.docs.textContent = item.suggestion.documentation;
 		this.back.onmousedown = e => {

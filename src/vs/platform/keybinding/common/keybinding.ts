@@ -44,7 +44,10 @@ export interface IKeybindingService {
 
 	onDidUpdateKeybindings: Event<IKeybindingEvent>;
 
-	resolveKeybinding(keybinding: Keybinding): ResolvedKeybinding;
+	/**
+	 * Returns none, one or many (depending on keyboard layout)!
+	 */
+	resolveKeybinding(keybinding: Keybinding): ResolvedKeybinding[];
 
 	resolveKeyboardEvent(keyboardEvent: IKeyboardEvent): ResolvedKeybinding;
 

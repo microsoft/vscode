@@ -669,8 +669,11 @@ export class ExtensionEditor extends BaseEditor {
 		}
 
 		const keyBinding = createKeybinding(KeybindingIO.readKeybinding(key || rawKeyBinding.key, OS), OS);
-		const resolvedKeybinding = this.keybindingService.resolveKeybinding(keyBinding);
-		const result = resolvedKeybinding.getLabel();
+		const resolvedKeybindings = this.keybindingService.resolveKeybinding(keyBinding);
+		if (resolvedKeybindings.length === 0) {
+			return null;
+		}
+		const result = resolvedKeybindings[0].getLabel();
 		return result === 'unknown' ? null : result;
 	}
 
