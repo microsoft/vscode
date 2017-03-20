@@ -124,6 +124,30 @@ export const STATUS_BAR_NO_FOLDER_BACKGROUND = registerColor('statusBarNoFolderB
 	hc: null
 }, nls.localize('statusBarNoFolderBackground', "Status bar background color when no folder is opened. The status bar is shown in the bottom of the window"));
 
+export const STATUS_BAR_ITEM_ACTIVE_BACKGROUND = registerColor('statusBarItemActiveBackground', {
+	dark: Color.fromRGBA(new RGBA(255, 255, 255)).transparent(0.18),
+	light: Color.fromRGBA(new RGBA(255, 255, 255)).transparent(0.18),
+	hc: Color.fromRGBA(new RGBA(255, 255, 255)).transparent(0.18)
+}, nls.localize('statusBarItemActiveBackground', "Status bar item background color when clicking. The status bar is shown in the bottom of the window"));
+
+export const STATUS_BAR_ITEM_HOVER_BACKGROUND = registerColor('statusBarItemHoverBackground', {
+	dark: Color.fromRGBA(new RGBA(255, 255, 255)).transparent(0.12),
+	light: Color.fromRGBA(new RGBA(255, 255, 255)).transparent(0.12),
+	hc: Color.fromRGBA(new RGBA(255, 255, 255)).transparent(0.12)
+}, nls.localize('statusBarItemHoverBackground', "Status bar item background color when hovering. The status bar is shown in the bottom of the window"));
+
+export const STATUS_BAR_INFO_ITEM_BACKGROUND = registerColor('statusBarInfoItemBackground', {
+	dark: '#388a34',
+	light: '#388a34',
+	hc: '#388a34'
+}, nls.localize('statusBarInfoItemBackground', "Status bar info item background color. The status bar is shown in the bottom of the window"));
+
+export const STATUS_BAR_INFO_ITEM_HOVER_BACKGROUND = registerColor('statusBarInfoItemHoverBackground', {
+	dark: '#369432',
+	light: '#369432',
+	hc: '#369432'
+}, nls.localize('statusBarInfoItemHoverBackground', "Status bar info item background color when hovering. The status bar is shown in the bottom of the window"));
+
 /**
  * Base class for all themable workbench components.
  */
