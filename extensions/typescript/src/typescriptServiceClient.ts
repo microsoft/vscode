@@ -656,7 +656,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 				{
 					title: localize(
 						'typescript.openTsServerLog.enableAndReloadOption',
-						'Enable logging and reload VSCode'),
+						'Enable logging and reload VS Code'),
 				})
 				.then(selection => {
 					if (selection) {
