@@ -281,7 +281,7 @@ suite('URI', () => {
 			value = URI.file('\\\\localhost\\c$\\GitDevelopment\\express');
 			assert.equal(value.scheme, 'file');
 			assert.equal(value.path, '/c$/GitDevelopment/express');
-			assert.equal(value.fsPath, '//localhost/c$/GitDevelopment/express');
+			assert.equal(value.fsPath, '\\\\localhost\\c$\\GitDevelopment\\express');
 			assert.equal(value.query, '');
 			assert.equal(value.fragment, '');
 			assert.equal(value.toString(), 'file://localhost/c%24/GitDevelopment/express');
