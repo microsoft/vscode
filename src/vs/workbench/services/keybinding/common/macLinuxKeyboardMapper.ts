@@ -113,28 +113,66 @@ export class NativeResolvedKeybinding extends ResolvedKeybinding {
 	}
 
 	public isChord(): boolean {
-		throw new Error('TODO!');
+		return (this._chordPart ? true : false);
 	}
 
 	public hasCtrlModifier(): boolean {
-		throw new Error('TODO!');
+		if (this._chordPart) {
+			return false;
+		}
+		return this._firstPart.ctrlKey;
 	}
 
 	public hasShiftModifier(): boolean {
-		throw new Error('TODO!');
+		if (this._chordPart) {
+			return false;
+		}
+		return this._firstPart.shiftKey;
 	}
 
 	public hasAltModifier(): boolean {
-		throw new Error('TODO!');
+		if (this._chordPart) {
+			return false;
+		}
+		return this._firstPart.altKey;
 	}
 
 	public hasMetaModifier(): boolean {
-		throw new Error('TODO!');
+		if (this._chordPart) {
+			return false;
+		}
+		return this._firstPart.metaKey;
 	}
 
 	public getDispatchParts(): [string, string] {
-		throw new Error('TODO!');
+		throw new Error('TODO');
+		// let firstPart = this._firstPart ? this._getDispatchStr(this._firstPart) : null;
+		// let chordPart = this._chordPart ? this._getDispatchStr(this._chordPart) : null;
+		// return [firstPart, chordPart];
 	}
+
+	// private _getDispatchStr(keybinding: HardwareKeypress): string {
+	// 	if (keybinding.isModifierKey()) {
+	// 		return null;
+	// 	}
+	// 	let result = '';
+
+	// 	if (keybinding.ctrlKey) {
+	// 		result += 'ctrl+';
+	// 	}
+	// 	if (keybinding.shiftKey) {
+	// 		result += 'shift+';
+	// 	}
+	// 	if (keybinding.altKey) {
+	// 		result += 'alt+';
+	// 	}
+	// 	if (keybinding.metaKey) {
+	// 		result += 'meta+';
+	// 	}
+	// 	result += KeyCodeUtils.toString(keybinding.keyCode);
+
+	// 	return result;
+	// }
 }
 
 interface IHardwareCodeMapping {
@@ -151,6 +189,7 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 	private readonly _codeInfo: IHardwareCodeMapping[];
 	private readonly _hwToKb: number[] = [];
 	private readonly _hwToLabel: string[] = [];
+	private readonly _hwToDispatch: string[] = [];
 	private readonly _kbToHw: number[][] = [];
 
 	constructor(rawMappings: IKeyboardMapping, OS: OperatingSystem) {
@@ -160,12 +199,19 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 		this._hwToKb = [];
 		this._kbToHw = [];
 		this._hwToLabel = [];
+		this._hwToDispatch = [];
 
 		for (let code = KeyboardEventCode.None; code < KeyboardEventCode.MAX_VALUE; code++) {
 			const immutableKeyCode = IMMUTABLE_CODE_TO_KEY_CODE[code];
 			if (immutableKeyCode !== -1) {
 				this._registerAllCombos1(false, false, false, code, immutableKeyCode);
 				this._hwToLabel[code] = KeyCodeUtils.toString(immutableKeyCode);
+
+				if (immutableKeyCode === KeyCode.Unknown || immutableKeyCode === KeyCode.Ctrl || immutableKeyCode === KeyCode.Meta || immutableKeyCode === KeyCode.Alt || immutableKeyCode === KeyCode.Shift) {
+					this._hwToDispatch[code] = null; // cannot dispatch on this hw code
+				} else {
+					this._hwToDispatch[code] = KeyCodeUtils.toString(immutableKeyCode);
+				}
 			}
 		}
 
@@ -197,6 +243,8 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 				};
 				mappings[mappingsLen++] = mapping;
 				this._codeInfo[code] = mapping;
+
+				this._hwToDispatch[code] = `[${KeyboardEventCodeUtils.toString(code)}]`;
 
 				if (value >= CharCode.a && value <= CharCode.z) {
 					this._hwToLabel[code] = String.fromCharCode(CharCode.A + (value - CharCode.a));
@@ -271,15 +319,15 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 		let result: string[] = [];
 
 		let cnt = 0;
-		result.push(`--------------------------------------------------------------------------------------------------`);
+		result.push(`-----------------------------------------------------------------------------------------------------------------------------------`);
 		for (let code = KeyboardEventCode.None; code < KeyboardEventCode.MAX_VALUE; code++) {
 			if (IMMUTABLE_CODE_TO_KEY_CODE[code] !== -1) {
 				continue;
 			}
 
 			if (cnt % 4 === 0) {
-				result.push(`|       HW Code combination      |  Key  |    KeyCode combination    |          UI label         |`);
-				result.push(`--------------------------------------------------------------------------------------------------`);
+				result.push(`|       HW Code combination      |  Key  |    KeyCode combination    |          UI label         |       Dispatching string       |`);
+				result.push(`-----------------------------------------------------------------------------------------------------------------------------------`);
 			}
 			cnt++;
 
@@ -324,16 +372,22 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 				const keyCode = (kbEncoded >>> 3);
 				const strKb = `${kbCtrlKey ? 'Ctrl+' : ''}${kbShiftKey ? 'Shift+' : ''}${kbAltKey ? 'Alt+' : ''}${KeyCodeUtils.toString(keyCode)}`;
 
-				result.push(`| ${this._leftPad(strHw, 30)} | ${strKey} | ${this._leftPad(strKb, 25)} | ${this._leftPad(uiHwLabel, 25)} |`);
+				const hwKeyPress = new HardwareKeypress(hwCtrlKey, hwShiftKey, hwAltKey, false, code);
+				const dispatchStr = this.getDispatchStrForHardwareKeypress(hwKeyPress);
+
+				result.push(`| ${this._leftPad(strHw, 30)} | ${strKey} | ${this._leftPad(strKb, 25)} | ${this._leftPad(uiHwLabel, 25)} | ${this._leftPad(dispatchStr, 30)} |`);
 
 			}
-			result.push(`--------------------------------------------------------------------------------------------------`);
+			result.push(`-----------------------------------------------------------------------------------------------------------------------------------`);
 		}
 
 		return result.join('\n');
 	}
 
 	private _leftPad(str: string, cnt: number): string {
+		if (str === null) {
+			str = 'null';
+		}
 		while (str.length < cnt) {
 			str = ' ' + str;
 		}
@@ -469,6 +523,30 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 
 	public getAriaLabelForHardwareCode(code: KeyboardEventCode): string {
 		return this._hwToLabel[code];
+	}
+
+	public getDispatchStrForHardwareKeypress(keypress: HardwareKeypress): string {
+		const codeDispatch = this._hwToDispatch[keypress.code];
+		if (!codeDispatch) {
+			return null;
+		}
+		let result = '';
+
+		if (keypress.ctrlKey) {
+			result += 'ctrl+';
+		}
+		if (keypress.shiftKey) {
+			result += 'shift+';
+		}
+		if (keypress.altKey) {
+			result += 'alt+';
+		}
+		if (keypress.metaKey) {
+			result += 'meta+';
+		}
+		result += codeDispatch;
+
+		return result;
 	}
 
 	public resolveKeybinding(keybinding: Keybinding): NativeResolvedKeybinding[] {
