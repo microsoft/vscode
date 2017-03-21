@@ -69,14 +69,14 @@ export class Menu implements IMenu {
 		return this._onDidChange.event;
 	}
 
-	getActions(arg?: any): [string, MenuItemAction[]][] {
+	getActions(contextProvider: () => any[] = () => []): [string, MenuItemAction[]][] {
 		const result: [string, MenuItemAction[]][] = [];
 		for (let group of this._menuGroups) {
 			const [id, items] = group;
 			const activeActions: MenuItemAction[] = [];
 			for (const item of items) {
 				if (this._contextKeyService.contextMatchesRules(item.when)) {
-					const action = new MenuItemAction(item.command, item.alt, arg, this._commandService);
+					const action = new MenuItemAction(item.command, item.alt, contextProvider, this._commandService);
 					action.order = item.order; //TODO@Ben order is menu item property, not an action property
 					activeActions.push(action);
 				}
