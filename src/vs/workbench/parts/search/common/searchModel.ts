@@ -545,13 +545,14 @@ export class SearchModel extends Disposable {
 
 	public search(query: ISearchQuery): PPromise<ISearchComplete, ISearchProgressItem> {
 		this.cancelSearch();
+		this._searchQuery = query;
+		this.currentRequest = this.searchService.search(this._searchQuery);
+
 		this.searchResult.clear();
 
-		this._searchQuery = query;
 		this._searchResult.query = this._searchQuery.contentPattern;
 		this._replacePattern = new ReplacePattern(this._replaceString, this._searchQuery.contentPattern);
 
-		this.currentRequest = this.searchService.search(this._searchQuery);
 
 		const onDone = fromPromise(this.currentRequest);
 		const onDoneStopwatch = stopwatch(onDone);
@@ -565,6 +566,7 @@ export class SearchModel extends Disposable {
 
 		onFirstRenderStopwatch(duration => this.telemetryService.publicLog('searchResultsFirstRender', { duration }));
 
+		const currentRequest = this.currentRequest;
 		this.currentRequest.then(
 			value => this.onSearchCompleted(value, Date.now() - start),
 			e => this.onSearchError(e, Date.now() - start),
@@ -574,10 +576,13 @@ export class SearchModel extends Disposable {
 			}
 		);
 
-		return this.currentRequest;
+		// this.currentRequest may be completed (and nulled) immediately
+		return currentRequest;
 	}
 
 	private onSearchCompleted(completed: ISearchComplete, duration: number): ISearchComplete {
+		this.currentRequest = null;
+
 		if (completed) {
 			this._searchResult.add(completed.results, false);
 		}
