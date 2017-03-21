@@ -1069,18 +1069,6 @@ suite('keyboardMapper - LINUX en_us', () => {
 		_assertResolveKeybinding(
 			KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_COMMA,
 			[{
-				label: 'Ctrl+<',
-				ariaLabel: 'Control+<',
-				HTMLLabel: [_simpleHTMLLabel(['Ctrl', '<'])],
-				electronAccelerator: null,
-				userSettingsLabel: 'ctrl+[IntlBackslash]',
-				isChord: false,
-				hasCtrlModifier: true,
-				hasShiftModifier: false,
-				hasAltModifier: false,
-				hasMetaModifier: false,
-				dispatchParts: ['ctrl+[IntlBackslash]', null],
-			}, {
 				label: 'Ctrl+Shift+,',
 				ariaLabel: 'Control+Shift+,',
 				HTMLLabel: [_simpleHTMLLabel(['Ctrl', 'Shift', ','])],
@@ -1092,6 +1080,18 @@ suite('keyboardMapper - LINUX en_us', () => {
 				hasAltModifier: false,
 				hasMetaModifier: false,
 				dispatchParts: ['ctrl+shift+[Comma]', null],
+			}, {
+				label: 'Ctrl+<',
+				ariaLabel: 'Control+<',
+				HTMLLabel: [_simpleHTMLLabel(['Ctrl', '<'])],
+				electronAccelerator: null,
+				userSettingsLabel: 'ctrl+[IntlBackslash]',
+				isChord: false,
+				hasCtrlModifier: true,
+				hasShiftModifier: false,
+				hasAltModifier: false,
+				hasMetaModifier: false,
+				dispatchParts: ['ctrl+[IntlBackslash]', null],
 			}]
 		);
 	});

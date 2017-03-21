@@ -430,11 +430,11 @@
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 |                          Comma |   ,   |                         , |     |                         , |                              , |                         , |                        [Comma] |
 |                     Ctrl+Comma |   ,   |                    Ctrl+, |     |                    Ctrl+, |                         ctrl+, |                    Ctrl+, |                   ctrl+[Comma] |
-|                    Shift+Comma |   <   |                   Shift+, |   2 |                   Shift+, |                        shift+, |                   Shift+, |                  shift+[Comma] |
-|               Ctrl+Shift+Comma |   <   |              Ctrl+Shift+, |   2 |              Ctrl+Shift+, |                   ctrl+shift+, |              Ctrl+Shift+, |             ctrl+shift+[Comma] |
+|                    Shift+Comma |   <   |                   Shift+, |   1 |                   Shift+, |                        shift+, |                   Shift+, |                  shift+[Comma] |
+|               Ctrl+Shift+Comma |   <   |              Ctrl+Shift+, |   1 |              Ctrl+Shift+, |                   ctrl+shift+, |              Ctrl+Shift+, |             ctrl+shift+[Comma] |
 |                      Alt+Comma |   ,   |                     Alt+, |     |                     Alt+, |                          alt+, |                     Alt+, |                    alt+[Comma] |
 |                 Ctrl+Alt+Comma |   ,   |                Ctrl+Alt+, |     |                Ctrl+Alt+, |                     ctrl+alt+, |                Ctrl+Alt+, |               ctrl+alt+[Comma] |
-|                Shift+Alt+Comma |   <   |               Shift+Alt+, |   2 |               Shift+Alt+, |                    shift+alt+, |               Shift+Alt+, |              shift+alt+[Comma] |
+|                Shift+Alt+Comma |   <   |               Shift+Alt+, |   1 |               Shift+Alt+, |                    shift+alt+, |               Shift+Alt+, |              shift+alt+[Comma] |
 |           Ctrl+Shift+Alt+Comma |   <   |          Ctrl+Shift+Alt+, |     |          Ctrl+Shift+Alt+, |               ctrl+shift+alt+, |          Ctrl+Shift+Alt+, |         ctrl+shift+alt+[Comma] |
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 |                         Period |   .   |                         . |     |                         . |                              . |                         . |                       [Period] |
@@ -457,11 +457,11 @@
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 |       HW Code combination      |  Key  |    KeyCode combination    | Pri |          UI label         |         User settings          |    Electron accelerator   |       Dispatching string       |
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-|                  IntlBackslash |   <   |                   Shift+, |   1 |                         < |                [IntlBackslash] |                      null |                [IntlBackslash] |
-|             Ctrl+IntlBackslash |   <   |              Ctrl+Shift+, |   1 |                    Ctrl+< |           ctrl+[IntlBackslash] |                      null |           ctrl+[IntlBackslash] |
+|                  IntlBackslash |   <   |                   Shift+, |   2 |                         < |                [IntlBackslash] |                      null |                [IntlBackslash] |
+|             Ctrl+IntlBackslash |   <   |              Ctrl+Shift+, |   2 |                    Ctrl+< |           ctrl+[IntlBackslash] |                      null |           ctrl+[IntlBackslash] |
 |            Shift+IntlBackslash |   >   |                   Shift+. |   2 |                   Shift+< |          shift+[IntlBackslash] |                      null |          shift+[IntlBackslash] |
 |       Ctrl+Shift+IntlBackslash |   >   |              Ctrl+Shift+. |   2 |              Ctrl+Shift+< |     ctrl+shift+[IntlBackslash] |                      null |     ctrl+shift+[IntlBackslash] |
-|              Alt+IntlBackslash |   <   |               Shift+Alt+, |   1 |                     Alt+< |            alt+[IntlBackslash] |                      null |            alt+[IntlBackslash] |
+|              Alt+IntlBackslash |   <   |               Shift+Alt+, |   2 |                     Alt+< |            alt+[IntlBackslash] |                      null |            alt+[IntlBackslash] |
 |         Ctrl+Alt+IntlBackslash |   |   |                   Shift+\ |   2 |                Ctrl+Alt+< |       ctrl+alt+[IntlBackslash] |                      null |       ctrl+alt+[IntlBackslash] |
 |        Shift+Alt+IntlBackslash |   >   |               Shift+Alt+. |   2 |               Shift+Alt+< |      shift+alt+[IntlBackslash] |                      null |      shift+alt+[IntlBackslash] |
 |   Ctrl+Shift+Alt+IntlBackslash |   ¦   |          Ctrl+Shift+Alt+. |   2 |          Ctrl+Shift+Alt+< | ctrl+shift+alt+[IntlBackslash] |                      null | ctrl+shift+alt+[IntlBackslash] |

@@ -226,7 +226,7 @@
 |                  Ctrl+Alt+KeyX |   »   |                Ctrl+Alt+X |     |                Ctrl+Alt+X |                     ctrl+alt+x |                Ctrl+Alt+X |                ctrl+alt+[KeyX] |
 |                 Shift+Alt+KeyX |   X   |               Shift+Alt+X |     |               Shift+Alt+X |                    shift+alt+x |               Shift+Alt+X |               shift+alt+[KeyX] |
 |            Ctrl+Shift+Alt+KeyX |   >   |          Ctrl+Shift+Alt+X |     |          Ctrl+Shift+Alt+X |               ctrl+shift+alt+x |          Ctrl+Shift+Alt+X |          ctrl+shift+alt+[KeyX] |
-|                                |       |                   Shift+. |   2 |                           |                                |                           |                                |
+|                                |       |                   Shift+. |   1 |                           |                                |                           |                                |
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 |       HW Code combination      |  Key  |    KeyCode combination    | Pri |          UI label         |         User settings          |    Electron accelerator   |       Dispatching string       |
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -247,7 +247,7 @@
 |                  Ctrl+Alt+KeyZ |   «   |                Ctrl+Alt+Y |     |                Ctrl+Alt+Y |                     ctrl+alt+y |                Ctrl+Alt+Y |                ctrl+alt+[KeyZ] |
 |                 Shift+Alt+KeyZ |   Y   |               Shift+Alt+Y |     |               Shift+Alt+Y |                    shift+alt+y |               Shift+Alt+Y |               shift+alt+[KeyZ] |
 |            Ctrl+Shift+Alt+KeyZ |   <   |          Ctrl+Shift+Alt+Y |     |          Ctrl+Shift+Alt+Y |               ctrl+shift+alt+y |          Ctrl+Shift+Alt+Y |          ctrl+shift+alt+[KeyZ] |
-|                                |       |                   Shift+, |   2 |                           |                                |                           |                                |
+|                                |       |                   Shift+, |   1 |                           |                                |                           |                                |
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 |                         Digit1 |   1   |                         1 |     |                         1 |                              1 |                         1 |                       [Digit1] |
 |                    Ctrl+Digit1 |   1   |                    Ctrl+1 |     |                    Ctrl+1 |                         ctrl+1 |                    Ctrl+1 |                  ctrl+[Digit1] |
@@ -480,9 +480,9 @@
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 |       HW Code combination      |  Key  |    KeyCode combination    | Pri |          UI label         |         User settings          |    Electron accelerator   |       Dispatching string       |
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-|                  IntlBackslash |   <   |                   Shift+, |   1 |                         < |                [IntlBackslash] |                      null |                [IntlBackslash] |
+|                  IntlBackslash |   <   |                   Shift+, |   2 |                         < |                [IntlBackslash] |                      null |                [IntlBackslash] |
 |             Ctrl+IntlBackslash |   <   |              Ctrl+Shift+, |     |                    Ctrl+< |           ctrl+[IntlBackslash] |                      null |           ctrl+[IntlBackslash] |
-|            Shift+IntlBackslash |   >   |                   Shift+. |   1 |                   Shift+< |          shift+[IntlBackslash] |                      null |          shift+[IntlBackslash] |
+|            Shift+IntlBackslash |   >   |                   Shift+. |   2 |                   Shift+< |          shift+[IntlBackslash] |                      null |          shift+[IntlBackslash] |
 |       Ctrl+Shift+IntlBackslash |   >   |              Ctrl+Shift+. |     |              Ctrl+Shift+< |     ctrl+shift+[IntlBackslash] |                      null |     ctrl+shift+[IntlBackslash] |
 |              Alt+IntlBackslash |   <   |               Shift+Alt+, |     |                     Alt+< |            alt+[IntlBackslash] |                      null |            alt+[IntlBackslash] |
 |         Ctrl+Alt+IntlBackslash |   \   |                         \ |     |                Ctrl+Alt+< |       ctrl+alt+[IntlBackslash] |                      null |       ctrl+alt+[IntlBackslash] |
