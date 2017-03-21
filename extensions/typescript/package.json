@@ -34,6 +34,7 @@
     "onCommand:typescript.selectTypeScriptVersion",
     "onCommand:javascript.goToProjectConfig",
     "onCommand:typescript.goToProjectConfig",
+    "onCommand:typescript.openTsServerLog",
     "workspaceContains:jsconfig.json",
     "workspaceContains:tsconfig.json"
   ],
@@ -113,6 +114,17 @@
           "type": "boolean",
           "default": false,
           "description": "%typescript.implementationsCodeLens.enabled%"
+        },
+        "typescript.tsserver.log": {
+          "type": "string",
+          "enum": [
+            "off",
+            "terse",
+            "normal",
+            "verbose"
+          ],
+          "default": "off",
+          "description": "%typescript.tsserver.log%"
         },
         "typescript.tsserver.trace": {
           "type": "string",
@@ -296,6 +308,11 @@
         "command": "javascript.goToProjectConfig",
         "title": "%javascript.goToProjectConfig.title%",
         "category": "JavaScript"
+      },
+      {
+        "command": "typescript.openTsServerLog",
+        "title": "%typescript.openTsServerLog.title%",
+        "category": "TypeScript"
       }
     ],
     "menus": {
