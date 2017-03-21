@@ -362,7 +362,7 @@ export function isEqualOrParent(path: string, candidate: string, ignoreCase?: bo
 	return path.indexOf(candidate) === 0;
 }
 
-export function indexOf(path: string, candidate: string): number {
+export function indexOf(path: string, candidate: string, ignoreCase?: boolean): number {
 	if (candidate.length > path.length) {
 		return -1;
 	}
@@ -371,7 +371,7 @@ export function indexOf(path: string, candidate: string): number {
 		return 0;
 	}
 
-	if (!isLinux) {
+	if (ignoreCase) {
 		path = path.toLowerCase();
 		candidate = candidate.toLowerCase();
 	}

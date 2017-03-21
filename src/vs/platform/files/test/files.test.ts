@@ -188,19 +188,15 @@ suite('Files', () => {
 		}
 	});
 
-	test('indexOf', function () {
-		assert.equal(indexOf('/some/path', '/some/path'), 0);
-		assert.equal(indexOf('/some/path/more', '/some/path'), 0);
+	test('indexOf (ignorecase)', function () {
+		assert.equal(indexOf('/some/path', '/some/path', true), 0);
+		assert.equal(indexOf('/some/path/more', '/some/path', true), 0);
 
-		assert.equal(indexOf('c:\\some\\path', 'c:\\some\\path'), 0);
-		assert.equal(indexOf('c:\\some\\path\\more', 'c:\\some\\path'), 0);
+		assert.equal(indexOf('c:\\some\\path', 'c:\\some\\path', true), 0);
+		assert.equal(indexOf('c:\\some\\path\\more', 'c:\\some\\path', true), 0);
 
-		assert.equal(indexOf('/some/path', '/some/other/path'), -1);
+		assert.equal(indexOf('/some/path', '/some/other/path', true), -1);
 
-		if (isLinux) {
-			assert.equal(indexOf('/some/path', '/some/PATH'), -1);
-		} else {
-			assert.equal(indexOf('/some/path', '/some/PATH'), 0);
-		}
+		assert.equal(indexOf('/some/path', '/some/PATH', true), 0);
 	});
 });
