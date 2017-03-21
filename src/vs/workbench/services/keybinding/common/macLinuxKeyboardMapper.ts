@@ -333,6 +333,40 @@ class ScanCodeKeyCodeMapper {
 		return result;
 	}
 
+	public guessStableKeyCode(scanCode: ScanCode): KeyCode {
+		if (scanCode >= ScanCode.Digit1 && scanCode <= ScanCode.Digit0) {
+			// digits are ok
+			switch (scanCode) {
+				case ScanCode.Digit1: return KeyCode.KEY_1;
+				case ScanCode.Digit2: return KeyCode.KEY_2;
+				case ScanCode.Digit3: return KeyCode.KEY_3;
+				case ScanCode.Digit4: return KeyCode.KEY_4;
+				case ScanCode.Digit5: return KeyCode.KEY_5;
+				case ScanCode.Digit6: return KeyCode.KEY_6;
+				case ScanCode.Digit7: return KeyCode.KEY_7;
+				case ScanCode.Digit8: return KeyCode.KEY_8;
+				case ScanCode.Digit9: return KeyCode.KEY_9;
+				case ScanCode.Digit0: return KeyCode.KEY_0;
+			}
+		}
+
+		// Lookup the scanCode with and without shift and see if the keyCode is stable
+		const keyCodeCombos1 = this.lookupScanCodeCombo(new ScanCodeCombo(false, false, false, scanCode));
+		const keyCodeCombos2 = this.lookupScanCodeCombo(new ScanCodeCombo(false, true, false, scanCode));
+		if (keyCodeCombos1.length === 1 && keyCodeCombos2.length === 1) {
+			const shiftKey1 = keyCodeCombos1[0].shiftKey;
+			const keyCode1 = keyCodeCombos1[0].keyCode;
+			const shiftKey2 = keyCodeCombos2[0].shiftKey;
+			const keyCode2 = keyCodeCombos2[0].keyCode;
+			if (keyCode1 === keyCode2 && shiftKey1 !== shiftKey2) {
+				// This looks like a stable mapping
+				return keyCode1;
+			}
+		}
+
+		return -1;
+	}
+
 	private _encodeScanCodeCombo(scanCodeCombo: ScanCodeCombo): number {
 		return this._encode(scanCodeCombo.ctrlKey, scanCodeCombo.shiftKey, scanCodeCombo.altKey, scanCodeCombo.scanCode);
 	}
@@ -720,7 +754,7 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 		}
 
 		// Check if this scanCode always maps to the same keyCode and back
-		let constantKeyCode: KeyCode = this._getStableKeyCodeForHWCode(scanCode);
+		let constantKeyCode: KeyCode = this._scanCodeKeyCodeMapper.guessStableKeyCode(scanCode);
 		if (constantKeyCode !== -1) {
 			return USER_SETTINGS.fromKeyCode(constantKeyCode).toLowerCase();
 		}
@@ -756,57 +790,12 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 		}
 
 		// Check if this scanCode always maps to the same keyCode and back
-		let constantKeyCode: KeyCode = this._getStableKeyCodeForHWCode(scanCode);
+		let constantKeyCode: KeyCode = this._scanCodeKeyCodeMapper.guessStableKeyCode(scanCode);
 		if (constantKeyCode !== -1) {
 			return this._getElectronLabelForKeyCode(constantKeyCode);
 		}
 
 		return null;
-	}
-
-	private _getStableKeyCodeForHWCode(scanCode: ScanCode): KeyCode {
-		if (scanCode >= ScanCode.Digit1 && scanCode <= ScanCode.Digit0) {
-			// digits are ok
-			switch (scanCode) {
-				case ScanCode.Digit1: return KeyCode.KEY_1;
-				case ScanCode.Digit2: return KeyCode.KEY_2;
-				case ScanCode.Digit3: return KeyCode.KEY_3;
-				case ScanCode.Digit4: return KeyCode.KEY_4;
-				case ScanCode.Digit5: return KeyCode.KEY_5;
-				case ScanCode.Digit6: return KeyCode.KEY_6;
-				case ScanCode.Digit7: return KeyCode.KEY_7;
-				case ScanCode.Digit8: return KeyCode.KEY_8;
-				case ScanCode.Digit9: return KeyCode.KEY_9;
-				case ScanCode.Digit0: return KeyCode.KEY_0;
-			}
-		}
-
-		// Check if this scanCode always maps to the same keyCode and back
-		let constantKeyCode: KeyCode = -1;
-		for (let mod = 0; mod < 8; mod++) {
-			const hwCtrlKey = (mod & 0b001) ? true : false;
-			const hwShiftKey = (mod & 0b010) ? true : false;
-			const hwAltKey = (mod & 0b100) ? true : false;
-			const hwCombo = new ScanCodeCombo(hwCtrlKey, hwShiftKey, hwAltKey, scanCode);
-
-			const kbCombos = this._scanCodeKeyCodeMapper.lookupScanCodeCombo(hwCombo);
-			if (kbCombos.length === 0) {
-				// maps to unknown keyCode
-				return -1;
-			}
-			for (let i = 0, len = kbCombos.length; i < len; i++) {
-				const kbCombo = kbCombos[i];
-
-				if (constantKeyCode === -1) {
-					constantKeyCode = kbCombo.keyCode;
-				} else if (constantKeyCode !== kbCombo.keyCode) {
-					// maps to different keyCode
-					return -1;
-				}
-			}
-		}
-
-		return constantKeyCode;
 	}
 
 	public resolveKeybinding(keybinding: Keybinding): NativeResolvedKeybinding[] {

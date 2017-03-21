@@ -124,15 +124,15 @@
 |                 Shift+Alt+KeyM |   M   |               Shift+Alt+M |               Shift+Alt+M |                    shift+alt+m |               Shift+Alt+M |               shift+alt+[KeyM] |
 |            Ctrl+Shift+Alt+KeyM |   ˚   |          Ctrl+Shift+Alt+M |          Ctrl+Shift+Alt+M |               ctrl+shift+alt+m |          Ctrl+Shift+Alt+M |          ctrl+shift+alt+[KeyM] |
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-|                           KeyN |   n   |                         N |                         N |                         [KeyN] |                      null |                         [KeyN] |
-|                      Ctrl+KeyN |   n   |                    Ctrl+N |                    Ctrl+N |                    ctrl+[KeyN] |                      null |                    ctrl+[KeyN] |
-|                     Shift+KeyN |   N   |                   Shift+N |                   Shift+N |                   shift+[KeyN] |                      null |                   shift+[KeyN] |
-|                Ctrl+Shift+KeyN |   N   |              Ctrl+Shift+N |              Ctrl+Shift+N |              ctrl+shift+[KeyN] |                      null |              ctrl+shift+[KeyN] |
-|                       Alt+KeyN |   n   |                     Alt+N |                     Alt+N |                     alt+[KeyN] |                      null |                     alt+[KeyN] |
-|                  Ctrl+Alt+KeyN |   ~   |                Ctrl+Alt+N |                Ctrl+Alt+N |                ctrl+alt+[KeyN] |                      null |                ctrl+alt+[KeyN] |
+|                           KeyN |   n   |                         N |                         N |                              n |                         N |                         [KeyN] |
+|                      Ctrl+KeyN |   n   |                    Ctrl+N |                    Ctrl+N |                         ctrl+n |                    Ctrl+N |                    ctrl+[KeyN] |
+|                     Shift+KeyN |   N   |                   Shift+N |                   Shift+N |                        shift+n |                   Shift+N |                   shift+[KeyN] |
+|                Ctrl+Shift+KeyN |   N   |              Ctrl+Shift+N |              Ctrl+Shift+N |                   ctrl+shift+n |              Ctrl+Shift+N |              ctrl+shift+[KeyN] |
+|                       Alt+KeyN |   n   |                     Alt+N |                     Alt+N |                          alt+n |                     Alt+N |                     alt+[KeyN] |
+|                  Ctrl+Alt+KeyN |   ~   |                Ctrl+Alt+N |                Ctrl+Alt+N |                     ctrl+alt+n |                Ctrl+Alt+N |                ctrl+alt+[KeyN] |
 |                                |       |                   Shift+` |                           |                                |                           |                                |
-|                 Shift+Alt+KeyN |   N   |               Shift+Alt+N |               Shift+Alt+N |               shift+alt+[KeyN] |                      null |               shift+alt+[KeyN] |
-|            Ctrl+Shift+Alt+KeyN |   ˙   |          Ctrl+Shift+Alt+N |          Ctrl+Shift+Alt+N |          ctrl+shift+alt+[KeyN] |                      null |          ctrl+shift+alt+[KeyN] |
+|                 Shift+Alt+KeyN |   N   |               Shift+Alt+N |               Shift+Alt+N |                    shift+alt+n |               Shift+Alt+N |               shift+alt+[KeyN] |
+|            Ctrl+Shift+Alt+KeyN |   ˙   |          Ctrl+Shift+Alt+N |          Ctrl+Shift+Alt+N |               ctrl+shift+alt+n |          Ctrl+Shift+Alt+N |          ctrl+shift+alt+[KeyN] |
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 |                           KeyO |   o   |                         O |                         O |                              o |                         O |                         [KeyO] |
 |                      Ctrl+KeyO |   o   |                    Ctrl+O |                    Ctrl+O |                         ctrl+o |                    Ctrl+O |                    ctrl+[KeyO] |

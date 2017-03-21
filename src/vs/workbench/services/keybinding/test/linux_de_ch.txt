@@ -218,14 +218,14 @@
 |                 Shift+Alt+KeyW |   W   |               Shift+Alt+W |               Shift+Alt+W |                    shift+alt+w |               Shift+Alt+W |               shift+alt+[KeyW] |
 |            Ctrl+Shift+Alt+KeyW |   Ł   |          Ctrl+Shift+Alt+W |          Ctrl+Shift+Alt+W |               ctrl+shift+alt+w |          Ctrl+Shift+Alt+W |          ctrl+shift+alt+[KeyW] |
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-|                           KeyX |   x   |                         X |                         X |                         [KeyX] |                      null |                         [KeyX] |
-|                      Ctrl+KeyX |   x   |                    Ctrl+X |                    Ctrl+X |                    ctrl+[KeyX] |                      null |                    ctrl+[KeyX] |
-|                     Shift+KeyX |   X   |                   Shift+X |                   Shift+X |                   shift+[KeyX] |                      null |                   shift+[KeyX] |
-|                Ctrl+Shift+KeyX |   X   |              Ctrl+Shift+X |              Ctrl+Shift+X |              ctrl+shift+[KeyX] |                      null |              ctrl+shift+[KeyX] |
-|                       Alt+KeyX |   x   |                     Alt+X |                     Alt+X |                     alt+[KeyX] |                      null |                     alt+[KeyX] |
-|                  Ctrl+Alt+KeyX |   »   |                Ctrl+Alt+X |                Ctrl+Alt+X |                ctrl+alt+[KeyX] |                      null |                ctrl+alt+[KeyX] |
-|                 Shift+Alt+KeyX |   X   |               Shift+Alt+X |               Shift+Alt+X |               shift+alt+[KeyX] |                      null |               shift+alt+[KeyX] |
-|            Ctrl+Shift+Alt+KeyX |   >   |          Ctrl+Shift+Alt+X |          Ctrl+Shift+Alt+X |          ctrl+shift+alt+[KeyX] |                      null |          ctrl+shift+alt+[KeyX] |
+|                           KeyX |   x   |                         X |                         X |                              x |                         X |                         [KeyX] |
+|                      Ctrl+KeyX |   x   |                    Ctrl+X |                    Ctrl+X |                         ctrl+x |                    Ctrl+X |                    ctrl+[KeyX] |
+|                     Shift+KeyX |   X   |                   Shift+X |                   Shift+X |                        shift+x |                   Shift+X |                   shift+[KeyX] |
+|                Ctrl+Shift+KeyX |   X   |              Ctrl+Shift+X |              Ctrl+Shift+X |                   ctrl+shift+x |              Ctrl+Shift+X |              ctrl+shift+[KeyX] |
+|                       Alt+KeyX |   x   |                     Alt+X |                     Alt+X |                          alt+x |                     Alt+X |                     alt+[KeyX] |
+|                  Ctrl+Alt+KeyX |   »   |                Ctrl+Alt+X |                Ctrl+Alt+X |                     ctrl+alt+x |                Ctrl+Alt+X |                ctrl+alt+[KeyX] |
+|                 Shift+Alt+KeyX |   X   |               Shift+Alt+X |               Shift+Alt+X |                    shift+alt+x |               Shift+Alt+X |               shift+alt+[KeyX] |
+|            Ctrl+Shift+Alt+KeyX |   >   |          Ctrl+Shift+Alt+X |          Ctrl+Shift+Alt+X |               ctrl+shift+alt+x |          Ctrl+Shift+Alt+X |          ctrl+shift+alt+[KeyX] |
 |                                |       |                   Shift+. |                           |                                |                           |                                |
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 |       HW Code combination      |  Key  |    KeyCode combination    |          UI label         |         User settings          |    Electron accelerator   |       Dispatching string       |
@@ -239,14 +239,14 @@
 |                 Shift+Alt+KeyY |   Z   |               Shift+Alt+Z |               Shift+Alt+Z |                    shift+alt+z |               Shift+Alt+Z |               shift+alt+[KeyY] |
 |            Ctrl+Shift+Alt+KeyY |   ¥   |          Ctrl+Shift+Alt+Z |          Ctrl+Shift+Alt+Z |               ctrl+shift+alt+z |          Ctrl+Shift+Alt+Z |          ctrl+shift+alt+[KeyY] |
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-|                           KeyZ |   y   |                         Y |                         Y |                         [KeyZ] |                      null |                         [KeyZ] |
-|                      Ctrl+KeyZ |   y   |                    Ctrl+Y |                    Ctrl+Y |                    ctrl+[KeyZ] |                      null |                    ctrl+[KeyZ] |
-|                     Shift+KeyZ |   Y   |                   Shift+Y |                   Shift+Y |                   shift+[KeyZ] |                      null |                   shift+[KeyZ] |
-|                Ctrl+Shift+KeyZ |   Y   |              Ctrl+Shift+Y |              Ctrl+Shift+Y |              ctrl+shift+[KeyZ] |                      null |              ctrl+shift+[KeyZ] |
-|                       Alt+KeyZ |   y   |                     Alt+Y |                     Alt+Y |                     alt+[KeyZ] |                      null |                     alt+[KeyZ] |
-|                  Ctrl+Alt+KeyZ |   «   |                Ctrl+Alt+Y |                Ctrl+Alt+Y |                ctrl+alt+[KeyZ] |                      null |                ctrl+alt+[KeyZ] |
-|                 Shift+Alt+KeyZ |   Y   |               Shift+Alt+Y |               Shift+Alt+Y |               shift+alt+[KeyZ] |                      null |               shift+alt+[KeyZ] |
-|            Ctrl+Shift+Alt+KeyZ |   <   |          Ctrl+Shift+Alt+Y |          Ctrl+Shift+Alt+Y |          ctrl+shift+alt+[KeyZ] |                      null |          ctrl+shift+alt+[KeyZ] |
+|                           KeyZ |   y   |                         Y |                         Y |                              y |                         Y |                         [KeyZ] |
+|                      Ctrl+KeyZ |   y   |                    Ctrl+Y |                    Ctrl+Y |                         ctrl+y |                    Ctrl+Y |                    ctrl+[KeyZ] |
+|                     Shift+KeyZ |   Y   |                   Shift+Y |                   Shift+Y |                        shift+y |                   Shift+Y |                   shift+[KeyZ] |
+|                Ctrl+Shift+KeyZ |   Y   |              Ctrl+Shift+Y |              Ctrl+Shift+Y |                   ctrl+shift+y |              Ctrl+Shift+Y |              ctrl+shift+[KeyZ] |
+|                       Alt+KeyZ |   y   |                     Alt+Y |                     Alt+Y |                          alt+y |                     Alt+Y |                     alt+[KeyZ] |
+|                  Ctrl+Alt+KeyZ |   «   |                Ctrl+Alt+Y |                Ctrl+Alt+Y |                     ctrl+alt+y |                Ctrl+Alt+Y |                ctrl+alt+[KeyZ] |
+|                 Shift+Alt+KeyZ |   Y   |               Shift+Alt+Y |               Shift+Alt+Y |                    shift+alt+y |               Shift+Alt+Y |               shift+alt+[KeyZ] |
+|            Ctrl+Shift+Alt+KeyZ |   <   |          Ctrl+Shift+Alt+Y |          Ctrl+Shift+Alt+Y |               ctrl+shift+alt+y |          Ctrl+Shift+Alt+Y |          ctrl+shift+alt+[KeyZ] |
 |                                |       |                   Shift+, |                           |                                |                           |                                |
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 |                         Digit1 |   1   |                         1 |                         1 |                              1 |                         1 |                       [Digit1] |
