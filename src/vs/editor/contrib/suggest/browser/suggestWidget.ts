@@ -5,7 +5,7 @@
 
 'use strict';
 
-import 'vs/css!./suggest';
+import 'vs/css!./media/suggest';
 import * as nls from 'vs/nls';
 import { createMatches } from 'vs/base/common/filters';
 import * as strings from 'vs/base/common/strings';
