@@ -121,7 +121,7 @@ export class SCMMenus implements IDisposable {
 		const primary = [];
 		const secondary = [];
 		const result = { primary, secondary };
-		fillInActions(menu, () => [context], result, g => g === 'inline');
+		fillInActions(menu, context, result, g => g === 'inline');
 
 		menu.dispose();
 		contextKeyService.dispose();
