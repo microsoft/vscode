@@ -871,7 +871,8 @@ export class DebugService implements debug.IDebugService {
 		if (process.session.capabilities.supportsRestartRequest) {
 			return process.session.custom('restart', null);
 		}
-		const preserveFocus = process.getId() === this.viewModel.focusedProcess.getId();
+		const focusedProcess = this.viewModel.focusedProcess;
+		const preserveFocus = focusedProcess && process.getId() === focusedProcess.getId();
 
 		return process.session.disconnect(true).then(() =>
 			new TPromise<void>((c, e) => {
