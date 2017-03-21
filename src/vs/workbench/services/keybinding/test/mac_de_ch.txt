@@ -1,14 +1,14 @@
 -----------------------------------------------------------------------------------------------------------------------------------
 |       HW Code combination      |  Key  |    KeyCode combination    |          UI label         |       Dispatching string       |
 -----------------------------------------------------------------------------------------------------------------------------------
-|                           KeyA |  ---  |                   unknown |                 undefined |                           null |
-|                      Ctrl+KeyA |  ---  |                   unknown |            Ctrl+undefined |                           null |
-|                     Shift+KeyA |  ---  |                   unknown |           Shift+undefined |                           null |
-|                Ctrl+Shift+KeyA |  ---  |                   unknown |      Ctrl+Shift+undefined |                           null |
-|                       Alt+KeyA |  ---  |                   unknown |             Alt+undefined |                           null |
-|                  Ctrl+Alt+KeyA |  ---  |                   unknown |        Ctrl+Alt+undefined |                           null |
-|                 Shift+Alt+KeyA |  ---  |                   unknown |       Shift+Alt+undefined |                           null |
-|            Ctrl+Shift+Alt+KeyA |  ---  |                   unknown |  Ctrl+Shift+Alt+undefined |                           null |
+|                           KeyA |   a   |                         A |                         A |                         [KeyA] |
+|                      Ctrl+KeyA |   a   |                    Ctrl+A |                    Ctrl+A |                    ctrl+[KeyA] |
+|                     Shift+KeyA |   A   |                   Shift+A |                   Shift+A |                   shift+[KeyA] |
+|                Ctrl+Shift+KeyA |   A   |              Ctrl+Shift+A |              Ctrl+Shift+A |              ctrl+shift+[KeyA] |
+|                       Alt+KeyA |   a   |                     Alt+A |                     Alt+A |                     alt+[KeyA] |
+|                  Ctrl+Alt+KeyA |   å   |                Ctrl+Alt+A |                Ctrl+Alt+A |                ctrl+alt+[KeyA] |
+|                 Shift+Alt+KeyA |   A   |               Shift+Alt+A |               Shift+Alt+A |               shift+alt+[KeyA] |
+|            Ctrl+Shift+Alt+KeyA |   Å   |          Ctrl+Shift+Alt+A |          Ctrl+Shift+Alt+A |          ctrl+shift+alt+[KeyA] |
 -----------------------------------------------------------------------------------------------------------------------------------
 |                           KeyB |   b   |                         B |                         B |                         [KeyB] |
 |                      Ctrl+KeyB |   b   |                    Ctrl+B |                    Ctrl+B |                    ctrl+[KeyB] |
@@ -390,14 +390,14 @@
 |            Shift+Alt+Backslash |   £   |         Shift+Alt+unknown |               Shift+Alt+$ |          shift+alt+[Backslash] |
 |       Ctrl+Shift+Alt+Backslash |   •   |    Ctrl+Shift+Alt+unknown |          Ctrl+Shift+Alt+$ |     ctrl+shift+alt+[Backslash] |
 -----------------------------------------------------------------------------------------------------------------------------------
-|                       IntlHash |  ---  |                   unknown |                      null |                     [IntlHash] |
-|                  Ctrl+IntlHash |  ---  |              Ctrl+unknown |                 Ctrl+null |                ctrl+[IntlHash] |
-|                 Shift+IntlHash |  ---  |             Shift+unknown |                Shift+null |               shift+[IntlHash] |
-|            Ctrl+Shift+IntlHash |  ---  |        Ctrl+Shift+unknown |           Ctrl+Shift+null |          ctrl+shift+[IntlHash] |
-|                   Alt+IntlHash |  ---  |               Alt+unknown |                  Alt+null |                 alt+[IntlHash] |
-|              Ctrl+Alt+IntlHash |  ---  |          Ctrl+Alt+unknown |             Ctrl+Alt+null |            ctrl+alt+[IntlHash] |
-|             Shift+Alt+IntlHash |  ---  |         Shift+Alt+unknown |            Shift+Alt+null |           shift+alt+[IntlHash] |
-|        Ctrl+Shift+Alt+IntlHash |  ---  |    Ctrl+Shift+Alt+unknown |       Ctrl+Shift+Alt+null |      ctrl+shift+alt+[IntlHash] |
+|                       IntlHash |  ---  |                   unknown |                 undefined |                           null |
+|                  Ctrl+IntlHash |  ---  |                   unknown |            Ctrl+undefined |                           null |
+|                 Shift+IntlHash |  ---  |                   unknown |           Shift+undefined |                           null |
+|            Ctrl+Shift+IntlHash |  ---  |                   unknown |      Ctrl+Shift+undefined |                           null |
+|                   Alt+IntlHash |  ---  |                   unknown |             Alt+undefined |                           null |
+|              Ctrl+Alt+IntlHash |  ---  |                   unknown |        Ctrl+Alt+undefined |                           null |
+|             Shift+Alt+IntlHash |  ---  |                   unknown |       Shift+Alt+undefined |                           null |
+|        Ctrl+Shift+Alt+IntlHash |  ---  |                   unknown |  Ctrl+Shift+Alt+undefined |                           null |
 -----------------------------------------------------------------------------------------------------------------------------------
 |                      Semicolon |   ö   |                   unknown |                         ö |                    [Semicolon] |
 |                 Ctrl+Semicolon |   ö   |              Ctrl+unknown |                    Ctrl+ö |               ctrl+[Semicolon] |
