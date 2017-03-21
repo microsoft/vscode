@@ -57,7 +57,7 @@ addSettingMapping('hoverHighlight', editorHoverHighlight);
 addSettingMapping('hoverHighlight', editorHoverHighlight);
 addSettingMapping('linkForeground', colorRegistry.editorLinkForeground);
 addSettingMapping('wordHighlight', wordHighlighter.editorWordHighlight);
-addSettingMapping('wordHighlightStrong', wordHighlighter.editorWordHighlightString);
+addSettingMapping('wordHighlightStrong', wordHighlighter.editorWordHighlightStrong);
 addSettingMapping('findRangeHighlight', colorRegistry.editorFindRangeHighlight);
 addSettingMapping('findMatchHighlight', referencesFindMatchHighlight);
 addSettingMapping('referenceHighlight', referencesReferenceHighlight);
