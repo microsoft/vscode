@@ -490,6 +490,18 @@ export class Thread implements IThread {
 		});
 	}
 
+	/**
+	 * Returns exception info promise if the exception was thrown and the debug adapter supports 'exceptionInfo' request, otherwise null
+	 */
+	public get exceptionInfo(): TPromise<DebugProtocol.ExceptionInfoResponse> {
+		const session = this.process.session;
+		if (session.capabilities.supportsExceptionInfoRequest && this.stoppedDetails.reason === 'exception') {
+			return session.exceptionInfo({ threadId: this.threadId });
+		}
+
+		return null;
+	}
+
 	public next(): TPromise<any> {
 		return this.process.session.next({ threadId: this.threadId });
 	}

@@ -323,6 +323,10 @@ export class RawDebugSession extends v8.V8Protocol implements debug.ISession {
 		return this.send('stackTrace', args);
 	}
 
+	public exceptionInfo(args: DebugProtocol.ExceptionInfoArguments): TPromise<DebugProtocol.ExceptionInfoResponse> {
+		return this.send('exceptionInfo', args);
+	}
+
 	public scopes(args: DebugProtocol.ScopesArguments): TPromise<DebugProtocol.ScopesResponse> {
 		return this.send('scopes', args);
 	}
