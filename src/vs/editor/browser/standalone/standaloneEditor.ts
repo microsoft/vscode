@@ -31,7 +31,7 @@ import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService'
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 import { NULL_STATE, nullTokenize } from 'vs/editor/common/modes/nullMode';
-import { ITheme, IStandaloneColorService } from 'vs/editor/common/services/standaloneColorService';
+import { IStandaloneThemeData, IStandaloneColorService } from 'vs/editor/common/services/standaloneColorService';
 import { Token } from 'vs/editor/common/core/token';
 import { FontInfo, BareFontInfo } from 'vs/editor/common/config/fontInfo';
 
@@ -301,7 +301,7 @@ export function tokenize(text: string, languageId: string): Token[][] {
 /**
  * Define a new theme.
  */
-export function defineTheme(themeName: string, themeData: ITheme): void {
+export function defineTheme(themeName: string, themeData: IStandaloneThemeData): void {
 	StaticServices.standaloneColorService.get().defineTheme(themeName, themeData);
 }
 

@@ -113,12 +113,12 @@ export class TokenizationSupport2Adapter implements modes.ITokenizationSupport {
 
 	private _toBinaryTokens(tokens: IToken[], offsetDelta: number): Uint32Array {
 		let languageId = this._languageIdentifier.id;
-		let theme = this._standaloneColorService.getTheme();
+		let tokenTheme = this._standaloneColorService.getTheme().tokenTheme;
 
 		let result: number[] = [], resultLen = 0;
 		for (let i = 0, len = tokens.length; i < len; i++) {
 			let t = tokens[i];
-			let metadata = theme.match(languageId, t.scopes);
+			let metadata = tokenTheme.match(languageId, t.scopes);
 			if (resultLen > 0 && result[resultLen - 1] === metadata) {
 				// same metadata
 				continue;

@@ -984,7 +984,6 @@ export class TestWindowsService implements IWindowsService {
 
 export class TestTheme implements ITheme {
 	selector: string;
-	label: string;
 	type: 'light' | 'dark' | 'hc';
 
 	getColor(color: string, useDefault?: boolean): Color {
