@@ -31,7 +31,7 @@ import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService'
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 import { NULL_STATE, nullTokenize } from 'vs/editor/common/modes/nullMode';
-import { IStandaloneThemeData, IStandaloneColorService } from 'vs/editor/common/services/standaloneColorService';
+import { IStandaloneThemeData, IStandaloneThemeService } from 'vs/editor/common/services/standaloneThemeService';
 import { Token } from 'vs/editor/common/core/token';
 import { FontInfo, BareFontInfo } from 'vs/editor/common/config/fontInfo';
 
@@ -92,7 +92,7 @@ export function create(domElement: HTMLElement, options?: IEditorConstructionOpt
 			services.get(IContextKeyService),
 			services.get(IKeybindingService),
 			services.get(IContextViewService),
-			services.get(IStandaloneColorService)
+			services.get(IStandaloneThemeService)
 		);
 	});
 }
@@ -123,7 +123,7 @@ export function createDiffEditor(domElement: HTMLElement, options?: IDiffEditorC
 			services.get(IContextKeyService),
 			services.get(IKeybindingService),
 			services.get(IContextViewService),
-			services.get(IStandaloneColorService),
+			services.get(IStandaloneThemeService),
 			services.get(IEditorWorkerService)
 		);
 	});
@@ -244,7 +244,7 @@ export function createWebWorker<T>(opts: IWebWorkerOptions): MonacoWebWorker<T> 
  * Colorize the contents of `domNode` using attribute `data-lang`.
  */
 export function colorizeElement(domNode: HTMLElement, options: IColorizerElementOptions): TPromise<void> {
-	return Colorizer.colorizeElement(StaticServices.standaloneColorService.get(), StaticServices.modeService.get(), domNode, options);
+	return Colorizer.colorizeElement(StaticServices.standaloneThemeService.get(), StaticServices.modeService.get(), domNode, options);
 }
 
 /**
@@ -302,7 +302,7 @@ export function tokenize(text: string, languageId: string): Token[][] {
  * Define a new theme.
  */
 export function defineTheme(themeName: string, themeData: IStandaloneThemeData): void {
-	StaticServices.standaloneColorService.get().defineTheme(themeName, themeData);
+	StaticServices.standaloneThemeService.get().defineTheme(themeName, themeData);
 }
 
 /**

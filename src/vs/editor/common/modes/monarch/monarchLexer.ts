@@ -15,7 +15,7 @@ import * as monarchCommon from 'vs/editor/common/modes/monarch/monarchCommon';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { Token, TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/token';
 import { NULL_STATE, NULL_MODE_ID } from 'vs/editor/common/modes/nullMode';
-import { IStandaloneColorService } from 'vs/editor/common/services/standaloneColorService';
+import { IStandaloneThemeService } from 'vs/editor/common/services/standaloneThemeService';
 import { TokenTheme } from 'vs/editor/common/modes/supports/tokenization';
 
 const CACHE_STACK_DEPTH = 5;
@@ -378,15 +378,15 @@ class MonarchModernTokensCollector implements IMonarchTokensCollector {
 export class MonarchTokenizer implements modes.ITokenizationSupport {
 
 	private readonly _modeService: IModeService;
-	private readonly _standaloneColorService: IStandaloneColorService;
+	private readonly _standaloneThemeService: IStandaloneThemeService;
 	private readonly _modeId: string;
 	private readonly _lexer: monarchCommon.ILexer;
 	private _embeddedModes: { [modeId: string]: boolean; };
 	private _tokenizationRegistryListener: IDisposable;
 
-	constructor(modeService: IModeService, standaloneColorService: IStandaloneColorService, modeId: string, lexer: monarchCommon.ILexer) {
+	constructor(modeService: IModeService, standaloneThemeService: IStandaloneThemeService, modeId: string, lexer: monarchCommon.ILexer) {
 		this._modeService = modeService;
-		this._standaloneColorService = standaloneColorService;
+		this._standaloneThemeService = standaloneThemeService;
 		this._modeId = modeId;
 		this._lexer = lexer;
 		this._embeddedModes = Object.create(null);
@@ -429,7 +429,7 @@ export class MonarchTokenizer implements modes.ITokenizationSupport {
 	}
 
 	public tokenize2(line: string, lineState: modes.IState, offsetDelta: number): TokenizationResult2 {
-		let tokensCollector = new MonarchModernTokensCollector(this._modeService, this._standaloneColorService.getTheme().tokenTheme);
+		let tokensCollector = new MonarchModernTokensCollector(this._modeService, this._standaloneThemeService.getTheme().tokenTheme);
 		let endLineState = this._tokenize(line, <MonarchLineState>lineState, offsetDelta, tokensCollector);
 		return tokensCollector.finalize(endLineState);
 	}
@@ -836,6 +836,6 @@ function findBracket(lexer: monarchCommon.ILexer, matched: string) {
 	return null;
 }
 
-export function createTokenizationSupport(modeService: IModeService, standaloneColorService: IStandaloneColorService, modeId: string, lexer: monarchCommon.ILexer): modes.ITokenizationSupport {
-	return new MonarchTokenizer(modeService, standaloneColorService, modeId, lexer);
+export function createTokenizationSupport(modeService: IModeService, standaloneThemeService: IStandaloneThemeService, modeId: string, lexer: monarchCommon.ILexer): modes.ITokenizationSupport {
+	return new MonarchTokenizer(modeService, standaloneThemeService, modeId, lexer);
 }

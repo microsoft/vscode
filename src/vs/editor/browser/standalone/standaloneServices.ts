@@ -38,8 +38,8 @@ import {
 } from 'vs/editor/browser/standalone/simpleServices';
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
 import { IMenuService } from 'vs/platform/actions/common/actions';
-import { IStandaloneColorService } from 'vs/editor/common/services/standaloneColorService';
-import { StandaloneColorServiceImpl } from 'vs/editor/browser/services/standaloneColorServiceImpl';
+import { IStandaloneThemeService } from 'vs/editor/common/services/standaloneThemeService';
+import { StandaloneThemeServiceImpl } from 'vs/editor/browser/services/standaloneThemeServiceImpl';
 
 export interface IEditorContextViewService extends IContextViewService {
 	dispose(): void;
@@ -139,7 +139,7 @@ export module StaticServices {
 
 	export const storageService = define(IStorageService, () => NullStorageService);
 
-	export const standaloneColorService = define(IStandaloneColorService, () => new StandaloneColorServiceImpl());
+	export const standaloneThemeService = define(IStandaloneThemeService, () => new StandaloneThemeServiceImpl());
 }
 
 export class DynamicStandaloneServices extends Disposable {
