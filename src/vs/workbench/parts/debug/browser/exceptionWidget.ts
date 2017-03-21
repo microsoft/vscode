@@ -11,14 +11,11 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IDebugService } from 'vs/workbench/parts/debug/common/debug';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { TPromise } from 'vs/base/common/winjs.base';
 const $ = dom.$;
 
 export class ExceptionWidget extends ZoneWidget {
 
-	private exceptionInfo: TPromise<DebugProtocol.ExceptionInfoResponse>;
-
-	constructor(editor: ICodeEditor, private lineNumber: number,
+	constructor(editor: ICodeEditor, private exceptionInfo: DebugProtocol.ExceptionInfoResponse, private lineNumber: number,
 		@IContextViewService private contextViewService: IContextViewService,
 		@IDebugService private debugService: IDebugService
 	) {
@@ -42,16 +39,32 @@ export class ExceptionWidget extends ZoneWidget {
 			let title = $('.title');
 			let msg = $('.message');
 
-			this.exceptionInfo = thread.exceptionInfo;
-			this.exceptionInfo.then((exceptionInfo) => {
-				if (exceptionInfo) {
-					title.textContent = exceptionInfo.body.description;
-					msg.textContent = exceptionInfo.body.details.stackTrace;
-				} else {
-					title.textContent = nls.localize('exceptionThrown', 'Exception occurred');
-					msg.textContent = thread.stoppedDetails.text;
+			if (this.exceptionInfo) {
+				let conditionMessage;
+				switch (this.exceptionInfo.body.breakMode) {
+					case 'never':
+						conditionMessage = nls.localize('neverException', 'User-handled exception has occurred.');
+						break;
+					case 'always':
+						conditionMessage = nls.localize('alwaysException', 'Always-breaking exception has occurred.');
+						break;
+					case 'unhandled':
+						conditionMessage = nls.localize('unhandledException', 'Unhandled exception has occurred.');
+						break;
+					case 'userUnhandled':
+						conditionMessage = nls.localize('userUnhandledException', 'User-unhandled exception has occurred.');
+						break;
+					default:
+						conditionMessage = '';
+						break;
 				}
-			});
+
+				title.textContent = `${conditionMessage} ${this.exceptionInfo.body.description}`;
+				msg.textContent = this.exceptionInfo.body.details.stackTrace;
+			} else {
+				title.textContent = nls.localize('exceptionThrown', 'Exception occurred');
+				msg.textContent = thread.stoppedDetails.text;
+			}
 
 			dom.append(container, title);
 			dom.append(container, msg);
@@ -59,12 +72,10 @@ export class ExceptionWidget extends ZoneWidget {
 	}
 
 	protected _doLayout(heightInPixel: number, widthInPixel: number): void {
-		this.exceptionInfo.then(() => {
-			// Reload the height with respect to the exception text content and relayout it to match the line count.
-			this.container.style.height = 'initial';
+		// Reload the height with respect to the exception text content and relayout it to match the line count.
+		this.container.style.height = 'initial';
 
-			const computedLinesNumber = Math.ceil(this.container.offsetHeight / this.editor.getConfiguration().fontInfo.lineHeight);
-			this._relayout(computedLinesNumber);
-		});
+		const computedLinesNumber = Math.ceil(this.container.offsetHeight / this.editor.getConfiguration().fontInfo.lineHeight);
+		this._relayout(computedLinesNumber);
 	}
 }
