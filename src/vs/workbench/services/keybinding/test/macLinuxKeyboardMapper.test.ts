@@ -703,6 +703,33 @@ suite('keyboardMapper - LINUX de_ch', () => {
 			}
 		);
 	});
+
+	test('resolveKeyboardEvent Ctrl+[KeyX]', () => {
+		assertResolveKeyboardEvent(
+			mapper,
+			{
+				ctrlKey: true,
+				shiftKey: false,
+				altKey: false,
+				metaKey: false,
+				keyCode: -1,
+				code: 'KeyX'
+			},
+			{
+				label: 'Ctrl+X',
+				ariaLabel: 'Control+X',
+				HTMLLabel: [_simpleHTMLLabel(['Ctrl', 'X'])],
+				electronAccelerator: 'Ctrl+X',
+				userSettingsLabel: 'ctrl+x',
+				isChord: false,
+				hasCtrlModifier: true,
+				hasShiftModifier: false,
+				hasAltModifier: false,
+				hasMetaModifier: false,
+				dispatchParts: ['ctrl+[KeyX]', null],
+			}
+		);
+	});
 });
 
 suite('keyboardMapper - LINUX en_us', () => {
