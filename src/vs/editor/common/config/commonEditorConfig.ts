@@ -631,6 +631,11 @@ const editorConfiguration: IConfigurationNode = {
 			'default': DefaultConfig.editor.lineHeight,
 			'description': nls.localize('lineHeight', "Controls the line height. Use 0 to compute the lineHeight from the fontSize.")
 		},
+		'editor.letterSpacing': {
+			'type': 'number',
+			'default': DefaultConfig.editor.letterSpacing,
+			'description': nls.localize('letterSpacing', "Controls the letter spacing in pixels.")
+		},
 		'editor.lineNumbers': {
 			'type': 'string',
 			'enum': ['off', 'on', 'relative'],

@@ -563,6 +563,10 @@ export interface IEditorOptions {
 	 * The line height
 	 */
 	lineHeight?: number;
+	/**
+	 * The letter spacing
+	 */
+	letterSpacing?: number;
 }
 
 /**

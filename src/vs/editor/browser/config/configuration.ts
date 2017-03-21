@@ -89,6 +89,7 @@ export interface ISerializedFontInfo {
 	readonly fontWeight: string;
 	readonly fontSize: number;
 	readonly lineHeight: number;
+	readonly letterSpacing: number;
 	readonly isMonospace: boolean;
 	readonly typicalHalfwidthCharacterWidth: number;
 	readonly typicalFullwidthCharacterWidth: number;
@@ -163,6 +164,7 @@ class CSSBasedConfiguration extends Disposable {
 					fontWeight: readConfig.fontWeight,
 					fontSize: readConfig.fontSize,
 					lineHeight: readConfig.lineHeight,
+					letterSpacing: readConfig.letterSpacing,
 					isMonospace: readConfig.isMonospace,
 					typicalHalfwidthCharacterWidth: Math.max(readConfig.typicalHalfwidthCharacterWidth, 5),
 					typicalFullwidthCharacterWidth: Math.max(readConfig.typicalFullwidthCharacterWidth, 5),
@@ -283,6 +285,7 @@ class CSSBasedConfiguration extends Disposable {
 			fontWeight: bareFontInfo.fontWeight,
 			fontSize: bareFontInfo.fontSize,
 			lineHeight: bareFontInfo.lineHeight,
+			letterSpacing: bareFontInfo.letterSpacing,
 			isMonospace: isMonospace,
 			typicalHalfwidthCharacterWidth: typicalHalfwidthCharacter.width,
 			typicalFullwidthCharacterWidth: typicalFullwidthCharacter.width,
@@ -306,6 +309,7 @@ export class Configuration extends CommonEditorConfiguration {
 		domNode.setFontWeight(fontInfo.fontWeight);
 		domNode.setFontSize(fontInfo.fontSize);
 		domNode.setLineHeight(fontInfo.lineHeight);
+		domNode.setLetterSpacing(fontInfo.letterSpacing);
 	}
 
 	constructor(options: any, referenceDomElement: HTMLElement = null) {

@@ -41,6 +41,7 @@ export class TestConfiguration extends CommonEditorConfiguration {
 			fontWeight: 'normal',
 			fontSize: 14,
 			lineHeight: 19,
+			letterSpacing: 1.5,
 			isMonospace: true,
 			typicalHalfwidthCharacterWidth: 10,
 			typicalFullwidthCharacterWidth: 20,
