@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { IStandaloneThemeData } from "vs/editor/common/services/standaloneColorService";
+import { IStandaloneThemeData } from "vs/editor/common/services/standaloneThemeService";
 
 /* -------------------------------- Begin vs theme -------------------------------- */
 export const vs: IStandaloneThemeData = {
@@ -68,7 +68,7 @@ export const vs: IStandaloneThemeData = {
 		{ token: 'predefined.sql', foreground: 'FF00FF' },
 	],
 	colors: {
-		editorBackground: '#FFFFFF',
+		editorBackground: '#FFFFFE',
 		editorForeground: '#000000',
 		editorInactiveSelection: '#E5EBF1',
 		editorGuide: '#D3D3D3',

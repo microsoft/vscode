@@ -5,7 +5,7 @@
 'use strict';
 
 import { TokenTheme, ITokenThemeRule, generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
-import { IStandaloneColorService, BuiltinTheme, IStandaloneThemeData, IStandaloneTheme, IColors } from 'vs/editor/common/services/standaloneColorService';
+import { IStandaloneThemeService, BuiltinTheme, IStandaloneThemeData, IStandaloneTheme, IColors } from 'vs/editor/common/services/standaloneThemeService';
 import { vs, vs_dark, hc_black } from 'vs/editor/common/standalone/themes';
 import * as dom from 'vs/base/browser/dom';
 import { TokenizationRegistry } from 'vs/editor/common/modes';
@@ -13,6 +13,7 @@ import { Color } from "vs/base/common/color";
 import { Extensions, IColorRegistry, ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
 import { Extensions as ThemingExtensions, IThemingRegistry, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { Registry } from 'vs/platform/platform';
+import Event, { Emitter } from 'vs/base/common/event';
 
 const VS_THEME_NAME = 'vs';
 const VS_DARK_THEME_NAME = 'vs-dark';
@@ -114,15 +115,19 @@ function newBuiltInTheme(builtinTheme: BuiltinTheme): StandaloneTheme {
 	return new StandaloneTheme(builtinTheme, '', themeData.colors, themeData.rules);
 }
 
-export class StandaloneColorServiceImpl implements IStandaloneColorService {
+export class StandaloneThemeServiceImpl implements IStandaloneThemeService {
 
 	_serviceBrand: any;
 
 	private _knownThemes: Map<string, StandaloneTheme>;
 	private _styleElement: HTMLStyleElement;
 	private _theme: IStandaloneTheme;
+	private _onThemeChange: Emitter<IStandaloneTheme>;
+
 
 	constructor() {
+		this._onThemeChange = new Emitter<IStandaloneTheme>();
+
 		this._knownThemes = new Map<string, StandaloneTheme>();
 		this._knownThemes.set(VS_THEME_NAME, newBuiltInTheme(VS_THEME_NAME));
 		this._knownThemes.set(VS_DARK_THEME_NAME, newBuiltInTheme(VS_DARK_THEME_NAME));
@@ -130,6 +135,10 @@ export class StandaloneColorServiceImpl implements IStandaloneColorService {
 		this._styleElement = dom.createStyleSheet();
 		this._styleElement.className = 'monaco-colors';
 		this.setTheme(VS_THEME_NAME);
+	}
+
+	public get onThemeChange(): Event<IStandaloneTheme> {
+		return this._onThemeChange.event;
 	}
 
 	public defineTheme(themeName: string, themeData: IStandaloneThemeData): void {
@@ -189,6 +198,7 @@ export class StandaloneColorServiceImpl implements IStandaloneColorService {
 		this._styleElement.innerHTML = cssRules.join('\n');
 
 		TokenizationRegistry.setColorMap(colorMap);
+		this._onThemeChange.fire(theme);
 
 		return theme.id;
 	}

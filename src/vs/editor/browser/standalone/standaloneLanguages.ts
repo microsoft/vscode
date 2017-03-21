@@ -23,7 +23,7 @@ import { createTokenizationSupport } from 'vs/editor/common/modes/monarch/monarc
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
 import { Token, TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/token';
-import { IStandaloneColorService } from 'vs/editor/common/services/standaloneColorService';
+import { IStandaloneThemeService } from 'vs/editor/common/services/standaloneThemeService';
 
 /**
  * Register information about a new language.
@@ -73,12 +73,12 @@ export function setLanguageConfiguration(languageId: string, configuration: Lang
  */
 export class TokenizationSupport2Adapter implements modes.ITokenizationSupport {
 
-	private readonly _standaloneColorService: IStandaloneColorService;
+	private readonly _standaloneThemeService: IStandaloneThemeService;
 	private readonly _languageIdentifier: modes.LanguageIdentifier;
 	private readonly _actual: TokensProvider;
 
-	constructor(standaloneColorService: IStandaloneColorService, languageIdentifier: modes.LanguageIdentifier, actual: TokensProvider) {
-		this._standaloneColorService = standaloneColorService;
+	constructor(standaloneThemeService: IStandaloneThemeService, languageIdentifier: modes.LanguageIdentifier, actual: TokensProvider) {
+		this._standaloneThemeService = standaloneThemeService;
 		this._languageIdentifier = languageIdentifier;
 		this._actual = actual;
 	}
@@ -113,7 +113,7 @@ export class TokenizationSupport2Adapter implements modes.ITokenizationSupport {
 
 	private _toBinaryTokens(tokens: IToken[], offsetDelta: number): Uint32Array {
 		let languageId = this._languageIdentifier.id;
-		let tokenTheme = this._standaloneColorService.getTheme().tokenTheme;
+		let tokenTheme = this._standaloneThemeService.getTheme().tokenTheme;
 
 		let result: number[] = [], resultLen = 0;
 		for (let i = 0, len = tokens.length; i < len; i++) {
@@ -195,7 +195,7 @@ export function setTokensProvider(languageId: string, provider: TokensProvider):
 	if (!languageIdentifier) {
 		throw new Error(`Cannot set tokens provider for unknown language ${languageId}`);
 	}
-	let adapter = new TokenizationSupport2Adapter(StaticServices.standaloneColorService.get(), languageIdentifier, provider);
+	let adapter = new TokenizationSupport2Adapter(StaticServices.standaloneThemeService.get(), languageIdentifier, provider);
 	return modes.TokenizationRegistry.register(languageId, adapter);
 }
 
@@ -204,7 +204,7 @@ export function setTokensProvider(languageId: string, provider: TokensProvider):
  */
 export function setMonarchTokensProvider(languageId: string, languageDef: IMonarchLanguage): IDisposable {
 	let lexer = compile(languageId, languageDef);
-	let adapter = createTokenizationSupport(StaticServices.modeService.get(), StaticServices.standaloneColorService.get(), languageId, lexer);
+	let adapter = createTokenizationSupport(StaticServices.modeService.get(), StaticServices.standaloneThemeService.get(), languageId, lexer);
 	return modes.TokenizationRegistry.register(languageId, adapter);
 }
 
