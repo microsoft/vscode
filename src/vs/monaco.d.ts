@@ -973,6 +973,7 @@ declare module monaco.editor {
     }
 
     export interface IEditorOverrideServices {
+        [index: string]: any;
     }
 
     /**
