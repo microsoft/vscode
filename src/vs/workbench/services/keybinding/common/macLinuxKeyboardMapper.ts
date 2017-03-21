@@ -262,35 +262,35 @@ class ScanCodeKeyCodeMapper {
 		}
 
 		// IntlHash and IntlBackslash are rare keys, so ensure they don't end up being the preferred...
-		// this._moveToEnd(ScanCode.IntlHash);
-		// this._moveToEnd(ScanCode.IntlBackslash);
+		this._moveToEnd(ScanCode.IntlHash);
+		this._moveToEnd(ScanCode.IntlBackslash);
 	}
 
-	// private _moveToEnd(scanCode: ScanCode): void {
-	// 	for (let mod = 0; mod < 8; mod++) {
-	// 		const encodedKeyCodeCombos = this._scanCodeToKeyCode[(scanCode << 3) + mod];
-	// 		if (!encodedKeyCodeCombos) {
-	// 			continue;
-	// 		}
-	// 		for (let i = 0, len = encodedKeyCodeCombos.length; i < len; i++) {
-	// 			const encodedScanCodeCombos = this._keyCodeToScanCode[encodedKeyCodeCombos[i]];
-	// 			if (encodedScanCodeCombos.length === 1) {
-	// 				continue;
-	// 			}
-	// 			for (let j = 0, len = encodedScanCodeCombos.length; j < len; j++) {
-	// 				const entry = encodedScanCodeCombos[j];
-	// 				const entryScanCode = (entry >>> 3);
-	// 				if (entryScanCode === scanCode) {
-	// 					// Move this entry to the end
-	// 					for (let k = j + 1; k < len; k++) {
-	// 						encodedScanCodeCombos[k - 1] = encodedScanCodeCombos[k];
-	// 					}
-	// 					encodedScanCodeCombos[len - 1] = entry;
-	// 				}
-	// 			}
-	// 		}
-	// 	}
-	// }
+	private _moveToEnd(scanCode: ScanCode): void {
+		for (let mod = 0; mod < 8; mod++) {
+			const encodedKeyCodeCombos = this._scanCodeToKeyCode[(scanCode << 3) + mod];
+			if (!encodedKeyCodeCombos) {
+				continue;
+			}
+			for (let i = 0, len = encodedKeyCodeCombos.length; i < len; i++) {
+				const encodedScanCodeCombos = this._keyCodeToScanCode[encodedKeyCodeCombos[i]];
+				if (encodedScanCodeCombos.length === 1) {
+					continue;
+				}
+				for (let j = 0, len = encodedScanCodeCombos.length; j < len; j++) {
+					const entry = encodedScanCodeCombos[j];
+					const entryScanCode = (entry >>> 3);
+					if (entryScanCode === scanCode) {
+						// Move this entry to the end
+						for (let k = j + 1; k < len; k++) {
+							encodedScanCodeCombos[k - 1] = encodedScanCodeCombos[k];
+						}
+						encodedScanCodeCombos[len - 1] = entry;
+					}
+				}
+			}
+		}
+	}
 
 	public registerIfUnknown(scanCodeCombo: ScanCodeCombo, keyCodeCombo: KeyCodeCombo): void {
 		if (keyCodeCombo.keyCode === KeyCode.Unknown) {
