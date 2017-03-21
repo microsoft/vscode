@@ -42,6 +42,6 @@ class AsyncRuleWalker extends Lint.RuleWalker {
 		}
 
 		const message = `You are not allowed to use async function in this layer. Allowed layers are: [${this.allowed}]`;
-		this.addFailure(this.createFailure(node.getStart(), node.getWidth(), message));
+		this.addFailureAtNode(node, message);
 	}
 }
