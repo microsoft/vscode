@@ -228,42 +228,51 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 			.done(null, err => this.onError(err));
 	}
 
-	private doSearch(value: string = '', suggestPopular = false): TPromise<any> {
-		return this.progress(this.query(value))
-			.then(model => {
-				if (!value && model.length === 0 && suggestPopular) {
-					return this.search('@sort:installs ');
-				}
+	private async doSearch(value: string = '', suggestPopular = false): TPromise<void> {
+		const model = await this.progress(this.query(value));
 
-				this.setModel(model);
-			});
+		if (!value && model.length === 0 && suggestPopular) {
+			return this.search('@sort:installs ');
+		}
+
+		this.setModel(model);
 	}
 
-	private query(value: string): TPromise<IPagedModel<IExtension>> {
+	private async query(value: string): TPromise<IPagedModel<IExtension>> {
 		if (!value || /@installed/i.test(value)) {
 			// Show installed extensions
 			value = value ? value.replace(/@installed/g, '').trim().toLowerCase() : '';
-			return this.extensionsWorkbenchService.queryLocal()
-				.then(result => result.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName)))
-				.then(result => result.filter(e => e.type === LocalExtensionType.User && e.name.toLowerCase().indexOf(value) > -1))
-				.then(result => new PagedModel(result));
+
+			const local = await this.extensionsWorkbenchService.queryLocal();
+			const result = local
+				.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName))
+				.filter(e => e.type === LocalExtensionType.User && e.name.toLowerCase().indexOf(value) > -1);
+
+			return new PagedModel(result);
 		}
 
 		if (/@outdated/i.test(value)) {
 			value = value.replace(/@outdated/g, '').trim().toLowerCase();
-			return this.extensionsWorkbenchService.queryLocal()
-				.then(result => result.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName)))
-				.then(extensions => extensions.filter(extension => extension.outdated && extension.name.toLowerCase().indexOf(value) > -1))
-				.then(result => new PagedModel(result));
+
+			const local = await this.extensionsWorkbenchService.queryLocal();
+			const result = local
+				.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName))
+				.filter(extension => extension.outdated && extension.name.toLowerCase().indexOf(value) > -1);
+
+			return new PagedModel(result);
 		}
 
 		if (/@disabled/i.test(value)) {
 			value = value.replace(/@disabled/g, '').trim().toLowerCase();
-			return this.extensionsWorkbenchService.queryLocal()
-				.then(result => result.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName)))
-				.then(result => this.extensionService.getExtensions()
-					.then(runningExtensions => result.filter(e => runningExtensions.every(r => !areSameExtensions(r, e)) && e.name.toLowerCase().indexOf(value) > -1)))
-				.then(result => new PagedModel(result));
+
+			const local = await this.extensionsWorkbenchService.queryLocal();
+			const runningExtensions = await this.extensionService.getExtensions();
+
+			const result = local
+				.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName))
+				.filter(e => runningExtensions.every(r => !areSameExtensions(r, e)) && e.name.toLowerCase().indexOf(value) > -1);
+
+			return new PagedModel(result);
 		}
 
 		const query = Query.parse(value);
@@ -287,7 +296,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 			return this.getRecommendationsModel(query, options);
 		}
 
-		const pagers: TPromise<IPager<IExtension>>[] = [];
+		const pagerPromises: TPromise<IPager<IExtension>>[] = [];
 		let text = query.value;
 		const extensionRegex = /\bext:([^\s]+)\b/g;
 
@@ -311,7 +320,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 
 			if (names.length) {
 				const namesOptions = assign({}, options, { names });
-				pagers.push(this.extensionsWorkbenchService.queryGallery(namesOptions));
+				pagerPromises.push(this.extensionsWorkbenchService.queryGallery(namesOptions));
 			}
 		}
 
@@ -319,12 +328,12 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 			options = assign(options, { text: text.substr(0, 350) });
 		}
 
-		pagers.push(this.extensionsWorkbenchService.queryGallery(options));
+		pagerPromises.push(this.extensionsWorkbenchService.queryGallery(options));
 
-		return TPromise.join(pagers).then(pagers => {
-			const pager = pagers.length === 2 ? mergePagers(pagers[0], pagers[1]) : pagers[0];
-			return new PagedModel(pager);
-		});
+		const pagers = await TPromise.join(pagerPromises);
+		const pager = pagers.length === 2 ? mergePagers(pagers[0], pagers[1]) : pagers[0];
+
+		return new PagedModel(pager);
 	}
 
 	private getRecommendationsModel(query: Query, options: IQueryOptions): TPromise<IPagedModel<IExtension>> {
