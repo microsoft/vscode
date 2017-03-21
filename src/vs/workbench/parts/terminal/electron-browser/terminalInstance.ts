@@ -490,7 +490,9 @@ export class TerminalInstance implements ITerminalInstance {
 		if (message.type === 'data') {
 			this._widgetManager.closeMessage();
 			this._linkHandler.disposeTooltipListeners();
-			this._xterm.write(message.content);
+			if (this._xterm) {
+				this._xterm.write(message.content);
+			}
 		}
 	}
 
