@@ -260,9 +260,27 @@ class ScanCodeKeyCodeMapper {
 		const scanCodeComboEncoded = this._encodeScanCodeCombo(scanCodeCombo);
 		const keyCodeComboEncoded = this._encodeKeyCodeCombo(keyCodeCombo);
 
-		let existing = this._scanCodeToKeyCode[scanCodeComboEncoded];
-		if (existing && existing.length !== 0) {
-			return;
+		const keyCodeIsDigit = (keyCodeCombo.keyCode >= KeyCode.KEY_0 && keyCodeCombo.keyCode <= KeyCode.KEY_9);
+		const keyCodeIsLetter = (keyCodeCombo.keyCode >= KeyCode.KEY_A && keyCodeCombo.keyCode <= KeyCode.KEY_Z);
+
+		const existingEntries = this._scanCodeToKeyCode[scanCodeComboEncoded];
+
+		// Allow a scan code to map to multiple key codes if it is a digit or a letter key code
+		if (keyCodeIsDigit || keyCodeIsLetter) {
+			// Only check that we don't insert the same entry twice
+			if (existingEntries) {
+				for (let i = 0, len = existingEntries.length; i < len; i++) {
+					if (existingEntries[i] === keyCodeComboEncoded) {
+						// avoid duplicates
+						return;
+					}
+				}
+			}
+		} else {
+			// Don't allow multiples
+			if (existingEntries && existingEntries.length !== 0) {
+				return;
+			}
 		}
 
 		this._scanCodeToKeyCode[scanCodeComboEncoded] = this._scanCodeToKeyCode[scanCodeComboEncoded] || [];
@@ -524,7 +542,12 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 					for (let i = 0, len = kbCombos.length; i < len; i++) {
 						const kbCombo = kbCombos[i];
 						const outKeybinding = kbCombo.toString();
-						result.push(`| ${this._leftPad(outScanCodeCombo, 30)} | ${outKey} | ${this._leftPad(outKeybinding, 25)} | ${this._leftPad(outUILabel, 25)} | ${this._leftPad(outUserSettings, 30)} | ${this._leftPad(outElectronAccelerator, 25)} | ${this._leftPad(outDispatchStr, 30)} |`);
+						if (i === 0) {
+							result.push(`| ${this._leftPad(outScanCodeCombo, 30)} | ${outKey} | ${this._leftPad(outKeybinding, 25)} | ${this._leftPad(outUILabel, 25)} | ${this._leftPad(outUserSettings, 30)} | ${this._leftPad(outElectronAccelerator, 25)} | ${this._leftPad(outDispatchStr, 30)} |`);
+						} else {
+							// secondary keybindings
+							result.push(`| ${this._leftPad('', 30)} |       | ${this._leftPad(outKeybinding, 25)} | ${this._leftPad('', 25)} | ${this._leftPad('', 30)} | ${this._leftPad('', 25)} | ${this._leftPad('', 30)} |`);
+						}
 					}
 				}
 
