@@ -169,6 +169,38 @@ class ScanCodeCombo {
 		this.altKey = altKey;
 		this.scanCode = scanCode;
 	}
+
+	public toString(): string {
+		return `${this.ctrlKey ? 'Ctrl+' : ''}${this.shiftKey ? 'Shift+' : ''}${this.altKey ? 'Alt+' : ''}${ScanCodeUtils.toString(this.scanCode)}`;
+	}
+
+	private getProducedCharCode(mapping: IScanCodeMapping): number {
+		if (!mapping) {
+			return 0;
+		}
+		if (this.ctrlKey && this.shiftKey && this.altKey) {
+			return mapping.withShiftAltGr;
+		}
+		if (this.ctrlKey && this.altKey) {
+			return mapping.withAltGr;
+		}
+		if (this.shiftKey) {
+			return mapping.withShift;
+		}
+		return mapping.value;
+	}
+
+	public getProducedChar(mapping: IScanCodeMapping): string {
+		const charCode = this.getProducedCharCode(mapping);
+		if (charCode === 0) {
+			return ' --- ';
+		}
+		if (charCode >= CharCode.U_Combining_Grave_Accent && charCode <= CharCode.U_Combining_Latin_Small_Letter_X) {
+			// combining
+			return 'U+' + charCode.toString(16);
+		}
+		return '  ' + String.fromCharCode(charCode) + '  ';
+	}
 }
 
 class KeyCodeCombo {
@@ -182,6 +214,10 @@ class KeyCodeCombo {
 		this.shiftKey = shiftKey;
 		this.altKey = altKey;
 		this.keyCode = keyCode;
+	}
+
+	public toString(): string {
+		return `${this.ctrlKey ? 'Ctrl+' : ''}${this.shiftKey ? 'Shift+' : ''}${this.altKey ? 'Alt+' : ''}${KeyCodeUtils.toString(this.keyCode)}`;
 	}
 }
 
@@ -457,60 +493,38 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 			cnt++;
 
 			const mapping = this._codeInfo[scanCode];
-			const strCode = ScanCodeUtils.toString(scanCode);
-			const uiLabel = this._scanCodeToLabel[scanCode];
 
 			for (let mod = 0; mod < 8; mod++) {
 				const hwCtrlKey = (mod & 0b001) ? true : false;
 				const hwShiftKey = (mod & 0b010) ? true : false;
 				const hwAltKey = (mod & 0b100) ? true : false;
-				const strHw = `${hwCtrlKey ? 'Ctrl+' : ''}${hwShiftKey ? 'Shift+' : ''}${hwAltKey ? 'Alt+' : ''}${strCode}`;
-				const uiHwLabel = `${hwCtrlKey ? 'Ctrl+' : ''}${hwShiftKey ? 'Shift+' : ''}${hwAltKey ? 'Alt+' : ''}${uiLabel}`;
-
-				let key = 0;
-				if (mapping) {
-					if (hwCtrlKey && hwShiftKey && hwAltKey) {
-						key = mapping.withShiftAltGr;
-					} else if (hwCtrlKey && hwAltKey) {
-						key = mapping.withAltGr;
-					} else if (hwShiftKey) {
-						key = mapping.withShift;
-					} else {
-						key = mapping.value;
-					}
-				}
-				let strKey: string = ' --- ';
-				if (key !== 0) {
-					if (key >= CharCode.U_Combining_Grave_Accent && key <= CharCode.U_Combining_Latin_Small_Letter_X) {
-						// combining
-						strKey = 'U+' + key.toString(16);
-					} else {
-						strKey = '  ' + String.fromCharCode(key) + '  ';
-					}
-				}
-
-				const hwCombo = new ScanCodeCombo(hwCtrlKey, hwShiftKey, hwAltKey, scanCode);
+				const scanCodeCombo = new ScanCodeCombo(hwCtrlKey, hwShiftKey, hwAltKey, scanCode);
 				const resolvedKb = this.resolveKeyboardEvent({
-					ctrlKey: hwCtrlKey,
-					shiftKey: hwShiftKey,
-					altKey: hwAltKey,
+					ctrlKey: scanCodeCombo.ctrlKey,
+					shiftKey: scanCodeCombo.shiftKey,
+					altKey: scanCodeCombo.altKey,
 					metaKey: false,
 					keyCode: -1,
 					code: ScanCodeUtils.toString(scanCode)
 				});
-				const userSettingsLabel = resolvedKb.getUserSettingsLabel();
-				const electronAccelerator = resolvedKb.getElectronAccelerator();
-				const dispatchStr = resolvedKb.getDispatchParts()[0];
 
-				const kbCombos = this._scanCodeKeyCodeMapper.lookupScanCodeCombo(hwCombo);
+				const outScanCodeCombo = scanCodeCombo.toString();
+				const outKey = scanCodeCombo.getProducedChar(mapping);
+				const ariaLabel = resolvedKb.getAriaLabel();
+				const outUILabel = (ariaLabel ? ariaLabel.replace(/Control\+/, 'Ctrl+') : null);
+				const outUserSettings = resolvedKb.getUserSettingsLabel();
+				const outElectronAccelerator = resolvedKb.getElectronAccelerator();
+				const outDispatchStr = resolvedKb.getDispatchParts()[0];
+
+				const kbCombos = this._scanCodeKeyCodeMapper.lookupScanCodeCombo(scanCodeCombo);
 				if (kbCombos.length === 0) {
-					const strKb = ``;
-					result.push(`| ${this._leftPad(strHw, 30)} | ${strKey} | ${this._leftPad(strKb, 25)} | ${this._leftPad(uiHwLabel, 25)} | ${this._leftPad(userSettingsLabel, 30)} | ${this._leftPad(electronAccelerator, 25)} | ${this._leftPad(dispatchStr, 30)} |`);
+					const outKeybinding = ``;
+					result.push(`| ${this._leftPad(outScanCodeCombo, 30)} | ${outKey} | ${this._leftPad(outKeybinding, 25)} | ${this._leftPad(outUILabel, 25)} | ${this._leftPad(outUserSettings, 30)} | ${this._leftPad(outElectronAccelerator, 25)} | ${this._leftPad(outDispatchStr, 30)} |`);
 				} else {
 					for (let i = 0, len = kbCombos.length; i < len; i++) {
 						const kbCombo = kbCombos[i];
-						const strKb = `${kbCombo.ctrlKey ? 'Ctrl+' : ''}${kbCombo.shiftKey ? 'Shift+' : ''}${kbCombo.altKey ? 'Alt+' : ''}${KeyCodeUtils.toString(kbCombo.keyCode)}`;
-						result.push(`| ${this._leftPad(strHw, 30)} | ${strKey} | ${this._leftPad(strKb, 25)} | ${this._leftPad(uiHwLabel, 25)} | ${this._leftPad(userSettingsLabel, 30)} | ${this._leftPad(electronAccelerator, 25)} | ${this._leftPad(dispatchStr, 30)} |`);
+						const outKeybinding = kbCombo.toString();
+						result.push(`| ${this._leftPad(outScanCodeCombo, 30)} | ${outKey} | ${this._leftPad(outKeybinding, 25)} | ${this._leftPad(outUILabel, 25)} | ${this._leftPad(outUserSettings, 30)} | ${this._leftPad(outElectronAccelerator, 25)} | ${this._leftPad(outDispatchStr, 30)} |`);
 					}
 				}
 

@@ -12,6 +12,8 @@ import { createKeybinding, KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyC
 import { IResolvedKeybinding, assertResolveKeybinding, readRawMapping, assertMapping, simpleHTMLLabel, chordHTMLLabel, assertResolveKeyboardEvent } from 'vs/workbench/services/keybinding/test/keyboardMapperTestUtils';
 import { IHTMLContentElement } from 'vs/base/common/htmlContent';
 
+const WRITE_FILE_IF_DIFFERENT = false;
+
 function createKeyboardMapper(file: string): TPromise<WindowsKeyboardMapper> {
 	return readRawMapping<IWindowsKeyboardMapping>(file).then((rawMappings) => {
 		return new WindowsKeyboardMapper(rawMappings);
@@ -42,7 +44,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 	});
 
 	test('mapping', (done) => {
-		assertMapping(mapper, 'win_de_ch.txt', done);
+		assertMapping(WRITE_FILE_IF_DIFFERENT, mapper, 'win_de_ch.txt', done);
 	});
 
 	test('resolveKeybinding Ctrl+A', () => {
@@ -347,7 +349,7 @@ suite('keyboardMapper - WINDOWS en_us', () => {
 	});
 
 	test('mapping', (done) => {
-		assertMapping(mapper, 'win_en_us.txt', done);
+		assertMapping(WRITE_FILE_IF_DIFFERENT, mapper, 'win_en_us.txt', done);
 	});
 
 	test('resolveKeybinding Ctrl+K Ctrl+\\', () => {
