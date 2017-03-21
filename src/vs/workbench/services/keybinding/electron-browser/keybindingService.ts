@@ -32,6 +32,7 @@ import * as nativeKeymap from 'native-keymap';
 import { IKeyboardMapper } from 'vs/workbench/services/keybinding/common/keyboardMapper';
 import { WindowsKeyboardMapper, IWindowsKeyboardMapping } from 'vs/workbench/services/keybinding/common/windowsKeyboardMapper';
 import { IMacLinuxKeyboardMapping, MacLinuxKeyboardMapper } from 'vs/workbench/services/keybinding/common/macLinuxKeyboardMapper';
+import { MacLinuxFallbackKeyboardMapper } from 'vs/workbench/services/keybinding/common/macLinuxFallbackKeyboardMapper';
 
 function createKeyboardMapper(): IKeyboardMapper {
 	if (OS === OperatingSystem.Windows) {
@@ -39,6 +40,11 @@ function createKeyboardMapper(): IKeyboardMapper {
 		return new WindowsKeyboardMapper(rawMappings);
 	}
 	const rawMappings = <IMacLinuxKeyboardMapping>nativeKeymap.getKeyMap();
+	const rawMappingsKeys = Object.keys(rawMappings);
+	if (rawMappingsKeys.length === 0) {
+		// Looks like reading the mappings failed (most likely Mac + Japanese/Chinese keyboard layouts)
+		return new MacLinuxFallbackKeyboardMapper(rawMappings, OS);
+	}
 	return new MacLinuxKeyboardMapper(rawMappings, OS);
 }
 

@@ -402,8 +402,8 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 		return result;
 	}
 
-	public resolveKeybinding(kb: Keybinding): ResolvedKeybinding[] {
-		return [new USLayoutResolvedKeybinding(kb, OS)];
+	public resolveKeybinding(keybinding: Keybinding): ResolvedKeybinding[] {
+		return [new USLayoutResolvedKeybinding(keybinding, OS)];
 	}
 
 	public resolveKeyboardEvent(keyboardEvent: IKeyboardEvent): ResolvedKeybinding {
@@ -414,7 +414,7 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 			keyboardEvent.metaKey,
 			keyboardEvent.keyCode
 		);
-		return this.resolveKeybinding(keybinding)[0];
+		return new USLayoutResolvedKeybinding(keybinding, OS);
 	}
 }
 
