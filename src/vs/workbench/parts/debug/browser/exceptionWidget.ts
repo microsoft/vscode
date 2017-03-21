@@ -11,9 +11,12 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IDebugService } from 'vs/workbench/parts/debug/common/debug';
 import { RunOnceScheduler } from 'vs/base/common/async';
+import { TPromise } from 'vs/base/common/winjs.base';
 const $ = dom.$;
 
 export class ExceptionWidget extends ZoneWidget {
+
+	private exceptionInfo: TPromise<DebugProtocol.ExceptionInfoResponse>;
 
 	constructor(editor: ICodeEditor, private lineNumber: number,
 		@IContextViewService private contextViewService: IContextViewService,
@@ -33,24 +36,35 @@ export class ExceptionWidget extends ZoneWidget {
 		const fontInfo = this.editor.getConfiguration().fontInfo;
 		this.container.style.fontSize = `${fontInfo.fontSize}px`;
 		this.container.style.lineHeight = `${fontInfo.lineHeight}px`;
-
-		let title = $('.title');
-		title.textContent = nls.localize('exceptionThrown', 'Exception occurred');
-		dom.append(container, title);
-
 		const thread = this.debugService.getViewModel().focusedThread;
+
 		if (thread && thread.stoppedDetails) {
+			let title = $('.title');
 			let msg = $('.message');
-			msg.textContent = thread.stoppedDetails.text;
+
+			this.exceptionInfo = thread.exceptionInfo;
+			this.exceptionInfo.then((exceptionInfo) => {
+				if (exceptionInfo) {
+					title.textContent = exceptionInfo.body.description;
+					msg.textContent = exceptionInfo.body.details.stackTrace;
+				} else {
+					title.textContent = nls.localize('exceptionThrown', 'Exception occurred');
+					msg.textContent = thread.stoppedDetails.text;
+				}
+			});
+
+			dom.append(container, title);
 			dom.append(container, msg);
 		}
 	}
 
 	protected _doLayout(heightInPixel: number, widthInPixel: number): void {
-		// Reload the height with respect to the exception text content and relayout it to match the line count.
-		this.container.style.height = 'initial';
+		this.exceptionInfo.then(() => {
+			// Reload the height with respect to the exception text content and relayout it to match the line count.
+			this.container.style.height = 'initial';
 
-		const computedLinesNumber = Math.ceil(this.container.offsetHeight / this.editor.getConfiguration().fontInfo.lineHeight);
-		this._relayout(computedLinesNumber);
+			const computedLinesNumber = Math.ceil(this.container.offsetHeight / this.editor.getConfiguration().fontInfo.lineHeight);
+			this._relayout(computedLinesNumber);
+		});
 	}
 }
