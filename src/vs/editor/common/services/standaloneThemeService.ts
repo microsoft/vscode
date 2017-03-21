@@ -6,7 +6,7 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { TokenTheme, ITokenThemeRule } from 'vs/editor/common/modes/supports/tokenization';
-import { ITheme, IThemeService } from "vs/platform/theme/common/themeService";
+import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
 
 export var IStandaloneThemeService = createDecorator<IStandaloneThemeService>('themeService');
 

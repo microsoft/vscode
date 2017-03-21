@@ -49,7 +49,7 @@ import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { Themable, EDITOR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
 
 import { remote, ipcRenderer as ipc, webFrame } from 'electron';
-import { highContrastOutline } from "vs/platform/theme/common/colorRegistry";
+import { highContrastOutline } from 'vs/platform/theme/common/colorRegistry';
 
 const dialog = remote.dialog;
 
