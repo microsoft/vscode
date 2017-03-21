@@ -225,7 +225,8 @@
 |                       Alt+KeyX |   x   |                     Alt+X |                     Alt+X |                     alt+[KeyX] |                      null |                     alt+[KeyX] |
 |                  Ctrl+Alt+KeyX |   »   |                Ctrl+Alt+X |                Ctrl+Alt+X |                ctrl+alt+[KeyX] |                      null |                ctrl+alt+[KeyX] |
 |                 Shift+Alt+KeyX |   X   |               Shift+Alt+X |               Shift+Alt+X |               shift+alt+[KeyX] |                      null |               shift+alt+[KeyX] |
-|            Ctrl+Shift+Alt+KeyX |   >   |                   Shift+. |          Ctrl+Shift+Alt+X |          ctrl+shift+alt+[KeyX] |                      null |          ctrl+shift+alt+[KeyX] |
+|            Ctrl+Shift+Alt+KeyX |   >   |          Ctrl+Shift+Alt+X |          Ctrl+Shift+Alt+X |          ctrl+shift+alt+[KeyX] |                      null |          ctrl+shift+alt+[KeyX] |
+|                                |       |                   Shift+. |                           |                                |                           |                                |
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 |       HW Code combination      |  Key  |    KeyCode combination    |          UI label         |         User settings          |    Electron accelerator   |       Dispatching string       |
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -245,25 +246,35 @@
 |                       Alt+KeyZ |   y   |                     Alt+Y |                     Alt+Y |                     alt+[KeyZ] |                      null |                     alt+[KeyZ] |
 |                  Ctrl+Alt+KeyZ |   «   |                Ctrl+Alt+Y |                Ctrl+Alt+Y |                ctrl+alt+[KeyZ] |                      null |                ctrl+alt+[KeyZ] |
 |                 Shift+Alt+KeyZ |   Y   |               Shift+Alt+Y |               Shift+Alt+Y |               shift+alt+[KeyZ] |                      null |               shift+alt+[KeyZ] |
-|            Ctrl+Shift+Alt+KeyZ |   <   |                   Shift+, |          Ctrl+Shift+Alt+Y |          ctrl+shift+alt+[KeyZ] |                      null |          ctrl+shift+alt+[KeyZ] |
+|            Ctrl+Shift+Alt+KeyZ |   <   |          Ctrl+Shift+Alt+Y |          Ctrl+Shift+Alt+Y |          ctrl+shift+alt+[KeyZ] |                      null |          ctrl+shift+alt+[KeyZ] |
+|                                |       |                   Shift+, |                           |                                |                           |                                |
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 |                         Digit1 |   1   |                         1 |                         1 |                              1 |                         1 |                       [Digit1] |
 |                    Ctrl+Digit1 |   1   |                    Ctrl+1 |                    Ctrl+1 |                         ctrl+1 |                    Ctrl+1 |                  ctrl+[Digit1] |
-|                   Shift+Digit1 |   +   |                   Shift+= |                   Shift+1 |                        shift+1 |                   Shift+1 |                 shift+[Digit1] |
-|              Ctrl+Shift+Digit1 |   +   |              Ctrl+Shift+= |              Ctrl+Shift+1 |                   ctrl+shift+1 |              Ctrl+Shift+1 |            ctrl+shift+[Digit1] |
+|                   Shift+Digit1 |   +   |                   Shift+1 |                   Shift+1 |                        shift+1 |                   Shift+1 |                 shift+[Digit1] |
+|                                |       |                   Shift+= |                           |                                |                           |                                |
+|              Ctrl+Shift+Digit1 |   +   |              Ctrl+Shift+1 |              Ctrl+Shift+1 |                   ctrl+shift+1 |              Ctrl+Shift+1 |            ctrl+shift+[Digit1] |
+|                                |       |              Ctrl+Shift+= |                           |                                |                           |                                |
 |                     Alt+Digit1 |   1   |                     Alt+1 |                     Alt+1 |                          alt+1 |                     Alt+1 |                   alt+[Digit1] |
-|                Ctrl+Alt+Digit1 |   |   |                   Shift+\ |                Ctrl+Alt+1 |                     ctrl+alt+1 |                Ctrl+Alt+1 |              ctrl+alt+[Digit1] |
-|               Shift+Alt+Digit1 |   +   |               Shift+Alt+= |               Shift+Alt+1 |                    shift+alt+1 |               Shift+Alt+1 |             shift+alt+[Digit1] |
-|          Ctrl+Shift+Alt+Digit1 |   ¡   |          Ctrl+Shift+Alt+= |          Ctrl+Shift+Alt+1 |               ctrl+shift+alt+1 |          Ctrl+Shift+Alt+1 |        ctrl+shift+alt+[Digit1] |
+|                Ctrl+Alt+Digit1 |   |   |                Ctrl+Alt+1 |                Ctrl+Alt+1 |                     ctrl+alt+1 |                Ctrl+Alt+1 |              ctrl+alt+[Digit1] |
+|                                |       |                   Shift+\ |                           |                                |                           |                                |
+|               Shift+Alt+Digit1 |   +   |               Shift+Alt+1 |               Shift+Alt+1 |                    shift+alt+1 |               Shift+Alt+1 |             shift+alt+[Digit1] |
+|                                |       |               Shift+Alt+= |                           |                                |                           |                                |
+|          Ctrl+Shift+Alt+Digit1 |   ¡   |          Ctrl+Shift+Alt+1 |          Ctrl+Shift+Alt+1 |               ctrl+shift+alt+1 |          Ctrl+Shift+Alt+1 |        ctrl+shift+alt+[Digit1] |
+|                                |       |          Ctrl+Shift+Alt+= |                           |                                |                           |                                |
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 |                         Digit2 |   2   |                         2 |                         2 |                              2 |                         2 |                       [Digit2] |
 |                    Ctrl+Digit2 |   2   |                    Ctrl+2 |                    Ctrl+2 |                         ctrl+2 |                    Ctrl+2 |                  ctrl+[Digit2] |
-|                   Shift+Digit2 |   "   |                   Shift+' |                   Shift+2 |                        shift+2 |                   Shift+2 |                 shift+[Digit2] |
-|              Ctrl+Shift+Digit2 |   "   |              Ctrl+Shift+' |              Ctrl+Shift+2 |                   ctrl+shift+2 |              Ctrl+Shift+2 |            ctrl+shift+[Digit2] |
+|                   Shift+Digit2 |   "   |                   Shift+2 |                   Shift+2 |                        shift+2 |                   Shift+2 |                 shift+[Digit2] |
+|                                |       |                   Shift+' |                           |                                |                           |                                |
+|              Ctrl+Shift+Digit2 |   "   |              Ctrl+Shift+2 |              Ctrl+Shift+2 |                   ctrl+shift+2 |              Ctrl+Shift+2 |            ctrl+shift+[Digit2] |
+|                                |       |              Ctrl+Shift+' |                           |                                |                           |                                |
 |                     Alt+Digit2 |   2   |                     Alt+2 |                     Alt+2 |                          alt+2 |                     Alt+2 |                   alt+[Digit2] |
 |                Ctrl+Alt+Digit2 |   @   |                Ctrl+Alt+2 |                Ctrl+Alt+2 |                     ctrl+alt+2 |                Ctrl+Alt+2 |              ctrl+alt+[Digit2] |
-|               Shift+Alt+Digit2 |   "   |               Shift+Alt+' |               Shift+Alt+2 |                    shift+alt+2 |               Shift+Alt+2 |             shift+alt+[Digit2] |
-|          Ctrl+Shift+Alt+Digit2 |   ⅛   |          Ctrl+Shift+Alt+' |          Ctrl+Shift+Alt+2 |               ctrl+shift+alt+2 |          Ctrl+Shift+Alt+2 |        ctrl+shift+alt+[Digit2] |
+|               Shift+Alt+Digit2 |   "   |               Shift+Alt+2 |               Shift+Alt+2 |                    shift+alt+2 |               Shift+Alt+2 |             shift+alt+[Digit2] |
+|                                |       |               Shift+Alt+' |                           |                                |                           |                                |
+|          Ctrl+Shift+Alt+Digit2 |   ⅛   |          Ctrl+Shift+Alt+2 |          Ctrl+Shift+Alt+2 |               ctrl+shift+alt+2 |          Ctrl+Shift+Alt+2 |        ctrl+shift+alt+[Digit2] |
+|                                |       |          Ctrl+Shift+Alt+' |                           |                                |                           |                                |
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 |       HW Code combination      |  Key  |    KeyCode combination    |          UI label         |         User settings          |    Electron accelerator   |       Dispatching string       |
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -307,12 +318,17 @@
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 |                         Digit7 |   7   |                         7 |                         7 |                              7 |                         7 |                       [Digit7] |
 |                    Ctrl+Digit7 |   7   |                    Ctrl+7 |                    Ctrl+7 |                         ctrl+7 |                    Ctrl+7 |                  ctrl+[Digit7] |
-|                   Shift+Digit7 |   /   |                         / |                   Shift+7 |                        shift+7 |                   Shift+7 |                 shift+[Digit7] |
-|              Ctrl+Shift+Digit7 |   /   |                    Ctrl+/ |              Ctrl+Shift+7 |                   ctrl+shift+7 |              Ctrl+Shift+7 |            ctrl+shift+[Digit7] |
+|                   Shift+Digit7 |   /   |                   Shift+7 |                   Shift+7 |                        shift+7 |                   Shift+7 |                 shift+[Digit7] |
+|                                |       |                         / |                           |                                |                           |                                |
+|              Ctrl+Shift+Digit7 |   /   |              Ctrl+Shift+7 |              Ctrl+Shift+7 |                   ctrl+shift+7 |              Ctrl+Shift+7 |            ctrl+shift+[Digit7] |
+|                                |       |                    Ctrl+/ |                           |                                |                           |                                |
 |                     Alt+Digit7 |   7   |                     Alt+7 |                     Alt+7 |                          alt+7 |                     Alt+7 |                   alt+[Digit7] |
-|                Ctrl+Alt+Digit7 |   |   |                   Shift+\ |                Ctrl+Alt+7 |                     ctrl+alt+7 |                Ctrl+Alt+7 |              ctrl+alt+[Digit7] |
-|               Shift+Alt+Digit7 |   /   |                     Alt+/ |               Shift+Alt+7 |                    shift+alt+7 |               Shift+Alt+7 |             shift+alt+[Digit7] |
-|          Ctrl+Shift+Alt+Digit7 |   ⅞   |                Ctrl+Alt+/ |          Ctrl+Shift+Alt+7 |               ctrl+shift+alt+7 |          Ctrl+Shift+Alt+7 |        ctrl+shift+alt+[Digit7] |
+|                Ctrl+Alt+Digit7 |   |   |                Ctrl+Alt+7 |                Ctrl+Alt+7 |                     ctrl+alt+7 |                Ctrl+Alt+7 |              ctrl+alt+[Digit7] |
+|                                |       |                   Shift+\ |                           |                                |                           |                                |
+|               Shift+Alt+Digit7 |   /   |               Shift+Alt+7 |               Shift+Alt+7 |                    shift+alt+7 |               Shift+Alt+7 |             shift+alt+[Digit7] |
+|                                |       |                     Alt+/ |                           |                                |                           |                                |
+|          Ctrl+Shift+Alt+Digit7 |   ⅞   |          Ctrl+Shift+Alt+7 |          Ctrl+Shift+Alt+7 |               ctrl+shift+alt+7 |          Ctrl+Shift+Alt+7 |        ctrl+shift+alt+[Digit7] |
+|                                |       |                Ctrl+Alt+/ |                           |                                |                           |                                |
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 |                         Digit8 |   8   |                         8 |                         8 |                              8 |                         8 |                       [Digit8] |
 |                    Ctrl+Digit8 |   8   |                    Ctrl+8 |                    Ctrl+8 |                         ctrl+8 |                    Ctrl+8 |                  ctrl+[Digit8] |
@@ -328,18 +344,25 @@
 |                   Shift+Digit9 |   )   |                   Shift+9 |                   Shift+9 |                        shift+9 |                   Shift+9 |                 shift+[Digit9] |
 |              Ctrl+Shift+Digit9 |   )   |              Ctrl+Shift+9 |              Ctrl+Shift+9 |                   ctrl+shift+9 |              Ctrl+Shift+9 |            ctrl+shift+[Digit9] |
 |                     Alt+Digit9 |   9   |                     Alt+9 |                     Alt+9 |                          alt+9 |                     Alt+9 |                   alt+[Digit9] |
-|                Ctrl+Alt+Digit9 |   ]   |                         ] |                Ctrl+Alt+9 |                     ctrl+alt+9 |                Ctrl+Alt+9 |              ctrl+alt+[Digit9] |
+|                Ctrl+Alt+Digit9 |   ]   |                Ctrl+Alt+9 |                Ctrl+Alt+9 |                     ctrl+alt+9 |                Ctrl+Alt+9 |              ctrl+alt+[Digit9] |
+|                                |       |                         ] |                           |                                |                           |                                |
 |               Shift+Alt+Digit9 |   )   |               Shift+Alt+9 |               Shift+Alt+9 |                    shift+alt+9 |               Shift+Alt+9 |             shift+alt+[Digit9] |
-|          Ctrl+Shift+Alt+Digit9 |   ±   |          Ctrl+Shift+Alt+] |          Ctrl+Shift+Alt+9 |               ctrl+shift+alt+9 |          Ctrl+Shift+Alt+9 |        ctrl+shift+alt+[Digit9] |
+|          Ctrl+Shift+Alt+Digit9 |   ±   |          Ctrl+Shift+Alt+9 |          Ctrl+Shift+Alt+9 |               ctrl+shift+alt+9 |          Ctrl+Shift+Alt+9 |        ctrl+shift+alt+[Digit9] |
+|                                |       |          Ctrl+Shift+Alt+] |                           |                                |                           |                                |
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 |                         Digit0 |   0   |                         0 |                         0 |                              0 |                         0 |                       [Digit0] |
 |                    Ctrl+Digit0 |   0   |                    Ctrl+0 |                    Ctrl+0 |                         ctrl+0 |                    Ctrl+0 |                  ctrl+[Digit0] |
-|                   Shift+Digit0 |   =   |                         = |                   Shift+0 |                        shift+0 |                   Shift+0 |                 shift+[Digit0] |
-|              Ctrl+Shift+Digit0 |   =   |                    Ctrl+= |              Ctrl+Shift+0 |                   ctrl+shift+0 |              Ctrl+Shift+0 |            ctrl+shift+[Digit0] |
+|                   Shift+Digit0 |   =   |                   Shift+0 |                   Shift+0 |                        shift+0 |                   Shift+0 |                 shift+[Digit0] |
+|                                |       |                         = |                           |                                |                           |                                |
+|              Ctrl+Shift+Digit0 |   =   |              Ctrl+Shift+0 |              Ctrl+Shift+0 |                   ctrl+shift+0 |              Ctrl+Shift+0 |            ctrl+shift+[Digit0] |
+|                                |       |                    Ctrl+= |                           |                                |                           |                                |
 |                     Alt+Digit0 |   0   |                     Alt+0 |                     Alt+0 |                          alt+0 |                     Alt+0 |                   alt+[Digit0] |
-|                Ctrl+Alt+Digit0 |   }   |                   Shift+] |                Ctrl+Alt+0 |                     ctrl+alt+0 |                Ctrl+Alt+0 |              ctrl+alt+[Digit0] |
-|               Shift+Alt+Digit0 |   =   |                     Alt+= |               Shift+Alt+0 |                    shift+alt+0 |               Shift+Alt+0 |             shift+alt+[Digit0] |
-|          Ctrl+Shift+Alt+Digit0 |   °   |                Ctrl+Alt+= |          Ctrl+Shift+Alt+0 |               ctrl+shift+alt+0 |          Ctrl+Shift+Alt+0 |        ctrl+shift+alt+[Digit0] |
+|                Ctrl+Alt+Digit0 |   }   |                Ctrl+Alt+0 |                Ctrl+Alt+0 |                     ctrl+alt+0 |                Ctrl+Alt+0 |              ctrl+alt+[Digit0] |
+|                                |       |                   Shift+] |                           |                                |                           |                                |
+|               Shift+Alt+Digit0 |   =   |               Shift+Alt+0 |               Shift+Alt+0 |                    shift+alt+0 |               Shift+Alt+0 |             shift+alt+[Digit0] |
+|                                |       |                     Alt+= |                           |                                |                           |                                |
+|          Ctrl+Shift+Alt+Digit0 |   °   |          Ctrl+Shift+Alt+0 |          Ctrl+Shift+Alt+0 |               ctrl+shift+alt+0 |          Ctrl+Shift+Alt+0 |        ctrl+shift+alt+[Digit0] |
+|                                |       |                Ctrl+Alt+= |                           |                                |                           |                                |
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 |       HW Code combination      |  Key  |    KeyCode combination    |          UI label         |         User settings          |    Electron accelerator   |       Dispatching string       |
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
