@@ -16,6 +16,8 @@ import { IHTMLContentElement } from 'vs/base/common/htmlContent';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { readRawMapping, assertMapping, IResolvedKeybinding, assertResolveKeybinding, simpleHTMLLabel, chordHTMLLabel, assertResolveKeyboardEvent } from 'vs/workbench/services/keybinding/test/keyboardMapperTestUtils';
 
+const WRITE_FILE_IF_DIFFERENT = false;
+
 function createKeyboardMapper(file: string, OS: OperatingSystem): TPromise<MacLinuxKeyboardMapper> {
 	return readRawMapping<IMacLinuxKeyboardMapping>(file).then((rawMappings) => {
 		return new MacLinuxKeyboardMapper(rawMappings, OS);
@@ -34,7 +36,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 	});
 
 	test('mapping', (done) => {
-		assertMapping(mapper, 'mac_de_ch.txt', done);
+		assertMapping(WRITE_FILE_IF_DIFFERENT, mapper, 'mac_de_ch.txt', done);
 	});
 
 	function assertKeybindingTranslation(kb: number, expected: string | string[]): void {
@@ -390,7 +392,7 @@ suite('keyboardMapper - LINUX de_ch', () => {
 	});
 
 	test('mapping', (done) => {
-		assertMapping(mapper, 'linux_de_ch.txt', done);
+		assertMapping(WRITE_FILE_IF_DIFFERENT, mapper, 'linux_de_ch.txt', done);
 	});
 
 	function assertKeybindingTranslation(kb: number, expected: string | string[]): void {
@@ -715,7 +717,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 	});
 
 	test('mapping', (done) => {
-		assertMapping(mapper, 'linux_en_us.txt', done);
+		assertMapping(WRITE_FILE_IF_DIFFERENT, mapper, 'linux_en_us.txt', done);
 	});
 
 	function _assertResolveKeybinding(k: number, expected: IResolvedKeybinding[]): void {

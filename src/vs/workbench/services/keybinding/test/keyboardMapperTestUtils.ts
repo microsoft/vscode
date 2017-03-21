@@ -97,13 +97,13 @@ export function readRawMapping<T>(file: string): TPromise<T> {
 	});
 }
 
-export function assertMapping(mapper: IKeyboardMapper, file: string, done: (err?: any) => void): void {
+export function assertMapping(writeFileIfDifferent: boolean, mapper: IKeyboardMapper, file: string, done: (err?: any) => void): void {
 	const filePath = require.toUrl(`vs/workbench/services/keybinding/test/${file}`);
 
 	readFile(filePath).then((buff) => {
 		let expected = buff.toString();
 		const actual = mapper.dumpDebugInfo();
-		if (actual !== expected) {
+		if (actual !== expected && writeFileIfDifferent) {
 			writeFile(filePath, actual);
 		}
 		try {
