@@ -29,7 +29,7 @@ import { Position } from 'vs/editor/common/core/position';
 
 const OUTPUT_ACTIVE_CHANNEL_KEY = 'output.activechannel';
 
-class BufferedContent {
+export class BufferedContent {
 
 	private data: string[] = [];
 	private dataIds: number[] = [];
@@ -61,14 +61,14 @@ class BufferedContent {
 		}
 	}
 
-	public value(previousDelta?: IOutputDelta): IOutputDelta {
+	public getDelta(previousDelta?: IOutputDelta): IOutputDelta {
 		let idx = -1;
 		if (previousDelta) {
 			idx = binarySearch(this.dataIds, previousDelta.id, (a, b) => a - b);
 		}
 
 		const id = this.idPool;
-		if (idx >= 0) {
+		if (idx > 0) {
 			const value = strings.removeAnsiEscapeCodes(this.data.slice(idx).join(''));
 			return { value, id, append: true };
 		} else {
@@ -183,9 +183,9 @@ export class OutputService implements IOutputService {
 		return this.getChannel(this.activeChannelId);
 	}
 
-	private getOutput(channelId: string, before: IOutputDelta): IOutputDelta {
+	private getOutput(channelId: string, previousDelta: IOutputDelta): IOutputDelta {
 		if (this.receivedOutput.has(channelId)) {
-			return this.receivedOutput.get(channelId).value(before);
+			return this.receivedOutput.get(channelId).getDelta(previousDelta);
 		}
 
 		return undefined;
