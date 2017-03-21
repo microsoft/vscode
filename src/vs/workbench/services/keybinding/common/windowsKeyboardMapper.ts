@@ -6,7 +6,7 @@
 'use strict';
 
 import { KeyCode, KeyCodeUtils, ResolvedKeybinding, Keybinding, SimpleKeybinding, KeybindingType, USER_SETTINGS } from 'vs/base/common/keyCodes';
-import { KeyboardEventCode, KeyboardEventCodeUtils, IMMUTABLE_CODE_TO_KEY_CODE } from 'vs/workbench/services/keybinding/common/keyboardEventCode';
+import { KeyboardScanCode, KeyboardScanCodeUtils, IMMUTABLE_CODE_TO_KEY_CODE } from 'vs/workbench/services/keybinding/common/keyboardScanCode';
 import { CharCode } from 'vs/base/common/charCode';
 import { UILabelProvider, AriaLabelProvider, ElectronAcceleratorLabelProvider, UserSettingsLabelProvider } from 'vs/platform/keybinding/common/keybindingLabels';
 import { OperatingSystem } from 'vs/base/common/platform';
@@ -36,7 +36,7 @@ function log(str: string): void {
 const NATIVE_KEY_CODE_TO_KEY_CODE: { [nativeKeyCode: string]: KeyCode; } = _getNativeMap();
 
 interface IHardwareCodeMapping {
-	code: KeyboardEventCode;
+	code: KeyboardScanCode;
 	keyCode: KeyCode;
 	value: number;
 	withShift: number;
@@ -190,7 +190,7 @@ export class WindowsKeyboardMapper implements IKeyboardMapper {
 		this._kbExists = [];
 		this._kbToLabel[KeyCode.Unknown] = KeyCodeUtils.toString(KeyCode.Unknown);
 
-		for (let code = KeyboardEventCode.None; code < KeyboardEventCode.MAX_VALUE; code++) {
+		for (let code = KeyboardScanCode.None; code < KeyboardScanCode.MAX_VALUE; code++) {
 			const immutableKeyCode = IMMUTABLE_CODE_TO_KEY_CODE[code];
 			if (immutableKeyCode !== -1) {
 				this._hwToKb[code] = immutableKeyCode;
@@ -202,8 +202,8 @@ export class WindowsKeyboardMapper implements IKeyboardMapper {
 		this._codeInfo = [];
 		for (let strCode in rawMappings) {
 			if (rawMappings.hasOwnProperty(strCode)) {
-				const code = KeyboardEventCodeUtils.toEnum(strCode);
-				if (code === KeyboardEventCode.None) {
+				const code = KeyboardScanCodeUtils.toEnum(strCode);
+				if (code === KeyboardScanCode.None) {
 					log(`Unknown code ${strCode} in mapping.`);
 					continue;
 				}
@@ -252,7 +252,7 @@ export class WindowsKeyboardMapper implements IKeyboardMapper {
 
 		let cnt = 0;
 		result.push(`--------------------------------------------------------------------------------------------------`);
-		for (let code = KeyboardEventCode.None; code < KeyboardEventCode.MAX_VALUE; code++) {
+		for (let code = KeyboardScanCode.None; code < KeyboardScanCode.MAX_VALUE; code++) {
 			if (IMMUTABLE_CODE_TO_KEY_CODE[code] !== -1) {
 				continue;
 			}
@@ -264,7 +264,7 @@ export class WindowsKeyboardMapper implements IKeyboardMapper {
 			cnt++;
 
 			const mapping = this._codeInfo[code];
-			const strCode = KeyboardEventCodeUtils.toString(code);
+			const strCode = KeyboardScanCodeUtils.toString(code);
 			const keyCode = this._hwToKb[code];
 			const strKeyCode = KeyCodeUtils.toString(keyCode);
 			const uiLabel = this._kbToLabel[keyCode];
