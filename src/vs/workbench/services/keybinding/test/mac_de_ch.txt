@@ -352,70 +352,70 @@
 |                Shift+Alt+Minus |   ?   |               Shift+Alt+/ |               Shift+Alt+' |              shift+alt+[Minus] |                      null |              shift+alt+[Minus] |
 |           Ctrl+Shift+Alt+Minus |      |          Ctrl+Shift+Alt+/ |          Ctrl+Shift+Alt+' |         ctrl+shift+alt+[Minus] |                      null |         ctrl+shift+alt+[Minus] |
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-|                          Equal |   ^   |                   unknown |                         ^ |                        [Equal] |                      null |                        [Equal] |
-|                     Ctrl+Equal |   ^   |              Ctrl+unknown |                    Ctrl+^ |                   ctrl+[Equal] |                      null |                   ctrl+[Equal] |
+|                          Equal |   ^   |                           |                         ^ |                        [Equal] |                      null |                        [Equal] |
+|                     Ctrl+Equal |   ^   |                           |                    Ctrl+^ |                   ctrl+[Equal] |                      null |                   ctrl+[Equal] |
 |                    Shift+Equal |   `   |                         ` |                   Shift+^ |                  shift+[Equal] |                      null |                  shift+[Equal] |
 |               Ctrl+Shift+Equal |   `   |                    Ctrl+` |              Ctrl+Shift+^ |             ctrl+shift+[Equal] |                      null |             ctrl+shift+[Equal] |
-|                      Alt+Equal |   ^   |               Alt+unknown |                     Alt+^ |                    alt+[Equal] |                      null |                    alt+[Equal] |
-|                 Ctrl+Alt+Equal |   ´   |          Ctrl+Alt+unknown |                Ctrl+Alt+^ |               ctrl+alt+[Equal] |                      null |               ctrl+alt+[Equal] |
+|                      Alt+Equal |   ^   |                           |                     Alt+^ |                    alt+[Equal] |                      null |                    alt+[Equal] |
+|                 Ctrl+Alt+Equal |   ´   |                           |                Ctrl+Alt+^ |               ctrl+alt+[Equal] |                      null |               ctrl+alt+[Equal] |
 |                Shift+Alt+Equal |   `   |                     Alt+` |               Shift+Alt+^ |              shift+alt+[Equal] |                      null |              shift+alt+[Equal] |
 |           Ctrl+Shift+Alt+Equal |   ^   |                Ctrl+Alt+` |          Ctrl+Shift+Alt+^ |         ctrl+shift+alt+[Equal] |                      null |         ctrl+shift+alt+[Equal] |
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-|                    BracketLeft |   ü   |                   unknown |                         ü |                  [BracketLeft] |                      null |                  [BracketLeft] |
-|               Ctrl+BracketLeft |   ü   |              Ctrl+unknown |                    Ctrl+ü |             ctrl+[BracketLeft] |                      null |             ctrl+[BracketLeft] |
-|              Shift+BracketLeft |   è   |             Shift+unknown |                   Shift+ü |            shift+[BracketLeft] |                      null |            shift+[BracketLeft] |
-|         Ctrl+Shift+BracketLeft |   è   |        Ctrl+Shift+unknown |              Ctrl+Shift+ü |       ctrl+shift+[BracketLeft] |                      null |       ctrl+shift+[BracketLeft] |
-|                Alt+BracketLeft |   ü   |               Alt+unknown |                     Alt+ü |              alt+[BracketLeft] |                      null |              alt+[BracketLeft] |
-|           Ctrl+Alt+BracketLeft |   §   |          Ctrl+Alt+unknown |                Ctrl+Alt+ü |         ctrl+alt+[BracketLeft] |                      null |         ctrl+alt+[BracketLeft] |
-|          Shift+Alt+BracketLeft |   è   |         Shift+Alt+unknown |               Shift+Alt+ü |        shift+alt+[BracketLeft] |                      null |        shift+alt+[BracketLeft] |
-|     Ctrl+Shift+Alt+BracketLeft |   ÿ   |    Ctrl+Shift+Alt+unknown |          Ctrl+Shift+Alt+ü |   ctrl+shift+alt+[BracketLeft] |                      null |   ctrl+shift+alt+[BracketLeft] |
+|                    BracketLeft |   ü   |                           |                         ü |                  [BracketLeft] |                      null |                  [BracketLeft] |
+|               Ctrl+BracketLeft |   ü   |                           |                    Ctrl+ü |             ctrl+[BracketLeft] |                      null |             ctrl+[BracketLeft] |
+|              Shift+BracketLeft |   è   |                           |                   Shift+ü |            shift+[BracketLeft] |                      null |            shift+[BracketLeft] |
+|         Ctrl+Shift+BracketLeft |   è   |                           |              Ctrl+Shift+ü |       ctrl+shift+[BracketLeft] |                      null |       ctrl+shift+[BracketLeft] |
+|                Alt+BracketLeft |   ü   |                           |                     Alt+ü |              alt+[BracketLeft] |                      null |              alt+[BracketLeft] |
+|           Ctrl+Alt+BracketLeft |   §   |                           |                Ctrl+Alt+ü |         ctrl+alt+[BracketLeft] |                      null |         ctrl+alt+[BracketLeft] |
+|          Shift+Alt+BracketLeft |   è   |                           |               Shift+Alt+ü |        shift+alt+[BracketLeft] |                      null |        shift+alt+[BracketLeft] |
+|     Ctrl+Shift+Alt+BracketLeft |   ÿ   |                           |          Ctrl+Shift+Alt+ü |   ctrl+shift+alt+[BracketLeft] |                      null |   ctrl+shift+alt+[BracketLeft] |
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-|                   BracketRight |   ¨   |                   unknown |                         ¨ |                 [BracketRight] |                      null |                 [BracketRight] |
-|              Ctrl+BracketRight |   ¨   |              Ctrl+unknown |                    Ctrl+¨ |            ctrl+[BracketRight] |                      null |            ctrl+[BracketRight] |
-|             Shift+BracketRight |   !   |             Shift+unknown |                   Shift+¨ |           shift+[BracketRight] |                      null |           shift+[BracketRight] |
-|        Ctrl+Shift+BracketRight |   !   |        Ctrl+Shift+unknown |              Ctrl+Shift+¨ |      ctrl+shift+[BracketRight] |                      null |      ctrl+shift+[BracketRight] |
-|               Alt+BracketRight |   ¨   |               Alt+unknown |                     Alt+¨ |             alt+[BracketRight] |                      null |             alt+[BracketRight] |
-|          Ctrl+Alt+BracketRight |   ‘   |          Ctrl+Alt+unknown |                Ctrl+Alt+¨ |        ctrl+alt+[BracketRight] |                      null |        ctrl+alt+[BracketRight] |
-|         Shift+Alt+BracketRight |   !   |         Shift+Alt+unknown |               Shift+Alt+¨ |       shift+alt+[BracketRight] |                      null |       shift+alt+[BracketRight] |
-|    Ctrl+Shift+Alt+BracketRight |   ’   |    Ctrl+Shift+Alt+unknown |          Ctrl+Shift+Alt+¨ |  ctrl+shift+alt+[BracketRight] |                      null |  ctrl+shift+alt+[BracketRight] |
+|                   BracketRight |   ¨   |                           |                         ¨ |                 [BracketRight] |                      null |                 [BracketRight] |
+|              Ctrl+BracketRight |   ¨   |                           |                    Ctrl+¨ |            ctrl+[BracketRight] |                      null |            ctrl+[BracketRight] |
+|             Shift+BracketRight |   !   |                           |                   Shift+¨ |           shift+[BracketRight] |                      null |           shift+[BracketRight] |
+|        Ctrl+Shift+BracketRight |   !   |                           |              Ctrl+Shift+¨ |      ctrl+shift+[BracketRight] |                      null |      ctrl+shift+[BracketRight] |
+|               Alt+BracketRight |   ¨   |                           |                     Alt+¨ |             alt+[BracketRight] |                      null |             alt+[BracketRight] |
+|          Ctrl+Alt+BracketRight |   ‘   |                           |                Ctrl+Alt+¨ |        ctrl+alt+[BracketRight] |                      null |        ctrl+alt+[BracketRight] |
+|         Shift+Alt+BracketRight |   !   |                           |               Shift+Alt+¨ |       shift+alt+[BracketRight] |                      null |       shift+alt+[BracketRight] |
+|    Ctrl+Shift+Alt+BracketRight |   ’   |                           |          Ctrl+Shift+Alt+¨ |  ctrl+shift+alt+[BracketRight] |                      null |  ctrl+shift+alt+[BracketRight] |
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 |       HW Code combination      |  Key  |    KeyCode combination    |          UI label         |         User settings          |    Electron accelerator   |       Dispatching string       |
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-|                      Backslash |   $   |                   unknown |                         $ |                    [Backslash] |                      null |                    [Backslash] |
-|                 Ctrl+Backslash |   $   |              Ctrl+unknown |                    Ctrl+$ |               ctrl+[Backslash] |                      null |               ctrl+[Backslash] |
-|                Shift+Backslash |   £   |             Shift+unknown |                   Shift+$ |              shift+[Backslash] |                      null |              shift+[Backslash] |
-|           Ctrl+Shift+Backslash |   £   |        Ctrl+Shift+unknown |              Ctrl+Shift+$ |         ctrl+shift+[Backslash] |                      null |         ctrl+shift+[Backslash] |
-|                  Alt+Backslash |   $   |               Alt+unknown |                     Alt+$ |                alt+[Backslash] |                      null |                alt+[Backslash] |
-|             Ctrl+Alt+Backslash |   ¶   |          Ctrl+Alt+unknown |                Ctrl+Alt+$ |           ctrl+alt+[Backslash] |                      null |           ctrl+alt+[Backslash] |
-|            Shift+Alt+Backslash |   £   |         Shift+Alt+unknown |               Shift+Alt+$ |          shift+alt+[Backslash] |                      null |          shift+alt+[Backslash] |
-|       Ctrl+Shift+Alt+Backslash |   •   |    Ctrl+Shift+Alt+unknown |          Ctrl+Shift+Alt+$ |     ctrl+shift+alt+[Backslash] |                      null |     ctrl+shift+alt+[Backslash] |
+|                      Backslash |   $   |                           |                         $ |                    [Backslash] |                      null |                    [Backslash] |
+|                 Ctrl+Backslash |   $   |                           |                    Ctrl+$ |               ctrl+[Backslash] |                      null |               ctrl+[Backslash] |
+|                Shift+Backslash |   £   |                           |                   Shift+$ |              shift+[Backslash] |                      null |              shift+[Backslash] |
+|           Ctrl+Shift+Backslash |   £   |                           |              Ctrl+Shift+$ |         ctrl+shift+[Backslash] |                      null |         ctrl+shift+[Backslash] |
+|                  Alt+Backslash |   $   |                           |                     Alt+$ |                alt+[Backslash] |                      null |                alt+[Backslash] |
+|             Ctrl+Alt+Backslash |   ¶   |                           |                Ctrl+Alt+$ |           ctrl+alt+[Backslash] |                      null |           ctrl+alt+[Backslash] |
+|            Shift+Alt+Backslash |   £   |                           |               Shift+Alt+$ |          shift+alt+[Backslash] |                      null |          shift+alt+[Backslash] |
+|       Ctrl+Shift+Alt+Backslash |   •   |                           |          Ctrl+Shift+Alt+$ |     ctrl+shift+alt+[Backslash] |                      null |     ctrl+shift+alt+[Backslash] |
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-|                       IntlHash |  ---  |                   unknown |                 undefined |                           null |                      null |                           null |
-|                  Ctrl+IntlHash |  ---  |                   unknown |            Ctrl+undefined |                           null |                      null |                           null |
-|                 Shift+IntlHash |  ---  |                   unknown |           Shift+undefined |                           null |                      null |                           null |
-|            Ctrl+Shift+IntlHash |  ---  |                   unknown |      Ctrl+Shift+undefined |                           null |                      null |                           null |
-|                   Alt+IntlHash |  ---  |                   unknown |             Alt+undefined |                           null |                      null |                           null |
-|              Ctrl+Alt+IntlHash |  ---  |                   unknown |        Ctrl+Alt+undefined |                           null |                      null |                           null |
-|             Shift+Alt+IntlHash |  ---  |                   unknown |       Shift+Alt+undefined |                           null |                      null |                           null |
-|        Ctrl+Shift+Alt+IntlHash |  ---  |                   unknown |  Ctrl+Shift+Alt+undefined |                           null |                      null |                           null |
+|                       IntlHash |  ---  |                           |                 undefined |                           null |                      null |                           null |
+|                  Ctrl+IntlHash |  ---  |                           |            Ctrl+undefined |                           null |                      null |                           null |
+|                 Shift+IntlHash |  ---  |                           |           Shift+undefined |                           null |                      null |                           null |
+|            Ctrl+Shift+IntlHash |  ---  |                           |      Ctrl+Shift+undefined |                           null |                      null |                           null |
+|                   Alt+IntlHash |  ---  |                           |             Alt+undefined |                           null |                      null |                           null |
+|              Ctrl+Alt+IntlHash |  ---  |                           |        Ctrl+Alt+undefined |                           null |                      null |                           null |
+|             Shift+Alt+IntlHash |  ---  |                           |       Shift+Alt+undefined |                           null |                      null |                           null |
+|        Ctrl+Shift+Alt+IntlHash |  ---  |                           |  Ctrl+Shift+Alt+undefined |                           null |                      null |                           null |
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-|                      Semicolon |   ö   |                   unknown |                         ö |                    [Semicolon] |                      null |                    [Semicolon] |
-|                 Ctrl+Semicolon |   ö   |              Ctrl+unknown |                    Ctrl+ö |               ctrl+[Semicolon] |                      null |               ctrl+[Semicolon] |
-|                Shift+Semicolon |   é   |             Shift+unknown |                   Shift+ö |              shift+[Semicolon] |                      null |              shift+[Semicolon] |
-|           Ctrl+Shift+Semicolon |   é   |        Ctrl+Shift+unknown |              Ctrl+Shift+ö |         ctrl+shift+[Semicolon] |                      null |         ctrl+shift+[Semicolon] |
-|                  Alt+Semicolon |   ö   |               Alt+unknown |                     Alt+ö |                alt+[Semicolon] |                      null |                alt+[Semicolon] |
-|             Ctrl+Alt+Semicolon |   ¢   |          Ctrl+Alt+unknown |                Ctrl+Alt+ö |           ctrl+alt+[Semicolon] |                      null |           ctrl+alt+[Semicolon] |
-|            Shift+Alt+Semicolon |   é   |         Shift+Alt+unknown |               Shift+Alt+ö |          shift+alt+[Semicolon] |                      null |          shift+alt+[Semicolon] |
-|       Ctrl+Shift+Alt+Semicolon |   ˘   |    Ctrl+Shift+Alt+unknown |          Ctrl+Shift+Alt+ö |     ctrl+shift+alt+[Semicolon] |                      null |     ctrl+shift+alt+[Semicolon] |
+|                      Semicolon |   ö   |                           |                         ö |                    [Semicolon] |                      null |                    [Semicolon] |
+|                 Ctrl+Semicolon |   ö   |                           |                    Ctrl+ö |               ctrl+[Semicolon] |                      null |               ctrl+[Semicolon] |
+|                Shift+Semicolon |   é   |                           |                   Shift+ö |              shift+[Semicolon] |                      null |              shift+[Semicolon] |
+|           Ctrl+Shift+Semicolon |   é   |                           |              Ctrl+Shift+ö |         ctrl+shift+[Semicolon] |                      null |         ctrl+shift+[Semicolon] |
+|                  Alt+Semicolon |   ö   |                           |                     Alt+ö |                alt+[Semicolon] |                      null |                alt+[Semicolon] |
+|             Ctrl+Alt+Semicolon |   ¢   |                           |                Ctrl+Alt+ö |           ctrl+alt+[Semicolon] |                      null |           ctrl+alt+[Semicolon] |
+|            Shift+Alt+Semicolon |   é   |                           |               Shift+Alt+ö |          shift+alt+[Semicolon] |                      null |          shift+alt+[Semicolon] |
+|       Ctrl+Shift+Alt+Semicolon |   ˘   |                           |          Ctrl+Shift+Alt+ö |     ctrl+shift+alt+[Semicolon] |                      null |     ctrl+shift+alt+[Semicolon] |
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-|                          Quote |   ä   |                   unknown |                         ä |                        [Quote] |                      null |                        [Quote] |
-|                     Ctrl+Quote |   ä   |              Ctrl+unknown |                    Ctrl+ä |                   ctrl+[Quote] |                      null |                   ctrl+[Quote] |
-|                    Shift+Quote |   à   |             Shift+unknown |                   Shift+ä |                  shift+[Quote] |                      null |                  shift+[Quote] |
-|               Ctrl+Shift+Quote |   à   |        Ctrl+Shift+unknown |              Ctrl+Shift+ä |             ctrl+shift+[Quote] |                      null |             ctrl+shift+[Quote] |
-|                      Alt+Quote |   ä   |               Alt+unknown |                     Alt+ä |                    alt+[Quote] |                      null |                    alt+[Quote] |
-|                 Ctrl+Alt+Quote |   æ   |          Ctrl+Alt+unknown |                Ctrl+Alt+ä |               ctrl+alt+[Quote] |                      null |               ctrl+alt+[Quote] |
-|                Shift+Alt+Quote |   à   |         Shift+Alt+unknown |               Shift+Alt+ä |              shift+alt+[Quote] |                      null |              shift+alt+[Quote] |
-|           Ctrl+Shift+Alt+Quote |   Æ   |    Ctrl+Shift+Alt+unknown |          Ctrl+Shift+Alt+ä |         ctrl+shift+alt+[Quote] |                      null |         ctrl+shift+alt+[Quote] |
+|                          Quote |   ä   |                           |                         ä |                        [Quote] |                      null |                        [Quote] |
+|                     Ctrl+Quote |   ä   |                           |                    Ctrl+ä |                   ctrl+[Quote] |                      null |                   ctrl+[Quote] |
+|                    Shift+Quote |   à   |                           |                   Shift+ä |                  shift+[Quote] |                      null |                  shift+[Quote] |
+|               Ctrl+Shift+Quote |   à   |                           |              Ctrl+Shift+ä |             ctrl+shift+[Quote] |                      null |             ctrl+shift+[Quote] |
+|                      Alt+Quote |   ä   |                           |                     Alt+ä |                    alt+[Quote] |                      null |                    alt+[Quote] |
+|                 Ctrl+Alt+Quote |   æ   |                           |                Ctrl+Alt+ä |               ctrl+alt+[Quote] |                      null |               ctrl+alt+[Quote] |
+|                Shift+Alt+Quote |   à   |                           |               Shift+Alt+ä |              shift+alt+[Quote] |                      null |              shift+alt+[Quote] |
+|           Ctrl+Shift+Alt+Quote |   Æ   |                           |          Ctrl+Shift+Alt+ä |         ctrl+shift+alt+[Quote] |                      null |         ctrl+shift+alt+[Quote] |
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 |       HW Code combination      |  Key  |    KeyCode combination    |          UI label         |         User settings          |    Electron accelerator   |       Dispatching string       |
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -457,12 +457,12 @@
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 |       HW Code combination      |  Key  |    KeyCode combination    |          UI label         |         User settings          |    Electron accelerator   |       Dispatching string       |
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-|                  IntlBackslash |   §   |                   unknown |                         § |                [IntlBackslash] |                      null |                [IntlBackslash] |
-|             Ctrl+IntlBackslash |   §   |              Ctrl+unknown |                    Ctrl+§ |           ctrl+[IntlBackslash] |                      null |           ctrl+[IntlBackslash] |
-|            Shift+IntlBackslash |   °   |             Shift+unknown |                   Shift+§ |          shift+[IntlBackslash] |                      null |          shift+[IntlBackslash] |
-|       Ctrl+Shift+IntlBackslash |   °   |        Ctrl+Shift+unknown |              Ctrl+Shift+§ |     ctrl+shift+[IntlBackslash] |                      null |     ctrl+shift+[IntlBackslash] |
-|              Alt+IntlBackslash |   §   |               Alt+unknown |                     Alt+§ |            alt+[IntlBackslash] |                      null |            alt+[IntlBackslash] |
-|         Ctrl+Alt+IntlBackslash |   ﬁ   |          Ctrl+Alt+unknown |                Ctrl+Alt+§ |       ctrl+alt+[IntlBackslash] |                      null |       ctrl+alt+[IntlBackslash] |
-|        Shift+Alt+IntlBackslash |   °   |         Shift+Alt+unknown |               Shift+Alt+§ |      shift+alt+[IntlBackslash] |                      null |      shift+alt+[IntlBackslash] |
-|   Ctrl+Shift+Alt+IntlBackslash |   ‰   |    Ctrl+Shift+Alt+unknown |          Ctrl+Shift+Alt+§ | ctrl+shift+alt+[IntlBackslash] |                      null | ctrl+shift+alt+[IntlBackslash] |
+|                  IntlBackslash |   §   |                           |                         § |                [IntlBackslash] |                      null |                [IntlBackslash] |
+|             Ctrl+IntlBackslash |   §   |                           |                    Ctrl+§ |           ctrl+[IntlBackslash] |                      null |           ctrl+[IntlBackslash] |
+|            Shift+IntlBackslash |   °   |                           |                   Shift+§ |          shift+[IntlBackslash] |                      null |          shift+[IntlBackslash] |
+|       Ctrl+Shift+IntlBackslash |   °   |                           |              Ctrl+Shift+§ |     ctrl+shift+[IntlBackslash] |                      null |     ctrl+shift+[IntlBackslash] |
+|              Alt+IntlBackslash |   §   |                           |                     Alt+§ |            alt+[IntlBackslash] |                      null |            alt+[IntlBackslash] |
+|         Ctrl+Alt+IntlBackslash |   ﬁ   |                           |                Ctrl+Alt+§ |       ctrl+alt+[IntlBackslash] |                      null |       ctrl+alt+[IntlBackslash] |
+|        Shift+Alt+IntlBackslash |   °   |                           |               Shift+Alt+§ |      shift+alt+[IntlBackslash] |                      null |      shift+alt+[IntlBackslash] |
+|   Ctrl+Shift+Alt+IntlBackslash |   ‰   |                           |          Ctrl+Shift+Alt+§ | ctrl+shift+alt+[IntlBackslash] |                      null | ctrl+shift+alt+[IntlBackslash] |
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
