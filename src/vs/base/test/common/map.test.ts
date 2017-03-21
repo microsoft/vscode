@@ -8,7 +8,6 @@
 import { BoundedLinkedMap, LRUCache, LinkedMap, TrieMap, ResourceMap } from 'vs/base/common/map';
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
-import { isLinux } from 'vs/base/common/platform';
 
 suite('Map', () => {
 
@@ -402,6 +401,35 @@ suite('Map', () => {
 		assert.ok(map.has(resource2));
 	});
 
+	test('ResourceMap - files (do NOT ignorecase)', function () {
+		const map = new ResourceMap<any>();
+
+		const fileA = URI.parse('file://some/filea');
+		const fileB = URI.parse('some://some/other/fileb');
+		const fileAUpper = URI.parse('file://SOME/FILEA');
+
+		map.set(fileA, 'true');
+		assert.equal(map.get(fileA), 'true');
+
+		assert.ok(!map.get(fileAUpper));
+
+		assert.ok(!map.get(fileB));
+
+		map.set(fileAUpper, 'false');
+		assert.equal(map.get(fileAUpper), 'false');
+
+		assert.equal(map.get(fileA), 'true');
+
+		const windowsFile = URI.file('c:\\test with %25\\c#code');
+		const uncFile = URI.file('\\\\shäres\\path\\c#\\plugin.json');
+
+		map.set(windowsFile, 'true');
+		map.set(uncFile, 'true');
+
+		assert.equal(map.get(windowsFile), 'true');
+		assert.equal(map.get(uncFile), 'true');
+	});
+
 	test('ResourceMap - files (ignorecase)', function () {
 		const map = new ResourceMap<any>(true);
 
@@ -412,22 +440,14 @@ suite('Map', () => {
 		map.set(fileA, 'true');
 		assert.equal(map.get(fileA), 'true');
 
-		if (!isLinux) {
-			assert.equal(map.get(fileAUpper), 'true');
-		} else {
-			assert.ok(!map.get(fileAUpper));
-		}
+		assert.equal(map.get(fileAUpper), 'true');
 
 		assert.ok(!map.get(fileB));
 
 		map.set(fileAUpper, 'false');
 		assert.equal(map.get(fileAUpper), 'false');
 
-		if (!isLinux) {
-			assert.equal(map.get(fileA), 'false');
-		} else {
-			assert.equal(map.get(fileA), 'true');
-		}
+		assert.equal(map.get(fileA), 'false');
 
 		const windowsFile = URI.file('c:\\test with %25\\c#code');
 		const uncFile = URI.file('\\\\shäres\\path\\c#\\plugin.json');
