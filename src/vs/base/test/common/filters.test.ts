@@ -235,6 +235,7 @@ suite('Filters', () => {
 		assertMatches('ccm', 'camelCasecm', '^camel^Casec^m', fuzzyMatchAndScore);
 		assertMatches('myvable', 'myvariable', '^m^y^v^aria^b^l^e', fuzzyMatchAndScore);
 		assertMatches('fdm', 'findModel', '^fin^d^Model', fuzzyMatchAndScore);
+		assertMatches('form', 'editor.formatOnSave', 'editor.^f^o^r^matOnSave', fuzzyMatchAndScore);
 	});
 
 	test('topScore', function () {
