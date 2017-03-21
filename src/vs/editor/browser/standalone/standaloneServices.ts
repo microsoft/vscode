@@ -47,6 +47,7 @@ export interface IEditorContextViewService extends IContextViewService {
 }
 
 export interface IEditorOverrideServices {
+	[index: string]: any;
 }
 
 export module StaticServices {

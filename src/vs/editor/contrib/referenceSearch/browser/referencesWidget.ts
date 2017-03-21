@@ -144,7 +144,7 @@ class DecorationsManager implements IDisposable {
 
 		this._editor.changeDecorations((accessor) => {
 			for (let i = 0, len = toRemove.length; i < len; i++) {
-				delete this._decorations[toRemove[i]];
+				this._decorations.delete(toRemove[i]);
 			}
 			accessor.deltaDecorations(toRemove, []);
 		});
