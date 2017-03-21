@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { IStandaloneThemeData } from "vs/editor/common/services/standaloneThemeService";
+import { IStandaloneThemeData } from 'vs/editor/common/services/standaloneThemeService';
 
 /* -------------------------------- Begin vs theme -------------------------------- */
 export const vs: IStandaloneThemeData = {

@@ -24,7 +24,6 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
 import { IProgressRunner } from 'vs/platform/progress/common/progress';
 import { RangeHighlightDecorations } from 'vs/workbench/common/editor/rangeDecorations';
-import { isEqual } from 'vs/platform/files/common/files';
 
 export class Match {
 
@@ -150,7 +149,7 @@ export class FileMatch extends Disposable {
 
 	private registerListeners(): void {
 		this._register(this.modelService.onModelAdded((model: IModel) => {
-			if (isEqual(model.uri, this._resource)) {
+			if (model.uri.toString() === this._resource.toString()) {
 				this.bindModel(model);
 			}
 		}));

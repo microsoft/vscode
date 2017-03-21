@@ -7,7 +7,6 @@
 
 import URI from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
-import { isLinux } from 'vs/base/common/platform';
 
 export interface Key {
 	toString(): string;
@@ -411,7 +410,7 @@ export class TrieMap<E> {
 export class ResourceMap<T> {
 	private map: Map<string, T>;
 
-	constructor() {
+	constructor(private ignoreCase?: boolean) {
 		this.map = new Map<string, T>();
 	}
 
@@ -455,12 +454,12 @@ export class ResourceMap<T> {
 
 		if (resource.scheme === Schemas.file) {
 			key = resource.fsPath;
-
-			if (!isLinux) {
-				key = key.toLowerCase();
-			}
 		} else {
 			key = resource.toString();
+		}
+
+		if (this.ignoreCase) {
+			key = key.toLowerCase();
 		}
 
 		return key;

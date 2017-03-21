@@ -9,7 +9,7 @@ import { IStandaloneThemeService, BuiltinTheme, IStandaloneThemeData, IStandalon
 import { vs, vs_dark, hc_black } from 'vs/editor/common/standalone/themes';
 import * as dom from 'vs/base/browser/dom';
 import { TokenizationRegistry } from 'vs/editor/common/modes';
-import { Color } from "vs/base/common/color";
+import { Color } from 'vs/base/common/color';
 import { Extensions, IColorRegistry, ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
 import { Extensions as ThemingExtensions, IThemingRegistry, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { Registry } from 'vs/platform/platform';

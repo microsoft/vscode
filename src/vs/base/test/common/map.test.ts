@@ -402,8 +402,8 @@ suite('Map', () => {
 		assert.ok(map.has(resource2));
 	});
 
-	test('ResourceMap - files', function () {
-		const map = new ResourceMap<any>();
+	test('ResourceMap - files (ignorecase)', function () {
+		const map = new ResourceMap<any>(true);
 
 		const fileA = URI.parse('file://some/filea');
 		const fileB = URI.parse('some://some/other/fileb');

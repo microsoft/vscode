@@ -19,7 +19,7 @@ import { IAction, ActionRunner as BaseActionRunner, IActionRunner } from 'vs/bas
 import comparers = require('vs/base/common/comparers');
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { $, Builder } from 'vs/base/browser/builder';
-import { isMacintosh } from 'vs/base/common/platform';
+import { isMacintosh, isLinux } from 'vs/base/common/platform';
 import glob = require('vs/base/common/glob');
 import { FileLabel, IFileLabelOptions } from 'vs/workbench/browser/labels';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -697,7 +697,7 @@ export class FileDragAndDrop implements IDragAndDrop {
 					return true; // Can not move a file to the same parent unless we copy
 				}
 
-				if (isEqualOrParent(target.resource.fsPath, source.resource.fsPath)) {
+				if (isEqualOrParent(target.resource.fsPath, source.resource.fsPath, !isLinux /* ignorecase */)) {
 					return true; // Can not move a parent folder into one of its children
 				}
 
@@ -759,7 +759,7 @@ export class FileDragAndDrop implements IDragAndDrop {
 				};
 
 				// 1. check for dirty files that are being moved and backup to new target
-				const dirty = this.textFileService.getDirty().filter(d => isEqualOrParent(d.fsPath, source.resource.fsPath));
+				const dirty = this.textFileService.getDirty().filter(d => isEqualOrParent(d.fsPath, source.resource.fsPath, !isLinux /* ignorecase */));
 				return TPromise.join(dirty.map(d => {
 					let moved: URI;
 
@@ -802,7 +802,7 @@ export class FileDragAndDrop implements IDragAndDrop {
 
 								// Move with overwrite if the user confirms
 								if (this.messageService.confirm(confirm)) {
-									const targetDirty = this.textFileService.getDirty().filter(d => isEqualOrParent(d.fsPath, targetResource.fsPath));
+									const targetDirty = this.textFileService.getDirty().filter(d => isEqualOrParent(d.fsPath, targetResource.fsPath, !isLinux /* ignorecase */));
 
 									// Make sure to revert all dirty in target first to be able to overwrite properly
 									return this.textFileService.revertAll(targetDirty, { soft: true /* do not attempt to load content from disk */ }).then(() => {
