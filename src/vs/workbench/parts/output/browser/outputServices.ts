@@ -50,11 +50,11 @@ export class BufferedContent {
 	}
 
 	private trim(): void {
-		if (this.length < MAX_OUTPUT_LENGTH * 1.5) {
+		if (this.length < MAX_OUTPUT_LENGTH * 1.2) {
 			return;
 		}
 
-		while (this.length > MAX_OUTPUT_LENGTH && this.data.length) {
+		while (this.length > MAX_OUTPUT_LENGTH) {
 			this.dataIds.shift();
 			const removed = this.data.shift();
 			this.length -= removed.length;
@@ -68,8 +68,8 @@ export class BufferedContent {
 		}
 
 		const id = this.idPool;
-		if (idx > 0) {
-			const value = strings.removeAnsiEscapeCodes(this.data.slice(idx).join(''));
+		if (idx >= 0) {
+			const value = strings.removeAnsiEscapeCodes(this.data.slice(idx + 1).join(''));
 			return { value, id, append: true };
 		} else {
 			const value = strings.removeAnsiEscapeCodes(this.data.join(''));
