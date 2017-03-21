@@ -64,7 +64,10 @@ configurationRegistry.registerConfiguration({
 			'items': {
 				'type': 'string'
 			},
-			'default': [],
+			// Unlike on Linux, ~/.profile is not sourced when logging into a macOS session. This
+			// is the reason terminals on macOS typically run login shells by default which set up
+			// the environment. See http://unix.stackexchange.com/a/119675/115410
+			'default': ['-l'],
 			'isExecutable': true
 		},
 		'terminal.integrated.shell.windows': {
