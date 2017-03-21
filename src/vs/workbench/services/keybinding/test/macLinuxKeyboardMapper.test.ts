@@ -1048,6 +1048,37 @@ suite('keyboardMapper - LINUX en_us', () => {
 			}
 		);
 	});
+
+	test('resolveKeybinding Ctrl+Shift+,', () => {
+		_assertResolveKeybinding(
+			KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_COMMA,
+			[{
+				label: 'Ctrl+<',
+				ariaLabel: 'Control+<',
+				HTMLLabel: [_simpleHTMLLabel(['Ctrl', '<'])],
+				electronAccelerator: null,
+				userSettingsLabel: 'ctrl+[IntlBackslash]',
+				isChord: false,
+				hasCtrlModifier: true,
+				hasShiftModifier: false,
+				hasAltModifier: false,
+				hasMetaModifier: false,
+				dispatchParts: ['ctrl+[IntlBackslash]', null],
+			}, {
+				label: 'Ctrl+Shift+,',
+				ariaLabel: 'Control+Shift+,',
+				HTMLLabel: [_simpleHTMLLabel(['Ctrl', 'Shift', ','])],
+				electronAccelerator: 'Ctrl+Shift+,',
+				userSettingsLabel: 'ctrl+shift+,',
+				isChord: false,
+				hasCtrlModifier: true,
+				hasShiftModifier: true,
+				hasAltModifier: false,
+				hasMetaModifier: false,
+				dispatchParts: ['ctrl+shift+[Comma]', null],
+			}]
+		);
+	});
 });
 
 function _assertKeybindingTranslation(mapper: MacLinuxKeyboardMapper, OS: OperatingSystem, kb: number, _expected: string | string[]): void {

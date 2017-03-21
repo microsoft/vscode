@@ -174,6 +174,15 @@ class ScanCodeCombo {
 		return `${this.ctrlKey ? 'Ctrl+' : ''}${this.shiftKey ? 'Shift+' : ''}${this.altKey ? 'Alt+' : ''}${ScanCodeUtils.toString(this.scanCode)}`;
 	}
 
+	public equals(other: ScanCodeCombo): boolean {
+		return (
+			this.ctrlKey === other.ctrlKey
+			&& this.shiftKey === other.shiftKey
+			&& this.altKey === other.altKey
+			&& this.scanCode === other.scanCode
+		);
+	}
+
 	private getProducedCharCode(mapping: IScanCodeMapping): number {
 		if (!mapping) {
 			return 0;
@@ -240,7 +249,7 @@ class ScanCodeKeyCodeMapper {
 		this._keyCodeToScanCode = [];
 	}
 
-	public checkComplete(): void {
+	public registrationComplete(): void {
 		for (let i = 0; i < ScanCode.MAX_VALUE; i++) {
 			let base = (i << 3);
 			for (let j = 0; j < 8; j++) {
@@ -251,7 +260,37 @@ class ScanCodeKeyCodeMapper {
 				}
 			}
 		}
+
+		// IntlHash and IntlBackslash are rare keys, so ensure they don't end up being the preferred...
+		// this._moveToEnd(ScanCode.IntlHash);
+		// this._moveToEnd(ScanCode.IntlBackslash);
 	}
+
+	// private _moveToEnd(scanCode: ScanCode): void {
+	// 	for (let mod = 0; mod < 8; mod++) {
+	// 		const encodedKeyCodeCombos = this._scanCodeToKeyCode[(scanCode << 3) + mod];
+	// 		if (!encodedKeyCodeCombos) {
+	// 			continue;
+	// 		}
+	// 		for (let i = 0, len = encodedKeyCodeCombos.length; i < len; i++) {
+	// 			const encodedScanCodeCombos = this._keyCodeToScanCode[encodedKeyCodeCombos[i]];
+	// 			if (encodedScanCodeCombos.length === 1) {
+	// 				continue;
+	// 			}
+	// 			for (let j = 0, len = encodedScanCodeCombos.length; j < len; j++) {
+	// 				const entry = encodedScanCodeCombos[j];
+	// 				const entryScanCode = (entry >>> 3);
+	// 				if (entryScanCode === scanCode) {
+	// 					// Move this entry to the end
+	// 					for (let k = j + 1; k < len; k++) {
+	// 						encodedScanCodeCombos[k - 1] = encodedScanCodeCombos[k];
+	// 					}
+	// 					encodedScanCodeCombos[len - 1] = entry;
+	// 				}
+	// 			}
+	// 		}
+	// 	}
+	// }
 
 	public registerIfUnknown(scanCodeCombo: ScanCodeCombo, keyCodeCombo: KeyCodeCombo): void {
 		if (keyCodeCombo.keyCode === KeyCode.Unknown) {
@@ -263,14 +302,14 @@ class ScanCodeKeyCodeMapper {
 		const keyCodeIsDigit = (keyCodeCombo.keyCode >= KeyCode.KEY_0 && keyCodeCombo.keyCode <= KeyCode.KEY_9);
 		const keyCodeIsLetter = (keyCodeCombo.keyCode >= KeyCode.KEY_A && keyCodeCombo.keyCode <= KeyCode.KEY_Z);
 
-		const existingEntries = this._scanCodeToKeyCode[scanCodeComboEncoded];
+		const existingKeyCodeCombos = this._scanCodeToKeyCode[scanCodeComboEncoded];
 
 		// Allow a scan code to map to multiple key codes if it is a digit or a letter key code
 		if (keyCodeIsDigit || keyCodeIsLetter) {
 			// Only check that we don't insert the same entry twice
-			if (existingEntries) {
-				for (let i = 0, len = existingEntries.length; i < len; i++) {
-					if (existingEntries[i] === keyCodeComboEncoded) {
+			if (existingKeyCodeCombos) {
+				for (let i = 0, len = existingKeyCodeCombos.length; i < len; i++) {
+					if (existingKeyCodeCombos[i] === keyCodeComboEncoded) {
 						// avoid duplicates
 						return;
 					}
@@ -278,7 +317,7 @@ class ScanCodeKeyCodeMapper {
 			}
 		} else {
 			// Don't allow multiples
-			if (existingEntries && existingEntries.length !== 0) {
+			if (existingKeyCodeCombos && existingKeyCodeCombos.length !== 0) {
 				return;
 			}
 		}
@@ -286,7 +325,6 @@ class ScanCodeKeyCodeMapper {
 		this._scanCodeToKeyCode[scanCodeComboEncoded] = this._scanCodeToKeyCode[scanCodeComboEncoded] || [];
 		this._scanCodeToKeyCode[scanCodeComboEncoded].unshift(keyCodeComboEncoded);
 
-		// Do not save an inverse lookup for Unknown
 		this._keyCodeToScanCode[keyCodeComboEncoded] = this._keyCodeToScanCode[keyCodeComboEncoded] || [];
 		this._keyCodeToScanCode[keyCodeComboEncoded].unshift(scanCodeComboEncoded);
 	}
@@ -521,7 +559,7 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 		this._registerAllCombos1(false, false, false, ScanCode.Digit9, KeyCode.KEY_9);
 		this._registerAllCombos1(false, false, false, ScanCode.Digit0, KeyCode.KEY_0);
 
-		this._scanCodeKeyCodeMapper.checkComplete();
+		this._scanCodeKeyCodeMapper.registrationComplete();
 	}
 
 	public dumpRawDebugInfo(): string {
@@ -532,15 +570,15 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 		let result: string[] = [];
 
 		let cnt = 0;
-		result.push(`------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------`);
+		result.push(`------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------`);
 		for (let scanCode = ScanCode.None; scanCode < ScanCode.MAX_VALUE; scanCode++) {
 			if (IMMUTABLE_CODE_TO_KEY_CODE[scanCode] !== -1) {
 				continue;
 			}
 
 			if (cnt % 4 === 0) {
-				result.push(`|       HW Code combination      |  Key  |    KeyCode combination    |          UI label         |         User settings          |    Electron accelerator   |       Dispatching string       |`);
-				result.push(`------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------`);
+				result.push(`|       HW Code combination      |  Key  |    KeyCode combination    | Pri |          UI label         |         User settings          |    Electron accelerator   |       Dispatching string       |`);
+				result.push(`------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------`);
 			}
 			cnt++;
 
@@ -570,23 +608,40 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 
 				const kbCombos = this._scanCodeKeyCodeMapper.lookupScanCodeCombo(scanCodeCombo);
 				if (kbCombos.length === 0) {
-					const outKeybinding = ``;
-					result.push(`| ${this._leftPad(outScanCodeCombo, 30)} | ${outKey} | ${this._leftPad(outKeybinding, 25)} | ${this._leftPad(outUILabel, 25)} | ${this._leftPad(outUserSettings, 30)} | ${this._leftPad(outElectronAccelerator, 25)} | ${this._leftPad(outDispatchStr, 30)} |`);
+					result.push(`| ${this._leftPad(outScanCodeCombo, 30)} | ${outKey} | ${this._leftPad('', 25)} | ${this._leftPad('', 3)} | ${this._leftPad(outUILabel, 25)} | ${this._leftPad(outUserSettings, 30)} | ${this._leftPad(outElectronAccelerator, 25)} | ${this._leftPad(outDispatchStr, 30)} |`);
 				} else {
 					for (let i = 0, len = kbCombos.length; i < len; i++) {
 						const kbCombo = kbCombos[i];
+						// find out the priority of this scan code for this key code
+						let colPriority = '-';
+
+						const scanCodeCombos = this._scanCodeKeyCodeMapper.lookupKeyCodeCombo(kbCombo);
+						if (scanCodeCombos.length === 1) {
+							// no need for priority, this key code combo maps to precisely this scan code combo
+							colPriority = '';
+						} else {
+							let priority = -1;
+							for (let j = 0; j < scanCodeCombos.length; j++) {
+								if (scanCodeCombos[j].equals(scanCodeCombo)) {
+									priority = j + 1;
+									break;
+								}
+							}
+							colPriority = String(priority);
+						}
+
 						const outKeybinding = kbCombo.toString();
 						if (i === 0) {
-							result.push(`| ${this._leftPad(outScanCodeCombo, 30)} | ${outKey} | ${this._leftPad(outKeybinding, 25)} | ${this._leftPad(outUILabel, 25)} | ${this._leftPad(outUserSettings, 30)} | ${this._leftPad(outElectronAccelerator, 25)} | ${this._leftPad(outDispatchStr, 30)} |`);
+							result.push(`| ${this._leftPad(outScanCodeCombo, 30)} | ${outKey} | ${this._leftPad(outKeybinding, 25)} | ${this._leftPad(colPriority, 3)} | ${this._leftPad(outUILabel, 25)} | ${this._leftPad(outUserSettings, 30)} | ${this._leftPad(outElectronAccelerator, 25)} | ${this._leftPad(outDispatchStr, 30)} |`);
 						} else {
 							// secondary keybindings
-							result.push(`| ${this._leftPad('', 30)} |       | ${this._leftPad(outKeybinding, 25)} | ${this._leftPad('', 25)} | ${this._leftPad('', 30)} | ${this._leftPad('', 25)} | ${this._leftPad('', 30)} |`);
+							result.push(`| ${this._leftPad('', 30)} |       | ${this._leftPad(outKeybinding, 25)} | ${this._leftPad(colPriority, 3)} | ${this._leftPad('', 25)} | ${this._leftPad('', 30)} | ${this._leftPad('', 25)} | ${this._leftPad('', 30)} |`);
 						}
 					}
 				}
 
 			}
-			result.push(`------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------`);
+			result.push(`------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------`);
 		}
 
 		return result.join('\n');
