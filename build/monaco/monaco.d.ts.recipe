@@ -53,8 +53,8 @@ declare module monaco {
 declare module monaco.editor {
 
 #includeAll(vs/editor/browser/standalone/standaloneEditor;modes.=>languages.;editorCommon.=>):
-#include(vs/editor/common/services/standaloneColorService): BuiltinTheme, ITheme
-#include(vs/editor/common/modes/supports/tokenization): IThemeRule
+#include(vs/editor/common/services/standaloneColorService): BuiltinTheme, IStandaloneThemeData, IColors
+#include(vs/editor/common/modes/supports/tokenization): ITokenThemeRule
 #include(vs/editor/common/services/webWorker): MonacoWebWorker, IWebWorkerOptions
 #include(vs/editor/browser/standalone/standaloneCodeEditor): IEditorConstructionOptions, IDiffEditorConstructionOptions, IStandaloneCodeEditor, IStandaloneDiffEditor
 export interface ICommandHandler {

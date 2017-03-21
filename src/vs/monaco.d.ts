@@ -875,17 +875,22 @@ declare module monaco.editor {
     /**
      * Define a new theme.
      */
-    export function defineTheme(themeName: string, themeData: ITheme): void;
+    export function defineTheme(themeName: string, themeData: IStandaloneThemeData): void;
 
     export type BuiltinTheme = 'vs' | 'vs-dark' | 'hc-black';
 
-    export interface ITheme {
+    export interface IStandaloneThemeData {
         base: BuiltinTheme;
         inherit: boolean;
-        rules: IThemeRule[];
+        rules: ITokenThemeRule[];
+        colors: IColors;
     }
 
-    export interface IThemeRule {
+    export type IColors = {
+        [colorId: string]: string;
+    };
+
+    export interface ITokenThemeRule {
         token: string;
         foreground?: string;
         background?: string;

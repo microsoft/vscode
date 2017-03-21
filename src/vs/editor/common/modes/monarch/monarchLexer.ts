@@ -16,7 +16,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { Token, TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/token';
 import { NULL_STATE, NULL_MODE_ID } from 'vs/editor/common/modes/nullMode';
 import { IStandaloneColorService } from 'vs/editor/common/services/standaloneColorService';
-import { Theme } from 'vs/editor/common/modes/supports/tokenization';
+import { TokenTheme } from 'vs/editor/common/modes/supports/tokenization';
 
 const CACHE_STACK_DEPTH = 5;
 
@@ -291,13 +291,13 @@ class MonarchClassicTokensCollector implements IMonarchTokensCollector {
 class MonarchModernTokensCollector implements IMonarchTokensCollector {
 
 	private _modeService: IModeService;
-	private _theme: Theme;
+	private _theme: TokenTheme;
 	private _prependTokens: Uint32Array;
 	private _tokens: number[];
 	private _currentLanguageId: modes.LanguageId;
 	private _lastTokenMetadata: number;
 
-	constructor(modeService: IModeService, theme: Theme) {
+	constructor(modeService: IModeService, theme: TokenTheme) {
 		this._modeService = modeService;
 		this._theme = theme;
 		this._prependTokens = null;
@@ -429,7 +429,7 @@ export class MonarchTokenizer implements modes.ITokenizationSupport {
 	}
 
 	public tokenize2(line: string, lineState: modes.IState, offsetDelta: number): TokenizationResult2 {
-		let tokensCollector = new MonarchModernTokensCollector(this._modeService, this._standaloneColorService.getTheme());
+		let tokensCollector = new MonarchModernTokensCollector(this._modeService, this._standaloneColorService.getTheme().tokenTheme);
 		let endLineState = this._tokenize(line, <MonarchLineState>lineState, offsetDelta, tokensCollector);
 		return tokensCollector.finalize(endLineState);
 	}
