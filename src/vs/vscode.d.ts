@@ -2049,34 +2049,6 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Represents a change of the [eol-sequence](#TextDocument.eol) that is used in a document.
-	 */
-	export class EndOfLineEdit {
-
-		/**
-		 * Use the line feed `\n` character.
-		 */
-		static readonly LF: EndOfLineEdit;
-
-		/**
-		 * Use the carriage return line feed `\r\n` sequence.
-		 */
-		static readonly CRLF: EndOfLineEdit;
-
-		/**
-		 * The new end of line sequence
-		 */
-		newEol: EndOfLine;
-
-		/**
-		 * Create a new EndOfLineEdit.
-		 *
-		 * @param newEol A new end of line sequence.
-		 */
-		constructor(newEol: EndOfLine);
-	}
-
-	/**
 	 * A workspace edit represents textual changes for many documents.
 	 */
 	export class WorkspaceEdit {
@@ -3990,7 +3962,7 @@ declare module 'vscode' {
 		 *
 		 * @param thenable A thenable that resolves to [pre-save-edits](#TextEdit).
 		 */
-		waitUntil(thenable: Thenable<TextEdit[] | EndOfLineEdit>): void;
+		waitUntil(thenable: Thenable<TextEdit[]>): void;
 
 		/**
 		 * Allows to pause the event loop until the provided thenable resolved.

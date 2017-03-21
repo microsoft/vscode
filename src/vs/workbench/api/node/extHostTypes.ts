@@ -404,19 +404,6 @@ export enum EndOfLine {
 	CRLF = 2
 }
 
-export class EndOfLineEdit {
-
-	static readonly LF: EndOfLineEdit = Object.freeze({ newEol: EndOfLine.LF });
-
-	static readonly CRLF: EndOfLineEdit = Object.freeze({ newEol: EndOfLine.CRLF });
-
-	newEol: EndOfLine;
-
-	constructor(newEol: EndOfLine) {
-		this.newEol = newEol;
-	}
-}
-
 export class TextEdit {
 
 	static isTextEdit(thing: any): thing is TextEdit {
