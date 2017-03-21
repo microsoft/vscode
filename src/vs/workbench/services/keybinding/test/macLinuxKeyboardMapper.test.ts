@@ -68,11 +68,22 @@ suite('keyboardMapper - MAC de_ch', () => {
 		assertKeybindingTranslation(KeyMod.CtrlCmd | KeyCode.US_SLASH, 'shift+cmd+Digit7');
 	});
 
-	// TODO: missing
 	test('resolveKeybinding Cmd+A', () => {
 		_assertResolveKeybinding(
 			KeyMod.CtrlCmd | KeyCode.KEY_A,
-			[]
+			[{
+				label: '⌘A',
+				ariaLabel: 'Command+A',
+				HTMLLabel: [_simpleHTMLLabel(['⌘', 'A'])],
+				electronAccelerator: 'Cmd+A',
+				userSettingsLabel: 'cmd+a',
+				isChord: false,
+				hasCtrlModifier: false,
+				hasShiftModifier: false,
+				hasAltModifier: false,
+				hasMetaModifier: true,
+				dispatchParts: ['meta+[KeyA]', null],
+			}]
 		);
 	});
 
