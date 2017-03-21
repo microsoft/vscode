@@ -435,15 +435,15 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 		let result: string[] = [];
 
 		let cnt = 0;
-		result.push(`-----------------------------------------------------------------------------------------------------------------------------------`);
+		result.push(`------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------`);
 		for (let scanCode = ScanCode.None; scanCode < ScanCode.MAX_VALUE; scanCode++) {
 			if (IMMUTABLE_CODE_TO_KEY_CODE[scanCode] !== -1) {
 				continue;
 			}
 
 			if (cnt % 4 === 0) {
-				result.push(`|       HW Code combination      |  Key  |    KeyCode combination    |          UI label         |       Dispatching string       |`);
-				result.push(`-----------------------------------------------------------------------------------------------------------------------------------`);
+				result.push(`|       HW Code combination      |  Key  |    KeyCode combination    |          UI label         |         User settings          |    Electron accelerator   |       Dispatching string       |`);
+				result.push(`------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------`);
 			}
 			cnt++;
 
@@ -485,13 +485,19 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 
 				const strKb = `${kbCombo.ctrlKey ? 'Ctrl+' : ''}${kbCombo.shiftKey ? 'Shift+' : ''}${kbCombo.altKey ? 'Alt+' : ''}${KeyCodeUtils.toString(kbCombo.keyCode)}`;
 
-				const hwKeyPress = new ScanCodePress(hwCtrlKey, hwShiftKey, hwAltKey, false, scanCode);
-				const dispatchStr = this.getDispatchStrForScanCodePress(hwKeyPress);
+				const resolvedKb = this.resolveKeyboardEvent({
+					ctrlKey: hwCtrlKey,
+					shiftKey: hwShiftKey,
+					altKey: hwAltKey,
+					metaKey: false,
+					keyCode: -1,
+					code: ScanCodeUtils.toString(scanCode)
+				});
 
-				result.push(`| ${this._leftPad(strHw, 30)} | ${strKey} | ${this._leftPad(strKb, 25)} | ${this._leftPad(uiHwLabel, 25)} | ${this._leftPad(dispatchStr, 30)} |`);
+				result.push(`| ${this._leftPad(strHw, 30)} | ${strKey} | ${this._leftPad(strKb, 25)} | ${this._leftPad(uiHwLabel, 25)} | ${this._leftPad(resolvedKb.getUserSettingsLabel(), 30)} | ${this._leftPad(resolvedKb.getElectronAccelerator(), 25)} | ${this._leftPad(resolvedKb.getDispatchParts()[0], 30)} |`);
 
 			}
-			result.push(`-----------------------------------------------------------------------------------------------------------------------------------`);
+			result.push(`------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------`);
 		}
 
 		return result.join('\n');
