@@ -508,9 +508,17 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 
 					if (this.apiVersion.has222Features()) {
 						if (this.tsServerLogLevel !== TsServerLogLevel.Off) {
-							this.tsServerLogFile = path.join(os.tmpdir(), `vscode-tsserver-${electron.makeRandomHexString(10)}.log`);
-							args.push('--logVerbosity', TsServerLogLevel.toString(this.tsServerLogLevel));
-							args.push('--logFile', this.tsServerLogFile);
+							try {
+								const logDir = fs.mkdtempSync(path.join(os.tmpdir(), `vscode-tsserver-log-`));
+								this.tsServerLogFile = path.join(logDir, `tsserver.log`);
+							} catch (e) {
+								this.error('Could not create TSServer log directory');
+							}
+
+							if (this.tsServerLogFile) {
+								args.push('--logVerbosity', TsServerLogLevel.toString(this.tsServerLogLevel));
+								args.push('--logFile', this.tsServerLogFile);
+							}
 						}
 					}
 
@@ -690,7 +698,6 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			} catch (error) {
 			}
 			// configureOptions.autoDiagnostics = true;
-			// configureOptions.metaDataDirectory = this.storagePath;
 		}
 		this.execute('configure', configureOptions);
 		if (this.apiVersion.has206Features()) {
