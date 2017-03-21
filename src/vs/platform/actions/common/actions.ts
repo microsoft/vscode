@@ -58,7 +58,7 @@ export class MenuId {
 
 export interface IMenu extends IDisposable {
 	onDidChange: Event<IMenu>;
-	getActions(arg?: any): [string, MenuItemAction[]][];
+	getActions(contextProvider?: () => any[]): [string, MenuItemAction[]][];
 }
 
 export const IMenuService = createDecorator<IMenuService>('menuService');
@@ -154,7 +154,7 @@ export class ExecuteCommandAction extends Action {
 
 export class MenuItemAction extends ExecuteCommandAction {
 
-	private _arg: any;
+	private _contextProvider: any;
 
 	readonly item: ICommandAction;
 	readonly alt: MenuItemAction;
@@ -162,20 +162,20 @@ export class MenuItemAction extends ExecuteCommandAction {
 	constructor(
 		item: ICommandAction,
 		alt: ICommandAction,
-		arg: any,
+		contextProvider: () => any[],
 		@ICommandService commandService: ICommandService
 	) {
 		super(item.id, item.title, commandService);
 		this._cssClass = item.iconClass;
 		this._enabled = true;
-		this._arg = arg;
+		this._contextProvider = contextProvider;
 
 		this.item = item;
-		this.alt = alt ? new MenuItemAction(alt, undefined, arg, commandService) : undefined;
+		this.alt = alt ? new MenuItemAction(alt, undefined, contextProvider, commandService) : undefined;
 	}
 
 	run(): TPromise<any> {
-		return super.run(this._arg);
+		return super.run(...this._contextProvider());
 	}
 }
 

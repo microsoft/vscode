@@ -17,8 +17,8 @@ import { domEvent } from 'vs/base/browser/event';
 import { Emitter } from 'vs/base/common/event';
 
 
-export function fillInActions(menu: IMenu, context: any, target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, isPrimaryGroup: (group: string) => boolean = group => group === 'navigation'): void {
-	const groups = menu.getActions(context);
+export function fillInActions(menu: IMenu, contextProvider: () => any[], target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, isPrimaryGroup: (group: string) => boolean = group => group === 'navigation'): void {
+	const groups = menu.getActions(contextProvider);
 	if (groups.length === 0) {
 		return;
 	}
