@@ -256,6 +256,20 @@
 		"editorInvisibles": "#002040",
 		"editorLineHighlight": "#082050",
 		"editorSelection": "#770811",
-		"editorGuide": "#002952"
+		"editorGuide": "#002952",
+
+		// Workbench Colors
+		"tabsContainerBackground": "#1c1c2a",
+		"inactiveTabBackground": "#10192c",
+		"tabBorder": "#2b2b4a",
+		"editorGroupBorder": "#2b2b4a",
+		"editorGroupBackground": "#1c1c2a",
+		"editorDragAndDropBackground": "#25375daa",
+		"panelBorderTopColor": "#2b2b4a",
+		"statusBarBackground": "#10192c",
+		"activityBarBackground": "#051336",
+		"sideBarBackground": "#060621",
+		"titleBarActiveBackground": "#10192c",
+		"titleBarInactiveBackground": "#10192caa"
 	}
 }
