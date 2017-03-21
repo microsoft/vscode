@@ -362,7 +362,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			this.closeExceptionWidget();
 		} else if (sameUri && focusedSf.thread.stoppedDetails && focusedSf.thread.stoppedDetails.reason === 'exception') {
 			focusedSf.thread.exceptionInfo.then((exceptionInfo) => {
-				this.showExceptionWidget(null, exceptionSf.lineNumber, exceptionSf.column);
+				this.showExceptionWidget(exceptionInfo, exceptionSf.lineNumber, exceptionSf.column);
 			});
 		}
 	}

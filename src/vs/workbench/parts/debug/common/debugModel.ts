@@ -495,7 +495,7 @@ export class Thread implements IThread {
 	 */
 	public get exceptionInfo(): TPromise<DebugProtocol.ExceptionInfoResponse> {
 		const session = this.process.session;
-		if (session.capabilities.supportsExceptionInfoRequest && this.stoppedDetails.reason === 'exception') {
+		if (session.capabilities.supportsExceptionInfoRequest && this.stoppedDetails && this.stoppedDetails.reason === 'exception') {
 			return session.exceptionInfo({ threadId: this.threadId });
 		}
 
