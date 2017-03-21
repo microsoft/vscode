@@ -552,7 +552,6 @@ export class SearchModel extends Disposable {
 		this._searchResult.query = this._searchQuery.contentPattern;
 		this._replacePattern = new ReplacePattern(this._replaceString, this._searchQuery.contentPattern);
 
-
 		const onDone = fromPromise(this.currentRequest);
 		const onDoneStopwatch = stopwatch(onDone);
 		const start = Date.now();
