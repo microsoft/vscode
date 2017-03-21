@@ -380,6 +380,22 @@ suite('keyboardMapper - MAC de_ch', () => {
 	});
 });
 
+suite('keyboardMapper - MAC en_us', () => {
+
+	let mapper: MacLinuxKeyboardMapper;
+
+	suiteSetup((done) => {
+		createKeyboardMapper('mac_en_us', OperatingSystem.Macintosh).then((_mapper) => {
+			mapper = _mapper;
+			done();
+		}, done);
+	});
+
+	test('mapping', (done) => {
+		assertMapping(WRITE_FILE_IF_DIFFERENT, mapper, 'mac_en_us.txt', done);
+	});
+});
+
 suite('keyboardMapper - LINUX de_ch', () => {
 
 	let mapper: MacLinuxKeyboardMapper;
