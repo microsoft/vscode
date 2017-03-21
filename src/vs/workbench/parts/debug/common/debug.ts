@@ -135,7 +135,7 @@ export interface IThread extends ITreeElement {
 	stoppedDetails: IRawStoppedDetails;
 
 	/**
-	 * Information about the exception if an 'exception' stopped event raised and DA supports the exceptionInfo request, otherwise null.
+	 * Information about the exception if an 'exception' stopped event raised and DA supports the 'exceptionInfo' request, otherwise null.
 	 */
 	exceptionInfo: TPromise<DebugProtocol.ExceptionInfoResponse>;
 
