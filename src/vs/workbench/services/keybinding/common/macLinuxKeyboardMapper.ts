@@ -191,7 +191,7 @@ class ScanCodeKeyCodeMapper {
 	 * ScanCode combination => KeyCode combination.
 	 * Only covers relevant modifiers ctrl, shift, alt (since meta does not influence the mappings).
 	 */
-	private readonly _scanCodeToKeyCode: number[] = [];
+	private readonly _scanCodeToKeyCode: number[][] = [];
 	/**
 	 * inverse of `_scanCodeToKeyCode`.
 	 * KeyCode combination => ScanCode combination.
@@ -218,23 +218,23 @@ class ScanCodeKeyCodeMapper {
 	}
 
 	public registerIfUnknown(scanCodeCombo: ScanCodeCombo, keyCodeCombo: KeyCodeCombo): void {
+		if (keyCodeCombo.keyCode === KeyCode.Unknown) {
+			return;
+		}
 		const scanCodeComboEncoded = this._encodeScanCodeCombo(scanCodeCombo);
 		const keyCodeComboEncoded = this._encodeKeyCodeCombo(keyCodeCombo);
 
-		let existing = this._scanCodeToKeyCode[scanCodeComboEncoded] | 0;
-
-		let existingKeyCode: KeyCode = (existing >>> 3);
-		if (existingKeyCode !== KeyCode.Unknown) {
+		let existing = this._scanCodeToKeyCode[scanCodeComboEncoded];
+		if (existing && existing.length !== 0) {
 			return;
 		}
 
-		this._scanCodeToKeyCode[scanCodeComboEncoded] = keyCodeComboEncoded;
+		this._scanCodeToKeyCode[scanCodeComboEncoded] = this._scanCodeToKeyCode[scanCodeComboEncoded] || [];
+		this._scanCodeToKeyCode[scanCodeComboEncoded].unshift(keyCodeComboEncoded);
 
-		if (keyCodeCombo.keyCode !== KeyCode.Unknown) {
-			// Do not save an inverse lookup for Unknown
-			this._keyCodeToScanCode[keyCodeComboEncoded] = this._keyCodeToScanCode[keyCodeComboEncoded] || [];
-			this._keyCodeToScanCode[keyCodeComboEncoded].unshift(scanCodeComboEncoded);
-		}
+		// Do not save an inverse lookup for Unknown
+		this._keyCodeToScanCode[keyCodeComboEncoded] = this._keyCodeToScanCode[keyCodeComboEncoded] || [];
+		this._keyCodeToScanCode[keyCodeComboEncoded].unshift(scanCodeComboEncoded);
 	}
 
 	public lookupKeyCodeCombo(keyCodeCombo: KeyCodeCombo): ScanCodeCombo[] {
@@ -258,16 +258,25 @@ class ScanCodeKeyCodeMapper {
 		return result;
 	}
 
-	public lookupScanCodeCombo(scanCodeCombo: ScanCodeCombo): KeyCodeCombo {
+	public lookupScanCodeCombo(scanCodeCombo: ScanCodeCombo): KeyCodeCombo[] {
 		const scanCodeComboEncoded = this._encodeScanCodeCombo(scanCodeCombo);
-		const keyCodeComboEncoded = this._scanCodeToKeyCode[scanCodeComboEncoded] | 0;
+		const keyCodeCombosEncoded = this._scanCodeToKeyCode[scanCodeComboEncoded];
+		if (!keyCodeCombosEncoded || keyCodeCombosEncoded.length === 0) {
+			return [];
+		}
 
-		const ctrlKey = (keyCodeComboEncoded & 0b001) ? true : false;
-		const shiftKey = (keyCodeComboEncoded & 0b010) ? true : false;
-		const altKey = (keyCodeComboEncoded & 0b100) ? true : false;
-		const keyCode: KeyCode = (keyCodeComboEncoded >>> 3);
+		let result: KeyCodeCombo[] = [];
+		for (let i = 0, len = keyCodeCombosEncoded.length; i < len; i++) {
+			const keyCodeComboEncoded = keyCodeCombosEncoded[i];
 
-		return new KeyCodeCombo(ctrlKey, shiftKey, altKey, keyCode);
+			const ctrlKey = (keyCodeComboEncoded & 0b001) ? true : false;
+			const shiftKey = (keyCodeComboEncoded & 0b010) ? true : false;
+			const altKey = (keyCodeComboEncoded & 0b100) ? true : false;
+			const keyCode: KeyCode = (keyCodeComboEncoded >>> 3);
+
+			result[i] = new KeyCodeCombo(ctrlKey, shiftKey, altKey, keyCode);
+		}
+		return result;
 	}
 
 	private _encodeScanCodeCombo(scanCodeCombo: ScanCodeCombo): number {
@@ -481,10 +490,6 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 				}
 
 				const hwCombo = new ScanCodeCombo(hwCtrlKey, hwShiftKey, hwAltKey, scanCode);
-				const kbCombo = this._scanCodeKeyCodeMapper.lookupScanCodeCombo(hwCombo);
-
-				const strKb = `${kbCombo.ctrlKey ? 'Ctrl+' : ''}${kbCombo.shiftKey ? 'Shift+' : ''}${kbCombo.altKey ? 'Alt+' : ''}${KeyCodeUtils.toString(kbCombo.keyCode)}`;
-
 				const resolvedKb = this.resolveKeyboardEvent({
 					ctrlKey: hwCtrlKey,
 					shiftKey: hwShiftKey,
@@ -493,8 +498,21 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 					keyCode: -1,
 					code: ScanCodeUtils.toString(scanCode)
 				});
+				const userSettingsLabel = resolvedKb.getUserSettingsLabel();
+				const electronAccelerator = resolvedKb.getElectronAccelerator();
+				const dispatchStr = resolvedKb.getDispatchParts()[0];
 
-				result.push(`| ${this._leftPad(strHw, 30)} | ${strKey} | ${this._leftPad(strKb, 25)} | ${this._leftPad(uiHwLabel, 25)} | ${this._leftPad(resolvedKb.getUserSettingsLabel(), 30)} | ${this._leftPad(resolvedKb.getElectronAccelerator(), 25)} | ${this._leftPad(resolvedKb.getDispatchParts()[0], 30)} |`);
+				const kbCombos = this._scanCodeKeyCodeMapper.lookupScanCodeCombo(hwCombo);
+				if (kbCombos.length === 0) {
+					const strKb = ``;
+					result.push(`| ${this._leftPad(strHw, 30)} | ${strKey} | ${this._leftPad(strKb, 25)} | ${this._leftPad(uiHwLabel, 25)} | ${this._leftPad(userSettingsLabel, 30)} | ${this._leftPad(electronAccelerator, 25)} | ${this._leftPad(dispatchStr, 30)} |`);
+				} else {
+					for (let i = 0, len = kbCombos.length; i < len; i++) {
+						const kbCombo = kbCombos[i];
+						const strKb = `${kbCombo.ctrlKey ? 'Ctrl+' : ''}${kbCombo.shiftKey ? 'Shift+' : ''}${kbCombo.altKey ? 'Alt+' : ''}${KeyCodeUtils.toString(kbCombo.keyCode)}`;
+						result.push(`| ${this._leftPad(strHw, 30)} | ${strKey} | ${this._leftPad(strKb, 25)} | ${this._leftPad(uiHwLabel, 25)} | ${this._leftPad(userSettingsLabel, 30)} | ${this._leftPad(electronAccelerator, 25)} | ${this._leftPad(dispatchStr, 30)} |`);
+					}
+				}
 
 			}
 			result.push(`------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------`);
@@ -734,18 +752,20 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 			const hwAltKey = (mod & 0b100) ? true : false;
 			const hwCombo = new ScanCodeCombo(hwCtrlKey, hwShiftKey, hwAltKey, scanCode);
 
-			const kbCombo = this._scanCodeKeyCodeMapper.lookupScanCodeCombo(hwCombo);
-
-			if (kbCombo.keyCode === KeyCode.Unknown) {
+			const kbCombos = this._scanCodeKeyCodeMapper.lookupScanCodeCombo(hwCombo);
+			if (kbCombos.length === 0) {
 				// maps to unknown keyCode
 				return -1;
 			}
+			for (let i = 0, len = kbCombos.length; i < len; i++) {
+				const kbCombo = kbCombos[i];
 
-			if (constantKeyCode === -1) {
-				constantKeyCode = kbCombo.keyCode;
-			} else if (constantKeyCode !== kbCombo.keyCode) {
-				// maps to different keyCode
-				return -1;
+				if (constantKeyCode === -1) {
+					constantKeyCode = kbCombo.keyCode;
+				} else if (constantKeyCode !== kbCombo.keyCode) {
+					// maps to different keyCode
+					return -1;
+				}
 			}
 		}
 

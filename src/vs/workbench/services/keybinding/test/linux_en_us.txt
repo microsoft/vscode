@@ -390,14 +390,14 @@
 |            Shift+Alt+Backslash |   |   |               Shift+Alt+\ |               Shift+Alt+\ |                    shift+alt+\ |               Shift+Alt+\ |          shift+alt+[Backslash] |
 |       Ctrl+Shift+Alt+Backslash |   |   |          Ctrl+Shift+Alt+\ |          Ctrl+Shift+Alt+\ |               ctrl+shift+alt+\ |          Ctrl+Shift+Alt+\ |     ctrl+shift+alt+[Backslash] |
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-|                       IntlHash |  ---  |                   unknown |                 undefined |                           null |                      null |                           null |
-|                  Ctrl+IntlHash |  ---  |                   unknown |            Ctrl+undefined |                           null |                      null |                           null |
-|                 Shift+IntlHash |  ---  |                   unknown |           Shift+undefined |                           null |                      null |                           null |
-|            Ctrl+Shift+IntlHash |  ---  |                   unknown |      Ctrl+Shift+undefined |                           null |                      null |                           null |
-|                   Alt+IntlHash |  ---  |                   unknown |             Alt+undefined |                           null |                      null |                           null |
-|              Ctrl+Alt+IntlHash |  ---  |                   unknown |        Ctrl+Alt+undefined |                           null |                      null |                           null |
-|             Shift+Alt+IntlHash |  ---  |                   unknown |       Shift+Alt+undefined |                           null |                      null |                           null |
-|        Ctrl+Shift+Alt+IntlHash |  ---  |                   unknown |  Ctrl+Shift+Alt+undefined |                           null |                      null |                           null |
+|                       IntlHash |  ---  |                           |                 undefined |                           null |                      null |                           null |
+|                  Ctrl+IntlHash |  ---  |                           |            Ctrl+undefined |                           null |                      null |                           null |
+|                 Shift+IntlHash |  ---  |                           |           Shift+undefined |                           null |                      null |                           null |
+|            Ctrl+Shift+IntlHash |  ---  |                           |      Ctrl+Shift+undefined |                           null |                      null |                           null |
+|                   Alt+IntlHash |  ---  |                           |             Alt+undefined |                           null |                      null |                           null |
+|              Ctrl+Alt+IntlHash |  ---  |                           |        Ctrl+Alt+undefined |                           null |                      null |                           null |
+|             Shift+Alt+IntlHash |  ---  |                           |       Shift+Alt+undefined |                           null |                      null |                           null |
+|        Ctrl+Shift+Alt+IntlHash |  ---  |                           |  Ctrl+Shift+Alt+undefined |                           null |                      null |                           null |
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 |                      Semicolon |   ;   |                         ; |                         ; |                              ; |                         ; |                    [Semicolon] |
 |                 Ctrl+Semicolon |   ;   |                    Ctrl+; |                    Ctrl+; |                         ctrl+; |                    Ctrl+; |               ctrl+[Semicolon] |
