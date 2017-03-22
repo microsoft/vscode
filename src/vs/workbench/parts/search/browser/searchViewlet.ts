@@ -329,18 +329,8 @@ export class SearchViewlet extends Viewlet {
 	}
 
 	private refreshTree(event?: IChangeEvent): TPromise<any> {
-		if (!event) {
+		if (!event || event.added || event.removed) {
 			return this.tree.refresh(this.viewModel.searchResult);
-		}
-
-		if (event.added || event.removed) {
-			return this.tree.refresh(this.viewModel.searchResult).then(() => {
-				if (event.added) {
-					event.elements.forEach(element => {
-						this.autoExpandFileMatch(element, true);
-					});
-				}
-			});
 		} else {
 			if (event.elements.length === 1) {
 				return this.tree.refresh(event.elements[0]);
@@ -974,15 +964,6 @@ export class SearchViewlet extends Viewlet {
 		}
 	}
 
-	private autoExpandFileMatch(fileMatch: FileMatch, alwaysExpandIfOneResult: boolean): void {
-		let length = fileMatch.matches().length;
-		if (length < 10 || (alwaysExpandIfOneResult && this.viewModel.searchResult.count() === 1 && length < 50)) {
-			this.tree.expand(fileMatch).done(null, errors.onUnexpectedError);
-		} else {
-			this.tree.collapse(fileMatch).done(null, errors.onUnexpectedError);
-		}
-	}
-
 	private onQueryTriggered(query: ISearchQuery, excludePattern: string, includePattern: string): void {
 		this.viewModel.cancelSearch();
 
@@ -998,21 +979,6 @@ export class SearchViewlet extends Viewlet {
 		this.searchWidget.searchInput.clearMessage();
 		this.showEmptyStage();
 
-		let handledMatches: { [id: string]: boolean } = Object.create(null);
-		let autoExpand = (alwaysExpandIfOneResult: boolean) => {
-			// Auto-expand / collapse based on number of matches:
-			// - alwaysExpandIfOneResult: expand file results if we have just one file result and less than 50 matches on a file
-			// - expand file results if we have more than one file result and less than 10 matches on a file
-			let matches = this.viewModel.searchResult.matches();
-			matches.forEach((match) => {
-				if (handledMatches[match.id()]) {
-					return; // if we once handled a result, do not do it again to keep results stable (the user might have expanded/collapsed meanwhile)
-				}
-				handledMatches[match.id()] = true;
-				this.autoExpandFileMatch(match, alwaysExpandIfOneResult);
-			});
-		};
-
 		let isDone = false;
 		let onComplete = (completed?: ISearchComplete) => {
 			isDone = true;
@@ -1025,7 +991,18 @@ export class SearchViewlet extends Viewlet {
 				progressRunner.done();
 			}
 
-			this.onSearchResultsChanged().then(() => autoExpand(true));
+			// Do final render, then expand if just 1 file with less than 50 matches
+			this.onSearchResultsChanged().then(() => {
+				if (this.viewModel.searchResult.count() === 1) {
+					const onlyMatch = this.viewModel.searchResult.matches()[0];
+					if (onlyMatch.count() < 50) {
+						return this.tree.expand(onlyMatch);
+					}
+				}
+
+				return null;
+			}).done(null, errors.onUnexpectedError);
+
 			this.viewModel.replaceString = this.searchWidget.getReplaceValue();
 
 			let hasResults = !this.viewModel.searchResult.isEmpty();
@@ -1175,9 +1152,7 @@ export class SearchViewlet extends Viewlet {
 			const fileCount = this.viewModel.searchResult.fileCount();
 			if (visibleMatches !== fileCount) {
 				visibleMatches = fileCount;
-				this.tree.refresh().then(() => {
-					autoExpand(false);
-				}).done(null, errors.onUnexpectedError);
+				this.tree.refresh().done(null, errors.onUnexpectedError);
 
 				this.updateSearchResultCount();
 			}
