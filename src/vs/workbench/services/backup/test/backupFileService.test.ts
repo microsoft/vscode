@@ -45,7 +45,7 @@ const barFile = Uri.file(platform.isWindows ? 'c:\\bar' : '/bar');
 const untitledFile = Uri.from({ scheme: 'untitled', path: 'Untitled-1' });
 const fooBackupPath = path.join(workspaceBackupPath, 'file', crypto.createHash('md5').update(fooFile.fsPath).digest('hex'));
 const barBackupPath = path.join(workspaceBackupPath, 'file', crypto.createHash('md5').update(barFile.fsPath).digest('hex'));
-const untitledBackupPath = path.join(workspaceBackupPath, 'untitled', crypto.createHash('md5').update(platform.isLinux ? untitledFile.fsPath : untitledFile.fsPath.toLowerCase()).digest('hex'));
+const untitledBackupPath = path.join(workspaceBackupPath, 'untitled', crypto.createHash('md5').update(untitledFile.fsPath).digest('hex'));
 
 class TestBackupFileService extends BackupFileService {
 	constructor(workspace: Uri, backupHome: string, workspacesJsonPath: string) {
@@ -98,24 +98,9 @@ suite('BackupFileService', () => {
 			// Format should be: <backupHome>/<workspaceHash>/<scheme>/<filePath>
 			const backupResource = Uri.from({ scheme: 'untitled', path: 'Untitled-1' });
 			const workspaceHash = crypto.createHash('md5').update(workspaceResource.fsPath).digest('hex');
-			const filePathHash = crypto.createHash('md5').update(platform.isLinux ? backupResource.fsPath : backupResource.fsPath.toLowerCase()).digest('hex');
+			const filePathHash = crypto.createHash('md5').update(backupResource.fsPath).digest('hex');
 			const expectedPath = Uri.file(path.join(backupHome, workspaceHash, 'untitled', filePathHash)).fsPath;
 			assert.equal(service.getBackupResource(backupResource).fsPath, expectedPath);
-		});
-
-		test('should ignore case on Windows and Mac', () => {
-			// Skip test on Linux
-			if (platform.isLinux) {
-				return;
-			}
-
-			if (platform.isMacintosh) {
-				assert.equal(service.getBackupResource(Uri.file('/foo')).fsPath, service.getBackupResource(Uri.file('/FOO')).fsPath);
-			}
-
-			if (platform.isWindows) {
-				assert.equal(service.getBackupResource(Uri.file('c:\\foo')).fsPath, service.getBackupResource(Uri.file('C:\\FOO')).fsPath);
-			}
 		});
 	});
 

@@ -12,6 +12,7 @@ import DOM = require('vs/base/browser/dom');
 import { TitleControl } from 'vs/workbench/browser/parts/editor/titleControl';
 import { EditorLabel } from 'vs/workbench/browser/labels';
 import { Verbosity } from 'vs/platform/editor/common/editor';
+import { ACTIVE_TAB_INACTIVE_GROUP_FOREGROUND, ACTIVE_TAB_ACTIVE_GROUP_FOREGROUND } from 'vs/workbench/common/theme';
 
 export class NoTabsTitleControl extends TitleControl {
 	private titleContainer: HTMLElement;
@@ -125,6 +126,11 @@ export class NoTabsTitleControl extends TitleControl {
 		}
 
 		this.editorLabel.setLabel({ name, description, resource }, { title, italic: !isPinned, extraClasses: ['title-label'] });
+		if (isActive) {
+			this.editorLabel.element.style.color = this.getColor(ACTIVE_TAB_ACTIVE_GROUP_FOREGROUND);
+		} else {
+			this.editorLabel.element.style.color = this.getColor(ACTIVE_TAB_INACTIVE_GROUP_FOREGROUND);
+		}
 
 		// Update Editor Actions Toolbar
 		this.updateEditorActionsToolbar();

@@ -10,6 +10,7 @@
 	"debugCommands": "Configuración de depuración",
 	"debugConfigurationTitle": "Depurar",
 	"debugPanel": "Consola de depuración",
+	"hideActionBar": "Controla si debe ocultarse la barra flotante de acciones de depuración",
 	"inlineValues": "Mostrar valores de variable en línea en el editor durante la depuración",
 	"openExplorerOnEnd": "Abrir automáticamente la vista del explorador al final de una sesión de depuración",
 	"toggleDebugPanel": "Consola de depuración",

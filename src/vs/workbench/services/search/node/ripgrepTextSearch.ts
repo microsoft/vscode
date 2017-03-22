@@ -5,20 +5,24 @@
 'use strict';
 
 import { EventEmitter } from 'events';
+import * as path from 'path';
 
 import * as cp from 'child_process';
 import { rgPath } from 'vscode-ripgrep';
 
+import * as extfs from 'vs/base/node/extfs';
+import * as encoding from 'vs/base/node/encoding';
 import * as strings from 'vs/base/common/strings';
 import * as glob from 'vs/base/common/glob';
 import { ILineMatch, IProgress } from 'vs/platform/search/common/search';
+import { TPromise } from 'vs/base/common/winjs.base';
 
 import { ISerializedFileMatch, ISerializedSearchComplete, IRawSearch, ISearchEngine } from './search';
 
 export class RipgrepEngine implements ISearchEngine<ISerializedFileMatch> {
 	private isDone = false;
 	private rgProc: cp.ChildProcess;
-	private postProcessExclusions: glob.SiblingClause[];
+	private postProcessExclusions: glob.ParsedExpression;
 
 	private ripgrepParser: RipgrepParser;
 
@@ -44,14 +48,27 @@ export class RipgrepEngine implements ISearchEngine<ISerializedFileMatch> {
 	}
 
 	private searchFolder(rootFolder: string, onResult: (match: ISerializedFileMatch) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISerializedSearchComplete) => void): void {
-		const rgArgs = getRgArgs(this.config, rootFolder);
-		this.postProcessExclusions = rgArgs.siblingClauses;
+		const rgArgs = getRgArgs(this.config);
+		if (rgArgs.siblingClauses) {
+			this.postProcessExclusions = glob.parseToAsync(rgArgs.siblingClauses, { trimForExclusions: true });
+		}
 
-		// console.log(`rg ${rgArgs.join(' ')}, cwd: ${rootFolder}`);
+		// console.log(`rg ${rgArgs.args.join(' ')}, cwd: ${rootFolder}`);
 		this.rgProc = cp.spawn(rgPath, rgArgs.args, { cwd: rootFolder });
 
-		this.ripgrepParser = new RipgrepParser(this.config.maxResults);
-		this.ripgrepParser.on('result', onResult);
+		this.ripgrepParser = new RipgrepParser(this.config.maxResults, rootFolder);
+		this.ripgrepParser.on('result', (match: ISerializedFileMatch) => {
+			if (this.postProcessExclusions) {
+				const relativePath = path.relative(rootFolder, match.path);
+				(<TPromise<string>>this.postProcessExclusions(relativePath, undefined, () => getSiblings(match.path))).then(globMatch => {
+					if (!globMatch) {
+						onResult(match);
+					}
+				});
+			} else {
+				onResult(match);
+			}
+		});
 		this.ripgrepParser.on('hitLimit', () => {
 			this.cancel();
 			done(null, {
@@ -98,7 +115,7 @@ export class RipgrepParser extends EventEmitter {
 
 	private numResults = 0;
 
-	constructor(private maxResults: number) {
+	constructor(private maxResults: number, private rootFolder: string) {
 		super();
 	}
 
@@ -136,7 +153,7 @@ export class RipgrepParser extends EventEmitter {
 					this.onResult();
 				}
 
-				this.fileMatch = new FileMatch(r[1]);
+				this.fileMatch = new FileMatch(path.join(this.rootFolder, r[1]));
 			} else {
 				// Line is malformed
 			}
@@ -153,6 +170,7 @@ export class RipgrepParser extends EventEmitter {
 		// Track positions with color codes subtracted - offsets in the final text preview result
 		let matchTextStartRealIdx = -1;
 		let textRealIdx = 0;
+		let hitLimit = false;
 
 		const realTextParts: string[] = [];
 
@@ -169,7 +187,10 @@ export class RipgrepParser extends EventEmitter {
 				// Match end
 				const chunk = text.slice(matchTextStartPos, i);
 				realTextParts.push(chunk);
-				lineMatch.addMatch(matchTextStartRealIdx, textRealIdx - matchTextStartRealIdx);
+				if (!hitLimit) {
+					lineMatch.addMatch(matchTextStartRealIdx, textRealIdx - matchTextStartRealIdx);
+				}
+
 				matchTextStartPos = -1;
 				matchTextStartRealIdx = -1;
 				i += RipgrepParser.MATCH_END_MARKER.length;
@@ -178,11 +199,8 @@ export class RipgrepParser extends EventEmitter {
 
 				// Check hit maxResults limit
 				if (this.numResults >= this.maxResults) {
-					// Replace preview with what we have so far, TODO@Rob
-					lineMatch.preview = realTextParts.join('');
-					this.cancel();
-					this.onResult();
-					this.emit('hitLimit');
+					// Finish the line, then report the result below
+					hitLimit = true;
 				}
 			} else {
 				i++;
@@ -196,6 +214,12 @@ export class RipgrepParser extends EventEmitter {
 		// Replace preview with version without color codes
 		const preview = realTextParts.join('');
 		lineMatch.preview = preview;
+
+		if (hitLimit) {
+			this.cancel();
+			this.onResult();
+			this.emit('hitLimit');
+		}
 	}
 
 	private onResult(): void {
@@ -272,9 +296,9 @@ export class LineMatch implements ILineMatch {
 	}
 }
 
-function globExprsToRgGlobs(patterns: glob.IExpression): { globArgs: string[], siblingClauses: glob.SiblingClause[] } {
+function globExprsToRgGlobs(patterns: glob.IExpression): { globArgs: string[], siblingClauses: glob.IExpression } {
 	const globArgs: string[] = [];
-	const siblingClauses: glob.SiblingClause[] = [];
+	let siblingClauses: glob.IExpression = null;
 	Object.keys(patterns)
 		.forEach(key => {
 			const value = patterns[key];
@@ -286,14 +310,18 @@ function globExprsToRgGlobs(patterns: glob.IExpression): { globArgs: string[], s
 
 				globArgs.push(key);
 			} else if (value && value.when) {
-				siblingClauses.push(value);
+				if (!siblingClauses) {
+					siblingClauses = {};
+				}
+
+				siblingClauses[key] = value;
 			}
 		});
 
 	return { globArgs, siblingClauses };
 }
 
-function getRgArgs(config: IRawSearch, rootFolder: string): { args: string[], siblingClauses: glob.SiblingClause[] } {
+function getRgArgs(config: IRawSearch): { args: string[], siblingClauses: glob.IExpression } {
 	const args = ['--heading', '--line-number', '--color', 'ansi', '--colors', 'path:none', '--colors', 'line:none', '--colors', 'match:fg:red', '--colors', 'match:style:nobold'];
 	args.push(config.contentPattern.isCaseSensitive ? '--case-sensitive' : '--ignore-case');
 
@@ -304,7 +332,7 @@ function getRgArgs(config: IRawSearch, rootFolder: string): { args: string[], si
 		});
 	}
 
-	let siblingClauses: glob.SiblingClause[] = [];
+	let siblingClauses: glob.IExpression;
 	if (config.excludePattern) {
 		const rgGlobs = globExprsToRgGlobs(config.excludePattern);
 		rgGlobs.globArgs
@@ -314,6 +342,19 @@ function getRgArgs(config: IRawSearch, rootFolder: string): { args: string[], si
 
 	if (config.maxFilesize) {
 		args.push('--max-filesize', config.maxFilesize + '');
+	}
+
+	if (!config.useIgnoreFiles) {
+		// Don't use .gitignore or .ignore
+		args.push('--no-ignore');
+	}
+
+	// Follow symlinks
+	args.push('--follow');
+
+	// Set default encoding
+	if (config.fileEncoding) {
+		args.push('--encoding', encoding.toCanonicalName(config.fileEncoding));
 	}
 
 	if (config.contentPattern.isRegExp) {
@@ -331,7 +372,19 @@ function getRgArgs(config: IRawSearch, rootFolder: string): { args: string[], si
 	}
 
 	// Folder to search
-	args.push('--', rootFolder);
+	args.push('--', './');
 
 	return { args, siblingClauses };
+}
+
+function getSiblings(file: string): TPromise<string[]> {
+	return new TPromise((resolve, reject) => {
+		extfs.readdir(path.dirname(file), (error: Error, files: string[]) => {
+			if (error) {
+				reject(error);
+			}
+
+			resolve(files);
+		});
+	});
 }

@@ -8,7 +8,7 @@
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
 import { join } from 'vs/base/common/paths';
-import { FileChangeType, FileChangesEvent, isEqual, isParent, indexOf } from 'vs/platform/files/common/files';
+import { FileChangeType, FileChangesEvent, isEqual, isParent, isEqualOrParent, indexOf } from 'vs/platform/files/common/files';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 
 suite('Files', () => {
@@ -47,61 +47,156 @@ suite('Files', () => {
 		assert.strictEqual(true, r1.gotDeleted());
 	});
 
-	test('isEqual', function () {
-		assert.ok(isEqual('/some/path', '/some/path'));
-		assert.ok(isEqual(URI.file('/some/path'), URI.file('/some/path')));
-		assert.ok(isEqual('c:\\some\\path', 'c:\\some\\path'));
-		assert.ok(isEqual(URI.file('c:\\some\\path'), URI.file('c:\\some\\path')));
-		assert.ok(!isEqual('/some/path', '/some/other/path'));
-		assert.ok(!isEqual(URI.file('/some/path'), URI.file('/some/other/path')));
-		assert.ok(!isEqual('c:\\some\\path', 'c:\\some\\other\\path'));
-		assert.ok(!isEqual(URI.file('c:\\some\\path'), URI.file('c:\\some\\other\\path')));
+	function testIsEqual(testMethod: (pA: string, pB: string, ignoreCase: boolean) => boolean): void {
 
-		if (isLinux) {
-			assert.ok(!isEqual('/some/path', '/some/PATH'));
-			assert.ok(!isEqual(URI.file('/some/path'), URI.file('/some/PATH')));
-		} else {
-			assert.ok(isEqual(URI.file('/some/path'), URI.file('/some/PATH')));
-			assert.ok(isEqual(URI.file('c:\\some\\path'), URI.file('c:\\some\\PATH')));
-		}
+		// corner cases
+		assert(testMethod('', '', true));
+		assert(!testMethod(null, '', true));
+		assert(!testMethod(void 0, '', true));
 
-		assert.ok(isEqual(URI.parse('some://cool/uri'), URI.parse('some://cool/uri')));
-		assert.ok(!isEqual(URI.parse('some://cool/uri'), URI.parse('some://other/uri')));
+		// basics (string)
+		assert(testMethod('/', '/', true));
+		assert(testMethod('/some', '/some', true));
+		assert(testMethod('/some/path', '/some/path', true));
+
+		assert(testMethod('c:\\', 'c:\\', true));
+		assert(testMethod('c:\\some', 'c:\\some', true));
+		assert(testMethod('c:\\some\\path', 'c:\\some\\path', true));
+
+		assert(testMethod('/someöäü/path', '/someöäü/path', true));
+		assert(testMethod('c:\\someöäü\\path', 'c:\\someöäü\\path', true));
+
+		assert(!testMethod('/some/path', '/some/other/path', true));
+		assert(!testMethod('c:\\some\\path', 'c:\\some\\other\\path', true));
+		assert(!testMethod('c:\\some\\path', 'd:\\some\\path', true));
+
+		assert(testMethod('/some/path', '/some/PATH', true));
+		assert(testMethod('/someöäü/path', '/someÖÄÜ/PATH', true));
+		assert(testMethod('c:\\some\\path', 'c:\\some\\PATH', true));
+		assert(testMethod('c:\\someöäü\\path', 'c:\\someÖÄÜ\\PATH', true));
+		assert(testMethod('c:\\some\\path', 'C:\\some\\PATH', true));
+	}
+
+	test('isEqual (ignoreCase)', function () {
+		testIsEqual(isEqual);
+
+		// basics (uris)
+		assert(isEqual(URI.file('/some/path').fsPath, URI.file('/some/path').fsPath, true));
+		assert(isEqual(URI.file('c:\\some\\path').fsPath, URI.file('c:\\some\\path').fsPath, true));
+
+		assert(isEqual(URI.file('/someöäü/path').fsPath, URI.file('/someöäü/path').fsPath, true));
+		assert(isEqual(URI.file('c:\\someöäü\\path').fsPath, URI.file('c:\\someöäü\\path').fsPath, true));
+
+		assert(!isEqual(URI.file('/some/path').fsPath, URI.file('/some/other/path').fsPath, true));
+		assert(!isEqual(URI.file('c:\\some\\path').fsPath, URI.file('c:\\some\\other\\path').fsPath, true));
+
+		assert(isEqual(URI.file('/some/path').fsPath, URI.file('/some/PATH').fsPath, true));
+		assert(isEqual(URI.file('/someöäü/path').fsPath, URI.file('/someÖÄÜ/PATH').fsPath, true));
+		assert(isEqual(URI.file('c:\\some\\path').fsPath, URI.file('c:\\some\\PATH').fsPath, true));
+		assert(isEqual(URI.file('c:\\someöäü\\path').fsPath, URI.file('c:\\someÖÄÜ\\PATH').fsPath, true));
+		assert(isEqual(URI.file('c:\\some\\path').fsPath, URI.file('C:\\some\\PATH').fsPath, true));
 	});
 
-	test('isParent', function () {
+	test('isParent (ignorecase)', function () {
 		if (isWindows) {
-			assert.ok(!isParent('c:\\some\\path', 'c:\\some\\path'));
-			assert.ok(isParent('c:\\some\\path', 'c:\\some'));
+			assert(isParent('c:\\some\\path', 'c:\\', true));
+			assert(isParent('c:\\some\\path', 'c:\\some', true));
+			assert(isParent('c:\\some\\path', 'c:\\some\\', true));
+			assert(isParent('c:\\someöäü\\path', 'c:\\someöäü', true));
+			assert(isParent('c:\\someöäü\\path', 'c:\\someöäü\\', true));
+			assert(isParent('c:\\foo\\bar\\test.ts', 'c:\\foo\\bar', true));
+			assert(isParent('c:\\foo\\bar\\test.ts', 'c:\\foo\\bar\\', true));
+
+			assert(isParent('c:\\some\\path', 'C:\\', true));
+			assert(isParent('c:\\some\\path', 'c:\\SOME', true));
+			assert(isParent('c:\\some\\path', 'c:\\SOME\\', true));
+
+			assert(!isParent('c:\\some\\path', 'd:\\', true));
+			assert(!isParent('c:\\some\\path', 'c:\\some\\path', true));
+			assert(!isParent('c:\\some\\path', 'd:\\some\\path', true));
+			assert(!isParent('c:\\foo\\bar\\test.ts', 'c:\\foo\\barr', true));
+			assert(!isParent('c:\\foo\\bar\\test.ts', 'c:\\foo\\bar\\test', true));
 		}
 
-		if (isMacintosh) {
-			assert.ok(!isParent('/some/path', '/some/path'));
-			assert.ok(!isParent('/some/path', '/some/other/path'));
-			assert.ok(isParent('/some/path', '/some'));
-		}
+		if (isMacintosh || isLinux) {
+			assert(isParent('/some/path', '/', true));
+			assert(isParent('/some/path', '/some', true));
+			assert(isParent('/some/path', '/some/', true));
+			assert(isParent('/someöäü/path', '/someöäü', true));
+			assert(isParent('/someöäü/path', '/someöäü/', true));
+			assert(isParent('/foo/bar/test.ts', '/foo/bar', true));
+			assert(isParent('/foo/bar/test.ts', '/foo/bar/', true));
 
-		if (isLinux) {
-			assert.ok(!isParent('/some/path', '/SOME'));
-		} else {
-			if (isMacintosh) {
-				assert.ok(isParent('/some/path', '/SOME'));
-			}
+			assert(isParent('/some/path', '/SOME', true));
+			assert(isParent('/some/path', '/SOME/', true));
+			assert(isParent('/someöäü/path', '/SOMEÖÄÜ', true));
+			assert(isParent('/someöäü/path', '/SOMEÖÄÜ/', true));
 
-			if (isWindows) {
-				assert.ok(isParent('c:\\some\\path', 'c:\\SOME'));
-			}
+			assert(!isParent('/some/path', '/some/path', true));
+			assert(!isParent('/foo/bar/test.ts', '/foo/barr', true));
+			assert(!isParent('/foo/bar/test.ts', '/foo/bar/test', true));
 		}
 	});
 
-	test('indexOf', function () {
-		assert.equal(indexOf('/some/path', '/some/path'), 0);
-		assert.equal(indexOf('/some/path', '/some/other/path'), -1);
+	test('isEqualOrParent (ignorecase)', function () {
 
-		if (isLinux) {
-			assert.equal(indexOf('/some/path', '/some/PATH'), -1);
-		} else {
-			assert.equal(indexOf('/some/path', '/some/PATH'), 0);
+		// same assertions apply as with isEqual()
+		testIsEqual(isEqualOrParent);
+
+		if (isWindows) {
+			assert(isEqualOrParent('c:\\some\\path', 'c:\\', true));
+			assert(isEqualOrParent('c:\\some\\path', 'c:\\some', true));
+			assert(isEqualOrParent('c:\\some\\path', 'c:\\some\\', true));
+			assert(isEqualOrParent('c:\\someöäü\\path', 'c:\\someöäü', true));
+			assert(isEqualOrParent('c:\\someöäü\\path', 'c:\\someöäü\\', true));
+			assert(isEqualOrParent('c:\\foo\\bar\\test.ts', 'c:\\foo\\bar', true));
+			assert(isEqualOrParent('c:\\foo\\bar\\test.ts', 'c:\\foo\\bar\\', true));
+			assert(isEqualOrParent('c:\\some\\path', 'c:\\some\\path', true));
+			assert(isEqualOrParent('c:\\foo\\bar\\test.ts', 'c:\\foo\\bar\\test.ts', true));
+
+			assert(isEqualOrParent('c:\\some\\path', 'C:\\', true));
+			assert(isEqualOrParent('c:\\some\\path', 'c:\\SOME', true));
+			assert(isEqualOrParent('c:\\some\\path', 'c:\\SOME\\', true));
+
+			assert(!isEqualOrParent('c:\\some\\path', 'd:\\', true));
+			assert(!isEqualOrParent('c:\\some\\path', 'd:\\some\\path', true));
+			assert(!isEqualOrParent('c:\\foo\\bar\\test.ts', 'c:\\foo\\barr', true));
+			assert(!isEqualOrParent('c:\\foo\\bar\\test.ts', 'c:\\foo\\bar\\test', true));
+			assert(!isEqualOrParent('c:\\foo\\bar\\test.ts', 'c:\\foo\\bar\\test.', true));
+			assert(!isEqualOrParent('c:\\foo\\bar\\test.ts', 'c:\\foo\\BAR\\test.', true));
 		}
+
+		if (isMacintosh || isLinux) {
+			assert(isEqualOrParent('/some/path', '/', true));
+			assert(isEqualOrParent('/some/path', '/some', true));
+			assert(isEqualOrParent('/some/path', '/some/', true));
+			assert(isEqualOrParent('/someöäü/path', '/someöäü', true));
+			assert(isEqualOrParent('/someöäü/path', '/someöäü/', true));
+			assert(isEqualOrParent('/foo/bar/test.ts', '/foo/bar', true));
+			assert(isEqualOrParent('/foo/bar/test.ts', '/foo/bar/', true));
+			assert(isEqualOrParent('/some/path', '/some/path', true));
+
+			assert(isEqualOrParent('/some/path', '/SOME', true));
+			assert(isEqualOrParent('/some/path', '/SOME/', true));
+			assert(isEqualOrParent('/someöäü/path', '/SOMEÖÄÜ', true));
+			assert(isEqualOrParent('/someöäü/path', '/SOMEÖÄÜ/', true));
+
+			assert(!isEqualOrParent('/foo/bar/test.ts', '/foo/barr', true));
+			assert(!isEqualOrParent('/foo/bar/test.ts', '/foo/bar/test', true));
+			assert(!isEqualOrParent('foo/bar/test.ts', 'foo/bar/test.', true));
+			assert(!isEqualOrParent('foo/bar/test.ts', 'foo/BAR/test.', true));
+		}
+	});
+
+	test('indexOf (ignorecase)', function () {
+		assert.equal(indexOf('/some/path', '/some/path', true), 0);
+		assert.equal(indexOf('/some/path/more', '/some/path', true), 0);
+
+		assert.equal(indexOf('c:\\some\\path', 'c:\\some\\path', true), 0);
+		assert.equal(indexOf('c:\\some\\path\\more', 'c:\\some\\path', true), 0);
+
+		assert.equal(indexOf('/some/path', '/some/other/path', true), -1);
+
+		assert.equal(indexOf('/some/path', '/some/PATH', true), 0);
 	});
 });

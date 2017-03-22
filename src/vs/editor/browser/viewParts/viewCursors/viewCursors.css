@@ -39,26 +39,6 @@
 	box-sizing: border-box;
 }
 
-.monaco-editor.vs .cursor {
-	background: black;
-	border-color: black;
-	color: white; /* opposite of black */
-}
-.monaco-editor.vs-dark .cursor {
-	background: #AEAFAD;
-	border-color: #AEAFAD;
-	color: #51504f; /* opposite of #AEAFAD */
-}
-.monaco-editor.hc-black .cursor {
-	background: #fff;
-	border-color: #fff;
-	color: #000; /* opposite of #fff */
-}
-.monaco-editor.hc-black .cursors-layer.has-selection .cursor {
-	border-left: 1px solid #000;
-	border-right: 1px solid #000;
-}
-
 @keyframes monaco-cursor-blink {
 	50% {
 		opacity: 0;

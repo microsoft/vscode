@@ -6,8 +6,8 @@
 {
 	"command.branch": "Branch wird erstellt...",
 	"command.checkout": "Auschecken an...",
-	"command.clean": "Datei bereinigen",
-	"command.cleanAll": "Alle Dateien bereinigen",
+	"command.clean": "Datei verwerfen",
+	"command.cleanAll": "Alle Dateien verwerfen",
 	"command.clone": "Klonen",
 	"command.commit": "Commit",
 	"command.commitAll": "Alle committen",

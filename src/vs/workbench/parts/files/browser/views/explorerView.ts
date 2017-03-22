@@ -17,7 +17,7 @@ import { prepareActions } from 'vs/workbench/browser/actionBarRegistry';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocussedContext, ExplorerFocussedContext } from 'vs/workbench/parts/files/common/files';
-import { FileOperation, FileOperationEvent, IResolveFileOptions, FileChangeType, FileChangesEvent, IFileChange, IFileService, isEqual, isParent } from 'vs/platform/files/common/files';
+import { FileOperation, FileOperationEvent, IResolveFileOptions, FileChangeType, FileChangesEvent, IFileChange, IFileService, isEqual, isEqualOrParent } from 'vs/platform/files/common/files';
 import { RefreshViewExplorerAction, NewFolderAction, NewFileAction } from 'vs/workbench/parts/files/browser/fileActions';
 import { FileDragAndDrop, FileFilter, FileSorter, FileController, FileRenderer, FileDataSource, FileViewletState, FileAccessibilityProvider } from 'vs/workbench/parts/files/browser/views/explorerViewer';
 import lifecycle = require('vs/base/common/lifecycle');
@@ -41,6 +41,7 @@ import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ResourceContextKey } from 'vs/workbench/common/resourceContextKey';
 import { IWorkbenchThemeService, IFileIconTheme } from 'vs/workbench/services/themes/common/themeService';
+import { isLinux } from 'vs/base/common/platform';
 
 export class ExplorerView extends CollapsibleViewletView {
 
@@ -734,7 +735,7 @@ export class ExplorerView extends CollapsibleViewletView {
 				// Drop those path which are parents of the current one
 				for (let i = resolvedDirectories.length - 1; i >= 0; i--) {
 					const resource = resolvedDirectories[i];
-					if (isEqual(stat.resource.fsPath, resource.fsPath) || isParent(stat.resource.fsPath, resource.fsPath)) {
+					if (isEqualOrParent(stat.resource.fsPath, resource.fsPath, !isLinux /* ignorecase */)) {
 						resolvedDirectories.splice(i);
 					}
 				}

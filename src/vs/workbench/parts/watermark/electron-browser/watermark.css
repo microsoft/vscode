@@ -11,7 +11,7 @@
 	display: none; /* only visible when no editors are opened */
 }
 
-.monaco-workbench > .part.editor.empty > .content > .watermark {
+.monaco-workbench > .part.editor.empty.has-watermark > .content > .watermark {
 	display: block;
 	position: absolute;
 	width: 100%;

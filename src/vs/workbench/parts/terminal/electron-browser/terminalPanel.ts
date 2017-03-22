@@ -15,7 +15,9 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ITerminalService, ITerminalFont, TERMINAL_PANEL_ID } from 'vs/workbench/parts/terminal/common/terminal';
-import { IWorkbenchThemeService, IColorTheme } from 'vs/workbench/services/themes/common/themeService';
+import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
+import { ansiColorIdentifiers } from './terminalColorRegistry';
+import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
 import { KillTerminalAction, CreateNewTerminalAction, SwitchTerminalInstanceAction, SwitchTerminalInstanceActionItem, CopyTerminalSelectionAction, TerminalPasteAction, ClearTerminalAction } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
 import { Panel } from 'vs/workbench/browser/panel';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
@@ -26,7 +28,6 @@ export class TerminalPanel extends Panel {
 	private _actions: IAction[];
 	private _contextMenuActions: IAction[];
 	private _cancelContextMenu: boolean = false;
-	private _currentBaseThemeId: string;
 	private _font: ITerminalFont;
 	private _fontStyleElement: HTMLElement;
 	private _parentDomElement: HTMLElement;
@@ -39,7 +40,7 @@ export class TerminalPanel extends Panel {
 		@IInstantiationService private _instantiationService: IInstantiationService,
 		@IKeybindingService private _keybindingService: IKeybindingService,
 		@ITerminalService private _terminalService: ITerminalService,
-		@IWorkbenchThemeService protected themeService: IWorkbenchThemeService,
+		@IThemeService protected themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
 		super(TERMINAL_PANEL_ID, telemetryService, themeService);
@@ -62,7 +63,7 @@ export class TerminalPanel extends Panel {
 
 		this._terminalService.setContainers(this.getContainer().getHTMLElement(), this._terminalContainer);
 
-		this._register(this.themeService.onDidColorThemeChange(theme => this._updateTheme(theme)));
+		this._register(this.themeService.onThemeChange(theme => this._updateTheme(theme)));
 		this._register(this._configurationService.onDidUpdateConfiguration(() => this._updateFont()));
 		this._updateFont();
 		this._updateTheme();
@@ -148,6 +149,9 @@ export class TerminalPanel extends Panel {
 	}
 
 	private _attachEventListeners(): void {
+		this._register(DOM.addDisposableListener(window, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => this._refreshCtrlHeld(e.ctrlKey)));
+		this._register(DOM.addDisposableListener(window, DOM.EventType.KEY_UP, (e: KeyboardEvent) => this._refreshCtrlHeld(e.ctrlKey)));
+		this._register(DOM.addDisposableListener(window, DOM.EventType.FOCUS, (e: KeyboardEvent) => this._refreshCtrlHeld(e.ctrlKey)));
 		this._register(DOM.addDisposableListener(this._parentDomElement, 'mousedown', (event: MouseEvent) => {
 			if (this._terminalService.terminalInstances.length === 0) {
 				return;
@@ -200,38 +204,28 @@ export class TerminalPanel extends Panel {
 		}));
 	}
 
-	private _updateTheme(colorTheme?: IColorTheme): void {
-		if (!colorTheme) {
-			colorTheme = this.themeService.getColorTheme();
-		}
-		let baseThemeId = colorTheme.getBaseThemeId();
-		if (baseThemeId === this._currentBaseThemeId) {
-			return;
-		}
-		this._currentBaseThemeId = baseThemeId;
+	private _refreshCtrlHeld(ctrlKey: boolean): void {
+		this._parentDomElement.classList.toggle('ctrl-held', ctrlKey);
+	}
 
-		let theme = this._terminalService.configHelper.getTheme(baseThemeId);
+	private _updateTheme(theme?: ITheme): void {
+		if (!theme) {
+			theme = this.themeService.getTheme();
+		}
 
 		let css = '';
-		theme.forEach((color: string, index: number) => {
-			let rgba = this._convertHexCssColorToRgba(color, 0.996);
-			css += `.monaco-workbench .panel.integrated-terminal .xterm .xterm-color-${index} { color: ${color}; }` +
-				`.monaco-workbench .panel.integrated-terminal .xterm .xterm-color-${index}::selection { background-color: ${rgba}; }` +
-				`.monaco-workbench .panel.integrated-terminal .xterm .xterm-bg-color-${index} { background-color: ${color}; }` +
-				`.monaco-workbench .panel.integrated-terminal .xterm .xterm-bg-color-${index}::selection { color: ${color}; }`;
+		ansiColorIdentifiers.forEach((colorId: ColorIdentifier, index: number) => {
+			if (colorId) { // should not happen, all indices should have a color defined.
+				let color = theme.getColor(colorId);
+				let rgba = color.transparent(0.996);
+				css += `.monaco-workbench .panel.integrated-terminal .xterm .xterm-color-${index} { color: ${color}; }` +
+					`.monaco-workbench .panel.integrated-terminal .xterm .xterm-color-${index}::selection { background-color: ${rgba}; }` +
+					`.monaco-workbench .panel.integrated-terminal .xterm .xterm-bg-color-${index} { background-color: ${color}; }` +
+					`.monaco-workbench .panel.integrated-terminal .xterm .xterm-bg-color-${index}::selection { color: ${color}; }`;
+			}
 		});
 
 		this._themeStyleElement.innerHTML = css;
-	}
-
-	/**
-	 * Converts a CSS hex color (#rrggbb) to a CSS rgba color (rgba(r, g, b, a)).
-	 */
-	private _convertHexCssColorToRgba(hex: string, alpha: number): string {
-		let r = parseInt(hex.substr(1, 2), 16);
-		let g = parseInt(hex.substr(3, 2), 16);
-		let b = parseInt(hex.substr(5, 2), 16);
-		return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 	}
 
 	private _updateFont(): void {
@@ -240,6 +234,7 @@ export class TerminalPanel extends Panel {
 		}
 		let newFont = this._terminalService.configHelper.getFont();
 		DOM.toggleClass(this._parentDomElement, 'enable-ligatures', this._terminalService.configHelper.config.fontLigatures);
+		DOM.toggleClass(this._parentDomElement, 'disable-bold', !this._terminalService.configHelper.config.enableBold);
 		if (!this._font || this._fontsDiffer(this._font, newFont)) {
 			this._fontStyleElement.innerHTML = '.monaco-workbench .panel.integrated-terminal .xterm {' +
 				`font-family: ${newFont.fontFamily};` +

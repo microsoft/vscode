@@ -36,6 +36,7 @@ import { ActionBar, IActionItemProvider } from 'vs/base/browser/ui/actionbar/act
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IModelService } from 'vs/editor/common/services/modelService';
+import { comparePaths } from 'vs/base/common/comparers';
 
 function isSCMResource(element: ISCMResourceGroup | ISCMResource): element is ISCMResource {
 	return !!(element as ISCMResource).uri;
@@ -153,6 +154,10 @@ class Delegate implements IDelegate<ISCMResourceGroup | ISCMResource> {
 	}
 }
 
+function resourceSorter(a: ISCMResource, b: ISCMResource): number {
+	return comparePaths(a.uri.fsPath, b.uri.fsPath);
+}
+
 export class SCMViewlet extends Viewlet {
 
 	private cachedDimension: Dimension;
@@ -258,7 +263,7 @@ export class SCMViewlet extends Viewlet {
 		}
 
 		const elements = provider.resources
-			.reduce<(ISCMResourceGroup | ISCMResource)[]>((r, g) => [...r, g, ...g.resources], []);
+			.reduce<(ISCMResourceGroup | ISCMResource)[]>((r, g) => [...r, g, ...g.resources.sort(resourceSorter)], []);
 
 		this.list.splice(0, this.list.length, elements);
 	}

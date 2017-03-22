@@ -118,8 +118,7 @@
 			"type": "chrome",
 			"request": "attach",
 			"name": "Attach to VS Code",
-			"port": 9222,
-			"url": "*"
+			"port": 9222
 		},
 		{
 			"type": "chrome",
@@ -133,7 +132,8 @@
 			},
 			"linux": {
 				"runtimeExecutable": "${workspaceRoot}/scripts/code.sh"
-			}
+			},
+			"urlFilter": "*index.html*"
 		}
 	]
 }

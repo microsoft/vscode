@@ -11,7 +11,7 @@ import os = require('os');
 import crypto = require('crypto');
 import assert = require('assert');
 
-import { isEqual, isParent, FileOperation, FileOperationEvent, IContent, IFileService, IResolveFileOptions, IResolveContentOptions, IFileStat, IStreamContent, IFileOperationResult, FileOperationResult, IUpdateContentOptions, FileChangeType, IImportResult, MAX_FILE_SIZE, FileChangesEvent } from 'vs/platform/files/common/files';
+import { isParent, FileOperation, FileOperationEvent, IContent, IFileService, IResolveFileOptions, IResolveContentOptions, IFileStat, IStreamContent, IFileOperationResult, FileOperationResult, IUpdateContentOptions, FileChangeType, IImportResult, MAX_FILE_SIZE, FileChangesEvent, isEqualOrParent } from 'vs/platform/files/common/files';
 import strings = require('vs/base/common/strings');
 import { ResourceMap } from 'vs/base/common/map';
 import arrays = require('vs/base/common/arrays');
@@ -23,7 +23,7 @@ import extfs = require('vs/base/node/extfs');
 import { nfcall, Limiter, ThrottledDelayer } from 'vs/base/common/async';
 import uri from 'vs/base/common/uri';
 import nls = require('vs/nls');
-import { isWindows } from 'vs/base/common/platform';
+import { isWindows, isLinux } from 'vs/base/common/platform';
 import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 
 import pfs = require('vs/base/node/pfs');
@@ -433,7 +433,7 @@ export class FileService implements IFileService {
 			// 2.) make sure target is deleted before we move/copy unless this is a case rename of the same file
 			let deleteTargetPromise = TPromise.as(null);
 			if (exists && !isCaseRename) {
-				if (isEqual(sourcePath, targetPath) || isParent(sourcePath, targetPath)) {
+				if (isEqualOrParent(sourcePath, targetPath, !isLinux /* ignorecase */)) {
 					return TPromise.wrapError(nls.localize('unableToMoveCopyError', "Unable to move/copy. File would replace folder it is contained in.")); // catch this corner case!
 				}
 
@@ -898,7 +898,7 @@ export class StatResolver {
 						let resolveFolderChildren = false;
 						if (files.length === 1 && resolveSingleChildDescendants) {
 							resolveFolderChildren = true;
-						} else if (childCount > 0 && absoluteTargetPaths && absoluteTargetPaths.some(targetPath => isEqual(targetPath, fileResource.fsPath) || isParent(targetPath, fileResource.fsPath))) {
+						} else if (childCount > 0 && absoluteTargetPaths && absoluteTargetPaths.some(targetPath => isEqualOrParent(targetPath, fileResource.fsPath, !isLinux /* ignorecase */))) {
 							resolveFolderChildren = true;
 						}
 

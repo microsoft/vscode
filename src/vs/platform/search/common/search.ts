@@ -36,6 +36,7 @@ export interface IQueryOptions {
 	cacheKey?: string;
 	fileEncoding?: string;
 	useRipgrep?: boolean;
+	useIgnoreFiles?: boolean;
 }
 
 export interface ISearchQuery extends IQueryOptions {

@@ -46,6 +46,7 @@ export interface ITerminalConfiguration {
 		osx: string[];
 		windows: string[];
 	};
+	enableBold: boolean;
 	rightClickCopyPaste: boolean;
 	cursorBlinking: boolean;
 	cursorStyle: string;
@@ -62,8 +63,11 @@ export interface ITerminalConfiguration {
 
 export interface ITerminalConfigHelper {
 	config: ITerminalConfiguration;
-	getTheme(baseThemeId: string): string[];
 	getFont(): ITerminalFont;
+	/**
+	 * Merges the default shell path and args into the provided launch configuration
+	 */
+	mergeDefaultShellPathAndArgs(shell: IShellLaunchConfig): void;
 }
 
 export interface ITerminalFont {
