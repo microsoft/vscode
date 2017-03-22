@@ -105,6 +105,14 @@ class MultipleSelectionActionRunner extends ActionRunner {
 		super();
 	}
 
+	/**
+	 * Calls the action.run method with the current selection. Note
+	 * that these actions already have the current scm resource context
+	 * within, so we don't want to pass in the selection if there is only
+	 * one selected element. The user should be able to select a single
+	 * item and run an action on another element and only the latter should
+	 * be influenced.
+	 */
 	runAction(action: IAction, context?: any): TPromise<any> {
 		if (action instanceof MenuItemAction) {
 			const selection = this.getSelectedResources();
