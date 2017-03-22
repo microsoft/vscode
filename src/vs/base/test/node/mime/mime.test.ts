@@ -64,7 +64,7 @@ suite('Mime', () => {
 	test('autoGuessEncoding (ShiftJIS)', function (done: () => void) {
 		const file = require.toUrl('./fixtures/some.shiftjis.txt');
 		mime.detectMimesFromFile(file, true).then(mimes => {
-			assert.deepEqual(mimes.encoding, 'SHIFT_JIS');
+			assert.equal(mimes.encoding, 'SHIFT_JIS');
 			done();
 		}, done);
 	});
