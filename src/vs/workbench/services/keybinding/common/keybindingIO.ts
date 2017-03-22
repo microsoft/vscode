@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { KeyMod, USER_SETTINGS, createKeybinding, Keybinding, SimpleKeybinding, KeybindingType, ChordKeybinding } from 'vs/base/common/keyCodes';
+import { USER_SETTINGS, Keybinding, SimpleKeybinding, ChordKeybinding } from 'vs/base/common/keyCodes';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -81,99 +81,92 @@ export class KeybindingIO {
 		return this._cachedKeybindingRegex;
 	}
 
-	public static readKeybinding(input: string, OS: OperatingSystem): Keybinding {
-		if (!input) {
-			return null;
-		}
+	private static _readModifiers(input: string) {
 		input = input.toLowerCase().trim();
 
-		let ctrlCmd = false,
-			shift = false,
-			alt = false,
-			winCtrl = false,
-			key: string = '';
+		let ctrl = false;
+		let shift = false;
+		let alt = false;
+		let meta = false;
 
-		while (/^(ctrl|shift|alt|meta|win|cmd)(\+|\-)/.test(input)) {
+		let matchedModifier: boolean;
+
+		do {
+			matchedModifier = false;
 			if (/^ctrl(\+|\-)/.test(input)) {
-				if (OS === OperatingSystem.Macintosh) {
-					winCtrl = true;
-				} else {
-					ctrlCmd = true;
-				}
+				ctrl = true;
 				input = input.substr('ctrl-'.length);
+				matchedModifier = true;
 			}
 			if (/^shift(\+|\-)/.test(input)) {
 				shift = true;
 				input = input.substr('shift-'.length);
+				matchedModifier = true;
 			}
 			if (/^alt(\+|\-)/.test(input)) {
 				alt = true;
 				input = input.substr('alt-'.length);
+				matchedModifier = true;
 			}
 			if (/^meta(\+|\-)/.test(input)) {
-				if (OS === OperatingSystem.Macintosh) {
-					ctrlCmd = true;
-				} else {
-					winCtrl = true;
-				}
+				meta = true;
 				input = input.substr('meta-'.length);
+				matchedModifier = true;
 			}
 			if (/^win(\+|\-)/.test(input)) {
-				if (OS === OperatingSystem.Macintosh) {
-					ctrlCmd = true;
-				} else {
-					winCtrl = true;
-				}
+				meta = true;
 				input = input.substr('win-'.length);
+				matchedModifier = true;
 			}
 			if (/^cmd(\+|\-)/.test(input)) {
-				if (OS === OperatingSystem.Macintosh) {
-					ctrlCmd = true;
-				} else {
-					winCtrl = true;
-				}
+				meta = true;
 				input = input.substr('cmd-'.length);
+				matchedModifier = true;
 			}
-		}
+		} while (matchedModifier);
 
-		let chord: SimpleKeybinding = null;
+		let key: string;
 
-		let firstSpaceIdx = input.indexOf(' ');
+		const firstSpaceIdx = input.indexOf(' ');
 		if (firstSpaceIdx > 0) {
 			key = input.substring(0, firstSpaceIdx);
-			const readChord = KeybindingIO.readKeybinding(input.substring(firstSpaceIdx), OS);
-			if (readChord) {
-				if (readChord.type === KeybindingType.Chord) {
-					chord = readChord.firstPart;
-				} else {
-					chord = readChord;
-				}
-			}
+			input = input.substring(firstSpaceIdx);
 		} else {
 			key = input;
+			input = '';
 		}
 
-		let keyCode = USER_SETTINGS.toKeyCode(key);
+		return {
+			remains: input,
+			ctrl,
+			shift,
+			alt,
+			meta,
+			key
+		};
+	}
 
-		let result = 0;
-		if (ctrlCmd) {
-			result |= KeyMod.CtrlCmd;
-		}
-		if (shift) {
-			result |= KeyMod.Shift;
-		}
-		if (alt) {
-			result |= KeyMod.Alt;
-		}
-		if (winCtrl) {
-			result |= KeyMod.WinCtrl;
-		}
-		result |= keyCode;
+	private static _readSimpleKeybinding(input: string, OS: OperatingSystem): [SimpleKeybinding, string] {
+		const mods = this._readModifiers(input);
+		const keyCode = USER_SETTINGS.toKeyCode(mods.key);
+		return [new SimpleKeybinding(mods.ctrl, mods.shift, mods.alt, mods.meta, keyCode), mods.remains];
+	}
 
-		if (chord) {
-			return new ChordKeybinding(<SimpleKeybinding>createKeybinding(result, OS), chord);
+	public static readKeybinding(input: string, OS: OperatingSystem): Keybinding {
+		if (!input) {
+			return null;
 		}
-		return <SimpleKeybinding>createKeybinding(result, OS);
+
+		let [firstPart, remains] = this._readSimpleKeybinding(input, OS);
+		let chordPart: SimpleKeybinding = null;
+		if (remains.length > 0) {
+			[chordPart] = this._readSimpleKeybinding(remains, OS);
+		}
+
+		if (chordPart) {
+			return new ChordKeybinding(firstPart, chordPart);
+		}
+		return firstPart;
 	}
 }
 
