@@ -872,7 +872,6 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		}
 
 		const activeGroupPosition = this.getActivePosition();
-		console.log('ActiveGroupPosition: ' + activeGroupPosition);
 
 		switch (visibleEditors) {
 			case 2:
@@ -880,17 +879,13 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 					case Position.ONE:
 						this.silosSize[Position.ONE] = this.silosSize[Position.ONE] + groupSizeChange;
 						this.silosSize[Position.TWO] = this.totalSize - this.silosSize[Position.ONE];
-
 						break;
 					case Position.TWO:
 						this.silosSize[Position.TWO] = this.silosSize[Position.TWO] + groupSizeChange;
 						this.silosSize[Position.ONE] = this.totalSize - this.silosSize[Position.TWO];
-
 					default:
 						break;
 				}
-
-
 				break;
 			case 3:
 				let scaleFactor = 0;
