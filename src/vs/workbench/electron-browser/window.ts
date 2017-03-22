@@ -46,6 +46,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { Position, IResourceInput } from 'vs/platform/editor/common/editor';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
 
 import { remote, ipcRenderer as ipc, webFrame } from 'electron';
 
@@ -281,6 +282,11 @@ export class ElectronWindow {
 					this.themeService.setColorTheme(VS_DARK_THEME, null);
 				});
 			}
+		});
+
+		// keyboard layout changed event
+		ipc.on('vscode:keyboardLayoutChanged', () => {
+			KeyboardMapperFactory.INSTANCE._onKeyboardLayoutChanged();
 		});
 
 		// Configuration changes

@@ -30,22 +30,73 @@ import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKe
 import { KeybindingIO, OutputBuilder } from 'vs/workbench/services/keybinding/common/keybindingIO';
 import * as nativeKeymap from 'native-keymap';
 import { IKeyboardMapper } from 'vs/workbench/services/keybinding/common/keyboardMapper';
-import { WindowsKeyboardMapper, IWindowsKeyboardMapping } from 'vs/workbench/services/keybinding/common/windowsKeyboardMapper';
-import { IMacLinuxKeyboardMapping, MacLinuxKeyboardMapper } from 'vs/workbench/services/keybinding/common/macLinuxKeyboardMapper';
+import { WindowsKeyboardMapper, IWindowsKeyboardMapping, windowsKeyboardMappingEquals } from 'vs/workbench/services/keybinding/common/windowsKeyboardMapper';
+import { IMacLinuxKeyboardMapping, MacLinuxKeyboardMapper, macLinuxKeyboardMappingEquals } from 'vs/workbench/services/keybinding/common/macLinuxKeyboardMapper';
 import { MacLinuxFallbackKeyboardMapper } from 'vs/workbench/services/keybinding/common/macLinuxFallbackKeyboardMapper';
+import Event, { Emitter } from 'vs/base/common/event';
 
-function createKeyboardMapper(): IKeyboardMapper {
-	if (OS === OperatingSystem.Windows) {
-		const rawMappings = <IWindowsKeyboardMapping>nativeKeymap.getKeyMap();
-		return new WindowsKeyboardMapper(rawMappings);
+export class KeyboardMapperFactory {
+	public static INSTANCE = new KeyboardMapperFactory();
+
+	private _layoutInfo: nativeKeymap.IKeyboardLayoutInfo;
+	private _rawMapping: nativeKeymap.IKeyboardMapping;
+	private _keyboardMapper: IKeyboardMapper;
+
+	private _onDidChangeKeyboardMapper: Emitter<void> = new Emitter<void>();
+	public onDidChangeKeyboardMapper: Event<void> = this._onDidChangeKeyboardMapper.event;
+
+	private constructor() {
+		this._layoutInfo = null;
+		this._rawMapping = null;
+		this._keyboardMapper = null;
 	}
-	const rawMappings = <IMacLinuxKeyboardMapping>nativeKeymap.getKeyMap();
-	const rawMappingsKeys = Object.keys(rawMappings);
-	if (rawMappingsKeys.length === 0) {
-		// Looks like reading the mappings failed (most likely Mac + Japanese/Chinese keyboard layouts)
-		return new MacLinuxFallbackKeyboardMapper(rawMappings, OS);
+
+	public _onKeyboardLayoutChanged(): void {
+		if (this._keyboardMapper) {
+			this._setKeyboardData(nativeKeymap.getCurrentKeyboardLayout(), nativeKeymap.getKeyMap());
+		}
 	}
-	return new MacLinuxKeyboardMapper(rawMappings, OS);
+
+	public getKeyboardMapper(): IKeyboardMapper {
+		if (!this._keyboardMapper) {
+			this._setKeyboardData(nativeKeymap.getCurrentKeyboardLayout(), nativeKeymap.getKeyMap());
+		}
+		return this._keyboardMapper;
+	}
+
+	private _setKeyboardData(layoutInfo: nativeKeymap.IKeyboardLayoutInfo, rawMapping: nativeKeymap.IKeyboardMapping): void {
+		this._layoutInfo = layoutInfo;
+
+		if (this._keyboardMapper && KeyboardMapperFactory._equals(this._rawMapping, rawMapping)) {
+			// nothing to do...
+			return;
+		}
+
+		this._rawMapping = rawMapping;
+		this._keyboardMapper = KeyboardMapperFactory._createKeyboardMapper(this._rawMapping);
+		this._onDidChangeKeyboardMapper.fire();
+	}
+
+	private static _createKeyboardMapper(rawMapping: nativeKeymap.IKeyboardMapping): IKeyboardMapper {
+		if (OS === OperatingSystem.Windows) {
+			return new WindowsKeyboardMapper(<IWindowsKeyboardMapping>rawMapping);
+		}
+
+		if (Object.keys(rawMapping).length === 0) {
+			// Looks like reading the mappings failed (most likely Mac + Japanese/Chinese keyboard layouts)
+			return new MacLinuxFallbackKeyboardMapper(<IMacLinuxKeyboardMapping>rawMapping, OS);
+		}
+
+		return new MacLinuxKeyboardMapper(<IMacLinuxKeyboardMapping>rawMapping, OS);
+	}
+
+	private static _equals(a: nativeKeymap.IKeyboardMapping, b: nativeKeymap.IKeyboardMapping): boolean {
+		if (OS === OperatingSystem.Windows) {
+			return windowsKeyboardMappingEquals(<IWindowsKeyboardMapping>a, <IWindowsKeyboardMapping>b);
+		}
+
+		return macLinuxKeyboardMappingEquals(<IMacLinuxKeyboardMapping>a, <IMacLinuxKeyboardMapping>b);
+	}
 }
 
 interface ContributedKeyBinding {
@@ -153,7 +204,11 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 	) {
 		super(contextKeyService, commandService, messageService, statusBarService);
 
-		this._keyboardMapper = createKeyboardMapper();
+		this._keyboardMapper = KeyboardMapperFactory.INSTANCE.getKeyboardMapper();
+		KeyboardMapperFactory.INSTANCE.onDidChangeKeyboardMapper(() => {
+			this._keyboardMapper = KeyboardMapperFactory.INSTANCE.getKeyboardMapper();
+			this.updateResolver({ source: KeybindingSource.Default });
+		});
 		this._cachedResolver = null;
 		this._firstTimeComputingResolver = true;
 

@@ -11,8 +11,6 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { WorkbenchKeybindingService } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import URI from 'vs/base/common/uri';
-import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
 
 @editorAction
 class InspectKeyMap extends EditorAction {
@@ -32,10 +30,7 @@ class InspectKeyMap extends EditorAction {
 		const untitledEditorService = accessor.get(IUntitledEditorService);
 
 		if (keybindingService instanceof WorkbenchKeybindingService) {
-			console.log(keybindingService.dumpDebugInfo());
-
-			const resource = URI.from({ scheme: UntitledEditorInput.SCHEMA, path: `KeyMap` });
-			const input = untitledEditorService.createOrGet(resource, null, keybindingService.dumpDebugInfo());
+			const input = untitledEditorService.createOrGet(undefined, null, keybindingService.dumpDebugInfo());
 			editorService.openEditor(input, { pinned: true });
 		}
 	}

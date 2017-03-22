@@ -38,7 +38,9 @@ declare module 'native-keymap' {
 		[code: string]: IMacKeyMapping;
 	}
 
-	export function getKeyMap(): IWindowsKeyboardMapping | ILinuxKeyboardMapping | IMacKeyboardMapping;
+	export type IKeyboardMapping = IWindowsKeyboardMapping | ILinuxKeyboardMapping | IMacKeyboardMapping;
+
+	export function getKeyMap(): IKeyboardMapping;
 
 	export interface IWindowsKeyboardLayoutInfo {
 		name: string;
@@ -59,7 +61,9 @@ declare module 'native-keymap' {
 		lang: string;
 	}
 
-	export function getCurrentKeyboardLayout(): IWindowsKeyboardLayoutInfo | ILinuxKeyboardLayoutInfo | IMacKeyboardLayoutInfo;
+	export type IKeyboardLayoutInfo = IWindowsKeyboardLayoutInfo | ILinuxKeyboardLayoutInfo | IMacKeyboardLayoutInfo;
+
+	export function getCurrentKeyboardLayout(): IKeyboardLayoutInfo;
 
 	export function onDidChangeKeyboardLayout(callback: () => void);
 }
