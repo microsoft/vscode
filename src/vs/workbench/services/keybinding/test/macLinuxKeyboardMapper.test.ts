@@ -1111,7 +1111,7 @@ function _assertKeybindingTranslation(mapper: MacLinuxKeyboardMapper, OS: Operat
 
 	const keybindingLabel = new USLayoutResolvedKeybinding(runtimeKeybinding, OS).getUserSettingsLabel();
 
-	const actualHardwareKeypresses = mapper.simpleKeybindingToScanCodePress(<SimpleKeybinding>runtimeKeybinding);
+	const actualHardwareKeypresses = mapper.simpleKeybindingToScanCodeBinding(<SimpleKeybinding>runtimeKeybinding);
 	if (actualHardwareKeypresses.length === 0) {
 		assert.deepEqual([], expected, `simpleKeybindingToHardwareKeypress -- "${keybindingLabel}" -- actual: "[]" -- expected: "${expected}"`);
 		return;
