@@ -49,7 +49,7 @@ suite('ExtHostDocumentData', () => {
 		assert.throws(() => (<any>data).document.lineCount = 9);
 	});
 
-	test('save', function () {
+	test('save, when disposed', function () {
 		let saved: URI;
 		let data = new ExtHostDocumentData(new class extends MainThreadDocumentsShape {
 			$trySaveDocument(uri) {
@@ -70,6 +70,14 @@ suite('ExtHostDocumentData', () => {
 				assert.ok(err);
 			});
 		});
+	});
+
+	test('read, when disposed', function () {
+		data.dispose();
+
+		const { document } = data;
+		assert.equal(document.lineCount, 4);
+		assert.equal(document.lineAt(0).text, 'This is line one');
 	});
 
 	test('lines', function () {
