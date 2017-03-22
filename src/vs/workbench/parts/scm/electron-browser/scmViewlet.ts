@@ -99,6 +99,22 @@ interface ResourceTemplate {
 	actionBar: ActionBar;
 }
 
+class MultipleSelectionActionRunner extends ActionRunner {
+
+	constructor(private getSelectedResources: () => URI[]) {
+		super();
+	}
+
+	runAction(action: IAction, context?: any): TPromise<any> {
+		if (action instanceof MenuItemAction) {
+			const selection = this.getSelectedResources();
+			return selection.length > 1 ? action.run(...selection) : action.run();
+		}
+
+		return super.runAction(action, context);
+	}
+}
+
 class ResourceRenderer implements IRenderer<ISCMResource, ResourceTemplate> {
 
 	static TEMPLATE_ID = 'resource';
@@ -117,24 +133,9 @@ class ResourceRenderer implements IRenderer<ISCMResource, ResourceTemplate> {
 		const name = append(element, $('.name'));
 		const fileLabel = this.instantiationService.createInstance(FileLabel, name, void 0);
 		const actionsContainer = append(element, $('.actions'));
-		const getSelectedResources = this.getSelectedResources;
 		const actionBar = new ActionBar(actionsContainer, {
 			actionItemProvider: this.actionItemProvider,
-			actionRunner: new class extends ActionRunner {
-				runAction(action: IAction, context?: any): TPromise<any> {
-					if (action instanceof MenuItemAction) {
-						const selection = getSelectedResources();
-
-						if (selection.length > 1) {
-							return action.run(...getSelectedResources());
-						} else {
-							return action.run();
-						}
-					}
-
-					return super.runAction(action, context);
-				}
-			}
+			actionRunner: new MultipleSelectionActionRunner(this.getSelectedResources)
 		});
 
 		const decorationIcon = append(element, $('.decoration-icon'));
@@ -247,11 +248,10 @@ export class SCMViewlet extends Viewlet {
 		const delegate = new Delegate();
 
 		const actionItemProvider = action => this.getActionItem(action);
-		const getSelectedResources = () => this.list.getSelectedElements().map(r => getSCMResourceURI(this.activeProviderId, r));
 
 		const renderers = [
 			new ResourceGroupRenderer(this.menus, actionItemProvider),
-			this.instantiationService.createInstance(ResourceRenderer, this.menus, actionItemProvider, getSelectedResources),
+			this.instantiationService.createInstance(ResourceRenderer, this.menus, actionItemProvider, () => this.getSelectedResources()),
 		];
 
 		this.list = new List(this.listContainer, delegate, renderers, {
@@ -347,8 +347,14 @@ export class SCMViewlet extends Viewlet {
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
-			getActions: () => TPromise.as(actions)
+			getActions: () => TPromise.as(actions),
+			actionRunner: new MultipleSelectionActionRunner(() => this.getSelectedResources())
 		});
+	}
+
+	private getSelectedResources(): URI[] {
+		return this.list.getSelectedElements()
+			.map(r => getSCMResourceURI(this.activeProviderId, r));
 	}
 
 	dispose(): void {
