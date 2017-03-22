@@ -21,6 +21,10 @@ import { TerminalService as AbstractTerminalService } from 'vs/workbench/parts/t
 import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 import { TerminalInstance } from 'vs/workbench/parts/terminal/electron-browser/terminalInstance';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { IChoiceService } from "vs/platform/message/common/message";
+import { Severity } from "vs/editor/common/standalone/standaloneBase";
+import { IStorageService, StorageScope } from "vs/platform/storage/common/storage";
+import { TERMINAL_DEFAULT_SHELL_WINDOWS } from "vs/workbench/parts/terminal/electron-browser/terminal";
 
 export class TerminalService extends AbstractTerminalService implements ITerminalService {
 	private _configHelper: TerminalConfigHelper;
@@ -36,7 +40,9 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		@IInstantiationService private _instantiationService: IInstantiationService,
 		@IWindowIPCService private _windowService: IWindowIPCService,
 		@IQuickOpenService private _quickOpenService: IQuickOpenService,
-		@IConfigurationEditingService private _configurationEditingService: IConfigurationEditingService
+		@IConfigurationEditingService private _configurationEditingService: IConfigurationEditingService,
+		@IChoiceService private _choiceService: IChoiceService,
+		@IStorageService private _storageService: IStorageService
 	) {
 		super(_contextKeyService, _configurationService, _panelService, _partService, _lifecycleService);
 
@@ -44,7 +50,6 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 	}
 
 	public createInstance(shell: IShellLaunchConfig = {}): ITerminalInstance {
-		// TODO: Inform user of possibility to change shell on Windows
 		let terminalInstance = this._instantiationService.createInstance(TerminalInstance,
 			this._terminalFocusContextKey,
 			this._configHelper,
@@ -59,7 +64,42 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 			this.setActiveInstanceByIndex(0);
 		}
 		this._onInstancesChanged.fire();
+		this._suggestShellChange();
 		return terminalInstance;
+	}
+
+	private _suggestShellChange(): void {
+		// Only suggest on Windows since $SHELL works great for macOS/Linux
+		if (!platform.isWindows) {
+			return;
+		}
+
+		// Don't suggest if the user has explicitly opted out
+		const neverSuggest = this._storageService.getBoolean('terminal.neverSuggestSelectWindowsShell', StorageScope.GLOBAL, false);
+		if (neverSuggest) {
+			return;
+		}
+
+		// Never suggest if the setting is non-default already (ie. they set the setting manually)
+		if (this._configHelper.config.shell.windows !== TERMINAL_DEFAULT_SHELL_WINDOWS) {
+			this._storageService.store('terminal.neverSuggestSelectWindowsShell', false);
+			return;
+		}
+
+		const message = nls.localize('terminal.integrated.chooseWindowsShellInfo', "You can change the default terminal shell by selecting the customize button.");
+		const options = [nls.localize('customize', "Customize"), nls.localize('cancel', "Cancel"), nls.localize('never again', "OK, Never Show Again")];
+		this._choiceService.choose(Severity.Info, message, options).then(choice => {
+			switch (choice) {
+				case 0:
+					return this.selectDefaultWindowsShell();
+				case 1:
+					return TPromise.as(null);
+				case 2:
+					this._storageService.store('terminal.neverSuggestSelectWindowsShell', false);
+				default:
+					return TPromise.as(null);
+			}
+		});
 	}
 
 	public selectDefaultWindowsShell(): TPromise<string> {
