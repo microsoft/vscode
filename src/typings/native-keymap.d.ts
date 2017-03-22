@@ -60,4 +60,6 @@ declare module 'native-keymap' {
 	}
 
 	export function getCurrentKeyboardLayout(): IWindowsKeyboardLayoutInfo | ILinuxKeyboardLayoutInfo | IMacKeyboardLayoutInfo;
+
+	export function onDidChangeKeyboardLayout(callback: () => void);
 }
