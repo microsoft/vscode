@@ -63,23 +63,18 @@ export class SearchService implements ISearchService {
 		let rawSearchQuery: PPromise<void, ISearchProgressItem>;
 		return new PPromise<ISearchComplete, ISearchProgressItem>((onComplete, onError, onProgress) => {
 
+			const searchP = this.diskSearch.search(query);
+
 			// Get local results from dirty/untitled
-			let localResultsFlushed = false;
-			let localResults = this.getLocalResults(query);
+			const localResults = this.getLocalResults(query);
 
-			let flushLocalResultsOnce = function () {
-				if (!localResultsFlushed) {
-					localResultsFlushed = true;
-					localResults.values().filter((res) => !!res).forEach(onProgress);
-				}
-			};
+			// Allow caller to register progress callback
+			process.nextTick(() => localResults.values().filter((res) => !!res).forEach(onProgress));
 
-			// Delegate to parent for real file results
-			rawSearchQuery = this.diskSearch.search(query).then(
+			rawSearchQuery = searchP.then(
 
 				// on Complete
 				(complete) => {
-					flushLocalResultsOnce();
 					onComplete({
 						limitHit: complete.limitHit,
 						results: complete.results.filter((match) => !localResults.has(match.resource)), // dont override local results
@@ -89,13 +84,11 @@ export class SearchService implements ISearchService {
 
 				// on Error
 				(error) => {
-					flushLocalResultsOnce();
 					onError(error);
 				},
 
 				// on Progress
 				(progress) => {
-					flushLocalResultsOnce();
 
 					// Match
 					if (progress.resource) {

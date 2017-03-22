@@ -401,6 +401,10 @@ export function fuzzyMatchAndScore(pattern: string, word: string): [number, numb
 		return [-1, []];
 	}
 
+	if (pattern.length > word.length) {
+		return undefined;
+	}
+
 	let matches: number[] = [];
 	let score = _matchRecursive(
 		pattern, pattern.toLowerCase(), pattern.toUpperCase(), 0,
@@ -440,6 +444,13 @@ export function _matchRecursive(
 		return (pattern[patternPos] === word[wordPos] ? 17 : 11) + value;
 	}
 
+	if ((idx = word.indexOf(upPattern[patternPos], wordPos)) >= 0
+		&& ((value = _matchRecursive(pattern, lowPattern, upPattern, patternPos + 1, word, lowWord, idx + 1, matches)) >= 0)
+	) {
+		matches.unshift(idx);
+		return (pattern[patternPos] === word[idx] ? 17 : 11) + value;
+	}
+
 	if ((idx = lowWord.indexOf(`_${lowPatternChar}`, wordPos)) >= 0
 		&& ((value = _matchRecursive(pattern, lowPattern, upPattern, patternPos + 1, word, lowWord, idx + 2, matches)) >= 0)
 	) {
@@ -447,11 +458,11 @@ export function _matchRecursive(
 		return (pattern[patternPos] === word[idx + 1] ? 17 : 11) + value;
 	}
 
-	if ((idx = word.indexOf(upPattern[patternPos], wordPos)) >= 0
-		&& ((value = _matchRecursive(pattern, lowPattern, upPattern, patternPos + 1, word, lowWord, idx + 1, matches)) >= 0)
+	if ((idx = lowWord.indexOf(`.${lowPatternChar}`, wordPos)) >= 0
+		&& ((value = _matchRecursive(pattern, lowPattern, upPattern, patternPos + 1, word, lowWord, idx + 2, matches)) >= 0)
 	) {
-		matches.unshift(idx);
-		return (pattern[patternPos] === word[idx] ? 17 : 11) + value;
+		matches.unshift(idx + 1);
+		return 11 + value;
 	}
 
 	if (patternPos > 0

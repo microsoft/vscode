@@ -453,12 +453,12 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 		const resource = WorkbenchEditorCommon.toResource(input, { filter: 'file' });
 		if (resource) {
 			const workspaceRoot = this.contextService.getWorkspace().resource.fsPath;
-			if (!workspaceRoot || !isEqualOrParent(resource.fsPath, workspaceRoot)) {
+			if (!workspaceRoot || !isEqualOrParent(resource.fsPath, workspaceRoot, !Platform.isLinux /* ignorecase */)) {
 				return null; // out of workspace not yet supported
 			}
 
 			const repositoryRoot = this.gitService.getModel().getRepositoryRoot();
-			if (!repositoryRoot || !isEqualOrParent(resource.fsPath, repositoryRoot)) {
+			if (!repositoryRoot || !isEqualOrParent(resource.fsPath, repositoryRoot, !Platform.isLinux /* ignorecase */)) {
 				return null; // out of repository not supported
 			}
 

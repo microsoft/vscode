@@ -104,6 +104,10 @@ export function activate(context: ExtensionContext): void {
 		client.onVersionStatusClicked();
 	}));
 
+	context.subscriptions.push(commands.registerCommand('typescript.openTsServerLog', () => {
+		client.openTsServerLogFile();
+	}));
+
 	context.subscriptions.push(
 		languages.registerCompletionItemProvider(selector, new JsDocCompletionHelper(client), '*'));
 

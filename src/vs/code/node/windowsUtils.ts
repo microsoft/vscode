@@ -47,7 +47,7 @@ export function findBestWindowOrFolder<SimpleWindow extends ISimpleWindow>({ win
 }
 
 function findBestWindow<WINDOW extends ISimpleWindow>(windows: WINDOW[], filePath: string): WINDOW {
-	const containers = windows.filter(window => typeof window.openedWorkspacePath === 'string' && isEqualOrParent(filePath, window.openedWorkspacePath));
+	const containers = windows.filter(window => typeof window.openedWorkspacePath === 'string' && isEqualOrParent(filePath, window.openedWorkspacePath, !platform.isLinux /* ignorecase */));
 	if (containers.length) {
 		return containers.sort((a, b) => -(a.openedWorkspacePath.length - b.openedWorkspacePath.length))[0];
 	}

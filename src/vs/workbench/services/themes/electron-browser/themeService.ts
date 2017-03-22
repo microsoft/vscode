@@ -462,7 +462,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 	private findThemeData(themeId: string, defaultId?: string): TPromise<ColorThemeData> {
 		return this.getColorThemes().then(allThemes => {
-			let defaultTheme = void 0;
+			let defaultTheme: IColorTheme = void 0;
 			for (let t of allThemes) {
 				if (t.id === themeId) {
 					return t;
@@ -477,7 +477,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 	private findThemeDataBySettingsId(settingsId: string, defaultId: string): TPromise<ColorThemeData> {
 		return this.getColorThemes().then(allThemes => {
-			let defaultTheme = void 0;
+			let defaultTheme: IColorTheme = void 0;
 			for (let t of allThemes) {
 				if (t.settingsId === settingsId) {
 					return t;
@@ -591,10 +591,10 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		});
 	}
 
-	private themeExtensionsActivated = {};
+	private themeExtensionsActivated = new Map<string, boolean>();
 	private sendTelemetry(themeId: string, themeData: ExtensionData, themeType: string) {
 		let key = themeType + themeData.extensionId;
-		if (!this.themeExtensionsActivated[key]) {
+		if (!this.themeExtensionsActivated.get(key)) {
 			this.telemetryService.publicLog('activatePlugin', {
 				id: themeData.extensionId,
 				name: themeData.extensionName,
@@ -602,7 +602,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 				publisherDisplayName: themeData.extensionPublisher,
 				themeId: themeId
 			});
-			this.themeExtensionsActivated[key] = true;
+			this.themeExtensionsActivated.set(key, true);
 		}
 	}
 

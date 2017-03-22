@@ -30,14 +30,14 @@ export interface SelectionLike extends RangeLike {
 }
 
 export function toSelection(selection: ISelection): types.Selection {
-	let {selectionStartLineNumber, selectionStartColumn, positionLineNumber, positionColumn} = selection;
+	let { selectionStartLineNumber, selectionStartColumn, positionLineNumber, positionColumn } = selection;
 	let start = new types.Position(selectionStartLineNumber - 1, selectionStartColumn - 1);
 	let end = new types.Position(positionLineNumber - 1, positionColumn - 1);
 	return new types.Selection(start, end);
 }
 
 export function fromSelection(selection: SelectionLike): ISelection {
-	let {anchor, active} = selection;
+	let { anchor, active } = selection;
 	return {
 		selectionStartLineNumber: anchor.line + 1,
 		selectionStartColumn: anchor.character + 1,
@@ -47,7 +47,7 @@ export function fromSelection(selection: SelectionLike): ISelection {
 }
 
 export function fromRange(range: RangeLike): IRange {
-	let {start, end} = range;
+	let { start, end } = range;
 	return {
 		startLineNumber: start.line + 1,
 		startColumn: start.character + 1,
@@ -57,7 +57,7 @@ export function fromRange(range: RangeLike): IRange {
 }
 
 export function toRange(range: IRange): types.Range {
-	let {startLineNumber, startColumn, endLineNumber, endColumn} = range;
+	let { startLineNumber, startColumn, endLineNumber, endColumn } = range;
 	return new types.Range(startLineNumber - 1, startColumn - 1, endLineNumber - 1, endColumn - 1);
 }
 
@@ -252,6 +252,7 @@ export const CompletionItemKind = {
 			case types.CompletionItemKind.Unit: return 'unit';
 			case types.CompletionItemKind.Value: return 'value';
 			case types.CompletionItemKind.Enum: return 'enum';
+			case types.CompletionItemKind.EnumMember: return 'enum-member';
 			case types.CompletionItemKind.Keyword: return 'keyword';
 			case types.CompletionItemKind.Snippet: return 'snippet';
 			case types.CompletionItemKind.Text: return 'text';

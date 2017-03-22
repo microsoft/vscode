@@ -20,7 +20,7 @@ import { IEditorContextViewService } from 'vs/editor/browser/standalone/standalo
 import { CodeEditor } from 'vs/editor/browser/codeEditor';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { IStandaloneColorService } from 'vs/editor/common/services/standaloneColorService';
+import { IStandaloneThemeService } from 'vs/editor/common/services/standaloneThemeService';
 import { InternalEditorAction } from 'vs/editor/common/editorAction';
 import { MenuId, MenuRegistry, IMenuItem } from 'vs/platform/actions/common/actions';
 
@@ -185,7 +185,7 @@ export class StandaloneCodeEditor extends CodeEditor implements IStandaloneCodeE
 export class StandaloneEditor extends StandaloneCodeEditor implements IStandaloneCodeEditor {
 
 	private _contextViewService: IEditorContextViewService;
-	private _standaloneColorService: IStandaloneColorService;
+	private _standaloneThemeService: IStandaloneThemeService;
 	private _ownsModel: boolean;
 	private _toDispose2: IDisposable[];
 
@@ -199,17 +199,17 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextViewService contextViewService: IContextViewService,
-		@IStandaloneColorService standaloneColorService: IStandaloneColorService
+		@IStandaloneThemeService standaloneThemeService: IStandaloneThemeService
 	) {
 		options = options || {};
 		if (typeof options.theme === 'string') {
-			options.theme = standaloneColorService.setTheme(options.theme);
+			options.theme = standaloneThemeService.setTheme(options.theme);
 		}
 
 		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService, keybindingService);
 
 		this._contextViewService = <IEditorContextViewService>contextViewService;
-		this._standaloneColorService = standaloneColorService;
+		this._standaloneThemeService = standaloneThemeService;
 		this._toDispose2 = [toDispose];
 
 		let model: IModel = null;
@@ -243,7 +243,7 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 
 	public updateOptions(newOptions: IEditorOptions): void {
 		if (typeof newOptions.theme === 'string') {
-			newOptions.theme = this._standaloneColorService.setTheme(newOptions.theme);
+			newOptions.theme = this._standaloneThemeService.setTheme(newOptions.theme);
 		}
 		super.updateOptions(newOptions);
 	}
@@ -267,7 +267,7 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 export class StandaloneDiffEditor extends DiffEditorWidget implements IStandaloneDiffEditor {
 
 	private _contextViewService: IEditorContextViewService;
-	private _standaloneColorService: IStandaloneColorService;
+	private _standaloneThemeService: IStandaloneThemeService;
 	private _standaloneKeybindingService: StandaloneKeybindingService;
 	private _toDispose2: IDisposable[];
 
@@ -279,7 +279,7 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextViewService contextViewService: IContextViewService,
-		@IStandaloneColorService standaloneColorService: IStandaloneColorService,
+		@IStandaloneThemeService standaloneColorService: IStandaloneThemeService,
 		@IEditorWorkerService editorWorkerService: IEditorWorkerService
 	) {
 		options = options || {};
@@ -294,7 +294,7 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 		}
 
 		this._contextViewService = <IEditorContextViewService>contextViewService;
-		this._standaloneColorService = standaloneColorService;
+		this._standaloneThemeService = standaloneColorService;
 
 		this._toDispose2 = [toDispose];
 
@@ -312,7 +312,7 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 
 	public updateOptions(newOptions: IEditorOptions): void {
 		if (typeof newOptions.theme === 'string') {
-			newOptions.theme = this._standaloneColorService.setTheme(newOptions.theme);
+			newOptions.theme = this._standaloneThemeService.setTheme(newOptions.theme);
 		}
 		super.updateOptions(newOptions);
 	}

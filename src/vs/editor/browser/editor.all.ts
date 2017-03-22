@@ -39,6 +39,5 @@ import 'vs/editor/contrib/snippet/common/snippet';
 import 'vs/editor/contrib/snippet/browser/snippet';
 import 'vs/editor/contrib/suggest/browser/suggestController';
 import 'vs/editor/contrib/toggleTabFocusMode/common/toggleTabFocusMode';
-import 'vs/css!vs/editor/contrib/wordHighlighter/browser/wordHighlighter';
 import 'vs/editor/contrib/wordHighlighter/common/wordHighlighter';
 import 'vs/editor/contrib/folding/browser/folding';

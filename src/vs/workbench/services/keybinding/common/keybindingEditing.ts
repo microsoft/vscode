@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import * as strings from 'vs/base/common/strings';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Queue } from 'vs/base/common/async';
@@ -35,6 +34,8 @@ export interface IKeybindingEditingService {
 	editKeybinding(key: string, keybindingItem: ResolvedKeybindingItem): TPromise<void>;
 
 	removeKeybinding(keybindingItem: ResolvedKeybindingItem): TPromise<void>;
+
+	resetKeybinding(keybindingItem: ResolvedKeybindingItem): TPromise<void>;
 }
 
 export class KeybindingsEditingService extends Disposable implements IKeybindingEditingService {
@@ -56,6 +57,10 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 
 	editKeybinding(key: string, keybindingItem: ResolvedKeybindingItem): TPromise<void> {
 		return this.queue.queue(() => this.doEditKeybinding(key, keybindingItem)); // queue up writes to prevent race conditions
+	}
+
+	resetKeybinding(keybindingItem: ResolvedKeybindingItem): TPromise<void> {
+		return this.queue.queue(() => this.doResetKeybinding(keybindingItem)); // queue up writes to prevent race conditions
 	}
 
 	removeKeybinding(keybindingItem: ResolvedKeybindingItem): TPromise<void> {
@@ -89,6 +94,18 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 			});
 	}
 
+	private doResetKeybinding(keybindingItem: ResolvedKeybindingItem): TPromise<void> {
+		return this.resolveAndValidate()
+			.then(reference => {
+				const model = reference.object.textEditorModel;
+				if (!keybindingItem.isDefault) {
+					this.removeUserKeybinding(keybindingItem, model);
+					this.removeUnassignedDefaultKeybinding(keybindingItem, model);
+				}
+				return this.save().then(() => reference.dispose());
+			});
+	}
+
 	private save(): TPromise<any> {
 		return this.textFileService.save(this.resource);
 	}
@@ -97,9 +114,9 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 		const {tabSize, insertSpaces} = model.getOptions();
 		const eol = model.getEOL();
 		const userKeybindingEntries = <IUserFriendlyKeybinding[]>json.parse(model.getValue());
-		const userKeybindingEntry = this.findUserKeybindingEntry(keybindingItem, userKeybindingEntries);
-		if (userKeybindingEntry) {
-			this.applyEditsToBuffer(setProperty(model.getValue(), [userKeybindingEntries.indexOf(userKeybindingEntry), 'key'], newKey, { tabSize, insertSpaces, eol })[0], model);
+		const userKeybindingEntryIndex = this.findUserKeybindingEntryIndex(keybindingItem, userKeybindingEntries);
+		if (userKeybindingEntryIndex !== -1) {
+			this.applyEditsToBuffer(setProperty(model.getValue(), [userKeybindingEntryIndex, 'key'], newKey, { tabSize, insertSpaces, eol })[0], model);
 		}
 	}
 
@@ -107,10 +124,10 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 		const {tabSize, insertSpaces} = model.getOptions();
 		const eol = model.getEOL();
 		const userKeybindingEntries = <IUserFriendlyKeybinding[]>json.parse(model.getValue());
-		const userKeybindingEntry = this.findUserKeybindingEntry(keybindingItem, userKeybindingEntries);
-		if (userKeybindingEntry) {
+		const userKeybindingEntryIndex = this.findUserKeybindingEntryIndex(keybindingItem, userKeybindingEntries);
+		if (userKeybindingEntryIndex !== -1) {
 			// Update the keybinding with new key
-			this.applyEditsToBuffer(setProperty(model.getValue(), [userKeybindingEntries.indexOf(userKeybindingEntry), 'key'], newKey, { tabSize, insertSpaces, eol })[0], model);
+			this.applyEditsToBuffer(setProperty(model.getValue(), [userKeybindingEntryIndex, 'key'], newKey, { tabSize, insertSpaces, eol })[0], model);
 		} else {
 			// Add the new keybinidng with new key
 			this.applyEditsToBuffer(setProperty(model.getValue(), [-1], this.asObject(newKey, keybindingItem.command, keybindingItem.when, false), { tabSize, insertSpaces, eol })[0], model);
@@ -123,11 +140,11 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 
 	private removeUserKeybinding(keybindingItem: ResolvedKeybindingItem, model: editorCommon.IModel): void {
 		const {tabSize, insertSpaces} = model.getOptions();
+		const eol = model.getEOL();
 		const userKeybindingEntries = <IUserFriendlyKeybinding[]>json.parse(model.getValue());
-		const userKeybindingEntry = this.findUserKeybindingEntry(keybindingItem, userKeybindingEntries);
-		if (userKeybindingEntry) {
-			userKeybindingEntries.splice(userKeybindingEntries.indexOf(userKeybindingEntry), 1);
-			model.setValue(JSON.stringify(userKeybindingEntries, null, insertSpaces ? strings.repeat(' ', tabSize) : '\t'));
+		const userKeybindingEntryIndex = this.findUserKeybindingEntryIndex(keybindingItem, userKeybindingEntries);
+		if (userKeybindingEntryIndex !== -1) {
+			this.applyEditsToBuffer(setProperty(model.getValue(), [userKeybindingEntryIndex], void 0, { tabSize, insertSpaces, eol })[0], model);
 		}
 	}
 
@@ -137,19 +154,40 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 		this.applyEditsToBuffer(setProperty(model.getValue(), [-1], this.asObject(keybindingItem.resolvedKeybinding.getUserSettingsLabel(), keybindingItem.command, keybindingItem.when, true), { tabSize, insertSpaces, eol })[0], model);
 	}
 
-	private findUserKeybindingEntry(keybindingItem: ResolvedKeybindingItem, userKeybindingEntries: IUserFriendlyKeybinding[]): IUserFriendlyKeybinding {
-		return userKeybindingEntries.filter(keybinding => {
-			if (keybinding.command !== keybindingItem.command) {
-				return false;
+	private removeUnassignedDefaultKeybinding(keybindingItem: ResolvedKeybindingItem, model: editorCommon.IModel): void {
+		const {tabSize, insertSpaces} = model.getOptions();
+		const eol = model.getEOL();
+		const userKeybindingEntries = <IUserFriendlyKeybinding[]>json.parse(model.getValue());
+		const index = this.findUnassignedDefaultKeybindingEntryIndex(keybindingItem, userKeybindingEntries);
+		if (index !== -1) {
+			this.applyEditsToBuffer(setProperty(model.getValue(), [index], void 0, { tabSize, insertSpaces, eol })[0], model);
+		}
+	}
+
+	private findUserKeybindingEntryIndex(keybindingItem: ResolvedKeybindingItem, userKeybindingEntries: IUserFriendlyKeybinding[]): number {
+		for (let index = 0; index < userKeybindingEntries.length; index++) {
+			const keybinding = userKeybindingEntries[index];
+			if (keybinding.command === keybindingItem.command) {
+				if (!keybinding.when && !keybindingItem.when) {
+					return index;
+				}
+				if (keybinding.when && keybindingItem.when) {
+					if (ContextKeyExpr.deserialize(keybinding.when).serialize() === keybindingItem.when.serialize()) {
+						return index;
+					}
+				}
 			}
-			if (!keybinding.when && !keybindingItem.when) {
-				return true;
+		}
+		return -1;
+	}
+
+	private findUnassignedDefaultKeybindingEntryIndex(keybindingItem: ResolvedKeybindingItem, userKeybindingEntries: IUserFriendlyKeybinding[]): number {
+		for (let index = 0; index < userKeybindingEntries.length; index++) {
+			if (userKeybindingEntries[index].command === `-${keybindingItem.command}`) {
+				return index;
 			}
-			if (keybinding.when && keybindingItem.when) {
-				return ContextKeyExpr.deserialize(keybinding.when).serialize() === keybindingItem.when.serialize();
-			}
-			return false;
-		})[0];
+		}
+		return -1;
 	}
 
 	private asObject(key: string, command: string, when: ContextKeyExpr, negate: boolean): any {

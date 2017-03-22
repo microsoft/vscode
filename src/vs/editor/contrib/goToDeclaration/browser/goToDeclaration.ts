@@ -136,7 +136,7 @@ export class DefinitionAction extends EditorAction {
 		return editorService.openEditor({
 			resource: uri,
 			options: {
-				selection: range,
+				selection: Range.collapseToStart(range),
 				revealIfVisible: !sideBySide
 			}
 		}, sideBySide).then(editor => {

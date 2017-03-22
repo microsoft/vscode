@@ -41,6 +41,7 @@ import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ResourceContextKey } from 'vs/workbench/common/resourceContextKey';
 import { IWorkbenchThemeService, IFileIconTheme } from 'vs/workbench/services/themes/common/themeService';
+import { isLinux } from 'vs/base/common/platform';
 
 export class ExplorerView extends CollapsibleViewletView {
 
@@ -734,7 +735,7 @@ export class ExplorerView extends CollapsibleViewletView {
 				// Drop those path which are parents of the current one
 				for (let i = resolvedDirectories.length - 1; i >= 0; i--) {
 					const resource = resolvedDirectories[i];
-					if (isEqualOrParent(stat.resource.fsPath, resource.fsPath)) {
+					if (isEqualOrParent(stat.resource.fsPath, resource.fsPath, !isLinux /* ignorecase */)) {
 						resolvedDirectories.splice(i);
 					}
 				}

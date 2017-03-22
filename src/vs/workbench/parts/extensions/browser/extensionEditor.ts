@@ -326,7 +326,12 @@ export class ExtensionEditor extends BaseEditor {
 				webview.style(this.themeService.getColorTheme());
 				webview.contents = [body];
 
-				webview.onDidClickLink(link => this.openerService.open(link), null, this.contentDisposables);
+				webview.onDidClickLink(link => {
+					// Whitelist supported schemes for links
+					if (link && ['http', 'https', 'mailto'].indexOf(link.scheme) >= 0) {
+						this.openerService.open(link);
+					}
+				}, null, this.contentDisposables);
 				this.themeService.onDidColorThemeChange(theme => webview.style(theme), null, this.contentDisposables);
 				this.contentDisposables.push(webview);
 			})

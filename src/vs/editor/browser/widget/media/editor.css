@@ -71,9 +71,6 @@
 	 */
 	background: #fffffe;
 }
-.monaco-editor-background {
-	background: #fffffe;
-}
 .monaco-editor.ime-input .inputarea {
 	background: rgba(255, 255, 255, 0.85);
 }
@@ -84,9 +81,6 @@
 	color: #BBB;
 	background: #1E1E1E;
 }
-.monaco-editor.vs-dark .monaco-editor-background {
-	background: #1E1E1E;
-}
 .monaco-editor.vs-dark.ime-input .inputarea {
 	background: rgba(0, 0, 0, 0.65);
 }
@@ -95,9 +89,6 @@
 .monaco-editor.hc-black .inputarea,
 .monaco-editor.hc-black .zone-widget .monaco-editor {
 	color: #fff;
-	background: #000;
-}
-.monaco-editor.hc-black .monaco-editor-background {
 	background: #000;
 }
 
@@ -113,12 +104,6 @@
 	position: absolute;
 	top: 0;
 }
-
-/* -------------------- Highlight a range -------------------- */
-
-.monaco-editor.vs		.rangeHighlight { background: rgba(253, 255, 0, 0.2); }
-.monaco-editor.vs-dark	.rangeHighlight { background: rgba(255, 255, 255, 0.044); }
-.monaco-editor.hc-black	.rangeHighlight { border: 1px dotted #f38518; }
 
 /* -------------------- Squigglies -------------------- */
 

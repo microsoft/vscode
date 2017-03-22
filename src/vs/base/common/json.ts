@@ -972,7 +972,7 @@ export function getNodeValue(node: Node): any {
 	if (node.type === 'array') {
 		return node.children.map(getNodeValue);
 	} else if (node.type === 'object') {
-		let obj = {};
+		let obj: any = {};
 		for (let prop of node.children) {
 			obj[prop.children[0].value] = getNodeValue(prop.children[1]);
 		}

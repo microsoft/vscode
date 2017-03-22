@@ -11,6 +11,7 @@ import { Model, Resource, Status, CommitOptions } from './model';
 import * as staging from './staging';
 import * as path from 'path';
 import * as os from 'os';
+import { uniqueFilter } from './util';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import * as nls from 'vscode-nls';
 
@@ -272,14 +273,14 @@ export class CommandCenter {
 	}
 
 	@command('git.stage')
-	async stage(uri?: Uri): Promise<void> {
-		const resource = this.resolveSCMResource(uri);
+	async stage(...uris: Uri[]): Promise<void> {
+		const resources = this.toSCMResources(uris);
 
-		if (!resource) {
+		if (!resources.length) {
 			return;
 		}
 
-		return await this.model.add(resource);
+		return await this.model.add(...resources);
 	}
 
 	@command('git.stageAll')
@@ -369,14 +370,14 @@ export class CommandCenter {
 	}
 
 	@command('git.unstage')
-	async unstage(uri?: Uri): Promise<void> {
-		const resource = this.resolveSCMResource(uri);
+	async unstage(...uris: Uri[]): Promise<void> {
+		const resources = this.toSCMResources(uris);
 
-		if (!resource) {
+		if (!resources.length) {
 			return;
 		}
 
-		return await this.model.revertFiles(resource);
+		return await this.model.revertFiles(...resources);
 	}
 
 	@command('git.unstageAll')
@@ -427,15 +428,17 @@ export class CommandCenter {
 	}
 
 	@command('git.clean')
-	async clean(uri?: Uri): Promise<void> {
-		const resource = this.resolveSCMResource(uri);
+	async clean(...uris: Uri[]): Promise<void> {
+		const resources = this.toSCMResources(uris);
 
-		if (!resource) {
+		if (!resources.length) {
 			return;
 		}
 
-		const basename = path.basename(resource.uri.fsPath);
-		const message = localize('confirm discard', "Are you sure you want to discard changes in {0}?", basename);
+		const message = resources.length === 1
+			? localize('confirm discard', "Are you sure you want to discard changes in {0}?", path.basename(resources[0].uri.fsPath))
+			: localize('confirm discard multiple', "Are you sure you want to discard changes in {0} files?", resources.length);
+
 		const yes = localize('discard', "Discard Changes");
 		const pick = await window.showWarningMessage(message, { modal: true }, yes);
 
@@ -443,7 +446,7 @@ export class CommandCenter {
 			return;
 		}
 
-		await this.model.clean(resource);
+		await this.model.clean(...resources);
 	}
 
 	@command('git.cleanAll')
@@ -773,7 +776,7 @@ export class CommandCenter {
 		uri = uri || window.activeTextEditor && window.activeTextEditor.document.uri;
 
 		if (!uri) {
-			return;
+			return undefined;
 		}
 
 		if (uri.scheme === 'scm' && uri.authority === 'git') {
@@ -791,6 +794,12 @@ export class CommandCenter {
 			return this.model.workingTreeGroup.resources.filter(r => r.uri.toString() === uriString)[0]
 				|| this.model.indexGroup.resources.filter(r => r.uri.toString() === uriString)[0];
 		}
+	}
+
+	private toSCMResources(uris: Uri[]): Resource[] {
+		return uris.filter(uniqueFilter(uri => uri.toString()))
+			.map(uri => this.resolveSCMResource(uri))
+			.filter(r => !!r) as Resource[];
 	}
 
 	dispose(): void {
