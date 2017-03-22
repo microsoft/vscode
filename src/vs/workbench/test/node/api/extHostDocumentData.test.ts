@@ -11,6 +11,8 @@ import { ExtHostDocumentData } from 'vs/workbench/api/node/extHostDocumentData';
 import { Position } from 'vs/workbench/api/node/extHostTypes';
 import { Range as CodeEditorRange } from 'vs/editor/common/core/range';
 import * as EditorCommon from 'vs/editor/common/editorCommon';
+import { MainThreadDocumentsShape } from 'vs/workbench/api/node/extHost.protocol';
+import { TPromise } from 'vs/base/common/winjs.base';
 
 
 suite('ExtHostDocumentData', () => {
@@ -18,14 +20,14 @@ suite('ExtHostDocumentData', () => {
 	let data: ExtHostDocumentData;
 
 	function assertPositionAt(offset: number, line: number, character: number) {
-		let position = data.positionAt(offset);
+		let position = data.document.positionAt(offset);
 		assert.equal(position.line, line);
 		assert.equal(position.character, character);
 	}
 
 	function assertOffsetAt(line: number, character: number, offset: number) {
 		let pos = new Position(line, character);
-		let actual = data.offsetAt(pos);
+		let actual = data.document.offsetAt(pos);
 		assert.equal(actual, offset);
 	}
 
@@ -47,17 +49,40 @@ suite('ExtHostDocumentData', () => {
 		assert.throws(() => (<any>data).document.lineCount = 9);
 	});
 
+	test('save', function () {
+		let saved: URI;
+		let data = new ExtHostDocumentData(new class extends MainThreadDocumentsShape {
+			$trySaveDocument(uri) {
+				assert.ok(!saved);
+				saved = uri;
+				return TPromise.as(true);
+			}
+		}, URI.parse('foo:bar'), [], '\n', 'text', 1, true);
+
+		return data.document.save().then(() => {
+			assert.equal(saved.toString(), 'foo:bar');
+
+			data.dispose();
+
+			return data.document.save().then(() => {
+				assert.ok(false, 'expected failure');
+			}, err => {
+				assert.ok(err);
+			});
+		});
+	});
+
 	test('lines', function () {
 
 		assert.equal(data.document.lineCount, 4);
 
-		assert.throws(() => data.lineAt(-1));
-		assert.throws(() => data.lineAt(data.document.lineCount));
-		assert.throws(() => data.lineAt(Number.MAX_VALUE));
-		assert.throws(() => data.lineAt(Number.MIN_VALUE));
-		assert.throws(() => data.lineAt(0.8));
+		assert.throws(() => data.document.lineAt(-1));
+		assert.throws(() => data.document.lineAt(data.document.lineCount));
+		assert.throws(() => data.document.lineAt(Number.MAX_VALUE));
+		assert.throws(() => data.document.lineAt(Number.MIN_VALUE));
+		assert.throws(() => data.document.lineAt(0.8));
 
-		let line = data.lineAt(0);
+		let line = data.document.lineAt(0);
 		assert.equal(line.lineNumber, 0);
 		assert.equal(line.text.length, 16);
 		assert.equal(line.text, 'This is line one');
@@ -79,7 +104,7 @@ suite('ExtHostDocumentData', () => {
 		assert.equal(line.firstNonWhitespaceCharacterIndex, 0);
 
 		// fetch line again
-		line = data.lineAt(0);
+		line = data.document.lineAt(0);
 		assert.equal(line.text, '\t This is line one');
 		assert.equal(line.firstNonWhitespaceCharacterIndex, 2);
 	});
@@ -208,32 +233,32 @@ suite('ExtHostDocumentData', () => {
 			'aaaa bbbb+cccc abc'
 		], '\n', 'text', 1, false);
 
-		let range = data.getWordRangeAtPosition(new Position(0, 2));
+		let range = data.document.getWordRangeAtPosition(new Position(0, 2));
 		assert.equal(range.start.line, 0);
 		assert.equal(range.start.character, 0);
 		assert.equal(range.end.line, 0);
 		assert.equal(range.end.character, 4);
 
 		// ignore bad regular expresson /.*/
-		range = data.getWordRangeAtPosition(new Position(0, 2), /.*/);
+		range = data.document.getWordRangeAtPosition(new Position(0, 2), /.*/);
 		assert.equal(range.start.line, 0);
 		assert.equal(range.start.character, 0);
 		assert.equal(range.end.line, 0);
 		assert.equal(range.end.character, 4);
 
-		range = data.getWordRangeAtPosition(new Position(0, 5), /[a-z+]+/);
+		range = data.document.getWordRangeAtPosition(new Position(0, 5), /[a-z+]+/);
 		assert.equal(range.start.line, 0);
 		assert.equal(range.start.character, 5);
 		assert.equal(range.end.line, 0);
 		assert.equal(range.end.character, 14);
 
-		range = data.getWordRangeAtPosition(new Position(0, 17), /[a-z+]+/);
+		range = data.document.getWordRangeAtPosition(new Position(0, 17), /[a-z+]+/);
 		assert.equal(range.start.line, 0);
 		assert.equal(range.start.character, 15);
 		assert.equal(range.end.line, 0);
 		assert.equal(range.end.character, 18);
 
-		range = data.getWordRangeAtPosition(new Position(0, 11), /yy/);
+		range = data.document.getWordRangeAtPosition(new Position(0, 11), /yy/);
 		assert.equal(range, undefined);
 	});
 });
@@ -258,12 +283,12 @@ suite('ExtHostDocumentData updates line mapping', () => {
 			let position = new Position(line, character + (previousIsCarriageReturn ? -1 : 0));
 
 			if (direction === AssertDocumentLineMappingDirection.OffsetToPosition) {
-				let actualPosition = doc.positionAt(offset);
+				let actualPosition = doc.document.positionAt(offset);
 				assert.equal(positionToStr(actualPosition), positionToStr(position), 'positionAt mismatch for offset ' + offset);
 			} else {
 				// The position coordinate system cannot express the position between \r and \n
 				let expectedOffset = offset + (previousIsCarriageReturn ? -1 : 0);
-				let actualOffset = doc.offsetAt(position);
+				let actualOffset = doc.document.offsetAt(position);
 				assert.equal(actualOffset, expectedOffset, 'offsetAt mismatch for position ' + positionToStr(position));
 			}
 
