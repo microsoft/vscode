@@ -137,7 +137,7 @@ export interface IThread extends ITreeElement {
 	/**
 	 * Information about the exception if an 'exception' stopped event raised and DA supports the 'exceptionInfo' request, otherwise null.
 	 */
-	exceptionInfo: TPromise<DebugProtocol.ExceptionInfoResponse>;
+	exceptionInfo: TPromise<IExceptionInfo>;
 
 	/**
 	 * Gets the callstack if it has already been received from the debug
@@ -218,6 +218,13 @@ export interface IFunctionBreakpoint extends IEnablement {
 export interface IExceptionBreakpoint extends IEnablement {
 	filter: string;
 	label: string;
+}
+
+export interface IExceptionInfo {
+	id?: string;
+	description?: string;
+	breakMode: string;
+	details?: DebugProtocol.ExceptionDetails;
 }
 
 // model interfaces
