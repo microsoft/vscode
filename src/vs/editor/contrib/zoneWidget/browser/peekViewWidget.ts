@@ -20,6 +20,8 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IOptions, ZoneWidget } from './zoneWidget';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { registerColor } from 'vs/platform/theme/common/colorRegistry';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 
 export var IPeekViewService = createDecorator<IPeekViewService>('peekViewService');
 
@@ -164,3 +166,30 @@ export abstract class PeekViewWidget extends ZoneWidget implements IPeekViewServ
 		this._bodyElement.style.height = strings.format('{0}px', heightInPixel);
 	}
 }
+
+// theming
+
+export const editorPeekTitleBackground = registerColor('editorPeekTitleBackground', { dark: '#1E1E1E', light: '#FFFFFF', hc: '#0C141F' }, nls.localize('editorPeekTitleBackground', 'Editor peek title area background'));
+export const editorPeekTitle = registerColor('editorPeekTitle', { dark: '#FFFFFF', light: '#333333', hc: '#FFFFFF' }, nls.localize('editorPeekTitle', 'Editor peek title color'));
+export const editorPeekTitleInfo = registerColor('editorPeekTitleInfo', { dark: '#ccccccb3', light: '#6c6c6cb3', hc: '#FFFFFF99' }, nls.localize('editorPeekTitleInfo', 'Editor peek title info color'));
+export const editorPeekBorders = registerColor('editorPeekBorder', { dark: '#007acc', light: '#007acc', hc: '#6FC3DF' }, nls.localize('editorPeekBorder', 'Editor peek view borders'));
+
+registerThemingParticipant((theme, collector) => {
+	let peekBackground = theme.getColor(editorPeekTitleBackground);
+	if (peekBackground) {
+		collector.addRule(`.monaco-editor.${theme.selector} .peekview-widget .head { background-color: ${peekBackground}; }`);
+	}
+	let title = theme.getColor(editorPeekTitle);
+	if (title) {
+		collector.addRule(`.monaco-editor.${theme.selector} .peekview-widget .head .peekview-title .filename { color: ${title}; }`);
+	}
+	let titleInfo = theme.getColor(editorPeekTitleInfo);
+	if (titleInfo) {
+		collector.addRule(`.monaco-editor.${theme.selector} .peekview-widget .head .peekview-title .dirname:not(:empty) { color: ${titleInfo}; }`);
+	}
+	let borders = theme.getColor(editorPeekBorders);
+	if (borders) {
+		collector.addRule(`.monaco-editor.${theme.selector} .zone-widget-container.peekview-widget { border-top-color: ${borders}; border-bottom-color: ${borders}; }`);
+		collector.addRule(`.monaco-editor.${theme.selector} .peekview-widget > .body { border-color: ${borders}; }`);
+	}
+});
