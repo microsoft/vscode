@@ -14,6 +14,7 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { IQuickOpenService, IPickOpenEntry, IPickOptions } from 'vs/platform/quickOpen/common/quickOpen';
 import { ITerminalInstance, ITerminalService, IShellLaunchConfig, ITerminalConfigHelper } from 'vs/workbench/parts/terminal/common/terminal';
 import { TerminalService as AbstractTerminalService } from 'vs/workbench/parts/terminal/common/terminalService';
@@ -34,7 +35,8 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		@ILifecycleService _lifecycleService: ILifecycleService,
 		@IInstantiationService private _instantiationService: IInstantiationService,
 		@IWindowIPCService private _windowService: IWindowIPCService,
-		@IQuickOpenService private _quickOpenService: IQuickOpenService
+		@IQuickOpenService private _quickOpenService: IQuickOpenService,
+		@IConfigurationEditingService private _configurationEditingService: IConfigurationEditingService
 	) {
 		super(_contextKeyService, _configurationService, _panelService, _partService, _lifecycleService);
 
@@ -66,7 +68,12 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 				placeHolder: nls.localize('terminal.integrated.chooseWindowsShell', "Select your preferred terminal shell, you can change this later in your settings")
 			};
 			return this._quickOpenService.pick(shells, options).then(value => {
-				return TPromise.as(value ? value.description : null);
+				if (!value) {
+					return null;
+				}
+				const shell = value.description;
+				const configChange = { key: 'terminal.integrated.shell.windows', value: shell };
+				return this._configurationEditingService.writeConfiguration(ConfigurationTarget.USER, configChange).then(() => shell);
 			});
 		});
 	}
