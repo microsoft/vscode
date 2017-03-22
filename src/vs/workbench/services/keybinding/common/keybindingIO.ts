@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { KeyMod, KeyChord, USER_SETTINGS, createKeybinding } from 'vs/base/common/keyCodes';
+import { KeyMod, USER_SETTINGS, createKeybinding, Keybinding, SimpleKeybinding, KeybindingType, ChordKeybinding } from 'vs/base/common/keyCodes';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -31,9 +31,9 @@ export class KeybindingIO {
 	}
 
 	public static readKeybindingItem(input: IUserFriendlyKeybinding, index: number, OS: OperatingSystem): IKeybindingItem {
-		let key: number = 0;
+		let keybinding: Keybinding = null;
 		if (typeof input.key === 'string') {
-			key = KeybindingIO.readKeybinding(input.key, OS);
+			keybinding = KeybindingIO.readKeybinding(input.key, OS);
 		}
 
 		let when: ContextKeyExpr = null;
@@ -52,7 +52,7 @@ export class KeybindingIO {
 		}
 
 		return {
-			keybinding: createKeybinding(key, OS),
+			keybinding: keybinding,
 			command: command,
 			commandArgs: commandArgs,
 			when: when,
@@ -81,9 +81,9 @@ export class KeybindingIO {
 		return this._cachedKeybindingRegex;
 	}
 
-	public static readKeybinding(input: string, OS: OperatingSystem): number {
+	public static readKeybinding(input: string, OS: OperatingSystem): Keybinding {
 		if (!input) {
-			return 0;
+			return null;
 		}
 		input = input.toLowerCase().trim();
 
@@ -136,12 +136,19 @@ export class KeybindingIO {
 			}
 		}
 
-		let chord: number = 0;
+		let chord: SimpleKeybinding = null;
 
 		let firstSpaceIdx = input.indexOf(' ');
 		if (firstSpaceIdx > 0) {
 			key = input.substring(0, firstSpaceIdx);
-			chord = KeybindingIO.readKeybinding(input.substring(firstSpaceIdx), OS);
+			const readChord = KeybindingIO.readKeybinding(input.substring(firstSpaceIdx), OS);
+			if (readChord) {
+				if (readChord.type === KeybindingType.Chord) {
+					chord = readChord.firstPart;
+				} else {
+					chord = readChord;
+				}
+			}
 		} else {
 			key = input;
 		}
@@ -162,7 +169,11 @@ export class KeybindingIO {
 			result |= KeyMod.WinCtrl;
 		}
 		result |= keyCode;
-		return KeyChord(result, chord);
+
+		if (chord) {
+			return new ChordKeybinding(<SimpleKeybinding>createKeybinding(result, OS), chord);
+		}
+		return <SimpleKeybinding>createKeybinding(result, OS);
 	}
 }
 

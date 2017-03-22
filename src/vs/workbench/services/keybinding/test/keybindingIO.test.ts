@@ -67,9 +67,10 @@ suite('keybindingIO', () => {
 			testOneSerialization(keybinding, expectedLinux, 'linux', OperatingSystem.Linux);
 		}
 
-		function testOneDeserialization(keybinding: string, expected: number, msg: string, OS: OperatingSystem): void {
+		function testOneDeserialization(keybinding: string, _expected: number, msg: string, OS: OperatingSystem): void {
 			let actualDeserialized = KeybindingIO.readKeybinding(keybinding, OS);
-			assert.equal(actualDeserialized, expected, keybinding + ' - ' + msg);
+			let expected = createKeybinding(_expected, OS);
+			assert.deepEqual(actualDeserialized, expected, keybinding + ' - ' + msg);
 		}
 		function testDeserialization(inWin: string, inMac: string, inLinux: string, expected: number): void {
 			testOneDeserialization(inWin, expected, 'win', OperatingSystem.Windows);
