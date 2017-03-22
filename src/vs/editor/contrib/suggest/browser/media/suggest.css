@@ -296,6 +296,7 @@
 .monaco-editor.hc-black .suggest-widget .monaco-list .monaco-list-row .icon.value,
 .monaco-editor.vs-dark .suggest-widget .monaco-list .monaco-list-row .icon.enum,
 .monaco-editor.hc-black .suggest-widget .monaco-list .monaco-list-row .icon.enum { background-image: url('Enumerator_inverse_16x.svg'); }
+.monaco-editor.vs-dark .suggest-widget .monaco-list .monaco-list-row .icon.enum-member,
 .monaco-editor.hc-black .suggest-widget .monaco-list .monaco-list-row .icon.enum-member { background-image: url('EnumItem_inverse_16x.svg'); }
 
 .monaco-editor.vs-dark .suggest-widget .monaco-list .monaco-list-row .icon.keyword,
