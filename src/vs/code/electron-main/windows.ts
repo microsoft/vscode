@@ -31,6 +31,8 @@ import product from 'vs/platform/node/product';
 import { OpenContext } from 'vs/code/common/windows';
 import { ITelemetryService, ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { isParent, isEqual, isEqualOrParent } from 'vs/platform/files/common/files';
+import * as nativeKeymap from 'native-keymap';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 enum WindowError {
 	UNRESPONSIVE,
@@ -250,6 +252,12 @@ export class WindowsManager implements IWindowsMainService {
 		// Update our windows state before quitting and before closing windows
 		this.lifecycleService.onBeforeWindowClose(win => this.onBeforeWindowClose(win));
 		this.lifecycleService.onBeforeQuit(() => this.onBeforeQuit());
+
+		KeyboardLayoutMonitor.INSTANCE.onDidChangeKeyboardLayout(() => {
+			WindowsManager.WINDOWS.forEach((window) => {
+				window.sendWhenReady('vscode:keyboardLayoutChanged');
+			});
+		});
 	}
 
 	// Note that onBeforeQuit() and onBeforeWindowClose() are fired in different order depending on the OS:
@@ -1313,5 +1321,28 @@ export class WindowsManager implements IWindowsMainService {
 				app.quit();
 			}, 10 /* delay to unwind callback stack (IPC) */);
 		}
+	}
+}
+
+class KeyboardLayoutMonitor {
+
+	public static INSTANCE = new KeyboardLayoutMonitor();
+
+	private _emitter: Emitter<void>;
+	private _registered: boolean;
+
+	private constructor() {
+		this._emitter = new Emitter<void>();
+		this._registered = false;
+	}
+
+	public onDidChangeKeyboardLayout(callback: () => void): IDisposable {
+		if (!this._registered) {
+			this._registered = true;
+			nativeKeymap.onDidChangeKeyboardLayout(() => {
+				this._emitter.fire();
+			});
+		}
+		return this._emitter.event(callback);
 	}
 }

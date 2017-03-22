@@ -19,15 +19,43 @@ export interface IMacLinuxKeyMapping {
 	withShift: string;
 	withAltGr: string;
 	withShiftAltGr: string;
+}
 
-	valueIsDeadKey?: boolean;
-	withShiftIsDeadKey?: boolean;
-	withAltGrIsDeadKey?: boolean;
-	withShiftAltGrIsDeadKey?: boolean;
+function macLinuxKeyMappingEquals(a: IMacLinuxKeyMapping, b: IMacLinuxKeyMapping): boolean {
+	if (!a && !b) {
+		return true;
+	}
+	if (!a || !b) {
+		return false;
+	}
+	return (
+		a.value === b.value
+		&& a.withShift === b.withShift
+		&& a.withAltGr === b.withAltGr
+		&& a.withShiftAltGr === b.withShiftAltGr
+	);
 }
 
 export interface IMacLinuxKeyboardMapping {
 	[scanCode: string]: IMacLinuxKeyMapping;
+}
+
+export function macLinuxKeyboardMappingEquals(a: IMacLinuxKeyboardMapping, b: IMacLinuxKeyboardMapping): boolean {
+	if (!a && !b) {
+		return true;
+	}
+	if (!a || !b) {
+		return false;
+	}
+	for (let scanCode = 0; scanCode < ScanCode.MAX_VALUE; scanCode++) {
+		const strScanCode = ScanCodeUtils.toString(scanCode);
+		const aEntry = a[strScanCode];
+		const bEntry = b[strScanCode];
+		if (!macLinuxKeyMappingEquals(aEntry, bEntry)) {
+			return false;
+		}
+	}
+	return true;
 }
 
 const LOG = false;

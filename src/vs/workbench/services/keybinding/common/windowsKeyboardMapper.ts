@@ -22,9 +22,44 @@ export interface IWindowsKeyMapping {
 	withShiftAltGr: string;
 }
 
+function windowsKeyMappingEquals(a: IWindowsKeyMapping, b: IWindowsKeyMapping): boolean {
+	if (!a && !b) {
+		return true;
+	}
+	if (!a || !b) {
+		return false;
+	}
+	return (
+		a.vkey === b.vkey
+		&& a.value === b.value
+		&& a.withShift === b.withShift
+		&& a.withAltGr === b.withAltGr
+		&& a.withShiftAltGr === b.withShiftAltGr
+	);
+}
+
 export interface IWindowsKeyboardMapping {
 	[code: string]: IWindowsKeyMapping;
 }
+
+export function windowsKeyboardMappingEquals(a: IWindowsKeyboardMapping, b: IWindowsKeyboardMapping): boolean {
+	if (!a && !b) {
+		return true;
+	}
+	if (!a || !b) {
+		return false;
+	}
+	for (let scanCode = 0; scanCode < ScanCode.MAX_VALUE; scanCode++) {
+		const strScanCode = ScanCodeUtils.toString(scanCode);
+		const aEntry = a[strScanCode];
+		const bEntry = b[strScanCode];
+		if (!windowsKeyMappingEquals(aEntry, bEntry)) {
+			return false;
+		}
+	}
+	return true;
+}
+
 
 const LOG = false;
 function log(str: string): void {
