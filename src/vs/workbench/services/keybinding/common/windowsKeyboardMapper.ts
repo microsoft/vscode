@@ -6,7 +6,7 @@
 'use strict';
 
 import { KeyCode, KeyCodeUtils, ResolvedKeybinding, Keybinding, SimpleKeybinding, KeybindingType, USER_SETTINGS } from 'vs/base/common/keyCodes';
-import { ScanCode, ScanCodeUtils, IMMUTABLE_CODE_TO_KEY_CODE } from 'vs/workbench/services/keybinding/common/scanCode';
+import { ScanCode, ScanCodeUtils, IMMUTABLE_CODE_TO_KEY_CODE, ScanCodeBinding } from 'vs/workbench/services/keybinding/common/scanCode';
 import { CharCode } from 'vs/base/common/charCode';
 import { UILabelProvider, AriaLabelProvider, ElectronAcceleratorLabelProvider, UserSettingsLabelProvider } from 'vs/platform/keybinding/common/keybindingLabels';
 import { OperatingSystem } from 'vs/base/common/platform';
@@ -368,15 +368,14 @@ export class WindowsKeyboardMapper implements IKeyboardMapper {
 
 	public resolveKeybinding(keybinding: Keybinding): WindowsNativeResolvedKeybinding[] {
 		if (keybinding.type === KeybindingType.Chord) {
-			let firstPartKeyCode = keybinding.firstPart.keyCode;
-			let chordPartKeyCode = keybinding.chordPart.keyCode;
+			const firstPartKeyCode = keybinding.firstPart.keyCode;
+			const chordPartKeyCode = keybinding.chordPart.keyCode;
 			if (!this._kbExists[firstPartKeyCode] || !this._kbExists[chordPartKeyCode]) {
 				return [];
 			}
 			return [new WindowsNativeResolvedKeybinding(this, keybinding.firstPart, keybinding.chordPart)];
 		} else {
-			let keyCode = keybinding.keyCode;
-			if (!this._kbExists[keyCode]) {
+			if (!this._kbExists[keybinding.keyCode]) {
 				return [];
 			}
 			return [new WindowsNativeResolvedKeybinding(this, keybinding, null)];
@@ -388,6 +387,34 @@ export class WindowsKeyboardMapper implements IKeyboardMapper {
 		return new WindowsNativeResolvedKeybinding(this, keybinding, null);
 	}
 
+	private _resolveSimpleUserBinding(binding: SimpleKeybinding | ScanCodeBinding): SimpleKeybinding {
+		if (!binding) {
+			return null;
+		}
+		if (binding instanceof SimpleKeybinding) {
+			if (!this._kbExists[binding.keyCode]) {
+				return null;
+			}
+			return binding;
+		}
+		const keyCode = this._hwToKb[binding.scanCode] || KeyCode.Unknown;
+		if (keyCode === KeyCode.Unknown || !this._kbExists[keyCode]) {
+			return null;
+		}
+		return new SimpleKeybinding(binding.ctrlKey, binding.shiftKey, binding.altKey, binding.metaKey, keyCode);
+	}
+
+	public resolveUserBinding(firstPart: SimpleKeybinding | ScanCodeBinding, chordPart: SimpleKeybinding | ScanCodeBinding): ResolvedKeybinding[] {
+		const _firstPart = this._resolveSimpleUserBinding(firstPart);
+		const _chordPart = this._resolveSimpleUserBinding(chordPart);
+		if (_firstPart && _chordPart) {
+			return [new WindowsNativeResolvedKeybinding(this, _firstPart, _chordPart)];
+		}
+		if (_firstPart) {
+			return [new WindowsNativeResolvedKeybinding(this, _firstPart, null)];
+		}
+		return [];
+	}
 }
 
 

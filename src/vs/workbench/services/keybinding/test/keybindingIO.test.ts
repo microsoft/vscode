@@ -5,11 +5,12 @@
 'use strict';
 
 import * as assert from 'assert';
-import { KeyCode, KeyMod, KeyChord, KeyCodeUtils, createKeybinding } from 'vs/base/common/keyCodes';
+import { KeyCode, KeyMod, KeyChord, KeyCodeUtils, createKeybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
 import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
 import { OS, OperatingSystem } from 'vs/base/common/platform';
 import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
+import { ScanCodeBinding, ScanCode } from 'vs/workbench/services/keybinding/common/scanCode';
 
 suite('keybindingIO', () => {
 	test('getUserSettingsKeybindingRegex', () => {
@@ -153,38 +154,47 @@ suite('keybindingIO', () => {
 		testDeserialization(' ctrl-shift-alt-win-A ', ' shift-alt-cmd-Ctrl-A ', ' ctrl-shift-alt-META-A ', KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.KEY_A);
 	});
 
+	test('deserialize scan codes', () => {
+		assert.deepEqual(
+			KeybindingIO._readUserBinding('ctrl+shift+[comma] ctrl+/'),
+			[new ScanCodeBinding(true, true, false, false, ScanCode.Comma), new SimpleKeybinding(true, false, false, false, KeyCode.US_SLASH)]
+		);
+	});
+
 	test('issue #10452 - invalid command', () => {
 		let strJSON = `[{ "key": "ctrl+k ctrl+f", "command": ["firstcommand", "seccondcommand"] }]`;
 		let userKeybinding = <IUserFriendlyKeybinding>JSON.parse(strJSON)[0];
-		let keybindingItem = KeybindingIO.readUserKeybindingItem(userKeybinding, 0, OS);
+		let keybindingItem = KeybindingIO.readUserKeybindingItem(userKeybinding, OS);
 		assert.equal(keybindingItem.command, null);
 	});
 
 	test('issue #10452 - invalid when', () => {
 		let strJSON = `[{ "key": "ctrl+k ctrl+f", "command": "firstcommand", "when": [] }]`;
 		let userKeybinding = <IUserFriendlyKeybinding>JSON.parse(strJSON)[0];
-		let keybindingItem = KeybindingIO.readUserKeybindingItem(userKeybinding, 0, OS);
+		let keybindingItem = KeybindingIO.readUserKeybindingItem(userKeybinding, OS);
 		assert.equal(keybindingItem.when, null);
 	});
 
 	test('issue #10452 - invalid key', () => {
 		let strJSON = `[{ "key": [], "command": "firstcommand" }]`;
 		let userKeybinding = <IUserFriendlyKeybinding>JSON.parse(strJSON)[0];
-		let keybindingItem = KeybindingIO.readUserKeybindingItem(userKeybinding, 0, OS);
-		assert.equal(keybindingItem.keybinding, null);
+		let keybindingItem = KeybindingIO.readUserKeybindingItem(userKeybinding, OS);
+		assert.equal(keybindingItem.firstPart, null);
+		assert.equal(keybindingItem.chordPart, null);
 	});
 
 	test('issue #10452 - invalid key 2', () => {
 		let strJSON = `[{ "key": "", "command": "firstcommand" }]`;
 		let userKeybinding = <IUserFriendlyKeybinding>JSON.parse(strJSON)[0];
-		let keybindingItem = KeybindingIO.readUserKeybindingItem(userKeybinding, 0, OS);
-		assert.equal(keybindingItem.keybinding, null);
+		let keybindingItem = KeybindingIO.readUserKeybindingItem(userKeybinding, OS);
+		assert.equal(keybindingItem.firstPart, null);
+		assert.equal(keybindingItem.chordPart, null);
 	});
 
 	test('test commands args', () => {
 		let strJSON = `[{ "key": "ctrl+k ctrl+f", "command": "firstcommand", "when": [], "args": { "text": "theText" } }]`;
 		let userKeybinding = <IUserFriendlyKeybinding>JSON.parse(strJSON)[0];
-		let keybindingItem = KeybindingIO.readUserKeybindingItem(userKeybinding, 0, OS);
+		let keybindingItem = KeybindingIO.readUserKeybindingItem(userKeybinding, OS);
 		assert.equal(keybindingItem.commandArgs.text, 'theText');
 	});
 });

@@ -8,11 +8,12 @@
 import * as assert from 'assert';
 import { IHTMLContentElement } from 'vs/base/common/htmlContent';
 import { IKeyboardMapper } from 'vs/workbench/services/keybinding/common/keyboardMapper';
-import { Keybinding, ResolvedKeybinding } from 'vs/base/common/keyCodes';
+import { Keybinding, ResolvedKeybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { readFile, writeFile } from 'vs/base/node/pfs';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
+import { ScanCodeBinding } from 'vs/workbench/services/keybinding/common/scanCode';
 
 export interface IResolvedKeybinding {
 	label: string;
@@ -51,6 +52,11 @@ export function assertResolveKeybinding(mapper: IKeyboardMapper, keybinding: Key
 
 export function assertResolveKeyboardEvent(mapper: IKeyboardMapper, keyboardEvent: IKeyboardEvent, expected: IResolvedKeybinding): void {
 	let actual = toIResolvedKeybinding(mapper.resolveKeyboardEvent(keyboardEvent));
+	assert.deepEqual(actual, expected);
+}
+
+export function assertResolveUserBinding(mapper: IKeyboardMapper, firstPart: SimpleKeybinding | ScanCodeBinding, chordPart: SimpleKeybinding | ScanCodeBinding, expected: IResolvedKeybinding[]): void {
+	let actual: IResolvedKeybinding[] = mapper.resolveUserBinding(firstPart, chordPart).map(toIResolvedKeybinding);
 	assert.deepEqual(actual, expected);
 }
 

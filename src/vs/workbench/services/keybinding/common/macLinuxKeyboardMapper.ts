@@ -889,6 +889,32 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 		return new NativeResolvedKeybinding(this, this._OS, keypress, null);
 	}
 
+	private _resolveSimpleUserBinding(binding: SimpleKeybinding | ScanCodeBinding): ScanCodeBinding[] {
+		if (!binding) {
+			return [];
+		}
+		if (binding instanceof ScanCodeBinding) {
+			return [binding];
+		}
+		return this.simpleKeybindingToScanCodeBinding(binding);
+	}
+
+	public resolveUserBinding(firstPart: SimpleKeybinding | ScanCodeBinding, chordPart: SimpleKeybinding | ScanCodeBinding): ResolvedKeybinding[] {
+		const firstParts = this._resolveSimpleUserBinding(firstPart);
+		const chordParts = this._resolveSimpleUserBinding(chordPart);
+
+		let result: NativeResolvedKeybinding[] = [], resultLen = 0;
+		for (let i = 0, len = firstParts.length; i < len; i++) {
+			const firstPart = firstParts[i];
+			for (let j = 0, lenJ = chordParts.length; j < lenJ; j++) {
+				const chordPart = chordParts[j];
+
+				result[resultLen++] = new NativeResolvedKeybinding(this, this._OS, firstPart, chordPart);
+			}
+		}
+		return result;
+	}
+
 	private static _charCodeToKb(charCode: number): { keyCode: KeyCode; shiftKey: boolean } {
 		if (charCode < CHAR_CODE_TO_KEY_CODE.length) {
 			return CHAR_CODE_TO_KEY_CODE[charCode];

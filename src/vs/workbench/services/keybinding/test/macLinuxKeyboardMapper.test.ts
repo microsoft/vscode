@@ -11,10 +11,10 @@ import { MacLinuxKeyboardMapper, IMacLinuxKeyboardMapping } from 'vs/workbench/s
 import { OperatingSystem } from 'vs/base/common/platform';
 import { UserSettingsLabelProvider } from 'vs/platform/keybinding/common/keybindingLabels';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
-import { ScanCodeUtils } from 'vs/workbench/services/keybinding/common/scanCode';
+import { ScanCodeUtils, ScanCodeBinding, ScanCode } from 'vs/workbench/services/keybinding/common/scanCode';
 import { IHTMLContentElement } from 'vs/base/common/htmlContent';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { readRawMapping, assertMapping, IResolvedKeybinding, assertResolveKeybinding, simpleHTMLLabel, chordHTMLLabel, assertResolveKeyboardEvent } from 'vs/workbench/services/keybinding/test/keyboardMapperTestUtils';
+import { readRawMapping, assertMapping, IResolvedKeybinding, assertResolveKeybinding, simpleHTMLLabel, chordHTMLLabel, assertResolveKeyboardEvent, assertResolveUserBinding } from 'vs/workbench/services/keybinding/test/keyboardMapperTestUtils';
 
 const WRITE_FILE_IF_DIFFERENT = false;
 
@@ -378,6 +378,27 @@ suite('keyboardMapper - MAC de_ch', () => {
 			}
 		);
 	});
+
+	test('resolveUserBinding Cmd+[Comma] Cmd+/', () => {
+		assertResolveUserBinding(
+			mapper,
+			new ScanCodeBinding(false, false, false, true, ScanCode.Comma),
+			new SimpleKeybinding(false, false, false, true, KeyCode.US_SLASH),
+			[{
+				label: '⌘, ⇧⌘7',
+				ariaLabel: 'Command+, Shift+Command+7',
+				HTMLLabel: [_chordHTMLLabel(['⌘', ','], ['⇧', '⌘', '7'])],
+				electronAccelerator: null,
+				userSettingsLabel: 'cmd+[Comma] shift+cmd+7',
+				isChord: true,
+				hasCtrlModifier: false,
+				hasShiftModifier: false,
+				hasAltModifier: false,
+				hasMetaModifier: false,
+				dispatchParts: ['meta+[Comma]', 'shift+meta+[Digit7]'],
+			}]
+		);
+	});
 });
 
 suite('keyboardMapper - MAC en_us', () => {
@@ -393,6 +414,31 @@ suite('keyboardMapper - MAC en_us', () => {
 
 	test('mapping', (done) => {
 		assertMapping(WRITE_FILE_IF_DIFFERENT, mapper, 'mac_en_us.txt', done);
+	});
+
+	function _chordHTMLLabel(firstPart: string[], chordPart: string[]): IHTMLContentElement {
+		return chordHTMLLabel(firstPart, chordPart, OperatingSystem.Macintosh);
+	}
+
+	test('resolveUserBinding Cmd+[Comma] Cmd+/', () => {
+		assertResolveUserBinding(
+			mapper,
+			new ScanCodeBinding(false, false, false, true, ScanCode.Comma),
+			new SimpleKeybinding(false, false, false, true, KeyCode.US_SLASH),
+			[{
+				label: '⌘, ⌘/',
+				ariaLabel: 'Command+, Command+/',
+				HTMLLabel: [_chordHTMLLabel(['⌘', ','], ['⌘', '/'])],
+				electronAccelerator: null,
+				userSettingsLabel: 'cmd+, cmd+/',
+				isChord: true,
+				hasCtrlModifier: false,
+				hasShiftModifier: false,
+				hasAltModifier: false,
+				hasMetaModifier: false,
+				dispatchParts: ['meta+[Comma]', 'meta+[Slash]'],
+			}]
+		);
 	});
 });
 
@@ -746,6 +792,27 @@ suite('keyboardMapper - LINUX de_ch', () => {
 			}
 		);
 	});
+
+	test('resolveUserBinding Ctrl+[Comma] Ctrl+/', () => {
+		assertResolveUserBinding(
+			mapper,
+			new ScanCodeBinding(true, false, false, false, ScanCode.Comma),
+			new SimpleKeybinding(true, false, false, false, KeyCode.US_SLASH),
+			[{
+				label: 'Ctrl+, Ctrl+Shift+7',
+				ariaLabel: 'Control+, Control+Shift+7',
+				HTMLLabel: [_chordHTMLLabel(['Ctrl', ','], ['Ctrl', 'Shift', '7'])],
+				electronAccelerator: null,
+				userSettingsLabel: 'ctrl+[Comma] ctrl+shift+7',
+				isChord: true,
+				hasCtrlModifier: false,
+				hasShiftModifier: false,
+				hasAltModifier: false,
+				hasMetaModifier: false,
+				dispatchParts: ['ctrl+[Comma]', 'ctrl+shift+[Digit7]'],
+			}]
+		);
+	});
 });
 
 suite('keyboardMapper - LINUX en_us', () => {
@@ -1092,6 +1159,27 @@ suite('keyboardMapper - LINUX en_us', () => {
 				hasAltModifier: false,
 				hasMetaModifier: false,
 				dispatchParts: ['ctrl+[IntlBackslash]', null],
+			}]
+		);
+	});
+
+	test('resolveUserBinding Ctrl+[Comma] Ctrl+/', () => {
+		assertResolveUserBinding(
+			mapper,
+			new ScanCodeBinding(true, false, false, false, ScanCode.Comma),
+			new SimpleKeybinding(true, false, false, false, KeyCode.US_SLASH),
+			[{
+				label: 'Ctrl+, Ctrl+/',
+				ariaLabel: 'Control+, Control+/',
+				HTMLLabel: [_chordHTMLLabel(['Ctrl', ','], ['Ctrl', '/'])],
+				electronAccelerator: null,
+				userSettingsLabel: 'ctrl+, ctrl+/',
+				isChord: true,
+				hasCtrlModifier: false,
+				hasShiftModifier: false,
+				hasAltModifier: false,
+				hasMetaModifier: false,
+				dispatchParts: ['ctrl+[Comma]', 'ctrl+[Slash]'],
 			}]
 		);
 	});
