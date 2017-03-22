@@ -2394,6 +2394,7 @@ declare module 'vscode' {
 		Property = 9,
 		Unit = 10,
 		Value = 11,
+		Constant = 20,
 		Enum = 12,
 		EnumMember = 19,
 		Keyword = 13,
