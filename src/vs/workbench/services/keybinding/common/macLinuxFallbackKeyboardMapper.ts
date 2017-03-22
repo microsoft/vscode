@@ -33,21 +33,12 @@ export interface IMacLinuxKeyboardMapping {
 export class MacLinuxFallbackKeyboardMapper implements IKeyboardMapper {
 
 	/**
-	 * used only for debug purposes.
-	 */
-	private readonly _rawMappings: IMacLinuxKeyboardMapping;
-	/**
 	 * OS (can be Linux or Macintosh)
 	 */
 	private readonly _OS: OperatingSystem;
 
 	constructor(rawMappings: IMacLinuxKeyboardMapping, OS: OperatingSystem) {
-		this._rawMappings = rawMappings;
 		this._OS = OS;
-	}
-
-	public dumpRawDebugInfo(): string {
-		return JSON.stringify(this._rawMappings, null, '\t');
 	}
 
 	public dumpDebugInfo(): string {

@@ -156,28 +156,35 @@ suite('keybindingIO', () => {
 	test('issue #10452 - invalid command', () => {
 		let strJSON = `[{ "key": "ctrl+k ctrl+f", "command": ["firstcommand", "seccondcommand"] }]`;
 		let userKeybinding = <IUserFriendlyKeybinding>JSON.parse(strJSON)[0];
-		let keybindingItem = KeybindingIO.readKeybindingItem(userKeybinding, 0, OS);
+		let keybindingItem = KeybindingIO.readUserKeybindingItem(userKeybinding, 0, OS);
 		assert.equal(keybindingItem.command, null);
 	});
 
 	test('issue #10452 - invalid when', () => {
 		let strJSON = `[{ "key": "ctrl+k ctrl+f", "command": "firstcommand", "when": [] }]`;
 		let userKeybinding = <IUserFriendlyKeybinding>JSON.parse(strJSON)[0];
-		let keybindingItem = KeybindingIO.readKeybindingItem(userKeybinding, 0, OS);
+		let keybindingItem = KeybindingIO.readUserKeybindingItem(userKeybinding, 0, OS);
 		assert.equal(keybindingItem.when, null);
 	});
 
 	test('issue #10452 - invalid key', () => {
 		let strJSON = `[{ "key": [], "command": "firstcommand" }]`;
 		let userKeybinding = <IUserFriendlyKeybinding>JSON.parse(strJSON)[0];
-		let keybindingItem = KeybindingIO.readKeybindingItem(userKeybinding, 0, OS);
+		let keybindingItem = KeybindingIO.readUserKeybindingItem(userKeybinding, 0, OS);
+		assert.equal(keybindingItem.keybinding, null);
+	});
+
+	test('issue #10452 - invalid key 2', () => {
+		let strJSON = `[{ "key": "", "command": "firstcommand" }]`;
+		let userKeybinding = <IUserFriendlyKeybinding>JSON.parse(strJSON)[0];
+		let keybindingItem = KeybindingIO.readUserKeybindingItem(userKeybinding, 0, OS);
 		assert.equal(keybindingItem.keybinding, null);
 	});
 
 	test('test commands args', () => {
 		let strJSON = `[{ "key": "ctrl+k ctrl+f", "command": "firstcommand", "when": [], "args": { "text": "theText" } }]`;
 		let userKeybinding = <IUserFriendlyKeybinding>JSON.parse(strJSON)[0];
-		let keybindingItem = KeybindingIO.readKeybindingItem(userKeybinding, 0, OS);
+		let keybindingItem = KeybindingIO.readUserKeybindingItem(userKeybinding, 0, OS);
 		assert.equal(keybindingItem.commandArgs.text, 'theText');
 	});
 });

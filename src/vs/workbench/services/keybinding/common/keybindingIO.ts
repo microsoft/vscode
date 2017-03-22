@@ -30,7 +30,7 @@ export class KeybindingIO {
 		out.write('}');
 	}
 
-	public static readKeybindingItem(input: IUserFriendlyKeybinding, index: number, OS: OperatingSystem): IKeybindingItem {
+	public static readUserKeybindingItem(input: IUserFriendlyKeybinding, index: number, OS: OperatingSystem): IKeybindingItem {
 		let keybinding: Keybinding = null;
 		if (typeof input.key === 'string') {
 			keybinding = KeybindingIO.readKeybinding(input.key, OS);

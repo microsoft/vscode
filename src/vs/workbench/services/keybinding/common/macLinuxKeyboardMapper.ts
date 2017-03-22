@@ -7,7 +7,7 @@
 
 import { OperatingSystem } from 'vs/base/common/platform';
 import { KeyCode, ResolvedKeybinding, KeyCodeUtils, SimpleKeybinding, Keybinding, KeybindingType, USER_SETTINGS } from 'vs/base/common/keyCodes';
-import { ScanCode, ScanCodeUtils, IMMUTABLE_CODE_TO_KEY_CODE } from 'vs/workbench/services/keybinding/common/scanCode';
+import { ScanCode, ScanCodeUtils, IMMUTABLE_CODE_TO_KEY_CODE, ScanCodeBinding } from 'vs/workbench/services/keybinding/common/scanCode';
 import { CharCode } from 'vs/base/common/charCode';
 import { IHTMLContentElement } from 'vs/base/common/htmlContent';
 import { UILabelProvider, AriaLabelProvider, UserSettingsLabelProvider, ElectronAcceleratorLabelProvider } from 'vs/platform/keybinding/common/keybindingLabels';
@@ -73,30 +73,14 @@ function log(str: string): void {
  */
 const CHAR_CODE_TO_KEY_CODE: { keyCode: KeyCode; shiftKey: boolean }[] = [];
 
-export class ScanCodePress {
-	public readonly ctrlKey: boolean;
-	public readonly shiftKey: boolean;
-	public readonly altKey: boolean;
-	public readonly metaKey: boolean;
-	public readonly scanCode: ScanCode;
-
-	constructor(ctrlKey: boolean, shiftKey: boolean, altKey: boolean, metaKey: boolean, scanCode: ScanCode) {
-		this.ctrlKey = ctrlKey;
-		this.shiftKey = shiftKey;
-		this.altKey = altKey;
-		this.metaKey = metaKey;
-		this.scanCode = scanCode;
-	}
-}
-
 export class NativeResolvedKeybinding extends ResolvedKeybinding {
 
 	private readonly _mapper: MacLinuxKeyboardMapper;
 	private readonly _OS: OperatingSystem;
-	private readonly _firstPart: ScanCodePress;
-	private readonly _chordPart: ScanCodePress;
+	private readonly _firstPart: ScanCodeBinding;
+	private readonly _chordPart: ScanCodeBinding;
 
-	constructor(mapper: MacLinuxKeyboardMapper, OS: OperatingSystem, firstPart: ScanCodePress, chordPart: ScanCodePress) {
+	constructor(mapper: MacLinuxKeyboardMapper, OS: OperatingSystem, firstPart: ScanCodeBinding, chordPart: ScanCodeBinding) {
 		super();
 		this._mapper = mapper;
 		this._OS = OS;
@@ -171,8 +155,8 @@ export class NativeResolvedKeybinding extends ResolvedKeybinding {
 	}
 
 	public getDispatchParts(): [string, string] {
-		let firstPart = this._firstPart ? this._mapper.getDispatchStrForScanCodePress(this._firstPart) : null;
-		let chordPart = this._chordPart ? this._mapper.getDispatchStrForScanCodePress(this._chordPart) : null;
+		let firstPart = this._firstPart ? this._mapper.getDispatchStrForScanCodeBinding(this._firstPart) : null;
+		let chordPart = this._chordPart ? this._mapper.getDispatchStrForScanCodeBinding(this._chordPart) : null;
 		return [firstPart, chordPart];
 	}
 }
@@ -454,10 +438,6 @@ class ScanCodeKeyCodeMapper {
 export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 
 	/**
-	 * used only for debug purposes.
-	 */
-	private readonly _rawMappings: IMacLinuxKeyboardMapping;
-	/**
 	 * OS (can be Linux or Macintosh)
 	 */
 	private readonly _OS: OperatingSystem;
@@ -479,7 +459,6 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 	private readonly _scanCodeToDispatch: string[] = [];
 
 	constructor(rawMappings: IMacLinuxKeyboardMapping, OS: OperatingSystem) {
-		this._rawMappings = rawMappings;
 		this._OS = OS;
 		this._codeInfo = [];
 		this._scanCodeKeyCodeMapper = new ScanCodeKeyCodeMapper();
@@ -588,10 +567,6 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 		this._registerAllCombos1(false, false, false, ScanCode.Digit0, KeyCode.KEY_0);
 
 		this._scanCodeKeyCodeMapper.registrationComplete();
-	}
-
-	public dumpRawDebugInfo(): string {
-		return JSON.stringify(this._rawMappings, null, '\t');
 	}
 
 	public dumpDebugInfo(): string {
@@ -773,15 +748,15 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 		);
 	}
 
-	public simpleKeybindingToScanCodePress(keybinding: SimpleKeybinding): ScanCodePress[] {
+	public simpleKeybindingToScanCodeBinding(keybinding: SimpleKeybinding): ScanCodeBinding[] {
 		const scanCodeCombos = this._scanCodeKeyCodeMapper.lookupKeyCodeCombo(
 			new KeyCodeCombo(keybinding.ctrlKey, keybinding.shiftKey, keybinding.altKey, keybinding.keyCode)
 		);
 
-		let result: ScanCodePress[] = [];
+		let result: ScanCodeBinding[] = [];
 		for (let i = 0, len = scanCodeCombos.length; i < len; i++) {
 			const scanCodeCombo = scanCodeCombos[i];
-			result[i] = new ScanCodePress(scanCodeCombo.ctrlKey, scanCodeCombo.shiftKey, scanCodeCombo.altKey, keybinding.metaKey, scanCodeCombo.scanCode);
+			result[i] = new ScanCodeBinding(scanCodeCombo.ctrlKey, scanCodeCombo.shiftKey, scanCodeCombo.altKey, keybinding.metaKey, scanCodeCombo.scanCode);
 		}
 		return result;
 	}
@@ -806,7 +781,7 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 		return this._scanCodeToLabel[scanCode];
 	}
 
-	public getDispatchStrForScanCodePress(keypress: ScanCodePress): string {
+	public getDispatchStrForScanCodeBinding(keypress: ScanCodeBinding): string {
 		const codeDispatch = this._scanCodeToDispatch[keypress.scanCode];
 		if (!codeDispatch) {
 			return null;
@@ -885,8 +860,8 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 		let result: NativeResolvedKeybinding[] = [], resultLen = 0;
 
 		if (keybinding.type === KeybindingType.Chord) {
-			const firstParts = this.simpleKeybindingToScanCodePress(keybinding.firstPart);
-			const chordParts = this.simpleKeybindingToScanCodePress(keybinding.chordPart);
+			const firstParts = this.simpleKeybindingToScanCodeBinding(keybinding.firstPart);
+			const chordParts = this.simpleKeybindingToScanCodeBinding(keybinding.chordPart);
 
 			for (let i = 0, len = firstParts.length; i < len; i++) {
 				const firstPart = firstParts[i];
@@ -897,7 +872,7 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 				}
 			}
 		} else {
-			const firstParts = this.simpleKeybindingToScanCodePress(keybinding);
+			const firstParts = this.simpleKeybindingToScanCodeBinding(keybinding);
 
 			for (let i = 0, len = firstParts.length; i < len; i++) {
 				const firstPart = firstParts[i];
@@ -910,7 +885,7 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 	}
 
 	public resolveKeyboardEvent(keyboardEvent: IKeyboardEvent): NativeResolvedKeybinding {
-		const keypress = new ScanCodePress(keyboardEvent.ctrlKey, keyboardEvent.shiftKey, keyboardEvent.altKey, keyboardEvent.metaKey, ScanCodeUtils.toEnum(keyboardEvent.code));
+		const keypress = new ScanCodeBinding(keyboardEvent.ctrlKey, keyboardEvent.shiftKey, keyboardEvent.altKey, keyboardEvent.metaKey, ScanCodeUtils.toEnum(keyboardEvent.code));
 		return new NativeResolvedKeybinding(this, this._OS, keypress, null);
 	}
 
