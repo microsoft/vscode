@@ -863,15 +863,16 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 	}
 
 	public requestActiveGroupSizeChange(groupSizeChange: number): boolean {
-		enum VISIBLE_EDITORS {
-			TWO = 2,
-			THREE = 3
-		}
+
+		// enum VISIBLE_EDITORS {
+		// TWO = 2,
+		// THREE = 3
+		// }
 
 		const availableSize = this.totalSize;
 		const visibleEditors = this.getVisibleEditorCount();
 
-		if (visibleEditors <= 1 ) {
+			if (visibleEditors <= 1) {
 			return false; // need more editors
 		}
 
