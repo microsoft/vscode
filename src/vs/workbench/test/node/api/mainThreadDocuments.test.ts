@@ -8,7 +8,7 @@
 import * as assert from 'assert';
 import { BoundModelReferenceCollection } from 'vs/workbench/api/node/mainThreadDocuments';
 import { Model } from 'vs/editor/common/model/model';
-import { TPromise } from "vs/base/common/winjs.base";
+import { TPromise } from 'vs/base/common/winjs.base';
 
 suite('BoundModelReferenceCollection', () => {
 
