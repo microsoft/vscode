@@ -88,6 +88,7 @@ export class RipgrepEngine implements ISearchEngine<ISerializedFileMatch> {
 		});
 
 		this.rgProc.on('close', code => {
+			this.ripgrepParser.flush(); // Get last result
 			this.rgProc = null;
 			// console.log(`closed with ${code}`);
 
@@ -106,8 +107,8 @@ export class RipgrepParser extends EventEmitter {
 	private static RESULT_REGEX = /^\u001b\[m(\d+)\u001b\[m:(.*)$/;
 	private static FILE_REGEX = /^\u001b\[m(.+)\u001b\[m$/;
 
-	private static MATCH_START_MARKER = '\u001b[m\u001b[31m';
-	private static MATCH_END_MARKER = '\u001b[m';
+	public static MATCH_START_MARKER = '\u001b[m\u001b[31m';
+	public static MATCH_END_MARKER = '\u001b[m';
 
 	private fileMatch: FileMatch;
 	private remainder: string;
@@ -123,8 +124,14 @@ export class RipgrepParser extends EventEmitter {
 		this.isDone = true;
 	}
 
+	public flush(): void {
+		if (this.fileMatch) {
+			this.onResult();
+		}
+	}
+
 	public handleData(data: string | Buffer): void {
-		// If the previous data chunk didn't end in a newline, append it to this chunk
+		// If the previous data chunk didn't end in a newline, prepend it to this chunk
 		const dataStr = this.remainder ?
 			this.remainder + data.toString() :
 			data.toString();
@@ -139,23 +146,18 @@ export class RipgrepParser extends EventEmitter {
 			}
 
 			let r: RegExpMatchArray;
-			if (!outputLine) {
-				if (this.fileMatch) {
-					this.onResult();
-				}
-			} else if (r = outputLine.match(RipgrepParser.RESULT_REGEX)) {
+			if (r = outputLine.match(RipgrepParser.RESULT_REGEX)) {
 				// Line is a result - add to collected results for the current file path
 				this.handleMatchLine(outputLine, parseInt(r[1]) - 1, r[2]);
 			} else if (r = outputLine.match(RipgrepParser.FILE_REGEX)) {
 				// Line is a file path - send all collected results for the previous file path
 				if (this.fileMatch) {
-					// TODO@Rob Check fileMatch against other exclude globs
 					this.onResult();
 				}
 
 				this.fileMatch = new FileMatch(path.join(this.rootFolder, r[1]));
 			} else {
-				// Line is malformed
+				// Line is empty (or malformed)
 			}
 		}
 	}
