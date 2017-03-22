@@ -360,7 +360,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		const sameUri = exceptionSf.source.uri.toString() === model.uri.toString();
 		if (this.exceptionWidget && !sameUri) {
 			this.closeExceptionWidget();
-		} else if (sameUri && focusedSf.thread.stoppedDetails && focusedSf.thread.stoppedDetails.reason === 'exception') {
+		} else if (sameUri) {
 			focusedSf.thread.exceptionInfo.then(exceptionInfo => {
 				if (exceptionInfo) {
 					this.showExceptionWidget(exceptionInfo, exceptionSf.lineNumber, exceptionSf.column);
