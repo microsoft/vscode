@@ -553,16 +553,15 @@ export class SearchModel extends Disposable {
 		this._replacePattern = new ReplacePattern(this._replaceString, this._searchQuery.contentPattern);
 
 		const onDone = fromPromise(this.currentRequest);
+		const progressEmitter = new Emitter<void>();
+		const onFirstRender = any(onDone, progressEmitter.event);
+		const onFirstRenderStopwatch = stopwatch(onFirstRender);
+		onFirstRenderStopwatch(duration => this.telemetryService.publicLog('searchResultsFirstRender', { duration }));
+
 		const onDoneStopwatch = stopwatch(onDone);
 		const start = Date.now();
 
 		onDoneStopwatch(duration => this.telemetryService.publicLog('searchResultsFinished', { duration }));
-
-		const progressEmitter = new Emitter<void>();
-		const onFirstRender = any(onDone, progressEmitter.event);
-		const onFirstRenderStopwatch = stopwatch(onFirstRender);
-
-		onFirstRenderStopwatch(duration => this.telemetryService.publicLog('searchResultsFirstRender', { duration }));
 
 		const currentRequest = this.currentRequest;
 		this.currentRequest.then(
