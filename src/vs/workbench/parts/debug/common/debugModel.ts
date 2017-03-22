@@ -19,7 +19,7 @@ import { ISuggestion } from 'vs/editor/common/modes';
 import { Position } from 'vs/editor/common/core/position';
 import {
 	ITreeElement, IExpression, IExpressionContainer, IProcess, IStackFrame, IExceptionBreakpoint, IBreakpoint, IFunctionBreakpoint, IModel,
-	IConfig, ISession, IThread, IRawModelUpdate, IScope, IRawStoppedDetails, IEnablement, IRawBreakpoint
+	IConfig, ISession, IThread, IRawModelUpdate, IScope, IRawStoppedDetails, IEnablement, IRawBreakpoint, IExceptionInfo
 } from 'vs/workbench/parts/debug/common/debug';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -488,6 +488,30 @@ export class Thread implements IThread {
 
 			return [];
 		});
+	}
+
+	/**
+	 * Returns exception info promise if the exception was thrown, otherwise null
+	 */
+	public get exceptionInfo(): TPromise<IExceptionInfo> {
+		const session = this.process.session;
+		if (this.stoppedDetails && this.stoppedDetails.reason === 'exception') {
+			if (!session.capabilities.supportsExceptionInfoRequest) {
+				return TPromise.as({
+					description: this.stoppedDetails.text,
+					breakMode: null
+				});
+			}
+
+			return session.exceptionInfo({ threadId: this.threadId }).then(exception => ({
+				id: exception.body.exceptionId,
+				description: exception.body.description,
+				breakMode: exception.body.breakMode,
+				details: exception.body.details
+			}));
+		}
+
+		return TPromise.as(null);
 	}
 
 	public next(): TPromise<any> {
