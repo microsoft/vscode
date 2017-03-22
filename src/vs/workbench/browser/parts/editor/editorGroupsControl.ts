@@ -862,6 +862,8 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		return ratio;
 	}
 
+	// Request size change on the active editor/group - changes main axis
+
 	public requestActiveGroupSizeChange(groupSizeChange: number): boolean {
 
 		enum VISIBLE_EDITORS {
@@ -880,7 +882,6 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		const activeGroupPosition = this.getActivePosition();
 
 		switch (visibleEditors) {
-
 			case VISIBLE_EDITORS.TWO:
 				switch (activeGroupPosition) {
 					case Position.ONE:
@@ -893,59 +894,35 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 					default:
 						break;
 				}
-
 				break;
-
 			case VISIBLE_EDITORS.THREE:
-
-
-				// let scaleFactor: number = 0;
-				console.log('ThreeEditors');
-
 				let scaleFactor: number = 0;
-				console.log('ThreeEditors');
 
 				switch (activeGroupPosition) {
 					case Position.ONE:
-						console.log('Position one total: ' + availableSize);
 						this.silosSize[Position.ONE] = this.silosSize[Position.ONE] + groupSizeChange;
 						scaleFactor = this.silosSize[Position.TWO] / (this.silosSize[Position.TWO] + this.silosSize[Position.THREE]);
 						this.silosSize[Position.TWO] = scaleFactor * (availableSize - this.silosSize[Position.ONE]);
 						this.silosSize[Position.THREE] = availableSize - this.silosSize[Position.ONE] - this.silosSize[Position.TWO];
-
-						console.log('after re calculation ' + scaleFactor);
-						console.log('s1: '+ this.silosSize[Position.ONE]);
-						console.log('s2: '+ this.silosSize[Position.TWO]);
-						console.log('s3: '+ this.silosSize[Position.THREE]);
-
 						break;
 					case Position.TWO:
-
-						console.log('Position Two total: ' + availableSize);
 						this.silosSize[Position.TWO] = this.silosSize[Position.TWO] + groupSizeChange;
 						scaleFactor = this.silosSize[Position.ONE] / (this.silosSize[Position.ONE] + this.silosSize[Position.THREE]);
 						this.silosSize[Position.ONE] = scaleFactor * (availableSize - this.silosSize[Position.TWO]);
 						this.silosSize[Position.THREE] = availableSize - this.silosSize[Position.ONE] - this.silosSize[Position.TWO];
 						break;
-
 					case Position.THREE:
-						console.log('Position three total: ' + availableSize);
 						this.silosSize[Position.THREE] = this.silosSize[Position.THREE] + groupSizeChange;
 						scaleFactor = this.silosSize[Position.TWO] / (this.silosSize[Position.TWO] + this.silosSize[Position.ONE]);
 						this.silosSize[Position.TWO] = scaleFactor * (availableSize - this.silosSize[Position.THREE]);
 						this.silosSize[Position.ONE] = availableSize - this.silosSize[Position.THREE] - this.silosSize[Position.TWO];
 						break;
-
 					default:
 						break;
 				}
-
-
 			default:
 				break;
-
 		}
-
 		return true;
 	}
 
