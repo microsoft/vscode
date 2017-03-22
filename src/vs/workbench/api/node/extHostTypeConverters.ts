@@ -251,6 +251,7 @@ export const CompletionItemKind = {
 			case types.CompletionItemKind.Property: return 'property';
 			case types.CompletionItemKind.Unit: return 'unit';
 			case types.CompletionItemKind.Value: return 'value';
+			case types.CompletionItemKind.Constant: return 'constant';
 			case types.CompletionItemKind.Enum: return 'enum';
 			case types.CompletionItemKind.EnumMember: return 'enum-member';
 			case types.CompletionItemKind.Keyword: return 'keyword';
