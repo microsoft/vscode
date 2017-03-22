@@ -7,8 +7,7 @@
 
 import 'vs/css!./selections';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { editorSelection, editorInactiveSelection } from 'vs/platform/theme/common/colorRegistry';
-
+import { editorSelection, editorInactiveSelection, highContrastOutline } from 'vs/platform/theme/common/colorRegistry';
 import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { HorizontalRange, LineVisibleRanges, RenderingContext } from 'vs/editor/common/view/renderingContext';
@@ -408,5 +407,11 @@ registerThemingParticipant((theme, collector) => {
 	let editorInactiveSelectionColor = theme.getColor(editorInactiveSelection);
 	if (editorInactiveSelectionColor) {
 		collector.addRule(`.monaco-editor.${theme.selector} .selected-text { background-color: ${editorInactiveSelectionColor}; }`);
+	}
+	// IE/Edge specific rules
+	let outline = theme.getColor(highContrastOutline);
+	if (outline) {
+		collector.addRule(`.monaco-editor.ie.hc-black .view-overlays.focused	.selected-text { background: none; border: 2px solid ${outline}; }`);
+		collector.addRule(`.monaco-editor.edge.hc-black	.view-overlays.focused	.selected-text { background: none; border: 2px solid ${outline}; }`);
 	}
 });
