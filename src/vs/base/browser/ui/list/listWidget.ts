@@ -424,6 +424,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		}
 
 		this.onFocusChange(this._onFocusChange, this, this.disposables);
+		this.onSelectionChange(this._onSelectionChange, this, this.disposables);
 
 		if (options.ariaLabel) {
 			this.view.domNode.setAttribute('aria-label', options.ariaLabel);
@@ -483,6 +484,10 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 	getSelection(): number[] {
 		return this.selection.get();
+	}
+
+	getSelectedElements(): T[] {
+		return this.getSelection().map(i => this.view.element(i));
 	}
 
 	setFocus(indexes: number[]): void {
@@ -618,6 +623,14 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 		this.view.domNode.setAttribute('role', 'tree');
 		DOM.toggleClass(this.view.domNode, 'element-focused', focus.length > 0);
+	}
+
+	private _onSelectionChange(): void {
+		const selection = this.selection.get();
+
+		DOM.toggleClass(this.view.domNode, 'selection-none', selection.length === 0);
+		DOM.toggleClass(this.view.domNode, 'selection-single', selection.length === 1);
+		DOM.toggleClass(this.view.domNode, 'selection-multiple', selection.length > 1);
 	}
 
 	dispose(): void {
