@@ -882,8 +882,6 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		switch (visibleEditors) {
 
 			case VISIBLE_EDITORS.TWO:
-
-
 				switch (activeGroupPosition) {
 					case Position.ONE:
 						this.silosSize[Position.ONE] = this.silosSize[Position.ONE] + groupSizeChange;
@@ -897,10 +895,14 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 				}
 
 				break;
+
 			case VISIBLE_EDITORS.THREE:
 
 
-				let scaleFactor = 0;
+				// let scaleFactor: number = 0;
+				console.log('ThreeEditors');
+
+				let scaleFactor: number = 0;
 				console.log('ThreeEditors');
 
 				switch (activeGroupPosition) {
@@ -937,6 +939,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 					default:
 						break;
 				}
+
 
 			default:
 				break;
