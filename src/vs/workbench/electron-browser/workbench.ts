@@ -1147,7 +1147,23 @@ export class Workbench implements IPartService {
 	public resizePart(part: Parts, sizeChangePx: number, skipLayout?: boolean): TPromise<void> {
 
 		let promise = TPromise.as(null);
-		this.workbenchLayout.setPartSizeChange(part, sizeChangePx);
+		const visibleEditors = this.editorService.getVisibleEditors().length;
+
+		switch (part) {
+			case Parts.SIDEBAR_PART:
+			case Parts.PANEL_PART:
+				this.workbenchLayout.setPartSizeChange(part, sizeChangePx);
+				break;
+			case Parts.EDITOR_PART:
+				if (visibleEditors < 2) {
+					this.workbenchLayout.setPartSizeChange(part, sizeChangePx);
+				} else {
+					this.editorPart.requestActiveGroupSizeChange(sizeChangePx);
+				}
+				break;
+			default:
+				return promise;
+		}
 
 		return promise.then(() => {
 

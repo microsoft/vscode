@@ -557,19 +557,10 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 				return true;
 			case Parts.EDITOR_PART:
 				// If we have one editor we can cheat and resize sidebar with the negative delta
-
-				let visibleEditorCount = this.editorService.getVisibleEditors().length;
+				const visibleEditorCount = this.editorService.getVisibleEditors().length;
 				if (visibleEditorCount === 1) {
 					this.sidebarWidth = this.sidebarWidth - sizeChange;
 					return true;
-				}
-				else {
-					// WIP/TBD
-					// We have multiple editors
-					// determine which one, may be split
-					// resize focused. Expand the right side
-					// for horizontal orientation, bottom for hv.
-					// contract is opposite
 				}
 		}
 		// other parts not resizable, no error just silent

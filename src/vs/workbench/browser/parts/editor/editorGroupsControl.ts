@@ -79,6 +79,12 @@ export interface IEditorGroupsControl {
 	getGroupOrientation(): GroupOrientation;
 
 	getRatio(): number[];
+
+	requestActiveGroupSizeChange(groupSizeChange: number): boolean;
+
+	getSilosSize(): number[];
+	setSilosSize(silosSize: number[]): boolean;
+
 	dispose(): void;
 }
 
@@ -173,6 +179,9 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		this.create();
 
 		this.registerListeners();
+
+		// test constructor calls
+		console.log('editor group control constructor');
 	}
 
 	private get totalSize(): number {
@@ -851,6 +860,90 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		}
 
 		return ratio;
+	}
+
+	public requestActiveGroupSizeChange(groupSizeChange: number): boolean {
+
+		const availableSize = this.totalSize;
+		const visibleEditors = this.getVisibleEditorCount();
+
+		if (visibleEditors <= 1) {
+			return false; // need more editors
+		}
+
+		const activeGroupPosition = this.getActivePosition();
+		console.log('ActiveGroupPosition: ' + activeGroupPosition);
+
+		switch (visibleEditors) {
+			case 2:
+				switch (activeGroupPosition) {
+					case Position.ONE:
+						this.silosSize[Position.ONE] = this.silosSize[Position.ONE] + groupSizeChange;
+						this.silosSize[Position.TWO] = this.totalSize - this.silosSize[Position.ONE];
+
+						break;
+					case Position.TWO:
+						this.silosSize[Position.TWO] = this.silosSize[Position.TWO] + groupSizeChange;
+						this.silosSize[Position.ONE] = this.totalSize - this.silosSize[Position.TWO];
+
+					default:
+						break;
+				}
+
+
+				break;
+			case 3:
+				let scaleFactor = 0;
+				console.log('ThreeEditors');
+				switch (activeGroupPosition) {
+					case Position.ONE:
+						console.log('Position one total: ' + availableSize);
+						this.silosSize[Position.ONE] = this.silosSize[Position.ONE] + groupSizeChange;
+						scaleFactor = this.silosSize[Position.TWO] / (this.silosSize[Position.TWO] + this.silosSize[Position.THREE]);
+						this.silosSize[Position.TWO] = scaleFactor * (availableSize - this.silosSize[Position.ONE]);
+						this.silosSize[Position.THREE] = availableSize - this.silosSize[Position.ONE] - this.silosSize[Position.TWO];
+
+						console.log('after re calculation ' + scaleFactor);
+						console.log('s1: '+ this.silosSize[Position.ONE]);
+						console.log('s2: '+ this.silosSize[Position.TWO]);
+						console.log('s3: '+ this.silosSize[Position.THREE]);
+
+						break;
+					case Position.TWO:
+
+						console.log('Position Two total: ' + availableSize);
+						this.silosSize[Position.TWO] = this.silosSize[Position.TWO] + groupSizeChange;
+						scaleFactor = this.silosSize[Position.ONE] / (this.silosSize[Position.ONE] + this.silosSize[Position.THREE]);
+						this.silosSize[Position.ONE] = scaleFactor * (availableSize - this.silosSize[Position.TWO]);
+						this.silosSize[Position.THREE] = availableSize - this.silosSize[Position.ONE] - this.silosSize[Position.TWO];
+						break;
+
+					case Position.THREE:
+						console.log('Position three total: ' + availableSize);
+						this.silosSize[Position.THREE] = this.silosSize[Position.THREE] + groupSizeChange;
+						scaleFactor = this.silosSize[Position.TWO] / (this.silosSize[Position.TWO] + this.silosSize[Position.ONE]);
+						this.silosSize[Position.TWO] = scaleFactor * (availableSize - this.silosSize[Position.THREE]);
+						this.silosSize[Position.ONE] = availableSize - this.silosSize[Position.THREE] - this.silosSize[Position.TWO];
+						break;
+					default:
+						break;
+				}
+
+			default:
+				break;
+		}
+
+		return true;
+	}
+
+
+	public getSilosSize(): number[] {
+		return this.silosSize;
+	}
+
+	public setSilosSize(silosSize: number[]): boolean {
+		this.silosSize = silosSize;
+		return true;
 	}
 
 	public getActiveEditor(): BaseEditor {

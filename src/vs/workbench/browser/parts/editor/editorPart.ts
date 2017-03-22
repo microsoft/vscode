@@ -238,6 +238,23 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		this._onTabOptionsChanged.fire(this.tabOptions);
 	}
 
+	public requestActiveGroupSizeChange(groupSizeChange: number): boolean {
+		this.editorGroupsControl.requestActiveGroupSizeChange(groupSizeChange);
+		this.editorGroupsControl.layout(this.dimension);
+		return true;
+	}
+
+	public getSilosSize(): number[] {
+		console.log('dimension: ' + this.dimension);
+		return this.editorGroupsControl.getSilosSize();
+	}
+
+	public setSilosSize(silosSize: number[]): boolean {
+		this.editorGroupsControl.setSilosSize(silosSize);
+		this.editorGroupsControl.layout(this.dimension);
+		return true;
+	}
+
 	public get onEditorsChanged(): Event<void> {
 		return this._onEditorsChanged.event;
 	}
