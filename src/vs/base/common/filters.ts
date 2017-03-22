@@ -401,6 +401,10 @@ export function fuzzyMatchAndScore(pattern: string, word: string): [number, numb
 		return [-1, []];
 	}
 
+	if (pattern.length > word.length) {
+		return undefined;
+	}
+
 	let matches: number[] = [];
 	let score = _matchRecursive(
 		pattern, pattern.toLowerCase(), pattern.toUpperCase(), 0,
