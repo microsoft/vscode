@@ -6,7 +6,6 @@
 import * as nls from 'vs/nls';
 import * as pfs from 'vs/base/node/pfs';
 import * as platform from 'vs/base/common/platform';
-import * as processes from 'vs/base/node/processes';
 import product from 'vs/platform/node/product';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -73,10 +72,6 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 
 	private _chooseWindowsExecutable(): TPromise<string> {
 		return this._detectWindowsShells().then(shells => {
-			if (shells.length === 0) {
-				// No shells were detected, fallback
-				return processes.getWindowsShell();
-			}
 			const options: IPickOptions = {
 				placeHolder: nls.localize('terminal.integrated.chooseWindowsShell', "Select your preferred terminal shell, you can change this later in your settings")
 			};
