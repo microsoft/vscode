@@ -141,6 +141,7 @@ export interface ITerminalService {
 	hidePanel(): void;
 	setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
 	updateConfig(): void;
+	selectDefaultWindowsShell(): TPromise<string>;
 }
 
 export interface ITerminalInstance {
