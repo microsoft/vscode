@@ -6,6 +6,8 @@
 'use strict';
 
 import 'vs/css!./lineNumbers';
+import { editorLineNumbers } from "vs/editor/common/view/editorColorRegistry";
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import * as platform from 'vs/base/common/platform';
 import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
 import { ClassNames } from 'vs/editor/browser/editorBrowser';
@@ -136,3 +138,12 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 		return this._renderResult[lineIndex];
 	}
 }
+
+// theming
+
+registerThemingParticipant((theme, collector) => {
+	let lineNumbers = theme.getColor(editorLineNumbers);
+	if (lineNumbers) {
+		collector.addRule(`.monaco-editor.${theme.selector} .line-numbers { color: ${lineNumbers}; }`);
+	}
+});
