@@ -28,8 +28,8 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IListService } from 'vs/platform/list/browser/listService';
-import { IMenuService } from 'vs/platform/actions/common/actions';
-import { IAction, IActionItem } from 'vs/base/common/actions';
+import { IMenuService, MenuItemAction } from 'vs/platform/actions/common/actions';
+import { IAction, IActionItem, ActionRunner } from 'vs/base/common/actions';
 import { createActionItem } from 'vs/platform/actions/browser/menuItemActionItem';
 import { SCMMenus } from './scmMenus';
 import { ActionBar, IActionItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -37,10 +37,8 @@ import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/them
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { comparePaths } from 'vs/base/common/comparers';
-
-function isSCMResource(element: ISCMResourceGroup | ISCMResource): element is ISCMResource {
-	return !!(element as ISCMResource).uri;
-}
+import URI from 'vs/base/common/uri';
+import { isSCMResource, getSCMResourceURI } from './scmUtil';
 
 function getElementId(element: ISCMResourceGroup | ISCMResource) {
 	if (isSCMResource(element)) {
@@ -109,6 +107,7 @@ class ResourceRenderer implements IRenderer<ISCMResource, ResourceTemplate> {
 	constructor(
 		private scmMenus: SCMMenus,
 		private actionItemProvider: IActionItemProvider,
+		private getSelectedResources: () => URI[],
 		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) { }
@@ -118,7 +117,26 @@ class ResourceRenderer implements IRenderer<ISCMResource, ResourceTemplate> {
 		const name = append(element, $('.name'));
 		const fileLabel = this.instantiationService.createInstance(FileLabel, name, void 0);
 		const actionsContainer = append(element, $('.actions'));
-		const actionBar = new ActionBar(actionsContainer, { actionItemProvider: this.actionItemProvider });
+		const getSelectedResources = this.getSelectedResources;
+		const actionBar = new ActionBar(actionsContainer, {
+			actionItemProvider: this.actionItemProvider,
+			actionRunner: new class extends ActionRunner {
+				runAction(action: IAction, context?: any): TPromise<any> {
+					if (action instanceof MenuItemAction) {
+						const selection = getSelectedResources();
+
+						if (selection.length > 1) {
+							return action.run(...getSelectedResources());
+						} else {
+							return action.run();
+						}
+					}
+
+					return super.runAction(action, context);
+				}
+			}
+		});
+
 		const decorationIcon = append(element, $('.decoration-icon'));
 
 		return { name, fileLabel, decorationIcon, actionBar };
@@ -166,6 +184,7 @@ export class SCMViewlet extends Viewlet {
 	private listContainer: HTMLElement;
 	private list: List<ISCMResourceGroup | ISCMResource>;
 	private menus: SCMMenus;
+	private activeProviderId: string | undefined;
 	private providerChangeDisposable: IDisposable = EmptyDisposable;
 	private disposables: IDisposable[] = [];
 
@@ -192,6 +211,7 @@ export class SCMViewlet extends Viewlet {
 
 	private setActiveProvider(activeProvider: ISCMProvider | undefined): void {
 		this.providerChangeDisposable.dispose();
+		this.activeProviderId = activeProvider ? activeProvider.id : undefined;
 
 		if (activeProvider) {
 			this.providerChangeDisposable = activeProvider.onDidChange(this.update, this);
@@ -227,9 +247,11 @@ export class SCMViewlet extends Viewlet {
 		const delegate = new Delegate();
 
 		const actionItemProvider = action => this.getActionItem(action);
+		const getSelectedResources = () => this.list.getSelectedElements().map(r => getSCMResourceURI(this.activeProviderId, r));
+
 		const renderers = [
 			new ResourceGroupRenderer(this.menus, actionItemProvider),
-			this.instantiationService.createInstance(ResourceRenderer, this.menus, actionItemProvider),
+			this.instantiationService.createInstance(ResourceRenderer, this.menus, actionItemProvider, getSelectedResources),
 		];
 
 		this.list = new List(this.listContainer, delegate, renderers, {

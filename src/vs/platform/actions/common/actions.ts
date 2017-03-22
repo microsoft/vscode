@@ -174,8 +174,12 @@ export class MenuItemAction extends ExecuteCommandAction {
 		this.alt = alt ? new MenuItemAction(alt, undefined, arg, commandService) : undefined;
 	}
 
-	run(): TPromise<any> {
-		return super.run(this._arg);
+	run(...args: any[]): TPromise<any> {
+		if (this._arg) {
+			return super.run(this._arg, ...args);
+		} else {
+			return super.run(...args);
+		}
 	}
 }
 
