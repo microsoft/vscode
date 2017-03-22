@@ -268,6 +268,10 @@ class MouseController<T> implements IDisposable {
 	}
 
 	private onMouseDown(e: IListMouseEvent<T>) {
+		if (platform.isMacintosh ? e.altKey : e.ctrlKey) {
+			return this.onPointer(e);
+		}
+
 		e.preventDefault();
 		e.stopPropagation();
 	}
