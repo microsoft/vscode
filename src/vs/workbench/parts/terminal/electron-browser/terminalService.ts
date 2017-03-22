@@ -49,7 +49,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		this._configHelper = this._instantiationService.createInstance(TerminalConfigHelper, platform.platform);
 	}
 
-	public createInstance(shell: IShellLaunchConfig = {}): ITerminalInstance {
+	public createInstance(shell: IShellLaunchConfig = {}, wasNewTerminalAction?: boolean): ITerminalInstance {
 		let terminalInstance = this._instantiationService.createInstance(TerminalInstance,
 			this._terminalFocusContextKey,
 			this._configHelper,
@@ -64,13 +64,19 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 			this.setActiveInstanceByIndex(0);
 		}
 		this._onInstancesChanged.fire();
-		this._suggestShellChange();
+		this._suggestShellChange(wasNewTerminalAction);
 		return terminalInstance;
 	}
 
-	private _suggestShellChange(): void {
+	private _suggestShellChange(wasNewTerminalAction?: boolean): void {
 		// Only suggest on Windows since $SHELL works great for macOS/Linux
 		if (!platform.isWindows) {
+			return;
+		}
+
+		// Only suggest when the terminal instance is being created by an explicit user action to
+		// launch a terminal, as opposed to something like tasks, debug, panel restore, etc.
+		if (!wasNewTerminalAction) {
 			return;
 		}
 
@@ -82,7 +88,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 
 		// Never suggest if the setting is non-default already (ie. they set the setting manually)
 		if (this._configHelper.config.shell.windows !== TERMINAL_DEFAULT_SHELL_WINDOWS) {
-			this._storageService.store('terminal.neverSuggestSelectWindowsShell', false);
+			this._storageService.store('terminal.neverSuggestSelectWindowsShell', true);
 			return;
 		}
 
@@ -95,7 +101,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 				case 1:
 					return TPromise.as(null);
 				case 2:
-					this._storageService.store('terminal.neverSuggestSelectWindowsShell', false);
+					this._storageService.store('terminal.neverSuggestSelectWindowsShell', true);
 				default:
 					return TPromise.as(null);
 			}
@@ -162,9 +168,9 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		});
 	}
 
-	public getActiveOrCreateInstance(): ITerminalInstance {
+	public getActiveOrCreateInstance(wasNewTerminalAction?: boolean): ITerminalInstance {
 		const activeInstance = this.getActiveInstance();
-		return activeInstance ? activeInstance : this.createInstance();
+		return activeInstance ? activeInstance : this.createInstance(undefined, wasNewTerminalAction);
 	}
 
 	protected _showTerminalCloseConfirmation(): boolean {

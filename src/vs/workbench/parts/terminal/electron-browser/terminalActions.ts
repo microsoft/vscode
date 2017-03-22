@@ -24,9 +24,19 @@ export class ToggleTerminalAction extends TogglePanelAction {
 	constructor(
 		id: string, label: string,
 		@IPanelService panelService: IPanelService,
-		@IPartService partService: IPartService
+		@IPartService partService: IPartService,
+		@ITerminalService private terminalService: ITerminalService
 	) {
 		super(id, label, TERMINAL_PANEL_ID, panelService, partService);
+	}
+
+	public run(event?: any): TPromise<any> {
+		if (this.terminalService.terminalInstances.length === 0) {
+			// If there is not yet an instance attempt to create it here so that we can suggest a
+			// new shell on Windows (and not do so when the panel is restored on reload).
+			const instance = this.terminalService.createInstance(undefined, true);
+		}
+		return super.run();
 	}
 }
 
@@ -96,7 +106,7 @@ export class CreateNewTerminalAction extends Action {
 	}
 
 	public run(event?: any): TPromise<any> {
-		const instance = this.terminalService.createInstance();
+		const instance = this.terminalService.createInstance(undefined, true);
 		if (!instance) {
 			return TPromise.as(void 0);
 		}
@@ -118,7 +128,7 @@ export class FocusActiveTerminalAction extends Action {
 	}
 
 	public run(event?: any): TPromise<any> {
-		const instance = this.terminalService.getActiveOrCreateInstance();
+		const instance = this.terminalService.getActiveOrCreateInstance(true);
 		if (!instance) {
 			return TPromise.as(void 0);
 		}
