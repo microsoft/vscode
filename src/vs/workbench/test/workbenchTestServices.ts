@@ -914,6 +914,9 @@ export class TestWindowsService implements IWindowsService {
 	removeFromRecentlyOpen(paths: string[]): TPromise<void> {
 		return TPromise.as(void 0);
 	}
+	clearRecentPathsList(): TPromise<void> {
+		return TPromise.as(void 0);
+	}
 	getRecentlyOpen(windowId: number): TPromise<{ files: string[]; folders: string[]; }> {
 		return TPromise.as(void 0);
 	}
