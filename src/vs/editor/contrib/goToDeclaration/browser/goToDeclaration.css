@@ -26,11 +26,6 @@
 .monaco-editor .goto-definition-link {
 	text-decoration: underline;
 	cursor: pointer;
-	color: blue !important;
-}
-
-.monaco-editor.vs-dark .goto-definition-link {
-	color: #4E94CE !important;
 }
 
 .monaco-editor .goto-definition-link-hover {

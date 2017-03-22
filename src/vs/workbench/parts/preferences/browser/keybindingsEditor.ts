@@ -21,7 +21,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService, KeybindingSource, IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
 import { SearchWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { DefineKeybindingWidget } from 'vs/workbench/parts/preferences/browser/keybindingWidgets';
-import { IPreferencesService, IKeybindingsEditor, CONTEXT_KEYBINDING_FOCUS, CONTEXT_KEYBINDINGS_EDITOR, KEYBINDINGS_EDITOR_COMMAND_REMOVE, KEYBINDINGS_EDITOR_COMMAND_COPY } from 'vs/workbench/parts/preferences/common/preferences';
+import { IPreferencesService, IKeybindingsEditor, CONTEXT_KEYBINDING_FOCUS, CONTEXT_KEYBINDINGS_EDITOR, KEYBINDINGS_EDITOR_COMMAND_REMOVE, KEYBINDINGS_EDITOR_COMMAND_COPY, KEYBINDINGS_EDITOR_COMMAND_RESET } from 'vs/workbench/parts/preferences/common/preferences';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { renderHtml } from 'vs/base/browser/htmlContentRenderer';
 import { IKeybindingEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
@@ -180,10 +180,25 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 	removeKeybinding(keybindingEntry: IKeybindingItemEntry): TPromise<any> {
 		if (keybindingEntry.keybindingItem.keybinding) { // This should be a pre-condition
 			const options: string[] = [localize('ok', "Ok"), localize('cancel', "Cancel")];
-			return this.choiceService.choose(Severity.Info, localize('confirmRemove', "Remove keybinding '{0}' from command '{1}'", keybindingEntry.keybindingItem.keybinding.getAriaLabel(), keybindingEntry.keybindingItem.commandLabel || keybindingEntry.keybindingItem.commandLabel), options, true)
+			return this.choiceService.choose(Severity.Info, localize('confirmRemove', "Remove keybinding '{0}' from command '{1}'", keybindingEntry.keybindingItem.keybinding.getAriaLabel(), keybindingEntry.keybindingItem.commandLabel || keybindingEntry.keybindingItem.command), options, true)
 				.then(option => {
 					if (option === 0) {
 						return this.keybindingEditingService.removeKeybinding(keybindingEntry.keybindingItem.keybindingItem);
+					}
+					return null;
+				})
+				.then(() => this.focus());
+		}
+		return TPromise.as(null);
+	}
+
+	resetKeybinding(keybindingEntry: IKeybindingItemEntry): TPromise<any> {
+		if (keybindingEntry.keybindingItem.keybinding) { // This should be a pre-condition
+			const options: string[] = [localize('ok', "Ok"), localize('cancel', "Cancel")];
+			return this.choiceService.choose(Severity.Info, localize('confirmReset', "Reset keybinding for command '{0}'", keybindingEntry.keybindingItem.commandLabel || keybindingEntry.keybindingItem.command), options, true)
+				.then(option => {
+					if (option === 0) {
+						return this.keybindingEditingService.resetKeybinding(keybindingEntry.keybindingItem.keybindingItem);
 					}
 					return null;
 				})
@@ -304,7 +319,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		if (e.element.templateId === KEYBINDING_ENTRY_TEMPLATE_ID) {
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => e.anchor,
-				getActions: () => TPromise.as([this.createCopyAction(<IKeybindingItemEntry>e.element), new Separator(), this.createRemoveAction(<IKeybindingItemEntry>e.element)]),
+				getActions: () => TPromise.as([this.createCopyAction(<IKeybindingItemEntry>e.element), new Separator(), this.createRemoveAction(<IKeybindingItemEntry>e.element), this.createResetAction(<IKeybindingItemEntry>e.element)]),
 				getKeyBinding: (action) => this.keybindingsService.lookupKeybinding(action.id)
 			});
 		}
@@ -331,6 +346,15 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 			enabled: !!keybindingItem.keybindingItem.keybinding,
 			id: KEYBINDINGS_EDITOR_COMMAND_REMOVE,
 			run: () => this.removeKeybinding(keybindingItem)
+		};
+	}
+
+	private createResetAction(keybindingItem: IKeybindingItemEntry): IAction {
+		return <IAction>{
+			label: localize('resetLabel', "Reset Keybinding"),
+			enabled: !!keybindingItem.keybindingItem.keybinding && keybindingItem.keybindingItem.source === KeybindingSource.User,
+			id: KEYBINDINGS_EDITOR_COMMAND_RESET,
+			run: () => this.resetKeybinding(keybindingItem)
 		};
 	}
 

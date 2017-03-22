@@ -19,7 +19,7 @@ import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
 import { OS } from 'vs/base/common/platform';
-import { Keybinding } from "vs/base/common/keyCodes";
+import { Keybinding } from 'vs/base/common/keyCodes';
 
 suite('Search Actions', () => {
 

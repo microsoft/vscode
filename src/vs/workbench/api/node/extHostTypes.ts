@@ -66,7 +66,7 @@ export class Position {
 		if (other instanceof Position) {
 			return true;
 		}
-		let {line, character} = <Position>other;
+		let { line, character } = <Position>other;
 		if (typeof line === 'number' && typeof character === 'number') {
 			return true;
 		}
@@ -836,6 +836,7 @@ export enum CompletionItemKind {
 	Unit = 10,
 	Value = 11,
 	Enum = 12,
+	EnumMember = 19,
 	Keyword = 13,
 	Snippet = 14,
 	Color = 15,

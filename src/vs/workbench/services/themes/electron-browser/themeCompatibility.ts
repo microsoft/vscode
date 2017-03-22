@@ -10,9 +10,8 @@ import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
 import * as editorColorRegistry from 'vs/editor/common/view/editorColorRegistry';
 import * as wordHighlighter from 'vs/editor/contrib/wordHighlighter/common/wordHighlighter';
 import { ansiColorIdentifiers } from 'vs/workbench/parts/terminal/electron-browser/terminalColorRegistry';
-import { editorHoverHighlight } from "vs/editor/contrib/hover/browser/hover";
-import { referencesReferenceHighlight, referencesFindMatchHighlight } from "vs/editor/contrib/referenceSearch/browser/referencesWidget";
-
+import { editorHoverHighlight } from 'vs/editor/contrib/hover/browser/hover';
+import { editorPeekReferenceHighlight, editorPeekFindMatchHighlight } from 'vs/editor/contrib/referenceSearch/browser/referencesWidget';
 
 const settingToColorIdMapping: { [settingId: string]: string[] } = {};
 function addSettingMapping(settingId: string, colorId: string) {
@@ -58,10 +57,10 @@ addSettingMapping('hoverHighlight', editorHoverHighlight);
 addSettingMapping('hoverHighlight', editorHoverHighlight);
 addSettingMapping('linkForeground', colorRegistry.editorLinkForeground);
 addSettingMapping('wordHighlight', wordHighlighter.editorWordHighlight);
-addSettingMapping('wordHighlightStrong', wordHighlighter.editorWordHighlightString);
+addSettingMapping('wordHighlightStrong', wordHighlighter.editorWordHighlightStrong);
 addSettingMapping('findRangeHighlight', colorRegistry.editorFindRangeHighlight);
-addSettingMapping('findMatchHighlight', referencesFindMatchHighlight);
-addSettingMapping('referenceHighlight', referencesReferenceHighlight);
+addSettingMapping('findMatchHighlight', editorPeekFindMatchHighlight);
+addSettingMapping('referenceHighlight', editorPeekReferenceHighlight);
 addSettingMapping('lineHighlight', editorColorRegistry.editorLineHighlight);
 addSettingMapping('rangeHighlight', editorColorRegistry.editorRangeHighlight);
 addSettingMapping('caret', editorColorRegistry.editorCursor);

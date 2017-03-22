@@ -43,7 +43,7 @@ export class MainThreadOutputService extends MainThreadOutputServiceShape {
 	}
 
 	private _getChannel(channelId: string, label: string): IOutputChannel {
-		if (Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).getChannels().every(channel => channel.id !== channelId)) {
+		if (!Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).getChannel(channelId)) {
 			Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).registerChannel(channelId, label);
 		}
 

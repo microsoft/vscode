@@ -247,7 +247,7 @@ export class MarkersPanel extends Panel {
 		if (resourceForCurrentActiveFile) {
 			return false;
 		}
-		return changedResources.some(r => isEqual(r, this.currentActiveFile));
+		return changedResources.some(r => r.toString() === this.currentActiveFile.toString());
 	}
 
 	private onEditorsChanged(): void {
@@ -334,7 +334,7 @@ export class MarkersPanel extends Panel {
 	private getResourceForCurrentActiveFile(): Resource {
 		if (this.currentActiveFile) {
 			let resources = this.markersModel.filteredResources.filter((resource): boolean => {
-				return isEqual(this.currentActiveFile, resource.uri);
+				return this.currentActiveFile.toString() === resource.uri.toString();
 			});
 			return resources.length > 0 ? resources[0] : null;
 		}

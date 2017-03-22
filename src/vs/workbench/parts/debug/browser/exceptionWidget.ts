@@ -9,13 +9,13 @@ import * as dom from 'vs/base/browser/dom';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IDebugService } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, IExceptionInfo } from 'vs/workbench/parts/debug/common/debug';
 import { RunOnceScheduler } from 'vs/base/common/async';
 const $ = dom.$;
 
 export class ExceptionWidget extends ZoneWidget {
 
-	constructor(editor: ICodeEditor, private lineNumber: number,
+	constructor(editor: ICodeEditor, private exceptionInfo: IExceptionInfo, private lineNumber: number,
 		@IContextViewService private contextViewService: IContextViewService,
 		@IDebugService private debugService: IDebugService
 	) {
@@ -35,15 +35,38 @@ export class ExceptionWidget extends ZoneWidget {
 		this.container.style.lineHeight = `${fontInfo.lineHeight}px`;
 
 		let title = $('.title');
-		title.textContent = nls.localize('exceptionThrown', 'Exception occurred');
-		dom.append(container, title);
+		let msg = $('.message');
+		const defaultConditionMessage = nls.localize('exceptionThrown', 'Exception has occurred.');
 
-		const thread = this.debugService.getViewModel().focusedThread;
-		if (thread && thread.stoppedDetails) {
-			let msg = $('.message');
-			msg.textContent = thread.stoppedDetails.text;
-			dom.append(container, msg);
+		if (this.exceptionInfo.breakMode) {
+			let conditionMessage;
+			switch (this.exceptionInfo.breakMode) {
+				case 'never':
+					conditionMessage = nls.localize('neverException', 'User-handled exception has occurred.');
+					break;
+				case 'always':
+					conditionMessage = nls.localize('alwaysException', 'Always-breaking exception has occurred.');
+					break;
+				case 'unhandled':
+					conditionMessage = nls.localize('unhandledException', 'Unhandled exception has occurred.');
+					break;
+				case 'userUnhandled':
+					conditionMessage = nls.localize('userUnhandledException', 'User-unhandled exception has occurred.');
+					break;
+				default:
+					conditionMessage = defaultConditionMessage;
+					break;
+			}
+
+			title.textContent = `${conditionMessage} ${this.exceptionInfo.description}`;
+			msg.textContent = this.exceptionInfo.details.stackTrace;
+		} else {
+			title.textContent = defaultConditionMessage;
+			msg.textContent = this.exceptionInfo.description;
 		}
+
+		dom.append(container, title);
+		dom.append(container, msg);
 	}
 
 	protected _doLayout(heightInPixel: number, widthInPixel: number): void {

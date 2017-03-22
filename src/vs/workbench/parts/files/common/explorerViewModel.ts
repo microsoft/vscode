@@ -12,6 +12,7 @@ import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorIn
 import { IEditorInput } from 'vs/platform/editor/common/editor';
 import { IEditorGroup, toResource } from 'vs/workbench/common/editor';
 import { ResourceMap } from 'vs/base/common/map';
+import { isLinux } from 'vs/base/common/platform';
 
 export enum StatType {
 	FILE,
@@ -61,7 +62,7 @@ export class FileStat implements IFileStat {
 			// the folder is fully resolved if either it has a list of children or the client requested this by using the resolveTo
 			// array of resource path to resolve.
 			stat.isDirectoryResolved = !!raw.children || (!!resolveTo && resolveTo.some((r) => {
-				return isEqualOrParent(r.fsPath, stat.resource.fsPath);
+				return isEqualOrParent(r.fsPath, stat.resource.fsPath, !isLinux /* ignorecase */);
 			}));
 
 			// Recurse into children
@@ -241,7 +242,7 @@ export class FileStat implements IFileStat {
 	public find(resource: URI): FileStat {
 
 		// Return if path found
-		if (isEqual(resource.fsPath, this.resource.fsPath)) {
+		if (isEqual(resource.fsPath, this.resource.fsPath, !isLinux /* ignorecase */)) {
 			return this;
 		}
 
@@ -253,11 +254,11 @@ export class FileStat implements IFileStat {
 		for (let i = 0; i < this.children.length; i++) {
 			const child = this.children[i];
 
-			if (isEqual(resource.fsPath, child.resource.fsPath)) {
+			if (isEqual(resource.fsPath, child.resource.fsPath, !isLinux /* ignorecase */)) {
 				return child;
 			}
 
-			if (child.isDirectory && isParent(resource.fsPath, child.resource.fsPath)) {
+			if (child.isDirectory && isParent(resource.fsPath, child.resource.fsPath, !isLinux /* ignorecase */)) {
 				return child.find(resource);
 			}
 		}

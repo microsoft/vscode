@@ -60,16 +60,21 @@
 	background-position: 50% 50%;
 }
 
+.scm-viewlet .monaco-list .monaco-list-row > .resource > .actions {
+	display: none;
+}
+
+.scm-viewlet .monaco-list .monaco-list-row.selected > .resource > .actions,
+.scm-viewlet .monaco-list:not(.selection-multiple) .monaco-list-row > .resource:hover > .actions {
+	display: block;
+}
+
 .scm-viewlet .monaco-list-row > .resource > .actions .action-label,
 .scm-viewlet .monaco-list-row > .resource-group > .actions .action-label {
 	width: 16px;
 	height: 100%;
 	background-position: 50% 50%;
 	background-repeat: no-repeat;
-}
-
-.scm-viewlet .monaco-list-row:not(.selected) > .resource:not(:hover) > .actions {
-	display: none;
 }
 
 .scm-viewlet > .scm-editor {
