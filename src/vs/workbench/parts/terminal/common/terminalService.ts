@@ -60,8 +60,8 @@ export abstract class TerminalService implements ITerminalService {
 	}
 
 	protected abstract _showTerminalCloseConfirmation(): boolean;
-	public abstract createInstance(shell?: IShellLaunchConfig): TPromise<ITerminalInstance>;
-	public abstract getActiveOrCreateInstance(shell?: IShellLaunchConfig): TPromise<ITerminalInstance>;
+	public abstract createInstance(shell?: IShellLaunchConfig): ITerminalInstance;
+	public abstract getActiveOrCreateInstance(shell?: IShellLaunchConfig): ITerminalInstance;
 	public abstract setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
 
 	private _onWillShutdown(): boolean {

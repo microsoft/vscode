@@ -41,36 +41,26 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		this._configHelper = this._instantiationService.createInstance(TerminalConfigHelper, platform.platform);
 	}
 
-	public createInstance(shell: IShellLaunchConfig = {}): TPromise<ITerminalInstance> {
-		console.log('shell.executable: ' + shell.executable);
-		// TODO: Display message in terminal panel when no shell is selected
-		// TODO: Only choose executable on Windows
-		const executableReadyPromise = shell.executable ? TPromise.as(shell.executable) : this._chooseWindowsExecutable();
-		return executableReadyPromise.then(executable => {
-			if (!executable) {
-				// Silently cancel if no shell is selected by the user
-				return TPromise.as(null);
-			}
-			shell.executable = executable;
-			let terminalInstance = this._instantiationService.createInstance(TerminalInstance,
-				this._terminalFocusContextKey,
-				this._configHelper,
-				this._terminalContainer,
-				shell);
-			terminalInstance.addDisposable(terminalInstance.onTitleChanged(this._onInstanceTitleChanged.fire, this._onInstanceTitleChanged));
-			terminalInstance.addDisposable(terminalInstance.onDisposed(this._onInstanceDisposed.fire, this._onInstanceDisposed));
-			terminalInstance.addDisposable(terminalInstance.onProcessIdReady(this._onInstanceProcessIdReady.fire, this._onInstanceProcessIdReady));
-			this.terminalInstances.push(terminalInstance);
-			if (this.terminalInstances.length === 1) {
-				// It's the first instance so it should be made active automatically
-				this.setActiveInstanceByIndex(0);
-			}
-			this._onInstancesChanged.fire();
-			return TPromise.as(terminalInstance);
-		});
+	public createInstance(shell: IShellLaunchConfig = {}): ITerminalInstance {
+		// TODO: Inform user of possibility to change shell on Windows
+		let terminalInstance = this._instantiationService.createInstance(TerminalInstance,
+			this._terminalFocusContextKey,
+			this._configHelper,
+			this._terminalContainer,
+			shell);
+		terminalInstance.addDisposable(terminalInstance.onTitleChanged(this._onInstanceTitleChanged.fire, this._onInstanceTitleChanged));
+		terminalInstance.addDisposable(terminalInstance.onDisposed(this._onInstanceDisposed.fire, this._onInstanceDisposed));
+		terminalInstance.addDisposable(terminalInstance.onProcessIdReady(this._onInstanceProcessIdReady.fire, this._onInstanceProcessIdReady));
+		this.terminalInstances.push(terminalInstance);
+		if (this.terminalInstances.length === 1) {
+			// It's the first instance so it should be made active automatically
+			this.setActiveInstanceByIndex(0);
+		}
+		this._onInstancesChanged.fire();
+		return terminalInstance;
 	}
 
-	private _chooseWindowsExecutable(): TPromise<string> {
+	public chooseWindowsShell(): TPromise<string> {
 		return this._detectWindowsShells().then(shells => {
 			const options: IPickOptions = {
 				placeHolder: nls.localize('terminal.integrated.chooseWindowsShell', "Select your preferred terminal shell, you can change this later in your settings")
@@ -125,9 +115,9 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		});
 	}
 
-	public getActiveOrCreateInstance(): TPromise<ITerminalInstance> {
+	public getActiveOrCreateInstance(): ITerminalInstance {
 		const activeInstance = this.getActiveInstance();
-		return activeInstance ? TPromise.as(activeInstance) : this.createInstance();
+		return activeInstance ? activeInstance : this.createInstance();
 	}
 
 	protected _showTerminalCloseConfirmation(): boolean {

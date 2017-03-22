@@ -96,14 +96,12 @@ export class CreateNewTerminalAction extends Action {
 	}
 
 	public run(event?: any): TPromise<any> {
-		return this.terminalService.createInstance().then(instance => {
-			console.log(instance);
-			if (!instance) {
-				return TPromise.as(void 0);
-			}
-			this.terminalService.setActiveInstance(instance);
-			return this.terminalService.showPanel(true);
-		});
+		const instance = this.terminalService.createInstance();
+		if (!instance) {
+			return TPromise.as(void 0);
+		}
+		this.terminalService.setActiveInstance(instance);
+		return this.terminalService.showPanel(true);
 	}
 }
 
@@ -120,13 +118,12 @@ export class FocusActiveTerminalAction extends Action {
 	}
 
 	public run(event?: any): TPromise<any> {
-		return this.terminalService.getActiveOrCreateInstance().then(instance => {
-			if (!instance) {
-				return TPromise.as(void 0);
-			}
-			this.terminalService.setActiveInstance(instance);
-			return this.terminalService.showPanel(true);
-		});
+		const instance = this.terminalService.getActiveOrCreateInstance();
+		if (!instance) {
+			return TPromise.as(void 0);
+		}
+		this.terminalService.setActiveInstance(instance);
+		return this.terminalService.showPanel(true);
 	}
 }
 
@@ -206,12 +203,11 @@ export class TerminalPasteAction extends Action {
 	}
 
 	public run(event?: any): TPromise<any> {
-		return this.terminalService.getActiveOrCreateInstance().then(instance => {
-			if (instance) {
-				instance.paste();
-			}
-			return TPromise.as(void 0);
-		});
+		const instance = this.terminalService.getActiveOrCreateInstance();
+		if (instance) {
+			instance.paste();
+		}
+		return TPromise.as(void 0);
 	}
 }
 
@@ -229,24 +225,23 @@ export class RunSelectedTextInTerminalAction extends Action {
 	}
 
 	public run(event?: any): TPromise<any> {
-		return this.terminalService.getActiveOrCreateInstance().then(instance => {
-			if (!instance) {
-				return TPromise.as(void 0);
-			}
-			let editor = this.codeEditorService.getFocusedCodeEditor();
-			if (editor) {
-				let selection = editor.getSelection();
-				let text: string;
-				if (selection.isEmpty()) {
-					text = editor.getModel().getLineContent(selection.selectionStartLineNumber).trim();
-				} else {
-					let endOfLinePreference = os.EOL === '\n' ? EndOfLinePreference.LF : EndOfLinePreference.CRLF;
-					text = editor.getModel().getValueInRange(selection, endOfLinePreference);
-				}
-				instance.sendText(text, true);
-			}
+		const instance = this.terminalService.getActiveOrCreateInstance();
+		if (!instance) {
 			return TPromise.as(void 0);
-		});
+		}
+		let editor = this.codeEditorService.getFocusedCodeEditor();
+		if (editor) {
+			let selection = editor.getSelection();
+			let text: string;
+			if (selection.isEmpty()) {
+				text = editor.getModel().getLineContent(selection.selectionStartLineNumber).trim();
+			} else {
+				let endOfLinePreference = os.EOL === '\n' ? EndOfLinePreference.LF : EndOfLinePreference.CRLF;
+				text = editor.getModel().getValueInRange(selection, endOfLinePreference);
+			}
+			instance.sendText(text, true);
+		}
+		return TPromise.as(void 0);
 	}
 }
 
@@ -265,21 +260,20 @@ export class RunActiveFileInTerminalAction extends Action {
 	}
 
 	public run(event?: any): TPromise<any> {
-		return this.terminalService.getActiveOrCreateInstance().then(instance => {
-			if (!instance) {
-				return TPromise.as(void 0);
-			}
-			const editor = this.codeEditorService.getFocusedCodeEditor();
-			if (editor) {
-				const uri = editor.getModel().uri;
-				if (uri.scheme === 'file') {
-					instance.sendText(uri.fsPath, true);
-				} else {
-					this.messageService.show(Severity.Warning, nls.localize('workbench.action.terminal.runActiveFile.noFile', 'Only files on disk can be run in the terminal'));
-				}
-			}
+		const instance = this.terminalService.getActiveOrCreateInstance();
+		if (!instance) {
 			return TPromise.as(void 0);
-		});
+		}
+		const editor = this.codeEditorService.getFocusedCodeEditor();
+		if (editor) {
+			const uri = editor.getModel().uri;
+			if (uri.scheme === 'file') {
+				instance.sendText(uri.fsPath, true);
+			} else {
+				this.messageService.show(Severity.Warning, nls.localize('workbench.action.terminal.runActiveFile.noFile', 'Only files on disk can be run in the terminal'));
+			}
+		}
+		return TPromise.as(void 0);
 	}
 }
 
