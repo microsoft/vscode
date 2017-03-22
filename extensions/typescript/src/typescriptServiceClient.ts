@@ -501,7 +501,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 					if (this.apiVersion.has208Features()) {
 						args.push('--enableTelemetry');
 					}
-					if (this.apiVersion.has220Features()) {
+					if (this.apiVersion.has222Features()) {
 						this.cancellationPipeName = electron.getPipeName(`tscancellation-${electron.makeRandomHexString(20)}`);
 						args.push('--cancellationPipeName', this.cancellationPipeName + '*');
 					}
