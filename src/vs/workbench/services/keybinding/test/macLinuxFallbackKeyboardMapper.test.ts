@@ -5,11 +5,12 @@
 
 'use strict';
 
-import { KeyMod, KeyCode, createKeybinding, KeyChord } from 'vs/base/common/keyCodes';
+import { KeyMod, KeyCode, createKeybinding, KeyChord, SimpleKeybinding } from 'vs/base/common/keyCodes';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { IHTMLContentElement } from 'vs/base/common/htmlContent';
-import { IResolvedKeybinding, assertResolveKeybinding, simpleHTMLLabel, chordHTMLLabel, assertResolveKeyboardEvent } from 'vs/workbench/services/keybinding/test/keyboardMapperTestUtils';
+import { IResolvedKeybinding, assertResolveKeybinding, simpleHTMLLabel, chordHTMLLabel, assertResolveKeyboardEvent, assertResolveUserBinding } from 'vs/workbench/services/keybinding/test/keyboardMapperTestUtils';
 import { MacLinuxFallbackKeyboardMapper } from "vs/workbench/services/keybinding/common/macLinuxFallbackKeyboardMapper";
+import { ScanCodeBinding, ScanCode } from 'vs/workbench/services/keybinding/common/scanCode';
 
 suite('keyboardMapper - MAC fallback', () => {
 
@@ -89,6 +90,27 @@ suite('keyboardMapper - MAC fallback', () => {
 				hasMetaModifier: true,
 				dispatchParts: ['meta+Z', null],
 			}
+		);
+	});
+
+	test('resolveUserBinding Cmd+[Comma] Cmd+/', () => {
+		assertResolveUserBinding(
+			mapper,
+			new ScanCodeBinding(false, false, false, true, ScanCode.Comma),
+			new SimpleKeybinding(false, false, false, true, KeyCode.US_SLASH),
+			[{
+				label: '⌘, ⌘/',
+				ariaLabel: 'Command+, Command+/',
+				HTMLLabel: [_chordHTMLLabel(['⌘', ','], ['⌘', '/'])],
+				electronAccelerator: null,
+				userSettingsLabel: 'cmd+, cmd+/',
+				isChord: true,
+				hasCtrlModifier: false,
+				hasShiftModifier: false,
+				hasAltModifier: false,
+				hasMetaModifier: false,
+				dispatchParts: ['meta+,', 'meta+/'],
+			}]
 		);
 	});
 });
@@ -171,6 +193,27 @@ suite('keyboardMapper - MAC fallback', () => {
 				hasMetaModifier: false,
 				dispatchParts: ['ctrl+Z', null],
 			}
+		);
+	});
+
+	test('resolveUserBinding Ctrl+[Comma] Ctrl+/', () => {
+		assertResolveUserBinding(
+			mapper,
+			new ScanCodeBinding(true, false, false, false, ScanCode.Comma),
+			new SimpleKeybinding(true, false, false, false, KeyCode.US_SLASH),
+			[{
+				label: 'Ctrl+, Ctrl+/',
+				ariaLabel: 'Control+, Control+/',
+				HTMLLabel: [_chordHTMLLabel(['Ctrl', ','], ['Ctrl', '/'])],
+				electronAccelerator: null,
+				userSettingsLabel: 'ctrl+, ctrl+/',
+				isChord: true,
+				hasCtrlModifier: false,
+				hasShiftModifier: false,
+				hasAltModifier: false,
+				hasMetaModifier: false,
+				dispatchParts: ['ctrl+,', 'ctrl+/'],
+			}]
 		);
 	});
 });

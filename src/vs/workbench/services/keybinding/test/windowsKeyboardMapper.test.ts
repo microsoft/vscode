@@ -8,9 +8,10 @@
 import { OperatingSystem } from 'vs/base/common/platform';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { WindowsKeyboardMapper, IWindowsKeyboardMapping } from 'vs/workbench/services/keybinding/common/windowsKeyboardMapper';
-import { createKeybinding, KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
-import { IResolvedKeybinding, assertResolveKeybinding, readRawMapping, assertMapping, simpleHTMLLabel, chordHTMLLabel, assertResolveKeyboardEvent } from 'vs/workbench/services/keybinding/test/keyboardMapperTestUtils';
+import { createKeybinding, KeyMod, KeyCode, KeyChord, SimpleKeybinding } from 'vs/base/common/keyCodes';
+import { IResolvedKeybinding, assertResolveKeybinding, readRawMapping, assertMapping, simpleHTMLLabel, chordHTMLLabel, assertResolveKeyboardEvent, assertResolveUserBinding } from 'vs/workbench/services/keybinding/test/keyboardMapperTestUtils';
 import { IHTMLContentElement } from 'vs/base/common/htmlContent';
+import { ScanCodeBinding, ScanCode } from 'vs/workbench/services/keybinding/common/scanCode';
 
 const WRITE_FILE_IF_DIFFERENT = false;
 
@@ -335,6 +336,27 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 			}
 		);
 	});
+
+	test('resolveUserBinding Ctrl+[Comma] Ctrl+/', () => {
+		assertResolveUserBinding(
+			mapper,
+			new ScanCodeBinding(true, false, false, false, ScanCode.Comma),
+			new SimpleKeybinding(true, false, false, false, KeyCode.US_SLASH),
+			[{
+				label: 'Ctrl+, Ctrl+§',
+				ariaLabel: 'Control+, Control+§',
+				HTMLLabel: [_chordHTMLLabel(['Ctrl', ','], ['Ctrl', '§'])],
+				electronAccelerator: null,
+				userSettingsLabel: 'ctrl+, ctrl+/',
+				isChord: true,
+				hasCtrlModifier: false,
+				hasShiftModifier: false,
+				hasAltModifier: false,
+				hasMetaModifier: false,
+				dispatchParts: ['ctrl+,', 'ctrl+/'],
+			}]
+		);
+	});
 });
 
 suite('keyboardMapper - WINDOWS en_us', () => {
@@ -368,6 +390,27 @@ suite('keyboardMapper - WINDOWS en_us', () => {
 				hasAltModifier: false,
 				hasMetaModifier: false,
 				dispatchParts: ['ctrl+K', 'ctrl+\\'],
+			}]
+		);
+	});
+
+	test('resolveUserBinding Ctrl+[Comma] Ctrl+/', () => {
+		assertResolveUserBinding(
+			mapper,
+			new ScanCodeBinding(true, false, false, false, ScanCode.Comma),
+			new SimpleKeybinding(true, false, false, false, KeyCode.US_SLASH),
+			[{
+				label: 'Ctrl+, Ctrl+/',
+				ariaLabel: 'Control+, Control+/',
+				HTMLLabel: [_chordHTMLLabel(['Ctrl', ','], ['Ctrl', '/'])],
+				electronAccelerator: null,
+				userSettingsLabel: 'ctrl+, ctrl+/',
+				isChord: true,
+				hasCtrlModifier: false,
+				hasShiftModifier: false,
+				hasAltModifier: false,
+				hasMetaModifier: false,
+				dispatchParts: ['ctrl+,', 'ctrl+/'],
 			}]
 		);
 	});

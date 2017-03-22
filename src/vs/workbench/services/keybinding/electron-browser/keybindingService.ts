@@ -27,7 +27,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
-import { KeybindingIO, OutputBuilder } from 'vs/workbench/services/keybinding/common/keybindingIO';
+import { KeybindingIO, OutputBuilder, IUserKeybindingItem } from 'vs/workbench/services/keybinding/common/keybindingIO';
 import * as nativeKeymap from 'native-keymap';
 import { IKeyboardMapper } from 'vs/workbench/services/keybinding/common/keyboardMapper';
 import { WindowsKeyboardMapper, IWindowsKeyboardMapping, windowsKeyboardMappingEquals } from 'vs/workbench/services/keybinding/common/windowsKeyboardMapper';
@@ -293,15 +293,15 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
 	protected _getResolver(): KeybindingResolver {
 		if (!this._cachedResolver) {
-			const defaults = this._toNormalizedKeybindingItems(KeybindingsRegistry.getDefaultKeybindings(), true);
-			const overrides = this._toNormalizedKeybindingItems(this._getExtraKeybindings(this._firstTimeComputingResolver), false);
+			const defaults = this._resolveKeybindingItems(KeybindingsRegistry.getDefaultKeybindings(), true);
+			const overrides = this._resolveUserKeybindingItems(this._getExtraKeybindings(this._firstTimeComputingResolver), false);
 			this._cachedResolver = new KeybindingResolver(defaults, overrides);
 			this._firstTimeComputingResolver = false;
 		}
 		return this._cachedResolver;
 	}
 
-	private _toNormalizedKeybindingItems(items: IKeybindingItem[], isDefault: boolean): ResolvedKeybindingItem[] {
+	private _resolveKeybindingItems(items: IKeybindingItem[], isDefault: boolean): ResolvedKeybindingItem[] {
 		let result: ResolvedKeybindingItem[] = [], resultLen = 0;
 		for (let i = 0, len = items.length; i < len; i++) {
 			const item = items[i];
@@ -321,7 +321,28 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		return result;
 	}
 
-	private _getExtraKeybindings(isFirstTime: boolean): IKeybindingItem[] {
+	private _resolveUserKeybindingItems(items: IUserKeybindingItem[], isDefault: boolean): ResolvedKeybindingItem[] {
+		let result: ResolvedKeybindingItem[] = [], resultLen = 0;
+		for (let i = 0, len = items.length; i < len; i++) {
+			const item = items[i];
+			const when = (item.when ? item.when.normalize() : null);
+			const firstPart = item.firstPart;
+			const chordPart = item.chordPart;
+			if (!firstPart) {
+				// This might be a removal keybinding item in user settings => accept it
+				result[resultLen++] = new ResolvedKeybindingItem(null, item.command, item.commandArgs, when, isDefault);
+			} else {
+				const resolvedKeybindings = this._keyboardMapper.resolveUserBinding(firstPart, chordPart);
+				for (let j = 0; j < resolvedKeybindings.length; j++) {
+					result[resultLen++] = new ResolvedKeybindingItem(resolvedKeybindings[j], item.command, item.commandArgs, when, isDefault);
+				}
+			}
+		}
+
+		return result;
+	}
+
+	private _getExtraKeybindings(isFirstTime: boolean): IUserKeybindingItem[] {
 		let extraUserKeybindings: IUserFriendlyKeybinding[] = this._safeGetConfig();
 		if (!isFirstTime) {
 			let cnt = extraUserKeybindings.length;
@@ -331,7 +352,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 			});
 		}
 
-		return extraUserKeybindings.map((k, i) => KeybindingIO.readUserKeybindingItem(k, i, OS));
+		return extraUserKeybindings.map((k) => KeybindingIO.readUserKeybindingItem(k, OS));
 	}
 
 	public resolveKeybinding(kb: Keybinding): ResolvedKeybinding[] {

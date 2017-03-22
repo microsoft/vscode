@@ -9,7 +9,15 @@ import { OperatingSystem } from 'vs/base/common/platform';
 import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
-import { IKeybindingItem } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { ScanCodeBinding, ScanCodeUtils } from 'vs/workbench/services/keybinding/common/scanCode';
+
+export interface IUserKeybindingItem {
+	firstPart: SimpleKeybinding | ScanCodeBinding;
+	chordPart: SimpleKeybinding | ScanCodeBinding;
+	command: string;
+	commandArgs?: any;
+	when: ContextKeyExpr;
+}
 
 export class KeybindingIO {
 
@@ -30,34 +38,17 @@ export class KeybindingIO {
 		out.write('}');
 	}
 
-	public static readUserKeybindingItem(input: IUserFriendlyKeybinding, index: number, OS: OperatingSystem): IKeybindingItem {
-		let keybinding: Keybinding = null;
-		if (typeof input.key === 'string') {
-			keybinding = KeybindingIO.readKeybinding(input.key, OS);
-		}
-
-		let when: ContextKeyExpr = null;
-		if (typeof input.when === 'string') {
-			when = ContextKeyExpr.deserialize(input.when);
-		}
-
-		let command: string = null;
-		if (typeof input.command === 'string') {
-			command = input.command;
-		}
-
-		let commandArgs: any = null;
-		if (typeof input.args !== 'undefined') {
-			commandArgs = input.args;
-		}
-
+	public static readUserKeybindingItem(input: IUserFriendlyKeybinding, OS: OperatingSystem): IUserKeybindingItem {
+		const [firstPart, chordPart] = (typeof input.key === 'string' ? this._readUserBinding(input.key) : [null, null]);
+		const when = (typeof input.when === 'string' ? ContextKeyExpr.deserialize(input.when) : null);
+		const command = (typeof input.command === 'string' ? input.command : null);
+		const commandArgs = (typeof input.args !== 'undefined' ? input.args : null);
 		return {
-			keybinding: keybinding,
+			firstPart: firstPart,
+			chordPart: chordPart,
 			command: command,
 			commandArgs: commandArgs,
-			when: when,
-			weight1: 1000,
-			weight2: index
+			when: when
 		};
 	}
 
@@ -146,7 +137,7 @@ export class KeybindingIO {
 		};
 	}
 
-	private static _readSimpleKeybinding(input: string, OS: OperatingSystem): [SimpleKeybinding, string] {
+	private static _readSimpleKeybinding(input: string): [SimpleKeybinding, string] {
 		const mods = this._readModifiers(input);
 		const keyCode = USER_SETTINGS.toKeyCode(mods.key);
 		return [new SimpleKeybinding(mods.ctrl, mods.shift, mods.alt, mods.meta, keyCode), mods.remains];
@@ -157,16 +148,41 @@ export class KeybindingIO {
 			return null;
 		}
 
-		let [firstPart, remains] = this._readSimpleKeybinding(input, OS);
+		let [firstPart, remains] = this._readSimpleKeybinding(input);
 		let chordPart: SimpleKeybinding = null;
 		if (remains.length > 0) {
-			[chordPart] = this._readSimpleKeybinding(remains, OS);
+			[chordPart] = this._readSimpleKeybinding(remains);
 		}
 
 		if (chordPart) {
 			return new ChordKeybinding(firstPart, chordPart);
 		}
 		return firstPart;
+	}
+
+	private static _readSimpleUserBinding(input: string): [SimpleKeybinding | ScanCodeBinding, string] {
+		const mods = this._readModifiers(input);
+		const scanCodeMatch = mods.key.match(/^\[([^\]]+)\]$/);
+		if (scanCodeMatch) {
+			const strScanCode = scanCodeMatch[1];
+			const scanCode = ScanCodeUtils.lowerCaseToEnum(strScanCode);
+			return [new ScanCodeBinding(mods.ctrl, mods.shift, mods.alt, mods.meta, scanCode), mods.remains];
+		}
+		const keyCode = USER_SETTINGS.toKeyCode(mods.key);
+		return [new SimpleKeybinding(mods.ctrl, mods.shift, mods.alt, mods.meta, keyCode), mods.remains];
+	}
+
+	static _readUserBinding(input: string): [SimpleKeybinding | ScanCodeBinding, SimpleKeybinding | ScanCodeBinding] {
+		if (!input) {
+			return [null, null];
+		}
+
+		let [firstPart, remains] = this._readSimpleUserBinding(input);
+		let chordPart: SimpleKeybinding | ScanCodeBinding = null;
+		if (remains.length > 0) {
+			[chordPart] = this._readSimpleUserBinding(remains);
+		}
+		return [firstPart, chordPart];
 	}
 }
 
