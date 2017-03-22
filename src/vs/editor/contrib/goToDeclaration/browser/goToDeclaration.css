@@ -3,26 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-editor .preview-zone-widget.preview .monaco-editor,
-.monaco-editor .preview-zone-widget.preview .monaco-editor-background,
-.monaco-editor .preview-zone-widget.preview .monaco-editor .line-numbers,
-.monaco-editor .preview-zone-widget.preview .monaco-editor .lines-decorations {
-	background-color: #F2F8FC;
-}
-
-.monaco-editor.vs-dark .preview-zone-widget,
-.monaco-editor.vs-dark .preview-zone-widget.preview .monaco-editor,
-.monaco-editor.vs-dark .preview-zone-widget.preview .monaco-editor-background,
-.monaco-editor.vs-dark .preview-zone-widget.preview .monaco-editor .line-numbers,
-.monaco-editor.vs-dark .preview-zone-widget.preview .monaco-editor .lines-decorations {
-	background-color: #001F33;
-}
-
-.monaco-editor .zone-widget .zone-widget-container.preview-zone-widget {
-	border-top-width: 1px;
-	border-bottom-width: 1px;
-}
-
 .monaco-editor .goto-definition-link {
 	text-decoration: underline;
 	cursor: pointer;
@@ -37,13 +17,4 @@
 
 .monaco-editor.vs-dark .goto-definition-link-hover {
 	border-left: 4px solid rgba(255, 255, 255, 0.25);
-}
-
-/* High Contrast Theming */
-.monaco-editor.hc-black .preview-zone-widget,
-.monaco-editor.hc-black .preview-zone-widget.preview .monaco-editor,
-.monaco-editor.hc-black .preview-zone-widget.preview .monaco-editor-background,
-.monaco-editor.hc-black .preview-zone-widget.preview .monaco-editor .line-numbers,
-.monaco-editor.hc-black .preview-zone-widget.preview .monaco-editor .lines-decorations {
-	background-color: #0C141F;
 }
