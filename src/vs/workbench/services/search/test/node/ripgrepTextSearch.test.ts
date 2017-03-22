@@ -142,9 +142,8 @@ suite('RipgrepParser', () => {
 	});
 
 	test('Parses chunks broken before newline', () => {
-		const input = arrays.flatten(singleLineChunks
-			.map(chunk => '\n' + chunk)
-			.map(arrayOfChars));
+		const input = singleLineChunks
+			.map(chunk => '\n' + chunk);
 
 		const results = parseInput(input);
 		assert.equal(results.length, 3);
