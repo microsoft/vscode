@@ -139,7 +139,6 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	private _onReady: { promise: Promise<void>; resolve: () => void; reject: () => void; };
 	private globalTsdk: string | null;
 	private localTsdk: string | null;
-	private _checkGlobalTSCVersion: boolean;
 	private _experimentalAutoBuild: boolean;
 	private trace: Trace;
 	private _output: OutputChannel;
@@ -195,7 +194,6 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 
 		this._experimentalAutoBuild = false; // configuration.get<boolean>('typescript.tsserver.experimentalAutoBuild', false);
 		this._apiVersion = new API('1.0.0');
-		this._checkGlobalTSCVersion = true;
 		this.trace = this.readTrace();
 		this.tsServerLogLevel = this.readTsServerLogLevel();
 		disposables.push(workspace.onDidChangeConfiguration(() => {
@@ -271,10 +269,6 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 
 	public get experimentalAutoBuild(): boolean {
 		return this._experimentalAutoBuild;
-	}
-
-	public get checkGlobalTSCVersion(): boolean {
-		return this._checkGlobalTSCVersion;
 	}
 
 	public get apiVersion(): API {
@@ -389,7 +383,6 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		}
 
 		if (this.localTsdk) {
-			this._checkGlobalTSCVersion = false;
 			if ((<any>path).isAbsolute(this.localTsdk)) {
 				return path.join(this.localTsdk, 'tsserver.js');
 			}
@@ -405,7 +398,6 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 
 	private get globalTypescriptPath(): string {
 		if (this.globalTsdk) {
-			this._checkGlobalTSCVersion = false;
 			if ((<any>path).isAbsolute(this.globalTsdk)) {
 				return path.join(this.globalTsdk, 'tsserver.js');
 			} else if (workspace.rootPath) {
@@ -440,8 +432,6 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			return modulePath;
 		}).then(modulePath => {
 			this.servicePromise = new Promise<cp.ChildProcess>((resolve, reject) => {
-				const tsConfig = workspace.getConfiguration('typescript');
-
 				this.info(`Using tsserver from location: ${modulePath}`);
 				if (!fs.existsSync(modulePath)) {
 					window.showWarningMessage(localize('noServerFound', 'The path {0} doesn\'t point to a valid tsserver install. Falling back to bundled TypeScript version.', modulePath ? path.dirname(modulePath) : ''));
@@ -465,16 +455,6 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 				this.modulePath = modulePath;
 				VersionStatus.showHideStatus();
 				VersionStatus.setInfo(label, tooltip);
-
-				// This is backwards compatibility code to move the setting from the local
-				// store into the workspace setting file.
-				const doGlobalVersionCheckKey: string = 'doGlobalVersionCheck';
-				const globalStateValue = this.globalState.get(doGlobalVersionCheckKey, true);
-				const checkTscVersion = 'check.tscVersion';
-				if (!globalStateValue) {
-					tsConfig.update(checkTscVersion, false, true);
-					this.globalState.update(doGlobalVersionCheckKey, true);
-				}
 
 				try {
 					let options: electron.IForkOptions = {

@@ -4,17 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as cp from 'child_process';
 import * as fs from 'fs';
 
-import { workspace, window, TextDocument, TextDocumentChangeEvent, TextDocumentContentChangeEvent, Disposable, MessageItem } from 'vscode';
+import { workspace, TextDocument, TextDocumentChangeEvent, TextDocumentContentChangeEvent, Disposable } from 'vscode';
 import * as Proto from '../protocol';
 import { ITypescriptServiceClient } from '../typescriptService';
 import { Delayer } from '../utils/async';
 import LinkedMap from './linkedMap';
-
-import * as nls from 'vscode-nls';
-let localize = nls.loadMessageBundle();
 
 interface IDiagnosticRequestor {
 	requestDiagnostic(filepath: string): void;
@@ -95,7 +91,6 @@ export interface Diagnostics {
 	delete(file: string): void;
 }
 
-const checkTscVersionSettingKey = 'check.tscVersion';
 export default class BufferSyncSupport {
 
 	private client: ITypescriptServiceClient;
@@ -112,7 +107,6 @@ export default class BufferSyncSupport {
 	private pendingDiagnostics: { [key: string]: number; };
 	private diagnosticDelayer: Delayer<any>;
 	private emitQueue: LinkedMap<string>;
-	private checkGlobalTSCVersion: boolean;
 
 	constructor(client: ITypescriptServiceClient, modeIds: string[], diagnostics: Diagnostics, extensions: ObjectMap<boolean>, validate: boolean = true) {
 		this.client = client;
@@ -129,9 +123,6 @@ export default class BufferSyncSupport {
 
 		this.syncedBuffers = Object.create(null);
 		this.emitQueue = new LinkedMap<string>();
-
-		const tsConfig = workspace.getConfiguration('typescript');
-		this.checkGlobalTSCVersion = client.checkGlobalTSCVersion && this.modeIds['typescript'] === true && tsConfig.get(checkTscVersionSettingKey, true);
 	}
 
 	public listen(): void {
@@ -182,9 +173,6 @@ export default class BufferSyncSupport {
 		this.syncedBuffers[filepath] = syncedBuffer;
 		syncedBuffer.open();
 		this.requestDiagnostic(filepath);
-		if (document.languageId === 'typescript' || document.languageId === 'typescriptreact') {
-			this.checkTSCVersion();
-		}
 	}
 
 	private onDidCloseTextDocument(document: TextDocument): void {
@@ -282,75 +270,5 @@ export default class BufferSyncSupport {
 		};
 		this.client.execute('geterr', args, false);
 		this.pendingDiagnostics = Object.create(null);
-	}
-
-	private checkTSCVersion() {
-		if (!this.checkGlobalTSCVersion) {
-			return;
-		}
-		this.checkGlobalTSCVersion = false;
-
-		interface MyMessageItem extends MessageItem {
-			id: number;
-		}
-
-		function openUrl(url: string) {
-			let cmd: string;
-			switch (process.platform) {
-				case 'darwin':
-					cmd = 'open';
-					break;
-				case 'win32':
-					cmd = 'start';
-					break;
-				default:
-					cmd = 'xdg-open';
-			}
-			return cp.exec(cmd + ' ' + url);
-		}
-
-		let tscVersion: string | undefined = undefined;
-		try {
-			let out = cp.execSync('tsc --version', { encoding: 'utf8' });
-			if (out) {
-				let matches = out.trim().match(/Version\s*(.*)$/);
-				if (matches && matches.length === 2) {
-					tscVersion = matches[1];
-				}
-			}
-		} catch (error) {
-		}
-		if (tscVersion && tscVersion !== this.client.apiVersion.versionString) {
-			window.showInformationMessage<MyMessageItem>(
-				localize('versionMismatch', 'Version mismatch! global tsc ({0}) != VS Code\'s language service ({1}). Inconsistent compile errors might occur', tscVersion, this.client.apiVersion.versionString),
-				{
-					title: localize('moreInformation', 'More Information'),
-					id: 1
-				},
-				{
-					title: localize('doNotCheckAgain', 'Don\'t Check Again'),
-					id: 2
-				},
-				{
-					title: localize('close', 'Close'),
-					id: 3,
-					isCloseAffordance: true
-				}
-			).then((selected) => {
-				if (!selected || selected.id === 3) {
-					return;
-				}
-				switch (selected.id) {
-					case 1:
-						openUrl('http://go.microsoft.com/fwlink/?LinkId=826239');
-						break;
-					case 2:
-						const tsConfig = workspace.getConfiguration('typescript');
-						tsConfig.update(checkTscVersionSettingKey, false, true);
-						window.showInformationMessage(localize('updateTscCheck', 'Updated user setting \'typescript.check.tscVersion\' to false'));
-						break;
-				}
-			});
-		}
 	}
 }
