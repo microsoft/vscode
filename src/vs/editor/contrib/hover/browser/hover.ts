@@ -20,16 +20,10 @@ import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { ModesContentHoverWidget } from './modesContentHover';
 import { ModesGlyphHoverWidget } from './modesGlyphHover';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-
-import { ITheme, ICssStyleCollector, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 
 import EditorContextKeys = editorCommon.EditorContextKeys;
-
-export const editorHoverHighlight = registerColor('editorHoverHighlight', { light: '#ADD6FF26', dark: '#264f7840', hc: '#ADD6FF26' }, nls.localize('hoverHighlight', 'Highlight below the word for which a hover is shown.'));
-export const editorHoverBackground = registerColor('editorHoverBackground', { light: '#F3F3F3', dark: '#2D2D30', hc: '#0C141F' }, nls.localize('hoverBackground', 'Background color of the editor hover.'));
-export const editorHoverBorder = registerColor('editorHoverBorder', { light: '#CCCCCC', dark: '#555555', hc: '#CCCCCC' }, nls.localize('hoverBorder', 'Border color of the editor hover.'));
-
 
 @editorContribution
 export class ModesHoverController implements editorCommon.IEditorContribution {
@@ -179,7 +173,13 @@ class ShowHoverAction extends EditorAction {
 	}
 }
 
-registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+// theming
+
+export const editorHoverHighlight = registerColor('editorHoverHighlight', { light: '#ADD6FF26', dark: '#264f7840', hc: '#ADD6FF26' }, nls.localize('hoverHighlight', 'Highlight below the word for which a hover is shown.'));
+export const editorHoverBackground = registerColor('editorHoverBackground', { light: '#F3F3F3', dark: '#2D2D30', hc: '#0C141F' }, nls.localize('hoverBackground', 'Background color of the editor hover.'));
+export const editorHoverBorder = registerColor('editorHoverBorder', { light: '#CCCCCC', dark: '#555555', hc: '#CCCCCC' }, nls.localize('hoverBorder', 'Border color of the editor hover.'));
+
+registerThemingParticipant((theme, collector) => {
 	let editorHoverHighlightColor = theme.getColor(editorHoverHighlight);
 	if (editorHoverHighlightColor) {
 		collector.addRule(`.monaco-editor.${theme.selector} .hoverHighlight { background-color: ${editorHoverHighlightColor}; }`);
