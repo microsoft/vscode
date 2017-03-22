@@ -145,7 +145,7 @@
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon.unit { background-image: url('Ruler_16x.svg'); }
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon.value,
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon.enum { background-image: url('Enumerator_16x.svg'); }
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon.enum-item { background-image: url('EnumItem_16x.svg'); }
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon.enum-member { background-image: url('EnumItem_16x.svg'); }
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon.keyword { background-image: url('IntelliSenseKeyword_16x.svg'); }
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon.text { background-image: url('String_16x.svg'); }
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon.color { background-image: url('ColorPalette_16x.svg'); }
@@ -296,7 +296,7 @@
 .monaco-editor.hc-black .suggest-widget .monaco-list .monaco-list-row .icon.value,
 .monaco-editor.vs-dark .suggest-widget .monaco-list .monaco-list-row .icon.enum,
 .monaco-editor.hc-black .suggest-widget .monaco-list .monaco-list-row .icon.enum { background-image: url('Enumerator_inverse_16x.svg'); }
-.monaco-editor.hc-black .suggest-widget .monaco-list .monaco-list-row .icon.enum-item { background-image: url('EnumItem_inverse_16x.svg'); }
+.monaco-editor.hc-black .suggest-widget .monaco-list .monaco-list-row .icon.enum-member { background-image: url('EnumItem_inverse_16x.svg'); }
 
 .monaco-editor.vs-dark .suggest-widget .monaco-list .monaco-list-row .icon.keyword,
 .monaco-editor.hc-black .suggest-widget .monaco-list .monaco-list-row .icon.keyword { background-image: url('IntelliSenseKeyword_inverse_16x.svg'); }

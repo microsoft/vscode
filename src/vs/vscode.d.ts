@@ -2395,11 +2395,12 @@ declare module 'vscode' {
 		Unit = 10,
 		Value = 11,
 		Enum = 12,
+		EnumMember = 19,
 		Keyword = 13,
 		Snippet = 14,
 		Color = 15,
-		File = 16,
 		Reference = 17,
+		File = 16,
 		Folder = 18
 	}
 
