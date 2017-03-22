@@ -259,10 +259,13 @@
 		"editorGuide": "#002952",
 		"editorHoverBackground": "#000c38",
 		"editorHoverBorder": "#004c18",
-		"referencesResultsBackground": "#060621",
-		"referencesResultsMatchForeground": "#7777cc",
-		"referencesResultsSelectedBackground": "#070877",
-		"referencesResultsSelectedForeground": "#77EEFF",
+		"editorPeekResultsBackground": "#060621",
+		"editorPeekResultsMatchForeground": "#7777cc",
+		"editorPeekResultsSelectedBackground": "#070877",
+		"editorPeekResultsSelectedForeground": "#77EEFF",
+		"editorPeekEditorBackground": "#001F33",
+		"editorPeekTitleBackground": "#060621",
+		"editorPeekBorders": "#7777cc",
 
 		// Workbench Colors
 		"tabsContainerBackground": "#1c1c2a",
