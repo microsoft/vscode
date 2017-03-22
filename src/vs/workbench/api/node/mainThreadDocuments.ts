@@ -62,12 +62,8 @@ export class BoundModelReferenceCollection {
 	}
 
 	private _cleanup(): void {
-		let diff = this._length - this._maxLength;
-		let i: number;
-		for (i = 0; i < this._data.length && diff > 0; i++) {
-			diff -= this._data[i].length;
-			this._data[i].dispose();
-			i -= 1;
+		while (this._length > this._maxLength) {
+			this._data[0].dispose();
 		}
 	}
 }
