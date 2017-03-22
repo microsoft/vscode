@@ -362,7 +362,7 @@ export class SearchResult extends Disposable {
 				fileMatch.onDispose(() => disposable.dispose());
 			}
 		});
-		if (!silent) {
+		if (!silent && changed.length) {
 			this._onChange.fire({ elements: changed, added: true });
 		}
 	}
