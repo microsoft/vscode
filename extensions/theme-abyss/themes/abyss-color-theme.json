@@ -259,6 +259,10 @@
 		"editorGuide": "#002952",
 		"editorHoverBackground": "#000c38",
 		"editorHoverBorder": "#004c18",
+		"referencesResultsBackground": "#060621",
+		"referencesResultsMatchForeground": "#7777cc",
+		"referencesResultsSelectedBackground": "#070877",
+		"referencesResultsSelectedForeground": "#77EEFF",
 
 		// Workbench Colors
 		"tabsContainerBackground": "#1c1c2a",
