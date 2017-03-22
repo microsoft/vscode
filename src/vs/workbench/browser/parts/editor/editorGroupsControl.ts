@@ -886,11 +886,11 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 				switch (activeGroupPosition) {
 					case Position.ONE:
 						this.silosSize[Position.ONE] = this.silosSize[Position.ONE] + groupSizeChange;
-						this.silosSize[Position.TWO] = this.totalSize - this.silosSize[Position.ONE];
+						this.silosSize[Position.TWO] = availableSize - this.silosSize[Position.ONE];
 						break;
 					case Position.TWO:
 						this.silosSize[Position.TWO] = this.silosSize[Position.TWO] + groupSizeChange;
-						this.silosSize[Position.ONE] = this.totalSize - this.silosSize[Position.TWO];
+						this.silosSize[Position.ONE] = availableSize - this.silosSize[Position.TWO];
 					default:
 						break;
 				}
