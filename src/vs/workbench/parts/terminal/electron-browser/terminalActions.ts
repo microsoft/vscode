@@ -211,6 +211,23 @@ export class TerminalPasteAction extends Action {
 	}
 }
 
+export class SelectDefaultShellWindowsTerminalAction extends Action {
+
+	public static ID = 'workbench.action.terminal.selectDefaultShell';
+	public static LABEL = nls.localize('workbench.action.terminal.DefaultShell', "Select Default Shell");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		return this.terminalService.selectDefaultWindowsShell();
+	}
+}
+
 export class RunSelectedTextInTerminalAction extends Action {
 
 	public static ID = 'workbench.action.terminal.runSelectedText';

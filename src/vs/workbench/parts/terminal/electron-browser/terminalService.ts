@@ -60,7 +60,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		return terminalInstance;
 	}
 
-	public chooseWindowsShell(): TPromise<string> {
+	public selectDefaultWindowsShell(): TPromise<string> {
 		return this._detectWindowsShells().then(shells => {
 			const options: IPickOptions = {
 				placeHolder: nls.localize('terminal.integrated.chooseWindowsShell', "Select your preferred terminal shell, you can change this later in your settings")
