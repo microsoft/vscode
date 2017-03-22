@@ -13,7 +13,7 @@ import { renderViewLine, RenderLineInput } from 'vs/editor/common/viewLayout/vie
 import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import * as strings from 'vs/base/common/strings';
-import { IStandaloneColorService } from 'vs/editor/common/services/standaloneColorService';
+import { IStandaloneThemeService } from 'vs/editor/common/services/standaloneThemeService';
 
 export interface IColorizerOptions {
 	tabSize?: number;
@@ -26,7 +26,7 @@ export interface IColorizerElementOptions extends IColorizerOptions {
 
 export class Colorizer {
 
-	public static colorizeElement(standaloneColorService: IStandaloneColorService, modeService: IModeService, domNode: HTMLElement, options: IColorizerElementOptions): TPromise<void> {
+	public static colorizeElement(themeService: IStandaloneThemeService, modeService: IModeService, domNode: HTMLElement, options: IColorizerElementOptions): TPromise<void> {
 		options = options || {};
 		let theme = options.theme || 'vs';
 		let mimeType = options.mimeType || domNode.getAttribute('lang') || domNode.getAttribute('data-lang');
@@ -35,7 +35,7 @@ export class Colorizer {
 			return undefined;
 		}
 
-		standaloneColorService.setTheme(theme);
+		themeService.setTheme(theme);
 
 		let text = domNode.firstChild.nodeValue;
 		domNode.className += 'monaco-editor ' + theme;

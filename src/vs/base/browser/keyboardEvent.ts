@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { SimpleKeybinding, KeyCode, KeyCodeUtils, KeyMod } from 'vs/base/common/keyCodes';
+import { KeyCode, KeyCodeUtils, KeyMod, SimpleKeybinding } from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
 import * as browser from 'vs/base/browser/browser';
 
@@ -174,7 +174,11 @@ export interface IKeyboardEvent {
 	readonly altKey: boolean;
 	readonly metaKey: boolean;
 	readonly keyCode: KeyCode;
+	readonly code: string;
 
+	/**
+	 * @internal
+	 */
 	toKeybinding(): SimpleKeybinding;
 	equals(keybinding: number): boolean;
 
@@ -197,8 +201,10 @@ export class StandardKeyboardEvent implements IKeyboardEvent {
 	public readonly altKey: boolean;
 	public readonly metaKey: boolean;
 	public readonly keyCode: KeyCode;
+	public readonly code: string;
 
-	private _asKeybinding: SimpleKeybinding;
+	private _asKeybinding: number;
+	private _asRuntimeKeybinding: SimpleKeybinding;
 
 	constructor(source: KeyboardEvent) {
 		let e = <KeyboardEvent>source;
@@ -211,6 +217,7 @@ export class StandardKeyboardEvent implements IKeyboardEvent {
 		this.altKey = e.altKey;
 		this.metaKey = e.metaKey;
 		this.keyCode = extractKeyCode(e);
+		this.code = e.code;
 
 		// console.info(e.type + ": keyCode: " + e.keyCode + ", which: " + e.which + ", charCode: " + e.charCode + ", detail: " + e.detail + " ====> " + this.keyCode + ' -- ' + KeyCode[this.keyCode]);
 
@@ -220,6 +227,7 @@ export class StandardKeyboardEvent implements IKeyboardEvent {
 		this.metaKey = this.metaKey || this.keyCode === KeyCode.Meta;
 
 		this._asKeybinding = this._computeKeybinding();
+		this._asRuntimeKeybinding = this._computeRuntimeKeybinding();
 
 		// console.log(`code: ${e.code}, keyCode: ${e.keyCode}, key: ${e.key}`);
 	}
@@ -237,14 +245,14 @@ export class StandardKeyboardEvent implements IKeyboardEvent {
 	}
 
 	public toKeybinding(): SimpleKeybinding {
-		return this._asKeybinding;
+		return this._asRuntimeKeybinding;
 	}
 
 	public equals(other: number): boolean {
-		return this._asKeybinding.value === other;
+		return this._asKeybinding === other;
 	}
 
-	private _computeKeybinding(): SimpleKeybinding {
+	private _computeKeybinding(): number {
 		let key = KeyCode.Unknown;
 		if (this.keyCode !== KeyCode.Ctrl && this.keyCode !== KeyCode.Shift && this.keyCode !== KeyCode.Alt && this.keyCode !== KeyCode.Meta) {
 			key = this.keyCode;
@@ -265,6 +273,14 @@ export class StandardKeyboardEvent implements IKeyboardEvent {
 		}
 		result |= key;
 
-		return new SimpleKeybinding(result);
+		return result;
+	}
+
+	private _computeRuntimeKeybinding(): SimpleKeybinding {
+		let key = KeyCode.Unknown;
+		if (this.keyCode !== KeyCode.Ctrl && this.keyCode !== KeyCode.Shift && this.keyCode !== KeyCode.Alt && this.keyCode !== KeyCode.Meta) {
+			key = this.keyCode;
+		}
+		return new SimpleKeybinding(this.ctrlKey, this.shiftKey, this.altKey, this.metaKey, key);
 	}
 }

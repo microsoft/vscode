@@ -13,7 +13,7 @@ import { IEditor, IEditorViewState, isCommonCodeEditor } from 'vs/editor/common/
 import { toResource, IEditorStacksModel, SideBySideEditorInput, IEditorGroup, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { BINARY_FILE_EDITOR_ID } from 'vs/workbench/parts/files/common/files';
 import { ITextFileService, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
-import { FileOperationEvent, FileOperation, IFileService, FileChangeType, FileChangesEvent, isEqual, indexOf, isParent } from 'vs/platform/files/common/files';
+import { FileOperationEvent, FileOperation, IFileService, FileChangeType, FileChangesEvent, isEqual, indexOf, isEqualOrParent } from 'vs/platform/files/common/files';
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
@@ -22,6 +22,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { distinct } from 'vs/base/common/arrays';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { isLinux } from 'vs/base/common/platform';
 
 export class FileEditorTracker implements IWorkbenchContribution {
 	private stacks: IEditorStacksModel;
@@ -113,8 +114,8 @@ export class FileEditorTracker implements IWorkbenchContribution {
 
 				// Do NOT close any opened editor that matches the resource path (either equal or being parent) of the
 				// resource we move to (movedTo). Otherwise we would close a resource that has been renamed to the same
-				// path but different casing. 
-				if (movedTo && (isEqual(resource.fsPath, movedTo.fsPath) || isParent(resource.fsPath, movedTo.fsPath)) && resource.fsPath.indexOf(movedTo.fsPath) === 0) {
+				// path but different casing.
+				if (movedTo && isEqualOrParent(resource.fsPath, movedTo.fsPath, !isLinux /* ignorecase */) && resource.fsPath.indexOf(movedTo.fsPath) === 0) {
 					return;
 				}
 
@@ -122,7 +123,7 @@ export class FileEditorTracker implements IWorkbenchContribution {
 				if (arg1 instanceof FileChangesEvent) {
 					matches = arg1.contains(resource, FileChangeType.DELETED);
 				} else {
-					matches = isEqual(resource.fsPath, arg1.fsPath) || isParent(resource.fsPath, arg1.fsPath);
+					matches = isEqualOrParent(resource.fsPath, arg1.fsPath, !isLinux /* ignorecase */);
 				}
 
 				if (!matches) {
@@ -194,12 +195,12 @@ export class FileEditorTracker implements IWorkbenchContribution {
 					const resource = input.getResource();
 
 					// Update Editor if file (or any parent of the input) got renamed or moved
-					if (isEqual(resource.fsPath, oldResource.fsPath) || isParent(resource.fsPath, oldResource.fsPath)) {
+					if (isEqualOrParent(resource.fsPath, oldResource.fsPath, !isLinux /* ignorecase */)) {
 						let reopenFileResource: URI;
 						if (oldResource.toString() === resource.toString()) {
 							reopenFileResource = newResource; // file got moved
 						} else {
-							const index = indexOf(resource.fsPath, oldResource.fsPath);
+							const index = indexOf(resource.fsPath, oldResource.fsPath, !isLinux /* ignorecase */);
 							reopenFileResource = URI.file(paths.join(newResource.fsPath, resource.fsPath.substr(index + oldResource.fsPath.length + 1))); // parent folder got moved
 						}
 

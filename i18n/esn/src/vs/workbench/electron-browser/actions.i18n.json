@@ -10,7 +10,6 @@
 	"closeMessages": "Cerrar mensajes de notificación",
 	"closeWindow": "Cerrar ventana",
 	"current": "Ventana actual",
-	"diffLeftRightLabel": "{0} ⟷ {1}",
 	"files": "archivos",
 	"folders": "carpetas",
 	"keybindingsReference": "Referencia de métodos abreviados de teclado",
@@ -29,6 +28,7 @@
 	"toggleDevTools": "Alternar herramientas de desarrollo",
 	"toggleFullScreen": "Alternar pantalla completa",
 	"toggleMenuBar": "Alternar barra de menús",
+	"toggleSharedProcess": "Alternar proceso compartido",
 	"zoomIn": "Acercar",
 	"zoomOut": "Alejar",
 	"zoomReset": "Restablecer zoom"

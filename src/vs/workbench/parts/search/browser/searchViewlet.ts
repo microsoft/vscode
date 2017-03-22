@@ -58,7 +58,7 @@ import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/un
 import { OpenFolderAction, OpenFileFolderAction } from 'vs/workbench/browser/actions/fileActions';
 import * as Constants from 'vs/workbench/parts/search/common/constants';
 import { IListService } from 'vs/platform/list/browser/listService';
-import { IThemeService, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
+import { IThemeService, ITheme, ICssStyleCollector, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorFindMatchHighlight } from 'vs/platform/theme/common/colorRegistry';
 
 export class SearchViewlet extends Viewlet {
@@ -142,14 +142,6 @@ export class SearchViewlet extends Viewlet {
 		this.updateGlobalPatternExclusions(configuration);
 	}
 
-	protected updateStyles(theme: ITheme, collector: ICssStyleCollector) {
-		let matchHighlightColor = theme.getColor(editorFindMatchHighlight);
-		if (matchHighlightColor) {
-			collector.addRule(`.search-viewlet .findInFileMatch { background-color: ${matchHighlightColor}; }`);
-			collector.addRule(`.search-viewlet .highlight { background-color: ${matchHighlightColor}; }`);
-		}
-	}
-
 	public create(parent: Builder): TPromise<void> {
 		super.create(parent);
 
@@ -171,6 +163,7 @@ export class SearchViewlet extends Viewlet {
 		let exclusionsUsePattern = this.viewletSettings['query.exclusionsUsePattern'];
 		let includesUsePattern = this.viewletSettings['query.includesUsePattern'];
 		let patternIncludes = this.viewletSettings['query.folderIncludes'] || '';
+		let useIgnoreFiles = this.viewletSettings['query.useIgnoreFiles'];
 
 		this.queryDetails = this.searchWidgetsContainer.div({ 'class': ['query-details'] }, (builder) => {
 			builder.div({ 'class': 'more', 'tabindex': 0, 'role': 'button', 'title': nls.localize('moreSearch', "Toggle Search Details") })
@@ -212,12 +205,14 @@ export class SearchViewlet extends Viewlet {
 				let title = nls.localize('searchScope.excludes', "files to exclude");
 				builder.element('h4', { text: title });
 
+				const configuration = this.configurationService.getConfiguration<ISearchConfiguration>();
 				this.inputPatternExclusions = new PatternInputWidget(builder.getContainer(), this.contextViewService, {
 					ariaLabel: nls.localize('label.excludes', 'Search Exclude Patterns')
-				});
+				}, configuration.search.useRipgrep);
 
 				this.inputPatternExclusions.setIsGlobPattern(exclusionsUsePattern);
 				this.inputPatternExclusions.setValue(patternExclusions);
+				this.inputPatternExclusions.setUseIgnoreFiles(useIgnoreFiles);
 
 				this.inputPatternExclusions
 					.on(FindInput.OPTION_CHANGE, (e) => {
@@ -910,14 +905,15 @@ export class SearchViewlet extends Viewlet {
 	}
 
 	public onQueryChanged(rerunQuery: boolean, preserveFocus?: boolean): void {
-		let isRegex = this.searchWidget.searchInput.getRegex();
-		let isWholeWords = this.searchWidget.searchInput.getWholeWords();
-		let isCaseSensitive = this.searchWidget.searchInput.getCaseSensitive();
-		let contentPattern = this.searchWidget.searchInput.getValue();
-		let patternExcludes = this.inputPatternExclusions.getValue().trim();
-		let exclusionsUsePattern = this.inputPatternExclusions.isGlobPattern();
-		let patternIncludes = this.inputPatternIncludes.getValue().trim();
-		let includesUsePattern = this.inputPatternIncludes.isGlobPattern();
+		const isRegex = this.searchWidget.searchInput.getRegex();
+		const isWholeWords = this.searchWidget.searchInput.getWholeWords();
+		const isCaseSensitive = this.searchWidget.searchInput.getCaseSensitive();
+		const contentPattern = this.searchWidget.searchInput.getValue();
+		const patternExcludes = this.inputPatternExclusions.getValue().trim();
+		const exclusionsUsePattern = this.inputPatternExclusions.isGlobPattern();
+		const patternIncludes = this.inputPatternIncludes.getValue().trim();
+		const includesUsePattern = this.inputPatternIncludes.isGlobPattern();
+		const useIgnoreFiles = this.inputPatternExclusions.useIgnoreFiles();
 
 		// store memento
 		this.viewletSettings['query.contentPattern'] = contentPattern;
@@ -928,6 +924,7 @@ export class SearchViewlet extends Viewlet {
 		this.viewletSettings['query.exclusionsUsePattern'] = exclusionsUsePattern;
 		this.viewletSettings['query.folderIncludes'] = patternIncludes;
 		this.viewletSettings['query.includesUsePattern'] = includesUsePattern;
+		this.viewletSettings['query.useIgnoreFiles'] = useIgnoreFiles;
 
 		if (!rerunQuery) {
 			return;
@@ -966,7 +963,8 @@ export class SearchViewlet extends Viewlet {
 			extraFileResources: getOutOfWorkspaceEditorResources(this.editorGroupService, this.contextService),
 			excludePattern: excludes,
 			maxResults: SearchViewlet.MAX_TEXT_RESULTS,
-			includePattern: includes
+			includePattern: includes,
+			useIgnoreFiles
 		};
 
 		this.onQueryTriggered(this.queryBuilder.text(content, options), patternExcludes, patternIncludes);
@@ -1373,3 +1371,11 @@ export class SearchViewlet extends Viewlet {
 		super.dispose();
 	}
 }
+
+registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+	let matchHighlightColor = theme.getColor(editorFindMatchHighlight);
+	if (matchHighlightColor) {
+		collector.addRule(`.search-viewlet .findInFileMatch { background-color: ${matchHighlightColor}; }`);
+		collector.addRule(`.search-viewlet .highlight { background-color: ${matchHighlightColor}; }`);
+	}
+});

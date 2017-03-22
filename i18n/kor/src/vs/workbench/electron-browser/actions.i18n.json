@@ -10,7 +10,6 @@
 	"closeMessages": "알림 메시지 닫기",
 	"closeWindow": "창 닫기",
 	"current": "현재 창",
-	"diffLeftRightLabel": "{0} ⟷ {1}",
 	"files": "파일",
 	"folders": "폴더",
 	"keybindingsReference": "바로 가기 키 참조",
@@ -29,6 +28,7 @@
 	"toggleDevTools": "개발자 도구 설정/해제",
 	"toggleFullScreen": "전체 화면 설정/해제",
 	"toggleMenuBar": "메뉴 모음 설정/해제",
+	"toggleSharedProcess": "공유 프로세스 설정/해제",
 	"zoomIn": "확대",
 	"zoomOut": "축소",
 	"zoomReset": "확대/축소 다시 설정"

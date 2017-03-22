@@ -41,6 +41,7 @@
 	"openPreviousRecentlyUsedEditorInGroup": "그룹에서 최근에 사용한 이전 편집기 열기",
 	"openToSide": "측면에서 열기",
 	"reopenClosedEditor": "닫힌 편집기 다시 열기",
+	"revertAndCloseActiveEditor": "편집기 되돌리기 및 닫기",
 	"showAllEditors": "모든 편집기 표시",
 	"showEditorsInFirstGroup": "첫 번째 그룹에 편집기 표시",
 	"showEditorsInGroup": "그룹의 편집기 표시",

@@ -25,7 +25,7 @@ import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { VIEWLET_ID } from 'vs/workbench/parts/files/common/files';
 import labels = require('vs/base/common/labels');
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IFileService, IFileStat, isEqual, isParent } from 'vs/platform/files/common/files';
+import { IFileService, IFileStat, isEqual, isEqualOrParent } from 'vs/platform/files/common/files';
 import { toResource, IEditorIdentifier, EditorInput } from 'vs/workbench/common/editor';
 import { FileStat, NewStatPlaceholder } from 'vs/workbench/parts/files/common/explorerViewModel';
 import { ExplorerView } from 'vs/workbench/parts/files/browser/views/explorerView';
@@ -288,7 +288,7 @@ class RenameFileAction extends BaseRenameAction {
 	public runAction(newName: string): TPromise<any> {
 		let isDirtyCaseChange = false;
 
-		const dirty = this.textFileService.getDirty().filter(d => isEqual(d.fsPath, this.element.resource.fsPath) || isParent(d.fsPath, this.element.resource.fsPath));
+		const dirty = this.textFileService.getDirty().filter(d => isEqualOrParent(d.fsPath, this.element.resource.fsPath, !isLinux /* ignorecase */));
 		const dirtyRenamed = dirty.map(d => {
 			const targetPath = paths.join(this.element.parent.resource.fsPath, newName);
 			let renamed: URI;
@@ -702,7 +702,7 @@ export class BaseDeleteFileAction extends BaseFileAction {
 
 		// Handle dirty
 		let revertPromise: TPromise<any> = TPromise.as(null);
-		const dirty = this.textFileService.getDirty().filter(d => isEqual(d.fsPath, this.element.resource.fsPath) || isParent(d.fsPath, this.element.resource.fsPath));
+		const dirty = this.textFileService.getDirty().filter(d => isEqualOrParent(d.fsPath, this.element.resource.fsPath, !isLinux /* ignorecase */));
 		if (dirty.length) {
 			let message: string;
 			if (this.element.isDirectory) {
@@ -994,7 +994,7 @@ export class PasteFileAction extends BaseFileAction {
 		}
 
 		// Check if target is ancestor of pasted folder
-		if (!isEqual(this.element.resource.fsPath, fileToCopy.resource.fsPath) && (isEqual(this.element.resource.fsPath, fileToCopy.resource.fsPath) || isParent(this.element.resource.fsPath, fileToCopy.resource.fsPath))) {
+		if (!isEqual(this.element.resource.fsPath, fileToCopy.resource.fsPath) && isEqualOrParent(this.element.resource.fsPath, fileToCopy.resource.fsPath, !isLinux /* ignorecase */)) {
 			return false;
 		}
 
@@ -1099,8 +1099,8 @@ export class DuplicateFileAction extends BaseFileAction {
 	private toCopyName(name: string, isFolder: boolean): string {
 
 		// file.1.txt=>file.2.txt
-		if (!isFolder && name.match(/(\d+)(\..*)$/)) {
-			return name.replace(/(\d+)(\..*)$/, (match, g1?, g2?) => { return (parseInt(g1) + 1) + g2; });
+		if (!isFolder && name.match(/(.*\.)(\d+)(\..*)$/)) {
+			return name.replace(/(.*\.)(\d+)(\..*)$/, (match, g1?, g2?, g3?) => { return g1 + (parseInt(g2) + 1) + g3; });
 		}
 
 		// file.txt=>file.1.txt

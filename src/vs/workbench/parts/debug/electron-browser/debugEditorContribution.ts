@@ -506,7 +506,10 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		const decorations: IDecorationOptions[] = [];
 		// Compute decorators for each line
 		lineToNamesMap.forEach((names, line) => {
-			const contentText = names.map(name => `${name} = ${nameValueMap.get(name)}`).join(', ');
+			const contentText = names.sort((first, second) => {
+				const content = this.editor.getModel().getLineContent(line);
+				return content.indexOf(first) - content.indexOf(second);
+			}).map(name => `${name} = ${nameValueMap.get(name)}`).join(', ');
 			decorations.push(this.createInlineValueDecoration(line, contentText));
 		});
 

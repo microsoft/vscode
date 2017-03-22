@@ -9,9 +9,9 @@ import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { MarkedString } from 'vs/base/common/htmlContent';
-import { createKeybinding, KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
+import { KeyCode, KeyMod, KeyChord, createKeybinding } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { KeybindingIO } from 'vs/platform/keybinding/common/keybindingIO';
+import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -24,7 +24,7 @@ import { CodeSnippet } from 'vs/editor/contrib/snippet/common/snippet';
 import { SnippetController } from 'vs/editor/contrib/snippet/common/snippetController';
 import { SmartSnippetInserter } from 'vs/workbench/parts/preferences/common/smartSnippetInserter';
 import { DefineKeybindingOverlayWidget } from 'vs/workbench/parts/preferences/browser/keybindingWidgets';
-import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/abstractKeybindingService';
+import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
 import { OS } from 'vs/base/common/platform';
 
 import EditorContextKeys = editorCommon.EditorContextKeys;
@@ -160,22 +160,21 @@ export class DefineKeybindingController implements editorCommon.IEditorContribut
 		var m = model.findMatches(regex, false, true, false, false, false).map(m => m.range);
 
 		let data = m.map((range) => {
-			let text = model.getValueInRange(range);
-
-			let strKeybinding = text.substring(1, text.length - 1);
-			strKeybinding = strKeybinding.replace(/\\\\/g, '\\');
-
-			let numKeybinding = KeybindingIO.readKeybinding(strKeybinding, OS);
-
-			let keybinding = createKeybinding(numKeybinding);
-			let resolvedKeybinding = this._keybindingService.resolveKeybinding(keybinding);
-
+			const text = model.getValueInRange(range);
+			const strKeybinding = text.substring(1, text.length - 1).replace(/\\\\/g, '\\');
+			const numKeybinding = KeybindingIO.readKeybinding(strKeybinding, OS);
+			const keybinding = createKeybinding(numKeybinding, OS);
 			const usResolvedKeybinding = new USLayoutResolvedKeybinding(keybinding, OS);
+
+			let label: string = null;
+			const resolvedKeybindings = this._keybindingService.resolveKeybinding(keybinding);
+			if (resolvedKeybindings.length > 0) {
+				label = resolvedKeybindings[0].getLabel();
+			}
+
 			return {
-				strKeybinding: strKeybinding,
-				keybinding: keybinding,
 				usLabel: usResolvedKeybinding.getLabel(),
-				label: resolvedKeybinding.getLabel(),
+				label: label,
 				range: range
 			};
 		});

@@ -362,17 +362,6 @@ declare module monaco {
         static readonly WinCtrl: number;
         static chord(firstPart: number, secondPart: number): number;
     }
-
-    export class SimpleKeybinding {
-        readonly value: number;
-        constructor(keybinding: number);
-        hasCtrlCmd(): boolean;
-        hasShift(): boolean;
-        hasAlt(): boolean;
-        hasWinCtrl(): boolean;
-        isModifierKey(): boolean;
-        getKeyCode(): KeyCode;
-    }
     /**
      * MarkedString can be used to render human readable text. It is either a markdown string
      * or a code-block that provides a language and a code snippet. Note that
@@ -391,7 +380,7 @@ declare module monaco {
         readonly altKey: boolean;
         readonly metaKey: boolean;
         readonly keyCode: KeyCode;
-        toKeybinding(): SimpleKeybinding;
+        readonly code: string;
         equals(keybinding: number): boolean;
         preventDefault(): void;
         stopPropagation(): void;
@@ -886,17 +875,22 @@ declare module monaco.editor {
     /**
      * Define a new theme.
      */
-    export function defineTheme(themeName: string, themeData: ITheme): void;
+    export function defineTheme(themeName: string, themeData: IStandaloneThemeData): void;
 
     export type BuiltinTheme = 'vs' | 'vs-dark' | 'hc-black';
 
-    export interface ITheme {
+    export interface IStandaloneThemeData {
         base: BuiltinTheme;
         inherit: boolean;
-        rules: IThemeRule[];
+        rules: ITokenThemeRule[];
+        colors: IColors;
     }
 
-    export interface IThemeRule {
+    export type IColors = {
+        [colorId: string]: string;
+    };
+
+    export interface ITokenThemeRule {
         token: string;
         foreground?: string;
         background?: string;
@@ -984,6 +978,7 @@ declare module monaco.editor {
     }
 
     export interface IEditorOverrideServices {
+        [index: string]: any;
     }
 
     /**

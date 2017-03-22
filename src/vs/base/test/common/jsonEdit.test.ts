@@ -131,4 +131,29 @@ suite('JSON - edits', () => {
 		let edits = setProperty(content, [-1], 'bar', formatterOptions);
 		assertEdit(content, edits, '[\n  1,\n  2,\n  "bar"\n]');
 	});
+
+	test('remove item in array with one item', () => {
+		let content = '[\n  1\n]';
+		let edits = setProperty(content, [0], void 0, formatterOptions);
+		assertEdit(content, edits, '[]');
+	});
+
+	test('remove item in the middle of the array', () => {
+		let content = '[\n  1,\n  2,\n  3\n]';
+		let edits = setProperty(content, [1], void 0, formatterOptions);
+		assertEdit(content, edits, '[\n  1,\n  3\n]');
+	});
+
+	test('remove last item in the array', () => {
+		let content = '[\n  1,\n  2,\n  "bar"\n]';
+		let edits = setProperty(content, [2], void 0, formatterOptions);
+		assertEdit(content, edits, '[\n  1,\n  2\n]');
+	});
+
+	test('remove last item in the array if ends with comman', () => {
+		let content = '[\n  1,\n  "foo",\n  "bar",\n]';
+		let edits = setProperty(content, [2], void 0, formatterOptions);
+		assertEdit(content, edits, '[\n  1,\n  "foo"\n]');
+	});
+
 });

@@ -8,6 +8,7 @@
 	"channelName": "TypeScript",
 	"later": "Plus tard",
 	"learnMore": "En savoir plus",
+	"noBundledServerFound": "Le tsserver de VSCode a été supprimé par une autre application, par exemple un outil de détection de virus mal configuré. Réinstallez VS Code.",
 	"noServerFound": "Le chemin {0} ne pointe pas vers une installation tsserver valide. Utilisation par défaut de la version TypeScript groupée.",
 	"reloadBlurb": "Recharger la fenêtre pour appliquer les changements",
 	"reloadTitle": "Recharger",

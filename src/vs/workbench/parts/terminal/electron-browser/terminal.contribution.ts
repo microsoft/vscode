@@ -28,6 +28,7 @@ import debugActions = require('vs/workbench/parts/debug/browser/debugActions');
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { OpenNextRecentlyUsedEditorInGroupAction, OpenPreviousRecentlyUsedEditorInGroupAction, FocusActiveGroupAction } from 'vs/workbench/browser/parts/editor/editorActions';
 import { DefaultConfig } from 'vs/editor/common/config/defaultConfig';
+import { registerColors } from './terminalColorRegistry';
 
 let configurationRegistry = <IConfigurationRegistry>Registry.as(Extensions.Configuration);
 configurationRegistry.registerConfiguration({
@@ -63,7 +64,10 @@ configurationRegistry.registerConfiguration({
 			'items': {
 				'type': 'string'
 			},
-			'default': [],
+			// Unlike on Linux, ~/.profile is not sourced when logging into a macOS session. This
+			// is the reason terminals on macOS typically run login shells by default which set up
+			// the environment. See http://unix.stackexchange.com/a/119675/115410
+			'default': ['-l'],
 			'isExecutable': true
 		},
 		'terminal.integrated.shell.windows': {
@@ -104,6 +108,11 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('terminal.integrated.lineHeight', "Controls the line height of the terminal, this number is multipled by the terminal font size to get the actual line-height in pixels."),
 			'type': 'number',
 			'default': 1.2
+		},
+		'terminal.integrated.enableBold': {
+			'type': 'boolean',
+			'description': nls.localize('terminal.integrated.enableBold', "Whether to enable bold text within the terminal."),
+			'default': true
 		},
 		'terminal.integrated.cursorBlinking': {
 			'description': nls.localize('terminal.integrated.cursorBlinking', "Controls whether the terminal cursor blinks."),
@@ -257,3 +266,5 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ClearTerminalAct
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_K,
 	linux: { primary: null }
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KeybindingsRegistry.WEIGHT.workbenchContrib(1)), 'Terminal: Clear', category);
+
+registerColors();

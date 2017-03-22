@@ -109,6 +109,11 @@
           "description": "Traces the communication between VS Code and the JSON language server."
         }
       }
+    },
+    "configurationDefaults": {
+      "[json]": {
+        "editor.quickSuggestions": { "strings": true }
+      }
     }
   },
   "dependencies": {

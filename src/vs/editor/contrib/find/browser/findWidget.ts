@@ -364,60 +364,65 @@ export class FindWidget extends Widget implements IOverlayWidget {
 
 	private _onFindInputKeyDown(e: IKeyboardEvent): void {
 
-		switch (e.toKeybinding().value) {
-			case KeyCode.Enter:
-				this._codeEditor.getAction(FIND_IDS.NextMatchFindAction).run().done(null, onUnexpectedError);
-				e.preventDefault();
-				return;
+		if (e.equals(KeyCode.Enter)) {
+			this._codeEditor.getAction(FIND_IDS.NextMatchFindAction).run().done(null, onUnexpectedError);
+			e.preventDefault();
+			return;
+		}
 
-			case KeyMod.Shift | KeyCode.Enter:
-				this._codeEditor.getAction(FIND_IDS.PreviousMatchFindAction).run().done(null, onUnexpectedError);
-				e.preventDefault();
-				return;
+		if (e.equals(KeyMod.Shift | KeyCode.Enter)) {
+			this._codeEditor.getAction(FIND_IDS.PreviousMatchFindAction).run().done(null, onUnexpectedError);
+			e.preventDefault();
+			return;
+		}
 
-			case KeyCode.Tab:
-				if (this._isReplaceVisible) {
-					this._replaceInputBox.focus();
-				} else {
-					this._findInput.focusOnCaseSensitive();
-				}
-				e.preventDefault();
-				return;
+		if (e.equals(KeyCode.Tab)) {
+			if (this._isReplaceVisible) {
+				this._replaceInputBox.focus();
+			} else {
+				this._findInput.focusOnCaseSensitive();
+			}
+			e.preventDefault();
+			return;
+		}
 
-			case KeyMod.CtrlCmd | KeyCode.DownArrow:
-				this._codeEditor.focus();
-				e.preventDefault();
-				return;
+		if (e.equals(KeyMod.CtrlCmd | KeyCode.DownArrow)) {
+			this._codeEditor.focus();
+			e.preventDefault();
+			return;
 		}
 	}
 
 	private _onReplaceInputKeyDown(e: IKeyboardEvent): void {
 
-		switch (e.toKeybinding().value) {
-			case KeyCode.Enter:
-				this._controller.replace();
-				e.preventDefault();
-				return;
+		if (e.equals(KeyCode.Enter)) {
+			this._controller.replace();
+			e.preventDefault();
+			return;
+		}
 
-			case KeyMod.CtrlCmd | KeyCode.Enter:
-				this._controller.replaceAll();
-				e.preventDefault();
-				return;
+		if (e.equals(KeyMod.CtrlCmd | KeyCode.Enter)) {
+			this._controller.replaceAll();
+			e.preventDefault();
+			return;
+		}
 
-			case KeyCode.Tab:
-				this._findInput.focusOnCaseSensitive();
-				e.preventDefault();
-				return;
+		if (e.equals(KeyCode.Tab)) {
+			this._findInput.focusOnCaseSensitive();
+			e.preventDefault();
+			return;
+		}
 
-			case KeyMod.Shift | KeyCode.Tab:
-				this._findInput.focus();
-				e.preventDefault();
-				return;
+		if (e.equals(KeyMod.Shift | KeyCode.Tab)) {
+			this._findInput.focus();
+			e.preventDefault();
+			return;
+		}
 
-			case KeyMod.CtrlCmd | KeyCode.DownArrow:
-				this._codeEditor.focus();
-				e.preventDefault();
-				return;
+		if (e.equals(KeyMod.CtrlCmd | KeyCode.DownArrow)) {
+			this._codeEditor.focus();
+			e.preventDefault();
+			return;
 		}
 	}
 

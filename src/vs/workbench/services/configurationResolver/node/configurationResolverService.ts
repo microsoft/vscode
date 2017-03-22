@@ -150,7 +150,7 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 
 	private resolveConfigVariable(value: string, originalValue: string): string {
 		const replacer = (match: string, name: string) => {
-			let config = this.configurationService.getConfiguration();
+			let config = this.configurationService.getConfiguration<any>();
 			let newValue: any;
 			try {
 				const keys: string[] = name.split('.');

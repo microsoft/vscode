@@ -37,7 +37,7 @@ import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { CombinedInstallAction, UpdateAction, EnableAction, DisableAction, BuiltinStatusLabelAction, ReloadAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
 import WebView from 'vs/workbench/parts/html/browser/webview';
 import { createKeybinding } from 'vs/base/common/keyCodes';
-import { KeybindingIO } from 'vs/platform/keybinding/common/keybindingIO';
+import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { IMessageService } from 'vs/platform/message/common/message';
@@ -326,7 +326,12 @@ export class ExtensionEditor extends BaseEditor {
 				webview.style(this.themeService.getColorTheme());
 				webview.contents = [body];
 
-				webview.onDidClickLink(link => this.openerService.open(link), null, this.contentDisposables);
+				webview.onDidClickLink(link => {
+					// Whitelist supported schemes for links
+					if (link && ['http', 'https', 'mailto'].indexOf(link.scheme) >= 0) {
+						this.openerService.open(link);
+					}
+				}, null, this.contentDisposables);
 				this.themeService.onDidColorThemeChange(theme => webview.style(theme), null, this.contentDisposables);
 				this.contentDisposables.push(webview);
 			})
@@ -668,9 +673,12 @@ export class ExtensionEditor extends BaseEditor {
 			case 'darwin': key = rawKeyBinding.mac; break;
 		}
 
-		const keyBinding = createKeybinding(KeybindingIO.readKeybinding(key || rawKeyBinding.key, OS));
-		const resolvedKeybinding = this.keybindingService.resolveKeybinding(keyBinding);
-		const result = resolvedKeybinding.getLabel();
+		const keyBinding = createKeybinding(KeybindingIO.readKeybinding(key || rawKeyBinding.key, OS), OS);
+		const resolvedKeybindings = this.keybindingService.resolveKeybinding(keyBinding);
+		if (resolvedKeybindings.length === 0) {
+			return null;
+		}
+		const result = resolvedKeybindings[0].getLabel();
 		return result === 'unknown' ? null : result;
 	}
 

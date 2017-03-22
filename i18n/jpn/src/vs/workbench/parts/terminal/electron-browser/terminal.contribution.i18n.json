@@ -6,10 +6,10 @@
 {
 	"terminal": "端末",
 	"terminal.integrated.commandsToSkipShell": "キーバインドがシェルに送信されず、代わりに常に Code で処理されるコマンド ID のセット。これにより、ターミナルがフォーカスされていない場合と同じ動作をするシェルによって通常使用されるキーバインドを使用できるようになります。例: Ctrl+p で Quick Open を起動します。",
+	"terminal.integrated.confirmOnExit": "アクティブなターミナル セッションがある場合に終了の確認をするかどうか。",
 	"terminal.integrated.cursorBlinking": "端末のカーソルを点滅させるかどうかを制御します。",
 	"terminal.integrated.cursorStyle": "端末のカーソルのスタイルを制御します。",
 	"terminal.integrated.cwd": "端末を起動する明示的な開始パスです。これはシェル プロセスの現在の作業ディレクトリ (cwd) として使用されます。特にルート ディレクトリが cwd に適していない場合に、ワークスペースの設定で役立ちます。",
-	"terminal.integrated.flowControl": "ターミナル エミュレーターがシェル プロセスに遅れないようにするためにフロー制御を使用するかどうかを指定します。その主な効果は、コマンドの出力が大量の場合に、^C および他のシグナルの応答がさらに速くなることです。XOFF および XON シグナルの使用を無視するカスタムの ^S または ^Q キー バインドを使用している場合は、この設定を無効にしてください。",
 	"terminal.integrated.fontFamily": "端末のフォント ファミリを制御します。既定値は editor.fontFamily になります。",
 	"terminal.integrated.fontLigatures": "端末でフォントの合字が有効かどうかを制御します。",
 	"terminal.integrated.fontSize": "端末のフォント サイズをピクセル単位で制御します。",

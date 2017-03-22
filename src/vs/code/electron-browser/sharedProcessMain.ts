@@ -63,10 +63,6 @@ function main(server: Server, initData: ISharedProcessInitData): void {
 	instantiationService.invokeFunction(accessor => {
 		const appenders: AppInsightsAppender[] = [];
 
-		if (product.aiConfig && product.aiConfig.key) {
-			appenders.push(new AppInsightsAppender(eventPrefix, null, product.aiConfig.key));
-		}
-
 		if (product.aiConfig && product.aiConfig.asimovKey) {
 			appenders.push(new AppInsightsAppender(eventPrefix, null, product.aiConfig.asimovKey));
 		}

@@ -43,23 +43,23 @@
 }
 
 /* Hover */
-.monaco-list-row:hover { background-color: #F0F0F0; }
+.vs .monaco-list-row:hover { background-color: #F0F0F0; }
 .vs-dark .monaco-list-row:hover { background-color: rgba(255, 255, 255, 0.08); }
 .hc-black .monaco-list-row:hover { outline: 1px dashed #f38518; outline-offset: -1px; background: transparent; }
 
 /* Focus */
 .monaco-list.element-focused { outline: 0 !important; }
-.monaco-list:focus .monaco-list-row.focused { background-color: #DCEBFC; }
+.vs .monaco-list:focus .monaco-list-row.focused { background-color: #DCEBFC; }
 .vs-dark .monaco-list:focus .monaco-list-row.focused { background-color: #073655; }
-.hc-black .monaco-list:focus .monaco-list-row.focused { outline: 1px dotted #f38518; outline-offset: -1px; background: transparent }
+.hc-black .monaco-list:focus .monaco-list-row.focused { outline: 1px solid #f38518; outline-offset: -1px; background: transparent }
 
 /* Selection */
-.monaco-list .monaco-list-row.selected { background-color: #CCCEDB; }
-.monaco-list:focus .monaco-list-row.selected { background-color: #4FA7FF; color: white; }
+.vs .monaco-list .monaco-list-row.selected { background-color: #CCCEDB; }
+.vs .monaco-list:focus .monaco-list-row.selected { background-color: #4FA7FF; color: white; }
 .vs-dark .monaco-list .monaco-list-row.selected { background-color: #3F3F46; }
 .vs-dark .monaco-list:focus .monaco-list-row.selected { background-color: #0E639C; color: white; }
-.hc-black .monaco-list .monaco-list-row.selected { outline: 1px solid #f38518; color: white; }
+.hc-black .monaco-list .monaco-list-row.selected { outline: 1px dotted #f38518; color: white; }
 
 /* Selection and focus */
-.monaco-list:focus .monaco-list-row.selected.focused { background-color: #3399FF; color: white; }
+.vs .monaco-list:focus .monaco-list-row.selected.focused { background-color: #3399FF; color: white; }
 .vs-dark .monaco-list:focus .monaco-list-row.selected.focused { background-color: #094771; color: white; }

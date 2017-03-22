@@ -3,6 +3,9 @@
 	"name": "Light Default Colors",
 	"colors": {
 		"editorBackground": "#ffffff",
-		"editorForeground": "#000000"
+		"editorForeground": "#000000",
+		"editorInactiveSelection": "#E5EBF1",
+		"editorGuide": "#d3d3d3",
+		"editorSelectionHighlightColor": "#add6ff4d"
 	}
 }

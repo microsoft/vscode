@@ -10,7 +10,6 @@
 	"closeMessages": "Fermer les messages de notification",
 	"closeWindow": "Fermer la fenêtre",
 	"current": "Fenêtre active",
-	"diffLeftRightLabel": "{0} - {1}",
 	"files": "fichiers",
 	"folders": "dossiers",
 	"keybindingsReference": "Référence des raccourcis clavier",
@@ -29,6 +28,7 @@
 	"toggleDevTools": "Activer/désactiver les outils de développement",
 	"toggleFullScreen": "Plein écran",
 	"toggleMenuBar": "Activer/désactiver la barre de menus",
+	"toggleSharedProcess": "Activer/désactiver le processus partagé",
 	"zoomIn": "Zoom avant",
 	"zoomOut": "Zoom arrière",
 	"zoomReset": "Réinitialiser le zoom"

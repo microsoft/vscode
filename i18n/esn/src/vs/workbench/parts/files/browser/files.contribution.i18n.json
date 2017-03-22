@@ -18,7 +18,7 @@
 	"explore": "Explorador",
 	"explorerConfigurationTitle": "Explorador de archivos",
 	"files.autoSave.afterDelay": "Un archivo con modificaciones se guarda automáticamente tras la propiedad \"files.autoSaveDelay\" configurada.",
-	"files.autoSave.off": "\"off\": un archivo con modificaciones no se guarda nunca automáticamente.",
+	"files.autoSave.off": "Un archivo con modificaciones no se guarda nunca automáticamente.",
 	"files.autoSave.onFocusChange": "Un archivo con modificaciones se guarda automáticamente cuando el editor deja de fijarse en él.",
 	"files.autoSave.onWindowChange": "Un archivo con modificaciones se guarda automáticamente cuando la ventana deja de fijarse en él.",
 	"files.exclude.boolean": "El patrón global con el que se harán coincidir las rutas de acceso de los archivos. Establézcalo en true o false para habilitarlo o deshabilitarlo.",

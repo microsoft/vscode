@@ -7,16 +7,17 @@ import Paths = require('vs/base/common/paths');
 import Json = require('vs/base/common/json');
 import { Color } from 'vs/base/common/color';
 import { ExtensionData, ITokenColorizationRule, IColorTheme, IColorMap, VS_LIGHT_THEME, VS_HC_THEME } from 'vs/workbench/services/themes/common/themeService';
-import { convertSettings } from 'vs/workbench/services/themes/electron-browser/stylesContributions';
+import { convertSettings } from 'vs/workbench/services/themes/electron-browser/themeCompatibility';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { getBaseThemeId, getSyntaxThemeId, isDarkTheme, isLightTheme } from 'vs/platform/theme/common/themes';
 import nls = require('vs/nls');
 import * as types from 'vs/base/common/types';
+import * as objects from 'vs/base/common/objects';
 
 import * as plist from 'fast-plist';
 import pfs = require('vs/base/node/pfs');
 
-import { Extensions, IColorRegistry, ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
+import { Extensions, IColorRegistry, ColorIdentifier, editorBackground, editorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ThemeType } from 'vs/platform/theme/common/themeService';
 import { Registry } from 'vs/platform/platform';
 
@@ -72,6 +73,7 @@ export class ColorThemeData implements IColorTheme {
 				this.colorMap = colorMap;
 				this.defaultColorMap = {};
 				this.isLoaded = true;
+				completeTokenColors(this);
 			});
 		}
 		return TPromise.as(null);
@@ -86,6 +88,26 @@ export class ColorThemeData implements IColorTheme {
 			content.colors[key] = this.colorMap[key].toRGBAHex(true);
 		}
 		return JSON.stringify(content, null, '\t');
+	}
+
+	toStorageData() {
+		let colorMapData = {};
+		for (let key in this.colorMap) {
+			colorMapData[key] = this.colorMap[key].toRGBAHex(true);
+		}
+		return JSON.stringify({
+			id: this.id,
+			label: this.label,
+			settingsId: this.settingsId,
+			selector: this.selector,
+			tokenColors: this.tokenColors,
+			extensionData: this.extensionData,
+			colorMap: colorMapData
+		});
+	}
+
+	hasEqualData(other: ColorThemeData) {
+		return objects.equals(this.colorMap, other.colorMap) && objects.equals(this.tokenColors, other.tokenColors);
 	}
 
 	get type(): ThemeType {
@@ -111,6 +133,22 @@ export class ColorThemeData implements IColorTheme {
 	getBaseThemeId() {
 		return getBaseThemeId(this.id);
 	}
+}
+
+export function fromStorageData(input: string): ColorThemeData {
+	let data = JSON.parse(input);
+	let theme = new ColorThemeData();
+	for (let key in data) {
+		if (key !== 'colorMap') {
+			theme[key] = data[key];
+		} else {
+			let colorMapData = data[key];
+			for (let id in colorMapData) {
+				theme.colorMap[id] = Color.fromHex(colorMapData[id]);
+			}
+		}
+	}
+	return theme;
 }
 
 let defaultThemeColors: { [baseTheme: string]: ITokenColorizationRule[] } = {
@@ -184,5 +222,21 @@ function _loadThemeDocument(baseTheme: string, themePath: string, resultRules: I
 		}
 	}, error => {
 		return TPromise.wrapError(new Error(nls.localize('error.cannotload', "Problems loading theme file {0}: {1}", themePath, error.message)));
+	});
+}
+
+/**
+ * Make sure that the token colors contain the default fore and background
+ */
+function completeTokenColors(theme: ColorThemeData) {
+	theme.tokenColors.forEach(rule => {
+		if (!rule.scope) {
+			if (!rule.settings.background) {
+				rule.settings.background = theme.getColor(editorBackground).toRGBAHex();
+			}
+			if (!rule.settings.foreground) {
+				rule.settings.foreground = theme.getColor(editorForeground).toRGBAHex();
+			}
+		}
 	});
 }
