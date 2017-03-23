@@ -214,7 +214,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 
 				const reloadItem = { title: localize('reloadTitle', 'Reload') };
 				window.showInformationMessage<MessageItem>(
-					localize('tsserverLogReloadBlurb', 'Reload window to apply \'typescript.tsserver.log\' change'),
+					localize('tsserverLogReloadBlurb', 'Reload VS Code to apply \'typescript.tsserver.log\' change'),
 					reloadItem,
 					{
 						title: localize('later', 'Later'),
@@ -700,8 +700,15 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		}
 
 		return workspace.openTextDocument(this.tsServerLogFile)
-			.then(doc => window.showTextDocument(doc, window.activeTextEditor ? window.activeTextEditor.viewColumn : undefined))
-			.then(editor => !!editor);
+			.then(doc => {
+				return window.showTextDocument(doc, window.activeTextEditor ? window.activeTextEditor.viewColumn : undefined)
+					.then(editor => !!editor);
+			}, () => {
+				window.showWarningMessage(localize(
+					'openTsServerLog.openFileFailedFailed',
+					'Could not open TS Server log file'));
+				return null;
+			});
 	}
 
 	private serviceStarted(resendModels: boolean): void {
