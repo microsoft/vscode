@@ -10,7 +10,37 @@ import { TextEditorLineNumbersStyle } from 'vs/workbench/api/node/extHostTypes';
 import { TextEditorCursorStyle } from 'vs/editor/common/editorCommon';
 import { IResolvedTextEditorConfiguration, ITextEditorConfigurationUpdate } from 'vs/workbench/api/node/mainThreadEditor';
 import { MainThreadEditorsShape } from 'vs/workbench/api/node/extHost.protocol';
-import { ExtHostTextEditorOptions } from 'vs/workbench/api/node/extHostTextEditor';
+import { ExtHostTextEditorOptions, ExtHostTextEditor } from 'vs/workbench/api/node/extHostTextEditor';
+import { ExtHostDocumentData } from 'vs/workbench/api/node/extHostDocumentData';
+import URI from 'vs/base/common/uri';
+
+suite('ExtHostTextEditor', () => {
+
+	let editor: ExtHostTextEditor;
+
+	setup(() => {
+		let doc = new ExtHostDocumentData(undefined, URI.file(''), [
+			'aaaa bbbb+cccc abc'
+		], '\n', 'text', 1, false);
+		editor = new ExtHostTextEditor(null, 'fake', doc, [], { cursorStyle: 0, insertSpaces: true, lineNumbers: 1, tabSize: 4 }, 1);
+	});
+
+	test('disposed editor', () => {
+
+		assert.ok(editor.document);
+		editor._acceptViewColumn(3);
+		assert.equal(3, editor.viewColumn);
+
+		editor.dispose();
+
+		assert.throws(() => editor._acceptViewColumn(2));
+		assert.equal(3, editor.viewColumn);
+
+		assert.ok(editor.document);
+		assert.throws(() => editor._acceptOptions(null));
+		assert.throws(() => editor._acceptSelections([]));
+	});
+});
 
 suite('ExtHostTextEditorOptions', () => {
 
