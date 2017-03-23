@@ -905,7 +905,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			}
 		}
 
-		if (this.apiVersion.has220Features() && this.cancellationPipeName) {
+		if (this.apiVersion.has222Features() && this.cancellationPipeName) {
 			if (this.trace !== Trace.Off) {
 				this.logTrace(`TypeScript Service: trying to cancel ongoing request with sequence number ${seq}`);
 			}
