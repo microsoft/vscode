@@ -9,10 +9,6 @@
 	border-bottom-width: 1px;
 }
 
-.monaco-editor .reference-zone-widget.zone-widget-arrow.below {
-	background: transparent;
-}
-
 .monaco-editor .zone-widget .zone-widget-container.reference-zone-widget.results-loaded {
 	-webkit-transition: height 100ms ease-in;
 	transition: height 100ms ease-in;
@@ -69,14 +65,6 @@
 	opacity: 0.7;
 	margin-left: 0.5em;
 	font-size: 0.9em;
-}
-
-.monaco-editor .reference-zone-widget .ref-tree .reference .lineNumber {
-	color: #A8A8A8;
-}
-
-.monaco-editor .reference-zone-widget .ref-tree .selected .reference .lineNumber {
-	color: white;
 }
 
 .monaco-editor .reference-zone-widget .monaco-count-badge {

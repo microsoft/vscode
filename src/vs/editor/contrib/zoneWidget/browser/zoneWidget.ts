@@ -14,6 +14,7 @@ import { Sash, Orientation, IHorizontalSashLayoutProvider, ISashEvent } from 'vs
 import { EditorLayoutInfo, IPosition, IRange } from 'vs/editor/common/editorCommon';
 import { Range } from 'vs/editor/common/core/range';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IViewZone, IViewZoneChangeAccessor } from 'vs/editor/browser/editorBrowser';
+import { Color, RGBA } from "vs/base/common/color";
 
 export interface IOptions {
 	showFrame?: boolean;
@@ -22,12 +23,23 @@ export interface IOptions {
 	className?: string;
 	isAccessible?: boolean;
 	isResizeable?: boolean;
+	frameColor?: Color;
+	arrowColor?: Color;
 }
+
+export interface IStyles {
+	frameColor?: Color;
+	arrowColor?: Color;
+}
+
+const defaultColor = Color.fromRGBA(new RGBA(0, 122, 204));
 
 const defaultOptions: IOptions = {
 	showArrow: true,
 	showFrame: true,
-	className: ''
+	className: '',
+	frameColor: defaultColor,
+	arrowColor: defaultColor
 };
 
 const WIDGET_ID = 'vs.editor.contrib.zoneWidget';
@@ -151,9 +163,31 @@ export abstract class ZoneWidget extends Widget implements IHorizontalSashLayout
 			this.arrow = document.createElement('div');
 			this.arrow.className = 'zone-widget-arrow below';
 		}
-
 		this._fillContainer(this.container);
 		this._initSash();
+		this._applyStyles();
+	}
+
+	public style(styles: IStyles) {
+		if (styles.frameColor) {
+			this.options.frameColor = styles.frameColor;
+		}
+		if (styles.arrowColor) {
+			this.options.arrowColor = styles.arrowColor;
+		}
+		this._applyStyles();
+	}
+
+	protected _applyStyles() {
+		if (this.container) {
+			let frameColor = this.options.frameColor.toString();
+			this.container.style.borderTopColor = frameColor;
+			this.container.style.borderBottomColor = frameColor;
+		}
+		if (this.arrow) {
+			let arrowColor = this.options.arrowColor.toString();
+			this.arrow.style.borderBottomColor = arrowColor;
+		}
 	}
 
 	private _getWidth(info: EditorLayoutInfo = this.editor.getLayoutInfo()): number {
