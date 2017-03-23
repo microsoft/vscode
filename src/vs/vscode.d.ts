@@ -112,7 +112,12 @@ declare module 'vscode' {
 		readonly version: number;
 
 		/**
-		 * true if there are unpersisted changes.
+		 * `true` if this document is showing in one or more [editors](#TextEditor).
+		 */
+		readonly isVisible: boolean;
+
+		/**
+		 * `true` if there are unpersisted changes.
 		 */
 		readonly isDirty: boolean;
 

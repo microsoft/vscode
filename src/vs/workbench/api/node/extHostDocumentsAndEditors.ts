@@ -23,11 +23,13 @@ export class ExtHostDocumentsAndEditors extends ExtHostDocumentsAndEditorsShape 
 	private readonly _onDidRemoveDocuments = new Emitter<ExtHostDocumentData[]>();
 	private readonly _onDidChangeVisibleTextEditors = new Emitter<ExtHostTextEditor[]>();
 	private readonly _onDidChangeActiveTextEditor = new Emitter<ExtHostTextEditor>();
+	private readonly _onDidChangeVisibleDocuments = new Emitter<ExtHostDocumentData[]>();
 
 	readonly onDidAddDocuments: Event<ExtHostDocumentData[]> = this._onDidAddDocuments.event;
 	readonly onDidRemoveDocuments: Event<ExtHostDocumentData[]> = this._onDidRemoveDocuments.event;
 	readonly onDidChangeVisibleTextEditors: Event<ExtHostTextEditor[]> = this._onDidChangeVisibleTextEditors.event;
 	readonly onDidChangeActiveTextEditor: Event<ExtHostTextEditor> = this._onDidChangeActiveTextEditor.event;
+	readonly onDidChangeVisibleTextDocuments: Event<ExtHostDocumentData[]> = this._onDidChangeVisibleDocuments.event;
 
 	constructor(
 		@IThreadService private _threadService: IThreadService
@@ -40,6 +42,21 @@ export class ExtHostDocumentsAndEditors extends ExtHostDocumentsAndEditorsShape 
 		const removedDocuments: ExtHostDocumentData[] = [];
 		const addedDocuments: ExtHostDocumentData[] = [];
 		const removedEditors: ExtHostTextEditor[] = [];
+		const visibilityChangedDocuments = new Set<ExtHostDocumentData>();
+
+		if (delta.removedEditors) {
+			for (const id of delta.removedEditors) {
+				const editor = this._editors.get(id);
+				this._editors.delete(id);
+				removedEditors.push(editor);
+
+				const uri = editor.document.uri.toString();
+				const data = this._documents.get(uri);
+				if (data._acceptIsVisible(false)) {
+					visibilityChangedDocuments.add(data);
+				}
+			}
+		}
 
 		if (delta.removedDocuments) {
 			for (const id of delta.removedDocuments) {
@@ -67,14 +84,6 @@ export class ExtHostDocumentsAndEditors extends ExtHostDocumentsAndEditorsShape 
 			}
 		}
 
-		if (delta.removedEditors) {
-			for (const id of delta.removedEditors) {
-				const editor = this._editors.get(id);
-				this._editors.delete(id);
-				removedEditors.push(editor);
-			}
-		}
-
 		if (delta.addedEditors) {
 			for (const data of delta.addedEditors) {
 				assert.ok(this._documents.has(data.document.toString()), `document '${data.document}' does not exist`);
@@ -90,6 +99,9 @@ export class ExtHostDocumentsAndEditors extends ExtHostDocumentsAndEditorsShape 
 					typeConverters.toViewColumn(data.editorPosition)
 				);
 				this._editors.set(data.id, editor);
+				if (documentData._acceptIsVisible(true)) {
+					visibilityChangedDocuments.add(documentData);
+				}
 			}
 		}
 
@@ -111,6 +123,12 @@ export class ExtHostDocumentsAndEditors extends ExtHostDocumentsAndEditorsShape 
 		}
 		if (delta.newActiveEditor) {
 			this._onDidChangeActiveTextEditor.fire(this.activeEditor());
+		}
+
+		if (visibilityChangedDocuments.size > 0) {
+			const documents: ExtHostDocumentData[] = [];
+			visibilityChangedDocuments.forEach(data => documents.push(data));
+			this._onDidChangeVisibleDocuments.fire(documents);
 		}
 
 		// now that the events are out, dispose removed documents and editors
