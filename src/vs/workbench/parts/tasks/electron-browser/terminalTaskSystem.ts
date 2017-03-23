@@ -369,7 +369,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 				}
 			});
 			shellArgs.push(commandLine);
-			shellLaunchConfig.args = shellArgs;
+			shellLaunchConfig.args = Platform.isWindows ? shellArgs.join(' ') : shellArgs;
 		} else {
 			let cwd = options && options.cwd ? options.cwd : process.cwd();
 			// On Windows executed process must be described absolute. Since we allowed command without an
