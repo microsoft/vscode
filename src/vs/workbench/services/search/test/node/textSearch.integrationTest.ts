@@ -179,4 +179,14 @@ suite('Search-integration', () => {
 
 		doSearchTest(config, 0, done);
 	});
+
+	test('Text: -size', function (done: () => void) {
+		let config = {
+			rootFolders: rootfolders(),
+			filePattern: '*.css',
+			contentPattern: { pattern: '-size', modifiers: 'i' }
+		};
+
+		doSearchTest(config, 9, done);
+	});
 });
