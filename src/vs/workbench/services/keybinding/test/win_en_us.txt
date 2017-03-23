@@ -218,10 +218,10 @@
 |             Ctrl+Alt+Backslash |  ---  |                Ctrl+Alt+\ |                Ctrl+Alt+\ |
 |       Ctrl+Shift+Alt+Backslash |  ---  |          Ctrl+Shift+Alt+\ |          Ctrl+Shift+Alt+\ |
 --------------------------------------------------------------------------------------------------
-|                       IntlHash |  ---  |                 undefined |                 undefined |
-|                 Shift+IntlHash |  ---  |           Shift+undefined |           Shift+undefined |
-|              Ctrl+Alt+IntlHash |  ---  |        Ctrl+Alt+undefined |        Ctrl+Alt+undefined |
-|        Ctrl+Shift+Alt+IntlHash |  ---  |  Ctrl+Shift+Alt+undefined |  Ctrl+Shift+Alt+undefined |
+|                       IntlHash |  ---  |                      null |                      null |
+|                 Shift+IntlHash |  ---  |                      null |                      null |
+|              Ctrl+Alt+IntlHash |  ---  |                      null |                      null |
+|        Ctrl+Shift+Alt+IntlHash |  ---  |                      null |                      null |
 --------------------------------------------------------------------------------------------------
 |       HW Code combination      |  Key  |    KeyCode combination    |          UI label         |
 --------------------------------------------------------------------------------------------------
