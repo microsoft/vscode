@@ -34,7 +34,7 @@ export class ToggleTerminalAction extends TogglePanelAction {
 		if (this.terminalService.terminalInstances.length === 0) {
 			// If there is not yet an instance attempt to create it here so that we can suggest a
 			// new shell on Windows (and not do so when the panel is restored on reload).
-			const instance = this.terminalService.createInstance(undefined, true);
+			this.terminalService.createInstance(undefined, true);
 		}
 		return super.run();
 	}
