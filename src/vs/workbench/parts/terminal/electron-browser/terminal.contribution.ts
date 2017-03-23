@@ -26,7 +26,7 @@ import { ToggleTabFocusModeAction } from 'vs/editor/contrib/toggleTabFocusMode/c
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import debugActions = require('vs/workbench/parts/debug/browser/debugActions');
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { OpenNextRecentlyUsedEditorInGroupAction, OpenPreviousRecentlyUsedEditorInGroupAction, FocusActiveGroupAction } from 'vs/workbench/browser/parts/editor/editorActions';
+import { OpenNextRecentlyUsedEditorInGroupAction, OpenPreviousRecentlyUsedEditorInGroupAction, FocusActiveGroupAction, FocusFirstGroupAction, FocusSecondGroupAction, FocusThirdGroupAction } from 'vs/workbench/browser/parts/editor/editorActions';
 import { DefaultConfig } from 'vs/editor/common/config/defaultConfig';
 import { registerColors } from './terminalColorRegistry';
 
@@ -182,7 +182,10 @@ configurationRegistry.registerConfiguration({
 				debugActions.ContinueAction.ID,
 				debugActions.PauseAction.ID,
 				OpenNextRecentlyUsedEditorInGroupAction.ID,
-				OpenPreviousRecentlyUsedEditorInGroupAction.ID
+				OpenPreviousRecentlyUsedEditorInGroupAction.ID,
+				FocusFirstGroupAction.ID,
+				FocusSecondGroupAction.ID,
+				FocusThirdGroupAction.ID
 			].sort()
 		}
 	}
