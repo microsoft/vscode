@@ -266,7 +266,7 @@
 		"editorPeekEditorBackground": "#001F33",
 		"editorPeekTitleBackground": "#060621",
 		"editorPeekBorders": "#7777cc",
-		"editorLineNumbers": "#0000FF",
+		"editorLineNumbers": "#8686ff",
 
 		// Workbench Colors
 		"tabsContainerBackground": "#1c1c2a",
