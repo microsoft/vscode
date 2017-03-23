@@ -122,6 +122,29 @@ export class NativeResolvedKeybinding extends ResolvedKeybinding {
 		return UserSettingsLabelProvider.toLabel(this._firstPart, firstPart, this._chordPart, chordPart, this._OS);
 	}
 
+	private _isWYSIWYG(scanCode: ScanCode): boolean {
+		if (IMMUTABLE_CODE_TO_KEY_CODE[scanCode] !== -1) {
+			return true;
+		}
+		let a = this._mapper.getAriaLabelForScanCode(scanCode);
+		let b = this._mapper.getUserSettingsLabel(scanCode);
+
+		if (!a && !b) {
+			return true;
+		}
+		if (!a || !b) {
+			return false;
+		}
+		return (a.toLowerCase() === b.toLowerCase());
+	}
+
+	public isWYSIWYG(): boolean {
+		let result = true;
+		result = result && (this._firstPart ? this._isWYSIWYG(this._firstPart.scanCode) : true);
+		result = result && (this._chordPart ? this._isWYSIWYG(this._chordPart.scanCode) : true);
+		return result;
+	}
+
 	public isChord(): boolean {
 		return (this._chordPart ? true : false);
 	}
@@ -572,16 +595,23 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 	public dumpDebugInfo(): string {
 		let result: string[] = [];
 
+		let immutableSamples = [
+			ScanCode.ArrowUp,
+			ScanCode.Numpad0
+		];
+
 		let cnt = 0;
-		result.push(`------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------`);
+		result.push(`----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------`);
 		for (let scanCode = ScanCode.None; scanCode < ScanCode.MAX_VALUE; scanCode++) {
 			if (IMMUTABLE_CODE_TO_KEY_CODE[scanCode] !== -1) {
-				continue;
+				if (immutableSamples.indexOf(scanCode) === -1) {
+					continue;
+				}
 			}
 
 			if (cnt % 4 === 0) {
-				result.push(`|       HW Code combination      |  Key  |    KeyCode combination    | Pri |          UI label         |         User settings          |    Electron accelerator   |       Dispatching string       |`);
-				result.push(`------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------`);
+				result.push(`|       HW Code combination      |  Key  |    KeyCode combination    | Pri |          UI label         |         User settings          |    Electron accelerator   |       Dispatching string       | WYSIWYG |`);
+				result.push(`----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------`);
 			}
 			cnt++;
 
@@ -609,9 +639,12 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 				const outElectronAccelerator = resolvedKb.getElectronAccelerator();
 				const outDispatchStr = resolvedKb.getDispatchParts()[0];
 
+				const isWYSIWYG = (resolvedKb ? resolvedKb.isWYSIWYG() : false);
+				const outWYSIWYG = (isWYSIWYG ? '       ' : '   NO  ');
+
 				const kbCombos = this._scanCodeKeyCodeMapper.lookupScanCodeCombo(scanCodeCombo);
 				if (kbCombos.length === 0) {
-					result.push(`| ${this._leftPad(outScanCodeCombo, 30)} | ${outKey} | ${this._leftPad('', 25)} | ${this._leftPad('', 3)} | ${this._leftPad(outUILabel, 25)} | ${this._leftPad(outUserSettings, 30)} | ${this._leftPad(outElectronAccelerator, 25)} | ${this._leftPad(outDispatchStr, 30)} |`);
+					result.push(`| ${this._leftPad(outScanCodeCombo, 30)} | ${outKey} | ${this._leftPad('', 25)} | ${this._leftPad('', 3)} | ${this._leftPad(outUILabel, 25)} | ${this._leftPad(outUserSettings, 30)} | ${this._leftPad(outElectronAccelerator, 25)} | ${this._leftPad(outDispatchStr, 30)} | ${outWYSIWYG} |`);
 				} else {
 					for (let i = 0, len = kbCombos.length; i < len; i++) {
 						const kbCombo = kbCombos[i];
@@ -635,16 +668,16 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 
 						const outKeybinding = kbCombo.toString();
 						if (i === 0) {
-							result.push(`| ${this._leftPad(outScanCodeCombo, 30)} | ${outKey} | ${this._leftPad(outKeybinding, 25)} | ${this._leftPad(colPriority, 3)} | ${this._leftPad(outUILabel, 25)} | ${this._leftPad(outUserSettings, 30)} | ${this._leftPad(outElectronAccelerator, 25)} | ${this._leftPad(outDispatchStr, 30)} |`);
+							result.push(`| ${this._leftPad(outScanCodeCombo, 30)} | ${outKey} | ${this._leftPad(outKeybinding, 25)} | ${this._leftPad(colPriority, 3)} | ${this._leftPad(outUILabel, 25)} | ${this._leftPad(outUserSettings, 30)} | ${this._leftPad(outElectronAccelerator, 25)} | ${this._leftPad(outDispatchStr, 30)} | ${outWYSIWYG} |`);
 						} else {
 							// secondary keybindings
-							result.push(`| ${this._leftPad('', 30)} |       | ${this._leftPad(outKeybinding, 25)} | ${this._leftPad(colPriority, 3)} | ${this._leftPad('', 25)} | ${this._leftPad('', 30)} | ${this._leftPad('', 25)} | ${this._leftPad('', 30)} |`);
+							result.push(`| ${this._leftPad('', 30)} |       | ${this._leftPad(outKeybinding, 25)} | ${this._leftPad(colPriority, 3)} | ${this._leftPad('', 25)} | ${this._leftPad('', 30)} | ${this._leftPad('', 25)} | ${this._leftPad('', 30)} |         |`);
 						}
 					}
 				}
 
 			}
-			result.push(`------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------`);
+			result.push(`----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------`);
 		}
 
 		return result.join('\n');

@@ -21,6 +21,7 @@ export interface IResolvedKeybinding {
 	HTMLLabel: IHTMLContentElement[];
 	electronAccelerator: string;
 	userSettingsLabel: string;
+	isWYSIWYG: boolean;
 	isChord: boolean;
 	hasCtrlModifier: boolean;
 	hasShiftModifier: boolean;
@@ -36,6 +37,7 @@ function toIResolvedKeybinding(kb: ResolvedKeybinding): IResolvedKeybinding {
 		HTMLLabel: kb.getHTMLLabel(),
 		electronAccelerator: kb.getElectronAccelerator(),
 		userSettingsLabel: kb.getUserSettingsLabel(),
+		isWYSIWYG: kb.isWYSIWYG(),
 		isChord: kb.isChord(),
 		hasCtrlModifier: kb.hasCtrlModifier(),
 		hasShiftModifier: kb.hasShiftModifier(),
