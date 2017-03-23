@@ -9,7 +9,6 @@ import * as modes from 'vs/editor/common/modes';
 import * as types from './extHostTypes';
 import { Position as EditorPosition } from 'vs/platform/editor/common/editor';
 import { IPosition, ISelection, IRange, IDecorationOptions, ISingleEditOperation } from 'vs/editor/common/editorCommon';
-import { IWorkspaceSymbol } from 'vs/workbench/parts/search/common/search';
 import * as vscode from 'vscode';
 import URI from 'vs/base/common/uri';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
@@ -165,46 +164,63 @@ export const TextEdit = {
 	}
 };
 
-export namespace SymbolInformation {
 
-	export function fromOutlineEntry(entry: modes.SymbolInformation): types.SymbolInformation {
-		return new types.SymbolInformation(
-			entry.name,
-			entry.kind,
-			toRange(entry.location.range),
-			entry.location.uri,
-			entry.containerName
-		);
+export namespace SymbolKind {
+
+	const _fromMapping: { [kind: number]: modes.SymbolKind } = Object.create(null);
+	_fromMapping[types.SymbolKind.File] = 'file';
+	_fromMapping[types.SymbolKind.Module] = 'module';
+	_fromMapping[types.SymbolKind.Namespace] = 'namespace';
+	_fromMapping[types.SymbolKind.Package] = 'package';
+	_fromMapping[types.SymbolKind.Class] = 'class';
+	_fromMapping[types.SymbolKind.Method] = 'method';
+	_fromMapping[types.SymbolKind.Property] = 'property';
+	_fromMapping[types.SymbolKind.Field] = 'field';
+	_fromMapping[types.SymbolKind.Constructor] = 'constructor';
+	_fromMapping[types.SymbolKind.Enum] = 'enum';
+	_fromMapping[types.SymbolKind.Interface] = 'interface';
+	_fromMapping[types.SymbolKind.Function] = 'function';
+	_fromMapping[types.SymbolKind.Variable] = 'variable';
+	_fromMapping[types.SymbolKind.Constant] = 'constant';
+	_fromMapping[types.SymbolKind.String] = 'string';
+	_fromMapping[types.SymbolKind.Number] = 'number';
+	_fromMapping[types.SymbolKind.Boolean] = 'boolean';
+	_fromMapping[types.SymbolKind.Array] = 'array';
+	_fromMapping[types.SymbolKind.Object] = 'object';
+	_fromMapping[types.SymbolKind.Key] = 'key';
+	_fromMapping[types.SymbolKind.Null] = 'null';
+	_fromMapping[types.SymbolKind.EnumMember] = 'enum-member';
+	_fromMapping[types.SymbolKind.Struct] = 'struct';
+
+	export function from(kind: vscode.SymbolKind): modes.SymbolKind {
+		return _fromMapping[kind] || 'property';
 	}
 
-	export function toOutlineEntry(symbol: vscode.SymbolInformation): modes.SymbolInformation {
-		return <modes.SymbolInformation>{
-			name: symbol.name,
-			kind: symbol.kind,
-			containerName: symbol.containerName,
-			location: {
-				uri: <URI>symbol.location.uri,
-				range: fromRange(symbol.location.range)
+	export function to(kind: modes.SymbolKind): vscode.SymbolKind {
+		for (let k in _fromMapping) {
+			if (_fromMapping[k] === kind) {
+				return Number(k);
 			}
-		};
+		}
+		return types.SymbolKind.Property;
 	}
 }
 
-export function fromSymbolInformation(info: vscode.SymbolInformation): IWorkspaceSymbol {
-	return <IWorkspaceSymbol>{
+export function fromSymbolInformation(info: vscode.SymbolInformation): modes.SymbolInformation {
+	return <modes.SymbolInformation>{
 		name: info.name,
-		type: types.SymbolKind[info.kind || types.SymbolKind.Property].toLowerCase(),
+		kind: SymbolKind.from(info.kind),
 		containerName: info.containerName,
-		range: info.location && fromRange(info.location.range),
-		resource: info.location && info.location.uri,
+		location: location.from(info.location)
 	};
 }
 
-export function toSymbolInformation(bearing: IWorkspaceSymbol): types.SymbolInformation {
-	return new types.SymbolInformation(bearing.name,
-		types.SymbolKind[bearing.type.charAt(0).toUpperCase() + bearing.type.substr(1)],
+export function toSymbolInformation(bearing: modes.SymbolInformation): types.SymbolInformation {
+	return new types.SymbolInformation(
+		bearing.name,
+		SymbolKind.to(bearing.kind),
 		bearing.containerName,
-		new types.Location(bearing.resource, toRange(bearing.range))
+		location.to(bearing.location)
 	);
 }
 

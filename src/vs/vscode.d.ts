@@ -1851,6 +1851,8 @@ declare module 'vscode' {
 		Field = 7,
 		Constructor = 8,
 		Enum = 9,
+		EnumMember = 21,
+		Struct = 22,
 		Interface = 10,
 		Function = 11,
 		Variable = 12,

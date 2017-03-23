@@ -15,7 +15,7 @@ import * as modes from 'vs/editor/common/modes';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 import { IOutline } from 'vs/editor/contrib/quickOpen/common/quickOpen';
-import { IWorkspaceSymbolProvider, IWorkspaceSymbol } from 'vs/workbench/parts/search/common/search';
+import { IWorkspaceSymbolProvider } from 'vs/workbench/parts/search/common/search';
 import { ICodeLensData } from 'vs/editor/contrib/codelens/common/codelens';
 
 export class ExtHostApiCommands {
@@ -239,7 +239,7 @@ export class ExtHostApiCommands {
 	 * @return A promise that resolves to an array of symbol information.
 	 */
 	private _executeWorkspaceSymbolProvider(query: string): Thenable<types.SymbolInformation[]> {
-		return this._commands.executeCommand<[IWorkspaceSymbolProvider, IWorkspaceSymbol[]][]>('_executeWorkspaceSymbolProvider', { query }).then(value => {
+		return this._commands.executeCommand<[IWorkspaceSymbolProvider, modes.SymbolInformation[]][]>('_executeWorkspaceSymbolProvider', { query }).then(value => {
 			const result: types.SymbolInformation[] = [];
 			if (Array.isArray(value)) {
 				for (let tuple of value) {
@@ -371,7 +371,7 @@ export class ExtHostApiCommands {
 		};
 		return this._commands.executeCommand<IOutline>('_executeDocumentSymbolProvider', args).then(value => {
 			if (value && Array.isArray(value.entries)) {
-				return value.entries.map(typeConverters.SymbolInformation.fromOutlineEntry);
+				return value.entries.map(typeConverters.toSymbolInformation);
 			}
 			return undefined;
 		});
