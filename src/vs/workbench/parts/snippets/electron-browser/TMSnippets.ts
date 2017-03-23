@@ -84,14 +84,14 @@ export class MainProcessTextMateSnippet implements IWorkbenchContribution {
 	}
 }
 
-export function readAndRegisterSnippets(snippetService: ISnippetsService, languageIdentifier: LanguageIdentifier, filePath: string, ownerName: string): TPromise<void> {
+export function readAndRegisterSnippets(snippetService: ISnippetsService, languageIdentifier: LanguageIdentifier, filePath: string, extensionName?: string): TPromise<void> {
 	return readFile(filePath).then(fileContents => {
-		let snippets = parseSnippetFile(fileContents.toString(), ownerName);
+		let snippets = parseSnippetFile(fileContents.toString(), extensionName);
 		snippetService.registerSnippets(languageIdentifier.id, snippets, filePath);
 	});
 }
 
-function parseSnippetFile(snippetFileContent: string, owner: string): ISnippet[] {
+function parseSnippetFile(snippetFileContent: string, extensionName?: string): ISnippet[] {
 	let snippetsObj = parse(snippetFileContent);
 	if (!snippetsObj || typeof snippetsObj !== 'object') {
 		return [];
@@ -111,7 +111,7 @@ function parseSnippetFile(snippetFileContent: string, owner: string): ISnippet[]
 		if (typeof prefix === 'string' && typeof bodyStringOrArray === 'string') {
 			result.push({
 				name,
-				owner,
+				extensionName,
 				prefix,
 				description: snippet['description'] || name,
 				codeSnippet: bodyStringOrArray
