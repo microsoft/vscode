@@ -475,3 +475,170 @@ export function _matchRecursive(
 
 	return -1;
 }
+
+
+function initTable() {
+	const table: number[][] = [];
+	const row: number[] = [0];
+	for (let i = 1; i <= 100; i++) {
+		row.push(-i);
+	}
+	for (let i = 0; i < 100; i++) {
+		let thisRow = row.slice(0);
+		thisRow[0] = -i;
+		table.push(thisRow);
+	}
+	return table;
+}
+const _table = initTable();
+const _arrows = initTable();
+const _debug = false;
+function printTable(table: number[][], pattern: string, patternLen: number, word: string, wordLen: number): string {
+	function pad(s: string, n: number, pad = ' ') {
+		while (s.length < n) {
+			s = pad + s;
+		}
+		return s;
+	}
+	let ret = ` |   |${word.split('').map(c => pad(c, 3)).join('|')}\n`;
+
+	for (let i = 0; i <= patternLen; i++) {
+		if (i === 0) {
+			ret += ' |';
+		} else {
+			ret += `${pattern[i - 1]}|`;
+		}
+		ret += table[i].slice(0, wordLen + 1).map(n => pad(n.toString(), 3)).join('|') + '\n';
+	}
+	return ret;
+}
+
+export function fuzzyScore(pattern: string, word: string): [number, number[]] {
+
+	const patternLen = pattern.length > 25 ? 25 : pattern.length;
+	const wordLen = word.length > 100 ? 100 : word.length;
+
+	if (patternLen > wordLen) {
+		return undefined;
+	}
+
+	const lowPattern = pattern.toLowerCase();
+	const lowWord = word.toLowerCase();
+
+	let lastLowestMatch = -1;
+	let i: number;
+	let j: number;
+	for (i = 1; i <= patternLen; i++) {
+
+		let lowestMatch = -1;
+		let highestMatch = -1;
+		let lastLowWordChar = '';
+
+		for (j = 1; j <= wordLen; j++) {
+
+			let score = -1;
+			let lowWordChar = lowWord[j - 1];
+			if (lowPattern[i - 1] === lowWordChar) {
+				if (lowWordChar !== word[j - 1]) {
+					if (pattern[i - 1] === word[j - 1]) {
+						score = 7;
+					} else {
+						score = 5;
+					}
+				} else if (lastLowWordChar === '_' || lastLowWordChar === '.') {
+					score = 5;
+
+				} else if (j === 1) {
+					score = 5;
+
+				} else {
+					score = 1;
+				}
+
+				highestMatch = j - 1;
+				if (lowestMatch === -1) {
+					lowestMatch = j - 1;
+				}
+			}
+
+			let diag = _table[i - 1][j - 1] + score;
+			let top = _table[i - 1][j] + -1;
+			let left = _table[i][j - 1] + -1;
+
+			if (left >= top) {
+				// left or diag
+				if (left >= diag) {
+					_table[i][j] = left;
+					_arrows[i][j] = -1;
+				} else {
+					_table[i][j] = diag;
+					_arrows[i][j] = 0;
+				}
+			} else {
+				// top or diag
+				if (diag >= top) {
+					_table[i][j] = diag;
+					_arrows[i][j] = 0;
+				} else {
+					_table[i][j] = top;
+					_arrows[i][j] = 1;
+				}
+			}
+
+			lastLowWordChar = lowWordChar;
+		}
+
+		if (lowestMatch === -1 || highestMatch < lastLowestMatch) {
+			// return early when there was no match or when the
+			// match was only before the last lowest match
+			return undefined;
+		}
+
+		lastLowestMatch = lowestMatch;
+	}
+
+	if (_debug) {
+		console.log(printTable(_table, pattern, patternLen, word, wordLen));
+		console.log(printTable(_arrows, pattern, patternLen, word, wordLen));
+	}
+
+	let matches: number[] = [];
+	let total = 0;
+	i = patternLen;
+	j = wordLen;
+	while (i > 0 && j > 0) {
+		let value = _table[i][j];
+		let arrow = _arrows[i][j];
+		if (arrow === -1) { // left
+			j -= 1;
+		} else if (arrow === 1) { // top
+			i -= 1;
+		} else if (arrow === 0) { //diag
+			j -= 1;
+			i -= 1;
+
+			total += value;
+			matches.unshift(j);
+
+			if (i === 0) {
+				// we have reached the first pattern char and now
+				// test that it has scored properly, like `o -> bbOO`
+				// and not `o -> foobar`
+				let score = value - _table[i][j];
+				if (score === 1) {
+					return undefined;
+				}
+			}
+		}
+	}
+
+	total -= Math.min(matches[0], 3) * 3; // penalty for first matching character
+	total -= (1 + matches[matches.length - 1]) - (pattern.length); // penalty for all non matching characters between first and last
+
+
+	if (_debug) {
+		console.log(`${pattern} & ${word} => ${total} points`);
+	}
+
+	return [total, matches];
+}
