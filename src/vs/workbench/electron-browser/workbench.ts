@@ -1144,35 +1144,19 @@ export class Workbench implements IPartService {
 
 	// Resize requested part along the main axis
 	// layout will do all the math for us and adjusts the other Parts
-	public resizePart(part: Parts, sizeChangePx: number, skipLayout?: boolean): TPromise<void> {
-
-		let promise = TPromise.as(null);
-		const visibleEditors = this.editorService.getVisibleEditors().length;
+	public resizePart(part: Parts, sizeChangePx: number): void {
 
 		switch (part) {
 			case Parts.SIDEBAR_PART:
 			case Parts.PANEL_PART:
+			case Parts.EDITOR_PART:
 				this.workbenchLayout.setPartSizeChange(part, sizeChangePx);
 				break;
-			case Parts.EDITOR_PART:
-				if (visibleEditors < 2) {
-					this.workbenchLayout.setPartSizeChange(part, sizeChangePx);
-				} else {
-					this.editorPart.requestActiveGroupSizeChange(sizeChangePx);
-				}
-				break;
+			// Cannot resize other parts
 			default:
-				return promise;
+				return;
 		}
-
-		return promise.then(() => {
-
-			// Layout
-			if (!skipLayout) {
-				this.workbenchLayout.layout();
-			}
-		});
-
+		return;
 	}
 
 

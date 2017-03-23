@@ -880,7 +880,6 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		}
 
 		const activeGroupPosition = this.getActivePosition();
-		console.log('s2: ' + this.silosSize[Position.TWO]);
 
 
 		switch (visibleEditors) {
@@ -900,7 +899,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 				}
 				break;
 			case VISIBLE_EDITORS.THREE:
-				let scaleFactor: number = 0;
+				// let scaleFactor: number = 0;
 
 				switch (activeGroupPosition) {
 					case Position.ONE:
@@ -909,40 +908,16 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 						this.silosSize[Position.ONE] = this.boundSiloSize(Position.ONE, groupSizeChange);
 						this.distributeRemainingSilosSize(Position.TWO, Position.THREE, availableSize - this.silosSize[Position.ONE]);
 						break;
-							/*
-							scaleFactor = this.silosSize[Position.TWO] / (this.silosSize[Position.TWO] + this.silosSize[Position.THREE]);
-							availableSize -= this.silosSize[Position.ONE];
-							this.silosSize[Position.TWO] = scaleFactor * availableSize;
-
-							this.silosSize[Position.TWO] = Math.max(this.silosSize[Position.TWO], this.minSize);
-							this.printSilosSize();
-
-							this.silosSize[Position.TWO] = Math.min(this.silosSize[Position.TWO], (availableSize - this.minSize));
-							this.printSilosSize();
-
-							this.silosSize[Position.THREE] = availableSize - this.silosSize[Position.TWO];
-							this.printSilosSize();*/
 
 					case Position.TWO:
 						this.silosSize[Position.TWO] = this.boundSiloSize(Position.TWO, groupSizeChange);
 						this.distributeRemainingSilosSize(Position.ONE, Position.THREE, availableSize - this.silosSize[Position.TWO]);
 
-/*
-						this.silosSize[Position.TWO] = this.silosSize[Position.TWO] + groupSizeChange;
-						scaleFactor = this.silosSize[Position.ONE] / (this.silosSize[Position.ONE] + this.silosSize[Position.THREE]);
-						this.silosSize[Position.ONE] = scaleFactor * (availableSize - this.silosSize[Position.TWO]);
-						this.silosSize[Position.THREE] = availableSize - this.silosSize[Position.ONE] - this.silosSize[Position.TWO];*/
 						break;
 					case Position.THREE:
 						this.silosSize[Position.THREE] = this.boundSiloSize(Position.THREE, groupSizeChange);
 						this.distributeRemainingSilosSize(Position.ONE, Position.TWO, availableSize - this.silosSize[Position.THREE]);
 
-/*
-
-						this.silosSize[Position.THREE] = this.silosSize[Position.THREE] + groupSizeChange;
-						scaleFactor = this.silosSize[Position.TWO] / (this.silosSize[Position.TWO] + this.silosSize[Position.ONE]);
-						this.silosSize[Position.TWO] = scaleFactor * (availableSize - this.silosSize[Position.THREE]);
-						this.silosSize[Position.ONE] = availableSize - this.silosSize[Position.THREE] - this.silosSize[Position.TWO];*/
 						break;
 					default:
 						break;

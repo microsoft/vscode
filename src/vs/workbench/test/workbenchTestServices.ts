@@ -458,6 +458,10 @@ export class TestEditorGroupService implements IEditorGroupService {
 		return 'vertical';
 	}
 
+	public requestActiveGroupSizeChange(groupSizeChange: number): boolean {
+		return true;
+	}
+
 	public pinEditor(group: IEditorGroup, input: IEditorInput): void;
 	public pinEditor(position: Position, input: IEditorInput): void;
 	public pinEditor(arg1: any, input: IEditorInput): void {

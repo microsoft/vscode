@@ -120,6 +120,6 @@ export interface IPartService {
 	/**
 	 * Resizes currently focused part on main access
 	 */
-	resizePart(part: Parts, sizeChangePx: number, skipLayout?: boolean): TPromise<void>;
+	resizePart(part: Parts, sizeChangePx: number): void;
 
 }

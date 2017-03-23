@@ -13,7 +13,7 @@ import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/action
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 
-const RESIZE_INCREMENT = 50;
+const RESIZE_INCREMENT = 6.5;
 
 export abstract class BaseResizeViewAction extends Action {
 

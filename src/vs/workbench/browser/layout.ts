@@ -539,30 +539,57 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		return this.panelMaximized;
 	}
 
-	// Add reset for keyboard support
-	public resetSideBarWidth(): number {
-		this.sidebarWidth = MIN_SIDEBAR_PART_WIDTH;
-		return this.sidebarWidth;
-	}
-
 	// change part size along the main axis
 	public setPartSizeChange(part: Parts, sizeChange: number): boolean {
+		let promise = TPromise.as(null);
+		let doLayout = false;
+		let newSashSize: number = 0;
+		let visibleEditors = this.editorService.getVisibleEditors().length;
+		let eO = this.editorGroupService.getGroupOrientation();
+		console.log(eO);
+
+		const sizeChangePxWidth = this.workbenchSize.width * (sizeChange / 100);
+		const sizeChangePxHeight = this.workbenchSize.height * (sizeChange / 100);
+
+		console.log('workbench length: ' + this.workbenchSize.width + ' PercentPX: ' + sizeChangePxHeight);
 
 		switch (part) {
 			case Parts.SIDEBAR_PART:
-				this.sidebarWidth = this.sidebarWidth + sizeChange;
-				return true;
+				newSashSize = this.sidebarWidth + sizeChangePxWidth;
+				this.sidebarWidth = Math.max(this.partLayoutInfo.sidebar.minWidth, newSashSize); // Sidebar can not become smaller than MIN_PART_WIDTH
+
+				if (this.layoutEditorGroupsVertically && (this.workbenchSize.width - this.sidebarWidth < visibleEditors * MIN_EDITOR_PART_WIDTH)) {
+					this.sidebarWidth = (this.workbenchSize.width - visibleEditors * MIN_EDITOR_PART_WIDTH);
+				}
+				// const panelOverflow = !this.layoutEditorGroupsVertically && (this.workbenchSize.height - this.panelHeight < visibleEditors * MIN_EDITOR_PART_HEIGHT);
+
+
+				doLayout = true;
+				break;
 			case Parts.PANEL_PART:
-				this.panelHeight = this.panelHeight + sizeChange;
-				return true;
+				newSashSize = this.panelHeight + sizeChangePxHeight;
+				this.panelHeight = Math.max(this.partLayoutInfo.panel.minHeight, newSashSize); // Sidebar can not become smaller than MIN_PART_WIDTH
+				doLayout = true;
+				break;
 			case Parts.EDITOR_PART:
 				// If we have one editor we can cheat and resize sidebar with the negative delta
 				const visibleEditorCount = this.editorService.getVisibleEditors().length;
 				if (visibleEditorCount === 1) {
 					this.sidebarWidth = this.sidebarWidth - sizeChange;
-					return true;
+					doLayout = true;
 				}
+				else {
+					this.editorGroupService.requestActiveGroupSizeChange(sizeChangePxWidth);
+					doLayout = false;
+				}
+				break;
+			}
+
+
+		if (doLayout) {
+			promise.done(() => this.layout(), errors.onUnexpectedError);
 		}
+
 		// other parts not resizable, no error just silent
 		return false;
 	}
