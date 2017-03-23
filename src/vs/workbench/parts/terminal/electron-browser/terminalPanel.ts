@@ -89,9 +89,12 @@ export class TerminalPanel extends Panel {
 				this._updateTheme();
 			} else {
 				return super.setVisible(visible).then(() => {
-					this._terminalService.createInstance();
-					this._updateFont();
-					this._updateTheme();
+					const instance = this._terminalService.createInstance();
+					if (instance) {
+						this._updateFont();
+						this._updateTheme();
+					}
+					return TPromise.as(void 0);
 				});
 			}
 		}

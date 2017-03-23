@@ -60,7 +60,9 @@ export abstract class TerminalService implements ITerminalService {
 	}
 
 	protected abstract _showTerminalCloseConfirmation(): boolean;
-	public abstract createInstance(shell?: IShellLaunchConfig): ITerminalInstance;
+	public abstract createInstance(shell?: IShellLaunchConfig, wasNewTerminalAction?: boolean): ITerminalInstance;
+	public abstract getActiveOrCreateInstance(wasNewTerminalAction?: boolean): ITerminalInstance;
+	public abstract selectDefaultWindowsShell(): TPromise<string>;
 	public abstract setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
 
 	private _onWillShutdown(): boolean {
