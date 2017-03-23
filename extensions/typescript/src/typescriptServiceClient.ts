@@ -110,7 +110,6 @@ enum MessageAction {
 	useLocal,
 	useBundled,
 	learnMore,
-	close,
 	reportIssue
 }
 
@@ -166,7 +165,6 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	private _apiVersion: API;
 	private telemetryReporter: TelemetryReporter;
 
-
 	constructor(host: ITypescriptServiceClientHost, storagePath: string | undefined, globalState: Memento, private workspaceState: Memento, disposables: Disposable[]) {
 		this.host = host;
 		this.storagePath = storagePath;
@@ -199,9 +197,12 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		this.trace = this.readTrace();
 		this.tsServerLogLevel = this.readTsServerLogLevel();
 		disposables.push(workspace.onDidChangeConfiguration(() => {
-			this.trace = this.readTrace();
+			let oldLoggingLevel = this.tsServerLogLevel;
 			let oldglobalTsdk = this.globalTsdk;
 			let oldLocalTsdk = this.localTsdk;
+
+			this.trace = this.readTrace();
+			this.tsServerLogLevel = this.readTsServerLogLevel();
 
 			const configuration = workspace.getConfiguration();
 			this.globalTsdk = this.extractGlobalTsdk(configuration);
@@ -209,6 +210,21 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 
 			if (this.servicePromise === null && (oldglobalTsdk !== this.globalTsdk || oldLocalTsdk !== this.localTsdk)) {
 				this.startService();
+			} else if (this.servicePromise !== null && this.tsServerLogLevel !== oldLoggingLevel) {
+
+				const reloadItem = { title: localize('reloadTitle', 'Reload') };
+				window.showInformationMessage<MessageItem>(
+					localize('tsserverLogReloadBlurb', 'Reload window to apply \'typescript.tsserver.log\' change'),
+					reloadItem,
+					{
+						title: localize('later', 'Later'),
+						isCloseAffordance: true
+					})
+					.then(selected => {
+						if (selected === reloadItem) {
+							commands.executeCommand('workbench.action.reloadWindow');
+						}
+					});
 			}
 		}));
 		if (this.packageInfo && this.packageInfo.aiKey) {
