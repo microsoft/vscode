@@ -65,7 +65,7 @@ export class ListView<T> implements IDisposable {
 		this.items = [];
 		this.itemId = 0;
 		this.rangeMap = new RangeMap();
-		this.renderers = toObject<IRenderer<T, any>, IRenderer<T, any>>(renderers, r => r.templateId);
+		this.renderers = toObject<IRenderer<T, any>>(renderers, r => r.templateId);
 		this.cache = new RowCache(this.renderers);
 
 		this.lastRenderTop = 0;

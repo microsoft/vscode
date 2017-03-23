@@ -51,7 +51,7 @@ class TraitRenderer<T, D> implements IRenderer<T, ITraitTemplateData<D>>
 		private renderer: IRenderer<T, D>
 	) { }
 
-	public get templateId(): string {
+	get templateId(): string {
 		return this.renderer.templateId;
 	}
 
