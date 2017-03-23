@@ -76,7 +76,7 @@ export abstract class PeekViewWidget extends ZoneWidget implements IPeekViewServ
 
 	constructor(editor: ICodeEditor, options: IPeekViewOptions = {}) {
 		super(editor, options);
-		objects.mixin(objects.clone(defaultOptions), options);
+		objects.mixin(this.options, defaultOptions);
 	}
 
 	public dispose(): void {
