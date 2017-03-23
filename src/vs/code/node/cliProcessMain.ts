@@ -173,10 +173,6 @@ export function main(argv: ParsedArgs): TPromise<void> {
 			if (isBuilt && !extensionDevelopmentPath && product.enableTelemetry) {
 				const appenders: AppInsightsAppender[] = [];
 
-				if (product.aiConfig && product.aiConfig.key) {
-					appenders.push(new AppInsightsAppender(eventPrefix, null, product.aiConfig.key));
-				}
-
 				if (product.aiConfig && product.aiConfig.asimovKey) {
 					appenders.push(new AppInsightsAppender(eventPrefix, null, product.aiConfig.asimovKey));
 				}

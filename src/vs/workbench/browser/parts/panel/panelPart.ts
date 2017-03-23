@@ -63,6 +63,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			'panel',
 			'panel',
 			Scope.PANEL,
+			null, // TODO@theme
 			id,
 			{ hasTitle: true }
 		);
@@ -96,6 +97,8 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	}
 
 	protected updateStyles(): void {
+		super.updateStyles();
+
 		const container = this.getContainer();
 		container.style('background-color', this.getColor(PANEL_BACKGROUND));
 
@@ -167,6 +170,9 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 				if (action) {
 					action.label = title;
 				}
+			},
+			updateStyles: () => {
+				// TODO@theme
 			}
 		};
 	}

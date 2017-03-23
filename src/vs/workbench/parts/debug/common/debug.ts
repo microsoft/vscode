@@ -77,6 +77,7 @@ export interface IExpression extends ITreeElement, IExpressionContainer {
 
 export interface ISession {
 	stackTrace(args: DebugProtocol.StackTraceArguments): TPromise<DebugProtocol.StackTraceResponse>;
+	exceptionInfo(args: DebugProtocol.ExceptionInfoArguments): TPromise<DebugProtocol.ExceptionInfoResponse>;
 	scopes(args: DebugProtocol.ScopesArguments): TPromise<DebugProtocol.ScopesResponse>;
 	variables(args: DebugProtocol.VariablesArguments): TPromise<DebugProtocol.VariablesResponse>;
 	evaluate(args: DebugProtocol.EvaluateArguments): TPromise<DebugProtocol.EvaluateResponse>;
@@ -85,7 +86,7 @@ export interface ISession {
 	disconnect(restart?: boolean, force?: boolean): TPromise<DebugProtocol.DisconnectResponse>;
 	custom(request: string, args: any): TPromise<DebugProtocol.Response>;
 	onDidEvent: Event<DebugProtocol.Event>;
-	restartFrame(args: DebugProtocol.RestartFrameArguments): TPromise<DebugProtocol.RestartFrameResponse>;
+	restartFrame(args: DebugProtocol.RestartFrameArguments, threadId: number): TPromise<DebugProtocol.RestartFrameResponse>;
 
 	next(args: DebugProtocol.NextArguments): TPromise<DebugProtocol.NextResponse>;
 	stepIn(args: DebugProtocol.StepInArguments): TPromise<DebugProtocol.StepInResponse>;
@@ -132,6 +133,11 @@ export interface IThread extends ITreeElement {
 	 * Information about the current thread stop event. Null if thread is not stopped.
 	 */
 	stoppedDetails: IRawStoppedDetails;
+
+	/**
+	 * Information about the exception if an 'exception' stopped event raised and DA supports the 'exceptionInfo' request, otherwise null.
+	 */
+	exceptionInfo: TPromise<IExceptionInfo>;
 
 	/**
 	 * Gets the callstack if it has already been received from the debug
@@ -212,6 +218,13 @@ export interface IFunctionBreakpoint extends IEnablement {
 export interface IExceptionBreakpoint extends IEnablement {
 	filter: string;
 	label: string;
+}
+
+export interface IExceptionInfo {
+	id?: string;
+	description?: string;
+	breakMode: string;
+	details?: DebugProtocol.ExceptionDetails;
 }
 
 // model interfaces

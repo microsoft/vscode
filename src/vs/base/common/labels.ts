@@ -45,7 +45,7 @@ export function getPathLabel(resource: URI | string, basePathProvider?: URI | st
 
 	const basepath = basePathProvider && getPath(basePathProvider);
 
-	if (basepath && isEqualOrParent(absolutePath, basepath)) {
+	if (basepath && isEqualOrParent(absolutePath, basepath, !platform.isLinux /* ignorecase */)) {
 		if (basepath === absolutePath) {
 			return ''; // no label if pathes are identical
 		}

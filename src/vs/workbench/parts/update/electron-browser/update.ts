@@ -19,7 +19,6 @@ import { ReleaseNotesInput } from 'vs/workbench/parts/update/electron-browser/re
 import { IRequestService } from 'vs/platform/request/node/request';
 import { asText } from 'vs/base/node/request';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { createKeybinding } from 'vs/base/common/keyCodes';
 import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -74,21 +73,19 @@ export function loadReleaseNotes(accessor: ServicesAccessor, version: string): T
 		};
 
 		const kbstyle = (match: string, kb: string) => {
-			const code = KeybindingIO.readKeybinding(kb, OS);
-
-			if (!code) {
-				return unassigned;
-			}
-
-			const keybinding = createKeybinding(code, OS);
+			const keybinding = KeybindingIO.readKeybinding(kb, OS);
 
 			if (!keybinding) {
 				return unassigned;
 			}
 
-			const resolvedKeybinding = keybindingService.resolveKeybinding(keybinding);
+			const resolvedKeybindings = keybindingService.resolveKeybinding(keybinding);
 
-			return resolvedKeybinding.getLabel();
+			if (resolvedKeybindings.length === 0) {
+				return unassigned;
+			}
+
+			return resolvedKeybindings[0].getLabel();
 		};
 
 		return text

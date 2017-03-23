@@ -12,14 +12,15 @@ import QuickOpen = require('vs/base/parts/quickopen/common/quickOpen');
 import Model = require('vs/base/parts/quickopen/browser/quickOpenModel');
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 
-import { ITaskService, TaskDescription } from 'vs/workbench/parts/tasks/common/taskService';
+import { Task } from 'vs/workbench/parts/tasks/common/tasks';
+import { ITaskService } from 'vs/workbench/parts/tasks/common/taskService';
 
 class TaskEntry extends Model.QuickOpenEntry {
 
 	private taskService: ITaskService;
-	private task: TaskDescription;
+	private task: Task;
 
-	constructor(taskService: ITaskService, task: TaskDescription, highlights: Model.IHighlight[] = []) {
+	constructor(taskService: ITaskService, task: Task, highlights: Model.IHighlight[] = []) {
 		super(highlights);
 		this.taskService = taskService;
 		this.task = task;
@@ -37,7 +38,7 @@ class TaskEntry extends Model.QuickOpenEntry {
 		if (mode === QuickOpen.Mode.PREVIEW) {
 			return false;
 		}
-		this.taskService.run(this.task.id);
+		this.taskService.run(this.task);
 		return true;
 	}
 }

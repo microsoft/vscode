@@ -306,6 +306,7 @@ let STRING = createMapping((TO_STRING_MAP) => {
 	TO_STRING_MAP[KeyCode.KEY_Y] = 'Y';
 	TO_STRING_MAP[KeyCode.KEY_Z] = 'Z';
 
+	TO_STRING_MAP[KeyCode.Meta] = 'Meta';
 	TO_STRING_MAP[KeyCode.ContextMenu] = 'ContextMenu';
 
 	TO_STRING_MAP[KeyCode.F1] = 'F1';
@@ -554,6 +555,10 @@ export abstract class ResolvedKeybinding {
 	 * This prints the binding in a format suitable for user settings.
 	 */
 	public abstract getUserSettingsLabel(): string;
+	/**
+	 * Is the user settings label reflecting the label?
+	 */
+	public abstract isWYSIWYG(): boolean;
 
 	/**
 	 * Is the binding a chord?

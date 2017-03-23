@@ -488,9 +488,15 @@ export class TerminalInstance implements ITerminalInstance {
 
 	private _sendPtyDataToXterm(message: { type: string, content: string }): void {
 		if (message.type === 'data') {
-			this._widgetManager.closeMessage();
-			this._linkHandler.disposeTooltipListeners();
-			this._xterm.write(message.content);
+			if (this._widgetManager) {
+				this._widgetManager.closeMessage();
+			}
+			if (this._linkHandler) {
+				this._linkHandler.disposeTooltipListeners();
+			}
+			if (this._xterm) {
+				this._xterm.write(message.content);
+			}
 		}
 	}
 

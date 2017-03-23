@@ -387,16 +387,23 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 			const item = items[i];
 			const when = (item.when ? item.when.normalize() : null);
 			const keybinding = item.keybinding;
-			const resolvedKeybinding = (keybinding ? this.resolveKeybinding(keybinding) : null);
 
-			result[resultLen++] = new ResolvedKeybindingItem(resolvedKeybinding, item.command, item.commandArgs, when, isDefault);
+			if (!keybinding) {
+				// This might be a removal keybinding item in user settings => accept it
+				result[resultLen++] = new ResolvedKeybindingItem(null, item.command, item.commandArgs, when, isDefault);
+			} else {
+				const resolvedKeybindings = this.resolveKeybinding(keybinding);
+				for (let j = 0; j < resolvedKeybindings.length; j++) {
+					result[resultLen++] = new ResolvedKeybindingItem(resolvedKeybindings[j], item.command, item.commandArgs, when, isDefault);
+				}
+			}
 		}
 
 		return result;
 	}
 
-	public resolveKeybinding(kb: Keybinding): ResolvedKeybinding {
-		return new USLayoutResolvedKeybinding(kb, OS);
+	public resolveKeybinding(keybinding: Keybinding): ResolvedKeybinding[] {
+		return [new USLayoutResolvedKeybinding(keybinding, OS)];
 	}
 
 	public resolveKeyboardEvent(keyboardEvent: IKeyboardEvent): ResolvedKeybinding {
@@ -407,7 +414,11 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 			keyboardEvent.metaKey,
 			keyboardEvent.keyCode
 		);
-		return this.resolveKeybinding(keybinding);
+		return new USLayoutResolvedKeybinding(keybinding, OS);
+	}
+
+	public resolveUserBinding(userBinding: string): ResolvedKeybinding[] {
+		return [];
 	}
 }
 

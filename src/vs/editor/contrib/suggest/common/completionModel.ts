@@ -5,14 +5,13 @@
 
 'use strict';
 
-import { isFalsyOrEmpty } from 'vs/base/common/arrays';
-import { indexOfIgnoreCase } from 'vs/base/common/strings';
-import { IMatch, fuzzyContiguousFilter } from 'vs/base/common/filters';
+import { fuzzyMatchAndScore } from 'vs/base/common/filters';
 import { ISuggestSupport } from 'vs/editor/common/modes';
 import { ISuggestionItem } from './suggest';
 
 export interface ICompletionItem extends ISuggestionItem {
-	highlights?: IMatch[];
+	matches?: number[];
+	score?: number;
 }
 
 export interface ICompletionStats {
@@ -100,17 +99,17 @@ export class CompletionModel {
 
 	private _createCachedState(): void {
 		this._filteredItems = [];
-		this._topScoreIdx = -1;
+		this._topScoreIdx = 0;
 		this._isIncomplete = false;
 		this._stats = { suggestionCount: 0, snippetCount: 0, textCount: 0 };
 
-		const {leadingLineContent, characterCountDelta} = this._lineContext;
+		const { leadingLineContent, characterCountDelta } = this._lineContext;
 		let word = '';
-		let topScore = -1;
+		let topScore = Number.MIN_VALUE;
 
 		for (const item of this._items) {
 
-			const {suggestion, container} = item;
+			const { suggestion, container } = item;
 
 			// collect those supports that signaled having
 			// an incomplete result
@@ -124,35 +123,31 @@ export class CompletionModel {
 				word = wordLen === 0 ? '' : leadingLineContent.slice(-wordLen);
 			}
 
-			let match = false;
-
-			// compute highlights based on 'label'
-			item.highlights = fuzzyContiguousFilter(word, suggestion.label);
-			match = item.highlights !== null;
-
-			// no match on label nor codeSnippet -> check on filterText
-			if (!match && typeof suggestion.filterText === 'string') {
-				if (!isFalsyOrEmpty(fuzzyContiguousFilter(word, suggestion.filterText))) {
-					match = true;
-
-					// try to compute highlights by stripping none-word
-					// characters from the end of the string
-					item.highlights = fuzzyContiguousFilter(word.replace(/^\W+|\W+$/, ''), suggestion.label);
+			let match = fuzzyMatchAndScore(word, suggestion.label);
+			if (!match) {
+				if (typeof suggestion.filterText === 'string') {
+					match = fuzzyMatchAndScore(word, suggestion.filterText);
+				} else {
+					continue;
+				}
+				if (match) {
+					match = fuzzyMatchAndScore(word.replace(/^\W+|\W+$/, ''), suggestion.label);
+				} else {
+					continue;
 				}
 			}
 
-			if (!match) {
-				continue;
+			if (match) {
+				item.score = match[0];
+				item.matches = match[1];
+
+				if (item.score > topScore) {
+					topScore = item.score;
+					this._topScoreIdx = this._filteredItems.length;
+				}
 			}
 
 			this._filteredItems.push(item);
-
-			// compute score against word
-			const score = CompletionModel._scoreByHighlight(item, word);
-			if (score > topScore) {
-				topScore = score;
-				this._topScoreIdx = this._filteredItems.length - 1;
-			}
 
 			// update stats
 			this._stats.suggestionCount++;
@@ -161,64 +156,5 @@ export class CompletionModel {
 				case 'text': this._stats.textCount++; break;
 			}
 		}
-	}
-
-	private static _base = 100;
-
-	private static _scoreByHighlight(item: ICompletionItem, currentWord: string): number {
-		const {highlights, suggestion} = item;
-
-		if (isFalsyOrEmpty(highlights)) {
-			return 0;
-		}
-
-		let caseSensitiveMatches = 0;
-		let caseInsensitiveMatches = 0;
-		let firstMatchStart = 0;
-
-		const len = Math.min(CompletionModel._base, suggestion.label.length);
-		let currentWordOffset = 0;
-
-		for (let pos = 0, idx = 0; pos < len; pos++) {
-
-			const highlight = highlights[idx];
-
-			if (pos === highlight.start) {
-				// reached a highlight: find highlighted part
-				// and count case-sensitive /case-insensitive matches
-				const part = suggestion.label.substring(highlight.start, highlight.end);
-				currentWordOffset = indexOfIgnoreCase(currentWord, part, currentWordOffset);
-				if (currentWordOffset >= 0) {
-					do {
-						if (suggestion.label[pos] === currentWord[currentWordOffset]) {
-							caseSensitiveMatches += 1;
-						} else {
-							caseInsensitiveMatches += 1;
-						}
-						pos += 1;
-						currentWordOffset += 1;
-					} while (pos < highlight.end);
-				}
-
-				// proceed with next highlight, store first start,
-				// exit loop when no highlight is available
-				if (idx === 0) {
-					firstMatchStart = highlight.start;
-				}
-				idx += 1;
-
-				if (idx >= highlights.length) {
-					break;
-				}
-			}
-		}
-
-		// combine the 4 scoring values into one
-		// value using base_100. Values further left
-		// are more important
-		return (CompletionModel._base ** 3) * caseSensitiveMatches
-			+ (CompletionModel._base ** 2) * caseInsensitiveMatches
-			+ (CompletionModel._base ** 1) * (CompletionModel._base - firstMatchStart)
-			+ (CompletionModel._base ** 0) * (CompletionModel._base - highlights.length);
 	}
 }

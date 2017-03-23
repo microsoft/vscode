@@ -10,17 +10,19 @@ import * as path from 'path';
 import * as cp from 'child_process';
 import { rgPath } from 'vscode-ripgrep';
 
+import * as extfs from 'vs/base/node/extfs';
 import * as encoding from 'vs/base/node/encoding';
 import * as strings from 'vs/base/common/strings';
 import * as glob from 'vs/base/common/glob';
 import { ILineMatch, IProgress } from 'vs/platform/search/common/search';
+import { TPromise } from 'vs/base/common/winjs.base';
 
 import { ISerializedFileMatch, ISerializedSearchComplete, IRawSearch, ISearchEngine } from './search';
 
 export class RipgrepEngine implements ISearchEngine<ISerializedFileMatch> {
 	private isDone = false;
 	private rgProc: cp.ChildProcess;
-	private postProcessExclusions: glob.SiblingClause[];
+	private postProcessExclusions: glob.ParsedExpression;
 
 	private ripgrepParser: RipgrepParser;
 
@@ -47,13 +49,26 @@ export class RipgrepEngine implements ISearchEngine<ISerializedFileMatch> {
 
 	private searchFolder(rootFolder: string, onResult: (match: ISerializedFileMatch) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISerializedSearchComplete) => void): void {
 		const rgArgs = getRgArgs(this.config);
-		this.postProcessExclusions = rgArgs.siblingClauses;
+		if (rgArgs.siblingClauses) {
+			this.postProcessExclusions = glob.parseToAsync(rgArgs.siblingClauses, { trimForExclusions: true });
+		}
 
 		// console.log(`rg ${rgArgs.args.join(' ')}, cwd: ${rootFolder}`);
 		this.rgProc = cp.spawn(rgPath, rgArgs.args, { cwd: rootFolder });
 
 		this.ripgrepParser = new RipgrepParser(this.config.maxResults, rootFolder);
-		this.ripgrepParser.on('result', onResult);
+		this.ripgrepParser.on('result', (match: ISerializedFileMatch) => {
+			if (this.postProcessExclusions) {
+				const relativePath = path.relative(rootFolder, match.path);
+				(<TPromise<string>>this.postProcessExclusions(relativePath, undefined, () => getSiblings(match.path))).then(globMatch => {
+					if (!globMatch) {
+						onResult(match);
+					}
+				});
+			} else {
+				onResult(match);
+			}
+		});
 		this.ripgrepParser.on('hitLimit', () => {
 			this.cancel();
 			done(null, {
@@ -73,6 +88,7 @@ export class RipgrepEngine implements ISearchEngine<ISerializedFileMatch> {
 		});
 
 		this.rgProc.on('close', code => {
+			this.ripgrepParser.flush(); // Get last result
 			this.rgProc = null;
 			// console.log(`closed with ${code}`);
 
@@ -91,8 +107,8 @@ export class RipgrepParser extends EventEmitter {
 	private static RESULT_REGEX = /^\u001b\[m(\d+)\u001b\[m:(.*)$/;
 	private static FILE_REGEX = /^\u001b\[m(.+)\u001b\[m$/;
 
-	private static MATCH_START_MARKER = '\u001b[m\u001b[31m';
-	private static MATCH_END_MARKER = '\u001b[m';
+	public static MATCH_START_MARKER = '\u001b[m\u001b[31m';
+	public static MATCH_END_MARKER = '\u001b[m';
 
 	private fileMatch: FileMatch;
 	private remainder: string;
@@ -108,8 +124,14 @@ export class RipgrepParser extends EventEmitter {
 		this.isDone = true;
 	}
 
+	public flush(): void {
+		if (this.fileMatch) {
+			this.onResult();
+		}
+	}
+
 	public handleData(data: string | Buffer): void {
-		// If the previous data chunk didn't end in a newline, append it to this chunk
+		// If the previous data chunk didn't end in a newline, prepend it to this chunk
 		const dataStr = this.remainder ?
 			this.remainder + data.toString() :
 			data.toString();
@@ -124,23 +146,18 @@ export class RipgrepParser extends EventEmitter {
 			}
 
 			let r: RegExpMatchArray;
-			if (!outputLine) {
-				if (this.fileMatch) {
-					this.onResult();
-				}
-			} else if (r = outputLine.match(RipgrepParser.RESULT_REGEX)) {
+			if (r = outputLine.match(RipgrepParser.RESULT_REGEX)) {
 				// Line is a result - add to collected results for the current file path
 				this.handleMatchLine(outputLine, parseInt(r[1]) - 1, r[2]);
 			} else if (r = outputLine.match(RipgrepParser.FILE_REGEX)) {
 				// Line is a file path - send all collected results for the previous file path
 				if (this.fileMatch) {
-					// TODO@Rob Check fileMatch against other exclude globs
 					this.onResult();
 				}
 
 				this.fileMatch = new FileMatch(path.join(this.rootFolder, r[1]));
 			} else {
-				// Line is malformed
+				// Line is empty (or malformed)
 			}
 		}
 	}
@@ -281,9 +298,9 @@ export class LineMatch implements ILineMatch {
 	}
 }
 
-function globExprsToRgGlobs(patterns: glob.IExpression): { globArgs: string[], siblingClauses: glob.SiblingClause[] } {
+function globExprsToRgGlobs(patterns: glob.IExpression): { globArgs: string[], siblingClauses: glob.IExpression } {
 	const globArgs: string[] = [];
-	const siblingClauses: glob.SiblingClause[] = [];
+	let siblingClauses: glob.IExpression = null;
 	Object.keys(patterns)
 		.forEach(key => {
 			const value = patterns[key];
@@ -295,14 +312,18 @@ function globExprsToRgGlobs(patterns: glob.IExpression): { globArgs: string[], s
 
 				globArgs.push(key);
 			} else if (value && value.when) {
-				siblingClauses.push(value);
+				if (!siblingClauses) {
+					siblingClauses = {};
+				}
+
+				siblingClauses[key] = value;
 			}
 		});
 
 	return { globArgs, siblingClauses };
 }
 
-function getRgArgs(config: IRawSearch): { args: string[], siblingClauses: glob.SiblingClause[] } {
+function getRgArgs(config: IRawSearch): { args: string[], siblingClauses: glob.IExpression } {
 	const args = ['--heading', '--line-number', '--color', 'ansi', '--colors', 'path:none', '--colors', 'line:none', '--colors', 'match:fg:red', '--colors', 'match:style:nobold'];
 	args.push(config.contentPattern.isCaseSensitive ? '--case-sensitive' : '--ignore-case');
 
@@ -313,7 +334,7 @@ function getRgArgs(config: IRawSearch): { args: string[], siblingClauses: glob.S
 		});
 	}
 
-	let siblingClauses: glob.SiblingClause[] = [];
+	let siblingClauses: glob.IExpression;
 	if (config.excludePattern) {
 		const rgGlobs = globExprsToRgGlobs(config.excludePattern);
 		rgGlobs.globArgs
@@ -334,10 +355,11 @@ function getRgArgs(config: IRawSearch): { args: string[], siblingClauses: glob.S
 	args.push('--follow');
 
 	// Set default encoding
-	if (config.fileEncoding) {
+	if (config.fileEncoding && config.fileEncoding !== 'utf8') {
 		args.push('--encoding', encoding.toCanonicalName(config.fileEncoding));
 	}
 
+	let searchPatternAfterDoubleDashes: string;
 	if (config.contentPattern.isRegExp) {
 		if (config.contentPattern.isWordMatch) {
 			args.push('--word-regexp');
@@ -348,12 +370,32 @@ function getRgArgs(config: IRawSearch): { args: string[], siblingClauses: glob.S
 		if (config.contentPattern.isWordMatch) {
 			args.push('--word-regexp', '--regexp', strings.escapeRegExpCharacters(config.contentPattern.pattern));
 		} else {
-			args.push('--fixed-strings', config.contentPattern.pattern);
+			args.push('--fixed-strings');
+			searchPatternAfterDoubleDashes = config.contentPattern.pattern;
 		}
 	}
 
 	// Folder to search
-	args.push('--', './');
+	args.push('--');
+
+	if (searchPatternAfterDoubleDashes) {
+		// Put the query after --, in case the query starts with a dash
+		args.push(searchPatternAfterDoubleDashes);
+	}
+
+	args.push('./');
 
 	return { args, siblingClauses };
+}
+
+function getSiblings(file: string): TPromise<string[]> {
+	return new TPromise((resolve, reject) => {
+		extfs.readdir(path.dirname(file), (error: Error, files: string[]) => {
+			if (error) {
+				reject(error);
+			}
+
+			resolve(files);
+		});
+	});
 }

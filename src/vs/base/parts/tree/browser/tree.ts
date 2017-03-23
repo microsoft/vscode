@@ -364,6 +364,11 @@ export interface IDataSource {
 	 * Returns the element's parent in a promise.
 	 */
 	getParent(tree: ITree, element: any): WinJS.Promise;
+
+	/**
+	 * Returns whether an element should be expanded when first added to the tree.
+	 */
+	shouldAutoexpand?(tree: ITree, element: any): boolean;
 }
 
 export interface IRenderer {

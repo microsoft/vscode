@@ -120,6 +120,15 @@ export class MockSession implements debug.ISession {
 		});
 	}
 
+	public exceptionInfo(args: DebugProtocol.ExceptionInfoArguments): TPromise<DebugProtocol.ExceptionInfoResponse> {
+		return TPromise.as({
+			body: {
+				exceptionId: 'mockExceptionId',
+				breakMode: 'unhandled'
+			}
+		});
+	}
+
 	public attach(args: DebugProtocol.AttachRequestArguments): TPromise<DebugProtocol.AttachResponse> {
 		return TPromise.as(null);
 	}

@@ -5,6 +5,7 @@
 'use strict';
 
 import 'vs/css!./media/editor';
+import 'vs/editor/common/view/editorColorRegistry'; // initialze editor theming partcicpants
 import 'vs/css!./media/tokens';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';

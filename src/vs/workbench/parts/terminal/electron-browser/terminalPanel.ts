@@ -89,9 +89,12 @@ export class TerminalPanel extends Panel {
 				this._updateTheme();
 			} else {
 				return super.setVisible(visible).then(() => {
-					this._terminalService.createInstance();
-					this._updateFont();
-					this._updateTheme();
+					const instance = this._terminalService.createInstance();
+					if (instance) {
+						this._updateFont();
+						this._updateTheme();
+					}
+					return TPromise.as(void 0);
 				});
 			}
 		}
@@ -230,6 +233,7 @@ export class TerminalPanel extends Panel {
 		}
 		let newFont = this._terminalService.configHelper.getFont();
 		DOM.toggleClass(this._parentDomElement, 'enable-ligatures', this._terminalService.configHelper.config.fontLigatures);
+		DOM.toggleClass(this._parentDomElement, 'disable-bold', !this._terminalService.configHelper.config.enableBold);
 		if (!this._font || this._fontsDiffer(this._font, newFont)) {
 			this._fontStyleElement.innerHTML = '.monaco-workbench .panel.integrated-terminal .xterm {' +
 				`font-family: ${newFont.fontFamily};` +

@@ -41,7 +41,8 @@ import { LinkedMap } from 'vs/base/common/map';
 import { DelegatingWorkbenchEditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { INACTIVE_TAB_BACKGROUND, ACTIVE_TAB_BACKGROUND, ACTIVE_TAB_ACTIVE_GROUP_FOREGROUND, ACTIVE_TAB_INACTIVE_GROUP_FOREGROUND, INACTIVE_TAB_ACTIVE_GROUP_FOREGROUND, INACTIVE_TAB_INACTIVE_GROUP_FOREGROUND, TAB_BORDER } from 'vs/workbench/common/theme';
+import { INACTIVE_TAB_BACKGROUND, ACTIVE_TAB_BACKGROUND, ACTIVE_TAB_ACTIVE_GROUP_FOREGROUND, ACTIVE_TAB_INACTIVE_GROUP_FOREGROUND, INACTIVE_TAB_ACTIVE_GROUP_FOREGROUND, INACTIVE_TAB_INACTIVE_GROUP_FOREGROUND, TAB_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
+import { highContrastOutline } from 'vs/platform/theme/common/colorRegistry';
 
 interface IEditorInputLabel {
 	editor: IEditorInput;
@@ -169,25 +170,25 @@ export class TabsTitleControl extends TitleControl {
 
 			const target = e.target;
 			if (target instanceof HTMLElement && target.className.indexOf('tabs-container') === 0) {
-				DOM.addClass(this.tabsContainer, 'dropfeedback');
+				this.updateDropFeedback(this.tabsContainer, true);
 			}
 		}));
 
 		// Drag leave
 		this.toUnbind.push(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.DRAG_LEAVE, (e: DragEvent) => {
-			DOM.removeClass(this.tabsContainer, 'dropfeedback');
+			this.updateDropFeedback(this.tabsContainer, false);
 			DOM.removeClass(this.tabsContainer, 'scroll');
 		}));
 
 		// Drag end
 		this.toUnbind.push(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.DRAG_END, (e: DragEvent) => {
-			DOM.removeClass(this.tabsContainer, 'dropfeedback');
+			this.updateDropFeedback(this.tabsContainer, false);
 			DOM.removeClass(this.tabsContainer, 'scroll');
 		}));
 
 		// Drop onto tabs container
 		this.toUnbind.push(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.DROP, (e: DragEvent) => {
-			DOM.removeClass(this.tabsContainer, 'dropfeedback');
+			this.updateDropFeedback(this.tabsContainer, false);
 			DOM.removeClass(this.tabsContainer, 'scroll');
 
 			const target = e.target;
@@ -209,6 +210,28 @@ export class TabsTitleControl extends TitleControl {
 
 		// Editor Actions Toolbar
 		this.createEditorActionsToolBar(editorActionsContainer);
+	}
+
+	private updateDropFeedback(element: HTMLElement, isDND: boolean, index?: number): void {
+		const isTab = (typeof index === 'number');
+		const isActiveTab = isTab && this.context.isActive(this.context.getEditor(index));
+
+		// Background
+		const noDNDBackgroundColor = isTab ? this.getColor(isActiveTab ? ACTIVE_TAB_BACKGROUND : INACTIVE_TAB_BACKGROUND) : null;
+		element.style.backgroundColor = isDND ? this.getColor(EDITOR_DRAG_AND_DROP_BACKGROUND) : noDNDBackgroundColor;
+
+		// Outline
+		if (this.isHighContrastTheme && isDND) {
+			element.style.outlineWidth = '2px';
+			element.style.outlineStyle = 'dashed';
+			element.style.outlineColor = this.getColor(highContrastOutline);
+			(<any>element).style.outlineOffset = isTab ? '-5px' : '-3px'; // TODO@theme TS fail (gulp watch)
+		} else {
+			element.style.outlineWidth = null;
+			element.style.outlineStyle = null;
+			element.style.outlineColor = this.isHighContrastTheme ? this.getColor(highContrastOutline) : null;
+			(<any>element).style.outlineOffset = null; // TODO@theme TS fail (gulp watch)
+		}
 	}
 
 	public allowDragging(element: HTMLElement): boolean {
@@ -252,6 +275,8 @@ export class TabsTitleControl extends TitleControl {
 				tabContainer.title = title;
 				tabContainer.style.borderLeftColor = (index !== 0) ? this.getColor(TAB_BORDER) : null;
 				tabContainer.style.borderRightColor = (index === editorsOfGroup.length - 1) ? this.getColor(TAB_BORDER) : null;
+				tabContainer.style.outlineColor = this.isHighContrastTheme ? this.getColor(highContrastOutline) : null;
+
 				const tabOptions = this.editorGroupService.getTabOptions();
 				['off', 'left'].forEach(option => {
 					const domAction = tabOptions.tabCloseButton === option ? DOM.addClass : DOM.removeClass;
@@ -586,21 +611,21 @@ export class TabsTitleControl extends TitleControl {
 		// Drag over
 		disposables.push(DOM.addDisposableListener(tab, DOM.EventType.DRAG_ENTER, (e: DragEvent) => {
 			counter++;
-			DOM.addClass(tab, 'dropfeedback');
+			this.updateDropFeedback(tab, true, index);
 		}));
 
 		// Drag leave
 		disposables.push(DOM.addDisposableListener(tab, DOM.EventType.DRAG_LEAVE, (e: DragEvent) => {
 			counter--;
 			if (counter === 0) {
-				DOM.removeClass(tab, 'dropfeedback');
+				this.updateDropFeedback(tab, false, index);
 			}
 		}));
 
 		// Drag end
 		disposables.push(DOM.addDisposableListener(tab, DOM.EventType.DRAG_END, (e: DragEvent) => {
 			counter = 0;
-			DOM.removeClass(tab, 'dropfeedback');
+			this.updateDropFeedback(tab, false, index);
 
 			this.onEditorDragEnd();
 		}));
@@ -608,7 +633,7 @@ export class TabsTitleControl extends TitleControl {
 		// Drop
 		disposables.push(DOM.addDisposableListener(tab, DOM.EventType.DROP, (e: DragEvent) => {
 			counter = 0;
-			DOM.removeClass(tab, 'dropfeedback');
+			this.updateDropFeedback(tab, false, index);
 
 			const { group, position } = this.toTabContext(index);
 
@@ -627,7 +652,7 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	private onDrop(e: DragEvent, group: IEditorGroup, targetPosition: Position, targetIndex: number): void {
-		DOM.removeClass(this.tabsContainer, 'dropfeedback');
+		this.updateDropFeedback(this.tabsContainer, false);
 		DOM.removeClass(this.tabsContainer, 'scroll');
 
 		// Local DND

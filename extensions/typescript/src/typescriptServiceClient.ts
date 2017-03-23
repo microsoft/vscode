@@ -8,6 +8,7 @@
 import * as cp from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
+import * as os from 'os';
 
 import * as electron from './utils/electron';
 import { Reader } from './utils/wireProtocol';
@@ -47,7 +48,9 @@ interface IPackageInfo {
 }
 
 enum Trace {
-	Off, Messages, Verbose
+	Off,
+	Messages,
+	Verbose
 }
 
 namespace Trace {
@@ -66,11 +69,47 @@ namespace Trace {
 	}
 }
 
+enum TsServerLogLevel {
+	Off,
+	Normal,
+	Terse,
+	Verbose,
+}
+
+namespace TsServerLogLevel {
+	export function fromString(value: string): TsServerLogLevel {
+		switch (value && value.toLowerCase()) {
+			case 'normal':
+				return TsServerLogLevel.Normal;
+			case 'terse':
+				return TsServerLogLevel.Terse;
+			case 'verbose':
+				return TsServerLogLevel.Verbose;
+			case 'off':
+			default:
+				return TsServerLogLevel.Off;
+		}
+	}
+
+	export function toString(value: TsServerLogLevel): string {
+		switch (value) {
+			case TsServerLogLevel.Normal:
+				return 'normal';
+			case TsServerLogLevel.Terse:
+				return 'terse';
+			case TsServerLogLevel.Verbose:
+				return 'verbose';
+			case TsServerLogLevel.Off:
+			default:
+				return 'off';
+		}
+	}
+}
+
 enum MessageAction {
 	useLocal,
 	useBundled,
 	learnMore,
-	close,
 	reportIssue
 }
 
@@ -84,7 +123,6 @@ interface MyMessageItem extends MessageItem {
 
 
 export default class TypeScriptServiceClient implements ITypescriptServiceClient {
-
 	private static useWorkspaceTsdkStorageKey = 'typescript.useWorkspaceTsdk';
 	private static tsdkMigratedStorageKey = 'typescript.tsdkMigrated';
 
@@ -104,6 +142,8 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	private _experimentalAutoBuild: boolean;
 	private trace: Trace;
 	private _output: OutputChannel;
+	private tsServerLogFile: string | null = null;
+	private tsServerLogLevel: TsServerLogLevel = TsServerLogLevel.Off;
 	private servicePromise: Promise<cp.ChildProcess> | null;
 	private lastError: Error | null;
 	private reader: Reader<Proto.Response>;
@@ -112,6 +152,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	private firstStart: number;
 	private lastStart: number;
 	private numberRestarts: number;
+	private cancellationPipeName: string | null = null;
 
 	private requestQueue: RequestItem[];
 	private pendingResponses: number;
@@ -123,7 +164,6 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	private _packageInfo: IPackageInfo | null;
 	private _apiVersion: API;
 	private telemetryReporter: TelemetryReporter;
-
 
 	constructor(host: ITypescriptServiceClientHost, storagePath: string | undefined, globalState: Memento, private workspaceState: Memento, disposables: Disposable[]) {
 		this.host = host;
@@ -155,10 +195,14 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		this._apiVersion = new API('1.0.0');
 		this._checkGlobalTSCVersion = true;
 		this.trace = this.readTrace();
+		this.tsServerLogLevel = this.readTsServerLogLevel();
 		disposables.push(workspace.onDidChangeConfiguration(() => {
-			this.trace = this.readTrace();
+			let oldLoggingLevel = this.tsServerLogLevel;
 			let oldglobalTsdk = this.globalTsdk;
 			let oldLocalTsdk = this.localTsdk;
+
+			this.trace = this.readTrace();
+			this.tsServerLogLevel = this.readTsServerLogLevel();
 
 			const configuration = workspace.getConfiguration();
 			this.globalTsdk = this.extractGlobalTsdk(configuration);
@@ -166,6 +210,21 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 
 			if (this.servicePromise === null && (oldglobalTsdk !== this.globalTsdk || oldLocalTsdk !== this.localTsdk)) {
 				this.startService();
+			} else if (this.servicePromise !== null && this.tsServerLogLevel !== oldLoggingLevel) {
+
+				const reloadItem = { title: localize('reloadTitle', 'Reload') };
+				window.showInformationMessage<MessageItem>(
+					localize('tsserverLogReloadBlurb', 'Reload VS Code to apply \'typescript.tsserver.log\' change'),
+					reloadItem,
+					{
+						title: localize('later', 'Later'),
+						isCloseAffordance: true
+					})
+					.then(selected => {
+						if (selected === reloadItem) {
+							commands.executeCommand('workbench.action.reloadWindow');
+						}
+					});
 			}
 		}));
 		if (this.packageInfo && this.packageInfo.aiKey) {
@@ -219,6 +278,11 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			result = Trace.Messages;
 		}
 		return result;
+	}
+
+	private readTsServerLogLevel(): TsServerLogLevel {
+		const setting = workspace.getConfiguration().get<string>('typescript.tsserver.log', 'off');
+		return TsServerLogLevel.fromString(setting);
 	}
 
 	public get experimentalAutoBuild(): boolean {
@@ -453,6 +517,27 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 					if (this.apiVersion.has208Features()) {
 						args.push('--enableTelemetry');
 					}
+					if (this.apiVersion.has222Features()) {
+						this.cancellationPipeName = electron.getPipeName(`tscancellation-${electron.makeRandomHexString(20)}`);
+						args.push('--cancellationPipeName', this.cancellationPipeName + '*');
+					}
+
+					if (this.apiVersion.has222Features()) {
+						if (this.tsServerLogLevel !== TsServerLogLevel.Off) {
+							try {
+								const logDir = fs.mkdtempSync(path.join(os.tmpdir(), `vscode-tsserver-log-`));
+								this.tsServerLogFile = path.join(logDir, `tsserver.log`);
+							} catch (e) {
+								this.error('Could not create TSServer log directory');
+							}
+
+							if (this.tsServerLogFile) {
+								args.push('--logVerbosity', TsServerLogLevel.toString(this.tsServerLogLevel));
+								args.push('--logFile', this.tsServerLogFile);
+							}
+						}
+					}
+
 					electron.fork(modulePath, args, options, (err: any, childProcess: cp.ChildProcess) => {
 						if (err) {
 							this.lastError = err;
@@ -578,6 +663,54 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			});
 	}
 
+	public openTsServerLogFile(): Thenable<boolean> {
+		if (!this.apiVersion.has222Features()) {
+			return window.showErrorMessage(
+				localize(
+					'typescript.openTsServerLog.notSupported',
+					'TS Server logging requires TS 2.2.2+'))
+				.then(() => false);
+		}
+
+		if (this.tsServerLogLevel === TsServerLogLevel.Off) {
+			return window.showErrorMessage<MessageItem>(
+				localize(
+					'typescript.openTsServerLog.loggingNotEnabled',
+					'TS Server logging is off. Please set `typescript.tsserver.log` and reload VS Code to enable logging'),
+				{
+					title: localize(
+						'typescript.openTsServerLog.enableAndReloadOption',
+						'Enable logging and reload VS Code'),
+				})
+				.then(selection => {
+					if (selection) {
+						return workspace.getConfiguration().update('typescript.tsserver.log', 'verbose', true).then(() => {
+							commands.executeCommand('workbench.action.reloadWindow');
+							return false;
+						});
+					}
+					return false;
+				});
+		}
+
+		if (!this.tsServerLogFile) {
+			return window.showWarningMessage(localize(
+				'typescript.openTsServerLog.noLogFile',
+				'TS Server has not started logging.')).then(() => false);
+		}
+
+		return workspace.openTextDocument(this.tsServerLogFile)
+			.then(doc => {
+				return window.showTextDocument(doc, window.activeTextEditor ? window.activeTextEditor.viewColumn : undefined)
+					.then(editor => !!editor);
+			}, () => {
+				window.showWarningMessage(localize(
+					'openTsServerLog.openFileFailedFailed',
+					'Could not open TS Server log file'));
+				return null;
+			});
+	}
+
 	private serviceStarted(resendModels: boolean): void {
 		let configureOptions: Proto.ConfigureRequestArguments = {
 			hostInfo: 'vscode'
@@ -588,7 +721,6 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			} catch (error) {
 			}
 			// configureOptions.autoDiagnostics = true;
-			// configureOptions.metaDataDirectory = this.storagePath;
 		}
 		this.execute('configure', configureOptions);
 		if (this.apiVersion.has206Features()) {
@@ -795,6 +927,19 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 				return true;
 			}
 		}
+
+		if (this.apiVersion.has222Features() && this.cancellationPipeName) {
+			if (this.trace !== Trace.Off) {
+				this.logTrace(`TypeScript Service: trying to cancel ongoing request with sequence number ${seq}`);
+			}
+			try {
+				fs.writeFileSync(this.cancellationPipeName + seq, '');
+				return true;
+			} catch (e) {
+				// noop
+			}
+		}
+
 		if (this.trace !== Trace.Off) {
 			this.logTrace(`TypeScript Service: tried to cancel request with sequence number ${seq}. But request got already delivered.`);
 		}

@@ -34,6 +34,7 @@ import { ExtHostLanguages } from 'vs/workbench/api/node/extHostLanguages';
 import { ExtHostLanguageFeatures } from 'vs/workbench/api/node/extHostLanguageFeatures';
 import { ExtHostApiCommands } from 'vs/workbench/api/node/extHostApiCommands';
 import { computeDiff } from 'vs/workbench/api/node/extHostFunctions';
+import { ExtHostTask } from 'vs/workbench/api/node/extHostTask';
 import * as extHostTypes from 'vs/workbench/api/node/extHostTypes';
 import URI from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
@@ -111,6 +112,7 @@ export function createApiFactory(initData: IInitData, threadService: IThreadServ
 	const extHostQuickOpen = col.define(ExtHostContext.ExtHostQuickOpen).set<ExtHostQuickOpen>(new ExtHostQuickOpen(threadService));
 	const extHostTerminalService = col.define(ExtHostContext.ExtHostTerminalService).set<ExtHostTerminalService>(new ExtHostTerminalService(threadService));
 	const extHostSCM = col.define(ExtHostContext.ExtHostSCM).set<ExtHostSCM>(new ExtHostSCM(threadService));
+	const extHostTask = col.define(ExtHostContext.ExtHostTask).set<ExtHostTask>(new ExtHostTask(threadService));
 	col.define(ExtHostContext.ExtHostExtensionService).set(extensionService);
 	col.finish(false, threadService);
 
@@ -412,7 +414,10 @@ export function createApiFactory(initData: IInitData, threadService: IThreadServ
 			},
 			getConfiguration: (section?: string): vscode.WorkspaceConfiguration => {
 				return extHostConfiguration.getConfiguration(section);
-			}
+			},
+			registerTaskProvider: proposedApiFunction(extension, (provider: vscode.TaskProvider) => {
+				return extHostTask.registerTaskProvider(extension, provider);
+			})
 		};
 
 		class SCM {
@@ -494,7 +499,12 @@ export function createApiFactory(initData: IInitData, threadService: IThreadServ
 			ViewColumn: extHostTypes.ViewColumn,
 			WorkspaceEdit: extHostTypes.WorkspaceEdit,
 			// functions
-			computeDiff
+			computeDiff,
+			FileLocationKind: extHostTypes.FileLocationKind,
+			ApplyToKind: extHostTypes.ApplyToKind,
+			RevealKind: extHostTypes.RevealKind,
+			ShellTask: extHostTypes.ShellTask,
+			ProcessTask: extHostTypes.ProcessTask
 		};
 	};
 }

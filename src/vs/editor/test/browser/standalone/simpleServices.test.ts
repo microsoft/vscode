@@ -10,7 +10,7 @@ import { SimpleConfigurationService, SimpleMessageService, StandaloneKeybindingS
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { IKeyboardEvent } from "vs/platform/keybinding/common/keybinding";
+import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 
 suite('StandaloneKeybindingService', () => {
 

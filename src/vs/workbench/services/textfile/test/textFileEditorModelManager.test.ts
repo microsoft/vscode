@@ -17,7 +17,6 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { IFileService, FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { isLinux } from 'vs/base/common/platform';
 
 export class TestTextFileEditorModelManager extends TextFileEditorModelManager {
 
@@ -65,11 +64,7 @@ suite('Files - TextFileEditorModelManager', () => {
 		assert(!manager.get(URI.file('foo')));
 		assert.strictEqual(manager.get(URI.file('/test.html')), model1);
 
-		if (isLinux) {
-			assert.ok(!manager.get(fileUpper));
-		} else {
-			assert.strictEqual(manager.get(fileUpper), model1);
-		}
+		assert.ok(!manager.get(fileUpper));
 
 		let result = manager.getAll();
 		assert.strictEqual(3, result.length);
@@ -84,11 +79,7 @@ suite('Files - TextFileEditorModelManager', () => {
 		assert.strictEqual(1, result.length);
 
 		result = manager.getAll(fileUpper);
-		if (isLinux) {
-			assert.strictEqual(0, result.length);
-		} else {
-			assert.strictEqual(1, result.length);
-		}
+		assert.strictEqual(0, result.length);
 
 		manager.remove(URI.file(''));
 
@@ -101,11 +92,7 @@ suite('Files - TextFileEditorModelManager', () => {
 
 		manager.remove(fileUpper);
 		result = manager.getAll();
-		if (isLinux) {
-			assert.strictEqual(2, result.length);
-		} else {
-			assert.strictEqual(1, result.length);
-		}
+		assert.strictEqual(2, result.length);
 
 		manager.clear();
 		result = manager.getAll();

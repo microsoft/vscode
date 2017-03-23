@@ -285,10 +285,6 @@ export class Model implements Disposable {
 		return anyEvent(this.onRunOperation as Event<any>, this.onDidRunOperation as Event<any>);
 	}
 
-	get git(): Git {
-		return this._git;
-	}
-
 	private _mergeGroup = new MergeGroup([]);
 	get mergeGroup(): MergeGroup { return this._mergeGroup; }
 
@@ -392,7 +388,7 @@ export class Model implements Disposable {
 			return;
 		}
 
-		await this.git.init(this.workspaceRootPath);
+		await this._git.init(this.workspaceRootPath);
 		await this.status();
 	}
 
@@ -579,9 +575,9 @@ export class Model implements Disposable {
 		this.repositoryDisposable.dispose();
 
 		const disposables: Disposable[] = [];
-		const repositoryRoot = await this.git.getRepositoryRoot(this.workspaceRootPath);
+		const repositoryRoot = await this._git.getRepositoryRoot(this.workspaceRootPath);
 		const askpassEnv = await this.askpass.getEnv();
-		this.repository = this.git.open(repositoryRoot, askpassEnv);
+		this.repository = this._git.open(repositoryRoot, askpassEnv);
 
 		const dotGitPath = path.join(repositoryRoot, '.git');
 		const { event: onRawGitChange, disposable: watcher } = watch(dotGitPath);

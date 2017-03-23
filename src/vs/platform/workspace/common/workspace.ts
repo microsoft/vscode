@@ -8,6 +8,7 @@ import URI from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import paths = require('vs/base/common/paths');
 import { isEqualOrParent } from 'vs/platform/files/common/files';
+import { isLinux } from 'vs/base/common/platform';
 
 export const IWorkspaceContextService = createDecorator<IWorkspaceContextService>('contextService');
 
@@ -84,7 +85,7 @@ export class WorkspaceContextService implements IWorkspaceContextService {
 
 	public isInsideWorkspace(resource: URI): boolean {
 		if (resource && this.workspace) {
-			return isEqualOrParent(resource.fsPath, this.workspace.resource.fsPath);
+			return isEqualOrParent(resource.fsPath, this.workspace.resource.fsPath, !isLinux /* ignorecase */);
 		}
 
 		return false;

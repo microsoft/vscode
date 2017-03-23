@@ -195,7 +195,7 @@ configurationRegistry.registerConfiguration({
 								'type': 'string', // expression ({ "**/*.js": { "when": "$(basename).js" } })
 								'pattern': '\\w*\\$\\(basename\\)\\w*',
 								'default': '$(basename).ext',
-								'description': nls.localize('files.exclude.when', 'Additional check on the siblings of a matching file. Use $(basename) as variable for the matching file name.')
+								'description': nls.localize('files.exclude.when', "Additional check on the siblings of a matching file. Use $(basename) as variable for the matching file name.")
 							}
 						}
 					}
@@ -204,7 +204,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'files.associations': {
 			'type': 'object',
-			'description': nls.localize('associations', "Configure file associations to languages (e.g. '*.extension': 'html'). These have precedence over the default associations of the languages installed."),
+			'description': nls.localize('associations', "Configure file associations to languages (e.g. \"*.extension\": \"html\"). These have precedence over the default associations of the languages installed."),
 		},
 		'files.encoding': {
 			'type': 'string',
