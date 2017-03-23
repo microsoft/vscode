@@ -355,10 +355,11 @@ function getRgArgs(config: IRawSearch): { args: string[], siblingClauses: glob.I
 	args.push('--follow');
 
 	// Set default encoding
-	if (config.fileEncoding) {
+	if (config.fileEncoding && config.fileEncoding !== 'utf8') {
 		args.push('--encoding', encoding.toCanonicalName(config.fileEncoding));
 	}
 
+	let searchPatternAfterDoubleDashes: string;
 	if (config.contentPattern.isRegExp) {
 		if (config.contentPattern.isWordMatch) {
 			args.push('--word-regexp');
@@ -369,12 +370,20 @@ function getRgArgs(config: IRawSearch): { args: string[], siblingClauses: glob.I
 		if (config.contentPattern.isWordMatch) {
 			args.push('--word-regexp', '--regexp', strings.escapeRegExpCharacters(config.contentPattern.pattern));
 		} else {
-			args.push('--fixed-strings', config.contentPattern.pattern);
+			args.push('--fixed-strings');
+			searchPatternAfterDoubleDashes = config.contentPattern.pattern;
 		}
 	}
 
 	// Folder to search
-	args.push('--', './');
+	args.push('--');
+
+	if (searchPatternAfterDoubleDashes) {
+		// Put the query after --, in case the query starts with a dash
+		args.push(searchPatternAfterDoubleDashes);
+	}
+
+	args.push('./');
 
 	return { args, siblingClauses };
 }
