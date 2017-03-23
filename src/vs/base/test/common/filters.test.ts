@@ -239,30 +239,49 @@ suite('Filters', () => {
 	});
 
 	test('fuzzyScore', function () {
-
-		assertMatches('LLL', 'SVisualLoggerLogsList', 'SVisual^Logger^Logs^List', fuzzyScore);
-		assertMatches('sllll', 'SVisualLoggerLogsList', '^SVisua^l^Logger^Logs^List', fuzzyScore);
-		assertMatches('sl', 'SVisualLoggerLogsList', '^SVisual^LoggerLogsList', fuzzyScore);
-		assertMatches('LLLL', 'SVilLoLosLi', undefined, fuzzyScore);
-		assertMatches('fob', 'foobar', '^f^oo^bar', fuzzyScore);
-		assertMatches('ob', 'foobar', undefined, fuzzyScore);
-		assertMatches('fobz', 'foobar', undefined, fuzzyScore);
-		assertMatches('ba', '?AB?', undefined, fuzzyScore);
-		assertMatches('ccm', 'camelCasecm', '^camel^Casec^m', fuzzyScore);
-		assertMatches('myvable', 'myvariable', '^m^y^v^aria^b^l^e', fuzzyScore);
-		assertMatches('fdm', 'findModel', '^fin^d^Model', fuzzyScore);
+		assertMatches('ab', 'abA', '^a^bA', fuzzyScore);
+		assertMatches('ccm', 'cacmelCase', '^ca^c^melCase', fuzzyScore);
+		assertMatches('bti', 'the_black_knight', undefined, fuzzyScore);
+		assertMatches('ccm', 'camelCase', undefined, fuzzyScore);
+		assertMatches('BK', 'the_black_knight', 'the_^black_^knight', fuzzyScore);
 		assertMatches('KeyboardLayout=', 'KeyboardLayout', undefined, fuzzyScore);
+		assertMatches('LLL', 'SVisualLoggerLogsList', 'SVisual^Logger^Logs^List', fuzzyScore);
+		assertMatches('LLLL', 'SVilLoLosLi', undefined, fuzzyScore);
+		assertMatches('LLLL', 'SVisualLoggerLogsList', undefined, fuzzyScore);
 		assertMatches('TEdit', 'TextEdit', '^Text^E^d^i^t', fuzzyScore);
-		assertMatches('TEdit', 'text_edit', '^text_^e^d^i^t', fuzzyScore);
-		assertMatches('TEdit', 'Textedit', '^T^exte^d^i^t', fuzzyScore);
-		assertMatches('Tedit', 'TextEdit', '^Text^E^d^i^t', fuzzyScore);
 		assertMatches('TEdit', 'TextEditor', '^Text^E^d^i^tor', fuzzyScore);
+		assertMatches('TEdit', 'Textedit', '^T^exte^d^i^t', fuzzyScore);
+		assertMatches('TEdit', 'text_edit', '^text_^e^d^i^t', fuzzyScore);
 		assertMatches('TEditDit', 'TextEditorDecorationType', '^Text^E^d^i^tor^Decorat^ion^Type', fuzzyScore);
+		assertMatches('TEdit', 'TextEditorDecorationType', '^Text^Editor^Decorat^ion^Type', fuzzyScore);
+		assertMatches('Tedit', 'TextEdit', '^Text^E^d^i^t', fuzzyScore);
+		assertMatches('ba', '?AB?', undefined, fuzzyScore);
+		assertMatches('bkn', 'the_black_knight', 'the_^black_^k^night', fuzzyScore);
+		assertMatches('bt', 'the_black_knight', 'the_^black_knigh^t', fuzzyScore);
+		assertMatches('ccm', 'camelCasecm', '^camel^Casec^m', fuzzyScore);
+		assertMatches('fdm', 'findModel', '^fin^d^Model', fuzzyScore);
+		assertMatches('fob', 'foobar', '^f^oo^bar', fuzzyScore);
+		assertMatches('fobz', 'foobar', undefined, fuzzyScore);
+		assertMatches('foobar', 'foobar', '^f^o^o^b^a^r', fuzzyScore);
 		assertMatches('form', 'editor.formatOnSave', 'editor.^f^o^r^matOnSave', fuzzyScore);
 		assertMatches('g p', 'Git: Pull', '^Git:^ ^Pull', fuzzyScore);
+		assertMatches('g p', 'Git: Pull', '^Git:^ ^Pull', fuzzyScore);
 		assertMatches('gip', 'Git: Pull', '^G^it: ^Pull', fuzzyScore);
-		assertMatches('is', 'isValid', '^i^sValid', fuzzyScore);
+		assertMatches('gip', 'Git: Pull', '^G^it: ^Pull', fuzzyScore);
+		assertMatches('gp', 'Git: Pull', '^Git: ^Pull', fuzzyScore);
+		assertMatches('gp', 'Git_Git_Pull', '^Git_Git_^Pull', fuzzyScore);
 		assertMatches('is', 'ImportStatement', '^Import^Statement', fuzzyScore);
+		assertMatches('is', 'isValid', '^i^sValid', fuzzyScore);
+		assertMatches('lowrd', 'lowWord', '^l^ow^Wo^r^d', fuzzyScore);
+		assertMatches('myvable', 'myvariable', '^m^y^v^aria^b^l^e', fuzzyScore);
+		assertMatches('no', '', undefined, fuzzyScore);
+		assertMatches('no', 'match', undefined, fuzzyScore);
+		assertMatches('ob', 'foobar', undefined, fuzzyScore);
+		assertMatches('sl', 'SVisualLoggerLogsList', '^SVisual^LoggerLogsList', fuzzyScore);
+		assertMatches('sllll', 'SVisualLoggerLogsList', '^SVisua^l^Logger^Logs^List', fuzzyScore);
+		assertMatches('Three', 'HTMLHRElement', 'H^TML^H^R^El^ement', fuzzyScore);
+		assertMatches('Three', 'Three', '^T^h^r^e^e', fuzzyScore);
+
 	});
 
 	test('topScore', function () {

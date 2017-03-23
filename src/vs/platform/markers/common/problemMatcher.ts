@@ -1122,8 +1122,20 @@ export class ProblemMatcherParser extends Parser {
 	}
 
 	private checkProblemMatcherValid(externalProblemMatcher: Config.ProblemMatcher, problemMatcher: ProblemMatcher): boolean {
-		if (!problemMatcher || !problemMatcher.pattern || !problemMatcher.owner || Types.isUndefined(problemMatcher.fileLocation)) {
-			this.error(localize('ProblemMatcherParser.invalidMarkerDescription', 'Error: Invalid problemMatcher description. A matcher must at least define a pattern, owner and a file location. The problematic matcher is:\n{0}\n', JSON.stringify(externalProblemMatcher, null, 4)));
+		if (!problemMatcher) {
+			this.error(localize('ProblemMatcherParser.noProblemMatcher', 'Error: the description can\'t be converted into a problem matcher:\n{0}\n', JSON.stringify(externalProblemMatcher, null, 4)));
+			return false;
+		}
+		if (!problemMatcher.pattern) {
+			this.error(localize('ProblemMatcherParser.noProblemPattern', 'Error: the description doesn\'t define a valid problem pattern:\n{0}\n', JSON.stringify(externalProblemMatcher, null, 4)));
+			return false;
+		}
+		if (!problemMatcher.owner) {
+			this.error(localize('ProblemMatcherParser.noOwner', 'Error: the description doesn\'t define an owner:\n{0}\n', JSON.stringify(externalProblemMatcher, null, 4)));
+			return false;
+		}
+		if (Types.isUndefined(problemMatcher.fileLocation)) {
+			this.error(localize('ProblemMatcherParser.noFileLocation', 'Error: the description doesn\'t define a file location:\n{0}\n', JSON.stringify(externalProblemMatcher, null, 4)));
 			return false;
 		}
 		return true;
@@ -1220,7 +1232,17 @@ export class ProblemMatcherParser extends Parser {
 		if (Types.isString(value)) {
 			let variableName: string = <string>value;
 			if (variableName.length > 1 && variableName[0] === '$') {
-				return ProblemPatternRegistry.get(variableName.substring(1));
+				let result = ProblemPatternRegistry.get(variableName.substring(1));
+				if (!result) {
+					this.error(localize('ProblemMatcherParser.noDefinedPatter', 'Error: the pattern with the identifier {0} doesn\'t. exist.', variableName));
+				}
+				return result;
+			} else {
+				if (variableName.length === 0) {
+					this.error(localize('ProblemMatcherParser.noIdentifier', 'Error: the pattern property refers to an empty identifier.'));
+				} else {
+					this.error(localize('ProblemMatcherParser.noValidIdentifier', 'Error: the pattern property {0} is no valid pattern variable name.', variableName));
+				}
 			}
 		} else if (value) {
 			let problemPatternParser = new ProblemPatternParser(this.problemReporter);

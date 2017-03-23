@@ -490,9 +490,11 @@ function initTable() {
 	}
 	return table;
 }
+
 const _table = initTable();
 const _arrows = initTable();
 const _debug = false;
+
 function printTable(table: number[][], pattern: string, patternLen: number, word: string, wordLen: number): string {
 	function pad(s: string, n: number, pad = ' ') {
 		while (s.length < n) {
@@ -517,6 +519,10 @@ export function fuzzyScore(pattern: string, word: string): [number, number[]] {
 
 	const patternLen = pattern.length > 25 ? 25 : pattern.length;
 	const wordLen = word.length > 100 ? 100 : word.length;
+
+	if (patternLen === 0) {
+		return [-1, []];
+	}
 
 	if (patternLen > wordLen) {
 		return undefined;
@@ -549,7 +555,13 @@ export function fuzzyScore(pattern: string, word: string): [number, number[]] {
 					score = 5;
 
 				} else if (j === 1) {
-					score = 5;
+					if (pattern[i - 1] === word[j - 1]) {
+						score = 7;
+					} else {
+						score = 5;
+					}
+				} else if (j === i) {
+					score = 3;
 
 				} else {
 					score = 1;
@@ -609,35 +621,50 @@ export function fuzzyScore(pattern: string, word: string): [number, number[]] {
 	while (i > 0 && j > 0) {
 		let value = _table[i][j];
 		let arrow = _arrows[i][j];
-		if (arrow === -1) { // left
+		if (arrow === -1 || arrow === 1) {
+			// keep going left, we cannot
+			// skip a character in the pattern
 			j -= 1;
-		} else if (arrow === 1) { // top
-			i -= 1;
+			total -= 1;
+
 		} else if (arrow === 0) { //diag
 			j -= 1;
 			i -= 1;
 
-			total += value;
-			matches.unshift(j);
-
-			if (i === 0) {
+			let score = value - _table[i][j];
+			if (i === 0 && score === 1) {
 				// we have reached the first pattern char and now
 				// test that it has scored properly, like `o -> bbOO`
 				// and not `o -> foobar`
-				let score = value - _table[i][j];
-				if (score === 1) {
-					return undefined;
-				}
+				return undefined;
+
+			} else if (score < 1) {
+				// we went diagonal by inheriting a good
+				// result, not by matching keep going left
+				i += 1;
+				total -= 1;
+
+			} else {
+				// all good
+				total += value;
+				matches.unshift(j);
 			}
 		}
 	}
 
-	total -= Math.min(matches[0], 3) * 3; // penalty for first matching character
-	total -= (1 + matches[matches.length - 1]) - (pattern.length); // penalty for all non matching characters between first and last
+	if (matches.length !== patternLen) {
+		// we didn't match all pattern
+		// characters in order
+		return undefined;
+	}
 
+	if (j > 3) {
+		j = 3;
+	}
+	total -= j * 3; // penalty for first matching character
 
 	if (_debug) {
-		console.log(`${pattern} & ${word} => ${total} points`);
+		console.log(`${pattern} & ${word} => ${total} points for ${matches}`);
 	}
 
 	return [total, matches];

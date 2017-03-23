@@ -24,10 +24,9 @@ import { FindReplaceState, FindReplaceStateChangedEvent } from 'vs/editor/contri
 import { Range } from 'vs/editor/common/core/range';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { CONTEXT_FIND_INPUT_FOCUSSED } from 'vs/editor/contrib/find/common/findController';
-
-import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
-import { ITheme, ICssStyleCollector, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { ITheme, registerThemingParticipant, IThemeService } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
+import { editorFindRangeHighlight, editorCurrentFindMatchHighlight, editorFindMatchHighlight, registerColor, highContrastOutline, highContrastBorder } from "vs/platform/theme/common/colorRegistry";
 
 export interface IFindController {
 	replace(): void;
@@ -90,7 +89,8 @@ export class FindWidget extends Widget implements IOverlayWidget {
 		state: FindReplaceState,
 		contextViewProvider: IContextViewProvider,
 		keybindingService: IKeybindingService,
-		contextKeyService: IContextKeyService
+		contextKeyService: IContextKeyService,
+		themeService: IThemeService
 	) {
 		super();
 		this._codeEditor = codeEditor;
@@ -168,6 +168,9 @@ export class FindWidget extends Widget implements IOverlayWidget {
 		});
 
 		this._codeEditor.addOverlayWidget(this);
+
+		this._applyTheme(themeService.getTheme());
+		this._register(themeService.onThemeChange(this._applyTheme.bind(this)));
 	}
 
 	// ----- IOverlayWidget API
@@ -342,6 +345,11 @@ export class FindWidget extends Widget implements IOverlayWidget {
 			}
 			this._codeEditor.layoutOverlayWidget(this);
 		}
+	}
+
+	private _applyTheme(theme: ITheme) {
+		let inputStyles = { checkedBorderColor: theme.getColor(editorFindCheckedBorders) };
+		this._findInput.style(inputStyles);
 	}
 
 	// ----- Public
@@ -778,14 +786,39 @@ class SimpleButton extends Widget {
 	}
 }
 
-registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
-	addBackgroundColorRule(theme, '.findMatch', theme.getColor(colorRegistry.editorFindMatchHighlight), collector);
-	addBackgroundColorRule(theme, '.currentFindMatch', theme.getColor(colorRegistry.editorCurrentFindMatchHighlight), collector);
-	addBackgroundColorRule(theme, '.findScope', theme.getColor(colorRegistry.editorFindRangeHighlight), collector);
+// theming
+
+export const editorFindWidgetBackground = registerColor('editorFindWidgetBackground', { dark: '#2D2D30', light: '#EFEFF2', hc: '#0C141F' }, nls.localize('editorFindWidgetBackground', 'Find widget background'));
+export const editorFindInputBackground = registerColor('editorFindInputBackground', { dark: '#3C3C3C', light: Color.white, hc: Color.black }, nls.localize('editorFindInputBackground', 'Find widget input field background'));
+export const editorFindCheckedBorders = registerColor('editorFindCheckedBorders', { dark: '#007ACC', light: '#007ACC', hc: highContrastOutline }, nls.localize('editorFindCheckedBorders', 'Find widget checked border color'));
+
+registerThemingParticipant((theme, collector) => {
+	function addBackgroundColorRule(selector: string, color: Color): void {
+		if (color) {
+			collector.addRule(`.monaco-editor.${theme.selector} ${selector} { background-color: ${color}; }`);
+		}
+	}
+
+	addBackgroundColorRule('.findMatch', theme.getColor(editorFindMatchHighlight));
+	addBackgroundColorRule('.currentFindMatch', theme.getColor(editorCurrentFindMatchHighlight));
+	addBackgroundColorRule('.findScope', theme.getColor(editorFindRangeHighlight));
+
+	let inputBackground = theme.getColor(editorFindInputBackground);
+	addBackgroundColorRule('.find-widget .monaco-findInput', inputBackground);
+	addBackgroundColorRule('.find-widget .replace-input', inputBackground);
+
+	let widgetBackground = theme.getColor(editorFindWidgetBackground);
+	addBackgroundColorRule('.find-widget', widgetBackground);
+
+	let hcOutline = theme.getColor(highContrastOutline);
+	if (hcOutline) {
+		collector.addRule(`.monaco-editor.${theme.selector} .findScope { border: 1px dashed ${hcOutline.transparent(0.4)}; }`);
+		collector.addRule(`.monaco-editor.${theme.selector} .currentFindMatch { border: 2px solid ${hcOutline}; padding: 1px; -moz-box-sizing: border-box; box-sizing: border-box; }`);
+		collector.addRule(`.monaco-editor.${theme.selector} .findMatch { border: 1px dotted ${hcOutline}; -moz-box-sizing: border-box; box-sizing: border-box; }`);
+	}
+	let hcBorder = theme.getColor(highContrastBorder);
+	if (hcBorder) {
+		collector.addRule(`.monaco-editor.${theme.selector} .find-widget { border: 2px solid ${hcBorder}; box-shadow: none; }`);
+	}
 });
 
-function addBackgroundColorRule(theme: ITheme, selector: string, color: Color, collector: ICssStyleCollector): void {
-	if (color) {
-		collector.addRule(`.monaco-editor.${theme.selector} ${selector} { background-color: ${color}; }`);
-	}
-}
