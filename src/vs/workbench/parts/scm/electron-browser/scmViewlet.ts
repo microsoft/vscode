@@ -6,8 +6,10 @@
 'use strict';
 
 import 'vs/css!./media/scmViewlet';
+import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { chain } from 'vs/base/common/event';
+import * as platform from 'vs/base/common/platform';
 import { domEvent } from 'vs/base/browser/event';
 import { IDisposable, dispose, empty as EmptyDisposable } from 'vs/base/common/lifecycle';
 import { Builder, Dimension } from 'vs/base/browser/builder';
@@ -239,7 +241,10 @@ export class SCMViewlet extends Viewlet {
 		const root = parent.getHTMLElement();
 		this.inputBoxContainer = append(root, $('.scm-editor'));
 
-		this.inputBox = new InputBox(this.inputBoxContainer, this.contextViewService, { flexibleHeight: true });
+		this.inputBox = new InputBox(this.inputBoxContainer, this.contextViewService, {
+			placeholder: localize('commitMessage', "Message (press {0} to commit)", platform.isMacintosh ? 'Cmd+Enter' : 'Ctrl+Enter'),
+			flexibleHeight: true
+		});
 		this.disposables.push(this.inputBox);
 
 		this.inputBox.value = this.scmService.input.value;
