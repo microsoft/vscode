@@ -225,8 +225,10 @@
 		{
 			"name": "JavaScript string interpolation ${}",
 			"scope": [
+				"punctuation.definition.template-expression.begin.js",
 				"punctuation.definition.template-expression.begin.ts",
-				"punctuation.definition.template-expression.end.ts"
+				"punctuation.definition.template-expression.end.ts",
+				"punctuation.definition.template-expression.end.js"
 			],
 			"settings": {
 				"foreground": "#569cd6"
