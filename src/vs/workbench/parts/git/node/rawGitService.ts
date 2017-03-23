@@ -165,14 +165,14 @@ export class RawGitService implements IRawGitService {
 	detectMimetypes(filePath: string, treeish?: string): TPromise<string[]> {
 		return exists(join(this.repo.path, filePath)).then((exists) => {
 			if (exists) {
-				return detectMimesFromFile(join(this.repo.path, filePath), false)
+				return detectMimesFromFile(join(this.repo.path, filePath))
 					.then(result => result.mimes);
 			}
 
 			const child = this.repo.show(treeish + ':' + filePath);
 
 			return new TPromise<string[]>((c, e) =>
-				detectMimesFromStream(child.stdout, filePath, false)
+				detectMimesFromStream(child.stdout, filePath)
 					.then(result => result.mimes)
 			);
 		});

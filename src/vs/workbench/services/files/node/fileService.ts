@@ -206,7 +206,8 @@ export class FileService implements IFileService {
 			}
 
 			// 2.) detect mimes
-			return mime.detectMimesFromFile(absolutePath, this.options.autoGuessEncoding).then((detected: mime.IMimeAndEncoding) => {
+			const autoGuessEncoding = (options && options.autoGuessEncoding) || (this.options && this.options.autoGuessEncoding);
+			return mime.detectMimesFromFile(absolutePath, { autoGuessEncoding: autoGuessEncoding }).then((detected: mime.IMimeAndEncoding) => {
 				const isText = detected.mimes.indexOf(baseMime.MIME_BINARY) === -1;
 
 				// Return error early if client only accepts text and this is not text

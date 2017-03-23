@@ -34,7 +34,7 @@ import { IEditor as IBaseEditor, IEditorInput } from 'vs/platform/editor/common/
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickOpenService, IPickOpenEntry, IFilePickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { IFilesConfiguration, SUPPORTED_ENCODINGS } from 'vs/platform/files/common/files';
+import { IFilesConfiguration, SUPPORTED_ENCODINGS, IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -1019,7 +1019,8 @@ export class ChangeEncodingAction extends Action {
 		actionLabel: string,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService
+		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
+		@IFileService private fileService: IFileService
 	) {
 		super(actionId, actionLabel);
 	}
@@ -1060,51 +1061,69 @@ export class ChangeEncodingAction extends Action {
 				return undefined;
 			}
 
-			return TPromise.timeout(50 /* quick open is sensitive to being opened so soon after another */).then(() => {
-				const configuration = this.configurationService.getConfiguration<IFilesConfiguration>();
+			const guessEncoding = () => {
+				const uri = toResource(activeEditor.input);
+				return this.fileService.resolveContent(uri, { autoGuessEncoding: true })
+					.then(content => content.encoding)
+					.then(encodingKey => encodingKey, err => null);
+			};
 
-				const isReopenWithEncoding = (action === reopenWithEncodingPick);
-				const configuredEncoding = configuration && configuration.files && configuration.files.encoding;
-				let directMatchIndex: number;
-				let aliasMatchIndex: number;
+			return TPromise.timeout(50 /* quick open is sensitive to being opened so soon after another */)
+				.then(guessEncoding)
+				.then((guessedEncodingKey: string) => {
+					const configuration = this.configurationService.getConfiguration<IFilesConfiguration>();
 
-				// All encodings are valid picks
-				const picks: IPickOpenEntry[] = Object.keys(SUPPORTED_ENCODINGS)
-					.sort((k1, k2) => {
-						if (k1 === configuredEncoding) {
-							return -1;
-						} else if (k2 === configuredEncoding) {
-							return 1;
-						}
+					const isReopenWithEncoding = (action === reopenWithEncodingPick);
+					const configuredEncoding = configuration && configuration.files && configuration.files.encoding;
+					let directMatchIndex: number;
+					let aliasMatchIndex: number;
 
-						return SUPPORTED_ENCODINGS[k1].order - SUPPORTED_ENCODINGS[k2].order;
-					})
-					.filter(k => {
-						return !isReopenWithEncoding || !SUPPORTED_ENCODINGS[k].encodeOnly; // hide those that can only be used for encoding if we are about to decode
-					})
-					.map((key, index) => {
-						if (key === encodingSupport.getEncoding()) {
-							directMatchIndex = index;
-						} else if (SUPPORTED_ENCODINGS[key].alias === encodingSupport.getEncoding()) {
-							aliasMatchIndex = index;
-						}
+					// All encodings are valid picks
+					const picks: IPickOpenEntry[] = Object.keys(SUPPORTED_ENCODINGS)
+						.sort((k1, k2) => {
+							if (k1 === configuredEncoding) {
+								return -1;
+							} else if (k2 === configuredEncoding) {
+								return 1;
+							}
 
-						return { id: key, label: SUPPORTED_ENCODINGS[key].labelLong };
-					});
+							return SUPPORTED_ENCODINGS[k1].order - SUPPORTED_ENCODINGS[k2].order;
+						})
+						.filter(k => {
+							return !isReopenWithEncoding || !SUPPORTED_ENCODINGS[k].encodeOnly; // hide those that can only be used for encoding if we are about to decode
+						})
+						.map((key, index) => {
+							if (key === encodingSupport.getEncoding()) {
+								directMatchIndex = index;
+							} else if (SUPPORTED_ENCODINGS[key].alias === encodingSupport.getEncoding()) {
+								aliasMatchIndex = index;
+							}
 
-				return this.quickOpenService.pick(picks, {
-					placeHolder: isReopenWithEncoding ? nls.localize('pickEncodingForReopen', "Select File Encoding to Reopen File") : nls.localize('pickEncodingForSave', "Select File Encoding to Save with"),
-					autoFocus: { autoFocusIndex: typeof directMatchIndex === 'number' ? directMatchIndex : typeof aliasMatchIndex === 'number' ? aliasMatchIndex : void 0 }
-				}).then(encoding => {
-					if (encoding) {
-						activeEditor = this.editorService.getActiveEditor();
-						encodingSupport = toEditorWithEncodingSupport(activeEditor.input);
-						if (encodingSupport && encodingSupport.getEncoding() !== encoding.id) {
-							encodingSupport.setEncoding(encoding.id, isReopenWithEncoding ? EncodingMode.Decode : EncodingMode.Encode); // Set new encoding
-						}
+							return { id: key, label: SUPPORTED_ENCODINGS[key].labelLong };
+						});
+
+					if (guessedEncodingKey && SUPPORTED_ENCODINGS[guessedEncodingKey]) {
+						const guessedLabel = nls.localize('pickEncodingLabelGuessed', "{0}   (Guessed from content)");
+						const guessedEncodingLabelLong = SUPPORTED_ENCODINGS[guessedEncodingKey].labelLong;
+
+						picks[0].separator = { border: true };
+
+						picks.unshift({ id: guessedEncodingKey, label: strings.format(guessedLabel, guessedEncodingLabelLong) });
 					}
+
+					return this.quickOpenService.pick(picks, {
+						placeHolder: isReopenWithEncoding ? nls.localize('pickEncodingForReopen', "Select File Encoding to Reopen File") : nls.localize('pickEncodingForSave', "Select File Encoding to Save with"),
+						autoFocus: { autoFocusIndex: typeof directMatchIndex === 'number' ? directMatchIndex : typeof aliasMatchIndex === 'number' ? aliasMatchIndex : void 0 }
+					}).then(encoding => {
+						if (encoding) {
+							activeEditor = this.editorService.getActiveEditor();
+							encodingSupport = toEditorWithEncodingSupport(activeEditor.input);
+							if (encodingSupport && encodingSupport.getEncoding() !== encoding.id) {
+								encodingSupport.setEncoding(encoding.id, isReopenWithEncoding ? EncodingMode.Decode : EncodingMode.Encode); // Set new encoding
+							}
+						}
+					});
 				});
-			});
 		});
 	}
 }
