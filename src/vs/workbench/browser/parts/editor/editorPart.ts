@@ -240,10 +240,10 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 	public requestActiveGroupSizeChange(groupSizeChange: number): boolean {
 		this.editorGroupsControl.requestActiveGroupSizeChange(groupSizeChange);
-		this.editorGroupsControl.layout(this.dimension);
 		return true;
 	}
 
+/*
 	public getSilosSize(): number[] {
 		console.log('dimension: ' + this.dimension);
 		return this.editorGroupsControl.getSilosSize();
@@ -254,7 +254,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		this.editorGroupsControl.layout(this.dimension);
 		return true;
 	}
-
+*/
 	public get onEditorsChanged(): Event<void> {
 		return this._onEditorsChanged.event;
 	}
