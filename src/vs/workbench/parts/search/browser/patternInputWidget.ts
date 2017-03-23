@@ -36,6 +36,7 @@ export class PatternInputWidget extends Widget {
 
 	private toDispose: any[];
 	private pattern: Checkbox;
+	private useIgnoreFilesBox: Checkbox;
 
 	private domNode: HTMLElement;
 	private inputNode: HTMLInputElement;
@@ -44,7 +45,7 @@ export class PatternInputWidget extends Widget {
 	private _onSubmit = this._register(new Emitter<boolean>());
 	public onSubmit: CommonEvent<boolean> = this._onSubmit.event;
 
-	constructor(parent: HTMLElement, private contextViewProvider: IContextViewProvider, options: IOptions = Object.create(null)) {
+	constructor(parent: HTMLElement, private contextViewProvider: IContextViewProvider, options: IOptions = Object.create(null), private showUseIgnoreFiles = false) {
 		super();
 		this.onOptionChange = null;
 		this.width = options.width || 100;
@@ -53,6 +54,7 @@ export class PatternInputWidget extends Widget {
 
 		this.toDispose = [];
 		this.pattern = null;
+		this.useIgnoreFilesBox = null;
 		this.domNode = null;
 		this.inputNode = null;
 		this.inputBox = null;
@@ -65,6 +67,7 @@ export class PatternInputWidget extends Widget {
 	public dispose(): void {
 		super.dispose();
 		this.pattern.dispose();
+		this.useIgnoreFilesBox.dispose();
 		this.toDispose.forEach((element) => {
 			element();
 		});
@@ -142,6 +145,15 @@ export class PatternInputWidget extends Widget {
 		return this.inputBox.hasFocus();
 	}
 
+	public useIgnoreFiles(): boolean {
+		return this.useIgnoreFilesBox.checked;
+	}
+
+	public setUseIgnoreFiles(value: boolean): void {
+		this.useIgnoreFilesBox.checked = value;
+		this.setInputWidth();
+	}
+
 	public isGlobPattern(): boolean {
 		return this.pattern.checked;
 	}
@@ -152,7 +164,7 @@ export class PatternInputWidget extends Widget {
 	}
 
 	private setInputWidth(): void {
-		let w = this.width - this.pattern.width();
+		let w = this.width - this.pattern.width() - this.useIgnoreFilesBox.width();
 		this.inputBox.width = w;
 	}
 
@@ -191,6 +203,19 @@ export class PatternInputWidget extends Widget {
 			}
 		});
 
+		this.useIgnoreFilesBox = new Checkbox({
+			actionClassName: 'useIgnoreFiles',
+			title: nls.localize('useIgnoreFilesDescription', "Use Ignore Files"),
+			isChecked: false,
+			onChange: (viaKeyboard) => {
+				this.onOptionChange(null);
+				if (!viaKeyboard) {
+					this.inputBox.focus();
+				}
+				this.setInputWidth();
+			}
+		});
+
 		$(this.pattern.domNode).on('mouseover', () => {
 			if (this.isGlobPattern()) {
 				this.showGlobHelp();
@@ -205,6 +230,10 @@ export class PatternInputWidget extends Widget {
 
 		let controls = document.createElement('div');
 		controls.className = 'controls';
+		if (this.showUseIgnoreFiles) {
+			controls.appendChild(this.useIgnoreFilesBox.domNode);
+		}
+
 		controls.appendChild(this.pattern.domNode);
 
 		this.domNode.appendChild(controls);

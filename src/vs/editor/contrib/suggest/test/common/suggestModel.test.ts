@@ -12,16 +12,17 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { Model } from 'vs/editor/common/model/model';
 import { ICommonCodeEditor, Handler } from 'vs/editor/common/editorCommon';
 import { ISuggestSupport, ISuggestResult, SuggestRegistry } from 'vs/editor/common/modes';
-import { SuggestModel, Context } from 'vs/editor/contrib/suggest/common/suggestModel';
+import { SuggestModel, LineContext } from 'vs/editor/contrib/suggest/common/suggestModel';
 import { MockCodeEditor, MockScopeLocation } from 'vs/editor/test/common/mocks/mockCodeEditor';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { ITelemetryService, NullTelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 
 function createMockEditor(model: Model): MockCodeEditor {
-	const contextKeyService = new MockKeybindingService();
+	const contextKeyService = new MockContextKeyService();
 	const telemetryService = NullTelemetryService;
 	const instantiationService = new InstantiationService(new ServiceCollection(
 		[IContextKeyService, contextKeyService],
@@ -49,8 +50,10 @@ suite('SuggestModel - Context', function () {
 
 		function assertAutoTrigger(offset: number, expected: boolean): void {
 			const pos = model.getPositionAt(offset);
-			const ctx = new Context(model, pos, false);
-			assert.equal(ctx.shouldAutoTrigger(), expected);
+			const editor = createMockEditor(model);
+			editor.setPosition(pos);
+			assert.equal(LineContext.shouldAutoTrigger(editor), expected);
+			editor.dispose();
 		}
 
 		assertAutoTrigger(3, true); // end of word, Das|
@@ -59,35 +62,12 @@ suite('SuggestModel - Context', function () {
 		assertAutoTrigger(55, false); // number, 1861|
 	});
 
-	test('Context - isDifferentContext', function () {
-
-		// different line
-		const ctx = new Context(model, { lineNumber: 1, column: 8 }, true); // Das Pfer|d
-		assert.equal(ctx.isDifferentContext(new Context(model, { lineNumber: 2, column: 1 }, true)), true);
-
-
-		function createEndContext(value: string) {
-			const model = Model.createFromString(value);
-			const ctx = new Context(model, model.getPositionAt(value.length), true); // Das Pfer|d
-			return ctx;
-		}
-
-		// got shorter -> redo
-		assert.equal(createEndContext('One Two').isDifferentContext(createEndContext('One Tw')), true);
-
-		// got longer inside word -> keep
-		assert.equal(createEndContext('One Tw').isDifferentContext(createEndContext('One Two')), false);
-
-		// got longer new word -> redo
-		assert.equal(createEndContext('One Two').isDifferentContext(createEndContext('One Two ')), true);
-	});
 });
 
 suite('SuggestModel - TriggerAndCancelOracle', function () {
 
 
 	const alwaysEmptySupport: ISuggestSupport = {
-		triggerCharacters: [],
 		provideCompletionItems(doc, pos) {
 			return <ISuggestResult>{
 				incomplete: false,
@@ -97,7 +77,6 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 	};
 
 	const alwaysSomethingSupport: ISuggestSupport = {
-		triggerCharacters: [],
 		provideCompletionItems(doc, pos) {
 			return <ISuggestResult>{
 				currentWord: '',
@@ -137,7 +116,8 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 
 	function assertEvent<E>(event: Event<E>, action: () => any, assert: (e: E) => any) {
 		return new TPromise((resolve, reject) => {
-			event(e => {
+			const sub = event(e => {
+				sub.dispose();
 				try {
 					resolve(assert(e));
 				} catch (err) {
@@ -203,12 +183,10 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 
 		return withOracle(model => {
 			return TPromise.join([
-				assertEvent(model.onDidSuggest, function () {
+				assertEvent(model.onDidCancel, function () {
 					model.trigger(true);
 				}, function (event) {
-					assert.equal(event.auto, true);
-					assert.equal(event.isFrozen, false);
-					assert.equal(event.completionModel.items.length, 0);
+					assert.equal(event.retrigger, false);
 				}),
 				assertEvent(model.onDidSuggest, function () {
 					model.trigger(false);
@@ -236,6 +214,112 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 				const [first] = event.completionModel.items;
 
 				assert.equal(first.support, alwaysSomethingSupport);
+			});
+		});
+	});
+
+	test('#17400: Keep filtering suggestModel.ts after space', function () {
+
+		disposables.push(SuggestRegistry.register({ scheme: 'test' }, {
+			provideCompletionItems(doc, pos) {
+				return <ISuggestResult>{
+					currentWord: '',
+					incomplete: false,
+					suggestions: [{
+						label: 'My Table',
+						type: 'property',
+						insertText: 'My Table'
+					}]
+				};
+			}
+		}));
+
+		model.setValue('');
+
+		return withOracle((model, editor) => {
+
+			return assertEvent(model.onDidSuggest, () => {
+				editor.setPosition({ lineNumber: 1, column: 1 });
+				editor.trigger('keyboard', Handler.Type, { text: 'My' });
+
+			}, event => {
+				assert.equal(event.auto, true);
+				assert.equal(event.completionModel.items.length, 1);
+				const [first] = event.completionModel.items;
+				assert.equal(first.suggestion.label, 'My Table');
+
+				return assertEvent(model.onDidSuggest, () => {
+					editor.setPosition({ lineNumber: 1, column: 3 });
+					editor.trigger('keyboard', Handler.Type, { text: ' ' });
+
+				}, event => {
+					assert.equal(event.auto, true);
+					assert.equal(event.completionModel.items.length, 1);
+					const [first] = event.completionModel.items;
+					assert.equal(first.suggestion.label, 'My Table');
+				});
+			});
+		});
+	});
+
+	test('#21484: Trigger character always force a new completion session', function () {
+
+		disposables.push(SuggestRegistry.register({ scheme: 'test' }, {
+			provideCompletionItems(doc, pos) {
+				return <ISuggestResult>{
+					currentWord: '',
+					incomplete: false,
+					suggestions: [{
+						label: 'foo.bar',
+						type: 'property',
+						insertText: 'foo.bar',
+						overwriteBefore: pos.column - 1
+					}]
+				};
+			}
+		}));
+
+		disposables.push(SuggestRegistry.register({ scheme: 'test' }, {
+			triggerCharacters: ['.'],
+			provideCompletionItems(doc, pos) {
+				return <ISuggestResult>{
+					currentWord: '',
+					incomplete: false,
+					suggestions: [{
+						label: 'boom',
+						type: 'property',
+						insertText: 'boom',
+						overwriteBefore: doc.getLineContent(pos.lineNumber)[pos.column - 2] === '.' ? 0 : pos.column - 1
+					}]
+				};
+			}
+		}));
+
+		model.setValue('');
+
+		return withOracle((model, editor) => {
+
+			return assertEvent(model.onDidSuggest, () => {
+				editor.setPosition({ lineNumber: 1, column: 1 });
+				editor.trigger('keyboard', Handler.Type, { text: 'foo' });
+
+			}, event => {
+				assert.equal(event.auto, true);
+				assert.equal(event.completionModel.items.length, 1);
+				const [first] = event.completionModel.items;
+				assert.equal(first.suggestion.label, 'foo.bar');
+
+				return assertEvent(model.onDidSuggest, () => {
+					editor.trigger('keyboard', Handler.Type, { text: '.' });
+
+				}, event => {
+					assert.equal(event.auto, true);
+					assert.equal(event.completionModel.items.length, 2);
+					const [first, second] = event.completionModel.items;
+					assert.equal(first.suggestion.label, 'boom');
+					assert.equal(second.suggestion.label, 'foo.bar');
+					assert.equal(event.completionModel.topScoreIdx, 1);
+				});
 			});
 		});
 	});

@@ -12,6 +12,7 @@ import { IConstructorSignature1 } from 'vs/platform/instantiation/common/instant
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
+import { FastDomNode } from 'vs/base/browser/fastDomNode';
 
 /**
  * @internal
@@ -44,20 +45,20 @@ export interface ICodeEditorHelper {
 	getVerticalOffsetForPosition(lineNumber: number, column: number): number;
 	delegateVerticalScrollbarMouseDown(browserEvent: MouseEvent): void;
 	getOffsetForColumn(lineNumber: number, column: number): number;
+	getTargetAtClientPoint(clientX: number, clientY: number): IMouseTarget;
 }
 
 /**
  * @internal
  */
 export interface IView extends IDisposable {
-	domNode: HTMLElement;
+	domNode: FastDomNode<HTMLElement>;
 
 	getInternalEventBus(): IEventEmitter;
 
 	createOverviewRuler(cssClassName: string, minimumHeight: number, maximumHeight: number): IOverviewRuler;
 	getCodeEditorHelper(): ICodeEditorHelper;
 
-	getCenteredRangeInViewport(): Range;
 	/**
 	 * Returns the range of lines in the view port which are completely visible.
 	 */
@@ -65,7 +66,6 @@ export interface IView extends IDisposable {
 
 	change(callback: (changeAccessor: IViewZoneChangeAccessor) => any): boolean;
 	getWhitespaces(): editorCommon.IEditorWhitespace[];
-	renderOnce(callback: () => any): any;
 
 	render(now: boolean, everything: boolean): void;
 	setAriaActiveDescendant(id: string): void;
@@ -137,6 +137,8 @@ export interface IViewController {
 	emitMouseLeave(e: IEditorMouseEvent): void;
 	emitMouseUp(e: IEditorMouseEvent): void;
 	emitMouseDown(e: IEditorMouseEvent): void;
+	emitMouseDrag(e: IEditorMouseEvent): void;
+	emitMouseDrop(e: IEditorMouseEvent): void;
 }
 
 /**
@@ -417,6 +419,18 @@ export interface ICodeEditor extends editorCommon.ICommonCodeEditor {
 	 */
 	onMouseDown(listener: (e: IEditorMouseEvent) => void): IDisposable;
 	/**
+	 * An event emitted on a "mousedrag".
+	 * @internal
+	 * @event
+	 */
+	onMouseDrag(listener: (e: IEditorMouseEvent) => void): IDisposable;
+	/**
+	 * An event emitted on a "mousedrop".
+	 * @internal
+	 * @event
+	 */
+	onMouseDrop(listener: (e: IEditorMouseEvent) => void): IDisposable;
+	/**
 	 * An event emitted on a "contextmenu".
 	 * @event
 	 */
@@ -522,6 +536,14 @@ export interface ICodeEditor extends editorCommon.ICommonCodeEditor {
 	 * Get the vertical position (top offset) for the position w.r.t. to the first line.
 	 */
 	getTopForPosition(lineNumber: number, column: number): number;
+
+	/**
+	 * Get the hit test target at coordinates `clientX` and `clientY`.
+	 * The coordinates are relative to the top-left of the viewport.
+	 *
+	 * @returns Hit test target or null if the coordinates fall outside the editor or the editor has no model.
+	 */
+	getTargetAtClientPoint(clientX: number, clientY: number): IMouseTarget;
 
 	/**
 	 * Get the visible position for `position`.

@@ -15,7 +15,7 @@ import * as modes from 'vs/editor/common/modes';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 import { IOutline } from 'vs/editor/contrib/quickOpen/common/quickOpen';
-import { IWorkspaceSymbolProvider, IWorkspaceSymbol } from 'vs/workbench/parts/search/common/search';
+import { IWorkspaceSymbolProvider } from 'vs/workbench/parts/search/common/search';
 import { ICodeLensData } from 'vs/editor/contrib/codelens/common/codelens';
 
 export class ExtHostApiCommands {
@@ -45,6 +45,14 @@ export class ExtHostApiCommands {
 				{ name: 'position', description: 'Position of a symbol', constraint: types.Position }
 			],
 			returns: 'A promise that resolves to an array of Location-instances.'
+		});
+		this._register('vscode.executeImplementationProvider', this._executeImplementationProvider, {
+			description: 'Execute all implementation providers.',
+			args: [
+				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
+				{ name: 'position', description: 'Position of a symbol', constraint: types.Position }
+			],
+			returns: 'A promise that resolves to an array of Location-instance.'
 		});
 		this._register('vscode.executeHoverProvider', this._executeHoverProvider, {
 			description: 'Execute all hover provider.',
@@ -163,18 +171,7 @@ export class ExtHostApiCommands {
 				description: `
 					Render the html of the resource in an editor view.
 
-					Links contained in the document will be handled by VS Code whereby it supports \`file\`-resources and
-					[virtual](https://github.com/Microsoft/vscode/blob/master/src/vs/vscode.d.ts#L3295)-resources
-					as well as triggering commands using the \`command\`-scheme. Use the query part of a command-uri to pass along JSON-encoded
-					arguments - note that URL-encoding must be applied. The snippet below defines a command-link that calls the _previewHtml_
-					command and passes along an uri:
-					\`\`\`
-					let href = encodeURI('command:vscode.previewHtml?' + JSON.stringify(someUri));
-					let html = '<a href="' + href + '">Show Resource...</a>.';
-					\`\`\`
-
-					The body element of the displayed html is dynamically annotated with one of the following css classes in order to
-					communicate the kind of color theme vscode is currently using: \`vscode-light\`, \`vscode-dark\`, or \`vscode-high-contrast\'.
+					See [working with the html preview](https://code.visualstudio.com/docs/extensionAPI/vscode-api-commands#working-with-the-html-preview) for more information about the html preview's intergration with the editor and for best practices for extension authors.
 				`,
 				args: [
 					{ name: 'uri', description: 'Uri of the resource to preview.', constraint: value => value instanceof URI || typeof value === 'string' },
@@ -242,7 +239,7 @@ export class ExtHostApiCommands {
 	 * @return A promise that resolves to an array of symbol information.
 	 */
 	private _executeWorkspaceSymbolProvider(query: string): Thenable<types.SymbolInformation[]> {
-		return this._commands.executeCommand<[IWorkspaceSymbolProvider, IWorkspaceSymbol[]][]>('_executeWorkspaceSymbolProvider', { query }).then(value => {
+		return this._commands.executeCommand<[IWorkspaceSymbolProvider, modes.SymbolInformation[]][]>('_executeWorkspaceSymbolProvider', { query }).then(value => {
 			const result: types.SymbolInformation[] = [];
 			if (Array.isArray(value)) {
 				for (let tuple of value) {
@@ -262,6 +259,20 @@ export class ExtHostApiCommands {
 			if (Array.isArray(value)) {
 				return value.map(typeConverters.location.to);
 			}
+			return undefined;
+		});
+	}
+
+	private _executeImplementationProvider(resource: URI, position: types.Position): Thenable<types.Location[]> {
+		const args = {
+			resource,
+			position: position && typeConverters.fromPosition(position)
+		};
+		return this._commands.executeCommand<modes.Location[]>('_executeImplementationProvider', args).then(value => {
+			if (Array.isArray(value)) {
+				return value.map(typeConverters.location.to);
+			}
+			return undefined;
 		});
 	}
 
@@ -274,6 +285,7 @@ export class ExtHostApiCommands {
 			if (Array.isArray(value)) {
 				return value.map(typeConverters.toHover);
 			}
+			return undefined;
 		});
 	}
 
@@ -286,6 +298,7 @@ export class ExtHostApiCommands {
 			if (Array.isArray(value)) {
 				return value.map(typeConverters.toDocumentHighlight);
 			}
+			return undefined;
 		});
 	}
 
@@ -298,6 +311,7 @@ export class ExtHostApiCommands {
 			if (Array.isArray(value)) {
 				return value.map(typeConverters.location.to);
 			}
+			return undefined;
 		});
 	}
 
@@ -309,7 +323,7 @@ export class ExtHostApiCommands {
 		};
 		return this._commands.executeCommand<modes.WorkspaceEdit>('_executeDocumentRenameProvider', args).then(value => {
 			if (!value) {
-				return;
+				return undefined;
 			}
 			if (value.rejectReason) {
 				return TPromise.wrapError(value.rejectReason);
@@ -332,6 +346,7 @@ export class ExtHostApiCommands {
 			if (value) {
 				return typeConverters.SignatureHelp.to(value);
 			}
+			return undefined;
 		});
 	}
 
@@ -346,6 +361,7 @@ export class ExtHostApiCommands {
 				const items = result.suggestions.map(suggestion => typeConverters.Suggest.to(position, suggestion));
 				return new types.CompletionList(items, result.incomplete);
 			}
+			return undefined;
 		});
 	}
 
@@ -355,8 +371,9 @@ export class ExtHostApiCommands {
 		};
 		return this._commands.executeCommand<IOutline>('_executeDocumentSymbolProvider', args).then(value => {
 			if (value && Array.isArray(value.entries)) {
-				return value.entries.map(typeConverters.SymbolInformation.fromOutlineEntry);
+				return value.entries.map(typeConverters.toSymbolInformation);
 			}
+			return undefined;
 		});
 	}
 
@@ -367,7 +384,7 @@ export class ExtHostApiCommands {
 		};
 		return this._commands.executeCommand<modes.CodeAction[]>('_executeCodeActionProvider', args).then(value => {
 			if (!Array.isArray(value)) {
-				return;
+				return undefined;
 			}
 			return value.map(quickFix => this._commands.converter.fromInternal(quickFix.command));
 		});
@@ -383,6 +400,7 @@ export class ExtHostApiCommands {
 						this._commands.converter.fromInternal(item.symbol.command));
 				});
 			}
+			return undefined;
 		});
 	}
 
@@ -395,6 +413,7 @@ export class ExtHostApiCommands {
 			if (Array.isArray(value)) {
 				return value.map(edit => new types.TextEdit(typeConverters.toRange(edit.range), edit.text));
 			}
+			return undefined;
 		});
 	}
 
@@ -408,6 +427,7 @@ export class ExtHostApiCommands {
 			if (Array.isArray(value)) {
 				return value.map(edit => new types.TextEdit(typeConverters.toRange(edit.range), edit.text));
 			}
+			return undefined;
 		});
 	}
 
@@ -422,6 +442,7 @@ export class ExtHostApiCommands {
 			if (Array.isArray(value)) {
 				return value.map(edit => new types.TextEdit(typeConverters.toRange(edit.range), edit.text));
 			}
+			return undefined;
 		});
 	}
 
@@ -430,6 +451,7 @@ export class ExtHostApiCommands {
 			if (Array.isArray(value)) {
 				return value.map(typeConverters.DocumentLink.to);
 			}
+			return undefined;
 		});
 	}
 }

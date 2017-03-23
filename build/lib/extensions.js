@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 "use strict";
-var event_stream_1 = require('event-stream');
-var assign = require('object-assign');
-var remote = require('gulp-remote-src');
+var event_stream_1 = require("event-stream");
+var assign = require("object-assign");
+var remote = require("gulp-remote-src");
 var flatmap = require('gulp-flatmap');
 var vzip = require('gulp-vinyl-zip');
 var filter = require('gulp-filter');

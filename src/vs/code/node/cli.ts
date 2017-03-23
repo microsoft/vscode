@@ -8,8 +8,8 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { assign } from 'vs/base/common/objects';
 import { parseCLIProcessArgv, buildHelpMessage } from 'vs/platform/environment/node/argv';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
-import product from 'vs/platform/product';
-import pkg from 'vs/platform/package';
+import product from 'vs/platform/node/product';
+import pkg from 'vs/platform/node/package';
 
 function shouldSpawnCliProcess(argv: ParsedArgs): boolean {
 	return argv['list-extensions'] || !!argv['install-extension'] || !!argv['uninstall-extension'];
@@ -61,8 +61,8 @@ export function main(argv: string[]): TPromise<void> {
 		const child = spawn(process.execPath, argv.slice(2), options);
 
 		if (args.verbose) {
-			child.stdout.on('data', (data) => console.log(data.toString('utf8').trim()));
-			child.stderr.on('data', (data) => console.log(data.toString('utf8').trim()));
+			child.stdout.on('data', (data: Buffer) => console.log(data.toString('utf8').trim()));
+			child.stderr.on('data', (data: Buffer) => console.log(data.toString('utf8').trim()));
 		}
 
 		if (args.wait || args.verbose) {
@@ -73,9 +73,13 @@ export function main(argv: string[]): TPromise<void> {
 	return TPromise.as(null);
 }
 
+function eventuallyExit(code: number): void {
+	setTimeout(() => process.exit(code), 0);
+}
+
 main(process.argv)
-	.then(() => process.exit(0))
+	.then(() => eventuallyExit(0))
 	.then(null, err => {
 		console.error(err.stack ? err.stack : err);
-		process.exit(1);
+		eventuallyExit(1);
 	});

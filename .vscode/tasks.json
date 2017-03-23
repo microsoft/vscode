@@ -17,7 +17,7 @@
 				"--no-color"
 			],
 			"isBuildCommand": true,
-			"isWatching": true,
+			"isBackground": true,
 			"problemMatcher": {
 				"owner": "typescript",
 				"applyTo": "closedDocuments",
@@ -47,7 +47,7 @@
 				],
 				"severity": "warning",
 				"pattern": {
-					"regexp": "(.*):(\\d+):(\\d+):(.*)$",
+					"regexp": "(.*)\\[(\\d+),\\s(\\d+)\\]:\\s(.*)$", // (.*)\[(\d+), (\d+)\]: (.*)
 					"file": 1,
 					"line": 2,
 					"column": 3,
@@ -62,6 +62,13 @@
 			],
 			"showOutput": "always",
 			"isTestCommand": true
+		},
+		{
+			"taskName": "electron",
+			"args": [
+				"--no-color"
+			],
+			"showOutput": "never"
 		}
 	]
 }

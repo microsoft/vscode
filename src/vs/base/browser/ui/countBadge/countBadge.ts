@@ -6,42 +6,33 @@
 'use strict';
 
 import 'vs/css!./countBadge';
-import { Builder, $ } from 'vs/base/browser/builder';
-import strings = require('vs/base/common/strings');
+import { $, append } from 'vs/base/browser/dom';
+import { format } from 'vs/base/common/strings';
 
 export class CountBadge {
 
-	private $el: Builder;
+	private element: HTMLElement;
 	private count: number;
 	private titleFormat: string;
 
-	constructor(container: Builder, count?: number, titleFormat?: string);
-	constructor(container: HTMLElement, count?: number, titleFormat?: string);
-	constructor(container: any, count?: number, titleFormat?: string) {
-		this.$el = $('.monaco-count-badge').appendTo(container);
+	constructor(container: HTMLElement, count?: number, titleFormat?: string) {
+		this.element = append(container, $('.monaco-count-badge'));
 		this.titleFormat = titleFormat || '';
 		this.setCount(count || 0);
 	}
 
-	public setCount(count: number) {
+	setCount(count: number) {
 		this.count = count;
 		this.render();
 	}
 
-	public setTitleFormat(titleFormat: string) {
+	setTitleFormat(titleFormat: string) {
 		this.titleFormat = titleFormat;
 		this.render();
 	}
 
 	private render() {
-		this.$el.text('' + this.count);
-		this.$el.title(strings.format(this.titleFormat, this.count));
-	}
-
-	public dispose() {
-		if (this.$el) {
-			this.$el.destroy();
-			this.$el = null;
-		}
+		this.element.textContent = '' + this.count;
+		this.element.title = format(this.titleFormat, this.count);
 	}
 }

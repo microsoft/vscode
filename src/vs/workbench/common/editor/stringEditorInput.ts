@@ -74,44 +74,6 @@ export class StringEditorInput extends EditorInput {
 		}
 	}
 
-	/**
-	 * Clears the textual value of this input and will also update the underlying model if this input is resolved.
-	 */
-	public clearValue(): void {
-		this.value = '';
-		if (this.cachedModel) {
-			this.cachedModel.clearValue();
-		}
-	}
-
-	/**
-	 * Appends to the textual value of this input and will also update the underlying model if this input is resolved.
-	 */
-	public append(value: string): void {
-		this.value += value;
-		if (this.cachedModel) {
-			this.cachedModel.append(value);
-		}
-	}
-
-	/**
-	 * Removes all lines from the top if the line number exceeds the given line count. Returns the new value if lines got trimmed.
-	 *
-	 * Note: This method is a no-op if the input has not yet been resolved.
-	 */
-	public trim(linecount: number): string {
-		if (this.cachedModel) {
-			let newValue = this.cachedModel.trim(linecount);
-			if (newValue !== null) {
-				this.value = newValue;
-
-				return this.value;
-			}
-		}
-
-		return null;
-	}
-
 	public resolve(refresh?: boolean): TPromise<EditorModel> {
 
 		// Use Cached Model

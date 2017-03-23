@@ -5,7 +5,8 @@
 	"files.exclude": {
 		".git": true,
 		".build": true,
-		"**/.DS_Store": true
+		"**/.DS_Store": true,
+		"build/**/*.js": { "when": "$(basename).ts" }
 	},
 	"search.exclude": {
 		"**/node_modules": true,
@@ -17,13 +18,17 @@
 	},
 	"tslint.enable": true,
 	"tslint.rulesDirectory": "build/lib/tslint",
-	"lcov.path": ["./.build/coverage/lcov.info", "./.build/coverage-single/lcov.info"],
-	"lcov.watch": [{
-		"pattern": "**/*.test.js",
-		"command": "${workspaceRoot}/scripts/test.sh --coverage --run ${file}",
-		"windows": {
-			"command": "${workspaceRoot}\\scripts\\test.bat --coverage --run ${file}"
+	"lcov.path": [
+		"./.build/coverage/lcov.info",
+		"./.build/coverage-single/lcov.info"
+	],
+	"lcov.watch": [
+		{
+			"pattern": "**/*.test.js",
+			"command": "${workspaceRoot}/scripts/test.sh --coverage --run ${file}",
+			"windows": {
+				"command": "${workspaceRoot}\\scripts\\test.bat --coverage --run ${file}"
+			}
 		}
-	}],
-	"typescript.check.workspaceVersion": false
+	]
 }

@@ -30,6 +30,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 
 export class SearchDataSource implements IDataSource {
 
+	private static AUTOEXPAND_CHILD_LIMIT = 10;
+
 	public getId(tree: ITree, element: any): string {
 		if (element instanceof FileMatch) {
 			return element.id();
@@ -42,16 +44,18 @@ export class SearchDataSource implements IDataSource {
 		return 'root';
 	}
 
-	public getChildren(tree: ITree, element: any): TPromise<any[]> {
-		let value: any[] = [];
-
+	private _getChildren(element: any): any[] {
 		if (element instanceof FileMatch) {
-			value = element.matches();
+			return element.matches();
 		} else if (element instanceof SearchResult) {
-			value = element.matches();
+			return element.matches();
 		}
 
-		return TPromise.as(value);
+		return [];
+	}
+
+	public getChildren(tree: ITree, element: any): TPromise<any[]> {
+		return TPromise.as(this._getChildren(element));
 	}
 
 	public hasChildren(tree: ITree, element: any): boolean {
@@ -69,6 +73,11 @@ export class SearchDataSource implements IDataSource {
 
 		return TPromise.as(value);
 	}
+
+	public shouldAutoexpand(tree: ITree, element: any): boolean {
+		const numChildren = this._getChildren(element).length;
+		return numChildren > 0 && numChildren < SearchDataSource.AUTOEXPAND_CHILD_LIMIT;
+	}
 }
 
 export class SearchSorter implements ISorter {
@@ -81,6 +90,8 @@ export class SearchSorter implements ISorter {
 		if (elementA instanceof Match && elementB instanceof Match) {
 			return Range.compareRangesUsingStarts(elementA.range(), elementB.range());
 		}
+
+		return undefined;
 	}
 }
 
@@ -149,7 +160,8 @@ export class SearchRenderer extends ActionsRenderer {
 			rightRenderer = (right: HTMLElement) => {
 				let len = fileMatch.count();
 
-				return new CountBadge(right, len, len > 1 ? nls.localize('searchMatches', "{0} matches found", len) : nls.localize('searchMatch', "{0} match found", len));
+				new CountBadge(right, len, len > 1 ? nls.localize('searchMatches', "{0} matches found", len) : nls.localize('searchMatch', "{0} match found", len));
+				return null;
 			};
 
 			widget = new LeftRightWidget(container, leftRenderer, rightRenderer);
@@ -212,25 +224,32 @@ export class SearchAccessibilityProvider implements IAccessibilityProvider {
 			}
 			return nls.localize('searchResultAria', "{0}, Search result", match.text());
 		}
+		return undefined;
 	}
 }
 
 export class SearchController extends DefaultController {
 
 	constructor(private viewlet: SearchViewlet, @IInstantiationService private instantiationService: IInstantiationService) {
-		super({ clickBehavior: ClickBehavior.ON_MOUSE_DOWN });
+		super({ clickBehavior: ClickBehavior.ON_MOUSE_DOWN, keyboardSupport: false });
 
-		if (platform.isMacintosh) {
-			this.downKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.Backspace, (tree: ITree, event: any) => { this.onDelete(tree, event); });
-			this.upKeyBindingDispatcher.set(KeyMod.WinCtrl | KeyCode.Enter, this.onEnter.bind(this));
-		} else {
-			this.downKeyBindingDispatcher.set(KeyCode.Delete, (tree: ITree, event: any) => { this.onDelete(tree, event); });
-			this.upKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.Enter, this.onEnter.bind(this));
-		}
+		// TODO@Rob these should be commands
 
+		// Up (from results to inputs)
+		this.downKeyBindingDispatcher.set(KeyCode.UpArrow, this.onUp.bind(this));
+
+		// Open to side
+		this.upKeyBindingDispatcher.set(platform.isMacintosh ? KeyMod.WinCtrl | KeyCode.Enter : KeyMod.CtrlCmd | KeyCode.Enter, this.onEnter.bind(this));
+
+		// Delete
+		this.downKeyBindingDispatcher.set(platform.isMacintosh ? KeyMod.CtrlCmd | KeyCode.Backspace : KeyCode.Delete, (tree: ITree, event: any) => { this.onDelete(tree, event); });
+
+		// Cancel search
+		this.downKeyBindingDispatcher.set(KeyCode.Escape, (tree: ITree, event: any) => { this.onEscape(tree, event); });
+
+		// Replace / Replace All
 		this.downKeyBindingDispatcher.set(ReplaceAllAction.KEY_BINDING, (tree: ITree, event: any) => { this.onReplaceAll(tree, event); });
 		this.downKeyBindingDispatcher.set(ReplaceAction.KEY_BINDING, (tree: ITree, event: any) => { this.onReplace(tree, event); });
-		this.downKeyBindingDispatcher.set(KeyCode.Escape, (tree: ITree, event: any) => { this.onEscape(tree, event); });
 	}
 
 	protected onEscape(tree: ITree, event: IKeyboardEvent): boolean {
@@ -282,15 +301,8 @@ export class SearchController extends DefaultController {
 			this.viewlet.moveFocusFromResults();
 			return true;
 		}
-		return super.onUp(tree, event);
-	}
 
-	protected onSpace(tree: ITree, event: IKeyboardEvent): boolean {
-		let element = tree.getFocus();
-		if (element instanceof Match) {
-			return this.onEnter(tree, event);
-		}
-		super.onSpace(tree, event);
+		return false;
 	}
 }
 

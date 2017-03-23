@@ -6,7 +6,7 @@
 var fs = require('fs');
 var os = require('os');
 var path = require('path');
-var ptyJs = require('pty.js');
+var ptyJs = require('node-pty');
 
 // The pty process needs to be run in its own child process to get around maxing out CPU on Mac,
 // see https://github.com/electron/electron/issues/38
@@ -22,15 +22,23 @@ if (os.platform() === 'win32') {
 var shell = process.env.PTYSHELL;
 var args = getArgs();
 var cwd = process.env.PTYCWD;
+var cols = process.env.PTYCOLS;
+var rows = process.env.PTYROWS;
 var currentTitle = '';
 
 setupPlanB(process.env.PTYPID);
 cleanEnv();
 
-var ptyProcess = ptyJs.fork(shell, args, {
+var options = {
 	name: name,
 	cwd: cwd
-});
+};
+if (cols && rows) {
+	options.cols = parseInt(cols, 10);
+	options.rows = parseInt(rows, 10);
+}
+
+var ptyProcess = ptyJs.fork(shell, args, options);
 
 ptyProcess.on('data', function (data) {
 	process.send({
@@ -40,6 +48,7 @@ ptyProcess.on('data', function (data) {
 });
 
 ptyProcess.on('exit', function (exitCode) {
+	ptyProcess.kill();
 	process.exit(exitCode);
 });
 
@@ -55,6 +64,9 @@ sendProcessId();
 setupTitlePolling();
 
 function getArgs() {
+	if (process.env['PTYSHELLCMDLINE']) {
+		return process.env['PTYSHELLCMDLINE'];
+	}
 	var args = [];
 	var i = 0;
 	while (process.env['PTYSHELLARG' + i]) {
@@ -69,7 +81,10 @@ function cleanEnv() {
 		'ELECTRON_RUN_AS_NODE',
 		'PTYCWD',
 		'PTYPID',
-		'PTYSHELL'
+		'PTYSHELL',
+		'PTYCOLS',
+		'PTYROWS',
+		'PTYSHELLCMDLINE'
 	];
 	keys.forEach(function (key) {
 		if (process.env[key]) {

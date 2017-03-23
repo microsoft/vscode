@@ -1970,4 +1970,67 @@ suite('FindModel', () => {
 		findModel.dispose();
 		findState.dispose();
 	});
+
+	findTest('issue #18711 replaceAll with empty string', (editor, cursor) => {
+		let findState = new FindReplaceState();
+		findState.change({ searchString: 'hello', replaceString: '', wholeWord: true }, false);
+		let findModel = new FindModelBoundToEditorModel(editor, findState);
+
+		assertFindState(
+			editor,
+			[1, 1, 1, 1],
+			null,
+			[
+				[6, 14, 6, 19],
+				[6, 27, 6, 32],
+				[7, 14, 7, 19],
+				[8, 14, 8, 19]
+			]
+		);
+
+		findModel.replaceAll();
+		assertFindState(
+			editor,
+			[1, 1, 1, 1],
+			null,
+			[]
+		);
+		assert.equal(editor.getModel().getLineContent(6), '    cout << " world, !" << endl;');
+		assert.equal(editor.getModel().getLineContent(7), '    cout << " world again" << endl;');
+		assert.equal(editor.getModel().getLineContent(8), '    cout << " world again" << endl;');
+
+		findModel.dispose();
+		findState.dispose();
+	});
+
+	findTest('issue #19740 Find and replace capture group/backreference inserts `undefined` instead of empty string', (editor, cursor) => {
+		let findState = new FindReplaceState();
+		findState.change({ searchString: 'hello(z)?', replaceString: 'hi$1', isRegex: true, matchCase: true }, false);
+		let findModel = new FindModelBoundToEditorModel(editor, findState);
+
+		assertFindState(
+			editor,
+			[1, 1, 1, 1],
+			null,
+			[
+				[6, 14, 6, 19],
+				[7, 14, 7, 19],
+				[9, 14, 9, 19]
+			]
+		);
+
+		findModel.replaceAll();
+		assertFindState(
+			editor,
+			[1, 1, 1, 1],
+			null,
+			[]
+		);
+		assert.equal(editor.getModel().getLineContent(6), '    cout << "hi world, Hello!" << endl;');
+		assert.equal(editor.getModel().getLineContent(7), '    cout << "hi world again" << endl;');
+		assert.equal(editor.getModel().getLineContent(9), '    cout << "hiworld again" << endl;');
+
+		findModel.dispose();
+		findState.dispose();
+	});
 });

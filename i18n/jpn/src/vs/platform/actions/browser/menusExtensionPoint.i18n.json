@@ -7,6 +7,7 @@
 	"dup": "コマンド `{0}` が `commands` セクションで複数回出現します。",
 	"dupe.command": "メニュー項目において、既定と alt コマンドが同じコマンドを参照しています",
 	"menuId.invalid": "`{0}` は有効なメニュー識別子ではありません",
+	"menus.commandPalette": "コマンド パレット",
 	"menus.editorContext": "エディターのコンテキスト メニュー",
 	"menus.editorTabContext": "エディターのタブのコンテキスト メニュー",
 	"menus.editorTitle": "エディターのタイトル メニュー",

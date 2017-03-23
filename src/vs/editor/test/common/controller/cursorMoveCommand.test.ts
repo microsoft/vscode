@@ -7,10 +7,10 @@
 import * as assert from 'assert';
 import { Cursor } from 'vs/editor/common/controller/cursor';
 import { Position } from 'vs/editor/common/core/position';
-import { Handler, IEditorOptions, ITextModelCreationOptions, CursorMovePosition, CursorMoveByUnit, ISelection, IPosition } from 'vs/editor/common/editorCommon';
+import { Handler, IEditorOptions, ITextModelCreationOptions, CursorMovePosition, CursorMoveByUnit, ISelection } from 'vs/editor/common/editorCommon';
 import { Model } from 'vs/editor/common/model/model';
 import { IMode } from 'vs/editor/common/modes';
-import { MockConfiguration } from 'vs/editor/test/common/mocks/mockConfiguration';
+import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
 import { viewModelHelper as aViewModelHelper } from 'vs/editor/test/common/editorTestUtils';
 import { IViewModelHelper } from 'vs/editor/common/controller/oneCursor';
 import { Range } from 'vs/editor/common/core/range';
@@ -20,12 +20,12 @@ let H = Handler;
 suite('Cursor move command test', () => {
 	const LINE1 = '    \tMy First Line\t ';
 	const LINE2 = '\tMy Second Line';
-	const LINE3 = '    Third Line💩';
+	const LINE3 = '    Third Line🐶';
 	const LINE4 = '';
 	const LINE5 = '1';
 
 	let thisModel: Model;
-	let thisConfiguration: MockConfiguration;
+	let thisConfiguration: TestConfiguration;
 	let thisCursor: Cursor;
 
 	setup(() => {
@@ -37,7 +37,7 @@ suite('Cursor move command test', () => {
 			LINE5;
 
 		thisModel = Model.createFromString(text);
-		thisConfiguration = new MockConfiguration(null);
+		thisConfiguration = new TestConfiguration(null);
 	});
 
 	teardown(() => {
@@ -338,7 +338,7 @@ suite('Cursor move command test', () => {
 		thisCursor = aCursor();
 
 		moveToEndOfLine(thisCursor);
-		cursorEqual(thisCursor, 1, LINE1.length - 1);
+		cursorEqual(thisCursor, 1, LINE1.length + 1);
 
 		moveToEndOfLine(thisCursor);
 		cursorEqual(thisCursor, 1, LINE1.length + 1);
@@ -456,7 +456,7 @@ suite('Cursor move command test', () => {
 	});
 
 	function aCursor(viewModelHelper?: IViewModelHelper): Cursor {
-		return new Cursor(1, thisConfiguration, thisModel, viewModelHelper || aViewModelHelper(thisModel), false);
+		return new Cursor(thisConfiguration, thisModel, viewModelHelper || aViewModelHelper(thisModel), false);
 	}
 
 });
@@ -543,14 +543,8 @@ function cursorEqual(cursor: Cursor, posLineNumber: number, posColumn: number, s
 	selectionEqual(cursor.getSelection(), posLineNumber, posColumn, selLineNumber, selColumn);
 }
 
-function positionEqual(position: IPosition, lineNumber: number, column: number) {
-	assert.deepEqual({
-		lineNumber: position.lineNumber,
-		column: position.column
-	}, {
-			lineNumber: lineNumber,
-			column: column
-		}, 'position equal');
+function positionEqual(position: Position, lineNumber: number, column: number) {
+	assert.deepEqual(position, new Position(lineNumber, column), 'position equal');
 }
 
 function selectionEqual(selection: ISelection, posLineNumber: number, posColumn: number, selLineNumber: number, selColumn: number) {

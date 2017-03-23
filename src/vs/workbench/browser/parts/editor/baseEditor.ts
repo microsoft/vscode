@@ -16,6 +16,7 @@ import { IEditor, Position, POSITIONS } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
 import { SyncDescriptor, AsyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 /**
  * The base class of editors in the workbench. Editors register themselves for specific editor inputs.
@@ -30,34 +31,20 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
  * This class is only intended to be subclassed and not instantiated.
  */
 export abstract class BaseEditor extends Panel implements IEditor {
-	private _input: EditorInput;
+	protected _input: EditorInput;
 	private _options: EditorOptions;
 	private _position: Position;
 
-	constructor(id: string, telemetryService: ITelemetryService) {
-		super(id, telemetryService);
+	constructor(id: string, telemetryService: ITelemetryService, themeService: IThemeService) {
+		super(id, telemetryService, themeService);
 	}
 
 	public get input(): EditorInput {
 		return this._input;
 	}
 
-	/**
-	 * Returns the current input of this editor or null if none.
-	 */
-	public getInput(): EditorInput {
-		return this._input || null;
-	}
-
 	public get options(): EditorOptions {
 		return this._options;
-	}
-
-	/**
-	 * Returns the current options of this editor or null if none.
-	 */
-	public getOptions(): EditorOptions {
-		return this._options || null;
 	}
 
 	/**
@@ -97,7 +84,7 @@ export abstract class BaseEditor extends Panel implements IEditor {
 	/**
 	 * Called to create the editor in the parent builder.
 	 */
-	public abstract createEditor(parent: Builder): void;
+	protected abstract createEditor(parent: Builder): void;
 
 	/**
 	 * Overload this function to allow for passing in a position argument.
@@ -113,7 +100,7 @@ export abstract class BaseEditor extends Panel implements IEditor {
 		return promise;
 	}
 
-	public setEditorVisible(visible, position: Position = null): void {
+	protected setEditorVisible(visible: boolean, position: Position = null): void {
 		this._position = position;
 	}
 
@@ -225,7 +212,7 @@ class EditorRegistry implements IEditorRegistry {
 					const inputClass = inputDescriptors[j].ctor;
 
 					// Direct check on constructor type (ignores prototype chain)
-					if (!byInstanceOf && (<any>input).constructor === inputClass) {
+					if (!byInstanceOf && input.constructor === inputClass) {
 						matchingDescriptors.push(editor);
 						break;
 					}

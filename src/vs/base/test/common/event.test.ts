@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import Event, { Emitter, fromEventEmitter, debounceEvent, EventBufferer, once, fromPromise, stopwatch, buffer } from 'vs/base/common/event';
+import Event, { Emitter, fromEventEmitter, debounceEvent, EventBufferer, once, fromPromise, stopwatch, buffer, EventMultiplexer } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { EventEmitter } from 'vs/base/common/eventEmitter';
 import Errors = require('vs/base/common/errors');
@@ -159,7 +159,7 @@ suite('Event', function () {
 	});
 
 	test('throwingListener', function () {
-		var origErrorHandler = Errors.errorHandler.getUnexpectedErrorHandler();
+		const origErrorHandler = Errors.errorHandler.getUnexpectedErrorHandler();
 		Errors.setUnexpectedErrorHandler(() => null);
 
 		try {
@@ -419,4 +419,166 @@ suite('Event utils', () => {
 		});
 	});
 
+	suite('EventMultiplexer', () => {
+
+		test('works', () => {
+			const result = [];
+			const m = new EventMultiplexer<number>();
+			m.event(r => result.push(r));
+
+			const e1 = new Emitter<number>();
+			m.add(e1.event);
+
+			assert.deepEqual(result, []);
+
+			e1.fire(0);
+			assert.deepEqual(result, [0]);
+		});
+
+		test('multiplexer dispose works', () => {
+			const result = [];
+			const m = new EventMultiplexer<number>();
+			m.event(r => result.push(r));
+
+			const e1 = new Emitter<number>();
+			m.add(e1.event);
+
+			assert.deepEqual(result, []);
+
+			e1.fire(0);
+			assert.deepEqual(result, [0]);
+
+			m.dispose();
+			assert.deepEqual(result, [0]);
+
+			e1.fire(0);
+			assert.deepEqual(result, [0]);
+		});
+
+		test('event dispose works', () => {
+			const result = [];
+			const m = new EventMultiplexer<number>();
+			m.event(r => result.push(r));
+
+			const e1 = new Emitter<number>();
+			m.add(e1.event);
+
+			assert.deepEqual(result, []);
+
+			e1.fire(0);
+			assert.deepEqual(result, [0]);
+
+			e1.dispose();
+			assert.deepEqual(result, [0]);
+
+			e1.fire(0);
+			assert.deepEqual(result, [0]);
+		});
+
+		test('mutliplexer event dispose works', () => {
+			const result = [];
+			const m = new EventMultiplexer<number>();
+			m.event(r => result.push(r));
+
+			const e1 = new Emitter<number>();
+			const l1 = m.add(e1.event);
+
+			assert.deepEqual(result, []);
+
+			e1.fire(0);
+			assert.deepEqual(result, [0]);
+
+			l1.dispose();
+			assert.deepEqual(result, [0]);
+
+			e1.fire(0);
+			assert.deepEqual(result, [0]);
+		});
+
+		test('hot start works', () => {
+			const result = [];
+			const m = new EventMultiplexer<number>();
+			m.event(r => result.push(r));
+
+			const e1 = new Emitter<number>();
+			m.add(e1.event);
+			const e2 = new Emitter<number>();
+			m.add(e2.event);
+			const e3 = new Emitter<number>();
+			m.add(e3.event);
+
+			e1.fire(1);
+			e2.fire(2);
+			e3.fire(3);
+			assert.deepEqual(result, [1, 2, 3]);
+		});
+
+		test('cold start works', () => {
+			const result = [];
+			const m = new EventMultiplexer<number>();
+
+			const e1 = new Emitter<number>();
+			m.add(e1.event);
+			const e2 = new Emitter<number>();
+			m.add(e2.event);
+			const e3 = new Emitter<number>();
+			m.add(e3.event);
+
+			m.event(r => result.push(r));
+
+			e1.fire(1);
+			e2.fire(2);
+			e3.fire(3);
+			assert.deepEqual(result, [1, 2, 3]);
+		});
+
+		test('late add works', () => {
+			const result = [];
+			const m = new EventMultiplexer<number>();
+
+			const e1 = new Emitter<number>();
+			m.add(e1.event);
+			const e2 = new Emitter<number>();
+			m.add(e2.event);
+
+			m.event(r => result.push(r));
+
+			e1.fire(1);
+			e2.fire(2);
+
+			const e3 = new Emitter<number>();
+			m.add(e3.event);
+			e3.fire(3);
+
+			assert.deepEqual(result, [1, 2, 3]);
+		});
+
+		test('add dispose works', () => {
+			const result = [];
+			const m = new EventMultiplexer<number>();
+
+			const e1 = new Emitter<number>();
+			m.add(e1.event);
+			const e2 = new Emitter<number>();
+			m.add(e2.event);
+
+			m.event(r => result.push(r));
+
+			e1.fire(1);
+			e2.fire(2);
+
+			const e3 = new Emitter<number>();
+			const l3 = m.add(e3.event);
+			e3.fire(3);
+			assert.deepEqual(result, [1, 2, 3]);
+
+			l3.dispose();
+			e3.fire(4);
+			assert.deepEqual(result, [1, 2, 3]);
+
+			e2.fire(4);
+			e1.fire(5);
+			assert.deepEqual(result, [1, 2, 3, 4, 5]);
+		});
+	});
 });

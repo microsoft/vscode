@@ -11,7 +11,7 @@ import Event from 'vs/base/common/event';
 import { IPager } from 'vs/base/common/paging';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
-export const EXTENSION_IDENTIFIER_PATTERN = '^[a-z0-9A-Z][a-z0-9\-A-Z]*\\.[a-z0-9A-Z][a-z0-9\-A-Z]*$';
+export const EXTENSION_IDENTIFIER_PATTERN = '^([a-z0-9A-Z][a-z0-9\-A-Z]*)\\.([a-z0-9A-Z][a-z0-9\-A-Z]*)$';
 export const EXTENSION_IDENTIFIER_REGEX = new RegExp(EXTENSION_IDENTIFIER_PATTERN);
 
 export interface ICommand {
@@ -109,11 +109,6 @@ export interface IExtensionManifest {
 	contributes?: IExtensionContributions;
 }
 
-export interface IExtensionIdentity {
-	name: string;
-	publisher: string;
-}
-
 export interface IGalleryExtensionProperties {
 	dependencies?: string[];
 	engine?: string;
@@ -134,6 +129,7 @@ export interface IGalleryExtensionAssets {
 }
 
 export interface IGalleryExtension {
+	uuid: string;
 	id: string;
 	name: string;
 	version: string;
@@ -207,6 +203,7 @@ export interface IExtensionGalleryService {
 	download(extension: IGalleryExtension): TPromise<string>;
 	getReadme(extension: IGalleryExtension): TPromise<string>;
 	getManifest(extension: IGalleryExtension): TPromise<IExtensionManifest>;
+	getChangelog(extension: IGalleryMetadata): TPromise<string>;
 	loadCompatibleVersion(extension: IGalleryExtension): TPromise<IGalleryExtension>;
 	getAllDependencies(extension: IGalleryExtension): TPromise<IGalleryExtension[]>;
 }
@@ -291,6 +288,8 @@ export interface IExtensionTipsService {
 	getRecommendations(): string[];
 	getWorkspaceRecommendations(): TPromise<string[]>;
 	getKeymapRecommendations(): string[];
+	getKeywordsForExtension(extension: string): string[];
+	getRecommendationsForExtension(extension: string): string[];
 }
 
 export const ExtensionsLabel = localize('extensions', "Extensions");

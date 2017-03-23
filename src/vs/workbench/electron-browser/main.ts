@@ -12,13 +12,12 @@ import { IOptions } from 'vs/workbench/common/options';
 import * as browser from 'vs/base/browser/browser';
 import { domContentLoaded } from 'vs/base/browser/dom';
 import errors = require('vs/base/common/errors');
+import comparer = require('vs/base/common/comparers');
 import platform = require('vs/base/common/platform');
 import paths = require('vs/base/common/paths');
-import timer = require('vs/base/common/timer');
 import uri from 'vs/base/common/uri';
 import strings = require('vs/base/common/strings');
 import { IResourceInput } from 'vs/platform/editor/common/editor';
-import { EventService } from 'vs/platform/event/common/eventService';
 import { IWorkspace, WorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { WorkspaceConfigurationService } from 'vs/workbench/services/configuration/node/configurationService';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
@@ -27,13 +26,13 @@ import { EnvironmentService } from 'vs/platform/environment/node/environmentServ
 import path = require('path');
 import gracefulFs = require('graceful-fs');
 import { IPath, IOpenFileRequest } from 'vs/workbench/electron-browser/common';
+import { IInitData } from 'vs/workbench/services/timer/common/timerService';
+import { TimerService } from 'vs/workbench/services/timer/node/timerService';
 
 import { webFrame } from 'electron';
 
 import fs = require('fs');
 gracefulFs.gracefulify(fs); // enable gracefulFs
-
-const timers = (<any>window).MonacoEnvironment.timers;
 
 export interface IWindowConfiguration extends ParsedArgs, IOpenFileRequest {
 	appRoot: string;
@@ -54,6 +53,9 @@ export function startup(configuration: IWindowConfiguration): TPromise<void> {
 	browser.setZoomLevel(webFrame.getZoomLevel());
 	browser.setFullscreen(!!configuration.fullscreen);
 
+	// Setup Intl
+	comparer.setFileNameComparer(new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' }));
+
 	// Shell Options
 	const filesToOpen = configuration.filesToOpen && configuration.filesToOpen.length ? toInputs(configuration.filesToOpen) : null;
 	const filesToCreate = configuration.filesToCreate && configuration.filesToCreate.length ? toInputs(configuration.filesToCreate) : null;
@@ -63,10 +65,6 @@ export function startup(configuration: IWindowConfiguration): TPromise<void> {
 		filesToCreate,
 		filesToDiff
 	};
-
-	if (configuration.performance) {
-		timer.ENABLE_TIMER = true;
-	}
 
 	// Resolve workspace
 	return getWorkspace(configuration.workspacePath).then(workspace => {
@@ -132,26 +130,26 @@ function getWorkspace(workspacePath: string): TPromise<IWorkspace> {
 }
 
 function openWorkbench(environment: IWindowConfiguration, workspace: IWorkspace, options: IOptions): TPromise<void> {
-	const eventService = new EventService();
 	const environmentService = new EnvironmentService(environment, environment.execPath);
 	const contextService = new WorkspaceContextService(workspace);
-	const configurationService = new WorkspaceConfigurationService(contextService, eventService, environmentService);
+	const configurationService = new WorkspaceConfigurationService(contextService, environmentService);
+	const timerService = new TimerService((<any>window).MonacoEnvironment.timers as IInitData, !contextService.hasWorkspace());
 
 	// Since the configuration service is one of the core services that is used in so many places, we initialize it
 	// right before startup of the workbench shell to have its data ready for consumers
 	return configurationService.initialize().then(() => {
-		timers.perfBeforeDOMContentLoaded = new Date();
+		timerService.beforeDOMContentLoaded = new Date();
 
 		return domContentLoaded().then(() => {
-			timers.perfAfterDOMContentLoaded = new Date();
+			timerService.afterDOMContentLoaded = new Date();
 
 			// Open Shell
-			timers.perfBeforeWorkbenchOpen = new Date();
-			const shell = new WorkbenchShell(document.body, workspace, {
+			timerService.beforeWorkbenchOpen = new Date();
+			const shell = new WorkbenchShell(document.body, {
 				configurationService,
-				eventService,
 				contextService,
-				environmentService
+				environmentService,
+				timerService
 			}, options);
 			shell.open();
 

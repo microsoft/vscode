@@ -60,6 +60,12 @@ export class OpenerService implements IOpenerService {
 				};
 				// remove fragment
 				resource = resource.with({ fragment: '' });
+			}
+
+			if (!resource.scheme) {
+				// we cannot handle those
+				return TPromise.as(undefined);
+
 			} else if (resource.scheme === Schemas.file) {
 				resource = URI.file(normalize(resource.fsPath)); // workaround for non-normalized paths (https://github.com/Microsoft/vscode/issues/12954)
 			}

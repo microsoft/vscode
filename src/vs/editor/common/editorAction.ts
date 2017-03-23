@@ -5,46 +5,37 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IActionDescriptor, ICommonCodeEditor, IEditorAction } from 'vs/editor/common/editorCommon';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { EditorAction } from 'vs/editor/common/editorCommonExtensions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IEditorAction } from 'vs/editor/common/editorCommon';
+import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
-export abstract class AbstractInternalEditorAction {
+export class InternalEditorAction implements IEditorAction {
 
-	public id: string;
-	public label: string;
-	public alias: string;
-	protected _editor: ICommonCodeEditor;
+	public readonly id: string;
+	public readonly label: string;
+	public readonly alias: string;
 
-	constructor(id: string, label: string, alias: string, editor: ICommonCodeEditor) {
+	private readonly _precondition: ContextKeyExpr;
+	private readonly _run: () => void | TPromise<void>;
+	private readonly _contextKeyService: IContextKeyService;
+
+	constructor(
+		id: string,
+		label: string,
+		alias: string,
+		precondition: ContextKeyExpr,
+		run: () => void,
+		contextKeyService: IContextKeyService
+	) {
 		this.id = id;
 		this.label = label;
 		this.alias = alias;
-		this._editor = editor;
-	}
-}
-
-export class InternalEditorAction extends AbstractInternalEditorAction implements IEditorAction {
-
-	private _actual: EditorAction;
-	private _instantiationService: IInstantiationService;
-	private _contextKeyService: IContextKeyService;
-
-	constructor(
-		actual: EditorAction,
-		editor: ICommonCodeEditor,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IContextKeyService contextKeyService: IContextKeyService
-	) {
-		super(actual.id, actual.label, actual.alias, editor);
-		this._actual = actual;
-		this._instantiationService = instantiationService;
+		this._precondition = precondition;
+		this._run = run;
 		this._contextKeyService = contextKeyService;
 	}
 
 	public isSupported(): boolean {
-		return this._contextKeyService.contextMatchesRules(this._actual.precondition);
+		return this._contextKeyService.contextMatchesRules(this._precondition);
 	}
 
 	public run(): TPromise<void> {
@@ -52,27 +43,6 @@ export class InternalEditorAction extends AbstractInternalEditorAction implement
 			return TPromise.as(void 0);
 		}
 
-		return this._instantiationService.invokeFunction((accessor) => {
-			return TPromise.as(this._actual.runEditorCommand(accessor, this._editor, null));
-		});
-	}
-}
-
-export class DynamicEditorAction extends AbstractInternalEditorAction implements IEditorAction {
-
-	private _run: (editor: ICommonCodeEditor) => void;
-
-	constructor(descriptor: IActionDescriptor, editor: ICommonCodeEditor) {
-		super(descriptor.id, descriptor.label, descriptor.label, editor);
-
-		this._run = descriptor.run;
-	}
-
-	public isSupported(): boolean {
-		return true;
-	}
-
-	public run(): TPromise<void> {
-		return TPromise.as(this._run(this._editor));
+		return TPromise.as(this._run());
 	}
 }

@@ -14,6 +14,28 @@ suite('Paths', () => {
 		assert.equal(paths.relative('far/boo', 'boo/far'), '../../boo/far');
 		assert.equal(paths.relative('far/boo', 'far/boo'), '');
 		assert.equal(paths.relative('far/boo', 'far/boo/bar/foo'), 'bar/foo');
+
+		if (platform.isWindows) {
+			assert.equal(paths.relative('C:\\test\\api\\files\\test', 'C:\\test\\api\\files\\lib\\foo'), '../lib/foo');
+			assert.equal(paths.relative('C:\\', 'C:\\vscode'), 'vscode');
+			assert.equal(paths.relative('C:\\', 'C:\\vscode\\foo.txt'), 'vscode/foo.txt');
+		}
+
+		// // ignore trailing slashes
+		assert.equal(paths.relative('/test/api/files/test/', '/test/api/files/lib/foo'), '../lib/foo');
+		assert.equal(paths.relative('/test/api/files/test', '/test/api/files/lib/foo/'), '../lib/foo');
+		assert.equal(paths.relative('/test/api/files/test/', '/test/api/files/lib/foo/'), '../lib/foo');
+		assert.equal(paths.relative('far/boo/', 'boo/far'), '../../boo/far');
+		assert.equal(paths.relative('far/boo/', 'boo/far/'), '../../boo/far');
+		assert.equal(paths.relative('far/boo/', 'far/boo'), '');
+		assert.equal(paths.relative('far/boo', 'far/boo/'), '');
+		assert.equal(paths.relative('far/boo/', 'far/boo/'), '');
+
+		if (platform.isWindows) {
+			assert.equal(paths.relative('C:\\test\\api\\files\\test\\', 'C:\\test\\api\\files\\lib\\foo'), '../lib/foo');
+			assert.equal(paths.relative('C:\\test\\api\\files\\test', 'C:\\test\\api\\files\\lib\\foo\\'), '../lib/foo');
+			assert.equal(paths.relative('C:\\test\\api\\files\\test\\', 'C:\\test\\api\\files\\lib\\foo\\'), '../lib/foo');
+		}
 	});
 
 	test('dirname', () => {
@@ -26,6 +48,10 @@ suite('Paths', () => {
 		assert.equal(paths.dirname('/'), '/');
 		assert.equal(paths.dirname('\\'), '\\');
 		assert.equal(paths.dirname('foo'), '.');
+		if (platform.isWindows) {
+			assert.equal(paths.dirname('c:\\some\\file.txt'), 'c:\\some');
+			assert.equal(paths.dirname('c:\\some'), 'c:\\');
+		}
 	});
 
 	test('normalize', () => {
@@ -91,15 +117,6 @@ suite('Paths', () => {
 
 	});
 
-	test('makeAbsolute', () => {
-		assert.equal(paths.makePosixAbsolute('foo'), '/foo');
-		assert.equal(paths.makePosixAbsolute('foo/bar'), '/foo/bar');
-		assert.equal(paths.makePosixAbsolute('foo/bar/'), '/foo/bar/');
-		assert.equal(paths.makePosixAbsolute('/foo/bar'), '/foo/bar');
-		assert.equal(paths.makePosixAbsolute('/'), '/');
-		assert.equal(paths.makePosixAbsolute(''), '/');
-	});
-
 	test('basename', () => {
 		assert.equal(paths.basename('foo/bar'), 'bar');
 		assert.equal(paths.basename('foo\\bar'), 'bar');
@@ -143,32 +160,6 @@ suite('Paths', () => {
 		assert.equal(paths.join('http://localhost/test', 'test'), 'http://localhost/test/test');
 	});
 
-	test('isEqualOrParent', () => {
-		assert(paths.isEqualOrParent('foo/bar/test.ts', 'foo/'));
-		assert(paths.isEqualOrParent('foo/bar/test.ts', 'foo'));
-		assert(paths.isEqualOrParent('/', '/'));
-		assert(paths.isEqualOrParent('/foo', '/'));
-		assert(paths.isEqualOrParent('/foo', '/foo/'));
-		assert(!paths.isEqualOrParent('/foo', '/f'));
-		assert(!paths.isEqualOrParent('/foo', '/foo/b'));
-		assert(paths.isEqualOrParent('foo/bar/test.ts', 'foo/bar'));
-		assert(!paths.isEqualOrParent('foo/bar/test.ts', '/foo/bar'));
-		assert(!paths.isEqualOrParent('foo/bar/test.ts', 'foo/barr'));
-		assert(paths.isEqualOrParent('foo/bar/test.ts', 'foo/xxx/../bar'));
-		assert(paths.isEqualOrParent('foo/bar/test.ts', 'foo/./bar'));
-		assert(paths.isEqualOrParent('foo/bar/test.ts', 'foo\\bar\\'));
-		assert(paths.isEqualOrParent('foo/bar/test.ts', 'foo/bar/test.ts'));
-		assert(!paths.isEqualOrParent('foo/bar/test.ts', 'foo/bar/test'));
-		assert(!paths.isEqualOrParent('foo/bar/test.ts', 'foo/bar/test.'));
-
-		if (!platform.isLinux) {
-			assert(paths.isEqualOrParent('/foo', '/fOO/'));
-			assert(paths.isEqualOrParent('/fOO', '/foo/'));
-			assert(paths.isEqualOrParent('foo/bar/test.ts', 'foo/BAR/test.ts'));
-			assert(!paths.isEqualOrParent('foo/bar/test.ts', 'foo/BAR/test.'));
-		}
-	});
-
 	test('extname', () => {
 		assert.equal(paths.extname('far.boo'), '.boo');
 		assert.equal(paths.extname('far.b'), '.b');
@@ -196,9 +187,11 @@ suite('Paths', () => {
 		assert.ok(!paths.isValidBasename(''));
 		assert.ok(paths.isValidBasename('test.txt'));
 		assert.ok(!paths.isValidBasename('/test.txt'));
-		assert.ok(!paths.isValidBasename('\\test.txt'));
 
-		if (platform.isWindows) {
+		if (!platform.isWindows) {
+			assert.ok(paths.isValidBasename('\\test.txt'));
+		} else if (platform.isWindows) {
+			assert.ok(!paths.isValidBasename('\\test.txt'));
 			assert.ok(!paths.isValidBasename('aux'));
 			assert.ok(!paths.isValidBasename('Aux'));
 			assert.ok(!paths.isValidBasename('LPT0'));
@@ -209,19 +202,5 @@ suite('Paths', () => {
 			assert.ok(!paths.isValidBasename('tes:t.txt'));
 			assert.ok(!paths.isValidBasename('tes"t.txt'));
 		}
-	});
-
-	test('isAbsolute', () => {
-		assert.equal(paths.isAbsolute('/a/b/c'), true);
-		assert.equal(paths.isAbsolute('a/b/'), false);
-		assert.equal(paths.isAbsolute('a/b/cde/f'), false);
-		assert.equal(paths.isAbsolute('/A/a/b/cde/f'), true);
-
-		assert.equal(paths.isAbsolute('c:\\a\\b\\c'), true);
-		assert.equal(paths.isAbsolute('D:\\a\\b\\'), true);
-		assert.equal(paths.isAbsolute('a\\b\\c'), false);
-		assert.equal(paths.isAbsolute('\\a\\b\\c'), false);
-		assert.equal(paths.isAbsolute('F\\a\\b\\c'), false);
-		assert.equal(paths.isAbsolute('F:\\a'), true);
 	});
 });

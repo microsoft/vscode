@@ -10,7 +10,6 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IRequestHandler } from 'vs/base/common/worker/simpleWorker';
 import { Range } from 'vs/editor/common/core/range';
-import { fuzzyContiguousFilter } from 'vs/base/common/filters';
 import { DiffComputer } from 'vs/editor/common/diff/diffComputer';
 import { stringDiff } from 'vs/base/common/diff/diff';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -19,7 +18,6 @@ import { MirrorModel2 } from 'vs/editor/common/model/mirrorModel2';
 import { IInplaceReplaceSupportResult, ILink, ISuggestResult, ISuggestion } from 'vs/editor/common/modes';
 import { computeLinks } from 'vs/editor/common/modes/linkComputer';
 import { BasicInplaceReplace } from 'vs/editor/common/modes/supports/inplaceReplaceSupport';
-import { IRawModelData } from 'vs/editor/common/services/editorSimpleWorkerCommon';
 import { getWordAtText, ensureValidWordDefinition } from 'vs/editor/common/model/wordHelper';
 import { createMonacoBaseAPI } from 'vs/editor/common/standalone/standaloneBase';
 
@@ -34,6 +32,16 @@ export interface IWorkerContext {
 	 * Get all available mirror models in this worker.
 	 */
 	getMirrorModels(): IMirrorModel[];
+}
+
+/**
+ * @internal
+ */
+export interface IRawModelData {
+	url: string;
+	versionId: number;
+	lines: string[];
+	EOL: string;
 }
 
 /**
@@ -149,8 +157,11 @@ class MirrorModel extends MirrorModel2 implements ICommonModel {
 
 	// TODO@Joh, TODO@Alex - remove these and make sure the super-things work
 	private _wordenize(content: string, wordDefinition: RegExp): editorCommon.IWordRange[] {
-		var result: editorCommon.IWordRange[] = [];
-		var match: RegExpExecArray;
+		const result: editorCommon.IWordRange[] = [];
+		let match: RegExpExecArray;
+
+		wordDefinition.lastIndex = 0; // reset lastIndex just to be sure
+
 		while (match = wordDefinition.exec(content)) {
 			if (match[0].length === 0) {
 				// it did match the empty string
@@ -162,6 +173,8 @@ class MirrorModel extends MirrorModel2 implements ICommonModel {
 	}
 
 	public getValueInRange(range: editorCommon.IRange): string {
+		range = this._validateRange(range);
+
 		if (range.startLineNumber === range.endLineNumber) {
 			return this._lines[range.startLineNumber - 1].substring(range.startColumn - 1, range.endColumn - 1);
 		}
@@ -199,6 +212,27 @@ class MirrorModel extends MirrorModel2 implements ICommonModel {
 			lineNumber: 1 + out.index,
 			column: 1 + Math.min(out.remainder, lineLength)
 		};
+	}
+
+	private _validateRange(range: editorCommon.IRange): editorCommon.IRange {
+
+		const start = this._validatePosition({ lineNumber: range.startLineNumber, column: range.startColumn });
+		const end = this._validatePosition({ lineNumber: range.endLineNumber, column: range.endColumn });
+
+		if (start.lineNumber !== range.startLineNumber
+			|| start.column !== range.startColumn
+			|| end.lineNumber !== range.endLineNumber
+			|| end.column !== range.endColumn) {
+
+			return {
+				startLineNumber: start.lineNumber,
+				startColumn: start.column,
+				endLineNumber: end.lineNumber,
+				endColumn: end.column
+			};
+		}
+
+		return range;
 	}
 
 	private _validatePosition(position: editorCommon.IPosition): editorCommon.IPosition {
@@ -353,43 +387,28 @@ export abstract class BaseEditorSimpleWorker {
 	// ---- BEGIN suggest --------------------------------------------------------------------------
 
 	public textualSuggest(modelUrl: string, position: editorCommon.IPosition, wordDef: string, wordDefFlags: string): TPromise<ISuggestResult> {
-		let model = this._getModel(modelUrl);
-		if (!model) {
-			return null;
+		const model = this._getModel(modelUrl);
+		if (model) {
+			const suggestions: ISuggestion[] = [];
+			const wordDefRegExp = new RegExp(wordDef, wordDefFlags);
+			const currentWord = model.getWordUntilPosition(position, wordDefRegExp).word;
+
+			for (const word of model.getAllUniqueWords(wordDefRegExp)) {
+				if (word !== currentWord && isNaN(Number(word))) {
+					suggestions.push({
+						type: 'text',
+						label: word,
+						insertText: word,
+						noAutoAccept: true,
+						overwriteBefore: currentWord.length
+					});
+				}
+			}
+			return TPromise.as({ suggestions });
 		}
-
-		return TPromise.as(this._suggestFiltered(model, position, new RegExp(wordDef, wordDefFlags)));
+		return undefined;
 	}
 
-	private _suggestFiltered(model: ICommonModel, position: editorCommon.IPosition, wordDefRegExp: RegExp): ISuggestResult {
-		let currentWord = model.getWordUntilPosition(position, wordDefRegExp).word;
-		let value = this._suggestUnfiltered(model, position, wordDefRegExp);
-
-		// filter suggestions
-		return {
-			suggestions: value.suggestions.filter((element) => !!fuzzyContiguousFilter(currentWord, element.label)),
-			incomplete: value.incomplete
-		};
-	}
-
-	private _suggestUnfiltered(model: ICommonModel, position: editorCommon.IPosition, wordDefRegExp: RegExp): ISuggestResult {
-		let currentWord = model.getWordUntilPosition(position, wordDefRegExp).word;
-		let allWords = model.getAllUniqueWords(wordDefRegExp, currentWord);
-
-		let suggestions = allWords.filter((word) => {
-			return !(/^-?\d*\.?\d/.test(word)); // filter out numbers
-		}).map((word) => {
-			return <ISuggestion>{
-				type: 'text',
-				label: word,
-				insertText: word,
-				noAutoAccept: true,
-				overwriteBefore: currentWord.length
-			};
-		});
-
-		return { suggestions };
-	}
 
 	// ---- END suggest --------------------------------------------------------------------------
 
@@ -492,7 +511,7 @@ export class EditorSimpleWorkerImpl extends BaseEditorSimpleWorker implements IR
 	}
 
 	public acceptNewModel(data: IRawModelData): void {
-		this._models[data.url] = new MirrorModel(URI.parse(data.url), data.value.lines, data.value.EOL, data.versionId);
+		this._models[data.url] = new MirrorModel(URI.parse(data.url), data.lines, data.EOL, data.versionId);
 	}
 
 	public acceptModelChanged(strURL: string, events: editorCommon.IModelContentChangedEvent2[]): void {

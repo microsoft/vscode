@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import platform = require('vs/base/common/platform');
+import * as platform from 'vs/base/common/platform';
 
 
 function _encode(ch: string): string {
@@ -152,7 +152,7 @@ export default class URI {
 			return this;
 		}
 
-		let {scheme, authority, path, query, fragment} = change;
+		let { scheme, authority, path, query, fragment } = change;
 		if (scheme === void 0) {
 			scheme = this.scheme;
 		} else if (scheme === null) {
@@ -217,8 +217,12 @@ export default class URI {
 		const ret = new URI();
 		ret._scheme = 'file';
 
-		// normalize to fwd-slashes
-		path = path.replace(/\\/g, URI._slash);
+		// normalize to fwd-slashes on windows,
+		// on other systems bwd-slaches are valid
+		// filename character, eg /f\oo/ba\r.txt
+		if (platform.isWindows) {
+			path = path.replace(/\\/g, URI._slash);
+		}
 
 		// check for authority as used in UNC shares
 		// or use the path as given
@@ -325,7 +329,7 @@ export default class URI {
 
 		const parts: string[] = [];
 
-		let {scheme, authority, path, query, fragment} = uri;
+		let { scheme, authority, path, query, fragment } = uri;
 		if (scheme) {
 			parts.push(scheme, ':');
 		}
@@ -378,25 +382,42 @@ export default class URI {
 	}
 
 	public toJSON(): any {
-		return <UriState>{
-			scheme: this.scheme,
-			authority: this.authority,
-			path: this.path,
+		const res = <UriState>{
 			fsPath: this.fsPath,
-			query: this.query,
-			fragment: this.fragment,
 			external: this.toString(),
 			$mid: 1
 		};
+
+		if (this.path) {
+			res.path = this.path;
+		}
+
+		if (this.scheme) {
+			res.scheme = this.scheme;
+		}
+
+		if (this.authority) {
+			res.authority = this.authority;
+		}
+
+		if (this.query) {
+			res.query = this.query;
+		}
+
+		if (this.fragment) {
+			res.fragment = this.fragment;
+		}
+
+		return res;
 	}
 
 	static revive(data: any): URI {
 		let result = new URI();
-		result._scheme = (<UriState>data).scheme;
-		result._authority = (<UriState>data).authority;
-		result._path = (<UriState>data).path;
-		result._query = (<UriState>data).query;
-		result._fragment = (<UriState>data).fragment;
+		result._scheme = (<UriState>data).scheme || URI._empty;
+		result._authority = (<UriState>data).authority || URI._empty;
+		result._path = (<UriState>data).path || URI._empty;
+		result._query = (<UriState>data).query || URI._empty;
+		result._fragment = (<UriState>data).fragment || URI._empty;
 		result._fsPath = (<UriState>data).fsPath;
 		result._formatted = (<UriState>data).external;
 		URI._validate(result);

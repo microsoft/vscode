@@ -8,7 +8,7 @@
 			{
 				"id": "diff",
 				"aliases": ["Diff", "diff" ],
-				"extensions": [".patch", ".diff", ".rej"],
+				"extensions": [".diff", ".patch", ".rej"],
 				"configuration": "./language-configuration.json"
 			}
 		],

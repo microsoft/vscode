@@ -5,7 +5,6 @@
 
 import 'vs/css!../browser/media/breakpointWidget';
 import * as nls from 'vs/nls';
-import * as async from 'vs/base/common/async';
 import * as errors from 'vs/base/common/errors';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { isWindows, isMacintosh } from 'vs/base/common/platform';
@@ -18,6 +17,7 @@ import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IDebugService, IBreakpoint, IRawBreakpoint } from 'vs/workbench/parts/debug/common/debug';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { once } from 'vs/base/common/functional';
 
 const $ = dom.$;
 const EXPRESSION_PLACEHOLDER = nls.localize('breakpointWidgetExpressionPlaceholder', "Break when expression evaluates to true. 'Enter' to accept, 'esc' to cancel.");
@@ -33,11 +33,11 @@ export class BreakpointWidget extends ZoneWidget {
 	private hitCountInput: string;
 	private conditionInput: string;
 
-	constructor(editor: ICodeEditor, private lineNumber: number,
+	constructor(editor: ICodeEditor, private lineNumber: number, private column: number,
 		@IContextViewService private contextViewService: IContextViewService,
 		@IDebugService private debugService: IDebugService
 	) {
-		super(editor, { showFrame: true, showArrow: false, frameColor: '#007ACC', frameWidth: 1 });
+		super(editor, { showFrame: true, showArrow: false, frameWidth: 1 });
 
 		this.toDispose = [];
 		this.hitCountInput = '';
@@ -62,9 +62,9 @@ export class BreakpointWidget extends ZoneWidget {
 	}
 
 	protected _fillContainer(container: HTMLElement): void {
-		dom.addClass(container, 'breakpoint-widget monaco-editor-background');
+		this.setCssClass('breakpoint-widget');
 		const uri = this.editor.getModel().uri;
-		const breakpoint = this.debugService.getModel().getBreakpoints().filter(bp => bp.lineNumber === this.lineNumber && bp.uri.toString() === uri.toString()).pop();
+		const breakpoint = this.debugService.getModel().getBreakpoints().filter(bp => bp.lineNumber === this.lineNumber && bp.column === this.column && bp.uri.toString() === uri.toString()).pop();
 
 		this.hitCountContext = breakpoint && breakpoint.hitCondition && !breakpoint.condition;
 		const selected = this.hitCountContext ? 1 : 0;
@@ -96,16 +96,17 @@ export class BreakpointWidget extends ZoneWidget {
 		setTimeout(() => this.inputBox.focus(), 0);
 
 		let disposed = false;
-		const wrapUp = async.once((success: boolean) => {
+		const wrapUp = once((success: boolean) => {
 			if (!disposed) {
 				disposed = true;
 				if (success) {
 					// if there is already a breakpoint on this location - remove it.
 					const oldBreakpoint = this.debugService.getModel().getBreakpoints()
-						.filter(bp => bp.lineNumber === this.lineNumber && bp.uri.toString() === uri.toString()).pop();
+						.filter(bp => bp.lineNumber === this.lineNumber && bp.column === this.column && bp.uri.toString() === uri.toString()).pop();
 
 					const raw: IRawBreakpoint = {
 						lineNumber: this.lineNumber,
+						column: oldBreakpoint ? oldBreakpoint.column : undefined,
 						enabled: true,
 						condition: oldBreakpoint && oldBreakpoint.condition,
 						hitCondition: oldBreakpoint && oldBreakpoint.hitCondition

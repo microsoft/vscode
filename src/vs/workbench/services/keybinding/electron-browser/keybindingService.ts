@@ -5,26 +5,117 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import { IHTMLContentElement } from 'vs/base/common/htmlContent';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { Keybinding } from 'vs/base/common/keybinding';
-import * as platform from 'vs/base/common/platform';
+import { ResolvedKeybinding, Keybinding } from 'vs/base/common/keyCodes';
+import { OS, OperatingSystem } from 'vs/base/common/platform';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { ExtensionMessageCollector, ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
 import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import { KeybindingService } from 'vs/platform/keybinding/browser/keybindingServiceImpl';
+import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
-import { IOSupport } from 'vs/platform/keybinding/common/keybindingResolver';
+import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IKeybindingItem, IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IKeybindingRule, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { IKeybindingEvent, IUserFriendlyKeybinding, KeybindingSource, IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
+import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IKeybindingItem, KeybindingsRegistry, IKeybindingRule2 } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Registry } from 'vs/platform/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { getNativeLabelProvider, getNativeAriaLabelProvider } from 'vs/workbench/services/keybinding/electron-browser/nativeKeymap';
+import { keybindingsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { ConfigWatcher } from 'vs/base/node/config';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import * as dom from 'vs/base/browser/dom';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
+import { KeybindingIO, OutputBuilder, IUserKeybindingItem } from 'vs/workbench/services/keybinding/common/keybindingIO';
+import * as nativeKeymap from 'native-keymap';
+import { IKeyboardMapper } from 'vs/workbench/services/keybinding/common/keyboardMapper';
+import { WindowsKeyboardMapper, IWindowsKeyboardMapping, windowsKeyboardMappingEquals } from 'vs/workbench/services/keybinding/common/windowsKeyboardMapper';
+import { IMacLinuxKeyboardMapping, MacLinuxKeyboardMapper, macLinuxKeyboardMappingEquals } from 'vs/workbench/services/keybinding/common/macLinuxKeyboardMapper';
+import { MacLinuxFallbackKeyboardMapper } from 'vs/workbench/services/keybinding/common/macLinuxFallbackKeyboardMapper';
+import Event, { Emitter } from 'vs/base/common/event';
+
+export class KeyboardMapperFactory {
+	public static INSTANCE = new KeyboardMapperFactory();
+
+	private _layoutInfo: nativeKeymap.IKeyboardLayoutInfo;
+	private _rawMapping: nativeKeymap.IKeyboardMapping;
+	private _keyboardMapper: IKeyboardMapper;
+	private _initialized: boolean;
+
+	private _onDidChangeKeyboardMapper: Emitter<void> = new Emitter<void>();
+	public onDidChangeKeyboardMapper: Event<void> = this._onDidChangeKeyboardMapper.event;
+
+	private constructor() {
+		this._layoutInfo = null;
+		this._rawMapping = null;
+		this._keyboardMapper = null;
+		this._initialized = false;
+	}
+
+	public _onKeyboardLayoutChanged(): void {
+		if (this._initialized) {
+			this._setKeyboardData(nativeKeymap.getCurrentKeyboardLayout(), nativeKeymap.getKeyMap());
+		}
+	}
+
+	public getKeyboardMapper(): IKeyboardMapper {
+		if (!this._initialized) {
+			this._setKeyboardData(nativeKeymap.getCurrentKeyboardLayout(), nativeKeymap.getKeyMap());
+		}
+		return this._keyboardMapper;
+	}
+
+	public getCurrentKeyboardLayout(): nativeKeymap.IKeyboardLayoutInfo {
+		if (!this._initialized) {
+			this._setKeyboardData(nativeKeymap.getCurrentKeyboardLayout(), nativeKeymap.getKeyMap());
+		}
+		return this._layoutInfo;
+	}
+
+	public getRawKeyboardMapping(): nativeKeymap.IKeyboardMapping {
+		if (!this._initialized) {
+			this._setKeyboardData(nativeKeymap.getCurrentKeyboardLayout(), nativeKeymap.getKeyMap());
+		}
+		return this._rawMapping;
+	}
+
+	private _setKeyboardData(layoutInfo: nativeKeymap.IKeyboardLayoutInfo, rawMapping: nativeKeymap.IKeyboardMapping): void {
+		this._layoutInfo = layoutInfo;
+
+		if (this._initialized && KeyboardMapperFactory._equals(this._rawMapping, rawMapping)) {
+			// nothing to do...
+			return;
+		}
+
+		this._initialized = true;
+
+		this._rawMapping = rawMapping;
+		this._keyboardMapper = KeyboardMapperFactory._createKeyboardMapper(this._rawMapping);
+		this._onDidChangeKeyboardMapper.fire();
+	}
+
+	private static _createKeyboardMapper(rawMapping: nativeKeymap.IKeyboardMapping): IKeyboardMapper {
+		if (OS === OperatingSystem.Windows) {
+			return new WindowsKeyboardMapper(<IWindowsKeyboardMapping>rawMapping);
+		}
+
+		if (Object.keys(rawMapping).length === 0) {
+			// Looks like reading the mappings failed (most likely Mac + Japanese/Chinese keyboard layouts)
+			return new MacLinuxFallbackKeyboardMapper(<IMacLinuxKeyboardMapping>rawMapping, OS);
+		}
+
+		return new MacLinuxKeyboardMapper(<IMacLinuxKeyboardMapping>rawMapping, OS);
+	}
+
+	private static _equals(a: nativeKeymap.IKeyboardMapping, b: nativeKeymap.IKeyboardMapping): boolean {
+		if (OS === OperatingSystem.Windows) {
+			return windowsKeyboardMappingEquals(<IWindowsKeyboardMapping>a, <IWindowsKeyboardMapping>b);
+		}
+
+		return macLinuxKeyboardMappingEquals(<IMacLinuxKeyboardMapping>a, <IMacLinuxKeyboardMapping>b);
+	}
+}
 
 interface ContributedKeyBinding {
 	command: string;
@@ -113,11 +204,15 @@ let keybindingsExtPoint = ExtensionsRegistry.registerExtensionPoint<ContributedK
 	]
 });
 
-export class WorkbenchKeybindingService extends KeybindingService {
+export class WorkbenchKeybindingService extends AbstractKeybindingService {
+
+	private _keyboardMapper: IKeyboardMapper;
+	private _cachedResolver: KeybindingResolver;
+	private _firstTimeComputingResolver: boolean;
 	private userKeybindings: ConfigWatcher<IUserFriendlyKeybinding[]>;
 
 	constructor(
-		domNode: HTMLElement,
+		windowElement: Window,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICommandService commandService: ICommandService,
 		@ITelemetryService private telemetryService: ITelemetryService,
@@ -126,6 +221,14 @@ export class WorkbenchKeybindingService extends KeybindingService {
 		@IStatusbarService statusBarService: IStatusbarService
 	) {
 		super(contextKeyService, commandService, messageService, statusBarService);
+
+		this._keyboardMapper = KeyboardMapperFactory.INSTANCE.getKeyboardMapper();
+		KeyboardMapperFactory.INSTANCE.onDidChangeKeyboardMapper(() => {
+			this._keyboardMapper = KeyboardMapperFactory.INSTANCE.getKeyboardMapper();
+			this.updateResolver({ source: KeybindingSource.Default });
+		});
+		this._cachedResolver = null;
+		this._firstTimeComputingResolver = true;
 
 		this.userKeybindings = new ConfigWatcher(environmentService.appKeybindingsPath, { defaultConfig: [] });
 		this.toDispose.push(toDisposable(() => this.userKeybindings.dispose()));
@@ -138,13 +241,35 @@ export class WorkbenchKeybindingService extends KeybindingService {
 			}
 
 			if (commandAdded) {
-				this.updateResolver();
+				this.updateResolver({ source: KeybindingSource.Default });
 			}
 		});
 
-		this.toDispose.push(this.userKeybindings.onDidUpdateConfiguration(() => this.updateResolver()));
+		this.toDispose.push(this.userKeybindings.onDidUpdateConfiguration(event => this.updateResolver({
+			source: KeybindingSource.User,
+			keybindings: event.config
+		})));
 
-		this._beginListening(domNode);
+		this.toDispose.push(dom.addDisposableListener(windowElement, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+			let keyEvent = new StandardKeyboardEvent(e);
+			let shouldPreventDefault = this._dispatch(keyEvent, keyEvent.target);
+			if (shouldPreventDefault) {
+				keyEvent.preventDefault();
+			}
+		}));
+
+		keybindingsTelemetry(telemetryService, this);
+		let data = KeyboardMapperFactory.INSTANCE.getCurrentKeyboardLayout();
+		telemetryService.publicLog('keyboardLayout', {
+			currentKeyboardLayout: data
+		});
+	}
+
+	public dumpDebugInfo(): string {
+		const layoutInfo = JSON.stringify(KeyboardMapperFactory.INSTANCE.getCurrentKeyboardLayout(), null, '\t');
+		const mapperInfo = this._keyboardMapper.dumpDebugInfo();
+		const rawMapping = JSON.stringify(KeyboardMapperFactory.INSTANCE.getRawKeyboardMapping(), null, '\t');
+		return `Layout info:\n${layoutInfo}\n${mapperInfo}\n\nRaw mapping:\n${rawMapping}`;
 	}
 
 	private _safeGetConfig(): IUserFriendlyKeybinding[] {
@@ -161,7 +286,63 @@ export class WorkbenchKeybindingService extends KeybindingService {
 		return userKeybindings.length;
 	}
 
-	protected _getExtraKeybindings(isFirstTime: boolean): IKeybindingItem[] {
+	private updateResolver(event: IKeybindingEvent): void {
+		this._cachedResolver = null;
+		this._onDidUpdateKeybindings.fire(event);
+	}
+
+	protected _getResolver(): KeybindingResolver {
+		if (!this._cachedResolver) {
+			const defaults = this._resolveKeybindingItems(KeybindingsRegistry.getDefaultKeybindings(), true);
+			const overrides = this._resolveUserKeybindingItems(this._getExtraKeybindings(this._firstTimeComputingResolver), false);
+			this._cachedResolver = new KeybindingResolver(defaults, overrides);
+			this._firstTimeComputingResolver = false;
+		}
+		return this._cachedResolver;
+	}
+
+	private _resolveKeybindingItems(items: IKeybindingItem[], isDefault: boolean): ResolvedKeybindingItem[] {
+		let result: ResolvedKeybindingItem[] = [], resultLen = 0;
+		for (let i = 0, len = items.length; i < len; i++) {
+			const item = items[i];
+			const when = (item.when ? item.when.normalize() : null);
+			const keybinding = item.keybinding;
+			if (!keybinding) {
+				// This might be a removal keybinding item in user settings => accept it
+				result[resultLen++] = new ResolvedKeybindingItem(null, item.command, item.commandArgs, when, isDefault);
+			} else {
+				const resolvedKeybindings = this.resolveKeybinding(keybinding);
+				for (let j = 0; j < resolvedKeybindings.length; j++) {
+					result[resultLen++] = new ResolvedKeybindingItem(resolvedKeybindings[j], item.command, item.commandArgs, when, isDefault);
+				}
+			}
+		}
+
+		return result;
+	}
+
+	private _resolveUserKeybindingItems(items: IUserKeybindingItem[], isDefault: boolean): ResolvedKeybindingItem[] {
+		let result: ResolvedKeybindingItem[] = [], resultLen = 0;
+		for (let i = 0, len = items.length; i < len; i++) {
+			const item = items[i];
+			const when = (item.when ? item.when.normalize() : null);
+			const firstPart = item.firstPart;
+			const chordPart = item.chordPart;
+			if (!firstPart) {
+				// This might be a removal keybinding item in user settings => accept it
+				result[resultLen++] = new ResolvedKeybindingItem(null, item.command, item.commandArgs, when, isDefault);
+			} else {
+				const resolvedKeybindings = this._keyboardMapper.resolveUserBinding(firstPart, chordPart);
+				for (let j = 0; j < resolvedKeybindings.length; j++) {
+					result[resultLen++] = new ResolvedKeybindingItem(resolvedKeybindings[j], item.command, item.commandArgs, when, isDefault);
+				}
+			}
+		}
+
+		return result;
+	}
+
+	private _getExtraKeybindings(isFirstTime: boolean): IUserKeybindingItem[] {
 		let extraUserKeybindings: IUserFriendlyKeybinding[] = this._safeGetConfig();
 		if (!isFirstTime) {
 			let cnt = extraUserKeybindings.length;
@@ -171,36 +352,20 @@ export class WorkbenchKeybindingService extends KeybindingService {
 			});
 		}
 
-		return extraUserKeybindings.map((k, i) => IOSupport.readKeybindingItem(k, i));
+		return extraUserKeybindings.map((k) => KeybindingIO.readUserKeybindingItem(k, OS));
 	}
 
-	public getLabelFor(keybinding: Keybinding): string {
-		return keybinding.toCustomLabel(getNativeLabelProvider());
+	public resolveKeybinding(kb: Keybinding): ResolvedKeybinding[] {
+		return this._keyboardMapper.resolveKeybinding(kb);
 	}
 
-	public getHTMLLabelFor(keybinding: Keybinding): IHTMLContentElement[] {
-		return keybinding.toCustomHTMLLabel(getNativeLabelProvider());
+	public resolveKeyboardEvent(keyboardEvent: IKeyboardEvent): ResolvedKeybinding {
+		return this._keyboardMapper.resolveKeyboardEvent(keyboardEvent);
 	}
 
-	public getAriaLabelFor(keybinding: Keybinding): string {
-		return keybinding.toCustomLabel(getNativeAriaLabelProvider());
-	}
-
-	public getElectronAcceleratorFor(keybinding: Keybinding): string {
-		if (platform.isWindows) {
-			// electron menus always do the correct rendering on Windows
-			return super.getElectronAcceleratorFor(keybinding);
-		}
-
-		let usLabel = keybinding._toUSLabel();
-		let label = this.getLabelFor(keybinding);
-		if (usLabel !== label) {
-			// electron menus are incorrect in rendering (linux) and in rendering and interpreting (mac)
-			// for non US standard keyboard layouts
-			return null;
-		}
-
-		return super.getElectronAcceleratorFor(keybinding);
+	public resolveUserBinding(userBinding: string): ResolvedKeybinding[] {
+		const [firstPart, chordPart] = KeybindingIO._readUserBinding(userBinding);
+		return this._keyboardMapper.resolveUserBinding(firstPart, chordPart);
 	}
 
 	private _handleKeybindingsExtensionPointUser(isBuiltin: boolean, keybindings: ContributedKeyBinding | ContributedKeyBinding[], collector: ExtensionMessageCollector): boolean {
@@ -223,7 +388,7 @@ export class WorkbenchKeybindingService extends KeybindingService {
 		if (isValidContributedKeyBinding(keybindings, rejects)) {
 			let rule = this._asCommandRule(isBuiltin, idx++, keybindings);
 			if (rule) {
-				KeybindingsRegistry.registerKeybindingRule(rule);
+				KeybindingsRegistry.registerKeybindingRule2(rule);
 				commandAdded = true;
 			}
 		}
@@ -240,7 +405,7 @@ export class WorkbenchKeybindingService extends KeybindingService {
 		return commandAdded;
 	}
 
-	private _asCommandRule(isBuiltin: boolean, idx: number, binding: ContributedKeyBinding): IKeybindingRule {
+	private _asCommandRule(isBuiltin: boolean, idx: number, binding: ContributedKeyBinding): IKeybindingRule2 {
 
 		let {command, when, key, mac, linux, win} = binding;
 
@@ -253,19 +418,53 @@ export class WorkbenchKeybindingService extends KeybindingService {
 
 		let desc = {
 			id: command,
-			when: IOSupport.readKeybindingWhen(when),
+			when: ContextKeyExpr.deserialize(when),
 			weight: weight,
-			primary: IOSupport.readKeybinding(key),
-			mac: mac && { primary: IOSupport.readKeybinding(mac) },
-			linux: linux && { primary: IOSupport.readKeybinding(linux) },
-			win: win && { primary: IOSupport.readKeybinding(win) }
+			primary: KeybindingIO.readKeybinding(key, OS),
+			mac: mac && { primary: KeybindingIO.readKeybinding(mac, OS) },
+			linux: linux && { primary: KeybindingIO.readKeybinding(linux, OS) },
+			win: win && { primary: KeybindingIO.readKeybinding(win, OS) }
 		};
 
 		if (!desc.primary && !desc.mac && !desc.linux && !desc.win) {
-			return;
+			return undefined;
 		}
 
 		return desc;
+	}
+
+	public getDefaultKeybindings(): string {
+		const resolver = this._getResolver();
+		const defaultKeybindings = resolver.getDefaultKeybindings();
+		const boundCommands = resolver.getDefaultBoundCommands();
+		return (
+			WorkbenchKeybindingService._getDefaultKeybindings(defaultKeybindings)
+			+ '\n\n'
+			+ WorkbenchKeybindingService._getAllCommandsAsComment(boundCommands)
+		);
+	}
+
+	private static _getDefaultKeybindings(defaultKeybindings: ResolvedKeybindingItem[]): string {
+		let out = new OutputBuilder();
+		out.writeLine('[');
+
+		let lastIndex = defaultKeybindings.length - 1;
+		defaultKeybindings.forEach((k, index) => {
+			KeybindingIO.writeKeybindingItem(out, k, OS);
+			if (index !== lastIndex) {
+				out.writeLine(',');
+			} else {
+				out.writeLine();
+			}
+		});
+		out.writeLine(']');
+		return out.toString();
+	}
+
+	private static _getAllCommandsAsComment(boundCommands: Map<string, boolean>): string {
+		const unboundCommands = KeybindingResolver.getAllUnboundCommands(boundCommands);
+		let pretty = unboundCommands.sort().join('\n// - ');
+		return '// ' + nls.localize('unboundCommands', "Here are other available commands: ") + '\n// - ' + pretty;
 	}
 }
 
@@ -281,14 +480,17 @@ let schema: IJSONSchema = {
 		'properties': {
 			'key': {
 				'type': 'string',
-				'description': nls.localize('keybindings.json.key', 'Key or key sequence (separated by space)'),
+				'description': nls.localize('keybindings.json.key', "Key or key sequence (separated by space)"),
 			},
 			'command': {
-				'description': nls.localize('keybindings.json.command', 'Name of the command to execute'),
+				'description': nls.localize('keybindings.json.command', "Name of the command to execute"),
 			},
 			'when': {
 				'type': 'string',
-				'description': nls.localize('keybindings.json.when', 'Condition when the key is active.')
+				'description': nls.localize('keybindings.json.when', "Condition when the key is active.")
+			},
+			'args': {
+				'description': nls.localize('keybindings.json.args', "Arguments to pass to the command to execute.")
 			}
 		}
 	}

@@ -126,6 +126,7 @@ export class GitChannel implements IGitChannel {
 			case 'getCommitTemplate': return this.service.then(s => s.getCommitTemplate());
 			case 'getCommit': return this.service.then(s => s.getCommit(args));
 		}
+		return undefined;
 	}
 }
 
@@ -252,6 +253,7 @@ export class AskpassChannel implements IAskpassChannel {
 		switch (command) {
 			case 'askpass': return this.service.askpass(args[0], args[1], args[2]);
 		}
+		return undefined;
 	}
 }
 

@@ -43,32 +43,6 @@ export class DeleteOperations {
 		});
 	}
 
-	public static deleteAllRight(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState): EditOperationResult {
-		let selection = cursor.selection;
-
-		if (selection.isEmpty()) {
-			let position = cursor.position;
-			let lineNumber = position.lineNumber;
-			let column = position.column;
-			let maxColumn = model.getLineMaxColumn(lineNumber);
-
-			if (column === maxColumn) {
-				// Ignore deleting at end of file
-				return null;
-			}
-
-			let deleteSelection = new Range(lineNumber, column, lineNumber, maxColumn);
-			if (!deleteSelection.isEmpty()) {
-				return new EditOperationResult(new ReplaceCommand(deleteSelection, ''), {
-					shouldPushStackElementBefore: false,
-					shouldPushStackElementAfter: false
-				});
-			}
-		}
-
-		return this.deleteRight(config, model, cursor);
-	}
-
 	public static autoClosingPairDelete(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState): EditOperationResult {
 		if (!config.autoClosingBrackets) {
 			return null;

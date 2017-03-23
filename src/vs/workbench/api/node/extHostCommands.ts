@@ -8,7 +8,6 @@ import { IThreadService } from 'vs/workbench/services/thread/common/threadServic
 import { validateConstraint } from 'vs/base/common/types';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ExtHostEditors } from 'vs/workbench/api/node/extHostEditors';
 import * as extHostTypes from 'vs/workbench/api/node/extHostTypes';
 import * as extHostTypeConverter from 'vs/workbench/api/node/extHostTypeConverters';
 import { cloneAndChange } from 'vs/base/common/objects';
@@ -26,18 +25,15 @@ interface CommandHandler {
 
 export class ExtHostCommands extends ExtHostCommandsShape {
 
-	private _commands: { [n: string]: CommandHandler } = Object.create(null);
+	private _commands = new Map<string, CommandHandler>();
 	private _proxy: MainThreadCommandsShape;
-	private _extHostEditors: ExtHostEditors;
 	private _converter: CommandsConverter;
 
 	constructor(
 		threadService: IThreadService,
-		extHostEditors: ExtHostEditors,
 		heapService: ExtHostHeapService
 	) {
 		super();
-		this._extHostEditors = extHostEditors;
 		this._proxy = threadService.get(MainContext.MainThreadCommands);
 		this._converter = new CommandsConverter(this, heapService);
 	}
@@ -52,15 +48,15 @@ export class ExtHostCommands extends ExtHostCommandsShape {
 			throw new Error('invalid id');
 		}
 
-		if (this._commands[id]) {
+		if (this._commands.has(id)) {
 			throw new Error('command with id already exists');
 		}
 
-		this._commands[id] = { callback, thisArg, description };
+		this._commands.set(id, { callback, thisArg, description });
 		this._proxy.$registerCommand(id);
 
 		return new extHostTypes.Disposable(() => {
-			if (delete this._commands[id]) {
+			if (this._commands.delete(id)) {
 				this._proxy.$unregisterCommand(id);
 			}
 		});
@@ -68,7 +64,7 @@ export class ExtHostCommands extends ExtHostCommandsShape {
 
 	executeCommand<T>(id: string, ...args: any[]): Thenable<T> {
 
-		if (this._commands[id]) {
+		if (this._commands.has(id)) {
 			// we stay inside the extension host and support
 			// to pass any kind of parameters around
 			return this.$executeContributedCommand(id, ...args);
@@ -97,12 +93,12 @@ export class ExtHostCommands extends ExtHostCommandsShape {
 	}
 
 	$executeContributedCommand<T>(id: string, ...args: any[]): Thenable<T> {
-		let command = this._commands[id];
+		let command = this._commands.get(id);
 		if (!command) {
 			return TPromise.wrapError<T>(`Contributed command '${id}' does not exist.`);
 		}
 
-		let {callback, thisArg, description} = command;
+		let { callback, thisArg, description } = command;
 
 		if (description) {
 			for (let i = 0; i < description.args.length; i++) {
@@ -139,12 +135,12 @@ export class ExtHostCommands extends ExtHostCommandsShape {
 
 	$getContributedCommandHandlerDescriptions(): TPromise<{ [id: string]: string | ICommandHandlerDescription }> {
 		const result: { [id: string]: string | ICommandHandlerDescription } = Object.create(null);
-		for (let id in this._commands) {
-			let {description} = this._commands[id];
+		this._commands.forEach((command, id) => {
+			let { description } = command;
 			if (description) {
 				result[id] = description;
 			}
-		}
+		});
 		return TPromise.as(result);
 	}
 }
@@ -166,7 +162,7 @@ export class CommandsConverter {
 	toInternal(command: vscode.Command): modes.Command {
 
 		if (!command) {
-			return;
+			return undefined;
 		}
 
 		const result: modes.Command = {
@@ -191,7 +187,7 @@ export class CommandsConverter {
 	fromInternal(command: modes.Command): vscode.Command {
 
 		if (!command) {
-			return;
+			return undefined;
 		}
 
 		const id = ObjectIdentifier.of(command);

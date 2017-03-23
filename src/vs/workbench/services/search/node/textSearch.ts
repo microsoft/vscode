@@ -12,10 +12,10 @@ import { IProgress } from 'vs/platform/search/common/search';
 import { FileWalker } from 'vs/workbench/services/search/node/fileSearch';
 
 import { ISerializedFileMatch, ISerializedSearchComplete, IRawSearch, ISearchEngine } from './search';
-import { ISearchWorker, ISearchWorkerConfig } from './worker/searchWorkerIpc';
+import { ISearchWorker } from './worker/searchWorkerIpc';
 import { ITextSearchWorkerProvider } from './textSearchWorkerProvider';
 
-export class Engine implements ISearchEngine<ISerializedFileMatch> {
+export class Engine implements ISearchEngine<ISerializedFileMatch[]> {
 
 	private static PROGRESS_FLUSH_CHUNK_SIZE = 50; // optimization: number of files to process before emitting progress event
 
@@ -55,13 +55,12 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 
 	initializeWorkers(): void {
 		this.workers.forEach(w => {
-			const config: ISearchWorkerConfig = { pattern: this.config.contentPattern, fileEncoding: this.config.fileEncoding };
-			w.initialize(config)
+			w.initialize()
 				.then(null, onUnexpectedError);
 		});
 	}
 
-	search(onResult: (match: ISerializedFileMatch) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISerializedSearchComplete) => void): void {
+	search(onResult: (match: ISerializedFileMatch[]) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISerializedSearchComplete) => void): void {
 		this.workers = this.workerProvider.getWorkers();
 		this.initializeWorkers();
 
@@ -94,16 +93,15 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 			this.nextWorker = (this.nextWorker + 1) % this.workers.length;
 
 			const maxResults = this.config.maxResults && (this.config.maxResults - this.numResults);
-			worker.search({ absolutePaths: batch, maxResults }).then(result => {
+			const searchArgs = { absolutePaths: batch, maxResults, pattern: this.config.contentPattern, fileEncoding: this.config.fileEncoding };
+			worker.search(searchArgs).then(result => {
 				if (!result || this.limitReached || this.isCanceled) {
 					return unwind(batchBytes);
 				}
 
 				const matches = result.matches;
+				onResult(matches);
 				this.numResults += result.numMatches;
-				matches.forEach(m => {
-					onResult(m);
-				});
 
 				if (this.config.maxResults && this.numResults >= this.config.maxResults) {
 					// It's possible to go over maxResults like this, but it's much simpler than trying to extract the exact number
@@ -121,7 +119,7 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 		};
 
 		// Walk over the file system
-		let nextBatch = [];
+		let nextBatch: string[] = [];
 		let nextBatchBytes = 0;
 		const batchFlushBytes = 2 ** 20; // 1MB
 		this.walker.walk(this.config.rootFolders, this.config.extraFiles, result => {
@@ -146,6 +144,9 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 				nextBatchBytes = 0;
 			}
 		}, (error, isLimitHit) => {
+			this.walkerIsDone = true;
+			this.walkerError = error;
+
 			// Send any remaining paths to a worker, or unwind if we're stopping
 			if (nextBatch.length) {
 				if (this.limitReached || this.isCanceled) {
@@ -153,10 +154,9 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 				} else {
 					run(nextBatch, nextBatchBytes);
 				}
+			} else {
+				unwind(0);
 			}
-
-			this.walkerIsDone = true;
-			this.walkerError = error;
 		});
 	}
 }

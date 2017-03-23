@@ -26,6 +26,7 @@ import { ReferencesModel, OneReference } from './referencesModel';
 import { ReferenceWidget, LayoutData } from './referencesWidget';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
+import { IThemeService } from "vs/platform/theme/common/themeService";
 
 export const ctxReferenceSearchVisible = new RawContextKey<boolean>('referenceSearchVisible', false);
 
@@ -62,6 +63,7 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		@IInstantiationService private _instantiationService: IInstantiationService,
 		@IWorkspaceContextService private _contextService: IWorkspaceContextService,
 		@IStorageService private _storageService: IStorageService,
+		@IThemeService private _themeService: IThemeService,
 		@IConfigurationService private _configurationService: IConfigurationService,
 		@optional(IPeekViewService) private _peekViewService: IPeekViewService
 	) {
@@ -96,7 +98,7 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		this._referenceSearchVisible.set(true);
 
 		// close the widget on model/mode changes
-		this._disposables.push(this._editor.onDidChangeModelMode(() => { this.closeWidget(); }));
+		this._disposables.push(this._editor.onDidChangeModelLanguage(() => { this.closeWidget(); }));
 		this._disposables.push(this._editor.onDidChangeModel(() => {
 			if (!this._ignoreModelChangeEvent) {
 				this.closeWidget();
@@ -104,7 +106,7 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		}));
 		const storageKey = 'peekViewLayout';
 		const data = <LayoutData>JSON.parse(this._storageService.get(storageKey, undefined, '{}'));
-		this._widget = new ReferenceWidget(this._editor, data, this._textModelResolverService, this._contextService, this._instantiationService);
+		this._widget = new ReferenceWidget(this._editor, data, this._textModelResolverService, this._contextService, this._themeService, this._instantiationService);
 		this._widget.setTitle(nls.localize('labelLoading', "Loading..."));
 		this._widget.show(range);
 		this._disposables.push(this._widget.onDidClose(() => {
@@ -145,7 +147,7 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 
 			// still current request? widget still open?
 			if (requestId !== this._requestIdPool || !this._widget) {
-				return;
+				return undefined;
 			}
 
 			if (this._model) {
@@ -178,6 +180,7 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 				if (selection) {
 					return this._widget.setSelection(selection);
 				}
+				return undefined;
 			});
 
 		}, error => {
@@ -188,7 +191,7 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 
 		onDone(duration => this._telemetryService.publicLog('findReferences', {
 			duration,
-			mode: this._editor.getModel().getMode().getId()
+			mode: this._editor.getModel().getLanguageIdentifier().language
 		}));
 	}
 
@@ -208,6 +211,8 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 	}
 
 	private _gotoReference(ref: OneReference): void {
+		this._widget.hide();
+
 		this._ignoreModelChangeEvent = true;
 		const {uri, range} = ref;
 

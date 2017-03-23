@@ -11,45 +11,36 @@ import * as Proto from '../protocol';
 import { ITypescriptServiceClient } from '../typescriptService';
 
 export default class TypeScriptRenameProvider implements RenameProvider {
-
-	private client: ITypescriptServiceClient;
-
-	public tokens: string[] = [];
-
-	public constructor(client: ITypescriptServiceClient) {
-		this.client = client;
-	}
+	public constructor(
+		private client: ITypescriptServiceClient) { }
 
 	public provideRenameEdits(document: TextDocument, position: Position, newName: string, token: CancellationToken): Promise<WorkspaceEdit | undefined | null> {
-		const filepath = this.client.asAbsolutePath(document.uri);
+		const filepath = this.client.normalizePath(document.uri);
 		if (!filepath) {
 			return Promise.resolve(null);
 		}
-		let args: Proto.RenameRequestArgs = {
+		const args: Proto.RenameRequestArgs = {
 			file: filepath,
 			line: position.line + 1,
 			offset: position.character + 1,
 			findInStrings: false,
 			findInComments: false
 		};
-		if (!args.file) {
-			return Promise.resolve(null);
-		}
 
 		return this.client.execute('rename', args, token).then((response) => {
-			let renameResponse = response.body;
+			const renameResponse = response.body;
 			if (!renameResponse) {
 				return Promise.resolve(null);
 			}
-			let renameInfo = renameResponse.info;
-			let result = new WorkspaceEdit();
+			const renameInfo = renameResponse.info;
+			const result = new WorkspaceEdit();
 
 			if (!renameInfo.canRename) {
 				return Promise.reject<WorkspaceEdit>(renameInfo.localizedErrorMessage);
 			}
 
 			renameResponse.locs.forEach((spanGroup) => {
-				let resource = this.client.asUrl(spanGroup.file);
+				const resource = this.client.asUrl(spanGroup.file);
 				if (!resource) {
 					return;
 				}

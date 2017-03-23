@@ -17,7 +17,7 @@ import { domEvent } from 'vs/base/browser/event';
 import { Emitter } from 'vs/base/common/event';
 
 
-export function fillInActions(menu: IMenu, context: any, target: IAction[] | { primary: IAction[]; secondary: IAction[]; }): void {
+export function fillInActions(menu: IMenu, context: any, target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, isPrimaryGroup: (group: string) => boolean = group => group === 'navigation'): void {
 	const groups = menu.getActions(context);
 	if (groups.length === 0) {
 		return;
@@ -25,7 +25,7 @@ export function fillInActions(menu: IMenu, context: any, target: IAction[] | { p
 
 	for (let tuple of groups) {
 		let [group, actions] = tuple;
-		if (group === 'navigation') {
+		if (isPrimaryGroup(group)) {
 
 			const head = Array.isArray<IAction>(target) ? target : target.primary;
 
@@ -53,11 +53,13 @@ export function fillInActions(menu: IMenu, context: any, target: IAction[] | { p
 			head.splice(sep, 0, ...actions.slice(pivot));
 
 		} else {
-			if (Array.isArray<IAction>(target)) {
-				target.push(new Separator(), ...actions);
-			} else {
-				target.secondary.push(new Separator(), ...actions);
+			const to = Array.isArray<IAction>(target) ? target : target.secondary;
+
+			if (to.length > 0) {
+				to.push(new Separator());
 			}
+
+			to.push(...actions);
 		}
 	}
 }
@@ -67,6 +69,7 @@ export function createActionItem(action: IAction, keybindingService: IKeybinding
 	if (action instanceof MenuItemAction) {
 		return new MenuItemActionItem(action, keybindingService, messageService);
 	}
+	return undefined;
 }
 
 
@@ -101,7 +104,7 @@ class MenuItemActionItem extends ActionItem {
 		super(undefined, action, { icon: !!action.class, label: !action.class });
 	}
 
-	private get _command() {
+	private get _commandAction(): IAction {
 		return this._wantsAltCommand && (<MenuItemAction>this._action).alt || this._action;
 	}
 
@@ -109,7 +112,8 @@ class MenuItemActionItem extends ActionItem {
 		event.preventDefault();
 		event.stopPropagation();
 
-		this._command.run().done(undefined, err => this._messageService.show(Severity.Error, err));
+		this.actionRunner.run(this._commandAction)
+			.done(undefined, err => this._messageService.show(Severity.Error, err));
 	}
 
 	render(container: HTMLElement): void {
@@ -146,29 +150,29 @@ class MenuItemActionItem extends ActionItem {
 
 	_updateLabel(): void {
 		if (this.options.label) {
-			this.$e.text(this._command.label);
+			this.$e.text(this._commandAction.label);
 		}
 	}
 
 	_updateTooltip(): void {
 		const element = this.$e.getHTMLElement();
-		const keybinding = this._keybindingService.lookupKeybindings(this._command.id)[0];
-		const keybindingLabel = keybinding && this._keybindingService.getLabelFor(keybinding);
+		const keybinding = this._keybindingService.lookupKeybinding(this._commandAction.id);
+		const keybindingLabel = keybinding && keybinding.getLabel();
 
 		element.title = keybindingLabel
-			? localize('titleAndKb', "{0} ({1})", this._command.label, keybindingLabel)
-			: this._command.label;
+			? localize('titleAndKb', "{0} ({1})", this._commandAction.label, keybindingLabel)
+			: this._commandAction.label;
 	}
 
 	_updateClass(): void {
 		if (this.options.icon) {
 			const element = this.$e.getHTMLElement();
-			if (this._command !== this._action) {
+			if (this._commandAction !== this._action) {
 				element.classList.remove(this._action.class);
 			} else if ((<MenuItemAction>this._action).alt) {
 				element.classList.remove((<MenuItemAction>this._action).alt.class);
 			}
-			element.classList.add('icon', this._command.class);
+			element.classList.add('icon', this._commandAction.class);
 		}
 	}
 }

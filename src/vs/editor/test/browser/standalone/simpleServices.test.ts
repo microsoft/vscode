@@ -6,17 +6,17 @@
 
 import * as assert from 'assert';
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
-import { SimpleConfigurationService, SimpleMessageService, SimpleExtensionService, StandaloneKeybindingService, StandaloneCommandService } from 'vs/editor/browser/standalone/simpleServices';
+import { SimpleConfigurationService, SimpleMessageService, StandaloneKeybindingService, StandaloneCommandService } from 'vs/editor/browser/standalone/simpleServices';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 
 suite('StandaloneKeybindingService', () => {
 
 	class TestStandaloneKeybindingService extends StandaloneKeybindingService {
-		public dispatch(e: IKeyboardEvent): void {
-			super._dispatch(e);
+		public testDispatch(e: IKeyboardEvent): void {
+			super._dispatch(e, null);
 		}
 	}
 
@@ -29,9 +29,7 @@ suite('StandaloneKeybindingService', () => {
 
 		let contextKeyService = new ContextKeyService(configurationService);
 
-		let extensionService = new SimpleExtensionService();
-
-		let commandService = new StandaloneCommandService(instantiationService, extensionService);
+		let commandService = new StandaloneCommandService(instantiationService);
 
 		let messageService = new SimpleMessageService();
 
@@ -40,13 +38,17 @@ suite('StandaloneKeybindingService', () => {
 		let keybindingService = new TestStandaloneKeybindingService(contextKeyService, commandService, messageService, domElement);
 
 		let commandInvoked = false;
-		keybindingService.addDynamicKeybinding(KeyCode.F9, () => {
+		keybindingService.addDynamicKeybinding('testCommand', KeyCode.F9, () => {
 			commandInvoked = true;
 		}, null);
 
-		keybindingService.dispatch(<any>{
-			asKeybinding: () => KeyCode.F9,
-			preventDefault: () => { }
+		keybindingService.testDispatch({
+			ctrlKey: false,
+			shiftKey: false,
+			altKey: false,
+			metaKey: false,
+			keyCode: KeyCode.F9,
+			code: null
 		});
 
 		assert.ok(commandInvoked, 'command invoked');

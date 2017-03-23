@@ -6,8 +6,5 @@
 {
 	"markerAction.next.label": "移至下一個錯誤或警告",
 	"markerAction.previous.label": "移至上一個錯誤或警告",
-	"quickfix.multiple.label": "建議的修正程式: ",
-	"quickfix.single.label": "建議的修正程式: ",
-	"title.w_source": "({0}/{1}) [{2}]",
 	"title.wo_source": "({0}/{1})"
 }

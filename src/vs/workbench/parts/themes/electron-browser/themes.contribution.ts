@@ -14,12 +14,14 @@ import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { Registry } from 'vs/platform/platform';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actionRegistry';
-import { IQuickOpenService, IPickOpenEntry } from 'vs/workbench/services/quickopen/common/quickOpenService';
-import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
+import { IQuickOpenService, IPickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
+import { IWorkbenchThemeService, COLOR_THEME_SETTING, ICON_THEME_SETTING } from 'vs/workbench/services/themes/common/themeService';
 import { VIEWLET_ID, IExtensionsViewlet } from 'vs/workbench/parts/extensions/common/extensions';
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { Delayer } from 'vs/base/common/async';
+import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
+import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 
 export class SelectColorThemeAction extends Action {
 
@@ -31,17 +33,17 @@ export class SelectColorThemeAction extends Action {
 		label: string,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IMessageService private messageService: IMessageService,
-		@IThemeService private themeService: IThemeService,
+		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
 		@IExtensionGalleryService private extensionGalleryService: IExtensionGalleryService,
-		@IViewletService private viewletService: IViewletService
+		@IViewletService private viewletService: IViewletService,
+		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService
 	) {
 		super(id, label);
 	}
 
 	run(): TPromise<void> {
 		return this.themeService.getColorThemes().then(themes => {
-			const currentThemeId = this.themeService.getColorTheme();
-			const currentTheme = themes.filter(theme => theme.id === currentThemeId)[0];
+			const currentTheme = this.themeService.getColorTheme();
 
 			const pickInMarketPlace = findInMarketplacePick(this.viewletService, 'category:themes');
 
@@ -49,16 +51,26 @@ export class SelectColorThemeAction extends Action {
 				.map(theme => ({ id: theme.id, label: theme.label, description: theme.description }))
 				.sort((t1, t2) => t1.label.localeCompare(t2.label));
 
-			const selectTheme = (theme, broadcast) => {
+			const selectTheme = (theme, applyTheme) => {
 				if (theme === pickInMarketPlace) {
 					theme = currentTheme;
 				}
-				this.themeService.setColorTheme(theme.id, broadcast)
-					.done(null, err => this.messageService.show(Severity.Info, localize('problemChangingTheme', "Problem loading theme: {0}", err)));
+				let target = null;
+				if (applyTheme) {
+					let confValue = this.configurationService.lookup(COLOR_THEME_SETTING);
+					target = typeof confValue.workspace !== 'undefined' ? ConfigurationTarget.WORKSPACE : ConfigurationTarget.USER;
+				}
+
+				this.themeService.setColorTheme(theme.id, target).done(null,
+					err => {
+						this.messageService.show(Severity.Info, localize('problemChangingTheme', "Problem setting theme: {0}", err));
+						this.themeService.setColorTheme(currentTheme.id, null);
+					}
+				);
 			};
 
 			const placeHolder = localize('themes.selectTheme', "Select Color Theme");
-			const autoFocusIndex = firstIndex(picks, p => p.id === currentThemeId);
+			const autoFocusIndex = firstIndex(picks, p => p.id === currentTheme.id);
 			const delayer = new Delayer<void>(100);
 
 			if (this.extensionGalleryService.isEnabled()) {
@@ -85,17 +97,18 @@ class SelectIconThemeAction extends Action {
 		label: string,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IMessageService private messageService: IMessageService,
-		@IThemeService private themeService: IThemeService,
+		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
 		@IExtensionGalleryService private extensionGalleryService: IExtensionGalleryService,
-		@IViewletService private viewletService: IViewletService
+		@IViewletService private viewletService: IViewletService,
+		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService
+
 	) {
 		super(id, label);
 	}
 
 	run(): TPromise<void> {
 		return this.themeService.getFileIconThemes().then(themes => {
-			const currentThemeId = this.themeService.getFileIconTheme();
-			const currentTheme = themes.filter(theme => theme.id === currentThemeId)[0];
+			const currentTheme = this.themeService.getFileIconTheme();
 
 			const pickInMarketPlace = findInMarketplacePick(this.viewletService, 'tag:icon-theme');
 
@@ -105,16 +118,25 @@ class SelectIconThemeAction extends Action {
 
 			picks.splice(0, 0, { id: '', label: localize('noIconThemeLabel', 'None'), description: localize('noIconThemeDesc', 'Disable file icons') });
 
-			const selectTheme = (theme, broadcast) => {
+			const selectTheme = (theme, applyTheme) => {
 				if (theme === pickInMarketPlace) {
 					theme = currentTheme;
 				}
-				this.themeService.setFileIconTheme(theme && theme.id, broadcast)
-					.done(null, err => this.messageService.show(Severity.Info, localize('problemChangingIconTheme', "Problem loading icon theme: {0}", err.message)));
+				let target = null;
+				if (applyTheme) {
+					let confValue = this.configurationService.lookup(ICON_THEME_SETTING);
+					target = typeof confValue.workspace !== 'undefined' ? ConfigurationTarget.WORKSPACE : ConfigurationTarget.USER;
+				}
+				this.themeService.setFileIconTheme(theme && theme.id, target).done(null,
+					err => {
+						this.messageService.show(Severity.Info, localize('problemChangingIconTheme', "Problem setting icon theme: {0}", err.message));
+						this.themeService.setFileIconTheme(currentTheme.id, null);
+					}
+				);
 			};
 
 			const placeHolder = localize('themes.selectIconTheme', "Select File Icon Theme");
-			const autoFocusIndex = firstIndex(picks, p => p.id === currentThemeId);
+			const autoFocusIndex = firstIndex(picks, p => p.id === currentTheme.id);
 			const delayer = new Delayer<void>(100);
 
 

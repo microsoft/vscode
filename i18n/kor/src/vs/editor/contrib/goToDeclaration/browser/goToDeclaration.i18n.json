@@ -6,7 +6,17 @@
 {
 	"actions.goToDecl.label": "정의로 이동",
 	"actions.goToDeclToSide.label": "측면에서 정의 열기",
+	"actions.goToImplementation.label": "구현으로 이동",
+	"actions.goToTypeDefinition.label": "형식 정의로 이동",
+	"actions.peekImplementation.label": "구현 미리 보기",
+	"actions.peekTypeDefinition.label": "형식 정의 미리 보기",
 	"actions.previewDecl.label": "정의 피킹(Peeking)",
+	"generic.noResults": "정의를 찾을 수 없음",
+	"goToImplementation.generic.noResults": "구현을 찾을 수 없습니다.",
+	"goToImplementation.noResultWord": "'{0}'에 대한 구현을 찾을 수 없습니다.",
+	"goToTypeDefinition.generic.noResults": "형식 정의를 찾을 수 없습니다.",
+	"goToTypeDefinition.noResultWord": "'{0}'에 대한 형식 정의를 찾을 수 없습니다.",
 	"meta.title": " – 정의 {0}개",
-	"multipleResults": "{0}개 정의를 표시하려면 클릭하세요."
+	"multipleResults": "{0}개 정의를 표시하려면 클릭하세요.",
+	"noResultWord": "'{0}'에 대한 정의를 찾을 수 없습니다."
 }

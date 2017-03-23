@@ -9,6 +9,7 @@ import 'vs/editor/browser/editor.all';
 import 'vs/editor/contrib/quickOpen/browser/quickOutline';
 import 'vs/editor/contrib/quickOpen/browser/gotoLine';
 import 'vs/editor/contrib/quickOpen/browser/quickCommand';
+import 'vs/editor/contrib/inspectTokens/browser/inspectTokens';
 
 import { createMonacoBaseAPI } from 'vs/editor/common/standalone/standaloneBase';
 import { createMonacoEditorAPI } from 'vs/editor/browser/standalone/standaloneEditor';
@@ -24,3 +25,12 @@ var global: any = self;
 global.monaco = createMonacoBaseAPI();
 global.monaco.editor = createMonacoEditorAPI();
 global.monaco.languages = createMonacoLanguagesAPI();
+
+if (typeof global.require !== 'undefined' && typeof global.require.config === 'function') {
+	global.require.config({
+		ignoreDuplicateModules: [
+			'vscode-languageserver-types',
+			'vscode-languageserver-types/main',
+		]
+	});
+}

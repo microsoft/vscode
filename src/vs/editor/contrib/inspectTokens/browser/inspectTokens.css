@@ -1,0 +1,44 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-editor .tokens-inspect-widget {
+	background-color: #F3F3F3;
+	border: 1px solid #CCC;
+	z-index: 50;
+	-webkit-user-select: text;
+	-ms-user-select: text;
+	-khtml-user-select: text;
+	-moz-user-select: text;
+	-o-user-select: text;
+	user-select: text;
+	padding: 10px;
+}
+
+.monaco-editor.vs-dark .tokens-inspect-widget { background-color: #2D2D30; border-color: #555; }
+
+.monaco-editor.hc-black .tokens-inspect-widget { background-color: #0C141F; }
+
+.monaco-editor .tokens-inspect-widget .tm-token {
+	font-family: monospace;
+}
+
+.monaco-editor .tokens-inspect-widget .tm-token-length {
+	font-weight: normal;
+	font-size: 60%;
+	float: right;
+}
+
+.monaco-editor .tokens-inspect-widget .tm-metadata-table {
+	width: 100%;
+}
+
+.monaco-editor .tokens-inspect-widget .tm-metadata-value {
+	font-family: monospace;
+	text-align: right;
+}
+
+.monaco-editor .tokens-inspect-widget .tm-token-type {
+	font-family: monospace;
+}

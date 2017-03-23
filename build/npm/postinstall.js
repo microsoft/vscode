@@ -30,7 +30,9 @@ const extensions = [
 	'php',
 	'javascript',
 	'css',
-	'html'
+	'html',
+	'git',
+	'gulp'
 ];
 
 extensions.forEach(extension => npmInstall(`extensions/${extension}`));

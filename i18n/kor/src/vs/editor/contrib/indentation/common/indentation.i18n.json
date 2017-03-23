@@ -6,11 +6,10 @@
 {
 	"configuredTabSize": "구성된 탭 크기",
 	"detectIndentation": "콘텐츠에서 들여쓰기 감지",
+	"editor.reindentlines": "줄 다시 들여쓰기",
 	"indentUsingSpaces": "공백을 사용한 들여쓰기",
 	"indentUsingTabs": "탭을 사용한 들여쓰기",
 	"indentationToSpaces": "들여쓰기를 공백으로 변환",
 	"indentationToTabs": "들여쓰기를 탭으로 변환",
-	"selectTabWidth": "현재 파일의 탭 크기 선택",
-	"toggleRenderControlCharacters": "제어 문자 설정/해제",
-	"toggleRenderWhitespace": "공백 토글 및 렌더링"
+	"selectTabWidth": "현재 파일의 탭 크기 선택"
 }

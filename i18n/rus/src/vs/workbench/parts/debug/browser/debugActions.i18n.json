@@ -15,10 +15,11 @@
 	"debugConsoleAction": "Консоль отладки",
 	"debugFocusConsole": "Фокус консоли отладки",
 	"disableAllBreakpoints": "Отключить все точки останова",
+	"disableBreakpoint": "Выключить точку останова",
 	"disconnectDebug": "Отключить",
 	"editConditionalBreakpoint": "Изменить точку останова…",
-	"editWatchExpression": "Изменить выражение",
 	"enableAllBreakpoints": "Включить все точки останова",
+	"enableBreakpoint": "Включить точку останова",
 	"focusProcess": "Обработка фокуса",
 	"launchJsonNeedsConfigurtion": "Настройте или исправьте \"launch.json\"",
 	"openLaunchJson": "Открыть {0}",
@@ -33,7 +34,7 @@
 	"restartDebug": "Перезапустить",
 	"restartFrame": "Перезапустить кадр",
 	"reverseContinue": "Обратно",
-	"selectConfig": "Выбрать конфигурацию",
+	"selectAndStartDebugging": "Выбрать и начать отладку",
 	"setValue": "Задать значение",
 	"startDebug": "Начать отладку",
 	"startWithoutDebugging": "Начать без отладки",
@@ -42,6 +43,5 @@
 	"stepOutDebug": "Шаг с выходом",
 	"stepOverDebug": "Шаг с обходом",
 	"stopDebug": "Остановить",
-	"toggleEnablement": "Включить или отключить точку останова",
 	"unreadOutput": "Новые выходные данные в консоли отладки"
 }

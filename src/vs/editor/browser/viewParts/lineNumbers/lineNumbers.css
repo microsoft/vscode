@@ -36,7 +36,3 @@
 .monaco-editor .margin-view-overlays .line-numbers.lh-odd {
 	margin-top: 1px;
 }
-
-.monaco-editor.vs		.line-numbers { color: #2B91AF; }
-.monaco-editor.vs-dark	.line-numbers { color: #5A5A5A; }
-.monaco-editor.hc-black	.line-numbers { color: #FFF; }

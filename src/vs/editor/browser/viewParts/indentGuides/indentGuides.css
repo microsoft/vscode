@@ -9,14 +9,5 @@
 */
 .monaco-editor .lines-content .cigr {
 	position: absolute;
-	background: lightgray;
 	width: 1px;
-}
-
-.monaco-editor.vs-dark .lines-content .cigr {
-	background: #404040;
-}
-
-.monaco-editor.hc-black .lines-content .cigr {
-	background: #ffffff;
 }

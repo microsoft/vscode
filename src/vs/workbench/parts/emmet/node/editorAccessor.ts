@@ -10,6 +10,7 @@ import strings = require('vs/base/common/strings');
 import snippets = require('vs/editor/contrib/snippet/common/snippet');
 import { Range } from 'vs/editor/common/core/range';
 import { SnippetController } from 'vs/editor/contrib/snippet/common/snippetController';
+import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
 
 
 import emmet = require('emmet');
@@ -18,8 +19,13 @@ export interface IGrammarContributions {
 	getGrammar(mode: string): string;
 }
 
+export interface ILanguageIdentifierResolver {
+	getLanguageIdentifier(modeId: LanguageId): LanguageIdentifier;
+}
+
 export class EditorAccessor implements emmet.Editor {
 
+	private _languageIdentifierResolver: ILanguageIdentifierResolver;
 	private _editor: ICommonCodeEditor;
 	private _syntaxProfiles: any;
 	private _excludedLanguages: any;
@@ -27,9 +33,10 @@ export class EditorAccessor implements emmet.Editor {
 
 	private _hasMadeEdits: boolean;
 
-	private emmetSupportedModes = ['html', 'xhtml', 'css', 'xml', 'xsl', 'haml', 'jade', 'jsx', 'slim', 'scss', 'sass', 'less', 'stylus', 'styl'];
+	private emmetSupportedModes = ['html', 'css', 'xml', 'xsl', 'haml', 'jade', 'jsx', 'slim', 'scss', 'sass', 'less', 'stylus', 'styl', 'svg'];
 
-	constructor(editor: ICommonCodeEditor, syntaxProfiles: any, excludedLanguages: String[], grammars: IGrammarContributions) {
+	constructor(languageIdentifierResolver: ILanguageIdentifierResolver, editor: ICommonCodeEditor, syntaxProfiles: any, excludedLanguages: String[], grammars: IGrammarContributions) {
+		this._languageIdentifierResolver = languageIdentifierResolver;
 		this._editor = editor;
 		this._syntaxProfiles = syntaxProfiles;
 		this._excludedLanguages = excludedLanguages;
@@ -38,6 +45,7 @@ export class EditorAccessor implements emmet.Editor {
 	}
 
 	public isEmmetEnabledMode(): boolean {
+
 		return this.emmetSupportedModes.indexOf(this.getSyntax()) !== -1;
 	}
 
@@ -136,9 +144,15 @@ export class EditorAccessor implements emmet.Editor {
 	}
 
 	public getSyntax(): string {
+		return this.getSyntaxInternal(true);
+	}
+
+	public getSyntaxInternal(overrideUsingProfiles: boolean): string {
 		let position = this._editor.getSelection().getStartPosition();
-		let modeId = this._editor.getModel().getModeIdAtPosition(position.lineNumber, position.column);
-		let syntax = modeId.split('.').pop();
+		this._editor.getModel().forceTokenization(position.lineNumber);
+		let languageId = this._editor.getModel().getLanguageIdAtPosition(position.lineNumber, position.column);
+		let language = this._languageIdentifierResolver.getLanguageIdentifier(languageId).language;
+		let syntax = language.split('.').pop();
 
 		if (this._excludedLanguages.indexOf(syntax) !== -1) {
 			return '';
@@ -146,7 +160,7 @@ export class EditorAccessor implements emmet.Editor {
 
 		// user can overwrite the syntax using the emmet syntaxProfiles setting
 		let profile = this.getSyntaxProfile(syntax);
-		if (profile) {
+		if (overrideUsingProfiles && profile && this.emmetSupportedModes.indexOf(profile) !== -1) {
 			return profile;
 		}
 
@@ -154,7 +168,7 @@ export class EditorAccessor implements emmet.Editor {
 			return syntax;
 		}
 
-		if (/\b(typescriptreact|javascriptreact)\b/.test(syntax)) { // treat tsx like jsx
+		if (/\b(typescriptreact|javascriptreact|jsx-tags)\b/.test(syntax)) { // treat tsx like jsx
 			return 'jsx';
 		}
 		if (syntax === 'sass-indented') { // map sass-indented to sass
@@ -170,6 +184,7 @@ export class EditorAccessor implements emmet.Editor {
 		if (profile && typeof profile === 'string') {
 			return profile;
 		}
+		return undefined;
 	}
 
 	private checkParentMode(syntax: string): string {
@@ -190,7 +205,16 @@ export class EditorAccessor implements emmet.Editor {
 		return syntax;
 	}
 
+	// If users have created their own output profile for current syntax as described
+	// http://docs.emmet.io/customization/syntax-profiles/#create-your-own-profile
+	// then we return the name of this profile. Else, we send null and
+	// emmet is smart enough to guess the right output profile
 	public getProfileName(): string {
+		let syntax = this.getSyntaxInternal(false);
+		const profile = this._syntaxProfiles[syntax];
+		if (profile && typeof profile !== 'string') {
+			return syntax;
+		}
 		return null;
 	}
 

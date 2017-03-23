@@ -2,7 +2,6 @@
 	"rules": {
 		"no-unused-expression": true,
 		"no-duplicate-variable": true,
-		"no-duplicate-key": true,
 		"no-unused-variable": true,
 		"curly": true,
 		"class-name": true,
@@ -57,6 +56,15 @@
 				"restrictions": "**/vs/**"
 			}
 		],
-		"duplicate-imports": true
+		"duplicate-imports": true,
+		"allow-async": [
+			true,
+			[
+				"node",
+				"electron-main",
+				"electron-browser",
+				"extensions"
+			]
+		]
 	}
 }

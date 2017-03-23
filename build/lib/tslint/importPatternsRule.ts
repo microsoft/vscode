@@ -4,14 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as ts from 'typescript';
-import * as Lint from 'tslint/lib/lint';
+import * as Lint from 'tslint';
 import * as minimatch from 'minimatch';
 
 interface ImportPatternsConfig {
 	target: string;
 	restrictions: string;
 }
-
 
 export class Rule extends Lint.Rules.AbstractRule {
 	public apply(sourceFile: ts.SourceFile): Lint.RuleFailure[] {

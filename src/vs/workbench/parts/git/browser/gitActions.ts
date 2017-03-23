@@ -20,13 +20,12 @@ import platform = require('vs/base/common/platform');
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEditor } from 'vs/platform/editor/common/editor';
-import { IEventService } from 'vs/platform/event/common/event';
 import { IFileService, IFileStat } from 'vs/platform/files/common/files';
 import { IMessageService, IConfirmation, IChoiceService } from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IGitService, IFileStatus, Status, StatusType, ServiceState, IModel, IBranch, GitErrorCodes, IGitConfiguration } from 'vs/workbench/parts/git/common/git';
-import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
+import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
 import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
@@ -308,15 +307,13 @@ export class GlobalStageAction extends BaseStageAction {
 
 export abstract class BaseUndoAction extends GitAction {
 
-	private eventService: IEventService;
 	private editorService: IWorkbenchEditorService;
 	private messageService: IMessageService;
 	private fileService: IFileService;
 	private contextService: IWorkspaceContextService;
 
-	constructor(id: string, label: string, className: string, gitService: IGitService, eventService: IEventService, messageService: IMessageService, fileService: IFileService, editorService: IWorkbenchEditorService, contextService: IWorkspaceContextService) {
+	constructor(id: string, label: string, className: string, gitService: IGitService, messageService: IMessageService, fileService: IFileService, editorService: IWorkbenchEditorService, contextService: IWorkspaceContextService) {
 		super(id, label, className, gitService);
-		this.eventService = eventService;
 		this.editorService = editorService;
 		this.messageService = messageService;
 		this.fileService = fileService;
@@ -325,7 +322,7 @@ export abstract class BaseUndoAction extends GitAction {
 	}
 
 	protected isEnabled(): boolean {
-		return super.isEnabled() && !!this.eventService && !!this.editorService && !!this.fileService;
+		return super.isEnabled() && !!this.editorService && !!this.fileService;
 	}
 
 	public run(context?: any): Promise {
@@ -451,7 +448,6 @@ export abstract class BaseUndoAction extends GitAction {
 	}
 
 	public dispose(): void {
-		this.eventService = null;
 		this.editorService = null;
 		this.fileService = null;
 
@@ -461,8 +457,8 @@ export abstract class BaseUndoAction extends GitAction {
 
 export class UndoAction extends BaseUndoAction {
 	static ID = 'workbench.action.git.undo';
-	constructor( @IGitService gitService: IGitService, @IEventService eventService: IEventService, @IMessageService messageService: IMessageService, @IFileService fileService: IFileService, @IWorkbenchEditorService editorService: IWorkbenchEditorService, @IWorkspaceContextService contextService: IWorkspaceContextService) {
-		super(UndoAction.ID, nls.localize('undoChanges', "Clean"), 'git-action undo', gitService, eventService, messageService, fileService, editorService, contextService);
+	constructor( @IGitService gitService: IGitService, @IMessageService messageService: IMessageService, @IFileService fileService: IFileService, @IWorkbenchEditorService editorService: IWorkbenchEditorService, @IWorkspaceContextService contextService: IWorkspaceContextService) {
+		super(UndoAction.ID, nls.localize('undoChanges', "Clean"), 'git-action undo', gitService, messageService, fileService, editorService, contextService);
 	}
 }
 
@@ -470,8 +466,8 @@ export class GlobalUndoAction extends BaseUndoAction {
 
 	static ID = 'workbench.action.git.undoAll';
 
-	constructor( @IGitService gitService: IGitService, @IEventService eventService: IEventService, @IMessageService messageService: IMessageService, @IFileService fileService: IFileService, @IWorkbenchEditorService editorService: IWorkbenchEditorService, @IWorkspaceContextService contextService: IWorkspaceContextService) {
-		super(GlobalUndoAction.ID, nls.localize('undoAllChanges', "Clean All"), 'git-action undo', gitService, eventService, messageService, fileService, editorService, contextService);
+	constructor( @IGitService gitService: IGitService, @IMessageService messageService: IMessageService, @IFileService fileService: IFileService, @IWorkbenchEditorService editorService: IWorkbenchEditorService, @IWorkspaceContextService contextService: IWorkspaceContextService) {
+		super(GlobalUndoAction.ID, nls.localize('undoAllChanges', "Clean All"), 'git-action undo', gitService, messageService, fileService, editorService, contextService);
 	}
 
 	protected isEnabled(): boolean {
@@ -640,7 +636,7 @@ export class CheckoutAction extends GitAction {
 
 		var result = this.gitService.checkout(this.branch.name).then(null, (err) => {
 			if (err.gitErrorCode === GitErrorCodes.DirtyWorkTree) {
-				return Promise.wrapError(new Error(nls.localize('dirtyTreeCheckout', "Can't checkout. Please commit or stage your work first.")));
+				return Promise.wrapError(new Error(nls.localize('dirtyTreeCheckout', "Can't checkout. Please commit or stash your work first.")));
 			}
 
 			return Promise.wrapError(err);
@@ -737,6 +733,19 @@ export class CommitAction extends BaseCommitAction {
 
 	protected commit(): Promise {
 		return this.gitService.commit(this.commitState.getCommitMessage());
+	}
+}
+
+export class CommitAmendAction extends BaseCommitAction {
+
+	static ID = 'workbench.action.git.commitAmend';
+
+	constructor(commitState: ICommitState, @IGitService gitService: IGitService) {
+		super(commitState, CommitAction.ID, nls.localize('commitStagedAmend', "Commit Staged (Amend)"), 'git-action commit-amend', gitService);
+	}
+
+	protected commit(): Promise {
+		return this.gitService.commit(this.commitState.getCommitMessage(), true);
 	}
 }
 
@@ -935,7 +944,7 @@ export class PullAction extends GitAction {
 	protected pull(rebase = false): Promise {
 		return this.gitService.pull(rebase).then(null, (err) => {
 			if (err.gitErrorCode === GitErrorCodes.DirtyWorkTree) {
-				return Promise.wrapError(errors.create(nls.localize('dirtyTreePull', "Can't pull. Please commit or stage your work first."), { severity: Severity.Warning }));
+				return Promise.wrapError(errors.create(nls.localize('dirtyTreePull', "Can't pull. Please commit or stash your work first."), { severity: Severity.Warning }));
 			} else if (err.gitErrorCode === GitErrorCodes.AuthenticationFailed) {
 				return Promise.wrapError(errors.create(nls.localize('authFailed', "Authentication failed on the git remote.")));
 			}
@@ -950,8 +959,12 @@ export class PullWithRebaseAction extends PullAction {
 	static ID = 'workbench.action.git.pull.rebase';
 	static LABEL = 'Pull (Rebase)';
 
-	constructor( @IGitService gitService: IGitService) {
-		super(PullWithRebaseAction.ID, PullWithRebaseAction.LABEL, gitService);
+	constructor(
+		id = PullWithRebaseAction.ID,
+		label = PullWithRebaseAction.LABEL,
+		@IGitService gitService: IGitService
+	) {
+		super(id, label, gitService);
 	}
 
 	public run(context?: any): Promise {

@@ -14,7 +14,7 @@ import fs = require('fs');
 import uuid = require('vs/base/common/uuid');
 import strings = require('vs/base/common/strings');
 import extfs = require('vs/base/node/extfs');
-import { onError } from 'vs/test/utils/servicesTestUtils';
+import { onError } from 'vs/base/test/common/utils';
 
 suite('Extfs', () => {
 
@@ -200,6 +200,35 @@ suite('Extfs', () => {
 					extfs.del(parentDir, os.tmpdir(), () => { }, done);
 				});
 			});
+		});
+	});
+
+	test('realpath', (done) => {
+		const id = uuid.generateUuid();
+		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
+		const newDir = path.join(parentDir, 'extfs', id);
+
+		extfs.mkdirp(newDir, 493, (error) => {
+
+			// assume case insensitive file system
+			if (process.platform === 'win32' || process.platform === 'darwin') {
+				const upper = newDir.toUpperCase();
+				const real = extfs.realpathSync(upper);
+
+				if (real) { // can be null in case of permission errors
+					assert.notEqual(real, upper);
+					assert.equal(real.toUpperCase(), upper);
+					assert.equal(real, newDir);
+				}
+			}
+
+			// linux, unix, etc. -> assume case sensitive file system
+			else {
+				const real = extfs.realpathSync(newDir);
+				assert.equal(real, newDir);
+			}
+
+			extfs.del(parentDir, os.tmpdir(), () => { }, done);
 		});
 	});
 });

@@ -5,8 +5,9 @@
 'use strict';
 
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { LineToken, StandardTokenType } from 'vs/editor/common/core/lineTokens';
+import { LineToken } from 'vs/editor/common/core/lineTokens';
 import { Position } from 'vs/editor/common/core/position';
+import { StandardTokenType } from 'vs/editor/common/modes';
 
 class TokenInfo implements editorCommon.ITokenInfo {
 	_tokenInfoBrand: void;
@@ -15,14 +16,14 @@ class TokenInfo implements editorCommon.ITokenInfo {
 	public readonly lineNumber: number;
 	public readonly startColumn: number;
 	public readonly endColumn: number;
-	public readonly standardType: StandardTokenType;
+	public readonly type: StandardTokenType;
 
 	constructor(actual: LineToken, lineNumber: number) {
 		this._actual = actual;
 		this.lineNumber = lineNumber;
 		this.startColumn = this._actual.startOffset + 1;
 		this.endColumn = this._actual.endOffset + 1;
-		this.standardType = this._actual.standardType;
+		this.type = this._actual.tokenType;
 	}
 }
 
@@ -81,6 +82,7 @@ export class TokenIterator implements editorCommon.ITokenIterator {
 
 		position = findClosestNonEmptyLine(model, position);
 		if (position) {
+			this._model.forceTokenization(position.lineNumber);
 			let lineTokens = this._model.getLineTokens(position.lineNumber);
 			let currentToken = lineTokens.findTokenAtOffset(position.column - 1);
 			if (currentToken) {
@@ -98,6 +100,7 @@ export class TokenIterator implements editorCommon.ITokenIterator {
 		let next = this._next._actual.next();
 		while (!next && lineNumber < this._lineCount) {
 			lineNumber++;
+			this._model.forceTokenization(lineNumber);
 			let currentLineTokens = this._model.getLineTokens(lineNumber);
 			next = currentLineTokens.firstToken();
 		}
@@ -119,6 +122,7 @@ export class TokenIterator implements editorCommon.ITokenIterator {
 		let prev = this._prev._actual.prev();
 		while (!prev && lineNumber > 1) {
 			lineNumber--;
+			this._model.forceTokenization(lineNumber);
 			let currentLineTokens = this._model.getLineTokens(lineNumber);
 			prev = currentLineTokens.lastToken();
 		}

@@ -7,11 +7,13 @@
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IModel } from 'vs/editor/common/editorCommon';
-import { TokenizationRegistry, ITokenizationSupport } from 'vs/editor/common/modes';
+import { ColorId, MetadataConsts, FontStyle, TokenizationRegistry, ITokenizationSupport } from 'vs/editor/common/modes';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { renderLine, RenderLineInput } from 'vs/editor/common/viewLayout/viewLineRenderer';
+import { renderViewLine, RenderLineInput } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
-import { LineParts } from 'vs/editor/common/core/lineParts';
+import { LineTokens } from 'vs/editor/common/core/lineTokens';
+import * as strings from 'vs/base/common/strings';
+import { IStandaloneThemeService } from 'vs/editor/common/services/standaloneThemeService';
 
 export interface IColorizerOptions {
 	tabSize?: number;
@@ -24,14 +26,17 @@ export interface IColorizerElementOptions extends IColorizerOptions {
 
 export class Colorizer {
 
-	public static colorizeElement(modeService: IModeService, domNode: HTMLElement, options: IColorizerElementOptions): TPromise<void> {
+	public static colorizeElement(themeService: IStandaloneThemeService, modeService: IModeService, domNode: HTMLElement, options: IColorizerElementOptions): TPromise<void> {
 		options = options || {};
 		let theme = options.theme || 'vs';
 		let mimeType = options.mimeType || domNode.getAttribute('lang') || domNode.getAttribute('data-lang');
 		if (!mimeType) {
 			console.error('Mode not detected');
-			return;
+			return undefined;
 		}
+
+		themeService.setTheme(theme);
+
 		let text = domNode.firstChild.nodeValue;
 		domNode.className += 'monaco-editor ' + theme;
 		let render = (str: string) => {
@@ -40,7 +45,7 @@ export class Colorizer {
 		return this.colorize(modeService, text, mimeType, options).then(render, (err) => console.error(err), render);
 	}
 
-	private static _tokenizationSupportChangedPromise(languageId: string): TPromise<void> {
+	private static _tokenizationSupportChangedPromise(language: string): TPromise<void> {
 		let listener: IDisposable = null;
 		let stopListening = () => {
 			if (listener) {
@@ -51,7 +56,7 @@ export class Colorizer {
 
 		return new TPromise<void>((c, e, p) => {
 			listener = TokenizationRegistry.onDidChange((e) => {
-				if (e.languageId === languageId) {
+				if (e.changedLanguages.indexOf(language) >= 0) {
 					stopListening();
 					c(void 0);
 				}
@@ -60,8 +65,11 @@ export class Colorizer {
 	}
 
 	public static colorize(modeService: IModeService, text: string, mimeType: string, options: IColorizerOptions): TPromise<string> {
-		let lines = text.split('\n');
-		let languageId = modeService.getModeId(mimeType);
+		if (strings.startsWithUTF8BOM(text)) {
+			text = text.substr(1);
+		}
+		let lines = text.split(/\r\n|\r|\n/);
+		let language = modeService.getModeId(mimeType);
 
 		options = options || {};
 		if (typeof options.tabSize === 'undefined') {
@@ -69,16 +77,16 @@ export class Colorizer {
 		}
 
 		// Send out the event to create the mode
-		modeService.getOrCreateMode(languageId);
+		modeService.getOrCreateMode(language);
 
-		let tokenizationSupport = TokenizationRegistry.get(languageId);
+		let tokenizationSupport = TokenizationRegistry.get(language);
 		if (tokenizationSupport) {
 			return TPromise.as(_colorize(lines, options.tabSize, tokenizationSupport));
 		}
 
 		// wait 500ms for mode to load, then give up
-		return TPromise.any([this._tokenizationSupportChangedPromise(languageId), TPromise.timeout(500)]).then(_ => {
-			let tokenizationSupport = TokenizationRegistry.get(languageId);
+		return TPromise.any([this._tokenizationSupportChangedPromise(language), TPromise.timeout(500)]).then(_ => {
+			let tokenizationSupport = TokenizationRegistry.get(language);
 			if (tokenizationSupport) {
 				return _colorize(lines, options.tabSize, tokenizationSupport);
 			}
@@ -86,24 +94,29 @@ export class Colorizer {
 		});
 	}
 
-	public static colorizeLine(line: string, tokens: ViewLineToken[], tabSize: number = 4): string {
-		let renderResult = renderLine(new RenderLineInput(
+	public static colorizeLine(line: string, mightContainRTL: boolean, tokens: ViewLineToken[], tabSize: number = 4): string {
+		let renderResult = renderViewLine(new RenderLineInput(
+			false,
 			line,
+			mightContainRTL,
+			0,
+			tokens,
+			[],
 			tabSize,
 			0,
 			-1,
 			'none',
-			false,
-			new LineParts(tokens, line.length + 1)
+			false
 		));
-		return renderResult.output;
+		return renderResult.html;
 	}
 
 	public static colorizeModelLine(model: IModel, lineNumber: number, tabSize: number = 4): string {
 		let content = model.getLineContent(lineNumber);
-		let tokens = model.getLineTokens(lineNumber, false);
+		model.forceTokenization(lineNumber);
+		let tokens = model.getLineTokens(lineNumber);
 		let inflatedTokens = tokens.inflate();
-		return this.colorizeLine(content, inflatedTokens, tabSize);
+		return this.colorizeLine(content, model.mightContainRTL(), inflatedTokens, tabSize);
 	}
 }
 
@@ -114,20 +127,30 @@ function _colorize(lines: string[], tabSize: number, tokenizationSupport: IToken
 function _fakeColorize(lines: string[], tabSize: number): string {
 	let html: string[] = [];
 
+	const defaultMetadata = (
+		(FontStyle.None << MetadataConsts.FONT_STYLE_OFFSET)
+		| (ColorId.DefaultForeground << MetadataConsts.FOREGROUND_OFFSET)
+		| (ColorId.DefaultBackground << MetadataConsts.BACKGROUND_OFFSET)
+	) >>> 0;
+
 	for (let i = 0, length = lines.length; i < length; i++) {
 		let line = lines[i];
 
-		let renderResult = renderLine(new RenderLineInput(
+		let renderResult = renderViewLine(new RenderLineInput(
+			false,
 			line,
+			false,
+			0,
+			[new ViewLineToken(line.length, defaultMetadata)],
+			[],
 			tabSize,
 			0,
 			-1,
 			'none',
-			false,
-			new LineParts([], line.length + 1)
+			false
 		));
 
-		html = html.concat(renderResult.output);
+		html = html.concat(renderResult.html);
 		html.push('<br/>');
 	}
 
@@ -140,20 +163,23 @@ function _actualColorize(lines: string[], tabSize: number, tokenizationSupport: 
 
 	for (let i = 0, length = lines.length; i < length; i++) {
 		let line = lines[i];
-
-		let tokenizeResult = tokenizationSupport.tokenize(line, state);
-
-		let renderResult = renderLine(new RenderLineInput(
+		let tokenizeResult = tokenizationSupport.tokenize2(line, state, 0);
+		let lineTokens = new LineTokens(tokenizeResult.tokens, line);
+		let renderResult = renderViewLine(new RenderLineInput(
+			false,
 			line,
+			true/* check for RTL */,
+			0,
+			lineTokens.inflate(),
+			[],
 			tabSize,
 			0,
 			-1,
 			'none',
-			false,
-			new LineParts(tokenizeResult.tokens.map(t => new ViewLineToken(t.startIndex, t.type)), line.length + 1)
+			false
 		));
 
-		html = html.concat(renderResult.output);
+		html = html.concat(renderResult.html);
 		html.push('<br/>');
 
 		state = tokenizeResult.endState;

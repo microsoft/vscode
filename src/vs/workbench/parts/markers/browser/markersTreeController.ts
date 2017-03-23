@@ -18,10 +18,11 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IMenuService, IMenu, MenuId } from 'vs/platform/actions/common/actions';
 import { IAction } from 'vs/base/common/actions';
-import { Keybinding } from 'vs/base/common/keybinding';
+import { ResolvedKeybinding, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IActionProvider } from 'vs/base/parts/tree/browser/actionsRenderer';
 import { ActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 
 export class Controller extends treedefaults.DefaultController {
 
@@ -32,10 +33,15 @@ export class Controller extends treedefaults.DefaultController {
 		@IMenuService menuService: IMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService private _keybindingService: IKeybindingService,
-		@ITelemetryService private telemetryService: ITelemetryService) {
-		super();
+		@ITelemetryService private telemetryService: ITelemetryService
+	) {
+		super({ clickBehavior: treedefaults.ClickBehavior.ON_MOUSE_DOWN, keyboardSupport: false });
 
 		this.contextMenu = menuService.createMenu(MenuId.ProblemsPanelContext, contextKeyService);
+
+		// TODO@Sandeep introduce commands for these
+		this.downKeyBindingDispatcher.set(KeyCode.Space, (t, e) => this.onSpace(t, e));
+		this.upKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.Enter, this.onEnter.bind(this));
 	}
 
 	protected onLeftClick(tree: tree.ITree, element: any, event: mouse.IMouseEvent): boolean {
@@ -91,12 +97,12 @@ export class Controller extends treedefaults.DefaultController {
 			getActionItem: (action) => {
 				const keybinding = this._keybindingFor(action);
 				if (keybinding) {
-					return new ActionItem(action, action, { label: true, keybinding: this._keybindingService.getLabelFor(keybinding) });
+					return new ActionItem(action, action, { label: true, keybinding: keybinding.getLabel() });
 				}
 				return null;
 			},
 
-			getKeyBinding: (action): Keybinding => {
+			getKeyBinding: (action): ResolvedKeybinding => {
 				return this._keybindingFor(action);
 			},
 
@@ -110,7 +116,7 @@ export class Controller extends treedefaults.DefaultController {
 		return true;
 	}
 
-	private openFileAtElement(element: any, preserveFocus: boolean, sideByside: boolean, pinned: boolean): boolean {
+	public openFileAtElement(element: any, preserveFocus: boolean, sideByside: boolean, pinned: boolean): boolean {
 		if (element instanceof Marker) {
 			const marker: Marker = element;
 			this.telemetryService.publicLog('problems.marker.opened', { source: marker.marker.source });
@@ -122,9 +128,9 @@ export class Controller extends treedefaults.DefaultController {
 					pinned,
 					revealIfVisible: true
 				},
-			}, sideByside).done((editor) => {
-				if (preserveFocus) {
-					this.rangeHighlightDecorations.highlightRange(marker, editor);
+			}, sideByside).done(editor => {
+				if (editor && preserveFocus) {
+					this.rangeHighlightDecorations.highlightRange(marker, <ICommonCodeEditor>editor.getControl());
 				} else {
 					this.rangeHighlightDecorations.removeHighlightRange();
 				}
@@ -149,11 +155,7 @@ export class Controller extends treedefaults.DefaultController {
 		return result;
 	}
 
-	private _keybindingFor(action: IAction): Keybinding {
-		var opts = this._keybindingService.lookupKeybindings(action.id);
-		if (opts.length > 0) {
-			return opts[0]; // only take the first one
-		}
-		return null;
+	private _keybindingFor(action: IAction): ResolvedKeybinding {
+		return this._keybindingService.lookupKeybinding(action.id);
 	}
 }

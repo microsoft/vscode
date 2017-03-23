@@ -11,23 +11,18 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 import { addDisposableListener, addClass } from 'vs/base/browser/dom';
-import { isLightTheme, isDarkTheme } from 'vs/platform/theme/common/themes';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { MenuRegistry } from 'vs/platform/actions/common/actions';
+import { IColorTheme } from 'vs/workbench/services/themes/common/themeService';
+import { editorBackground, editorForeground } from 'vs/platform/theme/common/colorRegistry';
 
 declare interface WebviewElement extends HTMLElement {
 	src: string;
 	autoSize: 'on';
-	nodeintegration: 'on';
-	disablewebsecurity: 'on';
 	preload: string;
 
-	getURL(): string;
-	getTitle(): string;
-	executeJavaScript(code: string, userGesture?: boolean, callback?: (result: any) => any);
 	send(channel: string, ...args: any[]);
 	openDevTools(): any;
-	closeDevTools(): any;
 }
 
 CommandsRegistry.registerCommand('_webview.openDevTools', function () {
@@ -48,10 +43,6 @@ MenuRegistry.addCommand({
 
 type ApiThemeClassName = 'vscode-light' | 'vscode-dark' | 'vscode-high-contrast';
 
-export interface WebviewOptions {
-	nodeintegration: boolean;
-}
-
 export default class Webview {
 
 	private _webview: WebviewElement;
@@ -60,7 +51,7 @@ export default class Webview {
 	private _onDidClickLink = new Emitter<URI>();
 	private _onDidLoadContent = new Emitter<{ stats: any }>();
 
-	constructor(parent: HTMLElement, private _styleElement: Element, options: WebviewOptions) {
+	constructor(parent: HTMLElement, private _styleElement: Element) {
 		this._webview = <any>document.createElement('webview');
 
 		this._webview.style.width = '100%';
@@ -68,9 +59,6 @@ export default class Webview {
 		this._webview.style.outline = '0';
 		this._webview.style.opacity = '0';
 		this._webview.autoSize = 'on';
-		if (options.nodeintegration) {
-			this._webview.nodeintegration = 'on';
-		}
 
 		this._webview.preload = require.toUrl('./webview-pre.js');
 		this._webview.src = require.toUrl('./webview.html');
@@ -126,10 +114,6 @@ export default class Webview {
 		}
 	}
 
-	get domNode(): HTMLElement {
-		return this._webview;
-	}
-
 	get onDidClickLink(): Event<URI> {
 		return this._onDidClickLink.event;
 	}
@@ -157,13 +141,17 @@ export default class Webview {
 		this._send('focus');
 	}
 
-	style(themeId: string): void {
-		const {color, backgroundColor, fontFamily, fontWeight, fontSize} = window.getComputedStyle(this._styleElement);
+	public sendMessage(data: any): void {
+		this._send('message', data);
+	}
+
+	style(theme: IColorTheme): void {
+		const { fontFamily, fontWeight, fontSize } = window.getComputedStyle(this._styleElement); // TODO@theme avoid styleElement
 
 		let value = `
 		:root {
-			--background-color: ${backgroundColor};
-			--color: ${color};
+			--background-color: ${theme.getColor(editorBackground)};
+			--color: ${theme.getColor(editorForeground)};
 			--font-family: ${fontFamily};
 			--font-weight: ${fontWeight};
 			--font-size: ${fontSize};
@@ -196,7 +184,7 @@ export default class Webview {
 
 		let activeTheme: ApiThemeClassName;
 
-		if (isLightTheme(themeId)) {
+		if (theme.isLightTheme()) {
 			value += `
 			::-webkit-scrollbar-thumb {
 				background-color: rgba(100, 100, 100, 0.4);
@@ -210,7 +198,7 @@ export default class Webview {
 
 			activeTheme = 'vscode-light';
 
-		} else if (isDarkTheme(themeId)) {
+		} else if (theme.isDarkTheme()) {
 			value += `
 			::-webkit-scrollbar-thumb {
 				background-color: rgba(121, 121, 121, 0.4);

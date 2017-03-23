@@ -20,7 +20,7 @@ import { QuickOpenEntry, IHighlight, QuickOpenEntryGroup, QuickOpenModel } from 
 import { EditorOptions, EditorInput } from 'vs/workbench/common/editor';
 import { IResourceInput, IEditorInput, IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
+import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { AsyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 
 export class QuickOpenHandler {

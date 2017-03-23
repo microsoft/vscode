@@ -94,7 +94,7 @@ suite('Debug - Model', () => {
 		const threadId = 1;
 		const threadName = 'firstThread';
 
-		model.addProcess('mockProcess', rawSession);
+		model.addProcess({ name: 'mockProcess', type: 'node', request: 'launch' }, rawSession);
 		assert.equal(model.getProcesses().length, 1);
 		model.rawUpdate({
 			sessionId: rawSession.getId(),
@@ -125,7 +125,7 @@ suite('Debug - Model', () => {
 		const stoppedReason = 'breakpoint';
 
 		// Add the threads
-		model.addProcess('mockProcess', rawSession);
+		model.addProcess({ name: 'mockProcess', type: 'node', request: 'launch' }, rawSession);
 		model.rawUpdate({
 			sessionId: rawSession.getId(),
 			threadId: threadId1,
@@ -215,7 +215,7 @@ suite('Debug - Model', () => {
 		const runningThreadId = 2;
 		const runningThreadName = 'runningThread';
 		const stoppedReason = 'breakpoint';
-		model.addProcess('mockProcess', rawSession);
+		model.addProcess({ name: 'mockProcess', type: 'node', request: 'launch' }, rawSession);
 		// Add the threads
 		model.rawUpdate({
 			sessionId: rawSession.getId(),
@@ -308,7 +308,7 @@ suite('Debug - Model', () => {
 
 	test('watch expressions', () => {
 		assert.equal(model.getWatchExpressions().length, 0);
-		const process = new Process('mockProcess', rawSession);
+		const process = new Process({ name: 'mockProcess', type: 'node', request: 'launch' }, rawSession);
 		const thread = new Thread(process, 'mockthread', 1);
 		const stackFrame = new StackFrame(thread, 1, null, 'app.js', 1, 1);
 		model.addWatchExpression(process, stackFrame, 'console').done();
@@ -336,7 +336,7 @@ suite('Debug - Model', () => {
 
 	test('repl expressions', () => {
 		assert.equal(model.getReplElements().length, 0);
-		const process = new Process('mockProcess', rawSession);
+		const process = new Process({ name: 'mockProcess', type: 'node', request: 'launch' }, rawSession);
 		const thread = new Thread(process, 'mockthread', 1);
 		const stackFrame = new StackFrame(thread, 1, null, 'app.js', 1, 1);
 		model.addReplExpression(process, stackFrame, 'myVariable').done();
@@ -358,43 +358,38 @@ suite('Debug - Model', () => {
 
 	test('repl output', () => {
 		model.appendToRepl('first line\n', severity.Error);
-		model.appendToRepl('second line\n', severity.Warning);
-		model.appendToRepl('second line\n', severity.Warning);
-		model.appendToRepl('second line\n', severity.Error);
+		model.appendToRepl('second line', severity.Error);
+		model.appendToRepl('second line', severity.Error);
+		model.appendToRepl('third line', severity.Warning);
+		model.appendToRepl('third line', severity.Warning);
+		model.appendToRepl('fourth line', severity.Error);
 
 		let elements = <OutputElement[]>model.getReplElements();
-		assert.equal(elements.length, 3);
-		assert.equal(elements[0].value, 'first line\n');
+		assert.equal(elements.length, 4);
+		assert.equal(elements[0].value, 'first line');
 		assert.equal(elements[0].counter, 1);
 		assert.equal(elements[0].severity, severity.Error);
-		assert.equal(elements[1].value, 'second line\n');
+		assert.equal(elements[1].value, 'second line');
 		assert.equal(elements[1].counter, 2);
-		assert.equal(elements[1].severity, severity.Warning);
+		assert.equal(elements[1].severity, severity.Error);
+		assert.equal(elements[2].value, 'third line');
+		assert.equal(elements[2].counter, 2);
+		assert.equal(elements[2].severity, severity.Warning);
+		assert.equal(elements[3].value, 'fourth line');
+		assert.equal(elements[3].counter, 1);
+		assert.equal(elements[3].severity, severity.Error);
 
 		model.appendToRepl('1', severity.Warning);
-		model.appendToRepl('2', severity.Warning);
-		model.appendToRepl('3', severity.Warning);
 		elements = <OutputElement[]>model.getReplElements();
-		assert.equal(elements.length, 4);
-		assert.equal(elements[3].value, '123');
-		assert.equal(elements[3].severity, severity.Warning);
+		assert.equal(elements.length, 5);
+		assert.equal(elements[4].value, '1');
+		assert.equal(elements[4].severity, severity.Warning);
 
 		const keyValueObject = { 'key1': 2, 'key2': 'value' };
 		model.appendToRepl(new OutputNameValueElement('fake', keyValueObject), null);
-		const element = <OutputNameValueElement>model.getReplElements()[4];
+		const element = <OutputNameValueElement>model.getReplElements()[5];
 		assert.equal(element.value, 'Object');
 		assert.deepEqual(element.valueObj, keyValueObject);
-
-		const multiLineContent = 'multi line \n string \n last line';
-		model.appendToRepl(multiLineContent, severity.Info);
-		const multiLineElement = <OutputElement>model.getReplElements()[5];
-		assert.equal(multiLineElement.value, multiLineContent);
-		assert.equal(model.getReplElements().length, 6);
-
-		model.appendToRepl('second line', severity.Warning);
-		model.appendToRepl('second line', severity.Warning);
-
-		assert.equal((<OutputElement>model.getReplElements()[6]).value, 'second linesecond line');
 
 		model.removeReplExpressions();
 		assert.equal(model.getReplElements().length, 0);

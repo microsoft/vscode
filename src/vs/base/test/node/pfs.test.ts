@@ -14,7 +14,7 @@ import fs = require('fs');
 
 import uuid = require('vs/base/common/uuid');
 import extfs = require('vs/base/node/extfs');
-import { onError } from 'vs/test/utils/servicesTestUtils';
+import { onError } from 'vs/base/test/common/utils';
 import * as pfs from 'vs/base/node/pfs';
 
 suite('PFS', () => {

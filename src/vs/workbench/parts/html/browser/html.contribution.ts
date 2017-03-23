@@ -57,7 +57,7 @@ CommandsRegistry.registerCommand('_workbench.htmlZone', function (accessor: Serv
 
 	if (!codeEditor) {
 		console.warn('NO matching editor found');
-		return;
+		return undefined;
 	}
 
 	const textModelResolverService = accessor.get(ITextModelResolverService);
@@ -99,4 +99,16 @@ CommandsRegistry.registerCommand('_workbench.previewHtml', function (accessor: S
 	return accessor.get(IWorkbenchEditorService)
 		.openEditor(input, { pinned: true }, position)
 		.then(editor => true);
+});
+
+CommandsRegistry.registerCommand('_workbench.htmlPreview.postMessage', (accessor: ServicesAccessor, resource: URI | string, message: any) => {
+	const uri = resource instanceof URI ? resource : URI.parse(resource);
+	const activePreviews = accessor.get(IWorkbenchEditorService).getVisibleEditors()
+		.filter(c => c instanceof HtmlPreviewPart)
+		.map(e => e as HtmlPreviewPart)
+		.filter(e => e.model.uri.scheme === uri.scheme && e.model.uri.fsPath === uri.fsPath);
+	for (const preview of activePreviews) {
+		preview.sendMessage(message);
+	}
+	return activePreviews.length > 0;
 });

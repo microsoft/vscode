@@ -11,12 +11,9 @@ import Severity from 'vs/base/common/severity';
 import { IMessage, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { Registry } from 'vs/platform/platform';
-import { Emitter } from 'vs/base/common/event';
 
 const hasOwnProperty = Object.hasOwnProperty;
 const schemaRegistry = <IJSONContributionRegistry>Registry.as(Extensions.JSONContribution);
-
-export const onWillActivate: Emitter<string> = new Emitter<string>();
 
 export class ExtensionMessageCollector {
 
@@ -142,7 +139,7 @@ const schema: IJSONSchema = {
 			uniqueItems: true,
 			items: {
 				type: 'string',
-				enum: ['Languages', 'Snippets', 'Linters', 'Themes', 'Debuggers', 'Other', 'Keymaps', 'Formatters']
+				enum: ['Languages', 'Snippets', 'Linters', 'Themes', 'Debuggers', 'Other', 'Keymaps', 'Formatters', 'Extension Packs']
 			}
 		},
 		galleryBanner: {

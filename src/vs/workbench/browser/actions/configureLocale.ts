@@ -52,7 +52,7 @@ class ConfigureLocaleAction extends Action {
 			return this.fileService.createFile(file, ConfigureLocaleAction.DEFAULT_CONTENT);
 		}).then((stat) => {
 			if (!stat) {
-				return;
+				return undefined;
 			}
 			return this.editorService.openEditor({
 				resource: stat.resource,
@@ -89,5 +89,5 @@ const schema: IJSONSchema =
 		}
 	};
 
-const jsonRegistry = <IJSONContributionRegistry>Registry.as(JSONExtensions.JSONContribution);
+const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 jsonRegistry.registerSchema(schemaId, schema);

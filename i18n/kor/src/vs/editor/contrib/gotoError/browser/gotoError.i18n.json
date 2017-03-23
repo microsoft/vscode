@@ -6,8 +6,5 @@
 {
 	"markerAction.next.label": "다음 오류 또는 경고로 이동",
 	"markerAction.previous.label": "이전 오류 또는 경고로 이동",
-	"quickfix.multiple.label": "제안 수정:",
-	"quickfix.single.label": "제안 수정: ",
-	"title.w_source": "({0}/{1}) [{2}]",
 	"title.wo_source": "({0}/{1})"
 }

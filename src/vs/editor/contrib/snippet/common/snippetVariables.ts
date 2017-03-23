@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { basename, dirname } from 'vs/base/common/paths';
+import { basename, dirname, normalize } from 'vs/base/common/paths';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ISnippetVariableResolver } from './snippet';
 
@@ -33,7 +33,7 @@ export class SnippetVariablesResolver implements ISnippetVariableResolver {
 			case 'TM_DIRECTORY': return this._tmDirectory();
 			case 'TM_FILEPATH': return this._tmFilepath();
 		}
-		return;
+		return undefined;
 	}
 
 	private _tmCurrentLine(): string {
@@ -43,7 +43,7 @@ export class SnippetVariablesResolver implements ISnippetVariableResolver {
 
 	private _tmCurrentWord(): string {
 		const word = this._editor.getModel().getWordAtPosition(this._editor.getPosition());
-		return word && word.word;
+		return word ? word.word : '';
 	}
 
 	private _tmFilename(): string {
@@ -51,7 +51,8 @@ export class SnippetVariablesResolver implements ISnippetVariableResolver {
 	}
 
 	private _tmDirectory(): string {
-		return dirname(this._editor.getModel().uri.fsPath);
+		const dir = dirname(normalize(this._editor.getModel().uri.fsPath));
+		return dir !== '.' ? dir : '';
 	}
 
 	private _tmFilepath(): string {

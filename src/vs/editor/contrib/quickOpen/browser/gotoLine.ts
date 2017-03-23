@@ -72,14 +72,14 @@ export class GotoLineEntry extends QuickOpenEntry {
 
 		if (isValid) {
 			if (position.column && position.column > 1) {
-				label = nls.localize('gotoLineLabelValidLineAndColumn', "Go to line {0} and column {1}", position.lineNumber, position.column);
+				label = nls.localize('gotoLineLabelValidLineAndColumn', "Go to line {0} and character {1}", position.lineNumber, position.column);
 			} else {
 				label = nls.localize('gotoLineLabelValidLine', "Go to line {0}", position.lineNumber, position.column);
 			}
 		} else if (position.lineNumber < 1 || position.lineNumber > model.getLineCount()) {
 			label = nls.localize('gotoLineLabelEmptyWithLineLimit', "Type a line number between 1 and {0} to navigate to", model.getLineCount());
 		} else {
-			label = nls.localize('gotoLineLabelEmptyWithLineAndColumnLimit', "Type a column between 1 and {0} to navigate to", model.getLineMaxColumn(position.lineNumber));
+			label = nls.localize('gotoLineLabelEmptyWithLineAndColumnLimit', "Type a character between 1 and {0} to navigate to", model.getLineMaxColumn(position.lineNumber));
 		}
 
 		return {
@@ -153,7 +153,7 @@ export class GotoLineEntry extends QuickOpenEntry {
 export class GotoLineAction extends BaseEditorQuickOpenAction {
 
 	constructor() {
-		super(nls.localize('gotoLineActionInput', "Type a line number, followed by an optional colon and a column number to navigate to"), {
+		super(nls.localize('gotoLineActionInput', "Type a line number, followed by an optional colon and a character number to navigate to"), {
 			id: 'editor.action.gotoLine',
 			label: nls.localize('GotoLineAction.label', "Go to Line..."),
 			alias: 'Go to Line...',

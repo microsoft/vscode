@@ -20,11 +20,13 @@ import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { ModesContentHoverWidget } from './modesContentHover';
 import { ModesGlyphHoverWidget } from './modesGlyphHover';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 
 import EditorContextKeys = editorCommon.EditorContextKeys;
 
 @editorContribution
-class ModesHoverController implements editorCommon.IEditorContribution {
+export class ModesHoverController implements editorCommon.IEditorContribution {
 
 	private static ID = 'editor.contrib.hover';
 
@@ -170,3 +172,25 @@ class ShowHoverAction extends EditorAction {
 		controller.showContentHover(range, true);
 	}
 }
+
+// theming
+
+export const editorHoverHighlight = registerColor('editorHoverHighlight', { light: '#ADD6FF26', dark: '#264f7840', hc: '#ADD6FF26' }, nls.localize('hoverHighlight', 'Highlight below the word for which a hover is shown.'));
+export const editorHoverBackground = registerColor('editorHoverBackground', { light: '#F3F3F3', dark: '#2D2D30', hc: '#0C141F' }, nls.localize('hoverBackground', 'Background color of the editor hover.'));
+export const editorHoverBorder = registerColor('editorHoverBorder', { light: '#CCCCCC', dark: '#555555', hc: '#CCCCCC' }, nls.localize('hoverBorder', 'Border color of the editor hover.'));
+
+registerThemingParticipant((theme, collector) => {
+	let editorHoverHighlightColor = theme.getColor(editorHoverHighlight);
+	if (editorHoverHighlightColor) {
+		collector.addRule(`.monaco-editor.${theme.selector} .hoverHighlight { background-color: ${editorHoverHighlightColor}; }`);
+	}
+	let hoverBackground = theme.getColor(editorHoverBackground);
+	if (hoverBackground) {
+		collector.addRule(`.monaco-editor.${theme.selector} .monaco-editor-hover { background-color: ${hoverBackground}; }`);
+	}
+	let hoverBorder = theme.getColor(editorHoverBorder);
+	if (hoverBorder) {
+		collector.addRule(`.monaco-editor.${theme.selector} .monaco-editor-hover { border: 1px solid ${hoverBorder}; }`);
+		collector.addRule(`.monaco-editor.${theme.selector} .monaco-editor-hover .hover-row:not(:first-child):not(:empty) { border-top: 1px solid ${hoverBorder.transparent(0.5)}; }`);
+	}
+});

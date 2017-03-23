@@ -105,16 +105,9 @@ function main() {
 				});
 			}
 
-			var remapIgnores = [
-				'vs/base/common/winjs.base.js',
-				'vs/base/common/marked/marked.js',
-				'vs/nls.js',
-				'vs/css.js',
-				'vs/base/common/marked/raw.marked.js',
-				'vs/base/common/winjs.base.raw.js'
-			];
+			let remapIgnores = /\b((winjs\.base)|(marked)|(raw\.marked)|(nls)|(css))\.js$/;
 
-			var remappedCoverage = i_remap(global.__coverage__, { exclude: new RegExp(remapIgnores.join('|')) }).getFinalCoverage();
+			var remappedCoverage = i_remap(global.__coverage__, { exclude: remapIgnores }).getFinalCoverage();
 
 			// The remapped coverage comes out with broken paths
 			var toUpperDriveLetter = function(str) {
@@ -186,12 +179,23 @@ function main() {
 	var loadFunc = null;
 
 	if (argv.run) {
-		var tests = (typeof argv.run === 'string') ? [argv.run] : argv.run;
-		var modulesToLoad = tests.map(function(test) {
-			return path.relative(src, path.resolve(test)).replace(/(\.js)|(\.d\.ts)|(\.js\.map)$/, '');
-		});
-		loadFunc = function(cb) {
-			define(modulesToLoad, function () { cb(null); }, cb);
+		loadFunc = cb => {
+			const doRun = tests => {
+				const modulesToLoad = tests.map(test => {
+					if (path.isAbsolute(test)) {
+						test = path.relative(src, path.resolve(test));
+					}
+
+					return test.replace(/(\.js)|(\.d\.ts)|(\.js\.map)$/, '');
+				});
+				define(modulesToLoad, () => cb(null), cb);
+			};
+
+			if (typeof argv.run === 'string') {
+				glob(argv.run, { cwd: src }, function (err, files) { doRun(files); });
+			} else {
+				doRun(argv.run);
+			}
 		};
 	} else if (argv['only-monaco-editor']) {
 		loadFunc = function(cb) {
@@ -261,11 +265,8 @@ function main() {
 		// replace the default unexpected error handler to be useful during tests
 		loader(['vs/base/common/errors'], function(errors) {
 			errors.setUnexpectedErrorHandler(function (err) {
-				try {
-					throw new Error('oops');
-				} catch (e) {
-					unexpectedErrors.push((err && err.message ? err.message : err) + '\n' + e.stack);
-				}
+				let stack = (err && err.stack) || (new Error().stack);
+				unexpectedErrors.push((err && err.message ? err.message : err) + '\n' + stack);
 			});
 
 			// fire up mocha

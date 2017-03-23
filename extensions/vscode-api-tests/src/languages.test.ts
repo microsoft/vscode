@@ -29,7 +29,7 @@ suite('languages namespace tests', () => {
 		let ran = false;
 		let uri = Uri.parse('ttt:path.far');
 
-		let r1 = languages.registerCodeActionsProvider({ pattern: '*.far' }, {
+		let r1 = languages.registerCodeActionsProvider({ pattern: '*.far', scheme: 'ttt' }, {
 			provideCodeActions(document, range, ctx): Command[] {
 
 				assert.equal(ctx.diagnostics.length, 2);
@@ -69,7 +69,7 @@ suite('languages namespace tests', () => {
 
 	test('completions with document filters', function (done) {
 		let ran = false;
-		let uri = Uri.file(join(workspace.rootPath, './bower.json'));
+		let uri = Uri.file(join(workspace.rootPath || '', './bower.json'));
 
 		let jsonDocumentFilter = [{ language: 'json', pattern: '**/package.json' }, { language: 'json', pattern: '**/bower.json' }, { language: 'json', pattern: '**/.bower.json' }];
 

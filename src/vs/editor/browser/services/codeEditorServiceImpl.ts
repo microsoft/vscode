@@ -305,12 +305,14 @@ class DecorationRenderHelper {
 		if (typeof opts !== 'undefined') {
 			DecorationRenderHelper.collectBorderSettingsCSSText(opts, cssTextArr);
 			if (typeof opts.contentIconPath === 'string') {
-				cssTextArr.push(strings.format(this._CSS_MAP.contentIconPath, URI.file(opts.contentIconPath).toString()));
+				cssTextArr.push(strings.format(this._CSS_MAP.contentIconPath, URI.file(opts.contentIconPath).toString().replace(/'/g, '%27')));
 			} else if (opts.contentIconPath instanceof URI) {
 				cssTextArr.push(strings.format(this._CSS_MAP.contentIconPath, opts.contentIconPath.toString(true).replace(/'/g, '%27')));
 			}
-			if (typeof opts.contentText !== 'undefined') {
-				let escaped = opts.contentText.replace(/\"/g, '\\\"');
+			if (typeof opts.contentText === 'string') {
+				const truncated = opts.contentText.match(/^.*$/m)[0]; // only take first line
+				const escaped = truncated.replace(/['\\]/g, '\\$&');
+
 				cssTextArr.push(strings.format(this._CSS_MAP.contentText, escaped));
 			}
 			DecorationRenderHelper.collectCSSText(opts, ['textDecoration', 'color', 'backgroundColor', 'margin'], cssTextArr);
@@ -342,7 +344,7 @@ class DecorationRenderHelper {
 		return cssTextArr.join('');
 	}
 
-	private static border_rules = ['border', 'borderColor', 'borderColor', 'borderSpacing', 'borderStyle', 'borderWidth'];
+	private static border_rules = ['border', 'borderRadius', 'borderColor', 'borderSpacing', 'borderStyle', 'borderWidth'];
 
 	public static collectBorderSettingsCSSText(opts: any, cssTextArr: string[]): boolean {
 		if (DecorationRenderHelper.collectCSSText(opts, DecorationRenderHelper.border_rules, cssTextArr)) {

@@ -9,6 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import Event from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { IEditorViewState } from 'vs/editor/common/editorCommon';
 
 export const IEditorService = createDecorator<IEditorService>('editorService');
 
@@ -37,7 +38,25 @@ export interface IEditorModel {
 	dispose(): void;
 }
 
-export interface IResourceInput {
+export interface IBaseResourceInput {
+
+	/**
+	 * Optional options to use when opening the text input.
+	 */
+	options?: ITextEditorOptions;
+
+	/**
+	 * Label to show for the diff editor
+	 */
+	label?: string;
+
+	/**
+	 * Description to show for the diff editor
+	 */
+	description?: string;
+}
+
+export interface IResourceInput extends IBaseResourceInput {
 
 	/**
 	 * The resource URL of the resource to open.
@@ -48,11 +67,32 @@ export interface IResourceInput {
 	 * The encoding of the text input if known.
 	 */
 	encoding?: string;
+}
+
+export interface IResourceDiffInput extends IBaseResourceInput {
 
 	/**
-	 * Optional options to use when opening the text input.
+	 * The left hand side URI to open inside a diff editor.
 	 */
-	options?: ITextEditorOptions;
+	leftResource: URI;
+
+	/**
+	 * The right hand side URI to open inside a diff editor.
+	 */
+	rightResource: URI;
+}
+
+export interface IResourceSideBySideInput extends IBaseResourceInput {
+
+	/**
+	 * The right hand side URI to open inside a side by side editor.
+	 */
+	masterResource: URI;
+
+	/**
+	 * The left hand side URI to open inside a side by side editor.
+	 */
+	detailResource: URI;
 }
 
 export interface IEditorControl {
@@ -119,6 +159,12 @@ export enum Direction {
 	RIGHT
 }
 
+export enum Verbosity {
+	SHORT,
+	MEDIUM,
+	LONG
+}
+
 export interface IEditorInput extends IDisposable {
 
 	onDispose: Event<void>;
@@ -134,6 +180,11 @@ export interface IEditorInput extends IDisposable {
 	getDescription(verbose?: boolean): string;
 
 	/**
+	 * Returns the display title of this input.
+	 */
+	getTitle(verbosity?: Verbosity): string;
+
+	/**
 	 * Resolves the input.
 	 */
 	resolve(): TPromise<IEditorModel>;
@@ -142,6 +193,11 @@ export interface IEditorInput extends IDisposable {
 	 * Returns if this input is dirty or not.
 	 */
 	isDirty(): boolean;
+
+	/**
+	 * Reverts this input.
+	 */
+	revert(): TPromise<boolean>;
 
 	/**
 	 * Returns if the other object matches this input.
@@ -198,4 +254,14 @@ export interface ITextEditorOptions extends IEditorOptions {
 		endLineNumber?: number;
 		endColumn?: number;
 	};
+
+	/**
+	 * Text editor view state.
+	 */
+	viewState?: IEditorViewState;
+
+	/**
+	 * Option to scroll vertically or horizontally as necessary and reveal a range centered vertically only if it lies outside the viewport.
+	 */
+	revealInCenterIfOutsideViewport?: boolean;
 }

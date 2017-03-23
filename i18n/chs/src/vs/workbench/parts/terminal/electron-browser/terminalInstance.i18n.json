@@ -6,5 +6,6 @@
 {
 	"terminal.integrated.copySelection.noSelection": "当终端没有位于焦点时无法复制终端选定内容",
 	"terminal.integrated.exitedWithCode": "通过退出代码 {0} 终止的终端进程",
-	"terminal.integrated.launchFailed": "终端进程命令“{0} {1}”无法启动(退出代码: {2})"
+	"terminal.integrated.launchFailed": "终端进程命令“{0} {1}”无法启动(退出代码: {2})",
+	"terminal.integrated.waitOnExit": "按任意键以关闭终端"
 }

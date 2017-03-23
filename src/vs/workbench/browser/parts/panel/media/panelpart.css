@@ -3,35 +3,138 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench.nopanel > .panel {
+.monaco-workbench.nopanel > .part.panel {
 	display: none !important;
 	visibility: hidden !important;
-}
-
-.monaco-workbench > .part.panel .title {
-	padding-right: 0px;
-	border-top: 1px solid rgba(128, 128, 128, 0.35);
-	height: 36px;
-}
-
-.monaco-workbench > .part.panel > .title > .title-label > span {
-	vertical-align: top;
 }
 
 .monaco-workbench > .part.panel {
 	z-index: initial;
 }
 
+.monaco-workbench > .part.panel .title {
+	border-top-width: 1px;
+	border-top-style: solid;
+	padding-right: 0px;
+	height: 35px;
+}
+
+/** Panel Switcher */
+
+.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar {
+	line-height: 35px;
+}
+
+.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:first-child .action-label {
+	margin-left: 12px;
+}
+
+.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label {
+	text-transform: uppercase;
+	margin-left: 16px;
+	margin-right: 16px;
+	font-size: 11px;
+	padding-bottom: 4px; /* puts the bottom border down */
+}
+
+.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label.checked {
+	border-bottom: 1px solid;
+}
+
+.hc-black .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label.checked,
+.hc-black .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label:hover {
+	outline: 1px solid;
+	border-bottom: none;
+	padding-bottom: 0;
+	outline-offset: 3px;
+}
+
+.hc-black .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label:hover:not(.checked) {
+	outline-style: dashed;
+}
+
+.vs .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label:focus,
+.vs-dark .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label:focus {
+	border-bottom: 1px solid;
+	outline: none !important;
+}
+
+.hc-black .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label:focus {
+	border-bottom: 1px solid;
+	outline: none !important;
+}
+
+/** Actions */
+
 .monaco-workbench .hide-panel-action {
-	background: url('hide.svg') center center no-repeat;
+	background: url('close.svg') center center no-repeat;
+}
+
+.monaco-workbench .maximize-panel-action {
+	background: url('up.svg') center center no-repeat;
+}
+
+.vs-dark .monaco-workbench .maximize-panel-action,
+.hc-black .monaco-workbench .maximize-panel-action {
+	background: url('up-inverse.svg') center center no-repeat;
+}
+
+.monaco-workbench .minimize-panel-action {
+	background: url('down.svg') center center no-repeat;
+}
+
+.vs-dark .monaco-workbench .minimize-panel-action,
+.hc-black .monaco-workbench .minimize-panel-action {
+	background: url('down-inverse.svg') center center no-repeat;
 }
 
 .vs-dark .monaco-workbench .hide-panel-action,
 .hc-black .monaco-workbench .hide-panel-action {
-	background: url('hide-inverse.svg') center center no-repeat;
+	background: url('close-inverse.svg') center center no-repeat;
 }
 
-/* High Contrast Theming */
-.hc-black .monaco-workbench > .part.panel > .title {
-	border-top-color: #6FC3DF;
+/** TODO@theme (widgets) */
+
+.vs .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label {
+	color: rgba(66, 66, 66, 0.75);
+}
+
+.vs-dark .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label {
+	color: rgba(231, 231, 231, 0.5);
+}
+
+.hc-black .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label {
+	color: #fff;
+}
+
+.vs .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:hover .action-label,
+.vs .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label.checked {
+	color: rgb(66, 66, 66);
+}
+
+.vs-dark .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:hover .action-label,
+.vs-dark .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label.checked {
+	color: rgb(231, 231, 231);
+}
+
+.vs .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label.checked {
+	border-bottom-color: #ccceda;
+}
+
+.vs-dark .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label.checked {
+	border-bottom-color: #404047;
+}
+
+.hc-black .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label.checked,
+.hc-black .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label:hover {
+	outline-color: #f38518;
+}
+
+.vs .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label:focus,
+.vs-dark .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label:focus {
+	border-bottom-color: #007ACC;
+}
+
+.hc-black .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label:focus {
+	border-bottom-color: #f38518;
 }

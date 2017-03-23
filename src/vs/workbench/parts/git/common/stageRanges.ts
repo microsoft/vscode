@@ -4,9 +4,42 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IChange, IModel } from 'vs/editor/common/editorCommon';
+import { IChange, IModel, IIdentifiedSingleEditOperation } from 'vs/editor/common/editorCommon';
 import { Range } from 'vs/editor/common/core/range';
+import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
+import { EditOperation } from 'vs/editor/common/core/editOperation';
+
+/**
+ * Represents the selected portion of an IChange, and includes the start/end line numbers of the full change
+ */
+export class SelectedChange implements IChange {
+	readonly originalStartLineNumber: number;
+	readonly originalEndLineNumber: number;
+	readonly modifiedStartLineNumber: number;
+	readonly modifiedEndLineNumber: number;
+
+	readonly fullModifiedStartLineNumber: number;
+	readonly fullModifiedEndLineNumber: number;
+
+	constructor(selected: IChange, full: IChange) {
+		this.originalStartLineNumber = selected.originalStartLineNumber;
+		this.originalEndLineNumber = selected.originalEndLineNumber;
+		this.modifiedStartLineNumber = selected.modifiedStartLineNumber;
+		this.modifiedEndLineNumber = selected.modifiedEndLineNumber;
+
+		this.fullModifiedStartLineNumber = full.modifiedStartLineNumber;
+		this.fullModifiedEndLineNumber = full.modifiedEndLineNumber;
+	}
+
+	/**
+	 * True when the change is entirely selected
+	 */
+	get isCompletelySelected(): boolean {
+		return this.modifiedStartLineNumber === this.fullModifiedStartLineNumber &&
+			this.modifiedEndLineNumber === this.fullModifiedEndLineNumber;
+	}
+}
 
 function sortChanges(changes: IChange[]): void {
 	changes.sort((left, right) => {
@@ -64,10 +97,10 @@ export function intersectChangeAndSelection(change: IChange, selection: Selectio
  * Returns all selected changes (there can be multiple selections due to multiple cursors).
  * If a change is partially selected, the selected part of the change will be returned.
  */
-export function getSelectedChanges(changes: IChange[], selections: Selection[]): IChange[] {
+export function getSelectedChanges(changes: IChange[], selections: Selection[]): SelectedChange[] {
 	sortChanges(changes);
 	sortSelections(selections);
-	var result: IChange[] = [];
+	var result: SelectedChange[] = [];
 	var currentSelection = 0;
 	var lastLineAdded = -1;
 
@@ -81,13 +114,13 @@ export function getSelectedChanges(changes: IChange[], selections: Selection[]):
 			if (intersectedChange !== null) {
 				// Each change needs to be disjoint so we check if we already added this line.
 				if (lastLineAdded !== intersectedChange.modifiedStartLineNumber) {
-					result.push(intersectedChange);
+					result.push(new SelectedChange(intersectedChange, changes[i]));
 					lastLineAdded = intersectedChange.modifiedEndLineNumber;
 				} else {
 					// Update change such that we do not add same line twice.
 					intersectedChange.modifiedStartLineNumber++;
 					if (intersectedChange.modifiedStartLineNumber <= intersectedChange.modifiedEndLineNumber) {
-						result.push(intersectedChange);
+						result.push(new SelectedChange(intersectedChange, changes[i]));
 						lastLineAdded = intersectedChange.modifiedEndLineNumber;
 					}
 				}
@@ -142,4 +175,64 @@ export function applyChangesToModel(original: IModel, modified: IModel, changes:
 	}
 
 	return result;
+}
+
+export function getChangeRevertEdits(original: IModel, modified: IModel, changes: SelectedChange[]): IIdentifiedSingleEditOperation[] {
+	sortChanges(changes);
+
+	const getDeleteOperation = (change: IChange) => {
+		const fullRange = getLinesRangeWithOneSurroundingNewline(modified, change.modifiedStartLineNumber, change.modifiedEndLineNumber);
+		return EditOperation.delete(fullRange);
+	};
+
+	return changes.map((change, i) => {
+		if (isInsertion(change)) {
+			// Delete inserted range
+			return getDeleteOperation(change);
+		} else if (isDeletion(change)) {
+			// Get the original lines and insert at the deleted position
+			const value = original.getValueInRange(getLinesRangeWithOneSurroundingNewline(original, change.originalStartLineNumber, change.originalEndLineNumber));
+			return EditOperation.insert(new Position(change.modifiedStartLineNumber + 1, 1), value);
+		} else if (change.isCompletelySelected) {
+			// If the entire change is selected, then revert the whole thing.
+			const value = original.getValueInRange(new Range(change.originalStartLineNumber, 1, change.originalEndLineNumber + 1, 1));
+			return EditOperation.replace(new Range(change.modifiedStartLineNumber, 1, change.modifiedEndLineNumber + 1, 1), value);
+		} else {
+			// If only a portion is selected, replace with the matching lines - e.g. if lines 2-4 are selected, replace with lines 2-4 from the original model (if they exist)
+			const copyOffset = change.modifiedStartLineNumber - change.fullModifiedStartLineNumber;
+			const numLinesToCopy = change.modifiedEndLineNumber - change.modifiedStartLineNumber;
+			const copyStartLine = change.originalStartLineNumber + copyOffset;
+			const copyEndLine = Math.min(copyStartLine + numLinesToCopy, original.getLineCount());
+			if (copyStartLine > copyEndLine) {
+				return getDeleteOperation(change);
+			}
+
+			// Compute the range to copy, and intersect with the full original range to validate
+			const originalRange = new Range(change.originalStartLineNumber, 1, change.originalEndLineNumber, original.getLineMaxColumn(change.originalEndLineNumber));
+			const rangeToCopy = originalRange.intersectRanges(
+				new Range(copyStartLine, 1, copyEndLine, original.getLineMaxColumn(copyEndLine)));
+
+			// No intersection, so delete the added text
+			if (!rangeToCopy) {
+				return getDeleteOperation(change);
+			}
+
+			const value = original.getValueInRange(rangeToCopy);
+			return EditOperation.replace(new Range(change.modifiedStartLineNumber, 1, change.modifiedEndLineNumber, modified.getLineMaxColumn(change.modifiedEndLineNumber)), value);
+		}
+	});
+}
+
+function getLinesRangeWithOneSurroundingNewline(model: IModel, startLine: number, endLine: number): Range {
+	let startColumn = 1;
+	let endColumn = model.getLineMaxColumn(endLine);
+	if (endLine < model.getLineCount()) {
+		endLine++;
+		endColumn = 1;
+	} else if (startLine > 1) {
+		startLine--;
+		startColumn = model.getLineMaxColumn(startLine);
+	}
+
+	return new Range(startLine, startColumn, endLine, endColumn);
 }

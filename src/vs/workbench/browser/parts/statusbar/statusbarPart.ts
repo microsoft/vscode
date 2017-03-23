@@ -26,6 +26,10 @@ import { IStatusbarService, IStatusbarEntry } from 'vs/platform/statusbar/common
 import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { Action } from 'vs/base/common/actions';
+import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
+import { STATUS_BAR_BACKGROUND, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_BACKGROUND, STATUS_BAR_INFO_ITEM_BACKGROUND, STATUS_BAR_INFO_ITEM_HOVER_BACKGROUND, STATUS_BAR_ITEM_HOVER_BACKGROUND, STATUS_BAR_ITEM_ACTIVE_BACKGROUND } from 'vs/workbench/common/theme';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { highContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 
 export class StatusbarPart extends Part implements IStatusbarService {
 
@@ -40,9 +44,11 @@ export class StatusbarPart extends Part implements IStatusbarService {
 
 	constructor(
 		id: string,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IThemeService themeService: IThemeService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) {
-		super(id);
+		super(id, { hasTitle: false }, themeService);
 
 		this.toDispose = [];
 	}
@@ -50,17 +56,17 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	public addEntry(entry: IStatusbarEntry, alignment: StatusbarAlignment, priority: number = 0): IDisposable {
 
 		// Render entry in status bar
-		let el = this.doCreateStatusItem(alignment, priority);
-		let item = this.instantiationService.createInstance(StatusBarEntryItem, entry);
-		let toDispose = item.render(el);
+		const el = this.doCreateStatusItem(alignment, priority);
+		const item = this.instantiationService.createInstance(StatusBarEntryItem, entry);
+		const toDispose = item.render(el);
 
 		// Insert according to priority
-		let container = this.statusItemsContainer.getHTMLElement();
-		let neighbours = this.getEntries(alignment);
+		const container = this.statusItemsContainer.getHTMLElement();
+		const neighbours = this.getEntries(alignment);
 		let inserted = false;
 		for (let i = 0; i < neighbours.length; i++) {
-			let neighbour = neighbours[i];
-			let nPriority = $(neighbour).getProperty(StatusbarPart.PRIORITY_PROP);
+			const neighbour = neighbours[i];
+			const nPriority = $(neighbour).getProperty(StatusbarPart.PRIORITY_PROP);
 			if (
 				alignment === StatusbarAlignment.LEFT && nPriority < priority ||
 				alignment === StatusbarAlignment.RIGHT && nPriority > priority
@@ -87,12 +93,12 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	}
 
 	private getEntries(alignment: StatusbarAlignment): HTMLElement[] {
-		let entries: HTMLElement[] = [];
+		const entries: HTMLElement[] = [];
 
-		let container = this.statusItemsContainer.getHTMLElement();
-		let children = container.children;
+		const container = this.statusItemsContainer.getHTMLElement();
+		const children = container.children;
 		for (let i = 0; i < children.length; i++) {
-			let childElement = <HTMLElement>children.item(i);
+			const childElement = <HTMLElement>children.item(i);
 			if ($(childElement).getProperty(StatusbarPart.ALIGNMENT_PROP) === alignment) {
 				entries.push(childElement);
 			}
@@ -105,18 +111,18 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		this.statusItemsContainer = $(parent);
 
 		// Fill in initial items that were contributed from the registry
-		let registry = (<IStatusbarRegistry>Registry.as(Extensions.Statusbar));
+		const registry = Registry.as<IStatusbarRegistry>(Extensions.Statusbar);
 
-		let leftDescriptors = registry.items.filter(d => d.alignment === StatusbarAlignment.LEFT).sort((a, b) => b.priority - a.priority);
-		let rightDescriptors = registry.items.filter(d => d.alignment === StatusbarAlignment.RIGHT).sort((a, b) => a.priority - b.priority);
+		const leftDescriptors = registry.items.filter(d => d.alignment === StatusbarAlignment.LEFT).sort((a, b) => b.priority - a.priority);
+		const rightDescriptors = registry.items.filter(d => d.alignment === StatusbarAlignment.RIGHT).sort((a, b) => a.priority - b.priority);
 
-		let descriptors = rightDescriptors.concat(leftDescriptors); // right first because they float
+		const descriptors = rightDescriptors.concat(leftDescriptors); // right first because they float
 
 		this.toDispose.push(...descriptors.map(descriptor => {
-			let item = this.instantiationService.createInstance(descriptor.syncDescriptor);
-			let el = this.doCreateStatusItem(descriptor.alignment, descriptor.priority);
+			const item = this.instantiationService.createInstance(descriptor.syncDescriptor);
+			const el = this.doCreateStatusItem(descriptor.alignment, descriptor.priority);
 
-			let dispose = item.render(el);
+			const dispose = item.render(el);
 			this.statusItemsContainer.append(el);
 
 			return dispose;
@@ -125,8 +131,22 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		return this.statusItemsContainer;
 	}
 
+	protected updateStyles(): void {
+		super.updateStyles();
+
+		const container = this.getContainer();
+
+		container.style('color', this.getColor(STATUS_BAR_FOREGROUND));
+		container.style('background-color', this.getColor(this.contextService.hasWorkspace() ? STATUS_BAR_BACKGROUND : STATUS_BAR_NO_FOLDER_BACKGROUND));
+
+		const useBorder = this.isHighContrastTheme;
+		container.style('border-top-width', useBorder ? '1px' : null);
+		container.style('border-top-style', useBorder ? 'solid' : null);
+		container.style('border-top-color', useBorder ? this.getColor(highContrastBorder) : null);
+	}
+
 	private doCreateStatusItem(alignment: StatusbarAlignment, priority: number = 0): HTMLElement {
-		let el = document.createElement('div');
+		const el = document.createElement('div');
 		dom.addClass(el, 'statusbar-item');
 
 		if (alignment === StatusbarAlignment.RIGHT) {
@@ -258,9 +278,9 @@ class StatusBarEntryItem implements IStatusbarItem {
 	private executeCommand(id: string) {
 
 		// Lookup built in commands
-		let builtInActionDescriptor = (<IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions)).getWorkbenchAction(id);
+		const builtInActionDescriptor = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions).getWorkbenchAction(id);
 		if (builtInActionDescriptor) {
-			let action = this.instantiationService.createInstance(builtInActionDescriptor.syncDescriptor);
+			const action = this.instantiationService.createInstance(builtInActionDescriptor.syncDescriptor);
 
 			if (action.enabled) {
 				this.telemetryService.publicLog('workbenchActionExecuted', { id: action.id, from: 'status bar' });
@@ -275,8 +295,8 @@ class StatusBarEntryItem implements IStatusbarItem {
 		}
 
 		// Maintain old behaviour of always focusing the editor here
-		let activeEditor = this.editorService.getActiveEditor();
-		let codeEditor = getCodeEditor(activeEditor);
+		const activeEditor = this.editorService.getActiveEditor();
+		const codeEditor = getCodeEditor(activeEditor);
 		if (codeEditor) {
 			codeEditor.focus();
 		}
@@ -298,3 +318,25 @@ class ManageExtensionAction extends Action {
 		return this.commandService.executeCommand('_extensions.manage', extensionId);
 	}
 }
+
+registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+	const statusBarItemHoverBackground = theme.getColor(STATUS_BAR_ITEM_HOVER_BACKGROUND);
+	if (statusBarItemHoverBackground) {
+		collector.addRule(`.monaco-workbench > .part.statusbar > .statusbar-item a:hover:not([disabled]):not(.disabled) { background-color: ${statusBarItemHoverBackground}; }`);
+	}
+
+	const statusBarItemActiveBackground = theme.getColor(STATUS_BAR_ITEM_ACTIVE_BACKGROUND);
+	if (statusBarItemActiveBackground) {
+		collector.addRule(`.monaco-workbench > .part.statusbar > .statusbar-item a:active:not([disabled]):not(.disabled) { background-color: ${statusBarItemActiveBackground}; }`);
+	}
+
+	const statusBarInfoItemBackground = theme.getColor(STATUS_BAR_INFO_ITEM_BACKGROUND);
+	if (statusBarInfoItemBackground) {
+		collector.addRule(`.monaco-workbench > .part.statusbar > .statusbar-item .status-bar-info { background-color: ${statusBarInfoItemBackground}; }`);
+	}
+
+	const statusBarInfoItemHoverBackground = theme.getColor(STATUS_BAR_INFO_ITEM_HOVER_BACKGROUND);
+	if (statusBarInfoItemHoverBackground) {
+		collector.addRule(`.monaco-workbench > .part.statusbar > .statusbar-item a.status-bar-info:hover:not([disabled]):not(.disabled) { background-color: ${statusBarInfoItemHoverBackground}; }`);
+	}
+});

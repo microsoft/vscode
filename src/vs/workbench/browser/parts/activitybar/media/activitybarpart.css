@@ -15,24 +15,3 @@
 	text-align: left;
 	background-color: inherit;
 }
-
-.vs .monaco-workbench > .activitybar > .content {
-	background-color: #2C2C2C;
-}
-
-.vs-dark .monaco-workbench > .activitybar > .content {
-	background-color: #333;
-}
-
-/* High Contrast Theming */
-.hc-black .monaco-workbench > .part.activitybar.left {
-	border-right: 1px solid #6FC3DF;
-}
-
-.hc-black .monaco-workbench > .part.activitybar.right {
-	border-left: 1px solid #6FC3DF;
-}
-
-.hc-black .monaco-workbench > .activitybar > .content {
-	background-color: #000;
-}

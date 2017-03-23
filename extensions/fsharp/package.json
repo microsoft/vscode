@@ -3,6 +3,9 @@
 	"version": "0.1.0",
 	"publisher": "vscode",
 	"engines": { "vscode": "*" },
+	"scripts": {
+		"update-grammar": "node ../../build/npm/update-grammar.js ionide/ionide-fsgrammar grammar/fsharp.json ./syntaxes/fsharp.json"
+	},
 	"contributes": {
 		"languages": [{
 			"id": "fsharp",

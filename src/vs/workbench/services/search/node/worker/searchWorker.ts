@@ -15,10 +15,10 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { ISerializedFileMatch } from '../search';
 import * as baseMime from 'vs/base/common/mime';
 import { ILineMatch } from 'vs/platform/search/common/search';
-import { UTF16le, UTF16be, UTF8, UTF8_with_bom, encodingExists, decode } from 'vs/base/node/encoding';
+import { UTF16le, UTF16be, UTF8, UTF8_with_bom, encodingExists, decode, bomLength } from 'vs/base/node/encoding';
 import { detectMimeAndEncodingFromBuffer } from 'vs/base/node/mime';
 
-import { ISearchWorker, ISearchWorkerConfig, ISearchWorkerSearchArgs, ISearchWorkerSearchResult } from './searchWorkerIpc';
+import { ISearchWorker, ISearchWorkerSearchArgs, ISearchWorkerSearchResult } from './searchWorkerIpc';
 
 interface ReadLinesOptions {
 	bufferLength: number;
@@ -33,23 +33,27 @@ function onError(error: any): void {
 	}
 }
 
-export class SearchWorkerManager implements ISearchWorker {
+export class SearchWorker implements ISearchWorker {
 	private currentSearchEngine: SearchWorkerEngine;
 
-	initialize(config: ISearchWorkerConfig): TPromise<void> {
-		this.currentSearchEngine = new SearchWorkerEngine(config);
+	initialize(): TPromise<void> {
+		this.currentSearchEngine = new SearchWorkerEngine();
 		return TPromise.wrap<void>(undefined);
 	}
 
 	cancel(): TPromise<void> {
 		// Cancel the current search. It will stop searching and close its open files.
-		this.currentSearchEngine.cancel();
+		if (this.currentSearchEngine) {
+			this.currentSearchEngine.cancel();
+		}
+
 		return TPromise.wrap<void>(null);
 	}
 
 	search(args: ISearchWorkerSearchArgs): TPromise<ISearchWorkerSearchResult> {
 		if (!this.currentSearchEngine) {
-			return TPromise.wrapError(new Error('SearchWorker is not initialized'));
+			// Worker timed out during search
+			this.initialize();
 		}
 
 		return this.currentSearchEngine.searchBatch(args);
@@ -62,28 +66,25 @@ interface IFileSearchResult {
 	limitReached?: boolean;
 }
 
+const LF = 0x0a;
+const CR = 0x0d;
+
 export class SearchWorkerEngine {
-	private contentPattern: RegExp;
-	private fileEncoding: string;
 	private nextSearch = TPromise.wrap(null);
-
 	private isCanceled = false;
-
-	constructor(config: ISearchWorkerConfig) {
-		this.contentPattern = strings.createRegExp(config.pattern.pattern, config.pattern.isRegExp, { matchCase: config.pattern.isCaseSensitive, wholeWord: config.pattern.isWordMatch, multiline: false, global: true });
-		this.fileEncoding = encodingExists(config.fileEncoding) ? config.fileEncoding : UTF8;
-	}
 
 	/**
 	 * Searches some number of the given paths concurrently, and starts searches in other paths when those complete.
 	 */
 	searchBatch(args: ISearchWorkerSearchArgs): TPromise<ISearchWorkerSearchResult> {
+		const contentPattern = strings.createRegExp(args.pattern.pattern, args.pattern.isRegExp, { matchCase: args.pattern.isCaseSensitive, wholeWord: args.pattern.isWordMatch, multiline: false, global: true });
+		const fileEncoding = encodingExists(args.fileEncoding) ? args.fileEncoding : UTF8;
 		return this.nextSearch =
-			this.nextSearch.then(() => this._searchBatch(args));
+			this.nextSearch.then(() => this._searchBatch(args, contentPattern, fileEncoding));
 	}
 
 
-	private _searchBatch(args: ISearchWorkerSearchArgs): TPromise<ISearchWorkerSearchResult> {
+	private _searchBatch(args: ISearchWorkerSearchArgs, contentPattern: RegExp, fileEncoding: string): TPromise<ISearchWorkerSearchResult> {
 		if (this.isCanceled) {
 			return TPromise.wrap(null);
 		}
@@ -97,7 +98,7 @@ export class SearchWorkerEngine {
 
 			// Search in the given path, and when it's finished, search in the next path in absolutePaths
 			const startSearchInFile = (absolutePath: string): TPromise<void> => {
-				return this.searchInFile(absolutePath, this.contentPattern, this.fileEncoding, args.maxResults && (args.maxResults - result.numMatches)).then(fileResult => {
+				return this.searchInFile(absolutePath, contentPattern, fileEncoding, args.maxResults && (args.maxResults - result.numMatches)).then(fileResult => {
 					// Finish early if search is canceled
 					if (this.isCanceled) {
 						return;
@@ -166,31 +167,13 @@ export class SearchWorkerEngine {
 		return new TPromise<void>((resolve, reject) => {
 			fs.open(filename, 'r', null, (error: Error, fd: number) => {
 				if (error) {
-					return reject(error);
+					return resolve(null);
 				}
 
-				let buffer = new Buffer(options.bufferLength);
-				let pos: number;
-				let i: number;
+				const buffer = new Buffer(options.bufferLength);
 				let line = '';
 				let lineNumber = 0;
-				let lastBufferHadTraillingCR = false;
-
-				const decodeBuffer = (buffer: NodeBuffer, start, end): string => {
-					if (options.encoding === UTF8 || options.encoding === UTF8_with_bom) {
-						return buffer.toString(undefined, start, end); // much faster to use built in toString() when encoding is default
-					}
-
-					return decode(buffer.slice(start, end), options.encoding);
-				};
-
-				const lineFinished = (offset: number): void => {
-					line += decodeBuffer(buffer, pos, i + offset);
-					perLineCallback(line, lineNumber);
-					line = '';
-					lineNumber++;
-					pos = i + offset;
-				};
+				let lastBufferHadTrailingCR = false;
 
 				const readFile = (isFirstRead: boolean, clb: (error: Error) => void): void => {
 					if (this.isCanceled) {
@@ -198,16 +181,35 @@ export class SearchWorkerEngine {
 					}
 
 					fs.read(fd, buffer, 0, buffer.length, null, (error: Error, bytesRead: number, buffer: NodeBuffer) => {
+						const decodeBuffer = (buffer: NodeBuffer, start: number, end: number): string => {
+							if (options.encoding === UTF8 || options.encoding === UTF8_with_bom) {
+								return buffer.toString(undefined, start, end); // much faster to use built in toString() when encoding is default
+							}
+
+							return decode(buffer.slice(start, end), options.encoding);
+						};
+
+						const lineFinished = (offset: number): void => {
+							line += decodeBuffer(buffer, pos, i + offset);
+							perLineCallback(line, lineNumber);
+							line = '';
+							lineNumber++;
+							pos = i + offset;
+						};
+
 						if (error || bytesRead === 0 || this.isCanceled) {
 							return clb(error); // return early if canceled or limit reached or no more bytes to read
 						}
 
-						pos = 0;
-						i = 0;
+						let crlfCharSize = 1;
+						let crBytes = [CR];
+						let lfBytes = [LF];
+						let pos = 0;
+						let i = 0;
 
 						// Detect encoding and mime when this is the beginning of the file
 						if (isFirstRead) {
-							let mimeAndEncoding = detectMimeAndEncodingFromBuffer(buffer, bytesRead);
+							const mimeAndEncoding = detectMimeAndEncodingFromBuffer({ buffer, bytesRead });
 							if (mimeAndEncoding.mimes[mimeAndEncoding.mimes.length - 1] !== baseMime.MIME_TEXT) {
 								return clb(null); // skip files that seem binary
 							}
@@ -215,42 +217,61 @@ export class SearchWorkerEngine {
 							// Check for BOM offset
 							switch (mimeAndEncoding.encoding) {
 								case UTF8:
-									pos = i = 3;
+									pos = i = bomLength(UTF8);
 									options.encoding = UTF8;
 									break;
 								case UTF16be:
-									pos = i = 2;
+									pos = i = bomLength(UTF16be);
 									options.encoding = UTF16be;
 									break;
 								case UTF16le:
-									pos = i = 2;
+									pos = i = bomLength(UTF16le);
 									options.encoding = UTF16le;
 									break;
 							}
+
+							// when we are running with UTF16le/be, LF and CR are encoded as
+							// two bytes, like 0A 00 (LF) / 0D 00 (CR) for LE or flipped around
+							// for BE. We need to account for this when splitting the buffer into
+							// newlines, and when detecting a CRLF combo.
+							if (options.encoding === UTF16le) {
+								crlfCharSize = 2;
+								crBytes = [CR, 0x00];
+								lfBytes = [LF, 0x00];
+							} else if (options.encoding === UTF16be) {
+								crlfCharSize = 2;
+								crBytes = [0x00, CR];
+								lfBytes = [0x00, LF];
+							}
 						}
 
-						if (lastBufferHadTraillingCR) {
-							if (buffer[i] === 0x0a) { // LF (Line Feed)
-								lineFinished(1);
+						if (lastBufferHadTrailingCR) {
+							if (buffer[i] === lfBytes[0] && (lfBytes.length === 1 || buffer[i + 1] === lfBytes[1])) {
+								lineFinished(1 * crlfCharSize);
 								i++;
 							} else {
 								lineFinished(0);
 							}
 
-							lastBufferHadTraillingCR = false;
+							lastBufferHadTrailingCR = false;
 						}
 
+						/**
+						 * This loop executes for every byte of every file in the workspace - it is highly performance-sensitive!
+						 * Hence the duplication in reading the buffer to avoid a function call. Previously a function call was not
+						 * being inlined by V8.
+						 */
 						for (; i < bytesRead; ++i) {
-							if (buffer[i] === 0x0a) { // LF (Line Feed)
-								lineFinished(1);
-							} else if (buffer[i] === 0x0d) { // CR (Carriage Return)
-								if (i + 1 === bytesRead) {
-									lastBufferHadTraillingCR = true;
-								} else if (buffer[i + 1] === 0x0a) { // LF (Line Feed)
-									lineFinished(2);
-									i++;
+							if (buffer[i] === lfBytes[0] && (lfBytes.length === 1 || buffer[i + 1] === lfBytes[1])) {
+								lineFinished(1 * crlfCharSize);
+							} else if (buffer[i] === crBytes[0] && (crBytes.length === 1 || buffer[i + 1] === crBytes[1])) { // CR (Carriage Return)
+								if (i + crlfCharSize === bytesRead) {
+									lastBufferHadTrailingCR = true;
+								} else if (buffer[i + crlfCharSize] === lfBytes[0] && (lfBytes.length === 1 || buffer[i + crlfCharSize + 1] === lfBytes[1])) {
+									lineFinished(2 * crlfCharSize);
+									i += 2 * crlfCharSize - 1;
 								} else {
-									lineFinished(1);
+									lineFinished(1 * crlfCharSize);
 								}
 							}
 						}
@@ -263,7 +284,7 @@ export class SearchWorkerEngine {
 
 				readFile(/*isFirstRead=*/true, (error: Error) => {
 					if (error) {
-						return reject(error);
+						return resolve(null);
 					}
 
 					if (line.length) {
@@ -271,11 +292,7 @@ export class SearchWorkerEngine {
 					}
 
 					fs.close(fd, (error: Error) => {
-						if (error) {
-							reject(error);
-						} else {
-							resolve(null);
-						}
+						resolve(null);
 					});
 				});
 			});
@@ -341,7 +358,7 @@ export class LineMatch implements ILineMatch {
 	}
 
 	serialize(): ILineMatch {
-		let result = {
+		const result = {
 			preview: this.preview,
 			lineNumber: this.lineNumber,
 			offsetAndLengths: this.offsetAndLengths
