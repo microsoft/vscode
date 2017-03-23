@@ -82,7 +82,7 @@ class InsertSnippetAction extends EditorAction {
 					codeSnippet: snippet,
 					description: undefined,
 					name: undefined,
-					owner: undefined,
+					extensionName: undefined,
 					prefix: undefined
 				});
 			}
