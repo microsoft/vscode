@@ -430,4 +430,26 @@ suite('keyboardMapper - WINDOWS en_us', () => {
 			}]
 		);
 	});
+
+	test('resolveUserBinding Ctrl+[Comma]', () => {
+		assertResolveUserBinding(
+			mapper,
+			new ScanCodeBinding(true, false, false, false, ScanCode.Comma),
+			null,
+			[{
+				label: 'Ctrl+,',
+				ariaLabel: 'Control+,',
+				HTMLLabel: [_simpleHTMLLabel(['Ctrl', ','])],
+				electronAccelerator: 'Ctrl+,',
+				userSettingsLabel: 'ctrl+,',
+				isWYSIWYG: true,
+				isChord: false,
+				hasCtrlModifier: true,
+				hasShiftModifier: false,
+				hasAltModifier: false,
+				hasMetaModifier: false,
+				dispatchParts: ['ctrl+,', null],
+			}]
+		);
+	});
 });
