@@ -148,12 +148,12 @@ export class WindowsNativeResolvedKeybinding extends ResolvedKeybinding {
 		return result.toLowerCase();
 	}
 
-	public isWYSISWYG(): boolean {
+	public isWYSIWYG(): boolean {
 		let firstPart1 = this._firstPart ? this._mapper.getAriaLabelForKeyCode(this._firstPart.keyCode) : null;
 		let chordPart1 = this._chordPart ? this._mapper.getAriaLabelForKeyCode(this._chordPart.keyCode) : null;
 
-		let firstPart2 = this._firstPart ? USER_SETTINGS.fromKeyCode(this._firstPart.keyCode) : null;
-		let chordPart2 = this._chordPart ? USER_SETTINGS.fromKeyCode(this._chordPart.keyCode) : null;
+		let firstPart2 = this._firstPart ? KeyCodeUtils.toString(this._firstPart.keyCode) : null;
+		let chordPart2 = this._chordPart ? KeyCodeUtils.toString(this._chordPart.keyCode) : null;
 
 		return (firstPart1 === firstPart2 && chordPart1 === chordPart2);
 	}
@@ -317,16 +317,23 @@ export class WindowsKeyboardMapper implements IKeyboardMapper {
 	public dumpDebugInfo(): string {
 		let result: string[] = [];
 
+		let immutableSamples = [
+			ScanCode.ArrowUp,
+			ScanCode.Numpad0
+		];
+
 		let cnt = 0;
-		result.push(`--------------------------------------------------------------------------------------------------`);
+		result.push(`------------------------------------------------------------------------------------------------------------`);
 		for (let scanCode = ScanCode.None; scanCode < ScanCode.MAX_VALUE; scanCode++) {
 			if (IMMUTABLE_CODE_TO_KEY_CODE[scanCode] !== -1) {
-				continue;
+				if (immutableSamples.indexOf(scanCode) === -1) {
+					continue;
+				}
 			}
 
 			if (cnt % 6 === 0) {
-				result.push(`|       HW Code combination      |  Key  |    KeyCode combination    |          UI label         |`);
-				result.push(`--------------------------------------------------------------------------------------------------`);
+				result.push(`|       HW Code combination      |  Key  |    KeyCode combination    |          UI label         | WYSIWYG |`);
+				result.push(`------------------------------------------------------------------------------------------------------------`);
 			}
 			cnt++;
 
@@ -349,10 +356,11 @@ export class WindowsKeyboardMapper implements IKeyboardMapper {
 				const outUILabel = (ariaLabel ? ariaLabel.replace(/Control\+/, 'Ctrl+') : null);
 				const outKey = WindowsNativeResolvedKeybinding.getProducedChar(scanCodeBinding, mapping);
 				const outKb = (strKeyCode ? `${ctrlKey ? 'Ctrl+' : ''}${shiftKey ? 'Shift+' : ''}${altKey ? 'Alt+' : ''}${strKeyCode}` : null);
-
-				result.push(`| ${this._leftPad(outScanCode, 30)} | ${outKey} | ${this._leftPad(outKb, 25)} | ${this._leftPad(outUILabel, 25)} |`);
+				const isWYSIWYG = (resolvedKb ? resolvedKb.isWYSIWYG() : false);
+				const outWYSIWYG = (isWYSIWYG ? '       ' : '   NO  ');
+				result.push(`| ${this._leftPad(outScanCode, 30)} | ${outKey} | ${this._leftPad(outKb, 25)} | ${this._leftPad(outUILabel, 25)} | ${outWYSIWYG} |`);
 			}
-			result.push(`--------------------------------------------------------------------------------------------------`);
+			result.push(`------------------------------------------------------------------------------------------------------------`);
 		}
 
 
