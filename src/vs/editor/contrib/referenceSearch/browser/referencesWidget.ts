@@ -490,6 +490,7 @@ export class ReferenceWidget extends PeekViewWidget {
 	private _decorationsManager: DecorationsManager;
 
 	private _disposeOnNewModel: IDisposable[] = [];
+	private _callOnDispose: IDisposable[] = [];
 	private _onDidSelectReference = new Emitter<SelectionEvent>();
 
 	private _tree: Tree;
@@ -512,7 +513,7 @@ export class ReferenceWidget extends PeekViewWidget {
 		super(editor, { showFrame: false, showArrow: true, isResizeable: true });
 
 		this._applyTheme(_themeService.getTheme());
-		_themeService.onThemeChange(this._applyTheme.bind(this));
+		this._callOnDispose.push(_themeService.onThemeChange(this._applyTheme.bind(this)));
 
 		this._instantiationService = this._instantiationService.createChild(new ServiceCollection([IPeekViewService, this]));
 		this.create();
@@ -531,6 +532,7 @@ export class ReferenceWidget extends PeekViewWidget {
 
 	public dispose(): void {
 		this.setModel(null);
+		this._callOnDispose = dispose(this._callOnDispose);
 		dispose<IDisposable>(this._preview, this._previewNotAvailableMessage, this._tree, this._sash, this._previewModelReference);
 		super.dispose();
 	}
