@@ -51,6 +51,8 @@ export interface IKeybindingService {
 
 	resolveKeyboardEvent(keyboardEvent: IKeyboardEvent): ResolvedKeybinding;
 
+	resolveUserBinding(userBinding: string): ResolvedKeybinding[];
+
 	/**
 	 * Resolve and dispatch `keyboardEvent`, but do not invoke the command or change inner state.
 	 */

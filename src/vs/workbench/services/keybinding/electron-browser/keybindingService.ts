@@ -363,6 +363,11 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		return this._keyboardMapper.resolveKeyboardEvent(keyboardEvent);
 	}
 
+	public resolveUserBinding(userBinding: string): ResolvedKeybinding[] {
+		const [firstPart, chordPart] = KeybindingIO._readUserBinding(userBinding);
+		return this._keyboardMapper.resolveUserBinding(firstPart, chordPart);
+	}
+
 	private _handleKeybindingsExtensionPointUser(isBuiltin: boolean, keybindings: ContributedKeyBinding | ContributedKeyBinding[], collector: ExtensionMessageCollector): boolean {
 		if (isContributedKeyBindingsArray(keybindings)) {
 			let commandAdded = false;

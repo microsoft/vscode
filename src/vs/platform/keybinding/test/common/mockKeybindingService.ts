@@ -92,6 +92,10 @@ export class MockKeybindingService implements IKeybindingService {
 		return this.resolveKeybinding(keybinding)[0];
 	}
 
+	public resolveUserBinding(userBinding: string): ResolvedKeybinding[] {
+		return [];
+	}
+
 	public lookupKeybindings(commandId: string): ResolvedKeybinding[] {
 		return [];
 	}
