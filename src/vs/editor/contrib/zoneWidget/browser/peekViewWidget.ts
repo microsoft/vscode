@@ -9,6 +9,7 @@ import 'vs/css!./peekViewWidget';
 import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import * as strings from 'vs/base/common/strings';
+import * as objects from 'vs/base/common/objects';
 import { $ } from 'vs/base/browser/builder';
 import Event, { Emitter } from 'vs/base/common/event';
 import * as dom from 'vs/base/browser/dom';
@@ -17,11 +18,10 @@ import { ServicesAccessor, createDecorator } from 'vs/platform/instantiation/com
 import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IOptions, ZoneWidget } from './zoneWidget';
+import { IOptions, ZoneWidget, IStyles } from './zoneWidget';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { registerColor } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { Color } from "vs/base/common/color";
 
 export var IPeekViewService = createDecorator<IPeekViewService>('peekViewService');
 
@@ -45,6 +45,21 @@ export function getOuterEditor(accessor: ServicesAccessor, args: any): ICommonCo
 	return editor;
 }
 
+export interface IPeekViewStyles extends IStyles {
+	headerBackgroundColor?: Color;
+	primaryHeadingColor?: Color;
+	secondaryHeadingColor?: Color;
+}
+
+export interface IPeekViewOptions extends IOptions, IPeekViewStyles {
+}
+
+const defaultOptions: IPeekViewOptions = {
+	headerBackgroundColor: Color.white,
+	primaryHeadingColor: Color.fromHex('#333333'),
+	secondaryHeadingColor: Color.fromHex('#6c6c6cb3')
+};
+
 export abstract class PeekViewWidget extends ZoneWidget implements IPeekViewService {
 
 	public _serviceBrand: any;
@@ -59,8 +74,9 @@ export abstract class PeekViewWidget extends ZoneWidget implements IPeekViewServ
 	protected _actionbarWidget: ActionBar;
 	protected _bodyElement: HTMLDivElement;
 
-	constructor(editor: ICodeEditor, options: IOptions = {}) {
+	constructor(editor: ICodeEditor, options: IPeekViewOptions = {}) {
 		super(editor, options);
+		objects.mixin(objects.clone(defaultOptions), options);
 	}
 
 	public dispose(): void {
@@ -80,6 +96,37 @@ export abstract class PeekViewWidget extends ZoneWidget implements IPeekViewServ
 	public show(where: any, heightInLines: number): void {
 		this._isActive = true;
 		super.show(where, heightInLines);
+	}
+
+	public style(styles: IPeekViewStyles) {
+		let options = <IPeekViewOptions>this.options;
+		if (styles.headerBackgroundColor) {
+			options.headerBackgroundColor = styles.headerBackgroundColor;
+		}
+		if (styles.primaryHeadingColor) {
+			options.primaryHeadingColor = styles.primaryHeadingColor;
+		}
+		if (styles.secondaryHeadingColor) {
+			options.secondaryHeadingColor = styles.secondaryHeadingColor;
+		}
+		super.style(styles);
+	}
+
+	protected _applyStyles() {
+		super._applyStyles();
+		let options = <IPeekViewOptions>this.options;
+		if (this._headElement) {
+			this._headElement.style.backgroundColor = options.headerBackgroundColor.toString();
+		}
+		if (this._primaryHeading) {
+			this._primaryHeading.style.color = options.primaryHeadingColor.toString();
+		}
+		if (this._secondaryHeading) {
+			this._secondaryHeading.style.color = options.secondaryHeadingColor.toString();
+		}
+		if (this._bodyElement) {
+			this._bodyElement.style.borderColor = options.frameColor.toString();
+		}
 	}
 
 	protected _fillContainer(container: HTMLElement): void {
@@ -166,30 +213,3 @@ export abstract class PeekViewWidget extends ZoneWidget implements IPeekViewServ
 		this._bodyElement.style.height = strings.format('{0}px', heightInPixel);
 	}
 }
-
-// theming
-
-export const editorPeekTitleBackground = registerColor('editorPeekTitleBackground', { dark: '#1E1E1E', light: '#FFFFFF', hc: '#0C141F' }, nls.localize('editorPeekTitleBackground', 'Editor peek title area background'));
-export const editorPeekTitle = registerColor('editorPeekTitle', { dark: '#FFFFFF', light: '#333333', hc: '#FFFFFF' }, nls.localize('editorPeekTitle', 'Editor peek title color'));
-export const editorPeekTitleInfo = registerColor('editorPeekTitleInfo', { dark: '#ccccccb3', light: '#6c6c6cb3', hc: '#FFFFFF99' }, nls.localize('editorPeekTitleInfo', 'Editor peek title info color'));
-export const editorPeekBorders = registerColor('editorPeekBorder', { dark: '#007acc', light: '#007acc', hc: '#6FC3DF' }, nls.localize('editorPeekBorder', 'Editor peek view borders'));
-
-registerThemingParticipant((theme, collector) => {
-	let peekBackground = theme.getColor(editorPeekTitleBackground);
-	if (peekBackground) {
-		collector.addRule(`.monaco-editor.${theme.selector} .peekview-widget .head { background-color: ${peekBackground}; }`);
-	}
-	let title = theme.getColor(editorPeekTitle);
-	if (title) {
-		collector.addRule(`.monaco-editor.${theme.selector} .peekview-widget .head .peekview-title .filename { color: ${title}; }`);
-	}
-	let titleInfo = theme.getColor(editorPeekTitleInfo);
-	if (titleInfo) {
-		collector.addRule(`.monaco-editor.${theme.selector} .peekview-widget .head .peekview-title .dirname:not(:empty) { color: ${titleInfo}; }`);
-	}
-	let borders = theme.getColor(editorPeekBorders);
-	if (borders) {
-		collector.addRule(`.monaco-editor.${theme.selector} .zone-widget-container.peekview-widget { border-top-color: ${borders}; border-bottom-color: ${borders}; }`);
-		collector.addRule(`.monaco-editor.${theme.selector} .peekview-widget > .body { border-color: ${borders}; }`);
-	}
-});
