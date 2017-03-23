@@ -266,10 +266,15 @@
 		"editorPeekEditorBackground": "#001F33",
 		"editorPeekTitleBackground": "#060621",
 		"editorPeekBorders": "#7777cc",
+
 		"editorLineNumbers": "#8686ff",
 		"editorMarkerNavigationBackground": "#060621",
 		"editorMarkerNavigationError": "#FF0000",
 		"editorMarkerNavigationWarning": "#00FF00",
+
+		"editorFindWidgetBackground": "#051336",
+		"editorFindInputBackground": "#181f2f",
+		"editorFindCheckedBorders": "#0000FF",
 
 		// Workbench Colors
 		"tabsContainerBackground": "#1c1c2a",
