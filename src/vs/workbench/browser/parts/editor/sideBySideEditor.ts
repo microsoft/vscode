@@ -25,10 +25,10 @@ export class SideBySideEditor extends BaseEditor {
 
 	private dimension: Dimension;
 
-	private masterEditor: BaseEditor;
+	protected masterEditor: BaseEditor;
 	private masterEditorContainer: HTMLElement;
 
-	private detailsEditor: BaseEditor;
+	protected detailsEditor: BaseEditor;
 	private detailsEditorContainer: HTMLElement;
 
 	private sash: VSash;
