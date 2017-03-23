@@ -161,6 +161,9 @@ class TestFileEditorInput extends EditorInput implements IFileEditorInput {
 	public getResource(): URI {
 		return this.resource;
 	}
+
+	public setForceOpenAsBinary(): void {
+	}
 }
 
 function input(id = String(index++), nonSerializable?: boolean, resource?: URI): EditorInput {
