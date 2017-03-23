@@ -30,7 +30,7 @@
     "https-proxy-agent": "0.3.6",
     "iconv-lite": "0.4.15",
     "minimist": "1.2.0",
-    "native-keymap": "0.4.0",
+    "native-keymap": "1.2.1",
     "node-pty": "0.6.2",
     "semver": "4.3.6",
     "v8-profiler": "jrieken/v8-profiler#vscode",

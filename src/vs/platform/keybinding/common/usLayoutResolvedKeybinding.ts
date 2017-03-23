@@ -104,6 +104,10 @@ export class USLayoutResolvedKeybinding extends ResolvedKeybinding {
 		return result.toLowerCase();
 	}
 
+	public isWYSIWYG(): boolean {
+		return true;
+	}
+
 	public isChord(): boolean {
 		return (this._chordPart ? true : false);
 	}

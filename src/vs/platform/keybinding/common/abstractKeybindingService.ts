@@ -64,6 +64,7 @@ export abstract class AbstractKeybindingService implements IKeybindingService {
 	protected abstract _getResolver(): KeybindingResolver;
 	public abstract resolveKeybinding(keybinding: Keybinding): ResolvedKeybinding[];
 	public abstract resolveKeyboardEvent(keyboardEvent: IKeyboardEvent): ResolvedKeybinding;
+	public abstract resolveUserBinding(userBinding: string): ResolvedKeybinding[];
 
 	public getDefaultKeybindings(): string {
 		return '';

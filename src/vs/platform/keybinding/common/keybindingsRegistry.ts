@@ -42,6 +42,16 @@ export interface IKeybindingRule extends IKeybindings {
 	when: ContextKeyExpr;
 }
 
+export interface IKeybindingRule2 {
+	primary: Keybinding;
+	win?: { primary: Keybinding; };
+	linux?: { primary: Keybinding; };
+	mac?: { primary: Keybinding; };
+	id: string;
+	weight: number;
+	when: ContextKeyExpr;
+}
+
 export interface ICommandAndKeybindingRule extends IKeybindingRule {
 	handler: ICommandHandler;
 	description?: ICommandHandlerDescription;
@@ -49,6 +59,7 @@ export interface ICommandAndKeybindingRule extends IKeybindingRule {
 
 export interface IKeybindingsRegistry {
 	registerKeybindingRule(rule: IKeybindingRule): void;
+	registerKeybindingRule2(rule: IKeybindingRule2): void;
 	registerCommandAndKeybindingRule(desc: ICommandAndKeybindingRule): void;
 	getDefaultKeybindings(): IKeybindingItem[];
 
@@ -108,15 +119,44 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		return kb;
 	}
 
+	/**
+	 * Take current platform into account and reduce to primary & secondary.
+	 */
+	private static bindToCurrentPlatform2(kb: IKeybindingRule2): { primary?: Keybinding; } {
+		if (OS === OperatingSystem.Windows) {
+			if (kb && kb.win) {
+				return kb.win;
+			}
+		} else if (OS === OperatingSystem.Macintosh) {
+			if (kb && kb.mac) {
+				return kb.mac;
+			}
+		} else {
+			if (kb && kb.linux) {
+				return kb.linux;
+			}
+		}
+
+		return kb;
+	}
+
 	public registerKeybindingRule(rule: IKeybindingRule): void {
 		let actualKb = KeybindingsRegistryImpl.bindToCurrentPlatform(rule);
 
 		if (actualKb && actualKb.primary) {
-			this.registerDefaultKeybinding(actualKb.primary, rule.id, rule.weight, 0, rule.when);
+			this.registerDefaultKeybinding(createKeybinding(actualKb.primary, OS), rule.id, rule.weight, 0, rule.when);
 		}
 
 		if (actualKb && Array.isArray(actualKb.secondary)) {
-			actualKb.secondary.forEach((k, i) => this.registerDefaultKeybinding(k, rule.id, rule.weight, -i - 1, rule.when));
+			actualKb.secondary.forEach((k, i) => this.registerDefaultKeybinding(createKeybinding(k, OS), rule.id, rule.weight, -i - 1, rule.when));
+		}
+	}
+
+	public registerKeybindingRule2(rule: IKeybindingRule2): void {
+		let actualKb = KeybindingsRegistryImpl.bindToCurrentPlatform2(rule);
+
+		if (actualKb && actualKb.primary) {
+			this.registerDefaultKeybinding(actualKb.primary, rule.id, rule.weight, 0, rule.when);
 		}
 	}
 
@@ -157,8 +197,7 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		}
 	}
 
-	private registerDefaultKeybinding(kb: number, commandId: string, weight1: number, weight2: number, when: ContextKeyExpr): void {
-		const keybinding = createKeybinding(kb, OS);
+	private registerDefaultKeybinding(keybinding: Keybinding, commandId: string, weight1: number, weight2: number, when: ContextKeyExpr): void {
 		if (OS === OperatingSystem.Windows) {
 			if (keybinding.type === KeybindingType.Chord) {
 				this._assertNoCtrlAlt(keybinding.firstPart, commandId);

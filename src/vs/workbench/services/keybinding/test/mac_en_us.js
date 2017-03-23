@@ -22,7 +22,7 @@ define({
 		withShiftIsDeadKey: false,
 		withAltGr: '∫',
 		withAltGrIsDeadKey: false,
-		withShiftAltGr: '',
+		withShiftAltGr: 'ı',
 		withShiftAltGrIsDeadKey: false
 	},
 	KeyC: {
@@ -30,9 +30,9 @@ define({
 		valueIsDeadKey: false,
 		withShift: 'C',
 		withShiftIsDeadKey: false,
-		withAltGr: '©',
+		withAltGr: 'ç',
 		withAltGrIsDeadKey: false,
-		withShiftAltGr: '',
+		withShiftAltGr: 'Ç',
 		withShiftAltGrIsDeadKey: false
 	},
 	KeyD: {
@@ -42,7 +42,7 @@ define({
 		withShiftIsDeadKey: false,
 		withAltGr: '∂',
 		withAltGrIsDeadKey: false,
-		withShiftAltGr: 'ﬂ',
+		withShiftAltGr: 'Î',
 		withShiftAltGrIsDeadKey: false
 	},
 	KeyE: {
@@ -50,9 +50,9 @@ define({
 		valueIsDeadKey: false,
 		withShift: 'E',
 		withShiftIsDeadKey: false,
-		withAltGr: '€',
-		withAltGrIsDeadKey: false,
-		withShiftAltGr: 'Ë',
+		withAltGr: '´',
+		withAltGrIsDeadKey: true,
+		withShiftAltGr: '´',
 		withShiftAltGrIsDeadKey: false
 	},
 	KeyF: {
@@ -62,7 +62,7 @@ define({
 		withShiftIsDeadKey: false,
 		withAltGr: 'ƒ',
 		withAltGrIsDeadKey: false,
-		withShiftAltGr: '‡',
+		withShiftAltGr: 'Ï',
 		withShiftAltGrIsDeadKey: false
 	},
 	KeyG: {
@@ -70,9 +70,9 @@ define({
 		valueIsDeadKey: false,
 		withShift: 'G',
 		withShiftIsDeadKey: false,
-		withAltGr: '@',
+		withAltGr: '©',
 		withAltGrIsDeadKey: false,
-		withShiftAltGr: '‚',
+		withShiftAltGr: '˝',
 		withShiftAltGrIsDeadKey: false
 	},
 	KeyH: {
@@ -80,9 +80,9 @@ define({
 		valueIsDeadKey: false,
 		withShift: 'H',
 		withShiftIsDeadKey: false,
-		withAltGr: 'ª',
+		withAltGr: '˙',
 		withAltGrIsDeadKey: false,
-		withShiftAltGr: '·',
+		withShiftAltGr: 'Ó',
 		withShiftAltGrIsDeadKey: false
 	},
 	KeyI: {
@@ -90,9 +90,9 @@ define({
 		valueIsDeadKey: false,
 		withShift: 'I',
 		withShiftIsDeadKey: false,
-		withAltGr: '¡',
-		withAltGrIsDeadKey: false,
-		withShiftAltGr: 'ı',
+		withAltGr: 'ˆ',
+		withAltGrIsDeadKey: true,
+		withShiftAltGr: 'ˆ',
 		withShiftAltGrIsDeadKey: false
 	},
 	KeyJ: {
@@ -100,9 +100,9 @@ define({
 		valueIsDeadKey: false,
 		withShift: 'J',
 		withShiftIsDeadKey: false,
-		withAltGr: 'º',
+		withAltGr: '∆',
 		withAltGrIsDeadKey: false,
-		withShiftAltGr: '˜',
+		withShiftAltGr: 'Ô',
 		withShiftAltGrIsDeadKey: false
 	},
 	KeyK: {
@@ -110,9 +110,9 @@ define({
 		valueIsDeadKey: false,
 		withShift: 'K',
 		withShiftIsDeadKey: false,
-		withAltGr: '∆',
+		withAltGr: '˚',
 		withAltGrIsDeadKey: false,
-		withShiftAltGr: '¯',
+		withShiftAltGr: '',
 		withShiftAltGrIsDeadKey: false
 	},
 	KeyL: {
@@ -122,7 +122,7 @@ define({
 		withShiftIsDeadKey: false,
 		withAltGr: '¬',
 		withAltGrIsDeadKey: false,
-		withShiftAltGr: 'ˆ',
+		withShiftAltGr: 'Ò',
 		withShiftAltGrIsDeadKey: false
 	},
 	KeyM: {
@@ -132,7 +132,7 @@ define({
 		withShiftIsDeadKey: false,
 		withAltGr: 'µ',
 		withAltGrIsDeadKey: false,
-		withShiftAltGr: '˚',
+		withShiftAltGr: 'Â',
 		withShiftAltGrIsDeadKey: false
 	},
 	KeyN: {
@@ -140,9 +140,9 @@ define({
 		valueIsDeadKey: false,
 		withShift: 'N',
 		withShiftIsDeadKey: false,
-		withAltGr: '~',
+		withAltGr: '˜',
 		withAltGrIsDeadKey: true,
-		withShiftAltGr: '˙',
+		withShiftAltGr: '˜',
 		withShiftAltGrIsDeadKey: false
 	},
 	KeyO: {
@@ -182,7 +182,7 @@ define({
 		withShiftIsDeadKey: false,
 		withAltGr: '®',
 		withAltGrIsDeadKey: false,
-		withShiftAltGr: 'È',
+		withShiftAltGr: '‰',
 		withShiftAltGrIsDeadKey: false
 	},
 	KeyS: {
@@ -192,7 +192,7 @@ define({
 		withShiftIsDeadKey: false,
 		withAltGr: 'ß',
 		withAltGrIsDeadKey: false,
-		withShiftAltGr: 'ﬁ',
+		withShiftAltGr: 'Í',
 		withShiftAltGrIsDeadKey: false
 	},
 	KeyT: {
@@ -202,7 +202,7 @@ define({
 		withShiftIsDeadKey: false,
 		withAltGr: '†',
 		withAltGrIsDeadKey: false,
-		withShiftAltGr: 'Î',
+		withShiftAltGr: 'ˇ',
 		withShiftAltGrIsDeadKey: false
 	},
 	KeyU: {
@@ -210,9 +210,9 @@ define({
 		valueIsDeadKey: false,
 		withShift: 'U',
 		withShiftIsDeadKey: false,
-		withAltGr: '°',
-		withAltGrIsDeadKey: false,
-		withShiftAltGr: 'Ù',
+		withAltGr: '¨',
+		withAltGrIsDeadKey: true,
+		withShiftAltGr: '¨',
 		withShiftAltGrIsDeadKey: false
 	},
 	KeyV: {
@@ -232,7 +232,7 @@ define({
 		withShiftIsDeadKey: false,
 		withAltGr: '∑',
 		withAltGrIsDeadKey: false,
-		withShiftAltGr: 'Á',
+		withShiftAltGr: '„',
 		withShiftAltGrIsDeadKey: false
 	},
 	KeyX: {
@@ -242,55 +242,55 @@ define({
 		withShiftIsDeadKey: false,
 		withAltGr: '≈',
 		withAltGrIsDeadKey: false,
-		withShiftAltGr: '™',
+		withShiftAltGr: '˛',
 		withShiftAltGrIsDeadKey: false
 	},
 	KeyY: {
-		value: 'z',
-		valueIsDeadKey: false,
-		withShift: 'Z',
-		withShiftIsDeadKey: false,
-		withAltGr: 'Ω',
-		withAltGrIsDeadKey: false,
-		withShiftAltGr: 'Í',
-		withShiftAltGrIsDeadKey: false
-	},
-	KeyZ: {
 		value: 'y',
 		valueIsDeadKey: false,
 		withShift: 'Y',
 		withShiftIsDeadKey: false,
 		withAltGr: '¥',
 		withAltGrIsDeadKey: false,
-		withShiftAltGr: 'Ÿ',
+		withShiftAltGr: 'Á',
+		withShiftAltGrIsDeadKey: false
+	},
+	KeyZ: {
+		value: 'z',
+		valueIsDeadKey: false,
+		withShift: 'Z',
+		withShiftIsDeadKey: false,
+		withAltGr: 'Ω',
+		withAltGrIsDeadKey: false,
+		withShiftAltGr: '¸',
 		withShiftAltGrIsDeadKey: false
 	},
 	Digit1: {
 		value: '1',
 		valueIsDeadKey: false,
-		withShift: '+',
+		withShift: '!',
 		withShiftIsDeadKey: false,
-		withAltGr: '±',
+		withAltGr: '¡',
 		withAltGrIsDeadKey: false,
-		withShiftAltGr: '∞',
+		withShiftAltGr: '⁄',
 		withShiftAltGrIsDeadKey: false
 	},
 	Digit2: {
 		value: '2',
 		valueIsDeadKey: false,
-		withShift: '"',
+		withShift: '@',
 		withShiftIsDeadKey: false,
-		withAltGr: '“',
+		withAltGr: '™',
 		withAltGrIsDeadKey: false,
-		withShiftAltGr: '”',
+		withShiftAltGr: '€',
 		withShiftAltGrIsDeadKey: false
 	},
 	Digit3: {
 		value: '3',
 		valueIsDeadKey: false,
-		withShift: '*',
+		withShift: '#',
 		withShiftIsDeadKey: false,
-		withAltGr: '#',
+		withAltGr: '£',
 		withAltGrIsDeadKey: false,
 		withShiftAltGr: '‹',
 		withShiftAltGrIsDeadKey: false
@@ -298,11 +298,11 @@ define({
 	Digit4: {
 		value: '4',
 		valueIsDeadKey: false,
-		withShift: 'ç',
+		withShift: '$',
 		withShiftIsDeadKey: false,
-		withAltGr: 'Ç',
+		withAltGr: '¢',
 		withAltGrIsDeadKey: false,
-		withShiftAltGr: '⁄',
+		withShiftAltGr: '›',
 		withShiftAltGrIsDeadKey: false
 	},
 	Digit5: {
@@ -310,59 +310,59 @@ define({
 		valueIsDeadKey: false,
 		withShift: '%',
 		withShiftIsDeadKey: false,
-		withAltGr: '[',
+		withAltGr: '∞',
 		withAltGrIsDeadKey: false,
-		withShiftAltGr: '[',
+		withShiftAltGr: 'ﬁ',
 		withShiftAltGrIsDeadKey: false
 	},
 	Digit6: {
 		value: '6',
 		valueIsDeadKey: false,
-		withShift: '&',
+		withShift: '^',
 		withShiftIsDeadKey: false,
-		withAltGr: ']',
+		withAltGr: '§',
 		withAltGrIsDeadKey: false,
-		withShiftAltGr: ']',
+		withShiftAltGr: 'ﬂ',
 		withShiftAltGrIsDeadKey: false
 	},
 	Digit7: {
 		value: '7',
 		valueIsDeadKey: false,
-		withShift: '/',
+		withShift: '&',
 		withShiftIsDeadKey: false,
-		withAltGr: '|',
+		withAltGr: '¶',
 		withAltGrIsDeadKey: false,
-		withShiftAltGr: '\\',
+		withShiftAltGr: '‡',
 		withShiftAltGrIsDeadKey: false
 	},
 	Digit8: {
 		value: '8',
 		valueIsDeadKey: false,
-		withShift: '(',
+		withShift: '*',
 		withShiftIsDeadKey: false,
-		withAltGr: '{',
+		withAltGr: '•',
 		withAltGrIsDeadKey: false,
-		withShiftAltGr: 'Ò',
+		withShiftAltGr: '°',
 		withShiftAltGrIsDeadKey: false
 	},
 	Digit9: {
 		value: '9',
 		valueIsDeadKey: false,
-		withShift: ')',
+		withShift: '(',
 		withShiftIsDeadKey: false,
-		withAltGr: '}',
+		withAltGr: 'ª',
 		withAltGrIsDeadKey: false,
-		withShiftAltGr: 'Ô',
+		withShiftAltGr: '·',
 		withShiftAltGrIsDeadKey: false
 	},
 	Digit0: {
 		value: '0',
 		valueIsDeadKey: false,
-		withShift: '=',
+		withShift: ')',
 		withShiftIsDeadKey: false,
-		withAltGr: '≠',
+		withAltGr: 'º',
 		withAltGrIsDeadKey: false,
-		withShiftAltGr: 'Ú',
+		withShiftAltGr: '‚',
 		withShiftAltGrIsDeadKey: false
 	},
 	Enter: {
@@ -416,106 +416,6 @@ define({
 		withShiftAltGrIsDeadKey: false
 	},
 	Minus: {
-		value: '\'',
-		valueIsDeadKey: false,
-		withShift: '?',
-		withShiftIsDeadKey: false,
-		withAltGr: '¿',
-		withAltGrIsDeadKey: false,
-		withShiftAltGr: '',
-		withShiftAltGrIsDeadKey: false
-	},
-	Equal: {
-		value: '^',
-		valueIsDeadKey: true,
-		withShift: '`',
-		withShiftIsDeadKey: true,
-		withAltGr: '´',
-		withAltGrIsDeadKey: true,
-		withShiftAltGr: '^',
-		withShiftAltGrIsDeadKey: false
-	},
-	BracketLeft: {
-		value: 'ü',
-		valueIsDeadKey: false,
-		withShift: 'è',
-		withShiftIsDeadKey: false,
-		withAltGr: '§',
-		withAltGrIsDeadKey: false,
-		withShiftAltGr: 'ÿ',
-		withShiftAltGrIsDeadKey: false
-	},
-	BracketRight: {
-		value: '¨',
-		valueIsDeadKey: true,
-		withShift: '!',
-		withShiftIsDeadKey: false,
-		withAltGr: '‘',
-		withAltGrIsDeadKey: false,
-		withShiftAltGr: '’',
-		withShiftAltGrIsDeadKey: false
-	},
-	Backslash: {
-		value: '$',
-		valueIsDeadKey: false,
-		withShift: '£',
-		withShiftIsDeadKey: false,
-		withAltGr: '¶',
-		withAltGrIsDeadKey: false,
-		withShiftAltGr: '•',
-		withShiftAltGrIsDeadKey: false
-	},
-	Semicolon: {
-		value: 'ö',
-		valueIsDeadKey: false,
-		withShift: 'é',
-		withShiftIsDeadKey: false,
-		withAltGr: '¢',
-		withAltGrIsDeadKey: false,
-		withShiftAltGr: '˘',
-		withShiftAltGrIsDeadKey: false
-	},
-	Quote: {
-		value: 'ä',
-		valueIsDeadKey: false,
-		withShift: 'à',
-		withShiftIsDeadKey: false,
-		withAltGr: 'æ',
-		withAltGrIsDeadKey: false,
-		withShiftAltGr: 'Æ',
-		withShiftAltGrIsDeadKey: false
-	},
-	Backquote: {
-		value: '<',
-		valueIsDeadKey: false,
-		withShift: '>',
-		withShiftIsDeadKey: false,
-		withAltGr: '≤',
-		withAltGrIsDeadKey: false,
-		withShiftAltGr: '≥',
-		withShiftAltGrIsDeadKey: false
-	},
-	Comma: {
-		value: ',',
-		valueIsDeadKey: false,
-		withShift: ';',
-		withShiftIsDeadKey: false,
-		withAltGr: '«',
-		withAltGrIsDeadKey: false,
-		withShiftAltGr: '»',
-		withShiftAltGrIsDeadKey: false
-	},
-	Period: {
-		value: '.',
-		valueIsDeadKey: false,
-		withShift: ':',
-		withShiftIsDeadKey: false,
-		withAltGr: '…',
-		withAltGrIsDeadKey: false,
-		withShiftAltGr: '÷',
-		withShiftAltGrIsDeadKey: false
-	},
-	Slash: {
 		value: '-',
 		valueIsDeadKey: false,
 		withShift: '_',
@@ -523,6 +423,106 @@ define({
 		withAltGr: '–',
 		withAltGrIsDeadKey: false,
 		withShiftAltGr: '—',
+		withShiftAltGrIsDeadKey: false
+	},
+	Equal: {
+		value: '=',
+		valueIsDeadKey: false,
+		withShift: '+',
+		withShiftIsDeadKey: false,
+		withAltGr: '≠',
+		withAltGrIsDeadKey: false,
+		withShiftAltGr: '±',
+		withShiftAltGrIsDeadKey: false
+	},
+	BracketLeft: {
+		value: '[',
+		valueIsDeadKey: false,
+		withShift: '{',
+		withShiftIsDeadKey: false,
+		withAltGr: '“',
+		withAltGrIsDeadKey: false,
+		withShiftAltGr: '”',
+		withShiftAltGrIsDeadKey: false
+	},
+	BracketRight: {
+		value: ']',
+		valueIsDeadKey: false,
+		withShift: '}',
+		withShiftIsDeadKey: false,
+		withAltGr: '‘',
+		withAltGrIsDeadKey: false,
+		withShiftAltGr: '’',
+		withShiftAltGrIsDeadKey: false
+	},
+	Backslash: {
+		value: '\\',
+		valueIsDeadKey: false,
+		withShift: '|',
+		withShiftIsDeadKey: false,
+		withAltGr: '«',
+		withAltGrIsDeadKey: false,
+		withShiftAltGr: '»',
+		withShiftAltGrIsDeadKey: false
+	},
+	Semicolon: {
+		value: ';',
+		valueIsDeadKey: false,
+		withShift: ':',
+		withShiftIsDeadKey: false,
+		withAltGr: '…',
+		withAltGrIsDeadKey: false,
+		withShiftAltGr: 'Ú',
+		withShiftAltGrIsDeadKey: false
+	},
+	Quote: {
+		value: '\'',
+		valueIsDeadKey: false,
+		withShift: '"',
+		withShiftIsDeadKey: false,
+		withAltGr: 'æ',
+		withAltGrIsDeadKey: false,
+		withShiftAltGr: 'Æ',
+		withShiftAltGrIsDeadKey: false
+	},
+	Backquote: {
+		value: '`',
+		valueIsDeadKey: false,
+		withShift: '~',
+		withShiftIsDeadKey: false,
+		withAltGr: '`',
+		withAltGrIsDeadKey: true,
+		withShiftAltGr: '`',
+		withShiftAltGrIsDeadKey: false
+	},
+	Comma: {
+		value: ',',
+		valueIsDeadKey: false,
+		withShift: '<',
+		withShiftIsDeadKey: false,
+		withAltGr: '≤',
+		withAltGrIsDeadKey: false,
+		withShiftAltGr: '¯',
+		withShiftAltGrIsDeadKey: false
+	},
+	Period: {
+		value: '.',
+		valueIsDeadKey: false,
+		withShift: '>',
+		withShiftIsDeadKey: false,
+		withAltGr: '≥',
+		withAltGrIsDeadKey: false,
+		withShiftAltGr: '˘',
+		withShiftAltGrIsDeadKey: false
+	},
+	Slash: {
+		value: '/',
+		valueIsDeadKey: false,
+		withShift: '?',
+		withShiftIsDeadKey: false,
+		withAltGr: '÷',
+		withAltGrIsDeadKey: false,
+		withShiftAltGr: '¿',
 		withShiftAltGrIsDeadKey: false
 	},
 	CapsLock: {
@@ -918,7 +918,7 @@ define({
 	NumpadDecimal: {
 		value: '.',
 		valueIsDeadKey: false,
-		withShift: ',',
+		withShift: '.',
 		withShiftIsDeadKey: false,
 		withAltGr: '.',
 		withAltGrIsDeadKey: false,
@@ -928,11 +928,11 @@ define({
 	IntlBackslash: {
 		value: '§',
 		valueIsDeadKey: false,
-		withShift: '°',
+		withShift: '±',
 		withShiftIsDeadKey: false,
-		withAltGr: 'ﬁ',
+		withAltGr: '§',
 		withAltGrIsDeadKey: false,
-		withShiftAltGr: '‰',
+		withShiftAltGr: '±',
 		withShiftAltGrIsDeadKey: false
 	},
 	ContextMenu: {
