@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./list';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, empty as EmptyDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isNumber } from 'vs/base/common/types';
 import { range } from 'vs/base/common/arrays';
+import { once } from 'vs/base/common/functional';
 import { memoize } from 'vs/base/common/decorators';
 import * as DOM from 'vs/base/browser/dom';
 import * as platform from 'vs/base/common/platform';
@@ -35,48 +36,83 @@ class CombinedSpliceable<T> implements ISpliceable<T> {
 	}
 }
 
-interface ITraitTemplateData<D> {
-	container: HTMLElement;
-	data: D;
-}
-
 interface ITraitChangeEvent {
 	indexes: number[];
 }
 
-class TraitRenderer<T, D> implements IRenderer<T, ITraitTemplateData<D>>
+interface ITraitTemplateData {
+	container: HTMLElement;
+	elementDisposable: IDisposable;
+}
+
+interface IRenderedElement {
+	templateData: ITraitTemplateData;
+	index: number;
+}
+
+class TraitRenderer<T, D> implements IRenderer<T, ITraitTemplateData>
 {
-	constructor(
-		private controller: Trait<T>,
-		private renderer: IRenderer<T, D>
-	) { }
+	private rendered: IRenderedElement[] = [];
+
+	constructor(private trait: Trait<T>) { }
 
 	get templateId(): string {
-		return this.renderer.templateId;
+		return `template:${this.trait.trait}`;
 	}
 
-	renderTemplate(container: HTMLElement): ITraitTemplateData<D> {
-		const data = this.renderer.renderTemplate(container);
-		return { container, data };
+	renderTemplate(container: HTMLElement): ITraitTemplateData {
+		const elementDisposable = EmptyDisposable;
+		return { container, elementDisposable };
 	}
 
-	renderElement(element: T, index: number, templateData: ITraitTemplateData<D>): void {
-		this.controller.renderElement(element, index, templateData.container);
+	renderElement(element: T, index: number, templateData: ITraitTemplateData): void {
+		templateData.elementDisposable.dispose();
 
-		this.renderer.renderElement(element, index, templateData.data);
+		const rendered = { index, templateData };
+		this.rendered.push(rendered);
+		templateData.elementDisposable = toDisposable(once(() => this.rendered.splice(this.rendered.indexOf(rendered), 1)));
+
+		this.trait.renderIndex(index, templateData.container);
 	}
 
-	disposeTemplate(templateData: ITraitTemplateData<D>): void {
-		return this.renderer.disposeTemplate(templateData.data);
+	renderIndexes(indexes: number[]): void {
+		this.rendered
+			.filter(({ index }) => indexes.indexOf(index) > -1)
+			.forEach(({ index, templateData }) => this.trait.renderIndex(index, templateData.container));
+	}
+
+	splice(start: number, deleteCount: number): void {
+		for (let i = 0; i < deleteCount; i++) {
+			const key = `key_${start + i}`;
+			const data = this.rendered[key];
+
+			if (data) {
+				data.elementDisposable.dispose();
+			}
+		}
+	}
+
+	disposeTemplate(templateData: ITraitTemplateData): void {
+		templateData.elementDisposable.dispose();
 	}
 }
 
 class Trait<T> implements ISpliceable<boolean>, IDisposable {
 
+	/**
+	 * Sorted indexes which have this trait.
+	 */
 	private indexes: number[];
 
 	private _onChange = new Emitter<ITraitChangeEvent>();
-	get onChange() { return this._onChange.event; }
+	get onChange(): Event<ITraitChangeEvent> { return this._onChange.event; }
+
+	get trait(): string { return this._trait; }
+
+	@memoize
+	get renderer(): TraitRenderer<T, any> {
+		return new TraitRenderer<T, any>(this);
+	}
 
 	constructor(private _trait: string) {
 		this.indexes = [];
@@ -91,10 +127,11 @@ class Trait<T> implements ISpliceable<boolean>, IDisposable {
 			...this.indexes.filter(i => i >= end).map(i => i + diff)
 		];
 
+		this.renderer.splice(start, deleteCount);
 		this.set(indexes);
 	}
 
-	renderElement(element: T, index: number, container: HTMLElement): void {
+	renderIndex(index: number, container: HTMLElement): void {
 		DOM.toggleClass(container, this._trait, this.contains(index));
 	}
 
@@ -107,6 +144,10 @@ class Trait<T> implements ISpliceable<boolean>, IDisposable {
 	set(indexes: number[]): number[] {
 		const result = this.indexes;
 		this.indexes = indexes;
+
+		const toRender = disjunction(result, indexes);
+		this.renderer.renderIndexes(toRender);
+
 		this._onChange.fire({ indexes });
 		return result;
 	}
@@ -117,10 +158,6 @@ class Trait<T> implements ISpliceable<boolean>, IDisposable {
 
 	contains(index: number): boolean {
 		return this.indexes.some(i => i === index);
-	}
-
-	wrapRenderer<D>(renderer: IRenderer<T, D>): IRenderer<T, ITraitTemplateData<D>> {
-		return new TraitRenderer<T, D>(this, renderer);
 	}
 
 	dispose() {
@@ -137,8 +174,8 @@ class FocusTrait<T> extends Trait<T> {
 		super('focused');
 	}
 
-	renderElement(element: T, index: number, container: HTMLElement): void {
-		super.renderElement(element, index, container);
+	renderIndex(index: number, container: HTMLElement): void {
+		super.renderIndex(index, container);
 		container.setAttribute('role', 'treeitem');
 		container.setAttribute('id', this.getDomId(index));
 	}
@@ -233,6 +270,18 @@ class KeyboardController<T> implements IDisposable {
 	}
 }
 
+function isSelectionSingleChangeEvent(event: IListMouseEvent<any>): boolean {
+	return platform.isMacintosh ? event.altKey : event.ctrlKey;
+}
+
+function isSelectionRangeChangeEvent(event: IListMouseEvent<any>): boolean {
+	return event.shiftKey;
+}
+
+function isSelectionChangeEvent(event: IListMouseEvent<any>): boolean {
+	return isSelectionSingleChangeEvent(event) || isSelectionRangeChangeEvent(event);
+}
+
 class MouseController<T> implements IDisposable {
 
 	private disposables: IDisposable[];
@@ -268,46 +317,57 @@ class MouseController<T> implements IDisposable {
 		this.disposables.push(view.addListener(TouchEventType.Tap, e => this.onPointer(e)));
 	}
 
-	private onMouseDown(e: IListMouseEvent<T>) {
-		if (platform.isMacintosh ? e.altKey : e.ctrlKey) {
-			return this.onPointer(e);
-		}
-
-		e.preventDefault();
-		e.stopPropagation();
-	}
-
-	private onPointer(e: IListMouseEvent<T>) {
+	private onMouseDown(e: IListMouseEvent<T>): void {
 		e.preventDefault();
 		e.stopPropagation();
 		this.view.domNode.focus();
 
+		let reference = this.list.getFocus()[0];
+		reference = reference === undefined ? this.list.getSelection()[0] : reference;
+
+		if (isSelectionRangeChangeEvent(e)) {
+			return this.changeSelection(e, reference);
+		}
+
 		const focus = e.index;
+		this.list.setFocus([focus]);
 
-		if (e.shiftKey) {
-			const oldFocus = this.list.getFocus()[0];
+		if (isSelectionChangeEvent(e)) {
+			return this.changeSelection(e, reference);
+		}
+	}
 
-			if (oldFocus !== undefined) {
-				const min = Math.min(oldFocus, focus);
-				const max = Math.max(oldFocus, focus);
-				const rangeSelection = range(max + 1, min);
-				const selection = this.list.getSelection();
-				const contiguousRange = getContiguousRangeContaining(disjunction(selection, [oldFocus]), oldFocus);
+	private onPointer(e: IListMouseEvent<T>): void {
+		e.preventDefault();
+		e.stopPropagation();
 
-				if (contiguousRange.length === 0) {
-					return;
-				}
-
-				const newSelection = disjunction(rangeSelection, relativeComplement(selection, contiguousRange));
-				this.list.setSelection(newSelection);
-			}
-
+		if (isSelectionChangeEvent(e)) {
 			return;
 		}
 
-		this.list.setFocus([focus]);
+		const focus = this.list.getFocus();
+		this.list.setSelection(focus);
+		this.list.open(focus);
+	}
 
-		if (platform.isMacintosh ? e.altKey : e.ctrlKey) {
+	private changeSelection(e: IListMouseEvent<T>, reference: number | undefined): void {
+		const focus = e.index;
+
+		if (isSelectionRangeChangeEvent(e) && reference !== undefined) {
+			const min = Math.min(reference, focus);
+			const max = Math.max(reference, focus);
+			const rangeSelection = range(max + 1, min);
+			const selection = this.list.getSelection();
+			const contiguousRange = getContiguousRangeContaining(disjunction(selection, [reference]), reference);
+
+			if (contiguousRange.length === 0) {
+				return;
+			}
+
+			const newSelection = disjunction(rangeSelection, relativeComplement(selection, contiguousRange));
+			this.list.setSelection(newSelection);
+
+		} else if (isSelectionSingleChangeEvent(e)) {
 			const selection = this.list.getSelection();
 			const newSelection = selection.filter(i => i !== focus);
 
@@ -316,9 +376,6 @@ class MouseController<T> implements IDisposable {
 			} else {
 				this.list.setSelection(newSelection);
 			}
-		} else {
-			this.list.setSelection([focus]);
-			this.list.open([focus]);
 		}
 	}
 
@@ -390,33 +447,6 @@ function disjunction(one: number[], other: number[]): number[] {
 }
 
 /**
- * Given two sorted collections of numbers, returns the exclusive
- * disjunction between them (XOR).
- */
-function exclusiveDisjunction(one: number[], other: number[]): number[] {
-	const result = [];
-	let i = 0, j = 0;
-
-	while (i < one.length || j < other.length) {
-		if (i >= one.length) {
-			result.push(other[j++]);
-		} else if (j >= other.length) {
-			result.push(one[i++]);
-		} else if (one[i] === other[j]) {
-			i++;
-			j++;
-			continue;
-		} else if (one[i] < other[j]) {
-			result.push(one[i++]);
-		} else {
-			result.push(other[j++]);
-		}
-	}
-
-	return result;
-}
-
-/**
  * Given two sorted collections of numbers, returns the relative
  * complement between them (XOR).
  */
@@ -444,6 +474,30 @@ function relativeComplement(one: number[], other: number[]): number[] {
 }
 
 const numericSort = (a: number, b: number) => a - b;
+
+class PipelineRenderer<T> implements IRenderer<T, any> {
+
+	constructor(
+		private _templateId: string,
+		private renderers: IRenderer<T, any>[]
+	) { }
+
+	get templateId(): string {
+		return this._templateId;
+	}
+
+	renderTemplate(container: HTMLElement): any[] {
+		return this.renderers.map(r => r.renderTemplate(container));
+	}
+
+	renderElement(element: T, index: number, templateData: any[]): void {
+		this.renderers.forEach((r, i) => r.renderElement(element, index, templateData[i]));
+	}
+
+	disposeTemplate(templateData: any[]): void {
+		this.renderers.forEach((r, i) => r.disposeTemplate(templateData[i]));
+	}
+}
 
 export class List<T> implements ISpliceable<T>, IDisposable {
 
@@ -494,11 +548,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		this.selection = new Trait('selected');
 		this.eventBufferer = new EventBufferer();
 
-		renderers = renderers.map(r => {
-			r = this.focus.wrapRenderer(r);
-			r = this.selection.wrapRenderer(r);
-			return r;
-		});
+		renderers = renderers.map(r => new PipelineRenderer(r.templateId, [this.focus.renderer, this.selection.renderer, r]));
 
 		this.view = new ListView(container, delegate, renderers, options);
 		this.view.domNode.setAttribute('role', 'tree');
@@ -561,12 +611,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 	setSelection(indexes: number[]): void {
 		indexes = indexes.sort(numericSort);
-
-		this.eventBufferer.bufferEvents(() => {
-			const oldIndexes = this.selection.set(indexes);
-			const diffIndexes = exclusiveDisjunction(oldIndexes, indexes);
-			diffIndexes.forEach(i => this.view.splice(i, 1, [this.view.element(i)]));
-		});
+		this.selection.set(indexes);
 	}
 
 	selectNext(n = 1, loop = false): void {
@@ -596,12 +641,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 	setFocus(indexes: number[]): void {
 		indexes = indexes.sort(numericSort);
-
-		this.eventBufferer.bufferEvents(() => {
-			const oldIndexes = this.focus.set(indexes);
-			const diffIndexes = exclusiveDisjunction(oldIndexes, indexes);
-			diffIndexes.forEach(i => this.view.splice(i, 1, [this.view.element(i)]));
-		});
+		this.focus.set(indexes);
 	}
 
 	focusNext(n = 1, loop = false): void {
