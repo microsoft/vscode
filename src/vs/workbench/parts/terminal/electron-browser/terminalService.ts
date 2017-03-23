@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
+import * as pfs from 'vs/base/node/pfs';
 import * as platform from 'vs/base/common/platform';
 import product from 'vs/platform/node/product';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -13,10 +14,17 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
+import { IQuickOpenService, IPickOpenEntry, IPickOptions } from 'vs/platform/quickOpen/common/quickOpen';
 import { ITerminalInstance, ITerminalService, IShellLaunchConfig, ITerminalConfigHelper } from 'vs/workbench/parts/terminal/common/terminal';
 import { TerminalService as AbstractTerminalService } from 'vs/workbench/parts/terminal/common/terminalService';
 import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 import { TerminalInstance } from 'vs/workbench/parts/terminal/electron-browser/terminalInstance';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IChoiceService } from "vs/platform/message/common/message";
+import { Severity } from "vs/editor/common/standalone/standaloneBase";
+import { IStorageService, StorageScope } from "vs/platform/storage/common/storage";
+import { TERMINAL_DEFAULT_SHELL_WINDOWS } from "vs/workbench/parts/terminal/electron-browser/terminal";
 
 export class TerminalService extends AbstractTerminalService implements ITerminalService {
 	private _configHelper: TerminalConfigHelper;
@@ -30,14 +38,18 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		@IPartService _partService: IPartService,
 		@ILifecycleService _lifecycleService: ILifecycleService,
 		@IInstantiationService private _instantiationService: IInstantiationService,
-		@IWindowIPCService private _windowService: IWindowIPCService
+		@IWindowIPCService private _windowService: IWindowIPCService,
+		@IQuickOpenService private _quickOpenService: IQuickOpenService,
+		@IConfigurationEditingService private _configurationEditingService: IConfigurationEditingService,
+		@IChoiceService private _choiceService: IChoiceService,
+		@IStorageService private _storageService: IStorageService
 	) {
 		super(_contextKeyService, _configurationService, _panelService, _partService, _lifecycleService);
 
 		this._configHelper = this._instantiationService.createInstance(TerminalConfigHelper, platform.platform);
 	}
 
-	public createInstance(shell: IShellLaunchConfig = {}): ITerminalInstance {
+	public createInstance(shell: IShellLaunchConfig = {}, wasNewTerminalAction?: boolean): ITerminalInstance {
 		let terminalInstance = this._instantiationService.createInstance(TerminalInstance,
 			this._terminalFocusContextKey,
 			this._configHelper,
@@ -52,7 +64,113 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 			this.setActiveInstanceByIndex(0);
 		}
 		this._onInstancesChanged.fire();
+		this._suggestShellChange(wasNewTerminalAction);
 		return terminalInstance;
+	}
+
+	private _suggestShellChange(wasNewTerminalAction?: boolean): void {
+		// Only suggest on Windows since $SHELL works great for macOS/Linux
+		if (!platform.isWindows) {
+			return;
+		}
+
+		// Only suggest when the terminal instance is being created by an explicit user action to
+		// launch a terminal, as opposed to something like tasks, debug, panel restore, etc.
+		if (!wasNewTerminalAction) {
+			return;
+		}
+
+		// Don't suggest if the user has explicitly opted out
+		const neverSuggest = this._storageService.getBoolean('terminal.neverSuggestSelectWindowsShell', StorageScope.GLOBAL, false);
+		if (neverSuggest) {
+			return;
+		}
+
+		// Never suggest if the setting is non-default already (ie. they set the setting manually)
+		if (this._configHelper.config.shell.windows !== TERMINAL_DEFAULT_SHELL_WINDOWS) {
+			this._storageService.store('terminal.neverSuggestSelectWindowsShell', true);
+			return;
+		}
+
+		const message = nls.localize('terminal.integrated.chooseWindowsShellInfo', "You can change the default terminal shell by selecting the customize button.");
+		const options = [nls.localize('customize', "Customize"), nls.localize('cancel', "Cancel"), nls.localize('never again', "OK, Never Show Again")];
+		this._choiceService.choose(Severity.Info, message, options).then(choice => {
+			switch (choice) {
+				case 0:
+					return this.selectDefaultWindowsShell();
+				case 1:
+					return TPromise.as(null);
+				case 2:
+					this._storageService.store('terminal.neverSuggestSelectWindowsShell', true);
+				default:
+					return TPromise.as(null);
+			}
+		});
+	}
+
+	public selectDefaultWindowsShell(): TPromise<string> {
+		return this._detectWindowsShells().then(shells => {
+			const options: IPickOptions = {
+				placeHolder: nls.localize('terminal.integrated.chooseWindowsShell', "Select your preferred terminal shell, you can change this later in your settings")
+			};
+			return this._quickOpenService.pick(shells, options).then(value => {
+				if (!value) {
+					return null;
+				}
+				const shell = value.description;
+				const configChange = { key: 'terminal.integrated.shell.windows', value: shell };
+				return this._configurationEditingService.writeConfiguration(ConfigurationTarget.USER, configChange).then(() => shell);
+			});
+		});
+	}
+
+	private _detectWindowsShells(): TPromise<IPickOpenEntry[]> {
+		const windir = process.env['windir'];
+		const expectedLocations = {
+			'Command Prompt': [
+				`${windir}\\Sysnative\\cmd.exe`,
+				`${windir}\\System32\\cmd.exe`
+			],
+			PowerShell: [
+				`${windir}\\Sysnative\\WindowsPowerShell\\v1.0\\powershell.exe`,
+				`${windir}\\System32\\WindowsPowerShell\\v1.0\\powershell.exe`
+			],
+			'WSL Bash': [`${windir}\\Sysnative\\bash.exe`],
+			'Git Bash': [
+				`${process.env['ProgramW6432']}\\Git\\bin\\bash.exe`,
+				`${process.env['ProgramW6432']}\\Git\\usr\\bin\\bash.exe`,
+				`${process.env['ProgramFiles']}\\Git\\bin\\bash.exe`,
+				`${process.env['ProgramFiles']}\\Git\\usr\\bin\\bash.exe`,
+			]
+		};
+		const promises: TPromise<[string, string]>[] = [];
+		Object.keys(expectedLocations).forEach(key => promises.push(this._validateShellPaths(key, expectedLocations[key])));
+		return TPromise.join(promises).then(results => {
+			return results.filter(result => !!result).map(result => {
+				return <IPickOpenEntry>{
+					label: result[0],
+					description: result[1]
+				};
+			});
+		});
+	}
+
+	private _validateShellPaths(label: string, potentialPaths: string[]): TPromise<[string, string]> {
+		const current = potentialPaths.shift();
+		return pfs.fileExists(current).then(exists => {
+			if (!exists) {
+				if (potentialPaths.length === 0) {
+					return null;
+				}
+				return this._validateShellPaths(label, potentialPaths);
+			}
+			return [label, current];
+		});
+	}
+
+	public getActiveOrCreateInstance(wasNewTerminalAction?: boolean): ITerminalInstance {
+		const activeInstance = this.getActiveInstance();
+		return activeInstance ? activeInstance : this.createInstance(undefined, wasNewTerminalAction);
 	}
 
 	protected _showTerminalCloseConfirmation(): boolean {
