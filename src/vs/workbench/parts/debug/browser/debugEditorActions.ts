@@ -94,7 +94,7 @@ class ToggleColumnBreakpointContextMenuAction extends EditorAction {
 			id: 'editor.debug.action.toggleColumnBreakpointContextMenu',
 			label: nls.localize('columnBreakpoint', "Add Column Breakpoint"),
 			alias: 'Toggle Column Breakpoint',
-			precondition: CONTEXT_IN_DEBUG_MODE,
+			precondition: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, CONTEXT_NOT_IN_DEBUG_REPL, EditorContextKeys.Writable),
 			menuOpts: {
 				group: 'debug',
 				order: 1
