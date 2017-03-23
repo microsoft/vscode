@@ -545,13 +545,11 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		let doLayout = false;
 		let newSashSize: number = 0;
 		let visibleEditors = this.editorService.getVisibleEditors().length;
-		let eO = this.editorGroupService.getGroupOrientation();
-		console.log(eO);
 
 		const sizeChangePxWidth = this.workbenchSize.width * (sizeChange / 100);
 		const sizeChangePxHeight = this.workbenchSize.height * (sizeChange / 100);
 
-		console.log('workbench length: ' + this.workbenchSize.width + ' PercentPX: ' + sizeChangePxHeight);
+		// console.log('workbench length: ' + this.workbenchSize.width + ' PercentPX: ' + sizeChangePxHeight);
 
 		switch (part) {
 			case Parts.SIDEBAR_PART:
@@ -575,15 +573,14 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 				// If we have one editor we can cheat and resize sidebar with the negative delta
 				const visibleEditorCount = this.editorService.getVisibleEditors().length;
 				if (visibleEditorCount === 1) {
-					this.sidebarWidth = this.sidebarWidth - sizeChange;
+					this.sidebarWidth = this.sidebarWidth - sizeChangePxWidth;
 					doLayout = true;
 				}
 				else {
 					this.editorGroupService.requestActiveGroupSizeChange(sizeChangePxWidth);
 					doLayout = false;
 				}
-				break;
-			}
+		}
 
 
 		if (doLayout) {
