@@ -34,7 +34,6 @@ import { IWorkspaceConfigurationValues } from 'vs/workbench/services/configurati
 
 import { IPickOpenEntry, IPickOptions } from 'vs/platform/quickOpen/common/quickOpen';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
-import { IWorkspaceSymbol } from 'vs/workbench/parts/search/common/search';
 import { IApplyEditsOptions, IUndoStopOptions, TextEditorRevealType, ITextEditorConfigurationUpdate, IResolvedTextEditorConfiguration, ISelectionChangeEvent } from './mainThreadEditor';
 
 import { InternalTreeExplorerNodeContent } from 'vs/workbench/parts/explorers/common/treeExplorerViewModel';
@@ -383,8 +382,8 @@ export abstract class ExtHostLanguageFeaturesShape {
 	$provideDocumentFormattingEdits(handle: number, resource: URI, options: modes.FormattingOptions): TPromise<editorCommon.ISingleEditOperation[]> { throw ni(); }
 	$provideDocumentRangeFormattingEdits(handle: number, resource: URI, range: editorCommon.IRange, options: modes.FormattingOptions): TPromise<editorCommon.ISingleEditOperation[]> { throw ni(); }
 	$provideOnTypeFormattingEdits(handle: number, resource: URI, position: editorCommon.IPosition, ch: string, options: modes.FormattingOptions): TPromise<editorCommon.ISingleEditOperation[]> { throw ni(); }
-	$provideWorkspaceSymbols(handle: number, search: string): TPromise<IWorkspaceSymbol[]> { throw ni(); }
-	$resolveWorkspaceSymbol(handle: number, symbol: IWorkspaceSymbol): TPromise<IWorkspaceSymbol> { throw ni(); }
+	$provideWorkspaceSymbols(handle: number, search: string): TPromise<modes.SymbolInformation[]> { throw ni(); }
+	$resolveWorkspaceSymbol(handle: number, symbol: modes.SymbolInformation): TPromise<modes.SymbolInformation> { throw ni(); }
 	$provideRenameEdits(handle: number, resource: URI, position: editorCommon.IPosition, newName: string): TPromise<modes.WorkspaceEdit> { throw ni(); }
 	$provideCompletionItems(handle: number, resource: URI, position: editorCommon.IPosition): TPromise<modes.ISuggestResult> { throw ni(); }
 	$resolveCompletionItem(handle: number, resource: URI, position: editorCommon.IPosition, suggestion: modes.ISuggestion): TPromise<modes.ISuggestion> { throw ni(); }
