@@ -73,7 +73,8 @@ function getGulpTasks(): Thenable<vscode.TaskSet> {
 						if (line.length === 0) {
 							continue;
 						}
-						result.tasks.push(new vscode.ShellTask(`gulp ${line}`, `gulp ${line}`));
+						let task = new vscode.ShellTask(`gulp ${line}`, `gulp ${line}`);
+						result.tasks.push(task);
 						let lowerCaseLine = line.toLowerCase();
 						if (lowerCaseLine === 'build') {
 							buildTask = { id: line, rank: 2 };

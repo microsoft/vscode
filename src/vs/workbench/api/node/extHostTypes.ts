@@ -992,27 +992,67 @@ export class BaseTask {
 
 	private _name: string;
 	private _problemMatchers: vscode.ProblemMatcher[];
-
-	public isBackground: boolean;
-	public identifier: string;
-	public terminal: vscode.TerminalBehaviour;
+	private _identifier: string;
+	private _isBackground: boolean;
+	private _terminal: vscode.TerminalBehaviour;
 
 	constructor(name: string, problemMatchers: vscode.ProblemMatcher[]) {
 		if (typeof name !== 'string') {
 			throw illegalArgument('name');
 		}
 		this._name = name;
-		this.identifier = name;
-		this._problemMatchers = problemMatchers;
-		this.isBackground = false;
+		this._identifier = name;
+		this._problemMatchers = problemMatchers || [];
+		this._isBackground = false;
+		this._terminal = Object.create(null);
+	}
+
+	get identifier(): string {
+		return this._identifier;
+	}
+
+	set identifier(value: string) {
+		if (typeof name !== 'string') {
+			throw illegalArgument('identifier');
+		}
+		this._identifier = value;
 	}
 
 	get name(): string {
 		return this._name;
 	}
 
+	get isBackground(): boolean {
+		return this._isBackground;
+	}
+
+	set isBackground(value: boolean) {
+		if (value !== true && value !== false) {
+			value = false;
+		}
+		this._isBackground = value;
+	}
+
+	get terminal(): vscode.TerminalBehaviour {
+		return this._terminal;
+	}
+
+	set terminal(value: vscode.TerminalBehaviour) {
+		if (value === void 0 || value === null) {
+			value = Object.create(null);
+		}
+		this._terminal = value;
+	}
+
 	get problemMatchers(): vscode.ProblemMatcher[] {
 		return this._problemMatchers;
+	}
+
+	set problemMatchers(value: vscode.ProblemMatcher[]) {
+		if (!Array.isArray(value)) {
+			value = [];
+		}
+		this._problemMatchers = value;
 	}
 }
 
@@ -1027,9 +1067,8 @@ namespace ProblemMatcher {
 export class ProcessTask extends BaseTask {
 
 	private _process: string;
-
-	public args: string[];
-	public options: vscode.ProcessOptions;
+	private _args: string[];
+	private _options: vscode.ProcessOptions;
 
 	private static parseArguments(restArgs: any[]): { args: string[]; options: vscode.ProcessOptions; problemMatchers: vscode.ProblemMatcher[] } {
 		let args: string[] = [];
@@ -1066,20 +1105,41 @@ export class ProcessTask extends BaseTask {
 		let { args, options, problemMatchers } = ProcessTask.parseArguments(rest);
 		super(name, problemMatchers);
 		this._process = process;
-		this.args = args;
-		this.options = options;
+		this._args = args;
+		this._options = options || Object.create(null);
 	}
 
 	get process(): string {
 		return this._process;
+	}
+
+	get args(): string[] {
+		return this._args;
+	}
+
+	set args(value: string[]) {
+		if (!Array.isArray(value)) {
+			value = [];
+		}
+		this._args = value;
+	}
+
+	get options(): vscode.ProcessOptions {
+		return this._options;
+	}
+
+	set options(value: vscode.ProcessOptions) {
+		if (value === void 0 || value === null) {
+			value = Object.create(null);
+		}
+		this._options = value;
 	}
 }
 
 export class ShellTask extends BaseTask {
 
 	private _commandLine: string;
-
-	public options: vscode.ShellOptions;
+	private _options: vscode.ShellOptions;
 
 	private static parseArguments(restArgs: any[]): { options: vscode.ShellOptions; problemMatchers: vscode.ProblemMatcher[] } {
 		let options: vscode.ShellOptions = undefined;
@@ -1109,10 +1169,21 @@ export class ShellTask extends BaseTask {
 
 		super(name, problemMatchers);
 		this._commandLine = commandLine;
-		this.options = options;
+		this._options = options || Object.create(null);
 	}
 
 	get commandLine(): string {
 		return this._commandLine;
+	}
+
+	get options(): vscode.ShellOptions {
+		return this._options;
+	}
+
+	set options(value: vscode.ShellOptions) {
+		if (value === void 0 || value === null) {
+			value = Object.create(null);
+		}
+		this._options = value;
 	}
 }

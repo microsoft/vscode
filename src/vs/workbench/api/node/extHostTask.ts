@@ -208,11 +208,11 @@ namespace RevealKind {
 }
 
 namespace TerminalBehaviour {
-	export function from(value: vscode.TerminalBehaviour): { showOutput: TaskSystem.ShowOutput } {
+	export function from(value: vscode.TerminalBehaviour): { showOutput: TaskSystem.ShowOutput, echo: boolean } {
 		if (value === void 0 || value === null) {
-			return { showOutput: TaskSystem.ShowOutput.Always };
+			return { showOutput: TaskSystem.ShowOutput.Always, echo: false };
 		}
-		return { showOutput: RevealKind.from(value.reveal) };
+		return { showOutput: RevealKind.from(value.reveal), echo: !!value.echo };
 	}
 }
 
@@ -303,13 +303,14 @@ namespace Tasks {
 		if (command === void 0) {
 			return undefined;
 		}
-		let outputChannel = TerminalBehaviour.from(task.terminal);
+		let behaviour = TerminalBehaviour.from(task.terminal);
+		command.echo = behaviour.echo;
 		let result: TaskSystem.Task = {
 			_id: uuidMap.getUUID(task.identifier),
 			name: task.name,
 			identifier: task.identifier,
 			command: command,
-			showOutput: outputChannel.showOutput,
+			showOutput: behaviour.showOutput,
 			isBackground: !!task.isBackground,
 			suppressTaskName: true,
 			problemMatchers: ProblemMatcher.from(task.problemMatchers)

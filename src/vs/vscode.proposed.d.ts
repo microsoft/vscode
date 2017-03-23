@@ -256,6 +256,11 @@ declare module 'vscode' {
 		 * Defaults to `RevealKind.Always`.
 		 */
 		reveal?: RevealKind;
+
+		/**
+		 * Controls whether the command is echoed in the terminal or not.
+		 */
+		echo?: boolean;
 	}
 
 
@@ -331,24 +336,26 @@ declare module 'vscode' {
 		readonly process: string;
 
 		/**
-		 * The arguments passed to the process. Can be omitted.
+		 * The arguments passed to the process. Defaults to an empty array.
 		 */
-		args?: string[];
+		args: string[];
 
 		/**
-		 * The process options used when the process is executed. Can be omitted.
+		 * The process options used when the process is executed.
+		 * Defaults to an empty object literal.
 		 */
-		options?: ProcessOptions;
+		options: ProcessOptions;
 
 		/**
-		 * The terminal options. Can be omitted.
+		 * The terminal options. Defaults to an empty object literal.
 		 */
-		terminal?: TerminalBehaviour;
+		terminal: TerminalBehaviour;
 
 		/**
-		 * The problem matchers attached to the task.
+		 * The problem matchers attached to the task. Defaults to an empty
+		 * array.
 		 */
-		readonly problemMatchers?: ProblemMatcher[];
+		problemMatchers: ProblemMatcher[];
 	}
 
 	export interface ShellOptions {
@@ -422,19 +429,21 @@ declare module 'vscode' {
 		readonly commandLine: string;
 
 		/**
-		 * The shell options used when the shell is executed. Can be omitted.
+		 * The shell options used when the shell is executed. Defaults to an
+		 * empty object literal.
 		 */
-		options?: ShellOptions;
+		options: ShellOptions;
 
 		/**
-		 * The terminal options. Can be omitted.
+		 * The terminal options. Defaults to an empty object literal.
 		 */
-		terminal?: TerminalBehaviour;
+		terminal: TerminalBehaviour;
 
 		/**
-		 * The problem matchers attached to the task.
+		 * The problem matchers attached to the task. Defaults to an empty
+		 * array.
 		 */
-		readonly problemMatchers?: ProblemMatcher[];
+		problemMatchers: ProblemMatcher[];
 	}
 
 	export type Task = ProcessTask | ShellTask;
