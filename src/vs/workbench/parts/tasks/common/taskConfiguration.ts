@@ -19,7 +19,7 @@ import {
 	isNamedProblemMatcher, ProblemMatcherRegistry
 } from 'vs/platform/markers/common/problemMatcher';
 
-import * as TaskSystem from './taskSystem';
+import * as Tasks from './tasks';
 
 /**
  * Defines the problem handling strategy
@@ -58,24 +58,6 @@ export interface PlatformTaskDescription {
 	 */
 	args?: string[];
 }
-
-export interface CommandBinding {
-	/**
-	 * The command identifer the task is bound to.
-	 */
-	identifier?: string;
-
-	/**
-	 * The title to use
-	 */
-	title?: string;
-
-	/**
-	 * An optional category
-	 */
-	category?: string;
-}
-
 
 /**
  * The description of a task.
@@ -317,8 +299,8 @@ interface ParseContext {
 }
 
 namespace CommandOptions {
-	export function from(this: void, options: ProcessConfig.CommandOptions, context: ParseContext): TaskSystem.CommandOptions {
-		let result: TaskSystem.CommandOptions = {};
+	export function from(this: void, options: ProcessConfig.CommandOptions, context: ParseContext): Tasks.CommandOptions {
+		let result: Tasks.CommandOptions = {};
 		if (options.cwd !== void 0) {
 			if (Types.isString(options.cwd)) {
 				result.cwd = options.cwd;
@@ -332,11 +314,11 @@ namespace CommandOptions {
 		return isEmpty(result) ? undefined : result;
 	}
 
-	export function isEmpty(value: TaskSystem.CommandOptions): boolean {
+	export function isEmpty(value: Tasks.CommandOptions): boolean {
 		return !value || value.cwd === void 0 && value.env === void 0;
 	}
 
-	export function merge(target: TaskSystem.CommandOptions, source: TaskSystem.CommandOptions): TaskSystem.CommandOptions {
+	export function merge(target: Tasks.CommandOptions, source: Tasks.CommandOptions): Tasks.CommandOptions {
 		if (isEmpty(source)) {
 			return target;
 		}
@@ -355,7 +337,7 @@ namespace CommandOptions {
 		return target;
 	}
 
-	export function fillDefaults(value: TaskSystem.CommandOptions): TaskSystem.CommandOptions {
+	export function fillDefaults(value: Tasks.CommandOptions): Tasks.CommandOptions {
 		if (value && Object.isFrozen(value)) {
 			return value;
 		}
@@ -368,7 +350,7 @@ namespace CommandOptions {
 		return value;
 	}
 
-	export function freeze(value: TaskSystem.CommandOptions): void {
+	export function freeze(value: Tasks.CommandOptions): void {
 		Object.freeze(value);
 		if (value.env) {
 			Object.freeze(value.env);
@@ -387,7 +369,7 @@ namespace ShellConfiguration {
 		return candidate && Types.isString(candidate.executable) && (candidate.args === void 0 || Types.isStringArray(candidate.args));
 	}
 
-	export function from(this: void, config: ShellConfiguration, context: ParseContext): TaskSystem.ShellConfiguration {
+	export function from(this: void, config: ShellConfiguration, context: ParseContext): Tasks.ShellConfiguration {
 		if (!is(config)) {
 			return undefined;
 		}
@@ -398,11 +380,11 @@ namespace ShellConfiguration {
 		return result;
 	}
 
-	export function isEmpty(value: TaskSystem.ShellConfiguration): boolean {
+	export function isEmpty(value: Tasks.ShellConfiguration): boolean {
 		return !value || value.executable === void 0 && (value.args === void 0 || value.args.length === 0);
 	}
 
-	export function merge(target: TaskSystem.ShellConfiguration, source: TaskSystem.ShellConfiguration): TaskSystem.ShellConfiguration {
+	export function merge(target: Tasks.ShellConfiguration, source: Tasks.ShellConfiguration): Tasks.ShellConfiguration {
 		if (isEmpty(source)) {
 			return target;
 		}
@@ -414,10 +396,10 @@ namespace ShellConfiguration {
 		return target;
 	}
 
-	export function fillDefaults(value: TaskSystem.ShellConfiguration): void {
+	export function fillDefaults(value: Tasks.ShellConfiguration): void {
 	}
 
-	export function freeze(value: TaskSystem.ShellConfiguration): void {
+	export function freeze(value: Tasks.ShellConfiguration): void {
 		if (!value) {
 			return;
 		}
@@ -441,10 +423,10 @@ namespace CommandConfiguration {
 		linux?: BaseCommandConfiguationShape;
 	}
 
-	export function from(this: void, config: CommandConfiguationShape, context: ParseContext): TaskSystem.CommandConfiguration {
-		let result: TaskSystem.CommandConfiguration = fromBase(config, context);
+	export function from(this: void, config: CommandConfiguationShape, context: ParseContext): Tasks.CommandConfiguration {
+		let result: Tasks.CommandConfiguration = fromBase(config, context);
 
-		let osConfig: TaskSystem.CommandConfiguration = undefined;
+		let osConfig: Tasks.CommandConfiguration = undefined;
 		if (config.windows && Platform.platform === Platform.Platform.Windows) {
 			osConfig = fromBase(config.windows, context);
 		} else if (config.osx && Platform.platform === Platform.Platform.Mac) {
@@ -459,8 +441,12 @@ namespace CommandConfiguration {
 		return isEmpty(result) ? undefined : result;
 	}
 
-	function fromBase(this: void, config: BaseCommandConfiguationShape, context: ParseContext): TaskSystem.CommandConfiguration {
-		let result: TaskSystem.CommandConfiguration = {};
+	function fromBase(this: void, config: BaseCommandConfiguationShape, context: ParseContext): Tasks.CommandConfiguration {
+		let result: Tasks.CommandConfiguration = {
+			name: undefined,
+			isShellCommand: undefined,
+			echo: undefined
+		};
 		if (Types.isString(config.command)) {
 			result.name = config.command;
 		}
@@ -493,15 +479,15 @@ namespace CommandConfiguration {
 		return isEmpty(result) ? undefined : result;
 	}
 
-	export function isEmpty(value: TaskSystem.CommandConfiguration): boolean {
+	export function isEmpty(value: Tasks.CommandConfiguration): boolean {
 		return !value || value.name === void 0 && value.isShellCommand === void 0 && value.args === void 0 && CommandOptions.isEmpty(value.options) && value.echo === void 0;
 	}
 
-	export function onlyEcho(value: TaskSystem.CommandConfiguration): boolean {
+	export function onlyEcho(value: Tasks.CommandConfiguration): boolean {
 		return value && value.echo !== void 0 && value.name === void 0 && value.isShellCommand === void 0 && value.args === void 0 && CommandOptions.isEmpty(value.options);
 	}
 
-	export function merge(target: TaskSystem.CommandConfiguration, source: TaskSystem.CommandConfiguration): TaskSystem.CommandConfiguration {
+	export function merge(target: Tasks.CommandConfiguration, source: Tasks.CommandConfiguration): Tasks.CommandConfiguration {
 		if (isEmpty(source)) {
 			return target;
 		}
@@ -533,7 +519,7 @@ namespace CommandConfiguration {
 		return target;
 	}
 
-	export function fillDefaults(value: TaskSystem.CommandConfiguration): void {
+	export function fillDefaults(value: Tasks.CommandConfiguration): void {
 		if (!value || Object.isFrozen(value)) {
 			return;
 		}
@@ -551,7 +537,7 @@ namespace CommandConfiguration {
 		}
 	}
 
-	export function freeze(value: TaskSystem.CommandConfiguration): void {
+	export function freeze(value: Tasks.CommandConfiguration): void {
 		Object.freeze(value);
 		if (value.args) {
 			Object.freeze(value.args);
@@ -651,35 +637,10 @@ namespace ProblemMatcherConverter {
 	}
 }
 
-namespace CommandBinding {
-	export function isEmpty(value: TaskSystem.CommandBinding): boolean {
-		return !value || value.identifier === void 0 && value.title === void 0 && value.category === void 0;
-	}
-
-	export function from(this: void, binding: CommandBinding, context: ParseContext): TaskSystem.CommandBinding {
-		if (!binding) {
-			return undefined;
-		}
-
-		if (!Types.isString(binding.identifier)) {
-			context.problemReporter.warn(nls.localize('noCommandId', 'Warning: a command binding must defined an identifier. Ignoring binding.'));
-			return undefined;
-		}
-		let result: TaskSystem.CommandBinding = {
-			identifier: binding.identifier,
-			title: ''
-		};
-		if (Types.isString(binding.category)) {
-			result.category = binding.category;
-		}
-		return result;
-	}
-}
-
 namespace TaskDescription {
 
 	export interface TaskConfiguration {
-		tasks: IStringDictionary<TaskSystem.TaskDescription>;
+		tasks: Tasks.Task[];
 		buildTask?: string;
 		testTask?: string;
 	}
@@ -692,7 +653,7 @@ namespace TaskDescription {
 		if (!tasks) {
 			return undefined;
 		}
-		let parsedTasks: IStringDictionary<TaskSystem.TaskDescription> = Object.create(null);
+		let parsedTasks: Tasks.Task[] = [];
 		let defaultBuildTask: { id: string; exact: number; } = { id: null, exact: -1 };
 		let defaultTestTask: { id: string; exact: number; } = { id: null, exact: -1 };
 		tasks.forEach((externalTask) => {
@@ -702,12 +663,12 @@ namespace TaskDescription {
 				return;
 			}
 			let problemMatchers = ProblemMatcherConverter.from(externalTask.problemMatcher, context);
-			let command: TaskSystem.CommandConfiguration = externalTask.command !== void 0
+			let command: Tasks.CommandConfiguration = externalTask.command !== void 0
 				? CommandConfiguration.from(externalTask, context)
-				: externalTask.echoCommand !== void 0 ? { echo: !!externalTask.echoCommand } : undefined;
+				: externalTask.echoCommand !== void 0 ? { name: undefined, isShellCommand: undefined, echo: !!externalTask.echoCommand } : undefined;
 			let identifer = Types.isString(externalTask.identifier) ? externalTask.identifier : taskName;
-			let task: TaskSystem.TaskDescription = {
-				id: UUID.generateUuid(),
+			let task: Tasks.Task = {
+				_id: UUID.generateUuid(),
 				name: taskName,
 				identifier: identifer,
 				command,
@@ -726,7 +687,7 @@ namespace TaskDescription {
 				task.promptOnClose = !!externalTask.promptOnClose;
 			}
 			if (Types.isString(externalTask.showOutput)) {
-				task.showOutput = TaskSystem.ShowOutput.fromString(externalTask.showOutput);
+				task.showOutput = Tasks.ShowOutput.fromString(externalTask.showOutput);
 			}
 			if (externalTask.command !== void 0) {
 				// if the task has its own command then we suppress the
@@ -771,19 +732,19 @@ namespace TaskDescription {
 				}
 			}
 			if (addTask) {
-				parsedTasks[task.id] = task;
+				parsedTasks.push(task);
 				if (!Types.isUndefined(externalTask.isBuildCommand) && externalTask.isBuildCommand && defaultBuildTask.exact < 2) {
-					defaultBuildTask.id = task.id;
+					defaultBuildTask.id = task._id;
 					defaultBuildTask.exact = 2;
 				} else if (taskName === 'build' && defaultBuildTask.exact < 2) {
-					defaultBuildTask.id = task.id;
+					defaultBuildTask.id = task._id;
 					defaultBuildTask.exact = 1;
 				}
 				if (!Types.isUndefined(externalTask.isTestCommand) && externalTask.isTestCommand && defaultTestTask.exact < 2) {
-					defaultTestTask.id = task.id;
+					defaultTestTask.id = task._id;
 					defaultTestTask.exact = 2;
 				} else if (taskName === 'test' && defaultTestTask.exact < 2) {
-					defaultTestTask.id = task.id;
+					defaultTestTask.id = task._id;
 					defaultTestTask.exact = 1;
 				}
 			}
@@ -837,7 +798,7 @@ namespace TaskDescription {
 		return target;
 	}
 
-	export function mergeGlobals(task: TaskSystem.TaskDescription, globals: Globals): void {
+	export function mergeGlobals(task: Tasks.Task, globals: Globals): void {
 		// We only merge a command from a global definition if there is no dependsOn
 		if (task.dependsOn === void 0) {
 			if (CommandConfiguration.isEmpty(task.command) && !CommandConfiguration.isEmpty(globals.command) && globals.command.name !== void 0) {
@@ -864,7 +825,7 @@ namespace TaskDescription {
 		}
 	}
 
-	export function fillDefaults(task: TaskSystem.TaskDescription): void {
+	export function fillDefaults(task: Tasks.Task): void {
 		CommandConfiguration.fillDefaults(task.command);
 		if (task.args === void 0 && task.command === void 0) {
 			task.args = EMPTY_ARRAY;
@@ -879,7 +840,7 @@ namespace TaskDescription {
 			task.isBackground = false;
 		}
 		if (task.showOutput === void 0) {
-			task.showOutput = TaskSystem.ShowOutput.Always;
+			task.showOutput = Tasks.ShowOutput.Always;
 		}
 		if (task.problemMatchers === void 0) {
 			task.problemMatchers = EMPTY_ARRAY;
@@ -910,10 +871,10 @@ namespace TaskDescription {
 }
 
 interface Globals {
-	command?: TaskSystem.CommandConfiguration;
+	command?: Tasks.CommandConfiguration;
 	promptOnClose?: boolean;
 	suppressTaskName?: boolean;
-	showOutput?: TaskSystem.ShowOutput;
+	showOutput?: Tasks.ShowOutput;
 }
 
 namespace Globals {
@@ -943,7 +904,7 @@ namespace Globals {
 	export function fromBase(this: void, config: BaseTaskRunnerConfiguration, context: ParseContext): Globals {
 		let result: Globals = {};
 		if (Types.isString(config.showOutput)) {
-			result.showOutput = TaskSystem.ShowOutput.fromString(config.showOutput);
+			result.showOutput = Tasks.ShowOutput.fromString(config.showOutput);
 		}
 		if (config.suppressTaskName !== void 0) {
 			result.suppressTaskName = !!config.suppressTaskName;
@@ -979,7 +940,7 @@ namespace Globals {
 			value.suppressTaskName = false;
 		}
 		if (value.showOutput === void 0) {
-			value.showOutput = TaskSystem.ShowOutput.Always;
+			value.showOutput = Tasks.ShowOutput.Always;
 		}
 		if (value.promptOnClose === void 0) {
 			value.promptOnClose = true;
@@ -994,20 +955,14 @@ namespace Globals {
 	}
 }
 
-export enum ExecutionEngine {
-	Unknown = 0,
-	Terminal = 1,
-	OutputPanel = 2
-}
-
 export namespace ExecutionEngine {
 
-	export function from(config: ExternalTaskRunnerConfiguration): ExecutionEngine {
+	export function from(config: ExternalTaskRunnerConfiguration): Tasks.ExecutionEngine {
 		return isTerminalConfig(config)
-			? ExecutionEngine.Terminal
+			? Tasks.ExecutionEngine.Terminal
 			: isRunnerConfig(config)
-				? ExecutionEngine.OutputPanel
-				: ExecutionEngine.Unknown;
+				? Tasks.ExecutionEngine.Process
+				: Tasks.ExecutionEngine.Unknown;
 	}
 
 	function isRunnerConfig(config: ExternalTaskRunnerConfiguration): boolean {
@@ -1021,8 +976,8 @@ export namespace ExecutionEngine {
 
 export interface ParseResult {
 	validationStatus: ValidationStatus;
-	configuration: TaskSystem.TaskRunnerConfiguration;
-	engine: ExecutionEngine;
+	taskSet: Tasks.TaskSet;
+	engine: Tasks.ExecutionEngine;
 }
 
 export interface IProblemReporter extends IProblemReporterBase {
@@ -1039,18 +994,18 @@ class ConfigurationParser {
 
 	public run(fileConfig: ExternalTaskRunnerConfiguration): ParseResult {
 		let engine = ExecutionEngine.from(fileConfig);
-		if (engine === ExecutionEngine.Terminal) {
+		if (engine === Tasks.ExecutionEngine.Terminal) {
 			this.problemReporter.clearOutput();
 		}
-		let context: ParseContext = { problemReporter: this.problemReporter, namedProblemMatchers: undefined, isTermnial: engine === ExecutionEngine.Terminal };
+		let context: ParseContext = { problemReporter: this.problemReporter, namedProblemMatchers: undefined, isTermnial: engine === Tasks.ExecutionEngine.Terminal };
 		return {
 			validationStatus: this.problemReporter.status,
-			configuration: this.createTaskRunnerConfiguration(fileConfig, context),
+			taskSet: this.createTaskRunnerConfiguration(fileConfig, context),
 			engine
 		};
 	}
 
-	private createTaskRunnerConfiguration(fileConfig: ExternalTaskRunnerConfiguration, context: ParseContext): TaskSystem.TaskRunnerConfiguration {
+	private createTaskRunnerConfiguration(fileConfig: ExternalTaskRunnerConfiguration, context: ParseContext): Tasks.TaskSet {
 		let globals = Globals.from(fileConfig, context);
 		if (this.problemReporter.status.isFatal()) {
 			return undefined;
@@ -1072,15 +1027,15 @@ class ConfigurationParser {
 		taskConfig = TaskDescription.merge(taskConfig, globalTasks);
 
 		if (TaskDescription.isEmpty(taskConfig)) {
-			let tasks: IStringDictionary<TaskSystem.TaskDescription> = Object.create(null);
+			let tasks: Tasks.Task[] = [];
 			let buildTask: string;
 			if (globals.command && globals.command.name) {
 				let matchers: ProblemMatcher[] = ProblemMatcherConverter.from(fileConfig.problemMatcher, context);;
 				let isBackground = fileConfig.isBackground ? !!fileConfig.isBackground : fileConfig.isWatching ? !!fileConfig.isWatching : undefined;
-				let task: TaskSystem.TaskDescription = {
-					id: UUID.generateUuid(),
+				let task: Tasks.Task = {
+					_id: UUID.generateUuid(),
 					name: globals.command.name,
-					identifier: globals.command.name,
+					identifier: UUID.generateUuid(),
 					command: undefined,
 					isBackground: isBackground,
 					showOutput: undefined,
@@ -1089,8 +1044,8 @@ class ConfigurationParser {
 				};
 				TaskDescription.mergeGlobals(task, globals);
 				TaskDescription.fillDefaults(task);
-				tasks[task.id] = task;
-				buildTask = task.id;
+				tasks.push(task);
+				buildTask = task._id;
 			}
 
 			taskConfig = {

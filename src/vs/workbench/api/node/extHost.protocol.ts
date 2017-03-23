@@ -37,6 +37,7 @@ import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import { IApplyEditsOptions, IUndoStopOptions, TextEditorRevealType, ITextEditorConfigurationUpdate, IResolvedTextEditorConfiguration, ISelectionChangeEvent } from './mainThreadEditor';
 
 import { InternalTreeExplorerNodeContent } from 'vs/workbench/parts/explorers/common/treeExplorerViewModel';
+import { TaskSet } from 'vs/workbench/parts/tasks/common/tasks';
 
 export interface IEnvironment {
 	enableProposedApi: boolean;
@@ -236,6 +237,11 @@ export abstract class MainThreadWorkspaceShape {
 	$applyWorkspaceEdit(edits: IResourceEdit[]): TPromise<boolean> { throw ni(); }
 }
 
+export abstract class MainThreadTaskShape {
+	$registerTaskProvider(handle: number): TPromise<any> { throw ni(); }
+	$unregisterTaskProvider(handle: number): TPromise<any> { throw ni(); }
+}
+
 export abstract class MainProcessExtensionServiceShape {
 	$localShowMessage(severity: Severity, msg: string): void { throw ni(); }
 	$onExtensionActivated(extensionId: string): void { throw ni(); }
@@ -410,6 +416,10 @@ export abstract class ExtHostSCMShape {
 	$onInputBoxValueChange(value: string): TPromise<void> { throw ni(); }
 }
 
+export abstract class ExtHostTaskShape {
+	$provideTasks(handle: number): TPromise<TaskSet> { throw ni(); }
+}
+
 // --- proxy identifiers
 
 export const MainContext = {
@@ -432,7 +442,8 @@ export const MainContext = {
 	MainThreadTerminalService: createMainId<MainThreadTerminalServiceShape>('MainThreadTerminalService', MainThreadTerminalServiceShape),
 	MainThreadWorkspace: createMainId<MainThreadWorkspaceShape>('MainThreadWorkspace', MainThreadWorkspaceShape),
 	MainProcessExtensionService: createMainId<MainProcessExtensionServiceShape>('MainProcessExtensionService', MainProcessExtensionServiceShape),
-	MainThreadSCM: createMainId<MainThreadSCMShape>('MainThreadSCM', MainThreadSCMShape)
+	MainThreadSCM: createMainId<MainThreadSCMShape>('MainThreadSCM', MainThreadSCMShape),
+	MainThreadTask: createMainId<MainThreadTaskShape>('MainThreadTask', MainThreadTaskShape)
 };
 
 export const ExtHostContext = {
@@ -450,5 +461,6 @@ export const ExtHostContext = {
 	ExtHostQuickOpen: createExtId<ExtHostQuickOpenShape>('ExtHostQuickOpen', ExtHostQuickOpenShape),
 	ExtHostExtensionService: createExtId<ExtHostExtensionServiceShape>('ExtHostExtensionService', ExtHostExtensionServiceShape),
 	ExtHostTerminalService: createExtId<ExtHostTerminalServiceShape>('ExtHostTerminalService', ExtHostTerminalServiceShape),
-	ExtHostSCM: createExtId<ExtHostSCMShape>('ExtHostSCM', ExtHostSCMShape)
+	ExtHostSCM: createExtId<ExtHostSCMShape>('ExtHostSCM', ExtHostSCMShape),
+	ExtHostTask: createExtId<ExtHostTaskShape>('ExtHostTask', ExtHostTaskShape)
 };

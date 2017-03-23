@@ -835,7 +835,7 @@ export class DebugService implements debug.IDebugService {
 			}
 
 			// no task running, execute the preLaunchTask.
-			const taskPromise = this.taskService.run(filteredTasks[0].id).then(result => {
+			const taskPromise = this.taskService.run(filteredTasks[0]).then(result => {
 				this.lastTaskEvent = null;
 				return result;
 			}, err => {

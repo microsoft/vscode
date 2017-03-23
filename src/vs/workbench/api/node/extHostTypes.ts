@@ -963,3 +963,156 @@ export class DocumentLink {
 		this.target = target;
 	}
 }
+
+export enum FileLocationKind {
+	Auto = 1,
+
+	Relative = 2,
+
+	Absolute = 3
+}
+
+export enum ApplyToKind {
+	AllDocuments = 1,
+
+	OpenDocuments = 2,
+
+	ClosedDocuments = 3
+}
+
+export enum RevealKind {
+	Always = 1,
+
+	Silent = 2,
+
+	Never = 3
+}
+
+export class BaseTask {
+
+	private _name: string;
+	private _problemMatchers: vscode.ProblemMatcher[];
+
+	public isBackground: boolean;
+	public identifier: string;
+	public terminal: vscode.TerminalBehaviour;
+
+	constructor(name: string, problemMatchers: vscode.ProblemMatcher[]) {
+		if (typeof name !== 'string') {
+			throw illegalArgument('name');
+		}
+		this._name = name;
+		this.identifier = name;
+		this._problemMatchers = problemMatchers;
+		this.isBackground = false;
+	}
+
+	get name(): string {
+		return this._name;
+	}
+
+	get problemMatchers(): vscode.ProblemMatcher[] {
+		return this._problemMatchers;
+	}
+}
+
+namespace ProblemMatcher {
+	export function is(value: any): value is vscode.ProblemMatcher {
+		let candidate: vscode.ProblemMatcher = value;
+		return candidate && !!candidate.pattern;
+	}
+}
+
+
+export class ProcessTask extends BaseTask {
+
+	private _process: string;
+
+	public args: string[];
+	public options: vscode.ProcessOptions;
+
+	private static parseArguments(restArgs: any[]): { args: string[]; options: vscode.ProcessOptions; problemMatchers: vscode.ProblemMatcher[] } {
+		let args: string[] = [];
+		let options: vscode.ProcessOptions = undefined;
+		let problemMatchers: vscode.ProblemMatcher[] = [];
+		if (!restArgs || restArgs.length === 0) {
+			return { args, options, problemMatchers };
+		}
+		let current: any = restArgs[0];
+		if (Array.isArray(current)) {
+			args = current;
+			restArgs.shift();
+			current = restArgs[0];
+		}
+		if (ProblemMatcher.is(current)) {
+			problemMatchers = restArgs;
+		} else if (current) {
+			options = current;
+			restArgs.shift();
+			if (restArgs.length > 0) {
+				problemMatchers = restArgs;
+			}
+		}
+		return { args, options, problemMatchers };
+	}
+
+	constructor(name: string, process: string, ...problemMatchers: vscode.ProblemMatcher[]);
+	constructor(name: string, process: string, args: string[], ...problemMatchers: vscode.ProblemMatcher[]);
+	constructor(name: string, process: string, args: string[], options: vscode.ProcessOptions, ...problemMatchers: vscode.ProblemMatcher[]);
+	constructor(name: string, process: string, ...rest: any[]) {
+		if (typeof process !== 'string') {
+			throw illegalArgument('process');
+		}
+		let { args, options, problemMatchers } = ProcessTask.parseArguments(rest);
+		super(name, problemMatchers);
+		this._process = process;
+		this.args = args;
+		this.options = options;
+	}
+
+	get process(): string {
+		return this._process;
+	}
+}
+
+export class ShellTask extends BaseTask {
+
+	private _commandLine: string;
+
+	public options: vscode.ShellOptions;
+
+	private static parseArguments(restArgs: any[]): { options: vscode.ShellOptions; problemMatchers: vscode.ProblemMatcher[] } {
+		let options: vscode.ShellOptions = undefined;
+		let problemMatchers: vscode.ProblemMatcher[] = [];
+		if (!restArgs || restArgs.length === 0) {
+			return { options, problemMatchers };
+		}
+		let current: any = restArgs[0];
+		if (current && !ProblemMatcher.is(current)) {
+			options = current;
+			restArgs.shift();
+			current = restArgs[0];
+		}
+		if (ProblemMatcher.is(current)) {
+			problemMatchers = restArgs;
+		}
+		return { options, problemMatchers };
+	}
+
+	constructor(name: string, commandLine: string, ...problemMatchers: vscode.ProblemMatcher[]);
+	constructor(name: string, commandLine: string, options: vscode.ShellOptions, ...problemMatchers: vscode.ProblemMatcher[]);
+	constructor(name: string, commandLine: string, ...rest: any[]) {
+		if (typeof commandLine !== 'string') {
+			throw illegalArgument('commandLine');
+		}
+		let { options, problemMatchers } = ShellTask.parseArguments(rest);
+
+		super(name, problemMatchers);
+		this._commandLine = commandLine;
+		this.options = options;
+	}
+
+	get commandLine(): string {
+		return this._commandLine;
+	}
+}
