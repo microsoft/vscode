@@ -86,6 +86,17 @@
 			]
 		},
 		{
+			"type": "node",
+			"request": "attach",
+			"name": "Attach to Main Process",
+			"protocol": "legacy",
+			"port": 5875,
+			"sourceMaps": true,
+			"outFiles": [
+				"${workspaceRoot}/out/**/*.js"
+			]
+		},
+		{
 			"type": "extensionHost",
 			"request": "launch",
 			"name": "VS Code API Tests",
@@ -134,7 +145,18 @@
 			"linux": {
 				"runtimeExecutable": "${workspaceRoot}/scripts/code.sh"
 			},
-			"urlFilter": "*index.html*"
+			"urlFilter": "*index.html*",
+			"runtimeArgs": [
+				"${workspaceRoot}",
+				"--debug=5875"
+			],
+			"webRoot": "${workspaceRoot}"
+		}
+	],
+	"compounds": [
+		{
+			"name": "Debug VS Code Main and Renderer",
+			"configurations": ["Launch VS Code", "Attach to Main Process"]
 		}
 	]
 }
