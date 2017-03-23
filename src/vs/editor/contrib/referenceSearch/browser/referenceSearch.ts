@@ -7,7 +7,7 @@
 import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import URI from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
+import { PPromise, TPromise } from 'vs/base/common/winjs.base';
 import { IEditorService } from 'vs/platform/editor/common/editor';
 import { optional } from 'vs/platform/instantiation/common/instantiation';
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
@@ -85,7 +85,13 @@ export class ReferenceAction extends EditorAction {
 		}
 		let range = editor.getSelection();
 		let model = editor.getModel();
-		let references = provideReferences(model, range.getStartPosition()).then(references => new ReferencesModel(references));
+
+		let provideReferencesPromise: TPromise<void>;
+		const references = new PPromise<ReferencesModel, Location[]>((complete, error, progress) => {
+			provideReferencesPromise = provideReferences(model, range.getStartPosition(), progress).then(references => complete(new ReferencesModel(references)), error);
+		}, () => {
+			provideReferencesPromise.cancel();
+		});
 		controller.toggleWidget(range, references, defaultReferenceSearchOptions);
 	}
 }
@@ -111,7 +117,12 @@ let findReferencesCommand: ICommandHandler = (accessor: ServicesAccessor, resour
 			return undefined;
 		}
 
-		let references = provideReferences(control.getModel(), Position.lift(position)).then(references => new ReferencesModel(references));
+		let provideReferencesPromise: TPromise<void>;
+		const references = new PPromise<ReferencesModel, Location[]>((complete, error, progress) => {
+			provideReferencesPromise = provideReferences(control.getModel(), Position.lift(position), progress).then(references => complete(new ReferencesModel(references)), error);
+		}, () => {
+			provideReferencesPromise.cancel();
+		});
 		let range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
 		return TPromise.as(controller.toggleWidget(range, references, defaultReferenceSearchOptions));
 	});

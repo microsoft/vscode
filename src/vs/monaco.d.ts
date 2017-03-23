@@ -4661,7 +4661,7 @@ declare module monaco.languages {
         /**
          * Provide a set of project-wide references for the given position and document.
          */
-        provideReferences(model: editor.IReadOnlyModel, position: Position, context: ReferenceContext, token: CancellationToken): Location[] | Thenable<Location[]>;
+        provideReferences(model: editor.IReadOnlyModel, position: Position, context: ReferenceContext, token: CancellationToken, progress: (locations: Location[]) => void): Location[] | Thenable<Location[]>;
     }
 
     /**
