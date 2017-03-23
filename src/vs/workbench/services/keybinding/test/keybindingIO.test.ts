@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { KeyCode, KeyMod, KeyChord, KeyCodeUtils, createKeybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
+import { KeyCode, KeyMod, KeyChord, createKeybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
 import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
 import { OS, OperatingSystem } from 'vs/base/common/platform';
 import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
@@ -13,47 +13,6 @@ import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayo
 import { ScanCodeBinding, ScanCode } from 'vs/workbench/services/keybinding/common/scanCode';
 
 suite('keybindingIO', () => {
-	test('getUserSettingsKeybindingRegex', () => {
-		let regex = new RegExp(KeybindingIO.getUserSettingsKeybindingRegex());
-
-		function testIsGood(userSettingsLabel: string, message: string = userSettingsLabel): void {
-			let userSettings = '"' + userSettingsLabel.replace(/\\/g, '\\\\') + '"';
-			let isGood = regex.test(userSettings);
-			assert.ok(isGood, message);
-		}
-
-		// check that all key codes are covered by the regex
-		let ignore: boolean[] = [];
-		ignore[KeyCode.Shift] = true;
-		ignore[KeyCode.Ctrl] = true;
-		ignore[KeyCode.Alt] = true;
-		ignore[KeyCode.Meta] = true;
-		for (let keyCode = KeyCode.Unknown + 1; keyCode < KeyCode.MAX_VALUE; keyCode++) {
-			if (ignore[keyCode]) {
-				continue;
-			}
-			let usLayoutResolvedKeybinding = new USLayoutResolvedKeybinding(createKeybinding(keyCode, OS), OS);
-			let userSettings = usLayoutResolvedKeybinding.getUserSettingsLabel();
-			testIsGood(userSettings, keyCode + ' - ' + KeyCodeUtils.toString(keyCode) + ' - ' + userSettings);
-		}
-
-		// one modifier
-		testIsGood('ctrl+a');
-		testIsGood('shift+a');
-		testIsGood('alt+a');
-		testIsGood('cmd+a');
-		testIsGood('meta+a');
-		testIsGood('win+a');
-
-		// more modifiers
-		testIsGood('ctrl+shift+a');
-		testIsGood('shift+alt+a');
-		testIsGood('ctrl+shift+alt+a');
-
-		// chords
-		testIsGood('ctrl+a ctrl+a');
-	});
-
 
 	test('serialize/deserialize', function () {
 
