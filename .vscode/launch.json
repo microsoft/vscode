@@ -66,6 +66,7 @@
 		{
 			"type": "node",
 			"request": "attach",
+			"protocol": "legacy",
 			"name": "Attach to Search process",
 			"port": 7890,
 			"sourceMaps": true,

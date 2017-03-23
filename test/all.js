@@ -179,12 +179,23 @@ function main() {
 	var loadFunc = null;
 
 	if (argv.run) {
-		var tests = (typeof argv.run === 'string') ? [argv.run] : argv.run;
-		var modulesToLoad = tests.map(function(test) {
-			return path.relative(src, path.resolve(test)).replace(/(\.js)|(\.d\.ts)|(\.js\.map)$/, '');
-		});
-		loadFunc = function(cb) {
-			define(modulesToLoad, function () { cb(null); }, cb);
+		loadFunc = cb => {
+			const doRun = tests => {
+				const modulesToLoad = tests.map(test => {
+					if (path.isAbsolute(test)) {
+						test = path.relative(src, path.resolve(test));
+					}
+
+					return test.replace(/(\.js)|(\.d\.ts)|(\.js\.map)$/, '');
+				});
+				define(modulesToLoad, () => cb(null), cb);
+			};
+
+			if (typeof argv.run === 'string') {
+				glob(argv.run, { cwd: src }, function (err, files) { doRun(files); });
+			} else {
+				doRun(argv.run);
+			}
 		};
 	} else if (argv['only-monaco-editor']) {
 		loadFunc = function(cb) {

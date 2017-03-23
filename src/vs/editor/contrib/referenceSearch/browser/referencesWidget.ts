@@ -37,11 +37,9 @@ import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeE
 import { PeekViewWidget, IPeekViewService } from 'vs/editor/contrib/zoneWidget/browser/peekViewWidget';
 import { FileReferences, OneReference, ReferencesModel } from './referencesModel';
 import { ITextModelResolverService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
-import { registerColor } from 'vs/platform/theme/common/colorRegistry';
+import { registerColor, highContrastOutline } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 
-export const referencesFindMatchHighlight = registerColor('referencesFindMatchHighlight', { dark: '#ea5c004d', light: '#ea5c004d', hc: null }, nls.localize('referencesFindMatchHighlight', 'References view match highlight color'));
-export const referencesReferenceHighlight = registerColor('referencesReferenceHighlight', { dark: '#ff8f0099', light: '#f5d802de', hc: null }, nls.localize('referencesReferenceHighlight', 'References range highlight color'));
 
 class DecorationsManager implements IDisposable {
 
@@ -758,13 +756,62 @@ export class ReferenceWidget extends PeekViewWidget {
 	}
 }
 
+// theming
+
+export const editorPeekFindMatchHighlight = registerColor('editorPeekFindMatchHighlight', { dark: '#ea5c004d', light: '#ea5c004d', hc: null }, nls.localize('editorPeekFindMatchHighlight', 'References view match highlight color'));
+export const editorPeekReferenceHighlight = registerColor('editorPeekReferenceHighlight', { dark: '#ff8f0099', light: '#f5d802de', hc: null }, nls.localize('editorPeekReferenceHighlight', 'References range highlight color'));
+
+export const editorPeekResultsBackground = registerColor('editorPeekResultsBackground', { dark: '#252526', light: '#F3F3F3', hc: '#000000' }, nls.localize('editorPeekResultsBackground', 'References view list background'));
+export const editorPeekResultsMatchForeground = registerColor('editorPeekResultsMatchForeground', { dark: '#bbbbbb', light: '#646465', hc: '#ffffff' }, nls.localize('editorPeekResultsMatchForeground', 'References view match entry foreground'));
+export const editorPeekResultsFileForeground = registerColor('editorPeekResultsFileForeground', { dark: '#ffffff', light: '#f5d802de', hc: '#ffffff' }, nls.localize('editorPeekResultsFileForeground', 'References view file entry foreground'));
+export const editorPeekResultsSelectedBackground = registerColor('editorPeekResultsSelectedBackground', { dark: '#3399ff33', light: '#3399ff33', hc: null }, nls.localize('editorPeekResultsSelectedBackground', 'References view selected entry background'));
+export const editorPeekResultsSelectedForeground = registerColor('editorPeekResultsSelectedForeground', { dark: '#ffffff', light: '#6C6C6C', hc: '#ffffff' }, nls.localize('editorPeekResultsSelectedForeground', 'References view selected entry foreground'));
+export const editorPeekEditorBackground = registerColor('editorPeekEditorBackground', { dark: '#001F33', light: '#F2F8FC', hc: '#0C141F' }, nls.localize('editorPeekEditorBackground', 'References view editor background'));
+
+
 registerThemingParticipant((theme, collector) => {
-	let referencesFindMatchHighlightColor = theme.getColor(referencesFindMatchHighlight);
-	if (referencesFindMatchHighlightColor) {
-		collector.addRule(`.monaco-editor.${theme.selector} .reference-zone-widget .ref-tree .referenceMatch { background-color: ${referencesFindMatchHighlightColor}; }`);
+	let findMatchHighlightColor = theme.getColor(editorPeekFindMatchHighlight);
+	if (findMatchHighlightColor) {
+		collector.addRule(`.monaco-editor.${theme.selector} .reference-zone-widget .ref-tree .referenceMatch { background-color: ${findMatchHighlightColor}; }`);
 	}
-	let referencesReferenceHighlightColor = theme.getColor(referencesReferenceHighlight);
-	if (referencesReferenceHighlightColor) {
-		collector.addRule(`.monaco-editor.${theme.selector} .reference-zone-widget .preview .reference-decoration { background-color: ${referencesReferenceHighlightColor}; }`);
+	let referenceHighlightColor = theme.getColor(editorPeekReferenceHighlight);
+	if (referenceHighlightColor) {
+		collector.addRule(`.monaco-editor.${theme.selector} .reference-zone-widget .preview .reference-decoration { background-color: ${referenceHighlightColor}; }`);
+	}
+	let hcOutline = theme.getColor(highContrastOutline);
+	if (hcOutline) {
+		collector.addRule(`.monaco-editor.${theme.selector} .reference-zone-widget .ref-tree .referenceMatch { border: 1px dotted ${hcOutline}; box-sizing: border-box; }`);
+		collector.addRule(`.monaco-editor.${theme.selector} .reference-zone-widget .preview .reference-decoration { border: 2px solid ${hcOutline}; box-sizing: border-box; }`);
+	}
+	let resultsBackground = theme.getColor(editorPeekResultsBackground);
+	if (resultsBackground) {
+		collector.addRule(`.monaco-editor.${theme.selector} .reference-zone-widget .ref-tree { background-color: ${resultsBackground}; }`);
+	}
+	let resultsMatchForeground = theme.getColor(editorPeekResultsMatchForeground);
+	if (resultsMatchForeground) {
+		collector.addRule(`.monaco-editor.${theme.selector} .reference-zone-widget .ref-tree { color: ${resultsMatchForeground}; }`);
+	}
+	let resultsFileForeground = theme.getColor(editorPeekResultsFileForeground);
+	if (resultsFileForeground) {
+		collector.addRule(`.monaco-editor.${theme.selector} .reference-zone-widget .ref-tree .reference-file { color: ${resultsFileForeground}; }`);
+	}
+	let resultsSelectedBackground = theme.getColor(editorPeekResultsSelectedBackground);
+	if (resultsSelectedBackground) {
+		collector.addRule(`.monaco-editor.${theme.selector} .reference-zone-widget .ref-tree .monaco-tree.focused .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted) { background-color: ${resultsSelectedBackground}; }`);
+	}
+	let resultsSelectedForeground = theme.getColor(editorPeekResultsSelectedForeground);
+	if (resultsSelectedForeground) {
+		collector.addRule(`.monaco-editor.${theme.selector} .reference-zone-widget .ref-tree .monaco-tree.focused .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted) { color: ${resultsSelectedForeground} !important; }`);
+	}
+	let editorBackground = theme.getColor(editorPeekEditorBackground);
+	if (editorBackground) {
+		collector.addRule(
+			`.monaco-editor.${theme.selector} .reference-zone-widget,` +
+			`.monaco-editor.${theme.selector} .reference-zone-widget .preview .monaco-editor,` +
+			`.monaco-editor.${theme.selector} .reference-zone-widget .preview .glyph-margin,` +
+			`.monaco-editor.${theme.selector} .reference-zone-widget .preview .monaco-editor-background,` +
+			`.monaco-editor.${theme.selector} .reference-zone-widget .preview .monaco-editor .margin .view-line {` +
+			`	background-color: ${editorBackground};` +
+			`}`);
 	}
 });

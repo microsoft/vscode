@@ -86,11 +86,16 @@ export class KeybindingsEditorModel extends EditorModel {
 					editorActions[editorAction.id] = editorAction;
 					return editorActions;
 				}, {});
-				this._keybindingItems = this.keybindingsService.getKeybindings().map(keybinding => KeybindingsEditorModel.toKeybindingEntry(keybinding, workbenchActionsRegistry, editorActions));
-				const boundCommands: Map<string, boolean> = this._keybindingItems.reduce((boundCommands, keybinding) => {
-					boundCommands.set(keybinding.command, true);
-					return boundCommands;
-				}, new Map<string, boolean>());
+
+				this._keybindingItems = [];
+				const boundCommands: Map<string, boolean> = new Map<string, boolean>();
+				for (const keybinding of this.keybindingsService.getKeybindings()) {
+					if (keybinding.command) { // Skip keybindings without commands
+						this._keybindingItems.push(KeybindingsEditorModel.toKeybindingEntry(keybinding, workbenchActionsRegistry, editorActions));
+						boundCommands.set(keybinding.command, true);
+					}
+				}
+
 				for (const command of KeybindingResolver.getAllUnboundCommands(boundCommands)) {
 					this._keybindingItems.push(KeybindingsEditorModel.toUnassingedKeybindingEntry(command, workbenchActionsRegistry, editorActions));
 				}

@@ -6,6 +6,7 @@
 import 'vs/css!./list';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { isNumber } from 'vs/base/common/types';
+import { range } from 'vs/base/common/arrays';
 import { memoize } from 'vs/base/common/decorators';
 import * as DOM from 'vs/base/browser/dom';
 import * as platform from 'vs/base/common/platform';
@@ -268,6 +269,10 @@ class MouseController<T> implements IDisposable {
 	}
 
 	private onMouseDown(e: IListMouseEvent<T>) {
+		if (platform.isMacintosh ? e.altKey : e.ctrlKey) {
+			return this.onPointer(e);
+		}
+
 		e.preventDefault();
 		e.stopPropagation();
 	}
@@ -278,6 +283,28 @@ class MouseController<T> implements IDisposable {
 		this.view.domNode.focus();
 
 		const focus = e.index;
+
+		if (e.shiftKey) {
+			const oldFocus = this.list.getFocus()[0];
+
+			if (oldFocus !== undefined) {
+				const min = Math.min(oldFocus, focus);
+				const max = Math.max(oldFocus, focus);
+				const rangeSelection = range(max + 1, min);
+				const selection = this.list.getSelection();
+				const contiguousRange = getContiguousRangeContaining(disjunction(selection, [oldFocus]), oldFocus);
+
+				if (contiguousRange.length === 0) {
+					return;
+				}
+
+				const newSelection = disjunction(rangeSelection, relativeComplement(selection, contiguousRange));
+				this.list.setSelection(newSelection);
+			}
+
+			return;
+		}
+
 		this.list.setFocus([focus]);
 
 		if (platform.isMacintosh ? e.altKey : e.ctrlKey) {
@@ -312,6 +339,56 @@ const DefaultOptions: IListOptions<any> = {
 	mouseSupport: true
 };
 
+function getContiguousRangeContaining(range: number[], value: number): number[] {
+	const index = range.indexOf(value);
+
+	if (index === -1) {
+		return [];
+	}
+
+	const result = [];
+	let i = index - 1;
+	while (i >= 0 && range[i] === value - (index - i)) {
+		result.push(range[i--]);
+	}
+
+	result.reverse();
+	i = index;
+	while (i < range.length && range[i] === value + (i - index)) {
+		result.push(range[i++]);
+	}
+
+	return result;
+}
+
+/**
+ * Given two sorted collections of numbers, returns the intersection
+ * betweem them (OR).
+ */
+function disjunction(one: number[], other: number[]): number[] {
+	const result = [];
+	let i = 0, j = 0;
+
+	while (i < one.length || j < other.length) {
+		if (i >= one.length) {
+			result.push(other[j++]);
+		} else if (j >= other.length) {
+			result.push(one[i++]);
+		} else if (one[i] === other[j]) {
+			result.push(one[i]);
+			i++;
+			j++;
+			continue;
+		} else if (one[i] < other[j]) {
+			result.push(one[i++]);
+		} else {
+			result.push(other[j++]);
+		}
+	}
+
+	return result;
+}
+
 /**
  * Given two sorted collections of numbers, returns the exclusive
  * disjunction between them (XOR).
@@ -333,6 +410,33 @@ function exclusiveDisjunction(one: number[], other: number[]): number[] {
 			result.push(one[i++]);
 		} else {
 			result.push(other[j++]);
+		}
+	}
+
+	return result;
+}
+
+/**
+ * Given two sorted collections of numbers, returns the relative
+ * complement between them (XOR).
+ */
+function relativeComplement(one: number[], other: number[]): number[] {
+	const result = [];
+	let i = 0, j = 0;
+
+	while (i < one.length || j < other.length) {
+		if (i >= one.length) {
+			result.push(other[j++]);
+		} else if (j >= other.length) {
+			result.push(one[i++]);
+		} else if (one[i] === other[j]) {
+			i++;
+			j++;
+			continue;
+		} else if (one[i] < other[j]) {
+			result.push(one[i++]);
+		} else {
+			j++;
 		}
 	}
 
@@ -424,6 +528,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		}
 
 		this.onFocusChange(this._onFocusChange, this, this.disposables);
+		this.onSelectionChange(this._onSelectionChange, this, this.disposables);
 
 		if (options.ariaLabel) {
 			this.view.domNode.setAttribute('aria-label', options.ariaLabel);
@@ -483,6 +588,10 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 	getSelection(): number[] {
 		return this.selection.get();
+	}
+
+	getSelectedElements(): T[] {
+		return this.getSelection().map(i => this.view.element(i));
 	}
 
 	setFocus(indexes: number[]): void {
@@ -618,6 +727,14 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 		this.view.domNode.setAttribute('role', 'tree');
 		DOM.toggleClass(this.view.domNode, 'element-focused', focus.length > 0);
+	}
+
+	private _onSelectionChange(): void {
+		const selection = this.selection.get();
+
+		DOM.toggleClass(this.view.domNode, 'selection-none', selection.length === 0);
+		DOM.toggleClass(this.view.domNode, 'selection-single', selection.length === 1);
+		DOM.toggleClass(this.view.domNode, 'selection-multiple', selection.length > 1);
 	}
 
 	dispose(): void {
