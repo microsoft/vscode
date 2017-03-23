@@ -247,6 +247,7 @@ export const CompletionItemKind = {
 			case types.CompletionItemKind.Variable: return 'variable';
 			case types.CompletionItemKind.Class: return 'class';
 			case types.CompletionItemKind.Interface: return 'interface';
+			case types.CompletionItemKind.Struct: return 'struct';
 			case types.CompletionItemKind.Module: return 'module';
 			case types.CompletionItemKind.Property: return 'property';
 			case types.CompletionItemKind.Unit: return 'unit';

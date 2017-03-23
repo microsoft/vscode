@@ -843,7 +843,8 @@ export enum CompletionItemKind {
 	Reference = 17,
 	Folder = 18,
 	EnumMember = 19,
-	Constant = 20
+	Constant = 20,
+	Struct = 21
 }
 
 export class CompletionItem {

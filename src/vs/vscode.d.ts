@@ -2395,6 +2395,7 @@ declare module 'vscode' {
 		Variable = 5,
 		Class = 6,
 		Interface = 7,
+		Struct = 21,
 		Module = 8,
 		Property = 9,
 		Unit = 10,
