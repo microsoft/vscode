@@ -380,7 +380,7 @@ export class StackFrame implements IStackFrame {
 	}
 
 	public restart(): TPromise<any> {
-		return this.thread.process.session.restartFrame({ frameId: this.frameId });
+		return this.thread.process.session.restartFrame({ frameId: this.frameId }, this.thread.threadId);
 	}
 
 	public toString(): string {
