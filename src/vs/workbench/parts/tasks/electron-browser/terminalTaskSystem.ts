@@ -370,6 +370,9 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 			});
 			shellArgs.push(commandLine);
 			shellLaunchConfig.args = Platform.isWindows ? shellArgs.join(' ') : shellArgs;
+			if (task.command.echo) {
+				shellLaunchConfig.initialText = `> ${commandLine}`;
+			}
 		} else {
 			let cwd = options && options.cwd ? options.cwd : process.cwd();
 			// On Windows executed process must be described absolute. Since we allowed command without an
@@ -381,6 +384,18 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 				args,
 				waitOnExit
 			};
+			if (task.command.echo) {
+				let getArgsToEcho = (args: string | string[]): string => {
+					if (!args || args.length === 0) {
+						return '';
+					}
+					if (Types.isString(args)) {
+						return args;
+					}
+					return args.join(' ');
+				};
+				shellLaunchConfig.initialText = `> ${shellLaunchConfig.executable} ${getArgsToEcho(shellLaunchConfig.args)}`;
+			}
 		}
 		if (options.cwd) {
 			shellLaunchConfig.cwd = options.cwd;
