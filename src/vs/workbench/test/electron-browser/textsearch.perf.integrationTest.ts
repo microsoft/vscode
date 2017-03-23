@@ -7,18 +7,17 @@
 
 import 'vs/workbench/parts/search/browser/search.contribution'; // load contributions
 import * as assert from 'assert';
+import * as fs from 'fs';
 import { WorkspaceContextService, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { createSyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { ISearchService } from 'vs/platform/search/common/search';
+import { ISearchService, IQueryOptions } from 'vs/platform/search/common/search';
 import { ITelemetryService, ITelemetryInfo, ITelemetryExperiments } from 'vs/platform/telemetry/common/telemetry';
 import { defaultExperiments } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import * as minimist from 'minimist';
 import * as path from 'path';
-import { QuickOpenHandler, IQuickOpenRegistry, Extensions } from 'vs/workbench/browser/quickopen';
-import { Registry } from 'vs/platform/platform';
 import { SearchService } from 'vs/workbench/services/search/node/searchService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { TestEnvironmentService, TestEditorService, TestEditorGroupService } from 'vs/workbench/test/workbenchTestServices';
@@ -31,41 +30,31 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { IModelService } from 'vs/editor/common/services/modelService';
 
+import { SearchModel } from 'vs/workbench/parts/search/common/searchModel';
+import { QueryBuilder } from 'vs/workbench/parts/search/common/searchQuery';
 
-namespace Timer {
-	export interface ITimerEvent {
-		id: number;
-		topic: string;
-		name: string;
-		description: string;
-		data: any;
-
-		startTime: Date;
-		stopTime: Date;
-
-		stop(stopTime?: Date): void;
-		timeTaken(): number;
-	}
-}
+import Event, * as event from 'vs/base/common/event';
 
 declare var __dirname: string;
 
 // Checkout sources to run against:
 // git clone --separate-git-dir=testGit --no-checkout --single-branch https://chromium.googlesource.com/chromium/src testWorkspace
 // cd testWorkspace; git checkout 39a7f93d67f7
-// Run from repository root folder with (test.bat on Windows): ./scripts/test.sh --grep QuickOpen.performance --timeout 180000 --testWorkspace <path>
-suite('QuickOpen performance', () => {
+// Run from repository root folder with (test.bat on Windows): ./scripts/test-int-mocha.sh --grep TextSearch.performance --timeout 500000 --testWorkspace <path>
+suite('TextSearch performance (integration)', () => {
 
 	test('Measure', () => {
 		if (process.env['VSCODE_PID']) {
-			return; // TODO@Christoph find out why test fails when run from within VS Code
+			return undefined; // TODO@Rob find out why test fails when run from within VS Code
 		}
 
 		const n = 3;
 		const argv = minimist(process.argv);
 		const testWorkspaceArg = argv['testWorkspace'];
-		const verboseResults = argv['verboseResults'];
 		const testWorkspacePath = testWorkspaceArg ? path.resolve(testWorkspaceArg) : __dirname;
+		if (!fs.existsSync(testWorkspacePath)) {
+			throw new Error(`--testWorkspace doesn't exist`);
+		}
 
 		const telemetryService = new TestTelemetryService();
 		const configurationService = new SimpleConfigurationService();
@@ -81,93 +70,93 @@ suite('QuickOpen performance', () => {
 			[ISearchService, createSyncDescriptor(SearchService)]
 		));
 
-		const registry = Registry.as<IQuickOpenRegistry>(Extensions.Quickopen);
-		const descriptor = registry.getDefaultQuickOpenHandler();
-		assert.ok(descriptor);
+		let queryOptions: IQueryOptions = {
+			folderResources: [URI.file(testWorkspacePath)],
+			maxResults: 2048
+		};
 
-		function measure() {
-			return instantiationService.createInstance(descriptor)
-				.then((handler: QuickOpenHandler) => {
-					handler.onOpen();
-					return handler.getResults('a').then(result => {
-						const uncachedEvent = popEvent();
-						assert.strictEqual(uncachedEvent.data.symbols.fromCache, false, 'symbols.fromCache');
-						assert.strictEqual(uncachedEvent.data.files.fromCache, true, 'files.fromCache');
-						if (testWorkspaceArg) {
-							assert.ok(!!uncachedEvent.data.files.joined, 'files.joined');
-						}
-						return uncachedEvent;
-					}).then(uncachedEvent => {
-						return handler.getResults('ab').then(result => {
-							const cachedEvent = popEvent();
-							assert.strictEqual(uncachedEvent.data.symbols.fromCache, false, 'symbols.fromCache');
-							assert.ok(cachedEvent.data.files.fromCache, 'filesFromCache');
-							handler.onClose(false);
-							return [uncachedEvent, cachedEvent];
-						});
-					});
-				});
-		}
+		const searchModel: SearchModel = instantiationService.createInstance(SearchModel);
+		function runSearch(): TPromise<any> {
+			const queryBuilder: QueryBuilder = instantiationService.createInstance(QueryBuilder);
+			const query = queryBuilder.text({ pattern: 'static_library(' }, queryOptions);
 
-		function popEvent() {
-			const events = telemetryService.events;
-			assert.strictEqual(events.length, 1);
-			const event = events[0];
-			events.length = 0;
-			assert.strictEqual(event.name, 'openAnything');
-			return event;
-		}
+			// Wait for the 'searchResultsFinished' event, which is fired after the search() promise is resolved
+			const onSearchResultsFinished = event.filterEvent(telemetryService.eventLogged, e => e.name === 'searchResultsFinished');
+			event.once(onSearchResultsFinished)(onComplete);
 
-		function printResult(data: any) {
-			if (verboseResults) {
-				console.log(JSON.stringify(data, null, '  ') + ',');
-			} else {
-				console.log(JSON.stringify({
-					filesfromCacheNotJoined: data.files.fromCache && !data.files.joined,
-					searchLength: data.searchLength,
-					sortedResultDuration: data.sortedResultDuration,
-					filesResultCount: data.files.resultCount,
-					errorCount: data.files.errors && data.files.errors.length || undefined
-				}) + ',');
+			function onComplete(): void {
+				try {
+					const allEvents = telemetryService.events.map(e => JSON.stringify(e)).join('\n');
+					assert.equal(telemetryService.events.length, 3, 'Expected 3 telemetry events, got:\n' + allEvents);
+
+					const [firstRenderEvent, resultsShownEvent, resultsFinishedEvent] = telemetryService.events;
+					assert.equal(firstRenderEvent.name, 'searchResultsFirstRender');
+					assert.equal(resultsShownEvent.name, 'searchResultsShown');
+					assert.equal(resultsFinishedEvent.name, 'searchResultsFinished');
+
+					telemetryService.events = [];
+
+					resolve(resultsFinishedEvent);
+				} catch (e) {
+					// Fail the runSearch() promise
+					error(e);
+				}
 			}
+
+			let resolve;
+			let error;
+			return new TPromise((_resolve, _error) => {
+				resolve = _resolve;
+				error = _error;
+
+				// Don't wait on this promise, we're waiting on the event fired above
+				searchModel.search(query).then(
+					null,
+					_error);
+			});
 		}
 
-		return measure() // Warm-up first
+		const finishedEvents = [];
+		return runSearch() // Warm-up first
 			.then(() => {
-				if (testWorkspaceArg || verboseResults) { // Don't measure by default
-					const cachedEvents: Timer.ITimerEvent[] = [];
+				if (testWorkspaceArg) { // Don't measure by default
 					let i = n;
-					return (function iterate(): TPromise<Timer.ITimerEvent> {
+					return (function iterate() {
 						if (!i--) {
-							return undefined;
+							return;
 						}
-						return measure()
-							.then(([uncachedEvent, cachedEvent]) => {
-								printResult(uncachedEvent.data);
-								cachedEvents.push(cachedEvent);
+
+						return runSearch()
+							.then((resultsFinishedEvent: any) => {
+								console.log(`Iteration ${n - i}: ${resultsFinishedEvent.data.duration / 1000}s`);
+								finishedEvents.push(resultsFinishedEvent);
 								return iterate();
 							});
 					})().then(() => {
-						console.log();
-						cachedEvents.forEach(cachedEvent => {
-							printResult(cachedEvent.data);
-						});
+						const totalTime = finishedEvents.reduce((sum, e) => sum + e.data.duration, 0);
+						console.log(`Avg duration: ${totalTime / n / 1000}s`);
 					});
 				}
-				return undefined;
 			});
 	});
 });
 
 class TestTelemetryService implements ITelemetryService {
-
 	public _serviceBrand: any;
 	public isOptedIn = true;
 
 	public events: any[] = [];
 
+	private emitter = new event.Emitter<any>();
+
+	public get eventLogged(): Event<any> {
+		return this.emitter.event;
+	}
+
 	public publicLog(eventName: string, data?: any): TPromise<void> {
-		this.events.push({ name: eventName, data: data });
+		const event = { name: eventName, data: data };
+		this.events.push(event);
+		this.emitter.fire(event);
 		return TPromise.as<void>(null);
 	}
 

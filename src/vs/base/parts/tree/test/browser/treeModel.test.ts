@@ -727,6 +727,32 @@ suite('TreeModel - Expansion', () => {
 			done();
 		});
 	});
+
+	test('shouldAutoexpand', (done) => {
+		// setup
+		const model = new TreeModel({
+			dataSource: {
+				getId: (_, e) => e,
+				hasChildren: (_, e) => true,
+				getChildren: (_, e) => {
+					if (e === 'root') { return WinJS.TPromise.wrap(['a', 'b', 'c']); }
+					if (e === 'b') { return WinJS.TPromise.wrap(['b1']); }
+					return WinJS.TPromise.as([]);
+				},
+				getParent: (_, e): WinJS.Promise => { throw new Error('not implemented'); },
+				shouldAutoexpand: (_, e) => e === 'b'
+			}
+		});
+
+		model.setInput('root').then(() => {
+			return model.refresh('root', true);
+		}).then(() => {
+			assert(!model.isExpanded('a'));
+			assert(model.isExpanded('b'));
+			assert(!model.isExpanded('c'));
+			done();
+		});
+	});
 });
 
 class TestFilter implements _.IFilter {

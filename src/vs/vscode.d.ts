@@ -2394,12 +2394,14 @@ declare module 'vscode' {
 		Property = 9,
 		Unit = 10,
 		Value = 11,
+		Constant = 20,
 		Enum = 12,
+		EnumMember = 19,
 		Keyword = 13,
 		Snippet = 14,
 		Color = 15,
-		File = 16,
 		Reference = 17,
+		File = 16,
 		Folder = 18
 	}
 
@@ -4053,15 +4055,18 @@ declare module 'vscode' {
 		export let textDocuments: TextDocument[];
 
 		/**
-		 * Opens the denoted document from disk. Will return early if the
-		 * document is already open, otherwise the document is loaded and the
-		 * [open document](#workspace.onDidOpenTextDocument)-event fires.
-		 * The document to open is denoted by the [uri](#Uri). Two schemes are supported:
+		 * Opens a document. Will return early if this document is already open. Otherwise
+		 * the document is loaded and the [didOpen](#workspace.onDidOpenTextDocument)-event fires.
 		 *
-		 * file: A file on disk, will be rejected if the file does not exist or cannot be loaded, e.g. `file:///Users/frodo/r.ini`.
-		 * untitled: A new file that should be saved on disk, e.g. `untitled:c:\frodo\new.js`. The language will be derived from the file name.
+		 * The document is denoted by an [uri](#Uri). Depending on the [scheme](#Uri.scheme) the
+		 * following rules apply:
+		 * * `file`-scheme: Open a file on disk, will be rejected if the file does not exist or cannot be loaded.
+		 * * `untitled`-scheme: A new file that should be saved on disk, e.g. `untitled:c:\frodo\new.js`. The language
+		 * will be derived from the file name.
+		 * * For all other schemes the registered text document content [providers](#TextDocumentContentProvider) are consulted.
 		 *
-		 * Uris with other schemes will make this method return a rejected promise.
+		 * *Note* that the lifecycle of the returned document is owned by the editor and not by the extension. That means an
+		 * [`onDidClose`](#workspace.onDidCloseTextDocument)-event can occur at any time after opening it.
 		 *
 		 * @param uri Identifies the resource to open.
 		 * @return A promise that resolves to a [document](#TextDocument).

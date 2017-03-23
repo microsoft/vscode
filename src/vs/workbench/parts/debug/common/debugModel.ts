@@ -19,7 +19,7 @@ import { ISuggestion } from 'vs/editor/common/modes';
 import { Position } from 'vs/editor/common/core/position';
 import {
 	ITreeElement, IExpression, IExpressionContainer, IProcess, IStackFrame, IExceptionBreakpoint, IBreakpoint, IFunctionBreakpoint, IModel,
-	IConfig, ISession, IThread, IRawModelUpdate, IScope, IRawStoppedDetails, IEnablement, IRawBreakpoint
+	IConfig, ISession, IThread, IRawModelUpdate, IScope, IRawStoppedDetails, IEnablement, IRawBreakpoint, IExceptionInfo
 } from 'vs/workbench/parts/debug/common/debug';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -490,6 +490,30 @@ export class Thread implements IThread {
 		});
 	}
 
+	/**
+	 * Returns exception info promise if the exception was thrown, otherwise null
+	 */
+	public get exceptionInfo(): TPromise<IExceptionInfo> {
+		const session = this.process.session;
+		if (this.stoppedDetails && this.stoppedDetails.reason === 'exception') {
+			if (!session.capabilities.supportsExceptionInfoRequest) {
+				return TPromise.as({
+					description: this.stoppedDetails.text,
+					breakMode: null
+				});
+			}
+
+			return session.exceptionInfo({ threadId: this.threadId }).then(exception => ({
+				id: exception.body.exceptionId,
+				description: exception.body.description,
+				breakMode: exception.body.breakMode,
+				details: exception.body.details
+			}));
+		}
+
+		return TPromise.as(null);
+	}
+
 	public next(): TPromise<any> {
 		return this.process.session.next({ threadId: this.threadId });
 	}
@@ -896,23 +920,26 @@ export class Model implements IModel {
 	}
 
 	public appendToRepl(output: string | IExpression, severity: severity): void {
-		const previousOutput = this.replElements.length && (this.replElements[this.replElements.length - 1] as OutputElement);
-		if (previousOutput instanceof OutputElement && severity === previousOutput.severity && previousOutput.value === output && output.trim() && output.length > 1) {
-			// we got the same output (but not an empty string when trimmed) so we just increment the counter
-			previousOutput.counter++;
-		} else {
-			if (previousOutput && previousOutput.value === '') {
-				// remove potential empty lines between different output types
-				this.replElements.pop();
-			}
-
-			if (typeof output === 'string') {
-				this.addReplElements(output.split('\n').map(line => new OutputElement(line, severity)));
+		if (typeof output === 'string') {
+			const previousOutput = this.replElements.length && (this.replElements[this.replElements.length - 1] as OutputElement);
+			if (previousOutput instanceof OutputElement && severity === previousOutput.severity && previousOutput.value === output && output.trim() && output.length > 1) {
+				// we got the same output (but not an empty string when trimmed) so we just increment the counter
+				previousOutput.counter++;
 			} else {
-				// TODO@Isidor hack, we should introduce a new type which is an output that can fetch children like an expression
-				(<any>output).severity = severity;
-				this.addReplElements([output]);
+				const toAdd = output.split('\n').map(line => new OutputElement(line, severity));
+				if (previousOutput instanceof OutputElement && severity === previousOutput.severity && toAdd.length) {
+					previousOutput.value += toAdd.shift().value;
+				}
+				if (previousOutput && previousOutput.value === '') {
+					// remove potential empty lines between different output types
+					this.replElements.pop();
+				}
+				this.addReplElements(toAdd);
 			}
+		} else {
+			// TODO@Isidor hack, we should introduce a new type which is an output that can fetch children like an expression
+			(<any>output).severity = severity;
+			this.addReplElements([output]);
 		}
 
 		this._onDidChangeREPLElements.fire();

@@ -7,7 +7,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import severity from 'vs/base/common/severity';
-import { IAction } from 'vs/base/common/actions';
+import { IAction, IActionRunner, ActionRunner } from 'vs/base/common/actions';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import dom = require('vs/base/browser/dom');
 import { IContextMenuService, IContextMenuDelegate, ContextSubMenu, IEvent } from 'vs/platform/contextview/browser/contextView';
@@ -64,6 +64,7 @@ export class ContextMenuService implements IContextMenuService {
 
 	private createMenu(delegate: IContextMenuDelegate, entries: (IAction | ContextSubMenu)[]): Electron.Menu {
 		const menu = new remote.Menu();
+		const actionRunner = delegate.actionRunner || new ActionRunner();
 
 		entries.forEach(e => {
 			if (e instanceof Separator) {
@@ -82,7 +83,7 @@ export class ContextMenuService implements IContextMenuService {
 					type: !!e.checked ? 'checkbox' : !!e.radio ? 'radio' : void 0,
 					enabled: !!e.enabled,
 					click: (menuItem, win, event) => {
-						this.runAction(e, delegate, event);
+						this.runAction(actionRunner, e, delegate, event);
 					}
 				};
 
@@ -108,11 +109,11 @@ export class ContextMenuService implements IContextMenuService {
 		return menu;
 	}
 
-	private runAction(actionToRun: IAction, delegate: IContextMenuDelegate, event: IEvent): void {
+	private runAction(actionRunner: IActionRunner, actionToRun: IAction, delegate: IContextMenuDelegate, event: IEvent): void {
 		this.telemetryService.publicLog('workbenchActionExecuted', { id: actionToRun.id, from: 'contextMenu' });
 
 		const context = delegate.getActionsContext ? delegate.getActionsContext(event) : event;
-		const res = actionToRun.run(context) || TPromise.as(null);
+		const res = actionRunner.run(actionToRun, context) || TPromise.as(null);
 
 		res.done(null, e => this.messageService.show(severity.Error, e));
 	}

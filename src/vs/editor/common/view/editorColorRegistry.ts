@@ -17,6 +17,8 @@ export const editorRangeHighlight = registerColor('editorRangeHighlight', { dark
 export const editorCursor = registerColor('editorCursor', { dark: '#AEAFAD', light: Color.black, hc: Color.white }, nls.localize('caret', 'Editor cursor color'));
 export const editorInvisibles = registerColor('editorInvisibles', { dark: '#e3e4e229', light: '#33333333', hc: '#e3e4e229' }, nls.localize('invisibles', 'Editor invisibles color'));
 export const editorGuide = registerColor('editorGuide', { dark: editorInvisibles, light: editorInvisibles, hc: editorInvisibles }, nls.localize('guide', 'Editor guide color'));
+export const editorLineNumbers = registerColor('editorLineNumbers', { dark: '#5A5A5A', light: '#2B91AF', hc: Color.white }, nls.localize('editorLineNumbers', 'Editor line numbers'));
+
 
 // contains all color rules that used to defined in editor/browser/widget/editor.css
 registerThemingParticipant((theme, collector) => {
