@@ -6,6 +6,7 @@
 import * as assert from 'assert';
 import * as paths from 'vs/base/common/paths';
 import * as platform from 'vs/base/common/platform';
+import { IRawAdapter } from 'vs/workbench/parts/debug/common/debug';
 import { Adapter } from 'vs/workbench/parts/debug/node/debugAdapter';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 
@@ -17,15 +18,7 @@ suite('Debug - Adapter', () => {
 		label: 'Mock Debug',
 		enableBreakpointsFor: { 'languageIds': ['markdown'] },
 		program: './out/mock/mockDebug.js',
-		win: {
-			runtime: 'winRuntime'
-		},
-		linux: {
-			runtime: 'linuxRuntime'
-		},
-		osx: {
-			runtime: 'osxRuntime'
-		},
+		args: ['arg1', 'arg2'],
 		configurationAttributes: {
 			launch: {
 				required: ['program'],
@@ -61,8 +54,11 @@ suite('Debug - Adapter', () => {
 	test('attributes', () => {
 		assert.equal(adapter.type, rawAdapter.type);
 		assert.equal(adapter.label, rawAdapter.label);
-		assert.equal(adapter.program, paths.join(extensionFolderPath, rawAdapter.program));
-		assert.equal(adapter.runtime, platform.isLinux ? rawAdapter.linux.runtime : platform.isMacintosh ? rawAdapter.osx.runtime : rawAdapter.win.runtime);
+
+		return adapter.getAdapterExecutable(false).then(details => {
+			assert.equal(details.command, paths.join(extensionFolderPath, rawAdapter.program));
+			assert.deepEqual(details.args, rawAdapter.args);
+		});
 	});
 
 	test('schema attributes', () => {
@@ -80,23 +76,37 @@ suite('Debug - Adapter', () => {
 	});
 
 	test('merge', () => {
-		const runtimeArgs = ['first arg'];
-		adapter.merge({
-			type: 'mock',
-			runtimeArgs,
-			program: 'mockprogram'
-		}, {
-				name: 'my name',
-				id: 'my_id',
-				version: '1.0',
-				publisher: 'mockPublisher',
-				isBuiltin: true,
-				extensionFolderPath: 'a/b/c/d',
-				engines: null
-			});
 
-		assert.deepEqual(adapter.runtimeArgs, runtimeArgs);
-		assert.equal(adapter.program, 'a/b/c/d/mockprogram');
+		const da: IRawAdapter = {
+			type: 'mock',
+			win: {
+				runtime: 'winRuntime'
+			},
+			linux: {
+				runtime: 'linuxRuntime'
+			},
+			osx: {
+				runtime: 'osxRuntime'
+			},
+			runtimeArgs: ['first arg'],
+			program: 'mockprogram',
+			args: ['arg']
+		};
+
+		adapter.merge(da, {
+			name: 'my name',
+			id: 'my_id',
+			version: '1.0',
+			publisher: 'mockPublisher',
+			isBuiltin: true,
+			extensionFolderPath: 'a/b/c/d',
+			engines: null
+		});
+
+		return adapter.getAdapterExecutable(false).then(details => {
+			assert.equal(details.command, platform.isLinux ? da.linux.runtime : platform.isMacintosh ? da.osx.runtime : da.win.runtime);
+			assert.deepEqual(details.args, da.runtimeArgs.concat(['a/b/c/d/mockprogram'].concat(da.args)));
+		});
 	});
 
 	test('initial config file content', () => {

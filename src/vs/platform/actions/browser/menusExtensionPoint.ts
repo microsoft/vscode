@@ -28,12 +28,18 @@ namespace schema {
 
 	export function parseMenuId(value: string): MenuId {
 		switch (value) {
+			case 'commandPalette': return MenuId.CommandPalette;
 			case 'editor/title': return MenuId.EditorTitle;
 			case 'editor/context': return MenuId.EditorContext;
 			case 'explorer/context': return MenuId.ExplorerContext;
 			case 'editor/title/context': return MenuId.EditorTitleContext;
 			case 'debug/callstack/context': return MenuId.DebugCallStackContext;
+			case 'scm/title': return MenuId.SCMTitle;
+			case 'scm/resourceGroup/context': return MenuId.SCMResourceGroupContext;
+			case 'scm/resource/context': return MenuId.SCMResourceContext;
 		}
+
+		return void 0;
 	}
 
 	export function isValidMenuItems(menu: IUserFriendlyMenuItem[], collector: ExtensionMessageCollector): boolean {
@@ -90,6 +96,11 @@ namespace schema {
 		description: localize('vscode.extension.contributes.menus', "Contributes menu items to the editor"),
 		type: 'object',
 		properties: {
+			'commandPalette': {
+				description: localize('menus.commandPalette', "The Command Palette"),
+				type: 'array',
+				items: menuItem
+			},
 			'editor/title': {
 				description: localize('menus.editorTitle', "The editor title menu"),
 				type: 'array',
@@ -219,7 +230,7 @@ ExtensionsRegistry.registerExtensionPoint<schema.IUserFriendlyCommand | schema.I
 			return;
 		}
 
-		let {icon, category, title, command} = userFriendlyCommand;
+		let { icon, category, title, command } = userFriendlyCommand;
 		let iconClass: string;
 		if (icon) {
 			iconClass = ids.nextId();
@@ -240,7 +251,7 @@ ExtensionsRegistry.registerExtensionPoint<schema.IUserFriendlyCommand | schema.I
 	}
 
 	for (let extension of extensions) {
-		const {value} = extension;
+		const { value } = extension;
 		if (Array.isArray<schema.IUserFriendlyCommand>(value)) {
 			for (let command of value) {
 				handleCommand(command, extension);
@@ -254,7 +265,7 @@ ExtensionsRegistry.registerExtensionPoint<schema.IUserFriendlyCommand | schema.I
 
 ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: schema.IUserFriendlyMenuItem[] }>('menus', [], schema.menusContribtion).setHandler(extensions => {
 	for (let extension of extensions) {
-		const {value, collector} = extension;
+		const { value, collector } = extension;
 
 		forEach(value, entry => {
 			if (!schema.isValidMenuItems(entry.value, collector)) {

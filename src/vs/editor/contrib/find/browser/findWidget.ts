@@ -25,6 +25,10 @@ import { Range } from 'vs/editor/common/core/range';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { CONTEXT_FIND_INPUT_FOCUSSED } from 'vs/editor/contrib/find/common/findController';
 
+import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
+import { ITheme, ICssStyleCollector, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { Color } from 'vs/base/common/color';
+
 export interface IFindController {
 	replace(): void;
 	replaceAll(): void;
@@ -43,7 +47,7 @@ const NLS_REPLACE_ALL_BTN_LABEL = nls.localize('label.replaceAllButton', "Replac
 const NLS_TOGGLE_REPLACE_MODE_BTN_LABEL = nls.localize('label.toggleReplaceButton', "Toggle Replace mode");
 const NLS_MATCHES_COUNT_LIMIT_TITLE = nls.localize('title.matchesCountLimit', "Only the first 999 results are highlighted, but all find operations work on the entire text.");
 const NLS_MATCHES_LOCATION = nls.localize('label.matchesLocation', "{0} of {1}");
-const NLS_NO_RESULTS = nls.localize('label.noResults', "No results");
+const NLS_NO_RESULTS = nls.localize('label.noResults', "No Results");
 
 let MAX_MATCHES_COUNT_WIDTH = 69;
 const WIDGET_FIXED_WIDTH = 411 - 69;
@@ -276,14 +280,14 @@ export class FindWidget extends Widget implements IOverlayWidget {
 
 	/**
 	 * If 'selection find' is ON we should not disable the button (its function is to cancel 'selection find').
-	 * If 'selection find' is OFF we enable the button only if there is a multi line selection.
+	 * If 'selection find' is OFF we enable the button only if there is a selection.
 	 */
 	private _updateToggleSelectionFindButton(): void {
 		let selection = this._codeEditor.getSelection();
-		let isMultiLineSelection = selection ? (selection.startLineNumber !== selection.endLineNumber) : false;
+		let isSelection = selection ? (selection.startLineNumber !== selection.endLineNumber || selection.startColumn !== selection.endColumn) : false;
 		let isChecked = this._toggleSelectionFind.checked;
 
-		this._toggleSelectionFind.setEnabled(this._isVisible && (isChecked || isMultiLineSelection));
+		this._toggleSelectionFind.setEnabled(this._isVisible && (isChecked || isSelection));
 	}
 
 	private _updateButtons(): void {
@@ -354,73 +358,82 @@ export class FindWidget extends Widget implements IOverlayWidget {
 		this._replaceInputBox.focus();
 	}
 
+	public highlightFindOptions(): void {
+		this._findInput.highlightFindOptions();
+	}
+
 	private _onFindInputKeyDown(e: IKeyboardEvent): void {
 
-		switch (e.asKeybinding()) {
-			case KeyCode.Enter:
-				this._codeEditor.getAction(FIND_IDS.NextMatchFindAction).run().done(null, onUnexpectedError);
-				e.preventDefault();
-				return;
+		if (e.equals(KeyCode.Enter)) {
+			this._codeEditor.getAction(FIND_IDS.NextMatchFindAction).run().done(null, onUnexpectedError);
+			e.preventDefault();
+			return;
+		}
 
-			case KeyMod.Shift | KeyCode.Enter:
-				this._codeEditor.getAction(FIND_IDS.PreviousMatchFindAction).run().done(null, onUnexpectedError);
-				e.preventDefault();
-				return;
+		if (e.equals(KeyMod.Shift | KeyCode.Enter)) {
+			this._codeEditor.getAction(FIND_IDS.PreviousMatchFindAction).run().done(null, onUnexpectedError);
+			e.preventDefault();
+			return;
+		}
 
-			case KeyCode.Tab:
-				if (this._isReplaceVisible) {
-					this._replaceInputBox.focus();
-				} else {
-					this._findInput.focusOnCaseSensitive();
-				}
-				e.preventDefault();
-				return;
+		if (e.equals(KeyCode.Tab)) {
+			if (this._isReplaceVisible) {
+				this._replaceInputBox.focus();
+			} else {
+				this._findInput.focusOnCaseSensitive();
+			}
+			e.preventDefault();
+			return;
+		}
 
-			case KeyMod.CtrlCmd | KeyCode.DownArrow:
-				this._codeEditor.focus();
-				e.preventDefault();
-				return;
+		if (e.equals(KeyMod.CtrlCmd | KeyCode.DownArrow)) {
+			this._codeEditor.focus();
+			e.preventDefault();
+			return;
 		}
 	}
 
 	private _onReplaceInputKeyDown(e: IKeyboardEvent): void {
 
-		switch (e.asKeybinding()) {
-			case KeyCode.Enter:
-				this._controller.replace();
-				e.preventDefault();
-				return;
+		if (e.equals(KeyCode.Enter)) {
+			this._controller.replace();
+			e.preventDefault();
+			return;
+		}
 
-			case KeyMod.CtrlCmd | KeyCode.Enter:
-				this._controller.replaceAll();
-				e.preventDefault();
-				return;
+		if (e.equals(KeyMod.CtrlCmd | KeyCode.Enter)) {
+			this._controller.replaceAll();
+			e.preventDefault();
+			return;
+		}
 
-			case KeyCode.Tab:
-				this._findInput.focusOnCaseSensitive();
-				e.preventDefault();
-				return;
+		if (e.equals(KeyCode.Tab)) {
+			this._findInput.focusOnCaseSensitive();
+			e.preventDefault();
+			return;
+		}
 
-			case KeyMod.Shift | KeyCode.Tab:
-				this._findInput.focus();
-				e.preventDefault();
-				return;
+		if (e.equals(KeyMod.Shift | KeyCode.Tab)) {
+			this._findInput.focus();
+			e.preventDefault();
+			return;
+		}
 
-			case KeyMod.CtrlCmd | KeyCode.DownArrow:
-				this._codeEditor.focus();
-				e.preventDefault();
-				return;
+		if (e.equals(KeyMod.CtrlCmd | KeyCode.DownArrow)) {
+			this._codeEditor.focus();
+			e.preventDefault();
+			return;
 		}
 	}
 
 	// ----- initialization
 
 	private _keybindingLabelFor(actionId: string): string {
-		let keybindings = this._keybindingService.lookupKeybindings(actionId);
-		if (keybindings.length === 0) {
+		let kb = this._keybindingService.lookupKeybinding(actionId);
+		if (!kb) {
 			return '';
 		}
-		return ' (' + this._keybindingService.getLabelFor(keybindings[0]) + ')';
+		return ` (${kb.getLabel()})`;
 	}
 
 	private _buildFindPart(): HTMLElement {
@@ -762,5 +775,17 @@ class SimpleButton extends Widget {
 
 	public toggleClass(className: string, shouldHaveIt: boolean): void {
 		dom.toggleClass(this._domNode, className, shouldHaveIt);
+	}
+}
+
+registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+	addBackgroundColorRule(theme, '.findMatch', theme.getColor(colorRegistry.editorFindMatchHighlight), collector);
+	addBackgroundColorRule(theme, '.currentFindMatch', theme.getColor(colorRegistry.editorCurrentFindMatchHighlight), collector);
+	addBackgroundColorRule(theme, '.findScope', theme.getColor(colorRegistry.editorFindRangeHighlight), collector);
+});
+
+function addBackgroundColorRule(theme: ITheme, selector: string, color: Color, collector: ICssStyleCollector): void {
+	if (color) {
+		collector.addRule(`.monaco-editor.${theme.selector} ${selector} { background-color: ${color}; }`);
 	}
 }

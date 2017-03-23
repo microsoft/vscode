@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { Keybinding } from 'vs/base/common/keybinding';
+import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 
 export interface IQuickNavigateConfiguration {
-	keybindings: Keybinding[];
+	keybindings: ResolvedKeybinding[];
 }
 
 export interface IAutoFocus {

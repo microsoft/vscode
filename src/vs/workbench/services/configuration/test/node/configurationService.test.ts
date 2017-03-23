@@ -16,12 +16,11 @@ import { WorkspaceContextService } from 'vs/platform/workspace/common/workspace'
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import extfs = require('vs/base/node/extfs');
-import { TestEventService } from 'vs/test/utils/servicesTestUtils';
 import uuid = require('vs/base/common/uuid');
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { WorkspaceConfigurationService } from 'vs/workbench/services/configuration/node/configurationService';
 import URI from 'vs/base/common/uri';
-import { EventType as FileEventType, FileChangeType, FileChangesEvent } from 'vs/platform/files/common/files';
+import { FileChangeType, FileChangesEvent } from 'vs/platform/files/common/files';
 
 class SettingsTestEnvironmentService extends EnvironmentService {
 
@@ -49,7 +48,7 @@ suite('WorkspaceConfigurationService - Node', () => {
 	function createService(workspaceDir: string, globalSettingsFile: string): TPromise<WorkspaceConfigurationService> {
 		const workspaceContextService = new WorkspaceContextService({ resource: URI.file(workspaceDir) });
 		const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, globalSettingsFile);
-		const service = new WorkspaceConfigurationService(workspaceContextService, new TestEventService(), environmentService);
+		const service = new WorkspaceConfigurationService(workspaceContextService, environmentService);
 
 		return service.initialize().then(() => service);
 	}
@@ -77,8 +76,6 @@ suite('WorkspaceConfigurationService - Node', () => {
 
 		createWorkspace((workspaceDir, globalSettingsFile, cleanUp) => {
 			return createService(workspaceDir, globalSettingsFile).then(service => {
-				assert.ok(!service.hasWorkspaceConfiguration());
-
 				const config = service.getConfiguration<ITestSetting>();
 				assert.equal(config.workspace.service.testSetting, 'isSet');
 
@@ -95,8 +92,6 @@ suite('WorkspaceConfigurationService - Node', () => {
 				fs.writeFileSync(globalSettingsFile, '{ "testworkbench.editor.tabs": true }');
 
 				service.reloadConfiguration().then(() => {
-					assert.ok(!service.hasWorkspaceConfiguration());
-
 					const config = service.getConfiguration<{ testworkbench: { editor: { tabs: boolean } } }>();
 					assert.equal(config.testworkbench.editor.tabs, true);
 
@@ -159,8 +154,6 @@ suite('WorkspaceConfigurationService - Node', () => {
 				fs.writeFileSync(globalSettingsFile, '{ "workspace.service.testSetting": "isChanged" }');
 
 				service.reloadConfiguration().then(() => {
-					assert.ok(!service.hasWorkspaceConfiguration());
-
 					const config = service.getConfiguration<ITestSetting>();
 					assert.equal(config.workspace.service.testSetting, 'isChanged');
 
@@ -178,8 +171,6 @@ suite('WorkspaceConfigurationService - Node', () => {
 				fs.writeFileSync(path.join(workspaceDir, '.vscode', 'settings.json'), '{ "testworkbench.editor.icons": true }');
 
 				service.reloadConfiguration().then(() => {
-					assert.ok(service.hasWorkspaceConfiguration());
-
 					const config = service.getConfiguration<{ testworkbench: { editor: { icons: boolean } } }>();
 					assert.equal(config.testworkbench.editor.icons, true);
 
@@ -214,8 +205,7 @@ suite('WorkspaceConfigurationService - Node', () => {
 		createWorkspace((workspaceDir, globalSettingsFile, cleanUp) => {
 			const workspaceContextService = new WorkspaceContextService({ resource: URI.file(workspaceDir) });
 			const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, globalSettingsFile);
-			const eventService = new TestEventService();
-			const service = new WorkspaceConfigurationService(workspaceContextService, eventService, environmentService);
+			const service = new WorkspaceConfigurationService(workspaceContextService, environmentService);
 
 			return service.initialize().then(() => {
 				service.onDidUpdateConfiguration(event => {
@@ -232,7 +222,7 @@ suite('WorkspaceConfigurationService - Node', () => {
 				fs.writeFileSync(settingsFile, '{ "testworkbench.editor.icons": true }');
 
 				const event = new FileChangesEvent([{ resource: URI.file(settingsFile), type: FileChangeType.ADDED }]);
-				eventService.emit(FileEventType.FILE_CHANGES, event);
+				service.handleWorkspaceFileEvents(event);
 			});
 		});
 	});

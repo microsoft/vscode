@@ -8,15 +8,15 @@ var __extends = (this && this.__extends) || function (d, b) {
     function __() { this.constructor = d; }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
 };
-var ts = require('typescript');
-var Lint = require('tslint/lib/lint');
+var ts = require("typescript");
+var Lint = require("tslint");
 /**
  * Implementation of the no-unexternalized-strings rule.
  */
 var Rule = (function (_super) {
     __extends(Rule, _super);
     function Rule() {
-        _super.apply(this, arguments);
+        return _super !== null && _super.apply(this, arguments) || this;
     }
     Rule.prototype.apply = function (sourceFile) {
         return this.applyWithWalker(new NoUnexternalizedStringsRuleWalker(sourceFile, this.getOptions()));
@@ -36,14 +36,13 @@ function isPropertyAssignment(node) {
 var NoUnexternalizedStringsRuleWalker = (function (_super) {
     __extends(NoUnexternalizedStringsRuleWalker, _super);
     function NoUnexternalizedStringsRuleWalker(file, opts) {
-        var _this = this;
-        _super.call(this, file, opts);
-        this.signatures = Object.create(null);
-        this.ignores = Object.create(null);
-        this.messageIndex = undefined;
-        this.keyIndex = undefined;
-        this.usedKeys = Object.create(null);
-        var options = this.getOptions();
+        var _this = _super.call(this, file, opts) || this;
+        _this.signatures = Object.create(null);
+        _this.ignores = Object.create(null);
+        _this.messageIndex = undefined;
+        _this.keyIndex = undefined;
+        _this.usedKeys = Object.create(null);
+        var options = _this.getOptions();
         var first = options && options.length > 0 ? options[0] : null;
         if (first) {
             if (Array.isArray(first.signatures)) {
@@ -53,12 +52,13 @@ var NoUnexternalizedStringsRuleWalker = (function (_super) {
                 first.ignores.forEach(function (ignore) { return _this.ignores[ignore] = true; });
             }
             if (typeof first.messageIndex !== 'undefined') {
-                this.messageIndex = first.messageIndex;
+                _this.messageIndex = first.messageIndex;
             }
             if (typeof first.keyIndex !== 'undefined') {
-                this.keyIndex = first.keyIndex;
+                _this.keyIndex = first.keyIndex;
             }
         }
+        return _this;
     }
     NoUnexternalizedStringsRuleWalker.prototype.visitSourceFile = function (node) {
         var _this = this;
@@ -89,11 +89,10 @@ var NoUnexternalizedStringsRuleWalker = (function (_super) {
         if (functionName && this.ignores[functionName]) {
             return;
         }
-        var x = "foo";
         if (doubleQuoted && (!callInfo || callInfo.argIndex === -1 || !this.signatures[functionName])) {
             var s = node.getText();
             var replacement = new Lint.Replacement(node.getStart(), node.getWidth(), "nls.localize('KEY-" + s.substring(1, s.length - 1) + "', " + s + ")");
-            var fix = new Lint.Fix("Unexternalitzed string", [replacement]);
+            var fix = new Lint.Fix('Unexternalitzed string', [replacement]);
             this.addFailure(this.createFailure(node.getStart(), node.getWidth(), "Unexternalized string found: " + node.getText(), fix));
             return;
         }
@@ -113,8 +112,8 @@ var NoUnexternalizedStringsRuleWalker = (function (_super) {
                 for (var i = 0; i < keyArg.properties.length; i++) {
                     var property = keyArg.properties[i];
                     if (isPropertyAssignment(property)) {
-                        var name = property.name.getText();
-                        if (name === 'key') {
+                        var name_1 = property.name.getText();
+                        if (name_1 === 'key') {
                             var initializer = property.initializer;
                             if (isStringLiteral(initializer)) {
                                 this.recordKey(initializer, this.messageIndex ? callInfo.callExpression.arguments[this.messageIndex] : undefined);
@@ -167,6 +166,6 @@ var NoUnexternalizedStringsRuleWalker = (function (_super) {
             node = parent;
         }
     };
-    NoUnexternalizedStringsRuleWalker.DOUBLE_QUOTE = '"';
     return NoUnexternalizedStringsRuleWalker;
 }(Lint.RuleWalker));
+NoUnexternalizedStringsRuleWalker.DOUBLE_QUOTE = '"';

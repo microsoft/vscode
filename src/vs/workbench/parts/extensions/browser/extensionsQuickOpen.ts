@@ -72,7 +72,7 @@ export class GalleryExtensionsHandler extends QuickOpenHandler {
 	}
 
 	getResults(text: string): TPromise<IModel<any>> {
-		const entries = [];
+		const entries: SimpleEntry[] = [];
 
 		if (text) {
 			const label = nls.localize('searchFor', "Press Enter to search for '{0}' in the Marketplace.", text);

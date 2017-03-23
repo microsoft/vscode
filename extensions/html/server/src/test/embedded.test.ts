@@ -45,6 +45,12 @@ suite('HTML Embedded Support', () => {
 		assertLanguageId('<html><style>foo { }</sty|le></html>', 'html');
 	});
 
+	test('Styles - Incomplete HTML', function (): any {
+		assertLanguageId('|<html><style>foo { }', 'html');
+		assertLanguageId('<html><style>fo|o { }', 'css');
+		assertLanguageId('<html><style>foo { }|', 'css');
+	});
+
 	test('Style in attribute', function (): any {
 		assertLanguageId('<div id="xy" |style="color: red"/>', 'html');
 		assertLanguageId('<div id="xy" styl|e="color: red"/>', 'html');

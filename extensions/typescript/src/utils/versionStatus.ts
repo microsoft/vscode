@@ -7,24 +7,29 @@
 
 import vscode = require('vscode');
 
-const versionBarEntry: vscode.StatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, Number.MIN_VALUE);
-let _enable: boolean = false;
+const versionBarEntry = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, Number.MIN_VALUE);
 
 export function showHideStatus() {
-	if (!versionBarEntry || !_enable) {
+	if (!versionBarEntry) {
 		return;
 	}
 	if (!vscode.window.activeTextEditor) {
 		versionBarEntry.hide();
 		return;
 	}
-	let doc = vscode.window.activeTextEditor.document;
-	if (vscode.languages.match('javascript', doc) || vscode.languages.match('javascriptreact', doc)
-		|| vscode.languages.match('typescript', doc) || vscode.languages.match('typescriptreact', doc)) {
 
+	let doc = vscode.window.activeTextEditor.document;
+	if (vscode.languages.match('typescript', doc) || vscode.languages.match('typescriptreact', doc)) {
 		versionBarEntry.show();
 		return;
 	}
+
+	if (!vscode.window.activeTextEditor.viewColumn) {
+		// viewColumn is undefined for the debug/output panel, but we still want
+		// to show the version info
+		return;
+	}
+
 	versionBarEntry.hide();
 }
 
@@ -37,14 +42,6 @@ export function disposeStatus() {
 export function setInfo(message: string, tooltip: string) {
 	versionBarEntry.text = message;
 	versionBarEntry.tooltip = tooltip;
-	let color = 'white';
-	versionBarEntry.color = color;
-	if (_enable) {
-		versionBarEntry.show();
-	}
-}
-
-export function enable(value: boolean) {
-	_enable = value;
-	showHideStatus();
+	versionBarEntry.color = 'white';
+	versionBarEntry.command = 'typescript.selectTypeScriptVersion';
 }

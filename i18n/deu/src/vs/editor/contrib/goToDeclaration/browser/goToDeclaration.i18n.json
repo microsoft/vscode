@@ -6,7 +6,17 @@
 {
 	"actions.goToDecl.label": "Gehe zu Definition",
 	"actions.goToDeclToSide.label": "Definition an der Seite öffnen",
+	"actions.goToImplementation.label": "Zur Implementierung wechseln",
+	"actions.goToTypeDefinition.label": "Zur Typdefinition wechseln",
+	"actions.peekImplementation.label": "Vorschau der Implementierung anzeigen",
+	"actions.peekTypeDefinition.label": "Vorschau der Typdefinition anzeigen",
 	"actions.previewDecl.label": "Peek-Definition",
+	"generic.noResults": "Keine Definition gefunden",
+	"goToImplementation.generic.noResults": "Keine Implementierung gefunden",
+	"goToImplementation.noResultWord": "Keine Implementierung gefunden für \"{0}\"",
+	"goToTypeDefinition.generic.noResults": "Keine Typendefinition gefunden",
+	"goToTypeDefinition.noResultWord": "Keine Typendefinition gefunden für \"{0}\"",
 	"meta.title": " – {0} Definitionen",
-	"multipleResults": "Klicken Sie, um {0} Definitionen anzuzeigen."
+	"multipleResults": "Klicken Sie, um {0} Definitionen anzuzeigen.",
+	"noResultWord": "Keine Definition gefunden für \"{0}\"."
 }

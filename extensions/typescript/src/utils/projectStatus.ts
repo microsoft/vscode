@@ -8,7 +8,7 @@
 import * as vscode from 'vscode';
 import { ITypescriptServiceClient } from '../typescriptService';
 import { loadMessageBundle } from 'vscode-nls';
-import { dirname } from 'path';
+import { dirname, join } from 'path';
 
 const localize = loadMessageBundle();
 const selector = ['javascript', 'javascriptreact'];
@@ -50,14 +50,21 @@ class ExcludeHintItem {
 	public show(configFileName: string, largeRoots: string, onExecute: () => void) {
 		this._currentHint = {
 			message: largeRoots.length > 0
-				? localize('hintExclude', "For better performance exclude folders with many files, like: {0}", largeRoots)
-				: localize('hintExclude.generic', "For better performance exclude folders with many files."),
+				? localize('hintExclude', "To enable project-wide JavaScript/TypeScript language features, exclude folders with many files, like: {0}", largeRoots)
+				: localize('hintExclude.generic', "To enable project-wide JavaScript/TypeScript language features, exclude large folders with source files that you do not work on."),
 			options: [{
 				title: localize('open', "Configure Excludes"),
 				execute: () => {
 					this._client.logTelemetry('js.hintProjectExcludes.accepted');
 					onExecute();
 					this._item.hide();
+
+					let configFileUri: vscode.Uri;
+					if (vscode.workspace.rootPath && dirname(configFileName).indexOf(vscode.workspace.rootPath) === 0) {
+						configFileUri = vscode.Uri.file(configFileName);
+					} else {
+						configFileUri = vscode.Uri.parse('untitled://' + join(vscode.workspace.rootPath || '', 'jsconfig.json'));
+					}
 
 					return vscode.workspace.openTextDocument(configFileName)
 						.then(vscode.window.showTextDocument);
@@ -66,7 +73,7 @@ class ExcludeHintItem {
 		};
 		this._item.tooltip = this._currentHint.message;
 		this._item.text = localize('large.label', "Configure Excludes");
-		this._item.tooltip = localize('hintExclude.tooltip', "For better performance exclude folders with many files.");
+		this._item.tooltip = localize('hintExclude.tooltip', "To enable project-wide JavaScript/TypeScript language features, exclude large folders with source files that you do not work on.");
 		this._item.color = '#A5DF3B';
 		this._item.show();
 		this._client.logTelemetry('js.hintProjectExcludes');
@@ -88,13 +95,13 @@ function createLargeProjectMonitorForProject(item: ExcludeHintItem, client: ITyp
 	function onEditor(editor: vscode.TextEditor | undefined): void {
 		if (!editor
 			|| !vscode.languages.match(selector, editor.document)
-			|| !client.asAbsolutePath(editor.document.uri)) {
+			|| !client.normalizePath(editor.document.uri)) {
 
 			item.hide();
 			return;
 		}
 
-		const file = client.asAbsolutePath(editor.document.uri);
+		const file = client.normalizePath(editor.document.uri);
 		if (!file) {
 			return;
 		}

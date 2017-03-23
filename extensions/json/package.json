@@ -97,14 +97,29 @@
           "type": "boolean",
           "default": true,
           "description": "%json.format.enable.desc%"
+        },
+        "json.trace.server": {
+          "type": "string",
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
+          "default": "off",
+          "description": "Traces the communication between VS Code and the JSON language server."
         }
+      }
+    },
+    "configurationDefaults": {
+      "[json]": {
+        "editor.quickSuggestions": { "strings": true }
       }
     }
   },
   "dependencies": {
-    "vscode-extension-telemetry": "^0.0.5",
-    "vscode-languageclient": "3.0.1-alpha.3",
-    "vscode-nls": "^1.0.7"
+    "vscode-extension-telemetry": "^0.0.6",
+    "vscode-languageclient": "^3.1.0-alpha.1",
+    "vscode-nls": "^2.0.2"
   },
   "devDependencies": {
     "@types/node": "^6.0.51"

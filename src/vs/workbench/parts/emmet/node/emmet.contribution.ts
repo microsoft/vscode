@@ -52,8 +52,13 @@ configurationRegistry.registerConfiguration({
 		},
 		'emmet.excludeLanguages': {
 			'type': 'array',
-			'default': [],
+			'default': ['markdown'],
 			'description': nls.localize('emmetExclude', "An array of languages where emmet abbreviations should not be expanded.")
 		},
+		'emmet.extensionsPath': {
+			'type': 'string',
+			'default': null,
+			'description': nls.localize('emmetExtensionsPath', 'Path to a folder containing emmet profiles, snippets and preferences')
+		}
 	}
 });

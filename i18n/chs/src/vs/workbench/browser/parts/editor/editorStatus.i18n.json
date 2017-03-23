@@ -10,6 +10,7 @@
 	"changeIndentation": "更改缩进",
 	"changeMode": "更改语言模式",
 	"configureAssociationsExt": "“{0}”的配置文件关联...",
+	"configureModeSettings": "配置“{0}”语言基础设置...",
 	"currentAssociation": "当前关联",
 	"disableTabMode": "禁用辅助功能模式",
 	"endOfLineCarriageReturnLineFeed": "CRLF",

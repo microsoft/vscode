@@ -8,37 +8,24 @@
 import Uri from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ITextFileEditorModelManager, IRawTextContent } from 'vs/workbench/services/textfile/common/textfiles';
 import { IResolveContentOptions, IUpdateContentOptions } from 'vs/platform/files/common/files';
-import { ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
+import { IRawTextSource } from 'vs/editor/common/model/textSource';
 
-export const IBackupService = createDecorator<IBackupService>('backupService');
 export const IBackupFileService = createDecorator<IBackupFileService>('backupFileService');
 
 export const BACKUP_FILE_RESOLVE_OPTIONS: IResolveContentOptions = { acceptTextOnly: true, encoding: 'utf-8' };
 export const BACKUP_FILE_UPDATE_OPTIONS: IUpdateContentOptions = { encoding: 'utf-8' };
-
-export interface IBackupResult {
-	didBackup: boolean;
-}
-
-/**
- * A service that handles the lifecycle of backups, eg. listening for file changes and acting
- * appropriately on shutdown.
- */
-export interface IBackupService {
-	_serviceBrand: any;
-
-	isHotExitEnabled: boolean;
-	backupBeforeShutdown(dirtyToBackup: Uri[], textFileEditorModelManager: ITextFileEditorModelManager, reason: ShutdownReason): TPromise<IBackupResult>;
-	cleanupBackupsBeforeShutdown(): TPromise<void>;
-}
 
 /**
  * A service that handles any I/O and state associated with the backup system.
  */
 export interface IBackupFileService {
 	_serviceBrand: any;
+
+	/**
+	 * Finds out if there are any backups stored.
+	 */
+	hasBackups(): TPromise<boolean>;
 
 	/**
 	 * Loads the backup resource for a particular resource within the current workspace.
@@ -68,10 +55,10 @@ export interface IBackupFileService {
 	 * Parses backup raw text content into the content, removing the metadata that is also stored
 	 * in the file.
 	 *
-	 * @param rawText The IRawTextContent from a backup resource.
+	 * @param rawText The IRawTextProvider from a backup resource.
 	 * @return The backup file's backed up content.
 	 */
-	parseBackupContent(rawText: IRawTextContent): string;
+	parseBackupContent(textSource: IRawTextSource): string;
 
 	/**
 	 * Discards the backup associated with a resource if it exists..
@@ -81,7 +68,8 @@ export interface IBackupFileService {
 	discardResourceBackup(resource: Uri): TPromise<void>;
 
 	/**
-	 * Discards all backups associated with the current workspace.
+	 * Discards all backups associated with the current workspace and prevents further backups from
+	 * being made.
 	 */
 	discardAllWorkspaceBackups(): TPromise<void>;
 }

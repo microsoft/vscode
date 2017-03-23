@@ -20,21 +20,22 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { isMacintosh } from 'vs/base/common/platform';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Position, POSITIONS } from 'vs/platform/editor/common/editor';
-import { IEditorGroupService, GroupArrangement, GroupOrientation } from 'vs/workbench/services/group/common/groupService';
+import { IEditorGroupService, ITabOptions, GroupArrangement, GroupOrientation } from 'vs/workbench/services/group/common/groupService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TabsTitleControl } from 'vs/workbench/browser/parts/editor/tabsTitleControl';
 import { TitleControl, ITitleAreaControl } from 'vs/workbench/browser/parts/editor/titleControl';
 import { NoTabsTitleControl } from 'vs/workbench/browser/parts/editor/noTabsTitleControl';
-import { IEditorStacksModel, IStacksModelChangeEvent, IWorkbenchEditorConfiguration, IEditorGroup, EditorOptions, TextEditorOptions, IEditorIdentifier } from 'vs/workbench/common/editor';
+import { IEditorStacksModel, IStacksModelChangeEvent, IEditorGroup, EditorOptions, TextEditorOptions, IEditorIdentifier } from 'vs/workbench/common/editor';
 import { extractResources } from 'vs/base/browser/dnd';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { editorBackground, highContrastBorder, highContrastOutline } from 'vs/platform/theme/common/colorRegistry';
+import { Themable, TABS_CONTAINER_BACKGROUND, NO_TABS_CONTAINER_BACKGROUND, EDITOR_GROUP_BORDER_COLOR, EDITOR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
 
 export enum Rochade {
 	NONE,
@@ -65,8 +66,6 @@ export interface IEditorGroupsControl {
 
 	isDragging(): boolean;
 
-	updateTitle(identifier: IEditorIdentifier): void;
-
 	getInstantiationService(position: Position): IInstantiationService;
 	getProgressBar(position: Position): ProgressBar;
 	updateProgress(position: Position, state: ProgressState): void;
@@ -86,7 +85,7 @@ export interface IEditorGroupsControl {
 /**
  * Helper class to manage multiple side by side editors for the editor part.
  */
-export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashLayoutProvider, IHorizontalSashLayoutProvider {
+export class EditorGroupsControl extends Themable implements IEditorGroupsControl, IVerticalSashLayoutProvider, IHorizontalSashLayoutProvider {
 
 	private static TITLE_AREA_CONTROL_KEY = '__titleAreaControl';
 	private static PROGRESS_BAR_CONTROL_KEY = '__progressBar';
@@ -108,9 +107,7 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 
 	private layoutVertically: boolean;
 
-	private showTabs: boolean;
-	private showTabCloseButton: boolean;
-	private showIcons: boolean;
+	private tabOptions: ITabOptions;
 
 	private silos: Builder[];
 	private silosSize: number[];
@@ -135,22 +132,21 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 	private onStacksChangeScheduler: RunOnceScheduler;
 	private stacksChangedBuffer: IStacksModelChangeEvent[];
 
-	private toDispose: IDisposable[];
-
 	constructor(
 		parent: Builder,
 		groupOrientation: GroupOrientation,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IConfigurationService private configurationService: IConfigurationService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IExtensionService private extensionService: IExtensionService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IWindowService private windowService: IWindowService
+		@IWindowService private windowService: IWindowService,
+		@IThemeService themeService: IThemeService
 	) {
+		super(themeService);
+
 		this.stacks = editorGroupService.getStacksModel();
-		this.toDispose = [];
 
 		this.parent = parent;
 		this.dimension = new Dimension(0, 0);
@@ -163,12 +159,13 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 		this.visibleEditorFocusTrackers = [];
 
 		this._onGroupFocusChanged = new Emitter<void>();
+		this.toUnbind.push(this._onGroupFocusChanged);
 
 		this.onStacksChangeScheduler = new RunOnceScheduler(() => this.handleStacksChanged(), 0);
-		this.toDispose.push(this.onStacksChangeScheduler);
+		this.toUnbind.push(this.onStacksChangeScheduler);
 		this.stacksChangedBuffer = [];
 
-		this.onConfigurationUpdated(this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>());
+		this.updateTabOptions(this.editorGroupService.getTabOptions());
 
 		const editorGroupOrientation = groupOrientation || 'vertical';
 		this.layoutVertically = (editorGroupOrientation !== 'horizontal');
@@ -211,23 +208,14 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.stacks.onModelChanged(e => this.onStacksChanged(e)));
-		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config, true)));
+		this.toUnbind.push(this.stacks.onModelChanged(e => this.onStacksChanged(e)));
+		this.toUnbind.push(this.editorGroupService.onTabOptionsChanged(options => this.updateTabOptions(options, true)));
 		this.extensionService.onReady().then(() => this.onExtensionsReady());
 	}
 
-	private onConfigurationUpdated(config: IWorkbenchEditorConfiguration, refresh?: boolean): void {
-		const showTabCloseButton = this.showTabCloseButton;
-
-		if (config.workbench && config.workbench.editor) {
-			this.showTabs = config.workbench.editor.showTabs;
-			this.showTabCloseButton = config.workbench.editor.showTabCloseButton;
-			this.showIcons = config.workbench.editor.showIcons;
-		} else {
-			this.showTabs = true;
-			this.showTabCloseButton = true;
-			this.showIcons = false;
-		}
+	private updateTabOptions(tabOptions: ITabOptions, refresh?: boolean): void {
+		const tabCloseButton = this.tabOptions ? this.tabOptions.tabCloseButton : 'right';
+		this.tabOptions = tabOptions;
 
 		if (!refresh) {
 			return; // return early if no refresh is needed
@@ -237,16 +225,16 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 		POSITIONS.forEach(position => {
 			const titleControl = this.getTitleAreaControl(position);
 
-			// TItle Container
+			// Title Container
 			const titleContainer = $(titleControl.getContainer());
-			if (this.showTabs) {
+			if (this.tabOptions.showTabs) {
 				titleContainer.addClass('tabs');
 			} else {
 				titleContainer.removeClass('tabs');
 			}
 
 			const showingIcons = titleContainer.hasClass('show-file-icons');
-			if (this.showIcons) {
+			if (this.tabOptions.showIcons) {
 				titleContainer.addClass('show-file-icons');
 			} else {
 				titleContainer.removeClass('show-file-icons');
@@ -257,17 +245,20 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 				const usingTabs = (titleControl instanceof TabsTitleControl);
 
 				// Recreate title when tabs change
-				if (usingTabs !== this.showTabs) {
+				if (usingTabs !== this.tabOptions.showTabs) {
 					titleControl.dispose();
 					titleContainer.empty();
 					this.createTitleControl(this.stacks.groupAt(position), this.silos[position], titleContainer, this.getInstantiationService(position));
 				}
 
 				// Refresh title when icons change
-				else if (showingIcons !== this.showIcons || showTabCloseButton !== this.showTabCloseButton) {
-					titleControl.refresh(true);
+				else if (showingIcons !== this.tabOptions.showIcons || tabCloseButton !== this.tabOptions.tabCloseButton) {
+					titleControl.refresh();
 				}
 			}
+
+			// Update Styles
+			this.updateStyles();
 		});
 	}
 
@@ -405,9 +396,6 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 
 		// Show editor container
 		editor.getContainer().show();
-
-		// Styles
-		this.updateParentStyle();
 	}
 
 	private getVisibleEditorCount(): number {
@@ -612,19 +600,7 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 			}
 		}
 
-		// Styles
-		this.updateParentStyle();
-
 		return result;
-	}
-
-	private updateParentStyle(): void {
-		const editorCount = this.getVisibleEditorCount();
-		if (editorCount > 1) {
-			this.parent.addClass('multiple-editors');
-		} else {
-			this.parent.removeClass('multiple-editors');
-		}
 	}
 
 	private doSetActive(editor: BaseEditor, newActive: Position): void {
@@ -772,8 +748,11 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 			this.sashOne.setOrientation(this.layoutVertically ? Orientation.VERTICAL : Orientation.HORIZONTAL);
 			this.sashTwo.setOrientation(this.layoutVertically ? Orientation.VERTICAL : Orientation.HORIZONTAL);
 
+			// Update styles
+			this.updateStyles();
+
 			// Trigger layout
-			this.arrangeGroups(GroupArrangement.EVEN);
+			this.arrangeGroups();
 		}
 	}
 
@@ -781,7 +760,7 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 		return this.layoutVertically ? 'vertical' : 'horizontal';
 	}
 
-	public arrangeGroups(arrangement: GroupArrangement): void {
+	public arrangeGroups(arrangement?: GroupArrangement): void {
 		if (!this.dimension) {
 			return; // too early
 		}
@@ -793,27 +772,49 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 			return; // need more editors
 		}
 
-		// Minimize Others
-		if (arrangement === GroupArrangement.MINIMIZE_OTHERS) {
-			POSITIONS.forEach(position => {
-				if (this.visibleEditors[position]) {
-					if (position !== this.lastActivePosition) {
-						this.silosSize[position] = this.minSize;
-						availableSize -= this.minSize;
+		switch (arrangement) {
+			case GroupArrangement.MINIMIZE_OTHERS:
+				// Minimize Others
+				POSITIONS.forEach(position => {
+					if (this.visibleEditors[position]) {
+						if (position !== this.lastActivePosition) {
+							this.silosSize[position] = this.minSize;
+							availableSize -= this.minSize;
+						}
 					}
-				}
-			});
+				});
 
-			this.silosSize[this.lastActivePosition] = availableSize;
-		}
+				this.silosSize[this.lastActivePosition] = availableSize;
+				break;
+			case GroupArrangement.EVEN:
+				// Even Sizes
+				POSITIONS.forEach(position => {
+					if (this.visibleEditors[position]) {
+						this.silosSize[position] = availableSize / visibleEditors;
+					}
+				});
+				break;
+			default:
+				// Minimized editors should remain minimized, others should keep their relative Sizes
+				let oldNonMinimizedTotal = 0;
+				POSITIONS.forEach(position => {
+					if (this.visibleEditors[position]) {
+						if (this.silosMinimized[position]) {
+							this.silosSize[position] = this.minSize;
+							availableSize -= this.minSize;
+						} else {
+							oldNonMinimizedTotal += this.silosSize[position];
+						}
+					}
+				});
 
-		// Even Sizes
-		else if (arrangement === GroupArrangement.EVEN) {
-			POSITIONS.forEach(position => {
-				if (this.visibleEditors[position]) {
-					this.silosSize[position] = availableSize / visibleEditors;
-				}
-			});
+				// Set size for non-minimized editors
+				const scaleFactor = availableSize / oldNonMinimizedTotal;
+				POSITIONS.forEach(position => {
+					if (this.visibleEditors[position] && !this.silosMinimized[position]) {
+						this.silosSize[position] *= scaleFactor;
+					}
+				});
 		}
 
 		// Since we triggered a change in minimized/maximized editors, we need
@@ -857,29 +858,29 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 		this.enableDropTarget(this.parent.getHTMLElement());
 
 		// Silo One
-		this.silos[Position.ONE] = $(this.parent).div({ class: 'one-editor-silo editor-one monaco-editor-background' });
+		this.silos[Position.ONE] = $(this.parent).div({ class: 'one-editor-silo editor-one' });
 
 		// Sash One
 		this.sashOne = new Sash(this.parent.getHTMLElement(), this, { baseSize: 5, orientation: this.layoutVertically ? Orientation.VERTICAL : Orientation.HORIZONTAL });
-		this.toDispose.push(this.sashOne.addListener2('start', () => this.onSashOneDragStart()));
-		this.toDispose.push(this.sashOne.addListener2('change', (e: ISashEvent) => this.onSashOneDrag(e)));
-		this.toDispose.push(this.sashOne.addListener2('end', () => this.onSashOneDragEnd()));
-		this.toDispose.push(this.sashOne.addListener2('reset', () => this.onSashOneReset()));
+		this.toUnbind.push(this.sashOne.addListener2('start', () => this.onSashOneDragStart()));
+		this.toUnbind.push(this.sashOne.addListener2('change', (e: ISashEvent) => this.onSashOneDrag(e)));
+		this.toUnbind.push(this.sashOne.addListener2('end', () => this.onSashOneDragEnd()));
+		this.toUnbind.push(this.sashOne.addListener2('reset', () => this.onSashOneReset()));
 		this.sashOne.hide();
 
 		// Silo Two
-		this.silos[Position.TWO] = $(this.parent).div({ class: 'one-editor-silo editor-two monaco-editor-background' });
+		this.silos[Position.TWO] = $(this.parent).div({ class: 'one-editor-silo editor-two' });
 
 		// Sash Two
 		this.sashTwo = new Sash(this.parent.getHTMLElement(), this, { baseSize: 5, orientation: this.layoutVertically ? Orientation.VERTICAL : Orientation.HORIZONTAL });
-		this.toDispose.push(this.sashTwo.addListener2('start', () => this.onSashTwoDragStart()));
-		this.toDispose.push(this.sashTwo.addListener2('change', (e: ISashEvent) => this.onSashTwoDrag(e)));
-		this.toDispose.push(this.sashTwo.addListener2('end', () => this.onSashTwoDragEnd()));
-		this.toDispose.push(this.sashTwo.addListener2('reset', () => this.onSashTwoReset()));
+		this.toUnbind.push(this.sashTwo.addListener2('start', () => this.onSashTwoDragStart()));
+		this.toUnbind.push(this.sashTwo.addListener2('change', (e: ISashEvent) => this.onSashTwoDrag(e)));
+		this.toUnbind.push(this.sashTwo.addListener2('end', () => this.onSashTwoDragEnd()));
+		this.toUnbind.push(this.sashTwo.addListener2('reset', () => this.onSashTwoReset()));
 		this.sashTwo.hide();
 
 		// Silo Three
-		this.silos[Position.THREE] = $(this.parent).div({ class: 'one-editor-silo editor-three monaco-editor-background' });
+		this.silos[Position.THREE] = $(this.parent).div({ class: 'one-editor-silo editor-three' });
 
 		// For each position
 		POSITIONS.forEach(position => {
@@ -896,10 +897,10 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 
 			// Title containers
 			const titleContainer = $(container).div({ 'class': 'title' });
-			if (this.showTabs) {
+			if (this.tabOptions.showTabs) {
 				titleContainer.addClass('tabs');
 			}
-			if (this.showIcons) {
+			if (this.tabOptions.showIcons) {
 				titleContainer.addClass('show-file-icons');
 			}
 			this.hookTitleDragListener(titleContainer);
@@ -911,6 +912,36 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 			const progressBar = new ProgressBar($(container));
 			progressBar.getContainer().hide();
 			container.setProperty(EditorGroupsControl.PROGRESS_BAR_CONTROL_KEY, progressBar); // associate with container
+		});
+
+		// Update Styles
+		this.updateStyles();
+	}
+
+	protected updateStyles(): void {
+		super.updateStyles();
+
+		// Editor container colors
+		this.silos.forEach((silo, index) => {
+
+			// Background
+			silo.style('background-color', this.getColor(editorBackground));
+
+			// Border
+			if (index > Position.ONE) {
+				silo.style('border-left-color', this.getColor(EDITOR_GROUP_BORDER_COLOR));
+				silo.style('border-top-color', this.getColor(EDITOR_GROUP_BORDER_COLOR));
+			}
+		});
+
+		// Title control
+		POSITIONS.forEach(position => {
+			const container = this.getTitleAreaControl(position).getContainer();
+
+			container.style.backgroundColor = this.getColor(this.tabOptions.showTabs ? TABS_CONTAINER_BACKGROUND : NO_TABS_CONTAINER_BACKGROUND);
+			container.style.borderBottomWidth = (this.isHighContrastTheme && this.tabOptions.showTabs) ? '1px' : null;
+			container.style.borderBottomStyle = (this.isHighContrastTheme && this.tabOptions.showTabs) ? 'solid' : null;
+			container.style.borderBottomColor = (this.isHighContrastTheme && this.tabOptions.showTabs) ? this.getColor(highContrastBorder) : null;
 		});
 	}
 
@@ -949,13 +980,13 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 		}
 
 		function onDrop(e: DragEvent, position: Position, splitTo?: Position): void {
-			DOM.removeClass(node, 'dropfeedback');
+			$this.updateFromDropping(node, false);
 			cleanUp();
 
 			const editorService = $this.editorService;
 			const groupService = $this.editorGroupService;
 
-			const splitEditor = (typeof splitTo === 'number'); // TODO@Ben ugly split code should benefit from empty group support once available!
+			const splitEditor = (typeof splitTo === 'number');
 			const freeGroup = (stacks.groups.length === 1) ? Position.TWO : Position.THREE;
 
 			// Check for transfer from title control
@@ -1093,7 +1124,7 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 				if ($this.layoutVertically) {
 					overlay.style({ left: '0', width: '100%' });
 				} else {
-					overlay.style({ top: $this.showTabs ? `${EditorGroupsControl.EDITOR_TITLE_HEIGHT}px` : 0, height: $this.showTabs ? `calc(100% - ${EditorGroupsControl.EDITOR_TITLE_HEIGHT}px` : '100%' });
+					overlay.style({ top: $this.tabOptions.showTabs ? `${EditorGroupsControl.EDITOR_TITLE_HEIGHT}px` : 0, height: $this.tabOptions.showTabs ? `calc(100% - ${EditorGroupsControl.EDITOR_TITLE_HEIGHT}px` : '100%' });
 				}
 			}
 
@@ -1115,9 +1146,15 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 				const containers = $this.visibleEditors.filter(e => !!e).map(e => e.getContainer());
 				containers.forEach((container, index) => {
 					if (container && DOM.isAncestor(target, container.getHTMLElement())) {
+						const useOutline = $this.isHighContrastTheme;
 						overlay = $('div').style({
-							top: $this.showTabs ? `${EditorGroupsControl.EDITOR_TITLE_HEIGHT}px` : 0,
-							height: $this.showTabs ? `calc(100% - ${EditorGroupsControl.EDITOR_TITLE_HEIGHT}px` : '100%'
+							top: $this.tabOptions.showTabs ? `${EditorGroupsControl.EDITOR_TITLE_HEIGHT}px` : 0,
+							height: $this.tabOptions.showTabs ? `calc(100% - ${EditorGroupsControl.EDITOR_TITLE_HEIGHT}px` : '100%',
+							backgroundColor: $this.getColor(EDITOR_DRAG_AND_DROP_BACKGROUND),
+							outlineColor: useOutline ? $this.getColor(highContrastOutline) : null,
+							outlineOffset: useOutline ? '-2px' : null,
+							outlineStyle: useOutline ? 'dashed' : null,
+							outlineWidth: useOutline ? '2px' : null
 						}).id(overlayId);
 
 						overlay.appendTo(container);
@@ -1153,20 +1190,24 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 		}
 
 		// let a dropped file open inside Code (only if dropped over editor area)
-		this.toDispose.push(DOM.addDisposableListener(node, DOM.EventType.DROP, (e: DragEvent) => {
-			if (e.target === node) {
+		this.toUnbind.push(DOM.addDisposableListener(node, DOM.EventType.DROP, (e: DragEvent) => {
+			if (e.target === node || DOM.isAncestor(e.target as HTMLElement, node)) {
 				DOM.EventHelper.stop(e, true);
 				onDrop(e, Position.ONE);
 			} else {
-				DOM.removeClass(node, 'dropfeedback');
+				this.updateFromDropping(node, false);
 			}
 		}));
 
-		// Drag over
-		this.toDispose.push(DOM.addDisposableListener(node, DOM.EventType.DRAG_OVER, (e: DragEvent) => {
-			if (e.target === node) {
-				DOM.addClass(node, 'dropfeedback');
+		// Drag enter
+		let counter = 0; // see https://github.com/Microsoft/vscode/issues/14470
+		this.toUnbind.push(DOM.addDisposableListener(node, DOM.EventType.DRAG_ENTER, (e: DragEvent) => {
+			if (!TitleControl.getDraggedEditor() && !extractResources(e).length) {
+				return; // invalid DND
 			}
+
+			counter++;
+			this.updateFromDropping(node, true);
 
 			const target = <HTMLElement>e.target;
 			if (target) {
@@ -1176,27 +1217,31 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 				createOverlay(target);
 
 				if (overlay) {
-					DOM.removeClass(node, 'dropfeedback'); // if we show an overlay, we can remove the drop feedback from the editor background
+					this.updateFromDropping(node, false); // if we show an overlay, we can remove the drop feedback from the editor background
 				}
 			}
 		}));
 
 		// Drag leave
-		this.toDispose.push(DOM.addDisposableListener(node, DOM.EventType.DRAG_LEAVE, (e: DragEvent) => {
-			DOM.removeClass(node, 'dropfeedback');
+		this.toUnbind.push(DOM.addDisposableListener(node, DOM.EventType.DRAG_LEAVE, (e: DragEvent) => {
+			counter--;
+			if (counter === 0) {
+				this.updateFromDropping(node, false);
+			}
 		}));
 
 		// Drag end (also install globally to be safe)
 		[node, window].forEach(container => {
-			this.toDispose.push(DOM.addDisposableListener(container, DOM.EventType.DRAG_END, (e: DragEvent) => {
-				DOM.removeClass(node, 'dropfeedback');
+			this.toUnbind.push(DOM.addDisposableListener(container, DOM.EventType.DRAG_END, (e: DragEvent) => {
+				counter = 0;
+				this.updateFromDropping(node, false);
 				cleanUp();
 			}));
 		});
 	}
 
 	private createTitleControl(context: IEditorGroup, silo: Builder, container: Builder, instantiationService: IInstantiationService): void {
-		const titleAreaControl = instantiationService.createInstance<ITitleAreaControl>(this.showTabs ? TabsTitleControl : NoTabsTitleControl);
+		const titleAreaControl = instantiationService.createInstance<ITitleAreaControl>(this.tabOptions.showTabs ? TabsTitleControl : NoTabsTitleControl);
 		titleAreaControl.create(container.getHTMLElement());
 		titleAreaControl.setContext(context);
 		titleAreaControl.refresh(true /* instant */);
@@ -1227,7 +1272,7 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 		titleContainer.on(DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
 			const position = this.findPosition(titleContainer.getHTMLElement());
 			const titleAreaControl = this.getTitleAreaControl(position);
-			if (!titleAreaControl.allowDragging(<any>e.target || e.srcElement)) {
+			if (!titleAreaControl.allowDragging((e.target || e.srcElement) as HTMLElement)) {
 				return; // return early if we are not in the drag zone of the title widget
 			}
 
@@ -1264,7 +1309,6 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 			let oldNewPos: number = null;
 
 			this.silos[position].addClass('drag');
-			this.parent.addClass('drag');
 
 			const $window = $(window);
 			$window.on(DOM.EventType.MOUSE_MOVE, (e: MouseEvent) => {
@@ -1367,8 +1411,7 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 				// Move the editor to provide feedback to the user and add class
 				if (newPos !== null) {
 					this.posSilo(position, `${newPos}px`);
-					this.silos[position].addClass('dragging');
-					this.parent.addClass('dragging');
+					this.updateFromDragging(position, true);
 				}
 			}).once(DOM.EventType.MOUSE_UP, (e: MouseEvent) => {
 				DOM.EventHelper.stop(e, false);
@@ -1383,10 +1426,8 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 				}
 
 				// Restore styles
-				this.parent.removeClass('drag');
 				this.silos[position].removeClass('drag');
-				this.parent.removeClass('dragging');
-				this.silos[position].removeClass('dragging');
+				this.updateFromDragging(position, false);
 				POSITIONS.forEach(p => this.silos[p].removeClass('draggedunder'));
 
 				this.posSilo(Position.ONE, 0, 'auto');
@@ -1416,6 +1457,37 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 				$window.off('mousemove');
 			});
 		});
+	}
+
+	private updateFromDragging(position: Position, isDragging: boolean): void {
+		const silo = this.silos[position];
+		if (silo.hasClass('dragging') === isDragging) {
+			return; // avoid repeated work
+		}
+
+		let borderColor = null;
+		if (isDragging) {
+			this.parent.addClass('dragging');
+			silo.addClass('dragging');
+			borderColor = this.getColor(EDITOR_GROUP_BORDER_COLOR);
+		} else {
+			this.parent.removeClass('dragging');
+			silo.removeClass('dragging');
+		}
+
+		silo.style(this.layoutVertically ? 'border-left-color' : 'border-top-color', borderColor);
+		silo.style(this.layoutVertically ? 'border-right-color' : 'border-bottom-color', borderColor);
+	}
+
+	private updateFromDropping(element: HTMLElement, isDropping: boolean): void {
+		const background = this.getColor(isDropping ? EDITOR_DRAG_AND_DROP_BACKGROUND : null);
+		element.style.backgroundColor = background;
+
+		const useOutline = this.isHighContrastTheme && isDropping;
+		element.style.outlineColor = useOutline ? this.getColor(highContrastOutline) : null;
+		element.style.outlineStyle = useOutline ? 'dashed' : null;
+		element.style.outlineWidth = useOutline ? '2px' : null;
+		(<any>element).style.outlineOffset = useOutline ? '-2px' : null; // TODO@theme TS fail (gulp watch)
 	}
 
 	private posSilo(pos: number, leftTop: string | number, rightBottom?: string | number, borderLeftTopWidth?: string | number): void {
@@ -1894,10 +1966,6 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 		return silo ? silo.child().getProperty(key) : void 0;
 	}
 
-	public updateTitle(identifier: IEditorIdentifier): void {
-		this.onStacksChanged({ editor: identifier.editor, group: identifier.group });
-	}
-
 	public updateProgress(position: Position, state: ProgressState): void {
 		const progressbar = this.getProgressBar(position);
 		if (!progressbar) {
@@ -1918,7 +1986,7 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 	}
 
 	public dispose(): void {
-		dispose(this.toDispose);
+		super.dispose();
 
 		// Positions
 		POSITIONS.forEach(position => {
@@ -1943,7 +2011,5 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 		this.lastActiveEditor = null;
 		this.lastActivePosition = null;
 		this.visibleEditors = null;
-
-		this._onGroupFocusChanged.dispose();
 	}
 }

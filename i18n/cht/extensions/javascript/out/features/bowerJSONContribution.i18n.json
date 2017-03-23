@@ -6,6 +6,5 @@
 {
 	"json.bower.default": "預設 bower.json",
 	"json.bower.error.repoaccess": "對 Bower 儲存機制的要求失敗: {0}",
-	"json.bower.latest.version": "最新",
-	"json.bower.package.hover": "{0}"
+	"json.bower.latest.version": "最新"
 }

@@ -69,23 +69,16 @@ interface ICommandsData {
 
 export class Cursor extends EventEmitter {
 
-	private editorId: number;
 	private configuration: editorCommon.IConfiguration;
 	private model: editorCommon.IModel;
 
 	private modelUnbinds: IDisposable[];
-
-	// Typing listeners
-	private typingListeners: {
-		[character: string]: ITypingListener[];
-	};
 
 	private cursors: CursorCollection;
 	private cursorUndoStack: ICursorCollectionState[];
 	private viewModelHelper: IViewModelHelper;
 
 	private _isHandling: boolean;
-	private charactersTyped: string;
 
 	private enableEmptySelectionClipboard: boolean;
 
@@ -93,35 +86,58 @@ export class Cursor extends EventEmitter {
 		[key: string]: (ctx: IMultipleCursorOperationContext) => boolean;
 	};
 
-	constructor(editorId: number, configuration: editorCommon.IConfiguration, model: editorCommon.IModel, viewModelHelper: IViewModelHelper, enableEmptySelectionClipboard: boolean) {
+	constructor(configuration: editorCommon.IConfiguration, model: editorCommon.IModel, viewModelHelper: IViewModelHelper, enableEmptySelectionClipboard: boolean) {
 		super([
 			editorCommon.EventType.CursorPositionChanged,
 			editorCommon.EventType.CursorSelectionChanged,
 			editorCommon.EventType.CursorRevealRange,
 			editorCommon.EventType.CursorScrollRequest
 		]);
-		this.editorId = editorId;
 		this.configuration = configuration;
 		this.model = model;
 		this.viewModelHelper = viewModelHelper;
 		this.enableEmptySelectionClipboard = enableEmptySelectionClipboard;
-		this.cursors = new CursorCollection(this.editorId, this.model, this.configuration, this.viewModelHelper);
+		this.cursors = new CursorCollection(this.model, this.configuration, this.viewModelHelper);
 		this.cursorUndoStack = [];
-
-		this.typingListeners = {};
 
 		this._isHandling = false;
 
 		this.modelUnbinds = [];
-		this.modelUnbinds.push(this.model.onDidChangeRawContent((e) => {
-			this._onModelContentChanged(e);
+
+		this.modelUnbinds.push(this.model.addBulkListener((events) => {
+			if (this._isHandling) {
+				return;
+			}
+
+			let hadContentChange = false;
+			let hadFlushEvent = false;
+			for (let i = 0, len = events.length; i < len; i++) {
+				const event = events[i];
+				const eventType = event.getType();
+
+				if (eventType === editorCommon.EventType.ModelRawContentChanged) {
+					hadContentChange = true;
+					const changeEvent = <editorCommon.IModelContentChangedEvent>event.getData();
+
+					if (changeEvent.changeType === editorCommon.EventType.ModelRawContentChangedFlush) {
+						hadFlushEvent = true;
+						break;
+					}
+				}
+			}
+
+			if (!hadContentChange) {
+				return;
+			}
+
+			this._onModelContentChanged(hadFlushEvent);
 		}));
-		this.modelUnbinds.push(this.model.onDidChangeMode((e) => {
-			this._onModelModeChanged();
+		this.modelUnbinds.push(this.model.onDidChangeLanguage((e) => {
+			this._onModelLanguageChanged();
 		}));
 		this.modelUnbinds.push(LanguageConfigurationRegistry.onDidChange(() => {
 			// TODO@Alex: react only if certain supports changed? (and if my model's mode changed)
-			this._onModelModeChanged();
+			this._onModelLanguageChanged();
 		}));
 
 		this._handlers = {};
@@ -205,44 +221,17 @@ export class Cursor extends EventEmitter {
 		}, 'restoreState', null);
 	}
 
-	public setEditableRange(range: editorCommon.IRange): void {
-		this.model.setEditableRange(range);
-	}
-
-	public getEditableRange(): Range {
-		return this.model.getEditableRange();
-	}
-
-	public addTypingListener(character: string, callback: ITypingListener): void {
-		if (!this.typingListeners.hasOwnProperty(character)) {
-			this.typingListeners[character] = [];
-		}
-		this.typingListeners[character].push(callback);
-	}
-
-	public removeTypingListener(character: string, callback: ITypingListener): void {
-		if (this.typingListeners.hasOwnProperty(character)) {
-			var listeners = this.typingListeners[character];
-			for (var i = 0; i < listeners.length; i++) {
-				if (listeners[i] === callback) {
-					listeners.splice(i, 1);
-					return;
-				}
-			}
-		}
-	}
-
-	private _onModelModeChanged(): void {
+	private _onModelLanguageChanged(): void {
 		// the mode of this model has changed
 		this.cursors.updateMode();
 	}
 
-	private _onModelContentChanged(e: editorCommon.IModelContentChangedEvent): void {
-		if (e.changeType === editorCommon.EventType.ModelRawContentChangedFlush) {
+	private _onModelContentChanged(hadFlushEvent: boolean): void {
+		if (hadFlushEvent) {
 			// a model.setValue() was called
 			this.cursors.dispose();
 
-			this.cursors = new CursorCollection(this.editorId, this.model, this.configuration, this.viewModelHelper);
+			this.cursors = new CursorCollection(this.model, this.configuration, this.viewModelHelper);
 
 			this.emitCursorPositionChanged('model', editorCommon.CursorChangeReason.ContentFlush);
 			this.emitCursorSelectionChanged('model', editorCommon.CursorChangeReason.ContentFlush);
@@ -318,7 +307,6 @@ export class Cursor extends EventEmitter {
 	private _onHandler(command: string, handler: (ctx: IMultipleCursorOperationContext) => boolean, source: string, data: any): boolean {
 
 		this._isHandling = true;
-		this.charactersTyped = '';
 
 		var handled = false;
 
@@ -352,22 +340,6 @@ export class Cursor extends EventEmitter {
 
 			if (hasExecutedCommands) {
 				this.cursorUndoStack = [];
-			}
-
-			// Ping typing listeners after the model emits events & after I emit events
-			for (var i = 0; i < this.charactersTyped.length; i++) {
-				var chr = this.charactersTyped.charAt(i);
-				if (this.typingListeners.hasOwnProperty(chr)) {
-					var listeners = this.typingListeners[chr].slice(0);
-					for (var j = 0, lenJ = listeners.length; j < lenJ; j++) {
-						// Hoping that listeners understand that the view might be in an awkward state
-						try {
-							listeners[j]();
-						} catch (e) {
-							onUnexpectedError(e);
-						}
-					}
-				}
 			}
 
 			var newSelections = this.cursors.getSelections();
@@ -433,7 +405,7 @@ export class Cursor extends EventEmitter {
 	}
 
 	private _interpretCommandResult(cursorState: Selection[]): boolean {
-		if (!cursorState) {
+		if (!cursorState || cursorState.length === 0) {
 			return false;
 		}
 
@@ -495,8 +467,8 @@ export class Cursor extends EventEmitter {
 			}
 
 			var l = ctx.selectionStartMarkers.length;
-			ctx.selectionStartMarkers[l] = this.model._addMarker(selection.selectionStartLineNumber, selection.selectionStartColumn, selectionMarkerStickToPreviousCharacter);
-			ctx.positionMarkers[l] = this.model._addMarker(selection.positionLineNumber, selection.positionColumn, positionMarkerStickToPreviousCharacter);
+			ctx.selectionStartMarkers[l] = this.model._addMarker(0, selection.selectionStartLineNumber, selection.selectionStartColumn, selectionMarkerStickToPreviousCharacter);
+			ctx.positionMarkers[l] = this.model._addMarker(0, selection.positionLineNumber, selection.positionColumn, positionMarkerStickToPreviousCharacter);
 			return l.toString();
 		};
 
@@ -598,7 +570,7 @@ export class Cursor extends EventEmitter {
 
 	private _collapseDeleteCommands(rawCmds: editorCommon.ICommand[], isAutoWhitespaceCommand: boolean[]): boolean {
 		if (rawCmds.length === 1) {
-			return;
+			return false;
 		}
 
 		// Merge adjacent delete commands
@@ -614,7 +586,7 @@ export class Cursor extends EventEmitter {
 		});
 
 		if (!allAreDeleteCommands) {
-			return;
+			return false;
 		}
 
 		var commands = <ReplaceCommand[]>rawCmds;
@@ -649,6 +621,7 @@ export class Cursor extends EventEmitter {
 				previousCursor = cursors[i];
 			}
 		}
+		return false;
 	}
 
 	private _internalExecuteCommands(commands: editorCommon.ICommand[], isAutoWhitespaceCommand: boolean[]): boolean {
@@ -904,8 +877,6 @@ export class Cursor extends EventEmitter {
 	private _registerHandlers(): void {
 		let H = editorCommon.Handler;
 
-		this._handlers[H.JumpToBracket] = (ctx) => this._jumpToBracket(ctx);
-
 		this._handlers[H.CursorMove] = (ctx) => this._cursorMove(ctx);
 		this._handlers[H.MoveTo] = (ctx) => this._moveTo(false, ctx);
 		this._handlers[H.MoveToSelect] = (ctx) => this._moveTo(true, ctx);
@@ -1009,7 +980,6 @@ export class Cursor extends EventEmitter {
 		this._handlers[H.DeleteWordStartRight] = (ctx) => this._deleteWordRight(false, WordNavigationType.WordStart, ctx);
 		this._handlers[H.DeleteWordEndRight] = (ctx) => this._deleteWordRight(false, WordNavigationType.WordEnd, ctx);
 
-		this._handlers[H.DeleteAllRight] = (ctx) => this._deleteAllRight(ctx);
 		this._handlers[H.Cut] = (ctx) => this._cut(ctx);
 
 		this._handlers[H.ExpandLineSelection] = (ctx) => this._expandLineSelection(ctx);
@@ -1078,11 +1048,6 @@ export class Cursor extends EventEmitter {
 		return result;
 	}
 
-	private _jumpToBracket(ctx: IMultipleCursorOperationContext): boolean {
-		this.cursors.killSecondaryCursors();
-		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.jumpToBracket(oneCursor, oneCtx));
-	}
-
 	private _moveTo(inSelectionMode: boolean, ctx: IMultipleCursorOperationContext): boolean {
 		this.cursors.killSecondaryCursors();
 		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.moveTo(oneCursor, inSelectionMode, ctx.eventData.position, ctx.eventData.viewPosition, ctx.eventSource, oneCtx));
@@ -1124,7 +1089,7 @@ export class Cursor extends EventEmitter {
 			validatedViewPosition = primary.convertModelPositionToViewPosition(validatedPosition.lineNumber, validatedPosition.column);
 		}
 
-		let result = ColumnSelection.columnSelect(primary.config, primary.viewModel, primary.viewState.selection.getStartPosition(), validatedViewPosition.lineNumber, ctx.eventData.mouseColumn - 1);
+		let result = ColumnSelection.columnSelect(primary.config, primary.viewModel, primary.viewState.selection, validatedViewPosition.lineNumber, ctx.eventData.mouseColumn - 1);
 		let selections = result.viewSelections.map(viewSel => primary.convertViewSelectionToModelSelection(viewSel));
 
 		ctx.shouldRevealTarget = (result.reversed ? RevealTarget.TopMost : RevealTarget.BottomMost);
@@ -1427,8 +1392,6 @@ export class Cursor extends EventEmitter {
 					chr = text.charAt(i);
 				}
 
-				this.charactersTyped += chr;
-
 				// Here we must interpret each typed character individually, that's why we create a new context
 				ctx.hasExecutedCommands = this._createAndInterpretHandlerCtx(ctx.eventSource, ctx.eventData, (charHandlerCtx: IMultipleCursorOperationContext) => {
 
@@ -1515,10 +1478,6 @@ export class Cursor extends EventEmitter {
 
 	private _deleteWordRight(whitespaceHeuristics: boolean, wordNavigationType: WordNavigationType, ctx: IMultipleCursorOperationContext): boolean {
 		return this._applyEditForAll(ctx, (cursor) => WordOperations.deleteWordRight(cursor.config, cursor.model, cursor.modelState, whitespaceHeuristics, wordNavigationType));
-	}
-
-	private _deleteAllRight(ctx: IMultipleCursorOperationContext): boolean {
-		return this._applyEditForAll(ctx, (cursor) => DeleteOperations.deleteAllRight(cursor.config, cursor.model, cursor.modelState));
 	}
 
 	private _cut(ctx: IMultipleCursorOperationContext): boolean {

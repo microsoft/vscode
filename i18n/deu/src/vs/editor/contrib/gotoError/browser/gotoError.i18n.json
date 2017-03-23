@@ -6,8 +6,5 @@
 {
 	"markerAction.next.label": "Gehe zum nächsten Fehler oder zur nächsten Warnung",
 	"markerAction.previous.label": "Gehe zum vorherigen Fehler oder zur vorherigen Warnung",
-	"quickfix.multiple.label": "Empfohlene Fehlerbehebungen: ",
-	"quickfix.single.label": "Empfohlene Fehlerbehebung: ",
-	"title.w_source": "({0}/{1}) [{2}]",
 	"title.wo_source": "({0}/{1})"
 }

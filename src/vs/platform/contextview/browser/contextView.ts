@@ -5,10 +5,10 @@
 'use strict';
 
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IAction } from 'vs/base/common/actions';
+import { IAction, IActionRunner } from 'vs/base/common/actions';
 import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { Keybinding } from 'vs/base/common/keybinding';
+import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const IContextViewService = createDecorator<IContextViewService>('contextViewService');
@@ -47,9 +47,10 @@ export interface IContextMenuDelegate {
 	getActions(): TPromise<(IAction | ContextSubMenu)[]>;
 	getActionItem?(action: IAction): IActionItem;
 	getActionsContext?(event?: IEvent): any;
-	getKeyBinding?(action: IAction): Keybinding;
+	getKeyBinding?(action: IAction): ResolvedKeybinding;
 	getMenuClassName?(): string;
 	onHide?(didCancel: boolean): void;
+	actionRunner?: IActionRunner;
 }
 
 export class ContextSubMenu {

@@ -4,6 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import 'vs/workbench/parts/snippets/electron-browser/snippetsService';
+import 'vs/workbench/parts/snippets/electron-browser/insertSnippet';
+import 'vs/workbench/parts/snippets/electron-browser/tabCompletion';
+
 import nls = require('vs/nls');
 import winjs = require('vs/base/common/winjs.base');
 import paths = require('vs/base/common/paths');
@@ -13,9 +17,10 @@ import platform = require('vs/platform/platform');
 import workbenchActionRegistry = require('vs/workbench/common/actionRegistry');
 import workbenchContributions = require('vs/workbench/common/contributions');
 import snippetsTracker = require('./snippetsTracker');
+import tmSnippets = require('./TMSnippets');
 import * as pfs from 'vs/base/node/pfs';
 import errors = require('vs/base/common/errors');
-import { IQuickOpenService, IPickOpenEntry } from 'vs/workbench/services/quickopen/common/quickOpenService';
+import { IQuickOpenService, IPickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import * as JSONContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
@@ -40,7 +45,7 @@ class OpenSnippetsAction extends actions.Action {
 	}
 
 	private openFile(filePath: string): winjs.TPromise<void> {
-		return this.windowsService.windowOpen([filePath]);
+		return this.windowsService.openWindow([filePath], { forceReuseWindow: true });
 	}
 
 	public run(): winjs.Promise {
@@ -66,12 +71,12 @@ class OpenSnippetsAction extends actions.Action {
 					var defaultContent = [
 						'{',
 						'/*',
-						'\t // Place your snippets for ' + language.label + ' here. Each snippet is defined under a snippet name and has a prefix, body and ',
-						'\t // description. The prefix is what is used to trigger the snippet and the body will be expanded and inserted. Possible variables are:',
-						'\t // $1, $2 for tab stops, $0 for the final cursor position, and ${1:label}, ${2:another} for placeholders. Placeholders with the ',
-						'\t // same ids are connected.',
-						'\t // Example:',
-						'\t "Print to console": {',
+						'\t// Place your snippets for ' + language.label + ' here. Each snippet is defined under a snippet name and has a prefix, body and ',
+						'\t// description. The prefix is what is used to trigger the snippet and the body will be expanded and inserted. Possible variables are:',
+						'\t// $1, $2 for tab stops, $0 for the final cursor position, and ${1:label}, ${2:another} for placeholders. Placeholders with the ',
+						'\t// same ids are connected.',
+						'\t// Example:',
+						'\t"Print to console": {',
 						'\t\t"prefix": "log",',
 						'\t\t"body": [',
 						'\t\t\t"console.log(\'$1\');",',
@@ -117,6 +122,9 @@ workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenSn
 
 (<workbenchContributions.IWorkbenchContributionsRegistry>platform.Registry.as(workbenchContributions.Extensions.Workbench)).registerWorkbenchContribution(
 	snippetsTracker.SnippetsTracker
+);
+(<workbenchContributions.IWorkbenchContributionsRegistry>platform.Registry.as(workbenchContributions.Extensions.Workbench)).registerWorkbenchContribution(
+	tmSnippets.MainProcessTextMateSnippet
 );
 
 let schemaId = 'vscode://schemas/snippets';

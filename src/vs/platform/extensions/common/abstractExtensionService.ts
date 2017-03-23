@@ -8,7 +8,7 @@ import * as nls from 'vs/nls';
 import Severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IExtensionDescription, IExtensionService, IExtensionsStatus, ExtensionPointContribution } from 'vs/platform/extensions/common/extensions';
-import { IExtensionPoint, onWillActivate } from 'vs/platform/extensions/common/extensionsRegistry';
+import { IExtensionPoint } from 'vs/platform/extensions/common/extensionsRegistry';
 
 const hasOwnProperty = Object.hasOwnProperty;
 
@@ -35,13 +35,16 @@ export abstract class AbstractExtensionService<T extends ActivatedExtension> imp
 	protected _activatedExtensions: IActivatedExtensionMap<T>;
 	private _onReady: TPromise<boolean>;
 	private _onReadyC: (v: boolean) => void;
+	private _isReady: boolean;
 	protected _registry: ExtensionDescriptionRegistry;
 
 	constructor(isReadyByDefault: boolean) {
 		if (isReadyByDefault) {
+			this._isReady = true;
 			this._onReady = TPromise.as(true);
 			this._onReadyC = (v: boolean) => { /*no-op*/ };
 		} else {
+			this._isReady = false;
 			this._onReady = new TPromise<boolean>((c, e, p) => {
 				this._onReadyC = c;
 			}, () => {
@@ -54,6 +57,7 @@ export abstract class AbstractExtensionService<T extends ActivatedExtension> imp
 	}
 
 	protected _triggerOnReady(): void {
+		this._isReady = true;
 		this._onReadyC(true);
 	}
 
@@ -93,11 +97,16 @@ export abstract class AbstractExtensionService<T extends ActivatedExtension> imp
 	}
 
 	public activateByEvent(activationEvent: string): TPromise<void> {
-		return this._onReady.then(() => {
-			onWillActivate.fire(activationEvent);
-			let activateExtensions = this._registry.getExtensionDescriptionsForActivationEvent(activationEvent);
-			return this._activateExtensions(activateExtensions, 0);
-		});
+		if (this._isReady) {
+			return this._activateByEvent(activationEvent);
+		} else {
+			return this._onReady.then(() => this._activateByEvent(activationEvent));
+		}
+	}
+
+	private _activateByEvent(activationEvent: string): TPromise<void> {
+		let activateExtensions = this._registry.getExtensionDescriptionsForActivationEvent(activationEvent);
+		return this._activateExtensions(activateExtensions, 0);
 	}
 
 	public activateById(extensionId: string): TPromise<void> {

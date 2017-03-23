@@ -1,0 +1,17 @@
+{
+	"scopeName": "source.objcpp",
+	"fileTypes": [
+		"mm",
+		"M",
+		"h"
+	],
+	"name": "Objective-C++",
+	"patterns": [
+		{
+			"include": "source.cpp"
+		},
+		{
+			"include": "source.objc"
+		}
+	]
+}

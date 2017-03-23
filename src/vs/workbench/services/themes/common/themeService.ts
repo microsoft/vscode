@@ -7,43 +7,78 @@
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { TPromise } from 'vs/base/common/winjs.base';
 import Event from 'vs/base/common/event';
+import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
+import { Color } from 'vs/base/common/color';
+import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
 
-export let IThemeService = createDecorator<IThemeService>('themeService');
+export let IWorkbenchThemeService = createDecorator<IWorkbenchThemeService>('themeService');
 
 export const VS_LIGHT_THEME = 'vs';
 export const VS_DARK_THEME = 'vs-dark';
 export const VS_HC_THEME = 'hc-black';
 
-export interface IThemeService {
+export const COLOR_THEME_SETTING = 'workbench.colorTheme';
+export const ICON_THEME_SETTING = 'workbench.iconTheme';
+
+export interface IColorTheme extends ITheme {
+	readonly id: string;
+	readonly label: string;
+	readonly settingsId: string;
+	readonly extensionData: ExtensionData;
+	readonly description?: string;
+	readonly isLoaded: boolean;
+	readonly tokenColors?: ITokenColorizationRule[];
+
+	isLightTheme(): boolean;
+	isDarkTheme(): boolean;
+	getSyntaxThemeId(): string;
+	getBaseThemeId(): string;
+}
+
+export interface IColorMap {
+	[id: string]: Color;
+}
+
+export interface IFileIconTheme {
+	readonly id: string;
+	readonly label: string;
+	readonly settingsId: string;
+	readonly description?: string;
+	readonly extensionData: ExtensionData;
+
+	readonly isLoaded: boolean;
+	readonly hasFileIcons?: boolean;
+	readonly hasFolderIcons?: boolean;
+}
+
+export interface IWorkbenchThemeService extends IThemeService {
 	_serviceBrand: any;
-	setColorTheme(themeId: string, broadcastToAllWindows: boolean): TPromise<boolean>;
-	getColorTheme(): string;
-	getColorThemes(): TPromise<IThemeData[]>;
-	onDidColorThemeChange: Event<string>;
+	setColorTheme(themeId: string, settingsTarget: ConfigurationTarget): TPromise<IColorTheme>;
+	getColorTheme(): IColorTheme;
+	getColorThemes(): TPromise<IColorTheme[]>;
+	onDidColorThemeChange: Event<IColorTheme>;
 
-	setFileIconTheme(iconThemeId: string, broadcastToAllWindows: boolean): TPromise<boolean>;
-	getFileIconTheme(): string;
-	getFileIconThemes(): TPromise<IThemeData[]>;
+	setFileIconTheme(iconThemeId: string, settingsTarget: ConfigurationTarget): TPromise<IFileIconTheme>;
+	getFileIconTheme(): IFileIconTheme;
+	getFileIconThemes(): TPromise<IFileIconTheme[]>;
+	onDidFileIconThemeChange: Event<IFileIconTheme>;
 }
 
-export interface IThemeData {
-	id: string;
-	label: string;
-	description?: string;
-	path: string;
-}
-
-export interface IThemeDocument {
-	name: string;
-	include: string;
-	settings: IThemeSetting[];
-}
-
-export interface IThemeSetting {
+export interface ITokenColorizationRule {
 	name?: string;
-	scope?: string[];
-	settings: IThemeSettingStyle[];
+	scope?: string | string[];
+	settings: ITokenColorizationSetting;
 }
 
-export interface IThemeSettingStyle {
+export interface ITokenColorizationSetting {
+	foreground?: string;
+	background?: string;
+	fontStyle?: string;  // italic, underline, bold
+}
+
+export interface ExtensionData {
+	extensionId: string;
+	extensionPublisher: string;
+	extensionName: string;
+	extensionIsBuiltin: boolean;
 }

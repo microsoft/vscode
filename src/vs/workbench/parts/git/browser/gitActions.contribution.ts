@@ -17,9 +17,10 @@ import tdeditor = require('vs/workbench/browser/parts/editor/textDiffEditor');
 import teditor = require('vs/workbench/browser/parts/editor/textEditor');
 import filesCommon = require('vs/workbench/parts/files/common/files');
 import gitcontrib = require('vs/workbench/parts/git/browser/gitWorkbenchContributions');
+import diffei = require('vs/workbench/common/editor/diffEditorInput');
 import { IGitService, Status, IFileStatus, StatusType } from 'vs/workbench/parts/git/common/git';
 import gitei = require('vs/workbench/parts/git/browser/gitEditorInputs');
-import { getSelectedChanges, applyChangesToModel } from 'vs/workbench/parts/git/common/stageRanges';
+import { getSelectedChanges, applyChangesToModel, getChangeRevertEdits } from 'vs/workbench/parts/git/common/stageRanges';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
@@ -31,10 +32,14 @@ import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import {
 	OpenChangeAction, OpenFileAction, SyncAction, PullAction, PushAction,
 	PushToRemoteAction, PublishAction, StartGitBranchAction, StartGitCheckoutAction,
-	InputCommitAction, UndoLastCommitAction, BaseStageAction, BaseUnstageAction
+	InputCommitAction, UndoLastCommitAction, BaseStageAction, BaseUnstageAction,
+	PullWithRebaseAction
 } from './gitActions';
 import paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
+import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
+import SCMPreview from 'vs/workbench/parts/scm/browser/scmPreview';
+import { IMessageService } from 'vs/platform/message/common/message';
 
 function getStatus(gitService: IGitService, contextService: IWorkspaceContextService, input: WorkbenchEditorCommon.IFileEditorInput): IFileStatus {
 	const model = gitService.getModel();
@@ -100,7 +105,7 @@ class OpenInDiffAction extends baseeditor.EditorInputAction {
 	}
 
 	private getStatus(): IFileStatus {
-		return getStatus(this.gitService, this.contextService, <filesCommon.FileEditorInput>this.input);
+		return getStatus(this.gitService, this.contextService, <FileEditorInput>this.input);
 	}
 
 	public run(context?: WorkbenchEditorCommon.IEditorContext): TPromise<any> {
@@ -203,6 +208,7 @@ class OpenInEditorAction extends baseeditor.EditorInputAction {
 				if (this.partService.isVisible(Parts.SIDEBAR_PART)) {
 					return this.viewletService.openViewlet(filesCommon.VIEWLET_ID, false);
 				}
+				return undefined;
 			});
 		});
 	}
@@ -432,6 +438,7 @@ export abstract class BaseStageRangesAction extends baseeditor.EditorInputAction
 					});
 				});
 			}
+			return undefined;
 		});
 	}
 
@@ -471,6 +478,76 @@ export class UnstageRangesAction extends BaseStageRangesAction {
 	}
 }
 
+export class RevertRangesAction extends baseeditor.EditorInputAction {
+	static ID = 'workbench.action.git.revertRanges';
+	static LABEL = nls.localize('revertSelectedLines', "Revert Selected Lines");
+
+	private editor: editorbrowser.IDiffEditor;
+
+	constructor(
+		editor: tdeditor.TextDiffEditor,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IMessageService private messageService: IMessageService
+	) {
+		super(RevertRangesAction.ID, RevertRangesAction.LABEL);
+
+		this.editor = editor.getControl();
+		this.editor.onDidChangeCursorSelection(() => this.updateEnablement());
+		this.editor.onDidUpdateDiff(() => this.updateEnablement());
+		this.class = 'git-action revert-ranges';
+	}
+
+	public isEnabled(): boolean {
+		if (!super.isEnabled()) {
+			return false;
+		}
+
+		if (!this.editorService) {
+			return false;
+		}
+
+		const changes = this.editor.getLineChanges();
+		const selections = this.editor.getSelections();
+
+		if (!changes || !selections || selections.length === 0) {
+			return false;
+		}
+
+		return getSelectedChanges(changes, selections).length > 0;
+	}
+
+	public run(): TPromise<any> {
+		const selections = this.editor.getSelections();
+		const changes = getSelectedChanges(this.editor.getLineChanges(), selections);
+		const {original, modified} = this.editor.getModel();
+
+		const revertEdits = getChangeRevertEdits(original, modified, changes);
+
+		if (revertEdits.length === 0) {
+			return TPromise.as(null);
+		}
+
+		const confirm = {
+			message: nls.localize('confirmRevertMessage', "Are you sure you want to revert the selected changes?"),
+			detail: nls.localize('irreversible', "This action is irreversible!"),
+			primaryButton: nls.localize({ key: 'revertChangesLabel', comment: ['&& denotes a mnemonic'] }, "&&Revert Changes")
+		};
+
+		if (!this.messageService.confirm(confirm)) {
+			return TPromise.as(null);
+		}
+
+		modified.pushEditOperations(selections, revertEdits, () => selections);
+		modified.pushStackElement();
+
+		return TPromise.wrap(null);
+	}
+
+	private updateEnablement(): void {
+		this.enabled = this.isEnabled();
+	}
+}
+
 class FileEditorActionContributor extends baseeditor.EditorInputActionContributor {
 	private instantiationService: IInstantiationService;
 
@@ -481,7 +558,7 @@ class FileEditorActionContributor extends baseeditor.EditorInputActionContributo
 	}
 
 	public hasActionsForEditorInput(context: baseeditor.IEditorInputActionContext): boolean {
-		return context.input instanceof filesCommon.FileEditorInput;
+		return context.input instanceof FileEditorInput;
 	}
 
 	public getActionsForEditorInput(context: baseeditor.IEditorInputActionContext): baseeditor.IEditorInputAction[] {
@@ -525,7 +602,9 @@ class GitWorkingTreeDiffEditorActionContributor extends baseeditor.EditorInputAc
 			return [this.instantiationService.createInstance(UnstageRangesAction, <tdeditor.TextDiffEditor>context.editor)];
 		}
 
-		return [this.instantiationService.createInstance(StageRangesAction, <tdeditor.TextDiffEditor>context.editor)];
+		return [
+			this.instantiationService.createInstance(StageRangesAction, <tdeditor.TextDiffEditor>context.editor),
+			this.instantiationService.createInstance(RevertRangesAction, <tdeditor.TextDiffEditor>context.editor)];
 	}
 }
 
@@ -547,7 +626,12 @@ class GlobalOpenChangeAction extends OpenChangeAction {
 	}
 
 	public getInput(): WorkbenchEditorCommon.IFileEditorInput {
-		return WorkbenchEditorCommon.asFileEditorInput(this.editorService.getActiveEditorInput());
+		const input = this.editorService.getActiveEditorInput();
+		if (input instanceof FileEditorInput) {
+			return input;
+		}
+
+		return null;
 	}
 
 	public run(context?: any): TPromise<any> {
@@ -610,9 +694,12 @@ class GlobalOpenInEditorAction extends OpenFileAction {
 	}
 
 	public run(event?: any): TPromise<any> {
-		const input = WorkbenchEditorCommon.asFileEditorInput(this.editorService.getActiveEditorInput(), true);
+		let input = this.editorService.getActiveEditorInput();
+		if (input instanceof diffei.DiffEditorInput) {
+			input = input.modifiedInput;
+		}
 
-		if (!input) {
+		if (!(input instanceof FileEditorInput)) {
 			return TPromise.as(null);
 		}
 
@@ -626,25 +713,28 @@ class GlobalOpenInEditorAction extends OpenFileAction {
 	}
 }
 
-var actionBarRegistry = <abr.IActionBarRegistry>platform.Registry.as(abr.Extensions.Actionbar);
-actionBarRegistry.registerActionBarContributor(abr.Scope.EDITOR, FileEditorActionContributor);
-actionBarRegistry.registerActionBarContributor(abr.Scope.EDITOR, GitEditorActionContributor);
-actionBarRegistry.registerActionBarContributor(abr.Scope.EDITOR, GitWorkingTreeDiffEditorActionContributor);
+if (!SCMPreview.enabled) {
+	var actionBarRegistry = <abr.IActionBarRegistry>platform.Registry.as(abr.Extensions.Actionbar);
+	actionBarRegistry.registerActionBarContributor(abr.Scope.EDITOR, FileEditorActionContributor);
+	actionBarRegistry.registerActionBarContributor(abr.Scope.EDITOR, GitEditorActionContributor);
+	actionBarRegistry.registerActionBarContributor(abr.Scope.EDITOR, GitWorkingTreeDiffEditorActionContributor);
 
-let workbenchActionRegistry = (<wbar.IWorkbenchActionRegistry>platform.Registry.as(wbar.Extensions.WorkbenchActions));
+	let workbenchActionRegistry = (<wbar.IWorkbenchActionRegistry>platform.Registry.as(wbar.Extensions.WorkbenchActions));
 
-// Register Actions
-const category = nls.localize('git', "Git");
-workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(GlobalOpenChangeAction, GlobalOpenChangeAction.ID, GlobalOpenChangeAction.LABEL), 'Git: Open Change', category);
-workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(GlobalOpenInEditorAction, GlobalOpenInEditorAction.ID, GlobalOpenInEditorAction.LABEL), 'Git: Open File', category);
-workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(PullAction, PullAction.ID, PullAction.LABEL), 'Git: Pull', category);
-workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(PushAction, PushAction.ID, PushAction.LABEL), 'Git: Push', category);
-workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(PushToRemoteAction, PushToRemoteAction.ID, PushToRemoteAction.LABEL), 'Git: Push to...', category);
-workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(SyncAction, SyncAction.ID, SyncAction.LABEL), 'Git: Sync', category);
-workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(PublishAction, PublishAction.ID, PublishAction.LABEL), 'Git: Publish', category);
-workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(StartGitBranchAction, StartGitBranchAction.ID, StartGitBranchAction.LABEL), 'Git: Branch', category);
-workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(StartGitCheckoutAction, StartGitCheckoutAction.ID, StartGitCheckoutAction.LABEL), 'Git: Checkout', category);
-workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(InputCommitAction, InputCommitAction.ID, InputCommitAction.LABEL), 'Git: Commit', category);
-workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(UndoLastCommitAction, UndoLastCommitAction.ID, UndoLastCommitAction.LABEL), 'Git: Undo Last Commit', category);
-workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(WorkbenchStageAction, WorkbenchStageAction.ID, WorkbenchStageAction.LABEL), 'Git: Stage', category);
-workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(WorkbenchUnstageAction, WorkbenchUnstageAction.ID, WorkbenchUnstageAction.LABEL), 'Git: Unstage', category);
+	// Register Actions
+	const category = nls.localize('git', "Git");
+	workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(GlobalOpenChangeAction, GlobalOpenChangeAction.ID, GlobalOpenChangeAction.LABEL), 'Git: Open Change', category);
+	workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(GlobalOpenInEditorAction, GlobalOpenInEditorAction.ID, GlobalOpenInEditorAction.LABEL), 'Git: Open File', category);
+	workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(PullAction, PullAction.ID, PullAction.LABEL), 'Git: Pull', category);
+	workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(PullWithRebaseAction, PullWithRebaseAction.ID, PullWithRebaseAction.LABEL), 'Git: Pull (Rebase)', category);
+	workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(PushAction, PushAction.ID, PushAction.LABEL), 'Git: Push', category);
+	workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(PushToRemoteAction, PushToRemoteAction.ID, PushToRemoteAction.LABEL), 'Git: Push to...', category);
+	workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(SyncAction, SyncAction.ID, SyncAction.LABEL), 'Git: Sync', category);
+	workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(PublishAction, PublishAction.ID, PublishAction.LABEL), 'Git: Publish', category);
+	workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(StartGitBranchAction, StartGitBranchAction.ID, StartGitBranchAction.LABEL), 'Git: Branch', category);
+	workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(StartGitCheckoutAction, StartGitCheckoutAction.ID, StartGitCheckoutAction.LABEL), 'Git: Checkout', category);
+	workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(InputCommitAction, InputCommitAction.ID, InputCommitAction.LABEL), 'Git: Commit', category);
+	workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(UndoLastCommitAction, UndoLastCommitAction.ID, UndoLastCommitAction.LABEL), 'Git: Undo Last Commit', category);
+	workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(WorkbenchStageAction, WorkbenchStageAction.ID, WorkbenchStageAction.LABEL), 'Git: Stage', category);
+	workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(WorkbenchUnstageAction, WorkbenchUnstageAction.ID, WorkbenchUnstageAction.LABEL), 'Git: Unstage', category);
+}

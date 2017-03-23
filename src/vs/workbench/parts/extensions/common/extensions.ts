@@ -28,12 +28,13 @@ export interface IExtension {
 	state: ExtensionState;
 	name: string;
 	displayName: string;
-	identifier: string;
+	id: string;
 	publisher: string;
 	publisherDisplayName: string;
 	version: string;
 	latestVersion: string;
 	description: string;
+	url: string;
 	iconUrl: string;
 	iconUrlFallback: string;
 	licenseUrl: string;
@@ -75,6 +76,7 @@ export interface IExtensionsWorkbenchService {
 	setEnablement(extension: IExtension, enable: boolean, workspace?: boolean): TPromise<void>;
 	loadDependencies(extension: IExtension): TPromise<IExtensionDependencies>;
 	open(extension: IExtension, sideByside?: boolean): TPromise<any>;
+	checkForUpdates(): TPromise<void>;
 }
 
 export const ConfigurationKey = 'extensions';

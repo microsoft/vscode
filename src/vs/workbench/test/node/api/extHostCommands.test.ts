@@ -20,15 +20,15 @@ suite('ExtHostCommands', function () {
 
 		const shape = new class extends MainThreadCommandsShape {
 			$registerCommand(id: string): TPromise<any> {
-				return;
+				return undefined;
 			}
 			$unregisterCommand(id: string): TPromise<any> {
 				lastUnregister = id;
-				return;
+				return undefined;
 			}
 		};
 
-		const commands = new ExtHostCommands(OneGetThreadService(shape), undefined, undefined);
+		const commands = new ExtHostCommands(OneGetThreadService(shape), undefined);
 		commands.registerCommand('foo', () => { }).dispose();
 		assert.equal(lastUnregister, 'foo');
 		assert.equal(CommandsRegistry.getCommand('foo'), undefined);
@@ -41,15 +41,15 @@ suite('ExtHostCommands', function () {
 
 		const shape = new class extends MainThreadCommandsShape {
 			$registerCommand(id: string): TPromise<any> {
-				return;
+				return undefined;
 			}
 			$unregisterCommand(id: string): TPromise<any> {
 				unregisterCounter += 1;
-				return;
+				return undefined;
 			}
 		};
 
-		const commands = new ExtHostCommands(OneGetThreadService(shape), undefined, undefined);
+		const commands = new ExtHostCommands(OneGetThreadService(shape), undefined);
 		const reg = commands.registerCommand('foo', () => { });
 		reg.dispose();
 		reg.dispose();

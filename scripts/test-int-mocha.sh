@@ -1,0 +1,1 @@
+./scripts/test.sh --run **/*.integrationTest.js -g integration "$@"

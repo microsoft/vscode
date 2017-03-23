@@ -11,7 +11,6 @@ import lifecycle = require('vs/base/common/lifecycle');
 import { Promise } from 'vs/base/common/winjs.base';
 import { Builder, $ } from 'vs/base/browser/builder';
 import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
-import platform = require('vs/base/common/platform');
 import { IAction, IActionRunner, Action, IActionChangeEvent, ActionRunner } from 'vs/base/common/actions';
 import DOM = require('vs/base/browser/dom');
 import { EventType as CommonEventType } from 'vs/base/common/events';
@@ -26,7 +25,7 @@ export interface IActionItem extends IEventEmitter {
 	setActionContext(context: any): void;
 	render(element: HTMLElement): void;
 	isEnabled(): boolean;
-	focus(): void;
+	focus(fromRight?: boolean): void;
 	blur(): void;
 	dispose(): void;
 }
@@ -118,16 +117,12 @@ export class BaseActionItem extends EventEmitter implements IActionItem {
 
 		this.builder.on(EventType.Tap, e => this.onClick(e));
 
-		if (platform.isMacintosh) {
-			this.builder.on(DOM.EventType.CONTEXT_MENU, (event: Event) => this.onClick(event)); // https://github.com/Microsoft/vscode/issues/1011
-		}
-
 		this.builder.on(DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
 			if (!enableDragging) {
 				DOM.EventHelper.stop(e); // do not run when dragging is on because that would disable it
 			}
 
-			if (this._action.enabled) {
+			if (this._action.enabled && e.button === 0) {
 				this.builder.addClass('active');
 			}
 		});
@@ -210,7 +205,7 @@ export class Separator extends Action {
 
 	public static ID = 'vs.actions.separator';
 
-	constructor(label?: string, order?) {
+	constructor(label?: string, order?: number) {
 		super(Separator.ID, label, label ? 'separator text' : 'separator');
 		this.checked = false;
 		this.radio = false;
@@ -622,10 +617,10 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 			this.focusedItem = undefined;
 		}
 
-		this.updateFocus();
+		this.updateFocus(true);
 	}
 
-	private updateFocus(): void {
+	private updateFocus(fromRight?: boolean): void {
 		if (typeof this.focusedItem === 'undefined') {
 			this.domNode.focus();
 			return;
@@ -638,7 +633,7 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 
 			if (i === this.focusedItem) {
 				if (types.isFunction(actionItem.focus)) {
-					actionItem.focus();
+					actionItem.focus(fromRight);
 				}
 			} else {
 				if (types.isFunction(actionItem.blur)) {
@@ -648,15 +643,17 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 		}
 	}
 
-	private doTrigger(event): void {
+	private doTrigger(event: StandardKeyboardEvent): void {
 		if (typeof this.focusedItem === 'undefined') {
 			return; //nothing to focus
 		}
 
 		// trigger action
-		let actionItem = (<BaseActionItem>this.items[this.focusedItem]);
-		const context = (actionItem._context === null || actionItem._context === undefined) ? event : actionItem._context;
-		this.run(actionItem._action, context).done();
+		let actionItem = this.items[this.focusedItem];
+		if (actionItem instanceof BaseActionItem) {
+			const context = (actionItem._context === null || actionItem._context === undefined) ? event : actionItem._context;
+			this.run(actionItem._action, context).done();
+		}
 	}
 
 	private cancel(): void {
@@ -703,8 +700,12 @@ export class SelectActionItem extends BaseActionItem {
 		this.registerListeners();
 	}
 
-	public setOptions(options: string[], selected: number): void {
+	public setOptions(options: string[], selected?: number): void {
 		this.selectBox.setOptions(options, selected);
+	}
+
+	public select(index: number): void {
+		this.selectBox.select(index);
 	}
 
 	private registerListeners(): void {
@@ -731,10 +732,6 @@ export class SelectActionItem extends BaseActionItem {
 
 	public render(container: HTMLElement): void {
 		this.selectBox.render(container);
-	}
-
-	protected getSelected(): string {
-		return this.selectBox.getSelected();
 	}
 
 	public dispose(): void {

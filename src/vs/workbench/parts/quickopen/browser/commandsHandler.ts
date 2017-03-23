@@ -15,18 +15,19 @@ import { IAction, Action } from 'vs/base/common/actions';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Mode, IEntryRunContext, IAutoFocus } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenEntryGroup, IHighlight, QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
-import { SyncActionDescriptor, ExecuteCommandAction, IMenuService } from 'vs/platform/actions/common/actions';
+import { SyncActionDescriptor, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
 import { Registry } from 'vs/platform/platform';
 import { QuickOpenHandler, QuickOpenAction } from 'vs/workbench/browser/quickopen';
-import { IEditorAction, IEditor } from 'vs/editor/common/editorCommon';
+import { IEditorAction, IEditor, isCommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { matchesWords, matchesPrefix, matchesContiguousSubString, or } from 'vs/base/common/filters';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, Severity, IMessageWithAction } from 'vs/platform/message/common/message';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
+import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 
 export const ALL_COMMANDS_PREFIX = '>';
 export const EDITOR_COMMANDS_PREFIX = '$';
@@ -97,17 +98,12 @@ class BaseCommandEntry extends QuickOpenEntryGroup {
 	protected onError(error?: Error): void;
 	protected onError(messagesWithAction?: IMessageWithAction): void;
 	protected onError(arg1?: any): void {
-		let message: any;
-
 		const messagesWithAction: IMessageWithAction = arg1;
 		if (messagesWithAction && typeof messagesWithAction.message === 'string' && Array.isArray(messagesWithAction.actions)) {
-			message = messagesWithAction;
+			this.messageService.show(Severity.Error, messagesWithAction);
 		} else {
-			message = !arg1 ? nls.localize('canNotRun', "Command '{0}' can not be run from here.", this.label) : toErrorMessage(arg1);
+			this.messageService.show(Severity.Error, !arg1 ? nls.localize('canNotRun', "Command '{0}' can not be run from here.", this.label) : toErrorMessage(arg1));
 		}
-
-
-		this.messageService.show(Severity.Error, message);
 	}
 
 	protected runAction(action: IAction): void {
@@ -152,7 +148,7 @@ class CommandEntry extends BaseCommandEntry {
 
 	public run(mode: Mode, context: IEntryRunContext): boolean {
 		if (mode === Mode.OPEN) {
-			let action = <Action>this.instantiationService.createInstance(this.actionDescriptor.syncDescriptor);
+			const action = <Action>this.instantiationService.createInstance(this.actionDescriptor.syncDescriptor);
 			this.runAction(action);
 
 			return true;
@@ -241,7 +237,8 @@ export class CommandsHandler extends QuickOpenHandler {
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IKeybindingService private keybindingService: IKeybindingService,
-		@IMenuService private menuService: IMenuService
+		@IMenuService private menuService: IMenuService,
+		@IContextKeyService private contextKeyService: IContextKeyService
 	) {
 		super();
 	}
@@ -256,33 +253,34 @@ export class CommandsHandler extends QuickOpenHandler {
 		// Workbench Actions (if prefix asks for all commands)
 		let workbenchEntries: CommandEntry[] = [];
 		if (this.includeWorkbenchCommands()) {
-			let workbenchActions = (<IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions)).getWorkbenchActions();
+			const workbenchActions = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions).getWorkbenchActions();
 			workbenchEntries = this.actionDescriptorsToEntries(workbenchActions, searchValue);
 		}
 
 		// Editor Actions
-		let activeEditor = this.editorService.getActiveEditor();
-		let activeEditorControl = <any>(activeEditor ? activeEditor.getControl() : null);
+		const activeEditor = this.editorService.getActiveEditor();
+		const activeEditorControl = activeEditor ? activeEditor.getControl() : null;
 
 		let editorActions: IEditorAction[] = [];
 		if (activeEditorControl) {
-			let editor = <IEditor>activeEditorControl;
+			const editor = <IEditor>activeEditorControl;
 			if (types.isFunction(editor.getSupportedActions)) {
 				editorActions = editor.getSupportedActions();
 			}
 		}
 
-		let editorEntries = this.editorActionsToEntries(editorActions, searchValue);
+		const editorEntries = this.editorActionsToEntries(editorActions, searchValue);
 
 		// Other Actions
-		let otherActions = this.menuService.getCommandActions().map(command => {
-			return this.instantiationService.createInstance(ExecuteCommandAction, command.id,
-				command.category ? nls.localize('', "{0}: {1}", command.category, command.title) : command.title);
-		});
-		let otherEntries = this.otherActionsToEntries(otherActions, searchValue);
+		const menu = isCommonCodeEditor(activeEditorControl)
+			? activeEditorControl.invokeWithinContext(accessor => this.menuService.createMenu(MenuId.CommandPalette, accessor.get(IContextKeyService)))
+			: this.menuService.createMenu(MenuId.CommandPalette, this.contextKeyService);
+
+		const menuActions = menu.getActions().reduce((r, [, actions]) => [...r, ...actions], <MenuItemAction[]>[]);
+		const commandEntries = this.menuItemActionsToEntries(menuActions, searchValue);
 
 		// Concat
-		let entries = [...workbenchEntries, ...editorEntries, ...otherEntries];
+		let entries = [...workbenchEntries, ...editorEntries, ...commandEntries];
 
 		// Remove duplicates
 		entries = arrays.distinct(entries, (entry) => entry.getLabel() + entry.getGroupLabel());
@@ -294,30 +292,30 @@ export class CommandsHandler extends QuickOpenHandler {
 	}
 
 	private actionDescriptorsToEntries(actionDescriptors: SyncActionDescriptor[], searchValue: string): CommandEntry[] {
-		let entries: CommandEntry[] = [];
-		let registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
+		const entries: CommandEntry[] = [];
+		const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
 
 		for (let i = 0; i < actionDescriptors.length; i++) {
-			let actionDescriptor = actionDescriptors[i];
-			let keys = this.keybindingService.lookupKeybindings(actionDescriptor.id);
-			let keyLabel = keys.map(k => this.keybindingService.getLabelFor(k));
-			let keyAriaLabel = keys.map(k => this.keybindingService.getAriaLabelFor(k));
+			const actionDescriptor = actionDescriptors[i];
+			const keybinding = this.keybindingService.lookupKeybinding(actionDescriptor.id);
+			const keyLabel = keybinding ? keybinding.getLabel() : '';
+			const keyAriaLabel = keybinding ? keybinding.getAriaLabel() : '';
 
 			if (actionDescriptor.label) {
 
 				// Label (with optional category)
 				let label = actionDescriptor.label;
-				let category = registry.getCategory(actionDescriptor.id);
+				const category = registry.getCategory(actionDescriptor.id);
 				if (category) {
 					label = nls.localize('commandLabel', "{0}: {1}", category, label);
 				}
 
 				// Alias for non default languages
-				let alias = (language !== LANGUAGE_DEFAULT) ? registry.getAlias(actionDescriptor.id) : null;
-				let labelHighlights = wordFilter(searchValue, label);
-				let aliasHighlights = alias ? wordFilter(searchValue, alias) : null;
+				const alias = (language !== LANGUAGE_DEFAULT) ? registry.getAlias(actionDescriptor.id) : null;
+				const labelHighlights = wordFilter(searchValue, label);
+				const aliasHighlights = alias ? wordFilter(searchValue, alias) : null;
 				if (labelHighlights || aliasHighlights) {
-					entries.push(this.instantiationService.createInstance(CommandEntry, keyLabel.length > 0 ? keyLabel.join(', ') : '', keyAriaLabel.length > 0 ? keyAriaLabel.join(', ') : '', label, alias, labelHighlights, aliasHighlights, actionDescriptor));
+					entries.push(this.instantiationService.createInstance(CommandEntry, keyLabel, keyAriaLabel, label, alias, labelHighlights, aliasHighlights, actionDescriptor));
 				}
 			}
 		}
@@ -326,24 +324,24 @@ export class CommandsHandler extends QuickOpenHandler {
 	}
 
 	private editorActionsToEntries(actions: IEditorAction[], searchValue: string): EditorActionCommandEntry[] {
-		let entries: EditorActionCommandEntry[] = [];
+		const entries: EditorActionCommandEntry[] = [];
 
 		for (let i = 0; i < actions.length; i++) {
-			let action = actions[i];
+			const action = actions[i];
 
-			let keys = this.keybindingService.lookupKeybindings(action.id);
-			let keyLabel = keys.map(k => this.keybindingService.getLabelFor(k));
-			let keyAriaLabel = keys.map(k => this.keybindingService.getAriaLabelFor(k));
-			let label = action.label;
+			const keybinding = this.keybindingService.lookupKeybinding(action.id);
+			const keyLabel = keybinding ? keybinding.getLabel() : '';
+			const keyAriaLabel = keybinding ? keybinding.getAriaLabel() : '';
+			const label = action.label;
 
 			if (label) {
 
 				// Alias for non default languages
-				let alias = (language !== LANGUAGE_DEFAULT) ? action.alias : null;
-				let labelHighlights = wordFilter(searchValue, label);
-				let aliasHighlights = alias ? wordFilter(searchValue, alias) : null;
+				const alias = (language !== LANGUAGE_DEFAULT) ? action.alias : null;
+				const labelHighlights = wordFilter(searchValue, label);
+				const aliasHighlights = alias ? wordFilter(searchValue, alias) : null;
 				if (labelHighlights || aliasHighlights) {
-					entries.push(this.instantiationService.createInstance(EditorActionCommandEntry, keyLabel.length > 0 ? keyLabel.join(', ') : '', keyAriaLabel.length > 0 ? keyAriaLabel.join(', ') : '', label, alias, labelHighlights, aliasHighlights, action));
+					entries.push(this.instantiationService.createInstance(EditorActionCommandEntry, keyLabel, keyAriaLabel, label, alias, labelHighlights, aliasHighlights, action));
 				}
 			}
 		}
@@ -351,16 +349,23 @@ export class CommandsHandler extends QuickOpenHandler {
 		return entries;
 	}
 
-	private otherActionsToEntries(actions: IAction[], searchValue: string): ActionCommandEntry[] {
-		let entries: ActionCommandEntry[] = [];
+	private menuItemActionsToEntries(actions: MenuItemAction[], searchValue: string): ActionCommandEntry[] {
+		const entries: ActionCommandEntry[] = [];
 
 		for (let action of actions) {
-			let keys = this.keybindingService.lookupKeybindings(action.id);
-			let keyLabel = keys.map(k => this.keybindingService.getLabelFor(k));
-			let keyAriaLabel = keys.map(k => this.keybindingService.getAriaLabelFor(k));
-			let highlights = wordFilter(searchValue, action.label);
-			if (highlights) {
-				entries.push(this.instantiationService.createInstance(ActionCommandEntry, keyLabel.join(', '), keyAriaLabel.join(', '), action.label, null, highlights, null, action));
+			const label = action.item.category
+				? nls.localize('cat.title', "{0}: {1}", action.item.category, action.item.title)
+				: action.item.title;
+			if (label) {
+				const labelHighlights = wordFilter(searchValue, label);
+				const keybinding = this.keybindingService.lookupKeybinding(action.item.id);
+				const keyLabel = keybinding ? keybinding.getLabel() : '';
+				const keyAriaLabel = keybinding ? keybinding.getAriaLabel() : '';
+				const alias = action.item.alias ? action.item.alias : null;
+				const aliasHighlights = alias ? wordFilter(searchValue, alias) : null;
+				if (labelHighlights || aliasHighlights) {
+					entries.push(this.instantiationService.createInstance(ActionCommandEntry, keyLabel, keyAriaLabel, label, alias, labelHighlights, aliasHighlights, action));
+				}
 			}
 		}
 

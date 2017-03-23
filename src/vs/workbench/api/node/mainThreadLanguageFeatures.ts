@@ -6,11 +6,12 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { Emitter } from 'vs/base/common/event';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import * as vscode from 'vscode';
 import { IReadOnlyModel, ISingleEditOperation } from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
-import { WorkspaceSymbolProviderRegistry, IWorkspaceSymbolProvider, IWorkspaceSymbol } from 'vs/workbench/parts/search/common/search';
+import { WorkspaceSymbolProviderRegistry, IWorkspaceSymbolProvider } from 'vs/workbench/parts/search/common/search';
 import { wireCancellationToken } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Position as EditorPosition } from 'vs/editor/common/core/position';
@@ -19,20 +20,24 @@ import { ExtHostContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeature
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { LanguageConfiguration } from 'vs/editor/common/modes/languageConfiguration';
 import { IHeapService } from './mainThreadHeapService';
+import { IModeService } from 'vs/editor/common/services/modeService';
 
 export class MainThreadLanguageFeatures extends MainThreadLanguageFeaturesShape {
 
 	private _proxy: ExtHostLanguageFeaturesShape;
 	private _heapService: IHeapService;
+	private _modeService: IModeService;
 	private _registrations: { [handle: number]: IDisposable; } = Object.create(null);
 
 	constructor(
 		@IThreadService threadService: IThreadService,
-		@IHeapService heapService: IHeapService
+		@IHeapService heapService: IHeapService,
+		@IModeService modeService: IModeService,
 	) {
 		super();
 		this._proxy = threadService.get(ExtHostContext.ExtHostLanguageFeatures);
 		this._heapService = heapService;
+		this._modeService = modeService;
 	}
 
 	$unregister(handle: number): TPromise<any> {
@@ -57,15 +62,32 @@ export class MainThreadLanguageFeatures extends MainThreadLanguageFeaturesShape 
 
 	// --- code lens
 
-	$registerCodeLensSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
-		this._registrations[handle] = modes.CodeLensProviderRegistry.register(selector, <modes.CodeLensProvider>{
+	$registerCodeLensSupport(handle: number, selector: vscode.DocumentSelector, eventHandle: number): TPromise<any> {
+
+		const provider = <modes.CodeLensProvider>{
 			provideCodeLenses: (model: IReadOnlyModel, token: CancellationToken): modes.ICodeLensSymbol[] | Thenable<modes.ICodeLensSymbol[]> => {
 				return this._heapService.trackRecursive(wireCancellationToken(token, this._proxy.$provideCodeLenses(handle, model.uri)));
 			},
 			resolveCodeLens: (model: IReadOnlyModel, codeLens: modes.ICodeLensSymbol, token: CancellationToken): modes.ICodeLensSymbol | Thenable<modes.ICodeLensSymbol> => {
 				return this._heapService.trackRecursive(wireCancellationToken(token, this._proxy.$resolveCodeLens(handle, model.uri, codeLens)));
 			}
-		});
+		};
+
+		if (typeof eventHandle === 'number') {
+			const emitter = new Emitter<modes.CodeLensProvider>();
+			this._registrations[eventHandle] = emitter;
+			provider.onDidChange = emitter.event;
+		}
+
+		this._registrations[handle] = modes.CodeLensProviderRegistry.register(selector, provider);
+		return undefined;
+	}
+
+	$emitCodeLensEvent(eventHandle: number, event?: any): TPromise<any> {
+		const obj = this._registrations[eventHandle];
+		if (obj instanceof Emitter) {
+			obj.fire(event);
+		}
 		return undefined;
 	}
 
@@ -75,6 +97,24 @@ export class MainThreadLanguageFeatures extends MainThreadLanguageFeaturesShape 
 		this._registrations[handle] = modes.DefinitionProviderRegistry.register(selector, <modes.DefinitionProvider>{
 			provideDefinition: (model, position, token): Thenable<modes.Definition> => {
 				return wireCancellationToken(token, this._proxy.$provideDefinition(handle, model.uri, position));
+			}
+		});
+		return undefined;
+	}
+
+	$registerImplementationSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
+		this._registrations[handle] = modes.ImplementationProviderRegistry.register(selector, <modes.ImplementationProvider>{
+			provideImplementation: (model, position, token): Thenable<modes.Definition> => {
+				return wireCancellationToken(token, this._proxy.$provideImplementation(handle, model.uri, position));
+			}
+		});
+		return undefined;
+	}
+
+	$registerTypeDefinitionSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
+		this._registrations[handle] = modes.TypeDefinitionProviderRegistry.register(selector, <modes.TypeDefinitionProvider>{
+			provideTypeDefinition: (model, position, token): Thenable<modes.Definition> => {
+				return wireCancellationToken(token, this._proxy.$provideTypeDefinition(handle, model.uri, position));
 			}
 		});
 		return undefined;
@@ -160,10 +200,10 @@ export class MainThreadLanguageFeatures extends MainThreadLanguageFeaturesShape 
 
 	$registerNavigateTypeSupport(handle: number): TPromise<any> {
 		this._registrations[handle] = WorkspaceSymbolProviderRegistry.register(<IWorkspaceSymbolProvider>{
-			provideWorkspaceSymbols: (search: string): TPromise<IWorkspaceSymbol[]> => {
+			provideWorkspaceSymbols: (search: string): TPromise<modes.SymbolInformation[]> => {
 				return this._heapService.trackRecursive(this._proxy.$provideWorkspaceSymbols(handle, search));
 			},
-			resolveWorkspaceSymbol: (item: IWorkspaceSymbol): TPromise<IWorkspaceSymbol> => {
+			resolveWorkspaceSymbol: (item: modes.SymbolInformation): TPromise<modes.SymbolInformation> => {
 				return this._proxy.$resolveWorkspaceSymbol(handle, item);
 			}
 		});
@@ -185,7 +225,7 @@ export class MainThreadLanguageFeatures extends MainThreadLanguageFeaturesShape 
 
 	$registerSuggestSupport(handle: number, selector: vscode.DocumentSelector, triggerCharacters: string[]): TPromise<any> {
 		this._registrations[handle] = modes.SuggestRegistry.register(selector, <modes.ISuggestSupport>{
-			triggerCharacters: triggerCharacters,
+			triggerCharacters,
 			provideCompletionItems: (model: IReadOnlyModel, position: EditorPosition, token: CancellationToken): Thenable<modes.ISuggestResult> => {
 				return this._heapService.trackRecursive(wireCancellationToken(token, this._proxy.$provideCompletionItems(handle, model.uri, position)));
 			},
@@ -255,7 +295,11 @@ export class MainThreadLanguageFeatures extends MainThreadLanguageFeaturesShape 
 			};
 		}
 
-		this._registrations[handle] = LanguageConfigurationRegistry.register(languageId, configuration);
+		let languageIdentifier = this._modeService.getLanguageIdentifier(languageId);
+		if (languageIdentifier) {
+			this._registrations[handle] = LanguageConfigurationRegistry.register(languageIdentifier, configuration);
+		}
+
 		return undefined;
 	}
 

@@ -12,25 +12,24 @@ import { Builder } from 'vs/base/browser/builder';
 import { append, $ } from 'vs/base/browser/dom';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
+import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { ReleaseNotesInput } from './releaseNotesInput';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import WebView from 'vs/workbench/parts/html/browser/webview';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IRequestService } from 'vs/platform/request/node/request';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
+import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 
 function renderBody(body: string): string {
 	return `<!DOCTYPE html>
 		<html>
 			<head>
 				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
-				<link rel="stylesheet" type="text/css" href="${ require.toUrl('./media/markdown.css')}" >
+				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src http: https: data:; media-src http: https: data:; script-src 'none'; style-src file: http: https:; child-src 'none'; frame-src 'none';">
+				<link rel="stylesheet" type="text/css" href="${require.toUrl('./media/markdown.css')}">
 			</head>
-			<body>${ body}</body>
+			<body>${body}</body>
 		</html>`;
 }
 
@@ -45,14 +44,12 @@ export class ReleaseNotesEditor extends BaseEditor {
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IThemeService private themeService: IThemeService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IRequestService private requestService: IRequestService,
+		@IWorkbenchThemeService protected themeService: IWorkbenchThemeService,
 		@IOpenerService private openerService: IOpenerService,
-		@IKeybindingService private keybindingService: IKeybindingService,
-		@IModeService private modeService: IModeService
+		@IModeService private modeService: IModeService,
+		@IPartService private partService: IPartService
 	) {
-		super(ReleaseNotesEditor.ID, telemetryService);
+		super(ReleaseNotesEditor.ID, telemetryService, themeService);
 	}
 
 	createEditor(parent: Builder): void {
@@ -89,12 +86,7 @@ export class ReleaseNotesEditor extends BaseEditor {
 			})
 			.then(renderBody)
 			.then<void>(body => {
-				this.webview = new WebView(
-					this.content,
-					document.querySelector('.monaco-editor-background'),
-					{ nodeintegration: false }
-				);
-
+				this.webview = new WebView(this.content, this.partService.getContainer(Parts.EDITOR_PART));
 				this.webview.baseUrl = `https://code.visualstudio.com/raw/`;
 				this.webview.style(this.themeService.getColorTheme());
 				this.webview.contents = [body];

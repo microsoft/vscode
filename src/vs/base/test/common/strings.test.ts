@@ -9,7 +9,6 @@ import strings = require('vs/base/common/strings');
 
 suite('Strings', () => {
 	test('equalsIgnoreCase', function () {
-
 		assert(strings.equalsIgnoreCase('', ''));
 		assert(!strings.equalsIgnoreCase('', '1'));
 		assert(!strings.equalsIgnoreCase('1', ''));
@@ -19,6 +18,51 @@ suite('Strings', () => {
 		assert(strings.equalsIgnoreCase('abc', 'ABC'));
 		assert(strings.equalsIgnoreCase('Höhenmeter', 'HÖhenmeter'));
 		assert(strings.equalsIgnoreCase('ÖL', 'Öl'));
+	});
+
+	test('beginsWithIgnoreCase', function () {
+		assert(strings.beginsWithIgnoreCase('', ''));
+		assert(!strings.beginsWithIgnoreCase('', '1'));
+		assert(strings.beginsWithIgnoreCase('1', ''));
+
+		assert(strings.beginsWithIgnoreCase('a', 'a'));
+		assert(strings.beginsWithIgnoreCase('abc', 'Abc'));
+		assert(strings.beginsWithIgnoreCase('abc', 'ABC'));
+		assert(strings.beginsWithIgnoreCase('Höhenmeter', 'HÖhenmeter'));
+		assert(strings.beginsWithIgnoreCase('ÖL', 'Öl'));
+
+		assert(strings.beginsWithIgnoreCase('alles klar', 'a'));
+		assert(strings.beginsWithIgnoreCase('alles klar', 'A'));
+		assert(strings.beginsWithIgnoreCase('alles klar', 'alles k'));
+		assert(strings.beginsWithIgnoreCase('alles klar', 'alles K'));
+		assert(strings.beginsWithIgnoreCase('alles klar', 'ALLES K'));
+		assert(strings.beginsWithIgnoreCase('alles klar', 'alles klar'));
+		assert(strings.beginsWithIgnoreCase('alles klar', 'ALLES KLAR'));
+
+		assert(!strings.beginsWithIgnoreCase('alles klar', ' ALLES K'));
+		assert(!strings.beginsWithIgnoreCase('alles klar', 'ALLES K '));
+		assert(!strings.beginsWithIgnoreCase('alles klar', 'öALLES K '));
+		assert(!strings.beginsWithIgnoreCase('alles klar', ' '));
+		assert(!strings.beginsWithIgnoreCase('alles klar', 'ö'));
+	});
+
+	test('compareIgnoreCase', function () {
+
+		function assertCompareIgnoreCase(a: string, b: string): void {
+			let actual = strings.compareIgnoreCase(a, b);
+			let expected = strings.compare(a.toLowerCase(), b.toLowerCase());
+			assert.equal(actual, expected, `${a} <> ${b}`);
+		}
+
+		assertCompareIgnoreCase('', '');
+		assertCompareIgnoreCase('abc', 'ABC');
+		assertCompareIgnoreCase('abc', 'ABc');
+		assertCompareIgnoreCase('abc', 'ABcd');
+		assertCompareIgnoreCase('abc', 'abcd');
+		assertCompareIgnoreCase('foo', 'föo');
+		assertCompareIgnoreCase('Code', 'code');
+		assertCompareIgnoreCase('Code', 'cöde');
+
 	});
 
 	test('format', function () {
@@ -34,7 +78,7 @@ suite('Strings', () => {
 
 	test('computeLineStarts', function () {
 		function assertLineStart(text: string, ...offsets: number[]): void {
-			var actual = strings.computeLineStarts(text);
+			const actual = strings.computeLineStarts(text);
 			assert.equal(actual.length, offsets.length);
 			if (actual.length !== offsets.length) {
 				return;
@@ -193,4 +237,29 @@ suite('Strings', () => {
 	// 	}
 	// 	console.log('TOOK: ' + (allTime)/10 + 'ms for size of ' + SIZE/1000000 + 'Mb');
 	// });
+
+	test('isBasicASCII', () => {
+		function assertIsBasicASCII(str: string, expected: boolean): void {
+			assert.equal(strings.isBasicASCII(str), expected, str + ` (${str.charCodeAt(0)})`);
+		}
+		assertIsBasicASCII('abcdefghijklmnopqrstuvwxyz', true);
+		assertIsBasicASCII('ABCDEFGHIJKLMNOPQRSTUVWXYZ', true);
+		assertIsBasicASCII('1234567890', true);
+		assertIsBasicASCII('`~!@#$%^&*()-_=+[{]}\\|;:\'",<.>/?', true);
+		assertIsBasicASCII(' ', true);
+		assertIsBasicASCII('\t', true);
+		assertIsBasicASCII('\n', true);
+		assertIsBasicASCII('\r', true);
+
+		let ALL = '\r\t\n';
+		for (let i = 32; i < 127; i++) {
+			ALL += String.fromCharCode(i);
+		}
+		assertIsBasicASCII(ALL, true);
+
+		assertIsBasicASCII(String.fromCharCode(31), false);
+		assertIsBasicASCII(String.fromCharCode(127), false);
+		assertIsBasicASCII('ü', false);
+		assertIsBasicASCII('a📚📚b', false);
+	});
 });

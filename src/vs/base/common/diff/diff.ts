@@ -196,10 +196,10 @@ class DiffChangeHelper {
 		return this.m_changes;
 	}
 
+	/**
+	 * Retrieves all of the changes marked by the class in the reverse order
+	 */
 	public getReverseChanges(): DiffChange[] {
-		/// <summary>
-		/// Retrieves all of the changes marked by the class in the reverse order
-		/// </summary>
 		if (this.m_originalCount > 0 || this.m_modifiedCount > 0) {
 			// Finish up on whatever is left
 			this.MarkNextChange();

@@ -10,7 +10,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { EventEmitter } from 'vs/base/common/eventEmitter';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { isObject } from 'vs/base/common/types';
-import { isChrome, isWebKit } from 'vs/base/browser/browser';
+import * as browser from 'vs/base/browser/browser';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { CharCode } from 'vs/base/common/charCode';
@@ -176,63 +176,42 @@ export function toggleClass(node: HTMLElement, className: string, shouldHaveIt?:
 	}
 }
 
-class DomListener extends Disposable {
+class DomListener implements IDisposable {
 
-	private _usedAddEventListener: boolean;
-	private _wrapHandler: (e: any) => void;
-	private _node: any;
-	private _type: string;
-	private _useCapture: boolean;
+	private _handler: (e: any) => void;
+	private _node: Element | Window | Document;
+	private readonly _type: string;
+	private readonly _useCapture: boolean;
 
-	constructor(node: Element | Window | Document, type: string, handler: (e: any) => void, useCapture?: boolean) {
-		super();
-
+	constructor(node: Element | Window | Document, type: string, handler: (e: any) => void, useCapture: boolean) {
 		this._node = node;
 		this._type = type;
+		this._handler = handler;
 		this._useCapture = (useCapture || false);
-
-		this._wrapHandler = (e) => {
-			e = e || window.event;
-			handler(e);
-		};
-
-		if (typeof this._node.addEventListener === 'function') {
-			this._usedAddEventListener = true;
-			this._node.addEventListener(this._type, this._wrapHandler, this._useCapture);
-		} else {
-			this._usedAddEventListener = false;
-			this._node.attachEvent('on' + this._type, this._wrapHandler);
-		}
+		this._node.addEventListener(this._type, this._handler, this._useCapture);
 	}
 
 	public dispose(): void {
-		if (!this._wrapHandler) {
+		if (!this._handler) {
 			// Already disposed
 			return;
 		}
 
-		if (this._usedAddEventListener) {
-			this._node.removeEventListener(this._type, this._wrapHandler, this._useCapture);
-		} else {
-			this._node.detachEvent('on' + this._type, this._wrapHandler);
-		}
+		this._node.removeEventListener(this._type, this._handler, this._useCapture);
 
 		// Prevent leakers from holding on to the dom or handler func
 		this._node = null;
-		this._wrapHandler = null;
+		this._handler = null;
 	}
 }
 
-export function addDisposableListener(node: Element, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable;
-export function addDisposableListener(node: Element | Window, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable;
-export function addDisposableListener(node: Window, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable;
-export function addDisposableListener(node: Document, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable;
-export function addDisposableListener(node: any, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable {
+export function addDisposableListener(node: Element | Window | Document, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable {
 	return new DomListener(node, type, handler, useCapture);
 }
 
 export interface IAddStandardDisposableListenerSignature {
 	(node: HTMLElement, type: 'click', handler: (event: IMouseEvent) => void, useCapture?: boolean): IDisposable;
+	(node: HTMLElement, type: 'mousedown', handler: (event: IMouseEvent) => void, useCapture?: boolean): IDisposable;
 	(node: HTMLElement, type: 'keydown', handler: (event: IKeyboardEvent) => void, useCapture?: boolean): IDisposable;
 	(node: HTMLElement, type: 'keypress', handler: (event: IKeyboardEvent) => void, useCapture?: boolean): IDisposable;
 	(node: HTMLElement, type: 'keyup', handler: (event: IKeyboardEvent) => void, useCapture?: boolean): IDisposable;
@@ -251,27 +230,13 @@ function _wrapAsStandardKeyboardEvent(handler: (e: IKeyboardEvent) => void): (e:
 export let addStandardDisposableListener: IAddStandardDisposableListenerSignature = function addStandardDisposableListener(node: HTMLElement, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable {
 	let wrapHandler = handler;
 
-	if (type === 'click') {
+	if (type === 'click' || type === 'mousedown') {
 		wrapHandler = _wrapAsStandardMouseEvent(handler);
 	} else if (type === 'keydown' || type === 'keypress' || type === 'keyup') {
 		wrapHandler = _wrapAsStandardKeyboardEvent(handler);
 	}
 
-	node.addEventListener(type, wrapHandler, useCapture || false);
-	return {
-		dispose: function () {
-			if (!wrapHandler) {
-				// Already removed
-				return;
-			}
-			node.removeEventListener(type, wrapHandler, useCapture || false);
-
-			// Prevent leakers from holding on to the dom node or handler func
-			wrapHandler = null;
-			node = null;
-			handler = null;
-		}
-	};
+	return addDisposableListener(node, type, wrapHandler, useCapture);
 };
 
 export function addDisposableNonBubblingMouseOutListener(node: Element, handler: (event: MouseEvent) => void): IDisposable {
@@ -413,21 +378,7 @@ class AnimationFrameQueueItem implements IDisposable {
 
 		if (!animFrameRequested) {
 			animFrameRequested = true;
-
-			// TODO@Alex: also check if it is electron
-			if (isChrome) {
-				let handle: number;
-				_animationFrame.request(function () {
-					clearTimeout(handle);
-					animationFrameRunner();
-				});
-				// This is a fallback in-case chrome dropped
-				// the request for an animation frame. This
-				// is sick but was spotted in the wild
-				handle = setTimeout(animationFrameRunner, 1000);
-			} else {
-				_animationFrame.request(animationFrameRunner);
-			}
+			_animationFrame.request(animationFrameRunner);
 		}
 
 		return item;
@@ -444,9 +395,9 @@ class AnimationFrameQueueItem implements IDisposable {
 	};
 })();
 
-/// <summary>
-/// Add a throttled listener. `handler` is fired at most every 16ms or with the next animation frame (if browser supports it).
-/// </summary>
+/**
+ * Add a throttled listener. `handler` is fired at most every 16ms or with the next animation frame (if browser supports it).
+ */
 export interface IEventMerger<R> {
 	(lastEvent: R, currentEvent: Event): R;
 }
@@ -461,7 +412,7 @@ class TimeoutThrottledDomListener<R> extends Disposable {
 	constructor(node: any, type: string, handler: (event: R) => void, eventMerger: IEventMerger<R> = <any>DEFAULT_EVENT_MERGER, minimumTimeMs: number = MINIMUM_TIME_MS) {
 		super();
 
-		let lastEvent = null;
+		let lastEvent: R = null;
 		let lastHandlerTime = 0;
 		let timeout = this._register(new TimeoutTimer());
 
@@ -833,9 +784,9 @@ export const EventType = {
 	DROP: 'drop',
 	DRAG_END: 'dragend',
 	// Animation
-	ANIMATION_START: isWebKit ? 'webkitAnimationStart' : 'animationstart',
-	ANIMATION_END: isWebKit ? 'webkitAnimationEnd' : 'animationend',
-	ANIMATION_ITERATION: isWebKit ? 'webkitAnimationIteration' : 'animationiteration'
+	ANIMATION_START: browser.isWebKit ? 'webkitAnimationStart' : 'animationstart',
+	ANIMATION_END: browser.isWebKit ? 'webkitAnimationEnd' : 'animationend',
+	ANIMATION_ITERATION: browser.isWebKit ? 'webkitAnimationIteration' : 'animationiteration'
 };
 
 export interface EventLike {
@@ -899,7 +850,7 @@ class FocusTracker extends Disposable implements IFocusTracker {
 
 		this._eventEmitter = this._register(new EventEmitter());
 
-		let onFocus = (event) => {
+		let onFocus = (event: Event) => {
 			loosingFocus = false;
 			if (!hasFocus) {
 				hasFocus = true;
@@ -907,7 +858,7 @@ class FocusTracker extends Disposable implements IFocusTracker {
 			}
 		};
 
-		let onBlur = (event) => {
+		let onBlur = (event: Event) => {
 			if (hasFocus) {
 				loosingFocus = true;
 				window.setTimeout(() => {

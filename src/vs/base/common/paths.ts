@@ -6,21 +6,23 @@
 
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { fill } from 'vs/base/common/arrays';
+import { rtrim } from 'vs/base/common/strings';
 import { CharCode } from 'vs/base/common/charCode';
 
 /**
  * The forward slash path separator.
  */
-export var sep = '/';
+export const sep = '/';
 
 /**
  * The native path separator depending on the OS.
  */
-export var nativeSep = isWindows ? '\\' : '/';
+export const nativeSep = isWindows ? '\\' : '/';
 
 export function relative(from: string, to: string): string {
-	const originalNormalizedFrom = normalize(from);
-	const originalNormalizedTo = normalize(to);
+	// ignore trailing slashes
+	const originalNormalizedFrom = rtrim(normalize(from), sep);
+	const originalNormalizedTo = rtrim(normalize(to), sep);
 
 	// we're assuming here that any non=linux OS is case insensitive
 	// so we must compare each part in its lowercase form
@@ -50,13 +52,17 @@ export function relative(from: string, to: string): string {
  * @returns the directory name of a path.
  */
 export function dirname(path: string): string {
-	var idx = ~path.lastIndexOf('/') || ~path.lastIndexOf('\\');
+	const idx = ~path.lastIndexOf('/') || ~path.lastIndexOf('\\');
 	if (idx === 0) {
 		return '.';
 	} else if (~idx === 0) {
 		return path[0];
 	} else {
-		return path.substring(0, ~idx);
+		let res = path.substring(0, ~idx);
+		if (isWindows && res[res.length - 1] === ':') {
+			res += nativeSep; // make sure drive letters end with backslash
+		}
+		return res;
 	}
 }
 
@@ -64,7 +70,7 @@ export function dirname(path: string): string {
  * @returns the base name of a path.
  */
 export function basename(path: string): string {
-	var idx = ~path.lastIndexOf('/') || ~path.lastIndexOf('\\');
+	const idx = ~path.lastIndexOf('/') || ~path.lastIndexOf('\\');
 	if (idx === 0) {
 		return path;
 	} else if (~idx === path.length - 1) {
@@ -79,7 +85,7 @@ export function basename(path: string): string {
  */
 export function extname(path: string): string {
 	path = basename(path);
-	var idx = ~path.lastIndexOf('.');
+	const idx = ~path.lastIndexOf('.');
 	return idx ? path.substring(~idx) : '';
 }
 
@@ -305,54 +311,8 @@ export function isUNC(path: string): boolean {
 	return true;
 }
 
-function isPosixAbsolute(path: string): boolean {
-	return path && path[0] === '/';
-}
-
-export function makePosixAbsolute(path: string): string {
-	return isPosixAbsolute(normalize(path)) ? path : sep + path;
-}
-
-export function isEqualOrParent(path: string, candidate: string): boolean {
-
-	if (path === candidate) {
-		return true;
-	}
-
-	path = normalize(path);
-	candidate = normalize(candidate);
-
-	let candidateLen = candidate.length;
-	let lastCandidateChar = candidate.charCodeAt(candidateLen - 1);
-	if (lastCandidateChar === CharCode.Slash) {
-		candidate = candidate.substring(0, candidateLen - 1);
-		candidateLen -= 1;
-	}
-
-	if (path === candidate) {
-		return true;
-	}
-
-	if (!isLinux) {
-		// case insensitive
-		path = path.toLowerCase();
-		candidate = candidate.toLowerCase();
-	}
-
-	if (path === candidate) {
-		return true;
-	}
-
-	if (path.indexOf(candidate) !== 0) {
-		return false;
-	}
-
-	let char = path.charCodeAt(candidateLen);
-	return char === CharCode.Slash;
-}
-
 // Reference: https://en.wikipedia.org/wiki/Filename
-const INVALID_FILE_CHARS = isWindows ? /[\\/:\*\?"<>\|]/g : /[\\/]/g;
+const INVALID_FILE_CHARS = isWindows ? /[\\/:\*\?"<>\|]/g : /[/]/g;
 const WINDOWS_FORBIDDEN_NAMES = /^(con|prn|aux|clock\$|nul|lpt[0-9]|com[0-9])$/i;
 export function isValidBasename(name: string): boolean {
 	if (!name || name.length === 0 || /^\s+$/.test(name)) {
@@ -381,14 +341,4 @@ export function isValidBasename(name: string): boolean {
 	}
 
 	return true;
-}
-
-export const isAbsoluteRegex = /^((\/|[a-zA-Z]:\\)[^\(\)<>\\'\"\[\]]+)/;
-
-/**
- * If you have access to node, it is recommended to use node's path.isAbsolute().
- * This is a simple regex based approach.
- */
-export function isAbsolute(path: string): boolean {
-	return isAbsoluteRegex.test(path);
 }

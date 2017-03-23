@@ -71,9 +71,6 @@
 	 */
 	background: #fffffe;
 }
-.monaco-editor-background {
-	background: #fffffe;
-}
 .monaco-editor.ime-input .inputarea {
 	background: rgba(255, 255, 255, 0.85);
 }
@@ -84,9 +81,6 @@
 	color: #BBB;
 	background: #1E1E1E;
 }
-.monaco-editor.vs-dark .monaco-editor-background {
-	background: #1E1E1E;
-}
 .monaco-editor.vs-dark.ime-input .inputarea {
 	background: rgba(0, 0, 0, 0.65);
 }
@@ -95,9 +89,6 @@
 .monaco-editor.hc-black .inputarea,
 .monaco-editor.hc-black .zone-widget .monaco-editor {
 	color: #fff;
-	background: #000;
-}
-.monaco-editor.hc-black .monaco-editor-background {
 	background: #000;
 }
 
@@ -114,12 +105,6 @@
 	top: 0;
 }
 
-/* -------------------- Highlight a range -------------------- */
-
-.monaco-editor.vs		.rangeHighlight { background: rgba(253, 255, 0, 0.2); }
-.monaco-editor.vs-dark	.rangeHighlight { background: rgba(255, 255, 255, 0.044); }
-.monaco-editor.hc-black	.rangeHighlight { border: 1px dotted #f38518; }
-
 /* -------------------- Squigglies -------------------- */
 
 .monaco-editor.vs		.redsquiggly,
@@ -129,14 +114,3 @@
 .monaco-editor.vs		.greensquiggly,
 .monaco-editor.vs-dark	.greensquiggly { background: url("green-squiggly.svg") repeat-x bottom left; }
 .monaco-editor.hc-black .greensquiggly { border-bottom: 4px double #71B771; opacity: 0.8; }
-
-/* -------------------- Bracket Match -------------------- */
-
-.monaco-editor .bracket-match {
-	box-sizing: border-box;
-	background-color: rgba(0, 100, 0, 0.1);
-}
-.monaco-editor.vs		.bracket-match { border: 1px solid #B9B9B9; }
-.monaco-editor.vs-dark	.bracket-match { border: 1px solid #888; }
-.monaco-editor.hc-black .bracket-match { border: 1px solid #fff; }
-

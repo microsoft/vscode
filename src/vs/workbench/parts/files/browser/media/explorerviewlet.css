@@ -3,6 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/* Activity Bar */
+.monaco-workbench > .activitybar .monaco-action-bar .action-label.explore {
+	background-image: url('files-dark.svg');
+}
+
 /* --- Explorer viewlet --- */
 .explorer-viewlet {
 	height: 100%;
@@ -46,6 +51,56 @@
 
 .explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row > .content > .monaco-action-bar {
 	visibility: hidden;
+}
+
+.explorer-viewlet .header .monaco-count-badge.hidden {
+	display: none;
+	visibility: hidden;
+}
+
+.explorer-folders-view .monaco-tree-row .sub-content {
+	display: flex;
+}
+
+.explorer-folders-view .monaco-tree-row .sub-content::before {
+	background-size: 16px;
+	background-position: 50% 50%;
+	background-repeat: no-repeat;
+	padding-right: 6px;
+	width: 16px;
+	height: 22px;
+	display: inline-block;
+	vertical-align: top;
+	content: ' ';
+}
+
+.explorer-folders-view.align-icons-and-twisties .monaco-tree-row:not(.has-children) .sub-content::before {
+	display: none;
+}
+
+.explorer-folders-view .monaco-tree-row.has-children.expanded .sub-content::before {
+	background-image: url("expanded.svg");
+}
+
+.explorer-folders-view .monaco-tree-row.has-children .sub-content::before {
+	display: inline-block;
+	background-image: url("collapsed.svg");
+}
+
+.vs-dark .explorer-folders-view .monaco-tree-row.has-children.expanded .sub-content::before {
+	background-image: url("expanded-dark.svg");
+}
+
+.vs-dark .explorer-folders-view .monaco-tree-row.has-children .sub-content::before {
+	background-image: url("collapsed-dark.svg");
+}
+
+.hc-black .explorer-folders-view .monaco-tree-row.has-children.expanded .sub-content::before {
+	background-image: url("expanded-hc.svg");
+}
+
+.hc-black .explorer-folders-view .monaco-tree-row.has-children .sub-content::before {
+	background-image: url("collapsed-hc.svg");
 }
 
 .explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row:hover > .content .monaco-action-bar,
@@ -97,10 +152,6 @@
 	height: 22px;
 }
 
-.explorer-viewlet .explorer-item .monaco-inputbox.idle {
-	border: 1px solid rgba(128, 128, 128, 0.5);
-}
-
 .explorer-viewlet .explorer-item .monaco-inputbox > .wrapper > .input {
 	padding: 1px 2px;
 }
@@ -122,11 +173,8 @@
 .explorer-viewlet:lang(zh-Hans) .explorer-open-editors .monaco-tree .monaco-tree-row .editor-group,
 .explorer-viewlet:lang(zh-Hant) .explorer-open-editors .monaco-tree .monaco-tree-row .editor-group,
 .explorer-viewlet:lang(ja) .explorer-open-editors .monaco-tree .monaco-tree-row .editor-group,
-.explorer-viewlet:lang(ko) .explorer-open-editors .monaco-tree .monaco-tree-row .editor-group { font-weight: normal; }
-
-/* Disable tree twistie */
-.explorer-viewlet .explorer-open-editors > .monaco-tree .monaco-tree-rows > .monaco-tree-row > .content:before {
-	display: none;
+.explorer-viewlet:lang(ko) .explorer-open-editors .monaco-tree .monaco-tree-row .editor-group {
+	font-weight: normal;
 }
 
 /* High Contrast Theming */
@@ -138,11 +186,17 @@
 
 .hc-black .monaco-workbench .explorer-viewlet .explorer-item .monaco-inputbox > .wrapper > .input:focus {
 	outline-offset: -2px !important;
-	outline: 1px solid #f38518 !important;
+	outline: 1px solid !important;
 	padding-left: 2px; /* push text by the width of the outline offset to prevent overlaying */
 }
 
 .hc-black .monaco-workbench .explorer-viewlet .explorer-item .monaco-inputbox.synthetic-focus {
 	outline: none !important;
 	border: none;
+}
+
+/* TODO@theme */
+
+.hc-black .monaco-workbench .explorer-viewlet .explorer-item .monaco-inputbox > .wrapper > .input:focus {
+	outline-color: #f38518 !important;
 }

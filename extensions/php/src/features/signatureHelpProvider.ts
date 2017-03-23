@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { SignatureHelpProvider, SignatureHelp, SignatureInformation, CancellationToken, TextDocument, Position } from 'vscode';
+import { SignatureHelpProvider, SignatureHelp, SignatureInformation, CancellationToken, TextDocument, Position, workspace } from 'vscode';
 import phpGlobals = require('./phpGlobals');
 
 var _NL = '\n'.charCodeAt(0);
@@ -70,6 +70,11 @@ class BackwardIterator {
 export default class PHPSignatureHelpProvider implements SignatureHelpProvider {
 
 	public provideSignatureHelp(document: TextDocument, position: Position, token: CancellationToken): Promise<SignatureHelp> {
+		let enable = workspace.getConfiguration('php').get<boolean>('suggest.basic', true);
+		if (!enable) {
+			return null;
+		}
+
 		var iterator = new BackwardIterator(document, position.character - 1, position.line);
 
 		var paramCount = this.readArguments(iterator);

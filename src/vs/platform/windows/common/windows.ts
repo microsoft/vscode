@@ -8,6 +8,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import Event from 'vs/base/common/event';
+import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 
 export const IWindowsService = createDecorator<IWindowsService>('windowsService');
 
@@ -18,13 +19,12 @@ export interface IWindowsService {
 	onWindowOpen: Event<number>;
 	onWindowFocus: Event<number>;
 
-	openFileFolderPicker(windowId: number, forceNewWindow?: boolean): TPromise<void>;
-	openFilePicker(windowId: number, forceNewWindow?: boolean, path?: string): TPromise<void>;
-	openFolderPicker(windowId: number, forceNewWindow?: boolean): TPromise<void>;
+	openFileFolderPicker(windowId: number, forceNewWindow?: boolean, data?: ITelemetryData): TPromise<void>;
+	openFilePicker(windowId: number, forceNewWindow?: boolean, path?: string, data?: ITelemetryData): TPromise<void>;
+	openFolderPicker(windowId: number, forceNewWindow?: boolean, data?: ITelemetryData): TPromise<void>;
 	reloadWindow(windowId: number): TPromise<void>;
 	openDevTools(windowId: number): TPromise<void>;
 	toggleDevTools(windowId: number): TPromise<void>;
-	// TODO@joao: rename, shouldn't this be closeWindow?
 	closeFolder(windowId: number): TPromise<void>;
 	toggleFullScreen(windowId: number): TPromise<void>;
 	setRepresentedFilename(windowId: number, fileName: string): TPromise<void>;
@@ -36,12 +36,15 @@ export interface IWindowsService {
 	maximizeWindow(windowId: number): TPromise<void>;
 	unmaximizeWindow(windowId: number): TPromise<void>;
 	setDocumentEdited(windowId: number, flag: boolean): TPromise<void>;
-	toggleMenuBar(windowId: number): TPromise<void>;
 	quit(): TPromise<void>;
+	relaunch(options: { addArgs?: string[], removeArgs?: string[] }): TPromise<void>;
+
+	// Shared process
+	whenSharedProcessReady(): TPromise<void>;
+	toggleSharedProcess(): TPromise<void>;
 
 	// Global methods
-	// TODO@joao: rename, shouldn't this be openWindow?
-	windowOpen(paths: string[], forceNewWindow?: boolean): TPromise<void>;
+	openWindow(paths: string[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean }): TPromise<void>;
 	openNewWindow(): TPromise<void>;
 	showWindow(windowId: number): TPromise<void>;
 	getWindows(): TPromise<{ id: number; path: string; title: string; }[]>;
@@ -66,9 +69,9 @@ export interface IWindowService {
 	_serviceBrand: any;
 
 	getCurrentWindowId(): number;
-	openFileFolderPicker(forceNewWindow?: boolean): TPromise<void>;
-	openFilePicker(forceNewWindow?: boolean, path?: string): TPromise<void>;
-	openFolderPicker(forceNewWindow?: boolean): TPromise<void>;
+	openFileFolderPicker(forceNewWindow?: boolean, data?: ITelemetryData): TPromise<void>;
+	openFilePicker(forceNewWindow?: boolean, path?: string, data?: ITelemetryData): TPromise<void>;
+	openFolderPicker(forceNewWindow?: boolean, data?: ITelemetryData): TPromise<void>;
 	reloadWindow(): TPromise<void>;
 	openDevTools(): TPromise<void>;
 	toggleDevTools(): TPromise<void>;
@@ -80,17 +83,21 @@ export interface IWindowService {
 	getRecentlyOpen(): TPromise<{ files: string[]; folders: string[]; }>;
 	focusWindow(): TPromise<void>;
 	setDocumentEdited(flag: boolean): TPromise<void>;
-	toggleMenuBar(): TPromise<void>;
 	isMaximized(): TPromise<boolean>;
 	maximizeWindow(): TPromise<void>;
 	unmaximizeWindow(): TPromise<void>;
 }
 
+export type MenuBarVisibility = 'default' | 'visible' | 'toggle' | 'hidden';
+
 export interface IWindowSettings {
-	openFilesInNewWindow: boolean;
+	openFilesInNewWindow: 'on' | 'off' | 'default';
+	openFoldersInNewWindow: 'on' | 'off' | 'default';
 	reopenFolders: 'all' | 'one' | 'none';
 	restoreFullscreen: boolean;
-	fullScreenZenMode: boolean;
 	zoomLevel: number;
 	titleBarStyle: 'native' | 'custom';
+	autoDetectHighContrast: boolean;
+	menuBarVisibility: MenuBarVisibility;
+	newWindowDimensions: 'default' | 'inherit' | 'maximized' | 'fullscreen';
 }

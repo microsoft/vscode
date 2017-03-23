@@ -13,6 +13,7 @@
 		"Languages"
 	],
 	"activationEvents": [
+		"onLanguage:markdown",
 		"onCommand:markdown.showPreview",
 		"onCommand:markdown.showPreviewToSide",
 		"onCommand:markdown.showSource"
@@ -68,6 +69,11 @@
 					"light": "./media/ViewSource.svg",
 					"dark": "./media/ViewSource_inverse.svg"
 				}
+			},
+			{
+				"command": "markdown.showPreviewSecuritySelector",
+				"title": "%markdown.showPreviewSecuritySelector.title%",
+				"category": "Markdown"
 			}
 		],
 		"menus": {
@@ -82,6 +88,10 @@
 					"when": "resourceScheme == markdown",
 					"command": "markdown.showSource",
 					"group": "navigation"
+				},
+				{
+					"when": "resourceScheme == markdown",
+					"command": "markdown.showPreviewSecuritySelector"
 				}
 			],
 			"explorer/context": [
@@ -133,7 +143,7 @@
 				},
 				"markdown.preview.fontFamily": {
 					"type": "string",
-					"default": "'Segoe WPC', 'Segoe UI', 'SFUIText-Light', 'HelveticaNeue-Light'",
+					"default": "'Segoe WPC', 'Segoe UI', 'SFUIText-Light', 'HelveticaNeue-Light', sans-serif",
 					"description": "%markdown.preview.fontFamily.desc%"
 				},
 				"markdown.preview.fontSize": {
@@ -145,17 +155,50 @@
 					"type": "number",
 					"default": 1.6,
 					"description": "%markdown.preview.lineHeight.desc%"
+				},
+				"markdown.preview.scrollPreviewWithEditorSelection": {
+					"type": "boolean",
+					"default": true,
+					"description": "%markdown.preview.scrollPreviewWithEditorSelection.desc%"
+				},
+				"markdown.preview.markEditorSelection": {
+					"type": "boolean",
+					"default": true,
+					"description": "%markdown.preview.markEditorSelection.desc%"
+				},
+				"markdown.preview.scrollEditorWithPreview": {
+					"type": "boolean",
+					"default": true,
+					"description": "%markdown.preview.scrollEditorWithPreview.desc%"
+				},
+				"markdown.preview.doubleClickToSwitchToEditor": {
+					"type": "boolean",
+					"default": true,
+					"description": "%markdown.preview.doubleClickToSwitchToEditor.desc%"
 				}
+			}
+		},
+		"configurationDefaults": {
+			"[markdown]": {
+				"editor.wordWrap": "on",
+				"editor.quickSuggestions": false
 			}
 		}
 	},
 	"scripts": {
-		"vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:markdown ./tsconfig.json"
+		"vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:markdown ./tsconfig.json",
+		"update-grammar": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ./syntaxes/gulpfile.js"
 	},
 	"dependencies": {
 		"highlight.js": "^9.3.0",
-		"markdown-it": "^6.0.1",
+		"markdown-it": "^8.3.1",
 		"markdown-it-named-headers": "0.0.4",
-		"vscode-extension-telemetry": "^0.0.5"
+		"vscode-extension-telemetry": "^0.0.6",
+		"vscode-nls": "^2.0.2"
+	},
+	"devDependencies": {
+		"@types/node": "^7.0.4",
+		"gulp-rename": "^1.2.2",
+		"gulp-replace": "^0.5.4"
 	}
 }

@@ -100,6 +100,7 @@ export class ExtHostConfiguration extends ExtHostConfigurationShape {
 						workspaceValue: config.workspace
 					};
 				}
+				return undefined;
 			}
 		};
 
@@ -107,6 +108,6 @@ export class ExtHostConfiguration extends ExtHostConfigurationShape {
 			mixin(result, config, false);
 		}
 
-		return Object.freeze(result);
+		return <WorkspaceConfiguration>Object.freeze(result);
 	}
 }

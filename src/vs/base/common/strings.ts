@@ -327,7 +327,40 @@ export function compare(a: string, b: string): number {
 	}
 }
 
-function isAsciiChar(code: number): boolean {
+export function compareIgnoreCase(a: string, b: string): number {
+	const len = Math.min(a.length, b.length);
+	for (let i = 0; i < len; i++) {
+		const codeA = a.charCodeAt(i);
+		const codeB = b.charCodeAt(i);
+
+		if (codeA === codeB) {
+			// equal
+			continue;
+		}
+
+		if (isAsciiLetter(codeA) && isAsciiLetter(codeB)) {
+			const diff = codeA - codeB;
+			if (diff === 32 || diff === -32) {
+				// equal -> ignoreCase
+				continue;
+			} else {
+				return diff;
+			}
+		} else {
+			return compare(a.toLowerCase(), b.toLowerCase());
+		}
+	}
+
+	if (a.length < b.length) {
+		return -1;
+	} else if (a.length > b.length) {
+		return 1;
+	} else {
+		return 0;
+	}
+}
+
+function isAsciiLetter(code: number): boolean {
 	return (code >= CharCode.a && code <= CharCode.z) || (code >= CharCode.A && code <= CharCode.Z);
 }
 
@@ -340,27 +373,44 @@ export function equalsIgnoreCase(a: string, b: string): boolean {
 		return false;
 	}
 
-	for (let i = 0; i < len1; i++) {
+	return doEqualsIgnoreCase(a, b);
+}
 
-		let codeA = a.charCodeAt(i),
-			codeB = b.charCodeAt(i);
+export function doEqualsIgnoreCase(a: string, b: string, stopAt = a.length): boolean {
+	for (let i = 0; i < stopAt; i++) {
+		const codeA = a.charCodeAt(i);
+		const codeB = b.charCodeAt(i);
 
 		if (codeA === codeB) {
 			continue;
+		}
 
-		} else if (isAsciiChar(codeA) && isAsciiChar(codeB)) {
+		// a-z A-Z
+		if (isAsciiLetter(codeA) && isAsciiLetter(codeB)) {
 			let diff = Math.abs(codeA - codeB);
 			if (diff !== 0 && diff !== 32) {
 				return false;
 			}
-		} else {
-			if (String.fromCharCode(codeA).toLocaleLowerCase() !== String.fromCharCode(codeB).toLocaleLowerCase()) {
+		}
+
+		// Any other charcode
+		else {
+			if (String.fromCharCode(codeA).toLowerCase() !== String.fromCharCode(codeB).toLowerCase()) {
 				return false;
 			}
 		}
 	}
 
 	return true;
+}
+
+export function beginsWithIgnoreCase(str: string, candidate: string): boolean {
+	const candidateLength = candidate.length;
+	if (candidate.length > str.length) {
+		return false;
+	}
+
+	return doEqualsIgnoreCase(str, candidate, candidateLength);
 }
 
 /**
@@ -433,6 +483,14 @@ const CONTAINS_RTL = /(?:[\u05BE\u05C0\u05C3\u05C6\u05D0-\u05F4\u0608\u060B\u060
  */
 export function containsRTL(str: string): boolean {
 	return CONTAINS_RTL.test(str);
+}
+
+const IS_BASIC_ASCII = /^[\t\n\r\x20-\x7E]*$/;
+/**
+ * Returns true if `str` contains only basic ASCII characters in the range 32 - 126 (including 32 and 126) or \n, \r, \t
+ */
+export function isBasicASCII(str: string): boolean {
+	return IS_BASIC_ASCII.test(str);
 }
 
 export function isFullWidthCharacter(charCode: number): boolean {
@@ -607,8 +665,8 @@ export function safeBtoa(str: string): string {
 }
 
 export function repeat(s: string, count: number): string {
-	var result = '';
-	for (var i = 0; i < count; i++) {
+	let result = '';
+	for (let i = 0; i < count; i++) {
 		result += s;
 	}
 	return result;

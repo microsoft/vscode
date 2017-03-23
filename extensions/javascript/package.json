@@ -1,106 +1,125 @@
 {
-	"name": "javascript",
-	"version": "0.1.0",
-	"publisher": "vscode",
-	"engines": { "vscode": "0.10.x" },
-	"activationEvents": [
-		"onLanguage:javascript", "onLanguage:json"
-	],
-	"main": "./out/javascriptMain",
-	"dependencies": {
-		"vscode-nls": "^1.0.4",
-		"request-light": "^0.1.0",
-		"jsonc-parser": "^0.2.2"
-	},
-	"scripts": {
-		"compile": "gulp compile-extension:javascript",
-		"watch": "gulp watch-extension:javascript"
-	},
-	"contributes": {
-		"languages": [
-			{
-				"id": "javascriptreact",
-				"aliases": [
-					"JavaScript React",
-					"jsx"
-				],
-				"extensions": [
-					".jsx"
-				],
-				"configuration": "./language-configuration.json"
-			},
-			{
-				"id": "javascript",
-				"aliases": [
-					"JavaScript",
-					"javascript",
-					"js"
-				],
-				"extensions": [
-					".js",
-					".es6"
-				],
-				"filenames": [
-					"jakefile"
-				],
-				"firstLine": "^#!.*\\bnode",
-				"mimetypes": [
-					"text/javascript"
-				],
-				"configuration": "./language-configuration.json"
-			}
-		],
-		"grammars": [
-			{
-				"language": "javascriptreact",
-				"scopeName": "source.js",
-				"path": "./syntaxes/JavaScript.tmLanguage.json"
-			},
-			{
-				"language": "javascript",
-				"scopeName": "source.js",
-				"path": "./syntaxes/JavaScript.tmLanguage.json"
-			},
-			{
-				"scopeName": "source.js.regexp",
-				"path": "./syntaxes/Regular Expressions (JavaScript).tmLanguage"
-			}
-		],
-		"snippets": [
-			{
-				"language": "javascript",
-				"path": "./snippets/javascript.json"
-			},
-			{
-				"language": "javascriptreact",
-				"path": "./snippets/javascriptreact.json"
-			}
-		],
-		"jsonValidation": [
-			{
-				"fileMatch": "package.json",
-				"url": "http://json.schemastore.org/package"
-			},
-			{
-				"fileMatch": "bower.json",
-				"url": "http://json.schemastore.org/bower"
-			},
-			{
-				"fileMatch": ".bower.json",
-				"url": "http://json.schemastore.org/bower"
-			},
-			{
-				"fileMatch": ".bowerrc",
-				"url": "http://json.schemastore.org/bowerrc"
-			},
-			{
-				"fileMatch": "jsconfig.json",
-				"url": "./schemas/jsconfig.schema.json"
-			},
-			{
-				"fileMatch": "jsconfig.json",
-				"url": "http://json.schemastore.org/jsconfig"
-			}
-		]
-	}
+  "name": "javascript",
+  "version": "0.1.0",
+  "publisher": "vscode",
+  "engines": {
+    "vscode": "0.10.x"
+  },
+  "activationEvents": [
+    "onLanguage:javascript",
+    "onLanguage:json"
+  ],
+  "main": "./out/javascriptMain",
+  "dependencies": {
+    "jsonc-parser": "^0.3.1",
+    "request-light": "^0.2.0",
+    "vscode-nls": "^2.0.2"
+  },
+  "scripts": {
+    "compile": "gulp compile-extension:javascript",
+    "watch": "gulp watch-extension:javascript"
+  },
+  "contributes": {
+    "languages": [
+      {
+        "id": "javascriptreact",
+        "aliases": [
+          "JavaScript React",
+          "jsx"
+        ],
+        "extensions": [
+          ".jsx"
+        ],
+        "configuration": "./javascript-language-configuration.json"
+      },
+      {
+        "id": "javascript",
+        "aliases": [
+          "JavaScript",
+          "javascript",
+          "js"
+        ],
+        "extensions": [
+          ".js",
+          ".es6"
+        ],
+        "filenames": [
+          "jakefile"
+        ],
+        "firstLine": "^#!.*\\bnode",
+        "mimetypes": [
+          "text/javascript"
+        ],
+        "configuration": "./javascript-language-configuration.json"
+      },
+      {
+        "id": "jsx-tags",
+        "aliases": [],
+        "configuration": "./tags-language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "javascriptreact",
+        "scopeName": "source.js",
+        "path": "./syntaxes/JavaScript.tmLanguage.json",
+        "embeddedLanguages": {
+          "meta.tag.js": "jsx-tags",
+          "meta.tag.without-attributes.js": "jsx-tags"
+        }
+      },
+      {
+        "language": "javascript",
+        "scopeName": "source.js",
+        "path": "./syntaxes/JavaScript.tmLanguage.json",
+        "embeddedLanguages": {
+          "meta.tag.js": "jsx-tags",
+          "meta.tag.without-attributes.js": "jsx-tags"
+        }
+      },
+      {
+        "scopeName": "source.js.regexp",
+        "path": "./syntaxes/Regular Expressions (JavaScript).tmLanguage"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "javascript",
+        "path": "./snippets/javascript.json"
+      },
+      {
+        "language": "javascriptreact",
+        "path": "./snippets/javascriptreact.json"
+      }
+    ],
+    "jsonValidation": [
+      {
+        "fileMatch": "package.json",
+        "url": "http://json.schemastore.org/package"
+      },
+      {
+        "fileMatch": "bower.json",
+        "url": "http://json.schemastore.org/bower"
+      },
+      {
+        "fileMatch": ".bower.json",
+        "url": "http://json.schemastore.org/bower"
+      },
+      {
+        "fileMatch": ".bowerrc",
+        "url": "http://json.schemastore.org/bowerrc"
+      },
+      {
+        "fileMatch": "jsconfig.json",
+        "url": "./schemas/jsconfig.schema.json"
+      },
+      {
+        "fileMatch": "jsconfig.json",
+        "url": "http://json.schemastore.org/jsconfig"
+      }
+    ]
+  },
+  "devDependencies": {
+    "@types/node": "^7.0.4"
+  }
 }

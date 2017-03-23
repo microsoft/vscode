@@ -7,23 +7,10 @@
 /**
  * Returns the last element of an array.
  * @param array The array.
- * @param n Which element from the end (default ist zero).
+ * @param n Which element from the end (default is zero).
  */
 export function tail<T>(array: T[], n: number = 0): T {
 	return array[array.length - (1 + n)];
-}
-
-/**
- * Iterates the provided array and allows to remove
- * elements while iterating.
- */
-export function forEach<T>(array: T[], callback: (element: T, remove: Function) => void): void {
-	for (var i = 0, len = array.length; i < len; i++) {
-		callback(array[i], function () {
-			array.splice(i, 1);
-			i--; len--;
-		});
-	}
 }
 
 export function equals<T>(one: T[], other: T[], itemEquals: (a: T, b: T) => boolean = (a, b) => a === b): boolean {
@@ -31,7 +18,7 @@ export function equals<T>(one: T[], other: T[], itemEquals: (a: T, b: T) => bool
 		return false;
 	}
 
-	for (var i = 0, len = one.length; i < len; i++) {
+	for (let i = 0, len = one.length; i < len; i++) {
 		if (!itemEquals(one[i], other[i])) {
 			return false;
 		}
@@ -80,6 +67,52 @@ export function findFirst<T>(array: T[], p: (x: T) => boolean): number {
 }
 
 /**
+ * Takes two *sorted* arrays and computes their delta (removed, added elements).
+ * Finishes in `Math.min(before.length, after.length)` steps.
+ * @param before
+ * @param after
+ * @param compare
+ */
+export function delta<T>(before: T[], after: T[], compare: (a: T, b: T) => number) {
+
+	const removed: T[] = [];
+	const added: T[] = [];
+
+	let beforeIdx = 0;
+	let afterIdx = 0;
+
+	while (true) {
+		if (beforeIdx === before.length) {
+			added.push(...after.slice(afterIdx));
+			break;
+		}
+		if (afterIdx === after.length) {
+			removed.push(...before.slice(beforeIdx));
+			break;
+		}
+
+		const beforeElement = before[beforeIdx];
+		const afterElement = after[afterIdx];
+		const n = compare(beforeElement, afterElement);
+		if (n === 0) {
+			// equal
+			beforeIdx += 1;
+			afterIdx += 1;
+		} else if (n < 0) {
+			// beforeElement is smaller -> before element removed
+			removed.push(beforeElement);
+			beforeIdx += 1;
+		} else if (n > 0) {
+			// beforeElement is greater -> after element added
+			added.push(afterElement);
+			afterIdx += 1;
+		}
+	}
+
+	return { removed, added };
+}
+
+/**
  * Returns the top N elements from the array.
  *
  * Faster than sorting the entire array when the array is a lot larger than N.
@@ -105,29 +138,6 @@ export function top<T>(array: T[], compare: (a: T, b: T) => number, n: number): 
 	return result;
 }
 
-export function merge<T>(arrays: T[][], hashFn?: (element: T) => string): T[] {
-	const result = new Array<T>();
-	if (!hashFn) {
-		for (let i = 0, len = arrays.length; i < len; i++) {
-			result.push.apply(result, arrays[i]);
-		}
-	} else {
-		const map: { [k: string]: boolean } = {};
-		for (let i = 0; i < arrays.length; i++) {
-			for (let j = 0; j < arrays[i].length; j++) {
-				let element = arrays[i][j],
-					hash = hashFn(element);
-
-				if (!map.hasOwnProperty(hash)) {
-					map[hash] = true;
-					result.push(element);
-				}
-			}
-		}
-	}
-	return result;
-}
-
 /**
  * @returns a new array with all undefined or null values removed. The original array is not modified at all.
  */
@@ -137,24 +147,6 @@ export function coalesce<T>(array: T[]): T[] {
 	}
 
 	return array.filter(e => !!e);
-}
-
-/**
- * @returns true if the given item is contained in the array.
- */
-export function contains<T>(array: T[], item: T): boolean {
-	return array.indexOf(item) >= 0;
-}
-
-/**
- * Swaps the elements in the array for the provided positions.
- */
-export function swap(array: any[], pos1: number, pos2: number): void {
-	const element1 = array[pos1];
-	const element2 = array[pos2];
-
-	array[pos1] = element2;
-	array[pos2] = element1;
 }
 
 /**
@@ -231,7 +223,7 @@ export function first<T>(array: T[], fn: (item: T) => boolean, notFoundValue: T 
 export function commonPrefixLength<T>(one: T[], other: T[], equals: (a: T, b: T) => boolean = (a, b) => a === b): number {
 	let result = 0;
 
-	for (var i = 0, len = Math.min(one.length, other.length); i < len && equals(one[i], other[i]); i++) {
+	for (let i = 0, len = Math.min(one.length, other.length); i < len && equals(one[i], other[i]); i++) {
 		result++;
 	}
 
@@ -243,7 +235,7 @@ export function flatten<T>(arr: T[][]): T[] {
 }
 
 export function range(to: number, from = 0): number[] {
-	const result = [];
+	const result: number[] = [];
 
 	for (let i = from; i < to; i++) {
 		result.push(i);

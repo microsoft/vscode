@@ -8,6 +8,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import Event from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
 export interface IBaselineResourceProvider {
@@ -16,10 +17,50 @@ export interface IBaselineResourceProvider {
 
 export const ISCMService = createDecorator<ISCMService>('scm');
 
+export interface ISCMResourceDecorations {
+	icon?: URI;
+	iconDark?: URI;
+	strikeThrough?: boolean;
+}
+
+export interface ISCMResource {
+	readonly resourceGroupId: string;
+	readonly uri: URI;
+	readonly decorations: ISCMResourceDecorations;
+}
+
+export interface ISCMResourceGroup {
+	readonly id: string;
+	readonly label: string;
+	readonly resources: ISCMResource[];
+}
+
+export interface ISCMProvider extends IDisposable {
+	readonly id: string;
+	readonly label: string;
+	readonly resources: ISCMResourceGroup[];
+	readonly onDidChange: Event<ISCMResourceGroup[]>;
+	readonly count?: number;
+	readonly state?: string;
+
+	open(uri: ISCMResource): TPromise<void>;
+	acceptChanges(): TPromise<void>;
+	drag(from: ISCMResource, to: ISCMResourceGroup): TPromise<void>;
+	getOriginalResource(uri: URI): TPromise<URI>;
+}
+
+export interface ISCMInput {
+	value: string;
+	readonly onDidChange: Event<string>;
+}
+
 export interface ISCMService {
 
-	_serviceBrand: any;
+	readonly _serviceBrand: any;
+	readonly onDidChangeProvider: Event<ISCMProvider>;
+	readonly providers: ISCMProvider[];
+	readonly input: ISCMInput;
+	activeProvider: ISCMProvider | undefined;
 
-	getBaselineResource(resource: URI): TPromise<URI>;
-	registerBaselineResourceProvider(provider: IBaselineResourceProvider): IDisposable;
+	registerSCMProvider(provider: ISCMProvider): IDisposable;
 }

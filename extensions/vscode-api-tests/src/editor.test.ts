@@ -6,7 +6,8 @@
 'use strict';
 
 import * as assert from 'assert';
-import { workspace, window, Position, Range, commands, TextEditor, TextDocument } from 'vscode';
+import { join } from 'path';
+import { workspace, window, Position, Range, commands, TextEditor, TextDocument, TextEditorCursorStyle, TextEditorLineNumbersStyle, SnippetString, Selection, ViewColumn } from 'vscode';
 import { createRandomFile, deleteFile, cleanUp } from './utils';
 
 suite('editor tests', () => {
@@ -33,6 +34,58 @@ suite('editor tests', () => {
 		});
 	}
 
+	test('insert snippet', () => {
+		const snippetString = new SnippetString()
+			.appendText('This is a ')
+			.appendTabstop()
+			.appendPlaceholder('placeholder')
+			.appendText(' snippet');
+
+		return withRandomFileEditor('', (editor, doc) => {
+			return editor.insertSnippet(snippetString).then(inserted => {
+				assert.ok(inserted);
+				assert.equal(doc.getText(), 'This is a placeholder snippet');
+				assert.ok(doc.isDirty);
+			});
+		});
+	});
+
+	test('insert snippet with replacement, editor selection', () => {
+		const snippetString = new SnippetString()
+			.appendText('has been');
+
+		return withRandomFileEditor('This will be replaced', (editor, doc) => {
+			editor.selection = new Selection(
+				new Position(0, 5),
+				new Position(0, 12)
+			);
+
+			return editor.insertSnippet(snippetString).then(inserted => {
+				assert.ok(inserted);
+				assert.equal(doc.getText(), 'This has been replaced');
+				assert.ok(doc.isDirty);
+			});
+		});
+	});
+
+	test('insert snippet with replacement, selection as argument', () => {
+		const snippetString = new SnippetString()
+			.appendText('has been');
+
+		return withRandomFileEditor('This will be replaced', (editor, doc) => {
+			const selection = new Selection(
+				new Position(0, 5),
+				new Position(0, 12)
+			);
+
+			return editor.insertSnippet(snippetString, selection).then(inserted => {
+				assert.ok(inserted);
+				assert.equal(doc.getText(), 'This has been replaced');
+				assert.ok(doc.isDirty);
+			});
+		});
+	});
+
 	test('make edit', () => {
 		return withRandomFileEditor('', (editor, doc) => {
 			return editor.edit((builder) => {
@@ -54,6 +107,66 @@ suite('editor tests', () => {
 				assert.equal(doc.getText(), 'new');
 				assert.ok(doc.isDirty);
 			});
+		});
+	});
+
+	test('issue #20867: vscode.window.visibleTextEditors returns closed document 1/2', () => {
+
+		return withRandomFileEditor('Hello world!', editor => {
+
+			const p = new Promise((resolve, reject) => {
+				const sub = workspace.onDidCloseTextDocument(doc => {
+					try {
+						sub.dispose();
+						assert.ok(window.activeTextEditor === undefined);
+						assert.equal(window.visibleTextEditors.length, 0);
+						resolve();
+					} catch (e) {
+						reject(e);
+					}
+				});
+			});
+
+			return Promise.all([
+				commands.executeCommand('workbench.action.closeAllEditors'),
+				p
+			]).then(() => undefined);
+		});
+	});
+
+	test('issue #20867: vscode.window.visibleTextEditors returns closed document 2/2', () => {
+
+		const file10Path = join(workspace.rootPath || '', './10linefile.ts');
+		const file30Path = join(workspace.rootPath || '', './30linefile.ts');
+
+		return Promise.all([
+			workspace.openTextDocument(file10Path),
+			workspace.openTextDocument(file30Path)
+		]).then(docs => {
+			return Promise.all([
+				window.showTextDocument(docs[0], ViewColumn.One),
+				window.showTextDocument(docs[1], ViewColumn.Two),
+			]);
+		}).then(editors => {
+
+			const p = new Promise((resolve, reject) => {
+				const sub = workspace.onDidCloseTextDocument(doc => {
+					try {
+						sub.dispose();
+						assert.ok(window.activeTextEditor === editors[1]);
+						assert.ok(window.visibleTextEditors[0] === editors[1]);
+						assert.equal(window.visibleTextEditors.length, 1);
+						resolve();
+					} catch (e) {
+						reject(e);
+					}
+				});
+			});
+
+			// hide doesn't what it means because it triggers a close event and because it
+			// detached the editor. For this test that's what we want.
+			editors[0].hide();
+			return p;
 		});
 	});
 
@@ -96,6 +209,34 @@ suite('editor tests', () => {
 			}).then(_ => {
 				assert.equal(doc.getText(), 'hello world!');
 			});
+		});
+	});
+
+	test('issue #16573: Extension API: insertSpaces and tabSize are undefined', () => {
+		return withRandomFileEditor('Hello world!\n\tHello world!', (editor, doc) => {
+
+			assert.equal(editor.options.tabSize, 4);
+			assert.equal(editor.options.insertSpaces, false);
+			assert.equal(editor.options.cursorStyle, TextEditorCursorStyle.Line);
+			assert.equal(editor.options.lineNumbers, TextEditorLineNumbersStyle.On);
+
+			editor.options = {
+				tabSize: 2
+			};
+
+			assert.equal(editor.options.tabSize, 2);
+			assert.equal(editor.options.insertSpaces, false);
+			assert.equal(editor.options.cursorStyle, TextEditorCursorStyle.Line);
+			assert.equal(editor.options.lineNumbers, TextEditorLineNumbersStyle.On);
+
+			editor.options.tabSize = 'invalid';
+
+			assert.equal(editor.options.tabSize, 2);
+			assert.equal(editor.options.insertSpaces, false);
+			assert.equal(editor.options.cursorStyle, TextEditorCursorStyle.Line);
+			assert.equal(editor.options.lineNumbers, TextEditorLineNumbersStyle.On);
+
+			return Promise.resolve();
 		});
 	});
 });

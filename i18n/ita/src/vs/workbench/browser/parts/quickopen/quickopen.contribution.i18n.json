@@ -6,5 +6,7 @@
 {
 	"quickNavigateNext": "Passa a successiva in Quick Open",
 	"quickNavigatePrevious": "Passa a precedente in Quick Open",
-	"quickOpen": "Vai al file..."
+	"quickOpen": "Vai al file...",
+	"quickSelectNext": "Seleziona successiva in Quick Open",
+	"quickSelectPrevious": "Seleziona precedente in Quick Open"
 }

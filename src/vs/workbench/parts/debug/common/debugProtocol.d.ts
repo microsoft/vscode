@@ -71,8 +71,12 @@ declare module DebugProtocol {
 	export interface StoppedEvent extends Event {
 		// event: 'stopped';
 		body: {
-			/** The reason for the event (such as: 'step', 'breakpoint', 'exception', 'pause'). This string is shown in the UI. */
+			/** The reason for the event (such as: 'step', 'breakpoint', 'exception', 'pause', 'entry').
+				For backward compatibility this string is shown in the UI if the 'description' attribute is missing (but it must not be translated).
+			*/
 			reason: string;
+			/** The full reason for the event, e.g. 'Paused on exception'. This string is shown in the UI as is. */
+			description?: string;
 			/** The thread which was stopped. */
 			threadId?: number;
 			/** Additional information. E.g. if reason is 'exception', text contains the exception name. This string is shown in the UI. */
@@ -224,7 +228,9 @@ declare module DebugProtocol {
 
 	/** Arguments for 'initialize' request. */
 	export interface InitializeRequestArguments {
-		/** The ID of the debugger adapter. Used to select or verify debugger adapter. */
+		/** The ID of the (frontend) client using this adapter. */
+		clientID?: string;
+		/** The ID of the debug adapter. */
 		adapterID: string;
 		/** If true all line numbers are 1-based (default). */
 		linesStartAt1?: boolean;
@@ -696,6 +702,8 @@ declare module DebugProtocol {
 		name: string;
 		/** The value of the variable. */
 		value: string;
+		/** Specifies details on how to format the response value. */
+		format?: ValueFormat;
 	}
 
 	/** Response to 'setVariable' request. */
@@ -728,7 +736,9 @@ declare module DebugProtocol {
 
 	/** Arguments for 'source' request. */
 	export interface SourceArguments {
-		/** The reference to the source. This is the value received in Source.reference. */
+		/** Specifies the source content to load. Either source.path or source.sourceReference must be specified. */
+		source?: Source;
+		/** The reference to the source. This is the same as source.sourceReference. This is provided for backward compatibility since old backends do not understand the 'source' attribute. */
 		sourceReference: number;
 	}
 
@@ -903,6 +913,34 @@ declare module DebugProtocol {
 		};
 	}
 
+	/** ExceptionInfoRequest request; value of command field is 'exceptionInfo'.
+		Retrieves the details of the exception that caused the StoppedEvent to be raised.
+	*/
+	export interface ExceptionInfoRequest extends Request {
+		// command: 'exceptionInfo';
+		arguments: ExceptionInfoArguments;
+	}
+
+	/** Arguments for 'exceptionInfo' request. */
+	export interface ExceptionInfoArguments {
+		/** Thread for which exception information should be retrieved. */
+		threadId: number;
+	}
+
+	/** Response to 'exceptionInfo' request. */
+	export interface ExceptionInfoResponse extends Response {
+		body: {
+			/** ID of the exception that was thrown. */
+			exceptionId: string;
+			/** Descriptive text for the exception provided by the debug adapter. */
+			description?: string;
+			/** Mode that caused the exception notification to be raised. */
+			breakMode: ExceptionBreakMode;
+			/** Detailed information about the exception. */
+			details?: ExceptionDetails;
+		};
+	}
+
 	/** Information about the capabilities of a debug adapter. */
 	export interface Capabilities {
 		/** The debug adapter supports the configurationDoneRequest. */
@@ -941,6 +979,8 @@ declare module DebugProtocol {
 		supportsExceptionOptions?: boolean;
 		/** The debug adapter supports a 'format' attribute on the stackTraceRequest, variablesRequest, and evaluateRequest. */
 		supportsValueFormattingOptions?: boolean;
+		/** The debug adapter supports the exceptionInfo request. */
+		supportsExceptionInfoRequest?: boolean;
 	}
 
 	/** An ExceptionBreakpointsFilter is shown in the UI as an option for configuring how exceptions are dealt with. */
@@ -1042,12 +1082,14 @@ declare module DebugProtocol {
 
 	/** A Source is a descriptor for source code. It is returned from the debug adapter as part of a StackFrame and it is used by clients when specifying breakpoints. */
 	export interface Source {
-		/** The short name of the source. Every source returned from the debug adapter has a name. When specifying a source to the debug adapter this name is optional. */
+		/** The short name of the source. Every source returned from the debug adapter has a name. When sending a source to the debug adapter this name is optional. */
 		name?: string;
-		/** The long (absolute) path of the source. It is not guaranteed that the source exists at this location. */
+		/** The path of the source to be shown in the UI. It is only used to locate and load the content of the source if no sourceReference is specified (or its vaule is 0). */
 		path?: string;
-		/** If sourceReference > 0 the contents of the source can be retrieved through the SourceRequest. A sourceReference is only valid for a session, so it must not be used to persist a source. */
+		/** If sourceReference > 0 the contents of the source must be retrieved through the SourceRequest (even if a path is specified). A sourceReference is only valid for a session, so it must not be used to persist a source. */
 		sourceReference?: number;
+		/** An optional hint for how to present the source in the UI. A value of 'deemphasize' can be used to indicate that the source is not available or that it is skipped on stepping. */
+		presentationHint?: 'emphasize' | 'deemphasize';
 		/** The (optional) origin of this source: possible values 'internal module', 'inlined content from source map', etc. */
 		origin?: string;
 		/** Optional data that a debug adapter might want to loop through the client. The client should leave the data intact and persist it across sessions. The client should not interpret the data. */
@@ -1074,6 +1116,8 @@ declare module DebugProtocol {
 		endColumn?: number;
 		/** The module associated with this frame, if any. */
 		moduleId?: number | string;
+		/** An optional hint for how to present this frame in the UI. A value of 'label' can be used to indicate that the frame is an artificial frame that is used as a visual label or separator. */
+		presentationHint?: 'normal' | 'label';
 	}
 
 	/** A Scope is a named container for variables. Optionally a scope can map to a source or a range within a source. */
@@ -1210,10 +1254,13 @@ declare module DebugProtocol {
 		text?: string;
 		/** The item's type. Typically the client uses this information to render the item in the UI with an icon. */
 		type?: CompletionItemType;
-		/** When a completion is selected it replaces 'length' characters starting at 'start' in the text passed to the CompletionsRequest.
-			If missing the frontend will try to determine these values heuristically.
+		/** This value determines the location (in the CompletionsRequest's 'text' attribute) where the completion text is added.
+			If missing the text is added at the location specified by the CompletionsRequest's 'column' attribute.
 		*/
 		start?: number;
+		/** This value determines how many characters are overwritten by the completion text.
+			If missing the value 0 is assumed which results in the completion text being inserted.
+		*/
 		length?: number;
 	}
 
@@ -1221,7 +1268,7 @@ declare module DebugProtocol {
 	export type CompletionItemType = 'method' | 'function' | 'constructor' | 'field' | 'variable' | 'class' | 'interface' | 'module' | 'property' | 'unit' | 'value' | 'enum' | 'keyword' | 'snippet' | 'text' | 'color' | 'file' | 'reference' | 'customcolor';
 
 	/** Names of checksum algorithms that may be supported by a debug adapter. */
-	export type ChecksumAlgorithm = 'MD5' | 'SHA1' | 'SHA256' | 'SHA1Normalized' | 'SHA256Normalized' | 'timestamp';
+	export type ChecksumAlgorithm = 'MD5' | 'SHA1' | 'SHA256' | 'timestamp';
 
 	/** The checksum of an item calculated by the specified algorithm. */
 	export interface Checksum {
@@ -1275,6 +1322,22 @@ declare module DebugProtocol {
 		negate?: boolean;
 		/** Depending on the value of 'negate' the names that should match or not match. */
 		names: string[];
+	}
+
+	/** Detailed information about an exception that has occurred. */
+	export interface ExceptionDetails {
+		/** Message contained in the exception. */
+		message?: string;
+		/** Short type name of the exception object. */
+		typeName?: string;
+		/** Fully-qualified type name of the exception object. */
+		fullTypeName?: string;
+		/** Optional expression that can be evaluated in the current scope to obtain the exception object. */
+		evaluateName?: string;
+		/** Stack trace at the time the exception was thrown. */
+		stackTrace?: string;
+		/** Details of the exception contained by this exception, if any. */
+		innerException?: ExceptionDetails[];
 	}
 }
 

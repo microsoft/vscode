@@ -8,7 +8,6 @@ import 'vs/css!./quickopen';
 import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
 import platform = require('vs/base/common/platform');
-import browser = require('vs/base/browser/browser');
 import { EventType } from 'vs/base/common/events';
 import types = require('vs/base/common/types');
 import errors = require('vs/base/common/errors');
@@ -43,6 +42,7 @@ export interface IQuickOpenOptions {
 	inputPlaceHolder: string;
 	inputAriaLabel?: string;
 	actionProvider?: IActionProvider;
+	keyboardSupport?: boolean;
 }
 
 export interface IShowOptions {
@@ -182,11 +182,6 @@ export class QuickOpenWidget implements IModelProvider {
 							this.elementSelected(focus, e, shouldOpenInBackground ? Mode.OPEN_IN_BACKGROUND : Mode.OPEN);
 						}
 					}
-
-					// Bug in IE 9: onInput is not fired for Backspace or Delete keys
-					else if (browser.isIE9 && (keyboardEvent.keyCode === KeyCode.Backspace || keyboardEvent.keyCode === KeyCode.Delete)) {
-						this.onType();
-					}
 				});
 
 				DOM.addDisposableListener(this.inputBox.inputElement, DOM.EventType.INPUT, (e: Event) => {
@@ -200,7 +195,7 @@ export class QuickOpenWidget implements IModelProvider {
 			}, (div: Builder) => {
 				this.tree = new Tree(div.getHTMLElement(), {
 					dataSource: new DataSource(this),
-					controller: new QuickOpenController({ clickBehavior: ClickBehavior.ON_MOUSE_UP }),
+					controller: new QuickOpenController({ clickBehavior: ClickBehavior.ON_MOUSE_UP, keyboardSupport: this.options.keyboardSupport }),
 					renderer: new Renderer(this),
 					filter: new Filter(this),
 					accessibilityProvider: new AccessibilityProvider(this)
@@ -209,7 +204,8 @@ export class QuickOpenWidget implements IModelProvider {
 						indentPixels: 0,
 						alwaysFocused: true,
 						verticalScrollMode: ScrollbarVisibility.Visible,
-						ariaLabel: nls.localize('treeAriaLabel', "Quick Picker")
+						ariaLabel: nls.localize('treeAriaLabel', "Quick Picker"),
+						keyboardSupport: this.options.keyboardSupport
 					});
 
 				this.treeElement = this.tree.getHTMLElement();
@@ -252,7 +248,11 @@ export class QuickOpenWidget implements IModelProvider {
 					// Select element when keys are pressed that signal it
 					const quickNavKeys = this.quickNavigateConfiguration.keybindings;
 					const wasTriggerKeyPressed = keyCode === KeyCode.Enter || quickNavKeys.some((k) => {
-						if (k.hasShift() && keyCode === KeyCode.Shift) {
+						if (k.isChord()) {
+							return false;
+						}
+
+						if (k.hasShiftModifier() && keyCode === KeyCode.Shift) {
 							if (keyboardEvent.ctrlKey || keyboardEvent.altKey || keyboardEvent.metaKey) {
 								return false; // this is an optimistic check for the shift key being used to navigate back in quick open
 							}
@@ -260,30 +260,16 @@ export class QuickOpenWidget implements IModelProvider {
 							return true;
 						}
 
-						if (k.hasAlt() && keyCode === KeyCode.Alt) {
+						if (k.hasAltModifier() && keyCode === KeyCode.Alt) {
 							return true;
 						}
 
-						// Mac is a bit special
-						if (platform.isMacintosh) {
-							if (k.hasCtrlCmd() && keyCode === KeyCode.Meta) {
-								return true;
-							}
-
-							if (k.hasWinCtrl() && keyCode === KeyCode.Ctrl) {
-								return true;
-							}
+						if (k.hasCtrlModifier() && keyCode === KeyCode.Ctrl) {
+							return true;
 						}
 
-						// Windows/Linux are not :)
-						else {
-							if (k.hasCtrlCmd() && keyCode === KeyCode.Ctrl) {
-								return true;
-							}
-
-							if (k.hasWinCtrl() && keyCode === KeyCode.Meta) {
-								return true;
-							}
+						if (k.hasMetaModifier() && keyCode === KeyCode.Meta) {
+							return true;
 						}
 
 						return false;
@@ -301,7 +287,6 @@ export class QuickOpenWidget implements IModelProvider {
 
 			// Widget Attributes
 			.addClass('quick-open-widget')
-			.addClass((browser.isIE10orEarlier) ? ' no-shadow' : '')
 			.build(this.container);
 
 		// Support layout
@@ -340,12 +325,12 @@ export class QuickOpenWidget implements IModelProvider {
 		this.callbacks.onType(value);
 	}
 
-	public quickNavigate(configuration: IQuickNavigateConfiguration, next: boolean): void {
+	public navigate(next: boolean, quickNavigate?: IQuickNavigateConfiguration): void {
 		if (this.isVisible) {
 
 			// Transition into quick navigate mode if not yet done
-			if (!this.quickNavigateConfiguration) {
-				this.quickNavigateConfiguration = configuration;
+			if (!this.quickNavigateConfiguration && quickNavigate) {
+				this.quickNavigateConfiguration = quickNavigate;
 				this.tree.DOMFocus();
 			}
 
@@ -608,12 +593,8 @@ export class QuickOpenWidget implements IModelProvider {
 			// Indicate entries to tree
 			this.tree.layout();
 
-			let doAutoFocus = autoFocus && input && input.entries.some(e => this.isElementVisible(input, e));
-			if (doAutoFocus && !autoFocus.autoFocusPrefixMatch) {
-				doAutoFocus = !this.tree.getFocus(); // if auto focus is not for prefix matches, we do not want to change what the user has focussed already
-			}
-
 			// Handle auto focus
+			let doAutoFocus = autoFocus && input && input.entries.some(e => this.isElementVisible(input, e));
 			if (doAutoFocus) {
 				this.autoFocus(input, autoFocus);
 			}
@@ -765,6 +746,10 @@ export class QuickOpenWidget implements IModelProvider {
 
 	public getInput(): IModel<any> {
 		return this.tree.getInput();
+	}
+
+	public getTree(): ITree {
+		return this.tree;
 	}
 
 	public showInputDecoration(decoration: Severity): void {

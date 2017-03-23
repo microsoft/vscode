@@ -10,11 +10,11 @@ import { DataSource } from 'vs/base/parts/quickopen/browser/quickOpenViewer';
 
 suite('QuickOpen', () => {
 	test('QuickOpenModel', () => {
-		var model = new QuickOpenModel();
+		const model = new QuickOpenModel();
 
-		var entry1 = new QuickOpenEntry();
-		var entry2 = new QuickOpenEntry();
-		var entry3 = new QuickOpenEntryGroup();
+		const entry1 = new QuickOpenEntry();
+		const entry2 = new QuickOpenEntry();
+		const entry3 = new QuickOpenEntryGroup();
 
 		assert.notEqual(entry1.getId(), entry2.getId());
 		assert.notEqual(entry2.getId(), entry3.getId());
@@ -31,15 +31,15 @@ suite('QuickOpen', () => {
 	});
 
 	test('QuickOpenDataSource', () => {
-		var model = new QuickOpenModel();
+		const model = new QuickOpenModel();
 
-		var entry1 = new QuickOpenEntry();
-		var entry2 = new QuickOpenEntry();
-		var entry3 = new QuickOpenEntryGroup();
+		const entry1 = new QuickOpenEntry();
+		const entry2 = new QuickOpenEntry();
+		const entry3 = new QuickOpenEntryGroup();
 
 		model.addEntries([entry1, entry2, entry3]);
 
-		var ds = new DataSource(model);
+		const ds = new DataSource(model);
 		assert.equal(entry1.getId(), ds.getId(null, entry1));
 		assert.equal(true, ds.hasChildren(null, model));
 		assert.equal(false, ds.hasChildren(null, entry1));

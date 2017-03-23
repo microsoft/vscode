@@ -5,8 +5,10 @@
 'use strict';
 
 import 'vs/css!./media/editor';
+import 'vs/editor/common/view/editorColorRegistry'; // initialze editor theming partcicpants
 import 'vs/css!./media/tokens';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { TPromise } from 'vs/base/common/winjs.base';
 import { IEventEmitter } from 'vs/base/common/eventEmitter';
 import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
@@ -33,6 +35,8 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 
 	public readonly onMouseUp: Event<editorBrowser.IEditorMouseEvent> = fromEventEmitter(this, editorCommon.EventType.MouseUp);
 	public readonly onMouseDown: Event<editorBrowser.IEditorMouseEvent> = fromEventEmitter(this, editorCommon.EventType.MouseDown);
+	public readonly onMouseDrag: Event<editorBrowser.IEditorMouseEvent> = fromEventEmitter(this, editorCommon.EventType.MouseDrag);
+	public readonly onMouseDrop: Event<editorBrowser.IEditorMouseEvent> = fromEventEmitter(this, editorCommon.EventType.MouseDrop);
 	public readonly onContextMenu: Event<editorBrowser.IEditorMouseEvent> = fromEventEmitter(this, editorCommon.EventType.ContextMenu);
 	public readonly onMouseMove: Event<editorBrowser.IEditorMouseEvent> = fromEventEmitter(this, editorCommon.EventType.MouseMove);
 	public readonly onMouseLeave: Event<editorBrowser.IEditorMouseEvent> = fromEventEmitter(this, editorCommon.EventType.MouseLeave);
@@ -92,7 +96,18 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		}
 
 		this._getActions().forEach((action) => {
-			let internalAction = new InternalEditorAction(action, this, this._instantiationService, this._contextKeyService);
+			const internalAction = new InternalEditorAction(
+				action.id,
+				action.label,
+				action.alias,
+				action.precondition,
+				(): void | TPromise<void> => {
+					return this._instantiationService.invokeFunction((accessor) => {
+						return action.runEditorCommand(accessor, this, null);
+					});
+				},
+				this._contextKeyService
+			);
 			this._actions[internalAction.id] = internalAction;
 		});
 
@@ -131,10 +146,11 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 			return '';
 		}
 		let content = model.getLineContent(lineNumber);
-		let tokens = model.getLineTokens(lineNumber, false);
+		model.forceTokenization(lineNumber);
+		let tokens = model.getLineTokens(lineNumber);
 		let inflatedTokens = tokens.inflate();
 		let tabSize = model.getOptions().tabSize;
-		return Colorizer.colorizeLine(content, inflatedTokens, tabSize);
+		return Colorizer.colorizeLine(content, model.mightContainRTL(), inflatedTokens, tabSize);
 	}
 	public getView(): editorBrowser.IView {
 		return this._view;
@@ -144,14 +160,14 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		if (!this.hasView) {
 			return null;
 		}
-		return this._view.domNode;
+		return this._view.domNode.domNode;
 	}
 
 	public getCenteredRangeInViewport(): Range {
 		if (!this.hasView) {
 			return null;
 		}
-		return this._view.getCenteredRangeInViewport();
+		return this.viewModel.getCenteredRangeInViewport();
 	}
 
 	public getCompletelyVisibleLinesRangeInViewport(): Range {
@@ -374,7 +390,6 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 
 	public changeViewZones(callback: (accessor: editorBrowser.IViewZoneChangeAccessor) => void): void {
 		if (!this.hasView) {
-			//			console.warn('Cannot change view zones on editor that is not attached to a model, since there is no view.');
 			return;
 		}
 		let hasChanges = this._view.change(callback);
@@ -402,6 +417,13 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 			return -1;
 		}
 		return this._view.getCodeEditorHelper().getVerticalOffsetForPosition(lineNumber, column);
+	}
+
+	public getTargetAtClientPoint(clientX: number, clientY: number): editorBrowser.IMouseTarget {
+		if (!this.hasView) {
+			return null;
+		}
+		return this._view.getCodeEditorHelper().getTargetAtClientPoint(clientX, clientY);
 	}
 
 	public getScrolledVisiblePosition(rawPosition: editorCommon.IPosition): { top: number; left: number; height: number; } {
@@ -460,25 +482,22 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		super._attachModel(model);
 
 		if (this._view) {
-			this.domElement.appendChild(this._view.domNode);
+			this.domElement.appendChild(this._view.domNode.domNode);
 
-			this._view.renderOnce(() => {
+			let keys = Object.keys(this.contentWidgets);
+			for (let i = 0, len = keys.length; i < len; i++) {
+				let widgetId = keys[i];
+				this._view.addContentWidget(this.contentWidgets[widgetId]);
+			}
 
-				let keys = Object.keys(this.contentWidgets);
-				for (let i = 0, len = keys.length; i < len; i++) {
-					let widgetId = keys[i];
-					this._view.addContentWidget(this.contentWidgets[widgetId]);
-				}
+			keys = Object.keys(this.overlayWidgets);
+			for (let i = 0, len = keys.length; i < len; i++) {
+				let widgetId = keys[i];
+				this._view.addOverlayWidget(this.overlayWidgets[widgetId]);
+			}
 
-				keys = Object.keys(this.overlayWidgets);
-				for (let i = 0, len = keys.length; i < len; i++) {
-					let widgetId = keys[i];
-					this._view.addOverlayWidget(this.overlayWidgets[widgetId]);
-				}
-
-				this._view.render(false, true);
-				this.hasView = true;
-			});
+			this._view.render(false, true);
+			this.hasView = true;
 		}
 	}
 
@@ -509,7 +528,7 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 
 		if (this._view) {
 			this._view.dispose();
-			removeDomNode = this._view.domNode;
+			removeDomNode = this._view.domNode.domNode;
 			this._view = null;
 		}
 

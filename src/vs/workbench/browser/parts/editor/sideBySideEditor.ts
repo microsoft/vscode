@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/sidebysideEditor';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as strings from 'vs/base/common/strings';
 import * as DOM from 'vs/base/browser/dom';
@@ -12,12 +11,13 @@ import { Dimension, Builder } from 'vs/base/browser/builder';
 import { Registry } from 'vs/platform/platform';
 import { IEditorRegistry, Extensions as EditorExtensions, EditorInput, EditorOptions, SideBySideEditorInput } from 'vs/workbench/common/editor';
 import { BaseEditor, EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { IEditorControl, Position } from 'vs/platform/editor/common/editor';
+import { IEditorControl, Position, IEditor } from 'vs/platform/editor/common/editor';
 import { VSash } from 'vs/base/browser/ui/sash/sash';
 
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { EDITOR_SIDE_BY_SIDE_BORDER } from 'vs/workbench/common/theme';
 
 export class SideBySideEditor extends BaseEditor {
 
@@ -25,10 +25,10 @@ export class SideBySideEditor extends BaseEditor {
 
 	private dimension: Dimension;
 
-	private masterEditor: BaseEditor;
+	protected masterEditor: BaseEditor;
 	private masterEditorContainer: HTMLElement;
 
-	private detailsEditor: BaseEditor;
+	protected detailsEditor: BaseEditor;
 	private detailsEditorContainer: HTMLElement;
 
 	private sash: VSash;
@@ -36,34 +36,50 @@ export class SideBySideEditor extends BaseEditor {
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+		@IThemeService themeService: IThemeService
 	) {
-		super(SideBySideEditor.ID, telemetryService);
+		super(SideBySideEditor.ID, telemetryService, themeService);
 	}
 
-	public createEditor(parent: Builder): void {
+	protected createEditor(parent: Builder): void {
 		const parentElement = parent.getHTMLElement();
 		DOM.addClass(parentElement, 'side-by-side-editor');
 		this.createSash(parentElement);
 	}
 
 	public setInput(newInput: SideBySideEditorInput, options?: EditorOptions): TPromise<void> {
-		const oldInput = <SideBySideEditorInput>this.getInput();
+		const oldInput = <SideBySideEditorInput>this.input;
 		return super.setInput(newInput, options)
 			.then(() => this.updateInput(oldInput, newInput, options));
 	}
 
-	public setEditorVisible(visible: boolean, position: Position): void {
+	protected setEditorVisible(visible: boolean, position: Position): void {
 		if (this.masterEditor) {
-			this.masterEditor.setVisible(visible);
+			this.masterEditor.setVisible(visible, position);
 		}
 		if (this.detailsEditor) {
-			this.detailsEditor.setVisible(visible);
+			this.detailsEditor.setVisible(visible, position);
 		}
 		super.setEditorVisible(visible, position);
 	}
 
+	public changePosition(position: Position): void {
+		if (this.masterEditor) {
+			this.masterEditor.changePosition(position);
+		}
+		if (this.detailsEditor) {
+			this.detailsEditor.changePosition(position);
+		}
+		super.changePosition(position);
+	}
+
 	public clearInput(): void {
+		if (this.masterEditor) {
+			this.masterEditor.clearInput();
+		}
+		if (this.detailsEditor) {
+			this.detailsEditor.clearInput();
+		}
 		this.disposeEditors();
 		super.clearInput();
 	}
@@ -86,6 +102,14 @@ export class SideBySideEditor extends BaseEditor {
 		return null;
 	}
 
+	public getMasterEditor(): IEditor {
+		return this.masterEditor;
+	}
+
+	public getDetailsEditor(): IEditor {
+		return this.detailsEditor;
+	}
+
 	private updateInput(oldInput: SideBySideEditorInput, newInput: SideBySideEditorInput, options?: EditorOptions): TPromise<void> {
 		if (!newInput.matches(oldInput)) {
 			if (oldInput) {
@@ -96,17 +120,18 @@ export class SideBySideEditor extends BaseEditor {
 		} else {
 			this.detailsEditor.setInput(newInput.details);
 			this.masterEditor.setInput(newInput.master, options);
+			return undefined;
 		}
 	}
 
 	private setNewInput(newInput: SideBySideEditorInput, options?: EditorOptions): TPromise<void> {
 		return TPromise.join([
 			this._createEditor(<EditorInput>newInput.details, this.detailsEditorContainer),
-			this._createEditor(<EditorInput>newInput.master, this.masterEditorContainer, options)
-		]).then(result => this.onEditorsCreated(result[0], result[1]));
+			this._createEditor(<EditorInput>newInput.master, this.masterEditorContainer)
+		]).then(result => this.onEditorsCreated(result[0], result[1], newInput.details, newInput.master, options));
 	}
 
-	private _createEditor(editorInput: EditorInput, container: HTMLElement, options?: EditorOptions): TPromise<BaseEditor> {
+	private _createEditor(editorInput: EditorInput, container: HTMLElement): TPromise<BaseEditor> {
 		const descriptor = Registry.as<IEditorRegistry>(EditorExtensions.Editors).getEditor(editorInput);
 		if (!descriptor) {
 			return TPromise.wrapError(new Error(strings.format('Can not find a registered editor for the input {0}', editorInput)));
@@ -114,16 +139,16 @@ export class SideBySideEditor extends BaseEditor {
 		return this.instantiationService.createInstance(<EditorDescriptor>descriptor)
 			.then((editor: BaseEditor) => {
 				editor.create(new Builder(container));
-				return editor.setInput(editorInput, options).then(() => editor);
+				editor.setVisible(this.isVisible(), this.position);
+				return editor;
 			});
 	}
 
-	private onEditorsCreated(details: BaseEditor, master: BaseEditor): void {
+	private onEditorsCreated(details: BaseEditor, master: BaseEditor, detailsInput: EditorInput, masterInput: EditorInput, options: EditorOptions): TPromise<void> {
 		this.detailsEditor = details;
 		this.masterEditor = master;
-		this.setEditorVisible(this.isVisible(), this.position);
 		this.dolayout(this.sash.getVerticalSashLeft());
-		this.focus();
+		return TPromise.join([this.detailsEditor.setInput(detailsInput), this.masterEditor.setInput(masterInput, options)]).then(() => this.focus());
 	}
 
 	private createEditorContainers(): void {
@@ -132,6 +157,16 @@ export class SideBySideEditor extends BaseEditor {
 		this.detailsEditorContainer.style.position = 'absolute';
 		this.masterEditorContainer = DOM.append(parentElement, DOM.$('.master-editor-container'));
 		this.masterEditorContainer.style.position = 'absolute';
+
+		this.updateStyles();
+	}
+
+	protected updateStyles(): void {
+		super.updateStyles();
+
+		if (this.masterEditorContainer) {
+			this.masterEditorContainer.style.boxShadow = `-6px 0 5px -5px ${this.getColor(EDITOR_SIDE_BY_SIDE_BORDER)}`;
+		}
 	}
 
 	private createSash(parentElement: HTMLElement): void {
@@ -140,7 +175,7 @@ export class SideBySideEditor extends BaseEditor {
 	}
 
 	private dolayout(splitPoint: number): void {
-		if (!this.detailsEditor || !this.masterEditor) {
+		if (!this.detailsEditor || !this.masterEditor || !this.dimension) {
 			return;
 		}
 		const masterEditorWidth = this.dimension.width - splitPoint;
@@ -166,7 +201,7 @@ export class SideBySideEditor extends BaseEditor {
 		}
 		if (this.masterEditor) {
 			this.masterEditor.dispose();
-			this.detailsEditor = null;
+			this.masterEditor = null;
 		}
 		if (this.detailsEditorContainer) {
 			parentContainer.removeChild(this.detailsEditorContainer);
@@ -176,5 +211,10 @@ export class SideBySideEditor extends BaseEditor {
 			parentContainer.removeChild(this.masterEditorContainer);
 			this.masterEditorContainer = null;
 		}
+	}
+
+	public dispose(): void {
+		this.disposeEditors();
+		super.dispose();
 	}
 }

@@ -21,74 +21,7 @@ export interface INumberDictionary<V> {
 	[idx: number]: V;
 }
 
-export function createStringDictionary<V>(): IStringDictionary<V> {
-	return Object.create(null);
-}
-
-export function createNumberDictionary<V>(): INumberDictionary<V> {
-	return Object.create(null);
-}
-
-/**
- * Looks up and returns a property that is owned
- * by the provided map object.
- * @param what The key.
- * @param from A native JavaScript object that stores items.
- * @param alternate A default value this is return in case an item with
- * 	the key isn't found.
- */
-export function lookup<T>(from: IStringDictionary<T>, what: string, alternate?: T): T;
-export function lookup<T>(from: INumberDictionary<T>, what: number, alternate?: T): T;
-export function lookup<T>(from: any, what: any, alternate: T = null): T {
-	const key = String(what);
-	if (contains(from, key)) {
-		return from[key];
-	}
-	return alternate;
-}
-
-
-/**
- * Looks up a value from the set. If the set doesn't contain the
- * value it inserts and returns the given alternate value.
- */
-export function lookupOrInsert<T>(from: IStringDictionary<T>, key: string, alternate: T): T;
-export function lookupOrInsert<T>(from: IStringDictionary<T>, key: string, alternateFn: () => T): T;
-export function lookupOrInsert<T>(from: INumberDictionary<T>, key: number, alternate: T): T;
-export function lookupOrInsert<T>(from: INumberDictionary<T>, key: number, alternateFn: () => T): T;
-export function lookupOrInsert<T>(from: any, stringOrNumber: any, alternate: any): T {
-	const key = String(stringOrNumber);
-	if (contains(from, key)) {
-		return from[key];
-	} else {
-		if (typeof alternate === 'function') {
-			alternate = alternate();
-		}
-		from[key] = alternate;
-		return alternate;
-	}
-}
-
-/**
- * Inserts
- */
-export function insert<T>(into: IStringDictionary<T>, data: T, hashFn: (data: T) => string): void;
-export function insert<T>(into: INumberDictionary<T>, data: T, hashFn: (data: T) => string): void;
-export function insert<T>(into: any, data: T, hashFn: (data: T) => string): void {
-	into[hashFn(data)] = data;
-}
-
 const hasOwnProperty = Object.prototype.hasOwnProperty;
-
-/**
- * Returns {{true}} iff the provided object contains a property
- * with the given name.
- */
-export function contains<T>(from: IStringDictionary<T>, what: string): boolean;
-export function contains<T>(from: INumberDictionary<T>, what: number): boolean;
-export function contains<T>(from: any, what: any): boolean {
-	return hasOwnProperty.call(from, what);
-}
 
 /**
  * Returns an array which contains all values that reside
@@ -144,7 +77,14 @@ export function remove<T>(from: any, key: string): boolean {
  * group function.
  */
 export function groupBy<T>(data: T[], groupFn: (element: T) => string): IStringDictionary<T[]> {
-	const result = createStringDictionary<T[]>();
-	data.forEach(element => lookupOrInsert(result, groupFn(element), []).push(element));
+	const result: IStringDictionary<T[]> = Object.create(null);
+	for (const element of data) {
+		const key = groupFn(element);
+		let target = result[key];
+		if (!target) {
+			target = result[key] = [];
+		}
+		target.push(element);
+	}
 	return result;
 }

@@ -7,6 +7,7 @@
 	"dup": "命令“{0}”多次出现在“命令”部分。",
 	"dupe.command": "菜单项引用与默认和 alt 命令相同的命令",
 	"menuId.invalid": "“{0}”为无效菜单标识符",
+	"menus.commandPalette": "命令面板",
 	"menus.editorContext": "编辑器上下文菜单",
 	"menus.editorTabContext": "编辑器选项卡上下文菜单",
 	"menus.editorTitle": "编辑器标题菜单",

@@ -114,14 +114,14 @@ export interface IDomEvent {
 	(element: EventHandler, type: string, useCapture?: boolean): _Event<any>;
 }
 
-export const domEvent: IDomEvent = (element: EventHandler, type: string, useCapture?) => {
+export const domEvent: IDomEvent = (element: EventHandler, type: string, useCapture?: boolean) => {
 	const fn = e => emitter.fire(e);
 	const emitter = new Emitter<any>({
 		onFirstListenerAdd: () => {
-			element.addEventListener(type, fn);
+			element.addEventListener(type, fn, useCapture);
 		},
 		onLastListenerRemove: () => {
-			element.removeEventListener(type, fn);
+			element.removeEventListener(type, fn, useCapture);
 		}
 	});
 

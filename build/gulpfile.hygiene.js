@@ -189,11 +189,12 @@ const hygiene = exports.hygiene = (some, options) => {
 	});
 
 	const tsl = es.through(function (file) {
-		const configuration = tslint.findConfiguration(null, '.');
-		const options = { configuration, formatter: 'json', rulesDirectory: 'build/lib/tslint' };
+		const configuration = tslint.Configuration.findConfiguration(null, '.');
+		const options = { formatter: 'json', rulesDirectory: 'build/lib/tslint' };
 		const contents = file.contents.toString('utf8');
-		const linter = new tslint(file.relative, contents, options);
-		const result = linter.lint();
+		const linter = new tslint.Linter(options);
+		linter.lint(file.relative, contents, configuration.results);
+		const result = linter.getResult();
 
 		if (result.failureCount > 0) {
 			reportFailures(result.failures);
@@ -229,8 +230,21 @@ gulp.task('hygiene', () => hygiene());
 if (require.main === module) {
 	const cp = require('child_process');
 
+	process.on('unhandledRejection', (reason, p) => {
+		console.log('Unhandled Rejection at: Promise', p, 'reason:', reason);
+		process.exit(1);
+	});
+
 	cp.exec('git config core.autocrlf', (err, out) => {
 		const skipEOL = out.trim() === 'true';
+
+		if (process.argv.length > 2) {
+			return hygiene(process.argv.slice(2), { skipEOL: skipEOL }).on('error', err => {
+				console.error();
+				console.error(err);
+				process.exit(1);
+			});
+		}
 
 		cp.exec('git diff --cached --name-only', { maxBuffer: 2000 * 1024 }, (err, out) => {
 			if (err) {

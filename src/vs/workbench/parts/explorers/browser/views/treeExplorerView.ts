@@ -8,23 +8,21 @@ import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as DOM from 'vs/base/browser/dom';
 import { Builder, $ } from 'vs/base/browser/builder';
-import { IWorkspace, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { CollapsibleViewletView } from 'vs/workbench/browser/viewlet';
 import { IAction, IActionRunner } from 'vs/base/common/actions';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IListService } from 'vs/platform/list/browser/listService';
 import { ITreeExplorerService } from 'vs/workbench/parts/explorers/common/treeExplorerService';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { TreeExplorerViewletState, TreeDataSource, TreeRenderer, TreeController } from 'vs/workbench/parts/explorers/browser/views/treeExplorerViewer';
 import { RefreshViewExplorerAction } from 'vs/workbench/parts/explorers/browser/treeExplorerActions';
-import { IProgressService } from 'vs/platform/progress/common/progress';
 
 export class TreeExplorerView extends CollapsibleViewletView {
-	private workspace: IWorkspace;
-
 	constructor(
 		private viewletState: TreeExplorerViewletState,
 		private treeNodeProviderId: string,
@@ -33,14 +31,12 @@ export class TreeExplorerView extends CollapsibleViewletView {
 		@IMessageService messageService: IMessageService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ITreeExplorerService private treeExplorerService: ITreeExplorerService,
-		@IProgressService private progressService: IProgressService
+		@IListService private listService: IListService
 	) {
 		super(actionRunner, false, nls.localize('treeExplorerViewlet.tree', "Tree Explorer Section"), messageService, keybindingService, contextMenuService, headerSize);
-
-		this.workspace = contextService.getWorkspace();
 
 		this.create();
 	}
@@ -56,24 +52,23 @@ export class TreeExplorerView extends CollapsibleViewletView {
 		const dataSource = this.instantiationService.createInstance(TreeDataSource, this.treeNodeProviderId);
 		const renderer = this.instantiationService.createInstance(TreeRenderer, this.viewletState, this.actionRunner, container.getHTMLElement());
 		const controller = this.instantiationService.createInstance(TreeController, this.treeNodeProviderId);
-		const sorter = null;
-		const filter = null;
-		const dnd = null;
-		const accessibilityProvider = null;
 
-		return new Tree(container.getHTMLElement(), {
+		const tree = new Tree(container.getHTMLElement(), {
 			dataSource,
 			renderer,
-			controller,
-			sorter,
-			filter,
-			dnd,
-			accessibilityProvider
-		});
+			controller
+		}, {
+				keyboardSupport: false
+			});
+
+		this.toDispose.push(this.listService.register(tree));
+
+		return tree;
 	}
 
 	public getActions(): IAction[] {
 		const refresh = this.instantiationService.createInstance(RefreshViewExplorerAction, this);
+
 		return [refresh];
 	}
 
@@ -102,6 +97,7 @@ export class TreeExplorerView extends CollapsibleViewletView {
 						this.tree.setInput(tree);
 					});
 				}
+				return undefined;
 			});
 
 			return TPromise.as(null);

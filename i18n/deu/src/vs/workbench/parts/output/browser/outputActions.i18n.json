@@ -6,5 +6,6 @@
 {
 	"clearOutput": "Ausgabe löschen",
 	"switchToOutput.label": "Zur Ausgabe wechseln",
-	"toggleOutput": "Ausgabe umschalten"
+	"toggleOutput": "Ausgabe umschalten",
+	"toggleOutputScrollLock": "Ausgabe-Bildlaufsperre umschalten"
 }

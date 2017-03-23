@@ -6,7 +6,17 @@
 {
 	"actions.goToDecl.label": "Atteindre la définition",
 	"actions.goToDeclToSide.label": "Ouvrir la définition sur le côté",
+	"actions.goToImplementation.label": "Accéder à l'implémentation",
+	"actions.goToTypeDefinition.label": "Atteindre la définition de type",
+	"actions.peekImplementation.label": "Aperçu de l'implémentation",
+	"actions.peekTypeDefinition.label": "Aperçu de la définition du type",
 	"actions.previewDecl.label": "Apercu de définition",
+	"generic.noResults": "Définition introuvable",
+	"goToImplementation.generic.noResults": "Implémentation introuvable",
+	"goToImplementation.noResultWord": "Implémentation introuvable pour '{0}'",
+	"goToTypeDefinition.generic.noResults": "Définition de type introuvable",
+	"goToTypeDefinition.noResultWord": "Définition de type introuvable pour '{0}'",
 	"meta.title": " – {0} définitions",
-	"multipleResults": "Cliquez pour afficher {0} définitions."
+	"multipleResults": "Cliquez pour afficher {0} définitions.",
+	"noResultWord": "Définition introuvable pour '{0}'"
 }

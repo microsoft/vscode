@@ -60,6 +60,10 @@ export class VerticalScrollbar extends AbstractScrollbar {
 		this._createSlider(0, Math.floor((options.verticalScrollbarSize - options.verticalSliderSize) / 2), options.verticalSliderSize, null);
 	}
 
+	public getVerticalSliderVerticalCenter(): number {
+		return this._scrollbarState.getSliderCenter();
+	}
+
 	protected _updateSlider(sliderSize: number, sliderPosition: number): void {
 		this.slider.setHeight(sliderSize);
 		if (this._canUseTranslate3d) {
@@ -98,7 +102,8 @@ export class VerticalScrollbar extends AbstractScrollbar {
 	}
 
 	protected _getScrollPosition(): number {
-		return this._scrollable.getScrollTop();
+		const scrollState = this._scrollable.getState();
+		return scrollState.scrollTop;
 	}
 
 	protected _setScrollPosition(scrollPosition: number): void {

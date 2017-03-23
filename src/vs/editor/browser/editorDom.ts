@@ -9,27 +9,88 @@ import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import * as dom from 'vs/base/browser/dom';
 import { GlobalMouseMoveMonitor } from 'vs/base/browser/globalMouseMoveMonitor';
 
+/**
+ * Coordinates relative to the whole document (e.g. mouse event's pageX and pageY)
+ */
+export class PageCoordinates {
+	_pageCoordinatesBrand: void;
+	public readonly x: number;
+	public readonly y: number;
+
+	constructor(x: number, y: number) {
+		this.x = x;
+		this.y = y;
+	}
+
+	public toClientCoordinates(): ClientCoordinates {
+		return new ClientCoordinates(this.x - dom.StandardWindow.scrollX, this.y - dom.StandardWindow.scrollY);
+	}
+}
+
+/**
+ * Coordinates within the application's client area (i.e. origin is document's scroll position).
+ *
+ * For example, clicking in the top-left corner of the client area will
+ * always result in a mouse event with a client.x value of 0, regardless
+ * of whether the page is scrolled horizontally.
+ */
+export class ClientCoordinates {
+	_clientCoordinatesBrand: void;
+
+	public readonly clientX: number;
+	public readonly clientY: number;
+
+	constructor(clientX: number, clientY: number) {
+		this.clientX = clientX;
+		this.clientY = clientY;
+	}
+
+	public toPageCoordinates(): PageCoordinates {
+		return new PageCoordinates(this.clientX + dom.StandardWindow.scrollX, this.clientY + dom.StandardWindow.scrollY);
+	}
+}
+
+/**
+ * The position of the editor in the page.
+ */
+export class EditorPagePosition {
+	_editorPagePositionBrand: void;
+
+	public readonly x: number;
+	public readonly y: number;
+	public readonly width: number;
+	public readonly height: number;
+
+	constructor(x: number, y: number, width: number, height: number) {
+		this.x = x;
+		this.y = y;
+		this.width = width;
+		this.height = height;
+	}
+}
+
+export function createEditorPagePosition(editorViewDomNode: HTMLElement): EditorPagePosition {
+	let editorPos = dom.getDomNodePagePosition(editorViewDomNode);
+	return new EditorPagePosition(editorPos.left, editorPos.top, editorPos.width, editorPos.height);
+}
+
 export class EditorMouseEvent extends StandardMouseEvent {
 	_editorMouseEventBrand: void;
 
-	editorPos: dom.IDomNodePagePosition;
+	/**
+	 * Coordinates relative to the whole document.
+	 */
+	public readonly pos: PageCoordinates;
 
 	/**
-	 * The horizontal position of the cursor relative to the viewport (i.e. scrolled).
+	 * Editor's coordinates relative to the whole document.
 	 */
-	viewportx: number;
-
-	/**
-	 * The vertical position of the cursor relative to the viewport (i.e. scrolled).
-	 */
-	viewporty: number;
+	public readonly editorPos: EditorPagePosition;
 
 	constructor(e: MouseEvent, editorViewDomNode: HTMLElement) {
 		super(e);
-		this.editorPos = dom.getDomNodePagePosition(editorViewDomNode);
-
-		this.viewportx = this.posx - dom.StandardWindow.scrollX;
-		this.viewporty = this.posy - dom.StandardWindow.scrollY;
+		this.pos = new PageCoordinates(this.posx, this.posy);
+		this.editorPos = createEditorPagePosition(editorViewDomNode);
 	}
 }
 

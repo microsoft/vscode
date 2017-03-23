@@ -6,7 +6,17 @@
 {
 	"actions.goToDecl.label": "定義へ移動",
 	"actions.goToDeclToSide.label": "定義を横に開く",
+	"actions.goToImplementation.label": "実装に移動",
+	"actions.goToTypeDefinition.label": "型定義へ移動",
+	"actions.peekImplementation.label": "実装のプレビュー",
+	"actions.peekTypeDefinition.label": "型定義を表示",
 	"actions.previewDecl.label": "定義をここに表示",
+	"generic.noResults": "定義が見つかりません",
+	"goToImplementation.generic.noResults": "実装が見つかりません",
+	"goToImplementation.noResultWord": "'{0}' の実装が見つかりません",
+	"goToTypeDefinition.generic.noResults": "型定義が見つかりません",
+	"goToTypeDefinition.noResultWord": "'{0}' の型定義が見つかりません",
 	"meta.title": " - {0} の定義",
-	"multipleResults": "クリックして、{0} の定義を表示します。"
+	"multipleResults": "クリックして、{0} の定義を表示します。",
+	"noResultWord": "'{0}' の定義は見つかりません"
 }

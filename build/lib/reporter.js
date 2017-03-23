@@ -3,9 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 'use strict';
-var es = require('event-stream');
-var _ = require('underscore');
-var util = require('gulp-util');
+var es = require("event-stream");
+var _ = require("underscore");
+var util = require("gulp-util");
+var fs = require("fs");
+var path = require("path");
 var allErrors = [];
 var startTime = null;
 var count = 0;
@@ -22,9 +24,28 @@ function onEnd() {
     }
     log();
 }
+var buildLogPath = path.join(path.dirname(path.dirname(__dirname)), '.build', 'log');
+try {
+    fs.mkdirSync(path.dirname(buildLogPath));
+}
+catch (err) {
+}
 function log() {
     var errors = _.flatten(allErrors);
     errors.map(function (err) { return util.log(util.colors.red('Error') + ": " + err); });
+    var regex = /^([^(]+)\((\d+),(\d+)\): (.*)$/;
+    var messages = errors
+        .map(function (err) { return regex.exec(err); })
+        .filter(function (match) { return !!match; })
+        .map(function (_a) {
+        var path = _a[1], line = _a[2], column = _a[3], message = _a[4];
+        return ({ path: path, line: Number.parseInt(line), column: Number.parseInt(column), message: message });
+    });
+    try {
+        fs.writeFileSync(buildLogPath, JSON.stringify(messages));
+    }
+    catch (err) {
+    }
     util.log("Finished " + util.colors.green('compilation') + " with " + errors.length + " errors after " + util.colors.magenta((new Date().getTime() - startTime) + ' ms'));
 }
 function createReporter() {

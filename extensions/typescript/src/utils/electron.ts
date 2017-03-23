@@ -17,7 +17,7 @@ export interface IForkOptions {
 	execArgv?: string[];
 }
 
-function makeRandomHexString(length: number): string {
+export function makeRandomHexString(length: number): string {
 	let chars = ['0', '1', '2', '3', '4', '5', '6', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'];
 	let result = '';
 	for (let i = 0; i < length; i++) {
@@ -28,14 +28,19 @@ function makeRandomHexString(length: number): string {
 }
 
 function generatePipeName(): string {
-	var randomName = 'vscode-' + makeRandomHexString(40);
+	return getPipeName(makeRandomHexString(40));
+}
+
+export function getPipeName(name: string): string {
+	const fullName = 'vscode-' + name;
 	if (process.platform === 'win32') {
-		return '\\\\.\\pipe\\' + randomName + '-sock';
+		return '\\\\.\\pipe\\' + fullName + '-sock';
 	}
 
 	// Mac/Unix: use socket file
-	return path.join(os.tmpdir(), randomName + '.sock');
+	return path.join(os.tmpdir(), fullName + '.sock');
 }
+
 
 function generatePatchedEnv(env: any, stdInPipeName: string, stdOutPipeName: string, stdErrPipeName: string): any {
 	// Set the two unique pipe names and the electron flag as process env
@@ -92,7 +97,7 @@ export function fork(modulePath: string, args: string[], options: IForkOptions, 
 	let stdOutServer = net.createServer((stdOutStream) => {
 		// The child process will write exactly one chunk with content `ready` when it has installed a listener to the stdin pipe
 
-		stdOutStream.once('data', (chunk: Buffer) => {
+		stdOutStream.once('data', (_chunk: Buffer) => {
 			// The child process is sending me the `ready` chunk, time to connect to the stdin pipe
 			childProcess.stdin = <any>net.connect(stdInPipeName);
 

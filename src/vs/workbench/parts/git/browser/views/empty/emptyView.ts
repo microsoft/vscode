@@ -95,7 +95,7 @@ export class EmptyView extends EventEmitter.EventEmitter implements GitView.IVie
 
 		var initSection = $('.section').appendTo(this.$el);
 		this.initButton = new Button(initSection);
-		this.initButton.label = nls.localize('gitinit', 'Initialize git repository');
+		this.initButton.label = nls.localize('gitinit', 'Initialize Git Repository');
 		this.initButton.addListener2('click', (e) => {
 			DOM.EventHelper.stop(e);
 

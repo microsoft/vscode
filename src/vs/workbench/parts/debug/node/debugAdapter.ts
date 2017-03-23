@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import fs = require('fs');
+import path = require('path');
 import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as strings from 'vs/base/common/strings';
@@ -10,7 +12,7 @@ import * as objects from 'vs/base/common/objects';
 import * as paths from 'vs/base/common/paths';
 import * as platform from 'vs/base/common/platform';
 import { IJSONSchema, IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
-import { IRawAdapter } from 'vs/workbench/parts/debug/common/debug';
+import { IRawAdapter, IAdapterExecutable } from 'vs/workbench/parts/debug/common/debug';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -28,32 +30,73 @@ export class Adapter {
 		}
 	}
 
-	public get runtime(): string {
+	public getAdapterExecutable(verifyAgainstFS = true): TPromise<IAdapterExecutable> {
+
+		if (this.rawAdapter.adapterExecutableCommand) {
+			return this.commandService.executeCommand<IAdapterExecutable>(this.rawAdapter.adapterExecutableCommand).then(ad => {
+				return this.verifyAdapterDetails(ad, verifyAgainstFS);
+			});
+		}
+
+		const adapterExecutable = <IAdapterExecutable>{
+			command: this.getProgram(),
+			args: this.getAttributeBasedOnPlatform('args')
+		};
+		const runtime = this.getRuntime();
+		if (runtime) {
+			const runtimeArgs = this.getAttributeBasedOnPlatform('runtimeArgs');
+			adapterExecutable.args = (runtimeArgs || []).concat([adapterExecutable.command]).concat(adapterExecutable.args || []);
+			adapterExecutable.command = runtime;
+		}
+		return this.verifyAdapterDetails(adapterExecutable, verifyAgainstFS);
+	}
+
+	private verifyAdapterDetails(details: IAdapterExecutable, verifyAgainstFS: boolean): TPromise<IAdapterExecutable> {
+
+		if (details.command) {
+			if (verifyAgainstFS) {
+				if (path.isAbsolute(details.command)) {
+					return new TPromise<IAdapterExecutable>((c, e) => {
+						fs.exists(details.command, exists => {
+							if (exists) {
+								c(details);
+							} else {
+								e(new Error(nls.localize('debugAdapterBinNotFound', "Debug adapter executable '{0}' does not exist.", details.command)));
+							}
+						});
+					});
+				} else {
+					// relative path
+					if (details.command.indexOf('/') < 0 && details.command.indexOf('\\') < 0) {
+						// no separators: command looks like a runtime name like 'node' or 'mono'
+						return TPromise.as(details);	// TODO: check that the runtime is available on PATH
+					}
+				}
+			} else {
+				return TPromise.as(details);
+			}
+		}
+
+		return TPromise.wrapError(new Error(nls.localize({ key: 'debugAdapterCannotDetermineExecutable', comment: ['Adapter executable file not found'] },
+			"Cannot determine executable for debug adapter '{0}'.", details.command)));
+	}
+
+	private getRuntime(): string {
 		let runtime = this.getAttributeBasedOnPlatform('runtime');
 		if (runtime && runtime.indexOf('./') === 0) {
 			runtime = this.configurationResolverService ? this.configurationResolverService.resolve(runtime) : runtime;
 			runtime = paths.join(this.extensionDescription.extensionFolderPath, runtime);
 		}
-
 		return runtime;
 	}
 
-	public get program(): string {
+	private getProgram(): string {
 		let program = this.getAttributeBasedOnPlatform('program');
 		if (program) {
 			program = this.configurationResolverService ? this.configurationResolverService.resolve(program) : program;
 			program = paths.join(this.extensionDescription.extensionFolderPath, program);
 		}
-
 		return program;
-	}
-
-	public get runtimeArgs(): string[] {
-		return this.getAttributeBasedOnPlatform('runtimeArgs');
-	}
-
-	public get args(): string[] {
-		return this.getAttributeBasedOnPlatform('args');
 	}
 
 	public get aiKey(): string {
@@ -76,12 +119,24 @@ export class Adapter {
 		return this.rawAdapter.configurationSnippets;
 	}
 
+	public get languages(): string[] {
+		return this.rawAdapter.languages;
+	}
+
+	public get startSessionCommand(): string {
+		return this.rawAdapter.startSessionCommand;
+	}
+
 	public merge(secondRawAdapter: IRawAdapter, extensionDescription: IExtensionDescription): void {
 		// Give priority to built in debug adapters
 		if (extensionDescription.isBuiltin) {
 			this.extensionDescription = extensionDescription;
 		}
 		objects.mixin(this.rawAdapter, secondRawAdapter, extensionDescription.isBuiltin);
+	}
+
+	public hasInitialConfiguration(): boolean {
+		return !!this.rawAdapter.initialConfigurations;
 	}
 
 	public getInitialConfigurationContent(): TPromise<string> {
@@ -126,7 +181,9 @@ export class Adapter {
 			const properties = attributes.properties;
 			properties['type'] = {
 				enum: [this.type],
-				description: nls.localize('debugType', "Type of configuration.")
+				description: nls.localize('debugType', "Type of configuration."),
+				pattern: '^(?!node2)',
+				patternErrorMessage: nls.localize('node2NotSupported', "\"node2\" is no longer supported, use \"node\" instead and set the \"protocol\" attribute to \"inspector\".")
 			};
 			properties['name'] = {
 				type: 'string',
@@ -139,7 +196,8 @@ export class Adapter {
 			};
 			properties['debugServer'] = {
 				type: 'number',
-				description: nls.localize('debugServer', "For debug extension development only: if a port is specified VS Code tries to connect to a debug adapter running in server mode")
+				description: nls.localize('debugServer', "For debug extension development only: if a port is specified VS Code tries to connect to a debug adapter running in server mode"),
+				default: 4711
 			};
 			properties['preLaunchTask'] = {
 				type: ['string', 'null'],
@@ -168,6 +226,12 @@ export class Adapter {
 				description: nls.localize('debugLinuxConfiguration', "Linux specific launch configuration attributes."),
 				properties: osProperties
 			};
+			Object.keys(attributes.properties).forEach(name => {
+				// Use schema allOf property to get independent error reporting #21113
+				attributes.properties[name].pattern = attributes.properties[name].pattern || '^(?!.*\\$\\{(env|config|command)\\.)';
+				attributes.properties[name].patternErrorMessage = attributes.properties[name].patternErrorMessage ||
+					nls.localize('deprecatedVariables', "'env.', 'config.' and 'command.' are deprecated, use 'env:', 'config:' and 'command:' instead.");
+			});
 
 			return attributes;
 		});

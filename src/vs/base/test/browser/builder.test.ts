@@ -11,18 +11,18 @@ import * as DomUtils from 'vs/base/browser/dom';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
-var withElementsBySelector = function (selector: string, offdom: boolean = false) {
-	var elements = window.document.querySelectorAll(selector);
+let withElementsBySelector = function (selector: string, offdom: boolean = false) {
+	let elements = window.document.querySelectorAll(selector);
 
-	var builders = [];
-	for (var i = 0; i < elements.length; i++) {
+	let builders = [];
+	for (let i = 0; i < elements.length; i++) {
 		builders.push(new Builder(<HTMLElement>elements.item(i), offdom));
 	}
 
 	return new MultiBuilder(builders);
 };
 
-var withBuilder = function (builder, offdom) {
+let withBuilder = function (builder, offdom) {
 	if (builder instanceof MultiBuilder) {
 		return new MultiBuilder(builder);
 	}
@@ -31,8 +31,8 @@ var withBuilder = function (builder, offdom) {
 };
 
 suite('Builder', () => {
-	var fixture: HTMLElement;
-	var fixtureId = 'builder-fixture';
+	let fixture: HTMLElement;
+	let fixtureId = 'builder-fixture';
 
 	setup(() => {
 		fixture = document.createElement('div');
@@ -45,21 +45,21 @@ suite('Builder', () => {
 	});
 
 	test('Dimension.substract()', function () {
-		var d1 = new Dimension(200, 100);
-		var d2 = new Box(10, 20, 30, 40);
+		let d1 = new Dimension(200, 100);
+		let d2 = new Box(10, 20, 30, 40);
 
 		assert.deepEqual(d1.substract(d2), new Dimension(140, 60));
 	});
 
 	test('Position', function () {
-		var p = new Position(200, 100);
+		let p = new Position(200, 100);
 		assert.strictEqual(p.x, 200);
 		assert.strictEqual(p.y, 100);
 	});
 
 	test('Binding', function () {
-		var b = Build.withElementById(fixtureId, false);
-		var element = b.getHTMLElement();
+		let b = Build.withElementById(fixtureId, false);
+		let element = b.getHTMLElement();
 
 		assert(element);
 
@@ -95,10 +95,10 @@ suite('Builder', () => {
 	});
 
 	test('Select', function () {
-		var b = Build.withElementById(fixtureId, false);
+		let b = Build.withElementById(fixtureId, false);
 		assert(b);
 
-		var allDivs = withElementsBySelector('div');
+		let allDivs = withElementsBySelector('div');
 
 		assert(allDivs);
 		assert(allDivs.length >= 1);
@@ -106,13 +106,13 @@ suite('Builder', () => {
 		assert(Types.isFunction(allDivs.pop));
 		assert(allDivs instanceof MultiBuilder);
 
-		for (var key in b) {
+		for (let key in b) {
 			if (b.hasOwnProperty(key) && Types.isFunction(b[key])) {
 				assert(allDivs.hasOwnProperty(key));
 			}
 		}
 
-		var noElement = withElementsBySelector('#thiselementdoesnotexist');
+		let noElement = withElementsBySelector('#thiselementdoesnotexist');
 
 		assert(noElement);
 		assert(noElement.length === 0);
@@ -120,7 +120,7 @@ suite('Builder', () => {
 		assert(Types.isFunction(noElement.pop));
 		assert(noElement instanceof MultiBuilder);
 
-		for (key in b) {
+		for (let key in b) {
 			if (b.hasOwnProperty(key) && Types.isFunction(b[key])) {
 				assert(noElement.hasOwnProperty(key));
 			}
@@ -128,8 +128,8 @@ suite('Builder', () => {
 	});
 
 	test('Build.withElement()', function () {
-		var f = Build.withElementById(fixtureId, false);
-		var b = $(f.getHTMLElement());
+		let f = Build.withElementById(fixtureId, false);
+		let b = $(f.getHTMLElement());
 
 		b.addClass('foo');
 		assert(b.hasClass('foo'));
@@ -142,8 +142,8 @@ suite('Builder', () => {
 	});
 
 	test('Build.withBuilder()', function () {
-		var f = Build.withElementById(fixtureId, false);
-		var b = withBuilder(f, false);
+		let f = Build.withElementById(fixtureId, false);
+		let b = withBuilder(f, false);
 
 		b.addClass('foo');
 		assert(b.hasClass('foo'));
@@ -156,8 +156,8 @@ suite('Builder', () => {
 	});
 
 	test('Build.withBuilder() - Multibuilder', function () {
-		var f = withElementsBySelector('#' + fixtureId);
-		var b = withBuilder(f, false);
+		let f = withElementsBySelector('#' + fixtureId);
+		let b = withBuilder(f, false);
 
 		b.addClass('foo');
 		assert(b.hasClass('foo')[0]);
@@ -167,7 +167,7 @@ suite('Builder', () => {
 	});
 
 	test('Build.offDOM()', function () {
-		var b = $();
+		let b = $();
 		assert(b);
 
 		b.div({
@@ -189,7 +189,7 @@ suite('Builder', () => {
 	});
 
 	test('Build.withElementById()', function () {
-		var b = Build.withElementById(fixtureId, false);
+		let b = Build.withElementById(fixtureId, false);
 
 		b.addClass('foo');
 		assert(b.hasClass('foo'));
@@ -201,7 +201,7 @@ suite('Builder', () => {
 	});
 
 	test('withElementsBySelector()', function () {
-		var b = withElementsBySelector('#' + fixtureId, false);
+		let b = withElementsBySelector('#' + fixtureId, false);
 
 		b.addClass('foo');
 		assert(b.hasClass('foo')[0]);
@@ -211,7 +211,7 @@ suite('Builder', () => {
 	});
 
 	test('Off DOM withElementById and container passed in', function () {
-		var b = Build.withElementById(fixtureId, true);
+		let b = Build.withElementById(fixtureId, true);
 		assert(b);
 		assert.strictEqual(b.getHTMLElement(), document.getElementById(fixtureId));
 
@@ -234,7 +234,7 @@ suite('Builder', () => {
 	});
 
 	test('Off DOM withSelector and container passed in', function () {
-		var b = withElementsBySelector('#' + fixtureId, true);
+		let b = withElementsBySelector('#' + fixtureId, true);
 		assert(b);
 
 		b.div({
@@ -256,7 +256,7 @@ suite('Builder', () => {
 	});
 
 	test('Builder.build() with index specified', function () {
-		var b = Build.withElementById(fixtureId);
+		let b = Build.withElementById(fixtureId);
 		b.empty();
 		b.div({ id: '1' });
 		b.div({ id: '2' });
@@ -267,10 +267,10 @@ suite('Builder', () => {
 		b.build(Build.withElementById(fixtureId), 0);
 
 		b = Build.withElementById(fixtureId);
-		var divs = b.select('div');
+		let divs = b.select('div');
 		assert.strictEqual(divs.length, 4);
 
-		var ids = divs.attr('id');
+		let ids = divs.attr('id');
 		assert.strictEqual(ids.length, 4);
 		assert.strictEqual(ids[0], '4');
 		assert.strictEqual(ids[1], '1');
@@ -295,12 +295,12 @@ suite('Builder', () => {
 	});
 
 	test('Builder.asContainer()', function () {
-		var f = Build.withElementById(fixtureId, false);
+		let f = Build.withElementById(fixtureId, false);
 		f.div({
 			id: 'foobar'
 		});
 
-		var divBuilder = f.asContainer();
+		let divBuilder = f.asContainer();
 		divBuilder.span({
 			innerHtml: 'see man'
 		});
@@ -309,26 +309,26 @@ suite('Builder', () => {
 	});
 
 	test('Builder.clone()', function () {
-		var b = Build.withElementById(fixtureId);
+		let b = Build.withElementById(fixtureId);
 
-		var clone = b.clone();
+		let clone = b.clone();
 		assert(clone);
 		assert(clone instanceof Builder);
 		assert.strictEqual(b.getHTMLElement(), clone.getHTMLElement());
 		assert.deepEqual(b, clone);
 
-		var multiB = withElementsBySelector('div');
+		let multiB = withElementsBySelector('div');
 
-		var multiClone = multiB.clone();
+		let multiClone = multiB.clone();
 		assert(multiClone);
 	});
 
 	test('Builder.and() with 2 Builders', function () {
-		var b = Build.withElementById(fixtureId);
+		let b = Build.withElementById(fixtureId);
 
-		var otherB = Build.withElementById(fixtureId);
+		let otherB = Build.withElementById(fixtureId);
 
-		var bAndB = b.and(otherB);
+		let bAndB = b.and(otherB);
 
 		assert.strictEqual(bAndB.length, 2);
 
@@ -336,11 +336,11 @@ suite('Builder', () => {
 	});
 
 	test('Builder.and() with HTMLElement', function () {
-		var b = Build.withElementById(fixtureId);
+		let b = Build.withElementById(fixtureId);
 
-		var otherB = Build.withElementById(fixtureId);
+		let otherB = Build.withElementById(fixtureId);
 
-		var bAndB = b.and(otherB.getHTMLElement());
+		let bAndB = b.and(otherB.getHTMLElement());
 
 		assert.strictEqual(bAndB.length, 2);
 
@@ -348,39 +348,39 @@ suite('Builder', () => {
 	});
 
 	test('Builder.and() with MultiBuilder', function () {
-		var b = Build.withElementById(fixtureId);
+		let b = Build.withElementById(fixtureId);
 
-		var allDivs = withElementsBySelector('div');
+		let allDivs = withElementsBySelector('div');
 
-		var bAndB = b.and(allDivs);
+		let bAndB = b.and(allDivs);
 
 		assert.strictEqual(bAndB.length, 1 + allDivs.length);
 	});
 
 	test('Builder.and() with two MultiBuilders', function () {
-		var allDivs = withElementsBySelector('div');
-		var allDivsCount = allDivs.length;
+		let allDivs = withElementsBySelector('div');
+		let allDivsCount = allDivs.length;
 
-		var otherAllDivs = withElementsBySelector('div');
+		let otherAllDivs = withElementsBySelector('div');
 
-		var allDivsAndAllDivs = allDivs.and(otherAllDivs);
+		let allDivsAndAllDivs = allDivs.and(otherAllDivs);
 
 		assert.strictEqual(allDivsAndAllDivs.length, allDivsCount * 2);
 		assert.strictEqual(allDivs.length, allDivsCount * 2);
 	});
 
 	test('Builder.and() with MultiBuilder and HTMLElement', function () {
-		var allDivs = withElementsBySelector('div');
-		var len = allDivs.length;
+		let allDivs = withElementsBySelector('div');
+		let len = allDivs.length;
 
-		var allDivsFixture = allDivs.and(Build.withElementById(fixtureId).getHTMLElement());
+		let allDivsFixture = allDivs.and(Build.withElementById(fixtureId).getHTMLElement());
 
 		assert.strictEqual(allDivsFixture.length, len + 1);
 		assert.strictEqual(allDivs.length, len + 1);
 	});
 
 	test('Builder Multibuilder fn call that returns Multibuilder', function () {
-		var b = Build.withElementById(fixtureId);
+		let b = Build.withElementById(fixtureId);
 		b.div(function (div) {
 			div.span();
 		});
@@ -393,14 +393,14 @@ suite('Builder', () => {
 			div.span();
 		});
 
-		var multiBuilder = Build.withElementById(fixtureId).select('div');
+		let multiBuilder = Build.withElementById(fixtureId).select('div');
 		assert(multiBuilder.length === 3);
 
 		assert(multiBuilder.select('span').length === 3);
 	});
 
 	test('Builder.p() and other elements', function () {
-		var b = Build.withElementById(fixtureId);
+		let b = Build.withElementById(fixtureId);
 		b.empty();
 		b.div(function (div) {
 			assert(div !== b);
@@ -445,38 +445,38 @@ suite('Builder', () => {
 		assert.strictEqual(Build.withElementById('builderlink').attr('href'), '#');
 
 		// Assert HTML through DOM
-		var root = document.getElementById(fixtureId);
+		let root = document.getElementById(fixtureId);
 		assert.strictEqual(b.parent().getHTMLElement(), root);
 		assert.strictEqual(root.childNodes.length, 1);
 
-		var div = root.childNodes[0];
+		let div = root.childNodes[0];
 		assert.strictEqual('div', div.nodeName.toLowerCase());
 		assert.strictEqual(b.getHTMLElement(), div);
 		assert.strictEqual(div.childNodes.length, 1);
 
-		var p = div.childNodes[0];
+		let p = div.childNodes[0];
 		assert.strictEqual('p', p.nodeName.toLowerCase());
 		assert.strictEqual(p.childNodes.length, 1);
 
-		var ul = p.childNodes[0];
+		let ul = p.childNodes[0];
 		assert.strictEqual('ul', ul.nodeName.toLowerCase());
 		assert.strictEqual(ul.childNodes.length, 1);
 
-		var li = ul.childNodes[0];
+		let li = ul.childNodes[0];
 		assert.strictEqual('li', li.nodeName.toLowerCase());
 		assert.strictEqual(li.childNodes.length, 3);
 
-		var span = <HTMLElement>li.childNodes[0];
+		let span = <HTMLElement>li.childNodes[0];
 		assert.strictEqual('span', span.nodeName.toLowerCase());
 		assert.strictEqual(span.childNodes.length, 1);
 		assert.strictEqual(span.innerHTML, 'Foo Bar');
 
-		var img = <HTMLElement>li.childNodes[1];
+		let img = <HTMLElement>li.childNodes[1];
 		assert.strictEqual('img', img.nodeName.toLowerCase());
 		assert.strictEqual(img.childNodes.length, 0);
 		assert.strictEqual(img.getAttribute('src'), '#');
 
-		var a = <HTMLElement>li.childNodes[2];
+		let a = <HTMLElement>li.childNodes[2];
 		assert.strictEqual('a', a.nodeName.toLowerCase());
 		assert.strictEqual(a.childNodes.length, 1);
 		assert.strictEqual(a.getAttribute('href'), '#');
@@ -484,7 +484,7 @@ suite('Builder', () => {
 	});
 
 	test('Builder.p() and other elements', function () {
-		var b = Build.withElementById(fixtureId);
+		let b = Build.withElementById(fixtureId);
 		b.element('div', function (div) {
 			div.element('p', function (p) {
 				p.element('ul', function (ul) {
@@ -518,7 +518,7 @@ suite('Builder', () => {
 	});
 
 	test('Builder.attr()', function () {
-		var b = Build.withElementById(fixtureId);
+		let b = Build.withElementById(fixtureId);
 		b.div();
 
 		assert(!b.attr('id'));
@@ -565,7 +565,7 @@ suite('Builder', () => {
 	});
 
 	test('Builder.style()', function () {
-		var b = Build.withElementById(fixtureId);
+		let b = Build.withElementById(fixtureId);
 		b.div();
 
 		b.style('padding-bottom', '5px');
@@ -579,7 +579,7 @@ suite('Builder', () => {
 	});
 
 	test('Builder.style() as object literal', function () {
-		var b = Build.withElementById(fixtureId);
+		let b = Build.withElementById(fixtureId);
 		b.div();
 
 		b.style({
@@ -602,7 +602,7 @@ suite('Builder', () => {
 	});
 
 	test('Builder.attributes', function () {
-		var b = Build.withElementById(fixtureId);
+		let b = Build.withElementById(fixtureId);
 		b.div();
 
 		b.id('foobar');
@@ -640,7 +640,7 @@ suite('Builder', () => {
 	});
 
 	test('Builder.addClass() and Co', function () {
-		var b = Build.withElementById(fixtureId);
+		let b = Build.withElementById(fixtureId);
 		b.div();
 
 		assert(!b.hasClass('foobar'));
@@ -689,7 +689,7 @@ suite('Builder', () => {
 	});
 
 	test('Builder.color() and .background()', function () {
-		var b = Build.withElementById(fixtureId);
+		let b = Build.withElementById(fixtureId);
 		b.div();
 
 		b.color('red').background('blue');
@@ -700,7 +700,7 @@ suite('Builder', () => {
 	});
 
 	test('Builder.padding() and .margin()', function () {
-		var b = Build.withElementById(fixtureId);
+		let b = Build.withElementById(fixtureId);
 		b.div();
 
 		b.padding(4, 3, 2, 1).margin(1, 2, 3, 4);
@@ -718,7 +718,7 @@ suite('Builder', () => {
 	});
 
 	test('Builder.position()', function () {
-		var b = Build.withElementById(fixtureId);
+		let b = Build.withElementById(fixtureId);
 		b.div();
 
 		b.position(100, 200, 300, 400, 'relative');
@@ -731,7 +731,7 @@ suite('Builder', () => {
 	});
 
 	test('Builder.size(), .minSize() and .maxSize()', function () {
-		var b = Build.withElementById(fixtureId);
+		let b = Build.withElementById(fixtureId);
 		b.div();
 
 		b.size(100, 200);
@@ -749,7 +749,7 @@ suite('Builder', () => {
 	});
 
 	test('Builder.float() and .clear()', function () {
-		var b = Build.withElementById(fixtureId);
+		let b = Build.withElementById(fixtureId);
 		b.div();
 
 		b.float('left');
@@ -760,7 +760,7 @@ suite('Builder', () => {
 	});
 
 	test('Builder.normal(), .italic(), .bold() and underline()', function () {
-		var b = Build.withElementById(fixtureId);
+		let b = Build.withElementById(fixtureId);
 		b.div();
 
 		b.italic().underline().bold();
@@ -777,7 +777,7 @@ suite('Builder', () => {
 	});
 
 	test('Builder.display() and .overflow()', function () {
-		var b = Build.withElementById(fixtureId);
+		let b = Build.withElementById(fixtureId);
 		b.div();
 
 		b.display('inline');
@@ -788,51 +788,51 @@ suite('Builder', () => {
 	});
 
 	test('Builder.show() and .hide()', function () {
-		var b = Build.withElementById(fixtureId);
+		let b = Build.withElementById(fixtureId);
 		b.div();
 
 		b.show();
-		assert(!b.hasClass('hidden'));
+		assert(!b.hasClass('builder-hidden'));
 		assert(!b.isHidden());
 		b.toggleVisibility();
 		assert(!b.isHidden());
 		assert(b.hasClass('builder-visible'));
 		b.toggleVisibility();
 		b.hide();
-		assert(b.hasClass('hidden'));
+		assert(b.hasClass('builder-hidden'));
 		assert(b.isHidden());
 	});
 
 	test('Builder.showDelayed()', function (done) {
-		var b = Build.withElementById(fixtureId);
+		let b = Build.withElementById(fixtureId);
 		b.div().hide();
 
 		b.showDelayed(20);
-		assert(b.hasClass('hidden'));
+		assert(b.hasClass('builder-hidden'));
 
 		TPromise.timeout(30).then(() => {
-			assert(!b.hasClass('hidden'));
+			assert(!b.hasClass('builder-hidden'));
 			done();
 		});
 	});
 
 	test('Builder.showDelayed() but interrupted', function (done) {
-		var b = Build.withElementById(fixtureId);
+		let b = Build.withElementById(fixtureId);
 		b.div().hide();
 
 		b.showDelayed(20);
-		assert(b.hasClass('hidden'));
+		assert(b.hasClass('builder-hidden'));
 
 		b.hide(); // Should cancel the visibility promise
 
 		TPromise.timeout(30).then(() => {
-			assert(b.hasClass('hidden'));
+			assert(b.hasClass('builder-hidden'));
 			done();
 		});
 	});
 
 	test('Builder.border(), .borderTop(), .borderBottom(), .borderLeft(), .borderRight()', function () {
-		var b = Build.withElementById(fixtureId);
+		let b = Build.withElementById(fixtureId);
 		b.div();
 
 		b.border('1px solid red');
@@ -867,7 +867,7 @@ suite('Builder', () => {
 	});
 
 	test('Builder.textAlign() and .verticalAlign()', function () {
-		var b = Build.withElementById(fixtureId);
+		let b = Build.withElementById(fixtureId);
 		b.div();
 
 		b.textAlign('center');
@@ -878,7 +878,7 @@ suite('Builder', () => {
 	});
 
 	test('Builder.innerHtml()', function () {
-		var b = Build.withElementById(fixtureId);
+		let b = Build.withElementById(fixtureId);
 		b.div();
 
 		b.innerHtml('<b>Foo Bar</b>');
@@ -887,7 +887,7 @@ suite('Builder', () => {
 	});
 
 	test('Builder.safeInnerHtml()', function () {
-		var b = Build.withElementById(fixtureId);
+		let b = Build.withElementById(fixtureId);
 		b.div();
 
 		b.safeInnerHtml('<b>Foo Bar</b>');
@@ -900,14 +900,14 @@ suite('Builder', () => {
 	});
 
 	test('Builder.parent(), .children(), .removeChild() and isEmpty()', function () {
-		var b = Build.withElementById(fixtureId);
+		let b = Build.withElementById(fixtureId);
 		b.empty();
 
 		assert(b.isEmpty());
 		assert.strictEqual(b.parent().getHTMLElement(), b.getHTMLElement().parentNode);
 		assert(b.children().length === 0);
 
-		var divB;
+		let divB;
 		b.div(function (div) {
 			divB = div.clone();
 			div.span();
@@ -926,24 +926,24 @@ suite('Builder', () => {
 	test('Build Client Area', function () {
 
 		// Global
-		var dimensions = $(document.body).getClientArea();
+		let dimensions = $(document.body).getClientArea();
 		assert(dimensions.width > 0);
 		assert(dimensions.height > 0);
 
 		// Local
-		var b = Build.withElementById(fixtureId);
+		let b = Build.withElementById(fixtureId);
 		dimensions = b.getClientArea();
 		// assert(dimensions.width >= 0);
 		// assert(dimensions.height >= 0);
 	});
 
 	// test('Builder.select() and .matches()', function () {
-	// 	var b = Build.withElementById(fixtureId);
+	// 	let b = Build.withElementById(fixtureId);
 
 	// 	assert(b.matches('#' + fixtureId));
 
-	// 	var divs = withElementsBySelector('div');
-	// 	for (var i = 0; i < divs.length; i++) {
+	// 	let divs = withElementsBySelector('div');
+	// 	for (let i = 0; i < divs.length; i++) {
 	// 		assert (divs.item(i).matches('div'));
 	// 	}
 
@@ -955,14 +955,14 @@ suite('Builder', () => {
 	// });
 
 	test('Builder.select() and .matches()', function () {
-		var b = Build.withElementById(fixtureId);
+		let b = Build.withElementById(fixtureId);
 
 		assert(b.getTotalSize());
 		assert(b.getContentSize());
 	});
 
 	test('Builder.preventDefault()', function () {
-		var b = Build.withElementById(fixtureId);
+		let b = Build.withElementById(fixtureId);
 		b.element('input', {
 			type: 'button'
 		});
@@ -981,12 +981,12 @@ suite('Builder', () => {
 	});
 
 	test('Builder.once()', function () {
-		var b = Build.withElementById(fixtureId);
+		let b = Build.withElementById(fixtureId);
 		b.element('input', {
 			type: 'button'
 		});
 
-		var counter = 0;
+		let counter = 0;
 		b.once(DomUtils.EventType.CLICK, function (e) {
 			counter++;
 			assert(counter <= 1);
@@ -997,12 +997,12 @@ suite('Builder', () => {
 	});
 
 	test('Builder.once() with capture', function () {
-		var b = Build.withElementById(fixtureId);
+		let b = Build.withElementById(fixtureId);
 		b.element('input', {
 			type: 'button'
 		});
 
-		var counter = 0;
+		let counter = 0;
 		b.once(DomUtils.EventType.CLICK, function (e) {
 			counter++;
 			assert(counter <= 1);
@@ -1013,13 +1013,13 @@ suite('Builder', () => {
 	});
 
 	test('Builder.on() and .off()', function () {
-		var b = Build.withElementById(fixtureId);
+		let b = Build.withElementById(fixtureId);
 		b.element('input', {
 			type: 'button'
 		});
 
-		var listeners = [];
-		var counter = 0;
+		let listeners = [];
+		let counter = 0;
 		b.on(DomUtils.EventType.CLICK, function (e) {
 			counter++;
 		}, listeners);
@@ -1037,13 +1037,13 @@ suite('Builder', () => {
 	});
 
 	test('Builder.on() and .off() with capture', function () {
-		var b = Build.withElementById(fixtureId);
+		let b = Build.withElementById(fixtureId);
 		b.element('input', {
 			type: 'button'
 		});
 
-		var listeners = [];
-		var counter = 0;
+		let listeners = [];
+		let counter = 0;
 		b.on(DomUtils.EventType.CLICK, function (e) {
 			counter++;
 		}, listeners, true);
@@ -1064,17 +1064,17 @@ suite('Builder', () => {
 	});
 
 	test('Builder.empty()', function () {
-		var inputs = [];
-		var bindings = [];
+		let inputs = [];
+		let bindings = [];
 
-		var b = Build.withElementById(fixtureId);
-		var counter1 = 0;
-		var counter2 = 0;
-		var counter3 = 0;
-		var counter4 = 0;
-		var counter5 = 0;
-		var counter6 = 0;
-		var counter7 = 0;
+		let b = Build.withElementById(fixtureId);
+		let counter1 = 0;
+		let counter2 = 0;
+		let counter3 = 0;
+		let counter4 = 0;
+		let counter5 = 0;
+		let counter6 = 0;
+		let counter7 = 0;
 
 		b.div(function (div) {
 			div.bind('Foo Bar');
@@ -1188,7 +1188,7 @@ suite('Builder', () => {
 			input.domClick();
 		});
 
-		for (var i = 0; i < bindings.length; i++) {
+		for (let i = 0; i < bindings.length; i++) {
 			assert(bindings[i].getBinding());
 			assert(bindings[i].getProperty('Foo'));
 		}
@@ -1200,7 +1200,7 @@ suite('Builder', () => {
 			input.domClick();
 		});
 
-		for (i = 0; i < bindings.length; i++) {
+		for (let i = 0; i < bindings.length; i++) {
 			assert(!bindings[i].getBinding());
 			assert(!bindings[i].getProperty('Foo'));
 		}
@@ -1215,13 +1215,13 @@ suite('Builder', () => {
 	});
 
 	test('Builder.empty() cleans all listeners', function () {
-		var b = Build.withElementById(fixtureId);
-		var unbindCounter = 0;
+		let b = Build.withElementById(fixtureId);
+		let unbindCounter = 0;
 
-		var old = DomUtils.addDisposableListener;
+		let old = DomUtils.addDisposableListener;
 		try {
 			(DomUtils as any).addDisposableListener = function (node, type, handler) {
-				var unbind: IDisposable = old.call(null, node, type, handler);
+				let unbind: IDisposable = old.call(null, node, type, handler);
 
 				return {
 					dispose: function () {
@@ -1251,17 +1251,17 @@ suite('Builder', () => {
 	});
 
 	test('Builder.destroy()', function () {
-		var inputs = [];
-		var bindings = [];
+		let inputs = [];
+		let bindings = [];
 
-		var b = Build.withElementById(fixtureId);
-		var counter1 = 0;
-		var counter2 = 0;
-		var counter3 = 0;
-		var counter4 = 0;
-		var counter5 = 0;
-		var counter6 = 0;
-		var counter7 = 0;
+		let b = Build.withElementById(fixtureId);
+		let counter1 = 0;
+		let counter2 = 0;
+		let counter3 = 0;
+		let counter4 = 0;
+		let counter5 = 0;
+		let counter6 = 0;
+		let counter7 = 0;
 
 		b.div(function (div) {
 			div.bind('Foo Bar');
@@ -1375,7 +1375,7 @@ suite('Builder', () => {
 			input.domClick();
 		});
 
-		for (var i = 0; i < bindings.length; i++) {
+		for (let i = 0; i < bindings.length; i++) {
 			assert(bindings[i].getBinding());
 			assert(bindings[i].getProperty('Foo'));
 		}
@@ -1387,7 +1387,7 @@ suite('Builder', () => {
 			input.domClick();
 		});
 
-		for (i = 0; i < bindings.length; i++) {
+		for (let i = 0; i < bindings.length; i++) {
 			assert(!bindings[i].getBinding());
 			assert(!bindings[i].getProperty('Foo'));
 		}
@@ -1402,13 +1402,13 @@ suite('Builder', () => {
 	});
 
 	test('Builder.destroy() cleans all listeners', function () {
-		var b = Build.withElementById(fixtureId);
-		var unbindCounter = 0;
+		let b = Build.withElementById(fixtureId);
+		let unbindCounter = 0;
 
-		var old = DomUtils.addDisposableListener;
+		let old = DomUtils.addDisposableListener;
 		try {
 			(DomUtils as any).addDisposableListener = function (node, type, handler) {
-				var unbind: IDisposable = old.call(null, node, type, handler);
+				let unbind: IDisposable = old.call(null, node, type, handler);
 
 				return {
 					dispose: function () {
@@ -1440,10 +1440,10 @@ suite('Builder', () => {
 	});
 
 	test('Builder.empty() MultiBuilder', function () {
-		var b = Build.withElementById(fixtureId);
-		var inputs = [];
+		let b = Build.withElementById(fixtureId);
+		let inputs = [];
 
-		var firstCounter = 0;
+		let firstCounter = 0;
 		b.div(function (div) {
 			div.element('input', {
 				type: 'button'
@@ -1454,7 +1454,7 @@ suite('Builder', () => {
 			inputs.push(div.clone());
 		});
 
-		var secondCounter = 0;
+		let secondCounter = 0;
 		b.div(function (div) {
 			div.element('input', {
 				type: 'button'
@@ -1465,7 +1465,7 @@ suite('Builder', () => {
 			inputs.push(div.clone());
 		});
 
-		var thirdCounter = 0;
+		let thirdCounter = 0;
 		b.div(function (div) {
 			div.element('input', {
 				type: 'button'
@@ -1490,7 +1490,7 @@ suite('Builder', () => {
 	});
 
 	test('Builder .domFocus(), .domBlur(), .hasFocus()', function () {
-		var b = Build.withElementById(fixtureId);
+		let b = Build.withElementById(fixtureId);
 
 		b.element('input', { type: 'text' });
 		assert(!b.hasFocus());
@@ -1501,7 +1501,7 @@ suite('Builder', () => {
 	});
 
 	test('Builder misc', function () {
-		var b = Build.withElementById(fixtureId);
+		let b = Build.withElementById(fixtureId);
 		b.div();
 
 		b.on([DomUtils.EventType.CLICK, DomUtils.EventType.MOUSE_DOWN, DomUtils.EventType.MOUSE_UP], function (e, b) {
@@ -1526,7 +1526,7 @@ suite('Builder', () => {
 	});
 
 	test('Builder.offDOM()', function () {
-		var b = Build.withElementById(fixtureId);
+		let b = Build.withElementById(fixtureId);
 		b.div({ id: '1' });
 
 		assert(Build.withElementById('1'));
@@ -1537,7 +1537,7 @@ suite('Builder', () => {
 	});
 
 	test('$ - selector construction', function () {
-		var obj = $('div');
+		let obj = $('div');
 		assert(obj instanceof Builder);
 		assert(DomUtils.isHTMLElement(obj.getHTMLElement()));
 		assert.equal(obj.getHTMLElement().tagName.toLowerCase(), 'div');
@@ -1595,7 +1595,7 @@ suite('Builder', () => {
 	});
 
 	test('$ - wrap elements and builders', function () {
-		var obj = $('#' + fixtureId);
+		let obj = $('#' + fixtureId);
 		assert(obj instanceof Builder);
 		obj = $(obj.getHTMLElement());
 		assert(obj instanceof Builder);
@@ -1604,29 +1604,29 @@ suite('Builder', () => {
 	});
 
 	test('$ - delegate to #element', function () {
-		var obj = $('a', { 'class': 'a1', innerHtml: 'Hello' });
+		let obj = $('a', { 'class': 'a1', innerHtml: 'Hello' });
 		assert(obj instanceof Builder);
-		var el = obj.getHTMLElement();
+		let el = obj.getHTMLElement();
 		assert.equal(el.tagName.toLowerCase(), 'a');
 		assert.equal(el.className, 'a1');
 		assert.equal(el.innerHTML, 'Hello');
 	});
 
 	test('$ - html', function () {
-		var obj = $('<a class="a1">Hello</a>');
+		let obj = $('<a class="a1">Hello</a>');
 		assert(obj instanceof Builder);
-		var el = obj.getHTMLElement();
+		let el = obj.getHTMLElement();
 		assert.equal(el.tagName.toLowerCase(), 'a');
 		assert.equal(el.className, 'a1');
 		assert.equal(el.innerHTML, 'Hello');
 	});
 
 	test('$ - multiple html tags', function () {
-		var objs = <MultiBuilder>$('<a class="a1">Hello</a><a class="a2">There</a>');
+		let objs = <MultiBuilder>$('<a class="a1">Hello</a><a class="a2">There</a>');
 		assert(objs instanceof MultiBuilder);
 		assert.equal(objs.length, 2);
 
-		var obj = objs.item(0).getHTMLElement();
+		let obj = objs.item(0).getHTMLElement();
 		assert.equal(obj.tagName.toLowerCase(), 'a');
 		assert.equal(obj.className, 'a1');
 		assert.equal(obj.innerHTML, 'Hello');
@@ -1638,11 +1638,11 @@ suite('Builder', () => {
 	});
 
 	test('$ - html format', function () {
-		var objs = <MultiBuilder>(<any>$)('<a class="{0}">{1}</a><a class="{2}">{3}</a>', 'a1', 'Hello', 'a2', 'There');
+		let objs = <MultiBuilder>(<any>$)('<a class="{0}">{1}</a><a class="{2}">{3}</a>', 'a1', 'Hello', 'a2', 'There');
 		assert(objs instanceof MultiBuilder);
 		assert.equal(objs.length, 2);
 
-		var obj = objs.item(0).getHTMLElement();
+		let obj = objs.item(0).getHTMLElement();
 		assert.equal(obj.tagName.toLowerCase(), 'a');
 		assert.equal(obj.className, 'a1');
 		assert.equal(obj.innerHTML, 'Hello');
@@ -1659,9 +1659,9 @@ suite('Builder', () => {
 	});
 
 	test('$ - appendTo, append', function () {
-		var peel = $('<div class="peel"></div>');
-		var core = $('<span class="core"></span>').appendTo(peel);
-		var obj = peel.getHTMLElement();
+		let peel = $('<div class="peel"></div>');
+		let core = $('<span class="core"></span>').appendTo(peel);
+		let obj = peel.getHTMLElement();
 		assert(obj);
 		assert.equal(obj.tagName.toLowerCase(), 'div');
 		assert.equal(obj.className, 'peel');

@@ -6,17 +6,40 @@
 
 import * as assert from 'assert';
 import * as sinon from 'sinon';
-import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
-import { DeferredPPromise } from 'vs/test/utils/promiseTestUtils';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import { DeferredPPromise } from 'vs/base/test/common/utils';
 import { PPromise } from 'vs/base/common/winjs.base';
-import { nullEvent } from 'vs/base/common/timer';
 import { SearchModel } from 'vs/workbench/parts/search/common/searchModel';
 import URI from 'vs/base/common/uri';
 import { IFileMatch, ILineMatch, ISearchService, ISearchComplete, ISearchProgressItem, IUncachedSearchStats } from 'vs/platform/search/common/search';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { Range } from 'vs/editor/common/core/range';
-import { createMockModelService } from 'vs/test/utils/servicesTestUtils';
 import { IModelService } from 'vs/editor/common/services/modelService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
+
+const nullEvent = new class {
+
+	public id: number;
+	public topic: string;
+	public name: string;
+	public description: string;
+	public data: any;
+
+	public startTime: Date;
+	public stopTime: Date;
+
+	public stop(): void {
+		return;
+	}
+
+	public timeTaken(): number {
+		return -1;
+	}
+};
+
 
 suite('SearchModel', () => {
 
@@ -37,8 +60,10 @@ suite('SearchModel', () => {
 	setup(() => {
 		restoreStubs = [];
 		instantiationService = new TestInstantiationService();
-		instantiationService.stub(ITelemetryService);
-		instantiationService.stub(IModelService, createMockModelService(instantiationService));
+		instantiationService.stub(ITelemetryService, NullTelemetryService);
+		instantiationService.stub(IModelService, stubModelService(instantiationService));
+		instantiationService.stub(ISearchService, {});
+		instantiationService.stub(ISearchService, 'search', PPromise.as({ results: [] }));
 	});
 
 	teardown(() => {
@@ -281,6 +306,11 @@ suite('SearchModel', () => {
 		const stub = sinon.stub(arg1, arg2, arg3);
 		restoreStubs.push(stub);
 		return stub;
+	}
+
+	function stubModelService(instantiationService: TestInstantiationService): IModelService {
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		return instantiationService.createInstance(ModelServiceImpl);
 	}
 
 });

@@ -124,7 +124,7 @@ export class Scanner {
 export abstract class Marker {
 	_markerBrand: any;
 
-	static toString(marker: Marker[]): string {
+	static toString(marker?: Marker[]): string {
 		let result = '';
 		for (const m of marker) {
 			result += m.toString();
@@ -238,6 +238,7 @@ export class SnippetParser {
 			this._token = this._scanner.next();
 			return true;
 		}
+		return false;
 	}
 
 	private _return(token: Token): void {
@@ -254,6 +255,7 @@ export class SnippetParser {
 		} else if (this._enableTextMate && this._parseTM(marker)) {
 			return true;
 		}
+		return false;
 	}
 
 	private _parseText(marker: Marker[]): boolean {
@@ -262,6 +264,7 @@ export class SnippetParser {
 			this._accept(undefined);
 			return true;
 		}
+		return false;
 	}
 
 	private _parseTM(marker: Marker[]): boolean {
@@ -281,13 +284,13 @@ export class SnippetParser {
 
 				while (true) {
 
-					if (this._accept(TokenType.Colon)) {
+					if (target !== children && this._accept(TokenType.Colon)) {
 						target = children;
 						continue;
 					}
 
 					if (this._accept(TokenType.CurlyClose)) {
-						const idOrName = Marker.toString(name);;
+						const idOrName = Marker.toString(name);
 						marker.push(/^\d+$/.test(idOrName) ? new Placeholder(idOrName, children) : new Variable(idOrName, children));
 						return true;
 					}
@@ -311,6 +314,7 @@ export class SnippetParser {
 			marker.push(new Text('$'));
 			return true;
 		}
+		return false;
 	}
 
 	private _parseInternal(marker: Marker[]): boolean {
@@ -366,6 +370,7 @@ export class SnippetParser {
 				return true;
 			}
 		}
+		return false;
 	}
 
 	private _parseEscaped(marker: Marker[]): boolean {
@@ -380,5 +385,6 @@ export class SnippetParser {
 			marker.push(new Text(this._scanner.tokenText(this._prevToken)));
 			return true;
 		}
+		return false;
 	}
 }

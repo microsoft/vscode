@@ -18,13 +18,6 @@ import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import * as vscode from 'vscode';
 
-declare class WeakMap<K, V> {
-	// delete(key: K): boolean;
-	get(key: K): V;
-	// has(key: K): boolean;
-	set(key: K, value?: V): WeakMap<K, V>;
-}
-
 export class ExtHostDocumentSaveParticipant extends ExtHostDocumentSaveParticipantShape {
 
 	private _documents: ExtHostDocuments;
@@ -70,7 +63,7 @@ export class ExtHostDocumentSaveParticipant extends ExtHostDocumentSaveParticipa
 
 				if (didTimeout) {
 					// timeout - no more listeners
-					return;
+					return undefined;
 				}
 
 				const document = this._documents.getDocumentData(resource).document;
@@ -157,7 +150,7 @@ export class ExtHostDocumentSaveParticipant extends ExtHostDocumentSaveParticipa
 			// apply edits iff any and iff document
 			// didn't change somehow in the meantime
 			if (edits.length === 0) {
-				return;
+				return undefined;
 			}
 
 			if (version === document.version) {

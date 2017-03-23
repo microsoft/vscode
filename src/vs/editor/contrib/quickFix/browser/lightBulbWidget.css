@@ -3,11 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-
 .monaco-editor .lightbulb-glyph {
 	display: flex;
 	align-items: center;
 	justify-content: center;
+	height: 16px;
+	width: 16px;
+}
+
+.monaco-editor .lightbulb-glyph.hidden {
+	display: none;
+	visibility: hidden;
 }
 
 .monaco-editor .lightbulb-glyph:hover {
@@ -16,12 +22,9 @@
 
 .monaco-editor.vs .lightbulb-glyph {
 	background: url('lightbulb.svg') center center no-repeat;
-	height: 16px;
-	width: 16px;
 }
 
-.monaco-editor.vs-dark .lightbulb-glyph, .monaco-editor.hc-black .lightbulb-glyph {
+.monaco-editor.vs-dark .lightbulb-glyph,
+.monaco-editor.hc-black .lightbulb-glyph {
 	background: url('lightbulb-dark.svg') center center no-repeat;
-	height: 16px;
-	width: 16px;
 }

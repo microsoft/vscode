@@ -8,12 +8,12 @@ var __extends = (this && this.__extends) || function (d, b) {
     function __() { this.constructor = d; }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
 };
-var Lint = require('tslint/lib/lint');
-var path_1 = require('path');
+var Lint = require("tslint");
+var path_1 = require("path");
 var Rule = (function (_super) {
     __extends(Rule, _super);
     function Rule() {
-        _super.apply(this, arguments);
+        return _super !== null && _super.apply(this, arguments) || this;
     }
     Rule.prototype.apply = function (sourceFile) {
         var parts = path_1.dirname(sourceFile.fileName).split(/\\|\//);
@@ -44,8 +44,9 @@ exports.Rule = Rule;
 var LayeringRule = (function (_super) {
     __extends(LayeringRule, _super);
     function LayeringRule(file, config, opts) {
-        _super.call(this, file, opts);
-        this._config = config;
+        var _this = _super.call(this, file, opts) || this;
+        _this._config = config;
+        return _this;
     }
     LayeringRule.prototype.visitImportDeclaration = function (node) {
         var path = node.moduleSpecifier.getText();

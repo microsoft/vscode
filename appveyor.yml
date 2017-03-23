@@ -10,7 +10,7 @@ install:
 build_script:
   - .\scripts\npm.bat install --force
   - gulp electron
-  - gulp compile
+  - npm run compile
 
 test_script:
   - node --version

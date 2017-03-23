@@ -23,6 +23,8 @@ import { IEditorMouseEvent, ICodeEditor } from 'vs/editor/browser/editorBrowser'
 import { getLinks, Link } from 'vs/editor/contrib/links/common/links';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { editorLinkForeground, editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 
 class LinkOccurence {
 
@@ -111,7 +113,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 		this.listenersToRemove = [];
 		this.listenersToRemove.push(editor.onDidChangeModelContent((e) => this.onChange()));
 		this.listenersToRemove.push(editor.onDidChangeModel((e) => this.onModelChanged()));
-		this.listenersToRemove.push(editor.onDidChangeModelMode((e) => this.onModelModeChanged()));
+		this.listenersToRemove.push(editor.onDidChangeModelLanguage((e) => this.onModelModeChanged()));
 		this.listenersToRemove.push(LinkProviderRegistry.onDidChange((e) => this.onModelModeChanged()));
 		this.listenersToRemove.push(this.editor.onMouseUp((e: IEditorMouseEvent) => this.onEditorMouseUp(e)));
 		this.listenersToRemove.push(this.editor.onMouseMove((e: IEditorMouseEvent) => this.onEditorMouseMove(e)));
@@ -282,7 +284,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 			startColumn: position.column,
 			endLineNumber: position.lineNumber,
 			endColumn: position.column
-		}, null, true);
+		}, 0, true);
 
 		for (var i = 0; i < decorations.length; i++) {
 			var decoration = decorations[i];
@@ -341,3 +343,14 @@ class OpenLinkAction extends EditorAction {
 		}
 	}
 }
+
+registerThemingParticipant((theme, collector) => {
+	let activeLinkForeground = theme.getColor(editorActiveLinkForeground);
+	if (activeLinkForeground) {
+		collector.addRule(`.monaco-editor.${theme.selector} .detected-link-active { color: ${activeLinkForeground} !important; }`);
+	}
+	let linkForeground = theme.getColor(editorLinkForeground);
+	if (linkForeground) {
+		collector.addRule(`.monaco-editor.${theme.selector} .detected-link { color: ${linkForeground} !important; }`);
+	}
+});

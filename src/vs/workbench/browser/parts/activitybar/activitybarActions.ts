@@ -8,11 +8,10 @@
 import 'vs/css!./media/activityaction';
 import nls = require('vs/nls');
 import DOM = require('vs/base/browser/dom');
-import errors = require('vs/base/common/errors');
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Builder, $ } from 'vs/base/browser/builder';
 import { DelayedDragHandler } from 'vs/base/browser/dnd';
-import { Action, IAction } from 'vs/base/common/actions';
+import { Action } from 'vs/base/common/actions';
 import { BaseActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IActivityBarService, ProgressBadge, TextBadge, NumberBadge, IconBadge, IBadge } from 'vs/workbench/services/activity/common/activityBarService';
 import Event, { Emitter } from 'vs/base/common/event';
@@ -22,7 +21,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { dispose } from 'vs/base/common/lifecycle';
-import { Keybinding } from 'vs/base/common/keybinding';
 import { IViewletService, } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 
@@ -93,13 +91,11 @@ export class ViewletActivityAction extends ActivityAction {
 
 		// Hide sidebar if selected viewlet already visible
 		if (sideBarVisible && activeViewlet && activeViewlet.getId() === this.viewlet.id) {
-			this.partService.setSideBarHidden(true);
-		} else {
-			this.viewletService.openViewlet(this.viewlet.id, true).done(null, errors.onUnexpectedError);
-			this.activate();
+			return this.partService.setSideBarHidden(true);
 		}
 
-		return TPromise.as(true);
+		return this.viewletService.openViewlet(this.viewlet.id, true)
+			.then(() => this.activate());
 	}
 }
 
@@ -143,9 +139,9 @@ export class ActivityActionItem extends BaseActionItem {
 	}
 
 	private getKeybindingLabel(id: string): string {
-		const keys = this.keybindingService.lookupKeybindings(id).map(k => this.keybindingService.getLabelFor(k));
-		if (keys && keys.length) {
-			return keys[0];
+		const kb = this.keybindingService.lookupKeybinding(id);
+		if (kb) {
+			return kb.getLabel();
 		}
 
 		return null;
@@ -194,7 +190,7 @@ export class ActivityActionItem extends BaseActionItem {
 
 		// Activate on drag over to reveal targets
 		[this.$badge, this.$e].forEach(b => new DelayedDragHandler(b.getHTMLElement(), () => {
-			if (!this.getDraggedViewlet() && !this.getAction().checked) {
+			if (!ActivityActionItem.getDraggedViewlet() && !this.getAction().checked) {
 				this.getAction().run();
 			}
 		}));
@@ -213,7 +209,7 @@ export class ActivityActionItem extends BaseActionItem {
 		// Drag enter
 		let counter = 0; // see https://github.com/Microsoft/vscode/issues/14470
 		$(container).on(DOM.EventType.DRAG_ENTER, (e: DragEvent) => {
-			const draggedViewlet = this.getDraggedViewlet();
+			const draggedViewlet = ActivityActionItem.getDraggedViewlet();
 			if (draggedViewlet && draggedViewlet.id !== this.viewlet.id) {
 				counter++;
 				DOM.addClass(container, 'dropfeedback');
@@ -222,7 +218,7 @@ export class ActivityActionItem extends BaseActionItem {
 
 		// Drag leave
 		$(container).on(DOM.EventType.DRAG_LEAVE, (e: DragEvent) => {
-			const draggedViewlet = this.getDraggedViewlet();
+			const draggedViewlet = ActivityActionItem.getDraggedViewlet();
 			if (draggedViewlet) {
 				counter--;
 				if (counter === 0) {
@@ -233,30 +229,30 @@ export class ActivityActionItem extends BaseActionItem {
 
 		// Drag end
 		$(container).on(DOM.EventType.DRAG_END, (e: DragEvent) => {
-			const draggedViewlet = this.getDraggedViewlet();
+			const draggedViewlet = ActivityActionItem.getDraggedViewlet();
 			if (draggedViewlet) {
 				counter = 0;
 				DOM.removeClass(container, 'dropfeedback');
 
-				this.clearDraggedViewlet();
+				ActivityActionItem.clearDraggedViewlet();
 			}
 		});
 
 		// Drop
 		$(container).on(DOM.EventType.DROP, (e: DragEvent) => {
-			const draggedViewlet = this.getDraggedViewlet();
-			if (draggedViewlet && draggedViewlet.id !== this.viewlet.id) {
-				DOM.EventHelper.stop(e, true);
+			DOM.EventHelper.stop(e, true);
 
+			const draggedViewlet = ActivityActionItem.getDraggedViewlet();
+			if (draggedViewlet && draggedViewlet.id !== this.viewlet.id) {
 				DOM.removeClass(container, 'dropfeedback');
-				this.clearDraggedViewlet();
+				ActivityActionItem.clearDraggedViewlet();
 
 				this.activityBarService.move(draggedViewlet.id, this.viewlet.id);
 			}
 		});
 	}
 
-	private getDraggedViewlet(): ViewletDescriptor {
+	public static getDraggedViewlet(): ViewletDescriptor {
 		return ActivityActionItem.draggedViewlet;
 	}
 
@@ -264,7 +260,7 @@ export class ActivityActionItem extends BaseActionItem {
 		ActivityActionItem.draggedViewlet = viewlet;
 	}
 
-	private clearDraggedViewlet(): void {
+	public static clearDraggedViewlet(): void {
 		ActivityActionItem.draggedViewlet = void 0;
 	}
 
@@ -384,7 +380,7 @@ export class ActivityActionItem extends BaseActionItem {
 	public dispose(): void {
 		super.dispose();
 
-		this.clearDraggedViewlet();
+		ActivityActionItem.clearDraggedViewlet();
 
 		if (this.mouseUpTimeout) {
 			clearTimeout(this.mouseUpTimeout);
@@ -400,7 +396,7 @@ export class ViewletOverflowActivityAction extends ActivityAction {
 	constructor(
 		private showMenu: () => void
 	) {
-		super('activitybar.additionalViewlets.action', nls.localize('additionalViewlets', "Additional Viewlets"), 'toggle-more');
+		super('activitybar.additionalViewlets.action', nls.localize('additionalViews', "Additional Views"), 'toggle-more');
 	}
 
 	public run(event): TPromise<any> {
@@ -452,18 +448,9 @@ export class ViewletOverflowActivityActionItem extends BaseActionItem {
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => this.builder.getHTMLElement(),
 			getActions: () => TPromise.as(this.actions),
-			getKeyBinding: (action) => this.getKeybinding(action),
+			getKeyBinding: (action) => this.keybindingService.lookupKeybinding(action.id),
 			onHide: () => dispose(this.actions)
 		});
-	}
-
-	private getKeybinding(action: IAction): Keybinding {
-		const opts = this.keybindingService.lookupKeybindings(action.id);
-		if (opts.length > 0) {
-			return opts[0]; // only take the first one
-		}
-
-		return null;
 	}
 
 	private getActions(): OpenViewletAction[] {
@@ -531,12 +518,10 @@ class OpenViewletAction extends Action {
 
 		// Hide sidebar if selected viewlet already visible
 		if (sideBarVisible && activeViewlet && activeViewlet.getId() === this.viewlet.id) {
-			this.partService.setSideBarHidden(true);
-		} else {
-			this.viewletService.openViewlet(this.viewlet.id, true).done(null, errors.onUnexpectedError);
+			return this.partService.setSideBarHidden(true);
 		}
 
-		return TPromise.as(true);
+		return this.viewletService.openViewlet(this.viewlet.id, true);
 	}
 }
 
@@ -546,7 +531,7 @@ export class ToggleViewletPinnedAction extends Action {
 		private viewlet: ViewletDescriptor,
 		@IActivityBarService private activityBarService: IActivityBarService
 	) {
-		super('activitybar.show.toggleViewletPinned', viewlet ? viewlet.name : nls.localize('toggle', "Toggle Viewlet Pinned"));
+		super('activitybar.show.toggleViewletPinned', viewlet ? viewlet.name : nls.localize('toggle', "Toggle View Pinned"));
 
 		this.checked = this.viewlet && this.activityBarService.isPinned(this.viewlet.id);
 	}

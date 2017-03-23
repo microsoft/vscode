@@ -16,6 +16,7 @@
 	"releaseNotes": "发行说明",
 	"showReleaseNotes": "显示发行说明",
 	"thereIsUpdateAvailable": "存在可用更新。",
+	"unassigned": "未分配",
 	"updateAvailable": "{0} 将在重启后更新。",
 	"updateNow": "立即更新"
 }

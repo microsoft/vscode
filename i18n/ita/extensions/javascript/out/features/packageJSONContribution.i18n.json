@@ -8,7 +8,6 @@
 	"json.npm.latestversion": "Ultima versione attualmente disponibile del pacchetto",
 	"json.npm.majorversion": "Trova la versione principale più recente (1.x.x)",
 	"json.npm.minorversion": "Trova la versione secondaria più recente (1.2.x)",
-	"json.npm.package.hover": "{0}",
 	"json.npm.version.hover": "Ultima versione: {0}",
 	"json.package.default": "package.json predefinito"
 }

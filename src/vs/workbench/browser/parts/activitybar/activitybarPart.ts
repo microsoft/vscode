@@ -10,6 +10,7 @@ import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
 import DOM = require('vs/base/browser/dom');
 import * as arrays from 'vs/base/common/arrays';
+import { illegalArgument } from 'vs/base/common/errors';
 import { Builder, $, Dimension } from 'vs/base/browser/builder';
 import { Action } from 'vs/base/common/actions';
 import { ActionsOrientation, ActionBar, IActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -19,15 +20,19 @@ import { IViewlet } from 'vs/workbench/common/viewlet';
 import { ToggleViewletPinnedAction, ViewletActivityAction, ActivityAction, ActivityActionItem, ViewletOverflowActivityAction, ViewletOverflowActivityActionItem } from 'vs/workbench/browser/parts/activitybar/activitybarActions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IActivityBarService, IBadge } from 'vs/workbench/services/activity/common/activityBarService';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IPartService, Position as SideBarPosition } from 'vs/workbench/services/part/common/partService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Scope as MementoScope } from 'vs/workbench/common/memento';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { dispose } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { ToggleActivityBarVisibilityAction } from 'vs/workbench/browser/actions/toggleActivityBarVisibility';
+import SCMPreview from 'vs/workbench/parts/scm/browser/scmPreview';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ACTIVITY_BAR_BACKGROUND } from 'vs/workbench/common/theme';
+import { highContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 
 interface IViewletActivity {
 	badge: IBadge;
@@ -49,7 +54,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 	private viewletIdToActions: { [viewletId: string]: ActivityAction; };
 	private viewletIdToActionItems: { [viewletId: string]: IActionItem; };
-	private viewletIdToActivity: { [viewletId: string]: IViewletActivity; };
+	private viewletIdToActivityStack: { [viewletId: string]: IViewletActivity[]; };
 
 	private memento: any;
 	private pinnedViewlets: string[];
@@ -62,16 +67,33 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		@IStorageService private storageService: IStorageService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IPartService private partService: IPartService
+		@IPartService private partService: IPartService,
+		@IThemeService themeService: IThemeService
 	) {
-		super(id);
+		super(id, { hasTitle: false }, themeService);
 
 		this.viewletIdToActionItems = Object.create(null);
 		this.viewletIdToActions = Object.create(null);
-		this.viewletIdToActivity = Object.create(null);
+		this.viewletIdToActivityStack = Object.create(null);
 
 		this.memento = this.getMemento(this.storageService, MementoScope.GLOBAL);
-		this.pinnedViewlets = this.memento[ActivitybarPart.PINNED_VIEWLETS] || this.viewletService.getViewlets().map(v => v.id);
+
+		const pinnedViewlets = this.memento[ActivitybarPart.PINNED_VIEWLETS] as string[];
+
+		if (pinnedViewlets) {
+			// TODO@Ben: Migrate git => scm viewlet
+
+			const map = SCMPreview.enabled
+				? (id => id === 'workbench.view.git' ? 'workbench.view.scm' : id)
+				: (id => id === 'workbench.view.scm' ? 'workbench.view.git' : id);
+
+			this.pinnedViewlets = pinnedViewlets
+				.map(map)
+				.filter(arrays.uniqueFilter<string>(str => str));
+
+		} else {
+			this.pinnedViewlets = this.viewletService.getViewlets().map(v => v.id);
+		}
 
 		// Update viewlet switcher when external viewlets become ready
 		this.extensionService.onReady().then(() => this.updateViewletSwitcher());
@@ -110,27 +132,54 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		}
 	}
 
-	public showActivity(viewletId: string, badge?: IBadge, clazz?: string): void {
+	public showActivity(viewletId: string, badge: IBadge, clazz?: string): IDisposable {
+		if (!badge) {
+			throw illegalArgument('badge');
+		}
 
-		// Update Action with activity
+		const activity = <IViewletActivity>{ badge, clazz };
+		const stack = this.viewletIdToActivityStack[viewletId] || (this.viewletIdToActivityStack[viewletId] = []);
+		stack.unshift(activity);
+
+		this.updateActivity(viewletId);
+
+		return {
+			dispose: () => {
+				const stack = this.viewletIdToActivityStack[viewletId];
+				if (!stack) {
+					return;
+				}
+				const idx = stack.indexOf(activity);
+				if (idx < 0) {
+					return;
+				}
+				stack.splice(idx, 1);
+				if (stack.length === 0) {
+					delete this.viewletIdToActivityStack[viewletId];
+				}
+				this.updateActivity(viewletId);
+			}
+		};
+	}
+
+	private updateActivity(viewletId: string) {
 		const action = this.viewletIdToActions[viewletId];
-		if (action) {
+		if (!action) {
+			return;
+		}
+		const stack = this.viewletIdToActivityStack[viewletId];
+		if (!stack || !stack.length) {
+			// reset
+			action.setBadge(undefined);
+
+		} else {
+			// update
+			const [{badge, clazz}] = stack;
 			action.setBadge(badge);
 			if (clazz) {
 				action.class = clazz;
 			}
 		}
-
-		// Keep for future use
-		if (badge) {
-			this.viewletIdToActivity[viewletId] = { badge, clazz };
-		} else {
-			delete this.viewletIdToActivity[viewletId];
-		}
-	}
-
-	public clearActivity(viewletId: string): void {
-		this.showActivity(viewletId, null);
 	}
 
 	public createContentArea(parent: Builder): Builder {
@@ -147,7 +196,40 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			this.showContextMenu(e);
 		}, this.toUnbind);
 
+		// Allow to drop at the end to move viewlet to the end
+		$(parent).on(DOM.EventType.DROP, (e: DragEvent) => {
+			const draggedViewlet = ActivityActionItem.getDraggedViewlet();
+			if (draggedViewlet) {
+				DOM.EventHelper.stop(e, true);
+
+				ActivityActionItem.clearDraggedViewlet();
+
+				const targetId = this.pinnedViewlets[this.pinnedViewlets.length - 1];
+				if (targetId !== draggedViewlet.id) {
+					this.move(draggedViewlet.id, this.pinnedViewlets[this.pinnedViewlets.length - 1]);
+				}
+			}
+		});
+
 		return $result;
+	}
+
+	public updateStyles(): void {
+		super.updateStyles();
+
+		// Part container
+		const container = this.getContainer();
+		container.style('background-color', this.getColor(ACTIVITY_BAR_BACKGROUND));
+
+		const useBorder = this.isHighContrastTheme;
+		const isPositionLeft = this.partService.getSideBarPosition() === SideBarPosition.LEFT;
+		container.style('box-sizing', useBorder && isPositionLeft ? 'border-box' : null);
+		container.style('border-right-width', useBorder && isPositionLeft ? '1px' : null);
+		container.style('border-right-style', useBorder && isPositionLeft ? 'solid' : null);
+		container.style('border-right-color', useBorder && isPositionLeft ? this.getColor(highContrastBorder) : null);
+		container.style('border-left-width', useBorder && !isPositionLeft ? '1px' : null);
+		container.style('border-left-style', useBorder && !isPositionLeft ? 'solid' : null);
+		container.style('border-left-color', useBorder && !isPositionLeft ? this.getColor(highContrastBorder) : null);
 	}
 
 	private showContextMenu(e: MouseEvent): void {
@@ -242,19 +324,14 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 			// Make sure to restore activity
 			Object.keys(this.viewletIdToActions).forEach(viewletId => {
-				const activity = this.viewletIdToActivity[viewletId];
-				if (activity) {
-					this.showActivity(viewletId, activity.badge, activity.clazz);
-				} else {
-					this.showActivity(viewletId);
-				}
+				this.updateActivity(viewletId);
 			});
 		}
 
 		// Add overflow action as needed
 		if (visibleViewletsChange && overflows) {
 			this.viewletOverflowAction = this.instantiationService.createInstance(ViewletOverflowActivityAction, () => this.viewletOverflowActionItem.showMenu());
-			this.viewletOverflowActionItem = this.instantiationService.createInstance(ViewletOverflowActivityActionItem, this.viewletOverflowAction, () => this.getOverflowingViewlets(), viewlet => this.viewletIdToActivity[viewlet.id] && this.viewletIdToActivity[viewlet.id].badge);
+			this.viewletOverflowActionItem = this.instantiationService.createInstance(ViewletOverflowActivityActionItem, this.viewletOverflowAction, () => this.getOverflowingViewlets(), (viewlet: ViewletDescriptor) => this.viewletIdToActivityStack[viewlet.id] && this.viewletIdToActivityStack[viewlet.id][0].badge);
 
 			this.viewletSwitcherBar.push(this.viewletOverflowAction, { label: true, icon: true });
 		}
@@ -305,6 +382,10 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		return action;
 	}
 
+	public getPinned(): string[] {
+		return this.pinnedViewlets;
+	}
+
 	public unpin(viewletId: string): void {
 		if (!this.isPinned(viewletId)) {
 			return;
@@ -331,7 +412,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		// Case: we closed the last visible viewlet
 		// Solv: we hide the sidebar
 		else if (visibleViewlets.length === 1) {
-			unpinPromise = TPromise.as(this.partService.setSideBarHidden(true));
+			unpinPromise = this.partService.setSideBarHidden(true);
 		}
 
 		// Case: we closed the default viewlet

@@ -7,11 +7,11 @@
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { EditorModel, IEncodingSupport } from 'vs/workbench/common/editor';
-import { StringEditorModel } from 'vs/workbench/common/editor/stringEditorModel';
+import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import URI from 'vs/base/common/uri';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { EndOfLinePreference } from 'vs/editor/common/editorCommon';
-import { IFilesConfiguration } from 'vs/platform/files/common/files';
+import { IFilesConfiguration, CONTENT_CHANGE_EVENT_BUFFER_DELAY } from 'vs/platform/files/common/files';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -21,9 +21,9 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { IBackupFileService, BACKUP_FILE_RESOLVE_OPTIONS } from 'vs/workbench/services/backup/common/backup';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
-export class UntitledEditorModel extends StringEditorModel implements IEncodingSupport {
+export class UntitledEditorModel extends BaseTextEditorModel implements IEncodingSupport {
 
-	public static DEFAULT_CONTENT_CHANGE_BUFFER_DELAY = 1000;
+	public static DEFAULT_CONTENT_CHANGE_BUFFER_DELAY = CONTENT_CHANGE_EVENT_BUFFER_DELAY;
 
 	private textModelChangeListener: IDisposable;
 	private configurationChangeListener: IDisposable;
@@ -41,20 +41,23 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 	private preferredEncoding: string;
 
 	private hasAssociatedFilePath: boolean;
+	private initialValue: string;
 
 	constructor(
-		modeId: string,
-		resource: URI,
+		private modeId: string,
+		private resource: URI,
 		hasAssociatedFilePath: boolean,
+		initialValue: string,
 		@IModeService modeService: IModeService,
 		@IModelService modelService: IModelService,
 		@IBackupFileService private backupFileService: IBackupFileService,
 		@ITextFileService private textFileService: ITextFileService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
-		super('', modeId, resource, modeService, modelService);
+		super(modelService, modeService);
 
 		this.hasAssociatedFilePath = hasAssociatedFilePath;
+		this.initialValue = initialValue;
 		this.dirty = false;
 		this.versionId = 0;
 
@@ -111,7 +114,7 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 
 	public getModeId(): string {
 		if (this.textEditorModel) {
-			return this.textEditorModel.getModeId();
+			return this.textEditorModel.getLanguageIdentifier().language;
 		}
 
 		return null;
@@ -161,19 +164,17 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 		return this.backupFileService.loadBackupResource(this.resource).then(backupResource => {
 			if (backupResource) {
 				return this.textFileService.resolveTextContent(backupResource, BACKUP_FILE_RESOLVE_OPTIONS).then(rawTextContent => {
-					return this.backupFileService.parseBackupContent(rawTextContent);
+					return this.backupFileService.parseBackupContent(rawTextContent.value);
 				});
 			}
 
 			return null;
 		}).then(backupContent => {
-			if (backupContent) {
-				this.setValue(backupContent);
-			}
 
-			this.setDirty(this.hasAssociatedFilePath || !!backupContent); // untitled associated to file path are dirty right away as well as untitled with content
+			// untitled associated to file path are dirty right away as well as untitled with content
+			this.setDirty(this.hasAssociatedFilePath || !!backupContent);
 
-			return super.load().then(model => {
+			return this.doLoad(backupContent || this.initialValue || '').then(model => {
 				const configuration = this.configurationService.getConfiguration<IFilesConfiguration>();
 
 				// Encoding
@@ -185,6 +186,21 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 				return model;
 			});
 		});
+	}
+
+	private doLoad(content: string): TPromise<EditorModel> {
+
+		// Create text editor model if not yet done
+		if (!this.textEditorModel) {
+			return this.createTextEditorModel(content, this.resource, this.modeId);
+		}
+
+		// Otherwise update
+		else {
+			this.updateTextEditorModel(content);
+		}
+
+		return TPromise.as<EditorModel>(this);
 	}
 
 	private onModelContentChanged(): void {

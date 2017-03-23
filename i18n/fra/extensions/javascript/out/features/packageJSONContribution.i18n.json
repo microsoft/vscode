@@ -8,7 +8,6 @@
 	"json.npm.latestversion": "Dernière version du package",
 	"json.npm.majorversion": "Correspond à la version principale la plus récente (1.x.x)",
 	"json.npm.minorversion": "Correspond à la version mineure la plus récente (1.2.x)",
-	"json.npm.package.hover": "{0}",
 	"json.npm.version.hover": "Dernière version : {0}",
 	"json.package.default": "Fichier package.json par défaut"
 }

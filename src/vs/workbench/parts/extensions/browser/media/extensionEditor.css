@@ -108,7 +108,6 @@
 .extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .action-label {
 	font-weight: 600;
 	padding: 1px 6px;
-	line-height: 15px;
 }
 
 .extension-editor > .body {
@@ -150,6 +149,10 @@
 
 .extension-editor > .body > .content {
 	height: calc(100% - 36px);
+}
+
+.extension-editor > .body > .content.loading {
+	background: url('loading.svg') center center no-repeat;
 }
 
 .extension-editor > .body > .content > .monaco-scrollable-element {

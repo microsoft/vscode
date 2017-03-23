@@ -88,7 +88,7 @@ export abstract class ContextKeyExpr {
 
 	public abstract getType(): ContextKeyExprType;
 	public abstract equals(other: ContextKeyExpr): boolean;
-	public abstract evaluate(context: any): boolean;
+	public abstract evaluate(context: IContext): boolean;
 	public abstract normalize(): ContextKeyExpr;
 	public abstract serialize(): string;
 	public abstract keys(): string[];
@@ -139,8 +139,8 @@ export class ContextKeyDefinedExpr implements ContextKeyExpr {
 		return false;
 	}
 
-	public evaluate(context: any): boolean {
-		return (!!context[this.key]);
+	public evaluate(context: IContext): boolean {
+		return (!!context.getValue(this.key));
 	}
 
 	public normalize(): ContextKeyExpr {
@@ -187,10 +187,10 @@ export class ContextKeyEqualsExpr implements ContextKeyExpr {
 		return false;
 	}
 
-	public evaluate(context: any): boolean {
+	public evaluate(context: IContext): boolean {
 		/* tslint:disable:triple-equals */
 		// Intentional ==
-		return (context[this.key] == this.value);
+		return (context.getValue(this.key) == this.value);
 		/* tslint:enable:triple-equals */
 	}
 
@@ -248,10 +248,10 @@ export class ContextKeyNotEqualsExpr implements ContextKeyExpr {
 		return false;
 	}
 
-	public evaluate(context: any): boolean {
+	public evaluate(context: IContext): boolean {
 		/* tslint:disable:triple-equals */
 		// Intentional !=
-		return (context[this.key] != this.value);
+		return (context.getValue(this.key) != this.value);
 		/* tslint:enable:triple-equals */
 	}
 
@@ -303,8 +303,8 @@ export class ContextKeyNotExpr implements ContextKeyExpr {
 		return false;
 	}
 
-	public evaluate(context: any): boolean {
-		return (!context[this.key]);
+	public evaluate(context: IContext): boolean {
+		return (!context.getValue(this.key));
 	}
 
 	public normalize(): ContextKeyExpr {
@@ -343,9 +343,10 @@ export class ContextKeyAndExpr implements ContextKeyExpr {
 			}
 			return true;
 		}
+		return false;
 	}
 
-	public evaluate(context: any): boolean {
+	public evaluate(context: IContext): boolean {
 		for (let i = 0, len = this.expr.length; i < len; i++) {
 			if (!this.expr[i].evaluate(context)) {
 				return false;
@@ -440,6 +441,10 @@ export class RawContextKey<T> extends ContextKeyDefinedExpr {
 	}
 }
 
+export interface IContext {
+	getValue<T>(key: string): T;
+}
+
 export interface IContextKey<T> {
 	set(value: T): void;
 	reset(): void;
@@ -465,8 +470,8 @@ export interface IContextKeyService {
 	contextMatchesRules(rules: ContextKeyExpr): boolean;
 	getContextKeyValue<T>(key: string): T;
 
-	createScoped(target: IContextKeyServiceTarget): IContextKeyService;
-	getContextValue(target: IContextKeyServiceTarget): any;
+	createScoped(target?: IContextKeyServiceTarget): IContextKeyService;
+	getContext(target: IContextKeyServiceTarget): IContext;
 }
 
 export const SET_CONTEXT_COMMAND_ID = 'setContext';

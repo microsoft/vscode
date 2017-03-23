@@ -8,6 +8,9 @@ import * as os from 'os';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as uuid from 'vs/base/common/uuid';
 
+export const machineIdStorageKey = 'telemetry.machineId';
+export const machineIdIpcChannel = 'vscode:machineId';
+
 export function resolveCommonProperties(commit: string, version: string): TPromise<{ [name: string]: string; }> {
 	const result: { [name: string]: string; } = Object.create(null);
 
