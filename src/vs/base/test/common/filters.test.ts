@@ -279,6 +279,8 @@ suite('Filters', () => {
 		assertMatches('ob', 'foobar', undefined, fuzzyScore);
 		assertMatches('sl', 'SVisualLoggerLogsList', '^SVisual^LoggerLogsList', fuzzyScore);
 		assertMatches('sllll', 'SVisualLoggerLogsList', '^SVisua^l^Logger^Logs^List', fuzzyScore);
+		assertMatches('Three', 'HTMLHRElement', 'H^TML^H^R^El^ement', fuzzyScore);
+		assertMatches('Three', 'Three', '^T^h^r^e^e', fuzzyScore);
 
 	});
 
