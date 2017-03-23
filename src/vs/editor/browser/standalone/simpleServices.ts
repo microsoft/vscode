@@ -416,6 +416,10 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 		);
 		return new USLayoutResolvedKeybinding(keybinding, OS);
 	}
+
+	public resolveUserBinding(userBinding: string): ResolvedKeybinding[] {
+		return [];
+	}
 }
 
 export class SimpleConfigurationService implements IConfigurationService {
