@@ -362,7 +362,7 @@ export class SearchResult extends Disposable {
 				fileMatch.onDispose(() => disposable.dispose());
 			}
 		});
-		if (!silent) {
+		if (!silent && changed.length) {
 			this._onChange.fire({ elements: changed, added: true });
 		}
 	}
@@ -544,26 +544,26 @@ export class SearchModel extends Disposable {
 
 	public search(query: ISearchQuery): PPromise<ISearchComplete, ISearchProgressItem> {
 		this.cancelSearch();
+		this._searchQuery = query;
+		this.currentRequest = this.searchService.search(this._searchQuery);
+
 		this.searchResult.clear();
 
-		this._searchQuery = query;
 		this._searchResult.query = this._searchQuery.contentPattern;
 		this._replacePattern = new ReplacePattern(this._replaceString, this._searchQuery.contentPattern);
 
-		this.currentRequest = this.searchService.search(this._searchQuery);
-
 		const onDone = fromPromise(this.currentRequest);
+		const progressEmitter = new Emitter<void>();
+		const onFirstRender = any(onDone, progressEmitter.event);
+		const onFirstRenderStopwatch = stopwatch(onFirstRender);
+		onFirstRenderStopwatch(duration => this.telemetryService.publicLog('searchResultsFirstRender', { duration }));
+
 		const onDoneStopwatch = stopwatch(onDone);
 		const start = Date.now();
 
 		onDoneStopwatch(duration => this.telemetryService.publicLog('searchResultsFinished', { duration }));
 
-		const progressEmitter = new Emitter<void>();
-		const onFirstRender = any(onDone, progressEmitter.event);
-		const onFirstRenderStopwatch = stopwatch(onFirstRender);
-
-		onFirstRenderStopwatch(duration => this.telemetryService.publicLog('searchResultsFirstRender', { duration }));
-
+		const currentRequest = this.currentRequest;
 		this.currentRequest.then(
 			value => this.onSearchCompleted(value, Date.now() - start),
 			e => this.onSearchError(e, Date.now() - start),
@@ -573,10 +573,13 @@ export class SearchModel extends Disposable {
 			}
 		);
 
-		return this.currentRequest;
+		// this.currentRequest may be completed (and nulled) immediately
+		return currentRequest;
 	}
 
 	private onSearchCompleted(completed: ISearchComplete, duration: number): ISearchComplete {
+		this.currentRequest = null;
+
 		if (completed) {
 			this._searchResult.add(completed.results, false);
 		}

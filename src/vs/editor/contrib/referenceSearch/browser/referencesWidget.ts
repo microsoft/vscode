@@ -9,7 +9,7 @@ import * as nls from 'vs/nls';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { getPathLabel } from 'vs/base/common/labels';
 import Event, { Emitter } from 'vs/base/common/event';
-import { IDisposable, dispose, Disposables, empty as EmptyDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, Disposables, IReference } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import * as strings from 'vs/base/common/strings';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -36,7 +36,10 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { PeekViewWidget, IPeekViewService } from 'vs/editor/contrib/zoneWidget/browser/peekViewWidget';
 import { FileReferences, OneReference, ReferencesModel } from './referencesModel';
-import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
+import { ITextModelResolverService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
+import { registerColor, highContrastOutline } from 'vs/platform/theme/common/colorRegistry';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+
 
 class DecorationsManager implements IDisposable {
 
@@ -139,7 +142,7 @@ class DecorationsManager implements IDisposable {
 
 		this._editor.changeDecorations((accessor) => {
 			for (let i = 0, len = toRemove.length; i < len; i++) {
-				delete this._decorations[toRemove[i]];
+				this._decorations.delete(toRemove[i]);
 			}
 			accessor.deltaDecorations(toRemove, []);
 		});
@@ -493,7 +496,7 @@ export class ReferenceWidget extends PeekViewWidget {
 	private _treeContainer: Builder;
 	private _sash: VSash;
 	private _preview: ICodeEditor;
-	private _previewModelReference: IDisposable = EmptyDisposable;
+	private _previewModelReference: IReference<ITextEditorModel>;
 	private _previewNotAvailableMessage: Model;
 	private _previewContainer: Builder;
 	private _messageContainer: Builder;
@@ -505,7 +508,7 @@ export class ReferenceWidget extends PeekViewWidget {
 		private _contextService: IWorkspaceContextService,
 		private _instantiationService: IInstantiationService
 	) {
-		super(editor, { frameColor: '#007ACC', showFrame: false, showArrow: true, isResizeable: true });
+		super(editor, { showFrame: false, showArrow: true, isResizeable: true });
 
 		this._instantiationService = this._instantiationService.createChild(new ServiceCollection([IPeekViewService, this]));
 		this.create();
@@ -513,7 +516,7 @@ export class ReferenceWidget extends PeekViewWidget {
 
 	public dispose(): void {
 		this.setModel(null);
-		dispose<IDisposable>(this._preview, this._previewNotAvailableMessage, this._tree, this._sash);
+		dispose<IDisposable>(this._preview, this._previewNotAvailableMessage, this._tree, this._sash, this._previewModelReference);
 		super.dispose();
 	}
 
@@ -543,7 +546,7 @@ export class ReferenceWidget extends PeekViewWidget {
 	protected _fillBody(containerElement: HTMLElement): void {
 		var container = $(containerElement);
 
-		container.addClass('reference-zone-widget');
+		this.setCssClass('reference-zone-widget');
 
 		// message pane
 		container.div({ 'class': 'messages' }, div => {
@@ -557,7 +560,10 @@ export class ReferenceWidget extends PeekViewWidget {
 				scrollBeyondLastLine: false,
 				scrollbar: DefaultConfig.editor.scrollbar,
 				overviewRulerLanes: 2,
-				fixedOverflowWidgets: true
+				fixedOverflowWidgets: true,
+				minimap: {
+					enabled: false
+				}
 			};
 
 			this._preview = this._instantiationService.createInstance(EmbeddedCodeEditorWidget, div.getHTMLElement(), options, this.editor);
@@ -727,8 +733,7 @@ export class ReferenceWidget extends PeekViewWidget {
 				return;
 			}
 
-			this._previewModelReference.dispose();
-			this._previewModelReference = EmptyDisposable;
+			dispose(this._previewModelReference);
 
 			// show in editor
 			const model = ref.object;
@@ -750,3 +755,63 @@ export class ReferenceWidget extends PeekViewWidget {
 		}, onUnexpectedError);
 	}
 }
+
+// theming
+
+export const editorPeekFindMatchHighlight = registerColor('editorPeekFindMatchHighlight', { dark: '#ea5c004d', light: '#ea5c004d', hc: null }, nls.localize('editorPeekFindMatchHighlight', 'References view match highlight color'));
+export const editorPeekReferenceHighlight = registerColor('editorPeekReferenceHighlight', { dark: '#ff8f0099', light: '#f5d802de', hc: null }, nls.localize('editorPeekReferenceHighlight', 'References range highlight color'));
+
+export const editorPeekResultsBackground = registerColor('editorPeekResultsBackground', { dark: '#252526', light: '#F3F3F3', hc: '#000000' }, nls.localize('editorPeekResultsBackground', 'References view list background'));
+export const editorPeekResultsMatchForeground = registerColor('editorPeekResultsMatchForeground', { dark: '#bbbbbb', light: '#646465', hc: '#ffffff' }, nls.localize('editorPeekResultsMatchForeground', 'References view match entry foreground'));
+export const editorPeekResultsFileForeground = registerColor('editorPeekResultsFileForeground', { dark: '#ffffff', light: '#f5d802de', hc: '#ffffff' }, nls.localize('editorPeekResultsFileForeground', 'References view file entry foreground'));
+export const editorPeekResultsSelectedBackground = registerColor('editorPeekResultsSelectedBackground', { dark: '#3399ff33', light: '#3399ff33', hc: null }, nls.localize('editorPeekResultsSelectedBackground', 'References view selected entry background'));
+export const editorPeekResultsSelectedForeground = registerColor('editorPeekResultsSelectedForeground', { dark: '#ffffff', light: '#6C6C6C', hc: '#ffffff' }, nls.localize('editorPeekResultsSelectedForeground', 'References view selected entry foreground'));
+export const editorPeekEditorBackground = registerColor('editorPeekEditorBackground', { dark: '#001F33', light: '#F2F8FC', hc: '#0C141F' }, nls.localize('editorPeekEditorBackground', 'References view editor background'));
+
+
+registerThemingParticipant((theme, collector) => {
+	let findMatchHighlightColor = theme.getColor(editorPeekFindMatchHighlight);
+	if (findMatchHighlightColor) {
+		collector.addRule(`.monaco-editor.${theme.selector} .reference-zone-widget .ref-tree .referenceMatch { background-color: ${findMatchHighlightColor}; }`);
+	}
+	let referenceHighlightColor = theme.getColor(editorPeekReferenceHighlight);
+	if (referenceHighlightColor) {
+		collector.addRule(`.monaco-editor.${theme.selector} .reference-zone-widget .preview .reference-decoration { background-color: ${referenceHighlightColor}; }`);
+	}
+	let hcOutline = theme.getColor(highContrastOutline);
+	if (hcOutline) {
+		collector.addRule(`.monaco-editor.${theme.selector} .reference-zone-widget .ref-tree .referenceMatch { border: 1px dotted ${hcOutline}; box-sizing: border-box; }`);
+		collector.addRule(`.monaco-editor.${theme.selector} .reference-zone-widget .preview .reference-decoration { border: 2px solid ${hcOutline}; box-sizing: border-box; }`);
+	}
+	let resultsBackground = theme.getColor(editorPeekResultsBackground);
+	if (resultsBackground) {
+		collector.addRule(`.monaco-editor.${theme.selector} .reference-zone-widget .ref-tree { background-color: ${resultsBackground}; }`);
+	}
+	let resultsMatchForeground = theme.getColor(editorPeekResultsMatchForeground);
+	if (resultsMatchForeground) {
+		collector.addRule(`.monaco-editor.${theme.selector} .reference-zone-widget .ref-tree { color: ${resultsMatchForeground}; }`);
+	}
+	let resultsFileForeground = theme.getColor(editorPeekResultsFileForeground);
+	if (resultsFileForeground) {
+		collector.addRule(`.monaco-editor.${theme.selector} .reference-zone-widget .ref-tree .reference-file { color: ${resultsFileForeground}; }`);
+	}
+	let resultsSelectedBackground = theme.getColor(editorPeekResultsSelectedBackground);
+	if (resultsSelectedBackground) {
+		collector.addRule(`.monaco-editor.${theme.selector} .reference-zone-widget .ref-tree .monaco-tree.focused .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted) { background-color: ${resultsSelectedBackground}; }`);
+	}
+	let resultsSelectedForeground = theme.getColor(editorPeekResultsSelectedForeground);
+	if (resultsSelectedForeground) {
+		collector.addRule(`.monaco-editor.${theme.selector} .reference-zone-widget .ref-tree .monaco-tree.focused .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted) { color: ${resultsSelectedForeground} !important; }`);
+	}
+	let editorBackground = theme.getColor(editorPeekEditorBackground);
+	if (editorBackground) {
+		collector.addRule(
+			`.monaco-editor.${theme.selector} .reference-zone-widget,` +
+			`.monaco-editor.${theme.selector} .reference-zone-widget .preview .monaco-editor,` +
+			`.monaco-editor.${theme.selector} .reference-zone-widget .preview .glyph-margin,` +
+			`.monaco-editor.${theme.selector} .reference-zone-widget .preview .monaco-editor-background,` +
+			`.monaco-editor.${theme.selector} .reference-zone-widget .preview .monaco-editor .margin .view-line {` +
+			`	background-color: ${editorBackground};` +
+			`}`);
+	}
+});

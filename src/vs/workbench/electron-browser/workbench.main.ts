@@ -11,7 +11,6 @@ import 'vs/base/common/errors';
 
 // Editor
 import 'vs/editor/contrib/accessibility/browser/accessibility';
-import 'vs/editor/contrib/defineKeybinding/browser/defineKeybinding';
 import 'vs/editor/contrib/inspectTMScopes/electron-browser/inspectTMScopes';
 import 'vs/editor/contrib/selectionClipboard/electron-browser/selectionClipboard';
 import 'vs/editor/browser/editor.all';
@@ -27,6 +26,7 @@ import 'vs/workbench/browser/actions/toggleSidebarPosition';
 import 'vs/workbench/browser/actions/toggleEditorLayout';
 import 'vs/workbench/browser/actions/toggleZenMode';
 import 'vs/workbench/parts/preferences/browser/preferences.contribution';
+import 'vs/workbench/parts/preferences/browser/keybindingsEditorContribution';
 import 'vs/workbench/browser/actions/configureLocale';
 
 import 'vs/workbench/parts/quickopen/browser/quickopen.contribution';
@@ -51,6 +51,7 @@ import 'vs/workbench/parts/git/browser/gitActions.contribution';
 import 'vs/workbench/parts/git/browser/gitViewlet'; // can be packaged separately
 
 import 'vs/workbench/parts/debug/electron-browser/debug.contribution';
+import 'vs/workbench/parts/debug/browser/debugQuickOpen';
 import 'vs/workbench/parts/debug/electron-browser/repl';
 import 'vs/workbench/parts/debug/browser/debugEditorActions';
 import 'vs/workbench/parts/debug/browser/debugViewlet'; // can be packaged separately

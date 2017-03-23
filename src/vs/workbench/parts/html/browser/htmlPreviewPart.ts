@@ -18,9 +18,10 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { HtmlInput } from 'vs/workbench/parts/html/common/htmlInput';
-import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
+import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITextModelResolverService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
+import { Parts, IPartService } from 'vs/workbench/services/part/common/partService';
 
 import Webview from './webview';
 
@@ -32,7 +33,6 @@ export class HtmlPreviewPart extends BaseEditor {
 	static ID: string = 'workbench.editor.htmlPreviewPart';
 
 	private _textModelResolverService: ITextModelResolverService;
-	private _themeService: IThemeService;
 	private _openerService: IOpenerService;
 	private _webview: Webview;
 	private _webviewDisposables: IDisposable[];
@@ -48,14 +48,14 @@ export class HtmlPreviewPart extends BaseEditor {
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@ITextModelResolverService textModelResolverService: ITextModelResolverService,
-		@IThemeService themeService: IThemeService,
+		@IWorkbenchThemeService protected themeService: IWorkbenchThemeService,
 		@IOpenerService openerService: IOpenerService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IPartService private partService: IPartService
 	) {
-		super(HtmlPreviewPart.ID, telemetryService);
+		super(HtmlPreviewPart.ID, telemetryService, themeService);
 
 		this._textModelResolverService = textModelResolverService;
-		this._themeService = themeService;
 		this._openerService = openerService;
 		this._baseUrl = contextService.toResource('/');
 	}
@@ -76,12 +76,14 @@ export class HtmlPreviewPart extends BaseEditor {
 	protected createEditor(parent: Builder): void {
 		this._container = document.createElement('div');
 		this._container.style.paddingLeft = '20px';
+		this._container.style.position = 'absolute';
+		this._container.style.zIndex = '300';
 		parent.getHTMLElement().appendChild(this._container);
 	}
 
 	private get webview(): Webview {
 		if (!this._webview) {
-			this._webview = new Webview(this._container, document.querySelector('.monaco-editor-background'), { nodeintegration: true });
+			this._webview = new Webview(this._container, this.partService.getContainer(Parts.EDITOR_PART));
 			this._webview.baseUrl = this._baseUrl && this._baseUrl.toString(true);
 
 			this._webviewDisposables = [
@@ -114,8 +116,8 @@ export class HtmlPreviewPart extends BaseEditor {
 			this._webviewDisposables = dispose(this._webviewDisposables);
 			this._webview = undefined;
 		} else {
-			this._themeChangeSubscription = this._themeService.onDidColorThemeChange(themeId => this.webview.style(themeId));
-			this.webview.style(this._themeService.getColorTheme());
+			this._themeChangeSubscription = this.themeService.onDidColorThemeChange(themeId => this.webview.style(themeId));
+			this.webview.style(this.themeService.getColorTheme());
 
 			if (this._hasValidModel()) {
 				this._modelChangeSubscription = this.model.onDidChangeContent(() => this.webview.contents = this.model.getLinesContent());
@@ -177,7 +179,11 @@ export class HtmlPreviewPart extends BaseEditor {
 					return TPromise.wrapError<void>(localize('html.voidInput', "Invalid editor input."));
 				}
 
-				this._modelChangeSubscription = this.model.onDidChangeContent(() => this.webview.contents = this.model.getLinesContent());
+				this._modelChangeSubscription = this.model.onDidChangeContent(() => {
+					if (this.model) {
+						this.webview.contents = this.model.getLinesContent();
+					}
+				});
 				this.webview.baseUrl = resourceUri.toString(true);
 				this.webview.contents = this.model.getLinesContent();
 

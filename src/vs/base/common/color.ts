@@ -25,7 +25,7 @@ export class RGBA {
 	 */
 	public readonly a: number;
 
-	constructor(r: number, g: number, b: number, a: number) {
+	constructor(r: number, g: number, b: number, a: number = 255) {
 		this.r = RGBA._clampInt_0_255(r);
 		this.g = RGBA._clampInt_0_255(g);
 		this.b = RGBA._clampInt_0_255(b);
@@ -130,6 +130,10 @@ function hex2rgba(hex: string): RGBA {
 	}
 	// Invalid color
 	return new RGBA(255, 0, 0, 255);
+}
+
+export function isValidHexColor(hex: string): boolean {
+	return /^#[0-9a-f]{6}([0-9a-f]{2})?$/i.test(hex);
 }
 
 function _parseHexDigit(charCode: CharCode): number {
@@ -255,7 +259,6 @@ export class Color {
 	}
 
 	private readonly rgba: RGBA;
-	private hsla: HSLA;
 
 	private constructor(arg: string | RGBA) {
 		if (arg instanceof RGBA) {
@@ -263,7 +266,6 @@ export class Color {
 		} else {
 			this.rgba = hex2rgba(arg);
 		}
-		this.hsla = null;
 	}
 
 	public equals(other: Color): boolean {
@@ -371,9 +373,13 @@ export class Color {
 
 	/**
 	 * Prins the color as #RRGGBBAA
+	 * If 'compact' is set, colors without transparancy will be printed as #RRGGBB
 	 */
-	public toRGBAHex(): string {
+	public toRGBAHex(compact = false): string {
 		const rgba = this.rgba;
+		if (compact && rgba.a === 0xFF) {
+			return this.toRGBHex();
+		}
 		return `#${Color._toTwoDigitHex(rgba.r)}${Color._toTwoDigitHex(rgba.g)}${Color._toTwoDigitHex(rgba.b)}${Color._toTwoDigitHex(rgba.a)}`;
 	}
 
@@ -386,10 +392,7 @@ export class Color {
 	}
 
 	public toHSLA(): HSLA {
-		if (this.hsla === null) {
-			this.hsla = rgba2hsla(this.rgba);
-		}
-		return this.hsla;
+		return rgba2hsla(this.rgba);
 	}
 
 	public toRGBA(): RGBA {
@@ -417,4 +420,13 @@ export class Color {
 		factor = factor * (lum1 - lum2) / lum1;
 		return of.darken(factor);
 	}
+
+	public static readonly white = new Color(new RGBA(255, 255, 255, 255));
+	public static readonly black = new Color(new RGBA(0, 0, 0, 255));
+	public static readonly red = new Color(new RGBA(255, 0, 0, 255));
+	public static readonly blue = new Color(new RGBA(0, 0, 255, 255));
+	public static readonly green = new Color(new RGBA(0, 255, 0, 255));
+	public static readonly cyan = new Color(new RGBA(0, 255, 255, 255));
+	public static readonly lightgrey = new Color(new RGBA(211, 211, 211, 255));
+	public static readonly transparent = new Color(new RGBA(0, 0, 0, 0));
 }

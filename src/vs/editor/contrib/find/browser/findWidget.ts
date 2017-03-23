@@ -25,6 +25,10 @@ import { Range } from 'vs/editor/common/core/range';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { CONTEXT_FIND_INPUT_FOCUSSED } from 'vs/editor/contrib/find/common/findController';
 
+import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
+import { ITheme, ICssStyleCollector, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { Color } from 'vs/base/common/color';
+
 export interface IFindController {
 	replace(): void;
 	replaceAll(): void;
@@ -360,71 +364,76 @@ export class FindWidget extends Widget implements IOverlayWidget {
 
 	private _onFindInputKeyDown(e: IKeyboardEvent): void {
 
-		switch (e.toKeybinding().value) {
-			case KeyCode.Enter:
-				this._codeEditor.getAction(FIND_IDS.NextMatchFindAction).run().done(null, onUnexpectedError);
-				e.preventDefault();
-				return;
+		if (e.equals(KeyCode.Enter)) {
+			this._codeEditor.getAction(FIND_IDS.NextMatchFindAction).run().done(null, onUnexpectedError);
+			e.preventDefault();
+			return;
+		}
 
-			case KeyMod.Shift | KeyCode.Enter:
-				this._codeEditor.getAction(FIND_IDS.PreviousMatchFindAction).run().done(null, onUnexpectedError);
-				e.preventDefault();
-				return;
+		if (e.equals(KeyMod.Shift | KeyCode.Enter)) {
+			this._codeEditor.getAction(FIND_IDS.PreviousMatchFindAction).run().done(null, onUnexpectedError);
+			e.preventDefault();
+			return;
+		}
 
-			case KeyCode.Tab:
-				if (this._isReplaceVisible) {
-					this._replaceInputBox.focus();
-				} else {
-					this._findInput.focusOnCaseSensitive();
-				}
-				e.preventDefault();
-				return;
+		if (e.equals(KeyCode.Tab)) {
+			if (this._isReplaceVisible) {
+				this._replaceInputBox.focus();
+			} else {
+				this._findInput.focusOnCaseSensitive();
+			}
+			e.preventDefault();
+			return;
+		}
 
-			case KeyMod.CtrlCmd | KeyCode.DownArrow:
-				this._codeEditor.focus();
-				e.preventDefault();
-				return;
+		if (e.equals(KeyMod.CtrlCmd | KeyCode.DownArrow)) {
+			this._codeEditor.focus();
+			e.preventDefault();
+			return;
 		}
 	}
 
 	private _onReplaceInputKeyDown(e: IKeyboardEvent): void {
 
-		switch (e.toKeybinding().value) {
-			case KeyCode.Enter:
-				this._controller.replace();
-				e.preventDefault();
-				return;
+		if (e.equals(KeyCode.Enter)) {
+			this._controller.replace();
+			e.preventDefault();
+			return;
+		}
 
-			case KeyMod.CtrlCmd | KeyCode.Enter:
-				this._controller.replaceAll();
-				e.preventDefault();
-				return;
+		if (e.equals(KeyMod.CtrlCmd | KeyCode.Enter)) {
+			this._controller.replaceAll();
+			e.preventDefault();
+			return;
+		}
 
-			case KeyCode.Tab:
-				this._findInput.focusOnCaseSensitive();
-				e.preventDefault();
-				return;
+		if (e.equals(KeyCode.Tab)) {
+			this._findInput.focusOnCaseSensitive();
+			e.preventDefault();
+			return;
+		}
 
-			case KeyMod.Shift | KeyCode.Tab:
-				this._findInput.focus();
-				e.preventDefault();
-				return;
+		if (e.equals(KeyMod.Shift | KeyCode.Tab)) {
+			this._findInput.focus();
+			e.preventDefault();
+			return;
+		}
 
-			case KeyMod.CtrlCmd | KeyCode.DownArrow:
-				this._codeEditor.focus();
-				e.preventDefault();
-				return;
+		if (e.equals(KeyMod.CtrlCmd | KeyCode.DownArrow)) {
+			this._codeEditor.focus();
+			e.preventDefault();
+			return;
 		}
 	}
 
 	// ----- initialization
 
 	private _keybindingLabelFor(actionId: string): string {
-		let [kb] = this._keybindingService.lookupKeybindings(actionId);
+		let kb = this._keybindingService.lookupKeybinding(actionId);
 		if (!kb) {
 			return '';
 		}
-		return ` (${this._keybindingService.getLabelFor(kb)})`;
+		return ` (${kb.getLabel()})`;
 	}
 
 	private _buildFindPart(): HTMLElement {
@@ -766,5 +775,17 @@ class SimpleButton extends Widget {
 
 	public toggleClass(className: string, shouldHaveIt: boolean): void {
 		dom.toggleClass(this._domNode, className, shouldHaveIt);
+	}
+}
+
+registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+	addBackgroundColorRule(theme, '.findMatch', theme.getColor(colorRegistry.editorFindMatchHighlight), collector);
+	addBackgroundColorRule(theme, '.currentFindMatch', theme.getColor(colorRegistry.editorCurrentFindMatchHighlight), collector);
+	addBackgroundColorRule(theme, '.findScope', theme.getColor(colorRegistry.editorFindRangeHighlight), collector);
+});
+
+function addBackgroundColorRule(theme: ITheme, selector: string, color: Color, collector: ICssStyleCollector): void {
+	if (color) {
+		collector.addRule(`.monaco-editor.${theme.selector} ${selector} { background-color: ${color}; }`);
 	}
 }

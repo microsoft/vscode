@@ -124,6 +124,7 @@ function renderRenameBox(debugService: debug.IDebugService, contextViewService: 
 		ariaLabel: options.ariaLabel
 	});
 
+	tree.setHighlight();
 	inputBox.value = options.initialValue ? options.initialValue : '';
 	inputBox.focus();
 	inputBox.select();
@@ -196,7 +197,7 @@ export class BaseDebugController extends DefaultController {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IMenuService menuService: IMenuService
 	) {
-		super({ clickBehavior: ClickBehavior.ON_MOUSE_DOWN, keyboardSupport: false });
+		super({ clickBehavior: ClickBehavior.ON_MOUSE_UP, keyboardSupport: false });
 
 		this.contributedContextMenu = menuService.createMenu(menuId, contextKeyService);
 	}
@@ -247,7 +248,7 @@ export class CallStackController extends BaseDebugController {
 			return this.showMoreStackFrames(tree, element);
 		}
 		if (element instanceof StackFrame) {
-			this.focusStackFrame(element, event, true);
+			this.focusStackFrame(element, event, event.detail !== 2);
 		}
 
 		return super.onLeftClick(tree, element, event);
@@ -509,8 +510,11 @@ export class CallStackRenderer implements IRenderer {
 		data.thread.title = nls.localize('thread', "Thread");
 		data.name.textContent = thread.name;
 
-		data.stateLabel.textContent = thread.stopped ? nls.localize({ key: 'pausedOn', comment: ['indicates reason for program being paused'] }, "Paused on {0}", thread.stoppedDetails.reason)
-			: nls.localize({ key: 'running', comment: ['indicates state'] }, "Running");
+		if (thread.stopped) {
+			data.stateLabel.textContent = thread.stoppedDetails.description || nls.localize({ key: 'pausedOn', comment: ['indicates reason for program being paused'] }, "Paused on {0}", thread.stoppedDetails.reason);
+		} else {
+			data.stateLabel.textContent = nls.localize({ key: 'running', comment: ['indicates state'] }, "Running");
+		}
 	}
 
 	private renderError(element: string, data: IErrorTemplateData) {
@@ -523,7 +527,8 @@ export class CallStackRenderer implements IRenderer {
 	}
 
 	private renderStackFrame(stackFrame: debug.IStackFrame, data: IStackFrameTemplateData): void {
-		stackFrame.source.deemphasize ? dom.addClass(data.stackFrame, 'disabled') : dom.removeClass(data.stackFrame, 'disabled');
+		stackFrame.source.presenationHint === 'deemphasize' ? dom.addClass(data.stackFrame, 'disabled') : dom.removeClass(data.stackFrame, 'disabled');
+		stackFrame.source.presenationHint === 'label' ? dom.addClass(data.stackFrame, 'label') : dom.removeClass(data.stackFrame, 'label');
 		data.file.title = stackFrame.source.raw.path || stackFrame.source.name;
 		if (stackFrame.source.raw.origin) {
 			data.file.title += `\n${stackFrame.source.raw.origin}`;
@@ -729,9 +734,7 @@ export class VariablesController extends BaseDebugController {
 		// double click on primitive value: open input box to be able to set the value
 		if (element instanceof Variable && event.detail === 2) {
 			const expression = <debug.IExpression>element;
-			if (!expression.hasChildren) {
-				this.debugService.getViewModel().setSelectedExpression(expression);
-			}
+			this.debugService.getViewModel().setSelectedExpression(expression);
 			return true;
 		}
 
@@ -939,9 +942,7 @@ export class WatchExpressionsController extends BaseDebugController {
 		// double click on primitive value: open input box to be able to select and copy value.
 		if (element instanceof Expression && event.detail === 2) {
 			const expression = <debug.IExpression>element;
-			if (!expression.hasChildren) {
-				this.debugService.getViewModel().setSelectedExpression(expression);
-			}
+			this.debugService.getViewModel().setSelectedExpression(expression);
 			return true;
 		}
 
@@ -1234,7 +1235,7 @@ export class BreakpointsController extends BaseDebugController {
 			return true;
 		}
 		if (element instanceof Breakpoint) {
-			this.openBreakpointSource(element, event, true);
+			this.openBreakpointSource(element, event, event.detail !== 2);
 		}
 
 		return super.onLeftClick(tree, element, event);
@@ -1248,7 +1249,8 @@ export class BreakpointsController extends BaseDebugController {
 				preserveFocus,
 				selection: { startLineNumber: breakpoint.lineNumber, startColumn: 1 },
 				revealIfVisible: true,
-				revealInCenterIfOutsideViewport: true
+				revealInCenterIfOutsideViewport: true,
+				pinned: !preserveFocus
 			}
 		}, sideBySide).done(undefined, errors.onUnexpectedError);
 	}

@@ -11,7 +11,7 @@ import DOM = require('vs/base/browser/dom');
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Builder, $ } from 'vs/base/browser/builder';
 import { DelayedDragHandler } from 'vs/base/browser/dnd';
-import { Action, IAction } from 'vs/base/common/actions';
+import { Action } from 'vs/base/common/actions';
 import { BaseActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IActivityBarService, ProgressBadge, TextBadge, NumberBadge, IconBadge, IBadge } from 'vs/workbench/services/activity/common/activityBarService';
 import Event, { Emitter } from 'vs/base/common/event';
@@ -21,7 +21,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { dispose } from 'vs/base/common/lifecycle';
-import { Keybinding } from 'vs/base/common/keyCodes';
 import { IViewletService, } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 
@@ -140,9 +139,9 @@ export class ActivityActionItem extends BaseActionItem {
 	}
 
 	private getKeybindingLabel(id: string): string {
-		const [kb] = this.keybindingService.lookupKeybindings(id);
+		const kb = this.keybindingService.lookupKeybinding(id);
 		if (kb) {
-			return this.keybindingService.getLabelFor(kb);
+			return kb.getLabel();
 		}
 
 		return null;
@@ -449,15 +448,9 @@ export class ViewletOverflowActivityActionItem extends BaseActionItem {
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => this.builder.getHTMLElement(),
 			getActions: () => TPromise.as(this.actions),
-			getKeyBinding: (action) => this.getKeybinding(action),
+			getKeyBinding: (action) => this.keybindingService.lookupKeybinding(action.id),
 			onHide: () => dispose(this.actions)
 		});
-	}
-
-	private getKeybinding(action: IAction): Keybinding {
-		const [kb] = this.keybindingService.lookupKeybindings(action.id);
-
-		return kb;
 	}
 
 	private getActions(): OpenViewletAction[] {

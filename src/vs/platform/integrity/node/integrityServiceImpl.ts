@@ -141,6 +141,7 @@ export class IntegrityServiceImpl implements IIntegrityService {
 				for (let i = 0, len = allResults.length; isPure && i < len; i++) {
 					if (!allResults[i].isPure) {
 						isPure = false;
+						break;
 					}
 				}
 

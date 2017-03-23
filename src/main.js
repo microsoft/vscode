@@ -5,6 +5,13 @@
 
 'use strict';
 
+if (process.argv.indexOf('--prof-startup') >= 0) {
+	var profiler = require('v8-profiler');
+	var prefix = require('crypto').randomBytes(2).toString('hex');
+	process.env.VSCODE_PROFILES_PREFIX = prefix;
+	profiler.startProfiling('main', true);
+}
+
 // Perf measurements
 global.perfStartTime = Date.now();
 

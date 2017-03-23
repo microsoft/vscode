@@ -19,6 +19,7 @@
 	"optionsUpperCase": "Opciones",
 	"paths": "rutas de acceso",
 	"performance": "Comience con el comando 'Developer: Startup Performance' habilitado.",
+	"prof-startup": "Ejecutar generador de perfiles de CPU durante el inicio",
 	"reuseWindow": "Fuerce la apertura de un archivo o carpeta en la última ventana activa.",
 	"showVersions": "Muestra las versiones de las extensiones instaladas cuando se usa --list-extension.",
 	"uninstallExtension": "Desinstala una extensión.",

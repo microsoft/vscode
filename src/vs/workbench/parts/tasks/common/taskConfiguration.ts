@@ -13,10 +13,10 @@ import * as Types from 'vs/base/common/types';
 import * as UUID from 'vs/base/common/uuid';
 import { Config as ProcessConfig } from 'vs/base/common/processes';
 
-import { ValidationStatus, ValidationState } from 'vs/base/common/parsers';
+import { ValidationStatus, IProblemReporter as IProblemReporterBase } from 'vs/base/common/parsers';
 import {
 	NamedProblemMatcher, ProblemMatcher, ProblemMatcherParser, Config as ProblemMatcherConfig,
-	registry as ProblemMatcherRegistry, isNamedProblemMatcher
+	isNamedProblemMatcher, ProblemMatcherRegistry
 } from 'vs/platform/markers/common/problemMatcher';
 
 import * as TaskSystem from './taskSystem';
@@ -311,8 +311,7 @@ function fillProperty<T, K extends keyof T>(target: T, source: T, key: K) {
 }
 
 interface ParseContext {
-	logger: ILogger;
-	validationStatus: ValidationStatus;
+	problemReporter: IProblemReporter;
 	namedProblemMatchers: IStringDictionary<NamedProblemMatcher>;
 	isTermnial: boolean;
 }
@@ -324,8 +323,7 @@ namespace CommandOptions {
 			if (Types.isString(options.cwd)) {
 				result.cwd = options.cwd;
 			} else {
-				context.validationStatus.state = ValidationState.Warning;
-				context.logger.log(nls.localize('ConfigurationParser.invalidCWD', 'Warning: options.cwd must be of type string. Ignoring value {0}\n', options.cwd));
+				context.problemReporter.warn(nls.localize('ConfigurationParser.invalidCWD', 'Warning: options.cwd must be of type string. Ignoring value {0}\n', options.cwd));
 			}
 		}
 		if (options.env !== void 0) {
@@ -471,8 +469,7 @@ namespace CommandConfiguration {
 		} else if (ShellConfiguration.is(config.isShellCommand)) {
 			result.isShellCommand = ShellConfiguration.from(config.isShellCommand, context);
 			if (!context.isTermnial) {
-				context.validationStatus.state = ValidationState.Warning;
-				context.logger.log(nls.localize('ConfigurationParser.noShell', 'Warning: shell configuration is only supported when executing tasks in the terminal.'));
+				context.problemReporter.warn(nls.localize('ConfigurationParser.noShell', 'Warning: shell configuration is only supported when executing tasks in the terminal.'));
 			}
 		} else if (config.isShellCommand !== void 0) {
 			result.isShellCommand = !!config.isShellCommand;
@@ -481,8 +478,7 @@ namespace CommandConfiguration {
 			if (Types.isStringArray(config.args)) {
 				result.args = config.args.slice(0);
 			} else {
-				context.validationStatus.state = ValidationState.Fatal;
-				context.logger.log(nls.localize('ConfigurationParser.noargs', 'Error: command arguments must be an array of strings. Provided value is:\n{0}', config.args ? JSON.stringify(config.args, undefined, 4) : 'undefined'));
+				context.problemReporter.fatal(nls.localize('ConfigurationParser.noargs', 'Error: command arguments must be an array of strings. Provided value is:\n{0}', config.args ? JSON.stringify(config.args, undefined, 4) : 'undefined'));
 			}
 		}
 		if (config.options !== void 0) {
@@ -578,12 +574,11 @@ namespace ProblemMatcherConverter {
 			return result;
 		}
 		(<ProblemMatcherConfig.NamedProblemMatcher[]>declares).forEach((value) => {
-			let namedProblemMatcher = (new ProblemMatcherParser(ProblemMatcherRegistry, context.logger, context.validationStatus)).parse(value);
+			let namedProblemMatcher = (new ProblemMatcherParser(context.problemReporter)).parse(value);
 			if (isNamedProblemMatcher(namedProblemMatcher)) {
 				result[namedProblemMatcher.name] = namedProblemMatcher;
 			} else {
-				context.validationStatus.state = ValidationState.Error;
-				context.logger.log(nls.localize('ConfigurationParser.noName', 'Error: Problem Matcher in declare scope must have a name:\n{0}\n', JSON.stringify(value, undefined, 4)));
+				context.problemReporter.error(nls.localize('ConfigurationParser.noName', 'Error: Problem Matcher in declare scope must have a name:\n{0}\n', JSON.stringify(value, undefined, 4)));
 			}
 		});
 		return result;
@@ -596,8 +591,7 @@ namespace ProblemMatcherConverter {
 		}
 		let kind = getProblemMatcherKind(config);
 		if (kind === ProblemMatcherKind.Unknown) {
-			context.validationStatus.state = ValidationState.Warning;
-			context.logger.log(nls.localize(
+			context.problemReporter.warn(nls.localize(
 				'ConfigurationParser.unknownMatcherKind',
 				'Warning: the defined problem matcher is unknown. Supported types are string | ProblemMatcher | (string | ProblemMatcher)[].\n{0}\n',
 				JSON.stringify(config, null, 4)));
@@ -648,12 +642,11 @@ namespace ProblemMatcherConverter {
 					return localProblemMatcher;
 				}
 			}
-			context.validationStatus.state = ValidationState.Error;
-			context.logger.log(nls.localize('ConfigurationParser.invalidVaraibleReference', 'Error: Invalid problemMatcher reference: {0}\n', value));
+			context.problemReporter.error(nls.localize('ConfigurationParser.invalidVaraibleReference', 'Error: Invalid problemMatcher reference: {0}\n', value));
 			return undefined;
 		} else {
 			let json = <ProblemMatcherConfig.ProblemMatcher>value;
-			return new ProblemMatcherParser(ProblemMatcherRegistry, context.logger, context.validationStatus).parse(json);
+			return new ProblemMatcherParser(context.problemReporter).parse(json);
 		}
 	}
 }
@@ -669,8 +662,7 @@ namespace CommandBinding {
 		}
 
 		if (!Types.isString(binding.identifier)) {
-			context.validationStatus.state = ValidationState.Warning;
-			context.logger.log(nls.localize('noCommandId', 'Warning: a command binding must defined an identifier. Ignoring binding.'));
+			context.problemReporter.warn(nls.localize('noCommandId', 'Warning: a command binding must defined an identifier. Ignoring binding.'));
 			return undefined;
 		}
 		let result: TaskSystem.CommandBinding = {
@@ -706,8 +698,7 @@ namespace TaskDescription {
 		tasks.forEach((externalTask) => {
 			let taskName = externalTask.taskName;
 			if (!taskName) {
-				context.validationStatus.state = ValidationState.Fatal;
-				context.logger.log(nls.localize('ConfigurationParser.noTaskName', 'Error: tasks must provide a taskName property. The task will be ignored.\n{0}\n', JSON.stringify(externalTask, null, 4)));
+				context.problemReporter.fatal(nls.localize('ConfigurationParser.noTaskName', 'Error: tasks must provide a taskName property. The task will be ignored.\n{0}\n', JSON.stringify(externalTask, null, 4)));
 				return;
 			}
 			let problemMatchers = ProblemMatcherConverter.from(externalTask.problemMatcher, context);
@@ -759,14 +750,12 @@ namespace TaskDescription {
 			let addTask: boolean = true;
 			if (context.isTermnial && task.command && task.command.name && task.command.isShellCommand && task.command.args && task.command.args.length > 0) {
 				if (hasUnescapedSpaces(task.command.name) || task.command.args.some(hasUnescapedSpaces)) {
-					context.validationStatus.state = ValidationState.Warning;
-					context.logger.log(nls.localize('taskConfiguration.shellArgs', 'Warning: the task \'{0}\' is a shell command and either the command name or one of its arguments has unescaped spaces. To ensure correct command line quoting please merge args into the command.', task.name));
+					context.problemReporter.warn(nls.localize('taskConfiguration.shellArgs', 'Warning: the task \'{0}\' is a shell command and either the command name or one of its arguments has unescaped spaces. To ensure correct command line quoting please merge args into the command.', task.name));
 				}
 			}
 			if (context.isTermnial) {
 				if ((task.command === void 0 || task.command.name === void 0) && (task.dependsOn === void 0 || task.dependsOn.length === 0)) {
-					context.validationStatus.state = ValidationState.Error;
-					context.logger.log(nls.localize(
+					context.problemReporter.error(nls.localize(
 						'taskConfiguration.noCommandOrDependsOn', 'Error: the task \'{0}\' neither specifies a command or a dependsOn property. The task will be ignored. Its definition is:\n{1}',
 						task.name, JSON.stringify(externalTask, undefined, 4)
 					));
@@ -774,8 +763,7 @@ namespace TaskDescription {
 				}
 			} else {
 				if (task.command === void 0 || task.command.name === void 0) {
-					context.validationStatus.state = ValidationState.Warning;
-					context.logger.log(nls.localize(
+					context.problemReporter.warn(nls.localize(
 						'taskConfiguration.noCommand', 'Error: the task \'{0}\' doesn\'t define a command. The task will be ignored. Its definition is:\n{1}',
 						task.name, JSON.stringify(externalTask, undefined, 4)
 					));
@@ -1037,30 +1025,26 @@ export interface ParseResult {
 	engine: ExecutionEngine;
 }
 
-export interface ILogger {
-	log(value: string): void;
+export interface IProblemReporter extends IProblemReporterBase {
 	clearOutput(): void;
 }
 
 class ConfigurationParser {
 
-	private validationStatus: ValidationStatus;
+	private problemReporter: IProblemReporter;
 
-	private logger: ILogger;
-
-	constructor(logger: ILogger) {
-		this.logger = logger;
-		this.validationStatus = new ValidationStatus();
+	constructor(problemReporter: IProblemReporter) {
+		this.problemReporter = problemReporter;
 	}
 
 	public run(fileConfig: ExternalTaskRunnerConfiguration): ParseResult {
 		let engine = ExecutionEngine.from(fileConfig);
 		if (engine === ExecutionEngine.Terminal) {
-			this.logger.clearOutput();
+			this.problemReporter.clearOutput();
 		}
-		let context: ParseContext = { logger: this.logger, validationStatus: this.validationStatus, namedProblemMatchers: undefined, isTermnial: engine === ExecutionEngine.Terminal };
+		let context: ParseContext = { problemReporter: this.problemReporter, namedProblemMatchers: undefined, isTermnial: engine === ExecutionEngine.Terminal };
 		return {
-			validationStatus: this.validationStatus,
+			validationStatus: this.problemReporter.status,
 			configuration: this.createTaskRunnerConfiguration(fileConfig, context),
 			engine
 		};
@@ -1068,7 +1052,7 @@ class ConfigurationParser {
 
 	private createTaskRunnerConfiguration(fileConfig: ExternalTaskRunnerConfiguration, context: ParseContext): TaskSystem.TaskRunnerConfiguration {
 		let globals = Globals.from(fileConfig, context);
-		if (context.validationStatus.isFatal()) {
+		if (this.problemReporter.status.isFatal()) {
 			return undefined;
 		}
 		context.namedProblemMatchers = ProblemMatcherConverter.namedFrom(fileConfig.declares, context);
@@ -1123,6 +1107,6 @@ class ConfigurationParser {
 	}
 }
 
-export function parse(configuration: ExternalTaskRunnerConfiguration, logger: ILogger): ParseResult {
+export function parse(configuration: ExternalTaskRunnerConfiguration, logger: IProblemReporter): ParseResult {
 	return (new ConfigurationParser(logger)).run(configuration);
 }

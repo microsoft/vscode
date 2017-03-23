@@ -4,13 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-workbench > .activitybar > .content .monaco-action-bar .action-label.scm {
-	background-image: url('diff.svg');
-	background-size: 20px;
+	background-image: url('icon.svg');
+	background-size: 26px;
 	background-position: center;
-}
-
-.scm-viewlet > .scm-editor {
-	padding: 5px 9px 5px 16px;
 }
 
 .scm-viewlet .monaco-list-row {
@@ -64,6 +60,15 @@
 	background-position: 50% 50%;
 }
 
+.scm-viewlet .monaco-list .monaco-list-row > .resource > .actions {
+	display: none;
+}
+
+.scm-viewlet .monaco-list .monaco-list-row.selected > .resource > .actions,
+.scm-viewlet .monaco-list:not(.selection-multiple) .monaco-list-row > .resource:hover > .actions {
+	display: block;
+}
+
 .scm-viewlet .monaco-list-row > .resource > .actions .action-label,
 .scm-viewlet .monaco-list-row > .resource-group > .actions .action-label {
 	width: 16px;
@@ -72,22 +77,27 @@
 	background-repeat: no-repeat;
 }
 
-.scm-viewlet .monaco-list-row:not(.selected) > .resource:not(:hover) > .actions {
-	display: none;
+.scm-viewlet > .scm-editor {
+	padding: 5px 9px 5px 16px;
 }
 
-.monaco-shell.vs .scm-viewlet > .scm-editor > .monaco-editor.focused {
-	outline: 1px solid rgba(0, 122, 204, 0.4);
+.scm-viewlet > .scm-editor {
+	box-sizing: border-box;
+	padding: 5px 9px 5px 16px;
 }
 
-.monaco-shell.vs-dark .scm-viewlet > .scm-editor > .monaco-editor.focused {
-	outline: 1px solid rgba(14, 99, 156, 0.6);
+.scm-viewlet > .scm-editor > .monaco-inputbox {
+	width: 100%;
 }
 
-.monaco-shell.hc-black .scm-viewlet > .scm-editor > .monaco-editor {
-	outline: 1px solid #6fc3df;
+.scm-viewlet > .scm-editor > .monaco-inputbox > .wrapper > .mirror {
+	max-height: 134px;
 }
 
-.monaco-shell.hc-black .scm-viewlet > .scm-editor > .monaco-editor.focused {
-	outline: 2px solid #f38518;
+.scm-viewlet > .scm-editor > .monaco-inputbox > .wrapper > textarea.input {
+	min-height: 26px;
+}
+
+.scm-viewlet > .scm-editor.scroll > .monaco-inputbox > .wrapper > textarea.input {
+	overflow-y: scroll;
 }

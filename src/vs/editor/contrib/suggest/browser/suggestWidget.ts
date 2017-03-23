@@ -5,8 +5,9 @@
 
 'use strict';
 
-import 'vs/css!./suggest';
+import 'vs/css!./media/suggest';
 import * as nls from 'vs/nls';
+import { createMatches } from 'vs/base/common/filters';
 import * as strings from 'vs/base/common/strings';
 import Event, { Emitter, chain } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -62,8 +63,8 @@ class Renderer implements IRenderer<ICompletionItem, ISuggestionTemplateData> {
 		private editor: ICodeEditor,
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
-		const [kb] = keybindingService.lookupKeybindings('editor.action.triggerSuggest');
-		this.triggerKeybindingLabel = !kb ? '' : ` (${keybindingService.getLabelFor(kb)})`;
+		const kb = keybindingService.lookupKeybinding('editor.action.triggerSuggest');
+		this.triggerKeybindingLabel = !kb ? '' : ` (${kb.getLabel()})`;
 	}
 
 	get templateId(): string {
@@ -136,7 +137,7 @@ class Renderer implements IRenderer<ICompletionItem, ISuggestionTemplateData> {
 			}
 		}
 
-		data.highlightedLabel.set(suggestion.label, element.highlights);
+		data.highlightedLabel.set(suggestion.label, createMatches(element.matches));
 		data.typeLabel.textContent = (suggestion.detail || '').replace(/\n.*$/m, '');
 
 		data.documentation.textContent = suggestion.documentation || '';
@@ -234,7 +235,7 @@ class SuggestionDetails {
 			return;
 		}
 
-		this.titleLabel.set(item.suggestion.label, item.highlights);
+		this.titleLabel.set(item.suggestion.label, createMatches(item.matches));
 		this.type.innerText = item.suggestion.detail || '';
 		this.docs.textContent = item.suggestion.documentation;
 		this.back.onmousedown = e => {

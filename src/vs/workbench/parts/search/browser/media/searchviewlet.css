@@ -160,6 +160,8 @@
 	margin-top: 0px;
 	margin-bottom: 0px;
 	padding-bottom: 4px;
+	-webkit-user-select: text;
+	user-select: text;
 }
 
 .search-viewlet .filematch {
@@ -297,6 +299,17 @@
 	background: url('pattern-dark.svg') center center no-repeat;
 }
 
+.vs .monaco-workbench .search-viewlet .query-details .file-types .controls>.custom-checkbox.useIgnoreFiles {
+	background: url('git.svg') center center no-repeat;
+	background-size: 18px 18px;
+}
+
+.vs-dark .monaco-workbench .search-viewlet .query-details .file-types .controls>.custom-checkbox.useIgnoreFiles,
+.hc-black .monaco-workbench .search-viewlet .query-details .file-types .controls>.custom-checkbox.useIgnoreFiles {
+	background: url('git-dark.svg') center center no-repeat;
+	background-size: 18px 18px;
+}
+
 .search-viewlet .findInFileMatch,
 .monaco-editor .findInFileMatch {
 	background-color: rgba(234, 92, 0, 0.3);
@@ -332,6 +345,10 @@
 
 .hc-black .monaco-workbench .search-viewlet .replaceMatch {
 	border: 1px dashed rgb(51, 255, 46);
+}
+
+.monaco-workbench .search-viewlet a.prominent {
+	text-decoration: underline;
 }
 
 /* Theming */
@@ -382,6 +399,7 @@
 
 .vs-dark .search-viewlet .message {
 	color: #FFF;
+	opacity: .5;
 }
 
 .vs-dark .search-viewlet .filematch {

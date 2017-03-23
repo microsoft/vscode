@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { IColorTheme, IThemeSettingStyle } from 'vs/workbench/services/themes/common/themeService';
+import { IColorTheme, ITokenColorizationSetting } from 'vs/workbench/services/themes/common/themeService';
 
 export function findMatchingThemeRule(theme: IColorTheme, scopes: string[]): ThemeRule {
 	for (let i = scopes.length - 1; i >= 0; i--) {
@@ -23,8 +23,8 @@ function findMatchingThemeRule2(theme: IColorTheme, scope: string, parentScopes:
 	let result: ThemeRule = null;
 
 	// Loop backwards, to ensure the last most specific rule wins
-	for (let i = theme.settings.length - 1; i >= 0; i--) {
-		let rule = theme.settings[i];
+	for (let i = theme.tokenColors.length - 1; i >= 0; i--) {
+		let rule = theme.tokenColors[i];
 		if (!rule.settings.foreground) {
 			continue;
 		}
@@ -55,11 +55,11 @@ function findMatchingThemeRule2(theme: IColorTheme, scope: string, parentScopes:
 
 export class ThemeRule {
 	readonly rawSelector: string;
-	readonly settings: IThemeSettingStyle;
+	readonly settings: ITokenColorizationSetting;
 	readonly scope: string;
 	readonly parentScopes: string[];
 
-	constructor(rawSelector: string, settings: IThemeSettingStyle) {
+	constructor(rawSelector: string, settings: ITokenColorizationSetting) {
 		this.rawSelector = rawSelector;
 		this.settings = settings;
 		let rawSelectorPieces = this.rawSelector.split(/ /);

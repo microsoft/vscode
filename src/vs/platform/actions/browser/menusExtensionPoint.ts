@@ -96,6 +96,11 @@ namespace schema {
 		description: localize('vscode.extension.contributes.menus', "Contributes menu items to the editor"),
 		type: 'object',
 		properties: {
+			'commandPalette': {
+				description: localize('menus.commandPalette', "The Command Palette"),
+				type: 'array',
+				items: menuItem
+			},
 			'editor/title': {
 				description: localize('menus.editorTitle', "The editor title menu"),
 				type: 'array',

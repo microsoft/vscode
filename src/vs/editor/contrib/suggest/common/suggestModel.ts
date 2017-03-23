@@ -11,7 +11,7 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ICommonCodeEditor, ICursorSelectionChangedEvent, CursorChangeReason, IModel, IPosition, IWordAtPosition } from 'vs/editor/common/editorCommon';
-import { ISuggestSupport, SuggestRegistry } from 'vs/editor/common/modes';
+import { ISuggestSupport, SuggestRegistry, StandardTokenType } from 'vs/editor/common/modes';
 import { Position } from 'vs/editor/common/core/position';
 import { provideSuggestionItems, getSuggestionComparator, ISuggestionItem } from './suggest';
 import { CompletionModel } from './completionModel';
@@ -183,11 +183,22 @@ export class SuggestModel implements IDisposable {
 			}
 		}
 
-		this.triggerCharacterListener = this.editor.onDidType((text: string) => {
-			let lastChar = text.charAt(text.length - 1);
-			let supports = supportsByTriggerCharacter[lastChar];
+		this.triggerCharacterListener = this.editor.onDidType(text => {
+			const lastChar = text.charAt(text.length - 1);
+			const supports = supportsByTriggerCharacter[lastChar];
+
 			if (supports) {
-				this.trigger(true, false, supports);
+				// keep existing items that where not computed by the
+				// supports/providers that want to trigger now
+				const items: ISuggestionItem[] = [];
+				if (this.completionModel) {
+					for (const item of this.completionModel.items) {
+						if (supports.indexOf(item.support) < 0) {
+							items.push(item);
+						}
+					}
+				}
+				this.trigger(true, false, supports, items);
 			}
 		});
 	}
@@ -249,14 +260,42 @@ export class SuggestModel implements IDisposable {
 
 			// trigger 24x7 IntelliSense when idle, enabled, when cursor
 			// moved RIGHT, and when at a good position
-			if (this.editor.getConfiguration().contribInfo.quickSuggestions
-				&& prevPosition.isBefore(this.currentPosition)) {
+			if (this.editor.getConfiguration().contribInfo.quickSuggestions !== false
+				&& prevPosition.isBefore(this.currentPosition)
+			) {
 
 				this.cancel();
 
 				if (LineContext.shouldAutoTrigger(this.editor)) {
 					this.triggerAutoSuggestPromise = TPromise.timeout(this.quickSuggestDelay);
 					this.triggerAutoSuggestPromise.then(() => {
+						const model = this.editor.getModel();
+						const pos = this.editor.getPosition();
+
+						if (!model) {
+							return;
+						}
+						// validate enabled now
+						const { quickSuggestions } = this.editor.getConfiguration().contribInfo;
+						if (quickSuggestions === false) {
+							return;
+						} else if (quickSuggestions === true) {
+							// all good
+						} else {
+							model.forceTokenization(pos.lineNumber);
+							const { tokenType } = model
+								.getLineTokens(pos.lineNumber)
+								.findTokenAtOffset(pos.column - 1);
+
+							const inValidScope = quickSuggestions.other && tokenType === StandardTokenType.Other
+								|| quickSuggestions.comments && tokenType === StandardTokenType.Comment
+								|| quickSuggestions.strings && tokenType === StandardTokenType.String;
+
+							if (!inValidScope) {
+								return;
+							}
+						}
+
 						this.triggerAutoSuggestPromise = null;
 						this.trigger(true);
 					});
@@ -354,7 +393,7 @@ export class SuggestModel implements IDisposable {
 
 		if (ctx.column > this.context.column && this.completionModel.incomplete) {
 			// typed -> moved cursor RIGHT & incomple model -> retrigger
-			const {complete, incomplete} = this.completionModel.resolveIncompleteInfo();
+			const { complete, incomplete } = this.completionModel.resolveIncompleteInfo();
 			this.trigger(this.state === State.Auto, true, incomplete, complete);
 
 		} else {
@@ -379,6 +418,11 @@ export class SuggestModel implements IDisposable {
 					// freeze when IntelliSense was manually requested
 					this.completionModel.lineContext = oldLineContext;
 					isFrozen = this.completionModel.items.length > 0;
+
+				} else {
+					// nothing left
+					this.cancel();
+					return;
 				}
 			}
 

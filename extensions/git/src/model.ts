@@ -10,8 +10,13 @@ import { Git, Repository, Ref, Branch, Remote, PushOptions, Commit, GitErrorCode
 import { anyEvent, eventToPromise, filterEvent, mapEvent, EmptyDisposable, combinedDisposable, dispose } from './util';
 import { memoize, throttle, debounce } from './decorators';
 import { watch } from './watch';
+import { Askpass } from './askpass';
 import * as path from 'path';
+import * as fs from 'fs';
 import * as nls from 'vscode-nls';
+
+const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
+const exists = (path: string) => new Promise(c => fs.exists(path, c));
 
 const localize = nls.loadMessageBundle();
 const iconsRootPath = path.join(path.dirname(__dirname), 'resources', 'icons');
@@ -183,7 +188,40 @@ export enum Operation {
 	Sync = 1 << 11,
 	Init = 1 << 12,
 	Show = 1 << 13,
-	Stage = 1 << 13
+	Stage = 1 << 14,
+	GetCommitTemplate = 1 << 15
+}
+
+// function getOperationName(operation: Operation): string {
+// 	switch (operation) {
+// 		case Operation.Status: return 'Status';
+// 		case Operation.Add: return 'Add';
+// 		case Operation.RevertFiles: return 'RevertFiles';
+// 		case Operation.Commit: return 'Commit';
+// 		case Operation.Clean: return 'Clean';
+// 		case Operation.Branch: return 'Branch';
+// 		case Operation.Checkout: return 'Checkout';
+// 		case Operation.Reset: return 'Reset';
+// 		case Operation.Fetch: return 'Fetch';
+// 		case Operation.Pull: return 'Pull';
+// 		case Operation.Push: return 'Push';
+// 		case Operation.Sync: return 'Sync';
+// 		case Operation.Init: return 'Init';
+// 		case Operation.Show: return 'Show';
+// 		case Operation.Stage: return 'Stage';
+// 		case Operation.GetCommitTemplate: return 'GetCommitTemplate';
+// 		default: return 'unknown';
+// 	}
+// }
+
+function isReadOnly(operation: Operation): boolean {
+	switch (operation) {
+		case Operation.Show:
+		case Operation.GetCommitTemplate:
+			return true;
+		default:
+			return false;
+	}
 }
 
 export interface Operations {
@@ -312,8 +350,9 @@ export class Model implements Disposable {
 	private disposables: Disposable[] = [];
 
 	constructor(
-		private git: Git,
-		private rootPath: string,
+		private _git: Git,
+		private workspaceRootPath: string,
+		private askpass: Askpass
 	) {
 		const fsWatcher = workspace.createFileSystemWatcher('**');
 		this.onWorkspaceChange = anyEvent(fsWatcher.onDidChange, fsWatcher.onDidCreate, fsWatcher.onDidDelete);
@@ -322,13 +361,34 @@ export class Model implements Disposable {
 		this.status();
 	}
 
+	async whenIdle(): Promise<void> {
+		while (!this.operations.isIdle()) {
+			await eventToPromise(this.onDidRunOperation);
+		}
+	}
+
+	/**
+	 * Returns promise which resolves when there is no `.git/index.lock` file,
+	 * or when it has attempted way too many times. Back off mechanism.
+	 */
+	async whenUnlocked(): Promise<void> {
+		let millis = 100;
+		let retries = 0;
+
+		while (retries < 10 && await exists(path.join(this.repository.root, '.git', 'index.lock'))) {
+			retries += 1;
+			millis *= 1.4;
+			await timeout(millis);
+		}
+	}
+
 	@throttle
 	async init(): Promise<void> {
 		if (this.state !== State.NotAGitRepository) {
 			return;
 		}
 
-		await this.repository.init();
+		await this._git.init(this.workspaceRootPath);
 		await this.status();
 	}
 
@@ -434,10 +494,21 @@ export class Model implements Disposable {
 
 	@throttle
 	async sync(): Promise<void> {
-		await this.run(Operation.Sync, () => this.repository.sync());
+		await this.run(Operation.Sync, async () => {
+			await this.repository.pull();
+
+			const shouldPush = this.HEAD ? this.HEAD.ahead > 0 : true;
+
+			if (shouldPush) {
+				await this.repository.push();
+			}
+		});
 	}
 
 	async show(ref: string, uri: Uri): Promise<string> {
+		// TODO@Joao: should we make this a general concept?
+		await this.whenIdle();
+
 		return await this.run(Operation.Show, async () => {
 			const relativePath = path.relative(this.repository.root, uri.fsPath).replace(/\\/g, '/');
 			const result = await this.repository.git.exec(this.repository.root, ['show', `${ref}:${relativePath}`]);
@@ -453,6 +524,10 @@ export class Model implements Disposable {
 		});
 	}
 
+	async getCommitTemplate(): Promise<string> {
+		return await this.run(Operation.GetCommitTemplate, async () => this.repository.getCommitTemplate());
+	}
+
 	private async run<T>(operation: Operation, runOperation: () => Promise<T> = () => Promise.resolve<any>(null)): Promise<T> {
 		return window.withScmProgress(async () => {
 			this._operations = this._operations.start(operation);
@@ -460,12 +535,22 @@ export class Model implements Disposable {
 
 			try {
 				await this.assertIdleState();
+				await this.whenUnlocked();
 				const result = await runOperation();
-				await this.update();
+
+				if (!isReadOnly(operation)) {
+					await this.update();
+				}
+
 				return result;
 			} catch (err) {
 				if (err.gitErrorCode === GitErrorCodes.NotAGitRepository) {
 					this.repositoryDisposable.dispose();
+
+					const disposables: Disposable[] = [];
+					this.onWorkspaceChange(this.onFSChange, this, disposables);
+					this.repositoryDisposable = combinedDisposable(disposables);
+
 					this.state = State.NotAGitRepository;
 				}
 
@@ -490,8 +575,9 @@ export class Model implements Disposable {
 		this.repositoryDisposable.dispose();
 
 		const disposables: Disposable[] = [];
-		const repositoryRoot = await this.git.getRepositoryRoot(this.rootPath);
-		this.repository = this.git.open(repositoryRoot);
+		const repositoryRoot = await this._git.getRepositoryRoot(this.workspaceRootPath);
+		const askpassEnv = await this.askpass.getEnv();
+		this.repository = this._git.open(repositoryRoot, askpassEnv);
 
 		const dotGitPath = path.join(repositoryRoot, '.git');
 		const { event: onRawGitChange, disposable: watcher } = watch(dotGitPath);
@@ -600,13 +686,7 @@ export class Model implements Disposable {
 	private async updateWhenIdleAndWait(): Promise<void> {
 		await this.whenIdle();
 		await this.status();
-		await new Promise(c => setTimeout(c, 5000));
-	}
-
-	private async whenIdle(): Promise<void> {
-		while (!this.operations.isIdle()) {
-			await eventToPromise(this.onDidRunOperation);
-		}
+		await timeout(5000);
 	}
 
 	dispose(): void {

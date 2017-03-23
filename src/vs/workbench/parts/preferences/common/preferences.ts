@@ -10,6 +10,7 @@ import { IRange } from 'vs/editor/common/editorCommon';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IEditor } from 'vs/platform/editor/common/editor';
+import { IKeybindingItemEntry } from 'vs/workbench/parts/preferences/common/keybindingsEditorModel';
 
 export interface ISettingsGroup {
 	id: string;
@@ -47,6 +48,7 @@ export interface IPreferencesEditorModel<T> {
 	uri: URI;
 	content: string;
 	getPreference(key: string): T;
+	dispose(): void;
 }
 
 export interface ISettingsEditorModel extends IPreferencesEditorModel<ISetting> {
@@ -68,18 +70,36 @@ export interface IPreferencesService {
 	workspaceSettingsResource: URI;
 	defaultKeybindingsResource: URI;
 
-	createDefaultPreferencesEditorModel<T>(uri: URI): TPromise<IPreferencesEditorModel<T>>;
-	resolvePreferencesEditorModel<T>(uri: URI): TPromise<IPreferencesEditorModel<T>>;
+	createPreferencesEditorModel<T>(uri: URI): TPromise<IPreferencesEditorModel<T>>;
 
 	openSettings(): TPromise<IEditor>;
 	switchSettings(): TPromise<void>;
 	openGlobalSettings(): TPromise<IEditor>;
 	openWorkspaceSettings(): TPromise<IEditor>;
-	openGlobalKeybindingSettings(): TPromise<void>;
+	openGlobalKeybindingSettings(textual: boolean): TPromise<void>;
 
 	configureSettingsForLanguage(language: string): void;
 }
 
-export const CONTEXT_DEFAULT_SETTINGS_EDITOR = new RawContextKey<boolean>('defaultSettingsEditor', false);
-export const DEFAULT_EDITOR_COMMAND_COLLAPSE_ALL = 'defaultSettingsEditor.action.collapseAllGroups';
-export const DEFAULT_EDITOR_COMMAND_FOCUS_SEARCH = 'defaultSettings.action.focusSearch';
+
+export interface IKeybindingsEditor extends IEditor {
+
+	activeKeybindingEntry: IKeybindingItemEntry;
+
+	search(filter: string): void;
+	defineKeybinding(keybindingEntry: IKeybindingItemEntry): TPromise<any>;
+	removeKeybinding(keybindingEntry: IKeybindingItemEntry): TPromise<any>;
+	resetKeybinding(keybindingEntry: IKeybindingItemEntry): TPromise<any>;
+	copyKeybinding(keybindingEntry: IKeybindingItemEntry): TPromise<any>;
+}
+
+export const CONTEXT_SETTINGS_EDITOR = new RawContextKey<boolean>('inSettingsEditor', false);
+export const CONTEXT_KEYBINDINGS_EDITOR = new RawContextKey<boolean>('inKeybindings', false);
+export const CONTEXT_KEYBINDING_FOCUS = new RawContextKey<boolean>('keybindingFocus', false);
+
+export const SETTINGS_EDITOR_COMMAND_SEARCH = 'settings.action.search';
+export const KEYBINDINGS_EDITOR_COMMAND_SEARCH = 'keybindings.editor.searchKeybindings';
+export const KEYBINDINGS_EDITOR_COMMAND_DEFINE = 'keybindings.editor.defineKeybinding';
+export const KEYBINDINGS_EDITOR_COMMAND_REMOVE = 'keybindings.editor.removeKeybinding';
+export const KEYBINDINGS_EDITOR_COMMAND_RESET = 'keybindings.editor.resetKeybinding';
+export const KEYBINDINGS_EDITOR_COMMAND_COPY = 'keybindings.editor.copyKeybindingEntry';

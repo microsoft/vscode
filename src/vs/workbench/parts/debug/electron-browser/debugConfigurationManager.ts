@@ -22,8 +22,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IExtensionsViewlet, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/parts/extensions/common/extensions';
-import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import * as debug from 'vs/workbench/parts/debug/common/debug';
 import { Adapter } from 'vs/workbench/parts/debug/node/debugAdapter';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -216,7 +215,7 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IConfigurationResolverService private configurationResolverService: IConfigurationResolverService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IViewletService private viewletService: IViewletService
+		@ICommandService private commandService: ICommandService
 	) {
 		this.adapters = [];
 		this.registerListeners();
@@ -414,12 +413,7 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 					return picked;
 				}
 				if (picked) {
-					return this.viewletService.openViewlet(EXTENSIONS_VIEWLET_ID, true)
-						.then(viewlet => viewlet as IExtensionsViewlet)
-						.then(viewlet => {
-							viewlet.search('tag:debuggers');
-							viewlet.focus();
-						});
+					this.commandService.executeCommand('debug.installMoreDebuggers');
 				}
 				return undefined;
 			});

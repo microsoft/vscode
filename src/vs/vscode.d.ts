@@ -371,12 +371,12 @@ declare module 'vscode' {
 		constructor(startLine: number, startCharacter: number, endLine: number, endCharacter: number);
 
 		/**
-		 * `true` iff `start` and `end` are equal.
+		 * `true` if `start` and `end` are equal.
 		 */
 		isEmpty: boolean;
 
 		/**
-		 * `true` iff `start.line` and `end.line` are equal.
+		 * `true` if `start.line` and `end.line` are equal.
 		 */
 		isSingleLine: boolean;
 
@@ -384,7 +384,7 @@ declare module 'vscode' {
 		 * Check if a position or a range is contained in this range.
 		 *
 		 * @param positionOrRange A position or a range.
-		 * @return `true` iff the position or range is inside or equal
+		 * @return `true` if the position or range is inside or equal
 		 * to this range.
 		 */
 		contains(positionOrRange: Position | Range): boolean;
@@ -547,17 +547,29 @@ declare module 'vscode' {
 	 */
 	export enum TextEditorCursorStyle {
 		/**
-		 * Render the cursor as a vertical line.
+		 * Render the cursor as a vertical thick line.
 		 */
 		Line = 1,
 		/**
-		 * Render the cursor as a block.
+		 * Render the cursor as a block filled.
 		 */
 		Block = 2,
 		/**
-		 * Render the cursor as a horizontal line under the character.
+		 * Render the cursor as a thick horizontal line.
 		 */
-		Underline = 3
+		Underline = 3,
+		/**
+		 * Render the cursor as a vertical thin line.
+		 */
+		LineThin = 4,
+		/**
+		 * Render the cursor as a block outlined.
+		 */
+		BlockOutline = 5,
+		/**
+		 * Render the cursor as a thin horizontal line.
+		 */
+		UnderlineThin = 6
 	}
 
 	/**
@@ -2382,12 +2394,14 @@ declare module 'vscode' {
 		Property = 9,
 		Unit = 10,
 		Value = 11,
+		Constant = 20,
 		Enum = 12,
+		EnumMember = 19,
 		Keyword = 13,
 		Snippet = 14,
 		Color = 15,
-		File = 16,
 		Reference = 17,
+		File = 16,
 		Folder = 18
 	}
 
@@ -2850,7 +2864,7 @@ declare module 'vscode' {
 		 * Check if this configuration has a certain value.
 		 *
 		 * @param section Configuration name, supports _dotted_ names.
-		 * @return `true` iff the section doesn't resolve to `undefined`.
+		 * @return `true` if the section doesn't resolve to `undefined`.
 		 */
 		has(section: string): boolean;
 
@@ -3191,18 +3205,18 @@ declare module 'vscode' {
 		/**
 		 * The tooltip text when you hover over this entry.
 		 */
-		tooltip: string;
+		tooltip: string | undefined;
 
 		/**
 		 * The foreground color for this entry.
 		 */
-		color: string;
+		color: string | undefined;
 
 		/**
 		 * The identifier of a command to run on click. The command must be
 		 * [known](#commands.getCommands).
 		 */
-		command: string;
+		command: string | undefined;
 
 		/**
 		 * Shows the entry in the status bar.
@@ -4041,15 +4055,18 @@ declare module 'vscode' {
 		export let textDocuments: TextDocument[];
 
 		/**
-		 * Opens the denoted document from disk. Will return early if the
-		 * document is already open, otherwise the document is loaded and the
-		 * [open document](#workspace.onDidOpenTextDocument)-event fires.
-		 * The document to open is denoted by the [uri](#Uri). Two schemes are supported:
+		 * Opens a document. Will return early if this document is already open. Otherwise
+		 * the document is loaded and the [didOpen](#workspace.onDidOpenTextDocument)-event fires.
 		 *
-		 * file: A file on disk, will be rejected if the file does not exist or cannot be loaded, e.g. `file:///Users/frodo/r.ini`.
-		 * untitled: A new file that should be saved on disk, e.g. `untitled:c:\frodo\new.js`. The language will be derived from the file name.
+		 * The document is denoted by an [uri](#Uri). Depending on the [scheme](#Uri.scheme) the
+		 * following rules apply:
+		 * * `file`-scheme: Open a file on disk, will be rejected if the file does not exist or cannot be loaded.
+		 * * `untitled`-scheme: A new file that should be saved on disk, e.g. `untitled:c:\frodo\new.js`. The language
+		 * will be derived from the file name.
+		 * * For all other schemes the registered text document content [providers](#TextDocumentContentProvider) are consulted.
 		 *
-		 * Uris with other schemes will make this method return a rejected promise.
+		 * *Note* that the lifecycle of the returned document is owned by the editor and not by the extension. That means an
+		 * [`onDidClose`](#workspace.onDidCloseTextDocument)-event can occur at any time after opening it.
 		 *
 		 * @param uri Identifies the resource to open.
 		 * @return A promise that resolves to a [document](#TextDocument).
@@ -4068,12 +4085,12 @@ declare module 'vscode' {
 		/**
 		 * Opens an untitled text document. The editor will prompt the user for a file
 		 * path when the document is to be saved. The `options` parameter allows to
-		 * specify the *language* of the document.
+		 * specify the *language* and/or the *content* of the document.
 		 *
 		 * @param options Options to control how the document will be created.
 		 * @return A promise that resolves to a [document](#TextDocument).
 		 */
-		export function openTextDocument(options?: { language: string; }): Thenable<TextDocument>;
+		export function openTextDocument(options?: { language?: string; content?: string; }): Thenable<TextDocument>;
 
 		/**
 		 * Register a text document content provider.
@@ -4177,22 +4194,40 @@ declare module 'vscode' {
 
 		/**
 		 * Compute the match between a document [selector](#DocumentSelector) and a document. Values
-		 * greater than zero mean the selector matches the document. The more individual matches a selector
-		 * and a document have, the higher the score is. These are the abstract rules given a `selector`:
+		 * greater than zero mean the selector matches the document.
 		 *
-		 * ```
-		 * (1) When selector is an array, return the maximum individual result.
-		 * (2) When selector is a string match that against the [languageId](#TextDocument.languageId).
-		 * 	(2.1) When both are equal score is `10`,
-		 * 	(2.2) When the selector is `*` score is `5`,
-		 * 	(2.3) Else score is `0`.
-		 * (3) When selector is a [filter](#DocumentFilter) return the maximum individual score given that each score is `>0`.
-		 *	(3.1) When [language](#DocumentFilter.language) is set apply rules from #2, when `0` the total score is `0`.
-		 *	(3.2) When [scheme](#DocumentFilter.scheme) is set and equals the [uri](#TextDocument.uri)-scheme score with `10`, else the total score is `0`.
-		 *	(3.3) When [pattern](#DocumentFilter.pattern) is set
-		 * 		(3.3.1) pattern equals the [uri](#TextDocument.uri)-fsPath score with `10`,
-		 *		(3.3.1) if the pattern matches as glob-pattern score with `5`,
-		 *		(3.3.1) the total score is `0`
+		 * *Note:* By default, only documents from the `file` and `untitled` schemes match a selector. Other schemes
+		 * must be explicity spelled out, like `{scheme: 'fooScheme'}` to match a document with `fooScheme://some/uri/`.
+		 *
+		 * A match is computed according to these rules:
+		 * 1. When [`DocumentSelector`](#DocumentSelector) is an array, take compute the match for each contained `DocumentFilter` or language identifier and take the maximum value.
+		 * 2. A string it will be desugared to become the `language`-part of a [`DocumentFilter`](#DocumentFilter), so `"fooLang"` is like `{ language: "fooLang" }`.
+		 * 3. A [`DocumentFilter`](#DocumentFilter) will be matched against the document by comparing its parts with the document. The following rules apply:
+		 *  1. When the `DocumentFilter` is empty (`{}`) the result is `0`
+		 *  2. When `scheme`, `language`, or `pattern` are defined but doesn’t match, the result is `0`
+		 *  3. When `language` is the generic language id `*` and `scheme` isn’t defined, it becomes `*` too
+		 *  4. When `scheme` isn’t defined and `language` is the generic language identifider `*` it becomes `*` too, otherwise `scheme` defaults to two values: `file` and `untitled`.
+		 *  5. Matching against `*` gives a score of `5`, matching via equality or via a glob-pattern gives a score of `10`
+		 *  6. The result is the maximun value of each match
+		 *
+		 * Samples:
+		 * ```js
+		 * // default document from disk (file-scheme)
+		 * doc.uri; //'file:///my/file.js'
+		 * doc.languageId; // 'javascript'
+		 * match('javascript', doc); // 10;
+		 * match({language: 'javascript'}, doc); // 10;
+		 * match({language: 'javascript', scheme: 'file'}, doc); // 10;
+		 * match('*', doc); // 5
+		 * match('fooLang', doc); // 0
+		 * match(['fooLang', '*'], doc); // 5
+		 *
+		 * // virtual document, e.g. from git-index
+		 * doc.uri; // 'git:/my/file.js'
+		 * doc.languageId; // 'javascript'
+		 * match('javascript', doc); // 0;
+		 * match({language: 'javascript', scheme: 'git'}, doc); // 10;
+		 * match('*', doc); // 5
 		 * ```
 		 *
 		 * @param selector A document selector.

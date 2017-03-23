@@ -22,7 +22,7 @@ import { TokenMetadata } from 'vs/editor/common/model/tokensBinaryEncoding';
 import { TokenizationRegistry, LanguageIdentifier, FontStyle, StandardTokenType } from 'vs/editor/common/modes';
 import { CharCode } from 'vs/base/common/charCode';
 import { findMatchingThemeRule } from 'vs/editor/electron-browser/textMate/TMHelper';
-import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
+import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { Color } from 'vs/base/common/color';
 import { IMessageService } from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
@@ -38,7 +38,7 @@ class InspectTMScopesController extends Disposable implements IEditorContributio
 
 	private _editor: ICodeEditor;
 	private _textMateService: ITextMateService;
-	private _themeService: IThemeService;
+	private _themeService: IWorkbenchThemeService;
 	private _modeService: IModeService;
 	private _messageService: IMessageService;
 	private _widget: InspectTMScopesWidget;
@@ -47,7 +47,7 @@ class InspectTMScopesController extends Disposable implements IEditorContributio
 		editor: ICodeEditor,
 		@ITextMateService textMateService: ITextMateService,
 		@IModeService modeService: IModeService,
-		@IThemeService themeService: IThemeService,
+		@IWorkbenchThemeService themeService: IWorkbenchThemeService,
 		@IMessageService messageService: IMessageService,
 	) {
 		super();
@@ -125,6 +125,9 @@ interface IDecodedMetadata {
 }
 
 function renderTokenText(tokenText: string): string {
+	if (tokenText.length > 40) {
+		tokenText = tokenText.substr(0, 20) + '…' + tokenText.substr(tokenText.length - 20);
+	}
 	let result: string = '';
 	for (let charIndex = 0, len = tokenText.length; charIndex < len; charIndex++) {
 		let charCode = tokenText.charCodeAt(charIndex);
@@ -160,12 +163,13 @@ class InspectTMScopesWidget extends Disposable implements IContentWidget {
 
 	private static _ID = 'editor.contrib.inspectTMScopesWidget';
 
+	// Editor.IContentWidget.allowEditorOverflow
 	public readonly allowEditorOverflow = true;
 
 	private _isDisposed: boolean;
 	private readonly _editor: ICodeEditor;
 	private readonly _modeService: IModeService;
-	private readonly _themeService: IThemeService;
+	private readonly _themeService: IWorkbenchThemeService;
 	private readonly _messageService: IMessageService;
 	private readonly _model: IModel;
 	private readonly _domNode: HTMLElement;
@@ -175,7 +179,7 @@ class InspectTMScopesWidget extends Disposable implements IContentWidget {
 		editor: ICodeEditor,
 		textMateService: ITextMateService,
 		modeService: IModeService,
-		themeService: IThemeService,
+		themeService: IWorkbenchThemeService,
 		messageService: IMessageService
 	) {
 		super();

@@ -15,7 +15,7 @@ import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { Registry } from 'vs/platform/platform';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actionRegistry';
 import { IQuickOpenService, IPickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
-import { IThemeService, COLOR_THEME_SETTING, ICON_THEME_SETTING } from 'vs/workbench/services/themes/common/themeService';
+import { IWorkbenchThemeService, COLOR_THEME_SETTING, ICON_THEME_SETTING } from 'vs/workbench/services/themes/common/themeService';
 import { VIEWLET_ID, IExtensionsViewlet } from 'vs/workbench/parts/extensions/common/extensions';
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -33,7 +33,7 @@ export class SelectColorThemeAction extends Action {
 		label: string,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IMessageService private messageService: IMessageService,
-		@IThemeService private themeService: IThemeService,
+		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
 		@IExtensionGalleryService private extensionGalleryService: IExtensionGalleryService,
 		@IViewletService private viewletService: IViewletService,
 		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService
@@ -61,8 +61,12 @@ export class SelectColorThemeAction extends Action {
 					target = typeof confValue.workspace !== 'undefined' ? ConfigurationTarget.WORKSPACE : ConfigurationTarget.USER;
 				}
 
-				this.themeService.setColorTheme(theme.id, target)
-					.done(null, err => this.messageService.show(Severity.Info, localize('problemChangingTheme', "Problem setting theme: {0}", err)));
+				this.themeService.setColorTheme(theme.id, target).done(null,
+					err => {
+						this.messageService.show(Severity.Info, localize('problemChangingTheme', "Problem setting theme: {0}", err));
+						this.themeService.setColorTheme(currentTheme.id, null);
+					}
+				);
 			};
 
 			const placeHolder = localize('themes.selectTheme', "Select Color Theme");
@@ -93,7 +97,7 @@ class SelectIconThemeAction extends Action {
 		label: string,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IMessageService private messageService: IMessageService,
-		@IThemeService private themeService: IThemeService,
+		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
 		@IExtensionGalleryService private extensionGalleryService: IExtensionGalleryService,
 		@IViewletService private viewletService: IViewletService,
 		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService
@@ -123,8 +127,12 @@ class SelectIconThemeAction extends Action {
 					let confValue = this.configurationService.lookup(ICON_THEME_SETTING);
 					target = typeof confValue.workspace !== 'undefined' ? ConfigurationTarget.WORKSPACE : ConfigurationTarget.USER;
 				}
-				this.themeService.setFileIconTheme(theme && theme.id, target)
-					.done(null, err => this.messageService.show(Severity.Info, localize('problemChangingIconTheme', "Problem setting icon theme: {0}", err.message)));
+				this.themeService.setFileIconTheme(theme && theme.id, target).done(null,
+					err => {
+						this.messageService.show(Severity.Info, localize('problemChangingIconTheme', "Problem setting icon theme: {0}", err.message));
+						this.themeService.setFileIconTheme(currentTheme.id, null);
+					}
+				);
 			};
 
 			const placeHolder = localize('themes.selectIconTheme', "Select File Icon Theme");

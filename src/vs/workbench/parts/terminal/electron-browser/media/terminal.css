@@ -33,6 +33,11 @@
 	top: 0;
 }
 
+.monaco-workbench .panel.integrated-terminal .xterm a:not(.xterm-invalid-link) {
+	/* To support message box sizing */
+	position: relative;
+}
+
 .monaco-workbench .panel.integrated-terminal .terminal-wrapper > div {
 	height: 100%;
 }
@@ -51,6 +56,11 @@
 
 .monaco-workbench .panel.integrated-terminal.enable-ligatures {
 	font-variant-ligatures: normal;
+}
+
+
+.monaco-workbench .panel.integrated-terminal.disable-bold .xterm-bold {
+	font-weight: normal !important;
 }
 
 /* Terminal actions */

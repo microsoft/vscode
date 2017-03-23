@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import nls = require('vs/nls');
+
 import { sequence, asWinJsPromise } from 'vs/base/common/async';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -13,6 +15,12 @@ import { CommonEditorRegistry, commonEditorContribution } from 'vs/editor/common
 import { DocumentHighlight, DocumentHighlightKind, DocumentHighlightProviderRegistry } from 'vs/editor/common/modes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Position } from 'vs/editor/common/core/position';
+
+import { registerColor, editorSelectionHighlightColor, highContrastOutline } from 'vs/platform/theme/common/colorRegistry';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+
+export const editorWordHighlight = registerColor('editorWordHighlight', { dark: '#575757B8', light: '#57575740', hc: null }, nls.localize('wordHighlight', 'Background color of a symbol during read-access, like reading a variable'));
+export const editorWordHighlightStrong = registerColor('editorWordHighlightStrong', { dark: '#004972B8', light: '#0e639c40', hc: null }, nls.localize('wordHighlightStrong', 'Background color of a symbol during write-access, like writing to a variable'));
 
 export function getOccurrencesAtPosition(model: editorCommon.IReadOnlyModel, position: Position): TPromise<DocumentHighlight[]> {
 
@@ -49,6 +57,7 @@ CommonEditorRegistry.registerDefaultLanguageCommand('_executeDocumentHighlights'
 class WordHighlighter {
 
 	private editor: editorCommon.ICommonCodeEditor;
+	private occurrencesHighlight: boolean;
 	private model: editorCommon.IModel;
 	private _lastWordRange: Range;
 	private _decorationIds: string[];
@@ -64,6 +73,7 @@ class WordHighlighter {
 
 	constructor(editor: editorCommon.ICommonCodeEditor) {
 		this.editor = editor;
+		this.occurrencesHighlight = this.editor.getConfiguration().contribInfo.occurrencesHighlight;
 		this.model = this.editor.getModel();
 		this.toUnhook = [];
 		this.toUnhook.push(editor.onDidChangeCursorPosition((e: editorCommon.ICursorPositionChangedEvent) => {
@@ -75,6 +85,13 @@ class WordHighlighter {
 		}));
 		this.toUnhook.push(editor.onDidChangeModelContent((e) => {
 			this._stopAll();
+		}));
+		this.toUnhook.push(editor.onDidChangeConfiguration((e) => {
+			let newValue = this.editor.getConfiguration().contribInfo.occurrencesHighlight;
+			if (this.occurrencesHighlight !== newValue) {
+				this.occurrencesHighlight = newValue;
+				this._stopAll();
+			}
 		}));
 
 		this._lastWordRange = null;
@@ -120,6 +137,12 @@ class WordHighlighter {
 	}
 
 	private _onPositionChanged(e: editorCommon.ICursorPositionChangedEvent): void {
+
+		// disabled
+		if (!this.occurrencesHighlight) {
+			this._stopAll();
+			return;
+		}
 
 		// ignore typing & other
 		if (e.reason !== editorCommon.CursorChangeReason.Explicit) {
@@ -292,3 +315,26 @@ class WordHighlighterContribution implements editorCommon.IEditorContribution {
 		this.wordHighligher.dispose();
 	}
 }
+
+registerThemingParticipant((theme, collector) => {
+	let selectionHighlight = theme.getColor(editorSelectionHighlightColor);
+	if (selectionHighlight) {
+		collector.addRule(`.monaco-editor.${theme.selector} .focused .selectionHighlight { background-color: ${selectionHighlight}; }`);
+		collector.addRule(`.monaco-editor.${theme.selector} .selectionHighlight { background-color: ${selectionHighlight.transparent(0.5)}; }`);
+	}
+	let wordHighlight = theme.getColor(editorWordHighlight);
+	if (wordHighlight) {
+		collector.addRule(`.monaco-editor.${theme.selector} .wordHighlight { background-color: ${wordHighlight}; }`);
+	}
+	let wordHighlightStrong = theme.getColor(editorWordHighlightStrong);
+	if (wordHighlightStrong) {
+		collector.addRule(`.monaco-editor.${theme.selector} .wordHighlightStrong { background-color: ${wordHighlightStrong}; }`);
+	}
+	let hcOutline = theme.getColor(highContrastOutline);
+	if (hcOutline) {
+		collector.addRule(`.monaco-editor.${theme.selector} .selectionHighlight { border: 1px dotted ${hcOutline}; box-sizing: border-box; }`);
+		collector.addRule(`.monaco-editor.${theme.selector} .wordHighlight { border: 1px dashed ${hcOutline}; box-sizing: border-box; }`);
+		collector.addRule(`.monaco-editor.${theme.selector} .wordHighlightStrong { border: 1px dashed ${hcOutline}; box-sizing: border-box; }`);
+	}
+
+});

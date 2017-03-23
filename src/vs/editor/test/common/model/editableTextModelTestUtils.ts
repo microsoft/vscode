@@ -10,6 +10,7 @@ import { EditableTextModel } from 'vs/editor/common/model/editableTextModel';
 import { MirrorModel2 } from 'vs/editor/common/model/mirrorModel2';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { Position } from 'vs/editor/common/core/position';
+import { RawTextSource } from 'vs/editor/common/model/textSource';
 
 export function testApplyEditsWithSyncedModels(original: string[], edits: editorCommon.IIdentifiedSingleEditOperation[], expected: string[], inputEditsAreInvalid: boolean = false): void {
 	var originalStr = original.join('\n');
@@ -80,7 +81,7 @@ function assertLineMapping(model: TextModel, msg: string): void {
 
 
 export function assertSyncedModels(text: string, callback: (model: EditableTextModel, assertMirrorModels: () => void) => void, setup: (model: EditableTextModel) => void = null): void {
-	var model = new EditableTextModel([], TextModel.toRawText(text, TextModel.DEFAULT_CREATION_OPTIONS), null);
+	var model = new EditableTextModel([], RawTextSource.fromString(text), TextModel.DEFAULT_CREATION_OPTIONS, null);
 	model.setEOL(editorCommon.EndOfLineSequence.LF);
 	assertLineMapping(model, 'model');
 
@@ -89,7 +90,7 @@ export function assertSyncedModels(text: string, callback: (model: EditableTextM
 		assertLineMapping(model, 'model');
 	}
 
-	var mirrorModel2 = new MirrorModel2(null, model.toRawText().lines, model.toRawText().EOL, model.getVersionId());
+	var mirrorModel2 = new MirrorModel2(null, model.getLinesContent(), model.getEOL(), model.getVersionId());
 	var mirrorModel2PrevVersionId = model.getVersionId();
 
 	model.onDidChangeContent((e: editorCommon.IModelContentChangedEvent2) => {

@@ -30,11 +30,6 @@ export interface IRow {
 	templateData: any;
 }
 
-function getLastScrollTime(element: HTMLElement): number {
-	var value = element.getAttribute('last-scroll-time');
-	return value ? parseInt(value, 10) : 0;
-}
-
 function removeFromParent(element: HTMLElement): void {
 	try {
 		element.parentElement.removeChild(element);
@@ -46,11 +41,9 @@ function removeFromParent(element: HTMLElement): void {
 export class RowCache implements Lifecycle.IDisposable {
 
 	private _cache: { [templateId: string]: IRow[]; };
-	private scrollingRow: IRow;
 
 	constructor(private context: _.ITreeContext) {
 		this._cache = { '': [] };
-		this.scrollingRow = null;
 	}
 
 	public alloc(templateId: string): IRow {
@@ -74,32 +67,8 @@ export class RowCache implements Lifecycle.IDisposable {
 	}
 
 	public release(templateId: string, row: IRow): void {
-		var lastScrollTime = getLastScrollTime(row.element);
-
-		if (!lastScrollTime) {
-			removeFromParent(row.element);
-			this.cache(templateId).push(row);
-			return;
-		}
-
-		if (this.scrollingRow) {
-			var lastKnownScrollTime = getLastScrollTime(this.scrollingRow.element);
-
-			if (lastKnownScrollTime > lastScrollTime) {
-				removeFromParent(row.element);
-				this.cache(templateId).push(row);
-				return;
-			}
-
-			if (this.scrollingRow.element.parentElement) {
-				removeFromParent(this.scrollingRow.element);
-				DOM.removeClass(this.scrollingRow.element, 'scrolling');
-				this.cache(this.scrollingRow.templateId).push(this.scrollingRow);
-			}
-		}
-
-		this.scrollingRow = row;
-		DOM.addClass(this.scrollingRow.element, 'scrolling');
+		removeFromParent(row.element);
+		this.cache(templateId).push(row);
 	}
 
 	private cache(templateId: string): IRow[] {
@@ -117,11 +86,6 @@ export class RowCache implements Lifecycle.IDisposable {
 
 				delete this._cache[templateId];
 			});
-		}
-
-		if (this.scrollingRow) {
-			this.context.renderer.disposeTemplate(this.context.tree, this.scrollingRow.templateId, this.scrollingRow.templateData);
-			this.scrollingRow = null;
 		}
 	}
 
@@ -151,7 +115,7 @@ export class ViewItem implements IViewItem {
 	public needsRender: boolean;
 	public uri: string;
 	public unbindDragStart: Lifecycle.IDisposable;
-	public loadingPromise: WinJS.Promise;
+	public loadingTimer: number;
 
 	public _styles: any;
 	private _draggable: boolean;
@@ -494,8 +458,7 @@ export class TreeView extends HeightMap {
 			alwaysConsumeMouseWheel: true,
 			horizontal: ScrollbarVisibility.Hidden,
 			vertical: (typeof context.options.verticalScrollMode !== 'undefined' ? context.options.verticalScrollMode : ScrollbarVisibility.Auto),
-			useShadows: context.options.useShadows,
-			saveLastScrollTimeOnClassName: 'monaco-tree-row'
+			useShadows: context.options.useShadows
 		});
 		this.scrollableElement.onScroll((e) => {
 			this.render(e.scrollTop, e.height);
@@ -852,10 +815,10 @@ export class TreeView extends HeightMap {
 		var viewItem = this.items[item.id];
 
 		if (viewItem) {
-			viewItem.loadingPromise = WinJS.TPromise.timeout(TreeView.LOADING_DECORATION_DELAY).then(() => {
-				viewItem.loadingPromise = null;
+			viewItem.loadingTimer = setTimeout(() => {
+				viewItem.loadingTimer = 0;
 				viewItem.loading = true;
-			});
+			}, TreeView.LOADING_DECORATION_DELAY);
 		}
 
 		if (!e.isNested) {
@@ -876,9 +839,9 @@ export class TreeView extends HeightMap {
 		var viewItem = this.items[item.id];
 
 		if (viewItem) {
-			if (viewItem.loadingPromise) {
-				viewItem.loadingPromise.cancel();
-				viewItem.loadingPromise = null;
+			if (viewItem.loadingTimer) {
+				clearTimeout(viewItem.loadingTimer);
+				viewItem.loadingTimer = 0;
 			}
 
 			viewItem.loading = false;
@@ -945,7 +908,7 @@ export class TreeView extends HeightMap {
 
 			} else if (skipDiff || diff.length) {
 				this.onRemoveItems(new ArrayIterator(previousChildrenIds));
-				this.onInsertItems(new ArrayIterator(afterModelItems));
+				this.onInsertItems(new ArrayIterator(afterModelItems), item.getDepth() > 0 ? item.id : null);
 			}
 
 			if (skipDiff || diff.length) {

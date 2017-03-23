@@ -22,7 +22,7 @@
 	position: absolute;
 	left: -5px;
 	top: 0;
-	right: 5px;
+	right: -5px;
 	bottom: 0;
 }
 
@@ -52,12 +52,18 @@
 
 .monaco-workbench .panel.integrated-terminal .xterm a {
 	color: inherit;
+	cursor: text;
 	text-decoration: none;
 }
 
-.monaco-workbench .panel.integrated-terminal .xterm a:hover {
+.monaco-workbench .panel.integrated-terminal.ctrl-held .xterm a:hover {
 	cursor: pointer;
 	text-decoration: underline;
+}
+
+.monaco-workbench .panel.integrated-terminal.ctrl-held .xterm a.xterm-invalid-link:hover {
+	cursor: text;
+	text-decoration: none;
 }
 
 .monaco-workbench .panel.integrated-terminal .xterm:not(.xterm-cursor-style-underline):not(.xterm-cursor-style-bar).focus .reverse-video,

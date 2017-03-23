@@ -13,7 +13,7 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference, IViewZone } from 'vs/editor/browser/editorBrowser';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
+import { InputBox, IInputOptions } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ISettingsGroup } from 'vs/workbench/parts/preferences/common/preferences';
@@ -224,6 +224,11 @@ export class SettingsTabsWidget extends Widget {
 	}
 }
 
+export interface SearchOptions extends IInputOptions {
+	navigateByEnter?: boolean;
+	navigateByArrows?: boolean;
+}
+
 export class SearchWidget extends Widget {
 
 	public domNode: HTMLElement;
@@ -235,13 +240,13 @@ export class SearchWidget extends Widget {
 	private _onDidChange = this._register(new Emitter<string>());
 	public onDidChange: Event<string> = this._onDidChange.event;
 
-	private _onEnter = this._register(new Emitter<void>());
-	public onEnter: Event<void> = this._onEnter.event;
+	private _onNavigate = this._register(new Emitter<boolean>());
+	public onNavigate: Event<boolean> = this._onNavigate.event;
 
-	constructor(parent: HTMLElement,
+	constructor(parent: HTMLElement, protected options: SearchOptions,
 		@IContextViewService private contextViewService: IContextViewService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService protected instantiationService: IInstantiationService
 	) {
 		super();
 		this.create(parent);
@@ -257,12 +262,13 @@ export class SearchWidget extends Widget {
 	private createSearchContainer(searchContainer: HTMLElement) {
 		this.searchContainer = searchContainer;
 		const searchInput = DOM.append(this.searchContainer, DOM.$('div.settings-search-input'));
-		this.inputBox = this._register(new InputBox(searchInput, this.contextViewService, {
-			ariaLabel: localize('SearchSettingsWidget.AriaLabel', "Search settings"),
-			placeholder: localize('SearchSettingsWidget.Placeholder', "Search Settings")
-		}));
+		this.inputBox = this.createInputBox(searchInput);
 		this.inputBox.onDidChange(value => this._onDidChange.fire(value));
-		this.onkeyup(this.inputBox.inputElement, (e) => this._onKeyUp(e));
+		this.onkeydown(this.inputBox.inputElement, (e) => this._onKeyDown(e));
+	}
+
+	protected createInputBox(parent: HTMLElement): InputBox {
+		return this._register(new InputBox(parent, this.contextViewService, this.options));
 	}
 
 	public showMessage(message: string, count: number): void {
@@ -280,7 +286,6 @@ export class SearchWidget extends Widget {
 			DOM.removeClass(this.countElement, 'hide');
 			this.inputBox.inputElement.style.paddingRight = DOM.getTotalWidth(this.countElement) + 20 + 'px';
 		}
-
 	}
 
 	public focus() {
@@ -295,11 +300,25 @@ export class SearchWidget extends Widget {
 		return this.inputBox.value;
 	}
 
-	private _onKeyUp(keyboardEvent: IKeyboardEvent): void {
+	private _onKeyDown(keyboardEvent: IKeyboardEvent): void {
 		let handled = false;
 		switch (keyboardEvent.keyCode) {
 			case KeyCode.Enter:
-				this._onEnter.fire();
+				if (this.options.navigateByEnter) {
+					this._onNavigate.fire(keyboardEvent.shiftKey);
+					handled = true;
+				}
+				break;
+			case KeyCode.UpArrow:
+				if (this.options.navigateByArrows) {
+					this._onNavigate.fire(true);
+				}
+				handled = true;
+				break;
+			case KeyCode.DownArrow:
+				if (this.options.navigateByArrows) {
+					this._onNavigate.fire(false);
+				}
 				handled = true;
 				break;
 			case KeyCode.Escape:
@@ -326,9 +345,9 @@ export class FloatingClickWidget extends Widget implements IOverlayWidget {
 	) {
 		super();
 		if (keyBindingAction) {
-			let [keybinding] = keybindingService.lookupKeybindings(keyBindingAction);
+			let keybinding = keybindingService.lookupKeybinding(keyBindingAction);
 			if (keybinding) {
-				this.label += ' (' + keybindingService.getLabelFor(keybinding[0]) + ')';
+				this.label += ' (' + keybinding.getLabel() + ')';
 			}
 		}
 	}

@@ -28,7 +28,6 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { ITerminalService, ITerminalInstance, IShellLaunchConfig } from 'vs/workbench/parts/terminal/common/terminal';
-import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 import { IOutputService, IOutputChannel } from 'vs/workbench/parts/output/common/output';
 import { StartStopProblemCollector, WatchingProblemCollector, ProblemCollectorEvents } from 'vs/workbench/parts/tasks/common/problemCollectors';
 import {
@@ -389,9 +388,9 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 					shellLaunchConfig.args = [];
 				}
 			} else {
-				(this.terminalService.configHelper as TerminalConfigHelper).mergeDefaultShellPathAndArgs(shellLaunchConfig);
+				this.terminalService.configHelper.mergeDefaultShellPathAndArgs(shellLaunchConfig);
 			}
-			let shellArgs = shellLaunchConfig.args.slice(0);
+			let shellArgs = <string[]>shellLaunchConfig.args.slice(0);
 			let toAdd: string[] = [];
 			let commandLine = args && args.length > 0 ? `${command} ${args.join(' ')}` : `${command}`;
 			if (Platform.isWindows) {

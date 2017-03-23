@@ -173,7 +173,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.ISession {
 					}));
 				}
 
-				return TPromise.wrapError(new Error(userMessage));
+				return errors.isPromiseCanceledError(errorResponse) ? undefined : TPromise.wrapError(new Error(userMessage));
 			});
 
 			if (cancelOnDisconnect) {
@@ -321,6 +321,10 @@ export class RawDebugSession extends v8.V8Protocol implements debug.ISession {
 
 	public stackTrace(args: DebugProtocol.StackTraceArguments): TPromise<DebugProtocol.StackTraceResponse> {
 		return this.send('stackTrace', args);
+	}
+
+	public exceptionInfo(args: DebugProtocol.ExceptionInfoArguments): TPromise<DebugProtocol.ExceptionInfoResponse> {
+		return this.send('exceptionInfo', args);
 	}
 
 	public scopes(args: DebugProtocol.ScopesArguments): TPromise<DebugProtocol.ScopesResponse> {

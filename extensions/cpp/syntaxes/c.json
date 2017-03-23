@@ -14,7 +14,7 @@
 			"include": "#preprocessor-rule-disabled"
 		},
 		{
-			"include": "#preprocessor-rule-other"
+			"include": "#preprocessor-rule-conditional"
 		},
 		{
 			"include": "#comments"
@@ -24,8 +24,7 @@
 			"name": "keyword.control.c"
 		},
 		{
-			"match": "\\b(asm|__asm__|auto|bool|_Bool|char|_Complex|double|enum|float|_Imaginary|int|long|short|signed|struct|typedef|union|unsigned|void)\\b",
-			"name": "storage.type.c"
+			"include": "#storage_types"
 		},
 		{
 			"match": "\\b(const|extern|register|restrict|static|volatile|inline)\\b",
@@ -57,7 +56,7 @@
 			"include": "#strings"
 		},
 		{
-			"begin": "(?x)\n^\\s* ((\\#)\\s*define) \\s+     # define\n((?<id>[a-zA-Z_$][\\w$]*))  # macro name\n(?:\n  (\\()\n    (\n      \\s* \\g<id> \\s*         # first argument\n      ((,) \\s* \\g<id> \\s*)*  # additional arguments\n      (?:\\.\\.\\.)?            # varargs ellipsis?\n    )\n  (\\))\n)?",
+			"begin": "(?x)\n^\\s* ((\\#)\\s*define) \\s+    # define\n((?<id>[a-zA-Z_$][\\w$]*))      # macro name\n(?:\n  (\\()\n    (\n      \\s* \\g<id> \\s*         # first argument\n      ((,) \\s* \\g<id> \\s*)*  # additional arguments\n      (?:\\.\\.\\.)?            # varargs ellipsis?\n    )\n  (\\))\n)?",
 			"beginCaptures": {
 				"1": {
 					"name": "keyword.control.directive.define.c"
@@ -85,7 +84,7 @@
 			"name": "meta.preprocessor.macro.c",
 			"patterns": [
 				{
-					"include": "$base"
+					"include": "#preprocessor-rule-define-line-contents"
 				}
 			]
 		},
@@ -99,16 +98,22 @@
 					"name": "punctuation.definition.directive.c"
 				}
 			},
-			"end": "(?<!\\\\)(?=\\n)",
+			"end": "(?<!\\\\)(?=\\n)|(?=//)|(?=/\\*(?!.*\\\\\\s*\\n))",
 			"name": "meta.preprocessor.diagnostic.c",
 			"patterns": [
+				{
+					"include": "#comments"
+				},
+				{
+					"include": "#strings"
+				},
 				{
 					"include": "#line_continuation_character"
 				}
 			]
 		},
 		{
-			"begin": "^\\s*((#)\\s*(include|import))\\b\\s*",
+			"begin": "^\\s*((#)\\s*(include(?:_next)?|import))\\b\\s*",
 			"beginCaptures": {
 				"1": {
 					"name": "keyword.control.directive.$3.c"
@@ -183,18 +188,12 @@
 			]
 		},
 		{
-			"begin": "^\\s*(?:((#)\\s*(?:elif|else|if|ifdef|ifndef))|((#)\\s*(pragma|undef)))\\b",
+			"begin": "^\\s*(?:((#)\\s*undef))\\b",
 			"beginCaptures": {
 				"1": {
-					"name": "keyword.control.directive.conditional.c"
+					"name": "keyword.control.directive.undef.c"
 				},
 				"2": {
-					"name": "punctuation.definition.directive.c"
-				},
-				"3": {
-					"name": "keyword.control.directive.$5.c"
-				},
-				"4": {
 					"name": "punctuation.definition.directive.c"
 				}
 			},
@@ -202,12 +201,44 @@
 			"name": "meta.preprocessor.c",
 			"patterns": [
 				{
+					"match": "[a-zA-Z_$][\\w$]*",
+					"name": "entity.name.function.preprocessor.c"
+				},
+				{
 					"include": "#line_continuation_character"
 				}
 			]
 		},
 		{
-			"match": "\\b(u_char|u_short|u_int|u_long|ushort|uint|u_quad_t|quad_t|qaddr_t|caddr_t|daddr_t|dev_t|fixpt_t|blkcnt_t|blksize_t|gid_t|in_addr_t|in_port_t|ino_t|key_t|mode_t|nlink_t|id_t|pid_t|off_t|segsz_t|swblk_t|uid_t|id_t|clock_t|size_t|ssize_t|time_t|useconds_t|suseconds_t)\\b",
+			"begin": "^\\s*(?:((#)\\s*pragma))\\b",
+			"beginCaptures": {
+				"1": {
+					"name": "keyword.control.directive.pragma.c"
+				},
+				"2": {
+					"name": "punctuation.definition.directive.c"
+				}
+			},
+			"end": "(?=(?://|/\\*))|(?<!\\\\)(?=\\n)",
+			"name": "meta.preprocessor.pragma.c",
+			"patterns": [
+				{
+					"include": "#strings"
+				},
+				{
+					"match": "[a-zA-Z_$][\\w\\-$]*",
+					"name": "entity.other.attribute-name.pragma.preprocessor.c"
+				},
+				{
+					"include": "#numbers"
+				},
+				{
+					"include": "#line_continuation_character"
+				}
+			]
+		},
+		{
+			"match": "\\b(u_char|u_short|u_int|u_long|ushort|uint|u_quad_t|quad_t|qaddr_t|caddr_t|daddr_t|div_t|dev_t|fixpt_t|blkcnt_t|blksize_t|gid_t|in_addr_t|in_port_t|ino_t|key_t|mode_t|nlink_t|id_t|pid_t|off_t|segsz_t|swblk_t|uid_t|id_t|clock_t|size_t|ssize_t|time_t|useconds_t|suseconds_t)\\b",
 			"name": "support.type.sys-types.c"
 		},
 		{
@@ -234,38 +265,39 @@
 			"include": "#block"
 		},
 		{
-			"begin": "(?x)\n(?:\n  ^ |\n  (?:\n    (?=\\s)(?<!else|new|return)(?<=\\w)  # word + space before name\n    |\n    (?=\\s*[A-Za-z_])(?<!&&)(?<=[*&>])   # type modifier before name\n  )\n)\n(\\s*)(?!(while|for|do|if|else|switch|catch|enumerate|return|sizeof|[cr]?iterate)\\s*\\()\n(\n  (?:[A-Za-z_][A-Za-z0-9_]*+|::)++  # actual name\n  |\n  (?:(?<=operator)(?:[-*&<>=+!]+|\\(\\)|\\[\\]))\n)\n\\s*(?=\\()",
-			"beginCaptures": {
-				"1": {
-					"name": "punctuation.whitespace.function.leading.c"
-				},
-				"3": {
-					"name": "entity.name.function.c"
-				},
-				"4": {
-					"name": "punctuation.definition.parameters.c"
-				}
-			},
-			"end": "(?<=\\})|(?=#)|(;)",
+			"include": "#parens"
+		},
+		{
+			"begin": "(?x)\n(?!(?:while|for|do|if|else|switch|catch|enumerate|return|sizeof|[cr]?iterate|asm|__asm__|auto|bool|_Bool|char|_Complex|double|enum|float|_Imaginary|int|long|short|signed|struct|typedef|union|unsigned|void)\\s*\\()\n(?=\n  (?:[A-Za-z_][A-Za-z0-9_]*+|::)++\\s*\\(  # actual name\n  |\n  (?:(?<=operator)(?:[-*&<>=+!]+|\\(\\)|\\[\\]))\\s*\\(\n)",
+			"end": "(?<=\\))(?!\\w)",
 			"name": "meta.function.c",
 			"patterns": [
 				{
-					"include": "#comments"
-				},
-				{
-					"include": "#parens"
-				},
-				{
-					"match": "\\b(const)\\b",
-					"name": "storage.modifier.c"
-				},
-				{
-					"include": "#block"
+					"include": "#function-innards"
 				}
 			]
 		},
 		{
 			"include": "#line_continuation_character"
+		},
+		{
+			"match": "(\\[)|(\\])",
+			"captures": {
+				"1": {
+					"name": "punctuation.definition.begin.bracket.square.c"
+				},
+				"2": {
+					"name": "punctuation.definition.end.bracket.square.c"
+				}
+			}
+		},
+		{
+			"match": ";",
+			"name": "punctuation.terminator.statement.c"
+		},
+		{
+			"match": ",",
+			"name": "punctuation.separator.delimiter.c"
 		}
 	],
 	"repository": {
@@ -281,21 +313,21 @@
 					"name": "variable.other.member.c"
 				}
 			},
-			"match": "((\\.)|(->))([a-zA-Z_][a-zA-Z_0-9]*)\\b(?!\\s*\\()"
+			"match": "((\\.)|(->))\\s*(([a-zA-Z_][a-zA-Z_0-9]*)\\b(?!\\s*\\())?"
 		},
 		"block": {
 			"patterns": [
 				{
-					"begin": "\\{",
+					"begin": "{",
 					"beginCaptures": {
 						"0": {
-							"name": "punctuation.section.block.begin.c"
+							"name": "punctuation.section.block.begin.bracket.curly.c"
 						}
 					},
-					"end": "\\}|(?=\\s*#\\s*endif\\b)",
+					"end": "}|(?=\\s*#\\s*(?:elif|else|endif)\\b)",
 					"endCaptures": {
 						"0": {
-							"name": "punctuation.section.block.end.c"
+							"name": "punctuation.section.block.end.bracket.curly.c"
 						}
 					},
 					"name": "meta.block.c",
@@ -316,7 +348,7 @@
 					"include": "#preprocessor-rule-disabled-block"
 				},
 				{
-					"include": "#preprocessor-rule-other-block"
+					"include": "#preprocessor-rule-conditional-block"
 				},
 				{
 					"include": "#access"
@@ -340,7 +372,26 @@
 					"name": "meta.initialization.c"
 				},
 				{
-					"include": "#block"
+					"begin": "{",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.section.block.begin.bracket.curly.c"
+						}
+					},
+					"end": "}|(?=\\s*#\\s*(?:elif|else|endif)\\b)",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.section.block.end.bracket.curly.c"
+						}
+					},
+					"patterns": [
+						{
+							"include": "#block_innards"
+						}
+					]
+				},
+				{
+					"include": "#parens-block"
 				},
 				{
 					"include": "$base"
@@ -348,19 +399,14 @@
 			]
 		},
 		"c_function_call": {
-			"captures": {
-				"1": {
-					"name": "punctuation.whitespace.function-call.leading.c"
-				},
-				"2": {
-					"name": "support.function.any-method.c"
-				},
-				"4": {
-					"name": "punctuation.definition.parameters.c"
+			"begin": "(?x)\n(?!(?:while|for|do|if|else|switch|catch|enumerate|return|sizeof|[cr]?iterate)\\s*\\()\n(?=\n(?:[A-Za-z_][A-Za-z0-9_]*+|::)++\\s*\\(  # actual name\n|\n(?:(?<=operator)(?:[-*&<>=+!]+|\\(\\)|\\[\\]))\\s*\\(\n)",
+			"end": "(?<=\\))(?!\\w)",
+			"name": "meta.function-call.c",
+			"patterns": [
+				{
+					"include": "#function-call-innards"
 				}
-			},
-			"match": "(?x)\n(?:\n  (?=\\s)\n  (?:(?<=else|new|return) | (?<!\\w)) (\\s+)\n)?\n\n# Actual name\n(\n  \\b\n  (?!\n    (while|for|do|if|else|switch|catch|enumerate|return|sizeof|r?iterate)\n    \\s* \\(\n  )\n  (?:(?!NS)[A-Za-z_][A-Za-z0-9_]*+\\b | ::)++\n)\n\\s*(\\() # Opening bracket",
-			"name": "meta.function-call.c"
+			]
 		},
 		"comments": {
 			"patterns": [
@@ -417,7 +463,7 @@
 									"name": "punctuation.definition.comment.cpp"
 								}
 							},
-							"end": "\\n",
+							"end": "(?=\\n)",
 							"name": "comment.line.double-slash.cpp",
 							"patterns": [
 								{
@@ -467,7 +513,7 @@
 		"numbers": {
 			"patterns": [
 				{
-					"match": "\\b((0(x|X)[0-9a-fA-F]*)|(0(b|B)[01]*)|(([0-9]+\\.?[0-9]*)|(\\.[0-9]+))((e|E)(\\+|-)?[0-9]+)?)(L|l|UL|ul|u|U|F|f|ll|LL|ull|ULL)?\\b",
+					"match": "\\b((0(x|X)[0-9a-fA-F']*)|(0(b|B)[01']*)|(([0-9']+\\.?[0-9']*)|(\\.[0-9']+))((e|E)(\\+|-)?[0-9']+)?)(L|l|UL|ul|u|U|F|f|ll|LL|ull|ULL)?\\b",
 					"name": "constant.numeric.c"
 				}
 			]
@@ -476,26 +522,44 @@
 			"begin": "\\(",
 			"beginCaptures": {
 				"0": {
-					"name": "punctuation.section.parens.begin.c"
+					"name": "punctuation.section.parens.begin.bracket.round.c"
 				}
 			},
 			"end": "\\)",
 			"endCaptures": {
 				"0": {
-					"name": "punctuation.section.parens.end.c"
+					"name": "punctuation.section.parens.end.bracket.round.c"
 				}
 			},
-			"name": "meta.parens.c",
 			"patterns": [
 				{
 					"include": "$base"
 				}
 			]
 		},
+		"parens-block": {
+			"begin": "\\(",
+			"beginCaptures": {
+				"0": {
+					"name": "punctuation.section.parens.begin.bracket.round.c"
+				}
+			},
+			"end": "\\)",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.section.parens.end.bracket.round.c"
+				}
+			},
+			"patterns": [
+				{
+					"include": "#block_innards"
+				}
+			]
+		},
 		"pragma-mark": {
 			"captures": {
 				"1": {
-					"name": "meta.preprocessor.c"
+					"name": "meta.preprocessor.pragma.c"
 				},
 				"2": {
 					"name": "keyword.control.directive.pragma.pragma-mark.c"
@@ -504,329 +568,11 @@
 					"name": "punctuation.definition.directive.c"
 				},
 				"4": {
-					"name": "meta.toc-list.pragma-mark.c"
+					"name": "entity.name.tag.pragma-mark.c"
 				}
 			},
 			"match": "^\\s*(((#)\\s*pragma\\s+mark)\\s+(.*))",
 			"name": "meta.section"
-		},
-		"preprocessor-rule-disabled": {
-			"begin": "^\\s*(((#)if)\\s+(0)\\b).*",
-			"beginCaptures": {
-				"1": {
-					"name": "meta.preprocessor.c"
-				},
-				"2": {
-					"name": "keyword.control.directive.conditional.c"
-				},
-				"3": {
-					"name": "punctuation.definition.directive.c"
-				},
-				"4": {
-					"name": "constant.numeric.preprocessor.c"
-				}
-			},
-			"end": "^\\s*(((#)\\s*endif)\\b)",
-			"endCaptures": {
-				"1": {
-					"name": "meta.preprocessor.c"
-				},
-				"2": {
-					"name": "keyword.control.directive.conditional.c"
-				},
-				"3": {
-					"name": "punctuation.definition.directive.c"
-				}
-			},
-			"patterns": [
-				{
-					"begin": "^\\s*(((#)\\s*else)\\b)",
-					"beginCaptures": {
-						"1": {
-							"name": "meta.preprocessor.c"
-						},
-						"2": {
-							"name": "keyword.control.directive.conditional.c"
-						},
-						"3": {
-							"name": "punctuation.definition.directive.c"
-						}
-					},
-					"end": "(?=^\\s*#\\s*endif\\b)",
-					"patterns": [
-						{
-							"include": "$base"
-						}
-					]
-				},
-				{
-					"begin": "\\G",
-					"end": "(?=^\\s*#\\s*(else|endif)\\b)",
-					"contentName": "comment.block.preprocessor.if-branch",
-					"patterns": [
-						{
-							"include": "#disabled"
-						},
-						{
-							"include": "#pragma-mark"
-						}
-					]
-				}
-			]
-		},
-		"preprocessor-rule-disabled-block": {
-			"begin": "^\\s*(((#)if)\\s+(0)\\b).*",
-			"beginCaptures": {
-				"1": {
-					"name": "meta.preprocessor.c"
-				},
-				"2": {
-					"name": "keyword.control.directive.conditional.c"
-				},
-				"3": {
-					"name": "punctuation.definition.directive.c"
-				},
-				"4": {
-					"name": "constant.numeric.preprocessor.c"
-				}
-			},
-			"end": "^\\s*(((#)\\s*endif)\\b)",
-			"endCaptures": {
-				"1": {
-					"name": "meta.preprocessor.c"
-				},
-				"2": {
-					"name": "keyword.control.directive.conditional.c"
-				},
-				"3": {
-					"name": "punctuation.definition.directive.c"
-				}
-			},
-			"patterns": [
-				{
-					"begin": "^\\s*(((#)\\s*else\\b))",
-					"beginCaptures": {
-						"1": {
-							"name": "meta.preprocessor.c"
-						},
-						"2": {
-							"name": "keyword.control.directive.conditional.c"
-						},
-						"3": {
-							"name": "punctuation.definition.directive.c"
-						}
-					},
-					"end": "(?=^\\s*#\\s*endif\\b)",
-					"patterns": [
-						{
-							"include": "#block_innards"
-						}
-					]
-				},
-				{
-					"begin": "\\G",
-					"end": "(?=^\\s*#\\s*(else|endif)\\b)",
-					"contentName": "comment.block.preprocessor.if-branch.in-block",
-					"patterns": [
-						{
-							"include": "#disabled"
-						},
-						{
-							"include": "#pragma-mark"
-						}
-					]
-				}
-			]
-		},
-		"preprocessor-rule-enabled": {
-			"begin": "^\\s*(((#)if)\\s+(0*1)\\b)",
-			"beginCaptures": {
-				"1": {
-					"name": "meta.preprocessor.c"
-				},
-				"2": {
-					"name": "keyword.control.directive.conditional.c"
-				},
-				"3": {
-					"name": "punctuation.definition.directive.c"
-				},
-				"4": {
-					"name": "constant.numeric.preprocessor.c"
-				}
-			},
-			"end": "^\\s*(((#)\\s*endif)\\b)",
-			"endCaptures": {
-				"1": {
-					"name": "meta.preprocessor.c"
-				},
-				"2": {
-					"name": "keyword.control.directive.conditional.c"
-				},
-				"3": {
-					"name": "punctuation.definition.directive.c"
-				}
-			},
-			"patterns": [
-				{
-					"begin": "^\\s*(((#)\\s*else)\\b).*",
-					"beginCaptures": {
-						"1": {
-							"name": "meta.preprocessor.c"
-						},
-						"2": {
-							"name": "keyword.control.directive.conditional.c"
-						},
-						"3": {
-							"name": "punctuation.definition.directive.c"
-						}
-					},
-					"contentName": "comment.block.preprocessor.else-branch",
-					"end": "(?=^\\s*#\\s*endif\\b)",
-					"patterns": [
-						{
-							"include": "#disabled"
-						},
-						{
-							"include": "#pragma-mark"
-						}
-					]
-				},
-				{
-					"begin": "\\G",
-					"end": "(?=^\\s*#\\s*(else|endif)\\b)",
-					"patterns": [
-						{
-							"include": "$base"
-						}
-					]
-				}
-			]
-		},
-		"preprocessor-rule-enabled-block": {
-			"begin": "^\\s*(((#)if)\\s+(0*1)\\b)",
-			"beginCaptures": {
-				"1": {
-					"name": "meta.preprocessor.c"
-				},
-				"2": {
-					"name": "keyword.control.directive.conditional.c"
-				},
-				"3": {
-					"name": "punctuation.definition.directive.c"
-				},
-				"4": {
-					"name": "constant.numeric.preprocessor.c"
-				}
-			},
-			"end": "^\\s*(((#)\\s*endif)\\b)",
-			"endCaptures": {
-				"1": {
-					"name": "meta.preprocessor.c"
-				},
-				"2": {
-					"name": "keyword.control.directive.conditional.c"
-				},
-				"3": {
-					"name": "punctuation.definition.directive.c"
-				}
-			},
-			"patterns": [
-				{
-					"begin": "^\\s*(((#)\\s*else)\\b).*",
-					"beginCaptures": {
-						"1": {
-							"name": "meta.preprocessor.c"
-						},
-						"2": {
-							"name": "keyword.control.directive.conditional.c"
-						},
-						"3": {
-							"name": "punctuation.definition.directive.c"
-						}
-					},
-					"contentName": "comment.block.preprocessor.else-branch.in-block",
-					"end": "(?=^\\s*#\\s*endif\\b)",
-					"patterns": [
-						{
-							"include": "#disabled"
-						},
-						{
-							"include": "#pragma-mark"
-						}
-					]
-				},
-				{
-					"begin": "\\G",
-					"end": "(?=^\\s*#\\s*(else|endif)\\b)",
-					"patterns": [
-						{
-							"include": "#block_innards"
-						}
-					]
-				}
-			]
-		},
-		"preprocessor-rule-other": {
-			"begin": "^\\s*(((#)\\s*if(n?def)?)\\b.*?(?:(?=(?://|/\\*))|$))",
-			"beginCaptures": {
-				"1": {
-					"name": "meta.preprocessor.c"
-				},
-				"2": {
-					"name": "keyword.control.directive.conditional.c"
-				},
-				"3": {
-					"name": "punctuation.definition.directive.c"
-				}
-			},
-			"end": "^\\s*(((#)\\s*(endif))\\b)",
-			"endCaptures": {
-				"1": {
-					"name": "meta.preprocessor.c"
-				},
-				"2": {
-					"name": "keyword.control.directive.conditional.c"
-				},
-				"3": {
-					"name": "punctuation.definition.directive.c"
-				}
-			},
-			"patterns": [
-				{
-					"include": "$base"
-				}
-			]
-		},
-		"preprocessor-rule-other-block": {
-			"begin": "^\\s*(((#)\\s*if(n?def)?)\\b.*?(?:(?=(?://|/\\*))|$))",
-			"beginCaptures": {
-				"1": {
-					"name": "meta.preprocessor.c"
-				},
-				"2": {
-					"name": "keyword.control.directive.conditional.c"
-				},
-				"3": {
-					"name": "punctuation.definition.directive.c"
-				}
-			},
-			"end": "^\\s*(((#)\\s*endif)\\b)",
-			"endCaptures": {
-				"1": {
-					"name": "meta.preprocessor.c"
-				},
-				"2": {
-					"name": "keyword.control.directive.conditional.c"
-				},
-				"3": {
-					"name": "punctuation.definition.directive.c"
-				}
-			},
-			"patterns": [
-				{
-					"include": "#block_innards"
-				}
-			]
 		},
 		"operators": {
 			"patterns": [
@@ -976,11 +722,1233 @@
 					"name": "constant.other.placeholder.c"
 				},
 				{
-					"match": "%",
-					"name": "invalid.illegal.placeholder.c"
+					"match": "(%)(?!\"\\s*(PRI|SCN))",
+					"captures": {
+						"1": {
+							"name": "invalid.illegal.placeholder.c"
+						}
+					}
+				}
+			]
+		},
+		"storage_types": {
+			"patterns": [
+				{
+					"match": "\\b(asm|__asm__|auto|bool|_Bool|char|_Complex|double|enum|float|_Imaginary|int|long|short|signed|struct|typedef|union|unsigned|void)\\b",
+					"name": "storage.type.c"
+				}
+			]
+		},
+		"vararg_ellipses": {
+			"match": "(?<!\\.)\\.\\.\\.(?!\\.)",
+			"name": "punctuation.vararg-ellipses.c"
+		},
+		"preprocessor-rule-conditional": {
+			"patterns": [
+				{
+					"begin": "^\\s*((#)\\s*if(?:n?def)?\\b)",
+					"beginCaptures": {
+						"0": {
+							"name": "meta.preprocessor.c"
+						},
+						"1": {
+							"name": "keyword.control.directive.conditional.c"
+						},
+						"2": {
+							"name": "punctuation.definition.directive.c"
+						}
+					},
+					"end": "^\\s*((#)\\s*endif\\b)",
+					"endCaptures": {
+						"0": {
+							"name": "meta.preprocessor.c"
+						},
+						"1": {
+							"name": "keyword.control.directive.conditional.c"
+						},
+						"2": {
+							"name": "punctuation.definition.directive.c"
+						}
+					},
+					"patterns": [
+						{
+							"begin": "\\G",
+							"end": "(?=//)|(?=/\\*(?!.*\\\\\\s*\\n))|(?<!\\\\)(?=\\n)",
+							"name": "meta.preprocessor.c",
+							"patterns": [
+								{
+									"include": "#preprocessor-rule-conditional-line"
+								}
+							]
+						},
+						{
+							"include": "#preprocessor-rule-enabled-elif"
+						},
+						{
+							"include": "#preprocessor-rule-enabled-else"
+						},
+						{
+							"include": "#preprocessor-rule-disabled-elif"
+						},
+						{
+							"begin": "^\\s*((#)\\s*elif\\b)",
+							"beginCaptures": {
+								"1": {
+									"name": "keyword.control.directive.conditional.c"
+								},
+								"2": {
+									"name": "punctuation.definition.directive.c"
+								}
+							},
+							"end": "(?=//)|(?=/\\*(?!.*\\\\\\s*\\n))|(?<!\\\\)(?=\\n)",
+							"name": "meta.preprocessor.c",
+							"patterns": [
+								{
+									"include": "#preprocessor-rule-conditional-line"
+								}
+							]
+						},
+						{
+							"include": "$base"
+						}
+					]
+				},
+				{
+					"match": "^\\s*#\\s*(else|elif|endif)\\b",
+					"captures": {
+						"0": {
+							"name": "invalid.illegal.stray-$1.c"
+						}
+					}
+				}
+			]
+		},
+		"preprocessor-rule-conditional-block": {
+			"patterns": [
+				{
+					"begin": "^\\s*((#)\\s*if(?:n?def)?\\b)",
+					"beginCaptures": {
+						"0": {
+							"name": "meta.preprocessor.c"
+						},
+						"1": {
+							"name": "keyword.control.directive.conditional.c"
+						},
+						"2": {
+							"name": "punctuation.definition.directive.c"
+						}
+					},
+					"end": "^\\s*((#)\\s*endif\\b)",
+					"endCaptures": {
+						"0": {
+							"name": "meta.preprocessor.c"
+						},
+						"1": {
+							"name": "keyword.control.directive.conditional.c"
+						},
+						"2": {
+							"name": "punctuation.definition.directive.c"
+						}
+					},
+					"patterns": [
+						{
+							"begin": "\\G",
+							"end": "(?=//)|(?=/\\*(?!.*\\\\\\s*\\n))|(?<!\\\\)(?=\\n)",
+							"name": "meta.preprocessor.c",
+							"patterns": [
+								{
+									"include": "#preprocessor-rule-conditional-line"
+								}
+							]
+						},
+						{
+							"include": "#preprocessor-rule-enabled-elif-block"
+						},
+						{
+							"include": "#preprocessor-rule-enabled-else-block"
+						},
+						{
+							"include": "#preprocessor-rule-disabled-elif"
+						},
+						{
+							"begin": "^\\s*((#)\\s*elif\\b)",
+							"beginCaptures": {
+								"1": {
+									"name": "keyword.control.directive.conditional.c"
+								},
+								"2": {
+									"name": "punctuation.definition.directive.c"
+								}
+							},
+							"end": "(?=//)|(?=/\\*(?!.*\\\\\\s*\\n))|(?<!\\\\)(?=\\n)",
+							"name": "meta.preprocessor.c",
+							"patterns": [
+								{
+									"include": "#preprocessor-rule-conditional-line"
+								}
+							]
+						},
+						{
+							"include": "#block_innards"
+						}
+					]
+				},
+				{
+					"match": "^\\s*#\\s*(else|elif|endif)\\b",
+					"captures": {
+						"0": {
+							"name": "invalid.illegal.stray-$1.c"
+						}
+					}
+				}
+			]
+		},
+		"preprocessor-rule-conditional-line": {
+			"patterns": [
+				{
+					"match": "(?:\\bdefined\\b\\s*$)|(?:\\bdefined\\b(?=\\s*\\(*\\s*(?:(?!defined\\b)[a-zA-Z_$][\\w$]*\\b)\\s*\\)*\\s*(?:\\n|//|/\\*|\\?|\\:|&&|\\|\\||\\\\\\s*\\n)))",
+					"name": "keyword.control.directive.conditional.c"
+				},
+				{
+					"match": "\\bdefined\\b",
+					"name": "invalid.illegal.macro-name.c"
+				},
+				{
+					"include": "#comments"
+				},
+				{
+					"include": "#strings"
+				},
+				{
+					"include": "#numbers"
+				},
+				{
+					"begin": "\\?",
+					"beginCaptures": {
+						"0": {
+							"name": "keyword.operator.ternary.c"
+						}
+					},
+					"end": ":",
+					"endCaptures": {
+						"0": {
+							"name": "keyword.operator.ternary.c"
+						}
+					},
+					"patterns": [
+						{
+							"include": "#preprocessor-rule-conditional-line"
+						}
+					]
+				},
+				{
+					"include": "#operators"
+				},
+				{
+					"match": "\\b(NULL|true|false|TRUE|FALSE)\\b",
+					"name": "constant.language.c"
+				},
+				{
+					"match": "[a-zA-Z_$][\\w$]*",
+					"name": "entity.name.function.preprocessor.c"
+				},
+				{
+					"include": "#line_continuation_character"
+				},
+				{
+					"begin": "\\(",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.section.parens.begin.bracket.round.c"
+						}
+					},
+					"end": "\\)|(?=//)|(?=/\\*(?!.*\\\\\\s*\\n))|(?<!\\\\)(?=\\n)",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.section.parens.end.bracket.round.c"
+						}
+					},
+					"patterns": [
+						{
+							"include": "#preprocessor-rule-conditional-line"
+						}
+					]
+				}
+			]
+		},
+		"preprocessor-rule-disabled": {
+			"patterns": [
+				{
+					"begin": "^\\s*((#)\\s*if\\b)(?=\\s*\\(*\\b0+\\b\\)*\\s*(?:$|//|/\\*))",
+					"beginCaptures": {
+						"0": {
+							"name": "meta.preprocessor.c"
+						},
+						"1": {
+							"name": "keyword.control.directive.conditional.c"
+						},
+						"2": {
+							"name": "punctuation.definition.directive.c"
+						}
+					},
+					"end": "^\\s*((#)\\s*endif\\b)",
+					"endCaptures": {
+						"0": {
+							"name": "meta.preprocessor.c"
+						},
+						"1": {
+							"name": "keyword.control.directive.conditional.c"
+						},
+						"2": {
+							"name": "punctuation.definition.directive.c"
+						}
+					},
+					"patterns": [
+						{
+							"begin": "\\G",
+							"end": "(?=//)|(?=/\\*(?!.*\\\\\\s*\\n))|(?=\\n)",
+							"name": "meta.preprocessor.c",
+							"patterns": [
+								{
+									"include": "#preprocessor-rule-conditional-line"
+								}
+							]
+						},
+						{
+							"include": "#comments"
+						},
+						{
+							"include": "#preprocessor-rule-enabled-elif"
+						},
+						{
+							"include": "#preprocessor-rule-enabled-else"
+						},
+						{
+							"include": "#preprocessor-rule-disabled-elif"
+						},
+						{
+							"begin": "^\\s*((#)\\s*elif\\b)",
+							"beginCaptures": {
+								"0": {
+									"name": "meta.preprocessor.c"
+								},
+								"1": {
+									"name": "keyword.control.directive.conditional.c"
+								},
+								"2": {
+									"name": "punctuation.definition.directive.c"
+								}
+							},
+							"end": "(?=^\\s*((#)\\s*(?:elif|else|endif)\\b))",
+							"patterns": [
+								{
+									"begin": "\\G",
+									"end": "(?=//)|(?=/\\*(?!.*\\\\\\s*\\n))|(?<!\\\\)(?=\\n)",
+									"name": "meta.preprocessor.c",
+									"patterns": [
+										{
+											"include": "#preprocessor-rule-conditional-line"
+										}
+									]
+								},
+								{
+									"include": "$base"
+								}
+							]
+						},
+						{
+							"begin": "\\n",
+							"end": "(?=^\\s*((#)\\s*(?:else|elif|endif)\\b))",
+							"contentName": "comment.block.preprocessor.if-branch.c",
+							"patterns": [
+								{
+									"include": "#disabled"
+								},
+								{
+									"include": "#pragma-mark"
+								}
+							]
+						}
+					]
+				}
+			]
+		},
+		"preprocessor-rule-disabled-block": {
+			"patterns": [
+				{
+					"begin": "^\\s*((#)\\s*if\\b)(?=\\s*\\(*\\b0+\\b\\)*\\s*(?:$|//|/\\*))",
+					"beginCaptures": {
+						"0": {
+							"name": "meta.preprocessor.c"
+						},
+						"1": {
+							"name": "keyword.control.directive.conditional.c"
+						},
+						"2": {
+							"name": "punctuation.definition.directive.c"
+						}
+					},
+					"end": "^\\s*((#)\\s*endif\\b)",
+					"endCaptures": {
+						"0": {
+							"name": "meta.preprocessor.c"
+						},
+						"1": {
+							"name": "keyword.control.directive.conditional.c"
+						},
+						"2": {
+							"name": "punctuation.definition.directive.c"
+						}
+					},
+					"patterns": [
+						{
+							"begin": "\\G",
+							"end": "(?=//)|(?=/\\*(?!.*\\\\\\s*\\n))|(?=\\n)",
+							"name": "meta.preprocessor.c",
+							"patterns": [
+								{
+									"include": "#preprocessor-rule-conditional-line"
+								}
+							]
+						},
+						{
+							"include": "#comments"
+						},
+						{
+							"include": "#preprocessor-rule-enabled-elif-block"
+						},
+						{
+							"include": "#preprocessor-rule-enabled-else-block"
+						},
+						{
+							"include": "#preprocessor-rule-disabled-elif"
+						},
+						{
+							"begin": "^\\s*((#)\\s*elif\\b)",
+							"beginCaptures": {
+								"0": {
+									"name": "meta.preprocessor.c"
+								},
+								"1": {
+									"name": "keyword.control.directive.conditional.c"
+								},
+								"2": {
+									"name": "punctuation.definition.directive.c"
+								}
+							},
+							"end": "(?=^\\s*((#)\\s*(?:elif|else|endif)\\b))",
+							"patterns": [
+								{
+									"begin": "\\G",
+									"end": "(?=//)|(?=/\\*(?!.*\\\\\\s*\\n))|(?<!\\\\)(?=\\n)",
+									"name": "meta.preprocessor.c",
+									"patterns": [
+										{
+											"include": "#preprocessor-rule-conditional-line"
+										}
+									]
+								},
+								{
+									"include": "#block_innards"
+								}
+							]
+						},
+						{
+							"begin": "\\n",
+							"end": "(?=^\\s*((#)\\s*(?:else|elif|endif)\\b))",
+							"contentName": "comment.block.preprocessor.if-branch.in-block.c",
+							"patterns": [
+								{
+									"include": "#disabled"
+								},
+								{
+									"include": "#pragma-mark"
+								}
+							]
+						}
+					]
+				}
+			]
+		},
+		"preprocessor-rule-disabled-elif": {
+			"begin": "^\\s*((#)\\s*elif\\b)(?=\\s*\\(*\\b0+\\b\\)*\\s*(?:$|//|/\\*))",
+			"beginCaptures": {
+				"0": {
+					"name": "meta.preprocessor.c"
+				},
+				"1": {
+					"name": "keyword.control.directive.conditional.c"
+				},
+				"2": {
+					"name": "punctuation.definition.directive.c"
+				}
+			},
+			"end": "(?=^\\s*((#)\\s*(?:elif|else|endif)\\b))",
+			"patterns": [
+				{
+					"begin": "\\G",
+					"end": "(?=//)|(?=/\\*(?!.*\\\\\\s*\\n))|(?<!\\\\)(?=\\n)",
+					"name": "meta.preprocessor.c",
+					"patterns": [
+						{
+							"include": "#preprocessor-rule-conditional-line"
+						}
+					]
+				},
+				{
+					"include": "#comments"
+				},
+				{
+					"begin": "\\n",
+					"end": "(?=^\\s*((#)\\s*(?:else|elif|endif)\\b))",
+					"contentName": "comment.block.preprocessor.elif-branch.c",
+					"patterns": [
+						{
+							"include": "#disabled"
+						},
+						{
+							"include": "#pragma-mark"
+						}
+					]
+				}
+			]
+		},
+		"preprocessor-rule-enabled": {
+			"patterns": [
+				{
+					"begin": "^\\s*((#)\\s*if\\b)(?=\\s*\\(*\\b0*1\\b\\)*\\s*(?:$|//|/\\*))",
+					"beginCaptures": {
+						"0": {
+							"name": "meta.preprocessor.c"
+						},
+						"1": {
+							"name": "keyword.control.directive.conditional.c"
+						},
+						"2": {
+							"name": "punctuation.definition.directive.c"
+						},
+						"3": {
+							"name": "constant.numeric.preprocessor.c"
+						}
+					},
+					"end": "^\\s*((#)\\s*endif\\b)",
+					"endCaptures": {
+						"0": {
+							"name": "meta.preprocessor.c"
+						},
+						"1": {
+							"name": "keyword.control.directive.conditional.c"
+						},
+						"2": {
+							"name": "punctuation.definition.directive.c"
+						}
+					},
+					"patterns": [
+						{
+							"begin": "\\G",
+							"end": "(?=//)|(?=/\\*(?!.*\\\\\\s*\\n))|(?=\\n)",
+							"name": "meta.preprocessor.c",
+							"patterns": [
+								{
+									"include": "#preprocessor-rule-conditional-line"
+								}
+							]
+						},
+						{
+							"include": "#comments"
+						},
+						{
+							"begin": "^\\s*((#)\\s*else\\b)",
+							"beginCaptures": {
+								"0": {
+									"name": "meta.preprocessor.c"
+								},
+								"1": {
+									"name": "keyword.control.directive.conditional.c"
+								},
+								"2": {
+									"name": "punctuation.definition.directive.c"
+								}
+							},
+							"end": "(?=^\\s*((#)\\s*endif\\b))",
+							"contentName": "comment.block.preprocessor.else-branch.c",
+							"patterns": [
+								{
+									"include": "#disabled"
+								},
+								{
+									"include": "#pragma-mark"
+								}
+							]
+						},
+						{
+							"begin": "^\\s*((#)\\s*elif\\b)",
+							"beginCaptures": {
+								"0": {
+									"name": "meta.preprocessor.c"
+								},
+								"1": {
+									"name": "keyword.control.directive.conditional.c"
+								},
+								"2": {
+									"name": "punctuation.definition.directive.c"
+								}
+							},
+							"end": "(?=^\\s*((#)\\s*(?:else|elif|endif)\\b))",
+							"contentName": "comment.block.preprocessor.if-branch.c",
+							"patterns": [
+								{
+									"include": "#disabled"
+								},
+								{
+									"include": "#pragma-mark"
+								}
+							]
+						},
+						{
+							"begin": "\\n",
+							"end": "(?=^\\s*((#)\\s*(?:else|elif|endif)\\b))",
+							"patterns": [
+								{
+									"include": "$base"
+								}
+							]
+						}
+					]
+				}
+			]
+		},
+		"preprocessor-rule-enabled-block": {
+			"patterns": [
+				{
+					"begin": "^\\s*((#)\\s*if\\b)(?=\\s*\\(*\\b0*1\\b\\)*\\s*(?:$|//|/\\*))",
+					"beginCaptures": {
+						"0": {
+							"name": "meta.preprocessor.c"
+						},
+						"1": {
+							"name": "keyword.control.directive.conditional.c"
+						},
+						"2": {
+							"name": "punctuation.definition.directive.c"
+						}
+					},
+					"end": "^\\s*((#)\\s*endif\\b)",
+					"endCaptures": {
+						"0": {
+							"name": "meta.preprocessor.c"
+						},
+						"1": {
+							"name": "keyword.control.directive.conditional.c"
+						},
+						"2": {
+							"name": "punctuation.definition.directive.c"
+						}
+					},
+					"patterns": [
+						{
+							"begin": "\\G",
+							"end": "(?=//)|(?=/\\*(?!.*\\\\\\s*\\n))|(?=\\n)",
+							"name": "meta.preprocessor.c",
+							"patterns": [
+								{
+									"include": "#preprocessor-rule-conditional-line"
+								}
+							]
+						},
+						{
+							"include": "#comments"
+						},
+						{
+							"begin": "^\\s*((#)\\s*else\\b)",
+							"beginCaptures": {
+								"0": {
+									"name": "meta.preprocessor.c"
+								},
+								"1": {
+									"name": "keyword.control.directive.conditional.c"
+								},
+								"2": {
+									"name": "punctuation.definition.directive.c"
+								}
+							},
+							"end": "(?=^\\s*((#)\\s*endif\\b))",
+							"contentName": "comment.block.preprocessor.else-branch.in-block.c",
+							"patterns": [
+								{
+									"include": "#disabled"
+								},
+								{
+									"include": "#pragma-mark"
+								}
+							]
+						},
+						{
+							"begin": "^\\s*((#)\\s*elif\\b)",
+							"beginCaptures": {
+								"0": {
+									"name": "meta.preprocessor.c"
+								},
+								"1": {
+									"name": "keyword.control.directive.conditional.c"
+								},
+								"2": {
+									"name": "punctuation.definition.directive.c"
+								}
+							},
+							"end": "(?=^\\s*((#)\\s*(?:else|elif|endif)\\b))",
+							"contentName": "comment.block.preprocessor.if-branch.in-block.c",
+							"patterns": [
+								{
+									"include": "#disabled"
+								},
+								{
+									"include": "#pragma-mark"
+								}
+							]
+						},
+						{
+							"begin": "\\n",
+							"end": "(?=^\\s*((#)\\s*(?:else|elif|endif)\\b))",
+							"patterns": [
+								{
+									"include": "#block_innards"
+								}
+							]
+						}
+					]
+				}
+			]
+		},
+		"preprocessor-rule-enabled-elif": {
+			"begin": "^\\s*((#)\\s*elif\\b)(?=\\s*\\(*\\b0*1\\b\\)*\\s*(?:$|//|/\\*))",
+			"beginCaptures": {
+				"0": {
+					"name": "meta.preprocessor.c"
+				},
+				"1": {
+					"name": "keyword.control.directive.conditional.c"
+				},
+				"2": {
+					"name": "punctuation.definition.directive.c"
+				}
+			},
+			"end": "(?=^\\s*((#)\\s*endif\\b))",
+			"patterns": [
+				{
+					"begin": "\\G",
+					"end": "(?=//)|(?=/\\*(?!.*\\\\\\s*\\n))|(?<!\\\\)(?=\\n)",
+					"name": "meta.preprocessor.c",
+					"patterns": [
+						{
+							"include": "#preprocessor-rule-conditional-line"
+						}
+					]
+				},
+				{
+					"include": "#comments"
+				},
+				{
+					"begin": "\\n",
+					"end": "(?=^\\s*((#)\\s*(?:endif)\\b))",
+					"patterns": [
+						{
+							"begin": "^\\s*((#)\\s*(else)\\b)",
+							"beginCaptures": {
+								"0": {
+									"name": "meta.preprocessor.c"
+								},
+								"1": {
+									"name": "keyword.control.directive.conditional.c"
+								},
+								"2": {
+									"name": "punctuation.definition.directive.c"
+								}
+							},
+							"end": "(?=^\\s*((#)\\s*endif\\b))",
+							"contentName": "comment.block.preprocessor.elif-branch.c",
+							"patterns": [
+								{
+									"include": "#disabled"
+								},
+								{
+									"include": "#pragma-mark"
+								}
+							]
+						},
+						{
+							"begin": "^\\s*((#)\\s*(elif)\\b)",
+							"beginCaptures": {
+								"0": {
+									"name": "meta.preprocessor.c"
+								},
+								"1": {
+									"name": "keyword.control.directive.conditional.c"
+								},
+								"2": {
+									"name": "punctuation.definition.directive.c"
+								}
+							},
+							"end": "(?=^\\s*((#)\\s*(?:else|elif|endif)\\b))",
+							"contentName": "comment.block.preprocessor.elif-branch.c",
+							"patterns": [
+								{
+									"include": "#disabled"
+								},
+								{
+									"include": "#pragma-mark"
+								}
+							]
+						},
+						{
+							"include": "$base"
+						}
+					]
+				}
+			]
+		},
+		"preprocessor-rule-enabled-elif-block": {
+			"begin": "^\\s*((#)\\s*elif\\b)(?=\\s*\\(*\\b0*1\\b\\)*\\s*(?:$|//|/\\*))",
+			"beginCaptures": {
+				"0": {
+					"name": "meta.preprocessor.c"
+				},
+				"1": {
+					"name": "keyword.control.directive.conditional.c"
+				},
+				"2": {
+					"name": "punctuation.definition.directive.c"
+				}
+			},
+			"end": "(?=^\\s*((#)\\s*endif\\b))",
+			"patterns": [
+				{
+					"begin": "\\G",
+					"end": "(?=//)|(?=/\\*(?!.*\\\\\\s*\\n))|(?<!\\\\)(?=\\n)",
+					"name": "meta.preprocessor.c",
+					"patterns": [
+						{
+							"include": "#preprocessor-rule-conditional-line"
+						}
+					]
+				},
+				{
+					"include": "#comments"
+				},
+				{
+					"begin": "\\n",
+					"end": "(?=^\\s*((#)\\s*(?:endif)\\b))",
+					"patterns": [
+						{
+							"begin": "^\\s*((#)\\s*(else)\\b)",
+							"beginCaptures": {
+								"0": {
+									"name": "meta.preprocessor.c"
+								},
+								"1": {
+									"name": "keyword.control.directive.conditional.c"
+								},
+								"2": {
+									"name": "punctuation.definition.directive.c"
+								}
+							},
+							"end": "(?=^\\s*((#)\\s*endif\\b))",
+							"contentName": "comment.block.preprocessor.elif-branch.in-block.c",
+							"patterns": [
+								{
+									"include": "#disabled"
+								},
+								{
+									"include": "#pragma-mark"
+								}
+							]
+						},
+						{
+							"begin": "^\\s*((#)\\s*(elif)\\b)",
+							"beginCaptures": {
+								"0": {
+									"name": "meta.preprocessor.c"
+								},
+								"1": {
+									"name": "keyword.control.directive.conditional.c"
+								},
+								"2": {
+									"name": "punctuation.definition.directive.c"
+								}
+							},
+							"end": "(?=^\\s*((#)\\s*(?:else|elif|endif)\\b))",
+							"contentName": "comment.block.preprocessor.elif-branch.c",
+							"patterns": [
+								{
+									"include": "#disabled"
+								},
+								{
+									"include": "#pragma-mark"
+								}
+							]
+						},
+						{
+							"include": "#block_innards"
+						}
+					]
+				}
+			]
+		},
+		"preprocessor-rule-enabled-else": {
+			"begin": "^\\s*((#)\\s*else\\b)",
+			"beginCaptures": {
+				"0": {
+					"name": "meta.preprocessor.c"
+				},
+				"1": {
+					"name": "keyword.control.directive.conditional.c"
+				},
+				"2": {
+					"name": "punctuation.definition.directive.c"
+				}
+			},
+			"end": "(?=^\\s*((#)\\s*endif\\b))",
+			"patterns": [
+				{
+					"include": "$base"
+				}
+			]
+		},
+		"preprocessor-rule-enabled-else-block": {
+			"begin": "^\\s*((#)\\s*else\\b)",
+			"beginCaptures": {
+				"0": {
+					"name": "meta.preprocessor.c"
+				},
+				"1": {
+					"name": "keyword.control.directive.conditional.c"
+				},
+				"2": {
+					"name": "punctuation.definition.directive.c"
+				}
+			},
+			"end": "(?=^\\s*((#)\\s*endif\\b))",
+			"patterns": [
+				{
+					"include": "#block_innards"
+				}
+			]
+		},
+		"preprocessor-rule-define-line-contents": {
+			"patterns": [
+				{
+					"include": "#vararg_ellipses"
+				},
+				{
+					"begin": "{",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.section.block.begin.bracket.curly.c"
+						}
+					},
+					"end": "}|(?=\\s*#\\s*(?:elif|else|endif)\\b)|(?<!\\\\)(?=\\s*\\n)",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.section.block.end.bracket.curly.c"
+						}
+					},
+					"name": "meta.block.c",
+					"patterns": [
+						{
+							"include": "#preprocessor-rule-define-line-blocks"
+						}
+					]
+				},
+				{
+					"match": "\\(",
+					"name": "punctuation.section.parens.begin.bracket.round.c"
+				},
+				{
+					"match": "\\)",
+					"name": "punctuation.section.parens.end.bracket.round.c"
+				},
+				{
+					"begin": "(?x)\n(?!(?:while|for|do|if|else|switch|catch|enumerate|return|sizeof|[cr]?iterate|asm|__asm__|auto|bool|_Bool|char|_Complex|double|enum|float|_Imaginary|int|long|short|signed|struct|typedef|union|unsigned|void)\\s*\\()\n(?=\n  (?:[A-Za-z_][A-Za-z0-9_]*+|::)++\\s*\\(  # actual name\n  |\n  (?:(?<=operator)(?:[-*&<>=+!]+|\\(\\)|\\[\\]))\\s*\\(\n)",
+					"end": "(?<=\\))(?!\\w)|(?<!\\\\)(?=\\s*\\n)",
+					"name": "meta.function.c",
+					"patterns": [
+						{
+							"include": "#preprocessor-rule-define-line-functions"
+						}
+					]
+				},
+				{
+					"begin": "\"",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.definition.string.begin.c"
+						}
+					},
+					"end": "\"|(?<!\\\\)(?=\\s*\\n)",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.definition.string.end.c"
+						}
+					},
+					"name": "string.quoted.double.c",
+					"patterns": [
+						{
+							"include": "#string_escaped_char"
+						},
+						{
+							"include": "#string_placeholder"
+						},
+						{
+							"include": "#line_continuation_character"
+						}
+					]
+				},
+				{
+					"begin": "'",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.definition.string.begin.c"
+						}
+					},
+					"end": "'|(?<!\\\\)(?=\\s*\\n)",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.definition.string.end.c"
+						}
+					},
+					"name": "string.quoted.single.c",
+					"patterns": [
+						{
+							"include": "#string_escaped_char"
+						},
+						{
+							"include": "#line_continuation_character"
+						}
+					]
+				},
+				{
+					"include": "#access"
+				},
+				{
+					"include": "#libc"
+				},
+				{
+					"include": "$base"
+				}
+			]
+		},
+		"preprocessor-rule-define-line-blocks": {
+			"patterns": [
+				{
+					"begin": "{",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.section.block.begin.bracket.curly.c"
+						}
+					},
+					"end": "}|(?=\\s*#\\s*(?:elif|else|endif)\\b)|(?<!\\\\)(?=\\s*\\n)",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.section.block.end.bracket.curly.c"
+						}
+					},
+					"patterns": [
+						{
+							"include": "#preprocessor-rule-define-line-blocks"
+						},
+						{
+							"include": "#preprocessor-rule-define-line-contents"
+						}
+					]
+				},
+				{
+					"include": "#preprocessor-rule-define-line-contents"
+				}
+			]
+		},
+		"preprocessor-rule-define-line-functions": {
+			"patterns": [
+				{
+					"include": "#comments"
+				},
+				{
+					"include": "#storage_types"
+				},
+				{
+					"include": "#vararg_ellipses"
+				},
+				{
+					"include": "#access"
+				},
+				{
+					"include": "#operators"
+				},
+				{
+					"begin": "(?x)\n(?!(?:while|for|do|if|else|switch|catch|enumerate|return|sizeof|[cr]?iterate)\\s*\\()\n(\n(?:[A-Za-z_][A-Za-z0-9_]*+|::)++  # actual name\n|\n(?:(?<=operator)(?:[-*&<>=+!]+|\\(\\)|\\[\\]))\n)\n\\s*(\\()",
+					"beginCaptures": {
+						"1": {
+							"name": "entity.name.function.c"
+						},
+						"2": {
+							"name": "punctuation.section.arguments.begin.bracket.round.c"
+						}
+					},
+					"end": "(\\))|(?<!\\\\)(?=\\s*\\n)",
+					"endCaptures": {
+						"1": {
+							"name": "punctuation.section.arguments.end.bracket.round.c"
+						}
+					},
+					"patterns": [
+						{
+							"include": "#preprocessor-rule-define-line-functions"
+						}
+					]
+				},
+				{
+					"begin": "\\(",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.section.parens.begin.bracket.round.c"
+						}
+					},
+					"end": "(\\))|(?<!\\\\)(?=\\s*\\n)",
+					"endCaptures": {
+						"1": {
+							"name": "punctuation.section.parens.end.bracket.round.c"
+						}
+					},
+					"patterns": [
+						{
+							"include": "#preprocessor-rule-define-line-functions"
+						}
+					]
+				},
+				{
+					"include": "#preprocessor-rule-define-line-contents"
+				}
+			]
+		},
+		"function-innards": {
+			"patterns": [
+				{
+					"include": "#comments"
+				},
+				{
+					"include": "#storage_types"
+				},
+				{
+					"include": "#operators"
+				},
+				{
+					"include": "#vararg_ellipses"
+				},
+				{
+					"begin": "(?x)\n(?!(?:while|for|do|if|else|switch|catch|enumerate|return|sizeof|[cr]?iterate)\\s*\\()\n(\n(?:[A-Za-z_][A-Za-z0-9_]*+|::)++  # actual name\n|\n(?:(?<=operator)(?:[-*&<>=+!]+|\\(\\)|\\[\\]))\n)\n\\s*(\\()",
+					"beginCaptures": {
+						"1": {
+							"name": "entity.name.function.c"
+						},
+						"2": {
+							"name": "punctuation.section.parameters.begin.bracket.round.c"
+						}
+					},
+					"end": "\\)",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.section.parameters.end.bracket.round.c"
+						}
+					},
+					"patterns": [
+						{
+							"include": "#function-innards"
+						}
+					]
+				},
+				{
+					"begin": "\\(",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.section.parens.begin.bracket.round.c"
+						}
+					},
+					"end": "\\)",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.section.parens.end.bracket.round.c"
+						}
+					},
+					"patterns": [
+						{
+							"include": "#function-innards"
+						}
+					]
+				},
+				{
+					"include": "$base"
+				}
+			]
+		},
+		"function-call-innards": {
+			"patterns": [
+				{
+					"include": "#comments"
+				},
+				{
+					"include": "#storage_types"
+				},
+				{
+					"include": "#access"
+				},
+				{
+					"include": "#operators"
+				},
+				{
+					"begin": "(?x)\n(?!(?:while|for|do|if|else|switch|catch|enumerate|return|sizeof|[cr]?iterate)\\s*\\()\n(\n(?:[A-Za-z_][A-Za-z0-9_]*+|::)++  # actual name\n|\n(?:(?<=operator)(?:[-*&<>=+!]+|\\(\\)|\\[\\]))\n)\n\\s*(\\()",
+					"beginCaptures": {
+						"1": {
+							"name": "entity.name.function.c"
+						},
+						"2": {
+							"name": "punctuation.section.arguments.begin.bracket.round.c"
+						}
+					},
+					"end": "\\)",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.section.arguments.end.bracket.round.c"
+						}
+					},
+					"patterns": [
+						{
+							"include": "#function-call-innards"
+						}
+					]
+				},
+				{
+					"begin": "\\(",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.section.parens.begin.bracket.round.c"
+						}
+					},
+					"end": "\\)",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.section.parens.end.bracket.round.c"
+						}
+					},
+					"patterns": [
+						{
+							"include": "#function-call-innards"
+						}
+					]
+				},
+				{
+					"include": "#block_innards"
 				}
 			]
 		}
 	},
-	"version": "https://github.com/atom/language-c/commit/0d0f32388e73fc91a86f4c31ff59c36191869d63"
+	"version": "https://github.com/atom/language-c/commit/676056d40356884d161ea3170257121874092ace"
 }

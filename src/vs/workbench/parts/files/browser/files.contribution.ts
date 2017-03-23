@@ -5,8 +5,6 @@
 
 'use strict';
 
-import 'vs/css!./media/files.contribution';
-
 import URI from 'vs/base/common/uri';
 import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, ToggleViewletAction } from 'vs/workbench/browser/viewlet';
 import nls = require('vs/nls');
@@ -26,7 +24,7 @@ import { TextFileEditor } from 'vs/workbench/parts/files/browser/editors/textFil
 import { BinaryFileEditor } from 'vs/workbench/parts/files/browser/editors/binaryFileEditor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { SyncDescriptor, AsyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { IKeybindings } from 'vs/platform/keybinding/common/keybinding';
+import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
@@ -183,7 +181,7 @@ configurationRegistry.registerConfiguration({
 		'files.exclude': {
 			'type': 'object',
 			'description': nls.localize('exclude', "Configure glob patterns for excluding files and folders."),
-			'default': { '**/.git': true, '**/.svn': true, '**/.hg': true, '**/.DS_Store': true },
+			'default': { '**/.git': true, '**/.svn': true, '**/.hg': true, '**/CVS': true, '**/.DS_Store': true },
 			'additionalProperties': {
 				'anyOf': [
 					{
@@ -206,7 +204,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'files.associations': {
 			'type': 'object',
-			'description': nls.localize('associations', "Configure file associations to languages (e.g. \"*.extension\": \"html\"). These have precedence over the default associations of the languages installed."),
+			'description': nls.localize('associations', "Configure file associations to languages (e.g. '*.extension': 'html'). These have precedence over the default associations of the languages installed."),
 		},
 		'files.encoding': {
 			'type': 'string',
@@ -239,22 +237,22 @@ configurationRegistry.registerConfiguration({
 			'type': 'string',
 			'enum': [AutoSaveConfiguration.OFF, AutoSaveConfiguration.AFTER_DELAY, AutoSaveConfiguration.ON_FOCUS_CHANGE, , AutoSaveConfiguration.ON_WINDOW_CHANGE],
 			'enumDescriptions': [
-				nls.localize('files.autoSave.off', "\"off\": A dirty file is never automatically saved."),
-				nls.localize('files.autoSave.afterDelay', "\"afterDelay\": A dirty file is automatically saved after the configured \"files.autoSaveDelay\"."),
-				nls.localize('files.autoSave.onFocusChange', "\"onFocusChange\": A dirty file is automatically saved when the editor loses focus."),
-				nls.localize('files.autoSave.onWindowChange', "\"onWindowChange\": A dirty file is automatically saved when the window loses focus.")
+				nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'files.autoSave.off' }, "A dirty file is never automatically saved."),
+				nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'files.autoSave.afterDelay' }, "A dirty file is automatically saved after the configured 'files.autoSaveDelay'."),
+				nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'files.autoSave.onFocusChange' }, "A dirty file is automatically saved when the editor loses focus."),
+				nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'files.autoSave.onWindowChange' }, "A dirty file is automatically saved when the window loses focus.")
 			],
 			'default': AutoSaveConfiguration.OFF,
-			'description': nls.localize('autoSave', "Controls auto save of dirty files. Accepted values:  \"{0}\", \"{1}\", \"{2}\" (editor loses focus), \"{3}\" (window loses focus). If set to \"{4}\", you can configure the delay in \"files.autoSaveDelay\".", AutoSaveConfiguration.OFF, AutoSaveConfiguration.AFTER_DELAY, AutoSaveConfiguration.ON_FOCUS_CHANGE, AutoSaveConfiguration.ON_WINDOW_CHANGE, AutoSaveConfiguration.AFTER_DELAY)
+			'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'autoSave' }, "Controls auto save of dirty files. Accepted values:  '{0}', '{1}', '{2}' (editor loses focus), '{3}' (window loses focus). If set to '{4}', you can configure the delay in 'files.autoSaveDelay'.", AutoSaveConfiguration.OFF, AutoSaveConfiguration.AFTER_DELAY, AutoSaveConfiguration.ON_FOCUS_CHANGE, AutoSaveConfiguration.ON_WINDOW_CHANGE, AutoSaveConfiguration.AFTER_DELAY)
 		},
 		'files.autoSaveDelay': {
 			'type': 'number',
 			'default': 1000,
-			'description': nls.localize('autoSaveDelay', "Controls the delay in ms after which a dirty file is saved automatically. Only applies when \"files.autoSave\" is set to \"{0}\"", AutoSaveConfiguration.AFTER_DELAY)
+			'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'autoSaveDelay' }, "Controls the delay in ms after which a dirty file is saved automatically. Only applies when 'files.autoSave' is set to '{0}'", AutoSaveConfiguration.AFTER_DELAY)
 		},
 		'files.watcherExclude': {
 			'type': 'object',
-			'default': (platform.isLinux || platform.isMacintosh) ? { '**/.git/objects/**': true, '**/node_modules/**': true } : { '**/.git/objects/**': true },
+			'default': { '**/.git/objects/**': true, '**/node_modules/**': true },
 			'description': nls.localize('watcherExclude', "Configure glob patterns of file paths to exclude from file watching. Changing this setting requires a restart. When you experience Code consuming lots of cpu time on startup, you can exclude large folders to reduce the initial load.")
 		},
 		'files.hotExit': {

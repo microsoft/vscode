@@ -5,8 +5,9 @@
 
 'use strict';
 
-import { BoundedLinkedMap, LRUCache, LinkedMap, TrieMap } from 'vs/base/common/map';
+import { BoundedLinkedMap, LRUCache, LinkedMap, TrieMap, ResourceMap } from 'vs/base/common/map';
 import * as assert from 'assert';
+import URI from 'vs/base/common/uri';
 
 suite('Map', () => {
 
@@ -319,5 +320,142 @@ suite('Map', () => {
 		assert.equal(supMap.lookUp('foo/flip/flop'), 3);
 		assert.equal(supMap.lookUp('foo/flip/flop/bar'), undefined);
 		assert.equal(supMap.lookUp('user'), undefined);
+	});
+
+	test('ResourceMap - basics', function () {
+		const map = new ResourceMap<any>();
+
+		const resource1 = URI.parse('some://1');
+		const resource2 = URI.parse('some://2');
+		const resource3 = URI.parse('some://3');
+		const resource4 = URI.parse('some://4');
+		const resource5 = URI.parse('some://5');
+		const resource6 = URI.parse('some://6');
+
+		assert.equal(map.size, 0);
+
+		map.set(resource1, 1);
+		map.set(resource2, '2');
+		map.set(resource3, true);
+
+		const values = map.values();
+		assert.equal(values[0], 1);
+		assert.equal(values[1], '2');
+		assert.equal(values[2], true);
+
+		let counter = 0;
+		map.forEach(value => {
+			assert.equal(value, values[counter++]);
+		});
+
+		const obj = Object.create(null);
+		map.set(resource4, obj);
+
+		const date = Date.now();
+		map.set(resource5, date);
+
+		assert.equal(map.size, 5);
+		assert.equal(map.get(resource1), 1);
+		assert.equal(map.get(resource2), '2');
+		assert.equal(map.get(resource3), true);
+		assert.equal(map.get(resource4), obj);
+		assert.equal(map.get(resource5), date);
+		assert.ok(!map.get(resource6));
+
+		map.delete(resource6);
+		assert.equal(map.size, 5);
+		assert.ok(map.delete(resource1));
+		assert.ok(map.delete(resource2));
+		assert.ok(map.delete(resource3));
+		assert.ok(map.delete(resource4));
+		assert.ok(map.delete(resource5));
+
+		assert.equal(map.size, 0);
+		assert.ok(!map.get(resource5));
+		assert.ok(!map.get(resource4));
+		assert.ok(!map.get(resource3));
+		assert.ok(!map.get(resource2));
+		assert.ok(!map.get(resource1));
+
+		map.set(resource1, 1);
+		map.set(resource2, '2');
+		map.set(resource3, true);
+
+		assert.ok(map.has(resource1));
+		assert.equal(map.get(resource1), 1);
+		assert.equal(map.get(resource2), '2');
+		assert.equal(map.get(resource3), true);
+
+		map.clear();
+
+		assert.equal(map.size, 0);
+		assert.ok(!map.get(resource1));
+		assert.ok(!map.get(resource2));
+		assert.ok(!map.get(resource3));
+		assert.ok(!map.has(resource1));
+
+		map.set(resource1, false);
+		map.set(resource2, 0);
+
+		assert.ok(map.has(resource1));
+		assert.ok(map.has(resource2));
+	});
+
+	test('ResourceMap - files (do NOT ignorecase)', function () {
+		const map = new ResourceMap<any>();
+
+		const fileA = URI.parse('file://some/filea');
+		const fileB = URI.parse('some://some/other/fileb');
+		const fileAUpper = URI.parse('file://SOME/FILEA');
+
+		map.set(fileA, 'true');
+		assert.equal(map.get(fileA), 'true');
+
+		assert.ok(!map.get(fileAUpper));
+
+		assert.ok(!map.get(fileB));
+
+		map.set(fileAUpper, 'false');
+		assert.equal(map.get(fileAUpper), 'false');
+
+		assert.equal(map.get(fileA), 'true');
+
+		const windowsFile = URI.file('c:\\test with %25\\c#code');
+		const uncFile = URI.file('\\\\shäres\\path\\c#\\plugin.json');
+
+		map.set(windowsFile, 'true');
+		map.set(uncFile, 'true');
+
+		assert.equal(map.get(windowsFile), 'true');
+		assert.equal(map.get(uncFile), 'true');
+	});
+
+	test('ResourceMap - files (ignorecase)', function () {
+		const map = new ResourceMap<any>(true);
+
+		const fileA = URI.parse('file://some/filea');
+		const fileB = URI.parse('some://some/other/fileb');
+		const fileAUpper = URI.parse('file://SOME/FILEA');
+
+		map.set(fileA, 'true');
+		assert.equal(map.get(fileA), 'true');
+
+		assert.equal(map.get(fileAUpper), 'true');
+
+		assert.ok(!map.get(fileB));
+
+		map.set(fileAUpper, 'false');
+		assert.equal(map.get(fileAUpper), 'false');
+
+		assert.equal(map.get(fileA), 'false');
+
+		const windowsFile = URI.file('c:\\test with %25\\c#code');
+		const uncFile = URI.file('\\\\shäres\\path\\c#\\plugin.json');
+
+		map.set(windowsFile, 'true');
+		map.set(uncFile, 'true');
+
+		assert.equal(map.get(windowsFile), 'true');
+		assert.equal(map.get(uncFile), 'true');
 	});
 });

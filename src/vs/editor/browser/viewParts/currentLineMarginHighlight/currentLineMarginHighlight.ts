@@ -6,11 +6,12 @@
 'use strict';
 
 import 'vs/css!./currentLineMarginHighlight';
-import * as editorCommon from 'vs/editor/common/editorCommon';
 import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
-import { IRenderingContext } from 'vs/editor/common/view/renderingContext';
+import { RenderingContext } from 'vs/editor/common/view/renderingContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { editorLineHighlight, editorLineHighlightBorder } from 'vs/editor/common/view/editorColorRegistry';
 
 export class CurrentLineMarginHighlightOverlay extends DynamicViewOverlay {
 	private _context: ViewContext;
@@ -40,30 +41,7 @@ export class CurrentLineMarginHighlightOverlay extends DynamicViewOverlay {
 
 	// --- begin event handlers
 
-	public onModelFlushed(): boolean {
-		this._primaryCursorIsInEditableRange = true;
-		this._primaryCursorLineNumber = 1;
-		return true;
-	}
-	public onModelLinesDeleted(e: viewEvents.IViewLinesDeletedEvent): boolean {
-		return true;
-	}
-	public onModelLinesInserted(e: viewEvents.IViewLinesInsertedEvent): boolean {
-		return true;
-	}
-	public onCursorPositionChanged(e: viewEvents.IViewCursorPositionChangedEvent): boolean {
-		let hasChanged = false;
-		if (this._primaryCursorIsInEditableRange !== e.isInEditableRange) {
-			this._primaryCursorIsInEditableRange = e.isInEditableRange;
-			hasChanged = true;
-		}
-		if (this._primaryCursorLineNumber !== e.position.lineNumber) {
-			this._primaryCursorLineNumber = e.position.lineNumber;
-			hasChanged = true;
-		}
-		return hasChanged;
-	}
-	public onConfigurationChanged(e: editorCommon.IConfigurationChangedEvent): boolean {
+	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		if (e.lineHeight) {
 			this._lineHeight = this._context.configuration.editor.lineHeight;
 		}
@@ -75,12 +53,35 @@ export class CurrentLineMarginHighlightOverlay extends DynamicViewOverlay {
 		}
 		return true;
 	}
-	public onZonesChanged(): boolean {
+	public onCursorPositionChanged(e: viewEvents.ViewCursorPositionChangedEvent): boolean {
+		let hasChanged = false;
+		if (this._primaryCursorIsInEditableRange !== e.isInEditableRange) {
+			this._primaryCursorIsInEditableRange = e.isInEditableRange;
+			hasChanged = true;
+		}
+		if (this._primaryCursorLineNumber !== e.position.lineNumber) {
+			this._primaryCursorLineNumber = e.position.lineNumber;
+			hasChanged = true;
+		}
+		return hasChanged;
+	}
+	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
+		this._primaryCursorIsInEditableRange = true;
+		this._primaryCursorLineNumber = 1;
+		return true;
+	}
+	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
+		return true;
+	}
+	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
+		return true;
+	}
+	public onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
 		return true;
 	}
 	// --- end event handlers
 
-	public prepareRender(ctx: IRenderingContext): void {
+	public prepareRender(ctx: RenderingContext): void {
 	}
 
 	public render(startLineNumber: number, lineNumber: number): string {
@@ -104,3 +105,15 @@ export class CurrentLineMarginHighlightOverlay extends DynamicViewOverlay {
 		return (this._renderLineHighlight === 'gutter' || this._renderLineHighlight === 'all') && this._primaryCursorIsInEditableRange;
 	}
 }
+
+registerThemingParticipant((theme, collector) => {
+	let lineHighlight = theme.getColor(editorLineHighlight);
+	if (lineHighlight) {
+		collector.addRule(`.monaco-editor.${theme.selector} .margin-view-overlays .current-line-margin { background-color: ${lineHighlight}; border: none; }`);
+	} else {
+		let lineHighlightBorder = theme.getColor(editorLineHighlightBorder);
+		if (lineHighlightBorder) {
+			collector.addRule(`.monaco-editor.${theme.selector} .margin-view-overlays .current-line-margin { border: 2px solid ${lineHighlightBorder}; }`);
+		}
+	}
+});

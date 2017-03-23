@@ -3,14 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/output.contribution';
 import nls = require('vs/nls');
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { Registry } from 'vs/platform/platform';
 import { MenuId, MenuRegistry, SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { IKeybindings } from 'vs/platform/keybinding/common/keybinding';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingsRegistry, IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
 import { OutputService } from 'vs/workbench/parts/output/browser/outputServices';

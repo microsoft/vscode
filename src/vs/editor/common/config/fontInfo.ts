@@ -50,7 +50,7 @@ export class BareFontInfo {
 		fontWeight?: string;
 		fontSize?: number | string;
 		lineHeight?: number | string;
-	}): BareFontInfo {
+	}, zoomLevel: number): BareFontInfo {
 
 		let fontFamily = String(opts.fontFamily) || DefaultConfig.editor.fontFamily;
 		let fontWeight = String(opts.fontWeight) || DefaultConfig.editor.fontWeight;
@@ -72,6 +72,7 @@ export class BareFontInfo {
 		lineHeight *= editorZoomLevelMultiplier;
 
 		return new BareFontInfo({
+			zoomLevel: zoomLevel,
 			fontFamily: fontFamily,
 			fontWeight: fontWeight,
 			fontSize: fontSize,
@@ -79,6 +80,7 @@ export class BareFontInfo {
 		});
 	}
 
+	readonly zoomLevel: number;
 	readonly fontFamily: string;
 	readonly fontWeight: string;
 	readonly fontSize: number;
@@ -88,11 +90,13 @@ export class BareFontInfo {
 	 * @internal
 	 */
 	protected constructor(opts: {
+		zoomLevel: number;
 		fontFamily: string;
 		fontWeight: string;
 		fontSize: number;
 		lineHeight: number;
 	}) {
+		this.zoomLevel = opts.zoomLevel;
 		this.fontFamily = String(opts.fontFamily);
 		this.fontWeight = String(opts.fontWeight);
 		this.fontSize = opts.fontSize;
@@ -103,13 +107,14 @@ export class BareFontInfo {
 	 * @internal
 	 */
 	public getId(): string {
-		return this.fontFamily + '-' + this.fontWeight + '-' + this.fontSize + '-' + this.lineHeight + '-';
+		return this.zoomLevel + '-' + this.fontFamily + '-' + this.fontWeight + '-' + this.fontSize + '-' + this.lineHeight;
 	}
 }
 
 export class FontInfo extends BareFontInfo {
 	readonly _editorStylingBrand: void;
 
+	readonly isTrusted: boolean;
 	readonly isMonospace: boolean;
 	readonly typicalHalfwidthCharacterWidth: number;
 	readonly typicalFullwidthCharacterWidth: number;
@@ -120,6 +125,7 @@ export class FontInfo extends BareFontInfo {
 	 * @internal
 	 */
 	constructor(opts: {
+		zoomLevel: number;
 		fontFamily: string;
 		fontWeight: string;
 		fontSize: number;
@@ -129,8 +135,9 @@ export class FontInfo extends BareFontInfo {
 		typicalFullwidthCharacterWidth: number;
 		spaceWidth: number;
 		maxDigitWidth: number;
-	}) {
+	}, isTrusted: boolean) {
 		super(opts);
+		this.isTrusted = isTrusted;
 		this.isMonospace = opts.isMonospace;
 		this.typicalHalfwidthCharacterWidth = opts.typicalHalfwidthCharacterWidth;
 		this.typicalFullwidthCharacterWidth = opts.typicalFullwidthCharacterWidth;
@@ -158,6 +165,6 @@ export class FontInfo extends BareFontInfo {
 	 * @internal
 	 */
 	public clone(): FontInfo {
-		return new FontInfo(this);
+		return new FontInfo(this, this.isTrusted);
 	}
 }

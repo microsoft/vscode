@@ -66,7 +66,7 @@ export class Position {
 		if (other instanceof Position) {
 			return true;
 		}
-		let {line, character} = <Position>other;
+		let { line, character } = <Position>other;
 		if (typeof line === 'number' && typeof character === 'number') {
 			return true;
 		}
@@ -841,7 +841,9 @@ export enum CompletionItemKind {
 	Color = 15,
 	File = 16,
 	Reference = 17,
-	Folder = 18
+	Folder = 18,
+	EnumMember = 19,
+	Constant = 20
 }
 
 export class CompletionItem {

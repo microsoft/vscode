@@ -12,14 +12,14 @@ import types = require('vs/base/common/types');
 import paths = require('vs/base/common/paths');
 import { Action } from 'vs/base/common/actions';
 import { VIEWLET_ID, TEXT_FILE_EDITOR_ID } from 'vs/workbench/parts/files/common/files';
-import { ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileEditorModel, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
 import { EditorOptions, TextEditorOptions } from 'vs/workbench/common/editor';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import { ExplorerViewlet } from 'vs/workbench/parts/files/browser/explorerViewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { IFileOperationResult, FileOperationResult, FileChangesEvent, IFileService } from 'vs/platform/files/common/files';
+import { IFileOperationResult, FileOperationResult, FileChangesEvent, IFileService, isEqual } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -28,7 +28,7 @@ import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { CancelAction } from 'vs/platform/message/common/message';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
+import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 
@@ -49,11 +49,12 @@ export class TextFileEditor extends BaseTextEditor {
 		@IHistoryService private historyService: IHistoryService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IThemeService themeService: IThemeService,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@IModeService modeService: IModeService
+		@IWorkbenchThemeService themeService: IWorkbenchThemeService,
+		@IEditorGroupService editorGroupService: IEditorGroupService,
+		@IModeService modeService: IModeService,
+		@ITextFileService textFileService: ITextFileService,
 	) {
-		super(TextFileEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, modeService);
+		super(TextFileEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, modeService, textFileService, editorGroupService);
 
 		// Clear view state for deleted files
 		this.toUnbind.push(this.fileService.onFileChanges(e => this.onFilesChanged(e)));
@@ -122,7 +123,7 @@ export class TextFileEditor extends BaseTextEditor {
 
 			const hasInput = !!this.input;
 			const modelDisposed = textFileModel.isDisposed();
-			const inputChanged = hasInput && this.input.getResource().toString() !== textFileModel.getResource().toString();
+			const inputChanged = hasInput && !isEqual(this.input.getResource().fsPath, textFileModel.getResource().fsPath);
 			if (
 				!hasInput ||		// editor got hidden meanwhile
 				modelDisposed || 	// input got disposed meanwhile

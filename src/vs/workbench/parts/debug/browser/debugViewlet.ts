@@ -22,6 +22,7 @@ import { IProgressService, IProgressRunner } from 'vs/platform/progress/common/p
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 const DEBUG_VIEWS_WEIGHTS = 'debug.viewsweights';
 
@@ -44,16 +45,17 @@ export class DebugViewlet extends Viewlet {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IStorageService private storageService: IStorageService,
-		@ILifecycleService lifecycleService: ILifecycleService
+		@ILifecycleService lifecycleService: ILifecycleService,
+		@IThemeService themeService: IThemeService
 	) {
-		super(VIEWLET_ID, telemetryService);
+		super(VIEWLET_ID, telemetryService, themeService);
 
 		this.progressRunner = null;
 		this.viewletSettings = this.getMemento(storageService, Scope.WORKSPACE);
 		this.toDispose = [];
 		this.views = [];
-		this.toDispose.push(this.debugService.onDidChangeState(() => {
-			this.onDebugServiceStateChange();
+		this.toDispose.push(this.debugService.onDidChangeState(state => {
+			this.onDebugServiceStateChange(state);
 		}));
 		lifecycleService.onShutdown(this.store, this);
 	}
@@ -139,12 +141,12 @@ export class DebugViewlet extends Viewlet {
 		return null;
 	}
 
-	private onDebugServiceStateChange(): void {
+	private onDebugServiceStateChange(state: State): void {
 		if (this.progressRunner) {
 			this.progressRunner.done();
 		}
 
-		if (this.debugService.state === State.Initializing) {
+		if (state === State.Initializing) {
 			this.progressRunner = this.progressService.show(true);
 		} else {
 			this.progressRunner = null;

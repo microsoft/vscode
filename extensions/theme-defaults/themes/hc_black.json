@@ -1,5 +1,7 @@
 {
-	"name": "Dark Visual Studio",
+	"$schema": "vscode://schemas/color-theme",
+	"name": "Dark High Contrast",
+	"include": "./hc_black_defaults.json",
 	"settings": [
 		{
 			"settings": {
@@ -261,7 +263,12 @@
 			}
 		},
 		{
-			"scope": ["keyword.operator.new", "keyword.operator.expression"],
+			"scope": [
+				"keyword.operator.new",
+				"keyword.operator.expression",
+				"keyword.operator.cast",
+				"keyword.operator.sizeof"
+			],
 			"settings": {
 				"foreground": "#569cd6"
 			}

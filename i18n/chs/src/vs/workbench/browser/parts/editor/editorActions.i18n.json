@@ -41,6 +41,7 @@
 	"openPreviousRecentlyUsedEditorInGroup": "打开组中上一个最近使用的编辑器",
 	"openToSide": "打开到侧边",
 	"reopenClosedEditor": "重新打开已关闭的编辑器",
+	"revertAndCloseActiveEditor": "还原并关闭编辑器",
 	"showAllEditors": "显示所有编辑器",
 	"showEditorsInFirstGroup": "在第一组中显示编辑器",
 	"showEditorsInGroup": "显示组中的编辑器",

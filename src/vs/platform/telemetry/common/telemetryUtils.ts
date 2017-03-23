@@ -186,6 +186,9 @@ export function telemetryURIDescriptor(uri: URI): URIDescriptor {
 	return fsPath ? { mimeType: guessMimeTypes(fsPath).join(', '), ext: paths.extname(fsPath), path: anonymize(fsPath) } : {};
 }
 
+/**
+ * Only add settings that cannot contain any personal/private information of users (PII).
+ */
 const configurationValueWhitelist = [
 	'window.zoomLevel',
 	'editor.fontSize',
@@ -199,7 +202,8 @@ const configurationValueWhitelist = [
 	'editor.cursorStyle',
 	'files.associations',
 	'workbench.statusBar.visible',
-	'editor.wrappingColumn',
+	'editor.wordWrap',
+	'editor.wordWrapColumn',
 	'editor.insertSpaces',
 	'editor.renderIndentGuides',
 	'files.trimTrailingWhitespace',
@@ -213,6 +217,7 @@ const configurationValueWhitelist = [
 	'editor.formatOnType',
 	'editor.formatOnSave',
 	'editor.formatOnPaste',
+	'editor.dragAndDrop',
 	'window.openFilesInNewWindow',
 	'javascript.validate.enable',
 	'editor.mouseWheelZoom',
@@ -238,6 +243,7 @@ const configurationValueWhitelist = [
 	'editor.quickSuggestionsDelay',
 	'editor.snippetSuggestions',
 	'editor.selectionHighlight',
+	'editor.occurrencesHighlight',
 	'editor.glyphMargin',
 	'editor.wordSeparators',
 	'editor.mouseWheelScrollSensitivity',
@@ -246,10 +252,12 @@ const configurationValueWhitelist = [
 	'http.proxyStrictSSL',
 	'terminal.integrated.fontFamily',
 	'editor.overviewRulerLanes',
+	'editor.overviewRulerBorder',
 	'editor.wordBasedSuggestions',
 	'editor.hideCursorInOverviewRuler',
 	'editor.trimAutoWhitespace',
 	'editor.folding',
+	'editor.matchBrackets',
 	'workbench.editor.enablePreviewFromQuickOpen',
 	'php.builtInCompletions.enable',
 	'php.validate.enable',

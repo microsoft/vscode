@@ -65,9 +65,6 @@ export class EnvironmentService implements IEnvironmentService {
 	get userHome(): string { return os.homedir(); }
 
 	@memoize
-	get userProductHome(): string { return path.join(this.userHome, product.dataFolderName); }
-
-	@memoize
 	get userDataPath(): string { return parseUserDataDir(this._args, process); }
 
 	get appNameLong(): string { return product.nameLong; }
@@ -93,7 +90,7 @@ export class EnvironmentService implements IEnvironmentService {
 	get backupWorkspacesPath(): string { return path.join(this.backupHome, 'workspaces.json'); }
 
 	@memoize
-	get extensionsPath(): string { return parsePathArg(this._args['extensions-dir'], process) || path.join(this.userProductHome, 'extensions'); }
+	get extensionsPath(): string { return parsePathArg(this._args['extensions-dir'], process) || path.join(this.userHome, product.dataFolderName, 'extensions'); }
 
 	@memoize
 	get extensionDevelopmentPath(): string { return this._args.extensionDevelopmentPath ? path.normalize(this._args.extensionDevelopmentPath) : this._args.extensionDevelopmentPath; }
@@ -109,8 +106,21 @@ export class EnvironmentService implements IEnvironmentService {
 	get isBuilt(): boolean { return !process.env['VSCODE_DEV']; }
 	get verbose(): boolean { return this._args.verbose; }
 	get wait(): boolean { return this._args.wait; }
-	get performance(): boolean { return this._args.performance; }
 	get logExtensionHostCommunication(): boolean { return this._args.logExtensionHostCommunication; }
+
+	get performance(): boolean { return this._args.performance; }
+
+	@memoize
+	get profileStartup(): { prefix: string, dir: string } | undefined {
+		if (this._args['prof-startup']) {
+			return {
+				prefix: process.env.VSCODE_PROFILES_PREFIX,
+				dir: os.homedir()
+			};
+		} else {
+			return undefined;
+		}
+	}
 
 	@memoize
 	get mainIPCHandle(): string { return getIPCHandle(this.userDataPath, 'main'); }

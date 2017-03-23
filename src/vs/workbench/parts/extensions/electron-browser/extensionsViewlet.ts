@@ -36,6 +36,7 @@ import {
 } from 'vs/workbench/parts/extensions/browser/extensionsActions';
 import { InstallVSIXAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
 import { IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, SortBy, SortOrder, IQueryOptions, LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
 import { Query } from '../common/extensionQuery';
 import { OpenGlobalSettingsAction } from 'vs/workbench/parts/preferences/browser/preferencesActions';
@@ -48,6 +49,7 @@ import Severity from 'vs/base/common/severity';
 import { IActivityBarService, ProgressBadge, NumberBadge } from 'vs/workbench/services/activity/common/activityBarService';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IModeService } from 'vs/editor/common/services/modeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 interface SearchInputEvent extends Event {
 	target: HTMLInputElement;
@@ -81,9 +83,10 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		@IMessageService private messageService: IMessageService,
 		@IViewletService private viewletService: IViewletService,
 		@IExtensionService private extensionService: IExtensionService,
-		@IModeService private modeService: IModeService
+		@IModeService private modeService: IModeService,
+		@IThemeService themeService: IThemeService
 	) {
-		super(VIEWLET_ID, telemetryService);
+		super(VIEWLET_ID, telemetryService, themeService);
 		this.searchDelayer = new ThrottledDelayer(500);
 
 		this.disposables.push(viewletService.onDidViewletOpen(this.onViewletOpen, this, this.disposables));
@@ -226,18 +229,17 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 			.done(null, err => this.onError(err));
 	}
 
-	private doSearch(value: string = '', suggestPopular = false): TPromise<any> {
-		return this.progress(this.query(value))
-			.then(model => {
-				if (!value && model.length === 0 && suggestPopular) {
-					return this.search('@sort:installs ');
-				}
+	private async doSearch(value: string = '', suggestPopular = false): TPromise<void> {
+		const model = await this.progress(this.query(value));
 
-				this.setModel(model);
-			});
+		if (!value && model.length === 0 && suggestPopular) {
+			return this.search('@sort:installs ');
+		}
+
+		this.setModel(model);
 	}
 
-	private query(value: string): TPromise<IPagedModel<IExtension>> {
+	private async query(value: string): TPromise<IPagedModel<IExtension>> {
 		const query = Query.parse(value);
 
 		let options: IQueryOptions = {};
@@ -257,55 +259,63 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		if (!value || /@installed/i.test(value)) {
 			// Show installed extensions
 			value = value ? value.replace(/@installed/g, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase() : '';
-			return this.extensionsWorkbenchService.queryLocal()
-				.then(result => result.sort((e1, e2) => {
-					switch (options.sortBy) {
-						case SortBy.InstallCount:
-							switch (options.sortOrder) {
-								case SortOrder.Ascending:
-									return e1.installCount - e2.installCount;
-								case SortOrder.Descending:
-								default:
-									return e2.installCount - e1.installCount;
-							}
-						case SortBy.AverageRating:
-							switch (options.sortOrder) {
-								case SortOrder.Ascending:
-									return e1.rating - e2.rating;
-								case SortOrder.Descending:
-								default:
-									return e2.rating - e1.rating;
-							}
-						case SortBy.Title:
-						default:
-							switch (options.sortOrder) {
-								case SortOrder.Descending:
-									return e2.displayName.localeCompare(e1.displayName);
-								case SortOrder.Ascending:
-								default:
-									return e1.displayName.localeCompare(e2.displayName);
-							}
-					}
-				}))
-				.then(result => result.filter(e => e.type === LocalExtensionType.User && e.name.toLowerCase().indexOf(value) > -1))
-				.then(result => new PagedModel(result));
+			const local = await this.extensionsWorkbenchService.queryLocal();
+
+			const result = local.sort((e1, e2) => {
+				switch (options.sortBy) {
+					case SortBy.InstallCount:
+						switch (options.sortOrder) {
+							case SortOrder.Ascending:
+								return e1.installCount - e2.installCount;
+							case SortOrder.Descending:
+							default:
+								return e2.installCount - e1.installCount;
+						}
+					case SortBy.AverageRating:
+						switch (options.sortOrder) {
+							case SortOrder.Ascending:
+								return e1.rating - e2.rating;
+							case SortOrder.Descending:
+							default:
+								return e2.rating - e1.rating;
+						}
+					case SortBy.Title:
+					default:
+						switch (options.sortOrder) {
+							case SortOrder.Descending:
+								return e2.displayName.localeCompare(e1.displayName);
+							case SortOrder.Ascending:
+							default:
+								return e1.displayName.localeCompare(e2.displayName);
+						}
+				}
+			}).filter(e => e.type === LocalExtensionType.User && e.name.toLowerCase().indexOf(value) > -1);
+
+			return new PagedModel(result);
 		}
 
 		if (/@outdated/i.test(value)) {
 			value = value.replace(/@outdated/g, '').trim().toLowerCase();
-			return this.extensionsWorkbenchService.queryLocal()
-				.then(result => result.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName)))
-				.then(extensions => extensions.filter(extension => extension.outdated && extension.name.toLowerCase().indexOf(value) > -1))
-				.then(result => new PagedModel(result));
+
+			const local = await this.extensionsWorkbenchService.queryLocal();
+			const result = local
+				.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName))
+				.filter(extension => extension.outdated && extension.name.toLowerCase().indexOf(value) > -1);
+
+			return new PagedModel(result);
 		}
 
 		if (/@disabled/i.test(value)) {
 			value = value.replace(/@disabled/g, '').trim().toLowerCase();
-			return this.extensionsWorkbenchService.queryLocal()
-				.then(result => result.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName)))
-				.then(result => this.extensionService.getExtensions()
-					.then(runningExtensions => result.filter(e => runningExtensions.every(r => r.id !== e.identifier) && e.name.toLowerCase().indexOf(value) > -1)))
-				.then(result => new PagedModel(result));
+
+			const local = await this.extensionsWorkbenchService.queryLocal();
+			const runningExtensions = await this.extensionService.getExtensions();
+
+			const result = local
+				.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName))
+				.filter(e => runningExtensions.every(r => !areSameExtensions(r, e)) && e.name.toLowerCase().indexOf(value) > -1);
+
+			return new PagedModel(result);
 		}
 
 		if (/@recommended:workspace/i.test(query.value)) {
@@ -316,7 +326,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 			return this.getRecommendationsModel(query, options);
 		}
 
-		const pagers: TPromise<IPager<IExtension>>[] = [];
+		const pagerPromises: TPromise<IPager<IExtension>>[] = [];
 		let text = query.value;
 		const extensionRegex = /\bext:([^\s]+)\b/g;
 
@@ -338,12 +348,9 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 				return `tag:"__ext_${ext}"${keywords.map(tag => ` tag:${tag}`)}${languageTag}`;
 			});
 
-			console.log(text);
-			console.log(names);
-
 			if (names.length) {
 				const namesOptions = assign({}, options, { names });
-				pagers.push(this.extensionsWorkbenchService.queryGallery(namesOptions));
+				pagerPromises.push(this.extensionsWorkbenchService.queryGallery(namesOptions));
 			}
 		}
 
@@ -351,12 +358,12 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 			options = assign(options, { text: text.substr(0, 350) });
 		}
 
-		pagers.push(this.extensionsWorkbenchService.queryGallery(options));
+		pagerPromises.push(this.extensionsWorkbenchService.queryGallery(options));
 
-		return TPromise.join(pagers).then(pagers => {
-			const pager = pagers.length === 2 ? mergePagers(pagers[0], pagers[1]) : pagers[0];
-			return new PagedModel(pager);
-		});
+		const pagers = await TPromise.join(pagerPromises);
+		const pager = pagers.length === 2 ? mergePagers(pagers[0], pagers[1]) : pagers[0];
+
+		return new PagedModel(pager);
 	}
 
 	private getRecommendationsModel(query: Query, options: IQueryOptions): TPromise<IPagedModel<IExtension>> {

@@ -30,3 +30,9 @@ export interface IListMouseEvent<T> extends MouseEvent {
 	element: T;
 	index: number;
 }
+
+export interface IListContextMenuEvent<T> {
+	element: T;
+	index: number;
+	anchor: HTMLElement | { x: number; y: number; };
+}

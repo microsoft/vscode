@@ -10,11 +10,12 @@ import URI from 'vs/base/common/uri';
 import { ITextModelResolverService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IModel, ITextSource2 } from 'vs/editor/common/editorCommon';
+import { IModel } from 'vs/editor/common/editorCommon';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { marked } from 'vs/base/common/marked/marked';
 import { Schemas } from 'vs/base/common/network';
+import { IRawTextSource } from 'vs/editor/common/model/textSource';
 
 export class WalkThroughContentProvider implements ITextModelContentProvider, IWorkbenchContribution {
 
@@ -28,9 +29,9 @@ export class WalkThroughContentProvider implements ITextModelContentProvider, IW
 	}
 
 	public provideTextContent(resource: URI): TPromise<IModel> {
-		const isModule = resource.path.lastIndexOf('.') <= resource.path.lastIndexOf('/');
-		const content: TPromise<string | ITextSource2> = (isModule ? new TPromise<string>((resolve, reject) => {
-			require([resource.fsPath], content => {
+		const query = resource.query ? JSON.parse(resource.query) : {};
+		const content: TPromise<string | IRawTextSource> = (query.moduleId ? new TPromise<string>((resolve, reject) => {
+			require([query.moduleId], content => {
 				try {
 					resolve(content.default());
 				} catch (err) {

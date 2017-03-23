@@ -8,6 +8,7 @@
 import * as path from 'path';
 import * as platform from 'vs/base/common/platform';
 import * as objects from 'vs/base/common/objects';
+import { stopProfiling } from 'vs/base/node/profiler';
 import nls = require('vs/nls');
 import { IStorageService } from 'vs/code/electron-main/storage';
 import { shell, screen, BrowserWindow, systemPreferences, app } from 'electron';
@@ -126,15 +127,7 @@ interface IConfiguration {
 	};
 }
 
-export interface IVSCodeWindow {
-	id: number;
-	readyState: ReadyState;
-	win: Electron.BrowserWindow;
-
-	send(channel: string, ...args: any[]): void;
-}
-
-export class VSCodeWindow implements IVSCodeWindow {
+export class VSCodeWindow {
 
 	public static themeStorageKey = 'theme';
 
@@ -205,17 +198,26 @@ export class VSCodeWindow implements IVSCodeWindow {
 			options.icon = path.join(this.environmentService.appRoot, 'resources/linux/code.png'); // Windows and Mac are better off using the embedded icon(s)
 		}
 
+		let useCustomTitleStyle = false;
 		if (platform.isMacintosh && (!this.options.titleBarStyle || this.options.titleBarStyle === 'custom')) {
 			const isDev = !this.environmentService.isBuilt || !!config.extensionDevelopmentPath;
 			if (!isDev) {
-				options.titleBarStyle = 'hidden'; // not enabled when developing due to https://github.com/electron/electron/issues/3647
-				this.hiddenTitleBarStyle = true;
+				useCustomTitleStyle = true; // not enabled when developing due to https://github.com/electron/electron/issues/3647
 			}
+		}
+
+		if (useCustomTitleStyle) {
+			options.titleBarStyle = 'hidden';
+			this.hiddenTitleBarStyle = true;
 		}
 
 		// Create the browser window.
 		this._win = new BrowserWindow(options);
 		this._id = this._win.id;
+
+		if (useCustomTitleStyle) {
+			this._win.setSheetOffset(22); // offset dialogs by the height of the custom title bar if we have any
+		}
 
 		if (isFullscreenOrMaximized) {
 			this.win.maximize();
@@ -456,7 +458,8 @@ export class VSCodeWindow implements IVSCodeWindow {
 		this._win.loadURL(this.getUrl(config));
 
 		// Make window visible if it did not open in N seconds because this indicates an error
-		if (!this.environmentService.isBuilt) {
+		// Only do this when running out of sources and not when running tests
+		if (!this.environmentService.isBuilt && !this.environmentService.extensionTestsPath) {
 			this.showTimeoutHandle = setTimeout(() => {
 				if (this._win && !this._win.isVisible() && !this._win.isMinimized()) {
 					this._win.show();
@@ -464,6 +467,13 @@ export class VSCodeWindow implements IVSCodeWindow {
 					this._win.webContents.openDevTools();
 				}
 			}, 10000);
+		}
+
+		// (--prof-startup) save profile to disk
+		const { profileStartup } = this.environmentService;
+		if (profileStartup) {
+			stopProfiling(profileStartup.dir, profileStartup.prefix)
+				.done(undefined, err => console.error(err));
 		}
 	}
 

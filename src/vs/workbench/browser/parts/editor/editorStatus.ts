@@ -38,7 +38,6 @@ import { IFilesConfiguration, SUPPORTED_ENCODINGS } from 'vs/platform/files/comm
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { StyleMutator } from 'vs/base/browser/styleMutator';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { TabFocus } from 'vs/editor/common/config/commonEditorConfig';
@@ -232,11 +231,16 @@ const nlsEOLLF = nls.localize('endOfLineLineFeed', "LF");
 const nlsEOLCRLF = nls.localize('endOfLineCarriageReturnLineFeed', "CRLF");
 const nlsTabFocusMode = nls.localize('tabFocusModeEnabled', "Tab moves focus");
 
+function _setDisplay(el: HTMLElement, desiredValue: string): void {
+	if (el.style.display !== desiredValue) {
+		el.style.display = desiredValue;
+	}
+}
 function show(el: HTMLElement): void {
-	StyleMutator.setDisplay(el, '');
+	_setDisplay(el, '');
 }
 function hide(el: HTMLElement): void {
-	StyleMutator.setDisplay(el, 'none');
+	_setDisplay(el, 'none');
 }
 
 export class EditorStatus implements IStatusbarItem {
@@ -272,7 +276,7 @@ export class EditorStatus implements IStatusbarItem {
 	public render(container: HTMLElement): IDisposable {
 		this.element = append(container, $('.editor-statusbar-item'));
 
-		this.tabFocusModeElement = append(this.element, $('a.editor-status-tabfocusmode'));
+		this.tabFocusModeElement = append(this.element, $('a.editor-status-tabfocusmode.status-bar-info'));
 		this.tabFocusModeElement.title = nls.localize('disableTabMode', "Disable Accessibility Mode");
 		this.tabFocusModeElement.onclick = () => this.onTabFocusModeClick();
 		this.tabFocusModeElement.textContent = nlsTabFocusMode;
@@ -645,7 +649,7 @@ export class EditorStatus implements IStatusbarItem {
 		const activeEditor = this.editorService.getActiveEditor();
 		if (activeEditor) {
 			const activeResource = toResource(activeEditor.input, { supportSideBySide: true, filter: ['file', 'untitled'] });
-			if (activeResource && activeResource.toString() === resource.toString()) {
+			if (activeResource.toString() === resource.toString()) {
 				return this.onEncodingChange(<IBaseEditor>activeEditor); // only update if the encoding changed for the active resource
 			}
 		}

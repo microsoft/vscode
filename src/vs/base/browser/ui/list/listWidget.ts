@@ -6,14 +6,16 @@
 import 'vs/css!./list';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { isNumber } from 'vs/base/common/types';
+import { range } from 'vs/base/common/arrays';
 import { memoize } from 'vs/base/common/decorators';
 import * as DOM from 'vs/base/browser/dom';
+import * as platform from 'vs/base/common/platform';
 import { EventType as TouchEventType } from 'vs/base/browser/touch';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import Event, { Emitter, EventBufferer, chain, mapEvent, fromCallback } from 'vs/base/common/event';
+import Event, { Emitter, EventBufferer, chain, mapEvent, fromCallback, createEmptyEvent, any } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
-import { IDelegate, IRenderer, IListEvent, IListMouseEvent } from './list';
+import { IDelegate, IRenderer, IListEvent, IListMouseEvent, IListContextMenuEvent } from './list';
 import { ListView, IListViewOptions } from './listView';
 
 export interface IIdentityProvider<T> {
@@ -96,6 +98,12 @@ class Trait<T> implements ISpliceable<boolean>, IDisposable {
 		DOM.toggleClass(container, this._trait, this.contains(index));
 	}
 
+	/**
+	 * Sets the indexes which should have this trait.
+	 *
+	 * @param indexes Indexes which should have this trait.
+	 * @return The old indexes which had this trait.
+	 */
 	set(indexes: number[]): number[] {
 		const result = this.indexes;
 		this.indexes = indexes;
@@ -162,6 +170,7 @@ class TraitSpliceable<T> implements ISpliceable<T> {
 }
 
 class KeyboardController<T> implements IDisposable {
+
 	private disposables: IDisposable[];
 
 	constructor(
@@ -183,6 +192,7 @@ class KeyboardController<T> implements IDisposable {
 	private onEnter(e: StandardKeyboardEvent): void {
 		e.preventDefault();
 		e.stopPropagation();
+		this.list.setSelection(this.list.getFocus());
 		this.list.open(this.list.getFocus());
 	}
 
@@ -227,6 +237,27 @@ class MouseController<T> implements IDisposable {
 
 	private disposables: IDisposable[];
 
+	@memoize get onContextMenu(): Event<IListContextMenuEvent<T>> {
+		const fromKeyboard = chain(domEvent(this.view.domNode, 'keydown'))
+			.map(e => new StandardKeyboardEvent(e))
+			.filter(e => this.list.getFocus().length > 0)
+			.filter(e => e.keyCode === KeyCode.ContextMenu || (e.shiftKey && e.keyCode === KeyCode.F10))
+			.map(e => {
+				const index = this.list.getFocus()[0];
+				const element = this.view.element(index);
+				const anchor = this.view.domElement(index);
+				return { index, element, anchor };
+			})
+			.filter(({ anchor }) => !!anchor)
+			.event;
+
+		const fromMouse = chain(fromCallback(handler => this.view.addListener('contextmenu', handler)))
+			.map(({ element, index, clientX, clientY }) => ({ element, index, anchor: { x: clientX + 1, y: clientY } }))
+			.event;
+
+		return any<IListContextMenuEvent<T>>(fromKeyboard, fromMouse);
+	}
+
 	constructor(
 		private list: List<T>,
 		private view: ListView<T>
@@ -238,6 +269,10 @@ class MouseController<T> implements IDisposable {
 	}
 
 	private onMouseDown(e: IListMouseEvent<T>) {
+		if (platform.isMacintosh ? e.altKey : e.ctrlKey) {
+			return this.onPointer(e);
+		}
+
 		e.preventDefault();
 		e.stopPropagation();
 	}
@@ -246,8 +281,45 @@ class MouseController<T> implements IDisposable {
 		e.preventDefault();
 		e.stopPropagation();
 		this.view.domNode.focus();
-		this.list.setFocus([e.index]);
-		this.list.open([e.index]);
+
+		const focus = e.index;
+
+		if (e.shiftKey) {
+			const oldFocus = this.list.getFocus()[0];
+
+			if (oldFocus !== undefined) {
+				const min = Math.min(oldFocus, focus);
+				const max = Math.max(oldFocus, focus);
+				const rangeSelection = range(max + 1, min);
+				const selection = this.list.getSelection();
+				const contiguousRange = getContiguousRangeContaining(disjunction(selection, [oldFocus]), oldFocus);
+
+				if (contiguousRange.length === 0) {
+					return;
+				}
+
+				const newSelection = disjunction(rangeSelection, relativeComplement(selection, contiguousRange));
+				this.list.setSelection(newSelection);
+			}
+
+			return;
+		}
+
+		this.list.setFocus([focus]);
+
+		if (platform.isMacintosh ? e.altKey : e.ctrlKey) {
+			const selection = this.list.getSelection();
+			const newSelection = selection.filter(i => i !== focus);
+
+			if (selection.length === newSelection.length) {
+				this.list.setSelection([...newSelection, focus]);
+			} else {
+				this.list.setSelection(newSelection);
+			}
+		} else {
+			this.list.setSelection([focus]);
+			this.list.open([focus]);
+		}
 	}
 
 	dispose() {
@@ -266,6 +338,112 @@ const DefaultOptions: IListOptions<any> = {
 	keyboardSupport: true,
 	mouseSupport: true
 };
+
+function getContiguousRangeContaining(range: number[], value: number): number[] {
+	const index = range.indexOf(value);
+
+	if (index === -1) {
+		return [];
+	}
+
+	const result = [];
+	let i = index - 1;
+	while (i >= 0 && range[i] === value - (index - i)) {
+		result.push(range[i--]);
+	}
+
+	result.reverse();
+	i = index;
+	while (i < range.length && range[i] === value + (i - index)) {
+		result.push(range[i++]);
+	}
+
+	return result;
+}
+
+/**
+ * Given two sorted collections of numbers, returns the intersection
+ * betweem them (OR).
+ */
+function disjunction(one: number[], other: number[]): number[] {
+	const result = [];
+	let i = 0, j = 0;
+
+	while (i < one.length || j < other.length) {
+		if (i >= one.length) {
+			result.push(other[j++]);
+		} else if (j >= other.length) {
+			result.push(one[i++]);
+		} else if (one[i] === other[j]) {
+			result.push(one[i]);
+			i++;
+			j++;
+			continue;
+		} else if (one[i] < other[j]) {
+			result.push(one[i++]);
+		} else {
+			result.push(other[j++]);
+		}
+	}
+
+	return result;
+}
+
+/**
+ * Given two sorted collections of numbers, returns the exclusive
+ * disjunction between them (XOR).
+ */
+function exclusiveDisjunction(one: number[], other: number[]): number[] {
+	const result = [];
+	let i = 0, j = 0;
+
+	while (i < one.length || j < other.length) {
+		if (i >= one.length) {
+			result.push(other[j++]);
+		} else if (j >= other.length) {
+			result.push(one[i++]);
+		} else if (one[i] === other[j]) {
+			i++;
+			j++;
+			continue;
+		} else if (one[i] < other[j]) {
+			result.push(one[i++]);
+		} else {
+			result.push(other[j++]);
+		}
+	}
+
+	return result;
+}
+
+/**
+ * Given two sorted collections of numbers, returns the relative
+ * complement between them (XOR).
+ */
+function relativeComplement(one: number[], other: number[]): number[] {
+	const result = [];
+	let i = 0, j = 0;
+
+	while (i < one.length || j < other.length) {
+		if (i >= one.length) {
+			result.push(other[j++]);
+		} else if (j >= other.length) {
+			result.push(one[i++]);
+		} else if (one[i] === other[j]) {
+			i++;
+			j++;
+			continue;
+		} else if (one[i] < other[j]) {
+			result.push(one[i++]);
+		} else {
+			j++;
+		}
+	}
+
+	return result;
+}
+
+const numericSort = (a: number, b: number) => a - b;
 
 export class List<T> implements ISpliceable<T>, IDisposable {
 
@@ -287,8 +465,9 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		return mapEvent(this.eventBufferer.wrapEvent(this.selection.onChange), e => this.toListEvent(e));
 	}
 
-	@memoize get onContextMenu(): Event<IListMouseEvent<T>> {
-		return fromCallback(handler => this.view.addListener('contextmenu', handler));
+	private _onContextMenu: Event<IListContextMenuEvent<T>> = createEmptyEvent();
+	get onContextMenu(): Event<IListContextMenuEvent<T>> {
+		return this._onContextMenu;
 	}
 
 	private _onOpen = new Emitter<number[]>();
@@ -338,14 +517,18 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		this.disposables.push(tracker.addBlurListener(() => this._onDOMBlur.fire()));
 
 		if (typeof options.keyboardSupport !== 'boolean' || options.keyboardSupport) {
-			this.disposables.push(new KeyboardController(this, this.view));
+			const controller = new KeyboardController(this, this.view);
+			this.disposables.push(controller);
 		}
 
 		if (typeof options.mouseSupport !== 'boolean' || options.mouseSupport) {
-			this.disposables.push(new MouseController(this, this.view));
+			const controller = new MouseController(this, this.view);
+			this.disposables.push(controller);
+			this._onContextMenu = controller.onContextMenu;
 		}
 
 		this.onFocusChange(this._onFocusChange, this, this.disposables);
+		this.onSelectionChange(this._onSelectionChange, this, this.disposables);
 
 		if (options.ariaLabel) {
 			this.view.domNode.setAttribute('aria-label', options.ariaLabel);
@@ -377,9 +560,12 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	}
 
 	setSelection(indexes: number[]): void {
+		indexes = indexes.sort(numericSort);
+
 		this.eventBufferer.bufferEvents(() => {
-			indexes = indexes.concat(this.selection.set(indexes));
-			indexes.forEach(i => this.view.splice(i, 1, [this.view.element(i)]));
+			const oldIndexes = this.selection.set(indexes);
+			const diffIndexes = exclusiveDisjunction(oldIndexes, indexes);
+			diffIndexes.forEach(i => this.view.splice(i, 1, [this.view.element(i)]));
 		});
 	}
 
@@ -404,10 +590,17 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		return this.selection.get();
 	}
 
+	getSelectedElements(): T[] {
+		return this.getSelection().map(i => this.view.element(i));
+	}
+
 	setFocus(indexes: number[]): void {
+		indexes = indexes.sort(numericSort);
+
 		this.eventBufferer.bufferEvents(() => {
-			indexes = indexes.concat(this.focus.set(indexes));
-			indexes.forEach(i => this.view.splice(i, 1, [this.view.element(i)]));
+			const oldIndexes = this.focus.set(indexes);
+			const diffIndexes = exclusiveDisjunction(oldIndexes, indexes);
+			diffIndexes.forEach(i => this.view.splice(i, 1, [this.view.element(i)]));
 		});
 	}
 
@@ -516,7 +709,6 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	}
 
 	open(indexes: number[]): void {
-		this.setSelection(indexes);
 		this._onOpen.fire(indexes);
 	}
 
@@ -535,6 +727,14 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 		this.view.domNode.setAttribute('role', 'tree');
 		DOM.toggleClass(this.view.domNode, 'element-focused', focus.length > 0);
+	}
+
+	private _onSelectionChange(): void {
+		const selection = this.selection.get();
+
+		DOM.toggleClass(this.view.domNode, 'selection-none', selection.length === 0);
+		DOM.toggleClass(this.view.domNode, 'selection-single', selection.length === 1);
+		DOM.toggleClass(this.view.domNode, 'selection-multiple', selection.length > 1);
 	}
 
 	dispose(): void {

@@ -14,6 +14,7 @@ import { MarkersTracker, LineMarker } from 'vs/editor/common/model/modelLine';
 import { Position } from 'vs/editor/common/core/position';
 import { INewMarker, TextModelWithMarkers } from 'vs/editor/common/model/textModelWithMarkers';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
+import { ITextSource, IRawTextSource } from 'vs/editor/common/model/textSource';
 
 class DecorationsTracker {
 
@@ -139,9 +140,9 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 	private _internalDecorations: { [internalDecorationId: number]: InternalDecoration; };
 	private _multiLineDecorationsMap: { [key: string]: InternalDecoration; };
 
-	constructor(allowedEventTypes: string[], rawText: editorCommon.IRawText, languageIdentifier: LanguageIdentifier) {
+	constructor(allowedEventTypes: string[], rawTextSource: IRawTextSource, creationOptions: editorCommon.ITextModelCreationOptions, languageIdentifier: LanguageIdentifier) {
 		allowedEventTypes.push(editorCommon.EventType.ModelDecorationsChanged);
-		super(allowedEventTypes, rawText, languageIdentifier);
+		super(allowedEventTypes, rawTextSource, creationOptions, languageIdentifier);
 
 		this._instanceId = nextInstanceId();
 		this._lastDecorationId = 0;
@@ -165,7 +166,7 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 		super.dispose();
 	}
 
-	protected _resetValue(newValue: editorCommon.ITextSource): void {
+	protected _resetValue(newValue: ITextSource): void {
 		super._resetValue(newValue);
 
 		// Destroy all my decorations

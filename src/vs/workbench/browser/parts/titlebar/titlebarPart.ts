@@ -23,12 +23,14 @@ import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { isMacintosh, isLinux } from 'vs/base/common/platform';
 import nls = require('vs/nls');
 import * as labels from 'vs/base/common/labels';
-import { EditorInput, toResource } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { Verbosity } from 'vs/platform/editor/common/editor';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_BACKGROUND } from 'vs/workbench/common/theme';
 
 export class TitlebarPart extends Part implements ITitleService {
 
@@ -45,6 +47,8 @@ export class TitlebarPart extends Part implements ITitleService {
 	private initialTitleFontSize: number;
 	private representedFileName: string;
 
+	private isInactive: boolean;
+
 	private titleTemplate: string;
 	private isPure: boolean;
 	private activeEditorListeners: IDisposable[];
@@ -60,13 +64,14 @@ export class TitlebarPart extends Part implements ITitleService {
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IIntegrityService private integrityService: IIntegrityService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IThemeService themeService: IThemeService
 	) {
-		super(id, { hasTitle: false });
+		super(id, { hasTitle: false }, themeService);
 
 		this.isPure = true;
 		this.activeEditorListeners = [];
-		this.workspacePath = contextService.hasWorkspace() ? this.tildify(labels.getPathLabel(contextService.getWorkspace().resource)) : '';
+		this.workspacePath = contextService.hasWorkspace() ? labels.tildify(labels.getPathLabel(contextService.getWorkspace().resource), environmentService.userHome) : '';
 
 		this.init();
 
@@ -91,10 +96,20 @@ export class TitlebarPart extends Part implements ITitleService {
 	}
 
 	private registerListeners(): void {
-		this.toUnbind.push(DOM.addDisposableListener(window, DOM.EventType.BLUR, () => { if (this.titleContainer) { this.titleContainer.addClass('blurred'); } }));
-		this.toUnbind.push(DOM.addDisposableListener(window, DOM.EventType.FOCUS, () => { if (this.titleContainer) { this.titleContainer.removeClass('blurred'); } }));
+		this.toUnbind.push(DOM.addDisposableListener(window, DOM.EventType.BLUR, () => this.onBlur()));
+		this.toUnbind.push(DOM.addDisposableListener(window, DOM.EventType.FOCUS, () => this.onFocus()));
 		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(() => this.onConfigurationChanged(true)));
 		this.toUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
+	}
+
+	private onBlur(): void {
+		this.isInactive = true;
+		this.updateStyles();
+	}
+
+	private onFocus(): void {
+		this.isInactive = false;
+		this.updateStyles();
 	}
 
 	private onConfigurationChanged(update?: boolean): void {
@@ -151,8 +166,9 @@ export class TitlebarPart extends Part implements ITitleService {
 	/**
 	 * Possible template values:
 	 *
-	 * {activeEditorName}: e.g. myFile.txt
-	 * {activeFilePath}: e.g. /Users/Development/myProject/myFile.txt
+	 * {activeEditorLong}: e.g. /Users/Development/myProject/myFolder/myFile.txt
+	 * {activeEditorMedium}: e.g. myFolder/myFile.txt
+	 * {activeEditorShort}: e.g. myFile.txt
 	 * {rootName}: e.g. myProject
 	 * {rootPath}: e.g. /Users/Development/myProject
 	 * {appName}: e.g. VS Code
@@ -162,11 +178,11 @@ export class TitlebarPart extends Part implements ITitleService {
 	private doGetWindowTitle(): string {
 		const input = this.editorService.getActiveEditorInput();
 		const workspace = this.contextService.getWorkspace();
-		const file = toResource(input, { filter: 'file' });
 
 		// Variables
-		const activeEditorName = input ? input.getName() : '';
-		const activeFilePath = file ? this.tildify(labels.getPathLabel(file)) : '';
+		const activeEditorShort = input ? input.getTitle(Verbosity.SHORT) : '';
+		const activeEditorMedium = input ? input.getTitle(Verbosity.MEDIUM) : activeEditorShort;
+		const activeEditorLong = input ? input.getTitle(Verbosity.LONG) : activeEditorMedium;
 		const rootName = workspace ? workspace.name : '';
 		const rootPath = workspace ? this.workspacePath : '';
 		const dirty = input && input.isDirty() ? TitlebarPart.TITLE_DIRTY : '';
@@ -174,22 +190,15 @@ export class TitlebarPart extends Part implements ITitleService {
 		const separator = TitlebarPart.TITLE_SEPARATOR;
 
 		return labels.template(this.titleTemplate, {
-			activeEditorName,
-			activeFilePath,
+			activeEditorShort,
+			activeEditorLong,
+			activeEditorMedium,
 			rootName,
 			rootPath,
 			dirty,
 			appName,
 			separator: { label: separator }
 		});
-	}
-
-	private tildify(path: string): string {
-		if (path && (isMacintosh || isLinux) && path.indexOf(this.environmentService.userHome) === 0) {
-			path = `~${path.substr(this.environmentService.userHome.length)}`;
-		}
-
-		return path;
 	}
 
 	public createContentArea(parent: Builder): Builder {
@@ -218,6 +227,15 @@ export class TitlebarPart extends Part implements ITitleService {
 		});
 
 		return this.titleContainer;
+	}
+
+	protected updateStyles(): void {
+		super.updateStyles();
+
+		// Part container
+		const container = this.getContainer();
+		container.style('color', this.getColor(this.isInactive ? TITLE_BAR_INACTIVE_FOREGROUND : TITLE_BAR_ACTIVE_FOREGROUND));
+		container.style('background-color', this.getColor(this.isInactive ? TITLE_BAR_INACTIVE_BACKGROUND : TITLE_BAR_ACTIVE_BACKGROUND));
 	}
 
 	private onTitleDoubleclick(): void {

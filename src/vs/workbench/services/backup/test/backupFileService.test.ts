@@ -19,9 +19,9 @@ import { FileService } from 'vs/workbench/services/files/node/fileService';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { IBackupService } from 'vs/platform/backup/common/backup';
 import { parseArgs } from 'vs/platform/environment/node/argv';
-import { TextModel } from 'vs/editor/common/model/textModel';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { TestWindowService } from 'vs/workbench/test/workbenchTestServices';
+import { RawTextSource } from 'vs/editor/common/model/textSource';
 
 class TestEnvironmentService extends EnvironmentService {
 
@@ -45,7 +45,7 @@ const barFile = Uri.file(platform.isWindows ? 'c:\\bar' : '/bar');
 const untitledFile = Uri.from({ scheme: 'untitled', path: 'Untitled-1' });
 const fooBackupPath = path.join(workspaceBackupPath, 'file', crypto.createHash('md5').update(fooFile.fsPath).digest('hex'));
 const barBackupPath = path.join(workspaceBackupPath, 'file', crypto.createHash('md5').update(barFile.fsPath).digest('hex'));
-const untitledBackupPath = path.join(workspaceBackupPath, 'untitled', crypto.createHash('md5').update(platform.isLinux ? untitledFile.fsPath : untitledFile.fsPath.toLowerCase()).digest('hex'));
+const untitledBackupPath = path.join(workspaceBackupPath, 'untitled', crypto.createHash('md5').update(untitledFile.fsPath).digest('hex'));
 
 class TestBackupFileService extends BackupFileService {
 	constructor(workspace: Uri, backupHome: string, workspacesJsonPath: string) {
@@ -98,24 +98,9 @@ suite('BackupFileService', () => {
 			// Format should be: <backupHome>/<workspaceHash>/<scheme>/<filePath>
 			const backupResource = Uri.from({ scheme: 'untitled', path: 'Untitled-1' });
 			const workspaceHash = crypto.createHash('md5').update(workspaceResource.fsPath).digest('hex');
-			const filePathHash = crypto.createHash('md5').update(platform.isLinux ? backupResource.fsPath : backupResource.fsPath.toLowerCase()).digest('hex');
+			const filePathHash = crypto.createHash('md5').update(backupResource.fsPath).digest('hex');
 			const expectedPath = Uri.file(path.join(backupHome, workspaceHash, 'untitled', filePathHash)).fsPath;
 			assert.equal(service.getBackupResource(backupResource).fsPath, expectedPath);
-		});
-
-		test('should ignore case on Windows and Mac', () => {
-			// Skip test on Linux
-			if (platform.isLinux) {
-				return;
-			}
-
-			if (platform.isMacintosh) {
-				assert.equal(service.getBackupResource(Uri.file('/foo')).fsPath, service.getBackupResource(Uri.file('/FOO')).fsPath);
-			}
-
-			if (platform.isWindows) {
-				assert.equal(service.getBackupResource(Uri.file('c:\\foo')).fsPath, service.getBackupResource(Uri.file('C:\\FOO')).fsPath);
-			}
 		});
 	});
 
@@ -252,7 +237,7 @@ suite('BackupFileService', () => {
 
 	test('parseBackupContent', () => {
 		test('should separate metadata from content', () => {
-			const textSource = TextModel.toTextSource('metadata\ncontent');
+			const textSource = RawTextSource.fromString('metadata\ncontent');
 			assert.equal(service.parseBackupContent(textSource), 'content');
 		});
 	});

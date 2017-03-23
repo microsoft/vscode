@@ -199,6 +199,7 @@
 }
 
 .monaco-workbench > .part.editor > .content .welcomePage .commands li button h3 {
+	font-weight: normal;
 	font-size: 1em;
 	margin: 0;
 	margin-bottom: .25em;
@@ -255,6 +256,16 @@
 	outline-offset: -5px;
 }
 
+.monaco-workbench > .part.editor > .content .welcomePage .commands li button .currentKeymap {
+	display: none;
+}
+.monaco-workbench > .part.editor > .content .welcomePage .commands li button .installKeymap.installed {
+	display: none;
+}
+.monaco-workbench > .part.editor > .content .welcomePage .commands li button .currentKeymap.installed {
+	display: inline;
+}
+
 .monaco-workbench > .part.editor > .content .welcomePageContainer.max-height-685px .title {
 	display: none;
 }
@@ -278,12 +289,24 @@
 .monaco-workbench.linux > .part.editor > .content .welcomePage .linux-only {
 	display: initial;
 }
+.monaco-workbench.mac > .part.editor > .content .welcomePage li.mac-only {
+	display: list-item;
+}
+.monaco-workbench.windows > .part.editor > .content .welcomePage li.windows-only {
+	display: list-item;
+}
+.monaco-workbench.linux > .part.editor > .content .welcomePage li.linux-only {
+	display: list-item;
+}
 
 .monaco-workbench > .part.editor > .content .welcomePageContainer .scm-only {
 	display: none;
 }
 .monaco-workbench > .part.editor > .content .welcomePageContainer.scmEnabled .scm-only {
 	display: initial;
+}
+.monaco-workbench > .part.editor > .content .welcomePageContainer.scmEnabled li.scm-only {
+	display: list-item;
 }
 .monaco-workbench > .part.editor > .content .welcomePageContainer.scmEnabled .git-only {
 	display: none;

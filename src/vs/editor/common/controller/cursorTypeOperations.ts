@@ -326,9 +326,15 @@ export class TypeOperations {
 
 		// Only consider auto closing the pair if a space follows or if another autoclosed pair follows
 		if (beforeCharacter) {
+			let thisBraceIsSymmetric = (config.autoClosingPairsOpen[ch] === ch);
+
 			let isBeforeCloseBrace = false;
-			for (let closeBrace in config.autoClosingPairsClose) {
-				if (beforeCharacter === closeBrace) {
+			for (let otherCloseBrace in config.autoClosingPairsClose) {
+				let otherBraceIsSymmetric = (config.autoClosingPairsOpen[otherCloseBrace] === otherCloseBrace);
+				if (!thisBraceIsSymmetric && otherBraceIsSymmetric) {
+					continue;
+				}
+				if (beforeCharacter === otherCloseBrace) {
 					isBeforeCloseBrace = true;
 					break;
 				}
@@ -338,7 +344,8 @@ export class TypeOperations {
 			}
 		}
 
-		let lineTokens = model.getLineTokens(position.lineNumber, false);
+		model.forceTokenization(position.lineNumber);
+		let lineTokens = model.getLineTokens(position.lineNumber);
 
 		let shouldAutoClosePair = false;
 		try {
@@ -407,7 +414,8 @@ export class TypeOperations {
 		}
 
 		let position = cursor.position;
-		let lineTokens = model.getLineTokens(position.lineNumber, false);
+		model.forceTokenization(position.lineNumber);
+		let lineTokens = model.getLineTokens(position.lineNumber);
 
 		let electricAction: IElectricAction;
 		try {

@@ -8,70 +8,65 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
 import { ScrollableElementCreationOptions, ScrollableElementChangeOptions } from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
 import { IOverviewRulerLayoutInfo, ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { IConfiguration, IConfigurationChangedEvent, INewScrollPosition } from 'vs/editor/common/editorCommon';
+import { INewScrollPosition } from 'vs/editor/common/editorCommon';
 import { ClassNames } from 'vs/editor/browser/editorBrowser';
-import { PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
+import { ViewPart, PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
 import { Scrollable } from 'vs/base/common/scrollable';
+import { ViewContext } from 'vs/editor/common/view/viewContext';
+import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
+import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 
-function addPropertyIfPresent(src: any, dst: any, prop: string): void {
-	if (src.hasOwnProperty(prop)) {
-		dst[prop] = src[prop];
-	}
-}
-
-export class EditorScrollbar implements IDisposable {
+export class EditorScrollbar extends ViewPart {
 
 	private scrollable: Scrollable;
-	private configuration: IConfiguration;
-
 	private toDispose: IDisposable[];
-	private linesContent: HTMLElement;
 	private scrollbar: ScrollableElement;
+	private scrollbarDomNode: FastDomNode<HTMLElement>;
 
-	constructor(scrollable: Scrollable, configuration: IConfiguration, linesContent: HTMLElement, viewDomNode: HTMLElement, overflowGuardDomNode: HTMLElement) {
+	constructor(
+		context: ViewContext,
+		scrollable: Scrollable,
+		linesContent: FastDomNode<HTMLElement>,
+		viewDomNode: FastDomNode<HTMLElement>,
+		overflowGuardDomNode: FastDomNode<HTMLElement>
+	) {
+		super(context);
+
 		this.toDispose = [];
 		this.scrollable = scrollable;
-		this.configuration = configuration;
-		this.linesContent = linesContent;
 
-		let configScrollbarOpts = this.configuration.editor.viewInfo.scrollbar;
+		const viewInfo = this._context.configuration.editor.viewInfo;
+		const configScrollbarOpts = viewInfo.scrollbar;
 
 		let scrollbarOptions: ScrollableElementCreationOptions = {
-			canUseTranslate3d: this.configuration.editor.viewInfo.canUseTranslate3d,
-			listenOnDomNode: viewDomNode,
-			vertical: configScrollbarOpts.vertical,
-			horizontal: configScrollbarOpts.horizontal,
-			className: ClassNames.SCROLLABLE_ELEMENT + ' ' + this.configuration.editor.viewInfo.theme,
+			canUseTranslate3d: viewInfo.canUseTranslate3d,
+			listenOnDomNode: viewDomNode.domNode,
+			className: ClassNames.SCROLLABLE_ELEMENT + ' ' + viewInfo.theme,
 			useShadows: false,
 			lazyRender: true,
-			saveLastScrollTimeOnClassName: ClassNames.VIEW_LINE
-		};
-		addPropertyIfPresent(configScrollbarOpts, scrollbarOptions, 'verticalHasArrows');
-		addPropertyIfPresent(configScrollbarOpts, scrollbarOptions, 'horizontalHasArrows');
-		addPropertyIfPresent(configScrollbarOpts, scrollbarOptions, 'verticalScrollbarSize');
-		addPropertyIfPresent(configScrollbarOpts, scrollbarOptions, 'verticalSliderSize');
-		addPropertyIfPresent(configScrollbarOpts, scrollbarOptions, 'horizontalScrollbarSize');
-		addPropertyIfPresent(configScrollbarOpts, scrollbarOptions, 'horizontalSliderSize');
-		addPropertyIfPresent(configScrollbarOpts, scrollbarOptions, 'handleMouseWheel');
-		addPropertyIfPresent(configScrollbarOpts, scrollbarOptions, 'arrowSize');
-		addPropertyIfPresent(configScrollbarOpts, scrollbarOptions, 'mouseWheelScrollSensitivity');
 
-		this.scrollbar = new ScrollableElement(linesContent, scrollbarOptions, this.scrollable);
+			vertical: configScrollbarOpts.vertical,
+			horizontal: configScrollbarOpts.horizontal,
+			verticalHasArrows: configScrollbarOpts.verticalHasArrows,
+			horizontalHasArrows: configScrollbarOpts.horizontalHasArrows,
+			verticalScrollbarSize: configScrollbarOpts.verticalScrollbarSize,
+			verticalSliderSize: configScrollbarOpts.verticalSliderSize,
+			horizontalScrollbarSize: configScrollbarOpts.horizontalScrollbarSize,
+			horizontalSliderSize: configScrollbarOpts.horizontalSliderSize,
+			handleMouseWheel: configScrollbarOpts.handleMouseWheel,
+			arrowSize: configScrollbarOpts.arrowSize,
+			mouseWheelScrollSensitivity: configScrollbarOpts.mouseWheelScrollSensitivity,
+		};
+
+		this.scrollbar = new ScrollableElement(linesContent.domNode, scrollbarOptions, this.scrollable);
 		PartFingerprints.write(this.scrollbar.getDomNode(), PartFingerprint.ScrollableElement);
 
 		this.toDispose.push(this.scrollbar);
 
-		this.toDispose.push(this.configuration.onDidChange((e: IConfigurationChangedEvent) => {
-			this.scrollbar.updateClassName(ClassNames.SCROLLABLE_ELEMENT + ' ' + this.configuration.editor.viewInfo.theme);
-			if (e.viewInfo.scrollbar || e.viewInfo.canUseTranslate3d) {
-				let newOpts: ScrollableElementChangeOptions = {
-					canUseTranslate3d: this.configuration.editor.viewInfo.canUseTranslate3d,
-					handleMouseWheel: this.configuration.editor.viewInfo.scrollbar.handleMouseWheel,
-					mouseWheelScrollSensitivity: this.configuration.editor.viewInfo.scrollbar.mouseWheelScrollSensitivity
-				};
-				this.scrollbar.updateOptions(newOpts);
-			}
-		}));
+		this.scrollbarDomNode = createFastDomNode(this.scrollbar.getDomNode());
+		this.scrollbarDomNode.setPosition('absolute');
+		this._setLayout();
 
 		// When having a zone widget that calls .focus() on one of its dom elements,
 		// the browser will try desperately to reveal that dom node, unexpectedly
@@ -101,25 +96,29 @@ export class EditorScrollbar implements IDisposable {
 		};
 
 		// I've seen this happen both on the view dom node & on the lines content dom node.
-		this.toDispose.push(dom.addDisposableListener(viewDomNode, 'scroll', (e: Event) => onBrowserDesperateReveal(viewDomNode, true, true)));
-		this.toDispose.push(dom.addDisposableListener(linesContent, 'scroll', (e: Event) => onBrowserDesperateReveal(linesContent, true, false)));
-		this.toDispose.push(dom.addDisposableListener(overflowGuardDomNode, 'scroll', (e: Event) => onBrowserDesperateReveal(overflowGuardDomNode, true, false)));
+		this.toDispose.push(dom.addDisposableListener(viewDomNode.domNode, 'scroll', (e: Event) => onBrowserDesperateReveal(viewDomNode.domNode, true, true)));
+		this.toDispose.push(dom.addDisposableListener(linesContent.domNode, 'scroll', (e: Event) => onBrowserDesperateReveal(linesContent.domNode, true, false)));
+		this.toDispose.push(dom.addDisposableListener(overflowGuardDomNode.domNode, 'scroll', (e: Event) => onBrowserDesperateReveal(overflowGuardDomNode.domNode, true, false)));
 	}
 
 	public dispose(): void {
 		this.toDispose = dispose(this.toDispose);
 	}
 
-	public renderScrollbar(): void {
-		this.scrollbar.renderNow();
+	private _setLayout(): void {
+		const layoutInfo = this._context.configuration.editor.layoutInfo;
+
+		this.scrollbarDomNode.setLeft(layoutInfo.contentLeft);
+		this.scrollbarDomNode.setWidth(layoutInfo.contentWidth + layoutInfo.minimapWidth);
+		this.scrollbarDomNode.setHeight(layoutInfo.contentHeight);
 	}
 
 	public getOverviewRulerLayoutInfo(): IOverviewRulerLayoutInfo {
 		return this.scrollbar.getOverviewRulerLayoutInfo();
 	}
 
-	public getScrollbarContainerDomNode(): HTMLElement {
-		return this.scrollbar.getDomNode();
+	public getDomNode(): HTMLElement {
+		return this.scrollbarDomNode.domNode;
 	}
 
 	public delegateVerticalScrollbarMouseDown(browserEvent: MouseEvent): void {
@@ -128,5 +127,77 @@ export class EditorScrollbar implements IDisposable {
 
 	public getVerticalSliderVerticalCenter(): number {
 		return this.scrollbar.getVerticalSliderVerticalCenter();
+	}
+
+	// --- begin event handlers
+
+	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
+		const viewInfo = this._context.configuration.editor.viewInfo;
+
+		this.scrollbar.updateClassName(ClassNames.SCROLLABLE_ELEMENT + ' ' + viewInfo.theme);
+		if (e.viewInfo.scrollbar || e.viewInfo.canUseTranslate3d) {
+			let newOpts: ScrollableElementChangeOptions = {
+				canUseTranslate3d: viewInfo.canUseTranslate3d,
+				handleMouseWheel: viewInfo.scrollbar.handleMouseWheel,
+				mouseWheelScrollSensitivity: viewInfo.scrollbar.mouseWheelScrollSensitivity
+			};
+			this.scrollbar.updateOptions(newOpts);
+		}
+		if (e.layoutInfo) {
+			this._setLayout();
+		}
+		return true;
+	}
+	public onCursorPositionChanged(e: viewEvents.ViewCursorPositionChangedEvent): boolean {
+		return false;
+	}
+	public onCursorSelectionChanged(e: viewEvents.ViewCursorSelectionChangedEvent): boolean {
+		return false;
+	}
+	public onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
+		return false;
+	}
+	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
+		return false;
+	}
+	public onFocusChanged(e: viewEvents.ViewFocusChangedEvent): boolean {
+		return false;
+	}
+	public onLineMappingChanged(e: viewEvents.ViewLineMappingChangedEvent): boolean {
+		return false;
+	}
+	public onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
+		return false;
+	}
+	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
+		return false;
+	}
+	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
+		return false;
+	}
+	public onRevealRangeRequest(e: viewEvents.ViewRevealRangeRequestEvent): boolean {
+		return false;
+	}
+	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
+		return true;
+	}
+	public onScrollRequest(e: viewEvents.ViewScrollRequestEvent): boolean {
+		return false;
+	}
+	public onTokensChanged(e: viewEvents.ViewTokensChangedEvent): boolean {
+		return false;
+	}
+	public onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
+		return false;
+	}
+
+	// --- end event handlers
+
+	public prepareRender(ctx: RenderingContext): void {
+		// Nothing to do
+	}
+
+	public render(ctx: RestrictedRenderingContext): void {
+		this.scrollbar.renderNow();
 	}
 }

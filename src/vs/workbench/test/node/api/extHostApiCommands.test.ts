@@ -27,6 +27,7 @@ import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 import { ExtHostHeapService } from 'vs/workbench/api/node/extHostHeapService';
 import { MainThreadCommands } from 'vs/workbench/api/node/mainThreadCommands';
 import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
+import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
 import { MainContext, ExtHostContext } from 'vs/workbench/api/node/extHost.protocol';
 import { ExtHostDiagnostics } from 'vs/workbench/api/node/extHostDiagnostics';
 import * as vscode from 'vscode';
@@ -68,7 +69,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		instantiationService.stub(ICommandService, {
 			_serviceBrand: undefined,
 			executeCommand(id, args): any {
-				let {handler} = CommandsRegistry.getCommands()[id];
+				let { handler } = CommandsRegistry.getCommands()[id];
 				return TPromise.as(instantiationService.invokeFunction(handler, args));
 			}
 		});
@@ -88,32 +89,23 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			getCreationOptions(): any { throw new Error(); }
 		});
 
-		const extHostDocuments = new ExtHostDocuments(threadService);
-		threadService.set(ExtHostContext.ExtHostDocuments, extHostDocuments);
-		extHostDocuments.$acceptModelAdd({
-			isDirty: false,
-			versionId: model.getVersionId(),
-			modeId: model.getLanguageIdentifier().language,
-			url: model.uri,
-			value: {
-				EOL: model.getEOL(),
+		const extHostDocumentsAndEditors = new ExtHostDocumentsAndEditors(threadService);
+		extHostDocumentsAndEditors.$acceptDocumentsAndEditorsDelta({
+			addedDocuments: [{
+				isDirty: false,
+				versionId: model.getVersionId(),
+				modeId: model.getLanguageIdentifier().language,
+				url: model.uri,
 				lines: model.getValue().split(model.getEOL()),
-				BOM: '',
-				length: -1,
-				containsRTL: false,
-				isBasicASCII: false,
-				options: {
-					tabSize: 4,
-					insertSpaces: true,
-					trimAutoWhitespace: true,
-					defaultEOL: EditorCommon.DefaultEndOfLine.LF
-				}
-			},
+				EOL: model.getEOL(),
+			}]
 		});
+		const extHostDocuments = new ExtHostDocuments(threadService, extHostDocumentsAndEditors);
+		threadService.set(ExtHostContext.ExtHostDocuments, extHostDocuments);
 
 		const heapService = new ExtHostHeapService();
 
-		commands = new ExtHostCommands(threadService, null, heapService);
+		commands = new ExtHostCommands(threadService, heapService);
 		threadService.set(ExtHostContext.ExtHostCommands, commands);
 		threadService.setTestInstance(MainContext.MainThreadCommands, instantiationService.createInstance(MainThreadCommands));
 		ExtHostApiCommands.register(commands);
@@ -314,7 +306,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 				let values = list.items;
 				assert.ok(Array.isArray(values));
 				assert.equal(values.length, 4);
-				let [first, second, third, forth] = values;
+				let [first, second, third, fourth] = values;
 				assert.equal(first.label, 'item1');
 				assert.equal(first.textEdit.newText, 'item1');
 				assert.equal(first.textEdit.range.start.line, 0);
@@ -336,14 +328,14 @@ suite('ExtHostLanguageFeatureCommands', function () {
 				assert.equal(third.textEdit.range.end.line, 0);
 				assert.equal(third.textEdit.range.end.character, 6);
 
-				assert.equal(forth.label, 'item4');
-				assert.equal(forth.textEdit, undefined);
-				assert.equal(forth.range.start.line, 0);
-				assert.equal(forth.range.start.character, 1);
-				assert.equal(forth.range.end.line, 0);
-				assert.equal(forth.range.end.character, 4);
-				assert.ok(forth.insertText instanceof types.SnippetString);
-				assert.equal((<types.SnippetString>forth.insertText).value, 'foo$0bar');
+				assert.equal(fourth.label, 'item4');
+				assert.equal(fourth.textEdit, undefined);
+				assert.equal(fourth.range.start.line, 0);
+				assert.equal(fourth.range.start.character, 1);
+				assert.equal(fourth.range.end.line, 0);
+				assert.equal(fourth.range.end.character, 4);
+				assert.ok(fourth.insertText instanceof types.SnippetString);
+				assert.equal((<types.SnippetString>fourth.insertText).value, 'foo$0bar');
 			});
 		});
 	});

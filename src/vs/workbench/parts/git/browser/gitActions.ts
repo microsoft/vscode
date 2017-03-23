@@ -959,8 +959,12 @@ export class PullWithRebaseAction extends PullAction {
 	static ID = 'workbench.action.git.pull.rebase';
 	static LABEL = 'Pull (Rebase)';
 
-	constructor( @IGitService gitService: IGitService) {
-		super(PullWithRebaseAction.ID, PullWithRebaseAction.LABEL, gitService);
+	constructor(
+		id = PullWithRebaseAction.ID,
+		label = PullWithRebaseAction.LABEL,
+		@IGitService gitService: IGitService
+	) {
+		super(id, label, gitService);
 	}
 
 	public run(context?: any): Promise {

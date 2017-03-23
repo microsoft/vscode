@@ -3,55 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-editor .monaco-editor-overlaymessage {
-	padding-bottom: 8px;
-}
-
-.monaco-editor .monaco-editor-overlaymessage .message {
-	padding: 1px 4px;
-	background: #1382CE;
-	color: white;
-}
-
-.monaco-editor .monaco-editor-overlaymessage .anchor {
-	width: 0 !important;
-	height: 0 !important;
-	border-color: transparent;
-	border-style: solid;
-	z-index: 1000;
-	border-width: 8px;
-	border-top-color: #1382CE;
-	position: absolute;
-}
-
-.monaco-editor .preview-zone-widget.preview .monaco-editor,
-.monaco-editor .preview-zone-widget.preview .monaco-editor-background,
-.monaco-editor .preview-zone-widget.preview .monaco-editor .line-numbers,
-.monaco-editor .preview-zone-widget.preview .monaco-editor .lines-decorations {
-	background-color: #F2F8FC;
-}
-
-.monaco-editor.vs-dark .preview-zone-widget,
-.monaco-editor.vs-dark .preview-zone-widget.preview .monaco-editor,
-.monaco-editor.vs-dark .preview-zone-widget.preview .monaco-editor-background,
-.monaco-editor.vs-dark .preview-zone-widget.preview .monaco-editor .line-numbers,
-.monaco-editor.vs-dark .preview-zone-widget.preview .monaco-editor .lines-decorations {
-	background-color: #001F33;
-}
-
-.monaco-editor .zone-widget .zone-widget-container.preview-zone-widget {
-	border-top-width: 1px;
-	border-bottom-width: 1px;
-}
-
 .monaco-editor .goto-definition-link {
 	text-decoration: underline;
 	cursor: pointer;
-	color: blue !important;
-}
-
-.monaco-editor.vs-dark .goto-definition-link {
-	color: #4E94CE !important;
 }
 
 .monaco-editor .goto-definition-link-hover {
@@ -63,13 +17,4 @@
 
 .monaco-editor.vs-dark .goto-definition-link-hover {
 	border-left: 4px solid rgba(255, 255, 255, 0.25);
-}
-
-/* High Contrast Theming */
-.monaco-editor.hc-black .preview-zone-widget,
-.monaco-editor.hc-black .preview-zone-widget.preview .monaco-editor,
-.monaco-editor.hc-black .preview-zone-widget.preview .monaco-editor-background,
-.monaco-editor.hc-black .preview-zone-widget.preview .monaco-editor .line-numbers,
-.monaco-editor.hc-black .preview-zone-widget.preview .monaco-editor .lines-decorations {
-	background-color: #0C141F;
 }

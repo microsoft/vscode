@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench .part.editor.empty {
+.monaco-workbench .part.editor.empty.has-watermark {
 	background-position-y: calc(50% - 100px);
 }
 
@@ -11,7 +11,7 @@
 	display: none; /* only visible when no editors are opened */
 }
 
-.monaco-workbench > .part.editor.empty > .content > .watermark {
+.monaco-workbench > .part.editor.empty.has-watermark > .content > .watermark {
 	display: block;
 	position: absolute;
 	width: 100%;

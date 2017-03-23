@@ -3,6 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/* Activity Bar */
+.monaco-workbench > .activitybar .monaco-action-bar .action-label.explore {
+	background-image: url('files-dark.svg');
+}
+
 /* --- Explorer viewlet --- */
 .explorer-viewlet {
 	height: 100%;
@@ -147,10 +152,6 @@
 	height: 22px;
 }
 
-.explorer-viewlet .explorer-item .monaco-inputbox.idle {
-	border: 1px solid rgba(128, 128, 128, 0.5);
-}
-
 .explorer-viewlet .explorer-item .monaco-inputbox > .wrapper > .input {
 	padding: 1px 2px;
 }
@@ -172,7 +173,9 @@
 .explorer-viewlet:lang(zh-Hans) .explorer-open-editors .monaco-tree .monaco-tree-row .editor-group,
 .explorer-viewlet:lang(zh-Hant) .explorer-open-editors .monaco-tree .monaco-tree-row .editor-group,
 .explorer-viewlet:lang(ja) .explorer-open-editors .monaco-tree .monaco-tree-row .editor-group,
-.explorer-viewlet:lang(ko) .explorer-open-editors .monaco-tree .monaco-tree-row .editor-group { font-weight: normal; }
+.explorer-viewlet:lang(ko) .explorer-open-editors .monaco-tree .monaco-tree-row .editor-group {
+	font-weight: normal;
+}
 
 /* High Contrast Theming */
 .hc-black .monaco-workbench .explorer-viewlet .explorer-item,
@@ -183,11 +186,17 @@
 
 .hc-black .monaco-workbench .explorer-viewlet .explorer-item .monaco-inputbox > .wrapper > .input:focus {
 	outline-offset: -2px !important;
-	outline: 1px solid #f38518 !important;
+	outline: 1px solid !important;
 	padding-left: 2px; /* push text by the width of the outline offset to prevent overlaying */
 }
 
 .hc-black .monaco-workbench .explorer-viewlet .explorer-item .monaco-inputbox.synthetic-focus {
 	outline: none !important;
 	border: none;
+}
+
+/* TODO@theme */
+
+.hc-black .monaco-workbench .explorer-viewlet .explorer-item .monaco-inputbox > .wrapper > .input:focus {
+	outline-color: #f38518 !important;
 }

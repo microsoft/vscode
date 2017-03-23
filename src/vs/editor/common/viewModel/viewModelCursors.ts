@@ -6,7 +6,7 @@
 
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Position } from 'vs/editor/common/core/position';
-import { ICoordinatesConverter } from 'vs/editor/common/viewModel/viewModel';
+import { ICoordinatesConverter, ViewEventsCollector } from 'vs/editor/common/viewModel/viewModel';
 import { Selection } from 'vs/editor/common/core/selection';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
@@ -51,7 +51,7 @@ export class ViewModelCursors {
 		return position;
 	}
 
-	public onCursorPositionChanged(e: ICursorPositionChangedEvent, emit: (eventType: string, payload: any) => void): void {
+	public onCursorPositionChanged(eventsCollector: ViewEventsCollector, e: ICursorPositionChangedEvent): void {
 		this.lastCursorPositionChangedEvent = e;
 
 		const stopRenderingLineAfter = this.configuration.editor.viewInfo.stopRenderingLineAfter;
@@ -62,47 +62,25 @@ export class ViewModelCursors {
 			secondaryPositions[i] = ViewModelCursors._toPositionThatCanBeRendered(e.secondaryViewPositions[i], stopRenderingLineAfter);
 		}
 
-		let newEvent: viewEvents.IViewCursorPositionChangedEvent = {
-			_viewCursorPositionChangedEventBrand: void 0,
-			position: position,
-			secondaryPositions: secondaryPositions,
-			isInEditableRange: e.isInEditableRange
-		};
-		emit(viewEvents.ViewEventNames.CursorPositionChangedEvent, newEvent);
+		eventsCollector.emit(new viewEvents.ViewCursorPositionChangedEvent(position, secondaryPositions, e.isInEditableRange));
 	}
 
-	public onCursorSelectionChanged(e: ICursorSelectionChangedEvent, emit: (eventType: string, payload: any) => void): void {
+	public onCursorSelectionChanged(eventsCollector: ViewEventsCollector, e: ICursorSelectionChangedEvent): void {
 		this.lastCursorSelectionChangedEvent = e;
 
-		let newEvent: viewEvents.IViewCursorSelectionChangedEvent = {
-			_viewCursorSelectionChangedEventBrand: void 0,
-			selection: e.viewSelection,
-			secondarySelections: e.secondaryViewSelections
-		};
-		emit(viewEvents.ViewEventNames.CursorSelectionChangedEvent, newEvent);
+		eventsCollector.emit(new viewEvents.ViewCursorSelectionChangedEvent(e.viewSelection, e.secondaryViewSelections));
 	}
 
-	public onCursorRevealRange(e: editorCommon.ICursorRevealRangeEvent, emit: (eventType: string, payload: any) => void): void {
-		let newEvent: viewEvents.IViewRevealRangeEvent = {
-			_viewRevealRangeEventBrand: void 0,
-			range: e.viewRange,
-			verticalType: e.verticalType,
-			revealHorizontal: e.revealHorizontal,
-			revealCursor: e.revealCursor
-		};
-		emit(viewEvents.ViewEventNames.RevealRangeEvent, newEvent);
+	public onCursorRevealRange(eventsCollector: ViewEventsCollector, e: editorCommon.ICursorRevealRangeEvent): void {
+		eventsCollector.emit(new viewEvents.ViewRevealRangeRequestEvent(
+			e.viewRange,
+			e.verticalType,
+			e.revealHorizontal,
+			e.revealCursor
+		));
 	}
 
-	public onCursorScrollRequest(e: editorCommon.ICursorScrollRequestEvent, emit: (eventType: string, payload: any) => void): void {
-		let newEvent: viewEvents.IViewScrollRequestEvent = {
-			_viewScrollRequestEventBrand: void 0,
-			deltaLines: e.deltaLines,
-			revealCursor: e.revealCursor
-		};
-		emit(viewEvents.ViewEventNames.ScrollRequestEvent, newEvent);
-	}
-
-	public onLineMappingChanged(emit: (eventType: string, payload: any) => void): void {
+	public onLineMappingChanged(eventsCollector: ViewEventsCollector): void {
 		if (this.lastCursorPositionChangedEvent) {
 			const toViewPos = (pos: Position) => this.coordinatesConverter.convertModelPositionToViewPosition(pos);
 			let e: ICursorPositionChangedEvent = {
@@ -112,7 +90,7 @@ export class ViewModelCursors {
 				secondaryViewPositions: this.lastCursorPositionChangedEvent.secondaryPositions.map(toViewPos),
 				isInEditableRange: this.lastCursorPositionChangedEvent.isInEditableRange,
 			};
-			this.onCursorPositionChanged(e, emit);
+			this.onCursorPositionChanged(eventsCollector, e);
 		}
 
 		if (this.lastCursorSelectionChangedEvent) {
@@ -123,7 +101,11 @@ export class ViewModelCursors {
 				secondarySelections: this.lastCursorSelectionChangedEvent.secondarySelections,
 				secondaryViewSelections: this.lastCursorSelectionChangedEvent.secondarySelections.map(toViewSel),
 			};
-			this.onCursorSelectionChanged(e, emit);
+			this.onCursorSelectionChanged(eventsCollector, e);
 		}
+	}
+
+	public onCursorScrollRequest(eventsCollector: ViewEventsCollector, e: editorCommon.ICursorScrollRequestEvent): void {
+		eventsCollector.emit(new viewEvents.ViewScrollRequestEvent(e.deltaLines, e.revealCursor));
 	}
 }

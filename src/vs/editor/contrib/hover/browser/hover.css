@@ -7,8 +7,6 @@
 	cursor: default;
 	position: absolute;
 	overflow: hidden;
-	background-color: #F3F3F3;
-	border: 1px solid #CCC;
 	z-index: 50;
 	-webkit-user-select: text;
 	-ms-user-select: text;
@@ -31,10 +29,6 @@
 
 .monaco-editor-hover .hover-row {
 	padding: 4px 5px;
-}
-
-.monaco-editor-hover .hover-row:not(:first-child):not(:empty) {
-	border-top: 1px solid rgba(204, 204, 204, 0.5);
 }
 
 .monaco-editor-hover p,
@@ -68,14 +62,5 @@
 	word-break: break-all;
 }
 
-.monaco-editor .hoverHighlight {
-	background: rgba(173, 214, 255, 0.15);
-}
-
-.monaco-editor.vs-dark .monaco-editor-hover { background-color: #2D2D30; border-color: #555; }
 .monaco-editor.vs-dark .monaco-editor-hover a { color: #1C5DAF; }
-.monaco-editor.vs-dark .monaco-editor-hover .hover-row:not(:first-child):not(:empty) { border-color: rgba(85,85,85,0.5); }
-.monaco-editor.vs-dark .hoverHighlight { background: rgba(38, 79, 120, 0.25); }
-
-.monaco-editor.hc-black .monaco-editor-hover { background-color: #0C141F; }
 .monaco-editor.hc-black .monaco-editor-hover a { color: #1C5DAF; }

@@ -49,6 +49,10 @@ export class GitSCMProvider implements SCMProvider {
 		return this.commandCenter.open(resource);
 	}
 
+	acceptChanges(): ProviderResult<void> {
+		return this.commandCenter.commitWithInput();
+	}
+
 	drag(resource: Resource, resourceGroup: ResourceGroup): void {
 		console.log('drag', resource, resourceGroup);
 	}
@@ -58,7 +62,9 @@ export class GitSCMProvider implements SCMProvider {
 			return;
 		}
 
-		return uri.with({ scheme: 'git' });
+		// As a mitigation for extensions like ESLint showing warnings and errors
+		// for git URIs, let's change the file extension of these uris to .git.
+		return new Uri().with({ scheme: 'git-original', query: uri.path, path: uri.path + '.git' });
 	}
 
 	dispose(): void {

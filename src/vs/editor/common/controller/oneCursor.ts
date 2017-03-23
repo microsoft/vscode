@@ -714,23 +714,22 @@ export class OneCursorOp {
 		let viewSel = cursor.viewState.selection;
 
 		let viewStartLineNumber = viewSel.startLineNumber;
-		let viewStartColumn = viewSel.startColumn;
 		let viewEndLineNumber = viewSel.endLineNumber;
 		let viewEndColumn = viewSel.endColumn;
 
-		let viewEndMaxColumn = cursor.viewModel.getLineMaxColumn(viewEndLineNumber);
-		if (viewStartColumn !== 1 || viewEndColumn !== viewEndMaxColumn) {
-			viewStartColumn = 1;
-			viewEndColumn = viewEndMaxColumn;
-		} else {
-			// Expand selection with one more line down
-			let moveResult = MoveOperations.down(cursor.config, cursor.viewModel, viewEndLineNumber, viewEndColumn, 0, 1, true);
-			viewEndLineNumber = moveResult.lineNumber;
+		let moveResult = MoveOperations.down(cursor.config, cursor.viewModel, viewEndLineNumber, viewEndColumn, 0, 1, true);
+		viewEndLineNumber = moveResult.lineNumber;
+
+		// If we reach the last line of the document, select until the end of line too
+		if (cursor.viewModel.getLineCount() === viewSel.endLineNumber) {
 			viewEndColumn = cursor.viewModel.getLineMaxColumn(viewEndLineNumber);
+		} else {
+			viewEndColumn = 1;
 		}
 
-		cursor.moveViewPosition(false, viewStartLineNumber, viewStartColumn, 0, true);
+		cursor.moveViewPosition(false, viewStartLineNumber, 1, 0, true);
 		cursor.moveViewPosition(true, viewEndLineNumber, viewEndColumn, 0, true);
+
 		return true;
 	}
 

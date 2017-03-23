@@ -9,9 +9,9 @@ import Event, { Emitter, once } from 'vs/base/common/event';
 import * as objects from 'vs/base/common/objects';
 import types = require('vs/base/common/types');
 import URI from 'vs/base/common/uri';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IEditor, ICommonCodeEditor, IEditorViewState, IEditorOptions as ICodeEditorOptions, IModel } from 'vs/editor/common/editorCommon';
-import { IEditorInput, IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceInput, Position } from 'vs/platform/editor/common/editor';
+import { IEditorInput, IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceInput, Position, Verbosity } from 'vs/platform/editor/common/editor';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { SyncDescriptor, AsyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -179,11 +179,13 @@ export abstract class EditorInput implements IEditorInput {
 	/**
 	 * Returns the description of this input that can be shown to the user. Examples include showing the description of
 	 * the input above the editor area to the side of the name of the input.
-	 *
-	 * @param verbose controls if the description should be short or can contain additional details.
 	 */
-	public getDescription(verbose?: boolean): string {
+	public getDescription(): string {
 		return null;
+	}
+
+	public getTitle(verbosity?: Verbosity): string {
+		return this.getName();
 	}
 
 	/**
@@ -460,10 +462,11 @@ export interface ITextEditorModel extends IEditorModel {
  * connects to the disk to retrieve content and may allow for saving it back or reverting it. Editor models
  * are typically cached for some while because they are expensive to construct.
  */
-export class EditorModel implements IEditorModel {
+export class EditorModel extends Disposable implements IEditorModel {
 	private _onDispose: Emitter<void>;
 
 	constructor() {
+		super();
 		this._onDispose = new Emitter<void>();
 	}
 
@@ -494,6 +497,7 @@ export class EditorModel implements IEditorModel {
 	public dispose(): void {
 		this._onDispose.fire();
 		this._onDispose.dispose();
+		super.dispose();
 	}
 }
 
@@ -638,6 +642,7 @@ export class TextEditorOptions extends EditorOptions {
 		options.revealIfVisible = settings.revealIfVisible;
 		options.pinned = settings.pinned;
 		options.index = settings.index;
+		options.inactive = settings.inactive;
 
 		if (settings.selection) {
 			options.startLineNumber = settings.selection.startLineNumber;
@@ -684,7 +689,7 @@ export class TextEditorOptions extends EditorOptions {
 				this.editorOptions = Object.create(null);
 				this.editorOptions.renderWhitespace = config.viewInfo.renderWhitespace;
 				this.editorOptions.renderControlCharacters = config.viewInfo.renderControlCharacters;
-				this.editorOptions.wrappingColumn = config.wrappingInfo.isViewportWrapping ? 0 : -1;
+				this.editorOptions.wordWrap = config.wrappingInfo.isViewportWrapping ? 'on' : 'off';
 			}
 		}
 	}
@@ -838,8 +843,8 @@ export interface IEditorStacksModel {
 	positionOfGroup(group: IEditorGroup): Position;
 	groupAt(position: Position): IEditorGroup;
 
-	next(jumpGroups: boolean): IEditorIdentifier;
-	previous(jumpGroups: boolean): IEditorIdentifier;
+	next(jumpGroups: boolean, cycleAtEnd?: boolean): IEditorIdentifier;
+	previous(jumpGroups: boolean, cycleAtStart?: boolean): IEditorIdentifier;
 
 	isOpen(editor: IEditorInput): boolean;
 	isOpen(resource: URI): boolean;
@@ -875,7 +880,7 @@ export interface IEditorIdentifier {
 }
 
 export interface IEditorContext extends IEditorIdentifier {
-	event: any;
+	event?: any;
 }
 
 export interface IGroupEvent {
@@ -901,7 +906,9 @@ export interface IWorkbenchEditorConfiguration {
 			showIcons: boolean;
 			enablePreview: boolean;
 			enablePreviewFromQuickOpen: boolean;
+			closeOnFileDelete: boolean;
 			openPositioning: 'left' | 'right' | 'first' | 'last';
+			revealIfOpen: boolean;
 		}
 	};
 }

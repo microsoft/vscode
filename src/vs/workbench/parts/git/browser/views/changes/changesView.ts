@@ -39,6 +39,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { isEqualOrParent } from 'vs/platform/files/common/files';
 
 import IGitService = git.IGitService;
 
@@ -281,7 +282,7 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 			this.secondaryActions = [
 				this.instantiationService.createInstance(GitActions.SyncAction, GitActions.SyncAction.ID, GitActions.SyncAction.LABEL),
 				this.instantiationService.createInstance(GitActions.PullAction, GitActions.PullAction.ID, GitActions.PullAction.LABEL),
-				this.instantiationService.createInstance(GitActions.PullWithRebaseAction),
+				this.instantiationService.createInstance(GitActions.PullWithRebaseAction, GitActions.PullWithRebaseAction.ID, GitActions.PullWithRebaseAction.LABEL),
 				this.instantiationService.createInstance(GitActions.PushAction, GitActions.PushAction.ID, GitActions.PushAction.LABEL),
 				this.instantiationService.createInstance(GitActions.PushToRemoteAction, GitActions.PushToRemoteAction.ID, GitActions.PushToRemoteAction.LABEL),
 				new ActionBar.Separator(),
@@ -452,12 +453,12 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 		const resource = WorkbenchEditorCommon.toResource(input, { filter: 'file' });
 		if (resource) {
 			const workspaceRoot = this.contextService.getWorkspace().resource.fsPath;
-			if (!workspaceRoot || !paths.isEqualOrParent(resource.fsPath, workspaceRoot)) {
+			if (!workspaceRoot || !isEqualOrParent(resource.fsPath, workspaceRoot, !Platform.isLinux /* ignorecase */)) {
 				return null; // out of workspace not yet supported
 			}
 
 			const repositoryRoot = this.gitService.getModel().getRepositoryRoot();
-			if (!repositoryRoot || !paths.isEqualOrParent(resource.fsPath, repositoryRoot)) {
+			if (!repositoryRoot || !isEqualOrParent(resource.fsPath, repositoryRoot, !Platform.isLinux /* ignorecase */)) {
 				return null; // out of repository not supported
 			}
 
