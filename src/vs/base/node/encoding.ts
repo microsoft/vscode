@@ -99,7 +99,7 @@ const MINIMUM_THRESHOLD = 0.2; //Todo. Decide how much this should be.
 
 const IGNORE_ENCODINGS = ['ascii', 'utf-8', 'utf-16', 'utf-32'];
 
-function stripNonAlphaNumeric(encodingName: string): string {
+function lowerCaseWithNonAlphaNumeric(encodingName: string): string {
 	return encodingName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
 }
 
@@ -121,7 +121,7 @@ export function guessEncodingByBuffer(buffer: NodeBuffer): string {
 		return null;
 	}
 
-	return stripNonAlphaNumeric(guessed.encoding);
+	return lowerCaseWithNonAlphaNumeric(guessed.encoding);
 }
 /**
  * The encodings that are allowed in a settings file don't match the canonical encoding labels specified by WHATWG.
