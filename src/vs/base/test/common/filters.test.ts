@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { IFilter, or, matchesPrefix, matchesStrictPrefix, matchesCamelCase, matchesSubString, matchesContiguousSubString, matchesWords, fuzzyMatchAndScore } from 'vs/base/common/filters';
+import { IFilter, or, matchesPrefix, matchesStrictPrefix, matchesCamelCase, matchesSubString, matchesContiguousSubString, matchesWords, fuzzyMatchAndScore, fuzzyScore } from 'vs/base/common/filters';
 
 function filterOk(filter: IFilter, word: string, wordToMatchAgainst: string, highlights?: { start: number; end: number; }[]) {
 	let r = filter(word, wordToMatchAgainst);
@@ -193,23 +193,22 @@ suite('Filters', () => {
 		assert.deepEqual(matchesWords('pu', 'Category: Git: Pull', true), [{ start: 15, end: 17 }]);
 	});
 
-	test('fuzzyMatchAndScore', function () {
-
-		function assertMatches(pattern: string, word: string, decoratedWord: string, filter: typeof fuzzyMatchAndScore) {
-			let r = filter(pattern, word);
-			assert.ok(Boolean(r) === Boolean(decoratedWord));
-			if (r) {
-				const [, matches] = r;
-				let pos = 0;
-				for (let i = 0; i < matches.length; i++) {
-					let actual = matches[i];
-					let expected = decoratedWord.indexOf('^', pos) - i;
-					assert.equal(actual, expected);
-					pos = expected + 1 + i;
-				}
+	function assertMatches(pattern: string, word: string, decoratedWord: string, filter: typeof fuzzyMatchAndScore) {
+		let r = filter(pattern, word);
+		assert.ok(Boolean(r) === Boolean(decoratedWord));
+		if (r) {
+			const [, matches] = r;
+			let pos = 0;
+			for (let i = 0; i < matches.length; i++) {
+				let actual = matches[i];
+				let expected = decoratedWord.indexOf('^', pos) - i;
+				assert.equal(actual, expected);
+				pos = expected + 1 + i;
 			}
 		}
+	}
 
+	test('fuzzyMatchAndScore', function () {
 		assertMatches('no', 'match', undefined, fuzzyMatchAndScore);
 		assertMatches('no', '', undefined, fuzzyMatchAndScore);
 		assertMatches('BK', 'the_black_knight', 'the_^black_^knight', fuzzyMatchAndScore);
@@ -237,6 +236,33 @@ suite('Filters', () => {
 		assertMatches('fdm', 'findModel', '^fin^d^Model', fuzzyMatchAndScore);
 		assertMatches('form', 'editor.formatOnSave', 'editor.^f^o^r^matOnSave', fuzzyMatchAndScore);
 		assertMatches('KeyboardLayoutEventChange=', 'KeyboardLayoutEventChange', undefined, fuzzyMatchAndScore);
+	});
+
+	test('fuzzyScore', function () {
+
+		assertMatches('LLL', 'SVisualLoggerLogsList', 'SVisual^Logger^Logs^List', fuzzyScore);
+		assertMatches('sllll', 'SVisualLoggerLogsList', '^SVisua^l^Logger^Logs^List', fuzzyScore);
+		assertMatches('sl', 'SVisualLoggerLogsList', '^SVisual^LoggerLogsList', fuzzyScore);
+		assertMatches('LLLL', 'SVilLoLosLi', undefined, fuzzyScore);
+		assertMatches('fob', 'foobar', '^f^oo^bar', fuzzyScore);
+		assertMatches('ob', 'foobar', undefined, fuzzyScore);
+		assertMatches('fobz', 'foobar', undefined, fuzzyScore);
+		assertMatches('ba', '?AB?', undefined, fuzzyScore);
+		assertMatches('ccm', 'camelCasecm', '^camel^Casec^m', fuzzyScore);
+		assertMatches('myvable', 'myvariable', '^m^y^v^aria^b^l^e', fuzzyScore);
+		assertMatches('fdm', 'findModel', '^fin^d^Model', fuzzyScore);
+		assertMatches('KeyboardLayout=', 'KeyboardLayout', undefined, fuzzyScore);
+		assertMatches('TEdit', 'TextEdit', '^Text^E^d^i^t', fuzzyScore);
+		assertMatches('TEdit', 'text_edit', '^text_^e^d^i^t', fuzzyScore);
+		assertMatches('TEdit', 'Textedit', '^T^exte^d^i^t', fuzzyScore);
+		assertMatches('Tedit', 'TextEdit', '^Text^E^d^i^t', fuzzyScore);
+		assertMatches('TEdit', 'TextEditor', '^Text^E^d^i^tor', fuzzyScore);
+		assertMatches('TEditDit', 'TextEditorDecorationType', '^Text^E^d^i^tor^Decorat^ion^Type', fuzzyScore);
+		assertMatches('form', 'editor.formatOnSave', 'editor.^f^o^r^matOnSave', fuzzyScore);
+		assertMatches('g p', 'Git: Pull', '^Git:^ ^Pull', fuzzyScore);
+		assertMatches('gip', 'Git: Pull', '^G^it: ^Pull', fuzzyScore);
+		assertMatches('is', 'isValid', '^i^sValid', fuzzyScore);
+		assertMatches('is', 'ImportStatement', '^Import^Statement', fuzzyScore);
 	});
 
 	test('topScore', function () {
