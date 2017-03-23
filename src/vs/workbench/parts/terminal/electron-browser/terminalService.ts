@@ -16,7 +16,7 @@ import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { IQuickOpenService, IPickOpenEntry, IPickOptions } from 'vs/platform/quickOpen/common/quickOpen';
-import { ITerminalInstance, ITerminalService, IShellLaunchConfig, ITerminalConfigHelper } from 'vs/workbench/parts/terminal/common/terminal';
+import { ITerminalInstance, ITerminalService, IShellLaunchConfig, ITerminalConfigHelper, NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY } from 'vs/workbench/parts/terminal/common/terminal';
 import { TerminalService as AbstractTerminalService } from 'vs/workbench/parts/terminal/common/terminalService';
 import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 import { TerminalInstance } from 'vs/workbench/parts/terminal/electron-browser/terminalInstance';
@@ -81,14 +81,14 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		}
 
 		// Don't suggest if the user has explicitly opted out
-		const neverSuggest = this._storageService.getBoolean('terminal.neverSuggestSelectWindowsShell', StorageScope.GLOBAL, false);
+		const neverSuggest = this._storageService.getBoolean(NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY, StorageScope.GLOBAL, false);
 		if (neverSuggest) {
 			return;
 		}
 
 		// Never suggest if the setting is non-default already (ie. they set the setting manually)
 		if (this._configHelper.config.shell.windows !== TERMINAL_DEFAULT_SHELL_WINDOWS) {
-			this._storageService.store('terminal.neverSuggestSelectWindowsShell', true);
+			this._storageService.store(NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY, true);
 			return;
 		}
 
@@ -101,7 +101,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 				case 1:
 					return TPromise.as(null);
 				case 2:
-					this._storageService.store('terminal.neverSuggestSelectWindowsShell', true);
+					this._storageService.store(NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY, true);
 				default:
 					return TPromise.as(null);
 			}
