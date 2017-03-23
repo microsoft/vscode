@@ -565,6 +565,11 @@ export class TerminalInstance implements ITerminalInstance {
 		// Ensure new processes' output starts at start of new line
 		this._xterm.write('\n\x1b[G');
 
+		// Print initialText if specified
+		if (shell.initialText) {
+			this._xterm.writeln(shell.initialText);
+		}
+
 		// Initialize new process
 		const oldTitle = this._title;
 		this._createProcess(this._contextService.getWorkspace(), shell);
