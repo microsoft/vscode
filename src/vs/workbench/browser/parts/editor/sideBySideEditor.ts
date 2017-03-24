@@ -161,7 +161,7 @@ export class SideBySideEditor extends BaseEditor {
 		this.updateStyles();
 	}
 
-	protected updateStyles(): void {
+	public updateStyles(): void {
 		super.updateStyles();
 
 		if (this.masterEditorContainer) {
