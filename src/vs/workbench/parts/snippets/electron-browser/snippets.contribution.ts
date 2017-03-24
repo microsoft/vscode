@@ -10,7 +10,7 @@ import 'vs/workbench/parts/snippets/electron-browser/tabCompletion';
 
 import nls = require('vs/nls');
 import winjs = require('vs/base/common/winjs.base');
-import paths = require('vs/base/common/paths');
+import { join } from 'path';
 import actions = require('vs/base/common/actions');
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import platform = require('vs/platform/platform');
@@ -63,7 +63,7 @@ class OpenSnippetsAction extends actions.Action {
 
 		return this.quickOpenService.pick(picks, { placeHolder: nls.localize('openSnippet.pickLanguage', "Select Language for Snippet") }).then((language) => {
 			if (language) {
-				var snippetPath = paths.join(this.environmentService.appSettingsHome, 'snippets', language.id + '.json');
+				var snippetPath = join(this.environmentService.appSettingsHome, 'snippets', language.id + '.json');
 				return fileExists(snippetPath).then((success) => {
 					if (success) {
 						return this.openFile(snippetPath);

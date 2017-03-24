@@ -4,14 +4,49 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { SimpleRuntimeKeybinding, KeyCode, RuntimeKeybindingType, createRuntimeKeybinding } from 'vs/base/common/keyCodes';
+import { SimpleKeybinding, KeyCode, KeybindingType, createKeybinding, Keybinding } from 'vs/base/common/keyCodes';
 import { OS, OperatingSystem } from 'vs/base/common/platform';
-import { IKeybindingItem, IKeybindings } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { CommandsRegistry, ICommandHandler, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { Registry } from 'vs/platform/platform';
 
+export interface IKeybindingItem {
+	keybinding: Keybinding;
+	command: string;
+	commandArgs?: any;
+	when: ContextKeyExpr;
+	weight1: number;
+	weight2: number;
+}
+
+export interface IKeybindings {
+	primary: number;
+	secondary?: number[];
+	win?: {
+		primary: number;
+		secondary?: number[];
+	};
+	linux?: {
+		primary: number;
+		secondary?: number[];
+	};
+	mac?: {
+		primary: number;
+		secondary?: number[];
+	};
+}
+
 export interface IKeybindingRule extends IKeybindings {
+	id: string;
+	weight: number;
+	when: ContextKeyExpr;
+}
+
+export interface IKeybindingRule2 {
+	primary: Keybinding;
+	win?: { primary: Keybinding; };
+	linux?: { primary: Keybinding; };
+	mac?: { primary: Keybinding; };
 	id: string;
 	weight: number;
 	when: ContextKeyExpr;
@@ -24,6 +59,7 @@ export interface ICommandAndKeybindingRule extends IKeybindingRule {
 
 export interface IKeybindingsRegistry {
 	registerKeybindingRule(rule: IKeybindingRule): void;
+	registerKeybindingRule2(rule: IKeybindingRule2): void;
 	registerCommandAndKeybindingRule(desc: ICommandAndKeybindingRule): void;
 	getDefaultKeybindings(): IKeybindingItem[];
 
@@ -83,15 +119,44 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		return kb;
 	}
 
+	/**
+	 * Take current platform into account and reduce to primary & secondary.
+	 */
+	private static bindToCurrentPlatform2(kb: IKeybindingRule2): { primary?: Keybinding; } {
+		if (OS === OperatingSystem.Windows) {
+			if (kb && kb.win) {
+				return kb.win;
+			}
+		} else if (OS === OperatingSystem.Macintosh) {
+			if (kb && kb.mac) {
+				return kb.mac;
+			}
+		} else {
+			if (kb && kb.linux) {
+				return kb.linux;
+			}
+		}
+
+		return kb;
+	}
+
 	public registerKeybindingRule(rule: IKeybindingRule): void {
 		let actualKb = KeybindingsRegistryImpl.bindToCurrentPlatform(rule);
 
 		if (actualKb && actualKb.primary) {
-			this.registerDefaultKeybinding(actualKb.primary, rule.id, rule.weight, 0, rule.when);
+			this.registerDefaultKeybinding(createKeybinding(actualKb.primary, OS), rule.id, rule.weight, 0, rule.when);
 		}
 
 		if (actualKb && Array.isArray(actualKb.secondary)) {
-			actualKb.secondary.forEach((k, i) => this.registerDefaultKeybinding(k, rule.id, rule.weight, -i - 1, rule.when));
+			actualKb.secondary.forEach((k, i) => this.registerDefaultKeybinding(createKeybinding(k, OS), rule.id, rule.weight, -i - 1, rule.when));
+		}
+	}
+
+	public registerKeybindingRule2(rule: IKeybindingRule2): void {
+		let actualKb = KeybindingsRegistryImpl.bindToCurrentPlatform2(rule);
+
+		if (actualKb && actualKb.primary) {
+			this.registerDefaultKeybinding(actualKb.primary, rule.id, rule.weight, 0, rule.when);
 		}
 	}
 
@@ -124,7 +189,7 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		);
 	}
 
-	private _assertNoCtrlAlt(keybinding: SimpleRuntimeKeybinding, commandId: string): void {
+	private _assertNoCtrlAlt(keybinding: SimpleKeybinding, commandId: string): void {
 		if (keybinding.ctrlKey && keybinding.altKey && !keybinding.metaKey) {
 			if (KeybindingsRegistryImpl._mightProduceChar(keybinding.keyCode)) {
 				console.warn('Ctrl+Alt+ keybindings should not be used by default under Windows. Offender: ', keybinding, ' for ', commandId);
@@ -132,17 +197,16 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		}
 	}
 
-	private registerDefaultKeybinding(keybinding: number, commandId: string, weight1: number, weight2: number, when: ContextKeyExpr): void {
-		const runtimeKeybinding = createRuntimeKeybinding(keybinding, OS);
+	private registerDefaultKeybinding(keybinding: Keybinding, commandId: string, weight1: number, weight2: number, when: ContextKeyExpr): void {
 		if (OS === OperatingSystem.Windows) {
-			if (runtimeKeybinding.type === RuntimeKeybindingType.Chord) {
-				this._assertNoCtrlAlt(runtimeKeybinding.firstPart, commandId);
+			if (keybinding.type === KeybindingType.Chord) {
+				this._assertNoCtrlAlt(keybinding.firstPart, commandId);
 			} else {
-				this._assertNoCtrlAlt(runtimeKeybinding, commandId);
+				this._assertNoCtrlAlt(keybinding, commandId);
 			}
 		}
 		this._keybindings.push({
-			keybinding: runtimeKeybinding,
+			keybinding: keybinding,
 			command: commandId,
 			commandArgs: null,
 			when: when,

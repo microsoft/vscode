@@ -25,7 +25,6 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionGalleryService, IExtensionManifest, IKeyBinding } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
 import { IExtensionsWorkbenchService, IExtensionsViewlet, VIEWLET_ID, IExtension, IExtensionDependencies } from 'vs/workbench/parts/extensions/common/extensions';
 import { Renderer, DataSource, Controller } from 'vs/workbench/parts/extensions/browser/dependenciesViewer';
@@ -36,7 +35,6 @@ import { EditorOptions } from 'vs/workbench/common/editor';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { CombinedInstallAction, UpdateAction, EnableAction, DisableAction, BuiltinStatusLabelAction, ReloadAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
 import WebView from 'vs/workbench/parts/html/browser/webview';
-import { createRuntimeKeybinding } from 'vs/base/common/keyCodes';
 import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
@@ -47,6 +45,7 @@ import { Position } from 'vs/platform/editor/common/editor';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { OS } from 'vs/base/common/platform';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
+import { IThemeService } from "vs/platform/theme/common/themeService";
 
 function renderBody(body: string): string {
 	const nonce = new Date().getTime() + '' + new Date().getMilliseconds();
@@ -156,7 +155,7 @@ export class ExtensionEditor extends BaseEditor {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IViewletService private viewletService: IViewletService,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IWorkbenchThemeService protected themeService: IWorkbenchThemeService,
+		@IThemeService protected themeService: IThemeService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IMessageService private messageService: IMessageService,
 		@IOpenerService private openerService: IOpenerService,
@@ -323,11 +322,16 @@ export class ExtensionEditor extends BaseEditor {
 			.then(renderBody)
 			.then<void>(body => {
 				const webview = new WebView(this.content, this.partService.getContainer(Parts.EDITOR_PART));
-				webview.style(this.themeService.getColorTheme());
+				webview.style(this.themeService.getTheme());
 				webview.contents = [body];
 
-				webview.onDidClickLink(link => this.openerService.open(link), null, this.contentDisposables);
-				this.themeService.onDidColorThemeChange(theme => webview.style(theme), null, this.contentDisposables);
+				webview.onDidClickLink(link => {
+					// Whitelist supported schemes for links
+					if (link && ['http', 'https', 'mailto'].indexOf(link.scheme) >= 0) {
+						this.openerService.open(link);
+					}
+				}, null, this.contentDisposables);
+				this.themeService.onThemeChange(theme => webview.style(theme), null, this.contentDisposables);
 				this.contentDisposables.push(webview);
 			})
 			.then(null, () => {
@@ -668,9 +672,12 @@ export class ExtensionEditor extends BaseEditor {
 			case 'darwin': key = rawKeyBinding.mac; break;
 		}
 
-		const keyBinding = createRuntimeKeybinding(KeybindingIO.readKeybinding(key || rawKeyBinding.key, OS), OS);
-		const resolvedKeybinding = this.keybindingService.resolveKeybinding(keyBinding);
-		const result = resolvedKeybinding.getLabel();
+		const keyBinding = KeybindingIO.readKeybinding(key || rawKeyBinding.key, OS);
+		const resolvedKeybindings = this.keybindingService.resolveKeybinding(keyBinding);
+		if (resolvedKeybindings.length === 0) {
+			return null;
+		}
+		const result = resolvedKeybindings[0].getLabel();
 		return result === 'unknown' ? null : result;
 	}
 

@@ -357,3 +357,229 @@ export function matchesFuzzy(word: string, wordToMatchAgainst: string, enableSep
 	// Default Filter
 	return enableSeparateSubstringMatching ? fuzzySeparateFilter(word, wordToMatchAgainst) : fuzzyContiguousFilter(word, wordToMatchAgainst);
 }
+
+export function matchesFuzzy2(pattern: string, word: string): number[] {
+
+	pattern = pattern.toLowerCase();
+	word = word.toLowerCase();
+
+	let matches: number[] = [];
+	let patternPos = 0;
+	let wordPos = 0;
+	while (patternPos < pattern.length && wordPos < word.length) {
+		if (pattern[patternPos] === word[wordPos]) {
+			patternPos += 1;
+			matches.push(wordPos);
+		}
+		wordPos += 1;
+	}
+
+	if (patternPos !== pattern.length) {
+		return undefined;
+	}
+
+	return matches;
+}
+
+export function createMatches(position: number[]): IMatch[] {
+	let ret: IMatch[] = [];
+	let last: IMatch;
+	for (const pos of position) {
+		if (last && last.end === pos) {
+			last.end += 1;
+		} else {
+			last = { start: pos, end: pos + 1 };
+			ret.push(last);
+		}
+	}
+	return ret;
+}
+
+function initTable() {
+	const table: number[][] = [];
+	const row: number[] = [0];
+	for (let i = 1; i <= 100; i++) {
+		row.push(-i);
+	}
+	for (let i = 0; i < 100; i++) {
+		let thisRow = row.slice(0);
+		thisRow[0] = -i;
+		table.push(thisRow);
+	}
+	return table;
+}
+
+const _table = initTable();
+const _arrows = initTable();
+const _debug = false;
+
+function printTable(table: number[][], pattern: string, patternLen: number, word: string, wordLen: number): string {
+	function pad(s: string, n: number, pad = ' ') {
+		while (s.length < n) {
+			s = pad + s;
+		}
+		return s;
+	}
+	let ret = ` |   |${word.split('').map(c => pad(c, 3)).join('|')}\n`;
+
+	for (let i = 0; i <= patternLen; i++) {
+		if (i === 0) {
+			ret += ' |';
+		} else {
+			ret += `${pattern[i - 1]}|`;
+		}
+		ret += table[i].slice(0, wordLen + 1).map(n => pad(n.toString(), 3)).join('|') + '\n';
+	}
+	return ret;
+}
+
+const _seps: { [ch: string]: boolean } = Object.create(null);
+_seps['_'] = true;
+_seps['.'] = true;
+_seps[' '] = true;
+_seps['/'] = true;
+_seps['\\'] = true;
+
+export function fuzzyScore(pattern: string, word: string): [number, number[]] {
+
+	const patternLen = pattern.length > 25 ? 25 : pattern.length;
+	const wordLen = word.length > 100 ? 100 : word.length;
+
+	if (patternLen === 0) {
+		return [-1, []];
+	}
+
+	if (patternLen > wordLen) {
+		return undefined;
+	}
+
+	const lowPattern = pattern.toLowerCase();
+	const lowWord = word.toLowerCase();
+	let i = 0;
+	let j = 0;
+
+	while (i < patternLen && j < wordLen) {
+		if (lowPattern[i] === lowWord[j]) {
+			i += 1;
+		}
+		j += 1;
+	}
+	if (i !== patternLen) {
+		// no simple matches found -> return early
+		return undefined;
+	}
+
+	for (i = 1; i <= patternLen; i++) {
+
+		let lastLowWordChar = '';
+
+		for (j = 1; j <= wordLen; j++) {
+
+			let score = -1;
+			let lowWordChar = lowWord[j - 1];
+			if (lowPattern[i - 1] === lowWordChar) {
+
+				if (j === 1) {
+					if (pattern[i - 1] === word[j - 1]) {
+						score = 7;
+					} else {
+						score = 5;
+					}
+				} else if (lowWordChar !== word[j - 1]) {
+					if (pattern[i - 1] === word[j - 1]) {
+						score = 7;
+					} else {
+						score = 5;
+					}
+				} else if (_seps[lastLowWordChar]) {
+					score = 5;
+
+				} else if (j === i) {
+					score = 3;
+
+				} else {
+					score = 1;
+				}
+			}
+
+			let diag = _table[i - 1][j - 1] + score;
+			let top = _table[i - 1][j] + -1;
+			let left = _table[i][j - 1] + -1;
+
+			if (left >= top) {
+				// left or diag
+				if (left >= diag) {
+					_table[i][j] = left;
+					_arrows[i][j] = -1;
+				} else {
+					_table[i][j] = diag;
+					_arrows[i][j] = 0;
+				}
+			} else {
+				// top or diag
+				if (diag >= top) {
+					_table[i][j] = diag;
+					_arrows[i][j] = 0;
+				} else {
+					_table[i][j] = top;
+					_arrows[i][j] = 1;
+				}
+			}
+
+			lastLowWordChar = lowWordChar;
+		}
+	}
+
+	if (_debug) {
+		console.log(printTable(_table, pattern, patternLen, word, wordLen));
+		console.log(printTable(_arrows, pattern, patternLen, word, wordLen));
+	}
+
+	let matches: number[] = [];
+	let total = 0;
+	i = patternLen;
+	j = wordLen;
+	while (i > 0 && j > 0) {
+		let value = _table[i][j];
+		let arrow = _arrows[i][j];
+		if (arrow === -1 || arrow === 1) {
+			// keep going left, we cannot
+			// skip a character in the pattern
+			j -= 1;
+
+		} else if (arrow === 0) { //diag
+			j -= 1;
+			i -= 1;
+
+			let score = value - _table[i][j];
+			if (i === 0 && score === 1) {
+				// we have reached the first pattern char and now
+				// test that it has scored properly, like `o -> bbOO`
+				// and not `o -> foobar`
+				return undefined;
+
+			} else if (score < 1) {
+				// we went diagonal by inheriting a good
+				// result, not by matching keep going left
+				i += 1;
+
+			} else {
+				// all good
+				total += value;
+				matches.unshift(j);
+			}
+		}
+	}
+
+	if (j > 3) {
+		j = 3;
+	}
+	total -= j * 3; // penalty for first matching character
+	total -= (1 + matches[matches.length - 1]) - pattern.length; // penalty for all non matching characters between first and last
+
+	if (_debug) {
+		console.log(`${pattern} & ${word} => ${total} points for ${matches}`);
+	}
+
+	return [total, matches];
+}

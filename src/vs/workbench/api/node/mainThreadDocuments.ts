@@ -7,7 +7,6 @@
 import URI from 'vs/base/common/uri';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { EmitterEvent } from 'vs/base/common/eventEmitter';
-import { setDisposableTimeout } from 'vs/base/common/async';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
@@ -25,48 +24,47 @@ import { MainThreadDocumentsAndEditors } from './mainThreadDocumentsAndEditors';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ITextEditorModel } from 'vs/workbench/common/editor';
 
-class TimeoutReference {
+export class BoundModelReferenceCollection {
 
-	private static _delay = 1000 * 60 * 3;
-
-	private _timer: IDisposable;
-	private _disposed = false;
+	private _data = new Array<{ length: number, dispose(): void }>();
+	private _length = 0;
 
 	constructor(
-		readonly codeEditorService: ICodeEditorService,
-		readonly editorGroupService: IEditorGroupService,
-		readonly reference: IReference<ITextEditorModel>
+		private _maxAge: number = 1000 * 60 * 3,
+		private _maxLength: number = 1024 * 1024 * 80
 	) {
-
-		const check = () => {
-			if (!this.isUsed()) {
-				this.dispose();
-			} else {
-				this._timer = setDisposableTimeout(check, TimeoutReference._delay);
-			}
-		};
-		this._timer = setDisposableTimeout(check, TimeoutReference._delay);
+		//
 	}
 
 	dispose(): void {
-		if (!this._disposed) {
-			this._disposed = true;
-			dispose(this.reference, this._timer);
-		}
+		this._data = dispose(this._data);
 	}
 
-	private isUsed(): boolean {
-		for (const editor of this.codeEditorService.listCodeEditors()) {
-			if (editor.getModel() === this.reference.object.textEditorModel) {
-				return true;
+	add(ref: IReference<ITextEditorModel>): void {
+		let length = ref.object.textEditorModel.getValueLength();
+		let handle: number;
+		let entry: { length: number, dispose(): void };
+		const dispose = () => {
+			let idx = this._data.indexOf(entry);
+			if (idx >= 0) {
+				this._length -= length;
+				ref.dispose();
+				clearTimeout(handle);
+				this._data.splice(idx, 1);
 			}
+		};
+		handle = setTimeout(dispose, this._maxAge);
+		entry = { length, dispose };
+
+		this._data.push(entry);
+		this._length += length;
+		this._cleanup();
+	}
+
+	private _cleanup(): void {
+		while (this._length > this._maxLength) {
+			this._data[0].dispose();
 		}
-		for (const group of this.editorGroupService.getStacksModel().groups) {
-			if (group.contains(this.reference.object.textEditorModel.uri)) {
-				return true;
-			}
-		}
-		return false;
 	}
 }
 
@@ -86,6 +84,7 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 	private _proxy: ExtHostDocumentsShape;
 	private _modelIsSynced: { [modelId: string]: boolean; };
 	private _resourceContentProvider: { [handle: number]: IDisposable };
+	private _modelReferenceCollection = new BoundModelReferenceCollection();
 
 	constructor(
 		documentsAndEditors: MainThreadDocumentsAndEditors,
@@ -113,6 +112,7 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 		this._modelIsSynced = {};
 
 		this._toDispose = [];
+		this._toDispose.push(this._modelReferenceCollection);
 		this._toDispose.push(documentsAndEditors.onDocumentAdd(models => models.forEach(this._onModelAdded, this)));
 		this._toDispose.push(documentsAndEditors.onDocumentRemove(urls => urls.forEach(this._onModelRemoved, this)));
 		modelService.onModelModeChanged(this._onModelModeChanged, this, this._toDispose);
@@ -234,11 +234,7 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 
 	private _handleAsResourceInput(uri: URI): TPromise<boolean> {
 		return this._textModelResolverService.createModelReference(uri).then(ref => {
-			// TimeoutReference will check every 3 min if the
-			// reference is still in use. This is quite harsh to
-			// extensions but we don't want them to make us hold
-			// on to model indefinitely
-			this._toDispose.push(new TimeoutReference(this._codeEditorService, this._editorGroupService, ref));
+			this._modelReferenceCollection.add(ref);
 			const result = !!ref.object;
 			return result;
 		});

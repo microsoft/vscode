@@ -26,10 +26,10 @@ export interface ISnippetsService {
 
 export interface ISnippet {
 	name: string;
-	owner: string;
 	prefix: string;
 	description: string;
 	codeSnippet: string;
+	extensionName?: string;
 }
 
 interface ISnippetSuggestion extends ISuggestion {
@@ -39,6 +39,8 @@ interface ISnippetSuggestion extends ISuggestion {
 class SnippetsService implements ISnippetsService {
 
 	_serviceBrand: any;
+
+	private static _defaultDetail = localize('detail.userSnippet', "User Snippet");
 
 	private _snippets = new Map<LanguageId, Map<string, ISnippet[]>>();
 
@@ -119,7 +121,7 @@ class SnippetsService implements ISnippetsService {
 				type: 'snippet',
 				label: s.prefix,
 				get disambiguateLabel() { return localize('snippetSuggest.longLabel', "{0}, {1}", s.prefix, s.name); },
-				detail: s.owner,
+				detail: s.extensionName || SnippetsService._defaultDetail,
 				documentation: s.description,
 				insertText: s.codeSnippet,
 				noAutoAccept: true,
@@ -141,11 +143,25 @@ class SnippetsService implements ISnippetsService {
 			lastSuggestion = suggestion;
 		}
 
+		result.sort(SnippetsService._compareSuggestionsByDetail);
+
 		return result;
 	}
 
 	private static _compareSuggestionsByLabel(a: ISuggestion, b: ISuggestion): number {
 		return strings.compare(a.label, b.label);
+	}
+
+	private static _compareSuggestionsByDetail(a: ISuggestion, b: ISuggestion): number {
+		if (a.detail === b.detail) {
+			return 0;
+		} else if (a.detail === SnippetsService._defaultDetail) {
+			return -1;
+		} else if (b.detail === SnippetsService._defaultDetail) {
+			return 1;
+		} else {
+			return strings.compare(a.detail, b.detail);
+		}
 	}
 }
 

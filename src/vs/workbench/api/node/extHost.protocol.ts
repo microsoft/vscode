@@ -34,10 +34,10 @@ import { IWorkspaceConfigurationValues } from 'vs/workbench/services/configurati
 
 import { IPickOpenEntry, IPickOptions } from 'vs/platform/quickOpen/common/quickOpen';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
-import { IWorkspaceSymbol } from 'vs/workbench/parts/search/common/search';
 import { IApplyEditsOptions, IUndoStopOptions, TextEditorRevealType, ITextEditorConfigurationUpdate, IResolvedTextEditorConfiguration, ISelectionChangeEvent } from './mainThreadEditor';
 
 import { InternalTreeExplorerNodeContent } from 'vs/workbench/parts/explorers/common/treeExplorerViewModel';
+import { TaskSet } from 'vs/workbench/parts/tasks/common/tasks';
 
 export interface IEnvironment {
 	enableProposedApi: boolean;
@@ -140,6 +140,7 @@ export abstract class MainThreadEditorsShape {
 	$trySetSelections(id: string, selections: editorCommon.ISelection[]): TPromise<any> { throw ni(); }
 	$tryApplyEdits(id: string, modelVersionId: number, edits: editorCommon.ISingleEditOperation[], opts: IApplyEditsOptions): TPromise<boolean> { throw ni(); }
 	$tryInsertSnippet(id: string, template: string, selections: editorCommon.IRange[], opts: IUndoStopOptions): TPromise<any> { throw ni(); }
+	$getDiffInformation(id: string): TPromise<editorCommon.ILineChange[]> { throw ni(); }
 }
 
 export abstract class MainThreadTreeExplorersShape {
@@ -237,6 +238,11 @@ export abstract class MainThreadWorkspaceShape {
 	$applyWorkspaceEdit(edits: IResourceEdit[]): TPromise<boolean> { throw ni(); }
 }
 
+export abstract class MainThreadTaskShape {
+	$registerTaskProvider(handle: number): TPromise<any> { throw ni(); }
+	$unregisterTaskProvider(handle: number): TPromise<any> { throw ni(); }
+}
+
 export abstract class MainProcessExtensionServiceShape {
 	$localShowMessage(severity: Severity, msg: string): void { throw ni(); }
 	$onExtensionActivated(extensionId: string): void { throw ni(); }
@@ -247,16 +253,22 @@ export interface SCMProviderFeatures {
 	label: string;
 	supportsOpen: boolean;
 	supportsAcceptChanges: boolean;
-	supportsDrag: boolean;
 	supportsOriginalResource: boolean;
 }
 
 export type SCMRawResource = [
 	string /*uri*/,
+	string /*sourceUri*/,
 	string[] /*icons: light, dark*/,
 	boolean /*strike through*/
 ];
-export type SCMRawResourceGroup = [string /*id*/, string /*label*/, SCMRawResource[]];
+
+export type SCMRawResourceGroup = [
+	string /*uri*/,
+	string /*id*/,
+	string /*label*/,
+	SCMRawResource[]
+];
 
 export abstract class MainThreadSCMShape {
 	$register(id: string, features: SCMProviderFeatures): void { throw ni(); }
@@ -383,8 +395,8 @@ export abstract class ExtHostLanguageFeaturesShape {
 	$provideDocumentFormattingEdits(handle: number, resource: URI, options: modes.FormattingOptions): TPromise<editorCommon.ISingleEditOperation[]> { throw ni(); }
 	$provideDocumentRangeFormattingEdits(handle: number, resource: URI, range: editorCommon.IRange, options: modes.FormattingOptions): TPromise<editorCommon.ISingleEditOperation[]> { throw ni(); }
 	$provideOnTypeFormattingEdits(handle: number, resource: URI, position: editorCommon.IPosition, ch: string, options: modes.FormattingOptions): TPromise<editorCommon.ISingleEditOperation[]> { throw ni(); }
-	$provideWorkspaceSymbols(handle: number, search: string): TPromise<IWorkspaceSymbol[]> { throw ni(); }
-	$resolveWorkspaceSymbol(handle: number, symbol: IWorkspaceSymbol): TPromise<IWorkspaceSymbol> { throw ni(); }
+	$provideWorkspaceSymbols(handle: number, search: string): TPromise<modes.SymbolInformation[]> { throw ni(); }
+	$resolveWorkspaceSymbol(handle: number, symbol: modes.SymbolInformation): TPromise<modes.SymbolInformation> { throw ni(); }
 	$provideRenameEdits(handle: number, resource: URI, position: editorCommon.IPosition, newName: string): TPromise<modes.WorkspaceEdit> { throw ni(); }
 	$provideCompletionItems(handle: number, resource: URI, position: editorCommon.IPosition): TPromise<modes.ISuggestResult> { throw ni(); }
 	$resolveCompletionItem(handle: number, resource: URI, position: editorCommon.IPosition, suggestion: modes.ISuggestion): TPromise<modes.ISuggestion> { throw ni(); }
@@ -404,11 +416,14 @@ export abstract class ExtHostTerminalServiceShape {
 }
 
 export abstract class ExtHostSCMShape {
-	$open(id: string, resourceGroupId: string, uri: string): TPromise<void> { throw ni(); }
+	$open(id: string, uri: string): TPromise<void> { throw ni(); }
 	$acceptChanges(id: string): TPromise<void> { throw ni(); }
-	$drag(id: string, fromResourceGroupId: string, fromUri: string, toResourceGroupId: string): TPromise<void> { throw ni(); }
 	$getOriginalResource(id: string, uri: URI): TPromise<URI> { throw ni(); }
 	$onInputBoxValueChange(value: string): TPromise<void> { throw ni(); }
+}
+
+export abstract class ExtHostTaskShape {
+	$provideTasks(handle: number): TPromise<TaskSet> { throw ni(); }
 }
 
 // --- proxy identifiers
@@ -433,7 +448,8 @@ export const MainContext = {
 	MainThreadTerminalService: createMainId<MainThreadTerminalServiceShape>('MainThreadTerminalService', MainThreadTerminalServiceShape),
 	MainThreadWorkspace: createMainId<MainThreadWorkspaceShape>('MainThreadWorkspace', MainThreadWorkspaceShape),
 	MainProcessExtensionService: createMainId<MainProcessExtensionServiceShape>('MainProcessExtensionService', MainProcessExtensionServiceShape),
-	MainThreadSCM: createMainId<MainThreadSCMShape>('MainThreadSCM', MainThreadSCMShape)
+	MainThreadSCM: createMainId<MainThreadSCMShape>('MainThreadSCM', MainThreadSCMShape),
+	MainThreadTask: createMainId<MainThreadTaskShape>('MainThreadTask', MainThreadTaskShape)
 };
 
 export const ExtHostContext = {
@@ -451,5 +467,6 @@ export const ExtHostContext = {
 	ExtHostQuickOpen: createExtId<ExtHostQuickOpenShape>('ExtHostQuickOpen', ExtHostQuickOpenShape),
 	ExtHostExtensionService: createExtId<ExtHostExtensionServiceShape>('ExtHostExtensionService', ExtHostExtensionServiceShape),
 	ExtHostTerminalService: createExtId<ExtHostTerminalServiceShape>('ExtHostTerminalService', ExtHostTerminalServiceShape),
-	ExtHostSCM: createExtId<ExtHostSCMShape>('ExtHostSCM', ExtHostSCMShape)
+	ExtHostSCM: createExtId<ExtHostSCMShape>('ExtHostSCM', ExtHostSCMShape),
+	ExtHostTask: createExtId<ExtHostTaskShape>('ExtHostTask', ExtHostTaskShape)
 };

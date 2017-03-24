@@ -8,9 +8,8 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IEditorService } from 'vs/platform/editor/common/editor';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindings } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ICommandAndKeybindingRule, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { ICommandAndKeybindingRule, KeybindingsRegistry, IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ICodeEditorService, getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 import { CommandsRegistry, ICommandHandler, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
@@ -198,11 +197,10 @@ function registerCoreDispatchCommand(handlerId: string): void {
 }
 registerCoreDispatchCommand(H.Type);
 registerCoreDispatchCommand(H.ReplacePreviousChar);
+registerCoreDispatchCommand(H.CompositionStart);
+registerCoreDispatchCommand(H.CompositionEnd);
 registerCoreDispatchCommand(H.Paste);
 registerCoreDispatchCommand(H.Cut);
-
-registerOverwritableCommand(H.CompositionStart, () => { });
-registerOverwritableCommand(H.CompositionEnd, () => { });
 
 class WordCommand extends CoreCommand {
 	public static getMacWordNavigationKB(shift: boolean, key: KeyCode): number {

@@ -30,6 +30,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { Verbosity } from 'vs/platform/editor/common/editor';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_BACKGROUND } from 'vs/workbench/common/theme';
 
 export class TitlebarPart extends Part implements ITitleService {
 
@@ -45,6 +46,8 @@ export class TitlebarPart extends Part implements ITitleService {
 	private pendingTitle: string;
 	private initialTitleFontSize: number;
 	private representedFileName: string;
+
+	private isInactive: boolean;
 
 	private titleTemplate: string;
 	private isPure: boolean;
@@ -93,10 +96,20 @@ export class TitlebarPart extends Part implements ITitleService {
 	}
 
 	private registerListeners(): void {
-		this.toUnbind.push(DOM.addDisposableListener(window, DOM.EventType.BLUR, () => { if (this.titleContainer) { this.titleContainer.addClass('blurred'); } }));
-		this.toUnbind.push(DOM.addDisposableListener(window, DOM.EventType.FOCUS, () => { if (this.titleContainer) { this.titleContainer.removeClass('blurred'); } }));
+		this.toUnbind.push(DOM.addDisposableListener(window, DOM.EventType.BLUR, () => this.onBlur()));
+		this.toUnbind.push(DOM.addDisposableListener(window, DOM.EventType.FOCUS, () => this.onFocus()));
 		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(() => this.onConfigurationChanged(true)));
 		this.toUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
+	}
+
+	private onBlur(): void {
+		this.isInactive = true;
+		this.updateStyles();
+	}
+
+	private onFocus(): void {
+		this.isInactive = false;
+		this.updateStyles();
 	}
 
 	private onConfigurationChanged(update?: boolean): void {
@@ -214,6 +227,15 @@ export class TitlebarPart extends Part implements ITitleService {
 		});
 
 		return this.titleContainer;
+	}
+
+	protected updateStyles(): void {
+		super.updateStyles();
+
+		// Part container
+		const container = this.getContainer();
+		container.style('color', this.getColor(this.isInactive ? TITLE_BAR_INACTIVE_FOREGROUND : TITLE_BAR_ACTIVE_FOREGROUND));
+		container.style('background-color', this.getColor(this.isInactive ? TITLE_BAR_INACTIVE_BACKGROUND : TITLE_BAR_ACTIVE_BACKGROUND));
 	}
 
 	private onTitleDoubleclick(): void {

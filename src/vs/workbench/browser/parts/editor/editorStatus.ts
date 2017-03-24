@@ -34,7 +34,7 @@ import { IEditor as IBaseEditor, IEditorInput } from 'vs/platform/editor/common/
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickOpenService, IPickOpenEntry, IFilePickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { IFilesConfiguration, SUPPORTED_ENCODINGS, isEqual } from 'vs/platform/files/common/files';
+import { IFilesConfiguration, SUPPORTED_ENCODINGS } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -516,9 +516,21 @@ export class EditorStatus implements IStatusbarItem {
 
 		// Handle binary editors
 		else if (activeEditor instanceof BaseBinaryResourceEditor || activeEditor instanceof BinaryResourceDiffEditor) {
-			this.activeEditorListeners.push(activeEditor.onMetadataChanged(metadata => {
-				this.onMetadataChange(activeEditor);
-			}));
+			let binaryEditors: BaseBinaryResourceEditor[] = [];
+			if (activeEditor instanceof BinaryResourceDiffEditor) {
+				binaryEditors = [
+					activeEditor.getDetailsEditor() as BaseBinaryResourceEditor,
+					activeEditor.getMasterEditor() as BaseBinaryResourceEditor
+				];
+			} else {
+				binaryEditors = [activeEditor];
+			}
+
+			binaryEditors.forEach(editor => {
+				this.activeEditorListeners.push(editor.onMetadataChanged(metadata => {
+					this.onMetadataChange(activeEditor);
+				}));
+			});
 		}
 	}
 
@@ -649,7 +661,7 @@ export class EditorStatus implements IStatusbarItem {
 		const activeEditor = this.editorService.getActiveEditor();
 		if (activeEditor) {
 			const activeResource = toResource(activeEditor.input, { supportSideBySide: true, filter: ['file', 'untitled'] });
-			if (isEqual(activeResource, resource)) {
+			if (activeResource.toString() === resource.toString()) {
 				return this.onEncodingChange(<IBaseEditor>activeEditor); // only update if the encoding changed for the active resource
 			}
 		}

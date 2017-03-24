@@ -5,6 +5,7 @@
 'use strict';
 
 
+import { ok } from 'vs/base/common/assert';
 import { readonly, illegalArgument } from 'vs/base/common/errors';
 import { IdGenerator } from 'vs/base/common/idGenerator';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -308,19 +309,20 @@ export class ExtHostTextEditorOptions implements vscode.TextEditorOptions {
 			warnOnError(this._proxy.$trySetOptions(this._id, bulkConfigurationUpdate));
 		}
 	}
-
-
 }
 
 export class ExtHostTextEditor implements vscode.TextEditor {
 
-	private _proxy: MainThreadEditorsShape;
-	private _id: string;
+	private readonly _proxy: MainThreadEditorsShape;
+	private readonly _id: string;
+	private readonly _documentData: ExtHostDocumentData;
 
-	private _documentData: ExtHostDocumentData;
 	private _selections: Selection[];
 	private _options: ExtHostTextEditorOptions;
 	private _viewColumn: vscode.ViewColumn;
+	private _disposed: boolean = false;
+
+	get id(): string { return this._id; }
 
 	constructor(proxy: MainThreadEditorsShape, id: string, document: ExtHostDocumentData, selections: Selection[], options: IResolvedTextEditorConfiguration, viewColumn: vscode.ViewColumn) {
 		this._proxy = proxy;
@@ -332,7 +334,8 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 	}
 
 	dispose() {
-		this._documentData = null;
+		ok(!this._disposed);
+		this._disposed = true;
 	}
 
 	@deprecated('TextEditor.show') show(column: vscode.ViewColumn) {
@@ -346,9 +349,7 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 	// ---- the document
 
 	get document(): vscode.TextDocument {
-		return this._documentData
-			? this._documentData.document
-			: undefined;
+		return this._documentData.document;
 	}
 
 	set document(value) {
@@ -362,10 +363,13 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 	}
 
 	set options(value: vscode.TextEditorOptions) {
-		this._options.assign(value);
+		if (!this._disposed) {
+			this._options.assign(value);
+		}
 	}
 
 	_acceptOptions(options: IResolvedTextEditorConfiguration): void {
+		ok(!this._disposed);
 		this._options._accept(options);
 	}
 
@@ -380,6 +384,7 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 	}
 
 	_acceptViewColumn(value: vscode.ViewColumn) {
+		ok(!this._disposed);
 		this._viewColumn = value;
 	}
 
@@ -437,18 +442,22 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 	}
 
 	_acceptSelections(selections: Selection[]): void {
+		ok(!this._disposed);
 		this._selections = selections;
 	}
 
 	// ---- editing
 
 	edit(callback: (edit: TextEditorEdit) => void, options: { undoStopBefore: boolean; undoStopAfter: boolean; } = { undoStopBefore: true, undoStopAfter: true }): Thenable<boolean> {
+		if (this._disposed) {
+			return TPromise.wrapError<boolean>('TextEditor#edit not possible on closed editors');
+		}
 		let edit = new TextEditorEdit(this._documentData.document, options);
 		callback(edit);
 		return this._applyEdit(edit);
 	}
 
-	_applyEdit(editBuilder: TextEditorEdit): TPromise<boolean> {
+	private _applyEdit(editBuilder: TextEditorEdit): TPromise<boolean> {
 		let editData = editBuilder.finalize();
 
 		// prepare data for serialization
@@ -468,7 +477,9 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 	}
 
 	insertSnippet(snippet: SnippetString, where?: Position | Position[] | Range | Range[], options: { undoStopBefore: boolean; undoStopAfter: boolean; } = { undoStopBefore: true, undoStopAfter: true }): Thenable<boolean> {
-
+		if (this._disposed) {
+			return TPromise.wrapError<boolean>('TextEditor#insertSnippet not possible on closed editors');
+		}
 		let ranges: IRange[];
 
 		if (!where || (Array.isArray(where) && where.length === 0)) {
@@ -498,6 +509,14 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 	// ---- util
 
 	private _runOnProxy(callback: () => TPromise<any>, silent: boolean): TPromise<ExtHostTextEditor> {
+		if (this._disposed) {
+			if (!silent) {
+				return TPromise.wrapError(silent);
+			} else {
+				console.warn('TextEditor is closed/disposed');
+				return TPromise.as(undefined);
+			}
+		}
 		return callback().then(() => this, err => {
 			if (!silent) {
 				return TPromise.wrapError(silent);

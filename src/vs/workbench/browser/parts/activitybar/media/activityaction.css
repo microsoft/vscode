@@ -19,7 +19,6 @@
 	box-sizing: border-box;
 	background-position: 9px center;
 	background-repeat: no-repeat;
-	opacity: 0.6;
 	font-size: 15px;
 }
 
@@ -54,24 +53,13 @@
 	overflow: hidden;
 }
 
-.hc-black .monaco-workbench > .activitybar > .content .monaco-action-bar .action-label,
-.hc-black .monaco-workbench > .activitybar > .content .monaco-action-bar .action-label.active {
-	opacity: 1;
-}
-
 .hc-black .monaco-workbench > .activitybar > .content .monaco-action-bar .action-label:before {
 	content: "";
-	opacity: 0.6;
 	position: absolute;
 	top: 9px;
 	left: 9px;
 	height: 32px;
 	width: 32px;
-}
-
-.hc-black .monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label.active:before,
-.hc-black .monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:hover .action-label:before {
-	opacity: 1;
 }
 
 .hc-black .monaco-workbench > .activitybar > .content .monaco-action-bar.global .action-item .action-label.active:before {
@@ -142,6 +130,25 @@
 }
 
 /* TODO@theme */
+
+.vs .monaco-workbench > .activitybar > .content .monaco-action-bar .action-label,
+.vs-dark .monaco-workbench > .activitybar > .content .monaco-action-bar .action-label {
+	opacity: 0.6;
+}
+
+.hc-black .monaco-workbench > .activitybar > .content .monaco-action-bar .action-label,
+.hc-black .monaco-workbench > .activitybar > .content .monaco-action-bar .action-label.active {
+	opacity: 1;
+}
+
+.hc-black .monaco-workbench > .activitybar > .content .monaco-action-bar .action-label:before {
+	opacity: 0.6;
+}
+
+.hc-black .monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label.active:before,
+.hc-black .monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:hover .action-label:before {
+	opacity: 1;
+}
 
 .vs .monaco-workbench > .activitybar > .content .monaco-action-bar .badge .badge-content,
 .vs-dark .monaco-workbench > .activitybar > .content .monaco-action-bar .badge .badge-content,

@@ -5,19 +5,22 @@
 'use strict';
 
 import * as assert from 'assert';
-import { ResolvedKeybinding, KeyCode, KeyMod, KeyChord, RuntimeKeybinding, createRuntimeKeybinding, createSimpleRuntimeKeybinding } from 'vs/base/common/keyCodes';
+import { ResolvedKeybinding, KeyCode, KeyMod, KeyChord, Keybinding, createKeybinding, createSimpleKeybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
 import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
-import { ContextKeyExpr, IContextKeyService, IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
+import { IContext, ContextKeyExpr, IContextKeyService, IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { OS } from 'vs/base/common/platform';
+import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
+
+const createContext = ctx => ({ getValue: key => ctx[key] });
 
 suite('AbstractKeybindingService', () => {
 
@@ -39,17 +42,40 @@ suite('AbstractKeybindingService', () => {
 			return this._resolver;
 		}
 
-		protected _createResolvedKeybinding(kb: RuntimeKeybinding): ResolvedKeybinding {
-			return new USLayoutResolvedKeybinding(kb, OS);
+		public resolveKeybinding(kb: Keybinding): ResolvedKeybinding[] {
+			return [new USLayoutResolvedKeybinding(kb, OS)];
 		}
 
-		public dispatch(keybinding: number): boolean {
-			return this._dispatch(createSimpleRuntimeKeybinding(keybinding, OS), null);
+		public resolveKeyboardEvent(keyboardEvent: IKeyboardEvent): ResolvedKeybinding {
+			let keybinding = new SimpleKeybinding(
+				keyboardEvent.ctrlKey,
+				keyboardEvent.shiftKey,
+				keyboardEvent.altKey,
+				keyboardEvent.metaKey,
+				keyboardEvent.keyCode
+			);
+			return this.resolveKeybinding(keybinding)[0];
+		}
+
+		public resolveUserBinding(userBinding: string): ResolvedKeybinding[] {
+			return [];
+		}
+
+		public testDispatch(kb: number): boolean {
+			const keybinding = createSimpleKeybinding(kb, OS);
+			return this._dispatch({
+				ctrlKey: keybinding.ctrlKey,
+				shiftKey: keybinding.shiftKey,
+				altKey: keybinding.altKey,
+				metaKey: keybinding.metaKey,
+				keyCode: keybinding.keyCode,
+				code: null
+			}, null);
 		}
 	}
 
 	let createTestKeybindingService: (items: ResolvedKeybindingItem[], contextValue?: any) => TestKeybindingService = null;
-	let currentContextValue: any = null;
+	let currentContextValue: IContext = null;
 	let executeCommandCalls: { commandId: string; args: any[]; }[] = null;
 	let showMessageCalls: { sev: Severity, message: any; }[] = null;
 	let statusMessageCalls: string[] = null;
@@ -71,7 +97,7 @@ suite('AbstractKeybindingService', () => {
 				contextMatchesRules: undefined,
 				getContextKeyValue: undefined,
 				createScoped: undefined,
-				getContextValue: (target: IContextKeyServiceTarget): any => {
+				getContext: (target: IContextKeyServiceTarget): any => {
 					return currentContextValue;
 				}
 			};
@@ -130,7 +156,7 @@ suite('AbstractKeybindingService', () => {
 	});
 
 	function kbItem(keybinding: number, command: string, when: ContextKeyExpr = null): ResolvedKeybindingItem {
-		const resolvedKeybinding = (keybinding !== 0 ? new USLayoutResolvedKeybinding(createRuntimeKeybinding(keybinding, OS), OS) : null);
+		const resolvedKeybinding = (keybinding !== 0 ? new USLayoutResolvedKeybinding(createKeybinding(keybinding, OS), OS) : null);
 		return new ResolvedKeybindingItem(
 			resolvedKeybinding,
 			command,
@@ -141,7 +167,7 @@ suite('AbstractKeybindingService', () => {
 	}
 
 	function toUsLabel(keybinding: number): string {
-		const usResolvedKeybinding = new USLayoutResolvedKeybinding(createRuntimeKeybinding(keybinding, OS), OS);
+		const usResolvedKeybinding = new USLayoutResolvedKeybinding(createKeybinding(keybinding, OS), OS);
 		return usResolvedKeybinding.getLabel();
 	}
 
@@ -153,7 +179,7 @@ suite('AbstractKeybindingService', () => {
 		]);
 
 		// send Ctrl/Cmd + K
-		let shouldPreventDefault = kbService.dispatch(KeyMod.CtrlCmd | KeyCode.KEY_K);
+		let shouldPreventDefault = kbService.testDispatch(KeyMod.CtrlCmd | KeyCode.KEY_K);
 		assert.equal(shouldPreventDefault, true);
 		assert.deepEqual(executeCommandCalls, []);
 		assert.deepEqual(showMessageCalls, []);
@@ -167,7 +193,7 @@ suite('AbstractKeybindingService', () => {
 		statusMessageCallsDisposed = [];
 
 		// send backspace
-		shouldPreventDefault = kbService.dispatch(KeyCode.Backspace);
+		shouldPreventDefault = kbService.testDispatch(KeyCode.Backspace);
 		assert.equal(shouldPreventDefault, true);
 		assert.deepEqual(executeCommandCalls, []);
 		assert.deepEqual(showMessageCalls, []);
@@ -183,7 +209,7 @@ suite('AbstractKeybindingService', () => {
 		statusMessageCallsDisposed = [];
 
 		// send backspace
-		shouldPreventDefault = kbService.dispatch(KeyCode.Backspace);
+		shouldPreventDefault = kbService.testDispatch(KeyCode.Backspace);
 		assert.equal(shouldPreventDefault, true);
 		assert.deepEqual(executeCommandCalls, [{
 			commandId: 'simpleCommand',
@@ -200,7 +226,7 @@ suite('AbstractKeybindingService', () => {
 		kbService.dispose();
 	});
 
-	test('issue #16833: Keybinding service should not dispatch on modifier keys', () => {
+	test('issue #16833: Keybinding service should not testDispatch on modifier keys', () => {
 
 		let kbService = createTestKeybindingService([
 			kbItem(KeyCode.Ctrl, 'nope'),
@@ -215,7 +241,7 @@ suite('AbstractKeybindingService', () => {
 		]);
 
 		function assertIsIgnored(keybinding: number): void {
-			let shouldPreventDefault = kbService.dispatch(keybinding);
+			let shouldPreventDefault = kbService.testDispatch(keybinding);
 			assert.equal(shouldPreventDefault, false);
 			assert.deepEqual(executeCommandCalls, []);
 			assert.deepEqual(showMessageCalls, []);
@@ -249,10 +275,10 @@ suite('AbstractKeybindingService', () => {
 
 
 		// send Ctrl/Cmd + K
-		currentContextValue = {
+		currentContextValue = createContext({
 			key1: true
-		};
-		let shouldPreventDefault = kbService.dispatch(KeyMod.CtrlCmd | KeyCode.KEY_K);
+		});
+		let shouldPreventDefault = kbService.testDispatch(KeyMod.CtrlCmd | KeyCode.KEY_K);
 		assert.equal(shouldPreventDefault, true);
 		assert.deepEqual(executeCommandCalls, [{
 			commandId: 'simpleCommand',
@@ -267,8 +293,8 @@ suite('AbstractKeybindingService', () => {
 		statusMessageCallsDisposed = [];
 
 		// send Ctrl/Cmd + K
-		currentContextValue = {};
-		shouldPreventDefault = kbService.dispatch(KeyMod.CtrlCmd | KeyCode.KEY_K);
+		currentContextValue = createContext({});
+		shouldPreventDefault = kbService.testDispatch(KeyMod.CtrlCmd | KeyCode.KEY_K);
 		assert.equal(shouldPreventDefault, true);
 		assert.deepEqual(executeCommandCalls, []);
 		assert.deepEqual(showMessageCalls, []);
@@ -282,8 +308,8 @@ suite('AbstractKeybindingService', () => {
 		statusMessageCallsDisposed = [];
 
 		// send Ctrl/Cmd + X
-		currentContextValue = {};
-		shouldPreventDefault = kbService.dispatch(KeyMod.CtrlCmd | KeyCode.KEY_X);
+		currentContextValue = createContext({});
+		shouldPreventDefault = kbService.testDispatch(KeyMod.CtrlCmd | KeyCode.KEY_X);
 		assert.equal(shouldPreventDefault, true);
 		assert.deepEqual(executeCommandCalls, [{
 			commandId: 'chordCommand',
@@ -311,8 +337,8 @@ suite('AbstractKeybindingService', () => {
 
 
 		// send Ctrl/Cmd + K
-		currentContextValue = {};
-		let shouldPreventDefault = kbService.dispatch(KeyMod.CtrlCmd | KeyCode.KEY_K);
+		currentContextValue = createContext({});
+		let shouldPreventDefault = kbService.testDispatch(KeyMod.CtrlCmd | KeyCode.KEY_K);
 		assert.equal(shouldPreventDefault, true);
 		assert.deepEqual(executeCommandCalls, [{
 			commandId: 'simpleCommand',
@@ -327,10 +353,10 @@ suite('AbstractKeybindingService', () => {
 		statusMessageCallsDisposed = [];
 
 		// send Ctrl/Cmd + K
-		currentContextValue = {
+		currentContextValue = createContext({
 			key1: true
-		};
-		shouldPreventDefault = kbService.dispatch(KeyMod.CtrlCmd | KeyCode.KEY_K);
+		});
+		shouldPreventDefault = kbService.testDispatch(KeyMod.CtrlCmd | KeyCode.KEY_K);
 		assert.equal(shouldPreventDefault, true);
 		assert.deepEqual(executeCommandCalls, [{
 			commandId: 'simpleCommand',
@@ -345,10 +371,10 @@ suite('AbstractKeybindingService', () => {
 		statusMessageCallsDisposed = [];
 
 		// send Ctrl/Cmd + X
-		currentContextValue = {
+		currentContextValue = createContext({
 			key1: true
-		};
-		shouldPreventDefault = kbService.dispatch(KeyMod.CtrlCmd | KeyCode.KEY_X);
+		});
+		shouldPreventDefault = kbService.testDispatch(KeyMod.CtrlCmd | KeyCode.KEY_X);
 		assert.equal(shouldPreventDefault, false);
 		assert.deepEqual(executeCommandCalls, []);
 		assert.deepEqual(showMessageCalls, []);
@@ -369,8 +395,8 @@ suite('AbstractKeybindingService', () => {
 		]);
 
 		// send Ctrl/Cmd + K
-		currentContextValue = {};
-		let shouldPreventDefault = kbService.dispatch(KeyMod.CtrlCmd | KeyCode.KEY_K);
+		currentContextValue = createContext({});
+		let shouldPreventDefault = kbService.testDispatch(KeyMod.CtrlCmd | KeyCode.KEY_K);
 		assert.equal(shouldPreventDefault, false);
 		assert.deepEqual(executeCommandCalls, [{
 			commandId: 'simpleCommand',

@@ -33,7 +33,7 @@
 	"welcomePage.showCommands": "Trova ed esegui tutti i comandi",
 	"welcomePage.showCommandsDescription": "Accesso e ricerca rapida di comandi dal pannello di controllo ({0})",
 	"welcomePage.showOnStartup": "Mostra la pagina iniziale all'avvio",
-	"welcomePage.stackOverflow": "Overflow dello stack",
+	"welcomePage.stackOverflow": "Stack Overflow",
 	"welcomePage.start": "Avvia",
 	"welcomePage.sublime": "Sublime",
 	"welcomePage.sublimeCurrent": "Sublime (corrente)",

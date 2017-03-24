@@ -16,6 +16,12 @@ export interface ContentSecurityPolicyArbiter {
 	isEnhancedSecurityDisableForWorkspace(): boolean;
 }
 
+const previewStrings = {
+	cspAlertMessageText: localize('preview.securityMessage.text', 'Scripts have been disabled in this document'),
+	cspAlertMessageTitle: localize('preview.securityMessage.title', 'Scripts are disabled in the markdown preview. Change the Markdown preview secuirty setting to enable scripts'),
+	cspAlertMessageLabel: localize('preview.securityMessage.label', 'Scripts Disabled Security Warning')
+};
+
 export function isMarkdownFile(document: vscode.TextDocument) {
 	return document.languageId === 'markdown'
 		&& document.uri.scheme !== 'markdown'; // prevent processing of own documents
@@ -28,12 +34,22 @@ export function getMarkdownUri(uri: vscode.Uri) {
 export class MDDocumentContentProvider implements vscode.TextDocumentContentProvider {
 	private _onDidChange = new vscode.EventEmitter<vscode.Uri>();
 	private _waiting: boolean = false;
+	private extraStyles: Array<vscode.Uri> = [];
+	private extraScripts: Array<vscode.Uri> = [];
 
 	constructor(
 		private engine: MarkdownEngine,
 		private context: vscode.ExtensionContext,
 		private cspArbiter: ContentSecurityPolicyArbiter
 	) { }
+
+	public addScript(resource: vscode.Uri): void {
+		this.extraScripts.push(resource);
+	}
+
+	public addStyle(resource: vscode.Uri): void {
+		this.extraStyles.push(resource);
+	}
 
 	private getMediaPath(mediaFile: string): string {
 		return vscode.Uri.file(this.context.asAbsolutePath(path.join('media', mediaFile))).toString();
@@ -97,7 +113,7 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 		const baseStyles = [
 			this.getMediaPath('markdown.css'),
 			this.getMediaPath('tomorrow.css')
-		];
+		].concat(this.extraStyles.map(resource => resource.toString()));
 
 		return `${baseStyles.map(href => `<link rel="stylesheet" type="text/css" href="${href}">`).join('\n')}
 			${this.getSettingsOverrideStyles(nonce)}
@@ -105,7 +121,7 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 	}
 
 	private getScripts(nonce: string): string {
-		const scripts = [this.getMediaPath('main.js')];
+		const scripts = [this.getMediaPath('main.js')].concat(this.extraScripts.map(resource => resource.toString()));
 		return scripts
 			.map(source => `<script src="${source}" nonce="${nonce}"></script>`)
 			.join('\n');
@@ -122,7 +138,7 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 
 			let initialLine = 0;
 			const editor = vscode.window.activeTextEditor;
-			if (editor && editor.document.uri.path === sourceUri.path) {
+			if (editor && editor.document.uri.fsPath === sourceUri.fsPath) {
 				initialLine = editor.selection.active.line;
 			}
 
@@ -135,15 +151,9 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 				doubleClickToSwitchToEditor: !!markdownConfig.get('preview.doubleClickToSwitchToEditor', true),
 			};
 
-			const previewStrings = {
-				cspAlertMessageText: localize('preview.securityMessage.text', 'Scripts have been disabled in this document'),
-				cspAlertMessageTitle: localize('preview.securityMessage.title', 'Scripts are disabled in the markdown preview. Change the Markdown preview secuirty setting to enable scripts'),
-				cspAlertMessageLabel: localize('preview.securityMessage.label', 'Scripts Disabled Security Warning')
-			};
-
 			// Content Security Policy
 			const nonce = new Date().getTime() + '' + new Date().getMilliseconds();
-			let csp = `<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' http: https: data:; media-src 'self' http: https: data:; child-src 'none'; script-src 'nonce-${nonce}'; style-src 'self' 'unsafe-inline' http: https: data:;">`;
+			let csp = `<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' http: https: data:; media-src 'self' http: https: data:; child-src 'none'; script-src 'nonce-${nonce}'; style-src 'self' 'unsafe-inline' http: https: data:; font-src 'self' http: https: data:;">`;
 			if (this.cspArbiter.isEnhancedSecurityDisableForWorkspace()) {
 				csp = '';
 			}

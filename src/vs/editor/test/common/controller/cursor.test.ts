@@ -3607,4 +3607,24 @@ suite('autoClosingPairs', () => {
 		});
 		mode.dispose();
 	});
+
+	test('issue #15825: accents on mac US intl keyboard', () => {
+		let mode = new AutoClosingMode();
+		usingCursor({
+			text: [
+			],
+			languageIdentifier: mode.getLanguageIdentifier()
+		}, (model, cursor) => {
+			assertCursor(cursor, new Position(1, 1));
+
+			// Typing ` + e on the mac US intl kb layout
+			cursorCommand(cursor, H.CompositionStart, null, 'keyboard');
+			cursorCommand(cursor, H.Type, { text: '`' }, 'keyboard');
+			cursorCommand(cursor, H.ReplacePreviousChar, { replaceCharCnt: 1, text: 'è' }, 'keyboard');
+			cursorCommand(cursor, H.CompositionEnd, null, 'keyboard');
+
+			assert.equal(model.getValue(), 'è');
+		});
+		mode.dispose();
+	});
 });

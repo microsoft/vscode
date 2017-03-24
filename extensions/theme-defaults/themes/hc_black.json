@@ -225,8 +225,10 @@
 		{
 			"name": "JavaScript string interpolation ${}",
 			"scope": [
+				"punctuation.definition.template-expression.begin.js",
 				"punctuation.definition.template-expression.begin.ts",
-				"punctuation.definition.template-expression.end.ts"
+				"punctuation.definition.template-expression.end.ts",
+				"punctuation.definition.template-expression.end.js"
 			],
 			"settings": {
 				"foreground": "#569cd6"
@@ -263,7 +265,12 @@
 			}
 		},
 		{
-			"scope": ["keyword.operator.new", "keyword.operator.expression"],
+			"scope": [
+				"keyword.operator.new",
+				"keyword.operator.expression",
+				"keyword.operator.cast",
+				"keyword.operator.sizeof"
+			],
 			"settings": {
 				"foreground": "#569cd6"
 			}

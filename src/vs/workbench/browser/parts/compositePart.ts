@@ -43,6 +43,11 @@ export interface ICompositeTitleLabel {
 	 * Asks to update the title for the composite with the given ID.
 	 */
 	updateTitle(id: string, title: string, keybinding?: string): void;
+
+	/**
+	 * Called when theming information changes.
+	 */
+	updateStyles(): void;
 }
 
 export abstract class CompositePart<T extends Composite> extends Part {
@@ -77,6 +82,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		private nameForTelemetry: string,
 		private compositeCSSClass: string,
 		private actionContributionScope: string,
+		private titleForegroundColor: string,
 		id: string,
 		options: IPartOptions
 	) {
@@ -127,7 +133,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			this.updateTitle(id);
 
 			// Create composite
-			return this.createComposite(id, true).then((composite: Composite) => {
+			return this.createComposite(id, true).then(composite => {
 
 				// Check if another composite opened meanwhile and return in that case
 				if ((this.currentCompositeOpenToken !== currentCompositeOpenToken) || (this.activeComposite && this.activeComposite.getId() !== composite.getId())) {
@@ -230,7 +236,9 @@ export abstract class CompositePart<T extends Composite> extends Part {
 				'class': ['composite', this.compositeCSSClass],
 				id: composite.getId()
 			}, (div: Builder) => {
-				createCompositePromise = composite.create(div);
+				createCompositePromise = composite.create(div).then(() => {
+					composite.updateStyles();
+				});
 			});
 
 			// Remember composite container
@@ -438,12 +446,23 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			titleLabel = div.span();
 		});
 
+		const $this = this;
 		return {
 			updateTitle: (id, title, keybinding) => {
 				titleLabel.safeInnerHtml(title);
 				titleLabel.title(keybinding ? nls.localize('titleTooltip', "{0} ({1})", title, keybinding) : title);
+			},
+			updateStyles: () => {
+				titleLabel.style('color', $this.getColor($this.titleForegroundColor));
 			}
 		};
+	}
+
+	protected updateStyles(): void {
+		super.updateStyles();
+
+		// Forward to title label
+		this.titleLabel.updateStyles();
 	}
 
 	private actionItemProvider(action: Action): IActionItem {

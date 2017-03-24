@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { ResolvedKeybinding, RuntimeKeybinding, SimpleRuntimeKeybinding } from 'vs/base/common/keyCodes';
+import { ResolvedKeybinding, Keybinding, KeyCode } from 'vs/base/common/keyCodes';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ContextKeyExpr, IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
 import { IResolveResult } from 'vs/platform/keybinding/common/keybindingResolver';
+import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import Event from 'vs/base/common/event';
 
 export interface IUserFriendlyKeybinding {
@@ -15,39 +16,6 @@ export interface IUserFriendlyKeybinding {
 	command: string;
 	args?: any;
 	when?: string;
-}
-
-export interface IKeybindings {
-	primary: number;
-	secondary?: number[];
-	win?: {
-		primary: number;
-		secondary?: number[];
-	};
-	linux?: {
-		primary: number;
-		secondary?: number[];
-	};
-	mac?: {
-		primary: number;
-		secondary?: number[];
-	};
-}
-
-export interface IKeybindingItem {
-	keybinding: RuntimeKeybinding;
-	command: string;
-	commandArgs?: any;
-	when: ContextKeyExpr;
-	weight1: number;
-	weight2: number;
-}
-
-export interface IKeybindingItem2 {
-	keybinding: ResolvedKeybinding;
-	command: string;
-	source: KeybindingSource;
-	when: ContextKeyExpr;
 }
 
 export enum KeybindingSource {
@@ -60,6 +28,15 @@ export interface IKeybindingEvent {
 	keybindings?: IUserFriendlyKeybinding[];
 }
 
+export interface IKeyboardEvent {
+	readonly ctrlKey: boolean;
+	readonly shiftKey: boolean;
+	readonly altKey: boolean;
+	readonly metaKey: boolean;
+	readonly keyCode: KeyCode;
+	readonly code: string;
+}
+
 export let IKeybindingService = createDecorator<IKeybindingService>('keybindingService');
 
 export interface IKeybindingService {
@@ -67,11 +44,19 @@ export interface IKeybindingService {
 
 	onDidUpdateKeybindings: Event<IKeybindingEvent>;
 
-	resolveKeybinding(keybinding: RuntimeKeybinding): ResolvedKeybinding;
+	/**
+	 * Returns none, one or many (depending on keyboard layout)!
+	 */
+	resolveKeybinding(keybinding: Keybinding): ResolvedKeybinding[];
 
-	getDefaultKeybindings(): string;
+	resolveKeyboardEvent(keyboardEvent: IKeyboardEvent): ResolvedKeybinding;
 
-	getKeybindings(): IKeybindingItem2[];
+	resolveUserBinding(userBinding: string): ResolvedKeybinding[];
+
+	/**
+	 * Resolve and dispatch `keyboardEvent`, but do not invoke the command or change inner state.
+	 */
+	softDispatch(keyboardEvent: IKeyboardEvent, target: IContextKeyServiceTarget): IResolveResult;
 
 	/**
 	 * Look up keybindings for a command.
@@ -85,8 +70,10 @@ export interface IKeybindingService {
 	 */
 	lookupKeybinding(commandId: string): ResolvedKeybinding;
 
-	customKeybindingsCount(): number;
+	getDefaultKeybindings(): string;
 
-	resolve(keybinding: SimpleRuntimeKeybinding, target: IContextKeyServiceTarget): IResolveResult;
+	getKeybindings(): ResolvedKeybindingItem[];
+
+	customKeybindingsCount(): number;
 }
 

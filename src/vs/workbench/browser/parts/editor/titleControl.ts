@@ -158,6 +158,8 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 	}
 
 	protected updateStyles(): void {
+		super.updateStyles();
+
 		this.update(true); // run an update when the theme changes to new styles
 	}
 

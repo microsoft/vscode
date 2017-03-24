@@ -6,7 +6,7 @@
 'use strict';
 
 import { scm, Uri, Disposable, SCMProvider, SCMResourceGroup, Event, ProviderResult, workspace } from 'vscode';
-import { Model, Resource, ResourceGroup, State } from './model';
+import { Model, Resource, State } from './model';
 import { CommandCenter } from './commands';
 import { mapEvent } from './util';
 
@@ -14,6 +14,7 @@ export class GitSCMProvider implements SCMProvider {
 
 	private disposables: Disposable[] = [];
 
+	get id(): string { return 'git'; }
 	get resources(): SCMResourceGroup[] { return this.model.resources; }
 
 	get onDidChange(): Event<SCMResourceGroup[]> {
@@ -42,7 +43,7 @@ export class GitSCMProvider implements SCMProvider {
 	}
 
 	constructor(private model: Model, private commandCenter: CommandCenter) {
-		scm.registerSCMProvider('git', this);
+		scm.registerSCMProvider(this);
 	}
 
 	open(resource: Resource): ProviderResult<void> {
@@ -51,10 +52,6 @@ export class GitSCMProvider implements SCMProvider {
 
 	acceptChanges(): ProviderResult<void> {
 		return this.commandCenter.commitWithInput();
-	}
-
-	drag(resource: Resource, resourceGroup: ResourceGroup): void {
-		console.log('drag', resource, resourceGroup);
 	}
 
 	getOriginalResource(uri: Uri): Uri | undefined {

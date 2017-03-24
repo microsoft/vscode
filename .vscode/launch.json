@@ -66,6 +66,7 @@
 		{
 			"type": "node",
 			"request": "attach",
+			"protocol": "legacy",
 			"name": "Attach to Search process",
 			"port": 7890,
 			"sourceMaps": true,
@@ -79,6 +80,17 @@
 			"name": "Attach to CLI Process",
 			"protocol": "legacy",
 			"port": 5874,
+			"sourceMaps": true,
+			"outFiles": [
+				"${workspaceRoot}/out/**/*.js"
+			]
+		},
+		{
+			"type": "node",
+			"request": "attach",
+			"name": "Attach to Main Process",
+			"protocol": "legacy",
+			"port": 5875,
 			"sourceMaps": true,
 			"outFiles": [
 				"${workspaceRoot}/out/**/*.js"
@@ -118,8 +130,7 @@
 			"type": "chrome",
 			"request": "attach",
 			"name": "Attach to VS Code",
-			"port": 9222,
-			"url": "*"
+			"port": 9222
 		},
 		{
 			"type": "chrome",
@@ -133,7 +144,19 @@
 			},
 			"linux": {
 				"runtimeExecutable": "${workspaceRoot}/scripts/code.sh"
-			}
+			},
+			"urlFilter": "*index.html*",
+			"runtimeArgs": [
+				"${workspaceRoot}",
+				"--debug=5875"
+			],
+			"webRoot": "${workspaceRoot}"
+		}
+	],
+	"compounds": [
+		{
+			"name": "Debug VS Code Main and Renderer",
+			"configurations": ["Launch VS Code", "Attach to Main Process"]
 		}
 	]
 }

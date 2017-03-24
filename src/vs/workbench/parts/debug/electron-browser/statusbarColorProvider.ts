@@ -43,6 +43,8 @@ export class StatusBarColorProvider extends Themable implements IWorkbenchContri
 	}
 
 	protected updateStyles(): void {
+		super.updateStyles();
+
 		if (this.partService.isVisible(Parts.STATUSBAR_PART)) {
 			const container = this.partService.getContainer(Parts.STATUSBAR_PART);
 			container.style.backgroundColor = this.getColor(this.getBackgroundColorKey());
