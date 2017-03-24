@@ -41,6 +41,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { comparePaths } from 'vs/base/common/comparers';
 import URI from 'vs/base/common/uri';
 import { isSCMResource, getSCMResourceURI } from './scmUtil';
+import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 
 function getElementId(element: ISCMResourceGroup | ISCMResource) {
 	if (isSCMResource(element)) {
@@ -245,6 +246,7 @@ export class SCMViewlet extends Viewlet {
 			placeholder: localize('commitMessage', "Message (press {0} to commit)", platform.isMacintosh ? 'Cmd+Enter' : 'Ctrl+Enter'),
 			flexibleHeight: true
 		});
+		this.disposables.push(attachInputBoxStyler(this.inputBox, this.themeService));
 		this.disposables.push(this.inputBox);
 
 		this.inputBox.value = this.scmService.input.value;

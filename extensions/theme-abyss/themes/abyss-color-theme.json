@@ -250,6 +250,11 @@
 		}
 	],
 	"colors": {
+
+		// Base Colors
+		"inputBackground": "#181f2f",
+
+		// Editor Colors
 		"editorBackground": "#000c18",
 		"editorForeground": "#6688cc",
 		"editorCursor": "#ddbb88",
@@ -273,7 +278,6 @@
 		"editorMarkerNavigationWarning": "#00FF00",
 
 		"editorFindWidgetBackground": "#051336",
-		"editorFindInputBackground": "#181f2f",
 		"editorFindCheckedBorders": "#0000FF",
 
 		// Workbench Colors

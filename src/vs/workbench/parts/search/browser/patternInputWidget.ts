@@ -15,6 +15,8 @@ import { MessageType, InputBox, IInputValidator } from 'vs/base/browser/ui/input
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import CommonEvent, { Emitter } from 'vs/base/common/event';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 
 export interface IOptions {
 	placeholder?: string;
@@ -45,7 +47,7 @@ export class PatternInputWidget extends Widget {
 	private _onSubmit = this._register(new Emitter<boolean>());
 	public onSubmit: CommonEvent<boolean> = this._onSubmit.event;
 
-	constructor(parent: HTMLElement, private contextViewProvider: IContextViewProvider, options: IOptions = Object.create(null), private showUseIgnoreFiles = false) {
+	constructor(parent: HTMLElement, private contextViewProvider: IContextViewProvider, private themeService: IThemeService, options: IOptions = Object.create(null), private showUseIgnoreFiles = false) {
 		super();
 		this.onOptionChange = null;
 		this.width = options.width || 100;
@@ -181,6 +183,7 @@ export class PatternInputWidget extends Widget {
 				showMessage: true
 			}
 		});
+		this._register(attachInputBoxStyler(this.inputBox, this.themeService));
 		this.inputFocusTracker = dom.trackFocus(this.inputBox.inputElement);
 		this.onkeyup(this.inputBox.inputElement, (keyboardEvent) => this.onInputKeyUp(keyboardEvent));
 

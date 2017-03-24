@@ -60,6 +60,7 @@ import * as Constants from 'vs/workbench/parts/search/common/constants';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { IThemeService, ITheme, ICssStyleCollector, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorFindMatchHighlight } from 'vs/platform/theme/common/colorRegistry';
+import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 
 export class SearchViewlet extends Viewlet {
 
@@ -184,7 +185,7 @@ export class SearchViewlet extends Viewlet {
 				let title = nls.localize('searchScope.includes', "files to include");
 				builder.element('h4', { text: title });
 
-				this.inputPatternIncludes = new PatternInputWidget(builder.getContainer(), this.contextViewService, {
+				this.inputPatternIncludes = new PatternInputWidget(builder.getContainer(), this.contextViewService, this.themeService, {
 					ariaLabel: nls.localize('label.includes', 'Search Include Patterns')
 				});
 
@@ -206,7 +207,7 @@ export class SearchViewlet extends Viewlet {
 				builder.element('h4', { text: title });
 
 				const configuration = this.configurationService.getConfiguration<ISearchConfiguration>();
-				this.inputPatternExclusions = new PatternInputWidget(builder.getContainer(), this.contextViewService, {
+				this.inputPatternExclusions = new PatternInputWidget(builder.getContainer(), this.contextViewService, this.themeService, {
 					ariaLabel: nls.localize('label.excludes', 'Search Exclude Patterns')
 				}, configuration.search.useRipgrep);
 
@@ -232,6 +233,7 @@ export class SearchViewlet extends Viewlet {
 					actions: [this.instantiationService.createInstance(ConfigureGlobalExclusionsAction)],
 					ariaLabel: nls.localize('label.global.excludes', 'Configured Search Exclude Patterns')
 				});
+				this._register(attachInputBoxStyler(this.inputPatternGlobalExclusions, this.themeService));
 				this.inputPatternGlobalExclusions.inputElement.readOnly = true;
 				$(this.inputPatternGlobalExclusions.inputElement).attr('aria-readonly', 'true');
 				$(this.inputPatternGlobalExclusions.inputElement).addClass('disabled');
@@ -272,7 +274,7 @@ export class SearchViewlet extends Viewlet {
 		let isWholeWords = this.viewletSettings['query.wholeWords'] === true;
 		let isCaseSensitive = this.viewletSettings['query.caseSensitive'] === true;
 
-		this.searchWidget = new SearchWidget(builder, this.contextViewService, {
+		this.searchWidget = new SearchWidget(builder, this.contextViewService, this.themeService, {
 			value: contentPattern,
 			isRegex: isRegex,
 			isCaseSensitive: isCaseSensitive,
