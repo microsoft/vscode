@@ -1115,10 +1115,10 @@ export class ReopenClosedEditorAction extends Action {
 	}
 }
 
-export class ClearRecentItemsAction extends Action {
+export class ClearRecentFilesAction extends Action {
 
-	public static ID = 'workbench.action.clearRecentItems';
-	public static LABEL = nls.localize('clearRecentItems', "Clear Recent");
+	public static ID = 'workbench.action.clearRecentFiles';
+	public static LABEL = nls.localize('clearRecentFiles', "Clear Recent");
 
 	constructor(
 		id: string,
