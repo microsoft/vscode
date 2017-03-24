@@ -545,7 +545,14 @@ export function fuzzyScore(pattern: string, word: string): [number, number[]] {
 			let score = -1;
 			let lowWordChar = lowWord[j - 1];
 			if (lowPattern[i - 1] === lowWordChar) {
-				if (lowWordChar !== word[j - 1]) {
+
+				if (j === 1) {
+					if (pattern[i - 1] === word[j - 1]) {
+						score = 7;
+					} else {
+						score = 5;
+					}
+				} else if (lowWordChar !== word[j - 1]) {
 					if (pattern[i - 1] === word[j - 1]) {
 						score = 7;
 					} else {
@@ -554,12 +561,6 @@ export function fuzzyScore(pattern: string, word: string): [number, number[]] {
 				} else if (lastLowWordChar === '_' || lastLowWordChar === '.') {
 					score = 5;
 
-				} else if (j === 1) {
-					if (pattern[i - 1] === word[j - 1]) {
-						score = 7;
-					} else {
-						score = 5;
-					}
 				} else if (j === i) {
 					score = 3;
 
@@ -625,7 +626,6 @@ export function fuzzyScore(pattern: string, word: string): [number, number[]] {
 			// keep going left, we cannot
 			// skip a character in the pattern
 			j -= 1;
-			total -= 1;
 
 		} else if (arrow === 0) { //diag
 			j -= 1;
@@ -642,7 +642,7 @@ export function fuzzyScore(pattern: string, word: string): [number, number[]] {
 				// we went diagonal by inheriting a good
 				// result, not by matching keep going left
 				i += 1;
-				total -= 1;
+
 
 			} else {
 				// all good
@@ -662,6 +662,7 @@ export function fuzzyScore(pattern: string, word: string): [number, number[]] {
 		j = 3;
 	}
 	total -= j * 3; // penalty for first matching character
+	total -= (1 + matches[matches.length - 1]) - pattern.length; // penalty for all non matching characters between first and last
 
 	if (_debug) {
 		console.log(`${pattern} & ${word} => ${total} points for ${matches}`);

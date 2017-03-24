@@ -283,55 +283,91 @@ suite('Filters', () => {
 		assertMatches('Three', 'Three', '^T^h^r^e^e', fuzzyScore);
 
 	});
-
-	test('topScore', function () {
-
-		function assertTopScore(pattern: string, expected: number, ...words: string[]) {
-			let topScore = Number.MIN_VALUE;
-			let topIdx = 0;
-			for (let i = 0; i < words.length; i++) {
-				const word = words[i];
-				const m = fuzzyMatchAndScore(pattern, word);
-				if (m) {
-					const [score] = m;
-					if (score > topScore) {
-						topScore = score;
-						topIdx = i;
-					}
+	function assertTopScore(filter: typeof fuzzyMatchAndScore, pattern: string, expected: number, ...words: string[]) {
+		let topScore = Number.MIN_VALUE;
+		let topIdx = 0;
+		for (let i = 0; i < words.length; i++) {
+			const word = words[i];
+			const m = filter(pattern, word);
+			if (m) {
+				const [score] = m;
+				if (score > topScore) {
+					topScore = score;
+					topIdx = i;
 				}
 			}
-			assert.equal(topIdx, expected);
 		}
+		assert.equal(topIdx, expected, `${pattern} -> actual=${words[topIdx]} <> expected=${words[expected]}`);
+	}
 
-		assertTopScore('cons', 2, 'ArrayBufferConstructor', 'Console', 'console');
-		assertTopScore('Foo', 1, 'foo', 'Foo', 'foo');
+	test('topScore - fuzzyMatchAndScore', function () {
 
-		assertTopScore('CC', 1, 'camelCase', 'CamelCase');
-		assertTopScore('cC', 0, 'camelCase', 'CamelCase');
-		assertTopScore('cC', 1, 'ccfoo', 'camelCase');
-		assertTopScore('cC', 1, 'ccfoo', 'camelCase', 'foo-cC-bar');
+
+		assertTopScore(fuzzyMatchAndScore, 'cons', 2, 'ArrayBufferConstructor', 'Console', 'console');
+		assertTopScore(fuzzyMatchAndScore, 'Foo', 1, 'foo', 'Foo', 'foo');
+
+		assertTopScore(fuzzyMatchAndScore, 'CC', 1, 'camelCase', 'CamelCase');
+		assertTopScore(fuzzyMatchAndScore, 'cC', 0, 'camelCase', 'CamelCase');
+		assertTopScore(fuzzyMatchAndScore, 'cC', 1, 'ccfoo', 'camelCase');
+		assertTopScore(fuzzyMatchAndScore, 'cC', 1, 'ccfoo', 'camelCase', 'foo-cC-bar');
 
 		// issue #17836
-		assertTopScore('p', 0, 'parse', 'posix', 'pafdsa', 'path', 'p');
-		assertTopScore('pa', 0, 'parse', 'pafdsa', 'path');
+		assertTopScore(fuzzyMatchAndScore, 'p', 0, 'parse', 'posix', 'pafdsa', 'path', 'p');
+		assertTopScore(fuzzyMatchAndScore, 'pa', 0, 'parse', 'pafdsa', 'path');
 
 		// issue #14583
-		assertTopScore('log', 3, 'HTMLOptGroupElement', 'ScrollLogicalPosition', 'SVGFEMorphologyElement', 'log');
-		assertTopScore('e', 2, 'AbstractWorker', 'ActiveXObject', 'else');
+		assertTopScore(fuzzyMatchAndScore, 'log', 3, 'HTMLOptGroupElement', 'ScrollLogicalPosition', 'SVGFEMorphologyElement', 'log');
+		assertTopScore(fuzzyMatchAndScore, 'e', 2, 'AbstractWorker', 'ActiveXObject', 'else');
 
 		// issue #14446
-		assertTopScore('workbench.sideb', 1, 'workbench.editor.defaultSideBySideLayout', 'workbench.sideBar.location');
+		assertTopScore(fuzzyMatchAndScore, 'workbench.sideb', 1, 'workbench.editor.defaultSideBySideLayout', 'workbench.sideBar.location');
 
 		// issue #11423
-		assertTopScore('editor.r', 2, 'diffEditor.renderSideBySide', 'editor.overviewRulerlanes', 'editor.renderControlCharacter', 'editor.renderWhitespace');
-		// assertTopScore('editor.R', 1, 'diffEditor.renderSideBySide', 'editor.overviewRulerlanes', 'editor.renderControlCharacter', 'editor.renderWhitespace');
-		// assertTopScore('Editor.r', 0, 'diffEditor.renderSideBySide', 'editor.overviewRulerlanes', 'editor.renderControlCharacter', 'editor.renderWhitespace');
+		assertTopScore(fuzzyMatchAndScore, 'editor.r', 2, 'diffEditor.renderSideBySide', 'editor.overviewRulerlanes', 'editor.renderControlCharacter', 'editor.renderWhitespace');
+		// assertTopScore(fuzzyMatchAndScore, 'editor.R', 1, 'diffEditor.renderSideBySide', 'editor.overviewRulerlanes', 'editor.renderControlCharacter', 'editor.renderWhitespace');
+		// assertTopScore(fuzzyMatchAndScore, 'Editor.r', 0, 'diffEditor.renderSideBySide', 'editor.overviewRulerlanes', 'editor.renderControlCharacter', 'editor.renderWhitespace');
 
-		assertTopScore('-mo', 1, '-ms-ime-mode', '-moz-columns');
+		assertTopScore(fuzzyMatchAndScore, '-mo', 1, '-ms-ime-mode', '-moz-columns');
 		// // dupe, issue #14861
-		assertTopScore('convertModelPosition', 0, 'convertModelPositionToViewPosition', 'convertViewToModelPosition');
+		assertTopScore(fuzzyMatchAndScore, 'convertModelPosition', 0, 'convertModelPositionToViewPosition', 'convertViewToModelPosition');
 		// // dupe, issue #14942
-		assertTopScore('is', 0, 'isValidViewletId', 'import statement');
+		assertTopScore(fuzzyMatchAndScore, 'is', 0, 'isValidViewletId', 'import statement');
+
+	});
+
+	test('topScore - fuzzyScore', function () {
+
+
+		assertTopScore(fuzzyScore, 'TEdit', 1, 'TextEditorDecorationType', 'TextEdit', 'TextEditor');
+		assertTopScore(fuzzyScore, 'cons', 2, 'ArrayBufferConstructor', 'Console', 'console');
+		assertTopScore(fuzzyScore, 'Foo', 1, 'foo', 'Foo', 'foo');
+
+		assertTopScore(fuzzyScore, 'CC', 1, 'camelCase', 'CamelCase');
+		assertTopScore(fuzzyScore, 'cC', 0, 'camelCase', 'CamelCase');
+		// assertTopScore(fuzzyScore, 'cC', 1, 'ccfoo', 'camelCase');
+		// assertTopScore(fuzzyScore, 'cC', 1, 'ccfoo', 'camelCase', 'foo-cC-bar');
+
+		// issue #17836
+		assertTopScore(fuzzyScore, 'p', 0, 'parse', 'posix', 'pafdsa', 'path', 'p');
+		assertTopScore(fuzzyScore, 'pa', 0, 'parse', 'pafdsa', 'path');
+
+		// issue #14583
+		assertTopScore(fuzzyScore, 'log', 3, 'HTMLOptGroupElement', 'ScrollLogicalPosition', 'SVGFEMorphologyElement', 'log');
+		assertTopScore(fuzzyScore, 'e', 2, 'AbstractWorker', 'ActiveXObject', 'else');
+
+		// issue #14446
+		assertTopScore(fuzzyScore, 'workbench.sideb', 1, 'workbench.editor.defaultSideBySideLayout', 'workbench.sideBar.location');
+
+		// issue #11423
+		assertTopScore(fuzzyScore, 'editor.r', 2, 'diffEditor.renderSideBySide', 'editor.overviewRulerlanes', 'editor.renderControlCharacter', 'editor.renderWhitespace');
+		// assertTopScore(fuzzyScore, 'editor.R', 1, 'diffEditor.renderSideBySide', 'editor.overviewRulerlanes', 'editor.renderControlCharacter', 'editor.renderWhitespace');
+		// assertTopScore(fuzzyScore, 'Editor.r', 0, 'diffEditor.renderSideBySide', 'editor.overviewRulerlanes', 'editor.renderControlCharacter', 'editor.renderWhitespace');
+
+		assertTopScore(fuzzyScore, '-mo', 1, '-ms-ime-mode', '-moz-columns');
+		// // dupe, issue #14861
+		assertTopScore(fuzzyScore, 'convertModelPosition', 0, 'convertModelPositionToViewPosition', 'convertViewToModelPosition');
+		// // dupe, issue #14942
+		assertTopScore(fuzzyScore, 'is', 0, 'isValidViewletId', 'import statement');
 
 	});
 });
