@@ -20,11 +20,15 @@ class TaskEntry extends base.TaskEntry {
 		super(taskService, task, highlights);
 	}
 
+	public getAriaLabel(): string {
+		return nls.localize('entryAriaLabel', "{0}, tasks", this.getLabel());
+	}
+
 	public run(mode: QuickOpen.Mode, context: Model.IContext): boolean {
 		if (mode === QuickOpen.Mode.PREVIEW) {
 			return false;
 		}
-		this.taskService.terminate(this.task._id);
+		this.taskService.restart(this.task._id);
 		return true;
 	}
 }
@@ -38,7 +42,7 @@ export class QuickOpenHandler extends base.QuickOpenHandler {
 	}
 
 	public getAriaLabel(): string {
-		return nls.localize('tasksAriaLabel', "Type the name of a task to terminate");
+		return nls.localize('tasksAriaLabel', "Type the name of a task to restart");
 	}
 
 	protected getTasks(): TPromise<Task[]> {
@@ -53,6 +57,6 @@ export class QuickOpenHandler extends base.QuickOpenHandler {
 		if (searchString.length > 0) {
 			return nls.localize('noTasksMatching', "No tasks matching");
 		}
-		return nls.localize('noTasksFound', "No tasks to terminate found");
+		return nls.localize('noTasksFound', "No tasks to restart found");
 	}
 }
