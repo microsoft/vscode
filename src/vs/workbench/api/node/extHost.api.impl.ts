@@ -140,11 +140,12 @@ export function createApiFactory(initData: IInitData, threadService: IThreadServ
 			}
 		}
 
-		// namespace: commands
-		const commands: typeof vscode.commands = {
+		class Commands {
+
 			registerCommand<T>(id: string, command: <T>(...args: any[]) => T | Thenable<T>, thisArgs?: any): vscode.Disposable {
 				return extHostCommands.registerCommand(id, command, thisArgs);
-			},
+			}
+
 			registerTextEditorCommand(id: string, callback: (textEditor: vscode.TextEditor, edit: vscode.TextEditorEdit, ...args: any[]) => void, thisArg?: any): vscode.Disposable {
 				return extHostCommands.registerCommand(id, (...args: any[]) => {
 					let activeTextEditor = extHostEditors.getActiveTextEditor();
@@ -165,7 +166,9 @@ export function createApiFactory(initData: IInitData, threadService: IThreadServ
 						console.warn('An error occured while running command ' + id, err);
 					});
 				});
-			},
+			}
+
+			@proposed(extension)
 			registerDiffInformationCommand(id: string, callback: (diff: vscode.LineChange[], ...args: any[]) => any, thisArg?: any): vscode.Disposable {
 				return extHostCommands.registerCommand(id, async (...args: any[]) => {
 					let activeTextEditor = extHostEditors.getActiveTextEditor();
@@ -177,14 +180,19 @@ export function createApiFactory(initData: IInitData, threadService: IThreadServ
 					const diff = await extHostEditors.getDiffInformation(activeTextEditor.id);
 					callback.apply(thisArg, [diff, ...args]);
 				});
-			},
+			}
+
 			executeCommand<T>(id: string, ...args: any[]): Thenable<T> {
 				return extHostCommands.executeCommand(id, ...args);
-			},
+			}
+
 			getCommands(filterInternal: boolean = false): Thenable<string[]> {
 				return extHostCommands.getCommands(filterInternal);
 			}
-		};
+		}
+
+		// namespace: commands
+		const commands: typeof vscode.commands = new Commands();
 
 		// namespace: env
 		const env: typeof vscode.env = Object.freeze({
