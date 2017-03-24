@@ -40,6 +40,11 @@ import { FileReferences, OneReference, ReferencesModel } from './referencesModel
 import { ITextModelResolverService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { registerColor, highContrastOutline } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant, ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
+import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
+import { ListFocusContext } from 'vs/platform/list/browser/listService';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { CommandService } from 'vs/platform/commands/common/commandService';
 
 class DecorationsManager implements IDisposable {
 
@@ -217,11 +222,53 @@ class DataSource implements tree.IDataSource {
 
 class Controller extends DefaultController {
 
+	private _commandServices: ICommandService;
+
 	static Events = {
 		FOCUSED: 'events/custom/focused',
 		SELECTED: 'events/custom/selected',
 		OPEN_TO_SIDE: 'events/custom/opentoside'
 	};
+
+	constructor(
+		@ICommandService commandServices: ICommandService
+	) {
+		super();
+
+		this._commandServices = commandServices;
+		this.registerCommands();
+	}
+
+	/**
+	 * Registers commands to handle key and mouse events.
+	 */
+	registerCommands() {
+		KeybindingsRegistry.registerCommandAndKeybindingRule({
+			id: 'referencelist.select',
+			weight: KeybindingsRegistry.WEIGHT.builtinExtension(),
+			when: ListFocusContext,
+			primary: KeyCode.Enter,
+			secondary: [KeyMod.CtrlCmd | KeyCode.Enter],
+			mac: {
+				primary: KeyCode.Enter,
+				secondary: [KeyMod.CtrlCmd | KeyCode.Enter, KeyMod.CtrlCmd | KeyCode.DownArrow]
+			},
+			handler: (accessor) => {
+				/*var element = tree.getFocus();
+				if (element instanceof FileReferences) {
+					return this._expandCollapse(tree, element);
+				}
+
+				var result = super.onEnter(tree, event);
+				if (event.ctrlKey || event.metaKey) {
+					tree.emit(Controller.Events.OPEN_TO_SIDE, element);
+				} else {
+					tree.emit(Controller.Events.SELECTED, element);
+				}
+				return result;*/
+			}
+		});
+	}
 
 	public onTap(tree: tree.ITree, element: any, event: GestureEvent): boolean {
 		if (element instanceof FileReferences) {
@@ -280,17 +327,14 @@ class Controller extends DefaultController {
 	}
 
 	public onEnter(tree: tree.ITree, event: IKeyboardEvent): boolean {
-		var element = tree.getFocus();
-		if (element instanceof FileReferences) {
-			return this._expandCollapse(tree, element);
-		}
+		let result: boolean;
 
-		var result = super.onEnter(tree, event);
-		if (event.ctrlKey || event.metaKey) {
-			tree.emit(Controller.Events.OPEN_TO_SIDE, element);
-		} else {
-			tree.emit(Controller.Events.SELECTED, element);
-		}
+		this._commandServices
+			.executeCommand('referencelist.select')
+			.then(() => {
+				result = true;
+			});
+
 		return result;
 	}
 
@@ -605,7 +649,7 @@ export class ReferenceWidget extends PeekViewWidget {
 				dataSource: this._instantiationService.createInstance(DataSource),
 				renderer: this._instantiationService.createInstance(Renderer),
 				//sorter: new Sorter(),
-				controller: new Controller()
+				controller: new Controller(this._instantiationService.createInstance(CommandService))
 			};
 
 			var options = {
