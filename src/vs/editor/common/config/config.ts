@@ -197,11 +197,10 @@ function registerCoreDispatchCommand(handlerId: string): void {
 }
 registerCoreDispatchCommand(H.Type);
 registerCoreDispatchCommand(H.ReplacePreviousChar);
+registerCoreDispatchCommand(H.CompositionStart);
+registerCoreDispatchCommand(H.CompositionEnd);
 registerCoreDispatchCommand(H.Paste);
 registerCoreDispatchCommand(H.Cut);
-
-registerOverwritableCommand(H.CompositionStart, () => { });
-registerOverwritableCommand(H.CompositionEnd, () => { });
 
 class WordCommand extends CoreCommand {
 	public static getMacWordNavigationKB(shift: boolean, key: KeyCode): number {
