@@ -33,10 +33,6 @@ export class EditOperationsCommand implements editorCommon.ICommand {
 	}
 
 	public getEditOperations(model: editorCommon.ITokenizedModel, builder: editorCommon.IEditOperationBuilder): void {
-		this._edits
-			.map((edit) => EditOperationsCommand.trimEdit(edit, model))
-			.filter((edit) => edit !== null)
-			.forEach((edit) => builder.addEditOperation(Range.lift(edit.range), edit.text));
 
 		for (let edit of this._edits) {
 			// We know that this edit.range comes from the mirror model, so it should only contain \n and no \r's
