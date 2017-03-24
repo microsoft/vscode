@@ -517,9 +517,9 @@ export interface DocumentSymbolProvider {
 }
 
 export interface TextEdit {
-	text: string;
 	range: editorCommon.IRange;
-	eol: editorCommon.EndOfLineSequence;
+	text: string;
+	eol?: editorCommon.EndOfLineSequence;
 }
 
 /**

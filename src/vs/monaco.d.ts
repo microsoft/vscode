@@ -4760,9 +4760,9 @@ declare module monaco.languages {
     }
 
     export interface TextEdit {
-        text: string;
         range: IRange;
-        eol: editor.EndOfLineSequence;
+        text: string;
+        eol?: editor.EndOfLineSequence;
     }
 
     /**
