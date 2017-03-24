@@ -584,54 +584,185 @@ declare module 'vscode' {
 		getClickCommand?(node: T): string;
 	}
 
+	/**
+	 * The theme-aware decorations for a [SCM resource](#SCMResource).
+	 */
 	export interface SCMResourceThemableDecorations {
+
+		/**
+		 * The icon path for a specific [SCM resource](#SCMResource).
+		 */
 		readonly iconPath?: string | Uri;
 	}
 
+	/**
+	 * The decorations for a [SCM resource](#SCMResource). Can be specified
+	 * for light and dark themes, independently.
+	 */
 	export interface SCMResourceDecorations extends SCMResourceThemableDecorations {
+
+		/**
+		 * Whether the [SCM resource](#SCMResource) should be striked-through
+		 * in the UI.
+		 */
 		readonly strikeThrough?: boolean;
+
+		/**
+		 * The light theme decorations.
+		 */
 		readonly light?: SCMResourceThemableDecorations;
+
+		/**
+		 * The dark theme decorations.
+		 */
 		readonly dark?: SCMResourceThemableDecorations;
 	}
 
+	/**
+	 * An SCM resource is the source control state of an underlying resource.
+	 */
 	export interface SCMResource {
+
+		/**
+		 * The [uri](#Uri) of the underlying resource.
+		 */
 		readonly uri: Uri;
+
+		/**
+		 * The [decorations](#SCMResourceDecorations) for this SCM resource.
+		 */
 		readonly decorations?: SCMResourceDecorations;
 	}
 
+	/**
+	 * An SCM resource group is a collection of [SCM resources](#SCMResource).
+	 */
 	export interface SCMResourceGroup {
+
+		/**
+		 * The identifier of this SCM resource group.
+		 */
 		readonly id: string;
+
+		/**
+		 * The UI label of this SCM resource group.
+		 */
 		readonly label: string;
+
+		/**
+		 * The collection of [SCM resources](#SCMResource) within this SCM resource group.
+		 */
 		readonly resources: SCMResource[];
 	}
 
+	/**
+	 * An SCM provider is able to provide [SCM resources](#SCMResource) to Code,
+	 * notify of changes in them and interact with Code in several SCM related ways.
+	 */
 	export interface SCMProvider {
+
+		/**
+		 * A human-readable label for the name of this SCM Provider.
+		 */
 		readonly label: string;
+
+		/**
+		 * The list of SCM resource groups.
+		 */
 		readonly resources: SCMResourceGroup[];
-		readonly onDidChange: Event<SCMResourceGroup[]>;
-		readonly count?: number | undefined;
+
+		/**
+		 * A count of resources, used in the UI as the label for the SCM changes count.
+		 */
+		readonly count?: number;
+
+		/**
+		 * A state identifier, which will be used to populate the value of the
+		 * `scmProviderState` context key.
+		 */
 		readonly state?: string;
 
+		/**
+		 * An [event](#Event) which should fire when any of the following attributes
+		 * have changed:
+		 *   - [resources](#SCMProvider.resources)
+		 *   - [count](#SCMProvider.count)
+		 *   - [state](#SCMProvider.state)
+		 */
+		readonly onDidChange: Event<SCMResourceGroup[]>;
+
+		/**
+		 * Provide a [uri](#Uri) to the original resource of any given resource uri.
+		 *
+		 * @param uri The uri of the resource open in a text editor.
+		 * @param token A cancellation token.
+		 * @return A thenable that resolves to uri of the matching original resource.
+		 */
 		getOriginalResource?(uri: Uri, token: CancellationToken): ProviderResult<Uri>;
+
+		/**
+		 * Open a specific [SCM resource](#SCMResource). Called when SCM resources
+		 * are clicked in the UI, for example.
+		 *
+		 * @param resource The [SCM resource](#SCMResource) which should be open.
+		 * @param token A cancellation token.
+		 * @return A thenable which resolves when the resource is open.
+		 */
 		open?(resource: SCMResource, token: CancellationToken): ProviderResult<void>;
-		drag?(resource: SCMResource, resourceGroup: SCMResourceGroup, token: CancellationToken): ProviderResult<void>;
+
+		// TODO@joao: move to SCMInput?
 		acceptChanges?(token: CancellationToken): ProviderResult<void>;
 	}
 
+	/**
+	 * Represents the input box in the SCM view.
+	 */
 	export interface SCMInputBox {
+
+		/**
+		 * Setter and getter for the contents of the input box.
+		 */
 		value: string;
+
+		/**
+		 * An [event](#Event) which fires when the input box value has changed.
+		 */
 		readonly onDidChange: Event<string>;
 	}
 
 	export namespace scm {
+
+		/**
+		 * An [event](#Event) which fires when the active [SCM provider](#SCMProvider)
+		 * has changed.
+		 */
 		export const onDidChangeActiveProvider: Event<SCMProvider>;
+
+		/**
+		 * The currently active [SCM provider](#SCMProvider).
+		 */
 		export let activeProvider: SCMProvider | undefined;
+
+		/**
+		 * The [input box](#SCMInputBox) in the SCM view.
+		 */
 		export const inputBox: SCMInputBox;
 
+		// TODO@Joao
 		export function getResourceFromURI(uri: Uri): SCMResource | SCMResourceGroup | undefined;
+
+		/**
+		 * Registers an [SCM provider](#SCMProvider).
+		 *
+		 * @param id The provider's id.
+		 * @return A disposable which unregisters this provider.
+		 */
 		export function registerSCMProvider(id: string, provider: SCMProvider): Disposable;
 	}
 
+	/**
+	 * The contiguous set of modified lines in a diff.
+	 */
 	export interface LineChange {
 		readonly originalStartLineNumber: number;
 		readonly originalEndLineNumber: number;
