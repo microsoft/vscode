@@ -367,6 +367,6 @@ suite('window namespace tests', () => {
 				done();
 			}
 		});
-		terminal.sendText('test');
+		terminal.sendText('test', false);
 	});
 });
