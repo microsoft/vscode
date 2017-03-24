@@ -24,7 +24,10 @@ app.on('ready', () => {
 	const win = new BrowserWindow({
 		height: 600,
 		width: 800,
-		webPreferences: { webSecurity: false }
+		webPreferences: {
+			backgroundThrottling: false,
+			webSecurity: false
+		}
 	});
 
 	win.webContents.on('did-finish-load', () => {
