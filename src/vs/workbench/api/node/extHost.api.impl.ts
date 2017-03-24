@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { Emitter } from 'vs/base/common/event';
+import { Emitter, createEmptyEvent } from 'vs/base/common/event';
 import { TrieMap } from 'vs/base/common/map';
 import { score } from 'vs/editor/common/modes/languageSelector';
 import * as Platform from 'vs/base/common/platform';
@@ -408,6 +408,10 @@ export function createApiFactory(initData: IInitData, threadService: IThreadServ
 			},
 			onWillSaveTextDocument: (listener, thisArgs?, disposables?) => {
 				return extHostDocumentSaveParticipant.onWillSaveTextDocumentEvent(listener, thisArgs, disposables);
+			},
+			onDidChangeDiffInformation: (listener, thisArgs?, disposables?) => {
+				// TODO@joao
+				return createEmptyEvent()(listener, thisArgs, disposables);
 			},
 			onDidChangeConfiguration: (listener: () => any, thisArgs?: any, disposables?: extHostTypes.Disposable[]) => {
 				return extHostConfiguration.onDidChangeConfiguration(listener, thisArgs, disposables);

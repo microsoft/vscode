@@ -5,9 +5,9 @@
 
 'use strict';
 
-import { TextDocument, Range, LineChange } from 'vscode';
+import { TextDocument, Range, LineChange2 } from 'vscode';
 
-export function applyChanges(original: TextDocument, modified: TextDocument, diffs: LineChange[]): string {
+export function applyChanges(original: TextDocument, modified: TextDocument, diffs: LineChange2[]): string {
 	const result: string[] = [];
 	let currentLine = 0;
 
