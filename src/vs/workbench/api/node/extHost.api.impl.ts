@@ -33,7 +33,6 @@ import { ExtHostEditors } from 'vs/workbench/api/node/extHostTextEditors';
 import { ExtHostLanguages } from 'vs/workbench/api/node/extHostLanguages';
 import { ExtHostLanguageFeatures } from 'vs/workbench/api/node/extHostLanguageFeatures';
 import { ExtHostApiCommands } from 'vs/workbench/api/node/extHostApiCommands';
-import { computeDiff } from 'vs/workbench/api/node/extHostFunctions';
 import { ExtHostTask } from 'vs/workbench/api/node/extHostTask';
 import * as extHostTypes from 'vs/workbench/api/node/extHostTypes';
 import URI from 'vs/base/common/uri';
@@ -165,6 +164,18 @@ export function createApiFactory(initData: IInitData, threadService: IThreadServ
 					}, (err) => {
 						console.warn('An error occured while running command ' + id, err);
 					});
+				});
+			},
+			registerDiffInformationCommand(id: string, callback: (diff: vscode.LineChange[], ...args: any[]) => any, thisArg?: any): vscode.Disposable {
+				return extHostCommands.registerCommand(id, async (...args: any[]) => {
+					let activeTextEditor = extHostEditors.getActiveTextEditor();
+					if (!activeTextEditor) {
+						console.warn('Cannot execute ' + id + ' because there is no active text editor.');
+						return undefined;
+					}
+
+					const diff = await extHostEditors.getDiffInformation(activeTextEditor.id);
+					callback.apply(thisArg, [diff, ...args]);
 				});
 			},
 			executeCommand<T>(id: string, ...args: any[]): Thenable<T> {
@@ -499,7 +510,6 @@ export function createApiFactory(initData: IInitData, threadService: IThreadServ
 			ViewColumn: extHostTypes.ViewColumn,
 			WorkspaceEdit: extHostTypes.WorkspaceEdit,
 			// functions
-			computeDiff,
 			FileLocationKind: extHostTypes.FileLocationKind,
 			ApplyToKind: extHostTypes.ApplyToKind,
 			RevealKind: extHostTypes.RevealKind,

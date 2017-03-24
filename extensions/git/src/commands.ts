@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { Uri, commands, scm, Disposable, window, workspace, QuickPickItem, OutputChannel, computeDiff, Range, WorkspaceEdit, Position } from 'vscode';
+import { Uri, commands, scm, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange } from 'vscode';
 import { Ref, RefType, Git } from './git';
 import { Model, Resource, Status, CommitOptions } from './model';
 import * as staging from './staging';
@@ -60,15 +60,23 @@ class CheckoutRemoteHeadItem extends CheckoutItem {
 	}
 }
 
-const Commands: { commandId: string; key: string; method: Function; skipModelCheck: boolean; }[] = [];
+interface Command {
+	commandId: string;
+	key: string;
+	method: Function;
+	skipModelCheck: boolean;
+	requiresDiffInformation: boolean;
+}
 
-function command(commandId: string, skipModelCheck = false): Function {
+const Commands: Command[] = [];
+
+function command(commandId: string, skipModelCheck = false, requiresDiffInformation = false): Function {
 	return (target: any, key: string, descriptor: any) => {
 		if (!(typeof descriptor.value === 'function')) {
 			throw new Error('not supported');
 		}
 
-		Commands.push({ commandId, key, method: descriptor.value, skipModelCheck });
+		Commands.push({ commandId, key, method: descriptor.value, skipModelCheck, requiresDiffInformation });
 	};
 }
 
@@ -88,7 +96,15 @@ export class CommandCenter {
 		}
 
 		this.disposables = Commands
-			.map(({ commandId, key, method, skipModelCheck }) => commands.registerCommand(commandId, this.createCommand(commandId, key, method, skipModelCheck)));
+			.map(({ commandId, key, method, skipModelCheck, requiresDiffInformation }) => {
+				const command = this.createCommand(commandId, key, method, skipModelCheck);
+
+				if (requiresDiffInformation) {
+					return commands.registerDiffInformationCommand(commandId, command);
+				} else {
+					return commands.registerCommand(commandId, command);
+				}
+			});
 	}
 
 	@command('git.refresh')
@@ -288,8 +304,8 @@ export class CommandCenter {
 		return await this.model.add();
 	}
 
-	@command('git.stageSelectedRanges')
-	async stageSelectedRanges(): Promise<void> {
+	@command('git.stageSelectedRanges', false, true)
+	async stageSelectedRanges(diffs: LineChange[]): Promise<void> {
 		const textEditor = window.activeTextEditor;
 
 		if (!textEditor) {
@@ -305,7 +321,6 @@ export class CommandCenter {
 
 		const originalUri = modifiedUri.with({ scheme: 'git', query: '~' });
 		const originalDocument = await workspace.openTextDocument(originalUri);
-		const diffs = await computeDiff(originalDocument, modifiedDocument);
 		const selections = textEditor.selections;
 		const selectedDiffs = diffs.filter(diff => {
 			const modifiedRange = diff.modifiedEndLineNumber === 0
@@ -323,8 +338,8 @@ export class CommandCenter {
 		await this.model.stage(modifiedUri, result);
 	}
 
-	@command('git.revertSelectedRanges')
-	async revertSelectedRanges(): Promise<void> {
+	@command('git.revertSelectedRanges', false, true)
+	async revertSelectedRanges(diffs: LineChange[]): Promise<void> {
 		const textEditor = window.activeTextEditor;
 
 		if (!textEditor) {
@@ -340,7 +355,6 @@ export class CommandCenter {
 
 		const originalUri = modifiedUri.with({ scheme: 'git', query: '~' });
 		const originalDocument = await workspace.openTextDocument(originalUri);
-		const diffs = await computeDiff(originalDocument, modifiedDocument);
 		const selections = textEditor.selections;
 		const selectedDiffs = diffs.filter(diff => {
 			const modifiedRange = diff.modifiedEndLineNumber === 0
@@ -385,8 +399,8 @@ export class CommandCenter {
 		return await this.model.revertFiles();
 	}
 
-	@command('git.unstageSelectedRanges')
-	async unstageSelectedRanges(): Promise<void> {
+	@command('git.unstageSelectedRanges', false, true)
+	async unstageSelectedRanges(diffs: LineChange[]): Promise<void> {
 		const textEditor = window.activeTextEditor;
 
 		if (!textEditor) {
@@ -402,7 +416,6 @@ export class CommandCenter {
 
 		const originalUri = modifiedUri.with({ scheme: 'git', query: 'HEAD' });
 		const originalDocument = await workspace.openTextDocument(originalUri);
-		const diffs = await computeDiff(originalDocument, modifiedDocument);
 		const selections = textEditor.selections;
 		const selectedDiffs = diffs.filter(diff => {
 			const modifiedRange = diff.modifiedEndLineNumber === 0
