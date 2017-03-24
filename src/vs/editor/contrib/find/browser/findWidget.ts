@@ -33,20 +33,20 @@ export interface IFindController {
 	replaceAll(): void;
 }
 
-const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
-const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");
-const NLS_PREVIOUS_MATCH_BTN_LABEL = nls.localize('label.previousMatchButton', "Previous match");
-const NLS_NEXT_MATCH_BTN_LABEL = nls.localize('label.nextMatchButton', "Next match");
+export const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
+export const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");
+export const NLS_PREVIOUS_MATCH_BTN_LABEL = nls.localize('label.previousMatchButton', "Previous match");
+export const NLS_NEXT_MATCH_BTN_LABEL = nls.localize('label.nextMatchButton', "Next match");
 const NLS_TOGGLE_SELECTION_FIND_TITLE = nls.localize('label.toggleSelectionFind', "Find in selection");
-const NLS_CLOSE_BTN_LABEL = nls.localize('label.closeButton', "Close");
+export const NLS_CLOSE_BTN_LABEL = nls.localize('label.closeButton', "Close");
 const NLS_REPLACE_INPUT_LABEL = nls.localize('label.replace', "Replace");
 const NLS_REPLACE_INPUT_PLACEHOLDER = nls.localize('placeholder.replace', "Replace");
 const NLS_REPLACE_BTN_LABEL = nls.localize('label.replaceButton', "Replace");
 const NLS_REPLACE_ALL_BTN_LABEL = nls.localize('label.replaceAllButton', "Replace All");
 const NLS_TOGGLE_REPLACE_MODE_BTN_LABEL = nls.localize('label.toggleReplaceButton', "Toggle Replace mode");
 const NLS_MATCHES_COUNT_LIMIT_TITLE = nls.localize('title.matchesCountLimit', "Only the first 999 results are highlighted, but all find operations work on the entire text.");
-const NLS_MATCHES_LOCATION = nls.localize('label.matchesLocation', "{0} of {1}");
-const NLS_NO_RESULTS = nls.localize('label.noResults', "No Results");
+export const NLS_MATCHES_LOCATION = nls.localize('label.matchesLocation', "{0} of {1}");
+export const NLS_NO_RESULTS = nls.localize('label.noResults', "No Results");
 
 let MAX_MATCHES_COUNT_WIDTH = 69;
 const WIDGET_FIXED_WIDTH = 411 - 69;
@@ -722,14 +722,14 @@ class SimpleCheckbox extends Widget {
 	}
 }
 
-interface ISimpleButtonOpts {
+export interface ISimpleButtonOpts {
 	label: string;
 	className: string;
 	onTrigger: () => void;
 	onKeyDown: (e: IKeyboardEvent) => void;
 }
 
-class SimpleButton extends Widget {
+export class SimpleButton extends Widget {
 
 	private _opts: ISimpleButtonOpts;
 	private _domNode: HTMLElement;

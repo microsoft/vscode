@@ -23,7 +23,24 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITextModelResolverService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { Parts, IPartService } from 'vs/workbench/services/part/common/partService';
 
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { CommonEditorRegistry, Command } from 'vs/editor/common/editorCommonExtensions';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { ContextKeyExpr, IContextKey, RawContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
+
 import Webview from './webview';
+import { SimpleFindWidget } from './simpleFindWidget';
+import { FindModelBoundToWebview } from './simpleFindModel';
+import { SimpleFindState } from './simpleFindState';
+
+// --- Register Context Keys
+
+/**  A context key that is set when an html preview has focus. */
+export const KEYBINDING_CONTEXT_HTML_PREVIEW_FOCUS = new RawContextKey<boolean>('htmlPreviewFocus', undefined);
+/**  A context key that is set when an html preview does not have focus. */
+export const KEYBINDING_CONTEXT_HTML_PREVIEW_NOT_FOCUSED: ContextKeyExpr = KEYBINDING_CONTEXT_HTML_PREVIEW_FOCUS.toNegated();
+
 
 /**
  * An implementation of editor for showing HTML content in an IFrame by leveraging the HTML input.
@@ -36,7 +53,12 @@ export class HtmlPreviewPart extends BaseEditor {
 	private _openerService: IOpenerService;
 	private _webview: Webview;
 	private _webviewDisposables: IDisposable[];
+	private _findModel: FindModelBoundToWebview;
+	private _findState: SimpleFindState;
 	private _container: HTMLDivElement;
+	// private headerContainer: HTMLElement;
+	private _findWidget: SimpleFindWidget;
+	private _htmlPreviewFocusContexKey: IContextKey<boolean>;
 
 	private _baseUrl: URI;
 
@@ -51,13 +73,17 @@ export class HtmlPreviewPart extends BaseEditor {
 		@IWorkbenchThemeService protected themeService: IWorkbenchThemeService,
 		@IOpenerService openerService: IOpenerService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@IPartService private partService: IPartService
+		@IPartService private partService: IPartService,
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IContextKeyService private _contextKeyService: IContextKeyService
 	) {
 		super(HtmlPreviewPart.ID, telemetryService, themeService);
 
 		this._textModelResolverService = textModelResolverService;
 		this._openerService = openerService;
 		this._baseUrl = contextService.toResource('/');
+
+		this._htmlPreviewFocusContexKey = KEYBINDING_CONTEXT_HTML_PREVIEW_FOCUS.bindTo(this._contextKeyService);
 	}
 
 	dispose(): void {
@@ -67,6 +93,10 @@ export class HtmlPreviewPart extends BaseEditor {
 		// unhook listeners
 		this._themeChangeSubscription.dispose();
 		this._modelChangeSubscription.dispose();
+
+		if (this._findWidget) {
+			this._findWidget.dispose();
+		}
 
 		// dipose model ref
 		dispose(this._modelRef);
@@ -78,18 +108,38 @@ export class HtmlPreviewPart extends BaseEditor {
 		this._container.style.paddingLeft = '20px';
 		this._container.style.position = 'absolute';
 		this._container.style.zIndex = '300';
+		this._container.style.overflow = 'hidden';
 		parent.getHTMLElement().appendChild(this._container);
+		this._findState = this._register(new SimpleFindState());
+		this._findState.addChangeListener((e) => {
+			if (e.isRevealed) {
+				if (!this._findState.isRevealed) {
+					this.webview.focus();
+				}
+			}
+		});
+		this._findWidget = this._register(this.instantiationService.createInstance(SimpleFindWidget, this._container, this._findState));
 	}
 
 	private get webview(): Webview {
 		if (!this._webview) {
-			this._webview = new Webview(this._container, this.partService.getContainer(Parts.EDITOR_PART));
+			this._webview = new Webview(this._container, this.partService.getContainer(Parts.EDITOR_PART), this._htmlPreviewFocusContexKey);
 			this._webview.baseUrl = this._baseUrl && this._baseUrl.toString(true);
 
 			this._webviewDisposables = [
 				this._webview,
 				this._webview.onDidClickLink(uri => this._openerService.open(uri)),
-				this._webview.onDidLoadContent(data => this.telemetryService.publicLog('previewHtml', data.stats))
+				this._webview.onDidLoadContent(data => {
+					this.telemetryService.publicLog('previewHtml', data.stats);
+					if (this._findModel) {
+						this._findModel.dispose();
+					}
+					this._findModel = this._register(new FindModelBoundToWebview(this._webview, this._findState));
+					this._findWidget.findModel = this._findModel;
+					// Ideally, we would resume the find when re-focusing the editor.
+					// However, this returns no results as the content hasn't fully loaded yet.
+					// this._findModel.startFind();
+				})
 			];
 		}
 		return this._webview;
@@ -120,7 +170,9 @@ export class HtmlPreviewPart extends BaseEditor {
 			this.webview.style(this.themeService.getColorTheme());
 
 			if (this._hasValidModel()) {
-				this._modelChangeSubscription = this.model.onDidChangeContent(() => this.webview.contents = this.model.getLinesContent());
+				this._modelChangeSubscription = this.model.onDidChangeContent(() => {
+					this.webview.contents = this.model.getLinesContent();
+				});
 				this.webview.contents = this.model.getLinesContent();
 			}
 		}
@@ -135,10 +187,19 @@ export class HtmlPreviewPart extends BaseEditor {
 		// we take the padding we set on create into account
 		this._container.style.width = `${Math.max(width - 20, 0)}px`;
 		this._container.style.height = `${height}px`;
+
+		if (this._findWidget) {
+			this._findWidget.layout(width);
+		}
 	}
 
 	public focus(): void {
 		this.webview.focus();
+	}
+
+	public activateFind(): void {
+		this._findState.change({ isRevealed: true });
+		this._findWidget.activate();
 	}
 
 	public clearInput(): void {
@@ -192,3 +253,27 @@ export class HtmlPreviewPart extends BaseEditor {
 		});
 	}
 }
+
+class StartSearchHtmlPreviewPartCommand extends Command {
+
+	public runCommand(accessor: ServicesAccessor, args: any): void {
+		const htmlPreviewPart = this.getHtmlPreviewPart(accessor);
+		if (htmlPreviewPart) {
+			htmlPreviewPart.activateFind();
+		}
+	}
+
+	private getHtmlPreviewPart(accessor: ServicesAccessor): HtmlPreviewPart {
+		const activeEditor = accessor.get(IWorkbenchEditorService).getActiveEditor();
+		if (activeEditor instanceof HtmlPreviewPart) {
+			return activeEditor;
+		}
+		return null;
+	}
+}
+CommonEditorRegistry.registerEditorCommand(new StartSearchHtmlPreviewPartCommand({
+	id: 'htmlPreview.action.search',
+	precondition: ContextKeyExpr.and(KEYBINDING_CONTEXT_HTML_PREVIEW_FOCUS),
+	kbOpts: { primary: KeyMod.CtrlCmd | KeyCode.KEY_F }
+}));
+

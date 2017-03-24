@@ -1,0 +1,305 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Find widget */
+#workbench\.editor\.htmlPreviewPart .find-widget {
+	position: absolute;
+	z-index: 10;
+	right: 28px;
+	top: -44px; /* find input height + shadow (10px) */
+	height: 34px; /* find input height */
+	overflow: hidden;
+	line-height: 19px;
+
+	-webkit-transition: top 200ms linear;
+	-o-transition: top 200ms linear;
+	-moz-transition: top 200ms linear;
+	-ms-transition: top 200ms linear;
+	transition: top 200ms linear;
+
+	padding: 0 4px;
+}
+
+#workbench\.editor\.htmlPreviewPart .find-widget.visible {
+	top: 0;
+}
+
+#workbench\.editor\.htmlPreviewPart .find-widget .monaco-inputbox .input {
+	background-color: transparent;
+	/* Style to compensate for //winjs */
+	min-height: 0;
+}
+
+#workbench\.editor\.htmlPreviewPart .find-widget .monaco-findInput {
+	background-color: white;
+}
+
+#workbench\.editor\.htmlPreviewPart .find-widget.visible.noanimation {
+	-webkit-transition: none;
+	-o-transition: none;
+	-moz-transition: none;
+	-ms-transition: none;
+	transition: none;
+}
+
+#workbench\.editor\.htmlPreviewPart .find-widget > .find-part {
+	margin: 4px 0 0 4px;
+	font-size: 12px;
+}
+
+#workbench\.editor\.htmlPreviewPart .find-widget > .find-part .monaco-inputbox {
+	height: 25px;
+}
+
+#workbench\.editor\.htmlPreviewPart .find-widget > .find-part .monaco-inputbox > .wrapper > .input {
+	padding-top: 2px;
+	padding-bottom: 2px;
+}
+
+#workbench\.editor\.htmlPreviewPart .find-widget .monaco-findInput {
+	display: inline-block;
+	vertical-align: middle;
+}
+
+#workbench\.editor\.htmlPreviewPart .find-widget.no-results .matchesCount {
+	color: #A1260D;
+}
+
+.vs-dark #workbench\.editor\.htmlPreviewPart .find-widget.no-results .matchesCount,
+.hc-black #workbench\.editor\.htmlPreviewPart .find-widget.no-results .matchesCount {
+	color: #F48771
+}
+
+#workbench\.editor\.htmlPreviewPart .find-widget .matchesCount {
+	display: inline-block;
+	margin: 0 1px 0 3px;
+	padding: 2px 2px 0 2px;
+	height: 25px;
+	vertical-align: middle;
+	box-sizing: border-box;
+	text-align: center;
+	line-height: 23px;
+}
+
+#workbench\.editor\.htmlPreviewPart .find-widget .button {
+	width: 20px;
+	height: 20px;
+	display: inline-block;
+	vertical-align: middle;
+	margin-left: 3px;
+	background-position: center center;
+	background-repeat: no-repeat;
+	cursor: pointer;
+}
+
+#workbench\.editor\.htmlPreviewPart .find-widget .button:not(.disabled):hover {
+	background-color: #DDD;
+}
+
+#workbench\.editor\.htmlPreviewPart .find-widget .button.left {
+	margin-left: 0;
+	margin-right: 3px;
+}
+
+#workbench\.editor\.htmlPreviewPart .find-widget .button.wide {
+	width: auto;
+	padding: 1px 6px;
+	top: -1px;
+}
+
+#workbench\.editor\.htmlPreviewPart .find-widget .button.toggle {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 18px;
+	height: 100%;
+	-webkit-box-sizing:	border-box;
+	-o-box-sizing:		border-box;
+	-moz-box-sizing:	border-box;
+	-ms-box-sizing:		border-box;
+	box-sizing:			border-box;
+}
+
+#workbench\.editor\.htmlPreviewPart .find-widget .button.toggle.disabled {
+	display: none;
+}
+
+#workbench\.editor\.htmlPreviewPart .find-widget .previous {
+	background-image: url('images/previous.svg');
+}
+
+#workbench\.editor\.htmlPreviewPart .find-widget .next {
+	background-image: url('images/next.svg');
+}
+
+#workbench\.editor\.htmlPreviewPart .find-widget .disabled {
+	opacity: 0.3;
+	cursor: default;
+}
+
+#workbench\.editor\.htmlPreviewPart .find-widget .close-fw {
+	background-image: url('images/close.svg');
+}
+
+/* REDUCED */
+#workbench\.editor\.htmlPreviewPart .find-widget.reduced-find-widget .matchesCount {
+	display:none;
+}
+
+/* NARROW (SMALLER THAN REDUCED) */
+#workbench\.editor\.htmlPreviewPart .find-widget.narrow-find-widget > .find-part .monaco-findInput {
+	width: 171px !important;
+}
+
+/* COLLAPSED (SMALLER THAN NARROW) */
+#workbench\.editor\.htmlPreviewPart .find-widget.collapsed-find-widget .button.previous,
+#workbench\.editor\.htmlPreviewPart .find-widget.collapsed-find-widget .button.next,
+#workbench\.editor\.htmlPreviewPart .find-widget.collapsed-find-widget > .find-part .monaco-findInput .controls {
+	display:none;
+}
+#workbench\.editor\.htmlPreviewPart .find-widget.collapsed-find-widget > .find-part .monaco-findInput,
+#workbench\.editor\.htmlPreviewPart .find-widget.collapsed-find-widget > .find-part .monaco-inputbox > .wrapper > .input {
+	width: 71px !important;
+}
+
+#workbench\.editor\.htmlPreviewPart .findMatch {
+	background-color: rgba(234, 92, 0, 0.3);
+	-webkit-animation-duration: 0;
+	-webkit-animation-name: inherit !important;
+	-moz-animation-duration: 0;
+	-moz-animation-name: inherit !important;
+	-ms-animation-duration: 0;
+	-ms-animation-name: inherit !important;
+	animation-duration: 0;
+	animation-name: inherit !important;
+}
+
+#workbench\.editor\.htmlPreviewPart .currentFindMatch {
+	background-color: #A8AC94;
+}
+
+#workbench\.editor\.htmlPreviewPart .findScope {
+	background-color: rgba(180, 180, 180, 0.3);
+}
+
+/* Theming */
+#workbench\.editor\.htmlPreviewPart .find-widget {
+	background-color: #EFEFF2;
+	box-shadow: 0 2px 8px #A8A8A8;
+}
+
+.vs-dark #workbench\.editor\.htmlPreviewPart .find-widget {
+	background-color: #2D2D30;
+	box-shadow: 0 2px 8px #000;
+}
+
+.hc-black #workbench\.editor\.htmlPreviewPart .find-widget .previous,
+.vs-dark #workbench\.editor\.htmlPreviewPart .find-widget .previous {
+	background-image: url('images/previous-inverse.svg');
+}
+
+.hc-black #workbench\.editor\.htmlPreviewPart .find-widget .next,
+.vs-dark #workbench\.editor\.htmlPreviewPart .find-widget .next {
+	background-image: url('images/next-inverse.svg');
+}
+
+.hc-black #workbench\.editor\.htmlPreviewPart .find-widget .monaco-checkbox .label,
+.vs-dark #workbench\.editor\.htmlPreviewPart .find-widget .monaco-checkbox .label {
+	background-image: url('images/cancelSelectionFind-inverse.svg');
+}
+
+.vs-dark #workbench\.editor\.htmlPreviewPart .find-widget .monaco-checkbox .checkbox:not(:disabled):hover:before + .label {
+	background-color: #2f3334;
+}
+
+.vs-dark #workbench\.editor\.htmlPreviewPart .find-widget .monaco-checkbox .checkbox:checked + .label {
+	background-color: rgba(150, 150, 150, 0.3);
+}
+
+.hc-black #workbench\.editor\.htmlPreviewPart .find-widget .close-fw,
+.vs-dark #workbench\.editor\.htmlPreviewPart .find-widget .close-fw {
+	background-image: url('images/close-dark.svg');
+}
+
+.hc-black #workbench\.editor\.htmlPreviewPart .find-widget .replace,
+.vs-dark #workbench\.editor\.htmlPreviewPart .find-widget .replace {
+	background-image: url('images/replace-inverse.svg');
+}
+
+.hc-black #workbench\.editor\.htmlPreviewPart .find-widget .replace-all,
+.vs-dark #workbench\.editor\.htmlPreviewPart .find-widget .replace-all {
+	background-image: url('images/replace-all-inverse.svg');
+}
+
+.hc-black #workbench\.editor\.htmlPreviewPart .find-widget .expand,
+.vs-dark #workbench\.editor\.htmlPreviewPart .find-widget .expand {
+	background-image: url('images/expando-expanded-dark.svg');
+}
+
+.hc-black #workbench\.editor\.htmlPreviewPart .find-widget .collapse,
+.vs-dark #workbench\.editor\.htmlPreviewPart .find-widget .collapse {
+	background-image: url('images/expando-collapsed-dark.svg');
+}
+
+.hc-black #workbench\.editor\.htmlPreviewPart .find-widget .button:not(.disabled):hover,
+.vs-dark #workbench\.editor\.htmlPreviewPart .find-widget .button:not(.disabled):hover {
+	background-color: #2f3334;
+}
+
+.vs-dark #workbench\.editor\.htmlPreviewPart .currentFindMatch {
+	background-color: #515C6A;
+}
+
+.vs-dark #workbench\.editor\.htmlPreviewPart .findScope {
+	background-color: rgba(58, 61, 65, 0.4);
+}
+
+.vs-dark #workbench\.editor\.htmlPreviewPart .find-widget .monaco-findInput,
+.vs-dark #workbench\.editor\.htmlPreviewPart .find-widget .replace-input {
+	background-color: #3C3C3C;
+}
+
+/* High Contrast Theming */
+.hc-black #workbench\.editor\.htmlPreviewPart .find-widget {
+	border: 2px solid #6FC3DF;
+	background: #0C141F;
+	box-shadow: none;
+}
+
+.hc-black #workbench\.editor\.htmlPreviewPart .find-widget .button:before {
+	position: relative;
+	top: 1px;
+	left: 2px;
+}
+
+.hc-black #workbench\.editor\.htmlPreviewPart .find-widget .monaco-checkbox .checkbox:checked + .label {
+	background-color: rgba(150, 150, 150, 0.3);
+}
+
+.hc-black #workbench\.editor\.htmlPreviewPart .findMatch {
+	background: none;
+	border: 1px dotted #f38518;
+	-moz-box-sizing: border-box;
+	box-sizing: border-box;
+}
+
+.hc-black #workbench\.editor\.htmlPreviewPart .currentFindMatch {
+	background: none;
+	padding: 1px;
+	border: 2px solid #f38518;
+	-moz-box-sizing: border-box;
+	box-sizing: border-box;
+}
+
+.hc-black #workbench\.editor\.htmlPreviewPart .findScope {
+	background: none;
+	border: 1px dashed #f38518;
+	opacity: .4;
+}
+
+.hc-black #workbench\.editor\.htmlPreviewPart .find-widget .monaco-findInput,
+.hc-black #workbench\.editor\.htmlPreviewPart .find-widget .replace-input {
+	background-color: #000;
+}
