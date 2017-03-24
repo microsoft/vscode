@@ -946,6 +946,12 @@ declare module 'vscode' {
 		viewColumn?: ViewColumn;
 
 		/**
+		 * The diff information for this text editor. Will be `udnefined` in case
+		 * this editor isn't inside a diff editor.
+		 */
+		readonly diffInformation?: DiffInformation;
+
+		/**
 		 * Perform an edit on the document associated with this text editor.
 		 *
 		 * The given callback-function is invoked with an [edit-builder](#TextEditorEdit) which must
@@ -1007,6 +1013,43 @@ declare module 'vscode' {
 		 * This method shows unexpected behavior and will be removed in the next major update.
 		 */
 		hide(): void;
+	}
+
+	/**
+	 * Represents a contiguous set of line changes in a diff.
+	 */
+	export interface LineChange {
+
+		/**
+		 * The range of lines in the left-hand side [text editor](#TextEditor).
+		 */
+		readonly left: Range;
+
+		/**
+		 * The range of lines in the right-hand side [text editor](#TextEditor).
+		 */
+		readonly right: Range;
+	}
+
+	/**
+	 * Represents the diff information between two [text editors](#TextEditor).
+	 */
+	export interface DiffInformation {
+
+		/**
+		 * The left-hand side [text editor](#TextEditor) of this diff.
+		 */
+		readonly left: TextEditor;
+
+		/**
+		 * The right-hand side [text editor](#TextEditor) of this diff.
+		 */
+		readonly right: TextEditor;
+
+		/**
+		 * The [line changes](#LineChange) associated with this diff.
+		 */
+		readonly lineChanges: LineChange[];
 	}
 
 	/**
@@ -4146,6 +4189,11 @@ declare module 'vscode' {
 		 * An event that is emitted when a [text document](#TextDocument) is saved to disk.
 		 */
 		export const onDidSaveTextDocument: Event<TextDocument>;
+
+		/**
+		 * An event that is emitted when a [diff](#DiffInformation) is changed.
+		 */
+		export const onDidChangeDiffInformation: Event<DiffInformation>;
 
 		/**
 		 * Get a configuration object.

@@ -17,7 +17,7 @@ function getTextDocumentLines(document: vscode.TextDocument): string[] {
 	return result;
 }
 
-export function computeDiff(oneDocument: vscode.TextDocument, otherDocument: vscode.TextDocument): Thenable<vscode.LineChange[]> {
+export function computeDiff(oneDocument: vscode.TextDocument, otherDocument: vscode.TextDocument): Thenable<vscode.LineChange2[]> {
 	const oneLines = getTextDocumentLines(oneDocument);
 	const otherLines = getTextDocumentLines(otherDocument);
 	const computer = new DiffComputer(oneLines, otherLines, {
