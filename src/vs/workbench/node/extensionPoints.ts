@@ -12,7 +12,7 @@ import { IExtensionDescription, IMessage } from 'vs/platform/extensions/common/e
 import Severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { groupBy, values } from 'vs/base/common/collections';
-import paths = require('vs/base/common/paths');
+import { join, normalize, extname } from 'path';
 import json = require('vs/base/common/json');
 import Types = require('vs/base/common/types');
 import { isValidExtensionDescription } from 'vs/platform/extensions/node/extensionValidator';
@@ -77,7 +77,7 @@ abstract class ExtensionManifestHandler {
 		this._collector = collector;
 		this._absoluteFolderPath = absoluteFolderPath;
 		this._isBuiltin = isBuiltin;
-		this._absoluteManifestPath = paths.join(absoluteFolderPath, MANIFEST_FILE);
+		this._absoluteManifestPath = join(absoluteFolderPath, MANIFEST_FILE);
 	}
 }
 
@@ -105,7 +105,7 @@ class ExtensionManifestParser extends ExtensionManifestHandler {
 class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 
 	public replaceNLS(extensionDescription: IExtensionDescription): TPromise<IExtensionDescription> {
-		let extension = paths.extname(this._absoluteManifestPath);
+		let extension = extname(this._absoluteManifestPath);
 		let basename = this._absoluteManifestPath.substr(0, this._absoluteManifestPath.length - extension.length);
 
 		return pfs.fileExists(basename + '.nls' + extension).then(exists => {
@@ -241,7 +241,7 @@ class ExtensionManifestValidator extends ExtensionManifestHandler {
 
 		// main := absolutePath(`main`)
 		if (extensionDescription.main) {
-			extensionDescription.main = paths.normalize(paths.join(this._absoluteFolderPath, extensionDescription.main));
+			extensionDescription.main = join(this._absoluteFolderPath, extensionDescription.main);
 		}
 
 		extensionDescription.extensionFolderPath = this._absoluteFolderPath;
@@ -261,7 +261,7 @@ export class ExtensionScanner {
 		absoluteFolderPath: string,
 		isBuiltin: boolean
 	): TPromise<IExtensionDescription> {
-		absoluteFolderPath = paths.normalize(absoluteFolderPath);
+		absoluteFolderPath = normalize(absoluteFolderPath);
 
 		let parser = new ExtensionManifestParser(version, collector, absoluteFolderPath, isBuiltin);
 		return parser.parse().then((extensionDescription) => {
@@ -293,7 +293,7 @@ export class ExtensionScanner {
 		let obsolete = TPromise.as({});
 
 		if (!isBuiltin) {
-			obsolete = pfs.readFile(paths.join(absoluteFolderPath, '.obsolete'), 'utf8')
+			obsolete = pfs.readFile(join(absoluteFolderPath, '.obsolete'), 'utf8')
 				.then(raw => JSON.parse(raw))
 				.then(null, err => ({}));
 		}
@@ -314,7 +314,7 @@ export class ExtensionScanner {
 							return;
 						}
 
-						const {id, version} = getIdAndVersionFromLocalExtensionId(folder);
+						const { id, version } = getIdAndVersionFromLocalExtensionId(folder);
 
 						if (!id || !version) {
 							nonGallery.push(folder);
@@ -330,7 +330,7 @@ export class ExtensionScanner {
 
 					return [...nonGallery, ...latest];
 				})
-				.then(folders => TPromise.join(folders.map(f => this.scanExtension(version, collector, paths.join(absoluteFolderPath, f), isBuiltin))))
+				.then(folders => TPromise.join(folders.map(f => this.scanExtension(version, collector, join(absoluteFolderPath, f), isBuiltin))))
 				.then(extensionDescriptions => extensionDescriptions.filter(item => item !== null))
 				.then(null, err => {
 					collector.error(absoluteFolderPath, err);
@@ -349,7 +349,7 @@ export class ExtensionScanner {
 		absoluteFolderPath: string,
 		isBuiltin: boolean
 	): TPromise<IExtensionDescription[]> {
-		return pfs.fileExists(paths.join(absoluteFolderPath, MANIFEST_FILE)).then((exists) => {
+		return pfs.fileExists(join(absoluteFolderPath, MANIFEST_FILE)).then((exists) => {
 			if (exists) {
 				return this.scanExtension(version, collector, absoluteFolderPath, isBuiltin).then((extensionDescription) => {
 					if (extensionDescription === null) {
