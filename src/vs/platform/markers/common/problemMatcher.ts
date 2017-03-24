@@ -1241,7 +1241,7 @@ export class ProblemMatcherParser extends Parser {
 				if (variableName.length === 0) {
 					this.error(localize('ProblemMatcherParser.noIdentifier', 'Error: the pattern property refers to an empty identifier.'));
 				} else {
-					this.error(localize('ProblemMatcherParser.noValidIdentifier', 'Error: the pattern property {0} is no valid pattern variable name.', variableName));
+					this.error(localize('ProblemMatcherParser.noValidIdentifier', 'Error: the pattern property {0} is not a valid pattern variable name.', variableName));
 				}
 			}
 		} else if (value) {
