@@ -175,13 +175,13 @@ export class SearchViewlet extends Viewlet {
 			builder.div({ 'class': 'more', 'tabindex': 0, 'role': 'button', 'title': nls.localize('moreSearch', "Toggle Search Details") })
 				.on(dom.EventType.CLICK, (e) => {
 					dom.EventHelper.stop(e);
-					this.toggleFileTypes(true);
+					this.toggleQueryDetails(true);
 				}).on(dom.EventType.KEY_UP, (e: KeyboardEvent) => {
 					let event = new StandardKeyboardEvent(e);
 
 					if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
 						dom.EventHelper.stop(e);
-						this.toggleFileTypes();
+						this.toggleQueryDetails();
 					}
 				});
 
@@ -211,7 +211,7 @@ export class SearchViewlet extends Viewlet {
 				let title = nls.localize('searchScope.excludes', "files to exclude");
 				builder.element('h4', { text: title });
 
-				this.inputPatternExclusions = new ExcludePatternInputWidget(builder.getContainer(), this.contextViewService, this.themeService, {
+				this.inputPatternExclusions = new ExcludePatternInputWidget(builder.getContainer(), this.contextViewService, this.themeService, this.telemetryService, {
 					ariaLabel: nls.localize('label.excludes', 'Search Exclude Patterns')
 				});
 
@@ -259,7 +259,7 @@ export class SearchViewlet extends Viewlet {
 		});
 
 		if (filePatterns !== '' || patternExclusions !== '' || patternIncludes !== '') {
-			this.toggleFileTypes(true, true, true);
+			this.toggleQueryDetails(true, true, true);
 		}
 
 		this.updateGlobalPatternExclusions(this.configurationService.getConfiguration<ISearchConfiguration>());
@@ -717,7 +717,7 @@ export class SearchViewlet extends Viewlet {
 
 	private moveFocusFromSearchOrReplace() {
 		if (this.showsFileTypes()) {
-			this.toggleFileTypes(true, this.showsFileTypes());
+			this.toggleQueryDetails(true, this.showsFileTypes());
 		} else {
 			this.selectTreeIfNotSelected();
 		}
@@ -747,7 +747,7 @@ export class SearchViewlet extends Viewlet {
 
 	public moveFocusFromResults(): void {
 		if (this.showsFileTypes()) {
-			this.toggleFileTypes(true, true, false, true);
+			this.toggleQueryDetails(true, true, false, true);
 		} else {
 			this.searchWidget.focus(true, true);
 		}
@@ -850,7 +850,9 @@ export class SearchViewlet extends Viewlet {
 		this.onQueryChanged(true, true);
 	}
 
-	public toggleFileTypes(moveFocus?: boolean, show?: boolean, skipLayout?: boolean, reverse?: boolean): void {
+	public toggleQueryDetails(moveFocus?: boolean, show?: boolean, skipLayout?: boolean, reverse?: boolean): void {
+		this.telemetryService.publicLog('search.toggleQueryDetails');
+
 		let cls = 'more';
 		show = typeof show === 'undefined' ? !dom.hasClass(this.queryDetails, cls) : Boolean(show);
 		skipLayout = Boolean(skipLayout);
@@ -891,7 +893,7 @@ export class SearchViewlet extends Viewlet {
 		}
 
 		if (!this.showsFileTypes()) {
-			this.toggleFileTypes(true, true);
+			this.toggleQueryDetails(true, true);
 		}
 		const workspaceRelativePath = this.contextService.toWorkspaceRelativePath(resource);
 		if (workspaceRelativePath) {
