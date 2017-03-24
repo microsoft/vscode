@@ -20,6 +20,8 @@ import { Dimension } from 'vs/base/browser/builder';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
+import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 class KeybindingInputWidget extends Widget {
 
@@ -36,10 +38,12 @@ class KeybindingInputWidget extends Widget {
 
 	constructor(parent: HTMLElement, private options: IInputOptions,
 		@IContextViewService private contextViewService: IContextViewService,
-		@IKeybindingService private keybindingService: IKeybindingService
+		@IKeybindingService private keybindingService: IKeybindingService,
+		@IThemeService themeService: IThemeService
 	) {
 		super();
 		this.inputBox = this._register(new InputBox(parent, this.contextViewService, this.options));
+		this._register(attachInputBoxStyler(this.inputBox, themeService));
 		this.onkeydown(this.inputBox.inputElement, e => this.onKeyDown(e));
 	}
 

@@ -9,16 +9,6 @@ import { IDisposable, Disposable, dispose } from 'vs/base/common/lifecycle';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { Color, RGBA } from 'vs/base/common/color';
 
-// < --- Workbench --- >
-
-export const WINDOW_FOREGROUND = registerColor('windowForeground', {
-	dark: '#CCCCCC',
-	light: '#6C6C6C',
-	hc: '#FFFFFF'
-}, nls.localize('windowForeground', "Overall window foreground color. This color is only used if not overridden by a component."));
-
-
-
 // < --- Tabs --- >
 
 export const TABS_CONTAINER_BACKGROUND = registerColor('tabsContainerBackground', {

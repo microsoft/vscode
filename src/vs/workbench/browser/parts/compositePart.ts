@@ -133,7 +133,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			this.updateTitle(id);
 
 			// Create composite
-			return this.createComposite(id, true).then((composite: Composite) => {
+			return this.createComposite(id, true).then(composite => {
 
 				// Check if another composite opened meanwhile and return in that case
 				if ((this.currentCompositeOpenToken !== currentCompositeOpenToken) || (this.activeComposite && this.activeComposite.getId() !== composite.getId())) {
@@ -236,7 +236,9 @@ export abstract class CompositePart<T extends Composite> extends Part {
 				'class': ['composite', this.compositeCSSClass],
 				id: composite.getId()
 			}, (div: Builder) => {
-				createCompositePromise = composite.create(div);
+				createCompositePromise = composite.create(div).then(() => {
+					composite.updateStyles();
+				});
 			});
 
 			// Remember composite container

@@ -17,10 +17,11 @@ import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IContextViewProvider, AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import Event, { Emitter } from 'vs/base/common/event';
 import { Widget } from 'vs/base/browser/ui/widget';
+import { Color } from 'vs/base/common/color';
 
 const $ = dom.$;
 
-export interface IInputOptions {
+export interface IInputOptions extends IInputBoxStyles {
 	placeholder?: string;
 	ariaLabel?: string;
 	type?: string;
@@ -53,6 +54,11 @@ export enum MessageType {
 export interface IRange {
 	start: number;
 	end: number;
+}
+
+export interface IInputBoxStyles {
+	inputBackground?: Color;
+	inputForeground?: Color;
 }
 
 export class InputBox extends Widget {
@@ -139,6 +145,8 @@ export class InputBox extends Widget {
 			this.actionbar = this._register(new ActionBar(this.element));
 			this.actionbar.push(this.options.actions, { icon: true, label: false });
 		}
+
+		this._applyStyles();
 	}
 
 	private onBlur(): void {
@@ -370,6 +378,25 @@ export class InputBox extends Widget {
 		let suffix = lastCharCode === 10 ? ' ' : '';
 		this.mirror.textContent = value + suffix;
 		this.layout();
+	}
+
+	public style(styles: IInputBoxStyles) {
+		this.options.inputBackground = styles.inputBackground;
+		this.options.inputForeground = styles.inputForeground;
+
+		this._applyStyles();
+	}
+
+	protected _applyStyles() {
+		if (this.element) {
+			const background = this.options.inputBackground ? this.options.inputBackground.toString() : null;
+			const foreground = this.options.inputForeground ? this.options.inputForeground.toString() : null;
+
+			this.element.style.backgroundColor = background;
+			this.element.style.color = foreground;
+			this.input.style.backgroundColor = background;
+			this.input.style.color = foreground;
+		}
 	}
 
 	public layout(): void {

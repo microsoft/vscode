@@ -113,11 +113,19 @@ export function registerColor(id: string, defaults: ColorDefaults, description: 
 
 // ----- base colors
 
+export const foreground = registerColor('foreground', { dark: '#CCCCCC', light: '#6C6C6C', hc: '#FFFFFF' }, nls.localize('foreground', "Overall foreground color. This color is only used if not overridden by a component."));
+
 /**
  * Commonly used High contrast colors.
  */
 export const highContrastBorder = registerColor('highContrastBorder', { light: null, dark: null, hc: '#6FC3DF' }, nls.localize('highContrastBorder', "Border color to separate components when high contrast theme is enabled."));
 export const highContrastOutline = registerColor('highContrastOutline', { light: null, dark: null, hc: '#F38518' }, nls.localize('highContrastOutline', "Outline color for active components when high contrast theme is enabled."));
+
+/**
+ * Widgets
+ */
+export const inputBackground = registerColor('inputBackground', { dark: '#3C3C3C', light: Color.white, hc: Color.black }, nls.localize('inputBackground', 'Input field background'));
+export const inputForeground = registerColor('inputForeground', { dark: foreground, light: foreground, hc: foreground }, nls.localize('inputForeground', 'Input field foreground'));
 
 /**
  * Editor background color.
@@ -155,7 +163,6 @@ export const editorLinkForeground = registerColor('editorLinkForeground', { dark
  * Find widget
  */
 export const editorFindWidgetBackground = registerColor('editorFindWidgetBackground', { dark: '#2D2D30', light: '#EFEFF2', hc: '#0C141F' }, nls.localize('editorFindWidgetBackground', 'Find widget background'));
-export const editorFindInputBackground = registerColor('editorFindInputBackground', { dark: '#3C3C3C', light: Color.white, hc: Color.black }, nls.localize('editorFindInputBackground', 'Find widget input field background'));
 export const editorFindCheckedBorders = registerColor('editorFindCheckedBorders', { dark: '#007ACC', light: '#007ACC', hc: highContrastOutline }, nls.localize('editorFindCheckedBorders', 'Find widget checked border color'));
 
 
