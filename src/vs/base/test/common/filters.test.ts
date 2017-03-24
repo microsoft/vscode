@@ -251,6 +251,13 @@ suite('Filters', () => {
 		assertMatches('sllll', 'SVisualLoggerLogsList', '^SVisua^l^Logger^Logs^List', fuzzyScore);
 		assertMatches('Three', 'HTMLHRElement', 'H^TML^H^R^El^ement', fuzzyScore);
 		assertMatches('Three', 'Three', '^T^h^r^e^e', fuzzyScore);
+		assertMatches('fo', 'barfoo', undefined, fuzzyScore);
+		assertMatches('fo', 'bar_foo', 'bar_^f^oo', fuzzyScore);
+		assertMatches('fo', 'bar_Foo', 'bar_^F^oo', fuzzyScore);
+		assertMatches('fo', 'bar foo', 'bar ^f^oo', fuzzyScore);
+		assertMatches('fo', 'bar.foo', 'bar.^f^oo', fuzzyScore);
+		assertMatches('fo', 'bar/foo', 'bar/^f^oo', fuzzyScore);
+		assertMatches('fo', 'bar\\foo', 'bar\\^f^oo', fuzzyScore);
 
 	});
 	function assertTopScore(filter: typeof fuzzyScore, pattern: string, expected: number, ...words: string[]) {

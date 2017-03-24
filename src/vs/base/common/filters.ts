@@ -433,6 +433,13 @@ function printTable(table: number[][], pattern: string, patternLen: number, word
 	return ret;
 }
 
+const _seps: { [ch: string]: boolean } = Object.create(null);
+_seps['_'] = true;
+_seps['.'] = true;
+_seps[' '] = true;
+_seps['/'] = true;
+_seps['\\'] = true;
+
 export function fuzzyScore(pattern: string, word: string): [number, number[]] {
 
 	const patternLen = pattern.length > 25 ? 25 : pattern.length;
@@ -484,7 +491,7 @@ export function fuzzyScore(pattern: string, word: string): [number, number[]] {
 					} else {
 						score = 5;
 					}
-				} else if (lastLowWordChar === '_' || lastLowWordChar === '.') {
+				} else if (_seps[lastLowWordChar]) {
 					score = 5;
 
 				} else if (j === i) {
