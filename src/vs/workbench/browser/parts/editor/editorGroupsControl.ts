@@ -934,15 +934,6 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		this.silosSize[remPosition2] = availableSize - this.silosSize[remPosition1];
 	}
 
-
-	protected printSilosSize(): void {
-
-		console.log('Silo Sizes:');
-		console.log('\ns1: ' + this.silosSize[Position.ONE]);
-		console.log('s2: ' + this.silosSize[Position.TWO]);
-		console.log('s3: ' + this.silosSize[Position.THREE]);
-	}
-
 	public getActiveEditor(): BaseEditor {
 		return this.lastActiveEditor;
 	}
