@@ -16,6 +16,8 @@ import { EventEmitter } from 'vs/base/common/eventEmitter';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IDebugService } from 'vs/workbench/parts/debug/common/debug';
+import { IThemeService } from "vs/platform/theme/common/themeService";
+import { attachSelectBoxStyler } from "vs/platform/theme/common/styler";
 
 const $ = dom.$;
 
@@ -34,12 +36,15 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 		private context: any,
 		private action: IAction,
 		@IDebugService private debugService: IDebugService,
+		@IThemeService themeService: IThemeService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ICommandService private commandService: ICommandService
 	) {
 		super();
 		this.toDispose = [];
 		this.selectBox = new SelectBox([], -1);
+		this.toDispose.push(attachSelectBoxStyler(this.selectBox, themeService));
+
 		this.registerListeners();
 	}
 
@@ -150,9 +155,12 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 export class FocusProcessActionItem extends SelectActionItem {
 	constructor(
 		action: IAction,
-		@IDebugService private debugService: IDebugService
+		@IDebugService private debugService: IDebugService,
+		@IThemeService themeService: IThemeService
 	) {
 		super(null, action, [], -1);
+
+		this.toDispose.push(attachSelectBoxStyler(this.selectBox, themeService));
 
 		this.debugService.getViewModel().onDidFocusStackFrame(() => {
 			const process = this.debugService.getViewModel().focusedProcess;

@@ -31,3 +31,7 @@ export function attachStyler(themeService: IThemeService, widget: IThemable, opt
 export function attachInputBoxStyler(widget: IThemable, themeService: IThemeService): IDisposable {
 	return attachStyler(themeService, widget, { inputBackground, inputForeground });
 }
+
+export function attachSelectBoxStyler(widget: IThemable, themeService: IThemeService): IDisposable {
+	return attachStyler(themeService, widget, { selectBackground: inputBackground, selectForeground: inputForeground });
+}
