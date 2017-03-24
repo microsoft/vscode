@@ -8,7 +8,6 @@
 	"exclude.boolean": "Criterio GLOB da usare per trovare percorsi file. Impostare su True o False per abilitare o disabilitare il criterio.",
 	"exclude.when": "Controllo aggiuntivo sugli elementi di pari livello di un file corrispondente. Usare $(basename) come variabile del nome file corrispondente.",
 	"findInFiles": "Cerca nei file",
-	"findInFolder": "Trova nella cartella",
 	"name": "Cerca",
 	"openAnythingHandlerDescription": "Vai al file",
 	"openSymbolDescriptionNormal": "Vai al simbolo nell'area di lavoro",
@@ -16,5 +15,6 @@
 	"searchConfigurationTitle": "Cerca",
 	"showSearchViewlet": "Mostra Cerca",
 	"showTriggerActions": "Vai al simbolo nell'area di lavoro...",
+	"useRipgrep": "Controlla se usare ripgrep durante la ricerca di testo",
 	"view": "Visualizza"
 }

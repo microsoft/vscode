@@ -6,6 +6,8 @@
 {
 	"closePanel": "Bereich schließen",
 	"focusPanel": "Fokus im Bereich",
+	"maximizePanel": "Panelgröße maximieren",
+	"minimizePanel": "Panelgröße wiederherstellen",
 	"panelActionTooltip": "{0} ({1})",
 	"toggleMaximizedPanel": "Maximierten Bereich umschalten",
 	"togglePanel": "Bereich umschalten",

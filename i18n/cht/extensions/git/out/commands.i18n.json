@@ -13,6 +13,8 @@
 	"confirm revert": "確定要還原您在 {0} 中選取的變更嗎?",
 	"disabled": "Git 已停用，或在此工作區不受支援",
 	"discard": "捨棄變更",
+	"git error": "Git 錯誤",
+	"git error details": "Git: {0}",
 	"never again": "確定，不要再顯示",
 	"no changes": "沒有任何變更要認可。",
 	"no remotes to publish": "您的存放庫未設定要發行的目標遠端。",

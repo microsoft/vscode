@@ -8,7 +8,6 @@
 	"exclude.boolean": "파일 경로를 일치시킬 GLOB 패턴입니다. 패턴을 사용하거나 사용하지 않도록 설정하려면 true 또는 false로 설정하세요.",
 	"exclude.when": "일치하는 파일의 형제에 대한 추가 검사입니다. $(basename)을 일치하는 파일 이름에 대한 변수로 사용하세요.",
 	"findInFiles": "파일에서 찾기",
-	"findInFolder": "폴더에서 찾기",
 	"name": "검색",
 	"openAnythingHandlerDescription": "파일로 이동",
 	"openSymbolDescriptionNormal": "작업 영역에서 기호로 이동",
@@ -16,5 +15,6 @@
 	"searchConfigurationTitle": "검색",
 	"showSearchViewlet": "검색 표시",
 	"showTriggerActions": "작업 영역에서 기호로 이동...",
+	"useRipgrep": "텍스트 검색에서 ripgrep 사용 여부를 제어합니다.",
 	"view": "보기"
 }

@@ -20,6 +20,7 @@
 	"focusPreviousGroup": "聚焦于上一个组",
 	"focusSecondEditorGroup": "聚焦于第二个编辑器组",
 	"focusThirdEditorGroup": "聚焦于第三个编辑器组",
+	"joinTwoGroups": "联接两个组的编辑器",
 	"keepEditor": "保留编辑器",
 	"maximizeEditor": "最大化编辑器组并隐藏边栏",
 	"minimizeOtherEditorGroups": "最小化其他编辑器组",
