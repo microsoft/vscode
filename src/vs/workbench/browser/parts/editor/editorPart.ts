@@ -239,7 +239,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	}
 
 	public requestActiveGroupSizeChange(groupSizeChange: number): boolean {
-		this.editorGroupsControl.requestActiveGroupSizeChange(groupSizeChange);
+		this.editorGroupsControl.resizeGroup(groupSizeChange);
 		return true;
 	}
 

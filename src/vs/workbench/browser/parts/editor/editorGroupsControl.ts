@@ -78,7 +78,7 @@ export interface IEditorGroupsControl {
 	setGroupOrientation(orientation: GroupOrientation): void;
 	getGroupOrientation(): GroupOrientation;
 
-	requestActiveGroupSizeChange(groupSizeChange: number): boolean;
+	resizeGroup(groupSizeChange: number): boolean;
 
 	getRatio(): number[];
 
@@ -858,7 +858,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 	}
 
 	// Request size change on the active editor/group - changes main axis
-	public requestActiveGroupSizeChange(groupSizeChange: number): boolean {
+	public resizeGroup(groupSizeChange: number): boolean {
 
 		enum VISIBLE_EDITORS {
 			ONE = 1,
@@ -914,7 +914,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		return true;
 	}
 
-	protected boundSiloSize(siloPosition: Position, sizeChangePx: number): number {
+	private boundSiloSize(siloPosition: Position, sizeChangePx: number): number {
 		const visibleEditors = this.getVisibleEditorCount();
 		let newSiloSize: number = 0;
 
@@ -924,7 +924,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		return newSiloSize;
 	}
 
-	protected distributeRemainingSilosSize(remPosition1: Position, remPosition2: Position, availableSize: number): void {
+	private distributeRemainingSilosSize(remPosition1: Position, remPosition2: Position, availableSize: number): void {
 		let scaleFactor: number = 0;
 
 		scaleFactor = this.silosSize[remPosition1] / (this.silosSize[remPosition1] + this.silosSize[remPosition2]);

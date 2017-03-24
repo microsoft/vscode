@@ -1150,7 +1150,7 @@ export class Workbench implements IPartService {
 			case Parts.SIDEBAR_PART:
 			case Parts.PANEL_PART:
 			case Parts.EDITOR_PART:
-				this.workbenchLayout.setPartSizeChange(part, sizeChange);
+				this.workbenchLayout.resizePart(part, sizeChange);
 				break;
 			// Cannot resize other parts
 			default:

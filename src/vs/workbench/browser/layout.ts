@@ -540,7 +540,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 	}
 
 	// change part size along the main axis
-	public setPartSizeChange(part: Parts, sizeChange: number): boolean {
+	public resizePart(part: Parts, sizeChange: number): boolean {
 		let promise = TPromise.as(null);
 		let doLayout = false;
 		let newSashSize: number = 0;
