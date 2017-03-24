@@ -126,8 +126,10 @@
 	margin-right: 2px;
 }
 
-.vs-dark .monaco-workbench .search-configure-exclusions {
+.vs-dark .monaco-workbench .search-configure-exclusions,
+.hc-black .monaco-workbench .search-configure-exclusions {
 	background: url('configure-inverse.svg') center center no-repeat;
+	opacity: .7;
 }
 
 .vs .monaco-workbench .search-configure-exclusions {
