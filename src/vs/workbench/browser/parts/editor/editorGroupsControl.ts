@@ -863,7 +863,6 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 	}
 
 	// Request size change on the active editor/group - changes main axis
-
 	public requestActiveGroupSizeChange(groupSizeChange: number): boolean {
 
 		enum VISIBLE_EDITORS {
@@ -872,26 +871,23 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 			THREE = 3
 		}
 
-		let availableSize = this.totalSize;
 		const visibleEditors = this.getVisibleEditorCount();
 
 		if (visibleEditors <= VISIBLE_EDITORS.ONE) {
 			return false;
 		}
 
+		let availableSize = this.totalSize;
 		const activeGroupPosition = this.getActivePosition();
-
 
 		switch (visibleEditors) {
 			case VISIBLE_EDITORS.TWO:
 				switch (activeGroupPosition) {
 					case Position.ONE:
-						// this.silosSize[Position.ONE] = this.silosSize[Position.ONE] + groupSizeChange;
 						this.silosSize[Position.ONE] = this.boundSiloSize(Position.ONE, groupSizeChange);
 						this.silosSize[Position.TWO] = availableSize - this.silosSize[Position.ONE];
 						break;
 					case Position.TWO:
-						// this.silosSize[Position.TWO] = this.silosSize[Position.TWO] + groupSizeChange;
 						this.silosSize[Position.TWO] = this.boundSiloSize(Position.TWO, groupSizeChange);
 						this.silosSize[Position.ONE] = availableSize - this.silosSize[Position.TWO];
 					default:
@@ -899,25 +895,18 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 				}
 				break;
 			case VISIBLE_EDITORS.THREE:
-				// let scaleFactor: number = 0;
-
 				switch (activeGroupPosition) {
 					case Position.ONE:
-						this.printSilosSize();
-						// this.silosSize[Position.ONE] = this.silosSize[Position.ONE] + groupSizeChange;
 						this.silosSize[Position.ONE] = this.boundSiloSize(Position.ONE, groupSizeChange);
 						this.distributeRemainingSilosSize(Position.TWO, Position.THREE, availableSize - this.silosSize[Position.ONE]);
 						break;
-
 					case Position.TWO:
 						this.silosSize[Position.TWO] = this.boundSiloSize(Position.TWO, groupSizeChange);
 						this.distributeRemainingSilosSize(Position.ONE, Position.THREE, availableSize - this.silosSize[Position.TWO]);
-
 						break;
 					case Position.THREE:
 						this.silosSize[Position.THREE] = this.boundSiloSize(Position.THREE, groupSizeChange);
 						this.distributeRemainingSilosSize(Position.ONE, Position.TWO, availableSize - this.silosSize[Position.THREE]);
-
 						break;
 					default:
 						break;
@@ -944,18 +933,10 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		let scaleFactor: number = 0;
 
 		scaleFactor = this.silosSize[remPosition1] / (this.silosSize[remPosition1] + this.silosSize[remPosition2]);
-
 		this.silosSize[remPosition1] = scaleFactor * availableSize;
-
 		this.silosSize[remPosition1] = Math.max(this.silosSize[remPosition1], this.minSize);
-		this.printSilosSize();
-
 		this.silosSize[remPosition1] = Math.min(this.silosSize[remPosition1], (availableSize - this.minSize));
-		this.printSilosSize();
-
 		this.silosSize[remPosition2] = availableSize - this.silosSize[remPosition1];
-		this.printSilosSize();
-
 	}
 
 
@@ -965,15 +946,6 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		console.log('\ns1: ' + this.silosSize[Position.ONE]);
 		console.log('s2: ' + this.silosSize[Position.TWO]);
 		console.log('s3: ' + this.silosSize[Position.THREE]);
-	}
-
-	public getSilosSize(): number[] {
-		return this.silosSize;
-	}
-
-	public setSilosSize(silosSize: number[]): boolean {
-		this.silosSize = silosSize;
-		return true;
 	}
 
 	public getActiveEditor(): BaseEditor {
