@@ -140,6 +140,7 @@ export abstract class MainThreadEditorsShape {
 	$trySetSelections(id: string, selections: editorCommon.ISelection[]): TPromise<any> { throw ni(); }
 	$tryApplyEdits(id: string, modelVersionId: number, edits: editorCommon.ISingleEditOperation[], opts: IApplyEditsOptions): TPromise<boolean> { throw ni(); }
 	$tryInsertSnippet(id: string, template: string, selections: editorCommon.IRange[], opts: IUndoStopOptions): TPromise<any> { throw ni(); }
+	$getDiffInformation(id: string): TPromise<editorCommon.ILineChange[]> { throw ni(); }
 }
 
 export abstract class MainThreadTreeExplorersShape {
@@ -252,16 +253,22 @@ export interface SCMProviderFeatures {
 	label: string;
 	supportsOpen: boolean;
 	supportsAcceptChanges: boolean;
-	supportsDrag: boolean;
 	supportsOriginalResource: boolean;
 }
 
 export type SCMRawResource = [
 	string /*uri*/,
+	string /*sourceUri*/,
 	string[] /*icons: light, dark*/,
 	boolean /*strike through*/
 ];
-export type SCMRawResourceGroup = [string /*id*/, string /*label*/, SCMRawResource[]];
+
+export type SCMRawResourceGroup = [
+	string /*uri*/,
+	string /*id*/,
+	string /*label*/,
+	SCMRawResource[]
+];
 
 export abstract class MainThreadSCMShape {
 	$register(id: string, features: SCMProviderFeatures): void { throw ni(); }
@@ -409,9 +416,8 @@ export abstract class ExtHostTerminalServiceShape {
 }
 
 export abstract class ExtHostSCMShape {
-	$open(id: string, resourceGroupId: string, uri: string): TPromise<void> { throw ni(); }
+	$open(id: string, uri: string): TPromise<void> { throw ni(); }
 	$acceptChanges(id: string): TPromise<void> { throw ni(); }
-	$drag(id: string, fromResourceGroupId: string, fromUri: string, toResourceGroupId: string): TPromise<void> { throw ni(); }
 	$getOriginalResource(id: string, uri: URI): TPromise<URI> { throw ni(); }
 	$onInputBoxValueChange(value: string): TPromise<void> { throw ni(); }
 }

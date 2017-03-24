@@ -20,6 +20,7 @@
 	"focusPreviousGroup": "聚焦上一個群組",
 	"focusSecondEditorGroup": "聚焦第二個編輯器群組",
 	"focusThirdEditorGroup": "聚焦第三個編輯器群組",
+	"joinTwoGroups": "聯結兩個群組的編輯器",
 	"keepEditor": "保留編輯器",
 	"maximizeEditor": "將編輯器群組最大化並隱藏側邊欄",
 	"minimizeOtherEditorGroups": "將其他編輯器群組最小化",

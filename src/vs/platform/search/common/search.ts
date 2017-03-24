@@ -37,6 +37,7 @@ export interface IQueryOptions {
 	fileEncoding?: string;
 	useRipgrep?: boolean;
 	useIgnoreFiles?: boolean;
+	useExcludeSettings?: boolean;
 }
 
 export interface ISearchQuery extends IQueryOptions {
@@ -130,6 +131,7 @@ export interface ISearchConfiguration extends IFilesConfiguration {
 	search: {
 		exclude: IExpression;
 		useRipgrep: boolean;
+		useIgnoreFilesByDefault: boolean;
 	};
 }
 

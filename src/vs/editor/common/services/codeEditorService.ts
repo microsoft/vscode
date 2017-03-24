@@ -14,15 +14,21 @@ export var ICodeEditorService = createDecorator<ICodeEditorService>('codeEditorS
 export interface ICodeEditorService {
 	_serviceBrand: any;
 
-	addCodeEditor(editor: ICommonCodeEditor): void;
 	onCodeEditorAdd: Event<ICommonCodeEditor>;
-
-	removeCodeEditor(editor: ICommonCodeEditor): void;
 	onCodeEditorRemove: Event<ICommonCodeEditor>;
 
-	getCodeEditor(editorId: string): ICommonCodeEditor;
+	onDiffEditorAdd: Event<ICommonDiffEditor>;
+	onDiffEditorRemove: Event<ICommonDiffEditor>;
 
+	addCodeEditor(editor: ICommonCodeEditor): void;
+	removeCodeEditor(editor: ICommonCodeEditor): void;
+	getCodeEditor(editorId: string): ICommonCodeEditor;
 	listCodeEditors(): ICommonCodeEditor[];
+
+	addDiffEditor(editor: ICommonDiffEditor): void;
+	removeDiffEditor(editor: ICommonDiffEditor): void;
+	getDiffEditor(editorId: string): ICommonDiffEditor;
+	listDiffEditors(): ICommonDiffEditor[];
 
 	/**
 	 * Returns the current focused code editor (if the focus is in the editor or in an editor widget) or null.

@@ -79,6 +79,7 @@ export class Cursor extends EventEmitter {
 	private viewModelHelper: IViewModelHelper;
 
 	private _isHandling: boolean;
+	private _isDoingComposition: boolean;
 
 	private enableEmptySelectionClipboard: boolean;
 
@@ -101,6 +102,7 @@ export class Cursor extends EventEmitter {
 		this.cursorUndoStack = [];
 
 		this._isHandling = false;
+		this._isDoingComposition = false;
 
 		this.modelUnbinds = [];
 
@@ -956,6 +958,8 @@ export class Cursor extends EventEmitter {
 
 		this._handlers[H.Type] = (ctx) => this._type(ctx);
 		this._handlers[H.ReplacePreviousChar] = (ctx) => this._replacePreviousChar(ctx);
+		this._handlers[H.CompositionStart] = (ctx) => this._compositionStart(ctx);
+		this._handlers[H.CompositionEnd] = (ctx) => this._compositionEnd(ctx);
 		this._handlers[H.Tab] = (ctx) => this._tab(ctx);
 		this._handlers[H.Indent] = (ctx) => this._indent(ctx);
 		this._handlers[H.Outdent] = (ctx) => this._outdent(ctx);
@@ -1379,7 +1383,7 @@ export class Cursor extends EventEmitter {
 	private _type(ctx: IMultipleCursorOperationContext): boolean {
 		var text = ctx.eventData.text;
 
-		if (ctx.eventSource === 'keyboard') {
+		if (!this._isDoingComposition && ctx.eventSource === 'keyboard') {
 			// If this event is coming straight from the keyboard, look for electric characters and enter
 
 			for (let i = 0, len = text.length; i < len; i++) {
@@ -1416,6 +1420,16 @@ export class Cursor extends EventEmitter {
 		let text = ctx.eventData.text;
 		let replaceCharCnt = ctx.eventData.replaceCharCnt;
 		return this._applyEditForAll(ctx, (cursor) => TypeOperations.replacePreviousChar(cursor.config, cursor.model, cursor.modelState, text, replaceCharCnt));
+	}
+
+	private _compositionStart(ctx: IMultipleCursorOperationContext): boolean {
+		this._isDoingComposition = true;
+		return true;
+	}
+
+	private _compositionEnd(ctx: IMultipleCursorOperationContext): boolean {
+		this._isDoingComposition = false;
+		return true;
 	}
 
 	private _tab(ctx: IMultipleCursorOperationContext): boolean {

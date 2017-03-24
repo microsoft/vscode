@@ -8,6 +8,7 @@
 	"ok": "OK",
 	"welcome.title": "Willkommen",
 	"welcomePage": "Willkommen",
+	"welcomePage.installingKeymap": "Die {0}-Tastenkombinationen werden installiert...",
 	"welcomePage.keymapAlreadyInstalled": "Die {0} Tastenkombinationen sind bereits installiert.",
 	"welcomePage.keymapNotFound": "Die {0} Tastenkombinationen mit der ID {1} wurden nicht gefunden.",
 	"welcomePage.willReloadAfterInstallingKeymap": "Das Fenster wird nach der Installation der {0}-Tastaturbefehle neu geladen."

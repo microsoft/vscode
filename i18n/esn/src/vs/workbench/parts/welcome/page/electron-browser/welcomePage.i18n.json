@@ -8,6 +8,7 @@
 	"ok": "Aceptar",
 	"welcome.title": "Bienvenido",
 	"welcomePage": "Bienvenido",
+	"welcomePage.installingKeymap": "Instalando los métodos abreviados de teclado de {0}...",
 	"welcomePage.keymapAlreadyInstalled": "Los métodos abreviados de teclado {0} ya están instalados.",
 	"welcomePage.keymapNotFound": "No se pudieron encontrar los métodos abreviados de teclado {0} con el identificador {1}.",
 	"welcomePage.willReloadAfterInstallingKeymap": "La ventana se volverá a cargar después de instalar los métodos abreviados de teclado {0}."

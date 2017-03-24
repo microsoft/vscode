@@ -40,7 +40,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ResourceContextKey } from 'vs/workbench/common/resourceContextKey';
-import { IWorkbenchThemeService, IFileIconTheme } from 'vs/workbench/services/themes/common/themeService';
+import { IWorkbenchThemeService, IFileIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { isLinux } from 'vs/base/common/platform';
 
 export class ExplorerView extends CollapsibleViewletView {

@@ -250,6 +250,11 @@
 		}
 	],
 	"colors": {
+
+		// Base Colors
+		"inputBackground": "#181f2f",
+
+		// Editor Colors
 		"editorBackground": "#000c18",
 		"editorForeground": "#6688cc",
 		"editorCursor": "#ddbb88",
@@ -266,10 +271,14 @@
 		"editorPeekEditorBackground": "#001F33",
 		"editorPeekTitleBackground": "#060621",
 		"editorPeekBorders": "#7777cc",
+
 		"editorLineNumbers": "#8686ff",
 		"editorMarkerNavigationBackground": "#060621",
 		"editorMarkerNavigationError": "#FF0000",
 		"editorMarkerNavigationWarning": "#00FF00",
+
+		"editorFindWidgetBackground": "#051336",
+		"editorFindCheckedBorders": "#0000FF",
 
 		// Workbench Colors
 		"tabsContainerBackground": "#1c1c2a",

@@ -13,6 +13,7 @@
 	"nonempty": "Es wurde ein nicht leerer Wert erwartet.",
 	"optstring": "Die Eigenschaft \"{0}\" kann ausgelassen werden oder muss vom Typ \"string\" sein.",
 	"requirestring": "Die Eigenschaft \"{0}\" ist erforderlich. Sie muss vom Typ \"string\" sein.",
+	"unboundCommands": "Die folgenden weiteren Befehle sind verfügbar: ",
 	"vscode.extension.contributes.keybindings": "Trägt Tastenbindungen bei.",
 	"vscode.extension.contributes.keybindings.command": "Der Bezeichner des Befehls, der ausgeführt werden soll, wenn die Tastenbindung ausgelöst wird.",
 	"vscode.extension.contributes.keybindings.key": "Der Schlüssel oder die Schlüsselsequenz (separate Schlüssel mit Pluszeichen und Sequenzen mit Leerzeichen, z. B. STRG+O und STRG+L L für einen Akkord).",

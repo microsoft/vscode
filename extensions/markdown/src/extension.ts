@@ -104,6 +104,20 @@ export function activate(context: vscode.ExtensionContext) {
 				}
 			}
 
+			let scripts = contributes['markdown.preview'] && contributes['markdown.preview'].scripts;
+			if (scripts) {
+				if (!Array.isArray(scripts)) {
+					scripts = [scripts];
+				}
+				for (const script of scripts) {
+					try {
+						contentProvider.addScript(resolveExtensionResources(extension, script));
+					} catch (e) {
+						// noop
+					}
+				}
+			}
+
 			if (contributes['markdownit.plugins']) {
 				extension.activate().then(() => {
 					if (extension.exports && extension.exports.extendMarkdownIt) {

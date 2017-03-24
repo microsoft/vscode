@@ -6,6 +6,8 @@
 {
 	"closePanel": "パネルを閉じる",
 	"focusPanel": "パネルにフォーカスする",
+	"maximizePanel": "パネル サイズの最大化",
+	"minimizePanel": "パネル サイズを元に戻す",
 	"panelActionTooltip": "{0} ({1})",
 	"toggleMaximizedPanel": "最大化されるパネルの切り替え",
 	"togglePanel": "パネルの切り替え",

@@ -239,24 +239,30 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 		return withOracle((model, editor) => {
 
 			return assertEvent(model.onDidSuggest, () => {
-				editor.setPosition({ lineNumber: 1, column: 1 });
-				editor.trigger('keyboard', Handler.Type, { text: 'My' });
-
+				// make sure completionModel starts here!
+				model.trigger(true);
 			}, event => {
-				assert.equal(event.auto, true);
-				assert.equal(event.completionModel.items.length, 1);
-				const [first] = event.completionModel.items;
-				assert.equal(first.suggestion.label, 'My Table');
 
 				return assertEvent(model.onDidSuggest, () => {
-					editor.setPosition({ lineNumber: 1, column: 3 });
-					editor.trigger('keyboard', Handler.Type, { text: ' ' });
+					editor.setPosition({ lineNumber: 1, column: 1 });
+					editor.trigger('keyboard', Handler.Type, { text: 'My' });
 
 				}, event => {
 					assert.equal(event.auto, true);
 					assert.equal(event.completionModel.items.length, 1);
 					const [first] = event.completionModel.items;
 					assert.equal(first.suggestion.label, 'My Table');
+
+					return assertEvent(model.onDidSuggest, () => {
+						editor.setPosition({ lineNumber: 1, column: 3 });
+						editor.trigger('keyboard', Handler.Type, { text: ' ' });
+
+					}, event => {
+						assert.equal(event.auto, true);
+						assert.equal(event.completionModel.items.length, 1);
+						const [first] = event.completionModel.items;
+						assert.equal(first.suggestion.label, 'My Table');
+					});
 				});
 			});
 		});

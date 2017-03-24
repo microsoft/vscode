@@ -205,6 +205,8 @@ export class TerminalInstance implements ITerminalInstance {
 			}
 			return false;
 		});
+		this._linkHandler = this._instantiationService.createInstance(TerminalLinkHandler, this._xterm, platform.platform);
+		this._linkHandler.registerLocalLinkHandler();
 	}
 
 	public attachToElement(container: HTMLElement): void {
@@ -287,8 +289,7 @@ export class TerminalInstance implements ITerminalInstance {
 
 		this._wrapperElement.appendChild(this._xtermElement);
 		this._widgetManager = new TerminalWidgetManager(this._configHelper, this._wrapperElement);
-		this._linkHandler = this._instantiationService.createInstance(TerminalLinkHandler, this._widgetManager, this._xterm, platform.platform);
-		this._linkHandler.registerLocalLinkHandler();
+		this._linkHandler.setWidgetManager(this._widgetManager);
 		this._container.appendChild(this._wrapperElement);
 
 		const computedStyle = window.getComputedStyle(this._container);
@@ -523,10 +524,12 @@ export class TerminalInstance implements ITerminalInstance {
 			this._xterm.writeln(nls.localize('terminal.integrated.waitOnExit', 'Press any key to close the terminal'));
 			// Disable all input if the terminal is exiting and listen for next keypress
 			this._xterm.setOption('disableStdin', true);
-			this._processDisposables.push(DOM.addDisposableListener(this._xterm.textarea, 'keypress', (event: KeyboardEvent) => {
-				this.dispose();
-				event.preventDefault();
-			}));
+			if (this._xterm.textarea) {
+				this._processDisposables.push(DOM.addDisposableListener(this._xterm.textarea, 'keypress', (event: KeyboardEvent) => {
+					this.dispose();
+					event.preventDefault();
+				}));
+			}
 		} else {
 			this.dispose();
 			if (exitCode) {
@@ -564,6 +567,11 @@ export class TerminalInstance implements ITerminalInstance {
 
 		// Ensure new processes' output starts at start of new line
 		this._xterm.write('\n\x1b[G');
+
+		// Print initialText if specified
+		if (shell.initialText) {
+			this._xterm.writeln(shell.initialText);
+		}
 
 		// Initialize new process
 		const oldTitle = this._title;

@@ -13,7 +13,7 @@ import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IAction } from 'vs/base/common/actions';
 import { fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { ISCMService, ISCMProvider, ISCMResource, ISCMResourceGroup } from 'vs/workbench/services/scm/common/scm';
-import { getSCMResourceURI, getSCMResourceGroupId } from './scmUtil';
+import { getSCMResourceGroupId } from './scmUtil';
 
 export class SCMMenus implements IDisposable {
 
@@ -105,7 +105,7 @@ export class SCMMenus implements IDisposable {
 		const primary = [];
 		const secondary = [];
 		const result = { primary, secondary };
-		fillInActions(menu, getSCMResourceURI(this.activeProviderId, resource), result, g => g === 'inline');
+		fillInActions(menu, resource.uri, result, g => g === 'inline');
 
 		menu.dispose();
 		contextKeyService.dispose();

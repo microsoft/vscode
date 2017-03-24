@@ -160,18 +160,6 @@ suite('workspace-namespace', () => {
 		});
 	});
 
-	test('openTextDocument, visible/invisible', function () {
-		return createRandomFile().then(file => {
-			return workspace.openTextDocument(file);
-		}).then(doc => {
-			assert.equal(doc.isVisible, false);
-			return window.showTextDocument(doc).then(editor => {
-				assert.ok(editor.document === doc);
-				assert.equal(doc.isVisible, true);
-			});
-		});
-	});
-
 	test('events: onDidOpenTextDocument, onDidChangeTextDocument, onDidSaveTextDocument', () => {
 		return createRandomFile().then(file => {
 			let disposables: Disposable[] = [];

@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { IColorTheme, ITokenColorizationSetting } from 'vs/workbench/services/themes/common/themeService';
+import { IColorTheme, ITokenColorizationSetting } from 'vs/workbench/services/themes/common/workbenchThemeService';
 
 export function findMatchingThemeRule(theme: IColorTheme, scopes: string[]): ThemeRule {
 	for (let i = scopes.length - 1; i >= 0; i--) {

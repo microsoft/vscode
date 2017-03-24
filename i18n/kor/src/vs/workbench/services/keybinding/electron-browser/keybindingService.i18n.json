@@ -13,6 +13,7 @@
 	"nonempty": "비어 있지 않은 값이 필요합니다.",
 	"optstring": "속성 `{0}`은(는) 생략할 수 있으며 `string` 형식이어야 합니다.",
 	"requirestring": "속성 `{0}`은(는) 필수이며 `string` 형식이어야 합니다.",
+	"unboundCommands": "사용 가능한 다른 명령:",
 	"vscode.extension.contributes.keybindings": "키 바인딩을 적용합니다.",
 	"vscode.extension.contributes.keybindings.command": "키 바인딩이 트리거될 때 실행할 명령의 식별자입니다.",
 	"vscode.extension.contributes.keybindings.key": "키 또는 키 시퀀스(더하기 기호가 있는 개별 키, 공백이 있는 시퀀스, 예: Ctrl+O 및 Ctrl+L L을 동시에 누름)",

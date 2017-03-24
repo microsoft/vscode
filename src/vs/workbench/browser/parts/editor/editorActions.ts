@@ -22,6 +22,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IEditorGroupService, GroupArrangement } from 'vs/workbench/services/group/common/groupService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IWindowsService } from 'vs/platform/windows/common/windows';
 
 export class SplitEditorAction extends Action {
 
@@ -1109,6 +1110,26 @@ export class ReopenClosedEditorAction extends Action {
 
 	public run(): TPromise<any> {
 		this.historyService.reopenLastClosedEditor();
+
+		return TPromise.as(false);
+	}
+}
+
+export class ClearRecentFilesAction extends Action {
+
+	public static ID = 'workbench.action.clearRecentFiles';
+	public static LABEL = nls.localize('clearRecentFiles', "Clear Recent Files");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWindowsService private windowsService: IWindowsService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		this.windowsService.clearRecentPathsList();
 
 		return TPromise.as(false);
 	}

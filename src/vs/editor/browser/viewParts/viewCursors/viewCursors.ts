@@ -7,6 +7,7 @@
 
 import 'vs/css!./viewCursors';
 import * as editorCommon from 'vs/editor/common/editorCommon';
+import { isWindows } from 'vs/base/common/platform';
 import { ClassNames } from 'vs/editor/browser/editorBrowser';
 import { ViewPart } from 'vs/editor/browser/view/viewPart';
 import { Position } from 'vs/editor/common/core/position';
@@ -14,7 +15,7 @@ import { IViewCursorRenderData, ViewCursor } from 'vs/editor/browser/viewParts/v
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { TimeoutTimer } from 'vs/base/common/async';
+import { TimeoutTimer, IntervalTimer } from 'vs/base/common/async';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorCursor } from 'vs/editor/common/view/editorColorRegistry';
@@ -33,6 +34,7 @@ export class ViewCursors extends ViewPart {
 	private _domNode: FastDomNode<HTMLElement>;
 
 	private _startCursorBlinkAnimation: TimeoutTimer;
+	private _cursorFlatBlinkInterval: IntervalTimer;
 	private _blinkingEnabled: boolean;
 
 	private _editorHasFocus: boolean;
@@ -59,6 +61,8 @@ export class ViewCursors extends ViewPart {
 		this._domNode.domNode.appendChild(this._primaryCursor.getDomNode());
 
 		this._startCursorBlinkAnimation = new TimeoutTimer();
+		this._cursorFlatBlinkInterval = new IntervalTimer();
+
 		this._blinkingEnabled = false;
 
 		this._editorHasFocus = false;
@@ -68,6 +72,7 @@ export class ViewCursors extends ViewPart {
 	public dispose(): void {
 		super.dispose();
 		this._startCursorBlinkAnimation.dispose();
+		this._cursorFlatBlinkInterval.dispose();
 	}
 
 	public getDomNode(): HTMLElement {
@@ -206,12 +211,16 @@ export class ViewCursors extends ViewPart {
 
 	private _updateBlinking(): void {
 		this._startCursorBlinkAnimation.cancel();
+		this._cursorFlatBlinkInterval.cancel();
 
 		let blinkingStyle = this._getCursorBlinking();
 
 		// hidden and solid are special as they involve no animations
 		let isHidden = (blinkingStyle === editorCommon.TextEditorCursorBlinkingStyle.Hidden);
 		let isSolid = (blinkingStyle === editorCommon.TextEditorCursorBlinkingStyle.Solid);
+
+		// flat blinking is handled by JavaScript on Mac and Linux to save battery life due to Chromium step timing issue https://bugs.chromium.org/p/chromium/issues/detail?id=361587
+		let isFlatBlinkingOnInx = (blinkingStyle === editorCommon.TextEditorCursorBlinkingStyle.Blink) && !isWindows;
 
 		if (isHidden) {
 			this._hide();
@@ -223,10 +232,20 @@ export class ViewCursors extends ViewPart {
 		this._updateDomClassName();
 
 		if (!isHidden && !isSolid) {
-			this._startCursorBlinkAnimation.setIfNotSet(() => {
-				this._blinkingEnabled = true;
-				this._updateDomClassName();
-			}, ViewCursors.BLINK_INTERVAL);
+			if (isFlatBlinkingOnInx) {
+				this._cursorFlatBlinkInterval.cancelAndSet(() => {
+					if (this._isVisible) {
+						this._hide();
+					} else {
+						this._show();
+					}
+				}, ViewCursors.BLINK_INTERVAL);
+			} else {
+				this._startCursorBlinkAnimation.setIfNotSet(() => {
+					this._blinkingEnabled = true;
+					this._updateDomClassName();
+				}, ViewCursors.BLINK_INTERVAL);
+			}
 		}
 	}
 	// --- end blinking logic

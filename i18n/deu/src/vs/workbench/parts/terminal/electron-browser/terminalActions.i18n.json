@@ -7,6 +7,7 @@
 	"workbench.action.terminal.clear": "Löschen",
 	"workbench.action.terminal.copySelection": "Auswahl kopieren",
 	"workbench.action.terminal.focus": "Fokus im Terminal",
+	"workbench.action.terminal.focusAtIndex": "Terminal {0} im Fokus",
 	"workbench.action.terminal.focusNext": "Fokus im nächsten Terminal",
 	"workbench.action.terminal.focusPrevious": "Fokus im vorherigen Terminal",
 	"workbench.action.terminal.kill": "Aktive Terminalinstanz beenden",

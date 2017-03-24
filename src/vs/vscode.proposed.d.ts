@@ -584,54 +584,206 @@ declare module 'vscode' {
 		getClickCommand?(node: T): string;
 	}
 
+	/**
+	 * The theme-aware decorations for a [SCM resource](#SCMResource).
+	 */
 	export interface SCMResourceThemableDecorations {
+
+		/**
+		 * The icon path for a specific [SCM resource](#SCMResource).
+		 */
 		readonly iconPath?: string | Uri;
 	}
 
+	/**
+	 * The decorations for a [SCM resource](#SCMResource). Can be specified
+	 * for light and dark themes, independently.
+	 */
 	export interface SCMResourceDecorations extends SCMResourceThemableDecorations {
+
+		/**
+		 * Whether the [SCM resource](#SCMResource) should be striked-through
+		 * in the UI.
+		 */
 		readonly strikeThrough?: boolean;
+
+		/**
+		 * The light theme decorations.
+		 */
 		readonly light?: SCMResourceThemableDecorations;
+
+		/**
+		 * The dark theme decorations.
+		 */
 		readonly dark?: SCMResourceThemableDecorations;
 	}
 
+	/**
+	 * An SCM resource represents a state of an underlying workspace resource
+	 * within a certain SCM provider state.
+	 *
+	 * For example, consider file A to be modified. An SCM resource which would
+	 * represent such state could have the following properties:
+	 *
+	 *   - `uri = 'git:workingtree/A'`
+	 *   - `sourceUri = 'file:A'`
+	 */
 	export interface SCMResource {
+
+		/**
+		 * The [uri](#Uri) of this SCM resource.
+		 */
 		readonly uri: Uri;
+
+		/**
+		 * The [uri](#Uri) of the underlying resource inside the workspace.
+		 */
+		readonly sourceUri: Uri;
+
+		/**
+		 * The [decorations](#SCMResourceDecorations) for this SCM resource.
+		 */
 		readonly decorations?: SCMResourceDecorations;
 	}
 
+	/**
+	 * An SCM resource group is a collection of [SCM resources](#SCMResource).
+	 */
 	export interface SCMResourceGroup {
+
+		/**
+		 * The [uri](#Uri) of this SCM resource group.
+		 */
+		readonly uri: Uri;
+
+		/**
+		 * The identifier of the SCM resource group, which will be used to populate
+		 * the value of the `scmResourceGroup` context key.
+		 */
 		readonly id: string;
+
+		/**
+		 * The UI label of the SCM resource group.
+		 */
 		readonly label: string;
+
+		/**
+		 * The collection of [SCM resources](#SCMResource) within the SCM resource group.
+		 */
 		readonly resources: SCMResource[];
 	}
 
+	/**
+	 * An SCM provider is able to provide [SCM resources](#SCMResource) to Code,
+	 * notify of changes in them and interact with Code in several SCM related ways.
+	 */
 	export interface SCMProvider {
+
+		/**
+		 * The identifier of the SCM provider, which will be used to populate
+		 * the value of the `scmProvider` context key.
+		 */
+		readonly id: string;
+
+		/**
+		 * A human-readable label for the name of the SCM Provider.
+		 */
 		readonly label: string;
+
+		/**
+		 * The list of SCM resource groups.
+		 */
 		readonly resources: SCMResourceGroup[];
-		readonly onDidChange: Event<SCMResourceGroup[]>;
-		readonly count?: number | undefined;
+
+		/**
+		 * A count of resources, used in the UI as the label for the SCM changes count.
+		 */
+		readonly count?: number;
+
+		/**
+		 * A state identifier, which will be used to populate the value of the
+		 * `scmProviderState` context key.
+		 */
 		readonly state?: string;
 
+		/**
+		 * An [event](#Event) which should fire when any of the following attributes
+		 * have changed:
+		 *   - [resources](#SCMProvider.resources)
+		 *   - [count](#SCMProvider.count)
+		 *   - [state](#SCMProvider.state)
+		 */
+		readonly onDidChange: Event<SCMResourceGroup[]>;
+
+		/**
+		 * Provide a [uri](#Uri) to the original resource of any given resource uri.
+		 *
+		 * @param uri The uri of the resource open in a text editor.
+		 * @param token A cancellation token.
+		 * @return A thenable that resolves to uri of the matching original resource.
+		 */
 		getOriginalResource?(uri: Uri, token: CancellationToken): ProviderResult<Uri>;
+
+		/**
+		 * Open a specific [SCM resource](#SCMResource). Called when SCM resources
+		 * are clicked in the UI, for example.
+		 *
+		 * @param resource The [SCM resource](#SCMResource) which should be open.
+		 * @param token A cancellation token.
+		 * @return A thenable which resolves when the resource is open.
+		 */
 		open?(resource: SCMResource, token: CancellationToken): ProviderResult<void>;
-		drag?(resource: SCMResource, resourceGroup: SCMResourceGroup, token: CancellationToken): ProviderResult<void>;
+
+		// TODO@joao: move to SCMInput?
 		acceptChanges?(token: CancellationToken): ProviderResult<void>;
 	}
 
+	/**
+	 * Represents the input box in the SCM view.
+	 */
 	export interface SCMInputBox {
+
+		/**
+		 * Setter and getter for the contents of the input box.
+		 */
 		value: string;
+
+		/**
+		 * An [event](#Event) which fires when the input box value has changed.
+		 */
 		readonly onDidChange: Event<string>;
 	}
 
 	export namespace scm {
+
+		/**
+		 * An [event](#Event) which fires when the active [SCM provider](#SCMProvider)
+		 * has changed.
+		 */
 		export const onDidChangeActiveProvider: Event<SCMProvider>;
+
+		/**
+		 * The currently active [SCM provider](#SCMProvider).
+		 */
 		export let activeProvider: SCMProvider | undefined;
+
+		/**
+		 * The [input box](#SCMInputBox) in the SCM view.
+		 */
 		export const inputBox: SCMInputBox;
 
-		export function getResourceFromURI(uri: Uri): SCMResource | SCMResourceGroup | undefined;
-		export function registerSCMProvider(id: string, provider: SCMProvider): Disposable;
+		/**
+		 * Registers an [SCM provider](#SCMProvider).
+		 *
+		 * @param id The provider's id.
+		 * @return A disposable which unregisters the provider.
+		 */
+		export function registerSCMProvider(provider: SCMProvider): Disposable;
 	}
 
+	/**
+	 * The contiguous set of modified lines in a diff.
+	 */
 	export interface LineChange {
 		readonly originalStartLineNumber: number;
 		readonly originalEndLineNumber: number;
@@ -639,5 +791,22 @@ declare module 'vscode' {
 		readonly modifiedEndLineNumber: number;
 	}
 
-	export function computeDiff(oneDocument: TextDocument, otherDocument: TextDocument): Thenable<LineChange[]>;
+	export namespace commands {
+
+		/**
+		 * Registers a diff information command that can be invoked via a keyboard shortcut,
+		 * a menu item, an action, or directly.
+		 *
+		 * Diff information commands are different from ordinary [commands](#commands.registerCommand) as
+		 * they only execute when there is an active diff editor when the command is called, and the diff
+		 * information has been computed. Also, the command handler of an editor command has access to
+		 * the diff information.
+		 *
+		 * @param command A unique identifier for the command.
+		 * @param callback A command handler function with access to the [diff information](#LineChange).
+		 * @param thisArg The `this` context used when invoking the handler function.
+		 * @return Disposable which unregisters this command on disposal.
+		 */
+		export function registerDiffInformationCommand(command: string, callback: (diff: LineChange[], ...args: any[]) => any, thisArg?: any): Disposable;
+	}
 }

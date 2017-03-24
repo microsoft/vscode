@@ -15,6 +15,8 @@ import { MessageType, InputBox, IInputValidator } from 'vs/base/browser/ui/input
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import CommonEvent, { Emitter } from 'vs/base/common/event';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 
 export interface IOptions {
 	placeholder?: string;
@@ -29,32 +31,28 @@ export class PatternInputWidget extends Widget {
 
 	public inputFocusTracker: dom.IFocusTracker;
 
-	private onOptionChange: (event: Event) => void;
+	protected onOptionChange: (event: Event) => void;
 	private width: number;
 	private placeholder: string;
 	private ariaLabel: string;
 
-	private toDispose: any[];
 	private pattern: Checkbox;
-	private useIgnoreFilesBox: Checkbox;
 
 	private domNode: HTMLElement;
 	private inputNode: HTMLInputElement;
-	private inputBox: InputBox;
+	protected inputBox: InputBox;
 
 	private _onSubmit = this._register(new Emitter<boolean>());
 	public onSubmit: CommonEvent<boolean> = this._onSubmit.event;
 
-	constructor(parent: HTMLElement, private contextViewProvider: IContextViewProvider, options: IOptions = Object.create(null), private showUseIgnoreFiles = false) {
+	constructor(parent: HTMLElement, private contextViewProvider: IContextViewProvider, private themeService: IThemeService, options: IOptions = Object.create(null)) {
 		super();
 		this.onOptionChange = null;
 		this.width = options.width || 100;
 		this.placeholder = options.placeholder || '';
 		this.ariaLabel = options.ariaLabel || nls.localize('defaultLabel', "input");
 
-		this.toDispose = [];
 		this.pattern = null;
-		this.useIgnoreFilesBox = null;
 		this.domNode = null;
 		this.inputNode = null;
 		this.inputBox = null;
@@ -67,14 +65,9 @@ export class PatternInputWidget extends Widget {
 	public dispose(): void {
 		super.dispose();
 		this.pattern.dispose();
-		this.useIgnoreFilesBox.dispose();
-		this.toDispose.forEach((element) => {
-			element();
-		});
 		if (this.inputFocusTracker) {
 			this.inputFocusTracker.dispose();
 		}
-		this.toDispose = [];
 	}
 
 	public on(eventType: string, handler: (event: Event) => void): PatternInputWidget {
@@ -108,14 +101,14 @@ export class PatternInputWidget extends Widget {
 	}
 
 	public getGlob(): IExpression {
-		let pattern = this.getValue();
-		let isGlobPattern = this.isGlobPattern();
+		const pattern = this.getValue();
+		const isGlobPattern = this.isGlobPattern();
 
 		if (!pattern) {
 			return void 0;
 		}
 
-		let glob: IExpression = Object.create(null);
+		const glob: IExpression = Object.create(null);
 
 		let segments: string[];
 		if (isGlobPattern) {
@@ -145,27 +138,20 @@ export class PatternInputWidget extends Widget {
 		return this.inputBox.hasFocus();
 	}
 
-	public useIgnoreFiles(): boolean {
-		return this.useIgnoreFilesBox.checked;
-	}
-
-	public setUseIgnoreFiles(value: boolean): void {
-		this.useIgnoreFilesBox.checked = value;
-		this.setInputWidth();
-	}
-
 	public isGlobPattern(): boolean {
 		return this.pattern.checked;
 	}
 
 	public setIsGlobPattern(value: boolean): void {
 		this.pattern.checked = value;
-		this.setInputWidth();
 	}
 
 	private setInputWidth(): void {
-		let w = this.width - this.pattern.width() - this.useIgnoreFilesBox.width();
-		this.inputBox.width = w;
+		this.inputBox.width = this.width - this.getSubcontrolsWidth();
+	}
+
+	protected getSubcontrolsWidth(): number {
+		return this.pattern.width();
 	}
 
 	private render(): void {
@@ -181,6 +167,7 @@ export class PatternInputWidget extends Widget {
 				showMessage: true
 			}
 		});
+		this._register(attachInputBoxStyler(this.inputBox, this.themeService));
 		this.inputFocusTracker = dom.trackFocus(this.inputBox.inputElement);
 		this.onkeyup(this.inputBox.inputElement, (keyboardEvent) => this.onInputKeyUp(keyboardEvent));
 
@@ -193,26 +180,12 @@ export class PatternInputWidget extends Widget {
 				if (!viaKeyboard) {
 					this.inputBox.focus();
 				}
-				this.setInputWidth();
 
 				if (this.isGlobPattern()) {
 					this.showGlobHelp();
 				} else {
 					this.inputBox.hideMessage();
 				}
-			}
-		});
-
-		this.useIgnoreFilesBox = new Checkbox({
-			actionClassName: 'useIgnoreFiles',
-			title: nls.localize('useIgnoreFilesDescription', "Use Ignore Files"),
-			isChecked: false,
-			onChange: (viaKeyboard) => {
-				this.onOptionChange(null);
-				if (!viaKeyboard) {
-					this.inputBox.focus();
-				}
-				this.setInputWidth();
 			}
 		});
 
@@ -226,17 +199,16 @@ export class PatternInputWidget extends Widget {
 			this.inputBox.hideMessage();
 		});
 
-		this.setInputWidth();
-
 		let controls = document.createElement('div');
 		controls.className = 'controls';
-		if (this.showUseIgnoreFiles) {
-			controls.appendChild(this.useIgnoreFilesBox.domNode);
-		}
-
-		controls.appendChild(this.pattern.domNode);
+		this.renderSubcontrols(controls);
 
 		this.domNode.appendChild(controls);
+		this.setInputWidth();
+	}
+
+	protected renderSubcontrols(controlsDiv: HTMLDivElement): void {
+		controlsDiv.appendChild(this.pattern.domNode);
 	}
 
 	private showGlobHelp(): void {
@@ -257,5 +229,67 @@ export class PatternInputWidget extends Widget {
 			default:
 				return;
 		}
+	}
+}
+
+export class ExcludePatternInputWidget extends PatternInputWidget {
+
+	private useIgnoreFilesBox: Checkbox;
+	private useExcludeSettingsBox: Checkbox;
+
+	public dispose(): void {
+		super.dispose();
+		this.useIgnoreFilesBox.dispose();
+		this.useExcludeSettingsBox.dispose();
+	}
+
+	public useExcludeSettings(): boolean {
+		return this.useExcludeSettingsBox.checked;
+	}
+
+	public setUseExcludeSettings(value: boolean) {
+		this.useExcludeSettingsBox.checked = value;
+	}
+
+	public useIgnoreFiles(): boolean {
+		return this.useIgnoreFilesBox.checked;
+	}
+
+	public setUseIgnoreFiles(value: boolean): void {
+		this.useIgnoreFilesBox.checked = value;
+	}
+
+	protected getSubcontrolsWidth(): number {
+		return super.getSubcontrolsWidth() + this.useIgnoreFilesBox.width() + this.useExcludeSettingsBox.width();
+	}
+
+	protected renderSubcontrols(controlsDiv: HTMLDivElement): void {
+		this.useIgnoreFilesBox = new Checkbox({
+			actionClassName: 'useIgnoreFiles',
+			title: nls.localize('useIgnoreFilesDescription', "Use Ignore Files"),
+			isChecked: false,
+			onChange: (viaKeyboard) => {
+				this.onOptionChange(null);
+				if (!viaKeyboard) {
+					this.inputBox.focus();
+				}
+			}
+		});
+
+		this.useExcludeSettingsBox = new Checkbox({
+			actionClassName: 'useExcludeSettings',
+			title: nls.localize('useExcludeSettingsDescription', "Use Exclude Settings"),
+			isChecked: false,
+			onChange: (viaKeyboard) => {
+				this.onOptionChange(null);
+				if (!viaKeyboard) {
+					this.inputBox.focus();
+				}
+			}
+		});
+
+		controlsDiv.appendChild(this.useIgnoreFilesBox.domNode);
+		controlsDiv.appendChild(this.useExcludeSettingsBox.domNode);
+		super.renderSubcontrols(controlsDiv);
 	}
 }

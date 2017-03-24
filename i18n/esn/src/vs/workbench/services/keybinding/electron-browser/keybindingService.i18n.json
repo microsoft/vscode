@@ -13,6 +13,7 @@
 	"nonempty": "se esperaba un valor no vacío.",
 	"optstring": "la propiedad `{0}` se puede omitir o debe ser de tipo \"string\"",
 	"requirestring": "la propiedad `{0}` es obligatoria y debe ser de tipo \"string\"",
+	"unboundCommands": "Aquí hay otros comandos disponibles: ",
 	"vscode.extension.contributes.keybindings": "Aporta enlaces de teclado.",
 	"vscode.extension.contributes.keybindings.command": "Identificador del comando que se va a ejecutar cuando se desencadena el enlace de teclado.",
 	"vscode.extension.contributes.keybindings.key": "Tecla o secuencia de teclas (las teclas se separan con el signo más y las secuencias con un espacio, por ejemplo, Ctrl+O y Ctrl+L L para una presión simultánea)",

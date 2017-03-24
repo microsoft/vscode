@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { Uri, commands, scm, Disposable, window, workspace, QuickPickItem, OutputChannel, computeDiff, Range, WorkspaceEdit, Position } from 'vscode';
+import { Uri, commands, scm, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange } from 'vscode';
 import { Ref, RefType, Git } from './git';
 import { Model, Resource, Status, CommitOptions } from './model';
 import * as staging from './staging';
@@ -60,15 +60,23 @@ class CheckoutRemoteHeadItem extends CheckoutItem {
 	}
 }
 
-const Commands: { commandId: string; key: string; method: Function; skipModelCheck: boolean; }[] = [];
+interface Command {
+	commandId: string;
+	key: string;
+	method: Function;
+	skipModelCheck: boolean;
+	requiresDiffInformation: boolean;
+}
 
-function command(commandId: string, skipModelCheck = false): Function {
+const Commands: Command[] = [];
+
+function command(commandId: string, skipModelCheck = false, requiresDiffInformation = false): Function {
 	return (target: any, key: string, descriptor: any) => {
 		if (!(typeof descriptor.value === 'function')) {
 			throw new Error('not supported');
 		}
 
-		Commands.push({ commandId, key, method: descriptor.value, skipModelCheck });
+		Commands.push({ commandId, key, method: descriptor.value, skipModelCheck, requiresDiffInformation });
 	};
 }
 
@@ -88,7 +96,15 @@ export class CommandCenter {
 		}
 
 		this.disposables = Commands
-			.map(({ commandId, key, method, skipModelCheck }) => commands.registerCommand(commandId, this.createCommand(commandId, key, method, skipModelCheck)));
+			.map(({ commandId, key, method, skipModelCheck, requiresDiffInformation }) => {
+				const command = this.createCommand(commandId, key, method, skipModelCheck);
+
+				if (requiresDiffInformation) {
+					return commands.registerDiffInformationCommand(commandId, command);
+				} else {
+					return commands.registerCommand(commandId, command);
+				}
+			});
 	}
 
 	@command('git.refresh')
@@ -121,7 +137,7 @@ export class CommandCenter {
 				return resource.original.with({ scheme: 'git', query: 'HEAD' });
 
 			case Status.MODIFIED:
-				return resource.uri.with({ scheme: 'git', query: '~' });
+				return resource.sourceUri.with({ scheme: 'git', query: '~' });
 		}
 	}
 
@@ -130,34 +146,34 @@ export class CommandCenter {
 			case Status.INDEX_MODIFIED:
 			case Status.INDEX_ADDED:
 			case Status.INDEX_COPIED:
-				return resource.uri.with({ scheme: 'git' });
+				return resource.sourceUri.with({ scheme: 'git' });
 
 			case Status.INDEX_RENAMED:
-				return resource.uri.with({ scheme: 'git' });
+				return resource.sourceUri.with({ scheme: 'git' });
 
 			case Status.INDEX_DELETED:
 			case Status.DELETED:
-				return resource.uri.with({ scheme: 'git', query: 'HEAD' });
+				return resource.sourceUri.with({ scheme: 'git', query: 'HEAD' });
 
 			case Status.MODIFIED:
 			case Status.UNTRACKED:
 			case Status.IGNORED:
-				const uriString = resource.uri.toString();
-				const [indexStatus] = this.model.indexGroup.resources.filter(r => r.uri.toString() === uriString);
+				const uriString = resource.sourceUri.toString();
+				const [indexStatus] = this.model.indexGroup.resources.filter(r => r.sourceUri.toString() === uriString);
 
 				if (indexStatus && indexStatus.rename) {
 					return indexStatus.rename;
 				}
 
-				return resource.uri;
+				return resource.sourceUri;
 
 			case Status.BOTH_MODIFIED:
-				return resource.uri;
+				return resource.sourceUri;
 		}
 	}
 
 	private getTitle(resource: Resource): string {
-		const basename = path.basename(resource.uri.fsPath);
+		const basename = path.basename(resource.sourceUri.fsPath);
 
 		switch (resource.type) {
 			case Status.INDEX_MODIFIED:
@@ -258,7 +274,7 @@ export class CommandCenter {
 			return;
 		}
 
-		return await commands.executeCommand<void>('vscode.open', resource.uri);
+		return await commands.executeCommand<void>('vscode.open', resource.sourceUri);
 	}
 
 	@command('git.openChange')
@@ -288,8 +304,8 @@ export class CommandCenter {
 		return await this.model.add();
 	}
 
-	@command('git.stageSelectedRanges')
-	async stageSelectedRanges(): Promise<void> {
+	@command('git.stageSelectedRanges', false, true)
+	async stageSelectedRanges(diffs: LineChange[]): Promise<void> {
 		const textEditor = window.activeTextEditor;
 
 		if (!textEditor) {
@@ -305,7 +321,6 @@ export class CommandCenter {
 
 		const originalUri = modifiedUri.with({ scheme: 'git', query: '~' });
 		const originalDocument = await workspace.openTextDocument(originalUri);
-		const diffs = await computeDiff(originalDocument, modifiedDocument);
 		const selections = textEditor.selections;
 		const selectedDiffs = diffs.filter(diff => {
 			const modifiedRange = diff.modifiedEndLineNumber === 0
@@ -323,8 +338,8 @@ export class CommandCenter {
 		await this.model.stage(modifiedUri, result);
 	}
 
-	@command('git.revertSelectedRanges')
-	async revertSelectedRanges(): Promise<void> {
+	@command('git.revertSelectedRanges', false, true)
+	async revertSelectedRanges(diffs: LineChange[]): Promise<void> {
 		const textEditor = window.activeTextEditor;
 
 		if (!textEditor) {
@@ -340,7 +355,6 @@ export class CommandCenter {
 
 		const originalUri = modifiedUri.with({ scheme: 'git', query: '~' });
 		const originalDocument = await workspace.openTextDocument(originalUri);
-		const diffs = await computeDiff(originalDocument, modifiedDocument);
 		const selections = textEditor.selections;
 		const selectedDiffs = diffs.filter(diff => {
 			const modifiedRange = diff.modifiedEndLineNumber === 0
@@ -385,8 +399,8 @@ export class CommandCenter {
 		return await this.model.revertFiles();
 	}
 
-	@command('git.unstageSelectedRanges')
-	async unstageSelectedRanges(): Promise<void> {
+	@command('git.unstageSelectedRanges', false, true)
+	async unstageSelectedRanges(diffs: LineChange[]): Promise<void> {
 		const textEditor = window.activeTextEditor;
 
 		if (!textEditor) {
@@ -402,7 +416,6 @@ export class CommandCenter {
 
 		const originalUri = modifiedUri.with({ scheme: 'git', query: 'HEAD' });
 		const originalDocument = await workspace.openTextDocument(originalUri);
-		const diffs = await computeDiff(originalDocument, modifiedDocument);
 		const selections = textEditor.selections;
 		const selectedDiffs = diffs.filter(diff => {
 			const modifiedRange = diff.modifiedEndLineNumber === 0
@@ -436,7 +449,7 @@ export class CommandCenter {
 		}
 
 		const message = resources.length === 1
-			? localize('confirm discard', "Are you sure you want to discard changes in {0}?", path.basename(resources[0].uri.fsPath))
+			? localize('confirm discard', "Are you sure you want to discard changes in {0}?", path.basename(resources[0].sourceUri.fsPath))
 			: localize('confirm discard multiple', "Are you sure you want to discard changes in {0} files?", resources.length);
 
 		const yes = localize('discard', "Discard Changes");
@@ -779,9 +792,18 @@ export class CommandCenter {
 			return undefined;
 		}
 
-		if (uri.scheme === 'scm' && uri.authority === 'git') {
-			const resource = scm.getResourceFromURI(uri);
-			return resource instanceof Resource ? resource : undefined;
+		if (uri.scheme === 'git-resource') {
+			const {resourceGroupId} = JSON.parse(uri.query) as { resourceGroupId: string, sourceUri: string };
+			const [resourceGroup] = this.model.resources.filter(g => g.id === resourceGroupId);
+
+			if (!resourceGroup) {
+				return;
+			}
+
+			const uriStr = uri.toString();
+			const [resource] = resourceGroup.resources.filter(r => r.uri.toString() === uriStr);
+
+			return resource;
 		}
 
 		if (uri.scheme === 'git') {
@@ -791,8 +813,8 @@ export class CommandCenter {
 		if (uri.scheme === 'file') {
 			const uriString = uri.toString();
 
-			return this.model.workingTreeGroup.resources.filter(r => r.uri.toString() === uriString)[0]
-				|| this.model.indexGroup.resources.filter(r => r.uri.toString() === uriString)[0];
+			return this.model.workingTreeGroup.resources.filter(r => r.sourceUri.toString() === uriString)[0]
+				|| this.model.indexGroup.resources.filter(r => r.sourceUri.toString() === uriString)[0];
 		}
 	}
 

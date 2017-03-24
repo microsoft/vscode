@@ -35,16 +35,17 @@ import { IAction, IActionItem, ActionRunner } from 'vs/base/common/actions';
 import { createActionItem } from 'vs/platform/actions/browser/menuItemActionItem';
 import { SCMMenus } from './scmMenus';
 import { ActionBar, IActionItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/themeService';
+import { IThemeService, LIGHT } from "vs/platform/theme/common/themeService";
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { comparePaths } from 'vs/base/common/comparers';
 import URI from 'vs/base/common/uri';
-import { isSCMResource, getSCMResourceURI } from './scmUtil';
+import { isSCMResource } from './scmUtil';
+import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 
 function getElementId(element: ISCMResourceGroup | ISCMResource) {
 	if (isSCMResource(element)) {
-		return `${element.resourceGroupId}:${element.uri.toString()}`;
+		return `${element.resourceGroupId}:${element.sourceUri.toString()}`;
 	} else {
 		return `${element.id}`;
 	}
@@ -134,7 +135,7 @@ class ResourceRenderer implements IRenderer<ISCMResource, ResourceTemplate> {
 		private scmMenus: SCMMenus,
 		private actionItemProvider: IActionItemProvider,
 		private getSelectedResources: () => URI[],
-		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
+		@IThemeService private themeService: IThemeService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) { }
 
@@ -154,13 +155,13 @@ class ResourceRenderer implements IRenderer<ISCMResource, ResourceTemplate> {
 	}
 
 	renderElement(resource: ISCMResource, index: number, template: ResourceTemplate): void {
-		template.fileLabel.setFile(resource.uri);
+		template.fileLabel.setFile(resource.sourceUri);
 		template.actionBar.clear();
 		template.actionBar.push(this.scmMenus.getResourceActions(resource));
 		toggleClass(template.name, 'strike-through', resource.decorations.strikeThrough);
 
-		const theme = this.themeService.getColorTheme();
-		const icon = theme.isDarkTheme() ? resource.decorations.iconDark : resource.decorations.icon;
+		const theme = this.themeService.getTheme();
+		const icon = theme.type === LIGHT ? resource.decorations.icon : resource.decorations.iconDark;
 
 		if (icon) {
 			template.decorationIcon.style.backgroundImage = `url('${icon}')`;
@@ -184,7 +185,7 @@ class Delegate implements IDelegate<ISCMResourceGroup | ISCMResource> {
 }
 
 function resourceSorter(a: ISCMResource, b: ISCMResource): number {
-	return comparePaths(a.uri.fsPath, b.uri.fsPath);
+	return comparePaths(a.sourceUri.fsPath, b.sourceUri.fsPath);
 }
 
 export class SCMViewlet extends Viewlet {
@@ -209,7 +210,7 @@ export class SCMViewlet extends Viewlet {
 		@IMessageService private messageService: IMessageService,
 		@IListService private listService: IListService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IWorkbenchThemeService protected themeService: IWorkbenchThemeService,
+		@IThemeService protected themeService: IThemeService,
 		@IMenuService private menuService: IMenuService,
 		@IModelService private modelService: IModelService
 	) {
@@ -245,6 +246,7 @@ export class SCMViewlet extends Viewlet {
 			placeholder: localize('commitMessage', "Message (press {0} to commit)", platform.isMacintosh ? 'Cmd+Enter' : 'Ctrl+Enter'),
 			flexibleHeight: true
 		});
+		this.disposables.push(attachInputBoxStyler(this.inputBox, this.themeService));
 		this.disposables.push(this.inputBox);
 
 		this.inputBox.value = this.scmService.input.value;
@@ -284,7 +286,7 @@ export class SCMViewlet extends Viewlet {
 
 		this.setActiveProvider(this.scmService.activeProvider);
 		this.scmService.onDidChangeProvider(this.setActiveProvider, this, this.disposables);
-		this.themeService.onDidColorThemeChange(this.update, this, this.disposables);
+		this.themeService.onThemeChange(this.update, this, this.disposables);
 
 		return TPromise.as(null);
 	}
@@ -366,8 +368,7 @@ export class SCMViewlet extends Viewlet {
 	}
 
 	private getSelectedResources(): URI[] {
-		return this.list.getSelectedElements()
-			.map(r => getSCMResourceURI(this.activeProviderId, r));
+		return this.list.getSelectedElements().map(r => r.uri);
 	}
 
 	dispose(): void {

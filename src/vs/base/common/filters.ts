@@ -395,88 +395,6 @@ export function createMatches(position: number[]): IMatch[] {
 	return ret;
 }
 
-export function fuzzyMatchAndScore(pattern: string, word: string): [number, number[]] {
-
-	if (!pattern) {
-		return [-1, []];
-	}
-
-	if (pattern.length > word.length) {
-		return undefined;
-	}
-
-	let matches: number[] = [];
-	let score = _matchRecursive(
-		pattern, pattern.toLowerCase(), pattern.toUpperCase(), 0,
-		word, word.toLowerCase(), 0,
-		matches
-	);
-
-	if (score <= 0) {
-		return undefined;
-	}
-
-	score -= Math.min(matches[0], 3) * 3; // penalty for first matching character
-	score -= (1 + matches[matches.length - 1]) - (pattern.length); // penalty for all non matching characters between first and last
-
-	return [score, matches];
-}
-
-export function _matchRecursive(
-	pattern: string, lowPattern: string, upPattern: string, patternPos: number,
-	word: string, lowWord: string, wordPos: number,
-	matches: number[]
-): number {
-
-	if (patternPos >= lowPattern.length) {
-		return 0;
-	}
-
-	const lowPatternChar = lowPattern[patternPos];
-	let idx = -1;
-	let value = 0;
-
-	if ((patternPos === wordPos
-		&& lowPatternChar === lowWord[wordPos])
-		&& ((value = _matchRecursive(pattern, lowPattern, upPattern, patternPos + 1, word, lowWord, wordPos + 1, matches)) >= 0)
-	) {
-		matches.unshift(wordPos);
-		return (pattern[patternPos] === word[wordPos] ? 17 : 11) + value;
-	}
-
-	if ((idx = word.indexOf(upPattern[patternPos], wordPos)) >= 0
-		&& ((value = _matchRecursive(pattern, lowPattern, upPattern, patternPos + 1, word, lowWord, idx + 1, matches)) >= 0)
-	) {
-		matches.unshift(idx);
-		return (pattern[patternPos] === word[idx] ? 17 : 11) + value;
-	}
-
-	if ((idx = lowWord.indexOf(`_${lowPatternChar}`, wordPos)) >= 0
-		&& ((value = _matchRecursive(pattern, lowPattern, upPattern, patternPos + 1, word, lowWord, idx + 2, matches)) >= 0)
-	) {
-		matches.unshift(idx + 1);
-		return (pattern[patternPos] === word[idx + 1] ? 17 : 11) + value;
-	}
-
-	if ((idx = lowWord.indexOf(`.${lowPatternChar}`, wordPos)) >= 0
-		&& ((value = _matchRecursive(pattern, lowPattern, upPattern, patternPos + 1, word, lowWord, idx + 2, matches)) >= 0)
-	) {
-		matches.unshift(idx + 1);
-		return 11 + value;
-	}
-
-	if (patternPos > 0
-		&& (idx = lowWord.indexOf(lowPatternChar, wordPos)) >= 0
-		&& ((value = _matchRecursive(pattern, lowPattern, upPattern, patternPos + 1, word, lowWord, idx + 1, matches)) >= 0)
-	) {
-		matches.unshift(idx);
-		return 1 + value;
-	}
-
-	return -1;
-}
-
-
 function initTable() {
 	const table: number[][] = [];
 	const row: number[] = [0];
@@ -515,6 +433,13 @@ function printTable(table: number[][], pattern: string, patternLen: number, word
 	return ret;
 }
 
+const _seps: { [ch: string]: boolean } = Object.create(null);
+_seps['_'] = true;
+_seps['.'] = true;
+_seps[' '] = true;
+_seps['/'] = true;
+_seps['\\'] = true;
+
 export function fuzzyScore(pattern: string, word: string): [number, number[]] {
 
 	const patternLen = pattern.length > 25 ? 25 : pattern.length;
@@ -530,14 +455,22 @@ export function fuzzyScore(pattern: string, word: string): [number, number[]] {
 
 	const lowPattern = pattern.toLowerCase();
 	const lowWord = word.toLowerCase();
+	let i = 0;
+	let j = 0;
 
-	let lastLowestMatch = -1;
-	let i: number;
-	let j: number;
+	while (i < patternLen && j < wordLen) {
+		if (lowPattern[i] === lowWord[j]) {
+			i += 1;
+		}
+		j += 1;
+	}
+	if (i !== patternLen) {
+		// no simple matches found -> return early
+		return undefined;
+	}
+
 	for (i = 1; i <= patternLen; i++) {
 
-		let lowestMatch = -1;
-		let highestMatch = -1;
 		let lastLowWordChar = '';
 
 		for (j = 1; j <= wordLen; j++) {
@@ -545,31 +478,27 @@ export function fuzzyScore(pattern: string, word: string): [number, number[]] {
 			let score = -1;
 			let lowWordChar = lowWord[j - 1];
 			if (lowPattern[i - 1] === lowWordChar) {
-				if (lowWordChar !== word[j - 1]) {
+
+				if (j === 1) {
 					if (pattern[i - 1] === word[j - 1]) {
 						score = 7;
 					} else {
 						score = 5;
 					}
-				} else if (lastLowWordChar === '_' || lastLowWordChar === '.') {
+				} else if (lowWordChar !== word[j - 1]) {
+					if (pattern[i - 1] === word[j - 1]) {
+						score = 7;
+					} else {
+						score = 5;
+					}
+				} else if (_seps[lastLowWordChar]) {
 					score = 5;
 
-				} else if (j === 1) {
-					if (pattern[i - 1] === word[j - 1]) {
-						score = 7;
-					} else {
-						score = 5;
-					}
 				} else if (j === i) {
 					score = 3;
 
 				} else {
 					score = 1;
-				}
-
-				highestMatch = j - 1;
-				if (lowestMatch === -1) {
-					lowestMatch = j - 1;
 				}
 			}
 
@@ -599,14 +528,6 @@ export function fuzzyScore(pattern: string, word: string): [number, number[]] {
 
 			lastLowWordChar = lowWordChar;
 		}
-
-		if (lowestMatch === -1 || highestMatch < lastLowestMatch) {
-			// return early when there was no match or when the
-			// match was only before the last lowest match
-			return undefined;
-		}
-
-		lastLowestMatch = lowestMatch;
 	}
 
 	if (_debug) {
@@ -625,7 +546,6 @@ export function fuzzyScore(pattern: string, word: string): [number, number[]] {
 			// keep going left, we cannot
 			// skip a character in the pattern
 			j -= 1;
-			total -= 1;
 
 		} else if (arrow === 0) { //diag
 			j -= 1;
@@ -642,7 +562,6 @@ export function fuzzyScore(pattern: string, word: string): [number, number[]] {
 				// we went diagonal by inheriting a good
 				// result, not by matching keep going left
 				i += 1;
-				total -= 1;
 
 			} else {
 				// all good
@@ -652,16 +571,11 @@ export function fuzzyScore(pattern: string, word: string): [number, number[]] {
 		}
 	}
 
-	if (matches.length !== patternLen) {
-		// we didn't match all pattern
-		// characters in order
-		return undefined;
-	}
-
 	if (j > 3) {
 		j = 3;
 	}
 	total -= j * 3; // penalty for first matching character
+	total -= (1 + matches[matches.length - 1]) - pattern.length; // penalty for all non matching characters between first and last
 
 	if (_debug) {
 		console.log(`${pattern} & ${word} => ${total} points for ${matches}`);

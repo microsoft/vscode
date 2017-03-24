@@ -26,10 +26,12 @@ export interface ISCMResourceDecorations {
 export interface ISCMResource {
 	readonly resourceGroupId: string;
 	readonly uri: URI;
+	readonly sourceUri: URI;
 	readonly decorations: ISCMResourceDecorations;
 }
 
 export interface ISCMResourceGroup {
+	readonly uri: URI;
 	readonly id: string;
 	readonly label: string;
 	readonly resources: ISCMResource[];
@@ -45,7 +47,6 @@ export interface ISCMProvider extends IDisposable {
 
 	open(uri: ISCMResource): TPromise<void>;
 	acceptChanges(): TPromise<void>;
-	drag(from: ISCMResource, to: ISCMResourceGroup): TPromise<void>;
 	getOriginalResource(uri: URI): TPromise<URI>;
 }
 

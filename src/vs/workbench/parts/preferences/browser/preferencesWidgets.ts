@@ -22,6 +22,8 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { ActionsOrientation, ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action } from 'vs/base/common/actions';
+import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 
@@ -246,7 +248,8 @@ export class SearchWidget extends Widget {
 	constructor(parent: HTMLElement, protected options: SearchOptions,
 		@IContextViewService private contextViewService: IContextViewService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IInstantiationService protected instantiationService: IInstantiationService
+		@IInstantiationService protected instantiationService: IInstantiationService,
+		@IThemeService private themeService: IThemeService
 	) {
 		super();
 		this.create(parent);
@@ -268,7 +271,10 @@ export class SearchWidget extends Widget {
 	}
 
 	protected createInputBox(parent: HTMLElement): InputBox {
-		return this._register(new InputBox(parent, this.contextViewService, this.options));
+		const box = this._register(new InputBox(parent, this.contextViewService, this.options));
+		this._register(attachInputBoxStyler(box, this.themeService));
+
+		return box;
 	}
 
 	public showMessage(message: string, count: number): void {
