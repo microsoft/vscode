@@ -6,7 +6,7 @@
 import Paths = require('vs/base/common/paths');
 import Json = require('vs/base/common/json');
 import { Color } from 'vs/base/common/color';
-import { ExtensionData, ITokenColorizationRule, IColorTheme, IColorMap, VS_LIGHT_THEME, VS_HC_THEME } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { ExtensionData, ITokenColorizationRule, IColorTheme, IColorMap, VS_LIGHT_THEME, VS_HC_THEME, VS_DARK_THEME, CUSTOM_THEME_ID } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { convertSettings } from 'vs/workbench/services/themes/electron-browser/themeCompatibility';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { getBaseThemeId, getSyntaxThemeId, isDarkTheme, isLightTheme } from 'vs/platform/theme/common/themes';
@@ -20,6 +20,8 @@ import pfs = require('vs/base/node/pfs');
 import { Extensions, IColorRegistry, ColorIdentifier, editorBackground, editorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ThemeType } from 'vs/platform/theme/common/themeService';
 import { Registry } from 'vs/platform/platform';
+import { WorkbenchThemeService, IUserTheme } from "vs/workbench/services/themes/electron-browser/workbenchThemeService";
+import { IThemeExtensionPoint } from "vs/platform/theme/common/themeExtensionPoint";
 
 let colorRegistry = <IColorRegistry>Registry.as(Extensions.ColorContribution);
 
@@ -33,6 +35,7 @@ export class ColorThemeData implements IColorTheme {
 	tokenColors?: ITokenColorizationRule[];
 	isLoaded: boolean;
 	path?: string;
+	userThemeData: IUserTheme;
 	extensionData: ExtensionData;
 	colorMap: IColorMap = {};
 	defaultColorMap: IColorMap = {};
@@ -64,17 +67,22 @@ export class ColorThemeData implements IColorTheme {
 		return color === null ? defaultValue === null : color.equals(defaultValue);
 	}
 
-	public ensureLoaded(): TPromise<void> {
+	public ensureLoaded(themeService: WorkbenchThemeService): TPromise<void> {
 		if (!this.isLoaded) {
-			let tokenColors = [];
-			let colorMap = {};
-			return _loadThemeDocument(this.getBaseThemeId(), this.path, tokenColors, colorMap).then(_ => {
-				this.tokenColors = tokenColors;
-				this.colorMap = colorMap;
-				this.defaultColorMap = {};
-				this.isLoaded = true;
-				completeTokenColors(this);
-			});
+			this.tokenColors = [];
+			this.colorMap = {};
+			this.defaultColorMap = {};
+			if (this.path) {
+				return _loadThemeDocumentFromFile(this.path, this.tokenColors, this.colorMap).then(_ => {
+					this.isLoaded = true;
+					completeTokenColors(this);
+				});
+			} else if (this.userThemeData) {
+				return _loadThemeDocumentFromUserTheme(themeService, this.userThemeData, this.tokenColors, this.colorMap).then(_ => {
+					this.isLoaded = true;
+					completeTokenColors(this);
+				});
+			}
 		}
 		return TPromise.as(null);
 	}
@@ -151,33 +159,53 @@ export function fromStorageData(input: string): ColorThemeData {
 	return theme;
 }
 
-let defaultThemeColors: { [baseTheme: string]: ITokenColorizationRule[] } = {
-	'vs': [
-		{ scope: 'token.info-token', settings: { foreground: '#316bcd' } },
-		{ scope: 'token.warn-token', settings: { foreground: '#cd9731' } },
-		{ scope: 'token.error-token', settings: { foreground: '#cd3131' } },
-		{ scope: 'token.debug-token', settings: { foreground: 'purple' } }
-	],
-	'vs-dark': [
-		{ scope: 'token.info-token', settings: { foreground: '#6796e6' } },
-		{ scope: 'token.warn-token', settings: { foreground: '#cd9731' } },
-		{ scope: 'token.error-token', settings: { foreground: '#f44747' } },
-		{ scope: 'token.debug-token', settings: { foreground: '#b267e6' } }
-	],
-	'hc-black': [
-		{ scope: 'token.info-token', settings: { foreground: '#6796e6' } },
-		{ scope: 'token.warn-token', settings: { foreground: '#008000' } },
-		{ scope: 'token.error-token', settings: { foreground: '#FF0000' } },
-		{ scope: 'token.debug-token', settings: { foreground: '#b267e6' } }
-	],
-};
+let counter = 0;
 
-function _loadThemeDocument(baseTheme: string, themePath: string, resultRules: ITokenColorizationRule[], resultColors: IColorMap): TPromise<any> {
+export function fromUserTheme(userTheme: IUserTheme): ColorThemeData {
+	let baseTheme = VS_LIGHT_THEME;
+	if (userTheme.type === 'dark') {
+		baseTheme = VS_DARK_THEME;
+	} else if (userTheme.type === 'hc') {
+		baseTheme = VS_HC_THEME;
+	}
+	let themeId = 'customtheme' + counter++;
+
+	let theme = new ColorThemeData();
+	theme.id = baseTheme + ' ' + themeId;
+	theme.selector = baseTheme + '.' + themeId;
+	theme.label = CUSTOM_THEME_ID;
+	theme.settingsId = CUSTOM_THEME_ID;
+	theme.userThemeData = userTheme;
+	theme.isLoaded = false;
+	return theme;
+}
+
+export function fromExtensionTheme(theme: IThemeExtensionPoint, normalizedAbsolutePath: string, extensionData: ExtensionData): ColorThemeData {
+	let baseTheme = theme.uiTheme || 'vs-dark';
+
+	let themeSelector = toCSSSelector(extensionData.extensionId + '-' + Paths.normalize(theme.path));
+	let themeData = new ColorThemeData();
+	themeData.id = `${baseTheme} ${themeSelector}`;
+	themeData.label = theme.label || Paths.basename(theme.path);
+	themeData.settingsId = theme.id || themeData.label;
+	themeData.selector = `${baseTheme}.${themeSelector}`;
+	themeData.description = theme.description;
+	themeData.path = normalizedAbsolutePath;
+	themeData.extensionData = extensionData;
+	themeData.isLoaded = false;
+	return themeData;
+}
+
+function toCSSSelector(str: string) {
+	str = str.replace(/[^_\-a-zA-Z0-9]/g, '-');
+	if (str.charAt(0).match(/[0-9\-]/)) {
+		str = '_' + str;
+	}
+	return str;
+}
+
+function _loadThemeDocumentFromFile(themePath: string, resultRules: ITokenColorizationRule[], resultColors: IColorMap): TPromise<any> {
 	return pfs.readFile(themePath).then(content => {
-		if (resultRules.length === 0) {
-			let defaultRules = defaultThemeColors[baseTheme] || [];
-			resultRules.push(...defaultRules);
-		}
 		if (Paths.extname(themePath) === '.json') {
 			let errors: Json.ParseError[] = [];
 			let contentValue = Json.parse(content.toString(), errors);
@@ -186,7 +214,7 @@ function _loadThemeDocument(baseTheme: string, themePath: string, resultRules: I
 			}
 			let includeCompletes = TPromise.as(null);
 			if (contentValue.include) {
-				includeCompletes = _loadThemeDocument(baseTheme, Paths.join(Paths.dirname(themePath), contentValue.include), resultRules, resultColors);
+				includeCompletes = _loadThemeDocumentFromFile(Paths.join(Paths.dirname(themePath), contentValue.include), resultRules, resultColors);
 			}
 			return includeCompletes.then(_ => {
 				if (Array.isArray(contentValue.settings)) {
@@ -225,10 +253,41 @@ function _loadThemeDocument(baseTheme: string, themePath: string, resultRules: I
 	});
 }
 
+function _loadThemeDocumentFromUserTheme(themeService: WorkbenchThemeService, userTheme: IUserTheme, resultRules: ITokenColorizationRule[], resultColors: IColorMap): TPromise<any> {
+	let extendsCompletes = TPromise.as(null);
+	if (userTheme.extends) {
+		extendsCompletes = themeService.findThemeDataBySettingsId(userTheme.extends, null).then(theme => {
+			if (theme && !theme.userThemeData) {
+				return theme.ensureLoaded(themeService).then(_ => {
+					resultRules.push(...theme.tokenColors);
+					for (let colorId in theme.colorMap) {
+						resultColors[colorId] = theme.colorMap[colorId];
+					}
+				});
+			}
+			return null;
+		});
+	}
+	return extendsCompletes.then(_ => {
+		if (userTheme.tokenColors) {
+			resultRules.push(...userTheme.tokenColors);
+		}
+		if (userTheme.colors) {
+			let colors = userTheme.colors;
+			for (let colorId in colors) {
+				let colorHex = colors[colorId];
+				resultColors[colorId] = Color.fromHex(colorHex);
+			}
+		}
+		return null;
+	});
+}
+
 /**
  * Make sure that the token colors contain the default fore and background
  */
 function completeTokenColors(theme: ColorThemeData) {
+	let hasDefaultTokens = false;
 	theme.tokenColors.forEach(rule => {
 		if (!rule.scope) {
 			if (!rule.settings.background) {
@@ -237,6 +296,33 @@ function completeTokenColors(theme: ColorThemeData) {
 			if (!rule.settings.foreground) {
 				rule.settings.foreground = theme.getColor(editorForeground).toRGBAHex();
 			}
+		} else if (rule.scope === 'token.info-token') {
+			hasDefaultTokens = true;
 		}
 	});
+	if (!hasDefaultTokens) {
+		theme.tokenColors.push(...defaultThemeColors[theme.type]);
+	}
 }
+
+
+let defaultThemeColors: { [baseTheme: string]: ITokenColorizationRule[] } = {
+	'light': [
+		{ scope: 'token.info-token', settings: { foreground: '#316bcd' } },
+		{ scope: 'token.warn-token', settings: { foreground: '#cd9731' } },
+		{ scope: 'token.error-token', settings: { foreground: '#cd3131' } },
+		{ scope: 'token.debug-token', settings: { foreground: '#800080' } }
+	],
+	'dark': [
+		{ scope: 'token.info-token', settings: { foreground: '#6796e6' } },
+		{ scope: 'token.warn-token', settings: { foreground: '#cd9731' } },
+		{ scope: 'token.error-token', settings: { foreground: '#f44747' } },
+		{ scope: 'token.debug-token', settings: { foreground: '#b267e6' } }
+	],
+	'hc': [
+		{ scope: 'token.info-token', settings: { foreground: '#6796e6' } },
+		{ scope: 'token.warn-token', settings: { foreground: '#008000' } },
+		{ scope: 'token.error-token', settings: { foreground: '#FF0000' } },
+		{ scope: 'token.debug-token', settings: { foreground: '#b267e6' } }
+	],
+};
