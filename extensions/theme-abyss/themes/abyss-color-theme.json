@@ -290,6 +290,7 @@
 		"editorSideBySideBorder": "#10192c",
 		"panelBorderTopColor": "#2b2b4a",
 		"statusBarBackground": "#10192c",
+		"statusBarNoFolderBackground": "#10192c",
 		"activityBarBackground": "#051336",
 		"sideBarBackground": "#060621",
 		"titleBarActiveBackground": "#10192c",

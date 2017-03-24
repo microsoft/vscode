@@ -734,6 +734,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		}
 
 		this.layoutContainers();
+		this.updateStyles();
 	}
 
 	public setGroupOrientation(orientation: GroupOrientation): void {
@@ -928,10 +929,8 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 			silo.style('background-color', this.getColor(editorBackground));
 
 			// Border
-			if (index > Position.ONE) {
-				silo.style('border-left-color', this.getColor(EDITOR_GROUP_BORDER_COLOR));
-				silo.style('border-top-color', this.getColor(EDITOR_GROUP_BORDER_COLOR));
-			}
+			silo.style('border-left-color', index > Position.ONE ? this.getColor(EDITOR_GROUP_BORDER_COLOR) : null);
+			silo.style('border-top-color', index > Position.ONE ? this.getColor(EDITOR_GROUP_BORDER_COLOR) : null);
 		});
 
 		// Title control
