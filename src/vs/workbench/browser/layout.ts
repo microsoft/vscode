@@ -562,12 +562,13 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 				break;
 			case Parts.PANEL_PART:
 				newSashSize = this.panelHeight + sizeChangePxHeight;
-				this.panelHeight = Math.max(this.partLayoutInfo.panel.minHeight, newSashSize); // Sidebar can not become smaller than MIN_PART_WIDTH
+				this.panelHeight = Math.max(this.partLayoutInfo.panel.minHeight, newSashSize);
 				doLayout = true;
 				break;
 			case Parts.EDITOR_PART:
 				// If we have one editor we can cheat and resize sidebar with the negative delta
 				const visibleEditorCount = this.editorService.getVisibleEditors().length;
+
 				if (visibleEditorCount === 1) {
 					this.sidebarWidth = this.sidebarWidth - sizeChangePxWidth;
 					doLayout = true;
@@ -584,11 +585,6 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 
 		// other parts not resizable, no error just silent
 		return false;
-	}
-
-	public setSideBarWidth(sidebarWidth: number): number {
-		this.sidebarWidth = sidebarWidth;
-		return this.sidebarWidth;
 	}
 
 	public dispose(): void {

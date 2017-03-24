@@ -1144,13 +1144,13 @@ export class Workbench implements IPartService {
 
 	// Resize requested part along the main axis
 	// layout will do all the math for us and adjusts the other Parts
-	public resizePart(part: Parts, sizeChangePx: number): void {
+	public resizePart(part: Parts, sizeChange: number): void {
 
 		switch (part) {
 			case Parts.SIDEBAR_PART:
 			case Parts.PANEL_PART:
 			case Parts.EDITOR_PART:
-				this.workbenchLayout.setPartSizeChange(part, sizeChangePx);
+				this.workbenchLayout.setPartSizeChange(part, sizeChange);
 				break;
 			// Cannot resize other parts
 			default:

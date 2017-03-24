@@ -13,6 +13,7 @@ import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/action
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 
+// This is a media-size percentage
 const RESIZE_INCREMENT = 6.5;
 
 export abstract class BaseResizeViewAction extends Action {
@@ -42,9 +43,7 @@ export abstract class BaseResizeViewAction extends Action {
 		}
 		return;
 	}
-
 }
-
 
 export class IncreaseViewSizeAction extends BaseResizeViewAction {
 
@@ -55,11 +54,8 @@ export class IncreaseViewSizeAction extends BaseResizeViewAction {
 		id: string,
 		label: string,
 		@IPartService partService: IPartService
-
 	) {
 		super(id, label, partService);
-
-
 	}
 
 	public run(): TPromise<boolean> {
@@ -80,8 +76,6 @@ export class DecreaseViewSizeAction extends BaseResizeViewAction {
 
 	) {
 		super(id, label, partService);
-
-
 	}
 
 	public run(): TPromise<boolean> {
