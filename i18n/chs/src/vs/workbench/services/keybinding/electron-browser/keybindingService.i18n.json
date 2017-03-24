@@ -13,6 +13,7 @@
 	"nonempty": "应为非空值。",
 	"optstring": "属性“{0}”可以省略，或者其类型必须是“字符串”",
 	"requirestring": "属性“{0}”是必需的，其类型必须是“字符串”",
+	"unboundCommands": "以下是其他可用命令:",
 	"vscode.extension.contributes.keybindings": "用于键绑定。",
 	"vscode.extension.contributes.keybindings.command": "要在触发键绑定时运行的命令的标识符。",
 	"vscode.extension.contributes.keybindings.key": "键或键序列(用加号分隔键，用空格分隔序列，例如，对于弦形，Ctrl+O 和 Ctrl+L L ",

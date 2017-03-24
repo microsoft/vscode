@@ -20,6 +20,7 @@
 	"focusPreviousGroup": "이전 그룹에 포커스",
 	"focusSecondEditorGroup": "두 번째 편집기 그룹에 포커스",
 	"focusThirdEditorGroup": "세 번째 편집기 그룹에 포커스",
+	"joinTwoGroups": "두 그룹의 편집기 조인",
 	"keepEditor": "편집기 유지",
 	"maximizeEditor": "편집기 그룹 최대화 및 사이드바 숨기기",
 	"minimizeOtherEditorGroups": "다른 편집기 그룹 최소화",
