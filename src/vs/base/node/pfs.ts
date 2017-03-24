@@ -7,7 +7,6 @@
 
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import * as extfs from 'vs/base/node/extfs';
-import * as paths from 'vs/base/common/paths';
 import { dirname, join } from 'path';
 import { nfcall, Queue } from 'vs/base/common/async';
 import * as fs from 'fs';
@@ -159,7 +158,7 @@ function ensureWriteFileQueue(queueKey: string): Queue<void> {
 */
 export function readDirsInDir(dirPath: string): TPromise<string[]> {
 	return readdir(dirPath).then(children => {
-		return TPromise.join(children.map(c => dirExists(paths.join(dirPath, c)))).then(exists => {
+		return TPromise.join(children.map(c => dirExists(join(dirPath, c)))).then(exists => {
 			return children.filter((_, i) => exists[i]);
 		});
 	});

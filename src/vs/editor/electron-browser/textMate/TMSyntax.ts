@@ -6,12 +6,12 @@
 
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
+import * as types from 'vs/base/common/types';
 import * as objects from 'vs/base/common/objects';
+import Event, { Emitter } from 'vs/base/common/event';
+import { join, normalize } from 'path';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import * as paths from 'vs/base/common/paths';
-import * as types from 'vs/base/common/types';
-import Event, { Emitter } from 'vs/base/common/event';
 import { ExtensionMessageCollector } from 'vs/platform/extensions/common/extensionsRegistry';
 import { ITokenizationSupport, TokenizationRegistry, IState, LanguageId } from 'vs/editor/common/modes';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -214,7 +214,7 @@ export class MainProcessTextMateSyntax implements ITextMateService {
 			return;
 		}
 
-		let normalizedAbsolutePath = paths.normalize(paths.join(extensionFolderPath, syntax.path));
+		let normalizedAbsolutePath = normalize(join(extensionFolderPath, syntax.path));
 
 		if (normalizedAbsolutePath.indexOf(extensionFolderPath) !== 0) {
 			collector.warn(nls.localize('invalid.path.1', "Expected `contributes.{0}.path` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.", grammarsExtPoint.name, normalizedAbsolutePath, extensionFolderPath));
