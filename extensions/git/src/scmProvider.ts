@@ -6,7 +6,7 @@
 'use strict';
 
 import { scm, Uri, Disposable, SCMProvider, SCMResourceGroup, Event, ProviderResult, workspace } from 'vscode';
-import { Model, Resource, ResourceGroup, State } from './model';
+import { Model, Resource, State } from './model';
 import { CommandCenter } from './commands';
 import { mapEvent } from './util';
 
@@ -51,10 +51,6 @@ export class GitSCMProvider implements SCMProvider {
 
 	acceptChanges(): ProviderResult<void> {
 		return this.commandCenter.commitWithInput();
-	}
-
-	drag(resource: Resource, resourceGroup: ResourceGroup): void {
-		console.log('drag', resource, resourceGroup);
 	}
 
 	getOriginalResource(uri: Uri): Uri | undefined {
