@@ -37,9 +37,9 @@ export type XtermLinkMatcherValidationCallback = (uri: string, element: HTMLElem
 
 export class TerminalLinkHandler {
 	private _tooltipDisposables: IDisposable[] = [];
+	private _widgetManager: TerminalWidgetManager;
 
 	constructor(
-		private _widgetManager: TerminalWidgetManager,
 		private _xterm: any,
 		private _platform: platform.Platform,
 		@IWorkbenchEditorService private _editorService: IWorkbenchEditorService,
@@ -49,6 +49,10 @@ export class TerminalLinkHandler {
 		this._xterm.setHypertextValidationCallback((uri: string, element: HTMLElement, callback: (isValid: boolean) => void) => {
 			this._validateWebLink(uri, element, callback);
 		});
+	}
+
+	public setWidgetManager(widgetManager: TerminalWidgetManager) {
+		this._widgetManager = widgetManager;
 	}
 
 	public registerCustomLinkHandler(regex: RegExp, handler: (uri: string) => void, matchIndex?: number, validationCallback?: XtermLinkMatcherValidationCallback): number {
