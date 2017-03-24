@@ -360,6 +360,11 @@
 	text-decoration: underline;
 }
 
+.search-viewlet .global-exclude input.disabled,
+.search-viewlet .file-types.disabled.global-exclude .monaco-inputbox {
+	background: none;
+}
+
 /* Theming */
 
 .search-viewlet .highlight {
@@ -407,6 +412,11 @@
 }
 
 .vs-dark .search-viewlet .message {
+	color: #FFF;
+	opacity: .5;
+}
+
+.vs-dark .search-viewlet .global-exclude input.disabled {
 	color: #FFF;
 	opacity: .5;
 }
