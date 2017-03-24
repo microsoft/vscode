@@ -9,11 +9,11 @@ import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
-import { TextDocumentSaveReason, TextEdit, Position } from 'vs/workbench/api/node/extHostTypes';
+import { TextDocumentSaveReason, TextEdit, Position, EndOfLine } from 'vs/workbench/api/node/extHostTypes';
 import { MainThreadWorkspaceShape } from 'vs/workbench/api/node/extHost.protocol';
 import { ExtHostDocumentSaveParticipant } from 'vs/workbench/api/node/extHostDocumentSaveParticipant';
 import { OneGetThreadService } from './testThreadService';
-import { IResourceTextEdit } from 'vs/editor/common/services/bulkEdit';
+import { IResourceEdit } from 'vs/editor/common/services/bulkEdit';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import * as vscode from 'vscode';
 
@@ -252,7 +252,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 
 	test('event delivery, pushEdits sync', () => {
 
-		let edits: IResourceTextEdit[];
+		let edits: IResourceEdit[];
 		const participant = new ExtHostDocumentSaveParticipant(documents, new class extends MainThreadWorkspaceShape {
 			$applyWorkspaceEdit(_edits) {
 				edits = _edits;
@@ -262,18 +262,19 @@ suite('ExtHostDocumentSaveParticipant', () => {
 
 		let sub = participant.onWillSaveTextDocumentEvent(function (e) {
 			e.waitUntil(TPromise.as([TextEdit.insert(new Position(0, 0), 'bar')]));
+			e.waitUntil(TPromise.as([TextEdit.setEndOfLine(EndOfLine.CRLF)]));
 		});
 
 		return participant.$participateInSave(resource, SaveReason.EXPLICIT).then(() => {
 			sub.dispose();
 
-			assert.equal(edits.length, 1);
+			assert.equal(edits.length, 2);
 		});
 	});
 
 	test('event delivery, concurrent change', () => {
 
-		let edits: IResourceTextEdit[];
+		let edits: IResourceEdit[];
 		const participant = new ExtHostDocumentSaveParticipant(documents, new class extends MainThreadWorkspaceShape {
 			$applyWorkspaceEdit(_edits) {
 				edits = _edits;
@@ -306,7 +307,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 	test('event delivery, two listeners -> two document states', () => {
 
 		const participant = new ExtHostDocumentSaveParticipant(documents, new class extends MainThreadWorkspaceShape {
-			$applyWorkspaceEdit(_edits: IResourceTextEdit[]) {
+			$applyWorkspaceEdit(_edits: IResourceEdit[]) {
 
 				for (const { resource, newText, range } of _edits) {
 					documents.$acceptModelChanged(resource.toString(), [{

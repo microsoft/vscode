@@ -2032,6 +2032,14 @@ declare module 'vscode' {
 		static delete(range: Range): TextEdit;
 
 		/**
+		 * Utility to create an eol-edit.
+		 *
+		 * @param eol An eol-sequence
+		 * @return A new text edit object.
+		 */
+		static setEndOfLine(eol: EndOfLine): TextEdit;
+
+		/**
 		 * The range this edit applies to.
 		 */
 		range: Range;
@@ -2040,6 +2048,11 @@ declare module 'vscode' {
 		 * The string this edit will insert.
 		 */
 		newText: string;
+
+		/**
+		 * The eol-sequence used in the document.
+		 */
+		newEol: EndOfLine;
 
 		/**
 		 * Create a new TextEdit.

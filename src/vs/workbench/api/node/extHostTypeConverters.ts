@@ -366,12 +366,15 @@ export namespace TextDocumentSaveReason {
 }
 
 
-export function fromEOL(eol: vscode.EndOfLine): EndOfLineSequence {
-	if (eol === types.EndOfLine.CRLF) {
-		return EndOfLineSequence.CRLF;
-	} else if (eol === types.EndOfLine.LF) {
-		return EndOfLineSequence.LF;
+export namespace EndOfLine {
+
+	export function from(eol: vscode.EndOfLine): EndOfLineSequence {
+		if (eol === types.EndOfLine.CRLF) {
+			return EndOfLineSequence.CRLF;
+		} else if (eol === types.EndOfLine.LF) {
+			return EndOfLineSequence.LF;
+		}
+		return undefined;
 	}
-	return undefined;
 }
 

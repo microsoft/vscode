@@ -4759,6 +4759,12 @@ declare module monaco.languages {
         provideDocumentSymbols(model: editor.IReadOnlyModel, token: CancellationToken): SymbolInformation[] | Thenable<SymbolInformation[]>;
     }
 
+    export interface TextEdit {
+        text: string;
+        range: IRange;
+        eol: editor.EndOfLineSequence;
+    }
+
     /**
      * Interface used to format a model
      */

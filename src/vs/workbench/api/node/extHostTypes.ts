@@ -429,16 +429,22 @@ export class TextEdit {
 		return TextEdit.replace(range, '');
 	}
 
-	protected _range: Range;
+	static setEndOfLine(eol: EndOfLine): TextEdit {
+		let ret = new TextEdit(undefined, undefined);
+		ret.newEol = eol;
+		return ret;
+	}
 
+	protected _range: Range;
 	protected _newText: string;
+	protected _newEol: EndOfLine;
 
 	get range(): Range {
 		return this._range;
 	}
 
 	set range(value: Range) {
-		if (!value) {
+		if (value && !Range.isRange(value)) {
 			throw illegalArgument('range');
 		}
 		this._range = value;
@@ -448,8 +454,22 @@ export class TextEdit {
 		return this._newText || '';
 	}
 
-	set newText(value) {
+	set newText(value: string) {
+		if (value && typeof value !== 'string') {
+			throw illegalArgument('newText');
+		}
 		this._newText = value;
+	}
+
+	get newEol(): EndOfLine {
+		return this._newEol;
+	}
+
+	set newEol(value: EndOfLine) {
+		if (value && typeof value !== 'number') {
+			throw illegalArgument('newEol');
+		}
+		this._newEol = value;
 	}
 
 	constructor(range: Range, newText: string) {
@@ -460,7 +480,8 @@ export class TextEdit {
 	toJSON(): any {
 		return {
 			range: this.range,
-			newText: this.newText
+			newText: this.newText,
+			newEol: this._newEol
 		};
 	}
 }

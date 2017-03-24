@@ -516,6 +516,12 @@ export interface DocumentSymbolProvider {
 	provideDocumentSymbols(model: editorCommon.IReadOnlyModel, token: CancellationToken): SymbolInformation[] | Thenable<SymbolInformation[]>;
 }
 
+export interface TextEdit {
+	text: string;
+	range: editorCommon.IRange;
+	eol: editorCommon.EndOfLineSequence;
+}
+
 /**
  * Interface used to format a model
  */

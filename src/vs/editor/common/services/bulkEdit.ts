@@ -18,21 +18,11 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { IIdentifiedSingleEditOperation, IModel, IRange, ISelection, EndOfLineSequence, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { IProgressRunner } from 'vs/platform/progress/common/progress';
 
-export interface IResourceTextEdit {
+export interface IResourceEdit {
 	resource: URI;
 	range?: IRange;
 	newText: string;
-}
-
-export interface IResourceEOLEdit {
-	resource: URI;
-	eol: EndOfLineSequence;
-}
-
-export type IResourceEdit = IResourceTextEdit | IResourceEOLEdit;
-
-function isIEndOfLineSequenceEdit(thing: any): thing is IResourceEOLEdit {
-	return thing && URI.isUri((<IResourceEOLEdit>thing).resource) && typeof (<IResourceEOLEdit>thing).eol === 'number';
+	newEol?: EndOfLineSequence;
 }
 
 interface IRecording {
@@ -94,19 +84,19 @@ class EditTask implements IDisposable {
 	}
 
 	public addEdit(edit: IResourceEdit): void {
-		if (isIEndOfLineSequenceEdit(edit)) {
-			// store new EOL-sequence, last wins
-			this._newEol = edit.eol;
 
+		// create edit operation
+		let range: IRange;
+		if (!edit.range) {
+			range = this._model.getFullModelRange();
 		} else {
-			// create edit operation
-			let range: IRange;
-			if (!edit.range) {
-				range = this._model.getFullModelRange();
-			} else {
-				range = edit.range;
-			}
-			this._edits.push(EditOperation.replaceMove(Range.lift(range), edit.newText));
+			range = edit.range;
+		}
+		this._edits.push(EditOperation.replaceMove(Range.lift(range), edit.newText));
+
+		// honor eol-change
+		if (typeof edit.newEol === 'number') {
+			this._newEol = edit.newEol;
 		}
 	}
 
