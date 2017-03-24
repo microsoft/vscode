@@ -332,7 +332,7 @@ export class TestPartService implements IPartService {
 
 	public toggleZenMode(): void { }
 
-	public resizePart(part: Parts, sizeChange: number): void {}
+	public resizePart(part: Parts, sizeChange: number): void { }
 }
 
 export class TestStorageService extends EventEmitter implements IStorageService {
