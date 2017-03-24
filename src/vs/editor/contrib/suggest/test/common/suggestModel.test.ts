@@ -218,49 +218,55 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 		});
 	});
 
-	// test('#17400: Keep filtering suggestModel.ts after space', function () {
+	test('#17400: Keep filtering suggestModel.ts after space', function () {
 
-	// 	disposables.push(SuggestRegistry.register({ scheme: 'test' }, {
-	// 		provideCompletionItems(doc, pos) {
-	// 			return <ISuggestResult>{
-	// 				currentWord: '',
-	// 				incomplete: false,
-	// 				suggestions: [{
-	// 					label: 'My Table',
-	// 					type: 'property',
-	// 					insertText: 'My Table'
-	// 				}]
-	// 			};
-	// 		}
-	// 	}));
+		disposables.push(SuggestRegistry.register({ scheme: 'test' }, {
+			provideCompletionItems(doc, pos) {
+				return <ISuggestResult>{
+					currentWord: '',
+					incomplete: false,
+					suggestions: [{
+						label: 'My Table',
+						type: 'property',
+						insertText: 'My Table'
+					}]
+				};
+			}
+		}));
 
-	// 	model.setValue('');
+		model.setValue('');
 
-	// 	return withOracle((model, editor) => {
+		return withOracle((model, editor) => {
 
-	// 		return assertEvent(model.onDidSuggest, () => {
-	// 			editor.setPosition({ lineNumber: 1, column: 1 });
-	// 			editor.trigger('keyboard', Handler.Type, { text: 'My' });
+			return assertEvent(model.onDidSuggest, () => {
+				// make sure completionModel starts here!
+				model.trigger(true);
+			}, event => {
 
-	// 		}, event => {
-	// 			assert.equal(event.auto, true);
-	// 			assert.equal(event.completionModel.items.length, 1);
-	// 			const [first] = event.completionModel.items;
-	// 			assert.equal(first.suggestion.label, 'My Table');
+				return assertEvent(model.onDidSuggest, () => {
+					editor.setPosition({ lineNumber: 1, column: 1 });
+					editor.trigger('keyboard', Handler.Type, { text: 'My' });
 
-	// 			return assertEvent(model.onDidSuggest, () => {
-	// 				editor.setPosition({ lineNumber: 1, column: 3 });
-	// 				editor.trigger('keyboard', Handler.Type, { text: ' ' });
+				}, event => {
+					assert.equal(event.auto, true);
+					assert.equal(event.completionModel.items.length, 1);
+					const [first] = event.completionModel.items;
+					assert.equal(first.suggestion.label, 'My Table');
 
-	// 			}, event => {
-	// 				assert.equal(event.auto, true);
-	// 				assert.equal(event.completionModel.items.length, 1);
-	// 				const [first] = event.completionModel.items;
-	// 				assert.equal(first.suggestion.label, 'My Table');
-	// 			});
-	// 		});
-	// 	});
-	// });
+					return assertEvent(model.onDidSuggest, () => {
+						editor.setPosition({ lineNumber: 1, column: 3 });
+						editor.trigger('keyboard', Handler.Type, { text: ' ' });
+
+					}, event => {
+						assert.equal(event.auto, true);
+						assert.equal(event.completionModel.items.length, 1);
+						const [first] = event.completionModel.items;
+						assert.equal(first.suggestion.label, 'My Table');
+					});
+				});
+			});
+		});
+	});
 
 	test('#21484: Trigger character always force a new completion session', function () {
 
