@@ -60,7 +60,6 @@ import * as Constants from 'vs/workbench/parts/search/common/constants';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { IThemeService, ITheme, ICssStyleCollector, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorFindMatchHighlight } from 'vs/platform/theme/common/colorRegistry';
-import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 
 export class SearchViewlet extends Viewlet {
 
@@ -238,7 +237,6 @@ export class SearchViewlet extends Viewlet {
 					actions: [this.instantiationService.createInstance(ConfigureGlobalExclusionsAction)],
 					ariaLabel: nls.localize('label.global.excludes', 'Configured Search Exclude Patterns')
 				});
-				this._register(attachInputBoxStyler(this.inputPatternGlobalExclusions, this.themeService));
 				this.inputPatternGlobalExclusions.inputElement.readOnly = true;
 				$(this.inputPatternGlobalExclusions.inputElement).attr('aria-readonly', 'true');
 				$(this.inputPatternGlobalExclusions.inputElement).addClass('disabled');
