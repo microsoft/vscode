@@ -52,7 +52,12 @@ export class CrashReporter {
 		}
 
 		telemetryService.getTelemetryInfo()
-			.then(info => ({ vscode_sessionId: info.sessionId, vscode_version: pkg.version, vscode_commit: product.commit }))
+			.then(info => ({
+				vscode_sessionId: info.sessionId,
+				vscode_version: pkg.version,
+				vscode_commit: product.commit,
+				vscode_machineId: info.machineId
+			}))
 			.then(extra => assign(configuration, { extra }))
 			.then(configuration => {
 				// start crash reporter right here
