@@ -35,7 +35,7 @@ import { IAction, IActionItem, ActionRunner } from 'vs/base/common/actions';
 import { createActionItem } from 'vs/platform/actions/browser/menuItemActionItem';
 import { SCMMenus } from './scmMenus';
 import { ActionBar, IActionItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/themeService';
+import { IThemeService, LIGHT } from "vs/platform/theme/common/themeService";
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { comparePaths } from 'vs/base/common/comparers';
@@ -134,7 +134,7 @@ class ResourceRenderer implements IRenderer<ISCMResource, ResourceTemplate> {
 		private scmMenus: SCMMenus,
 		private actionItemProvider: IActionItemProvider,
 		private getSelectedResources: () => URI[],
-		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
+		@IThemeService private themeService: IThemeService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) { }
 
@@ -159,8 +159,8 @@ class ResourceRenderer implements IRenderer<ISCMResource, ResourceTemplate> {
 		template.actionBar.push(this.scmMenus.getResourceActions(resource));
 		toggleClass(template.name, 'strike-through', resource.decorations.strikeThrough);
 
-		const theme = this.themeService.getColorTheme();
-		const icon = theme.isDarkTheme() ? resource.decorations.iconDark : resource.decorations.icon;
+		const theme = this.themeService.getTheme();
+		const icon = theme.type === LIGHT ? resource.decorations.icon : resource.decorations.iconDark;
 
 		if (icon) {
 			template.decorationIcon.style.backgroundImage = `url('${icon}')`;
@@ -209,7 +209,7 @@ export class SCMViewlet extends Viewlet {
 		@IMessageService private messageService: IMessageService,
 		@IListService private listService: IListService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IWorkbenchThemeService protected themeService: IWorkbenchThemeService,
+		@IThemeService protected themeService: IThemeService,
 		@IMenuService private menuService: IMenuService,
 		@IModelService private modelService: IModelService
 	) {
@@ -284,7 +284,7 @@ export class SCMViewlet extends Viewlet {
 
 		this.setActiveProvider(this.scmService.activeProvider);
 		this.scmService.onDidChangeProvider(this.setActiveProvider, this, this.disposables);
-		this.themeService.onDidColorThemeChange(this.update, this, this.disposables);
+		this.themeService.onThemeChange(this.update, this, this.disposables);
 
 		return TPromise.as(null);
 	}
