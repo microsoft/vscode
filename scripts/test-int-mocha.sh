@@ -1,1 +1,1 @@
-./scripts/test.sh --run **/*.integrationTest.js -g integration "$@"
+./scripts/test.sh --runGlob **/*.integrationTest.js -g integration "$@"
