@@ -27,14 +27,13 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 import { StartStopProblemCollector, WatchingProblemCollector, ProblemCollectorEvents } from 'vs/workbench/parts/tasks/common/problemCollectors';
 import {
-	ITaskSystem, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, TaskRunnerConfiguration,
-	TaskDescription, CommandOptions, ShowOutput, TelemetryEvent, Triggers, TaskSystemEvents, TaskEvent, TaskType,
-	CommandConfiguration
+	ITaskSystem, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, TelemetryEvent, Triggers, TaskSystemEvents, TaskEvent, TaskType
 } from 'vs/workbench/parts/tasks/common/taskSystem';
+import { Task, CommandOptions, ShowOutput, CommandConfiguration } from 'vs/workbench/parts/tasks/common/tasks';
 
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
-export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
+export class ProcessTaskSystem extends EventEmitter implements ITaskSystem {
 
 	public static TelemetryEventName: string = 'taskService';
 
@@ -44,18 +43,16 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 	private telemetryService: ITelemetryService;
 	private configurationResolverService: IConfigurationResolverService;
 
-	private configuration: TaskRunnerConfiguration;
 	private outputChannel: IOutputChannel;
 
 	private errorsShown: boolean;
 	private childProcess: LineProcess;
-	private activeTaskIdentifier: string;
+	private activeTask: Task;
 	private activeTaskPromise: TPromise<ITaskSummary>;
 
-	constructor(configuration: TaskRunnerConfiguration, markerService: IMarkerService, modelService: IModelService, telemetryService: ITelemetryService,
-		outputService: IOutputService, configurationResolverService: IConfigurationResolverService, outputChannelId: string, hasErrors: boolean) {
+	constructor(markerService: IMarkerService, modelService: IModelService, telemetryService: ITelemetryService,
+		outputService: IOutputService, configurationResolverService: IConfigurationResolverService, outputChannelId: string) {
 		super();
-		this.configuration = configuration;
 		this.markerService = markerService;
 		this.modelService = modelService;
 		this.outputService = outputService;
@@ -63,51 +60,10 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 		this.configurationResolverService = configurationResolverService;
 
 		this.childProcess = null;
-		this.activeTaskIdentifier = null;
+		this.activeTask = null;
 		this.activeTaskPromise = null;
 		this.outputChannel = this.outputService.getChannel(outputChannelId);
-		this.errorsShown = !hasErrors;
-	}
-
-
-	public build(): ITaskExecuteResult {
-		let buildTaskIdentifier = this.configuration.buildTasks.length > 0 ? this.configuration.buildTasks[0] : undefined;
-		if (this.activeTaskIdentifier) {
-			let task = this.configuration.tasks[this.activeTaskIdentifier];
-			return { kind: TaskExecuteKind.Active, active: { same: this.activeTaskIdentifier === buildTaskIdentifier, background: task.isBackground }, promise: this.activeTaskPromise };
-		}
-		if (!buildTaskIdentifier) {
-			throw new TaskError(Severity.Info, nls.localize('TaskRunnerSystem.noBuildTask', 'No task is marked as a build task in the tasks.json. Mark a task with \'isBuildCommand\'.'), TaskErrors.NoBuildTask);
-		}
-		return this.executeTask(buildTaskIdentifier, Triggers.shortcut);
-	}
-
-	public rebuild(): ITaskExecuteResult {
-		throw new Error('Task - Rebuild: not implemented yet');
-	}
-
-	public clean(): ITaskExecuteResult {
-		throw new Error('Task - Clean: not implemented yet');
-	}
-
-	public runTest(): ITaskExecuteResult {
-		let testTaskIdentifier = this.configuration.testTasks.length > 0 ? this.configuration.testTasks[0] : undefined;
-		if (this.activeTaskIdentifier) {
-			let task = this.configuration.tasks[this.activeTaskIdentifier];
-			return { kind: TaskExecuteKind.Active, active: { same: this.activeTaskIdentifier === testTaskIdentifier, background: task.isBackground }, promise: this.activeTaskPromise };
-		}
-		if (!testTaskIdentifier) {
-			throw new TaskError(Severity.Info, nls.localize('TaskRunnerSystem.noTestTask', 'No test task configured.'), TaskErrors.NoTestTask);
-		}
-		return this.executeTask(testTaskIdentifier, Triggers.shortcut);
-	}
-
-	public run(taskIdentifier: string): ITaskExecuteResult {
-		if (this.activeTaskIdentifier) {
-			let task = this.configuration.tasks[this.activeTaskIdentifier];
-			return { kind: TaskExecuteKind.Active, active: { same: this.activeTaskIdentifier === taskIdentifier, background: task.isBackground }, promise: this.activeTaskPromise };
-		}
-		return this.executeTask(taskIdentifier);
+		this.errorsShown = true;
 	}
 
 	public isActive(): TPromise<boolean> {
@@ -118,13 +74,21 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 		return !!this.childProcess;
 	}
 
+	public run(task: Task): ITaskExecuteResult {
+		if (this.activeTask) {
+			return { kind: TaskExecuteKind.Active, active: { same: this.activeTask._id === task._id, background: this.activeTask.isBackground }, promise: this.activeTaskPromise };
+		}
+		return this.executeTask(task);
+	}
+
+	public hasErrors(value: boolean): void {
+		this.errorsShown = !value;
+	}
+
 	public canAutoTerminate(): boolean {
 		if (this.childProcess) {
-			if (this.activeTaskIdentifier) {
-				let task = this.configuration.tasks[this.activeTaskIdentifier];
-				if (task) {
-					return !task.promptOnClose;
-				}
+			if (this.activeTask) {
+				return !this.activeTask.promptOnClose;
 			}
 			return false;
 		}
@@ -138,21 +102,7 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 		return TPromise.as({ success: true });
 	}
 
-	public tasks(): TPromise<TaskDescription[]> {
-		let result: TaskDescription[];
-		if (!this.configuration || !this.configuration.tasks) {
-			result = [];
-		} else {
-			result = Object.keys(this.configuration.tasks).map(key => this.configuration.tasks[key]);
-		}
-		return TPromise.as(result);
-	}
-
-	private executeTask(taskIdentifier: string, trigger: string = Triggers.command): ITaskExecuteResult {
-		let task = this.configuration.tasks[taskIdentifier];
-		if (!task) {
-			throw new TaskError(Severity.Info, nls.localize('TaskRunnerSystem.norebuild', 'No task to execute found.'), TaskErrors.TaskNotFound);
-		}
+	private executeTask(task: Task, trigger: string = Triggers.command): ITaskExecuteResult {
 		let telemetryEvent: TelemetryEvent = {
 			trigger: trigger,
 			command: 'other',
@@ -161,17 +111,17 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 		try {
 			let result = this.doExecuteTask(task, telemetryEvent);
 			result.promise = result.promise.then((success) => {
-				this.telemetryService.publicLog(ProcessRunnerSystem.TelemetryEventName, telemetryEvent);
+				this.telemetryService.publicLog(ProcessTaskSystem.TelemetryEventName, telemetryEvent);
 				return success;
 			}, (err: any) => {
 				telemetryEvent.success = false;
-				this.telemetryService.publicLog(ProcessRunnerSystem.TelemetryEventName, telemetryEvent);
+				this.telemetryService.publicLog(ProcessTaskSystem.TelemetryEventName, telemetryEvent);
 				return TPromise.wrapError<ITaskSummary>(err);
 			});
 			return result;
 		} catch (err) {
 			telemetryEvent.success = false;
-			this.telemetryService.publicLog(ProcessRunnerSystem.TelemetryEventName, telemetryEvent);
+			this.telemetryService.publicLog(ProcessTaskSystem.TelemetryEventName, telemetryEvent);
 			if (err instanceof TaskError) {
 				throw err;
 			} else if (err instanceof Error) {
@@ -185,7 +135,7 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 		}
 	}
 
-	private doExecuteTask(task: TaskDescription, telemetryEvent: TelemetryEvent): ITaskExecuteResult {
+	private doExecuteTask(task: Task, telemetryEvent: TelemetryEvent): ITaskExecuteResult {
 		let taskSummary: ITaskSummary = {};
 		let commandConfig: CommandConfiguration = task.command;
 		if (!this.errorsShown) {
@@ -224,7 +174,7 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 		if (task.isBackground) {
 			let watchingProblemMatcher = new WatchingProblemCollector(this.resolveMatchers(task.problemMatchers), this.markerService, this.modelService);
 			let toUnbind: IDisposable[] = [];
-			let event: TaskEvent = { taskId: task.id, taskName: task.name, type: TaskType.Watching };
+			let event: TaskEvent = { taskId: task._id, taskName: task.name, type: TaskType.Watching };
 			let eventCounter: number = 0;
 			toUnbind.push(watchingProblemMatcher.addListener2(ProblemCollectorEvents.WatchingBeginDetected, () => {
 				eventCounter++;
@@ -236,7 +186,7 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 			}));
 			watchingProblemMatcher.aboutToStart();
 			let delayer: Async.Delayer<any> = null;
-			this.activeTaskIdentifier = task.id;
+			this.activeTask = task;
 			this.activeTaskPromise = this.childProcess.start().then((success): ITaskSummary => {
 				this.childProcessEnded();
 				watchingProblemMatcher.dispose();
@@ -283,10 +233,10 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 				: { kind: TaskExecuteKind.Started, started: {}, promise: this.activeTaskPromise };
 			return result;
 		} else {
-			let event: TaskEvent = { taskId: task.id, taskName: task.name, type: TaskType.SingleRun };
+			let event: TaskEvent = { taskId: task._id, taskName: task.name, type: TaskType.SingleRun };
 			this.emit(TaskSystemEvents.Active, event);
 			let startStopProblemMatcher = new StartStopProblemCollector(this.resolveMatchers(task.problemMatchers), this.markerService, this.modelService);
-			this.activeTaskIdentifier = task.id;
+			this.activeTask = task;
 			this.activeTaskPromise = this.childProcess.start().then((success): ITaskSummary => {
 				this.childProcessEnded();
 				startStopProblemMatcher.done();
@@ -314,11 +264,11 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 
 	private childProcessEnded(): void {
 		this.childProcess = null;
-		this.activeTaskIdentifier = null;
+		this.activeTask = null;
 		this.activeTaskPromise = null;
 	}
 
-	private handleError(task: TaskDescription, error: ErrorData): Promise {
+	private handleError(task: Task, error: ErrorData): Promise {
 		let makeVisible = false;
 		if (error.error && !error.terminated) {
 			let args: string = task.command.args ? task.command.args.join(' ') : '';
@@ -342,7 +292,7 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 		return Promise.wrapError(error);
 	}
 
-	private checkTerminated(task: TaskDescription, data: SuccessData | ErrorData): boolean {
+	private checkTerminated(task: Task, data: SuccessData | ErrorData): boolean {
 		if (data.terminated) {
 			this.log(nls.localize('TaskRunnerSystem.cancelRequested', '\nThe task \'{0}\' was terminated per user request.', task.name));
 			return true;

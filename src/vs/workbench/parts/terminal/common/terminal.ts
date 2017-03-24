@@ -27,6 +27,9 @@ export const KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED = new RawContextKey<boole
 /** A keybinding context key that is set when the integrated terminal does not have text selected. */
 export const KEYBINDING_CONTEXT_TERMINAL_TEXT_NOT_SELECTED: ContextKeyExpr = KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED.toNegated();
 
+export const IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY = 'terminal.integrated.isWorkspaceShellAllowed';
+export const NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY = 'terminal.integrated.neverSuggestSelectWindowsShell';
+
 export const ITerminalService = createDecorator<ITerminalService>(TERMINAL_SERVICE_ID);
 
 export const TerminalCursorStyle = {
@@ -127,7 +130,7 @@ export interface ITerminalService {
 	onInstanceTitleChanged: Event<string>;
 	terminalInstances: ITerminalInstance[];
 
-	createInstance(shell?: IShellLaunchConfig): ITerminalInstance;
+	createInstance(shell?: IShellLaunchConfig, wasNewTerminalAction?: boolean): ITerminalInstance;
 	getInstanceFromId(terminalId: number): ITerminalInstance;
 	getInstanceLabels(): string[];
 	getActiveInstance(): ITerminalInstance;
@@ -135,11 +138,13 @@ export interface ITerminalService {
 	setActiveInstanceByIndex(terminalIndex: number): void;
 	setActiveInstanceToNext(): void;
 	setActiveInstanceToPrevious(): void;
+	getActiveOrCreateInstance(wasNewTerminalAction?: boolean): ITerminalInstance;
 
 	showPanel(focus?: boolean): TPromise<void>;
 	hidePanel(): void;
 	setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
 	updateConfig(): void;
+	selectDefaultWindowsShell(): TPromise<string>;
 }
 
 export interface ITerminalInstance {

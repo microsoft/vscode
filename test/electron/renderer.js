@@ -104,6 +104,8 @@ function runTests(opts) {
 				title: test.fullTitle(),
 				stack: test.err.stack
 			});
+			console.error(test.fullTitle());
+			console.error(test.err.stack);
 		});
 
 		runner.on('pass', function () {

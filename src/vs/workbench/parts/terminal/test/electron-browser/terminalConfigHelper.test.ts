@@ -10,7 +10,6 @@ import { IConfigurationService, getConfigurationValue } from 'vs/platform/config
 import { Platform } from 'vs/base/common/platform';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
-import { IShellLaunchConfig } from 'vs/workbench/parts/terminal/common/terminal';
 import { DefaultConfig } from 'vs/editor/common/config/defaultConfig';
 
 
@@ -45,7 +44,7 @@ suite('Workbench - TerminalConfigHelper', () => {
 				}
 			}
 		});
-		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService);
+		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService, null, null, null);
 		configHelper.panelContainer = fixture;
 		assert.equal(configHelper.getFont().fontFamily, 'bar', 'terminal.integrated.fontFamily should be selected over editor.fontFamily');
 
@@ -59,7 +58,7 @@ suite('Workbench - TerminalConfigHelper', () => {
 				}
 			}
 		});
-		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService);
+		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService, null, null, null);
 		configHelper.panelContainer = fixture;
 		assert.equal(configHelper.getFont().fontFamily, 'foo', 'editor.fontFamily should be the fallback when terminal.integrated.fontFamily not set');
 	});
@@ -80,7 +79,7 @@ suite('Workbench - TerminalConfigHelper', () => {
 				}
 			}
 		});
-		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService);
+		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService, null, null, null);
 		configHelper.panelContainer = fixture;
 		assert.equal(configHelper.getFont().fontSize, '2px', 'terminal.integrated.fontSize should be selected over editor.fontSize');
 
@@ -96,7 +95,7 @@ suite('Workbench - TerminalConfigHelper', () => {
 				}
 			}
 		});
-		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService);
+		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService, null, null, null);
 		configHelper.panelContainer = fixture;
 		assert.equal(configHelper.getFont().fontSize, `${DefaultConfig.editor.fontSize}px`, 'The default editor font size should be used when editor.fontSize is 0 and terminal.integrated.fontSize not set');
 
@@ -112,7 +111,7 @@ suite('Workbench - TerminalConfigHelper', () => {
 				}
 			}
 		});
-		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService);
+		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService, null, null, null);
 		configHelper.panelContainer = fixture;
 		assert.equal(configHelper.getFont().fontSize, `${DefaultConfig.editor.fontSize}px`, 'The default editor font size should be used when editor.fontSize is < 0 and terminal.integrated.fontSize not set');
 	});
@@ -133,7 +132,7 @@ suite('Workbench - TerminalConfigHelper', () => {
 				}
 			}
 		});
-		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService);
+		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService, null, null, null);
 		configHelper.panelContainer = fixture;
 		assert.equal(configHelper.getFont().lineHeight, 2, 'terminal.integrated.lineHeight should be selected over editor.lineHeight');
 
@@ -149,70 +148,8 @@ suite('Workbench - TerminalConfigHelper', () => {
 				}
 			}
 		});
-		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService);
+		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService, null, null, null);
 		configHelper.panelContainer = fixture;
 		assert.equal(configHelper.getFont().lineHeight, 1.2, 'editor.lineHeight should be 1.2 when terminal.integrated.lineHeight not set');
 	});
-
-	test('TerminalConfigHelper - getShell', function () {
-		let configurationService: IConfigurationService;
-		let configHelper: TerminalConfigHelper;
-		let shellConfig: IShellLaunchConfig;
-
-		configurationService = new MockConfigurationService({
-			terminal: {
-				integrated: {
-					shell: {
-						linux: 'foo'
-					},
-					shellArgs: {
-						linux: []
-					}
-				}
-			}
-		});
-		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService);
-		configHelper.panelContainer = fixture;
-		shellConfig = { executable: null, args: [] };
-		configHelper.mergeDefaultShellPathAndArgs(shellConfig);
-		assert.equal(shellConfig.executable, 'foo', 'terminal.integrated.shell.linux should be selected on Linux');
-
-		configurationService = new MockConfigurationService({
-			terminal: {
-				integrated: {
-					shell: {
-						osx: 'foo'
-					},
-					shellArgs: {
-						osx: []
-					}
-				}
-			}
-		});
-		configHelper = new TerminalConfigHelper(Platform.Mac, configurationService);
-		configHelper.panelContainer = fixture;
-		shellConfig = { executable: null, args: [] };
-		configHelper.mergeDefaultShellPathAndArgs(shellConfig);
-		assert.equal(shellConfig.executable, 'foo', 'terminal.integrated.shell.osx should be selected on OS X');
-
-		configurationService = new MockConfigurationService({
-			terminal: {
-				integrated: {
-					shell: {
-						windows: 'foo'
-					},
-					shellArgs: {
-						windows: []
-					}
-				}
-			}
-		});
-		configHelper = new TerminalConfigHelper(Platform.Windows, configurationService);
-		configHelper.panelContainer = fixture;
-		shellConfig = { executable: null, args: [] };
-		configHelper.mergeDefaultShellPathAndArgs(shellConfig);
-		assert.equal(shellConfig.executable, 'foo', 'terminal.integrated.shell.windows should be selected on Windows');
-	});
-
-
 });

@@ -395,72 +395,184 @@ export function createMatches(position: number[]): IMatch[] {
 	return ret;
 }
 
-export function fuzzyMatchAndScore(pattern: string, word: string): [number, number[]] {
+function initTable() {
+	const table: number[][] = [];
+	const row: number[] = [0];
+	for (let i = 1; i <= 100; i++) {
+		row.push(-i);
+	}
+	for (let i = 0; i < 100; i++) {
+		let thisRow = row.slice(0);
+		thisRow[0] = -i;
+		table.push(thisRow);
+	}
+	return table;
+}
 
-	if (!pattern) {
+const _table = initTable();
+const _arrows = initTable();
+const _debug = false;
+
+function printTable(table: number[][], pattern: string, patternLen: number, word: string, wordLen: number): string {
+	function pad(s: string, n: number, pad = ' ') {
+		while (s.length < n) {
+			s = pad + s;
+		}
+		return s;
+	}
+	let ret = ` |   |${word.split('').map(c => pad(c, 3)).join('|')}\n`;
+
+	for (let i = 0; i <= patternLen; i++) {
+		if (i === 0) {
+			ret += ' |';
+		} else {
+			ret += `${pattern[i - 1]}|`;
+		}
+		ret += table[i].slice(0, wordLen + 1).map(n => pad(n.toString(), 3)).join('|') + '\n';
+	}
+	return ret;
+}
+
+export function fuzzyScore(pattern: string, word: string): [number, number[]] {
+
+	const patternLen = pattern.length > 25 ? 25 : pattern.length;
+	const wordLen = word.length > 100 ? 100 : word.length;
+
+	if (patternLen === 0) {
 		return [-1, []];
 	}
 
-	let matches: number[] = [];
-	let score = _matchRecursive(
-		pattern, pattern.toLowerCase(), pattern.toUpperCase(), 0,
-		word, word.toLowerCase(), 0,
-		matches
-	);
-
-	if (score <= 0) {
+	if (patternLen > wordLen) {
 		return undefined;
 	}
 
-	score -= Math.min(matches[0], 3) * 3; // penalty for first matching character
-	score -= (1 + matches[matches.length - 1]) - (pattern.length); // penalty for all non matching characters between first and last
+	const lowPattern = pattern.toLowerCase();
+	const lowWord = word.toLowerCase();
+	let i = 0;
+	let j = 0;
 
-	return [score, matches];
-}
-
-export function _matchRecursive(
-	pattern: string, lowPattern: string, upPattern: string, patternPos: number,
-	word: string, lowWord: string, wordPos: number,
-	matches: number[]
-): number {
-
-	if (patternPos >= lowPattern.length) {
-		return 0;
+	while (i < patternLen && j < wordLen) {
+		if (lowPattern[i] === lowWord[j]) {
+			i += 1;
+		}
+		j += 1;
+	}
+	if (i !== patternLen) {
+		// no simple matches found -> return early
+		return undefined;
 	}
 
-	const lowPatternChar = lowPattern[patternPos];
-	let idx = -1;
-	let value = 0;
+	for (i = 1; i <= patternLen; i++) {
 
-	if ((patternPos === wordPos
-		&& lowPatternChar === lowWord[wordPos])
-		&& ((value = _matchRecursive(pattern, lowPattern, upPattern, patternPos + 1, word, lowWord, wordPos + 1, matches)) >= 0)
-	) {
-		matches.unshift(wordPos);
-		return (pattern[patternPos] === word[wordPos] ? 17 : 11) + value;
+		let lastLowWordChar = '';
+
+		for (j = 1; j <= wordLen; j++) {
+
+			let score = -1;
+			let lowWordChar = lowWord[j - 1];
+			if (lowPattern[i - 1] === lowWordChar) {
+
+				if (j === 1) {
+					if (pattern[i - 1] === word[j - 1]) {
+						score = 7;
+					} else {
+						score = 5;
+					}
+				} else if (lowWordChar !== word[j - 1]) {
+					if (pattern[i - 1] === word[j - 1]) {
+						score = 7;
+					} else {
+						score = 5;
+					}
+				} else if (lastLowWordChar === '_' || lastLowWordChar === '.') {
+					score = 5;
+
+				} else if (j === i) {
+					score = 3;
+
+				} else {
+					score = 1;
+				}
+			}
+
+			let diag = _table[i - 1][j - 1] + score;
+			let top = _table[i - 1][j] + -1;
+			let left = _table[i][j - 1] + -1;
+
+			if (left >= top) {
+				// left or diag
+				if (left >= diag) {
+					_table[i][j] = left;
+					_arrows[i][j] = -1;
+				} else {
+					_table[i][j] = diag;
+					_arrows[i][j] = 0;
+				}
+			} else {
+				// top or diag
+				if (diag >= top) {
+					_table[i][j] = diag;
+					_arrows[i][j] = 0;
+				} else {
+					_table[i][j] = top;
+					_arrows[i][j] = 1;
+				}
+			}
+
+			lastLowWordChar = lowWordChar;
+		}
 	}
 
-	if ((idx = lowWord.indexOf(`_${lowPatternChar}`, wordPos)) >= 0
-		&& ((value = _matchRecursive(pattern, lowPattern, upPattern, patternPos + 1, word, lowWord, idx + 2, matches)) >= 0)
-	) {
-		matches.unshift(idx + 1);
-		return (pattern[patternPos] === word[idx + 1] ? 17 : 11) + value;
+	if (_debug) {
+		console.log(printTable(_table, pattern, patternLen, word, wordLen));
+		console.log(printTable(_arrows, pattern, patternLen, word, wordLen));
 	}
 
-	if ((idx = word.indexOf(upPattern[patternPos], wordPos)) >= 0
-		&& ((value = _matchRecursive(pattern, lowPattern, upPattern, patternPos + 1, word, lowWord, idx + 1, matches)) >= 0)
-	) {
-		matches.unshift(idx);
-		return (pattern[patternPos] === word[idx] ? 17 : 11) + value;
+	let matches: number[] = [];
+	let total = 0;
+	i = patternLen;
+	j = wordLen;
+	while (i > 0 && j > 0) {
+		let value = _table[i][j];
+		let arrow = _arrows[i][j];
+		if (arrow === -1 || arrow === 1) {
+			// keep going left, we cannot
+			// skip a character in the pattern
+			j -= 1;
+
+		} else if (arrow === 0) { //diag
+			j -= 1;
+			i -= 1;
+
+			let score = value - _table[i][j];
+			if (i === 0 && score === 1) {
+				// we have reached the first pattern char and now
+				// test that it has scored properly, like `o -> bbOO`
+				// and not `o -> foobar`
+				return undefined;
+
+			} else if (score < 1) {
+				// we went diagonal by inheriting a good
+				// result, not by matching keep going left
+				i += 1;
+
+			} else {
+				// all good
+				total += value;
+				matches.unshift(j);
+			}
+		}
 	}
 
-	if (patternPos > 0
-		&& (idx = lowWord.indexOf(lowPatternChar, wordPos)) >= 0
-		&& ((value = _matchRecursive(pattern, lowPattern, upPattern, patternPos + 1, word, lowWord, idx + 1, matches)) >= 0)
-	) {
-		matches.unshift(idx);
-		return 1 + value;
+	if (j > 3) {
+		j = 3;
+	}
+	total -= j * 3; // penalty for first matching character
+	total -= (1 + matches[matches.length - 1]) - pattern.length; // penalty for all non matching characters between first and last
+
+	if (_debug) {
+		console.log(`${pattern} & ${word} => ${total} points for ${matches}`);
 	}
 
-	return -1;
+	return [total, matches];
 }

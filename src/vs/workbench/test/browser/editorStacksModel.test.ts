@@ -23,7 +23,6 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import 'vs/workbench/browser/parts/editor/baseEditor';
-import { isLinux } from 'vs/base/common/platform';
 
 function create(): EditorStacksModel {
 	let inst = new TestInstantiationService();
@@ -161,6 +160,9 @@ class TestFileEditorInput extends EditorInput implements IFileEditorInput {
 
 	public getResource(): URI {
 		return this.resource;
+	}
+
+	public setForceOpenAsBinary(): void {
 	}
 }
 
@@ -1569,17 +1571,10 @@ suite('Editor Stacks Model', () => {
 		assert.equal(model.count(input1Resource), 1);
 		assert.equal(group1.getEditor(input1Resource), input1);
 
-		if (isLinux) {
-			assert.ok(!group1.getEditor(input1ResourceUpper));
-			assert.equal(model.count(input1ResourceUpper), 0);
-			assert.ok(!model.isOpen(input1ResourceUpper));
-			assert.ok(!group1.contains(input1ResourceUpper));
-		} else {
-			assert.equal(group1.getEditor(input1ResourceUpper), input1);
-			assert.equal(model.count(input1ResourceUpper), 1);
-			assert.ok(model.isOpen(input1ResourceUpper));
-			assert.ok(group1.contains(input1ResourceUpper));
-		}
+		assert.ok(!group1.getEditor(input1ResourceUpper));
+		assert.equal(model.count(input1ResourceUpper), 0);
+		assert.ok(!model.isOpen(input1ResourceUpper));
+		assert.ok(!group1.contains(input1ResourceUpper));
 
 		group2.openEditor(input1);
 		group1.closeEditor(input1);

@@ -22,6 +22,13 @@ export default class TypeScriptImplementationsCodeLensProvider extends TypeScrip
 		super(client, 'implementationsCodeLens.enabled');
 	}
 
+	provideCodeLenses(document: TextDocument, token: CancellationToken): Promise<CodeLens[]> {
+		if (!this.client.apiVersion.has220Features()) {
+			return Promise.resolve([]);
+		}
+		return super.provideCodeLenses(document, token);
+	}
+
 	resolveCodeLens(inputCodeLens: CodeLens, token: CancellationToken): Promise<CodeLens> {
 		const codeLens = inputCodeLens as ReferencesCodeLens;
 		const args: Proto.FileLocationRequestArgs = {

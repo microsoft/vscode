@@ -24,7 +24,6 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
 import { IProgressRunner } from 'vs/platform/progress/common/progress';
 import { RangeHighlightDecorations } from 'vs/workbench/common/editor/rangeDecorations';
-import { isEqual } from 'vs/platform/files/common/files';
 
 export class Match {
 
@@ -150,7 +149,7 @@ export class FileMatch extends Disposable {
 
 	private registerListeners(): void {
 		this._register(this.modelService.onModelAdded((model: IModel) => {
-			if (isEqual(model.uri, this._resource)) {
+			if (model.uri.toString() === this._resource.toString()) {
 				this.bindModel(model);
 			}
 		}));
@@ -363,7 +362,7 @@ export class SearchResult extends Disposable {
 				fileMatch.onDispose(() => disposable.dispose());
 			}
 		});
-		if (!silent) {
+		if (!silent && changed.length) {
 			this._onChange.fire({ elements: changed, added: true });
 		}
 	}
@@ -553,18 +552,16 @@ export class SearchModel extends Disposable {
 		this._searchResult.query = this._searchQuery.contentPattern;
 		this._replacePattern = new ReplacePattern(this._replaceString, this._searchQuery.contentPattern);
 
-
 		const onDone = fromPromise(this.currentRequest);
+		const progressEmitter = new Emitter<void>();
+		const onFirstRender = any(onDone, progressEmitter.event);
+		const onFirstRenderStopwatch = stopwatch(onFirstRender);
+		onFirstRenderStopwatch(duration => this.telemetryService.publicLog('searchResultsFirstRender', { duration }));
+
 		const onDoneStopwatch = stopwatch(onDone);
 		const start = Date.now();
 
 		onDoneStopwatch(duration => this.telemetryService.publicLog('searchResultsFinished', { duration }));
-
-		const progressEmitter = new Emitter<void>();
-		const onFirstRender = any(onDone, progressEmitter.event);
-		const onFirstRenderStopwatch = stopwatch(onFirstRender);
-
-		onFirstRenderStopwatch(duration => this.telemetryService.publicLog('searchResultsFirstRender', { duration }));
 
 		const currentRequest = this.currentRequest;
 		this.currentRequest.then(

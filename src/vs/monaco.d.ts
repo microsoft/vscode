@@ -875,17 +875,22 @@ declare module monaco.editor {
     /**
      * Define a new theme.
      */
-    export function defineTheme(themeName: string, themeData: ITheme): void;
+    export function defineTheme(themeName: string, themeData: IStandaloneThemeData): void;
 
     export type BuiltinTheme = 'vs' | 'vs-dark' | 'hc-black';
 
-    export interface ITheme {
+    export interface IStandaloneThemeData {
         base: BuiltinTheme;
         inherit: boolean;
-        rules: IThemeRule[];
+        rules: ITokenThemeRule[];
+        colors: IColors;
     }
 
-    export interface IThemeRule {
+    export type IColors = {
+        [colorId: string]: string;
+    };
+
+    export interface ITokenThemeRule {
         token: string;
         foreground?: string;
         background?: string;
@@ -973,6 +978,7 @@ declare module monaco.editor {
     }
 
     export interface IEditorOverrideServices {
+        [index: string]: any;
     }
 
     /**
@@ -4172,7 +4178,7 @@ declare module monaco.languages {
      * and `${3:foo}`. `$0` defines the final tab stop, it defaults to
      * the end of the snippet. Variables are defined with `$name` and
      * `${name:default value}`. The full snippet syntax is documented
-     * [here](http://code.visualstudio.com/docs/customization/userdefinedsnippets#_creating-your-own-snippets).
+     * [here](http://code.visualstudio.com/docs/editor/userdefinedsnippets#_creating-your-own-snippets).
      */
     export interface SnippetString {
         /**
@@ -4265,7 +4271,7 @@ declare module monaco.languages {
 
     /**
      * The completion item provider interface defines the contract between extensions and
-     * the [IntelliSense](https://code.visualstudio.com/docs/editor/editingevolved#_intellisense).
+     * the [IntelliSense](https://code.visualstudio.com/docs/editor/intellisense).
      *
      * When computing *complete* completion items is expensive, providers can optionally implement
      * the `resolveCompletionItem`-function. In that case it is enough to return completion
@@ -4500,7 +4506,7 @@ declare module monaco.languages {
 
     /**
      * The hover provider interface defines the contract between extensions and
-     * the [hover](https://code.visualstudio.com/docs/editor/editingevolved#_hover)-feature.
+     * the [hover](https://code.visualstudio.com/docs/editor/intellisense)-feature.
      */
     export interface HoverProvider {
         /**
@@ -4580,7 +4586,7 @@ declare module monaco.languages {
 
     /**
      * The signature help provider interface defines the contract between extensions and
-     * the [parameter hints](https://code.visualstudio.com/docs/editor/editingevolved#_parameter-hints)-feature.
+     * the [parameter hints](https://code.visualstudio.com/docs/editor/intellisense)-feature.
      */
     export interface SignatureHelpProvider {
         signatureHelpTriggerCharacters: string[];
@@ -4717,29 +4723,7 @@ declare module monaco.languages {
     /**
      * A symbol kind.
      */
-    export enum SymbolKind {
-        File = 0,
-        Module = 1,
-        Namespace = 2,
-        Package = 3,
-        Class = 4,
-        Method = 5,
-        Property = 6,
-        Field = 7,
-        Constructor = 8,
-        Enum = 9,
-        Interface = 10,
-        Function = 11,
-        Variable = 12,
-        Constant = 13,
-        String = 14,
-        Number = 15,
-        Boolean = 16,
-        Array = 17,
-        Object = 18,
-        Key = 19,
-        Null = 20,
-    }
+    export type SymbolKind = 'file' | 'module' | 'namespace' | 'package' | 'class' | 'method' | 'property' | 'field' | 'constructor' | 'enum' | 'interface' | 'function' | 'variable' | 'constant' | 'string' | 'number' | 'boolean' | 'array' | 'object' | 'key' | 'null' | 'enum-member' | 'struct';
 
     /**
      * Represents information about programming constructs like variables, classes,

@@ -97,6 +97,12 @@ export const EDITOR_DRAG_AND_DROP_BACKGROUND = registerColor('editorDragAndDropB
 	hc: null
 }, nls.localize('editorDragAndDropBackground', "Background color when dragging editors around."));
 
+export const EDITOR_SIDE_BY_SIDE_BORDER = registerColor('editorSideBySideBorder', {
+	dark: '#000000',
+	light: '#DDDDDD',
+	hc: null
+}, nls.localize('editorSideBySideBorder', "Border color to separate the details from the master side for side by side editors."));
+
 
 // < --- Panels --- >
 

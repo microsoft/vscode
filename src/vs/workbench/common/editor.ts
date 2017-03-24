@@ -338,6 +338,11 @@ export interface IFileEditorInput extends IEditorInput, IEncodingSupport {
 	 * Sets the preferred encodingt to use for this input.
 	 */
 	setPreferredEncoding(encoding: string): void;
+
+	/**
+	 * Forces this file input to open as binary instead of text.
+	 */
+	setForceOpenAsBinary(): void;
 }
 
 /**

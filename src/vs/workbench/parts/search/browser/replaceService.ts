@@ -23,7 +23,7 @@ import { ITextModelResolverService, ITextModelContentProvider } from 'vs/editor/
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IModel } from 'vs/editor/common/editorCommon';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IFileService, isEqual } from 'vs/platform/files/common/files';
+import { IFileService } from 'vs/platform/files/common/files';
 
 const REPLACE_PREVIEW = 'replacePreview';
 
@@ -69,7 +69,7 @@ class ReplacePreviewModel extends Disposable {
 
 	resolve(replacePreviewUri: URI): TPromise<IModel> {
 		const fileResource = toFileResource(replacePreviewUri);
-		const fileMatch = <FileMatch>this.searchWorkbenchService.searchModel.searchResult.matches().filter(match => isEqual(match.resource(), fileResource))[0];
+		const fileMatch = <FileMatch>this.searchWorkbenchService.searchModel.searchResult.matches().filter(match => match.resource().toString() === fileResource.toString())[0];
 		return this.textModelResolverService.createModelReference(fileResource).then(ref => {
 			ref = this._register(ref);
 			const sourceModel = ref.object.textEditorModel;

@@ -9,13 +9,4 @@
 
 .monaco-editor .detected-link-active {
 	cursor: pointer;
-	color: blue !important;
-}
-
-.monaco-editor.vs-dark .detected-link-active {
-	color: #4E94CE !important;
-}
-
-.monaco-editor.hc-black .detected-link-active {
-	color: cyan !important;
 }

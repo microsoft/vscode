@@ -54,7 +54,18 @@
 					"name": "punctuation.definition.string.end.coffee"
 				}
 			},
-			"name": "string.quoted.heredoc.coffee"
+			"name": "string.quoted.heredoc.coffee",
+			"patterns": [
+				{
+					"captures": {
+						"1": {
+							"name": "punctuation.definition.escape.backslash.coffee"
+						}
+					},
+					"match": "(\\\\).",
+					"name": "constant.character.escape.backslash.coffee"
+				}
+			]
 		},
 		{
 			"begin": "\"\"\"",
@@ -72,8 +83,13 @@
 			"name": "string.quoted.double.heredoc.coffee",
 			"patterns": [
 				{
-					"match": "\\\\.",
-					"name": "constant.character.escape.coffee"
+					"captures": {
+						"1": {
+							"name": "punctuation.definition.escape.backslash.coffee"
+						}
+					},
+					"match": "(\\\\).",
+					"name": "constant.character.escape.backslash.coffee"
 				},
 				{
 					"include": "#interpolated_coffee"
@@ -148,24 +164,23 @@
 			]
 		},
 		{
-			"begin": "/(?![/*+?])(?=([^\\\\]|\\\\.)*?/[gimuy]*)",
-			"beginCaptures": {
-				"0": {
-					"name": "punctuation.definition.string.begin.coffee"
-				}
-			},
-			"end": "(/)[gimuy]*",
-			"endCaptures": {
+			"match": "(?<![\\w$])(/)(?![/*+?])(.+?)(/)[gimuy]*(?!\\s*[\\w$/(])",
+			"captures": {
 				"1": {
+					"name": "punctuation.definition.string.begin.coffee"
+				},
+				"2": {
+					"patterns": [
+						{
+							"include": "source.js.regexp"
+						}
+					]
+				},
+				"3": {
 					"name": "punctuation.definition.string.end.coffee"
 				}
 			},
-			"name": "string.regexp.coffee",
-			"patterns": [
-				{
-					"include": "source.js.regexp"
-				}
-			]
+			"name": "string.regexp.coffee"
 		},
 		{
 			"match": "\\b(?<![\\.\\$])(break|by|catch|continue|else|finally|for|in|of|if|return|switch|then|throw|try|unless|when|while|until|loop|do|(?<=for)\\s+own)(?!\\s*:)\\b",
@@ -217,7 +232,7 @@
 			]
 		},
 		{
-			"begin": "(?<=\\s|^)(\\[)(?=[^'\"#]+?}[\\s\\]}]*=)",
+			"begin": "(?<=\\s|^)(\\[)(?=[^'\"#]+?\\][\\s\\]}]*=)",
 			"beginCaptures": {
 				"1": {
 					"name": "punctuation.definition.destructuring.begin.bracket.square.coffee"
@@ -423,8 +438,13 @@
 					"name": "string.quoted.double.coffee",
 					"patterns": [
 						{
-							"match": "\\\\(x\\h{2}|[0-2][0-7]{0,2}|3[0-6][0-7]|37[0-7]?|[4-7][0-7]?|.)",
-							"name": "constant.character.escape.coffee"
+							"captures": {
+								"1": {
+									"name": "punctuation.definition.escape.backslash.coffee"
+								}
+							},
+							"match": "(\\\\)(x\\h{2}|[0-2][0-7]{0,2}|3[0-6][0-7]|37[0-7]?|[4-7][0-7]?|.)",
+							"name": "constant.character.escape.backslash.coffee"
 						},
 						{
 							"include": "#interpolated_coffee"
@@ -499,8 +519,13 @@
 					"name": "string.quoted.single.coffee",
 					"patterns": [
 						{
-							"match": "\\\\(x\\h{2}|[0-2][0-7]{0,2}|3[0-6][0-7]?|37[0-7]?|[4-7][0-7]?|.)",
-							"name": "constant.character.escape.coffee"
+							"captures": {
+								"1": {
+									"name": "punctuation.definition.escape.backslash.coffee"
+								}
+							},
+							"match": "(\\\\)(x\\h{2}|[0-2][0-7]{0,2}|3[0-6][0-7]?|37[0-7]?|[4-7][0-7]?|.)",
+							"name": "constant.character.escape.backslash.coffee"
 						}
 					]
 				}
@@ -662,5 +687,5 @@
 			]
 		}
 	},
-	"version": "https://github.com/atom/language-coffee-script/commit/062904ccd3f81bf3edcd8d21ba6ba38ffb615116"
+	"version": "https://github.com/atom/language-coffee-script/commit/966587ed53c26944cbee0666a6d6fafd68d19b97"
 }

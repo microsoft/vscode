@@ -677,10 +677,21 @@ export class ReportIssueAction extends Action {
 		super(id, label);
 	}
 
+	private _optimisticIsPure(): TPromise<boolean> {
+		let isPure = true;
+		let integrityPromise = this.integrityService.isPure().then(res => {
+			isPure = res.isPure;
+		});
+
+		return TPromise.any([TPromise.timeout(100), integrityPromise]).then(() => {
+			return isPure;
+		});
+	}
+
 	public run(): TPromise<boolean> {
-		return this.integrityService.isPure().then(res => {
+		return this._optimisticIsPure().then(isPure => {
 			return this.extensionManagementService.getInstalled(LocalExtensionType.User).then(extensions => {
-				const issueUrl = this.generateNewIssueUrl(product.reportIssueUrl, pkg.name, pkg.version, product.commit, product.date, res.isPure, extensions);
+				const issueUrl = this.generateNewIssueUrl(product.reportIssueUrl, pkg.name, pkg.version, product.commit, product.date, isPure, extensions);
 
 				window.open(issueUrl);
 

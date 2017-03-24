@@ -24,12 +24,16 @@ app.on('ready', () => {
 	const win = new BrowserWindow({
 		height: 600,
 		width: 800,
-		webPreferences: { webSecurity: false }
+		show: false,
+		webPreferences: {
+			backgroundThrottling: false,
+			webSecurity: false
+		}
 	});
 
 	win.webContents.on('did-finish-load', () => {
-		win.show();
 		if (debug) {
+			win.show();
 			win.webContents.openDevTools('right');
 		}
 		win.webContents.send('run', { grep, run });

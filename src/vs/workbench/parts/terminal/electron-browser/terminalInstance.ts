@@ -488,9 +488,15 @@ export class TerminalInstance implements ITerminalInstance {
 
 	private _sendPtyDataToXterm(message: { type: string, content: string }): void {
 		if (message.type === 'data') {
-			this._widgetManager.closeMessage();
-			this._linkHandler.disposeTooltipListeners();
-			this._xterm.write(message.content);
+			if (this._widgetManager) {
+				this._widgetManager.closeMessage();
+			}
+			if (this._linkHandler) {
+				this._linkHandler.disposeTooltipListeners();
+			}
+			if (this._xterm) {
+				this._xterm.write(message.content);
+			}
 		}
 	}
 
@@ -517,10 +523,12 @@ export class TerminalInstance implements ITerminalInstance {
 			this._xterm.writeln(nls.localize('terminal.integrated.waitOnExit', 'Press any key to close the terminal'));
 			// Disable all input if the terminal is exiting and listen for next keypress
 			this._xterm.setOption('disableStdin', true);
-			this._processDisposables.push(DOM.addDisposableListener(this._xterm.textarea, 'keypress', (event: KeyboardEvent) => {
-				this.dispose();
-				event.preventDefault();
-			}));
+			if (this._xterm.textarea) {
+				this._processDisposables.push(DOM.addDisposableListener(this._xterm.textarea, 'keypress', (event: KeyboardEvent) => {
+					this.dispose();
+					event.preventDefault();
+				}));
+			}
 		} else {
 			this.dispose();
 			if (exitCode) {
@@ -558,6 +566,11 @@ export class TerminalInstance implements ITerminalInstance {
 
 		// Ensure new processes' output starts at start of new line
 		this._xterm.write('\n\x1b[G');
+
+		// Print initialText if specified
+		if (shell.initialText) {
+			this._xterm.writeln(shell.initialText);
+		}
 
 		// Initialize new process
 		const oldTitle = this._title;

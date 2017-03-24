@@ -7,3 +7,4 @@ import './electron-browser/toggleRenderControlCharacter';
 import './electron-browser/toggleRenderWhitespace';
 import './electron-browser/toggleWordWrap';
 import './electron-browser/wordWrapMigration';
+import './electron-browser/inspectKeybindings';

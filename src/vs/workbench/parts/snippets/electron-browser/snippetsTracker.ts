@@ -5,7 +5,6 @@
 
 'use strict';
 
-import { localize } from 'vs/nls';
 import workbenchExt = require('vs/workbench/common/contributions');
 import paths = require('vs/base/common/paths');
 import async = require('vs/base/common/async');
@@ -77,7 +76,7 @@ export class SnippetsTracker implements workbenchExt.IWorkbenchContribution {
 				var snippetPath = paths.join(this.snippetFolder, snippetFile);
 				let languageIdentifier = this.modeService.getLanguageIdentifier(modeId);
 				if (languageIdentifier) {
-					return readAndRegisterSnippets(this.snippetService, languageIdentifier, snippetPath, localize('userSnippet', "User Snippet"));
+					return readAndRegisterSnippets(this.snippetService, languageIdentifier, snippetPath);
 				}
 				return undefined;
 			}));

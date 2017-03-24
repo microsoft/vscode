@@ -257,6 +257,24 @@
 		"editorLineHighlight": "#082050",
 		"editorSelection": "#770811",
 		"editorGuide": "#002952",
+		"editorHoverBackground": "#000c38",
+		"editorHoverBorder": "#004c18",
+		"editorPeekResultsBackground": "#060621",
+		"editorPeekResultsMatchForeground": "#7777cc",
+		"editorPeekResultsSelectedBackground": "#070877",
+		"editorPeekResultsSelectedForeground": "#77EEFF",
+		"editorPeekEditorBackground": "#001F33",
+		"editorPeekTitleBackground": "#060621",
+		"editorPeekBorders": "#7777cc",
+
+		"editorLineNumbers": "#8686ff",
+		"editorMarkerNavigationBackground": "#060621",
+		"editorMarkerNavigationError": "#FF0000",
+		"editorMarkerNavigationWarning": "#00FF00",
+
+		"editorFindWidgetBackground": "#051336",
+		"editorFindInputBackground": "#181f2f",
+		"editorFindCheckedBorders": "#0000FF",
 
 		// Workbench Colors
 		"tabsContainerBackground": "#1c1c2a",
@@ -265,6 +283,7 @@
 		"editorGroupBorder": "#2b2b4a",
 		"editorGroupBackground": "#1c1c2a",
 		"editorDragAndDropBackground": "#25375daa",
+		"editorSideBySideBorder": "#10192c",
 		"panelBorderTopColor": "#2b2b4a",
 		"statusBarBackground": "#10192c",
 		"activityBarBackground": "#051336",

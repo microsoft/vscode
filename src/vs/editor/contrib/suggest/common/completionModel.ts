@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { fuzzyMatchAndScore } from 'vs/base/common/filters';
+import { fuzzyScore } from 'vs/base/common/filters';
 import { ISuggestSupport } from 'vs/editor/common/modes';
 import { ISuggestionItem } from './suggest';
 
@@ -123,15 +123,15 @@ export class CompletionModel {
 				word = wordLen === 0 ? '' : leadingLineContent.slice(-wordLen);
 			}
 
-			let match = fuzzyMatchAndScore(word, suggestion.label);
+			let match = fuzzyScore(word, suggestion.label);
 			if (!match) {
 				if (typeof suggestion.filterText === 'string') {
-					match = fuzzyMatchAndScore(word, suggestion.filterText);
+					match = fuzzyScore(word, suggestion.filterText);
 				} else {
 					continue;
 				}
 				if (match) {
-					match = fuzzyMatchAndScore(word.replace(/^\W+|\W+$/, ''), suggestion.label);
+					match = fuzzyScore(word.replace(/^\W+|\W+$/, ''), suggestion.label);
 				} else {
 					continue;
 				}

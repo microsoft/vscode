@@ -3,12 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* TODO@theme */
-
-.vs .monaco-workbench .side-by-side-editor > .master-editor-container {
-	box-shadow: -6px 0 5px -5px #DDD;
-}
-
-.vs-dark .monaco-workbench .side-by-side-editor > .master-editor-container {
-	box-shadow: -6px 0 5px -5px black;
-}
+/// <reference path='../../../../src/vs/vscode.d.ts'/>
+/// <reference path='../../../../src/vs/vscode.proposed.d.ts'/>
+/// <reference types='@types/node'/>

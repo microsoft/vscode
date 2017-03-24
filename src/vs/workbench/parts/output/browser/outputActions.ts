@@ -107,9 +107,10 @@ export class SwitchOutputActionItem extends SelectActionItem {
 		action: IAction,
 		@IOutputService private outputService: IOutputService
 	) {
-		super(null, action, SwitchOutputActionItem.getChannelLabels(outputService), Math.max(0, SwitchOutputActionItem.getChannelLabels(outputService).indexOf(outputService.getActiveChannel().label)));
-		this.toDispose.push(this.outputService.onOutputChannel(this.onOutputChannel, this));
-		this.toDispose.push(this.outputService.onActiveOutputChannel(this.onOutputChannel, this));
+		super(null, action, [], 0);
+		this.toDispose.push(this.outputService.onOutputChannel(() => this.setOptions(this.getOptions(), this.getSelected(undefined))));
+		this.toDispose.push(this.outputService.onActiveOutputChannel(activeChannelId => this.setOptions(this.getOptions(), this.getSelected(activeChannelId))));
+		this.setOptions(this.getOptions(), this.getSelected(this.outputService.getActiveChannel().id));
 	}
 
 	protected getActionContext(option: string): string {
@@ -118,16 +119,15 @@ export class SwitchOutputActionItem extends SelectActionItem {
 		return channel ? channel.id : option;
 	}
 
-	private onOutputChannel(): void {
-		let channels = SwitchOutputActionItem.getChannelLabels(this.outputService);
-		let selected = Math.max(0, channels.indexOf(this.outputService.getActiveChannel().label));
-
-		this.setOptions(channels, selected);
+	private getOptions(): string[] {
+		return this.outputService.getChannels().map(c => c.label);
 	}
 
-	private static getChannelLabels(outputService: IOutputService): string[] {
-		const contributedChannels = outputService.getChannels().map(channelData => channelData.label);
+	private getSelected(outputId: string): number {
+		if (!outputId) {
+			return undefined;
+		}
 
-		return contributedChannels.sort(); // sort by name
+		return Math.max(0, this.outputService.getChannels().map(c => c.id).indexOf(outputId));
 	}
 }
