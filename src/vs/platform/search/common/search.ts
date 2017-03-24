@@ -130,6 +130,7 @@ export interface ISearchConfiguration extends IFilesConfiguration {
 	search: {
 		exclude: IExpression;
 		useRipgrep: boolean;
+		useIgnoreFilesByDefault: boolean;
 	};
 }
 
