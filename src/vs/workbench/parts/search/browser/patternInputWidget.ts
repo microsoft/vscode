@@ -36,7 +36,6 @@ export class PatternInputWidget extends Widget {
 	private placeholder: string;
 	private ariaLabel: string;
 
-	private toDispose: any[];
 	private pattern: Checkbox;
 	private useIgnoreFilesBox: Checkbox;
 
@@ -54,7 +53,6 @@ export class PatternInputWidget extends Widget {
 		this.placeholder = options.placeholder || '';
 		this.ariaLabel = options.ariaLabel || nls.localize('defaultLabel', "input");
 
-		this.toDispose = [];
 		this.pattern = null;
 		this.useIgnoreFilesBox = null;
 		this.domNode = null;
@@ -70,13 +68,9 @@ export class PatternInputWidget extends Widget {
 		super.dispose();
 		this.pattern.dispose();
 		this.useIgnoreFilesBox.dispose();
-		this.toDispose.forEach((element) => {
-			element();
-		});
 		if (this.inputFocusTracker) {
 			this.inputFocusTracker.dispose();
 		}
-		this.toDispose = [];
 	}
 
 	public on(eventType: string, handler: (event: Event) => void): PatternInputWidget {
@@ -110,14 +104,14 @@ export class PatternInputWidget extends Widget {
 	}
 
 	public getGlob(): IExpression {
-		let pattern = this.getValue();
-		let isGlobPattern = this.isGlobPattern();
+		const pattern = this.getValue();
+		const isGlobPattern = this.isGlobPattern();
 
 		if (!pattern) {
 			return void 0;
 		}
 
-		let glob: IExpression = Object.create(null);
+		const glob: IExpression = Object.create(null);
 
 		let segments: string[];
 		if (isGlobPattern) {
