@@ -21,7 +21,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService, KeybindingSource, IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
 import { SearchWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { DefineKeybindingWidget } from 'vs/workbench/parts/preferences/browser/keybindingWidgets';
-import { IPreferencesService, IKeybindingsEditor, CONTEXT_KEYBINDING_FOCUS, CONTEXT_KEYBINDINGS_EDITOR, KEYBINDINGS_EDITOR_COMMAND_REMOVE, KEYBINDINGS_EDITOR_COMMAND_COPY, KEYBINDINGS_EDITOR_COMMAND_RESET } from 'vs/workbench/parts/preferences/common/preferences';
+import { IPreferencesService, IKeybindingsEditor, CONTEXT_KEYBINDING_FOCUS, CONTEXT_KEYBINDINGS_EDITOR, KEYBINDINGS_EDITOR_COMMAND_REMOVE, KEYBINDINGS_EDITOR_COMMAND_COPY, KEYBINDINGS_EDITOR_COMMAND_RESET, KEYBINDINGS_EDITOR_COMMAND_DEFINE } from 'vs/workbench/parts/preferences/common/preferences';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { renderHtml } from 'vs/base/browser/htmlContentRenderer';
 import { IKeybindingEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
@@ -273,7 +273,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 	private createList(parent: HTMLElement): void {
 		this.keybindingsListContainer = DOM.append(parent, $('.keybindings-list-container'));
 
-		this.keybindingsList = this._register(new List<IListEntry>(this.keybindingsListContainer, new Delegate(), [new KeybindingHeaderRenderer(), new KeybindingItemRenderer(this)], { identityProvider: e => e.id }));
+		this.keybindingsList = this._register(new List<IListEntry>(this.keybindingsListContainer, new Delegate(), [new KeybindingHeaderRenderer(), new KeybindingItemRenderer(this, this.keybindingsService)], { identityProvider: e => e.id }));
 		this._register(this.keybindingsList.onContextMenu(e => this.onContextMenu(e)));
 		this._register(this.keybindingsList.onFocusChange(e => this.onFocusChange(e)));
 		this._register(this.keybindingsList.onDOMFocus(() => this.keybindingsList.focusNext()));
@@ -446,13 +446,13 @@ class KeybindingItemRenderer implements IRenderer<IKeybindingItemEntry, Keybindi
 
 	get templateId(): string { return KEYBINDING_ENTRY_TEMPLATE_ID; }
 
-	constructor(private keybindingsEditor: IKeybindingsEditor) { }
+	constructor(private keybindingsEditor: IKeybindingsEditor, private keybindingsService: IKeybindingService) { }
 
 	renderTemplate(container: HTMLElement): KeybindingItemTemplate {
 		DOM.addClass(container, 'keybinding-item');
 		return {
 			parent: container,
-			actions: new ActionsColumn(container, this.keybindingsEditor),
+			actions: new ActionsColumn(container, this.keybindingsEditor, this.keybindingsService),
 			command: new CommandColumn(container, this.keybindingsEditor),
 			keybinding: new KeybindingColumn(container, this.keybindingsEditor),
 			source: new SourceColumn(container, this.keybindingsEditor),
@@ -484,6 +484,10 @@ class ActionsColumn extends Column {
 
 	private actionBar: ActionBar;
 
+	constructor(parent: HTMLElement, keybindingsEditor: IKeybindingsEditor, private keybindingsService: IKeybindingService) {
+		super(parent, keybindingsEditor);
+	}
+
 	create(parent: HTMLElement) {
 		const actionsContainer = DOM.append(parent, $('.column.actions'));
 		this.actionBar = new ActionBar(actionsContainer, { animated: false });
@@ -501,21 +505,23 @@ class ActionsColumn extends Column {
 	}
 
 	private createEditAction(keybindingItemEntry: IKeybindingItemEntry): IAction {
+		const keybinding = this.keybindingsService.lookupKeybinding(KEYBINDINGS_EDITOR_COMMAND_DEFINE);
 		return <IAction>{
 			class: 'edit',
 			enabled: true,
 			id: 'editKeybinding',
-			tooltip: localize('change', "Change Keybinding"),
+			tooltip: keybinding ? localize('editKeybindingLabelWithKey', "Change Keybinding {0}", `(${keybinding.getLabel()})`) : localize('editKeybindingLabel', "Change Keybinding"),
 			run: () => this.keybindingsEditor.defineKeybinding(keybindingItemEntry)
 		};
 	}
 
 	private createAddAction(keybindingItemEntry: IKeybindingItemEntry): IAction {
+		const keybinding = this.keybindingsService.lookupKeybinding(KEYBINDINGS_EDITOR_COMMAND_DEFINE);
 		return <IAction>{
 			class: 'add',
 			enabled: true,
 			id: 'addKeybinding',
-			tooltip: localize('add', "Add Keybinding"),
+			tooltip: keybinding ? localize('addKeybindingLabelWithKey', "Add Keybinding {0}", `(${keybinding.getLabel()})`) : localize('addKeybindingLabel', "Add Keybinding"),
 			run: () => this.keybindingsEditor.defineKeybinding(keybindingItemEntry)
 		};
 	}
