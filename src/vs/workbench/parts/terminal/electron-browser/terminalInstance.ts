@@ -205,6 +205,12 @@ export class TerminalInstance implements ITerminalInstance {
 			}
 			return false;
 		});
+		this._xterm.on('title', (title) => {
+			if (this._title !== title) {
+				this._title = title;
+				this._onTitleChanged.fire(this._title);
+			}
+		});
 	}
 
 	public attachToElement(container: HTMLElement): void {
