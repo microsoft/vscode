@@ -56,8 +56,8 @@ export class CrashReporter {
 				vscode_sessionId: info.sessionId,
 				vscode_version: pkg.version,
 				vscode_commit: product.commit,
-				machineId: info.machineId
-			 }))
+				vscode_machineId: info.machineId
+			}))
 			.then(extra => assign(configuration, { extra }))
 			.then(configuration => {
 				// start crash reporter right here
