@@ -20,12 +20,14 @@ import { EventEmitter } from 'vs/base/common/eventEmitter';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TerminateResponse } from 'vs/base/common/processes';
 import * as TPath from 'vs/base/common/paths';
+import URI from 'vs/base/common/uri';
 
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { ProblemMatcher } from 'vs/platform/markers/common/problemMatcher';
+import { ProblemMatcher, ProblemPattern, getResource } from 'vs/platform/markers/common/problemMatcher';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { ITerminalService, ITerminalInstance, IShellLaunchConfig } from 'vs/workbench/parts/terminal/common/terminal';
 import { IOutputService, IOutputChannel } from 'vs/workbench/parts/output/common/output';
@@ -71,7 +73,7 @@ class TerminalDecoder {
 				idx++;
 			}
 		}
-		this.remaining = start < value.length ? value.substr(start) : null;
+		this.remaining = start < value.length ? value.substr(start) : undefined;
 		return result;
 	}
 
@@ -107,8 +109,11 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 	private idleTaskTerminals: IStringDictionary<string>;
 
 	constructor(private terminalService: ITerminalService, private outputService: IOutputService,
-		private markerService: IMarkerService, private modelService: IModelService, private configurationResolverService: IConfigurationResolverService,
-		private telemetryService: ITelemetryService, outputChannelId: string) {
+		private markerService: IMarkerService, private modelService: IModelService,
+		private configurationResolverService: IConfigurationResolverService,
+		private telemetryService: ITelemetryService,
+		private workbenchEditorService: IWorkbenchEditorService,
+		outputChannelId: string) {
 		super();
 
 		this.outputChannel = this.outputService.getChannel(outputChannelId);
@@ -249,6 +254,10 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 						this.primaryTerminal.busy = false;
 					}
 					this.idleTaskTerminals[task._id] = terminal.id.toString();
+					let remaining = decoder.end();
+					if (remaining) {
+						watchingProblemMatcher.processLine(remaining);
+					}
 					watchingProblemMatcher.dispose();
 					toUnbind = dispose(toUnbind);
 					toUnbind = null;
@@ -268,7 +277,9 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 				[terminal, executedCommand] = this.createTerminal(task);
 				this.emit(TaskSystemEvents.Active, event);
 				let decoder = new TerminalDecoder();
-				let startStopProblemMatcher = new StartStopProblemCollector(this.resolveMatchers(task.problemMatchers), this.markerService, this.modelService);
+				let problemMatchers = this.resolveMatchers(task.problemMatchers);
+				let startStopProblemMatcher = new StartStopProblemCollector(problemMatchers, this.markerService, this.modelService);
+				// const registeredMatchers = this.registerLinkMatchers(terminal, problemMatchers);
 				const onData = terminal.onData((data: string) => {
 					decoder.write(data).forEach((line) => {
 						startStopProblemMatcher.processLine(line);
@@ -282,9 +293,13 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 						this.primaryTerminal.busy = false;
 					}
 					this.idleTaskTerminals[task._id] = terminal.id.toString();
-					startStopProblemMatcher.processLine(decoder.end());
+					let remaining = decoder.end();
+					if (remaining) {
+						startStopProblemMatcher.processLine(remaining);
+					}
 					startStopProblemMatcher.done();
 					startStopProblemMatcher.dispose();
+					// registeredMatchers.forEach(handle => terminal.deregisterLinkMatcher(handle));
 					this.emit(TaskSystemEvents.Inactive, event);
 					resolve({ exitCode });
 				});
@@ -552,6 +567,33 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 					result.env[key] = value.toString();
 				}
 			});
+		}
+		return result;
+	}
+
+	protected registerLinkMatchers(terminal: ITerminalInstance, problemMatchers: ProblemMatcher[]): number[] {
+		let result: number[] = [];
+		let handlePattern = (matcher: ProblemMatcher, pattern: ProblemPattern): void => {
+			if (pattern.regexp instanceof RegExp && Types.isNumber(pattern.file)) {
+				result.push(terminal.registerLinkMatcher(pattern.regexp, (match: string) => {
+					let resource: URI = getResource(match, matcher);
+					if (resource) {
+						this.workbenchEditorService.openEditor({
+							resource: resource
+						});
+					}
+				}, pattern.file));
+			}
+		};
+
+		for (let problemMatcher of problemMatchers) {
+			if (Array.isArray(problemMatcher.pattern)) {
+				for (let pattern of problemMatcher.pattern) {
+					handlePattern(problemMatcher, pattern);
+				}
+			} else if (problemMatcher.pattern) {
+				handlePattern(problemMatcher, problemMatcher.pattern);
+			}
 		}
 		return result;
 	}

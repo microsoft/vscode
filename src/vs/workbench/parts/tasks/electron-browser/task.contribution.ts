@@ -508,7 +508,8 @@ class TaskService extends EventEmitter implements ITaskService {
 		@IQuickOpenService quickOpenService: IQuickOpenService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IConfigurationResolverService private configurationResolverService: IConfigurationResolverService,
-		@ITerminalService private terminalService: ITerminalService
+		@ITerminalService private terminalService: ITerminalService,
+		@IWorkbenchEditorService private workbenchEditorService: IWorkbenchEditorService
 	) {
 
 		super();
@@ -787,6 +788,7 @@ class TaskService extends EventEmitter implements ITaskService {
 			this._taskSystem = new TerminalTaskSystem(
 				this.terminalService, this.outputService, this.markerService,
 				this.modelService, this.configurationResolverService, this.telemetryService,
+				this.workbenchEditorService,
 				TaskService.OutputChannelId
 			);
 		} else {
