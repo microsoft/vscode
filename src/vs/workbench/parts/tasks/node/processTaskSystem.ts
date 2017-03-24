@@ -74,6 +74,14 @@ export class ProcessTaskSystem extends EventEmitter implements ITaskSystem {
 		return !!this.childProcess;
 	}
 
+	public getActiveTasks(): Task[] {
+		let result: Task[] = [];
+		if (this.activeTask) {
+			result.push(this.activeTask);
+		}
+		return result;
+	}
+
 	public run(task: Task): ITaskExecuteResult {
 		if (this.activeTask) {
 			return { kind: TaskExecuteKind.Active, active: { same: this.activeTask._id === task._id, background: this.activeTask.isBackground }, promise: this.activeTaskPromise };
@@ -95,7 +103,14 @@ export class ProcessTaskSystem extends EventEmitter implements ITaskSystem {
 		return true;
 	}
 
-	public terminate(): TPromise<TerminateResponse> {
+	public terminate(_id: string): TPromise<TerminateResponse> {
+		if (!this.activeTask || this.activeTask._id !== _id) {
+			return TPromise.as<TerminateResponse>({ success: false });
+		}
+		return this.terminateAll();
+	}
+
+	public terminateAll(): TPromise<TerminateResponse> {
 		if (this.childProcess) {
 			return this.childProcess.terminate();
 		}

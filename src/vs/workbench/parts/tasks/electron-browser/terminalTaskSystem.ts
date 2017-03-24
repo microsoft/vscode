@@ -166,7 +166,20 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 		return Object.keys(this.activeTasks).every(key => !this.activeTasks[key].task.promptOnClose);
 	}
 
-	public terminate(): TPromise<TerminateResponse> {
+	public getActiveTasks(): Task[] {
+		return Object.keys(this.activeTasks).map(key => this.activeTasks[key].task);
+	}
+
+	public terminate(id: string): TPromise<TerminateResponse> {
+		let terminalData = this.activeTasks[id];
+		if (!terminalData) {
+			return TPromise.as<TerminateResponse>({ success: false });
+		};
+		terminalData.terminal.dispose();
+		return TPromise.as<TerminateResponse>({ success: true });
+	}
+
+	public terminateAll(): TPromise<TerminateResponse> {
 		Object.keys(this.activeTasks).forEach((key) => {
 			let data = this.activeTasks[key];
 			data.terminal.dispose();
