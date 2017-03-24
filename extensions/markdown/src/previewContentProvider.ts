@@ -29,12 +29,17 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 	private _onDidChange = new vscode.EventEmitter<vscode.Uri>();
 	private _waiting: boolean = false;
 	private extraStyles: Array<vscode.Uri> = [];
+	private extraScripts: Array<vscode.Uri> = [];
 
 	constructor(
 		private engine: MarkdownEngine,
 		private context: vscode.ExtensionContext,
 		private cspArbiter: ContentSecurityPolicyArbiter
 	) { }
+
+	public addScript(resource: vscode.Uri): void {
+		this.extraScripts.push(resource);
+	}
 
 	public addStyle(resource: vscode.Uri): void {
 		this.extraStyles.push(resource);
@@ -110,7 +115,8 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 	}
 
 	private getScripts(nonce: string): string {
-		return [this.getMediaPath('main.js')]
+		const scripts = [this.getMediaPath('main.js')].concat(this.extraScripts.map(resource => resource.toString()));
+		return scripts
 			.map(source => `<script src="${source}" nonce="${nonce}"></script>`)
 			.join('\n');
 	}
