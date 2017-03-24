@@ -16,6 +16,12 @@ export interface ContentSecurityPolicyArbiter {
 	isEnhancedSecurityDisableForWorkspace(): boolean;
 }
 
+const previewStrings = {
+	cspAlertMessageText: localize('preview.securityMessage.text', 'Scripts have been disabled in this document'),
+	cspAlertMessageTitle: localize('preview.securityMessage.title', 'Scripts are disabled in the markdown preview. Change the Markdown preview secuirty setting to enable scripts'),
+	cspAlertMessageLabel: localize('preview.securityMessage.label', 'Scripts Disabled Security Warning')
+};
+
 export function isMarkdownFile(document: vscode.TextDocument) {
 	return document.languageId === 'markdown'
 		&& document.uri.scheme !== 'markdown'; // prevent processing of own documents
@@ -132,7 +138,7 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 
 			let initialLine = 0;
 			const editor = vscode.window.activeTextEditor;
-			if (editor && editor.document.uri.path === sourceUri.path) {
+			if (editor && editor.document.uri.fsPath === sourceUri.fsPath) {
 				initialLine = editor.selection.active.line;
 			}
 
@@ -143,12 +149,6 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 				scrollPreviewWithEditorSelection: !!markdownConfig.get('preview.scrollPreviewWithEditorSelection', true),
 				scrollEditorWithPreview: !!markdownConfig.get('preview.scrollEditorWithPreview', true),
 				doubleClickToSwitchToEditor: !!markdownConfig.get('preview.doubleClickToSwitchToEditor', true),
-			};
-
-			const previewStrings = {
-				cspAlertMessageText: localize('preview.securityMessage.text', 'Scripts have been disabled in this document'),
-				cspAlertMessageTitle: localize('preview.securityMessage.title', 'Scripts are disabled in the markdown preview. Change the Markdown preview secuirty setting to enable scripts'),
-				cspAlertMessageLabel: localize('preview.securityMessage.label', 'Scripts Disabled Security Warning')
 			};
 
 			// Content Security Policy
