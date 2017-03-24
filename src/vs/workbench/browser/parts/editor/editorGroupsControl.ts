@@ -177,9 +177,6 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		this.create();
 
 		this.registerListeners();
-
-		// test constructor calls
-		console.log('editor group control constructor');
 	}
 
 	private get totalSize(): number {
