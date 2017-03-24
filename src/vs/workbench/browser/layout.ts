@@ -574,7 +574,10 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 					doLayout = true;
 				}
 				else {
-					this.editorGroupService.requestActiveGroupSizeChange(sizeChangePxWidth);
+					const eGsSM = this.editorGroupService.getStacksModel();
+					const activeGroup = eGsSM.positionOfGroup(eGsSM.activeGroup);
+
+					this.editorGroupService.resizeGroup(activeGroup, sizeChangePxWidth);
 					doLayout = false;
 				}
 		}

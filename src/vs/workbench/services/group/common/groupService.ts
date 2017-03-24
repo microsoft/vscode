@@ -101,7 +101,7 @@ export interface IEditorGroupService {
 	/*
 	Resize visible editor groups
 	*/
-	requestActiveGroupSizeChange(groupSizeChange: number): boolean;
+	resizeGroup(position: Position,groupSizeChange: number): boolean;
 
 	/**
 	 * Adds the pinned state to an editor, removing it from being a preview editor.

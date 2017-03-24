@@ -78,7 +78,7 @@ export interface IEditorGroupsControl {
 	setGroupOrientation(orientation: GroupOrientation): void;
 	getGroupOrientation(): GroupOrientation;
 
-	resizeGroup(groupSizeChange: number): boolean;
+	resizeGroup(position: Position, groupSizeChange: number): boolean;
 
 	getRatio(): number[];
 
@@ -857,8 +857,8 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		return ratio;
 	}
 
-	// Request size change on the active editor/group - changes main axis
-	public resizeGroup(groupSizeChange: number): boolean {
+	// Resize the editor/group position - changes main axis
+	public resizeGroup(position: Position, groupSizeChange: number): boolean {
 
 		enum VISIBLE_EDITORS {
 			ONE = 1,

@@ -458,7 +458,7 @@ export class TestEditorGroupService implements IEditorGroupService {
 		return 'vertical';
 	}
 
-	public requestActiveGroupSizeChange(groupSizeChange: number): boolean {
+	public resizeGroup(position: Position, groupSizeChange: number): boolean {
 		return true;
 	}
 
