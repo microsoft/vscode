@@ -530,14 +530,22 @@ export function fuzzyScore(pattern: string, word: string): [number, number[]] {
 
 	const lowPattern = pattern.toLowerCase();
 	const lowWord = word.toLowerCase();
+	let i = 0;
+	let j = 0;
 
-	let lastLowestMatch = -1;
-	let i: number;
-	let j: number;
+	while (i < patternLen && j < wordLen) {
+		if (lowPattern[i] === lowWord[j]) {
+			i += 1;
+		}
+		j += 1;
+	}
+	if (i !== patternLen) {
+		// no simple matches found -> return early
+		return undefined;
+	}
+
 	for (i = 1; i <= patternLen; i++) {
 
-		let lowestMatch = -1;
-		let highestMatch = -1;
 		let lastLowWordChar = '';
 
 		for (j = 1; j <= wordLen; j++) {
@@ -567,11 +575,6 @@ export function fuzzyScore(pattern: string, word: string): [number, number[]] {
 				} else {
 					score = 1;
 				}
-
-				highestMatch = j - 1;
-				if (lowestMatch === -1) {
-					lowestMatch = j - 1;
-				}
 			}
 
 			let diag = _table[i - 1][j - 1] + score;
@@ -600,14 +603,6 @@ export function fuzzyScore(pattern: string, word: string): [number, number[]] {
 
 			lastLowWordChar = lowWordChar;
 		}
-
-		if (lowestMatch === -1 || highestMatch < lastLowestMatch) {
-			// return early when there was no match or when the
-			// match was only before the last lowest match
-			return undefined;
-		}
-
-		lastLowestMatch = lowestMatch;
 	}
 
 	if (_debug) {
@@ -643,19 +638,12 @@ export function fuzzyScore(pattern: string, word: string): [number, number[]] {
 				// result, not by matching keep going left
 				i += 1;
 
-
 			} else {
 				// all good
 				total += value;
 				matches.unshift(j);
 			}
 		}
-	}
-
-	if (matches.length !== patternLen) {
-		// we didn't match all pattern
-		// characters in order
-		return undefined;
 	}
 
 	if (j > 3) {
