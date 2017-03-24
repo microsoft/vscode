@@ -523,10 +523,12 @@ export class TerminalInstance implements ITerminalInstance {
 			this._xterm.writeln(nls.localize('terminal.integrated.waitOnExit', 'Press any key to close the terminal'));
 			// Disable all input if the terminal is exiting and listen for next keypress
 			this._xterm.setOption('disableStdin', true);
-			this._processDisposables.push(DOM.addDisposableListener(this._xterm.textarea, 'keypress', (event: KeyboardEvent) => {
-				this.dispose();
-				event.preventDefault();
-			}));
+			if (this._xterm.textarea) {
+				this._processDisposables.push(DOM.addDisposableListener(this._xterm.textarea, 'keypress', (event: KeyboardEvent) => {
+					this.dispose();
+					event.preventDefault();
+				}));
+			}
 		} else {
 			this.dispose();
 			if (exitCode) {
