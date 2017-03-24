@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { IFilter, or, matchesPrefix, matchesStrictPrefix, matchesCamelCase, matchesSubString, matchesContiguousSubString, matchesWords, fuzzyMatchAndScore, fuzzyScore } from 'vs/base/common/filters';
+import { IFilter, or, matchesPrefix, matchesStrictPrefix, matchesCamelCase, matchesSubString, matchesContiguousSubString, matchesWords, fuzzyScore } from 'vs/base/common/filters';
 
 function filterOk(filter: IFilter, word: string, wordToMatchAgainst: string, highlights?: { start: number; end: number; }[]) {
 	let r = filter(word, wordToMatchAgainst);
@@ -193,7 +193,7 @@ suite('Filters', () => {
 		assert.deepEqual(matchesWords('pu', 'Category: Git: Pull', true), [{ start: 15, end: 17 }]);
 	});
 
-	function assertMatches(pattern: string, word: string, decoratedWord: string, filter: typeof fuzzyMatchAndScore) {
+	function assertMatches(pattern: string, word: string, decoratedWord: string, filter: typeof fuzzyScore) {
 		let r = filter(pattern, word);
 		assert.ok(Boolean(r) === Boolean(decoratedWord));
 		if (r) {
@@ -207,36 +207,6 @@ suite('Filters', () => {
 			}
 		}
 	}
-
-	test('fuzzyMatchAndScore', function () {
-		assertMatches('no', 'match', undefined, fuzzyMatchAndScore);
-		assertMatches('no', '', undefined, fuzzyMatchAndScore);
-		assertMatches('BK', 'the_black_knight', 'the_^black_^knight', fuzzyMatchAndScore);
-		assertMatches('bkn', 'the_black_knight', 'the_^black_^k^night', fuzzyMatchAndScore);
-		assertMatches('bt', 'the_black_knight', 'the_^black_knigh^t', fuzzyMatchAndScore);
-		assertMatches('bti', 'the_black_knight', undefined, fuzzyMatchAndScore);
-		assertMatches('LLL', 'SVisualLoggerLogsList', 'SVisual^Logger^Logs^List', fuzzyMatchAndScore);
-		assertMatches('LLLL', 'SVisualLoggerLogsList', undefined, fuzzyMatchAndScore);
-		assertMatches('sllll', 'SVisualLoggerLogsList', '^SVisua^l^Logger^Logs^List', fuzzyMatchAndScore);
-		assertMatches('sl', 'SVisualLoggerLogsList', '^SVisual^LoggerLogsList', fuzzyMatchAndScore);
-		assertMatches('foobar', 'foobar', '^f^o^o^b^a^r', fuzzyMatchAndScore);
-		assertMatches('fob', 'foobar', '^f^oo^bar', fuzzyMatchAndScore);
-		assertMatches('ob', 'foobar', undefined, fuzzyMatchAndScore);
-		assertMatches('gp', 'Git: Pull', '^Git: ^Pull', fuzzyMatchAndScore);
-		assertMatches('gp', 'Git_Git_Pull', '^Git_Git_^Pull', fuzzyMatchAndScore);
-		assertMatches('g p', 'Git: Pull', '^Git:^ ^Pull', fuzzyMatchAndScore);
-		assertMatches('gip', 'Git: Pull', '^G^it: ^Pull', fuzzyMatchAndScore);
-		assertMatches('is', 'isValid', '^i^sValid', fuzzyMatchAndScore);
-		assertMatches('is', 'ImportStatement', '^Import^Statement', fuzzyMatchAndScore);
-		assertMatches('lowrd', 'lowWord', '^l^o^wWo^r^d', fuzzyMatchAndScore);
-		assertMatches('ccm', 'cacmelCase', '^ca^c^melCase', fuzzyMatchAndScore);
-		assertMatches('ccm', 'camelCase', undefined, fuzzyMatchAndScore);
-		assertMatches('ccm', 'camelCasecm', '^camel^Casec^m', fuzzyMatchAndScore);
-		assertMatches('myvable', 'myvariable', '^m^y^v^aria^b^l^e', fuzzyMatchAndScore);
-		assertMatches('fdm', 'findModel', '^fin^d^Model', fuzzyMatchAndScore);
-		assertMatches('form', 'editor.formatOnSave', 'editor.^f^o^r^matOnSave', fuzzyMatchAndScore);
-		assertMatches('KeyboardLayoutEventChange=', 'KeyboardLayoutEventChange', undefined, fuzzyMatchAndScore);
-	});
 
 	test('fuzzyScore', function () {
 		assertMatches('ab', 'abA', '^a^bA', fuzzyScore);
@@ -283,7 +253,7 @@ suite('Filters', () => {
 		assertMatches('Three', 'Three', '^T^h^r^e^e', fuzzyScore);
 
 	});
-	function assertTopScore(filter: typeof fuzzyMatchAndScore, pattern: string, expected: number, ...words: string[]) {
+	function assertTopScore(filter: typeof fuzzyScore, pattern: string, expected: number, ...words: string[]) {
 		let topScore = Number.MIN_VALUE;
 		let topIdx = 0;
 		for (let i = 0; i < words.length; i++) {
@@ -300,43 +270,7 @@ suite('Filters', () => {
 		assert.equal(topIdx, expected, `${pattern} -> actual=${words[topIdx]} <> expected=${words[expected]}`);
 	}
 
-	test('topScore - fuzzyMatchAndScore', function () {
-
-
-		assertTopScore(fuzzyMatchAndScore, 'cons', 2, 'ArrayBufferConstructor', 'Console', 'console');
-		assertTopScore(fuzzyMatchAndScore, 'Foo', 1, 'foo', 'Foo', 'foo');
-
-		assertTopScore(fuzzyMatchAndScore, 'CC', 1, 'camelCase', 'CamelCase');
-		assertTopScore(fuzzyMatchAndScore, 'cC', 0, 'camelCase', 'CamelCase');
-		assertTopScore(fuzzyMatchAndScore, 'cC', 1, 'ccfoo', 'camelCase');
-		assertTopScore(fuzzyMatchAndScore, 'cC', 1, 'ccfoo', 'camelCase', 'foo-cC-bar');
-
-		// issue #17836
-		assertTopScore(fuzzyMatchAndScore, 'p', 0, 'parse', 'posix', 'pafdsa', 'path', 'p');
-		assertTopScore(fuzzyMatchAndScore, 'pa', 0, 'parse', 'pafdsa', 'path');
-
-		// issue #14583
-		assertTopScore(fuzzyMatchAndScore, 'log', 3, 'HTMLOptGroupElement', 'ScrollLogicalPosition', 'SVGFEMorphologyElement', 'log');
-		assertTopScore(fuzzyMatchAndScore, 'e', 2, 'AbstractWorker', 'ActiveXObject', 'else');
-
-		// issue #14446
-		assertTopScore(fuzzyMatchAndScore, 'workbench.sideb', 1, 'workbench.editor.defaultSideBySideLayout', 'workbench.sideBar.location');
-
-		// issue #11423
-		assertTopScore(fuzzyMatchAndScore, 'editor.r', 2, 'diffEditor.renderSideBySide', 'editor.overviewRulerlanes', 'editor.renderControlCharacter', 'editor.renderWhitespace');
-		// assertTopScore(fuzzyMatchAndScore, 'editor.R', 1, 'diffEditor.renderSideBySide', 'editor.overviewRulerlanes', 'editor.renderControlCharacter', 'editor.renderWhitespace');
-		// assertTopScore(fuzzyMatchAndScore, 'Editor.r', 0, 'diffEditor.renderSideBySide', 'editor.overviewRulerlanes', 'editor.renderControlCharacter', 'editor.renderWhitespace');
-
-		assertTopScore(fuzzyMatchAndScore, '-mo', 1, '-ms-ime-mode', '-moz-columns');
-		// // dupe, issue #14861
-		assertTopScore(fuzzyMatchAndScore, 'convertModelPosition', 0, 'convertModelPositionToViewPosition', 'convertViewToModelPosition');
-		// // dupe, issue #14942
-		assertTopScore(fuzzyMatchAndScore, 'is', 0, 'isValidViewletId', 'import statement');
-
-	});
-
 	test('topScore - fuzzyScore', function () {
-
 
 		assertTopScore(fuzzyScore, 'TEdit', 1, 'TextEditorDecorationType', 'TextEdit', 'TextEditor');
 		assertTopScore(fuzzyScore, 'cons', 2, 'ArrayBufferConstructor', 'Console', 'console');
