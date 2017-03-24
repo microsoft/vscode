@@ -49,7 +49,7 @@ class MainThreadSCMProvider implements ISCMProvider {
 			return TPromise.as(null);
 		}
 
-		return this.proxy.$open(this.id, resource.resourceGroupId, resource.uri.toString());
+		return this.proxy.$open(this.id, resource.uri.toString());
 	}
 
 	acceptChanges(): TPromise<void> {
@@ -76,10 +76,10 @@ class MainThreadSCMProvider implements ISCMProvider {
 
 	$onChange(rawResourceGroups: SCMRawResourceGroup[], count: number | undefined, state: string | undefined): void {
 		this._resources = rawResourceGroups.map(rawGroup => {
-			const [id, label, rawResources] = rawGroup;
+			const [uri, id, label, rawResources] = rawGroup;
 
 			const resources = rawResources.map(rawResource => {
-				const [uri, icons, strikeThrough] = rawResource;
+				const [uri, sourceUri, icons, strikeThrough] = rawResource;
 
 				const icon = icons[0];
 				const iconDark = icons[1] || icon;
@@ -93,11 +93,12 @@ class MainThreadSCMProvider implements ISCMProvider {
 				return {
 					resourceGroupId: id,
 					uri: URI.parse(uri),
+					sourceUri: URI.parse(sourceUri),
 					decorations
 				};
 			});
 
-			return { id, label, resources };
+			return { uri: URI.parse(uri), id, label, resources };
 		});
 
 		this._count = count;

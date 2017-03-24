@@ -26,10 +26,7 @@ function getIconPath(decorations: vscode.SCMResourceThemableDecorations) {
 
 export interface Cache {
 	[providerId: string]: {
-		[groupId: string]: {
-			resourceGroup: vscode.SCMResourceGroup,
-			resources: { [uri: string]: vscode.SCMResource }
-		};
+		[resourceUri: string]: vscode.SCMResource;
 	};
 }
 
@@ -87,60 +84,6 @@ export class ExtHostSCM {
 		this._inputBox = new ExtHostSCMInputBox(this._proxy);
 	}
 
-	getResourceFromURI(uri: vscode.Uri): vscode.SCMResource | vscode.SCMResourceGroup | undefined {
-		if (uri.scheme !== 'scm') {
-			return undefined;
-		}
-
-		const providerId = uri.authority;
-		const providerCache = this.cache[providerId];
-
-		if (!providerCache) {
-			return undefined;
-		}
-
-		const match = /^\/([^/]+)(\/(.*))?$/.exec(uri.path);
-
-		if (!match) {
-			return undefined;
-		}
-
-		const resourceGroupId = match[1];
-		const resourceGroupRef = providerCache[resourceGroupId];
-
-		if (!resourceGroupRef) {
-			return undefined;
-		}
-
-		const rawResourceUri = match[3];
-
-		if (!rawResourceUri) {
-			return resourceGroupRef.resourceGroup;
-		}
-
-		let resourceUri: string;
-
-		try {
-			const rawResource = JSON.parse(rawResourceUri);
-			const resource = URI.from(rawResource);
-			resourceUri = resource.toString();
-		} catch (err) {
-			resourceUri = undefined;
-		}
-
-		if (!resourceUri) {
-			return undefined;
-		}
-
-		const resource = resourceGroupRef.resources[resourceUri];
-
-		if (!resource) {
-			return undefined;
-		}
-
-		return resource;
-	}
-
 	registerSCMProvider(provider: vscode.SCMProvider): Disposable {
 		const providerId = provider.id;
 
@@ -163,10 +106,11 @@ export class ExtHostSCM {
 			this.cache[providerId] = Object.create(null);
 
 			const rawResourceGroups = resourceGroups.map(g => {
-				const resources: { [id: string]: vscode.SCMResource; } = Object.create(null);
-
 				const rawResources = g.resources.map(r => {
 					const uri = r.uri.toString();
+					this.cache[providerId][uri] = r;
+
+					const sourceUri = r.sourceUri.toString();
 					const iconPath = getIconPath(r.decorations);
 					const lightIconPath = r.decorations && getIconPath(r.decorations.light) || iconPath;
 					const darkIconPath = r.decorations && getIconPath(r.decorations.dark) || iconPath;
@@ -181,14 +125,11 @@ export class ExtHostSCM {
 					}
 
 					const strikeThrough = r.decorations && !!r.decorations.strikeThrough;
-					resources[uri] = r;
 
-					return [uri, icons, strikeThrough] as SCMRawResource;
+					return [uri, sourceUri, icons, strikeThrough] as SCMRawResource;
 				});
 
-				this.cache[providerId][g.id] = { resourceGroup: g, resources };
-
-				return [g.id, g.label, rawResources] as SCMRawResourceGroup;
+				return [g.uri.toString(), g.id, g.label, rawResources] as SCMRawResourceGroup;
 			});
 
 			this._proxy.$onChange(providerId, rawResourceGroups, provider.count, provider.state);
@@ -201,16 +142,14 @@ export class ExtHostSCM {
 		});
 	}
 
-	$open(providerId: string, resourceGroupId: string, uri: string): TPromise<void> {
+	$open(providerId: string, uri: string): TPromise<void> {
 		const provider = this._providers[providerId];
 
 		if (!provider) {
 			return TPromise.as(null);
 		}
 
-		const providerCache = this.cache[providerId];
-		const resourceGroup = providerCache[resourceGroupId];
-		const resource = resourceGroup && resourceGroup.resources[uri];
+		const resource = this.cache[providerId][uri];
 
 		if (!resource) {
 			return TPromise.as(null);

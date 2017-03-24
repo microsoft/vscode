@@ -40,12 +40,12 @@ import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { comparePaths } from 'vs/base/common/comparers';
 import URI from 'vs/base/common/uri';
-import { isSCMResource, getSCMResourceURI } from './scmUtil';
+import { isSCMResource } from './scmUtil';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 
 function getElementId(element: ISCMResourceGroup | ISCMResource) {
 	if (isSCMResource(element)) {
-		return `${element.resourceGroupId}:${element.uri.toString()}`;
+		return `${element.resourceGroupId}:${element.sourceUri.toString()}`;
 	} else {
 		return `${element.id}`;
 	}
@@ -155,7 +155,7 @@ class ResourceRenderer implements IRenderer<ISCMResource, ResourceTemplate> {
 	}
 
 	renderElement(resource: ISCMResource, index: number, template: ResourceTemplate): void {
-		template.fileLabel.setFile(resource.uri);
+		template.fileLabel.setFile(resource.sourceUri);
 		template.actionBar.clear();
 		template.actionBar.push(this.scmMenus.getResourceActions(resource));
 		toggleClass(template.name, 'strike-through', resource.decorations.strikeThrough);
@@ -185,7 +185,7 @@ class Delegate implements IDelegate<ISCMResourceGroup | ISCMResource> {
 }
 
 function resourceSorter(a: ISCMResource, b: ISCMResource): number {
-	return comparePaths(a.uri.fsPath, b.uri.fsPath);
+	return comparePaths(a.sourceUri.fsPath, b.sourceUri.fsPath);
 }
 
 export class SCMViewlet extends Viewlet {
@@ -368,8 +368,7 @@ export class SCMViewlet extends Viewlet {
 	}
 
 	private getSelectedResources(): URI[] {
-		return this.list.getSelectedElements()
-			.map(r => getSCMResourceURI(this.activeProviderId, r));
+		return this.list.getSelectedElements().map(r => r.uri);
 	}
 
 	dispose(): void {

@@ -619,14 +619,26 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * An SCM resource is the source control state of an underlying resource.
+	 * An SCM resource represents a state of an underlying workspace resource
+	 * within a certain SCM provider state.
+	 *
+	 * For example, consider file A to be modified. An SCM resource which would
+	 * represent such state could have the following properties:
+	 *
+	 *   - `uri = 'git:workingtree/A'`
+	 *   - `sourceUri = 'file:A'`
 	 */
 	export interface SCMResource {
 
 		/**
-		 * The [uri](#Uri) of the underlying resource.
+		 * The [uri](#Uri) of this SCM resource.
 		 */
 		readonly uri: Uri;
+
+		/**
+		 * The [uri](#Uri) of the underlying resource inside the workspace.
+		 */
+		readonly sourceUri: Uri;
 
 		/**
 		 * The [decorations](#SCMResourceDecorations) for this SCM resource.
@@ -640,7 +652,13 @@ declare module 'vscode' {
 	export interface SCMResourceGroup {
 
 		/**
-		 * The identifier of the SCM resource group.
+		 * The [uri](#Uri) of this SCM resource group.
+		 */
+		readonly uri: Uri;
+
+		/**
+		 * The identifier of the SCM resource group, which will be used to populate
+		 * the value of the `scmResourceGroup` context key.
 		 */
 		readonly id: string;
 
@@ -662,7 +680,8 @@ declare module 'vscode' {
 	export interface SCMProvider {
 
 		/**
-		 * The identifier of the SCM provider.
+		 * The identifier of the SCM provider, which will be used to populate
+		 * the value of the `scmProvider` context key.
 		 */
 		readonly id: string;
 
@@ -752,9 +771,6 @@ declare module 'vscode' {
 		 * The [input box](#SCMInputBox) in the SCM view.
 		 */
 		export const inputBox: SCMInputBox;
-
-		// TODO@Joao
-		export function getResourceFromURI(uri: Uri): SCMResource | SCMResourceGroup | undefined;
 
 		/**
 		 * Registers an [SCM provider](#SCMProvider).

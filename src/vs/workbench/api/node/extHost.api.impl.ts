@@ -457,11 +457,6 @@ export function createApiFactory(initData: IInitData, threadService: IThreadServ
 			}
 
 			@proposed(extension)
-			getResourceFromURI(uri) {
-				return extHostSCM.getResourceFromURI(uri);
-			}
-
-			@proposed(extension)
 			registerSCMProvider(provider) {
 				return extHostSCM.registerSCMProvider(provider);
 			}
