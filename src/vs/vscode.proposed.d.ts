@@ -639,5 +639,22 @@ declare module 'vscode' {
 		readonly modifiedEndLineNumber: number;
 	}
 
-	export function computeDiff(oneDocument: TextDocument, otherDocument: TextDocument): Thenable<LineChange[]>;
+	export namespace commands {
+
+		/**
+		 * Registers a diff information command that can be invoked via a keyboard shortcut,
+		 * a menu item, an action, or directly.
+		 *
+		 * Diff information commands are different from ordinary [commands](#commands.registerCommand) as
+		 * they only execute when there is an active diff editor when the command is called, and the diff
+		 * information has been computed. Also, the command handler of an editor command has access to
+		 * the diff information.
+		 *
+		 * @param command A unique identifier for the command.
+		 * @param callback A command handler function with access to the [diff information](#LineChange).
+		 * @param thisArg The `this` context used when invoking the handler function.
+		 * @return Disposable which unregisters this command on disposal.
+		 */
+		export function registerDiffInformationCommand(command: string, callback: (diff: LineChange[], ...args: any[]) => any, thisArg?: any): Disposable;
+	}
 }

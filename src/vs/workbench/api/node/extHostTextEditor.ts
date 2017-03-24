@@ -322,6 +322,8 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 	private _viewColumn: vscode.ViewColumn;
 	private _disposed: boolean = false;
 
+	get id(): string { return this._id; }
+
 	constructor(proxy: MainThreadEditorsShape, id: string, document: ExtHostDocumentData, selections: Selection[], options: IResolvedTextEditorConfiguration, viewColumn: vscode.ViewColumn) {
 		this._proxy = proxy;
 		this._id = id;
