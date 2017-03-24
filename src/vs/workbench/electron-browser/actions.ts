@@ -1189,9 +1189,7 @@ export class NavigateDownAction extends BaseNavigationAction {
 	}
 }
 
-
-
-
+// Resize focused view actions
 export abstract class BaseResizeViewAction extends Action {
 
 	// This is a media-size percentage
@@ -1225,7 +1223,6 @@ export abstract class BaseResizeViewAction extends Action {
 }
 
 export class IncreaseViewSizeAction extends BaseResizeViewAction {
-// This is a media-size percentage
 
 	public static ID = 'workbench.action.increaseViewSize';
 	public static LABEL = nls.localize('increaseViewSize', "Increase Current View Size");
