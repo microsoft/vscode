@@ -30,7 +30,7 @@ import { List } from 'vs/base/browser/ui/list/listWidget';
 import { IDelegate, IRenderer, IListContextMenuEvent, IListEvent } from 'vs/base/browser/ui/list/list';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IChoiceService, Severity } from 'vs/platform/message/common/message';
+import { IChoiceService, IMessageService, Severity } from 'vs/platform/message/common/message';
 
 let $ = DOM.$;
 
@@ -90,6 +90,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		@IListService private listService: IListService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IChoiceService private choiceService: IChoiceService,
+		@IMessageService private messageService: IMessageService,
 		@IClipboardService private clipboardService: IClipboardService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
@@ -172,8 +173,13 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 			}
 			return null;
 		}).then(() => {
-			this.overlayContainer.style.display = 'none';
+			this.hideOverlayContainer();
 			this.focusEntry(keybindingEntry, false);
+		}, error => {
+			this.hideOverlayContainer();
+			this.onKeybindingEditingError(error);
+			this.focusEntry(keybindingEntry, false);
+			return error;
 		});
 	}
 
@@ -187,7 +193,11 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 					}
 					return null;
 				})
-				.then(() => this.focus());
+				.then(() => this.focus(),
+				error => {
+					this.onKeybindingEditingError(error);
+					this.focusEntry(keybindingEntry, false);
+				});
 		}
 		return TPromise.as(null);
 	}
@@ -202,7 +212,11 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 					}
 					return null;
 				})
-				.then(() => this.focus());
+				.then(() => this.focus(),
+				error => {
+					this.onKeybindingEditingError(error);
+					this.focusEntry(keybindingEntry, false);
+				});
 		}
 		return TPromise.as(null);
 	}
@@ -226,9 +240,13 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 	private createOverlayContainer(parent: HTMLElement): void {
 		this.overlayContainer = DOM.append(parent, $('.overlay-container'));
 		this.overlayContainer.style.position = 'absolute';
-		this.overlayContainer.style.display = 'none';
 		this.overlayContainer.style.zIndex = '10';
 		this.defineKeybindingWidget = this._register(this.instantiationService.createInstance(DefineKeybindingWidget, this.overlayContainer));
+		this.hideOverlayContainer();
+	}
+
+	private hideOverlayContainer() {
+		this.overlayContainer.style.display = 'none';
 	}
 
 	private createHeader(parent: HTMLElement): void {
@@ -365,6 +383,10 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 			id: KEYBINDINGS_EDITOR_COMMAND_COPY,
 			run: () => this.copyKeybinding(keybindingItem)
 		};
+	}
+
+	private onKeybindingEditingError(error: any): void {
+		this.messageService.show(Severity.Error, localize('error', "Error '{0}' while editing keybinding. Please open 'keybindings.json' file and check.", `${error}`));
 	}
 }
 

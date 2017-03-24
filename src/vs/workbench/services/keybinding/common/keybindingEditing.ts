@@ -6,6 +6,7 @@
 import { localize } from 'vs/nls';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { isArray } from 'vs/base/common/types';
 import { Queue } from 'vs/base/common/async';
 import { IReference, Disposable } from 'vs/base/common/lifecycle';
 import * as json from 'vs/base/common/json';
@@ -213,7 +214,7 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 	private resolveModelReference(): TPromise<IReference<ITextEditorModel>> {
 		return this.fileService.existsFile(this.resource)
 			.then(exists => {
-				const result = exists ? TPromise.as(null) : this.fileService.updateContent(this.resource, '{}', { encoding: 'utf8' });
+				const result = exists ? TPromise.as(null) : this.fileService.updateContent(this.resource, '[]', { encoding: 'utf8' });
 				return result.then(() => this.textModelResolverService.createModelReference(this.resource));
 			});
 	}
@@ -237,7 +238,7 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 
 	private hasParseErrors(model: editorCommon.IModel): boolean {
 		const parseErrors: json.ParseError[] = [];
-		json.parse(model.getValue(), parseErrors, { allowTrailingComma: true });
-		return parseErrors.length > 0;
+		const result = json.parse(model.getValue(), parseErrors, { allowTrailingComma: true });
+		return parseErrors.length > 0 || !isArray(result);
 	}
 }
