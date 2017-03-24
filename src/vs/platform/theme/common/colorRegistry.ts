@@ -151,6 +151,13 @@ export const editorFindRangeHighlight = registerColor('editorFindRangeHighlight'
 export const editorActiveLinkForeground = registerColor('editorActiveLinkForeground', { dark: '#4E94CE', light: Color.black, hc: Color.cyan }, nls.localize('activeLinkForeground', 'Color of active links'));
 export const editorLinkForeground = registerColor('editorLinkForeground', { dark: null, light: null, hc: null }, nls.localize('linkForeground', 'Color of links'));
 
+/**
+ * Find widget
+ */
+export const editorFindWidgetBackground = registerColor('editorFindWidgetBackground', { dark: '#2D2D30', light: '#EFEFF2', hc: '#0C141F' }, nls.localize('editorFindWidgetBackground', 'Find widget background'));
+export const editorFindInputBackground = registerColor('editorFindInputBackground', { dark: '#3C3C3C', light: Color.white, hc: Color.black }, nls.localize('editorFindInputBackground', 'Find widget input field background'));
+export const editorFindCheckedBorders = registerColor('editorFindCheckedBorders', { dark: '#007ACC', light: '#007ACC', hc: highContrastOutline }, nls.localize('editorFindCheckedBorders', 'Find widget checked border color'));
+
 
 // ----- color functions
 

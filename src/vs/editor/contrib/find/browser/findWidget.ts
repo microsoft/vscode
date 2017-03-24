@@ -26,7 +26,7 @@ import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/c
 import { CONTEXT_FIND_INPUT_FOCUSSED } from 'vs/editor/contrib/find/common/findController';
 import { ITheme, registerThemingParticipant, IThemeService } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
-import { editorFindRangeHighlight, editorCurrentFindMatchHighlight, editorFindMatchHighlight, registerColor, highContrastOutline, highContrastBorder } from "vs/platform/theme/common/colorRegistry";
+import { editorFindRangeHighlight, editorCurrentFindMatchHighlight, editorFindMatchHighlight, highContrastOutline, highContrastBorder, editorFindInputBackground, editorFindWidgetBackground, editorFindCheckedBorders } from "vs/platform/theme/common/colorRegistry";
 
 export interface IFindController {
 	replace(): void;
@@ -787,10 +787,6 @@ class SimpleButton extends Widget {
 }
 
 // theming
-
-export const editorFindWidgetBackground = registerColor('editorFindWidgetBackground', { dark: '#2D2D30', light: '#EFEFF2', hc: '#0C141F' }, nls.localize('editorFindWidgetBackground', 'Find widget background'));
-export const editorFindInputBackground = registerColor('editorFindInputBackground', { dark: '#3C3C3C', light: Color.white, hc: Color.black }, nls.localize('editorFindInputBackground', 'Find widget input field background'));
-export const editorFindCheckedBorders = registerColor('editorFindCheckedBorders', { dark: '#007ACC', light: '#007ACC', hc: highContrastOutline }, nls.localize('editorFindCheckedBorders', 'Find widget checked border color'));
 
 registerThemingParticipant((theme, collector) => {
 	function addBackgroundColorRule(selector: string, color: Color): void {
