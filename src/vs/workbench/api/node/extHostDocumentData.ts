@@ -28,7 +28,6 @@ export class ExtHostDocumentData extends MirrorModel2 {
 	private _proxy: MainThreadDocumentsShape;
 	private _languageId: string;
 	private _isDirty: boolean;
-	private _isVisible: boolean = false;
 	private _document: vscode.TextDocument;
 	private _textLines: vscode.TextLine[] = [];
 	private _isDisposed: boolean = false;
@@ -49,7 +48,6 @@ export class ExtHostDocumentData extends MirrorModel2 {
 		ok(!this._isDisposed);
 		this._isDisposed = true;
 		this._isDirty = false;
-		this._isVisible = false;
 	}
 
 	equalLines({ lines }: ITextSource): boolean {
@@ -74,7 +72,6 @@ export class ExtHostDocumentData extends MirrorModel2 {
 				get isUntitled() { return data._uri.scheme !== 'file'; },
 				get languageId() { return data._languageId; },
 				get version() { return data._versionId; },
-				get isVisible() { return data._isVisible; },
 				get isDirty() { return data._isDirty; },
 				save() { return data._save(); },
 				getText(range?) { return range ? data._getTextInRange(range) : data.getText(); },
@@ -98,16 +95,6 @@ export class ExtHostDocumentData extends MirrorModel2 {
 	_acceptIsDirty(isDirty: boolean): void {
 		ok(!this._isDisposed);
 		this._isDirty = isDirty;
-	}
-
-	_acceptIsVisible(value: boolean): boolean {
-		ok(!this._isDisposed);
-		if (this._isVisible === value) {
-			return false;
-		} else {
-			this._isVisible = value;
-			return true;
-		}
 	}
 
 	private _save(): TPromise<boolean> {
