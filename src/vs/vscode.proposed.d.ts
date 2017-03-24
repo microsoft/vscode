@@ -640,17 +640,17 @@ declare module 'vscode' {
 	export interface SCMResourceGroup {
 
 		/**
-		 * The identifier of this SCM resource group.
+		 * The identifier of the SCM resource group.
 		 */
 		readonly id: string;
 
 		/**
-		 * The UI label of this SCM resource group.
+		 * The UI label of the SCM resource group.
 		 */
 		readonly label: string;
 
 		/**
-		 * The collection of [SCM resources](#SCMResource) within this SCM resource group.
+		 * The collection of [SCM resources](#SCMResource) within the SCM resource group.
 		 */
 		readonly resources: SCMResource[];
 	}
@@ -662,7 +662,12 @@ declare module 'vscode' {
 	export interface SCMProvider {
 
 		/**
-		 * A human-readable label for the name of this SCM Provider.
+		 * The identifier of the SCM provider.
+		 */
+		readonly id: string;
+
+		/**
+		 * A human-readable label for the name of the SCM Provider.
 		 */
 		readonly label: string;
 
@@ -755,9 +760,9 @@ declare module 'vscode' {
 		 * Registers an [SCM provider](#SCMProvider).
 		 *
 		 * @param id The provider's id.
-		 * @return A disposable which unregisters this provider.
+		 * @return A disposable which unregisters the provider.
 		 */
-		export function registerSCMProvider(id: string, provider: SCMProvider): Disposable;
+		export function registerSCMProvider(provider: SCMProvider): Disposable;
 	}
 
 	/**

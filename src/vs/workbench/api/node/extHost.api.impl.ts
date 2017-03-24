@@ -454,8 +454,8 @@ export function createApiFactory(initData: IInitData, threadService: IThreadServ
 			}
 
 			@proposed(extension)
-			registerSCMProvider(id, provider) {
-				return extHostSCM.registerSCMProvider(id, provider);
+			registerSCMProvider(provider) {
+				return extHostSCM.registerSCMProvider(provider);
 			}
 		}
 
