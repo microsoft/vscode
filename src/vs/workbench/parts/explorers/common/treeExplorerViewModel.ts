@@ -17,6 +17,7 @@ export interface InternalTreeExplorerNode extends InternalTreeExplorerNodeConten
 }
 
 export interface InternalTreeExplorerNodeProvider {
+	id: string;
 	provideRootNode(): Thenable<InternalTreeExplorerNodeContent>;
 	resolveChildren(node: InternalTreeExplorerNodeContent): Thenable<InternalTreeExplorerNodeContent[]>;
 	executeCommand(node: InternalTreeExplorerNodeContent): TPromise<any>;

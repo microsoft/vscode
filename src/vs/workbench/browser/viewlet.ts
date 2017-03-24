@@ -440,7 +440,7 @@ export abstract class CollapsibleViewletView extends CollapsibleView implements 
 		collapsed: boolean,
 		private viewName: string,
 		protected messageService: IMessageService,
-		private keybindingService: IKeybindingService,
+		protected keybindingService: IKeybindingService,
 		protected contextMenuService: IContextMenuService,
 		headerSize?: number
 	) {

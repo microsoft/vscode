@@ -30,6 +30,7 @@ export class MainThreadTreeExplorers extends MainThreadTreeExplorersShape {
 		const onError = err => { this.messageService.show(Severity.Error, err); };
 
 		this.treeExplorerService.registerTreeExplorerNodeProvider(providerId, {
+			id: providerId,
 			provideRootNode: (): TPromise<InternalTreeExplorerNodeContent> => {
 				return this._proxy.$provideRootNode(providerId).then(rootNode => rootNode, onError);
 			},
