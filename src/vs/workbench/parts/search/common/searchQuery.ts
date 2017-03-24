@@ -24,11 +24,13 @@ export class QueryBuilder {
 	private query(type: QueryType, contentPattern: IPatternInfo, options: IQueryOptions = {}): ISearchQuery {
 		const configuration = this.configurationService.getConfiguration<ISearchConfiguration>();
 
-		const excludePattern = getExcludes(configuration);
-		if (!options.excludePattern) {
-			options.excludePattern = excludePattern;
-		} else {
-			mixin(options.excludePattern, excludePattern, false /* no overwrite */);
+		const settingsExcludePattern = getExcludes(configuration);
+		if (options.useExcludeSettings) {
+			if (options.excludePattern) {
+				mixin(options.excludePattern, settingsExcludePattern, false /* no overwrite */);
+			} else {
+				options.excludePattern = settingsExcludePattern;
+			}
 		}
 
 		return {
