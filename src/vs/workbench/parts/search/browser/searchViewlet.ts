@@ -159,12 +159,14 @@ export class SearchViewlet extends Viewlet {
 		});
 		this.createSearchWidget(this.searchWidgetsContainer);
 
-		let filePatterns = this.viewletSettings['query.filePatterns'] || '';
-		let patternExclusions = this.viewletSettings['query.folderExclusions'] || '';
-		let exclusionsUsePattern = this.viewletSettings['query.exclusionsUsePattern'];
-		let includesUsePattern = this.viewletSettings['query.includesUsePattern'];
-		let patternIncludes = this.viewletSettings['query.folderIncludes'] || '';
-		let useIgnoreFiles = this.viewletSettings['query.useIgnoreFiles'];
+		const filePatterns = this.viewletSettings['query.filePatterns'] || '';
+		const patternExclusions = this.viewletSettings['query.folderExclusions'] || '';
+		const exclusionsUsePattern = this.viewletSettings['query.exclusionsUsePattern'];
+		const includesUsePattern = this.viewletSettings['query.includesUsePattern'];
+		const patternIncludes = this.viewletSettings['query.folderIncludes'] || '';
+		const useIgnoreFiles = typeof this.viewletSettings['query.useIgnoreFiles'] === 'boolean' ?
+			this.viewletSettings['query.useIgnoreFiles'] :
+			this.configurationService.getConfiguration<ISearchConfiguration>().search.useIgnoreFilesByDefault;
 
 		this.queryDetails = this.searchWidgetsContainer.div({ 'class': ['query-details'] }, (builder) => {
 			builder.div({ 'class': 'more', 'tabindex': 0, 'role': 'button', 'title': nls.localize('moreSearch', "Toggle Search Details") })

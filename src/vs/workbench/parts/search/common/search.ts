@@ -75,6 +75,7 @@ export interface IWorkbenchSearchConfiguration extends ISearchConfiguration {
 			includeSymbols: boolean;
 		},
 		exclude: glob.IExpression,
-		useRipgrep: boolean
+		useRipgrep: boolean,
+		useIgnoreFilesByDefault: boolean
 	};
 }

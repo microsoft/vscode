@@ -209,6 +209,11 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('useRipgrep', "Controls whether to use ripgrep in text search"),
 			'default': true
 		},
+		'search.useIgnoreFilesByDefault': {
+			'type': 'boolean',
+			'description': nls.localize('useIgnoreFilesByDefault', "Controls whether to use .gitignore and .ignore files by default when searching in a new workspace."),
+			'default': false
+		},
 		'search.quickOpen.includeSymbols': {
 			'type': 'boolean',
 			'description': nls.localize('search.quickOpen.includeSymbols', "Configure to include results from a global symbol search in the file results for Quick Open."),
