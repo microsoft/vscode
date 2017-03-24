@@ -258,10 +258,17 @@ export interface SCMProviderFeatures {
 
 export type SCMRawResource = [
 	string /*uri*/,
+	string /*sourceUri*/,
 	string[] /*icons: light, dark*/,
 	boolean /*strike through*/
 ];
-export type SCMRawResourceGroup = [string /*id*/, string /*label*/, SCMRawResource[]];
+
+export type SCMRawResourceGroup = [
+	string /*uri*/,
+	string /*id*/,
+	string /*label*/,
+	SCMRawResource[]
+];
 
 export abstract class MainThreadSCMShape {
 	$register(id: string, features: SCMProviderFeatures): void { throw ni(); }
@@ -409,7 +416,7 @@ export abstract class ExtHostTerminalServiceShape {
 }
 
 export abstract class ExtHostSCMShape {
-	$open(id: string, resourceGroupId: string, uri: string): TPromise<void> { throw ni(); }
+	$open(id: string, uri: string): TPromise<void> { throw ni(); }
 	$acceptChanges(id: string): TPromise<void> { throw ni(); }
 	$getOriginalResource(id: string, uri: URI): TPromise<URI> { throw ni(); }
 	$onInputBoxValueChange(value: string): TPromise<void> { throw ni(); }

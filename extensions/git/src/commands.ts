@@ -137,7 +137,7 @@ export class CommandCenter {
 				return resource.original.with({ scheme: 'git', query: 'HEAD' });
 
 			case Status.MODIFIED:
-				return resource.uri.with({ scheme: 'git', query: '~' });
+				return resource.sourceUri.with({ scheme: 'git', query: '~' });
 		}
 	}
 
@@ -146,34 +146,34 @@ export class CommandCenter {
 			case Status.INDEX_MODIFIED:
 			case Status.INDEX_ADDED:
 			case Status.INDEX_COPIED:
-				return resource.uri.with({ scheme: 'git' });
+				return resource.sourceUri.with({ scheme: 'git' });
 
 			case Status.INDEX_RENAMED:
-				return resource.uri.with({ scheme: 'git' });
+				return resource.sourceUri.with({ scheme: 'git' });
 
 			case Status.INDEX_DELETED:
 			case Status.DELETED:
-				return resource.uri.with({ scheme: 'git', query: 'HEAD' });
+				return resource.sourceUri.with({ scheme: 'git', query: 'HEAD' });
 
 			case Status.MODIFIED:
 			case Status.UNTRACKED:
 			case Status.IGNORED:
-				const uriString = resource.uri.toString();
-				const [indexStatus] = this.model.indexGroup.resources.filter(r => r.uri.toString() === uriString);
+				const uriString = resource.sourceUri.toString();
+				const [indexStatus] = this.model.indexGroup.resources.filter(r => r.sourceUri.toString() === uriString);
 
 				if (indexStatus && indexStatus.rename) {
 					return indexStatus.rename;
 				}
 
-				return resource.uri;
+				return resource.sourceUri;
 
 			case Status.BOTH_MODIFIED:
-				return resource.uri;
+				return resource.sourceUri;
 		}
 	}
 
 	private getTitle(resource: Resource): string {
-		const basename = path.basename(resource.uri.fsPath);
+		const basename = path.basename(resource.sourceUri.fsPath);
 
 		switch (resource.type) {
 			case Status.INDEX_MODIFIED:
@@ -274,7 +274,7 @@ export class CommandCenter {
 			return;
 		}
 
-		return await commands.executeCommand<void>('vscode.open', resource.uri);
+		return await commands.executeCommand<void>('vscode.open', resource.sourceUri);
 	}
 
 	@command('git.openChange')
@@ -449,7 +449,7 @@ export class CommandCenter {
 		}
 
 		const message = resources.length === 1
-			? localize('confirm discard', "Are you sure you want to discard changes in {0}?", path.basename(resources[0].uri.fsPath))
+			? localize('confirm discard', "Are you sure you want to discard changes in {0}?", path.basename(resources[0].sourceUri.fsPath))
 			: localize('confirm discard multiple', "Are you sure you want to discard changes in {0} files?", resources.length);
 
 		const yes = localize('discard', "Discard Changes");
@@ -792,9 +792,18 @@ export class CommandCenter {
 			return undefined;
 		}
 
-		if (uri.scheme === 'scm' && uri.authority === 'git') {
-			const resource = scm.getResourceFromURI(uri);
-			return resource instanceof Resource ? resource : undefined;
+		if (uri.scheme === 'git-resource') {
+			const {resourceGroupId} = JSON.parse(uri.query) as { resourceGroupId: string, sourceUri: string };
+			const [resourceGroup] = this.model.resources.filter(g => g.id === resourceGroupId);
+
+			if (!resourceGroup) {
+				return;
+			}
+
+			const uriStr = uri.toString();
+			const [resource] = resourceGroup.resources.filter(r => r.uri.toString() === uriStr);
+
+			return resource;
 		}
 
 		if (uri.scheme === 'git') {
@@ -804,8 +813,8 @@ export class CommandCenter {
 		if (uri.scheme === 'file') {
 			const uriString = uri.toString();
 
-			return this.model.workingTreeGroup.resources.filter(r => r.uri.toString() === uriString)[0]
-				|| this.model.indexGroup.resources.filter(r => r.uri.toString() === uriString)[0];
+			return this.model.workingTreeGroup.resources.filter(r => r.sourceUri.toString() === uriString)[0]
+				|| this.model.indexGroup.resources.filter(r => r.sourceUri.toString() === uriString)[0];
 		}
 	}
 

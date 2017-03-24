@@ -54,16 +54,28 @@ export enum Status {
 
 export class Resource implements SCMResource {
 
+	@memoize
 	get uri(): Uri {
+		return new Uri().with({
+			scheme: 'git-resource',
+			query: JSON.stringify({
+				resourceGroupId: this.resourceGroupId,
+				sourceUri: this.sourceUri.toString()
+			})
+		});
+	}
+
+	@memoize
+	get sourceUri(): Uri {
 		if (this.rename && (this._type === Status.MODIFIED || this._type === Status.DELETED || this._type === Status.INDEX_RENAMED)) {
 			return this.rename;
 		}
 
-		return this._uri;
+		return this._sourceUri;
 	}
 
 	get type(): Status { return this._type; }
-	get original(): Uri { return this._uri; }
+	get original(): Uri { return this._sourceUri; }
 	get rename(): Uri | undefined { return this._rename; }
 
 	private static Icons = {
@@ -130,12 +142,15 @@ export class Resource implements SCMResource {
 		return { strikeThrough: this.strikeThrough, light, dark };
 	}
 
-	constructor(private _uri: Uri, private _type: Status, private _rename?: Uri) {
+	constructor(private resourceGroupId: string, private _sourceUri: Uri, private _type: Status, private _rename?: Uri) {
 		// console.log(this);
 	}
 }
 
 export class ResourceGroup implements SCMResourceGroup {
+
+	@memoize
+	get uri(): Uri { return Uri.parse(`git-resource-group:${this.id}`); }
 
 	get id(): string { return this._id; }
 	get label(): string { return this._label; }
@@ -399,7 +414,7 @@ export class Model implements Disposable {
 
 	@throttle
 	async add(...resources: Resource[]): Promise<void> {
-		await this.run(Operation.Add, () => this.repository.add(resources.map(r => r.uri.fsPath)));
+		await this.run(Operation.Add, () => this.repository.add(resources.map(r => r.sourceUri.fsPath)));
 	}
 
 	@throttle
@@ -410,7 +425,7 @@ export class Model implements Disposable {
 
 	@throttle
 	async revertFiles(...resources: Resource[]): Promise<void> {
-		await this.run(Operation.RevertFiles, () => this.repository.revertFiles('HEAD', resources.map(r => r.uri.fsPath)));
+		await this.run(Operation.RevertFiles, () => this.repository.revertFiles('HEAD', resources.map(r => r.sourceUri.fsPath)));
 	}
 
 	@throttle
@@ -434,11 +449,11 @@ export class Model implements Disposable {
 				switch (r.type) {
 					case Status.UNTRACKED:
 					case Status.IGNORED:
-						toClean.push(r.uri.fsPath);
+						toClean.push(r.sourceUri.fsPath);
 						break;
 
 					default:
-						toCheckout.push(r.uri.fsPath);
+						toCheckout.push(r.sourceUri.fsPath);
 						break;
 				}
 			});
@@ -629,30 +644,30 @@ export class Model implements Disposable {
 			const renameUri = raw.rename ? Uri.file(path.join(this.repository.root, raw.rename)) : undefined;
 
 			switch (raw.x + raw.y) {
-				case '??': return workingTree.push(new Resource(uri, Status.UNTRACKED));
-				case '!!': return workingTree.push(new Resource(uri, Status.IGNORED));
-				case 'DD': return merge.push(new Resource(uri, Status.BOTH_DELETED));
-				case 'AU': return merge.push(new Resource(uri, Status.ADDED_BY_US));
-				case 'UD': return merge.push(new Resource(uri, Status.DELETED_BY_THEM));
-				case 'UA': return merge.push(new Resource(uri, Status.ADDED_BY_THEM));
-				case 'DU': return merge.push(new Resource(uri, Status.DELETED_BY_US));
-				case 'AA': return merge.push(new Resource(uri, Status.BOTH_ADDED));
-				case 'UU': return merge.push(new Resource(uri, Status.BOTH_MODIFIED));
+				case '??': return workingTree.push(new Resource(WorkingTreeGroup.ID, uri, Status.UNTRACKED));
+				case '!!': return workingTree.push(new Resource(WorkingTreeGroup.ID, uri, Status.IGNORED));
+				case 'DD': return merge.push(new Resource(MergeGroup.ID, uri, Status.BOTH_DELETED));
+				case 'AU': return merge.push(new Resource(MergeGroup.ID, uri, Status.ADDED_BY_US));
+				case 'UD': return merge.push(new Resource(MergeGroup.ID, uri, Status.DELETED_BY_THEM));
+				case 'UA': return merge.push(new Resource(MergeGroup.ID, uri, Status.ADDED_BY_THEM));
+				case 'DU': return merge.push(new Resource(MergeGroup.ID, uri, Status.DELETED_BY_US));
+				case 'AA': return merge.push(new Resource(MergeGroup.ID, uri, Status.BOTH_ADDED));
+				case 'UU': return merge.push(new Resource(MergeGroup.ID, uri, Status.BOTH_MODIFIED));
 			}
 
 			let isModifiedInIndex = false;
 
 			switch (raw.x) {
-				case 'M': index.push(new Resource(uri, Status.INDEX_MODIFIED)); isModifiedInIndex = true; break;
-				case 'A': index.push(new Resource(uri, Status.INDEX_ADDED)); break;
-				case 'D': index.push(new Resource(uri, Status.INDEX_DELETED)); break;
-				case 'R': index.push(new Resource(uri, Status.INDEX_RENAMED, renameUri)); break;
-				case 'C': index.push(new Resource(uri, Status.INDEX_COPIED)); break;
+				case 'M': index.push(new Resource(IndexGroup.ID, uri, Status.INDEX_MODIFIED)); isModifiedInIndex = true; break;
+				case 'A': index.push(new Resource(IndexGroup.ID, uri, Status.INDEX_ADDED)); break;
+				case 'D': index.push(new Resource(IndexGroup.ID, uri, Status.INDEX_DELETED)); break;
+				case 'R': index.push(new Resource(IndexGroup.ID, uri, Status.INDEX_RENAMED, renameUri)); break;
+				case 'C': index.push(new Resource(IndexGroup.ID, uri, Status.INDEX_COPIED)); break;
 			}
 
 			switch (raw.y) {
-				case 'M': workingTree.push(new Resource(uri, Status.MODIFIED, renameUri)); break;
-				case 'D': workingTree.push(new Resource(uri, Status.DELETED, renameUri)); break;
+				case 'M': workingTree.push(new Resource(WorkingTreeGroup.ID, uri, Status.MODIFIED, renameUri)); break;
+				case 'D': workingTree.push(new Resource(WorkingTreeGroup.ID, uri, Status.DELETED, renameUri)); break;
 			}
 		});
 
