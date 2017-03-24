@@ -52,9 +52,17 @@ export class TerminalLinkHandler {
 	}
 
 	public registerCustomLinkHandler(regex: RegExp, handler: (uri: string) => void, matchIndex?: number, validationCallback?: XtermLinkMatcherValidationCallback): number {
+		const wrappedValidationCallback = (uri, element, callback) => {
+			this._addTooltipEventListeners(element);
+			if (validationCallback) {
+				validationCallback(uri, element, callback);
+			} else {
+				callback(true);
+			}
+		};
 		return this._xterm.registerLinkMatcher(regex, this._wrapLinkHandler(handler), {
 			matchIndex,
-			validationCallback,
+			validationCallback: wrappedValidationCallback,
 			priority: CUSTOM_LINK_PRIORITY
 		});
 	}
