@@ -201,7 +201,7 @@ class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 							// FF3B and FF3D is the Unicode zenkaku representation for [ and ]
 							message = '\uFF3B' + message.replace(/[aouei]/g, '$&$&') + '\uFF3D';
 						}
-						obj[key] = command && originalMessages ? { value: message, original: originalMessages[messageKey] } : message;
+						obj[key] = command && (key === 'title' || key === 'category') && originalMessages ? { value: message, original: originalMessages[messageKey] } : message;
 					} else {
 						collector.warn(messageScope, nls.localize('missingNLSKey', "Couldn't find message for key {0}.", messageKey));
 					}
