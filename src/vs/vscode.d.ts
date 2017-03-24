@@ -112,9 +112,15 @@ declare module 'vscode' {
 		readonly version: number;
 
 		/**
-		 * true if there are unpersisted changes.
+		 * `true` if there are unpersisted changes.
 		 */
 		readonly isDirty: boolean;
+
+		/**
+		 * `true` if the document have been closed. A closed document isn't synchronized anymore
+		 * and won't be re-used when the same resource is opened again.
+		 */
+		readonly isClosed: boolean;
 
 		/**
 		 * Save the underlying file.
