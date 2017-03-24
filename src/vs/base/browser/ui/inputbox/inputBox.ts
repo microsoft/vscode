@@ -30,6 +30,11 @@ export interface IInputOptions extends IInputBoxStyles {
 	actions?: IAction[];
 }
 
+export interface IInputBoxStyles {
+	inputBackground?: Color;
+	inputForeground?: Color;
+}
+
 export interface IInputValidator {
 	(value: string): IMessage;
 }
@@ -56,11 +61,6 @@ export interface IRange {
 	end: number;
 }
 
-export interface IInputBoxStyles {
-	inputBackground?: Color;
-	inputForeground?: Color;
-}
-
 export class InputBox extends Widget {
 	private contextViewProvider: IContextViewProvider;
 	private element: HTMLElement;
@@ -75,6 +75,9 @@ export class InputBox extends Widget {
 	private showValidationMessage: boolean;
 	private state = 'idle';
 	private cachedHeight: number;
+
+	private inputBackground: Color;
+	private inputForeground: Color;
 
 	private _onDidChange = this._register(new Emitter<string>());
 	public onDidChange: Event<string> = this._onDidChange.event;
@@ -91,6 +94,8 @@ export class InputBox extends Widget {
 		this.cachedHeight = null;
 		this.placeholder = this.options.placeholder || '';
 		this.ariaLabel = this.options.ariaLabel || '';
+		this.inputBackground = this.options.inputBackground;
+		this.inputForeground = this.options.inputForeground;
 
 		if (this.options.validationOptions) {
 			this.validation = this.options.validationOptions.validation;
@@ -381,16 +386,16 @@ export class InputBox extends Widget {
 	}
 
 	public style(styles: IInputBoxStyles) {
-		this.options.inputBackground = styles.inputBackground;
-		this.options.inputForeground = styles.inputForeground;
+		this.inputBackground = styles.inputBackground;
+		this.inputForeground = styles.inputForeground;
 
 		this._applyStyles();
 	}
 
 	protected _applyStyles() {
 		if (this.element) {
-			const background = this.options.inputBackground ? this.options.inputBackground.toString() : null;
-			const foreground = this.options.inputForeground ? this.options.inputForeground.toString() : null;
+			const background = this.inputBackground ? this.inputBackground.toString() : null;
+			const foreground = this.inputForeground ? this.inputForeground.toString() : null;
 
 			this.element.style.backgroundColor = background;
 			this.element.style.color = foreground;

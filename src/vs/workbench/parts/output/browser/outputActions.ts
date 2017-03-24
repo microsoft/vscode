@@ -13,6 +13,8 @@ import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { TogglePanelAction } from 'vs/workbench/browser/panel';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { attachSelectBoxStyler } from "vs/platform/theme/common/styler";
+import { IThemeService } from "vs/platform/theme/common/themeService";
 
 export class ToggleOutputAction extends TogglePanelAction {
 
@@ -105,11 +107,15 @@ export class SwitchOutputActionItem extends SelectActionItem {
 
 	constructor(
 		action: IAction,
-		@IOutputService private outputService: IOutputService
+		@IOutputService private outputService: IOutputService,
+		@IThemeService themeService: IThemeService
 	) {
 		super(null, action, [], 0);
+
 		this.toDispose.push(this.outputService.onOutputChannel(() => this.setOptions(this.getOptions(), this.getSelected(undefined))));
 		this.toDispose.push(this.outputService.onActiveOutputChannel(activeChannelId => this.setOptions(this.getOptions(), this.getSelected(activeChannelId))));
+		this.toDispose.push(attachSelectBoxStyler(this.selectBox, themeService));
+
 		this.setOptions(this.getOptions(), this.getSelected(this.outputService.getActiveChannel().id));
 	}
 

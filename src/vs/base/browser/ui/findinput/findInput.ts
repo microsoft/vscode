@@ -8,7 +8,7 @@ import 'vs/css!./findInput';
 
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
-import { IMessage as InputBoxMessage, IInputValidator, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
+import { IMessage as InputBoxMessage, IInputValidator, InputBox, IInputBoxStyles } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
 import { Widget } from 'vs/base/browser/ui/widget';
 import Event, { Emitter } from 'vs/base/common/event';
@@ -28,7 +28,7 @@ export interface IFindInputOptions extends IFindInputStyles {
 	appendRegexLabel?: string;
 }
 
-export interface IFindInputStyles {
+export interface IFindInputStyles extends IInputBoxStyles {
 	checkedBorderColor?: Color;
 }
 
@@ -43,7 +43,10 @@ export class FindInput extends Widget {
 	private placeholder: string;
 	private validation: IInputValidator;
 	private label: string;
+
 	private checkedBorderColor: Color;
+	private inputBackground: Color;
+	private inputForeground: Color;
 
 	private regex: RegexCheckbox;
 	private wholeWords: WholeWordsCheckbox;
@@ -73,7 +76,10 @@ export class FindInput extends Widget {
 		this.placeholder = options.placeholder || '';
 		this.validation = options.validation;
 		this.label = options.label || NLS_DEFAULT_LABEL;
+
 		this.checkedBorderColor = options.checkedBorderColor;
+		this.inputBackground = options.inputBackground;
+		this.inputForeground = options.inputForeground;
 
 		this.regex = null;
 		this.wholeWords = null;
@@ -141,15 +147,24 @@ export class FindInput extends Widget {
 
 	public style(styles: IFindInputStyles) {
 		this.checkedBorderColor = styles.checkedBorderColor;
+		this.inputBackground = styles.inputBackground;
+		this.inputForeground = styles.inputForeground;
+
 		this._applyStyles();
 	}
 
 	protected _applyStyles() {
 		if (this.domNode) {
-			const styles = { checkedBorderColor: this.checkedBorderColor };
+			const styles: IFindInputStyles = {
+				checkedBorderColor: this.checkedBorderColor,
+				inputBackground: this.inputBackground,
+				inputForeground: this.inputForeground
+			};
+
 			this.regex.style(styles);
 			this.wholeWords.style(styles);
 			this.caseSensitive.style(styles);
+			this.inputBox.style(styles);
 		}
 	}
 
@@ -215,7 +230,9 @@ export class FindInput extends Widget {
 			validationOptions: {
 				validation: this.validation || null,
 				showMessage: true
-			}
+			},
+			inputBackground: this.inputBackground,
+			inputForeground: this.inputForeground
 		}));
 
 		this.regex = this._register(new RegexCheckbox({
