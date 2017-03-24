@@ -45,7 +45,6 @@ export interface ISCMProvider extends IDisposable {
 
 	open(uri: ISCMResource): TPromise<void>;
 	acceptChanges(): TPromise<void>;
-	drag(from: ISCMResource, to: ISCMResourceGroup): TPromise<void>;
 	getOriginalResource(uri: URI): TPromise<URI>;
 }
 

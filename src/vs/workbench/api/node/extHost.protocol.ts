@@ -253,7 +253,6 @@ export interface SCMProviderFeatures {
 	label: string;
 	supportsOpen: boolean;
 	supportsAcceptChanges: boolean;
-	supportsDrag: boolean;
 	supportsOriginalResource: boolean;
 }
 
@@ -412,7 +411,6 @@ export abstract class ExtHostTerminalServiceShape {
 export abstract class ExtHostSCMShape {
 	$open(id: string, resourceGroupId: string, uri: string): TPromise<void> { throw ni(); }
 	$acceptChanges(id: string): TPromise<void> { throw ni(); }
-	$drag(id: string, fromResourceGroupId: string, fromUri: string, toResourceGroupId: string): TPromise<void> { throw ni(); }
 	$getOriginalResource(id: string, uri: URI): TPromise<URI> { throw ni(); }
 	$onInputBoxValueChange(value: string): TPromise<void> { throw ni(); }
 }

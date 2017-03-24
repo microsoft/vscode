@@ -141,7 +141,9 @@ export class ExtHostSCM {
 		return resource;
 	}
 
-	registerSCMProvider(providerId: string, provider: vscode.SCMProvider): Disposable {
+	registerSCMProvider(provider: vscode.SCMProvider): Disposable {
+		const providerId = provider.id;
+
 		if (this._providers[providerId]) {
 			throw new Error(`Provider ${providerId} already registered`);
 		}
@@ -153,7 +155,6 @@ export class ExtHostSCM {
 			label: provider.label,
 			supportsOpen: !!provider.open,
 			supportsAcceptChanges: !!provider.acceptChanges,
-			supportsDrag: !!provider.drag,
 			supportsOriginalResource: !!provider.getOriginalResource
 		});
 
@@ -226,26 +227,6 @@ export class ExtHostSCM {
 		}
 
 		return asWinJsPromise(token => provider.acceptChanges(token));
-	}
-
-	$drag(providerId: string, fromResourceGroupId: string, fromUri: string, toResourceGroupId: string): TPromise<void> {
-		const provider = this._providers[providerId];
-
-		if (!provider) {
-			return TPromise.as(null);
-		}
-
-		const providerCache = this.cache[providerId];
-		const fromResourceGroup = providerCache[fromResourceGroupId];
-		const resource = fromResourceGroup && fromResourceGroup.resources[fromUri];
-		const toResourceGroup = providerCache[toResourceGroupId];
-		const resourceGroup = toResourceGroup && toResourceGroup.resourceGroup;
-
-		if (!resource || !resourceGroup) {
-			return TPromise.as(null);
-		}
-
-		return asWinJsPromise(token => provider.drag(resource, resourceGroup, token));
 	}
 
 	$getOriginalResource(id: string, uri: URI): TPromise<URI> {

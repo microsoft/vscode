@@ -60,14 +60,6 @@ class MainThreadSCMProvider implements ISCMProvider {
 		return this.proxy.$acceptChanges(this.id);
 	}
 
-	drag(from: ISCMResource, to: ISCMResourceGroup): TPromise<void> {
-		if (!this.features.supportsDrag) {
-			return TPromise.as(null);
-		}
-
-		return this.proxy.$drag(this.id, from.resourceGroupId, from.uri.toString(), to.id);
-	}
-
 	getOriginalResource(uri: URI): TPromise<URI> {
 		if (!this.features.supportsOriginalResource) {
 			return TPromise.as(null);
