@@ -78,12 +78,10 @@ export interface IEditorGroupsControl {
 	setGroupOrientation(orientation: GroupOrientation): void;
 	getGroupOrientation(): GroupOrientation;
 
-	getRatio(): number[];
-
 	requestActiveGroupSizeChange(groupSizeChange: number): boolean;
 
-	getSilosSize(): number[];
-	setSilosSize(silosSize: number[]): boolean;
+	getRatio(): number[];
+
 
 	dispose(): void;
 }

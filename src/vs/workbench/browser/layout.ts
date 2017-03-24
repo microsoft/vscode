@@ -549,8 +549,6 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		const sizeChangePxWidth = this.workbenchSize.width * (sizeChange / 100);
 		const sizeChangePxHeight = this.workbenchSize.height * (sizeChange / 100);
 
-		// console.log('workbench length: ' + this.workbenchSize.width + ' PercentPX: ' + sizeChangePxHeight);
-
 		switch (part) {
 			case Parts.SIDEBAR_PART:
 				newSashSize = this.sidebarWidth + sizeChangePxWidth;
@@ -559,8 +557,6 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 				if (this.layoutEditorGroupsVertically && (this.workbenchSize.width - this.sidebarWidth < visibleEditors * MIN_EDITOR_PART_WIDTH)) {
 					this.sidebarWidth = (this.workbenchSize.width - visibleEditors * MIN_EDITOR_PART_WIDTH);
 				}
-				// const panelOverflow = !this.layoutEditorGroupsVertically && (this.workbenchSize.height - this.panelHeight < visibleEditors * MIN_EDITOR_PART_HEIGHT);
-
 
 				doLayout = true;
 				break;
@@ -581,7 +577,6 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 					doLayout = false;
 				}
 		}
-
 
 		if (doLayout) {
 			promise.done(() => this.layout(), errors.onUnexpectedError);
