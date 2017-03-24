@@ -280,14 +280,15 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextViewService contextViewService: IContextViewService,
 		@IStandaloneThemeService standaloneColorService: IStandaloneThemeService,
-		@IEditorWorkerService editorWorkerService: IEditorWorkerService
+		@IEditorWorkerService editorWorkerService: IEditorWorkerService,
+		@ICodeEditorService codeEditorService: ICodeEditorService
 	) {
 		options = options || {};
 		if (typeof options.theme === 'string') {
 			options.theme = standaloneColorService.setTheme(options.theme);
 		}
 
-		super(domElement, options, editorWorkerService, contextKeyService, instantiationService);
+		super(domElement, options, editorWorkerService, contextKeyService, instantiationService, codeEditorService);
 
 		if (keybindingService instanceof StandaloneKeybindingService) {
 			this._standaloneKeybindingService = keybindingService;
