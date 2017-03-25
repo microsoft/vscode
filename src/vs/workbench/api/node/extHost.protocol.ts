@@ -204,6 +204,7 @@ export abstract class MainThreadTerminalServiceShape {
 	$hide(terminalId: number): void { throw ni(); }
 	$sendText(terminalId: number, text: string, addNewLine: boolean): void { throw ni(); }
 	$show(terminalId: number, preserveFocus: boolean): void { throw ni(); }
+	$registerOnData(terminalId: number): void { throw ni(); }
 }
 
 export interface MyQuickPickItems extends IPickOpenEntry {
@@ -413,6 +414,7 @@ export abstract class ExtHostQuickOpenShape {
 export abstract class ExtHostTerminalServiceShape {
 	$acceptTerminalClosed(id: number): void { throw ni(); }
 	$acceptTerminalProcessId(id: number, processId: number): void { throw ni(); }
+	$acceptTerminalData(id: number, data: string): void { throw ni(); }
 }
 
 export abstract class ExtHostSCMShape {
