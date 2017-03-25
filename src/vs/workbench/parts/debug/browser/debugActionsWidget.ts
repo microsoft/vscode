@@ -26,11 +26,21 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { Themable } from "vs/workbench/common/theme";
+import { IThemeService } from "vs/platform/theme/common/themeService";
+import { registerColor, highContrastBorder } from "vs/platform/theme/common/colorRegistry";
+import { localize } from "vs/nls";
 
 const $ = builder.$;
 const DEBUG_ACTIONS_WIDGET_POSITION_KEY = 'debug.actionswidgetposition';
 
-export class DebugActionsWidget implements IWorkbenchContribution {
+export const debugToolBarBackground = registerColor('debugToolBarBackground', {
+	dark: '#333333',
+	light: '#F3F3F3',
+	hc: '#000000'
+}, localize('debugToolBarBackground', "Debug toolbar background color."));
+
+export class DebugActionsWidget extends Themable implements IWorkbenchContribution {
 	private static ID = 'debug.actionsWidget';
 
 	private $el: builder.Builder;
@@ -51,8 +61,11 @@ export class DebugActionsWidget implements IWorkbenchContribution {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IPartService private partService: IPartService,
 		@IStorageService private storageService: IStorageService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService private configurationService: IConfigurationService,
+		@IThemeService themeService: IThemeService
 	) {
+		super(themeService);
+
 		this.$el = $().div().addClass('debug-actions-widget').style('top', `${partService.getTitleBarOffset()}px`);
 		this.dragArea = $().div().addClass('drag-area');
 		this.$el.append(this.dragArea);
@@ -77,6 +90,8 @@ export class DebugActionsWidget implements IWorkbenchContribution {
 				return null;
 			}
 		});
+
+		this.updateStyles();
 
 		this.toDispose.push(this.actionBar);
 		this.registerListeners();
@@ -129,6 +144,17 @@ export class DebugActionsWidget implements IWorkbenchContribution {
 
 		this.toDispose.push(this.partService.onTitleBarVisibilityChange(() => this.positionDebugWidget()));
 		this.toDispose.push(browser.onDidChangeZoomLevel(() => this.positionDebugWidget()));
+	}
+
+	protected updateStyles(): void {
+		super.updateStyles();
+
+		if (this.$el) {
+			this.$el.style('background-color', this.getColor(debugToolBarBackground));
+			this.$el.style('border-style', this.isHighContrastTheme ? 'solid' : null);
+			this.$el.style('border-width', this.isHighContrastTheme ? '1px' : null);
+			this.$el.style('border-color', this.isHighContrastTheme ? this.getColor(highContrastBorder) : null);
+		}
 	}
 
 	private positionDebugWidget(): void {
