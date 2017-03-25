@@ -33,6 +33,7 @@ export interface IInputOptions extends IInputBoxStyles {
 export interface IInputBoxStyles {
 	inputBackground?: Color;
 	inputForeground?: Color;
+	inputBorder?: Color;
 }
 
 export interface IInputValidator {
@@ -78,6 +79,7 @@ export class InputBox extends Widget {
 
 	private inputBackground: Color;
 	private inputForeground: Color;
+	private inputBorder: Color;
 
 	private _onDidChange = this._register(new Emitter<string>());
 	public onDidChange: Event<string> = this._onDidChange.event;
@@ -96,6 +98,7 @@ export class InputBox extends Widget {
 		this.ariaLabel = this.options.ariaLabel || '';
 		this.inputBackground = this.options.inputBackground;
 		this.inputForeground = this.options.inputForeground;
+		this.inputBorder = this.options.inputBorder;
 
 		if (this.options.validationOptions) {
 			this.validation = this.options.validationOptions.validation;
@@ -388,6 +391,7 @@ export class InputBox extends Widget {
 	public style(styles: IInputBoxStyles) {
 		this.inputBackground = styles.inputBackground;
 		this.inputForeground = styles.inputForeground;
+		this.inputBorder = styles.inputBorder;
 
 		this._applyStyles();
 	}
@@ -396,11 +400,16 @@ export class InputBox extends Widget {
 		if (this.element) {
 			const background = this.inputBackground ? this.inputBackground.toString() : null;
 			const foreground = this.inputForeground ? this.inputForeground.toString() : null;
+			const border = this.inputBorder ? this.inputBorder.toString() : null;
 
 			this.element.style.backgroundColor = background;
 			this.element.style.color = foreground;
 			this.input.style.backgroundColor = background;
 			this.input.style.color = foreground;
+
+			this.element.style.borderWidth = border ? '1px' : null;
+			this.element.style.borderStyle = border ? 'solid' : null;
+			this.element.style.borderColor = border;
 		}
 	}
 
