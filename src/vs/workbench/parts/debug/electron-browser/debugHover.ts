@@ -24,7 +24,6 @@ import { IListService } from 'vs/platform/list/browser/listService';
 
 const $ = dom.$;
 const MAX_ELEMENTS_SHOWN = 18;
-//const MAX_VALUE_RENDER_LENGTH_IN_HOVER = 4096;
 
 export class DebugHoverWidget implements IContentWidget {
 
