@@ -3135,7 +3135,7 @@
 			"end": "(?=(,|\\)|\\]))",
 			"patterns": [
 				{
-					"include": "#expression"
+					"include": "#argument"
 				}
 			]
 		},
@@ -4187,5 +4187,5 @@
 			}
 		}
 	},
-	"version": "https://github.com/dotnet/csharp-tmLanguage/commit/75fa93e836ea0571335aec5d3fcae5289e9cb138"
+	"version": "https://github.com/dotnet/csharp-tmLanguage/commit/4d0e50c51f336645c98689737db1be321d212d3d"
 }
