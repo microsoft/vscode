@@ -24,7 +24,7 @@ import { IListService } from 'vs/platform/list/browser/listService';
 
 const $ = dom.$;
 const MAX_ELEMENTS_SHOWN = 18;
-const MAX_VALUE_RENDER_LENGTH_IN_HOVER = 4096;
+//const MAX_VALUE_RENDER_LENGTH_IN_HOVER = 4096;
 
 export class DebugHoverWidget implements IContentWidget {
 
@@ -274,7 +274,7 @@ export class DebugHoverWidget implements IContentWidget {
 		if (visibleElementsCount === 0) {
 			this.doShow(this.showAtPosition, this.tree.getInput(), false, true);
 		} else {
-			const height = visibleElementsCount * 18; //Math.min(visibleElementsCount, MAX_ELEMENTS_SHOWN) * 18;
+			const height = Math.min(visibleElementsCount, MAX_ELEMENTS_SHOWN) * 18;
 
 			if (this.treeContainer.clientHeight !== height) {
 				this.treeContainer.style.height = `${height}px`;
