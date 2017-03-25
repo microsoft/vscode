@@ -12,7 +12,7 @@ import { Selection, SelectionDirection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { MoveOperations, SingleMoveOperationResult } from 'vs/editor/common/controller/cursorMoveOperations';
-import { WordOperations, WordNavigationType } from 'vs/editor/common/controller/cursorWordOperations';
+import { WordOperations } from 'vs/editor/common/controller/cursorWordOperations';
 import { ICoordinatesConverter } from 'vs/editor/common/viewModel/viewModel';
 
 export interface IOneCursorOperationContext {
@@ -616,24 +616,10 @@ export class OneCursorOp {
 		);
 	}
 
-	public static moveWordLeft(cursor: OneCursor, inSelectionMode: boolean, wordNavigationType: WordNavigationType, ctx: IOneCursorOperationContext): boolean {
-		return this._applyMoveOperationResult(
-			cursor, ctx,
-			this._fromModelCursorState(cursor, WordOperations.moveWordLeft(cursor.config, cursor.model, cursor.modelState, inSelectionMode, wordNavigationType))
-		);
-	}
-
 	private static _moveRight(cursor: OneCursor, inSelectionMode: boolean, noOfColumns: number = 1, ctx: IOneCursorOperationContext): boolean {
 		return this._applyMoveOperationResult(
 			cursor, ctx,
 			this._fromViewCursorState(cursor, MoveOperations.moveRight(cursor.config, cursor.viewModel, cursor.viewState, inSelectionMode, noOfColumns))
-		);
-	}
-
-	public static moveWordRight(cursor: OneCursor, inSelectionMode: boolean, wordNavigationType: WordNavigationType, ctx: IOneCursorOperationContext): boolean {
-		return this._applyMoveOperationResult(
-			cursor, ctx,
-			this._fromModelCursorState(cursor, WordOperations.moveWordRight(cursor.config, cursor.model, cursor.modelState, inSelectionMode, wordNavigationType))
 		);
 	}
 

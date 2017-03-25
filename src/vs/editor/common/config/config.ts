@@ -95,7 +95,7 @@ export abstract class EditorCommand extends Command {
 				this._callback = opts.handler;
 			}
 
-			protected runEditorCommand(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor, args: any): void {
+			public runEditorCommand(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor, args: any): void {
 				let controller = controllerGetter(editor);
 				if (controller) {
 					this._callback(controllerGetter(editor));
@@ -128,7 +128,7 @@ export abstract class EditorCommand extends Command {
 		});
 	}
 
-	protected abstract runEditorCommand(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor, args: any): void | TPromise<void>;
+	public abstract runEditorCommand(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor, args: any): void | TPromise<void>;
 }
 
 export function findFocusedEditor(commandId: string, accessor: ServicesAccessor, complain: boolean): editorCommon.ICommonCodeEditor {
@@ -601,23 +601,6 @@ registerCommand(new CoreCommand({
 		mac: { primary: KeyCode.Delete, secondary: [KeyMod.WinCtrl | KeyCode.KEY_D, KeyMod.WinCtrl | KeyCode.Delete] }
 	}
 }));
-
-
-registerCommand(new WordCommand(H.CursorWordStartLeft, false, KeyCode.LeftArrow));
-registerCommand(new UnboundCoreCommand(H.CursorWordEndLeft));
-registerCommand(new UnboundCoreCommand(H.CursorWordLeft));
-
-registerCommand(new WordCommand(H.CursorWordStartLeftSelect, true, KeyCode.LeftArrow));
-registerCommand(new UnboundCoreCommand(H.CursorWordEndLeftSelect));
-registerCommand(new UnboundCoreCommand(H.CursorWordLeftSelect));
-
-registerCommand(new WordCommand(H.CursorWordEndRight, false, KeyCode.RightArrow));
-registerCommand(new UnboundCoreCommand(H.CursorWordStartRight));
-registerCommand(new UnboundCoreCommand(H.CursorWordRight));
-
-registerCommand(new WordCommand(H.CursorWordEndRightSelect, true, KeyCode.RightArrow));
-registerCommand(new UnboundCoreCommand(H.CursorWordStartRightSelect));
-registerCommand(new UnboundCoreCommand(H.CursorWordRightSelect));
 
 registerCommand(new WordCommand(H.DeleteWordLeft, false, KeyCode.Backspace, EditorContextKeys.Writable));
 registerCommand(new UnboundCoreCommand(H.DeleteWordStartLeft, EditorContextKeys.Writable));

@@ -4381,24 +4381,8 @@ export var Handler = {
 	CursorLeft: 'cursorLeft',
 	CursorLeftSelect: 'cursorLeftSelect',
 
-	CursorWordLeft: 'cursorWordLeft',
-	CursorWordStartLeft: 'cursorWordStartLeft',
-	CursorWordEndLeft: 'cursorWordEndLeft',
-
-	CursorWordLeftSelect: 'cursorWordLeftSelect',
-	CursorWordStartLeftSelect: 'cursorWordStartLeftSelect',
-	CursorWordEndLeftSelect: 'cursorWordEndLeftSelect',
-
 	CursorRight: 'cursorRight',
 	CursorRightSelect: 'cursorRightSelect',
-
-	CursorWordRight: 'cursorWordRight',
-	CursorWordStartRight: 'cursorWordStartRight',
-	CursorWordEndRight: 'cursorWordEndRight',
-
-	CursorWordRightSelect: 'cursorWordRightSelect',
-	CursorWordStartRightSelect: 'cursorWordStartRightSelect',
-	CursorWordEndRightSelect: 'cursorWordEndRightSelect',
 
 	CursorUp: 'cursorUp',
 	CursorUpSelect: 'cursorUpSelect',

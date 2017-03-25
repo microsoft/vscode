@@ -892,24 +892,8 @@ export class Cursor extends EventEmitter {
 		this._handlers[H.CursorLeft] = (ctx) => this._moveLeft(false, ctx);
 		this._handlers[H.CursorLeftSelect] = (ctx) => this._moveLeft(true, ctx);
 
-		this._handlers[H.CursorWordLeft] = (ctx) => this._moveWordLeft(false, WordNavigationType.WordStart, ctx);
-		this._handlers[H.CursorWordStartLeft] = (ctx) => this._moveWordLeft(false, WordNavigationType.WordStart, ctx);
-		this._handlers[H.CursorWordEndLeft] = (ctx) => this._moveWordLeft(false, WordNavigationType.WordEnd, ctx);
-
-		this._handlers[H.CursorWordLeftSelect] = (ctx) => this._moveWordLeft(true, WordNavigationType.WordStart, ctx);
-		this._handlers[H.CursorWordStartLeftSelect] = (ctx) => this._moveWordLeft(true, WordNavigationType.WordStart, ctx);
-		this._handlers[H.CursorWordEndLeftSelect] = (ctx) => this._moveWordLeft(true, WordNavigationType.WordEnd, ctx);
-
 		this._handlers[H.CursorRight] = (ctx) => this._moveRight(false, ctx);
 		this._handlers[H.CursorRightSelect] = (ctx) => this._moveRight(true, ctx);
-
-		this._handlers[H.CursorWordRight] = (ctx) => this._moveWordRight(false, WordNavigationType.WordEnd, ctx);
-		this._handlers[H.CursorWordStartRight] = (ctx) => this._moveWordRight(false, WordNavigationType.WordStart, ctx);
-		this._handlers[H.CursorWordEndRight] = (ctx) => this._moveWordRight(false, WordNavigationType.WordEnd, ctx);
-
-		this._handlers[H.CursorWordRightSelect] = (ctx) => this._moveWordRight(true, WordNavigationType.WordEnd, ctx);
-		this._handlers[H.CursorWordStartRightSelect] = (ctx) => this._moveWordRight(true, WordNavigationType.WordStart, ctx);
-		this._handlers[H.CursorWordEndRightSelect] = (ctx) => this._moveWordRight(true, WordNavigationType.WordEnd, ctx);
 
 		this._handlers[H.CursorUp] = (ctx) => this._moveUp(false, false, ctx);
 		this._handlers[H.CursorUpSelect] = (ctx) => this._moveUp(true, false, ctx);
@@ -1227,20 +1211,12 @@ export class Cursor extends EventEmitter {
 		return this._cursorMove(ctx);
 	}
 
-	private _moveWordLeft(inSelectionMode: boolean, wordNavigationType: WordNavigationType, ctx: IMultipleCursorOperationContext): boolean {
-		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.moveWordLeft(oneCursor, inSelectionMode, wordNavigationType, oneCtx));
-	}
-
 	private _moveRight(inSelectionMode: boolean, ctx: IMultipleCursorOperationContext): boolean {
 		ctx.eventData = ctx.eventData || {};
 		ctx.eventData.to = editorCommon.CursorMovePosition.Right;
 		ctx.eventData.select = inSelectionMode;
 
 		return this._cursorMove(ctx);
-	}
-
-	private _moveWordRight(inSelectionMode: boolean, wordNavigationType: WordNavigationType, ctx: IMultipleCursorOperationContext): boolean {
-		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.moveWordRight(oneCursor, inSelectionMode, wordNavigationType, oneCtx));
 	}
 
 	private _moveDown(inSelectionMode: boolean, isPaged: boolean, ctx: IMultipleCursorOperationContext): boolean {

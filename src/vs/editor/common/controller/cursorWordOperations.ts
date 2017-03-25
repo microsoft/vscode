@@ -36,7 +36,7 @@ export const enum WordType {
 	Separator = 2
 }
 
-const enum CharacterClass {
+export const enum WordCharacterClass {
 	Regular = 0,
 	Whitespace = 1,
 	WordSeparator = 2
@@ -47,17 +47,17 @@ export const enum WordNavigationType {
 	WordEnd = 1
 }
 
-class WordCharacterClassifier extends CharacterClassifier<CharacterClass> {
+export class WordCharacterClassifier extends CharacterClassifier<WordCharacterClass> {
 
 	constructor(wordSeparators: string) {
-		super(CharacterClass.Regular);
+		super(WordCharacterClass.Regular);
 
 		for (let i = 0, len = wordSeparators.length; i < len; i++) {
-			this.set(wordSeparators.charCodeAt(i), CharacterClass.WordSeparator);
+			this.set(wordSeparators.charCodeAt(i), WordCharacterClass.WordSeparator);
 		}
 
-		this.set(CharCode.Space, CharacterClass.Whitespace);
-		this.set(CharCode.Tab, CharacterClass.Whitespace);
+		this.set(CharCode.Space, WordCharacterClass.Whitespace);
+		this.set(CharCode.Tab, WordCharacterClass.Whitespace);
 	}
 
 }
@@ -72,7 +72,7 @@ function once<R>(computeFn: (input: string) => R): (input: string) => R {
 	};
 }
 
-let getMapForWordSeparators = once<WordCharacterClassifier>(
+export const getMapForWordSeparators = once<WordCharacterClassifier>(
 	(input) => new WordCharacterClassifier(input)
 );
 
@@ -94,17 +94,17 @@ export class WordOperations {
 			let chCode = lineContent.charCodeAt(chIndex);
 			let chClass = wordSeparators.get(chCode);
 
-			if (chClass === CharacterClass.Regular) {
+			if (chClass === WordCharacterClass.Regular) {
 				if (wordType === WordType.Separator) {
 					return this._createWord(lineContent, wordType, chIndex + 1, this._findEndOfWord(lineContent, wordSeparators, wordType, chIndex + 1));
 				}
 				wordType = WordType.Regular;
-			} else if (chClass === CharacterClass.WordSeparator) {
+			} else if (chClass === WordCharacterClass.WordSeparator) {
 				if (wordType === WordType.Regular) {
 					return this._createWord(lineContent, wordType, chIndex + 1, this._findEndOfWord(lineContent, wordSeparators, wordType, chIndex + 1));
 				}
 				wordType = WordType.Separator;
-			} else if (chClass === CharacterClass.Whitespace) {
+			} else if (chClass === WordCharacterClass.Whitespace) {
 				if (wordType !== WordType.None) {
 					return this._createWord(lineContent, wordType, chIndex + 1, this._findEndOfWord(lineContent, wordSeparators, wordType, chIndex + 1));
 				}
@@ -124,13 +124,13 @@ export class WordOperations {
 			let chCode = lineContent.charCodeAt(chIndex);
 			let chClass = wordSeparators.get(chCode);
 
-			if (chClass === CharacterClass.Whitespace) {
+			if (chClass === WordCharacterClass.Whitespace) {
 				return chIndex;
 			}
-			if (wordType === WordType.Regular && chClass === CharacterClass.WordSeparator) {
+			if (wordType === WordType.Regular && chClass === WordCharacterClass.WordSeparator) {
 				return chIndex;
 			}
-			if (wordType === WordType.Separator && chClass === CharacterClass.Regular) {
+			if (wordType === WordType.Separator && chClass === WordCharacterClass.Regular) {
 				return chIndex;
 			}
 		}
@@ -150,17 +150,17 @@ export class WordOperations {
 			let chCode = lineContent.charCodeAt(chIndex);
 			let chClass = wordSeparators.get(chCode);
 
-			if (chClass === CharacterClass.Regular) {
+			if (chClass === WordCharacterClass.Regular) {
 				if (wordType === WordType.Separator) {
 					return this._createWord(lineContent, wordType, this._findStartOfWord(lineContent, wordSeparators, wordType, chIndex - 1), chIndex);
 				}
 				wordType = WordType.Regular;
-			} else if (chClass === CharacterClass.WordSeparator) {
+			} else if (chClass === WordCharacterClass.WordSeparator) {
 				if (wordType === WordType.Regular) {
 					return this._createWord(lineContent, wordType, this._findStartOfWord(lineContent, wordSeparators, wordType, chIndex - 1), chIndex);
 				}
 				wordType = WordType.Separator;
-			} else if (chClass === CharacterClass.Whitespace) {
+			} else if (chClass === WordCharacterClass.Whitespace) {
 				if (wordType !== WordType.None) {
 					return this._createWord(lineContent, wordType, this._findStartOfWord(lineContent, wordSeparators, wordType, chIndex - 1), chIndex);
 				}
@@ -179,20 +179,20 @@ export class WordOperations {
 			let chCode = lineContent.charCodeAt(chIndex);
 			let chClass = wordSeparators.get(chCode);
 
-			if (chClass === CharacterClass.Whitespace) {
+			if (chClass === WordCharacterClass.Whitespace) {
 				return chIndex + 1;
 			}
-			if (wordType === WordType.Regular && chClass === CharacterClass.WordSeparator) {
+			if (wordType === WordType.Regular && chClass === WordCharacterClass.WordSeparator) {
 				return chIndex + 1;
 			}
-			if (wordType === WordType.Separator && chClass === CharacterClass.Regular) {
+			if (wordType === WordType.Separator && chClass === WordCharacterClass.Regular) {
 				return chIndex + 1;
 			}
 		}
 		return 0;
 	}
 
-	private static _moveWordLeft(wordSeparators: WordCharacterClassifier, model: ICursorSimpleModel, position: Position, wordNavigationType: WordNavigationType): Position {
+	public static moveWordLeft(wordSeparators: WordCharacterClassifier, model: ICursorSimpleModel, position: Position, wordNavigationType: WordNavigationType): Position {
 		let lineNumber = position.lineNumber;
 		let column = position.column;
 
@@ -225,13 +225,7 @@ export class WordOperations {
 		return new Position(lineNumber, column);
 	}
 
-	public static moveWordLeft(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, inSelectionMode: boolean, wordNavigationType: WordNavigationType): SingleMoveOperationResult {
-		const wordSeparators = getMapForWordSeparators(config.wordSeparators);
-		const position = this._moveWordLeft(wordSeparators, model, cursor.position, wordNavigationType);
-		return SingleMoveOperationResult.fromMove(cursor, inSelectionMode, position.lineNumber, position.column, 0, true, CursorChangeReason.Explicit);
-	}
-
-	private static _moveWordRight(wordSeparators: WordCharacterClassifier, model: ICursorSimpleModel, position: Position, wordNavigationType: WordNavigationType): Position {
+	public static moveWordRight(wordSeparators: WordCharacterClassifier, model: ICursorSimpleModel, position: Position, wordNavigationType: WordNavigationType): Position {
 		let lineNumber = position.lineNumber;
 		let column = position.column;
 
@@ -262,12 +256,6 @@ export class WordOperations {
 		}
 
 		return new Position(lineNumber, column);
-	}
-
-	public static moveWordRight(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, inSelectionMode: boolean, wordNavigationType: WordNavigationType): SingleMoveOperationResult {
-		const wordSeparators = getMapForWordSeparators(config.wordSeparators);
-		const position = this._moveWordRight(wordSeparators, model, cursor.position, wordNavigationType);
-		return SingleMoveOperationResult.fromMove(cursor, inSelectionMode, position.lineNumber, position.column, 0, true, CursorChangeReason.Explicit);
 	}
 
 	private static _deleteWordLeftWhitespace(model: ICursorSimpleModel, position: Position): Range {
