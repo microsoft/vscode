@@ -26,6 +26,20 @@
 		],
 		"description": "Class Definition"
 	},
+	"Abstract Class Definition": {
+		"prefix": "abstract class",
+		"body": [
+			"/**",
+			" * ${1:name}",
+			" */",
+			"abstract class ${1:name} {",
+			"\tconstructor(${2:parameters}) {",
+			"\t\t$0",
+			"\t}",
+			"}"
+		],
+		"description": "Abstract Class Definition"
+	},
 	"Public Method Definition": {
 		"prefix": "public method",
 		"body": [
