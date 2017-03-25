@@ -38,7 +38,8 @@ export interface ITaskService extends IEventEmitter {
 	inTerminal(): boolean;
 	isActive(): TPromise<boolean>;
 	getActiveTasks(): TPromise<Task[]>;
-	terminate(id: string): TPromise<TerminateResponse>;
+	restart(task: string | Task): void;
+	terminate(task: string | Task): TPromise<TerminateResponse>;
 	terminateAll(): TPromise<TerminateResponse>;
 	tasks(): TPromise<Task[]>;
 

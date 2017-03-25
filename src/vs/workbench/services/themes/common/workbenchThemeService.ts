@@ -19,6 +19,9 @@ export const VS_HC_THEME = 'hc-black';
 
 export const COLOR_THEME_SETTING = 'workbench.colorTheme';
 export const ICON_THEME_SETTING = 'workbench.iconTheme';
+export const CUSTOM_COLOR_THEME_SETTING = 'workbench.customColorTheme';
+
+export const CUSTOM_THEME_ID = 'Custom Theme';
 
 export interface IColorTheme extends ITheme {
 	readonly id: string;

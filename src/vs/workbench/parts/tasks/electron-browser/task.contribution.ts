@@ -11,7 +11,7 @@ import 'vs/workbench/parts/tasks/browser/terminateQuickOpen';
 
 import * as nls from 'vs/nls';
 
-import { TPromise, Promise } from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import Severity from 'vs/base/common/severity';
 import * as Objects from 'vs/base/common/objects';
 import { IStringDictionary } from 'vs/base/common/collections';
@@ -562,6 +562,10 @@ class TaskService extends EventEmitter implements ITaskService {
 			this.runTaskCommand(accessor, arg);
 		});
 
+		CommandsRegistry.registerCommand('workbench.action.tasks.restartTask', (accessor, arg) => {
+			this.runRestartTaskCommand(accessor, arg);
+		});
+
 		CommandsRegistry.registerCommand('workbench.action.tasks.terminate', (accessor, arg) => {
 			this.runTerminateCommand();
 		});
@@ -775,13 +779,31 @@ class TaskService extends EventEmitter implements ITaskService {
 		});
 	}
 
+	public restart(task: string | Task): void {
+		if (!this._taskSystem) {
+			return;
+		}
+		const id: string = Types.isString(task) ? task : task._id;
+		this._taskSystem.terminate(id).then((response) => {
+			if (response.success) {
+				this.emit(TaskServiceEvents.Terminated, {});
+				this.run(task);
+			} else {
+				this.messageService.show(Severity.Warning, nls.localize('TaskSystem.restartFailed', 'Failed to terminate and restart task {0}', Types.isString(task) ? task : task.name));
+			}
+			return response;
+		});
+	}
+
 	public terminate(task: string | Task): TPromise<TerminateResponse> {
 		if (!this._taskSystem) {
 			return TPromise.as({ success: true });
 		}
 		const id: string = Types.isString(task) ? task : task._id;
 		return this._taskSystem.terminate(id).then((response) => {
-			this.emit(TaskServiceEvents.Terminated, {});
+			if (response.success) {
+				this.emit(TaskServiceEvents.Terminated, {});
+			}
 			return response;
 		});
 	}
@@ -1095,32 +1117,56 @@ class TaskService extends EventEmitter implements ITaskService {
 			return;
 		}
 		if (this.inTerminal()) {
-			if (!this._taskSystem) {
-				return;
-			}
-			let activeTasks = this._taskSystem.getActiveTasks();
-			if (activeTasks.length === 0) {
-				return;
-			}
-			if (activeTasks.length === 1) {
-				this._taskSystem.terminate(activeTasks[0]._id);
-			} else {
-				this.quickOpenService.show('terminate task ');
-			}
+			this.getActiveTasks().then((activeTasks) => {
+				if (activeTasks.length === 0) {
+					return;
+				}
+				if (activeTasks.length === 1) {
+					this.terminate(activeTasks[0]);
+				} else {
+					this.quickOpenService.show('terminate task ');
+				}
+			});
 		} else {
 			this.isActive().then((active) => {
 				if (active) {
 					this.terminateAll().then((response) => {
 						if (response.success) {
-							return undefined;
-						} else if (response.code && response.code === TerminateResponseCode.ProcessNotFound) {
+							return;
+						}
+						if (response.code && response.code === TerminateResponseCode.ProcessNotFound) {
 							this.messageService.show(Severity.Error, nls.localize('TerminateAction.noProcess', 'The launched process doesn\'t exist anymore. If the task spawned background tasks exiting VS Code might result in orphaned processes.'));
-							return undefined;
 						} else {
-							return Promise.wrapError(nls.localize('TerminateAction.failed', 'Failed to terminate running task'));
+							this.messageService.show(Severity.Error, nls.localize('TerminateAction.failed', 'Failed to terminate running task'));
 						}
 					});
 				}
+			});
+		}
+	}
+
+	private runRestartTaskCommand(accessor: ServicesAccessor, arg: any): void {
+		if (!this.canRunCommand()) {
+			return;
+		}
+		if (this.inTerminal()) {
+			this.getActiveTasks().then((activeTasks) => {
+				if (activeTasks.length === 0) {
+					return;
+				}
+				if (activeTasks.length === 1) {
+					this.restart(activeTasks[0]);
+				} else {
+					this.quickOpenService.show('restart task ');
+				}
+			});
+		} else {
+			this.getActiveTasks().then((activeTasks) => {
+				if (activeTasks.length === 0) {
+					return;
+				}
+				let task = activeTasks[0];
+				this.restart(task);
 			});
 		}
 	}
@@ -1132,6 +1178,7 @@ workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(Config
 
 MenuRegistry.addCommand({ id: 'workbench.action.tasks.showLog', title: nls.localize('ShowLogAction.label', "Show Task Log"), alias: 'Tasks: Show Task Log', category: tasksCategory });
 MenuRegistry.addCommand({ id: 'workbench.action.tasks.runTask', title: nls.localize('RunTaskAction.label', "Run Task"), alias: 'Tasks: Run Task', category: tasksCategory });
+MenuRegistry.addCommand({ id: 'workbench.action.tasks.restartTask', title: nls.localize('RestartTaskAction.label', "Restart Task"), alias: 'Tasks: Restart Task', category: tasksCategory });
 MenuRegistry.addCommand({ id: 'workbench.action.tasks.terminate', title: nls.localize('TerminateAction.label', "Terminate Running Task"), alias: 'Tasks: Terminate Running Task', category: tasksCategory });
 MenuRegistry.addCommand({ id: 'workbench.action.tasks.build', title: nls.localize('BuildAction.label', "Run Build Task"), alias: 'Tasks: Run Build Task', category: tasksCategory });
 MenuRegistry.addCommand({ id: 'workbench.action.tasks.test', title: nls.localize('TestAction.label', "Run Test Task"), alias: 'Tasks: Run Test Task', category: tasksCategory });
@@ -1159,6 +1206,15 @@ quickOpenRegistry.registerQuickOpenHandler(
 		'QuickOpenHandler',
 		'terminate task ',
 		nls.localize('quickOpen.terminateTask', "Terminate Task")
+	)
+);
+
+quickOpenRegistry.registerQuickOpenHandler(
+	new QuickOpenHandlerDescriptor(
+		'vs/workbench/parts/tasks/browser/restartQuickOpen',
+		'QuickOpenHandler',
+		'restart task ',
+		nls.localize('quickOpen.restartTask', "Restart Task")
 	)
 );
 

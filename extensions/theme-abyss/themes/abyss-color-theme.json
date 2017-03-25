@@ -253,6 +253,7 @@
 
 		// Base Colors
 		"inputBackground": "#181f2f",
+		"selectBackground": "#181f2f",
 
 		// Editor Colors
 		"editorBackground": "#000c18",
@@ -290,6 +291,7 @@
 		"editorSideBySideBorder": "#10192c",
 		"panelBorderTopColor": "#2b2b4a",
 		"statusBarBackground": "#10192c",
+		"statusBarNoFolderBackground": "#10192c",
 		"activityBarBackground": "#051336",
 		"sideBarBackground": "#060621",
 		"titleBarActiveBackground": "#10192c",

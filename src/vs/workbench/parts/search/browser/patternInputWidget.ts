@@ -17,6 +17,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import CommonEvent, { Emitter } from 'vs/base/common/event';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export interface IOptions {
 	placeholder?: string;
@@ -234,6 +235,10 @@ export class PatternInputWidget extends Widget {
 
 export class ExcludePatternInputWidget extends PatternInputWidget {
 
+	constructor(parent: HTMLElement, contextViewProvider: IContextViewProvider, themeService: IThemeService, private telemetryService: ITelemetryService, options: IOptions = Object.create(null)) {
+		super(parent, contextViewProvider, themeService, options);
+	}
+
 	private useIgnoreFilesBox: Checkbox;
 	private useExcludeSettingsBox: Checkbox;
 
@@ -269,6 +274,7 @@ export class ExcludePatternInputWidget extends PatternInputWidget {
 			title: nls.localize('useIgnoreFilesDescription', "Use Ignore Files"),
 			isChecked: false,
 			onChange: (viaKeyboard) => {
+				this.telemetryService.publicLog('search.useIgnoreFiles.toggled');
 				this.onOptionChange(null);
 				if (!viaKeyboard) {
 					this.inputBox.focus();
@@ -281,6 +287,7 @@ export class ExcludePatternInputWidget extends PatternInputWidget {
 			title: nls.localize('useExcludeSettingsDescription', "Use Exclude Settings"),
 			isChecked: false,
 			onChange: (viaKeyboard) => {
+				this.telemetryService.publicLog('search.useExcludeSettings.toggled');
 				this.onOptionChange(null);
 				if (!viaKeyboard) {
 					this.inputBox.focus();

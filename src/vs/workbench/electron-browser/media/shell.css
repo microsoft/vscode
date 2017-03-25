@@ -206,28 +206,6 @@
 
 /* TODO@theme (widgets) */
 
-.monaco-shell.vs input {
-	background-color: white;
-}
-
-.monaco-shell.vs-dark input,
-.monaco-shell.vs-dark textarea {
-	background-color: #3C3C3C;
-}
-
-.monaco-shell.vs input:disabled {
-	background-color: #E1E1E1;
-}
-
-.monaco-shell.vs-dark input:disabled {
-	background-color: #333;
-}
-
-.monaco-shell.hc-black input,
-.monaco-shell.hc-black textarea {
-	background-color: #000;
-}
-
 /* START Keyboard Focus Indication Styles */
 
 .monaco-shell.vs [tabindex="0"]:focus,

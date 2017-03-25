@@ -661,7 +661,7 @@ export class EditorStatus implements IStatusbarItem {
 		const activeEditor = this.editorService.getActiveEditor();
 		if (activeEditor) {
 			const activeResource = toResource(activeEditor.input, { supportSideBySide: true, filter: ['file', 'untitled'] });
-			if (activeResource.toString() === resource.toString()) {
+			if (activeResource && activeResource.toString() === resource.toString()) {
 				return this.onEncodingChange(<IBaseEditor>activeEditor); // only update if the encoding changed for the active resource
 			}
 		}

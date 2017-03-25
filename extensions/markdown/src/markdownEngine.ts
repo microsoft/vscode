@@ -22,7 +22,7 @@ interface MarkdownIt {
 	utils: any;
 }
 
-const FrontMatterRegex = /^---\s*[^]*?---\s*/;
+const FrontMatterRegex = /^---\s*[^]*?(-{3}|\.{3})\s*/;
 
 export class MarkdownEngine {
 	private md: MarkdownIt;

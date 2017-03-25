@@ -219,6 +219,7 @@ export class SearchWidget extends Widget {
 
 		let searchInputContainer = dom.append(parent, dom.$('.search-container.input-box'));
 		this.searchInput = this._register(new FindInput(searchInputContainer, this.contextViewService, inputOptions));
+		this._register(attachInputBoxStyler(this.searchInput, this.themeService));
 		this.searchInput.onKeyUp((keyboardEvent: IKeyboardEvent) => this.onSearchInputKeyUp(keyboardEvent));
 		this.searchInput.setValue(options.value || '');
 		this.searchInput.setRegex(!!options.isRegex);

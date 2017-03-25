@@ -198,7 +198,7 @@ export class EditorGroup implements IEditorGroup {
 		for (let i = 0; i < this.editors.length; i++) {
 			const editor = this.editors[i];
 			const editorResource = toResource(editor, { supportSideBySide: true });
-			if (editorResource.toString() === resource.toString()) {
+			if (editorResource && editorResource.toString() === resource.toString()) {
 				return editor;
 			}
 		}
