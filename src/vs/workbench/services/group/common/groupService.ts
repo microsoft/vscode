@@ -98,6 +98,11 @@ export interface IEditorGroupService {
 	 */
 	getGroupOrientation(): GroupOrientation;
 
+	/*
+	Resize visible editor groups
+	*/
+	resizeGroup(position: Position, groupSizeChange: number): boolean;
+
 	/**
 	 * Adds the pinned state to an editor, removing it from being a preview editor.
 	 */
@@ -126,4 +131,5 @@ export interface IEditorGroupService {
 	 * Returns tab options.
 	 */
 	getTabOptions(): ITabOptions;
+
 }

@@ -21,7 +21,7 @@ import Severity from 'vs/base/common/severity';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 import { IEditorInput, IEditorOptions, Position, Direction, IEditor, IResourceInput } from 'vs/platform/editor/common/editor';
@@ -332,6 +332,8 @@ export class TestPartService implements IPartService {
 	public getWorkbenchElementId(): string { return ''; }
 
 	public toggleZenMode(): void { }
+
+	public resizePart(part: Parts, sizeChange: number): void { }
 }
 
 export class TestStorageService extends EventEmitter implements IStorageService {
@@ -455,6 +457,10 @@ export class TestEditorGroupService implements IEditorGroupService {
 
 	public getGroupOrientation(): GroupOrientation {
 		return 'vertical';
+	}
+
+	public resizeGroup(position: Position, groupSizeChange: number): boolean {
+		return true;
 	}
 
 	public pinEditor(group: IEditorGroup, input: IEditorInput): void;

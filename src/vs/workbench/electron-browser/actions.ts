@@ -1199,3 +1199,75 @@ export class NavigateDownAction extends BaseNavigationAction {
 			});
 	}
 }
+
+// Resize focused view actions
+export abstract class BaseResizeViewAction extends Action {
+
+	// This is a media-size percentage
+	protected static RESIZE_INCREMENT = 6.5;
+
+	constructor(
+		id: string,
+		label: string,
+		@IPartService protected partService: IPartService
+	) {
+		super(id, label);
+	}
+
+	protected resizePart(sizeChange: number): void {
+
+		const isEditorFocus = this.partService.hasFocus(Parts.EDITOR_PART);
+		const isSidebarFocus = this.partService.hasFocus(Parts.SIDEBAR_PART);
+		const isPanelFocus = this.partService.hasFocus(Parts.PANEL_PART);
+
+		if (isSidebarFocus) {
+			this.partService.resizePart(Parts.SIDEBAR_PART, sizeChange);
+		}
+		else if (isPanelFocus) {
+			this.partService.resizePart(Parts.PANEL_PART, sizeChange);
+		}
+		else if (isEditorFocus) {
+			this.partService.resizePart(Parts.EDITOR_PART, sizeChange);
+		}
+		return;
+	}
+}
+
+export class IncreaseViewSizeAction extends BaseResizeViewAction {
+
+	public static ID = 'workbench.action.increaseViewSize';
+	public static LABEL = nls.localize('increaseViewSize', "Increase Current View Size");
+
+	constructor(
+		id: string,
+		label: string,
+		@IPartService partService: IPartService
+	) {
+		super(id, label, partService);
+	}
+
+	public run(): TPromise<boolean> {
+		this.resizePart(BaseResizeViewAction.RESIZE_INCREMENT);
+		return TPromise.as(true);
+	}
+}
+
+export class DecreaseViewSizeAction extends BaseResizeViewAction {
+
+	public static ID = 'workbench.action.decreaseViewSize';
+	public static LABEL = nls.localize('decreaseViewSize', "Decrease Current View Size");
+
+	constructor(
+		id: string,
+		label: string,
+		@IPartService partService: IPartService
+
+	) {
+		super(id, label, partService);
+	}
+
+	public run(): TPromise<boolean> {
+		this.resizePart(-BaseResizeViewAction.RESIZE_INCREMENT);
+		return TPromise.as(true);
+	}
+}
