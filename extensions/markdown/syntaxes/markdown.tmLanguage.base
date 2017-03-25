@@ -1184,7 +1184,7 @@
 			<key>begin</key>
 			<string>\A-{3}\s*$</string>
 			<key>while</key>
-			<string>^(?!-{3}\s*$)</string>
+			<string>^(?!(-{3}|\.{3})\s*$)</string>
 			<key>patterns</key>
 			<array>
 				<dict>
