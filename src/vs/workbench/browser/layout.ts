@@ -540,14 +540,13 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 	}
 
 	// change part size along the main axis
-	public resizePart(part: Parts, sizeChange: number): boolean {
-		let promise = TPromise.as(null);
-		let doLayout = false;
-		let newSashSize: number = 0;
-		let visibleEditors = this.editorService.getVisibleEditors().length;
-
+	public resizePart(part: Parts, sizeChange: number): void {
+		const visibleEditors = this.editorService.getVisibleEditors().length;
 		const sizeChangePxWidth = this.workbenchSize.width * (sizeChange / 100);
 		const sizeChangePxHeight = this.workbenchSize.height * (sizeChange / 100);
+
+		let doLayout = false;
+		let newSashSize: number = 0;
 
 		switch (part) {
 			case Parts.SIDEBAR_PART:
@@ -572,10 +571,9 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 				if (visibleEditorCount === 1) {
 					this.sidebarWidth = this.sidebarWidth - sizeChangePxWidth;
 					doLayout = true;
-				}
-				else {
-					const eGsSM = this.editorGroupService.getStacksModel();
-					const activeGroup = eGsSM.positionOfGroup(eGsSM.activeGroup);
+				} else {
+					const stacks = this.editorGroupService.getStacksModel();
+					const activeGroup = stacks.positionOfGroup(stacks.activeGroup);
 
 					this.editorGroupService.resizeGroup(activeGroup, sizeChangePxWidth);
 					doLayout = false;
@@ -583,11 +581,8 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		}
 
 		if (doLayout) {
-			promise.done(() => this.layout(), errors.onUnexpectedError);
+			this.layout();
 		}
-
-		// other parts not resizable, no error just silent
-		return false;
 	}
 
 	public dispose(): void {

@@ -1215,21 +1215,22 @@ export abstract class BaseResizeViewAction extends Action {
 	}
 
 	protected resizePart(sizeChange: number): void {
-
 		const isEditorFocus = this.partService.hasFocus(Parts.EDITOR_PART);
 		const isSidebarFocus = this.partService.hasFocus(Parts.SIDEBAR_PART);
 		const isPanelFocus = this.partService.hasFocus(Parts.PANEL_PART);
 
+		let part: Parts;
 		if (isSidebarFocus) {
-			this.partService.resizePart(Parts.SIDEBAR_PART, sizeChange);
+			part = Parts.SIDEBAR_PART;
+		} else if (isPanelFocus) {
+			part = Parts.PANEL_PART;
+		} else if (isEditorFocus) {
+			part = Parts.EDITOR_PART;
 		}
-		else if (isPanelFocus) {
-			this.partService.resizePart(Parts.PANEL_PART, sizeChange);
+
+		if (part) {
+			this.partService.resizePart(part, sizeChange);
 		}
-		else if (isEditorFocus) {
-			this.partService.resizePart(Parts.EDITOR_PART, sizeChange);
-		}
-		return;
 	}
 }
 

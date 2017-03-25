@@ -459,8 +459,8 @@ export class TestEditorGroupService implements IEditorGroupService {
 		return 'vertical';
 	}
 
-	public resizeGroup(position: Position, groupSizeChange: number): boolean {
-		return true;
+	public resizeGroup(position: Position, groupSizeChange: number): void {
+
 	}
 
 	public pinEditor(group: IEditorGroup, input: IEditorInput): void;
