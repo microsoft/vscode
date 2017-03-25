@@ -245,9 +245,8 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		this._onTabOptionsChanged.fire(this.tabOptions);
 	}
 
-	public resizeGroup(position: Position, groupSizeChange: number): boolean {
+	public resizeGroup(position: Position, groupSizeChange: number): void {
 		this.editorGroupsControl.resizeGroup(position, groupSizeChange);
-		return true;
 	}
 
 	public get onEditorsChanged(): Event<void> {

@@ -121,5 +121,4 @@ export interface IPartService {
 	 * Resizes currently focused part on main access
 	 */
 	resizePart(part: Parts, sizeChange: number): void;
-
 }
