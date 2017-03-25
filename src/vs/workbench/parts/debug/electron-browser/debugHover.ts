@@ -236,7 +236,7 @@ export class DebugHoverWidget implements IContentWidget {
 			this.valueContainer.hidden = false;
 			renderExpressionValue(expression, this.valueContainer, {
 				showChanged: false,
-				maxValueLength: MAX_VALUE_RENDER_LENGTH_IN_HOVER,
+				maxValueLength: null,
 				preserveWhitespace: true
 			});
 			this.valueContainer.title = '';
@@ -274,7 +274,7 @@ export class DebugHoverWidget implements IContentWidget {
 		if (visibleElementsCount === 0) {
 			this.doShow(this.showAtPosition, this.tree.getInput(), false, true);
 		} else {
-			const height = Math.min(visibleElementsCount, MAX_ELEMENTS_SHOWN) * 18;
+			const height = visibleElementsCount * 18; //Math.min(visibleElementsCount, MAX_ELEMENTS_SHOWN) * 18;
 
 			if (this.treeContainer.clientHeight !== height) {
 				this.treeContainer.style.height = `${height}px`;

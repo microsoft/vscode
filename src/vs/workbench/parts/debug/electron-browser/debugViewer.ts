@@ -76,7 +76,7 @@ export function renderExpressionValue(expressionOrValue: debug.IExpression | str
 		container.className = 'value changed';
 	}
 
-	if (options.maxValueLength && value.length > options.maxValueLength) {
+	if (options.maxValueLength && options.maxValueLength > 0 && value.length > options.maxValueLength) {
 		value = value.substr(0, options.maxValueLength) + '...';
 	}
 	if (value && !options.preserveWhitespace) {
