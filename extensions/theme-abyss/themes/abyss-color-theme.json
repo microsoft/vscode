@@ -292,6 +292,8 @@
 		"panelBorderTopColor": "#2b2b4a",
 		"statusBarBackground": "#10192c",
 		"statusBarNoFolderBackground": "#10192c",
+		"statusBarDebuggingBackground": "#10192c",
+		"debugToolBarBackground": "#051336",
 		"activityBarBackground": "#051336",
 		"sideBarBackground": "#060621",
 		"titleBarActiveBackground": "#10192c",
