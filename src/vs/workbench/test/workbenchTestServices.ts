@@ -976,8 +976,8 @@ export class TestWindowsService implements IWindowsService {
 
 	// This needs to be handled from browser process to prevent
 	// foreground ordering issues on Windows
-	openExternal(url: string): TPromise<void> {
-		return TPromise.as(void 0);
+	openExternal(url: string): TPromise<boolean> {
+		return TPromise.as(true);
 	}
 
 	// TODO: this is a bit backwards

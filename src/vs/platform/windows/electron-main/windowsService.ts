@@ -260,9 +260,8 @@ export class WindowsService implements IWindowsService, IDisposable {
 		return TPromise.as(null);
 	}
 
-	openExternal(url: string): TPromise<void> {
-		shell.openExternal(url);
-		return TPromise.as(null);
+	openExternal(url: string): TPromise<boolean> {
+		return TPromise.as(shell.openExternal(url));
 	}
 
 	startCrashReporter(config: Electron.CrashReporterStartOptions): TPromise<void> {
