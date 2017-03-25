@@ -160,15 +160,18 @@ export class ResourceViewer {
 			} else {
 				$(container)
 					.empty()
-					.append($('p', {
-						text: nls.localize('largeImageError', "The image is too large to display in the editor.")
-					}))
+					.p({
+						text: nls.localize('largeImageError', "The image is too large to display in the editor. ")
+					})
 					.append($('a', {
 						role: 'button',
 						class: 'open-external',
-						text: nls.localize('resourceOpenExternal', "Try opening the image using an external program?")
+						text: nls.localize('resourceOpenExternalButton', "Open image")
 					}).on(DOM.EventType.CLICK, (e) => {
 						openExternal(descriptor.resource);
+					}))
+					.append($('span', {
+						text: nls.localize('resourceOpenExternalText', ' using external program?')
 					}));
 			}
 		}
