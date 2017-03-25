@@ -6,7 +6,7 @@
 'use strict';
 
 import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
-import { inputBackground, inputForeground, ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
+import { inputBackground, inputForeground, ColorIdentifier, selectForeground, selectBackground, selectBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IDisposable } from "vs/base/common/lifecycle";
 
 export interface IThemable {
@@ -33,5 +33,5 @@ export function attachInputBoxStyler(widget: IThemable, themeService: IThemeServ
 }
 
 export function attachSelectBoxStyler(widget: IThemable, themeService: IThemeService): IDisposable {
-	return attachStyler(themeService, widget, { selectBackground: inputBackground, selectForeground: inputForeground });
+	return attachStyler(themeService, widget, { selectBackground, selectForeground, selectBorder });
 }

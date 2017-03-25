@@ -127,6 +127,10 @@ export const highContrastOutline = registerColor('highContrastOutline', { light:
 export const inputBackground = registerColor('inputBackground', { dark: '#3C3C3C', light: Color.white, hc: Color.black }, nls.localize('inputBackground', 'Input field background'));
 export const inputForeground = registerColor('inputForeground', { dark: foreground, light: foreground, hc: foreground }, nls.localize('inputForeground', 'Input field foreground'));
 
+export const selectBackground = registerColor('selectBackground', { dark: '#3C3C3C', light: Color.white, hc: '#3C3C3C' }, nls.localize('selectBackground', 'Select field background'));
+export const selectForeground = registerColor('selectForeground', { dark: '#F0F0F0', light: null, hc: Color.white }, nls.localize('selectForeground', 'Select field foreground'));
+export const selectBorder = registerColor('selectBorder', { dark: selectBackground, light: '#CECECE', hc: selectBackground }, nls.localize('selectBorder', 'Select field border'));
+
 /**
  * Editor background color.
  * Because of bug https://monacotools.visualstudio.com/DefaultCollection/Monaco/_workitems/edit/13254

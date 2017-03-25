@@ -1486,7 +1486,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		element.style.outlineColor = useOutline ? this.getColor(highContrastOutline) : null;
 		element.style.outlineStyle = useOutline ? 'dashed' : null;
 		element.style.outlineWidth = useOutline ? '2px' : null;
-		(<any>element).style.outlineOffset = useOutline ? '-2px' : null; // TODO@theme TS fail (gulp watch)
+		(<any>element).style.outlineOffset = useOutline ? '-2px' : null; // TS fail (gulp watch)
 	}
 
 	private posSilo(pos: number, leftTop: string | number, rightBottom?: string | number, borderLeftTopWidth?: string | number): void {

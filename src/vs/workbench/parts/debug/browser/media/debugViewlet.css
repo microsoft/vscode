@@ -94,18 +94,18 @@
 }
 
 .monaco-workbench .monaco-action-bar .start-debug-action-item .configuration .select-box {
-	background-color: #f3f3f3;
+	background-color: #f3f3f3 !important;
 	border: none;
 	margin-top: 0px;
 	cursor: pointer;
 }
 
 .vs-dark .monaco-workbench .monaco-action-bar .start-debug-action-item .configuration .select-box {
-	background-color: #252526;
+	background-color: #252526 !important;
 }
 
 .hc-black .monaco-workbench .monaco-action-bar .start-debug-action-item .configuration .select-box {
-	background-color: #000;
+	background-color: #000 !important;
 }
 
 .monaco-workbench .monaco-action-bar .start-debug-action-item .configuration.disabled .select-box {

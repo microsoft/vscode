@@ -183,20 +183,3 @@
 .hc-black .monaco-workbench .explorer-viewlet .editor-group {
 	line-height: 20px;
 }
-
-.hc-black .monaco-workbench .explorer-viewlet .explorer-item .monaco-inputbox > .wrapper > .input:focus {
-	outline-offset: -2px !important;
-	outline: 1px solid !important;
-	padding-left: 2px; /* push text by the width of the outline offset to prevent overlaying */
-}
-
-.hc-black .monaco-workbench .explorer-viewlet .explorer-item .monaco-inputbox.synthetic-focus {
-	outline: none !important;
-	border: none;
-}
-
-/* TODO@theme */
-
-.hc-black .monaco-workbench .explorer-viewlet .explorer-item .monaco-inputbox > .wrapper > .input:focus {
-	outline-color: #f38518 !important;
-}

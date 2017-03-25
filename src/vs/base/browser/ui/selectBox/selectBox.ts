@@ -15,6 +15,7 @@ import { Color } from "vs/base/common/color";
 export interface ISelectBoxStyles {
 	selectBackground?: Color;
 	selectForeground?: Color;
+	selectBorder?: Color;
 }
 
 export class SelectBox extends Widget {
@@ -27,6 +28,7 @@ export class SelectBox extends Widget {
 	private toDispose: IDisposable[];
 	private selectBackground: Color;
 	private selectForeground: Color;
+	private selectBorder: Color;
 
 	constructor(options: string[], selected: number, styles?: ISelectBoxStyles) {
 		super();
@@ -41,6 +43,7 @@ export class SelectBox extends Widget {
 		if (styles) {
 			this.selectBackground = styles.selectBackground;
 			this.selectForeground = styles.selectForeground;
+			this.selectBorder = styles.selectBorder;
 		}
 
 		this.toDispose.push(dom.addStandardDisposableListener(this.selectElement, 'change', (e) => {
@@ -101,6 +104,7 @@ export class SelectBox extends Widget {
 	public style(styles: ISelectBoxStyles) {
 		this.selectBackground = styles.selectBackground;
 		this.selectForeground = styles.selectForeground;
+		this.selectBorder = styles.selectBorder;
 
 		this._applyStyles();
 	}
@@ -109,9 +113,11 @@ export class SelectBox extends Widget {
 		if (this.selectElement) {
 			const background = this.selectBackground ? this.selectBackground.toString() : null;
 			const foreground = this.selectForeground ? this.selectForeground.toString() : null;
+			const border = this.selectBorder ? this.selectBorder.toString() : null;
 
 			this.selectElement.style.backgroundColor = background;
 			this.selectElement.style.color = foreground;
+			this.selectElement.style.borderColor = border;
 		}
 	}
 
