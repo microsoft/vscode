@@ -374,11 +374,6 @@
 	background-color: rgba(234, 92, 0, 0.3);
 }
 
-.vs .search-viewlet .input-box,
-.vs .search-viewlet .file-types .monaco-inputbox {
-	background-color: white;
-}
-
 .vs .search-viewlet .filematch .name {
 	color: #1E1E1E;
 }
@@ -393,11 +388,6 @@
 
 .vs .search-viewlet .search-widget .toggle-replace-button.expand {
 	background-image: url('expando-expanded.svg');
-}
-
-.vs-dark .search-viewlet .input-box,
-.vs-dark .search-viewlet .file-types .monaco-inputbox {
-	background-color: #3C3C3C;
 }
 
 .vs-dark .search-viewlet .monaco-tree .filematch .name {
@@ -438,18 +428,6 @@
 }
 
 /* High Contrast Theming */
-.hc-black .monaco-workbench .search-viewlet .input-box,
-.hc-black .monaco-workbench .search-viewlet .file-types .monaco-inputbox {
-	background-color: #000;
-}
-
-.hc-black .monaco-workbench .input-box {
-	border: 1px solid #6FC3DF;
-}
-
-.hc-black .monaco-workbench .input-box .monaco-inputbox.idle {
-	border: none;
-}
 
 .hc-black .monaco-workbench .search-viewlet .filematch,
 .hc-black .monaco-workbench .search-viewlet .linematch {
