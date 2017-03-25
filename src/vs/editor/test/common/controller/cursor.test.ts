@@ -2219,7 +2219,7 @@ suite('Editor Controller - Regression tests', () => {
 			],
 		}, (model, cursor) => {
 			moveTo(cursor, 2, 1, false);
-			deleteWordLeft(cursor); assert.equal(model.getLineContent(1), 'A line with text.   And another one', '001');
+			deleteWordLeft(cursor); assert.equal(model.getLineContent(1), 'A line with text   And another one', '001');
 		});
 	});
 
