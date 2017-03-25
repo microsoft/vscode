@@ -539,6 +539,57 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		return this.panelMaximized;
 	}
 
+	// change part size along the main axis
+	public resizePart(part: Parts, sizeChange: number): boolean {
+		let promise = TPromise.as(null);
+		let doLayout = false;
+		let newSashSize: number = 0;
+		let visibleEditors = this.editorService.getVisibleEditors().length;
+
+		const sizeChangePxWidth = this.workbenchSize.width * (sizeChange / 100);
+		const sizeChangePxHeight = this.workbenchSize.height * (sizeChange / 100);
+
+		switch (part) {
+			case Parts.SIDEBAR_PART:
+				newSashSize = this.sidebarWidth + sizeChangePxWidth;
+				this.sidebarWidth = Math.max(this.partLayoutInfo.sidebar.minWidth, newSashSize); // Sidebar can not become smaller than MIN_PART_WIDTH
+
+				if (this.layoutEditorGroupsVertically && (this.workbenchSize.width - this.sidebarWidth < visibleEditors * MIN_EDITOR_PART_WIDTH)) {
+					this.sidebarWidth = (this.workbenchSize.width - visibleEditors * MIN_EDITOR_PART_WIDTH);
+				}
+
+				doLayout = true;
+				break;
+			case Parts.PANEL_PART:
+				newSashSize = this.panelHeight + sizeChangePxHeight;
+				this.panelHeight = Math.max(this.partLayoutInfo.panel.minHeight, newSashSize);
+				doLayout = true;
+				break;
+			case Parts.EDITOR_PART:
+				// If we have one editor we can cheat and resize sidebar with the negative delta
+				const visibleEditorCount = this.editorService.getVisibleEditors().length;
+
+				if (visibleEditorCount === 1) {
+					this.sidebarWidth = this.sidebarWidth - sizeChangePxWidth;
+					doLayout = true;
+				}
+				else {
+					const eGsSM = this.editorGroupService.getStacksModel();
+					const activeGroup = eGsSM.positionOfGroup(eGsSM.activeGroup);
+
+					this.editorGroupService.resizeGroup(activeGroup, sizeChangePxWidth);
+					doLayout = false;
+				}
+		}
+
+		if (doLayout) {
+			promise.done(() => this.layout(), errors.onUnexpectedError);
+		}
+
+		// other parts not resizable, no error just silent
+		return false;
+	}
+
 	public dispose(): void {
 		if (this.toUnbind) {
 			dispose(this.toUnbind);
