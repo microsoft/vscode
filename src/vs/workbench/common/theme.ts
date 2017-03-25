@@ -164,6 +164,18 @@ export const ACTIVITY_BAR_BACKGROUND = registerColor('activityBarBackground', {
 	hc: '#000000'
 }, nls.localize('activityBarBackground', "Activity bar background color. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
+export const ACTIVITY_BADGE_BACKGROUND = registerColor('activityBadgeBackground', {
+	dark: '#007ACC',
+	light: '#007ACC',
+	hc: '#000000'
+}, nls.localize('activityBadgeBackground', "Activity notification badge background color. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
+
+export const ACTIVITY_BADGE_FOREGROUND = registerColor('activityBadgeForeground', {
+	dark: Color.white,
+	light: Color.white,
+	hc: Color.white
+}, nls.localize('activityBadgeForeground', "Activity notification badge foreground color. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
+
 
 
 // < --- Side Bar --- >

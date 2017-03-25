@@ -295,6 +295,7 @@
 		"statusBarDebuggingBackground": "#10192c",
 		"debugToolBarBackground": "#051336",
 		"activityBarBackground": "#051336",
+		"activityBadgeBackground": "#0063a5",
 		"sideBarBackground": "#060621",
 		"titleBarActiveBackground": "#10192c",
 		"titleBarInactiveBackground": "#10192caa"

@@ -23,6 +23,9 @@ import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { dispose } from 'vs/base/common/lifecycle';
 import { IViewletService, } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
+import { IThemeService, ITheme } from "vs/platform/theme/common/themeService";
+import { ACTIVITY_BADGE_FOREGROUND, ACTIVITY_BADGE_BACKGROUND } from "vs/workbench/common/theme";
+import { highContrastBorder } from "vs/platform/theme/common/colorRegistry";
 
 export class ActivityAction extends Action {
 	private badge: IBadge;
@@ -119,7 +122,8 @@ export class ActivityActionItem extends BaseActionItem {
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IActivityBarService private activityBarService: IActivityBarService,
 		@IKeybindingService private keybindingService: IKeybindingService,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IThemeService private themeService: IThemeService
 	) {
 		super(null, action, { draggable: true });
 
@@ -136,6 +140,29 @@ export class ActivityActionItem extends BaseActionItem {
 		}
 
 		action.onDidChangeBadge(this.handleBadgeChangeEvenet, this, this._callOnDispose);
+		this.themeService.onThemeChange(this.onThemeChange, this, this._callOnDispose);
+	}
+
+	private onThemeChange(theme: ITheme): void {
+		this.updateStyles();
+	}
+
+	private updateStyles(): void {
+		const theme = this.themeService.getTheme();
+		const isHighContrastTheme = theme.type === 'hc';
+
+		if (this.$badgeContent) {
+			const foreground = theme.getColor(ACTIVITY_BADGE_FOREGROUND);
+			const background = theme.getColor(ACTIVITY_BADGE_BACKGROUND);
+			const hcBorder = theme.getColor(highContrastBorder);
+
+			this.$badgeContent.style('color', foreground ? foreground.toString() : null);
+			this.$badgeContent.style('background-color', background ? background.toString() : null);
+
+			this.$badgeContent.style('border-style', isHighContrastTheme ? 'solid' : null);
+			this.$badgeContent.style('border-width', isHighContrastTheme ? '1px' : null);
+			this.$badgeContent.style('border-color', isHighContrastTheme && hcBorder ? hcBorder.toString() : null);
+		}
 	}
 
 	private getKeybindingLabel(id: string): string {
@@ -250,6 +277,8 @@ export class ActivityActionItem extends BaseActionItem {
 				this.activityBarService.move(draggedViewlet.id, this.viewlet.id);
 			}
 		});
+
+		this.updateStyles();
 	}
 
 	public static getDraggedViewlet(): ViewletDescriptor {
