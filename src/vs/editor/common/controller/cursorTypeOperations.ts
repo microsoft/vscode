@@ -273,37 +273,32 @@ export class TypeOperations {
 		});
 	}
 
-	private static _typeInterceptorEnter(config: CursorConfiguration, model: ITokenizedModel, cursor: SingleCursorState, ch: string): EditOperationResult {
-		if (ch !== '\n') {
-			return null;
-		}
-
-		return TypeOperations._enter(config, model, false, cursor.selection);
-	}
-
-	private static isAutoClosingCloseCharType(config: CursorConfiguration, model: ITokenizedModel, cursor: SingleCursorState, ch: string): boolean {
-		if (!config.autoClosingBrackets) {
+	private static _isAutoClosingCloseCharType(config: CursorConfiguration, model: ITokenizedModel, cursors: SingleCursorState[], ch: string): boolean {
+		if (!config.autoClosingBrackets || !config.autoClosingPairsClose.hasOwnProperty(ch)) {
 			return false;
 		}
 
-		const selection = cursor.selection;
-		const position = cursor.position;
+		for (let i = 0, len = cursors.length; i < len; i++) {
+			const cursor = cursors[i];
+			const selection = cursor.selection;
 
-		if (!selection.isEmpty() || !config.autoClosingPairsClose.hasOwnProperty(ch)) {
-			return false;
-		}
+			if (!selection.isEmpty()) {
+				return false;
+			}
 
-		const lineText = model.getLineContent(position.lineNumber);
-		const afterCharacter = lineText.charAt(position.column - 1);
+			const position = cursor.position;
+			const lineText = model.getLineContent(position.lineNumber);
+			const afterCharacter = lineText.charAt(position.column - 1);
 
-		if (afterCharacter !== ch) {
-			return false;
+			if (afterCharacter !== ch) {
+				return false;
+			}
 		}
 
 		return true;
 	}
 
-	private static runAutoClosingCloseCharType(config: CursorConfiguration, model: ITokenizedModel, cursor: SingleCursorState, ch: string): EditOperationResult {
+	private static _runAutoClosingCloseCharType(config: CursorConfiguration, model: ITokenizedModel, cursor: SingleCursorState, ch: string): EditOperationResult {
 		const position = cursor.position;
 		const typeSelection = new Range(position.lineNumber, position.column, position.lineNumber, position.column + 1);
 		return new EditOperationResult(new ReplaceCommand(typeSelection, ch), {
@@ -312,55 +307,61 @@ export class TypeOperations {
 		});
 	}
 
-	private static isAutoClosingOpenCharType(config: CursorConfiguration, model: ITokenizedModel, cursor: SingleCursorState, ch: string): boolean {
-		if (!config.autoClosingBrackets) {
+	private static _isAutoClosingOpenCharType(config: CursorConfiguration, model: ITokenizedModel, cursors: SingleCursorState[], ch: string): boolean {
+		if (!config.autoClosingBrackets || !config.autoClosingPairsOpen.hasOwnProperty(ch)) {
 			return false;
 		}
 
-		const selection = cursor.selection;
-		const position = cursor.position;
+		for (let i = 0, len = cursors.length; i < len; i++) {
+			const cursor = cursors[i];
+			const selection = cursor.selection;
+			if (!selection.isEmpty()) {
+				return false;
+			}
 
-		if (!selection.isEmpty() || !config.autoClosingPairsOpen.hasOwnProperty(ch)) {
-			return false;
-		}
+			const position = cursor.position;
+			const lineText = model.getLineContent(position.lineNumber);
+			const afterCharacter = lineText.charAt(position.column - 1);
 
-		const lineText = model.getLineContent(position.lineNumber);
-		const afterCharacter = lineText.charAt(position.column - 1);
+			// Only consider auto closing the pair if a space follows or if another autoclosed pair follows
+			if (afterCharacter) {
+				const thisBraceIsSymmetric = (config.autoClosingPairsOpen[ch] === ch);
 
-		// Only consider auto closing the pair if a space follows or if another autoclosed pair follows
-		if (afterCharacter) {
-			const thisBraceIsSymmetric = (config.autoClosingPairsOpen[ch] === ch);
-
-			let isBeforeCloseBrace = false;
-			for (let otherCloseBrace in config.autoClosingPairsClose) {
-				const otherBraceIsSymmetric = (config.autoClosingPairsOpen[otherCloseBrace] === otherCloseBrace);
-				if (!thisBraceIsSymmetric && otherBraceIsSymmetric) {
-					continue;
+				let isBeforeCloseBrace = false;
+				for (let otherCloseBrace in config.autoClosingPairsClose) {
+					const otherBraceIsSymmetric = (config.autoClosingPairsOpen[otherCloseBrace] === otherCloseBrace);
+					if (!thisBraceIsSymmetric && otherBraceIsSymmetric) {
+						continue;
+					}
+					if (afterCharacter === otherCloseBrace) {
+						isBeforeCloseBrace = true;
+						break;
+					}
 				}
-				if (afterCharacter === otherCloseBrace) {
-					isBeforeCloseBrace = true;
-					break;
+				if (!isBeforeCloseBrace && !/\s/.test(afterCharacter)) {
+					return false;
 				}
 			}
-			if (!isBeforeCloseBrace && !/\s/.test(afterCharacter)) {
+
+			model.forceTokenization(position.lineNumber);
+			const lineTokens = model.getLineTokens(position.lineNumber);
+
+			let shouldAutoClosePair = false;
+			try {
+				shouldAutoClosePair = LanguageConfigurationRegistry.shouldAutoClosePair(ch, lineTokens, position.column);
+			} catch (e) {
+				onUnexpectedError(e);
+			}
+
+			if (!shouldAutoClosePair) {
 				return false;
 			}
 		}
 
-		model.forceTokenization(position.lineNumber);
-		const lineTokens = model.getLineTokens(position.lineNumber);
-
-		let shouldAutoClosePair = false;
-		try {
-			shouldAutoClosePair = LanguageConfigurationRegistry.shouldAutoClosePair(ch, lineTokens, position.column);
-		} catch (e) {
-			onUnexpectedError(e);
-		}
-
-		return shouldAutoClosePair;
+		return true;
 	}
 
-	private static runAutoClosingOpenCharType(config: CursorConfiguration, model: ITokenizedModel, cursor: SingleCursorState, ch: string): EditOperationResult {
+	private static _runAutoClosingOpenCharType(config: CursorConfiguration, model: ITokenizedModel, cursor: SingleCursorState, ch: string): EditOperationResult {
 		const selection = cursor.selection;
 		const closeCharacter = config.autoClosingPairsOpen[ch];
 		return new EditOperationResult(new ReplaceCommandWithOffsetCursorState(selection, ch + closeCharacter, 0, -closeCharacter.length), {
@@ -369,35 +370,42 @@ export class TypeOperations {
 		});
 	}
 
-	private static isSurroundSelectionType(config: CursorConfiguration, model: ITokenizedModel, cursor: SingleCursorState, ch: string): boolean {
-		if (!config.autoClosingBrackets) {
+	private static _isSurroundSelectionType(config: CursorConfiguration, model: ITokenizedModel, cursors: SingleCursorState[], ch: string): boolean {
+		if (!config.autoClosingBrackets || !config.surroundingPairs.hasOwnProperty(ch)) {
 			return false;
 		}
 
-		const selection = cursor.selection;
+		for (let i = 0, len = cursors.length; i < len; i++) {
+			const cursor = cursors[i];
+			const selection = cursor.selection;
 
-		if (selection.isEmpty() || !config.surroundingPairs.hasOwnProperty(ch)) {
-			return false;
-		}
+			if (selection.isEmpty()) {
+				return false;
+			}
 
-		let selectionContainsOnlyWhitespace = true;
+			let selectionContainsOnlyWhitespace = true;
 
-		for (let lineNumber = selection.startLineNumber; lineNumber <= selection.endLineNumber; lineNumber++) {
-			const lineText = model.getLineContent(lineNumber);
-			const startIndex = (lineNumber === selection.startLineNumber ? selection.startColumn - 1 : 0);
-			const endIndex = (lineNumber === selection.endLineNumber ? selection.endColumn - 1 : lineText.length);
-			const selectedText = lineText.substring(startIndex, endIndex);
-			if (/[^ \t]/.test(selectedText)) {
-				// this selected text contains something other than whitespace
-				selectionContainsOnlyWhitespace = false;
-				break;
+			for (let lineNumber = selection.startLineNumber; lineNumber <= selection.endLineNumber; lineNumber++) {
+				const lineText = model.getLineContent(lineNumber);
+				const startIndex = (lineNumber === selection.startLineNumber ? selection.startColumn - 1 : 0);
+				const endIndex = (lineNumber === selection.endLineNumber ? selection.endColumn - 1 : lineText.length);
+				const selectedText = lineText.substring(startIndex, endIndex);
+				if (/[^ \t]/.test(selectedText)) {
+					// this selected text contains something other than whitespace
+					selectionContainsOnlyWhitespace = false;
+					break;
+				}
+			}
+
+			if (selectionContainsOnlyWhitespace) {
+				return false;
 			}
 		}
 
-		return (!selectionContainsOnlyWhitespace);
+		return true;
 	}
 
-	private static runSurroundSelectionType(config: CursorConfiguration, model: ITokenizedModel, cursor: SingleCursorState, ch: string): EditOperationResult {
+	private static _runSurroundSelectionType(config: CursorConfiguration, model: ITokenizedModel, cursor: SingleCursorState, ch: string): EditOperationResult {
 		const selection = cursor.selection;
 		const closeCharacter = config.surroundingPairs[ch];
 
@@ -468,24 +476,51 @@ export class TypeOperations {
 		return null;
 	}
 
-	public static typeWithInterceptors(config: CursorConfiguration, model: ITokenizedModel, cursor: SingleCursorState, ch: string): EditOperationResult {
-		let r: EditOperationResult = null;
+	public static typeWithInterceptors(config: CursorConfiguration, model: ITokenizedModel, cursors: SingleCursorState[], ch: string): EditOperationResult[] {
+		let r2: EditOperationResult[] = [];
 
-		r = r || this._typeInterceptorEnter(config, model, cursor, ch);
+		if (ch === '\n') {
+			for (let i = 0, len = cursors.length; i < len; i++) {
+				r2[i] = TypeOperations._enter(config, model, false, cursors[i].selection);
+			}
+			return r2;
+		}
 
-		if (!r && this.isAutoClosingCloseCharType(config, model, cursor, ch)) {
-			r = this.runAutoClosingCloseCharType(config, model, cursor, ch);
+		if (this._isAutoClosingCloseCharType(config, model, cursors, ch)) {
+			for (let i = 0, len = cursors.length; i < len; i++) {
+				r2[i] = this._runAutoClosingCloseCharType(config, model, cursors[i], ch);
+			}
+			return r2;
 		}
-		if (!r && this.isAutoClosingOpenCharType(config, model, cursor, ch)) {
-			r = this.runAutoClosingOpenCharType(config, model, cursor, ch);
-		}
-		if (!r && this.isSurroundSelectionType(config, model, cursor, ch)) {
-			r = this.runSurroundSelectionType(config, model, cursor, ch);
-		}
-		r = r || this._typeInterceptorElectricChar(config, model, cursor, ch);
-		r = r || this.typeWithoutInterceptors(config, model, cursor, ch);
 
-		return r;
+		if (this._isAutoClosingOpenCharType(config, model, cursors, ch)) {
+			for (let i = 0, len = cursors.length; i < len; i++) {
+				r2[i] = this._runAutoClosingOpenCharType(config, model, cursors[i], ch);
+			}
+			return r2;
+		}
+
+		if (this._isSurroundSelectionType(config, model, cursors, ch)) {
+			for (let i = 0, len = cursors.length; i < len; i++) {
+				r2[i] = this._runSurroundSelectionType(config, model, cursors[i], ch);
+			}
+			return r2;
+		}
+
+		// Electric characters make sense only when dealing with a single cursor,
+		// as multiple cursors typing brackets for example would interfer with bracket matching
+		if (cursors.length === 1) {
+			const r = this._typeInterceptorElectricChar(config, model, cursors[0], ch);
+			if (r) {
+				r2[0] = r;
+				return r2;
+			}
+		}
+
+		for (let i = 0, len = cursors.length; i < len; i++) {
+			r2[i] = this.typeWithoutInterceptors(config, model, cursors[i], ch);
+		}
+		return r2;
 	}
 
 	public static typeWithoutInterceptors(config: CursorConfiguration, model: ITokenizedModel, cursor: SingleCursorState, str: string): EditOperationResult {

@@ -3627,4 +3627,26 @@ suite('autoClosingPairs', () => {
 		});
 		mode.dispose();
 	});
+
+	test('issue #20891: All cursors should do the same thing', () => {
+		let mode = new AutoClosingMode();
+		usingCursor({
+			text: [
+				'var a = asd'
+			],
+			languageIdentifier: mode.getLanguageIdentifier()
+		}, (model, cursor) => {
+
+			cursor.setSelections('test', [
+				new Selection(1, 9, 1, 9),
+				new Selection(1, 12, 1, 12),
+			]);
+
+			// type a `
+			cursorCommand(cursor, H.Type, { text: '`' }, 'keyboard');
+
+			assert.equal(model.getValue(), 'var a = `asd`');
+		});
+		mode.dispose();
+	});
 });

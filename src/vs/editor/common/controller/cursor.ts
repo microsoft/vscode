@@ -1399,7 +1399,11 @@ export class Cursor extends EventEmitter {
 				// Here we must interpret each typed character individually, that's why we create a new context
 				ctx.hasExecutedCommands = this._createAndInterpretHandlerCtx(ctx.eventSource, ctx.eventData, (charHandlerCtx: IMultipleCursorOperationContext) => {
 
-					this._applyEditForAll(charHandlerCtx, (cursor) => TypeOperations.typeWithInterceptors(cursor.config, cursor.model, cursor.modelState, chr));
+					// Decide what all cursors will do up-front
+					const cursors = this.cursors.getAll();
+					const states = cursors.map(cursor => cursor.modelState);
+					const editOperations = TypeOperations.typeWithInterceptors(cursors[0].config, cursors[0].model, states, chr);
+					this._applyEditForAll(charHandlerCtx, (cursor, cursorIndex) => editOperations[cursorIndex]);
 
 					// The last typed character gets to win
 					ctx.cursorPositionChangeReason = charHandlerCtx.cursorPositionChangeReason;
