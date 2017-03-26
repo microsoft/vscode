@@ -24,7 +24,7 @@ import { dispose } from 'vs/base/common/lifecycle';
 import { IViewletService, } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 import { IThemeService, ITheme } from "vs/platform/theme/common/themeService";
-import { ACTIVITY_BADGE_FOREGROUND, ACTIVITY_BADGE_BACKGROUND } from "vs/workbench/common/theme";
+import { ACTIVITY_BADGE_FOREGROUND, ACTIVITY_BADGE_BACKGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND } from "vs/workbench/common/theme";
 import { highContrastBorder } from "vs/platform/theme/common/colorRegistry";
 
 export class ActivityAction extends Action {
@@ -239,7 +239,7 @@ export class ActivityActionItem extends BaseActionItem {
 			const draggedViewlet = ActivityActionItem.getDraggedViewlet();
 			if (draggedViewlet && draggedViewlet.id !== this.viewlet.id) {
 				counter++;
-				DOM.addClass(container, 'dropfeedback');
+				this.updateFromDragging(container, true);
 			}
 		});
 
@@ -249,7 +249,7 @@ export class ActivityActionItem extends BaseActionItem {
 			if (draggedViewlet) {
 				counter--;
 				if (counter === 0) {
-					DOM.removeClass(container, 'dropfeedback');
+					this.updateFromDragging(container, false);
 				}
 			}
 		});
@@ -259,7 +259,7 @@ export class ActivityActionItem extends BaseActionItem {
 			const draggedViewlet = ActivityActionItem.getDraggedViewlet();
 			if (draggedViewlet) {
 				counter = 0;
-				DOM.removeClass(container, 'dropfeedback');
+				this.updateFromDragging(container, false);
 
 				ActivityActionItem.clearDraggedViewlet();
 			}
@@ -271,7 +271,7 @@ export class ActivityActionItem extends BaseActionItem {
 
 			const draggedViewlet = ActivityActionItem.getDraggedViewlet();
 			if (draggedViewlet && draggedViewlet.id !== this.viewlet.id) {
-				DOM.removeClass(container, 'dropfeedback');
+				this.updateFromDragging(container, false);
 				ActivityActionItem.clearDraggedViewlet();
 
 				this.activityBarService.move(draggedViewlet.id, this.viewlet.id);
@@ -279,6 +279,13 @@ export class ActivityActionItem extends BaseActionItem {
 		});
 
 		this.updateStyles();
+	}
+
+	private updateFromDragging(element: HTMLElement, isDragging: boolean): void {
+		const theme = this.themeService.getTheme();
+		const dragBackground = theme.getColor(ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND);
+
+		element.style.backgroundColor = isDragging && dragBackground ? dragBackground.toString() : null;
 	}
 
 	public static getDraggedViewlet(): ViewletDescriptor {

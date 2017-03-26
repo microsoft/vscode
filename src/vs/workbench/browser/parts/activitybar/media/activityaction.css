@@ -154,12 +154,6 @@
 	border-left-color: #f38518;
 }
 
-.vs .monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.dropfeedback,
-.vs-dark .monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.dropfeedback,
-.hc-black .monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.dropfeedback {
-	background-color: #403F3F;
-}
-
 .hc-black .monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label.active:before,
 .hc-black .monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label.active:hover:before {
 	outline-color: #f38518;
