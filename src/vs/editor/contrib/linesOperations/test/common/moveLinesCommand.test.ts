@@ -45,6 +45,7 @@ function testMoveLinesUpCommandWithAndWithoutPreindentation(oneIndentation: stri
 }
 
 function testMoveLinesDownCommandWithAndWithoutPreindentation(oneIndentation: string, lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection){
+
 	const options = getOptionWithIndentation(oneIndentation);
 
 	testMoveLinesDownCommand(lines, selection, expectedLines, expectedSelection, options);
@@ -460,7 +461,7 @@ suite('Editor Contrib - Move Lines Command', () => {
 				testMoveLinesUpCommandWithAndWithoutPreindentation(
 					indentation,
 					[
-						'open block' + openBracket,
+						'open block ' + openBracket,
 						indentation + 'line to move',
 						'end block',
 					],
@@ -491,9 +492,9 @@ suite('Editor Contrib - Move Lines Command', () => {
 					'',
 				],
 				new Selection(2, 1, 2, 1)
-				);
+			);
 		});
-			});
+	});
 
 	test('move lines down through empty line', function () {
 		indentationType.forEach((indentation: string) => {
@@ -685,18 +686,18 @@ suite('Editor Contrib - Move Lines Command', () => {
 					indentation,
 					[
 						'open block',
-						closingBracket + 'end block',
+						closingBracket + ' end block',
 						'blocktomove start',
 						indentation + 'blocktomove middle',
 						'blocktomove end',
 					],
-					new Selection(3, 1, 4, 2),
+					new Selection(3, 1, 5, 2),
 					[
 						'open block',
-						indentation + closingBracket + 'end block',
 						indentation + 'blocktomove start',
 						indentation + indentation + 'blocktomove middle',
-						'blocktomove end',
+						indentation + 'blocktomove end',
+						closingBracket + ' end block',
 					],
 					new Selection(2, 1, 4, 2)
 				);
