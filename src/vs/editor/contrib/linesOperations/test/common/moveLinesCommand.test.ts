@@ -463,6 +463,44 @@ suite('Editor Contrib - Move Lines Command', () => {
 		});
 	});
 
+	test('move lines up through empty line', function () {
+		indentationType.forEach((indentation: string) => {
+			testMoveLinesUpCommand(
+				[
+					indentation + 'another line',
+					'',
+					indentation + 'line to move',
+				],
+				new Selection(3, 1, 3, 1),
+				[
+					indentation + 'another line',
+					indentation + 'line to move',
+					'',
+				],
+				new Selection(2, 1, 2, 1)
+				);
+		});
+			});
+
+	test('move lines down through empty line', function () {
+		indentationType.forEach((indentation: string) => {
+			testMoveLinesDownCommand(
+				[
+					indentation + 'another line',
+					indentation + 'line to move',
+					'',
+				],
+				new Selection(2, 1, 2, 1),
+				[
+					indentation + 'another line',
+					'',
+					indentation + 'line to move',
+				],
+				new Selection(3, 1, 3, 1)
+			);
+		});
+	});
+
 	test('move lines down enter block', function () {
 		openBlockChars.forEach((openBracket: string) => {
 			indentationType.forEach((indentation: string) => {
@@ -676,6 +714,52 @@ suite('Editor Contrib - Move Lines Command', () => {
 					new Selection(1, 1, 3, 2)
 				);
 			});
+		});
+	});
+
+	test('move lines up through empty line', function () {
+		indentationType.forEach((indentation: string) => {
+			testMoveLinesUpCommand(
+				[
+					indentation + 'another line',
+					'',
+					indentation + 'blocktomove start',
+					indentation + indentation + 'blocktomove middle',
+					indentation + 'blocktomove end',
+				],
+				new Selection(3, 1, 5, 2),
+				[
+					indentation + 'another line',
+					indentation + 'blocktomove start',
+					indentation + indentation + 'blocktomove middle',
+					indentation + 'blocktomove end',
+					'',
+				],
+				new Selection(2, 1, 4, 2)
+			);
+		});
+	});
+
+	test('move lines down through empty line', function () {
+		indentationType.forEach((indentation: string) => {
+			testMoveLinesDownCommand(
+				[
+					indentation + 'another line',
+					indentation + 'blocktomove start',
+					indentation + indentation + 'blocktomove middle',
+					indentation + 'blocktomove end',
+					'',
+				],
+				new Selection(2, 1, 4, 2),
+				[
+					indentation + 'another line',
+					'',
+					indentation + 'blocktomove start',
+					indentation + indentation + 'blocktomove middle',
+					indentation + 'blocktomove end',
+				],
+				new Selection(3, 1, 5, 2)
+			);
 		});
 	});
 
