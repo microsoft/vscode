@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { SingleCursorState, EditOperationResult, CursorConfiguration, ICursorSimpleModel } from 'vs/editor/common/controller/cursorCommon';
+import { SingleCursorState, CursorConfiguration, ICursorSimpleModel } from 'vs/editor/common/controller/cursorCommon';
 import { Position } from 'vs/editor/common/core/position';
 import { CharCode } from 'vs/base/common/charCode';
 import { CharacterClassifier } from 'vs/editor/common/core/characterClassifier';
@@ -13,7 +13,6 @@ import { CursorChangeReason } from 'vs/editor/common/editorCommon';
 import * as strings from 'vs/base/common/strings';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { ReplaceCommand } from 'vs/editor/common/commands/replaceCommand';
 
 export interface IFindWordResult {
 	/**
@@ -268,7 +267,7 @@ export class WordOperations {
 		return null;
 	}
 
-	private static _deleteWordLeft(wordSeparators: WordCharacterClassifier, model: ICursorSimpleModel, selection: Selection, whitespaceHeuristics: boolean, wordNavigationType: WordNavigationType): Range {
+	public static _deleteWordLeft(wordSeparators: WordCharacterClassifier, model: ICursorSimpleModel, selection: Selection, whitespaceHeuristics: boolean, wordNavigationType: WordNavigationType): Range {
 		if (!selection.isEmpty()) {
 			return selection;
 		}
@@ -332,18 +331,6 @@ export class WordOperations {
 		return new Range(lineNumber, column, position.lineNumber, position.column);
 	}
 
-	public static deleteWordLeft(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, whitespaceHeuristics: boolean, wordNavigationType: WordNavigationType): EditOperationResult {
-		const wordSeparators = getMapForWordSeparators(config.wordSeparators);
-		const deleteRange = this._deleteWordLeft(wordSeparators, model, cursor.selection, whitespaceHeuristics, wordNavigationType);
-		if (!deleteRange) {
-			return null;
-		}
-		return new EditOperationResult(new ReplaceCommand(deleteRange, ''), {
-			shouldPushStackElementBefore: (deleteRange.startLineNumber !== deleteRange.endLineNumber),
-			shouldPushStackElementAfter: false
-		});
-	}
-
 	private static _findFirstNonWhitespaceChar(str: string, startIndex: number): number {
 		let len = str.length;
 		for (let chIndex = startIndex; chIndex < len; chIndex++) {
@@ -366,7 +353,7 @@ export class WordOperations {
 		return null;
 	}
 
-	private static _deleteWordRight(wordSeparators: WordCharacterClassifier, model: ICursorSimpleModel, selection: Selection, whitespaceHeuristics: boolean, wordNavigationType: WordNavigationType): Range {
+	public static _deleteWordRight(wordSeparators: WordCharacterClassifier, model: ICursorSimpleModel, selection: Selection, whitespaceHeuristics: boolean, wordNavigationType: WordNavigationType): Range {
 		if (!selection.isEmpty()) {
 			return selection;
 		}
@@ -430,18 +417,6 @@ export class WordOperations {
 		}
 
 		return new Range(lineNumber, column, position.lineNumber, position.column);
-	}
-
-	public static deleteWordRight(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, whitespaceHeuristics: boolean, wordNavigationType: WordNavigationType): EditOperationResult {
-		const wordSeparators = getMapForWordSeparators(config.wordSeparators);
-		const deleteRange = this._deleteWordRight(wordSeparators, model, cursor.selection, whitespaceHeuristics, wordNavigationType);
-		if (!deleteRange) {
-			return null;
-		}
-		return new EditOperationResult(new ReplaceCommand(deleteRange, ''), {
-			shouldPushStackElementBefore: (deleteRange.startLineNumber !== deleteRange.endLineNumber),
-			shouldPushStackElementAfter: false
-		});
 	}
 
 	public static word(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, inSelectionMode: boolean, position: Position): SingleMoveOperationResult {

@@ -18,7 +18,6 @@ import { Selection, SelectionDirection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { CursorColumns, EditOperationResult } from 'vs/editor/common/controller/cursorCommon';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { WordOperations, WordNavigationType } from 'vs/editor/common/controller/cursorWordOperations';
 import { ColumnSelection, IColumnSelectResult } from 'vs/editor/common/controller/cursorColumnSelection';
 import { DeleteOperations } from 'vs/editor/common/controller/cursorDeleteOperations';
 import { TypeOperations } from 'vs/editor/common/controller/cursorTypeOperations';
@@ -957,16 +956,7 @@ export class Cursor extends EventEmitter {
 		this._handlers[H.ScrollPageDown] = (ctx) => this._scrollDown(true, ctx);
 
 		this._handlers[H.DeleteLeft] = (ctx) => this._deleteLeft(ctx);
-
-		this._handlers[H.DeleteWordLeft] = (ctx) => this._deleteWordLeft(true, WordNavigationType.WordStart, ctx);
-		this._handlers[H.DeleteWordStartLeft] = (ctx) => this._deleteWordLeft(false, WordNavigationType.WordStart, ctx);
-		this._handlers[H.DeleteWordEndLeft] = (ctx) => this._deleteWordLeft(false, WordNavigationType.WordEnd, ctx);
-
 		this._handlers[H.DeleteRight] = (ctx) => this._deleteRight(ctx);
-
-		this._handlers[H.DeleteWordRight] = (ctx) => this._deleteWordRight(true, WordNavigationType.WordEnd, ctx);
-		this._handlers[H.DeleteWordStartRight] = (ctx) => this._deleteWordRight(false, WordNavigationType.WordStart, ctx);
-		this._handlers[H.DeleteWordEndRight] = (ctx) => this._deleteWordRight(false, WordNavigationType.WordEnd, ctx);
 
 		this._handlers[H.Cut] = (ctx) => this._cut(ctx);
 
@@ -1462,16 +1452,8 @@ export class Cursor extends EventEmitter {
 		return this._applyEditForAll(ctx, (cursor) => DeleteOperations.deleteLeft(cursor.config, cursor.model, cursor.modelState));
 	}
 
-	private _deleteWordLeft(whitespaceHeuristics: boolean, wordNavigationType: WordNavigationType, ctx: IMultipleCursorOperationContext): boolean {
-		return this._applyEditForAll(ctx, (cursor) => WordOperations.deleteWordLeft(cursor.config, cursor.model, cursor.modelState, whitespaceHeuristics, wordNavigationType));
-	}
-
 	private _deleteRight(ctx: IMultipleCursorOperationContext): boolean {
 		return this._applyEditForAll(ctx, (cursor) => DeleteOperations.deleteRight(cursor.config, cursor.model, cursor.modelState));
-	}
-
-	private _deleteWordRight(whitespaceHeuristics: boolean, wordNavigationType: WordNavigationType, ctx: IMultipleCursorOperationContext): boolean {
-		return this._applyEditForAll(ctx, (cursor) => WordOperations.deleteWordRight(cursor.config, cursor.model, cursor.modelState, whitespaceHeuristics, wordNavigationType));
 	}
 
 	private _cut(ctx: IMultipleCursorOperationContext): boolean {

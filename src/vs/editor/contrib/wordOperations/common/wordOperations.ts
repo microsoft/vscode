@@ -10,14 +10,16 @@ import { EditorContextKeys, ICommonCodeEditor, IModel } from 'vs/editor/common/e
 import { Selection } from 'vs/editor/common/core/selection';
 import { editorCommand, ServicesAccessor, EditorCommand, ICommandOptions } from 'vs/editor/common/editorCommonExtensions';
 import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
 import { WordNavigationType, WordOperations, getMapForWordSeparators, WordCharacterClassifier } from 'vs/editor/common/controller/cursorWordOperations';
+import { ReplaceCommand } from 'vs/editor/common/commands/replaceCommand';
 
 export interface MoveWordOptions extends ICommandOptions {
 	inSelectionMode: boolean;
 	wordNavigationType: WordNavigationType;
 }
 
-export abstract class WordCommand extends EditorCommand {
+export abstract class MoveWordCommand extends EditorCommand {
 
 	private readonly _inSelectionMode: boolean;
 	private readonly _wordNavigationType: WordNavigationType;
@@ -37,22 +39,42 @@ export abstract class WordCommand extends EditorCommand {
 		const result = selections.map((sel) => {
 			const inPosition = new Position(sel.positionLineNumber, sel.positionColumn);
 			const outPosition = this._move(wordSeparators, model, inPosition, this._wordNavigationType);
-			return move(sel, outPosition, this._inSelectionMode);
+			return this._moveTo(sel, outPosition, this._inSelectionMode);
 		});
 
 		editor.setSelections(result);
 	}
 
+	private _moveTo(from: Selection, to: Position, inSelectionMode: boolean): Selection {
+		if (inSelectionMode) {
+			// move just position
+			return new Selection(
+				from.selectionStartLineNumber,
+				from.selectionStartColumn,
+				to.lineNumber,
+				to.column
+			);
+		} else {
+			// move everything
+			return new Selection(
+				to.lineNumber,
+				to.column,
+				to.lineNumber,
+				to.column
+			);
+		}
+	}
+
 	protected abstract _move(wordSeparators: WordCharacterClassifier, model: IModel, position: Position, wordNavigationType: WordNavigationType): Position;
 }
 
-export class WordLeftCommand extends WordCommand {
+export class WordLeftCommand extends MoveWordCommand {
 	protected _move(wordSeparators: WordCharacterClassifier, model: IModel, position: Position, wordNavigationType: WordNavigationType): Position {
 		return WordOperations.moveWordLeft(wordSeparators, model, position, wordNavigationType);
 	}
 }
 
-export class WordRightCommand extends WordCommand {
+export class WordRightCommand extends MoveWordCommand {
 	protected _move(wordSeparators: WordCharacterClassifier, model: IModel, position: Position, wordNavigationType: WordNavigationType): Position {
 		return WordOperations.moveWordRight(wordSeparators, model, position, wordNavigationType);
 	}
@@ -222,22 +244,138 @@ export class CursorWordRightSelect extends WordRightCommand {
 	}
 }
 
-function move(from: Selection, to: Position, inSelectionMode: boolean): Selection {
-	if (inSelectionMode) {
-		// move just position
-		return new Selection(
-			from.selectionStartLineNumber,
-			from.selectionStartColumn,
-			to.lineNumber,
-			to.column
-		);
-	} else {
-		// move everything
-		return new Selection(
-			to.lineNumber,
-			to.column,
-			to.lineNumber,
-			to.column
-		);
+export interface DeleteWordOptions extends ICommandOptions {
+	whitespaceHeuristics: boolean;
+	wordNavigationType: WordNavigationType;
+}
+
+export abstract class DeleteWordCommand extends EditorCommand {
+	private readonly _whitespaceHeuristics: boolean;
+	private readonly _wordNavigationType: WordNavigationType;
+
+	constructor(opts: DeleteWordOptions) {
+		super(opts);
+		this._whitespaceHeuristics = opts.whitespaceHeuristics;
+		this._wordNavigationType = opts.wordNavigationType;
+	}
+
+	public runEditorCommand(accessor: ServicesAccessor, editor: ICommonCodeEditor, args: any): void {
+		const config = editor.getConfiguration();
+		const wordSeparators = getMapForWordSeparators(config.wordSeparators);
+		const model = editor.getModel();
+		const selections = editor.getSelections();
+
+		const commands = selections.map((sel) => {
+			const deleteRange = this._delete(wordSeparators, model, sel, this._whitespaceHeuristics, this._wordNavigationType);
+			return new ReplaceCommand(deleteRange, '');
+		});
+
+		editor.executeCommands(this.id, commands);
+	}
+
+	protected abstract _delete(wordSeparators: WordCharacterClassifier, model: IModel, selection: Selection, whitespaceHeuristics: boolean, wordNavigationType: WordNavigationType): Range;
+}
+
+export class DeleteWordLeftCommand extends DeleteWordCommand {
+	protected _delete(wordSeparators: WordCharacterClassifier, model: IModel, selection: Selection, whitespaceHeuristics: boolean, wordNavigationType: WordNavigationType): Range {
+		let r = WordOperations._deleteWordLeft(wordSeparators, model, selection, whitespaceHeuristics, wordNavigationType);
+		if (r) {
+			return r;
+		}
+		return new Range(1, 1, 1, 1);
+	}
+}
+
+export class DeleteWordRightCommand extends DeleteWordCommand {
+	protected _delete(wordSeparators: WordCharacterClassifier, model: IModel, selection: Selection, whitespaceHeuristics: boolean, wordNavigationType: WordNavigationType): Range {
+		let r = WordOperations._deleteWordRight(wordSeparators, model, selection, whitespaceHeuristics, wordNavigationType);
+		if (r) {
+			return r;
+		}
+		const lineCount = model.getLineCount();
+		const maxColumn = model.getLineMaxColumn(lineCount);
+		return new Range(lineCount, maxColumn, lineCount, maxColumn);
+	}
+}
+
+@editorCommand
+export class DeleteWordStartLeft extends DeleteWordLeftCommand {
+	constructor() {
+		super({
+			whitespaceHeuristics: false,
+			wordNavigationType: WordNavigationType.WordStart,
+			id: 'deleteWordStartLeft',
+			precondition: EditorContextKeys.Writable
+		});
+	}
+}
+
+@editorCommand
+export class DeleteWordEndLeft extends DeleteWordLeftCommand {
+	constructor() {
+		super({
+			whitespaceHeuristics: false,
+			wordNavigationType: WordNavigationType.WordEnd,
+			id: 'deleteWordEndLeft',
+			precondition: EditorContextKeys.Writable
+		});
+	}
+}
+
+@editorCommand
+export class DeleteWordLeft extends DeleteWordLeftCommand {
+	constructor() {
+		super({
+			whitespaceHeuristics: true,
+			wordNavigationType: WordNavigationType.WordStart,
+			id: 'deleteWordLeft',
+			precondition: EditorContextKeys.Writable,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.CtrlCmd | KeyCode.Backspace,
+				mac: { primary: KeyMod.Alt | KeyCode.Backspace }
+			}
+		});
+	}
+}
+
+@editorCommand
+export class DeleteWordStartRight extends DeleteWordRightCommand {
+	constructor() {
+		super({
+			whitespaceHeuristics: false,
+			wordNavigationType: WordNavigationType.WordStart,
+			id: 'deleteWordStartRight',
+			precondition: EditorContextKeys.Writable
+		});
+	}
+}
+
+@editorCommand
+export class DeleteWordEndRight extends DeleteWordRightCommand {
+	constructor() {
+		super({
+			whitespaceHeuristics: false,
+			wordNavigationType: WordNavigationType.WordEnd,
+			id: 'deleteWordEndRight',
+			precondition: EditorContextKeys.Writable
+		});
+	}
+}
+
+@editorCommand
+export class DeleteWordRight extends DeleteWordRightCommand {
+	constructor() {
+		super({
+			whitespaceHeuristics: true,
+			wordNavigationType: WordNavigationType.WordEnd,
+			id: 'deleteWordRight',
+			precondition: EditorContextKeys.Writable,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.CtrlCmd | KeyCode.Delete,
+				mac: { primary: KeyMod.Alt | KeyCode.Delete }
+			}
+		});
 	}
 }

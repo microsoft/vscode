@@ -4438,14 +4438,6 @@ export var Handler = {
 	DeleteLeft: 'deleteLeft',
 	DeleteRight: 'deleteRight',
 
-	DeleteWordLeft: 'deleteWordLeft',
-	DeleteWordStartLeft: 'deleteWordStartLeft',
-	DeleteWordEndLeft: 'deleteWordEndLeft',
-
-	DeleteWordRight: 'deleteWordRight',
-	DeleteWordStartRight: 'deleteWordStartRight',
-	DeleteWordEndRight: 'deleteWordEndRight',
-
 	RemoveSecondaryCursors: 'removeSecondaryCursors',
 	CancelSelection: 'cancelSelection',
 

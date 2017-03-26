@@ -602,14 +602,6 @@ registerCommand(new CoreCommand({
 	}
 }));
 
-registerCommand(new WordCommand(H.DeleteWordLeft, false, KeyCode.Backspace, EditorContextKeys.Writable));
-registerCommand(new UnboundCoreCommand(H.DeleteWordStartLeft, EditorContextKeys.Writable));
-registerCommand(new UnboundCoreCommand(H.DeleteWordEndLeft, EditorContextKeys.Writable));
-
-registerCommand(new WordCommand(H.DeleteWordRight, false, KeyCode.Delete, EditorContextKeys.Writable));
-registerCommand(new UnboundCoreCommand(H.DeleteWordStartRight, EditorContextKeys.Writable));
-registerCommand(new UnboundCoreCommand(H.DeleteWordEndRight, EditorContextKeys.Writable));
-
 registerCommand(new CoreCommand({
 	id: H.CancelSelection,
 	precondition: EditorContextKeys.HasNonEmptySelection,
