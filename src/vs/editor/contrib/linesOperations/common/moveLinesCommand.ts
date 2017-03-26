@@ -21,6 +21,17 @@ export class MoveLinesCommand implements ICommand {
 		this._isMovingDown = isMovingDown;
 	}
 
+	public static getBeginWhitespaces(string: string){
+		return string.match(/^\s*/)[0] || "";
+	}
+
+	public static replaceLine(model: ITokenizedModel, builder: IEditOperationBuilder, lineNumber: number, newText: string){
+		builder.addEditOperation(new Range(
+			lineNumber, 1,
+			lineNumber, model.getLineMaxColumn(lineNumber)
+		), newText);
+	}
+
 	public getEditOperations(model: ITokenizedModel, builder: IEditOperationBuilder): void {
 
 		var modelLineCount = model.getLineCount();
@@ -64,9 +75,36 @@ export class MoveLinesCommand implements ICommand {
 			var movingLineNumber: number,
 				movingLineText: string;
 
+			const options = model.getOptions();
+			let oneIndent = "	";
+			if (options.insertSpaces) {
+				oneIndent = Array(options.tabSize).join(" ");
+			}
+
 			if (this._isMovingDown) {
 				movingLineNumber = s.endLineNumber + 1;
 				movingLineText = model.getLineContent(movingLineNumber);
+
+				let movingLineWhitespaces = MoveLinesCommand.getBeginWhitespaces(model.getLineContent(movingLineNumber));
+				const firstLineWhitespaces = MoveLinesCommand.getBeginWhitespaces(model.getLineContent(s.startLineNumber));
+				const lastLineWhitespaces = MoveLinesCommand.getBeginWhitespaces(model.getLineContent(s.endLineNumber));
+
+				// If selection have the same indentation for the first and last line, apply an auto indent to the selected block
+				if(firstLineWhitespaces.length === lastLineWhitespaces.length && movingLineText.length > 0){
+					for(var lineNumber = s.startLineNumber; lineNumber <= s.endLineNumber; ++lineNumber){
+						// If line ending with [{(:], use indentation of the next next line
+						// TODO maybe could it be better than this &&
+						let newMovingWhitespaces = movingLineWhitespaces;
+						if( movingLineText.match(/[{(:\[]\s*$/) && movingLineText.match(/[{(:\[]\s*$/).length > 0){
+							 newMovingWhitespaces += oneIndent;
+						}
+						// Replace the current line whitespaces with the moving line whitespaces
+						const lineText = model.getLineContent(lineNumber).replace(
+							new RegExp("^" + firstLineWhitespaces), newMovingWhitespaces
+						);
+						MoveLinesCommand.replaceLine(model, builder, lineNumber, lineText);
+					}
+				}
 
 				// Delete line that needs to be moved
 				builder.addEditOperation(new Range(movingLineNumber - 1, model.getLineMaxColumn(movingLineNumber - 1), movingLineNumber, model.getLineMaxColumn(movingLineNumber)), null);
@@ -76,6 +114,27 @@ export class MoveLinesCommand implements ICommand {
 			} else {
 				movingLineNumber = s.startLineNumber - 1;
 				movingLineText = model.getLineContent(movingLineNumber);
+
+				let movingLineWhitespaces = MoveLinesCommand.getBeginWhitespaces(model.getLineContent(movingLineNumber));
+				const firstLineWhitespaces = MoveLinesCommand.getBeginWhitespaces(model.getLineContent(s.startLineNumber));
+				const lastLineWhitespaces = MoveLinesCommand.getBeginWhitespaces(model.getLineContent(s.endLineNumber));
+
+				// If selection have the same indentation for the first and last line, apply an auto indent to the selected block
+				if(firstLineWhitespaces.length === lastLineWhitespaces.length && movingLineText.length > 1){
+					for(var lineNumber = s.startLineNumber; lineNumber <= s.endLineNumber; ++lineNumber){
+						// If line ending with [{(:], use indentation of the next next line
+						// TODO maybe could it be better than this &&
+						let newMovingWhitespaces = movingLineWhitespaces;
+						if( movingLineText.match(/^\s*[\]})]/) && movingLineText.match(/^\s*[\]})]/).length > 0 ){
+							newMovingWhitespaces += oneIndent;
+						}
+						// Replace the current line whitespaces with the moving line whitespaces
+						const lineText = model.getLineContent(lineNumber).replace(
+							new RegExp("^" + firstLineWhitespaces), newMovingWhitespaces
+						);
+						MoveLinesCommand.replaceLine(model, builder, lineNumber, lineText);
+					}
+				}
 
 				// Delete line that needs to be moved
 				builder.addEditOperation(new Range(movingLineNumber, 1, movingLineNumber + 1, 1), null);
@@ -98,3 +157,4 @@ export class MoveLinesCommand implements ICommand {
 		return result;
 	}
 }
+
