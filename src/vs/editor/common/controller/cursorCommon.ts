@@ -8,7 +8,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { CharCode } from 'vs/base/common/charCode';
 import * as strings from 'vs/base/common/strings';
 import { IModeConfiguration } from 'vs/editor/common/controller/oneCursor';
-import { ICommand, CursorChangeReason, IConfigurationChangedEvent, TextModelResolvedOptions, IConfiguration } from 'vs/editor/common/editorCommon';
+import { ICommand, IConfigurationChangedEvent, TextModelResolvedOptions, IConfiguration } from 'vs/editor/common/editorCommon';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Range } from 'vs/editor/common/core/range';
@@ -118,48 +118,21 @@ export class SingleCursorState {
 		return (!this.selection.isEmpty() || !this.selectionStart.isEmpty());
 	}
 
-	public withSelectionStartLeftoverVisibleColumns(selectionStartLeftoverVisibleColumns: number): SingleCursorState {
-		return new SingleCursorState(
-			this.selectionStart,
-			selectionStartLeftoverVisibleColumns,
-			this.position,
-			this.leftoverVisibleColumns
-		);
-	}
-
-	public withSelectionStart(selectionStart: Range): SingleCursorState {
-		return new SingleCursorState(
-			selectionStart,
-			0,
-			this.position,
-			this.leftoverVisibleColumns
-		);
-	}
-
-	public collapse(): SingleCursorState {
-		return new SingleCursorState(
-			new Range(this.position.lineNumber, this.position.column, this.position.lineNumber, this.position.column),
-			0,
-			this.position,
-			0
-		);
-	}
-
-	public move(inSelectionMode: boolean, position: Position, leftoverVisibleColumns: number): SingleCursorState {
+	public move(inSelectionMode: boolean, lineNumber: number, column: number, leftoverVisibleColumns: number): SingleCursorState {
 		if (inSelectionMode) {
 			// move just position
 			return new SingleCursorState(
 				this.selectionStart,
 				this.selectionStartLeftoverVisibleColumns,
-				position,
+				new Position(lineNumber, column),
 				leftoverVisibleColumns
 			);
 		} else {
 			// move everything
 			return new SingleCursorState(
-				new Range(position.lineNumber, position.column, position.lineNumber, position.column),
+				new Range(lineNumber, column, lineNumber, column),
 				leftoverVisibleColumns,
-				position,
+				new Position(lineNumber, column),
 				leftoverVisibleColumns
 			);
 		}
@@ -194,6 +167,18 @@ export class SingleCursorState {
 	}
 }
 
+export class CursorState {
+	_cursorStateBrand: void;
+
+	readonly modelState: SingleCursorState;
+	readonly viewState: SingleCursorState;
+
+	constructor(modelState: SingleCursorState, viewState: SingleCursorState) {
+		this.modelState = modelState;
+		this.viewState = viewState;
+	}
+}
+
 export class EditOperationResult {
 	_editOperationBrand: void;
 
@@ -202,7 +187,6 @@ export class EditOperationResult {
 	readonly shouldPushStackElementAfter: boolean;
 	readonly isAutoWhitespaceCommand: boolean;
 	readonly shouldRevealHorizontal: boolean;
-	readonly cursorPositionChangeReason: CursorChangeReason;
 
 	constructor(
 		command: ICommand,
@@ -210,8 +194,6 @@ export class EditOperationResult {
 			shouldPushStackElementBefore: boolean;
 			shouldPushStackElementAfter: boolean;
 			isAutoWhitespaceCommand?: boolean;
-			shouldRevealHorizontal?: boolean;
-			cursorPositionChangeReason?: CursorChangeReason;
 		}
 	) {
 		this.command = command;
@@ -219,16 +201,9 @@ export class EditOperationResult {
 		this.shouldPushStackElementAfter = opts.shouldPushStackElementAfter;
 		this.isAutoWhitespaceCommand = false;
 		this.shouldRevealHorizontal = true;
-		this.cursorPositionChangeReason = CursorChangeReason.NotSet;
 
 		if (typeof opts.isAutoWhitespaceCommand !== 'undefined') {
 			this.isAutoWhitespaceCommand = opts.isAutoWhitespaceCommand;
-		}
-		if (typeof opts.shouldRevealHorizontal !== 'undefined') {
-			this.shouldRevealHorizontal = opts.shouldRevealHorizontal;
-		}
-		if (typeof opts.cursorPositionChangeReason !== 'undefined') {
-			this.cursorPositionChangeReason = opts.cursorPositionChangeReason;
 		}
 	}
 }

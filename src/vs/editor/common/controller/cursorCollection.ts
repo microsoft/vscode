@@ -11,6 +11,7 @@ import { IConfiguration, IModel, ISelection } from 'vs/editor/common/editorCommo
 import { IAutoClosingPair } from 'vs/editor/common/modes/languageConfiguration';
 import { Position } from 'vs/editor/common/core/position';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { CursorState } from 'vs/editor/common/controller/cursorCommon';
 
 export interface ICursorCollectionState {
 	primary: IOneCursorState;
@@ -150,6 +151,42 @@ export class CursorCollection {
 		this._setSecondarySelections(selections.slice(1), viewSelections ? viewSelections.slice(1) : null);
 	}
 
+	public getPrimaryCursor(): OneCursor {
+		return this.primaryCursor;
+	}
+
+	public setStates(states: CursorState[], ensureInEditableRange: boolean): void {
+		if (states === null) {
+			return;
+		}
+		this.primaryCursor.setState(states[0].modelState, states[0].viewState, ensureInEditableRange);
+		this._setSecondaryStates(states.slice(1), ensureInEditableRange);
+	}
+
+	/**
+	 * Creates or disposes secondary cursors as necessary to match the number of `secondarySelections`.
+	 */
+	private _setSecondaryStates(secondaryStates: CursorState[], ensureInEditableRange: boolean): void {
+		const secondaryCursorsLength = this.secondaryCursors.length;
+		const secondaryStatesLength = secondaryStates.length;
+
+		if (secondaryCursorsLength < secondaryStatesLength) {
+			let createCnt = secondaryStatesLength - secondaryCursorsLength;
+			for (let i = 0; i < createCnt; i++) {
+				this.addSecondaryCursor(null);
+			}
+		} else if (secondaryCursorsLength > secondaryStatesLength) {
+			let removeCnt = secondaryCursorsLength - secondaryStatesLength;
+			for (let i = 0; i < removeCnt; i++) {
+				this._removeSecondaryCursor(this.secondaryCursors.length - 1);
+			}
+		}
+
+		for (let i = 0; i < secondaryStatesLength; i++) {
+			this.secondaryCursors[i].setState(secondaryStates[i].modelState, secondaryStates[i].viewState, ensureInEditableRange);
+		}
+	}
+
 	public killSecondaryCursors(): boolean {
 		return (this._setSecondarySelections([], []) > 0);
 	}
@@ -164,18 +201,6 @@ export class CursorCollection {
 			newCursor.setSelection(selection);
 		}
 		this.secondaryCursors.push(newCursor);
-		this.lastAddedCursorIndex = this.secondaryCursors.length;
-	}
-
-	public duplicateCursors(): void {
-		var newCursors: OneCursor[] = [];
-
-		newCursors.push(this.primaryCursor.duplicate());
-		for (var i = 0, len = this.secondaryCursors.length; i < len; i++) {
-			newCursors.push(this.secondaryCursors[i].duplicate());
-		}
-
-		this.secondaryCursors = this.secondaryCursors.concat(newCursors);
 		this.lastAddedCursorIndex = this.secondaryCursors.length;
 	}
 

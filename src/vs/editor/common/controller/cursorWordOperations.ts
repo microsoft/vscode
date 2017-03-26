@@ -8,8 +8,6 @@ import { SingleCursorState, CursorConfiguration, ICursorSimpleModel } from 'vs/e
 import { Position } from 'vs/editor/common/core/position';
 import { CharCode } from 'vs/base/common/charCode';
 import { CharacterClassifier } from 'vs/editor/common/core/characterClassifier';
-import { SingleMoveOperationResult } from 'vs/editor/common/controller/cursorMoveOperations';
-import { CursorChangeReason } from 'vs/editor/common/editorCommon';
 import * as strings from 'vs/base/common/strings';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -419,7 +417,7 @@ export class WordOperations {
 		return new Range(lineNumber, column, position.lineNumber, position.column);
 	}
 
-	public static word(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, inSelectionMode: boolean, position: Position): SingleMoveOperationResult {
+	public static word(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, inSelectionMode: boolean, position: Position): SingleCursorState {
 		const wordSeparators = getMapForWordSeparators(config.wordSeparators);
 		let prevWord = WordOperations._findPreviousWordOnLine(wordSeparators, model, position);
 		let isInPrevWord = (prevWord && prevWord.wordType === WordType.Regular && prevWord.start < position.column - 1 && position.column - 1 <= prevWord.end);
@@ -427,6 +425,7 @@ export class WordOperations {
 		let isInNextWord = (nextWord && nextWord.wordType === WordType.Regular && nextWord.start < position.column - 1 && position.column - 1 <= nextWord.end);
 
 		if (!inSelectionMode || !cursor.hasSelection()) {
+			// Entering word selection for the first time
 
 			let startColumn: number;
 			let endColumn: number;
@@ -450,13 +449,9 @@ export class WordOperations {
 				}
 			}
 
-			return new SingleMoveOperationResult(
-				new SingleCursorState(
-					new Range(position.lineNumber, startColumn, position.lineNumber, endColumn), 0,
-					new Position(position.lineNumber, endColumn), 0
-				),
-				false,
-				CursorChangeReason.Explicit
+			return new SingleCursorState(
+				new Range(position.lineNumber, startColumn, position.lineNumber, endColumn), 0,
+				new Position(position.lineNumber, endColumn), 0
 			);
 		}
 
@@ -490,6 +485,6 @@ export class WordOperations {
 			}
 		}
 
-		return SingleMoveOperationResult.fromMove(cursor, cursor.hasSelection(), lineNumber, column, 0, false, CursorChangeReason.Explicit);
+		return cursor.move(cursor.hasSelection(), lineNumber, column, 0);
 	}
 }
