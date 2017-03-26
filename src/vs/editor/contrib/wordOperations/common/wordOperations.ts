@@ -278,7 +278,7 @@ export abstract class DeleteWordCommand extends EditorCommand {
 
 export class DeleteWordLeftCommand extends DeleteWordCommand {
 	protected _delete(wordSeparators: WordCharacterClassifier, model: IModel, selection: Selection, whitespaceHeuristics: boolean, wordNavigationType: WordNavigationType): Range {
-		let r = WordOperations._deleteWordLeft(wordSeparators, model, selection, whitespaceHeuristics, wordNavigationType);
+		let r = WordOperations.deleteWordLeft(wordSeparators, model, selection, whitespaceHeuristics, wordNavigationType);
 		if (r) {
 			return r;
 		}
@@ -288,7 +288,7 @@ export class DeleteWordLeftCommand extends DeleteWordCommand {
 
 export class DeleteWordRightCommand extends DeleteWordCommand {
 	protected _delete(wordSeparators: WordCharacterClassifier, model: IModel, selection: Selection, whitespaceHeuristics: boolean, wordNavigationType: WordNavigationType): Range {
-		let r = WordOperations._deleteWordRight(wordSeparators, model, selection, whitespaceHeuristics, wordNavigationType);
+		let r = WordOperations.deleteWordRight(wordSeparators, model, selection, whitespaceHeuristics, wordNavigationType);
 		if (r) {
 			return r;
 		}

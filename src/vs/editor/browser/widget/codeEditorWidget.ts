@@ -170,11 +170,16 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		return this.viewModel.getCenteredRangeInViewport();
 	}
 
-	public getCompletelyVisibleLinesRangeInViewport(): Range {
+	protected _getCompletelyVisibleViewRange(): Range {
 		if (!this.hasView) {
 			return null;
 		}
-		return this._view.getCompletelyVisibleLinesRangeInViewport();
+		return this._view.getCodeEditorHelper().getCompletelyVisibleViewRange();
+	}
+
+	public getCompletelyVisibleLinesRangeInViewport(): Range {
+		const viewRange = this._getCompletelyVisibleViewRange();
+		return this.viewModel.coordinatesConverter.convertViewRangeToModelRange(viewRange);
 	}
 
 	public getScrollWidth(): number {
