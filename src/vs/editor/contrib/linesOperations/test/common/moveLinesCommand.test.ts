@@ -45,7 +45,6 @@ function testMoveLinesUpCommandWithAndWithoutPreindentation(oneIndentation: stri
 }
 
 function testMoveLinesDownCommandWithAndWithoutPreindentation(oneIndentation: string, lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection){
-
 	const options = getOptionWithIndentation(oneIndentation);
 
 	testMoveLinesDownCommand(lines, selection, expectedLines, expectedSelection, options);
