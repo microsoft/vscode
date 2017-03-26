@@ -57,6 +57,26 @@ function testMoveLinesDownCommandWithAndWithoutPreindentation(oneIndentation: st
 	);
 }
 
+function testMoveLinesUpCommandWithAndWithoutPreindentation(preindentation: string, lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection){
+	testMoveLinesUpCommand(lines, selection, expectedLines, expectedSelection);
+	testMoveLinesUpCommand(
+		lines.map((x: string) => {return preindentation + x;}),
+		selection,
+		expectedLines.map((x: string) => {return preindentation + x;}),
+		expectedSelection
+	);
+}
+
+function testMoveLinesDownCommandWithAndWithoutPreindentation(preindentation: string, lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection){
+	testMoveLinesDownCommand(lines, selection, expectedLines, expectedSelection);
+	testMoveLinesDownCommand(
+		lines.map((x: string) => {return preindentation + x;}),
+		selection,
+		expectedLines.map((x: string) => {return preindentation + x;}),
+		expectedSelection
+	);
+}
+
 suite('Editor Contrib - Move Lines Command', () => {
 
 	test('move first up / last down disabled', function () {
