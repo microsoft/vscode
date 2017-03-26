@@ -20,10 +20,11 @@ export function testCommand(
 	selection: Selection,
 	commandFactory: (selection: Selection) => editorCommon.ICommand,
 	expectedLines: string[],
-	expectedSelection: Selection
+	expectedSelection: Selection,
+	options: editorCommon.ITextModelCreationOptions = undefined
 ): void {
 
-	let model = Model.createFromString(lines.join('\n'), undefined, languageIdentifier);
+	let model = Model.createFromString(lines.join('\n'), options, languageIdentifier);
 	let config = new TestConfiguration(null);
 	let cursor = new Cursor(config, model, viewModelHelper(model), false);
 
@@ -87,3 +88,4 @@ export function createInsertDeleteSingleEditOp(text: string, positionLineNumber:
 		forceMoveMarkers: true
 	};
 }
+
