@@ -32,6 +32,11 @@ export class SettingsDocument {
 			return this.provideExcludeCompletionItems(location, range);
 		}
 
+		// files.defaultLanguage
+		if (location.path[0] === 'files.defaultLanguage') {
+			return this.provideDefaultLanguageCompletionItems(location, range);
+		}
+
 		return this.provideLanguageOverridesCompletionItems(location, position);
 	}
 
@@ -190,6 +195,18 @@ export class SettingsDocument {
 			});
 		}
 		return Promise.resolve([]);
+	}
+
+	private provideDefaultLanguageCompletionItems(location: Location, range: vscode.Range): vscode.ProviderResult<vscode.CompletionItem[]> {
+		// Suggestion model word matching includes a starting quote
+		// Hence exclude it from the proposal range
+		range = new vscode.Range(new vscode.Position(range.start.line, range.start.character + 1), range.end);
+
+		return vscode.languages.getLanguages().then(languages => {
+				return languages.map(l => {
+					return this.newSimpleCompletionItem(l, range, '', l + '"');
+				});
+			});
 	}
 
 	private newSimpleCompletionItem(text: string, range: vscode.Range, description?: string, insertText?: string): vscode.CompletionItem {
