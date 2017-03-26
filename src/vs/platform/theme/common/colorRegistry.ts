@@ -114,12 +114,13 @@ export function registerColor(id: string, defaults: ColorDefaults, description: 
 // ----- base colors
 
 export const foreground = registerColor('foreground', { dark: '#CCCCCC', light: '#6C6C6C', hc: '#FFFFFF' }, nls.localize('foreground', "Overall foreground color. This color is only used if not overridden by a component."));
+export const focus = registerColor('focus', { dark: '#007ACC', light: '#007ACC', hc: '#F38518' }, nls.localize('focus', "Overall outline/border color for focused elements. This color is only used if not overridden by a component."));
 
 /**
  * Commonly used High contrast colors.
  */
 export const highContrastBorder = registerColor('highContrastBorder', { light: null, dark: null, hc: '#6FC3DF' }, nls.localize('highContrastBorder', "Border color to separate components when high contrast theme is enabled."));
-export const highContrastOutline = registerColor('highContrastOutline', { light: null, dark: null, hc: '#F38518' }, nls.localize('highContrastOutline', "Outline color for active components when high contrast theme is enabled."));
+export const highContrastOutline = registerColor('highContrastOutline', { light: null, dark: null, hc: focus }, nls.localize('highContrastOutline', "Outline color for active components when high contrast theme is enabled."));
 
 /**
  * Widgets

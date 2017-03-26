@@ -108,6 +108,24 @@ export const PANEL_BORDER_TOP_COLOR = registerColor('panelBorderTopColor', {
 	hc: highContrastBorder
 }, nls.localize('panelBorderTopColor', "Panel border color on the top separating to the editor. Panels are shown below the editor area and contain views like output and integrated terminal."));
 
+export const PANEL_ACTIVE_TITLE_COLOR = registerColor('panelActiveTitleColor', {
+	dark: '#E7E7E7',
+	light: '#424242',
+	hc: Color.white
+}, nls.localize('panelActiveTitleColor', "Title color for the active panel. Panels are shown below the editor area and contain views like output and integrated terminal."));
+
+export const PANEL_INACTIVE_TITLE_COLOR = registerColor('panelInactiveTitleColor', {
+	dark: Color.fromRGBA(new RGBA(231, 231, 231)).transparent(0.5),
+	light: Color.fromRGBA(new RGBA(66, 66, 66)).transparent(0.75),
+	hc: Color.white
+}, nls.localize('panelInactiveTitleColor', "Title color for the inactive panel. Panels are shown below the editor area and contain views like output and integrated terminal."));
+
+export const PANEL_ACTIVE_TITLE_BORDER = registerColor('panelActiveTitleBorder', {
+	dark: '#404047',
+	light: '#CCCEDA',
+	hc: highContrastBorder
+}, nls.localize('panelActiveTitleBorder', "Border color for the active panel title. Panels are shown below the editor area and contain views like output and integrated terminal."));
+
 
 
 // < --- Status --- >
