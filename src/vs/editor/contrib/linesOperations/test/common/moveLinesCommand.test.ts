@@ -7,32 +7,53 @@
 import { Selection } from 'vs/editor/common/core/selection';
 import { MoveLinesCommand } from 'vs/editor/contrib/linesOperations/common/moveLinesCommand';
 import { testCommand } from 'vs/editor/test/common/commands/commandTestUtils';
+import * as editorCommon from 'vs/editor/common/editorCommon';
+import { TextModel } from 'vs/editor/common/model/textModel';
 
-function testMoveLinesDownCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-	testCommand(lines, null, selection, (sel) => new MoveLinesCommand(sel, true), expectedLines, expectedSelection);
+function testMoveLinesDownCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection, options: editorCommon.ITextModelCreationOptions = undefined): void {
+	testCommand(lines, null, selection, (sel) => new MoveLinesCommand(sel, true), expectedLines, expectedSelection, options);
 }
 
-function testMoveLinesUpCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-	testCommand(lines, null, selection, (sel) => new MoveLinesCommand(sel, false), expectedLines, expectedSelection);
+function testMoveLinesUpCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection, options: editorCommon.ITextModelCreationOptions = undefined): void {
+	testCommand(lines, null, selection, (sel) => new MoveLinesCommand(sel, false), expectedLines, expectedSelection, options);
 }
 
-function testMoveLinesUpCommandWithAndWithoutPreindentation(preindentation: string, lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection){
-	testMoveLinesUpCommand(lines, selection, expectedLines, expectedSelection);
+function getOptionWithIndentation(indentation: string): editorCommon.ITextModelCreationOptions {
+	let options: editorCommon.ITextModelCreationOptions = TextModel.DEFAULT_CREATION_OPTIONS;
+
+	options.tabSize = indentation.length + 1;
+	options.insertSpaces = true;
+
+	if(indentation === "	"){
+		options.insertSpaces = false;
+	}
+
+	return options;
+}
+
+function testMoveLinesUpCommandWithAndWithoutPreindentation(oneIndentation: string, lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection){
+	const options = getOptionWithIndentation(oneIndentation);
+
+	testMoveLinesUpCommand(lines, selection, expectedLines, expectedSelection, options);
 	testMoveLinesUpCommand(
-		lines.map((x: string) => {return preindentation + x;}),
+		lines.map((x: string) => {return oneIndentation + oneIndentation + x;}),
 		selection,
-		expectedLines.map((x: string) => {return preindentation + x;}),
-		expectedSelection
+		expectedLines.map((x: string) => {return oneIndentation + oneIndentation + x;}),
+		expectedSelection,
+		options
 	);
 }
 
-function testMoveLinesDownCommandWithAndWithoutPreindentation(preindentation: string, lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection){
-	testMoveLinesDownCommand(lines, selection, expectedLines, expectedSelection);
+function testMoveLinesDownCommandWithAndWithoutPreindentation(oneIndentation: string, lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection){
+	const options = getOptionWithIndentation(oneIndentation);
+
+	testMoveLinesDownCommand(lines, selection, expectedLines, expectedSelection, options);
 	testMoveLinesDownCommand(
-		lines.map((x: string) => {return preindentation + x;}),
+		lines.map((x: string) => {return oneIndentation + oneIndentation + x;}),
 		selection,
-		expectedLines.map((x: string) => {return preindentation + x;}),
-		expectedSelection
+		expectedLines.map((x: string) => {return oneIndentation + oneIndentation + x;}),
+		expectedSelection,
+		options
 	);
 }
 
@@ -275,7 +296,7 @@ suite('Editor Contrib - Move Lines Command', () => {
 		openBlockChars.forEach((openBracket: string) => {
 			indentationType.forEach((indentation: string) => {
 				testMoveLinesDownCommandWithAndWithoutPreindentation(
-					indentation + indentation,
+					indentation,
 					[
 						'line to move',
 						'start block ' + openBracket,
@@ -289,7 +310,6 @@ suite('Editor Contrib - Move Lines Command', () => {
 						indentation + 'let a = 10',
 						'end block',
 					],
-					// TODO should verify also the selection
 					new Selection(2, 1, 2, 1)
 				);
 			});
@@ -300,7 +320,7 @@ suite('Editor Contrib - Move Lines Command', () => {
 		closingBlockChars.forEach((closingBracket: string) => {
 			indentationType.forEach((indentation: string) => {
 				testMoveLinesDownCommandWithAndWithoutPreindentation(
-					indentation + indentation,
+					indentation,
 					[
 						'open block',
 						indentation + 'let a = 10',
@@ -314,7 +334,6 @@ suite('Editor Contrib - Move Lines Command', () => {
 						closingBracket +'end block',
 						'line to move',
 					],
-					// TODO should verify also the selection
 					new Selection(4, 1, 4, 1)
 				);
 			});
@@ -325,7 +344,7 @@ suite('Editor Contrib - Move Lines Command', () => {
 		openBlockChars.forEach((openBracket: string) => {
 			indentationType.forEach((indentation: string) => {
 				testMoveLinesDownCommandWithAndWithoutPreindentation(
-					indentation + indentation,
+					indentation,
 					[
 						'line to move',
 						'start block ' + openBracket,
@@ -337,7 +356,6 @@ suite('Editor Contrib - Move Lines Command', () => {
 						indentation + 'line to move',
 						'end block',
 					],
-					// TODO should verify also the selection
 					new Selection(2, 1, 2, 1)
 				);
 			});
@@ -348,7 +366,7 @@ suite('Editor Contrib - Move Lines Command', () => {
 		closingBlockChars.forEach((closingBracket: string) => {
 			indentationType.forEach((indentation: string) => {
 				testMoveLinesDownCommandWithAndWithoutPreindentation(
-					indentation + indentation,
+					indentation,
 					[
 						'open block',
 						indentation + 'line to move',
@@ -360,7 +378,6 @@ suite('Editor Contrib - Move Lines Command', () => {
 						closingBracket +'end block',
 						'line to move',
 					],
-					// TODO should verify also the selection
 					new Selection(3, 1, 3, 1)
 				);
 			});
@@ -371,7 +388,7 @@ suite('Editor Contrib - Move Lines Command', () => {
 		closingBlockChars.forEach((closingBracket: string) => {
 			indentationType.forEach((indentation: string) => {
 				testMoveLinesUpCommandWithAndWithoutPreindentation(
-					indentation + indentation,
+					indentation,
 					[
 						'open block',
 						indentation + 'let a = 10',
@@ -385,7 +402,6 @@ suite('Editor Contrib - Move Lines Command', () => {
 						indentation + 'line to move',
 						closingBracket +'end block',
 					],
-					// TODO should verify also the selection
 					new Selection(3, 1, 3, 1)
 				);
 			});
@@ -396,7 +412,7 @@ suite('Editor Contrib - Move Lines Command', () => {
 		openBlockChars.forEach((openBracket: string) => {
 			indentationType.forEach((indentation: string) => {
 				testMoveLinesUpCommandWithAndWithoutPreindentation(
-					indentation + indentation,
+					indentation,
 					[
 						'open block ' + openBracket,
 						indentation + 'line to move',
@@ -410,7 +426,6 @@ suite('Editor Contrib - Move Lines Command', () => {
 						indentation + 'let a = 10',
 						'end block',
 					],
-					// TODO should verify also the selection
 					new Selection(1, 1, 1, 1)
 				);
 			});
@@ -421,7 +436,7 @@ suite('Editor Contrib - Move Lines Command', () => {
 		closingBlockChars.forEach((closingBracket: string) => {
 			indentationType.forEach((indentation: string) => {
 				testMoveLinesUpCommandWithAndWithoutPreindentation(
-					indentation + indentation,
+					indentation,
 					[
 						'open block',
 						closingBracket +'end block',
@@ -433,7 +448,6 @@ suite('Editor Contrib - Move Lines Command', () => {
 						indentation + 'line to move',
 						closingBracket + 'end block',
 					],
-					// TODO should verify also the selection
 					new Selection(2, 1, 2, 1)
 				);
 			});
@@ -444,7 +458,7 @@ suite('Editor Contrib - Move Lines Command', () => {
 		openBlockChars.forEach((openBracket: string) => {
 			indentationType.forEach((indentation: string) => {
 				testMoveLinesUpCommandWithAndWithoutPreindentation(
-					indentation + indentation,
+					indentation,
 					[
 						'open block' + openBracket,
 						indentation + 'line to move',
@@ -456,7 +470,6 @@ suite('Editor Contrib - Move Lines Command', () => {
 						'open block ' + openBracket,
 						'end block',
 					],
-					// TODO should verify also the selection
 					new Selection(1, 1, 1, 1)
 				);
 			});
@@ -505,7 +518,7 @@ suite('Editor Contrib - Move Lines Command', () => {
 		openBlockChars.forEach((openBracket: string) => {
 			indentationType.forEach((indentation: string) => {
 				testMoveLinesDownCommandWithAndWithoutPreindentation(
-					indentation + indentation,
+					indentation,
 					[
 						'blocktomove start',
 						indentation + 'blocktomove middle',
@@ -533,7 +546,7 @@ suite('Editor Contrib - Move Lines Command', () => {
 		closingBlockChars.forEach((closingBracket: string) => {
 			indentationType.forEach((indentation: string) => {
 				testMoveLinesDownCommandWithAndWithoutPreindentation(
-					indentation + indentation,
+					indentation,
 					[
 						'open block',
 						indentation + 'let a = 10',
@@ -561,7 +574,7 @@ suite('Editor Contrib - Move Lines Command', () => {
 		openBlockChars.forEach((openBracket: string) => {
 			indentationType.forEach((indentation: string) => {
 				testMoveLinesDownCommandWithAndWithoutPreindentation(
-					indentation + indentation,
+					indentation,
 					[
 						'blocktomove start',
 						indentation + 'blocktomove middle',
@@ -587,7 +600,7 @@ suite('Editor Contrib - Move Lines Command', () => {
 		closingBlockChars.forEach((closingBracket: string) => {
 			indentationType.forEach((indentation: string) => {
 				testMoveLinesDownCommandWithAndWithoutPreindentation(
-					indentation + indentation,
+					indentation,
 					[
 						'open block',
 						indentation + 'blocktomove start',
@@ -613,7 +626,7 @@ suite('Editor Contrib - Move Lines Command', () => {
 		closingBlockChars.forEach((closingBracket: string) => {
 			indentationType.forEach((indentation: string) => {
 				testMoveLinesUpCommandWithAndWithoutPreindentation(
-					indentation + indentation,
+					indentation,
 					[
 						'open block',
 						indentation + 'let a = 10',
@@ -641,7 +654,7 @@ suite('Editor Contrib - Move Lines Command', () => {
 		openBlockChars.forEach((openBracket: string) => {
 			indentationType.forEach((indentation: string) => {
 				testMoveLinesUpCommandWithAndWithoutPreindentation(
-					indentation + indentation,
+					indentation,
 					[
 						'open block' + openBracket,
 						indentation + 'blocktomove start',
@@ -669,7 +682,7 @@ suite('Editor Contrib - Move Lines Command', () => {
 		closingBlockChars.forEach((closingBracket: string) => {
 			indentationType.forEach((indentation: string) => {
 				testMoveLinesUpCommandWithAndWithoutPreindentation(
-					indentation + indentation,
+					indentation,
 					[
 						'open block',
 						closingBracket + 'end block',
@@ -695,7 +708,7 @@ suite('Editor Contrib - Move Lines Command', () => {
 		openBlockChars.forEach((openBracket: string) => {
 			indentationType.forEach((indentation: string) => {
 				testMoveLinesUpCommandWithAndWithoutPreindentation(
-					indentation + indentation,
+					indentation,
 					[
 						'open block' + openBracket,
 						indentation + 'blocktomove start',
