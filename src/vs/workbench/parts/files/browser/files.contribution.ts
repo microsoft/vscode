@@ -195,7 +195,7 @@ configurationRegistry.registerConfiguration({
 								'type': 'string', // expression ({ "**/*.js": { "when": "$(basename).js" } })
 								'pattern': '\\w*\\$\\(basename\\)\\w*',
 								'default': '$(basename).ext',
-								'description': nls.localize('files.exclude.when', 'Additional check on the siblings of a matching file. Use $(basename) as variable for the matching file name.')
+								'description': nls.localize('files.exclude.when', "Additional check on the siblings of a matching file. Use $(basename) as variable for the matching file name.")
 							}
 						}
 					}
@@ -204,7 +204,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'files.associations': {
 			'type': 'object',
-			'description': nls.localize('associations', "Configure file associations to languages (e.g. '*.extension': 'html'). These have precedence over the default associations of the languages installed."),
+			'description': nls.localize('associations', "Configure file associations to languages (e.g. \"*.extension\": \"html\"). These have precedence over the default associations of the languages installed."),
 		},
 		'files.encoding': {
 			'type': 'string',
@@ -270,6 +270,10 @@ configurationRegistry.registerConfiguration({
 				nls.localize('hotExit.onExitAndWindowClose', 'Hot exit will be triggered when the application is closed, that is when the last window is closed on Windows/Linux or when the workbench.action.quit command is triggered (command pallete, keybinding, menu), and also for any window with a folder opened regardless of whether it\'s the last window. All windows without folders opened will be restored upon next launch. To restore folder windows as they were before shutdown set "window.reopenFolders" to "all".')
 			],
 			'description': nls.localize('hotExit', "Controls whether unsaved files are remembered between sessions, allowing the save prompt when exiting the editor to be skipped.", HotExitConfiguration.ON_EXIT, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE)
+		},
+		'files.defaultLanguage': {
+			'type': 'string',
+			'description': nls.localize('defaultLanguage', "The default language mode that is assigned to new files.")
 		}
 	}
 });

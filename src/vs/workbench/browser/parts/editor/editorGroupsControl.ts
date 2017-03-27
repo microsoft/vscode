@@ -78,7 +78,11 @@ export interface IEditorGroupsControl {
 	setGroupOrientation(orientation: GroupOrientation): void;
 	getGroupOrientation(): GroupOrientation;
 
+	resizeGroup(position: Position, groupSizeChange: number): void;
+
 	getRatio(): number[];
+
+
 	dispose(): void;
 }
 
@@ -734,6 +738,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		}
 
 		this.layoutContainers();
+		this.updateStyles();
 	}
 
 	public setGroupOrientation(orientation: GroupOrientation): void {
@@ -841,6 +846,82 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		return ratio;
 	}
 
+	// Resize the editor/group position - changes main axis
+	public resizeGroup(position: Position, groupSizeChange: number): void {
+
+		enum VISIBLE_EDITORS {
+			ONE = 1,
+			TWO = 2,
+			THREE = 3
+		}
+
+		const visibleEditors = this.getVisibleEditorCount();
+
+		if (visibleEditors <= VISIBLE_EDITORS.ONE) {
+			return;
+		}
+
+		const availableSize = this.totalSize;
+		const activeGroupPosition = this.getActivePosition();
+
+		switch (visibleEditors) {
+			case VISIBLE_EDITORS.TWO:
+				switch (activeGroupPosition) {
+					case Position.ONE:
+						this.silosSize[Position.ONE] = this.boundSiloSize(Position.ONE, groupSizeChange);
+						this.silosSize[Position.TWO] = availableSize - this.silosSize[Position.ONE];
+						break;
+					case Position.TWO:
+						this.silosSize[Position.TWO] = this.boundSiloSize(Position.TWO, groupSizeChange);
+						this.silosSize[Position.ONE] = availableSize - this.silosSize[Position.TWO];
+					default:
+						break;
+				}
+				break;
+			case VISIBLE_EDITORS.THREE:
+				switch (activeGroupPosition) {
+					case Position.ONE:
+						this.silosSize[Position.ONE] = this.boundSiloSize(Position.ONE, groupSizeChange);
+						this.distributeRemainingSilosSize(Position.TWO, Position.THREE, availableSize - this.silosSize[Position.ONE]);
+						break;
+					case Position.TWO:
+						this.silosSize[Position.TWO] = this.boundSiloSize(Position.TWO, groupSizeChange);
+						this.distributeRemainingSilosSize(Position.ONE, Position.THREE, availableSize - this.silosSize[Position.TWO]);
+						break;
+					case Position.THREE:
+						this.silosSize[Position.THREE] = this.boundSiloSize(Position.THREE, groupSizeChange);
+						this.distributeRemainingSilosSize(Position.ONE, Position.TWO, availableSize - this.silosSize[Position.THREE]);
+						break;
+					default:
+						break;
+				}
+			default:
+				break;
+		}
+
+		this.layout(this.dimension);
+	}
+
+	private boundSiloSize(siloPosition: Position, sizeChangePx: number): number {
+		const visibleEditors = this.getVisibleEditorCount();
+		let newSiloSize: number = 0;
+
+		newSiloSize = Math.max(this.minSize, this.silosSize[siloPosition] + sizeChangePx);
+		newSiloSize = Math.min(newSiloSize, (this.totalSize - this.minSize * (visibleEditors - 1)));
+
+		return newSiloSize;
+	}
+
+	private distributeRemainingSilosSize(remPosition1: Position, remPosition2: Position, availableSize: number): void {
+		let scaleFactor: number = 0;
+
+		scaleFactor = this.silosSize[remPosition1] / (this.silosSize[remPosition1] + this.silosSize[remPosition2]);
+		this.silosSize[remPosition1] = scaleFactor * availableSize;
+		this.silosSize[remPosition1] = Math.max(this.silosSize[remPosition1], this.minSize);
+		this.silosSize[remPosition1] = Math.min(this.silosSize[remPosition1], (availableSize - this.minSize));
+		this.silosSize[remPosition2] = availableSize - this.silosSize[remPosition1];
+	}
+
 	public getActiveEditor(): BaseEditor {
 		return this.lastActiveEditor;
 	}
@@ -928,10 +1009,8 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 			silo.style('background-color', this.getColor(editorBackground));
 
 			// Border
-			if (index > Position.ONE) {
-				silo.style('border-left-color', this.getColor(EDITOR_GROUP_BORDER_COLOR));
-				silo.style('border-top-color', this.getColor(EDITOR_GROUP_BORDER_COLOR));
-			}
+			silo.style('border-left-color', index > Position.ONE ? this.getColor(EDITOR_GROUP_BORDER_COLOR) : null);
+			silo.style('border-top-color', index > Position.ONE ? this.getColor(EDITOR_GROUP_BORDER_COLOR) : null);
 		});
 
 		// Title control
@@ -1487,7 +1566,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		element.style.outlineColor = useOutline ? this.getColor(highContrastOutline) : null;
 		element.style.outlineStyle = useOutline ? 'dashed' : null;
 		element.style.outlineWidth = useOutline ? '2px' : null;
-		(<any>element).style.outlineOffset = useOutline ? '-2px' : null; // TODO@theme TS fail (gulp watch)
+		(<any>element).style.outlineOffset = useOutline ? '-2px' : null; // TS fail (gulp watch)
 	}
 
 	private posSilo(pos: number, leftTop: string | number, rightBottom?: string | number, borderLeftTopWidth?: string | number): void {

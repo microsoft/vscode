@@ -38,7 +38,7 @@ import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 import { Registry } from 'vs/platform/platform';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actionRegistry';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { IWorkbenchThemeService, VS_HC_THEME, VS_DARK_THEME } from 'vs/workbench/services/themes/common/themeService';
+import { IWorkbenchThemeService, VS_HC_THEME, VS_DARK_THEME } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import * as browser from 'vs/base/browser/browser';
 import { ReloadWindowAction, ToggleDevToolsAction, ShowStartupPerformance, OpenRecentAction, ToggleSharedProcessAction } from 'vs/workbench/electron-browser/actions';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
@@ -46,6 +46,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { Position, IResourceInput } from 'vs/platform/editor/common/editor';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
 import { Themable, EDITOR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
 
 import { remote, ipcRenderer as ipc, webFrame } from 'electron';
@@ -295,6 +296,11 @@ export class ElectronWindow extends Themable {
 					this.themeService.setColorTheme(VS_DARK_THEME, null);
 				});
 			}
+		});
+
+		// keyboard layout changed event
+		ipc.on('vscode:keyboardLayoutChanged', () => {
+			KeyboardMapperFactory.INSTANCE._onKeyboardLayoutChanged();
 		});
 
 		// Configuration changes

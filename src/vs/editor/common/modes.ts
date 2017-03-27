@@ -163,7 +163,7 @@ export interface Hover {
 
 /**
  * The hover provider interface defines the contract between extensions and
- * the [hover](https://code.visualstudio.com/docs/editor/editingevolved#_hover)-feature.
+ * the [hover](https://code.visualstudio.com/docs/editor/intellisense)-feature.
  */
 export interface HoverProvider {
 	/**
@@ -183,6 +183,7 @@ export type SuggestionType = 'method'
 	| 'field'
 	| 'variable'
 	| 'class'
+	| 'struct'
 	| 'interface'
 	| 'module'
 	| 'property'
@@ -322,7 +323,7 @@ export interface SignatureHelp {
 }
 /**
  * The signature help provider interface defines the contract between extensions and
- * the [parameter hints](https://code.visualstudio.com/docs/editor/editingevolved#_parameter-hints)-feature.
+ * the [parameter hints](https://code.visualstudio.com/docs/editor/intellisense)-feature.
  */
 export interface SignatureHelpProvider {
 
@@ -457,132 +458,31 @@ export interface TypeDefinitionProvider {
 /**
  * A symbol kind.
  */
-export enum SymbolKind {
-	File = 0,
-	Module = 1,
-	Namespace = 2,
-	Package = 3,
-	Class = 4,
-	Method = 5,
-	Property = 6,
-	Field = 7,
-	Constructor = 8,
-	Enum = 9,
-	Interface = 10,
-	Function = 11,
-	Variable = 12,
-	Constant = 13,
-	String = 14,
-	Number = 15,
-	Boolean = 16,
-	Array = 17,
-	Object = 18,
-	Key = 19,
-	Null = 20
-}
-/**
- * @internal
- */
-export namespace SymbolKind {
+export type SymbolKind =
+	'file' |
+	'module' |
+	'namespace' |
+	'package' |
+	'class' |
+	'method' |
+	'property' |
+	'field' |
+	'constructor' |
+	'enum' |
+	'interface' |
+	'function' |
+	'variable' |
+	'constant' |
+	'string' |
+	'number' |
+	'boolean' |
+	'array' |
+	'object' |
+	'key' |
+	'null' |
+	'enum-member' |
+	'struct';
 
-	/**
-	 * @internal
-	 */
-	export function from(kind: number | SymbolKind): string {
-		switch (kind) {
-			case SymbolKind.Method:
-				return 'method';
-			case SymbolKind.Function:
-				return 'function';
-			case SymbolKind.Constructor:
-				return 'constructor';
-			case SymbolKind.Field:
-				return 'field';
-			case SymbolKind.Variable:
-				return 'variable';
-			case SymbolKind.Class:
-				return 'class';
-			case SymbolKind.Interface:
-				return 'interface';
-			case SymbolKind.Namespace:
-				return 'namespace';
-			case SymbolKind.Package:
-				return 'package';
-			case SymbolKind.Module:
-				return 'module';
-			case SymbolKind.Property:
-				return 'property';
-			case SymbolKind.Enum:
-				return 'enum';
-			case SymbolKind.String:
-				return 'string';
-			case SymbolKind.File:
-				return 'file';
-			case SymbolKind.Array:
-				return 'array';
-			case SymbolKind.Number:
-				return 'number';
-			case SymbolKind.Boolean:
-				return 'boolean';
-			case SymbolKind.Object:
-				return 'object';
-			case SymbolKind.Key:
-				return 'key';
-			case SymbolKind.Null:
-				return 'null';
-		}
-		return 'property';
-	}
-
-	/**
-	 * @internal
-	 */
-	export function to(type: string): SymbolKind {
-		switch (type) {
-			case 'method':
-				return SymbolKind.Method;
-			case 'function':
-				return SymbolKind.Function;
-			case 'constructor':
-				return SymbolKind.Constructor;
-			case 'field':
-				return SymbolKind.Field;
-			case 'variable':
-				return SymbolKind.Variable;
-			case 'class':
-				return SymbolKind.Class;
-			case 'interface':
-				return SymbolKind.Interface;
-			case 'namespace':
-				return SymbolKind.Namespace;
-			case 'package':
-				return SymbolKind.Package;
-			case 'module':
-				return SymbolKind.Module;
-			case 'property':
-				return SymbolKind.Property;
-			case 'enum':
-				return SymbolKind.Enum;
-			case 'string':
-				return SymbolKind.String;
-			case 'file':
-				return SymbolKind.File;
-			case 'array':
-				return SymbolKind.Array;
-			case 'number':
-				return SymbolKind.Number;
-			case 'boolean':
-				return SymbolKind.Boolean;
-			case 'object':
-				return SymbolKind.Object;
-			case 'key':
-				return SymbolKind.Key;
-			case 'null':
-				return SymbolKind.Null;
-		}
-		return SymbolKind.Property;
-	}
-}
 /**
  * Represents information about programming constructs like variables, classes,
  * interfaces etc.
@@ -616,6 +516,12 @@ export interface DocumentSymbolProvider {
 	provideDocumentSymbols(model: editorCommon.IReadOnlyModel, token: CancellationToken): SymbolInformation[] | Thenable<SymbolInformation[]>;
 }
 
+export interface TextEdit {
+	range: editorCommon.IRange;
+	text: string;
+	eol?: editorCommon.EndOfLineSequence;
+}
+
 /**
  * Interface used to format a model
  */
@@ -637,7 +543,7 @@ export interface DocumentFormattingEditProvider {
 	/**
 	 * Provide formatting edits for a whole document.
 	 */
-	provideDocumentFormattingEdits(model: editorCommon.IReadOnlyModel, options: FormattingOptions, token: CancellationToken): editorCommon.ISingleEditOperation[] | Thenable<editorCommon.ISingleEditOperation[]>;
+	provideDocumentFormattingEdits(model: editorCommon.IReadOnlyModel, options: FormattingOptions, token: CancellationToken): TextEdit[] | Thenable<TextEdit[]>;
 }
 /**
  * The document formatting provider interface defines the contract between extensions and
@@ -651,7 +557,7 @@ export interface DocumentRangeFormattingEditProvider {
 	 * or larger range. Often this is done by adjusting the start and end
 	 * of the range to full syntax nodes.
 	 */
-	provideDocumentRangeFormattingEdits(model: editorCommon.IReadOnlyModel, range: Range, options: FormattingOptions, token: CancellationToken): editorCommon.ISingleEditOperation[] | Thenable<editorCommon.ISingleEditOperation[]>;
+	provideDocumentRangeFormattingEdits(model: editorCommon.IReadOnlyModel, range: Range, options: FormattingOptions, token: CancellationToken): TextEdit[] | Thenable<TextEdit[]>;
 }
 /**
  * The document formatting provider interface defines the contract between extensions and
@@ -666,7 +572,7 @@ export interface OnTypeFormattingEditProvider {
 	 * what range the position to expand to, like find the matching `{`
 	 * when `}` has been entered.
 	 */
-	provideOnTypeFormattingEdits(model: editorCommon.IReadOnlyModel, position: Position, ch: string, options: FormattingOptions, token: CancellationToken): editorCommon.ISingleEditOperation[] | Thenable<editorCommon.ISingleEditOperation[]>;
+	provideOnTypeFormattingEdits(model: editorCommon.IReadOnlyModel, position: Position, ch: string, options: FormattingOptions, token: CancellationToken): TextEdit[] | Thenable<TextEdit[]>;
 }
 
 /**

@@ -14,8 +14,10 @@ import Event, { Emitter } from 'vs/base/common/event';
 export let IThemeService = createDecorator<IThemeService>('themeService');
 
 // base themes
+export const DARK = 'dark';
+export const LIGHT = 'light';
+export const HIGH_CONTRAST = 'hc';
 export type ThemeType = 'light' | 'dark' | 'hc';
-
 
 export interface ITheme {
 	readonly selector: string;
@@ -106,4 +108,22 @@ platform.Registry.add(Extensions.ThemingContribution, themingRegistry);
 
 export function registerThemingParticipant(participant: IThemingParticipant): IDisposable {
 	return themingRegistry.onThemeChange(participant);
+}
+
+/**
+ * Tag function for strings containing css rules
+ */
+export function cssRule(literals, ...placeholders) {
+	let result = '';
+	for (let i = 0; i < placeholders.length; i++) {
+		result += literals[i];
+		let placeholder = placeholders[i];
+		if (placeholder === null) {
+			result += 'transparent';
+		} else {
+			result += placeholder.toString();
+		}
+	}
+	result += literals[literals.length - 1];
+	return result;
 }

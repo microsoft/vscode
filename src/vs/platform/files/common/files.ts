@@ -581,6 +581,7 @@ export interface IFilesConfiguration {
 		watcherExclude: { [filepattern: string]: boolean };
 		encoding: string;
 		autoGuessEncoding: boolean;
+		defaultLanguage: string;
 		trimTrailingWhitespace: boolean;
 		autoSave: string;
 		autoSaveDelay: number;

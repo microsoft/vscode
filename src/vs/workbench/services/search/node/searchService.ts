@@ -230,7 +230,7 @@ export class DiskSearch {
 			sortByScore: query.sortByScore,
 			cacheKey: query.cacheKey,
 			useRipgrep: query.useRipgrep,
-			useIgnoreFiles: query.useIgnoreFiles
+			disregardIgnoreFiles: query.disregardIgnoreFiles
 		};
 
 		if (query.type === QueryType.Text) {

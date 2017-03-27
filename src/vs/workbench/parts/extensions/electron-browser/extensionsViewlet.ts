@@ -50,6 +50,7 @@ import { IActivityBarService, ProgressBadge, NumberBadge } from 'vs/workbench/se
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { inputForeground, inputBackground, highContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 
 interface SearchInputEvent extends Event {
 	target: HTMLInputElement;
@@ -138,6 +139,19 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 			.on(this.openExtension, this, this.disposables);
 
 		return TPromise.as(null);
+	}
+
+	public updateStyles(): void {
+		super.updateStyles();
+
+		const hcBorder = this.isHighContrastTheme ? this.getColor(highContrastBorder) : null;
+
+		this.searchBox.style.backgroundColor = this.getColor(inputBackground);
+		this.searchBox.style.color = this.getColor(inputForeground);
+
+		this.searchBox.style.borderWidth = hcBorder ? '1px' : null;
+		this.searchBox.style.borderStyle = hcBorder ? 'solid' : null;
+		this.searchBox.style.borderColor = hcBorder;
 	}
 
 	setVisible(visible: boolean): TPromise<void> {

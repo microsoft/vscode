@@ -7,7 +7,7 @@
 import * as nls from 'vs/nls';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { parse } from 'vs/base/common/json';
-import * as paths from 'vs/base/common/paths';
+import { join } from 'path';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { readFile } from 'vs/base/node/pfs';
 import { ExtensionMessageCollector, ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
@@ -70,7 +70,7 @@ export class MainProcessTextMateSnippet implements IWorkbenchContribution {
 			collector.error(nls.localize('invalid.path.0', "Expected string in `contributes.{0}.path`. Provided value: {1}", snippetsExtensionPoint.name, String(snippet.path)));
 			return;
 		}
-		let normalizedAbsolutePath = paths.normalize(paths.join(extensionFolderPath, snippet.path));
+		let normalizedAbsolutePath = join(extensionFolderPath, snippet.path);
 
 		if (normalizedAbsolutePath.indexOf(extensionFolderPath) !== 0) {
 			collector.warn(nls.localize('invalid.path.1', "Expected `contributes.{0}.path` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.", snippetsExtensionPoint.name, normalizedAbsolutePath, extensionFolderPath));
@@ -84,14 +84,14 @@ export class MainProcessTextMateSnippet implements IWorkbenchContribution {
 	}
 }
 
-export function readAndRegisterSnippets(snippetService: ISnippetsService, languageIdentifier: LanguageIdentifier, filePath: string, ownerName: string): TPromise<void> {
+export function readAndRegisterSnippets(snippetService: ISnippetsService, languageIdentifier: LanguageIdentifier, filePath: string, extensionName?: string): TPromise<void> {
 	return readFile(filePath).then(fileContents => {
-		let snippets = parseSnippetFile(fileContents.toString(), ownerName);
+		let snippets = parseSnippetFile(fileContents.toString(), extensionName);
 		snippetService.registerSnippets(languageIdentifier.id, snippets, filePath);
 	});
 }
 
-function parseSnippetFile(snippetFileContent: string, owner: string): ISnippet[] {
+function parseSnippetFile(snippetFileContent: string, extensionName?: string): ISnippet[] {
 	let snippetsObj = parse(snippetFileContent);
 	if (!snippetsObj || typeof snippetsObj !== 'object') {
 		return [];
@@ -111,7 +111,7 @@ function parseSnippetFile(snippetFileContent: string, owner: string): ISnippet[]
 		if (typeof prefix === 'string' && typeof bodyStringOrArray === 'string') {
 			result.push({
 				name,
-				owner,
+				extensionName,
 				prefix,
 				description: snippet['description'] || name,
 				codeSnippet: bodyStringOrArray

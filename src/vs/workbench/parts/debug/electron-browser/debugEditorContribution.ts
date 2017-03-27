@@ -264,13 +264,11 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		const model = this.editor.getModel();
 		if (model && sf && sf.source.uri.toString() === model.uri.toString()) {
 			this.editor.updateOptions({ hover: false });
+			this.toggleExceptionWidget();
 		} else {
 			this.editor.updateOptions({ hover: true });
 			this.hideHoverWidget();
 		}
-
-		// Handling exception
-		this.toggleExceptionWidget();
 
 		this.updateInlineDecorations(sf);
 	}

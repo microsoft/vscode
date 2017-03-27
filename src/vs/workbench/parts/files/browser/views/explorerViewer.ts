@@ -52,6 +52,8 @@ import { IMenuService, IMenu, MenuId } from 'vs/platform/actions/common/actions'
 import { fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
+import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export class FileDataSource implements IDataSource {
 	constructor(
@@ -265,7 +267,8 @@ export class FileRenderer extends ActionsRenderer implements IRenderer {
 		state: FileViewletState,
 		actionRunner: IActionRunner,
 		@IContextViewService private contextViewService: IContextViewService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IThemeService private themeService: IThemeService
 	) {
 		super({
 			actionProvider: state.actionProvider,
@@ -317,6 +320,7 @@ export class FileRenderer extends ActionsRenderer implements IRenderer {
 			},
 			ariaLabel: nls.localize('fileInputAriaLabel', "Type file name. Press Enter to confirm or Escape to cancel.")
 		});
+		const styler = attachInputBoxStyler(inputBox, this.themeService);
 
 		const parent = paths.dirname(stat.resource.fsPath);
 		inputBox.onDidChange(value => {
@@ -357,7 +361,8 @@ export class FileRenderer extends ActionsRenderer implements IRenderer {
 			DOM.addDisposableListener(inputBox.inputElement, 'blur', () => {
 				done(inputBox.isInputValid());
 			}),
-			label
+			label,
+			styler
 		];
 
 		return () => done(true);

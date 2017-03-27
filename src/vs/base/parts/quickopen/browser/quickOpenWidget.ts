@@ -15,7 +15,7 @@ import { IQuickNavigateConfiguration, IAutoFocus, IEntryRunContext, IModel, Mode
 import { Filter, Renderer, DataSource, IModelProvider, AccessibilityProvider } from 'vs/base/parts/quickopen/browser/quickOpenViewer';
 import { Dimension, Builder, $ } from 'vs/base/browser/builder';
 import { ISelectionEvent, IFocusEvent, ITree, ContextMenuEvent } from 'vs/base/parts/tree/browser/tree';
-import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
+import { InputBox, MessageType, IInputBoxStyles } from 'vs/base/browser/ui/inputbox/inputBox';
 import Severity from 'vs/base/common/severity';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
@@ -26,6 +26,7 @@ import { IActionProvider } from 'vs/base/parts/tree/browser/actionsRenderer';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
+import { Color } from "vs/base/common/color";
 
 export interface IQuickOpenCallbacks {
 	onOk: () => void;
@@ -36,13 +37,19 @@ export interface IQuickOpenCallbacks {
 	onFocusLost?: () => boolean /* veto close */;
 }
 
-export interface IQuickOpenOptions {
+export interface IQuickOpenOptions extends IQuickOpenStyles {
 	minItemsToShow?: number;
 	maxItemsToShow?: number;
 	inputPlaceHolder: string;
 	inputAriaLabel?: string;
 	actionProvider?: IActionProvider;
 	keyboardSupport?: boolean;
+}
+
+export interface IQuickOpenStyles extends IInputBoxStyles {
+	background?: Color;
+	foreground?: Color;
+	borderColor?: Color;
 }
 
 export interface IShowOptions {
@@ -98,12 +105,14 @@ export class QuickOpenWidget implements IModelProvider {
 	private layoutDimensions: Dimension;
 	private model: IModel<any>;
 	private inputChangingTimeoutHandle: number;
+	private styles: IQuickOpenStyles;
 
 	constructor(container: HTMLElement, callbacks: IQuickOpenCallbacks, options: IQuickOpenOptions, usageLogger?: IQuickOpenUsageLogger) {
 		this.toUnbind = [];
 		this.container = container;
 		this.callbacks = callbacks;
 		this.options = options;
+		this.styles = options;
 		this.usageLogger = usageLogger;
 		this.model = null;
 	}
@@ -145,7 +154,10 @@ export class QuickOpenWidget implements IModelProvider {
 				this.inputContainer = inputContainer;
 				this.inputBox = new InputBox(inputContainer.getHTMLElement(), null, {
 					placeholder: this.options.inputPlaceHolder || '',
-					ariaLabel: DEFAULT_INPUT_ARIA_LABEL
+					ariaLabel: DEFAULT_INPUT_ARIA_LABEL,
+					inputBackground: this.styles.inputBackground,
+					inputForeground: this.styles.inputForeground,
+					inputBorder: this.styles.inputBorder
 				});
 
 				// ARIA
@@ -294,7 +306,37 @@ export class QuickOpenWidget implements IModelProvider {
 			this.layout(this.layoutDimensions);
 		}
 
+		this._applyStyles();
+
 		return this.builder.getHTMLElement();
+	}
+
+	public style(styles: IQuickOpenStyles) {
+		this.styles = styles;
+
+		this._applyStyles();
+	}
+
+	protected _applyStyles() {
+		if (this.builder) {
+			const foreground = this.styles.foreground ? this.styles.foreground.toString() : null;
+			const background = this.styles.background ? this.styles.background.toString() : null;
+			const borderColor = this.styles.borderColor ? this.styles.borderColor.toString() : null;
+
+			this.builder.style('color', foreground);
+			this.builder.style('background-color', background);
+			this.builder.style('border-color', borderColor);
+			this.builder.style('border-width', borderColor ? '2px' : null);
+			this.builder.style('border-style', borderColor ? 'solid' : null);
+		}
+
+		if (this.inputBox) {
+			this.inputBox.style({
+				inputBackground: this.styles.inputBackground,
+				inputForeground: this.styles.inputForeground,
+				inputBorder: this.styles.inputBorder
+			});
+		}
 	}
 
 	private shouldOpenInBackground(e: StandardKeyboardEvent): boolean {

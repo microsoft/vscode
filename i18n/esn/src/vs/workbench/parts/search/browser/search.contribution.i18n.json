@@ -8,7 +8,6 @@
 	"exclude.boolean": "El patrón global con el que se harán coincidir las rutas de acceso de los archivos. Establézcalo en true o false para habilitarlo o deshabilitarlo.",
 	"exclude.when": "Comprobación adicional de los elementos del mismo nivel de un archivo coincidente. Use $(nombreBase) como variable para el nombre de archivo que coincide.",
 	"findInFiles": "Buscar en archivos",
-	"findInFolder": "Buscar en carpeta",
 	"name": "Búsqueda",
 	"openAnythingHandlerDescription": "Ir al archivo",
 	"openSymbolDescriptionNormal": "Ir al símbolo en el área de trabajo",
@@ -16,5 +15,6 @@
 	"searchConfigurationTitle": "Buscar",
 	"showSearchViewlet": "Mostrar búsqueda",
 	"showTriggerActions": "Ir al símbolo en el área de trabajo...",
+	"useRipgrep": "Controla si debe utilizarse ripgrep en la búsqueda de texto",
 	"view": "Ver"
 }

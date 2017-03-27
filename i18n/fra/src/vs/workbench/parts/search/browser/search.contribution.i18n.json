@@ -8,7 +8,6 @@
 	"exclude.boolean": "Modèle Glob auquel les chemins de fichiers doivent correspondre. Affectez la valeur true ou false pour activer ou désactiver le modèle.",
 	"exclude.when": "Vérification supplémentaire des frères d'un fichier correspondant. Utilisez $(basename) comme variable pour le nom de fichier correspondant.",
 	"findInFiles": "Chercher dans les fichiers",
-	"findInFolder": "Rechercher dans le dossier",
 	"name": "Recherche",
 	"openAnythingHandlerDescription": "Accéder au fichier",
 	"openSymbolDescriptionNormal": "Atteindre le symbole dans l'espace de travail",
@@ -16,5 +15,6 @@
 	"searchConfigurationTitle": "Rechercher",
 	"showSearchViewlet": "Afficher la zone de recherche",
 	"showTriggerActions": "Atteindre le symbole dans l'espace de travail...",
+	"useRipgrep": "Contrôle si ripgrep doit être utilisé dans la recherche de texte",
 	"view": "Affichage"
 }

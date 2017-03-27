@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/sidebysideEditor';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as strings from 'vs/base/common/strings';
 import * as DOM from 'vs/base/browser/dom';
@@ -18,6 +17,7 @@ import { VSash } from 'vs/base/browser/ui/sash/sash';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { EDITOR_SIDE_BY_SIDE_BORDER } from 'vs/workbench/common/theme';
 
 export class SideBySideEditor extends BaseEditor {
 
@@ -25,10 +25,10 @@ export class SideBySideEditor extends BaseEditor {
 
 	private dimension: Dimension;
 
-	private masterEditor: BaseEditor;
+	protected masterEditor: BaseEditor;
 	private masterEditorContainer: HTMLElement;
 
-	private detailsEditor: BaseEditor;
+	protected detailsEditor: BaseEditor;
 	private detailsEditorContainer: HTMLElement;
 
 	private sash: VSash;
@@ -157,6 +157,16 @@ export class SideBySideEditor extends BaseEditor {
 		this.detailsEditorContainer.style.position = 'absolute';
 		this.masterEditorContainer = DOM.append(parentElement, DOM.$('.master-editor-container'));
 		this.masterEditorContainer.style.position = 'absolute';
+
+		this.updateStyles();
+	}
+
+	public updateStyles(): void {
+		super.updateStyles();
+
+		if (this.masterEditorContainer) {
+			this.masterEditorContainer.style.boxShadow = `-6px 0 5px -5px ${this.getColor(EDITOR_SIDE_BY_SIDE_BORDER)}`;
+		}
 	}
 
 	private createSash(parentElement: HTMLElement): void {

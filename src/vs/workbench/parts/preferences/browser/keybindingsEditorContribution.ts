@@ -9,9 +9,8 @@ import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { MarkedString } from 'vs/base/common/htmlContent';
-import { KeyCode, KeyMod, KeyChord, createKeybinding } from 'vs/base/common/keyCodes';
+import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -24,8 +23,7 @@ import { CodeSnippet } from 'vs/editor/contrib/snippet/common/snippet';
 import { SnippetController } from 'vs/editor/contrib/snippet/common/snippetController';
 import { SmartSnippetInserter } from 'vs/workbench/parts/preferences/common/smartSnippetInserter';
 import { DefineKeybindingOverlayWidget } from 'vs/workbench/parts/preferences/browser/keybindingWidgets';
-import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
-import { OS } from 'vs/base/common/platform';
+import { parseTree, Node } from 'vs/base/common/json';
 
 import EditorContextKeys = editorCommon.EditorContextKeys;
 
@@ -154,83 +152,105 @@ export class DefineKeybindingController implements editorCommon.IEditorContribut
 
 	private _dec: string[] = [];
 	private _updateDecorationsNow(): void {
-		let model = this._editor.getModel();
-		let regex = KeybindingIO.getUserSettingsKeybindingRegex();
-
-		var m = model.findMatches(regex, false, true, false, false, false).map(m => m.range);
-
-		let data = m.map((range) => {
-			const text = model.getValueInRange(range);
-			const strKeybinding = text.substring(1, text.length - 1).replace(/\\\\/g, '\\');
-			const numKeybinding = KeybindingIO.readKeybinding(strKeybinding, OS);
-			const keybinding = createKeybinding(numKeybinding, OS);
-			const usResolvedKeybinding = new USLayoutResolvedKeybinding(keybinding, OS);
-
-			let label: string = null;
-			const resolvedKeybindings = this._keybindingService.resolveKeybinding(keybinding);
-			if (resolvedKeybindings.length > 0) {
-				label = resolvedKeybindings[0].getLabel();
-			}
-
-			return {
-				usLabel: usResolvedKeybinding.getLabel(),
-				label: label,
-				range: range
-			};
-		});
-
-		data = data.filter((entry) => {
-			return (entry.usLabel !== entry.label);
-		});
+		const model = this._editor.getModel();
 
 		let newDecorations: editorCommon.IModelDeltaDecoration[] = [];
-		data.forEach((item) => {
-			let msg: MarkedString[];
-			let className: string;
-			let beforeContentClassName: string;
-			let overviewRulerColor: string;
 
-			if (!item.label) {
-				// this is the error case
-				msg = [NLS_KB_LAYOUT_ERROR_MESSAGE];
-				className = 'keybindingError';
-				beforeContentClassName = 'inlineKeybindingError';
-				overviewRulerColor = 'rgba(250, 100, 100, 0.6)';
-			} else {
-				// this is the info case
-				msg = [NLS_KB_LAYOUT_INFO_MESSAGE];
-				msg = msg.concat(item.label);
-				className = 'keybindingInfo';
-				beforeContentClassName = 'inlineKeybindingInfo';
-				overviewRulerColor = 'rgba(100, 100, 250, 0.6)';
+		const root = parseTree(model.getValue());
+		if (root && Array.isArray(root.children)) {
+			for (let i = 0, len = root.children.length; i < len; i++) {
+				const entry = root.children[i];
+				const dec = this._getDecorationForEntry(model, entry);
+				if (dec !== null) {
+					newDecorations.push(dec);
+				}
 			}
-
-			// icon decoration
-			newDecorations.push({
-				range: new Range(item.range.startLineNumber, item.range.startColumn, item.range.startLineNumber, item.range.startColumn + 1),
-				options: {
-					stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-					beforeContentClassName: beforeContentClassName
-				}
-			});
-
-			// highlight + message decoration
-			newDecorations.push({
-				range: item.range,
-				options: {
-					stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-					className: className,
-					hoverMessage: msg,
-					overviewRuler: {
-						color: overviewRulerColor,
-						darkColor: overviewRulerColor,
-						position: editorCommon.OverviewRulerLane.Right
-					}
-				}
-			});
-		});
+		}
 
 		this._dec = this._editor.deltaDecorations(this._dec, newDecorations);
+	}
+
+	private _getDecorationForEntry(model: editorCommon.IModel, entry: Node): editorCommon.IModelDeltaDecoration {
+		if (!Array.isArray(entry.children)) {
+			return null;
+		}
+		for (let i = 0, len = entry.children.length; i < len; i++) {
+			const prop = entry.children[i];
+			if (prop.type !== 'property') {
+				continue;
+			}
+			if (!Array.isArray(prop.children) || prop.children.length !== 2) {
+				continue;
+			}
+			const key = prop.children[0];
+			if (key.value !== 'key') {
+				continue;
+			}
+			const value = prop.children[1];
+			if (value.type !== 'string') {
+				continue;
+			}
+
+			const resolvedKeybindings = this._keybindingService.resolveUserBinding(value.value);
+			if (resolvedKeybindings.length === 0) {
+				return this._createDecoration(true, null, model, value);
+			}
+			const resolvedKeybinding = resolvedKeybindings[0];
+			if (!resolvedKeybinding.isWYSIWYG()) {
+				return this._createDecoration(false, resolvedKeybinding.getLabel(), model, value);
+			}
+			const expectedUserSettingsLabel = resolvedKeybinding.getUserSettingsLabel();
+			if (value.value.trim().toLowerCase() !== expectedUserSettingsLabel.trim().toLowerCase()) {
+				return this._createDecoration(false, resolvedKeybinding.getLabel(), model, value);
+			}
+			return null;
+		}
+		return null;
+	}
+
+	private _createDecoration(isError: boolean, message: string, model: editorCommon.IModel, keyNode: Node): editorCommon.IModelDeltaDecoration {
+		let msg: MarkedString[];
+		let className: string;
+		let beforeContentClassName: string;
+		let overviewRulerColor: string;
+
+		if (isError) {
+			// this is the error case
+			msg = [NLS_KB_LAYOUT_ERROR_MESSAGE];
+			className = 'keybindingError';
+			beforeContentClassName = 'inlineKeybindingError';
+			overviewRulerColor = 'rgba(250, 100, 100, 0.6)';
+		} else {
+			// this is the info case
+			msg = [NLS_KB_LAYOUT_INFO_MESSAGE];
+			msg = msg.concat(message);
+			className = 'keybindingInfo';
+			beforeContentClassName = 'inlineKeybindingInfo';
+			overviewRulerColor = 'rgba(100, 100, 250, 0.6)';
+		}
+
+		const startPosition = model.getPositionAt(keyNode.offset);
+		const endPosition = model.getPositionAt(keyNode.offset + keyNode.length);
+		const range = new Range(
+			startPosition.lineNumber, startPosition.column,
+			endPosition.lineNumber, endPosition.column
+		);
+
+		// icon + highlight + message decoration
+		return {
+			range: range,
+			options: {
+				stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+				className: className,
+				beforeContentClassName: beforeContentClassName,
+				hoverMessage: msg,
+				overviewRuler: {
+					color: overviewRulerColor,
+					darkColor: overviewRulerColor,
+					position: editorCommon.OverviewRulerLane.Right
+				}
+			}
+		};
 	}
 }
 

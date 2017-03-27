@@ -18,7 +18,7 @@ import { TextModelSearch, SearchParams } from 'vs/editor/common/model/textModelS
 import { TextSource, ITextSource, IRawTextSource, RawTextSource } from 'vs/editor/common/model/textSource';
 
 const LIMIT_FIND_COUNT = 999;
-export const LONG_LINE_BOUNDARY = 1000;
+export const LONG_LINE_BOUNDARY = 10000;
 
 export interface ITextModelCreationData {
 	readonly text: ITextSource;

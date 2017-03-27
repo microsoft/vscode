@@ -274,8 +274,11 @@ export class RawDebugSession extends v8.V8Protocol implements debug.ISession {
 		return this.send('setVariable', args);
 	}
 
-	public restartFrame(args: DebugProtocol.RestartFrameArguments): TPromise<DebugProtocol.RestartFrameResponse> {
-		return this.send('restartFrame', args);
+	public restartFrame(args: DebugProtocol.RestartFrameArguments, threadId: number): TPromise<DebugProtocol.RestartFrameResponse> {
+		return this.send('restartFrame', args).then(response => {
+			this.fireFakeContinued(threadId);
+			return response;
+		});;
 	}
 
 	public completions(args: DebugProtocol.CompletionsArguments): TPromise<DebugProtocol.CompletionsResponse> {

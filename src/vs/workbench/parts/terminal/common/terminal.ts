@@ -126,6 +126,7 @@ export interface ITerminalService {
 	onActiveInstanceChanged: Event<string>;
 	onInstanceDisposed: Event<ITerminalInstance>;
 	onInstanceProcessIdReady: Event<ITerminalInstance>;
+	onInstanceData: Event<{ instance: ITerminalInstance, data: string }>;
 	onInstancesChanged: Event<string>;
 	onInstanceTitleChanged: Event<string>;
 	terminalInstances: ITerminalInstance[];
@@ -314,4 +315,9 @@ export interface ITerminalInstance {
 	 * @param shell The new launch configuration.
 	 */
 	reuseTerminal(shell?: IShellLaunchConfig): void;
+
+	/**
+	 * Experimental: Call to enable onData to be passed over IPC to the extension host.
+	 */
+	enableApiOnData(): void;
 }

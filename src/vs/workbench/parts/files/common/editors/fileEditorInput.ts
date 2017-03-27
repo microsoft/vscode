@@ -208,17 +208,28 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		return this.forceOpenAsBinary ? BINARY_FILE_EDITOR_ID : TEXT_FILE_EDITOR_ID;
 	}
 
-	public resolve(refresh?: boolean): TPromise<TextFileEditorModel> {
+	public resolve(refresh?: boolean): TPromise<TextFileEditorModel | BinaryEditorModel> {
+
+		// Resolve as binary
+		if (this.forceOpenAsBinary) {
+			return this.resolveAsBinary();
+		}
+
+		// Resolve as text
 		return this.textFileService.models.loadOrCreate(this.resource, this.preferredEncoding, refresh).then(null, error => {
 
 			// In case of an error that indicates that the file is binary or too large, just return with the binary editor model
 			if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_IS_BINARY || (<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_TOO_LARGE) {
-				return this.instantiationService.createInstance(BinaryEditorModel, this.resource, this.getName()).load();
+				return this.resolveAsBinary();
 			}
 
 			// Bubble any other error up
 			return TPromise.wrapError(error);
 		});
+	}
+
+	private resolveAsBinary(): TPromise<BinaryEditorModel> {
+		return this.instantiationService.createInstance(BinaryEditorModel, this.resource, this.getName()).load();
 	}
 
 	public isResolved(): boolean {

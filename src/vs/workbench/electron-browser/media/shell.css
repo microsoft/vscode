@@ -66,21 +66,6 @@
 	cursor: pointer;
 }
 
-/* START Keyboard Focus Indication Styles */
-
-.monaco-shell.vs [tabindex="0"]:focus,
-.monaco-shell.vs .synthetic-focus,
-.monaco-shell.vs select:focus,
-.monaco-shell.vs input[type="button"]:focus,
-.monaco-shell.vs input[type="submit"]:focus,
-.monaco-shell.vs input[type="search"]:focus,
-.monaco-shell.vs input[type="text"]:focus, .monaco-shell.vs textarea:focus,
-.monaco-shell.vs input[type="checkbox"]:focus {
-	outline: 1px solid;
-	outline-offset: -1px;
-	opacity: 1 !important;
-}
-
 .monaco-shell input[type="search"]::-webkit-search-decoration,
 .monaco-shell input[type="search"]::-webkit-search-results-button,
 .monaco-shell input[type="search"]::-webkit-search-results-decoration {
@@ -96,15 +81,19 @@
 	background-position: center center;
 }
 
-.monaco-shell.vs-dark [tabindex="0"]:focus,
-.monaco-shell.vs-dark .synthetic-focus,
-.monaco-shell.vs-dark select:focus,
-.monaco-shell.vs-dark input[type="button"]:focus,
-.monaco-shell.vs-dark input[type="submit"]:focus,
-.monaco-shell.vs-dark input[type="search"]:focus,
-.monaco-shell.vs-dark input[type="text"]:focus, .monaco-shell.vs-dark textarea:focus,
-.monaco-shell.vs-dark input[type="checkbox"]:focus {
-	outline: 1px solid;
+/* START Keyboard Focus Indication Styles */
+
+.monaco-shell [tabindex="0"]:focus,
+.monaco-shell .synthetic-focus,
+.monaco-shell select:focus,
+.monaco-shell input[type="button"]:focus,
+.monaco-shell input[type="submit"]:focus,
+.monaco-shell input[type="search"]:focus,
+.monaco-shell input[type="text"]:focus,
+.monaco-shell textarea:focus,
+.monaco-shell input[type="checkbox"]:focus {
+	outline-width: 1px;
+	outline-style: solid;
 	outline-offset: -1px;
 	opacity: 1 !important;
 }
@@ -113,32 +102,22 @@
 .monaco-shell.hc-black .synthetic-focus,
 .monaco-shell.hc-black select:focus,
 .monaco-shell.hc-black input[type="button"]:focus,
-.monaco-shell.hc-black input[type="text"]:focus, .monaco-shell.hc-black textarea:focus,
+.monaco-shell.hc-black input[type="text"]:focus,
+.monaco-shell.hc-black textarea:focus,
 .monaco-shell.hc-black input[type="search"]:focus,
 .monaco-shell.hc-black input[type="checkbox"]:focus {
-	outline: 2px solid;
-	outline-offset: -1px;
-}
-
-.monaco-shell.vs .monaco-text-button:focus,
-.monaco-shell.vs .action-button:focus {
-	outline-offset: -2px; /* Inset outline so it stands out on light background. */
-}
-
-.monaco-shell.hc-black .action-button:focus {
-	outline-offset: -4px; /* Helps high-contrast outline avoid clipping. */
+	outline-style: solid;
+	outline-width: 2px;
 }
 
 .monaco-shell.hc-black .synthetic-focus input {
 	background: transparent; /* Search input focus fix when in high contrast */
 }
 
-.monaco-shell.vs .monaco-tree.focused .monaco-tree-row.focused [tabindex="0"]:focus {
-	outline: 1px solid; /* higher contrast color for focusable elements in a row that shows focus feedback */
-}
-
+.monaco-shell.vs .monaco-tree.focused .monaco-tree-row.focused [tabindex="0"]:focus,
 .monaco-shell.vs-dark .monaco-tree.focused .monaco-tree-row.focused [tabindex="0"]:focus {
-	outline: 1px solid; /* higher contrast color for focusable elements in a row that shows focus feedback */
+	outline-width: 1px; /* higher contrast color for focusable elements in a row that shows focus feedback */
+	outline-style: solid;
 }
 
 .monaco-shell .monaco-tree.focused.no-focused-item:focus:before {
@@ -150,20 +129,14 @@
 	z-index: 5; /* make sure we are on top of the tree items */
 	content: "";
 	pointer-events: none; /* enable click through */
-}
-
-.monaco-shell.vs .monaco-tree.focused.no-focused-item:focus:before {
 	outline: 1px solid; /* we still need to handle the empty tree or no focus item case */
-	outline-offset: -1px;
-}
-
-.monaco-shell.vs-dark .monaco-tree.focused.no-focused-item:focus:before {
-	outline: 1px solid; /* we still need to handle the empty tree or no focus item case */
+	outline-width: 1px;
+	outline-style: solid;
 	outline-offset: -1px;
 }
 
 .monaco-shell.hc-black .monaco-tree.focused.no-focused-item:focus:before {
-	outline: 2px solid; /* we still need to handle the empty tree or no focus item case */
+	outline-width: 2px;
 	outline-offset: -2px;
 }
 
@@ -189,104 +162,8 @@
 .monaco-shell input[type="button"]:active,
 .monaco-shell input[type="submit"]:active,
 .monaco-shell input[type="checkbox"]:active,
-.monaco-shell .monaco-tree .monaco-tree-row .monaco-action-bar .action-item [tabindex="0"]:hover,
+.monaco-shell .monaco-tree .monaco-tree-row
+.monaco-action-bar .action-item [tabindex="0"]:hover,
 .monaco-shell .monaco-tree.focused.no-focused-item:active:before {
 	outline: 0 !important; /* fixes some flashing outlines from showing up when clicking */
 }
-
-.monaco-shell .activitybar [tabindex="0"]:focus {
-	outline: 0 !important; /* activity bar indicates focus custom */
-}
-
-.monaco-shell .part.editor .binary-container {
-	outline: 0 !important;
-}
-
-/* END Keyboard Focus Indication Styles */
-
-/* TODO@theme (widgets) */
-
-.monaco-shell.vs input {
-	background-color: white;
-}
-
-.monaco-shell.vs-dark input,
-.monaco-shell.vs-dark textarea {
-	background-color: #3C3C3C;
-}
-
-.monaco-shell.vs input:disabled {
-	background-color: #E1E1E1;
-}
-
-.monaco-shell.vs-dark input:disabled {
-	background-color: #333;
-}
-
-.monaco-shell.hc-black input,
-.monaco-shell.hc-black textarea {
-	background-color: #000;
-}
-
-/* START Keyboard Focus Indication Styles */
-
-.monaco-shell.vs [tabindex="0"]:focus,
-.monaco-shell.vs .synthetic-focus,
-.monaco-shell.vs select:focus,
-.monaco-shell.vs input[type="button"]:focus,
-.monaco-shell.vs input[type="submit"]:focus,
-.monaco-shell.vs input[type="search"]:focus,
-.monaco-shell.vs input[type="text"]:focus, .monaco-shell.vs textarea:focus,
-.monaco-shell.vs input[type="checkbox"]:focus {
-	outline-color: rgba(0, 122, 204, 0.4);
-}
-
-.monaco-shell.vs-dark [tabindex="0"]:focus,
-.monaco-shell.vs-dark .synthetic-focus,
-.monaco-shell.vs-dark select:focus,
-.monaco-shell.vs-dark input[type="button"]:focus,
-.monaco-shell.vs-dark input[type="submit"]:focus,
-.monaco-shell.vs-dark input[type="search"]:focus,
-.monaco-shell.vs-dark input[type="text"]:focus, .monaco-shell.vs-dark textarea:focus,
-.monaco-shell.vs-dark input[type="checkbox"]:focus {
-	outline-color: rgba(14, 99, 156, 0.6);
-}
-
-.monaco-shell.hc-black [tabindex="0"]:focus,
-.monaco-shell.hc-black .synthetic-focus,
-.monaco-shell.hc-black select:focus,
-.monaco-shell.hc-black input[type="button"]:focus,
-.monaco-shell.hc-black input[type="text"]:focus, .monaco-shell.hc-black textarea:focus,
-.monaco-shell.hc-black input[type="search"]:focus,
-.monaco-shell.hc-black input[type="checkbox"]:focus {
-	outline-color: #f38518;
-}
-
-.monaco-shell.vs .monaco-text-button:focus,
-.monaco-shell.vs-dark .monaco-text-button:focus,
-.monaco-shell.vs .action-button:focus,
-.monaco-shell.vs-dark .action-button:focus {
-	outline-color: rgba(255, 255, 255, .5); /* buttons have a blue color, so focus indication needs to be different */
-}
-
-.monaco-shell.vs .monaco-tree.focused .monaco-tree-row.focused [tabindex="0"]:focus {
-	outline-color: #007ACC; /* higher contrast color for focusable elements in a row that shows focus feedback */
-}
-
-.monaco-shell.vs-dark .monaco-tree.focused .monaco-tree-row.focused [tabindex="0"]:focus {
-	outline-color: #007ACC; /* higher contrast color for focusable elements in a row that shows focus feedback */
-}
-
-.monaco-shell.vs .monaco-tree.focused.no-focused-item:focus:before {
-	outline-color: rgba(0, 122, 204, 0.4); /* we still need to handle the empty tree or no focus item case */
-}
-
-.monaco-shell.vs-dark .monaco-tree.focused.no-focused-item:focus:before {
-	outline-color: rgba(14, 99, 156, 0.6); /* we still need to handle the empty tree or no focus item case */
-}
-
-.monaco-shell.hc-black .monaco-tree.focused.no-focused-item:focus:before {
-	outline-color: #f38518; /* we still need to handle the empty tree or no focus item case */
-}
-
-/* END Keyboard Focus Indication Styles */

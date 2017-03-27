@@ -99,6 +99,7 @@
 	"miQuit": "Salir de {0}",
 	"miRedo": "&&Rehacer",
 	"miReleaseNotes": "&&Notas de la versión",
+	"miRemoveAllBreakpoints": "Quitar &&todos los puntos de interrupción",
 	"miReopenClosedEditor": "&&Volver a abrir el editor cerrado",
 	"miReplace": "&&Reemplazar",
 	"miReplaceInFiles": "Reemplazar &&en archivos",

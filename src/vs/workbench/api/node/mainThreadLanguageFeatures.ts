@@ -11,7 +11,7 @@ import { IThreadService } from 'vs/workbench/services/thread/common/threadServic
 import * as vscode from 'vscode';
 import { IReadOnlyModel, ISingleEditOperation } from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
-import { WorkspaceSymbolProviderRegistry, IWorkspaceSymbolProvider, IWorkspaceSymbol } from 'vs/workbench/parts/search/common/search';
+import { WorkspaceSymbolProviderRegistry, IWorkspaceSymbolProvider } from 'vs/workbench/parts/search/common/search';
 import { wireCancellationToken } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Position as EditorPosition } from 'vs/editor/common/core/position';
@@ -200,10 +200,10 @@ export class MainThreadLanguageFeatures extends MainThreadLanguageFeaturesShape 
 
 	$registerNavigateTypeSupport(handle: number): TPromise<any> {
 		this._registrations[handle] = WorkspaceSymbolProviderRegistry.register(<IWorkspaceSymbolProvider>{
-			provideWorkspaceSymbols: (search: string): TPromise<IWorkspaceSymbol[]> => {
+			provideWorkspaceSymbols: (search: string): TPromise<modes.SymbolInformation[]> => {
 				return this._heapService.trackRecursive(this._proxy.$provideWorkspaceSymbols(handle, search));
 			},
-			resolveWorkspaceSymbol: (item: IWorkspaceSymbol): TPromise<IWorkspaceSymbol> => {
+			resolveWorkspaceSymbol: (item: modes.SymbolInformation): TPromise<modes.SymbolInformation> => {
 				return this._proxy.$resolveWorkspaceSymbol(handle, item);
 			}
 		});

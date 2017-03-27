@@ -1,1 +1,1 @@
-.\scripts\test.bat --run **\*.integrationTest.js -g integration %*
+.\scripts\test.bat --runGlob **\*.integrationTest.js -g integration %*

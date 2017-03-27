@@ -5,7 +5,7 @@
 'use strict';
 
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import * as paths from 'vs/base/common/paths';
+import { join } from 'path';
 import { mkdirp, dirExists } from 'vs/base/node/pfs';
 import Severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -121,7 +121,7 @@ class ExtensionStoragePath {
 
 	value(extension: IExtensionDescription): string {
 		if (this._value) {
-			return paths.join(this._value, extension.id);
+			return join(this._value, extension.id);
 		}
 		return undefined;
 	}
@@ -139,7 +139,7 @@ class ExtensionStoragePath {
 			.update(workspace.uid ? workspace.uid.toString() : '')
 			.digest('hex');
 
-		const storagePath = paths.join(this._environment.appSettingsHome, 'workspaceStorage', storageName);
+		const storagePath = join(this._environment.appSettingsHome, 'workspaceStorage', storageName);
 
 		return dirExists(storagePath).then(exists => {
 			if (exists) {
@@ -187,7 +187,7 @@ export class ExtHostExtensionService extends AbstractExtensionService<ExtHostExt
 		this._contextService = contextService;
 
 		// initialize API first
-		const apiFactory = createApiFactory(initData, threadService, this, this._contextService);
+		const apiFactory = createApiFactory(initData, threadService, this, this._contextService, this._telemetryService);
 		initializeExtensionApi(this, apiFactory).then(() => this._triggerOnReady());
 	}
 
@@ -276,7 +276,7 @@ export class ExtHostExtensionService extends AbstractExtensionService<ExtHostExt
 				subscriptions: [],
 				get extensionPath() { return extensionDescription.extensionFolderPath; },
 				storagePath: this._storagePath.value(extensionDescription),
-				asAbsolutePath: (relativePath: string) => { return paths.normalize(paths.join(extensionDescription.extensionFolderPath, relativePath), true); }
+				asAbsolutePath: (relativePath: string) => { return join(extensionDescription.extensionFolderPath, relativePath); }
 			});
 		});
 	}
