@@ -619,19 +619,22 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * An SCM resource represents a state of an underlying workspace resource
-	 * within a certain SCM provider state.
-	 *
-	 * For example, consider file A to be modified. An SCM resource which would
-	 * represent such state could have the following properties:
-	 *
-	 *   - `uri = 'git:workingtree/A'`
-	 *   - `sourceUri = 'file:A'`
+	 * An SCM resource represents the state of an underlying workspace
+	 * resource within a certain SCM provider state.
 	 */
 	export interface SCMResource {
 
 		/**
-		 * The [uri](#Uri) of this SCM resource.
+		 * The [uri](#Uri) of this SCM resource. This uri should uniquely
+		 * identify this SCM resource. Its value should be semantically
+		 * related to your [SCM provider](#SCMProvider).
+		 *
+		 * For example, consider file `/foo/bar` to be modified. An SCM
+		 * resource which would represent such state could have the
+		 * following properties:
+		 *
+		 *   - `uri = 'git:workingtree/A'`
+		 *   - `sourceUri = 'file:///foo/bar'`
 		 */
 		readonly uri: Uri;
 
@@ -652,7 +655,16 @@ declare module 'vscode' {
 	export interface SCMResourceGroup {
 
 		/**
-		 * The [uri](#Uri) of this SCM resource group.
+		 * The [uri](#Uri) of this SCM resource group. This uri should
+		 * uniquely identify this SCM resource group. Its value should be
+		 * semantically related to your [SCM provider](#SCMProvider).
+		 *
+		 * For example, consider a Working Tree resource group. An SCM
+		 * resource group which would represent such state could have the
+		 * following properties:
+		 *
+		 *   - `uri = 'git:workingtree'`
+		 *   - `label = 'Working Tree'`
 		 */
 		readonly uri: Uri;
 
