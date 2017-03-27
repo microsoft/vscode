@@ -448,27 +448,22 @@ export function createApiFactory(
 
 		class SCM {
 
-			@proposed(extension)
 			get activeProvider() {
 				return extHostSCM.activeProvider;
 			}
 
-			@proposed(extension)
 			get onDidChangeActiveProvider() {
 				return extHostSCM.onDidChangeActiveProvider;
 			}
 
-			@proposed(extension)
 			get onDidAcceptInputValue() {
 				return mapEvent(extHostSCM.inputBox.onDidAccept, () => extHostSCM.inputBox);
 			}
 
-			@proposed(extension)
 			get inputBox() {
 				return extHostSCM.inputBox;
 			}
 
-			@proposed(extension)
 			registerSCMProvider(provider: vscode.SCMProvider) {
 				telemetryService.publicLog('registerSCMProvider', {
 					extensionId: extension.id,
