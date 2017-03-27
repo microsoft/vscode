@@ -9,12 +9,20 @@ import * as assert from 'assert';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { join } from 'vs/base/common/paths';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
 import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorModel';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 
 class ServiceAccessor {
-	constructor( @IUntitledEditorService public untitledEditorService: UntitledEditorService) {
+	constructor(
+		@IUntitledEditorService public untitledEditorService: UntitledEditorService,
+		@IModeService public modeService: ModeServiceImpl,
+		@IConfigurationService public testConfigurationService: TestConfigurationService) {
 	}
 }
 
@@ -124,6 +132,46 @@ suite('Workbench - Untitled Editor', () => {
 			done();
 		});
 	});
+
+	test('Untitled created with files.defaultLanguage setting', function (done) {
+		const defaultLanguage = 'javascript';
+		const config = accessor.testConfigurationService;
+		config.setUserConfiguration('files', { 'defaultLanguage': defaultLanguage });
+
+		const service = accessor.untitledEditorService;
+		const input = service.createOrGet();
+
+		input.resolve().then((model: UntitledEditorModel) => {
+			assert.equal(model.getModeId(), defaultLanguage);
+
+			config.setUserConfiguration('files', { 'defaultLanguage': undefined });
+
+			input.dispose();
+
+			done();
+		});
+	});
+
+	test('Untitled created with modeId overrides files.defaultLanguage setting', function (done) {
+		const modeId = 'typescript';
+		const defaultLanguage = 'javascript';
+		const config = accessor.testConfigurationService;
+		config.setUserConfiguration('files', { 'defaultLanguage': defaultLanguage });
+
+		const service = accessor.untitledEditorService;
+		const input = service.createOrGet(null, modeId);
+
+		input.resolve().then((model: UntitledEditorModel) => {
+			assert.equal(model.getModeId(), modeId);
+
+			config.setUserConfiguration('files', { 'defaultLanguage': undefined });
+
+			input.dispose();
+
+			done();
+		});
+	});
+
 
 	test('encoding change event', function (done) {
 		const service = accessor.untitledEditorService;
