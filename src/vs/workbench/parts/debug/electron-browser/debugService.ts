@@ -7,6 +7,7 @@ import * as nls from 'vs/nls';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 import * as paths from 'vs/base/common/paths';
+import * as strings from 'vs/base/common/strings';
 import { generateUuid } from 'vs/base/common/uuid';
 import uri from 'vs/base/common/uri';
 import { Action } from 'vs/base/common/actions';
@@ -158,7 +159,7 @@ export class DebugService implements debug.IDebugService {
 		// TODO@Isidor this is a hack to just get any 'extensionHost' session.
 		// Optimally the broadcast would contain the id of the session
 		// We are only intersted if we have an active debug session for extensionHost
-		const process = this.model.getProcesses().filter(p => p.configuration.type === 'extensionHost').pop();
+		const process = this.model.getProcesses().filter(p => strings.equalsIgnoreCase(p.configuration.type, 'extensionhost')).pop();
 		const session = process ? <RawDebugSession>process.session : null;
 		if (broadcast.channel === EXTENSION_ATTACH_BROADCAST_CHANNEL) {
 			this.rawAttach(session, broadcast.payload.port);
@@ -166,7 +167,9 @@ export class DebugService implements debug.IDebugService {
 		}
 
 		if (broadcast.channel === EXTENSION_TERMINATE_BROADCAST_CHANNEL) {
-			this.onSessionEnd(session);
+			if (session) {
+				this.onSessionEnd(session);
+			}
 			return;
 		}
 
@@ -373,7 +376,7 @@ export class DebugService implements debug.IDebugService {
 		this.toDisposeOnSessionEnd.get(session.getId()).push(session.onDidExitAdapter(event => {
 			// 'Run without debugging' mode VSCode must terminate the extension host. More details: #3905
 			const process = this.viewModel.focusedProcess;
-			if (process && session && process.getId() === session.getId() && process.configuration.type === 'extensionHost' && this.sessionStates.get(session.getId()) === debug.State.Running &&
+			if (process && session && process.getId() === session.getId() && strings.equalsIgnoreCase(process.configuration.type, 'extensionhost') && this.sessionStates.get(session.getId()) === debug.State.Running &&
 				process && this.contextService.getWorkspace() && process.configuration.noDebug) {
 				this.windowsService.closeExtensionHostWindow(this.contextService.getWorkspace().resource.fsPath);
 			}
