@@ -15,13 +15,14 @@ import { IFileService, IFileChange } from 'vs/platform/files/common/files';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { IIdentifiedSingleEditOperation, IModel, IRange, ISelection, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { IIdentifiedSingleEditOperation, IModel, IRange, ISelection, EndOfLineSequence, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { IProgressRunner } from 'vs/platform/progress/common/progress';
 
 export interface IResourceEdit {
 	resource: URI;
 	range?: IRange;
 	newText: string;
+	newEol?: EndOfLineSequence;
 }
 
 interface IRecording {
@@ -74,6 +75,7 @@ class EditTask implements IDisposable {
 	private get _model(): IModel { return this._modelReference.object.textEditorModel; }
 	private _modelReference: IReference<ITextEditorModel>;
 	private _edits: IIdentifiedSingleEditOperation[];
+	private _newEol: EndOfLineSequence;
 
 	constructor(modelReference: IReference<ITextEditorModel>) {
 		this._endCursorSelection = null;
@@ -82,6 +84,8 @@ class EditTask implements IDisposable {
 	}
 
 	public addEdit(edit: IResourceEdit): void {
+
+		// create edit operation
 		let range: IRange;
 		if (!edit.range) {
 			range = this._model.getFullModelRange();
@@ -89,16 +93,22 @@ class EditTask implements IDisposable {
 			range = edit.range;
 		}
 		this._edits.push(EditOperation.replaceMove(Range.lift(range), edit.newText));
+
+		// honor eol-change
+		if (typeof edit.newEol === 'number') {
+			this._newEol = edit.newEol;
+		}
 	}
 
 	public apply(): void {
-		if (this._edits.length === 0) {
-			return;
+		if (this._edits.length > 0) {
+			this._edits.sort(EditTask._editCompare);
+			this._initialSelections = this._getInitialSelections();
+			this._model.pushEditOperations(this._initialSelections, this._edits, (edits) => this._getEndCursorSelections(edits));
 		}
-		this._edits.sort(EditTask._editCompare);
-
-		this._initialSelections = this._getInitialSelections();
-		this._model.pushEditOperations(this._initialSelections, this._edits, (edits) => this._getEndCursorSelections(edits));
+		if (this._newEol !== undefined) {
+			this._model.setEOL(this._newEol);
+		}
 	}
 
 	protected _getInitialSelections(): Selection[] {

@@ -927,16 +927,20 @@ suite('ExtHostLanguageFeatures', function () {
 	test('Format Doc, data conversion', function () {
 		disposables.push(extHost.registerDocumentFormattingEditProvider(defaultSelector, <vscode.DocumentFormattingEditProvider>{
 			provideDocumentFormattingEdits(): any {
-				return [new types.TextEdit(new types.Range(0, 0, 0, 0), 'testing')];
+				return [new types.TextEdit(new types.Range(0, 0, 0, 0), 'testing'), types.TextEdit.setEndOfLine(types.EndOfLine.LF)];
 			}
 		}));
 
 		return threadService.sync().then(() => {
 			return getDocumentFormattingEdits(model, { insertSpaces: true, tabSize: 4 }).then(value => {
-				assert.equal(value.length, 1);
-				let [first] = value;
+				assert.equal(value.length, 2);
+				let [first, second] = value;
 				assert.equal(first.text, 'testing');
 				assert.deepEqual(first.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 });
+
+				assert.equal(second.eol, EditorCommon.EndOfLineSequence.LF);
+				assert.equal(second.text, '');
+				assert.equal(second.range, undefined);
 			});
 		});
 	});

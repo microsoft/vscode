@@ -132,6 +132,12 @@ declare module 'vscode' {
 		save(): Thenable<boolean>;
 
 		/**
+		 * The [end of line](#EndOfLine) sequence that is predominately
+		 * used in this document.
+		 */
+		readonly eol: EndOfLine;
+
+		/**
 		 * The number of lines in this document.
 		 */
 		readonly lineCount: number;
@@ -2032,6 +2038,14 @@ declare module 'vscode' {
 		static delete(range: Range): TextEdit;
 
 		/**
+		 * Utility to create an eol-edit.
+		 *
+		 * @param eol An eol-sequence
+		 * @return A new text edit object.
+		 */
+		static setEndOfLine(eol: EndOfLine): TextEdit;
+
+		/**
 		 * The range this edit applies to.
 		 */
 		range: Range;
@@ -2040,6 +2054,14 @@ declare module 'vscode' {
 		 * The string this edit will insert.
 		 */
 		newText: string;
+
+		/**
+		 * The eol-sequence used in the document.
+		 *
+		 * *Note* that the eol-sequence will be applied to the
+		 * whole document.
+		 */
+		newEol: EndOfLine;
 
 		/**
 		 * Create a new TextEdit.
