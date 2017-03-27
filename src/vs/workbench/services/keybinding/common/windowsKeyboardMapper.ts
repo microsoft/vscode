@@ -92,21 +92,41 @@ export class WindowsNativeResolvedKeybinding extends ResolvedKeybinding {
 		this._chordPart = chordPart;
 	}
 
+	private _getUILabelForKeybinding(keybinding: SimpleKeybinding): string {
+		if (!keybinding) {
+			return null;
+		}
+		if (keybinding.isDuplicateModifierCase()) {
+			return '';
+		}
+		return this._mapper.getUILabelForKeyCode(keybinding.keyCode);
+	}
+
 	public getLabel(): string {
-		let firstPart = this._firstPart ? this._mapper.getUILabelForKeyCode(this._firstPart.keyCode) : null;
-		let chordPart = this._chordPart ? this._mapper.getUILabelForKeyCode(this._chordPart.keyCode) : null;
+		let firstPart = this._getUILabelForKeybinding(this._firstPart);
+		let chordPart = this._getUILabelForKeybinding(this._chordPart);
 		return UILabelProvider.toLabel(this._firstPart, firstPart, this._chordPart, chordPart, OperatingSystem.Windows);
 	}
 
+	private _getAriaLabelForKeybinding(keybinding: SimpleKeybinding): string {
+		if (!keybinding) {
+			return null;
+		}
+		if (keybinding.isDuplicateModifierCase()) {
+			return '';
+		}
+		return this._mapper.getAriaLabelForKeyCode(keybinding.keyCode);
+	}
+
 	public getAriaLabel(): string {
-		let firstPart = this._firstPart ? this._mapper.getAriaLabelForKeyCode(this._firstPart.keyCode) : null;
-		let chordPart = this._chordPart ? this._mapper.getAriaLabelForKeyCode(this._chordPart.keyCode) : null;
+		let firstPart = this._getAriaLabelForKeybinding(this._firstPart);
+		let chordPart = this._getAriaLabelForKeybinding(this._chordPart);
 		return AriaLabelProvider.toLabel(this._firstPart, firstPart, this._chordPart, chordPart, OperatingSystem.Windows);
 	}
 
 	public getHTMLLabel(): IHTMLContentElement[] {
-		let firstPart = this._firstPart ? this._mapper.getUILabelForKeyCode(this._firstPart.keyCode) : null;
-		let chordPart = this._chordPart ? this._mapper.getUILabelForKeyCode(this._chordPart.keyCode) : null;
+		let firstPart = this._getUILabelForKeybinding(this._firstPart);
+		let chordPart = this._getUILabelForKeybinding(this._chordPart);
 		return UILabelProvider.toHTMLLabel(this._firstPart, firstPart, this._chordPart, chordPart, OperatingSystem.Windows);
 	}
 
@@ -131,21 +151,41 @@ export class WindowsNativeResolvedKeybinding extends ResolvedKeybinding {
 		return KeyCodeUtils.toString(keyCode);
 	}
 
+	private _getElectronAcceleratorLabelForKeybinding(keybinding: SimpleKeybinding): string {
+		if (!keybinding) {
+			return null;
+		}
+		if (keybinding.isDuplicateModifierCase()) {
+			return null;
+		}
+		return this._keyCodeToElectronAccelerator(keybinding.keyCode);
+	}
+
 	public getElectronAccelerator(): string {
 		if (this._chordPart !== null) {
 			// Electron cannot handle chords
 			return null;
 		}
 
-		let firstPart = this._firstPart ? this._keyCodeToElectronAccelerator(this._firstPart.keyCode) : null;
+		let firstPart = this._getElectronAcceleratorLabelForKeybinding(this._firstPart);
 		return ElectronAcceleratorLabelProvider.toLabel(this._firstPart, firstPart, null, null, OperatingSystem.Windows);
 	}
 
+	private _getUserSettingsLabelForKeybinding(keybinding: SimpleKeybinding): string {
+		if (!keybinding) {
+			return null;
+		}
+		if (keybinding.isDuplicateModifierCase()) {
+			return '';
+		}
+		return USER_SETTINGS.fromKeyCode(keybinding.keyCode);
+	}
+
 	public getUserSettingsLabel(): string {
-		let firstPart = this._firstPart ? USER_SETTINGS.fromKeyCode(this._firstPart.keyCode) : null;
-		let chordPart = this._chordPart ? USER_SETTINGS.fromKeyCode(this._chordPart.keyCode) : null;
+		let firstPart = this._getUserSettingsLabelForKeybinding(this._firstPart);
+		let chordPart = this._getUserSettingsLabelForKeybinding(this._chordPart);
 		let result = UserSettingsLabelProvider.toLabel(this._firstPart, firstPart, this._chordPart, chordPart, OperatingSystem.Windows);
-		return result.toLowerCase();
+		return (result ? result.toLowerCase() : result);
 	}
 
 	public isWYSIWYG(): boolean {

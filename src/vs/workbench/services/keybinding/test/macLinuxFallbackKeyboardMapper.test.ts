@@ -117,6 +117,34 @@ suite('keyboardMapper - MAC fallback', () => {
 			}]
 		);
 	});
+
+	test('resolveKeyboardEvent Modifier only Meta+', () => {
+		assertResolveKeyboardEvent(
+			mapper,
+			{
+				ctrlKey: false,
+				shiftKey: false,
+				altKey: false,
+				metaKey: true,
+				keyCode: KeyCode.Meta,
+				code: null
+			},
+			{
+				label: '⌘',
+				ariaLabel: 'Command+',
+				HTMLLabel: [_simpleHTMLLabel(['⌘', ''])],
+				electronAccelerator: null,
+				userSettingsLabel: 'cmd+',
+				isWYSIWYG: true,
+				isChord: false,
+				hasCtrlModifier: false,
+				hasShiftModifier: false,
+				hasAltModifier: false,
+				hasMetaModifier: true,
+				dispatchParts: [null, null],
+			}
+		);
+	});
 });
 
 suite('keyboardMapper - LINUX fallback', () => {
@@ -244,6 +272,34 @@ suite('keyboardMapper - LINUX fallback', () => {
 				hasMetaModifier: false,
 				dispatchParts: ['ctrl+,', null],
 			}]
+		);
+	});
+
+	test('resolveKeyboardEvent Modifier only Ctrl+', () => {
+		assertResolveKeyboardEvent(
+			mapper,
+			{
+				ctrlKey: true,
+				shiftKey: false,
+				altKey: false,
+				metaKey: false,
+				keyCode: KeyCode.Ctrl,
+				code: null
+			},
+			{
+				label: 'Ctrl+',
+				ariaLabel: 'Control+',
+				HTMLLabel: [_simpleHTMLLabel(['Ctrl', ''])],
+				electronAccelerator: null,
+				userSettingsLabel: 'ctrl+',
+				isWYSIWYG: true,
+				isChord: false,
+				hasCtrlModifier: true,
+				hasShiftModifier: false,
+				hasAltModifier: false,
+				hasMetaModifier: false,
+				dispatchParts: [null, null],
+			}
 		);
 	});
 });
