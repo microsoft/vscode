@@ -14,11 +14,15 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import Event from 'vs/base/common/event';
 
+export interface ILocalizedString {
+	value: string;
+	original: string;
+}
+
 export interface ICommandAction {
 	id: string;
-	title: string;
-	alias?: string;
-	category?: string;
+	title: string | ILocalizedString;
+	category?: string | ILocalizedString;
 	iconClass?: string;
 }
 
@@ -165,7 +169,7 @@ export class MenuItemAction extends ExecuteCommandAction {
 		arg: any,
 		@ICommandService commandService: ICommandService
 	) {
-		super(item.id, item.title, commandService);
+		typeof item.title === 'string' ? super(item.id, item.title, commandService) : super(item.id, item.title.value, commandService);
 		this._cssClass = item.iconClass;
 		this._enabled = true;
 		this._arg = arg;

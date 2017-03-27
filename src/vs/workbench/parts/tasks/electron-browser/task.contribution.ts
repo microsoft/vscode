@@ -1174,14 +1174,14 @@ class TaskService extends EventEmitter implements ITaskService {
 
 
 let workbenchActionsRegistry = <IWorkbenchActionRegistry>Registry.as(WorkbenchActionExtensions.WorkbenchActions);
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ConfigureTaskRunnerAction, ConfigureTaskRunnerAction.ID, ConfigureTaskRunnerAction.TEXT), 'Tasks: Configure Task Runner', tasksCategory);
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ConfigureTaskRunnerAction, ConfigureTaskRunnerAction.ID, ConfigureTaskRunnerAction.TEXT), 'Configure Task Runner', tasksCategory);
 
-MenuRegistry.addCommand({ id: 'workbench.action.tasks.showLog', title: nls.localize('ShowLogAction.label', "Show Task Log"), alias: 'Tasks: Show Task Log', category: tasksCategory });
-MenuRegistry.addCommand({ id: 'workbench.action.tasks.runTask', title: nls.localize('RunTaskAction.label', "Run Task"), alias: 'Tasks: Run Task', category: tasksCategory });
-MenuRegistry.addCommand({ id: 'workbench.action.tasks.restartTask', title: nls.localize('RestartTaskAction.label', "Restart Task"), alias: 'Tasks: Restart Task', category: tasksCategory });
-MenuRegistry.addCommand({ id: 'workbench.action.tasks.terminate', title: nls.localize('TerminateAction.label', "Terminate Running Task"), alias: 'Tasks: Terminate Running Task', category: tasksCategory });
-MenuRegistry.addCommand({ id: 'workbench.action.tasks.build', title: nls.localize('BuildAction.label', "Run Build Task"), alias: 'Tasks: Run Build Task', category: tasksCategory });
-MenuRegistry.addCommand({ id: 'workbench.action.tasks.test', title: nls.localize('TestAction.label', "Run Test Task"), alias: 'Tasks: Run Test Task', category: tasksCategory });
+MenuRegistry.addCommand({ id: 'workbench.action.tasks.showLog', title: { value: nls.localize('ShowLogAction.label', "Show Task Log"), original: 'Show Task Log' }, category: { value: tasksCategory, original: 'Tasks' } });
+MenuRegistry.addCommand({ id: 'workbench.action.tasks.runTask', title: { value: nls.localize('RunTaskAction.label', "Run Task"), original: 'Run Task' }, category: { value: tasksCategory, original: 'Tasks' } });
+MenuRegistry.addCommand({ id: 'workbench.action.tasks.restartTask', title: { value: nls.localize('RestartTaskAction.label', "Restart Task"), original: 'Tasks: Restart Task' }, category: { value: tasksCategory, original: 'Tasks' });
+MenuRegistry.addCommand({ id: 'workbench.action.tasks.terminate', title: { value: nls.localize('TerminateAction.label', "Terminate Running Task"), original: 'Terminate Running Task' }, category: { value: tasksCategory, original: 'Tasks' } });
+MenuRegistry.addCommand({ id: 'workbench.action.tasks.build', title: { value: nls.localize('BuildAction.label', "Run Build Task"), original: 'Run Build Task' }, category: { value: tasksCategory, original: 'Tasks' } });
+MenuRegistry.addCommand({ id: 'workbench.action.tasks.test', title: { value: nls.localize('TestAction.label', "Run Test Task"), original: 'Run Test Task' }, category: { value: tasksCategory, original: 'Tasks' } });
 // MenuRegistry.addCommand( { id: 'workbench.action.tasks.rebuild', title: nls.localize('RebuildAction.label', 'Run Rebuild Task'), category: tasksCategory });
 // MenuRegistry.addCommand( { id: 'workbench.action.tasks.clean', title: nls.localize('CleanAction.label', 'Run Clean Task'), category: tasksCategory });
 
