@@ -80,7 +80,7 @@ class ColorRegistry implements IColorRegistry {
 	public registerColor(id: string, defaults: ColorDefaults, description: string): ColorIdentifier {
 		let colorContribution = { id, description, defaults };
 		this.colorsById[id] = colorContribution;
-		this.colorSchema.properties[id] = { type: 'string', description };
+		this.colorSchema.properties[id] = { type: 'string', description, format: 'color' };
 		return id;
 	}
 

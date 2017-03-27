@@ -7,7 +7,7 @@
 import {
 	createConnection, IConnection,
 	TextDocuments, TextDocument, InitializeParams, InitializeResult, NotificationType, RequestType,
-	DocumentRangeFormattingRequest, Disposable
+	DocumentRangeFormattingRequest, Disposable, Range
 } from 'vscode-languageserver';
 
 import { xhr, XHRResponse, configure as configureHttpRequests, getErrorStatusDescription } from 'request-light';
@@ -32,6 +32,10 @@ namespace SchemaAssociationNotification {
 
 namespace VSCodeContentRequest {
 	export const type: RequestType<string, string, any, any> = new RequestType('vscode/content');
+}
+
+namespace ColorSymbolRequest {
+	export const type: RequestType<string, Range[], any, any> = new RequestType('json/colorSymbols');
 }
 
 // Create a connection for the server
@@ -302,6 +306,15 @@ connection.onDocumentSymbol(documentSymbolParams => {
 connection.onDocumentRangeFormatting(formatParams => {
 	let document = documents.get(formatParams.textDocument.uri);
 	return languageService.format(document, formatParams.range, formatParams.options);
+});
+
+connection.onRequest(ColorSymbolRequest.type, uri => {
+	let document = documents.get(uri);
+	if (document) {
+		let jsonDocument = getJSONDocument(document);
+		return languageService.findColorSymbols(document, jsonDocument);
+	}
+	return [];
 });
 
 // Listen on the connection
