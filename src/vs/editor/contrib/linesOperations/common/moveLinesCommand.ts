@@ -7,6 +7,8 @@
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ICommand, ICursorStateComputerData, IEditOperationBuilder, ITokenizedModel } from 'vs/editor/common/editorCommon';
+import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import Strings = require('vs/base/common/strings');
 
 export class MoveLinesCommand implements ICommand {
 
@@ -81,6 +83,8 @@ export class MoveLinesCommand implements ICommand {
 				oneIndent = Array(options.tabSize).join(" ");
 			}
 
+			let brackets = LanguageConfigurationRegistry.getBracketsSupport(model.getLanguageIdentifier().id).brackets;
+
 			if (this._isMovingDown) {
 				movingLineNumber = s.endLineNumber + 1;
 				movingLineText = model.getLineContent(movingLineNumber);
@@ -92,11 +96,13 @@ export class MoveLinesCommand implements ICommand {
 				// If selection have the same indentation for the first and last line, apply an auto indent to the selected block
 				if(firstLineWhitespaces.length === lastLineWhitespaces.length && movingLineText.length > 0){
 					for(var lineNumber = s.startLineNumber; lineNumber <= s.endLineNumber; ++lineNumber){
-						// If line ending with [{(:], use indentation of the next next line
-						// TODO maybe could it be better than this &&
+						// If line end with language open bracket, use indentation of the next next line
 						let newMovingWhitespaces = movingLineWhitespaces;
-						if( movingLineText.match(/[{(:\[]\s*$/) && movingLineText.match(/[{(:\[]\s*$/).length > 0){
-							 newMovingWhitespaces += oneIndent;
+
+						const allOpenbrackets = Strings.escapeRegExpCharacters(brackets.map(x=>x.open).reduce((x, y)=>x + y, ""));
+
+						if( movingLineText.match(new RegExp("[" + allOpenbrackets + "]\\s*$"))){
+							newMovingWhitespaces += oneIndent;
 						}
 						// Replace the current line whitespaces with the moving line whitespaces
 						const lineText = model.getLineContent(lineNumber).replace(
@@ -122,10 +128,11 @@ export class MoveLinesCommand implements ICommand {
 				// If selection have the same indentation for the first and last line, apply an auto indent to the selected block
 				if(firstLineWhitespaces.length === lastLineWhitespaces.length && movingLineText.length > 1){
 					for(var lineNumber = s.startLineNumber; lineNumber <= s.endLineNumber; ++lineNumber){
-						// If line ending with [{(:], use indentation of the next next line
-						// TODO maybe could it be better than this &&
+						// If line start with language closing bracket, use indentation of the next next line
+						const allClosingbrackets = Strings.escapeRegExpCharacters(brackets.map(x=>x.close).reduce((x, y) => x + y, ""));
 						let newMovingWhitespaces = movingLineWhitespaces;
-						if( movingLineText.match(/^\s*[\]})]/) && movingLineText.match(/^\s*[\]})]/).length > 0 ){
+
+						if( movingLineText.match(new RegExp("^\\s*[" + allClosingbrackets + "]"))){
 							newMovingWhitespaces += oneIndent;
 						}
 						// Replace the current line whitespaces with the moving line whitespaces
