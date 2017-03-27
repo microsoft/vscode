@@ -11,12 +11,12 @@ import { EventEmitter } from 'vs/base/common/eventEmitter';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ReplaceCommand } from 'vs/editor/common/commands/replaceCommand';
 import { CursorCollection, ICursorCollectionState } from 'vs/editor/common/controller/cursorCollection';
-import { IViewModelHelper, OneCursor, OneCursorOp } from 'vs/editor/common/controller/oneCursor';
+import { IViewModelHelper, OneCursor, OneCursorOp, CursorContext } from 'vs/editor/common/controller/oneCursor';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection, SelectionDirection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { CursorColumns, EditOperationResult } from 'vs/editor/common/controller/cursorCommon';
+import { CursorColumns, EditOperationResult, CursorConfiguration } from 'vs/editor/common/controller/cursorCommon';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { ColumnSelection, IColumnSelectResult } from 'vs/editor/common/controller/cursorColumnSelection';
 import { DeleteOperations } from 'vs/editor/common/controller/cursorDeleteOperations';
@@ -74,6 +74,7 @@ interface ICommandsData {
 export class Cursor extends EventEmitter {
 
 	private configuration: editorCommon.IConfiguration;
+	private context: CursorContext;
 	private model: editorCommon.IModel;
 
 	private modelUnbinds: IDisposable[];
@@ -102,7 +103,26 @@ export class Cursor extends EventEmitter {
 		this.model = model;
 		this.viewModelHelper = viewModelHelper;
 		this.enableEmptySelectionClipboard = enableEmptySelectionClipboard;
-		this.cursors = new CursorCollection(this.model, this.configuration, this.viewModelHelper);
+
+		const createCursorContext = () => {
+			const config = new CursorConfiguration(
+				this.model.getLanguageIdentifier(),
+				this.model.getOneIndent(),
+				this.model.getOptions(),
+				this.configuration
+			);
+			this.context = new CursorContext(
+				this.model,
+				this.viewModelHelper,
+				config
+			);
+			if (this.cursors) {
+				this.cursors.updateContext(this.context);
+			}
+		};
+		createCursorContext();
+
+		this.cursors = new CursorCollection(this.context);
 		this.cursorUndoStack = [];
 
 		this._isHandling = false;
@@ -138,12 +158,21 @@ export class Cursor extends EventEmitter {
 
 			this._onModelContentChanged(hadFlushEvent);
 		}));
+
 		this.modelUnbinds.push(this.model.onDidChangeLanguage((e) => {
-			this._onModelLanguageChanged();
+			createCursorContext();
 		}));
 		this.modelUnbinds.push(LanguageConfigurationRegistry.onDidChange(() => {
 			// TODO@Alex: react only if certain supports changed? (and if my model's mode changed)
-			this._onModelLanguageChanged();
+			createCursorContext();
+		}));
+		this.modelUnbinds.push(model.onDidChangeOptions(() => {
+			createCursorContext();
+		}));
+		this.modelUnbinds.push(this.configuration.onDidChange((e) => {
+			if (CursorConfiguration.shouldRecreate(e)) {
+				createCursorContext();
+			}
 		}));
 
 		this._handlers = {};
@@ -227,17 +256,12 @@ export class Cursor extends EventEmitter {
 		}, 'restoreState', null);
 	}
 
-	private _onModelLanguageChanged(): void {
-		// the mode of this model has changed
-		this.cursors.updateMode();
-	}
-
 	private _onModelContentChanged(hadFlushEvent: boolean): void {
 		if (hadFlushEvent) {
 			// a model.setValue() was called
 			this.cursors.dispose();
 
-			this.cursors = new CursorCollection(this.model, this.configuration, this.viewModelHelper);
+			this.cursors = new CursorCollection(this.context);
 
 			this.emitCursorPositionChanged('model', editorCommon.CursorChangeReason.ContentFlush);
 			this.emitCursorSelectionChanged('model', editorCommon.CursorChangeReason.ContentFlush);
@@ -246,7 +270,7 @@ export class Cursor extends EventEmitter {
 				// Read the markers before entering `_onHandler`, since that would validate
 				// the position and ruin the markers
 				let selections: Selection[] = this.cursors.getAll().map((cursor) => {
-					return cursor.beginRecoverSelectionFromMarkers();
+					return cursor.beginRecoverSelectionFromMarkers(this.context);
 				});
 				this._onHandler('recoverSelectionFromMarkers', (ctx: IMultipleCursorOperationContext) => {
 					ctx.shouldPushStackElementBefore = true;
@@ -258,7 +282,7 @@ export class Cursor extends EventEmitter {
 						ctx.shouldReveal = false;
 						ctx.shouldRevealHorizontal = false;
 
-						return oneCursor.endRecoverSelectionFromMarkers(selections[cursorIndex]);
+						return oneCursor.endRecoverSelectionFromMarkers(this.context, selections[cursorIndex]);
 					});
 					ctx.shouldPushStackElementBefore = false;
 					ctx.shouldPushStackElementAfter = false;
@@ -1043,7 +1067,7 @@ export class Cursor extends EventEmitter {
 		if (ctx.eventSource === 'mouse') {
 			ctx.cursorPositionChangeReason = editorCommon.CursorChangeReason.Explicit;
 		}
-		const result = OneCursorOp.moveTo(this.cursors.getPrimaryCursor(), inSelectionMode, ctx.eventData.position, ctx.eventData.viewPosition);
+		const result = OneCursorOp.moveTo(this.context, this.cursors.getPrimaryCursor(), inSelectionMode, ctx.eventData.position, ctx.eventData.viewPosition);
 		this.cursors.setStates([result], false);
 		return true;
 	}
@@ -1054,14 +1078,14 @@ export class Cursor extends EventEmitter {
 		ctx.shouldPushStackElementAfter = true;
 		ctx.shouldReveal = true;
 		ctx.shouldRevealHorizontal = true;
-		this.cursors.setStates(OneCursorOp.move(this.cursors.getAll(), ctx.eventData), true);
+		this.cursors.setStates(OneCursorOp.move(this.context, this.cursors.getAll(), ctx.eventData), true);
 		return true;
 	}
 
 	private _columnSelectToLineNumber: number = 0;
 	private _getColumnSelectToLineNumber(): number {
 		if (!this._columnSelectToLineNumber) {
-			let primaryCursor = this.cursors.getAll()[0];
+			let primaryCursor = this.cursors.getPrimaryCursor();
 			let primaryPos = primaryCursor.viewState.position;
 			return primaryPos.lineNumber;
 		}
@@ -1071,27 +1095,27 @@ export class Cursor extends EventEmitter {
 	private _columnSelectToVisualColumn: number = 0;
 	private _getColumnSelectToVisualColumn(): number {
 		if (!this._columnSelectToVisualColumn) {
-			let primaryCursor = this.cursors.getAll()[0];
+			let primaryCursor = this.cursors.getPrimaryCursor();
 			let primaryPos = primaryCursor.viewState.position;
-			return CursorColumns.visibleColumnFromColumn2(primaryCursor.config, primaryCursor.viewModel, primaryPos);
+			return CursorColumns.visibleColumnFromColumn2(this.context.config, this.context.viewModel, primaryPos);
 		}
 		return this._columnSelectToVisualColumn;
 	}
 
 	private _columnSelectMouse(ctx: IMultipleCursorOperationContext): boolean {
-		let primary = this.cursors.getAll()[0];
+		let primary = this.cursors.getPrimaryCursor();
 
 		// validate `eventData`
-		let validatedPosition = primary.model.validatePosition(ctx.eventData.position);
+		let validatedPosition = this.context.model.validatePosition(ctx.eventData.position);
 		let validatedViewPosition: Position;
 		if (ctx.eventData.viewPosition) {
-			validatedViewPosition = primary.validateViewPosition(ctx.eventData.viewPosition.lineNumber, ctx.eventData.viewPosition.column, validatedPosition);
+			validatedViewPosition = this.context.validateViewPosition(new Position(ctx.eventData.viewPosition.lineNumber, ctx.eventData.viewPosition.column), validatedPosition);
 		} else {
-			validatedViewPosition = primary.convertModelPositionToViewPosition(validatedPosition.lineNumber, validatedPosition.column);
+			validatedViewPosition = this.context.convertModelPositionToViewPosition(validatedPosition);
 		}
 
-		let result = ColumnSelection.columnSelect(primary.config, primary.viewModel, primary.viewState.selection, validatedViewPosition.lineNumber, ctx.eventData.mouseColumn - 1);
-		let selections = result.viewSelections.map(viewSel => primary.convertViewSelectionToModelSelection(viewSel));
+		let result = ColumnSelection.columnSelect(this.context.config, this.context.viewModel, primary.viewState.selection, validatedViewPosition.lineNumber, ctx.eventData.mouseColumn - 1);
+		let selections = result.viewSelections.map(viewSel => this.context.convertViewSelectionToModelSelection(viewSel));
 
 		ctx.shouldRevealTarget = (result.reversed ? RevealTarget.TopMost : RevealTarget.BottomMost);
 		ctx.shouldReveal = true;
@@ -1103,9 +1127,9 @@ export class Cursor extends EventEmitter {
 	}
 
 	private _columnSelectOp(ctx: IMultipleCursorOperationContext, op: (cursor: OneCursor, toViewLineNumber: number, toViewVisualColumn: number) => IColumnSelectResult): boolean {
-		let primary = this.cursors.getAll()[0];
+		let primary = this.cursors.getPrimaryCursor();
 		let result = op(primary, this._getColumnSelectToLineNumber(), this._getColumnSelectToVisualColumn());
-		let selections = result.viewSelections.map(viewSel => primary.convertViewSelectionToModelSelection(viewSel));
+		let selections = result.viewSelections.map(viewSel => this.context.convertViewSelectionToModelSelection(viewSel));
 
 		ctx.shouldRevealTarget = (result.reversed ? RevealTarget.TopMost : RevealTarget.BottomMost);
 		ctx.shouldReveal = true;
@@ -1117,19 +1141,19 @@ export class Cursor extends EventEmitter {
 	}
 
 	private _columnSelectLeft(ctx: IMultipleCursorOperationContext): boolean {
-		return this._columnSelectOp(ctx, (cursor, toViewLineNumber, toViewVisualColumn) => ColumnSelection.columnSelectLeft(cursor.config, cursor.viewModel, cursor.viewState, toViewLineNumber, toViewVisualColumn));
+		return this._columnSelectOp(ctx, (cursor, toViewLineNumber, toViewVisualColumn) => ColumnSelection.columnSelectLeft(this.context.config, this.context.viewModel, cursor.viewState, toViewLineNumber, toViewVisualColumn));
 	}
 
 	private _columnSelectRight(ctx: IMultipleCursorOperationContext): boolean {
-		return this._columnSelectOp(ctx, (cursor, toViewLineNumber, toViewVisualColumn) => ColumnSelection.columnSelectRight(cursor.config, cursor.viewModel, cursor.viewState, toViewLineNumber, toViewVisualColumn));
+		return this._columnSelectOp(ctx, (cursor, toViewLineNumber, toViewVisualColumn) => ColumnSelection.columnSelectRight(this.context.config, this.context.viewModel, cursor.viewState, toViewLineNumber, toViewVisualColumn));
 	}
 
 	private _columnSelectUp(isPaged: boolean, ctx: IMultipleCursorOperationContext): boolean {
-		return this._columnSelectOp(ctx, (cursor, toViewLineNumber, toViewVisualColumn) => ColumnSelection.columnSelectUp(cursor.config, cursor.viewModel, cursor.viewState, isPaged, toViewLineNumber, toViewVisualColumn));
+		return this._columnSelectOp(ctx, (cursor, toViewLineNumber, toViewVisualColumn) => ColumnSelection.columnSelectUp(this.context.config, this.context.viewModel, cursor.viewState, isPaged, toViewLineNumber, toViewVisualColumn));
 	}
 
 	private _columnSelectDown(isPaged: boolean, ctx: IMultipleCursorOperationContext): boolean {
-		return this._columnSelectOp(ctx, (cursor, toViewLineNumber, toViewVisualColumn) => ColumnSelection.columnSelectDown(cursor.config, cursor.viewModel, cursor.viewState, isPaged, toViewLineNumber, toViewVisualColumn));
+		return this._columnSelectOp(ctx, (cursor, toViewLineNumber, toViewVisualColumn) => ColumnSelection.columnSelectDown(this.context.config, this.context.viewModel, cursor.viewState, isPaged, toViewLineNumber, toViewVisualColumn));
 	}
 
 	private _createCursor(ctx: IMultipleCursorOperationContext): boolean {
@@ -1146,11 +1170,11 @@ export class Cursor extends EventEmitter {
 
 		const lastAddedCursor = this.cursors.getLastAddedCursor();
 		if (ctx.eventData.wholeLine) {
-			const result = OneCursorOp.line(lastAddedCursor, false, ctx.eventData.position, ctx.eventData.viewPosition);
-			lastAddedCursor.setState(result.modelState, result.viewState, false);
+			const result = OneCursorOp.line(this.context, lastAddedCursor, false, ctx.eventData.position, ctx.eventData.viewPosition);
+			lastAddedCursor.setState(this.context, result.modelState, result.viewState, false);
 		} else {
-			const result = OneCursorOp.moveTo(lastAddedCursor, false, ctx.eventData.position, ctx.eventData.viewPosition);
-			lastAddedCursor.setState(result.modelState, result.viewState, false);
+			const result = OneCursorOp.moveTo(this.context, lastAddedCursor, false, ctx.eventData.position, ctx.eventData.viewPosition);
+			lastAddedCursor.setState(this.context, result.modelState, result.viewState, false);
 		}
 
 		ctx.shouldPushStackElementBefore = true;
@@ -1176,8 +1200,8 @@ export class Cursor extends EventEmitter {
 		ctx.shouldRevealHorizontal = false;
 
 		const lastAddedCursor = this.cursors.getLastAddedCursor();
-		const result = OneCursorOp.moveTo(lastAddedCursor, true, ctx.eventData.position, ctx.eventData.viewPosition);
-		lastAddedCursor.setState(result.modelState, result.viewState, false);
+		const result = OneCursorOp.moveTo(this.context, lastAddedCursor, true, ctx.eventData.position, ctx.eventData.viewPosition);
+		lastAddedCursor.setState(this.context, result.modelState, result.viewState, false);
 
 		return true;
 	}
@@ -1191,7 +1215,7 @@ export class Cursor extends EventEmitter {
 		ctx.shouldPushStackElementBefore = true;
 		ctx.shouldPushStackElementAfter = true;
 
-		this.cursors.setStates(OneCursorOp.addCursorUp(this.cursors.getAll()), true);
+		this.cursors.setStates(OneCursorOp.addCursorUp(this.context, this.cursors.getAll()), true);
 		return true;
 	}
 
@@ -1204,7 +1228,7 @@ export class Cursor extends EventEmitter {
 		ctx.shouldPushStackElementBefore = true;
 		ctx.shouldPushStackElementAfter = true;
 
-		this.cursors.setStates(OneCursorOp.addCursorDown(this.cursors.getAll()), true);
+		this.cursors.setStates(OneCursorOp.addCursorDown(this.context, this.cursors.getAll()), true);
 		return true;
 	}
 
@@ -1248,7 +1272,7 @@ export class Cursor extends EventEmitter {
 		ctx.cursorPositionChangeReason = editorCommon.CursorChangeReason.Explicit;
 		ctx.shouldPushStackElementBefore = true;
 		ctx.shouldPushStackElementAfter = true;
-		this.cursors.setStates(OneCursorOp.moveToBeginningOfLine(this.cursors.getAll(), inSelectionMode), true);
+		this.cursors.setStates(OneCursorOp.moveToBeginningOfLine(this.context, this.cursors.getAll(), inSelectionMode), true);
 		return true;
 	}
 
@@ -1256,7 +1280,7 @@ export class Cursor extends EventEmitter {
 		ctx.cursorPositionChangeReason = editorCommon.CursorChangeReason.Explicit;
 		ctx.shouldPushStackElementBefore = true;
 		ctx.shouldPushStackElementAfter = true;
-		this.cursors.setStates(OneCursorOp.moveToEndOfLine(this.cursors.getAll(), inSelectionMode), true);
+		this.cursors.setStates(OneCursorOp.moveToEndOfLine(this.context, this.cursors.getAll(), inSelectionMode), true);
 		return true;
 	}
 
@@ -1264,7 +1288,7 @@ export class Cursor extends EventEmitter {
 		ctx.cursorPositionChangeReason = editorCommon.CursorChangeReason.Explicit;
 		ctx.shouldPushStackElementBefore = true;
 		ctx.shouldPushStackElementAfter = true;
-		this.cursors.setStates(OneCursorOp.moveToBeginningOfBuffer(this.cursors.getAll(), inSelectionMode), true);
+		this.cursors.setStates(OneCursorOp.moveToBeginningOfBuffer(this.context, this.cursors.getAll(), inSelectionMode), true);
 		return true;
 	}
 
@@ -1272,7 +1296,7 @@ export class Cursor extends EventEmitter {
 		ctx.cursorPositionChangeReason = editorCommon.CursorChangeReason.Explicit;
 		ctx.shouldPushStackElementBefore = true;
 		ctx.shouldPushStackElementAfter = true;
-		this.cursors.setStates(OneCursorOp.moveToEndOfBuffer(this.cursors.getAll(), inSelectionMode), true);
+		this.cursors.setStates(OneCursorOp.moveToEndOfBuffer(this.context, this.cursors.getAll(), inSelectionMode), true);
 		return true;
 	}
 
@@ -1281,7 +1305,7 @@ export class Cursor extends EventEmitter {
 		ctx.shouldPushStackElementAfter = true;
 		ctx.shouldReveal = false;
 		ctx.shouldRevealHorizontal = false;
-		const result = OneCursorOp.selectAll(this.cursors.getPrimaryCursor());
+		const result = OneCursorOp.selectAll(this.context, this.cursors.getPrimaryCursor());
 		this.cursors.setStates([result], false);
 		return true;
 	}
@@ -1292,7 +1316,7 @@ export class Cursor extends EventEmitter {
 		ctx.cursorPositionChangeReason = editorCommon.CursorChangeReason.Explicit;
 		ctx.shouldRevealHorizontal = false;
 
-		const r = OneCursorOp.line(this.cursors.getPrimaryCursor(), inSelectionMode, ctx.eventData.position, ctx.eventData.viewPosition);
+		const r = OneCursorOp.line(this.context, this.cursors.getPrimaryCursor(), inSelectionMode, ctx.eventData.position, ctx.eventData.viewPosition);
 		this.cursors.setStates([r], false);
 		return true;
 	}
@@ -1309,8 +1333,8 @@ export class Cursor extends EventEmitter {
 		ctx.shouldRevealHorizontal = false;
 
 		const lastAddedCursor = this.cursors.getLastAddedCursor();
-		const result = OneCursorOp.line(lastAddedCursor, inSelectionMode, ctx.eventData.position, ctx.eventData.viewPosition);
-		lastAddedCursor.setState(result.modelState, result.viewState, false);
+		const result = OneCursorOp.line(this.context, lastAddedCursor, inSelectionMode, ctx.eventData.position, ctx.eventData.viewPosition);
+		lastAddedCursor.setState(this.context, result.modelState, result.viewState, false);
 		return true;
 	}
 
@@ -1318,7 +1342,7 @@ export class Cursor extends EventEmitter {
 		ctx.cursorPositionChangeReason = editorCommon.CursorChangeReason.Explicit;
 		ctx.shouldPushStackElementBefore = true;
 		ctx.shouldPushStackElementAfter = true;
-		this.cursors.setStates(OneCursorOp.expandLineSelection(this.cursors.getAll()), true);
+		this.cursors.setStates(OneCursorOp.expandLineSelection(this.context, this.cursors.getAll()), true);
 		return true;
 	}
 
@@ -1328,7 +1352,7 @@ export class Cursor extends EventEmitter {
 		ctx.shouldPushStackElementAfter = true;
 
 		const primaryCursor = this.cursors.getPrimaryCursor();
-		const r = OneCursorOp.word(primaryCursor, inSelectionMode, ctx.eventData.position);
+		const r = OneCursorOp.word(this.context, primaryCursor, inSelectionMode, ctx.eventData.position);
 		this.cursors.setStates([r], false);
 
 		return true;
@@ -1346,8 +1370,8 @@ export class Cursor extends EventEmitter {
 		ctx.shouldRevealHorizontal = false;
 
 		const lastAddedCursor = this.cursors.getLastAddedCursor();
-		const r = OneCursorOp.word(lastAddedCursor, true, ctx.eventData.position);
-		lastAddedCursor.setState(r.modelState, r.viewState, false);
+		const r = OneCursorOp.word(this.context, lastAddedCursor, true, ctx.eventData.position);
+		lastAddedCursor.setState(this.context, r.modelState, r.viewState, false);
 		return true;
 	}
 
@@ -1359,7 +1383,7 @@ export class Cursor extends EventEmitter {
 	private _cancelSelection(ctx: IMultipleCursorOperationContext): boolean {
 		ctx.shouldPushStackElementBefore = true;
 		ctx.shouldPushStackElementAfter = true;
-		const r = OneCursorOp.cancelSelection(this.cursors.getPrimaryCursor());
+		const r = OneCursorOp.cancelSelection(this.context, this.cursors.getPrimaryCursor());
 		this.cursors.setStates([r], false);
 		return true;
 	}
@@ -1391,15 +1415,15 @@ export class Cursor extends EventEmitter {
 	}
 
 	private _lineInsertBefore(ctx: IMultipleCursorOperationContext): boolean {
-		return this._applyEditForAll(ctx, (cursor) => TypeOperations.lineInsertBefore(cursor.config, cursor.model, cursor.modelState));
+		return this._applyEditForAll(ctx, (cursor) => TypeOperations.lineInsertBefore(this.context.config, this.context.model, cursor.modelState));
 	}
 
 	private _lineInsertAfter(ctx: IMultipleCursorOperationContext): boolean {
-		return this._applyEditForAll(ctx, (cursor) => TypeOperations.lineInsertAfter(cursor.config, cursor.model, cursor.modelState));
+		return this._applyEditForAll(ctx, (cursor) => TypeOperations.lineInsertAfter(this.context.config, this.context.model, cursor.modelState));
 	}
 
 	private _lineBreakInsert(ctx: IMultipleCursorOperationContext): boolean {
-		return this._applyEditForAll(ctx, (cursor) => TypeOperations.lineBreakInsert(cursor.config, cursor.model, cursor.modelState));
+		return this._applyEditForAll(ctx, (cursor) => TypeOperations.lineBreakInsert(this.context.config, this.context.model, cursor.modelState));
 	}
 
 	private _type(ctx: IMultipleCursorOperationContext): boolean {
@@ -1424,7 +1448,7 @@ export class Cursor extends EventEmitter {
 					// Decide what all cursors will do up-front
 					const cursors = this.cursors.getAll();
 					const states = cursors.map(cursor => cursor.modelState);
-					const editOperations = TypeOperations.typeWithInterceptors(cursors[0].config, cursors[0].model, states, chr);
+					const editOperations = TypeOperations.typeWithInterceptors(this.context.config, this.context.model, states, chr);
 					this._applyEditForAll(charHandlerCtx, (cursor, cursorIndex) => editOperations[cursorIndex]);
 
 					// The last typed character gets to win
@@ -1436,7 +1460,7 @@ export class Cursor extends EventEmitter {
 
 			}
 		} else {
-			this._applyEditForAll(ctx, (cursor) => TypeOperations.typeWithoutInterceptors(cursor.config, cursor.model, cursor.modelState, text));
+			this._applyEditForAll(ctx, (cursor) => TypeOperations.typeWithoutInterceptors(this.context.config, this.context.model, cursor.modelState, text));
 		}
 
 		return true;
@@ -1445,7 +1469,7 @@ export class Cursor extends EventEmitter {
 	private _replacePreviousChar(ctx: IMultipleCursorOperationContext): boolean {
 		let text = ctx.eventData.text;
 		let replaceCharCnt = ctx.eventData.replaceCharCnt;
-		return this._applyEditForAll(ctx, (cursor) => TypeOperations.replacePreviousChar(cursor.config, cursor.model, cursor.modelState, text, replaceCharCnt));
+		return this._applyEditForAll(ctx, (cursor) => TypeOperations.replacePreviousChar(this.context.config, this.context.model, cursor.modelState, text, replaceCharCnt));
 	}
 
 	private _compositionStart(ctx: IMultipleCursorOperationContext): boolean {
@@ -1459,17 +1483,17 @@ export class Cursor extends EventEmitter {
 	}
 
 	private _tab(ctx: IMultipleCursorOperationContext): boolean {
-		return this._applyEditForAll(ctx, (cursor) => TypeOperations.tab(cursor.config, cursor.model, cursor.modelState));
+		return this._applyEditForAll(ctx, (cursor) => TypeOperations.tab(this.context.config, this.context.model, cursor.modelState));
 	}
 
 	private _indent(ctx: IMultipleCursorOperationContext): boolean {
-		this._applyEditForAll(ctx, (cursor) => TypeOperations.indent(cursor.config, cursor.model, cursor.modelState));
+		this._applyEditForAll(ctx, (cursor) => TypeOperations.indent(this.context.config, this.context.model, cursor.modelState));
 		ctx.shouldRevealHorizontal = false;
 		return true;
 	}
 
 	private _outdent(ctx: IMultipleCursorOperationContext): boolean {
-		this._applyEditForAll(ctx, (cursor) => TypeOperations.outdent(cursor.config, cursor.model, cursor.modelState));
+		this._applyEditForAll(ctx, (cursor) => TypeOperations.outdent(this.context.config, this.context.model, cursor.modelState));
 		ctx.shouldRevealHorizontal = false;
 		return true;
 	}
@@ -1503,22 +1527,22 @@ export class Cursor extends EventEmitter {
 
 		ctx.cursorPositionChangeReason = editorCommon.CursorChangeReason.Paste;
 		if (distributedPaste) {
-			return this._applyEditForAllSorted(ctx, (cursor, cursorIndex) => TypeOperations.paste(cursor.config, cursor.model, cursor.modelState, distributedPaste[cursorIndex], false));
+			return this._applyEditForAllSorted(ctx, (cursor, cursorIndex) => TypeOperations.paste(this.context.config, this.context.model, cursor.modelState, distributedPaste[cursorIndex], false));
 		} else {
-			return this._applyEditForAll(ctx, (cursor) => TypeOperations.paste(cursor.config, cursor.model, cursor.modelState, ctx.eventData.text, ctx.eventData.pasteOnNewLine));
+			return this._applyEditForAll(ctx, (cursor) => TypeOperations.paste(this.context.config, this.context.model, cursor.modelState, ctx.eventData.text, ctx.eventData.pasteOnNewLine));
 		}
 	}
 
 	private _deleteLeft(ctx: IMultipleCursorOperationContext): boolean {
-		return this._applyEditForAll(ctx, (cursor) => DeleteOperations.deleteLeft(cursor.config, cursor.model, cursor.modelState));
+		return this._applyEditForAll(ctx, (cursor) => DeleteOperations.deleteLeft(this.context.config, this.context.model, cursor.modelState));
 	}
 
 	private _deleteRight(ctx: IMultipleCursorOperationContext): boolean {
-		return this._applyEditForAll(ctx, (cursor) => DeleteOperations.deleteRight(cursor.config, cursor.model, cursor.modelState));
+		return this._applyEditForAll(ctx, (cursor) => DeleteOperations.deleteRight(this.context.config, this.context.model, cursor.modelState));
 	}
 
 	private _cut(ctx: IMultipleCursorOperationContext): boolean {
-		return this._applyEditForAll(ctx, (cursor) => DeleteOperations.cut(cursor.config, cursor.model, cursor.modelState, this.enableEmptySelectionClipboard));
+		return this._applyEditForAll(ctx, (cursor) => DeleteOperations.cut(this.context.config, this.context.model, cursor.modelState, this.enableEmptySelectionClipboard));
 	}
 
 	// -------------------- END editing operations
@@ -1572,14 +1596,13 @@ export class Cursor extends EventEmitter {
 			return true;
 		}
 		let up = editorScrollArg.to === editorCommon.EditorScrollDirection.Up;
-		let cursor: OneCursor = this.cursors.getAll()[0];
 		let noOfLines = editorScrollArg.value || 1;
 		switch (editorScrollArg.by) {
 			case editorCommon.EditorScrollByUnit.Page:
-				noOfLines = cursor.config.pageSize * noOfLines;
+				noOfLines = this.context.config.pageSize * noOfLines;
 				break;
 			case editorCommon.EditorScrollByUnit.HalfPage:
-				noOfLines = Math.round(cursor.config.pageSize / 2) * noOfLines;
+				noOfLines = Math.round(this.context.config.pageSize / 2) * noOfLines;
 				break;
 		}
 		this.emitCursorScrollRequest((up ? -1 : 1) * noOfLines, !!editorScrollArg.revealCursor);
@@ -1588,16 +1611,15 @@ export class Cursor extends EventEmitter {
 
 	private _scrollByReveal(editorScrollArg: editorCommon.EditorScrollArguments, ctx: IMultipleCursorOperationContext): boolean {
 		let up = editorScrollArg.to === editorCommon.EditorScrollDirection.Up;
-		let cursor: OneCursor = this.cursors.getAll()[0];
 		if (editorCommon.EditorScrollByUnit.Line !== editorScrollArg.by) {
 			// Scroll by reveal is done only when unit is line.
 			return false;
 		}
-		if (!up && cursor.isLastLineVisibleInViewPort()) {
+		if (!up && this.context.isLastLineVisibleInViewPort()) {
 			// Scroll by reveal is not done if last line is visible and scrolling down.
 			return false;
 		}
-		let range = up ? cursor.getRangeToRevealModelLinesBeforeViewPortTop(editorScrollArg.value) : cursor.getRangeToRevealModelLinesAfterViewPortBottom(editorScrollArg.value);
+		let range = up ? this.context.getRangeToRevealModelLinesBeforeViewPortTop(editorScrollArg.value) : this.context.getRangeToRevealModelLinesAfterViewPortBottom(editorScrollArg.value);
 		this.emitCursorRevealRange(range, null, up ? editorCommon.VerticalRevealType.Top : editorCommon.VerticalRevealType.Bottom, false, true);
 		return true;
 	}
