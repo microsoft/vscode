@@ -142,7 +142,7 @@ export class KeybindingsEditorModel extends EditorModel {
 		const commandDefaultLabel = workbenchAction && language !== LANGUAGE_DEFAULT ? workbenchActionsRegistry.getAlias(workbenchAction.id) : null;
 		return <IKeybindingItem>{
 			keybinding: keybindingItem ? keybindingItem.resolvedKeybinding : null,
-			keybindingItem,
+			keybindingItem: keybindingItem ? keybindingItem : new ResolvedKeybindingItem(null, command, null, null, true),
 			command,
 			commandLabel: editorAction ? editorAction.label : workbenchAction ? workbenchAction.label : '',
 			commandDefaultLabel,
