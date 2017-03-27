@@ -104,7 +104,7 @@ import 'vs/platform/opener/browser/opener.contribution';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { WorkbenchThemeService } from 'vs/workbench/services/themes/electron-browser/workbenchThemeService';
 import { registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { foreground } from 'vs/platform/theme/common/colorRegistry';
+import { foreground, focus } from 'vs/platform/theme/common/colorRegistry';
 
 /**
  * Services that we require for the Shell
@@ -516,5 +516,22 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const windowForeground = theme.getColor(foreground);
 	if (windowForeground) {
 		collector.addRule(`.monaco-shell { color: ${windowForeground}; }`);
+	}
+
+	const focusOutline = theme.getColor(focus);
+	if (focusOutline) {
+		collector.addRule(`
+			.monaco-shell [tabindex="0"]:focus,
+			.monaco-shell .synthetic-focus,
+			.monaco-shell select:focus,
+			.monaco-shell .monaco-tree.focused.no-focused-item:focus:before,
+			.monaco-shell input[type="button"]:focus,
+			.monaco-shell input[type="text"]:focus,
+			.monaco-shell textarea:focus,
+			.monaco-shell input[type="search"]:focus,
+			.monaco-shell input[type="checkbox"]:focus {
+				outline-color: ${focusOutline};
+			}
+		`);
 	}
 });

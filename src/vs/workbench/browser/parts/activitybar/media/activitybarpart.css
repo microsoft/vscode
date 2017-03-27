@@ -15,3 +15,7 @@
 	text-align: left;
 	background-color: inherit;
 }
+
+.monaco-workbench > .activitybar [tabindex="0"]:focus {
+	outline: 0 !important; /* activity bar indicates focus custom */
+}
