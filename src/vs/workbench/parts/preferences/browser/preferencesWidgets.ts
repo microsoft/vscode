@@ -297,6 +297,9 @@ export class SearchWidget extends Widget {
 
 	public focus() {
 		this.inputBox.focus();
+		if (this.value) {
+			this.inputBox.select();
+		}
 	}
 
 	public clear() {
