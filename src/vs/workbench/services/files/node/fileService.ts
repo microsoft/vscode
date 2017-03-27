@@ -28,7 +28,7 @@ import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 
 import pfs = require('vs/base/node/pfs');
 import encoding = require('vs/base/node/encoding');
-import mime = require('vs/base/node/mime');
+import { IMimeAndEncoding, detectMimesFromFile } from 'vs/base/node/mime';
 import flow = require('vs/base/node/flow');
 import { FileWatcher as UnixWatcherService } from 'vs/workbench/services/files/node/watcher/unix/watcherService';
 import { FileWatcher as WindowsWatcherService } from 'vs/workbench/services/files/node/watcher/win32/watcherService';
@@ -207,7 +207,7 @@ export class FileService implements IFileService {
 
 			// 2.) detect mimes
 			const autoGuessEncoding = (options && options.autoGuessEncoding) || (this.options && this.options.autoGuessEncoding);
-			return mime.detectMimesFromFile(absolutePath, { autoGuessEncoding }).then((detected: mime.IMimeAndEncoding) => {
+			return detectMimesFromFile(absolutePath, { autoGuessEncoding }).then((detected: IMimeAndEncoding) => {
 				const isText = detected.mimes.indexOf(baseMime.MIME_BINARY) === -1;
 
 				// Return error early if client only accepts text and this is not text
