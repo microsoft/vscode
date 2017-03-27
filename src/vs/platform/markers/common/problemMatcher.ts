@@ -1234,7 +1234,7 @@ export class ProblemMatcherParser extends Parser {
 			if (variableName.length > 1 && variableName[0] === '$') {
 				let result = ProblemPatternRegistry.get(variableName.substring(1));
 				if (!result) {
-					this.error(localize('ProblemMatcherParser.noDefinedPatter', 'Error: the pattern with the identifier {0} doesn\'t. exist.', variableName));
+					this.error(localize('ProblemMatcherParser.noDefinedPatter', 'Error: the pattern with the identifier {0} doesn\'t exist.', variableName));
 				}
 				return result;
 			} else {
