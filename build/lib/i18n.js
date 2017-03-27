@@ -988,4 +988,3 @@ function decodeEntities(value) {
     return value.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
 }
 exports.decodeEntities = decodeEntities;
-//# sourceMappingURL=i18n.js.map
