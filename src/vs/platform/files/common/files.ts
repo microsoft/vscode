@@ -567,6 +567,11 @@ export const HotExitConfiguration = {
 	ON_EXIT_AND_WINDOW_CLOSE: 'onExitAndWindowClose'
 };
 
+export const FollowSavePathConfiguration = {
+	ON: 'on',
+	OFF: 'off'
+};
+
 export const CONTENT_CHANGE_EVENT_BUFFER_DELAY = 1000;
 
 export interface IFilesConfiguration {
@@ -580,6 +585,7 @@ export interface IFilesConfiguration {
 		autoSaveDelay: number;
 		eol: string;
 		hotExit: string;
+		followSavePath: string;
 	};
 }
 
