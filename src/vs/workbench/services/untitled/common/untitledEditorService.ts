@@ -188,9 +188,12 @@ export class UntitledEditorService implements IUntitledEditorService {
 			} while (Object.keys(UntitledEditorService.CACHE).indexOf(resource.toString()) >= 0);
 		}
 
-		const configuration = this.configurationService.getConfiguration<IFilesConfiguration>();
-		if (!modeId && configuration.files && configuration.files.defaultLanguage) {
-			modeId = configuration.files.defaultLanguage;
+		// Look up default language from settings if any
+		if (!modeId && !hasAssociatedFilePath) {
+			const configuration = this.configurationService.getConfiguration<IFilesConfiguration>();
+			if (configuration.files && configuration.files.defaultLanguage) {
+				modeId = configuration.files.defaultLanguage;
+			}
 		}
 
 		const input = this.instantiationService.createInstance(UntitledEditorInput, resource, hasAssociatedFilePath, modeId, initialValue);
