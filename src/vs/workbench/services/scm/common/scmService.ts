@@ -26,6 +26,13 @@ class SCMInput implements ISCMInput {
 
 	private _onDidChange = new Emitter<string>();
 	get onDidChange(): Event<string> { return this._onDidChange.event; }
+
+	private _onDidAccept = new Emitter<string>();
+	get onDidAccept(): Event<string> { return this._onDidAccept.event; }
+
+	acceptChanges(): void {
+		this._onDidAccept.fire(this._value);
+	}
 }
 
 export class SCMService implements ISCMService {

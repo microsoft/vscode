@@ -733,9 +733,6 @@ declare module 'vscode' {
 		 * @return A thenable which resolves when the resource is open.
 		 */
 		open?(resource: SCMResource, token: CancellationToken): ProviderResult<void>;
-
-		// TODO@joao: move to SCMInput?
-		acceptChanges?(token: CancellationToken): ProviderResult<void>;
 	}
 
 	/**
@@ -752,6 +749,11 @@ declare module 'vscode' {
 		 * An [event](#Event) which fires when the input box value has changed.
 		 */
 		readonly onDidChange: Event<string>;
+
+		/**
+		 * An [event](#Event) which fires when the user has accepted the changes.
+		 */
+		readonly onDidAccept: Event<string>;
 	}
 
 	export namespace scm {

@@ -52,14 +52,6 @@ class MainThreadSCMProvider implements ISCMProvider {
 		return this.proxy.$open(this.id, resource.uri.toString());
 	}
 
-	acceptChanges(): TPromise<void> {
-		if (!this.features.supportsAcceptChanges) {
-			return TPromise.as(null);
-		}
-
-		return this.proxy.$acceptChanges(this.id);
-	}
-
 	getOriginalResource(uri: URI): TPromise<URI> {
 		if (!this.features.supportsOriginalResource) {
 			return TPromise.as(null);
@@ -116,7 +108,7 @@ export class MainThreadSCM extends MainThreadSCMShape {
 
 	private proxy: ExtHostSCMShape;
 	private providers: { [id: string]: MainThreadSCMProvider; } = Object.create(null);
-	private inputBoxListener: IDisposable;
+	private inputBoxListeners: IDisposable[] = [];
 
 	constructor(
 		@IThreadService threadService: IThreadService,
@@ -126,9 +118,8 @@ export class MainThreadSCM extends MainThreadSCMShape {
 		super();
 		this.proxy = threadService.get(ExtHostContext.ExtHostSCM);
 
-		this.inputBoxListener = this.scmService.input.onDidChange(value => {
-			this.proxy.$onInputBoxValueChange(value);
-		});
+		this.scmService.input.onDidChange(this.proxy.$onInputBoxValueChange, this.proxy, this.inputBoxListeners);
+		this.scmService.input.onDidAccept(this.proxy.$onInputBoxAcceptChanges, this.proxy, this.inputBoxListeners);
 	}
 
 	$register(id: string, features: SCMProviderFeatures): void {
@@ -165,6 +156,6 @@ export class MainThreadSCM extends MainThreadSCMShape {
 			.forEach(id => this.providers[id].dispose());
 
 		this.providers = Object.create(null);
-		this.inputBoxListener = dispose(this.inputBoxListener);
+		this.inputBoxListeners = dispose(this.inputBoxListeners);
 	}
 }

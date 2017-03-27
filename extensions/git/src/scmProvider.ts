@@ -50,10 +50,6 @@ export class GitSCMProvider implements SCMProvider {
 		return this.commandCenter.open(resource);
 	}
 
-	acceptChanges(): ProviderResult<void> {
-		return this.commandCenter.commitWithInput();
-	}
-
 	getOriginalResource(uri: Uri): Uri | undefined {
 		if (uri.scheme !== 'file') {
 			return;

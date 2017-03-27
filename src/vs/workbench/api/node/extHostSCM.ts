@@ -49,12 +49,22 @@ class ExtHostSCMInputBox {
 		return this._onDidChange.event;
 	}
 
+	private _onDidAccept = new Emitter<string>();
+
+	get onDidAccept(): Event<string> {
+		return this._onDidAccept.event;
+	}
+
 	constructor(private _proxy: MainThreadSCMShape) {
 		// noop
 	}
 
 	$onInputBoxValueChange(value: string): void {
 		this.updateValue(value);
+	}
+
+	$onInputBoxAcceptChanges(): void {
+		this._onDidAccept.fire(this._value);
 	}
 
 	private updateValue(value: string): void {
@@ -97,7 +107,6 @@ export class ExtHostSCM {
 		this._proxy.$register(providerId, {
 			label: provider.label,
 			supportsOpen: !!provider.open,
-			supportsAcceptChanges: !!provider.acceptChanges,
 			supportsOriginalResource: !!provider.getOriginalResource
 		});
 
@@ -158,16 +167,6 @@ export class ExtHostSCM {
 		return asWinJsPromise(token => provider.open(resource, token));
 	}
 
-	$acceptChanges(providerId: string): TPromise<void> {
-		const provider = this._providers[providerId];
-
-		if (!provider) {
-			return TPromise.as(null);
-		}
-
-		return asWinJsPromise(token => provider.acceptChanges(token));
-	}
-
 	$getOriginalResource(id: string, uri: URI): TPromise<URI> {
 		const provider = this._providers[id];
 
@@ -180,6 +179,11 @@ export class ExtHostSCM {
 
 	$onInputBoxValueChange(value: string): TPromise<void> {
 		this._inputBox.$onInputBoxValueChange(value);
+		return TPromise.as(null);
+	}
+
+	$onInputBoxAcceptChanges(): TPromise<void> {
+		this._inputBox.$onInputBoxAcceptChanges();
 		return TPromise.as(null);
 	}
 }

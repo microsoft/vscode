@@ -76,6 +76,7 @@ async function init(context: ExtensionContext, disposables: Disposable[]): Promi
 		}
 	}
 
+	scm.inputBox.onDidAccept(commandCenter.commitWithInput, commandCenter, disposables);
 	scm.inputBox.value = await model.getCommitTemplate();
 }
 

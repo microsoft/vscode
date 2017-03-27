@@ -257,7 +257,7 @@ export class SCMViewlet extends Viewlet {
 		chain(domEvent(this.inputBox.inputElement, 'keydown'))
 			.map(e => new StandardKeyboardEvent(e))
 			.filter(e => e.equals(KeyMod.CtrlCmd | KeyCode.Enter) || e.equals(KeyMod.CtrlCmd | KeyCode.KEY_S))
-			.on(this.acceptChanges, this, this.disposables);
+			.on(this.scmService.input.acceptChanges, this.scmService.input, this.disposables);
 
 		this.listContainer = append(root, $('.scm-status.show-file-icons'));
 		const delegate = new Delegate();
@@ -332,10 +332,6 @@ export class SCMViewlet extends Viewlet {
 
 	private open(e: ISCMResource): void {
 		this.scmService.activeProvider.open(e);
-	}
-
-	private acceptChanges(): void {
-		this.scmService.activeProvider.acceptChanges();
 	}
 
 	getActions(): IAction[] {

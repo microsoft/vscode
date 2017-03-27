@@ -46,13 +46,14 @@ export interface ISCMProvider extends IDisposable {
 	readonly state?: string;
 
 	open(uri: ISCMResource): TPromise<void>;
-	acceptChanges(): TPromise<void>;
 	getOriginalResource(uri: URI): TPromise<URI>;
 }
 
 export interface ISCMInput {
 	value: string;
 	readonly onDidChange: Event<string>;
+	readonly onDidAccept: Event<string>;
+	acceptChanges(): void;
 }
 
 export interface ISCMService {

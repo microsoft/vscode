@@ -253,7 +253,6 @@ export abstract class MainProcessExtensionServiceShape {
 export interface SCMProviderFeatures {
 	label: string;
 	supportsOpen: boolean;
-	supportsAcceptChanges: boolean;
 	supportsOriginalResource: boolean;
 }
 
@@ -419,9 +418,9 @@ export abstract class ExtHostTerminalServiceShape {
 
 export abstract class ExtHostSCMShape {
 	$open(id: string, uri: string): TPromise<void> { throw ni(); }
-	$acceptChanges(id: string): TPromise<void> { throw ni(); }
 	$getOriginalResource(id: string, uri: URI): TPromise<URI> { throw ni(); }
 	$onInputBoxValueChange(value: string): TPromise<void> { throw ni(); }
+	$onInputBoxAcceptChanges(): TPromise<void> { throw ni(); }
 }
 
 export abstract class ExtHostTaskShape {
