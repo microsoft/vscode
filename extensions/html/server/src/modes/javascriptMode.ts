@@ -241,7 +241,9 @@ export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocume
 			return null;
 		},
 		format(document: TextDocument, range: Range, formatParams: FormattingOptions): TextEdit[] {
-			updateCurrentTextDocument(document);
+			currentTextDocument = documentRegions.get(document).getEmbeddedDocument('javascript', true);
+			scriptFileVersion++;
+
 			let initialIndentLevel = computeInitialIndent(document, range, formatParams);
 			let formatSettings = convertOptions(formatParams, settings && settings.format, initialIndentLevel + 1);
 			let start = currentTextDocument.offsetAt(range.start);
