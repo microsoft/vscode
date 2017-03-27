@@ -6,7 +6,7 @@
 
 import { TPromise, Promise } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
-import Paths = require('vs/base/common/paths');
+import * as Paths from 'path';
 import Json = require('vs/base/common/json');
 import * as types from 'vs/base/common/types';
 import * as objects from 'vs/base/common/objects';
