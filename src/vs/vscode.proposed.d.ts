@@ -713,7 +713,7 @@ declare module 'vscode' {
 		 *   - [count](#SCMProvider.count)
 		 *   - [state](#SCMProvider.state)
 		 */
-		readonly onDidChange: Event<SCMResourceGroup[]>;
+		readonly onDidChange?: Event<SCMResourceGroup[]>;
 
 		/**
 		 * Provide a [uri](#Uri) to the original resource of any given resource uri.

@@ -6,7 +6,7 @@
 
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import Event, { Emitter, debounceEvent } from 'vs/base/common/event';
+import Event, { Emitter, debounceEvent, createEmptyEvent } from 'vs/base/common/event';
 import { asWinJsPromise } from 'vs/base/common/async';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { Disposable } from 'vs/workbench/api/node/extHostTypes';
@@ -103,7 +103,7 @@ export class ExtHostSCM {
 			supportsOriginalResource: !!provider.getOriginalResource
 		});
 
-		const onDidChange = debounceEvent(provider.onDidChange, (l, e) => e, 100);
+		const onDidChange = debounceEvent(provider.onDidChange || createEmptyEvent(), (l, e) => e, 100);
 		const onDidChangeListener = onDidChange(resourceGroups => {
 			const cache = new Map<string, vscode.SCMResource>();
 			this._cache.set(handle, cache);
