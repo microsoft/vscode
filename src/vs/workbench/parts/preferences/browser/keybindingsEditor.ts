@@ -294,7 +294,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 	}
 
 	private renderKeybindingsEntries(keybindingsEntries: IKeybindingItemEntry[]): void {
-		const currentFocussedIndices = this.keybindingsList.getFocus();
+		const currentFocussedIndex = this.keybindingsList.getFocus()[0];
 		this.listEntries = [{ id: 'keybinding-header-entry', templateId: KEYBINDING_HEADER_TEMPLATE_ID }, ...keybindingsEntries];
 		this.keybindingsList.splice(0, this.keybindingsList.length, this.listEntries);
 		this.layoutKebindingsList();
@@ -306,8 +306,8 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 				this.keybindingsList.setFocus([index]);
 			}
 			this.unAssignedKeybindingItemToRevealAndFocus = null;
-		} else {
-			this.keybindingsList.setFocus(currentFocussedIndices);
+		} else if (currentFocussedIndex !== -1 && currentFocussedIndex < this.listEntries.length) {
+			this.keybindingsList.setFocus([currentFocussedIndex]);
 		}
 	}
 
