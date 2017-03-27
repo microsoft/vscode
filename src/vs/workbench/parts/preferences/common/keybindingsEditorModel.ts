@@ -95,13 +95,13 @@ export class KeybindingsEditorModel extends EditorModel {
 				const boundCommands: Map<string, boolean> = new Map<string, boolean>();
 				for (const keybinding of this.keybindingsService.getKeybindings()) {
 					if (keybinding.command) { // Skip keybindings without commands
-						this._keybindingItems.push(KeybindingsEditorModel.toKeybindingEntry(keybinding, workbenchActionsRegistry, editorActions));
+						this._keybindingItems.push(KeybindingsEditorModel.toKeybindingEntry(keybinding.command, keybinding, workbenchActionsRegistry, editorActions));
 						boundCommands.set(keybinding.command, true);
 					}
 				}
 
 				for (const command of KeybindingResolver.getAllUnboundCommands(boundCommands)) {
-					this._keybindingItems.push(KeybindingsEditorModel.toUnassingedKeybindingEntry(command, workbenchActionsRegistry, editorActions));
+					this._keybindingItems.push(KeybindingsEditorModel.toKeybindingEntry(command, null, workbenchActionsRegistry, editorActions));
 				}
 				this._keybindingItems = this._keybindingItems.sort((a, b) => KeybindingsEditorModel.compareKeybindingData(a, b));
 				return this;
@@ -136,33 +136,18 @@ export class KeybindingsEditorModel extends EditorModel {
 		return a.command.localeCompare(b.command);
 	}
 
-	private static toKeybindingEntry(keybinding: ResolvedKeybindingItem, workbenchActionsRegistry: IWorkbenchActionRegistry, editorActions: {}): IKeybindingItem {
-		const workbenchAction = workbenchActionsRegistry.getWorkbenchAction(keybinding.command);
-		const commandDefaultLabel = workbenchAction && language !== LANGUAGE_DEFAULT ? workbenchActionsRegistry.getAlias(workbenchAction.id) : null;
-		const editorAction: EditorAction = editorActions[keybinding.command];
-		return <IKeybindingItem>{
-			keybinding: keybinding.resolvedKeybinding,
-			keybindingItem: keybinding,
-			command: keybinding.command,
-			commandLabel: editorAction ? editorAction.label : workbenchAction ? workbenchAction.label : '',
-			commandDefaultLabel,
-			when: keybinding.when,
-			source: keybinding.isDefault ? KeybindingSource.Default : KeybindingSource.User
-		};
-	}
-
-	private static toUnassingedKeybindingEntry(command: string, workbenchActionsRegistry: IWorkbenchActionRegistry, editorActions: {}): IKeybindingItem {
+	private static toKeybindingEntry(command: string, keybindingItem: ResolvedKeybindingItem, workbenchActionsRegistry: IWorkbenchActionRegistry, editorActions: {}): IKeybindingItem {
 		const workbenchAction = workbenchActionsRegistry.getWorkbenchAction(command);
-		const commandDefaultLabel = workbenchAction && language !== LANGUAGE_DEFAULT ? workbenchActionsRegistry.getAlias(workbenchAction.id) : null;
 		const editorAction: EditorAction = editorActions[command];
+		const commandDefaultLabel = workbenchAction && language !== LANGUAGE_DEFAULT ? workbenchActionsRegistry.getAlias(workbenchAction.id) : null;
 		return <IKeybindingItem>{
-			keybinding: null,
-			keybindingItem: new ResolvedKeybindingItem(null, command, null, null, true),
+			keybinding: keybindingItem ? keybindingItem.resolvedKeybinding : null,
+			keybindingItem,
 			command,
 			commandLabel: editorAction ? editorAction.label : workbenchAction ? workbenchAction.label : '',
 			commandDefaultLabel,
-			when: null,
-			source: KeybindingSource.Default
+			when: keybindingItem ? keybindingItem.when : null,
+			source: !keybindingItem || keybindingItem.isDefault ? KeybindingSource.Default : KeybindingSource.User
 		};
 	}
 }
