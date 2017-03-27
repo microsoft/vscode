@@ -2051,6 +2051,9 @@ declare module 'vscode' {
 
 		/**
 		 * The eol-sequence used in the document.
+		 *
+		 * *Note* that the eol-sequence will be applied to the
+		 * whole document.
 		 */
 		newEol: EndOfLine;
 
