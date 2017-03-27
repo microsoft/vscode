@@ -398,7 +398,12 @@ class Delegate implements IDelegate<IListEntry> {
 
 	getHeight(element: IListEntry) {
 		if (element.templateId === KEYBINDING_ENTRY_TEMPLATE_ID) {
-			if ((<IKeybindingItemEntry>element).keybindingItem.commandLabel && (<IKeybindingItemEntry>element).commandIdMatches) {
+			const commandIdMatched = (<IKeybindingItemEntry>element).keybindingItem.commandLabel && (<IKeybindingItemEntry>element).commandIdMatches;
+			const commandDefaultLabelMatched = !!(<IKeybindingItemEntry>element).commandDefaultLabelMatches;
+			if (commandIdMatched && commandDefaultLabelMatched) {
+				return 60;
+			}
+			if (commandIdMatched || commandDefaultLabelMatched) {
 				return 40;
 			}
 		}
@@ -542,11 +547,16 @@ class CommandColumn extends Column {
 	render(keybindingItemEntry: IKeybindingItemEntry): void {
 		DOM.clearNode(this.commandColumn);
 		const keybindingItem = keybindingItemEntry.keybindingItem;
-		DOM.toggleClass(this.commandColumn, 'command-id-label', !!keybindingItem.commandLabel && !!keybindingItemEntry.commandIdMatches);
+		const commandIdMatched = !!(keybindingItem.commandLabel && keybindingItemEntry.commandIdMatches);
+		const commandDefaultLabelMatched = !!keybindingItemEntry.commandDefaultLabelMatches;
+		DOM.toggleClass(this.commandColumn, 'vertical-align-column', commandIdMatched || commandDefaultLabelMatched);
 		if (keybindingItem.commandLabel) {
 			const commandLabel = new HighlightedLabel(this.commandColumn);
 			commandLabel.set(keybindingItem.commandLabel, keybindingItemEntry.commandLabelMatches);
 			commandLabel.element.title = keybindingItem.command;
+		}
+		if (keybindingItemEntry.commandDefaultLabelMatches) {
+			new HighlightedLabel(DOM.append(this.commandColumn, $('.command-default-label'))).set(keybindingItem.commandDefaultLabel, keybindingItemEntry.commandDefaultLabelMatches);
 		}
 		if (keybindingItemEntry.commandIdMatches || !keybindingItem.commandLabel) {
 			new HighlightedLabel(DOM.append(this.commandColumn, $('.code'))).set(keybindingItem.command, keybindingItemEntry.commandIdMatches);
