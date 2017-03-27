@@ -71,7 +71,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 	private defineKeybindingWidget: DefineKeybindingWidget;
 
 	private keybindingsListContainer: HTMLElement;
-	private keybindingItemToReveal: IKeybindingItemEntry;
+	private unAssignedKeybindingItemToRevealAndFocus: IKeybindingItemEntry;
 	private listEntries: IListEntry[];
 	private keybindingsList: List<IListEntry>;
 
@@ -147,7 +147,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 	focus(): void {
 		const activeKeybindingEntry = this.activeKeybindingEntry;
 		if (activeKeybindingEntry) {
-			this.focusEntry(activeKeybindingEntry, false);
+			this.focusEntry(activeKeybindingEntry);
 		} else {
 			this.searchWidget.focus();
 		}
@@ -159,24 +159,24 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 	}
 
 	defineKeybinding(keybindingEntry: IKeybindingItemEntry): TPromise<any> {
-		this.overlayContainer.style.display = 'block';
+		this.showOverlayContainer();
 		return this.defineKeybindingWidget.define().then(key => {
 			if (key) {
 				return this.keybindingEditingService.editKeybinding(key, keybindingEntry.keybindingItem.keybindingItem)
 					.then(() => {
-						if (!keybindingEntry.keybindingItem.keybinding) { // reveal only if keybinding was added because the entry will be placed in different position after rendering
-							this.keybindingItemToReveal = keybindingEntry;
+						if (!keybindingEntry.keybindingItem.keybinding) { // reveal only if keybinding was added to unassinged. Because the entry will be placed in different position after rendering
+							this.unAssignedKeybindingItemToRevealAndFocus = keybindingEntry;
 						}
 					});
 			}
 			return null;
 		}).then(() => {
 			this.hideOverlayContainer();
-			this.focusEntry(keybindingEntry, false);
+			this.focusEntry(keybindingEntry);
 		}, error => {
 			this.hideOverlayContainer();
 			this.onKeybindingEditingError(error);
-			this.focusEntry(keybindingEntry, false);
+			this.focusEntry(keybindingEntry);
 			return error;
 		});
 	}
@@ -194,7 +194,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 				.then(() => this.focus(),
 				error => {
 					this.onKeybindingEditingError(error);
-					this.focusEntry(keybindingEntry, false);
+					this.focusEntry(keybindingEntry);
 				});
 		}
 		return TPromise.as(null);
@@ -213,7 +213,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 				.then(() => this.focus(),
 				error => {
 					this.onKeybindingEditingError(error);
-					this.focusEntry(keybindingEntry, false);
+					this.focusEntry(keybindingEntry);
 				});
 		}
 		return TPromise.as(null);
@@ -241,6 +241,10 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		this.overlayContainer.style.zIndex = '10';
 		this.defineKeybindingWidget = this._register(this.instantiationService.createInstance(DefineKeybindingWidget, this.overlayContainer));
 		this.hideOverlayContainer();
+	}
+
+	private showOverlayContainer() {
+		this.overlayContainer.style.display = 'block';
 	}
 
 	private hideOverlayContainer() {
@@ -274,7 +278,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		this.keybindingsList = this._register(new List<IListEntry>(this.keybindingsListContainer, new Delegate(), [new KeybindingHeaderRenderer(), new KeybindingItemRenderer(this, this.keybindingsService)], { identityProvider: e => e.id }));
 		this._register(this.keybindingsList.onContextMenu(e => this.onContextMenu(e)));
 		this._register(this.keybindingsList.onFocusChange(e => this.onFocusChange(e)));
-		this._register(this.keybindingsList.onDOMFocus(() => this.keybindingsList.focusNext()));
+		this._register(this.keybindingsList.onDOMFocus(() => this.onKeybindingsListDOMFocus()));
 		this._register(this.keybindingsList.onDOMBlur(() => this.keybindingFocusContextKey.reset()));
 
 		this._register(this.listService.register(this.keybindingsList));
@@ -290,13 +294,20 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 	}
 
 	private renderKeybindingsEntries(keybindingsEntries: IKeybindingItemEntry[]): void {
+		const currentFocussedIndices = this.keybindingsList.getFocus();
 		this.listEntries = [{ id: 'keybinding-header-entry', templateId: KEYBINDING_HEADER_TEMPLATE_ID }, ...keybindingsEntries];
 		this.keybindingsList.splice(0, this.keybindingsList.length, this.listEntries);
 		this.layoutKebindingsList();
 
-		if (this.keybindingItemToReveal) {
-			this.focusEntry(this.keybindingItemToReveal, true);
-			this.keybindingItemToReveal = null;
+		if (this.unAssignedKeybindingItemToRevealAndFocus) {
+			const index = this.getNewIndexOfUnassignedKeybinding(this.unAssignedKeybindingItemToRevealAndFocus);
+			if (index !== -1) {
+				this.keybindingsList.reveal(index, 0.2);
+				this.keybindingsList.setFocus([index]);
+			}
+			this.unAssignedKeybindingItemToRevealAndFocus = null;
+		} else {
+			this.keybindingsList.setFocus(currentFocussedIndices);
 		}
 	}
 
@@ -306,26 +317,35 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		this.keybindingsList.layout(listHeight);
 	}
 
-	private focusEntry(keybindingItemEntry: IKeybindingItemEntry, reveal: boolean): void {
-		let index = -1;
-		for (let i = 0; i < this.listEntries.length; i++) {
-			const entry = this.listEntries[i];
-			if (entry.id === keybindingItemEntry.id) {
-				index = i;
-				break;
-			}
-			if (entry.templateId === KEYBINDING_ENTRY_TEMPLATE_ID) {
-				if ((<IKeybindingItemEntry>entry).keybindingItem.command === keybindingItemEntry.keybindingItem.command) {
-					index = i;
-					break;
+	private getIndexOf(listEntry: IListEntry): number {
+		const index = this.listEntries.indexOf(listEntry);
+		if (index === -1) {
+			for (let i = 0; i < this.listEntries.length; i++) {
+				if (this.listEntries[i].id === listEntry.id) {
+					return i;
 				}
 			}
 		}
+		return index;
+	}
+
+	private getNewIndexOfUnassignedKeybinding(unassignedKeybinding: IKeybindingItemEntry): number {
+		for (let index = 0; index < this.listEntries.length; index++) {
+			const entry = this.listEntries[index];
+			if (entry.templateId === KEYBINDING_ENTRY_TEMPLATE_ID) {
+				const keybindingItemEntry = (<IKeybindingItemEntry>entry);
+				if (keybindingItemEntry.keybindingItem.command === unassignedKeybinding.keybindingItem.command) {
+					return index;
+				}
+			}
+		}
+		return -1;
+	}
+
+	private focusEntry(keybindingItemEntry: IKeybindingItemEntry): void {
+		const index = this.getIndexOf(keybindingItemEntry);
 		if (index !== -1) {
 			this.keybindingsList.getHTMLElement().focus();
-			if (reveal) {
-				this.keybindingsList.reveal(index, 0.2);
-			}
 			this.keybindingsList.setFocus([index]);
 		}
 	}
@@ -359,6 +379,12 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		}
 		if (element.templateId === KEYBINDING_ENTRY_TEMPLATE_ID) {
 			this.keybindingFocusContextKey.set(true);
+		}
+	}
+
+	private onKeybindingsListDOMFocus(): void {
+		if (!this.keybindingsList.getFocusedElements().length) {
+			this.keybindingsList.focusNext();
 		}
 	}
 
