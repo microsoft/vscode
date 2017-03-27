@@ -252,6 +252,7 @@ export abstract class MainProcessExtensionServiceShape {
 
 export interface SCMProviderFeatures {
 	label: string;
+	contextKey?: string;
 	supportsOpen: boolean;
 	supportsOriginalResource: boolean;
 }
@@ -265,15 +266,15 @@ export type SCMRawResource = [
 
 export type SCMRawResourceGroup = [
 	string /*uri*/,
-	string /*id*/,
+	string | undefined /*context key*/,
 	string /*label*/,
 	SCMRawResource[]
 ];
 
 export abstract class MainThreadSCMShape {
-	$register(id: string, features: SCMProviderFeatures): void { throw ni(); }
-	$unregister(id: string): void { throw ni(); }
-	$onChange(id: string, resources: SCMRawResourceGroup[], count: number | undefined, state: string | undefined): void { throw ni(); }
+	$register(handle: number, features: SCMProviderFeatures): void { throw ni(); }
+	$unregister(handle: number): void { throw ni(); }
+	$onChange(handle: number, resources: SCMRawResourceGroup[], count: number | undefined, state: string | undefined): void { throw ni(); }
 	$setInputBoxValue(value: string): void { throw ni(); }
 }
 
@@ -417,8 +418,8 @@ export abstract class ExtHostTerminalServiceShape {
 }
 
 export abstract class ExtHostSCMShape {
-	$open(id: string, uri: string): TPromise<void> { throw ni(); }
-	$getOriginalResource(id: string, uri: URI): TPromise<URI> { throw ni(); }
+	$open(handle: number, uri: string): TPromise<void> { throw ni(); }
+	$getOriginalResource(handle: number, uri: URI): TPromise<URI> { throw ni(); }
 	$onInputBoxValueChange(value: string): TPromise<void> { throw ni(); }
 	$onInputBoxAcceptChanges(): TPromise<void> { throw ni(); }
 }

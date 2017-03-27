@@ -13,13 +13,12 @@ import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IAction } from 'vs/base/common/actions';
 import { fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { ISCMService, ISCMProvider, ISCMResource, ISCMResourceGroup } from 'vs/workbench/services/scm/common/scm';
-import { getSCMResourceGroupId } from './scmUtil';
+import { getSCMResourceContextKey } from './scmUtil';
 
 export class SCMMenus implements IDisposable {
 
 	private disposables: IDisposable[] = [];
 
-	private activeProviderId: string | undefined;
 	private titleDisposable: IDisposable = EmptyDisposable;
 	private titleActions: IAction[] = [];
 	private titleSecondaryActions: IAction[] = [];
@@ -41,8 +40,6 @@ export class SCMMenus implements IDisposable {
 			this.titleDisposable.dispose();
 			this.titleDisposable = EmptyDisposable;
 		}
-
-		this.activeProviderId = activeProvider ? activeProvider.id : undefined;
 
 		if (!activeProvider) {
 			return;
@@ -99,7 +96,7 @@ export class SCMMenus implements IDisposable {
 		}
 
 		const contextKeyService = this.contextKeyService.createScoped();
-		contextKeyService.createKey('scmResourceGroup', getSCMResourceGroupId(resource));
+		contextKeyService.createKey('scmResourceGroup', getSCMResourceContextKey(resource));
 
 		const menu = this.menuService.createMenu(menuId, contextKeyService);
 		const primary = [];

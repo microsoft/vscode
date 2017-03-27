@@ -59,7 +59,7 @@ export class SCMService implements ISCMService {
 		}
 
 		this._activeProvider = provider;
-		this.activeProviderContextKey.set(provider ? provider.id : void 0);
+		this.activeProviderContextKey.set(provider ? provider.contextKey : void 0);
 
 		this.providerChangeDisposable.dispose();
 		this.providerChangeDisposable = provider.onDidChange(this.onDidChangeProviderState, this);

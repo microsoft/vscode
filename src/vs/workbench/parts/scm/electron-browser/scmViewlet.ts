@@ -43,14 +43,6 @@ import URI from 'vs/base/common/uri';
 import { isSCMResource } from './scmUtil';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 
-function getElementId(element: ISCMResourceGroup | ISCMResource) {
-	if (isSCMResource(element)) {
-		return `${element.resourceGroupId}:${element.sourceUri.toString()}`;
-	} else {
-		return `${element.id}`;
-	}
-}
-
 interface SearchInputEvent extends Event {
 	target: HTMLInputElement;
 	immediate?: boolean;
@@ -196,7 +188,6 @@ export class SCMViewlet extends Viewlet {
 	private listContainer: HTMLElement;
 	private list: List<ISCMResourceGroup | ISCMResource>;
 	private menus: SCMMenus;
-	private activeProviderId: string | undefined;
 	private providerChangeDisposable: IDisposable = EmptyDisposable;
 	private disposables: IDisposable[] = [];
 
@@ -223,7 +214,6 @@ export class SCMViewlet extends Viewlet {
 
 	private setActiveProvider(activeProvider: ISCMProvider | undefined): void {
 		this.providerChangeDisposable.dispose();
-		this.activeProviderId = activeProvider ? activeProvider.id : undefined;
 
 		if (activeProvider) {
 			this.providerChangeDisposable = activeProvider.onDidChange(this.update, this);
@@ -270,7 +260,7 @@ export class SCMViewlet extends Viewlet {
 		];
 
 		this.list = new List(this.listContainer, delegate, renderers, {
-			identityProvider: e => getElementId(e),
+			identityProvider: e => e.uri.toString(),
 			keyboardSupport: false
 		});
 

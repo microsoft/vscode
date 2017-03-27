@@ -11,6 +11,6 @@ export function isSCMResource(element: ISCMResourceGroup | ISCMResource): elemen
 	return !!(element as ISCMResource).sourceUri;
 }
 
-export function getSCMResourceGroupId(resource: ISCMResourceGroup | ISCMResource): string {
-	return isSCMResource(resource) ? resource.resourceGroupId : resource.id;
+export function getSCMResourceContextKey(resource: ISCMResourceGroup | ISCMResource): string {
+	return isSCMResource(resource) ? resource.resourceGroup.contextKey : resource.contextKey;
 }

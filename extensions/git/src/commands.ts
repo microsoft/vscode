@@ -794,7 +794,7 @@ export class CommandCenter {
 
 		if (uri.scheme === 'git-resource') {
 			const {resourceGroupId} = JSON.parse(uri.query) as { resourceGroupId: string, sourceUri: string };
-			const [resourceGroup] = this.model.resources.filter(g => g.id === resourceGroupId);
+			const [resourceGroup] = this.model.resources.filter(g => g.contextKey === resourceGroupId);
 
 			if (!resourceGroup) {
 				return;

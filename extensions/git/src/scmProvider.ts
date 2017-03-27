@@ -14,7 +14,7 @@ export class GitSCMProvider implements SCMProvider {
 
 	private disposables: Disposable[] = [];
 
-	get id(): string { return 'git'; }
+	get contextKey(): string { return 'git'; }
 	get resources(): SCMResourceGroup[] { return this.model.resources; }
 
 	get onDidChange(): Event<SCMResourceGroup[]> {

@@ -24,7 +24,7 @@ export interface ISCMResourceDecorations {
 }
 
 export interface ISCMResource {
-	readonly resourceGroupId: string;
+	readonly resourceGroup: ISCMResourceGroup;
 	readonly uri: URI;
 	readonly sourceUri: URI;
 	readonly decorations: ISCMResourceDecorations;
@@ -32,14 +32,14 @@ export interface ISCMResource {
 
 export interface ISCMResourceGroup {
 	readonly uri: URI;
-	readonly id: string;
 	readonly label: string;
+	readonly contextKey?: string;
 	readonly resources: ISCMResource[];
 }
 
 export interface ISCMProvider extends IDisposable {
-	readonly id: string;
 	readonly label: string;
+	readonly contextKey?: string;
 	readonly resources: ISCMResourceGroup[];
 	readonly onDidChange: Event<ISCMResourceGroup[]>;
 	readonly count?: number;

@@ -24,12 +24,6 @@ function getIconPath(decorations: vscode.SCMResourceThemableDecorations) {
 	return undefined;
 }
 
-export interface Cache {
-	[providerId: string]: {
-		[resourceUri: string]: vscode.SCMResource;
-	};
-}
-
 class ExtHostSCMInputBox {
 
 	private _value: string = '';
@@ -73,10 +67,15 @@ class ExtHostSCMInputBox {
 	}
 }
 
+type ProviderHandle = number;
+
 export class ExtHostSCM {
 
+	private static _handlePool: number = 0;
+
 	private _proxy: MainThreadSCMShape;
-	private _providers: { [id: string]: vscode.SCMProvider; } = Object.create(null);
+	private _providers: Map<ProviderHandle, vscode.SCMProvider> = new Map<ProviderHandle, vscode.SCMProvider>();
+	private _cache: Map<ProviderHandle, Map<string, vscode.SCMResource>> = new Map<ProviderHandle, Map<string, vscode.SCMResource>>();
 
 	private _onDidChangeActiveProvider = new Emitter<vscode.SCMProvider>();
 	get onDidChangeActiveProvider(): Event<vscode.SCMProvider> { return this._onDidChangeActiveProvider.event; }
@@ -87,37 +86,32 @@ export class ExtHostSCM {
 	private _inputBox: ExtHostSCMInputBox;
 	get inputBox(): vscode.SCMInputBox { return this._inputBox; }
 
-	private cache: Cache = Object.create(null);
-
 	constructor(threadService: IThreadService) {
 		this._proxy = threadService.get(MainContext.MainThreadSCM);
 		this._inputBox = new ExtHostSCMInputBox(this._proxy);
 	}
 
 	registerSCMProvider(provider: vscode.SCMProvider): Disposable {
-		const providerId = provider.id;
+		const handle = ExtHostSCM._handlePool++;
 
-		if (this._providers[providerId]) {
-			throw new Error(`Provider ${providerId} already registered`);
-		}
+		this._providers.set(handle, provider);
 
-		// TODO@joao: should pluck all the things out of the provider
-		this._providers[providerId] = provider;
-
-		this._proxy.$register(providerId, {
+		this._proxy.$register(handle, {
 			label: provider.label,
+			contextKey: provider.contextKey,
 			supportsOpen: !!provider.open,
 			supportsOriginalResource: !!provider.getOriginalResource
 		});
 
 		const onDidChange = debounceEvent(provider.onDidChange, (l, e) => e, 100);
 		const onDidChangeListener = onDidChange(resourceGroups => {
-			this.cache[providerId] = Object.create(null);
+			const cache = new Map<string, vscode.SCMResource>();
+			this._cache.set(handle, cache);
 
 			const rawResourceGroups = resourceGroups.map(g => {
 				const rawResources = g.resources.map(r => {
 					const uri = r.uri.toString();
-					this.cache[providerId][uri] = r;
+					cache.set(uri, r);
 
 					const sourceUri = r.sourceUri.toString();
 					const iconPath = getIconPath(r.decorations);
@@ -138,27 +132,33 @@ export class ExtHostSCM {
 					return [uri, sourceUri, icons, strikeThrough] as SCMRawResource;
 				});
 
-				return [g.uri.toString(), g.id, g.label, rawResources] as SCMRawResourceGroup;
+				return [g.uri.toString(), g.contextKey, g.label, rawResources] as SCMRawResourceGroup;
 			});
 
-			this._proxy.$onChange(providerId, rawResourceGroups, provider.count, provider.state);
+			this._proxy.$onChange(handle, rawResourceGroups, provider.count, provider.state);
 		});
 
 		return new Disposable(() => {
 			onDidChangeListener.dispose();
-			delete this._providers[providerId];
-			this._proxy.$unregister(providerId);
+			this._providers.delete(handle);
+			this._proxy.$unregister(handle);
 		});
 	}
 
-	$open(providerId: string, uri: string): TPromise<void> {
-		const provider = this._providers[providerId];
+	$open(handle: number, uri: string): TPromise<void> {
+		const provider = this._providers.get(handle);
 
 		if (!provider) {
 			return TPromise.as(null);
 		}
 
-		const resource = this.cache[providerId][uri];
+		const cache = this._cache.get(handle);
+
+		if (!cache) {
+			return TPromise.as(null);
+		}
+
+		const resource = cache.get(uri);
 
 		if (!resource) {
 			return TPromise.as(null);
@@ -167,8 +167,8 @@ export class ExtHostSCM {
 		return asWinJsPromise(token => provider.open(resource, token));
 	}
 
-	$getOriginalResource(id: string, uri: URI): TPromise<URI> {
-		const provider = this._providers[id];
+	$getOriginalResource(handle: number, uri: URI): TPromise<URI> {
+		const provider = this._providers.get(handle);
 
 		if (!provider) {
 			return TPromise.as(null);
