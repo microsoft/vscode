@@ -788,6 +788,7 @@ export class InternalEditorViewOptions {
 	readonly stopRenderingLineAfter: number;
 	readonly renderWhitespace: 'none' | 'boundary' | 'all';
 	readonly renderControlCharacters: boolean;
+	readonly fontLigatures: boolean;
 	readonly renderIndentGuides: boolean;
 	readonly renderLineHighlight: 'none' | 'gutter' | 'line' | 'all';
 	readonly scrollbar: InternalEditorScrollbarOptions;
@@ -822,6 +823,7 @@ export class InternalEditorViewOptions {
 		stopRenderingLineAfter: number;
 		renderWhitespace: 'none' | 'boundary' | 'all';
 		renderControlCharacters: boolean;
+		fontLigatures: boolean;
 		renderIndentGuides: boolean;
 		renderLineHighlight: 'none' | 'gutter' | 'line' | 'all';
 		scrollbar: InternalEditorScrollbarOptions;
@@ -852,6 +854,7 @@ export class InternalEditorViewOptions {
 		this.stopRenderingLineAfter = source.stopRenderingLineAfter | 0;
 		this.renderWhitespace = source.renderWhitespace;
 		this.renderControlCharacters = Boolean(source.renderControlCharacters);
+		this.fontLigatures = Boolean(source.fontLigatures);
 		this.renderIndentGuides = Boolean(source.renderIndentGuides);
 		this.renderLineHighlight = source.renderLineHighlight;
 		this.scrollbar = source.scrollbar.clone();
@@ -916,6 +919,7 @@ export class InternalEditorViewOptions {
 			&& this.stopRenderingLineAfter === other.stopRenderingLineAfter
 			&& this.renderWhitespace === other.renderWhitespace
 			&& this.renderControlCharacters === other.renderControlCharacters
+			&& this.fontLigatures === other.fontLigatures
 			&& this.renderIndentGuides === other.renderIndentGuides
 			&& this.renderLineHighlight === other.renderLineHighlight
 			&& this.scrollbar.equals(other.scrollbar)
@@ -953,6 +957,7 @@ export class InternalEditorViewOptions {
 			stopRenderingLineAfter: this.stopRenderingLineAfter !== newOpts.stopRenderingLineAfter,
 			renderWhitespace: this.renderWhitespace !== newOpts.renderWhitespace,
 			renderControlCharacters: this.renderControlCharacters !== newOpts.renderControlCharacters,
+			fontLigatures: this.fontLigatures !== newOpts.fontLigatures,
 			renderIndentGuides: this.renderIndentGuides !== newOpts.renderIndentGuides,
 			renderLineHighlight: this.renderLineHighlight !== newOpts.renderLineHighlight,
 			scrollbar: (!this.scrollbar.equals(newOpts.scrollbar)),
@@ -994,6 +999,7 @@ export interface IViewConfigurationChangedEvent {
 	readonly stopRenderingLineAfter: boolean;
 	readonly renderWhitespace: boolean;
 	readonly renderControlCharacters: boolean;
+	readonly fontLigatures: boolean;
 	readonly renderIndentGuides: boolean;
 	readonly renderLineHighlight: boolean;
 	readonly scrollbar: boolean;

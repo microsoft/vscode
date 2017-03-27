@@ -290,6 +290,7 @@ class InternalEditorOptionsHelper {
 			stopRenderingLineAfter: stopRenderingLineAfter,
 			renderWhitespace: renderWhitespace,
 			renderControlCharacters: toBoolean(opts.renderControlCharacters),
+			fontLigatures: toBoolean(opts.fontLigatures),
 			renderIndentGuides: toBoolean(opts.renderIndentGuides),
 			renderLineHighlight: renderLineHighlight,
 			scrollbar: scrollbar,
