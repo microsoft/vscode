@@ -95,25 +95,21 @@ export function detectEncodingByBOM(file: string): TPromise<string> {
 	return stream.readExactlyByFile(file, 3).then(({ buffer, bytesRead }) => detectEncodingByBOMFromBuffer(buffer, bytesRead));
 }
 
-const MINIMUM_THRESHOLD = 0.2; //Todo. Decide how much this should be.
+const MINIMUM_THRESHOLD = 0.2; // TODO@Ben Decide how much this should be.
+jschardet.Constants.MINIMUM_THRESHOLD = MINIMUM_THRESHOLD;
 
 const IGNORE_ENCODINGS = ['ascii', 'utf-8', 'utf-16', 'utf-32'];
-
-function lowerCaseWithNonAlphaNumeric(encodingName: string): string {
-	return encodingName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-}
-
-jschardet.Constants.MINIMUM_THRESHOLD = MINIMUM_THRESHOLD;
 
 /**
  * Guesses the encoding from buffer.
  */
 export function guessEncodingByBuffer(buffer: NodeBuffer): string {
-	let guessed = jschardet.detect(buffer);
+	const guessed = jschardet.detect(buffer);
 	if (!guessed || !guessed.encoding) {
 		return null;
 	}
-	let enc = guessed.encoding.toLowerCase();
+
+	const enc = guessed.encoding.toLowerCase();
 
 	// Ignore encodings that cannot guess correctly
 	// (http://chardet.readthedocs.io/en/latest/supported-encodings.html)
@@ -121,8 +117,13 @@ export function guessEncodingByBuffer(buffer: NodeBuffer): string {
 		return null;
 	}
 
-	return lowerCaseWithNonAlphaNumeric(guessed.encoding);
+	return lowerCaseWithoutNonAlphaNumeric(guessed.encoding);
 }
+
+function lowerCaseWithoutNonAlphaNumeric(encodingName: string): string {
+	return encodingName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+}
+
 /**
  * The encodings that are allowed in a settings file don't match the canonical encoding labels specified by WHATWG.
  * See https://encoding.spec.whatwg.org/#names-and-labels
