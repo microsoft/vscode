@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { Emitter } from 'vs/base/common/event';
+import { Emitter, mapEvent } from 'vs/base/common/event';
 import { TrieMap } from 'vs/base/common/map';
 import { score } from 'vs/editor/common/modes/languageSelector';
 import * as Platform from 'vs/base/common/platform';
@@ -449,6 +449,11 @@ export function createApiFactory(initData: IInitData, threadService: IThreadServ
 			@proposed(extension)
 			get onDidChangeActiveProvider() {
 				return extHostSCM.onDidChangeActiveProvider;
+			}
+
+			@proposed(extension)
+			get onDidAcceptInputValue() {
+				return mapEvent(extHostSCM.inputBox.onDidAccept, () => extHostSCM.inputBox);
 			}
 
 			@proposed(extension)

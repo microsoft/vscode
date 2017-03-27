@@ -674,8 +674,8 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * An SCM provider is able to provide [SCM resources](#SCMResource) to Code,
-	 * notify of changes in them and interact with Code in several SCM related ways.
+	 * An SCM provider is able to provide [SCM resources](#SCMResource) to the editor,
+	 * notify of changes in them and interact with the editor in several SCM related ways.
 	 */
 	export interface SCMProvider {
 
@@ -713,7 +713,7 @@ declare module 'vscode' {
 		 *   - [count](#SCMProvider.count)
 		 *   - [state](#SCMProvider.state)
 		 */
-		readonly onDidChange?: Event<SCMResourceGroup[]>;
+		readonly onDidChange?: Event<SCMProvider>;
 
 		/**
 		 * Provide a [uri](#Uri) to the original resource of any given resource uri.
@@ -722,7 +722,7 @@ declare module 'vscode' {
 		 * @param token A cancellation token.
 		 * @return A thenable that resolves to uri of the matching original resource.
 		 */
-		getOriginalResource?(uri: Uri, token: CancellationToken): ProviderResult<Uri>;
+		provideOriginalResource?(uri: Uri, token: CancellationToken): ProviderResult<Uri>;
 
 		/**
 		 * Open a specific [SCM resource](#SCMResource). Called when SCM resources
@@ -732,7 +732,7 @@ declare module 'vscode' {
 		 * @param token A cancellation token.
 		 * @return A thenable which resolves when the resource is open.
 		 */
-		open?(resource: SCMResource, token: CancellationToken): ProviderResult<void>;
+		open?(resource: SCMResource): void;
 	}
 
 	/**
@@ -744,19 +744,14 @@ declare module 'vscode' {
 		 * Setter and getter for the contents of the input box.
 		 */
 		value: string;
-
-		/**
-		 * An [event](#Event) which fires when the input box value has changed.
-		 */
-		readonly onDidChange: Event<string>;
-
-		/**
-		 * An [event](#Event) which fires when the user has accepted the changes.
-		 */
-		readonly onDidAccept: Event<string>;
 	}
 
 	export namespace scm {
+
+		/**
+		 * The currently active [SCM provider](#SCMProvider).
+		 */
+		export let activeProvider: SCMProvider | undefined;
 
 		/**
 		 * An [event](#Event) which fires when the active [SCM provider](#SCMProvider)
@@ -765,19 +760,18 @@ declare module 'vscode' {
 		export const onDidChangeActiveProvider: Event<SCMProvider>;
 
 		/**
-		 * The currently active [SCM provider](#SCMProvider).
-		 */
-		export let activeProvider: SCMProvider | undefined;
-
-		/**
 		 * The [input box](#SCMInputBox) in the SCM view.
 		 */
 		export const inputBox: SCMInputBox;
 
 		/**
+		 * An [event](#Event) which fires when the user has accepted the changes.
+		 */
+		export const onDidAcceptInputValue: Event<SCMInputBox>;
+
+		/**
 		 * Registers an [SCM provider](#SCMProvider).
 		 *
-		 * @param id The provider's id.
 		 * @return A disposable which unregisters the provider.
 		 */
 		export function registerSCMProvider(provider: SCMProvider): Disposable;

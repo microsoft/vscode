@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { scm, Uri, Disposable, SCMProvider, SCMResourceGroup, Event, ProviderResult, workspace } from 'vscode';
+import { scm, Uri, Disposable, SCMProvider, SCMResourceGroup, Event, workspace } from 'vscode';
 import { Model, Resource, State } from './model';
 import { CommandCenter } from './commands';
 import { mapEvent } from './util';
@@ -17,8 +17,8 @@ export class GitSCMProvider implements SCMProvider {
 	get contextKey(): string { return 'git'; }
 	get resources(): SCMResourceGroup[] { return this.model.resources; }
 
-	get onDidChange(): Event<SCMResourceGroup[]> {
-		return mapEvent(this.model.onDidChange, () => this.model.resources);
+	get onDidChange(): Event<this> {
+		return mapEvent(this.model.onDidChange, () => this);
 	}
 
 	get label(): string { return 'Git'; }
@@ -46,11 +46,11 @@ export class GitSCMProvider implements SCMProvider {
 		scm.registerSCMProvider(this);
 	}
 
-	open(resource: Resource): ProviderResult<void> {
-		return this.commandCenter.open(resource);
+	open(resource: Resource): void {
+		this.commandCenter.open(resource);
 	}
 
-	getOriginalResource(uri: Uri): Uri | undefined {
+	provideOriginalResource(uri: Uri): Uri | undefined {
 		if (uri.scheme !== 'file') {
 			return;
 		}
