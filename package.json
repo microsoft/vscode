@@ -29,7 +29,7 @@
     "http-proxy-agent": "0.2.7",
     "https-proxy-agent": "0.3.6",
     "iconv-lite": "0.4.15",
-    "jschardet": "^1.4.1",
+    "jschardet": "^1.4.2",
     "minimist": "1.2.0",
     "native-keymap": "1.2.1",
     "node-pty": "0.6.2",
