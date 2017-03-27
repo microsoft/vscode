@@ -9,7 +9,6 @@ import * as assert from 'assert';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { join } from 'vs/base/common/paths';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -133,7 +132,7 @@ suite('Workbench - Untitled Editor', () => {
 		});
 	});
 
-	test('Untitled created with files.defaultLanguage setting', function (done) {
+	test('Untitled created with files.defaultLanguage setting', function () {
 		const defaultLanguage = 'javascript';
 		const config = accessor.testConfigurationService;
 		config.setUserConfiguration('files', { 'defaultLanguage': defaultLanguage });
@@ -141,18 +140,14 @@ suite('Workbench - Untitled Editor', () => {
 		const service = accessor.untitledEditorService;
 		const input = service.createOrGet();
 
-		input.resolve().then((model: UntitledEditorModel) => {
-			assert.equal(model.getModeId(), defaultLanguage);
+		assert.equal(input.getModeId(), defaultLanguage);
 
-			config.setUserConfiguration('files', { 'defaultLanguage': undefined });
+		config.setUserConfiguration('files', { 'defaultLanguage': undefined });
 
-			input.dispose();
-
-			done();
-		});
+		input.dispose();
 	});
 
-	test('Untitled created with modeId overrides files.defaultLanguage setting', function (done) {
+	test('Untitled created with modeId overrides files.defaultLanguage setting', function () {
 		const modeId = 'typescript';
 		const defaultLanguage = 'javascript';
 		const config = accessor.testConfigurationService;
@@ -161,17 +156,12 @@ suite('Workbench - Untitled Editor', () => {
 		const service = accessor.untitledEditorService;
 		const input = service.createOrGet(null, modeId);
 
-		input.resolve().then((model: UntitledEditorModel) => {
-			assert.equal(model.getModeId(), modeId);
+		assert.equal(input.getModeId(), modeId);
 
-			config.setUserConfiguration('files', { 'defaultLanguage': undefined });
+		config.setUserConfiguration('files', { 'defaultLanguage': undefined });
 
-			input.dispose();
-
-			done();
-		});
+		input.dispose();
 	});
-
 
 	test('encoding change event', function (done) {
 		const service = accessor.untitledEditorService;
