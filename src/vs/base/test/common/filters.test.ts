@@ -261,7 +261,7 @@ suite('Filters', () => {
 
 	});
 	function assertTopScore(filter: typeof fuzzyScore, pattern: string, expected: number, ...words: string[]) {
-		let topScore = Number.MIN_VALUE;
+		let topScore = -Number.MIN_VALUE;
 		let topIdx = 0;
 		for (let i = 0; i < words.length; i++) {
 			const word = words[i];
@@ -310,5 +310,6 @@ suite('Filters', () => {
 		// // dupe, issue #14942
 		assertTopScore(fuzzyScore, 'is', 0, 'isValidViewletId', 'import statement');
 
+		assertTopScore(fuzzyScore, 'title', 1, 'files.trimTrailingWhitespace', 'window.title');
 	});
 });

@@ -105,7 +105,7 @@ export class CompletionModel {
 
 		const { leadingLineContent, characterCountDelta } = this._lineContext;
 		let word = '';
-		let topScore = Number.MIN_VALUE;
+		let topScore = -Number.MIN_VALUE;
 
 		for (const item of this._items) {
 
