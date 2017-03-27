@@ -410,7 +410,7 @@ function initTable() {
 }
 
 const _table = initTable();
-const _arrows = initTable();
+const _arrows = <Arrow[][]>initTable();
 const _debug = false;
 
 function printTable(table: number[][], pattern: string, patternLen: number, word: string, wordLen: number): string {
@@ -439,6 +439,8 @@ _seps['.'] = true;
 _seps[' '] = true;
 _seps['/'] = true;
 _seps['\\'] = true;
+
+const enum Arrow { Top = 0b1, Diag = 0b10, Left = 0b100 }
 
 export function fuzzyScore(pattern: string, word: string): [number, number[]] {
 
@@ -510,19 +512,19 @@ export function fuzzyScore(pattern: string, word: string): [number, number[]] {
 				// left or diag
 				if (left >= diag) {
 					_table[i][j] = left;
-					_arrows[i][j] = -1;
+					_arrows[i][j] = Arrow.Left;
 				} else {
 					_table[i][j] = diag;
-					_arrows[i][j] = 0;
+					_arrows[i][j] = Arrow.Diag;
 				}
 			} else {
 				// top or diag
 				if (diag >= top) {
 					_table[i][j] = diag;
-					_arrows[i][j] = 0;
+					_arrows[i][j] = Arrow.Diag;
 				} else {
 					_table[i][j] = top;
-					_arrows[i][j] = 1;
+					_arrows[i][j] = Arrow.Top;
 				}
 			}
 
@@ -542,12 +544,7 @@ export function fuzzyScore(pattern: string, word: string): [number, number[]] {
 	while (i > 0 && j > 0) {
 		let value = _table[i][j];
 		let arrow = _arrows[i][j];
-		if (arrow === -1 || arrow === 1) {
-			// keep going left, we cannot
-			// skip a character in the pattern
-			j -= 1;
-
-		} else if (arrow === 0) { //diag
+		if (arrow === Arrow.Diag) { //diag
 			j -= 1;
 			i -= 1;
 
@@ -568,6 +565,10 @@ export function fuzzyScore(pattern: string, word: string): [number, number[]] {
 				total += value;
 				matches.unshift(j);
 			}
+		} else {
+			// keep going left, we cannot
+			// skip a character in the pattern
+			j -= 1;
 		}
 	}
 
