@@ -360,7 +360,7 @@ gulp.task('vscode-translations-pull', function() {
 	return es.merge(
 		i18n.pullXlfFiles('vscode-editor-workbench', apiUrl, apiName, apiToken),
 		i18n.pullXlfFiles('vscode-extensions', apiUrl, apiName, apiToken)
-	).pipe(i18n.prepareJsonFiles()).pipe(vfs.dest('C:/Users/t-mikapo/Documents/Contribution/Localisation/transifex_export/vscode')); // './i18n'
+	).pipe(i18n.prepareJsonFiles()).pipe(vfs.dest('./i18n'));
 });
 
 // Sourcemaps
