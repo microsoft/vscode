@@ -8,18 +8,6 @@
 declare module 'vscode' {
 
 	/**
-	 * Defines a generalized way of reporing progress updates.
-	 */
-	export interface Progress<T> {
-
-		/**
-		 * Report a progress update.
-		 * @param value A progress item, like a message or an updated percentage value
-		 */
-		report(value: T): void
-	}
-
-	/**
 	 * Defines a problem pattern
 	 */
 	export interface ProblemPattern {
@@ -504,8 +492,6 @@ declare module 'vscode' {
 		 * @param task A function callback that represents a long running operation.
 		 */
 		export function withWindowProgress<R>(title: string, task: (progress: Progress<string>, token: CancellationToken) => Thenable<R>): Thenable<R>;
-
-		export function withScmProgress<R>(task: (progress: Progress<number>) => Thenable<R>): Thenable<R>;
 
 		export function sampleFunction(): Thenable<any>;
 	}

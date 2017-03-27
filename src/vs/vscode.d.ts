@@ -3267,6 +3267,18 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Defines a generalized way of reporting progress updates.
+	 */
+	export interface Progress<T> {
+
+		/**
+		 * Report a progress update.
+		 * @param value A progress item, like a message or an updated percentage value
+		 */
+		report(value: T): void
+	}
+
+	/**
 	 * An individual terminal instance within the integrated terminal.
 	 */
 	export interface Terminal {
@@ -3843,6 +3855,17 @@ declare module 'vscode' {
 		 * @return A disposable which hides the status bar message.
 		 */
 		export function setStatusBarMessage(text: string): Disposable;
+
+		/**
+		 * Show progress in the scm viewlet while running the given callback and while its returned
+		 * promise isn't resolve or rejected.
+		 *
+		 * @param task A callback returning a promise. Progress increments can be reported with
+		 * the provided [progress](#Progress)-object.
+		 * @return The thenable the task did return.
+		 */
+		export function withScmProgress<R>(task: (progress: Progress<number>) => Thenable<R>): Thenable<R>;
+
 
 		/**
 		 * Creates a status bar [item](#StatusBarItem).
