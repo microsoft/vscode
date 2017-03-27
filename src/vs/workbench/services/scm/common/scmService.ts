@@ -107,6 +107,6 @@ export class SCMService implements ISCMService {
 	}
 
 	private onDidChangeProviderState(): void {
-		this.activeProviderStateContextKey.set(this.activeProvider.state);
+		this.activeProviderStateContextKey.set(this.activeProvider.stateContextKey);
 	}
 }

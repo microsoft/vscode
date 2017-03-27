@@ -704,7 +704,7 @@ declare module 'vscode' {
 		 * A state identifier, which will be used to populate the value of the
 		 * `scmProviderState` context key.
 		 */
-		readonly state?: string;
+		readonly stateContextKey?: string;
 
 		/**
 		 * An [event](#Event) which should fire when any of the following attributes

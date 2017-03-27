@@ -135,7 +135,7 @@ export class ExtHostSCM {
 				return [g.uri.toString(), g.contextKey, g.label, rawResources] as SCMRawResourceGroup;
 			});
 
-			this._proxy.$onChange(handle, rawResourceGroups, provider.count, provider.state);
+			this._proxy.$onChange(handle, rawResourceGroups, provider.count, provider.stateContextKey);
 		});
 
 		return new Disposable(() => {

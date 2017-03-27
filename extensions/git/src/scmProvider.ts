@@ -23,7 +23,7 @@ export class GitSCMProvider implements SCMProvider {
 
 	get label(): string { return 'Git'; }
 
-	get state(): string {
+	get stateContextKey(): string {
 		switch (this.model.state) {
 			case State.Uninitialized: return 'uninitialized';
 			case State.Idle: return 'idle';

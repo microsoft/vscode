@@ -31,8 +31,8 @@ class MainThreadSCMProvider implements ISCMProvider {
 	private _count: number | undefined = undefined;
 	get count(): number | undefined { return this._count; }
 
-	private _state: string | undefined = undefined;
-	get state(): string | undefined { return this._state; }
+	private _stateContextKey: string | undefined = undefined;
+	get stateContextKey(): string | undefined { return this._stateContextKey; }
 
 	constructor(
 		private _handle: number,
@@ -67,7 +67,7 @@ class MainThreadSCMProvider implements ISCMProvider {
 		// }
 	}
 
-	$onChange(rawResourceGroups: SCMRawResourceGroup[], count: number | undefined, state: string | undefined): void {
+	$onChange(rawResourceGroups: SCMRawResourceGroup[], count: number | undefined, stateContextKey: string | undefined): void {
 		this._resources = rawResourceGroups.map(rawGroup => {
 			const [uri, contextKey, label, rawResources] = rawGroup;
 			const resources: ISCMResource[] = [];
@@ -95,7 +95,7 @@ class MainThreadSCMProvider implements ISCMProvider {
 		});
 
 		this._count = count;
-		this._state = state;
+		this._stateContextKey = stateContextKey;
 
 		this._onDidChange.fire(this.resources);
 	}
