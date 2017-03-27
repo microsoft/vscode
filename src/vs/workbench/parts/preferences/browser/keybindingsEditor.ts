@@ -141,9 +141,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		this.overlayContainer.style.height = dimension.height + 'px';
 		this.defineKeybindingWidget.layout(this.dimension);
 
-		const listHeight = dimension.height - (DOM.getDomNodePagePosition(this.headerContainer).height + 12 /*padding*/);
-		this.keybindingsListContainer.style.height = `${listHeight}px`;
-		this.keybindingsList.layout(listHeight);
+		this.layoutKebindingsList();
 	}
 
 	focus(): void {
@@ -294,12 +292,18 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 	private renderKeybindingsEntries(keybindingsEntries: IKeybindingItemEntry[]): void {
 		this.listEntries = [{ id: 'keybinding-header-entry', templateId: KEYBINDING_HEADER_TEMPLATE_ID }, ...keybindingsEntries];
 		this.keybindingsList.splice(0, this.keybindingsList.length, this.listEntries);
-		this.keybindingsList.layout(this.dimension.height - DOM.getDomNodePagePosition(this.headerContainer).height);
+		this.layoutKebindingsList();
 
 		if (this.keybindingItemToReveal) {
 			this.focusEntry(this.keybindingItemToReveal, true);
 			this.keybindingItemToReveal = null;
 		}
+	}
+
+	private layoutKebindingsList(): void {
+		const listHeight = this.dimension.height - (DOM.getDomNodePagePosition(this.headerContainer).height + 12 /*padding*/);
+		this.keybindingsListContainer.style.height = `${listHeight}px`;
+		this.keybindingsList.layout(listHeight);
 	}
 
 	private focusEntry(keybindingItemEntry: IKeybindingItemEntry, reveal: boolean): void {
