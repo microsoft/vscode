@@ -119,7 +119,7 @@ export abstract class ZoneWidget extends Widget implements IHorizontalSashLayout
 		super();
 		this.editor = editor;
 		this.options = objects.clone(options);
-		objects.mixin(this.options, defaultOptions);
+		objects.mixin(this.options, defaultOptions, false);
 		this.domNode = document.createElement('div');
 		if (!this.options.isAccessible) {
 			this.domNode.setAttribute('aria-hidden', 'true');
