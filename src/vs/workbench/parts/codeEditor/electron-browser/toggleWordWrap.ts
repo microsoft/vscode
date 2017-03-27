@@ -4,13 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import 'vs/css!./media/codeEditor';
 import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
-import { editorAction, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
+import { ICommonCodeEditor, IEditorContribution } from 'vs/editor/common/editorCommon';
+import { editorAction, ServicesAccessor, EditorAction, commonEditorContribution } from 'vs/editor/common/editorCommonExtensions';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { DefaultConfig } from 'vs/editor/common/config/defaultConfig';
+import { MenuRegistry, MenuId } from "vs/platform/actions/common/actions";
+import { ContextKeyExpr, IContextKeyService } from "vs/platform/contextkey/common/contextkey";
+import { Disposable } from "vs/base/common/lifecycle";
 
 @editorAction
 class ToggleWordWrapAction extends EditorAction {
@@ -42,12 +46,23 @@ class ToggleWordWrapAction extends EditorAction {
 		const alreadyToggled = codeEditorService.getTransientModelProperty(model, 'toggleWordWrap');
 		if (!alreadyToggled) {
 			codeEditorService.setTransientModelProperty(model, 'toggleWordWrap', true);
-			if (configuredWordWrap !== 'off') {
+
+			const actualWrappingInfo = editor.getConfiguration().wrappingInfo;
+
+			if (actualWrappingInfo.isWordWrapMinified) {
+				// => wrapping due to minified file
+				editor.updateOptions({
+					wordWrap: 'off',
+					wordWrapMinified: false
+				});
+			} else if (configuredWordWrap !== 'off') {
+				// => wrapping is configured to be on (or some variant)
 				editor.updateOptions({
 					wordWrap: 'off',
 					wordWrapMinified: false
 				});
 			} else {
+				// => wrapping is configured to be off
 				editor.updateOptions({
 					wordWrap: 'on'
 				});
@@ -61,3 +76,44 @@ class ToggleWordWrapAction extends EditorAction {
 		}
 	}
 }
+
+@commonEditorContribution
+class ToggleWordWrapController extends Disposable implements IEditorContribution {
+
+	private static _ID = 'editor.contrib.toggleWordWrapController';
+
+	constructor(
+		private readonly editor: ICommonCodeEditor,
+		@IContextKeyService readonly contextKeyService: IContextKeyService
+	) {
+		super();
+
+		const key = this.contextKeyService.createKey('isWordWrapMinified', this._isWordWrapMinified());
+
+		this._register(editor.onDidChangeConfiguration((e) => {
+			if (!e.wrappingInfo) {
+				return;
+			}
+			key.set(this._isWordWrapMinified());
+		}));
+	}
+
+	private _isWordWrapMinified(): boolean {
+		return this.editor.getConfiguration().wrappingInfo.isWordWrapMinified;
+	}
+
+	public getId(): string {
+		return ToggleWordWrapController._ID;
+	}
+}
+
+MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+	command: {
+		id: 'editor.action.toggleWordWrap',
+		title: nls.localize('unwrapMinified', "Disable wrapping of this minified file"),
+		iconClass: 'toggle-word-wrap-action'
+	},
+	group: 'navigation',
+	order: 1,
+	when: ContextKeyExpr.has('isWordWrapMinified')
+});

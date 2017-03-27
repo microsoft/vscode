@@ -713,6 +713,7 @@ export class InternalEditorMinimapOptions {
 export class EditorWrappingInfo {
 	readonly _editorWrappingInfoBrand: void;
 
+	readonly isWordWrapMinified: boolean;
 	readonly isViewportWrapping: boolean;
 	readonly wrappingColumn: number;
 	readonly wrappingIndent: WrappingIndent;
@@ -724,6 +725,7 @@ export class EditorWrappingInfo {
 	 * @internal
 	 */
 	constructor(source: {
+		isWordWrapMinified: boolean;
 		isViewportWrapping: boolean;
 		wrappingColumn: number;
 		wrappingIndent: WrappingIndent;
@@ -731,6 +733,7 @@ export class EditorWrappingInfo {
 		wordWrapBreakAfterCharacters: string;
 		wordWrapBreakObtrusiveCharacters: string;
 	}) {
+		this.isWordWrapMinified = Boolean(source.isWordWrapMinified);
 		this.isViewportWrapping = Boolean(source.isViewportWrapping);
 		this.wrappingColumn = source.wrappingColumn | 0;
 		this.wrappingIndent = source.wrappingIndent | 0;
@@ -744,7 +747,8 @@ export class EditorWrappingInfo {
 	 */
 	public equals(other: EditorWrappingInfo): boolean {
 		return (
-			this.isViewportWrapping === other.isViewportWrapping
+			this.isWordWrapMinified === other.isWordWrapMinified
+			&& this.isViewportWrapping === other.isViewportWrapping
 			&& this.wrappingColumn === other.wrappingColumn
 			&& this.wrappingIndent === other.wrappingIndent
 			&& this.wordWrapBreakBeforeCharacters === other.wordWrapBreakBeforeCharacters
