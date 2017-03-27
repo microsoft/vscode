@@ -657,15 +657,15 @@ declare module 'vscode' {
 		readonly uri: Uri;
 
 		/**
-		 * The identifier of the SCM resource group, which will be used to populate
-		 * the value of the `scmResourceGroup` context key.
-		 */
-		readonly id: string;
-
-		/**
 		 * The UI label of the SCM resource group.
 		 */
 		readonly label: string;
+
+		/**
+		 * The context key of the SCM resource group, which will be used to populate
+		 * the value of the `scmResourceGroup` context key.
+		 */
+		readonly contextKey?: string;
 
 		/**
 		 * The collection of [SCM resources](#SCMResource) within the SCM resource group.
@@ -680,15 +680,15 @@ declare module 'vscode' {
 	export interface SCMProvider {
 
 		/**
-		 * The identifier of the SCM provider, which will be used to populate
-		 * the value of the `scmProvider` context key.
-		 */
-		readonly id: string;
-
-		/**
 		 * A human-readable label for the name of the SCM Provider.
 		 */
 		readonly label: string;
+
+		/**
+		 * The context key of the SCM provider, which will be used to populate
+		 * the value of the `scmProvider` context key.
+		 */
+		readonly contextKey?: string;
 
 		/**
 		 * The list of SCM resource groups.
@@ -704,7 +704,7 @@ declare module 'vscode' {
 		 * A state identifier, which will be used to populate the value of the
 		 * `scmProviderState` context key.
 		 */
-		readonly state?: string;
+		readonly stateContextKey?: string;
 
 		/**
 		 * An [event](#Event) which should fire when any of the following attributes
@@ -733,9 +733,6 @@ declare module 'vscode' {
 		 * @return A thenable which resolves when the resource is open.
 		 */
 		open?(resource: SCMResource, token: CancellationToken): ProviderResult<void>;
-
-		// TODO@joao: move to SCMInput?
-		acceptChanges?(token: CancellationToken): ProviderResult<void>;
 	}
 
 	/**
@@ -752,6 +749,11 @@ declare module 'vscode' {
 		 * An [event](#Event) which fires when the input box value has changed.
 		 */
 		readonly onDidChange: Event<string>;
+
+		/**
+		 * An [event](#Event) which fires when the user has accepted the changes.
+		 */
+		readonly onDidAccept: Event<string>;
 	}
 
 	export namespace scm {

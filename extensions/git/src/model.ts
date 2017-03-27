@@ -150,9 +150,9 @@ export class Resource implements SCMResource {
 export class ResourceGroup implements SCMResourceGroup {
 
 	@memoize
-	get uri(): Uri { return Uri.parse(`git-resource-group:${this.id}`); }
+	get uri(): Uri { return Uri.parse(`git-resource-group:${this.contextKey}`); }
 
-	get id(): string { return this._id; }
+	get contextKey(): string { return this._id; }
 	get label(): string { return this._label; }
 	get resources(): Resource[] { return this._resources; }
 

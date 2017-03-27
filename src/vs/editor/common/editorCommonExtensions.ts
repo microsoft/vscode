@@ -95,6 +95,10 @@ export function editorAction(ctor: { new (): EditorAction; }): void {
 	CommonEditorRegistry.registerEditorAction(new ctor());
 }
 
+export function editorCommand(ctor: { new (): ConfigEditorCommand }): void {
+	CommonEditorRegistry.registerEditorCommand(new ctor());
+}
+
 export function commonEditorContribution(ctor: editorCommon.ICommonEditorContributionCtor): void {
 	EditorContributionRegistry.INSTANCE.registerEditorContribution(ctor);
 }

@@ -22,7 +22,7 @@ export class MockCodeEditor extends CommonCodeEditor {
 		return new TestConfiguration(options);
 	}
 	public getCenteredRangeInViewport(): Range { return null; }
-	public getCompletelyVisibleLinesRangeInViewport(): Range { return null; }
+	protected _getCompletelyVisibleViewRange(): Range { return null; }
 
 	public getScrollWidth(): number { return 0; }
 	public getScrollLeft(): number { return 0; }

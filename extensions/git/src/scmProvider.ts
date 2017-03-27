@@ -14,7 +14,7 @@ export class GitSCMProvider implements SCMProvider {
 
 	private disposables: Disposable[] = [];
 
-	get id(): string { return 'git'; }
+	get contextKey(): string { return 'git'; }
 	get resources(): SCMResourceGroup[] { return this.model.resources; }
 
 	get onDidChange(): Event<SCMResourceGroup[]> {
@@ -23,7 +23,7 @@ export class GitSCMProvider implements SCMProvider {
 
 	get label(): string { return 'Git'; }
 
-	get state(): string {
+	get stateContextKey(): string {
 		switch (this.model.state) {
 			case State.Uninitialized: return 'uninitialized';
 			case State.Idle: return 'idle';
@@ -48,10 +48,6 @@ export class GitSCMProvider implements SCMProvider {
 
 	open(resource: Resource): ProviderResult<void> {
 		return this.commandCenter.open(resource);
-	}
-
-	acceptChanges(): ProviderResult<void> {
-		return this.commandCenter.commitWithInput();
 	}
 
 	getOriginalResource(uri: Uri): Uri | undefined {

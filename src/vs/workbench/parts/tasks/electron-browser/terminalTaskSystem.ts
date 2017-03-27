@@ -20,11 +20,11 @@ import { EventEmitter } from 'vs/base/common/eventEmitter';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TerminateResponse } from 'vs/base/common/processes';
 import * as TPath from 'vs/base/common/paths';
-import URI from 'vs/base/common/uri';
+// import URI from 'vs/base/common/uri';
 
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { ProblemMatcher, ProblemPattern, getResource } from 'vs/platform/markers/common/problemMatcher';
+import { ProblemMatcher /*, ProblemPattern, getResource */ } from 'vs/platform/markers/common/problemMatcher';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -231,7 +231,8 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 		let promise: TPromise<ITaskSummary> = undefined;
 		if (task.isBackground) {
 			promise = new TPromise<ITaskSummary>((resolve, reject) => {
-				let watchingProblemMatcher = new WatchingProblemCollector(this.resolveMatchers(task.problemMatchers), this.markerService, this.modelService);
+				const problemMatchers = this.resolveMatchers(task.problemMatchers);
+				let watchingProblemMatcher = new WatchingProblemCollector(problemMatchers, this.markerService, this.modelService);
 				let toUnbind: IDisposable[] = [];
 				let event: TaskEvent = { taskId: task._id, taskName: task.name, type: TaskType.Watching };
 				let eventCounter: number = 0;
@@ -247,6 +248,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 				let delayer: Async.Delayer<any> = null;
 				let decoder = new TerminalDecoder();
 				[terminal, executedCommand] = this.createTerminal(task);
+				const registeredLinkMatchers = this.registerLinkMatchers(terminal, problemMatchers);
 				const onData = terminal.onData((data: string) => {
 					decoder.write(data).forEach(line => {
 						watchingProblemMatcher.processLine(line);
@@ -272,6 +274,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 						watchingProblemMatcher.processLine(remaining);
 					}
 					watchingProblemMatcher.dispose();
+					registeredLinkMatchers.forEach(handle => terminal.deregisterLinkMatcher(handle));
 					toUnbind = dispose(toUnbind);
 					toUnbind = null;
 					for (let i = 0; i < eventCounter; i++) {
@@ -292,7 +295,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 				let decoder = new TerminalDecoder();
 				let problemMatchers = this.resolveMatchers(task.problemMatchers);
 				let startStopProblemMatcher = new StartStopProblemCollector(problemMatchers, this.markerService, this.modelService);
-				// const registeredMatchers = this.registerLinkMatchers(terminal, problemMatchers);
+				const registeredLinkMatchers = this.registerLinkMatchers(terminal, problemMatchers);
 				const onData = terminal.onData((data: string) => {
 					decoder.write(data).forEach((line) => {
 						startStopProblemMatcher.processLine(line);
@@ -312,7 +315,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 					}
 					startStopProblemMatcher.done();
 					startStopProblemMatcher.dispose();
-					// registeredMatchers.forEach(handle => terminal.deregisterLinkMatcher(handle));
+					registeredLinkMatchers.forEach(handle => terminal.deregisterLinkMatcher(handle));
 					this.emit(TaskSystemEvents.Inactive, event);
 					resolve({ exitCode });
 				});
@@ -584,8 +587,9 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 		return result;
 	}
 
-	protected registerLinkMatchers(terminal: ITerminalInstance, problemMatchers: ProblemMatcher[]): number[] {
+	private registerLinkMatchers(terminal: ITerminalInstance, problemMatchers: ProblemMatcher[]): number[] {
 		let result: number[] = [];
+		/*
 		let handlePattern = (matcher: ProblemMatcher, pattern: ProblemPattern): void => {
 			if (pattern.regexp instanceof RegExp && Types.isNumber(pattern.file)) {
 				result.push(terminal.registerLinkMatcher(pattern.regexp, (match: string) => {
@@ -595,7 +599,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 							resource: resource
 						});
 					}
-				}, pattern.file));
+				}, 0));
 			}
 		};
 
@@ -608,6 +612,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 				handlePattern(problemMatcher, problemMatcher.pattern);
 			}
 		}
+		*/
 		return result;
 	}
 

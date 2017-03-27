@@ -268,7 +268,7 @@ class CloseBreakpointWidgetCommand extends EditorCommand {
 		});
 	}
 
-	protected runEditorCommand(accessor: ServicesAccessor, editor: ICommonCodeEditor, args: any): void {
+	public runEditorCommand(accessor: ServicesAccessor, editor: ICommonCodeEditor, args: any): void {
 		return editor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID).closeBreakpointWidget();
 	}
 }

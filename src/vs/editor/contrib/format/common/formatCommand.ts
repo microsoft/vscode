@@ -6,26 +6,42 @@
 
 import * as strings from 'vs/base/common/strings';
 import { Range } from 'vs/editor/common/core/range';
+import { TextEdit } from 'vs/editor/common/modes';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Selection } from 'vs/editor/common/core/selection';
 
 export class EditOperationsCommand implements editorCommon.ICommand {
 
-	private _edits: editorCommon.ISingleEditOperation[];
+	static execute(editor: editorCommon.ICommonCodeEditor, edits: TextEdit[]) {
+		const cmd = new EditOperationsCommand(edits, editor.getSelection());
+		editor.executeCommand('formatEditsCommand', cmd);
+
+		if (typeof cmd._newEol === 'number') {
+			editor.getModel().setEOL(cmd._newEol);
+		}
+	}
+
+	private _edits: TextEdit[];
+	private _newEol: editorCommon.EndOfLineSequence;
+
 	private _initialSelection: Selection;
 	private _selectionId: string;
 
-	constructor(edits: editorCommon.ISingleEditOperation[], initialSelection: Selection) {
+	constructor(edits: TextEdit[], initialSelection: Selection) {
 		this._edits = edits;
 		this._initialSelection = initialSelection;
 	}
 
 	public getEditOperations(model: editorCommon.ITokenizedModel, builder: editorCommon.IEditOperationBuilder): void {
-		this._edits
+
+		for (let edit of this._edits) {
 			// We know that this edit.range comes from the mirror model, so it should only contain \n and no \r's
-			.map((edit) => EditOperationsCommand.trimEdit(edit, model))
-			.filter((edit) => edit !== null) // produced above in case the edit.text is identical to the existing text
-			.forEach((edit) => builder.addEditOperation(Range.lift(edit.range), edit.text));
+			let trimEdit = EditOperationsCommand.trimEdit(edit, model);
+			if (trimEdit !== null) { // produced above in case the edit.text is identical to the existing text
+				builder.addEditOperation(Range.lift(edit.range), edit.text);
+			}
+			this._newEol = edit.eol;
+		}
 
 		var selectionIsSet = false;
 		if (Array.isArray(this._edits) && this._edits.length === 1 && this._initialSelection.isEmpty()) {

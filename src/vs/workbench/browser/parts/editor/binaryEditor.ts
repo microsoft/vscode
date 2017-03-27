@@ -55,6 +55,7 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 		const binaryContainerElement = document.createElement('div');
 		binaryContainerElement.className = 'binary-container';
 		this.binaryContainer = $(binaryContainerElement);
+		this.binaryContainer.style('outline', 'none');
 		this.binaryContainer.tabindex(0); // enable focus support from the editor part (do not remove)
 
 		// Custom Scrollbars

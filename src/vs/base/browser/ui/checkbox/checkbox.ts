@@ -105,7 +105,7 @@ export class Checkbox extends Widget {
 
 	protected _applyStyles() {
 		if (this.domNode) {
-			this.domNode.style.borderColor = this._checked ? this._opts.checkedBorderColor.toString() : null;
+			this.domNode.style.borderColor = this._checked && this._opts.checkedBorderColor ? this._opts.checkedBorderColor.toString() : null;
 		}
 	}
 

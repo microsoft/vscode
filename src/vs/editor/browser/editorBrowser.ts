@@ -46,6 +46,8 @@ export interface ICodeEditorHelper {
 	delegateVerticalScrollbarMouseDown(browserEvent: MouseEvent): void;
 	getOffsetForColumn(lineNumber: number, column: number): number;
 	getTargetAtClientPoint(clientX: number, clientY: number): IMouseTarget;
+
+	getCompletelyVisibleViewRange(): Range;
 }
 
 /**
@@ -58,11 +60,6 @@ export interface IView extends IDisposable {
 
 	createOverviewRuler(cssClassName: string, minimumHeight: number, maximumHeight: number): IOverviewRuler;
 	getCodeEditorHelper(): ICodeEditorHelper;
-
-	/**
-	 * Returns the range of lines in the view port which are completely visible.
-	 */
-	getCompletelyVisibleLinesRangeInViewport(): Range;
 
 	change(callback: (changeAccessor: IViewZoneChangeAccessor) => any): boolean;
 	getWhitespaces(): editorCommon.IEditorWhitespace[];

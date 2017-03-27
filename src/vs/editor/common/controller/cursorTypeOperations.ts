@@ -8,7 +8,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { ReplaceCommand, ReplaceCommandWithoutChangingPosition, ReplaceCommandWithOffsetCursorState } from 'vs/editor/common/commands/replaceCommand';
 import { SingleCursorState, EditOperationResult, CursorColumns, CursorConfiguration, ICursorSimpleModel } from 'vs/editor/common/controller/cursorCommon';
 import { Range } from 'vs/editor/common/core/range';
-import { CursorChangeReason, ICommand, ITokenizedModel } from 'vs/editor/common/editorCommon';
+import { ICommand, ITokenizedModel } from 'vs/editor/common/editorCommon';
 import * as strings from 'vs/base/common/strings';
 import { ShiftCommand } from 'vs/editor/common/commands/shiftCommand';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -27,8 +27,7 @@ export class TypeOperations {
 				oneIndent: config.oneIndent
 			}), {
 				shouldPushStackElementBefore: true,
-				shouldPushStackElementAfter: true,
-				shouldRevealHorizontal: false
+				shouldPushStackElementAfter: true
 			}
 		);
 	}
@@ -41,8 +40,7 @@ export class TypeOperations {
 				oneIndent: config.oneIndent
 			}), {
 				shouldPushStackElementBefore: true,
-				shouldPushStackElementAfter: true,
-				shouldRevealHorizontal: false
+				shouldPushStackElementAfter: true
 			}
 		);
 	}
@@ -89,15 +87,13 @@ export class TypeOperations {
 			let typeSelection = new Range(position.lineNumber, 1, position.lineNumber, 1);
 			return new EditOperationResult(new ReplaceCommand(typeSelection, text), {
 				shouldPushStackElementBefore: true,
-				shouldPushStackElementAfter: true,
-				cursorPositionChangeReason: CursorChangeReason.Paste
+				shouldPushStackElementAfter: true
 			});
 		}
 
 		return new EditOperationResult(new ReplaceCommand(selection, text), {
 			shouldPushStackElementBefore: true,
-			shouldPushStackElementAfter: true,
-			cursorPositionChangeReason: CursorChangeReason.Paste
+			shouldPushStackElementAfter: true
 		});
 	}
 

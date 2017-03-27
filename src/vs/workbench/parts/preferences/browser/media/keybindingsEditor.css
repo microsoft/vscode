@@ -96,9 +96,15 @@
 	flex: 1;
 }
 
-.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row .command-id-label {
+.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row .command.vertical-align-column {
 	flex-direction: column;
 	align-items: flex-start;
+	justify-content: center;
+}
+
+.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row .command .command-default-label {
+	opacity: 0.8;
+	margin-top: 2px;
 }
 
 .keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row .keybinding {

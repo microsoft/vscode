@@ -574,6 +574,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 					}
 					return this.layoutProvider.getScrollWidth();
 				},
+
 				getScrollLeft: () => {
 					if (this._isDisposed) {
 						throw new Error('ViewImpl.codeEditorHelper.getScrollLeft: View is disposed');
@@ -587,6 +588,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 					}
 					return this.layoutProvider.getScrollHeight();
 				},
+
 				getScrollTop: () => {
 					if (this._isDisposed) {
 						throw new Error('ViewImpl.codeEditorHelper.getScrollTop: View is disposed');
@@ -594,11 +596,11 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 					return this.layoutProvider.getScrollTop();
 				},
 
-				setScrollPosition: (position: editorCommon.INewScrollPosition) => {
+				setScrollPosition: (scrollPosition: editorCommon.INewScrollPosition) => {
 					if (this._isDisposed) {
 						throw new Error('ViewImpl.codeEditorHelper.setScrollPosition: View is disposed');
 					}
-					this.layoutProvider.setScrollPosition(position);
+					this.layoutProvider.setScrollPosition(scrollPosition);
 				},
 
 				getVerticalOffsetForPosition: (modelLineNumber: number, modelColumn: number) => {
@@ -612,12 +614,14 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 					let viewPosition = this._context.model.coordinatesConverter.convertModelPositionToViewPosition(modelPosition);
 					return this.layoutProvider.getVerticalOffsetForLineNumber(viewPosition.lineNumber);
 				},
+
 				delegateVerticalScrollbarMouseDown: (browserEvent: MouseEvent) => {
 					if (this._isDisposed) {
 						throw new Error('ViewImpl.codeEditorHelper.delegateVerticalScrollbarMouseDown: View is disposed');
 					}
 					this._scrollbar.delegateVerticalScrollbarMouseDown(browserEvent);
 				},
+
 				getOffsetForColumn: (modelLineNumber: number, modelColumn: number) => {
 					if (this._isDisposed) {
 						throw new Error('ViewImpl.codeEditorHelper.getOffsetForColumn: View is disposed');
@@ -640,27 +644,29 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 						throw new Error('ViewImpl.codeEditorHelper.getTargetAtClientPoint: View is disposed');
 					}
 					return this.pointerHandler.getTargetAtClientPoint(clientX, clientY);
+				},
+
+				getCompletelyVisibleViewRange: (): Range => {
+					if (this._isDisposed) {
+						throw new Error('ViewImpl.codeEditorHelper.getCompletelyVisibleViewRange: View is disposed');
+					}
+
+					// Ensure we share the state of the view model
+					this._flushAnyAccumulatedEvents();
+
+					const partialData = this.layoutProvider.getLinesViewportData();
+					const startViewLineNumber = partialData.completelyVisibleStartLineNumber;
+					const endViewLineNumber = partialData.completelyVisibleEndLineNumber;
+
+					return new Range(
+						startViewLineNumber, this._context.model.getLineMinColumn(startViewLineNumber),
+						endViewLineNumber, this._context.model.getLineMaxColumn(endViewLineNumber)
+					);
 				}
 
 			};
 		}
 		return this.codeEditorHelper;
-	}
-
-	public getCompletelyVisibleLinesRangeInViewport(): Range {
-		if (this._isDisposed) {
-			throw new Error('ViewImpl.getCompletelyVisibleLinesRangeInViewport: View is disposed');
-		}
-
-		const partialData = this.layoutProvider.getLinesViewportData();
-		const completelyVisibleLinesRange = new Range(
-			partialData.completelyVisibleStartLineNumber,
-			1,
-			partialData.completelyVisibleEndLineNumber,
-			this._context.model.getLineMaxColumn(partialData.completelyVisibleEndLineNumber)
-		);
-
-		return this._context.model.coordinatesConverter.convertViewRangeToModelRange(completelyVisibleLinesRange);
 	}
 
 	public getInternalEventBus(): IEventEmitter {
