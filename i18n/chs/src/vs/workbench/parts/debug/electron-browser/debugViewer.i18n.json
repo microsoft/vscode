@@ -12,6 +12,7 @@
 	"functionBreakpointsNotSupported": "此调试类型不支持函数断点",
 	"loadMoreStackFrames": "加载多个堆栈帧",
 	"paused": "已暂停",
+	"pausedOn": "因 {0} 已暂停",
 	"process": "进程",
 	"running": "正在运行",
 	"stackFrameAriaLabel": "堆栈帧 {0} 行 {1} {2}，调用堆栈，调试",

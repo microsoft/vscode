@@ -3,28 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import assert = require('assert');
-import paths = require('vs/base/common/paths');
-import platform = require('vs/base/common/platform');
+import * as assert from 'assert';
+import * as paths from 'vs/base/common/paths';
+import * as platform from 'vs/base/common/platform';
+import { IRawAdapter } from 'vs/workbench/parts/debug/common/debug';
 import { Adapter } from 'vs/workbench/parts/debug/node/debugAdapter';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 
 suite('Debug - Adapter', () => {
-	var adapter: Adapter;
-	var extensionFolderPath = 'a/b/c/';
-	var rawAdapter = {
+	let adapter: Adapter;
+	const extensionFolderPath = 'a/b/c/';
+	const rawAdapter = {
 		type: 'mock',
 		label: 'Mock Debug',
 		enableBreakpointsFor: { 'languageIds': ['markdown'] },
 		program: './out/mock/mockDebug.js',
-		win: {
-			runtime: 'winRuntime'
-		},
-		linux: {
-			runtime: 'linuxRuntime'
-		},
-		osx: {
-			runtime: 'osxRuntime'
-		},
+		args: ['arg1', 'arg2'],
 		configurationAttributes: {
 			launch: {
 				required: ['program'],
@@ -49,19 +43,22 @@ suite('Debug - Adapter', () => {
 	};
 
 	setup(() => {
-		adapter = new Adapter(rawAdapter, { extensionFolderPath, id: 'adapter', name: 'myAdapter', version: '1.0.0', publisher: 'vscode', isBuiltin: false, engines: null }, null, null, null);
+		adapter = new Adapter(rawAdapter, { extensionFolderPath, id: 'adapter', name: 'myAdapter', version: '1.0.0', publisher: 'vscode', isBuiltin: false, engines: null },
+			null, new TestConfigurationService(), null);
 	});
 
 	teardown(() => {
 		adapter = null;
 	});
 
-	test('adapter attributes', () => {
+	test('attributes', () => {
 		assert.equal(adapter.type, rawAdapter.type);
 		assert.equal(adapter.label, rawAdapter.label);
-		assert.equal(adapter.program, paths.join(extensionFolderPath, rawAdapter.program));
-		assert.equal(adapter.runtime, platform.isLinux ? rawAdapter.linux.runtime : platform.isMacintosh ? rawAdapter.osx.runtime : rawAdapter.win.runtime);
-		assert.deepEqual(adapter.initialConfigurations, rawAdapter.initialConfigurations);
+
+		return adapter.getAdapterExecutable(false).then(details => {
+			assert.equal(details.command, paths.join(extensionFolderPath, rawAdapter.program));
+			assert.deepEqual(details.args, rawAdapter.args);
+		});
 	});
 
 	test('schema attributes', () => {
@@ -76,5 +73,56 @@ suite('Debug - Adapter', () => {
 		assert.equal(!!schemaAttribute['properties']['name'], true);
 		assert.equal(!!schemaAttribute['properties']['type'], true);
 		assert.equal(!!schemaAttribute['properties']['preLaunchTask'], true);
+	});
+
+	test('merge', () => {
+
+		const da: IRawAdapter = {
+			type: 'mock',
+			win: {
+				runtime: 'winRuntime'
+			},
+			linux: {
+				runtime: 'linuxRuntime'
+			},
+			osx: {
+				runtime: 'osxRuntime'
+			},
+			runtimeArgs: ['first arg'],
+			program: 'mockprogram',
+			args: ['arg']
+		};
+
+		adapter.merge(da, {
+			name: 'my name',
+			id: 'my_id',
+			version: '1.0',
+			publisher: 'mockPublisher',
+			isBuiltin: true,
+			extensionFolderPath: 'a/b/c/d',
+			engines: null
+		});
+
+		return adapter.getAdapterExecutable(false).then(details => {
+			assert.equal(details.command, platform.isLinux ? da.linux.runtime : platform.isMacintosh ? da.osx.runtime : da.win.runtime);
+			assert.deepEqual(details.args, da.runtimeArgs.concat(['a/b/c/d/mockprogram'].concat(da.args)));
+		});
+	});
+
+	test('initial config file content', () => {
+		adapter.getInitialConfigurationContent().then(content => {
+			const expected = ['{',
+				'	"version": "0.2.0",',
+				'	"configurations": [',
+				'		{',
+				'			"name": "Mock-Debug",',
+				'			"type": "mock",',
+				'			"request": "launch",',
+				'			"program": "readme.md"',
+				'		}',
+				'	]',
+				'}'].join('\n');
+			assert.equal(content, expected);
+		}, err => assert.fail());
 	});
 });

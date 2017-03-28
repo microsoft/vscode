@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { CancellationToken, Uri } from 'vscode';
+import { CancellationToken, Uri, Event } from 'vscode';
 import * as Proto from './protocol';
 import * as semver from 'semver';
 
@@ -38,10 +38,6 @@ export class API {
 		return this._versionString;
 	}
 
-	public has1xFeatures(): boolean {
-		return semver.gte(this._version, '1.0.0');
-	}
-
 	public has203Features(): boolean {
 		return semver.gte(this._version, '2.0.3');
 	}
@@ -53,17 +49,33 @@ export class API {
 	public has208Features(): boolean {
 		return semver.gte(this._version, '2.0.8');
 	}
+
+	public has213Features(): boolean {
+		return semver.gte(this._version, '2.1.3');
+	}
+
+	public has220Features(): boolean {
+		return semver.gte(this._version, '2.2.0');
+	}
+
+	public has222Features(): boolean {
+		return semver.gte(this._version, '2.2.2');
+	}
 }
 
 export interface ITypescriptServiceClient {
-	asAbsolutePath(resource: Uri): string;
+	normalizePath(resource: Uri): string | null;
 	asUrl(filepath: string): Uri;
 
 	info(message: string, data?: any): void;
 	warn(message: string, data?: any): void;
 	error(message: string, data?: any): void;
 
-	logTelemetry(eventName: string, properties?: { [prop: string]: string });
+	onProjectLanguageServiceStateChanged: Event<Proto.ProjectLanguageServiceStateEventBody>;
+	onDidBeginInstallTypings: Event<Proto.BeginInstallTypesEventBody>;
+	onDidEndInstallTypings: Event<Proto.EndInstallTypesEventBody>;
+
+	logTelemetry(eventName: string, properties?: { [prop: string]: string }): void;
 
 	experimentalAutoBuild: boolean;
 	apiVersion: API;
@@ -79,6 +91,8 @@ export interface ITypescriptServiceClient {
 	execute(commant: 'completionEntryDetails', args: Proto.CompletionDetailsRequestArgs, token?: CancellationToken): Promise<Proto.CompletionDetailsResponse>;
 	execute(commant: 'signatureHelp', args: Proto.SignatureHelpRequestArgs, token?: CancellationToken): Promise<Proto.SignatureHelpResponse>;
 	execute(command: 'definition', args: Proto.FileLocationRequestArgs, token?: CancellationToken): Promise<Proto.DefinitionResponse>;
+	execute(command: 'implementation', args: Proto.FileLocationRequestArgs, token?: CancellationToken): Promise<Proto.ImplementationResponse>;
+	execute(command: 'typeDefinition', args: Proto.FileLocationRequestArgs, token?: CancellationToken): Promise<Proto.TypeDefinitionResponse>;
 	execute(command: 'references', args: Proto.FileLocationRequestArgs, token?: CancellationToken): Promise<Proto.ReferencesResponse>;
 	execute(command: 'navto', args: Proto.NavtoRequestArgs, token?: CancellationToken): Promise<Proto.NavtoResponse>;
 	execute(command: 'navbar', args: Proto.FileRequestArgs, token?: CancellationToken): Promise<Proto.NavBarResponse>;
@@ -91,6 +105,9 @@ export interface ITypescriptServiceClient {
 	execute(command: 'reload', args: Proto.ReloadRequestArgs, expectedResult: boolean, token?: CancellationToken): Promise<any>;
 	execute(command: 'compilerOptionsForInferredProjects', args: Proto.SetCompilerOptionsForInferredProjectsArgs, token?: CancellationToken): Promise<any>;
 	execute(command: 'navtree', args: Proto.FileRequestArgs, token?: CancellationToken): Promise<Proto.NavTreeResponse>;
+	execute(command: 'getCodeFixes', args: Proto.CodeFixRequestArgs, token?: CancellationToken): Promise<Proto.GetCodeFixesResponse>;
+	execute(command: 'getSupportedCodeFixes', args: null, token?: CancellationToken): Promise<Proto.GetSupportedCodeFixesResponse>;
+	execute(command: 'docCommentTemplate', args: Proto.FileLocationRequestArgs, token?: CancellationToken): Promise<Proto.DocCommandTemplateResponse>;
 	// execute(command: 'compileOnSaveAffectedFileList', args: Proto.CompileOnSaveEmitFileRequestArgs, token?: CancellationToken): Promise<Proto.CompileOnSaveAffectedFileListResponse>;
 	// execute(command: 'compileOnSaveEmitFile', args: Proto.CompileOnSaveEmitFileRequestArgs, token?: CancellationToken): Promise<any>;
 	execute(command: string, args: any, expectedResult: boolean | CancellationToken, token?: CancellationToken): Promise<any>;

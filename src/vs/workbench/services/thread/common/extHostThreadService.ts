@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IRemoteCom } from 'vs/base/common/remote';
+import { IRemoteCom } from 'vs/platform/extensions/common/ipcRemoteCom';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { AbstractThreadService } from 'vs/workbench/services/thread/common/abstractThreadService';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';

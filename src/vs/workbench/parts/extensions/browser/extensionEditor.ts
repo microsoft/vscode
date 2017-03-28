@@ -25,7 +25,6 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionGalleryService, IExtensionManifest, IKeyBinding } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
 import { IExtensionsWorkbenchService, IExtensionsViewlet, VIEWLET_ID, IExtension, IExtensionDependencies } from 'vs/workbench/parts/extensions/common/extensions';
 import { Renderer, DataSource, Controller } from 'vs/workbench/parts/extensions/browser/dependenciesViewer';
@@ -33,26 +32,31 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ITemplateData } from 'vs/workbench/parts/extensions/browser/extensionsList';
 import { RatingsWidget, InstallWidget } from 'vs/workbench/parts/extensions/browser/extensionsWidgets';
 import { EditorOptions } from 'vs/workbench/common/editor';
-import product from 'vs/platform/product';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { CombinedInstallAction, UpdateAction, EnableAction, DisableAction, BuiltinStatusLabelAction, ReloadAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
 import WebView from 'vs/workbench/parts/html/browser/webview';
-import { Keybinding } from 'vs/base/common/keybinding';
+import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { Position } from 'vs/platform/editor/common/editor';
+import { IListService } from 'vs/platform/list/browser/listService';
+import { OS } from 'vs/base/common/platform';
+import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
+import { IThemeService } from "vs/platform/theme/common/themeService";
 
 function renderBody(body: string): string {
+	const nonce = new Date().getTime() + '' + new Date().getMilliseconds();
 	return `<!DOCTYPE html>
 		<html>
 			<head>
 				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
-				<link rel="stylesheet" type="text/css" href="${ require.toUrl('./media/markdown.css')}" >
+				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src http: https: data:; media-src http: https: data:; script-src 'none'; style-src 'nonce-${nonce}'; child-src 'none'; frame-src 'none';">
+				<link rel="stylesheet" type="text/css" href="${require.toUrl('./media/markdown.css')}" nonce="${nonce}" >
 			</head>
-			<body>${ body}</body>
+			<body>${body}</body>
 		</html>`;
 }
 
@@ -151,12 +155,14 @@ export class ExtensionEditor extends BaseEditor {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IViewletService private viewletService: IViewletService,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IThemeService private themeService: IThemeService,
+		@IThemeService protected themeService: IThemeService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IMessageService private messageService: IMessageService,
-		@IOpenerService private openerService: IOpenerService
+		@IOpenerService private openerService: IOpenerService,
+		@IListService private listService: IListService,
+		@IPartService private partService: IPartService
 	) {
-		super(ExtensionEditor.ID, telemetryService);
+		super(ExtensionEditor.ID, telemetryService, themeService);
 		this._highlight = null;
 		this.highlightDisposable = empty;
 		this.disposables = [];
@@ -235,16 +241,14 @@ export class ExtensionEditor extends BaseEditor {
 		this.icon.src = extension.iconUrl;
 
 		this.name.textContent = extension.displayName;
-		this.identifier.textContent = `${extension.publisher}.${extension.name}`;
+		this.identifier.textContent = extension.id;
 
 		this.publisher.textContent = extension.publisherDisplayName;
 		this.description.textContent = extension.description;
 
-		if (product.extensionsGallery) {
-			const extensionUrl = `${product.extensionsGallery.itemUrl}?itemName=${extension.publisher}.${extension.name}`;
-
-			this.name.onclick = finalHandler(() => window.open(extensionUrl));
-			this.rating.onclick = finalHandler(() => window.open(`${extensionUrl}#review-details`));
+		if (extension.url) {
+			this.name.onclick = finalHandler(() => window.open(extension.url));
+			this.rating.onclick = finalHandler(() => window.open(`${extension.url}#review-details`));
 			this.publisher.onclick = finalHandler(() => {
 				this.viewletService.openViewlet(VIEWLET_ID, true)
 					.then(viewlet => viewlet as IExtensionsViewlet)
@@ -317,16 +321,17 @@ export class ExtensionEditor extends BaseEditor {
 			.then(marked.parse)
 			.then(renderBody)
 			.then<void>(body => {
-				const webview = new WebView(
-					this.content,
-					document.querySelector('.monaco-editor-background')
-				);
-
-				webview.style(this.themeService.getColorTheme());
+				const webview = new WebView(this.content, this.partService.getContainer(Parts.EDITOR_PART));
+				webview.style(this.themeService.getTheme());
 				webview.contents = [body];
 
-				webview.onDidClickLink(link => this.openerService.open(link), null, this.contentDisposables);
-				this.themeService.onDidColorThemeChange(themeId => webview.style(themeId), null, this.contentDisposables);
+				webview.onDidClickLink(link => {
+					// Whitelist supported schemes for links
+					if (link && ['http', 'https', 'mailto'].indexOf(link.scheme) >= 0) {
+						this.openerService.open(link);
+					}
+				}, null, this.contentDisposables);
+				this.themeService.onThemeChange(theme => webview.style(theme), null, this.contentDisposables);
 				this.contentDisposables.push(webview);
 			})
 			.then(null, () => {
@@ -354,12 +359,12 @@ export class ExtensionEditor extends BaseEditor {
 				this.contentDisposables.push(toDisposable(removeLayoutParticipant));
 
 				const renders = [
-					ExtensionEditor.renderSettings(content, manifest, layout),
+					this.renderSettings(content, manifest, layout),
 					this.renderCommands(content, manifest, layout),
-					ExtensionEditor.renderLanguages(content, manifest, layout),
-					ExtensionEditor.renderThemes(content, manifest, layout),
-					ExtensionEditor.renderJSONValidation(content, manifest, layout),
-					ExtensionEditor.renderDebuggers(content, manifest, layout)
+					this.renderLanguages(content, manifest, layout),
+					this.renderThemes(content, manifest, layout),
+					this.renderJSONValidation(content, manifest, layout),
+					this.renderDebuggers(content, manifest, layout)
 				];
 
 				const isEmpty = !renders.reduce((v, r) => r || v, false);
@@ -380,49 +385,58 @@ export class ExtensionEditor extends BaseEditor {
 			append(this.content, $('p.nocontent')).textContent = localize('noDependencies', "No Dependencies");
 			return;
 		}
-		addClass(this.content, 'loading');
-		this.extensionDependencies.get().then(extensionDependencies => {
-			removeClass(this.content, 'loading');
 
-			const content = $('div', { class: 'subcontent' });
-			const scrollableContent = new DomScrollableElement(content, { canUseTranslate3d: false });
-			append(this.content, scrollableContent.getDomNode());
-			this.contentDisposables.push(scrollableContent);
+		return this.loadContents(() => {
+			return this.extensionDependencies.get().then(extensionDependencies => {
+				const content = $('div', { class: 'subcontent' });
+				const scrollableContent = new DomScrollableElement(content, { canUseTranslate3d: false });
+				append(this.content, scrollableContent.getDomNode());
+				this.contentDisposables.push(scrollableContent);
 
-			const tree = ExtensionEditor.renderDependencies(content, extensionDependencies, this.instantiationService);
-			const layout = () => {
+				const tree = this.renderDependencies(content, extensionDependencies);
+				const layout = () => {
+					scrollableContent.scanDomNode();
+					const scrollState = scrollableContent.getScrollState();
+					tree.layout(scrollState.height);
+				};
+				const removeLayoutParticipant = arrays.insert(this.layoutParticipants, { layout });
+				this.contentDisposables.push(toDisposable(removeLayoutParticipant));
+
+				this.contentDisposables.push(tree);
 				scrollableContent.scanDomNode();
-				tree.layout(scrollableContent.getHeight());
-			};
-			const removeLayoutParticipant = arrays.insert(this.layoutParticipants, { layout });
-			this.contentDisposables.push(toDisposable(removeLayoutParticipant));
-
-			this.contentDisposables.push(tree);
-			scrollableContent.scanDomNode();
-		}, error => {
-			removeClass(this.content, 'loading');
-			append(this.content, $('p.nocontent')).textContent = error;
-			this.messageService.show(Severity.Error, error);
-			return;
+			}, error => {
+				append(this.content, $('p.nocontent')).textContent = error;
+				this.messageService.show(Severity.Error, error);
+			});
 		});
 	}
 
-	private static renderDependencies(container: HTMLElement, extensionDependencies: IExtensionDependencies, instantiationService: IInstantiationService): Tree {
-		const renderer = instantiationService.createInstance(Renderer);
-		const controller = instantiationService.createInstance(Controller);
+	private renderDependencies(container: HTMLElement, extensionDependencies: IExtensionDependencies): Tree {
+		const renderer = this.instantiationService.createInstance(Renderer);
+		const controller = this.instantiationService.createInstance(Controller);
 		const tree = new Tree(container, {
 			dataSource: new DataSource(),
 			renderer,
 			controller
 		}, {
 				indentPixels: 40,
-				twistiePixels: 20
+				twistiePixels: 20,
+				keyboardSupport: false
 			});
 		tree.setInput(extensionDependencies);
+
+		this.contentDisposables.push(tree.addListener2('selection', event => {
+			if (event && event.payload && event.payload.origin === 'keyboard') {
+				controller.openExtension(tree, false);
+			}
+		}));
+
+		this.contentDisposables.push(this.listService.register(tree));
+
 		return tree;
 	}
 
-	private static renderSettings(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
+	private renderSettings(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
 		const contributes = manifest.contributes;
 		const configuration = contributes && contributes.configuration;
 		const properties = configuration && configuration.properties;
@@ -452,7 +466,7 @@ export class ExtensionEditor extends BaseEditor {
 		return true;
 	}
 
-	private static renderDebuggers(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
+	private renderDebuggers(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
 		const contributes = manifest.contributes;
 		const contrib = contributes && contributes.debuggers || [];
 
@@ -472,7 +486,7 @@ export class ExtensionEditor extends BaseEditor {
 		return true;
 	}
 
-	private static renderThemes(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
+	private renderThemes(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
 		const contributes = manifest.contributes;
 		const contrib = contributes && contributes.themes || [];
 
@@ -489,7 +503,7 @@ export class ExtensionEditor extends BaseEditor {
 		return true;
 	}
 
-	private static renderJSONValidation(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
+	private renderJSONValidation(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
 		const contributes = manifest.contributes;
 		const contrib = contributes && contributes.jsonValidation || [];
 
@@ -580,7 +594,7 @@ export class ExtensionEditor extends BaseEditor {
 		return true;
 	}
 
-	private static renderLanguages(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
+	private renderLanguages(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
 		const contributes = manifest.contributes;
 		const rawLanguages = contributes && contributes.languages || [];
 		const languages = rawLanguages.map(l => ({
@@ -658,8 +672,12 @@ export class ExtensionEditor extends BaseEditor {
 			case 'darwin': key = rawKeyBinding.mac; break;
 		}
 
-		const keyBinding = new Keybinding(Keybinding.fromUserSettingsLabel(key || rawKeyBinding.key));
-		const result = this.keybindingService.getLabelFor(keyBinding);
+		const keyBinding = KeybindingIO.readKeybinding(key || rawKeyBinding.key, OS);
+		const resolvedKeybindings = this.keybindingService.resolveKeybinding(keyBinding);
+		if (resolvedKeybindings.length === 0) {
+			return null;
+		}
+		const result = resolvedKeybindings[0].getLabel();
 		return result === 'unknown' ? null : result;
 	}
 

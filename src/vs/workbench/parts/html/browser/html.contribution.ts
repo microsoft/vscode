@@ -17,9 +17,9 @@ import { EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { isCommonCodeEditor, ICommonCodeEditor, IModel } from 'vs/editor/common/editorCommon';
+import { isCommonCodeEditor, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { HtmlZoneController } from './htmlEditorZone';
-import { ITextModelResolverService } from 'vs/platform/textmodelResolver/common/resolver';
+import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 
 // --- Register Editor
 (<IEditorRegistry>Registry.as(EditorExtensions.Editors)).registerEditor(new EditorDescriptor(HtmlPreviewPart.ID,
@@ -57,11 +57,16 @@ CommandsRegistry.registerCommand('_workbench.htmlZone', function (accessor: Serv
 
 	if (!codeEditor) {
 		console.warn('NO matching editor found');
-		return;
+		return undefined;
 	}
 
-	return accessor.get(ITextModelResolverService).resolve(params.resource).then(model => {
-		const contents = (<IModel>model.textEditorModel).getValue();
+	const textModelResolverService = accessor.get(ITextModelResolverService);
+
+	return textModelResolverService.createModelReference(params.resource).then(ref => {
+		const model = ref.object;
+		const contents = model.textEditorModel.getValue();
+		ref.dispose();
+
 		HtmlZoneController.getInstance(codeEditor).addZone(params.lineNumber, contents);
 	});
 
@@ -94,4 +99,16 @@ CommandsRegistry.registerCommand('_workbench.previewHtml', function (accessor: S
 	return accessor.get(IWorkbenchEditorService)
 		.openEditor(input, { pinned: true }, position)
 		.then(editor => true);
+});
+
+CommandsRegistry.registerCommand('_workbench.htmlPreview.postMessage', (accessor: ServicesAccessor, resource: URI | string, message: any) => {
+	const uri = resource instanceof URI ? resource : URI.parse(resource);
+	const activePreviews = accessor.get(IWorkbenchEditorService).getVisibleEditors()
+		.filter(c => c instanceof HtmlPreviewPart)
+		.map(e => e as HtmlPreviewPart)
+		.filter(e => e.model.uri.scheme === uri.scheme && e.model.uri.fsPath === uri.fsPath);
+	for (const preview of activePreviews) {
+		preview.sendMessage(message);
+	}
+	return activePreviews.length > 0;
 });

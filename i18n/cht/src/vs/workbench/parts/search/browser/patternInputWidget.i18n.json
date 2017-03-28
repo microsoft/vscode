@@ -6,5 +6,6 @@
 {
 	"defaultLabel": "輸入",
 	"patternDescription": "使用 Glob 模式",
-	"patternHelpInclude": "要比對的模式。例如 **\\*\\*/*.js** 可比對所有 JavaScript 檔案，或 **myFolder/\\*\\*** 可比對資料夾和所有子系。\n\n**參考**:\n**\\*** 比對 0 或多個字元\n**?** 比對 1 個字元\n**\\*\\*** 比對 0 或多個目錄\n**[a-z]** 比對某個範圍的字元\n**{a,b}** 比對任何模式)"
+	"patternHelpInclude": "要比對的模式。例如 **\\*\\*/*.js** 可比對所有 JavaScript 檔案，或 **myFolder/\\*\\*** 可比對資料夾和所有子系。\n\n**參考**:\n**\\*** 比對 0 或多個字元\n**?** 比對 1 個字元\n**\\*\\*** 比對 0 或多個目錄\n**[a-z]** 比對某個範圍的字元\n**{a,b}** 比對任何模式)",
+	"useIgnoreFilesDescription": "使用忽略檔案"
 }

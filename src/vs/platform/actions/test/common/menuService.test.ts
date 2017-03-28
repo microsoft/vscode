@@ -9,7 +9,7 @@ import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { MenuService } from 'vs/platform/actions/common/menuService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { NullCommandService } from 'vs/platform/commands/common/commands';
-import { MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
+import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { AbstractExtensionService, ActivatedExtension } from 'vs/platform/extensions/common/abstractExtensionService';
 
 // --- service instances
@@ -26,7 +26,7 @@ const extensionService = new class extends AbstractExtensionService<ActivatedExt
 	}
 }(true);
 
-const contextKeyService = new class extends MockKeybindingService {
+const contextKeyService = new class extends MockContextKeyService {
 	contextMatchesRules() {
 		return true;
 	}
@@ -185,5 +185,21 @@ suite('MenuService', function () {
 		assert.equal(one.id, 'c');
 		assert.equal(two.id, 'b');
 		assert.equal(three.id, 'a');
+	});
+
+	test('special MenuId palette', function () {
+
+		disposables.push(MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+			command: { id: 'a', title: 'Explicit' }
+		}));
+
+		MenuRegistry.addCommand({ id: 'b', title: 'Implicit' });
+
+		const [first, second] = MenuRegistry.getMenuItems(MenuId.CommandPalette);
+		assert.equal(first.command.id, 'a');
+		assert.equal(first.command.title, 'Explicit');
+
+		assert.equal(second.command.id, 'b');
+		assert.equal(second.command.title, 'Implicit');
 	});
 });

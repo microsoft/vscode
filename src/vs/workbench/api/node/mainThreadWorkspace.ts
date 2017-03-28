@@ -6,8 +6,7 @@
 
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { ISearchService, QueryType } from 'vs/platform/search/common/search';
-import { IWorkspaceContextService, IWorkspace } from 'vs/platform/workspace/common/workspace';
-import { IEventService } from 'vs/platform/event/common/event';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
@@ -15,44 +14,45 @@ import { bulkEdit, IResourceEdit } from 'vs/editor/common/services/bulkEdit';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Uri } from 'vscode';
 import { MainThreadWorkspaceShape } from './extHost.protocol';
-import { ITextModelResolverService } from 'vs/platform/textmodelResolver/common/resolver';
+import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
+import { IFileService } from 'vs/platform/files/common/files';
 
 export class MainThreadWorkspace extends MainThreadWorkspaceShape {
 
 	private _activeSearches: { [id: number]: TPromise<Uri[]> } = Object.create(null);
 	private _searchService: ISearchService;
-	private _workspace: IWorkspace;
+	private _contextService: IWorkspaceContextService;
 	private _textFileService: ITextFileService;
 	private _editorService: IWorkbenchEditorService;
 	private _textModelResolverService: ITextModelResolverService;
-	private _eventService: IEventService;
+	private _fileService: IFileService;
 
 	constructor(
 		@ISearchService searchService: ISearchService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@ITextFileService textFileService,
-		@IWorkbenchEditorService editorService,
-		@ITextModelResolverService textModelResolverService,
-		@IEventService eventService
+		@ITextFileService textFileService: ITextFileService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@ITextModelResolverService textModelResolverService: ITextModelResolverService,
+		@IFileService fileService: IFileService
 	) {
 		super();
 
 		this._searchService = searchService;
-		this._workspace = contextService.getWorkspace();
+		this._contextService = contextService;
 		this._textFileService = textFileService;
 		this._editorService = editorService;
-		this._eventService = eventService;
+		this._fileService = fileService;
 		this._textModelResolverService = textModelResolverService;
 	}
 
 	$startSearch(include: string, exclude: string, maxResults: number, requestId: number): Thenable<Uri[]> {
-
-		if (!this._workspace) {
-			return;
+		const workspace = this._contextService.getWorkspace();
+		if (!workspace) {
+			return undefined;
 		}
 
 		const search = this._searchService.search({
-			folderResources: [this._workspace.resource],
+			folderResources: [workspace.resource],
 			type: QueryType.File,
 			maxResults,
 			includePattern: { [include]: true },
@@ -63,6 +63,7 @@ export class MainThreadWorkspace extends MainThreadWorkspaceShape {
 			if (!isPromiseCanceledError(err)) {
 				return TPromise.wrapError(err);
 			}
+			return undefined;
 		});
 
 		this._activeSearches[requestId] = search;
@@ -79,6 +80,7 @@ export class MainThreadWorkspace extends MainThreadWorkspaceShape {
 			search.cancel();
 			return TPromise.as(true);
 		}
+		return undefined;
 	}
 
 	$saveAll(includeUntitled?: boolean): Thenable<boolean> {
@@ -99,7 +101,7 @@ export class MainThreadWorkspace extends MainThreadWorkspaceShape {
 			}
 		}
 
-		return bulkEdit(this._eventService, this._textModelResolverService, codeEditor, edits)
+		return bulkEdit(this._textModelResolverService, codeEditor, edits, this._fileService)
 			.then(() => true);
 	}
 }

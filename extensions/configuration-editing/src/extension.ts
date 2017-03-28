@@ -8,21 +8,30 @@
 import * as vscode from 'vscode';
 import { getLocation, visit } from 'jsonc-parser';
 import * as path from 'path';
+import { SettingsDocument } from './settingsDocumentHelper';
 
 const decoration = vscode.window.createTextEditorDecorationType({
 	color: '#b1b1b1'
 });
 
-export function activate(context) {
+let pendingLaunchJsonDecoration: NodeJS.Timer;
+
+export function activate(context): void {
 
 	//keybindings.json command-suggestions
 	context.subscriptions.push(registerKeybindingsCompletions());
+
+	//settings.json suggestions
+	context.subscriptions.push(registerSettingsCompletions());
 
 	// launch.json decorations
 	context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor(editor => updateLaunchJsonDecorations(editor), null, context.subscriptions));
 	context.subscriptions.push(vscode.workspace.onDidChangeTextDocument(event => {
 		if (vscode.window.activeTextEditor && event.document === vscode.window.activeTextEditor.document) {
-			updateLaunchJsonDecorations(vscode.window.activeTextEditor);
+			if (pendingLaunchJsonDecoration) {
+				clearTimeout(pendingLaunchJsonDecoration);
+			}
+			pendingLaunchJsonDecoration = setTimeout(() => updateLaunchJsonDecorations(vscode.window.activeTextEditor), 1000);
 		}
 	}, null, context.subscriptions));
 	updateLaunchJsonDecorations(vscode.window.activeTextEditor);
@@ -38,22 +47,43 @@ function registerKeybindingsCompletions(): vscode.Disposable {
 			if (location.path[1] === 'command') {
 
 				const range = document.getWordRangeAtPosition(position) || new vscode.Range(position, position);
-				return commands.then(ids => ids.map(id => newCompletionItem(id, range)));
+				return commands.then(ids => ids.map(id => newSimpleCompletionItem(JSON.stringify(id), range)));
 			}
 		}
 	});
 }
 
-function updateLaunchJsonDecorations(editor: vscode.TextEditor) {
+function registerSettingsCompletions(): vscode.Disposable {
+	return vscode.languages.registerCompletionItemProvider({ language: 'json', pattern: '**/settings.json' }, {
+		provideCompletionItems(document, position, token) {
+			return new SettingsDocument(document).provideCompletionItems(position, token);
+		}
+	});
+}
+
+function newSimpleCompletionItem(text: string, range: vscode.Range, description?: string): vscode.CompletionItem {
+	const item = new vscode.CompletionItem(text);
+	item.kind = vscode.CompletionItemKind.Value;
+	item.detail = description;
+	item.insertText = text;
+	item.range = range;
+
+	return item;
+}
+
+function updateLaunchJsonDecorations(editor: vscode.TextEditor | undefined): void {
 	if (!editor || path.basename(editor.document.fileName) !== 'launch.json') {
 		return;
 	}
 
-	const ranges = [];
+	const ranges: vscode.Range[] = [];
 	let addPropertyAndValue = false;
+	let depthInArray = 0;
 	visit(editor.document.getText(), {
 		onObjectProperty: (property, offset, length) => {
-			addPropertyAndValue = property === 'version' || property === 'type' || property === 'request' || property === 'configurations';
+			// Decorate attributes which are unlikely to be edited by the user.
+			// Only decorate "configurations" if it is not inside an array (compounds have a configurations property which should not be decorated).
+			addPropertyAndValue = property === 'version' || property === 'type' || property === 'request' || property === 'compounds' || (property === 'configurations' && depthInArray === 0);
 			if (addPropertyAndValue) {
 				ranges.push(new vscode.Range(editor.document.positionAt(offset), editor.document.positionAt(offset + length)));
 			}
@@ -62,19 +92,14 @@ function updateLaunchJsonDecorations(editor: vscode.TextEditor) {
 			if (addPropertyAndValue) {
 				ranges.push(new vscode.Range(editor.document.positionAt(offset), editor.document.positionAt(offset + length)));
 			}
+		},
+		onArrayBegin: (offset: number, length: number) => {
+			depthInArray++;
+		},
+		onArrayEnd: (offset: number, length: number) => {
+			depthInArray--;
 		}
 	});
 
 	editor.setDecorations(decoration, ranges);
-}
-
-function newCompletionItem(text: string, range: vscode.Range, documentation?: string) {
-	const item = new vscode.CompletionItem(JSON.stringify(text));
-	item.kind = vscode.CompletionItemKind.Value;
-	item.documentation = documentation;
-	item.textEdit = {
-		range,
-		newText: item.label
-	};
-	return item;
 }

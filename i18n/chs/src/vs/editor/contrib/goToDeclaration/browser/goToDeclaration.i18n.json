@@ -6,7 +6,17 @@
 {
 	"actions.goToDecl.label": "转到定义",
 	"actions.goToDeclToSide.label": "打开侧边的定义",
+	"actions.goToImplementation.label": "转到实现",
+	"actions.goToTypeDefinition.label": "转到类型定义",
+	"actions.peekImplementation.label": "速览实现",
+	"actions.peekTypeDefinition.label": "快速查看类型定义",
 	"actions.previewDecl.label": "查看定义",
+	"generic.noResults": "找不到定义",
+	"goToImplementation.generic.noResults": "未找到实现",
+	"goToImplementation.noResultWord": "未找到“{0}”的实现",
+	"goToTypeDefinition.generic.noResults": "未找到类型定义",
+	"goToTypeDefinition.noResultWord": "未找到“{0}”的类型定义",
 	"meta.title": " – {0} 定义",
-	"multipleResults": "单击显示 {0} 个定义。"
+	"multipleResults": "单击显示 {0} 个定义。",
+	"noResultWord": "未找到“{0}”的任何定义"
 }

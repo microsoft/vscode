@@ -183,7 +183,7 @@ export class FoldingController implements IFoldingController {
 			this.decorations = newDecorations;
 		});
 		if (updateHiddenRegions) {
-			this.updateHiddenAreas(void 0);
+			this.updateHiddenAreas();
 		}
 
 	}
@@ -276,6 +276,7 @@ export class FoldingController implements IFoldingController {
 			case editorCommon.MouseTargetType.GUTTER_LINE_DECORATIONS:
 				iconClicked = true;
 				break;
+			case editorCommon.MouseTargetType.CONTENT_EMPTY:
 			case editorCommon.MouseTargetType.CONTENT_TEXT:
 				if (range.isEmpty && range.startColumn === model.getLineMaxColumn(range.startLineNumber)) {
 					break;
@@ -327,7 +328,7 @@ export class FoldingController implements IFoldingController {
 		});
 	}
 
-	private updateHiddenAreas(focusLine: number): void {
+	private updateHiddenAreas(focusLine?: number): void {
 		let model = this.editor.getModel();
 		var selections: Selection[] = this.editor.getSelections();
 		var updateSelections = false;
@@ -354,17 +355,13 @@ export class FoldingController implements IFoldingController {
 				}
 			});
 		});
-		let revealPosition;
-		if (focusLine) {
-			revealPosition = { lineNumber: focusLine, column: 1 };
-		} else {
-			revealPosition = selections[0].getStartPosition();
-		}
 		if (updateSelections) {
 			this.editor.setSelections(selections);
 		}
 		this.editor.setHiddenAreas(hiddenAreas);
-		this.editor.revealPositionInCenterIfOutsideViewport(revealPosition);
+		if (focusLine) {
+			this.editor.revealPositionInCenterIfOutsideViewport({ lineNumber: focusLine, column: 1 });
+		}
 	}
 
 	public unfold(levels: number): void {
@@ -469,7 +466,7 @@ export class FoldingController implements IFoldingController {
 				});
 			});
 			if (hasChanges) {
-				this.updateHiddenAreas(void 0);
+				this.updateHiddenAreas(this.editor.getPosition().lineNumber);
 			}
 		}
 	}
@@ -509,7 +506,7 @@ abstract class FoldingAction<T> extends EditorAction {
 		if (!foldingController) {
 			return;
 		}
-		this.reportTelemetry(accessor);
+		this.reportTelemetry(accessor, editor);
 		this.invoke(foldingController, editor, args);
 	}
 
@@ -550,7 +547,10 @@ class UnfoldAction extends FoldingAction<FoldingArguments> {
 			precondition: null,
 			kbOpts: {
 				kbExpr: EditorContextKeys.TextFocus,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_CLOSE_SQUARE_BRACKET
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_CLOSE_SQUARE_BRACKET,
+				mac: {
+					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.US_CLOSE_SQUARE_BRACKET
+				}
 			},
 			description: {
 				description: 'Unfold the content in the editor',
@@ -604,7 +604,10 @@ class FoldAction extends FoldingAction<FoldingArguments> {
 			precondition: null,
 			kbOpts: {
 				kbExpr: EditorContextKeys.TextFocus,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_OPEN_SQUARE_BRACKET
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_OPEN_SQUARE_BRACKET,
+				mac: {
+					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.US_OPEN_SQUARE_BRACKET
+				}
 			},
 			description: {
 				description: 'Fold the content in the editor',
@@ -708,63 +711,17 @@ class FoldLevelAction extends FoldingAction<void> {
 	}
 }
 
-CommonEditorRegistry.registerEditorAction(
-	new FoldLevelAction({
-		id: FoldLevelAction.ID(1),
-		label: nls.localize('foldLevel1Action.label', "Fold Level 1"),
-		alias: 'Fold Level 1',
-		precondition: null,
-		kbOpts: {
-			kbExpr: EditorContextKeys.TextFocus,
-			primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_1)
-		}
-	})
-);
-CommonEditorRegistry.registerEditorAction(
-	new FoldLevelAction({
-		id: FoldLevelAction.ID(2),
-		label: nls.localize('foldLevel2Action.label', "Fold Level 2"),
-		alias: 'Fold Level 2',
-		precondition: null,
-		kbOpts: {
-			kbExpr: EditorContextKeys.TextFocus,
-			primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_2)
-		}
-	})
-);
-CommonEditorRegistry.registerEditorAction(
-	new FoldLevelAction({
-		id: FoldLevelAction.ID(3),
-		label: nls.localize('foldLevel3Action.label', "Fold Level 3"),
-		alias: 'Fold Level 3',
-		precondition: null,
-		kbOpts: {
-			kbExpr: EditorContextKeys.TextFocus,
-			primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_3)
-		}
-	})
-);
-CommonEditorRegistry.registerEditorAction(
-	new FoldLevelAction({
-		id: FoldLevelAction.ID(4),
-		label: nls.localize('foldLevel4Action.label', "Fold Level 4"),
-		alias: 'Fold Level 4',
-		precondition: null,
-		kbOpts: {
-			kbExpr: EditorContextKeys.TextFocus,
-			primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_4)
-		}
-	})
-);
-CommonEditorRegistry.registerEditorAction(
-	new FoldLevelAction({
-		id: FoldLevelAction.ID(5),
-		label: nls.localize('foldLevel5Action.label', "Fold Level 5"),
-		alias: 'Fold Level 5',
-		precondition: null,
-		kbOpts: {
-			kbExpr: EditorContextKeys.TextFocus,
-			primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_5)
-		}
-	})
-);
+for (let i = 1; i <= 9; i++) {
+	CommonEditorRegistry.registerEditorAction(
+		new FoldLevelAction({
+			id: FoldLevelAction.ID(i),
+			label: nls.localize('foldLevelAction.label', "Fold Level {0}", i),
+			alias: `Fold Level ${i}`,
+			precondition: null,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | (KeyCode.KEY_0 + i))
+			}
+		})
+	);
+};

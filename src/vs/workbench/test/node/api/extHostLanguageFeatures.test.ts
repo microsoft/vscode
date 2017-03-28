@@ -6,7 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { setUnexpectedErrorHandler, errorHandler } from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
 import * as types from 'vs/workbench/api/node/extHostTypes';
@@ -16,6 +16,7 @@ import { Position as EditorPosition } from 'vs/editor/common/core/position';
 import { Range as EditorRange } from 'vs/editor/common/core/range';
 import { TestThreadService } from './testThreadService';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
+import { MarkerService } from 'vs/platform/markers/common/markerService';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { ExtHostLanguageFeatures } from 'vs/workbench/api/node/extHostLanguageFeatures';
 import { MainThreadLanguageFeatures } from 'vs/workbench/api/node/mainThreadLanguageFeatures';
@@ -23,10 +24,11 @@ import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 import { MainThreadCommands } from 'vs/workbench/api/node/mainThreadCommands';
 import { IHeapService } from 'vs/workbench/api/node/mainThreadHeapService';
 import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
+import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
 import { getDocumentSymbols } from 'vs/editor/contrib/quickOpen/common/quickOpen';
 import { DocumentSymbolProviderRegistry, DocumentHighlightKind } from 'vs/editor/common/modes';
 import { getCodeLensData } from 'vs/editor/contrib/codelens/common/codelens';
-import { getDeclarationsAtPosition } from 'vs/editor/contrib/goToDeclaration/common/goToDeclaration';
+import { getDefinitionsAtPosition, getImplementationsAtPosition, getTypeDefinitionsAtPosition } from 'vs/editor/contrib/goToDeclaration/common/goToDeclaration';
 import { getHover } from 'vs/editor/contrib/hover/common/hover';
 import { getOccurrencesAtPosition } from 'vs/editor/contrib/wordHighlighter/common/wordHighlighter';
 import { provideReferences } from 'vs/editor/contrib/referenceSearch/common/referenceSearch';
@@ -67,7 +69,7 @@ suite('ExtHostLanguageFeatures', function () {
 		threadService = new TestThreadService();
 		let instantiationService = new TestInstantiationService();
 		instantiationService.stub(IThreadService, threadService);
-		instantiationService.stub(IMarkerService);
+		instantiationService.stub(IMarkerService, MarkerService);
 		instantiationService.stub(IHeapService, {
 			_serviceBrand: undefined,
 			trackRecursive(args) {
@@ -79,31 +81,23 @@ suite('ExtHostLanguageFeatures', function () {
 		originalErrorHandler = errorHandler.getUnexpectedErrorHandler();
 		setUnexpectedErrorHandler(() => { });
 
-		const extHostDocuments = new ExtHostDocuments(threadService);
-		threadService.set(ExtHostContext.ExtHostDocuments, extHostDocuments);
-		extHostDocuments.$acceptModelAdd({
-			isDirty: false,
-			versionId: model.getVersionId(),
-			modeId: model.getModeId(),
-			url: model.uri,
-			value: {
-				EOL: model.getEOL(),
+		const extHostDocumentsAndEditors = new ExtHostDocumentsAndEditors(threadService);
+		extHostDocumentsAndEditors.$acceptDocumentsAndEditorsDelta({
+			addedDocuments: [{
+				isDirty: false,
+				versionId: model.getVersionId(),
+				modeId: model.getLanguageIdentifier().language,
+				url: model.uri,
 				lines: model.getValue().split(model.getEOL()),
-				BOM: '',
-				length: -1,
-				containsRTL: false,
-				options: {
-					tabSize: 4,
-					insertSpaces: true,
-					trimAutoWhitespace: true,
-					defaultEOL: EditorCommon.DefaultEndOfLine.LF
-				}
-			},
+				EOL: model.getEOL(),
+			}]
 		});
+		const extHostDocuments = new ExtHostDocuments(threadService, extHostDocumentsAndEditors);
+		threadService.set(ExtHostContext.ExtHostDocuments, extHostDocuments);
 
 		const heapService = new ExtHostHeapService();
 
-		const commands = new ExtHostCommands(threadService, null, heapService);
+		const commands = new ExtHostCommands(threadService, heapService);
 		threadService.set(ExtHostContext.ExtHostCommands, commands);
 		threadService.setTestInstance(MainContext.MainThreadCommands, instantiationService.createInstance(MainThreadCommands));
 
@@ -273,7 +267,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 		return threadService.sync().then(() => {
 
-			return getDeclarationsAtPosition(model, new EditorPosition(1, 1)).then(value => {
+			return getDefinitionsAtPosition(model, new EditorPosition(1, 1)).then(value => {
 				assert.equal(value.length, 1);
 				let [entry] = value;
 				assert.deepEqual(entry.range, { startLineNumber: 2, startColumn: 3, endLineNumber: 4, endColumn: 5 });
@@ -297,7 +291,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 		return threadService.sync().then(() => {
 
-			return getDeclarationsAtPosition(model, new EditorPosition(1, 1)).then(value => {
+			return getDefinitionsAtPosition(model, new EditorPosition(1, 1)).then(value => {
 				assert.equal(value.length, 2);
 			});
 		});
@@ -319,7 +313,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 		return threadService.sync().then(() => {
 
-			return getDeclarationsAtPosition(model, new EditorPosition(1, 1)).then(value => {
+			return getDefinitionsAtPosition(model, new EditorPosition(1, 1)).then(value => {
 				assert.equal(value.length, 2);
 				// let [first, second] = value;
 
@@ -344,8 +338,48 @@ suite('ExtHostLanguageFeatures', function () {
 
 		return threadService.sync().then(() => {
 
-			return getDeclarationsAtPosition(model, new EditorPosition(1, 1)).then(value => {
+			return getDefinitionsAtPosition(model, new EditorPosition(1, 1)).then(value => {
 				assert.equal(value.length, 1);
+			});
+		});
+	});
+
+	// --- implementation
+
+	test('Implementation, data conversion', function () {
+
+		disposables.push(extHost.registerImplementationProvider(defaultSelector, <vscode.ImplementationProvider>{
+			provideImplementation(): any {
+				return [new types.Location(model.uri, new types.Range(1, 2, 3, 4))];
+			}
+		}));
+
+		return threadService.sync().then(() => {
+			return getImplementationsAtPosition(model, new EditorPosition(1, 1)).then(value => {
+				assert.equal(value.length, 1);
+				let [entry] = value;
+				assert.deepEqual(entry.range, { startLineNumber: 2, startColumn: 3, endLineNumber: 4, endColumn: 5 });
+				assert.equal(entry.uri.toString(), model.uri.toString());
+			});
+		});
+	});
+
+	// --- type definition
+
+	test('Type Definition, data conversion', function () {
+
+		disposables.push(extHost.registerTypeDefinitionProvider(defaultSelector, <vscode.TypeDefinitionProvider>{
+			provideTypeDefinition(): any {
+				return [new types.Location(model.uri, new types.Range(1, 2, 3, 4))];
+			}
+		}));
+
+		return threadService.sync().then(() => {
+			return getTypeDefinitionsAtPosition(model, new EditorPosition(1, 1)).then(value => {
+				assert.equal(value.length, 1);
+				let [entry] = value;
+				assert.deepEqual(entry.range, { startLineNumber: 2, startColumn: 3, endLineNumber: 4, endColumn: 5 });
+				assert.equal(entry.uri.toString(), model.uri.toString());
 			});
 		});
 	});
@@ -893,16 +927,20 @@ suite('ExtHostLanguageFeatures', function () {
 	test('Format Doc, data conversion', function () {
 		disposables.push(extHost.registerDocumentFormattingEditProvider(defaultSelector, <vscode.DocumentFormattingEditProvider>{
 			provideDocumentFormattingEdits(): any {
-				return [new types.TextEdit(new types.Range(0, 0, 0, 0), 'testing')];
+				return [new types.TextEdit(new types.Range(0, 0, 0, 0), 'testing'), types.TextEdit.setEndOfLine(types.EndOfLine.LF)];
 			}
 		}));
 
 		return threadService.sync().then(() => {
 			return getDocumentFormattingEdits(model, { insertSpaces: true, tabSize: 4 }).then(value => {
-				assert.equal(value.length, 1);
-				let [first] = value;
+				assert.equal(value.length, 2);
+				let [first, second] = value;
 				assert.equal(first.text, 'testing');
 				assert.deepEqual(first.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 });
+
+				assert.equal(second.eol, EditorCommon.EndOfLineSequence.LF);
+				assert.equal(second.text, '');
+				assert.equal(second.range, undefined);
 			});
 		});
 	});

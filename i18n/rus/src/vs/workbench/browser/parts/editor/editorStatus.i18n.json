@@ -10,6 +10,7 @@
 	"changeIndentation": "Изменить отступ",
 	"changeMode": "Изменить языковой режим",
 	"configureAssociationsExt": "Настройка сопоставлений файлов для \"{0}\"...",
+	"configureModeSettings": "Настройка параметров, определяемых языком \"{0}\"...",
 	"currentAssociation": "Текущая связь",
 	"disableTabMode": "Отключить режим специальных возможностей",
 	"endOfLineCarriageReturnLineFeed": "CRLF",

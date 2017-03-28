@@ -51,7 +51,7 @@ export class TestThreadService extends AbstractThreadService implements IThreadS
 			setTimeout(c, 0);
 		}).then(() => {
 			if (this._callCount === 0) {
-				return;
+				return undefined;
 			}
 			if (!this._idle) {
 				this._idle = new TPromise<any>((c, e) => {

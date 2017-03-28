@@ -6,6 +6,7 @@
 {
 	"emmetConfigurationTitle": "Emmet",
 	"emmetExclude": "Matriz de lenguajes donde no deben expandirse la abreviación Emmet.",
+	"emmetExtensionsPath": "Ruta de acceso a una carpeta que contiene perfiles de Emmet, fragmentos de código y preferencias",
 	"emmetPreferences": "Preferencias usadas para modificar el comportamiento de algunas acciones y resoluciones de Emmet.",
 	"emmetSyntaxProfiles": "Defina el perfil de la sintaxis especificada o use su propio perfil con reglas específicas.",
 	"triggerExpansionOnTab": "Cuando se habilita, se expande la abreviación Emmet al presionar la tecla TAB."

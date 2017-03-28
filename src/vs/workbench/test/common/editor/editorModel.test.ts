@@ -6,7 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { EditorModel } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { TextDiffEditorModel } from 'vs/workbench/common/editor/textDiffEditorModel';
@@ -14,7 +14,10 @@ import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { StringEditorInput } from 'vs/workbench/common/editor/stringEditorInput';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { createMockModelService } from 'vs/test/utils/servicesTestUtils';
+import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 
 class MyEditorModel extends EditorModel { }
 class MyTextEditorModel extends BaseTextEditorModel { }
@@ -26,7 +29,7 @@ suite('Workbench - EditorModel', () => {
 
 	setup(() => {
 		instantiationService = new TestInstantiationService();
-		modeService = instantiationService.stub(IModeService);
+		modeService = instantiationService.stub(IModeService, ModeServiceImpl);
 	});
 
 	test('EditorModel', function (done) {
@@ -48,7 +51,7 @@ suite('Workbench - EditorModel', () => {
 	});
 
 	test('BaseTextEditorModel', function (done) {
-		let modelService = createMockModelService(instantiationService);
+		let modelService = stubModelService(instantiationService);
 
 		let m = new MyTextEditorModel(modelService, modeService);
 		m.load().then((model: any) => {
@@ -63,7 +66,7 @@ suite('Workbench - EditorModel', () => {
 	});
 
 	test('TextDiffEditorModel', function (done) {
-		instantiationService.stub(IModelService, createMockModelService(instantiationService));
+		instantiationService.stub(IModelService, stubModelService(instantiationService));
 		let input = instantiationService.createInstance(StringEditorInput, 'name', 'description', 'value', 'text/plain', false);
 		let otherInput = instantiationService.createInstance(StringEditorInput, 'name2', 'description', 'value2', 'text/plain', false);
 		let diffInput = new DiffEditorInput('name', 'description', input, otherInput);
@@ -87,4 +90,9 @@ suite('Workbench - EditorModel', () => {
 			done();
 		});
 	});
+
+	function stubModelService(instantiationService: TestInstantiationService): IModelService {
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		return instantiationService.createInstance(ModelServiceImpl);
+	}
 });

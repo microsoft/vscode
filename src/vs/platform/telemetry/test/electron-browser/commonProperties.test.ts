@@ -6,17 +6,28 @@
 
 import * as assert from 'assert';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { resolveWorkbenchCommonProperties } from 'vs/platform/telemetry/node/workbenchCommonProperties';
-import { TestStorageService } from 'vs/test/utils/servicesTestUtils';
+import { IWorkspaceContextService, WorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { StorageService, InMemoryLocalStorage } from 'vs/platform/storage/common/storageService';
+import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 
 suite('Telemetry - common properties', function () {
 
 	const commit = void 0;
 	const version = void 0;
+	let storageService;
+
+	setup(() => {
+		let instantiationService = new TestInstantiationService();
+		let contextService = instantiationService.stub(IWorkspaceContextService, WorkspaceContextService);
+		instantiationService.stub(IWorkspaceContextService, 'getWorkspace', TestWorkspace);
+		storageService = new StorageService(new InMemoryLocalStorage(), null, contextService);
+	});
 
 	test('default', function () {
 
-		return resolveWorkbenchCommonProperties(new TestStorageService(), commit, version).then(props => {
+		return resolveWorkbenchCommonProperties(storageService, commit, version).then(props => {
 
 			assert.ok('commitHash' in props);
 			assert.ok('sessionID' in props);
@@ -42,16 +53,15 @@ suite('Telemetry - common properties', function () {
 				assert.ok('common.sqm.machineid' in props, 'machineid');
 			}
 
-			assert.equal(Object.keys(props).length, process.platform === 'win32' ? 17 : 15);
+			assert.equal(Object.keys(props).length, process.platform === 'win32' ? 18 : 16);
 		});
 	});
 
 	test('lastSessionDate when aviablale', function () {
 
-		let service = new TestStorageService();
-		service.store('telemetry.lastSessionDate', new Date().toUTCString());
+		storageService.store('telemetry.lastSessionDate', new Date().toUTCString());
 
-		return resolveWorkbenchCommonProperties(service, commit, version).then(props => {
+		return resolveWorkbenchCommonProperties(storageService, commit, version).then(props => {
 
 			assert.ok('common.lastSessionDate' in props); // conditional, see below
 			assert.ok('common.isNewSession' in props);
@@ -60,7 +70,7 @@ suite('Telemetry - common properties', function () {
 	});
 
 	test('values chance on ask', function () {
-		return resolveWorkbenchCommonProperties(new TestStorageService(), commit, version).then(props => {
+		return resolveWorkbenchCommonProperties(storageService, commit, version).then(props => {
 			let value1 = props['common.sequence'];
 			let value2 = props['common.sequence'];
 			assert.ok(value1 !== value2, 'seq');

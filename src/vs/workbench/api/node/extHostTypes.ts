@@ -37,11 +37,6 @@ export class Disposable {
 	}
 }
 
-export interface EditorOptions {
-	tabSize: number | string;
-	insertSpaces: boolean | string;
-}
-
 export class Position {
 
 	static Min(...positions: Position[]): Position {
@@ -71,7 +66,7 @@ export class Position {
 		if (other instanceof Position) {
 			return true;
 		}
-		let {line, character} = <Position>other;
+		let { line, character } = <Position>other;
 		if (typeof line === 'number' && typeof character === 'number') {
 			return true;
 		}
@@ -284,7 +279,7 @@ export class Range {
 			// this happens when there is no overlap:
 			// |-----|
 			//          |----|
-			return;
+			return undefined;
 		}
 		return new Range(start, end);
 	}
@@ -404,6 +399,11 @@ export class Selection extends Range {
 	}
 }
 
+export enum EndOfLine {
+	LF = 1,
+	CRLF = 2
+}
+
 export class TextEdit {
 
 	static isTextEdit(thing: any): thing is TextEdit {
@@ -429,16 +429,22 @@ export class TextEdit {
 		return TextEdit.replace(range, '');
 	}
 
-	protected _range: Range;
+	static setEndOfLine(eol: EndOfLine): TextEdit {
+		let ret = new TextEdit(undefined, undefined);
+		ret.newEol = eol;
+		return ret;
+	}
 
+	protected _range: Range;
 	protected _newText: string;
+	protected _newEol: EndOfLine;
 
 	get range(): Range {
 		return this._range;
 	}
 
 	set range(value: Range) {
-		if (!value) {
+		if (value && !Range.isRange(value)) {
 			throw illegalArgument('range');
 		}
 		this._range = value;
@@ -448,8 +454,22 @@ export class TextEdit {
 		return this._newText || '';
 	}
 
-	set newText(value) {
+	set newText(value: string) {
+		if (value && typeof value !== 'string') {
+			throw illegalArgument('newText');
+		}
 		this._newText = value;
+	}
+
+	get newEol(): EndOfLine {
+		return this._newEol;
+	}
+
+	set newEol(value: EndOfLine) {
+		if (value && typeof value !== 'number') {
+			throw illegalArgument('newEol');
+		}
+		this._newEol = value;
 	}
 
 	constructor(range: Range, newText: string) {
@@ -460,7 +480,8 @@ export class TextEdit {
 	toJSON(): any {
 		return {
 			range: this.range,
-			newText: this.newText
+			newText: this.newText,
+			newEol: this._newEol
 		};
 	}
 }
@@ -470,7 +491,7 @@ export class Uri extends URI { }
 export class WorkspaceEdit {
 
 	private _values: [Uri, TextEdit[]][] = [];
-	private _index: { [uri: string]: number } = Object.create(null);
+	private _index = new Map<string, number>();
 
 	replace(uri: Uri, range: Range, newText: string): void {
 		let edit = new TextEdit(range, newText);
@@ -491,21 +512,21 @@ export class WorkspaceEdit {
 	}
 
 	has(uri: Uri): boolean {
-		return typeof this._index[uri.toString()] !== 'undefined';
+		return this._index.has(uri.toString());
 	}
 
 	set(uri: Uri, edits: TextEdit[]): void {
-		let idx = this._index[uri.toString()];
+		const idx = this._index.get(uri.toString());
 		if (typeof idx === 'undefined') {
 			let newLen = this._values.push([uri, edits]);
-			this._index[uri.toString()] = newLen - 1;
+			this._index.set(uri.toString(), newLen - 1);
 		} else {
 			this._values[idx][1] = edits;
 		}
 	}
 
 	get(uri: Uri): TextEdit[] {
-		let idx = this._index[uri.toString()];
+		let idx = this._index.get(uri.toString());
 		return typeof idx !== 'undefined' && this._values[idx][1];
 	}
 
@@ -519,6 +540,88 @@ export class WorkspaceEdit {
 
 	toJSON(): any {
 		return this._values;
+	}
+}
+
+export class SnippetString {
+
+	static isSnippetString(thing: any): thing is SnippetString {
+		if (thing instanceof SnippetString) {
+			return true;
+		}
+		if (!thing) {
+			return false;
+		}
+		return typeof (<SnippetString>thing).value === 'string';
+	}
+
+	private static _escape(value: string): string {
+		return value.replace(/\$|}|\\/g, '\\$&');
+	}
+
+	private _tabstop: number = 1;
+
+	value: string;
+
+	constructor(value?: string) {
+		this.value = value || '';
+	}
+
+	appendText(string: string): SnippetString {
+		this.value += SnippetString._escape(string);
+		return this;
+	}
+
+	appendTabstop(number: number = this._tabstop++): SnippetString {
+		this.value += '$';
+		this.value += number;
+		return this;
+	}
+
+	appendPlaceholder(value: string | ((snippet: SnippetString) => any), number: number = this._tabstop++): SnippetString {
+
+		if (typeof value === 'function') {
+			const nested = new SnippetString();
+			nested._tabstop = this._tabstop;
+			value(nested);
+			this._tabstop = nested._tabstop;
+			value = nested.value;
+		} else {
+			value = SnippetString._escape(value);
+		}
+
+		this.value += '${';
+		this.value += number;
+		this.value += ':';
+		this.value += value;
+		this.value += '}';
+
+		return this;
+	}
+
+	appendVariable(name: string, defaultValue?: string | ((snippet: SnippetString) => any)): SnippetString {
+
+		if (typeof defaultValue === 'function') {
+			const nested = new SnippetString();
+			nested._tabstop = this._tabstop;
+			defaultValue(nested);
+			this._tabstop = nested._tabstop;
+			defaultValue = nested.value;
+
+		} else if (typeof defaultValue === 'string') {
+			defaultValue = defaultValue.replace(/\$|}/g, '\\$&');
+		}
+
+		this.value += '${';
+		this.value += name;
+		if (defaultValue) {
+			this.value += ':';
+			this.value += defaultValue;
+		}
+		this.value += '}';
+
+
+		return this;
 	}
 }
 
@@ -636,27 +739,29 @@ export class DocumentHighlight {
 }
 
 export enum SymbolKind {
-	File,
-	Module,
-	Namespace,
-	Package,
-	Class,
-	Method,
-	Property,
-	Field,
-	Constructor,
-	Enum,
-	Interface,
-	Function,
-	Variable,
-	Constant,
-	String,
-	Number,
-	Boolean,
-	Array,
-	Object,
-	Key,
-	Null
+	File = 0,
+	Module = 1,
+	Namespace = 2,
+	Package = 3,
+	Class = 4,
+	Method = 5,
+	Property = 6,
+	Field = 7,
+	Constructor = 8,
+	Enum = 9,
+	Interface = 10,
+	Function = 11,
+	Variable = 12,
+	Constant = 13,
+	String = 14,
+	Number = 15,
+	Boolean = 16,
+	Array = 17,
+	Object = 18,
+	Key = 19,
+	Null = 20,
+	EnumMember = 21,
+	Struct = 22
 }
 
 export class SymbolInformation {
@@ -713,7 +818,7 @@ export class CodeLens {
 export class ParameterInformation {
 
 	label: string;
-	documentation: string;
+	documentation?: string;
 
 	constructor(label: string, documentation?: string) {
 		this.label = label;
@@ -724,7 +829,7 @@ export class ParameterInformation {
 export class SignatureInformation {
 
 	label: string;
-	documentation: string;
+	documentation?: string;
 	parameters: ParameterInformation[];
 
 	constructor(label: string, documentation?: string) {
@@ -763,7 +868,11 @@ export enum CompletionItemKind {
 	Snippet = 14,
 	Color = 15,
 	File = 16,
-	Reference = 17
+	Reference = 17,
+	Folder = 18,
+	EnumMember = 19,
+	Constant = 20,
+	Struct = 21
 }
 
 export class CompletionItem {
@@ -774,7 +883,8 @@ export class CompletionItem {
 	documentation: string;
 	sortText: string;
 	filterText: string;
-	insertText: string;
+	insertText: string | SnippetString;
+	range: Range;
 	textEdit: TextEdit;
 	additionalTextEdits: TextEdit[];
 	command: vscode.Command;
@@ -800,7 +910,7 @@ export class CompletionItem {
 
 export class CompletionList {
 
-	isIncomplete: boolean;
+	isIncomplete?: boolean;
 
 	items: vscode.CompletionItem[];
 
@@ -821,11 +931,6 @@ export enum StatusBarAlignment {
 	Right = 2
 }
 
-export enum EndOfLine {
-	LF = 1,
-	CRLF = 2
-}
-
 export enum TextEditorLineNumbersStyle {
 	Off = 0,
 	On = 1,
@@ -841,7 +946,8 @@ export enum TextDocumentSaveReason {
 export enum TextEditorRevealType {
 	Default = 0,
 	InCenter = 1,
-	InCenterIfOutsideViewport = 2
+	InCenterIfOutsideViewport = 2,
+	AtTop = 3
 }
 
 export enum TextEditorSelectionChangeKind {
@@ -857,6 +963,7 @@ export namespace TextEditorSelectionChangeKind {
 			case 'mouse': return TextEditorSelectionChangeKind.Mouse;
 			case 'api': return TextEditorSelectionChangeKind.Command;
 		}
+		return undefined;
 	}
 }
 
@@ -875,5 +982,229 @@ export class DocumentLink {
 		}
 		this.range = range;
 		this.target = target;
+	}
+}
+
+export enum FileLocationKind {
+	Auto = 1,
+
+	Relative = 2,
+
+	Absolute = 3
+}
+
+export enum ApplyToKind {
+	AllDocuments = 1,
+
+	OpenDocuments = 2,
+
+	ClosedDocuments = 3
+}
+
+export enum RevealKind {
+	Always = 1,
+
+	Silent = 2,
+
+	Never = 3
+}
+
+export class BaseTask {
+
+	private _name: string;
+	private _problemMatchers: vscode.ProblemMatcher[];
+	private _identifier: string;
+	private _isBackground: boolean;
+	private _terminal: vscode.TerminalBehaviour;
+
+	constructor(name: string, problemMatchers: vscode.ProblemMatcher[]) {
+		if (typeof name !== 'string') {
+			throw illegalArgument('name');
+		}
+		this._name = name;
+		this._identifier = name;
+		this._problemMatchers = problemMatchers || [];
+		this._isBackground = false;
+		this._terminal = Object.create(null);
+	}
+
+	get identifier(): string {
+		return this._identifier;
+	}
+
+	set identifier(value: string) {
+		if (typeof name !== 'string') {
+			throw illegalArgument('identifier');
+		}
+		this._identifier = value;
+	}
+
+	get name(): string {
+		return this._name;
+	}
+
+	get isBackground(): boolean {
+		return this._isBackground;
+	}
+
+	set isBackground(value: boolean) {
+		if (value !== true && value !== false) {
+			value = false;
+		}
+		this._isBackground = value;
+	}
+
+	get terminal(): vscode.TerminalBehaviour {
+		return this._terminal;
+	}
+
+	set terminal(value: vscode.TerminalBehaviour) {
+		if (value === void 0 || value === null) {
+			value = Object.create(null);
+		}
+		this._terminal = value;
+	}
+
+	get problemMatchers(): vscode.ProblemMatcher[] {
+		return this._problemMatchers;
+	}
+
+	set problemMatchers(value: vscode.ProblemMatcher[]) {
+		if (!Array.isArray(value)) {
+			value = [];
+		}
+		this._problemMatchers = value;
+	}
+}
+
+namespace ProblemMatcher {
+	export function is(value: any): value is vscode.ProblemMatcher {
+		let candidate: vscode.ProblemMatcher = value;
+		return candidate && !!candidate.pattern;
+	}
+}
+
+
+export class ProcessTask extends BaseTask {
+
+	private _process: string;
+	private _args: string[];
+	private _options: vscode.ProcessOptions;
+
+	private static parseArguments(restArgs: any[]): { args: string[]; options: vscode.ProcessOptions; problemMatchers: vscode.ProblemMatcher[] } {
+		let args: string[] = [];
+		let options: vscode.ProcessOptions = undefined;
+		let problemMatchers: vscode.ProblemMatcher[] = [];
+		if (!restArgs || restArgs.length === 0) {
+			return { args, options, problemMatchers };
+		}
+		let current: any = restArgs[0];
+		if (Array.isArray(current)) {
+			args = current;
+			restArgs.shift();
+			current = restArgs[0];
+		}
+		if (ProblemMatcher.is(current)) {
+			problemMatchers = restArgs;
+		} else if (current) {
+			options = current;
+			restArgs.shift();
+			if (restArgs.length > 0) {
+				problemMatchers = restArgs;
+			}
+		}
+		return { args, options, problemMatchers };
+	}
+
+	constructor(name: string, process: string, ...problemMatchers: vscode.ProblemMatcher[]);
+	constructor(name: string, process: string, args: string[], ...problemMatchers: vscode.ProblemMatcher[]);
+	constructor(name: string, process: string, args: string[], options: vscode.ProcessOptions, ...problemMatchers: vscode.ProblemMatcher[]);
+	constructor(name: string, process: string, ...rest: any[]) {
+		if (typeof process !== 'string') {
+			throw illegalArgument('process');
+		}
+		let { args, options, problemMatchers } = ProcessTask.parseArguments(rest);
+		super(name, problemMatchers);
+		this._process = process;
+		this._args = args;
+		this._options = options || Object.create(null);
+	}
+
+	get process(): string {
+		return this._process;
+	}
+
+	get args(): string[] {
+		return this._args;
+	}
+
+	set args(value: string[]) {
+		if (!Array.isArray(value)) {
+			value = [];
+		}
+		this._args = value;
+	}
+
+	get options(): vscode.ProcessOptions {
+		return this._options;
+	}
+
+	set options(value: vscode.ProcessOptions) {
+		if (value === void 0 || value === null) {
+			value = Object.create(null);
+		}
+		this._options = value;
+	}
+}
+
+export class ShellTask extends BaseTask {
+
+	private _commandLine: string;
+	private _options: vscode.ShellOptions;
+
+	private static parseArguments(restArgs: any[]): { options: vscode.ShellOptions; problemMatchers: vscode.ProblemMatcher[] } {
+		let options: vscode.ShellOptions = undefined;
+		let problemMatchers: vscode.ProblemMatcher[] = [];
+		if (!restArgs || restArgs.length === 0) {
+			return { options, problemMatchers };
+		}
+		let current: any = restArgs[0];
+		if (current && !ProblemMatcher.is(current)) {
+			options = current;
+			restArgs.shift();
+			current = restArgs[0];
+		}
+		if (ProblemMatcher.is(current)) {
+			problemMatchers = restArgs;
+		}
+		return { options, problemMatchers };
+	}
+
+	constructor(name: string, commandLine: string, ...problemMatchers: vscode.ProblemMatcher[]);
+	constructor(name: string, commandLine: string, options: vscode.ShellOptions, ...problemMatchers: vscode.ProblemMatcher[]);
+	constructor(name: string, commandLine: string, ...rest: any[]) {
+		if (typeof commandLine !== 'string') {
+			throw illegalArgument('commandLine');
+		}
+		let { options, problemMatchers } = ShellTask.parseArguments(rest);
+
+		super(name, problemMatchers);
+		this._commandLine = commandLine;
+		this._options = options || Object.create(null);
+	}
+
+	get commandLine(): string {
+		return this._commandLine;
+	}
+
+	get options(): vscode.ShellOptions {
+		return this._options;
+	}
+
+	set options(value: vscode.ShellOptions) {
+		if (value === void 0 || value === null) {
+			value = Object.create(null);
+		}
+		this._options = value;
 	}
 }

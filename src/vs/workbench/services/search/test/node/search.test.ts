@@ -11,24 +11,9 @@ import assert = require('assert');
 import * as glob from 'vs/base/common/glob';
 import { join, normalize } from 'vs/base/common/paths';
 import * as platform from 'vs/base/common/platform';
-import { LineMatch } from 'vs/platform/search/common/search';
 
 import { FileWalker, Engine as FileSearchEngine } from 'vs/workbench/services/search/node/fileSearch';
 import { IRawFileMatch } from 'vs/workbench/services/search/node/search';
-import { Engine as TextSearchEngine } from 'vs/workbench/services/search/node/textSearch';
-
-function count(lineMatches: LineMatch[]): number {
-	let count = 0;
-	if (lineMatches) {
-		for (let i = 0; i < lineMatches.length; i++) {
-			let line = lineMatches[i];
-			let wordMatches = line.offsetAndLengths;
-			count += wordMatches.length;
-		}
-	}
-
-	return count;
-}
 
 function rootfolders() {
 	return [path.normalize(require.toUrl('./fixtures'))];
@@ -346,6 +331,29 @@ suite('Search', () => {
 		});
 	});
 
+	test('Files: Include pattern, single files', function (done: () => void) {
+		let engine = new FileSearchEngine({
+			rootFolders: rootfolders(),
+			includePattern: {
+				'site.css': true,
+				'examples/company.js': true,
+				'examples/subfolder/subfile.txt': true
+			}
+		});
+
+		let res: IRawFileMatch[] = [];
+		engine.search((result) => {
+			res.push(result);
+		}, () => { }, (error) => {
+			assert.ok(!error);
+			const basenames = res.map(r => path.basename(r.relativePath));
+			assert.ok(basenames.indexOf('site.css') !== -1, `site.css missing in ${JSON.stringify(basenames)}`);
+			assert.ok(basenames.indexOf('company.js') !== -1, `company.js missing in ${JSON.stringify(basenames)}`);
+			assert.ok(basenames.indexOf('subfile.txt') !== -1, `subfile.txt missing in ${JSON.stringify(basenames)}`);
+			done();
+		});
+	});
+
 	test('Files: extraFiles only', function (done: () => void) {
 		let engine = new FileSearchEngine({
 			rootFolders: [],
@@ -587,221 +595,6 @@ suite('Search', () => {
 			for (const fileOut of filesOut) {
 				assert.strictEqual(stdout1.split('\n').indexOf(fileOut), -1, stdout1);
 			}
-			done();
-		});
-	});
-
-	test('Text: GameOfLife', function (done: () => void) {
-		let c = 0;
-		let config = {
-			rootFolders: rootfolders(),
-			filePattern: '*.js',
-			contentPattern: { pattern: 'GameOfLife', modifiers: 'i' }
-		};
-
-		let engine = new TextSearchEngine(config, new FileWalker(config));
-
-		engine.search((result) => {
-			if (result && result.lineMatches) {
-				c += count(result.lineMatches);
-			}
-		}, () => { }, (error) => {
-			assert.ok(!error);
-			assert.equal(c, 4);
-			done();
-		});
-	});
-
-	test('Text: GameOfLife (RegExp)', function (done: () => void) {
-		let c = 0;
-		let config = {
-			rootFolders: rootfolders(),
-			filePattern: '*.js',
-			contentPattern: { pattern: 'Game.?fL\\w?fe', isRegExp: true }
-		};
-
-		let engine = new TextSearchEngine(config, new FileWalker(config));
-
-		engine.search((result) => {
-			if (result && result.lineMatches) {
-				c += count(result.lineMatches);
-			}
-		}, () => { }, (error) => {
-			assert.ok(!error);
-			assert.equal(c, 4);
-			done();
-		});
-	});
-
-	test('Text: GameOfLife (Word Match, Case Sensitive)', function (done: () => void) {
-		let c = 0;
-		let config = {
-			rootFolders: rootfolders(),
-			filePattern: '*.js',
-			contentPattern: { pattern: 'GameOfLife', isWordMatch: true, isCaseSensitive: true }
-		};
-
-		let engine = new TextSearchEngine(config, new FileWalker(config));
-
-		engine.search((result) => {
-			if (result && result.lineMatches) {
-				c += count(result.lineMatches);
-			}
-		}, () => { }, (error) => {
-			assert.ok(!error);
-			assert.equal(c, 4);
-			done();
-		});
-	});
-
-	test('Text: Helvetica (UTF 16)', function (done: () => void) {
-		let c = 0;
-		let config = {
-			rootFolders: rootfolders(),
-			filePattern: '*.css',
-			contentPattern: { pattern: 'Helvetica', modifiers: 'i' }
-		};
-
-		let engine = new TextSearchEngine(config, new FileWalker(config));
-
-		engine.search((result) => {
-			if (result && result.lineMatches) {
-				c += count(result.lineMatches);
-			}
-		}, () => { }, (error) => {
-			assert.ok(!error);
-			assert.equal(c, 2);
-			done();
-		});
-	});
-
-	test('Text: e', function (done: () => void) {
-		let c = 0;
-		let config = {
-			rootFolders: rootfolders(),
-			filePattern: '*.*',
-			contentPattern: { pattern: 'e', modifiers: 'i' }
-		};
-
-		let engine = new TextSearchEngine(config, new FileWalker(config));
-
-		engine.search((result) => {
-			if (result && result.lineMatches) {
-				c += count(result.lineMatches);
-			}
-		}, (result) => { }, (error) => {
-			assert.ok(!error);
-			assert.equal(c, 748);
-			done();
-		});
-	});
-
-	test('Text: e (with excludes)', function (done: () => void) {
-		let c = 0;
-		let config: any = {
-			rootFolders: rootfolders(),
-			filePattern: '*.*',
-			contentPattern: { pattern: 'e', modifiers: 'i' },
-			excludePattern: { '**/examples': true }
-		};
-
-		let engine = new TextSearchEngine(config, new FileWalker(config));
-
-		engine.search((result) => {
-			if (result && result.lineMatches) {
-				c += count(result.lineMatches);
-			}
-		}, (result) => { }, (error) => {
-			assert.ok(!error);
-			assert.equal(c, 366);
-			done();
-		});
-	});
-
-	test('Text: e (with includes)', function (done: () => void) {
-		let c = 0;
-		let config: any = {
-			rootFolders: rootfolders(),
-			filePattern: '*.*',
-			contentPattern: { pattern: 'e', modifiers: 'i' },
-			includePattern: { '**/examples/**': true }
-		};
-
-		let engine = new TextSearchEngine(config, new FileWalker(config));
-
-		engine.search((result) => {
-			if (result && result.lineMatches) {
-				c += count(result.lineMatches);
-			}
-		}, (result) => { }, (error) => {
-			assert.ok(!error);
-			assert.equal(c, 382);
-			done();
-		});
-	});
-
-	test('Text: e (with includes and exclude)', function (done: () => void) {
-		let c = 0;
-		let config: any = {
-			rootFolders: rootfolders(),
-			filePattern: '*.*',
-			contentPattern: { pattern: 'e', modifiers: 'i' },
-			includePattern: { '**/examples/**': true },
-			excludePattern: { '**/examples/small.js': true }
-		};
-
-		let engine = new TextSearchEngine(config, new FileWalker(config));
-
-		engine.search((result) => {
-			if (result && result.lineMatches) {
-				c += count(result.lineMatches);
-			}
-		}, (result) => { }, (error) => {
-			assert.ok(!error);
-			assert.equal(c, 361);
-			done();
-		});
-	});
-
-	test('Text: a (capped)', function (done: () => void) {
-		let c = 0;
-		let config = {
-			rootFolders: rootfolders(),
-			filePattern: '*.*',
-			contentPattern: { pattern: 'a', modifiers: 'i' },
-			maxResults: 520
-		};
-
-		let engine = new TextSearchEngine(config, new FileWalker(config));
-
-		engine.search((result) => {
-			if (result && result.lineMatches) {
-				c += count(result.lineMatches);
-			}
-		}, (result) => { }, (error) => {
-			assert.ok(!error);
-			assert.equal(c, 520);
-			done();
-		});
-	});
-
-	test('Text: a (no results)', function (done: () => void) {
-		let c = 0;
-		let config = {
-			rootFolders: rootfolders(),
-			filePattern: '*.*',
-			contentPattern: { pattern: 'ahsogehtdas', modifiers: 'i' }
-		};
-
-		let engine = new TextSearchEngine(config, new FileWalker(config));
-
-		engine.search((result) => {
-			if (result && result.lineMatches) {
-				c += count(result.lineMatches);
-			}
-		}, (result) => { }, (error) => {
-			assert.ok(!error);
-			assert.equal(c, 0);
 			done();
 		});
 	});

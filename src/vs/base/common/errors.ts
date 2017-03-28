@@ -68,6 +68,11 @@ export class ErrorHandler {
 		this.unexpectedErrorHandler(e);
 		this.emit(e);
 	}
+
+	// For external errors, we don't want the listeners to be called
+	public onUnexpectedExternalError(e: any): void {
+		this.unexpectedErrorHandler(e);
+	}
 }
 
 export let errorHandler = new ErrorHandler();
@@ -81,6 +86,14 @@ export function onUnexpectedError(e: any): void {
 	// ignore errors from cancelled promises
 	if (!isPromiseCanceledError(e)) {
 		errorHandler.onUnexpectedError(e);
+	}
+}
+
+export function onUnexpectedExternalError(e: any): void {
+
+	// ignore errors from cancelled promises
+	if (!isPromiseCanceledError(e)) {
+		errorHandler.onUnexpectedExternalError(e);
 	}
 }
 

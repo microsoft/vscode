@@ -27,6 +27,8 @@ import { isSearchViewletFocussed, appendKeyBindingLabel } from 'vs/workbench/par
 import { CONTEXT_FIND_WIDGET_NOT_VISIBLE } from 'vs/editor/contrib/find/common/findController';
 import { HistoryNavigator } from 'vs/base/common/history';
 import * as Constants from 'vs/workbench/parts/search/common/constants';
+import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export interface ISearchWidgetOptions {
 	value?: string;
@@ -69,9 +71,9 @@ export class SearchWidget extends Widget {
 
 	private static REPLACE_ALL_DISABLED_LABEL = nls.localize('search.action.replaceAll.disabled.label', "Replace All (Submit Search to Enable)");
 	private static REPLACE_ALL_ENABLED_LABEL = (keyBindingService2: IKeybindingService): string => {
-		let keybindings = keyBindingService2.lookupKeybindings(ReplaceAllAction.ID);
-		return appendKeyBindingLabel(nls.localize('search.action.replaceAll.enabled.label', "Replace All"), keybindings[0], keyBindingService2);
-	};
+		let kb = keyBindingService2.lookupKeybinding(ReplaceAllAction.ID);
+		return appendKeyBindingLabel(nls.localize('search.action.replaceAll.enabled.label', "Replace All"), kb, keyBindingService2);
+	}
 
 	public domNode: HTMLElement;
 	public searchInput: FindInput;
@@ -108,7 +110,7 @@ export class SearchWidget extends Widget {
 	private _onReplaceAll = this._register(new Emitter<void>());
 	public onReplaceAll: Event<void> = this._onReplaceAll.event;
 
-	constructor(container: Builder, private contextViewService: IContextViewService, options: ISearchWidgetOptions = Object.create(null),
+	constructor(container: Builder, private contextViewService: IContextViewService, private themeService: IThemeService, options: ISearchWidgetOptions = Object.create(null),
 		private keyBindingService: IContextKeyService, private keyBindingService2: IKeybindingService, private instantiationService: IInstantiationService) {
 		super();
 		this.searchHistory = new HistoryNavigator<string>();
@@ -170,7 +172,13 @@ export class SearchWidget extends Widget {
 	}
 
 	public showPreviousSearchTerm() {
-		let previous = this.searchHistory.previous();
+		let previous;
+		if (this.searchInput.getValue().length === 0) {
+			previous = this.searchHistory.current();
+		} else {
+			this.searchHistory.addIfNotPresent(this.searchInput.getValue());
+			previous = this.searchHistory.previous();
+		}
 		if (previous) {
 			this.searchInput.setValue(previous);
 		}
@@ -204,13 +212,14 @@ export class SearchWidget extends Widget {
 			label: nls.localize('label.Search', 'Search: Type Search Term and press Enter to search or Escape to cancel'),
 			validation: (value: string) => this.validatSearchInput(value),
 			placeholder: nls.localize('search.placeHolder', "Search"),
-			appendCaseSensitiveLabel: appendKeyBindingLabel('', this.keyBindingService2.lookupKeybindings(Constants.ToggleCaseSensitiveActionId)[0], this.keyBindingService2),
-			appendWholeWordsLabel: appendKeyBindingLabel('', this.keyBindingService2.lookupKeybindings(Constants.ToggleWholeWordActionId)[0], this.keyBindingService2),
-			appendRegexLabel: appendKeyBindingLabel('', this.keyBindingService2.lookupKeybindings(Constants.ToggleRegexActionId)[0], this.keyBindingService2)
+			appendCaseSensitiveLabel: appendKeyBindingLabel('', this.keyBindingService2.lookupKeybinding(Constants.ToggleCaseSensitiveActionId), this.keyBindingService2),
+			appendWholeWordsLabel: appendKeyBindingLabel('', this.keyBindingService2.lookupKeybinding(Constants.ToggleWholeWordActionId), this.keyBindingService2),
+			appendRegexLabel: appendKeyBindingLabel('', this.keyBindingService2.lookupKeybinding(Constants.ToggleRegexActionId), this.keyBindingService2)
 		};
 
 		let searchInputContainer = dom.append(parent, dom.$('.search-container.input-box'));
 		this.searchInput = this._register(new FindInput(searchInputContainer, this.contextViewService, inputOptions));
+		this._register(attachInputBoxStyler(this.searchInput, this.themeService));
 		this.searchInput.onKeyUp((keyboardEvent: IKeyboardEvent) => this.onSearchInputKeyUp(keyboardEvent));
 		this.searchInput.setValue(options.value || '');
 		this.searchInput.setRegex(!!options.isRegex);
@@ -236,6 +245,7 @@ export class SearchWidget extends Widget {
 			ariaLabel: nls.localize('label.Replace', 'Replace: Type replace term and press Enter to preview or Escape to cancel'),
 			placeholder: nls.localize('search.replace.placeHolder', "Replace")
 		}));
+		this._register(attachInputBoxStyler(this.replaceInput, this.themeService));
 		this.onkeyup(this.replaceInput.inputElement, (keyboardEvent) => this.onReplaceInputKeyUp(keyboardEvent));
 		this.replaceInput.onDidChange(() => this._onReplaceValueChanged.fire());
 		this.searchInput.inputBox.onDidChange(() => this.onSearchInputChanged());

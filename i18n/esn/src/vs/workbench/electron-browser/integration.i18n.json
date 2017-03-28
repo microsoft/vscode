@@ -6,10 +6,8 @@
 {
 	"copy": "Copiar",
 	"cut": "Cortar",
-	"files": "archivos",
-	"folders": "carpetas",
-	"openRecentPlaceHolder": "Seleccione una ruta de acceso para abrir (mantenga presionada la tecla Ctrl para abrirla en una nueva ventana)",
-	"openRecentPlaceHolderMac": "Seleccione una ruta de acceso (mantenga presionada la tecla Cmd para abrirla en una nueva ventana)",
+	"developer": "Desarrollador",
+	"file": "Archivo",
 	"paste": "Pegar",
 	"redo": "Rehacer",
 	"selectAll": "Seleccionar todo",

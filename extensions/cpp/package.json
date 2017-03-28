@@ -15,7 +15,7 @@
 		},
 		{
 			"id": "cpp",
-			"extensions": [ ".cpp", ".cc", ".cxx", ".hpp", ".hh", ".hxx", ".h", ".mm", ".ino", ".inl" ],
+			"extensions": [ ".cpp", ".cc", ".cxx", ".hpp", ".hh", ".hxx", ".h", ".ino", ".inl" ],
 			"aliases": [ "C++", "Cpp", "cpp"],
 			"configuration": "./language-configuration.json"
 		}],

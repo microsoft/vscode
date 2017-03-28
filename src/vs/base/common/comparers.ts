@@ -6,10 +6,37 @@
 
 import scorer = require('vs/base/common/scorer');
 import strings = require('vs/base/common/strings');
+import * as paths from 'vs/base/common/paths';
+
+let intlFileNameCollator: Intl.Collator;
+let intlFileNameCollatorIsNumeric: boolean;
+
+export function setFileNameComparer(collator: Intl.Collator): void {
+	intlFileNameCollator = collator;
+	intlFileNameCollatorIsNumeric = collator.resolvedOptions().numeric;
+}
+
+export function compareFileNames(one: string, other: string): number {
+	if (intlFileNameCollator) {
+		const a = one || '';
+		const b = other || '';
+		const result = intlFileNameCollator.compare(a, b);
+
+		// Using the numeric option in the collator will
+		// make compare(`foo1`, `foo01`) === 0. We must disambiguate.
+		if (intlFileNameCollatorIsNumeric && result === 0 && a !== b) {
+			return a < b ? -1 : 1;
+		}
+
+		return result;
+	}
+
+	return noIntlCompareFileNames(one, other);
+}
 
 const FileNameMatch = /^([^.]*)(\.(.*))?$/;
 
-export function compareFileNames(one: string, other: string): number {
+export function noIntlCompareFileNames(one: string, other: string): number {
 	let oneMatch = FileNameMatch.exec(one.toLowerCase());
 	let otherMatch = FileNameMatch.exec(other.toLowerCase());
 
@@ -28,6 +55,30 @@ export function compareFileNames(one: string, other: string): number {
 	}
 
 	return oneExtension < otherExtension ? -1 : 1;
+}
+
+export function comparePaths(one: string, other: string): number {
+	const oneParts = one.split(paths.nativeSep);
+	const otherParts = other.split(paths.nativeSep);
+
+	const lastOne = oneParts.length - 1;
+	const lastOther = otherParts.length - 1;
+	let endOne: boolean, endOther: boolean, onePart: string, otherPart: string;
+
+	for (let i = 0; ; i++) {
+		endOne = lastOne === i;
+		endOther = lastOther === i;
+
+		if (endOne && endOther) {
+			return compareFileNames(oneParts[i], otherParts[i]);
+		} else if (endOne) {
+			return -1;
+		} else if (endOther) {
+			return 1;
+		} else if ((onePart = oneParts[i].toLowerCase()) !== (otherPart = otherParts[i].toLowerCase())) {
+			return onePart < otherPart ? -1 : 1;
+		}
+	}
 }
 
 export function compareAnything(one: string, other: string, lookFor: string): number {
@@ -83,8 +134,8 @@ export function compareByPrefix(one: string, other: string, lookFor: string): nu
 }
 
 export interface IScorableResourceAccessor<T> {
-	getLabel(T): string;
-	getResourcePath(T): string;
+	getLabel(t: T): string;
+	getResourcePath(t: T): string;
 }
 
 export function compareByScore<T>(elementA: T, elementB: T, accessor: IScorableResourceAccessor<T>, lookFor: string, lookForNormalizedLower: string, scorerCache?: { [key: string]: number }): number {
@@ -101,10 +152,6 @@ export function compareByScore<T>(elementA: T, elementB: T, accessor: IScorableR
 	const labelAScore = scorer.score(labelA, lookFor, scorerCache);
 	const labelBScore = scorer.score(labelB, lookFor, scorerCache);
 
-	// Useful for understanding the scoring
-	// elementA.setPrefix(labelAScore + ' ');
-	// elementB.setPrefix(labelBScore + ' ');
-
 	if (labelAScore !== labelBScore) {
 		return labelAScore > labelBScore ? -1 : 1;
 	}
@@ -115,10 +162,6 @@ export function compareByScore<T>(elementA: T, elementB: T, accessor: IScorableR
 	if (resourcePathA && resourcePathB) {
 		const resourceAScore = scorer.score(resourcePathA, lookFor, scorerCache);
 		const resourceBScore = scorer.score(resourcePathB, lookFor, scorerCache);
-
-		// Useful for understanding the scoring
-		// elementA.setPrefix(elementA.getPrefix() + ' ' + resourceAScore + ': ');
-		// elementB.setPrefix(elementB.getPrefix() + ' ' + resourceBScore + ': ');
 
 		if (resourceAScore !== resourceBScore) {
 			return resourceAScore > resourceBScore ? -1 : 1;

@@ -242,6 +242,7 @@ export interface IGitConfiguration {
 	allowLargeRepositories: boolean;
 	confirmSync: boolean;
 	countBadge: string;
+	checkoutType: string;
 }
 
 // Service interfaces

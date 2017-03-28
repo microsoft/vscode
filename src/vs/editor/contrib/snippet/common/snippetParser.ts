@@ -124,7 +124,7 @@ export class Scanner {
 export abstract class Marker {
 	_markerBrand: any;
 
-	static toString(marker: Marker[]): string {
+	static toString(marker?: Marker[]): string {
 		let result = '';
 		for (const m of marker) {
 			result += m.toString();
@@ -147,14 +147,28 @@ export class Text extends Marker {
 }
 
 export class Placeholder extends Marker {
-	constructor(public name: string = '', public value: Marker[]) {
+	constructor(public name: string = '', public defaultValue: Marker[]) {
 		super();
 	}
-	get isVariable(): boolean {
-		return isNaN(Number(this.name));
-	}
 	toString() {
-		return Marker.toString(this.value);
+		return Marker.toString(this.defaultValue);
+	}
+}
+
+export class Variable extends Marker {
+
+	resolvedValue: string;
+
+	constructor(public name: string = '', public defaultValue: Marker[]) {
+		super();
+	}
+
+	get isDefined(): boolean {
+		return this.resolvedValue !== undefined;
+	}
+
+	toString() {
+		return this.isDefined ? this.resolvedValue : Marker.toString(this.defaultValue);
 	}
 }
 
@@ -186,23 +200,34 @@ export class SnippetParser {
 
 		// * fill in default for empty placeHolders
 		// * compact sibling Text markers
-		const placeholders: { [name: string]: Marker[] } = Object.create(null);
-		for (let i = 0; i < marker.length; i++) {
-			let thisMarker = marker[i];
+		function compact(marker: Marker[], placeholders: { [name: string]: Marker[] }) {
 
-			if (thisMarker instanceof Placeholder) {
-				if (placeholders[thisMarker.name] === undefined) {
-					placeholders[thisMarker.name] = thisMarker.value;
-				} else if (thisMarker.value.length === 0) {
-					thisMarker.value = placeholders[thisMarker.name].slice(0);
+			for (let i = 0; i < marker.length; i++) {
+				const thisMarker = marker[i];
+
+				if (thisMarker instanceof Placeholder) {
+					if (placeholders[thisMarker.name] === undefined) {
+						placeholders[thisMarker.name] = thisMarker.defaultValue;
+					} else if (thisMarker.defaultValue.length === 0) {
+						thisMarker.defaultValue = placeholders[thisMarker.name].slice(0);
+					}
+
+					if (thisMarker.defaultValue.length > 0) {
+						compact(thisMarker.defaultValue, placeholders);
+					}
+
+				} else if (thisMarker instanceof Variable) {
+					compact(thisMarker.defaultValue, placeholders);
+
+				} else if (i > 0 && thisMarker instanceof Text && marker[i - 1] instanceof Text) {
+					(<Text>marker[i - 1]).string += (<Text>marker[i]).string;
+					marker.splice(i, 1);
+					i--;
 				}
-
-			} else if (i > 0 && thisMarker instanceof Text && marker[i - 1] instanceof Text) {
-				(<Text>marker[i - 1]).string += (<Text>marker[i]).string;
-				marker.splice(i, 1);
-				i--;
 			}
 		}
+
+		compact(marker, Object.create(null));
 
 		return marker;
 	}
@@ -213,6 +238,7 @@ export class SnippetParser {
 			this._token = this._scanner.next();
 			return true;
 		}
+		return false;
 	}
 
 	private _return(token: Token): void {
@@ -229,6 +255,7 @@ export class SnippetParser {
 		} else if (this._enableTextMate && this._parseTM(marker)) {
 			return true;
 		}
+		return false;
 	}
 
 	private _parseText(marker: Marker[]): boolean {
@@ -237,6 +264,7 @@ export class SnippetParser {
 			this._accept(undefined);
 			return true;
 		}
+		return false;
 	}
 
 	private _parseTM(marker: Marker[]): boolean {
@@ -244,8 +272,8 @@ export class SnippetParser {
 
 			if (this._accept(TokenType.VariableName) || this._accept(TokenType.Int)) {
 				// $FOO, $123
-				let name = this._scanner.tokenText(this._prevToken);
-				marker.push(new Placeholder(name, []));
+				const idOrName = this._scanner.tokenText(this._prevToken);
+				marker.push(/^\d+$/.test(idOrName) ? new Placeholder(idOrName, []) : new Variable(idOrName, []));
 				return true;
 
 			} else if (this._accept(TokenType.CurlyOpen)) {
@@ -256,13 +284,14 @@ export class SnippetParser {
 
 				while (true) {
 
-					if (this._accept(TokenType.Colon)) {
+					if (target !== children && this._accept(TokenType.Colon)) {
 						target = children;
 						continue;
 					}
 
 					if (this._accept(TokenType.CurlyClose)) {
-						marker.push(new Placeholder(Marker.toString(name), children));
+						const idOrName = Marker.toString(name);
+						marker.push(/^\d+$/.test(idOrName) ? new Placeholder(idOrName, children) : new Variable(idOrName, children));
 						return true;
 					}
 
@@ -285,6 +314,7 @@ export class SnippetParser {
 			marker.push(new Text('$'));
 			return true;
 		}
+		return false;
 	}
 
 	private _parseInternal(marker: Marker[]): boolean {
@@ -295,7 +325,7 @@ export class SnippetParser {
 				return false;
 			}
 
-			// ${name:children}, ${name}, ${name:}
+			// {{name:children}}, {{name}}, {{name:}}
 			let name: Marker[] = [];
 			let children: Marker[] = [];
 			let target = name;
@@ -340,6 +370,7 @@ export class SnippetParser {
 				return true;
 			}
 		}
+		return false;
 	}
 
 	private _parseEscaped(marker: Marker[]): boolean {
@@ -347,12 +378,13 @@ export class SnippetParser {
 			if (// Internal style
 				(this._enableInternal && (this._accept(TokenType.CurlyOpen) || this._accept(TokenType.CurlyClose) || this._accept(TokenType.Backslash)))
 				// TextMate style
-				|| (this._enableTextMate && this._accept(TokenType.Dollar))
+				|| (this._enableTextMate && (this._accept(TokenType.Dollar) || this._accept(TokenType.CurlyClose) || this._accept(TokenType.Backslash)))
 			) {
 				// just consume them
 			}
 			marker.push(new Text(this._scanner.tokenText(this._prevToken)));
 			return true;
 		}
+		return false;
 	}
 }

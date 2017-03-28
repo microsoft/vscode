@@ -28,14 +28,15 @@ options.sourceMap = true;
 options.rootDir = rootDir;
 options.sourceRoot = util.toFileUri(rootDir);
 
-function createCompile(build:boolean, emitError?:boolean): (token?:util.ICancellationToken) => NodeJS.ReadWriteStream {
+function createCompile(build: boolean, emitError?: boolean): (token?: util.ICancellationToken) => NodeJS.ReadWriteStream {
 	const opts = _.clone(options);
 	opts.inlineSources = !!build;
 	opts.noFilesystemLookup = true;
 
 	const ts = tsb.create(opts, null, null, err => reporter(err.toString()));
 
-	return function (token?:util.ICancellationToken) {
+	return function (token?: util.ICancellationToken) {
+
 		const utf8Filter = util.filter(data => /(\/|\\)test(\/|\\).*utf8/.test(data.path));
 		const tsFilter = util.filter(data => /\.ts$/.test(data.path));
 		const noDeclarationsFilter = util.filter(data => !(/\.d\.ts$/.test(data.path)));
@@ -48,6 +49,7 @@ function createCompile(build:boolean, emitError?:boolean): (token?:util.ICancell
 			.pipe(tsFilter)
 			.pipe(util.loadSourcemaps())
 			.pipe(ts(token))
+			.pipe(build ? reloadTypeScriptNodeModule() : es.through())
 			.pipe(noDeclarationsFilter)
 			.pipe(build ? nls() : es.through())
 			.pipe(noDeclarationsFilter.restore)
@@ -63,13 +65,15 @@ function createCompile(build:boolean, emitError?:boolean): (token?:util.ICancell
 	};
 }
 
-export function compileTask(out:string, build:boolean): () => NodeJS.ReadWriteStream {
-	const compile = createCompile(build, true);
+export function compileTask(out: string, build: boolean): () => NodeJS.ReadWriteStream {
 
 	return function () {
+		const compile = createCompile(build, true);
+
 		const src = es.merge(
 			gulp.src('src/**', { base: 'src' }),
-			gulp.src('node_modules/typescript/lib/lib.d.ts')
+			gulp.src('node_modules/typescript/lib/lib.d.ts'),
+			gulp.src('node_modules/@types/**/index.d.ts')
 		);
 
 		return src
@@ -79,13 +83,15 @@ export function compileTask(out:string, build:boolean): () => NodeJS.ReadWriteSt
 	};
 }
 
-export function watchTask(out:string, build:boolean): () => NodeJS.ReadWriteStream {
-	const compile = createCompile(build);
+export function watchTask(out: string, build: boolean): () => NodeJS.ReadWriteStream {
 
 	return function () {
+		const compile = createCompile(build);
+
 		const src = es.merge(
 			gulp.src('src/**', { base: 'src' }),
-			gulp.src('node_modules/typescript/lib/lib.d.ts')
+			gulp.src('node_modules/typescript/lib/lib.d.ts'),
+			gulp.src('node_modules/@types/**/index.d.ts')
 		);
 		const watchSrc = watch('src/**', { base: 'src' });
 
@@ -96,30 +102,84 @@ export function watchTask(out:string, build:boolean): () => NodeJS.ReadWriteStre
 	};
 }
 
-function monacodtsTask(out:string, isWatch:boolean): NodeJS.ReadWriteStream {
-	let timer:NodeJS.Timer = null;
+function reloadTypeScriptNodeModule(): NodeJS.ReadWriteStream {
+	var util = require('gulp-util');
+	function log(message: any, ...rest: any[]): void {
+		util.log(util.colors.cyan('[memory watch dog]'), message, ...rest);
+	}
 
-	const runSoon = function(howSoon:number) {
-		if (timer !== null) {
-			clearTimeout(timer);
-			timer = null;
+	function heapUsed(): string {
+		return (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2) + ' MB';
+	}
+
+	return es.through(function (data) {
+		this.emit('data', data);
+	}, function () {
+
+		log('memory usage after compilation finished: ' + heapUsed());
+
+		// It appears we are running into some variant of
+		// https://bugs.chromium.org/p/v8/issues/detail?id=2073
+		//
+		// Even though all references are dropped, some
+		// optimized methods in the TS compiler end up holding references
+		// to the entire TypeScript language host (>600MB)
+		//
+		// The idea is to force v8 to drop references to these
+		// optimized methods, by "reloading" the typescript node module
+
+		log('Reloading typescript node module...');
+
+		var resolvedName = require.resolve('typescript');
+
+		var originalModule = require.cache[resolvedName];
+		delete require.cache[resolvedName];
+		var newExports = require('typescript');
+		require.cache[resolvedName] = originalModule;
+
+		for (var prop in newExports) {
+			if (newExports.hasOwnProperty(prop)) {
+				originalModule.exports[prop] = newExports[prop];
+			}
 		}
-		timer = setTimeout(function() {
-			timer = null;
-			runNow();
-		}, howSoon);
+
+		log('typescript node module reloaded.');
+
+		this.emit('end');
+	});
+}
+
+function monacodtsTask(out: string, isWatch: boolean): NodeJS.ReadWriteStream {
+
+	const neededFiles: { [file: string]: boolean; } = {};
+	monacodts.getFilesToWatch(out).forEach(function (filePath) {
+		filePath = path.normalize(filePath);
+		neededFiles[filePath] = true;
+	});
+
+	const inputFiles: { [file: string]: string; } = {};
+	for (let filePath in neededFiles) {
+		if (/\bsrc(\/|\\)vs\b/.test(filePath)) {
+			// This file is needed from source => simply read it now
+			inputFiles[filePath] = fs.readFileSync(filePath).toString();
+		}
+	}
+
+	const setInputFile = (filePath: string, contents: string) => {
+		if (inputFiles[filePath] === contents) {
+			// no change
+			return;
+		}
+		inputFiles[filePath] = contents;
+		const neededInputFilesCount = Object.keys(neededFiles).length;
+		const availableInputFilesCount = Object.keys(inputFiles).length;
+		if (neededInputFilesCount === availableInputFilesCount) {
+			run();
+		}
 	};
 
-	const runNow = function() {
-		if (timer !== null) {
-			clearTimeout(timer);
-			timer = null;
-		}
-		// if (reporter.hasErrors()) {
-		// 	monacodts.complainErrors();
-		// 	return;
-		// }
-		const result = monacodts.run(out);
+	const run = () => {
+		const result = monacodts.run(out, inputFiles);
 		if (!result.isTheSame) {
 			if (isWatch) {
 				fs.writeFileSync(result.filePath, result.content);
@@ -132,32 +192,18 @@ function monacodtsTask(out:string, isWatch:boolean): NodeJS.ReadWriteStream {
 	let resultStream: NodeJS.ReadWriteStream;
 
 	if (isWatch) {
-
-		const filesToWatchMap: {[file:string]:boolean;} = {};
-		monacodts.getFilesToWatch(out).forEach(function(filePath) {
-			filesToWatchMap[path.normalize(filePath)] = true;
-		});
-
-		watch('build/monaco/*').pipe(es.through(function() {
-			runSoon(5000);
+		watch('build/monaco/*').pipe(es.through(function () {
+			run();
 		}));
-
-		resultStream = es.through(function(data) {
-			const filePath = path.normalize(data.path);
-			if (filesToWatchMap[filePath]) {
-				runSoon(5000);
-			}
-			this.emit('data', data);
-		});
-
-	} else {
-
-		resultStream = es.through(null, function() {
-			runNow();
-			this.emit('end');
-		});
-
 	}
+
+	resultStream = es.through(function (data) {
+		const filePath = path.normalize(data.path);
+		if (neededFiles[filePath]) {
+			setInputFile(filePath, data.contents.toString());
+		}
+		this.emit('data', data);
+	});
 
 	return resultStream;
 }

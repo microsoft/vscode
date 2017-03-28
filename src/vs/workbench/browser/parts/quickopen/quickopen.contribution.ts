@@ -8,13 +8,13 @@ import { Registry } from 'vs/platform/platform';
 import { TPromise } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import { Action } from 'vs/base/common/actions';
-import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
-import { IKeybindingService, IKeybindings } from 'vs/platform/keybinding/common/keybinding';
+import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingsRegistry, IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { RemoveFromEditorHistoryAction } from 'vs/workbench/browser/parts/quickopen/quickOpenController';
 
 export class GlobalQuickOpenAction extends Action {
@@ -37,26 +37,23 @@ export class GlobalQuickOpenAction extends Action {
 }
 
 export class BaseQuickOpenNavigateAction extends Action {
-	private navigateNext: boolean;
 
 	constructor(
 		id: string,
 		label: string,
-		navigateNext: boolean,
+		private next: boolean,
+		private quickNavigate: boolean,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IKeybindingService private keybindingService: IKeybindingService
 	) {
 		super(id, label);
-
-		this.navigateNext = navigateNext;
 	}
 
 	public run(event?: any): TPromise<any> {
-		let keys = this.keybindingService.lookupKeybindings(this.id);
+		const keys = this.keybindingService.lookupKeybindings(this.id);
+		const quickNavigate = this.quickNavigate ? { keybindings: keys } : void 0;
 
-		this.quickOpenService.quickNavigate({
-			keybindings: keys
-		}, this.navigateNext);
+		this.quickOpenService.navigate(this.next, quickNavigate);
 
 		return TPromise.as(true);
 	}
@@ -73,7 +70,7 @@ export class QuickOpenNavigateNextAction extends BaseQuickOpenNavigateAction {
 		@IQuickOpenService quickOpenService: IQuickOpenService,
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
-		super(id, label, true, quickOpenService, keybindingService);
+		super(id, label, true, true, quickOpenService, keybindingService);
 	}
 }
 
@@ -88,16 +85,46 @@ export class QuickOpenNavigatePreviousAction extends BaseQuickOpenNavigateAction
 		@IQuickOpenService quickOpenService: IQuickOpenService,
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
-		super(id, label, false, quickOpenService, keybindingService);
+		super(id, label, false, true, quickOpenService, keybindingService);
 	}
 }
 
-const condition = ContextKeyExpr.has('inQuickOpen');
+export class QuickOpenSelectNextAction extends BaseQuickOpenNavigateAction {
+
+	public static ID = 'workbench.action.quickOpenSelectNext';
+	public static LABEL = nls.localize('quickSelectNext', "Select Next in Quick Open");
+
+	constructor(
+		id: string,
+		label: string,
+		@IQuickOpenService quickOpenService: IQuickOpenService,
+		@IKeybindingService keybindingService: IKeybindingService
+	) {
+		super(id, label, true, false, quickOpenService, keybindingService);
+	}
+}
+
+export class QuickOpenSelectPreviousAction extends BaseQuickOpenNavigateAction {
+
+	public static ID = 'workbench.action.quickOpenSelectPrevious';
+	public static LABEL = nls.localize('quickSelectPrevious', "Select Previous in Quick Open");
+
+	constructor(
+		id: string,
+		label: string,
+		@IQuickOpenService quickOpenService: IQuickOpenService,
+		@IKeybindingService keybindingService: IKeybindingService
+	) {
+		super(id, label, false, false, quickOpenService, keybindingService);
+	}
+}
+
+const inQuickOpenContext = ContextKeyExpr.has('inQuickOpen');
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'workbench.action.closeQuickOpen',
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-	when: condition,
+	when: inQuickOpenContext,
 	primary: KeyCode.Escape, secondary: [KeyMod.Shift | KeyCode.Escape],
 	handler: accessor => {
 		const quickOpenService = accessor.get(IQuickOpenService);
@@ -108,7 +135,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'workbench.action.acceptSelectedQuickOpenItem',
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-	when: condition,
+	when: inQuickOpenContext,
 	primary: null,
 	handler: accessor => {
 		const quickOpenService = accessor.get(IQuickOpenService);
@@ -119,7 +146,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'workbench.action.focusQuickOpen',
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-	when: condition,
+	when: inQuickOpenContext,
 	primary: null,
 	handler: accessor => {
 		const quickOpenService = accessor.get(IQuickOpenService);
@@ -128,30 +155,40 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 function navigateKeybinding(shift: boolean): IKeybindings {
-	if (shift) {
+	if (!shift) {
 		return {
-			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_P,
-			secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_E, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab],
+			primary: KeyMod.CtrlCmd | KeyCode.Tab,
+			secondary: [KeyMod.CtrlCmd | KeyCode.KEY_Q, KeyMod.CtrlCmd | KeyCode.KEY_E, KeyMod.CtrlCmd | KeyCode.KEY_P],
 			mac: {
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_P,
-				secondary: [KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Tab]
-			}
-		};
-	} else {
-		return {
-			primary: KeyMod.CtrlCmd | KeyCode.KEY_P,
-			secondary: [KeyMod.CtrlCmd | KeyCode.KEY_E, KeyMod.CtrlCmd | KeyCode.Tab],
-			mac: {
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_P,
-				secondary: [KeyMod.WinCtrl | KeyCode.Tab]
+				primary: KeyMod.WinCtrl | KeyCode.Tab,
+				secondary: [KeyMod.WinCtrl | KeyCode.KEY_Q, KeyMod.CtrlCmd | KeyCode.KEY_P]
+			},
+			linux: {
+				primary: KeyMod.CtrlCmd | KeyCode.Tab,
+				secondary: [KeyMod.CtrlCmd | KeyCode.KEY_E, KeyMod.CtrlCmd | KeyCode.KEY_P]
 			}
 		};
 	}
+
+	return {
+		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab,
+		secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Q, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_E, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_P],
+		mac: {
+			primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Tab,
+			secondary: [KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_Q, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_P]
+		},
+		linux: {
+			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab,
+			secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_E, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_P]
+		}
+	};
 }
 
 const registry = <IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions);
 
 registry.registerWorkbenchAction(new SyncActionDescriptor(GlobalQuickOpenAction, GlobalQuickOpenAction.ID, GlobalQuickOpenAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_P, secondary: [KeyMod.CtrlCmd | KeyCode.KEY_E], mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_P, secondary: null } }), 'Go to File...');
-registry.registerWorkbenchAction(new SyncActionDescriptor(QuickOpenNavigateNextAction, QuickOpenNavigateNextAction.ID, QuickOpenNavigateNextAction.LABEL, navigateKeybinding(false), condition), 'Navigate Next in Quick Open');
-registry.registerWorkbenchAction(new SyncActionDescriptor(QuickOpenNavigatePreviousAction, QuickOpenNavigatePreviousAction.ID, QuickOpenNavigatePreviousAction.LABEL, navigateKeybinding(true), condition, KeybindingsRegistry.WEIGHT.workbenchContrib(50)), 'Navigate Previous in Quick Open');
+registry.registerWorkbenchAction(new SyncActionDescriptor(QuickOpenNavigateNextAction, QuickOpenNavigateNextAction.ID, QuickOpenNavigateNextAction.LABEL, navigateKeybinding(false), inQuickOpenContext, KeybindingsRegistry.WEIGHT.workbenchContrib(50)), 'Navigate Next in Quick Open');
+registry.registerWorkbenchAction(new SyncActionDescriptor(QuickOpenNavigatePreviousAction, QuickOpenNavigatePreviousAction.ID, QuickOpenNavigatePreviousAction.LABEL, navigateKeybinding(true), inQuickOpenContext, KeybindingsRegistry.WEIGHT.workbenchContrib(50)), 'Navigate Previous in Quick Open');
+registry.registerWorkbenchAction(new SyncActionDescriptor(QuickOpenSelectNextAction, QuickOpenSelectNextAction.ID, QuickOpenSelectNextAction.LABEL, { primary: null, mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_N } }, inQuickOpenContext, KeybindingsRegistry.WEIGHT.workbenchContrib(50)), 'Select Next in Quick Open');
+registry.registerWorkbenchAction(new SyncActionDescriptor(QuickOpenSelectPreviousAction, QuickOpenSelectPreviousAction.ID, QuickOpenSelectPreviousAction.LABEL, { primary: null, mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_P } }, inQuickOpenContext, KeybindingsRegistry.WEIGHT.workbenchContrib(50)), 'Select Previous in Quick Open');
 registry.registerWorkbenchAction(new SyncActionDescriptor(RemoveFromEditorHistoryAction, RemoveFromEditorHistoryAction.ID, RemoveFromEditorHistoryAction.LABEL), 'Remove From History');

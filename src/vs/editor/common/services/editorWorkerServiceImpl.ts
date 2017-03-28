@@ -11,11 +11,13 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { SimpleWorkerClient, logOnceWebWorkerWarning } from 'vs/base/common/worker/simpleWorker';
 import { DefaultWorkerFactory } from 'vs/base/worker/defaultWorkerFactory';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { IInplaceReplaceSupportResult, ILink, ISuggestResult, LinkProviderRegistry, LinkProvider } from 'vs/editor/common/modes';
+import * as modes from 'vs/editor/common/modes';
+import { Position } from 'vs/editor/common/core/position';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { EditorSimpleWorkerImpl } from 'vs/editor/common/services/editorSimpleWorker';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 /**
  * Stop syncing a model to the worker if it was not needed for 1 min.
@@ -30,23 +32,28 @@ const STOP_WORKER_DELTA_TIME_MS = 5 * 60 * 1000;
 export class EditorWorkerServiceImpl implements IEditorWorkerService {
 	public _serviceBrand: any;
 
-	private _workerManager: WorkerManager;
-	private _registration: IDisposable;
+	private readonly _workerManager: WorkerManager;
+	private readonly _registrations: IDisposable[];
 
-	constructor( @IModelService modelService: IModelService) {
+	constructor(
+		@IModelService modelService: IModelService,
+		@IConfigurationService configurationService: IConfigurationService
+	) {
 		this._workerManager = new WorkerManager(modelService);
 
 		// todo@joh make sure this happens only once
-		this._registration = LinkProviderRegistry.register('*', <LinkProvider>{
+		const linkProvider = modes.LinkProviderRegistry.register('*', <modes.LinkProvider>{
 			provideLinks: (model, token) => {
 				return wireCancellationToken(token, this._workerManager.withWorker().then(client => client.computeLinks(model.uri)));
 			}
 		});
+		const completionProvider = modes.SuggestRegistry.register('*', new WordBasedCompletionItemProvider(this._workerManager, configurationService));
+		this._registrations = [linkProvider, completionProvider];
 	}
 
 	public dispose(): void {
 		this._workerManager.dispose();
-		this._registration.dispose();
+		dispose(this._registrations);
 	}
 
 	public computeDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): TPromise<editorCommon.ILineChange[]> {
@@ -57,14 +64,37 @@ export class EditorWorkerServiceImpl implements IEditorWorkerService {
 		return this._workerManager.withWorker().then(client => client.computeDirtyDiff(original, modified, ignoreTrimWhitespace));
 	}
 
-	public textualSuggest(resource: URI, position: editorCommon.IPosition): TPromise<ISuggestResult> {
-		return this._workerManager.withWorker().then(client => client.textualSuggest(resource, position));
+	public computeMoreMinimalEdits(resource: URI, edits: editorCommon.ISingleEditOperation[], ranges: editorCommon.IRange[]): TPromise<editorCommon.ISingleEditOperation[]> {
+		if (!Array.isArray(edits) || edits.length === 0) {
+			return TPromise.as(edits);
+		} else {
+			return this._workerManager.withWorker().then(client => client.computeMoreMinimalEdits(resource, edits, ranges));
+		}
 	}
 
-	public navigateValueSet(resource: URI, range: editorCommon.IRange, up: boolean): TPromise<IInplaceReplaceSupportResult> {
+	public navigateValueSet(resource: URI, range: editorCommon.IRange, up: boolean): TPromise<modes.IInplaceReplaceSupportResult> {
 		return this._workerManager.withWorker().then(client => client.navigateValueSet(resource, range, up));
 	}
+}
 
+class WordBasedCompletionItemProvider implements modes.ISuggestSupport {
+
+	private readonly _workerManager: WorkerManager;
+	private readonly _configurationService: IConfigurationService;
+
+	constructor(workerManager: WorkerManager, configurationService: IConfigurationService) {
+		this._workerManager = workerManager;
+		this._configurationService = configurationService;
+	}
+
+	provideCompletionItems(model: editorCommon.IModel, position: Position): TPromise<modes.ISuggestResult> {
+
+		const { wordBasedSuggestions } = this._configurationService.getConfiguration<editorCommon.IEditorOptions>('editor');
+		if (!wordBasedSuggestions) {
+			return undefined;
+		}
+		return this._workerManager.withWorker().then(client => client.textualSuggest(model.uri, position));
+	}
 }
 
 class WorkerManager extends Disposable {
@@ -79,7 +109,9 @@ class WorkerManager extends Disposable {
 		this._editorWorkerClient = null;
 
 		let stopWorkerInterval = this._register(new IntervalTimer());
-		stopWorkerInterval.cancelAndSet(() => this._checkStopWorker(), Math.round(STOP_WORKER_DELTA_TIME_MS / 2));
+		stopWorkerInterval.cancelAndSet(() => this._checkStopIdleWorker(), Math.round(STOP_WORKER_DELTA_TIME_MS / 2));
+
+		this._register(this._modelService.onModelRemoved(_ => this._checkStopEmptyWorker()));
 	}
 
 	public dispose(): void {
@@ -90,7 +122,26 @@ class WorkerManager extends Disposable {
 		super.dispose();
 	}
 
-	private _checkStopWorker(): void {
+	/**
+	 * Check if the model service has no more models and stop the worker if that is the case.
+	 */
+	private _checkStopEmptyWorker(): void {
+		if (!this._editorWorkerClient) {
+			return;
+		}
+
+		let models = this._modelService.getModels();
+		if (models.length === 0) {
+			// There are no more models => nothing possible for me to do
+			this._editorWorkerClient.dispose();
+			this._editorWorkerClient = null;
+		}
+	}
+
+	/**
+	 * Check if the worker has been idle for a while and then stop it.
+	 */
+	private _checkStopIdleWorker(): void {
 		if (!this._editorWorkerClient) {
 			return;
 		}
@@ -170,18 +221,17 @@ class EditorModelManager extends Disposable {
 	}
 
 	private _beginModelSync(resource: URI): void {
-		let modelUrl = resource.toString();
 		let model = this._modelService.getModel(resource);
 		if (!model) {
 			return;
 		}
-		if (model.isTooLargeForHavingARichMode()) {
-			return;
-		}
+
+		let modelUrl = resource.toString();
 
 		this._proxy.acceptNewModel({
 			url: model.uri.toString(),
-			value: model.toRawText(),
+			lines: model.getLinesContent(),
+			EOL: model.getEOL(),
 			versionId: model.getVersionId()
 		});
 
@@ -309,32 +359,38 @@ export class EditorWorkerClient extends Disposable {
 		});
 	}
 
-	public computeLinks(resource: URI): TPromise<ILink[]> {
+	public computeMoreMinimalEdits(resource: URI, edits: editorCommon.ISingleEditOperation[], ranges: editorCommon.IRange[]): TPromise<editorCommon.ISingleEditOperation[]> {
+		return this._withSyncedResources([resource]).then(proxy => {
+			return proxy.computeMoreMinimalEdits(resource.toString(), edits, ranges);
+		});
+	}
+
+	public computeLinks(resource: URI): TPromise<modes.ILink[]> {
 		return this._withSyncedResources([resource]).then(proxy => {
 			return proxy.computeLinks(resource.toString());
 		});
 	}
 
-	public textualSuggest(resource: URI, position: editorCommon.IPosition): TPromise<ISuggestResult> {
+	public textualSuggest(resource: URI, position: editorCommon.IPosition): TPromise<modes.ISuggestResult> {
 		return this._withSyncedResources([resource]).then(proxy => {
 			let model = this._modelService.getModel(resource);
 			if (!model) {
 				return null;
 			}
-			let wordDefRegExp = LanguageConfigurationRegistry.getWordDefinition(model.getModeId());
+			let wordDefRegExp = LanguageConfigurationRegistry.getWordDefinition(model.getLanguageIdentifier().id);
 			let wordDef = wordDefRegExp.source;
 			let wordDefFlags = (wordDefRegExp.global ? 'g' : '') + (wordDefRegExp.ignoreCase ? 'i' : '') + (wordDefRegExp.multiline ? 'm' : '');
 			return proxy.textualSuggest(resource.toString(), position, wordDef, wordDefFlags);
 		});
 	}
 
-	public navigateValueSet(resource: URI, range: editorCommon.IRange, up: boolean): TPromise<IInplaceReplaceSupportResult> {
+	public navigateValueSet(resource: URI, range: editorCommon.IRange, up: boolean): TPromise<modes.IInplaceReplaceSupportResult> {
 		return this._withSyncedResources([resource]).then(proxy => {
 			let model = this._modelService.getModel(resource);
 			if (!model) {
 				return null;
 			}
-			let wordDefRegExp = LanguageConfigurationRegistry.getWordDefinition(model.getModeId());
+			let wordDefRegExp = LanguageConfigurationRegistry.getWordDefinition(model.getLanguageIdentifier().id);
 			let wordDef = wordDefRegExp.source;
 			let wordDefFlags = (wordDefRegExp.global ? 'g' : '') + (wordDefRegExp.ignoreCase ? 'i' : '') + (wordDefRegExp.multiline ? 'm' : '');
 			return proxy.navigateValueSet(resource.toString(), range, up, wordDef, wordDefFlags);

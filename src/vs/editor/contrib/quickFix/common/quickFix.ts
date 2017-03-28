@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { illegalArgument, onUnexpectedError } from 'vs/base/common/errors';
+import { illegalArgument, onUnexpectedExternalError } from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Range } from 'vs/editor/common/core/range';
@@ -24,7 +24,7 @@ export function getCodeActions(model: IReadOnlyModel, range: Range): TPromise<Co
 				allResults.push(...result);
 			}
 		}, err => {
-			onUnexpectedError(err);
+			onUnexpectedExternalError(err);
 		});
 	});
 

@@ -9,6 +9,7 @@ import { IEventEmitter, EventEmitter } from 'vs/base/common/eventEmitter';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as Events from 'vs/base/common/events';
 import Event, { Emitter } from 'vs/base/common/event';
+import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 
 export interface IAction extends IDisposable {
 	id: string;
@@ -17,6 +18,7 @@ export interface IAction extends IDisposable {
 	class: string;
 	enabled: boolean;
 	checked: boolean;
+	radio: boolean;
 	run(event?: any): TPromise<any>;
 }
 
@@ -67,6 +69,7 @@ export interface IActionChangeEvent {
 	class?: string;
 	enabled?: boolean;
 	checked?: boolean;
+	radio?: boolean;
 }
 
 export class Action implements IAction {
@@ -78,6 +81,7 @@ export class Action implements IAction {
 	protected _cssClass: string;
 	protected _enabled: boolean;
 	protected _checked: boolean;
+	protected _radio: boolean;
 	protected _order: number;
 	protected _actionCallback: (event?: any) => TPromise<any>;
 
@@ -169,10 +173,25 @@ export class Action implements IAction {
 		this._setChecked(value);
 	}
 
+	public get radio(): boolean {
+		return this._radio;
+	}
+
+	public set radio(value: boolean) {
+		this._setRadio(value);
+	}
+
 	protected _setChecked(value: boolean): void {
 		if (this._checked !== value) {
 			this._checked = value;
 			this._onDidChange.fire({ checked: value });
+		}
+	}
+
+	protected _setRadio(value: boolean): void {
+		if (this._radio !== value) {
+			this._radio = value;
+			this._onDidChange.fire({ radio: value });
 		}
 	}
 
@@ -184,7 +203,7 @@ export class Action implements IAction {
 		this._order = value;
 	}
 
-	public run(event?: any): TPromise<any> {
+	public run(event?: any, data?: ITelemetryData): TPromise<any> {
 		if (this._actionCallback !== void 0) {
 			return this._actionCallback(event);
 		}
@@ -207,10 +226,14 @@ export class ActionRunner extends EventEmitter implements IActionRunner {
 
 		this.emit(Events.EventType.BEFORE_RUN, { action: action });
 
-		return TPromise.as(action.run(context)).then((result: any) => {
+		return this.runAction(action, context).then((result: any) => {
 			this.emit(Events.EventType.RUN, <IRunEvent>{ action: action, result: result });
 		}, (error: any) => {
 			this.emit(Events.EventType.RUN, <IRunEvent>{ action: action, error: error });
 		});
+	}
+
+	protected runAction(action: IAction, context?: any): TPromise<any> {
+		return TPromise.as(action.run(context));
 	}
 }

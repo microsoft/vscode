@@ -29,28 +29,3 @@
 	-webkit-app-region: drag;
 	zoom: 1; /* prevent zooming */
 }
-
-/* Theming */
-
-.vs .monaco-workbench > .part.titlebar {
-	background: #ddd;
-	color: #333333;
-}
-
-.vs .monaco-workbench > .part.titlebar.blurred {
-	opacity: 0.6;
-}
-
-.vs-dark .monaco-workbench > .part.titlebar {
-	background: #3c3c3c;
-	color: #ccc;
-}
-
-.vs-dark .monaco-workbench > .part.titlebar.blurred > .window-title {
-	opacity: 0.6;
-}
-
-.hc-black .monaco-workbench > .part.titlebar {
-	background: #000;
-	color: white;
-}

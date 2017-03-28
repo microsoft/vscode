@@ -9,7 +9,7 @@ import * as strings from 'vs/base/common/strings';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as collections from 'vs/base/common/collections';
-import { Marker, Placeholder, Text, SnippetParser } from 'vs/editor/contrib/snippet/common/snippetParser';
+import { Marker, Variable, Placeholder, Text, SnippetParser } from 'vs/editor/contrib/snippet/common/snippetParser';
 
 export interface IIndentationNormalizer {
 	normalizeIndentation(str: string): string;
@@ -27,11 +27,16 @@ export interface ICodeSnippet {
 	finishPlaceHolderIndex: number;
 }
 
+export interface ISnippetVariableResolver {
+	resolve(name: string): string;
+}
+
 export class CodeSnippet implements ICodeSnippet {
 
-	static fromTextmate(template: string): CodeSnippet {
+	static fromTextmate(template: string, variableResolver?: ISnippetVariableResolver): CodeSnippet {
 		const marker = new SnippetParser(true, false).parse(template);
 		const snippet = new CodeSnippet();
+		_resolveSnippetVariables(marker, variableResolver);
 		_fillCodeSnippetFromMarker(snippet, marker);
 		return snippet;
 	}
@@ -43,7 +48,7 @@ export class CodeSnippet implements ICodeSnippet {
 		return snippet;
 	}
 
-	static plain(template: string): CodeSnippet {
+	static none(template: string): CodeSnippet {
 		const snippet = new CodeSnippet();
 		snippet.lines = template.split(/\r\n|\n|\r/);
 		return snippet;
@@ -117,15 +122,15 @@ export class CodeSnippet implements ICodeSnippet {
 
 			for (let {startLineNumber, startColumn, endLineNumber, endColumn} of originalPlaceHolder.occurences) {
 
-				if (startColumn > 1) {
-					// placeholders that aren't at the beginning of the snippet line
+				if (startColumn > 1 || startLineNumber === 1) {
+					// placeholders that aren't at the beginning of new snippet lines
 					// will be moved by how many characters the indentation has been
 					// adjusted
 					startColumn = startColumn + deltaColumns[startLineNumber];
 					endColumn = endColumn + deltaColumns[endLineNumber];
 
 				} else {
-					// placeholders at the beginning of the snippet line
+					// placeholders at the beginning of new snippet lines
 					// will be indented by the reference indentation
 					startColumn += referenceIndentation.length;
 					endColumn += referenceIndentation.length;
@@ -135,7 +140,7 @@ export class CodeSnippet implements ICodeSnippet {
 					startLineNumber: startLineNumber + deltaLine,
 					startColumn,
 					endLineNumber: endLineNumber + deltaLine,
-					endColumn
+					endColumn,
 				});
 			}
 
@@ -193,7 +198,7 @@ const InternalFormatSnippetParser = new class implements ISnippetParser {
 
 		for (i = 0, len = templateLines.length; i < len; i++) {
 			var parsedLine = this.parseLine(templateLines[i], (id: string) => {
-				if (collections.contains(placeHoldersMap, id)) {
+				if (placeHoldersMap[id]) {
 					return placeHoldersMap[id].value;
 				}
 				return '';
@@ -203,7 +208,7 @@ const InternalFormatSnippetParser = new class implements ISnippetParser {
 				var occurence = new Range(i + 1, linePlaceHolder.startColumn, i + 1, linePlaceHolder.endColumn);
 				var placeHolder: IPlaceHolder;
 
-				if (collections.contains(placeHoldersMap, linePlaceHolder.id)) {
+				if (placeHoldersMap[linePlaceHolder.id]) {
 					placeHolder = placeHoldersMap[linePlaceHolder.id];
 				} else {
 					placeHolder = {
@@ -465,9 +470,41 @@ function _convertExternalSnippet(snippet: string, snippetType: ExternalSnippetTy
 	return convertedSnippet;
 };
 
+
+function _resolveSnippetVariables(marker: Marker[], resolver: ISnippetVariableResolver) {
+	if (resolver) {
+		const stack = [...marker];
+
+		while (stack.length > 0) {
+			const marker = stack.shift();
+			if (marker instanceof Variable) {
+
+				try {
+					marker.resolvedValue = resolver.resolve(marker.name);
+				} catch (e) {
+					//
+				}
+				if (marker.isDefined) {
+					continue;
+				}
+			}
+
+			if (marker instanceof Variable || marker instanceof Placeholder) {
+				// 'recurse'
+				stack.unshift(...marker.defaultValue);
+			}
+		}
+	}
+}
+
+function _isFinishPlaceHolder(v: IPlaceHolder) {
+	return (v.id === '' && v.value === '') || v.id === '0';
+}
+
 function _fillCodeSnippetFromMarker(snippet: CodeSnippet, marker: Marker[]) {
 
 	let placeHolders: { [id: string]: IPlaceHolder } = Object.create(null);
+	let hasFinishPlaceHolder = false;
 
 	const stack = [...marker];
 	snippet.lines = [''];
@@ -480,16 +517,17 @@ function _fillCodeSnippetFromMarker(snippet: CodeSnippet, marker: Marker[]) {
 			snippet.lines.push(...lines);
 
 		} else if (marker instanceof Placeholder) {
-			// TODO - not every variable is a placeholder
+
 			let placeHolder = placeHolders[marker.name];
 			if (!placeHolder) {
 				placeHolders[marker.name] = placeHolder = {
 					id: marker.name,
-					value: Marker.toString(marker.value),
+					value: Marker.toString(marker.defaultValue),
 					occurences: []
 				};
 				snippet.placeHolders.push(placeHolder);
 			}
+			hasFinishPlaceHolder = hasFinishPlaceHolder || _isFinishPlaceHolder(placeHolder);
 
 			const line = snippet.lines.length;
 			const column = snippet.lines[line - 1].length + 1;
@@ -498,17 +536,33 @@ function _fillCodeSnippetFromMarker(snippet: CodeSnippet, marker: Marker[]) {
 				startLineNumber: line,
 				startColumn: column,
 				endLineNumber: line,
-				endColumn: column + Marker.toString(marker.value).length // TODO multiline placeholders!
+				endColumn: column + Marker.toString(marker.defaultValue).length // TODO multiline placeholders!
 			});
 
-			if (marker.value.length === 0 && marker.isVariable) {
-				// HACK this is here because we falsy advertise
-				// ${foo} as placeholder in our own snippets
-				stack.unshift(new Text(marker.name));
+			stack.unshift(...marker.defaultValue);
+
+		} else if (marker instanceof Variable) {
+
+			if (!marker.isDefined) {
+				// contine as placeholder
+				// THIS is because of us having falsy
+				// advertised ${foo} as placeholder syntax
+				stack.unshift(new Placeholder(marker.name, marker.defaultValue.length === 0
+					? [new Text(marker.name)]
+					: marker.defaultValue));
+
+			} else if (marker.resolvedValue) {
+				// contine with the value
+				stack.unshift(new Text(marker.resolvedValue));
 
 			} else {
-				stack.unshift(...marker.value);
+				// continue with default values
+				stack.unshift(...marker.defaultValue);
 			}
+		}
+
+		if (stack.length === 0 && !hasFinishPlaceHolder) {
+			stack.push(new Placeholder('0', []));
 		}
 	}
 
@@ -516,12 +570,11 @@ function _fillCodeSnippetFromMarker(snippet: CodeSnippet, marker: Marker[]) {
 	// tab-stops and numeric variables (e.g. $1, $2, ${3:foo}) which are sorted in ascending order
 	snippet.placeHolders.sort((a, b) => {
 		let nonIntegerId = (v: IPlaceHolder) => !(/^\d+$/).test(v.id);
-		let isFinishPlaceHolder = (v: IPlaceHolder) => (v.id === '' && v.value === '') || v.id === '0';
 
 		// Sort finish placeholder last
-		if (isFinishPlaceHolder(a)) {
+		if (_isFinishPlaceHolder(a)) {
 			return 1;
-		} else if (isFinishPlaceHolder(b)) {
+		} else if (_isFinishPlaceHolder(b)) {
 			return -1;
 		}
 
@@ -541,11 +594,8 @@ function _fillCodeSnippetFromMarker(snippet: CodeSnippet, marker: Marker[]) {
 		return Number(a.id) < Number(b.id) ? -1 : 1;
 	});
 
-	if (snippet.placeHolders.length > 0 && snippet.placeHolders[snippet.placeHolders.length - 1].value === '') {
+	if (snippet.placeHolders.length > 0) {
 		snippet.finishPlaceHolderIndex = snippet.placeHolders.length - 1;
-
-		if (snippet.placeHolders[snippet.placeHolders.length - 1].id === '0') {
-			snippet.placeHolders[snippet.placeHolders.length - 1].id = '';
-		}
+		snippet.placeHolders[snippet.finishPlaceHolderIndex].id = '';
 	}
 }

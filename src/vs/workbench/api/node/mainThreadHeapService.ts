@@ -12,17 +12,6 @@ import { consumeSignals, GCSignal } from 'gc-signals';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
-
-declare class WeakMap<K, V> {
-	set(key: K, value?: V): WeakMap<K, V>;
-}
-
-declare class Set<E> {
-	add(e: E): this;
-	has(e: E): boolean;
-	delete(e: E): boolean;
-}
-
 export const IHeapService = createDecorator<IHeapService>('heapService');
 
 export interface IHeapService {

@@ -62,15 +62,15 @@ export abstract class EditorAction extends ConfigEditorCommand {
 	}
 
 	public runEditorCommand(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor, args: any): void | TPromise<void> {
-		this.reportTelemetry(accessor);
-		return this.run(accessor, editor);
+		this.reportTelemetry(accessor, editor);
+		return this.run(accessor, editor, args);
 	}
 
-	protected reportTelemetry(accessor: ServicesAccessor) {
-		accessor.get(ITelemetryService).publicLog('editorActionInvoked', { name: this.label, id: this.id });
+	protected reportTelemetry(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor) {
+		accessor.get(ITelemetryService).publicLog('editorActionInvoked', { name: this.label, id: this.id, ...editor.getTelemetryData() });
 	}
 
-	public abstract run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void | TPromise<void>;
+	public abstract run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor, args: any): void | TPromise<void>;
 }
 
 export interface IHandlerActionOptions extends IActionOptions {
@@ -93,6 +93,10 @@ export abstract class HandlerEditorAction extends EditorAction {
 
 export function editorAction(ctor: { new (): EditorAction; }): void {
 	CommonEditorRegistry.registerEditorAction(new ctor());
+}
+
+export function editorCommand(ctor: { new (): ConfigEditorCommand }): void {
+	CommonEditorRegistry.registerEditorCommand(new ctor());
 }
 
 export function commonEditorContribution(ctor: editorCommon.ICommonEditorContributionCtor): void {

@@ -12,11 +12,11 @@ import { IEntryRunContext, Mode, IAutoFocus } from 'vs/base/parts/quickopen/comm
 import { QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { KeyMod } from 'vs/base/common/keyCodes';
 import { QuickOpenHandler, EditorQuickOpenEntry, QuickOpenAction } from 'vs/workbench/browser/quickopen';
-import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
 import { IEditor, IModelDecorationsChangeAccessor, OverviewRulerLane, IModelDeltaDecoration, IRange, IEditorViewState, ITextModel, IDiffEditorModel } from 'vs/editor/common/editorCommon';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Position, IEditorInput, ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
+import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
+import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 
 export const GOTO_LINE_PREFIX = ':';
 
@@ -188,7 +188,7 @@ export class GotoLineHandler extends QuickOpenHandler {
 	}
 
 	public canRun(): boolean | string {
-		let canRun = this.editorService.getActiveEditor() instanceof BaseTextEditor;
+		let canRun = getCodeEditor(this.editorService.getActiveEditor()) !== null;
 
 		return canRun ? true : nls.localize('cannotRunGotoLine', "Open a text file first to go to a line");
 	}

@@ -6,7 +6,7 @@
 'use strict';
 
 import Event, { Emitter, once } from 'vs/base/common/event';
-import { IEditorRegistry, Extensions, EditorInput, getResource, IEditorStacksModel, IEditorGroup, IEditorIdentifier, IGroupEvent, GroupIdentifier, IStacksModelChangeEvent, IWorkbenchEditorConfiguration, EditorOpenPositioning } from 'vs/workbench/common/editor';
+import { IEditorRegistry, Extensions, EditorInput, toResource, IEditorStacksModel, IEditorGroup, IEditorIdentifier, IGroupEvent, GroupIdentifier, IStacksModelChangeEvent, IWorkbenchEditorConfiguration, EditorOpenPositioning, SideBySideEditorInput } from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -15,8 +15,7 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { Registry } from 'vs/platform/platform';
 import { Position, Direction } from 'vs/platform/editor/common/editor';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
+import { ResourceMap } from 'vs/base/common/map';
 
 export interface GroupEvent extends IGroupEvent {
 	editor: EditorInput;
@@ -54,7 +53,7 @@ export class EditorGroup implements IEditorGroup {
 
 	private editors: EditorInput[];
 	private mru: EditorInput[];
-	private mapResourceToEditorCount: { [resource: string]: number };
+	private mapResourceToEditorCount: ResourceMap<number>;
 
 	private preview: EditorInput; // editor in preview state
 	private active: EditorInput;  // editor in active state
@@ -84,7 +83,7 @@ export class EditorGroup implements IEditorGroup {
 		this.editors = [];
 		this.mru = [];
 		this.toDispose = [];
-		this.mapResourceToEditorCount = Object.create(null);
+		this.mapResourceToEditorCount = new ResourceMap<number>();
 		this.onConfigurationUpdated(configurationService.getConfiguration<IWorkbenchEditorConfiguration>());
 
 		this._onEditorActivated = new Emitter<EditorInput>();
@@ -198,7 +197,7 @@ export class EditorGroup implements IEditorGroup {
 
 		for (let i = 0; i < this.editors.length; i++) {
 			const editor = this.editors[i];
-			const editorResource = getResource(editor);
+			const editorResource = toResource(editor, { supportSideBySide: true });
 			if (editorResource && editorResource.toString() === resource.toString()) {
 				return editor;
 			}
@@ -484,9 +483,20 @@ export class EditorGroup implements IEditorGroup {
 		this.closeEditor(oldPreview);
 	}
 
-	public isPinned(editor: EditorInput): boolean {
-		const index = this.indexOf(editor);
-		if (index === -1) {
+	public isPinned(editor: EditorInput): boolean;
+	public isPinned(index: number): boolean;
+	public isPinned(arg1: EditorInput | number): boolean {
+		let editor: EditorInput;
+		let index: number;
+		if (typeof arg1 === 'number') {
+			editor = this.editors[arg1];
+			index = arg1;
+		} else {
+			editor = arg1;
+			index = this.indexOf(editor);
+		}
+
+		if (index === -1 || !editor) {
 			return false; // editor not found
 		}
 
@@ -544,13 +554,13 @@ export class EditorGroup implements IEditorGroup {
 	}
 
 	private updateResourceMap(editor: EditorInput, remove: boolean): void {
-		const resource = getResource(editor);
+		const resource = toResource(editor, { supportSideBySide: true });
 		if (resource) {
 
 			// It is possible to have the same resource opened twice (once as normal input and once as diff input)
 			// So we need to do ref counting on the resource to provide the correct picture
-			let counter = this.mapResourceToEditorCount[resource.toString()] || 0;
-			let newCounter;
+			let counter = this.mapResourceToEditorCount.get(resource) || 0;
+			let newCounter: number;
 			if (remove) {
 				if (counter > 1) {
 					newCounter = counter - 1;
@@ -559,7 +569,7 @@ export class EditorGroup implements IEditorGroup {
 				newCounter = counter + 1;
 			}
 
-			this.mapResourceToEditorCount[resource.toString()] = newCounter;
+			this.mapResourceToEditorCount.set(resource, newCounter);
 		}
 	}
 
@@ -584,7 +594,7 @@ export class EditorGroup implements IEditorGroup {
 			return this.indexOf(arg1) >= 0;
 		}
 
-		const counter = this.mapResourceToEditorCount[(<URI>arg1).toString()];
+		const counter = this.mapResourceToEditorCount.get(arg1);
 
 		return typeof counter === 'number' && counter > 0;
 	}
@@ -702,8 +712,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 		private restoreFromStorage: boolean,
 		@IStorageService private storageService: IStorageService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@ITelemetryService private telemetryService: ITelemetryService
+		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		this.toDispose = [];
 
@@ -729,7 +738,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.lifecycleService.onShutdown(() => this.onShutdown()));
+		this.toDispose.push(this.lifecycleService.onShutdown(reason => this.onShutdown()));
 	}
 
 	public get onGroupOpened(): Event<EditorGroup> {
@@ -936,6 +945,25 @@ export class EditorStacksModel implements IEditorStacksModel {
 		return this._groups.indexOf(group);
 	}
 
+	public findGroup(editor: EditorInput, activeOnly?: boolean): EditorGroup {
+		const groupsToCheck = (this.activeGroup ? [this.activeGroup] : []).concat(this.groups.filter(g => g !== this.activeGroup));
+
+		for (let i = 0; i < groupsToCheck.length; i++) {
+			const group = groupsToCheck[i];
+			const editorsToCheck = (group.activeEditor ? [group.activeEditor] : []).concat(group.getEditors().filter(e => e !== group.activeEditor));
+
+			for (let j = 0; j < editorsToCheck.length; j++) {
+				const editorToCheck = editorsToCheck[j];
+
+				if ((!activeOnly || group.isActive(editorToCheck)) && editor.matches(editorToCheck)) {
+					return group;
+				}
+			}
+		}
+
+		return void 0;
+	}
+
 	public positionOfGroup(group: IEditorGroup): Position;
 	public positionOfGroup(group: EditorGroup): Position;
 	public positionOfGroup(group: EditorGroup): Position {
@@ -948,7 +976,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 		return this._groups[position];
 	}
 
-	public next(): IEditorIdentifier {
+	public next(jumpGroups: boolean, cycleAtEnd = true): IEditorIdentifier {
 		this.ensureLoaded();
 
 		if (!this.activeGroup) {
@@ -962,6 +990,14 @@ export class EditorStacksModel implements IEditorStacksModel {
 			return { group: this.activeGroup, editor: this.activeGroup.getEditor(index + 1) };
 		}
 
+		// Return first if we are not jumping groups
+		if (!jumpGroups) {
+			if (!cycleAtEnd) {
+				return null;
+			}
+			return { group: this.activeGroup, editor: this.activeGroup.getEditor(0) };
+		}
+
 		// Return first in next group
 		const indexOfGroup = this.indexOf(this.activeGroup);
 		const nextGroup = this.groups[indexOfGroup + 1];
@@ -969,12 +1005,17 @@ export class EditorStacksModel implements IEditorStacksModel {
 			return { group: nextGroup, editor: nextGroup.getEditor(0) };
 		}
 
+		// Return null if we are not cycling at the end
+		if (!cycleAtEnd) {
+			return null;
+		}
+
 		// Return first in first group
 		const firstGroup = this.groups[0];
 		return { group: firstGroup, editor: firstGroup.getEditor(0) };
 	}
 
-	public previous(): IEditorIdentifier {
+	public previous(jumpGroups: boolean, cycleAtStart = true): IEditorIdentifier {
 		this.ensureLoaded();
 
 		if (!this.activeGroup) {
@@ -988,11 +1029,24 @@ export class EditorStacksModel implements IEditorStacksModel {
 			return { group: this.activeGroup, editor: this.activeGroup.getEditor(index - 1) };
 		}
 
+		// Return last if we are not jumping groups
+		if (!jumpGroups) {
+			if (!cycleAtStart) {
+				return null;
+			}
+			return { group: this.activeGroup, editor: this.activeGroup.getEditor(this.activeGroup.count - 1) };
+		}
+
 		// Return last in previous group
 		const indexOfGroup = this.indexOf(this.activeGroup);
 		const previousGroup = this.groups[indexOfGroup - 1];
 		if (previousGroup) {
 			return { group: previousGroup, editor: previousGroup.getEditor(previousGroup.count - 1) };
+		}
+
+		// Return null if we are not cycling at the start
+		if (!cycleAtStart) {
+			return null;
 		}
 
 		// Return last in last group
@@ -1101,10 +1155,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 		const unbind: IDisposable[] = [];
 		unbind.push(group.onEditorsStructureChanged(editor => this._onModelChanged.fire({ group, editor, structural: true })));
 		unbind.push(group.onEditorStateChanged(editor => this._onModelChanged.fire({ group, editor })));
-		unbind.push(group.onEditorOpened(editor => {
-			this.handleOnEditorOpened(editor);
-			this._onEditorOpened.fire({ editor, group });
-		}));
+		unbind.push(group.onEditorOpened(editor => this._onEditorOpened.fire({ editor, group })));
 		unbind.push(group.onEditorClosed(event => {
 			this.handleOnEditorClosed(event);
 			this._onEditorClosed.fire(event);
@@ -1121,10 +1172,6 @@ export class EditorStacksModel implements IEditorStacksModel {
 		return group;
 	}
 
-	private handleOnEditorOpened(editor: EditorInput): void {
-		this.telemetryService.publicLog('editorOpened', editor.getTelemetryDescriptor());
-	}
-
 	private handleOnEditorClosed(event: GroupEvent): void {
 		const editor = event.editor;
 
@@ -1132,17 +1179,15 @@ export class EditorStacksModel implements IEditorStacksModel {
 		if (!this.isOpen(editor)) {
 			editor.close();
 
-			// Also take care of diff editor inputs that wrap around 2 editors
-			if (editor instanceof DiffEditorInput) {
-				[editor.originalInput, editor.modifiedInput].forEach(editor => {
+			// Also take care of side by side editor inputs that wrap around 2 editors
+			if (editor instanceof SideBySideEditorInput) {
+				[editor.master, editor.details].forEach(editor => {
 					if (!this.isOpen(editor)) {
 						editor.close();
 					}
 				});
 			}
 		}
-
-		this.telemetryService.publicLog('editorClosed', editor.getTelemetryDescriptor());
 	}
 
 	public isOpen(resource: URI): boolean;

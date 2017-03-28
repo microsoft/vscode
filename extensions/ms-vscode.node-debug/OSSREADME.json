@@ -31,7 +31,7 @@
 {
 	"name": "debug",
 	"repositoryURL": "https://github.com/visionmedia/debug",
-	"version": "2.2.0",
+	"version": "2.3.3",
 	"license": "MIT",
 	"isProd": true
 },
@@ -52,7 +52,7 @@
 {
 	"name": "glob",
 	"repositoryURL": "https://github.com/isaacs/node-glob",
-	"version": "7.0.6",
+	"version": "7.1.1",
 	"license": "ISC",
 	"isProd": true
 },
@@ -73,7 +73,7 @@
 {
 	"name": "inflight",
 	"repositoryURL": "https://github.com/npm/inflight",
-	"version": "1.0.5",
+	"version": "1.0.6",
 	"license": "ISC",
 	"isProd": true
 },
@@ -94,7 +94,7 @@
 {
 	"name": "ms",
 	"repositoryURL": "https://github.com/rauchg/ms.js",
-	"version": "0.7.1",
+	"version": "0.7.2",
 	"license": "MIT",
 	"isProd": true
 },
@@ -108,7 +108,7 @@
 {
 	"name": "path-is-absolute",
 	"repositoryURL": "https://github.com/sindresorhus/path-is-absolute",
-	"version": "1.0.0",
+	"version": "1.0.1",
 	"license": "MIT",
 	"isProd": true
 },

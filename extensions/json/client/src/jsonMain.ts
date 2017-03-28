@@ -6,15 +6,20 @@
 
 import * as path from 'path';
 
-import { workspace, languages, ExtensionContext, extensions, Uri } from 'vscode';
+import { workspace, languages, ExtensionContext, extensions, Uri, Range } from 'vscode';
 import { LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType } from 'vscode-languageclient';
 import TelemetryReporter from 'vscode-extension-telemetry';
+import { activateColorDecorations } from "./colorDecorators";
 
 import * as nls from 'vscode-nls';
 let localize = nls.loadMessageBundle();
 
 namespace VSCodeContentRequest {
-	export const type: RequestType<string, string, any> = { get method() { return 'vscode/content'; } };
+	export const type: RequestType<string, string, any, any> = new RequestType('vscode/content');
+}
+
+namespace ColorSymbolRequest {
+	export const type: RequestType<string, Range[], any, any> = new RequestType('json/colorSymbols');
 }
 
 export interface ISchemaAssociations {
@@ -22,7 +27,7 @@ export interface ISchemaAssociations {
 }
 
 namespace SchemaAssociationNotification {
-	export const type: NotificationType<ISchemaAssociations> = { get method() { return 'json/schemaAssociations'; } };
+	export const type: NotificationType<ISchemaAssociations, any> = new NotificationType('json/schemaAssociations');
 }
 
 interface IPackageInfo {
@@ -35,39 +40,35 @@ export function activate(context: ExtensionContext) {
 
 	let packageInfo = getPackageInfo(context);
 	let telemetryReporter: TelemetryReporter = packageInfo && new TelemetryReporter(packageInfo.name, packageInfo.version, packageInfo.aiKey);
+	context.subscriptions.push(telemetryReporter);
 
-	// Resolve language ids to pass around as initialization data
-	languages.getLanguages().then(languageIds => {
+	// The server is implemented in node
+	let serverModule = context.asAbsolutePath(path.join('server', 'out', 'jsonServerMain.js'));
+	// The debug options for the server
+	let debugOptions = { execArgv: ['--nolazy', '--debug=6004'] };
 
-		// The server is implemented in node
-		let serverModule = context.asAbsolutePath(path.join('server', 'out', 'jsonServerMain.js'));
-		// The debug options for the server
-		let debugOptions = { execArgv: ['--nolazy', '--debug=6004'] };
+	// If the extension is launch in debug mode the debug server options are use
+	// Otherwise the run options are used
+	let serverOptions: ServerOptions = {
+		run: { module: serverModule, transport: TransportKind.ipc },
+		debug: { module: serverModule, transport: TransportKind.ipc, options: debugOptions }
+	};
 
-		// If the extension is launch in debug mode the debug server options are use
-		// Otherwise the run options are used
-		let serverOptions: ServerOptions = {
-			run: { module: serverModule, transport: TransportKind.ipc },
-			debug: { module: serverModule, transport: TransportKind.ipc, options: debugOptions }
-		};
+	// Options to control the language client
+	let clientOptions: LanguageClientOptions = {
+		// Register the server for json documents
+		documentSelector: ['json'],
+		synchronize: {
+			// Synchronize the setting section 'json' to the server
+			configurationSection: ['json', 'http.proxy', 'http.proxyStrictSSL'],
+			fileEvents: workspace.createFileSystemWatcher('**/*.json')
+		}
+	};
 
-		// Options to control the language client
-		let clientOptions: LanguageClientOptions = {
-			// Register the server for json documents
-			documentSelector: ['json'],
-			synchronize: {
-				// Synchronize the setting section 'json' to the server
-				configurationSection: ['json.schemas', 'http.proxy', 'http.proxyStrictSSL'],
-				fileEvents: workspace.createFileSystemWatcher('**/*.json')
-			},
-			initializationOptions: {
-				languageIds,
-				['format.enable']: workspace.getConfiguration('json').get('format.enable')
-			}
-		};
-
-		// Create the language client and start the client.
-		let client = new LanguageClient('json', localize('jsonserver.name', 'JSON Language Server'), serverOptions, clientOptions);
+	// Create the language client and start the client.
+	let client = new LanguageClient('json', localize('jsonserver.name', 'JSON Language Server'), serverOptions, clientOptions);
+	let disposable = client.start();
+	client.onReady().then(() => {
 		client.onTelemetry(e => {
 			if (telemetryReporter) {
 				telemetryReporter.sendTelemetryEvent(e.key, e.data);
@@ -84,17 +85,24 @@ export function activate(context: ExtensionContext) {
 			});
 		});
 
-		let disposable = client.start();
-
 		client.sendNotification(SchemaAssociationNotification.type, getSchemaAssociation(context));
 
-		// Push the disposable to the context's subscriptions so that the
-		// client can be deactivated on extension deactivation
+		let colorRequestor = (uri: string) => {
+			return client.sendRequest(ColorSymbolRequest.type, uri).then(ranges => ranges.map(client.protocol2CodeConverter.asRange));
+		};
+		let isDecoratorEnabled = (languageId: string) => {
+			return workspace.getConfiguration().get<boolean>(languageId + '.colorDecorators.enable');
+		};
+		disposable = activateColorDecorations(colorRequestor, { json: true }, isDecoratorEnabled);
 		context.subscriptions.push(disposable);
+	});
 
-		languages.setLanguageConfiguration('json', {
-			wordPattern: /("(?:[^\\\"]*(?:\\.)?)*"?)|[^\s{}\[\],:]+/
-		});
+	// Push the disposable to the context's subscriptions so that the
+	// client can be deactivated on extension deactivation
+	context.subscriptions.push(disposable);
+
+	languages.setLanguageConfiguration('json', {
+		wordPattern: /("(?:[^\\\"]*(?:\\.)?)*"?)|[^\s{}\[\],:]+/
 	});
 }
 
@@ -106,7 +114,7 @@ function getSchemaAssociation(context: ExtensionContext): ISchemaAssociations {
 			let jsonValidation = packageJSON.contributes.jsonValidation;
 			if (Array.isArray(jsonValidation)) {
 				jsonValidation.forEach(jv => {
-					let {fileMatch, url} = jv;
+					let { fileMatch, url } = jv;
 					if (fileMatch && url) {
 						if (url[0] === '.' && url[1] === '/') {
 							url = Uri.file(path.join(extension.extensionPath, url)).toString();

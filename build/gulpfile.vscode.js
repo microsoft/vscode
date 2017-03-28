@@ -30,7 +30,8 @@ const product = require('../product.json');
 const shrinkwrap = require('../npm-shrinkwrap.json');
 const crypto = require('crypto');
 
-const dependencies = Object.keys(shrinkwrap.dependencies);
+const dependencies = Object.keys(shrinkwrap.dependencies)
+	.concat(Array.isArray(product.extraNodeModules) ? product.extraNodeModules : []); // additional dependencies from our product configuration
 const baseModules = Object.keys(process.binding('natives')).filter(n => !/^_|\//.test(n));
 const nodeModules = ['electron', 'original-fs']
 	.concat(dependencies)
@@ -39,8 +40,8 @@ const nodeModules = ['electron', 'original-fs']
 // Build
 
 const builtInExtensions = [
-	{ name: 'ms-vscode.node-debug', version: '1.8.1' },
-	{ name: 'ms-vscode.node-debug2', version: '1.8.1' }
+	{ name: 'ms-vscode.node-debug', version: '1.11.15' },
+	{ name: 'ms-vscode.node-debug2', version: '1.11.10' }
 ];
 
 const vscodeEntryPoints = _.flatten([
@@ -56,21 +57,22 @@ const vscodeResources = [
 	'out-build/bootstrap.js',
 	'out-build/bootstrap-amd.js',
 	'out-build/paths.js',
-	'out-build/vs/**/*.{svg,png,cur}',
+	'out-build/vs/**/*.{svg,png,cur,html}',
 	'out-build/vs/base/node/{stdForkStart.js,terminateProcess.sh}',
 	'out-build/vs/base/browser/ui/octiconLabel/octicons/**',
 	'out-build/vs/workbench/browser/media/*-theme.css',
 	'out-build/vs/workbench/electron-browser/bootstrap/**',
 	'out-build/vs/workbench/parts/debug/**/*.json',
 	'out-build/vs/workbench/parts/execution/**/*.scpt',
-	'out-build/vs/workbench/parts/git/**/*.html',
 	'out-build/vs/workbench/parts/git/**/*.sh',
-	'out-build/vs/workbench/parts/html/browser/webview.html',
+	'out-build/vs/workbench/parts/html/browser/webview-pre.js',
 	'out-build/vs/**/markdown.css',
 	'out-build/vs/workbench/parts/tasks/**/*.json',
 	'out-build/vs/workbench/parts/terminal/electron-browser/terminalProcess.js',
+	'out-build/vs/workbench/parts/welcome/walkThrough/**/*.md',
 	'out-build/vs/workbench/services/files/**/*.exe',
 	'out-build/vs/workbench/services/files/**/*.md',
+	'out-build/vs/code/electron-browser/sharedProcess.js',
 	'!**/test/**'
 ];
 
@@ -90,9 +92,17 @@ gulp.task('optimize-vscode', ['clean-optimized-vscode', 'compile-build', 'compil
 	out: 'out-vscode'
 }));
 
+
+gulp.task('optimize-index-js', ['optimize-vscode'], () => {
+	const fullpath = path.join(process.cwd(), 'out-vscode/vs/workbench/electron-browser/bootstrap/index.js');
+	const contents = fs.readFileSync(fullpath).toString();
+	const newContents = contents.replace('[/*BUILD->INSERT_NODE_MODULES*/]', JSON.stringify(nodeModules));
+	fs.writeFileSync(fullpath, newContents);
+});
+
 const baseUrl = `https://ticino.blob.core.windows.net/sourcemaps/${commit}/core`;
 gulp.task('clean-minified-vscode', util.rimraf('out-vscode-min'));
-gulp.task('minify-vscode', ['clean-minified-vscode', 'optimize-vscode'], common.minifyTask('out-vscode', baseUrl));
+gulp.task('minify-vscode', ['clean-minified-vscode', 'optimize-index-js'], common.minifyTask('out-vscode', baseUrl));
 
 // Package
 const darwinCreditsTemplate = product.darwinCredits && _.template(fs.readFileSync(path.join(root, product.darwinCredits), 'utf8'));
@@ -101,7 +111,7 @@ const config = {
 	version: packageJson.electronVersion,
 	productAppName: product.nameLong,
 	companyName: 'Microsoft Corporation',
-	copyright: 'Copyright (C) 2016 Microsoft. All rights reserved',
+	copyright: 'Copyright (C) 2017 Microsoft. All rights reserved',
 	darwinIcon: 'resources/darwin/code.icns',
 	darwinBundleIdentifier: product.darwinBundleIdentifier,
 	darwinApplicationCategoryType: 'public.app-category.developer-tools',
@@ -201,6 +211,7 @@ function packageTask(platform, arch, opts) {
 			'!extensions/*/out/**/test/**',
 			'!extensions/*/test/**',
 			'!extensions/*/build/**',
+			'!extensions/**/node_modules/@types/**',
 			'!extensions/*/{client,server}/src/**',
 			'!extensions/*/{client,server}/test/**',
 			'!extensions/*/{client,server}/out/**/test/**',
@@ -257,9 +268,11 @@ function packageTask(platform, arch, opts) {
 			.pipe(util.cleanNodeModule('oniguruma', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], ['**/*.node']))
 			.pipe(util.cleanNodeModule('windows-mutex', ['binding.gyp', 'build/**', 'src/**'], ['**/*.node']))
 			.pipe(util.cleanNodeModule('native-keymap', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], ['**/*.node']))
+			.pipe(util.cleanNodeModule('jschardet', ['dist/**']))
 			.pipe(util.cleanNodeModule('windows-foreground-love', ['binding.gyp', 'build/**', 'src/**'], ['**/*.node']))
 			.pipe(util.cleanNodeModule('gc-signals', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], ['**/*.node', 'src/index.js']))
-			.pipe(util.cleanNodeModule('pty.js', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], ['build/Release/**']));
+			.pipe(util.cleanNodeModule('v8-profiler', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], ['**/*.node', 'src/index.js']))
+			.pipe(util.cleanNodeModule('node-pty', ['binding.gyp', 'build/**', 'src/**', 'tools/**'], ['build/Release/**']));
 
 		let all = es.merge(
 			packageJsonStream,
@@ -289,7 +302,6 @@ function packageTask(platform, arch, opts) {
 
 		if (platform === 'win32') {
 			result = es.merge(result, gulp.src('resources/win32/bin/code.js', { base: 'resources/win32' }));
-			result = es.merge(result, gulp.src('resources/win32/bin/cat.exe', { base: 'resources/win32' }));
 
 			result = es.merge(result, gulp.src('resources/win32/bin/code.cmd', { base: 'resources/win32' })
 				.pipe(replace('@@NAME@@', product.nameShort))

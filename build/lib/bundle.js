@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 "use strict";
-var fs = require('fs');
-var path = require('path');
-var vm = require('vm');
+var fs = require("fs");
+var path = require("path");
+var vm = require("vm");
 /**
  * Bundle `entryPoints` given config `config`.
  */
@@ -186,7 +186,7 @@ function extractStrings(destFiles) {
             path: null,
             contents: [
                 '(function() {',
-                ("var __m = " + JSON.stringify(sortedByUseModules) + ";"),
+                "var __m = " + JSON.stringify(sortedByUseModules) + ";",
                 "var __M = function(deps) {",
                 "  var result = [];",
                 "  for (var i = 0, len = deps.length; i < len; i++) {",

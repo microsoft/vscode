@@ -5,9 +5,6 @@ os:
   - linux
   - osx
 
-env:
-  - VSCODE_BUILD_VERBOSE=true
-
 notifications:
   email: false
 
@@ -22,10 +19,12 @@ addons:
       - g++-4.9-multilib
       - zip
       - libgtk2.0-0
+      - libx11-dev
+      - libxkbfile-dev
 
 before_install:
   - git submodule update --init --recursive
-  - git clone https://github.com/creationix/nvm.git ./.nvm
+  - git clone --depth 1 https://github.com/creationix/nvm.git ./.nvm
   - source ./.nvm/nvm.sh
   - nvm install 6.6.0
   - nvm use 6.6.0
@@ -41,11 +40,11 @@ install:
   - ./scripts/npm.sh install
 
 script:
-  - gulp hygiene
-  - gulp electron
-  - gulp compile
-  - gulp optimize-vscode
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then ./scripts/test.sh --coverage; else ./scripts/test.sh; fi
+  - gulp hygiene --silent
+  - gulp electron --silent
+  - gulp compile --silent --max_old_space_size=4096
+  - gulp optimize-vscode --silent --max_old_space_size=4096
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then ./scripts/test.sh --reporter dot --coverage; else ./scripts/test.sh --reporter dot; fi
   - ./scripts/test-integration.sh
 
 after_success:

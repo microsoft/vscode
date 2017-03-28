@@ -7,9 +7,57 @@
 
 import * as assert from 'assert';
 import 'vs/workbench/browser/parts/editor/editor.contribution'; // make sure to load all contributed editor things into tests
-import { TestQuickOpenService } from 'vs/test/utils/servicesTestUtils';
+import { Promise, TPromise } from 'vs/base/common/winjs.base';
+import Event from 'vs/base/common/event';
+import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { Registry } from 'vs/platform/platform';
 import { QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenAction } from 'vs/workbench/browser/quickopen';
+
+export class TestQuickOpenService implements IQuickOpenService {
+	public _serviceBrand: any;
+
+	private callback: (prefix: string) => void;
+
+	constructor(callback?: (prefix: string) => void) {
+		this.callback = callback;
+	}
+
+	pick(arg: any, options?: any, token?: any): Promise {
+		return TPromise.as(null);
+	}
+
+	input(options?: any, token?: any): Promise {
+		return TPromise.as(null);
+	}
+
+	accept(): void {
+	}
+
+	focus(): void {
+	}
+
+	close(): void {
+	}
+
+	show(prefix?: string, options?: any): Promise {
+		if (this.callback) {
+			this.callback(prefix);
+		}
+
+		return TPromise.as(true);
+	}
+
+	get onShow(): Event<void> {
+		return null;
+	}
+
+	get onHide(): Event<void> {
+		return null;
+	}
+
+	public dispose() { }
+	public navigate(): void { }
+}
 
 suite('Workbench QuickOpen', () => {
 

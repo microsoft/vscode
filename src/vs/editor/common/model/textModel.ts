@@ -14,10 +14,16 @@ import { guessIndentation } from 'vs/editor/common/model/indentationGuesser';
 import { DEFAULT_INDENTATION, DEFAULT_TRIM_AUTO_WHITESPACE } from 'vs/editor/common/config/defaultConfig';
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
 import { IndentRange, computeRanges } from 'vs/editor/common/model/indentRanges';
-import { CharCode } from 'vs/base/common/charCode';
+import { TextModelSearch, SearchParams } from 'vs/editor/common/model/textModelSearch';
+import { TextSource, ITextSource, IRawTextSource, RawTextSource } from 'vs/editor/common/model/textSource';
 
 const LIMIT_FIND_COUNT = 999;
-export const LONG_LINE_BOUNDARY = 1000;
+export const LONG_LINE_BOUNDARY = 10000;
+
+export interface ITextModelCreationData {
+	readonly text: ITextSource;
+	readonly options: editorCommon.TextModelResolvedOptions;
+}
 
 export class TextModel extends OrderGuaranteeEventEmitter implements editorCommon.ITextModel {
 	private static MODEL_SYNC_LIMIT = 5 * 1024 * 1024; // 5 MB
@@ -30,6 +36,37 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		defaultEOL: editorCommon.DefaultEndOfLine.LF,
 		trimAutoWhitespace: DEFAULT_TRIM_AUTO_WHITESPACE,
 	};
+
+	public static createFromString(text: string, options: editorCommon.ITextModelCreationOptions = TextModel.DEFAULT_CREATION_OPTIONS): TextModel {
+		return new TextModel([], RawTextSource.fromString(text), options);
+	}
+
+	public static resolveCreationData(rawTextSource: IRawTextSource, options: editorCommon.ITextModelCreationOptions): ITextModelCreationData {
+		const textSource = TextSource.fromRawTextSource(rawTextSource, options.defaultEOL);
+
+		let resolvedOpts: editorCommon.TextModelResolvedOptions;
+		if (options.detectIndentation) {
+			const guessedIndentation = guessIndentation(textSource.lines, options.tabSize, options.insertSpaces);
+			resolvedOpts = new editorCommon.TextModelResolvedOptions({
+				tabSize: guessedIndentation.tabSize,
+				insertSpaces: guessedIndentation.insertSpaces,
+				trimAutoWhitespace: options.trimAutoWhitespace,
+				defaultEOL: options.defaultEOL
+			});
+		} else {
+			resolvedOpts = new editorCommon.TextModelResolvedOptions({
+				tabSize: options.tabSize,
+				insertSpaces: options.insertSpaces,
+				trimAutoWhitespace: options.trimAutoWhitespace,
+				defaultEOL: options.defaultEOL
+			});
+		}
+
+		return {
+			text: textSource,
+			options: resolvedOpts
+		};
+	}
 
 	/*protected*/ _lines: ModelLine[];
 	protected _EOL: string;
@@ -46,19 +83,22 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 	private _alternativeVersionId: number;
 	private _BOM: string;
 	protected _mightContainRTL: boolean;
+	protected _mightContainNonBasicASCII: boolean;
 
 	private _shouldSimplifyMode: boolean;
 	private _shouldDenyMode: boolean;
 
-	constructor(allowedEventTypes: string[], rawText: editorCommon.IRawText) {
+	constructor(allowedEventTypes: string[], rawTextSource: IRawTextSource, creationOptions: editorCommon.ITextModelCreationOptions) {
 		allowedEventTypes.push(editorCommon.EventType.ModelRawContentChanged, editorCommon.EventType.ModelOptionsChanged, editorCommon.EventType.ModelContentChanged2);
 		super(allowedEventTypes);
 
-		this._shouldSimplifyMode = (rawText.length > TextModel.MODEL_SYNC_LIMIT);
-		this._shouldDenyMode = (rawText.length > TextModel.MODEL_TOKENIZATION_LIMIT);
+		const textModelData = TextModel.resolveCreationData(rawTextSource, creationOptions);
 
-		this._options = new editorCommon.TextModelResolvedOptions(rawText.options);
-		this._constructLines(rawText);
+		this._shouldSimplifyMode = (textModelData.text.length > TextModel.MODEL_SYNC_LIMIT);
+		this._shouldDenyMode = (textModelData.text.length > TextModel.MODEL_TOKENIZATION_LIMIT);
+
+		this._options = new editorCommon.TextModelResolvedOptions(textModelData.options);
+		this._constructLines(textModelData.text);
 		this._setVersionId(1);
 		this._isDisposed = false;
 		this._isDisposing = false;
@@ -189,6 +229,10 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		return this._mightContainRTL;
 	}
 
+	public mightContainNonBasicASCII(): boolean {
+		return this._mightContainNonBasicASCII;
+	}
+
 	public getAlternativeVersionId(): number {
 		this._assertNotDisposed();
 		return this._alternativeVersionId;
@@ -196,10 +240,11 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 
 	private _ensureLineStarts(): void {
 		if (!this._lineStarts) {
-			const lineStartValues: number[] = [];
 			const eolLength = this._EOL.length;
-			for (let i = 0, len = this._lines.length; i < len; i++) {
-				lineStartValues.push(this._lines[i].text.length + eolLength);
+			const linesLength = this._lines.length;
+			const lineStartValues = new Uint32Array(linesLength);
+			for (let i = 0; i < linesLength; i++) {
+				lineStartValues[i] = this._lines[i].text.length + eolLength;
 			}
 			this._lineStarts = new PrefixSumComputer(lineStartValues);
 		}
@@ -256,7 +301,6 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 	protected _createContentChangedFlushEvent(): editorCommon.IModelContentChangedFlushEvent {
 		return {
 			changeType: editorCommon.EventType.ModelRawContentChangedFlush,
-			detail: this.toRawText(),
 			versionId: this._versionId,
 			// TODO@Alex -> remove these fields from here
 			isUndoing: false,
@@ -279,24 +323,12 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		}
 	}
 
-	protected _resetValue(newValue: editorCommon.IRawText): void {
+	protected _resetValue(newValue: ITextSource): void {
 		this._constructLines(newValue);
 		this._increaseVersionId();
 	}
 
-	public toRawText(): editorCommon.IRawText {
-		this._assertNotDisposed();
-		return {
-			BOM: this._BOM,
-			EOL: this._EOL,
-			lines: this.getLinesContent(),
-			length: this.getValueLength(),
-			containsRTL: this._mightContainRTL,
-			options: this._options
-		};
-	}
-
-	public equals(other: editorCommon.IRawText): boolean {
+	public equals(other: ITextSource): boolean {
 		this._assertNotDisposed();
 		if (this._BOM !== other.BOM) {
 			return false;
@@ -321,18 +353,11 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 			// There's nothing to do
 			return;
 		}
-		let rawText: editorCommon.IRawText = null;
-		rawText = TextModel.toRawText(value, {
-			tabSize: this._options.tabSize,
-			insertSpaces: this._options.insertSpaces,
-			trimAutoWhitespace: this._options.trimAutoWhitespace,
-			detectIndentation: false,
-			defaultEOL: this._options.defaultEOL
-		});
-		this.setValueFromRawText(rawText);
+		const textSource = TextSource.fromString(value, this._options.defaultEOL);
+		this.setValueFromTextSource(textSource);
 	}
 
-	public setValueFromRawText(newValue: editorCommon.IRawText): void {
+	public setValueFromTextSource(newValue: ITextSource): void {
 		this._assertNotDisposed();
 		if (newValue === null) {
 			// There's nothing to do
@@ -742,78 +767,18 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		}
 	}
 
-	public static toRawText(rawText: string, opts: editorCommon.ITextModelCreationOptions): editorCommon.IRawText {
-		// Count the number of lines that end with \r\n
-		let carriageReturnCnt = 0;
-		let lastCarriageReturnIndex = -1;
-		while ((lastCarriageReturnIndex = rawText.indexOf('\r', lastCarriageReturnIndex + 1)) !== -1) {
-			carriageReturnCnt++;
-		}
-
-		const containsRTL = strings.containsRTL(rawText);
-
-		// Split the text into lines
-		const lines = rawText.split(/\r\n|\r|\n/);
-
-		// Remove the BOM (if present)
-		let BOM = '';
-		if (strings.startsWithUTF8BOM(lines[0])) {
-			BOM = strings.UTF8_BOM_CHARACTER;
-			lines[0] = lines[0].substr(1);
-		}
-
-		const lineFeedCnt = lines.length - 1;
-		let EOL = '';
-		if (lineFeedCnt === 0) {
-			// This is an empty file or a file with precisely one line
-			EOL = (opts.defaultEOL === editorCommon.DefaultEndOfLine.LF ? '\n' : '\r\n');
-		} else if (carriageReturnCnt > lineFeedCnt / 2) {
-			// More than half of the file contains \r\n ending lines
-			EOL = '\r\n';
-		} else {
-			// At least one line more ends in \n
-			EOL = '\n';
-		}
-
-		let resolvedOpts: editorCommon.TextModelResolvedOptions;
-		if (opts.detectIndentation) {
-			let guessedIndentation = guessIndentation(lines, opts.tabSize, opts.insertSpaces);
-			resolvedOpts = new editorCommon.TextModelResolvedOptions({
-				tabSize: guessedIndentation.tabSize,
-				insertSpaces: guessedIndentation.insertSpaces,
-				trimAutoWhitespace: opts.trimAutoWhitespace,
-				defaultEOL: opts.defaultEOL
-			});
-		} else {
-			resolvedOpts = new editorCommon.TextModelResolvedOptions({
-				tabSize: opts.tabSize,
-				insertSpaces: opts.insertSpaces,
-				trimAutoWhitespace: opts.trimAutoWhitespace,
-				defaultEOL: opts.defaultEOL
-			});
-		}
-
-		return {
-			BOM: BOM,
-			EOL: EOL,
-			lines: lines,
-			length: rawText.length,
-			containsRTL: containsRTL,
-			options: resolvedOpts
-		};
-	}
-
-	protected _constructLines(rawText: editorCommon.IRawText): void {
-		const tabSize = rawText.options.tabSize;
-		let rawLines = rawText.lines;
+	private _constructLines(textSource: ITextSource): void {
+		const tabSize = this._options.tabSize;
+		let rawLines = textSource.lines;
 		let modelLines: ModelLine[] = [];
 
 		for (let i = 0, len = rawLines.length; i < len; i++) {
 			modelLines[i] = new ModelLine(i + 1, rawLines[i], tabSize);
 		}
-		this._BOM = rawText.BOM;
-		this._mightContainRTL = rawText.containsRTL;
-		this._EOL = rawText.EOL;
+		this._BOM = textSource.BOM;
+		this._mightContainRTL = textSource.containsRTL;
+		this._mightContainNonBasicASCII = !textSource.isBasicASCII;
+		this._EOL = textSource.EOL;
 		this._lines = modelLines;
 		this._lineStarts = null;
 		this._resetIndentRanges();
@@ -831,67 +796,8 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		throw new Error('Unknown EOL preference');
 	}
 
-	private static _isMultilineRegexSource(searchString: string): boolean {
-		if (!searchString || searchString.length === 0) {
-			return false;
-		}
-
-		for (let i = 0, len = searchString.length; i < len; i++) {
-			let chCode = searchString.charCodeAt(i);
-
-			if (chCode === CharCode.Backslash) {
-
-				// move to next char
-				i++;
-
-				if (i >= len) {
-					// string ends with a \
-					break;
-				}
-
-				let nextChCode = searchString.charCodeAt(i);
-				if (nextChCode === CharCode.n || nextChCode === CharCode.r) {
-					return true;
-				}
-			}
-		}
-
-		return false;
-	}
-
-	public static parseSearchRequest(searchString: string, isRegex: boolean, matchCase: boolean, wholeWord: boolean): RegExp {
-		if (searchString === '') {
-			return null;
-		}
-
-		// Try to create a RegExp out of the params
-		let multiline: boolean;
-		if (isRegex) {
-			multiline = TextModel._isMultilineRegexSource(searchString);
-		} else {
-			multiline = (searchString.indexOf('\n') >= 0);
-		}
-
-		let regex: RegExp = null;
-		try {
-			regex = strings.createRegExp(searchString, isRegex, { matchCase, wholeWord, multiline, global: true });
-		} catch (err) {
-			return null;
-		}
-
-		if (!regex) {
-			return null;
-		}
-
-		return regex;
-	}
-
-	public findMatches(searchString: string, rawSearchScope: any, isRegex: boolean, matchCase: boolean, wholeWord: boolean, limitResultCount: number = LIMIT_FIND_COUNT): Range[] {
+	public findMatches(searchString: string, rawSearchScope: any, isRegex: boolean, matchCase: boolean, wholeWord: boolean, captureMatches: boolean, limitResultCount: number = LIMIT_FIND_COUNT): editorCommon.FindMatch[] {
 		this._assertNotDisposed();
-		let regex = TextModel.parseSearchRequest(searchString, isRegex, matchCase, wholeWord);
-		if (!regex) {
-			return [];
-		}
 
 		let searchRange: Range;
 		if (Range.isIRange(rawSearchScope)) {
@@ -900,257 +806,18 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 			searchRange = this.getFullModelRange();
 		}
 
-		if (regex.multiline) {
-			return this._doFindMatchesMultiline(searchRange, regex, limitResultCount);
-		}
-		return this._doFindMatchesLineByLine(searchRange, regex, limitResultCount);
+		return TextModelSearch.findMatches(this, new SearchParams(searchString, isRegex, matchCase, wholeWord), searchRange, captureMatches, limitResultCount);
 	}
 
-	private _doFindMatchesMultiline(searchRange: Range, searchRegex: RegExp, limitResultCount: number): Range[] {
-		let deltaOffset = this.getOffsetAt(searchRange.getStartPosition());
-		let text = this.getValueInRange(searchRange);
-
-		let result: Range[] = [];
-		let prevStartOffset = 0;
-		let prevEndOffset = 0;
-		let counter = 0;
-
-		let m: RegExpExecArray;
-		while ((m = searchRegex.exec(text))) {
-			let startOffset = deltaOffset + m.index;
-			let endOffset = startOffset + m[0].length;
-
-			if (prevStartOffset === startOffset && prevEndOffset === endOffset) {
-				// Exit early if the regex matches the same range
-				return result;
-			}
-
-			let startPosition = this.getPositionAt(startOffset);
-			let endPosition = this.getPositionAt(endOffset);
-
-			result[counter++] = new Range(startPosition.lineNumber, startPosition.column, endPosition.lineNumber, endPosition.column);
-			if (counter >= limitResultCount) {
-				return result;
-			}
-
-			prevStartOffset = startOffset;
-			prevEndOffset = endOffset;
-		}
-
-		return result;
-	}
-
-	private _doFindMatchesLineByLine(searchRange: Range, searchRegex: RegExp, limitResultCount: number): Range[] {
-		let result: Range[] = [];
-		let text: string;
-		let counter = 0;
-
-		// Early case for a search range that starts & stops on the same line number
-		if (searchRange.startLineNumber === searchRange.endLineNumber) {
-			text = this._lines[searchRange.startLineNumber - 1].text.substring(searchRange.startColumn - 1, searchRange.endColumn - 1);
-			counter = this._findMatchesInLine(searchRegex, text, searchRange.startLineNumber, searchRange.startColumn - 1, counter, result, limitResultCount);
-			return result;
-		}
-
-		// Collect results from first line
-		text = this._lines[searchRange.startLineNumber - 1].text.substring(searchRange.startColumn - 1);
-		counter = this._findMatchesInLine(searchRegex, text, searchRange.startLineNumber, searchRange.startColumn - 1, counter, result, limitResultCount);
-
-		// Collect results from middle lines
-		for (let lineNumber = searchRange.startLineNumber + 1; lineNumber < searchRange.endLineNumber && counter < limitResultCount; lineNumber++) {
-			counter = this._findMatchesInLine(searchRegex, this._lines[lineNumber - 1].text, lineNumber, 0, counter, result, limitResultCount);
-		}
-
-		// Collect results from last line
-		if (counter < limitResultCount) {
-			text = this._lines[searchRange.endLineNumber - 1].text.substring(0, searchRange.endColumn - 1);
-			counter = this._findMatchesInLine(searchRegex, text, searchRange.endLineNumber, 0, counter, result, limitResultCount);
-		}
-
-		return result;
-	}
-
-	public findNextMatch(searchString: string, rawSearchStart: editorCommon.IPosition, isRegex: boolean, matchCase: boolean, wholeWord: boolean): Range {
+	public findNextMatch(searchString: string, rawSearchStart: editorCommon.IPosition, isRegex: boolean, matchCase: boolean, wholeWord: boolean, captureMatches: boolean): editorCommon.FindMatch {
 		this._assertNotDisposed();
-		let regex = TextModel.parseSearchRequest(searchString, isRegex, matchCase, wholeWord);
-		if (!regex) {
-			return null;
-		}
-
-		let searchStart = this.validatePosition(rawSearchStart);
-		if (regex.multiline) {
-			return this._doFindNextMatchMultiline(searchStart, regex);
-		}
-		return this._doFindNextMatchLineByLine(searchStart, regex);
-
+		const searchStart = this.validatePosition(rawSearchStart);
+		return TextModelSearch.findNextMatch(this, new SearchParams(searchString, isRegex, matchCase, wholeWord), searchStart, captureMatches);
 	}
 
-	private _doFindNextMatchMultiline(searchStart: Position, searchRegex: RegExp): Range {
-		let searchTextStart: editorCommon.IPosition = { lineNumber: searchStart.lineNumber, column: 1 };
-		let deltaOffset = this.getOffsetAt(searchTextStart);
-		let text = this.getValueInRange(new Range(searchTextStart.lineNumber, searchTextStart.column, this.getLineCount(), this.getLineMaxColumn(this.getLineCount())));
-		searchRegex.lastIndex = searchStart.column - 1;
-		let m = searchRegex.exec(text);
-		if (m) {
-			let startOffset = deltaOffset + m.index;
-			let endOffset = startOffset + m[0].length;
-			let startPosition = this.getPositionAt(startOffset);
-			let endPosition = this.getPositionAt(endOffset);
-			return new Range(startPosition.lineNumber, startPosition.column, endPosition.lineNumber, endPosition.column);
-		}
-
-		if (searchStart.lineNumber !== 1 || searchStart.column !== -1) {
-			// Try again from the top
-			return this._doFindNextMatchMultiline(new Position(1, 1), searchRegex);
-		}
-
-		return null;
-	}
-
-	private _doFindNextMatchLineByLine(searchStart: Position, searchRegex: RegExp): Range {
-		let lineCount = this.getLineCount();
-		let startLineNumber = searchStart.lineNumber;
-		let text: string;
-		let r: Range;
-
-		// Look in first line
-		text = this._lines[startLineNumber - 1].text;
-		r = this._findFirstMatchInLine(searchRegex, text, startLineNumber, searchStart.column);
-		if (r) {
-			return r;
-		}
-
-		for (let i = 1; i <= lineCount; i++) {
-			let lineIndex = (startLineNumber + i - 1) % lineCount;
-			text = this._lines[lineIndex].text;
-			r = this._findFirstMatchInLine(searchRegex, text, lineIndex + 1, 1);
-			if (r) {
-				return r;
-			}
-		}
-
-		return null;
-	}
-
-	public findPreviousMatch(searchString: string, rawSearchStart: editorCommon.IPosition, isRegex: boolean, matchCase: boolean, wholeWord: boolean): Range {
+	public findPreviousMatch(searchString: string, rawSearchStart: editorCommon.IPosition, isRegex: boolean, matchCase: boolean, wholeWord: boolean, captureMatches: boolean): editorCommon.FindMatch {
 		this._assertNotDisposed();
-		let regex = TextModel.parseSearchRequest(searchString, isRegex, matchCase, wholeWord);
-		if (!regex) {
-			return null;
-		}
-
-		let searchStart = this.validatePosition(rawSearchStart);
-		if (regex.multiline) {
-			return this._doFindPreviousMatchMultiline(searchStart, regex);
-		}
-		return this._doFindPreviousMatchLineByLine(searchStart, regex);
+		const searchStart = this.validatePosition(rawSearchStart);
+		return TextModelSearch.findPreviousMatch(this, new SearchParams(searchString, isRegex, matchCase, wholeWord), searchStart, captureMatches);
 	}
-
-	private _doFindPreviousMatchMultiline(searchStart: Position, searchRegex: RegExp): Range {
-		let matches = this._doFindMatchesMultiline(new Range(1, 1, searchStart.lineNumber, searchStart.column), searchRegex, 10 * LIMIT_FIND_COUNT);
-		if (matches.length > 0) {
-			return matches[matches.length - 1];
-		}
-
-		if (searchStart.lineNumber !== this.getLineCount() || searchStart.column !== this.getLineMaxColumn(this.getLineCount())) {
-			// Try again with all content
-			return this._doFindPreviousMatchMultiline(new Position(this.getLineCount(), this.getLineMaxColumn(this.getLineCount())), searchRegex);
-		}
-
-		return null;
-	}
-
-	private _doFindPreviousMatchLineByLine(searchStart: Position, searchRegex: RegExp): Range {
-		let lineCount = this.getLineCount();
-		let startLineNumber = searchStart.lineNumber;
-		let text: string;
-		let r: Range;
-
-		// Look in first line
-		text = this._lines[startLineNumber - 1].text.substring(0, searchStart.column - 1);
-		r = this._findLastMatchInLine(searchRegex, text, startLineNumber);
-		if (r) {
-			return r;
-		}
-
-		for (var i = 1; i <= lineCount; i++) {
-			var lineIndex = (lineCount + startLineNumber - i - 1) % lineCount;
-			text = this._lines[lineIndex].text;
-			r = this._findLastMatchInLine(searchRegex, text, lineIndex + 1);
-			if (r) {
-				return r;
-			}
-		}
-
-		return null;
-	}
-
-	private _findFirstMatchInLine(searchRegex: RegExp, text: string, lineNumber: number, fromColumn: number): Range {
-		// Set regex to search from column
-		searchRegex.lastIndex = fromColumn - 1;
-		var m: RegExpExecArray = searchRegex.exec(text);
-		return m ? new Range(lineNumber, m.index + 1, lineNumber, m.index + 1 + m[0].length) : null;
-	}
-
-	private _findLastMatchInLine(searchRegex: RegExp, text: string, lineNumber: number): Range {
-		let bestResult: Range = null;
-		let m: RegExpExecArray;
-		while ((m = searchRegex.exec(text))) {
-			let result = new Range(lineNumber, m.index + 1, lineNumber, m.index + 1 + m[0].length);
-			if (result.equalsRange(bestResult)) {
-				break;
-			}
-			bestResult = result;
-			if (m.index + m[0].length === text.length) {
-				// Reached the end of the line
-				break;
-			}
-		}
-		return bestResult;
-	}
-
-	private _findMatchesInLine(searchRegex: RegExp, text: string, lineNumber: number, deltaOffset: number, counter: number, result: Range[], limitResultCount: number): number {
-		var m: RegExpExecArray;
-		// Reset regex to search from the beginning
-		searchRegex.lastIndex = 0;
-		do {
-			m = searchRegex.exec(text);
-			if (m) {
-				var range = new Range(lineNumber, m.index + 1 + deltaOffset, lineNumber, m.index + 1 + m[0].length + deltaOffset);
-				if (range.equalsRange(result[result.length - 1])) {
-					// Exit early if the regex matches the same range
-					return counter;
-				}
-				result.push(range);
-				counter++;
-				if (counter >= limitResultCount) {
-					return counter;
-				}
-				if (m.index + m[0].length === text.length) {
-					// Reached the end of the line
-					return counter;
-				}
-			}
-		} while (m);
-		return counter;
-	}
-}
-
-export class RawText {
-
-	public static fromString(rawText: string, opts: editorCommon.ITextModelCreationOptions): editorCommon.IRawText {
-		return TextModel.toRawText(rawText, opts);
-	}
-
-	public static fromStringWithModelOptions(rawText: string, model: editorCommon.IModel): editorCommon.IRawText {
-		let opts = model.getOptions();
-		return TextModel.toRawText(rawText, {
-			tabSize: opts.tabSize,
-			insertSpaces: opts.insertSpaces,
-			trimAutoWhitespace: opts.trimAutoWhitespace,
-			detectIndentation: false,
-			defaultEOL: opts.defaultEOL
-		});
-	}
-
 }

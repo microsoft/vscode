@@ -1,32 +1,15 @@
-// Type definitions for Electron v1.3.5
+// Type definitions for Electron v1.4.6
 // Project: http://electron.atom.io/
-// Definitions by: jedmao <https://github.com/jedmao/>, rhysd <https://rhysd.github.io>, Milan Burda <https://github.com/miniak/>
+// Definitions by: jedmao <https://github.com/jedmao/>, rhysd <https://rhysd.github.io>, Milan Burda <https://github.com/miniak/>, aliib <https://github.com/aliib>
 // Definitions: https://github.com/DefinitelyTyped/DefinitelyTyped
 
 /// <reference path="./node.d.ts" />
 
 declare namespace Electron {
 
-	class EventEmitter implements NodeJS.EventEmitter {
-		addListener(event: string, listener: Function): this;
-		on(event: string, listener: Function): this;
-		once(event: string, listener: Function): this;
-		removeListener(event: string, listener: Function): this;
-		removeAllListeners(event?: string): this;
-		setMaxListeners(n: number): this;
-		getMaxListeners(): number;
-		listeners(event: string): Function[];
-		emit(event: string, ...args: any[]): boolean;
-		listenerCount(type: string): number;
-	}
-
 	interface Event {
 		preventDefault: Function;
-		sender: EventEmitter;
-		shiftKey?: boolean;
-		ctrlKey?: boolean;
-		altKey?: boolean;
-		metaKey?: boolean;
+		sender: NodeJS.EventEmitter;
 	}
 
 	type Point = {
@@ -44,6 +27,17 @@ declare namespace Electron {
 		y: number;
 		width: number;
 		height: number;
+	}
+
+	interface Destroyable {
+		/**
+		 * Destroys the object.
+		 */
+		destroy(): void;
+		/**
+		 * @returns Whether the object is destroyed.
+		 */
+		isDestroyed(): boolean;
 	}
 
 	// https://github.com/electron/electron/blob/master/docs/api/app.md
@@ -66,7 +60,7 @@ declare namespace Electron {
 		/**
 		 * Emitted when Electron has finished initialization.
 		 */
-		on(event: 'ready', listener: Function): this;
+		on(event: 'ready', listener: (event: Event, launchInfo: Object) => void): this;
 		/**
 		 * Emitted when all windows have been closed.
 		 *
@@ -180,7 +174,7 @@ declare namespace Electron {
 		/**
 		 * Emitted when the gpu process crashes.
 		 */
-		on(event: 'gpu-process-crashed', listener: Function): this;
+		on(event: 'gpu-process-crashed', listener: (event: Event, killed: boolean) => void): this;
 		/**
 		 * Emitted when Chrome's accessibility support changes.
 		 *
@@ -222,6 +216,10 @@ declare namespace Electron {
 			args?: string[],
 			execPath?: string
 		}): void;
+		/**
+		 * @returns Whether Electron has finished initializing.
+		 */
+		isReady(): boolean;
 		/**
 		 * On Linux, focuses on the first visible window.
 		 * On macOS, makes the application the active app.
@@ -425,6 +423,13 @@ declare namespace Electron {
 		 * Note: This API is only available on macOS and Windows.
 		 */
 		setLoginItemSettings(settings: LoginItemSettings): void;
+		/**
+		 * Set the about panel options. This will override the values defined in the app's .plist file.
+		 * See the Apple docs for more details.
+		 *
+		 * Note: This API is only available on macOS.
+		 */
+		setAboutPanelOptions(options: AboutPanelOptions): void;
 		commandLine: CommandLine;
 		/**
 		 * Note: This API is only available on macOS.
@@ -686,6 +691,29 @@ declare namespace Electron {
 		restoreState?: boolean;
 	}
 
+	interface AboutPanelOptions {
+		/**
+		 * The app's name.
+		 */
+		applicationName?: string;
+		/**
+		 * The app's version.
+		 */
+		applicationVersion?: string;
+		/**
+		 * Copyright information.
+		 */
+		copyright?: string;
+		/**
+		 * Credit information.
+		 */
+		credits?: string;
+		/**
+		 * The app's build version number.
+		 */
+		version?: string;
+	}
+
 	// https://github.com/electron/electron/blob/master/docs/api/auto-updater.md
 
 	/**
@@ -740,7 +768,7 @@ declare namespace Electron {
 	 * The BrowserWindow class gives you ability to create a browser window.
 	 * You can also create a window without chrome by using Frameless Window API.
 	 */
-	class BrowserWindow extends EventEmitter {
+	class BrowserWindow extends NodeJS.EventEmitter implements Destroyable {
 		/**
 		 * Emitted when the document changed its title,
 		 * calling event.preventDefault() would prevent the native window’s title to change.
@@ -841,6 +869,11 @@ declare namespace Electron {
 		 * Note: This is only implemented on macOS.
 		 */
 		on(event: 'scroll-touch-end', listener: Function): this;
+		/**
+		 * Emitted when scroll wheel event phase filed upon reaching the edge of element.
+		 * Note: This is only implemented on macOS.
+		 */
+		on(event: 'scroll-touch-edge', listener: Function): this;
 		/**
 		 * Emitted on 3-finger swipe.
 		 * Note: This is only implemented on macOS.
@@ -991,6 +1024,14 @@ declare namespace Electron {
 		 */
 		setAspectRatio(aspectRatio: number, extraSize?: Size): void;
 		/**
+		 * Uses Quick Look to preview a file at a given path.
+		 *
+		 * @param path The absolute path to the file to preview with QuickLook.
+		 * @param displayName The name of the file to display on the Quick Look modal view.
+		 * Note: This API is available only on macOS.
+		 */
+		previewFile(path: string, displayName?: string): void;
+		/**
 		 * Resizes and moves the window to width, height, x, y.
 		 */
 		setBounds(options: Rectangle, animate?: boolean): void;
@@ -1099,7 +1140,7 @@ declare namespace Electron {
 		 * setting this, the window is still a normal window, not a toolbox window
 		 * which can not be focused on.
 		 */
-		setAlwaysOnTop(flag: boolean): void;
+		setAlwaysOnTop(flag: boolean, level?: WindowLevel): void;
 		/**
 		 * @returns Whether the window is always on top of other windows.
 		 */
@@ -1364,8 +1405,8 @@ declare namespace Electron {
 		getChildWindows(): BrowserWindow[];
 	}
 
+	type WindowLevel = 'normal' | 'floating' | 'torn-off-menu' | 'modal-panel' | 'main-menu' | 'status' | 'pop-up-menu' | 'screen-saver' | 'dock';
 	type SwipeDirection = 'up' | 'right' | 'down' | 'left';
-
 	type ThumbarButtonFlags = 'enabled' | 'disabled' | 'dismissonclick' | 'nobackground' | 'hidden' | 'noninteractive';
 
 	interface ThumbarButton {
@@ -1383,6 +1424,12 @@ declare namespace Electron {
 	}
 
 	interface WebPreferences {
+		/**
+		 * Whether to enable DevTools.
+		 * If it is set to false, can not use BrowserWindow.webContents.openDevTools() to open DevTools.
+		 * Default: true.
+		 */
+		devTools?: boolean;
 		/**
 		 * Whether node integration is enabled.
 		 * Default: true.
@@ -1539,6 +1586,11 @@ declare namespace Electron {
 		 * Default: false.
 		 */
 		offscreen?: boolean;
+		/**
+		 * Whether to enable Chromium OS-level sandbox.
+		 * Default: false.
+		 */
+		sandbox?: boolean;
 	}
 
 	interface BrowserWindowOptions {
@@ -1829,6 +1881,20 @@ declare namespace Electron {
 		 * Note: This API is available on macOS and Windows.
 		 */
 		writeBookmark(title: string, url: string, type?: ClipboardType): void;
+		/**
+		 * The text on the find pasteboard. This method uses synchronous IPC when called from the renderer process.
+		 * The cached value is reread from the find pasteboard whenever the application is activated.
+		 *
+		 * Note: This API is available on macOS.
+		 */
+		readFindText(): string;
+		/**
+		 * Writes the text into the find pasteboard as plain text.
+		 * This method uses synchronous IPC when called from the renderer process.
+		 *
+		 * Note: This API is available on macOS.
+		 */
+		writeFindText(text: string): void;
 	}
 
 	type ClipboardType = '' | 'selection';
@@ -1973,7 +2039,7 @@ declare namespace Electron {
 
 	interface CrashReporterStartOptions {
 		/**
-		 * Default: Electron
+		 * Default: app.getName()
 		 */
 		productName?: string;
 		companyName: string;
@@ -2393,7 +2459,7 @@ declare namespace Electron {
 		 */
 		constructor(options: MenuItemOptions);
 
-		click: (menuItem: MenuItem, browserWindow: BrowserWindow, event: Event) => void;
+		click: (menuItem: MenuItem, browserWindow: BrowserWindow, event: Event & Modifiers) => void;
 		/**
 		 * Read-only property.
 		 */
@@ -2430,7 +2496,7 @@ declare namespace Electron {
 		/**
 		 * Callback when the menu item is clicked.
 		 */
-		click?: (menuItem: MenuItem, browserWindow: BrowserWindow, event: Event) => void;
+		click?: (menuItem: MenuItem, browserWindow: BrowserWindow, event: Event & Modifiers) => void;
 		/**
 		 * Can be normal, separator, submenu, checkbox or radio.
 		 */
@@ -2533,7 +2599,7 @@ declare namespace Electron {
 	 *
 	 * Each menu consists of multiple menu items, and each menu item can have a submenu.
 	 */
-	class Menu extends EventEmitter {
+	class Menu extends NodeJS.EventEmitter {
 		/**
 		 * Creates a new menu.
 		 */
@@ -2595,6 +2661,7 @@ declare namespace Electron {
 		static createEmpty(): NativeImage;
 		/**
 		 * Creates a new NativeImage instance from file located at path.
+		 * This method returns an empty image if the path does not exist, cannot be read, or is not a valid image.
 		 */
 		static createFromPath(path: string): NativeImage;
 		/**
@@ -2627,7 +2694,7 @@ declare namespace Electron {
 		 */
 		getBitmap(): Buffer;
 		/**
-		 * @returns string The data URL of the image.
+		 * @returns The data URL of the image.
 		 */
 		toDataURL(): string;
 		/**
@@ -2637,11 +2704,11 @@ declare namespace Electron {
 		 */
 		getNativeHandle(): Buffer;
 		/**
-		 * @returns boolean Whether the image is empty.
+		 * @returns Whether the image is empty.
 		 */
 		isEmpty(): boolean;
 		/**
-		 * @returns {} The size of the image.
+		 * @returns The size of the image.
 		 */
 		getSize(): Size;
 		/**
@@ -2652,6 +2719,247 @@ declare namespace Electron {
 		 * Returns a boolean whether the image is a template image.
 		 */
 		isTemplateImage(): boolean;
+	}
+
+	// https://github.com/electron/electron/blob/master/docs/api/net.md
+
+	/**
+	 * The net module is a client-side API for issuing HTTP(S) requests.
+	 * It is similar to the HTTP and HTTPS modules of Node.js but uses Chromium’s native
+	 * networking library instead of the Node.js implementation, offering better support
+	 * for web proxies.
+	 * The following is a non-exhaustive list of why you may consider using the net module
+	 * instead of the native Node.js modules:
+	 * - Automatic management of system proxy configuration, support of the wpad protocol
+	 * and proxy pac configuration files.
+	 * - Automatic tunneling of HTTPS requests.
+	 * - Support for authenticating proxies using basic, digest, NTLM, Kerberos or negotiate
+	 * authentication schemes.
+	 * - Support for traffic monitoring proxies: Fiddler-like proxies used for access control
+	 * and monitoring.
+	 *
+	 * The net module API has been specifically designed to mimic, as closely as possible,
+	 * the familiar Node.js API. The API components including classes, methods,
+	 * properties and event names are similar to those commonly used in Node.js.
+	 *
+	 * The net API can be used only after the application emits the ready event.
+	 * Trying to use the module before the ready event will throw an error.
+	 */
+	interface Net extends NodeJS.EventEmitter {
+		/**
+		 * @param options The ClientRequest constructor options.
+		 * @param callback A one time listener for the response event.
+		 *
+		 * @returns a ClientRequest instance using the provided options which are directly
+		 * forwarded to the ClientRequest constructor.
+		 */
+		request(options: string | RequestOptions, callback?: (response: IncomingMessage) => void): ClientRequest;
+	}
+
+	/**
+	 * The RequestOptions interface allows to define various options for an HTTP request.
+	 */
+	interface RequestOptions {
+		/**
+		 * The HTTP request method. Defaults to the GET method.
+		 */
+		method?: string;
+		/**
+		 * The request URL. Must be provided in the absolute form with the protocol
+		 * scheme specified as http or https.
+		 */
+		url?: string;
+		/**
+		 * The Session instance with which the request is associated.
+		 */
+		session?: Session;
+		/**
+		 * The name of the partition with which the request is associated.
+		 * Defaults to the empty string. The session option prevails on partition.
+		 * Thus if a session is explicitly specified, partition is ignored.
+		 */
+		partition?: string;
+		/**
+		 * The protocol scheme in the form ‘scheme:’. Currently supported values are ‘http:’ or ‘https:’.
+		 * Defaults to ‘http:’.
+		 */
+		Protocol?: 'http:' | 'https:';
+		/**
+		 * The server host provided as a concatenation of the hostname and the port number ‘hostname:port’.
+		 */
+		host?: string;
+		/**
+		 * The server host name.
+		 */
+		hostname?: string;
+		/**
+		 * The server’s listening port number.
+		 */
+		port?: number;
+		/**
+		 * The path part of the request URL.
+		 */
+		path?: string;
+		/**
+		 * A map specifying extra HTTP header name/value.
+		 */
+		headers?: { [key: string]: any };
+	}
+
+	/**
+	 * The ClientRequest class represents an HTTP request.
+	 */
+	class ClientRequest extends NodeJS.EventEmitter {
+		/**
+		 * Emitted when an HTTP response is received for the request.
+		 */
+		on(event: 'response', listener: (response: IncomingMessage) => void): this;
+		/**
+		 * Emitted when an authenticating proxy is asking for user credentials.
+		 * The callback function is expected to be called back with user credentials.
+		 * Providing empty credentials will cancel the request and report an authentication
+		 * error on the response object.
+		 */
+		on(event: 'login', listener: (authInfo: LoginAuthInfo, callback: (username?: string, password?: string) => void) => void): this;
+		/**
+		 * Emitted just after the last chunk of the request’s data has been written into
+		 * the request object.
+		 */
+		on(event: 'finish', listener: () => void): this;
+		/**
+		 * Emitted when the request is aborted. The abort event will not be fired if the
+		 * request is already closed.
+		 */
+		on(event: 'abort', listener: () => void): this;
+		/**
+		 * Emitted when the net module fails to issue a network request.
+		 * Typically when the request object emits an error event, a close event will
+		 * subsequently follow and no response object will be provided.
+		 */
+		on(event: 'error', listener: (error: Error) => void): this;
+		/**
+		 * Emitted as the last event in the HTTP request-response transaction.
+		 * The close event indicates that no more events will be emitted on either the
+		 * request or response objects.
+		 */
+		on(event: 'close', listener: () => void): this;
+		on(event: string, listener: Function): this;
+		/**
+		 * A Boolean specifying whether the request will use HTTP chunked transfer encoding or not.
+		 * Defaults to false. The property is readable and writable, however it can be set only before
+		 * the first write operation as the HTTP headers are not yet put on the wire.
+		 * Trying to set the chunkedEncoding property after the first write will throw an error.
+		 *
+		 * Using chunked encoding is strongly recommended if you need to send a large request
+		 * body as data will be streamed in small chunks instead of being internally buffered
+		 * inside Electron process memory.
+		 */
+		chunkedEncoding: boolean;
+		/**
+		 * @param options If options is a String, it is interpreted as the request URL.
+		 * If it is an object, it is expected to be a RequestOptions.
+		 * @param callback A one time listener for the response event.
+		 */
+		constructor(options: string | RequestOptions, callback?: (response: IncomingMessage) => void);
+		/**
+		 * Adds an extra HTTP header. The header name will issued as it is without lowercasing.
+		 * It can be called only before first write. Calling this method after the first write
+		 * will throw an error.
+		 * @param name An extra HTTP header name.
+		 * @param value An extra HTTP header value.
+		 */
+		setHeader(name: string, value: string): void;
+		/**
+		 * @param name Specify an extra header name.
+		 * @returns The value of a previously set extra header name.
+		 */
+		getHeader(name: string): string;
+		/**
+		 * Removes a previously set extra header name. This method can be called only before first write.
+		 * Trying to call it after the first write will throw an error.
+		 * @param name Specify an extra header name.
+		 */
+		removeHeader(name: string): void;
+		/**
+		 * Adds a chunk of data to the request body. The first write operation may cause the
+		 * request headers to be issued on the wire.
+		 * After the first write operation, it is not allowed to add or remove a custom header.
+		 * @param chunk A chunk of the request body’s data. If it is a string, it is converted
+		 * into a Buffer using the specified encoding.
+		 * @param encoding Used to convert string chunks into Buffer objects. Defaults to ‘utf-8’.
+		 * @param callback Called after the write operation ends.
+		 */
+		write(chunk: string | Buffer, encoding?: string, callback?: Function): boolean;
+		/**
+		 * Sends the last chunk of the request data. Subsequent write or end operations will not be allowed.
+		 * The finish event is emitted just after the end operation.
+		 * @param chunk A chunk of the request body’s data. If it is a string, it is converted into
+		 * a Buffer using the specified encoding.
+		 * @param encoding Used to convert string chunks into Buffer objects. Defaults to ‘utf-8’.
+		 * @param callback Called after the write operation ends.
+		 *
+		 */
+		end(chunk?: string | Buffer, encoding?: string, callback?: Function): boolean;
+		/**
+		 * Cancels an ongoing HTTP transaction. If the request has already emitted the close event,
+		 * the abort operation will have no effect.
+		 * Otherwise an ongoing event will emit abort and close events.
+		 * Additionally, if there is an ongoing response object,it will emit the aborted event.
+		 */
+		abort(): void
+	}
+
+	/**
+	 * An IncomingMessage represents an HTTP response.
+	 */
+	interface IncomingMessage extends NodeJS.ReadableStream {
+		/**
+		 * The data event is the usual method of transferring response data into applicative code.
+		 */
+		on(event: 'data', listener: (chunk: Buffer) => void): this;
+		/**
+		 * Indicates that response body has ended.
+		 */
+		on(event: 'end', listener: () => void): this;
+		/**
+		 * Emitted when a request has been canceled during an ongoing HTTP transaction.
+		 */
+		on(event: 'aborted', listener: () => void): this;
+		/**
+		 * Emitted when an error was encountered while streaming response data events.
+		 * For instance, if the server closes the underlying while the response is still
+		 * streaming, an error event will be emitted on the response object and a close
+		 * event will subsequently follow on the request object.
+		 */
+		on(event: 'error', listener: (error: Error) => void): this;
+		on(event: string, listener: Function): this;
+		/**
+		 * An Integer indicating the HTTP response status code.
+		 */
+		statusCode: number;
+		/**
+		 * A String representing the HTTP status message.
+		 */
+		statusMessage: string;
+		/**
+		 * An object representing the response HTTP headers. The headers object is formatted as follows:
+		 * - All header names are lowercased.
+		 * - Each header name produces an array-valued property on the headers object.
+		 * - Each header value is pushed into the array associated with its header name.
+		 */
+		headers: Headers;
+		/**
+		 * A string indicating the HTTP protocol version number. Typical values are ‘1.0’ or ‘1.1’.
+		 */
+		httpVersion: string;
+		/**
+		 * An integer-valued read-only property that returns the HTTP major version number.
+		 */
+		httpVersionMajor: number;
+		/**
+		 * An integer-valued read-only property that returns the HTTP minor version number.
+		 */
+		httpVersionMinor: number;
 	}
 
 	// https://github.com/electron/electron/blob/master/docs/api/power-monitor.md
@@ -2689,7 +2997,7 @@ declare namespace Electron {
 	interface PowerSaveBlocker {
 		/**
 		 * Starts preventing the system from entering lower-power mode.
-		 * @returns an integer identifying the power save blocker.
+		 * @returns The blocker ID that is assigned to this power blocker.
 		 * Note: prevent-display-sleep has higher has precedence over prevent-app-suspension.
 		 */
 		start(type: 'prevent-app-suspension' | 'prevent-display-sleep'): number;
@@ -2700,7 +3008,7 @@ declare namespace Electron {
 		stop(id: number): void;
 		/**
 		 * @param id The power save blocker id returned by powerSaveBlocker.start.
-		 * @returns a boolean whether the corresponding powerSaveBlocker has started.
+		 * @returns Whether the corresponding powerSaveBlocker has started.
 		 */
 		isStarted(id: number): boolean;
 	}
@@ -2775,8 +3083,18 @@ declare namespace Electron {
 		referrer: string;
 		method: string;
 		uploadData?: {
+			/**
+			 * Content being sent.
+			 */
 			bytes: Buffer,
-			file: string
+			/**
+			 * Path of file being uploaded.
+			 */
+			file: string,
+			/**
+			 * UUID of blob data. Use session.getBlobData method to retrieve the data.
+			 */
+			blobUUID: string;
 		}[];
 	}
 
@@ -2807,7 +3125,7 @@ declare namespace Electron {
 	interface StringProtocolCallback extends ProtocolCallback {
 		(str: string): void;
 		(obj: {
-			data: Buffer,
+			data: string,
 			mimeType: string,
 			charset?: string
 		}): void;
@@ -2930,7 +3248,7 @@ declare namespace Electron {
 	 * You can also access the session of existing pages by using
 	 * the session property of webContents which is a property of BrowserWindow.
 	 */
-	class Session extends EventEmitter {
+	class Session extends NodeJS.EventEmitter {
 		/**
 		 * @returns a new Session instance from partition string.
 		 */
@@ -3023,6 +3341,10 @@ declare namespace Electron {
 		 */
 		getUserAgent(): string;
 		/**
+		 * Returns the blob data associated with the identifier.
+		 */
+		getBlobData(identifier: string, callback: (result: Buffer) => void): void;
+		/**
 		 * The webRequest API set allows to intercept and modify contents of a request at various stages of its lifetime.
 		 */
 		webRequest: WebRequest;
@@ -3060,15 +3382,15 @@ declare namespace Electron {
 		/**
 		 * The URL associated with the PAC file.
 		 */
-		pacScript: string;
+		pacScript?: string;
 		/**
 		 * Rules indicating which proxies to use.
 		 */
-		proxyRules: string;
+		proxyRules?: string;
 		/**
 		 * Rules indicating which URLs should bypass the proxy settings.
 		 */
-		proxyBypassRules: string;
+		proxyBypassRules?: string;
 	}
 
 	interface NetworkEmulationOptions {
@@ -3123,6 +3445,11 @@ declare namespace Electron {
 
 	interface Cookie {
 		/**
+		 * Emitted when a cookie is changed because it was added, edited, removed, or expired.
+		 */
+		on(event: 'changed', listener: (event: Event, cookie: Cookie, cause: CookieChangedCause) => void): this;
+		on(event: string, listener: Function): this;
+		/**
 		 * The name of the cookie.
 		 */
 		name: string;
@@ -3160,6 +3487,8 @@ declare namespace Electron {
 		 */
 		expirationDate?: number;
 	}
+
+	type CookieChangedCause = 'explicit' | 'overwrite' | 'expired' | 'evicted' | 'expired-overwrite';
 
 	interface CookieDetails {
 		/**
@@ -3323,6 +3652,10 @@ declare namespace Electron {
 			 * Path of file being uploaded.
 			 */
 			file: string;
+			/**
+			 * UUID of blob data. Use session.getBlobData method to retrieve the data.
+			 */
+			blobUUID: string;
 		}
 
 		interface BeforeRequestDetails extends Details {
@@ -3408,16 +3741,18 @@ declare namespace Electron {
 	interface Shell {
 		/**
 		 * Show the given file in a file manager. If possible, select the file.
+		 * @returns Whether the item was successfully shown.
 		 */
-		showItemInFolder(fullPath: string): void;
+		showItemInFolder(fullPath: string): boolean;
 		/**
 		 * Open the given file in the desktop's default manner.
+		 * @returns Whether the item was successfully shown.
 		 */
-		openItem(fullPath: string): void;
+		openItem(fullPath: string): boolean;
 		/**
 		 * Open the given external protocol URL in the desktop's default manner
 		 * (e.g., mailto: URLs in the default mail user agent).
-		 * @returns true if an application was available to open the URL, false otherwise.
+		 * @returns Whether an application was available to open the URL.
 		 */
 		openExternal(url: string, options?: {
 			/**
@@ -3428,7 +3763,7 @@ declare namespace Electron {
 		}): boolean;
 		/**
 		 * Move the given file to trash.
-		 * @returns boolean status for the operation.
+		 * @returns Whether the item was successfully moved to the trash.
 		 */
 		moveItemToTrash(fullPath: string): boolean;
 		/**
@@ -3495,18 +3830,69 @@ declare namespace Electron {
 
 	// https://github.com/electron/electron/blob/master/docs/api/system-preferences.md
 
+	type SystemColor =
+		'3d-dark-shadow' |            // Dark shadow for three-dimensional display elements.
+		'3d-face' |                   // Face color for three-dimensional display elements and for dialog box backgrounds.
+		'3d-highlight' |              // Highlight color for three-dimensional display elements.
+		'3d-light' |                  // Light color for three-dimensional display elements.
+		'3d-shadow' |                 // Shadow color for three-dimensional display elements.
+		'active-border' |             // Active window border.
+		'active-caption' |            // Active window title bar. Specifies the left side color in the color gradient of an active window's title bar if the gradient effect is enabled.
+		'active-caption-gradient' |   // Right side color in the color gradient of an active window's title bar.
+		'app-workspace' |             // Background color of multiple document interface (MDI) applications.
+		'button-text' |               // Text on push buttons.
+		'caption-text' |              // Text in caption, size box, and scroll bar arrow box.
+		'desktop' |                   // Desktop background color.
+		'disabled-text' |             // Grayed (disabled) text.
+		'highlight' |                 // Item(s) selected in a control.
+		'highlight-text' |            // Text of item(s) selected in a control.
+		'hotlight' |                  // Color for a hyperlink or hot-tracked item.
+		'inactive-border' |           // Inactive window border.
+		'inactive-caption' |          // Inactive window caption. Specifies the left side color in the color gradient of an inactive window's title bar if the gradient effect is enabled.
+		'inactive-caption-gradient' | // Right side color in the color gradient of an inactive window's title bar.
+		'inactive-caption-text' |     // Color of text in an inactive caption.
+		'info-background' |           // Background color for tooltip controls.
+		'info-text' |                 // Text color for tooltip controls.
+		'menu' |                      // Menu background.
+		'menu-highlight' |            // The color used to highlight menu items when the menu appears as a flat menu.
+		'menubar' |                   // The background color for the menu bar when menus appear as flat menus.
+		'menu-text' |                 // Text in menus.
+		'scrollbar' |                 // Scroll bar gray area.
+		'window' |                    // Window background.
+		'window-frame' |              // Window frame.
+		'window-text'; // Text in windows.
+
 	/**
 	 * Get system preferences.
 	 */
 	interface SystemPreferences {
 		/**
-		 * @returns If the system is in Dark Mode.
+		 * Note: This is only implemented on Windows.
+		 */
+		on(event: 'accent-color-changed', listener: (event: Event, newColor: string) => void): this;
+		/**
+		 * Note: This is only implemented on Windows.
+		 */
+		on(event: 'color-changed', listener: (event: Event) => void): this;
+		/**
+		 * Note: This is only implemented on Windows.
+		 */
+		on(event: 'inverted-color-scheme-changed', listener: (
+			event: Event,
+			/**
+			 * @param invertedColorScheme true if an inverted color scheme, such as a high contrast theme, is being used, false otherwise.
+			 */
+			invertedColorScheme: boolean
+		) => void): this;
+		on(event: string, listener: Function): this;
+		/**
+		 * @returns Whether the system is in Dark Mode.
 		 *
 		 * Note: This is only implemented on macOS.
 		 */
 		isDarkMode(): boolean;
 		/**
-		 * @returns If the Swipe between pages setting is on.
+		 * @returns Whether the Swipe between pages setting is on.
 		 *
 		 * Note: This is only implemented on macOS.
 		 */
@@ -3553,13 +3939,29 @@ declare namespace Electron {
 		 */
 		getUserDefault(key: string, type: 'string' | 'boolean' | 'integer' | 'float' | 'double' | 'url' | 'array' | 'dictionary'): any;
 		/**
-		 * This method returns true if DWM composition (Aero Glass) is enabled,
-		 * and false otherwise. You can use it to determine if you should create
-		 * a transparent window or not (transparent windows won’t work correctly when DWM composition is disabled).
+		 * @returns Whether DWM composition (Aero Glass) is enabled.
 		 *
 		 * Note: This is only implemented on Windows.
 		 */
 		isAeroGlassEnabled(): boolean;
+		/**
+		 * @returns The users current system wide color preference in the form of an RGBA hexadecimal string.
+		 *
+		 * Note: This is only implemented on Windows.
+		 */
+		getAccentColor(): string;
+		/**
+		 * @returns true if an inverted color scheme, such as a high contrast theme, is active, false otherwise.
+		 *
+		 * Note: This is only implemented on Windows.
+		 */
+		isInvertedColorScheme(): boolean;
+		/**
+		 * @returns The system color setting in RGB hexadecimal form (#ABCDEF). See the Windows docs for more details.
+		 *
+		 * Note: This is only implemented on Windows.
+		 */
+		getColor(color: SystemColor): string;
 	}
 
 	// https://github.com/electron/electron/blob/master/docs/api/tray.md
@@ -3567,7 +3969,7 @@ declare namespace Electron {
 	/**
 	 * A Tray represents an icon in an operating system's notification area.
 	 */
-	interface Tray extends NodeJS.EventEmitter {
+	class Tray extends NodeJS.EventEmitter implements Destroyable {
 		/**
 		 * Emitted when the tray icon is clicked.
 		 * Note: The bounds payload is only implemented on macOS and Windows.
@@ -3632,7 +4034,7 @@ declare namespace Electron {
 		/**
 		 * Creates a new tray icon associated with the image.
 		 */
-		new (image: NativeImage | string): Tray;
+		constructor(image: NativeImage | string);
 		/**
 		 * Destroys the tray icon immediately.
 		 */
@@ -3683,6 +4085,10 @@ declare namespace Electron {
 		 * @returns The bounds of this tray icon.
 		 */
 		getBounds(): Rectangle;
+		/**
+		 * @returns Whether the tray icon is destroyed.
+		 */
+		isDestroyed(): boolean;
 	}
 
 	interface Modifiers {
@@ -3826,7 +4232,7 @@ declare namespace Electron {
 		/**
 		 * Emitted when the renderer process has crashed.
 		 */
-		on(event: 'crashed', listener: Function): this;
+		on(event: 'crashed', listener: (event: Event, killed: boolean) => void): this;
 		/**
 		 * Emitted when a plugin process has crashed.
 		 */
@@ -3938,9 +4344,13 @@ declare namespace Electron {
 		 */
 		getTitle(): string;
 		/**
-		 * @returns The favicon of the web page.
+		 * @returns Whether the web page is destroyed.
 		 */
-		getFavicon(): NativeImage;
+		isDestroyed(): boolean;
+		/**
+		 * @returns Whether the web page is focused.
+		 */
+		isFocused(): boolean;
 		/**
 		 * @returns Whether web page is still loading resources.
 		 */
@@ -4017,8 +4427,10 @@ declare namespace Electron {
 		/**
 		 * Evaluates code in page.
 		 * @param code Code to evaluate.
+		 *
+		 * @returns Promise
 		 */
-		executeJavaScript(code: string, userGesture?: boolean, callback?: (result: any) => void): void;
+		executeJavaScript(code: string, userGesture?: boolean, callback?: (result: any) => void): Promise<any>;
 		/**
 		 * Mute the audio on the current web page.
 		 */
@@ -4242,6 +4654,10 @@ declare namespace Electron {
 		 */
 		getFrameRate(): number;
 		/**
+		 * If offscreen rendering is enabled invalidates the frame and generates a new one through the 'paint' event.
+		 */
+		invalidate(): void;
+		/**
 		 * Sets the item as dragging item for current drag-drop operation.
 		 */
 		startDrag(item: DragItem): void;
@@ -4442,7 +4858,7 @@ declare namespace Electron {
 		[key: string]: string;
 	}
 
-	type NewWindowDisposition = 'default' | 'foreground-tab' | 'background-tab' | 'new-window' | 'other';
+	type NewWindowDisposition = 'default' | 'foreground-tab' | 'background-tab' | 'new-window' | 'save-to-disk' | 'other';
 
 	/**
 	 * Specifies the action to take place when ending webContents.findInPage request.
@@ -4764,7 +5180,7 @@ declare namespace Electron {
 		 * Registers the scheme as secure, bypasses content security policy for resources,
 		 * allows registering ServiceWorker and supports fetch API.
 		 */
-		registerURLSchemeAsPrivileged(scheme: string): void;
+		registerURLSchemeAsPrivileged(scheme: string, options?: RegisterURLSchemeOptions): void;
 		/**
 		 * Inserts text to the focused element.
 		 */
@@ -4774,8 +5190,10 @@ declare namespace Electron {
 		 * In the browser window some HTML APIs like `requestFullScreen` can only be
 		 * invoked by a gesture from the user. Setting `userGesture` to `true` will remove
 		 * this limitation.
+		 *
+		 * @returns Promise
 		 */
-		executeJavaScript(code: string, userGesture?: boolean, callback?: (result: any) => void): void;
+		executeJavaScript(code: string, userGesture?: boolean, callback?: (result: any) => void): Promise<any>;
 		/**
 		 * @returns Object describing usage information of Blink’s internal memory caches.
 		 */
@@ -4802,6 +5220,14 @@ declare namespace Electron {
 		purgeableSize: number;
 		purgedSize: number;
 		size: number;
+	}
+
+	interface RegisterURLSchemeOptions {
+		secure?: boolean;
+		bypassCSP?: boolean;
+		allowServiceWorkers?: boolean;
+		supportFetchAPI?: boolean;
+		corsEnabled?: boolean;
 	}
 
 	// https://github.com/electron/electron/blob/master/docs/api/web-view-tag.md
@@ -4878,6 +5304,10 @@ declare namespace Electron {
 		 */
 		allowpopups: string;
 		/**
+		 * A list of strings which specifies the web preferences to be set on the webview, separated by ,.
+		 */
+		webpreferences: string;
+		/**
 		 * A list of strings which specifies the blink features to be enabled separated by ,.
 		 */
 		blinkfeatures: string;
@@ -4885,6 +5315,15 @@ declare namespace Electron {
 		 * A list of strings which specifies the blink features to be disabled separated by ,.
 		 */
 		disableblinkfeatures: string;
+		/**
+		 * A value that links the webview to a specific webContents.
+		 * When a webview first loads a new webContents is created and this attribute is set
+		 * to its instance identifier. Setting this attribute on a new or existing webview connects
+		 * it to the existing webContents that currently renders in a different webview.
+		 *
+		 * The existing webview will see the destroy event and will then create a new webContents when a new url is loaded.
+		 */
+		guestinstance: string;
 		/**
 		 * Loads the url in the webview, the url must contain the protocol prefix, e.g. the http:// or file://.
 		 */
@@ -4976,8 +5415,10 @@ declare namespace Electron {
 		/**
 		 * Evaluates code in page. If userGesture is set, it will create the user gesture context in the page.
 		 * HTML APIs like requestFullScreen, which require user action, can take advantage of this option for automation.
+		 *
+		 * @returns Promise
 		 */
-		executeJavaScript(code: string, userGesture?: boolean, callback?: (result: any) => void): void;
+		executeJavaScript(code: string, userGesture?: boolean, callback?: (result: any) => void): Promise<any>;
 		/**
 		 * Opens a DevTools window for guest page.
 		 */
@@ -4988,7 +5429,7 @@ declare namespace Electron {
 		closeDevTools(): void;
 		/**
 		 * @returns Whether guest page has a DevTools window attached.
-		 */
+
 		isDevToolsOpened(): boolean;
 		/**
 		 * @returns Whether DevTools window of guest page is focused.
@@ -5417,13 +5858,14 @@ declare namespace Electron {
 		globalShortcut: Electron.GlobalShortcut;
 		Menu: typeof Electron.Menu;
 		MenuItem: typeof Electron.MenuItem;
+		net: Electron.Net;
 		powerMonitor: Electron.PowerMonitor;
 		powerSaveBlocker: Electron.PowerSaveBlocker;
 		protocol: Electron.Protocol;
 		screen: Electron.Screen;
 		session: typeof Electron.Session;
 		systemPreferences: Electron.SystemPreferences;
-		Tray: Electron.Tray;
+		Tray: typeof Electron.Tray;
 		webContents: Electron.WebContentsStatic;
 	}
 
@@ -5577,12 +6019,6 @@ declare namespace NodeJS {
 declare module 'electron' {
 	var electron: Electron.ElectronMainAndRenderer;
 	export = electron;
-}
-
-declare module 'original-fs' {
-	import * as fs from 'fs';
-
-	export = fs;
 }
 
 // interface NodeRequireFunction {

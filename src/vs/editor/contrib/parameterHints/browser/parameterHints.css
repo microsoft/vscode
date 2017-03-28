@@ -14,7 +14,6 @@
 
 .monaco-editor .parameter-hints-widget > .wrapper {
 	max-width: 440px;
-	height: 100%;
 	display: flex;
 	flex-direction: column;
 }
@@ -43,7 +42,6 @@
 }
 
 .monaco-editor .parameter-hints-widget.multiple .body {
-	height: 100%;
 	border-left: 1px solid rgba(204, 204, 204, 0.5);
 }
 
@@ -56,7 +54,6 @@
 }
 
 .monaco-editor .parameter-hints-widget .docs {
-	height: 100%;
 	padding: 0 10px 0 5px;
 }
 

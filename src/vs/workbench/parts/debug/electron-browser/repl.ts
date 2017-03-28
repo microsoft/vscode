@@ -25,26 +25,28 @@ import { Position } from 'vs/editor/common/core/position';
 import * as modes from 'vs/editor/common/modes';
 import { editorAction, ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 import { IModelService } from 'vs/editor/common/services/modelService';
+import { MenuId } from 'vs/platform/actions/common/actions';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ReplExpressionsRenderer, ReplExpressionsController, ReplExpressionsDataSource, ReplExpressionsActionProvider, ReplExpressionsAccessibilityProvider } from 'vs/workbench/parts/debug/electron-browser/replViewer';
-import { ReplEditor } from 'vs/workbench/parts/debug/electron-browser/replEditor';
+import { ReplInputEditor } from 'vs/workbench/parts/debug/electron-browser/replEditor';
 import * as debug from 'vs/workbench/parts/debug/common/debug';
 import { ClearReplAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { ReplHistory } from 'vs/workbench/parts/debug/common/replHistory';
 import { Panel } from 'vs/workbench/browser/panel';
-import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
+import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { IListService } from 'vs/platform/list/browser/listService';
 
 const $ = dom.$;
 
 const replTreeOptions: ITreeOptions = {
 	twistiePixels: 20,
-	ariaLabel: nls.localize('replAriaLabel', "Read Eval Print Loop Panel")
+	ariaLabel: nls.localize('replAriaLabel', "Read Eval Print Loop Panel"),
+	keyboardSupport: false
 };
 
 const HISTORY_STORAGE_KEY = 'debug.repl.history';
@@ -71,7 +73,7 @@ export class Repl extends Panel implements IPrivateReplService {
 	private renderer: ReplExpressionsRenderer;
 	private characterWidthSurveyor: HTMLElement;
 	private treeContainer: HTMLElement;
-	private replInput: ReplEditor;
+	private replInput: ReplInputEditor;
 	private replInputContainer: HTMLElement;
 	private refreshTimeoutHandle: number;
 	private actions: IAction[];
@@ -80,16 +82,16 @@ export class Repl extends Panel implements IPrivateReplService {
 
 	constructor(
 		@debug.IDebugService private debugService: debug.IDebugService,
-		@IContextMenuService private contextMenuService: IContextMenuService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IStorageService private storageService: IStorageService,
 		@IPanelService private panelService: IPanelService,
-		@IThemeService private themeService: IThemeService,
+		@IWorkbenchThemeService protected themeService: IWorkbenchThemeService,
 		@IModelService private modelService: IModelService,
-		@IContextKeyService private contextKeyService: IContextKeyService
+		@IContextKeyService private contextKeyService: IContextKeyService,
+		@IListService private listService: IListService
 	) {
-		super(debug.REPL_ID, telemetryService);
+		super(debug.REPL_ID, telemetryService, themeService);
 
 		this.replInputHeight = Repl.REPL_INPUT_INITIAL_HEIGHT;
 		this.toDispose = [];
@@ -98,20 +100,19 @@ export class Repl extends Panel implements IPrivateReplService {
 
 	private registerListeners(): void {
 		this.toDispose.push(this.debugService.getModel().onDidChangeReplElements(() => {
-			this.onReplElementsUpdated();
+			this.refreshReplElements(this.debugService.getModel().getReplElements().length === 0);
 		}));
-		this.toDispose.push(this.themeService.onDidColorThemeChange(e => this.replInput.updateOptions(this.getReplInputOptions())));
+		this.toDispose.push(this.themeService.onDidColorThemeChange(e => this.replInput.updateOptions(this.getReplInputOptions()))); // TODO@theme this should be done from the editor itself and not from the outside
+		this.toDispose.push(this.panelService.onDidPanelOpen(panel => this.refreshReplElements(true)));
 	}
 
-	private onReplElementsUpdated(): void {
-		if (this.tree) {
+	private refreshReplElements(noDelay: boolean): void {
+		if (this.tree && this.isVisible()) {
 			if (this.refreshTimeoutHandle) {
 				return; // refresh already triggered
 			}
 
-			const elements = this.debugService.getModel().getReplElements();
-			const delay = elements.length > 0 ? Repl.REFRESH_DELAY : 0;
-
+			const delay = noDelay ? 0 : Repl.REFRESH_DELAY;
 			this.refreshTimeoutHandle = setTimeout(() => {
 				this.refreshTimeoutHandle = null;
 				const previousScrollPosition = this.tree.getScrollPosition();
@@ -139,12 +140,17 @@ export class Repl extends Panel implements IPrivateReplService {
 		this.characterWidthSurveyor.style.fontSize = isMacintosh ? '12px' : '14px';
 
 		this.renderer = this.instantiationService.createInstance(ReplExpressionsRenderer);
+		const controller = this.instantiationService.createInstance(ReplExpressionsController, new ReplExpressionsActionProvider(this.instantiationService), MenuId.DebugConsoleContext);
+		controller.toFocusOnClick = this.replInput;
+
 		this.tree = new Tree(this.treeContainer, {
-			dataSource: new ReplExpressionsDataSource(this.debugService),
+			dataSource: new ReplExpressionsDataSource(),
 			renderer: this.renderer,
 			accessibilityProvider: new ReplExpressionsAccessibilityProvider(),
-			controller: new ReplExpressionsController(this.debugService, this.contextMenuService, new ReplExpressionsActionProvider(this.instantiationService), this.replInput, false)
+			controller
 		}, replTreeOptions);
+
+		this.toDispose.push(this.listService.register(this.tree));
 
 		if (!Repl.HISTORY) {
 			Repl.HISTORY = new ReplHistory(JSON.parse(this.storageService.get(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE, '[]')));
@@ -166,7 +172,7 @@ export class Repl extends Panel implements IPrivateReplService {
 
 		const scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection(
 			[IContextKeyService, scopedContextKeyService], [IPrivateReplService, this]));
-		this.replInput = scopedInstantiationService.createInstance(ReplEditor, this.replInputContainer, this.getReplInputOptions());
+		this.replInput = scopedInstantiationService.createInstance(ReplInputEditor, this.replInputContainer, this.getReplInputOptions());
 		const model = this.modelService.createModel('', null, uri.parse(`${debug.DEBUG_SCHEME}:input`));
 		this.replInput.setModel(model);
 
@@ -177,20 +183,20 @@ export class Repl extends Panel implements IPrivateReplService {
 				const overwriteBefore = word ? word.word.length : 0;
 				const text = this.replInput.getModel().getLineContent(position.lineNumber);
 				const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
-				const completions = focusedStackFrame ? focusedStackFrame.completions(text, position, overwriteBefore) : TPromise.as([]);
+				const frameId = focusedStackFrame ? focusedStackFrame.frameId : undefined;
+				const focusedProcess = this.debugService.getViewModel().focusedProcess;
+				const completions = focusedProcess ? focusedProcess.completions(frameId, text, position, overwriteBefore) : TPromise.as([]);
 				return wireCancellationToken(token, completions.then(suggestions => ({
-					suggestions: suggestions
+					suggestions
 				})));
 			}
-		},
-			true
-		);
+		});
 
 		this.toDispose.push(this.replInput.onDidScrollChange(e => {
 			if (!e.scrollHeightChanged) {
 				return;
 			}
-			this.replInputHeight = Math.min(Repl.REPL_INPUT_MAX_HEIGHT, e.scrollHeight, this.dimension.height);
+			this.replInputHeight = Math.max(Repl.REPL_INPUT_INITIAL_HEIGHT, Math.min(Repl.REPL_INPUT_MAX_HEIGHT, e.scrollHeight, this.dimension.height));
 			this.layout(this.dimension);
 		}));
 		this.toDispose.push(this.replInput.onDidChangeCursorPosition(e => {
@@ -258,7 +264,7 @@ export class Repl extends Panel implements IPrivateReplService {
 
 	private getReplInputOptions(): IEditorOptions {
 		return {
-			wrappingColumn: 0,
+			wordWrap: 'on',
 			overviewRulerLanes: 0,
 			glyphMargin: false,
 			lineNumbers: 'off',
@@ -270,10 +276,9 @@ export class Repl extends Panel implements IPrivateReplService {
 			},
 			lineDecorationsWidth: 0,
 			scrollBeyondLastLine: false,
-			theme: this.themeService.getColorTheme(),
-			renderLineHighlight: false,
-			fixedOverflowWidgets: true,
-			acceptSuggestionOnEnter: false
+			theme: this.themeService.getColorTheme().id,
+			renderLineHighlight: 'none',
+			fixedOverflowWidgets: true
 		};
 	}
 
@@ -345,8 +350,7 @@ class AcceptReplInputAction extends EditorAction {
 			precondition: debug.CONTEXT_IN_DEBUG_REPL,
 			kbOpts: {
 				kbExpr: EditorContextKeys.TextFocus,
-				primary: KeyCode.Enter,
-				weight: 50
+				primary: KeyCode.Enter
 			}
 		});
 	}

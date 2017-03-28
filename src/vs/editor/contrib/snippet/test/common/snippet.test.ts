@@ -6,7 +6,7 @@
 
 import * as assert from 'assert';
 import { Range } from 'vs/editor/common/core/range';
-import { CodeSnippet, ICodeSnippet } from 'vs/editor/contrib/snippet/common/snippet';
+import { CodeSnippet, ICodeSnippet, ISnippetVariableResolver } from 'vs/editor/contrib/snippet/common/snippet';
 
 suite('Editor Contrib - Snippets', () => {
 
@@ -42,12 +42,12 @@ suite('Editor Contrib - Snippets', () => {
 			't2:$2, t1:$1',
 			snippet => {
 				assert.deepEqual(snippet.lines, ['t2:, t1:']);
-				assert.equal(snippet.placeHolders.length, 2);
+				assert.equal(snippet.placeHolders.length, 3);
 				assert.equal(snippet.placeHolders[0].id, '1');
 				assert.equal(snippet.placeHolders[0].value, '');
 				assert.equal(snippet.placeHolders[1].id, '2');
 				assert.equal(snippet.placeHolders[1].value, '');
-				assert.equal(snippet.finishPlaceHolderIndex, 1);
+				assert.equal(snippet.finishPlaceHolderIndex, 2);
 			});
 	});
 
@@ -58,25 +58,25 @@ suite('Editor Contrib - Snippets', () => {
 			't2:${2:second}, t3:${3:last}, t1:${1:first}',
 			snippet => {
 				assert.deepEqual(snippet.lines, ['t2:second, t3:last, t1:first']);
-				assert.equal(snippet.placeHolders.length, 3);
+				assert.equal(snippet.placeHolders.length, 4);
 				assert.equal(snippet.placeHolders[0].id, '1');
 				assert.equal(snippet.placeHolders[0].value, 'first');
 				assert.equal(snippet.placeHolders[1].id, '2');
 				assert.equal(snippet.placeHolders[1].value, 'second');
 				assert.equal(snippet.placeHolders[2].id, '3');
 				assert.equal(snippet.placeHolders[2].value, 'last');
-				assert.equal(snippet.finishPlaceHolderIndex, -1);
+				assert.equal(snippet.finishPlaceHolderIndex, 3);
 			});
 	});
 
-	test('Support tab stop order wich does not affect named variable id\'s', () => {
+	test('Support tab stop order which does not affect named variable id\'s', () => {
 
 		assertInternalAndTextmate(
 			'{{first}}-{{2:}}-{{second}}-{{1:}}',
 			'${first}-${2}-${second}-${1}',
 			snippet => {
 				assert.deepEqual(snippet.lines, ['first--second-']);
-				assert.equal(snippet.placeHolders.length, 4);
+				assert.equal(snippet.placeHolders.length, 5);
 				assert.equal(snippet.placeHolders[0].id, 'first');
 				assert.equal(snippet.placeHolders[1].id, 'second');
 				assert.equal(snippet.placeHolders[2].id, '1');
@@ -185,7 +185,8 @@ suite('Editor Contrib - Snippets', () => {
 
 		let external = '\n\\$scope.\\$broadcast(\'scroll.infiniteScrollComplete\');\n';
 		let snippet = CodeSnippet.fromTextmate(external);
-		assert.equal(snippet.placeHolders.length, 0);
+		assert.equal(snippet.placeHolders.length, 1);
+		assert.equal(snippet.finishPlaceHolderIndex, 0);
 		assert.deepEqual(snippet.lines, ['', '$scope.$broadcast(\'scroll.infiniteScrollComplete\');', '']);
 	});
 
@@ -224,7 +225,7 @@ suite('Editor Contrib - Snippets', () => {
 	});
 
 
-	test('issue #11890: Bad cursor position', () => {
+	test('issue #11890: Bad cursor position 1/2', () => {
 
 		let snippet = CodeSnippet.fromTextmate([
 			'afterEach((done) => {',
@@ -239,12 +240,112 @@ suite('Editor Contrib - Snippets', () => {
 		});
 
 		assert.equal(boundSnippet.lines[1], '  test');
-		assert.equal(boundSnippet.placeHolders.length, 2);
+		assert.equal(boundSnippet.placeHolders.length, 3);
+		assert.equal(boundSnippet.finishPlaceHolderIndex, 2);
+
 		let [first, second] = boundSnippet.placeHolders;
 		assert.equal(first.occurences.length, 1);
 		assert.equal(first.occurences[0].startColumn, 1);
 		assert.equal(second.occurences.length, 1);
 		assert.equal(second.occurences[0].startColumn, 7);
+	});
+
+	test('issue #11890: Bad cursor position 2/2', () => {
+
+		let snippet = CodeSnippet.fromTextmate('${1}\ttest');
+
+		let boundSnippet = snippet.bind('abc abc abc prefix3', 0, 12, {
+			normalizeIndentation(str: string): string {
+				return str.replace(/\t/g, '  ');
+			}
+		});
+
+		assert.equal(boundSnippet.lines[0], '\ttest');
+		assert.equal(boundSnippet.placeHolders.length, 2);
+		assert.equal(boundSnippet.finishPlaceHolderIndex, 1);
+
+		let [first, second] = boundSnippet.placeHolders;
+		assert.equal(first.occurences.length, 1);
+		assert.equal(first.occurences[0].startColumn, 13);
+		assert.equal(second.occurences.length, 1);
+		assert.equal(second.occurences[0].startColumn, 18);
+	});
+
+	test('issue #17989: Bad selection', () => {
+
+		let snippet = CodeSnippet.fromTextmate('${1:HoldMeTight}');
+
+		let boundSnippet = snippet.bind('abc abc abc prefix3', 0, 12, {
+			normalizeIndentation(str: string): string {
+				return str.replace(/\t/g, '  ');
+			}
+		});
+
+		assert.equal(boundSnippet.lines[0], 'HoldMeTight');
+		assert.equal(boundSnippet.placeHolders.length, 2);
+		assert.equal(boundSnippet.finishPlaceHolderIndex, 1);
+		let [first, second] = boundSnippet.placeHolders;
+		assert.equal(first.occurences.length, 1);
+		assert.equal(first.occurences[0].startColumn, 13);
+
+		assert.equal(second.occurences.length, 1);
+		assert.equal(second.occurences[0].startColumn, 24);
+
+	});
+
+	test('variables, simple', () => {
+
+		const resolver: ISnippetVariableResolver = {
+			resolve(name) {
+				return name.split('').reverse().join('');
+			}
+		};
+
+		// simple
+		let snippet = CodeSnippet.fromTextmate('$FOO', resolver);
+		assert.equal(snippet.lines[0], 'OOF');
+		assert.equal(snippet.placeHolders.length, 1);
+		assert.equal(snippet.placeHolders[0].occurences[0].endColumn, 4);
+
+		snippet = CodeSnippet.fromTextmate('${FOO:BAR}', resolver);
+		assert.equal(snippet.lines[0], 'OOF');
+		assert.equal(snippet.placeHolders.length, 1);
+		assert.equal(snippet.placeHolders[0].occurences[0].endColumn, 4);
+
+		// placeholder
+		snippet = CodeSnippet.fromTextmate('${1:$FOO}bar$1', resolver);
+		assert.equal(snippet.lines[0], 'OOFbarOOF');
+		assert.equal(snippet.placeHolders.length, 2);
+		assert.equal(snippet.placeHolders[0].occurences.length, 2);
+		assert.equal(snippet.placeHolders[0].occurences[0].startColumn, 1);
+		assert.equal(snippet.placeHolders[0].occurences[0].endColumn, 4);
+		assert.equal(snippet.placeHolders[0].occurences[1].startColumn, 7);
+		assert.equal(snippet.placeHolders[0].occurences[1].endColumn, 10);
+		assert.equal(snippet.placeHolders[1].occurences.length, 1);
+
+		snippet = CodeSnippet.fromTextmate('${1:${FOO:abc}}bar$1', resolver);
+		assert.equal(snippet.lines[0], 'OOFbarOOF');
+	});
+
+	test('variables, evil resolver', () => {
+
+		let snippet = CodeSnippet.fromTextmate('$FOO', { resolve(): string { throw new Error(); } });
+		assert.equal(snippet.lines[0], 'FOO');
+	});
+
+	test('variables, default', () => {
+
+		let snippet = CodeSnippet.fromTextmate('$FOO', { resolve(): string { return undefined; } });
+		assert.equal(snippet.lines[0], 'FOO');
+
+		snippet = CodeSnippet.fromTextmate('$FOO', { resolve(): string { return ''; } });
+		assert.equal(snippet.lines[0], '');
+
+		snippet = CodeSnippet.fromTextmate('${FOO:BAR}', { resolve(): string { return undefined; } });
+		assert.equal(snippet.lines[0], 'BAR');
+
+		snippet = CodeSnippet.fromTextmate('${FOO:BAR}', { resolve(): string { return ''; } });
+		assert.equal(snippet.lines[0], 'BAR');
 	});
 });
 

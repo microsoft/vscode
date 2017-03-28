@@ -5,6 +5,9 @@
 
 'use strict';
 
+import URI from 'vs/base/common/uri';
+import { Schemas } from 'vs/base/common/network';
+
 export interface Key {
 	toString(): string;
 }
@@ -52,7 +55,7 @@ export class LinkedMap<K extends Key, T> {
 	}
 
 	public keys(): K[] {
-		var keys: K[] = [];
+		const keys: K[] = [];
 		for (let key in this.map) {
 			keys.push(this.map[key].key);
 		}
@@ -60,7 +63,7 @@ export class LinkedMap<K extends Key, T> {
 	}
 
 	public values(): T[] {
-		var values: T[] = [];
+		const values: T[] = [];
 		for (let key in this.map) {
 			values.push(this.map[key].value);
 		}
@@ -68,7 +71,7 @@ export class LinkedMap<K extends Key, T> {
 	}
 
 	public entries(): Entry<K, T>[] {
-		var entries: Entry<K, T>[] = [];
+		const entries: Entry<K, T>[] = [];
 		for (let key in this.map) {
 			entries.push(this.map[key]);
 		}
@@ -299,9 +302,9 @@ export class LRUCache<T> extends BoundedLinkedMap<T> {
 
 // --- trie'ish datastructure
 
-interface Node<E> {
+class Node<E> {
 	element?: E;
-	children: { [key: string]: Node<E> };
+	readonly children = new Map<string, Node<E>>();
 }
 
 /**
@@ -310,10 +313,10 @@ interface Node<E> {
  */
 export class TrieMap<E> {
 
-	static PathSplitter = s => s.split(/[\\/]/).filter(s => !!s);
+	static PathSplitter = (s: string) => s.split(/[\\/]/).filter(s => !!s);
 
 	private _splitter: (s: string) => string[];
-	private _root: Node<E> = { children: Object.create(null) };
+	private _root = new Node<E>();
 
 	constructor(splitter: (s: string) => string[]) {
 		this._splitter = splitter;
@@ -326,7 +329,7 @@ export class TrieMap<E> {
 		// find insertion node
 		let node = this._root;
 		for (; i < parts.length; i++) {
-			let child = node.children[parts[i]];
+			let child = node.children.get(parts[i]);
 			if (child) {
 				node = child;
 				continue;
@@ -337,8 +340,8 @@ export class TrieMap<E> {
 		// create new nodes
 		let newNode: Node<E>;
 		for (; i < parts.length; i++) {
-			newNode = { children: Object.create(null) };
-			node.children[parts[i]] = newNode;
+			newNode = new Node<E>();
+			node.children.set(parts[i], newNode);
 			node = newNode;
 		}
 
@@ -348,12 +351,12 @@ export class TrieMap<E> {
 	lookUp(path: string): E {
 		const parts = this._splitter(path);
 
-		let {children} = this._root;
+		let { children } = this._root;
 		let node: Node<E>;
 		for (const part of parts) {
-			node = children[part];
+			node = children.get(part);
 			if (!node) {
-				return;
+				return undefined;
 			}
 			children = node.children;
 		}
@@ -365,9 +368,9 @@ export class TrieMap<E> {
 		const parts = this._splitter(path);
 
 		let lastNode: Node<E>;
-		let {children} = this._root;
+		let { children } = this._root;
 		for (const part of parts) {
-			const node = children[part];
+			const node = children.get(part);
 			if (!node) {
 				break;
 			}
@@ -382,17 +385,18 @@ export class TrieMap<E> {
 		if (lastNode) {
 			return lastNode.element;
 		}
+		return undefined;
 	}
 
 	findSuperstr(path: string): TrieMap<E> {
 		const parts = this._splitter(path);
 
-		let {children} = this._root;
+		let { children } = this._root;
 		let node: Node<E>;
 		for (const part of parts) {
-			node = children[part];
+			node = children.get(part);
 			if (!node) {
-				return;
+				return undefined;
 			}
 			children = node.children;
 		}
@@ -400,5 +404,64 @@ export class TrieMap<E> {
 		const result = new TrieMap<E>(this._splitter);
 		result._root = node;
 		return result;
+	}
+}
+
+export class ResourceMap<T> {
+	private map: Map<string, T>;
+
+	constructor(private ignoreCase?: boolean) {
+		this.map = new Map<string, T>();
+	}
+
+	public set(resource: URI, value: T): void {
+		this.map.set(this.toKey(resource), value);
+	}
+
+	public get(resource: URI): T {
+		return this.map.get(this.toKey(resource));
+	}
+
+	public has(resource: URI): boolean {
+		return this.map.has(this.toKey(resource));
+	}
+
+	public get size(): number {
+		return this.map.size;
+	}
+
+	public clear(): void {
+		this.map.clear();
+	}
+
+	public delete(resource: URI): boolean {
+		return this.map.delete(this.toKey(resource));
+	}
+
+	public forEach(clb: (value: T) => void): void {
+		this.map.forEach(clb);
+	}
+
+	public values(): T[] {
+		const values: T[] = [];
+		this.map.forEach(value => values.push(value));
+
+		return values;
+	}
+
+	private toKey(resource: URI): string {
+		let key: string;
+
+		if (resource.scheme === Schemas.file) {
+			key = resource.fsPath;
+		} else {
+			key = resource.toString();
+		}
+
+		if (this.ignoreCase) {
+			key = key.toLowerCase();
+		}
+
+		return key;
 	}
 }

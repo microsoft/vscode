@@ -25,6 +25,7 @@ import { HugeView } from './views/huge/hugeView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProgressService, IProgressRunner } from 'vs/platform/progress/common/progress';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 import IGitService = git.IGitService;
 
@@ -44,8 +45,8 @@ export class GitViewlet
 
 	private toDispose: lifecycle.IDisposable[];
 
-	constructor( @ITelemetryService telemetryService: ITelemetryService, @IProgressService progressService: IProgressService, @IInstantiationService instantiationService: IInstantiationService, @IGitService gitService: IGitService) {
-		super(contrib.VIEWLET_ID, telemetryService);
+	constructor( @ITelemetryService telemetryService: ITelemetryService, @IProgressService progressService: IProgressService, @IInstantiationService instantiationService: IInstantiationService, @IGitService gitService: IGitService, @IThemeService themeService: IThemeService) {
+		super(contrib.VIEWLET_ID, telemetryService, themeService);
 
 		this.progressService = progressService;
 		this.instantiationService = instantiationService;
@@ -60,7 +61,7 @@ export class GitViewlet
 			this.instantiationService.createInstance(empty.EmptyView, this, this.getActionRunner()),
 			this.instantiationService.createInstance(gitless.GitlessView),
 			new notroot.NotRootView(),
-			new noworkspace.NoWorkspaceView(),
+			this.instantiationService.createInstance(noworkspace.NoWorkspaceView, this.getActionRunner()),
 			new DisabledView(),
 			this.instantiationService.createInstance(HugeView)
 		];
@@ -131,6 +132,7 @@ export class GitViewlet
 				if (this.currentView) {
 					return this.currentView.setVisible(visible);
 				}
+				return undefined;
 			});
 		} else {
 			return (this.currentView ? this.currentView.setVisible(visible) : winjs.TPromise.as(null)).then(() => {

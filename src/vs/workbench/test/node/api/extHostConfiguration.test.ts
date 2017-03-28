@@ -10,7 +10,7 @@ import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration
 import { MainThreadConfigurationShape } from 'vs/workbench/api/node/extHost.protocol';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ConfigurationTarget, ConfigurationEditingErrorCode, IConfigurationEditingError } from 'vs/workbench/services/configuration/common/configurationEditing';
-import { WorkspaceConfigurationNode, IWorkspaceConfigurationValue } from 'vs/workbench/services/configuration/common/configuration';
+import { IWorkspaceConfigurationValues, IWorkspaceConfigurationValue } from 'vs/workbench/services/configuration/common/configuration';
 
 suite('ExtHostConfiguration', function () {
 
@@ -22,7 +22,7 @@ suite('ExtHostConfiguration', function () {
 		}
 	};
 
-	function createExtHostConfiguration(data: WorkspaceConfigurationNode = {}, shape?: MainThreadConfigurationShape) {
+	function createExtHostConfiguration(data: IWorkspaceConfigurationValues = Object.create(null), shape?: MainThreadConfigurationShape) {
 		if (!shape) {
 			shape = new class extends MainThreadConfigurationShape { };
 		}
@@ -38,17 +38,26 @@ suite('ExtHostConfiguration', function () {
 		};
 	}
 
+	test('getConfiguration fails regression test 1.7.1 -> 1.8 #15552', function () {
+		const extHostConfig = createExtHostConfiguration({
+			['search.exclude']: createConfigurationValue({ '**/node_modules': true })
+		});
+
+		assert.equal(extHostConfig.getConfiguration('search.exclude')['**/node_modules'], true);
+		assert.equal(extHostConfig.getConfiguration('search.exclude').get('**/node_modules'), true);
+		assert.equal(extHostConfig.getConfiguration('search').get('exclude')['**/node_modules'], true);
+
+		assert.equal(extHostConfig.getConfiguration('search.exclude').has('**/node_modules'), true);
+		assert.equal(extHostConfig.getConfiguration('search').has('exclude.**/node_modules'), true);
+	});
+
 	test('has/get', function () {
 
 		const all = createExtHostConfiguration({
-			farboo: {
-				config0: createConfigurationValue(true),
-				nested: {
-					config1: createConfigurationValue(42),
-					config2: createConfigurationValue('Das Pferd frisst kein Reis.'),
-				},
-				config4: createConfigurationValue('')
-			}
+			['farboo.config0']: createConfigurationValue(true),
+			['farboo.nested.config1']: createConfigurationValue(42),
+			['farboo.nested.config2']: createConfigurationValue('Das Pferd frisst kein Reis.'),
+			['farboo.config4']: createConfigurationValue('')
 		});
 
 		const config = all.getConfiguration('farboo');
@@ -58,7 +67,6 @@ suite('ExtHostConfiguration', function () {
 		assert.equal(config.get('config4'), '');
 		assert.equal(config['config0'], true);
 		assert.equal(config['config4'], '');
-		assert.throws(() => config['config4'] = 'valuevalue');
 
 		assert.ok(config.has('nested.config1'));
 		assert.equal(config.get('nested.config1'), 42);
@@ -72,10 +80,8 @@ suite('ExtHostConfiguration', function () {
 	test('getConfiguration vs get', function () {
 
 		const all = createExtHostConfiguration({
-			farboo: {
-				config0: createConfigurationValue(true),
-				config4: createConfigurationValue('38')
-			}
+			['farboo.config0']: createConfigurationValue(true),
+			['farboo.config4']: createConfigurationValue(38)
 		});
 
 		let config = all.getConfiguration('farboo.config0');
@@ -90,10 +96,8 @@ suite('ExtHostConfiguration', function () {
 	test('getConfiguration vs get', function () {
 
 		const all = createExtHostConfiguration({
-			farboo: {
-				config0: createConfigurationValue(true),
-				config4: createConfigurationValue('38')
-			}
+			['farboo.config0']: createConfigurationValue(true),
+			['farboo.config4']: createConfigurationValue(38)
 		});
 
 		let config = all.getConfiguration('farboo.config0');
@@ -107,9 +111,7 @@ suite('ExtHostConfiguration', function () {
 
 	test('name vs property', function () {
 		const all = createExtHostConfiguration({
-			farboo: {
-				get: createConfigurationValue('get-prop')
-			}
+			['farboo.get']: createConfigurationValue('get-prop')
 		});
 		const config = all.getConfiguration('farboo');
 
@@ -119,10 +121,13 @@ suite('ExtHostConfiguration', function () {
 		assert.throws(() => config['get'] = <any>'get-prop');
 	});
 
-	test('udate/section to key', function () {
+	test('update/section to key', function () {
 
 		const shape = new RecordingShape();
-		const allConfig = createExtHostConfiguration({ foo: { bar: createConfigurationValue(1), far: createConfigurationValue(2) } }, shape);
+		const allConfig = createExtHostConfiguration({
+			['foo.bar']: createConfigurationValue(1),
+			['foo.far']: createConfigurationValue(1)
+		}, shape);
 
 		let config = allConfig.getConfiguration('foo');
 		config.update('bar', 42, true);
@@ -136,6 +141,40 @@ suite('ExtHostConfiguration', function () {
 
 		config.update('foo.bar', 42, true);
 		assert.equal(shape.lastArgs[1], 'foo.bar');
+	});
+
+	test('update, what is #15834', function () {
+		const shape = new RecordingShape();
+		const allConfig = createExtHostConfiguration({
+			['editor.formatOnSave']: createConfigurationValue(true)
+		}, shape);
+
+		allConfig.getConfiguration('editor').update('formatOnSave', { extensions: ['ts'] });
+		assert.equal(shape.lastArgs[1], 'editor.formatOnSave');
+		assert.deepEqual(shape.lastArgs[2], { extensions: ['ts'] });
+	});
+
+	test('bogous data, #15834', function () {
+		let oldLogger = console.error;
+		let errorLogged = false;
+
+		// workaround until we have a proper logging story
+		console.error = (message, args) => {
+			errorLogged = true;
+		};
+		let allConfig;
+		try {
+			const shape = new RecordingShape();
+			allConfig = createExtHostConfiguration({
+				['editor.formatOnSave']: createConfigurationValue(true),
+				['editor.formatOnSave.extensions']: createConfigurationValue(['ts'])
+			}, shape);
+		} finally {
+			console.error = oldLogger;
+		}
+		assert.ok(errorLogged);
+		assert.ok(allConfig.getConfiguration('').has('editor.formatOnSave'));
+		assert.ok(!allConfig.getConfiguration('').has('editor.formatOnSave.extensions'));
 	});
 
 	test('update/error-state not OK', function () {

@@ -6,14 +6,22 @@
 
 import URI from 'vs/base/common/uri';
 import * as assert from 'assert';
+import { TPromise } from 'vs/base/common/winjs.base';
 import { join } from 'vs/base/common/paths';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { workbenchInstantiationService } from 'vs/test/utils/servicesTestUtils';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
 import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorModel';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 
 class ServiceAccessor {
-	constructor( @IUntitledEditorService public untitledEditorService: UntitledEditorService) {
+	constructor(
+		@IUntitledEditorService public untitledEditorService: UntitledEditorService,
+		@IModeService public modeService: ModeServiceImpl,
+		@IConfigurationService public testConfigurationService: TestConfigurationService) {
 	}
 }
 
@@ -124,6 +132,37 @@ suite('Workbench - Untitled Editor', () => {
 		});
 	});
 
+	test('Untitled created with files.defaultLanguage setting', function () {
+		const defaultLanguage = 'javascript';
+		const config = accessor.testConfigurationService;
+		config.setUserConfiguration('files', { 'defaultLanguage': defaultLanguage });
+
+		const service = accessor.untitledEditorService;
+		const input = service.createOrGet();
+
+		assert.equal(input.getModeId(), defaultLanguage);
+
+		config.setUserConfiguration('files', { 'defaultLanguage': undefined });
+
+		input.dispose();
+	});
+
+	test('Untitled created with modeId overrides files.defaultLanguage setting', function () {
+		const modeId = 'typescript';
+		const defaultLanguage = 'javascript';
+		const config = accessor.testConfigurationService;
+		config.setUserConfiguration('files', { 'defaultLanguage': defaultLanguage });
+
+		const service = accessor.untitledEditorService;
+		const input = service.createOrGet(null, modeId);
+
+		assert.equal(input.getModeId(), modeId);
+
+		config.setUserConfiguration('files', { 'defaultLanguage': undefined });
+
+		input.dispose();
+	});
+
 	test('encoding change event', function (done) {
 		const service = accessor.untitledEditorService;
 		const input = service.createOrGet();
@@ -142,6 +181,73 @@ suite('Workbench - Untitled Editor', () => {
 			assert.equal(counter, 1);
 
 			input.dispose();
+
+			done();
+		});
+	});
+
+	test('onDidChangeContent event', done => {
+		const service = accessor.untitledEditorService;
+		const input = service.createOrGet();
+
+		UntitledEditorModel.DEFAULT_CONTENT_CHANGE_BUFFER_DELAY = 0;
+
+		let counter = 0;
+
+		service.onDidChangeContent(r => {
+			counter++;
+			assert.equal(r.toString(), input.getResource().toString());
+		});
+
+		input.resolve().then((model: UntitledEditorModel) => {
+			model.textEditorModel.setValue('foo');
+			assert.equal(counter, 0, 'Dirty model should not trigger event immediately');
+
+			TPromise.timeout(3).then(() => {
+				assert.equal(counter, 1, 'Dirty model should trigger event');
+
+				model.textEditorModel.setValue('bar');
+				TPromise.timeout(3).then(() => {
+					assert.equal(counter, 2, 'Content change when dirty should trigger event');
+
+					model.textEditorModel.setValue('');
+					TPromise.timeout(3).then(() => {
+						assert.equal(counter, 3, 'Manual revert should trigger event');
+
+						model.textEditorModel.setValue('foo');
+						TPromise.timeout(3).then(() => {
+							assert.equal(counter, 4, 'Dirty model should trigger event');
+
+							model.revert();
+							TPromise.timeout(3).then(() => {
+								assert.equal(counter, 5, 'Revert should trigger event');
+
+								input.dispose();
+
+								done();
+							});
+						});
+					});
+				});
+			});
+		});
+	});
+
+	test('onDidDisposeModel event', done => {
+		const service = accessor.untitledEditorService;
+		const input = service.createOrGet();
+
+		let counter = 0;
+
+		service.onDidDisposeModel(r => {
+			counter++;
+			assert.equal(r.toString(), input.getResource().toString());
+		});
+
+		input.resolve().then((model: UntitledEditorModel) => {
+			assert.equal(counter, 0);
+			input.dispose();
+			assert.equal(counter, 1);
 
 			done();
 		});

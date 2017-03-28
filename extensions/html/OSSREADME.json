@@ -1,7 +1,7 @@
 // ATTENTION - THIS DIRECTORY CONTAINS THIRD PARTY OPEN SOURCE MATERIALS:
 [{
 	"name": "js-beautify",
-	"version": "1.6.2",
+	"version": "1.6.8",
 	"license": "MIT",
 	"repositoryURL": "https://github.com/beautify-web/js-beautify"
 },{

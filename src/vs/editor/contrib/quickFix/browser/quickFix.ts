@@ -16,9 +16,9 @@ import { ICommonCodeEditor, EditorContextKeys, ModeContextKeys, IEditorContribut
 import { editorAction, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
-import { QuickFixContextMenu } from './quickFixWidget';
-import { LightBulbWidget } from './lightBulbWidget';
-import { QuickFixModel, QuickFixComputeEvent } from './quickFixModel';
+import { QuickFixContextMenu } from 'vs/editor/contrib/quickFix/browser/quickFixWidget';
+import { LightBulbWidget } from 'vs/editor/contrib/quickFix/browser/lightBulbWidget';
+import { QuickFixModel, QuickFixComputeEvent } from 'vs/editor/contrib/quickFix/common/quickFixModel';
 
 @editorContribution
 export class QuickFixController implements IEditorContribution {
@@ -50,6 +50,7 @@ export class QuickFixController implements IEditorContribution {
 		this._updateLightBulbTitle();
 
 		this._disposables.push(
+			this._quickFixContextMenu.onDidExecuteCodeAction(_ => this._model.trigger('auto')),
 			this._lightBulbWidget.onClick(this._handleLightBulbSelect, this),
 			this._model.onDidChangeFixes(e => this._onQuickFixEvent(e)),
 			this._keybindingService.onDidUpdateKeybindings(this._updateLightBulbTitle, this)
@@ -88,18 +89,18 @@ export class QuickFixController implements IEditorContribution {
 	}
 
 	public triggerFromEditorSelection(): void {
-		this._model.triggerManual(this._editor.getSelection());
+		this._model.trigger('manual');
 	}
 
 	private _updateLightBulbTitle(): void {
-		const [kb] = this._keybindingService.lookupKeybindings(QuickFixAction.Id);
+		const kb = this._keybindingService.lookupKeybinding(QuickFixAction.Id);
 		let title: string;
 		if (kb) {
-			title = nls.localize('quickFixWithKb', "Show Fixes ({0})", this._keybindingService.getLabelFor(kb));
+			title = nls.localize('quickFixWithKb', "Show Fixes ({0})", kb.getLabel());
 		} else {
-			title = nls.localize('quickFix', "Show Fixes", this._keybindingService.getLabelFor(kb));
+			title = nls.localize('quickFix', "Show Fixes");
 		}
-		this._lightBulbWidget.getDomNode().title = title;
+		this._lightBulbWidget.title = title;
 	}
 }
 

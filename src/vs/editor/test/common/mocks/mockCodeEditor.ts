@@ -8,21 +8,21 @@ import { EventEmitter, IEventEmitter } from 'vs/base/common/eventEmitter';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { IContextKeyService, IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
-import { MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
+import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { CommonCodeEditor } from 'vs/editor/common/commonCodeEditor';
 import { CommonEditorConfiguration } from 'vs/editor/common/config/commonEditorConfig';
 import { Cursor } from 'vs/editor/common/controller/cursor';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Model } from 'vs/editor/common/model/model';
-import { MockConfiguration } from 'vs/editor/test/common/mocks/mockConfiguration';
+import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
 import { Range } from 'vs/editor/common/core/range';
 
 export class MockCodeEditor extends CommonCodeEditor {
 	protected _createConfiguration(options: editorCommon.ICodeEditorWidgetCreationOptions): CommonEditorConfiguration {
-		return new MockConfiguration(options);
+		return new TestConfiguration(options);
 	}
 	public getCenteredRangeInViewport(): Range { return null; }
-	public getCompletelyVisibleLinesRangeInViewport(): Range { return null; }
+	protected _getCompletelyVisibleViewRange(): Range { return null; }
 
 	public getScrollWidth(): number { return 0; }
 	public getScrollLeft(): number { return 0; }
@@ -76,7 +76,7 @@ export class MockScopeLocation implements IContextKeyServiceTarget {
 	setAttribute(attr: string, value: string): void { }
 	removeAttribute(attr: string): void { }
 	hasAttribute(attr: string): boolean { return false; }
-	getAttribute(attr: string): string { return; }
+	getAttribute(attr: string): string { return undefined; }
 }
 
 export function withMockCodeEditor(text: string[], options: editorCommon.ICodeEditorWidgetCreationOptions, callback: (editor: MockCodeEditor, cursor: Cursor) => void): void {
@@ -87,7 +87,7 @@ export function withMockCodeEditor(text: string[], options: editorCommon.ICodeEd
 
 export function mockCodeEditor(text: string[], options: editorCommon.ICodeEditorWidgetCreationOptions): CommonCodeEditor {
 
-	let contextKeyService = new MockKeybindingService();
+	let contextKeyService = new MockContextKeyService();
 
 	let services = new ServiceCollection();
 	services.set(IContextKeyService, contextKeyService);

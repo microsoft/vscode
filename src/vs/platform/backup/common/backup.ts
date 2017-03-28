@@ -4,52 +4,27 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import Uri from 'vs/base/common/uri';
+import { TPromise } from 'vs/base/common/winjs.base';
 
 export interface IBackupWorkspacesFormat {
 	folderWorkspaces: string[];
+	emptyWorkspaces: string[];
 }
 
-export const IBackupMainService = createDecorator<IBackupMainService>('backupService');
+export const IBackupMainService = createDecorator<IBackupMainService>('backupMainService');
+export const IBackupService = createDecorator<IBackupService>('backupService');
 
-export interface IBackupMainService {
+export interface IBackupMainService extends IBackupService {
 	_serviceBrand: any;
 
-	/**
-	 * Gets the set of active workspace backup paths being tracked for restoration.
-	 *
-	 * @return The set of active workspace backup paths being tracked for restoration.
-	 */
 	getWorkspaceBackupPaths(): string[];
+	getEmptyWorkspaceBackupPaths(): string[];
 
-	/**
-	 * Pushes workspace backup paths to be tracked for restoration.
-	 *
-	 * @param workspaces The workspaces to add.
-	 */
-	pushWorkspaceBackupPathsSync(workspaces: Uri[]): void;
+	registerWindowForBackupsSync(windowId: number, isEmptyWorkspace: boolean, backupFolder?: string, workspacePath?: string): void;
+}
 
-	/**
-	 * Removes a workspace backup path being tracked for restoration.
-	 *
-	 * @param workspace The workspace to remove.
-	 */
-	removeWorkspaceBackupPathSync(workspace: Uri): void;
+export interface IBackupService {
+	_serviceBrand: any;
 
-	/**
-	 * Gets the set of untitled file backups for a particular workspace.
-	 *
-	 * @param workspace The workspace to get the backups for.
-	 * @return The absolute paths for all the untitled file _backups_.
-	 */
-	getWorkspaceUntitledFileBackupsSync(workspace: Uri): string[];
-
-	/**
-	 * Gets whether the workspace has backup(s) associated with it (ie. if the workspace backup
-	 * directory exists).
-	 *
-	 * @param workspace The workspace to evaluate.
-	 * @return Whether the workspace has backups.
-	 */
-	hasWorkspaceBackup(workspace: Uri): boolean;
+	getBackupPath(windowId: number): TPromise<string>;
 }

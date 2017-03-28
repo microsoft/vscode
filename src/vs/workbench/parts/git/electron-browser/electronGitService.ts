@@ -12,7 +12,6 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { IOutputService } from 'vs/workbench/parts/output/common/output';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEventService } from 'vs/platform/event/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService } from 'vs/platform/message/common/message';
@@ -26,6 +25,7 @@ import { spawn, exec } from 'child_process';
 import { join } from 'path';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { readdir } from 'vs/base/node/pfs';
+import { IFileService } from 'vs/platform/files/common/files';
 
 interface IGit {
 	path: string;
@@ -40,7 +40,7 @@ function findSpecificGit(path: string): TPromise<IGit> {
 	return new TPromise<IGit>((c, e) => {
 		const buffers: Buffer[] = [];
 		const child = spawn(path, ['--version']);
-		child.stdout.on('data', b => buffers.push(b));
+		child.stdout.on('data', b => buffers.push(b as Buffer));
 		child.on('error', e);
 		child.on('exit', code => code ? e(new Error('Not found')) : c({ path, version: parseVersion(Buffer.concat(buffers).toString('utf8').trim()) }));
 	});
@@ -57,7 +57,7 @@ function findGitDarwin(): TPromise<IGit> {
 
 			function getVersion(path: string) {
 				// make sure git executes
-				exec('git --version', (err, stdout) => {
+				exec('git --version', (err, stdout: Buffer) => {
 					if (err) {
 						return e('git not found');
 					}
@@ -169,23 +169,23 @@ interface IRawGitServiceBootstrap {
 }
 
 function createRawGitService(gitPath: string, execPath: string, workspaceRoot: string, encoding: string, verbose: boolean): IRawGitService {
-	const promise = new TPromise<IRawGitService>((c, e) => {
-		require(['vs/workbench/parts/git/node/rawGitServiceBootstrap'], ({ createRawGitService }: IRawGitServiceBootstrap) => {
-			findGit(gitPath)
-				.then(({ path, version }) => createRawGitService(path, workspaceRoot, encoding, execPath, version))
-				.done(c, e);
-		}, e);
+	const requirePromise = new TPromise<IRawGitServiceBootstrap>((c, e) => {
+		return require(['vs/workbench/parts/git/node/rawGitServiceBootstrap'], c, e);
 	});
 
-	return new DelayedRawGitService(promise);
+	const servicePromise = requirePromise.then(({ createRawGitService }) => {
+		return findGit(gitPath)
+			.then(({ path, version }) => createRawGitService(path, workspaceRoot, encoding, execPath, version))
+			.then(null, () => new RawGitService(null));
+	});
+
+	return new DelayedRawGitService(servicePromise);
 }
 
 function createUnscopedRawGitService(gitPath: string, execPath: string, encoding: string): IRawGitService {
-	const promise = new TPromise<IRawGitService>((c, e) => {
-		findGit(gitPath)
-			.then(({ path, version }) => new UnscopedGitService(path, version, encoding, execPath))
-			.done(c, e);
-	});
+	const promise = findGit(gitPath)
+		.then(({ path, version }) => new UnscopedGitService(path, version, encoding, execPath))
+		.then(null, () => new RawGitService(null));
 
 	return new DelayedRawGitService(promise);
 }
@@ -196,7 +196,7 @@ export class ElectronGitService extends GitService {
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IEventService eventService: IEventService,
+		@IFileService fileService: IFileService,
 		@IMessageService messageService: IMessageService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IOutputService outputService: IOutputService,
@@ -230,6 +230,6 @@ export class ElectronGitService extends GitService {
 			}
 		}
 
-		super(raw, instantiationService, eventService, messageService, editorService, outputService, textFileService, contextService, lifecycleService, storageService, configurationService);
+		super(raw, instantiationService, fileService, messageService, editorService, outputService, textFileService, contextService, lifecycleService, storageService, configurationService);
 	}
 }

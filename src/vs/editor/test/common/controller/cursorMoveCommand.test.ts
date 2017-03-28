@@ -7,10 +7,10 @@
 import * as assert from 'assert';
 import { Cursor } from 'vs/editor/common/controller/cursor';
 import { Position } from 'vs/editor/common/core/position';
-import { Handler, IEditorOptions, ITextModelCreationOptions, CursorMovePosition, CursorMoveByUnit, ISelection, IPosition } from 'vs/editor/common/editorCommon';
+import { Handler, IEditorOptions, ITextModelCreationOptions, CursorMovePosition, CursorMoveByUnit, ISelection } from 'vs/editor/common/editorCommon';
 import { Model } from 'vs/editor/common/model/model';
 import { IMode } from 'vs/editor/common/modes';
-import { MockConfiguration } from 'vs/editor/test/common/mocks/mockConfiguration';
+import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
 import { viewModelHelper as aViewModelHelper } from 'vs/editor/test/common/editorTestUtils';
 import { IViewModelHelper } from 'vs/editor/common/controller/oneCursor';
 import { Range } from 'vs/editor/common/core/range';
@@ -18,26 +18,22 @@ import { Range } from 'vs/editor/common/core/range';
 let H = Handler;
 
 suite('Cursor move command test', () => {
-	const LINE1 = '    \tMy First Line\t ';
-	const LINE2 = '\tMy Second Line';
-	const LINE3 = '    Third Line💩';
-	const LINE4 = '';
-	const LINE5 = '1';
 
 	let thisModel: Model;
-	let thisConfiguration: MockConfiguration;
+	let thisConfiguration: TestConfiguration;
 	let thisCursor: Cursor;
 
 	setup(() => {
-		let text =
-			LINE1 + '\r\n' +
-			LINE2 + '\n' +
-			LINE3 + '\n' +
-			LINE4 + '\r\n' +
-			LINE5;
+		let text = [
+			'    \tMy First Line\t ',
+			'\tMy Second Line',
+			'    Third Line🐶',
+			'',
+			'1'
+		].join('\n');
 
 		thisModel = Model.createFromString(text);
-		thisConfiguration = new MockConfiguration(null);
+		thisConfiguration = new TestConfiguration(null);
 	});
 
 	teardown(() => {
@@ -79,7 +75,7 @@ suite('Cursor move command test', () => {
 
 		moveLeft(thisCursor, 10);
 
-		cursorEqual(thisCursor, 1, LINE1.length + 1);
+		cursorEqual(thisCursor, 1, 21);
 	});
 
 	test('move right should move to right character', () => {
@@ -176,25 +172,25 @@ suite('Cursor move command test', () => {
 
 		moveToLineEnd(thisCursor);
 
-		cursorEqual(thisCursor, 1, LINE1.length + 1);
+		cursorEqual(thisCursor, 1, 21);
 	});
 
 	test('move to end of line from last non white space character', () => {
 		thisCursor = aCursor();
-		moveTo(thisCursor, 1, LINE1.length - 1);
+		moveTo(thisCursor, 1, 19);
 
 		moveToLineEnd(thisCursor);
 
-		cursorEqual(thisCursor, 1, LINE1.length + 1);
+		cursorEqual(thisCursor, 1, 21);
 	});
 
 	test('move to end of line from line end', () => {
 		thisCursor = aCursor();
-		moveTo(thisCursor, 1, LINE1.length + 1);
+		moveTo(thisCursor, 1, 21);
 
 		moveToLineEnd(thisCursor);
 
-		cursorEqual(thisCursor, 1, LINE1.length + 1);
+		cursorEqual(thisCursor, 1, 21);
 	});
 
 	test('move to last non white space character from middle', () => {
@@ -203,25 +199,25 @@ suite('Cursor move command test', () => {
 
 		moveToLineLastNonWhiteSpaceCharacter(thisCursor);
 
-		cursorEqual(thisCursor, 1, LINE1.length - 1);
+		cursorEqual(thisCursor, 1, 19);
 	});
 
 	test('move to last non white space character from last non white space character', () => {
 		thisCursor = aCursor();
-		moveTo(thisCursor, 1, LINE1.length - 1);
+		moveTo(thisCursor, 1, 19);
 
 		moveToLineLastNonWhiteSpaceCharacter(thisCursor);
 
-		cursorEqual(thisCursor, 1, LINE1.length - 1);
+		cursorEqual(thisCursor, 1, 19);
 	});
 
 	test('move to last non white space character from line end', () => {
 		thisCursor = aCursor();
-		moveTo(thisCursor, 1, LINE1.length + 1);
+		moveTo(thisCursor, 1, 21);
 
 		moveToLineLastNonWhiteSpaceCharacter(thisCursor);
 
-		cursorEqual(thisCursor, 1, LINE1.length - 1);
+		cursorEqual(thisCursor, 1, 19);
 	});
 
 	test('move to center of line not from center', () => {
@@ -338,27 +334,27 @@ suite('Cursor move command test', () => {
 		thisCursor = aCursor();
 
 		moveToEndOfLine(thisCursor);
-		cursorEqual(thisCursor, 1, LINE1.length - 1);
+		cursorEqual(thisCursor, 1, 21);
 
 		moveToEndOfLine(thisCursor);
-		cursorEqual(thisCursor, 1, LINE1.length + 1);
+		cursorEqual(thisCursor, 1, 21);
 
 		moveDown(thisCursor, 2);
-		cursorEqual(thisCursor, 3, LINE3.length + 1);
+		cursorEqual(thisCursor, 3, 17);
 
 		moveDown(thisCursor, 1);
-		cursorEqual(thisCursor, 4, LINE4.length + 1);
+		cursorEqual(thisCursor, 4, 1);
 
 		moveDown(thisCursor, 1);
-		cursorEqual(thisCursor, 5, LINE5.length + 1);
+		cursorEqual(thisCursor, 5, 2);
 
 		moveUp(thisCursor, 4);
-		cursorEqual(thisCursor, 1, LINE1.length + 1);
+		cursorEqual(thisCursor, 1, 21);
 	});
 
 	test('move to view top line moves to first visible line if it is first line', () => {
 		let viewModelHelper = aViewModelHelper(thisModel);
-		viewModelHelper.getCurrentCompletelyVisibleModelLinesRangeInViewport = () => new Range(1, 1, 10, 1);
+		viewModelHelper.getCompletelyVisibleViewRange = () => new Range(1, 1, 10, 1);
 		thisCursor = aCursor(viewModelHelper);
 
 		moveTo(thisCursor, 2, 2);
@@ -369,7 +365,7 @@ suite('Cursor move command test', () => {
 
 	test('move to view top line moves to top visible line when first line is not visible', () => {
 		let viewModelHelper = aViewModelHelper(thisModel);
-		viewModelHelper.getCurrentCompletelyVisibleModelLinesRangeInViewport = () => new Range(2, 1, 10, 1);
+		viewModelHelper.getCompletelyVisibleViewRange = () => new Range(2, 1, 10, 1);
 		thisCursor = aCursor(viewModelHelper);
 
 		moveTo(thisCursor, 4, 1);
@@ -380,7 +376,7 @@ suite('Cursor move command test', () => {
 
 	test('move to view top line moves to nth line from top', () => {
 		let viewModelHelper = aViewModelHelper(thisModel);
-		viewModelHelper.getCurrentCompletelyVisibleModelLinesRangeInViewport = () => new Range(1, 1, 10, 1);
+		viewModelHelper.getCompletelyVisibleViewRange = () => new Range(1, 1, 10, 1);
 		thisCursor = aCursor(viewModelHelper);
 
 		moveTo(thisCursor, 4, 1);
@@ -391,7 +387,7 @@ suite('Cursor move command test', () => {
 
 	test('move to view top line moves to last line if n is greater than last visible line number', () => {
 		let viewModelHelper = aViewModelHelper(thisModel);
-		viewModelHelper.getCurrentCompletelyVisibleModelLinesRangeInViewport = () => new Range(1, 1, 3, 1);
+		viewModelHelper.getCompletelyVisibleViewRange = () => new Range(1, 1, 3, 1);
 		thisCursor = aCursor(viewModelHelper);
 
 		moveTo(thisCursor, 2, 2);
@@ -402,7 +398,7 @@ suite('Cursor move command test', () => {
 
 	test('move to view center line moves to the center line', () => {
 		let viewModelHelper = aViewModelHelper(thisModel);
-		viewModelHelper.getCurrentCompletelyVisibleModelLinesRangeInViewport = () => new Range(3, 1, 3, 1);
+		viewModelHelper.getCompletelyVisibleViewRange = () => new Range(3, 1, 3, 1);
 		thisCursor = aCursor(viewModelHelper);
 
 		moveTo(thisCursor, 2, 2);
@@ -413,7 +409,7 @@ suite('Cursor move command test', () => {
 
 	test('move to view bottom line moves to last visible line if it is last line', () => {
 		let viewModelHelper = aViewModelHelper(thisModel);
-		viewModelHelper.getCurrentCompletelyVisibleModelLinesRangeInViewport = () => new Range(1, 1, 5, 1);
+		viewModelHelper.getCompletelyVisibleViewRange = () => new Range(1, 1, 5, 1);
 		thisCursor = aCursor(viewModelHelper);
 
 		moveTo(thisCursor, 2, 2);
@@ -424,7 +420,7 @@ suite('Cursor move command test', () => {
 
 	test('move to view bottom line moves to last visible line when last line is not visible', () => {
 		let viewModelHelper = aViewModelHelper(thisModel);
-		viewModelHelper.getCurrentCompletelyVisibleModelLinesRangeInViewport = () => new Range(2, 1, 3, 1);
+		viewModelHelper.getCompletelyVisibleViewRange = () => new Range(2, 1, 3, 1);
 		thisCursor = aCursor(viewModelHelper);
 
 		moveTo(thisCursor, 2, 2);
@@ -435,7 +431,7 @@ suite('Cursor move command test', () => {
 
 	test('move to view bottom line moves to nth line from bottom', () => {
 		let viewModelHelper = aViewModelHelper(thisModel);
-		viewModelHelper.getCurrentCompletelyVisibleModelLinesRangeInViewport = () => new Range(1, 1, 5, 1);
+		viewModelHelper.getCompletelyVisibleViewRange = () => new Range(1, 1, 5, 1);
 		thisCursor = aCursor(viewModelHelper);
 
 		moveTo(thisCursor, 4, 1);
@@ -446,7 +442,7 @@ suite('Cursor move command test', () => {
 
 	test('move to view bottom line moves to first line if n is lesser than first visible line number', () => {
 		let viewModelHelper = aViewModelHelper(thisModel);
-		viewModelHelper.getCurrentCompletelyVisibleModelLinesRangeInViewport = () => new Range(2, 1, 5, 1);
+		viewModelHelper.getCompletelyVisibleViewRange = () => new Range(2, 1, 5, 1);
 		thisCursor = aCursor(viewModelHelper);
 
 		moveTo(thisCursor, 4, 1);
@@ -456,7 +452,7 @@ suite('Cursor move command test', () => {
 	});
 
 	function aCursor(viewModelHelper?: IViewModelHelper): Cursor {
-		return new Cursor(1, thisConfiguration, thisModel, viewModelHelper || aViewModelHelper(thisModel), false);
+		return new Cursor(thisConfiguration, thisModel, viewModelHelper || aViewModelHelper(thisModel), false);
 	}
 
 });
@@ -543,14 +539,8 @@ function cursorEqual(cursor: Cursor, posLineNumber: number, posColumn: number, s
 	selectionEqual(cursor.getSelection(), posLineNumber, posColumn, selLineNumber, selColumn);
 }
 
-function positionEqual(position: IPosition, lineNumber: number, column: number) {
-	assert.deepEqual({
-		lineNumber: position.lineNumber,
-		column: position.column
-	}, {
-			lineNumber: lineNumber,
-			column: column
-		}, 'position equal');
+function positionEqual(position: Position, lineNumber: number, column: number) {
+	assert.deepEqual(position, new Position(lineNumber, column), 'position equal');
 }
 
 function selectionEqual(selection: ISelection, posLineNumber: number, posColumn: number, selLineNumber: number, selColumn: number) {

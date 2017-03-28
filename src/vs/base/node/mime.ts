@@ -8,6 +8,7 @@
 import streams = require('stream');
 
 import mime = require('vs/base/common/mime');
+import { TPromise } from 'vs/base/common/winjs.base';
 
 import stream = require('vs/base/node/stream');
 import encoding = require('vs/base/node/encoding');
@@ -57,27 +58,23 @@ export interface IMimeAndEncoding {
 	mimes: string[];
 }
 
-function doDetectMimesFromStream(instream: streams.Readable, callback: (error: Error, result: IMimeAndEncoding) => void): void {
-	stream.readExactlyByStream(instream, BUFFER_READ_MAX_LEN, (err, buffer, bytesRead) => {
-		handleReadResult(err, buffer, bytesRead, callback);
+export interface DetectMimesOption {
+	autoGuessEncoding?: boolean;
+}
+
+function doDetectMimesFromStream(instream: streams.Readable, option?: DetectMimesOption): TPromise<IMimeAndEncoding> {
+	return stream.readExactlyByStream(instream, BUFFER_READ_MAX_LEN).then((readResult: stream.ReadResult) => {
+		return detectMimeAndEncodingFromBuffer(readResult, option && option.autoGuessEncoding);
 	});
 }
 
-function doDetectMimesFromFile(absolutePath: string, callback: (error: Error, result: IMimeAndEncoding) => void): void {
-	stream.readExactlyByFile(absolutePath, BUFFER_READ_MAX_LEN, (err, buffer, bytesRead) => {
-		handleReadResult(err, buffer, bytesRead, callback);
+function doDetectMimesFromFile(absolutePath: string, option?: DetectMimesOption): TPromise<IMimeAndEncoding> {
+	return stream.readExactlyByFile(absolutePath, BUFFER_READ_MAX_LEN).then((readResult: stream.ReadResult) => {
+		return detectMimeAndEncodingFromBuffer(readResult, option && option.autoGuessEncoding);
 	});
 }
 
-function handleReadResult(err: Error, buffer: NodeBuffer, bytesRead: number, callback: (error: Error, result: IMimeAndEncoding) => void): void {
-	if (err) {
-		return callback(err, null);
-	}
-
-	return callback(null, detectMimeAndEncodingFromBuffer(buffer, bytesRead));
-}
-
-export function detectMimeAndEncodingFromBuffer(buffer: NodeBuffer, bytesRead: number): IMimeAndEncoding {
+export function detectMimeAndEncodingFromBuffer({ buffer, bytesRead }: stream.ReadResult, autoGuessEncoding?: boolean): IMimeAndEncoding {
 	let enc = encoding.detectEncodingByBOMFromBuffer(buffer, bytesRead);
 
 	// Detect 0 bytes to see if file is binary (ignore for UTF 16 though)
@@ -89,6 +86,9 @@ export function detectMimeAndEncodingFromBuffer(buffer: NodeBuffer, bytesRead: n
 				break;
 			}
 		}
+	}
+	if (autoGuessEncoding && isText && !enc) {
+		enc = encoding.guessEncodingByBuffer(buffer);
 	}
 
 	return {
@@ -127,29 +127,26 @@ function filterAndSortMimes(detectedMimes: string[], guessedMimes: string[]): st
  * @param instream the readable stream to detect the mime types from.
  * @param nameHint an additional hint that can be used to detect a mime from a file extension.
  */
-export function detectMimesFromStream(instream: streams.Readable, nameHint: string, callback: (error: Error, result: IMimeAndEncoding) => void): void {
-	doDetectMimesFromStream(instream, (error: Error, result: IMimeAndEncoding) => {
-		handleMimeResult(nameHint, error, result, callback);
-	});
+export function detectMimesFromStream(instream: streams.Readable, nameHint: string, option?: DetectMimesOption): TPromise<IMimeAndEncoding> {
+	return doDetectMimesFromStream(instream, option).then(encoding =>
+		handleMimeResult(nameHint, encoding)
+	);
 }
 
 /**
  * Opens the given file to detect its mime type. Returns an array of mime types sorted from most specific to unspecific.
  * @param absolutePath the absolute path of the file.
  */
-export function detectMimesFromFile(absolutePath: string, callback: (error: Error, result: IMimeAndEncoding) => void): void {
-	doDetectMimesFromFile(absolutePath, (error: Error, result: IMimeAndEncoding) => {
-		handleMimeResult(absolutePath, error, result, callback);
-	});
+export function detectMimesFromFile(absolutePath: string, option?: DetectMimesOption): TPromise<IMimeAndEncoding> {
+	return doDetectMimesFromFile(absolutePath, option).then(encoding =>
+		handleMimeResult(absolutePath, encoding)
+	);
 }
 
-function handleMimeResult(nameHint: string, error: Error, result: IMimeAndEncoding, callback: (error: Error, result: IMimeAndEncoding) => void): void {
-	if (error) {
-		return callback(error, null);
-	}
+function handleMimeResult(nameHint: string, result: IMimeAndEncoding): IMimeAndEncoding {
 
 	let filterAndSortedMimes = filterAndSortMimes(result.mimes, mime.guessMimeTypes(nameHint));
 	result.mimes = filterAndSortedMimes;
 
-	callback(null, result);
+	return result;
 }

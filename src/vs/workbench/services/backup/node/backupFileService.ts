@@ -9,104 +9,249 @@ import * as path from 'path';
 import * as crypto from 'crypto';
 import pfs = require('vs/base/node/pfs');
 import Uri from 'vs/base/common/uri';
-import { IBackupWorkspacesFormat } from 'vs/platform/backup/common/backup';
-import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { Queue } from 'vs/base/common/async';
+import { IBackupFileService, BACKUP_FILE_UPDATE_OPTIONS } from 'vs/workbench/services/backup/common/backup';
+import { IBackupService } from 'vs/platform/backup/common/backup';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { readToMatchingString } from 'vs/base/node/stream';
+import { IWindowService } from 'vs/platform/windows/common/windows';
+import { TextSource, IRawTextSource } from 'vs/editor/common/model/textSource';
+import { DefaultEndOfLine } from 'vs/editor/common/editorCommon';
+
+export interface IBackupFilesModel {
+	resolve(backupRoot: string): TPromise<IBackupFilesModel>;
+
+	add(resource: Uri, versionId?: number): void;
+	has(resource: Uri, versionId?: number): boolean;
+	get(): Uri[];
+	remove(resource: Uri): void;
+	count(): number;
+	clear(): void;
+}
+
+export class BackupFilesModel implements IBackupFilesModel {
+	private cache: { [resource: string]: number /* version ID */ } = Object.create(null);
+
+	public resolve(backupRoot: string): TPromise<IBackupFilesModel> {
+		return pfs.readDirsInDir(backupRoot).then(backupSchemas => {
+
+			// For all supported schemas
+			return TPromise.join(backupSchemas.map(backupSchema => {
+
+				// Read backup directory for backups
+				const backupSchemaPath = path.join(backupRoot, backupSchema);
+				return pfs.readdir(backupSchemaPath).then(backupHashes => {
+
+					// Remember known backups in our caches
+					backupHashes.forEach(backupHash => {
+						const backupResource = Uri.file(path.join(backupSchemaPath, backupHash));
+						this.add(backupResource);
+					});
+				});
+			}));
+		}).then(() => this, error => this);
+	}
+
+	public add(resource: Uri, versionId = 0): void {
+		this.cache[resource.toString()] = versionId;
+	}
+
+	public count(): number {
+		return Object.keys(this.cache).length;
+	}
+
+	public has(resource: Uri, versionId?: number): boolean {
+		const cachedVersionId = this.cache[resource.toString()];
+		if (typeof cachedVersionId !== 'number') {
+			return false; // unknown resource
+		}
+
+		if (typeof versionId === 'number') {
+			return versionId === cachedVersionId; // if we are asked with a specific version ID, make sure to test for it
+		}
+
+		return true;
+	}
+
+	public get(): Uri[] {
+		return Object.keys(this.cache).map(k => Uri.parse(k));
+	}
+
+	public remove(resource: Uri): void {
+		delete this.cache[resource.toString()];
+	}
+
+	public clear(): void {
+		this.cache = Object.create(null);
+	}
+}
 
 export class BackupFileService implements IBackupFileService {
 
 	public _serviceBrand: any;
 
-	protected backupHome: string;
-	protected workspacesJsonPath: string;
+	private static readonly META_MARKER = '\n';
+
+	private isShuttingDown: boolean;
+	private backupWorkspacePath: string;
+	private ready: TPromise<IBackupFilesModel>;
+	/**
+	 * Ensure IO operations on individual files are performed in order, this could otherwise lead
+	 * to unexpected behavior when backups are persisted and discarded in the wrong order.
+	 */
+	private ioOperationQueues: { [path: string]: Queue<void> };
 
 	constructor(
-		private currentWorkspace: Uri,
-		@IEnvironmentService environmentService: IEnvironmentService,
-		@IFileService private fileService: IFileService
+		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IFileService private fileService: IFileService,
+		@IWindowService windowService: IWindowService,
+		@IBackupService private backupService: IBackupService
 	) {
-		this.backupHome = environmentService.backupHome;
-		this.workspacesJsonPath = environmentService.backupWorkspacesPath;
+		this.isShuttingDown = false;
+		this.ready = this.init(windowService.getCurrentWindowId());
+		this.ioOperationQueues = {};
 	}
 
-	public getWorkspaceBackupPaths(): TPromise<string[]> {
-		return this.loadWorkspaces().then(workspacesJsonContent => {
-			return workspacesJsonContent.folderWorkspaces;
+	private get backupEnabled(): boolean {
+		return !this.environmentService.isExtensionDevelopment; // Hot exit is disabled when doing extension development
+	}
+
+	private init(windowId: number): TPromise<IBackupFilesModel> {
+		const model = new BackupFilesModel();
+
+		if (!this.backupEnabled) {
+			return TPromise.as(model);
+		}
+
+		return this.backupService.getBackupPath(windowId).then(backupPath => {
+			this.backupWorkspacePath = backupPath;
+
+			return model.resolve(this.backupWorkspacePath);
 		});
 	}
 
-	public hasTextFileBackup(resource: Uri): TPromise<boolean> {
-		const backupResource = this.getBackupResource(resource);
-		if (!backupResource) {
-			return TPromise.as(false);
-		}
-		return pfs.exists(this.getBackupResource(resource).fsPath);
+	public hasBackups(): TPromise<boolean> {
+		return this.ready.then(model => {
+			return model.count() > 0;
+		});
 	}
 
-	public getBackupResource(resource: Uri): Uri {
-		// Hot exit is disabled for empty workspaces
-		if (!this.currentWorkspace) {
-			return null;
-		}
+	public hasBackup(resource: Uri): TPromise<boolean> {
+		return this.ready.then(model => {
+			const backupResource = this.getBackupResource(resource);
+			if (!backupResource) {
+				return TPromise.as(false);
+			}
 
-		// Only hash the file path if the file is not untitled
-		const backupName = resource.scheme === 'untitled' ? resource.fsPath : crypto.createHash('md5').update(resource.fsPath).digest('hex');
-		const backupPath = path.join(this.getWorkspaceBackupDirectory(), resource.scheme, backupName);
-		return Uri.file(backupPath);
+			return model.has(backupResource);
+		});
 	}
 
-	private getWorkspaceBackupDirectory(): string {
-		const workspaceHash = crypto.createHash('md5').update(this.currentWorkspace.fsPath).digest('hex');
-		return path.join(this.backupHome, workspaceHash);
+	public loadBackupResource(resource: Uri): TPromise<Uri> {
+		return this.ready.then(() => {
+			return this.hasBackup(resource).then(hasBackup => {
+				if (hasBackup) {
+					return this.getBackupResource(resource);
+				}
+
+				return void 0;
+			});
+		});
 	}
 
-	public backupResource(resource: Uri, content: string): TPromise<void> {
-		const backupResource = this.getBackupResource(resource);
-
-		// Hot exit is disabled for empty workspaces
-		if (!backupResource) {
+	public backupResource(resource: Uri, content: string, versionId?: number): TPromise<void> {
+		if (this.isShuttingDown) {
 			return TPromise.as(void 0);
 		}
 
-		return this.fileService.updateContent(backupResource, content).then(() => void 0);
+		return this.ready.then(model => {
+			const backupResource = this.getBackupResource(resource);
+			if (!backupResource) {
+				return void 0;
+			}
+
+			if (model.has(backupResource, versionId)) {
+				return void 0; // return early if backup version id matches requested one
+			}
+
+			// Add metadata to top of file
+			content = `${resource.toString()}${BackupFileService.META_MARKER}${content}`;
+
+			return this.getResourceIOQueue(backupResource).queue(() => {
+				return this.fileService.updateContent(backupResource, content, BACKUP_FILE_UPDATE_OPTIONS).then(() => model.add(backupResource, versionId));
+			});
+		});
 	}
 
 	public discardResourceBackup(resource: Uri): TPromise<void> {
-		const backupResource = this.getBackupResource(resource);
+		return this.ready.then(model => {
+			const backupResource = this.getBackupResource(resource);
+			if (!backupResource) {
+				return void 0;
+			}
 
-		// Hot exit is disabled for empty workspaces
-		if (!backupResource) {
-			return TPromise.as(void 0);
+			return this.getResourceIOQueue(backupResource).queue(() => {
+				return pfs.del(backupResource.fsPath).then(() => model.remove(backupResource));
+			});
+		});
+	}
+
+	private getResourceIOQueue(resource: Uri) {
+		const key = resource.toString();
+		if (!this.ioOperationQueues[key]) {
+			const queue = new Queue<void>();
+			queue.onFinished(() => {
+				queue.dispose();
+				delete this.ioOperationQueues[key];
+			});
+			this.ioOperationQueues[key] = queue;
 		}
-
-		return this.fileService.del(backupResource);
+		return this.ioOperationQueues[key];
 	}
 
 	public discardAllWorkspaceBackups(): TPromise<void> {
-		return this.fileService.del(Uri.file(this.getWorkspaceBackupDirectory()));
-	}
+		this.isShuttingDown = true;
 
-	private loadWorkspaces(): TPromise<IBackupWorkspacesFormat> {
-		return pfs.fileExists(this.workspacesJsonPath).then(exists => {
-			if (!exists) {
-				return { folderWorkspaces: [] };
+		return this.ready.then(model => {
+			if (!this.backupEnabled) {
+				return void 0;
 			}
 
-			return pfs.readFile(this.workspacesJsonPath, 'utf8').then(content => {
-				try {
-					return JSON.parse(content.toString());
-				} catch (ex) {
-					return [];
-				}
-			}).then(content => {
-				let result = content;
-				if (!result.folderWorkspaces) {
-					result.folderWorkspaces = [];
-				}
-				return result;
-			});
+			return pfs.del(this.backupWorkspacePath).then(() => model.clear());
 		});
+	}
+
+	public getWorkspaceFileBackups(): TPromise<Uri[]> {
+		return this.ready.then(model => {
+			const readPromises: TPromise<Uri>[] = [];
+
+			model.get().forEach(fileBackup => {
+				readPromises.push(
+					readToMatchingString(fileBackup.fsPath, BackupFileService.META_MARKER, 2000, 10000)
+						.then(Uri.parse)
+				);
+			});
+
+			return TPromise.join(readPromises);
+		});
+	}
+
+	public parseBackupContent(rawTextSource: IRawTextSource): string {
+		const textSource = TextSource.fromRawTextSource(rawTextSource, DefaultEndOfLine.LF);
+		return textSource.lines.slice(1).join(textSource.EOL); // The first line of a backup text file is the file name
+	}
+
+	protected getBackupResource(resource: Uri): Uri {
+		if (!this.backupEnabled) {
+			return null;
+		}
+
+		return Uri.file(path.join(this.backupWorkspacePath, resource.scheme, this.hashPath(resource)));
+	}
+
+	private hashPath(resource: Uri): string {
+		return crypto.createHash('md5').update(resource.fsPath).digest('hex');
 	}
 }

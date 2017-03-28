@@ -12,6 +12,8 @@ import Model = require('vs/base/parts/tree/browser/treeModel');
 import View = require('./treeView');
 import _ = require('vs/base/parts/tree/browser/tree');
 import { INavigator, MappedNavigator } from 'vs/base/common/iterator';
+import Event, { Emitter } from 'vs/base/common/event';
+import Lifecycle = require('vs/base/common/lifecycle');
 
 export class TreeContext implements _.ITreeContext {
 
@@ -38,7 +40,7 @@ export class TreeContext implements _.ITreeContext {
 
 		this.dataSource = configuration.dataSource;
 		this.renderer = configuration.renderer || new TreeDefaults.LegacyRenderer();
-		this.controller = configuration.controller || new TreeDefaults.DefaultController();
+		this.controller = configuration.controller || new TreeDefaults.DefaultController({ clickBehavior: TreeDefaults.ClickBehavior.ON_MOUSE_UP, keyboardSupport: typeof options.keyboardSupport !== 'boolean' || options.keyboardSupport });
 		this.dnd = configuration.dnd || new TreeDefaults.DefaultDragAndDrop();
 		this.filter = configuration.filter || new TreeDefaults.DefaultFilter();
 		this.sorter = configuration.sorter || null;
@@ -56,14 +58,27 @@ export class Tree extends Events.EventEmitter implements _.ITree {
 	private model: Model.TreeModel;
 	private view: View.TreeView;
 
+	private _onDispose: Emitter<void>;
+	private _onHighlightChange: Emitter<void>;
+
+	private toDispose: Lifecycle.IDisposable[];
+
 	constructor(container: HTMLElement, configuration: _.ITreeConfiguration, options: _.ITreeOptions = {}) {
 		super();
+
+		this.toDispose = [];
+
+		this._onDispose = new Emitter<void>();
+		this._onHighlightChange = new Emitter<void>();
+
+		this.toDispose.push(this._onDispose, this._onHighlightChange);
 
 		this.container = container;
 		this.configuration = configuration;
 		this.options = options;
 
 		this.options.twistiePixels = typeof this.options.twistiePixels === 'number' ? this.options.twistiePixels : 32;
+		this.options.showTwistie = this.options.showTwistie === false ? false : true;
 		this.options.indentPixels = typeof this.options.indentPixels === 'number' ? this.options.indentPixels : 12;
 		this.options.alwaysFocused = this.options.alwaysFocused === true ? true : false;
 		this.options.useShadows = this.options.useShadows === false ? false : true;
@@ -77,6 +92,24 @@ export class Tree extends Events.EventEmitter implements _.ITree {
 
 		this.addEmitter2(this.model);
 		this.addEmitter2(this.view);
+
+		this.toDispose.push(this.model.addListener2('highlight', () => this._onHighlightChange.fire()));
+	}
+
+	get onDOMFocus(): Event<void> {
+		return this.view && this.view.onDOMFocus;
+	}
+
+	get onDOMBlur(): Event<void> {
+		return this.view && this.view.onDOMBlur;
+	}
+
+	get onHighlightChange(): Event<void> {
+		return this._onHighlightChange && this._onHighlightChange.event;
+	}
+
+	get onDispose(): Event<void> {
+		return this._onDispose && this._onDispose.event;
 	}
 
 	public getHTMLElement(): HTMLElement {
@@ -132,7 +165,7 @@ export class Tree extends Events.EventEmitter implements _.ITree {
 	}
 
 	public collapse(element: any, recursive: boolean = false): WinJS.Promise {
-		return this.model.collapse(element);
+		return this.model.collapse(element, recursive);
 	}
 
 	public collapseAll(elements: any[] = null, recursive: boolean = false): WinJS.Promise {
@@ -317,11 +350,13 @@ export class Tree extends Events.EventEmitter implements _.ITree {
 		return this.model.hasTrait(trait, element);
 	}
 
-	getNavigator(): INavigator<any> {
-		return new MappedNavigator(this.model.getNavigator(), i => i && i.getElement());
+	getNavigator(fromElement?: any, subTreeOnly?: boolean): INavigator<any> {
+		return new MappedNavigator(this.model.getNavigator(fromElement, subTreeOnly), i => i && i.getElement());
 	}
 
 	public dispose(): void {
+		this._onDispose.fire();
+
 		if (this.model !== null) {
 			this.model.dispose();
 			this.model = null;
@@ -330,6 +365,8 @@ export class Tree extends Events.EventEmitter implements _.ITree {
 			this.view.dispose();
 			this.view = null;
 		}
+
+		this.toDispose = Lifecycle.dispose(this.toDispose);
 
 		super.dispose();
 	}

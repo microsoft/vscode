@@ -6,14 +6,14 @@
 
 import 'vs/css!./referencesWidget';
 import * as nls from 'vs/nls';
-import * as collections from 'vs/base/common/collections';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { getPathLabel } from 'vs/base/common/labels';
 import Event, { Emitter } from 'vs/base/common/event';
-import { IDisposable, dispose, Disposables } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, Disposables, IReference } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import * as strings from 'vs/base/common/strings';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { Color } from "vs/base/common/color";
 import { $, Builder } from 'vs/base/browser/builder';
 import * as dom from 'vs/base/browser/dom';
 import { Sash, ISashEvent, IVerticalSashLayoutProvider } from 'vs/base/browser/ui/sash/sash';
@@ -37,7 +37,9 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { PeekViewWidget, IPeekViewService } from 'vs/editor/contrib/zoneWidget/browser/peekViewWidget';
 import { FileReferences, OneReference, ReferencesModel } from './referencesModel';
-import { ITextModelResolverService } from 'vs/platform/textmodelResolver/common/resolver';
+import { ITextModelResolverService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
+import { registerColor, highContrastOutline } from 'vs/platform/theme/common/colorRegistry';
+import { registerThemingParticipant, ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
 
 class DecorationsManager implements IDisposable {
 
@@ -46,13 +48,13 @@ class DecorationsManager implements IDisposable {
 		className: 'reference-decoration'
 	};
 
-	private _decorationSet = collections.createStringDictionary<OneReference>();
-	private _decorationIgnoreSet = collections.createStringDictionary<OneReference>();
+	private _decorations = new Map<string, OneReference>();
+	private _decorationIgnoreSet = new Set<string>();
 	private _callOnDispose: IDisposable[] = [];
 	private _callOnModelChange: IDisposable[] = [];
 
-	constructor(private editor: ICodeEditor, private model: ReferencesModel) {
-		this._callOnDispose.push(this.editor.onDidChangeModel(() => this._onModelChanged()));
+	constructor(private _editor: ICodeEditor, private _model: ReferencesModel) {
+		this._callOnDispose.push(this._editor.onDidChangeModel(() => this._onModelChanged()));
 		this._onModelChanged();
 	}
 
@@ -63,33 +65,29 @@ class DecorationsManager implements IDisposable {
 	}
 
 	private _onModelChanged(): void {
-
-		this.removeDecorations();
 		this._callOnModelChange = dispose(this._callOnModelChange);
-
-		var model = this.editor.getModel();
-		if (!model) {
-			return;
-		}
-
-		for (var i = 0, len = this.model.groups.length; i < len; i++) {
-			if (this.model.groups[i].uri.toString() === model.uri.toString()) {
-				this._addDecorations(this.model.groups[i]);
-				return;
+		const model = this._editor.getModel();
+		if (model) {
+			for (const ref of this._model.groups) {
+				if (ref.uri.toString() === model.uri.toString()) {
+					this._addDecorations(ref);
+					return;
+				}
 			}
 		}
 	}
 
 	private _addDecorations(reference: FileReferences): void {
-		this._callOnModelChange.push(this.editor.getModel().onDidChangeDecorations((event) => this._onDecorationChanged(event)));
+		this._callOnModelChange.push(this._editor.getModel().onDidChangeDecorations((event) => this._onDecorationChanged(event)));
 
-		this.editor.getModel().changeDecorations((accessor) => {
-			var newDecorations: editorCommon.IModelDeltaDecoration[] = [];
-			var newDecorationsActualIndex: number[] = [];
+		this._editor.changeDecorations(accessor => {
+
+			const newDecorations: editorCommon.IModelDeltaDecoration[] = [];
+			const newDecorationsActualIndex: number[] = [];
 
 			for (let i = 0, len = reference.children.length; i < len; i++) {
 				let oneReference = reference.children[i];
-				if (this._decorationIgnoreSet[oneReference.id]) {
+				if (this._decorationIgnoreSet.has(oneReference.id)) {
 					continue;
 				}
 				newDecorations.push({
@@ -99,26 +97,25 @@ class DecorationsManager implements IDisposable {
 				newDecorationsActualIndex.push(i);
 			}
 
-			var decorations = accessor.deltaDecorations([], newDecorations);
-
-			for (var i = 0; i < decorations.length; i++) {
-				this._decorationSet[decorations[i]] = reference.children[newDecorationsActualIndex[i]];
+			const decorations = accessor.deltaDecorations([], newDecorations);
+			for (let i = 0; i < decorations.length; i++) {
+				this._decorations.set(decorations[i], reference.children[newDecorationsActualIndex[i]]);
 			}
 		});
 	}
 
 	private _onDecorationChanged(event: editorCommon.IModelDecorationsChangedEvent): void {
-		var addedOrChangedDecorations = event.addedOrChangedDecorations,
+		const changedDecorations = event.changedDecorations,
 			toRemove: string[] = [];
 
-		for (var i = 0, len = addedOrChangedDecorations.length; i < len; i++) {
-			var reference = collections.lookup(this._decorationSet, addedOrChangedDecorations[i].id);
+		for (let i = 0, len = changedDecorations.length; i < len; i++) {
+			let reference = this._decorations.get(changedDecorations[i]);
 			if (!reference) {
 				continue;
 			}
 
-			var newRange = addedOrChangedDecorations[i].range,
-				ignore = false;
+			const newRange = this._editor.getModel().getDecorationRange(changedDecorations[i]);
+			let ignore = false;
 
 			if (Range.equalsRange(newRange, reference.range)) {
 				continue;
@@ -127,8 +124,8 @@ class DecorationsManager implements IDisposable {
 				ignore = true;
 
 			} else {
-				var lineLength = reference.range.endColumn - reference.range.startColumn,
-					newLineLength = newRange.endColumn - newRange.startColumn;
+				const lineLength = reference.range.endColumn - reference.range.startColumn;
+				const newLineLength = newRange.endColumn - newRange.startColumn;
 
 				if (lineLength !== newLineLength) {
 					ignore = true;
@@ -136,29 +133,28 @@ class DecorationsManager implements IDisposable {
 			}
 
 			if (ignore) {
-				this._decorationIgnoreSet[reference.id] = reference;
-				toRemove.push(addedOrChangedDecorations[i].id);
+				this._decorationIgnoreSet.add(reference.id);
+				toRemove.push(changedDecorations[i]);
 			} else {
 				reference.range = newRange;
 			}
 		}
 
-		this.editor.changeDecorations((accessor) => {
+		this._editor.changeDecorations((accessor) => {
 			for (let i = 0, len = toRemove.length; i < len; i++) {
-				delete this._decorationSet[toRemove[i]];
+				this._decorations.delete(toRemove[i]);
 			}
 			accessor.deltaDecorations(toRemove, []);
 		});
 	}
 
 	public removeDecorations(): void {
-		var keys = Object.keys(this._decorationSet);
-		if (keys.length > 0) {
-			this.editor.changeDecorations((accessor) => {
-				accessor.deltaDecorations(keys, []);
+		this._editor.changeDecorations(accessor => {
+			this._decorations.forEach((value, key) => {
+				accessor.removeDecoration(key);
 			});
-		}
-		this._decorationSet = {};
+			this._decorations.clear();
+		});
 	}
 }
 
@@ -178,6 +174,7 @@ class DataSource implements tree.IDataSource {
 		} else if (element instanceof OneReference) {
 			return (<OneReference>element).id;
 		}
+		return undefined;
 	}
 
 	public hasChildren(tree: tree.ITree, element: any): boolean {
@@ -187,6 +184,7 @@ class DataSource implements tree.IDataSource {
 		if (element instanceof FileReferences && !(<FileReferences>element).failure) {
 			return true;
 		}
+		return false;
 	}
 
 	public getChildren(tree: tree.ITree, element: ReferencesModel | FileReferences): TPromise<any[]> {
@@ -379,7 +377,7 @@ class Renderer extends LegacyRenderer {
 					badge.setTitleFormat(nls.localize('referenceCount', "{0} reference", len));
 				}
 
-				return badge;
+				return null;
 			});
 			/* tslint:enable:no-unused-expression */
 
@@ -388,6 +386,10 @@ class Renderer extends LegacyRenderer {
 		} else if (element instanceof OneReference) {
 
 			const preview = element.parent.preview.preview(element.range);
+
+			if (!preview) {
+				return undefined;
+			}
 
 			$('.reference').innerHtml(
 				strings.format(
@@ -488,12 +490,14 @@ export class ReferenceWidget extends PeekViewWidget {
 	private _decorationsManager: DecorationsManager;
 
 	private _disposeOnNewModel: IDisposable[] = [];
+	private _callOnDispose: IDisposable[] = [];
 	private _onDidSelectReference = new Emitter<SelectionEvent>();
 
 	private _tree: Tree;
 	private _treeContainer: Builder;
 	private _sash: VSash;
 	private _preview: ICodeEditor;
+	private _previewModelReference: IReference<ITextEditorModel>;
 	private _previewNotAvailableMessage: Model;
 	private _previewContainer: Builder;
 	private _messageContainer: Builder;
@@ -503,17 +507,33 @@ export class ReferenceWidget extends PeekViewWidget {
 		public layoutData: LayoutData,
 		private _textModelResolverService: ITextModelResolverService,
 		private _contextService: IWorkspaceContextService,
+		private _themeService: IThemeService,
 		private _instantiationService: IInstantiationService
 	) {
-		super(editor, { frameColor: '#007ACC', showFrame: false, showArrow: true, isResizeable: true });
+		super(editor, { showFrame: false, showArrow: true, isResizeable: true });
+
+		this._applyTheme(_themeService.getTheme());
+		this._callOnDispose.push(_themeService.onThemeChange(this._applyTheme.bind(this)));
 
 		this._instantiationService = this._instantiationService.createChild(new ServiceCollection([IPeekViewService, this]));
 		this.create();
 	}
 
+	private _applyTheme(theme: ITheme) {
+		let borderColor = theme.getColor(editorPeekBorders) || Color.transparent;
+		this.style({
+			arrowColor: borderColor,
+			frameColor: borderColor,
+			headerBackgroundColor: theme.getColor(editorPeekTitleBackground) || Color.transparent,
+			primaryHeadingColor: theme.getColor(editorPeekTitle),
+			secondaryHeadingColor: theme.getColor(editorPeekTitleInfo)
+		});
+	}
+
 	public dispose(): void {
 		this.setModel(null);
-		dispose<IDisposable>(this._preview, this._previewNotAvailableMessage, this._tree, this._sash);
+		this._callOnDispose = dispose(this._callOnDispose);
+		dispose<IDisposable>(this._preview, this._previewNotAvailableMessage, this._tree, this._sash, this._previewModelReference);
 		super.dispose();
 	}
 
@@ -543,7 +563,7 @@ export class ReferenceWidget extends PeekViewWidget {
 	protected _fillBody(containerElement: HTMLElement): void {
 		var container = $(containerElement);
 
-		container.addClass('reference-zone-widget');
+		this.setCssClass('reference-zone-widget');
 
 		// message pane
 		container.div({ 'class': 'messages' }, div => {
@@ -557,7 +577,10 @@ export class ReferenceWidget extends PeekViewWidget {
 				scrollBeyondLastLine: false,
 				scrollbar: DefaultConfig.editor.scrollbar,
 				overviewRulerLanes: 2,
-				fixedOverflowWidgets: true
+				fixedOverflowWidgets: true,
+				minimap: {
+					enabled: false
+				}
 			};
 
 			this._preview = this._instantiationService.createInstance(EmbeddedCodeEditorWidget, div.getHTMLElement(), options, this.editor);
@@ -635,6 +658,7 @@ export class ReferenceWidget extends PeekViewWidget {
 		if (this._model) {
 			return this._onNewModel();
 		}
+		return undefined;
 	}
 
 	private _onNewModel(): TPromise<any> {
@@ -661,7 +685,6 @@ export class ReferenceWidget extends PeekViewWidget {
 		}));
 		this._disposeOnNewModel.push(this._tree.addListener2(Controller.Events.SELECTED, (element: any) => {
 			if (element instanceof OneReference) {
-				this._revealReference(element);
 				this._onDidSelectReference.fire({ element, kind: 'goto', source: 'tree' });
 			}
 		}));
@@ -704,6 +727,7 @@ export class ReferenceWidget extends PeekViewWidget {
 				return element.children[0];
 			}
 		}
+		return undefined;
 	}
 
 	private _revealReference(reference: OneReference) {
@@ -715,24 +739,30 @@ export class ReferenceWidget extends PeekViewWidget {
 			this.setTitle(nls.localize('peekView.alternateTitle', "References"));
 		}
 
-		return TPromise.join([
-			this._textModelResolverService.resolve(reference.uri),
-			this._tree.reveal(reference)
-		]).then(values => {
+		const promise = this._textModelResolverService.createModelReference(reference.uri);
+
+		return TPromise.join([promise, this._tree.reveal(reference)]).then(values => {
+			const ref = values[0];
+
 			if (!this._model) {
+				ref.dispose();
 				// disposed
 				return;
 			}
 
+			dispose(this._previewModelReference);
+
 			// show in editor
-			let [model] = values;
+			const model = ref.object;
 			if (model) {
+				this._previewModelReference = ref;
 				this._preview.setModel(model.textEditorModel);
 				var sel = Range.lift(reference.range).collapseToStart();
 				this._preview.setSelection(sel);
 				this._preview.revealRangeInCenter(sel);
 			} else {
 				this._preview.setModel(this._previewNotAvailableMessage);
+				ref.dispose();
 			}
 
 			// show in tree
@@ -742,3 +772,67 @@ export class ReferenceWidget extends PeekViewWidget {
 		}, onUnexpectedError);
 	}
 }
+
+// theming
+
+export const editorPeekTitleBackground = registerColor('editorPeekTitleBackground', { dark: '#1E1E1E', light: '#FFFFFF', hc: '#0C141F' }, nls.localize('editorPeekTitleBackground', 'Editor peek view title area background'));
+export const editorPeekTitle = registerColor('editorPeekTitle', { dark: '#FFFFFF', light: '#333333', hc: '#FFFFFF' }, nls.localize('editorPeekTitle', 'Editor peek view title color'));
+export const editorPeekTitleInfo = registerColor('editorPeekTitleInfo', { dark: '#ccccccb3', light: '#6c6c6cb3', hc: '#FFFFFF99' }, nls.localize('editorPeekTitleInfo', 'Editor peek view title info color'));
+export const editorPeekBorders = registerColor('editorPeekBorders', { dark: '#007acc', light: '#007acc', hc: '#6FC3DF' }, nls.localize('editorPeekBorders', 'Editor peek view borders'));
+
+export const editorPeekResultsBackground = registerColor('editorPeekResultsBackground', { dark: '#252526', light: '#F3F3F3', hc: Color.black }, nls.localize('editorPeekResultsBackground', 'List background in the editor peek view'));
+export const editorPeekResultsMatchForeground = registerColor('editorPeekResultsMatchForeground', { dark: '#bbbbbb', light: '#646465', hc: Color.white }, nls.localize('editorPeekResultsMatchForeground', 'Match entry foreground in the editor peek view'));
+export const editorPeekResultsFileForeground = registerColor('editorPeekResultsFileForeground', { dark: Color.white, light: '#1E1E1E', hc: Color.white }, nls.localize('editorPeekResultsFileForeground', 'File entry foreground in the editor peek view'));
+export const editorPeekResultsSelectedBackground = registerColor('editorPeekResultsSelectedBackground', { dark: '#3399ff33', light: '#3399ff33', hc: null }, nls.localize('editorPeekResultsSelectedBackground', 'Selected entry background in the editor peek view'));
+export const editorPeekResultsSelectedForeground = registerColor('editorPeekResultsSelectedForeground', { dark: Color.white, light: '#6C6C6C', hc: Color.white }, nls.localize('editorPeekResultsSelectedForeground', 'Selected entry foreground in the editor peek view'));
+export const editorPeekEditorBackground = registerColor('editorPeekEditorBackground', { dark: '#001F33', light: '#F2F8FC', hc: '#0C141F' }, nls.localize('editorPeekEditorBackground', 'Editor background in the editor peek view'));
+
+export const editorPeekFindMatchHighlight = registerColor('editorPeekFindMatchHighlight', { dark: '#ea5c004d', light: '#ea5c004d', hc: null }, nls.localize('editorPeekFindMatchHighlight', 'Match highlight color in the peek view matches list'));
+export const editorPeekReferenceHighlight = registerColor('editorPeekReferenceHighlight', { dark: '#ff8f0099', light: '#f5d802de', hc: null }, nls.localize('editorPeekReferenceHighlight', 'Match highlight color in the peek view editor'));
+
+
+registerThemingParticipant((theme, collector) => {
+	let findMatchHighlightColor = theme.getColor(editorPeekFindMatchHighlight);
+	if (findMatchHighlightColor) {
+		collector.addRule(`.monaco-editor.${theme.selector} .reference-zone-widget .ref-tree .referenceMatch { background-color: ${findMatchHighlightColor}; }`);
+	}
+	let referenceHighlightColor = theme.getColor(editorPeekReferenceHighlight);
+	if (referenceHighlightColor) {
+		collector.addRule(`.monaco-editor.${theme.selector} .reference-zone-widget .preview .reference-decoration { background-color: ${referenceHighlightColor}; }`);
+	}
+	let hcOutline = theme.getColor(highContrastOutline);
+	if (hcOutline) {
+		collector.addRule(`.monaco-editor.${theme.selector} .reference-zone-widget .ref-tree .referenceMatch { border: 1px dotted ${hcOutline}; box-sizing: border-box; }`);
+		collector.addRule(`.monaco-editor.${theme.selector} .reference-zone-widget .preview .reference-decoration { border: 2px solid ${hcOutline}; box-sizing: border-box; }`);
+	}
+	let resultsBackground = theme.getColor(editorPeekResultsBackground);
+	if (resultsBackground) {
+		collector.addRule(`.monaco-editor.${theme.selector} .reference-zone-widget .ref-tree { background-color: ${resultsBackground}; }`);
+	}
+	let resultsMatchForeground = theme.getColor(editorPeekResultsMatchForeground);
+	if (resultsMatchForeground) {
+		collector.addRule(`.monaco-editor.${theme.selector} .reference-zone-widget .ref-tree { color: ${resultsMatchForeground}; }`);
+	}
+	let resultsFileForeground = theme.getColor(editorPeekResultsFileForeground);
+	if (resultsFileForeground) {
+		collector.addRule(`.monaco-editor.${theme.selector} .reference-zone-widget .ref-tree .reference-file { color: ${resultsFileForeground}; }`);
+	}
+	let resultsSelectedBackground = theme.getColor(editorPeekResultsSelectedBackground);
+	if (resultsSelectedBackground) {
+		collector.addRule(`.monaco-editor.${theme.selector} .reference-zone-widget .ref-tree .monaco-tree.focused .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted) { background-color: ${resultsSelectedBackground}; }`);
+	}
+	let resultsSelectedForeground = theme.getColor(editorPeekResultsSelectedForeground);
+	if (resultsSelectedForeground) {
+		collector.addRule(`.monaco-editor.${theme.selector} .reference-zone-widget .ref-tree .monaco-tree.focused .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted) { color: ${resultsSelectedForeground} !important; }`);
+	}
+	let editorBackground = theme.getColor(editorPeekEditorBackground);
+	if (editorBackground) {
+		collector.addRule(
+			`.monaco-editor.${theme.selector} .reference-zone-widget .preview .monaco-editor,` +
+			`.monaco-editor.${theme.selector} .reference-zone-widget .preview .glyph-margin,` +
+			`.monaco-editor.${theme.selector} .reference-zone-widget .preview .monaco-editor-background,` +
+			`.monaco-editor.${theme.selector} .reference-zone-widget .preview .monaco-editor .margin .view-line {` +
+			`	background-color: ${editorBackground};` +
+			`}`);
+	}
+});

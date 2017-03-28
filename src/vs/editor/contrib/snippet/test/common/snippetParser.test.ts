@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { Scanner, TokenType, SnippetParser, Text, Placeholder, Marker } from 'vs/editor/contrib/snippet/common/snippetParser';
+import { Scanner, TokenType, SnippetParser, Text, Placeholder, Variable, Marker } from 'vs/editor/contrib/snippet/common/snippetParser';
 
 
 suite('SnippetParser', () => {
@@ -110,8 +110,13 @@ suite('SnippetParser', () => {
 
 	test('Parser, escaping', () => {
 		assertEscape('$', '$');
+		assertEscape('\\\\$', '\\$');
 		assertEscape('{', '{');
+		assertEscape('\\}', '}');
+		assertEscape('\\abc', '\\abc');
+		assertEscape('foo${f:\\}}bar', 'foo}bar');
 		assertEscape('\\{', '{');
+		assertEscape('I need \\\\\\$', 'I need \\$');
 		assertEscape('\\', '\\');
 		assertEscape('\\{{', '{{');
 		assertEscape('{{', '{{');
@@ -127,6 +132,23 @@ suite('SnippetParser', () => {
 		assertEscape('far{{id:bern {{basel}}}}boo', 'farbern baselboo');
 		assertEscape('far{{id:bern {{id:basel}}}}boo', 'farbern baselboo');
 		assertEscape('far{{id:bern {{id2:basel}}}}boo', 'farbern baselboo');
+
+	});
+
+	test('Parser, TM escaping', () => {
+		assertEscapeAndMarker('foo${1:bar}}', 'foobar}', Text, Placeholder, Text);
+		assertEscapeAndMarker('foo${1:bar}${2:foo}}', 'foobarfoo}', Text, Placeholder, Placeholder, Text);
+
+		assertEscapeAndMarker('foo${1:bar\\}${2:foo}}', 'foobar}foo', Text, Placeholder);
+
+		let [, placeholder] = new SnippetParser(true, false).parse('foo${1:bar\\}${2:foo}}');
+		let {defaultValue} = (<Placeholder>placeholder);
+
+		assert.equal((<Placeholder>placeholder).name, '1');
+		assert.ok(defaultValue[0] instanceof Text);
+		assert.equal(defaultValue[0].toString(), 'bar}');
+		assert.ok(defaultValue[1] instanceof Placeholder);
+		assert.equal(defaultValue[1].toString(), 'foo');
 	});
 
 	test('Parser, placeholder', () => {
@@ -142,17 +164,17 @@ suite('SnippetParser', () => {
 	});
 
 	test('Parser, variables/tabstop', () => {
-		assertEscapeAndMarker('$far-boo', '-boo', Placeholder, Text);
+		assertEscapeAndMarker('$far-boo', '-boo', Variable, Text);
 		assertEscapeAndMarker('\\$far-boo', '$far-boo', Text);
-		assertEscapeAndMarker('far$farboo', 'far', Text, Placeholder);
-		assertEscapeAndMarker('far${farboo}', 'far', Text, Placeholder);
+		assertEscapeAndMarker('far$farboo', 'far', Text, Variable);
+		assertEscapeAndMarker('far${farboo}', 'far', Text, Variable);
 		assertEscapeAndMarker('$123', '', Placeholder);
-		assertEscapeAndMarker('$farboo', '', Placeholder);
-		assertEscapeAndMarker('$far12boo', '', Placeholder);
+		assertEscapeAndMarker('$farboo', '', Variable);
+		assertEscapeAndMarker('$far12boo', '', Variable);
 	});
 
 	test('Parser, variables/placeholder with defaults', () => {
-		assertEscapeAndMarker('${name:value}', 'value', Placeholder);
+		assertEscapeAndMarker('${name:value}', 'value', Variable);
 		assertEscapeAndMarker('${1:value}', 'value', Placeholder);
 		assertEscapeAndMarker('${1:bar${2:foo}bar}', 'barfoobar', Placeholder);
 
@@ -190,25 +212,23 @@ suite('SnippetParser', () => {
 		assert.equal(marker[2].toString(), ')');
 
 		const placeholder = <Placeholder>marker[1];
-		assert.equal(placeholder.isVariable, false);
+		assert.equal(placeholder, false);
 		assert.equal(placeholder.name, '1');
-		assert.equal(placeholder.value.length, 3);
-		assert.ok(placeholder.value[0] instanceof Text);
-		assert.ok(placeholder.value[1] instanceof Placeholder);
-		assert.ok(placeholder.value[2] instanceof Text);
-		assert.equal(placeholder.value[0].toString(), ' ');
-		assert.equal(placeholder.value[1].toString(), '');
-		assert.equal(placeholder.value[2].toString(), ' ');
+		assert.equal(placeholder.defaultValue.length, 3);
+		assert.ok(placeholder.defaultValue[0] instanceof Text);
+		assert.ok(placeholder.defaultValue[1] instanceof Variable);
+		assert.ok(placeholder.defaultValue[2] instanceof Text);
+		assert.equal(placeholder.defaultValue[0].toString(), ' ');
+		assert.equal(placeholder.defaultValue[1].toString(), '');
+		assert.equal(placeholder.defaultValue[2].toString(), ' ');
 
-		const nestedPlaceholder = <Placeholder>placeholder.value[1];
-		assert.equal(nestedPlaceholder.isVariable, true);
-		assert.equal(nestedPlaceholder.name, 'TM_SELECTED_TEXT');
-		assert.equal(nestedPlaceholder.value.length, 0);
+		const nestedVariable = <Variable>placeholder.defaultValue[1];
+		assert.equal(nestedVariable.name, 'TM_SELECTED_TEXT');
+		assert.equal(nestedVariable.defaultValue.length, 0);
 
 		marker = new SnippetParser().parse('$TM_SELECTED_TEXT');
 		assert.equal(marker.length, 1);
-		assert.ok(marker[0] instanceof Placeholder);
-		assert.equal((<Placeholder>marker[0]).isVariable, true);
+		assert.ok(marker[0] instanceof Variable);
 	});
 
 	test('Parser, real world, mixed', () => {
@@ -237,13 +257,13 @@ suite('SnippetParser', () => {
 
 		const [p1, , p2, , p3] = new SnippetParser().parse('{{first}}-{{2:}}-{{second}}-{{1:}}');
 		assert.equal((<Placeholder>p1).name, 'first');
-		assert.equal(Marker.toString((<Placeholder>p1).value), 'first');
+		assert.equal(Marker.toString((<Placeholder>p1).defaultValue), 'first');
 
 		assert.equal((<Placeholder>p2).name, '2');
-		assert.equal(Marker.toString((<Placeholder>p2).value), '');
+		assert.equal(Marker.toString((<Placeholder>p2).defaultValue), '');
 
 		assert.equal((<Placeholder>p3).name, 'second');
-		assert.equal(Marker.toString((<Placeholder>p3).value), 'second');
+		assert.equal(Marker.toString((<Placeholder>p3).defaultValue), 'second');
 	});
 
 	test('Parser, default placeholder values', () => {
@@ -253,12 +273,25 @@ suite('SnippetParser', () => {
 		const [, p1, , p2] = new SnippetParser().parse('errorContext: `${1:err}`, error:$1');
 
 		assert.equal((<Placeholder>p1).name, '1');
-		assert.equal((<Placeholder>p1).value.length, '1');
-		assert.equal((<Text>(<Placeholder>p1).value[0]), 'err');
+		assert.equal((<Placeholder>p1).defaultValue.length, '1');
+		assert.equal((<Text>(<Placeholder>p1).defaultValue[0]), 'err');
 
 		assert.equal((<Placeholder>p2).name, '1');
-		assert.equal((<Placeholder>p2).value.length, '1');
-		assert.equal((<Text>(<Placeholder>p2).value[0]), 'err');
+		assert.equal((<Placeholder>p2).defaultValue.length, '1');
+		assert.equal((<Text>(<Placeholder>p2).defaultValue[0]), 'err');
 
+	});
+
+	test('backspace esapce in TM only, #16212', () => {
+		const actual = new SnippetParser(true, false).escape('Foo \\\\${abc}bar');
+		assert.equal(actual, 'Foo \\bar');
+	});
+
+	test('colon as variable/placeholder value, #16717', () => {
+		let actual = new SnippetParser(true, false).escape('${TM_SELECTED_TEXT:foo:bar}');
+		assert.equal(actual, 'foo:bar');
+
+		actual = new SnippetParser(true, false).escape('${1:foo:bar}');
+		assert.equal(actual, 'foo:bar');
 	});
 });

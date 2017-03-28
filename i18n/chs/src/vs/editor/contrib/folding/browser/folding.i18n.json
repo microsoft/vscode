@@ -6,11 +6,7 @@
 {
 	"foldAction.label": "折叠",
 	"foldAllAction.label": "全部折叠",
-	"foldLevel1Action.label": "折叠级别 1",
-	"foldLevel2Action.label": "折叠级别 2",
-	"foldLevel3Action.label": "折叠级别 3",
-	"foldLevel4Action.label": "折叠级别 4",
-	"foldLevel5Action.label": "折叠级别 5",
+	"foldLevelAction.label": "折叠级别 {0}",
 	"foldRecursivelyAction.label": "以递归方式折叠",
 	"unFoldRecursivelyAction.label": "以递归方式展开",
 	"unfoldAction.label": "展开",

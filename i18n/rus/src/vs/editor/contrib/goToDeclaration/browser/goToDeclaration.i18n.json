@@ -6,7 +6,17 @@
 {
 	"actions.goToDecl.label": "Перейти к определению",
 	"actions.goToDeclToSide.label": "Открыть определение сбоку",
+	"actions.goToImplementation.label": "Перейти к реализации",
+	"actions.goToTypeDefinition.label": "Перейти к определению типа",
+	"actions.peekImplementation.label": "Показать реализацию",
+	"actions.peekTypeDefinition.label": "Показать определение типа",
 	"actions.previewDecl.label": "Показать определение",
+	"generic.noResults": "Определения не найдены.",
+	"goToImplementation.generic.noResults": "Не найдена реализация.",
+	"goToImplementation.noResultWord": "Не найдена реализация для \"{0}\".",
+	"goToTypeDefinition.generic.noResults": "Не найдено определение типа.",
+	"goToTypeDefinition.noResultWord": "Не найдено определение типа для \"{0}\".",
 	"meta.title": " — определения {0}",
-	"multipleResults": "Щелкните, чтобы отобразить определения ({0})."
+	"multipleResults": "Щелкните, чтобы отобразить определения ({0}).",
+	"noResultWord": "Определение для \"{0}\" не найдено."
 }

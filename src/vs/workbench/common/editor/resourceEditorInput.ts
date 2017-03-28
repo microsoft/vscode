@@ -7,8 +7,9 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { EditorInput, ITextEditorModel } from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
-import { telemetryURIDescriptor } from 'vs/platform/telemetry/common/telemetry';
-import { ITextModelResolverService } from 'vs/platform/textmodelResolver/common/resolver';
+import { IReference } from 'vs/base/common/lifecycle';
+import { telemetryURIDescriptor } from 'vs/platform/telemetry/common/telemetryUtils';
+import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
 
 /**
@@ -17,9 +18,9 @@ import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorMo
  */
 export class ResourceEditorInput extends EditorInput {
 
-	public static ID: string = 'workbench.editors.resourceEditorInput';
+	static ID: string = 'workbench.editors.resourceEditorInput';
 
-	protected cachedModel: ResourceEditorModel;
+	protected promise: TPromise<IReference<ResourceEditorModel>>;
 	protected resource: URI;
 
 	private name: string;
@@ -38,64 +39,62 @@ export class ResourceEditorInput extends EditorInput {
 		this.resource = resource;
 	}
 
-	public getTypeId(): string {
+	getResource(): URI {
+		return this.resource;
+	}
+
+	getTypeId(): string {
 		return ResourceEditorInput.ID;
 	}
 
-	public getName(): string {
+	getName(): string {
 		return this.name;
 	}
 
-	public setName(name: string): void {
+	setName(name: string): void {
 		if (this.name !== name) {
 			this.name = name;
 			this._onDidChangeLabel.fire();
 		}
 	}
 
-	public getDescription(): string {
+	getDescription(): string {
 		return this.description;
 	}
 
-	public setDescription(description: string): void {
+	setDescription(description: string): void {
 		if (this.description !== description) {
 			this.description = description;
 			this._onDidChangeLabel.fire();
 		}
 	}
 
-	public getTelemetryDescriptor(): any {
+	getTelemetryDescriptor(): { [key: string]: any; } {
 		const descriptor = super.getTelemetryDescriptor();
-		descriptor.resource = telemetryURIDescriptor(this.resource);
+		descriptor['resource'] = telemetryURIDescriptor(this.resource);
+
 		return descriptor;
 	}
 
-	public resolve(refresh?: boolean): TPromise<ITextEditorModel> {
-
-		// Use Cached Model
-		if (this.cachedModel) {
-			return TPromise.as<ITextEditorModel>(this.cachedModel);
+	resolve(refresh?: boolean): TPromise<ITextEditorModel> {
+		if (!this.promise) {
+			this.promise = this.textModelResolverService.createModelReference(this.resource);
 		}
 
-		// Otherwise Create Model and handle dispose event
-		return this.textModelResolverService.resolve(this.resource).then(model => {
+		return this.promise.then(ref => {
+			const model = ref.object;
+
 			if (!(model instanceof ResourceEditorModel)) {
+				ref.dispose();
+				this.promise = null;
 				return TPromise.wrapError(`Unexpected model for ResourceInput: ${this.resource}`); // TODO@Ben eventually also files should be supported, but we guard due to the dangerous dispose of the model in dispose()
 			}
 
-			this.cachedModel = model;
-
-			const unbind = model.onDispose(() => {
-				this.cachedModel = null; // make sure we do not dispose model again
-				unbind.dispose();
-				this.dispose();
-			});
-
-			return this.cachedModel;
+			return model;
 		});
 	}
 
-	public matches(otherInput: any): boolean {
+	matches(otherInput: any): boolean {
 		if (super.matches(otherInput) === true) {
 			return true;
 		}
@@ -110,10 +109,10 @@ export class ResourceEditorInput extends EditorInput {
 		return false;
 	}
 
-	public dispose(): void {
-		if (this.cachedModel) {
-			this.cachedModel.dispose();
-			this.cachedModel = null;
+	dispose(): void {
+		if (this.promise) {
+			this.promise.done(ref => ref.dispose());
+			this.promise = null;
 		}
 
 		super.dispose();

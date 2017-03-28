@@ -1,2037 +1,2180 @@
 [
 	{
 		"c": "package",
-		"t": "java.keyword.meta.other.package",
+		"t": "source.java meta.package.java keyword.other.package.java",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword rgb(86, 156, 214)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword rgb(0, 0, 255)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword rgb(86, 156, 214)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword rgb(0, 0, 255)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword rgb(86, 156, 214)"
+			"dark_plus": "keyword: #569CD6",
+			"light_plus": "keyword: #0000FF",
+			"dark_vs": "keyword: #569CD6",
+			"light_vs": "keyword: #0000FF",
+			"hc_black": "keyword: #569CD6"
 		}
 	},
 	{
 		"c": " ",
-		"t": "java.meta.package",
+		"t": "source.java meta.package.java",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
 		"c": "foo",
-		"t": "java.meta.modifier.package.storage",
+		"t": "source.java meta.package.java storage.modifier.package.java",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.storage.modifier.package.java rgb(212, 212, 212)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.storage.modifier.package.java rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.storage.modifier.package.java rgb(212, 212, 212)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.storage.modifier.package.java rgb(0, 0, 0)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.storage.modifier.package.java rgb(212, 212, 212)"
+			"dark_plus": "storage.modifier.package.java: #D4D4D4",
+			"light_plus": "storage.modifier.package.java: #000000",
+			"dark_vs": "storage.modifier.package.java: #D4D4D4",
+			"light_vs": "storage.modifier.package.java: #000000",
+			"hc_black": "storage.modifier.package.java: #D4D4D4"
 		}
 	},
 	{
 		"c": ";",
-		"t": "java.meta.package.punctuation.terminator",
+		"t": "source.java meta.package.java punctuation.terminator.java",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
 		"c": "import",
-		"t": "import.java.keyword.meta.other",
+		"t": "source.java meta.import.java keyword.other.import.java",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword rgb(86, 156, 214)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword rgb(0, 0, 255)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword rgb(86, 156, 214)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword rgb(0, 0, 255)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword rgb(86, 156, 214)"
+			"dark_plus": "keyword: #569CD6",
+			"light_plus": "keyword: #0000FF",
+			"dark_vs": "keyword: #569CD6",
+			"light_vs": "keyword: #0000FF",
+			"hc_black": "keyword: #569CD6"
 		}
 	},
 	{
 		"c": " ",
-		"t": "import.java.meta",
+		"t": "source.java meta.import.java",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
 		"c": "org",
-		"t": "import.java.meta.modifier.storage",
+		"t": "source.java meta.import.java storage.modifier.import.java",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.storage.modifier.import.java rgb(212, 212, 212)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.storage.modifier.import.java rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.storage.modifier.import.java rgb(212, 212, 212)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.storage.modifier.import.java rgb(0, 0, 0)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.storage.modifier.import.java rgb(212, 212, 212)"
+			"dark_plus": "storage.modifier.import.java: #D4D4D4",
+			"light_plus": "storage.modifier.import.java: #000000",
+			"dark_vs": "storage.modifier.import.java: #D4D4D4",
+			"light_vs": "storage.modifier.import.java: #000000",
+			"hc_black": "storage.modifier.import.java: #D4D4D4"
 		}
 	},
 	{
 		"c": ".",
-		"t": "import.java.meta.modifier.punctuation.separator.storage",
+		"t": "source.java meta.import.java storage.modifier.import.java punctuation.separator.java",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.storage.modifier.import.java rgb(212, 212, 212)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.storage.modifier.import.java rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.storage.modifier.import.java rgb(212, 212, 212)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.storage.modifier.import.java rgb(0, 0, 0)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.storage.modifier.import.java rgb(212, 212, 212)"
+			"dark_plus": "storage.modifier.import.java: #D4D4D4",
+			"light_plus": "storage.modifier.import.java: #000000",
+			"dark_vs": "storage.modifier.import.java: #D4D4D4",
+			"light_vs": "storage.modifier.import.java: #000000",
+			"hc_black": "storage.modifier.import.java: #D4D4D4"
 		}
 	},
 	{
 		"c": "junit",
-		"t": "import.java.meta.modifier.storage",
+		"t": "source.java meta.import.java storage.modifier.import.java",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.storage.modifier.import.java rgb(212, 212, 212)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.storage.modifier.import.java rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.storage.modifier.import.java rgb(212, 212, 212)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.storage.modifier.import.java rgb(0, 0, 0)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.storage.modifier.import.java rgb(212, 212, 212)"
+			"dark_plus": "storage.modifier.import.java: #D4D4D4",
+			"light_plus": "storage.modifier.import.java: #000000",
+			"dark_vs": "storage.modifier.import.java: #D4D4D4",
+			"light_vs": "storage.modifier.import.java: #000000",
+			"hc_black": "storage.modifier.import.java: #D4D4D4"
 		}
 	},
 	{
 		"c": ".",
-		"t": "import.java.meta.modifier.punctuation.separator.storage",
+		"t": "source.java meta.import.java storage.modifier.import.java punctuation.separator.java",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.storage.modifier.import.java rgb(212, 212, 212)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.storage.modifier.import.java rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.storage.modifier.import.java rgb(212, 212, 212)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.storage.modifier.import.java rgb(0, 0, 0)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.storage.modifier.import.java rgb(212, 212, 212)"
+			"dark_plus": "storage.modifier.import.java: #D4D4D4",
+			"light_plus": "storage.modifier.import.java: #000000",
+			"dark_vs": "storage.modifier.import.java: #D4D4D4",
+			"light_vs": "storage.modifier.import.java: #000000",
+			"hc_black": "storage.modifier.import.java: #D4D4D4"
 		}
 	},
 	{
 		"c": "Test",
-		"t": "import.java.meta.modifier.storage",
+		"t": "source.java meta.import.java storage.modifier.import.java",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.storage.modifier.import.java rgb(212, 212, 212)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.storage.modifier.import.java rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.storage.modifier.import.java rgb(212, 212, 212)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.storage.modifier.import.java rgb(0, 0, 0)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.storage.modifier.import.java rgb(212, 212, 212)"
+			"dark_plus": "storage.modifier.import.java: #D4D4D4",
+			"light_plus": "storage.modifier.import.java: #000000",
+			"dark_vs": "storage.modifier.import.java: #D4D4D4",
+			"light_vs": "storage.modifier.import.java: #000000",
+			"hc_black": "storage.modifier.import.java: #D4D4D4"
 		}
 	},
 	{
 		"c": ";",
-		"t": "import.java.meta.punctuation.terminator",
+		"t": "source.java meta.import.java punctuation.terminator.java",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
 		"c": "import",
-		"t": "import.java.keyword.meta.other",
+		"t": "source.java meta.import.java keyword.other.import.java",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword rgb(86, 156, 214)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword rgb(0, 0, 255)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword rgb(86, 156, 214)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword rgb(0, 0, 255)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword rgb(86, 156, 214)"
+			"dark_plus": "keyword: #569CD6",
+			"light_plus": "keyword: #0000FF",
+			"dark_vs": "keyword: #569CD6",
+			"light_vs": "keyword: #0000FF",
+			"hc_black": "keyword: #569CD6"
 		}
 	},
 	{
 		"c": " ",
-		"t": "import.java.meta",
+		"t": "source.java meta.import.java",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
 		"c": "org",
-		"t": "import.java.meta.modifier.storage",
+		"t": "source.java meta.import.java storage.modifier.import.java",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.storage.modifier.import.java rgb(212, 212, 212)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.storage.modifier.import.java rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.storage.modifier.import.java rgb(212, 212, 212)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.storage.modifier.import.java rgb(0, 0, 0)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.storage.modifier.import.java rgb(212, 212, 212)"
+			"dark_plus": "storage.modifier.import.java: #D4D4D4",
+			"light_plus": "storage.modifier.import.java: #000000",
+			"dark_vs": "storage.modifier.import.java: #D4D4D4",
+			"light_vs": "storage.modifier.import.java: #000000",
+			"hc_black": "storage.modifier.import.java: #D4D4D4"
 		}
 	},
 	{
 		"c": ".",
-		"t": "import.java.meta.modifier.punctuation.separator.storage",
+		"t": "source.java meta.import.java storage.modifier.import.java punctuation.separator.java",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.storage.modifier.import.java rgb(212, 212, 212)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.storage.modifier.import.java rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.storage.modifier.import.java rgb(212, 212, 212)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.storage.modifier.import.java rgb(0, 0, 0)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.storage.modifier.import.java rgb(212, 212, 212)"
+			"dark_plus": "storage.modifier.import.java: #D4D4D4",
+			"light_plus": "storage.modifier.import.java: #000000",
+			"dark_vs": "storage.modifier.import.java: #D4D4D4",
+			"light_vs": "storage.modifier.import.java: #000000",
+			"hc_black": "storage.modifier.import.java: #D4D4D4"
 		}
 	},
 	{
 		"c": "junit",
-		"t": "import.java.meta.modifier.storage",
+		"t": "source.java meta.import.java storage.modifier.import.java",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.storage.modifier.import.java rgb(212, 212, 212)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.storage.modifier.import.java rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.storage.modifier.import.java rgb(212, 212, 212)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.storage.modifier.import.java rgb(0, 0, 0)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.storage.modifier.import.java rgb(212, 212, 212)"
+			"dark_plus": "storage.modifier.import.java: #D4D4D4",
+			"light_plus": "storage.modifier.import.java: #000000",
+			"dark_vs": "storage.modifier.import.java: #D4D4D4",
+			"light_vs": "storage.modifier.import.java: #000000",
+			"hc_black": "storage.modifier.import.java: #D4D4D4"
 		}
 	},
 	{
 		"c": ".",
-		"t": "import.java.meta.modifier.punctuation.separator.storage",
+		"t": "source.java meta.import.java storage.modifier.import.java punctuation.separator.java",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.storage.modifier.import.java rgb(212, 212, 212)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.storage.modifier.import.java rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.storage.modifier.import.java rgb(212, 212, 212)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.storage.modifier.import.java rgb(0, 0, 0)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.storage.modifier.import.java rgb(212, 212, 212)"
+			"dark_plus": "storage.modifier.import.java: #D4D4D4",
+			"light_plus": "storage.modifier.import.java: #000000",
+			"dark_vs": "storage.modifier.import.java: #D4D4D4",
+			"light_vs": "storage.modifier.import.java: #000000",
+			"hc_black": "storage.modifier.import.java: #D4D4D4"
 		}
 	},
 	{
 		"c": "runners",
-		"t": "import.java.meta.modifier.storage",
+		"t": "source.java meta.import.java storage.modifier.import.java",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.storage.modifier.import.java rgb(212, 212, 212)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.storage.modifier.import.java rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.storage.modifier.import.java rgb(212, 212, 212)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.storage.modifier.import.java rgb(0, 0, 0)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.storage.modifier.import.java rgb(212, 212, 212)"
+			"dark_plus": "storage.modifier.import.java: #D4D4D4",
+			"light_plus": "storage.modifier.import.java: #000000",
+			"dark_vs": "storage.modifier.import.java: #D4D4D4",
+			"light_vs": "storage.modifier.import.java: #000000",
+			"hc_black": "storage.modifier.import.java: #D4D4D4"
 		}
 	},
 	{
 		"c": ".",
-		"t": "import.java.meta.modifier.punctuation.separator.storage",
+		"t": "source.java meta.import.java storage.modifier.import.java punctuation.separator.java",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.storage.modifier.import.java rgb(212, 212, 212)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.storage.modifier.import.java rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.storage.modifier.import.java rgb(212, 212, 212)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.storage.modifier.import.java rgb(0, 0, 0)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.storage.modifier.import.java rgb(212, 212, 212)"
+			"dark_plus": "storage.modifier.import.java: #D4D4D4",
+			"light_plus": "storage.modifier.import.java: #000000",
+			"dark_vs": "storage.modifier.import.java: #D4D4D4",
+			"light_vs": "storage.modifier.import.java: #000000",
+			"hc_black": "storage.modifier.import.java: #D4D4D4"
 		}
 	},
 	{
 		"c": "*",
-		"t": "import.java.meta.modifier.storage",
+		"t": "source.java meta.import.java storage.modifier.import.java",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.storage.modifier.import.java rgb(212, 212, 212)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.storage.modifier.import.java rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.storage.modifier.import.java rgb(212, 212, 212)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.storage.modifier.import.java rgb(0, 0, 0)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.storage.modifier.import.java rgb(212, 212, 212)"
+			"dark_plus": "storage.modifier.import.java: #D4D4D4",
+			"light_plus": "storage.modifier.import.java: #000000",
+			"dark_vs": "storage.modifier.import.java: #D4D4D4",
+			"light_vs": "storage.modifier.import.java: #000000",
+			"hc_black": "storage.modifier.import.java: #D4D4D4"
 		}
 	},
 	{
 		"c": ";",
-		"t": "import.java.meta.punctuation.terminator",
+		"t": "source.java meta.import.java punctuation.terminator.java",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
 		"c": "/*",
-		"t": "block.comment.definition.java.punctuation",
+		"t": "source.java comment.block.java punctuation.definition.comment.java",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment rgb(96, 139, 78)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment rgb(0, 128, 0)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment rgb(96, 139, 78)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment rgb(0, 128, 0)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment rgb(124, 166, 104)"
+			"dark_plus": "comment: #608B4E",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #608B4E",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668"
 		}
 	},
 	{
 		"c": " * Multi line comment",
-		"t": "block.comment.java",
+		"t": "source.java comment.block.java",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment rgb(96, 139, 78)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment rgb(0, 128, 0)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment rgb(96, 139, 78)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment rgb(0, 128, 0)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment rgb(124, 166, 104)"
+			"dark_plus": "comment: #608B4E",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #608B4E",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668"
 		}
 	},
 	{
 		"c": " ",
-		"t": "block.comment.java",
+		"t": "source.java comment.block.java",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment rgb(96, 139, 78)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment rgb(0, 128, 0)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment rgb(96, 139, 78)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment rgb(0, 128, 0)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment rgb(124, 166, 104)"
+			"dark_plus": "comment: #608B4E",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #608B4E",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668"
 		}
 	},
 	{
 		"c": "*/",
-		"t": "block.comment.definition.java.punctuation",
+		"t": "source.java comment.block.java punctuation.definition.comment.java",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment rgb(96, 139, 78)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment rgb(0, 128, 0)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment rgb(96, 139, 78)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment rgb(0, 128, 0)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment rgb(124, 166, 104)"
+			"dark_plus": "comment: #608B4E",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #608B4E",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668"
 		}
 	},
 	{
 		"c": "public",
-		"t": "class.java.meta.modifier.storage",
+		"t": "source.java meta.class.java storage.modifier.java",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.storage.modifier rgb(86, 156, 214)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.storage.modifier rgb(0, 0, 255)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.storage.modifier rgb(86, 156, 214)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.storage.modifier rgb(0, 0, 255)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.storage.modifier rgb(86, 156, 214)"
+			"dark_plus": "storage.modifier: #569CD6",
+			"light_plus": "storage.modifier: #0000FF",
+			"dark_vs": "storage.modifier: #569CD6",
+			"light_vs": "storage.modifier: #0000FF",
+			"hc_black": "storage.modifier: #569CD6"
 		}
 	},
 	{
 		"c": " ",
-		"t": "class.java.meta",
+		"t": "source.java meta.class.java",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
 		"c": "class",
-		"t": "class.identifier.java.meta.modifier.storage",
+		"t": "source.java meta.class.java meta.class.identifier.java storage.modifier.java",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.storage.modifier rgb(86, 156, 214)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.storage.modifier rgb(0, 0, 255)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.storage.modifier rgb(86, 156, 214)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.storage.modifier rgb(0, 0, 255)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.storage.modifier rgb(86, 156, 214)"
+			"dark_plus": "storage.modifier: #569CD6",
+			"light_plus": "storage.modifier: #0000FF",
+			"dark_vs": "storage.modifier: #569CD6",
+			"light_vs": "storage.modifier: #0000FF",
+			"hc_black": "storage.modifier: #569CD6"
 		}
 	},
 	{
 		"c": " ",
-		"t": "class.identifier.java.meta",
+		"t": "source.java meta.class.java meta.class.identifier.java",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
 		"c": "TestClass",
-		"t": "class.entity.identifier.java.meta.name.type",
+		"t": "source.java meta.class.java meta.class.identifier.java entity.name.type.class.java",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.name.type rgb(78, 201, 176)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.name.type rgb(38, 127, 153)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "entity.name.type: #4EC9B0",
+			"light_plus": "entity.name.type: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
 		"c": " ",
-		"t": "class.java.meta",
+		"t": "source.java meta.class.java",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
 		"c": "{",
-		"t": "begin.body.class.java.meta.punctuation.section",
+		"t": "source.java meta.class.java meta.class.body.java punctuation.section.class.begin.java",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
 		"c": "\t",
-		"t": "body.class.java.meta",
+		"t": "source.java meta.class.java meta.class.body.java",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
 		"c": "private",
-		"t": "body.class.java.meta.modifier.storage",
+		"t": "source.java meta.class.java meta.class.body.java storage.modifier.java",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.storage.modifier rgb(86, 156, 214)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.storage.modifier rgb(0, 0, 255)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.storage.modifier rgb(86, 156, 214)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.storage.modifier rgb(0, 0, 255)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.storage.modifier rgb(86, 156, 214)"
+			"dark_plus": "storage.modifier: #569CD6",
+			"light_plus": "storage.modifier: #0000FF",
+			"dark_vs": "storage.modifier: #569CD6",
+			"light_vs": "storage.modifier: #0000FF",
+			"hc_black": "storage.modifier: #569CD6"
 		}
 	},
 	{
 		"c": " ",
-		"t": "body.class.java.meta",
+		"t": "source.java meta.class.java meta.class.body.java",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
 		"c": "String",
-		"t": "body.class.java.meta.storage.type",
+		"t": "source.java meta.class.java meta.class.body.java storage.type.java",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.storage.type.java rgb(78, 201, 176)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.storage.type.java rgb(38, 127, 153)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.storage.type rgb(86, 156, 214)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.storage.type rgb(0, 0, 255)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.storage.type rgb(86, 156, 214)"
+			"dark_plus": "storage.type.java: #4EC9B0",
+			"light_plus": "storage.type.java: #267F99",
+			"dark_vs": "storage.type: #569CD6",
+			"light_vs": "storage.type: #0000FF",
+			"hc_black": "storage.type: #569CD6"
 		}
 	},
 	{
 		"c": " aString",
-		"t": "body.class.java.meta",
+		"t": "source.java meta.class.java meta.class.body.java",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
 		"c": ";",
-		"t": "body.class.java.meta.punctuation.terminator",
+		"t": "source.java meta.class.java meta.class.body.java punctuation.terminator.java",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
 		"c": "\t",
-		"t": "body.class.java.meta",
+		"t": "source.java meta.class.java meta.class.body.java",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
-		"c": "/*",
-		"t": "block.body.class.comment.definition.java.meta.punctuation",
+		"c": "/**",
+		"t": "source.java meta.class.java meta.class.body.java comment.block.documentation.javadoc punctuation.definition.comment.begin.javadoc",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment rgb(96, 139, 78)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment rgb(0, 128, 0)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment rgb(96, 139, 78)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment rgb(0, 128, 0)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment rgb(124, 166, 104)"
+			"dark_plus": "comment: #608B4E",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #608B4E",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668"
 		}
 	},
 	{
-		"c": "*",
-		"t": "block.body.class.comment.java.meta",
+		"c": "\t * ",
+		"t": "source.java meta.class.java meta.class.body.java comment.block.documentation.javadoc text.html",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment rgb(96, 139, 78)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment rgb(0, 128, 0)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment rgb(96, 139, 78)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment rgb(0, 128, 0)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment rgb(124, 166, 104)"
-		}
-	},
-	{
-		"c": "\t * @param args",
-		"t": "block.body.class.comment.java.meta",
-		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment rgb(96, 139, 78)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment rgb(0, 128, 0)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment rgb(96, 139, 78)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment rgb(0, 128, 0)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment rgb(124, 166, 104)"
-		}
-	},
-	{
-		"c": "\t ",
-		"t": "block.body.class.comment.java.meta",
-		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment rgb(96, 139, 78)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment rgb(0, 128, 0)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment rgb(96, 139, 78)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment rgb(0, 128, 0)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment rgb(124, 166, 104)"
-		}
-	},
-	{
-		"c": "*/",
-		"t": "block.body.class.comment.definition.java.meta.punctuation",
-		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment rgb(96, 139, 78)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment rgb(0, 128, 0)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment rgb(96, 139, 78)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment rgb(0, 128, 0)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment rgb(124, 166, 104)"
-		}
-	},
-	{
-		"c": "\t",
-		"t": "body.class.java.meta",
-		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": "public",
-		"t": "body.class.java.meta.method.modifier.storage",
-		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.storage.modifier rgb(86, 156, 214)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.storage.modifier rgb(0, 0, 255)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.storage.modifier rgb(86, 156, 214)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.storage.modifier rgb(0, 0, 255)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.storage.modifier rgb(86, 156, 214)"
-		}
-	},
-	{
-		"c": " ",
-		"t": "body.class.java.meta.method",
-		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": "void",
-		"t": "array.body.class.java.meta.method.primitive.return-type.storage.type",
-		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.storage.type.java rgb(78, 201, 176)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.storage.type.java rgb(38, 127, 153)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.storage.type rgb(86, 156, 214)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.storage.type rgb(0, 0, 255)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.storage.type rgb(86, 156, 214)"
-		}
-	},
-	{
-		"c": " ",
-		"t": "body.class.java.meta.method.return-type",
-		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.meta.return-type rgb(78, 201, 176)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.meta.return-type rgb(38, 127, 153)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": "doSomething",
-		"t": "body.class.entity.function.identifier.java.meta.method.name",
-		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.name.function rgb(220, 220, 170)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.name.function rgb(121, 94, 38)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": "(",
-		"t": "body.class.identifier.java.meta.method",
-		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": "int",
-		"t": "array.body.class.identifier.java.meta.method.primitive.storage.type",
-		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.storage.type.java rgb(78, 201, 176)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.storage.type.java rgb(38, 127, 153)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.storage.type rgb(86, 156, 214)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.storage.type rgb(0, 0, 255)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.storage.type rgb(86, 156, 214)"
-		}
-	},
-	{
-		"c": " ",
-		"t": "body.class.identifier.java.meta.method",
-		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": "a",
-		"t": "body.class.identifier.java.meta.method.parameter.variable",
-		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.variable.parameter rgb(156, 220, 254)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.variable.parameter rgb(0, 16, 128)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": ")",
-		"t": "body.class.identifier.java.meta.method",
-		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": " ",
-		"t": "body.class.java.meta.method",
-		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": "{",
-		"t": "begin.body.class.java.meta.method.punctuation.section",
-		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": "\t\t",
-		"t": "body.class.java.meta.method",
-		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": "double",
-		"t": "array.body.class.java.meta.method.primitive.storage.type",
-		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.storage.type.java rgb(78, 201, 176)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.storage.type.java rgb(38, 127, 153)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.storage.type rgb(86, 156, 214)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.storage.type rgb(0, 0, 255)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.storage.type rgb(86, 156, 214)"
-		}
-	},
-	{
-		"c": " b ",
-		"t": "body.class.java.meta.method",
-		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": "=",
-		"t": "assignment.body.class.java.keyword.meta.method.operator",
-		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.operator rgb(212, 212, 212)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.operator rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword.operator rgb(212, 212, 212)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword.operator rgb(0, 0, 0)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword.operator rgb(212, 212, 212)"
-		}
-	},
-	{
-		"c": " ",
-		"t": "body.class.java.meta.method",
-		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": "0.0",
-		"t": "body.class.constant.float.java.meta.method.numeric",
-		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.constant.numeric rgb(181, 206, 168)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.constant.numeric rgb(9, 136, 90)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.constant.numeric rgb(181, 206, 168)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.constant.numeric rgb(9, 136, 90)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.constant.numeric rgb(181, 206, 168)"
-		}
-	},
-	{
-		"c": ";",
-		"t": "body.class.java.meta.method.punctuation.terminator",
-		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": "\t\t",
-		"t": "body.class.java.meta.method",
-		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": "double",
-		"t": "array.body.class.java.meta.method.primitive.storage.type",
-		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.storage.type.java rgb(78, 201, 176)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.storage.type.java rgb(38, 127, 153)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.storage.type rgb(86, 156, 214)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.storage.type rgb(0, 0, 255)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.storage.type rgb(86, 156, 214)"
-		}
-	},
-	{
-		"c": " c ",
-		"t": "body.class.java.meta.method",
-		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": "=",
-		"t": "assignment.body.class.java.keyword.meta.method.operator",
-		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.operator rgb(212, 212, 212)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.operator rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword.operator rgb(212, 212, 212)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword.operator rgb(0, 0, 0)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword.operator rgb(212, 212, 212)"
-		}
-	},
-	{
-		"c": " ",
-		"t": "body.class.java.meta.method",
-		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": "10e3",
-		"t": "body.class.constant.float.java.meta.method.numeric",
-		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.constant.numeric rgb(181, 206, 168)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.constant.numeric rgb(9, 136, 90)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.constant.numeric rgb(181, 206, 168)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.constant.numeric rgb(9, 136, 90)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.constant.numeric rgb(181, 206, 168)"
-		}
-	},
-	{
-		"c": ";",
-		"t": "body.class.java.meta.method.punctuation.terminator",
-		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": "\t\t",
-		"t": "body.class.java.meta.method",
-		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": "long",
-		"t": "array.body.class.java.meta.method.primitive.storage.type",
-		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.storage.type.java rgb(78, 201, 176)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.storage.type.java rgb(38, 127, 153)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.storage.type rgb(86, 156, 214)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.storage.type rgb(0, 0, 255)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.storage.type rgb(86, 156, 214)"
-		}
-	},
-	{
-		"c": " l ",
-		"t": "body.class.java.meta.method",
-		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": "=",
-		"t": "assignment.body.class.java.keyword.meta.method.operator",
-		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.operator rgb(212, 212, 212)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.operator rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword.operator rgb(212, 212, 212)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword.operator rgb(0, 0, 0)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword.operator rgb(212, 212, 212)"
-		}
-	},
-	{
-		"c": " ",
-		"t": "body.class.java.meta.method",
-		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": "134l",
-		"t": "body.class.constant.integer.java.meta.method.numeric",
-		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.constant.numeric rgb(181, 206, 168)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.constant.numeric rgb(9, 136, 90)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.constant.numeric rgb(181, 206, 168)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.constant.numeric rgb(9, 136, 90)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.constant.numeric rgb(181, 206, 168)"
-		}
-	},
-	{
-		"c": ";",
-		"t": "body.class.java.meta.method.punctuation.terminator",
-		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": "\t",
-		"t": "body.class.java.meta.method",
-		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": "}",
-		"t": "body.class.end.java.meta.method.punctuation.section",
-		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": "\t",
-		"t": "body.class.java.meta",
-		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": "/*",
-		"t": "block.body.class.comment.definition.java.meta.punctuation",
-		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment rgb(96, 139, 78)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment rgb(0, 128, 0)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment rgb(96, 139, 78)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment rgb(0, 128, 0)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment rgb(124, 166, 104)"
-		}
-	},
-	{
-		"c": "\t * multiline comment",
-		"t": "block.body.class.comment.java.meta",
-		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment rgb(96, 139, 78)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment rgb(0, 128, 0)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment rgb(96, 139, 78)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment rgb(0, 128, 0)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment rgb(124, 166, 104)"
-		}
-	},
-	{
-		"c": "\t ",
-		"t": "block.body.class.comment.java.meta",
-		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment rgb(96, 139, 78)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment rgb(0, 128, 0)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment rgb(96, 139, 78)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment rgb(0, 128, 0)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment rgb(124, 166, 104)"
-		}
-	},
-	{
-		"c": "*/",
-		"t": "block.body.class.comment.definition.java.meta.punctuation",
-		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment rgb(96, 139, 78)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment rgb(0, 128, 0)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment rgb(96, 139, 78)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment rgb(0, 128, 0)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment rgb(124, 166, 104)"
-		}
-	},
-	{
-		"c": "\t",
-		"t": "body.class.java.meta",
-		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": "@SuppressWarnings",
-		"t": "annotation.body.class.declaration.java.meta.storage.type",
-		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.storage.type.java rgb(78, 201, 176)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.storage.type.java rgb(38, 127, 153)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.storage.type rgb(86, 156, 214)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.storage.type rgb(0, 0, 255)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.storage.type rgb(86, 156, 214)"
-		}
-	},
-	{
-		"c": "(",
-		"t": "annotation.annotation-arguments.begin.body.class.declaration.definition.java.meta.punctuation",
-		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": "value",
-		"t": "annotation.body.class.constant.declaration.java.key.meta.other",
-		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": " ",
-		"t": "annotation.body.class.declaration.java.meta",
-		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": "=",
-		"t": "annotation.assignment.body.class.declaration.java.keyword.meta.operator",
-		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.operator rgb(212, 212, 212)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.operator rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword.operator rgb(212, 212, 212)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword.operator rgb(0, 0, 0)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword.operator rgb(212, 212, 212)"
-		}
-	},
-	{
-		"c": " ",
-		"t": "annotation.body.class.declaration.java.meta",
-		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": "\"",
-		"t": "annotation.begin.body.class.declaration.definition.double.java.meta.punctuation.quoted.string",
-		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.string rgb(206, 145, 120)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.string rgb(163, 21, 21)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.string rgb(206, 145, 120)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.string rgb(163, 21, 21)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.string rgb(206, 145, 120)"
-		}
-	},
-	{
-		"c": "aString",
-		"t": "annotation.body.class.declaration.double.java.meta.quoted.string",
-		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.string rgb(206, 145, 120)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.string rgb(163, 21, 21)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.string rgb(206, 145, 120)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.string rgb(163, 21, 21)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.string rgb(206, 145, 120)"
-		}
-	},
-	{
-		"c": "\"",
-		"t": "annotation.body.class.declaration.definition.double.end.java.meta.punctuation.quoted.string",
-		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.string rgb(206, 145, 120)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.string rgb(163, 21, 21)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.string rgb(206, 145, 120)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.string rgb(163, 21, 21)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.string rgb(206, 145, 120)"
-		}
-	},
-	{
-		"c": ")",
-		"t": "annotation.annotation-arguments.body.class.declaration.definition.end.java.meta.punctuation",
-		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": "\t",
-		"t": "body.class.java.meta",
-		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": "private",
-		"t": "body.class.java.meta.method.modifier.storage",
-		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.storage.modifier rgb(86, 156, 214)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.storage.modifier rgb(0, 0, 255)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.storage.modifier rgb(86, 156, 214)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.storage.modifier rgb(0, 0, 255)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.storage.modifier rgb(86, 156, 214)"
-		}
-	},
-	{
-		"c": " ",
-		"t": "body.class.java.meta.method",
-		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": "long",
-		"t": "array.body.class.java.meta.method.primitive.return-type.storage.type",
-		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.storage.type.java rgb(78, 201, 176)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.storage.type.java rgb(38, 127, 153)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.storage.type rgb(86, 156, 214)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.storage.type rgb(0, 0, 255)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.storage.type rgb(86, 156, 214)"
-		}
-	},
-	{
-		"c": " ",
-		"t": "body.class.java.meta.method.return-type",
-		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.meta.return-type rgb(78, 201, 176)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.meta.return-type rgb(38, 127, 153)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": "privateMethod",
-		"t": "body.class.entity.function.identifier.java.meta.method.name",
-		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.name.function rgb(220, 220, 170)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.name.function rgb(121, 94, 38)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": "(",
-		"t": "body.class.identifier.java.meta.method",
-		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": "long",
-		"t": "array.body.class.identifier.java.meta.method.primitive.storage.type",
-		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.storage.type.java rgb(78, 201, 176)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.storage.type.java rgb(38, 127, 153)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.storage.type rgb(86, 156, 214)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.storage.type rgb(0, 0, 255)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.storage.type rgb(86, 156, 214)"
-		}
-	},
-	{
-		"c": " ",
-		"t": "body.class.identifier.java.meta.method",
-		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": "b",
-		"t": "body.class.identifier.java.meta.method.parameter.variable",
-		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.variable.parameter rgb(156, 220, 254)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.variable.parameter rgb(0, 16, 128)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": ")",
-		"t": "body.class.identifier.java.meta.method",
-		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": "{",
-		"t": "begin.body.class.java.meta.method.punctuation.section",
-		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": "\t\t",
-		"t": "body.class.java.meta.method",
-		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": "for",
-		"t": "body.class.control.java.keyword.meta.method",
-		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.control rgb(197, 134, 192)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.control rgb(175, 0, 219)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword.control rgb(86, 156, 214)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword.control rgb(0, 0, 255)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword.control rgb(86, 156, 214)"
-		}
-	},
-	{
-		"c": " (",
-		"t": "body.class.java.meta.method",
-		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": "int",
-		"t": "array.body.class.java.meta.method.primitive.storage.type",
-		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.storage.type.java rgb(78, 201, 176)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.storage.type.java rgb(38, 127, 153)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.storage.type rgb(86, 156, 214)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.storage.type rgb(0, 0, 255)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.storage.type rgb(86, 156, 214)"
-		}
-	},
-	{
-		"c": " i ",
-		"t": "body.class.java.meta.method",
-		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": "=",
-		"t": "assignment.body.class.java.keyword.meta.method.operator",
-		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.operator rgb(212, 212, 212)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.operator rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword.operator rgb(212, 212, 212)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword.operator rgb(0, 0, 0)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword.operator rgb(212, 212, 212)"
-		}
-	},
-	{
-		"c": " ",
-		"t": "body.class.java.meta.method",
-		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": "0",
-		"t": "body.class.constant.integer.java.meta.method.numeric",
-		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.constant.numeric rgb(181, 206, 168)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.constant.numeric rgb(9, 136, 90)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.constant.numeric rgb(181, 206, 168)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.constant.numeric rgb(9, 136, 90)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.constant.numeric rgb(181, 206, 168)"
-		}
-	},
-	{
-		"c": ";",
-		"t": "body.class.java.meta.method.punctuation.terminator",
-		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": " i ",
-		"t": "body.class.java.meta.method",
-		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "comment: #608B4E",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #608B4E",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668"
 		}
 	},
 	{
 		"c": "<",
-		"t": "body.class.comparison.java.keyword.meta.method.operator",
+		"t": "source.java meta.class.java meta.class.body.java comment.block.documentation.javadoc text.html meta.tag.block.any.html punctuation.definition.tag.begin.html",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.operator rgb(212, 212, 212)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.operator rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword.operator rgb(212, 212, 212)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword.operator rgb(0, 0, 0)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword.operator rgb(212, 212, 212)"
+			"dark_plus": "punctuation.definition.tag: #808080",
+			"light_plus": "punctuation.definition.tag: #800000",
+			"dark_vs": "punctuation.definition.tag: #808080",
+			"light_vs": "punctuation.definition.tag: #800000",
+			"hc_black": "punctuation.definition.tag: #808080"
 		}
 	},
 	{
-		"c": " ",
-		"t": "body.class.java.meta.method",
+		"c": "p",
+		"t": "source.java meta.class.java meta.class.body.java comment.block.documentation.javadoc text.html meta.tag.block.any.html entity.name.tag.block.any.html",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "entity.name.tag: #569CD6",
+			"light_plus": "entity.name.tag: #800000",
+			"dark_vs": "entity.name.tag: #569CD6",
+			"light_vs": "entity.name.tag: #800000",
+			"hc_black": "entity.name.tag: #569CD6"
 		}
 	},
 	{
-		"c": "9",
-		"t": "body.class.constant.integer.java.meta.method.numeric",
+		"c": ">",
+		"t": "source.java meta.class.java meta.class.body.java comment.block.documentation.javadoc text.html meta.tag.block.any.html punctuation.definition.tag.end.html",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.constant.numeric rgb(181, 206, 168)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.constant.numeric rgb(9, 136, 90)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.constant.numeric rgb(181, 206, 168)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.constant.numeric rgb(9, 136, 90)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.constant.numeric rgb(181, 206, 168)"
+			"dark_plus": "punctuation.definition.tag: #808080",
+			"light_plus": "punctuation.definition.tag: #800000",
+			"dark_vs": "punctuation.definition.tag: #808080",
+			"light_vs": "punctuation.definition.tag: #800000",
+			"hc_black": "punctuation.definition.tag: #808080"
 		}
 	},
 	{
-		"c": ";",
-		"t": "body.class.java.meta.method.punctuation.terminator",
+		"c": "Note:",
+		"t": "source.java meta.class.java meta.class.body.java comment.block.documentation.javadoc text.html",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "comment: #608B4E",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #608B4E",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668"
 		}
 	},
 	{
-		"c": " i",
-		"t": "body.class.java.meta.method",
+		"c": "</",
+		"t": "source.java meta.class.java meta.class.body.java comment.block.documentation.javadoc text.html meta.tag.block.any.html punctuation.definition.tag.begin.html",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "punctuation.definition.tag: #808080",
+			"light_plus": "punctuation.definition.tag: #800000",
+			"dark_vs": "punctuation.definition.tag: #808080",
+			"light_vs": "punctuation.definition.tag: #800000",
+			"hc_black": "punctuation.definition.tag: #808080"
 		}
 	},
 	{
-		"c": "++",
-		"t": "body.class.increment-decrement.java.keyword.meta.method.operator",
+		"c": "p",
+		"t": "source.java meta.class.java meta.class.body.java comment.block.documentation.javadoc text.html meta.tag.block.any.html entity.name.tag.block.any.html",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.operator rgb(212, 212, 212)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.operator rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword.operator rgb(212, 212, 212)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword.operator rgb(0, 0, 0)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword.operator rgb(212, 212, 212)"
+			"dark_plus": "entity.name.tag: #569CD6",
+			"light_plus": "entity.name.tag: #800000",
+			"dark_vs": "entity.name.tag: #569CD6",
+			"light_vs": "entity.name.tag: #800000",
+			"hc_black": "entity.name.tag: #569CD6"
 		}
 	},
 	{
-		"c": ") ",
-		"t": "body.class.java.meta.method",
+		"c": ">",
+		"t": "source.java meta.class.java meta.class.body.java comment.block.documentation.javadoc text.html meta.tag.block.any.html punctuation.definition.tag.end.html",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "punctuation.definition.tag: #808080",
+			"light_plus": "punctuation.definition.tag: #800000",
+			"dark_vs": "punctuation.definition.tag: #808080",
+			"light_vs": "punctuation.definition.tag: #800000",
+			"hc_black": "punctuation.definition.tag: #808080"
 		}
 	},
 	{
-		"c": "{",
-		"t": "begin.block.body.class.java.meta.method.punctuation.section",
+		"c": " Hello",
+		"t": "source.java meta.class.java meta.class.body.java comment.block.documentation.javadoc text.html",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "comment: #608B4E",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #608B4E",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668"
 		}
 	},
 	{
-		"c": "\t\t\t",
-		"t": "body.class.java.meta.method",
+		"c": "\t * ",
+		"t": "source.java meta.class.java meta.class.body.java comment.block.documentation.javadoc text.html",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "comment: #608B4E",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #608B4E",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668"
 		}
 	},
 	{
-		"c": "System",
-		"t": "body.class.java.meta.method.storage.type",
+		"c": "@",
+		"t": "source.java meta.class.java meta.class.body.java comment.block.documentation.javadoc text.html meta.documentation.tag.param.javadoc keyword.other.documentation.param.javadoc punctuation.definition.keyword.javadoc",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.storage.type.java rgb(78, 201, 176)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.storage.type.java rgb(38, 127, 153)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.storage.type rgb(86, 156, 214)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.storage.type rgb(0, 0, 255)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.storage.type rgb(86, 156, 214)"
+			"dark_plus": "keyword: #569CD6",
+			"light_plus": "keyword: #0000FF",
+			"dark_vs": "keyword: #569CD6",
+			"light_vs": "keyword: #0000FF",
+			"hc_black": "keyword: #569CD6"
 		}
 	},
 	{
-		"c": ".",
-		"t": "body.class.dereference.java.keyword.meta.method.operator",
+		"c": "param",
+		"t": "source.java meta.class.java meta.class.body.java comment.block.documentation.javadoc text.html meta.documentation.tag.param.javadoc keyword.other.documentation.param.javadoc",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.operator rgb(212, 212, 212)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.operator rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword.operator rgb(212, 212, 212)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword.operator rgb(0, 0, 0)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword.operator rgb(212, 212, 212)"
+			"dark_plus": "keyword: #569CD6",
+			"light_plus": "keyword: #0000FF",
+			"dark_vs": "keyword: #569CD6",
+			"light_vs": "keyword: #0000FF",
+			"hc_black": "keyword: #569CD6"
 		}
 	},
 	{
-		"c": "out",
-		"t": "body.class.java.meta.method",
+		"c": " args",
+		"t": "source.java meta.class.java meta.class.body.java comment.block.documentation.javadoc text.html meta.documentation.tag.param.javadoc",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "comment: #608B4E",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #608B4E",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668"
 		}
 	},
 	{
-		"c": ".",
-		"t": "body.class.dereference.java.keyword.meta.method.operator",
+		"c": "\t ",
+		"t": "source.java meta.class.java meta.class.body.java comment.block.documentation.javadoc text.html meta.documentation.tag.param.javadoc",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.operator rgb(212, 212, 212)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.operator rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword.operator rgb(212, 212, 212)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword.operator rgb(0, 0, 0)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword.operator rgb(212, 212, 212)"
+			"dark_plus": "comment: #608B4E",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #608B4E",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668"
 		}
 	},
 	{
-		"c": "println",
-		"t": "body.class.java.meta.method.method-call",
+		"c": "*/",
+		"t": "source.java meta.class.java meta.class.body.java comment.block.documentation.javadoc punctuation.definition.comment.end.javadoc",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": "(",
-		"t": "begin.body.class.definition.java.meta.method.method-call.method-parameters.punctuation",
-		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": "\"",
-		"t": "begin.body.class.definition.double.java.meta.method.method-call.punctuation.quoted.string",
-		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.string rgb(206, 145, 120)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.string rgb(163, 21, 21)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.string rgb(206, 145, 120)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.string rgb(163, 21, 21)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.string rgb(206, 145, 120)"
-		}
-	},
-	{
-		"c": "Hello",
-		"t": "body.class.double.java.meta.method.method-call.quoted.string",
-		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.string rgb(206, 145, 120)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.string rgb(163, 21, 21)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.string rgb(206, 145, 120)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.string rgb(163, 21, 21)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.string rgb(206, 145, 120)"
-		}
-	},
-	{
-		"c": "\"",
-		"t": "body.class.definition.double.end.java.meta.method.method-call.punctuation.quoted.string",
-		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.string rgb(206, 145, 120)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.string rgb(163, 21, 21)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.string rgb(206, 145, 120)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.string rgb(163, 21, 21)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.string rgb(206, 145, 120)"
-		}
-	},
-	{
-		"c": " ",
-		"t": "body.class.java.meta.method.method-call",
-		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": "+",
-		"t": "arithmetic.body.class.java.keyword.meta.method.method-call.operator",
-		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.operator rgb(212, 212, 212)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.operator rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword.operator rgb(212, 212, 212)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword.operator rgb(0, 0, 0)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword.operator rgb(212, 212, 212)"
-		}
-	},
-	{
-		"c": " i",
-		"t": "body.class.java.meta.method.method-call",
-		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": ")",
-		"t": "body.class.definition.end.java.meta.method.method-call.method-parameters.punctuation",
-		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": ";",
-		"t": "body.class.java.meta.method.punctuation.terminator",
-		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": "\t\t",
-		"t": "body.class.java.meta.method",
-		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": "}",
-		"t": "block.body.class.end.java.meta.method.punctuation.section",
-		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": "\t\t",
-		"t": "body.class.java.meta.method",
-		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": "return",
-		"t": "body.class.control.java.keyword.meta.method",
-		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.control rgb(197, 134, 192)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.control rgb(175, 0, 219)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword.control rgb(86, 156, 214)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword.control rgb(0, 0, 255)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword.control rgb(86, 156, 214)"
-		}
-	},
-	{
-		"c": " ",
-		"t": "body.class.java.meta.method",
-		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": "10",
-		"t": "body.class.constant.integer.java.meta.method.numeric",
-		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.constant.numeric rgb(181, 206, 168)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.constant.numeric rgb(9, 136, 90)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.constant.numeric rgb(181, 206, 168)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.constant.numeric rgb(9, 136, 90)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.constant.numeric rgb(181, 206, 168)"
-		}
-	},
-	{
-		"c": ";",
-		"t": "body.class.java.meta.method.punctuation.terminator",
-		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "comment: #608B4E",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #608B4E",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668"
 		}
 	},
 	{
 		"c": "\t",
-		"t": "body.class.java.meta.method",
+		"t": "source.java meta.class.java meta.class.body.java",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": "}",
-		"t": "body.class.end.java.meta.method.punctuation.section",
-		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": "\t",
-		"t": "body.class.comment.java.leading.meta.punctuation.whitespace",
-		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment rgb(96, 139, 78)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment rgb(0, 128, 0)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment rgb(96, 139, 78)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment rgb(0, 128, 0)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment rgb(124, 166, 104)"
-		}
-	},
-	{
-		"c": "//",
-		"t": "body.class.comment.definition.double-slash.java.line.meta.punctuation",
-		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment rgb(96, 139, 78)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment rgb(0, 128, 0)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment rgb(96, 139, 78)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment rgb(0, 128, 0)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment rgb(124, 166, 104)"
-		}
-	},
-	{
-		"c": "single line comment",
-		"t": "body.class.comment.double-slash.java.line.meta",
-		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment rgb(96, 139, 78)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment rgb(0, 128, 0)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment rgb(96, 139, 78)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment rgb(0, 128, 0)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment rgb(124, 166, 104)"
-		}
-	},
-	{
-		"c": "\t",
-		"t": "body.class.java.meta",
-		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": "@Test",
-		"t": "annotation.body.class.java.meta.storage.type",
-		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.storage.type.java rgb(78, 201, 176)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.storage.type.java rgb(38, 127, 153)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.storage.type rgb(86, 156, 214)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.storage.type rgb(0, 0, 255)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.storage.type rgb(86, 156, 214)"
-		}
-	},
-	{
-		"c": "\t",
-		"t": "body.class.java.meta",
-		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
 		"c": "public",
-		"t": "body.class.java.meta.method.modifier.storage",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java storage.modifier.java",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.storage.modifier rgb(86, 156, 214)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.storage.modifier rgb(0, 0, 255)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.storage.modifier rgb(86, 156, 214)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.storage.modifier rgb(0, 0, 255)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.storage.modifier rgb(86, 156, 214)"
+			"dark_plus": "storage.modifier: #569CD6",
+			"light_plus": "storage.modifier: #0000FF",
+			"dark_vs": "storage.modifier: #569CD6",
+			"light_vs": "storage.modifier: #0000FF",
+			"hc_black": "storage.modifier: #569CD6"
 		}
 	},
 	{
 		"c": " ",
-		"t": "body.class.java.meta.method",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
 		"c": "void",
-		"t": "array.body.class.java.meta.method.primitive.return-type.storage.type",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.return-type.java storage.type.primitive.array.java",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.storage.type.java rgb(78, 201, 176)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.storage.type.java rgb(38, 127, 153)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.storage.type rgb(86, 156, 214)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.storage.type rgb(0, 0, 255)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.storage.type rgb(86, 156, 214)"
+			"dark_plus": "storage.type.primitive.array.java: #4EC9B0",
+			"light_plus": "storage.type.primitive.array.java: #267F99",
+			"dark_vs": "storage.type: #569CD6",
+			"light_vs": "storage.type: #0000FF",
+			"hc_black": "storage.type: #569CD6"
 		}
 	},
 	{
 		"c": " ",
-		"t": "body.class.java.meta.method.return-type",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.return-type.java",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.meta.return-type rgb(78, 201, 176)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.meta.return-type rgb(38, 127, 153)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
-		"c": "someTests",
-		"t": "body.class.entity.function.identifier.java.meta.method.name",
+		"c": "doSomething",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.identifier.java entity.name.function.java",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.name.function rgb(220, 220, 170)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.name.function rgb(121, 94, 38)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
-		"c": "()",
-		"t": "body.class.identifier.java.meta.method",
+		"c": "(",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.identifier.java",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": " ",
-		"t": "body.class.java.meta.method",
-		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": "{",
-		"t": "begin.body.class.java.meta.method.punctuation.section",
-		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": "\t\t",
-		"t": "body.class.java.meta.method",
-		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
 		"c": "int",
-		"t": "array.body.class.java.meta.method.primitive.storage.type",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.identifier.java storage.type.primitive.array.java",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.storage.type.java rgb(78, 201, 176)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.storage.type.java rgb(38, 127, 153)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.storage.type rgb(86, 156, 214)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.storage.type rgb(0, 0, 255)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.storage.type rgb(86, 156, 214)"
-		}
-	},
-	{
-		"c": " hex ",
-		"t": "body.class.java.meta.method",
-		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": "=",
-		"t": "assignment.body.class.java.keyword.meta.method.operator",
-		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.operator rgb(212, 212, 212)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.operator rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword.operator rgb(212, 212, 212)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword.operator rgb(0, 0, 0)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword.operator rgb(212, 212, 212)"
+			"dark_plus": "storage.type.primitive.array.java: #4EC9B0",
+			"light_plus": "storage.type.primitive.array.java: #267F99",
+			"dark_vs": "storage.type: #569CD6",
+			"light_vs": "storage.type: #0000FF",
+			"hc_black": "storage.type: #569CD6"
 		}
 	},
 	{
 		"c": " ",
-		"t": "body.class.java.meta.method",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.identifier.java",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
-		"c": "0x5",
-		"t": "body.class.constant.hex.java.meta.method.numeric",
+		"c": "a",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.identifier.java variable.parameter.java",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.constant.numeric rgb(181, 206, 168)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.constant.numeric rgb(9, 136, 90)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.constant.numeric rgb(181, 206, 168)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.constant.numeric rgb(9, 136, 90)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.constant.numeric rgb(181, 206, 168)"
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
-		"c": ";",
-		"t": "body.class.java.meta.method.punctuation.terminator",
+		"c": ")",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.identifier.java",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "{",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java punctuation.section.method.begin.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
 		"c": "\t\t",
-		"t": "body.class.java.meta.method",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
-		"c": "Vector<Number>",
-		"t": "body.class.generic.java.meta.method.storage.type",
+		"c": "double",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java storage.type.primitive.array.java",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.storage.type.java rgb(78, 201, 176)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.storage.type.java rgb(38, 127, 153)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.storage.type rgb(86, 156, 214)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.storage.type rgb(0, 0, 255)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.storage.type rgb(86, 156, 214)"
+			"dark_plus": "storage.type.primitive.array.java: #4EC9B0",
+			"light_plus": "storage.type.primitive.array.java: #267F99",
+			"dark_vs": "storage.type: #569CD6",
+			"light_vs": "storage.type: #0000FF",
+			"hc_black": "storage.type: #569CD6"
 		}
 	},
 	{
-		"c": " v ",
-		"t": "body.class.java.meta.method",
+		"c": " b ",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
 		"c": "=",
-		"t": "assignment.body.class.java.keyword.meta.method.operator",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java keyword.operator.assignment.java",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.operator rgb(212, 212, 212)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.operator rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword.operator rgb(212, 212, 212)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword.operator rgb(0, 0, 0)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword.operator rgb(212, 212, 212)"
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4"
 		}
 	},
 	{
 		"c": " ",
-		"t": "body.class.java.meta.method",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
-		"c": "new",
-		"t": "body.class.control.java.keyword.meta.method.new",
+		"c": "0.0",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java constant.numeric.float.java",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.control rgb(197, 134, 192)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.control rgb(175, 0, 219)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword.control rgb(86, 156, 214)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword.control rgb(0, 0, 255)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword.control rgb(86, 156, 214)"
-		}
-	},
-	{
-		"c": " ",
-		"t": "body.class.java.meta.method",
-		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": "Vector",
-		"t": "body.class.java.meta.method.storage.type",
-		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.storage.type.java rgb(78, 201, 176)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.storage.type.java rgb(38, 127, 153)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.storage.type rgb(86, 156, 214)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.storage.type rgb(0, 0, 255)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.storage.type rgb(86, 156, 214)"
-		}
-	},
-	{
-		"c": "()",
-		"t": "body.class.java.meta.method",
-		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #09885A",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #09885A",
+			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
 	{
 		"c": ";",
-		"t": "body.class.java.meta.method.punctuation.terminator",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java punctuation.terminator.java",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "\t\t",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "double",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java storage.type.primitive.array.java",
+		"r": {
+			"dark_plus": "storage.type.primitive.array.java: #4EC9B0",
+			"light_plus": "storage.type.primitive.array.java: #267F99",
+			"dark_vs": "storage.type: #569CD6",
+			"light_vs": "storage.type: #0000FF",
+			"hc_black": "storage.type: #569CD6"
+		}
+	},
+	{
+		"c": " c ",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "=",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java keyword.operator.assignment.java",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "10e3",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java constant.numeric.float.java",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #09885A",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #09885A",
+			"hc_black": "constant.numeric: #B5CEA8"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java punctuation.terminator.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "\t\t",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "long",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java storage.type.primitive.array.java",
+		"r": {
+			"dark_plus": "storage.type.primitive.array.java: #4EC9B0",
+			"light_plus": "storage.type.primitive.array.java: #267F99",
+			"dark_vs": "storage.type: #569CD6",
+			"light_vs": "storage.type: #0000FF",
+			"hc_black": "storage.type: #569CD6"
+		}
+	},
+	{
+		"c": " l ",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "=",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java keyword.operator.assignment.java",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "134l",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java constant.numeric.integer.java",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #09885A",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #09885A",
+			"hc_black": "constant.numeric: #B5CEA8"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java punctuation.terminator.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
 		"c": "\t",
-		"t": "body.class.java.meta.method",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
 		"c": "}",
-		"t": "body.class.end.java.meta.method.punctuation.section",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java punctuation.section.method.end.java",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "\t",
+		"t": "source.java meta.class.java meta.class.body.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "/*",
+		"t": "source.java meta.class.java meta.class.body.java comment.block.java punctuation.definition.comment.java",
+		"r": {
+			"dark_plus": "comment: #608B4E",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #608B4E",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668"
+		}
+	},
+	{
+		"c": "\t * multiline comment",
+		"t": "source.java meta.class.java meta.class.body.java comment.block.java",
+		"r": {
+			"dark_plus": "comment: #608B4E",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #608B4E",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668"
+		}
+	},
+	{
+		"c": "\t ",
+		"t": "source.java meta.class.java meta.class.body.java comment.block.java",
+		"r": {
+			"dark_plus": "comment: #608B4E",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #608B4E",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668"
+		}
+	},
+	{
+		"c": "*/",
+		"t": "source.java meta.class.java meta.class.body.java comment.block.java punctuation.definition.comment.java",
+		"r": {
+			"dark_plus": "comment: #608B4E",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #608B4E",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668"
+		}
+	},
+	{
+		"c": "\t",
+		"t": "source.java meta.class.java meta.class.body.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "@SuppressWarnings",
+		"t": "source.java meta.class.java meta.class.body.java meta.declaration.annotation.java storage.type.annotation.java",
+		"r": {
+			"dark_plus": "storage.type.annotation.java: #4EC9B0",
+			"light_plus": "storage.type.annotation.java: #267F99",
+			"dark_vs": "storage.type: #569CD6",
+			"light_vs": "storage.type: #0000FF",
+			"hc_black": "storage.type: #569CD6"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.java meta.class.java meta.class.body.java meta.declaration.annotation.java punctuation.definition.annotation-arguments.begin.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "value",
+		"t": "source.java meta.class.java meta.class.body.java meta.declaration.annotation.java constant.other.key.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.java meta.class.java meta.class.body.java meta.declaration.annotation.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "=",
+		"t": "source.java meta.class.java meta.class.body.java meta.declaration.annotation.java keyword.operator.assignment.java",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.java meta.class.java meta.class.body.java meta.declaration.annotation.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.java meta.class.java meta.class.body.java meta.declaration.annotation.java string.quoted.double.java punctuation.definition.string.begin.java",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": "aString",
+		"t": "source.java meta.class.java meta.class.body.java meta.declaration.annotation.java string.quoted.double.java",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.java meta.class.java meta.class.body.java meta.declaration.annotation.java string.quoted.double.java punctuation.definition.string.end.java",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.java meta.class.java meta.class.body.java meta.declaration.annotation.java punctuation.definition.annotation-arguments.end.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "\t",
+		"t": "source.java meta.class.java meta.class.body.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "private",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java storage.modifier.java",
+		"r": {
+			"dark_plus": "storage.modifier: #569CD6",
+			"light_plus": "storage.modifier: #0000FF",
+			"dark_vs": "storage.modifier: #569CD6",
+			"light_vs": "storage.modifier: #0000FF",
+			"hc_black": "storage.modifier: #569CD6"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "long",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.return-type.java storage.type.primitive.array.java",
+		"r": {
+			"dark_plus": "storage.type.primitive.array.java: #4EC9B0",
+			"light_plus": "storage.type.primitive.array.java: #267F99",
+			"dark_vs": "storage.type: #569CD6",
+			"light_vs": "storage.type: #0000FF",
+			"hc_black": "storage.type: #569CD6"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.return-type.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "privateMethod",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.identifier.java entity.name.function.java",
+		"r": {
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.identifier.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "long",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.identifier.java storage.type.primitive.array.java",
+		"r": {
+			"dark_plus": "storage.type.primitive.array.java: #4EC9B0",
+			"light_plus": "storage.type.primitive.array.java: #267F99",
+			"dark_vs": "storage.type: #569CD6",
+			"light_vs": "storage.type: #0000FF",
+			"hc_black": "storage.type: #569CD6"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.identifier.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "b",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.identifier.java variable.parameter.java",
+		"r": {
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.identifier.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "{",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java punctuation.section.method.begin.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "\t\t",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "for",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java keyword.control.java",
+		"r": {
+			"dark_plus": "keyword.control: #C586C0",
+			"light_plus": "keyword.control: #AF00DB",
+			"dark_vs": "keyword.control: #569CD6",
+			"light_vs": "keyword.control: #0000FF",
+			"hc_black": "keyword.control: #569CD6"
+		}
+	},
+	{
+		"c": " (",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "int",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java storage.type.primitive.array.java",
+		"r": {
+			"dark_plus": "storage.type.primitive.array.java: #4EC9B0",
+			"light_plus": "storage.type.primitive.array.java: #267F99",
+			"dark_vs": "storage.type: #569CD6",
+			"light_vs": "storage.type: #0000FF",
+			"hc_black": "storage.type: #569CD6"
+		}
+	},
+	{
+		"c": " i ",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "=",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java keyword.operator.assignment.java",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "0",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java constant.numeric.integer.java",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #09885A",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #09885A",
+			"hc_black": "constant.numeric: #B5CEA8"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java punctuation.terminator.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " i ",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "<",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java keyword.operator.comparison.java",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "9",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java constant.numeric.integer.java",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #09885A",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #09885A",
+			"hc_black": "constant.numeric: #B5CEA8"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java punctuation.terminator.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " i",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "++",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java keyword.operator.increment-decrement.java",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4"
+		}
+	},
+	{
+		"c": ") ",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "{",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java punctuation.section.block.begin.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "\t\t\t",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "System",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java storage.type.java",
+		"r": {
+			"dark_plus": "storage.type.java: #4EC9B0",
+			"light_plus": "storage.type.java: #267F99",
+			"dark_vs": "storage.type: #569CD6",
+			"light_vs": "storage.type: #0000FF",
+			"hc_black": "storage.type: #569CD6"
+		}
+	},
+	{
+		"c": ".",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java keyword.operator.dereference.java",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4"
+		}
+	},
+	{
+		"c": "out",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ".",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java keyword.operator.dereference.java",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4"
+		}
+	},
+	{
+		"c": "println",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java meta.method-call.java meta.method.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java meta.method-call.java punctuation.definition.method-parameters.begin.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java meta.method-call.java string.quoted.double.java punctuation.definition.string.begin.java",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": "Hello",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java meta.method-call.java string.quoted.double.java",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java meta.method-call.java string.quoted.double.java punctuation.definition.string.end.java",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java meta.method-call.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "+",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java meta.method-call.java keyword.operator.arithmetic.java",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4"
+		}
+	},
+	{
+		"c": " i",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java meta.method-call.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java meta.method-call.java punctuation.definition.method-parameters.end.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java punctuation.terminator.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "\t\t",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
 		"c": "}",
-		"t": "class.end.java.meta.punctuation.section",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java punctuation.section.block.end.java",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "\t\t",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "return",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java keyword.control.java",
+		"r": {
+			"dark_plus": "keyword.control: #C586C0",
+			"light_plus": "keyword.control: #AF00DB",
+			"dark_vs": "keyword.control: #569CD6",
+			"light_vs": "keyword.control: #0000FF",
+			"hc_black": "keyword.control: #569CD6"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "10",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java constant.numeric.integer.java",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #09885A",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #09885A",
+			"hc_black": "constant.numeric: #B5CEA8"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java punctuation.terminator.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "\t",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "}",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java punctuation.section.method.end.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "\t",
+		"t": "source.java meta.class.java meta.class.body.java punctuation.whitespace.comment.leading.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "//",
+		"t": "source.java meta.class.java meta.class.body.java comment.line.double-slash.java punctuation.definition.comment.java",
+		"r": {
+			"dark_plus": "comment: #608B4E",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #608B4E",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668"
+		}
+	},
+	{
+		"c": "single line comment",
+		"t": "source.java meta.class.java meta.class.body.java comment.line.double-slash.java",
+		"r": {
+			"dark_plus": "comment: #608B4E",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #608B4E",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668"
+		}
+	},
+	{
+		"c": "\t",
+		"t": "source.java meta.class.java meta.class.body.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "@Test",
+		"t": "source.java meta.class.java meta.class.body.java storage.type.annotation.java",
+		"r": {
+			"dark_plus": "storage.type.annotation.java: #4EC9B0",
+			"light_plus": "storage.type.annotation.java: #267F99",
+			"dark_vs": "storage.type: #569CD6",
+			"light_vs": "storage.type: #0000FF",
+			"hc_black": "storage.type: #569CD6"
+		}
+	},
+	{
+		"c": "\t",
+		"t": "source.java meta.class.java meta.class.body.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "public",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java storage.modifier.java",
+		"r": {
+			"dark_plus": "storage.modifier: #569CD6",
+			"light_plus": "storage.modifier: #0000FF",
+			"dark_vs": "storage.modifier: #569CD6",
+			"light_vs": "storage.modifier: #0000FF",
+			"hc_black": "storage.modifier: #569CD6"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "void",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.return-type.java storage.type.primitive.array.java",
+		"r": {
+			"dark_plus": "storage.type.primitive.array.java: #4EC9B0",
+			"light_plus": "storage.type.primitive.array.java: #267F99",
+			"dark_vs": "storage.type: #569CD6",
+			"light_vs": "storage.type: #0000FF",
+			"hc_black": "storage.type: #569CD6"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.return-type.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "someTests",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.identifier.java entity.name.function.java",
+		"r": {
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "()",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.identifier.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "{",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java punctuation.section.method.begin.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "\t\t",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "int",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java storage.type.primitive.array.java",
+		"r": {
+			"dark_plus": "storage.type.primitive.array.java: #4EC9B0",
+			"light_plus": "storage.type.primitive.array.java: #267F99",
+			"dark_vs": "storage.type: #569CD6",
+			"light_vs": "storage.type: #0000FF",
+			"hc_black": "storage.type: #569CD6"
+		}
+	},
+	{
+		"c": " hex ",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "=",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java keyword.operator.assignment.java",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "0x5",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java constant.numeric.hex.java",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #09885A",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #09885A",
+			"hc_black": "constant.numeric: #B5CEA8"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java punctuation.terminator.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "\t\t",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "Vector<",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java storage.type.generic.java",
+		"r": {
+			"dark_plus": "storage.type.generic.java: #4EC9B0",
+			"light_plus": "storage.type.generic.java: #267F99",
+			"dark_vs": "storage.type: #569CD6",
+			"light_vs": "storage.type: #0000FF",
+			"hc_black": "storage.type: #569CD6"
+		}
+	},
+	{
+		"c": "Number",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java storage.type.generic.java storage.type.java",
+		"r": {
+			"dark_plus": "storage.type.java: #4EC9B0",
+			"light_plus": "storage.type.java: #267F99",
+			"dark_vs": "storage.type: #569CD6",
+			"light_vs": "storage.type: #0000FF",
+			"hc_black": "storage.type: #569CD6"
+		}
+	},
+	{
+		"c": ">",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java storage.type.generic.java",
+		"r": {
+			"dark_plus": "storage.type.generic.java: #4EC9B0",
+			"light_plus": "storage.type.generic.java: #267F99",
+			"dark_vs": "storage.type: #569CD6",
+			"light_vs": "storage.type: #0000FF",
+			"hc_black": "storage.type: #569CD6"
+		}
+	},
+	{
+		"c": " v ",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "=",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java keyword.operator.assignment.java",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "new",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java keyword.control.new.java",
+		"r": {
+			"dark_plus": "keyword.control: #C586C0",
+			"light_plus": "keyword.control: #AF00DB",
+			"dark_vs": "keyword.control: #569CD6",
+			"light_vs": "keyword.control: #0000FF",
+			"hc_black": "keyword.control: #569CD6"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "Vector",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java storage.type.java",
+		"r": {
+			"dark_plus": "storage.type.java: #4EC9B0",
+			"light_plus": "storage.type.java: #267F99",
+			"dark_vs": "storage.type: #569CD6",
+			"light_vs": "storage.type: #0000FF",
+			"hc_black": "storage.type: #569CD6"
+		}
+	},
+	{
+		"c": "()",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java punctuation.terminator.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "\t",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java meta.method.body.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "}",
+		"t": "source.java meta.class.java meta.class.body.java meta.method.java punctuation.section.method.end.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "}",
+		"t": "source.java meta.class.java punctuation.section.class.end.java",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	}
 ]

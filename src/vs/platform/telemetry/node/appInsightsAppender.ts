@@ -8,7 +8,7 @@ import * as appInsights from 'applicationinsights';
 import { isObject } from 'vs/base/common/types';
 import { safeStringify, mixin } from 'vs/base/common/objects';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ITelemetryAppender } from '../common/telemetry';
+import { ITelemetryAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 
 let _initialized = false;
 
@@ -147,5 +147,6 @@ export class AppInsightsAppender implements ITelemetryAppender {
 				});
 			});
 		}
+		return undefined;
 	}
 }

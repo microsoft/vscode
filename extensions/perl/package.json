@@ -3,6 +3,9 @@
 	"version": "0.1.0",
 	"publisher": "vscode",
 	"engines": { "vscode": "*" },
+	"scripts": {
+		"update-grammar": "node ../../build/npm/update-grammar.js textmate/perl.tmbundle Syntaxes/Perl.plist ./syntaxes/perl.tmLanguage.json Syntaxes/Perl%206.tmLanguage ./syntaxes/perl6.tmLanguage.json"
+	},
 	"contributes": {
 		"languages": [{
 			"id": "perl",
@@ -20,11 +23,11 @@
 		"grammars": [{
 			"language": "perl",
 			"scopeName": "source.perl",
-			"path": "./syntaxes/Perl.plist"
+			"path": "./syntaxes/perl.tmLanguage.json"
 		}, {
 			"language": "perl6",
 			"scopeName": "source.perl.6",
-			"path": "./syntaxes/Perl 6.tmLanguage"
+			"path": "./syntaxes/perl6.tmLanguage.json"
 		}]
 	}
 }

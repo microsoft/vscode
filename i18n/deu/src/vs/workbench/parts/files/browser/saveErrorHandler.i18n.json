@@ -6,15 +6,13 @@
 {
 	"acceptLocalChanges": "Lokale Änderungen verwenden und Datenträgerinhalte überschreiben",
 	"compareChanges": "Vergleichen",
-	"conflictingFileHasChanged": "Der Inhalt der Datei auf dem Datenträger hat sich geändert, und die linke Seite des Vergleichs-Editors wurde aktualisiert. Bitte überprüfen Sie die Datei, und lösen Sie Konflikte erneut auf.",
 	"discard": "Verwerfen",
 	"genericSaveError": "Fehler beim Speichern von \"{0}\": {1}.",
 	"overwrite": "Überschreiben",
 	"readonlySaveError": "Fehler beim Speichern von \"{0}\": Die Datei ist schreibgeschützt. Wählen Sie 'Überschreiben' aus, um den Schutz aufzuheben.",
-	"resolveSaveConflict": "Speicherkonflikt auflösen",
 	"retry": "Wiederholen",
 	"revertLocalChanges": "Lokale Änderungen verwerfen und Inhalt auf dem Datenträger wiederherstellen",
-	"saveConflictDiffLabel": "{0} (auf Datenträger) ↔ {1} (in {2})",
+	"saveConflictDiffLabel": "{0} (auf Datenträger) ↔ {1} (in {2}) – Speicherkonflikt auflösen",
 	"staleSaveError": "Fehler beim Speichern von \"{0}\": Der Inhalt auf dem Datenträger ist neuer. Klicken Sie auf **Vergleichen**, um Ihre Version mit der Version auf dem Datenträger zu vergleichen.",
 	"userGuide": "Verwenden Sie die Aktionen in der Editor-Symbolleiste, um Ihre Änderungen **rückgängig zu machen** oder den Inhalt auf dem Datenträger mit Ihren Änderungen zu **überschreiben**."
 }

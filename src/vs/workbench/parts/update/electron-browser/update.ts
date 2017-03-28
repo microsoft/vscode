@@ -10,8 +10,8 @@ import severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
 import { IMessageService, CloseAction, Severity } from 'vs/platform/message/common/message';
-import pkg from 'vs/platform/package';
-import product from 'vs/platform/product';
+import pkg from 'vs/platform/node/package';
+import product from 'vs/platform/node/product';
 import URI from 'vs/base/common/uri';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -19,12 +19,13 @@ import { ReleaseNotesInput } from 'vs/workbench/parts/update/electron-browser/re
 import { IRequestService } from 'vs/platform/request/node/request';
 import { asText } from 'vs/base/node/request';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { Keybinding } from 'vs/base/common/keybinding';
+import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IUpdateService } from 'vs/platform/update/common/update';
 import * as semver from 'semver';
+import { OS } from 'vs/base/common/platform';
 
 class ApplyUpdateAction extends Action {
 	constructor( @IUpdateService private updateService: IUpdateService) {
@@ -44,44 +45,47 @@ const NotNowAction = new Action(
 	() => TPromise.as(true)
 );
 
+const releaseNotesCache: { [version: string]: TPromise<string>; } = Object.create(null);
+
 export function loadReleaseNotes(accessor: ServicesAccessor, version: string): TPromise<string> {
 	const requestService = accessor.get(IRequestService);
 	const keybindingService = accessor.get(IKeybindingService);
-	const match = /^(\d+\.\d)\./.exec(version);
+	const match = /^(\d+\.\d+)\./.exec(version);
 
 	if (!match) {
-		return TPromise.as(null);
+		return TPromise.wrapError('not found');
 	}
 
 	const versionLabel = match[1].replace(/\./g, '_');
 	const baseUrl = 'https://code.visualstudio.com/raw';
 	const url = `${baseUrl}/v${versionLabel}.md`;
+	const unassigned = nls.localize('unassigned', "unassigned");
 
 	const patchKeybindings = (text: string): string => {
 		const kb = (match: string, kb: string) => {
-			const keybinding = keybindingService.lookupKeybindings(kb)[0];
+			const keybinding = keybindingService.lookupKeybinding(kb);
 
 			if (!keybinding) {
-				return match;
+				return unassigned;
 			}
 
-			return keybindingService.getLabelFor(keybinding);
+			return keybinding.getLabel();
 		};
 
 		const kbstyle = (match: string, kb: string) => {
-			const code = Keybinding.fromUserSettingsLabel(kb);
-
-			if (!code) {
-				return match;
-			}
-
-			const keybinding = new Keybinding(code);
+			const keybinding = KeybindingIO.readKeybinding(kb, OS);
 
 			if (!keybinding) {
-				return match;
+				return unassigned;
 			}
 
-			return keybindingService.getLabelFor(keybinding);
+			const resolvedKeybindings = keybindingService.resolveKeybinding(keybinding);
+
+			if (resolvedKeybindings.length === 0) {
+				return unassigned;
+			}
+
+			return resolvedKeybindings[0].getLabel();
 		};
 
 		return text
@@ -89,9 +93,13 @@ export function loadReleaseNotes(accessor: ServicesAccessor, version: string): T
 			.replace(/kbstyle\(([^\)]+)\)/gi, kbstyle);
 	};
 
-	return requestService.request({ url })
-		.then(asText)
-		.then(text => patchKeybindings(text));
+	if (!releaseNotesCache[version]) {
+		releaseNotesCache[version] = requestService.request({ url })
+			.then(asText)
+			.then(text => patchKeybindings(text));
+	}
+
+	return releaseNotesCache[version];
 }
 
 export class OpenLatestReleaseNotesInBrowserAction extends Action {
@@ -111,13 +119,12 @@ export class OpenLatestReleaseNotesInBrowserAction extends Action {
 export abstract class AbstractShowReleaseNotesAction extends Action {
 
 	constructor(
-		id,
-		label,
+		id: string,
+		label: string,
 		private returnValue: boolean,
 		private version: string,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IOpenerService private openerService: IOpenerService
+		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super(id, label, null, true);
 	}
@@ -130,7 +137,7 @@ export abstract class AbstractShowReleaseNotesAction extends Action {
 		this.enabled = false;
 
 		return this.instantiationService.invokeFunction(loadReleaseNotes, this.version)
-			.then(text => this.editorService.openEditor(this.instantiationService.createInstance(ReleaseNotesInput, this.version, text)))
+			.then(text => this.editorService.openEditor(this.instantiationService.createInstance(ReleaseNotesInput, this.version, text), { pinned: true }))
 			.then(() => true)
 			.then(null, () => {
 				const action = this.instantiationService.createInstance(OpenLatestReleaseNotesInBrowserAction);
@@ -145,10 +152,9 @@ export class ShowReleaseNotesAction extends AbstractShowReleaseNotesAction {
 		returnValue: boolean,
 		version: string,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IOpenerService openerService: IOpenerService
+		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super('update.showReleaseNotes', nls.localize('releaseNotes', "Release Notes"), returnValue, version, editorService, instantiationService, openerService);
+		super('update.showReleaseNotes', nls.localize('releaseNotes', "Release Notes"), returnValue, version, editorService, instantiationService);
 	}
 }
 
@@ -161,10 +167,9 @@ export class ShowCurrentReleaseNotesAction extends AbstractShowReleaseNotesActio
 		id = ShowCurrentReleaseNotesAction.ID,
 		label = ShowCurrentReleaseNotesAction.LABEL,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IOpenerService openerService: IOpenerService
+		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super(id, label, true, pkg.version, editorService, instantiationService, openerService);
+		super(id, label, true, pkg.version, editorService, instantiationService);
 	}
 }
 
@@ -187,7 +192,6 @@ const LinkAction = (id: string, message: string, licenseUrl: string) => new Acti
 export class UpdateContribution implements IWorkbenchContribution {
 
 	private static KEY = 'releaseNotes/lastVersion';
-	private static INSIDER_KEY = 'releaseNotes/shouldShowInsiderDisclaimer';
 	getId() { return 'vs.update'; }
 
 	constructor(
@@ -203,7 +207,7 @@ export class UpdateContribution implements IWorkbenchContribution {
 		if (product.releaseNotesUrl && lastVersion && pkg.version !== lastVersion) {
 			instantiationService.invokeFunction(loadReleaseNotes, pkg.version)
 				.then(
-				text => editorService.openEditor(instantiationService.createInstance(ReleaseNotesInput, pkg.version, text)),
+				text => editorService.openEditor(instantiationService.createInstance(ReleaseNotesInput, pkg.version, text), { pinned: true }),
 				() => {
 					messageService.show(Severity.Info, {
 						message: nls.localize('read the release notes', "Welcome to {0} v{1}! Would you like to read the Release Notes?", product.nameLong, pkg.version),
@@ -221,27 +225,6 @@ export class UpdateContribution implements IWorkbenchContribution {
 				message: nls.localize('licenseChanged', "Our license terms have changed, please go through them.", product.nameLong, pkg.version),
 				actions: [
 					LinkAction('update.showLicense', nls.localize('license', "Read License"), product.licenseUrl),
-					CloseAction
-				]
-			});
-		}
-
-		const shouldShowInsiderDisclaimer = storageService.getBoolean(UpdateContribution.INSIDER_KEY, StorageScope.GLOBAL, true);
-
-		// is this a build which releases often?
-		if (shouldShowInsiderDisclaimer && /-alpha$|-insider$/.test(pkg.version)) {
-			messageService.show(Severity.Info, {
-				message: nls.localize('insiderBuilds', "Insider builds and releases everyday!", product.nameLong, pkg.version),
-				actions: [
-					new Action('update.insiderBuilds', nls.localize('readmore', "Read More"), '', true, () => {
-						window.open('http://go.microsoft.com/fwlink/?LinkID=798816');
-						storageService.store(UpdateContribution.INSIDER_KEY, false, StorageScope.GLOBAL);
-						return TPromise.as(null);
-					}),
-					new Action('update.neverAgain', nls.localize('neverShowAgain', "Don't Show Again"), '', true, () => {
-						storageService.store(UpdateContribution.INSIDER_KEY, false, StorageScope.GLOBAL);
-						return TPromise.as(null);
-					}),
 					CloseAction
 				]
 			});
@@ -276,5 +259,7 @@ export class UpdateContribution implements IWorkbenchContribution {
 
 			messageService.show(severity.Info, nls.localize('noUpdatesAvailable', "There are no updates currently available."));
 		});
+
+		updateService.onError(err => messageService.show(severity.Error, err));
 	}
 }

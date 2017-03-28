@@ -9,9 +9,9 @@ import * as assert from 'assert';
 import { EditorStacksModel, EditorGroup, GroupEvent } from 'vs/workbench/common/editor/editorStacksModel';
 import { EditorInput, IFileEditorInput, IEditorIdentifier, IEditorGroup, IStacksModelChangeEvent, IEditorRegistry, Extensions as EditorExtensions, IEditorInputFactory } from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
-import { TestStorageService, TestLifecycleService, TestContextService } from 'vs/test/utils/servicesTestUtils';
+import { TestStorageService, TestLifecycleService, TestContextService } from 'vs/workbench/test/workbenchTestServices';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
@@ -19,7 +19,8 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { Registry } from 'vs/platform/platform';
 import { Position, Direction } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ITelemetryService, NullTelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import 'vs/workbench/browser/parts/editor/baseEditor';
 
@@ -159,6 +160,9 @@ class TestFileEditorInput extends EditorInput implements IFileEditorInput {
 
 	public getResource(): URI {
 		return this.resource;
+	}
+
+	public setForceOpenAsBinary(): void {
 	}
 }
 
@@ -486,6 +490,7 @@ suite('Editor Stacks Model', () => {
 		assert.equal(group.isActive(input1), true);
 		assert.equal(group.isPreview(input1), false);
 		assert.equal(group.isPinned(input1), true);
+		assert.equal(group.isPinned(0), true);
 
 		assert.equal(events.opened[0], input1);
 		assert.equal(events.activated[0], input1);
@@ -508,6 +513,7 @@ suite('Editor Stacks Model', () => {
 		assert.equal(group.isActive(input2), true);
 		assert.equal(group.isPreview(input2), true);
 		assert.equal(group.isPinned(input2), false);
+		assert.equal(group.isPinned(0), false);
 
 		assert.equal(events.opened[1], input2);
 		assert.equal(events.activated[1], input2);
@@ -536,6 +542,7 @@ suite('Editor Stacks Model', () => {
 		assert.equal(group.isActive(input3), true);
 		assert.equal(group.isPreview(input3), false);
 		assert.equal(group.isPinned(input3), true);
+		assert.equal(group.isPinned(0), true);
 
 		assert.equal(events.opened[2], input3);
 		assert.equal(events.activated[2], input3);
@@ -565,6 +572,7 @@ suite('Editor Stacks Model', () => {
 		assert.equal(group.isActive(input4), true);
 		assert.equal(group.isPreview(input4), true);
 		assert.equal(group.isPinned(input4), false);
+		assert.equal(group.isPinned(0), false);
 
 		assert.equal(events.opened[3], input4);
 		assert.equal(events.activated[3], input4);
@@ -692,12 +700,15 @@ suite('Editor Stacks Model', () => {
 		assert.equal(group.activeEditor, input1);
 		assert.equal(group.isActive(input1), true);
 		assert.equal(group.isPinned(input1), true);
+		assert.equal(group.isPinned(0), true);
 		assert.equal(group.isPreview(input1), false);
 		assert.equal(group.isActive(input2), false);
 		assert.equal(group.isPinned(input2), true);
+		assert.equal(group.isPinned(1), true);
 		assert.equal(group.isPreview(input2), false);
 		assert.equal(group.isActive(input3), false);
 		assert.equal(group.isPinned(input3), true);
+		assert.equal(group.isPinned(2), true);
 		assert.equal(group.isPreview(input3), false);
 
 		const mru = group.getEditors(true);
@@ -1453,28 +1464,91 @@ suite('Editor Stacks Model', () => {
 		model.setActive(group1);
 		group1.setActive(input1);
 
-		let previous = model.previous();
+		let previous = model.previous(true, false /* jump groups, do NOT cycle at start*/);
+		assert.equal(previous, null);
+
+		previous = model.previous(true /* jump groups */);
 		assert.equal(previous.group, group2);
 		assert.equal(previous.editor, input6);
 
 		model.setActive(<EditorGroup>previous.group);
 		(<EditorGroup>previous.group).setActive(<EditorInput>previous.editor);
 
-		let next = model.next();
+		let next = model.next(true, false /* jump groups, do NOT cycle at end */);
+		assert.equal(next, null);
+
+		next = model.next(true /* jump groups */);
 		assert.equal(next.group, group1);
 		assert.equal(next.editor, input1);
 
 		model.setActive(group1);
 		group1.setActive(input3);
 
-		next = model.next();
+		next = model.next(true /* jump groups */);
 		assert.equal(next.group, group2);
 		assert.equal(next.editor, input4);
 
 		model.setActive(<EditorGroup>next.group);
 		(<EditorGroup>next.group).setActive(<EditorInput>next.editor);
 
-		previous = model.previous();
+		previous = model.previous(true /* jump groups */);
+		assert.equal(previous.group, group1);
+		assert.equal(previous.editor, input3);
+	});
+
+	test('Stack - Multiple Editors - Navigation (in group)', function () {
+		const model = create();
+
+		const group1 = model.openGroup('group1');
+		const group2 = model.openGroup('group2');
+
+		const input1 = input();
+		const input2 = input();
+		const input3 = input();
+
+		group1.openEditor(input1, { pinned: true, active: true });
+		group1.openEditor(input2, { pinned: true, active: true });
+		group1.openEditor(input3, { pinned: true, active: true });
+
+		const input4 = input();
+		const input5 = input();
+		const input6 = input();
+
+		group2.openEditor(input4, { pinned: true, active: true });
+		group2.openEditor(input5, { pinned: true, active: true });
+		group2.openEditor(input6, { pinned: true, active: true });
+
+		model.setActive(group1);
+		group1.setActive(input1);
+
+		let previous = model.previous(false, false /* do NOT jump groups, do NOT cycle at start*/);
+		assert.equal(previous, null);
+
+		previous = model.previous(false /* do NOT jump groups */);
+		assert.equal(previous.group, group1);
+		assert.equal(previous.editor, input3);
+
+		model.setActive(<EditorGroup>previous.group);
+		(<EditorGroup>previous.group).setActive(<EditorInput>previous.editor);
+
+		let next = model.next(false, false /* do NOT jump groups, do NOT cycle at end */);
+		assert.equal(next, null);
+
+		next = model.next(false /* do NOT jump groups */);
+		assert.equal(next.group, group1);
+		assert.equal(next.editor, input1);
+
+		model.setActive(group1);
+		group1.setActive(input3);
+
+		next = model.next(false /* do NOT jump groups */);
+		assert.equal(next.group, group1);
+		assert.equal(next.editor, input1);
+
+		model.setActive(<EditorGroup>next.group);
+		(<EditorGroup>next.group).setActive(<EditorInput>next.editor);
+
+		previous = model.previous(false /* do NOT jump groups */);
 		assert.equal(previous.group, group1);
 		assert.equal(previous.editor, input3);
 	});
@@ -1488,6 +1562,7 @@ suite('Editor Stacks Model', () => {
 		assert.ok(!model.isOpen(URI.file('/hello/world.txt')));
 
 		const input1Resource = URI.file('/hello/world.txt');
+		const input1ResourceUpper = URI.file('/hello/WORLD.txt');
 		const input1 = input(void 0, false, input1Resource);
 		group1.openEditor(input1);
 
@@ -1496,12 +1571,18 @@ suite('Editor Stacks Model', () => {
 		assert.equal(model.count(input1Resource), 1);
 		assert.equal(group1.getEditor(input1Resource), input1);
 
+		assert.ok(!group1.getEditor(input1ResourceUpper));
+		assert.equal(model.count(input1ResourceUpper), 0);
+		assert.ok(!model.isOpen(input1ResourceUpper));
+		assert.ok(!group1.contains(input1ResourceUpper));
+
 		group2.openEditor(input1);
 		group1.closeEditor(input1);
 
 		assert.ok(model.isOpen(input1Resource));
 		assert.ok(!group1.contains(input1Resource));
 		assert.ok(!group1.getEditor(input1Resource));
+		assert.ok(!group1.getEditor(input1ResourceUpper));
 		assert.ok(group2.contains(input1Resource));
 		assert.equal(group2.getEditor(input1Resource), input1);
 		assert.equal(model.count(input1Resource), 1);
@@ -1755,5 +1836,39 @@ suite('Editor Stacks Model', () => {
 
 		group1.openEditor(input3, { active: true });
 		assert.equal(group1.indexOf(input3), 1);
+	});
+
+	test('Stack - Multiple Editors - find group based on input', function () {
+		const model = create();
+
+		const group1 = model.openGroup('group1');
+		const group2 = model.openGroup('group2');
+
+		const g1_input1 = input();
+		const g1_input2 = input();
+		const g2_input1 = input();
+		const g2_input2 = input();
+		const unmatched_input = input();
+
+		group1.openEditor(g1_input1, { active: true, pinned: true });
+		group1.openEditor(g1_input2, { active: true, pinned: true });
+		group2.openEditor(g2_input1, { active: true, pinned: true });
+		group2.openEditor(g2_input2, { active: true, pinned: true });
+
+		const found_group1 = model.findGroup(g1_input2, true);
+		const notfound1 = model.findGroup(g1_input1, true);
+
+		const found1_group2 = model.findGroup(g2_input1, false);
+		const found2_group2 = model.findGroup(g2_input2, false);
+
+		const notfound2 = model.findGroup(unmatched_input, false);
+		const notfound3 = model.findGroup(unmatched_input, true);
+
+		assert.equal(found_group1, group1);
+		assert.equal(notfound1, null);
+		assert.equal(found1_group2, group2);
+		assert.equal(found2_group2, group2);
+		assert.equal(notfound2, null);
+		assert.equal(notfound3, null);
 	});
 });

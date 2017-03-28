@@ -36,9 +36,7 @@ function getRandomEOLSequence(): string {
 	if (rnd === 2) {
 		return '\r';
 	}
-	if (rnd === 3) {
-		return '\r\n';
-	}
+	return '\r\n';
 }
 
 function getRandomString(minLength: number, maxLength: number): string {

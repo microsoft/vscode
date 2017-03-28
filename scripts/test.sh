@@ -1,5 +1,4 @@
 #!/bin/bash
-set -e
 
 if [[ "$OSTYPE" == "darwin"* ]]; then
 	realpath() { [[ $1 = /* ]] && echo "$1" || echo "$PWD/${1#./}"; }
@@ -18,11 +17,14 @@ else
 	CODE=".build/electron/$NAME"
 fi
 
+INTENDED_VERSION="v`node -p "require('./package.json').electronVersion"`"
+INSTALLED_VERSION=$(cat .build/electron/version 2> /dev/null)
+
 # Node modules
 test -d node_modules || ./scripts/npm.sh install
 
 # Get electron
-test -f "$CODE" || ./node_modules/.bin/gulp electron
+(test -f "$CODE" && [ $INTENDED_VERSION == $INSTALLED_VERSION ]) || ./node_modules/.bin/gulp electron
 
 # Build
 test -d out || ./node_modules/.bin/gulp compile

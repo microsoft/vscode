@@ -15,11 +15,11 @@ suite('window namespace tests', () => {
 	teardown(cleanUp);
 
 	test('editor, active text editor', () => {
-		return workspace.openTextDocument(join(workspace.rootPath, './far.js')).then(doc => {
+		return workspace.openTextDocument(join(workspace.rootPath || '', './far.js')).then(doc => {
 			return window.showTextDocument(doc).then((editor) => {
 				const active = window.activeTextEditor;
 				assert.ok(active);
-				assert.ok(pathEquals(active.document.uri.fsPath, doc.uri.fsPath));
+				assert.ok(pathEquals(active!.document.uri.fsPath, doc.uri.fsPath));
 			});
 		});
 	});
@@ -31,7 +31,7 @@ suite('window namespace tests', () => {
 
 	test('editor, assign and check view columns', () => {
 
-		return workspace.openTextDocument(join(workspace.rootPath, './far.js')).then(doc => {
+		return workspace.openTextDocument(join(workspace.rootPath || '', './far.js')).then(doc => {
 			let p1 = window.showTextDocument(doc, ViewColumn.One).then(editor => {
 				assert.equal(editor.viewColumn, ViewColumn.One);
 			});
@@ -52,7 +52,7 @@ suite('window namespace tests', () => {
 			eventCounter += 1;
 		});
 
-		return workspace.openTextDocument(join(workspace.rootPath, './far.js')).then(doc => {
+		return workspace.openTextDocument(join(workspace.rootPath || '', './far.js')).then(doc => {
 			return window.showTextDocument(doc, ViewColumn.One).then(editor => {
 				assert.equal(eventCounter, 1);
 				return doc;
@@ -111,8 +111,8 @@ suite('window namespace tests', () => {
 	});
 
 	test('issue #5362 - Incorrect TextEditor passed by onDidChangeTextEditorSelection', (done) => {
-		const file10Path = join(workspace.rootPath, './10linefile.ts');
-		const file30Path = join(workspace.rootPath, './30linefile.ts');
+		const file10Path = join(workspace.rootPath || '', './10linefile.ts');
+		const file30Path = join(workspace.rootPath || '', './30linefile.ts');
 
 		let finished = false;
 		let failOncePlease = (err: Error) => {
@@ -290,8 +290,19 @@ suite('window namespace tests', () => {
 		});
 	});
 
+	test('showQuickPick, never resolve promise and cancel - #22453', function () {
+
+		const result = window.showQuickPick(new Promise<string[]>(resolve => { }));
+
+		const a = result.then(value => {
+			assert.equal(value, undefined);
+		});
+		const b = commands.executeCommand('workbench.action.closeQuickOpen');
+		return Promise.all([a, b]);
+	});
+
 	test('editor, selection change kind', () => {
-		return workspace.openTextDocument(join(workspace.rootPath, './far.js')).then(doc => window.showTextDocument(doc)).then(editor => {
+		return workspace.openTextDocument(join(workspace.rootPath || '', './far.js')).then(doc => window.showTextDocument(doc)).then(editor => {
 
 
 			return new Promise((resolve, reject) => {
@@ -311,11 +322,11 @@ suite('window namespace tests', () => {
 	});
 
 	test('createTerminal, Terminal.name', () => {
-		var terminal = window.createTerminal('foo');
+		const terminal = window.createTerminal('foo');
 		assert.equal(terminal.name, 'foo');
 
 		assert.throws(() => {
-			terminal.name = 'bar';
+			(<any>terminal).name = 'bar';
 		}, 'Terminal.name should be readonly');
 	});
 
@@ -342,5 +353,20 @@ suite('window namespace tests', () => {
 
 	test('terminal, name should set terminal.name', () => {
 		assert.equal(window.createTerminal('foo').name, 'foo');
+	});
+
+	test('terminal, listening to onData should report data from the pty process', done => {
+		const terminal = window.createTerminal();
+		let fromPty = '';
+		let isFinished = false;
+		(<any>terminal).onData(data => {
+			// The text could be split over multiple callbacks
+			fromPty += data;
+			if (!isFinished && fromPty.indexOf('test') >= 0) {
+				isFinished = true;
+				done();
+			}
+		});
+		terminal.sendText('test', false);
 	});
 });

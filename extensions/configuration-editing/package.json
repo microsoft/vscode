@@ -1,67 +1,71 @@
 {
-	"name": "configuration-editing",
-	"version": "0.0.1",
-	"publisher": "vscode",
-	"engines": {
-		"vscode": "^1.0.0"
-	},
-	"categories": [
-		"Languages",
-		"Other"
-	],
-	"activationEvents": [
-		"onLanguage:json"
-	],
-	"main": "./out/extension",
-	"scripts": {
-		"compile": "gulp compile-extension:configuration-editing",
-		"watch": "gulp watch-extension:configuration-editing"
-	},
-	"dependencies": {
-		"jsonc-parser": "^0.2.2"
-	},
-	"contributes": {
-		"jsonValidation": [
-			{
-				"fileMatch": "vscode://defaultsettings/keybindings.json",
-				"url": "vscode://schemas/keybindings"
-			},
-			{
-				"fileMatch": "%APP_SETTINGS_HOME%/keybindings.json",
-				"url": "vscode://schemas/keybindings"
-			},
-			{
-				"fileMatch": "vscode://defaultsettings/settings.json",
-				"url": "vscode://schemas/settings"
-			},
-			{
-				"fileMatch": "%APP_SETTINGS_HOME%/settings.json",
-				"url": "vscode://schemas/settings"
-			},
-			{
-				"fileMatch": "%APP_SETTINGS_HOME%/locale.json",
-				"url": "vscode://schemas/locale"
-			},
-			{
-				"fileMatch": "/.vscode/settings.json",
-				"url": "vscode://schemas/settings"
-			},
-			{
-				"fileMatch": "/.vscode/launch.json",
-				"url": "vscode://schemas/launch"
-			},
-			{
-				"fileMatch": "/.vscode/tasks.json",
-				"url": "vscode://schemas/tasks"
-			},
-			{
-				"fileMatch": "%APP_SETTINGS_HOME%/snippets/*.json",
-				"url": "vscode://schemas/snippets"
-			},
-			{
-				"fileMatch": "/.vscode/extensions.json",
-				"url": "vscode://schemas/extensions"
-			}
-		]
-	}
+  "name": "configuration-editing",
+  "version": "0.0.1",
+  "publisher": "vscode",
+  "engines": {
+    "vscode": "^1.0.0"
+  },
+  "categories": [
+    "Languages",
+    "Other"
+  ],
+  "activationEvents": [
+    "onLanguage:json"
+  ],
+  "main": "./out/extension",
+  "scripts": {
+    "compile": "gulp compile-extension:configuration-editing",
+    "watch": "gulp watch-extension:configuration-editing"
+  },
+  "dependencies": {
+    "jsonc-parser": "^0.3.1",
+    "vscode-nls": "^2.0.1"
+  },
+  "contributes": {
+    "jsonValidation": [
+      {
+        "fileMatch": "vscode://defaultsettings/keybindings.json",
+        "url": "vscode://schemas/keybindings"
+      },
+      {
+        "fileMatch": "%APP_SETTINGS_HOME%/keybindings.json",
+        "url": "vscode://schemas/keybindings"
+      },
+      {
+        "fileMatch": "vscode://defaultsettings/settings.json",
+        "url": "vscode://schemas/settings"
+      },
+      {
+        "fileMatch": "%APP_SETTINGS_HOME%/settings.json",
+        "url": "vscode://schemas/settings"
+      },
+      {
+        "fileMatch": "%APP_SETTINGS_HOME%/locale.json",
+        "url": "vscode://schemas/locale"
+      },
+      {
+        "fileMatch": "/.vscode/settings.json",
+        "url": "vscode://schemas/settings"
+      },
+      {
+        "fileMatch": "/.vscode/launch.json",
+        "url": "vscode://schemas/launch"
+      },
+      {
+        "fileMatch": "/.vscode/tasks.json",
+        "url": "vscode://schemas/tasks"
+      },
+      {
+        "fileMatch": "%APP_SETTINGS_HOME%/snippets/*.json",
+        "url": "vscode://schemas/snippets"
+      },
+      {
+        "fileMatch": "/.vscode/extensions.json",
+        "url": "vscode://schemas/extensions"
+      }
+    ]
+  },
+  "devDependencies": {
+    "@types/node": "^7.0.4"
+  }
 }

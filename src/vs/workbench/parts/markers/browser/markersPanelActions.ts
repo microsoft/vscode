@@ -22,10 +22,13 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { CollapseAllAction as TreeCollapseAction } from 'vs/base/parts/tree/browser/treeDefaults';
 import Tree = require('vs/base/parts/tree/browser/tree');
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 
 export class ToggleMarkersPanelAction extends TogglePanelAction {
 
 	public static ID = 'workbench.actions.view.problems';
+	public static LABEL = Messages.MARKERS_PANEL_TOGGLE_LABEL;
 
 	constructor(id: string, label: string,
 		@IPartService partService: IPartService,
@@ -47,6 +50,7 @@ export class ToggleMarkersPanelAction extends TogglePanelAction {
 export class ToggleErrorsAndWarningsAction extends TogglePanelAction {
 
 	public static ID: string = 'workbench.action.showErrorsWarnings';
+	public static LABEL = Messages.SHOW_ERRORS_WARNINGS_ACTION_LABEL;
 
 	constructor(id: string, label: string,
 		@IPartService partService: IPartService,
@@ -97,6 +101,7 @@ export class FilterInputBoxActionItem extends BaseActionItem {
 
 	constructor(private markersPanel: MarkersPanel, action: IAction,
 		@IContextViewService private contextViewService: IContextViewService,
+		@IThemeService private themeService: IThemeService,
 		@ITelemetryService private telemetryService: ITelemetryService) {
 		super(markersPanel, action);
 		this.toDispose = [];
@@ -109,6 +114,7 @@ export class FilterInputBoxActionItem extends BaseActionItem {
 			placeholder: Messages.MARKERS_PANEL_FILTER_PLACEHOLDER,
 			ariaLabel: Messages.MARKERS_PANEL_FILTER_PLACEHOLDER
 		});
+		this.toDispose.push(attachInputBoxStyler(filterInputBox, this.themeService));
 		filterInputBox.value = this.markersPanel.markersModel.filterOptions.completeFilter;
 		this.toDispose.push(filterInputBox.onDidChange(filter => this.delayedFilterUpdate.trigger(() => this.updateFilter(filter))));
 		this.toDispose.push(DOM.addStandardDisposableListener(filterInputBox.inputElement, 'keyup', (keyboardEvent) => this.onInputKeyUp(keyboardEvent, filterInputBox)));

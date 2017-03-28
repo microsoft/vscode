@@ -9,10 +9,9 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { getNextTickChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
 import uri from 'vs/base/common/uri';
-import { EventType } from 'vs/platform/files/common/files';
 import { toFileChangesEvent, IRawFileChange } from 'vs/workbench/services/files/node/watcher/common';
-import { IEventService } from 'vs/platform/event/common/event';
 import { IWatcherChannel, WatcherChannelClient } from 'vs/workbench/services/files/node/watcher/unix/watcherIpc';
+import { FileChangesEvent } from 'vs/platform/files/common/files';
 
 export class FileWatcher {
 	private static MAX_RESTARTS = 5;
@@ -23,7 +22,7 @@ export class FileWatcher {
 	constructor(
 		private basePath: string,
 		private ignored: string[],
-		private eventEmitter: IEventService,
+		private onFileChanges: (changes: FileChangesEvent) => void,
 		private errorLogger: (msg: string) => void,
 		private verboseLogging: boolean
 	) {
@@ -55,17 +54,18 @@ export class FileWatcher {
 			if (!(err instanceof Error && err.name === 'Canceled' && err.message === 'Canceled')) {
 				return TPromise.wrapError(err); // the service lib uses the promise cancel error to indicate the process died, we do not want to bubble this up
 			}
+			return undefined;
 		}, (events: IRawFileChange[]) => this.onRawFileEvents(events)).done(() => {
 
 			// our watcher app should never be completed because it keeps on watching. being in here indicates
 			// that the watcher process died and we want to restart it here. we only do it a max number of times
 			if (!this.isDisposed) {
 				if (this.restartCounter <= FileWatcher.MAX_RESTARTS) {
-					this.errorLogger('Watcher terminated unexpectedly and is restarted again...');
+					this.errorLogger('[FileWatcher] terminated unexpectedly and is restarted again...');
 					this.restartCounter++;
 					this.startWatching();
 				} else {
-					this.errorLogger('Watcher failed to start after retrying for some time, giving up. Please report this as a bug report!');
+					this.errorLogger('[FileWatcher] failed to start after retrying for some time, giving up. Please report this as a bug report!');
 				}
 			}
 		}, this.errorLogger);
@@ -80,7 +80,7 @@ export class FileWatcher {
 
 		// Emit through broadcast service
 		if (events.length > 0) {
-			this.eventEmitter.emit(EventType.FILE_CHANGES, toFileChangesEvent(events));
+			this.onFileChanges(toFileChangesEvent(events));
 		}
 	}
 }

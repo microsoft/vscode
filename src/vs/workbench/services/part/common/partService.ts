@@ -23,7 +23,6 @@ export enum Position {
 }
 
 export interface ILayoutOptions {
-	forceStyleRecompute?: boolean;
 	toggleMaximizedPanel?: boolean;
 }
 
@@ -36,6 +35,11 @@ export interface IPartService {
 	 * Emits when the visibility of the title bar changes.
 	 */
 	onTitleBarVisibilityChange: Event<void>;
+
+	/**
+	 * Emits when the editor part's layout changes.
+	 */
+	onEditorLayout: Event<void>;
 
 	/**
 	 * Asks the part service to layout all parts.
@@ -68,19 +72,9 @@ export interface IPartService {
 	isVisible(part: Parts): boolean;
 
 	/**
-	 * Checks if the activity bar is currently hidden or not
-	 */
-	isActivityBarHidden(): boolean;
-
-	/**
 	 * Set activity bar hidden or not
 	 */
 	setActivityBarHidden(hidden: boolean): void;
-
-	/**
-	 * Returns iff the custom titlebar part is visible.
-	 */
-	isTitleBarHidden(): boolean;
 
 	/**
 	 * Number of pixels (adjusted for zooming) that the title bar (if visible) pushes down the workbench contents.
@@ -88,29 +82,14 @@ export interface IPartService {
 	getTitleBarOffset(): number;
 
 	/**
-	 * Checks if the statusbar is currently hidden or not
-	 */
-	isStatusBarHidden(): boolean;
-
-	/**
-	 * Checks if the sidebar is currently hidden or not
-	 */
-	isSideBarHidden(): boolean;
-
-	/**
 	 * Set sidebar hidden or not
 	 */
-	setSideBarHidden(hidden: boolean): void;
-
-	/**
-	 * Checks if the panel part is currently hidden or not
-	 */
-	isPanelHidden(): boolean;
+	setSideBarHidden(hidden: boolean): TPromise<void>;
 
 	/**
 	 * Set panel part hidden or not
 	 */
-	setPanelHidden(hidden: boolean): void;
+	setPanelHidden(hidden: boolean): TPromise<void>;
 
 	/**
 	 * Maximizes the panel height if the panel is not already maximized.
@@ -119,19 +98,14 @@ export interface IPartService {
 	toggleMaximizedPanel(): void;
 
 	/**
+	 * Returns true if the panel is maximized.
+	 */
+	isPanelMaximized(): boolean;
+
+	/**
 	 * Gets the current side bar position. Note that the sidebar can be hidden too.
 	 */
 	getSideBarPosition(): Position;
-
-	/**
-	 * Adds a class to the workbench part.
-	 */
-	addClass(clazz: string): void;
-
-	/**
-	 * Removes a class from the workbench part.
-	 */
-	removeClass(clazz: string): void;
 
 	/**
 	 * Returns the identifier of the element that contains the workbench.
@@ -139,7 +113,12 @@ export interface IPartService {
 	getWorkbenchElementId(): string;
 
 	/**
-	 * Enables to restore the contents of the sidebar after a restart.
+	 * Toggles the workbench in and out of zen mode - parts get hidden and window goes fullscreen.
 	 */
-	setRestoreSidebar(): void;
+	toggleZenMode(): void;
+
+	/**
+	 * Resizes currently focused part on main access
+	 */
+	resizePart(part: Parts, sizeChange: number): void;
 }

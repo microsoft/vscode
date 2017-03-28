@@ -88,11 +88,6 @@ class V4UUID extends ValueUUID {
 	}
 }
 
-/**
- * An empty UUID that contains only zeros.
- */
-export const empty: UUID = new ValueUUID('00000000-0000-0000-0000-000000000000');
-
 export function v4(): UUID {
 	return new V4UUID();
 }

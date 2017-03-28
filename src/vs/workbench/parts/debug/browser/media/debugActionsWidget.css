@@ -6,14 +6,10 @@
 /* Debug actions widget */
 
 .monaco-workbench .debug-actions-widget {
-	background-color: #F3F3F3;
 	box-shadow: 0 5px 8px #A8A8A8;
 	position: absolute;
-	top: 0;
 	z-index: 200;
 	height: 32px;
-	left: 50%;
-	margin-left: -96px;
 	display: flex;
 	padding-left: 7px;
 }
@@ -23,7 +19,6 @@
 }
 
 .monaco-workbench .debug-actions-widget .monaco-action-bar .action-item .select-box {
-	background-color: initial;
 	margin-top: 6px;
 }
 
@@ -47,25 +42,27 @@
 	background-repeat: no-repeat;
 }
 
-.vs-dark .monaco-workbench .debug-actions-widget,
-.hc-black .monaco-workbench .debug-actions-widget {
-	background-color: #333;
+.vs-dark .monaco-workbench .debug-actions-widget {
 	box-shadow: 0 5px 8px #000;
+}
+
+.hc-black .monaco-workbench .debug-actions-widget {
+	box-shadow: unset;
 }
 
 /* Debug actionbar actions */
 
 .monaco-workbench .debug-actions-widget .debug-action.step-over,
 .monaco-workbench .debug-actions-widget .debug-action.step-back {
-	background: url('step-over.svg') center center no-repeat;
+	background-image: url('step-over.svg');
 }
 
 .monaco-workbench .debug-actions-widget .debug-action.step-into {
-	background: url('step-into.svg') center center no-repeat;
+	background-image: url('step-into.svg');
 }
 
 .monaco-workbench .debug-actions-widget .debug-action.step-out {
-	background: url('step-out.svg') center center no-repeat;
+	background-image: url('step-out.svg');
 }
 
 .monaco-workbench .debug-actions-widget .debug-action.step-back,
@@ -75,23 +72,23 @@
 
 .monaco-workbench .debug-actions-widget .debug-action.continue,
 .monaco-workbench .debug-actions-widget .debug-action.reverse-continue {
-	background: url('continue.svg') center center no-repeat;
+	background-image: url('continue.svg');
 }
 
 .monaco-workbench .debug-actions-widget .debug-action.restart {
-	background: url('restart.svg') center center no-repeat;
+	background-image: url('restart.svg');
 }
 
 .monaco-workbench .debug-actions-widget .debug-action.pause {
-	background: url('pause.svg') center center no-repeat;
+	background-image: url('pause.svg');
 }
 
 .monaco-workbench .debug-actions-widget .debug-action.stop {
-	background: url('stop.svg') center center no-repeat;
+	background-image: url('stop.svg');
 }
 
 .monaco-workbench .debug-actions-widget .debug-action.disconnect {
-	background: url('disconnect.svg') center center no-repeat;
+	background-image: url('disconnect.svg');
 }
 
 /* Dark and hc theme actions */
@@ -100,42 +97,42 @@
 .vs-dark .monaco-workbench .debug-actions-widget .debug-action.step-back,
 .hc-black .monaco-workbench .debug-actions-widget .debug-action.step-over,
 .hc-black .monaco-workbench .debug-actions-widget .debug-action.step-back {
-	background: url('step-over-inverse.svg') center center no-repeat;
+	background-image: url('step-over-inverse.svg');
 }
 
 .vs-dark .monaco-workbench .debug-actions-widget .debug-action.step-into,
 .hc-black .monaco-workbench .debug-actions-widget .debug-action.step-into {
-	background: url('step-into-inverse.svg') center center no-repeat;
+	background-image: url('step-into-inverse.svg');
 }
 
 .vs-dark .monaco-workbench .debug-actions-widget .debug-action.step-out,
 .hc-black .monaco-workbench .debug-actions-widget .debug-action.step-out {
-	background: url('step-out-inverse.svg') center center no-repeat;
+	background-image: url('step-out-inverse.svg');
 }
 
 .vs-dark .monaco-workbench .debug-actions-widget .debug-action.continue,
 .vs-dark .monaco-workbench .debug-actions-widget .debug-action.reverse-continue,
 .hc-black .monaco-workbench .debug-actions-widget .debug-action.continue,
 .hc-black .monaco-workbench .debug-actions-widget .debug-action.reverse-continue {
-	background: url('continue-inverse.svg') center center no-repeat;
+	background-image: url('continue-inverse.svg');
 }
 
 .vs-dark .monaco-workbench .debug-actions-widget .debug-action.restart,
 .hc-black .monaco-workbench .debug-actions-widget .debug-action.restart {
-	background: url('restart-inverse.svg') center center no-repeat;
+	background-image: url('restart-inverse.svg');
 }
 
 .vs-dark .monaco-workbench .debug-actions-widget .debug-action.pause,
 .hc-black .monaco-workbench .debug-actions-widget .debug-action.pause {
-	background: url('pause-inverse.svg') center center no-repeat;
+	background-image: url('pause-inverse.svg');
 }
 
 .vs-dark .monaco-workbench .debug-actions-widget .debug-action.stop,
 .hc-black .monaco-workbench .debug-actions-widget .debug-action.stop {
-	background: url('stop-inverse.svg') center center no-repeat;
+	background-image: url('stop-inverse.svg');
 }
 
 .vs-dark .monaco-workbench .debug-actions-widget .debug-action.disconnect,
 .hc-black .monaco-workbench .debug-actions-widget .debug-action.disconnect {
-	background: url('disconnect-inverse.svg') center center no-repeat;
+	background-image: url('disconnect-inverse.svg');
 }

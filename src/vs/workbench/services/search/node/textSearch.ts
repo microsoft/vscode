@@ -5,73 +5,73 @@
 
 'use strict';
 
-import * as strings from 'vs/base/common/strings';
-
-import * as fs from 'fs';
 import * as path from 'path';
 
-import * as baseMime from 'vs/base/common/mime';
-import { ILineMatch, IProgress } from 'vs/platform/search/common/search';
-import { detectMimeAndEncodingFromBuffer } from 'vs/base/node/mime';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { IProgress } from 'vs/platform/search/common/search';
 import { FileWalker } from 'vs/workbench/services/search/node/fileSearch';
-import { UTF16le, UTF16be, UTF8, UTF8_with_bom, encodingExists, decode } from 'vs/base/node/encoding';
+
 import { ISerializedFileMatch, ISerializedSearchComplete, IRawSearch, ISearchEngine } from './search';
+import { ISearchWorker } from './worker/searchWorkerIpc';
+import { ITextSearchWorkerProvider } from './textSearchWorkerProvider';
 
-interface ReadLinesOptions {
-	bufferLength: number;
-	encoding: string;
-}
-
-export class Engine implements ISearchEngine<ISerializedFileMatch> {
+export class Engine implements ISearchEngine<ISerializedFileMatch[]> {
 
 	private static PROGRESS_FLUSH_CHUNK_SIZE = 50; // optimization: number of files to process before emitting progress event
 
-	private rootFolders: string[];
-	private extraFiles: string[];
-	private maxResults: number;
+	private config: IRawSearch;
 	private walker: FileWalker;
-	private contentPattern: RegExp;
-	private isCanceled: boolean;
-	private isDone: boolean;
-	private total: number;
-	private worked: number;
-	private progressed: number;
 	private walkerError: Error;
-	private walkerIsDone: boolean;
-	private fileEncoding: string;
-	private limitReached: boolean;
 
-	constructor(config: IRawSearch, walker: FileWalker) {
-		this.rootFolders = config.rootFolders;
-		this.extraFiles = config.extraFiles;
+	private isCanceled = false;
+	private isDone = false;
+	private totalBytes = 0;
+	private processedBytes = 0;
+	private progressed = 0;
+	private walkerIsDone = false;
+	private limitReached = false;
+	private numResults = 0;
+
+	private workerProvider: ITextSearchWorkerProvider;
+	private workers: ISearchWorker[];
+
+	private nextWorker = 0;
+
+	constructor(config: IRawSearch, walker: FileWalker, workerProvider: ITextSearchWorkerProvider) {
+		this.config = config;
 		this.walker = walker;
-		this.contentPattern = strings.createRegExp(config.contentPattern.pattern, config.contentPattern.isRegExp, { matchCase: config.contentPattern.isCaseSensitive, wholeWord: config.contentPattern.isWordMatch, multiline: false, global: true });
-		this.isCanceled = false;
-		this.limitReached = false;
-		this.maxResults = config.maxResults;
-		this.worked = 0;
-		this.progressed = 0;
-		this.total = 0;
-		this.fileEncoding = encodingExists(config.fileEncoding) ? config.fileEncoding : UTF8;
+		this.workerProvider = workerProvider;
 	}
 
-	public cancel(): void {
+	cancel(): void {
 		this.isCanceled = true;
 		this.walker.cancel();
+
+		this.workers.forEach(w => {
+			w.cancel()
+				.then(null, onUnexpectedError);
+		});
 	}
 
-	public search(onResult: (match: ISerializedFileMatch) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISerializedSearchComplete) => void): void {
-		let resultCounter = 0;
+	initializeWorkers(): void {
+		this.workers.forEach(w => {
+			w.initialize()
+				.then(null, onUnexpectedError);
+		});
+	}
 
-		let progress = () => {
-			this.progressed++;
-			if (this.progressed % Engine.PROGRESS_FLUSH_CHUNK_SIZE === 0) {
-				onProgress({ total: this.total, worked: this.worked }); // buffer progress in chunks to reduce pressure
+	search(onResult: (match: ISerializedFileMatch[]) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISerializedSearchComplete) => void): void {
+		this.workers = this.workerProvider.getWorkers();
+		this.initializeWorkers();
+
+		const progress = () => {
+			if (++this.progressed % Engine.PROGRESS_FLUSH_CHUNK_SIZE === 0) {
+				onProgress({ total: this.totalBytes, worked: this.processedBytes }); // buffer progress in chunks to reduce pressure
 			}
 		};
 
-		let unwind = (processed: number) => {
-			this.worked += processed;
+		const unwind = (processed: number) => {
+			this.processedBytes += processed;
 
 			// Emit progress() unless we got canceled or hit the limit
 			if (processed && !this.isDone && !this.isCanceled && !this.limitReached) {
@@ -79,7 +79,7 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 			}
 
 			// Emit done()
-			if (this.worked === this.total && this.walkerIsDone && !this.isDone) {
+			if (!this.isDone && this.processedBytes === this.totalBytes && this.walkerIsDone) {
 				this.isDone = true;
 				done(this.walkerError, {
 					limitHit: this.limitReached,
@@ -88,247 +88,75 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 			}
 		};
 
-		// Walk over the file system
-		this.walker.walk(this.rootFolders, this.extraFiles, result => {
-			const size = result.size || 1;
-			this.total += size;
+		const run = (batch: string[], batchBytes: number): void => {
+			const worker = this.workers[this.nextWorker];
+			this.nextWorker = (this.nextWorker + 1) % this.workers.length;
 
-			// If the result is empty or we have reached the limit or we are canceled, ignore it
+			const maxResults = this.config.maxResults && (this.config.maxResults - this.numResults);
+			const searchArgs = { absolutePaths: batch, maxResults, pattern: this.config.contentPattern, fileEncoding: this.config.fileEncoding };
+			worker.search(searchArgs).then(result => {
+				if (!result || this.limitReached || this.isCanceled) {
+					return unwind(batchBytes);
+				}
+
+				const matches = result.matches;
+				onResult(matches);
+				this.numResults += result.numMatches;
+
+				if (this.config.maxResults && this.numResults >= this.config.maxResults) {
+					// It's possible to go over maxResults like this, but it's much simpler than trying to extract the exact number
+					// of file matches, line matches, and matches within a line to == maxResults.
+					this.limitReached = true;
+				}
+
+				unwind(batchBytes);
+			},
+				error => {
+					// An error on the worker's end, not in reading the file, but in processing the batch. Log and continue.
+					onUnexpectedError(error);
+					unwind(batchBytes);
+				});
+		};
+
+		// Walk over the file system
+		let nextBatch: string[] = [];
+		let nextBatchBytes = 0;
+		const batchFlushBytes = 2 ** 20; // 1MB
+		this.walker.walk(this.config.rootFolders, this.config.extraFiles, result => {
+			let bytes = result.size || 1;
+			this.totalBytes += bytes;
+
+			// If we have reached the limit or we are canceled, ignore it
 			if (this.limitReached || this.isCanceled) {
-				return unwind(size);
+				return unwind(bytes);
 			}
 
 			// Indicate progress to the outside
 			progress();
 
-			let fileMatch: FileMatch = null;
-
-			let doneCallback = (error?: Error) => {
-				if (!error && !this.isCanceled && fileMatch && !fileMatch.isEmpty()) {
-					onResult(fileMatch.serialize());
-				}
-
-				return unwind(size);
-			};
-
 			const absolutePath = result.base ? [result.base, result.relativePath].join(path.sep) : result.relativePath;
-			let perLineCallback = (line: string, lineNumber: number) => {
-				if (this.limitReached || this.isCanceled) {
-					return; // return early if canceled or limit reached
-				}
+			nextBatch.push(absolutePath);
+			nextBatchBytes += bytes;
 
-				let lineMatch: LineMatch = null;
-				let match = this.contentPattern.exec(line);
-
-				// Record all matches into file result
-				while (match !== null && match[0].length > 0 && !this.limitReached && !this.isCanceled) {
-					resultCounter++;
-					if (this.maxResults && resultCounter >= this.maxResults) {
-						this.limitReached = true;
-					}
-
-					if (fileMatch === null) {
-						fileMatch = new FileMatch(absolutePath);
-					}
-
-					if (lineMatch === null) {
-						lineMatch = new LineMatch(line, lineNumber);
-						fileMatch.addMatch(lineMatch);
-					}
-
-					lineMatch.addMatch(match.index, match[0].length);
-
-					match = this.contentPattern.exec(line);
-				}
-			};
-
-			// Read lines buffered to support large files
-			this.readlinesAsync(absolutePath, perLineCallback, { bufferLength: 8096, encoding: this.fileEncoding }, doneCallback);
+			if (nextBatchBytes >= batchFlushBytes) {
+				run(nextBatch, nextBatchBytes);
+				nextBatch = [];
+				nextBatchBytes = 0;
+			}
 		}, (error, isLimitHit) => {
 			this.walkerIsDone = true;
 			this.walkerError = error;
-			unwind(0 /* walker is done, indicate this back to our handler to be able to unwind */);
+
+			// Send any remaining paths to a worker, or unwind if we're stopping
+			if (nextBatch.length) {
+				if (this.limitReached || this.isCanceled) {
+					unwind(nextBatchBytes);
+				} else {
+					run(nextBatch, nextBatchBytes);
+				}
+			} else {
+				unwind(0);
+			}
 		});
-	}
-
-	private readlinesAsync(filename: string, perLineCallback: (line: string, lineNumber: number) => void, options: ReadLinesOptions, callback: (error: Error) => void): void {
-		fs.open(filename, 'r', null, (error: Error, fd: number) => {
-			if (error) {
-				return callback(error);
-			}
-
-			let buffer = new Buffer(options.bufferLength);
-			let pos: number;
-			let i: number;
-			let line = '';
-			let lineNumber = 0;
-			let lastBufferHadTraillingCR = false;
-
-			const outer = this;
-
-			function decodeBuffer(buffer: NodeBuffer): string {
-				if (options.encoding === UTF8 || options.encoding === UTF8_with_bom) {
-					return buffer.toString(); // much faster to use built in toString() when encoding is default
-				}
-
-				return decode(buffer, options.encoding);
-			}
-
-			function lineFinished(offset: number): void {
-				line += decodeBuffer(buffer.slice(pos, i + offset));
-				perLineCallback(line, lineNumber);
-				line = '';
-				lineNumber++;
-				pos = i + offset;
-			}
-
-			function readFile(isFirstRead: boolean, clb: (error: Error) => void): void {
-				if (outer.limitReached || outer.isCanceled) {
-					return clb(null); // return early if canceled or limit reached
-				}
-
-				fs.read(fd, buffer, 0, buffer.length, null, (error: Error, bytesRead: number, buffer: NodeBuffer) => {
-					if (error || bytesRead === 0 || outer.limitReached || outer.isCanceled) {
-						return clb(error); // return early if canceled or limit reached or no more bytes to read
-					}
-
-					pos = 0;
-					i = 0;
-
-					// Detect encoding and mime when this is the beginning of the file
-					if (isFirstRead) {
-						let mimeAndEncoding = detectMimeAndEncodingFromBuffer(buffer, bytesRead);
-						if (mimeAndEncoding.mimes[mimeAndEncoding.mimes.length - 1] !== baseMime.MIME_TEXT) {
-							return clb(null); // skip files that seem binary
-						}
-
-						// Check for BOM offset
-						switch (mimeAndEncoding.encoding) {
-							case UTF8:
-								pos = i = 3;
-								options.encoding = UTF8;
-								break;
-							case UTF16be:
-								pos = i = 2;
-								options.encoding = UTF16be;
-								break;
-							case UTF16le:
-								pos = i = 2;
-								options.encoding = UTF16le;
-								break;
-						}
-					}
-
-					if (lastBufferHadTraillingCR) {
-						if (buffer[i] === 0x0a) { // LF (Line Feed)
-							lineFinished(1);
-							i++;
-						} else {
-							lineFinished(0);
-						}
-
-						lastBufferHadTraillingCR = false;
-					}
-
-					for (; i < bytesRead; ++i) {
-						if (buffer[i] === 0x0a) { // LF (Line Feed)
-							lineFinished(1);
-						} else if (buffer[i] === 0x0d) { // CR (Carriage Return)
-							if (i + 1 === bytesRead) {
-								lastBufferHadTraillingCR = true;
-							} else if (buffer[i + 1] === 0x0a) { // LF (Line Feed)
-								lineFinished(2);
-								i++;
-							} else {
-								lineFinished(1);
-							}
-						}
-					}
-
-					line += decodeBuffer(buffer.slice(pos, bytesRead));
-
-					readFile(false /* isFirstRead */, clb); // Continue reading
-				});
-			}
-
-			readFile(true /* isFirstRead */, (error: Error) => {
-				if (error) {
-					return callback(error);
-				}
-
-				if (line.length) {
-					perLineCallback(line, lineNumber); // handle last line
-				}
-
-				fs.close(fd, (error: Error) => {
-					callback(error);
-				});
-			});
-		});
-	}
-}
-
-class FileMatch implements ISerializedFileMatch {
-	public path: string;
-	public lineMatches: LineMatch[];
-
-	constructor(path: string) {
-		this.path = path;
-		this.lineMatches = [];
-	}
-
-	public addMatch(lineMatch: LineMatch): void {
-		this.lineMatches.push(lineMatch);
-	}
-
-	public isEmpty(): boolean {
-		return this.lineMatches.length === 0;
-	}
-
-	public serialize(): ISerializedFileMatch {
-		let lineMatches: ILineMatch[] = [];
-
-		for (let i = 0; i < this.lineMatches.length; i++) {
-			lineMatches.push(this.lineMatches[i].serialize());
-		}
-
-		return {
-			path: this.path,
-			lineMatches: lineMatches
-		};
-	}
-}
-
-class LineMatch implements ILineMatch {
-	public preview: string;
-	public lineNumber: number;
-	public offsetAndLengths: number[][];
-
-	constructor(preview: string, lineNumber: number) {
-		this.preview = preview.replace(/(\r|\n)*$/, '');
-		this.lineNumber = lineNumber;
-		this.offsetAndLengths = [];
-	}
-
-	public getText(): string {
-		return this.preview;
-	}
-
-	public getLineNumber(): number {
-		return this.lineNumber;
-	}
-
-	public addMatch(offset: number, length: number): void {
-		this.offsetAndLengths.push([offset, length]);
-	}
-
-	public serialize(): ILineMatch {
-		let result = {
-			preview: this.preview,
-			lineNumber: this.lineNumber,
-			offsetAndLengths: this.offsetAndLengths
-		};
-
-		return result;
 	}
 }

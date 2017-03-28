@@ -7,6 +7,7 @@
 import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -17,12 +18,59 @@ import { editorAction, ServicesAccessor, EditorAction, EditorCommand, CommonEdit
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { Range } from 'vs/editor/common/core/range';
 import { CodeSnippet } from 'vs/editor/contrib/snippet/common/snippet';
 import { SnippetController } from 'vs/editor/contrib/snippet/common/snippetController';
-import { Context as SuggestContext, snippetSuggestSupport } from 'vs/editor/contrib/suggest/common/suggest';
+import { Context as SuggestContext } from 'vs/editor/contrib/suggest/common/suggest';
 import { SuggestModel } from '../common/suggestModel';
 import { ICompletionItem } from '../common/completionModel';
 import { SuggestWidget } from './suggestWidget';
+
+class AcceptOnCharacterOracle {
+
+	private _disposables: IDisposable[] = [];
+
+	private _activeAcceptCharacters = new Set<string>();
+	private _activeItem: ICompletionItem;
+
+	constructor(editor: ICodeEditor, widget: SuggestWidget, accept: (item: ICompletionItem) => any) {
+
+		this._disposables.push(widget.onDidShow(() => this._onItem(widget.getFocusedItem())));
+		this._disposables.push(widget.onDidFocus(this._onItem, this));
+		this._disposables.push(widget.onDidHide(this.reset, this));
+
+		this._disposables.push(editor.onWillType(text => {
+			if (this._activeItem) {
+				const ch = text[text.length - 1];
+				if (this._activeAcceptCharacters.has(ch) && editor.getConfiguration().contribInfo.acceptSuggestionOnCommitCharacter) {
+					accept(this._activeItem);
+				}
+			}
+		}));
+	}
+
+	private _onItem(item: ICompletionItem): void {
+		if (!item || isFalsyOrEmpty(item.suggestion.commitCharacters)) {
+			this.reset();
+			return;
+		}
+		this._activeItem = item;
+		this._activeAcceptCharacters.clear();
+		for (const ch of item.suggestion.commitCharacters) {
+			if (ch.length > 0) {
+				this._activeAcceptCharacters.add(ch[0]);
+			}
+		}
+	}
+
+	reset(): void {
+		this._activeItem = undefined;
+	}
+
+	dispose() {
+		dispose(this._disposables);
+	}
+}
 
 @editorContribution
 export class SuggestController implements IEditorContribution {
@@ -58,6 +106,17 @@ export class SuggestController implements IEditorContribution {
 
 		this.widget = instantiationService.createInstance(SuggestWidget, this.editor);
 		this.toDispose.push(this.widget.onDidSelect(this.onDidSelectItem, this));
+
+		// Wire up logic to accept a suggestion on certain characters
+		const autoAcceptOracle = new AcceptOnCharacterOracle(editor, this.widget, item => this.onDidSelectItem(item));
+		this.toDispose.push(
+			autoAcceptOracle,
+			this.model.onDidSuggest(e => {
+				if (e.completionModel.items.length === 0) {
+					autoAcceptOracle.reset();
+				}
+			})
+		);
 	}
 
 	getId(): string {
@@ -76,16 +135,6 @@ export class SuggestController implements IEditorContribution {
 		}
 	}
 
-	private static _codeSnippetForSuggestion({suggestion}: ICompletionItem): CodeSnippet {
-		if (suggestion.snippetType === 'textmate') {
-			return CodeSnippet.fromTextmate(suggestion.insertText);
-		} else if (suggestion.snippetType === 'internal') {
-			return CodeSnippet.fromInternal(suggestion.insertText);
-		} else {
-			return CodeSnippet.plain(suggestion.insertText);
-		}
-	}
-
 	private onDidSelectItem(item: ICompletionItem): void {
 		if (item) {
 			const {suggestion, position} = item;
@@ -93,38 +142,28 @@ export class SuggestController implements IEditorContribution {
 
 			if (Array.isArray(suggestion.additionalTextEdits)) {
 				this.editor.pushUndoStop();
-				this.editor.executeEdits('suggestController.additionalTextEdits', suggestion.additionalTextEdits.map(edit => EditOperation.replace(edit.range, edit.text)));
+				this.editor.executeEdits('suggestController.additionalTextEdits', suggestion.additionalTextEdits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text)));
 				this.editor.pushUndoStop();
 			}
 
-			const snippet = SuggestController._codeSnippetForSuggestion(item);
-
-			SnippetController.get(this.editor).run(
-				snippet,
-				suggestion.overwriteBefore + columnDelta,
-				suggestion.overwriteAfter
-			);
+			if (suggestion.snippetType === 'textmate') {
+				SnippetController.get(this.editor).insertSnippet(
+					suggestion.insertText,
+					suggestion.overwriteBefore + columnDelta,
+					suggestion.overwriteAfter);
+			} else {
+				SnippetController.get(this.editor).run(
+					CodeSnippet.fromInternal(suggestion.insertText),
+					suggestion.overwriteBefore + columnDelta,
+					suggestion.overwriteAfter
+				);
+			}
 
 			if (suggestion.command) {
 				this.commandService.executeCommand(suggestion.command.id, ...suggestion.command.arguments).done(undefined, onUnexpectedError);
 			}
 
-			if (item.support !== snippetSuggestSupport) {
-				this.telemetryService.publicLog('suggestSnippetInsert', {
-					hasPlaceholders: snippet.placeHolders.length > 0
-				});
-
-				// telemetry experiment to figure out which extensions use
-				// the internal snippet syntax today and which use the tm
-				// snippet syntax (by accident?)
-				if (suggestion._extensionId) {
-					this.telemetryService.publicLog('suggestSnippetInsert2', {
-						extension: suggestion._extensionId,
-						internalPlaceholders: snippet.placeHolders.length,
-						tmPlaceholders: CodeSnippet.fromTextmate(suggestion.insertText).placeHolders.length
-					});
-				}
-			}
+			this.telemetryService.publicLog('suggestSnippetInsert', { ...this.editor.getTelemetryData(), suggestionType: suggestion.type });
 		}
 
 		this.model.cancel();
@@ -145,6 +184,7 @@ export class SuggestController implements IEditorContribution {
 
 	cancelSuggestWidget(): void {
 		if (this.widget) {
+			this.model.cancel();
 			this.widget.hideDetailsOrHideWidget();
 		}
 	}
@@ -198,7 +238,13 @@ export class TriggerSuggestAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
-		SuggestController.get(editor).triggerSuggest();
+		const controller = SuggestController.get(editor);
+
+		if (!controller) {
+			return;
+		}
+
+		controller.triggerSuggest();
 	}
 }
 

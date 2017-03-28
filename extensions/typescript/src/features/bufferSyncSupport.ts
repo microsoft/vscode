@@ -5,7 +5,6 @@
 'use strict';
 
 import * as cp from 'child_process';
-import * as path from 'path';
 import * as fs from 'fs';
 
 import { workspace, window, TextDocument, TextDocumentChangeEvent, TextDocumentContentChangeEvent, Disposable, MessageItem } from 'vscode';
@@ -21,7 +20,7 @@ interface IDiagnosticRequestor {
 	requestDiagnostic(filepath: string): void;
 }
 
-const Mode2ScriptKind: Map<'TS' | 'JS' | 'TSX' | 'JSX'> = {
+const Mode2ScriptKind: ObjectMap<'TS' | 'JS' | 'TSX' | 'JSX'> = {
 	'typescript': 'TS',
 	'typescriptreact': 'TSX',
 	'javascript': 'JS',
@@ -48,15 +47,11 @@ class SyncedBuffer {
 			fileContent: this.document.getText(),
 		};
 		if (this.client.apiVersion.has203Features()) {
-			// we have no extension. So check the mode and
-			// set the script kind accordningly.
-			const ext = path.extname(this.filepath);
-			if (ext === '') {
-				const scriptKind = Mode2ScriptKind[this.document.languageId];
-				if (scriptKind) {
-					args.scriptKindName = scriptKind;
-				}
+			const scriptKind = Mode2ScriptKind[this.document.languageId];
+			if (scriptKind) {
+				args.scriptKindName = scriptKind;
 			}
+
 		}
 		this.client.execute('open', args, false);
 	}
@@ -73,7 +68,7 @@ class SyncedBuffer {
 	}
 
 	onContentChanged(events: TextDocumentContentChangeEvent[]): void {
-		let filePath = this.client.asAbsolutePath(this.document.uri);
+		let filePath = this.client.normalizePath(this.document.uri);
 		if (!filePath) {
 			return;
 		}
@@ -106,11 +101,11 @@ export default class BufferSyncSupport {
 	private client: ITypescriptServiceClient;
 
 	private _validate: boolean;
-	private modeIds: Map<boolean>;
-	private extensions: Map<boolean>;
+	private modeIds: ObjectMap<boolean>;
+	private extensions: ObjectMap<boolean>;
 	private diagnostics: Diagnostics;
 	private disposables: Disposable[] = [];
-	private syncedBuffers: Map<SyncedBuffer>;
+	private syncedBuffers: ObjectMap<SyncedBuffer>;
 
 	private projectValidationRequested: boolean;
 
@@ -119,7 +114,7 @@ export default class BufferSyncSupport {
 	private emitQueue: LinkedMap<string>;
 	private checkGlobalTSCVersion: boolean;
 
-	constructor(client: ITypescriptServiceClient, modeIds: string[], diagnostics: Diagnostics, extensions: Map<boolean>, validate: boolean = true) {
+	constructor(client: ITypescriptServiceClient, modeIds: string[], diagnostics: Diagnostics, extensions: ObjectMap<boolean>, validate: boolean = true) {
 		this.client = client;
 		this.modeIds = Object.create(null);
 		modeIds.forEach(modeId => this.modeIds[modeId] = true);
@@ -167,7 +162,10 @@ export default class BufferSyncSupport {
 
 	public dispose(): void {
 		while (this.disposables.length) {
-			this.disposables.pop().dispose();
+			const obj = this.disposables.pop();
+			if (obj) {
+				obj.dispose();
+			}
 		}
 	}
 
@@ -175,11 +173,8 @@ export default class BufferSyncSupport {
 		if (!this.modeIds[document.languageId]) {
 			return;
 		}
-		if (document.isUntitled) {
-			return;
-		}
 		let resource = document.uri;
-		let filepath = this.client.asAbsolutePath(resource);
+		let filepath = this.client.normalizePath(resource);
 		if (!filepath) {
 			return;
 		}
@@ -187,11 +182,13 @@ export default class BufferSyncSupport {
 		this.syncedBuffers[filepath] = syncedBuffer;
 		syncedBuffer.open();
 		this.requestDiagnostic(filepath);
-		this.checkTSCVersion();
+		if (document.languageId === 'typescript' || document.languageId === 'typescriptreact') {
+			this.checkTSCVersion();
+		}
 	}
 
 	private onDidCloseTextDocument(document: TextDocument): void {
-		let filepath: string = this.client.asAbsolutePath(document.uri);
+		let filepath = this.client.normalizePath(document.uri);
 		if (!filepath) {
 			return;
 		}
@@ -208,7 +205,7 @@ export default class BufferSyncSupport {
 	}
 
 	private onDidChangeTextDocument(e: TextDocumentChangeEvent): void {
-		let filepath: string = this.client.asAbsolutePath(e.document.uri);
+		let filepath = this.client.normalizePath(e.document.uri);
 		if (!filepath) {
 			return;
 		}
@@ -220,7 +217,7 @@ export default class BufferSyncSupport {
 	}
 
 	private onDidSaveTextDocument(document: TextDocument): void {
-		let filepath: string = this.client.asAbsolutePath(document.uri);
+		let filepath = this.client.normalizePath(document.uri);
 		if (!filepath) {
 			return;
 		}
@@ -312,7 +309,7 @@ export default class BufferSyncSupport {
 			return cp.exec(cmd + ' ' + url);
 		}
 
-		let tscVersion: string = undefined;
+		let tscVersion: string | undefined = undefined;
 		try {
 			let out = cp.execSync('tsc --version', { encoding: 'utf8' });
 			if (out) {

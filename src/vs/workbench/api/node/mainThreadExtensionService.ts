@@ -6,13 +6,14 @@
 
 import Severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
-import pkg from 'vs/platform/package';
+import pkg from 'vs/platform/node/package';
 import { localize } from 'vs/nls';
 import * as path from 'path';
 import URI from 'vs/base/common/uri';
 import { AbstractExtensionService, ActivatedExtension } from 'vs/platform/extensions/common/abstractExtensionService';
 import { IMessage, IExtensionDescription, IExtensionsStatus } from 'vs/platform/extensions/common/extensions';
 import { IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionsRegistry, ExtensionPoint, IExtensionPointUser, ExtensionMessageCollector } from 'vs/platform/extensions/common/extensionsRegistry';
 import { ExtensionScanner, MessagesCollector } from 'vs/workbench/node/extensionPoints';
 import { IMessageService } from 'vs/platform/message/common/message';
@@ -59,22 +60,29 @@ export class MainProcessExtensionService extends AbstractExtensionService<Activa
 	 * This class is constructed manually because it is a service, so it doesn't use any ctor injection
 	 */
 	constructor(
+		// TODO@Joao: remove!
+		forcedDisabledExtensions: string[],
 		@IThreadService threadService: IThreadService,
 		@IMessageService messageService: IMessageService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IExtensionEnablementService extensionEnablementService: IExtensionEnablementService
 	) {
 		super(false);
-		this._isDev = !environmentService.isBuilt || !!environmentService.extensionDevelopmentPath;
+		this._isDev = !environmentService.isBuilt || environmentService.isExtensionDevelopment;
 
 		this._messageService = messageService;
 		this._threadService = threadService;
 		this._proxy = this._threadService.get(ExtHostContext.ExtHostExtensionService);
 		this._extensionsStatus = {};
 
-		const disabledExtensions = [...extensionEnablementService.getGloballyDisabledExtensions(), ...extensionEnablementService.getWorkspaceDisabledExtensions()];
+		const disabledExtensions = [
+			...forcedDisabledExtensions,
+			...extensionEnablementService.getGloballyDisabledExtensions(),
+			...extensionEnablementService.getWorkspaceDisabledExtensions()
+		];
+
 		this.scanExtensions().done(extensionDescriptions => {
-			this._onExtensionDescriptions(disabledExtensions.length ? extensionDescriptions.filter(e => disabledExtensions.indexOf(`${e.publisher}.${e.name}`) === -1) : extensionDescriptions);
+			this._onExtensionDescriptions(disabledExtensions.length ? extensionDescriptions.filter(e => disabledExtensions.every(id => !areSameExtensions({ id }, e))) : extensionDescriptions);
 		});
 	}
 
@@ -183,7 +191,7 @@ export class MainProcessExtensionService extends AbstractExtensionService<Activa
 		const version = pkg.version;
 		const builtinExtensions = ExtensionScanner.scanExtensions(version, collector, SystemExtensionsRoot, true);
 		const userExtensions = this.environmentService.disableExtensions || !this.environmentService.extensionsPath ? TPromise.as([]) : ExtensionScanner.scanExtensions(version, collector, this.environmentService.extensionsPath, false);
-		const developedExtensions = this.environmentService.disableExtensions || !this.environmentService.extensionDevelopmentPath ? TPromise.as([]) : ExtensionScanner.scanOneOrMultipleExtensions(version, collector, this.environmentService.extensionDevelopmentPath, false);
+		const developedExtensions = this.environmentService.disableExtensions || !this.environmentService.isExtensionDevelopment ? TPromise.as([]) : ExtensionScanner.scanOneOrMultipleExtensions(version, collector, this.environmentService.extensionDevelopmentPath, false);
 
 		return TPromise.join([builtinExtensions, userExtensions, developedExtensions]).then((extensionDescriptions: IExtensionDescription[][]) => {
 			let builtinExtensions = extensionDescriptions[0];

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { MarkedString, CompletionItemKind, CompletionItem, DocumentSelector } from 'vscode';
+import { MarkedString, CompletionItemKind, CompletionItem, DocumentSelector, SnippetString } from 'vscode';
 import { IJSONContribution, ISuggestionsCollector } from './jsonContributions';
 import { XHRRequest } from 'request-light';
 import { Location } from 'jsonc-parser';
@@ -18,7 +18,7 @@ let LIMIT = 40;
 export class PackageJSONContribution implements IJSONContribution {
 
 	private mostDependedOn = ['lodash', 'async', 'underscore', 'request', 'commander', 'express', 'debug', 'chalk', 'colors', 'q', 'coffee-script',
-		'mkdirp', 'optimist', 'through2', 'yeoman-generator', 'moment', 'bluebird', 'glob', 'gulp-util', 'minimist', 'cheerio', 'jade', 'redis', 'node-uuid',
+		'mkdirp', 'optimist', 'through2', 'yeoman-generator', 'moment', 'bluebird', 'glob', 'gulp-util', 'minimist', 'cheerio', 'pug', 'redis', 'node-uuid',
 		'socket', 'io', 'uglify-js', 'winston', 'through', 'fs-extra', 'handlebars', 'body-parser', 'rimraf', 'mime', 'semver', 'mongodb', 'jquery',
 		'grunt', 'connect', 'yosay', 'underscore', 'string', 'xml2js', 'ejs', 'mongoose', 'marked', 'extend', 'mocha', 'superagent', 'js-yaml', 'xtend',
 		'shelljs', 'gulp', 'yargs', 'browserify', 'minimatch', 'react', 'less', 'prompt', 'inquirer', 'ws', 'event-stream', 'inherits', 'mysql', 'esprima',
@@ -33,16 +33,16 @@ export class PackageJSONContribution implements IJSONContribution {
 
 	public collectDefaultSuggestions(fileName: string, result: ISuggestionsCollector): Thenable<any> {
 		let defaultValue = {
-			'name': '{{name}}',
-			'description': '{{description}}',
-			'author': '{{author}}',
-			'version': '{{1.0.0}}',
-			'main': '{{pathToMain}}',
+			'name': '${1:name}',
+			'description': '${2:description}',
+			'authors': '${3:author}',
+			'version': '${4:1.0.0}',
+			'main': '${5:pathToMain}',
 			'dependencies': {}
 		};
 		let proposal = new CompletionItem(localize('json.package.default', 'Default package.json'));
 		proposal.kind = CompletionItemKind.Module;
-		proposal.insertText = JSON.stringify(defaultValue, null, '\t');
+		proposal.insertText = new SnippetString(JSON.stringify(defaultValue, null, '\t'));
 		result.add(proposal);
 		return Promise.resolve(null);
 	}
@@ -65,11 +65,11 @@ export class PackageJSONContribution implements IJSONContribution {
 									let keys = results[i].key;
 									if (Array.isArray(keys) && keys.length > 0) {
 										let name = keys[0];
-										let insertText = JSON.stringify(name);
+										let insertText = new SnippetString().appendText(JSON.stringify(name));
 										if (addValue) {
-											insertText += ': "{{*}}"';
+											insertText.appendText(': "').appendPlaceholder('').appendText('"');
 											if (!isLast) {
-												insertText += ',';
+												insertText.appendText(',');
 											}
 										}
 										let proposal = new CompletionItem(name);
@@ -97,11 +97,11 @@ export class PackageJSONContribution implements IJSONContribution {
 				});
 			} else {
 				this.mostDependedOn.forEach((name) => {
-					let insertText = JSON.stringify(name);
+					let insertText = new SnippetString().appendText(JSON.stringify(name));
 					if (addValue) {
-						insertText += ': "{{*}}"';
+						insertText.appendText(': "').appendPlaceholder('').appendText('"');
 						if (!isLast) {
-							insertText += ',';
+							insertText.appendText(',');
 						}
 					}
 					let proposal = new CompletionItem(name);

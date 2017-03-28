@@ -19,6 +19,19 @@ export type GroupOrientation = 'vertical' | 'horizontal';
 
 export const IEditorGroupService = createDecorator<IEditorGroupService>('editorGroupService');
 
+export interface ITabOptions {
+	showTabs?: boolean;
+	tabCloseButton?: 'left' | 'right' | 'off';
+	showIcons?: boolean;
+	previewEditors?: boolean;
+}
+
+export interface IMoveOptions {
+	index?: number;
+	inactive?: boolean;
+	preserveFocus?: boolean;
+}
+
 /**
  * The editor service allows to open editors and work on the active
  * editor input and models.
@@ -45,6 +58,11 @@ export interface IEditorGroupService {
 	 * Emitted when the editor group orientation was changed.
 	 */
 	onGroupOrientationChanged: Event<void>;
+
+	/**
+	 * Emitted when tab options changed.
+	 */
+	onTabOptionsChanged: Event<ITabOptions>;
 
 	/**
 	 * Keyboard focus the editor group at the provided position.
@@ -81,6 +99,11 @@ export interface IEditorGroupService {
 	getGroupOrientation(): GroupOrientation;
 
 	/**
+	 * Resize visible editor groups
+	 */
+	resizeGroup(position: Position, groupSizeChange: number): void;
+
+	/**
 	 * Adds the pinned state to an editor, removing it from being a preview editor.
 	 */
 	pinEditor(group: IEditorGroup, input: IEditorInput): void;
@@ -94,12 +117,18 @@ export interface IEditorGroupService {
 
 	/**
 	 * Moves an editor from one group to another. The index in the group is optional.
+	 * The inactive option is applied when moving across groups.
 	 */
-	moveEditor(input: IEditorInput, from: IEditorGroup, to: IEditorGroup, index?: number): void;
-	moveEditor(input: IEditorInput, from: Position, to: Position, index?: number): void;
+	moveEditor(input: IEditorInput, from: IEditorGroup, to: IEditorGroup, moveOptions?: IMoveOptions): void;
+	moveEditor(input: IEditorInput, from: Position, to: Position, moveOptions?: IMoveOptions): void;
 
 	/**
 	 * Provides access to the editor stacks model
 	 */
 	getStacksModel(): IEditorStacksModel;
+
+	/**
+	 * Returns tab options.
+	 */
+	getTabOptions(): ITabOptions;
 }

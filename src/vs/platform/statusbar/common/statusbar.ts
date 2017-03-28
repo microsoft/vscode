@@ -40,6 +40,11 @@ export interface IStatusbarEntry {
 	 * An optional id of a command that is known to the workbench to execute on click
 	 */
 	command?: string;
+
+	/**
+	 * An optional extension ID if this entry is provided from an extension.
+	 */
+	extensionId?: string;
 }
 
 export interface IStatusbarService {

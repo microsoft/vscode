@@ -7,6 +7,27 @@ import Event from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 
+export enum OpenContext {
+
+	// opening when running from the command line
+	CLI,
+
+	// macOS only: opening from the dock (also when opening files to a running instance from desktop)
+	DOCK,
+
+	// opening from the main application window
+	MENU,
+
+	// opening from a file or folder dialog
+	DIALOG,
+
+	// opening from the OS's UI
+	DESKTOP,
+
+	// opening through the API
+	API
+}
+
 export interface IWindowEventService {
 	_serviceBrand: any;
 

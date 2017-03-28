@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { join } from 'path';
+import { join, isAbsolute, relative } from 'path';
 import { TPromise, Promise } from 'vs/base/common/winjs.base';
 import { detectMimesFromFile, detectMimesFromStream } from 'vs/base/node/mime';
 import { realpath, exists } from 'vs/base/node/pfs';
@@ -165,28 +165,27 @@ export class RawGitService implements IRawGitService {
 	detectMimetypes(filePath: string, treeish?: string): TPromise<string[]> {
 		return exists(join(this.repo.path, filePath)).then((exists) => {
 			if (exists) {
-				return new TPromise<string[]>((c, e) => {
-					detectMimesFromFile(join(this.repo.path, filePath), (err, result) => {
-						if (err) { e(err); }
-						else { c(result.mimes); }
-					});
-				});
+				return detectMimesFromFile(join(this.repo.path, filePath))
+					.then(result => result.mimes);
 			}
 
 			const child = this.repo.show(treeish + ':' + filePath);
 
-			return new TPromise<string[]>((c, e) => {
-				detectMimesFromStream(child.stdout, filePath, (err, result) => {
-					if (err) { e(err); }
-					else { c(result.mimes); }
-				});
-			});
+			return new TPromise<string[]>((c, e) =>
+				detectMimesFromStream(child.stdout, filePath)
+					.then(result => result.mimes)
+			);
 		});
 	}
 
 	// careful, this buffers the whole object into memory
 	show(filePath: string, treeish?: string): TPromise<string> {
 		treeish = (!treeish || treeish === '~') ? '' : treeish;
+
+		if (isAbsolute(filePath)) {
+			filePath = relative(this.repo.path, filePath).replace(/\\/g, '/');
+		}
+
 		return this.repo.buffer(treeish + ':' + filePath).then(null, e => {
 			if (e instanceof GitError) {
 				return ''; // mostly untracked files end up in a git error

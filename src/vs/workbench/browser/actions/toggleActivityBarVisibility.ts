@@ -12,7 +12,7 @@ import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actionRegistry';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 
 export class ToggleActivityBarVisibilityAction extends Action {
 
@@ -34,7 +34,7 @@ export class ToggleActivityBarVisibilityAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		const visibility = !this.partService.isActivityBarHidden();
+		const visibility = this.partService.isVisible(Parts.ACTIVITYBAR_PART);
 		const newVisibilityValue = !visibility;
 
 		this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: ToggleActivityBarVisibilityAction.activityBarVisibleKey, value: newVisibilityValue }).then(null, error => {
@@ -45,5 +45,5 @@ export class ToggleActivityBarVisibilityAction extends Action {
 	}
 }
 
-let registry = <IWorkbenchActionRegistry>Registry.as(Extensions.WorkbenchActions);
+const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
 registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleActivityBarVisibilityAction, ToggleActivityBarVisibilityAction.ID, ToggleActivityBarVisibilityAction.LABEL), 'View: Toggle Activity Bar Visibility', nls.localize('view', "View"));

@@ -17,6 +17,10 @@ import { createGunzip } from 'zlib';
 
 export type Agent = any;
 
+export interface IRawRequestFunction {
+	(options: http.RequestOptions, callback?: (res: http.IncomingMessage) => void): http.ClientRequest;
+}
+
 export interface IRequestOptions {
 	type?: string;
 	url?: string;
@@ -28,12 +32,26 @@ export interface IRequestOptions {
 	agent?: Agent;
 	followRedirects?: number;
 	strictSSL?: boolean;
+	getRawRequest?(options: IRequestOptions): IRawRequestFunction;
 }
 
 export interface IRequestContext {
-	req: http.ClientRequest;
-	res: http.ClientResponse;
+	// req: http.ClientRequest;
+	// res: http.ClientResponse;
+	res: {
+		headers: { [n: string]: string };
+		statusCode?: number;
+	};
 	stream: Stream;
+}
+
+export interface IRequestFunction {
+	(options: IRequestOptions): TPromise<IRequestContext>;
+}
+
+function getNodeRequest(options: IRequestOptions): IRawRequestFunction {
+	const endpoint = parseUrl(options.url);
+	return endpoint.protocol === 'https:' ? https.request : http.request;
 }
 
 export function request(options: IRequestOptions): TPromise<IRequestContext> {
@@ -41,10 +59,12 @@ export function request(options: IRequestOptions): TPromise<IRequestContext> {
 
 	return new TPromise<IRequestContext>((c, e) => {
 		const endpoint = parseUrl(options.url);
-		const rawRequest = endpoint.protocol === 'https:' ? https.request : http.request;
+		const getRawRequest = options.getRawRequest || getNodeRequest;
+		const rawRequest = getRawRequest(options);
 		const opts: https.RequestOptions = {
 			hostname: endpoint.hostname,
 			port: endpoint.port ? parseInt(endpoint.port) : (endpoint.protocol === 'https:' ? 443 : 80),
+			protocol: endpoint.protocol,
 			path: endpoint.path,
 			method: options.type || 'GET',
 			headers: options.headers,
@@ -71,7 +91,7 @@ export function request(options: IRequestOptions): TPromise<IRequestContext> {
 					stream = stream.pipe(createGunzip());
 				}
 
-				c({ req, res, stream });
+				c({ res, stream });
 			}
 		});
 

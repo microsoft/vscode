@@ -11,7 +11,7 @@ import { IAction, IActionRunner } from 'vs/base/common/actions';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Dimension, Builder } from 'vs/base/browser/builder';
 import { Scope } from 'vs/workbench/common/memento';
-import { VIEWLET_ID, ExplorerViewletVisible, IFilesConfiguration } from 'vs/workbench/parts/files/common/files';
+import { VIEWLET_ID, ExplorerViewletVisibleContext, IFilesConfiguration } from 'vs/workbench/parts/files/common/files';
 import { IViewletView, Viewlet } from 'vs/workbench/browser/viewlet';
 import { SplitView, Orientation } from 'vs/base/browser/ui/splitview/splitview';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -30,6 +30,7 @@ import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export class ExplorerViewlet extends Viewlet {
 	private viewletContainer: Builder;
@@ -59,14 +60,15 @@ export class ExplorerViewlet extends Viewlet {
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IThemeService themeService: IThemeService
 	) {
-		super(VIEWLET_ID, telemetryService);
+		super(VIEWLET_ID, telemetryService, themeService);
 
 		this.views = [];
 
 		this.viewletState = new FileViewletState();
-		this.viewletVisibleContextKey = ExplorerViewletVisible.bindTo(contextKeyService);
+		this.viewletVisibleContextKey = ExplorerViewletVisibleContext.bindTo(contextKeyService);
 
 		this.viewletSettings = this.getMemento(storageService, Scope.WORKSPACE);
 		this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config));
@@ -100,7 +102,7 @@ export class ExplorerViewlet extends Viewlet {
 		this.delayEditorOpeningInOpenedEditors = !!config.workbench.editor.enablePreview;
 
 		// Open editors view should always be visible in no folder workspace.
-		const openEditorsVisible = !this.contextService.getWorkspace() || config.explorer.openEditors.visible !== 0;
+		const openEditorsVisible = !this.contextService.hasWorkspace() || config.explorer.openEditors.visible !== 0;
 
 		// Create views on startup and if open editors visibility has changed #6919
 		if (this.openEditorsVisible !== openEditorsVisible) {
@@ -150,14 +152,15 @@ export class ExplorerViewlet extends Viewlet {
 		let explorerOrEmptyView: ExplorerView | EmptyView;
 
 		// With a Workspace
-		if (this.contextService.getWorkspace()) {
+		if (this.contextService.hasWorkspace()) {
 
 			// Create a delegating editor service for the explorer to be able to delay the refresh in the opened
 			// editors view above. This is a workaround for being able to double click on a file to make it pinned
 			// without causing the animation in the opened editors view to kick in and change scroll position.
 			// We try to be smart and only use the delay if we recognize that the user action is likely to cause
 			// a new entry in the opened editors view.
-			const delegatingEditorService = this.instantiationService.createInstance(DelegatingWorkbenchEditorService, (input: EditorInput, options?: EditorOptions, arg3?: any) => {
+			const delegatingEditorService = this.instantiationService.createInstance(DelegatingWorkbenchEditorService);
+			delegatingEditorService.setEditorOpenHandler((input: EditorInput, options?: EditorOptions, arg3?: any) => {
 				if (this.openEditorsView) {
 					let delay = 0;
 					if (this.delayEditorOpeningInOpenedEditors && (arg3 === false /* not side by side */ || typeof arg3 !== 'number' /* no explicit position */)) {
@@ -189,7 +192,7 @@ export class ExplorerViewlet extends Viewlet {
 
 		// No workspace
 		else {
-			this.emptyView = explorerOrEmptyView = this.instantiationService.createInstance(EmptyView);
+			this.emptyView = explorerOrEmptyView = this.instantiationService.createInstance(EmptyView, this.getActionRunner());
 		}
 
 		if (this.openEditorsVisible) {
@@ -290,6 +293,10 @@ export class ExplorerViewlet extends Viewlet {
 		}
 
 		return this.actionRunner;
+	}
+
+	public getViewletState(): FileViewletState {
+		return this.viewletState;
 	}
 
 	public getOptimalWidth(): number {

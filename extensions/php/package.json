@@ -2,56 +2,88 @@
 	"name": "php",
 	"version": "0.1.0",
 	"publisher": "vscode",
-	"engines": { "vscode": "0.10.x" },
-	"activationEvents": ["onLanguage:php"],
+	"engines": {
+		"vscode": "0.10.x"
+	},
+	"activationEvents": [
+		"onLanguage:php"
+	],
 	"main": "./out/phpMain",
 	"dependencies": {
 		"vscode-nls": "^1.0.4"
 	},
 	"contributes": {
-		"languages": [{
-			"id": "php",
-			"extensions": [ ".php", ".php4", ".php5", ".phtml", ".ctp" ],
-			"aliases": [ "PHP", "php" ],
-			"mimetypes": ["application/x-php"],
-			"configuration": "./language-configuration.json"
-		}],
-		"grammars": [{
-			"language": "php",
-			"scopeName": "text.html.php",
-			"path": "./syntaxes/php.json",
-			"embeddedLanguages": {
-				"text.html": "html",
-				"source.php": "php",
-				"source.sql": "sql",
-				"text.xml": "xml",
-				"source.js": "javascript",
-				"source.json": "json",
-				"source.css": "css"
+		"languages": [
+			{
+				"id": "php",
+				"extensions": [
+					".php",
+					".php4",
+					".php5",
+					".phtml",
+					".ctp"
+				],
+				"aliases": [
+					"PHP",
+					"php"
+				],
+				"mimetypes": [
+					"application/x-php"
+				],
+				"configuration": "./language-configuration.json"
 			}
-		}],
-		"snippets": [{
-			"language": "php",
-			"path": "./snippets/php.json"
-		}],
+		],
+		"grammars": [
+			{
+				"language": "php",
+				"scopeName": "text.html.php",
+				"path": "./syntaxes/php.tmLanguage.json",
+				"embeddedLanguages": {
+					"text.html": "html",
+					"source.php": "php",
+					"source.sql": "sql",
+					"text.xml": "xml",
+					"source.js": "javascript",
+					"source.json": "json",
+					"source.css": "css"
+				}
+			}
+		],
+		"snippets": [
+			{
+				"language": "php",
+				"path": "./snippets/php.json"
+			}
+		],
 		"configuration": {
 			"title": "%configuration.title%",
 			"type": "object",
 			"order": 20,
 			"properties": {
+				"php.suggest.basic": {
+					"type": "boolean",
+					"default": true,
+					"description": "%configuration.suggest.basic%"
+				},
 				"php.validate.enable": {
 					"type": "boolean",
 					"default": true,
 					"description": "%configuration.validate.enable%"
 				},
 				"php.validate.executablePath": {
-					"type": ["string", "null"],
+					"type": [
+						"string",
+						"null"
+					],
 					"default": null,
 					"description": "%configuration.validate.executablePath%"
 				},
 				"php.validate.run": {
 					"type": "string",
-					"enum": ["onSave", "onType"],
+					"enum": [
+						"onSave",
+						"onType"
+					],
 					"default": "onSave",
 					"description": "%configuration.validate.run%"
 				}
@@ -66,6 +98,10 @@
 	},
 	"scripts": {
 		"compile": "gulp compile-extension:php",
-		"watch": "gulp watch-extension:php"
+		"watch": "gulp watch-extension:php",
+		"update-grammar": "node ../../build/npm/update-grammar.js atom/language-php grammars/php.cson ./syntaxes/php.tmLanguage.json"
+	},
+	"devDependencies": {
+		"@types/node": "^7.0.4"
 	}
 }

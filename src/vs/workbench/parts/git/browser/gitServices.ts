@@ -23,13 +23,12 @@ import { Model } from 'vs/workbench/parts/git/common/gitModel';
 import { NativeGitIndexStringEditorInput, GitIndexDiffEditorInput, GitWorkingTreeDiffEditorInput, GitDiffEditorInput } from 'vs/workbench/parts/git/browser/gitEditorInputs';
 import { GitOperation } from 'vs/workbench/parts/git/browser/gitOperations';
 import { TextFileModelChangeEvent, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IFileService, EventType as FileEventType, FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
+import { IFileService, FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
 import { ThrottledDelayer, PeriodThrottledDelayer } from 'vs/base/common/async';
 import severity from 'vs/base/common/severity';
 import { IOutputService } from 'vs/workbench/parts/output/common/output';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEventService } from 'vs/platform/event/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, CloseAction } from 'vs/platform/message/common/message';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -50,7 +49,6 @@ function toReadablePath(path: string): string {
 class EditorInputCache {
 	private gitService: GitService;
 	private fileService: IFileService;
-	private eventService: IEventService;
 	private instantiationService: IInstantiationService;
 	private editorService: IWorkbenchEditorService;
 	private editorGroupService: IEditorGroupService;
@@ -61,14 +59,12 @@ class EditorInputCache {
 	constructor(gitService: GitService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IFileService fileService: IFileService,
-		@IEventService eventService: IEventService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService
 	) {
 		this.instantiationService = instantiationService;
 		this.fileService = fileService;
-		this.eventService = eventService;
 		this.editorService = editorService;
 		this.editorGroupService = editorGroupService;
 		this.contextService = contextService;
@@ -256,7 +252,6 @@ export class AutoFetcher implements IAutoFetcher, IDisposable {
 
 	private _state: AutoFetcherState;
 	private gitService: GitService;
-	private eventService: IEventService;
 	private messageService: IMessageService;
 	private configurationService: IConfigurationService;
 	private instantiationService: IInstantiationService;
@@ -266,7 +261,6 @@ export class AutoFetcher implements IAutoFetcher, IDisposable {
 	private gitServiceStateDisposable: IDisposable;
 
 	constructor(gitService: GitService, // gitService passed as argument, not by injection
-		@IEventService eventService: IEventService,
 		@IMessageService messageService: IMessageService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -274,7 +268,6 @@ export class AutoFetcher implements IAutoFetcher, IDisposable {
 	) {
 		this._state = AutoFetcherState.Disabled;
 		this.gitService = gitService;
-		this.eventService = eventService;
 		this.messageService = messageService;
 		this.configurationService = configurationService;
 		this.instantiationService = instantiationService;
@@ -365,6 +358,7 @@ export class AutoFetcher implements IAutoFetcher, IDisposable {
 				} else {
 					this.timeout = Math.min(Math.round(this.timeout * 1.2), AutoFetcher.MAX_TIMEOUT); // backoff
 				}
+				return undefined;
 			});
 		}
 
@@ -388,7 +382,6 @@ export class GitService extends EventEmitter
 
 	_serviceBrand: any;
 
-	private eventService: IEventService;
 	private contextService: IWorkspaceContextService;
 	private messageService: IMessageService;
 	private textFileService: ITextFileService;
@@ -424,7 +417,7 @@ export class GitService extends EventEmitter
 	constructor(
 		raw: IRawGitService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IEventService eventService: IEventService,
+		@IFileService private fileService: IFileService,
 		@IMessageService messageService: IMessageService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IOutputService outputService: IOutputService,
@@ -437,7 +430,6 @@ export class GitService extends EventEmitter
 		super();
 
 		this.instantiationService = instantiationService;
-		this.eventService = eventService;
 		this.messageService = messageService;
 		this.editorService = editorService;
 		this.textFileService = textFileService;
@@ -466,7 +458,7 @@ export class GitService extends EventEmitter
 		if (!storageService.getBoolean(IgnoreOldGitStorageKey, StorageScope.GLOBAL, false)) {
 			this.raw.serviceState().done(state => {
 				if (state !== RawServiceState.OK) {
-					return;
+					return undefined;
 				}
 
 				return this.raw.getVersion().then(version => {
@@ -495,7 +487,7 @@ export class GitService extends EventEmitter
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.eventService.addListener2(FileEventType.FILE_CHANGES, (e) => this.onFileChanges(e)));
+		this.toDispose.push(this.fileService.onFileChanges((e) => this.onFileChanges(e)));
 		this.toDispose.push(this.textFileService.models.onModelSaved((e) => this.onTextFileChange(e)));
 		this.toDispose.push(this.textFileService.models.onModelReverted((e) => this.onTextFileChange(e)));
 		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(() => {

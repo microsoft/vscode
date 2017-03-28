@@ -1,6 +1,6 @@
 {
   "name": "code-oss-dev",
-  "version": "1.8.0",
+  "version": "1.10.0",
   "dependencies": {
     "agent-base": {
       "version": "1.0.2",
@@ -13,9 +13,9 @@
       "resolved": "https://registry.npmjs.org/anymatch/-/anymatch-1.3.0.tgz"
     },
     "applicationinsights": {
-      "version": "0.15.6",
-      "from": "applicationinsights@0.15.6",
-      "resolved": "https://registry.npmjs.org/applicationinsights/-/applicationinsights-0.15.6.tgz"
+      "version": "0.17.0",
+      "from": "applicationinsights@0.17.0",
+      "resolved": "https://registry.npmjs.org/applicationinsights/-/applicationinsights-0.17.0.tgz"
     },
     "arr-diff": {
       "version": "2.0.0",
@@ -89,8 +89,8 @@
     },
     "emmet": {
       "version": "1.3.1",
-      "from": "emmet@1.3.1",
-      "resolved": "https://registry.npmjs.org/emmet/-/emmet-1.3.1.tgz"
+      "from": "ramya-rao-a/emmet#vscode",
+      "resolved": "git+https://github.com/ramya-rao-a/emmet.git#c8eb99f46c6734a37beadfd826c98a7a44d3e141"
     },
     "expand-brackets": {
       "version": "0.1.5",
@@ -173,9 +173,9 @@
       "resolved": "https://registry.npmjs.org/glob-parent/-/glob-parent-2.0.0.tgz"
     },
     "graceful-fs": {
-      "version": "4.1.2",
-      "from": "graceful-fs@4.1.2",
-      "resolved": "https://registry.npmjs.org/graceful-fs/-/graceful-fs-4.1.2.tgz"
+      "version": "4.1.11",
+      "from": "graceful-fs@4.1.11",
+      "resolved": "https://registry.npmjs.org/graceful-fs/-/graceful-fs-4.1.11.tgz"
     },
     "http-proxy-agent": {
       "version": "0.2.7",
@@ -188,9 +188,9 @@
       "resolved": "https://registry.npmjs.org/https-proxy-agent/-/https-proxy-agent-0.3.6.tgz"
     },
     "iconv-lite": {
-      "version": "0.4.13",
-      "from": "iconv-lite@0.4.13",
-      "resolved": "https://registry.npmjs.org/iconv-lite/-/iconv-lite-0.4.13.tgz"
+      "version": "0.4.15",
+      "from": "iconv-lite@0.4.15",
+      "resolved": "https://registry.npmjs.org/iconv-lite/-/iconv-lite-0.4.15.tgz"
     },
     "inherits": {
       "version": "2.0.1",
@@ -257,6 +257,11 @@
       "from": "isobject@>=2.0.0 <3.0.0",
       "resolved": "https://registry.npmjs.org/isobject/-/isobject-2.1.0.tgz"
     },
+    "jschardet": {
+      "version": "1.4.2",
+      "from": "jschardet@>=1.4.2 <2.0.0",
+      "resolved": "https://registry.npmjs.org/jschardet/-/jschardet-1.4.2.tgz"
+    },
     "kind-of": {
       "version": "3.0.4",
       "from": "kind-of@>=3.0.2 <4.0.0",
@@ -288,9 +293,9 @@
       "resolved": "https://registry.npmjs.org/nan/-/nan-2.4.0.tgz"
     },
     "native-keymap": {
-      "version": "0.3.0",
-      "from": "native-keymap@0.3.0",
-      "resolved": "https://registry.npmjs.org/native-keymap/-/native-keymap-0.3.0.tgz"
+      "version": "1.2.1",
+      "from": "native-keymap@1.2.1",
+      "resolved": "https://registry.npmjs.org/native-keymap/-/native-keymap-1.2.1.tgz"
     },
     "normalize-path": {
       "version": "2.0.1",
@@ -332,20 +337,15 @@
       "from": "process-nextick-args@>=1.0.6 <1.1.0",
       "resolved": "https://registry.npmjs.org/process-nextick-args/-/process-nextick-args-1.0.7.tgz"
     },
-    "pty.js": {
-      "version": "0.3.0",
-      "from": "https://github.com/Tyriar/pty.js/tarball/c75c2dcb6dcad83b0cb3ef2ae42d0448fb912642",
-      "resolved": "https://github.com/Tyriar/pty.js/tarball/c75c2dcb6dcad83b0cb3ef2ae42d0448fb912642",
+    "node-pty": {
+      "version": "0.6.3",
+      "from": "node-pty@0.6.3",
+      "resolved": "https://registry.npmjs.org/node-pty/-/node-pty-0.6.3.tgz",
       "dependencies": {
-        "extend": {
-          "version": "1.2.1",
-          "from": "extend@>=1.2.1 <1.3.0",
-          "resolved": "https://registry.npmjs.org/extend/-/extend-1.2.1.tgz"
-        },
         "nan": {
-          "version": "2.2.1",
-          "from": "nan@2.2.1",
-          "resolved": "https://registry.npmjs.org/nan/-/nan-2.2.1.tgz"
+          "version": "2.5.0",
+          "from": "nan@2.5.0",
+          "resolved": "https://registry.npmjs.org/nan/-/nan-2.5.0.tgz"
         }
       }
     },
@@ -404,15 +404,25 @@
       "from": "util-deprecate@>=1.0.1 <1.1.0",
       "resolved": "https://registry.npmjs.org/util-deprecate/-/util-deprecate-1.0.2.tgz"
     },
+    "v8-profiler": {
+      "version": "5.6.5",
+      "from": "v8-profiler@5.6.5",
+      "resolved": "git://github.com/jrieken/v8-profiler.git#bc0803a4d4b2150b8a1bbffa80270769007036c2"
+    },
     "vscode-debugprotocol": {
-      "version": "1.14.0",
-      "from": "vscode-debugprotocol@1.14.0",
-      "resolved": "https://registry.npmjs.org/vscode-debugprotocol/-/vscode-debugprotocol-1.14.0.tgz"
+      "version": "1.18.0",
+      "from": "vscode-debugprotocol@1.18.0",
+      "resolved": "https://registry.npmjs.org/vscode-debugprotocol/-/vscode-debugprotocol-1.18.0.tgz"
+    },
+    "vscode-ripgrep": {
+      "version": "0.0.11",
+      "from": "vscode-ripgrep@0.0.11",
+      "resolved": "https://registry.npmjs.org/vscode-ripgrep/-/vscode-ripgrep-0.0.11.tgz"
     },
     "vscode-textmate": {
-      "version": "2.3.1",
-      "from": "vscode-textmate@2.3.1",
-      "resolved": "https://registry.npmjs.org/vscode-textmate/-/vscode-textmate-2.3.1.tgz"
+      "version": "3.1.1",
+      "from": "vscode-textmate@3.1.1",
+      "resolved": "https://registry.npmjs.org/vscode-textmate/-/vscode-textmate-3.1.1.tgz"
     },
     "windows-foreground-love": {
       "version": "0.1.0",
@@ -430,9 +440,9 @@
       "resolved": "https://registry.npmjs.org/winreg/-/winreg-1.2.0.tgz"
     },
     "xterm": {
-      "version": "2.0.1",
-      "from": "git+https://github.com/Tyriar/xterm.js.git#vscode-release/1.7",
-      "resolved": "git+https://github.com/Tyriar/xterm.js.git#901d42fe43c37f38bf0375fb1e99279a16eb2738"
+      "version": "2.4.0",
+      "from": "Tyriar/xterm.js#vscode-release/1.11",
+      "resolved": "git+https://github.com/Tyriar/xterm.js.git#6ed94de1539d164e01a6cf04ada11792519b5080"
     },
     "yauzl": {
       "version": "2.3.1",

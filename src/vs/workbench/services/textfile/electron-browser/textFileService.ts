@@ -12,7 +12,7 @@ import strings = require('vs/base/common/strings');
 import { isWindows, isLinux } from 'vs/base/common/platform';
 import URI from 'vs/base/common/uri';
 import { ConfirmResult } from 'vs/workbench/common/editor';
-import { TextFileService as AbstractTextFileService } from 'vs/workbench/services/textfile/browser/textFileService';
+import { TextFileService as AbstractTextFileService } from 'vs/workbench/services/textfile/common/textFileService';
 import { IRawTextContent } from 'vs/workbench/services/textfile/common/textfiles';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IFileService, IResolveContentOptions } from 'vs/platform/files/common/files';
@@ -22,13 +22,15 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModelBuilder } from 'vs/editor/node/model/modelBuilder';
-import product from 'vs/platform/product';
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import product from 'vs/platform/node/product';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IBackupService } from 'vs/workbench/services/backup/common/backup';
+import { IMessageService } from 'vs/platform/message/common/message';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { IWindowsService } from 'vs/platform/windows/common/windows';
 
 export class TextFileService extends AbstractTextFileService {
 
@@ -43,25 +45,27 @@ export class TextFileService extends AbstractTextFileService {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IModeService private modeService: IModeService,
-		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IWindowIPCService private windowService: IWindowIPCService,
-		@IModelService private modelService: IModelService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IBackupService backupService: IBackupService
+		@IEnvironmentService environmentService: IEnvironmentService,
+		@IMessageService messageService: IMessageService,
+		@IBackupFileService backupFileService: IBackupFileService,
+		@IStorageService private storageService: IStorageService,
+		@IWindowsService windowsService: IWindowsService,
+		@IEditorGroupService editorGroupService: IEditorGroupService
 	) {
-		super(lifecycleService, contextService, configurationService, telemetryService, editorGroupService, fileService, untitledEditorService, instantiationService, backupService);
+		super(lifecycleService, contextService, configurationService, telemetryService, fileService, untitledEditorService, instantiationService, messageService, environmentService, backupFileService, editorGroupService, windowsService);
 	}
 
 	public resolveTextContent(resource: URI, options?: IResolveContentOptions): TPromise<IRawTextContent> {
 		return this.fileService.resolveStreamContent(resource, options).then(streamContent => {
-			return ModelBuilder.fromStringStream(streamContent.value, this.modelService.getCreationOptions()).then(res => {
+			return ModelBuilder.fromStringStream(streamContent.value).then(res => {
 				const r: IRawTextContent = {
 					resource: streamContent.resource,
 					name: streamContent.name,
 					mtime: streamContent.mtime,
 					etag: streamContent.etag,
 					encoding: streamContent.encoding,
-					value: res.rawText,
+					value: res.value,
 					valueLogicalHash: res.hash
 				};
 				return r;
@@ -70,7 +74,7 @@ export class TextFileService extends AbstractTextFileService {
 	}
 
 	public confirmSave(resources?: URI[]): ConfirmResult {
-		if (!!this.environmentService.extensionDevelopmentPath) {
+		if (this.environmentService.isExtensionDevelopment) {
 			return ConfirmResult.DONT_SAVE; // no veto when we are in extension dev mode because we cannot assum we run interactive (e.g. tests)
 		}
 
@@ -107,7 +111,7 @@ export class TextFileService extends AbstractTextFileService {
 		const dontSave = { label: this.mnemonicLabel(nls.localize({ key: 'dontSave', comment: ['&& denotes a mnemonic'] }, "Do&&n't Save")), result: ConfirmResult.DONT_SAVE };
 		const cancel = { label: nls.localize('cancel', "Cancel"), result: ConfirmResult.CANCEL };
 
-		const buttons = [];
+		const buttons: { label: string; result: ConfirmResult; }[] = [];
 		if (isWindows) {
 			buttons.push(save, dontSave, cancel);
 		} else if (isLinux) {
@@ -133,6 +137,23 @@ export class TextFileService extends AbstractTextFileService {
 		const choice = this.windowService.getWindow().showMessageBox(opts);
 
 		return buttons[choice].result;
+	}
+
+	public showHotExitMessage(): void {
+		const key = 'hotExit/hasShownMessage';
+		const hasShownMessage = !!this.storageService.get(key, StorageScope.GLOBAL);
+		if (!hasShownMessage) {
+			this.storageService.store(key, true, StorageScope.GLOBAL);
+			const opts: Electron.ShowMessageBoxOptions = {
+				title: product.nameLong,
+				message: nls.localize('hotExitEducationalMessage', "Hot Exit is now enabled by default"),
+				type: 'info',
+				detail: nls.localize('hotExitEducationalDetail', "Hot Exit remembers any unsaved files between sessions, so you don't have to save your files before you exit. You can disable this feature with the 'files.hotExit' setting."),
+				buttons: [nls.localize('ok', "OK")],
+				noLink: true
+			};
+			this.windowService.getWindow().showMessageBox(opts);
+		}
 	}
 
 	private mnemonicLabel(label: string): string {

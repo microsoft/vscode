@@ -4,14 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {
-	createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult, FormattingOptions, RequestType, NotificationType,
-	CompletionList, Position, Hover
-} from 'vscode-languageserver';
+import { createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult, RequestType, DocumentRangeFormattingRequest, Disposable, DocumentSelector } from 'vscode-languageserver';
+import { DocumentContext } from 'vscode-html-languageservice';
+import { TextDocument, Diagnostic, DocumentLink, Range, SymbolInformation } from 'vscode-languageserver-types';
+import { getLanguageModes, LanguageModes } from './modes/languageModes';
 
-import { HTMLDocument, getLanguageService, CompletionConfiguration, HTMLFormatConfiguration, DocumentContext, TextDocument } from 'vscode-html-languageservice';
-import { getLanguageModelCache } from './languageModelCache';
-import { getEmbeddedContent, getEmbeddedLanguageAtPosition, hasEmbeddedContent } from './embeddedSupport';
+import { format } from './modes/formatting';
+
 import * as url from 'url';
 import * as path from 'path';
 import uri from 'vscode-uri';
@@ -19,50 +18,8 @@ import uri from 'vscode-uri';
 import * as nls from 'vscode-nls';
 nls.config(process.env['VSCODE_NLS_CONFIG']);
 
-interface EmbeddedCompletionParams {
-	uri: string;
-	version: number;
-	embeddedLanguageId: string;
-	position: Position;
-}
-
-namespace EmbeddedCompletionRequest {
-	export const type: RequestType<EmbeddedCompletionParams, CompletionList, any> = { get method() { return 'embedded/completion'; } };
-}
-
-interface EmbeddedHoverParams {
-	uri: string;
-	version: number;
-	embeddedLanguageId: string;
-	position: Position;
-}
-
-namespace EmbeddedHoverRequest {
-	export const type: RequestType<EmbeddedCompletionParams, Hover, any> = { get method() { return 'embedded/hover'; } };
-}
-
-interface EmbeddedContentParams {
-	uri: string;
-	embeddedLanguageId: string;
-}
-
-interface EmbeddedContent {
-	content: string;
-	version: number;
-}
-
-namespace EmbeddedContentRequest {
-	export const type: RequestType<EmbeddedContentParams, EmbeddedContent, any> = { get method() { return 'embedded/content'; } };
-}
-
-interface EmbeddedContentChangedParams {
-	uri: string;
-	version: number;
-	embeddedLanguageIds: string[];
-}
-
-namespace EmbeddedContentChangedNotification {
-	export const type: NotificationType<EmbeddedContentChangedParams> = { get method() { return 'embedded/contentchanged'; } };
+namespace ColorSymbolRequest {
+	export const type: RequestType<string, Range[], any, any> = new RequestType('css/colorSymbols');
 }
 
 // Create a connection for the server
@@ -78,54 +35,91 @@ let documents: TextDocuments = new TextDocuments();
 // for open, change and close text document events
 documents.listen(connection);
 
-let htmlDocuments = getLanguageModelCache<HTMLDocument>(10, 60, document => getLanguageService().parseHTMLDocument(document));
-documents.onDidClose(e => {
-	htmlDocuments.onDocumentRemoved(e.document);
-});
-connection.onShutdown(() => {
-	htmlDocuments.dispose();
-});
-
 let workspacePath: string;
-let embeddedLanguages: { [languageId: string]: boolean };
+var languageModes: LanguageModes;
+var settings: any = {};
+
+let clientSnippetSupport = false;
+let clientDynamicRegisterSupport = false;
 
 // After the server has started the client sends an initilize request. The server receives
 // in the passed params the rootPath of the workspace plus the client capabilites
 connection.onInitialize((params: InitializeParams): InitializeResult => {
+	let initializationOptions = params.initializationOptions;
+
 	workspacePath = params.rootPath;
-	embeddedLanguages = params.initializationOptions.embeddedLanguages;
+
+	languageModes = getLanguageModes(initializationOptions ? initializationOptions.embeddedLanguages : { css: true, javascript: true });
+	documents.onDidClose(e => {
+		languageModes.onDocumentRemoved(e.document);
+	});
+	connection.onShutdown(() => {
+		languageModes.dispose();
+	});
+
+	function hasClientCapability(...keys: string[]) {
+		let c = params.capabilities;
+		for (let i = 0; c && i < keys.length; i++) {
+			c = c[keys[i]];
+		}
+		return !!c;
+	}
+
+	clientSnippetSupport = hasClientCapability('textDocument', 'completion', 'completionItem', 'snippetSupport');
+	clientDynamicRegisterSupport = hasClientCapability('workspace', 'symbol', 'dynamicRegistration');
 	return {
 		capabilities: {
 			// Tell the client that the server works in FULL text document sync mode
 			textDocumentSync: documents.syncKind,
-			completionProvider: { resolveProvider: false, triggerCharacters: ['.', ':', '<', '"', '=', '/'] },
+			completionProvider: clientDynamicRegisterSupport ? { resolveProvider: true, triggerCharacters: ['.', ':', '<', '"', '=', '/'] } : null,
 			hoverProvider: true,
 			documentHighlightProvider: true,
-			documentRangeFormattingProvider: params.initializationOptions['format.enable'],
-			documentLinkProvider: true
+			documentRangeFormattingProvider: false,
+			documentLinkProvider: { resolveProvider: false },
+			documentSymbolProvider: true,
+			definitionProvider: true,
+			signatureHelpProvider: { triggerCharacters: ['('] },
+			referencesProvider: true,
 		}
 	};
 });
 
-// create the JSON language service
-var languageService = getLanguageService();
+let validation = {
+	html: true,
+	css: true,
+	javascript: true
+};
 
-// The settings interface describes the server relevant settings part
-interface Settings {
-	html: LanguageSettings;
-}
-
-interface LanguageSettings {
-	suggest: CompletionConfiguration;
-	format: HTMLFormatConfiguration;
-}
-
-let languageSettings: LanguageSettings;
+let formatterRegistration: Thenable<Disposable> = null;
 
 // The settings have changed. Is send on server activation as well.
 connection.onDidChangeConfiguration((change) => {
-	var settings = <Settings>change.settings;
-	languageSettings = settings.html;
+	settings = change.settings;
+	let validationSettings = settings && settings.html && settings.html.validate || {};
+	validation.css = validationSettings.styles !== false;
+	validation.javascript = validationSettings.scripts !== false;
+
+	languageModes.getAllModes().forEach(m => {
+		if (m.configure) {
+			m.configure(change.settings);
+		}
+	});
+	documents.all().forEach(triggerValidation);
+
+	// dynamically enable & disable the formatter
+	if (clientDynamicRegisterSupport) {
+		let enableFormatter = settings && settings.html && settings.html.format && settings.html.format.enable;
+		if (enableFormatter) {
+			if (!formatterRegistration) {
+				let documentSelector: DocumentSelector = [{ language: 'html' }, { language: 'handlebars' }]; // don't register razor, the formatter does more harm than good
+				formatterRegistration = connection.client.register(DocumentRangeFormattingRequest.type, { documentSelector });
+			}
+		} else if (formatterRegistration) {
+			formatterRegistration.then(r => r.dispose());
+			formatterRegistration = null;
+		}
+	}
+
 });
 
 let pendingValidationRequests: { [uri: string]: NodeJS.Timer } = {};
@@ -140,10 +134,7 @@ documents.onDidChangeContent(change => {
 // a document has closed: clear all diagnostics
 documents.onDidClose(event => {
 	cleanPendingValidation(event.document);
-	//connection.sendDiagnostics({ uri: event.document.uri, diagnostics: [] });
-	if (embeddedLanguages) {
-		connection.sendNotification(EmbeddedContentChangedNotification.type, { uri: event.document.uri, version: event.document.version, embeddedLanguageIds: [] });
-	}
+	connection.sendDiagnostics({ uri: event.document.uri, diagnostics: [] });
 });
 
 function cleanPendingValidation(textDocument: TextDocument): void {
@@ -163,79 +154,101 @@ function triggerValidation(textDocument: TextDocument): void {
 }
 
 function validateTextDocument(textDocument: TextDocument): void {
-	let htmlDocument = htmlDocuments.get(textDocument);
-	//let diagnostics = languageService.doValidation(textDocument, htmlDocument);
-	// Send the computed diagnostics to VSCode.
-	//connection.sendDiagnostics({ uri: textDocument.uri, diagnostics });
-	if (embeddedLanguages) {
-		let embeddedLanguageIds = hasEmbeddedContent(languageService, textDocument, htmlDocument, embeddedLanguages);
-		let p = { uri: textDocument.uri, version: textDocument.version, embeddedLanguageIds };
-		connection.sendNotification(EmbeddedContentChangedNotification.type, p);
+	let diagnostics: Diagnostic[] = [];
+	if (textDocument.languageId === 'html') {
+		languageModes.getAllModesInDocument(textDocument).forEach(mode => {
+			if (mode.doValidation && validation[mode.getId()]) {
+				pushAll(diagnostics, mode.doValidation(textDocument));
+			}
+		});
+	}
+	connection.sendDiagnostics({ uri: textDocument.uri, diagnostics });
+}
+
+function pushAll<T>(to: T[], from: T[]) {
+	if (from) {
+		for (var i = 0; i < from.length; i++) {
+			to.push(from[i]);
+		}
 	}
 }
 
 connection.onCompletion(textDocumentPosition => {
 	let document = documents.get(textDocumentPosition.textDocument.uri);
-	let htmlDocument = htmlDocuments.get(document);
-	let options = languageSettings && languageSettings.suggest;
-	let list = languageService.doComplete(document, textDocumentPosition.position, htmlDocument, options);
-	if (list.items.length === 0 && embeddedLanguages) {
-		let embeddedLanguageId = getEmbeddedLanguageAtPosition(languageService, document, htmlDocument, textDocumentPosition.position);
-		if (embeddedLanguageId && embeddedLanguages[embeddedLanguageId]) {
-			return connection.sendRequest(EmbeddedCompletionRequest.type, { uri: document.uri, version: document.version, embeddedLanguageId, position: textDocumentPosition.position });
+	let mode = languageModes.getModeAtPosition(document, textDocumentPosition.position);
+	if (mode && mode.doComplete) {
+		if (mode.getId() !== 'html') {
+			connection.telemetry.logEvent({ key: 'html.embbedded.complete', value: { languageId: mode.getId() } });
+		}
+		return mode.doComplete(document, textDocumentPosition.position);
+	}
+	return { isIncomplete: true, items: [] };
+});
+
+connection.onCompletionResolve(item => {
+	let data = item.data;
+	if (data && data.languageId && data.uri) {
+		let mode = languageModes.getMode(data.languageId);
+		let document = documents.get(data.uri);
+		if (mode && mode.doResolve && document) {
+			return mode.doResolve(document, item);
 		}
 	}
-	return list;
+	return item;
 });
 
 connection.onHover(textDocumentPosition => {
 	let document = documents.get(textDocumentPosition.textDocument.uri);
-	let htmlDocument = htmlDocuments.get(document);
-	let hover = languageService.doHover(document, textDocumentPosition.position, htmlDocument);
-	if (!hover && embeddedLanguages) {
-		let embeddedLanguageId = getEmbeddedLanguageAtPosition(languageService, document, htmlDocument, textDocumentPosition.position);
-		if (embeddedLanguageId && embeddedLanguages[embeddedLanguageId]) {
-			return connection.sendRequest(EmbeddedHoverRequest.type, { uri: document.uri, version: document.version, embeddedLanguageId, position: textDocumentPosition.position });
-		}
+	let mode = languageModes.getModeAtPosition(document, textDocumentPosition.position);
+	if (mode && mode.doHover) {
+		return mode.doHover(document, textDocumentPosition.position);
 	}
-	return hover;
-});
-
-connection.onRequest(EmbeddedContentRequest.type, parms => {
-	let document = documents.get(parms.uri);
-	if (document) {
-		let htmlDocument = htmlDocuments.get(document);
-		return { content: getEmbeddedContent(languageService, document, htmlDocument, parms.embeddedLanguageId), version: document.version };
-	}
-	return void 0;
+	return null;
 });
 
 connection.onDocumentHighlight(documentHighlightParams => {
 	let document = documents.get(documentHighlightParams.textDocument.uri);
-	let htmlDocument = htmlDocuments.get(document);
-	return languageService.findDocumentHighlights(document, documentHighlightParams.position, htmlDocument);
+	let mode = languageModes.getModeAtPosition(document, documentHighlightParams.position);
+	if (mode && mode.findDocumentHighlight) {
+		return mode.findDocumentHighlight(document, documentHighlightParams.position);
+	}
+	return [];
 });
 
-function merge(src: any, dst: any): any {
-	for (var key in src) {
-		if (src.hasOwnProperty(key)) {
-			dst[key] = src[key];
-		}
+connection.onDefinition(definitionParams => {
+	let document = documents.get(definitionParams.textDocument.uri);
+	let mode = languageModes.getModeAtPosition(document, definitionParams.position);
+	if (mode && mode.findDefinition) {
+		return mode.findDefinition(document, definitionParams.position);
 	}
-	return dst;
-}
+	return [];
+});
 
-function getFormattingOptions(formatParams: FormattingOptions) {
-	let formatSettings = languageSettings && languageSettings.format;
-	if (!formatSettings) {
-		return formatParams;
+connection.onReferences(referenceParams => {
+	let document = documents.get(referenceParams.textDocument.uri);
+	let mode = languageModes.getModeAtPosition(document, referenceParams.position);
+	if (mode && mode.findReferences) {
+		return mode.findReferences(document, referenceParams.position);
 	}
-	return merge(formatParams, merge(formatSettings, {}));
-}
+	return [];
+});
+
+connection.onSignatureHelp(signatureHelpParms => {
+	let document = documents.get(signatureHelpParms.textDocument.uri);
+	let mode = languageModes.getModeAtPosition(document, signatureHelpParms.position);
+	if (mode && mode.doSignatureHelp) {
+		return mode.doSignatureHelp(document, signatureHelpParms.position);
+	}
+	return null;
+});
 
 connection.onDocumentRangeFormatting(formatParams => {
 	let document = documents.get(formatParams.textDocument.uri);
-	return languageService.format(document, formatParams.range, getFormattingOptions(formatParams.options));
+
+	let unformattedTags: string = settings && settings.html && settings.html.format && settings.html.format.unformatted || '';
+	let enabledModes = { css: !unformattedTags.match(/\bstyle\b/), javascript: !unformattedTags.match(/\bscript\b/) };
+
+	return format(languageModes, document, formatParams.range, formatParams.options, enabledModes);
 });
 
 connection.onDocumentLinks(documentLinkParam => {
@@ -248,9 +261,38 @@ connection.onDocumentLinks(documentLinkParam => {
 			return url.resolve(document.uri, ref);
 		}
 	};
-	return languageService.findDocumentLinks(document, documentContext);
+	let links: DocumentLink[] = [];
+	languageModes.getAllModesInDocument(document).forEach(m => {
+		if (m.findDocumentLinks) {
+			pushAll(links, m.findDocumentLinks(document, documentContext));
+		}
+	});
+	return links;
 });
 
+connection.onDocumentSymbol(documentSymbolParms => {
+	let document = documents.get(documentSymbolParms.textDocument.uri);
+	let symbols: SymbolInformation[] = [];
+	languageModes.getAllModesInDocument(document).forEach(m => {
+		if (m.findDocumentSymbols) {
+			pushAll(symbols, m.findDocumentSymbols(document));
+		}
+	});
+	return symbols;
+});
+
+connection.onRequest(ColorSymbolRequest.type, uri => {
+	let ranges: Range[] = [];
+	let document = documents.get(uri);
+	if (document) {
+		languageModes.getAllModesInDocument(document).forEach(m => {
+			if (m.findColorSymbols) {
+				pushAll(ranges, m.findColorSymbols(document));
+			}
+		});
+	}
+	return ranges;
+});
 
 // Listen on the connection
 connection.listen();

@@ -11,11 +11,9 @@ import {
 
 import { getCSSLanguageService, getSCSSLanguageService, getLESSLanguageService, LanguageSettings, LanguageService, Stylesheet } from 'vscode-css-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
-import Uri from 'vscode-uri';
-import { isEmbeddedContentUri, getHostDocumentUri } from './embeddedContentUri';
 
 namespace ColorSymbolRequest {
-	export const type: RequestType<string, Range[], any> = { get method() { return 'css/colorSymbols'; } };
+	export const type: RequestType<string, Range[], any, any> = new RequestType('css/colorSymbols');
 }
 
 export interface Settings {
@@ -48,11 +46,12 @@ connection.onShutdown(() => {
 // After the server has started the client sends an initilize request. The server receives
 // in the passed params the rootPath of the workspace plus the client capabilities.
 connection.onInitialize((params: InitializeParams): InitializeResult => {
+	let snippetSupport = params.capabilities && params.capabilities.textDocument && params.capabilities.textDocument.completion && params.capabilities.textDocument.completion.completionItem && params.capabilities.textDocument.completion.completionItem.snippetSupport;
 	return {
 		capabilities: {
 			// Tell the client that the server works in FULL text document sync mode
 			textDocumentSync: documents.syncKind,
-			completionProvider: { resolveProvider: false },
+			completionProvider: snippetSupport ? { resolveProvider: false } : null,
 			hoverProvider: true,
 			documentSymbolProvider: true,
 			referencesProvider: true,
@@ -127,9 +126,7 @@ function validateTextDocument(textDocument: TextDocument): void {
 	let stylesheet = stylesheets.get(textDocument);
 	let diagnostics = getLanguageService(textDocument).doValidation(textDocument, stylesheet);
 	// Send the computed diagnostics to VSCode.
-	let uri = Uri.parse(textDocument.uri);
-	let diagnosticsTarget = isEmbeddedContentUri(uri) ? getHostDocumentUri(uri) : textDocument.uri;
-	connection.sendDiagnostics({ uri: diagnosticsTarget, diagnostics });
+	connection.sendDiagnostics({ uri: textDocument.uri, diagnostics });
 }
 
 connection.onCompletion(textDocumentPosition => {

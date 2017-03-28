@@ -16,6 +16,7 @@
 	"install": "在 PATH 中安装“{0}”命令",
 	"later": "稍后",
 	"laterInfo": "请记住，你始终可以从命令面板运行“{0}”操作。",
+	"not available": "此命令不可用",
 	"ok": "确定",
 	"shellCommand": "Shell 命令",
 	"successFrom": "已成功从 PATH 卸载 Shell 命令“{0}”。",

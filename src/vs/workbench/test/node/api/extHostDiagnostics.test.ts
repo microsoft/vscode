@@ -189,6 +189,50 @@ suite('ExtHostDiagnostics', () => {
 		lastEntries = undefined;
 	});
 
+	test('diagnostics collection, tuples and undefined (small array), #15585', function () {
+
+		const collection = new DiagnosticCollection('test', new DiagnosticsShape());
+		let uri = URI.parse('sc:hightower');
+		let uri2 = URI.parse('sc:nomad');
+		let diag = new Diagnostic(new Range(0, 0, 0, 1), 'ffff');
+
+		collection.set([
+			[uri, [diag, diag, diag]],
+			[uri, undefined],
+			[uri, [diag]],
+
+			[uri2, [diag, diag]],
+			[uri2, undefined],
+			[uri2, [diag]],
+		]);
+
+		assert.equal(collection.get(uri).length, 1);
+		assert.equal(collection.get(uri2).length, 1);
+	});
+
+	test('diagnostics collection, tuples and undefined (large array), #15585', function () {
+
+		const collection = new DiagnosticCollection('test', new DiagnosticsShape());
+		const tuples: [URI, Diagnostic[]][] = [];
+
+		for (let i = 0; i < 500; i++) {
+			let uri = URI.parse('sc:hightower#' + i);
+			let diag = new Diagnostic(new Range(0, 0, 0, 1), i.toString());
+
+			tuples.push([uri, [diag, diag, diag]]);
+			tuples.push([uri, undefined]);
+			tuples.push([uri, [diag]]);
+		}
+
+		collection.set(tuples);
+
+		for (let i = 0; i < 500; i++) {
+			let uri = URI.parse('sc:hightower#' + i);
+			assert.equal(collection.has(uri), true);
+			assert.equal(collection.get(uri).length, 1);
+		}
+	});
+
 	test('diagnostic capping', function () {
 
 		let lastEntries: [URI, IMarkerData[]][];

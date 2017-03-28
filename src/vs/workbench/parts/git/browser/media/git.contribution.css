@@ -46,36 +46,6 @@
 	background-color: rgba(235, 59, 0, 0.3);
 }
 
-/* Git dirty diff editor decorations */
-.monaco-editor .git-dirty-modified-diff-glyph {
-	border-left: 3px solid rgba(0, 122, 204, 0.6);
-	margin-left: 5px;
-}
-.monaco-editor.vs-dark .git-dirty-modified-diff-glyph {
-	border-left: 3px solid rgba(0, 188, 242, 0.6);
-	margin-left: 5px;
-}
-.monaco-editor .git-dirty-added-diff-glyph {
-	border-left: 3px solid rgba(45, 136, 62, 0.6);
-	margin-left: 5px;
-}
-.monaco-editor.vs-dark .git-dirty-added-diff-glyph {
-	border-left: 3px solid  rgba(127, 186, 0, 0.6);
-	margin-left: 5px;
-}
-.monaco-editor .git-dirty-deleted-diff-glyph:after {
-	content: '';
-	position: absolute;
-	bottom: -4px;
-	margin-left: 5px;
-	box-sizing: border-box;
-	border-left: 4px solid rgba(185, 19, 26, 0.76);
-	border-top: 4px solid transparent;
-	border-bottom: 4px solid transparent;
-	width: 4px;
-	height: 0;
-}
-
 .monaco-shell .git-branch-dropdown-menu .action-label.git-action.checkout.HEAD {
 	font-weight: bold;
 }

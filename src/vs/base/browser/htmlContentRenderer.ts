@@ -9,7 +9,7 @@ import DOM = require('vs/base/browser/dom');
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { escape } from 'vs/base/common/strings';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IHTMLContentElement, MarkedString } from 'vs/base/common/htmlContent';
+import { IHTMLContentElement, MarkedString, removeMarkdownEscapes } from 'vs/base/common/htmlContent';
 import { marked } from 'vs/base/common/marked/marked';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 
@@ -39,6 +39,7 @@ export function renderHtml(content: RenderableContent, options: RenderOptions = 
 	} else if (content) {
 		return _renderHtml(content, options);
 	}
+	return undefined;
 }
 
 function _renderHtml(content: IHTMLContentElement, options: RenderOptions = {}): Node {
@@ -91,7 +92,7 @@ function _renderHtml(content: IHTMLContentElement, options: RenderOptions = {}):
 
 		const renderer = new marked.Renderer();
 		renderer.image = (href: string, title: string, text: string) => {
-			let dimensions = [];
+			let dimensions: string[] = [];
 			if (href) {
 				const splitted = href.split('|').map(s => s.trim());
 				href = splitted[0];
@@ -127,6 +128,12 @@ function _renderHtml(content: IHTMLContentElement, options: RenderOptions = {}):
 			return '<img ' + attributes.join(' ') + '>';
 		};
 		renderer.link = (href, title, text): string => {
+			// Remove markdown escapes. Workaround for https://github.com/chjj/marked/issues/829
+			if (href === text) { // raw link case
+				text = removeMarkdownEscapes(text);
+			}
+			title = removeMarkdownEscapes(title);
+			href = removeMarkdownEscapes(href);
 			return `<a href="#" data-href="${href}" title="${title || text}">${text}</a>`;
 		};
 		renderer.paragraph = (text): string => {

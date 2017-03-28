@@ -43,32 +43,6 @@ export class DeleteOperations {
 		});
 	}
 
-	public static deleteAllRight(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState): EditOperationResult {
-		let selection = cursor.selection;
-
-		if (selection.isEmpty()) {
-			let position = cursor.position;
-			let lineNumber = position.lineNumber;
-			let column = position.column;
-			let maxColumn = model.getLineMaxColumn(lineNumber);
-
-			if (column === maxColumn) {
-				// Ignore deleting at end of file
-				return null;
-			}
-
-			let deleteSelection = new Range(lineNumber, column, lineNumber, maxColumn);
-			if (!deleteSelection.isEmpty()) {
-				return new EditOperationResult(new ReplaceCommand(deleteSelection, ''), {
-					shouldPushStackElementBefore: false,
-					shouldPushStackElementAfter: false
-				});
-			}
-		}
-
-		return this.deleteRight(config, model, cursor);
-	}
-
 	public static autoClosingPairDelete(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState): EditOperationResult {
 		if (!config.autoClosingBrackets) {
 			return null;
@@ -162,37 +136,6 @@ export class DeleteOperations {
 			shouldPushStackElementBefore: shouldPushStackElementBefore,
 			shouldPushStackElementAfter: false
 		});
-	}
-
-	public static deleteAllLeft(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState): EditOperationResult {
-		let r = this.autoClosingPairDelete(config, model, cursor);
-		if (r) {
-			// This was a case for an auto-closing pair delete
-			return r;
-		}
-
-		let selection = cursor.selection;
-
-		if (selection.isEmpty()) {
-			let position = cursor.position;
-			let lineNumber = position.lineNumber;
-			let column = position.column;
-
-			if (column === 1) {
-				// Ignore deleting at beginning of line
-				return null;
-			}
-
-			let deleteSelection = new Range(lineNumber, 1, lineNumber, column);
-			if (!deleteSelection.isEmpty()) {
-				return new EditOperationResult(new ReplaceCommand(deleteSelection, ''), {
-					shouldPushStackElementBefore: false,
-					shouldPushStackElementAfter: false
-				});
-			}
-		}
-
-		return this.deleteLeft(config, model, cursor);
 	}
 
 	public static cut(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, enableEmptySelectionClipboard: boolean): EditOperationResult {

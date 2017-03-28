@@ -7,7 +7,7 @@
 
 import * as assert from 'assert';
 import { setUnexpectedErrorHandler, errorHandler } from 'vs/base/common/errors';
-import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as types from 'vs/workbench/api/node/extHostTypes';
@@ -27,6 +27,7 @@ import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 import { ExtHostHeapService } from 'vs/workbench/api/node/extHostHeapService';
 import { MainThreadCommands } from 'vs/workbench/api/node/mainThreadCommands';
 import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
+import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
 import { MainContext, ExtHostContext } from 'vs/workbench/api/node/extHost.protocol';
 import { ExtHostDiagnostics } from 'vs/workbench/api/node/extHostDiagnostics';
 import * as vscode from 'vscode';
@@ -68,7 +69,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		instantiationService.stub(ICommandService, {
 			_serviceBrand: undefined,
 			executeCommand(id, args): any {
-				let {handler} = CommandsRegistry.getCommands()[id];
+				let { handler } = CommandsRegistry.getCommands()[id];
 				return TPromise.as(instantiationService.invokeFunction(handler, args));
 			}
 		});
@@ -78,6 +79,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			_serviceBrand: IModelService,
 			getModel(): any { return model; },
 			createModel(): any { throw new Error(); },
+			updateModel(): any { throw new Error(); },
 			setMode(): any { throw new Error(); },
 			destroyModel(): any { throw new Error(); },
 			getModels(): any { throw new Error(); },
@@ -87,31 +89,23 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			getCreationOptions(): any { throw new Error(); }
 		});
 
-		const extHostDocuments = new ExtHostDocuments(threadService);
-		threadService.set(ExtHostContext.ExtHostDocuments, extHostDocuments);
-		extHostDocuments.$acceptModelAdd({
-			isDirty: false,
-			versionId: model.getVersionId(),
-			modeId: model.getModeId(),
-			url: model.uri,
-			value: {
-				EOL: model.getEOL(),
+		const extHostDocumentsAndEditors = new ExtHostDocumentsAndEditors(threadService);
+		extHostDocumentsAndEditors.$acceptDocumentsAndEditorsDelta({
+			addedDocuments: [{
+				isDirty: false,
+				versionId: model.getVersionId(),
+				modeId: model.getLanguageIdentifier().language,
+				url: model.uri,
 				lines: model.getValue().split(model.getEOL()),
-				BOM: '',
-				length: -1,
-				containsRTL: false,
-				options: {
-					tabSize: 4,
-					insertSpaces: true,
-					trimAutoWhitespace: true,
-					defaultEOL: EditorCommon.DefaultEndOfLine.LF
-				}
-			},
+				EOL: model.getEOL(),
+			}]
 		});
+		const extHostDocuments = new ExtHostDocuments(threadService, extHostDocumentsAndEditors);
+		threadService.set(ExtHostContext.ExtHostDocuments, extHostDocuments);
 
 		const heapService = new ExtHostHeapService();
 
-		commands = new ExtHostCommands(threadService, null, heapService);
+		commands = new ExtHostCommands(threadService, heapService);
 		threadService.set(ExtHostContext.ExtHostCommands, commands);
 		threadService.setTestInstance(MainContext.MainThreadCommands, instantiationService.createInstance(MainThreadCommands));
 		ExtHostApiCommands.register(commands);
@@ -288,7 +282,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 	// --- suggest
 
-	test('Suggest, back and forth', function (done) {
+	test('Suggest, back and forth', function () {
 		disposables.push(extHost.registerCompletionItemProvider(defaultSelector, <vscode.CompletionItemProvider>{
 			provideCompletionItems(doc, pos): any {
 				let a = new types.CompletionItem('item1');
@@ -296,53 +290,54 @@ suite('ExtHostLanguageFeatureCommands', function () {
 				b.textEdit = types.TextEdit.replace(new types.Range(0, 4, 0, 8), 'foo'); // overwite after
 				let c = new types.CompletionItem('item3');
 				c.textEdit = types.TextEdit.replace(new types.Range(0, 1, 0, 6), 'foobar'); // overwite before & after
+
+				// snippet string!
 				let d = new types.CompletionItem('item4');
-				d.textEdit = types.TextEdit.replace(new types.Range(0, 1, 0, 4), ''); // overwite before
+				d.range = new types.Range(0, 1, 0, 4);// overwite before
+				d.insertText = new types.SnippetString('foo$0bar');
 				return [a, b, c, d];
 			}
 		}, []));
 
-		threadService.sync().then(() => {
-			commands.executeCommand<vscode.CompletionList>('vscode.executeCompletionItemProvider', model.uri, new types.Position(0, 4)).then(list => {
-				try {
-					assert.ok(list instanceof types.CompletionList);
-					let values = list.items;
-					assert.ok(Array.isArray(values));
-					assert.equal(values.length, 4);
-					let [first, second, third, forth] = values;
-					assert.equal(first.label, 'item1');
-					assert.equal(first.textEdit.newText, 'item1');
-					assert.equal(first.textEdit.range.start.line, 0);
-					assert.equal(first.textEdit.range.start.character, 0);
-					assert.equal(first.textEdit.range.end.line, 0);
-					assert.equal(first.textEdit.range.end.character, 4);
+		return threadService.sync().then(() => {
+			return commands.executeCommand<vscode.CompletionList>('vscode.executeCompletionItemProvider', model.uri, new types.Position(0, 4)).then(list => {
 
-					assert.equal(second.label, 'item2');
-					assert.equal(second.textEdit.newText, 'foo');
-					assert.equal(second.textEdit.range.start.line, 0);
-					assert.equal(second.textEdit.range.start.character, 4);
-					assert.equal(second.textEdit.range.end.line, 0);
-					assert.equal(second.textEdit.range.end.character, 8);
+				assert.ok(list instanceof types.CompletionList);
+				let values = list.items;
+				assert.ok(Array.isArray(values));
+				assert.equal(values.length, 4);
+				let [first, second, third, fourth] = values;
+				assert.equal(first.label, 'item1');
+				assert.equal(first.textEdit.newText, 'item1');
+				assert.equal(first.textEdit.range.start.line, 0);
+				assert.equal(first.textEdit.range.start.character, 0);
+				assert.equal(first.textEdit.range.end.line, 0);
+				assert.equal(first.textEdit.range.end.character, 4);
 
-					assert.equal(third.label, 'item3');
-					assert.equal(third.textEdit.newText, 'foobar');
-					assert.equal(third.textEdit.range.start.line, 0);
-					assert.equal(third.textEdit.range.start.character, 1);
-					assert.equal(third.textEdit.range.end.line, 0);
-					assert.equal(third.textEdit.range.end.character, 6);
+				assert.equal(second.label, 'item2');
+				assert.equal(second.textEdit.newText, 'foo');
+				assert.equal(second.textEdit.range.start.line, 0);
+				assert.equal(second.textEdit.range.start.character, 4);
+				assert.equal(second.textEdit.range.end.line, 0);
+				assert.equal(second.textEdit.range.end.character, 8);
 
-					assert.equal(forth.label, 'item4');
-					assert.equal(forth.textEdit.newText, '');
-					assert.equal(forth.textEdit.range.start.line, 0);
-					assert.equal(forth.textEdit.range.start.character, 1);
-					assert.equal(forth.textEdit.range.end.line, 0);
-					assert.equal(forth.textEdit.range.end.character, 4);
-					done();
-				} catch (e) {
-					done(e);
-				}
-			}, done);
-		}, done);
+				assert.equal(third.label, 'item3');
+				assert.equal(third.textEdit.newText, 'foobar');
+				assert.equal(third.textEdit.range.start.line, 0);
+				assert.equal(third.textEdit.range.start.character, 1);
+				assert.equal(third.textEdit.range.end.line, 0);
+				assert.equal(third.textEdit.range.end.character, 6);
+
+				assert.equal(fourth.label, 'item4');
+				assert.equal(fourth.textEdit, undefined);
+				assert.equal(fourth.range.start.line, 0);
+				assert.equal(fourth.range.start.character, 1);
+				assert.equal(fourth.range.end.line, 0);
+				assert.equal(fourth.range.end.character, 4);
+				assert.ok(fourth.insertText instanceof types.SnippetString);
+				assert.equal((<types.SnippetString>fourth.insertText).value, 'foo$0bar');
+			});
+		});
 	});
 
 	test('Suggest, return CompletionList !array', function (done) {

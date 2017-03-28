@@ -5,14 +5,13 @@
 
 'use strict';
 
-import uuid = require('vs/base/common/uuid');
-import strings = require('vs/base/common/strings');
-import platform = require('vs/base/common/platform');
+import * as uuid from 'vs/base/common/uuid';
+import * as strings from 'vs/base/common/strings';
+import * as platform from 'vs/base/common/platform';
+import * as flow from 'vs/base/node/flow';
 
-import flow = require('vs/base/node/flow');
-
-import fs = require('fs');
-import paths = require('path');
+import * as fs from 'fs';
+import * as paths from 'path';
 
 const loop = flow.loop;
 
@@ -246,6 +245,24 @@ function rmRecursive(path: string, callback: (error: Error) => void): void {
 	});
 }
 
+export function delSync(path: string): void {
+	try {
+		const stat = fs.lstatSync(path);
+		if (stat.isDirectory() && !stat.isSymbolicLink()) {
+			readdirSync(path).forEach(child => delSync(paths.join(path, child)));
+			fs.rmdirSync(path);
+		} else {
+			fs.unlinkSync(path);
+		}
+	} catch (err) {
+		if (err.code === 'ENOENT') {
+			return; // not found
+		}
+
+		throw err;
+	}
+}
+
 export function mv(source: string, target: string, callback: (error: Error) => void): void {
 	if (source === target) {
 		return callback(null);
@@ -352,4 +369,46 @@ export function writeFileAndFlush(path: string, data: string | NodeBuffer, optio
 			});
 		});
 	});
+}
+
+/**
+ * Copied from: https://github.com/Microsoft/vscode-node-debug/blob/master/src/node/pathUtilities.ts#L83
+ *
+ * Given an absolute, normalized, and existing file path 'realpath' returns the exact path that the file has on disk.
+ * On a case insensitive file system, the returned path might differ from the original path by character casing.
+ * On a case sensitive file system, the returned path will always be identical to the original path.
+ * In case of errors, null is returned. But you cannot use this function to verify that a path exists.
+ * realpathSync does not handle '..' or '.' path segments and it does not take the locale into account.
+ */
+export function realpathSync(path: string): string {
+	const dir = paths.dirname(path);
+	if (path === dir) {	// end recursion
+		return path;
+	}
+
+	const name = paths.basename(path).toLowerCase();
+	try {
+		const entries = readdirSync(dir);
+		const found = entries.filter(e => e.toLowerCase() === name);	// use a case insensitive search
+		if (found.length === 1) {
+			// on a case sensitive filesystem we cannot determine here, whether the file exists or not, hence we need the 'file exists' precondition
+			const prefix = realpathSync(dir);   // recurse
+			if (prefix) {
+				return paths.join(prefix, found[0]);
+			}
+		} else if (found.length > 1) {
+			// must be a case sensitive $filesystem
+			const ix = found.indexOf(name);
+			if (ix >= 0) {	// case sensitive
+				const prefix = realpathSync(dir);   // recurse
+				if (prefix) {
+					return paths.join(prefix, found[ix]);
+				}
+			}
+		}
+	} catch (error) {
+		// silently ignore error
+	}
+
+	return null;
 }

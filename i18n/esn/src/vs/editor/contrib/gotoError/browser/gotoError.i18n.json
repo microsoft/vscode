@@ -6,8 +6,5 @@
 {
 	"markerAction.next.label": "Ir al error o la advertencia siguiente",
 	"markerAction.previous.label": "Ir al error o la advertencia anterior",
-	"quickfix.multiple.label": "Correcciones recomendadas: ",
-	"quickfix.single.label": "Corrección recomendada: ",
-	"title.w_source": "({0}/{1}) [{2}]",
 	"title.wo_source": "({0}/{1})"
 }

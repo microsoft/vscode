@@ -9,25 +9,13 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { onUnexpectedError, illegalArgument } from 'vs/base/common/errors';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
-import { IRange } from 'vs/editor/common/editorCommon';
-import URI from 'vs/base/common/uri';
 import { ISearchConfiguration } from 'vs/platform/search/common/search';
 import glob = require('vs/base/common/glob');
-
-/**
- * Interface used to navigate to types by value.
- */
-export interface IWorkspaceSymbol {
-	name: string;
-	type: string;
-	containerName: string;
-	range: IRange;
-	resource: URI;
-}
+import { SymbolInformation } from 'vs/editor/common/modes';
 
 export interface IWorkspaceSymbolProvider {
-	provideWorkspaceSymbols(search: string): TPromise<IWorkspaceSymbol[]>;
-	resolveWorkspaceSymbol?: (item: IWorkspaceSymbol) => TPromise<IWorkspaceSymbol>;
+	provideWorkspaceSymbols(search: string): TPromise<SymbolInformation[]>;
+	resolveWorkspaceSymbol?: (item: SymbolInformation) => TPromise<SymbolInformation>;
 }
 
 export namespace WorkspaceSymbolProviderRegistry {
@@ -58,9 +46,9 @@ export namespace WorkspaceSymbolProviderRegistry {
 	}
 }
 
-export function getWorkspaceSymbols(query: string): TPromise<[IWorkspaceSymbolProvider, IWorkspaceSymbol[]][]> {
+export function getWorkspaceSymbols(query: string): TPromise<[IWorkspaceSymbolProvider, SymbolInformation[]][]> {
 
-	const result: [IWorkspaceSymbolProvider, IWorkspaceSymbol[]][] = [];
+	const result: [IWorkspaceSymbolProvider, SymbolInformation[]][] = [];
 
 	const promises = WorkspaceSymbolProviderRegistry.all().map(support => {
 		return support.provideWorkspaceSymbols(query).then(value => {
@@ -74,7 +62,7 @@ export function getWorkspaceSymbols(query: string): TPromise<[IWorkspaceSymbolPr
 }
 
 CommonEditorRegistry.registerLanguageCommand('_executeWorkspaceSymbolProvider', function (accessor, args: { query: string; }) {
-	let {query} = args;
+	let { query } = args;
 	if (typeof query !== 'string') {
 		throw illegalArgument();
 	}
@@ -86,6 +74,8 @@ export interface IWorkbenchSearchConfiguration extends ISearchConfiguration {
 		quickOpen: {
 			includeSymbols: boolean;
 		},
-		exclude: glob.IExpression;
+		exclude: glob.IExpression,
+		useRipgrep: boolean,
+		useIgnoreFilesByDefault: boolean
 	};
 }

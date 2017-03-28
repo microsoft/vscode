@@ -18,20 +18,29 @@ import { EventType } from 'vs/base/common/events';
 import { ActionBar, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import * as debug from 'vs/workbench/parts/debug/common/debug';
+import { IDebugConfiguration, IDebugService, State } from 'vs/workbench/parts/debug/common/debug';
 import { AbstractDebugAction, PauseAction, ContinueAction, StepBackAction, ReverseContinueAction, StopAction, DisconnectAction, StepOverAction, StepIntoAction, StepOutAction, RestartAction, FocusProcessAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { FocusProcessActionItem } from 'vs/workbench/parts/debug/browser/debugActionItems';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-
-import IDebugService = debug.IDebugService;
+import { Themable } from "vs/workbench/common/theme";
+import { IThemeService } from "vs/platform/theme/common/themeService";
+import { registerColor, highContrastBorder } from "vs/platform/theme/common/colorRegistry";
+import { localize } from "vs/nls";
 
 const $ = builder.$;
 const DEBUG_ACTIONS_WIDGET_POSITION_KEY = 'debug.actionswidgetposition';
 
-export class DebugActionsWidget implements IWorkbenchContribution {
+export const debugToolBarBackground = registerColor('debugToolBarBackground', {
+	dark: '#333333',
+	light: '#F3F3F3',
+	hc: '#000000'
+}, localize('debugToolBarBackground', "Debug toolbar background color."));
+
+export class DebugActionsWidget extends Themable implements IWorkbenchContribution {
 	private static ID = 'debug.actionsWidget';
 
 	private $el: builder.Builder;
@@ -51,8 +60,12 @@ export class DebugActionsWidget implements IWorkbenchContribution {
 		@IDebugService private debugService: IDebugService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IPartService private partService: IPartService,
-		@IStorageService private storageService: IStorageService
+		@IStorageService private storageService: IStorageService,
+		@IConfigurationService private configurationService: IConfigurationService,
+		@IThemeService themeService: IThemeService
 	) {
+		super(themeService);
+
 		this.$el = $().div().addClass('debug-actions-widget').style('top', `${partService.getTitleBarOffset()}px`);
 		this.dragArea = $().div().addClass('drag-area');
 		this.$el.append(this.dragArea);
@@ -78,6 +91,8 @@ export class DebugActionsWidget implements IWorkbenchContribution {
 			}
 		});
 
+		this.updateStyles();
+
 		this.toDispose.push(this.actionBar);
 		this.registerListeners();
 
@@ -86,9 +101,8 @@ export class DebugActionsWidget implements IWorkbenchContribution {
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.debugService.onDidChangeState(() => {
-			this.update();
-		}));
+		this.toDispose.push(this.debugService.onDidChangeState(state => this.update(state)));
+		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(() => this.update(this.debugService.state)));
 		this.toDispose.push(this.actionBar.actionRunner.addListener2(EventType.RUN, (e: any) => {
 			// check for error
 			if (e.error && !errors.isPromiseCanceledError(e.error)) {
@@ -118,7 +132,8 @@ export class DebugActionsWidget implements IWorkbenchContribution {
 				const mouseMoveEvent = new StandardMouseEvent(e);
 				// Prevent default to stop editor selecting text #8524
 				mouseMoveEvent.preventDefault();
-				this.setXCoordinate(mouseMoveEvent.posx);
+				// Reduce x by width of drag handle to reduce jarring #16604
+				this.setXCoordinate(mouseMoveEvent.posx - 14);
 			}).once('mouseup', (e: MouseEvent) => {
 				const mouseMoveEvent = new StandardMouseEvent(e);
 				this.storageService.store(DEBUG_ACTIONS_WIDGET_POSITION_KEY, mouseMoveEvent.posx / window.innerWidth, StorageScope.WORKSPACE);
@@ -131,6 +146,17 @@ export class DebugActionsWidget implements IWorkbenchContribution {
 		this.toDispose.push(browser.onDidChangeZoomLevel(() => this.positionDebugWidget()));
 	}
 
+	protected updateStyles(): void {
+		super.updateStyles();
+
+		if (this.$el) {
+			this.$el.style('background-color', this.getColor(debugToolBarBackground));
+			this.$el.style('border-style', this.isHighContrastTheme ? 'solid' : null);
+			this.$el.style('border-width', this.isHighContrastTheme ? '1px' : null);
+			this.$el.style('border-color', this.isHighContrastTheme ? this.getColor(highContrastBorder) : null);
+		}
+	}
+
 	private positionDebugWidget(): void {
 		const titlebarOffset = this.partService.getTitleBarOffset();
 
@@ -141,14 +167,12 @@ export class DebugActionsWidget implements IWorkbenchContribution {
 		if (!this.isVisible) {
 			return;
 		}
-		if (!x) {
+		if (x === undefined) {
 			x = parseFloat(this.storageService.get(DEBUG_ACTIONS_WIDGET_POSITION_KEY, StorageScope.WORKSPACE, '0.5')) * window.innerWidth;
 		}
 
-		const halfWidgetWidth = this.$el.getHTMLElement().clientWidth / 2;
-		x = x + halfWidgetWidth - 16; // take into account half the size of the widget
-		x = Math.max(148, x); // do not allow the widget to overflow on the left
-		x = Math.min(x, window.innerWidth - halfWidgetWidth - 10); // do not allow the widget to overflow on the right
+		const widgetWidth = this.$el.getHTMLElement().clientWidth;
+		x = Math.max(0, Math.min(x, window.innerWidth - widgetWidth)); // do not allow the widget to overflow on the right
 		this.$el.style('left', `${x}px`);
 	}
 
@@ -156,9 +180,8 @@ export class DebugActionsWidget implements IWorkbenchContribution {
 		return DebugActionsWidget.ID;
 	}
 
-	private update(): void {
-		const state = this.debugService.state;
-		if (state === debug.State.Disabled || state === debug.State.Inactive) {
+	private update(state: State): void {
+		if (state === State.Inactive || this.configurationService.getConfiguration<IDebugConfiguration>('debug').hideActionBar) {
 			return this.hide();
 		}
 
@@ -211,20 +234,20 @@ export class DebugActionsWidget implements IWorkbenchContribution {
 
 		const state = this.debugService.state;
 		const process = this.debugService.getViewModel().focusedProcess;
-		const attached = process && !strings.equalsIgnoreCase(process.session.configuration.type, 'extensionHost') && process.session.requestType === debug.SessionRequestType.ATTACH;
+		const attached = process && process.configuration.request === 'attach' && process.configuration.type && !strings.equalsIgnoreCase(process.configuration.type, 'extensionHost');
 
 		return this.allActions.filter(a => {
 			if (a.id === ContinueAction.ID) {
-				return state !== debug.State.Running;
+				return state !== State.Running;
 			}
 			if (a.id === PauseAction.ID) {
-				return state === debug.State.Running;
+				return state === State.Running;
 			}
 			if (a.id === StepBackAction.ID) {
-				return process && process.session.configuration.capabilities.supportsStepBack;
+				return process && process.session.capabilities.supportsStepBack;
 			}
 			if (a.id === ReverseContinueAction.ID) {
-				return process && process.session.configuration.capabilities.supportsStepBack;
+				return process && process.session.capabilities.supportsStepBack;
 			}
 			if (a.id === DisconnectAction.ID) {
 				return attached;

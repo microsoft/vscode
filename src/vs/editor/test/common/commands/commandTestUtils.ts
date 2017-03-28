@@ -10,28 +10,28 @@ import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Model } from 'vs/editor/common/model/model';
-import { MockConfiguration } from 'vs/editor/test/common/mocks/mockConfiguration';
+import { LanguageIdentifier } from 'vs/editor/common/modes';
+import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
 import { viewModelHelper } from 'vs/editor/test/common/editorTestUtils';
 
 export function testCommand(
 	lines: string[],
-	mode: string,
+	languageIdentifier: LanguageIdentifier,
 	selection: Selection,
 	commandFactory: (selection: Selection) => editorCommon.ICommand,
 	expectedLines: string[],
 	expectedSelection: Selection
 ): void {
 
-	let model = Model.createFromString(lines.join('\n'), undefined, mode);
-	let config = new MockConfiguration(null);
-	let cursor = new Cursor(0, config, model, viewModelHelper(model), false);
+	let model = Model.createFromString(lines.join('\n'), undefined, languageIdentifier);
+	let config = new TestConfiguration(null);
+	let cursor = new Cursor(config, model, viewModelHelper(model), false);
 
 	cursor.setSelections('tests', [selection]);
 
 	cursor.trigger('tests', editorCommon.Handler.ExecuteCommand, commandFactory(cursor.getSelection()));
 
-	let actualValue = model.toRawText().lines;
-	assert.deepEqual(actualValue, expectedLines);
+	assert.deepEqual(model.getLinesContent(), expectedLines);
 
 	let actualSelection = cursor.getSelection();
 	assert.deepEqual(actualSelection.toString(), expectedSelection.toString());

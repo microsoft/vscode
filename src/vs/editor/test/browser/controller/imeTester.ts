@@ -11,6 +11,7 @@ import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { TextAreaWrapper } from 'vs/editor/browser/controller/input/textAreaWrapper';
 import { Position } from 'vs/editor/common/core/position';
+import { createFastDomNode } from 'vs/base/browser/fastDomNode';
 
 // To run this test, open imeTester.html
 
@@ -18,6 +19,12 @@ class SingleLineTestModel implements ISimpleModel {
 
 	private _line: string;
 	private _eol: string;
+
+	public coordinatesConverter = {
+		convertViewPositionToModelPosition: (viewPosition: Position): Position => {
+			return viewPosition;
+		}
+	};
 
 	constructor(line: string) {
 		this._line = line;
@@ -48,8 +55,12 @@ class SingleLineTestModel implements ISimpleModel {
 		return 1;
 	}
 
-	convertViewPositionToModelPosition(viewLineNumber: number, viewColumn: number): Position {
-		return new Position(viewLineNumber, viewColumn);
+	public getPlainTextToCopy(ranges: Range[], enableEmptySelectionClipboard: boolean): string {
+		return '';
+	}
+
+	public getHTMLToCopy(ranges: Range[], enableEmptySelectionClipboard: boolean): string {
+		return '';
 	}
 }
 
@@ -90,7 +101,7 @@ function doCreateTest(strategy: TextAreaStrategy, description: string, inputStr:
 	input.setAttribute('cols', '40');
 	container.appendChild(input);
 
-	let textAreaWrapper = new TextAreaWrapper(input);
+	let textAreaWrapper = new TextAreaWrapper(createFastDomNode(input));
 
 	let model = new SingleLineTestModel('some  text');
 
@@ -124,7 +135,7 @@ function doCreateTest(strategy: TextAreaStrategy, description: string, inputStr:
 		cursorOffset = off;
 		cursorLength = len;
 		handler.setCursorSelections(new Range(1, 1 + cursorOffset, 1, 1 + cursorOffset + cursorLength), []);
-		handler.writePlaceholderAndSelectTextAreaSync();
+		handler.focusTextArea();
 	};
 
 	let updateModelAndPosition = (text: string, off: number, len: number) => {

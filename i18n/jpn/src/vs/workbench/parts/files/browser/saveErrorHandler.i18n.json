@@ -6,15 +6,13 @@
 {
 	"acceptLocalChanges": "ローカルでの変更を使ってディスクの内容を上書きします",
 	"compareChanges": "比較",
-	"conflictingFileHasChanged": "ディスク上のファイルの内容が変更され、比較エディターの左側が最新の情報に更新されました。確認して再度解決してください。",
 	"discard": "破棄",
 	"genericSaveError": "'{0}' の保存に失敗しました: {1}",
 	"overwrite": "上書き",
 	"readonlySaveError": "'{0}' の保存に失敗しました。ファイルが書き込み禁止になっています。[上書き] を選択して保護を解除してください。",
-	"resolveSaveConflict": "保存時の競合を解決",
 	"retry": "再試行",
 	"revertLocalChanges": "ローカルでの変更を破棄してディスクの内容に戻します",
-	"saveConflictDiffLabel": "{0} (ディスク上) ↔ {1} ({2})",
+	"saveConflictDiffLabel": "{0} (ディスク上) ↔ {1} ({2} 内) - 保存時の競合の解決",
 	"staleSaveError": "'{0} の保存に失敗しました。ディスクの内容の方が新しくなっています。[比較] をクリックしてご使用のバージョンをディスク上のバージョンと比較してください。",
 	"userGuide": "エディター ツール バーの操作で、変更を [元に戻す] か、ディスクの内容を変更内容で [上書き] します"
 }

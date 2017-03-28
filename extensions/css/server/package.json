@@ -8,9 +8,11 @@
     "node": "*"
   },
   "dependencies": {
-    "vscode-css-languageservice": "^1.1.0",
-    "vscode-languageserver": "^2.4.0-next.12",
-    "vscode-uri": "^1.0.0"
+    "vscode-css-languageservice": "^2.0.0",
+    "vscode-languageserver": "^3.1.0-alpha.1"
+  },
+  "devDependencies": {
+    "@types/node": "^6.0.51"
   },
   "scripts": {
     "compile": "gulp compile-extension:css-server",

@@ -20,14 +20,22 @@ export class ExtHostTerminal implements vscode.Terminal {
 	private _pidPromise: TPromise<number>;
 	private _pidPromiseComplete: TValueCallback<number>;
 
-	constructor(proxy: MainThreadTerminalServiceShape, name?: string, shellPath?: string, shellArgs?: string[]) {
+	private _onDataCallback: (data: string) => any;
+
+	constructor(
+		proxy: MainThreadTerminalServiceShape,
+		name?: string,
+		shellPath?: string,
+		shellArgs?: string[],
+		waitOnExit?: boolean
+	) {
 		this._name = name;
 		this._queuedRequests = [];
 		this._proxy = proxy;
 		this._pidPromise = new TPromise<number>(c => {
 			this._pidPromiseComplete = c;
 		});
-		this._proxy.$createTerminal(name, shellPath, shellArgs).then((id) => {
+		this._proxy.$createTerminal(name, shellPath, shellArgs, waitOnExit).then((id) => {
 			this._id = id;
 			this._queuedRequests.forEach((r) => {
 				r.run(this._proxy, this._id);
@@ -61,6 +69,11 @@ export class ExtHostTerminal implements vscode.Terminal {
 		this._queueApiRequest(this._proxy.$hide, []);
 	}
 
+	public onData(callback: (data: string) => any): void {
+		this._onDataCallback = callback;
+		this._queueApiRequest(this._proxy.$registerOnData, []);
+	}
+
 	public dispose(): void {
 		if (!this._disposed) {
 			this._disposed = true;
@@ -71,6 +84,10 @@ export class ExtHostTerminal implements vscode.Terminal {
 	public _setProcessId(processId: number): void {
 		this._pidPromiseComplete(processId);
 		this._pidPromiseComplete = null;
+	}
+
+	public _onData(data: string): void {
+		this._onDataCallback(data);
 	}
 
 	private _queueApiRequest(callback: (...args: any[]) => void, args: any[]) {
@@ -107,6 +124,12 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		return terminal;
 	}
 
+	public createTerminalFromOptions(options: vscode.TerminalOptions): vscode.Terminal {
+		let terminal = new ExtHostTerminal(this._proxy, options.name, options.shellPath, options.shellArgs/*, options.waitOnExit*/);
+		this._terminals.push(terminal);
+		return terminal;
+	}
+
 	public get onDidCloseTerminal(): Event<vscode.Terminal> {
 		return this._onDidCloseTerminal && this._onDidCloseTerminal.event;
 	}
@@ -126,6 +149,11 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		terminal._setProcessId(processId);
 	}
 
+	public $acceptTerminalData(id: number, data: string): void {
+		let terminal = this._getTerminalById(id);
+		terminal._onData(data);
+	}
+
 	private _getTerminalById(id: number): ExtHostTerminal {
 		let index = this._getTerminalIndexById(id);
 		return index !== null ? this._terminals[index] : null;
@@ -139,6 +167,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 				index = i;
 				return true;
 			}
+			return false;
 		});
 		return index;
 	}

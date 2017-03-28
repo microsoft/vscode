@@ -25,7 +25,7 @@ class ProtocolBuffer {
 	}
 
 	public append(data: string | Buffer): void {
-		let toAppend: Buffer = null;
+		let toAppend: Buffer | null = null;
 		if (Buffer.isBuffer(data)) {
 			toAppend = <Buffer>data;
 		} else {
@@ -70,7 +70,7 @@ class ProtocolBuffer {
 		return result;
 	}
 
-	public tryReadContent(length: number): string {
+	public tryReadContent(length: number): string | null {
 		if (this.index < length) {
 			return null;
 		}
@@ -84,7 +84,7 @@ class ProtocolBuffer {
 		return result;
 	}
 
-	public tryReadLine(): string {
+	public tryReadLine(): string | null {
 		let end: number = 0;
 		while (end < this.index && this.buffer[end] !== BackslashR && this.buffer[end] !== BackslashN) {
 			end++;

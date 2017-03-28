@@ -6,8 +6,8 @@
 'use strict';
 
 import 'vs/css!./sash';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { Builder, $ } from 'vs/base/browser/builder';
+import { IDisposable, Disposable, dispose } from 'vs/base/common/lifecycle';
+import { Builder, $, Dimension } from 'vs/base/browser/builder';
 import { isIPad } from 'vs/base/browser/browser';
 import { isMacintosh } from 'vs/base/common/platform';
 import types = require('vs/base/common/types');
@@ -15,6 +15,7 @@ import DOM = require('vs/base/browser/dom');
 import { Gesture, EventType, GestureEvent } from 'vs/base/browser/touch';
 import { EventEmitter } from 'vs/base/common/eventEmitter';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import Event, { Emitter } from 'vs/base/common/event';
 
 export interface ISashLayoutProvider { }
 
@@ -274,5 +275,94 @@ export class Sash extends EventEmitter {
 		}
 
 		super.dispose();
+	}
+}
+
+/**
+ * A simple Vertical Sash that computes the position of the sash when it is moved between the given dimension.
+ * Triggers onPositionChange event when the position is changed
+ */
+export class VSash extends Disposable implements IVerticalSashLayoutProvider {
+
+	private sash: Sash;
+	private ratio: number;
+	private startPosition: number;
+	private position: number;
+	private dimension: Dimension;
+
+	private _onPositionChange: Emitter<number> = new Emitter<number>();
+	public get onPositionChange(): Event<number> { return this._onPositionChange.event; }
+
+	constructor(container: HTMLElement, private minWidth: number) {
+		super();
+		this.ratio = 0.5;
+		this.sash = new Sash(container, this);
+
+		this._register(this.sash.addListener2('start', () => this.onSashDragStart()));
+		this._register(this.sash.addListener2('change', (e: ISashEvent) => this.onSashDrag(e)));
+		this._register(this.sash.addListener2('end', () => this.onSashDragEnd()));
+		this._register(this.sash.addListener2('reset', () => this.onSashReset()));
+	}
+
+	public getVerticalSashTop(): number {
+		return 0;
+	}
+
+	public getVerticalSashLeft(): number {
+		return this.position;
+	}
+
+	public getVerticalSashHeight(): number {
+		return this.dimension.height;
+	}
+
+	public setDimenesion(dimension: Dimension) {
+		this.dimension = dimension;
+		this.compute(this.ratio);
+	}
+
+	private onSashDragStart(): void {
+		this.startPosition = this.position;
+	}
+
+	private onSashDrag(e: ISashEvent): void {
+		this.compute((this.startPosition + (e.currentX - e.startX)) / this.dimension.width);
+	}
+
+	private compute(ratio: number) {
+		this.computeSashPosition(ratio);
+		this.ratio = this.position / this.dimension.width;
+		this._onPositionChange.fire(this.position);
+	}
+
+	private onSashDragEnd(): void {
+		this.sash.layout();
+	}
+
+	private onSashReset(): void {
+		this.ratio = 0.5;
+		this._onPositionChange.fire(this.position);
+		this.sash.layout();
+	}
+
+	private computeSashPosition(sashRatio: number = this.ratio) {
+		let contentWidth = this.dimension.width;
+		let sashPosition = Math.floor((sashRatio || 0.5) * contentWidth);
+		let midPoint = Math.floor(0.5 * contentWidth);
+
+		if (contentWidth > this.minWidth * 2) {
+			if (sashPosition < this.minWidth) {
+				sashPosition = this.minWidth;
+			}
+			if (sashPosition > contentWidth - this.minWidth) {
+				sashPosition = contentWidth - this.minWidth;
+			}
+		} else {
+			sashPosition = midPoint;
+		}
+		if (this.position !== sashPosition) {
+			this.position = sashPosition;
+			this.sash.layout();
+		}
 	}
 }

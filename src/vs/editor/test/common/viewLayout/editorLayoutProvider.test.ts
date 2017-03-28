@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { EditorLayoutInfo, OverviewRulerPosition } from 'vs/editor/common/editorCommon';
+import { RenderMinimap, EditorLayoutInfo, OverviewRulerPosition } from 'vs/editor/common/editorCommon';
 import { EditorLayoutProvider, IEditorLayoutProviderOpts } from 'vs/editor/common/viewLayout/editorLayoutProvider';
 
 suite('Editor ViewLayout - EditorLayoutProvider', () => {
@@ -23,13 +23,18 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			lineHeight: 16,
 			showLineNumbers: false,
 			lineNumbersMinChars: 0,
+			lineNumbersDigitCount: 1,
 			lineDecorationsWidth: 10,
+			typicalHalfwidthCharacterWidth: 10,
 			maxDigitWidth: 10,
-			maxLineNumber: 1,
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,
 			scrollbarArrowSize: 0,
-			verticalScrollbarHasArrows: false
+			verticalScrollbarHasArrows: false,
+			minimap: false,
+			minimapRenderCharacters: true,
+			minimapMaxColumn: 150,
+			pixelRatio: 1,
 		}, new EditorLayoutInfo({
 			width: 1000,
 			height: 800,
@@ -49,6 +54,10 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			contentLeft: 10,
 			contentWidth: 990,
 			contentHeight: 800,
+
+			renderMinimap: RenderMinimap.None,
+			minimapWidth: 0,
+			viewportColumn: 99,
 
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,
@@ -70,13 +79,18 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			lineHeight: 16,
 			showLineNumbers: false,
 			lineNumbersMinChars: 0,
+			lineNumbersDigitCount: 1,
 			lineDecorationsWidth: 10,
+			typicalHalfwidthCharacterWidth: 10,
 			maxDigitWidth: 10,
-			maxLineNumber: 1,
 			verticalScrollbarWidth: 11,
 			horizontalScrollbarHeight: 12,
 			scrollbarArrowSize: 13,
-			verticalScrollbarHasArrows: true
+			verticalScrollbarHasArrows: true,
+			minimap: false,
+			minimapRenderCharacters: true,
+			minimapMaxColumn: 150,
+			pixelRatio: 1,
 		}, new EditorLayoutInfo({
 			width: 1000,
 			height: 800,
@@ -96,6 +110,10 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			contentLeft: 10,
 			contentWidth: 990,
 			contentHeight: 800,
+
+			renderMinimap: RenderMinimap.None,
+			minimapWidth: 0,
+			viewportColumn: 97,
 
 			verticalScrollbarWidth: 11,
 			horizontalScrollbarHeight: 12,
@@ -117,13 +135,18 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			lineHeight: 16,
 			showLineNumbers: false,
 			lineNumbersMinChars: 0,
+			lineNumbersDigitCount: 1,
 			lineDecorationsWidth: 10,
+			typicalHalfwidthCharacterWidth: 10,
 			maxDigitWidth: 10,
-			maxLineNumber: 1,
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,
 			scrollbarArrowSize: 0,
-			verticalScrollbarHasArrows: false
+			verticalScrollbarHasArrows: false,
+			minimap: false,
+			minimapRenderCharacters: true,
+			minimapMaxColumn: 150,
+			pixelRatio: 1,
 		}, new EditorLayoutInfo({
 			width: 900,
 			height: 800,
@@ -143,6 +166,10 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			contentLeft: 10,
 			contentWidth: 890,
 			contentHeight: 800,
+
+			renderMinimap: RenderMinimap.None,
+			minimapWidth: 0,
+			viewportColumn: 89,
 
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,
@@ -164,13 +191,18 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			lineHeight: 16,
 			showLineNumbers: false,
 			lineNumbersMinChars: 0,
+			lineNumbersDigitCount: 1,
 			lineDecorationsWidth: 10,
+			typicalHalfwidthCharacterWidth: 10,
 			maxDigitWidth: 10,
-			maxLineNumber: 1,
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,
 			scrollbarArrowSize: 0,
-			verticalScrollbarHasArrows: false
+			verticalScrollbarHasArrows: false,
+			minimap: false,
+			minimapRenderCharacters: true,
+			minimapMaxColumn: 150,
+			pixelRatio: 1,
 		}, new EditorLayoutInfo({
 			width: 900,
 			height: 900,
@@ -190,6 +222,10 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			contentLeft: 10,
 			contentWidth: 890,
 			contentHeight: 900,
+
+			renderMinimap: RenderMinimap.None,
+			minimapWidth: 0,
+			viewportColumn: 89,
 
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,
@@ -211,13 +247,18 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			lineHeight: 16,
 			showLineNumbers: false,
 			lineNumbersMinChars: 5,
+			lineNumbersDigitCount: 1,
 			lineDecorationsWidth: 10,
+			typicalHalfwidthCharacterWidth: 10,
 			maxDigitWidth: 10,
-			maxLineNumber: 1,
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,
 			scrollbarArrowSize: 0,
-			verticalScrollbarHasArrows: false
+			verticalScrollbarHasArrows: false,
+			minimap: false,
+			minimapRenderCharacters: true,
+			minimapMaxColumn: 150,
+			pixelRatio: 1,
 		}, new EditorLayoutInfo({
 			width: 900,
 			height: 900,
@@ -237,6 +278,10 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			contentLeft: 10,
 			contentWidth: 890,
 			contentHeight: 900,
+
+			renderMinimap: RenderMinimap.None,
+			minimapWidth: 0,
+			viewportColumn: 89,
 
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,
@@ -258,13 +303,18 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			lineHeight: 16,
 			showLineNumbers: true,
 			lineNumbersMinChars: 5,
+			lineNumbersDigitCount: 1,
 			lineDecorationsWidth: 10,
+			typicalHalfwidthCharacterWidth: 10,
 			maxDigitWidth: 10,
-			maxLineNumber: 1,
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,
 			scrollbarArrowSize: 0,
-			verticalScrollbarHasArrows: false
+			verticalScrollbarHasArrows: false,
+			minimap: false,
+			minimapRenderCharacters: true,
+			minimapMaxColumn: 150,
+			pixelRatio: 1,
 		}, new EditorLayoutInfo({
 			width: 900,
 			height: 900,
@@ -284,6 +334,10 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			contentLeft: 60,
 			contentWidth: 840,
 			contentHeight: 900,
+
+			renderMinimap: RenderMinimap.None,
+			minimapWidth: 0,
+			viewportColumn: 84,
 
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,
@@ -305,13 +359,18 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			lineHeight: 16,
 			showLineNumbers: true,
 			lineNumbersMinChars: 5,
+			lineNumbersDigitCount: 5,
 			lineDecorationsWidth: 10,
+			typicalHalfwidthCharacterWidth: 10,
 			maxDigitWidth: 10,
-			maxLineNumber: 99999,
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,
 			scrollbarArrowSize: 0,
-			verticalScrollbarHasArrows: false
+			verticalScrollbarHasArrows: false,
+			minimap: false,
+			minimapRenderCharacters: true,
+			minimapMaxColumn: 150,
+			pixelRatio: 1,
 		}, new EditorLayoutInfo({
 			width: 900,
 			height: 900,
@@ -331,6 +390,10 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			contentLeft: 60,
 			contentWidth: 840,
 			contentHeight: 900,
+
+			renderMinimap: RenderMinimap.None,
+			minimapWidth: 0,
+			viewportColumn: 84,
 
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,
@@ -352,13 +415,18 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			lineHeight: 16,
 			showLineNumbers: true,
 			lineNumbersMinChars: 5,
+			lineNumbersDigitCount: 6,
 			lineDecorationsWidth: 10,
+			typicalHalfwidthCharacterWidth: 10,
 			maxDigitWidth: 10,
-			maxLineNumber: 100000,
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,
 			scrollbarArrowSize: 0,
-			verticalScrollbarHasArrows: false
+			verticalScrollbarHasArrows: false,
+			minimap: false,
+			minimapRenderCharacters: true,
+			minimapMaxColumn: 150,
+			pixelRatio: 1,
 		}, new EditorLayoutInfo({
 			width: 900,
 			height: 900,
@@ -378,6 +446,10 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			contentLeft: 70,
 			contentWidth: 830,
 			contentHeight: 900,
+
+			renderMinimap: RenderMinimap.None,
+			minimapWidth: 0,
+			viewportColumn: 83,
 
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,
@@ -399,13 +471,18 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			lineHeight: 16,
 			showLineNumbers: true,
 			lineNumbersMinChars: 5,
+			lineNumbersDigitCount: 6,
 			lineDecorationsWidth: 10,
+			typicalHalfwidthCharacterWidth: 5,
 			maxDigitWidth: 5,
-			maxLineNumber: 100000,
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,
 			scrollbarArrowSize: 0,
-			verticalScrollbarHasArrows: false
+			verticalScrollbarHasArrows: false,
+			minimap: false,
+			minimapRenderCharacters: true,
+			minimapMaxColumn: 150,
+			pixelRatio: 1,
 		}, new EditorLayoutInfo({
 			width: 900,
 			height: 900,
@@ -425,6 +502,10 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			contentLeft: 40,
 			contentWidth: 860,
 			contentHeight: 900,
+
+			renderMinimap: RenderMinimap.None,
+			minimapWidth: 0,
+			viewportColumn: 172,
 
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,
@@ -446,13 +527,18 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			lineHeight: 16,
 			showLineNumbers: true,
 			lineNumbersMinChars: 5,
+			lineNumbersDigitCount: 6,
 			lineDecorationsWidth: 10,
+			typicalHalfwidthCharacterWidth: 5.05,
 			maxDigitWidth: 5.05,
-			maxLineNumber: 100000,
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,
 			scrollbarArrowSize: 0,
-			verticalScrollbarHasArrows: false
+			verticalScrollbarHasArrows: false,
+			minimap: false,
+			minimapRenderCharacters: true,
+			minimapMaxColumn: 150,
+			pixelRatio: 1,
 		}, new EditorLayoutInfo({
 			width: 900,
 			height: 900,
@@ -473,6 +559,10 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			contentWidth: 860,
 			contentHeight: 900,
 
+			renderMinimap: RenderMinimap.None,
+			minimapWidth: 0,
+			viewportColumn: 170,
+
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,
 
@@ -480,6 +570,174 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 				top: 0,
 				width: 0,
 				height: 900,
+				right: 0
+			})
+		}));
+	});
+
+	test('EditorLayoutProvider 9 - render minimap', () => {
+		doTest({
+			outerWidth: 1000,
+			outerHeight: 800,
+			showGlyphMargin: false,
+			lineHeight: 16,
+			showLineNumbers: false,
+			lineNumbersMinChars: 0,
+			lineNumbersDigitCount: 1,
+			lineDecorationsWidth: 10,
+			typicalHalfwidthCharacterWidth: 10,
+			maxDigitWidth: 10,
+			verticalScrollbarWidth: 0,
+			horizontalScrollbarHeight: 0,
+			scrollbarArrowSize: 0,
+			verticalScrollbarHasArrows: false,
+			minimap: true,
+			minimapRenderCharacters: true,
+			minimapMaxColumn: 150,
+			pixelRatio: 1,
+		}, new EditorLayoutInfo({
+			width: 1000,
+			height: 800,
+
+			glyphMarginLeft: 0,
+			glyphMarginWidth: 0,
+			glyphMarginHeight: 800,
+
+			lineNumbersLeft: 0,
+			lineNumbersWidth: 0,
+			lineNumbersHeight: 800,
+
+			decorationsLeft: 0,
+			decorationsWidth: 10,
+			decorationsHeight: 800,
+
+			contentLeft: 10,
+			contentWidth: 900,
+			contentHeight: 800,
+
+			renderMinimap: RenderMinimap.Small,
+			minimapWidth: 90,
+			viewportColumn: 90,
+
+			verticalScrollbarWidth: 0,
+			horizontalScrollbarHeight: 0,
+
+			overviewRuler: new OverviewRulerPosition({
+				top: 0,
+				width: 0,
+				height: 800,
+				right: 0
+			})
+		}));
+	});
+
+	test('EditorLayoutProvider 9 - render minimap with pixelRatio = 2', () => {
+		doTest({
+			outerWidth: 1000,
+			outerHeight: 800,
+			showGlyphMargin: false,
+			lineHeight: 16,
+			showLineNumbers: false,
+			lineNumbersMinChars: 0,
+			lineNumbersDigitCount: 1,
+			lineDecorationsWidth: 10,
+			typicalHalfwidthCharacterWidth: 10,
+			maxDigitWidth: 10,
+			verticalScrollbarWidth: 0,
+			horizontalScrollbarHeight: 0,
+			scrollbarArrowSize: 0,
+			verticalScrollbarHasArrows: false,
+			minimap: true,
+			minimapRenderCharacters: true,
+			minimapMaxColumn: 150,
+			pixelRatio: 2,
+		}, new EditorLayoutInfo({
+			width: 1000,
+			height: 800,
+
+			glyphMarginLeft: 0,
+			glyphMarginWidth: 0,
+			glyphMarginHeight: 800,
+
+			lineNumbersLeft: 0,
+			lineNumbersWidth: 0,
+			lineNumbersHeight: 800,
+
+			decorationsLeft: 0,
+			decorationsWidth: 10,
+			decorationsHeight: 800,
+
+			contentLeft: 10,
+			contentWidth: 900,
+			contentHeight: 800,
+
+			renderMinimap: RenderMinimap.Large,
+			minimapWidth: 90,
+			viewportColumn: 90,
+
+			verticalScrollbarWidth: 0,
+			horizontalScrollbarHeight: 0,
+
+			overviewRuler: new OverviewRulerPosition({
+				top: 0,
+				width: 0,
+				height: 800,
+				right: 0
+			})
+		}));
+	});
+
+	test('EditorLayoutProvider 9 - render minimap with pixelRatio = 4', () => {
+		doTest({
+			outerWidth: 1000,
+			outerHeight: 800,
+			showGlyphMargin: false,
+			lineHeight: 16,
+			showLineNumbers: false,
+			lineNumbersMinChars: 0,
+			lineNumbersDigitCount: 1,
+			lineDecorationsWidth: 10,
+			typicalHalfwidthCharacterWidth: 10,
+			maxDigitWidth: 10,
+			verticalScrollbarWidth: 0,
+			horizontalScrollbarHeight: 0,
+			scrollbarArrowSize: 0,
+			verticalScrollbarHasArrows: false,
+			minimap: true,
+			minimapRenderCharacters: true,
+			minimapMaxColumn: 150,
+			pixelRatio: 4,
+		}, new EditorLayoutInfo({
+			width: 1000,
+			height: 800,
+
+			glyphMarginLeft: 0,
+			glyphMarginWidth: 0,
+			glyphMarginHeight: 800,
+
+			lineNumbersLeft: 0,
+			lineNumbersWidth: 0,
+			lineNumbersHeight: 800,
+
+			decorationsLeft: 0,
+			decorationsWidth: 10,
+			decorationsHeight: 800,
+
+			contentLeft: 10,
+			contentWidth: 943,
+			contentHeight: 800,
+
+			renderMinimap: RenderMinimap.Large,
+			minimapWidth: 47,
+			viewportColumn: 94,
+
+			verticalScrollbarWidth: 0,
+			horizontalScrollbarHeight: 0,
+
+			overviewRuler: new OverviewRulerPosition({
+				top: 0,
+				width: 0,
+				height: 800,
 				right: 0
 			})
 		}));

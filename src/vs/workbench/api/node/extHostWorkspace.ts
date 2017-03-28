@@ -5,11 +5,12 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import { relative, isEqualOrParent } from 'vs/base/common/paths';
+import { normalize } from 'vs/base/common/paths';
+import { relative } from 'path';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { IResourceEdit } from 'vs/editor/common/services/bulkEdit';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { fromRange } from 'vs/workbench/api/node/extHostTypeConverters';
+import { fromRange, EndOfLine } from 'vs/workbench/api/node/extHostTypeConverters';
 import { MainContext, MainThreadWorkspaceShape } from './extHost.protocol';
 import * as vscode from 'vscode';
 
@@ -34,15 +35,24 @@ export class ExtHostWorkspace {
 		let path: string;
 		if (typeof pathOrUri === 'string') {
 			path = pathOrUri;
-		} else {
+		} else if (typeof pathOrUri !== 'undefined') {
 			path = pathOrUri.fsPath;
 		}
 
-		if (isEqualOrParent(path, this._workspacePath)) {
-			return relative(this._workspacePath, path) || path;
+		if (!path) {
+			return path;
 		}
 
-		return path;
+		if (!this._workspacePath) {
+			return normalize(path);
+		}
+
+		let result = relative(this._workspacePath, path);
+		if (!result || result.indexOf('..') === 0) {
+			return normalize(path);
+		}
+
+		return normalize(result);
 	}
 
 	findFiles(include: string, exclude: string, maxResults?: number, token?: vscode.CancellationToken): Thenable<vscode.Uri[]> {
@@ -70,7 +80,8 @@ export class ExtHostWorkspace {
 				resourceEdits.push({
 					resource: <URI>uri,
 					newText: edit.newText,
-					range: fromRange(edit.range)
+					newEol: EndOfLine.from(edit.newEol),
+					range: edit.range && fromRange(edit.range)
 				});
 			}
 		}

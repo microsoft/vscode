@@ -9,8 +9,8 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as errors from 'vs/base/common/errors';
 import * as uuid from 'vs/base/common/uuid';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { getMachineId } from 'vs/base/node/id';
-import { resolveCommonProperties } from '../node/commonProperties';
+import { getMachineId, virtualMachineHint } from 'vs/base/node/id';
+import { resolveCommonProperties, machineIdStorageKey } from '../node/commonProperties';
 
 const SQM_KEY: string = '\\Software\\Microsoft\\SQMClient';
 
@@ -19,6 +19,7 @@ export function resolveWorkbenchCommonProperties(storageService: IStorageService
 		result['common.version.shell'] = process.versions && (<any>process).versions['electron'];
 		result['common.version.renderer'] = process.versions && (<any>process).versions['chrome'];
 		result['common.osVersion'] = os.release();
+		result['common.virtualMachineHint'] = virtualMachineHint.value().toString();
 
 		const lastSessionDate = storageService.get('telemetry.lastSessionDate');
 		const firstSessionDate = storageService.get('telemetry.firstSessionDate') || new Date().toUTCString();
@@ -48,16 +49,15 @@ function getOrCreateInstanceId(storageService: IStorageService): TPromise<string
 	return TPromise.as(result);
 }
 
-function getOrCreateMachineId(storageService: IStorageService): TPromise<string> {
-	const key = 'telemetry.machineId';
-	let result = storageService.get(key);
+export function getOrCreateMachineId(storageService: IStorageService): TPromise<string> {
+	let result = storageService.get(machineIdStorageKey);
 
 	if (result) {
 		return TPromise.as(result);
 	}
 
 	return getMachineId().then(result => {
-		storageService.store(key, result);
+		storageService.store(machineIdStorageKey, result);
 		return result;
 	});
 }
@@ -72,6 +72,7 @@ function getSqmUserId(storageService: IStorageService): TPromise<string> {
 			storageService.store('telemetry.sqm.userId', result);
 			return result;
 		}
+		return undefined;
 	});
 }
 
@@ -85,6 +86,7 @@ function getSqmMachineId(storageService: IStorageService): TPromise<string> {
 			storageService.store('telemetry.sqm.machineId', result);
 			return result;
 		}
+		return undefined;
 	});
 }
 

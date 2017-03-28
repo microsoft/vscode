@@ -25,11 +25,8 @@ suite('ExtHostTypes', function () {
 		assert.deepEqual(data, {
 			$mid: 1,
 			scheme: 'file',
-			authority: '',
 			path: '/path/test.file',
 			fsPath: '/path/test.file'.replace(/\//g, isWindows ? '\\' : '/'),
-			query: '',
-			fragment: '',
 			external: 'file:///path/test.file'
 		});
 	});
@@ -70,7 +67,7 @@ suite('ExtHostTypes', function () {
 		assert.throws(() => (pos as any).character = -1);
 		assert.throws(() => (pos as any).line = 12);
 
-		let {line, character} = pos.toJSON();
+		let { line, character } = pos.toJSON();
 		assert.equal(line, 0);
 		assert.equal(character, 0);
 	});
@@ -322,9 +319,6 @@ suite('ExtHostTypes', function () {
 
 	test('TextEdit', function () {
 
-		assert.throws(() => new types.TextEdit(null, 'far'));
-		assert.throws(() => new types.TextEdit(undefined, 'far'));
-
 		let range = new types.Range(1, 1, 2, 11);
 		let edit = new types.TextEdit(range, undefined);
 		assert.equal(edit.newText, '');
@@ -415,5 +409,61 @@ suite('ExtHostTypes', function () {
 		let info = new types.SymbolInformation('foo', types.SymbolKind.Array, new types.Range(1, 1, 2, 3));
 		assert.ok(info.location instanceof types.Location);
 		assert.equal(info.location.uri, undefined);
+	});
+
+	test('SnippetString, builder-methods', function () {
+
+		let string: types.SnippetString;
+
+		string = new types.SnippetString();
+		assert.equal(string.appendText('I need $ and $').value, 'I need \\$ and \\$');
+
+		string = new types.SnippetString();
+		assert.equal(string.appendText('I need \\$').value, 'I need \\\\\\$');
+
+		string = new types.SnippetString();
+		string.appendPlaceholder('fo$o}');
+		assert.equal(string.value, '${1:fo\\$o\\}}');
+
+		string = new types.SnippetString();
+		string.appendText('foo').appendTabstop(0).appendText('bar');
+		assert.equal(string.value, 'foo$0bar');
+
+		string = new types.SnippetString();
+		string.appendText('foo').appendTabstop().appendText('bar');
+		assert.equal(string.value, 'foo$1bar');
+
+		string = new types.SnippetString();
+		string.appendText('foo').appendTabstop(42).appendText('bar');
+		assert.equal(string.value, 'foo$42bar');
+
+		string = new types.SnippetString();
+		string.appendText('foo').appendPlaceholder('farboo').appendText('bar');
+		assert.equal(string.value, 'foo${1:farboo}bar');
+
+		string = new types.SnippetString();
+		string.appendText('foo').appendPlaceholder('far$boo').appendText('bar');
+		assert.equal(string.value, 'foo${1:far\\$boo}bar');
+
+		string = new types.SnippetString();
+		string.appendText('foo').appendPlaceholder(b => b.appendText('abc').appendPlaceholder('nested')).appendText('bar');
+		assert.equal(string.value, 'foo${1:abc${2:nested}}bar');
+
+		string = new types.SnippetString();
+		string.appendVariable('foo');
+		assert.equal(string.value, '${foo}');
+
+		string = new types.SnippetString();
+		string.appendText('foo').appendVariable('TM_SELECTED_TEXT').appendText('bar');
+		assert.equal(string.value, 'foo${TM_SELECTED_TEXT}bar');
+
+		string = new types.SnippetString();
+		string.appendVariable('BAR', b => b.appendPlaceholder('ops'));
+		assert.equal(string.value, '${BAR:${1:ops}}');
+
+		string = new types.SnippetString();
+		string.appendVariable('BAR', b => { });
+		assert.equal(string.value, '${BAR}');
+
 	});
 });

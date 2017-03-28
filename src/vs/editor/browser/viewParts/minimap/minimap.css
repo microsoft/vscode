@@ -1,0 +1,58 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-editor .minimap-slider {
+	opacity: 0;
+	transition: opacity 100ms linear;
+}
+.monaco-editor .minimap:hover .minimap-slider {
+	opacity: 1;
+}
+.monaco-editor .minimap-slider.active {
+	opacity: 1;
+}
+
+.monaco-editor.vs .minimap-slider {
+	background: rgba(100, 100, 100, .4);
+}
+.monaco-editor.vs-dark .minimap-slider {
+	background: rgba(121, 121, 121, .4);
+}
+.monaco-editor.hc-black .minimap-slider {
+	background: rgba(111, 195, 223, .6);
+}
+
+.monaco-editor.vs .minimap-slider:hover,
+.monaco-editor.vs-dark .minimap-slider:hover {
+	background: rgba(100, 100, 100, .7);
+}
+.monaco-editor.hc-black .minimap-slider:hover {
+	background: rgba(111, 195, 223, .8);
+}
+
+.monaco-editor.vs .minimap-slider.active {
+	background: rgba(0, 0, 0, .6);
+}
+.monaco-editor.vs-dark .minimap-slider.active {
+	background: rgba(191, 191, 191, .4);
+}
+.monaco-editor.hc-black .minimap-slider.active {
+	background: rgba(111, 195, 223, 1);
+}
+
+.monaco-editor .minimap-shadow-hidden {
+	position: absolute;
+	width: 0;
+}
+.monaco-editor .minimap-shadow-visible {
+	position: absolute;
+	left: -6px;
+	width: 6px;
+	box-shadow: #DDD -6px 0 6px -6px inset;
+}
+
+.monaco-editor.vs-dark .minimap-shadow-visible {
+	box-shadow: #000 -6px 0 6px -6px inset;
+}

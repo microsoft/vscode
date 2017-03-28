@@ -11,8 +11,8 @@ import decoder = require('vs/base/node/decoder');
 suite('Decoder', () => {
 
 	test('decoding', function () {
-		var lineDecoder = new decoder.LineDecoder();
-		var res = lineDecoder.write(new Buffer('hello'));
+		const lineDecoder = new decoder.LineDecoder();
+		let res = lineDecoder.write(new Buffer('hello'));
 		assert.equal(res.length, 0);
 
 		res = lineDecoder.write(new Buffer('\nworld'));

@@ -5,10 +5,8 @@
 
 import uri from 'vs/base/common/uri';
 import Event from 'vs/base/common/event';
-import severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
-import debug = require('vs/workbench/parts/debug/common/debug');
-import { Source } from 'vs/workbench/parts/debug/common/debugSource';
+import * as debug from 'vs/workbench/parts/debug/common/debug';
 
 export class MockDebugService implements debug.IDebugService {
 	public _serviceBrand: any;
@@ -17,7 +15,7 @@ export class MockDebugService implements debug.IDebugService {
 		return null;
 	}
 
-	public get onDidChangeState(): Event<void> {
+	public get onDidChangeState(): Event<debug.State> {
 		return null;
 	}
 
@@ -63,10 +61,6 @@ export class MockDebugService implements debug.IDebugService {
 
 	public removeReplExpressions(): void { }
 
-	public logToRepl(value: string | { [key: string]: any }, severity?: severity): void { }
-
-	public appendReplOutput(value: string, severity?: severity): void { }
-
 	public addWatchExpression(name?: string): TPromise<void> {
 		return TPromise.as(null);
 	}
@@ -77,11 +71,19 @@ export class MockDebugService implements debug.IDebugService {
 
 	public removeWatchExpressions(id?: string): void { }
 
-	public createProcess(configurationOrName: debug.IConfig | string): TPromise<any> {
+	public startDebugging(configName?: string, noDebug?: boolean): TPromise<any> {
+		return TPromise.as(null);
+	}
+
+	public createProcess(config: debug.IConfig): TPromise<any> {
 		return TPromise.as(null);
 	}
 
 	public restartProcess(): TPromise<any> {
+		return TPromise.as(null);
+	}
+
+	public stopProcess(): TPromise<any> {
 		return TPromise.as(null);
 	}
 
@@ -93,9 +95,9 @@ export class MockDebugService implements debug.IDebugService {
 		return null;
 	}
 
-	public openOrRevealSource(source: Source, lineNumber: number, preserveFocus: boolean, sideBySide: boolean): TPromise<any> {
-		return TPromise.as(null);
-	}
+	public logToRepl(value: string): void { }
+
+	public deemphasizeSource(uri: uri): void { }
 }
 
 export class MockSession implements debug.ISession {
@@ -106,10 +108,6 @@ export class MockSession implements debug.ISession {
 		return 'mockrawsession';
 	}
 
-	public get requestType() {
-		return debug.SessionRequestType.LAUNCH;
-	}
-
 	public getLengthInSeconds(): number {
 		return 100;
 	}
@@ -118,6 +116,15 @@ export class MockSession implements debug.ISession {
 		return TPromise.as({
 			body: {
 				stackFrames: []
+			}
+		});
+	}
+
+	public exceptionInfo(args: DebugProtocol.ExceptionInfoArguments): TPromise<DebugProtocol.ExceptionInfoResponse> {
+		return TPromise.as({
+			body: {
+				exceptionId: 'mockExceptionId',
+				breakMode: 'unhandled'
 			}
 		});
 	}
@@ -138,11 +145,8 @@ export class MockSession implements debug.ISession {
 		return TPromise.as(null);
 	}
 
-	public get configuration(): { type: string, capabilities: DebugProtocol.Capabilities } {
-		return {
-			type: 'mock',
-			capabilities: {}
-		};
+	public get capabilities(): DebugProtocol.Capabilities {
+		return {};
 	}
 
 	public get onDidEvent(): Event<DebugProtocol.Event> {

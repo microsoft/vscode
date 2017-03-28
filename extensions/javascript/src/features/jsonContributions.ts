@@ -12,7 +12,7 @@ import { XHRRequest } from 'request-light';
 
 import {
 	CompletionItem, CompletionItemProvider, CompletionList, TextDocument, Position, Hover, HoverProvider,
-	CancellationToken, Range, TextEdit, MarkedString, DocumentSelector, languages, Disposable
+	CancellationToken, Range, MarkedString, DocumentSelector, languages, Disposable
 } from 'vscode';
 
 export interface ISuggestionsCollector {
@@ -36,7 +36,7 @@ export function addJSONProviders(xhr: XHRRequest): Disposable {
 	let subscriptions: Disposable[] = [];
 	contributions.forEach(contribution => {
 		let selector = contribution.getDocumentSelector();
-		subscriptions.push(languages.registerCompletionItemProvider(selector, new JSONCompletionItemProvider(contribution), '.', '$'));
+		subscriptions.push(languages.registerCompletionItemProvider(selector, new JSONCompletionItemProvider(contribution), '"', ':'));
 		subscriptions.push(languages.registerHoverProvider(selector, new JSONHoverProvider(contribution)));
 	});
 	return Disposable.from(...subscriptions);
@@ -109,7 +109,7 @@ export class JSONCompletionItemProvider implements CompletionItemProvider {
 			add: (suggestion: CompletionItem) => {
 				if (!proposed[suggestion.label]) {
 					proposed[suggestion.label] = true;
-					suggestion.textEdit = TextEdit.replace(overwriteRange, suggestion.insertText);
+					suggestion.range = overwriteRange;
 					items.push(suggestion);
 				}
 			},

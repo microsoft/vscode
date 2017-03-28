@@ -4,37 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { optional } from 'vs/platform/instantiation/common/instantiation';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import * as modes from 'vs/editor/common/modes';
-import { TextualSuggestSupport } from 'vs/editor/common/modes/supports/suggestSupport';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { IMode, LanguageIdentifier } from 'vs/editor/common/modes';
 
-// TODO@Alex: inline to FrankensteinMode, review optional IEditorWorkerService
-export abstract class AbstractMode implements modes.IMode {
+export class FrankensteinMode implements IMode {
 
-	private _modeId: string;
+	private _languageIdentifier: LanguageIdentifier;
 
-	constructor(modeId: string) {
-		this._modeId = modeId;
+	constructor(languageIdentifier: LanguageIdentifier) {
+		this._languageIdentifier = languageIdentifier;
 	}
 
 	public getId(): string {
-		return this._modeId;
+		return this._languageIdentifier.language;
 	}
-}
 
-export class FrankensteinMode extends AbstractMode {
-
-	constructor(
-		descriptor: modes.IModeDescriptor,
-		@IConfigurationService configurationService: IConfigurationService,
-		@optional(IEditorWorkerService) editorWorkerService: IEditorWorkerService
-	) {
-		super(descriptor.id);
-
-		if (editorWorkerService) {
-			modes.SuggestRegistry.register(this.getId(), new TextualSuggestSupport(editorWorkerService, configurationService), true);
-		}
+	public getLanguageIdentifier(): LanguageIdentifier {
+		return this._languageIdentifier;
 	}
 }

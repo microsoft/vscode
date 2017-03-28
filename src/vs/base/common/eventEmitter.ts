@@ -220,14 +220,25 @@ export class EventEmitter implements IEventEmitter {
 		}
 	}
 
-	public deferredEmit(callback: () => any): any {
+	protected _beginDeferredEmit(): void {
 		this._deferredCnt = this._deferredCnt + 1;
-		var result: any = safeInvokeNoArg(callback);
+	}
+
+	protected _endDeferredEmit(): void {
 		this._deferredCnt = this._deferredCnt - 1;
 
 		if (this._deferredCnt === 0) {
 			this._emitCollected();
 		}
+	}
+
+	public deferredEmit<T>(callback: () => T): T {
+		this._beginDeferredEmit();
+
+		let result: T = safeInvokeNoArg<T>(callback);
+
+		this._endDeferredEmit();
+
 		return result;
 	}
 
@@ -290,12 +301,13 @@ export class OrderGuaranteeEventEmitter extends EventEmitter {
 	}
 }
 
-function safeInvokeNoArg(func: Function): any {
+function safeInvokeNoArg<T>(func: Function): T {
 	try {
 		return func();
 	} catch (e) {
 		Errors.onUnexpectedError(e);
 	}
+	return undefined;
 }
 
 function safeInvoke1Arg(func: Function, arg1: any): any {

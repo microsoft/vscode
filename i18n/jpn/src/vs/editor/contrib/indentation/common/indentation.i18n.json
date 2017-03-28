@@ -6,11 +6,10 @@
 {
 	"configuredTabSize": "構成されたタブのサイズ",
 	"detectIndentation": "内容からインデントを検出",
+	"editor.reindentlines": "行の再インデント",
 	"indentUsingSpaces": "スペースによるインデント",
 	"indentUsingTabs": "タブによるインデント",
 	"indentationToSpaces": "インデントをスペースに変換",
 	"indentationToTabs": "インデントをタブに変換",
-	"selectTabWidth": "現在のファイルのタブのサイズを選択",
-	"toggleRenderControlCharacters": "制御文字の切り替え",
-	"toggleRenderWhitespace": "空白文字の表示の切り替え"
+	"selectTabWidth": "現在のファイルのタブのサイズを選択"
 }

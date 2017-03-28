@@ -6,6 +6,5 @@
 {
 	"json.bower.default": "bower.json predefinito",
 	"json.bower.error.repoaccess": "La richiesta al repository Bower non è riuscita: {0}",
-	"json.bower.latest.version": "più recente",
-	"json.bower.package.hover": "{0}"
+	"json.bower.latest.version": "più recente"
 }

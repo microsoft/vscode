@@ -12,8 +12,9 @@ import URI from 'vs/base/common/uri';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { workbenchInstantiationService, TestTextFileService, toResource } from 'vs/test/utils/servicesTestUtils';
-import { ITextModelResolverService } from 'vs/platform/textmodelResolver/common/resolver';
+import { workbenchInstantiationService, TestTextFileService } from 'vs/workbench/test/workbenchTestServices';
+import { toResource } from 'vs/base/test/common/utils';
+import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
@@ -78,35 +79,38 @@ suite('Workbench - TextModelResolverService', () => {
 		});
 	});
 
-	test('resolve file', function (done) {
+	test('resolve file', function () {
 		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file_resolver.txt'), 'utf8');
 		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.getResource(), model);
-		model.load().then(() => {
-			accessor.textModelResolverServie.resolve(model.getResource()).then(model => {
-				const editorModel = model.textEditorModel as IModel;
+
+		return model.load().then(() => {
+			return accessor.textModelResolverServie.createModelReference(model.getResource()).then(ref => {
+				const model = ref.object;
+				const editorModel = model.textEditorModel;
 
 				assert.ok(editorModel);
 				assert.equal(editorModel.getValue(), 'Hello Html');
-
-				done();
+				ref.dispose();
 			});
 		});
 	});
 
-	test('resolve untitled', function (done) {
+	test('resolve untitled', function () {
 		const service = accessor.untitledEditorService;
 		const input = service.createOrGet();
 
-		input.resolve().then(() => {
-			accessor.textModelResolverServie.resolve(input.getResource()).then(model => {
-				const editorModel = model.textEditorModel as IModel;
+		return input.resolve().then(() => {
+			return accessor.textModelResolverServie.createModelReference(input.getResource()).then(ref => {
+				const model = ref.object;
+				const editorModel = model.textEditorModel;
 
 				assert.ok(editorModel);
+				ref.dispose();
 
 				input.dispose();
-
-				done();
 			});
 		});
 	});
+
+	// TODO: add reference tests!
 });

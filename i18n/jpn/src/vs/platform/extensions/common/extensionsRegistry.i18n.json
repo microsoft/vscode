@@ -18,7 +18,7 @@
 	"vscode.extension.galleryBanner.color": "VS Code マーケットプレース ページ ヘッダー上のバナーの色。",
 	"vscode.extension.galleryBanner.theme": "バナーで使用されるフォントの配色テーマ。",
 	"vscode.extension.icon": "128x128 ピクセルのアイコンへのパス。",
-	"vscode.extension.preview": "Marketplace で Preview としてフラグを付けられる拡張機能を設定します。",
+	"vscode.extension.preview": "Marketplace で Preview としてフラグが付けられるように拡張機能を設定します。",
 	"vscode.extension.publisher": "VS Code 拡張機能の公開元。",
 	"vscode.extension.scripts.prepublish": "パッケージが VS Code 拡張機能として公開される前に実行されるスクリプト。"
 }

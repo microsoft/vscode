@@ -11,7 +11,7 @@
 			],
 			"stopOnEntry": false,
 			"sourceMaps": true,
-			"outDir": "${workspaceRoot}/client/out",
+			"outFiles": ["${workspaceRoot}/client/out/**/*.js"],
 			"preLaunchTask": "npm"
 		},
 		{
@@ -22,8 +22,16 @@
 			"args": ["--extensionDevelopmentPath=${workspaceRoot}", "--extensionTestsPath=${workspaceRoot}/client/out/test" ],
 			"stopOnEntry": false,
 			"sourceMaps": true,
-			"outDir": "${workspaceRoot}/client/out/test",
+			"outFiles": ["${workspaceRoot}/client/out/test/**/*.js"],
 			"preLaunchTask": "npm"
-		}		
+		},
+		{
+			"name": "Attach Language Server",
+			"type": "node",
+			"request": "attach",
+			"port": 6004,
+			"sourceMaps": true,
+			"outFiles": ["${workspaceRoot}/server/out/**/*.js"]
+		}
 	]
 }

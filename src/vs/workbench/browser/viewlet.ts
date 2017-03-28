@@ -100,7 +100,7 @@ export abstract class ViewerViewlet extends Viewlet {
 		}
 
 		// Make sure the current selected element is revealed
-		let selection = this.viewer.getSelection();
+		const selection = this.viewer.getSelection();
 		if (selection.length > 0) {
 			this.reveal(selection[0], 0.5).done(null, errors.onUnexpectedError);
 		}
@@ -153,12 +153,24 @@ export abstract class ViewerViewlet extends Viewlet {
  */
 export class ViewletDescriptor extends CompositeDescriptor<Viewlet> {
 
-	constructor(moduleId: string, ctorName: string, id: string, name: string, cssClass?: string, order?: number, public isExternal: boolean = false) {
+	constructor(
+		moduleId: string,
+		ctorName: string,
+		id: string,
+		name: string,
+		cssClass?: string,
+		order?: number,
+		private _extensionId?: string
+	) {
 		super(moduleId, ctorName, id, name, cssClass, order);
-		if (isExternal) {
-			// Pass viewletId to external viewlet, which doesn't know its id until runtime.
-			this.appendStaticArguments([id]);
+
+		if (_extensionId) {
+			this.appendStaticArguments([id]); // Pass viewletId to external viewlet, which doesn't know its id until runtime.
 		}
+	}
+
+	public get extensionId(): string {
+		return this._extensionId;
 	}
 }
 
@@ -187,7 +199,7 @@ export class ViewletRegistry extends CompositeRegistry<Viewlet> {
 	 * Returns an array of registered viewlets known to the platform.
 	 */
 	public getViewlets(): ViewletDescriptor[] {
-		return this.getComposits() as ViewletDescriptor[];
+		return this.getComposites() as ViewletDescriptor[];
 	}
 
 	/**
@@ -217,7 +229,7 @@ export class ToggleViewletAction extends Action {
 		id: string,
 		name: string,
 		viewletId: string,
-		@IViewletService private viewletService: IViewletService,
+		@IViewletService protected viewletService: IViewletService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
 	) {
 		super(id, name);
@@ -234,7 +246,7 @@ export class ToggleViewletAction extends Action {
 		}
 
 		// Otherwise pass focus to editor if possible
-		let editor = this.editorService.getActiveEditor();
+		const editor = this.editorService.getActiveEditor();
 		if (editor) {
 			editor.focus();
 		}
@@ -243,14 +255,14 @@ export class ToggleViewletAction extends Action {
 	}
 
 	private otherViewletShowing(): boolean {
-		let activeViewlet = this.viewletService.getActiveViewlet();
+		const activeViewlet = this.viewletService.getActiveViewlet();
 
 		return !activeViewlet || activeViewlet.getId() !== this.viewletId;
 	}
 
 	private sidebarHasFocus(): boolean {
-		let activeViewlet = this.viewletService.getActiveViewlet();
-		let activeElement = document.activeElement;
+		const activeViewlet = this.viewletService.getActiveViewlet();
+		const activeElement = document.activeElement;
 
 		return activeViewlet && activeElement && DOM.isAncestor(activeElement, (<Viewlet>activeViewlet).getContainer().getHTMLElement());
 	}
@@ -331,15 +343,7 @@ export abstract class AdaptiveCollapsibleViewletView extends FixedCollapsibleVie
 			orientation: ActionsOrientation.HORIZONTAL,
 			actionItemProvider: (action) => { return this.getActionItem(action); },
 			ariaLabel: nls.localize('viewToolbarAriaLabel', "{0} actions", this.viewName),
-			getKeyBinding: (action) => {
-				const opts = this.keybindingService.lookupKeybindings(action.id);
-				if (opts.length > 0) {
-					return opts[0]; // only take the first one
-				}
-
-				return null;
-			},
-			getKeyBindingLabel: (key) => this.keybindingService.getLabelFor(key)
+			getKeyBinding: (action) => this.keybindingService.lookupKeybinding(action.id)
 		});
 		this.toolBar.actionRunner = this.actionRunner;
 		this.toolBar.setActions(prepareActions(this.getActions()), prepareActions(this.getSecondaryActions()))();
@@ -468,15 +472,7 @@ export abstract class CollapsibleViewletView extends CollapsibleView implements 
 			orientation: ActionsOrientation.HORIZONTAL,
 			actionItemProvider: (action) => { return this.getActionItem(action); },
 			ariaLabel: nls.localize('viewToolbarAriaLabel', "{0} actions", this.viewName),
-			getKeyBinding: (action) => {
-				const opts = this.keybindingService.lookupKeybindings(action.id);
-				if (opts.length > 0) {
-					return opts[0]; // only take the first one
-				}
-
-				return null;
-			},
-			getKeyBindingLabel: (key) => this.keybindingService.getLabelFor(key)
+			getKeyBinding: (action) => this.keybindingService.lookupKeybinding(action.id)
 		});
 		this.toolBar.actionRunner = this.actionRunner;
 		this.toolBar.setActions(prepareActions(this.getActions()), prepareActions(this.getSecondaryActions()))();
@@ -554,7 +550,7 @@ export abstract class CollapsibleViewletView extends CollapsibleView implements 
 }
 
 function renderViewTree(container: HTMLElement): HTMLElement {
-	let treeContainer = document.createElement('div');
+	const treeContainer = document.createElement('div');
 	container.appendChild(treeContainer);
 
 	return treeContainer;
@@ -584,7 +580,7 @@ function focus(tree: ITree): void {
 	}
 
 	// Make sure the current selected element is revealed
-	let selection = tree.getSelection();
+	const selection = tree.getSelection();
 	if (selection.length > 0) {
 		reveal(tree, selection[0], 0.5).done(null, errors.onUnexpectedError);
 	}

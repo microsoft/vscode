@@ -14,17 +14,17 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import collections = require('vs/base/common/collections');
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IEventService } from 'vs/platform/event/common/event';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { readFile } from 'vs/base/node/pfs';
 import errors = require('vs/base/common/errors');
-import { IConfigFile, consolidate, newConfigFile } from 'vs/workbench/services/configuration/common/model';
-import { IConfigurationServiceEvent, getConfigurationValue } from 'vs/platform/configuration/common/configuration';
+import { ScopedConfigModel, WorkspaceConfigModel, WorkspaceSettingsConfigModel } from 'vs/workbench/services/configuration/common/configurationModels';
+import { IConfigurationServiceEvent, ConfigurationSource, getConfigurationValue, IConfigModel, IConfigurationOptions } from 'vs/platform/configuration/common/configuration';
+import { ConfigModel } from 'vs/platform/configuration/common/model';
 import { ConfigurationService as BaseConfigurationService } from 'vs/platform/configuration/node/configurationService';
-import { IWorkspaceConfigurationService, IWorkspaceConfigurationValue, CONFIG_DEFAULT_NAME, WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME, WORKSPACE_STANDALONE_CONFIGURATIONS, WORKSPACE_CONFIG_DEFAULT_PATH } from 'vs/workbench/services/configuration/common/configuration';
-import { EventType as FileEventType, FileChangeType, FileChangesEvent } from 'vs/platform/files/common/files';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IWorkspaceConfigurationValues, IWorkspaceConfigurationService, IWorkspaceConfigurationValue, WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME, WORKSPACE_STANDALONE_CONFIGURATIONS, WORKSPACE_CONFIG_DEFAULT_PATH } from 'vs/workbench/services/configuration/common/configuration';
+import { FileChangeType, FileChangesEvent, isEqual } from 'vs/platform/files/common/files';
 import Event, { Emitter } from 'vs/base/common/event';
+
 
 interface IStat {
 	resource: uri;
@@ -37,73 +37,77 @@ interface IContent {
 	value: string;
 }
 
+interface IWorkspaceConfiguration<T> {
+	workspace: T;
+	consolidated: any;
+}
+
 /**
  * Wraps around the basic configuration service and adds knowledge about workspace settings.
  */
-export class WorkspaceConfigurationService implements IWorkspaceConfigurationService, IDisposable {
+export class WorkspaceConfigurationService extends Disposable implements IWorkspaceConfigurationService, IDisposable {
 
 	public _serviceBrand: any;
 
 	private static RELOAD_CONFIGURATION_DELAY = 50;
 
 	private _onDidUpdateConfiguration: Emitter<IConfigurationServiceEvent>;
-	private toDispose: IDisposable[];
 	private baseConfigurationService: BaseConfigurationService<any>;
 
-	private cachedConfig: any;
-	private cachedWorkspaceConfig: any;
-	private cachedWorkspaceKeys: string[];
+	private cachedConfig: ConfigModel<any>;
+	private cachedWorkspaceConfig: WorkspaceConfigModel<any>;
 
 	private bulkFetchFromWorkspacePromise: TPromise<any>;
-	private workspaceFilePathToConfiguration: { [relativeWorkspacePath: string]: TPromise<IConfigFile> };
+	private workspaceFilePathToConfiguration: { [relativeWorkspacePath: string]: TPromise<IConfigModel<any>> };
 	private reloadConfigurationScheduler: RunOnceScheduler;
 
 	constructor(
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IEventService private eventService: IEventService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		private workspaceSettingsRootFolder: string = WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME
 	) {
-		this.toDispose = [];
+		super();
 		this.workspaceFilePathToConfiguration = Object.create(null);
 
-		this.cachedConfig = Object.create(null);
-		this.cachedWorkspaceConfig = Object.create(null);
+		this.cachedConfig = new ConfigModel<any>(null);
+		this.cachedWorkspaceConfig = new WorkspaceConfigModel(new WorkspaceSettingsConfigModel(null), []);
 
-		this._onDidUpdateConfiguration = new Emitter<IConfigurationServiceEvent>();
-		this.toDispose.push(this._onDidUpdateConfiguration);
+		this._onDidUpdateConfiguration = this._register(new Emitter<IConfigurationServiceEvent>());
 
-		this.baseConfigurationService = new BaseConfigurationService(environmentService);
-		this.toDispose.push(this.baseConfigurationService);
+		this.baseConfigurationService = this._register(new BaseConfigurationService(environmentService));
 
-		this.reloadConfigurationScheduler = new RunOnceScheduler(() => this.doLoadConfiguration().then(config => this._onDidUpdateConfiguration.fire({ config })).done(null, errors.onUnexpectedError), WorkspaceConfigurationService.RELOAD_CONFIGURATION_DELAY);
-		this.toDispose.push(this.reloadConfigurationScheduler);
+		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this.doLoadConfiguration()
+			.then(config => this._onDidUpdateConfiguration.fire({
+				config: config.consolidated,
+				source: ConfigurationSource.Workspace,
+				sourceConfig: config.workspace
+			}))
+			.done(null, errors.onUnexpectedError), WorkspaceConfigurationService.RELOAD_CONFIGURATION_DELAY));
 
-		this.registerListeners();
+		this._register(this.baseConfigurationService.onDidUpdateConfiguration(e => this.onBaseConfigurationChanged(e)));
 	}
 
 	get onDidUpdateConfiguration(): Event<IConfigurationServiceEvent> {
 		return this._onDidUpdateConfiguration.event;
 	}
 
-	private registerListeners(): void {
-		this.toDispose.push(this.eventService.addListener2(FileEventType.FILE_CHANGES, events => this.handleWorkspaceFileEvents(events)));
-		this.toDispose.push(this.baseConfigurationService.onDidUpdateConfiguration(() => this.onBaseConfigurationChanged()));
-	}
-
-	private onBaseConfigurationChanged(): void {
+	private onBaseConfigurationChanged(event: IConfigurationServiceEvent): void {
+		if (event.source === ConfigurationSource.Default) {
+			this.cachedWorkspaceConfig.update();
+		}
 
 		// update cached config when base config changes
-		const newConfig = objects.mixin(
-			objects.clone(this.baseConfigurationService.getConfiguration()),	// target: global/default values (do NOT modify)
-			this.cachedWorkspaceConfig,											// source: workspace configured values
-			true																// overwrite
-		);
+		const configModel = <ConfigModel<any>>this.baseConfigurationService.getCache().consolidated		// global/default values (do NOT modify)
+			.merge(this.cachedWorkspaceConfig);		// workspace configured values
 
 		// emit this as update to listeners if changed
-		if (!objects.equals(this.cachedConfig, newConfig)) {
-			this.cachedConfig = newConfig;
-			this._onDidUpdateConfiguration.fire({ config: this.cachedConfig });
+		if (!objects.equals(this.cachedConfig.contents, configModel.contents)) {
+			this.cachedConfig = configModel;
+			this._onDidUpdateConfiguration.fire({
+				config: this.cachedConfig.contents,
+				source: event.source,
+				sourceConfig: event.sourceConfig
+			});
 		}
 	}
 
@@ -111,18 +115,21 @@ export class WorkspaceConfigurationService implements IWorkspaceConfigurationSer
 		return this.doLoadConfiguration().then(() => null);
 	}
 
-	public getConfiguration<T>(section?: string): T {
-		return section ? this.cachedConfig[section] : this.cachedConfig;
+	public getConfiguration<C>(section?: string): C
+	public getConfiguration<C>(options?: IConfigurationOptions): C
+	public getConfiguration<C>(arg?: any): C {
+		const options = this.toOptions(arg);
+		const configModel = options.overrideIdentifier ? this.cachedConfig.configWithOverrides<C>(options.overrideIdentifier) : this.cachedConfig;
+		return options.section ? configModel.getContentsFor<C>(options.section) : configModel.contents;
 	}
 
-	public lookup<C>(key: string): IWorkspaceConfigurationValue<C> {
-		const configurationValue = this.baseConfigurationService.lookup<C>(key);
-
+	public lookup<C>(key: string, overrideIdentifier?: string): IWorkspaceConfigurationValue<C> {
+		const configurationValue = this.baseConfigurationService.lookup<C>(key, overrideIdentifier);
 		return {
 			default: configurationValue.default,
 			user: configurationValue.user,
-			workspace: getConfigurationValue<C>(this.cachedWorkspaceConfig, key),
-			value: getConfigurationValue<C>(this.getConfiguration(), key)
+			workspace: objects.clone(getConfigurationValue<C>(overrideIdentifier ? this.cachedWorkspaceConfig.configWithOverrides(overrideIdentifier).contents : this.cachedWorkspaceConfig.contents, key)),
+			value: objects.clone(getConfigurationValue<C>(overrideIdentifier ? this.cachedConfig.configWithOverrides(overrideIdentifier).contents : this.cachedConfig.contents, key))
 		};
 	}
 
@@ -132,8 +139,24 @@ export class WorkspaceConfigurationService implements IWorkspaceConfigurationSer
 		return {
 			default: keys.default,
 			user: keys.user,
-			workspace: this.cachedWorkspaceKeys
+			workspace: this.cachedWorkspaceConfig.keys
 		};
+	}
+
+	public values(): IWorkspaceConfigurationValues {
+		const result: IWorkspaceConfigurationValues = Object.create(null);
+		const keyset = this.keys();
+		const keys = [...keyset.workspace, ...keyset.user, ...keyset.default].sort();
+
+		let lastKey: string;
+		for (const key of keys) {
+			if (key !== lastKey) {
+				lastKey = key;
+				result[key] = this.lookup(key);
+			}
+		}
+
+		return result;
 	}
 
 	public reloadConfiguration(section?: string): TPromise<any> {
@@ -143,59 +166,48 @@ export class WorkspaceConfigurationService implements IWorkspaceConfigurationSer
 		this.workspaceFilePathToConfiguration = Object.create(null);
 
 		// Load configuration
-		return this.baseConfigurationService.reloadConfiguration().then(() => this.doLoadConfiguration(section));
+		return this.baseConfigurationService.reloadConfiguration().then(() => {
+			return this.doLoadConfiguration().then(configuration => {
+				return section ? configuration.consolidated[section] : configuration.consolidated;
+			});
+		});
 	}
 
-	private doLoadConfiguration(section?: string): TPromise<any> {
+	private toOptions(arg: any): IConfigurationOptions {
+		if (typeof arg === 'string') {
+			return { section: arg };
+		}
+		if (typeof arg === 'object') {
+			return arg;
+		}
+		return {};
+	}
+
+	private doLoadConfiguration<T>(): TPromise<IWorkspaceConfiguration<T>> {
 
 		// Load workspace locals
 		return this.loadWorkspaceConfigFiles().then(workspaceConfigFiles => {
 
 			// Consolidate (support *.json files in the workspace settings folder)
-			const workspaceConfig = consolidate(workspaceConfigFiles).contents;
-			this.cachedWorkspaceConfig = workspaceConfig;
-
-			// Cache keys
-			const workspaceConfigKeys = [];
-			Object.keys(workspaceConfigFiles).forEach(path => {
-				if (path === WORKSPACE_CONFIG_DEFAULT_PATH) {
-					workspaceConfigKeys.push(...Object.keys(workspaceConfigFiles[path].raw));
-				} else {
-					const workspaceConfigs = Object.keys(WORKSPACE_STANDALONE_CONFIGURATIONS);
-					workspaceConfigs.forEach(workspaceConfig => {
-						if (path === WORKSPACE_STANDALONE_CONFIGURATIONS[workspaceConfig]) {
-							workspaceConfigKeys.push(...Object.keys(workspaceConfigFiles[path].raw).map(key => `${workspaceConfig}.${key}`));
-						}
-					});
-				}
-			});
-			this.cachedWorkspaceKeys = workspaceConfigKeys;
+			const workspaceSettingsConfig = <WorkspaceSettingsConfigModel<T>>workspaceConfigFiles[WORKSPACE_CONFIG_DEFAULT_PATH] || new WorkspaceSettingsConfigModel<T>(null);
+			const otherConfigModels = Object.keys(workspaceConfigFiles).filter(key => key !== WORKSPACE_CONFIG_DEFAULT_PATH).map(key => <ScopedConfigModel<T>>workspaceConfigFiles[key]);
+			this.cachedWorkspaceConfig = new WorkspaceConfigModel<T>(workspaceSettingsConfig, otherConfigModels);
 
 			// Override base (global < user) with workspace locals (global < user < workspace)
-			return objects.mixin(
-				objects.clone(this.baseConfigurationService.getConfiguration()), 	// target: global/default values (do NOT modify)
-				this.cachedWorkspaceConfig,											// source: workspace configured values
-				true																// overwrite
-			);
-		}).then(result => {
-			this.cachedConfig = result;
+			this.cachedConfig = <ConfigModel<any>>this.baseConfigurationService.getCache().consolidated		// global/default values (do NOT modify)
+				.merge(this.cachedWorkspaceConfig);		// workspace configured values
 
-			return this.getConfiguration(section);
+			return {
+				consolidated: this.cachedConfig.contents,
+				workspace: this.cachedWorkspaceConfig.contents
+			};
 		});
 	}
 
-	public hasWorkspaceConfiguration(): boolean {
-		return !!this.workspaceFilePathToConfiguration[`${this.workspaceSettingsRootFolder}/${CONFIG_DEFAULT_NAME}.json`];
-	}
-
-	public dispose(): void {
-		this.toDispose = dispose(this.toDispose);
-	}
-
-	private loadWorkspaceConfigFiles(): TPromise<{ [relativeWorkspacePath: string]: IConfigFile }> {
+	private loadWorkspaceConfigFiles<T>(): TPromise<{ [relativeWorkspacePath: string]: IConfigModel<T> }> {
 
 		// Return early if we don't have a workspace
-		if (!this.contextService.getWorkspace()) {
+		if (!this.contextService.hasWorkspace()) {
 			return TPromise.as(Object.create(null));
 		}
 
@@ -214,13 +226,10 @@ export class WorkspaceConfigurationService implements IWorkspaceConfigurationSer
 
 					return this.isWorkspaceConfigurationFile(this.contextService.toWorkspaceRelativePath(stat.resource)); // only workspace config files
 				}).map(stat => stat.resource));
-			}, (err) => {
-				if (err) {
-					return []; // never fail this call
-				}
-			}).then((contents: IContent[]) => {
-				contents.forEach(content => this.workspaceFilePathToConfiguration[this.contextService.toWorkspaceRelativePath(content.resource)] = TPromise.as(newConfigFile(content.value)));
-			}, errors.onUnexpectedError);
+			}, err => [] /* never fail this call */)
+				.then((contents: IContent[]) => {
+					contents.forEach(content => this.workspaceFilePathToConfiguration[this.contextService.toWorkspaceRelativePath(content.resource)] = TPromise.as(this.createConfigModel(content)));
+				}, errors.onUnexpectedError);
 		}
 
 		// on change: join on *all* configuration file promises so that we can merge them into a single configuration object. this
@@ -228,7 +237,7 @@ export class WorkspaceConfigurationService implements IWorkspaceConfigurationSer
 		return this.bulkFetchFromWorkspacePromise.then(() => TPromise.join(this.workspaceFilePathToConfiguration));
 	}
 
-	private handleWorkspaceFileEvents(event: FileChangesEvent): void {
+	public handleWorkspaceFileEvents(event: FileChangesEvent): void {
 		const events = event.changes;
 		let affectedByChanges = false;
 
@@ -236,8 +245,9 @@ export class WorkspaceConfigurationService implements IWorkspaceConfigurationSer
 		for (let i = 0, len = events.length; i < len; i++) {
 			const resource = events[i].resource;
 			const isJson = paths.extname(resource.fsPath) === '.json';
-			if (!isJson) {
-				continue; // only JSON files
+			const isDeletedSettingsFolder = (events[i].type === FileChangeType.DELETED && isEqual(paths.basename(resource.fsPath), this.workspaceSettingsRootFolder));
+			if (!isJson && !isDeletedSettingsFolder) {
+				continue; // only JSON files or the actual settings folder
 			}
 
 			const workspacePath = this.contextService.toWorkspaceRelativePath(resource);
@@ -264,7 +274,7 @@ export class WorkspaceConfigurationService implements IWorkspaceConfigurationSer
 					break;
 				case FileChangeType.UPDATED:
 				case FileChangeType.ADDED:
-					this.workspaceFilePathToConfiguration[workspacePath] = resolveContent(resource).then(content => newConfigFile(content.value), errors.onUnexpectedError);
+					this.workspaceFilePathToConfiguration[workspacePath] = resolveContent(resource).then(content => this.createConfigModel(content), errors.onUnexpectedError);
 					affectedByChanges = true;
 			}
 		}
@@ -275,12 +285,25 @@ export class WorkspaceConfigurationService implements IWorkspaceConfigurationSer
 		}
 	}
 
+	private createConfigModel<T>(content: IContent): IConfigModel<T> {
+		const path = this.contextService.toWorkspaceRelativePath(content.resource);
+		if (path === WORKSPACE_CONFIG_DEFAULT_PATH) {
+			return new WorkspaceSettingsConfigModel<T>(content.value, content.resource.toString());
+		} else {
+			const matches = /\/([^\.]*)*\.json/.exec(path);
+			if (matches && matches[1]) {
+				return new ScopedConfigModel<T>(content.value, content.resource.toString(), matches[1]);
+			}
+		}
+		return new ConfigModel<T>(null);
+	}
+
 	private isWorkspaceConfigurationFile(workspaceRelativePath: string): boolean {
 		return [WORKSPACE_CONFIG_DEFAULT_PATH, WORKSPACE_STANDALONE_CONFIGURATIONS.launch, WORKSPACE_STANDALONE_CONFIGURATIONS.tasks].some(p => p === workspaceRelativePath);
 	}
 
-	public set telemetryService(value: ITelemetryService) {
-		this.baseConfigurationService.telemetryService = value;
+	public getUnsupportedWorkspaceKeys(): string[] {
+		return this.cachedWorkspaceConfig.workspaceSettingsConfig.unsupportedKeys;
 	}
 }
 
