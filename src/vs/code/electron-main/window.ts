@@ -220,10 +220,10 @@ export class VSCodeWindow {
 		}
 
 		// Set relaunch command
-		if (platform.isWindows && product.win32AppUserModelId) {
+		if (platform.isWindows && product.win32AppUserModelId && typeof this._win.setAppDetails === 'function') {
 			this._win.setAppDetails({
 				appId: product.win32AppUserModelId,
-				relaunchCommand: '"' + process.execPath + '"' + ' -n',
+				relaunchCommand: `"${process.execPath}" -n`,
 				relaunchDisplayName: product.nameLong
 			});
 		}
