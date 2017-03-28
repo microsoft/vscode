@@ -13,6 +13,8 @@
 	"confirm revert": "是否确实要还原 {0} 中的已选更改?",
 	"disabled": "此工作区已禁用或不支持 GIT",
 	"discard": "放弃更改",
+	"git error": "Git 错误",
+	"git error details": "Git:{0}",
 	"never again": "好，永不再显示",
 	"no changes": "没有要提交的更改。",
 	"no remotes to publish": "存储库未配置任何要发布到的远程存储库。",

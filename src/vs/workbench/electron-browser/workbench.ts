@@ -1146,6 +1146,21 @@ export class Workbench implements IPartService {
 		}
 	}
 
+	// Resize requested part along the main axis
+	// layout will do all the math for us and adjusts the other Parts
+	public resizePart(part: Parts, sizeChange: number): void {
+		switch (part) {
+			case Parts.SIDEBAR_PART:
+			case Parts.PANEL_PART:
+			case Parts.EDITOR_PART:
+				this.workbenchLayout.resizePart(part, sizeChange);
+				break;
+			default:
+				return; // Cannot resize other parts
+		}
+	}
+
+
 	private shouldRestoreLastOpenedViewlet(): boolean {
 		if (!this.environmentService.isBuilt) {
 			return true; // always restore sidebar when we are in development mode

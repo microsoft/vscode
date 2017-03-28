@@ -40,7 +40,7 @@ import { extractResources } from 'vs/base/browser/dnd';
 import { LinkedMap } from 'vs/base/common/map';
 import { DelegatingWorkbenchEditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { INACTIVE_TAB_BACKGROUND, ACTIVE_TAB_BACKGROUND, ACTIVE_TAB_ACTIVE_GROUP_FOREGROUND, ACTIVE_TAB_INACTIVE_GROUP_FOREGROUND, INACTIVE_TAB_ACTIVE_GROUP_FOREGROUND, INACTIVE_TAB_INACTIVE_GROUP_FOREGROUND, TAB_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
 import { highContrastOutline } from 'vs/platform/theme/common/colorRegistry';
 
@@ -225,12 +225,12 @@ export class TabsTitleControl extends TitleControl {
 			element.style.outlineWidth = '2px';
 			element.style.outlineStyle = 'dashed';
 			element.style.outlineColor = this.getColor(highContrastOutline);
-			(<any>element).style.outlineOffset = isTab ? '-5px' : '-3px'; // TODO@theme TS fail (gulp watch)
+			(<any>element).style.outlineOffset = isTab ? '-5px' : '-3px'; // TS fail (gulp watch)
 		} else {
 			element.style.outlineWidth = null;
 			element.style.outlineStyle = null;
 			element.style.outlineColor = this.isHighContrastTheme ? this.getColor(highContrastOutline) : null;
-			(<any>element).style.outlineOffset = null; // TODO@theme TS fail (gulp watch)
+			(<any>element).style.outlineOffset = null; // TS fail (gulp watch)
 		}
 	}
 
@@ -732,3 +732,29 @@ class TabActionRunner extends ActionRunner {
 		return super.run(action, { group, editor: group.getEditor(this.index) });
 	}
 }
+
+registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+
+	// High Contrast Styling
+	if (theme.type === 'hc') {
+		collector.addRule(`
+			.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.active,
+			.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.active:hover  {
+				outline: 1px solid;
+				outline-offset: -5px;
+			}
+
+			.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab:hover  {
+				outline: 1px dashed;
+				outline-offset: -5px;
+			}
+
+			.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.active > .tab-close .action-label,
+			.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.active:hover > .tab-close .action-label,
+			.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.dirty > .tab-close .action-label,
+			.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab:hover > .tab-close .action-label {
+				opacity: 1 !important;
+			}
+		`);
+	}
+});

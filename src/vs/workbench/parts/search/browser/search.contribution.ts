@@ -32,6 +32,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ToggleCaseSensitiveKeybinding, ToggleRegexKeybinding, ToggleWholeWordKeybinding, ShowPreviousFindTermKeybinding, ShowNextFindTermKeybinding } from 'vs/editor/contrib/find/common/findModel';
 import { ISearchWorkbenchService, SearchWorkbenchService } from 'vs/workbench/parts/search/common/searchModel';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { SearchViewlet } from 'vs/workbench/parts/search/browser/searchViewlet';
 
 registerSingleton(ISearchWorkbenchService, SearchWorkbenchService);
 replaceContributions();
@@ -45,7 +46,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: accessor => {
 		let viewletService = accessor.get(IViewletService);
 		viewletService.openViewlet(Constants.VIEWLET_ID, true)
-			.then(viewlet => (<any>viewlet).toggleFileTypes());
+			.then((viewlet: SearchViewlet) => viewlet.toggleQueryDetails());
 	}
 });
 
@@ -208,6 +209,11 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'description': nls.localize('useRipgrep', "Controls whether to use ripgrep in text search"),
 			'default': true
+		},
+		'search.useIgnoreFilesByDefault': {
+			'type': 'boolean',
+			'description': nls.localize('useIgnoreFilesByDefault', "Controls whether to use .gitignore and .ignore files by default when searching in a new workspace."),
+			'default': false
 		},
 		'search.quickOpen.includeSymbols': {
 			'type': 'boolean',

@@ -7,6 +7,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import Event, { Emitter } from 'vs/base/common/event';
+import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { ISCMService, ISCMProvider, ISCMResource, ISCMResourceGroup } from 'vs/workbench/services/scm/common/scm';
@@ -24,17 +25,18 @@ class MainThreadSCMProvider implements ISCMProvider {
 
 	private disposables: IDisposable[] = [];
 
-	get id(): string { return this._id; }
+	get handle(): number { return this._handle; }
 	get label(): string { return this.features.label; }
+	get contextKey(): string { return this.features.contextKey; }
 
 	private _count: number | undefined = undefined;
 	get count(): number | undefined { return this._count; }
 
-	private _state: string | undefined = undefined;
-	get state(): string | undefined { return this._state; }
+	private _stateContextKey: string | undefined = undefined;
+	get stateContextKey(): string | undefined { return this._stateContextKey; }
 
 	constructor(
-		private _id: string,
+		private _handle: number,
 		private proxy: ExtHostSCMShape,
 		private features: SCMProviderFeatures,
 		@ISCMService scmService: ISCMService,
@@ -44,28 +46,13 @@ class MainThreadSCMProvider implements ISCMProvider {
 		this.disposables.push(scmService.registerSCMProvider(this));
 	}
 
-	open(resource: ISCMResource): TPromise<void> {
+	open(resource: ISCMResource): void {
 		if (!this.features.supportsOpen) {
-			return TPromise.as(null);
+			return;
 		}
 
-		return this.proxy.$open(this.id, resource.resourceGroupId, resource.uri.toString());
-	}
-
-	acceptChanges(): TPromise<void> {
-		if (!this.features.supportsAcceptChanges) {
-			return TPromise.as(null);
-		}
-
-		return this.proxy.$acceptChanges(this.id);
-	}
-
-	drag(from: ISCMResource, to: ISCMResourceGroup): TPromise<void> {
-		if (!this.features.supportsDrag) {
-			return TPromise.as(null);
-		}
-
-		return this.proxy.$drag(this.id, from.resourceGroupId, from.uri.toString(), to.id);
+		this.proxy.$open(this.handle, resource.uri.toString())
+			.done(null, onUnexpectedError);
 	}
 
 	getOriginalResource(uri: URI): TPromise<URI> {
@@ -73,7 +60,7 @@ class MainThreadSCMProvider implements ISCMProvider {
 			return TPromise.as(null);
 		}
 
-		return this.proxy.$getOriginalResource(this.id, uri);
+		return this.proxy.$getOriginalResource(this.handle, uri);
 	}
 
 	private onDidChangeProvider(provider: ISCMProvider): void {
@@ -82,34 +69,35 @@ class MainThreadSCMProvider implements ISCMProvider {
 		// }
 	}
 
-	$onChange(rawResourceGroups: SCMRawResourceGroup[], count: number | undefined, state: string | undefined): void {
+	$onChange(rawResourceGroups: SCMRawResourceGroup[], count: number | undefined, stateContextKey: string | undefined): void {
 		this._resources = rawResourceGroups.map(rawGroup => {
-			const [id, label, rawResources] = rawGroup;
+			const [uri, contextKey, label, rawResources] = rawGroup;
+			const resources: ISCMResource[] = [];
+			const group: ISCMResourceGroup = { uri: URI.parse(uri), contextKey, label, resources };
 
-			const resources = rawResources.map(rawResource => {
-				const [uri, icons, strikeThrough] = rawResource;
-
+			rawResources.forEach(rawResource => {
+				const [uri, sourceUri, icons, strikeThrough] = rawResource;
 				const icon = icons[0];
 				const iconDark = icons[1] || icon;
-
 				const decorations = {
 					icon: icon && URI.parse(icon),
 					iconDark: iconDark && URI.parse(iconDark),
 					strikeThrough
 				};
 
-				return {
-					resourceGroupId: id,
+				resources.push({
+					resourceGroup: group,
 					uri: URI.parse(uri),
+					sourceUri: URI.parse(sourceUri),
 					decorations
-				};
+				});
 			});
 
-			return { id, label, resources };
+			return group;
 		});
 
 		this._count = count;
-		this._state = state;
+		this._stateContextKey = stateContextKey;
 
 		this._onDidChange.fire(this.resources);
 	}
@@ -122,8 +110,8 @@ class MainThreadSCMProvider implements ISCMProvider {
 export class MainThreadSCM extends MainThreadSCMShape {
 
 	private proxy: ExtHostSCMShape;
-	private providers: { [id: string]: MainThreadSCMProvider; } = Object.create(null);
-	private inputBoxListener: IDisposable;
+	private providers: { [handle: number]: MainThreadSCMProvider; } = Object.create(null);
+	private inputBoxListeners: IDisposable[] = [];
 
 	constructor(
 		@IThreadService threadService: IThreadService,
@@ -133,28 +121,27 @@ export class MainThreadSCM extends MainThreadSCMShape {
 		super();
 		this.proxy = threadService.get(ExtHostContext.ExtHostSCM);
 
-		this.inputBoxListener = this.scmService.input.onDidChange(value => {
-			this.proxy.$onInputBoxValueChange(value);
-		});
+		this.scmService.input.onDidChange(this.proxy.$onInputBoxValueChange, this.proxy, this.inputBoxListeners);
+		this.scmService.input.onDidAccept(this.proxy.$onInputBoxAcceptChanges, this.proxy, this.inputBoxListeners);
 	}
 
-	$register(id: string, features: SCMProviderFeatures): void {
-		this.providers[id] = this.instantiationService.createInstance(MainThreadSCMProvider, id, this.proxy, features);
+	$register(handle: number, features: SCMProviderFeatures): void {
+		this.providers[handle] = this.instantiationService.createInstance(MainThreadSCMProvider, handle, this.proxy, features);
 	}
 
-	$unregister(id: string): void {
-		const provider = this.providers[id];
+	$unregister(handle: number): void {
+		const provider = this.providers[handle];
 
 		if (!provider) {
 			return;
 		}
 
 		provider.dispose();
-		delete this.providers[id];
+		delete this.providers[handle];
 	}
 
-	$onChange(id: string, rawResourceGroups: SCMRawResourceGroup[], count: number | undefined, state: string | undefined): void {
-		const provider = this.providers[id];
+	$onChange(handle: number, rawResourceGroups: SCMRawResourceGroup[], count: number | undefined, state: string | undefined): void {
+		const provider = this.providers[handle];
 
 		if (!provider) {
 			return;
@@ -172,6 +159,6 @@ export class MainThreadSCM extends MainThreadSCMShape {
 			.forEach(id => this.providers[id].dispose());
 
 		this.providers = Object.create(null);
-		this.inputBoxListener = dispose(this.inputBoxListener);
+		this.inputBoxListeners = dispose(this.inputBoxListeners);
 	}
 }

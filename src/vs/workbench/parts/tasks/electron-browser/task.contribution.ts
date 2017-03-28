@@ -7,10 +7,11 @@
 
 import 'vs/css!./media/task.contribution';
 import 'vs/workbench/parts/tasks/browser/taskQuickOpen';
+import 'vs/workbench/parts/tasks/browser/terminateQuickOpen';
 
 import * as nls from 'vs/nls';
 
-import { TPromise, Promise } from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import Severity from 'vs/base/common/severity';
 import * as Objects from 'vs/base/common/objects';
 import { IStringDictionary } from 'vs/base/common/collections';
@@ -413,10 +414,16 @@ class NullTaskSystem extends EventEmitter implements ITaskSystem {
 	public isActiveSync(): boolean {
 		return false;
 	}
+	public getActiveTasks(): Task[] {
+		return [];
+	}
 	public canAutoTerminate(): boolean {
 		return true;
 	}
-	public terminate(): TPromise<TerminateResponse> {
+	public terminate(task: string | Task): TPromise<TerminateResponse> {
+		return TPromise.as<TerminateResponse>({ success: true });
+	}
+	public terminateAll(): TPromise<TerminateResponse> {
 		return TPromise.as<TerminateResponse>({ success: true });
 	}
 }
@@ -495,7 +502,6 @@ class TaskService extends EventEmitter implements ITaskService {
 	private clearTaskSystemPromise: boolean;
 	private outputChannel: IOutputChannel;
 
-	private fileChangesListener: IDisposable;
 	private providers: Map<number, ITaskProvider>;
 
 	constructor( @IModeService modeService: IModeService, @IConfigurationService configurationService: IConfigurationService,
@@ -508,7 +514,8 @@ class TaskService extends EventEmitter implements ITaskService {
 		@IQuickOpenService quickOpenService: IQuickOpenService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IConfigurationResolverService private configurationResolverService: IConfigurationResolverService,
-		@ITerminalService private terminalService: ITerminalService
+		@ITerminalService private terminalService: ITerminalService,
+		@IWorkbenchEditorService private workbenchEditorService: IWorkbenchEditorService
 	) {
 
 		super();
@@ -555,6 +562,10 @@ class TaskService extends EventEmitter implements ITaskService {
 			this.runTaskCommand(accessor, arg);
 		});
 
+		CommandsRegistry.registerCommand('workbench.action.tasks.restartTask', (accessor, arg) => {
+			this.runRestartTaskCommand(accessor, arg);
+		});
+
 		CommandsRegistry.registerCommand('workbench.action.tasks.terminate', (accessor, arg) => {
 			this.runTerminateCommand();
 		});
@@ -596,13 +607,6 @@ class TaskService extends EventEmitter implements ITaskService {
 		this.taskSystemListeners = dispose(this.taskSystemListeners);
 	}
 
-	private disposeFileChangesListener(): void {
-		if (this.fileChangesListener) {
-			this.fileChangesListener.dispose();
-			this.fileChangesListener = null;
-		}
-	}
-
 	public registerTaskProvider(handle: number, provider: ITaskProvider): void {
 		if (!provider) {
 			return;
@@ -630,6 +634,14 @@ class TaskService extends EventEmitter implements ITaskService {
 		}
 		return this._taskSystem.isActive();
 	}
+
+	public getActiveTasks(): TPromise<Task[]> {
+		if (!this._taskSystem) {
+			return TPromise.as([]);
+		}
+		return TPromise.as(this._taskSystem.getActiveTasks());
+	}
+
 
 	public build(): TPromise<ITaskSummary> {
 		return this.getTaskSets().then((values) => {
@@ -760,20 +772,48 @@ class TaskService extends EventEmitter implements ITaskService {
 				if (active.same && active.background) {
 					this.messageService.show(Severity.Info, nls.localize('TaskSystem.activeSame', 'The task is already active and in watch mode. To terminate the task use `F1 > terminate task`'));
 				} else {
-					throw new TaskError(Severity.Warning, nls.localize('TaskSystem.active', 'There is an active running task right now. Terminate it first before executing another task.'), TaskErrors.RunningTask);
+					throw new TaskError(Severity.Warning, nls.localize('TaskSystem.active', 'There is already a task running. Terminate it first before executing another task.'), TaskErrors.RunningTask);
 				}
 			}
 			return executeResult.promise;
 		});
 	}
 
-	public terminate(): TPromise<TerminateResponse> {
+	public restart(task: string | Task): void {
+		if (!this._taskSystem) {
+			return;
+		}
+		const id: string = Types.isString(task) ? task : task._id;
+		this._taskSystem.terminate(id).then((response) => {
+			if (response.success) {
+				this.emit(TaskServiceEvents.Terminated, {});
+				this.run(task);
+			} else {
+				this.messageService.show(Severity.Warning, nls.localize('TaskSystem.restartFailed', 'Failed to terminate and restart task {0}', Types.isString(task) ? task : task.name));
+			}
+			return response;
+		});
+	}
+
+	public terminate(task: string | Task): TPromise<TerminateResponse> {
 		if (!this._taskSystem) {
 			return TPromise.as({ success: true });
 		}
-		return this._taskSystem.terminate().then((response) => {
+		const id: string = Types.isString(task) ? task : task._id;
+		return this._taskSystem.terminate(id).then((response) => {
+			if (response.success) {
+				this.emit(TaskServiceEvents.Terminated, {});
+			}
+			return response;
+		});
+	}
+
+	public terminateAll(): TPromise<TerminateResponse> {
+		if (!this._taskSystem) {
+			return TPromise.as({ success: true });
+		}
+		return this._taskSystem.terminateAll().then((response) => {
 			this.emit(TaskServiceEvents.Terminated, {});
-			this.disposeFileChangesListener();
 			return response;
 		});
 	}
@@ -787,6 +827,7 @@ class TaskService extends EventEmitter implements ITaskService {
 			this._taskSystem = new TerminalTaskSystem(
 				this.terminalService, this.outputService, this.markerService,
 				this.modelService, this.configurationResolverService, this.telemetryService,
+				this.workbenchEditorService,
 				TaskService.OutputChannelId
 			);
 		} else {
@@ -983,11 +1024,10 @@ class TaskService extends EventEmitter implements ITaskService {
 				message: nls.localize('TaskSystem.runningTask', 'There is a task running. Do you want to terminate it?'),
 				primaryButton: nls.localize({ key: 'TaskSystem.terminateTask', comment: ['&& denotes a mnemonic'] }, "&&Terminate Task")
 			})) {
-				return this._taskSystem.terminate().then((response) => {
+				return this._taskSystem.terminateAll().then((response) => {
 					if (response.success) {
 						this.emit(TaskServiceEvents.Terminated, {});
 						this._taskSystem = null;
-						this.disposeFileChangesListener();
 						this.disposeTaskSystemListeners();
 						return false; // no veto
 					} else if (response.code && response.code === TerminateResponseCode.ProcessNotFound) {
@@ -1077,24 +1117,56 @@ class TaskService extends EventEmitter implements ITaskService {
 			return;
 		}
 		if (this.inTerminal()) {
-			this.messageService.show(Severity.Info, {
-				message: nls.localize('TerminateAction.terminalSystem', 'The tasks are executed in the integrated terminal. Use the terminal to manage the tasks.'),
-				actions: [new ViewTerminalAction(this.terminalService), new CloseMessageAction()]
+			this.getActiveTasks().then((activeTasks) => {
+				if (activeTasks.length === 0) {
+					return;
+				}
+				if (activeTasks.length === 1) {
+					this.terminate(activeTasks[0]);
+				} else {
+					this.quickOpenService.show('terminate task ');
+				}
 			});
 		} else {
 			this.isActive().then((active) => {
 				if (active) {
-					this.terminate().then((response) => {
+					this.terminateAll().then((response) => {
 						if (response.success) {
-							return undefined;
-						} else if (response.code && response.code === TerminateResponseCode.ProcessNotFound) {
+							return;
+						}
+						if (response.code && response.code === TerminateResponseCode.ProcessNotFound) {
 							this.messageService.show(Severity.Error, nls.localize('TerminateAction.noProcess', 'The launched process doesn\'t exist anymore. If the task spawned background tasks exiting VS Code might result in orphaned processes.'));
-							return undefined;
 						} else {
-							return Promise.wrapError(nls.localize('TerminateAction.failed', 'Failed to terminate running task'));
+							this.messageService.show(Severity.Error, nls.localize('TerminateAction.failed', 'Failed to terminate running task'));
 						}
 					});
 				}
+			});
+		}
+	}
+
+	private runRestartTaskCommand(accessor: ServicesAccessor, arg: any): void {
+		if (!this.canRunCommand()) {
+			return;
+		}
+		if (this.inTerminal()) {
+			this.getActiveTasks().then((activeTasks) => {
+				if (activeTasks.length === 0) {
+					return;
+				}
+				if (activeTasks.length === 1) {
+					this.restart(activeTasks[0]);
+				} else {
+					this.quickOpenService.show('restart task ');
+				}
+			});
+		} else {
+			this.getActiveTasks().then((activeTasks) => {
+				if (activeTasks.length === 0) {
+					return;
+				}
+				let task = activeTasks[0];
+				this.restart(task);
 			});
 		}
 	}
@@ -1102,13 +1174,14 @@ class TaskService extends EventEmitter implements ITaskService {
 
 
 let workbenchActionsRegistry = <IWorkbenchActionRegistry>Registry.as(WorkbenchActionExtensions.WorkbenchActions);
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ConfigureTaskRunnerAction, ConfigureTaskRunnerAction.ID, ConfigureTaskRunnerAction.TEXT), 'Tasks: Configure Task Runner', tasksCategory);
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ConfigureTaskRunnerAction, ConfigureTaskRunnerAction.ID, ConfigureTaskRunnerAction.TEXT), 'Configure Task Runner', tasksCategory);
 
-MenuRegistry.addCommand({ id: 'workbench.action.tasks.showLog', title: nls.localize('ShowLogAction.label', "Show Task Log"), alias: 'Tasks: Show Task Log', category: tasksCategory });
-MenuRegistry.addCommand({ id: 'workbench.action.tasks.runTask', title: nls.localize('RunTaskAction.label', "Run Task"), alias: 'Tasks: Run Task', category: tasksCategory });
-MenuRegistry.addCommand({ id: 'workbench.action.tasks.terminate', title: nls.localize('TerminateAction.label', "Terminate Running Task"), alias: 'Tasks: Terminate Running Task', category: tasksCategory });
-MenuRegistry.addCommand({ id: 'workbench.action.tasks.build', title: nls.localize('BuildAction.label', "Run Build Task"), alias: 'Tasks: Run Build Task', category: tasksCategory });
-MenuRegistry.addCommand({ id: 'workbench.action.tasks.test', title: nls.localize('TestAction.label', "Run Test Task"), alias: 'Tasks: Run Test Task', category: tasksCategory });
+MenuRegistry.addCommand({ id: 'workbench.action.tasks.showLog', title: { value: nls.localize('ShowLogAction.label', "Show Task Log"), original: 'Show Task Log' }, category: { value: tasksCategory, original: 'Tasks' } });
+MenuRegistry.addCommand({ id: 'workbench.action.tasks.runTask', title: { value: nls.localize('RunTaskAction.label', "Run Task"), original: 'Run Task' }, category: { value: tasksCategory, original: 'Tasks' } });
+MenuRegistry.addCommand({ id: 'workbench.action.tasks.restartTask', title: { value: nls.localize('RestartTaskAction.label', "Restart Task"), original: 'Tasks: Restart Task' }, category: { value: tasksCategory, original: 'Tasks' } });
+MenuRegistry.addCommand({ id: 'workbench.action.tasks.terminate', title: { value: nls.localize('TerminateAction.label', "Terminate Running Task"), original: 'Terminate Running Task' }, category: { value: tasksCategory, original: 'Tasks' } });
+MenuRegistry.addCommand({ id: 'workbench.action.tasks.build', title: { value: nls.localize('BuildAction.label', "Run Build Task"), original: 'Run Build Task' }, category: { value: tasksCategory, original: 'Tasks' } });
+MenuRegistry.addCommand({ id: 'workbench.action.tasks.test', title: { value: nls.localize('TestAction.label', "Run Test Task"), original: 'Run Test Task' }, category: { value: tasksCategory, original: 'Tasks' } });
 // MenuRegistry.addCommand( { id: 'workbench.action.tasks.rebuild', title: nls.localize('RebuildAction.label', 'Run Rebuild Task'), category: tasksCategory });
 // MenuRegistry.addCommand( { id: 'workbench.action.tasks.clean', title: nls.localize('CleanAction.label', 'Run Clean Task'), category: tasksCategory });
 
@@ -1116,12 +1189,32 @@ MenuRegistry.addCommand({ id: 'workbench.action.tasks.test', title: nls.localize
 registerSingleton(ITaskService, TaskService);
 
 // Register Quick Open
-(<IQuickOpenRegistry>Registry.as(QuickOpenExtensions.Quickopen)).registerQuickOpenHandler(
+const quickOpenRegistry = (<IQuickOpenRegistry>Registry.as(QuickOpenExtensions.Quickopen));
+
+quickOpenRegistry.registerQuickOpenHandler(
 	new QuickOpenHandlerDescriptor(
 		'vs/workbench/parts/tasks/browser/taskQuickOpen',
 		'QuickOpenHandler',
 		'task ',
-		nls.localize('taskCommands', "Run Task")
+		nls.localize('quickOpen.task', "Run Task")
+	)
+);
+
+quickOpenRegistry.registerQuickOpenHandler(
+	new QuickOpenHandlerDescriptor(
+		'vs/workbench/parts/tasks/browser/terminateQuickOpen',
+		'QuickOpenHandler',
+		'terminate task ',
+		nls.localize('quickOpen.terminateTask', "Terminate Task")
+	)
+);
+
+quickOpenRegistry.registerQuickOpenHandler(
+	new QuickOpenHandlerDescriptor(
+		'vs/workbench/parts/tasks/browser/restartQuickOpen',
+		'QuickOpenHandler',
+		'restart task ',
+		nls.localize('quickOpen.restartTask', "Restart Task")
 	)
 );
 

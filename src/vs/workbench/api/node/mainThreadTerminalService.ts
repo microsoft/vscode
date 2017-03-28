@@ -24,6 +24,7 @@ export class MainThreadTerminalService extends MainThreadTerminalServiceShape {
 		this._toDispose = [];
 		this._toDispose.push(terminalService.onInstanceDisposed((terminalInstance) => this._onTerminalDisposed(terminalInstance)));
 		this._toDispose.push(terminalService.onInstanceProcessIdReady((terminalInstance) => this._onTerminalProcessIdReady(terminalInstance)));
+		this._toDispose.push(terminalService.onInstanceData(event => this._onTerminalData(event.instance, event.data)));
 	}
 
 	public dispose(): void {
@@ -55,6 +56,13 @@ export class MainThreadTerminalService extends MainThreadTerminalServiceShape {
 		}
 	}
 
+	public $registerOnData(terminalId: number): void {
+		let terminalInstance = this.terminalService.getInstanceFromId(terminalId);
+		if (terminalInstance) {
+			terminalInstance.enableApiOnData();
+		}
+	}
+
 	public $dispose(terminalId: number): void {
 		let terminalInstance = this.terminalService.getInstanceFromId(terminalId);
 		if (terminalInstance) {
@@ -75,5 +83,9 @@ export class MainThreadTerminalService extends MainThreadTerminalServiceShape {
 
 	private _onTerminalProcessIdReady(terminalInstance: ITerminalInstance): void {
 		this._proxy.$acceptTerminalProcessId(terminalInstance.id, terminalInstance.processId);
+	}
+
+	private _onTerminalData(terminalInstance: ITerminalInstance, data: string): void {
+		this._proxy.$acceptTerminalData(terminalInstance.id, data);
 	}
 }

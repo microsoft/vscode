@@ -24,8 +24,9 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ActionsOrientation, ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ClosePanelAction, PanelAction, ToggleMaximizedPanelAction } from 'vs/workbench/browser/parts/panel/panelActions';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { PANEL_BACKGROUND, PANEL_BORDER_TOP_COLOR } from 'vs/workbench/common/theme';
+import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
+import { PANEL_BACKGROUND, PANEL_BORDER_TOP_COLOR, PANEL_ACTIVE_TITLE_COLOR, PANEL_INACTIVE_TITLE_COLOR, PANEL_ACTIVE_TITLE_BORDER } from 'vs/workbench/common/theme';
+import { highContrastOutline, focus } from "vs/platform/theme/common/colorRegistry";
 
 export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
@@ -63,7 +64,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			'panel',
 			'panel',
 			Scope.PANEL,
-			null, // TODO@theme
+			null,
 			id,
 			{ hasTitle: true }
 		);
@@ -172,7 +173,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 				}
 			},
 			updateStyles: () => {
-				// TODO@theme
+				// Handled via theming participant
 			}
 		};
 	}
@@ -190,3 +191,57 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		}));
 	}
 }
+
+registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+
+	// Title Active
+	const titleActive = theme.getColor(PANEL_ACTIVE_TITLE_COLOR);
+	const titleActiveBorder = theme.getColor(PANEL_ACTIVE_TITLE_BORDER);
+	collector.addRule(`
+		.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:hover .action-label,
+		.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label.checked {
+			color: ${titleActive};
+			border-bottom-color: ${titleActiveBorder};
+		}
+	`);
+
+	// Title Inactive
+	const titleInactive = theme.getColor(PANEL_INACTIVE_TITLE_COLOR);
+	collector.addRule(`
+		.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label {
+			color: ${titleInactive};
+		}
+	`);
+
+	// Title focus
+	const focusBorder = theme.getColor(focus);
+	collector.addRule(`
+		.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label:focus {
+			color: ${titleActive};
+			border-bottom-color: ${focusBorder} !important;
+			border-bottom: 1px solid;
+			outline: none;
+		}
+	`);
+
+	// High Contrast Styling
+	if (theme.type === 'hc') {
+		const outline = theme.getColor(highContrastOutline);
+
+		collector.addRule(`
+			.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label.checked,
+			.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label:hover {
+				outline-color: ${outline};
+				outline-width: 1px;
+				outline-style: solid;
+				border-bottom: none;
+				padding-bottom: 0;
+				outline-offset: 3px;
+			}
+
+			.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label:hover:not(.checked) {
+				outline-style: dashed;
+			}
+		`);
+	}
+});

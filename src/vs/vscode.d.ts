@@ -112,14 +112,15 @@ declare module 'vscode' {
 		readonly version: number;
 
 		/**
-		 * `true` if this document is showing in one or more [editors](#TextEditor).
-		 */
-		readonly isVisible: boolean;
-
-		/**
 		 * `true` if there are unpersisted changes.
 		 */
 		readonly isDirty: boolean;
+
+		/**
+		 * `true` if the document have been closed. A closed document isn't synchronized anymore
+		 * and won't be re-used when the same resource is opened again.
+		 */
+		readonly isClosed: boolean;
 
 		/**
 		 * Save the underlying file.
@@ -129,6 +130,12 @@ declare module 'vscode' {
 		 * will return false.
 		 */
 		save(): Thenable<boolean>;
+
+		/**
+		 * The [end of line](#EndOfLine) sequence that is predominately
+		 * used in this document.
+		 */
+		readonly eol: EndOfLine;
 
 		/**
 		 * The number of lines in this document.
@@ -1753,7 +1760,7 @@ declare module 'vscode' {
 
 	/**
 	 * The hover provider interface defines the contract between extensions and
-	 * the [hover](https://code.visualstudio.com/docs/editor/editingevolved#_hover)-feature.
+	 * the [hover](https://code.visualstudio.com/docs/editor/intellisense)-feature.
 	 */
 	export interface HoverProvider {
 
@@ -1918,7 +1925,7 @@ declare module 'vscode' {
 
 	/**
 	 * The document symbol provider interface defines the contract between extensions and
-	 * the [go to symbol](https://code.visualstudio.com/docs/editor/editingevolved#_goto-symbol)-feature.
+	 * the [go to symbol](https://code.visualstudio.com/docs/editor/editingevolved#_go-to-symbol)-feature.
 	 */
 	export interface DocumentSymbolProvider {
 
@@ -2031,6 +2038,14 @@ declare module 'vscode' {
 		static delete(range: Range): TextEdit;
 
 		/**
+		 * Utility to create an eol-edit.
+		 *
+		 * @param eol An eol-sequence
+		 * @return A new text edit object.
+		 */
+		static setEndOfLine(eol: EndOfLine): TextEdit;
+
+		/**
 		 * The range this edit applies to.
 		 */
 		range: Range;
@@ -2039,6 +2054,14 @@ declare module 'vscode' {
 		 * The string this edit will insert.
 		 */
 		newText: string;
+
+		/**
+		 * The eol-sequence used in the document.
+		 *
+		 * *Note* that the eol-sequence will be applied to the
+		 * whole document.
+		 */
+		newEol: EndOfLine;
 
 		/**
 		 * Create a new TextEdit.
@@ -2124,7 +2147,7 @@ declare module 'vscode' {
 	 * and `${3:foo}`. `$0` defines the final tab stop, it defaults to
 	 * the end of the snippet. Variables are defined with `$name` and
 	 * `${name:default value}`. The full snippet syntax is documented
-	 * [here](http://code.visualstudio.com/docs/customization/userdefinedsnippets#_creating-your-own-snippets).
+	 * [here](http://code.visualstudio.com/docs/editor/userdefinedsnippets#_creating-your-own-snippets).
 	 */
 	export class SnippetString {
 
@@ -2369,7 +2392,7 @@ declare module 'vscode' {
 
 	/**
 	 * The signature help provider interface defines the contract between extensions and
-	 * the [parameter hints](https://code.visualstudio.com/docs/editor/editingevolved#_parameter-hints)-feature.
+	 * the [parameter hints](https://code.visualstudio.com/docs/editor/intellisense)-feature.
 	 */
 	export interface SignatureHelpProvider {
 
@@ -2559,7 +2582,7 @@ declare module 'vscode' {
 
 	/**
 	 * The completion item provider interface defines the contract between extensions and
-	 * [IntelliSense](https://code.visualstudio.com/docs/editor/editingevolved#_intellisense).
+	 * [IntelliSense](https://code.visualstudio.com/docs/editor/intellisense).
 	 *
 	 * When computing *complete* completion items is expensive, providers can optionally implement
 	 * the `resolveCompletionItem`-function. In that case it is enough to return completion
@@ -3244,6 +3267,18 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Defines a generalized way of reporting progress updates.
+	 */
+	export interface Progress<T> {
+
+		/**
+		 * Report a progress update.
+		 * @param value A progress item, like a message or an updated percentage value
+		 */
+		report(value: T): void
+	}
+
+	/**
 	 * An individual terminal instance within the integrated terminal.
 	 */
 	export interface Terminal {
@@ -3456,9 +3491,9 @@ declare module 'vscode' {
 	 * can be executed [manually](#commands.executeCommand) or from a UI gesture. Those are:
 	 *
 	 * * palette - Use the `commands`-section in `package.json` to make a command show in
-	 * the [command palette](https://code.visualstudio.com/docs/editor/codebasics#_command-palette).
+	 * the [command palette](https://code.visualstudio.com/docs/getstarted/userinterface#_command-palette).
 	 * * keybinding - Use the `keybindings`-section in `package.json` to enable
-	 * [keybindings](https://code.visualstudio.com/docs/customization/keybindings#_customizing-shortcuts)
+	 * [keybindings](https://code.visualstudio.com/docs/getstarted/keybindings#_customizing-shortcuts)
 	 * for your extension.
 	 *
 	 * Commands from other extensions and from the editor itself are accessible to an extension. However,
@@ -3820,6 +3855,17 @@ declare module 'vscode' {
 		 * @return A disposable which hides the status bar message.
 		 */
 		export function setStatusBarMessage(text: string): Disposable;
+
+		/**
+		 * Show progress in the scm viewlet while running the given callback and while its returned
+		 * promise isn't resolve or rejected.
+		 *
+		 * @param task A callback returning a promise. Progress increments can be reported with
+		 * the provided [progress](#Progress)-object.
+		 * @return The thenable the task did return.
+		 */
+		export function withScmProgress<R>(task: (progress: Progress<number>) => Thenable<R>): Thenable<R>;
+
 
 		/**
 		 * Creates a status bar [item](#StatusBarItem).
@@ -4490,6 +4536,211 @@ declare module 'vscode' {
 		 * @return A [disposable](#Disposable) that unsets this configuration.
 		 */
 		export function setLanguageConfiguration(language: string, configuration: LanguageConfiguration): Disposable;
+	}
+
+	/**
+	 * The theme-aware decorations for a [SCM resource](#SCMResource).
+	 */
+	export interface SCMResourceThemableDecorations {
+
+		/**
+		 * The icon path for a specific [SCM resource](#SCMResource).
+		 */
+		readonly iconPath?: string | Uri;
+	}
+
+	/**
+	 * The decorations for a [SCM resource](#SCMResource). Can be specified
+	 * for light and dark themes, independently.
+	 */
+	export interface SCMResourceDecorations extends SCMResourceThemableDecorations {
+
+		/**
+		 * Whether the [SCM resource](#SCMResource) should be striked-through
+		 * in the UI.
+		 */
+		readonly strikeThrough?: boolean;
+
+		/**
+		 * The light theme decorations.
+		 */
+		readonly light?: SCMResourceThemableDecorations;
+
+		/**
+		 * The dark theme decorations.
+		 */
+		readonly dark?: SCMResourceThemableDecorations;
+	}
+
+	/**
+	 * An SCM resource represents the state of an underlying workspace
+	 * resource within a certain SCM provider state.
+	 */
+	export interface SCMResource {
+
+		/**
+		 * The [uri](#Uri) of this SCM resource. This uri should uniquely
+		 * identify this SCM resource. Its value should be semantically
+		 * related to your [SCM provider](#SCMProvider).
+		 *
+		 * For example, consider file `/foo/bar` to be modified. An SCM
+		 * resource which would represent such state could have the
+		 * following properties:
+		 *
+		 *   - `uri = 'git:workingtree/A'`
+		 *   - `sourceUri = 'file:///foo/bar'`
+		 */
+		readonly uri: Uri;
+
+		/**
+		 * The [uri](#Uri) of the underlying resource inside the workspace.
+		 */
+		readonly sourceUri: Uri;
+
+		/**
+		 * The [decorations](#SCMResourceDecorations) for this SCM resource.
+		 */
+		readonly decorations?: SCMResourceDecorations;
+	}
+
+	/**
+	 * An SCM resource group is a collection of [SCM resources](#SCMResource).
+	 */
+	export interface SCMResourceGroup {
+
+		/**
+		 * The [uri](#Uri) of this SCM resource group. This uri should
+		 * uniquely identify this SCM resource group. Its value should be
+		 * semantically related to your [SCM provider](#SCMProvider).
+		 *
+		 * For example, consider a Working Tree resource group. An SCM
+		 * resource group which would represent such state could have the
+		 * following properties:
+		 *
+		 *   - `uri = 'git:workingtree'`
+		 *   - `label = 'Working Tree'`
+		 */
+		readonly uri: Uri;
+
+		/**
+		 * The UI label of the SCM resource group.
+		 */
+		readonly label: string;
+
+		/**
+		 * The context key of the SCM resource group, which will be used to populate
+		 * the value of the `scmResourceGroup` context key.
+		 */
+		readonly contextKey?: string;
+
+		/**
+		 * The collection of [SCM resources](#SCMResource) within the SCM resource group.
+		 */
+		readonly resources: SCMResource[];
+	}
+
+	/**
+	 * An SCM provider is able to provide [SCM resources](#SCMResource) to the editor,
+	 * notify of changes in them and interact with the editor in several SCM related ways.
+	 */
+	export interface SCMProvider {
+
+		/**
+		 * A human-readable label for the name of the SCM Provider.
+		 */
+		readonly label: string;
+
+		/**
+		 * The context key of the SCM provider, which will be used to populate
+		 * the value of the `scmProvider` context key.
+		 */
+		readonly contextKey?: string;
+
+		/**
+		 * The list of SCM resource groups.
+		 */
+		readonly resources: SCMResourceGroup[];
+
+		/**
+		 * A count of resources, used in the UI as the label for the SCM changes count.
+		 */
+		readonly count?: number;
+
+		/**
+		 * A state identifier, which will be used to populate the value of the
+		 * `scmProviderState` context key.
+		 */
+		readonly stateContextKey?: string;
+
+		/**
+		 * An [event](#Event) which should fire when any of the following attributes
+		 * have changed:
+		 *   - [resources](#SCMProvider.resources)
+		 *   - [count](#SCMProvider.count)
+		 *   - [state](#SCMProvider.state)
+		 */
+		readonly onDidChange?: Event<SCMProvider>;
+
+		/**
+		 * Provide a [uri](#Uri) to the original resource of any given resource uri.
+		 *
+		 * @param uri The uri of the resource open in a text editor.
+		 * @param token A cancellation token.
+		 * @return A thenable that resolves to uri of the matching original resource.
+		 */
+		provideOriginalResource?(uri: Uri, token: CancellationToken): ProviderResult<Uri>;
+
+		/**
+		 * Open a specific [SCM resource](#SCMResource). Called when SCM resources
+		 * are clicked in the UI, for example.
+		 *
+		 * @param resource The [SCM resource](#SCMResource) which should be open.
+		 * @param token A cancellation token.
+		 * @return A thenable which resolves when the resource is open.
+		 */
+		open?(resource: SCMResource): void;
+	}
+
+	/**
+	 * Represents the input box in the SCM view.
+	 */
+	export interface SCMInputBox {
+
+		/**
+		 * Setter and getter for the contents of the input box.
+		 */
+		value: string;
+	}
+
+	export namespace scm {
+
+		/**
+		 * The currently active [SCM provider](#SCMProvider).
+		 */
+		export let activeProvider: SCMProvider | undefined;
+
+		/**
+		 * An [event](#Event) which fires when the active [SCM provider](#SCMProvider)
+		 * has changed.
+		 */
+		export const onDidChangeActiveProvider: Event<SCMProvider>;
+
+		/**
+		 * The [input box](#SCMInputBox) in the SCM view.
+		 */
+		export const inputBox: SCMInputBox;
+
+		/**
+		 * An [event](#Event) which fires when the user has accepted the changes.
+		 */
+		export const onDidAcceptInputValue: Event<SCMInputBox>;
+
+		/**
+		 * Registers an [SCM provider](#SCMProvider).
+		 *
+		 * @return A disposable which unregisters the provider.
+		 */
+		export function registerSCMProvider(provider: SCMProvider): Disposable;
 	}
 
 	/**

@@ -105,6 +105,10 @@
 	border: 1px solid;
 }
 
+.hc-black .global-message-list li.message-list-entry .actions-container .message-action .action-button:focus {
+	outline-offset: -4px; /* Helps high-contrast outline avoid clipping. */
+}
+
 /* TODO@theme */
 
 .vs .global-message-list,
@@ -140,6 +144,11 @@
 
 .hc-black .global-message-list li.message-list-entry .actions-container .message-action .action-button {
 	border-color: #6FC3DF;
+}
+
+.vs .global-message-list li.message-list-entry .actions-container .message-action .action-button:focus,
+.vs-dark .global-message-list li.message-list-entry .actions-container .message-action .action-button:focus {
+	outline-color: rgba(255, 255, 255, .5); /* buttons have a blue color, so focus indication needs to be different */
 }
 
 .vs .global-message-list li.message-list-entry .message-left-side.severity.app-error {

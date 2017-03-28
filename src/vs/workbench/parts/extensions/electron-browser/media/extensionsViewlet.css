@@ -168,7 +168,3 @@
 	background-position: center center;
 	background-repeat: no-repeat;
 }
-
-.hc-black .monaco-workbench .extensions-viewlet > .header > .search-box {
-	border: 1px solid #6FC3DF;
-}

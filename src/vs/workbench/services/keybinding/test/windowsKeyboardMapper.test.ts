@@ -371,6 +371,34 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 			}]
 		);
 	});
+
+	test('resolveKeyboardEvent Modifier only Ctrl+', () => {
+		assertResolveKeyboardEvent(
+			mapper,
+			{
+				ctrlKey: true,
+				shiftKey: false,
+				altKey: false,
+				metaKey: false,
+				keyCode: KeyCode.Ctrl,
+				code: null
+			},
+			{
+				label: 'Ctrl+',
+				ariaLabel: 'Control+',
+				HTMLLabel: [_simpleHTMLLabel(['Ctrl', ''])],
+				electronAccelerator: null,
+				userSettingsLabel: 'ctrl+',
+				isWYSIWYG: true,
+				isChord: false,
+				hasCtrlModifier: true,
+				hasShiftModifier: false,
+				hasAltModifier: false,
+				hasMetaModifier: false,
+				dispatchParts: [null, null],
+			}
+		);
+	});
 });
 
 suite('keyboardMapper - WINDOWS en_us', () => {
@@ -450,6 +478,34 @@ suite('keyboardMapper - WINDOWS en_us', () => {
 				hasMetaModifier: false,
 				dispatchParts: ['ctrl+,', null],
 			}]
+		);
+	});
+
+	test('resolveKeyboardEvent Modifier only Ctrl+', () => {
+		assertResolveKeyboardEvent(
+			mapper,
+			{
+				ctrlKey: true,
+				shiftKey: false,
+				altKey: false,
+				metaKey: false,
+				keyCode: KeyCode.Ctrl,
+				code: null
+			},
+			{
+				label: 'Ctrl+',
+				ariaLabel: 'Control+',
+				HTMLLabel: [_simpleHTMLLabel(['Ctrl', ''])],
+				electronAccelerator: null,
+				userSettingsLabel: 'ctrl+',
+				isWYSIWYG: true,
+				isChord: false,
+				hasCtrlModifier: true,
+				hasShiftModifier: false,
+				hasAltModifier: false,
+				hasMetaModifier: false,
+				dispatchParts: [null, null],
+			}
 		);
 	});
 });

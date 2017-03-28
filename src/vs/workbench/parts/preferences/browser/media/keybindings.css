@@ -22,6 +22,10 @@
 	text-align: center;
 }
 
+.defineKeybindingWidget .input {
+	text-align: center;
+}
+
 /* Theming */
 .defineKeybindingWidget {
 	background-color: #EFEFF2;

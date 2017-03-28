@@ -19,7 +19,7 @@ import { EditorOptions } from 'vs/workbench/common/editor';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { WalkThroughInput } from 'vs/workbench/parts/welcome/walkThrough/node/walkThroughInput';
-import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/themeService';
+import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { marked } from 'vs/base/common/marked/marked';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -38,6 +38,7 @@ import SCMPreview from 'vs/workbench/parts/scm/browser/scmPreview';
 import { isObject } from 'vs/base/common/types';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
+import { Parts, IPartService } from "vs/workbench/services/part/common/partService";
 
 export const WALK_THROUGH_FOCUS = new RawContextKey<boolean>('interactivePlaygroundFocus', false);
 
@@ -100,7 +101,8 @@ export class WalkThroughPart extends BaseEditor {
 		@IStorageService private storageService: IStorageService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IModeService private modeService: IModeService
+		@IModeService private modeService: IModeService,
+		@IPartService private partService: IPartService
 	) {
 		super(WalkThroughPart.ID, telemetryService, themeService);
 		this.editorFocus = WALK_THROUGH_FOCUS.bindTo(this.contextKeyService);
@@ -428,7 +430,7 @@ export class WalkThroughPart extends BaseEditor {
 	}
 
 	private style(div: HTMLElement) {
-		const styleElement = document.querySelector('.monaco-editor-background'); // TODO@theme styles should come in via theme registry
+		const styleElement = this.partService.getContainer(Parts.EDITOR_PART); // TODO@theme styles should come in via theme registry
 		const {color, backgroundColor, fontFamily, fontWeight, fontSize} = window.getComputedStyle(styleElement);
 		div.style.color = color;
 		div.style.backgroundColor = backgroundColor;

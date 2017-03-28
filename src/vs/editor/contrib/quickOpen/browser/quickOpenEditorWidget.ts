@@ -9,6 +9,9 @@ import { QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { QuickOpenWidget } from 'vs/base/parts/quickopen/browser/quickOpenWidget';
 import { IAutoFocus } from 'vs/base/parts/quickopen/common/quickOpen';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
+import { attachQuickOpenStyler } from "vs/platform/theme/common/styler";
+import { IDisposable } from "vs/base/common/lifecycle";
+import { IThemeService } from "vs/platform/theme/common/themeService";
 
 export interface IQuickOpenEditorWidgetOptions {
 	inputAriaLabel: string;
@@ -19,12 +22,15 @@ export class QuickOpenEditorWidget implements IOverlayWidget {
 	private static ID = 'editor.contrib.quickOpenEditorWidget';
 
 	private codeEditor: ICodeEditor;
+	private themeService: IThemeService;
 	private visible: boolean;
 	private quickOpenWidget: QuickOpenWidget;
 	private domNode: HTMLElement;
+	private styler: IDisposable;
 
-	constructor(codeEditor: ICodeEditor, onOk: () => void, onCancel: () => void, onType: (value: string) => void, configuration: IQuickOpenEditorWidgetOptions) {
+	constructor(codeEditor: ICodeEditor, onOk: () => void, onCancel: () => void, onType: (value: string) => void, configuration: IQuickOpenEditorWidgetOptions, themeService: IThemeService) {
 		this.codeEditor = codeEditor;
+		this.themeService = themeService;
 
 		this.create(onOk, onCancel, onType, configuration);
 	}
@@ -45,6 +51,7 @@ export class QuickOpenEditorWidget implements IOverlayWidget {
 			},
 			null
 		);
+		this.styler = attachQuickOpenStyler(this.quickOpenWidget, this.themeService);
 
 		this.quickOpenWidget.create();
 		this.codeEditor.addOverlayWidget(this);
@@ -65,6 +72,7 @@ export class QuickOpenEditorWidget implements IOverlayWidget {
 	public destroy(): void {
 		this.codeEditor.removeOverlayWidget(this);
 		this.quickOpenWidget.dispose();
+		this.styler.dispose();
 	}
 
 	public isVisible(): boolean {

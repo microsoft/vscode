@@ -28,11 +28,6 @@
         "category": "Git"
       },
       {
-        "command": "git.cloneSilent",
-        "title": "%command.clone%",
-        "category": "Git"
-      },
-      {
         "command": "git.init",
         "title": "%command.init%",
         "category": "Git",
@@ -221,10 +216,6 @@
       "commandPalette": [
         {
           "command": "git.clone",
-          "when": "false"
-        },
-        {
-          "command": "git.cloneSilent",
           "when": "config.git.enabled"
         },
         {

@@ -13,6 +13,7 @@
 	"nonempty": "必須是非空白值。",
 	"optstring": "屬性 `{0}` 可以省略或必須屬於 `string` 類型",
 	"requirestring": "屬性 '{0}' 為強制項目且必須屬於 `string` 類型",
+	"unboundCommands": "其他可用命令如下: ",
 	"vscode.extension.contributes.keybindings": "提供按鍵繫結關係。",
 	"vscode.extension.contributes.keybindings.command": "觸發按鍵繫結關係時所要執行命令的識別碼。",
 	"vscode.extension.contributes.keybindings.key": "按鍵或按鍵順序 (以加號分隔按鍵並以空格分隔順序，例如 Ctrl+O 和 Ctrl+L L 進行同步選取",

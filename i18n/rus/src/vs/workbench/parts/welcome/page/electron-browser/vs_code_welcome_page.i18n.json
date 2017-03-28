@@ -33,7 +33,7 @@
 	"welcomePage.showCommands": "Найти и выполнить все команды",
 	"welcomePage.showCommandsDescription": "Быстрый доступ и поиск команд на панели управления ({0})",
 	"welcomePage.showOnStartup": "Отображать страницу приветствия при запуске",
-	"welcomePage.stackOverflow": "Переполнение стека",
+	"welcomePage.stackOverflow": "Stack Overflow",
 	"welcomePage.start": "Запустить",
 	"welcomePage.sublime": "Sublime",
 	"welcomePage.sublimeCurrent": "Sublime (текущий)",

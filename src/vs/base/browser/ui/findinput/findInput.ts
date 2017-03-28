@@ -8,15 +8,16 @@ import 'vs/css!./findInput';
 
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
-import { IMessage as InputBoxMessage, IInputValidator, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
+import { IMessage as InputBoxMessage, IInputValidator, InputBox, IInputBoxStyles } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
 import { Widget } from 'vs/base/browser/ui/widget';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { CaseSensitiveCheckbox, WholeWordsCheckbox, RegexCheckbox } from 'vs/base/browser/ui/findinput/findInputCheckboxes';
+import { Color } from "vs/base/common/color";
 
-export interface IFindInputOptions {
+export interface IFindInputOptions extends IFindInputStyles {
 	placeholder?: string;
 	width?: number;
 	validation?: IInputValidator;
@@ -25,6 +26,10 @@ export interface IFindInputOptions {
 	appendCaseSensitiveLabel?: string;
 	appendWholeWordsLabel?: string;
 	appendRegexLabel?: string;
+}
+
+export interface IFindInputStyles extends IInputBoxStyles {
+	checkedBorderColor?: Color;
 }
 
 const NLS_DEFAULT_LABEL = nls.localize('defaultLabel', "input");
@@ -38,6 +43,10 @@ export class FindInput extends Widget {
 	private placeholder: string;
 	private validation: IInputValidator;
 	private label: string;
+
+	private checkedBorderColor: Color;
+	private inputBackground: Color;
+	private inputForeground: Color;
 
 	private regex: RegexCheckbox;
 	private wholeWords: WholeWordsCheckbox;
@@ -67,6 +76,10 @@ export class FindInput extends Widget {
 		this.placeholder = options.placeholder || '';
 		this.validation = options.validation;
 		this.label = options.label || NLS_DEFAULT_LABEL;
+
+		this.checkedBorderColor = options.checkedBorderColor;
+		this.inputBackground = options.inputBackground;
+		this.inputForeground = options.inputForeground;
 
 		this.regex = null;
 		this.wholeWords = null;
@@ -132,6 +145,29 @@ export class FindInput extends Widget {
 		}
 	}
 
+	public style(styles: IFindInputStyles) {
+		this.checkedBorderColor = styles.checkedBorderColor;
+		this.inputBackground = styles.inputBackground;
+		this.inputForeground = styles.inputForeground;
+
+		this._applyStyles();
+	}
+
+	protected _applyStyles() {
+		if (this.domNode) {
+			const styles: IFindInputStyles = {
+				checkedBorderColor: this.checkedBorderColor,
+				inputBackground: this.inputBackground,
+				inputForeground: this.inputForeground
+			};
+
+			this.regex.style(styles);
+			this.wholeWords.style(styles);
+			this.caseSensitive.style(styles);
+			this.inputBox.style(styles);
+		}
+	}
+
 	public select(): void {
 		this.inputBox.select();
 	}
@@ -194,7 +230,9 @@ export class FindInput extends Widget {
 			validationOptions: {
 				validation: this.validation || null,
 				showMessage: true
-			}
+			},
+			inputBackground: this.inputBackground,
+			inputForeground: this.inputForeground
 		}));
 
 		this.regex = this._register(new RegexCheckbox({
@@ -207,7 +245,8 @@ export class FindInput extends Widget {
 				}
 				this.setInputWidth();
 				this.validate();
-			}
+			},
+			checkedBorderColor: this.checkedBorderColor
 		}));
 		this.wholeWords = this._register(new WholeWordsCheckbox({
 			appendTitle: appendWholeWordsLabel,
@@ -219,7 +258,8 @@ export class FindInput extends Widget {
 				}
 				this.setInputWidth();
 				this.validate();
-			}
+			},
+			checkedBorderColor: this.checkedBorderColor
 		}));
 		this.caseSensitive = this._register(new CaseSensitiveCheckbox({
 			appendTitle: appendCaseSensitiveLabel,
@@ -234,7 +274,8 @@ export class FindInput extends Widget {
 			},
 			onKeyDown: (e) => {
 				this._onCaseSensitiveKeyDown.fire(e);
-			}
+			},
+			checkedBorderColor: this.checkedBorderColor
 		}));
 
 		// Arrow-Key support to navigate between options

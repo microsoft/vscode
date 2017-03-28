@@ -6,8 +6,10 @@
 'use strict';
 
 import 'vs/css!./media/scmViewlet';
+import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { chain } from 'vs/base/common/event';
+import * as platform from 'vs/base/common/platform';
 import { domEvent } from 'vs/base/browser/event';
 import { IDisposable, dispose, empty as EmptyDisposable } from 'vs/base/common/lifecycle';
 import { Builder, Dimension } from 'vs/base/browser/builder';
@@ -33,20 +35,13 @@ import { IAction, IActionItem, ActionRunner } from 'vs/base/common/actions';
 import { createActionItem } from 'vs/platform/actions/browser/menuItemActionItem';
 import { SCMMenus } from './scmMenus';
 import { ActionBar, IActionItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/themeService';
+import { IThemeService, LIGHT } from "vs/platform/theme/common/themeService";
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { comparePaths } from 'vs/base/common/comparers';
 import URI from 'vs/base/common/uri';
-import { isSCMResource, getSCMResourceURI } from './scmUtil';
-
-function getElementId(element: ISCMResourceGroup | ISCMResource) {
-	if (isSCMResource(element)) {
-		return `${element.resourceGroupId}:${element.uri.toString()}`;
-	} else {
-		return `${element.id}`;
-	}
-}
+import { isSCMResource } from './scmUtil';
+import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 
 interface SearchInputEvent extends Event {
 	target: HTMLInputElement;
@@ -132,7 +127,7 @@ class ResourceRenderer implements IRenderer<ISCMResource, ResourceTemplate> {
 		private scmMenus: SCMMenus,
 		private actionItemProvider: IActionItemProvider,
 		private getSelectedResources: () => URI[],
-		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
+		@IThemeService private themeService: IThemeService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) { }
 
@@ -152,13 +147,13 @@ class ResourceRenderer implements IRenderer<ISCMResource, ResourceTemplate> {
 	}
 
 	renderElement(resource: ISCMResource, index: number, template: ResourceTemplate): void {
-		template.fileLabel.setFile(resource.uri);
+		template.fileLabel.setFile(resource.sourceUri);
 		template.actionBar.clear();
 		template.actionBar.push(this.scmMenus.getResourceActions(resource));
 		toggleClass(template.name, 'strike-through', resource.decorations.strikeThrough);
 
-		const theme = this.themeService.getColorTheme();
-		const icon = theme.isDarkTheme() ? resource.decorations.iconDark : resource.decorations.icon;
+		const theme = this.themeService.getTheme();
+		const icon = theme.type === LIGHT ? resource.decorations.icon : resource.decorations.iconDark;
 
 		if (icon) {
 			template.decorationIcon.style.backgroundImage = `url('${icon}')`;
@@ -182,7 +177,7 @@ class Delegate implements IDelegate<ISCMResourceGroup | ISCMResource> {
 }
 
 function resourceSorter(a: ISCMResource, b: ISCMResource): number {
-	return comparePaths(a.uri.fsPath, b.uri.fsPath);
+	return comparePaths(a.sourceUri.fsPath, b.sourceUri.fsPath);
 }
 
 export class SCMViewlet extends Viewlet {
@@ -193,7 +188,6 @@ export class SCMViewlet extends Viewlet {
 	private listContainer: HTMLElement;
 	private list: List<ISCMResourceGroup | ISCMResource>;
 	private menus: SCMMenus;
-	private activeProviderId: string | undefined;
 	private providerChangeDisposable: IDisposable = EmptyDisposable;
 	private disposables: IDisposable[] = [];
 
@@ -207,7 +201,7 @@ export class SCMViewlet extends Viewlet {
 		@IMessageService private messageService: IMessageService,
 		@IListService private listService: IListService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IWorkbenchThemeService protected themeService: IWorkbenchThemeService,
+		@IThemeService protected themeService: IThemeService,
 		@IMenuService private menuService: IMenuService,
 		@IModelService private modelService: IModelService
 	) {
@@ -220,7 +214,6 @@ export class SCMViewlet extends Viewlet {
 
 	private setActiveProvider(activeProvider: ISCMProvider | undefined): void {
 		this.providerChangeDisposable.dispose();
-		this.activeProviderId = activeProvider ? activeProvider.id : undefined;
 
 		if (activeProvider) {
 			this.providerChangeDisposable = activeProvider.onDidChange(this.update, this);
@@ -239,7 +232,11 @@ export class SCMViewlet extends Viewlet {
 		const root = parent.getHTMLElement();
 		this.inputBoxContainer = append(root, $('.scm-editor'));
 
-		this.inputBox = new InputBox(this.inputBoxContainer, this.contextViewService, { flexibleHeight: true });
+		this.inputBox = new InputBox(this.inputBoxContainer, this.contextViewService, {
+			placeholder: localize('commitMessage', "Message (press {0} to commit)", platform.isMacintosh ? 'Cmd+Enter' : 'Ctrl+Enter'),
+			flexibleHeight: true
+		});
+		this.disposables.push(attachInputBoxStyler(this.inputBox, this.themeService));
 		this.disposables.push(this.inputBox);
 
 		this.inputBox.value = this.scmService.input.value;
@@ -250,7 +247,7 @@ export class SCMViewlet extends Viewlet {
 		chain(domEvent(this.inputBox.inputElement, 'keydown'))
 			.map(e => new StandardKeyboardEvent(e))
 			.filter(e => e.equals(KeyMod.CtrlCmd | KeyCode.Enter) || e.equals(KeyMod.CtrlCmd | KeyCode.KEY_S))
-			.on(this.acceptChanges, this, this.disposables);
+			.on(this.scmService.input.acceptChanges, this.scmService.input, this.disposables);
 
 		this.listContainer = append(root, $('.scm-status.show-file-icons'));
 		const delegate = new Delegate();
@@ -263,7 +260,7 @@ export class SCMViewlet extends Viewlet {
 		];
 
 		this.list = new List(this.listContainer, delegate, renderers, {
-			identityProvider: e => getElementId(e),
+			identityProvider: e => e.uri.toString(),
 			keyboardSupport: false
 		});
 
@@ -279,7 +276,7 @@ export class SCMViewlet extends Viewlet {
 
 		this.setActiveProvider(this.scmService.activeProvider);
 		this.scmService.onDidChangeProvider(this.setActiveProvider, this, this.disposables);
-		this.themeService.onDidColorThemeChange(this.update, this, this.disposables);
+		this.themeService.onThemeChange(this.update, this, this.disposables);
 
 		return TPromise.as(null);
 	}
@@ -327,10 +324,6 @@ export class SCMViewlet extends Viewlet {
 		this.scmService.activeProvider.open(e);
 	}
 
-	private acceptChanges(): void {
-		this.scmService.activeProvider.acceptChanges();
-	}
-
 	getActions(): IAction[] {
 		return this.menus.getTitleActions();
 	}
@@ -361,8 +354,7 @@ export class SCMViewlet extends Viewlet {
 	}
 
 	private getSelectedResources(): URI[] {
-		return this.list.getSelectedElements()
-			.map(r => getSCMResourceURI(this.activeProviderId, r));
+		return this.list.getSelectedElements().map(r => r.uri);
 	}
 
 	dispose(): void {

@@ -5,8 +5,8 @@
 
 'use strict';
 
-import { scm, Uri, Disposable, SCMProvider, SCMResourceGroup, Event, ProviderResult, workspace } from 'vscode';
-import { Model, Resource, ResourceGroup, State } from './model';
+import { scm, Uri, Disposable, SCMProvider, SCMResourceGroup, Event, workspace } from 'vscode';
+import { Model, Resource, State } from './model';
 import { CommandCenter } from './commands';
 import { mapEvent } from './util';
 
@@ -14,15 +14,16 @@ export class GitSCMProvider implements SCMProvider {
 
 	private disposables: Disposable[] = [];
 
+	get contextKey(): string { return 'git'; }
 	get resources(): SCMResourceGroup[] { return this.model.resources; }
 
-	get onDidChange(): Event<SCMResourceGroup[]> {
-		return mapEvent(this.model.onDidChange, () => this.model.resources);
+	get onDidChange(): Event<this> {
+		return mapEvent(this.model.onDidChange, () => this);
 	}
 
 	get label(): string { return 'Git'; }
 
-	get state(): string {
+	get stateContextKey(): string {
 		switch (this.model.state) {
 			case State.Uninitialized: return 'uninitialized';
 			case State.Idle: return 'idle';
@@ -42,22 +43,14 @@ export class GitSCMProvider implements SCMProvider {
 	}
 
 	constructor(private model: Model, private commandCenter: CommandCenter) {
-		scm.registerSCMProvider('git', this);
+		scm.registerSCMProvider(this);
 	}
 
-	open(resource: Resource): ProviderResult<void> {
-		return this.commandCenter.open(resource);
+	open(resource: Resource): void {
+		this.commandCenter.open(resource);
 	}
 
-	acceptChanges(): ProviderResult<void> {
-		return this.commandCenter.commitWithInput();
-	}
-
-	drag(resource: Resource, resourceGroup: ResourceGroup): void {
-		console.log('drag', resource, resourceGroup);
-	}
-
-	getOriginalResource(uri: Uri): Uri | undefined {
+	provideOriginalResource(uri: Uri): Uri | undefined {
 		if (uri.scheme !== 'file') {
 			return;
 		}

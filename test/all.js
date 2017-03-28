@@ -144,7 +144,7 @@ function main() {
 
 			var coveragePath = path.join(path.dirname(__dirname), '.build', 'coverage');
 			var reportTypes = [];
-			if (argv.run) {
+			if (argv.run || argv.runGlob) {
 				// single file running
 				coveragePath += '-single';
 				reportTypes = ['lcovonly'];
@@ -178,7 +178,7 @@ function main() {
 
 	var loadFunc = null;
 
-	if (argv.run) {
+	if (argv.runGlob) {
 		loadFunc = cb => {
 			const doRun = tests => {
 				const modulesToLoad = tests.map(test => {
@@ -191,11 +191,15 @@ function main() {
 				define(modulesToLoad, () => cb(null), cb);
 			};
 
-			if (typeof argv.run === 'string') {
-				glob(argv.run, { cwd: src }, function (err, files) { doRun(files); });
-			} else {
-				doRun(argv.run);
-			}
+			glob(argv.runGlob, { cwd: src }, function (err, files) { doRun(files); });
+		};
+	} else if (argv.run) {
+		var tests = (typeof argv.run === 'string') ? [argv.run] : argv.run;
+		var modulesToLoad = tests.map(function(test) {
+			return path.relative(src, path.resolve(test)).replace(/(\.js)|(\.d\.ts)|(\.js\.map)$/, '');
+		});
+		loadFunc = cb => {
+			define(modulesToLoad, () => cb(null), cb);
 		};
 	} else if (argv['only-monaco-editor']) {
 		loadFunc = function(cb) {
@@ -238,7 +242,7 @@ function main() {
 
 		process.stderr.write = write;
 
-		if (!argv.run) {
+		if (!argv.run && !argv.runGlob) {
 			// set up last test
 			suite('Loader', function () {
 				test('should not explode while loading', function () {

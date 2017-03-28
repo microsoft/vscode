@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { Emitter } from 'vs/base/common/event';
+import { Emitter, mapEvent } from 'vs/base/common/event';
 import { TrieMap } from 'vs/base/common/map';
 import { score } from 'vs/editor/common/modes/languageSelector';
 import * as Platform from 'vs/base/common/platform';
@@ -33,7 +33,6 @@ import { ExtHostEditors } from 'vs/workbench/api/node/extHostTextEditors';
 import { ExtHostLanguages } from 'vs/workbench/api/node/extHostLanguages';
 import { ExtHostLanguageFeatures } from 'vs/workbench/api/node/extHostLanguageFeatures';
 import { ExtHostApiCommands } from 'vs/workbench/api/node/extHostApiCommands';
-import { computeDiff } from 'vs/workbench/api/node/extHostFunctions';
 import { ExtHostTask } from 'vs/workbench/api/node/extHostTask';
 import * as extHostTypes from 'vs/workbench/api/node/extHostTypes';
 import URI from 'vs/base/common/uri';
@@ -43,6 +42,7 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as vscode from 'vscode';
 import * as paths from 'vs/base/common/paths';
@@ -94,7 +94,13 @@ function proposed(extension: IExtensionDescription): Function {
 /**
  * This method instantiates and returns the extension API surface
  */
-export function createApiFactory(initData: IInitData, threadService: IThreadService, extensionService: ExtHostExtensionService, contextService: IWorkspaceContextService): IExtensionApiFactory {
+export function createApiFactory(
+	initData: IInitData,
+	threadService: IThreadService,
+	extensionService: ExtHostExtensionService,
+	contextService: IWorkspaceContextService,
+	telemetryService: ITelemetryService
+): IExtensionApiFactory {
 
 	// Addressable instances
 	const col = new InstanceCollection();
@@ -141,11 +147,12 @@ export function createApiFactory(initData: IInitData, threadService: IThreadServ
 			}
 		}
 
-		// namespace: commands
-		const commands: typeof vscode.commands = {
+		class Commands {
+
 			registerCommand<T>(id: string, command: <T>(...args: any[]) => T | Thenable<T>, thisArgs?: any): vscode.Disposable {
 				return extHostCommands.registerCommand(id, command, thisArgs);
-			},
+			}
+
 			registerTextEditorCommand(id: string, callback: (textEditor: vscode.TextEditor, edit: vscode.TextEditorEdit, ...args: any[]) => void, thisArg?: any): vscode.Disposable {
 				return extHostCommands.registerCommand(id, (...args: any[]) => {
 					let activeTextEditor = extHostEditors.getActiveTextEditor();
@@ -166,14 +173,33 @@ export function createApiFactory(initData: IInitData, threadService: IThreadServ
 						console.warn('An error occured while running command ' + id, err);
 					});
 				});
-			},
+			}
+
+			@proposed(extension)
+			registerDiffInformationCommand(id: string, callback: (diff: vscode.LineChange[], ...args: any[]) => any, thisArg?: any): vscode.Disposable {
+				return extHostCommands.registerCommand(id, async (...args: any[]) => {
+					let activeTextEditor = extHostEditors.getActiveTextEditor();
+					if (!activeTextEditor) {
+						console.warn('Cannot execute ' + id + ' because there is no active text editor.');
+						return undefined;
+					}
+
+					const diff = await extHostEditors.getDiffInformation(activeTextEditor.id);
+					callback.apply(thisArg, [diff, ...args]);
+				});
+			}
+
 			executeCommand<T>(id: string, ...args: any[]): Thenable<T> {
 				return extHostCommands.executeCommand(id, ...args);
-			},
+			}
+
 			getCommands(filterInternal: boolean = false): Thenable<string[]> {
 				return extHostCommands.getCommands(filterInternal);
 			}
-		};
+		}
+
+		// namespace: commands
+		const commands: typeof vscode.commands = new Commands();
 
 		// namespace: env
 		const env: typeof vscode.env = Object.freeze({
@@ -422,29 +448,30 @@ export function createApiFactory(initData: IInitData, threadService: IThreadServ
 
 		class SCM {
 
-			@proposed(extension)
 			get activeProvider() {
 				return extHostSCM.activeProvider;
 			}
 
-			@proposed(extension)
 			get onDidChangeActiveProvider() {
 				return extHostSCM.onDidChangeActiveProvider;
 			}
 
-			@proposed(extension)
+			get onDidAcceptInputValue() {
+				return mapEvent(extHostSCM.inputBox.onDidAccept, () => extHostSCM.inputBox);
+			}
+
 			get inputBox() {
 				return extHostSCM.inputBox;
 			}
 
-			@proposed(extension)
-			getResourceFromURI(uri) {
-				return extHostSCM.getResourceFromURI(uri);
-			}
+			registerSCMProvider(provider: vscode.SCMProvider) {
+				telemetryService.publicLog('registerSCMProvider', {
+					extensionId: extension.id,
+					providerLabel: provider.label,
+					providerContextKey: provider.contextKey
+				});
 
-			@proposed(extension)
-			registerSCMProvider(id, provider) {
-				return extHostSCM.registerSCMProvider(id, provider);
+				return extHostSCM.registerSCMProvider(provider);
 			}
 		}
 
@@ -499,7 +526,6 @@ export function createApiFactory(initData: IInitData, threadService: IThreadServ
 			ViewColumn: extHostTypes.ViewColumn,
 			WorkspaceEdit: extHostTypes.WorkspaceEdit,
 			// functions
-			computeDiff,
 			FileLocationKind: extHostTypes.FileLocationKind,
 			ApplyToKind: extHostTypes.ApplyToKind,
 			RevealKind: extHostTypes.RevealKind,

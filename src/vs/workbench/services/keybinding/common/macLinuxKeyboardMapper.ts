@@ -88,22 +88,52 @@ export class NativeResolvedKeybinding extends ResolvedKeybinding {
 		this._chordPart = chordPart;
 	}
 
+	private _getUILabelForScanCodeBinding(binding: ScanCodeBinding): string {
+		if (!binding) {
+			return null;
+		}
+		if (binding.isDuplicateModifierCase()) {
+			return '';
+		}
+		return this._mapper.getUILabelForScanCode(binding.scanCode);
+	}
+
 	public getLabel(): string {
-		let firstPart = this._firstPart ? this._mapper.getUILabelForScanCode(this._firstPart.scanCode) : null;
-		let chordPart = this._chordPart ? this._mapper.getUILabelForScanCode(this._chordPart.scanCode) : null;
+		let firstPart = this._getUILabelForScanCodeBinding(this._firstPart);
+		let chordPart = this._getUILabelForScanCodeBinding(this._chordPart);
 		return UILabelProvider.toLabel(this._firstPart, firstPart, this._chordPart, chordPart, this._OS);
 	}
 
+	private _getAriaLabelForScanCodeBinding(binding: ScanCodeBinding): string {
+		if (!binding) {
+			return null;
+		}
+		if (binding.isDuplicateModifierCase()) {
+			return '';
+		}
+		return this._mapper.getAriaLabelForScanCode(binding.scanCode);
+	}
+
 	public getAriaLabel(): string {
-		let firstPart = this._firstPart ? this._mapper.getAriaLabelForScanCode(this._firstPart.scanCode) : null;
-		let chordPart = this._chordPart ? this._mapper.getAriaLabelForScanCode(this._chordPart.scanCode) : null;
+		let firstPart = this._getAriaLabelForScanCodeBinding(this._firstPart);
+		let chordPart = this._getAriaLabelForScanCodeBinding(this._chordPart);
 		return AriaLabelProvider.toLabel(this._firstPart, firstPart, this._chordPart, chordPart, this._OS);
 	}
 
 	public getHTMLLabel(): IHTMLContentElement[] {
-		let firstPart = this._firstPart ? this._mapper.getUILabelForScanCode(this._firstPart.scanCode) : null;
-		let chordPart = this._chordPart ? this._mapper.getUILabelForScanCode(this._chordPart.scanCode) : null;
+		let firstPart = this._getUILabelForScanCodeBinding(this._firstPart);
+		let chordPart = this._getUILabelForScanCodeBinding(this._chordPart);
 		return UILabelProvider.toHTMLLabel(this._firstPart, firstPart, this._chordPart, chordPart, this._OS);
+	}
+
+	private _getElectronAcceleratorLabelForScanCodeBinding(binding: ScanCodeBinding): string {
+		if (!binding) {
+			return null;
+		}
+		if (binding.isDuplicateModifierCase()) {
+			return null;
+		}
+		return this._mapper.getElectronLabelForScanCode(binding.scanCode);
 	}
 
 	public getElectronAccelerator(): string {
@@ -112,13 +142,23 @@ export class NativeResolvedKeybinding extends ResolvedKeybinding {
 			return null;
 		}
 
-		let firstPart = this._firstPart ? this._mapper.getElectronLabelForScanCode(this._firstPart.scanCode) : null;
+		let firstPart = this._getElectronAcceleratorLabelForScanCodeBinding(this._firstPart);
 		return ElectronAcceleratorLabelProvider.toLabel(this._firstPart, firstPart, null, null, this._OS);
 	}
 
+	private _getUserSettingsLabelForScanCodeBinding(binding: ScanCodeBinding): string {
+		if (!binding) {
+			return null;
+		}
+		if (binding.isDuplicateModifierCase()) {
+			return '';
+		}
+		return this._mapper.getUserSettingsLabel(binding.scanCode);
+	}
+
 	public getUserSettingsLabel(): string {
-		let firstPart = this._firstPart ? this._mapper.getUserSettingsLabel(this._firstPart.scanCode) : null;
-		let chordPart = this._chordPart ? this._mapper.getUserSettingsLabel(this._chordPart.scanCode) : null;
+		let firstPart = this._getUserSettingsLabelForScanCodeBinding(this._firstPart);
+		let chordPart = this._getUserSettingsLabelForScanCodeBinding(this._chordPart);
 		return UserSettingsLabelProvider.toLabel(this._firstPart, firstPart, this._chordPart, chordPart, this._OS);
 	}
 
@@ -488,6 +528,17 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 		this._scanCodeToLabel = [];
 		this._scanCodeToDispatch = [];
 
+		// Initialize `_scanCodeToLabel`
+		for (let scanCode = ScanCode.None; scanCode < ScanCode.MAX_VALUE; scanCode++) {
+			this._scanCodeToLabel[scanCode] = null;
+		}
+
+		// Initialize `_scanCodeToDispatch`
+		for (let scanCode = ScanCode.None; scanCode < ScanCode.MAX_VALUE; scanCode++) {
+			this._scanCodeToDispatch[scanCode] = null;
+		}
+
+		// Handle immutable mappings
 		for (let scanCode = ScanCode.None; scanCode < ScanCode.MAX_VALUE; scanCode++) {
 			const keyCode = IMMUTABLE_CODE_TO_KEY_CODE[scanCode];
 			if (keyCode !== -1) {
@@ -530,6 +581,10 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 				mappings[mappingsLen++] = mapping;
 				this._codeInfo[scanCode] = mapping;
 
+				if (scanCode === ScanCode.IntlHash) {
+					console.log('here i am');
+				}
+
 				this._scanCodeToDispatch[scanCode] = `[${ScanCodeUtils.toString(scanCode)}]`;
 
 				if (value >= CharCode.a && value <= CharCode.z) {
@@ -537,6 +592,7 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 				} else if (value) {
 					this._scanCodeToLabel[scanCode] = String.fromCharCode(value);
 				} else {
+					console.log(`_scanCodeToLabel[${ScanCodeUtils.toString(scanCode)}] => null.`);
 					this._scanCodeToLabel[scanCode] = null;
 				}
 			}

@@ -15,6 +15,8 @@ import { TogglePanelAction } from 'vs/workbench/browser/panel';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
+import { attachSelectBoxStyler } from "vs/platform/theme/common/styler";
+import { IThemeService } from "vs/platform/theme/common/themeService";
 
 export class ToggleTerminalAction extends TogglePanelAction {
 
@@ -331,12 +333,15 @@ export class SwitchTerminalInstanceActionItem extends SelectActionItem {
 
 	constructor(
 		action: IAction,
-		@ITerminalService private terminalService: ITerminalService
+		@ITerminalService private terminalService: ITerminalService,
+		@IThemeService themeService: IThemeService
 	) {
 		super(null, action, terminalService.getInstanceLabels(), terminalService.activeTerminalInstanceIndex);
+
 		this.toDispose.push(terminalService.onInstancesChanged(this._updateItems, this));
 		this.toDispose.push(terminalService.onActiveInstanceChanged(this._updateItems, this));
 		this.toDispose.push(terminalService.onInstanceTitleChanged(this._updateItems, this));
+		this.toDispose.push(attachSelectBoxStyler(this.selectBox, themeService));
 	}
 
 	private _updateItems(): void {

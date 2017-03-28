@@ -9,16 +9,6 @@ import { IDisposable, Disposable, dispose } from 'vs/base/common/lifecycle';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { Color, RGBA } from 'vs/base/common/color';
 
-// < --- Workbench --- >
-
-export const WINDOW_FOREGROUND = registerColor('windowForeground', {
-	dark: '#CCCCCC',
-	light: '#6C6C6C',
-	hc: '#FFFFFF'
-}, nls.localize('windowForeground', "Overall window foreground color. This color is only used if not overridden by a component."));
-
-
-
 // < --- Tabs --- >
 
 export const TABS_CONTAINER_BACKGROUND = registerColor('tabsContainerBackground', {
@@ -97,6 +87,12 @@ export const EDITOR_DRAG_AND_DROP_BACKGROUND = registerColor('editorDragAndDropB
 	hc: null
 }, nls.localize('editorDragAndDropBackground', "Background color when dragging editors around."));
 
+export const EDITOR_SIDE_BY_SIDE_BORDER = registerColor('editorSideBySideBorder', {
+	dark: '#000000',
+	light: '#DDDDDD',
+	hc: null
+}, nls.localize('editorSideBySideBorder', "Border color to separate the details from the master side for side by side editors."));
+
 
 // < --- Panels --- >
 
@@ -111,6 +107,24 @@ export const PANEL_BORDER_TOP_COLOR = registerColor('panelBorderTopColor', {
 	light: Color.fromRGBA(new RGBA(128, 128, 128)).transparent(0.35),
 	hc: highContrastBorder
 }, nls.localize('panelBorderTopColor', "Panel border color on the top separating to the editor. Panels are shown below the editor area and contain views like output and integrated terminal."));
+
+export const PANEL_ACTIVE_TITLE_COLOR = registerColor('panelActiveTitleColor', {
+	dark: '#E7E7E7',
+	light: '#424242',
+	hc: Color.white
+}, nls.localize('panelActiveTitleColor', "Title color for the active panel. Panels are shown below the editor area and contain views like output and integrated terminal."));
+
+export const PANEL_INACTIVE_TITLE_COLOR = registerColor('panelInactiveTitleColor', {
+	dark: Color.fromRGBA(new RGBA(231, 231, 231)).transparent(0.5),
+	light: Color.fromRGBA(new RGBA(66, 66, 66)).transparent(0.75),
+	hc: Color.white
+}, nls.localize('panelInactiveTitleColor', "Title color for the inactive panel. Panels are shown below the editor area and contain views like output and integrated terminal."));
+
+export const PANEL_ACTIVE_TITLE_BORDER = registerColor('panelActiveTitleBorder', {
+	dark: '#404047',
+	light: '#CCCEDA',
+	hc: highContrastBorder
+}, nls.localize('panelActiveTitleBorder', "Border color for the active panel title. Panels are shown below the editor area and contain views like output and integrated terminal."));
 
 
 
@@ -167,6 +181,24 @@ export const ACTIVITY_BAR_BACKGROUND = registerColor('activityBarBackground', {
 	light: '#2C2C2C',
 	hc: '#000000'
 }, nls.localize('activityBarBackground', "Activity bar background color. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
+
+export const ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND = registerColor('activityBarDragAndDropBackground', {
+	dark: '#403F3F',
+	light: '#403F3F',
+	hc: '#403F3F'
+}, nls.localize('activityBarDragAndDropBackground', "Drag and drop feedback color for the activity bar items. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
+
+export const ACTIVITY_BADGE_BACKGROUND = registerColor('activityBadgeBackground', {
+	dark: '#007ACC',
+	light: '#007ACC',
+	hc: '#000000'
+}, nls.localize('activityBadgeBackground', "Activity notification badge background color. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
+
+export const ACTIVITY_BADGE_FOREGROUND = registerColor('activityBadgeForeground', {
+	dark: Color.white,
+	light: Color.white,
+	hc: Color.white
+}, nls.localize('activityBadgeForeground', "Activity notification badge foreground color. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
 
 

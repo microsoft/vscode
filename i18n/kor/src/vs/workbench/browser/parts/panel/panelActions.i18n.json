@@ -6,6 +6,8 @@
 {
 	"closePanel": "패널 닫기",
 	"focusPanel": "패널로 포커스 이동",
+	"maximizePanel": "패널 크기 최대화",
+	"minimizePanel": "패널 크기 복원",
 	"panelActionTooltip": "{0}({1})",
 	"toggleMaximizedPanel": "최대화된 패널 설정/해제",
 	"togglePanel": "패널 설정/해제",

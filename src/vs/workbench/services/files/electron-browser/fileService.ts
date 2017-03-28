@@ -81,6 +81,7 @@ export class FileService implements IFileService {
 		const fileServiceConfig: IFileServiceOptions = {
 			errorLogger: (msg: string) => this.onFileServiceError(msg),
 			encoding: configuration.files && configuration.files.encoding,
+			autoGuessEncoding: configuration.files && configuration.files.autoGuessEncoding,
 			encodingOverride,
 			watcherIgnoredPatterns,
 			verboseLogging: environmentService.verbose,

@@ -36,14 +36,14 @@ export class ModifierLabelProvider {
 	}
 
 	public toLabel(firstPartMod: Modifiers, firstPartKey: string, chordPartMod: Modifiers, chordPartKey: string, OS: OperatingSystem): string {
-		if (!firstPartKey && !chordPartKey) {
+		if (firstPartKey === null && chordPartKey === null) {
 			return null;
 		}
 		return _asString(firstPartMod, firstPartKey, chordPartMod, chordPartKey, this._labels[OS]);
 	}
 
 	public toHTMLLabel(firstPartMod: Modifiers, firstPartKey: string, chordPartMod: Modifiers, chordPartKey: string, OS: OperatingSystem): IHTMLContentElement[] {
-		if (!firstPartKey && !chordPartKey) {
+		if (firstPartKey === null && chordPartKey === null) {
 			return null;
 		}
 		return _asHTML(firstPartMod, firstPartKey, chordPartMod, chordPartKey, this._labels[OS]);
@@ -139,7 +139,7 @@ export const UserSettingsLabelProvider = new ModifierLabelProvider(
 );
 
 function _simpleAsString(modifiers: Modifiers, key: string, labels: ModifierLabels): string {
-	if (!key) {
+	if (key === null) {
 		return '';
 	}
 
@@ -171,7 +171,7 @@ function _simpleAsString(modifiers: Modifiers, key: string, labels: ModifierLabe
 function _asString(firstPartMod: Modifiers, firstPartKey: string, chordPartMod: Modifiers, chordPartKey: string, labels: ModifierLabels): string {
 	let result = _simpleAsString(firstPartMod, firstPartKey, labels);
 
-	if (chordPartKey) {
+	if (chordPartKey !== null) {
 		result += ' ';
 		result += _simpleAsString(chordPartMod, chordPartKey, labels);
 	}
@@ -194,7 +194,7 @@ function _pushKey(result: IHTMLContentElement[], str: string, append: string): v
 }
 
 function _simpleAsHTML(result: IHTMLContentElement[], modifiers: Modifiers, key: string, labels: ModifierLabels): void {
-	if (!key) {
+	if (key === null) {
 		return;
 	}
 
@@ -223,7 +223,7 @@ function _asHTML(firstPartMod: Modifiers, firstPartKey: string, chordPartMod: Mo
 	let result: IHTMLContentElement[] = [];
 	_simpleAsHTML(result, firstPartMod, firstPartKey, labels);
 
-	if (chordPartKey) {
+	if (chordPartKey !== null) {
 		result.push({
 			tagName: 'span',
 			text: ' '

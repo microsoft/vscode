@@ -13,7 +13,7 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { forEach } from 'vs/base/common/collections';
 import { IExtensionPointUser, ExtensionMessageCollector, ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
+import { MenuId, MenuRegistry, ILocalizedString } from 'vs/platform/actions/common/actions';
 
 namespace schema {
 
@@ -128,8 +128,8 @@ namespace schema {
 
 	export interface IUserFriendlyCommand {
 		command: string;
-		title: string;
-		category?: string;
+		title: string | ILocalizedString;
+		category?: string | ILocalizedString;
 		icon?: IUserFriendlyIcon;
 	}
 
@@ -144,12 +144,10 @@ namespace schema {
 			collector.error(localize('requirestring', "property `{0}` is mandatory and must be of type `string`", 'command'));
 			return false;
 		}
-		if (isFalsyOrWhitespace(command.title)) {
-			collector.error(localize('requirestring', "property `{0}` is mandatory and must be of type `string`", 'title'));
+		if (!isValidLocalizedString(command.title, collector, 'title')) {
 			return false;
 		}
-		if (command.category && typeof command.category !== 'string') {
-			collector.error(localize('optstring', "property `{0}` can be omitted or must be of type `string`", 'category'));
+		if (command.category && !isValidLocalizedString(command.category, collector, 'category')) {
 			return false;
 		}
 		if (!isValidIcon(command.icon, collector)) {
@@ -169,6 +167,21 @@ namespace schema {
 		}
 		collector.error(localize('opticon', "property `icon` can be omitted or must be either a string or a literal like `{dark, light}`"));
 		return false;
+	}
+
+	function isValidLocalizedString(localized: string | ILocalizedString, collector: ExtensionMessageCollector, propertyName: string): boolean {
+		if (typeof localized === 'undefined') {
+			collector.error(localize('requireStringOrObject', "property `{0}` is mandatory and must be of type `string` or `object`", propertyName));
+			return false;
+		} else if (typeof localized === 'string' && isFalsyOrWhitespace(localized)) {
+			collector.error(localize('requirestring', "property `{0}` is mandatory and must be of type `string`", propertyName));
+			return false;
+		} else if (typeof localized !== 'string' && (isFalsyOrWhitespace(localized.original) || isFalsyOrWhitespace(localized.value))) {
+			collector.error(localize('requirestrings', "properties `{0}` and `{1}` are mandatory and must be of type `string`", `${propertyName}.value`, `${propertyName}.original`));
+			return false;
+		}
+
+		return true;
 	}
 
 	const commandType: IJSONSchema = {

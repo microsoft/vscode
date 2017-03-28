@@ -6,6 +6,8 @@
 {
 	"closePanel": "Fermer le panneau",
 	"focusPanel": "Focus dans le panneau",
+	"maximizePanel": "Agrandir la taille du panneau",
+	"minimizePanel": "Restaurer la taille du panneau",
 	"panelActionTooltip": "{0} ({1})",
 	"toggleMaximizedPanel": "Activer/désactiver le panneau agrandi",
 	"togglePanel": "Activer/désactiver le panneau",

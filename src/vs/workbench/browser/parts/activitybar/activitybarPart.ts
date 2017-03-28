@@ -30,9 +30,9 @@ import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { ToggleActivityBarVisibilityAction } from 'vs/workbench/browser/actions/toggleActivityBarVisibility';
 import SCMPreview from 'vs/workbench/parts/scm/browser/scmPreview';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { ACTIVITY_BAR_BACKGROUND } from 'vs/workbench/common/theme';
-import { highContrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { highContrastBorder, highContrastOutline, focus } from 'vs/platform/theme/common/colorRegistry';
 
 interface IViewletActivity {
 	badge: IBadge;
@@ -174,7 +174,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 		} else {
 			// update
-			const [{badge, clazz}] = stack;
+			const [{ badge, clazz }] = stack;
 			action.setBadge(badge);
 			if (clazz) {
 				action.class = clazz;
@@ -512,3 +512,68 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		super.shutdown();
 	}
 }
+
+registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+
+	// High Contrast Styling
+	if (theme.type === 'hc') {
+		const outline = theme.getColor(highContrastOutline);
+
+		collector.addRule(`
+			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-label:before {
+				content: "";
+				position: absolute;
+				top: 9px;
+				left: 9px;
+				height: 32px;
+				width: 32px;
+				opacity: 0.6;
+			}
+
+			.monaco-workbench > .activitybar > .content .monaco-action-bar.global .action-item .action-label.active:before {
+				border: none;
+			}
+
+			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label.active:before,
+			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label.active:hover:before {
+				outline: 1px solid;
+			}
+
+			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label:hover:before {
+				outline: 1px dashed;
+			}
+
+			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-label,
+			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-label.active,
+			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label.active:before,
+			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:hover .action-label:before {
+				opacity: 1;
+			}
+
+			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label:focus:before {
+				border-left-color: ${outline};
+			}
+
+			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label.active:before,
+			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label.active:hover:before,
+			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label:hover:before {
+				outline-color: ${outline};
+			}
+		`);
+	}
+
+	// Non High Contrast Themes
+	else {
+		const focusBorder = theme.getColor(focus);
+
+		collector.addRule(`
+			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-label {
+				opacity: 0.6;
+			}
+
+			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label:focus:before {
+				border-left-color: ${focusBorder};
+			}
+		`);
+	}
+});

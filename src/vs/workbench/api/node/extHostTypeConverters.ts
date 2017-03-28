@@ -8,7 +8,7 @@ import Severity from 'vs/base/common/severity';
 import * as modes from 'vs/editor/common/modes';
 import * as types from './extHostTypes';
 import { Position as EditorPosition } from 'vs/platform/editor/common/editor';
-import { IPosition, ISelection, IRange, IDecorationOptions, ISingleEditOperation } from 'vs/editor/common/editorCommon';
+import { IPosition, ISelection, IRange, IDecorationOptions, EndOfLineSequence } from 'vs/editor/common/editorCommon';
 import * as vscode from 'vscode';
 import URI from 'vs/base/common/uri';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
@@ -46,6 +46,9 @@ export function fromSelection(selection: SelectionLike): ISelection {
 }
 
 export function fromRange(range: RangeLike): IRange {
+	if (!range) {
+		return undefined;
+	}
 	let { start, end } = range;
 	return {
 		startLineNumber: start.line + 1,
@@ -56,6 +59,9 @@ export function fromRange(range: RangeLike): IRange {
 }
 
 export function toRange(range: IRange): types.Range {
+	if (!range) {
+		return undefined;
+	}
 	let { startLineNumber, startColumn, endLineNumber, endColumn } = range;
 	return new types.Range(startLineNumber - 1, startColumn - 1, endLineNumber - 1, endColumn - 1);
 }
@@ -153,14 +159,17 @@ export function fromRangeOrRangeWithMessage(ranges: vscode.Range[] | vscode.Deco
 
 export const TextEdit = {
 
-	from(edit: vscode.TextEdit): ISingleEditOperation {
-		return <ISingleEditOperation>{
+	from(edit: vscode.TextEdit): modes.TextEdit {
+		return <modes.TextEdit>{
 			text: edit.newText,
+			eol: EndOfLine.from(edit.newEol),
 			range: fromRange(edit.range)
 		};
 	},
-	to(edit: ISingleEditOperation): vscode.TextEdit {
-		return new types.TextEdit(toRange(edit.range), edit.text);
+	to(edit: modes.TextEdit): vscode.TextEdit {
+		let result = new types.TextEdit(toRange(edit.range), edit.text);
+		result.newEol = EndOfLine.to(edit.eol);
+		return result;
 	}
 };
 
@@ -364,3 +373,26 @@ export namespace TextDocumentSaveReason {
 		}
 	}
 }
+
+
+export namespace EndOfLine {
+
+	export function from(eol: vscode.EndOfLine): EndOfLineSequence {
+		if (eol === types.EndOfLine.CRLF) {
+			return EndOfLineSequence.CRLF;
+		} else if (eol === types.EndOfLine.LF) {
+			return EndOfLineSequence.LF;
+		}
+		return undefined;
+	}
+
+	export function to(eol: EndOfLineSequence): vscode.EndOfLine {
+		if (eol === EndOfLineSequence.CRLF) {
+			return types.EndOfLine.CRLF;
+		} else if (eol === EndOfLineSequence.LF) {
+			return types.EndOfLine.LF;
+		}
+		return undefined;
+	}
+}
+

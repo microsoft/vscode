@@ -354,4 +354,19 @@ suite('window namespace tests', () => {
 	test('terminal, name should set terminal.name', () => {
 		assert.equal(window.createTerminal('foo').name, 'foo');
 	});
+
+	test('terminal, listening to onData should report data from the pty process', done => {
+		const terminal = window.createTerminal();
+		let fromPty = '';
+		let isFinished = false;
+		(<any>terminal).onData(data => {
+			// The text could be split over multiple callbacks
+			fromPty += data;
+			if (!isFinished && fromPty.indexOf('test') >= 0) {
+				isFinished = true;
+				done();
+			}
+		});
+		terminal.sendText('test', false);
+	});
 });

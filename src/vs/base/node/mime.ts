@@ -58,15 +58,23 @@ export interface IMimeAndEncoding {
 	mimes: string[];
 }
 
-function doDetectMimesFromStream(instream: streams.Readable): TPromise<IMimeAndEncoding> {
-	return stream.readExactlyByStream(instream, BUFFER_READ_MAX_LEN).then(detectMimeAndEncodingFromBuffer);
+export interface DetectMimesOption {
+	autoGuessEncoding?: boolean;
 }
 
-function doDetectMimesFromFile(absolutePath: string): TPromise<IMimeAndEncoding> {
-	return stream.readExactlyByFile(absolutePath, BUFFER_READ_MAX_LEN).then(detectMimeAndEncodingFromBuffer);
+function doDetectMimesFromStream(instream: streams.Readable, option?: DetectMimesOption): TPromise<IMimeAndEncoding> {
+	return stream.readExactlyByStream(instream, BUFFER_READ_MAX_LEN).then((readResult: stream.ReadResult) => {
+		return detectMimeAndEncodingFromBuffer(readResult, option && option.autoGuessEncoding);
+	});
 }
 
-export function detectMimeAndEncodingFromBuffer({buffer, bytesRead}: stream.ReadResult): IMimeAndEncoding {
+function doDetectMimesFromFile(absolutePath: string, option?: DetectMimesOption): TPromise<IMimeAndEncoding> {
+	return stream.readExactlyByFile(absolutePath, BUFFER_READ_MAX_LEN).then((readResult: stream.ReadResult) => {
+		return detectMimeAndEncodingFromBuffer(readResult, option && option.autoGuessEncoding);
+	});
+}
+
+export function detectMimeAndEncodingFromBuffer({ buffer, bytesRead }: stream.ReadResult, autoGuessEncoding?: boolean): IMimeAndEncoding {
 	let enc = encoding.detectEncodingByBOMFromBuffer(buffer, bytesRead);
 
 	// Detect 0 bytes to see if file is binary (ignore for UTF 16 though)
@@ -78,6 +86,9 @@ export function detectMimeAndEncodingFromBuffer({buffer, bytesRead}: stream.Read
 				break;
 			}
 		}
+	}
+	if (autoGuessEncoding && isText && !enc) {
+		enc = encoding.guessEncodingByBuffer(buffer);
 	}
 
 	return {
@@ -116,8 +127,8 @@ function filterAndSortMimes(detectedMimes: string[], guessedMimes: string[]): st
  * @param instream the readable stream to detect the mime types from.
  * @param nameHint an additional hint that can be used to detect a mime from a file extension.
  */
-export function detectMimesFromStream(instream: streams.Readable, nameHint: string): TPromise<IMimeAndEncoding> {
-	return doDetectMimesFromStream(instream).then(encoding =>
+export function detectMimesFromStream(instream: streams.Readable, nameHint: string, option?: DetectMimesOption): TPromise<IMimeAndEncoding> {
+	return doDetectMimesFromStream(instream, option).then(encoding =>
 		handleMimeResult(nameHint, encoding)
 	);
 }
@@ -126,8 +137,8 @@ export function detectMimesFromStream(instream: streams.Readable, nameHint: stri
  * Opens the given file to detect its mime type. Returns an array of mime types sorted from most specific to unspecific.
  * @param absolutePath the absolute path of the file.
  */
-export function detectMimesFromFile(absolutePath: string): TPromise<IMimeAndEncoding> {
-	return doDetectMimesFromFile(absolutePath).then(encoding =>
+export function detectMimesFromFile(absolutePath: string, option?: DetectMimesOption): TPromise<IMimeAndEncoding> {
+	return doDetectMimesFromFile(absolutePath, option).then(encoding =>
 		handleMimeResult(absolutePath, encoding)
 	);
 }

@@ -105,55 +105,6 @@ suite('CompletionModel', function () {
 		assert.ok(complete[0] === completeItem);
 	});
 
-	function assertTopScore(lineContent: string, expected: number, ...suggestionLabels: string[]): void {
-
-		const model = new CompletionModel(
-			suggestionLabels.map(label => createSuggestItem(label, lineContent.length)),
-			lineContent.length,
-			{
-				characterCountDelta: 0,
-				leadingLineContent: lineContent
-			}
-		);
-
-		assert.equal(model.topScoreIdx, expected, `${lineContent}, ACTUAL: ${model.items[model.topScoreIdx].suggestion.label} <> EXPECTED: ${model.items[expected].suggestion.label}`);
-
-	}
-
-	test('top score', function () {
-
-		assertTopScore('Foo', 1, 'foo', 'Foo', 'foo');
-
-		assertTopScore('CC', 1, 'camelCase', 'CamelCase');
-		assertTopScore('cC', 0, 'camelCase', 'CamelCase');
-		assertTopScore('cC', 1, 'ccfoo', 'camelCase');
-		assertTopScore('cC', 1, 'ccfoo', 'camelCase', 'foo-cC-bar');
-
-		// issue #17836
-		assertTopScore('p', 0, 'parse', 'posix', 'sep', 'pafdsa', 'path', 'p');
-		assertTopScore('pa', 0, 'parse', 'posix', 'sep', 'pafdsa', 'path', 'p');
-
-		// issue #14583
-		assertTopScore('log', 2, 'HTMLOptGroupElement', 'ScrollLogicalPosition', 'log');
-		assertTopScore('e', 2, 'AbstractEorker', 'Activ_eXObject', 'else');
-
-		// issue #14446
-		assertTopScore('workbench.sideb', 1, 'workbench.editor.defaultSideBySideLayout', 'workbench.sideBar.location');
-
-		// issue #11423
-		assertTopScore('editor.r', 2, 'diffEditor.renderSideBySide', 'editor.overviewRulerlanes', 'editor.renderControlCharacter', 'editor.renderWhitespace');
-		// assertTopScore('editor.R', 1, 'diffEditor.renderSideBySide', 'editor.overviewRulerlanes', 'editor.renderControlCharacter', 'editor.renderWhitespace');
-		// assertTopScore('Editor.r', 0, 'diffEditor.renderSideBySide', 'editor.overviewRulerlanes', 'editor.renderControlCharacter', 'editor.renderWhitespace');
-
-		assertTopScore('-mo', 1, '-ms-ime-mode', '-moz-columns');
-		// dupe, issue #14861
-		assertTopScore('convertModelPosition', 0, 'convertModelPositionToViewPosition', 'convertViewToModelPosition');
-		// dupe, issue #14942
-		assertTopScore('is', 0, 'isValidViewletId', 'import statement');
-
-	});
-
-
 	test('proper current word when length=0, #16380', function () {
 
 		model = new CompletionModel([

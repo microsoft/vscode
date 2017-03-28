@@ -8,18 +8,6 @@
 declare module 'vscode' {
 
 	/**
-	 * Defines a generalized way of reporing progress updates.
-	 */
-	export interface Progress<T> {
-
-		/**
-		 * Report a progress update.
-		 * @param value A progress item, like a message or an updated percentage value
-		 */
-		report(value: T): void
-	}
-
-	/**
 	 * Defines a problem pattern
 	 */
 	export interface ProblemPattern {
@@ -505,8 +493,6 @@ declare module 'vscode' {
 		 */
 		export function withWindowProgress<R>(title: string, task: (progress: Progress<string>, token: CancellationToken) => Thenable<R>): Thenable<R>;
 
-		export function withScmProgress<R>(task: (progress: Progress<number>) => Thenable<R>): Thenable<R>;
-
 		export function sampleFunction(): Thenable<any>;
 	}
 
@@ -584,54 +570,9 @@ declare module 'vscode' {
 		getClickCommand?(node: T): string;
 	}
 
-	export interface SCMResourceThemableDecorations {
-		readonly iconPath?: string | Uri;
-	}
-
-	export interface SCMResourceDecorations extends SCMResourceThemableDecorations {
-		readonly strikeThrough?: boolean;
-		readonly light?: SCMResourceThemableDecorations;
-		readonly dark?: SCMResourceThemableDecorations;
-	}
-
-	export interface SCMResource {
-		readonly uri: Uri;
-		readonly decorations?: SCMResourceDecorations;
-	}
-
-	export interface SCMResourceGroup {
-		readonly id: string;
-		readonly label: string;
-		readonly resources: SCMResource[];
-	}
-
-	export interface SCMProvider {
-		readonly label: string;
-		readonly resources: SCMResourceGroup[];
-		readonly onDidChange: Event<SCMResourceGroup[]>;
-		readonly count?: number | undefined;
-		readonly state?: string;
-
-		getOriginalResource?(uri: Uri, token: CancellationToken): ProviderResult<Uri>;
-		open?(resource: SCMResource, token: CancellationToken): ProviderResult<void>;
-		drag?(resource: SCMResource, resourceGroup: SCMResourceGroup, token: CancellationToken): ProviderResult<void>;
-		acceptChanges?(token: CancellationToken): ProviderResult<void>;
-	}
-
-	export interface SCMInputBox {
-		value: string;
-		readonly onDidChange: Event<string>;
-	}
-
-	export namespace scm {
-		export const onDidChangeActiveProvider: Event<SCMProvider>;
-		export let activeProvider: SCMProvider | undefined;
-		export const inputBox: SCMInputBox;
-
-		export function getResourceFromURI(uri: Uri): SCMResource | SCMResourceGroup | undefined;
-		export function registerSCMProvider(id: string, provider: SCMProvider): Disposable;
-	}
-
+	/**
+	 * The contiguous set of modified lines in a diff.
+	 */
 	export interface LineChange {
 		readonly originalStartLineNumber: number;
 		readonly originalEndLineNumber: number;
@@ -639,5 +580,71 @@ declare module 'vscode' {
 		readonly modifiedEndLineNumber: number;
 	}
 
-	export function computeDiff(oneDocument: TextDocument, otherDocument: TextDocument): Thenable<LineChange[]>;
+	export namespace commands {
+
+		/**
+		 * Registers a diff information command that can be invoked via a keyboard shortcut,
+		 * a menu item, an action, or directly.
+		 *
+		 * Diff information commands are different from ordinary [commands](#commands.registerCommand) as
+		 * they only execute when there is an active diff editor when the command is called, and the diff
+		 * information has been computed. Also, the command handler of an editor command has access to
+		 * the diff information.
+		 *
+		 * @param command A unique identifier for the command.
+		 * @param callback A command handler function with access to the [diff information](#LineChange).
+		 * @param thisArg The `this` context used when invoking the handler function.
+		 * @return Disposable which unregisters this command on disposal.
+		 */
+		export function registerDiffInformationCommand(command: string, callback: (diff: LineChange[], ...args: any[]) => any, thisArg?: any): Disposable;
+	}
+
+	export interface Terminal {
+
+		/**
+		 * The name of the terminal.
+		 */
+		readonly name: string;
+
+		/**
+		 * The process ID of the shell process.
+		 */
+		readonly processId: Thenable<number>;
+
+		/**
+		 * Send text to the terminal. The text is written to the stdin of the underlying pty process
+		 * (shell) of the terminal.
+		 *
+		 * @param text The text to send.
+		 * @param addNewLine Whether to add a new line to the text being sent, this is normally
+		 * required to run a command in the terminal. The character(s) added are \n or \r\n
+		 * depending on the platform. This defaults to `true`.
+		 */
+		sendText(text: string, addNewLine?: boolean): void;
+
+		/**
+		 * Show the terminal panel and reveal this terminal in the UI.
+		 *
+		 * @param preserveFocus When `true` the terminal will not take focus.
+		 */
+		show(preserveFocus?: boolean): void;
+
+		/**
+		 * Hide the terminal panel if this terminal is currently showing.
+		 */
+		hide(): void;
+
+		/**
+		 * Dispose and free associated resources.
+		 */
+		dispose(): void;
+
+		/**
+		 * Experimental API that allows listening to the raw data stream coming from the terminal's
+		 * pty process (including ANSI escape sequences).
+		 *
+		 * @param callback The callback that is triggered when data is sent to the terminal.
+		 */
+		onData(callback: (data: string) => any): void;
+	}
 }

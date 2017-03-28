@@ -67,7 +67,7 @@ suite('ExtHostTypes', function () {
 		assert.throws(() => (pos as any).character = -1);
 		assert.throws(() => (pos as any).line = 12);
 
-		let {line, character} = pos.toJSON();
+		let { line, character } = pos.toJSON();
 		assert.equal(line, 0);
 		assert.equal(character, 0);
 	});
@@ -318,9 +318,6 @@ suite('ExtHostTypes', function () {
 	});
 
 	test('TextEdit', function () {
-
-		assert.throws(() => new types.TextEdit(null, 'far'));
-		assert.throws(() => new types.TextEdit(undefined, 'far'));
 
 		let range = new types.Range(1, 1, 2, 11);
 		let edit = new types.TextEdit(range, undefined);

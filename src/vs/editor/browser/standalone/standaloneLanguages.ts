@@ -411,7 +411,7 @@ export enum CompletionItemKind {
  * and `${3:foo}`. `$0` defines the final tab stop, it defaults to
  * the end of the snippet. Variables are defined with `$name` and
  * `${name:default value}`. The full snippet syntax is documented
- * [here](http://code.visualstudio.com/docs/customization/userdefinedsnippets#_creating-your-own-snippets).
+ * [here](http://code.visualstudio.com/docs/editor/userdefinedsnippets#_creating-your-own-snippets).
  */
 export interface SnippetString {
 
@@ -503,7 +503,7 @@ export interface CompletionList {
 }
 /**
  * The completion item provider interface defines the contract between extensions and
- * the [IntelliSense](https://code.visualstudio.com/docs/editor/editingevolved#_intellisense).
+ * the [IntelliSense](https://code.visualstudio.com/docs/editor/intellisense).
  *
  * When computing *complete* completion items is expensive, providers can optionally implement
  * the `resolveCompletionItem`-function. In that case it is enough to return completion

@@ -7,11 +7,14 @@
 import { Position } from 'vs/editor/common/core/position';
 import { CharCode } from 'vs/base/common/charCode';
 import * as strings from 'vs/base/common/strings';
-import { IModeConfiguration } from 'vs/editor/common/controller/oneCursor';
-import { ICommand, CursorChangeReason, IConfigurationChangedEvent, TextModelResolvedOptions, IConfiguration } from 'vs/editor/common/editorCommon';
+import { ICommand, IConfigurationChangedEvent, TextModelResolvedOptions, IConfiguration } from 'vs/editor/common/editorCommon';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Range } from 'vs/editor/common/core/range';
+import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { LanguageIdentifier } from 'vs/editor/common/modes';
+import { IAutoClosingPair } from 'vs/editor/common/modes/languageConfiguration';
 
 export interface CharacterMap {
 	[char: string]: string;
@@ -42,10 +45,10 @@ export class CursorConfiguration {
 	}
 
 	constructor(
+		languageIdentifier: LanguageIdentifier,
 		oneIndent: string,
 		modelOptions: TextModelResolvedOptions,
-		configuration: IConfiguration,
-		modeConfiguration: IModeConfiguration
+		configuration: IConfiguration
 	) {
 		let c = configuration.editor;
 
@@ -56,14 +59,64 @@ export class CursorConfiguration {
 		this.useTabStops = c.useTabStops;
 		this.wordSeparators = c.wordSeparators;
 		this.autoClosingBrackets = c.autoClosingBrackets;
-		this.autoClosingPairsOpen = modeConfiguration.autoClosingPairsOpen;
-		this.autoClosingPairsClose = modeConfiguration.autoClosingPairsClose;
-		this.surroundingPairs = modeConfiguration.surroundingPairs;
-		this.electricChars = modeConfiguration.electricChars;
+
+		this.autoClosingPairsOpen = {};
+		this.autoClosingPairsClose = {};
+		this.surroundingPairs = {};
+		this.electricChars = {};
+
+		let electricChars = CursorConfiguration._getElectricCharacters(languageIdentifier);
+		if (electricChars) {
+			for (let i = 0; i < electricChars.length; i++) {
+				this.electricChars[electricChars[i]] = true;
+			}
+		}
+
+		let autoClosingPairs = CursorConfiguration._getAutoClosingPairs(languageIdentifier);
+		if (autoClosingPairs) {
+			for (let i = 0; i < autoClosingPairs.length; i++) {
+				this.autoClosingPairsOpen[autoClosingPairs[i].open] = autoClosingPairs[i].close;
+				this.autoClosingPairsClose[autoClosingPairs[i].close] = autoClosingPairs[i].open;
+			}
+		}
+
+		let surroundingPairs = CursorConfiguration._getSurroundingPairs(languageIdentifier);
+		if (surroundingPairs) {
+			for (let i = 0; i < surroundingPairs.length; i++) {
+				this.surroundingPairs[surroundingPairs[i].open] = surroundingPairs[i].close;
+			}
+		}
 	}
 
 	public normalizeIndentation(str: string): string {
 		return TextModel.normalizeIndentation(str, this.tabSize, this.insertSpaces);
+	}
+
+	private static _getElectricCharacters(languageIdentifier: LanguageIdentifier): string[] {
+		try {
+			return LanguageConfigurationRegistry.getElectricCharacters(languageIdentifier.id);
+		} catch (e) {
+			onUnexpectedError(e);
+			return null;
+		}
+	}
+
+	private static _getAutoClosingPairs(languageIdentifier: LanguageIdentifier): IAutoClosingPair[] {
+		try {
+			return LanguageConfigurationRegistry.getAutoClosingPairs(languageIdentifier.id);
+		} catch (e) {
+			onUnexpectedError(e);
+			return null;
+		}
+	}
+
+	private static _getSurroundingPairs(languageIdentifier: LanguageIdentifier): IAutoClosingPair[] {
+		try {
+			return LanguageConfigurationRegistry.getSurroundingPairs(languageIdentifier.id);
+		} catch (e) {
+			onUnexpectedError(e);
+			return null;
+		}
 	}
 }
 
@@ -118,48 +171,21 @@ export class SingleCursorState {
 		return (!this.selection.isEmpty() || !this.selectionStart.isEmpty());
 	}
 
-	public withSelectionStartLeftoverVisibleColumns(selectionStartLeftoverVisibleColumns: number): SingleCursorState {
-		return new SingleCursorState(
-			this.selectionStart,
-			selectionStartLeftoverVisibleColumns,
-			this.position,
-			this.leftoverVisibleColumns
-		);
-	}
-
-	public withSelectionStart(selectionStart: Range): SingleCursorState {
-		return new SingleCursorState(
-			selectionStart,
-			0,
-			this.position,
-			this.leftoverVisibleColumns
-		);
-	}
-
-	public collapse(): SingleCursorState {
-		return new SingleCursorState(
-			new Range(this.position.lineNumber, this.position.column, this.position.lineNumber, this.position.column),
-			0,
-			this.position,
-			0
-		);
-	}
-
-	public move(inSelectionMode: boolean, position: Position, leftoverVisibleColumns: number): SingleCursorState {
+	public move(inSelectionMode: boolean, lineNumber: number, column: number, leftoverVisibleColumns: number): SingleCursorState {
 		if (inSelectionMode) {
 			// move just position
 			return new SingleCursorState(
 				this.selectionStart,
 				this.selectionStartLeftoverVisibleColumns,
-				position,
+				new Position(lineNumber, column),
 				leftoverVisibleColumns
 			);
 		} else {
 			// move everything
 			return new SingleCursorState(
-				new Range(position.lineNumber, position.column, position.lineNumber, position.column),
+				new Range(lineNumber, column, lineNumber, column),
 				leftoverVisibleColumns,
-				position,
+				new Position(lineNumber, column),
 				leftoverVisibleColumns
 			);
 		}
@@ -194,6 +220,18 @@ export class SingleCursorState {
 	}
 }
 
+export class CursorState {
+	_cursorStateBrand: void;
+
+	readonly modelState: SingleCursorState;
+	readonly viewState: SingleCursorState;
+
+	constructor(modelState: SingleCursorState, viewState: SingleCursorState) {
+		this.modelState = modelState;
+		this.viewState = viewState;
+	}
+}
+
 export class EditOperationResult {
 	_editOperationBrand: void;
 
@@ -202,7 +240,6 @@ export class EditOperationResult {
 	readonly shouldPushStackElementAfter: boolean;
 	readonly isAutoWhitespaceCommand: boolean;
 	readonly shouldRevealHorizontal: boolean;
-	readonly cursorPositionChangeReason: CursorChangeReason;
 
 	constructor(
 		command: ICommand,
@@ -210,8 +247,6 @@ export class EditOperationResult {
 			shouldPushStackElementBefore: boolean;
 			shouldPushStackElementAfter: boolean;
 			isAutoWhitespaceCommand?: boolean;
-			shouldRevealHorizontal?: boolean;
-			cursorPositionChangeReason?: CursorChangeReason;
 		}
 	) {
 		this.command = command;
@@ -219,16 +254,9 @@ export class EditOperationResult {
 		this.shouldPushStackElementAfter = opts.shouldPushStackElementAfter;
 		this.isAutoWhitespaceCommand = false;
 		this.shouldRevealHorizontal = true;
-		this.cursorPositionChangeReason = CursorChangeReason.NotSet;
 
 		if (typeof opts.isAutoWhitespaceCommand !== 'undefined') {
 			this.isAutoWhitespaceCommand = opts.isAutoWhitespaceCommand;
-		}
-		if (typeof opts.shouldRevealHorizontal !== 'undefined') {
-			this.shouldRevealHorizontal = opts.shouldRevealHorizontal;
-		}
-		if (typeof opts.cursorPositionChangeReason !== 'undefined') {
-			this.cursorPositionChangeReason = opts.cursorPositionChangeReason;
 		}
 	}
 }

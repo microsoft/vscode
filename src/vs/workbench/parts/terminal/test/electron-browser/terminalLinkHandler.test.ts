@@ -47,7 +47,7 @@ class TestWorkspace implements IWorkspace {
 suite('Workbench - TerminalLinkHandler', () => {
 	suite('localLinkRegex', () => {
 		test('Windows', () => {
-			const regex = new TestTerminalLinkHandler(null, new TestXterm(), Platform.Windows, null, null).localLinkRegex;
+			const regex = new TestTerminalLinkHandler(new TestXterm(), Platform.Windows, null, null).localLinkRegex;
 			function testLink(link: string) {
 				assert.equal(` ${link} `.match(regex)[1], link);
 				assert.equal(`:${link}:`.match(regex)[1], link);
@@ -69,7 +69,7 @@ suite('Workbench - TerminalLinkHandler', () => {
 		});
 
 		test('Linux', () => {
-			const regex = new TestTerminalLinkHandler(null, new TestXterm(), Platform.Linux, null, null).localLinkRegex;
+			const regex = new TestTerminalLinkHandler(new TestXterm(), Platform.Linux, null, null).localLinkRegex;
 			function testLink(link: string) {
 				assert.equal(` ${link} `.match(regex)[1], link);
 				assert.equal(`:${link}:`.match(regex)[1], link);
@@ -87,7 +87,7 @@ suite('Workbench - TerminalLinkHandler', () => {
 
 	suite('preprocessPath', () => {
 		test('Windows', () => {
-			const linkHandler = new TestTerminalLinkHandler(null, new TestXterm(), Platform.Windows, null,
+			const linkHandler = new TestTerminalLinkHandler(new TestXterm(), Platform.Windows, null,
 				new WorkspaceContextService(new TestWorkspace('C:\\base')));
 
 			let stub = sinon.stub(path, 'join', function (arg1, arg2) {
@@ -101,7 +101,7 @@ suite('Workbench - TerminalLinkHandler', () => {
 		});
 
 		test('Linux', () => {
-			const linkHandler = new TestTerminalLinkHandler(null, new TestXterm(), Platform.Linux, null,
+			const linkHandler = new TestTerminalLinkHandler(new TestXterm(), Platform.Linux, null,
 				new WorkspaceContextService(new TestWorkspace('/base')));
 
 			let stub = sinon.stub(path, 'join', function (arg1, arg2) {
@@ -115,7 +115,7 @@ suite('Workbench - TerminalLinkHandler', () => {
 		});
 
 		test('No Workspace', () => {
-			const linkHandler = new TestTerminalLinkHandler(null, new TestXterm(), Platform.Linux, null, new WorkspaceContextService(null));
+			const linkHandler = new TestTerminalLinkHandler(new TestXterm(), Platform.Linux, null, new WorkspaceContextService(null));
 
 			assert.equal(linkHandler.preprocessPath('./src/file1'), null);
 			assert.equal(linkHandler.preprocessPath('src/file2'), null);

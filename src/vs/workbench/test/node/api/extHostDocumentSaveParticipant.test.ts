@@ -9,7 +9,7 @@ import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
-import { TextDocumentSaveReason, TextEdit, Position } from 'vs/workbench/api/node/extHostTypes';
+import { TextDocumentSaveReason, TextEdit, Position, EndOfLine } from 'vs/workbench/api/node/extHostTypes';
 import { MainThreadWorkspaceShape } from 'vs/workbench/api/node/extHost.protocol';
 import { ExtHostDocumentSaveParticipant } from 'vs/workbench/api/node/extHostDocumentSaveParticipant';
 import { OneGetThreadService } from './testThreadService';
@@ -262,12 +262,13 @@ suite('ExtHostDocumentSaveParticipant', () => {
 
 		let sub = participant.onWillSaveTextDocumentEvent(function (e) {
 			e.waitUntil(TPromise.as([TextEdit.insert(new Position(0, 0), 'bar')]));
+			e.waitUntil(TPromise.as([TextEdit.setEndOfLine(EndOfLine.CRLF)]));
 		});
 
 		return participant.$participateInSave(resource, SaveReason.EXPLICIT).then(() => {
 			sub.dispose();
 
-			assert.equal(edits.length, 1);
+			assert.equal(edits.length, 2);
 		});
 	});
 

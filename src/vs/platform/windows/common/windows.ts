@@ -30,6 +30,7 @@ export interface IWindowsService {
 	setRepresentedFilename(windowId: number, fileName: string): TPromise<void>;
 	addToRecentlyOpen(paths: { path: string, isFile?: boolean }[]): TPromise<void>;
 	removeFromRecentlyOpen(paths: string[]): TPromise<void>;
+	clearRecentPathsList(): TPromise<void>;
 	getRecentlyOpen(windowId: number): TPromise<{ files: string[]; folders: string[]; }>;
 	focusWindow(windowId: number): TPromise<void>;
 	isMaximized(windowId: number): TPromise<boolean>;
@@ -56,7 +57,7 @@ export interface IWindowsService {
 
 	// This needs to be handled from browser process to prevent
 	// foreground ordering issues on Windows
-	openExternal(url: string): TPromise<void>;
+	openExternal(url: string): TPromise<boolean>;
 
 	// TODO: this is a bit backwards
 	startCrashReporter(config: Electron.CrashReporterStartOptions): TPromise<void>;

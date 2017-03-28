@@ -13,6 +13,8 @@
 	"confirm revert": "Voulez-vous vraiment restaurer les changements sélectionnés dans {0} ?",
 	"disabled": "Git est désactivé ou non pris en charge dans cet espace de travail",
 	"discard": "Ignorer les modifications",
+	"git error": "Erreur Git",
+	"git error details": "Git : {0}",
 	"never again": "OK, ne plus afficher",
 	"no changes": "Il n'existe aucun changement à valider.",
 	"no remotes to publish": "Votre dépôt n'a aucun dépôt distant configuré pour une publication.",

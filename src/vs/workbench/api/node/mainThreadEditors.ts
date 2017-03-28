@@ -8,7 +8,7 @@ import URI from 'vs/base/common/uri';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
-import { ISingleEditOperation, ISelection, IRange, IDecorationRenderOptions, IDecorationOptions } from 'vs/editor/common/editorCommon';
+import { ISingleEditOperation, ISelection, IRange, IDecorationRenderOptions, IDecorationOptions, ILineChange } from 'vs/editor/common/editorCommon';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
@@ -200,6 +200,24 @@ export class MainThreadEditors extends MainThreadEditorsShape {
 
 	$removeTextEditorDecorationType(key: string): void {
 		this._codeEditorService.removeDecorationType(key);
+	}
 
+	$getDiffInformation(id: string): TPromise<ILineChange[]> {
+		const editor = this._documentsAndEditors.getEditor(id);
+
+		if (!editor) {
+			return TPromise.wrapError('No such TextEditor');
+		}
+
+		const codeEditor = editor.getCodeEditor();
+		const codeEditorId = codeEditor.getId();
+		const diffEditors = this._codeEditorService.listDiffEditors();
+		const [diffEditor] = diffEditors.filter(d => d.getOriginalEditor().getId() === codeEditorId || d.getModifiedEditor().getId() === codeEditorId);
+
+		if (!diffEditor) {
+			return TPromise.as([]);
+		}
+
+		return TPromise.as(diffEditor.getLineChanges());
 	}
 }

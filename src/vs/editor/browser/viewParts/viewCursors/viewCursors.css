@@ -81,7 +81,7 @@
 	}
 }
 
-.cursor-blink {
+.windows .cursor-blink {
 	animation: monaco-cursor-blink 1s step-start 0s infinite;
 }
 

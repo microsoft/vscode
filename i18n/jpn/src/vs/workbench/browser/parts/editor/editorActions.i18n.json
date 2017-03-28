@@ -20,6 +20,7 @@
 	"focusPreviousGroup": "前のグループにフォーカス",
 	"focusSecondEditorGroup": "2 番目のエディター グループにフォーカス",
 	"focusThirdEditorGroup": "3 番目のエディター グループにフォーカス",
+	"joinTwoGroups": "2 つのグループのエディターを結合",
 	"keepEditor": "エディターを保持",
 	"maximizeEditor": "エディター グループを最大化してサイドバーを非表示にする",
 	"minimizeOtherEditorGroups": "他のエディター グループを最小化する",

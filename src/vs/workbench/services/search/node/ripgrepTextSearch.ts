@@ -346,7 +346,7 @@ function getRgArgs(config: IRawSearch): { args: string[], siblingClauses: glob.I
 		args.push('--max-filesize', config.maxFilesize + '');
 	}
 
-	if (!config.useIgnoreFiles) {
+	if (config.disregardIgnoreFiles) {
 		// Don't use .gitignore or .ignore
 		args.push('--no-ignore');
 	}

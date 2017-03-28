@@ -60,4 +60,12 @@ suite('Mime', () => {
 			done();
 		}, done);
 	});
+
+	test('autoGuessEncoding (ShiftJIS)', function (done: () => void) {
+		const file = require.toUrl('./fixtures/some.shiftjis.txt');
+		mime.detectMimesFromFile(file, { autoGuessEncoding: true }).then(mimes => {
+			assert.equal(mimes.encoding, 'shiftjis');
+			done();
+		}, done);
+	});
 });

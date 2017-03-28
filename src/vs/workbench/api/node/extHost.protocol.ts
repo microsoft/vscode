@@ -140,6 +140,7 @@ export abstract class MainThreadEditorsShape {
 	$trySetSelections(id: string, selections: editorCommon.ISelection[]): TPromise<any> { throw ni(); }
 	$tryApplyEdits(id: string, modelVersionId: number, edits: editorCommon.ISingleEditOperation[], opts: IApplyEditsOptions): TPromise<boolean> { throw ni(); }
 	$tryInsertSnippet(id: string, template: string, selections: editorCommon.IRange[], opts: IUndoStopOptions): TPromise<any> { throw ni(); }
+	$getDiffInformation(id: string): TPromise<editorCommon.ILineChange[]> { throw ni(); }
 }
 
 export abstract class MainThreadTreeExplorersShape {
@@ -203,6 +204,7 @@ export abstract class MainThreadTerminalServiceShape {
 	$hide(terminalId: number): void { throw ni(); }
 	$sendText(terminalId: number, text: string, addNewLine: boolean): void { throw ni(); }
 	$show(terminalId: number, preserveFocus: boolean): void { throw ni(); }
+	$registerOnData(terminalId: number): void { throw ni(); }
 }
 
 export interface MyQuickPickItems extends IPickOpenEntry {
@@ -250,23 +252,29 @@ export abstract class MainProcessExtensionServiceShape {
 
 export interface SCMProviderFeatures {
 	label: string;
+	contextKey?: string;
 	supportsOpen: boolean;
-	supportsAcceptChanges: boolean;
-	supportsDrag: boolean;
 	supportsOriginalResource: boolean;
 }
 
 export type SCMRawResource = [
 	string /*uri*/,
+	string /*sourceUri*/,
 	string[] /*icons: light, dark*/,
 	boolean /*strike through*/
 ];
-export type SCMRawResourceGroup = [string /*id*/, string /*label*/, SCMRawResource[]];
+
+export type SCMRawResourceGroup = [
+	string /*uri*/,
+	string | undefined /*context key*/,
+	string /*label*/,
+	SCMRawResource[]
+];
 
 export abstract class MainThreadSCMShape {
-	$register(id: string, features: SCMProviderFeatures): void { throw ni(); }
-	$unregister(id: string): void { throw ni(); }
-	$onChange(id: string, resources: SCMRawResourceGroup[], count: number | undefined, state: string | undefined): void { throw ni(); }
+	$register(handle: number, features: SCMProviderFeatures): void { throw ni(); }
+	$unregister(handle: number): void { throw ni(); }
+	$onChange(handle: number, resources: SCMRawResourceGroup[], count: number | undefined, stateContextKey: string | undefined): void { throw ni(); }
 	$setInputBoxValue(value: string): void { throw ni(); }
 }
 
@@ -406,14 +414,14 @@ export abstract class ExtHostQuickOpenShape {
 export abstract class ExtHostTerminalServiceShape {
 	$acceptTerminalClosed(id: number): void { throw ni(); }
 	$acceptTerminalProcessId(id: number, processId: number): void { throw ni(); }
+	$acceptTerminalData(id: number, data: string): void { throw ni(); }
 }
 
 export abstract class ExtHostSCMShape {
-	$open(id: string, resourceGroupId: string, uri: string): TPromise<void> { throw ni(); }
-	$acceptChanges(id: string): TPromise<void> { throw ni(); }
-	$drag(id: string, fromResourceGroupId: string, fromUri: string, toResourceGroupId: string): TPromise<void> { throw ni(); }
-	$getOriginalResource(id: string, uri: URI): TPromise<URI> { throw ni(); }
+	$open(handle: number, uri: string): TPromise<void> { throw ni(); }
+	$getOriginalResource(handle: number, uri: URI): TPromise<URI> { throw ni(); }
 	$onInputBoxValueChange(value: string): TPromise<void> { throw ni(); }
+	$onInputBoxAcceptChanges(): TPromise<void> { throw ni(); }
 }
 
 export abstract class ExtHostTaskShape {

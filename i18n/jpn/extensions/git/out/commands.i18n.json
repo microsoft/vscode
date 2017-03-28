@@ -13,6 +13,8 @@
 	"confirm revert": "{0} で選択した変更を元に戻しますか?",
 	"disabled": "このワークスペースでは、Git が無効になっているか、サポートされていません",
 	"discard": "変更を破棄",
+	"git error": "Git エラー",
+	"git error details": "Git: {0}",
 	"never again": "OK、今後は表示しない",
 	"no changes": "コミットする必要のある変更はありません。",
 	"no remotes to publish": "リポジトリには、発行先として構成されているリモートがありません。",

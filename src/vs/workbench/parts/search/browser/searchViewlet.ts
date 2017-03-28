@@ -48,7 +48,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { PatternInputWidget } from 'vs/workbench/parts/search/browser/patternInputWidget';
+import { PatternInputWidget, ExcludePatternInputWidget } from 'vs/workbench/parts/search/browser/patternInputWidget';
 import { SearchRenderer, SearchDataSource, SearchSorter, SearchController, SearchAccessibilityProvider, SearchFilter } from 'vs/workbench/parts/search/browser/searchResultsView';
 import { SearchWidget } from 'vs/workbench/parts/search/browser/searchWidget';
 import { RefreshAction, CollapseAllAction, ClearSearchResultsAction, ConfigureGlobalExclusionsAction } from 'vs/workbench/parts/search/browser/searchActions';
@@ -85,7 +85,7 @@ export class SearchViewlet extends Viewlet {
 	private searchWidget: SearchWidget;
 	private size: Dimension;
 	private queryDetails: HTMLElement;
-	private inputPatternExclusions: PatternInputWidget;
+	private inputPatternExclusions: ExcludePatternInputWidget;
 	private inputPatternGlobalExclusions: InputBox;
 	private inputPatternGlobalExclusionsContainer: Builder;
 	private inputPatternIncludes: PatternInputWidget;
@@ -158,24 +158,29 @@ export class SearchViewlet extends Viewlet {
 		});
 		this.createSearchWidget(this.searchWidgetsContainer);
 
-		let filePatterns = this.viewletSettings['query.filePatterns'] || '';
-		let patternExclusions = this.viewletSettings['query.folderExclusions'] || '';
-		let exclusionsUsePattern = this.viewletSettings['query.exclusionsUsePattern'];
-		let includesUsePattern = this.viewletSettings['query.includesUsePattern'];
-		let patternIncludes = this.viewletSettings['query.folderIncludes'] || '';
-		let useIgnoreFiles = this.viewletSettings['query.useIgnoreFiles'];
+		const filePatterns = this.viewletSettings['query.filePatterns'] || '';
+		const patternExclusions = this.viewletSettings['query.folderExclusions'] || '';
+		const exclusionsUsePattern = this.viewletSettings['query.exclusionsUsePattern'];
+		const includesUsePattern = this.viewletSettings['query.includesUsePattern'];
+		const patternIncludes = this.viewletSettings['query.folderIncludes'] || '';
+		const useIgnoreFiles = typeof this.viewletSettings['query.useIgnoreFiles'] === 'boolean' ?
+			this.viewletSettings['query.useIgnoreFiles'] :
+			this.configurationService.getConfiguration<ISearchConfiguration>().search.useIgnoreFilesByDefault;
+		const useExcludeSettings = typeof this.viewletSettings['query.useExcludeSettings'] === 'boolean' ?
+			this.viewletSettings['query.useExcludeSettings'] :
+			true;
 
 		this.queryDetails = this.searchWidgetsContainer.div({ 'class': ['query-details'] }, (builder) => {
 			builder.div({ 'class': 'more', 'tabindex': 0, 'role': 'button', 'title': nls.localize('moreSearch', "Toggle Search Details") })
 				.on(dom.EventType.CLICK, (e) => {
 					dom.EventHelper.stop(e);
-					this.toggleFileTypes(true);
+					this.toggleQueryDetails(true);
 				}).on(dom.EventType.KEY_UP, (e: KeyboardEvent) => {
 					let event = new StandardKeyboardEvent(e);
 
 					if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
 						dom.EventHelper.stop(e);
-						this.toggleFileTypes();
+						this.toggleQueryDetails();
 					}
 				});
 
@@ -184,7 +189,7 @@ export class SearchViewlet extends Viewlet {
 				let title = nls.localize('searchScope.includes', "files to include");
 				builder.element('h4', { text: title });
 
-				this.inputPatternIncludes = new PatternInputWidget(builder.getContainer(), this.contextViewService, {
+				this.inputPatternIncludes = new PatternInputWidget(builder.getContainer(), this.contextViewService, this.themeService, {
 					ariaLabel: nls.localize('label.includes', 'Search Include Patterns')
 				});
 
@@ -205,14 +210,14 @@ export class SearchViewlet extends Viewlet {
 				let title = nls.localize('searchScope.excludes', "files to exclude");
 				builder.element('h4', { text: title });
 
-				const configuration = this.configurationService.getConfiguration<ISearchConfiguration>();
-				this.inputPatternExclusions = new PatternInputWidget(builder.getContainer(), this.contextViewService, {
+				this.inputPatternExclusions = new ExcludePatternInputWidget(builder.getContainer(), this.contextViewService, this.themeService, this.telemetryService, {
 					ariaLabel: nls.localize('label.excludes', 'Search Exclude Patterns')
-				}, configuration.search.useRipgrep);
+				});
 
 				this.inputPatternExclusions.setIsGlobPattern(exclusionsUsePattern);
 				this.inputPatternExclusions.setValue(patternExclusions);
 				this.inputPatternExclusions.setUseIgnoreFiles(useIgnoreFiles);
+				this.inputPatternExclusions.setUseExcludeSettings(useExcludeSettings);
 
 				this.inputPatternExclusions
 					.on(FindInput.OPTION_CHANGE, (e) => {
@@ -252,7 +257,7 @@ export class SearchViewlet extends Viewlet {
 		});
 
 		if (filePatterns !== '' || patternExclusions !== '' || patternIncludes !== '') {
-			this.toggleFileTypes(true, true, true);
+			this.toggleQueryDetails(true, true, true);
 		}
 
 		this.updateGlobalPatternExclusions(this.configurationService.getConfiguration<ISearchConfiguration>());
@@ -272,7 +277,7 @@ export class SearchViewlet extends Viewlet {
 		let isWholeWords = this.viewletSettings['query.wholeWords'] === true;
 		let isCaseSensitive = this.viewletSettings['query.caseSensitive'] === true;
 
-		this.searchWidget = new SearchWidget(builder, this.contextViewService, {
+		this.searchWidget = new SearchWidget(builder, this.contextViewService, this.themeService, {
 			value: contentPattern,
 			isRegex: isRegex,
 			isCaseSensitive: isCaseSensitive,
@@ -710,7 +715,7 @@ export class SearchViewlet extends Viewlet {
 
 	private moveFocusFromSearchOrReplace() {
 		if (this.showsFileTypes()) {
-			this.toggleFileTypes(true, this.showsFileTypes());
+			this.toggleQueryDetails(true, this.showsFileTypes());
 		} else {
 			this.selectTreeIfNotSelected();
 		}
@@ -740,7 +745,7 @@ export class SearchViewlet extends Viewlet {
 
 	public moveFocusFromResults(): void {
 		if (this.showsFileTypes()) {
-			this.toggleFileTypes(true, true, false, true);
+			this.toggleQueryDetails(true, true, false, true);
 		} else {
 			this.searchWidget.focus(true, true);
 		}
@@ -843,7 +848,9 @@ export class SearchViewlet extends Viewlet {
 		this.onQueryChanged(true, true);
 	}
 
-	public toggleFileTypes(moveFocus?: boolean, show?: boolean, skipLayout?: boolean, reverse?: boolean): void {
+	public toggleQueryDetails(moveFocus?: boolean, show?: boolean, skipLayout?: boolean, reverse?: boolean): void {
+		this.telemetryService.publicLog('search.toggleQueryDetails');
+
 		let cls = 'more';
 		show = typeof show === 'undefined' ? !dom.hasClass(this.queryDetails, cls) : Boolean(show);
 		skipLayout = Boolean(skipLayout);
@@ -884,7 +891,7 @@ export class SearchViewlet extends Viewlet {
 		}
 
 		if (!this.showsFileTypes()) {
-			this.toggleFileTypes(true, true);
+			this.toggleQueryDetails(true, true);
 		}
 		const workspaceRelativePath = this.contextService.toWorkspaceRelativePath(resource);
 		if (workspaceRelativePath) {
@@ -904,6 +911,7 @@ export class SearchViewlet extends Viewlet {
 		const patternIncludes = this.inputPatternIncludes.getValue().trim();
 		const includesUsePattern = this.inputPatternIncludes.isGlobPattern();
 		const useIgnoreFiles = this.inputPatternExclusions.useIgnoreFiles();
+		const useExcludeSettings = this.inputPatternExclusions.useExcludeSettings();
 
 		// store memento
 		this.viewletSettings['query.contentPattern'] = contentPattern;
@@ -915,6 +923,7 @@ export class SearchViewlet extends Viewlet {
 		this.viewletSettings['query.folderIncludes'] = patternIncludes;
 		this.viewletSettings['query.includesUsePattern'] = includesUsePattern;
 		this.viewletSettings['query.useIgnoreFiles'] = useIgnoreFiles;
+		this.viewletSettings['query.useExcludeSettings'] = useExcludeSettings;
 
 		if (!rerunQuery) {
 			return;
@@ -938,23 +947,24 @@ export class SearchViewlet extends Viewlet {
 			}
 		}
 
-		let content = {
+		const content = {
 			pattern: contentPattern,
 			isRegExp: isRegex,
 			isCaseSensitive: isCaseSensitive,
 			isWordMatch: isWholeWords
 		};
 
-		let excludes: IExpression = this.inputPatternExclusions.getGlob();
-		let includes: IExpression = this.inputPatternIncludes.getGlob();
+		const excludes: IExpression = this.inputPatternExclusions.getGlob();
+		const includes: IExpression = this.inputPatternIncludes.getGlob();
 
-		let options: IQueryOptions = {
+		const options: IQueryOptions = {
 			folderResources: this.contextService.hasWorkspace() ? [this.contextService.getWorkspace().resource] : [],
 			extraFileResources: getOutOfWorkspaceEditorResources(this.editorGroupService, this.contextService),
 			excludePattern: excludes,
 			maxResults: SearchViewlet.MAX_TEXT_RESULTS,
 			includePattern: includes,
-			useIgnoreFiles
+			disregardIgnoreFiles: !useIgnoreFiles,
+			disregardExcludeSettings: !useExcludeSettings
 		};
 
 		this.onQueryTriggered(this.queryBuilder.text(content, options), patternExcludes, patternIncludes);
