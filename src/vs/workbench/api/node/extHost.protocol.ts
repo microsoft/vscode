@@ -420,6 +420,7 @@ export abstract class ExtHostTerminalServiceShape {
 export abstract class ExtHostSCMShape {
 	$open(handle: number, uri: string): TPromise<void> { throw ni(); }
 	$getOriginalResource(handle: number, uri: URI): TPromise<URI> { throw ni(); }
+	$onActiveProviderChange(handle: number): TPromise<void> { throw ni(); }
 	$onInputBoxValueChange(value: string): TPromise<void> { throw ni(); }
 	$onInputBoxAcceptChanges(): TPromise<void> { throw ni(); }
 }

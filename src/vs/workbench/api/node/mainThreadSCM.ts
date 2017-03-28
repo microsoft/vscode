@@ -43,7 +43,6 @@ class MainThreadSCMProvider implements ISCMProvider {
 		@ICommandService private commandService: ICommandService
 	) {
 		scmService.onDidChangeProvider(this.onDidChangeProvider, this, this.disposables);
-		this.disposables.push(scmService.registerSCMProvider(this));
 	}
 
 	open(resource: ISCMResource): void {
@@ -111,7 +110,9 @@ export class MainThreadSCM extends MainThreadSCMShape {
 
 	private proxy: ExtHostSCMShape;
 	private providers: { [handle: number]: MainThreadSCMProvider; } = Object.create(null);
-	private inputBoxListeners: IDisposable[] = [];
+	private providerDisposables: { [handle: number]: IDisposable; } = Object.create(null);
+
+	private disposables: IDisposable[] = [];
 
 	constructor(
 		@IThreadService threadService: IThreadService,
@@ -121,12 +122,15 @@ export class MainThreadSCM extends MainThreadSCMShape {
 		super();
 		this.proxy = threadService.get(ExtHostContext.ExtHostSCM);
 
-		this.scmService.input.onDidChange(this.proxy.$onInputBoxValueChange, this.proxy, this.inputBoxListeners);
-		this.scmService.input.onDidAccept(this.proxy.$onInputBoxAcceptChanges, this.proxy, this.inputBoxListeners);
+		this.scmService.onDidChangeProvider(this.onDidChangeProvider, this, this.disposables);
+		this.scmService.input.onDidChange(this.proxy.$onInputBoxValueChange, this.proxy, this.disposables);
+		this.scmService.input.onDidAccept(this.proxy.$onInputBoxAcceptChanges, this.proxy, this.disposables);
 	}
 
 	$register(handle: number, features: SCMProviderFeatures): void {
-		this.providers[handle] = this.instantiationService.createInstance(MainThreadSCMProvider, handle, this.proxy, features);
+		const provider = this.instantiationService.createInstance(MainThreadSCMProvider, handle, this.proxy, features);
+		this.providers[handle] = provider;
+		this.providerDisposables[handle] = this.scmService.registerSCMProvider(provider);
 	}
 
 	$unregister(handle: number): void {
@@ -135,6 +139,9 @@ export class MainThreadSCM extends MainThreadSCMShape {
 		if (!provider) {
 			return;
 		}
+
+		this.providerDisposables[handle].dispose();
+		delete this.providerDisposables[handle];
 
 		provider.dispose();
 		delete this.providers[handle];
@@ -154,11 +161,16 @@ export class MainThreadSCM extends MainThreadSCMShape {
 		this.scmService.input.value = value;
 	}
 
+	private onDidChangeProvider(provider: ISCMProvider): void {
+		const handle = Object.keys(this.providers).filter(handle => this.providers[handle] === provider)[0];
+		this.proxy.$onActiveProviderChange(handle && parseInt(handle));
+	}
+
 	dispose(): void {
 		Object.keys(this.providers)
 			.forEach(id => this.providers[id].dispose());
 
 		this.providers = Object.create(null);
-		this.inputBoxListeners = dispose(this.inputBoxListeners);
+		this.disposables = dispose(this.disposables);
 	}
 }

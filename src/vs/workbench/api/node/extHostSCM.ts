@@ -80,7 +80,7 @@ export class ExtHostSCM {
 	private _onDidChangeActiveProvider = new Emitter<vscode.SCMProvider>();
 	get onDidChangeActiveProvider(): Event<vscode.SCMProvider> { return this._onDidChangeActiveProvider.event; }
 
-	private _activeProvider: vscode.SCMProvider;
+	private _activeProvider: vscode.SCMProvider | undefined;
 	get activeProvider(): vscode.SCMProvider | undefined { return this._activeProvider; }
 
 	private _inputBox: ExtHostSCMInputBox;
@@ -176,6 +176,11 @@ export class ExtHostSCM {
 		}
 
 		return asWinJsPromise(token => provider.provideOriginalResource(uri, token));
+	}
+
+	$onActiveProviderChange(handle: number): TPromise<void> {
+		this._activeProvider = this._providers.get(handle);
+		return TPromise.as(null);
 	}
 
 	$onInputBoxValueChange(value: string): TPromise<void> {
