@@ -409,8 +409,7 @@
 }
 
 .vs-dark .search-viewlet .global-exclude input.disabled {
-	color: #FFF;
-	opacity: .5;
+	opacity: .5 !important;
 }
 
 .vs-dark .search-viewlet .filematch {

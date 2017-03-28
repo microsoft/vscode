@@ -121,19 +121,17 @@
 	box-shadow: 0 5px 8px #000;
 }
 
+.hc-black .quick-open-widget {
+	box-shadow: none;
+}
+
+.quick-open-widget .quick-open-tree .results-group,
 .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-help-entry-label {
 	color: #007ACC;
 }
 
+.vs-dark .quick-open-widget .quick-open-tree .results-group,
 .vs-dark .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-help-entry-label {
-	color: #0097FB;
-}
-
-.quick-open-widget .quick-open-tree .results-group {
-	color: #007ACC;
-}
-
-.vs-dark .quick-open-widget .quick-open-tree .results-group {
 	color: #0097FB;
 }
 
@@ -166,10 +164,6 @@
 .quick-open-widget .monaco-tree.focused .monaco-tree-rows > .monaco-tree-row.selected.focused {
 	background: #DCEBFC;
 	color: inherit;
-}
-
-.hc-black .quick-open-widget {
-	box-shadow: none;
 }
 
 .hc-black .quick-open-widget .monaco-tree.focused .monaco-tree-row.focused:not(.highlighted) > .content.actions > .primary-action-bar,
