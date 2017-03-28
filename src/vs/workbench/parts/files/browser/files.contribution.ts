@@ -212,6 +212,11 @@ configurationRegistry.registerConfiguration({
 			'default': 'utf8',
 			'description': nls.localize('encoding', "The default character set encoding to use when reading and writing files."),
 		},
+		'files.autoGuessEncoding': {
+			'type': 'boolean',
+			'default': false,
+			'description': nls.localize('autoGuessEncoding', "When enabled, will attempt to guess the character set encoding when opening files")
+		},
 		'files.eol': {
 			'type': 'string',
 			'enum': [
