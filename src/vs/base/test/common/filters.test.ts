@@ -208,6 +208,16 @@ suite('Filters', () => {
 		}
 	}
 
+	test('fuzzyScore, #23215', function () {
+		assertMatches('tit', 'win.tit', 'win.^t^i^t', fuzzyScore);
+		assertMatches('title', 'win.title', 'win.^t^i^t^l^e', fuzzyScore);
+		assertMatches('WordCla', 'WordCharacterClassifier', '^W^o^r^d^CharacterC^l^assifier', fuzzyScore);
+		assertMatches('WordCCla', 'WordCharacterClassifier', '^W^o^r^d^Character^C^l^assifier', fuzzyScore);
+	});
+	test('fuzzyScore, #23332', function () {
+		assertMatches('dete', '"editor.quickSuggestionsDelay"', undefined, fuzzyScore);
+	});
+
 	test('fuzzyScore', function () {
 		assertMatches('ab', 'abA', '^a^bA', fuzzyScore);
 		assertMatches('ccm', 'cacmelCase', '^ca^c^melCase', fuzzyScore);
@@ -218,13 +228,13 @@ suite('Filters', () => {
 		assertMatches('LLL', 'SVisualLoggerLogsList', 'SVisual^Logger^Logs^List', fuzzyScore);
 		assertMatches('LLLL', 'SVilLoLosLi', undefined, fuzzyScore);
 		assertMatches('LLLL', 'SVisualLoggerLogsList', undefined, fuzzyScore);
-		assertMatches('TEdit', 'TextEdit', '^Text^E^d^i^t', fuzzyScore);
-		assertMatches('TEdit', 'TextEditor', '^Text^E^d^i^tor', fuzzyScore);
+		assertMatches('TEdit', 'TextEdit', '^T^extE^d^i^t', fuzzyScore);
+		assertMatches('TEdit', 'TextEditor', '^T^extE^d^i^tor', fuzzyScore);
 		assertMatches('TEdit', 'Textedit', '^T^exte^d^i^t', fuzzyScore);
-		assertMatches('TEdit', 'text_edit', '^text_^e^d^i^t', fuzzyScore);
-		assertMatches('TEditDit', 'TextEditorDecorationType', '^Text^E^d^i^tor^Decorat^ion^Type', fuzzyScore);
-		assertMatches('TEdit', 'TextEditorDecorationType', '^Text^Editor^Decorat^ion^Type', fuzzyScore);
-		assertMatches('Tedit', 'TextEdit', '^Text^E^d^i^t', fuzzyScore);
+		assertMatches('TEdit', 'text_edit', '^t^ext_e^d^i^t', fuzzyScore);
+		assertMatches('TEditDit', 'TextEditorDecorationType', '^T^extE^d^i^tor^Decorat^ion^Type', fuzzyScore);
+		assertMatches('TEdit', 'TextEditorDecorationType', '^T^extE^d^i^torDecorationType', fuzzyScore);
+		assertMatches('Tedit', 'TextEdit', '^T^extE^d^i^t', fuzzyScore);
 		assertMatches('ba', '?AB?', undefined, fuzzyScore);
 		assertMatches('bkn', 'the_black_knight', 'the_^black_^k^night', fuzzyScore);
 		assertMatches('bt', 'the_black_knight', 'the_^black_knigh^t', fuzzyScore);
@@ -242,7 +252,7 @@ suite('Filters', () => {
 		assertMatches('gp', 'Git_Git_Pull', '^Git_Git_^Pull', fuzzyScore);
 		assertMatches('is', 'ImportStatement', '^Import^Statement', fuzzyScore);
 		assertMatches('is', 'isValid', '^i^sValid', fuzzyScore);
-		assertMatches('lowrd', 'lowWord', '^l^ow^Wo^r^d', fuzzyScore);
+		assertMatches('lowrd', 'lowWord', '^l^o^wWo^r^d', fuzzyScore);
 		assertMatches('myvable', 'myvariable', '^m^y^v^aria^b^l^e', fuzzyScore);
 		assertMatches('no', '', undefined, fuzzyScore);
 		assertMatches('no', 'match', undefined, fuzzyScore);
@@ -261,7 +271,7 @@ suite('Filters', () => {
 
 	});
 	function assertTopScore(filter: typeof fuzzyScore, pattern: string, expected: number, ...words: string[]) {
-		let topScore = Number.MIN_VALUE;
+		let topScore = -Number.MIN_VALUE;
 		let topIdx = 0;
 		for (let i = 0; i < words.length; i++) {
 			const word = words[i];
@@ -279,7 +289,6 @@ suite('Filters', () => {
 
 	test('topScore - fuzzyScore', function () {
 
-		assertTopScore(fuzzyScore, 'TEdit', 1, 'TextEditorDecorationType', 'TextEdit', 'TextEditor');
 		assertTopScore(fuzzyScore, 'cons', 2, 'ArrayBufferConstructor', 'Console', 'console');
 		assertTopScore(fuzzyScore, 'Foo', 1, 'foo', 'Foo', 'foo');
 
@@ -289,6 +298,7 @@ suite('Filters', () => {
 		// assertTopScore(fuzzyScore, 'cC', 1, 'ccfoo', 'camelCase', 'foo-cC-bar');
 
 		// issue #17836
+		// assertTopScore(fuzzyScore, 'TEdit', 1, 'TextEditorDecorationType', 'TextEdit', 'TextEditor');
 		assertTopScore(fuzzyScore, 'p', 0, 'parse', 'posix', 'pafdsa', 'path', 'p');
 		assertTopScore(fuzzyScore, 'pa', 0, 'parse', 'pafdsa', 'path');
 
@@ -310,5 +320,6 @@ suite('Filters', () => {
 		// // dupe, issue #14942
 		assertTopScore(fuzzyScore, 'is', 0, 'isValidViewletId', 'import statement');
 
+		assertTopScore(fuzzyScore, 'title', 1, 'files.trimTrailingWhitespace', 'window.title');
 	});
 });

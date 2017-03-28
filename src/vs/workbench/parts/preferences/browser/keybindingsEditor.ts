@@ -18,7 +18,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { KeybindingsEditorModel, IKeybindingItemEntry, IListEntry, KEYBINDING_ENTRY_TEMPLATE_ID, KEYBINDING_HEADER_TEMPLATE_ID } from 'vs/workbench/parts/preferences/common/keybindingsEditorModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService, KeybindingSource, IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
+import { IKeybindingService, IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
 import { SearchWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { DefineKeybindingWidget } from 'vs/workbench/parts/preferences/browser/keybindingWidgets';
 import { IPreferencesService, IKeybindingsEditor, CONTEXT_KEYBINDING_FOCUS, CONTEXT_KEYBINDINGS_EDITOR, KEYBINDINGS_EDITOR_COMMAND_REMOVE, KEYBINDINGS_EDITOR_COMMAND_COPY, KEYBINDINGS_EDITOR_COMMAND_RESET, KEYBINDINGS_EDITOR_COMMAND_DEFINE } from 'vs/workbench/parts/preferences/common/preferences';
@@ -225,7 +225,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 			key: keybinding.keybindingItem.keybinding ? keybinding.keybindingItem.keybinding.getUserSettingsLabel() : ''
 		};
 		if (keybinding.keybindingItem.when) {
-			userFriendlyKeybinding.when = keybinding.keybindingItem.when.serialize();
+			userFriendlyKeybinding.when = keybinding.keybindingItem.when;
 		}
 		this.clipboardService.writeText(JSON.stringify(userFriendlyKeybinding, null, '  '));
 		return TPromise.as(null);
@@ -294,7 +294,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 	}
 
 	private renderKeybindingsEntries(keybindingsEntries: IKeybindingItemEntry[]): void {
-		const currentFocussedIndices = this.keybindingsList.getFocus();
+		const currentFocussedIndex = this.keybindingsList.getFocus()[0];
 		this.listEntries = [{ id: 'keybinding-header-entry', templateId: KEYBINDING_HEADER_TEMPLATE_ID }, ...keybindingsEntries];
 		this.keybindingsList.splice(0, this.keybindingsList.length, this.listEntries);
 		this.layoutKebindingsList();
@@ -306,8 +306,8 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 				this.keybindingsList.setFocus([index]);
 			}
 			this.unAssignedKeybindingItemToRevealAndFocus = null;
-		} else {
-			this.keybindingsList.setFocus(currentFocussedIndices);
+		} else if (currentFocussedIndex !== -1 && currentFocussedIndex < this.listEntries.length) {
+			this.keybindingsList.setFocus([currentFocussedIndex]);
 		}
 	}
 
@@ -400,7 +400,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 	private createResetAction(keybindingItem: IKeybindingItemEntry): IAction {
 		return <IAction>{
 			label: localize('resetLabel', "Reset Keybinding"),
-			enabled: !!keybindingItem.keybindingItem.keybinding && keybindingItem.keybindingItem.source === KeybindingSource.User,
+			enabled: !!keybindingItem.keybindingItem.keybinding && !keybindingItem.keybindingItem.keybindingItem.isDefault,
 			id: KEYBINDINGS_EDITOR_COMMAND_RESET,
 			run: () => this.resetKeybinding(keybindingItem)
 		};
@@ -621,7 +621,8 @@ class SourceColumn extends Column {
 	}
 
 	render(keybindingItemEntry: IKeybindingItemEntry): void {
-		this.sourceColumn.textContent = keybindingItemEntry.keybindingItem.source === KeybindingSource.User ? localize('user', "User") : localize('default', "Default");
+		DOM.clearNode(this.sourceColumn);
+		new HighlightedLabel(this.sourceColumn).set(keybindingItemEntry.keybindingItem.source, keybindingItemEntry.sourceMatches);
 	}
 }
 
@@ -635,12 +636,12 @@ class WhenColumn extends Column {
 	}
 
 	render(keybindingItemEntry: IKeybindingItemEntry): void {
+		DOM.clearNode(this.whenColumn);
 		DOM.toggleClass(this.whenColumn, 'code', !!keybindingItemEntry.keybindingItem.when);
 		DOM.toggleClass(this.whenColumn, 'empty', !keybindingItemEntry.keybindingItem.when);
 		if (keybindingItemEntry.keybindingItem.when) {
-			const when = keybindingItemEntry.keybindingItem.when.serialize();
-			this.whenColumn.textContent = when;
-			this.whenColumn.title = when;
+			new HighlightedLabel(this.whenColumn).set(keybindingItemEntry.keybindingItem.when, keybindingItemEntry.whenMatches);
+			this.whenColumn.title = keybindingItemEntry.keybindingItem.when;
 		} else {
 			this.whenColumn.textContent = '—';
 		}

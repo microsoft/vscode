@@ -25,7 +25,7 @@ export class QueryBuilder {
 		const configuration = this.configurationService.getConfiguration<ISearchConfiguration>();
 
 		const settingsExcludePattern = getExcludes(configuration);
-		if (options.useExcludeSettings) {
+		if (!options.disregardExcludeSettings) {
 			if (options.excludePattern) {
 				mixin(options.excludePattern, settingsExcludePattern, false /* no overwrite */);
 			} else {
@@ -46,7 +46,7 @@ export class QueryBuilder {
 			fileEncoding: options.fileEncoding,
 			contentPattern: contentPattern,
 			useRipgrep: configuration.search.useRipgrep,
-			useIgnoreFiles: options.useIgnoreFiles
+			disregardIgnoreFiles: options.disregardIgnoreFiles
 		};
 	}
 }

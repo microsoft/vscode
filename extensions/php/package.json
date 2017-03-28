@@ -94,7 +94,22 @@
 				"fileMatch": "composer.json",
 				"url": "https://getcomposer.org/schema.json"
 			}
-		]
+		],
+		"commands": [
+			{
+				"title": "%command.untrustValidationExecutable%",
+				"category": "%commands.categroy.php%",
+				"command": "php.untrustValidationExecutable"
+			}
+		],
+		"menus": {
+			"commandPalette": [
+				{
+					"command": "php.untrustValidationExecutable",
+					"when": "php.untrustValidationExecutableContext"
+				}
+			]
+		}
 	},
 	"scripts": {
 		"compile": "gulp compile-extension:php",

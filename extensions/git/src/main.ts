@@ -15,6 +15,7 @@ import { GitContentProvider } from './contentProvider';
 import { AutoFetcher } from './autofetch';
 import { MergeDecorator } from './merge';
 import { Askpass } from './askpass';
+import { filterEvent } from './util';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import * as nls from 'vscode-nls';
 
@@ -76,8 +77,12 @@ async function init(context: ExtensionContext, disposables: Disposable[]): Promi
 		}
 	}
 
-	scm.inputBox.onDidAccept(commandCenter.commitWithInput, commandCenter, disposables);
-	scm.inputBox.value = await model.getCommitTemplate();
+	filterEvent(scm.onDidAcceptInputValue, () => scm.activeProvider === provider)
+		(commandCenter.commitWithInput, commandCenter, disposables);
+
+	if (scm.activeProvider === provider) {
+		scm.inputBox.value = await model.getCommitTemplate();
+	}
 }
 
 export function activate(context: ExtensionContext): any {

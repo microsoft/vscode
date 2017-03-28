@@ -6,7 +6,7 @@
 
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import Event, { Emitter, debounceEvent } from 'vs/base/common/event';
+import Event, { Emitter, debounceEvent, createEmptyEvent } from 'vs/base/common/event';
 import { asWinJsPromise } from 'vs/base/common/async';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { Disposable } from 'vs/workbench/api/node/extHostTypes';
@@ -24,7 +24,7 @@ function getIconPath(decorations: vscode.SCMResourceThemableDecorations) {
 	return undefined;
 }
 
-class ExtHostSCMInputBox {
+export class ExtHostSCMInputBox {
 
 	private _value: string = '';
 
@@ -84,7 +84,7 @@ export class ExtHostSCM {
 	get activeProvider(): vscode.SCMProvider | undefined { return this._activeProvider; }
 
 	private _inputBox: ExtHostSCMInputBox;
-	get inputBox(): vscode.SCMInputBox { return this._inputBox; }
+	get inputBox(): ExtHostSCMInputBox { return this._inputBox; }
 
 	constructor(threadService: IThreadService) {
 		this._proxy = threadService.get(MainContext.MainThreadSCM);
@@ -100,15 +100,15 @@ export class ExtHostSCM {
 			label: provider.label,
 			contextKey: provider.contextKey,
 			supportsOpen: !!provider.open,
-			supportsOriginalResource: !!provider.getOriginalResource
+			supportsOriginalResource: !!provider.provideOriginalResource
 		});
 
-		const onDidChange = debounceEvent(provider.onDidChange, (l, e) => e, 100);
-		const onDidChangeListener = onDidChange(resourceGroups => {
+		const onDidChange = debounceEvent(provider.onDidChange || createEmptyEvent<vscode.SCMProvider>(), (l, e) => e, 100);
+		const onDidChangeListener = onDidChange(scmProvider => {
 			const cache = new Map<string, vscode.SCMResource>();
 			this._cache.set(handle, cache);
 
-			const rawResourceGroups = resourceGroups.map(g => {
+			const rawResourceGroups = scmProvider.resources.map(g => {
 				const rawResources = g.resources.map(r => {
 					const uri = r.uri.toString();
 					cache.set(uri, r);
@@ -164,7 +164,8 @@ export class ExtHostSCM {
 			return TPromise.as(null);
 		}
 
-		return asWinJsPromise(token => provider.open(resource, token));
+		provider.open(resource);
+		return TPromise.as(null);
 	}
 
 	$getOriginalResource(handle: number, uri: URI): TPromise<URI> {
@@ -174,7 +175,7 @@ export class ExtHostSCM {
 			return TPromise.as(null);
 		}
 
-		return asWinJsPromise(token => provider.getOriginalResource(uri, token));
+		return asWinJsPromise(token => provider.provideOriginalResource(uri, token));
 	}
 
 	$onInputBoxValueChange(value: string): TPromise<void> {

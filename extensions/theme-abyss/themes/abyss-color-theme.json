@@ -11,7 +11,7 @@
 			"name": "Comment",
 			"scope": "comment",
 			"settings": {
-				"foreground": "#223355"
+				"foreground": "#384887"
 			}
 		},
 		{
@@ -259,7 +259,7 @@
 		"editorBackground": "#000c18",
 		"editorForeground": "#6688cc",
 		"editorCursor": "#ddbb88",
-		"editorInvisibles": "#002040",
+		"editorInvisibles": "#103050",
 		"editorLineHighlight": "#082050",
 		"editorSelection": "#770811",
 		"editorGuide": "#002952",
@@ -267,19 +267,20 @@
 		"editorHoverBorder": "#004c18",
 		"editorPeekResultsBackground": "#060621",
 		"editorPeekResultsMatchForeground": "#7777cc",
-		"editorPeekResultsSelectedBackground": "#070877",
-		"editorPeekResultsSelectedForeground": "#77EEFF",
+		"editorPeekResultsSelectedBackground": "#070866",
+		"editorPeekResultsSelectedForeground": "#7799ee",
 		"editorPeekEditorBackground": "#001F33",
 		"editorPeekTitleBackground": "#060621",
 		"editorPeekBorders": "#7777cc",
+		"editorPeekReferenceHighlight": "#ddbb5555",
 
-		"editorLineNumbers": "#8686ff",
+		"editorLineNumbers": "#406385",
 		"editorMarkerNavigationBackground": "#060621",
 		"editorMarkerNavigationError": "#FF0000",
 		"editorMarkerNavigationWarning": "#00FF00",
 
-		"editorFindWidgetBackground": "#051336",
-		"editorFindCheckedBorders": "#0000FF",
+		"editorFindWidgetBackground": "#262641",
+		"editorFindCheckedBorders": "#0063a5",
 
 		// Workbench Colors
 		"tabsContainerBackground": "#1c1c2a",

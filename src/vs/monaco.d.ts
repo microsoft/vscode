@@ -1530,6 +1530,7 @@ declare module monaco.editor {
 
     export class EditorWrappingInfo {
         readonly _editorWrappingInfoBrand: void;
+        readonly isWordWrapMinified: boolean;
         readonly isViewportWrapping: boolean;
         readonly wrappingColumn: number;
         readonly wrappingIndent: WrappingIndent;
@@ -1564,6 +1565,7 @@ declare module monaco.editor {
         readonly stopRenderingLineAfter: number;
         readonly renderWhitespace: 'none' | 'boundary' | 'all';
         readonly renderControlCharacters: boolean;
+        readonly fontLigatures: boolean;
         readonly renderIndentGuides: boolean;
         readonly renderLineHighlight: 'none' | 'gutter' | 'line' | 'all';
         readonly scrollbar: InternalEditorScrollbarOptions;
@@ -1596,6 +1598,7 @@ declare module monaco.editor {
         readonly stopRenderingLineAfter: boolean;
         readonly renderWhitespace: boolean;
         readonly renderControlCharacters: boolean;
+        readonly fontLigatures: boolean;
         readonly renderIndentGuides: boolean;
         readonly renderLineHighlight: boolean;
         readonly scrollbar: boolean;

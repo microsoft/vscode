@@ -1930,7 +1930,8 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 			config.fontInfo.spaceWidth,
 			config.viewInfo.stopRenderingLineAfter,
 			config.viewInfo.renderWhitespace,
-			config.viewInfo.renderControlCharacters
+			config.viewInfo.renderControlCharacters,
+			config.viewInfo.fontLigatures
 		));
 
 		let myResult: string[] = [];

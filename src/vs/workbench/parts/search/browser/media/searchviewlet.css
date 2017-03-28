@@ -302,13 +302,13 @@
 }
 
 .vs .monaco-workbench .search-viewlet .query-details .file-types .controls>.custom-checkbox.useIgnoreFiles {
-	background: url('git.svg') center center no-repeat;
+	background: url('gitignore.svg') center center no-repeat;
 	background-size: 18px 18px;
 }
 
 .vs-dark .monaco-workbench .search-viewlet .query-details .file-types .controls>.custom-checkbox.useIgnoreFiles,
 .hc-black .monaco-workbench .search-viewlet .query-details .file-types .controls>.custom-checkbox.useIgnoreFiles {
-	background: url('git-dark.svg') center center no-repeat;
+	background: url('gitignore-dark.svg') center center no-repeat;
 	background-size: 18px 18px;
 }
 
@@ -409,8 +409,7 @@
 }
 
 .vs-dark .search-viewlet .global-exclude input.disabled {
-	color: #FFF;
-	opacity: .5;
+	opacity: .5 !important;
 }
 
 .vs-dark .search-viewlet .filematch {

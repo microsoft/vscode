@@ -5,7 +5,6 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
-import * as DOM from 'vs/base/browser/dom';
 import { Delayer } from 'vs/base/common/async';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { flatten, distinct } from 'vs/base/common/arrays';
@@ -645,11 +644,8 @@ class EditSettingRenderer extends Disposable {
 		this.editPreferenceWidgetForMouseMove = this._register(this.instantiationService.createInstance(EditPreferenceWidget, editor));
 		this.toggleEditPreferencesForMouseMoveDelayer = new Delayer<void>(75);
 
-		this._register(this.editPreferenceWidgetForCusorPosition.onClick(setting => this.onEditSettingClicked(this.editPreferenceWidgetForCusorPosition)));
-		this._register(this.editPreferenceWidgetForMouseMove.onClick(setting => this.onEditSettingClicked(this.editPreferenceWidgetForMouseMove)));
-
-		this._register(this.editPreferenceWidgetForCusorPosition.onMouseOver(setting => this.onMouseOver(this.editPreferenceWidgetForCusorPosition)));
-		this._register(this.editPreferenceWidgetForMouseMove.onMouseOver(setting => this.onMouseOver(this.editPreferenceWidgetForMouseMove)));
+		this._register(this.editPreferenceWidgetForCusorPosition.onClick(e => this.onEditSettingClicked(this.editPreferenceWidgetForCusorPosition, e)));
+		this._register(this.editPreferenceWidgetForMouseMove.onClick(e => this.onEditSettingClicked(this.editPreferenceWidgetForMouseMove, e)));
 
 		this._register(this.editor.onDidChangeCursorPosition(positionChangeEvent => this.onPositionChanged(positionChangeEvent)));
 		this._register(this.editor.onMouseMove(mouseMoveEvent => this.onMouseMoved(mouseMoveEvent)));
@@ -700,11 +696,14 @@ class EditSettingRenderer extends Disposable {
 	}
 
 	private getEditPreferenceWidgetUnderMouse(mouseMoveEvent: IEditorMouseEvent): EditPreferenceWidget<ISetting> {
-		if (mouseMoveEvent.event.target === this.editPreferenceWidgetForMouseMove.getDomNode()) {
-			return this.editPreferenceWidgetForMouseMove;
-		}
-		if (mouseMoveEvent.event.target === this.editPreferenceWidgetForCusorPosition.getDomNode()) {
-			return this.editPreferenceWidgetForCusorPosition;
+		if (mouseMoveEvent.target.type === editorCommon.MouseTargetType.GUTTER_GLYPH_MARGIN) {
+			const line = mouseMoveEvent.target.position.lineNumber;
+			if (this.editPreferenceWidgetForMouseMove.getLine() === line && this.editPreferenceWidgetForMouseMove.isVisible()) {
+				return this.editPreferenceWidgetForMouseMove;
+			}
+			if (this.editPreferenceWidgetForCusorPosition.getLine() === line && this.editPreferenceWidgetForCusorPosition.isVisible()) {
+				return this.editPreferenceWidgetForCusorPosition;
+			}
 		}
 		return null;
 	}
@@ -719,12 +718,24 @@ class EditSettingRenderer extends Disposable {
 	}
 
 	private showEditPreferencesWidget(editPreferencesWidget: EditPreferenceWidget<ISetting>, settings: ISetting[]) {
-		if (this.editor.getRawConfiguration().glyphMargin) {
-			editPreferencesWidget.show(settings[0].valueRange.startLineNumber, settings);
-			editPreferencesWidget.getDomNode().title = nls.localize('editTtile', "Edit");
+		const line = settings[0].valueRange.startLineNumber;
+		if (this.editor.getRawConfiguration().glyphMargin && this.marginFreeFromOtherDecorations(line)) {
+			editPreferencesWidget.show(line, nls.localize('editTtile', "Edit"), settings);
 			const editPreferenceWidgetToHide = editPreferencesWidget === this.editPreferenceWidgetForCusorPosition ? this.editPreferenceWidgetForMouseMove : this.editPreferenceWidgetForCusorPosition;
 			editPreferenceWidgetToHide.hide();
 		}
+	}
+
+	private marginFreeFromOtherDecorations(line: number): boolean {
+		const decorations = this.editor.getLineDecorations(line);
+		if (decorations) {
+			for (const {options} of decorations) {
+				if (options.glyphMarginClassName && options.glyphMarginClassName.indexOf(EditPreferenceWidget.GLYPH_MARGIN_CLASS_NAME) === -1) {
+					return false;
+				}
+			}
+		}
+		return true;
 	}
 
 	private getSettings(lineNumber: number): ISetting[] {
@@ -770,9 +781,8 @@ class EditSettingRenderer extends Disposable {
 		this.settingHighlighter.highlight(editPreferenceWidget.preferences[0]);
 	}
 
-	private onEditSettingClicked(editPreferenceWidget: EditPreferenceWidget<ISetting>): void {
-		const elementPosition = DOM.getDomNodePagePosition(editPreferenceWidget.getDomNode());
-		const anchor = { x: elementPosition.left + elementPosition.width, y: elementPosition.top + elementPosition.height + 10 };
+	private onEditSettingClicked(editPreferenceWidget: EditPreferenceWidget<ISetting>, e: IEditorMouseEvent): void {
+		const anchor = { x: e.event.posx + 1, y: e.event.posy + 10 };
 		const actions = this.getSettings(editPreferenceWidget.getLine()).length === 1 ? this.getActions(editPreferenceWidget.preferences[0], this.getConfigurationsMap()[editPreferenceWidget.preferences[0].key])
 			: editPreferenceWidget.preferences.map(setting => new ContextSubMenu(setting.key, this.getActions(setting, this.getConfigurationsMap()[setting.key])));
 		this.contextMenuService.showContextMenu({

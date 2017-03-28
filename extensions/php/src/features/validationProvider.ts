@@ -115,6 +115,7 @@ export default class PHPValidationProvider {
 			this.diagnosticCollection.delete(textDocument.uri);
 			delete this.delayers[textDocument.uri.toString()];
 		}, null, subscriptions);
+		subscriptions.push(vscode.commands.registerCommand('php.untrustValidationExecutable', this.untrustValidationExecutable, this));
 	}
 
 	public dispose(): void {
@@ -140,6 +141,9 @@ export default class PHPValidationProvider {
 			}
 			this.trigger = RunTrigger.from(section.get<string>('validate.run', RunTrigger.strings.onSave));
 		}
+		if (this.executableIsUserDefined !== true && this.workspaceStore.get<string>(CheckedExecutablePath, undefined) !== void 0) {
+			vscode.commands.executeCommand('setContext', 'php.untrustValidationExecutableContext', true);
+		}
 		this.delayers = Object.create(null);
 		if (this.pauseValidation) {
 			this.pauseValidation = oldExecutable === this.executable;
@@ -159,6 +163,11 @@ export default class PHPValidationProvider {
 			// Configuration has changed. Reevaluate all documents.
 			vscode.workspace.textDocuments.forEach(this.triggerValidate, this);
 		}
+	}
+
+	private untrustValidationExecutable() {
+		this.workspaceStore.update(CheckedExecutablePath, undefined);
+		vscode.commands.executeCommand('setContext', 'php.untrustValidationExecutableContext', false);
 	}
 
 	private triggerValidate(textDocument: vscode.TextDocument): void {
@@ -193,19 +202,14 @@ export default class PHPValidationProvider {
 						title: localize('php.no', 'No'),
 						isCloseAffordance: true,
 						id: 'no'
-					},
-					{
-						title: localize('php.more', 'Learn More'),
-						id: 'more'
 					}
 				).then(selected => {
 					if (!selected || selected.id === 'no') {
 						this.pauseValidation = true;
 					} else if (selected.id === 'yes') {
 						this.workspaceStore.update(CheckedExecutablePath, this.executable);
+						vscode.commands.executeCommand('setContext', 'php.untrustValidationExecutableContext', true);
 						trigger();
-					} else if (selected.id === 'more') {
-						vscode.commands.executeCommand('vscode.open', vscode.Uri.parse('https://go.microsoft.com/fwlink/?linkid=839878'));
 					}
 				});
 				return;

@@ -415,6 +415,62 @@ suite('keyboardMapper - MAC de_ch', () => {
 			}]
 		);
 	});
+
+	test('resolveKeyboardEvent Modifier only MetaLeft+', () => {
+		assertResolveKeyboardEvent(
+			mapper,
+			{
+				ctrlKey: false,
+				shiftKey: false,
+				altKey: false,
+				metaKey: true,
+				keyCode: -1,
+				code: 'MetaLeft'
+			},
+			{
+				label: '⌘',
+				ariaLabel: 'Command+',
+				HTMLLabel: [_simpleHTMLLabel(['⌘', ''])],
+				electronAccelerator: null,
+				userSettingsLabel: 'cmd+',
+				isWYSIWYG: true,
+				isChord: false,
+				hasCtrlModifier: false,
+				hasShiftModifier: false,
+				hasAltModifier: false,
+				hasMetaModifier: true,
+				dispatchParts: [null, null],
+			}
+		);
+	});
+
+	test('resolveKeyboardEvent Modifier only MetaRight+', () => {
+		assertResolveKeyboardEvent(
+			mapper,
+			{
+				ctrlKey: false,
+				shiftKey: false,
+				altKey: false,
+				metaKey: true,
+				keyCode: -1,
+				code: 'MetaRight'
+			},
+			{
+				label: '⌘',
+				ariaLabel: 'Command+',
+				HTMLLabel: [_simpleHTMLLabel(['⌘', ''])],
+				electronAccelerator: null,
+				userSettingsLabel: 'cmd+',
+				isWYSIWYG: true,
+				isChord: false,
+				hasCtrlModifier: false,
+				hasShiftModifier: false,
+				hasAltModifier: false,
+				hasMetaModifier: true,
+				dispatchParts: [null, null],
+			}
+		);
+	});
 });
 
 suite('keyboardMapper - MAC en_us', () => {
@@ -431,6 +487,10 @@ suite('keyboardMapper - MAC en_us', () => {
 	test('mapping', (done) => {
 		assertMapping(WRITE_FILE_IF_DIFFERENT, mapper, 'mac_en_us.txt', done);
 	});
+
+	function _simpleHTMLLabel(pieces: string[]): IHTMLContentElement {
+		return simpleHTMLLabel(pieces, OperatingSystem.Macintosh);
+	}
 
 	function _chordHTMLLabel(firstPart: string[], chordPart: string[]): IHTMLContentElement {
 		return chordHTMLLabel(firstPart, chordPart, OperatingSystem.Macintosh);
@@ -455,6 +515,62 @@ suite('keyboardMapper - MAC en_us', () => {
 				hasMetaModifier: false,
 				dispatchParts: ['meta+[Comma]', 'meta+[Slash]'],
 			}]
+		);
+	});
+
+	test('resolveKeyboardEvent Modifier only MetaLeft+', () => {
+		assertResolveKeyboardEvent(
+			mapper,
+			{
+				ctrlKey: false,
+				shiftKey: false,
+				altKey: false,
+				metaKey: true,
+				keyCode: -1,
+				code: 'MetaLeft'
+			},
+			{
+				label: '⌘',
+				ariaLabel: 'Command+',
+				HTMLLabel: [_simpleHTMLLabel(['⌘', ''])],
+				electronAccelerator: null,
+				userSettingsLabel: 'cmd+',
+				isWYSIWYG: true,
+				isChord: false,
+				hasCtrlModifier: false,
+				hasShiftModifier: false,
+				hasAltModifier: false,
+				hasMetaModifier: true,
+				dispatchParts: [null, null],
+			}
+		);
+	});
+
+	test('resolveKeyboardEvent Modifier only MetaRight+', () => {
+		assertResolveKeyboardEvent(
+			mapper,
+			{
+				ctrlKey: false,
+				shiftKey: false,
+				altKey: false,
+				metaKey: true,
+				keyCode: -1,
+				code: 'MetaRight'
+			},
+			{
+				label: '⌘',
+				ariaLabel: 'Command+',
+				HTMLLabel: [_simpleHTMLLabel(['⌘', ''])],
+				electronAccelerator: null,
+				userSettingsLabel: 'cmd+',
+				isWYSIWYG: true,
+				isChord: false,
+				hasCtrlModifier: false,
+				hasShiftModifier: false,
+				hasAltModifier: false,
+				hasMetaModifier: true,
+				dispatchParts: [null, null],
+			}
 		);
 	});
 });
@@ -843,6 +959,62 @@ suite('keyboardMapper - LINUX de_ch', () => {
 				hasMetaModifier: false,
 				dispatchParts: ['ctrl+[Comma]', 'ctrl+shift+[Digit7]'],
 			}]
+		);
+	});
+
+	test('resolveKeyboardEvent Modifier only ControlLeft+', () => {
+		assertResolveKeyboardEvent(
+			mapper,
+			{
+				ctrlKey: true,
+				shiftKey: false,
+				altKey: false,
+				metaKey: false,
+				keyCode: -1,
+				code: 'ControlLeft'
+			},
+			{
+				label: 'Ctrl+',
+				ariaLabel: 'Control+',
+				HTMLLabel: [_simpleHTMLLabel(['Ctrl', ''])],
+				electronAccelerator: null,
+				userSettingsLabel: 'ctrl+',
+				isWYSIWYG: true,
+				isChord: false,
+				hasCtrlModifier: true,
+				hasShiftModifier: false,
+				hasAltModifier: false,
+				hasMetaModifier: false,
+				dispatchParts: [null, null],
+			}
+		);
+	});
+
+	test('resolveKeyboardEvent Modifier only ControlRight+', () => {
+		assertResolveKeyboardEvent(
+			mapper,
+			{
+				ctrlKey: true,
+				shiftKey: false,
+				altKey: false,
+				metaKey: false,
+				keyCode: -1,
+				code: 'ControlRight'
+			},
+			{
+				label: 'Ctrl+',
+				ariaLabel: 'Control+',
+				HTMLLabel: [_simpleHTMLLabel(['Ctrl', ''])],
+				electronAccelerator: null,
+				userSettingsLabel: 'ctrl+',
+				isWYSIWYG: true,
+				isChord: false,
+				hasCtrlModifier: true,
+				hasShiftModifier: false,
+				hasAltModifier: false,
+				hasMetaModifier: false,
+				dispatchParts: [null, null],
+			}
 		);
 	});
 });
@@ -1252,6 +1424,62 @@ suite('keyboardMapper - LINUX en_us', () => {
 				hasMetaModifier: false,
 				dispatchParts: ['ctrl+[Comma]', null],
 			}]
+		);
+	});
+
+	test('resolveKeyboardEvent Modifier only ControlLeft+', () => {
+		assertResolveKeyboardEvent(
+			mapper,
+			{
+				ctrlKey: true,
+				shiftKey: false,
+				altKey: false,
+				metaKey: false,
+				keyCode: -1,
+				code: 'ControlLeft'
+			},
+			{
+				label: 'Ctrl+',
+				ariaLabel: 'Control+',
+				HTMLLabel: [_simpleHTMLLabel(['Ctrl', ''])],
+				electronAccelerator: null,
+				userSettingsLabel: 'ctrl+',
+				isWYSIWYG: true,
+				isChord: false,
+				hasCtrlModifier: true,
+				hasShiftModifier: false,
+				hasAltModifier: false,
+				hasMetaModifier: false,
+				dispatchParts: [null, null],
+			}
+		);
+	});
+
+	test('resolveKeyboardEvent Modifier only ControlRight+', () => {
+		assertResolveKeyboardEvent(
+			mapper,
+			{
+				ctrlKey: true,
+				shiftKey: false,
+				altKey: false,
+				metaKey: false,
+				keyCode: -1,
+				code: 'ControlRight'
+			},
+			{
+				label: 'Ctrl+',
+				ariaLabel: 'Control+',
+				HTMLLabel: [_simpleHTMLLabel(['Ctrl', ''])],
+				electronAccelerator: null,
+				userSettingsLabel: 'ctrl+',
+				isWYSIWYG: true,
+				isChord: false,
+				hasCtrlModifier: true,
+				hasShiftModifier: false,
+				hasAltModifier: false,
+				hasMetaModifier: false,
+				dispatchParts: [null, null],
+			}
 		);
 	});
 });

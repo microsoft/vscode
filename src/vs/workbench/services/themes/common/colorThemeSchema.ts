@@ -151,10 +151,12 @@ export const tokenColorsSchema = {
 				type: 'object',
 				properties: {
 					foreground: {
-						type: 'string'
+						type: 'string',
+						format: 'color'
 					},
 					background: {
-						type: 'string'
+						type: 'string',
+						format: 'color'
 					},
 					fontStyle: {
 						type: 'string',

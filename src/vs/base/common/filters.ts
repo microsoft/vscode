@@ -410,7 +410,8 @@ function initTable() {
 }
 
 const _table = initTable();
-const _arrows = initTable();
+const _scores = initTable();
+const _arrows = <Arrow[][]>initTable();
 const _debug = false;
 
 function printTable(table: number[][], pattern: string, patternLen: number, word: string, wordLen: number): string {
@@ -439,6 +440,8 @@ _seps['.'] = true;
 _seps[' '] = true;
 _seps['/'] = true;
 _seps['\\'] = true;
+
+const enum Arrow { Top = 0b1, Diag = 0b10, Left = 0b100 }
 
 export function fuzzyScore(pattern: string, word: string): [number, number[]] {
 
@@ -500,7 +503,13 @@ export function fuzzyScore(pattern: string, word: string): [number, number[]] {
 				} else {
 					score = 1;
 				}
+
+				if (i > 1 && j > 1 && _scores[i - 1][j - 1] > score) {
+					score = _scores[i - 1][j - 1];
+				}
 			}
+
+			_scores[i][j] = score;
 
 			let diag = _table[i - 1][j - 1] + score;
 			let top = _table[i - 1][j] + -1;
@@ -508,21 +517,27 @@ export function fuzzyScore(pattern: string, word: string): [number, number[]] {
 
 			if (left >= top) {
 				// left or diag
-				if (left >= diag) {
+				if (left > diag) {
 					_table[i][j] = left;
-					_arrows[i][j] = -1;
+					_arrows[i][j] = Arrow.Left;
+				} else if (left === diag) {
+					_table[i][j] = left;
+					_arrows[i][j] = Arrow.Left | Arrow.Diag;
 				} else {
 					_table[i][j] = diag;
-					_arrows[i][j] = 0;
+					_arrows[i][j] = Arrow.Diag;
 				}
 			} else {
 				// top or diag
-				if (diag >= top) {
-					_table[i][j] = diag;
-					_arrows[i][j] = 0;
-				} else {
+				if (top > diag) {
 					_table[i][j] = top;
-					_arrows[i][j] = 1;
+					_arrows[i][j] = Arrow.Top;
+				} else if (top === diag) {
+					_table[i][j] = top;
+					_arrows[i][j] = Arrow.Top | Arrow.Diag;
+				} else {
+					_table[i][j] = diag;
+					_arrows[i][j] = Arrow.Diag;
 				}
 			}
 
@@ -533,53 +548,76 @@ export function fuzzyScore(pattern: string, word: string): [number, number[]] {
 	if (_debug) {
 		console.log(printTable(_table, pattern, patternLen, word, wordLen));
 		console.log(printTable(_arrows, pattern, patternLen, word, wordLen));
+		console.log(printTable(_scores, pattern, patternLen, word, wordLen));
 	}
 
-	let matches: number[] = [];
-	let total = 0;
-	i = patternLen;
-	j = wordLen;
-	while (i > 0 && j > 0) {
-		let value = _table[i][j];
-		let arrow = _arrows[i][j];
-		if (arrow === -1 || arrow === 1) {
-			// keep going left, we cannot
-			// skip a character in the pattern
-			j -= 1;
+	let bucket: [number, number[]][] = [];
+	findAllMatches(patternLen, patternLen, wordLen, 0, [], bucket);
 
-		} else if (arrow === 0) { //diag
-			j -= 1;
-			i -= 1;
+	if (bucket.length === 0) {
+		return undefined;
+	}
 
-			let score = value - _table[i][j];
-			if (i === 0 && score === 1) {
-				// we have reached the first pattern char and now
-				// test that it has scored properly, like `o -> bbOO`
-				// and not `o -> foobar`
-				return undefined;
+	let topMatch = bucket.shift();
+	for (const match of bucket) {
+		if (!topMatch || topMatch[0] < match[0]) {
+			topMatch = match;
+		}
+	}
+	if (_debug) {
+		console.log(`${pattern} & ${word} => ${topMatch[0]} points for ${topMatch[1]}`);
+	}
+	return topMatch;
+}
 
-			} else if (score < 1) {
-				// we went diagonal by inheriting a good
-				// result, not by matching keep going left
-				i += 1;
+function findAllMatches(patternLen: number, patternPos: number, wordPos: number, total: number, matches: number[], bucket: [number, number[]][]): void {
 
-			} else {
-				// all good
-				total += value;
-				matches.unshift(j);
+	while (patternPos > 0 && wordPos > 0) {
+		let value = _table[patternPos][wordPos];
+		let score = _scores[patternPos][wordPos];
+		let arrow = _arrows[patternPos][wordPos];
+
+		if (arrow === Arrow.Left || score < 0) {
+			// left
+			wordPos -= 1;
+
+		} else if (arrow === Arrow.Diag) {
+			// diag
+			total += value;
+			patternPos -= 1;
+			wordPos -= 1;
+			matches.unshift(wordPos);
+
+		} else if (arrow & Arrow.Diag) {
+
+			if (arrow & Arrow.Left) {
+				// left
+				findAllMatches(patternLen, patternPos, wordPos - 1, total, matches.slice(0), bucket);
 			}
+
+			// diag
+			total += value;
+			patternPos -= 1;
+			wordPos -= 1;
+			matches.unshift(wordPos);
+
+		} else {
+			return undefined;
 		}
 	}
 
-	if (j > 3) {
-		j = 3;
-	}
-	total -= j * 3; // penalty for first matching character
-	total -= (1 + matches[matches.length - 1]) - pattern.length; // penalty for all non matching characters between first and last
-
-	if (_debug) {
-		console.log(`${pattern} & ${word} => ${total} points for ${matches}`);
+	if (matches.length !== patternLen) {
+		// doesn't cover whole pattern
+		return undefined;
 	}
 
-	return [total, matches];
+	if (_scores[1][matches[0] + 1] === 1) {
+		// first match is weak
+		return undefined;
+	}
+
+	total -= wordPos >= 3 ? 9 : wordPos * 3; // late start penalty
+	total -= (1 + matches[matches.length - 1]) - patternLen; // penalty for all non matching characters between first and last
+
+	bucket.push([total, matches]);
 }

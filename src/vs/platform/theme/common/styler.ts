@@ -6,7 +6,7 @@
 'use strict';
 
 import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
-import { inputBackground, inputForeground, ColorIdentifier, selectForeground, selectBackground, selectBorder, inputBorder } from 'vs/platform/theme/common/colorRegistry';
+import { inputBackground, inputForeground, ColorIdentifier, selectForeground, selectBackground, selectBorder, inputBorder, foreground, editorBackground, highContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IDisposable } from "vs/base/common/lifecycle";
 
 export interface IThemable {
@@ -41,5 +41,16 @@ export function attachSelectBoxStyler(widget: IThemable, themeService: IThemeSer
 		selectBackground: (style && style.selectBackground) || selectBackground,
 		selectForeground: (style && style.selectForeground) || selectForeground,
 		selectBorder: (style && style.selectBorder) || selectBorder
+	});
+}
+
+export function attachQuickOpenStyler(widget: IThemable, themeService: IThemeService, style?: { foreground?: ColorIdentifier, background?: ColorIdentifier, borderColor?: ColorIdentifier, inputBackground?: ColorIdentifier, inputForeground?: ColorIdentifier, inputBorder?: ColorIdentifier }): IDisposable {
+	return attachStyler(themeService, widget, {
+		foreground: (style && style.foreground) || foreground,
+		background: (style && style.background) || editorBackground,
+		borderColor: style && style.borderColor || highContrastBorder,
+		inputBackground: (style && style.inputBackground) || inputBackground,
+		inputForeground: (style && style.inputForeground) || inputForeground,
+		inputBorder: (style && style.inputBorder) || inputBorder
 	});
 }

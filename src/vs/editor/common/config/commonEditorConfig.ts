@@ -190,7 +190,7 @@ class InternalEditorOptionsHelper {
 			pixelRatio: pixelRatio
 		});
 
-		let bareWrappingInfo: { isViewportWrapping: boolean; wrappingColumn: number; } = null;
+		let bareWrappingInfo: { isWordWrapMinified: boolean; isViewportWrapping: boolean; wrappingColumn: number; } = null;
 		{
 			let wordWrap = opts.wordWrap;
 			let wordWrapColumn = toInteger(opts.wordWrapColumn, 1);
@@ -206,26 +206,31 @@ class InternalEditorOptionsHelper {
 			if (wordWrapMinified && isDominatedByLongLines) {
 				// Force viewport width wrapping if model is dominated by long lines
 				bareWrappingInfo = {
+					isWordWrapMinified: true,
 					isViewportWrapping: true,
 					wrappingColumn: Math.max(1, layoutInfo.viewportColumn)
 				};
 			} else if (wordWrap === 'on') {
 				bareWrappingInfo = {
+					isWordWrapMinified: false,
 					isViewportWrapping: true,
 					wrappingColumn: Math.max(1, layoutInfo.viewportColumn)
 				};
 			} else if (wordWrap === 'bounded') {
 				bareWrappingInfo = {
+					isWordWrapMinified: false,
 					isViewportWrapping: true,
 					wrappingColumn: Math.min(Math.max(1, layoutInfo.viewportColumn), wordWrapColumn)
 				};
 			} else if (wordWrap === 'wordWrapColumn') {
 				bareWrappingInfo = {
+					isWordWrapMinified: false,
 					isViewportWrapping: false,
 					wrappingColumn: wordWrapColumn
 				};
 			} else {
 				bareWrappingInfo = {
+					isWordWrapMinified: false,
 					isViewportWrapping: false,
 					wrappingColumn: -1
 				};
@@ -233,6 +238,7 @@ class InternalEditorOptionsHelper {
 		}
 
 		let wrappingInfo = new editorCommon.EditorWrappingInfo({
+			isWordWrapMinified: bareWrappingInfo.isWordWrapMinified,
 			isViewportWrapping: bareWrappingInfo.isViewportWrapping,
 			wrappingColumn: bareWrappingInfo.wrappingColumn,
 			wrappingIndent: wrappingIndentFromString(opts.wrappingIndent),
@@ -290,6 +296,7 @@ class InternalEditorOptionsHelper {
 			stopRenderingLineAfter: stopRenderingLineAfter,
 			renderWhitespace: renderWhitespace,
 			renderControlCharacters: toBoolean(opts.renderControlCharacters),
+			fontLigatures: toBoolean(opts.fontLigatures),
 			renderIndentGuides: toBoolean(opts.renderIndentGuides),
 			renderLineHighlight: renderLineHighlight,
 			scrollbar: scrollbar,
