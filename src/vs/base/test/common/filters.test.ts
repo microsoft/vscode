@@ -214,6 +214,9 @@ suite('Filters', () => {
 		assertMatches('WordCla', 'WordCharacterClassifier', '^W^o^r^d^CharacterC^l^assifier', fuzzyScore);
 		assertMatches('WordCCla', 'WordCharacterClassifier', '^W^o^r^d^Character^C^l^assifier', fuzzyScore);
 	});
+	test('fuzzyScore, #23332', function () {
+		assertMatches('dete', '"editor.quickSuggestionsDelay"', undefined, fuzzyScore);
+	});
 
 	test('fuzzyScore', function () {
 		assertMatches('ab', 'abA', '^a^bA', fuzzyScore);

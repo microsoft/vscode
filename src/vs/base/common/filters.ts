@@ -602,7 +602,7 @@ function findAllMatches(patternLen: number, patternPos: number, wordPos: number,
 			matches.unshift(wordPos);
 
 		} else {
-			// undefined
+			return undefined;
 		}
 	}
 
