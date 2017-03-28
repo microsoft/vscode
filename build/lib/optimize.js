@@ -202,8 +202,10 @@ function uglifyWithCopyrights() {
     var input = es.through();
     var output = input
         .pipe(flatmap(function (stream, f) {
-        return stream
-            .pipe(uglify({ preserveComments: preserveComments(f) }));
+        return stream.pipe(uglify({
+            preserveComments: preserveComments(f),
+            warnings: false
+        }));
     }));
     return es.duplex(input, output);
 }
