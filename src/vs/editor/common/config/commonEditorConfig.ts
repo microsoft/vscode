@@ -731,7 +731,9 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'editor.quickSuggestions': {
 			'anyOf': [
-				'boolean',
+				{
+					type: 'boolean',
+				},
 				{
 					type: 'object',
 					properties: {
