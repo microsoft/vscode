@@ -1074,15 +1074,14 @@ export class ChangeEncodingAction extends Action {
 			}
 
 			const guessEncoding = () => {
-				const uri = toResource(activeEditor.input);
-				return this.fileService.resolveContent(uri, { autoGuessEncoding: true })
-					.then(content => content.encoding)
-					.then(encodingKey => encodingKey, err => null);
+				const resource = toResource(activeEditor.input);
+				return this.fileService.resolveContent(resource, { autoGuessEncoding: true, acceptTextOnly: true })
+					.then(content => content.encoding, err => null);
 			};
 
 			return TPromise.timeout(50 /* quick open is sensitive to being opened so soon after another */)
 				.then(guessEncoding)
-				.then((guessedEncodingKey: string) => {
+				.then(guessedEncoding => {
 					const configuration = this.configurationService.getConfiguration<IFilesConfiguration>();
 
 					const isReopenWithEncoding = (action === reopenWithEncodingPick);
@@ -1102,6 +1101,10 @@ export class ChangeEncodingAction extends Action {
 							return SUPPORTED_ENCODINGS[k1].order - SUPPORTED_ENCODINGS[k2].order;
 						})
 						.filter(k => {
+							if (k === guessedEncoding && guessedEncoding !== configuredEncoding) {
+								return false; // do not show encoding if it is the guessed encoding that does not match the configured
+							}
+
 							return !isReopenWithEncoding || !SUPPORTED_ENCODINGS[k].encodeOnly; // hide those that can only be used for encoding if we are about to decode
 						})
 						.map((key, index) => {
@@ -1114,13 +1117,10 @@ export class ChangeEncodingAction extends Action {
 							return { id: key, label: SUPPORTED_ENCODINGS[key].labelLong };
 						});
 
-					if (guessedEncodingKey && SUPPORTED_ENCODINGS[guessedEncodingKey]) {
-						const guessedLabel = nls.localize('pickEncodingLabelGuessed', "{0}   (Guessed from content)");
-						const guessedEncodingLabelLong = SUPPORTED_ENCODINGS[guessedEncodingKey].labelLong;
-
+					// If we have a guessed encoding, show it first unless it matches the configured encoding
+					if (guessedEncoding && configuredEncoding !== guessedEncoding && SUPPORTED_ENCODINGS[guessedEncoding]) {
 						picks[0].separator = { border: true };
-
-						picks.unshift({ id: guessedEncodingKey, label: strings.format(guessedLabel, guessedEncodingLabelLong) });
+						picks.unshift({ id: guessedEncoding, label: SUPPORTED_ENCODINGS[guessedEncoding].labelLong, description: nls.localize('guessedEncoding', "Guessed from content") });
 					}
 
 					return this.quickOpenService.pick(picks, {
