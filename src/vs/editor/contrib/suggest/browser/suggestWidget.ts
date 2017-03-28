@@ -617,6 +617,8 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			stats['wasAutomaticallyTriggered'] = !!isAuto;
 			this.telemetryService.publicLog('suggestWidget', { ...stats, ...this.editor.getTelemetryData() });
 
+			this.focusedItem = null;
+			this.focusedItemIndex = null;
 			this.list.splice(0, this.list.length, this.completionModel.items);
 			this.list.setFocus([this.completionModel.topScoreIdx]);
 			this.list.reveal(this.completionModel.topScoreIdx, 0);
