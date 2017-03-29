@@ -291,7 +291,7 @@
 		"editorDragAndDropBackground": "#25375daa",
 		"activityBarDragAndDropBackground": "#25375daa",
 		"editorSideBySideBorder": "#10192c",
-		"panelBorderTopColor": "#2b2b4a",
+		"panelTopBorder": "#2b2b4a",
 		"statusBarBackground": "#10192c",
 		"statusBarNoFolderBackground": "#10192c",
 		"statusBarDebuggingBackground": "#10192c",
