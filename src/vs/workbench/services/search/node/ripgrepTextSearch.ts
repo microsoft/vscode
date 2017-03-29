@@ -12,7 +12,6 @@ import { rgPath } from 'vscode-ripgrep';
 
 import * as extfs from 'vs/base/node/extfs';
 import * as encoding from 'vs/base/node/encoding';
-import * as strings from 'vs/base/common/strings';
 import * as glob from 'vs/base/common/glob';
 import { ILineMatch, IProgress } from 'vs/platform/search/common/search';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -366,20 +365,16 @@ function getRgArgs(config: IRawSearch): { args: string[], siblingClauses: glob.I
 		args.push('--encoding', encoding.toCanonicalName(config.fileEncoding));
 	}
 
+	if (config.contentPattern.isWordMatch) {
+		args.push('--word-regexp');
+	}
+
 	let searchPatternAfterDoubleDashes: string;
 	if (config.contentPattern.isRegExp) {
-		if (config.contentPattern.isWordMatch) {
-			args.push('--word-regexp');
-		}
-
 		args.push('--regexp', config.contentPattern.pattern);
 	} else {
-		if (config.contentPattern.isWordMatch) {
-			args.push('--word-regexp', '--regexp', strings.escapeRegExpCharacters(config.contentPattern.pattern));
-		} else {
-			args.push('--fixed-strings');
-			searchPatternAfterDoubleDashes = config.contentPattern.pattern;
-		}
+		searchPatternAfterDoubleDashes = config.contentPattern.pattern;
+		args.push('--fixed-strings');
 	}
 
 	// Folder to search
