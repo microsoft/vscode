@@ -19,7 +19,7 @@ import { filterEvent } from './util';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import * as nls from 'vscode-nls';
 
-const localize = nls.config()();
+const localize = nls.config(process.env.VSCODE_NLS_CONFIG)();
 
 async function init(context: ExtensionContext, disposables: Disposable[]): Promise<void> {
 	const { name, version, aiKey } = require(context.asAbsolutePath('./package.json')) as { name: string, version: string, aiKey: string };
