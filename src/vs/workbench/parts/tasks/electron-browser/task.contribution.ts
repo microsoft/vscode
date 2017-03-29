@@ -8,6 +8,7 @@
 import 'vs/css!./media/task.contribution';
 import 'vs/workbench/parts/tasks/browser/taskQuickOpen';
 import 'vs/workbench/parts/tasks/browser/terminateQuickOpen';
+import 'vs/workbench/parts/tasks/browser/restartQuickOpen';
 
 import * as nls from 'vs/nls';
 
