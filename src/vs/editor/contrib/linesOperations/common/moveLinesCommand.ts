@@ -83,7 +83,11 @@ export class MoveLinesCommand implements ICommand {
 				oneIndent = Array(options.tabSize).join(" ");
 			}
 
-			let brackets = LanguageConfigurationRegistry.getBracketsSupport(model.getLanguageIdentifier().id).brackets;
+			let bracketsSupport = LanguageConfigurationRegistry.getBracketsSupport(model.getLanguageIdentifier().id);
+			let brackets = [];
+			if(bracketsSupport){
+				brackets = bracketsSupport.brackets;
+			}
 
 			if (this._isMovingDown) {
 				movingLineNumber = s.endLineNumber + 1;

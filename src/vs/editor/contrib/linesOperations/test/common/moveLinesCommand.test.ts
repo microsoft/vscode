@@ -9,13 +9,36 @@ import { MoveLinesCommand } from 'vs/editor/contrib/linesOperations/common/moveL
 import { testCommand } from 'vs/editor/test/common/commands/commandTestUtils';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { TextModel } from 'vs/editor/common/model/textModel';
+import { LanguageIdentifier, LanguageId } from 'vs/editor/common/modes';
+import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
+import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+
+const openBlockChars = ["{", "(", "["];
+const closingBlockChars = ["}", ")", "]"];
+const indentationType = ["	", "  ", "    "];
+class BracketMode extends MockMode {
+	private static _id = new LanguageIdentifier('bracketMode', 3);
+
+	constructor() {
+		super(BracketMode._id);
+		this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
+			brackets: [
+				['{', '}'],
+				['[', ']'],
+				['(', ')'],
+			]
+		}));
+	}
+}
 
 function testMoveLinesDownCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection, options: editorCommon.ITextModelCreationOptions = undefined): void {
-	testCommand(lines, null, selection, (sel) => new MoveLinesCommand(sel, true), expectedLines, expectedSelection, options);
+	const mode = new BracketMode();
+	testCommand(lines, mode.getLanguageIdentifier(), selection, (sel) => new MoveLinesCommand(sel, true), expectedLines, expectedSelection, options);
 }
 
 function testMoveLinesUpCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection, options: editorCommon.ITextModelCreationOptions = undefined): void {
-	testCommand(lines, null, selection, (sel) => new MoveLinesCommand(sel, false), expectedLines, expectedSelection, options);
+	const mode = new BracketMode();
+	testCommand(lines, mode.getLanguageIdentifier(), selection, (sel) => new MoveLinesCommand(sel, false), expectedLines, expectedSelection, options);
 }
 
 function getOptionWithIndentation(indentation: string): editorCommon.ITextModelCreationOptions {
@@ -24,7 +47,7 @@ function getOptionWithIndentation(indentation: string): editorCommon.ITextModelC
 	options.tabSize = indentation.length + 1;
 	options.insertSpaces = true;
 
-	if(indentation === "	"){
+	if(indentation.match(/\t/)){
 		options.insertSpaces = false;
 	}
 
@@ -287,10 +310,6 @@ suite('Editor Contrib - Move Lines Command', () => {
 			new Selection(3, 1, 2, 1)
 		);
 	});
-
-	const openBlockChars = ["{", "(", "[", ":"];
-	const closingBlockChars = ["}", ")", "]"];
-	const indentationType = ["	", "  ", "    "];
 
 	test('move line down enter block', function () {
 		openBlockChars.forEach((openBracket: string) => {
