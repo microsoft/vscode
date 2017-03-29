@@ -706,7 +706,7 @@ export class DefaultKeybindingsEditorModel implements IKeybindingsEditorModel<an
 	public get content(): string {
 		if (!this._content) {
 			const defaultsHeader = '// ' + nls.localize('defaultKeybindingsHeader', "Overwrite key bindings by placing them into your key bindings file.");
-			this._content = defaultsHeader + '\n' + this.keybindingService.getDefaultKeybindings();
+			this._content = defaultsHeader + '\n' + this.keybindingService.getDefaultKeybindingsContent();
 		}
 		return this._content;
 	}

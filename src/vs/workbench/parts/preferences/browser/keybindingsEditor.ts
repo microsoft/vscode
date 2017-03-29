@@ -66,6 +66,9 @@ export class KeybindingsEditorInput extends EditorInput {
 export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor {
 
 	public static ID: string = 'workbench.editor.keybindings';
+
+	private keybindingsEditorModel: KeybindingsEditorModel;
+
 	private headerContainer: HTMLElement;
 	private searchWidget: SearchWidget;
 
@@ -199,15 +202,17 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 
 	resetKeybinding(keybindingEntry: IKeybindingItemEntry): TPromise<any> {
 		this.selectEntry(keybindingEntry);
-		if (keybindingEntry.keybindingItem.keybinding) { // This should be a pre-condition
-			return this.keybindingEditingService.resetKeybinding(keybindingEntry.keybindingItem.keybindingItem)
-				.then(() => this.focus(),
-				error => {
-					this.onKeybindingEditingError(error);
-					this.selectEntry(keybindingEntry);
-				});
-		}
-		return TPromise.as(null);
+		return this.keybindingEditingService.resetKeybinding(keybindingEntry.keybindingItem.keybindingItem)
+			.then(() => {
+				if (!keybindingEntry.keybindingItem.keybinding) { // reveal only if keybinding was added to unassinged. Because the entry will be placed in different position after rendering
+					this.unAssignedKeybindingItemToRevealAndFocus = keybindingEntry;
+				}
+				this.selectEntry(keybindingEntry);
+			},
+			error => {
+				this.onKeybindingEditingError(error);
+				this.selectEntry(keybindingEntry);
+			});
 	}
 
 	copyKeybinding(keybinding: IKeybindingItemEntry): TPromise<any> {
@@ -250,7 +255,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 			placeholder: localize('SearchKeybindings.Placeholder', "Search keybindings"),
 			navigateByArrows: true
 		}));
-		this._register(this.searchWidget.onDidChange(searchValue => this.delayedFiltering.trigger(() => this.render())));
+		this._register(this.searchWidget.onDidChange(searchValue => this.delayedFiltering.trigger(() => this.renderKeybindingsEntries())));
 		this._register(this.searchWidget.onNavigate(back => this._onNavigate(back)));
 
 		this.createOpenKeybindingsElement(this.headerContainer);
@@ -295,27 +300,31 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 	private render(): TPromise<any> {
 		if (this.input) {
 			return this.input.resolve()
-				.then((keybindingsModel: KeybindingsEditorModel) => keybindingsModel.resolve()
-					.then(() => this.renderKeybindingsEntries(keybindingsModel.fetch(this.searchWidget.value()))));
+				.then((keybindingsModel: KeybindingsEditorModel) => this.keybindingsEditorModel = keybindingsModel)
+				.then(() => this.keybindingsEditorModel.resolve())
+				.then(() => this.renderKeybindingsEntries());
 		}
 		return TPromise.as(null);
 	}
 
-	private renderKeybindingsEntries(keybindingsEntries: IKeybindingItemEntry[]): void {
-		const currentSelectedIndex = this.keybindingsList.getSelection()[0];
-		this.listEntries = [{ id: 'keybinding-header-entry', templateId: KEYBINDING_HEADER_TEMPLATE_ID }, ...keybindingsEntries];
-		this.keybindingsList.splice(0, this.keybindingsList.length, this.listEntries);
-		this.layoutKebindingsList();
+	private renderKeybindingsEntries(): void {
+		if (this.keybindingsEditorModel) {
+			const keybindingsEntries: IKeybindingItemEntry[] = this.keybindingsEditorModel.fetch(this.searchWidget.value());
+			const currentSelectedIndex = this.keybindingsList.getSelection()[0];
+			this.listEntries = [{ id: 'keybinding-header-entry', templateId: KEYBINDING_HEADER_TEMPLATE_ID }, ...keybindingsEntries];
+			this.keybindingsList.splice(0, this.keybindingsList.length, this.listEntries);
+			this.layoutKebindingsList();
 
-		if (this.unAssignedKeybindingItemToRevealAndFocus) {
-			const index = this.getNewIndexOfUnassignedKeybinding(this.unAssignedKeybindingItemToRevealAndFocus);
-			if (index !== -1) {
-				this.keybindingsList.reveal(index, 0.2);
-				this.selectEntry(index);
+			if (this.unAssignedKeybindingItemToRevealAndFocus) {
+				const index = this.getNewIndexOfUnassignedKeybinding(this.unAssignedKeybindingItemToRevealAndFocus);
+				if (index !== -1) {
+					this.keybindingsList.reveal(index, 0.2);
+					this.selectEntry(index);
+				}
+				this.unAssignedKeybindingItemToRevealAndFocus = null;
+			} else if (currentSelectedIndex !== -1 && currentSelectedIndex < this.listEntries.length) {
+				this.selectEntry(currentSelectedIndex);
 			}
-			this.unAssignedKeybindingItemToRevealAndFocus = null;
-		} else if (currentSelectedIndex !== -1 && currentSelectedIndex < this.listEntries.length) {
-			this.selectEntry(currentSelectedIndex);
 		}
 	}
 
@@ -405,7 +414,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 	private createResetAction(keybindingItem: IKeybindingItemEntry): IAction {
 		return <IAction>{
 			label: localize('resetLabel', "Reset Keybinding"),
-			enabled: !!keybindingItem.keybindingItem.keybinding && !keybindingItem.keybindingItem.keybindingItem.isDefault,
+			enabled: !keybindingItem.keybindingItem.keybindingItem.isDefault,
 			id: KEYBINDINGS_EDITOR_COMMAND_RESET,
 			run: () => this.resetKeybinding(keybindingItem)
 		};

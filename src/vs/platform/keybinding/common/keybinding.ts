@@ -70,7 +70,9 @@ export interface IKeybindingService {
 	 */
 	lookupKeybinding(commandId: string): ResolvedKeybinding;
 
-	getDefaultKeybindings(): string;
+	getDefaultKeybindingsContent(): string;
+
+	getDefaultKeybindings(): ResolvedKeybindingItem[];
 
 	getKeybindings(): ResolvedKeybindingItem[];
 

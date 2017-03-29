@@ -532,7 +532,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		return desc;
 	}
 
-	public getDefaultKeybindings(): string {
+	public getDefaultKeybindingsContent(): string {
 		const resolver = this._getResolver();
 		const defaultKeybindings = resolver.getDefaultKeybindings();
 		const boundCommands = resolver.getDefaultBoundCommands();
