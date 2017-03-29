@@ -91,6 +91,7 @@
 	align-items: center;
 	display: flex;
 	overflow: hidden;
+	margin-right: 6px;
 }
 
 .keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row .actions {
