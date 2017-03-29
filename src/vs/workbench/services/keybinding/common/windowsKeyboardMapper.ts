@@ -73,10 +73,10 @@ const NATIVE_KEY_CODE_TO_KEY_CODE: { [nativeKeyCode: string]: KeyCode; } = _getN
 export interface IScanCodeMapping {
 	scanCode: ScanCode;
 	keyCode: KeyCode;
-	value: number;
-	withShift: number;
-	withAltGr: number;
-	withShiftAltGr: number;
+	value: string;
+	withShift: string;
+	withAltGr: string;
+	withShiftAltGr: string;
 }
 
 export class WindowsNativeResolvedKeybinding extends ResolvedKeybinding {
@@ -259,9 +259,9 @@ export class WindowsNativeResolvedKeybinding extends ResolvedKeybinding {
 		return result;
 	}
 
-	private static getProducedCharCode(kb: ScanCodeBinding, mapping: IScanCodeMapping): number {
+	private static getProducedCharCode(kb: ScanCodeBinding, mapping: IScanCodeMapping): string {
 		if (!mapping) {
-			return 0;
+			return null;
 		}
 		if (kb.ctrlKey && kb.shiftKey && kb.altKey) {
 			return mapping.withShiftAltGr;
@@ -276,15 +276,11 @@ export class WindowsNativeResolvedKeybinding extends ResolvedKeybinding {
 	}
 
 	public static getProducedChar(kb: ScanCodeBinding, mapping: IScanCodeMapping): string {
-		const charCode = this.getProducedCharCode(kb, mapping);
-		if (charCode === 0) {
+		const char = this.getProducedCharCode(kb, mapping);
+		if (char === null || char.length === 0) {
 			return ' --- ';
 		}
-		if (charCode >= CharCode.U_Combining_Grave_Accent && charCode <= CharCode.U_Combining_Latin_Small_Letter_X) {
-			// combining
-			return 'U+' + charCode.toString(16);
-		}
-		return '  ' + String.fromCharCode(charCode) + '  ';
+		return '  ' + char + '  ';
 	}
 }
 
@@ -323,10 +319,10 @@ export class WindowsKeyboardMapper implements IKeyboardMapper {
 				}
 
 				const rawMapping = rawMappings[strCode];
-				const value = WindowsKeyboardMapper._getCharCode(rawMapping.value);
-				const withShift = WindowsKeyboardMapper._getCharCode(rawMapping.withShift);
-				const withAltGr = WindowsKeyboardMapper._getCharCode(rawMapping.withAltGr);
-				const withShiftAltGr = WindowsKeyboardMapper._getCharCode(rawMapping.withShiftAltGr);
+				const value = rawMapping.value;
+				const withShift = rawMapping.withShift;
+				const withAltGr = rawMapping.withAltGr;
+				const withShiftAltGr = rawMapping.withShiftAltGr;
 				const keyCode = NATIVE_KEY_CODE_TO_KEY_CODE[rawMapping.vkey] || KeyCode.Unknown;
 
 				const mapping: IScanCodeMapping = {
@@ -341,12 +337,17 @@ export class WindowsKeyboardMapper implements IKeyboardMapper {
 
 				if (keyCode !== KeyCode.Unknown) {
 					this._keyCodeExists[keyCode] = true;
-					if (value >= CharCode.a && value <= CharCode.z) {
-						this._keyCodeToLabel[keyCode] = String.fromCharCode(CharCode.A + (value - CharCode.a));
-					} else if (value) {
-						this._keyCodeToLabel[keyCode] = String.fromCharCode(value);
-					} else {
+					if (value.length === 0) {
 						this._keyCodeToLabel[keyCode] = null;
+					} else if (value.length === 1) {
+						const charCode = value.charCodeAt(0);
+						if (charCode >= CharCode.a && charCode <= CharCode.z) {
+							this._keyCodeToLabel[keyCode] = String.fromCharCode(CharCode.A + (charCode - CharCode.a));
+						} else {
+							this._keyCodeToLabel[keyCode] = value;
+						}
+					} else {
+						this._keyCodeToLabel[keyCode] = value;
 					}
 				}
 				this._scanCodeToKeyCode[scanCode] = keyCode;
@@ -415,13 +416,6 @@ export class WindowsKeyboardMapper implements IKeyboardMapper {
 			str = ' ' + str;
 		}
 		return str;
-	}
-
-	private static _getCharCode(char: string): number {
-		if (char.length === 0) {
-			return 0;
-		}
-		return char.charCodeAt(0);
 	}
 
 	public getUILabelForKeyCode(keyCode: KeyCode): string {
