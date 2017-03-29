@@ -54,6 +54,11 @@ class KeybindingInputWidget extends Widget {
 		this._chordPart = null;
 	}
 
+	public reset() {
+		this._firstPart = null;
+		this._chordPart = null;
+	}
+
 	public setAcceptChords(acceptChords: boolean) {
 		this._acceptChords = acceptChords;
 		this._chordPart = null;
@@ -137,6 +142,7 @@ export class DefineKeybindingWidget extends Widget {
 	}
 
 	define(): TPromise<string> {
+		this._keybindingInputWidget.reset();
 		return new TPromise((c, e) => {
 			if (!this._isVisible) {
 				this._isVisible = true;
