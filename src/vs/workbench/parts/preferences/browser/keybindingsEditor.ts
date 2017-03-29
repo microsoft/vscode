@@ -255,7 +255,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 			placeholder: localize('SearchKeybindings.Placeholder', "Search keybindings"),
 			navigateByArrows: true
 		}));
-		this._register(this.searchWidget.onDidChange(searchValue => this.delayedFiltering.trigger(() => this.renderKeybindingsEntries())));
+		this._register(this.searchWidget.onDidChange(searchValue => this.delayedFiltering.trigger(() => this.renderKeybindingsEntries(true))));
 		this._register(this.searchWidget.onNavigate(back => this._onNavigate(back)));
 
 		this.createOpenKeybindingsElement(this.headerContainer);
@@ -302,12 +302,12 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 			return this.input.resolve()
 				.then((keybindingsModel: KeybindingsEditorModel) => this.keybindingsEditorModel = keybindingsModel)
 				.then(() => this.keybindingsEditorModel.resolve())
-				.then(() => this.renderKeybindingsEntries());
+				.then(() => this.renderKeybindingsEntries(false));
 		}
 		return TPromise.as(null);
 	}
 
-	private renderKeybindingsEntries(): void {
+	private renderKeybindingsEntries(reset: boolean): void {
 		if (this.keybindingsEditorModel) {
 			const keybindingsEntries: IKeybindingItemEntry[] = this.keybindingsEditorModel.fetch(this.searchWidget.value());
 			const currentSelectedIndex = this.keybindingsList.getSelection()[0];
@@ -315,15 +315,20 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 			this.keybindingsList.splice(0, this.keybindingsList.length, this.listEntries);
 			this.layoutKebindingsList();
 
-			if (this.unAssignedKeybindingItemToRevealAndFocus) {
-				const index = this.getNewIndexOfUnassignedKeybinding(this.unAssignedKeybindingItemToRevealAndFocus);
-				if (index !== -1) {
-					this.keybindingsList.reveal(index, 0.2);
-					this.selectEntry(index);
+			if (reset) {
+				this.keybindingsList.setSelection([]);
+				this.keybindingsList.setFocus([]);
+			} else {
+				if (this.unAssignedKeybindingItemToRevealAndFocus) {
+					const index = this.getNewIndexOfUnassignedKeybinding(this.unAssignedKeybindingItemToRevealAndFocus);
+					if (index !== -1) {
+						this.keybindingsList.reveal(index, 0.2);
+						this.selectEntry(index);
+					}
+					this.unAssignedKeybindingItemToRevealAndFocus = null;
+				} else if (currentSelectedIndex !== -1 && currentSelectedIndex < this.listEntries.length) {
+					this.selectEntry(currentSelectedIndex);
 				}
-				this.unAssignedKeybindingItemToRevealAndFocus = null;
-			} else if (currentSelectedIndex !== -1 && currentSelectedIndex < this.listEntries.length) {
-				this.selectEntry(currentSelectedIndex);
 			}
 		}
 	}
