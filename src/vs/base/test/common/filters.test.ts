@@ -224,6 +224,13 @@ suite('Filters', () => {
 		assertMatches('c:\\do', '& \'c:\\Documents and Settings\'', '& \'^c^:^\\^D^ocuments and Settings\'', fuzzyScore);
 	});
 
+	test('fuzzyScore, #23581', function () {
+		assertMatches('close', 'css.lint.importStatement', '^css.^lint.imp^ort^Stat^ement', fuzzyScore);
+		assertMatches('close', 'css.colorDecorators.enable', '^css.co^l^orDecorator^s.^enable', fuzzyScore);
+		assertMatches('close', 'workbench.quickOpen.closeOnFocusOut', 'workbench.quickOpen.^c^l^o^s^eOnFocusOut', fuzzyScore);
+		assertTopScore(fuzzyScore, 'close', 2, 'css.lint.importStatement', 'css.colorDecorators.enable', 'workbench.quickOpen.closeOnFocusOut');
+	});
+
 	test('fuzzyScore', function () {
 		assertMatches('ab', 'abA', '^a^bA', fuzzyScore);
 		assertMatches('ccm', 'cacmelCase', '^ca^c^melCase', fuzzyScore);
@@ -277,7 +284,7 @@ suite('Filters', () => {
 
 	});
 	function assertTopScore(filter: typeof fuzzyScore, pattern: string, expected: number, ...words: string[]) {
-		let topScore = -Number.MIN_VALUE;
+		let topScore = -(100 * 10);
 		let topIdx = 0;
 		for (let i = 0; i < words.length; i++) {
 			const word = words[i];

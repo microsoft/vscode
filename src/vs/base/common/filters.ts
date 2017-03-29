@@ -577,21 +577,20 @@ export function fuzzyScore(pattern: string, word: string): [number, number[]] {
 
 function findAllMatches(patternLen: number, patternPos: number, wordPos: number, total: number, matches: number[], bucket: [number, number[]][]): void {
 
+	let lastMatched = false;
+
 	while (patternPos > 0 && wordPos > 0) {
-		let value = _table[patternPos][wordPos];
+
 		let score = _scores[patternPos][wordPos];
 		let arrow = _arrows[patternPos][wordPos];
 
 		if (arrow === Arrow.Left || score < 0) {
 			// left
 			wordPos -= 1;
-
-		} else if (arrow === Arrow.Diag) {
-			// diag
-			total += value;
-			patternPos -= 1;
-			wordPos -= 1;
-			matches.unshift(wordPos);
+			if (lastMatched) {
+				total -= 5; // gap penalty
+			}
+			lastMatched = false;
 
 		} else if (arrow & Arrow.Diag) {
 
@@ -601,10 +600,11 @@ function findAllMatches(patternLen: number, patternPos: number, wordPos: number,
 			}
 
 			// diag
-			total += value;
+			total += score;
 			patternPos -= 1;
 			wordPos -= 1;
 			matches.unshift(wordPos);
+			lastMatched = true;
 
 		} else {
 			return undefined;
