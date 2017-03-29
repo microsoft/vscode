@@ -751,7 +751,7 @@ function _processIconThemeDocument(id: string, iconThemeDocumentPath: string, ic
 
 	function resolvePath(path: string) {
 		const uri = URI.file(Paths.join(Paths.dirname(iconThemeDocumentPath), path));
-		return uri.toString(true);
+		return uri.toString();
 	}
 
 	function collectSelectors(associations: IconsAssociation, baseThemeClassName?: string) {
