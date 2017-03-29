@@ -276,7 +276,10 @@ function uglifyWithCopyrights(): NodeJS.ReadWriteStream {
 		.pipe(flatmap((stream, f) => {
 			return stream.pipe(uglify({
 				preserveComments: preserveComments(<FileWithCopyright>f),
-				warnings: false
+				output: {
+					// linux tfs build agent is crashing, does this help?§
+					max_line_len: 3200000
+				}
 			}));
 		}));
 
