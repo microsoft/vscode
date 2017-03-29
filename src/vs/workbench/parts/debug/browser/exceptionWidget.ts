@@ -93,7 +93,7 @@ export class ExceptionWidget extends ZoneWidget {
 			}
 
 			title.textContent = `${conditionMessage} ${this.exceptionInfo.description}`;
-			msg.textContent = this.exceptionInfo.details.stackTrace;
+			msg.textContent = this.exceptionInfo.details && this.exceptionInfo.details.stackTrace ? this.exceptionInfo.details.stackTrace : '';
 		} else {
 			title.textContent = defaultConditionMessage;
 			msg.textContent = this.exceptionInfo.description;
