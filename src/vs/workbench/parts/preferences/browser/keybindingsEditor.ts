@@ -381,7 +381,12 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 			this.selectEntry(<IKeybindingItemEntry>e.element);
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => e.anchor,
-				getActions: () => TPromise.as([this.createCopyAction(<IKeybindingItemEntry>e.element), new Separator(), this.createRemoveAction(<IKeybindingItemEntry>e.element), this.createResetAction(<IKeybindingItemEntry>e.element)]),
+				getActions: () => TPromise.as([
+					this.createCopyAction(<IKeybindingItemEntry>e.element),
+					new Separator(),
+					this.createDefineAction(<IKeybindingItemEntry>e.element),
+					this.createRemoveAction(<IKeybindingItemEntry>e.element),
+					this.createResetAction(<IKeybindingItemEntry>e.element)]),
 				getKeyBinding: (action) => this.keybindingsService.lookupKeybinding(action.id)
 			});
 		}
@@ -400,6 +405,15 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		if (element.templateId === KEYBINDING_ENTRY_TEMPLATE_ID) {
 			this.keybindingFocusContextKey.set(true);
 		}
+	}
+
+	private createDefineAction(keybindingItemEntry: IKeybindingItemEntry): IAction {
+		return <IAction>{
+			label: keybindingItemEntry.keybindingItem.keybinding ? localize('changeLabel', "Change Keybinding") : localize('addLabel', "Add Keybinding"),
+			enabled: true,
+			id: KEYBINDINGS_EDITOR_COMMAND_DEFINE,
+			run: () => this.defineKeybinding(keybindingItemEntry)
+		};
 	}
 
 	private createRemoveAction(keybindingItem: IKeybindingItemEntry): IAction {
