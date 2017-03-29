@@ -16,9 +16,13 @@
 	color: #000; /* opposite of #fff */
 }
 
-.monaco-editor.mouse-default .view-lines {
+.monaco-editor.mouse-default .view-lines,
+.monaco-editor.vs-dark.mac.mouse-default .view-lines,
+.monaco-editor.hc-black.mac.mouse-default .view-lines {
 	cursor: default;
 }
-.monaco-editor.mouse-copy .view-lines {
+.monaco-editor.mouse-copy .view-lines,
+.monaco-editor.vs-dark.mac.mouse-copy .view-lines,
+.monaco-editor.hc-black.mac.mouse-copy .view-lines {
 	cursor: copy;
 }
