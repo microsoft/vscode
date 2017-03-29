@@ -214,8 +214,14 @@ suite('Filters', () => {
 		assertMatches('WordCla', 'WordCharacterClassifier', '^W^o^r^d^CharacterC^l^assifier', fuzzyScore);
 		assertMatches('WordCCla', 'WordCharacterClassifier', '^W^o^r^d^Character^C^l^assifier', fuzzyScore);
 	});
+
 	test('fuzzyScore, #23332', function () {
 		assertMatches('dete', '"editor.quickSuggestionsDelay"', undefined, fuzzyScore);
+	});
+
+	test('fuzzyScore, #23190', function () {
+		assertMatches('c:\\do', '& \'C:\\Documents and Settings\'', '& \'^C^:^\\^D^ocuments and Settings\'', fuzzyScore);
+		assertMatches('c:\\do', '& \'c:\\Documents and Settings\'', '& \'^c^:^\\^D^ocuments and Settings\'', fuzzyScore);
 	});
 
 	test('fuzzyScore', function () {
