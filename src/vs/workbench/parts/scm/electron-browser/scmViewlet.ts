@@ -9,6 +9,7 @@ import 'vs/css!./media/scmViewlet';
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { chain } from 'vs/base/common/event';
+import { onUnexpectedError } from 'vs/base/common/errors';
 import * as platform from 'vs/base/common/platform';
 import { domEvent } from 'vs/base/browser/event';
 import { IDisposable, dispose, empty as EmptyDisposable } from 'vs/base/common/lifecycle';
@@ -27,6 +28,7 @@ import { ISCMService, ISCMProvider, ISCMResourceGroup, ISCMResource } from 'vs/w
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IListService } from 'vs/platform/list/browser/listService';
@@ -203,7 +205,8 @@ export class SCMViewlet extends Viewlet {
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IThemeService protected themeService: IThemeService,
 		@IMenuService private menuService: IMenuService,
-		@IModelService private modelService: IModelService
+		@IModelService private modelService: IModelService,
+		@ICommandService private commandService: ICommandService
 	) {
 		super(VIEWLET_ID, telemetryService, themeService);
 
@@ -321,7 +324,8 @@ export class SCMViewlet extends Viewlet {
 	}
 
 	private open(e: ISCMResource): void {
-		this.scmService.activeProvider.open(e);
+		this.commandService.executeCommand(e.command.id, ...e.command.arguments)
+			.done(undefined, onUnexpectedError);
 	}
 
 	getActions(): IAction[] {
