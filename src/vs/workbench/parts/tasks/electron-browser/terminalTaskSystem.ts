@@ -384,6 +384,10 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 					if (!shellSpecified) {
 						toAdd.push('-Command');
 					}
+				} else if (basename === 'bash.exe') {
+					if (!shellSpecified) {
+						toAdd.push('-c');
+					}
 				} else {
 					if (!shellSpecified) {
 						toAdd.push('/d', '/c');
