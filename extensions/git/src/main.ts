@@ -35,7 +35,9 @@ async function init(context: ExtensionContext, disposables: Disposable[]): Promi
 
 	const pathHint = workspace.getConfiguration('git').get<string>('path');
 	const info = await findGit(pathHint);
-	const git = new Git({ gitPath: info.path, version: info.version });
+	const askpass = new Askpass();
+	const env = await askpass.getEnv();
+	const git = new Git({ gitPath: info.path, version: info.version, env });
 
 	if (!workspaceRootPath || !enabled) {
 		const commandCenter = new CommandCenter(git, undefined, outputChannel, telemetryReporter);
@@ -43,8 +45,7 @@ async function init(context: ExtensionContext, disposables: Disposable[]): Promi
 		return;
 	}
 
-	const askpass = new Askpass();
-	const model = new Model(git, workspaceRootPath, askpass);
+	const model = new Model(git, workspaceRootPath);
 
 	outputChannel.appendLine(localize('using git', "Using git {0} from {1}", info.version, info.path));
 	git.onOutput(str => outputChannel.append(str), null, disposables);
