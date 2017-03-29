@@ -383,6 +383,9 @@ export function matchesFuzzy2(pattern: string, word: string): number[] {
 
 export function createMatches(position: number[]): IMatch[] {
 	let ret: IMatch[] = [];
+	if (!position) {
+		return ret;
+	}
 	let last: IMatch;
 	for (const pos of position) {
 		if (last && last.end === pos) {
