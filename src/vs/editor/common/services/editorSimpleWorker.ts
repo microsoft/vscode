@@ -343,6 +343,11 @@ export abstract class BaseEditorSimpleWorker {
 				lastEol = eol;
 			}
 
+			if (!range) {
+				// eol-change only
+				continue;
+			}
+
 			const original = model.getValueInRange(range);
 			text = text.replace(/\r\n|\n|\r/g, model.eol);
 
@@ -376,7 +381,7 @@ export abstract class BaseEditorSimpleWorker {
 		}
 
 		if (typeof lastEol === 'number') {
-			result[result.length - 1].eol = lastEol;
+			result.push({ eol: lastEol, text: undefined, range: undefined });
 		}
 
 		return TPromise.as(result);
