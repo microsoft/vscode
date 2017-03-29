@@ -730,6 +730,12 @@ Steps to Reproduce:
 			return `|${e.manifest.name}|${e.manifest.publisher}|${e.manifest.version}|`;
 		}).join('\n');
 
+		// 2000 chars is browsers de-facto limit for URLs, 250 chars is allowed for other string parts of the issue URL
+		// http://stackoverflow.com/questions/417142/what-is-the-maximum-length-of-a-url-in-different-browsers
+		if (tableHeader.length + table.length > 1750) {
+			return 'the listing exceeds the lower minimum of browsers\' URL characters limit';
+		}
+
 		return `
 
 ${tableHeader}\n${table};
@@ -1042,7 +1048,7 @@ export abstract class BaseNavigationAction extends Action {
 export class NavigateLeftAction extends BaseNavigationAction {
 
 	public static ID = 'workbench.action.navigateLeft';
-	public static LABEL = nls.localize('navigateLeft', "Move to the View Part on the Left");
+	public static LABEL = nls.localize('navigateLeft', "Move to the View on the Left");
 
 	constructor(
 		id: string,
@@ -1092,7 +1098,7 @@ export class NavigateLeftAction extends BaseNavigationAction {
 export class NavigateRightAction extends BaseNavigationAction {
 
 	public static ID = 'workbench.action.navigateRight';
-	public static LABEL = nls.localize('navigateRight', "Move to the View Part on the Right");
+	public static LABEL = nls.localize('navigateRight', "Move to the View on the Right");
 
 	constructor(
 		id: string,
@@ -1142,7 +1148,7 @@ export class NavigateRightAction extends BaseNavigationAction {
 export class NavigateUpAction extends BaseNavigationAction {
 
 	public static ID = 'workbench.action.navigateUp';
-	public static LABEL = nls.localize('navigateUp', "Move to the View Part Above");
+	public static LABEL = nls.localize('navigateUp', "Move to the View Above");
 
 	constructor(
 		id: string,
@@ -1173,7 +1179,7 @@ export class NavigateUpAction extends BaseNavigationAction {
 export class NavigateDownAction extends BaseNavigationAction {
 
 	public static ID = 'workbench.action.navigateDown';
-	public static LABEL = nls.localize('navigateDown', "Move to the View Part Below");
+	public static LABEL = nls.localize('navigateDown', "Move to the View Below");
 
 	constructor(
 		id: string,
@@ -1215,21 +1221,22 @@ export abstract class BaseResizeViewAction extends Action {
 	}
 
 	protected resizePart(sizeChange: number): void {
-
 		const isEditorFocus = this.partService.hasFocus(Parts.EDITOR_PART);
 		const isSidebarFocus = this.partService.hasFocus(Parts.SIDEBAR_PART);
 		const isPanelFocus = this.partService.hasFocus(Parts.PANEL_PART);
 
+		let part: Parts;
 		if (isSidebarFocus) {
-			this.partService.resizePart(Parts.SIDEBAR_PART, sizeChange);
+			part = Parts.SIDEBAR_PART;
+		} else if (isPanelFocus) {
+			part = Parts.PANEL_PART;
+		} else if (isEditorFocus) {
+			part = Parts.EDITOR_PART;
 		}
-		else if (isPanelFocus) {
-			this.partService.resizePart(Parts.PANEL_PART, sizeChange);
+
+		if (part) {
+			this.partService.resizePart(part, sizeChange);
 		}
-		else if (isEditorFocus) {
-			this.partService.resizePart(Parts.EDITOR_PART, sizeChange);
-		}
-		return;
 	}
 }
 

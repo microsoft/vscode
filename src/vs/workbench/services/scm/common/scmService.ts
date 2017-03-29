@@ -26,6 +26,13 @@ class SCMInput implements ISCMInput {
 
 	private _onDidChange = new Emitter<string>();
 	get onDidChange(): Event<string> { return this._onDidChange.event; }
+
+	private _onDidAccept = new Emitter<string>();
+	get onDidAccept(): Event<string> { return this._onDidAccept.event; }
+
+	acceptChanges(): void {
+		this._onDidAccept.fire(this._value);
+	}
 }
 
 export class SCMService implements ISCMService {
@@ -52,7 +59,7 @@ export class SCMService implements ISCMService {
 		}
 
 		this._activeProvider = provider;
-		this.activeProviderContextKey.set(provider ? provider.id : void 0);
+		this.activeProviderContextKey.set(provider ? provider.contextKey : void 0);
 
 		this.providerChangeDisposable.dispose();
 		this.providerChangeDisposable = provider.onDidChange(this.onDidChangeProviderState, this);
@@ -100,6 +107,6 @@ export class SCMService implements ISCMService {
 	}
 
 	private onDidChangeProviderState(): void {
-		this.activeProviderStateContextKey.set(this.activeProvider.state);
+		this.activeProviderStateContextKey.set(this.activeProvider.stateContextKey);
 	}
 }

@@ -17,7 +17,7 @@ import strings = require('vs/base/common/strings');
 import { Range } from 'vs/editor/common/core/range';
 import { EditorInput, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import labels = require('vs/base/common/labels');
-import { SymbolInformation } from 'vs/editor/common/modes';
+import { SymbolInformation, symbolKindToCssClass } from 'vs/editor/common/modes';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -56,7 +56,7 @@ class SymbolEntry extends EditorQuickOpenEntry {
 	}
 
 	public getIcon(): string {
-		return this._bearing.kind;
+		return symbolKindToCssClass(this._bearing.kind);
 	}
 
 	public getResource(): URI {
@@ -106,8 +106,8 @@ class SymbolEntry extends EditorQuickOpenEntry {
 		const elementAName = elementA.getLabel().toLowerCase();
 		const elementBName = elementB.getLabel().toLowerCase();
 		if (elementAName === elementBName) {
-			let elementAType = elementA._bearing.kind;
-			let elementBType = elementB._bearing.kind;
+			let elementAType = symbolKindToCssClass(elementA._bearing.kind);
+			let elementBType = symbolKindToCssClass(elementB._bearing.kind);
 			return elementAType.localeCompare(elementBType);
 		}
 

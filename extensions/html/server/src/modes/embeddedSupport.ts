@@ -13,7 +13,7 @@ export interface LanguageRange extends Range {
 }
 
 export interface HTMLDocumentRegions {
-	getEmbeddedDocument(languageId: string): TextDocument;
+	getEmbeddedDocument(languageId: string, ignoreAttributeValues?: boolean): TextDocument;
 	getLanguageRanges(range: Range): LanguageRange[];
 	getLanguageAtPosition(position: Position): string;
 	getLanguagesInDocument(): string[];
@@ -83,7 +83,7 @@ export function getDocumentRegions(languageService: LanguageService, document: T
 	}
 	return {
 		getLanguageRanges: (range: Range) => getLanguageRanges(document, regions, range),
-		getEmbeddedDocument: (languageId: string) => getEmbeddedDocument(document, regions, languageId),
+		getEmbeddedDocument: (languageId: string, ignoreAttributeValues: boolean) => getEmbeddedDocument(document, regions, languageId, ignoreAttributeValues),
 		getLanguageAtPosition: (position: Position) => getLanguageAtPosition(document, regions, position),
 		getLanguagesInDocument: () => getLanguagesInDocument(document, regions),
 		getImportedScripts: () => importedScripts
@@ -160,13 +160,13 @@ function getLanguageAtPosition(document: TextDocument, regions: EmbeddedRegion[]
 	return 'html';
 }
 
-function getEmbeddedDocument(document: TextDocument, contents: EmbeddedRegion[], languageId: string): TextDocument {
+function getEmbeddedDocument(document: TextDocument, contents: EmbeddedRegion[], languageId: string, ignoreAttributeValues: boolean): TextDocument {
 	let currentPos = 0;
 	let oldContent = document.getText();
 	let result = '';
 	let lastSuffix = '';
 	for (let c of contents) {
-		if (c.languageId === languageId) {
+		if (c.languageId === languageId && (!ignoreAttributeValues || !c.attributeValue)) {
 			result = substituteWithWhitespace(result, currentPos, c.start, oldContent, lastSuffix, getPrefix(c));
 			result += oldContent.substring(c.start, c.end);
 			currentPos = c.end;

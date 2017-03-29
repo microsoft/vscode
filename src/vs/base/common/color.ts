@@ -111,7 +111,7 @@ export class HSLA {
 function hex2rgba(hex: string): RGBA {
 	if (!hex) {
 		// Invalid color
-		return new RGBA(255, 0, 0, 255);
+		return null;
 	}
 	if (hex.length === 7 && hex.charCodeAt(0) === CharCode.Hash) {
 		// #RRGGBB format
@@ -129,7 +129,7 @@ function hex2rgba(hex: string): RGBA {
 		return new RGBA(r, g, b, a);
 	}
 	// Invalid color
-	return new RGBA(255, 0, 0, 255);
+	return null;
 }
 
 export function isValidHexColor(hex: string): boolean {
@@ -250,8 +250,12 @@ export class Color {
 	/**
 	 * Creates a color from a hex string (#RRGGBB or #RRGGBBAA).
 	 */
-	public static fromHex(hex: string): Color {
-		return new Color(hex);
+	public static fromHex(hex: string, parseErrorColor = Color.red): Color {
+		let rgba = hex2rgba(hex);
+		if (rgba) {
+			return new Color(rgba);
+		}
+		return parseErrorColor;
 	}
 
 	public static fromHSLA(hsla: HSLA): Color {
@@ -260,12 +264,8 @@ export class Color {
 
 	private readonly rgba: RGBA;
 
-	private constructor(arg: string | RGBA) {
-		if (arg instanceof RGBA) {
-			this.rgba = arg;
-		} else {
-			this.rgba = hex2rgba(arg);
-		}
+	private constructor(arg: RGBA) {
+		this.rgba = arg;
 	}
 
 	public equals(other: Color): boolean {

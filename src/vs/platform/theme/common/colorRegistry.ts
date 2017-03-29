@@ -6,7 +6,7 @@
 
 import platform = require('vs/platform/platform');
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { Color } from 'vs/base/common/color';
+import { Color, RGBA } from 'vs/base/common/color';
 import { ITheme } from 'vs/platform/theme/common/themeService';
 
 import nls = require('vs/nls');
@@ -80,7 +80,7 @@ class ColorRegistry implements IColorRegistry {
 	public registerColor(id: string, defaults: ColorDefaults, description: string): ColorIdentifier {
 		let colorContribution = { id, description, defaults };
 		this.colorsById[id] = colorContribution;
-		this.colorSchema.properties[id] = { type: 'string', description };
+		this.colorSchema.properties[id] = { type: 'string', description, format: 'color' };
 		return id;
 	}
 
@@ -110,16 +110,20 @@ export function registerColor(id: string, defaults: ColorDefaults, description: 
 	return colorRegistry.registerColor(id, defaults, description);
 }
 
-
 // ----- base colors
 
 export const foreground = registerColor('foreground', { dark: '#CCCCCC', light: '#6C6C6C', hc: '#FFFFFF' }, nls.localize('foreground', "Overall foreground color. This color is only used if not overridden by a component."));
+export const focus = registerColor('focus', {
+	dark: Color.fromRGBA(new RGBA(14, 99, 156)).transparent(0.6),
+	light: Color.fromRGBA(new RGBA(0, 122, 204)).transparent(0.4),
+	hc: '#F38518'
+}, nls.localize('focus', "Overall outline/border color for focused elements. This color is only used if not overridden by a component."));
 
 /**
  * Commonly used High contrast colors.
  */
 export const highContrastBorder = registerColor('highContrastBorder', { light: null, dark: null, hc: '#6FC3DF' }, nls.localize('highContrastBorder', "Border color to separate components when high contrast theme is enabled."));
-export const highContrastOutline = registerColor('highContrastOutline', { light: null, dark: null, hc: '#F38518' }, nls.localize('highContrastOutline', "Outline color for active components when high contrast theme is enabled."));
+export const highContrastOutline = registerColor('highContrastOutline', { light: null, dark: null, hc: focus }, nls.localize('highContrastOutline', "Outline color for active components when high contrast theme is enabled."));
 
 /**
  * Widgets

@@ -215,6 +215,11 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			this.updateInlineDecorations(sf);
 		}));
 		this.toDispose.push(this.editor.onDidScrollChange(() => this.hideHoverWidget));
+		this.toDispose.push(this.debugService.onDidChangeState((state: State) => {
+			if (state !== State.Stopped) {
+				this.toggleExceptionWidget();
+			}
+		}));
 	}
 
 	public getId(): string {

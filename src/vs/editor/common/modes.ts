@@ -458,30 +458,68 @@ export interface TypeDefinitionProvider {
 /**
  * A symbol kind.
  */
-export type SymbolKind =
-	'file' |
-	'module' |
-	'namespace' |
-	'package' |
-	'class' |
-	'method' |
-	'property' |
-	'field' |
-	'constructor' |
-	'enum' |
-	'interface' |
-	'function' |
-	'variable' |
-	'constant' |
-	'string' |
-	'number' |
-	'boolean' |
-	'array' |
-	'object' |
-	'key' |
-	'null' |
-	'enum-member' |
-	'struct';
+export enum SymbolKind {
+	File = 0,
+	Module = 1,
+	Namespace = 2,
+	Package = 3,
+	Class = 4,
+	Method = 5,
+	Property = 6,
+	Field = 7,
+	Constructor = 8,
+	Enum = 9,
+	Interface = 10,
+	Function = 11,
+	Variable = 12,
+	Constant = 13,
+	String = 14,
+	Number = 15,
+	Boolean = 16,
+	Array = 17,
+	Object = 18,
+	Key = 19,
+	Null = 20,
+	EnumMember = 21,
+	Struct = 22
+}
+
+
+/**
+ * @internal
+ */
+export const symbolKindToCssClass = (function () {
+
+	const _fromMapping: { [n: number]: string } = Object.create(null);
+	_fromMapping[SymbolKind.File] = 'file';
+	_fromMapping[SymbolKind.Module] = 'module';
+	_fromMapping[SymbolKind.Namespace] = 'namespace';
+	_fromMapping[SymbolKind.Package] = 'package';
+	_fromMapping[SymbolKind.Class] = 'class';
+	_fromMapping[SymbolKind.Method] = 'method';
+	_fromMapping[SymbolKind.Property] = 'property';
+	_fromMapping[SymbolKind.Field] = 'field';
+	_fromMapping[SymbolKind.Constructor] = 'constructor';
+	_fromMapping[SymbolKind.Enum] = 'enum';
+	_fromMapping[SymbolKind.Interface] = 'interface';
+	_fromMapping[SymbolKind.Function] = 'function';
+	_fromMapping[SymbolKind.Variable] = 'variable';
+	_fromMapping[SymbolKind.Constant] = 'constant';
+	_fromMapping[SymbolKind.String] = 'string';
+	_fromMapping[SymbolKind.Number] = 'number';
+	_fromMapping[SymbolKind.Boolean] = 'boolean';
+	_fromMapping[SymbolKind.Array] = 'array';
+	_fromMapping[SymbolKind.Object] = 'object';
+	_fromMapping[SymbolKind.Key] = 'key';
+	_fromMapping[SymbolKind.Null] = 'null';
+	_fromMapping[SymbolKind.EnumMember] = 'enum-member';
+	_fromMapping[SymbolKind.Struct] = 'struct';
+
+	return function toCssClassName(kind: SymbolKind): string {
+		return _fromMapping[kind] || 'property';
+	};
+})();
+
 
 /**
  * Represents information about programming constructs like variables, classes,
@@ -516,6 +554,12 @@ export interface DocumentSymbolProvider {
 	provideDocumentSymbols(model: editorCommon.IReadOnlyModel, token: CancellationToken): SymbolInformation[] | Thenable<SymbolInformation[]>;
 }
 
+export interface TextEdit {
+	range: editorCommon.IRange;
+	text: string;
+	eol?: editorCommon.EndOfLineSequence;
+}
+
 /**
  * Interface used to format a model
  */
@@ -537,7 +581,7 @@ export interface DocumentFormattingEditProvider {
 	/**
 	 * Provide formatting edits for a whole document.
 	 */
-	provideDocumentFormattingEdits(model: editorCommon.IReadOnlyModel, options: FormattingOptions, token: CancellationToken): editorCommon.ISingleEditOperation[] | Thenable<editorCommon.ISingleEditOperation[]>;
+	provideDocumentFormattingEdits(model: editorCommon.IReadOnlyModel, options: FormattingOptions, token: CancellationToken): TextEdit[] | Thenable<TextEdit[]>;
 }
 /**
  * The document formatting provider interface defines the contract between extensions and
@@ -551,7 +595,7 @@ export interface DocumentRangeFormattingEditProvider {
 	 * or larger range. Often this is done by adjusting the start and end
 	 * of the range to full syntax nodes.
 	 */
-	provideDocumentRangeFormattingEdits(model: editorCommon.IReadOnlyModel, range: Range, options: FormattingOptions, token: CancellationToken): editorCommon.ISingleEditOperation[] | Thenable<editorCommon.ISingleEditOperation[]>;
+	provideDocumentRangeFormattingEdits(model: editorCommon.IReadOnlyModel, range: Range, options: FormattingOptions, token: CancellationToken): TextEdit[] | Thenable<TextEdit[]>;
 }
 /**
  * The document formatting provider interface defines the contract between extensions and
@@ -566,7 +610,7 @@ export interface OnTypeFormattingEditProvider {
 	 * what range the position to expand to, like find the matching `{`
 	 * when `}` has been entered.
 	 */
-	provideOnTypeFormattingEdits(model: editorCommon.IReadOnlyModel, position: Position, ch: string, options: FormattingOptions, token: CancellationToken): editorCommon.ISingleEditOperation[] | Thenable<editorCommon.ISingleEditOperation[]>;
+	provideOnTypeFormattingEdits(model: editorCommon.IReadOnlyModel, position: Position, ch: string, options: FormattingOptions, token: CancellationToken): TextEdit[] | Thenable<TextEdit[]>;
 }
 
 /**

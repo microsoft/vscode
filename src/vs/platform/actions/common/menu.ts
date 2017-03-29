@@ -134,6 +134,8 @@ export class Menu implements IMenu {
 		}
 
 		// sort on titles
-		return a.command.title.localeCompare(b.command.title);
+		const aTitle = typeof a.command.title === 'string' ? a.command.title : a.command.title.value;
+		const bTitle = typeof b.command.title === 'string' ? b.command.title : b.command.title.value;
+		return aTitle.localeCompare(bTitle);
 	}
 }

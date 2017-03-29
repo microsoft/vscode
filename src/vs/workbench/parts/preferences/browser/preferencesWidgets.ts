@@ -7,11 +7,12 @@ import { localize } from 'vs/nls';
 import { Dimension } from 'vs/base/browser/builder';
 import * as DOM from 'vs/base/browser/dom';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { Widget } from 'vs/base/browser/ui/widget';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference, IViewZone } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference, IViewZone, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { InputBox, IInputOptions } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -296,6 +297,9 @@ export class SearchWidget extends Widget {
 
 	public focus() {
 		this.inputBox.focus();
+		if (this.value) {
+			this.inputBox.select();
+		}
 	}
 
 	public clear() {
@@ -385,90 +389,68 @@ export class FloatingClickWidget extends Widget implements IOverlayWidget {
 	}
 }
 
-export class EditPreferenceWidget<T> extends Widget implements IOverlayWidget {
+export class EditPreferenceWidget<T> extends Disposable {
 
-	private static counter: number = 1;
+	public static GLYPH_MARGIN_CLASS_NAME = 'edit-preferences-widget';
 
-	private _domNode: HTMLElement;
-	private _visible: boolean;
 	private _line: number;
-	private _id: string;
 	private _preferences: T[];
 
-	private _onClick: Emitter<void> = new Emitter<void>();
-	public get onClick(): Event<void> { return this._onClick.event; }
+	private _editPreferenceDecoration: string[];
 
-	private _onMouseOver: Emitter<void> = new Emitter<void>();
-	public get onMouseOver(): Event<void> { return this._onMouseOver.event; }
+	private _onClick: Emitter<IEditorMouseEvent> = new Emitter<IEditorMouseEvent>();
+	public get onClick(): Event<IEditorMouseEvent> { return this._onClick.event; }
 
-	constructor(private editor: ICodeEditor,
-		@IContextMenuService contextMenuService: IContextMenuService
+	constructor(private editor: ICodeEditor
 	) {
 		super();
-		this._id = 'preferences.editPreferenceWidget' + EditPreferenceWidget.counter++;
-		this.editor.addOverlayWidget(this);
-		this._register(this.editor.onDidScrollChange(() => {
-			if (this._visible) {
-				this._layout();
+		this._editPreferenceDecoration = [];
+		this._register(this.editor.onMouseDown((e: IEditorMouseEvent) => {
+			if (e.target.type !== editorCommon.MouseTargetType.GUTTER_GLYPH_MARGIN || /* after last line */ e.target.detail || !this.isVisible()) {
+				return;
 			}
+			this._onClick.fire(e);
 		}));
-	}
-
-	public dispose(): void {
-		this.editor.removeOverlayWidget(this);
-		super.dispose();
-	}
-
-	getId(): string {
-		return this._id;
-	}
-
-	getDomNode(): HTMLElement {
-		if (!this._domNode) {
-			this._domNode = document.createElement('div');
-			this._domNode.style.width = '20px';
-			this._domNode.style.height = '20px';
-			this._domNode.className = 'edit-preferences-widget hidden';
-			this.onclick(this._domNode, e => this._onClick.fire());
-			this.onmouseover(this._domNode, e => this._onMouseOver.fire());
-		}
-		return this._domNode;
-	}
-
-	getPosition(): IOverlayWidgetPosition {
-		return null;
-	}
-
-	getLine(): number {
-		return this._line;
-	}
-
-	show(line: number, preferences: T[]): void {
-		this._preferences = preferences;
-		if (!this._visible || this._line !== line) {
-			this._line = line;
-			this._visible = true;
-			this._layout();
-		}
 	}
 
 	get preferences(): T[] {
 		return this._preferences;
 	}
 
-	hide(): void {
-		if (this._visible) {
-			this._visible = false;
-			this._domNode.classList.add('hidden');
-		}
+	getLine(): number {
+		return this._line;
 	}
 
-	private _layout(): void {
-		const topForLineNumber = this.editor.getTopForLineNumber(this._line);
-		const editorScrollTop = this.editor.getScrollTop();
+	show(line: number, hoverMessage: string, preferences: T[]): void {
+		this._preferences = preferences;
+		const newDecoration: editorCommon.IModelDeltaDecoration[] = [];
+		this._line = line;
+		newDecoration.push({
+			options: {
+				glyphMarginClassName: EditPreferenceWidget.GLYPH_MARGIN_CLASS_NAME,
+				glyphMarginHoverMessage: hoverMessage,
+				stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+			},
+			range: {
+				startLineNumber: line,
+				startColumn: 1,
+				endLineNumber: line,
+				endColumn: 1
+			}
+		});
+		this._editPreferenceDecoration = this.editor.deltaDecorations(this._editPreferenceDecoration, newDecoration);
+	}
 
-		this._domNode.style.top = `${topForLineNumber - editorScrollTop - 2}px`;
-		this._domNode.style.left = '0px';
-		this._domNode.classList.remove('hidden');
+	hide(): void {
+		this._editPreferenceDecoration = this.editor.deltaDecorations(this._editPreferenceDecoration, []);
+	}
+
+	isVisible(): boolean {
+		return this._editPreferenceDecoration.length > 0;
+	}
+
+	dispose(): void {
+		this.hide();
+		super.dispose();
 	}
 }

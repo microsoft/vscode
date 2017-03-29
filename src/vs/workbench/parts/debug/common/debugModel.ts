@@ -648,13 +648,22 @@ export class Process implements IProcess {
 			column: position.column,
 			line: position.lineNumber
 		}).then(response => {
-			return response && response.body && response.body.targets ? response.body.targets.map(item => (<ISuggestion>{
-				label: item.label,
-				insertText: item.text || item.label,
-				type: item.type,
-				filterText: item.start && item.length && text.substr(item.start, item.length).concat(item.label),
-				overwriteBefore: item.length || overwriteBefore
-			})) : [];
+			const result: ISuggestion[] = [];
+			if (response && response.body && response.body.targets) {
+				response.body.targets.forEach(item => {
+					if (item && item.label) {
+						result.push({
+							label: item.label,
+							insertText: item.text || item.label,
+							type: item.type,
+							filterText: item.start && item.length && text.substr(item.start, item.length).concat(item.label),
+							overwriteBefore: item.length || overwriteBefore
+						});
+					}
+				});
+			}
+
+			return result;
 		}, err => []);
 	}
 }

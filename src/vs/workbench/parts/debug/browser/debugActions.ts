@@ -130,7 +130,9 @@ export class StartAction extends AbstractDebugAction {
 	// Disabled if the launch drop down shows the launch config that is already running.
 	protected isEnabled(state: State): boolean {
 		const processes = this.debugService.getModel().getProcesses();
+		const compound = this.debugService.getConfigurationManager().getCompound(this.debugService.getViewModel().selectedConfigurationName);
 		return state !== State.Initializing && processes.every(p => p.name !== this.debugService.getViewModel().selectedConfigurationName) &&
+			(!compound || !compound.configurations || processes.every(p => compound.configurations.indexOf(p.name) === -1)) &&
 			(!this.contextService || !!this.contextService.getWorkspace() || processes.length === 0);
 	}
 }

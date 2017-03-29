@@ -24,7 +24,7 @@ export interface ISCMResourceDecorations {
 }
 
 export interface ISCMResource {
-	readonly resourceGroupId: string;
+	readonly resourceGroup: ISCMResourceGroup;
 	readonly uri: URI;
 	readonly sourceUri: URI;
 	readonly decorations: ISCMResourceDecorations;
@@ -32,27 +32,28 @@ export interface ISCMResource {
 
 export interface ISCMResourceGroup {
 	readonly uri: URI;
-	readonly id: string;
 	readonly label: string;
+	readonly contextKey?: string;
 	readonly resources: ISCMResource[];
 }
 
 export interface ISCMProvider extends IDisposable {
-	readonly id: string;
 	readonly label: string;
+	readonly contextKey?: string;
 	readonly resources: ISCMResourceGroup[];
 	readonly onDidChange: Event<ISCMResourceGroup[]>;
 	readonly count?: number;
-	readonly state?: string;
+	readonly stateContextKey?: string;
 
-	open(uri: ISCMResource): TPromise<void>;
-	acceptChanges(): TPromise<void>;
+	open(uri: ISCMResource): void;
 	getOriginalResource(uri: URI): TPromise<URI>;
 }
 
 export interface ISCMInput {
 	value: string;
 	readonly onDidChange: Event<string>;
+	readonly onDidAccept: Event<string>;
+	acceptChanges(): void;
 }
 
 export interface ISCMService {

@@ -114,42 +114,24 @@
 /* Theming */
 
 .quick-open-widget {
-	background-color: #F6F6F6;
 	box-shadow: 0 5px 8px #A8A8A8;
 }
 
 .vs-dark .quick-open-widget {
-	background-color: #252526;
 	box-shadow: 0 5px 8px #000;
 }
 
-.vs-dark .quick-open-widget input {
-	background-color: #3C3C3C;
-	color: inherit;
+.hc-black .quick-open-widget {
+	box-shadow: none;
 }
 
-.hc-black .quick-open-widget input {
-	background-color: #000;
-	color: inherit;
-}
-
-.monaco .quick-open-widget {
-	background-color: #F9F9F9;
-}
-
+.quick-open-widget .quick-open-tree .results-group,
 .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-help-entry-label {
 	color: #007ACC;
 }
 
+.vs-dark .quick-open-widget .quick-open-tree .results-group,
 .vs-dark .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-help-entry-label {
-	color: #0097FB;
-}
-
-.quick-open-widget .quick-open-tree .results-group {
-	color: #007ACC;
-}
-
-.vs-dark .quick-open-widget .quick-open-tree .results-group {
 	color: #0097FB;
 }
 
@@ -182,14 +164,6 @@
 .quick-open-widget .monaco-tree.focused .monaco-tree-rows > .monaco-tree-row.selected.focused {
 	background: #DCEBFC;
 	color: inherit;
-}
-
-/* High Contrast Theming */
-.hc-black .quick-open-widget {
-	border: 2px solid #6FC3DF;
-	background-color: #0C141F;
-	color: #fff;
-	box-shadow: none;
 }
 
 .hc-black .quick-open-widget .monaco-tree.focused .monaco-tree-row.focused:not(.highlighted) > .content.actions > .primary-action-bar,

@@ -229,8 +229,10 @@ function _loadThemeDocumentFromFile(themePath: string, resultRules: ITokenColori
 					}
 					if (contentValue.colors) {
 						for (let colorId in contentValue.colors) {
-							let colorHex = contentValue.colors[colorId];
-							resultColors[colorId] = Color.fromHex(colorHex);
+							let colorHex = Color.fromHex(contentValue.colors[colorId], null);
+							if (colorHex) { // ignore invalid colors
+								resultColors[colorId] = colorHex;
+							}
 						}
 					}
 				}

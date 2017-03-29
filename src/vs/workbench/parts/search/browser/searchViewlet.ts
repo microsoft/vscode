@@ -963,8 +963,8 @@ export class SearchViewlet extends Viewlet {
 			excludePattern: excludes,
 			maxResults: SearchViewlet.MAX_TEXT_RESULTS,
 			includePattern: includes,
-			useIgnoreFiles,
-			useExcludeSettings
+			disregardIgnoreFiles: !useIgnoreFiles,
+			disregardExcludeSettings: !useExcludeSettings
 		};
 
 		this.onQueryTriggered(this.queryBuilder.text(content, options), patternExcludes, patternIncludes);

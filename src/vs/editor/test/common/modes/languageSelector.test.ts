@@ -28,7 +28,7 @@ suite('LanguageSelector', function () {
 		assert.equal(score('*', model.uri, model.language), 5);
 
 		assert.equal(score('*', URI.parse('foo:bar'), model.language), 5);
-		assert.equal(score('farboo', URI.parse('foo:bar'), model.language), 0);
+		assert.equal(score('farboo', URI.parse('foo:bar'), model.language), 10);
 	});
 
 	test('score, default schemes', function () {
@@ -37,11 +37,11 @@ suite('LanguageSelector', function () {
 		const language = 'farboo';
 
 		assert.equal(score('*', uri, language), 5);
-		assert.equal(score('farboo', uri, language), 0);
-		assert.equal(score({ language: 'farboo', scheme: '' }, uri, language), 0);
+		assert.equal(score('farboo', uri, language), 10);
+		assert.equal(score({ language: 'farboo', scheme: '' }, uri, language), 10);
 		assert.equal(score({ language: 'farboo', scheme: 'git' }, uri, language), 10);
 		assert.equal(score({ language: 'farboo', scheme: '*' }, uri, language), 10);
-		assert.equal(score({ language: 'farboo' }, uri, language), 0);
+		assert.equal(score({ language: 'farboo' }, uri, language), 10);
 		assert.equal(score({ language: '*' }, uri, language), 5);
 
 		assert.equal(score({ scheme: '*' }, uri, language), 5);
@@ -63,7 +63,7 @@ suite('LanguageSelector', function () {
 			uri: URI.parse('git:/my/file.js'),
 			langId: 'javascript'
 		};
-		assert.equal(score('javascript', doc.uri, doc.langId), 0); // 0;
+		assert.equal(score('javascript', doc.uri, doc.langId), 10); // 0;
 		assert.equal(score({ language: 'javascript', scheme: 'git' }, doc.uri, doc.langId), 10); // 10;
 		assert.equal(score('*', doc.uri, doc.langId), 5); // 5
 		assert.equal(score('fooLang', doc.uri, doc.langId), 0); // 0

@@ -3,7 +3,7 @@
   "version": "0.0.1",
   "description": "Dependencies shared by all extensions",
   "dependencies": {
-    "typescript": "2.2.2-insiders.20170317"
+    "typescript": "2.2.2"
   },
   "scripts": {
     "postinstall": "node ./postinstall"

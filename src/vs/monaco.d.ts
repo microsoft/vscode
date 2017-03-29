@@ -1530,6 +1530,9 @@ declare module monaco.editor {
 
     export class EditorWrappingInfo {
         readonly _editorWrappingInfoBrand: void;
+        readonly inDiffEditor: boolean;
+        readonly isDominatedByLongLines: boolean;
+        readonly isWordWrapMinified: boolean;
         readonly isViewportWrapping: boolean;
         readonly wrappingColumn: number;
         readonly wrappingIndent: WrappingIndent;
@@ -1564,6 +1567,7 @@ declare module monaco.editor {
         readonly stopRenderingLineAfter: number;
         readonly renderWhitespace: 'none' | 'boundary' | 'all';
         readonly renderControlCharacters: boolean;
+        readonly fontLigatures: boolean;
         readonly renderIndentGuides: boolean;
         readonly renderLineHighlight: 'none' | 'gutter' | 'line' | 'all';
         readonly scrollbar: InternalEditorScrollbarOptions;
@@ -1596,6 +1600,7 @@ declare module monaco.editor {
         readonly stopRenderingLineAfter: boolean;
         readonly renderWhitespace: boolean;
         readonly renderControlCharacters: boolean;
+        readonly fontLigatures: boolean;
         readonly renderIndentGuides: boolean;
         readonly renderLineHighlight: boolean;
         readonly scrollbar: boolean;
@@ -3450,20 +3455,8 @@ declare module monaco.editor {
         ExecuteCommands: string;
         CursorLeft: string;
         CursorLeftSelect: string;
-        CursorWordLeft: string;
-        CursorWordStartLeft: string;
-        CursorWordEndLeft: string;
-        CursorWordLeftSelect: string;
-        CursorWordStartLeftSelect: string;
-        CursorWordEndLeftSelect: string;
         CursorRight: string;
         CursorRightSelect: string;
-        CursorWordRight: string;
-        CursorWordStartRight: string;
-        CursorWordEndRight: string;
-        CursorWordRightSelect: string;
-        CursorWordStartRightSelect: string;
-        CursorWordEndRightSelect: string;
         CursorUp: string;
         CursorUpSelect: string;
         CursorDown: string;
@@ -3506,12 +3499,6 @@ declare module monaco.editor {
         Outdent: string;
         DeleteLeft: string;
         DeleteRight: string;
-        DeleteWordLeft: string;
-        DeleteWordStartLeft: string;
-        DeleteWordEndLeft: string;
-        DeleteWordRight: string;
-        DeleteWordStartRight: string;
-        DeleteWordEndRight: string;
         RemoveSecondaryCursors: string;
         CancelSelection: string;
         Cut: string;
@@ -4723,7 +4710,31 @@ declare module monaco.languages {
     /**
      * A symbol kind.
      */
-    export type SymbolKind = 'file' | 'module' | 'namespace' | 'package' | 'class' | 'method' | 'property' | 'field' | 'constructor' | 'enum' | 'interface' | 'function' | 'variable' | 'constant' | 'string' | 'number' | 'boolean' | 'array' | 'object' | 'key' | 'null' | 'enum-member' | 'struct';
+    export enum SymbolKind {
+        File = 0,
+        Module = 1,
+        Namespace = 2,
+        Package = 3,
+        Class = 4,
+        Method = 5,
+        Property = 6,
+        Field = 7,
+        Constructor = 8,
+        Enum = 9,
+        Interface = 10,
+        Function = 11,
+        Variable = 12,
+        Constant = 13,
+        String = 14,
+        Number = 15,
+        Boolean = 16,
+        Array = 17,
+        Object = 18,
+        Key = 19,
+        Null = 20,
+        EnumMember = 21,
+        Struct = 22,
+    }
 
     /**
      * Represents information about programming constructs like variables, classes,
@@ -4759,6 +4770,12 @@ declare module monaco.languages {
         provideDocumentSymbols(model: editor.IReadOnlyModel, token: CancellationToken): SymbolInformation[] | Thenable<SymbolInformation[]>;
     }
 
+    export interface TextEdit {
+        range: IRange;
+        text: string;
+        eol?: editor.EndOfLineSequence;
+    }
+
     /**
      * Interface used to format a model
      */
@@ -4781,7 +4798,7 @@ declare module monaco.languages {
         /**
          * Provide formatting edits for a whole document.
          */
-        provideDocumentFormattingEdits(model: editor.IReadOnlyModel, options: FormattingOptions, token: CancellationToken): editor.ISingleEditOperation[] | Thenable<editor.ISingleEditOperation[]>;
+        provideDocumentFormattingEdits(model: editor.IReadOnlyModel, options: FormattingOptions, token: CancellationToken): TextEdit[] | Thenable<TextEdit[]>;
     }
 
     /**
@@ -4796,7 +4813,7 @@ declare module monaco.languages {
          * or larger range. Often this is done by adjusting the start and end
          * of the range to full syntax nodes.
          */
-        provideDocumentRangeFormattingEdits(model: editor.IReadOnlyModel, range: Range, options: FormattingOptions, token: CancellationToken): editor.ISingleEditOperation[] | Thenable<editor.ISingleEditOperation[]>;
+        provideDocumentRangeFormattingEdits(model: editor.IReadOnlyModel, range: Range, options: FormattingOptions, token: CancellationToken): TextEdit[] | Thenable<TextEdit[]>;
     }
 
     /**
@@ -4812,7 +4829,7 @@ declare module monaco.languages {
          * what range the position to expand to, like find the matching `{`
          * when `}` has been entered.
          */
-        provideOnTypeFormattingEdits(model: editor.IReadOnlyModel, position: Position, ch: string, options: FormattingOptions, token: CancellationToken): editor.ISingleEditOperation[] | Thenable<editor.ISingleEditOperation[]>;
+        provideOnTypeFormattingEdits(model: editor.IReadOnlyModel, position: Position, ch: string, options: FormattingOptions, token: CancellationToken): TextEdit[] | Thenable<TextEdit[]>;
     }
 
     /**

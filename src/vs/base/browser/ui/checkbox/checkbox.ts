@@ -40,7 +40,7 @@ export class Checkbox extends Widget {
 	constructor(opts: ICheckboxOpts) {
 		super();
 		this._opts = objects.clone(opts);
-		objects.mixin(this._opts, defaultOpts);
+		objects.mixin(this._opts, defaultOpts, false);
 		this._checked = this._opts.isChecked;
 
 		this.domNode = document.createElement('div');
@@ -105,7 +105,7 @@ export class Checkbox extends Widget {
 
 	protected _applyStyles() {
 		if (this.domNode) {
-			this.domNode.style.borderColor = this._checked ? this._opts.checkedBorderColor.toString() : null;
+			this.domNode.style.borderColor = this._checked && this._opts.checkedBorderColor ? this._opts.checkedBorderColor.toString() : null;
 		}
 	}
 

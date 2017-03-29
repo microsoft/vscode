@@ -112,40 +112,63 @@ class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 			if (!exists) {
 				return extensionDescription;
 			}
-			return ExtensionManifestNLSReplacer.findMessageBundle(basename).then(messageBundle => {
-				if (!messageBundle) {
+			return ExtensionManifestNLSReplacer.findMessageBundles(basename).then((messageBundle) => {
+				if (!messageBundle.localized) {
 					return extensionDescription;
 				}
-				return pfs.readFile(messageBundle).then(messageBundleContent => {
+				return pfs.readFile(messageBundle.localized).then(messageBundleContent => {
 					let errors: json.ParseError[] = [];
 					let messages: { [key: string]: string; } = json.parse(messageBundleContent.toString(), errors);
-					if (errors.length > 0) {
-						errors.forEach((error) => {
-							this._collector.error(this._absoluteFolderPath, nls.localize('jsonParseFail', "Failed to parse {0}: {1}.", messageBundle, json.getParseErrorMessage(error.error)));
-						});
+
+					return ExtensionManifestNLSReplacer.resolveOriginalMessageBundle(messageBundle.original, errors).then(originalMessages => {
+						if (errors.length > 0) {
+							errors.forEach((error) => {
+								this._collector.error(this._absoluteFolderPath, nls.localize('jsonsParseFail', "Failed to parse {0} or {1}: {2}.", messageBundle.localized, messageBundle.original, json.getParseErrorMessage(error.error)));
+							});
+							return extensionDescription;
+						}
+
+						ExtensionManifestNLSReplacer._replaceNLStrings(extensionDescription, messages, originalMessages, this._collector, this._absoluteFolderPath);
 						return extensionDescription;
-					}
-					ExtensionManifestNLSReplacer._replaceNLStrings(extensionDescription, messages, this._collector, this._absoluteFolderPath);
-					return extensionDescription;
+					});
 				}, (err) => {
-					this._collector.error(this._absoluteFolderPath, nls.localize('fileReadFail', "Cannot read file {0}: {1}.", messageBundle, err.message));
+					this._collector.error(this._absoluteFolderPath, nls.localize('fileReadFail', "Cannot read file {0}: {1}.", messageBundle.localized, err.message));
 					return null;
 				});
 			});
 		});
 	}
 
-	private static findMessageBundle(basename: string): TPromise<string> {
-		return new TPromise<string>((c, e, p) => {
+	/**
+	 * Parses original message bundle, returns null if the original message bundle is null.
+	 */
+	private static resolveOriginalMessageBundle(originalMessageBundle: string, errors: json.ParseError[]) {
+		return new TPromise<{ [key: string]: string; }>((c, e, p) => {
+			if (originalMessageBundle) {
+				pfs.readFile(originalMessageBundle).then(originalBundleContent => {
+					c(json.parse(originalBundleContent.toString(), errors));
+				});
+			} else {
+				c(null);
+			}
+		});
+	}
+
+	/**
+	 * Finds localized message bundle and the original (unlocalized) one.
+	 * If the localized file is not present, returns null for the original and marks original as localized.
+	 */
+	private static findMessageBundles(basename: string): TPromise<{ localized: string, original: string }> {
+		return new TPromise<{ localized: string, original: string }>((c, e, p) => {
 			function loop(basename: string, locale: string): void {
 				let toCheck = `${basename}.nls.${locale}.json`;
 				pfs.fileExists(toCheck).then(exists => {
 					if (exists) {
-						c(toCheck);
+						c({ localized: toCheck, original: `${basename}.nls.json` });
 					}
 					let index = locale.lastIndexOf('-');
 					if (index === -1) {
-						c(`${basename}.nls.json`);
+						c({ localized: `${basename}.nls.json`, original: null });
 					} else {
 						locale = locale.substring(0, index);
 						loop(basename, locale);
@@ -154,18 +177,18 @@ class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 			}
 
 			if (devMode || nlsConfig.pseudo || !nlsConfig.locale) {
-				return c(basename + '.nls.json');
+				return c({ localized: basename + '.nls.json', original: null });
 			}
 			loop(basename, nlsConfig.locale);
 		});
 	}
 
 	/**
-	 * This routine make the following assumptions:
-	 * The root element is a object literal
+	 * This routine makes the following assumptions:
+	 * The root element is an object literal
 	 */
-	private static _replaceNLStrings<T>(literal: T, messages: { [key: string]: string; }, collector: MessagesCollector, messageScope: string): void {
-		function processEntry(obj: any, key: string | number) {
+	private static _replaceNLStrings<T>(literal: T, messages: { [key: string]: string; }, originalMessages: { [key: string]: string }, collector: MessagesCollector, messageScope: string): void {
+		function processEntry(obj: any, key: string | number, command?: boolean) {
 			let value = obj[key];
 			if (Types.isString(value)) {
 				let str = <string>value;
@@ -178,7 +201,7 @@ class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 							// FF3B and FF3D is the Unicode zenkaku representation for [ and ]
 							message = '\uFF3B' + message.replace(/[aouei]/g, '$&$&') + '\uFF3D';
 						}
-						obj[key] = message;
+						obj[key] = command && (key === 'title' || key === 'category') && originalMessages ? { value: message, original: originalMessages[messageKey] } : message;
 					} else {
 						collector.warn(messageScope, nls.localize('missingNLSKey', "Couldn't find message for key {0}.", messageKey));
 					}
@@ -186,12 +209,12 @@ class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 			} else if (Types.isObject(value)) {
 				for (let k in value) {
 					if (value.hasOwnProperty(k)) {
-						processEntry(value, k);
+						k === 'commands' ? processEntry(value, k, true) : processEntry(value, k, command);
 					}
 				}
 			} else if (Types.isArray(value)) {
 				for (let i = 0; i < value.length; i++) {
-					processEntry(value, i);
+					processEntry(value, i, command);
 				}
 			}
 		}

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { Emitter } from 'vs/base/common/event';
+import { Emitter, mapEvent } from 'vs/base/common/event';
 import { TrieMap } from 'vs/base/common/map';
 import { score } from 'vs/editor/common/modes/languageSelector';
 import * as Platform from 'vs/base/common/platform';
@@ -42,6 +42,7 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as vscode from 'vscode';
 import * as paths from 'vs/base/common/paths';
@@ -93,7 +94,13 @@ function proposed(extension: IExtensionDescription): Function {
 /**
  * This method instantiates and returns the extension API surface
  */
-export function createApiFactory(initData: IInitData, threadService: IThreadService, extensionService: ExtHostExtensionService, contextService: IWorkspaceContextService): IExtensionApiFactory {
+export function createApiFactory(
+	initData: IInitData,
+	threadService: IThreadService,
+	extensionService: ExtHostExtensionService,
+	contextService: IWorkspaceContextService,
+	telemetryService: ITelemetryService
+): IExtensionApiFactory {
 
 	// Addressable instances
 	const col = new InstanceCollection();
@@ -441,23 +448,29 @@ export function createApiFactory(initData: IInitData, threadService: IThreadServ
 
 		class SCM {
 
-			@proposed(extension)
 			get activeProvider() {
 				return extHostSCM.activeProvider;
 			}
 
-			@proposed(extension)
 			get onDidChangeActiveProvider() {
 				return extHostSCM.onDidChangeActiveProvider;
 			}
 
-			@proposed(extension)
+			get onDidAcceptInputValue() {
+				return mapEvent(extHostSCM.inputBox.onDidAccept, () => extHostSCM.inputBox);
+			}
+
 			get inputBox() {
 				return extHostSCM.inputBox;
 			}
 
-			@proposed(extension)
-			registerSCMProvider(provider) {
+			registerSCMProvider(provider: vscode.SCMProvider) {
+				telemetryService.publicLog('registerSCMProvider', {
+					extensionId: extension.id,
+					providerLabel: provider.label,
+					providerContextKey: provider.contextKey
+				});
+
 				return extHostSCM.registerSCMProvider(provider);
 			}
 		}

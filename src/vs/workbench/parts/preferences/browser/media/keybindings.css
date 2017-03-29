@@ -22,12 +22,17 @@
 	text-align: center;
 }
 
+.defineKeybindingWidget .input {
+	text-align: center;
+}
+
 /* Theming */
 .defineKeybindingWidget {
 	background-color: #EFEFF2;
 	box-shadow: 0 2px 8px #A8A8A8;
 }
 
+.hc-black .defineKeybindingWidget,
 .vs-dark .defineKeybindingWidget {
 	background-color: #2D2D30;
 	box-shadow: 0 2px 8px #000;
