@@ -9,7 +9,7 @@ import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { MarkedString } from 'vs/base/common/htmlContent';
-import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
+import { KeyCode, KeyMod, KeyChord, SimpleKeybinding } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -24,6 +24,8 @@ import { SnippetController } from 'vs/editor/contrib/snippet/common/snippetContr
 import { SmartSnippetInserter } from 'vs/workbench/parts/preferences/common/smartSnippetInserter';
 import { DefineKeybindingOverlayWidget } from 'vs/workbench/parts/preferences/browser/keybindingWidgets';
 import { parseTree, Node } from 'vs/base/common/json';
+import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
+import { ScanCodeBinding } from 'vs/workbench/services/keybinding/common/scanCode';
 
 import EditorContextKeys = editorCommon.EditorContextKeys;
 
@@ -200,12 +202,48 @@ export class DefineKeybindingController implements editorCommon.IEditorContribut
 				return this._createDecoration(false, resolvedKeybinding.getLabel(), model, value);
 			}
 			const expectedUserSettingsLabel = resolvedKeybinding.getUserSettingsLabel();
-			if (value.value.trim().toLowerCase() !== expectedUserSettingsLabel.trim().toLowerCase()) {
+			if (!DefineKeybindingController._userSettingsFuzzyEquals(value.value, expectedUserSettingsLabel)) {
 				return this._createDecoration(false, resolvedKeybinding.getLabel(), model, value);
 			}
 			return null;
 		}
 		return null;
+	}
+
+	static _userSettingsFuzzyEquals(a: string, b: string): boolean {
+		a = a.trim().toLowerCase();
+		b = b.trim().toLowerCase();
+
+		if (a === b) {
+			return true;
+		}
+
+		const [parsedA1, parsedA2] = KeybindingIO._readUserBinding(a);
+		const [parsedB1, parsedB2] = KeybindingIO._readUserBinding(b);
+
+		return (
+			this._userBindingEquals(parsedA1, parsedB1)
+			&& this._userBindingEquals(parsedA2, parsedB2)
+		);
+	}
+
+	private static _userBindingEquals(a: SimpleKeybinding | ScanCodeBinding, b: SimpleKeybinding | ScanCodeBinding): boolean {
+		if (a === null && b === null) {
+			return true;
+		}
+		if (!a || !b) {
+			return false;
+		}
+
+		if (a instanceof SimpleKeybinding && b instanceof SimpleKeybinding) {
+			return a.equals(b);
+		}
+
+		if (a instanceof ScanCodeBinding && b instanceof ScanCodeBinding) {
+			return a.equals(b);
+		}
+
+		return false;
 	}
 
 	private _createDecoration(isError: boolean, message: string, model: editorCommon.IModel, keyNode: Node): editorCommon.IModelDeltaDecoration {
