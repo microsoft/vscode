@@ -331,7 +331,7 @@ function globExprsToRgGlobs(patterns: glob.IExpression): { globArgs: string[], s
 }
 
 function getRgArgs(config: IRawSearch): { args: string[], siblingClauses: glob.IExpression } {
-	const args = ['--heading', '--line-number', '--color', 'ansi', '--colors', 'path:none', '--colors', 'line:none', '--colors', 'match:fg:red', '--colors', 'match:style:nobold'];
+	const args = ['--hidden', '--heading', '--line-number', '--color', 'ansi', '--colors', 'path:none', '--colors', 'line:none', '--colors', 'match:fg:red', '--colors', 'match:style:nobold'];
 	args.push(config.contentPattern.isCaseSensitive ? '--case-sensitive' : '--ignore-case');
 
 	if (config.includePattern) {
