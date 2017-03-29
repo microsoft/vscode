@@ -149,7 +149,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 	focus(): void {
 		const activeKeybindingEntry = this.activeKeybindingEntry;
 		if (activeKeybindingEntry) {
-			this.focusEntry(activeKeybindingEntry);
+			this.selectEntry(activeKeybindingEntry);
 		} else {
 			this.searchWidget.focus();
 		}
@@ -161,6 +161,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 	}
 
 	defineKeybinding(keybindingEntry: IKeybindingItemEntry): TPromise<any> {
+		this.selectEntry(keybindingEntry);
 		this.showOverlayContainer();
 		return this.defineKeybindingWidget.define().then(key => {
 			if (key) {
@@ -174,40 +175,43 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 			return null;
 		}).then(() => {
 			this.hideOverlayContainer();
-			this.focusEntry(keybindingEntry);
+			this.selectEntry(keybindingEntry);
 		}, error => {
 			this.hideOverlayContainer();
 			this.onKeybindingEditingError(error);
-			this.focusEntry(keybindingEntry);
+			this.selectEntry(keybindingEntry);
 			return error;
 		});
 	}
 
 	removeKeybinding(keybindingEntry: IKeybindingItemEntry): TPromise<any> {
+		this.selectEntry(keybindingEntry);
 		if (keybindingEntry.keybindingItem.keybinding) { // This should be a pre-condition
 			return this.keybindingEditingService.removeKeybinding(keybindingEntry.keybindingItem.keybindingItem)
 				.then(() => this.focus(),
 				error => {
 					this.onKeybindingEditingError(error);
-					this.focusEntry(keybindingEntry);
+					this.selectEntry(keybindingEntry);
 				});
 		}
 		return TPromise.as(null);
 	}
 
 	resetKeybinding(keybindingEntry: IKeybindingItemEntry): TPromise<any> {
+		this.selectEntry(keybindingEntry);
 		if (keybindingEntry.keybindingItem.keybinding) { // This should be a pre-condition
 			return this.keybindingEditingService.resetKeybinding(keybindingEntry.keybindingItem.keybindingItem)
 				.then(() => this.focus(),
 				error => {
 					this.onKeybindingEditingError(error);
-					this.focusEntry(keybindingEntry);
+					this.selectEntry(keybindingEntry);
 				});
 		}
 		return TPromise.as(null);
 	}
 
 	copyKeybinding(keybinding: IKeybindingItemEntry): TPromise<any> {
+		this.selectEntry(keybinding);
 		const userFriendlyKeybinding: IUserFriendlyKeybinding = {
 			command: keybinding.keybindingItem.command,
 			key: keybinding.keybindingItem.keybinding ? keybinding.keybindingItem.keybinding.getUserSettingsLabel() : ''
@@ -279,10 +283,10 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 	private createList(parent: HTMLElement): void {
 		this.keybindingsListContainer = DOM.append(parent, $('.keybindings-list-container'));
 
-		this.keybindingsList = this._register(new List<IListEntry>(this.keybindingsListContainer, new Delegate(), [new KeybindingHeaderRenderer(), new KeybindingItemRenderer(this, this.keybindingsService)], { identityProvider: e => e.id }));
+		this.keybindingsList = this._register(new List<IListEntry>(this.keybindingsListContainer, new Delegate(), [new KeybindingHeaderRenderer(), new KeybindingItemRenderer(this, this.keybindingsService)],
+			{ identityProvider: e => e.id, keyboardSupport: true, mouseSupport: true, ariaLabel: localize('keybindingsLabel', "Keybindings") }));
 		this._register(this.keybindingsList.onContextMenu(e => this.onContextMenu(e)));
 		this._register(this.keybindingsList.onFocusChange(e => this.onFocusChange(e)));
-		this._register(this.keybindingsList.onDOMFocus(() => this.onKeybindingsListDOMFocus()));
 		this._register(this.keybindingsList.onDOMBlur(() => this.keybindingFocusContextKey.reset()));
 
 		this._register(this.listService.register(this.keybindingsList));
@@ -298,7 +302,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 	}
 
 	private renderKeybindingsEntries(keybindingsEntries: IKeybindingItemEntry[]): void {
-		const currentFocussedIndex = this.keybindingsList.getFocus()[0];
+		const currentSelectedIndex = this.keybindingsList.getSelection()[0];
 		this.listEntries = [{ id: 'keybinding-header-entry', templateId: KEYBINDING_HEADER_TEMPLATE_ID }, ...keybindingsEntries];
 		this.keybindingsList.splice(0, this.keybindingsList.length, this.listEntries);
 		this.layoutKebindingsList();
@@ -307,11 +311,11 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 			const index = this.getNewIndexOfUnassignedKeybinding(this.unAssignedKeybindingItemToRevealAndFocus);
 			if (index !== -1) {
 				this.keybindingsList.reveal(index, 0.2);
-				this.keybindingsList.setFocus([index]);
+				this.selectEntry(index);
 			}
 			this.unAssignedKeybindingItemToRevealAndFocus = null;
-		} else if (currentFocussedIndex !== -1 && currentFocussedIndex < this.listEntries.length) {
-			this.keybindingsList.setFocus([currentFocussedIndex]);
+		} else if (currentSelectedIndex !== -1 && currentSelectedIndex < this.listEntries.length) {
+			this.selectEntry(currentSelectedIndex);
 		}
 	}
 
@@ -346,23 +350,26 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		return -1;
 	}
 
-	private focusEntry(keybindingItemEntry: IKeybindingItemEntry): void {
-		const index = this.getIndexOf(keybindingItemEntry);
+	private selectEntry(keybindingItemEntry: IKeybindingItemEntry | number): void {
+		const index = typeof keybindingItemEntry === 'number' ? keybindingItemEntry : this.getIndexOf(keybindingItemEntry);
 		if (index !== -1) {
 			this.keybindingsList.getHTMLElement().focus();
 			this.keybindingsList.setFocus([index]);
+			this.keybindingsList.setSelection([index]);
 		}
 	}
 
 	private _onNavigate(back: boolean): void {
 		if (!back) {
 			this.keybindingsList.getHTMLElement().focus();
-			this.keybindingsList.setFocus([0]);
+			const currentFocusIndices = this.keybindingsList.getFocus();
+			this.keybindingsList.setFocus([currentFocusIndices.length ? currentFocusIndices[0] : 0]);
 		}
 	}
 
 	private onContextMenu(e: IListContextMenuEvent<IListEntry>): void {
 		if (e.element.templateId === KEYBINDING_ENTRY_TEMPLATE_ID) {
+			this.selectEntry(<IKeybindingItemEntry>e.element);
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => e.anchor,
 				getActions: () => TPromise.as([this.createCopyAction(<IKeybindingItemEntry>e.element), new Separator(), this.createRemoveAction(<IKeybindingItemEntry>e.element), this.createResetAction(<IKeybindingItemEntry>e.element)]),
@@ -383,12 +390,6 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		}
 		if (element.templateId === KEYBINDING_ENTRY_TEMPLATE_ID) {
 			this.keybindingFocusContextKey.set(true);
-		}
-	}
-
-	private onKeybindingsListDOMFocus(): void {
-		if (!this.keybindingsList.getFocusedElements().length) {
-			this.keybindingsList.focusNext();
 		}
 	}
 
