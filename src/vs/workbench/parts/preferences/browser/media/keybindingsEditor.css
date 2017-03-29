@@ -33,11 +33,13 @@
 .keybindings-editor > .keybindings-header .open-keybindings-container {
 	margin-top: 10px;
 	color: #aaa;
+	display: flex;
 }
 
 .keybindings-editor > .keybindings-header .open-keybindings-container > .file-name {
 	text-decoration: underline;
 	cursor: pointer;
+	margin-left: 4px;
 }
 
 /* body styling */
