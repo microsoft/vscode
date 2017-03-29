@@ -3066,7 +3066,7 @@ declare module monaco.editor {
         /**
          * Scroll vertically or horizontally as necessary and reveal a position.
          */
-        revealPosition(position: IPosition): void;
+        revealPosition(position: IPosition, revealVerticalInCenter?: boolean, revealHorizontal?: boolean): void;
         /**
          * Scroll vertically or horizontally as necessary and reveal a position centered vertically.
          */
