@@ -346,7 +346,8 @@ export class ExtensionHostProcessWorker {
 
 		// If the extension development host was started without debugger attached we need
 		// to communicate this back to the main side to terminate the debug session
-		if (this.isExtensionDevelopmentHost && !this.isExtensionDevelopmentTestFromCli && !this.isExtensionDevelopmentDebugging) {
+		const debugMode = !!this.environmentService.debugExtensionHost.port; // see #23390
+		if (this.isExtensionDevelopmentHost && !this.isExtensionDevelopmentTestFromCli && !debugMode) {
 			this.windowService.broadcast({
 				channel: EXTENSION_TERMINATE_BROADCAST_CHANNEL,
 				payload: true
