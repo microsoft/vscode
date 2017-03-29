@@ -45,7 +45,7 @@ export class SelectColorThemeAction extends Action {
 		return this.themeService.getColorThemes().then(themes => {
 			const currentTheme = this.themeService.getColorTheme();
 
-			const pickInMarketPlace = findInMarketplacePick(this.viewletService, 'category:themes');
+			const pickInMarketPlace = findInMarketplacePick(this.viewletService, 'category:themes', localize('installColorThemes', "Install Additional Color Themes..."));
 
 			const picks: IPickOpenEntry[] = themes
 				.map(theme => ({ id: theme.id, label: theme.label, description: theme.description }))
@@ -110,7 +110,7 @@ class SelectIconThemeAction extends Action {
 		return this.themeService.getFileIconThemes().then(themes => {
 			const currentTheme = this.themeService.getFileIconTheme();
 
-			const pickInMarketPlace = findInMarketplacePick(this.viewletService, 'tag:icon-theme');
+			const pickInMarketPlace = findInMarketplacePick(this.viewletService, 'tag:icon-theme', localize('installIconThemes', "Install Additional File Icon Themes..."));
 
 			const picks: IPickOpenEntry[] = themes
 				.map(theme => ({ id: theme.id, label: theme.label, description: theme.description }))
@@ -154,10 +154,10 @@ class SelectIconThemeAction extends Action {
 	}
 }
 
-function findInMarketplacePick(viewletService: IViewletService, query: string) {
+function findInMarketplacePick(viewletService: IViewletService, query: string, label: string) {
 	return {
 		id: 'themes.findmore',
-		label: localize('findMore', "Find more in the Marketplace..."),
+		label: label,
 		separator: { border: true },
 		alwaysShow: true,
 		run: () => viewletService.openViewlet(VIEWLET_ID, true).then(viewlet => {
