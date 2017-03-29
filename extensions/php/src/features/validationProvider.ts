@@ -195,11 +195,11 @@ export default class PHPValidationProvider {
 				vscode.window.showInformationMessage<MessageItem>(
 					localize('php.useExecutablePath', 'Do you allow {0} (defined as a workspace setting) to be executed to lint PHP files?', this.executable),
 					{
-						title: localize('php.yes', 'Yes'),
+						title: localize('php.yes', 'Allow'),
 						id: 'yes'
 					},
 					{
-						title: localize('php.no', 'No'),
+						title: localize('php.no', 'Disallow'),
 						isCloseAffordance: true,
 						id: 'no'
 					}
