@@ -8,6 +8,7 @@
 import stream = require('vs/base/node/stream');
 import iconv = require('iconv-lite');
 import { TPromise } from 'vs/base/common/winjs.base';
+import jschardet = require('jschardet');
 
 export const UTF8 = 'utf8';
 export const UTF8_with_bom = 'utf8bom';
@@ -91,7 +92,36 @@ export function detectEncodingByBOMFromBuffer(buffer: NodeBuffer, bytesRead: num
  * If no BOM is detected, null will be passed to callback.
  */
 export function detectEncodingByBOM(file: string): TPromise<string> {
-	return stream.readExactlyByFile(file, 3).then(({buffer, bytesRead}) => detectEncodingByBOMFromBuffer(buffer, bytesRead));
+	return stream.readExactlyByFile(file, 3).then(({ buffer, bytesRead }) => detectEncodingByBOMFromBuffer(buffer, bytesRead));
+}
+
+const MINIMUM_THRESHOLD = 0.2; // TODO@Ben Decide how much this should be.
+jschardet.Constants.MINIMUM_THRESHOLD = MINIMUM_THRESHOLD;
+
+const IGNORE_ENCODINGS = ['ascii', 'utf-8', 'utf-16', 'utf-32'];
+
+/**
+ * Guesses the encoding from buffer.
+ */
+export function guessEncodingByBuffer(buffer: NodeBuffer): string {
+	const guessed = jschardet.detect(buffer);
+	if (!guessed || !guessed.encoding) {
+		return null;
+	}
+
+	const enc = guessed.encoding.toLowerCase();
+
+	// Ignore encodings that cannot guess correctly
+	// (http://chardet.readthedocs.io/en/latest/supported-encodings.html)
+	if (0 <= IGNORE_ENCODINGS.indexOf(enc)) {
+		return null;
+	}
+
+	return lowerCaseWithoutNonAlphaNumeric(guessed.encoding);
+}
+
+function lowerCaseWithoutNonAlphaNumeric(encodingName: string): string {
+	return encodingName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
 }
 
 /**

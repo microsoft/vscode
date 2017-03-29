@@ -47,7 +47,9 @@ export interface IQuickOpenOptions extends IQuickOpenStyles {
 }
 
 export interface IQuickOpenStyles extends IInputBoxStyles {
-
+	background?: Color;
+	foreground?: Color;
+	borderColor?: Color;
 }
 
 export interface IShowOptions {
@@ -103,20 +105,16 @@ export class QuickOpenWidget implements IModelProvider {
 	private layoutDimensions: Dimension;
 	private model: IModel<any>;
 	private inputChangingTimeoutHandle: number;
-
-	private inputBackground: Color;
-	private inputForeground: Color;
+	private styles: IQuickOpenStyles;
 
 	constructor(container: HTMLElement, callbacks: IQuickOpenCallbacks, options: IQuickOpenOptions, usageLogger?: IQuickOpenUsageLogger) {
 		this.toUnbind = [];
 		this.container = container;
 		this.callbacks = callbacks;
 		this.options = options;
+		this.styles = options;
 		this.usageLogger = usageLogger;
 		this.model = null;
-
-		this.inputBackground = options.inputBackground;
-		this.inputForeground = options.inputForeground;
 	}
 
 	public getElement(): Builder {
@@ -157,8 +155,9 @@ export class QuickOpenWidget implements IModelProvider {
 				this.inputBox = new InputBox(inputContainer.getHTMLElement(), null, {
 					placeholder: this.options.inputPlaceHolder || '',
 					ariaLabel: DEFAULT_INPUT_ARIA_LABEL,
-					inputBackground: this.inputBackground,
-					inputForeground: this.inputForeground
+					inputBackground: this.styles.inputBackground,
+					inputForeground: this.styles.inputForeground,
+					inputBorder: this.styles.inputBorder
 				});
 
 				// ARIA
@@ -307,21 +306,35 @@ export class QuickOpenWidget implements IModelProvider {
 			this.layout(this.layoutDimensions);
 		}
 
+		this._applyStyles();
+
 		return this.builder.getHTMLElement();
 	}
 
 	public style(styles: IQuickOpenStyles) {
-		this.inputBackground = styles.inputBackground;
-		this.inputForeground = styles.inputForeground;
+		this.styles = styles;
 
 		this._applyStyles();
 	}
 
 	protected _applyStyles() {
+		if (this.builder) {
+			const foreground = this.styles.foreground ? this.styles.foreground.toString() : null;
+			const background = this.styles.background ? this.styles.background.toString() : null;
+			const borderColor = this.styles.borderColor ? this.styles.borderColor.toString() : null;
+
+			this.builder.style('color', foreground);
+			this.builder.style('background-color', background);
+			this.builder.style('border-color', borderColor);
+			this.builder.style('border-width', borderColor ? '2px' : null);
+			this.builder.style('border-style', borderColor ? 'solid' : null);
+		}
+
 		if (this.inputBox) {
 			this.inputBox.style({
-				inputBackground: this.inputBackground,
-				inputForeground: this.inputForeground
+				inputBackground: this.styles.inputBackground,
+				inputForeground: this.styles.inputForeground,
+				inputBorder: this.styles.inputBorder
 			});
 		}
 	}

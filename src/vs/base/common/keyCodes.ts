@@ -514,6 +514,18 @@ export class SimpleKeybinding {
 			|| this.keyCode === KeyCode.Shift
 		);
 	}
+
+	/**
+	 * Does this keybinding refer to the key code of a modifier and it also has the modifier flag?
+	 */
+	public isDuplicateModifierCase(): boolean {
+		return (
+			(this.ctrlKey && this.keyCode === KeyCode.Ctrl)
+			|| (this.shiftKey && this.keyCode === KeyCode.Shift)
+			|| (this.altKey && this.keyCode === KeyCode.Alt)
+			|| (this.metaKey && this.keyCode === KeyCode.Meta)
+		);
+	}
 }
 
 export class ChordKeybinding {

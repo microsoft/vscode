@@ -187,14 +187,16 @@ export class CommandCenter {
 		return '';
 	}
 
-	private async _clone(): Promise<boolean> {
+	@command('git.clone', true)
+	async clone(): Promise<void> {
 		const url = await window.showInputBox({
 			prompt: localize('repourl', "Repository URL"),
 			ignoreFocusOut: true
 		});
 
 		if (!url) {
-			throw new Error('no_URL');
+			this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'no_URL' });
+			return;
 		}
 
 		const parentPath = await window.showInputBox({
@@ -204,56 +206,31 @@ export class CommandCenter {
 		});
 
 		if (!parentPath) {
-			throw new Error('no_directory');
+			this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'no_directory' });
+			return;
 		}
 
 		const clonePromise = this.git.clone(url, parentPath);
 		window.setStatusBarMessage(localize('cloning', "Cloning git repository..."), clonePromise);
-		let repositoryPath: string;
 
 		try {
-			repositoryPath = await clonePromise;
+			const repositoryPath = await clonePromise;
+
+			const open = localize('openrepo', "Open Repository");
+			const result = await window.showInformationMessage(localize('proposeopen', "Would you like to open the cloned repository?"), open);
+
+			const openFolder = result === open;
+			this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'success' }, { openFolder: openFolder ? 1 : 0 });
+			if (openFolder) {
+				commands.executeCommand('vscode.openFolder', Uri.file(repositoryPath));
+			}
 		} catch (err) {
 			if (/already exists and is not an empty directory/.test(err && err.stderr || '')) {
-				throw new Error('directory_not_empty');
+				this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'directory_not_empty' });
+			} else {
+				this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'error' });
 			}
-
 			throw err;
-		}
-
-		const open = localize('openrepo', "Open Repository");
-		const result = await window.showInformationMessage(localize('proposeopen', "Would you like to open the cloned repository?"), open);
-		const openFolder = result === open;
-
-		if (openFolder) {
-			commands.executeCommand('vscode.openFolder', Uri.file(repositoryPath));
-		}
-
-		return openFolder;
-	}
-
-	/**
-	 * Attempts to clone a git repository. Throws descriptive errors
-	 * for usual error cases. Returns whether the user chose to open
-	 * the resulting folder or otherwise.
-	 *
-	 * This only exists for the walkthrough contribution to have good
-	 * telemetry.
-	 *
-	 * TODO@Christof: when all the telemetry questions are answered,
-	 * please clean this up into a single clone method.
-	 */
-	@command('git.clone', true)
-	async clone(): Promise<boolean> {
-		return await this._clone();
-	}
-
-	@command('git.cloneSilent', true)
-	async cloneSilent(): Promise<void> {
-		try {
-			await this._clone();
-		} catch (err) {
-			// noop
 		}
 	}
 

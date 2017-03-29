@@ -187,7 +187,7 @@ export class ExtHostExtensionService extends AbstractExtensionService<ExtHostExt
 		this._contextService = contextService;
 
 		// initialize API first
-		const apiFactory = createApiFactory(initData, threadService, this, this._contextService);
+		const apiFactory = createApiFactory(initData, threadService, this, this._contextService, this._telemetryService);
 		initializeExtensionApi(this, apiFactory).then(() => this._triggerOnReady());
 	}
 

@@ -730,6 +730,12 @@ Steps to Reproduce:
 			return `|${e.manifest.name}|${e.manifest.publisher}|${e.manifest.version}|`;
 		}).join('\n');
 
+		// 2000 chars is browsers de-facto limit for URLs, 250 chars is allowed for other string parts of the issue URL
+		// http://stackoverflow.com/questions/417142/what-is-the-maximum-length-of-a-url-in-different-browsers
+		if (tableHeader.length + table.length > 1750) {
+			return 'the listing exceeds the lower minimum of browsers\' URL characters limit';
+		}
+
 		return `
 
 ${tableHeader}\n${table};

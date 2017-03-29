@@ -7,6 +7,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import Event, { Emitter } from 'vs/base/common/event';
+import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { ISCMService, ISCMProvider, ISCMResource, ISCMResourceGroup } from 'vs/workbench/services/scm/common/scm';
@@ -45,12 +46,13 @@ class MainThreadSCMProvider implements ISCMProvider {
 		this.disposables.push(scmService.registerSCMProvider(this));
 	}
 
-	open(resource: ISCMResource): TPromise<void> {
+	open(resource: ISCMResource): void {
 		if (!this.features.supportsOpen) {
-			return TPromise.as(null);
+			return;
 		}
 
-		return this.proxy.$open(this.handle, resource.uri.toString());
+		this.proxy.$open(this.handle, resource.uri.toString())
+			.done(null, onUnexpectedError);
 	}
 
 	getOriginalResource(uri: URI): TPromise<URI> {

@@ -5,7 +5,7 @@
 'use strict';
 
 import Event, { Emitter } from 'vs/base/common/event';
-import { ICommonCodeEditor, ICommonDiffEditor, IDecorationRenderOptions, IModelDecorationOptions } from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor, ICommonDiffEditor, IDecorationRenderOptions, IModelDecorationOptions, IModel } from 'vs/editor/common/editorCommon';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 
 export abstract class AbstractCodeEditorService implements ICodeEditorService {
@@ -106,4 +106,53 @@ export abstract class AbstractCodeEditorService implements ICodeEditorService {
 	abstract registerDecorationType(key: string, options: IDecorationRenderOptions, parentTypeKey?: string): void;
 	abstract removeDecorationType(key: string): void;
 	abstract resolveDecorationOptions(decorationTypeKey: string, writable: boolean): IModelDecorationOptions;
+
+	private _transientWatchers: { [uri: string]: ModelTransientSettingWatcher; } = {};
+
+	public setTransientModelProperty(model: IModel, key: string, value: any): void {
+		const uri = model.uri.toString();
+
+		let w: ModelTransientSettingWatcher;
+		if (this._transientWatchers.hasOwnProperty(uri)) {
+			w = this._transientWatchers[uri];
+		} else {
+			w = new ModelTransientSettingWatcher(uri, model, this);
+			this._transientWatchers[uri] = w;
+		}
+
+		w.set(key, value);
+	}
+
+	public getTransientModelProperty(model: IModel, key: string): any {
+		const uri = model.uri.toString();
+
+		if (!this._transientWatchers.hasOwnProperty(uri)) {
+			return undefined;
+		}
+
+		return this._transientWatchers[uri].get(key);
+	}
+
+	_removeWatcher(w: ModelTransientSettingWatcher): void {
+		delete this._transientWatchers[w.uri];
+	}
+}
+
+export class ModelTransientSettingWatcher {
+	public readonly uri: string;
+	private readonly _values: { [key: string]: any; };
+
+	constructor(uri: string, model: IModel, owner: AbstractCodeEditorService) {
+		this.uri = uri;
+		this._values = {};
+		model.onWillDispose(() => owner._removeWatcher(this));
+	}
+
+	public set(key: string, value: any): void {
+		this._values[key] = value;
+	}
+
+	public get(key: string): any {
+		return this._values[key];
+	}
 }

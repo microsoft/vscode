@@ -257,6 +257,11 @@
       "from": "isobject@>=2.0.0 <3.0.0",
       "resolved": "https://registry.npmjs.org/isobject/-/isobject-2.1.0.tgz"
     },
+    "jschardet": {
+      "version": "1.4.2",
+      "from": "jschardet@>=1.4.2 <2.0.0",
+      "resolved": "https://registry.npmjs.org/jschardet/-/jschardet-1.4.2.tgz"
+    },
     "kind-of": {
       "version": "3.0.4",
       "from": "kind-of@>=3.0.2 <4.0.0",
@@ -405,9 +410,9 @@
       "resolved": "git://github.com/jrieken/v8-profiler.git#bc0803a4d4b2150b8a1bbffa80270769007036c2"
     },
     "vscode-debugprotocol": {
-      "version": "1.17.0",
-      "from": "vscode-debugprotocol@1.17.0",
-      "resolved": "https://registry.npmjs.org/vscode-debugprotocol/-/vscode-debugprotocol-1.17.0.tgz"
+      "version": "1.18.0",
+      "from": "vscode-debugprotocol@1.18.0",
+      "resolved": "https://registry.npmjs.org/vscode-debugprotocol/-/vscode-debugprotocol-1.18.0.tgz"
     },
     "vscode-ripgrep": {
       "version": "0.0.11",

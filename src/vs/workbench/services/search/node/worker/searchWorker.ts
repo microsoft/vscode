@@ -209,7 +209,7 @@ export class SearchWorkerEngine {
 
 						// Detect encoding and mime when this is the beginning of the file
 						if (isFirstRead) {
-							const mimeAndEncoding = detectMimeAndEncodingFromBuffer({ buffer, bytesRead });
+							const mimeAndEncoding = detectMimeAndEncodingFromBuffer({ buffer, bytesRead }, false);
 							if (mimeAndEncoding.mimes[mimeAndEncoding.mimes.length - 1] !== baseMime.MIME_TEXT) {
 								return clb(null); // skip files that seem binary
 							}
