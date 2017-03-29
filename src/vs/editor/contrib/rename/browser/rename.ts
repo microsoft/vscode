@@ -23,6 +23,7 @@ import { rename } from '../common/rename';
 import RenameInputField from './renameInputField';
 import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 import { optional } from 'vs/platform/instantiation/common/instantiation';
+import { IThemeService } from "vs/platform/theme/common/themeService";
 
 // ---  register actions and commands
 
@@ -46,9 +47,10 @@ class RenameController implements IEditorContribution {
 		@ITextModelResolverService private _textModelResolverService: ITextModelResolverService,
 		@IProgressService private _progressService: IProgressService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IThemeService themeService: IThemeService,
 		@optional(IFileService) private _fileService: IFileService
 	) {
-		this._renameInputField = new RenameInputField(editor);
+		this._renameInputField = new RenameInputField(editor, themeService);
 		this._renameInputVisible = CONTEXT_RENAME_INPUT_VISIBLE.bindTo(contextKeyService);
 	}
 
