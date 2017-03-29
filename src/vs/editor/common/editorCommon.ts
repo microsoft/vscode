@@ -202,6 +202,11 @@ export type LineNumbersOption = 'on' | 'off' | 'relative' | ((lineNumber: number
  */
 export interface IEditorOptions {
 	/**
+	 * This editor is used inside a diff editor.
+	 * @internal
+	 */
+	inDiffEditor?: boolean;
+	/**
 	 * Enable experimental screen reader support.
 	 * Defaults to `true`.
 	 */
@@ -713,6 +718,8 @@ export class InternalEditorMinimapOptions {
 export class EditorWrappingInfo {
 	readonly _editorWrappingInfoBrand: void;
 
+	readonly inDiffEditor: boolean;
+	readonly isDominatedByLongLines: boolean;
 	readonly isWordWrapMinified: boolean;
 	readonly isViewportWrapping: boolean;
 	readonly wrappingColumn: number;
@@ -725,6 +732,8 @@ export class EditorWrappingInfo {
 	 * @internal
 	 */
 	constructor(source: {
+		inDiffEditor: boolean;
+		isDominatedByLongLines: boolean;
 		isWordWrapMinified: boolean;
 		isViewportWrapping: boolean;
 		wrappingColumn: number;
@@ -733,6 +742,8 @@ export class EditorWrappingInfo {
 		wordWrapBreakAfterCharacters: string;
 		wordWrapBreakObtrusiveCharacters: string;
 	}) {
+		this.inDiffEditor = Boolean(source.inDiffEditor);
+		this.isDominatedByLongLines = Boolean(source.isDominatedByLongLines);
 		this.isWordWrapMinified = Boolean(source.isWordWrapMinified);
 		this.isViewportWrapping = Boolean(source.isViewportWrapping);
 		this.wrappingColumn = source.wrappingColumn | 0;
@@ -747,7 +758,9 @@ export class EditorWrappingInfo {
 	 */
 	public equals(other: EditorWrappingInfo): boolean {
 		return (
-			this.isWordWrapMinified === other.isWordWrapMinified
+			this.inDiffEditor === other.inDiffEditor
+			&& this.isDominatedByLongLines === other.isDominatedByLongLines
+			&& this.isWordWrapMinified === other.isWordWrapMinified
 			&& this.isViewportWrapping === other.isViewportWrapping
 			&& this.wrappingColumn === other.wrappingColumn
 			&& this.wrappingIndent === other.wrappingIndent

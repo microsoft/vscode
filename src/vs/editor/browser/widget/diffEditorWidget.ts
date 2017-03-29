@@ -777,13 +777,6 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 			if (type === editorCommon.EventType.ViewZonesChanged) {
 				this._onViewZonesChanged();
 			}
-			if (type === editorCommon.EventType.ConfigurationChanged) {
-				let isViewportWrapping = this.originalEditor.getConfiguration().wrappingInfo.isViewportWrapping;
-				if (isViewportWrapping) {
-					// oh no, you didn't!
-					this.originalEditor.updateOptions({ wordWrap: 'off' });
-				}
-			}
 		}
 		this._recomputeIfNecessary(events);
 	}
@@ -805,11 +798,6 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 			}
 			if (type === editorCommon.EventType.ConfigurationChanged) {
 				let e = <editorCommon.IConfigurationChangedEvent>data;
-				let isViewportWrapping = this.modifiedEditor.getConfiguration().wrappingInfo.isViewportWrapping;
-				if (isViewportWrapping) {
-					// oh no, you didn't!
-					this.modifiedEditor.updateOptions({ wordWrap: 'off' });
-				}
 				if (e.fontInfo && this.modifiedEditor.getModel()) {
 					this._onViewZonesChanged();
 				}
@@ -886,6 +874,7 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 
 	private _adjustOptionsForSubEditor(options: editorCommon.IDiffEditorOptions): editorCommon.IDiffEditorOptions {
 		let clonedOptions: editorCommon.IDiffEditorOptions = objects.clone(options || {});
+		clonedOptions.inDiffEditor = true;
 		clonedOptions.wordWrap = 'off';
 		clonedOptions.wordWrapMinified = false;
 		clonedOptions.automaticLayout = false;

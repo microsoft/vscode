@@ -238,6 +238,8 @@ class InternalEditorOptionsHelper {
 		}
 
 		let wrappingInfo = new editorCommon.EditorWrappingInfo({
+			inDiffEditor: Boolean(opts.inDiffEditor),
+			isDominatedByLongLines: isDominatedByLongLines,
 			isWordWrapMinified: bareWrappingInfo.isWordWrapMinified,
 			isViewportWrapping: bareWrappingInfo.isViewportWrapping,
 			wrappingColumn: bareWrappingInfo.wrappingColumn,

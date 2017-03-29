@@ -1530,6 +1530,8 @@ declare module monaco.editor {
 
     export class EditorWrappingInfo {
         readonly _editorWrappingInfoBrand: void;
+        readonly inDiffEditor: boolean;
+        readonly isDominatedByLongLines: boolean;
         readonly isWordWrapMinified: boolean;
         readonly isViewportWrapping: boolean;
         readonly wrappingColumn: number;

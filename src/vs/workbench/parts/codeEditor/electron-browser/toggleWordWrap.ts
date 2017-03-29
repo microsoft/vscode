@@ -7,14 +7,16 @@
 import 'vs/css!./media/codeEditor';
 import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { ICommonCodeEditor, IEditorContribution } from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor, IEditorContribution, InternalEditorOptions } from 'vs/editor/common/editorCommon';
 import { editorAction, ServicesAccessor, EditorAction, commonEditorContribution } from 'vs/editor/common/editorCommonExtensions';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { DefaultConfig } from 'vs/editor/common/config/defaultConfig';
-import { MenuRegistry, MenuId } from "vs/platform/actions/common/actions";
-import { ContextKeyExpr, IContextKeyService } from "vs/platform/contextkey/common/contextkey";
-import { Disposable } from "vs/base/common/lifecycle";
+import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
+import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { IMessageService } from 'vs/platform/message/common/message';
+import Severity from 'vs/base/common/severity';
 
 @editorAction
 class ToggleWordWrapAction extends EditorAction {
@@ -33,6 +35,14 @@ class ToggleWordWrapAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
+		const editorConfiguration = editor.getConfiguration();
+		if (editorConfiguration.wrappingInfo.inDiffEditor) {
+			// Cannot change wrapping settings inside the diff editor
+			const messageService = accessor.get(IMessageService);
+			messageService.show(Severity.Info, nls.localize('wordWrap.notInDiffEditor', "Cannot toggle word wrap in a diff editor."));
+			return;
+		}
+
 		const codeEditorService = accessor.get(ICodeEditorService);
 		const configurationService = accessor.get(IConfigurationService);
 		const model = editor.getModel();
@@ -88,18 +98,32 @@ class ToggleWordWrapController extends Disposable implements IEditorContribution
 	) {
 		super();
 
-		const key = this.contextKeyService.createKey('isWordWrapMinified', this._isWordWrapMinified());
+		const configuration = this.editor.getConfiguration();
+		const isWordWrapMinified = this.contextKeyService.createKey('isWordWrapMinified', this._isWordWrapMinified(configuration));
+		const isDominatedByLongLines = this.contextKeyService.createKey('isDominatedByLongLines', this._isDominatedByLongLines(configuration));
+		const inDiffEditor = this.contextKeyService.createKey('inDiffEditor', this._inDiffEditor(configuration));
 
 		this._register(editor.onDidChangeConfiguration((e) => {
 			if (!e.wrappingInfo) {
 				return;
 			}
-			key.set(this._isWordWrapMinified());
+			const configuration = this.editor.getConfiguration();
+			isWordWrapMinified.set(this._isWordWrapMinified(configuration));
+			isDominatedByLongLines.set(this._isDominatedByLongLines(configuration));
+			inDiffEditor.set(this._inDiffEditor(configuration));
 		}));
 	}
 
-	private _isWordWrapMinified(): boolean {
-		return this.editor.getConfiguration().wrappingInfo.isWordWrapMinified;
+	private _isWordWrapMinified(config: InternalEditorOptions): boolean {
+		return config.wrappingInfo.isWordWrapMinified;
+	}
+
+	private _isDominatedByLongLines(config: InternalEditorOptions): boolean {
+		return config.wrappingInfo.isDominatedByLongLines;
+	}
+
+	private _inDiffEditor(config: InternalEditorOptions): boolean {
+		return config.wrappingInfo.inDiffEditor;
 	}
 
 	public getId(): string {
@@ -110,10 +134,28 @@ class ToggleWordWrapController extends Disposable implements IEditorContribution
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
 		id: 'editor.action.toggleWordWrap',
-		title: nls.localize('unwrapMinified', "Disable wrapping of this minified file"),
+		title: nls.localize('unwrapMinified', "Disable wrapping for this file"),
 		iconClass: 'toggle-word-wrap-action'
 	},
 	group: 'navigation',
 	order: 1,
-	when: ContextKeyExpr.has('isWordWrapMinified')
+	when: ContextKeyExpr.and(
+		ContextKeyExpr.not('inDiffEditor'),
+		ContextKeyExpr.has('isDominatedByLongLines'),
+		ContextKeyExpr.has('isWordWrapMinified')
+	)
+});
+MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+	command: {
+		id: 'editor.action.toggleWordWrap',
+		title: nls.localize('wrapMinified', "Enable wrapping for this file"),
+		iconClass: 'toggle-word-wrap-action'
+	},
+	group: 'navigation',
+	order: 1,
+	when: ContextKeyExpr.and(
+		ContextKeyExpr.not('inDiffEditor'),
+		ContextKeyExpr.has('isDominatedByLongLines'),
+		ContextKeyExpr.not('isWordWrapMinified')
+	)
 });
