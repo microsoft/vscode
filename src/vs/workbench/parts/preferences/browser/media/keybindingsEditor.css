@@ -68,7 +68,8 @@
 
 .keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row.keybindings-list-header,
 .keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row.even:not(.focused):not(.selected):not(:hover),
-.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list:not(:focus) .monaco-list-row.focused.even:not(.selected):not(:hover) {
+.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list:not(:focus) .monaco-list-row.focused.even:not(.selected):not(:hover),
+.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list:not(.focused) .monaco-list-row.focused.even:not(.selected):not(:hover) {
 	background-color: rgba(130, 130, 130, 0.04);
 }
 
@@ -167,7 +168,7 @@
 }
 
 .keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row.selected > .column.actions .monaco-action-bar,
-.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row.focused > .column.actions .monaco-action-bar,
+.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list.focused .monaco-list-row.focused > .column.actions .monaco-action-bar,
 .keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row:hover > .column.actions .monaco-action-bar {
 	display: flex;
 }

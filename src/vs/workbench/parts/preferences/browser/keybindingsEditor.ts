@@ -292,7 +292,13 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 			{ identityProvider: e => e.id, keyboardSupport: true, mouseSupport: true, ariaLabel: localize('keybindingsLabel', "Keybindings") }));
 		this._register(this.keybindingsList.onContextMenu(e => this.onContextMenu(e)));
 		this._register(this.keybindingsList.onFocusChange(e => this.onFocusChange(e)));
-		this._register(this.keybindingsList.onDOMBlur(() => this.keybindingFocusContextKey.reset()));
+		this._register(this.keybindingsList.onDOMFocus(() => {
+			DOM.addClass(this.keybindingsList.getHTMLElement(), 'focused');
+		}));
+		this._register(this.keybindingsList.onDOMBlur(() => {
+			DOM.removeClass(this.keybindingsList.getHTMLElement(), 'focused');
+			this.keybindingFocusContextKey.reset();
+		}));
 
 		this._register(this.listService.register(this.keybindingsList));
 	}
