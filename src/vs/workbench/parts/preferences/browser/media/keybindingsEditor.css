@@ -71,6 +71,10 @@
 	background-color: rgba(130, 130, 130, 0.04);
 }
 
+.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row:hover {
+	background-color: rgba(128, 128, 128, 0.15);
+}
+
 .keybindings-editor > .keybindings-body .keybindings-list-container .monaco-list-row.keybindings-list-header.focused,
 .keybindings-editor > .keybindings-body .keybindings-list-container .monaco-list-row.keybindings-list-header.selected,
 .keybindings-editor > .keybindings-body .keybindings-list-container .monaco-list-row.keybindings-list-header:hover {
