@@ -11,6 +11,7 @@ import { IMatch, IFilter, or, matchesContiguousSubString, matchesPrefix, matches
 import { Registry } from 'vs/platform/platform';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { CommonEditorRegistry, EditorAction } from 'vs/editor/common/editorCommonExtensions';
+import { MenuRegistry, ILocalizedString, SyncActionDescriptor, ICommandAction } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
 import { EditorModel } from 'vs/workbench/common/editor';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
@@ -147,18 +148,47 @@ export class KeybindingsEditorModel extends EditorModel {
 
 	private static toKeybindingEntry(command: string, keybindingItem: ResolvedKeybindingItem, workbenchActionsRegistry: IWorkbenchActionRegistry, editorActions: {}): IKeybindingItem {
 		const workbenchAction = workbenchActionsRegistry.getWorkbenchAction(command);
+		const menuCommand = MenuRegistry.getCommand(command);
 		const editorAction: EditorAction = editorActions[command];
-		const commandDefaultLabel = workbenchAction && language !== LANGUAGE_DEFAULT ? workbenchActionsRegistry.getAlias(workbenchAction.id) : null;
 		keybindingItem = keybindingItem ? keybindingItem : new ResolvedKeybindingItem(null, command, null, null, true);
 		return <IKeybindingItem>{
 			keybinding: keybindingItem.resolvedKeybinding,
 			keybindingItem,
 			command,
-			commandLabel: editorAction ? editorAction.label : workbenchAction ? workbenchAction.label : '',
-			commandDefaultLabel,
+			commandLabel: KeybindingsEditorModel.getCommandLabel(workbenchAction, menuCommand, editorAction),
+			commandDefaultLabel: KeybindingsEditorModel.getCommandDefaultLabel(workbenchAction, menuCommand, workbenchActionsRegistry),
 			when: keybindingItem.when ? keybindingItem.when.serialize() : '',
 			source: keybindingItem.isDefault ? localize('default', "Default") : localize('user', "User")
 		};
+	}
+
+	private static getCommandDefaultLabel(workbenchAction: SyncActionDescriptor, menuCommand: ICommandAction, workbenchActionsRegistry: IWorkbenchActionRegistry): string {
+		if (language !== LANGUAGE_DEFAULT) {
+			if (workbenchAction) {
+				return workbenchActionsRegistry.getAlias(workbenchAction.id);
+			}
+
+			if (menuCommand && menuCommand.title && (<ILocalizedString>menuCommand.title).original) {
+				return (<ILocalizedString>menuCommand.title).original;
+			}
+		}
+		return null;
+	}
+
+	private static getCommandLabel(workbenchAction: SyncActionDescriptor, menuCommand: ICommandAction, editorAction: EditorAction): string {
+		if (workbenchAction) {
+			return workbenchAction.label;
+		}
+
+		if (menuCommand) {
+			return typeof menuCommand.title === 'string' ? menuCommand.title : menuCommand.title.value;
+		}
+
+		if (editorAction) {
+			return editorAction.label;
+		}
+
+		return '';
 	}
 }
 
