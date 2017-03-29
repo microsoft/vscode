@@ -185,14 +185,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 
 	removeKeybinding(keybindingEntry: IKeybindingItemEntry): TPromise<any> {
 		if (keybindingEntry.keybindingItem.keybinding) { // This should be a pre-condition
-			const options: string[] = [localize('ok', "Ok"), localize('cancel', "Cancel")];
-			return this.choiceService.choose(Severity.Info, localize('confirmRemove', "Remove keybinding '{0}' from command '{1}'", keybindingEntry.keybindingItem.keybinding.getAriaLabel(), keybindingEntry.keybindingItem.commandLabel || keybindingEntry.keybindingItem.command), options, true)
-				.then(option => {
-					if (option === 0) {
-						return this.keybindingEditingService.removeKeybinding(keybindingEntry.keybindingItem.keybindingItem);
-					}
-					return null;
-				})
+			return this.keybindingEditingService.removeKeybinding(keybindingEntry.keybindingItem.keybindingItem)
 				.then(() => this.focus(),
 				error => {
 					this.onKeybindingEditingError(error);
@@ -204,14 +197,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 
 	resetKeybinding(keybindingEntry: IKeybindingItemEntry): TPromise<any> {
 		if (keybindingEntry.keybindingItem.keybinding) { // This should be a pre-condition
-			const options: string[] = [localize('ok', "Ok"), localize('cancel', "Cancel")];
-			return this.choiceService.choose(Severity.Info, localize('confirmReset', "Reset keybinding for command '{0}'", keybindingEntry.keybindingItem.commandLabel || keybindingEntry.keybindingItem.command), options, true)
-				.then(option => {
-					if (option === 0) {
-						return this.keybindingEditingService.resetKeybinding(keybindingEntry.keybindingItem.keybindingItem);
-					}
-					return null;
-				})
+			return this.keybindingEditingService.resetKeybinding(keybindingEntry.keybindingItem.keybindingItem)
 				.then(() => this.focus(),
 				error => {
 					this.onKeybindingEditingError(error);
