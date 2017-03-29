@@ -26,6 +26,8 @@ export class RipgrepEngine implements ISearchEngine<ISerializedFileMatch> {
 
 	private ripgrepParser: RipgrepParser;
 
+	private handleResultP: TPromise<any> = TPromise.wrap(null);
+
 	constructor(private config: IRawSearch) {
 	}
 
@@ -60,11 +62,13 @@ export class RipgrepEngine implements ISearchEngine<ISerializedFileMatch> {
 		this.ripgrepParser.on('result', (match: ISerializedFileMatch) => {
 			if (this.postProcessExclusions) {
 				const relativePath = path.relative(rootFolder, match.path);
-				(<TPromise<string>>this.postProcessExclusions(relativePath, undefined, () => getSiblings(match.path))).then(globMatch => {
-					if (!globMatch) {
-						onResult(match);
-					}
-				});
+				this.handleResultP = this.handleResultP
+					.then(() => (<TPromise<string>>this.postProcessExclusions(relativePath, undefined, () => getSiblings(match.path))))
+					.then(globMatch => {
+						if (!globMatch) {
+							onResult(match);
+						}
+					});
 			} else {
 				onResult(match);
 			}
@@ -88,17 +92,20 @@ export class RipgrepEngine implements ISearchEngine<ISerializedFileMatch> {
 		});
 
 		this.rgProc.on('close', code => {
-			this.ripgrepParser.flush(); // Get last result
-			this.rgProc = null;
-			// console.log(`closed with ${code}`);
+			// Trigger last result, then wait on async result handling
+			this.ripgrepParser.flush();
+			this.handleResultP.then(() => {
+				this.rgProc = null;
+				// console.log(`closed with ${code}`);
 
-			if (!this.isDone) {
-				this.isDone = true;
-				done(null, {
-					limitHit: false,
-					stats: null
-				});
-			}
+				if (!this.isDone) {
+					this.isDone = true;
+					done(null, {
+						limitHit: false,
+						stats: null
+					});
+				}
+			});
 		});
 	}
 }
