@@ -126,7 +126,7 @@ export class MoveLinesCommand implements ICommand {
 				const lastLineWhitespaces = MoveLinesCommand.getBeginWhitespaces(model.getLineContent(s.endLineNumber));
 
 				// If selection have the same indentation for the first and last line, apply an auto indent to the selected block
-				if(firstLineWhitespaces.length === lastLineWhitespaces.length && movingLineText.length > 1){
+				if(firstLineWhitespaces.length === lastLineWhitespaces.length && movingLineText.length > 0){
 					for(var lineNumber = s.startLineNumber; lineNumber <= s.endLineNumber; ++lineNumber){
 						// If line start with language closing bracket, use indentation of the next next line
 						const allClosingbrackets = Strings.escapeRegExpCharacters(brackets.map(x=>x.close).reduce((x, y) => x + y, ""));
