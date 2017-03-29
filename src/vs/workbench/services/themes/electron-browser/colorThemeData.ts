@@ -6,7 +6,7 @@
 import Paths = require('vs/base/common/paths');
 import Json = require('vs/base/common/json');
 import { Color } from 'vs/base/common/color';
-import { ExtensionData, ITokenColorizationRule, IColorTheme, IColorMap, VS_LIGHT_THEME, VS_HC_THEME, VS_DARK_THEME, CUSTOM_THEME_ID } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { ExtensionData, ITokenColorizationRule, IColorTheme, IColorMap, VS_LIGHT_THEME, VS_HC_THEME } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { convertSettings } from 'vs/workbench/services/themes/electron-browser/themeCompatibility';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { getBaseThemeId, getSyntaxThemeId, isDarkTheme, isLightTheme } from 'vs/platform/theme/common/themes';
@@ -20,12 +20,15 @@ import pfs = require('vs/base/node/pfs');
 import { Extensions, IColorRegistry, ColorIdentifier, editorBackground, editorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ThemeType } from 'vs/platform/theme/common/themeService';
 import { Registry } from 'vs/platform/platform';
-import { WorkbenchThemeService, IUserTheme } from "vs/workbench/services/themes/electron-browser/workbenchThemeService";
+import { WorkbenchThemeService } from "vs/workbench/services/themes/electron-browser/workbenchThemeService";
 import { IThemeExtensionPoint } from "vs/platform/theme/common/themeExtensionPoint";
 
 let colorRegistry = <IColorRegistry>Registry.as(Extensions.ColorContribution);
 
 export class ColorThemeData implements IColorTheme {
+
+	constructor(private themeService: WorkbenchThemeService) {
+	}
 
 	id: string;
 	label: string;
@@ -35,13 +38,16 @@ export class ColorThemeData implements IColorTheme {
 	tokenColors?: ITokenColorizationRule[];
 	isLoaded: boolean;
 	path?: string;
-	userThemeData: IUserTheme;
 	extensionData: ExtensionData;
 	colorMap: IColorMap = {};
 	defaultColorMap: IColorMap = {};
 
 
 	public getColor(colorId: ColorIdentifier, useDefault?: boolean): Color {
+		let customColor = this.themeService.getCustomColor(colorId);
+		if (customColor) {
+			return customColor;
+		}
 		let color = this.colorMap[colorId];
 		if (useDefault !== false && types.isUndefined(color)) {
 			color = this.getDefault(colorId);
@@ -74,11 +80,6 @@ export class ColorThemeData implements IColorTheme {
 			this.defaultColorMap = {};
 			if (this.path) {
 				return _loadThemeDocumentFromFile(this.path, this.tokenColors, this.colorMap).then(_ => {
-					this.isLoaded = true;
-					completeTokenColors(this);
-				});
-			} else if (this.userThemeData) {
-				return _loadThemeDocumentFromUserTheme(themeService, this.userThemeData, this.tokenColors, this.colorMap).then(_ => {
 					this.isLoaded = true;
 					completeTokenColors(this);
 				});
@@ -143,9 +144,9 @@ export class ColorThemeData implements IColorTheme {
 	}
 }
 
-export function fromStorageData(input: string): ColorThemeData {
+export function fromStorageData(themeService: WorkbenchThemeService, input: string): ColorThemeData {
 	let data = JSON.parse(input);
-	let theme = new ColorThemeData();
+	let theme = new ColorThemeData(themeService);
 	for (let key in data) {
 		if (key !== 'colorMap') {
 			theme[key] = data[key];
@@ -159,32 +160,11 @@ export function fromStorageData(input: string): ColorThemeData {
 	return theme;
 }
 
-let counter = 0;
-
-export function fromUserTheme(userTheme: IUserTheme): ColorThemeData {
-	let baseTheme = VS_LIGHT_THEME;
-	if (userTheme.type === 'dark') {
-		baseTheme = VS_DARK_THEME;
-	} else if (userTheme.type === 'hc') {
-		baseTheme = VS_HC_THEME;
-	}
-	let themeId = 'customtheme' + counter++;
-
-	let theme = new ColorThemeData();
-	theme.id = baseTheme + ' ' + themeId;
-	theme.selector = baseTheme + '.' + themeId;
-	theme.label = CUSTOM_THEME_ID;
-	theme.settingsId = CUSTOM_THEME_ID;
-	theme.userThemeData = userTheme;
-	theme.isLoaded = false;
-	return theme;
-}
-
-export function fromExtensionTheme(theme: IThemeExtensionPoint, normalizedAbsolutePath: string, extensionData: ExtensionData): ColorThemeData {
+export function fromExtensionTheme(themeService: WorkbenchThemeService, theme: IThemeExtensionPoint, normalizedAbsolutePath: string, extensionData: ExtensionData): ColorThemeData {
 	let baseTheme = theme.uiTheme || 'vs-dark';
 
 	let themeSelector = toCSSSelector(extensionData.extensionId + '-' + Paths.normalize(theme.path));
-	let themeData = new ColorThemeData();
+	let themeData = new ColorThemeData(themeService);
 	themeData.id = `${baseTheme} ${themeSelector}`;
 	themeData.label = theme.label || Paths.basename(theme.path);
 	themeData.settingsId = theme.id || themeData.label;
@@ -254,37 +234,6 @@ function _loadThemeDocumentFromFile(themePath: string, resultRules: ITokenColori
 		return TPromise.wrapError(new Error(nls.localize('error.cannotload', "Problems loading theme file {0}: {1}", themePath, error.message)));
 	});
 }
-
-function _loadThemeDocumentFromUserTheme(themeService: WorkbenchThemeService, userTheme: IUserTheme, resultRules: ITokenColorizationRule[], resultColors: IColorMap): TPromise<any> {
-	let extendsCompletes = TPromise.as(null);
-	if (userTheme.extends) {
-		extendsCompletes = themeService.findThemeDataBySettingsId(userTheme.extends, null).then(theme => {
-			if (theme && !theme.userThemeData) {
-				return theme.ensureLoaded(themeService).then(_ => {
-					resultRules.push(...theme.tokenColors);
-					for (let colorId in theme.colorMap) {
-						resultColors[colorId] = theme.colorMap[colorId];
-					}
-				});
-			}
-			return null;
-		});
-	}
-	return extendsCompletes.then(_ => {
-		if (userTheme.tokenColors) {
-			resultRules.push(...userTheme.tokenColors);
-		}
-		if (userTheme.colors) {
-			let colors = userTheme.colors;
-			for (let colorId in colors) {
-				let colorHex = colors[colorId];
-				resultColors[colorId] = Color.fromHex(colorHex);
-			}
-		}
-		return null;
-	});
-}
-
 /**
  * Make sure that the token colors contain the default fore and background
  */
