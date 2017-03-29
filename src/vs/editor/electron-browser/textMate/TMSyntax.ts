@@ -7,7 +7,6 @@
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 import * as types from 'vs/base/common/types';
-import * as objects from 'vs/base/common/objects';
 import Event, { Emitter } from 'vs/base/common/event';
 import { join, normalize } from 'path';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -16,14 +15,14 @@ import { ExtensionMessageCollector } from 'vs/platform/extensions/common/extensi
 import { ITokenizationSupport, TokenizationRegistry, IState, LanguageId } from 'vs/editor/common/modes';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { INITIAL, StackElement, IGrammar, Registry, IEmbeddedLanguagesMap as IEmbeddedLanguagesMap2 } from 'vscode-textmate';
-import { IWorkbenchThemeService, ITokenColorizationRule } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { ITextMateService } from 'vs/editor/node/textMate/textMateService';
 import { grammarsExtPoint, IEmbeddedLanguagesMap, ITMSyntaxExtensionPoint } from 'vs/editor/node/textMate/TMGrammars';
 import { TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/token';
 import { TokenMetadata } from 'vs/editor/common/model/tokensBinaryEncoding';
 import { nullTokenize2 } from 'vs/editor/common/modes/nullMode';
 import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
-import { Color, isValidHexColor } from 'vs/base/common/color';
+import { Color } from 'vs/base/common/color';
 
 export class TMScopeRegistry {
 
@@ -160,32 +159,9 @@ export class MainProcessTextMateSyntax implements ITextMateService {
 		return result;
 	}
 
-	static _removeInvalidColors(settings: ITokenColorizationRule[]): ITokenColorizationRule[] {
-		if (!Array.isArray(settings)) {
-			return settings;
-		}
-		settings = settings.slice(0);
-		for (let i = 0, len = settings.length; i < len; i++) {
-			let setting = settings[i];
-			if (setting.settings) {
-				let foreground = setting.settings.foreground;
-				if (typeof foreground !== 'undefined' && !isValidHexColor(foreground)) {
-					let settingClone = objects.deepClone(setting);
-					delete settingClone.settings.foreground;
-					settings[i] = settingClone;
-				}
-			}
-		}
-		return settings;
-	}
-
 	private _updateTheme(): void {
 		let colorTheme = this._themeService.getColorTheme();
-
-		// Remove unparsable foreground colors
-		let settings = MainProcessTextMateSyntax._removeInvalidColors(colorTheme.tokenColors);
-
-		this._grammarRegistry.setTheme({ name: colorTheme.label, settings: settings });
+		this._grammarRegistry.setTheme({ name: colorTheme.label, settings: colorTheme.tokenColors });
 		let colorMap = MainProcessTextMateSyntax._toColorMap(this._grammarRegistry.getColorMap());
 		let cssRules = generateTokensCSSForColorMap(colorMap);
 		this._styleElement.innerHTML = cssRules;
