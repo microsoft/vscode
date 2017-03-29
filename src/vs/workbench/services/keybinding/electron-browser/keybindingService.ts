@@ -34,6 +34,10 @@ import { WindowsKeyboardMapper, IWindowsKeyboardMapping, windowsKeyboardMappingE
 import { IMacLinuxKeyboardMapping, MacLinuxKeyboardMapper, macLinuxKeyboardMappingEquals } from 'vs/workbench/services/keybinding/common/macLinuxKeyboardMapper';
 import { MacLinuxFallbackKeyboardMapper } from 'vs/workbench/services/keybinding/common/macLinuxFallbackKeyboardMapper';
 import Event, { Emitter } from 'vs/base/common/event';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { Action } from 'vs/base/common/actions';
+import { TPromise } from 'vs/base/common/winjs.base';
+import Severity from 'vs/base/common/severity';
 
 export class KeyboardMapperFactory {
 	public static INSTANCE = new KeyboardMapperFactory();
@@ -71,6 +75,27 @@ export class KeyboardMapperFactory {
 			this._setKeyboardData(nativeKeymap.getCurrentKeyboardLayout(), nativeKeymap.getKeyMap());
 		}
 		return this._layoutInfo;
+	}
+
+	public isUSStandard(): boolean {
+		let _kbInfo = this.getCurrentKeyboardLayout();
+
+		if (OS === OperatingSystem.Linux) {
+			const kbInfo = <nativeKeymap.ILinuxKeyboardLayoutInfo>_kbInfo;
+			return (kbInfo && kbInfo.layout === 'us');
+		}
+
+		if (OS === OperatingSystem.Macintosh) {
+			const kbInfo = <nativeKeymap.IMacKeyboardLayoutInfo>_kbInfo;
+			return (kbInfo && kbInfo.id === 'com.apple.keylayout.US');
+		}
+
+		if (OS === OperatingSystem.Windows) {
+			const kbInfo = <nativeKeymap.IWindowsKeyboardLayoutInfo>_kbInfo;
+			return (kbInfo && kbInfo.name === '00000409');
+		}
+
+		return false;
 	}
 
 	public getRawKeyboardMapping(): nativeKeymap.IKeyboardMapping {
@@ -204,6 +229,43 @@ let keybindingsExtPoint = ExtensionsRegistry.registerExtensionPoint<ContributedK
 	]
 });
 
+interface IStorageData {
+	dontShowPrompt: boolean;
+}
+
+class KeybindingsMigrationsStorage {
+	private static KEY = 'keybindingsMigration';
+
+	private _storageService: IStorageService;
+	private _value: IStorageData;
+
+	constructor(storageService: IStorageService) {
+		this._storageService = storageService;
+		this._value = this._read();
+	}
+
+	private _read(): IStorageData {
+		let jsonValue = this._storageService.get(KeybindingsMigrationsStorage.KEY, StorageScope.GLOBAL);
+		if (!jsonValue) {
+			return null;
+		}
+		try {
+			return JSON.parse(jsonValue);
+		} catch (err) {
+			return null;
+		}
+	}
+
+	public get(): IStorageData {
+		return this._value;
+	}
+
+	public set(data: IStorageData): void {
+		this._value = data;
+		this._storageService.store(KeybindingsMigrationsStorage.KEY, JSON.stringify(this._value), StorageScope.GLOBAL);
+	}
+}
+
 export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
 	private _keyboardMapper: IKeyboardMapper;
@@ -216,8 +278,9 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICommandService commandService: ICommandService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IMessageService messageService: IMessageService,
+		@IMessageService private messageService: IMessageService,
 		@IEnvironmentService environmentService: IEnvironmentService,
+		@IStorageService private storageService: IStorageService,
 		@IStatusbarService statusBarService: IStatusbarService
 	) {
 		super(contextKeyService, commandService, messageService, statusBarService);
@@ -262,6 +325,42 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		let data = KeyboardMapperFactory.INSTANCE.getCurrentKeyboardLayout();
 		telemetryService.publicLog('keyboardLayout', {
 			currentKeyboardLayout: data
+		});
+
+		if (OS === OperatingSystem.Macintosh || OS === OperatingSystem.Linux) {
+			const isUSStandard = KeyboardMapperFactory.INSTANCE.isUSStandard();
+			if (!isUSStandard) {
+				this._promptIfNeeded();
+			}
+		}
+	}
+
+	private _promptIfNeeded(): void {
+		const storage = new KeybindingsMigrationsStorage(this.storageService);
+		const storedData = storage.get();
+		if (storedData && storedData.dontShowPrompt) {
+			// Do not prompt stored
+			return;
+		}
+
+		storage.set({
+			dontShowPrompt: true
+		});
+
+		this._prompt();
+	}
+
+	private _prompt(): void {
+		const okAction = new Action(
+			'keybindingMigration.ok',
+			nls.localize('keybindingMigration.ok', "OK"),
+			null,
+			true,
+			() => TPromise.as(true)
+		);
+		this.messageService.show(Severity.Info, {
+			message: nls.localize('keybindingMigration.prompt', "Some keyboard shortcuts have changed for your keyboard layout."),
+			actions: [okAction]
 		});
 	}
 
@@ -407,7 +506,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
 	private _asCommandRule(isBuiltin: boolean, idx: number, binding: ContributedKeyBinding): IKeybindingRule2 {
 
-		let {command, when, key, mac, linux, win} = binding;
+		let { command, when, key, mac, linux, win } = binding;
 
 		let weight: number;
 		if (isBuiltin) {
