@@ -42,17 +42,19 @@ export class SearchService implements ISearchService {
 
 		// Configuration: Encoding
 		if (!query.fileEncoding) {
-			let fileEncoding = configuration && configuration.files && configuration.files.encoding;
+			const fileEncoding = configuration && configuration.files && configuration.files.encoding;
 			query.fileEncoding = fileEncoding;
 		}
 
 		// Configuration: File Excludes
-		let fileExcludes = configuration && configuration.files && configuration.files.exclude;
-		if (fileExcludes) {
-			if (!query.excludePattern) {
-				query.excludePattern = fileExcludes;
-			} else {
-				objects.mixin(query.excludePattern, fileExcludes, false /* no overwrite */);
+		if (!query.disregardExcludeSettings) {
+			const fileExcludes = configuration && configuration.files && configuration.files.exclude;
+			if (fileExcludes) {
+				if (!query.excludePattern) {
+					query.excludePattern = fileExcludes;
+				} else {
+					objects.mixin(query.excludePattern, fileExcludes, false /* no overwrite */);
+				}
 			}
 		}
 	}
