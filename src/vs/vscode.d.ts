@@ -4250,19 +4250,14 @@ declare module 'vscode' {
 		 * Compute the match between a document [selector](#DocumentSelector) and a document. Values
 		 * greater than zero mean the selector matches the document.
 		 *
-		 * *Note:* By default, only documents from the `file` and `untitled` schemes match a selector. Other schemes
-		 * must be explicity spelled out, like `{scheme: 'fooScheme'}` to match a document with `fooScheme://some/uri/`.
-		 *
 		 * A match is computed according to these rules:
-		 * 1. When [`DocumentSelector`](#DocumentSelector) is an array, take compute the match for each contained `DocumentFilter` or language identifier and take the maximum value.
-		 * 2. A string it will be desugared to become the `language`-part of a [`DocumentFilter`](#DocumentFilter), so `"fooLang"` is like `{ language: "fooLang" }`.
+		 * 1. When [`DocumentSelector`](#DocumentSelector) is an array, compute the match for each contained `DocumentFilter` or language identifier and take the maximum value.
+		 * 2. A string will be desugared to become the `language`-part of a [`DocumentFilter`](#DocumentFilter), so `"fooLang"` is like `{ language: "fooLang" }`.
 		 * 3. A [`DocumentFilter`](#DocumentFilter) will be matched against the document by comparing its parts with the document. The following rules apply:
 		 *  1. When the `DocumentFilter` is empty (`{}`) the result is `0`
-		 *  2. When `scheme`, `language`, or `pattern` are defined but doesn’t match, the result is `0`
-		 *  3. When `language` is the generic language id `*` and `scheme` isn’t defined, it becomes `*` too
-		 *  4. When `scheme` isn’t defined and `language` is the generic language identifider `*` it becomes `*` too, otherwise `scheme` defaults to two values: `file` and `untitled`.
-		 *  5. Matching against `*` gives a score of `5`, matching via equality or via a glob-pattern gives a score of `10`
-		 *  6. The result is the maximun value of each match
+		 *  2. When `scheme`, `language`, or `pattern` are defined but one doesn’t match, the result is `0`
+		 *  3. Matching against `*` gives a score of `5`, matching via equality or via a glob-pattern gives a score of `10`
+		 *  4. The result is the maximun value of each match
 		 *
 		 * Samples:
 		 * ```js
@@ -4279,7 +4274,7 @@ declare module 'vscode' {
 		 * // virtual document, e.g. from git-index
 		 * doc.uri; // 'git:/my/file.js'
 		 * doc.languageId; // 'javascript'
-		 * match('javascript', doc); // 0;
+		 * match('javascript', doc); // 10;
 		 * match({language: 'javascript', scheme: 'git'}, doc); // 10;
 		 * match('*', doc); // 5
 		 * ```
