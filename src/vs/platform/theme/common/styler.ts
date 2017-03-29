@@ -6,7 +6,7 @@
 'use strict';
 
 import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
-import { inputBackground, inputForeground, ColorIdentifier, selectForeground, selectBackground, selectBorder, inputBorder, foreground, editorBackground, highContrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { inputBackground, inputForeground, ColorIdentifier, selectForeground, selectBackground, selectBorder, inputBorder, foreground, editorBackground, highContrastBorder, editorFindCheckedBorders } from 'vs/platform/theme/common/colorRegistry';
 import { IDisposable } from "vs/base/common/lifecycle";
 
 export interface IThemable {
@@ -41,6 +41,15 @@ export function attachSelectBoxStyler(widget: IThemable, themeService: IThemeSer
 		selectBackground: (style && style.selectBackground) || selectBackground,
 		selectForeground: (style && style.selectForeground) || selectForeground,
 		selectBorder: (style && style.selectBorder) || selectBorder
+	});
+}
+
+export function attachFindInputBoxStyler(widget: IThemable, themeService: IThemeService, style?: { inputBackground?: ColorIdentifier, inputForeground?: ColorIdentifier, inputBorder?: ColorIdentifier, checkedBorderColor?: ColorIdentifier }): IDisposable {
+	return attachStyler(themeService, widget, {
+		inputBackground: (style && style.inputBackground) || inputBackground,
+		inputForeground: (style && style.inputForeground) || inputForeground,
+		inputBorder: (style && style.inputBorder) || inputBorder,
+		checkedBorderColor: (style && style.checkedBorderColor) || editorFindCheckedBorders
 	});
 }
 
