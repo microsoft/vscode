@@ -413,7 +413,7 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 					return picked;
 				}
 				if (picked) {
-					this.commandService.executeCommand('debug.installMoreDebuggers');
+					this.commandService.executeCommand('debug.installAdditionalDebuggers');
 				}
 				return undefined;
 			});
