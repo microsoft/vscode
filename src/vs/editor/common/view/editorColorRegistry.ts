@@ -11,10 +11,10 @@ import { Color } from 'vs/base/common/color';
 /**
  * Definition of the editor colors
  */
-export const editorLineHighlight = registerColor('editorLineHighlight', { dark: null, light: null, hc: null }, nls.localize('lineHighlight', 'Editor line highlight color'));
-export const editorLineHighlightBorder = registerColor('editorLineHighlightBorderCox', { dark: '#282828', light: '#eeeeee', hc: '#f38518' }, nls.localize('lineHighlightBorderBox', 'Editor line highlight border box color'));
-export const editorRangeHighlight = registerColor('editorRangeHighlight', { dark: '#ffffff0b', light: '#fdff0033', hc: null }, nls.localize('rangeHighlight', 'Background color of range highlighted, like by Quick open and Find features'));
-export const editorCursor = registerColor('editorCursor', { dark: '#AEAFAD', light: Color.black, hc: Color.white }, nls.localize('caret', 'Editor cursor color'));
+export const editorLineHighlight = registerColor('editorLineHighlight', { dark: null, light: null, hc: null }, nls.localize('lineHighlight', 'Background color for the highlight of line at the cursor position'));
+export const editorLineHighlightBorder = registerColor('editorLineHighlightBorder', { dark: '#282828', light: '#eeeeee', hc: '#f38518' }, nls.localize('lineHighlightBorderBox', 'Background color for the border around the line at the cursor position'));
+export const editorRangeHighlight = registerColor('editorRangeHighlight', { dark: '#ffffff0b', light: '#fdff0033', hc: null }, nls.localize('rangeHighlight', 'Background color of highlighted ranges, like by quick open and find features'));
+export const editorCursor = registerColor('editorCursor', { dark: '#AEAFAD', light: Color.black, hc: Color.white }, nls.localize('caret', 'Color of the editor cursor'));
 export const editorInvisibles = registerColor('editorInvisibles', { dark: '#e3e4e229', light: '#33333333', hc: '#e3e4e229' }, nls.localize('invisibles', 'Color of whitespace characters in the editor'));
 export const editorGuide = registerColor('editorGuide', { dark: editorInvisibles, light: editorInvisibles, hc: editorInvisibles }, nls.localize('guide', 'Color of the editor indentation guides.'));
 export const editorLineNumbers = registerColor('editorLineNumbers', { dark: '#5A5A5A', light: '#2B91AF', hc: Color.white }, nls.localize('editorLineNumbers', 'Color of editor line numbers'));
