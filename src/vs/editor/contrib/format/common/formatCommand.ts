@@ -14,11 +14,10 @@ export class EditOperationsCommand implements editorCommon.ICommand {
 
 	static execute(editor: editorCommon.ICommonCodeEditor, edits: TextEdit[]) {
 		const cmd = new EditOperationsCommand(edits, editor.getSelection());
-		editor.executeCommand('formatEditsCommand', cmd);
-
 		if (typeof cmd._newEol === 'number') {
 			editor.getModel().setEOL(cmd._newEol);
 		}
+		editor.executeCommand('formatEditsCommand', cmd);
 	}
 
 	private _edits: TextEdit[];
