@@ -359,7 +359,10 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 
 		let renderer: IRenderer<ICompletionItem, any> = instantiationService.createInstance(Renderer, this, this.editor);
 
-		this.list = new List(this.listElement, this, [renderer], { useShadows: false });
+		this.list = new List(this.listElement, this, [renderer], {
+			useShadows: false,
+			selectOnMouseDown: true
+		});
 
 		this.toDispose = [
 			editor.onDidBlurEditorText(() => this.onEditorBlur()),
