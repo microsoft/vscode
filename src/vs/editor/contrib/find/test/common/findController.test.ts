@@ -9,7 +9,7 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Range } from 'vs/editor/common/core/range';
-import { IRange } from 'vs/editor/common/editorCommon';
+import { IRange, EndOfLineSequence } from 'vs/editor/common/editorCommon';
 import {
 	CommonFindController, FindStartFocusAction, IFindStartOptions,
 	NextMatchFindAction, StartFindAction, SelectHighlightsAction,
@@ -330,6 +330,40 @@ suite('FindController', () => {
 			'qwe',
 			'rty'
 		], {}, (editor, cursor) => {
+
+			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
+			let addSelectionToNextFindMatch = new AddSelectionToNextFindMatchAction();
+
+			editor.setSelection(new Selection(2, 1, 3, 4));
+
+			addSelectionToNextFindMatch.run(null, editor);
+			assert.deepEqual(editor.getSelections().map(fromRange), [
+				[2, 1, 3, 4],
+				[8, 1, 9, 4]
+			]);
+
+			editor.trigger('test', 'removeSecondaryCursors', null);
+
+			assert.deepEqual(fromRange(editor.getSelection()), [2, 1, 3, 4]);
+
+			findController.dispose();
+		});
+	});
+
+	test('issue #23541: Multiline Ctrl+D does not work in CRLF files', () => {
+		withMockCodeEditor([
+			'',
+			'qwe',
+			'rty',
+			'',
+			'qwe',
+			'',
+			'rty',
+			'qwe',
+			'rty'
+		], {}, (editor, cursor) => {
+
+			editor.getModel().setEOL(EndOfLineSequence.CRLF);
 
 			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
 			let addSelectionToNextFindMatch = new AddSelectionToNextFindMatchAction();
