@@ -39,6 +39,7 @@ class StandaloneTheme implements IStandaloneTheme {
 			this.id = base;
 			this.selector = base;
 		}
+		this.base = base;
 		this.rules = rules;
 		this.colors = {};
 		for (let id in colors) {
