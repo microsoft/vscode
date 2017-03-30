@@ -557,7 +557,7 @@ export function fuzzyScore(pattern: string, word: string): [number, number[]] {
 	}
 
 	let bucket: [number, number[]][] = [];
-	findAllMatches(patternLen, patternLen, wordLen, 0, [], bucket);
+	findAllMatches(patternLen, patternLen, wordLen, 0, [], bucket, false);
 
 	if (bucket.length === 0) {
 		return undefined;
@@ -575,9 +575,7 @@ export function fuzzyScore(pattern: string, word: string): [number, number[]] {
 	return topMatch;
 }
 
-function findAllMatches(patternLen: number, patternPos: number, wordPos: number, total: number, matches: number[], bucket: [number, number[]][]): void {
-
-	let lastMatched = false;
+function findAllMatches(patternLen: number, patternPos: number, wordPos: number, total: number, matches: number[], bucket: [number, number[]][], lastMatched: boolean): void {
 
 	while (patternPos > 0 && wordPos > 0) {
 
@@ -596,7 +594,7 @@ function findAllMatches(patternLen: number, patternPos: number, wordPos: number,
 
 			if (arrow & Arrow.Left) {
 				// left
-				findAllMatches(patternLen, patternPos, wordPos - 1, total, matches.slice(0), bucket);
+				findAllMatches(patternLen, patternPos, wordPos - 1, total, matches.slice(0), bucket, lastMatched);
 			}
 
 			// diag

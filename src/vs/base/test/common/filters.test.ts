@@ -231,6 +231,12 @@ suite('Filters', () => {
 		assertTopScore(fuzzyScore, 'close', 2, 'css.lint.importStatement', 'css.colorDecorators.enable', 'workbench.quickOpen.closeOnFocusOut');
 	});
 
+	test('fuzzyScore, #23458', function () {
+		assertMatches('highlight', 'editorHoverHighlight', 'editorHover^H^i^g^h^l^i^g^h^t', fuzzyScore);
+		assertMatches('hhighlight', 'editorHoverHighlight', 'editor^Hover^H^i^g^h^l^i^g^h^t', fuzzyScore);
+		assertMatches('dhhighlight', 'editorHoverHighlight', undefined, fuzzyScore);
+	});
+
 	test('fuzzyScore', function () {
 		assertMatches('ab', 'abA', '^a^bA', fuzzyScore);
 		assertMatches('ccm', 'cacmelCase', '^ca^c^melCase', fuzzyScore);
