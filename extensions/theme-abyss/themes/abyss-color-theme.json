@@ -262,7 +262,7 @@
 		"editorWhitespaces": "#103050",
 		"editorLineHighlight": "#082050",
 		"editorSelection": "#770811",
-		"editorGuide": "#002952",
+		"editorIndentGuides": "#002952",
 		"editorHoverBackground": "#000c38",
 		"editorHoverBorder": "#004c18",
 		"editorPeekResultsBackground": "#060621",

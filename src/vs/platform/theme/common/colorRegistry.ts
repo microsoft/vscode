@@ -104,6 +104,10 @@ class ColorRegistry implements IColorRegistry {
 		return this.colorSchema;
 	}
 
+	public toString() {
+		return Object.keys(this.colorsById).sort().map(k => `- \`${k}\`: ${this.colorsById[k].description}`).join('\n');
+	}
+
 }
 
 const colorRegistry = new ColorRegistry();
@@ -131,51 +135,51 @@ export const highContrastOutline = registerColor('highContrastOutline', { light:
 /**
  * Widgets
  */
-export const inputBackground = registerColor('inputBackground', { dark: '#3C3C3C', light: Color.white, hc: Color.black }, nls.localize('inputBackground', 'Input field background'));
-export const inputForeground = registerColor('inputForeground', { dark: foreground, light: foreground, hc: foreground }, nls.localize('inputForeground', 'Input field foreground'));
-export const inputBorder = registerColor('inputBorder', { dark: null, light: null, hc: highContrastBorder }, nls.localize('inputBorder', 'Input field border'));
-export const inputActiveOptionBorder = registerColor('inputActiveOptionBorder', { dark: '#007ACC', light: '#007ACC', hc: highContrastOutline }, nls.localize('inputActiveOptionBorder', 'Border color of activated options in input fields'));
+export const inputBackground = registerColor('inputBackground', { dark: '#3C3C3C', light: Color.white, hc: Color.black }, nls.localize('inputBackground', 'Input field background.'));
+export const inputForeground = registerColor('inputForeground', { dark: foreground, light: foreground, hc: foreground }, nls.localize('inputForeground', 'Input field foreground.'));
+export const inputBorder = registerColor('inputBorder', { dark: null, light: null, hc: highContrastBorder }, nls.localize('inputBorder', 'Input field border.'));
+export const inputActiveOptionBorder = registerColor('inputActiveOptionBorder', { dark: '#007ACC', light: '#007ACC', hc: highContrastOutline }, nls.localize('inputActiveOptionBorder', 'Border color of activated options in input fields.'));
 
-export const selectBackground = registerColor('selectBackground', { dark: '#3C3C3C', light: Color.white, hc: '#3C3C3C' }, nls.localize('selectBackground', 'Select field background'));
-export const selectForeground = registerColor('selectForeground', { dark: '#F0F0F0', light: null, hc: Color.white }, nls.localize('selectForeground', 'Select field foreground'));
-export const selectBorder = registerColor('selectBorder', { dark: selectBackground, light: '#CECECE', hc: selectBackground }, nls.localize('selectBorder', 'Select field border'));
+export const selectBackground = registerColor('selectBackground', { dark: '#3C3C3C', light: Color.white, hc: '#3C3C3C' }, nls.localize('selectBackground', 'Select field background.'));
+export const selectForeground = registerColor('selectForeground', { dark: '#F0F0F0', light: null, hc: Color.white }, nls.localize('selectForeground', 'Select field foreground.'));
+export const selectBorder = registerColor('selectBorder', { dark: selectBackground, light: '#CECECE', hc: selectBackground }, nls.localize('selectBorder', 'Select field border.'));
 
 /**
  * Editor background color.
  * Because of bug https://monacotools.visualstudio.com/DefaultCollection/Monaco/_workitems/edit/13254
  * we are *not* using the color white (or #ffffff, rgba(255,255,255)) but something very close to white.
  */
-export const editorBackground = registerColor('editorBackground', { light: '#fffffe', dark: '#1E1E1E', hc: Color.black }, nls.localize('editorBackground', "Editor background color"));
+export const editorBackground = registerColor('editorBackground', { light: '#fffffe', dark: '#1E1E1E', hc: Color.black }, nls.localize('editorBackground', "Editor background color."));
 
 /**
  * Editor foreground color.
  */
-export const editorForeground = registerColor('editorForeground', { light: '#333333', dark: '#BBBBBB', hc: Color.white }, nls.localize('editorForeground', "Editor default foreground color"));
+export const editorForeground = registerColor('editorForeground', { light: '#333333', dark: '#BBBBBB', hc: Color.white }, nls.localize('editorForeground', "Editor default foreground color."));
 
 /**
  * Editor selection colors.
  */
-export const editorSelection = registerColor('editorSelection', { light: '#ADD6FF', dark: '#264F78', hc: '#f3f518' }, nls.localize('editorSelection', "Color of the editor selection"));
-export const editorInactiveSelection = registerColor('editorInactiveSelection', { light: transparent(editorSelection, 0.5), dark: transparent(editorSelection, 0.5), hc: null }, nls.localize('editorInactiveSelection', "Color of the selection in an inactive editor"));
-export const editorSelectionHighlight = registerColor('editorSelectionHighlight', { light: lessProminent(editorSelection, editorBackground, 0.3), dark: lessProminent(editorSelection, editorBackground, 0.3), hc: null }, nls.localize('editorSelectionHighlight', 'Color for regions with the same content as the selection'));
+export const editorSelection = registerColor('editorSelection', { light: '#ADD6FF', dark: '#264F78', hc: '#f3f518' }, nls.localize('editorSelection', "Color of the editor selection."));
+export const editorInactiveSelection = registerColor('editorInactiveSelection', { light: transparent(editorSelection, 0.5), dark: transparent(editorSelection, 0.5), hc: null }, nls.localize('editorInactiveSelection', "Color of the selection in an inactive editor."));
+export const editorSelectionHighlight = registerColor('editorSelectionHighlight', { light: lessProminent(editorSelection, editorBackground, 0.3), dark: lessProminent(editorSelection, editorBackground, 0.3), hc: null }, nls.localize('editorSelectionHighlight', 'Color for regions with the same content as the selection.'));
 
 /**
  * Editor find match colors.
  */
-export const editorFindMatch = registerColor('editorFindMatch', { light: '#A8AC94', dark: '#515C6A', hc: null }, nls.localize('editorFindMatch', "Color of the current search match"));
-export const editorFindMatchHighlight = registerColor('editorFindMatchHighlight', { light: '#EA5C0055', dark: '#EA5C0055', hc: null }, nls.localize('findMatchHighlight', "Color of the other search matches"));
-export const editorFindRangeHighlight = registerColor('editorFindRangeHighlight', { dark: '#3a3d4166', light: '#b4b4b44d', hc: null }, nls.localize('findRangeHighlight', "Color the range limiting the search"));
+export const editorFindMatch = registerColor('editorFindMatch', { light: '#A8AC94', dark: '#515C6A', hc: null }, nls.localize('editorFindMatch', "Color of the current search match."));
+export const editorFindMatchHighlight = registerColor('editorFindMatchHighlight', { light: '#EA5C0055', dark: '#EA5C0055', hc: null }, nls.localize('findMatchHighlight', "Color of the other search matches."));
+export const editorFindRangeHighlight = registerColor('editorFindRangeHighlight', { dark: '#3a3d4166', light: '#b4b4b44d', hc: null }, nls.localize('findRangeHighlight', "Color the range limiting the search."));
 
 /**
  * Editor link colors
  */
-export const editorActiveLinkForeground = registerColor('editorActiveLinkForeground', { dark: '#4E94CE', light: Color.black, hc: Color.cyan }, nls.localize('activeLinkForeground', 'Color of active links'));
-export const editorLinkForeground = registerColor('editorLinkForeground', { dark: null, light: null, hc: null }, nls.localize('linkForeground', 'Color of links'));
+export const editorActiveLinkForeground = registerColor('editorActiveLinkForeground', { dark: '#4E94CE', light: Color.black, hc: Color.cyan }, nls.localize('activeLinkForeground', 'Color of active links.'));
+export const editorLinkForeground = registerColor('editorLinkForeground', { dark: null, light: null, hc: null }, nls.localize('linkForeground', 'Color of links.'));
 
 /**
  * Find widget
  */
-export const editorFindWidgetBackground = registerColor('editorFindWidgetBackground', { dark: '#2D2D30', light: '#EFEFF2', hc: '#0C141F' }, nls.localize('editorFindWidgetBackground', 'Find widget background'));
+export const editorFindWidgetBackground = registerColor('editorFindWidgetBackground', { dark: '#2D2D30', light: '#EFEFF2', hc: '#0C141F' }, nls.localize('editorFindWidgetBackground', 'Find widget background.'));
 
 // ----- color functions
 
@@ -237,7 +241,7 @@ function resolveColorValue(colorValue: ColorValue, theme: ITheme): Color {
 	return null;
 }
 
-
+//setTimeout(_ => console.log(colorRegistry.toString()), 5000);
 
 
 

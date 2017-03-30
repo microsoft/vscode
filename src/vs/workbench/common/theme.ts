@@ -79,7 +79,7 @@ export const EDITOR_GROUP_BACKGROUND = registerColor('editorGroupBackground', {
 	dark: '#2D2D2D',
 	light: '#ECECEC',
 	hc: null
-}, nls.localize('editorGroupBackground', "Backgrouund color of an editor group. Editor groups are the containers of editors."));
+}, nls.localize('editorGroupBackground', "Background color of an editor group. Editor groups are the containers of editors."));
 
 export const EDITOR_DRAG_AND_DROP_BACKGROUND = registerColor('editorDragAndDropBackground', {
 	dark: Color.fromRGBA(new RGBA(83, 89, 93)).transparent(0.5),
