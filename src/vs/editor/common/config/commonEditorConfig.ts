@@ -708,24 +708,40 @@ const editorConfiguration: IConfigurationNode = {
 			'enumDescriptions': [
 				nls.localize('wordWrap.off', "Lines will never wrap."),
 				nls.localize('wordWrap.on', "Lines will wrap at the viewport width."),
-				nls.localize('wordWrap.wordWrapColumn', "Lines will wrap at `editor.wordWrapColumn`."),
+				nls.localize({
+					key: 'wordWrap.wordWrapColumn',
+					comment: [
+						'- `editor.wordWrapColumn` refers to a different setting and should not be localized.'
+					]
+				}, "Lines will wrap at `editor.wordWrapColumn`."),
 				nls.localize({
 					key: 'wordWrap.bounded',
 					comment: [
 						'- viewport means the edge of the visible window size.',
-						'- `editor.wordWrapColumn` refers to a different setting that is numeric.',
-						'- the minimum will be computed at runtime and chosen to be the wrapping column.'
+						'- `editor.wordWrapColumn` refers to a different setting and should not be localized.'
 					]
 				}, "Lines will wrap at the minimum of viewport and `editor.wordWrapColumn`."),
 			],
 			'default': DefaultConfig.editor.wordWrap,
-			'description': nls.localize('wordWrap', "Controls how lines should wrap. Can be:\n - 'off' (disable wrapping),\n - 'on' (viewport wrapping),\n - 'wordWrapColumn' (wrap at `editor.wordWrapColumn`) or\n - 'bounded' (wrap at minimum of viewport and `editor.wordWrapColumn`).")
+			'description': nls.localize({
+				key: 'wordWrap',
+				comment: [
+					'- \'off\', \'on\', \'wordWrapColumn\' and \'bounded\' refer to values the setting can take and should not be localized.',
+					'- `editor.wordWrapColumn` refers to a different setting and should not be localized.'
+				]
+			}, "Controls how lines should wrap. Can be:\n - 'off' (disable wrapping),\n - 'on' (viewport wrapping),\n - 'wordWrapColumn' (wrap at `editor.wordWrapColumn`) or\n - 'bounded' (wrap at minimum of viewport and `editor.wordWrapColumn`).")
 		},
 		'editor.wordWrapColumn': {
 			'type': 'integer',
 			'default': DefaultConfig.editor.wordWrapColumn,
 			'minimum': 1,
-			'description': nls.localize('wordWrapColumn', "Controls the wrapping column of the editor when `editor.wordWrap` is 'wordWrapColumn' or 'bounded'.")
+			'description': nls.localize({
+				key: 'wordWrapColumn',
+				comment: [
+					'- `editor.wordWrap` refers to a different setting and should not be localized.',
+					'- \'wordWrapColumn\' and \'bounded\' refer to values the different setting can take and should not be localized.'
+				]
+			}, "Controls the wrapping column of the editor when `editor.wordWrap` is 'wordWrapColumn' or 'bounded'.")
 		},
 		'editor.wrappingIndent': {
 			'type': 'string',
