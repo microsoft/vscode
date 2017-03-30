@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { Uri, EventEmitter, Event, SCMResource, SCMResourceDecorations, SCMResourceGroup, Disposable, window, workspace } from 'vscode';
+import { Uri, Command, EventEmitter, Event, SourceControlResourceState, SourceControlResourceDecorations, Disposable, window, workspace } from 'vscode';
 import { Git, Repository, Ref, Branch, Remote, PushOptions, Commit, GitErrorCodes, GitError } from './git';
 import { anyEvent, eventToPromise, filterEvent, mapEvent, EmptyDisposable, combinedDisposable, dispose } from './util';
 import { memoize, throttle, debounce } from './decorators';
@@ -51,31 +51,29 @@ export enum Status {
 	BOTH_MODIFIED
 }
 
-export class Resource implements SCMResource {
+export class Resource implements SourceControlResourceState {
 
 	@memoize
-	get uri(): Uri {
-		return new Uri().with({
-			scheme: 'git-resource',
-			query: JSON.stringify({
-				resourceGroupId: this.resourceGroupId,
-				sourceUri: this.sourceUri.toString()
-			})
-		});
+	get resourceUri(): Uri {
+		if (this.renameResourceUri && (this._type === Status.MODIFIED || this._type === Status.DELETED || this._type === Status.INDEX_RENAMED)) {
+			return this.renameResourceUri;
+		}
+
+		return this._resourceUri;
 	}
 
 	@memoize
-	get sourceUri(): Uri {
-		if (this.rename && (this._type === Status.MODIFIED || this._type === Status.DELETED || this._type === Status.INDEX_RENAMED)) {
-			return this.rename;
-		}
-
-		return this._sourceUri;
+	get command(): Command {
+		return {
+			command: 'git.openResource',
+			title: localize('open', "Open"),
+			arguments: [this]
+		};
 	}
 
 	get type(): Status { return this._type; }
-	get original(): Uri { return this._sourceUri; }
-	get rename(): Uri | undefined { return this._rename; }
+	get original(): Uri { return this._resourceUri; }
+	get renameResourceUri(): Uri | undefined { return this._renameResourceUri; }
 
 	private static Icons = {
 		light: {
@@ -134,23 +132,19 @@ export class Resource implements SCMResource {
 		}
 	}
 
-	get decorations(): SCMResourceDecorations {
+	get decorations(): SourceControlResourceDecorations {
 		const light = { iconPath: this.getIconPath('light') };
 		const dark = { iconPath: this.getIconPath('dark') };
 
 		return { strikeThrough: this.strikeThrough, light, dark };
 	}
 
-	constructor(private resourceGroupId: string, private _sourceUri: Uri, private _type: Status, private _rename?: Uri) {
-		// console.log(this);
-	}
+	constructor(private resourceGroupId: string, private _resourceUri: Uri, private _type: Status, private _renameResourceUri?: Uri) { }
 }
 
-export class ResourceGroup implements SCMResourceGroup {
+export class ResourceGroup {
 
-	@memoize
-	get uri(): Uri { return Uri.parse(`git-resource-group:${this.contextKey}`); }
-
+	get id(): string { return this._id; }
 	get contextKey(): string { return this._id; }
 	get label(): string { return this._label; }
 	get resources(): Resource[] { return this._resources; }
@@ -280,8 +274,8 @@ export class Model implements Disposable {
 	private _onDidChangeState = new EventEmitter<State>();
 	readonly onDidChangeState: Event<State> = this._onDidChangeState.event;
 
-	private _onDidChangeResources = new EventEmitter<SCMResourceGroup[]>();
-	readonly onDidChangeResources: Event<SCMResourceGroup[]> = this._onDidChangeResources.event;
+	private _onDidChangeResources = new EventEmitter<void>();
+	readonly onDidChangeResources: Event<void> = this._onDidChangeResources.event;
 
 	@memoize
 	get onDidChange(): Event<void> {
@@ -307,22 +301,6 @@ export class Model implements Disposable {
 
 	private _workingTreeGroup = new WorkingTreeGroup([]);
 	get workingTreeGroup(): WorkingTreeGroup { return this._workingTreeGroup; }
-
-	get resources(): ResourceGroup[] {
-		const result: ResourceGroup[] = [];
-
-		if (this._mergeGroup.resources.length > 0) {
-			result.push(this._mergeGroup);
-		}
-
-		if (this._indexGroup.resources.length > 0) {
-			result.push(this._indexGroup);
-		}
-
-		result.push(this._workingTreeGroup);
-
-		return result;
-	}
 
 	private _HEAD: Branch | undefined;
 	get HEAD(): Branch | undefined {
@@ -356,7 +334,7 @@ export class Model implements Disposable {
 		this._mergeGroup = new MergeGroup();
 		this._indexGroup = new IndexGroup();
 		this._workingTreeGroup = new WorkingTreeGroup();
-		this._onDidChangeResources.fire(this.resources);
+		this._onDidChangeResources.fire();
 	}
 
 	private onWorkspaceChange: Event<Uri>;
@@ -412,7 +390,7 @@ export class Model implements Disposable {
 
 	@throttle
 	async add(...resources: Resource[]): Promise<void> {
-		await this.run(Operation.Add, () => this.repository.add(resources.map(r => r.sourceUri.fsPath)));
+		await this.run(Operation.Add, () => this.repository.add(resources.map(r => r.resourceUri.fsPath)));
 	}
 
 	@throttle
@@ -423,7 +401,7 @@ export class Model implements Disposable {
 
 	@throttle
 	async revertFiles(...resources: Resource[]): Promise<void> {
-		await this.run(Operation.RevertFiles, () => this.repository.revertFiles('HEAD', resources.map(r => r.sourceUri.fsPath)));
+		await this.run(Operation.RevertFiles, () => this.repository.revertFiles('HEAD', resources.map(r => r.resourceUri.fsPath)));
 	}
 
 	@throttle
@@ -447,11 +425,11 @@ export class Model implements Disposable {
 				switch (r.type) {
 					case Status.UNTRACKED:
 					case Status.IGNORED:
-						toClean.push(r.sourceUri.fsPath);
+						toClean.push(r.resourceUri.fsPath);
 						break;
 
 					default:
-						toCheckout.push(r.sourceUri.fsPath);
+						toCheckout.push(r.resourceUri.fsPath);
 						break;
 				}
 			});
@@ -671,7 +649,7 @@ export class Model implements Disposable {
 		this._mergeGroup = new MergeGroup(merge);
 		this._indexGroup = new IndexGroup(index);
 		this._workingTreeGroup = new WorkingTreeGroup(workingTree);
-		this._onDidChangeResources.fire(this.resources);
+		this._onDidChangeResources.fire();
 	}
 
 	private onFSChange(uri: Uri): void {

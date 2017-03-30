@@ -3857,8 +3857,8 @@ declare module 'vscode' {
 		export function setStatusBarMessage(text: string): Disposable;
 
 		/**
-		 * Show progress in the scm viewlet while running the given callback and while its returned
-		 * promise isn't resolve or rejected.
+		 * Show progress in the Source Control viewlet while running the given callback and while
+		 * its returned promise isn't resolve or rejected.
 		 *
 		 * @param task A callback returning a promise. Progress increments can be reported with
 		 * the provided [progress](#Progress)-object.
@@ -4534,147 +4534,17 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * The theme-aware decorations for a [SCM resource](#SCMResource).
+	 * Represents the input box in the Source Control viewlet.
 	 */
-	export interface SCMResourceThemableDecorations {
+	export interface SourceControlInputBox {
 
 		/**
-		 * The icon path for a specific [SCM resource](#SCMResource).
+		 * Setter and getter for the contents of the input box.
 		 */
-		readonly iconPath?: string | Uri;
+		value: string;
 	}
 
-	/**
-	 * The decorations for a [SCM resource](#SCMResource). Can be specified
-	 * for light and dark themes, independently.
-	 */
-	export interface SCMResourceDecorations extends SCMResourceThemableDecorations {
-
-		/**
-		 * Whether the [SCM resource](#SCMResource) should be striked-through
-		 * in the UI.
-		 */
-		readonly strikeThrough?: boolean;
-
-		/**
-		 * The light theme decorations.
-		 */
-		readonly light?: SCMResourceThemableDecorations;
-
-		/**
-		 * The dark theme decorations.
-		 */
-		readonly dark?: SCMResourceThemableDecorations;
-	}
-
-	/**
-	 * An SCM resource represents the state of an underlying workspace
-	 * resource within a certain SCM provider state.
-	 */
-	export interface SCMResource {
-
-		/**
-		 * The [uri](#Uri) of this SCM resource. This uri should uniquely
-		 * identify this SCM resource. Its value should be semantically
-		 * related to your [SCM provider](#SCMProvider).
-		 *
-		 * For example, consider file `/foo/bar` to be modified. An SCM
-		 * resource which would represent such state could have the
-		 * following properties:
-		 *
-		 *   - `uri = 'git:workingtree/A'`
-		 *   - `sourceUri = 'file:///foo/bar'`
-		 */
-		readonly uri: Uri;
-
-		/**
-		 * The [uri](#Uri) of the underlying resource inside the workspace.
-		 */
-		readonly sourceUri: Uri;
-
-		/**
-		 * The [decorations](#SCMResourceDecorations) for this SCM resource.
-		 */
-		readonly decorations?: SCMResourceDecorations;
-	}
-
-	/**
-	 * An SCM resource group is a collection of [SCM resources](#SCMResource).
-	 */
-	export interface SCMResourceGroup {
-
-		/**
-		 * The [uri](#Uri) of this SCM resource group. This uri should
-		 * uniquely identify this SCM resource group. Its value should be
-		 * semantically related to your [SCM provider](#SCMProvider).
-		 *
-		 * For example, consider a Working Tree resource group. An SCM
-		 * resource group which would represent such state could have the
-		 * following properties:
-		 *
-		 *   - `uri = 'git:workingtree'`
-		 *   - `label = 'Working Tree'`
-		 */
-		readonly uri: Uri;
-
-		/**
-		 * The UI label of the SCM resource group.
-		 */
-		readonly label: string;
-
-		/**
-		 * The context key of the SCM resource group, which will be used to populate
-		 * the value of the `scmResourceGroup` context key.
-		 */
-		readonly contextKey?: string;
-
-		/**
-		 * The collection of [SCM resources](#SCMResource) within the SCM resource group.
-		 */
-		readonly resources: SCMResource[];
-	}
-
-	/**
-	 * An SCM provider is able to provide [SCM resources](#SCMResource) to the editor,
-	 * notify of changes in them and interact with the editor in several SCM related ways.
-	 */
-	export interface SCMProvider {
-
-		/**
-		 * A human-readable label for the name of the SCM Provider.
-		 */
-		readonly label: string;
-
-		/**
-		 * The context key of the SCM provider, which will be used to populate
-		 * the value of the `scmProvider` context key.
-		 */
-		readonly contextKey?: string;
-
-		/**
-		 * The list of SCM resource groups.
-		 */
-		readonly resources: SCMResourceGroup[];
-
-		/**
-		 * A count of resources, used in the UI as the label for the SCM changes count.
-		 */
-		readonly count?: number;
-
-		/**
-		 * A state identifier, which will be used to populate the value of the
-		 * `scmProviderState` context key.
-		 */
-		readonly stateContextKey?: string;
-
-		/**
-		 * An [event](#Event) which should fire when any of the following attributes
-		 * have changed:
-		 *   - [resources](#SCMProvider.resources)
-		 *   - [count](#SCMProvider.count)
-		 *   - [state](#SCMProvider.state)
-		 */
-		readonly onDidChange?: Event<SCMProvider>;
+	interface QuickDiffProvider {
 
 		/**
 		 * Provide a [uri](#Uri) to the original resource of any given resource uri.
@@ -4684,58 +4554,174 @@ declare module 'vscode' {
 		 * @return A thenable that resolves to uri of the matching original resource.
 		 */
 		provideOriginalResource?(uri: Uri, token: CancellationToken): ProviderResult<Uri>;
-
-		/**
-		 * Open a specific [SCM resource](#SCMResource). Called when SCM resources
-		 * are clicked in the UI, for example.
-		 *
-		 * @param resource The [SCM resource](#SCMResource) which should be open.
-		 * @param token A cancellation token.
-		 * @return A thenable which resolves when the resource is open.
-		 */
-		open?(resource: SCMResource): void;
 	}
 
 	/**
-	 * Represents the input box in the SCM view.
+	 * The theme-aware decorations for a
+	 * [source control resource state](#SourceControlResourceState).
 	 */
-	export interface SCMInputBox {
+	export interface SourceControlResourceThemableDecorations {
 
 		/**
-		 * Setter and getter for the contents of the input box.
+		 * The icon path for a specific
+		 * [source control resource state](#SourceControlResourceState).
 		 */
-		value: string;
+		readonly iconPath?: string | Uri;
+	}
+
+	/**
+	 * The decorations for a [source control resource state](#SourceControlResourceState).
+	 * Can be independently specified for light and dark themes.
+	 */
+	export interface SourceControlResourceDecorations extends SourceControlResourceThemableDecorations {
+
+		/**
+		 * Whether the [source control resource state](#SourceControlResourceState) should
+		 * be striked-through in the UI.
+		 */
+		readonly strikeThrough?: boolean;
+
+		/**
+		 * The light theme decorations.
+		 */
+		readonly light?: SourceControlResourceThemableDecorations;
+
+		/**
+		 * The dark theme decorations.
+		 */
+		readonly dark?: SourceControlResourceThemableDecorations;
+	}
+
+	/**
+	 * An source control resource state represents the state of an underlying workspace
+	 * resource within a certain [source control group](#SourceControlResourceGroup).
+	 */
+	export interface SourceControlResourceState {
+
+		/**
+		 * The [uri](#Uri) of the underlying resource inside the workspace.
+		 */
+		readonly resourceUri: Uri;
+
+		/**
+		 * The [command](#Command) which should be run when the resource
+		 * state is open in the Source Control viewlet.
+		 */
+		readonly command: Command;
+
+		/**
+		 * The [decorations](#SourceControlResourceDecorations) for this source control
+		 * resource state.
+		 */
+		readonly decorations?: SourceControlResourceDecorations;
+	}
+
+	/**
+	 * A source control resource group is a collection of
+	 * [source control resource states](#SourceControlResourceState).
+	 */
+	export interface SourceControlResourceGroup {
+
+		/**
+		 * The id of this source control resource group.
+		 */
+		readonly id: string;
+
+		/**
+		 * The label of this source control resource group.
+		 */
+		readonly label: string;
+
+		/**
+		 * Whether this source control resource group is hidden when it contains
+		 * no [source control resource states](#SourceControlResourceState).
+		 */
+		hideWhenEmpty?: boolean;
+
+		/**
+		 * This group's collection of
+		 * [source control resource states](#SourceControlResourceState).
+		 */
+		resourceStates: SourceControlResourceState[];
+
+		/**
+		 * Dispose this source control resource group.
+		 */
+		dispose(): void;
+	}
+
+	/**
+	 * An source control is able to provide [resource states](#SourceControlResourceState)
+	 * to the editor and interact with the editor in several source control related ways.
+	 */
+	export interface SourceControl {
+
+		/**
+		 * The id of this source control.
+		 */
+		readonly id: string;
+
+		/**
+		 * The human-readable label of this source control.
+		 */
+		readonly label: string;
+
+		/**
+		 * The UI-visible count of [resource states](#SourceControlResourceState) of
+		 * this source control.
+		 *
+		 * Equals to the total number of [resource state](#SourceControlResourceState)
+		 * of this source control, if undefined.
+		 */
+		count?: number;
+
+		/**
+		 * An optional [quick diff provider](#QuickDiffProvider).
+		 */
+		quickDiffProvider?: QuickDiffProvider;
+
+		/**
+		 * Create a new [resource group](#SourceControlResourceGroup).
+		 */
+		createResourceGroup(id: string, label: string): SourceControlResourceGroup;
+
+		/**
+		 * Dispose this source control.
+		 */
+		dispose(): void;
 	}
 
 	export namespace scm {
 
 		/**
-		 * The currently active [SCM provider](#SCMProvider).
+		 * The currently active [source control](#SourceControl).
 		 */
-		export let activeProvider: SCMProvider | undefined;
+		export let activeSourceControl: SourceControl | undefined;
 
 		/**
-		 * An [event](#Event) which fires when the active [SCM provider](#SCMProvider)
+		 * An [event](#Event) which fires when the active [source control](#SourceControl)
 		 * has changed.
 		 */
-		export const onDidChangeActiveProvider: Event<SCMProvider>;
+		export const onDidChangeActiveSourceControl: Event<SourceControl>;
 
 		/**
-		 * The [input box](#SCMInputBox) in the SCM view.
+		 * The [input box](#SourceControlInputBox) in the Source Control viewlet.
 		 */
-		export const inputBox: SCMInputBox;
+		export const inputBox: SourceControlInputBox;
 
 		/**
 		 * An [event](#Event) which fires when the user has accepted the changes.
 		 */
-		export const onDidAcceptInputValue: Event<SCMInputBox>;
+		export const onDidAcceptInputValue: Event<SourceControlInputBox>;
 
 		/**
-		 * Registers an [SCM provider](#SCMProvider).
+		 * Creates a new [source control](#SourceControl) instance.
 		 *
-		 * @return A disposable which unregisters the provider.
+		 * @param id A unique `id` for the source control. Something short, eg: `git`.
+		 * @param label A human-readable string for the source control. Eg: `Git`.
+		 * @return An instance of [source control](#SourceControl).
 		 */
-		export function registerSCMProvider(provider: SCMProvider): Disposable;
+		export function createSourceControl(id: string, label: string): SourceControl;
 	}
 
 	/**

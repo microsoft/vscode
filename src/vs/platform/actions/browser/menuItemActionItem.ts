@@ -92,19 +92,19 @@ const _altKey = new class extends Emitter<boolean> {
 	}
 };
 
-class MenuItemActionItem extends ActionItem {
+export class MenuItemActionItem extends ActionItem {
 
 	private _wantsAltCommand: boolean = false;
 
 	constructor(
 		action: MenuItemAction,
 		@IKeybindingService private _keybindingService: IKeybindingService,
-		@IMessageService private _messageService: IMessageService
+		@IMessageService protected _messageService: IMessageService
 	) {
 		super(undefined, action, { icon: !!action.class, label: !action.class });
 	}
 
-	private get _commandAction(): IAction {
+	protected get _commandAction(): IAction {
 		return this._wantsAltCommand && (<MenuItemAction>this._action).alt || this._action;
 	}
 

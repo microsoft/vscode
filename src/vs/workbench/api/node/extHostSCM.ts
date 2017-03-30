@@ -6,14 +6,15 @@
 
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import Event, { Emitter, debounceEvent, createEmptyEvent } from 'vs/base/common/event';
+import Event, { Emitter } from 'vs/base/common/event';
 import { asWinJsPromise } from 'vs/base/common/async';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
-import { Disposable } from 'vs/workbench/api/node/extHostTypes';
-import { MainContext, MainThreadSCMShape, SCMRawResource, SCMRawResourceGroup } from './extHost.protocol';
+import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/node/extHostCommands';
+import { MainContext, MainThreadSCMShape, SCMRawResource } from './extHost.protocol';
 import * as vscode from 'vscode';
+import * as marshalling from 'vs/base/common/marshalling';
 
-function getIconPath(decorations: vscode.SCMResourceThemableDecorations) {
+function getIconPath(decorations: vscode.SourceControlResourceThemableDecorations) {
 	if (!decorations) {
 		return undefined;
 	} else if (typeof decorations.iconPath === 'string') {
@@ -67,119 +68,211 @@ export class ExtHostSCMInputBox {
 	}
 }
 
+class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceGroup {
+
+	private static _handlePool: number = 0;
+	private _resourceHandlePool: number = 0;
+	private _resourceStates: Map<ResourceStateHandle, vscode.SourceControlResourceState> = new Map<ResourceStateHandle, vscode.SourceControlResourceState>();
+
+	get id(): string {
+		return this._id;
+	}
+
+	get label(): string {
+		return this._label;
+	}
+
+	private _hideWhenEmpty: boolean | undefined = undefined;
+
+	get hideWhenEmpty(): boolean | undefined {
+		return this._hideWhenEmpty;
+	}
+
+	set hideWhenEmpty(hideWhenEmpty: boolean | undefined) {
+		this._hideWhenEmpty = hideWhenEmpty;
+		this._proxy.$updateGroup(this._sourceControlHandle, this._handle, { hideWhenEmpty });
+	}
+
+	set resourceStates(resources: vscode.SourceControlResourceState[]) {
+		this._resourceStates.clear();
+
+		const rawResources = resources.map(r => {
+			const handle = this._resourceHandlePool++;
+			this._resourceStates.set(handle, r);
+
+			const sourceUri = r.resourceUri.toString();
+			const command = this._commands.toInternal(r.command);
+			const iconPath = getIconPath(r.decorations);
+			const lightIconPath = r.decorations && getIconPath(r.decorations.light) || iconPath;
+			const darkIconPath = r.decorations && getIconPath(r.decorations.dark) || iconPath;
+			const icons: string[] = [];
+
+			if (lightIconPath || darkIconPath) {
+				icons.push(lightIconPath);
+			}
+
+			if (darkIconPath !== lightIconPath) {
+				icons.push(darkIconPath);
+			}
+
+			const strikeThrough = r.decorations && !!r.decorations.strikeThrough;
+
+			return [handle, sourceUri, command, icons, strikeThrough] as SCMRawResource;
+		});
+
+		this._proxy.$updateGroupResourceStates(this._sourceControlHandle, this._handle, rawResources);
+	}
+
+	private _handle: GroupHandle = ExtHostSourceControlResourceGroup._handlePool++;
+	get handle(): GroupHandle {
+		return this._handle;
+	}
+
+	constructor(
+		private _proxy: MainThreadSCMShape,
+		private _commands: CommandsConverter,
+		private _sourceControlHandle: number,
+		private _id: string,
+		private _label: string,
+	) {
+		this._proxy.$registerGroup(_sourceControlHandle, this._handle, _id, _label);
+	}
+
+	getResourceState(handle: number): vscode.SourceControlResourceState | undefined {
+		return this._resourceStates.get(handle);
+	}
+
+	dispose(): void {
+		this._proxy.$unregisterGroup(this._sourceControlHandle, this._handle);
+	}
+}
+
+class ExtHostSourceControl implements vscode.SourceControl {
+
+	private static _handlePool: number = 0;
+	private _groups: Map<GroupHandle, ExtHostSourceControlResourceGroup> = new Map<GroupHandle, ExtHostSourceControlResourceGroup>();
+
+	get id(): string {
+		return this._id;
+	}
+
+	get label(): string {
+		return this._label;
+	}
+
+	private _count: number | undefined = undefined;
+
+	get count(): number | undefined {
+		return this._count;
+	}
+
+	set count(count: number | undefined) {
+		this._count = count;
+		this._proxy.$updateSourceControl(this._handle, { count });
+	}
+
+	private _quickDiffProvider: vscode.QuickDiffProvider | undefined = undefined;
+
+	get quickDiffProvider(): vscode.QuickDiffProvider | undefined {
+		return this._quickDiffProvider;
+	}
+
+	set quickDiffProvider(quickDiffProvider: vscode.QuickDiffProvider | undefined) {
+		this._quickDiffProvider = quickDiffProvider;
+		this._proxy.$updateSourceControl(this._handle, { hasQuickDiffProvider: !!quickDiffProvider });
+	}
+
+	private _handle: number = ExtHostSourceControl._handlePool++;
+
+	constructor(
+		private _proxy: MainThreadSCMShape,
+		private _commands: CommandsConverter,
+		private _id: string,
+		private _label: string,
+	) {
+		this._proxy.$registerSourceControl(this._handle, _id, _label);
+	}
+
+	createResourceGroup(id: string, label: string): ExtHostSourceControlResourceGroup {
+		const group = new ExtHostSourceControlResourceGroup(this._proxy, this._commands, this._handle, id, label);
+		this._groups.set(group.handle, group);
+		return group;
+	}
+
+	getResourceState(groupHandle: GroupHandle, handle: number): vscode.SourceControlResourceState | undefined {
+		const group = this._groups.get(groupHandle);
+
+		if (!group) {
+			return undefined;
+		}
+
+		return group.getResourceState(handle);
+	}
+
+	dispose(): void {
+		this._proxy.$unregisterSourceControl(this._handle);
+	}
+}
+
 type ProviderHandle = number;
+type GroupHandle = number;
+type ResourceStateHandle = number;
 
 export class ExtHostSCM {
 
 	private static _handlePool: number = 0;
 
 	private _proxy: MainThreadSCMShape;
-	private _providers: Map<ProviderHandle, vscode.SCMProvider> = new Map<ProviderHandle, vscode.SCMProvider>();
-	private _cache: Map<ProviderHandle, Map<string, vscode.SCMResource>> = new Map<ProviderHandle, Map<string, vscode.SCMResource>>();
+	private _sourceControls: Map<ProviderHandle, ExtHostSourceControl> = new Map<ProviderHandle, ExtHostSourceControl>();
 
-	private _onDidChangeActiveProvider = new Emitter<vscode.SCMProvider>();
-	get onDidChangeActiveProvider(): Event<vscode.SCMProvider> { return this._onDidChangeActiveProvider.event; }
+	private _onDidChangeActiveProvider = new Emitter<vscode.SourceControl>();
+	get onDidChangeActiveProvider(): Event<vscode.SourceControl> { return this._onDidChangeActiveProvider.event; }
 
-	private _activeProvider: vscode.SCMProvider | undefined;
-	get activeProvider(): vscode.SCMProvider | undefined { return this._activeProvider; }
+	private _activeProvider: vscode.SourceControl | undefined;
+	get activeProvider(): vscode.SourceControl | undefined { return this._activeProvider; }
 
 	private _inputBox: ExtHostSCMInputBox;
 	get inputBox(): ExtHostSCMInputBox { return this._inputBox; }
 
-	constructor(threadService: IThreadService) {
+	constructor(
+		threadService: IThreadService,
+		private _commands: ExtHostCommands
+	) {
 		this._proxy = threadService.get(MainContext.MainThreadSCM);
 		this._inputBox = new ExtHostSCMInputBox(this._proxy);
+
+		// TODO@joao HACK
+		marshalling.ResolverRegistry[3] = value => {
+			const sourceControl = this._sourceControls.get(value.sourceControlHandle);
+
+			if (!sourceControl) {
+				return value;
+			}
+
+			return sourceControl.getResourceState(value.groupHandle, value.handle);
+		};
 	}
 
-	registerSCMProvider(provider: vscode.SCMProvider): Disposable {
+	createSourceControl(id: string, label: string): vscode.SourceControl {
 		const handle = ExtHostSCM._handlePool++;
+		const sourceControl = new ExtHostSourceControl(this._proxy, this._commands.converter, id, label);
+		this._sourceControls.set(handle, sourceControl);
 
-		this._providers.set(handle, provider);
-
-		this._proxy.$register(handle, {
-			label: provider.label,
-			contextKey: provider.contextKey,
-			supportsOpen: !!provider.open,
-			supportsOriginalResource: !!provider.provideOriginalResource
-		});
-
-		const onDidChange = debounceEvent(provider.onDidChange || createEmptyEvent<vscode.SCMProvider>(), (l, e) => e, 100);
-		const onDidChangeListener = onDidChange(scmProvider => {
-			const cache = new Map<string, vscode.SCMResource>();
-			this._cache.set(handle, cache);
-
-			const rawResourceGroups = scmProvider.resources.map(g => {
-				const rawResources = g.resources.map(r => {
-					const uri = r.uri.toString();
-					cache.set(uri, r);
-
-					const sourceUri = r.sourceUri.toString();
-					const iconPath = getIconPath(r.decorations);
-					const lightIconPath = r.decorations && getIconPath(r.decorations.light) || iconPath;
-					const darkIconPath = r.decorations && getIconPath(r.decorations.dark) || iconPath;
-					const icons: string[] = [];
-
-					if (lightIconPath || darkIconPath) {
-						icons.push(lightIconPath);
-					}
-
-					if (darkIconPath !== lightIconPath) {
-						icons.push(darkIconPath);
-					}
-
-					const strikeThrough = r.decorations && !!r.decorations.strikeThrough;
-
-					return [uri, sourceUri, icons, strikeThrough] as SCMRawResource;
-				});
-
-				return [g.uri.toString(), g.contextKey, g.label, rawResources] as SCMRawResourceGroup;
-			});
-
-			this._proxy.$onChange(handle, rawResourceGroups, provider.count, provider.stateContextKey);
-		});
-
-		return new Disposable(() => {
-			onDidChangeListener.dispose();
-			this._providers.delete(handle);
-			this._proxy.$unregister(handle);
-		});
+		return sourceControl;
 	}
 
-	$open(handle: number, uri: string): TPromise<void> {
-		const provider = this._providers.get(handle);
+	$provideOriginalResource(sourceControlHandle: number, uri: URI): TPromise<URI> {
+		const sourceControl = this._sourceControls.get(sourceControlHandle);
 
-		if (!provider) {
+		if (!sourceControl || !sourceControl.quickDiffProvider) {
 			return TPromise.as(null);
 		}
 
-		const cache = this._cache.get(handle);
-
-		if (!cache) {
-			return TPromise.as(null);
-		}
-
-		const resource = cache.get(uri);
-
-		if (!resource) {
-			return TPromise.as(null);
-		}
-
-		provider.open(resource);
-		return TPromise.as(null);
+		return asWinJsPromise(token => sourceControl.quickDiffProvider.provideOriginalResource(uri, token));
 	}
 
-	$getOriginalResource(handle: number, uri: URI): TPromise<URI> {
-		const provider = this._providers.get(handle);
-
-		if (!provider) {
-			return TPromise.as(null);
-		}
-
-		return asWinJsPromise(token => provider.provideOriginalResource(uri, token));
-	}
-
-	$onActiveProviderChange(handle: number): TPromise<void> {
-		this._activeProvider = this._providers.get(handle);
+	$onActiveSourceControlChange(handle: number): TPromise<void> {
+		this._activeProvider = this._sourceControls.get(handle);
 		return TPromise.as(null);
 	}
 

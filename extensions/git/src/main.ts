@@ -78,10 +78,10 @@ async function init(context: ExtensionContext, disposables: Disposable[]): Promi
 		}
 	}
 
-	filterEvent(scm.onDidAcceptInputValue, () => scm.activeProvider === provider)
+	filterEvent(scm.onDidAcceptInputValue, () => scm.activeSourceControl === provider.sourceControl)
 		(commandCenter.commitWithInput, commandCenter, disposables);
 
-	if (scm.activeProvider === provider) {
+	if (scm.activeSourceControl === provider.sourceControl) {
 		scm.inputBox.value = await model.getCommitTemplate();
 	}
 }

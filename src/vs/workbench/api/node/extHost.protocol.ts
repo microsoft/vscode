@@ -251,30 +251,32 @@ export abstract class MainProcessExtensionServiceShape {
 }
 
 export interface SCMProviderFeatures {
-	label: string;
-	contextKey?: string;
-	supportsOpen: boolean;
-	supportsOriginalResource: boolean;
+	hasQuickDiffProvider?: boolean;
+	count?: number;
+}
+
+export interface SCMGroupFeatures {
+	hideWhenEmpty?: boolean;
 }
 
 export type SCMRawResource = [
-	string /*uri*/,
-	string /*sourceUri*/,
+	number /*handle*/,
+	string /*resourceUri*/,
+	modes.Command /*command*/,
 	string[] /*icons: light, dark*/,
 	boolean /*strike through*/
 ];
 
-export type SCMRawResourceGroup = [
-	string /*uri*/,
-	string | undefined /*context key*/,
-	string /*label*/,
-	SCMRawResource[]
-];
-
 export abstract class MainThreadSCMShape {
-	$register(handle: number, features: SCMProviderFeatures): void { throw ni(); }
-	$unregister(handle: number): void { throw ni(); }
-	$onChange(handle: number, resources: SCMRawResourceGroup[], count: number | undefined, stateContextKey: string | undefined): void { throw ni(); }
+	$registerSourceControl(handle: number, id: string, label: string): void { throw ni(); }
+	$updateSourceControl(handle: number, features: SCMProviderFeatures): void { throw ni(); }
+	$unregisterSourceControl(handle: number): void { throw ni(); }
+
+	$registerGroup(sourceControlHandle: number, handle: number, id: string, label: string): void { throw ni(); }
+	$updateGroup(sourceControlHandle: number, handle: number, features: SCMGroupFeatures): void { throw ni(); }
+	$updateGroupResourceStates(sourceControlHandle: number, groupHandle: number, resources: SCMRawResource[]): void { throw ni(); }
+	$unregisterGroup(sourceControlHandle: number, handle: number): void { throw ni(); }
+
 	$setInputBoxValue(value: string): void { throw ni(); }
 }
 
@@ -418,9 +420,8 @@ export abstract class ExtHostTerminalServiceShape {
 }
 
 export abstract class ExtHostSCMShape {
-	$open(handle: number, uri: string): TPromise<void> { throw ni(); }
-	$getOriginalResource(handle: number, uri: URI): TPromise<URI> { throw ni(); }
-	$onActiveProviderChange(handle: number): TPromise<void> { throw ni(); }
+	$provideOriginalResource(sourceControlHandle: number, uri: URI): TPromise<URI> { throw ni(); }
+	$onActiveSourceControlChange(sourceControlHandle: number): TPromise<void> { throw ni(); }
 	$onInputBoxValueChange(value: string): TPromise<void> { throw ni(); }
 	$onInputBoxAcceptChanges(): TPromise<void> { throw ni(); }
 }
