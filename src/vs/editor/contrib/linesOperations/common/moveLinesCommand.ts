@@ -23,11 +23,11 @@ export class MoveLinesCommand implements ICommand {
 		this._isMovingDown = isMovingDown;
 	}
 
-	public static getBeginWhitespaces(string: string){
-		return string.match(/^\s*/)[0] || "";
+	public static getBeginWhitespaces(string: string) {
+		return string.match(/^\s*/)[0] || '';
 	}
 
-	public static replaceLine(model: ITokenizedModel, builder: IEditOperationBuilder, lineNumber: number, newText: string){
+	public static replaceLine(model: ITokenizedModel, builder: IEditOperationBuilder, lineNumber: number, newText: string) {
 		builder.addEditOperation(new Range(
 			lineNumber, 1,
 			lineNumber, model.getLineMaxColumn(lineNumber)
@@ -78,14 +78,14 @@ export class MoveLinesCommand implements ICommand {
 				movingLineText: string;
 
 			const options = model.getOptions();
-			let oneIndent = "	";
+			let oneIndent = '	';
 			if (options.insertSpaces) {
-				oneIndent = Array(options.tabSize).join(" ");
+				oneIndent = Array(options.tabSize).join(' ');
 			}
 
 			let bracketsSupport = LanguageConfigurationRegistry.getBracketsSupport(model.getLanguageIdentifier().id);
 			let brackets = [];
-			if(bracketsSupport){
+			if (bracketsSupport) {
 				brackets = bracketsSupport.brackets;
 			}
 
@@ -98,19 +98,19 @@ export class MoveLinesCommand implements ICommand {
 				const lastLineWhitespaces = MoveLinesCommand.getBeginWhitespaces(model.getLineContent(s.endLineNumber));
 
 				// If selection have the same indentation for the first and last line, apply an auto indent to the selected block
-				if(firstLineWhitespaces.length === lastLineWhitespaces.length && movingLineText.length > 0){
-					for(var lineNumber = s.startLineNumber; lineNumber <= s.endLineNumber; ++lineNumber){
+				if (firstLineWhitespaces.length === lastLineWhitespaces.length && movingLineText.length > 0) {
+					for (var lineNumber = s.startLineNumber; lineNumber <= s.endLineNumber; ++lineNumber) {
 						// If line end with language open bracket, use indentation of the next next line
 						let newMovingWhitespaces = movingLineWhitespaces;
 
-						const allOpenbrackets = Strings.escapeRegExpCharacters(brackets.map(x=>x.open).reduce((x, y)=>x + y, ""));
+						const allOpenbrackets = Strings.escapeRegExpCharacters(brackets.map(x => x.open).reduce((x, y) => x + y, ''));
 
-						if( movingLineText.match(new RegExp("[" + allOpenbrackets + "]\\s*$"))){
+						if (movingLineText.match(new RegExp('[' + allOpenbrackets + ']\\s*$'))) {
 							newMovingWhitespaces += oneIndent;
 						}
 						// Replace the current line whitespaces with the moving line whitespaces
 						const lineText = model.getLineContent(lineNumber).replace(
-							new RegExp("^" + firstLineWhitespaces), newMovingWhitespaces
+							new RegExp('^' + firstLineWhitespaces), newMovingWhitespaces
 						);
 						MoveLinesCommand.replaceLine(model, builder, lineNumber, lineText);
 					}
@@ -130,18 +130,18 @@ export class MoveLinesCommand implements ICommand {
 				const lastLineWhitespaces = MoveLinesCommand.getBeginWhitespaces(model.getLineContent(s.endLineNumber));
 
 				// If selection have the same indentation for the first and last line, apply an auto indent to the selected block
-				if(firstLineWhitespaces.length === lastLineWhitespaces.length && movingLineText.length > 0){
-					for(var lineNumber = s.startLineNumber; lineNumber <= s.endLineNumber; ++lineNumber){
+				if (firstLineWhitespaces.length === lastLineWhitespaces.length && movingLineText.length > 0) {
+					for (var lineNumber = s.startLineNumber; lineNumber <= s.endLineNumber; ++lineNumber) {
 						// If line start with language closing bracket, use indentation of the next next line
-						const allClosingbrackets = Strings.escapeRegExpCharacters(brackets.map(x=>x.close).reduce((x, y) => x + y, ""));
+						const allClosingbrackets = Strings.escapeRegExpCharacters(brackets.map(x => x.close).reduce((x, y) => x + y, ''));
 						let newMovingWhitespaces = movingLineWhitespaces;
 
-						if( movingLineText.match(new RegExp("^\\s*[" + allClosingbrackets + "]"))){
+						if (movingLineText.match(new RegExp('^\\s*[' + allClosingbrackets + ']'))) {
 							newMovingWhitespaces += oneIndent;
 						}
 						// Replace the current line whitespaces with the moving line whitespaces
 						const lineText = model.getLineContent(lineNumber).replace(
-							new RegExp("^" + firstLineWhitespaces), newMovingWhitespaces
+							new RegExp('^' + firstLineWhitespaces), newMovingWhitespaces
 						);
 						MoveLinesCommand.replaceLine(model, builder, lineNumber, lineText);
 					}

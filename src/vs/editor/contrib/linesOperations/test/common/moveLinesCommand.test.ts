@@ -9,13 +9,12 @@ import { MoveLinesCommand } from 'vs/editor/contrib/linesOperations/common/moveL
 import { testCommand } from 'vs/editor/test/common/commands/commandTestUtils';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { LanguageIdentifier, LanguageId } from 'vs/editor/common/modes';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 
-const openBlockChars = ["{", "(", "["];
-const closingBlockChars = ["}", ")", "]"];
-const indentationType = ["	", "  ", "    "];
+const openBlockChars = ['{', '(', '['];
+const closingBlockChars = ['}', ')', ']'];
+const indentationType = ['	', '  ', '    '];
 class BracketMode extends MockMode {
 	private static _id = new LanguageIdentifier('bracketMode', 3);
 
@@ -47,34 +46,34 @@ function getOptionWithIndentation(indentation: string): editorCommon.ITextModelC
 	options.tabSize = indentation.length + 1;
 	options.insertSpaces = true;
 
-	if(indentation.match(/\t/)){
+	if (indentation.match(/\t/)) {
 		options.insertSpaces = false;
 	}
 
 	return options;
 }
 
-function testMoveLinesUpCommandWithAndWithoutPreindentation(oneIndentation: string, lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection){
+function testMoveLinesUpCommandWithAndWithoutPreindentation(oneIndentation: string, lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection) {
 	const options = getOptionWithIndentation(oneIndentation);
 
 	testMoveLinesUpCommand(lines, selection, expectedLines, expectedSelection, options);
 	testMoveLinesUpCommand(
-		lines.map((x: string) => {return oneIndentation + oneIndentation + x;}),
+		lines.map((x: string) => { return oneIndentation + oneIndentation + x; }),
 		selection,
-		expectedLines.map((x: string) => {return oneIndentation + oneIndentation + x;}),
+		expectedLines.map((x: string) => { return oneIndentation + oneIndentation + x; }),
 		expectedSelection,
 		options
 	);
 }
 
-function testMoveLinesDownCommandWithAndWithoutPreindentation(oneIndentation: string, lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection){
+function testMoveLinesDownCommandWithAndWithoutPreindentation(oneIndentation: string, lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection) {
 	const options = getOptionWithIndentation(oneIndentation);
 
 	testMoveLinesDownCommand(lines, selection, expectedLines, expectedSelection, options);
 	testMoveLinesDownCommand(
-		lines.map((x: string) => {return oneIndentation + oneIndentation + x;}),
+		lines.map((x: string) => { return oneIndentation + oneIndentation + x; }),
 		selection,
-		expectedLines.map((x: string) => {return oneIndentation + oneIndentation + x;}),
+		expectedLines.map((x: string) => { return oneIndentation + oneIndentation + x; }),
 		expectedSelection,
 		options
 	);
@@ -344,13 +343,13 @@ suite('Editor Contrib - Move Lines Command', () => {
 						'open block',
 						indentation + 'let a = 10',
 						indentation + 'line to move',
-						closingBracket +'end block',
+						closingBracket + 'end block',
 					],
 					new Selection(3, 1, 3, 1),
 					[
 						'open block',
 						indentation + 'let a = 10',
-						closingBracket +'end block',
+						closingBracket + 'end block',
 						'line to move',
 					],
 					new Selection(4, 1, 4, 1)
@@ -389,12 +388,12 @@ suite('Editor Contrib - Move Lines Command', () => {
 					[
 						'open block',
 						indentation + 'line to move',
-						closingBracket +'end block',
+						closingBracket + 'end block',
 					],
 					new Selection(2, 1, 2, 1),
 					[
 						'open block',
-						closingBracket +'end block',
+						closingBracket + 'end block',
 						'line to move',
 					],
 					new Selection(3, 1, 3, 1)
@@ -411,7 +410,7 @@ suite('Editor Contrib - Move Lines Command', () => {
 					[
 						'open block',
 						indentation + 'let a = 10',
-						closingBracket +'end block',
+						closingBracket + 'end block',
 						'line to move',
 					],
 					new Selection(4, 1, 4, 1),
@@ -419,7 +418,7 @@ suite('Editor Contrib - Move Lines Command', () => {
 						'open block',
 						indentation + 'let a = 10',
 						indentation + 'line to move',
-						closingBracket +'end block',
+						closingBracket + 'end block',
 					],
 					new Selection(3, 1, 3, 1)
 				);
@@ -458,7 +457,7 @@ suite('Editor Contrib - Move Lines Command', () => {
 					indentation,
 					[
 						'open block',
-						closingBracket +'end block',
+						closingBracket + 'end block',
 						'line to move',
 					],
 					new Selection(3, 1, 3, 1),
